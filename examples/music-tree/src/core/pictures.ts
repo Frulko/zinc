@@ -1,15 +1,15 @@
 // ============================================================================
-// core/pictures.ts — Cache d'images réseau, décodage progressif et flou
+// core/pictures.ts — Network picture cache, progressive decoding and blur
 // ============================================================================
-// Sur une tablette modeste (comme le HP TouchPad sous webOS), décoder une image
-// JPEG/PNG de 300 pixels prend 15 à 40 ms sur le processeur.
-// Pour ne jamais bloquer une animation ou un défilement :
-// 1. Les images demandées sont téléchargées en arrière-plan (4 maximum en parallèle).
-// 2. Les octets reçus sont placés dans une file d'attente (`readyQueue`).
-// 3. `decodeNextPicture()` ne décode qu'une seule image par frame, et uniquement
-//    lorsque aucun doigt ne touche l'écran et qu'aucune liste ne défile.
-// 4. La mémoire est plafonnée à `MAX_CACHED_PICTURES` (60 images max, 400 px de côté max)
-//    avec éviction LRU (l'image la moins récemment dessinée est libérée en premier).
+// On a modest tablet (like the HP TouchPad on webOS), decoding a
+// 300-pixel JPEG/PNG picture takes 15 to 40 ms on the CPU.
+// To never block an animation or a scroll:
+// 1. Requested pictures are downloaded in the background (4 at most in parallel).
+// 2. The received bytes are put in a queue (`readyQueue`).
+// 3. `decodeNextPicture()` decodes only one picture per frame, and only
+//    when no finger touches the screen and no list is scrolling.
+// 4. Memory is capped at `MAX_CACHED_PICTURES` (60 pictures max, 400 px per side max)
+//    with LRU eviction (the least recently drawn picture is freed first).
 
 import {
   drawImage,
@@ -32,25 +32,25 @@ import {
 } from '../constants';
 import { uiState } from './input';
 
-/** Associe chaque URL à l'identifiant d'image GPU (`-1` en cas d'erreur de chargement). */
+/** Maps each URL to its GPU picture id (`-1` on a load error). */
 const cachedPicturesByUrl = new Map<string, i32>();
 
-/** URLs dont le téléchargement est actuellement en cours ou déjà lancé. */
+/** URLs whose download is in progress or already started. */
 const loadingUrls = new Map<string, boolean>();
 
-/** Numéro de frame du dernier affichage de chaque URL (pour l'éviction LRU). */
+/** Frame number of the last display of each URL (for LRU eviction). */
 const lastDrawnFrameByUrl = new Map<string, number>();
 
-/** Horodatage (`performance.now()`) du décodage de chaque image (pour le fondu d'entrée). */
+/** Timestamp (`performance.now()`) of each picture's decoding (for the fade-in). */
 const decodedTimestampByUrl = new Map<string, number>();
 
-/** File d'attente des URLs téléchargées prêtes à être décodées (prioritaires : visibles à l'écran). */
+/** Queue of downloaded URLs ready to decode (priority: visible on screen). */
 const priorityDecodeQueue: string[] = [];
 
-/** File d'attente secondaire des URLs préchargées en arrière-plan. */
+/** Secondary queue of URLs preloaded in the background. */
 const backgroundDecodeQueue: string[] = [];
 
-/** Octets bruts téléchargés en attente de décodage. */
+/** Raw downloaded bytes waiting to be decoded. */
 const pendingBytesByUrl = new Map<string, u8[]>();
 
 let currentFrameTick: number = 0;
@@ -58,19 +58,19 @@ let activeDownloadsCount: i32 = 0;
 let totalDecodedCount: number = 0;
 let totalDecodeDurationMs: number = 0;
 
-/** Incrémente l'horloge interne du cache d'images (appelé une fois par frame). */
+/** Advances the picture cache's internal clock (called once per frame). */
 export function tickPicturesClock(): void {
   currentFrameTick++;
 }
 
-/** Retourne `[nombre d'images décodées, temps cumulé en ms]` pour le profilage. */
+/** Returns `[number of pictures decoded, cumulated time in ms]` for profiling. */
 export function getPictureDecodeStats(): number[] {
   return [totalDecodedCount, totalDecodeDurationMs];
 }
 
 /**
- * Retourne l'identifiant de l'image pour `url`, ou `-1` si elle n'est pas encore prête.
- * Lance automatiquement son téléchargement lors de la première demande.
+ * Returns the picture id for `url`, or `-1` if it is not ready yet.
+ * Starts its download automatically on the first request.
  */
 export function getPicture(url: string): i32 {
   if (url === '') return -1;
@@ -91,8 +91,8 @@ export function isPictureOnItsWay(url: string): boolean {
 }
 
 /**
- * Précharge une image en arrière-plan pendant que l'application est au repos.
- * Retourne `false` s'il n'y a pas de créneau libre pour le moment.
+ * Preloads a picture in the background while the app is idle.
+ * Returns `false` if there is no free slot for now.
  */
 export function prefetchPicture(url: string): boolean {
   if (url === '' || cachedPicturesByUrl.get(url) !== undefined || loadingUrls.get(url) !== undefined) {
@@ -106,7 +106,7 @@ export function prefetchPicture(url: string): boolean {
   return true;
 }
 
-/** Télécharge les octets d'une image sur le réseau et les place dans la file de décodage. */
+/** Downloads a picture's bytes over the network and puts them in the decoding queue. */
 async function downloadPictureBytes(url: string, isVisibleOnScreen: boolean): Promise<void> {
   loadingUrls.set(url, true);
   activeDownloadsCount++;
@@ -132,8 +132,8 @@ async function downloadPictureBytes(url: string, isVisibleOnScreen: boolean): Pr
 }
 
 /**
- * Décode au plus une image en attente par appel.
- * Retourne `true` si une nouvelle image est prête (ce qui déclenche un rafraîchissement de l'écran).
+ * Decodes at most one pending picture per call.
+ * Returns `true` if a new picture is ready (which triggers a screen refresh).
  */
 export function decodeNextPicture(): boolean {
   const nextUrl =
@@ -152,7 +152,7 @@ export function decodeNextPicture(): boolean {
   totalDecodeDurationMs += performance.now() - startTime;
   totalDecodedCount++;
 
-  // Éviction LRU si le cache a atteint sa capacité maximale
+  // LRU eviction if the cache has reached its maximum capacity
   if (cachedPicturesByUrl.size >= MAX_CACHED_PICTURES) {
     let oldestUrl = '';
     let oldestTick = currentFrameTick + 1;
@@ -181,8 +181,8 @@ export function decodeNextPicture(): boolean {
 }
 
 /**
- * Si l'image décodée dépasse `MAX_PICTURE_DIMENSION` (400 px), la redessine dans une
- * texture plus petite en conservant ses proportions et détruit la grande texture.
+ * If the decoded picture exceeds `MAX_PICTURE_DIMENSION` (400 px), redraws it into a
+ * smaller texture keeping its proportions and destroys the large texture.
  */
 function downscaleIfNeeded(sourceImage: i32): i32 {
   if (sourceImage < 0) return sourceImage;
@@ -205,7 +205,7 @@ function downscaleIfNeeded(sourceImage: i32): i32 {
 }
 
 /**
- * Dessine une image contenue dans la boîte `(x, y, width, height)` en respectant ses proportions (`object-fit: contain`).
+ * Draws a picture inside the box `(x, y, width, height)` keeping its proportions (`object-fit: contain`).
  */
 export function drawPictureContained(
   imageId: i32,
@@ -234,7 +234,7 @@ export function drawPictureContained(
 }
 
 /**
- * Calcule l'opacité actuelle (0..255) du fondu d'apparition d'une image récemment décodée.
+ * Computes the current opacity (0..255) of the fade-in of a recently decoded picture.
  */
 export function getPictureFadeAlpha(url: string): i32 {
   const bornTimestamp = decodedTimestampByUrl.get(url);
@@ -250,15 +250,15 @@ export function getPictureFadeAlpha(url: string): i32 {
 }
 
 // ----------------------------------------------------------------------------
-// Fond atmosphérique flouté (Backdrop du lecteur)
+// Blurred atmospheric background (the player's backdrop)
 // ----------------------------------------------------------------------------
 let cachedBlurUrl: string = '';
 let cachedBlurTexture: i32 = -1;
 
 /**
- * Dessine une copie très adoucie et assombrie de la pochette en plein écran.
- * L'astuce matérielle consiste à réduire l'image dans une texture 12x12 puis à l'étirer
- * avec l'échantillonnage bilinéaire du GPU.
+ * Draws a very softened and darkened copy of the cover full screen.
+ * The hardware trick is to shrink the picture into a 12x12 texture then stretch it
+ * with the GPU's bilinear sampling.
  */
 export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeight: number): boolean {
   const sourceImage = getPicture(url);
@@ -277,7 +277,7 @@ export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeig
     cachedBlurUrl = url;
   }
 
-  // On ignore les texels du bord (1..10) pour éviter tout contour sombre
+  // Skip the edge texels (1..10) to avoid any dark outline
   drawImageRect(
     cachedBlurTexture,
     1,

@@ -1,7 +1,7 @@
 // ============================================================================
-// pages/settings/city-search-page.ts — Sous-page de recherche de ville météo
+// pages/settings/city-search-page.ts — Weather city search sub-page
 // ============================================================================
-// Construite avec `PageHeaderBarNode`, `SearchFieldNode` et `VirtualKeyboardNode`.
+// Built with `PageHeaderBarNode`, `SearchFieldNode` and `VirtualKeyboardNode`.
 
 import { rrect, textWidth, fontAscent } from 'zinc:gfx';
 import {

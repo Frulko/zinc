@@ -1,9 +1,9 @@
 // ============================================================================
-// components/volume-popover.ts — Popover des volumes (construit en arbre Flexbox)
+// components/volume-popover.ts — Volumes popover (built as a Flexbox tree)
 // ============================================================================
-// S'ouvre au-dessus du curseur de volume du lecteur lorsqu'un groupe comporte
-// plusieurs enceintes. Utilise une `CardBox('column')` Flexbox où chaque ligne
-// empile une `HBox` (nom + `SpacerNode` + valeur) et un `SliderNode` étiré.
+// Opens above the player's volume slider when a group has
+// several speakers. Uses a Flexbox `CardBox('column')` where each row
+// stacks an `HBox` (name + `SpacerNode` + value) and a stretched `SliderNode`.
 
 import { shadow } from 'zinc:gfx';
 import { Group, Speaker } from 'zinc:sonos';
@@ -31,7 +31,7 @@ import {
 } from '../state';
 
 /**
- * Une ligne de volume (titre + pourcentage + curseur) à l'intérieur du popover.
+ * A volume row (title + percentage + slider) inside the popover.
  */
 class VolumePopoverRowNode extends VBox {
   readonly titleLabel: LabelNode;
@@ -96,7 +96,7 @@ export class VolumePopoverNode extends DisplayObject {
     const group = appState.activeGroup as Group;
     const totalRowsCount = group.members.length + 1;
 
-    // Ajuste le nombre de lignes enfants dans la CardBox
+    // Adjust the number of child rows in the CardBox
     while (this.rowNodes.length < totalRowsCount) {
       const newRow = new VolumePopoverRowNode(this.rowNodes.length as i32);
       this.rowNodes.push(newRow);
@@ -147,7 +147,7 @@ export class VolumePopoverNode extends DisplayObject {
       appState.isVolumePopoverOpen = false;
     });
 
-    // Ombre portée sous la CardBox et zone tactile pour maintenir le popover ouvert
+    // Drop shadow under the CardBox and a touch zone to keep the popover open
     shadow(
       this.cardBox.x,
       this.cardBox.y + 10,

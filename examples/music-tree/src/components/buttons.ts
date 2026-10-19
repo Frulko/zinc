@@ -1,8 +1,8 @@
 // ============================================================================
-// components/buttons.ts — Boutons : icône ronde, pilule et contrôle segmenté
+// components/buttons.ts — Buttons: round icon, pill and segmented control
 // ============================================================================
-// Chaque fonction dessine le contrôle dans le repère du `DisplayObject` courant
-// et enregistre automatiquement sa zone tactile (`registerTapZone`).
+// Each function draws the control in the frame of the current `DisplayObject`
+// and automatically registers its touch zone (`registerTapZone`).
 
 import { rrect, drawText, textWidth, fontAscent } from 'zinc:gfx';
 import {
@@ -15,7 +15,7 @@ import { registerTapZone, isZonePressed } from '../core/input';
 import { drawGlyph, drawCenteredText } from './primitives';
 
 /**
- * Dessine un bouton circulaire contenant une icône Lucide centrée en `(centerX, centerY)`.
+ * Draws a round button holding a Lucide icon centred at `(centerX, centerY)`.
  */
 export function drawIconButton(
   zoneId: string,
@@ -48,8 +48,8 @@ export function drawIconButton(
 }
 
 /**
- * Dessine un bouton en forme de capsule (pilule) avec un texte et une icône optionnelle.
- * Retourne la largeur totale du bouton dessiné.
+ * Draws a capsule (pill) shaped button with a text and an optional icon.
+ * Returns the total width of the button drawn.
  */
 export function drawPillButton(
   zoneId: string,
@@ -85,8 +85,8 @@ export function drawPillButton(
 }
 
 /**
- * Dessine un contrôle segmenté de style iOS (barre d'onglets).
- * Retourne la largeur totale du contrôle.
+ * Draws an iOS style segmented control (tab bar).
+ * Returns the total width of the control.
  */
 export function drawSegmentedControl(
   zoneIdPrefix: string,

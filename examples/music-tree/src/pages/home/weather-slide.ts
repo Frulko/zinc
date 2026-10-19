@@ -1,5 +1,5 @@
 // ============================================================================
-// pages/home/weather-slide.ts — Slide 2 : Météo actuelle, 24 h et 7 jours
+// pages/home/weather-slide.ts — Slide 2: Current weather, 24 h and 7 days
 // ============================================================================
 
 import { rrect, gradient, stroke, polygon, drawText, textWidth, fontAscent } from 'zinc:gfx';
@@ -43,7 +43,7 @@ function drawVerticallyCenteredText(
 }
 
 /**
- * Nœud de l'arbre d'affichage pour le slide Météo du carrousel.
+ * Display-tree node for the carousel's Weather slide.
  */
 export class WeatherSlideNode extends DisplayObject {
   constructor() {
@@ -78,7 +78,7 @@ export class WeatherSlideNode extends DisplayObject {
       CARD_INNER_PADDING -
       8;
 
-    // ---- Carte gauche : Conditions actuelles ----
+    // ---- Left card: Current conditions ----
     const leftCardX = OUTER_MARGIN;
     drawTranslucentWeatherCard(leftCardX, topRowY, halfCardWidth, topCardHeight);
     drawLabel(
@@ -138,7 +138,7 @@ export class WeatherSlideNode extends DisplayObject {
       200
     );
 
-    // ---- Carte droite : Prévisions sur 7 jours ----
+    // ---- Right card: 7-day forecast ----
     const rightCardX = OUTER_MARGIN + halfCardWidth + CARD_GAP;
     drawTranslucentWeatherCard(rightCardX, topRowY, halfCardWidth, topCardHeight);
 
@@ -219,7 +219,7 @@ export class WeatherSlideNode extends DisplayObject {
       );
     }
 
-    // ---- Carte inférieure : Courbe des températures et pluie sur 24 heures ----
+    // ---- Bottom card: Temperature curve and rain over 24 hours ----
     const bottomCardY = topRowY + topCardHeight + CARD_GAP;
     const bottomCardHeight = viewHeight - bottomCardY - OUTER_MARGIN + 8;
     drawTranslucentWeatherCard(

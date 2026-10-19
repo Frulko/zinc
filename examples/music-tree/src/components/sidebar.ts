@@ -1,9 +1,9 @@
 // ============================================================================
-// components/sidebar.ts — Barre latérale de navigation et mini-lecteur
+// components/sidebar.ts — Navigation sidebar and mini player
 // ============================================================================
-// Affiche les 5 rubriques principales (À l'écoute, Radios, Spotify, Enceintes,
-// Réglages), le sélecteur de pièce contrôlée ainsi que le mini-lecteur lorsque
-// l'utilisateur consulte une autre page que le lecteur principal.
+// Shows the 5 main sections (À l'écoute, Radios, Spotify, Enceintes,
+// Réglages), the selector of the controlled room and the mini player when
+// the user is on a page other than the main player.
 
 import { rect, rrect, drawText } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
@@ -48,7 +48,7 @@ const NAVIGATION_ICONS: string[] = [
 ];
 
 /**
- * Dessine la barre latérale sur une hauteur `viewHeight`.
+ * Draws the sidebar over a height `viewHeight`.
  */
 export function drawSidebarContent(viewWidth: number, viewHeight: number): void {
   const sidebarWidth = appState.sidebarWidth;
@@ -109,7 +109,7 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
   if (appState.activeGroup === null) return;
   const activeGroup = appState.activeGroup as Group;
 
-  // Encart de la pièce contrôlée (contexte de toutes les commandes)
+  // Panel of the controlled room (context of all the commands)
   const groupBoxY = viewHeight - (isOverPlayerBackdrop ? 92 : 214);
   if (isOverPlayerBackdrop) {
     rrect(12, groupBoxY, sidebarWidth - 24, 64, 12, 0xffffff, isZonePressed('side/room') ? 50 : 25);
@@ -146,7 +146,7 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
 
   if (isOverPlayerBackdrop) return;
 
-  // Mini-lecteur affiché en bas de la barre latérale sur les autres pages
+  // Mini player shown at the bottom of the sidebar on the other pages
   const miniPlayerY = viewHeight - 138;
   rrect(12, miniPlayerY, sidebarWidth - 24, 122, 12, COLOR_CARD, 255);
   const coverTitle =
@@ -195,7 +195,7 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
 }
 
 /**
- * Nœud de l'arbre d'affichage pour la barre latérale (sur les pages hors carrousel).
+ * Display tree node for the sidebar (on the pages outside the carousel).
  */
 export class SidebarNode extends DisplayObject {
   constructor() {

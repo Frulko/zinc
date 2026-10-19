@@ -1,17 +1,17 @@
 // ============================================================================
-// services/weather-service.ts — Service météo Open-Meteo et géocodage
+// services/weather-service.ts — Open-Meteo weather service and geocoding
 // ============================================================================
-// Récupère les prévisions météo (actuelles, horaires sur 24h et quotidiennes
-// sur 7 jours) auprès d'Open-Meteo (gratuit, sans clé API), ainsi que la
-// recherche de villes par nom. La météo est rafraîchie toutes les 15 minutes
-// lorsque l'écran est allumé.
+// Fetches the weather forecast (current, hourly over 24h and daily
+// over 7 days) from Open-Meteo (free, no API key), and the
+// search for cities by name. The weather is refreshed every 15 minutes
+// while the screen is on.
 
 import { env } from 'zinc:sys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uiState } from '../core/input';
 
 /**
- * Données météorologiques complètes pour la ville choisie.
+ * Complete weather data for the chosen city.
  */
 export class WeatherForecast {
   isLoaded: boolean = false;
@@ -34,7 +34,7 @@ export class WeatherForecast {
 }
 
 /**
- * Lieu géographique retourné par l'autocomplétion de villes Open-Meteo.
+ * Place returned by the Open-Meteo city autocomplete.
  */
 export class GeocodedPlace {
   name: string = '';
@@ -60,17 +60,17 @@ const FORECAST_HOST =
 const GEOCODING_HOST =
   CUSTOM_METEO_BASE_URL !== '' ? CUSTOM_METEO_BASE_URL : 'https://geocoding-api.open-meteo.com';
 
-/** Retourne les dernières prévisions météo chargées. */
+/** Returns the latest weather forecast loaded. */
 export function getCurrentWeatherForecast(): WeatherForecast {
   return currentForecast;
 }
 
-/** Retourne le message d'erreur éventuel du service météo. */
+/** Returns the weather service's error message, if any. */
 export function getWeatherErrorMessage(): string {
   return forecastErrorMessage;
 }
 
-/** Définit la ville de la météo et déclenche un rafraîchissement immédiat. */
+/** Sets the weather's city and triggers an immediate refresh. */
 export function setWeatherLocation(latitude: number, longitude: number, cityName: string): void {
   currentLatitude = latitude;
   currentLongitude = longitude;
@@ -79,13 +79,13 @@ export function setWeatherLocation(latitude: number, longitude: number, cityName
   forecastAgeSeconds = 1e9;
 }
 
-/** Retourne le nom de la ville actuelle ('' si pas encore déterminée). */
+/** Returns the name of the current city ('' when not determined yet). */
 export function getWeatherCityName(): string {
   return currentCityName;
 }
 
 // ----------------------------------------------------------------------------
-// Recherche de villes par nom (géocodage avec anti-rebond de 300 ms)
+// Search for cities by name (geocoding with a 300 ms debounce)
 // ----------------------------------------------------------------------------
 let geocodedPlacesList: GeocodedPlace[] = [];
 let geocodingSearchStatus: string = '';
@@ -102,8 +102,8 @@ export function getPlaceSearchStatus(): string {
 }
 
 /**
- * Programme une recherche de ville 300 ms après la dernière frappe clavier.
- * Open-Meteo répond à partir de 2 caractères.
+ * Schedules a city search 300 ms after the last keystroke.
+ * Open-Meteo answers from 2 characters.
  */
 export function triggerPlaceSearch(typedName: string): void {
   pendingSearchQuery = typedName.trim();
@@ -119,8 +119,8 @@ export function triggerPlaceSearch(typedName: string): void {
 }
 
 /**
- * Appelé à chaque frame pour gérer le rafraîchissement périodique (15 min)
- * et le délai d'anti-rebond de la recherche de ville.
+ * Called every frame to handle the periodic refresh (15 min)
+ * and the debounce delay of the city search.
  */
 export function tickWeatherService(deltaSeconds: number, isScreenAwake: boolean): void {
   forecastAgeSeconds += deltaSeconds;
@@ -176,7 +176,7 @@ async function fetchGeocodedPlaces(queryName: string): Promise<void> {
   uiState.dirty = true;
 }
 
-/** Détermine la position approximative par l'adresse IP lors du tout premier lancement. */
+/** Finds the approximate position from the IP address on the very first launch. */
 async function resolveLocationFromIp(): Promise<void> {
   const savedPlaceJson = await AsyncStorage.getItem('weather.place');
   if (savedPlaceJson !== null) {
@@ -199,7 +199,7 @@ async function resolveLocationFromIp(): Promise<void> {
   );
 }
 
-/** Télécharge les prévisions complètes auprès d'Open-Meteo. */
+/** Downloads the full forecast from Open-Meteo. */
 async function refreshWeatherForecast(): Promise<void> {
   isFetchingForecast = true;
   try {
@@ -270,14 +270,14 @@ async function refreshWeatherForecast(): Promise<void> {
     }
   } catch (error) {
     forecastErrorMessage = 'Météo indisponible';
-    forecastAgeSeconds = 600; // Nouvelle tentative dans 5 minutes
+    forecastAgeSeconds = 600; // Retry in 5 minutes
   }
   isFetchingForecast = false;
   uiState.dirty = true;
 }
 
 // ----------------------------------------------------------------------------
-// Traduction des codes météo OMM (WMO) en libellés, icônes et couleurs de ciel
+// Translation of WMO weather codes into labels, icons and sky colors
 // ----------------------------------------------------------------------------
 
 export function getWeatherConditionLabel(weatherCode: i32): string {

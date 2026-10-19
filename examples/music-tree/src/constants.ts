@@ -1,13 +1,13 @@
 // ============================================================================
-// constants.ts — Constantes globales de l'application Musique
+// constants.ts — Global constants of the Music application
 // ============================================================================
-// Ce fichier rassemble toutes les couleurs (palette sombre inspirée d'iOS),
-// les dimensions de mise en page, les ports réseau et les identifiants des
-// pages et des écrans du carrousel. Aucune valeur magique ne doit être
-// codée en dur ailleurs dans l'application.
+// This file gathers all the colors (dark palette inspired by iOS),
+// the layout dimensions, the network ports and the identifiers of the
+// pages and carousel slides. No magic value should be
+// hard-coded elsewhere in the application.
 
 // ----------------------------------------------------------------------------
-// Palette de couleurs (format hexadécimal 0xRRGGBB)
+// Color palette (hexadecimal format 0xRRGGBB)
 // ----------------------------------------------------------------------------
 export const COLOR_BACKGROUND: u32 = 0x000000;
 export const COLOR_CARD: u32 = 0x1c1c1e;
@@ -19,13 +19,13 @@ export const COLOR_TEXT_PRIMARY: u32 = 0xffffff;
 export const COLOR_TEXT_SECONDARY: u32 = 0x98989f;
 export const COLOR_TEXT_TERTIARY: u32 = 0x636366;
 
-export const COLOR_ACCENT: u32 = 0xfa2d48;   // Rouge Apple Music
-export const COLOR_GREEN: u32 = 0x1ed760;    // Vert Spotify / lecture active
-export const COLOR_BLUE: u32 = 0x0a84ff;     // Bleu iOS
-export const COLOR_ORANGE: u32 = 0xff9f0a;   // Orange aiguille des secondes
-export const COLOR_DANGER: u32 = 0xff453a;   // Rouge suppression / batterie faible
+export const COLOR_ACCENT: u32 = 0xfa2d48;   // Apple Music red
+export const COLOR_GREEN: u32 = 0x1ed760;    // Spotify green / active playback
+export const COLOR_BLUE: u32 = 0x0a84ff;     // iOS blue
+export const COLOR_ORANGE: u32 = 0xff9f0a;   // Orange of the seconds hand
+export const COLOR_DANGER: u32 = 0xff453a;   // Red for delete / low battery
 
-/** Couleurs des anneaux d'activité et des volumes par pièce. */
+/** Colors of the activity rings and the per-room volumes. */
 export const RING_COLORS: u32[] = [
   0xfa114f,
   0x92e82a,
@@ -34,7 +34,7 @@ export const RING_COLORS: u32[] = [
   0xbf5af2,
 ];
 
-/** Couleurs de dégradé pour les pochettes générées à partir des initiales. */
+/** Gradient colors for the covers generated from initials. */
 export const COVER_TINT_COLORS: u32[] = [
   0xfa2d48,
   0xff9f0a,
@@ -47,7 +47,7 @@ export const COVER_TINT_COLORS: u32[] = [
 ];
 
 // ----------------------------------------------------------------------------
-// Dimensions de mise en page (en pixels logiques, écran cible 1024x768)
+// Layout dimensions (in logical pixels, target screen 1024x768)
 // ----------------------------------------------------------------------------
 export const STATUS_BAR_HEIGHT = 30;
 export const SIDEBAR_WIDTH_DEFAULT = 240;
@@ -58,7 +58,7 @@ export const GRID_COLUMNS: i32 = 4;
 export const GRID_GAP = 24;
 
 // ----------------------------------------------------------------------------
-// Identifiants des pages principales (barre latérale)
+// Identifiers of the main pages (sidebar)
 // ----------------------------------------------------------------------------
 export const PAGE_NOW_PLAYING: i32 = 0;
 export const PAGE_RADIOS: i32 = 1;
@@ -68,7 +68,7 @@ export const PAGE_SETTINGS: i32 = 4;
 export const PAGE_COUNT: i32 = 5;
 
 // ----------------------------------------------------------------------------
-// Identifiants des écrans (slides) du carrousel de la page d'accueil
+// Identifiers of the slides of the home page carousel
 // ----------------------------------------------------------------------------
 export const SLIDE_PLAYER: i32 = 0;
 export const SLIDE_CLOCK: i32 = 1;
@@ -78,7 +78,7 @@ export const SLIDE_NOTIFICATIONS: i32 = 4;
 export const SLIDE_COUNT: i32 = 5;
 
 // ----------------------------------------------------------------------------
-// Identifiants des cadrans de l'horloge StandBy
+// Identifiers of the StandBy clock faces
 // ----------------------------------------------------------------------------
 export const CLOCK_FACE_ANALOG: i32 = 0;
 export const CLOCK_FACE_DIGITAL: i32 = 1;
@@ -88,7 +88,7 @@ export const CLOCK_FACE_ODOMETER: i32 = 4;
 export const CLOCK_FACE_COUNT: i32 = 5;
 
 // ----------------------------------------------------------------------------
-// Réseau, pagination et cache d'images
+// Network, pagination and image cache
 // ----------------------------------------------------------------------------
 export const SSDP_PORT: i32 = 37451;
 export const REMOTE_UDP_PORT: i32 = 7777;
@@ -100,7 +100,7 @@ export const MAX_PICTURE_DIMENSION = 400;
 export const PICTURE_FADE_DURATION_MS = 220;
 
 // ----------------------------------------------------------------------------
-// Textes de dates en français
+// Date texts in French
 // ----------------------------------------------------------------------------
 export const WEEKDAYS_SHORT: string[] = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 export const WEEKDAYS_CAPITALIZED: string[] = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'];

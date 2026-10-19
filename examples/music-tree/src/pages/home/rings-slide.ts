@@ -1,8 +1,8 @@
 // ============================================================================
-// pages/home/rings-slide.ts — Slide 3 : Anneaux de volume de toutes les pièces
+// pages/home/rings-slide.ts — Slide 3: Volume rings of all the rooms
 // ============================================================================
-// Représente le volume de chaque enceinte Sonos sous forme d'anneau concentrique
-// inspiré des anneaux d'activité de l'Apple Watch, avec son curseur à droite.
+// Shows the volume of each Sonos speaker as a concentric ring,
+// inspired by the Apple Watch activity rings, with its slider on the right.
 
 import { rrect, drawText, textWidth } from 'zinc:gfx';
 import { System, Speaker } from 'zinc:sonos';

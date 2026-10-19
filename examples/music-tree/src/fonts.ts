@@ -1,9 +1,9 @@
 // ============================================================================
-// fonts.ts — Polices de caractères de l'application Musique
+// fonts.ts — Fonts of the Music application
 // ============================================================================
-// Chaque police est créée une seule fois au démarrage via zinc:gfx.
-// Les noms explicites permettent de comprendre immédiatement le rôle
-// typographique de chaque style dans les composants et les pages.
+// Each font is created once at startup through zinc:gfx.
+// The explicit names show at once the typographic role
+// of each style in the components and the pages.
 
 import { font } from 'zinc:gfx';
 
@@ -19,7 +19,7 @@ export const FONT_TINY: i32 = font('sans', 13);
 export const FONT_TINY_BOLD: i32 = font('sans-bold', 12);
 export const FONT_KEYBOARD_KEY: i32 = font('sans', 24);
 
-// Polices de grande taille pour l'horloge StandBy, la météo et les notifications
+// Large fonts for the StandBy clock, the weather and the notifications
 export const FONT_CLOCK_HUGE: i32 = font('sans-bold', 250);
 export const FONT_ODOMETER_DIGIT: i32 = font('sans-bold', 170);
 export const FONT_WEATHER_TEMP: i32 = font('sans', 120);
@@ -29,7 +29,7 @@ export const FONT_STANDBY_NAME: i32 = font('sans-bold', 34);
 export const FONT_STANDBY_EXCERPT: i32 = font('sans', 32);
 export const FONT_STANDBY_META: i32 = font('sans', 22);
 
-/** Regroupement pratique des polices standards de l'interface. */
+/** Convenient grouping of the interface's standard fonts. */
 export const Fonts = {
   hero: FONT_HERO,
   title: FONT_TITLE,

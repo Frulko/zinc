@@ -1,10 +1,10 @@
 // ============================================================================
-// components/notification-overlay.ts — Superposition de notifications macOS
+// components/notification-overlay.ts — macOS notifications overlay
 // ============================================================================
-// Dessine au-dessus de toute l'application (y compris la barre d'état) :
-// 1. Soit l'animation plein écran inspirée d'iOS StandBy (sur l'écran d'horloge
-//    ou lorsque l'écran était en veille).
-// 2. Soit les cartes de bannières grises empilées en haut de l'écran.
+// Draws above the whole app (status bar included):
+// 1. Either the full-screen animation inspired by iOS StandBy (on the clock screen
+//    or when the screen was asleep).
+// 2. Or the grey banner cards stacked at the top of the screen.
 
 import { rrect, textWidth, fontAscent, drawImage, imageWidth, imageHeight } from 'zinc:gfx';
 import {
@@ -66,7 +66,7 @@ function interpolateLinear(start: number, end: number, factor: number): number {
 }
 
 /**
- * Dessine la superposition de notifications aux coordonnées écran `(0, 0, screenWidth, screenHeight)`.
+ * Draws the notifications overlay at the screen coordinates `(0, 0, screenWidth, screenHeight)`.
  */
 export function drawNotificationOverlayLayer(
   screenWidth: number,

@@ -1,34 +1,34 @@
 // ============================================================================
-// services/config.ts — Lecture et persistance de config.json
+// services/config.ts — Reading and persisting config.json
 // ============================================================================
 
 import { exists, readText, writeText } from 'zinc:fs';
 
 /**
- * Réglages persistants stockés dans `config.json` à côté de l'application.
+ * Persistent settings stored in `config.json` next to the application.
  */
 export class AppConfig {
-  /** Délai d'inactivité avant extinction de l'écran (en secondes ; 0 = jamais). */
+  /** Idle delay before the screen turns off (in seconds; 0 = never). */
   sleepDelaySeconds: number = 120;
 
-  /** Identifiant UUID du groupe ou de l'enceinte Sonos contrôlé par défaut. */
+  /** UUID of the Sonos group or speaker controlled by default. */
   selectedGroupUuid: string = '';
 
-  /** Adresse IP de la dernière enceinte Sonos découverte (accélère le démarrage). */
+  /** IP address of the last Sonos speaker found (speeds up startup). */
   sonosSeedIp: string = '';
 
-  /** Numéro de compte du service Spotify enregistré dans les enceintes Sonos. */
+  /** Account number of the Spotify service registered in the Sonos speakers. */
   spotifyAccountSerial: i32 = 0;
 
-  /** Mode plein écran du lecteur (masque la barre latérale sur la page À l'écoute). */
+  /** Full-screen player mode (hides the sidebar on the Now Playing page). */
   fullScreenPlayer: boolean = false;
 
-  /** Coordonnées et nom de la ville choisie pour la météo (0, 0 = géolocalisation IP). */
+  /** Coordinates and name of the city chosen for the weather (0, 0 = IP geolocation). */
   weatherLatitude: number = 0;
   weatherLongitude: number = 0;
   weatherCityName: string = '';
 
-  /** Affichage de l'indicateur de batterie et de son pourcentage dans la barre d'état. */
+  /** Display of the battery indicator and its percentage in the status bar. */
   showBatteryIndicator: boolean = true;
   showBatteryPercentage: boolean = true;
 
@@ -42,7 +42,7 @@ export class AppConfig {
 const CONFIG_FILE_PATH = 'config.json';
 
 /**
- * Charge la configuration depuis `config.json` (ou retourne les valeurs par défaut).
+ * Loads the settings from `config.json` (or returns the defaults).
  */
 export function loadAppConfig(): AppConfig {
   const config = new AppConfig();

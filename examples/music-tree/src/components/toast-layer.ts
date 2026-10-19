@@ -1,5 +1,5 @@
 // ============================================================================
-// components/toast-layer.ts — Bandeau de message éphémère (Toast)
+// components/toast-layer.ts — Ephemeral message banner (Toast)
 // ============================================================================
 
 import { rrect, textWidth } from 'zinc:gfx';

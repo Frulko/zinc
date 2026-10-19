@@ -1,8 +1,8 @@
 // ============================================================================
-// components/context-sheet.ts — Feuille modale "Que contrôler ?"
+// components/context-sheet.ts — "Que contrôler ?" modal sheet
 // ============================================================================
-// Permet de basculer d'un groupe d'enceintes Sonos à un autre ou de mettre en
-// lecture/pause n'importe quel groupe en un toucher.
+// Lets the user switch from one Sonos speaker group to another or play/pause
+// any group with one touch.
 
 import { rrect, drawText } from 'zinc:gfx';
 import { System } from 'zinc:sonos';

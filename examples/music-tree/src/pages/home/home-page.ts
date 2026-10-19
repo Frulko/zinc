@@ -1,17 +1,17 @@
 // ============================================================================
-// pages/home/home-page.ts — Page d'accueil conteneur du carrousel (5 slides)
+// pages/home/home-page.ts — Home page, container of the carousel (5 slides)
 // ============================================================================
-// Dans l'architecture d'arbre d'affichage (façon AS3/Haxe), `HomePageNode` est
-// un conteneur qui possède 5 enfants `DisplayObject` :
-// 0. `PlayerSlideNode`        (Lecteur + Barre latérale)
-// 1. `ClockSlideNode`         (Horloge StandBy à 5 cadrans)
-// 2. `WeatherSlideNode`       (Météo Open-Meteo)
-// 3. `VolumesRingsSlideNode`  (Anneaux de volume des pièces)
-// 4. `NotificationsSlideNode` (Centre de notifications macOS)
+// In the display-tree architecture (AS3/Haxe style), `HomePageNode` is
+// a container that owns 5 `DisplayObject` children:
+// 0. `PlayerSlideNode`        (Player + sidebar)
+// 1. `ClockSlideNode`         (StandBy clock with 5 faces)
+// 2. `WeatherSlideNode`       (Open-Meteo weather)
+// 3. `VolumesRingsSlideNode`  (Volume rings of the rooms)
+// 4. `NotificationsSlideNode` (macOS notification center)
 //
-// À chaque rendu, `HomePageNode` dessine le fond atmosphérique flouté de la
-// pochette, puis met à jour l'abscisse `.x` et la visibilité `.visible` de ses
-// 5 enfants selon la position du carrousel `appState.animatedSlideX`.
+// On each render, `HomePageNode` draws the blurred atmospheric background of the
+// cover, then updates the `.x` abscissa and the `.visible` flag of its
+// 5 children according to the carousel position `appState.animatedSlideX`.
 
 import { rrect, gradient } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
@@ -57,7 +57,7 @@ export class HomePageNode extends DisplayObject {
   override onDraw(screenWidth: number, contentHeight: number): void {
     const fullScreenHeight = contentHeight + STATUS_BAR_HEIGHT;
 
-    // Le fond flouté couvre tout l'écran (y compris sous la barre d'état en y = -STATUS_BAR_HEIGHT)
+    // The blurred background covers the whole screen (including under the status bar at y = -STATUS_BAR_HEIGHT)
     const artworkUrl =
       appState.activeGroup !== null
         ? getGroupArtworkUrl(appState.activeGroup as Group)
@@ -78,7 +78,7 @@ export class HomePageNode extends DisplayObject {
       );
     }
 
-    // Assombrissement progressif vers le noir lorsqu'on glisse vers les slides StandBy (1..4)
+    // Progressive darkening to black when swiping towards the StandBy slides (1..4)
     const nightTransition = Math.max(0, Math.min(1, appState.animatedSlideX));
     if (nightTransition > 0) {
       rrect(
@@ -92,7 +92,7 @@ export class HomePageNode extends DisplayObject {
       );
     }
 
-    // Positionnement horizontal et activation des slides visibles dans l'arbre
+    // Horizontal positioning and activation of the slides visible in the tree
     for (let slideIndex: i32 = 0; slideIndex < SLIDE_COUNT; slideIndex++) {
       const horizontalOffset = Math.round(
         (slideIndex - appState.animatedSlideX) * screenWidth

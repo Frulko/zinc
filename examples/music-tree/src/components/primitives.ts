@@ -1,14 +1,14 @@
 // ============================================================================
-// components/primitives.ts — Primitives graphiques : textes, icônes et cartes
+// components/primitives.ts — Graphic primitives: texts, icons and cards
 // ============================================================================
-// Ce module regroupe les briques élémentaires de dessin utilisées par tous les
-// composants de l'arbre d'affichage :
-// - Textes tronqués avec points de suspension (`fitTextToWidth`, `drawLabel`)
-// - Textes centrés et multilignes (`drawCenteredText`, `drawWrappedText`)
-// - Chiffres tabulaires à chasse fixe (`drawTabularText`) pour que les horloges
-//   ne tremblent jamais lorsque les secondes défilent
-// - Icônes vectorielles Lucide (`drawGlyph`) et icônes géométriques de transport
-// - Cartes arrondies, ombres portées et séparateurs iOS.
+// This module gathers the basic drawing blocks used by all the
+// components of the display tree:
+// - Texts truncated with an ellipsis (`fitTextToWidth`, `drawLabel`)
+// - Centred and multi-line texts (`drawCenteredText`, `drawWrappedText`)
+// - Tabular fixed-width digits (`drawTabularText`) so that clocks
+//   never jitter as the seconds tick
+// - Lucide vector icons (`drawGlyph`) and geometric transport icons
+// - Rounded cards, drop shadows and iOS separators.
 
 import { rrect, rect, drawText, textWidth, fontAscent, shadow, polygon } from 'zinc:gfx';
 import { icon } from 'zinc:icons';
@@ -22,12 +22,12 @@ import { Fonts } from '../fonts';
 import { uiState } from '../core/input';
 
 // ----------------------------------------------------------------------------
-// Mesure et dessin de texte
+// Text measuring and drawing
 // ----------------------------------------------------------------------------
 
 /**
- * Coupe la chaîne `text` avec `…` si elle dépasse `maxWidth` pixels.
- * Utilise une recherche dichotomique rapide.
+ * Cuts the string `text` with `…` if it exceeds `maxWidth` pixels.
+ * Uses a fast binary search.
  */
 export function fitTextToWidth(fontId: i32, text: string, maxWidth: number): string {
   if (textWidth(fontId, text, 0) <= maxWidth) return text;
@@ -44,7 +44,7 @@ export function fitTextToWidth(fontId: i32, text: string, maxWidth: number): str
   return text.slice(0, lowIndex).trimEnd() + '…';
 }
 
-/** Cache de la largeur maximale d'un chiffre (0..9) pour chaque police. */
+/** Cache of the maximum width of a digit (0..9) for each font. */
 const tabularDigitWidthByFont = new Map<i32, number>();
 
 function getTabularDigitCellWidth(fontId: i32): number {
@@ -59,7 +59,7 @@ function getTabularDigitCellWidth(fontId: i32): number {
 }
 
 /**
- * Mesure la largeur d'une chaîne en attribuant la même chasse fixe à chaque chiffre.
+ * Measures the width of a string giving every digit the same fixed width.
  */
 export function measureTabularWidth(fontId: i32, text: string): number {
   let totalWidth = 0;
@@ -73,8 +73,8 @@ export function measureTabularWidth(fontId: i32, text: string): number {
 }
 
 /**
- * Dessine une chaîne avec des chiffres à chasse fixe (idéal pour les horloges et compteurs).
- * Retourne la largeur totale utilisée.
+ * Draws a string with fixed-width digits (ideal for clocks and counters).
+ * Returns the total width used.
  */
 export function drawTabularText(
   fontId: i32,
@@ -98,7 +98,7 @@ export function drawTabularText(
 }
 
 /**
- * Dessine une ligne de texte alignée par son sommet `y`, tronquée à `maxWidth`.
+ * Draws a line of text aligned by its top `y`, truncated to `maxWidth`.
  */
 export function drawLabel(
   fontId: i32,
@@ -113,7 +113,7 @@ export function drawLabel(
 }
 
 /**
- * Dessine une ligne de texte centrée horizontalement autour de `centerX`.
+ * Draws a line of text centred horizontally around `centerX`.
  */
 export function drawCenteredText(
   fontId: i32,
@@ -127,9 +127,9 @@ export function drawCenteredText(
 }
 
 /**
- * Dessine un paragraphe découpé aux espaces sur au plus `maxLines` lignes,
- * avec une hauteur de ligne `lineHeight`. La dernière ligne est tronquée avec `…`.
- * Retourne la hauteur totale occupée.
+ * Draws a paragraph wrapped at spaces on at most `maxLines` lines,
+ * with a line height of `lineHeight`. The last line is truncated with `…`.
+ * Returns the total height taken.
  */
 export function drawWrappedText(
   fontId: i32,
@@ -169,7 +169,7 @@ export function drawWrappedText(
 }
 
 /**
- * Formate une durée en secondes sous la forme `m:ss` (ex: `3:05`).
+ * Formats a duration in seconds as `m:ss` (e.g. `3:05`).
  */
 export function formatDurationClock(totalSeconds: number): string {
   const clampedSeconds = Math.max(0, Math.floor(totalSeconds)) as i32;
@@ -179,12 +179,12 @@ export function formatDurationClock(totalSeconds: number): string {
 }
 
 // ----------------------------------------------------------------------------
-// Icônes vectorielles Lucide et symboles de transport
+// Lucide vector icons and transport symbols
 // ----------------------------------------------------------------------------
 
 /**
- * Dessine une icône Lucide par son nom.
- * Note : `zinc:svg` ignorant `setTransform`, on lui additionne `uiState.offsetX / offsetY`.
+ * Draws a Lucide icon by name.
+ * Note: `zinc:svg` ignores `setTransform`, so `uiState.offsetX / offsetY` is added to it.
  */
 export function drawGlyph(
   iconName: string,
@@ -202,8 +202,8 @@ export function drawGlyph(
 }
 
 /**
- * Dessine une icône de contrôle de lecture pleine (`play`, `pause`, `next`, `prev`)
- * sous forme de polygones nets centrés en `(centerX, centerY)`.
+ * Draws a solid playback control icon (`play`, `pause`, `next`, `prev`)
+ * as sharp polygons centred at `(centerX, centerY)`.
  */
 export function drawTransportIcon(
   kind: string,
@@ -265,25 +265,25 @@ export function drawTransportIcon(
 }
 
 // ----------------------------------------------------------------------------
-// Cartes, séparateurs, ombres et en-têtes de page
+// Cards, separators, shadows and page headers
 // ----------------------------------------------------------------------------
 
-/** Dessine un fond de carte arrondi au style des listes groupées iOS. */
+/** Draws a rounded card background in the style of iOS grouped lists. */
 export function drawCardBackground(x: number, y: number, width: number, height: number): void {
   rrect(x, y, width, height, 14, COLOR_CARD, 255);
 }
 
-/** Dessine une ligne de séparation horizontale de 1 pixel. */
+/** Draws a 1-pixel horizontal separator line. */
 export function drawSeparatorLine(x: number, y: number, width: number): void {
   rect(x, y, width, 1, COLOR_SEPARATOR);
 }
 
-/** Dessine une ombre portée douce sous une carte ou une pochette. */
+/** Draws a soft drop shadow under a card or a cover. */
 export function drawCardShadow(x: number, y: number, width: number, height: number, cornerRadius: number): void {
   shadow(x, y + 10, width, height, cornerRadius, 30, 0x000000, 150);
 }
 
-/** Dessine le grand titre en haut à gauche d'une page (`x = sidebarWidth + PAGE_PADDING`). */
+/** Draws the large title at the top left of a page (`x = sidebarWidth + PAGE_PADDING`). */
 export function drawPageHeader(title: string, sidebarWidth: number): void {
   drawText(Fonts.hero, sidebarWidth + PAGE_PADDING, 30, title, COLOR_TEXT_PRIMARY, 255, 0);
 }

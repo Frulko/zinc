@@ -1,26 +1,26 @@
 // ============================================================================
-// main.ts — Point d'entrée et assemblage de l'arbre d'affichage (Stage)
+// main.ts — Entry point and assembly of the display tree (Stage)
 // ============================================================================
-// Architecture façon ActionScript 3 / Haxe (DisplayList) :
-// L'application est construite comme un arbre hiérarchique de `DisplayObject`
-// rattachés à une scène racine (`Stage`) :
+// ActionScript 3 / Haxe style architecture (DisplayList):
+// The application is built as a hierarchical tree of `DisplayObject`s
+// attached to a root scene (`Stage`):
 //
 //   Stage (0, 0)
 //   ├── MainContentContainer (0, STATUS_BAR_HEIGHT)
-//   │   ├── Page active (montée/démontée avec cycle de vie onAddedToStage / onRemovedFromStage) :
-//   │   │   • HomePageNode (contient les 5 slides enfants du carrousel)
-//   │   │   • RadiosPageNode (contient la grille + VirtualKeyboardNode)
-//   │   │   • SpotifyPageNode (contient la bibliothèque + VirtualKeyboardNode)
-//   │   │   • RoomsPageNode (groupes et volumes par pièce)
-//   │   │   • SettingsPageNode (réglages + CitySearchSubpageNode)
-//   │   └── SidebarNode (barre latérale et mini-lecteur)
-//   ├── PopoversContainer (0, STATUS_BAR_HEIGHT + animation d'ouverture)
+//   │   ├── Active page (mounted/unmounted with the onAddedToStage / onRemovedFromStage life cycle):
+//   │   │   • HomePageNode (holds the 5 child slides of the carousel)
+//   │   │   • RadiosPageNode (holds the grid + VirtualKeyboardNode)
+//   │   │   • SpotifyPageNode (holds the library + VirtualKeyboardNode)
+//   │   │   • RoomsPageNode (groups and volumes per room)
+//   │   │   • SettingsPageNode (settings + CitySearchSubpageNode)
+//   │   └── SidebarNode (sidebar and mini player)
+//   ├── PopoversContainer (0, STATUS_BAR_HEIGHT + opening animation)
 //   │   ├── VolumePopoverNode
 //   │   └── ContextSheetNode
 //   ├── ToastContainer (0, STATUS_BAR_HEIGHT)
 //   │   └── ToastLayerNode
 //   ├── StatusBarNode (0, 0)
-//   └── NotificationOverlayNode (0, 0 — au-dessus de toute l'interface)
+//   └── NotificationOverlayNode (0, 0 — above the whole interface)
 
 import {
   onFrame,
@@ -138,7 +138,7 @@ import {
 } from './state';
 
 // ----------------------------------------------------------------------------
-// Construction de la scène (Stage) et des nœuds de l'arbre d'affichage
+// Building the scene (Stage) and the nodes of the display tree
 // ----------------------------------------------------------------------------
 
 /** The root: before each layout it sizes the layers and mounts the current page, inside the frame pass (no extra frame). */
@@ -171,8 +171,8 @@ const allPageNodes: DisplayObject[] = [
 let mountedPageId: i32 = -1;
 
 /**
- * Synchronise la page montée dans `mainContentContainer` avec `appState.currentPage`.
- * Déclenche proprement `onRemovedFromStage()` sur l'ancienne page et `onAddedToStage()` sur la nouvelle.
+ * Syncs the page mounted in `mainContentContainer` with `appState.currentPage`.
+ * Cleanly triggers `onRemovedFromStage()` on the old page and `onAddedToStage()` on the new one.
  */
 function syncMountedPageInTree(contentWidth: number, contentHeight: number): void {
   const targetPageId = appState.currentPage;
@@ -252,7 +252,7 @@ function sizeLayersAndMountCurrentPage(screenWidth: number, screenHeight: number
 }
 
 /**
- * Dessine toute la scène pour la frame en cours.
+ * Draws the whole scene for the current frame.
  */
 function renderFullApplicationStage(screenWidth: number, screenHeight: number): void {
   clear(COLOR_BACKGROUND);
@@ -260,7 +260,7 @@ function renderFullApplicationStage(screenWidth: number, screenHeight: number): 
 }
 
 // ----------------------------------------------------------------------------
-// Gestion des entrées tactiles, des gestes de balayage (swipe) et du clavier
+// Handling of touch input, swipe gestures and the keyboard
 // ----------------------------------------------------------------------------
 
 let wasPointerDownLastFrame = false;
@@ -634,7 +634,7 @@ function processUserInput(deltaSeconds: number): void {
 }
 
 // ----------------------------------------------------------------------------
-// Préchargement des listes et préchauffage des pages en arrière-plan
+// Preloading of lists and warming up of pages in the background
 // ----------------------------------------------------------------------------
 
 let hasStartedPreload = false;
@@ -750,7 +750,7 @@ function prefetchNextIdleArtwork(): void {
 }
 
 // ----------------------------------------------------------------------------
-// Boucle principale (onFrame)
+// Main loop (onFrame)
 // ----------------------------------------------------------------------------
 
 let lastDrawnVeilOpacity = 0;
@@ -793,7 +793,7 @@ function logFramePerformanceIfEnabled(deltaSeconds: number, drawDurationMs: numb
       )} decodes ${decodedThisFrame} ${Math.round(decodeMsThisFrame)}ms\n`
     );
   } catch (error) {
-    /* /tmp plein */
+    /* /tmp full */
   }
 }
 
@@ -824,7 +824,7 @@ onFrame((deltaSeconds: number) => {
     uiState.dirty = true;
   }
 
-  // Scrutation réseau (fréquente écran allumé, ralentie par 10 écran éteint)
+  // Network polling (frequent with the screen on, 10 times slower with it off)
   const sleepSlowdownFactor = appState.screenPower.asleep ? 10 : 1;
   groupPollTimerSeconds += deltaSeconds;
   topologyPollTimerSeconds += deltaSeconds;
@@ -896,7 +896,7 @@ onFrame((deltaSeconds: number) => {
   tickNotificationRelay(deltaSeconds);
   tickSpotifyAccount(deltaSeconds);
 
-  // Mise à jour de tous les nœuds actifs de l'arbre d'affichage (StatusBar, ToastLayer, etc.)
+  // Update of all the active nodes of the display tree (StatusBar, ToastLayer, etc.)
   stage.updateTree(deltaSeconds);
 
   if (appState.screenPower.peeking && !hasActiveStandByOverlay()) {
@@ -912,7 +912,7 @@ onFrame((deltaSeconds: number) => {
     }
   }
 
-  // Inertie des listes déroulantes
+  // Inertia of scrolling lists
   let isAnyScrollMoving = false;
   for (let index = 0; index < appState.pageScrollBoxes.length; index++) {
     if (appState.pageScrollBoxes[index].stepInertia(deltaSeconds)) {
@@ -921,14 +921,14 @@ onFrame((deltaSeconds: number) => {
     }
   }
 
-  // Avancement de l'horloge d'animations GSAP
+  // Advance of the GSAP animation clock
   gsap.tick(Math.min(deltaSeconds, 0.1));
   if (gsap.active() && !isStandByOverlayHoldingStill()) {
     uiState.dirty = true;
     isAnyScrollMoving = true;
   }
 
-  // Atterrissage fluide du carrousel horizontal
+  // Smooth landing of the horizontal carousel
   if (isDraggingCarouselHorizontally) {
     if (appState.isSettlingSlideX) {
       gsap.killTweensOf(carouselGsapTarget);
@@ -964,7 +964,7 @@ onFrame((deltaSeconds: number) => {
     appState.animatedSlideX = carouselGsapTarget.x;
   }
 
-  // Atterrissage fluide du cadran vertical de l'horloge
+  // Smooth landing of the clock's vertical face
   if (!isDraggingClockFaceVertically) {
     if (
       appState.isSettlingFaceY &&
@@ -998,7 +998,7 @@ onFrame((deltaSeconds: number) => {
     appState.animatedClockFaceY = clockFaceGsapTarget.y;
   }
 
-  // Animation d'ouverture des popovers
+  // Popover opening animation
   const isAnyPopoverOpenNow =
     appState.isContextSheetOpen || appState.isVolumePopoverOpen;
   if (isAnyPopoverOpenNow && !appState.wasAnyPopoverOpen) {
@@ -1008,7 +1008,7 @@ onFrame((deltaSeconds: number) => {
   }
   appState.wasAnyPopoverOpen = isAnyPopoverOpenNow;
 
-  // Rafraîchissement à la seconde exacte lorsque l'horloge StandBy est visible
+  // Refresh on the exact second when the StandBy clock is visible
   if (
     appState.currentPage === PAGE_NOW_PLAYING &&
     appState.animatedSlideX > 0 &&
@@ -1038,7 +1038,7 @@ onFrame((deltaSeconds: number) => {
     }
   }
 
-  // Décodage d'images et préchargement pendant les temps morts
+  // Image decoding and preloading during idle time
   pointerIdleSeconds += deltaSeconds;
   if (appState.screenPower.asleep && appState.screenPower.peeking) {
     // a song's notification shows its cover on the sleeping screen
@@ -1099,7 +1099,7 @@ onFrame((deltaSeconds: number) => {
 });
 
 // ----------------------------------------------------------------------------
-// Initialisation au démarrage
+// Initialization at startup
 // ----------------------------------------------------------------------------
 
 if (

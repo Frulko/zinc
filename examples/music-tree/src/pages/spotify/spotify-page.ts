@@ -75,7 +75,7 @@ export class SpotifyPageNode extends DisplayObject {
     this.headerBar.addChild(this.backButton);
     this.headerBar.addChild(this.titleLabel);
 
-    // Carte d'instructions Flexbox affichée lorsque Spotify n'est pas connecté
+    // Flexbox instruction card shown when Spotify is not connected
     this.disconnectedCard = new CardBox('column', 250, 'SpotifySetupCard');
     this.disconnectedCard.y = 110;
     this.disconnectedCard.setPaddingSymmetric(24, 24);

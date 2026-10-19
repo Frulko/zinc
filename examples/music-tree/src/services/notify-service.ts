@@ -1,10 +1,10 @@
 // ============================================================================
-// services/notify-service.ts — Relais de notifications macOS (zinc:link)
+// services/notify-service.ts — macOS notification relay (zinc:link)
 // ============================================================================
-// Gère la réception des notifications depuis l'application Zinc Relay sur Mac,
-// le stockage local des 50 dernières notifications (`notifications.json`),
-// le cache disque des icônes d'applications et d'avatars (`notif-icons/`),
-// ainsi que les files d'animation (superposition StandBy et bannières grises).
+// Handles receiving notifications from the Zinc Relay application on a Mac,
+// the local storage of the last 50 notifications (`notifications.json`),
+// the disk cache of application icons and avatars (`notif-icons/`),
+// and the animation queues (StandBy overlay and gray banners).
 
 import { drawImage, imageFromBytes, rrect, fontAscent } from 'zinc:gfx';
 import { exists, readText, writeText, readBytes, writeBytes, mkdir } from 'zinc:fs';
@@ -29,7 +29,7 @@ import { drawCenteredText, drawGlyph } from '../components/primitives';
 import { countEmojiPlaceholders, stripEmojiPlaceholders } from '../components/emoji-text';
 
 /**
- * Représente une notification reçue depuis le Mac.
+ * A notification received from the Mac.
  */
 export class MacNotification {
   id: string = '';
@@ -55,7 +55,7 @@ export class MacNotification {
 }
 
 /**
- * État d'animation d'une notification affichée en grand format StandBy.
+ * Animation state of a notification shown in the large StandBy format.
  */
 export class StandByOverlayAnimation {
   notification: MacNotification = new MacNotification();
@@ -69,7 +69,7 @@ export class StandByOverlayAnimation {
 }
 
 /**
- * État d'animation d'une bannière grise empilée en haut de l'écran.
+ * Animation state of a gray banner stacked at the top of the screen.
  */
 export class NotificationBannerItem {
   notification: MacNotification = new MacNotification();
@@ -92,9 +92,9 @@ const activeLinkChannels: link.Channel[] = [];
 const requestedIconHashes = new Map<string, boolean>();
 const cachedIconImagesByHash = new Map<string, i32>();
 
-// État de l'assistant d'appairage
+// State of the pairing assistant
 export let isMacPaired: boolean = false;
-export let pairingWizardStep: i32 = 1; // 1 = installer, 2 = code à 6 chiffres, 3 = terminé
+export let pairingWizardStep: i32 = 1; // 1 = install, 2 = 6-digit code, 3 = done
 export let pairingPinCode: string = '';
 export let isPairingCodeExpired: boolean = false;
 export let failedPairingAttempts: i32 = 0;
@@ -102,7 +102,7 @@ export let showManualIpInstructions: boolean = false;
 export let isAddingAnotherMac: boolean = false;
 export const notificationsScrollBox = new ScrollBox();
 
-// État du glisser-supprimer sur une ligne de notification
+// State of the swipe-to-delete on a notification row
 export let draggedNotificationRowId: string = '';
 export let draggedNotificationDeltaX: number = 0;
 export let draggedNotificationAxis: string = '';
@@ -157,7 +157,7 @@ export function cancelPairingWizard(): void {
 }
 
 // ----------------------------------------------------------------------------
-// Sérialisation JSON des notifications
+// JSON serialization of the notifications
 // ----------------------------------------------------------------------------
 
 function asSafeString(value: any): string {
@@ -246,7 +246,7 @@ export function clearAllNotifications(): void {
 }
 
 // ----------------------------------------------------------------------------
-// Cache disque des icônes d'application et d'avatars (nommées par hachage hex)
+// Disk cache of application icons and avatars (named by hex hash)
 // ----------------------------------------------------------------------------
 
 function isValidHexHash(hash: string): boolean {
@@ -315,7 +315,7 @@ export function getNotificationAttachmentImage(notification: MacNotification): i
   return notification.attachmentHash !== '' ? getCachedNotificationIcon(notification.attachmentHash) : -1;
 }
 
-/** Dessine l'icône de l'application (ou une cloche par défaut) avec opacité. */
+/** Draws the application's icon (or a default bell) with opacity. */
 export function drawNotificationAppIcon(
   notification: MacNotification,
   x: number,
@@ -332,7 +332,7 @@ export function drawNotificationAppIcon(
   drawGlyph('bell', x + size * 0.22, y + size * 0.22, size * 0.56, COLOR_TEXT_PRIMARY, alpha);
 }
 
-/** Dessine l'image ronde d'une notification (avatar + badge d'application pour un message, ou icône seule). */
+/** Draws the round picture of a notification (avatar + application badge for a message, or the icon alone). */
 export function drawNotificationAvatarOrIcon(
   notification: MacNotification,
   centerX: number,
@@ -398,7 +398,7 @@ export function drawNotificationAvatarOrIcon(
 }
 
 // ----------------------------------------------------------------------------
-// Formatage des textes et dates de notifications
+// Formatting of notification texts and dates
 // ----------------------------------------------------------------------------
 
 /** Who it is from, emoji placeholders kept (draw it with components/emoji-text.ts). */
@@ -472,7 +472,7 @@ export function formatBannerTimeLabel(timestampSeconds: number): string {
 }
 
 // ----------------------------------------------------------------------------
-// Superposition StandBy et bannières grises
+// StandBy overlay and gray banners
 // ----------------------------------------------------------------------------
 
 export const overlayDimState = { dim: 0 };
@@ -494,7 +494,7 @@ export const TEST_RELAY_FEED_FILE = env('ZINC_MUSIC_RELAY');
 const pendingTestFeedLines: string[] = [];
 let testFeedElapsedSeconds: number = 0;
 
-/** Demande au Mac d'ouvrir l'application ou la conversation associée à `notificationId`. */
+/** Asks the Mac to open the application or conversation tied to `notificationId`. */
 export function openNotificationOnMac(notificationId: string): void {
   if (TEST_RELAY_FEED_FILE !== '') {
     console.log(`music: open ${notificationId}`);
@@ -505,7 +505,7 @@ export function openNotificationOnMac(notificationId: string): void {
   }
 }
 
-/** Démarre le service de relais de notifications `zinc:link` (ou le flux de test simulé). */
+/** Starts the `zinc:link` notification relay service (or the simulated test feed). */
 export function startNotificationRelay(
   onShown: (notification: MacNotification) => void,
   shouldUseStandBy: () => boolean
@@ -719,8 +719,8 @@ export function hasActiveStandByOverlay(): boolean {
 }
 
 /**
- * Indique si l'animation de superposition StandBy est actuellement dans sa phase de maintien fixe,
- * ce qui évite de redessiner inutilement l'écran à 60 FPS pendant les 6 secondes d'attente.
+ * Tells whether the StandBy overlay animation is currently in its fixed hold phase,
+ * which avoids needlessly redrawing the screen at 60 FPS during the 6 seconds of waiting.
  */
 export function isStandByOverlayHoldingStill(): boolean {
   if (currentStandByOverlay === null) return false;
@@ -794,8 +794,8 @@ export function tickNotificationRelay(deltaSeconds: number): void {
 }
 
 /**
- * Lorsqu'une ligne de notification est glissée vers la droite (`deltaX > 12`),
- * cède le geste au carrousel de la page d'accueil.
+ * When a notification row is dragged to the right (`deltaX > 12`),
+ * it hands the gesture over to the home page carousel.
  */
 export function doesNotificationRowYieldToCarousel(deltaX: number, deltaY: number): boolean {
   return (

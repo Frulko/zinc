@@ -1,20 +1,20 @@
 // ============================================================================
-// core/screen-power.ts — Gestion de la veille, du rétroéclairage et de StandBy
+// core/screen-power.ts — Sleep, backlight and StandBy handling
 // ============================================================================
-// Sur une télécommande murale qui ne quitte jamais :
-// - Après un délai sans contact (`delay`), l'écran s'assombrit progressivement
-//   (`veil` de 0 à 1) puis coupe son rétroéclairage (`setBacklight(false)`).
-// - Le prochain contact rallume l'écran et consomme le toucher pour éviter de
-//   déclencher un bouton à l'aveugle.
-// - Sur l'écran d'horloge (mode StandBy inspiré d'iOS), l'écran s'éteint après
-//   2 minutes mais se rallume discrètement pendant 10 secondes toutes les 5 minutes.
-// - Lorsqu'une notification arrive pendant le sommeil (`peek()`), seul le
-//   rétroéclairage s'allume sur fond noir le temps de jouer l'animation StandBy.
+// On a wall remote that is never taken away:
+// - After a delay with no touch (`delay`), the screen dims gradually
+//   (`veil` from 0 to 1) then turns its backlight off (`setBacklight(false)`).
+// - The next touch wakes the screen and swallows the tap to avoid
+//   pressing a button blindly.
+// - On the clock screen (StandBy mode inspired by iOS), the screen turns off after
+//   2 minutes but quietly wakes for 10 seconds every 5 minutes.
+// - When a notification arrives during sleep (`peek()`), only the
+//   backlight comes on over black for the time of the StandBy animation.
 
 import { isWebOS, screenTimeout, serviceCall, setBacklight, setPerformance } from 'zinc:webos';
 import { env } from 'zinc:sys';
 
-const KEEP_AWAKE_RENEW_SECONDS = 600; // com.palm.power limite une activité à 15 min : renouvelée toutes les 10 min
+const KEEP_AWAKE_RENEW_SECONDS = 600; // com.palm.power limits an activity to 15 min: renewed every 10 min
 
 const STANDBY_ENV_PARTS = (
   env('ZINC_MUSIC_STANDBY') !== '' ? env('ZINC_MUSIC_STANDBY') : '120,300,10'
@@ -26,25 +26,25 @@ const GLANCE_DURATION_SECONDS = parseFloat(STANDBY_ENV_PARTS[2]);
 const FADE_DURATION_SECONDS = STANDBY_ENV_PARTS.length > 3 ? parseFloat(STANDBY_ENV_PARTS[3]) : 0.6;
 
 export class ScreenPowerManager {
-  /** Indique si l'écran est actuellement en sommeil. */
+  /** Tells whether the screen is asleep. */
   asleep: boolean = false;
 
-  /** Secondes écoulées depuis le dernier contact. */
+  /** Seconds elapsed since the last touch. */
   idleSeconds: number = 0;
 
-  /** Délai avant extinction (en secondes ; 0 = jamais). */
+  /** Delay before turning off (in seconds; 0 = never). */
   delaySeconds: number = 120;
 
-  /** Indique si le carrousel est sur le cadran d'horloge (mode StandBy actif). */
+  /** Tells whether the carousel is on the clock face (StandBy mode active). */
   standbyMode: boolean = false;
 
   /** The StandBy glances (a wake every few minutes while asleep on the clock); the settings can turn them off. */
   glancesEnabled: boolean = true;
 
-  /** Indique si l'écran est entrouvert uniquement pour afficher une notification sur fond noir. */
+  /** Tells whether the screen is ajar only to show a notification over black. */
   peeking: boolean = false;
 
-  /** Opacité du voile noir (0..1) pendant la transition d'extinction ou de réveil. */
+  /** Opacity of the black veil (0..1) during the turn-off or wake transition. */
   veilOpacity: number = 0;
 
   private remainingFadeOutSeconds: number = 0;
@@ -62,16 +62,16 @@ export class ScreenPowerManager {
   }
 
   /**
-   * Signale un contact de l'utilisateur sur l'écran.
-   * Retourne `true` si ce contact a servi à réveiller l'écran (l'événement tactile doit alors être ignoré).
+   * Reports a user touch on the screen.
+   * Returns `true` if this touch was used to wake the screen (the touch event must then be ignored).
    */
   onUserTouch(): boolean {
     this.idleSeconds = 0;
     this.nextGlanceTimestamp = 0;
     this.remainingFadeOutSeconds = 0;
 
-    // Si l'écran affichait une notification en mode "peek", on se réveille complètement
-    // mais on laisse le toucher se propager jusqu'à la notification.
+    // If the screen was showing a notification in "peek" mode, wake up fully
+    // but let the touch go through to the notification.
     if (this.peeking && this.asleep) {
       this.peeking = false;
       this.asleep = false;
@@ -86,8 +86,8 @@ export class ScreenPowerManager {
   }
 
   /**
-   * Allume l'écran pendant au moins `minimumSeconds` sans contact humain (ex: notification ou coup d'œil StandBy).
-   * Retourne `true` si l'écran était éteint.
+   * Turns the screen on for at least `minimumSeconds` with no human touch (e.g. a notification or a StandBy glance).
+   * Returns `true` if the screen was off.
    */
   wakeForDuration(minimumSeconds: number): boolean {
     this.idleSeconds = Math.min(this.idleSeconds, this.effectiveIdleLimit() - minimumSeconds);
@@ -100,8 +100,8 @@ export class ScreenPowerManager {
   }
 
   /**
-   * Entrouvre le rétroéclairage sur un écran endormi pour laisser jouer une notification sur fond noir.
-   * Retourne `true` si l'écran était endormi.
+   * Half-opens the backlight on a sleeping screen to let a notification play over black.
+   * Returns `true` if the screen was asleep.
    */
   beginNotificationPeek(): boolean {
     if (!this.asleep) return false;
@@ -113,7 +113,7 @@ export class ScreenPowerManager {
   }
 
   /**
-   * Referme le rétroéclairage dès que la file de notifications est terminée si personne n'a touché l'écran.
+   * Closes the backlight as soon as the notification queue is done if nobody touched the screen.
    */
   endNotificationPeek(): void {
     if (!this.peeking) return;
@@ -128,8 +128,8 @@ export class ScreenPowerManager {
   }
 
   /**
-   * Fait avancer l'horloge de veille d'un pas `deltaSeconds`.
-   * Retourne `true` à la frame exacte où l'écran bascule en sommeil.
+   * Advances the sleep clock by a step of `deltaSeconds`.
+   * Returns `true` on the exact frame the screen falls asleep.
    */
   tick(deltaSeconds: number): boolean {
     this.awakeActivityTimer += deltaSeconds;
@@ -164,7 +164,7 @@ export class ScreenPowerManager {
       return false;
     }
 
-    // Fondu d'ouverture après le réveil
+    // Fade-in after waking
     if (this.remainingFadeOutSeconds === 0 && this.veilOpacity > 0) {
       this.veilOpacity =
         FADE_DURATION_SECONDS > 0 ? Math.max(0, this.veilOpacity - deltaSeconds / FADE_DURATION_SECONDS) : 0;
@@ -173,7 +173,7 @@ export class ScreenPowerManager {
     this.idleSeconds += deltaSeconds;
     if (this.idleSeconds < this.effectiveIdleLimit()) return false;
 
-    // Fondu de fermeture avant l'extinction matérielle
+    // Fade-out before the hardware turn-off
     if (FADE_DURATION_SECONDS > 0) {
       if (this.remainingFadeOutSeconds === 0) {
         this.remainingFadeOutSeconds = FADE_DURATION_SECONDS;

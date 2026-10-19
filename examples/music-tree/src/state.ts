@@ -1,10 +1,10 @@
 // ============================================================================
-// state.ts — État central de l'application et actions métier (Sonos, Spotify, Radios)
+// state.ts — Central state of the application and its actions (Sonos, Spotify, Radios)
 // ============================================================================
-// Ce module rassemble l'état partagé par tous les nœuds de l'arbre d'affichage
-// (pages, barre latérale, barre d'état, popovers) ainsi que les commandes
-// réseau associées. Les pages lisent `appState` et appellent ces fonctions
-// aux noms explicites sans dupliquer la logique métier.
+// This module gathers the state shared by all the nodes of the display tree
+// (pages, sidebar, status bar, popovers) and the network commands
+// that go with it. The pages read `appState` and call these functions,
+// whose names say what they do, without duplicating the logic.
 
 import { exists, appendText, stat } from 'zinc:fs';
 import { discover, System, Group, Speaker } from 'zinc:sonos';
@@ -38,16 +38,16 @@ import { triggerPlaceSearch } from './services/weather-service';
 import { MacNotification, showTrackNotification } from './services/notify-service';
 import { getLavaLampPaletteIndex, setLavaLampPaletteIndex } from './pages/home/clock-faces';
 
-// Sur webOS, les ports UDP doivent être ouverts explicitement via zinc-helper
+// On webOS, UDP ports must be opened explicitly through zinc-helper
 openPort(SSDP_PORT);
 openPort(REMOTE_UDP_PORT);
 
 const ERROR_LOG_FILE_PATH = '/tmp/music.log';
 
 /**
- * File d'envoi "la dernière valeur gagne" : lorsqu'un curseur de volume est
- * déplacé rapidement, seule la position la plus récente est envoyée sur le réseau
- * dès que la requête précédente se termine.
+ * "Last value wins" send queue: when a volume slider is
+ * moved quickly, only the most recent position is sent over the network
+ * as soon as the previous request ends.
  */
 class LatestRequestQueue {
   isBusy: boolean = false;
@@ -77,34 +77,34 @@ class LatestRequestQueue {
 export const volumeRequestQueue = new LatestRequestQueue();
 
 /**
- * Conteneur unique de tout l'état réactif de l'application.
+ * Single container of all the reactive state of the application.
  */
 export class ApplicationState {
-  /** Configuration persistante (`config.json`). */
+  /** Persistent settings (`config.json`). */
   config: AppConfig = loadAppConfig();
 
-  /** Gestionnaire d'alimentation et de veille de l'écran. */
+  /** Power and screen sleep manager. */
   screenPower: ScreenPowerManager;
 
-  /** Page active dans la barre latérale (`PAGE_NOW_PLAYING`, `PAGE_RADIOS`, etc.). */
+  /** Active page in the sidebar (`PAGE_NOW_PLAYING`, `PAGE_RADIOS`, etc.). */
   currentPage: i32 = PAGE_NOW_PLAYING;
 
-  /** Largeur actuelle de la barre latérale (0 en mode lecteur plein écran, 240 sinon). */
+  /** Current width of the sidebar (0 in full-screen player mode, 240 otherwise). */
   sidebarWidth: number = SIDEBAR_WIDTH_DEFAULT;
 
-  // ---- Carrousel de la page d'accueil (5 slides) ----
+  // ---- Home page carousel (5 slides) ----
   targetSlideIndex: i32 = SLIDE_PLAYER;
   animatedSlideX: number = 0;
   isSettlingSlideX: boolean = false;
   settlingSlideTarget: i32 = 0;
 
-  // ---- Cadrans de l'horloge StandBy (5 cadrans verticaux) ----
+  // ---- StandBy clock faces (5 vertical faces) ----
   targetClockFaceIndex: i32 = 0;
   animatedClockFaceY: number = 0;
   isSettlingFaceY: boolean = false;
   settlingFaceTarget: i32 = 0;
 
-  // ---- État Sonos ----
+  // ---- Sonos state ----
   sonosSystem: System | null = null;
   activeGroup: Group | null = null;
   sonosStatusMessage: string = 'Recherche des enceintes…';
@@ -114,12 +114,12 @@ export class ApplicationState {
   isPollingTopology: boolean = false;
   isPollingVolumes: boolean = false;
 
-  /** Position temporelle interpolée du morceau en cours. */
+  /** Interpolated time position of the current track. */
   trackPositionBaseSeconds: number = 0;
   trackPositionTimestampSeconds: number = 0;
   elapsedAppClockSeconds: number = 0;
 
-  // ---- État Spotify ----
+  // ---- Spotify state ----
   spotifyClient: Spotify = new Spotify('spotify.json');
   spotifyUserName: string = '';
   spotifyPlayback: Playback = new Playback();
@@ -131,7 +131,7 @@ export class ApplicationState {
   /** The Spotify library's tab: playlists, albums, liked songs, recent plays. */
   activeSpotifyTab: i32 = 0;
 
-  // ---- État Radios ----
+  // ---- Radios state ----
   myStations: RadioStation[] = loadMyRadioStations();
   popularStations: RadioStation[] = [];
   searchedStations: RadioStation[] = [];
@@ -140,13 +140,13 @@ export class ApplicationState {
   activeRadioTab: i32 = 0;
   isEditingMyRadios: boolean = false;
 
-  // ---- Recherche et clavier virtuel ----
+  // ---- Search and virtual keyboard ----
   searchQuery: string = '';
   isKeyboardVisible: boolean = false;
   isSearchingWeatherCity: boolean = false;
   weatherCityQuery: string = '';
 
-  // ---- Popovers, feuilles modales et bandeau toast ----
+  // ---- Popovers, modal sheets and toast banner ----
   toastMessage: string = '';
   toastRemainingSeconds: number = 0;
 
@@ -159,11 +159,11 @@ export class ApplicationState {
   isContextSheetOpen: boolean = false;
   wasAnyPopoverOpen: boolean = false;
 
-  // ---- Batterie de l'appareil ----
+  // ---- Device battery ----
   batteryLevelPercent: i32 = -1;
   isBatteryCharging: boolean = false;
 
-  // ---- Conteneurs de défilement (un par page principale) ----
+  // ---- Scroll containers (one per main page) ----
   pageScrollBoxes: ScrollBox[] = [
     new ScrollBox(),
     new ScrollBox(),
@@ -180,7 +180,7 @@ export class ApplicationState {
 
 export const appState = new ApplicationState();
 
-// Objets cibles animés par GSAP
+// Target objects animated by GSAP
 export const carouselGsapTarget = { x: 0 };
 export const clockFaceGsapTarget = { y: 0 };
 export const popoverRiseGsapTarget = { y: 0 };
@@ -192,7 +192,7 @@ export function setLavaHintTimeline(timeline: Timeline | null): void {
 }
 
 // ----------------------------------------------------------------------------
-// Persistance du slide, du cadran d'horloge et de la palette de la lampe à lave
+// Persistence of the slide, the clock face and the lava lamp palette
 // ----------------------------------------------------------------------------
 
 export function saveCarouselAndClockPreferences(): void {
@@ -228,7 +228,7 @@ export async function restoreCarouselAndClockPreferences(): Promise<void> {
 }
 
 // ----------------------------------------------------------------------------
-// Fonctions utilitaires générales
+// General utility functions
 // ----------------------------------------------------------------------------
 
 export function formatPlural(count: i32, singularWord: string): string {
@@ -264,7 +264,7 @@ export function logErrorToFile(message: string): void {
     const nowDate = new Date();
     appendText(ERROR_LOG_FILE_PATH, `${nowDate.toISOString()} ${message}\n`);
   } catch (error) {
-    /* espace disque saturé */
+    /* disk full */
   }
 }
 
@@ -282,7 +282,7 @@ export async function runSafeNetworkAction(
 }
 
 // ----------------------------------------------------------------------------
-// Navigation entre les pages et sélection de groupe
+// Navigation between pages and group selection
 // ----------------------------------------------------------------------------
 
 export function navigateToHomePlayer(): void {
@@ -370,7 +370,7 @@ export function isStationCurrentlyPlaying(station: RadioStation): boolean {
 }
 
 // ----------------------------------------------------------------------------
-// Découverte et scrutation (polling) Sonos & Spotify
+// Sonos & Spotify discovery and polling
 // ----------------------------------------------------------------------------
 
 export function pickDefaultSonosGroup(): void {
@@ -426,7 +426,7 @@ export async function discoverSonosSystem(): Promise<void> {
       try {
         await discoveredSystem.update(discoveredSystem.groups[index]);
       } catch (error) {
-        /* enceinte endormie : sera lue au prochain cycle */
+        /* speaker asleep: read on the next cycle */
       }
     }
     if (appState.activeGroup !== null) {
@@ -524,7 +524,7 @@ export async function pollSonosTopology(): Promise<void> {
       pickDefaultSonosGroup();
     }
   } catch (error) {
-    /* géré par pollActiveSonosGroup */
+    /* handled by pollActiveSonosGroup */
   }
   appState.isPollingTopology = false;
   uiState.dirty = true;
@@ -541,7 +541,7 @@ export async function pollAllRoomVolumes(): Promise<void> {
         await system.update(system.groups[index]);
       }
     } catch (error) {
-      /* prochain cycle */
+      /* next cycle */
     }
   }
   appState.isPollingVolumes = false;
@@ -556,7 +556,7 @@ export async function pollActiveGroupMemberVolumes(): Promise<void> {
   try {
     await (appState.sonosSystem as System).readVolumes(appState.activeGroup as Group);
   } catch (error) {
-    /* prochain cycle */
+    /* next cycle */
   }
   appState.isPollingVolumes = false;
   uiState.dirty = true;
@@ -574,7 +574,7 @@ export async function pollSpotifyPlaybackState(): Promise<void> {
       appState.isCurrentTrackLiked = await appState.spotifyClient.isLiked(trackUri);
     }
   } catch (error) {
-    /* affiché lors d'une action explicite */
+    /* shown on an explicit action */
   }
   appState.isPollingSpotify = false;
   // a frame only when the answer changes what is shown (this runs every 8 s on the player)
@@ -587,7 +587,7 @@ function spotifyPlaybackSignature(): string {
 }
 
 // ----------------------------------------------------------------------------
-// Commandes de lecture et de volume
+// Playback and volume commands
 // ----------------------------------------------------------------------------
 
 export function executeGroupCommand(
@@ -735,7 +735,7 @@ export function nudgeActiveGroupVolume(deltaPercent: i32): void {
 }
 
 // ----------------------------------------------------------------------------
-// Actions Radios et Spotify
+// Radios and Spotify actions
 // ----------------------------------------------------------------------------
 
 export function playRadioStation(station: RadioStation): void {
@@ -817,7 +817,7 @@ export function explainSpotifyError(message: string): string {
 }
 
 // ----------------------------------------------------------------------------
-// Saisie clavier (virtuel AZERTY ou clavier physique de bureau)
+// Keyboard input (virtual AZERTY or a desktop's physical keyboard)
 // ----------------------------------------------------------------------------
 
 export function handleTypedKeyboardKey(keyToken: string): void {

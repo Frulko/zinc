@@ -1,14 +1,14 @@
 // ============================================================================
-// pages/settings/settings-page.ts — Page Réglages (construite en arbre Flexbox)
+// pages/settings/settings-page.ts — Settings page (built as a Flexbox tree)
 // ============================================================================
-// Cette page illustre l'utilisation du moteur de layout Flexbox léger intégré
-// à `DisplayObject` (`VBox`, `HBox`, `CardBox`, `ScrollContainerNode`,
+// This page shows how to use the light Flexbox layout engine built into
+// `DisplayObject` (`VBox`, `HBox`, `CardBox`, `ScrollContainerNode`,
 // `LabelNode`, `IconNode`, `PillButtonNode`, `SegmentedControlNode`).
 //
-// Toute la hiérarchie des cartes, icônes, textes et boutons est assemblée une
-// seule fois dans le `constructor()` avec `addChild()`. Lors du rendu, le
-// moteur de layout calcule automatiquement les positions et largeurs flexibles
-// (`flex = 1`), sans aucun calcul de coordonnée `x` ou `y` manuel !
+// The whole hierarchy of cards, icons, texts and buttons is assembled once
+// in the `constructor()` with `addChild()`. At render time, the
+// layout engine computes the positions and flexible widths automatically
+// (`flex = 1`), with no manual `x` or `y` coordinate computation!
 
 import { System } from 'zinc:sonos';
 import {
@@ -66,7 +66,7 @@ const SLEEP_DELAY_LABELS: string[] = [
   'Jamais',
 ];
 
-/** Crée un petit titre de rubrique en majuscules grises (ex: 'ÉCRAN', 'MÉTÉO'). */
+/** Creates a small section title in grey capitals (e.g. 'ÉCRAN', 'MÉTÉO'). */
 function createSectionHeader(title: string): HBox {
   const row = new HBox(0, `SectionHeader_${title}`);
   row.height = 16;
@@ -79,7 +79,7 @@ export class SettingsPageNode extends DisplayObject {
   readonly scrollContainer: ScrollContainerNode;
   readonly citySearchSubpage: CitySearchSubpageNode;
 
-  // Références vers les nœuds dynamiques mis à jour dans onMeasure()
+  // References to the dynamic nodes updated in onMeasure()
   private readonly sleepSegmentedControl: SegmentedControlNode;
   private readonly glancesSegmented: SegmentedControlNode;
   private readonly notificationsIconNode: IconNode;
@@ -103,7 +103,7 @@ export class SettingsPageNode extends DisplayObject {
   constructor() {
     super('SettingsPage');
 
-    // Conteneur de défilement vertical contenant une VBox avec gap = 24 px entre chaque section
+    // Vertical scroll container holding a VBox with gap = 24 px between sections
     this.scrollContainer = new ScrollContainerNode(
       appState.pageScrollBoxes[PAGE_SETTINGS],
       24,
@@ -113,7 +113,7 @@ export class SettingsPageNode extends DisplayObject {
     this.scrollContainer.contentBox.setPaddingSymmetric(PAGE_PADDING, 8);
     this.scrollContainer.contentBox.paddingBottom = 32;
 
-    // ---- 1. Section ÉCRAN ----
+    // ---- 1. SCREEN section ----
     const screenSection = new VBox(8, 'ScreenSection');
     screenSection.addChild(createSectionHeader('ÉCRAN'));
 
@@ -158,7 +158,7 @@ export class SettingsPageNode extends DisplayObject {
     screenSection.addChild(screenCard);
     this.scrollContainer.contentBox.addChild(screenSection);
 
-    // ---- Section NOTIFICATIONS DU MAC ----
+    // ---- MAC NOTIFICATIONS section ----
     const notificationsSection = new VBox(8, 'NotificationsSection');
     notificationsSection.addChild(createSectionHeader('NOTIFICATIONS DU MAC'));
     const notificationsCard = new CardBox('row', 64, 'NotificationsCard');
@@ -182,7 +182,7 @@ export class SettingsPageNode extends DisplayObject {
     notificationsSection.addChild(notificationsCard);
     this.scrollContainer.contentBox.addChild(notificationsSection);
 
-    // ---- 2. Section BATTERIE ----
+    // ---- 2. BATTERY section ----
     const batterySection = new VBox(8, 'BatterySection');
     batterySection.addChild(createSectionHeader('BATTERIE'));
 
@@ -212,7 +212,7 @@ export class SettingsPageNode extends DisplayObject {
     batterySection.addChild(batteryCard);
     this.scrollContainer.contentBox.addChild(batterySection);
 
-    // ---- 3. Section MÉTÉO ----
+    // ---- 3. WEATHER section ----
     const weatherSection = new VBox(8, 'WeatherSection');
     weatherSection.addChild(createSectionHeader('MÉTÉO'));
 
@@ -222,7 +222,7 @@ export class SettingsPageNode extends DisplayObject {
     weatherCard.gap = 14;
     weatherCard.addChild(new IconNode('cloud-sun', 24, COLOR_TEXT_SECONDARY));
     this.weatherCityLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
-    this.weatherCityLabel.flex = 1; // Prend automatiquement tout l'espace entre l'icône et le bouton !
+    this.weatherCityLabel.flex = 1; // Takes all the space between the icon and the button automatically!
     weatherCard.addChild(this.weatherCityLabel);
     weatherCard.addChild(
       new PillButtonNode('set/city', 'Choisir', 'search', () => {
@@ -236,7 +236,7 @@ export class SettingsPageNode extends DisplayObject {
     weatherSection.addChild(weatherCard);
     this.scrollContainer.contentBox.addChild(weatherSection);
 
-    // ---- 4. Section SPOTIFY ----
+    // ---- 4. SPOTIFY section ----
     const spotifySection = new VBox(8, 'SpotifySection');
     spotifySection.addChild(createSectionHeader('SPOTIFY'));
 
@@ -272,7 +272,7 @@ export class SettingsPageNode extends DisplayObject {
     spotifySection.addChild(this.spotifyCard);
     this.scrollContainer.contentBox.addChild(spotifySection);
 
-    // ---- 5. Section SONOS ----
+    // ---- 5. SONOS section ----
     const sonosSection = new VBox(8, 'SonosSection');
     sonosSection.addChild(createSectionHeader('SONOS'));
 
@@ -295,7 +295,7 @@ export class SettingsPageNode extends DisplayObject {
     sonosSection.addChild(sonosCard);
     this.scrollContainer.contentBox.addChild(sonosSection);
 
-    // ---- 6. Section BOUTONS PHYSIQUES ----
+    // ---- 6. PHYSICAL BUTTONS section ----
     const hardwareButtonsSection = new VBox(8, 'HardwareButtonsSection');
     hardwareButtonsSection.addChild(createSectionHeader('BOUTONS PHYSIQUES'));
 
@@ -321,7 +321,7 @@ export class SettingsPageNode extends DisplayObject {
     hardwareButtonsSection.addChild(hardwareButtonsCard);
     this.scrollContainer.contentBox.addChild(hardwareButtonsSection);
 
-    // Sous-page de recherche de ville météo
+    // Weather city search sub-page
     this.citySearchSubpage = new CitySearchSubpageNode();
 
     this.addChild(this.scrollContainer);
@@ -329,8 +329,8 @@ export class SettingsPageNode extends DisplayObject {
   }
 
   /**
-   * Synchronise les propriétés dynamiques des nœuds avant que le moteur Flexbox
-   * ne calcule les dimensions et positions de l'arbre.
+   * Syncs the dynamic properties of the nodes before the Flexbox engine
+   * computes the dimensions and positions of the tree.
    */
   override onMeasure(): void {
     const sidebarWidth = appState.sidebarWidth;
@@ -348,7 +348,7 @@ export class SettingsPageNode extends DisplayObject {
 
     const cardWidth = pageWidth - sidebarWidth - PAGE_PADDING * 2;
 
-    // 1. Délai d'extinction de l'écran
+    // 1. Screen off delay
     let selectedSleepIndex: i32 = 2;
     for (let index = 0; index < SLEEP_DELAY_OPTIONS_SECONDS.length; index++) {
       if (SLEEP_DELAY_OPTIONS_SECONDS[index] === appState.config.sleepDelaySeconds) {
@@ -367,7 +367,7 @@ export class SettingsPageNode extends DisplayObject {
       : "Gardées dans la liste, sans s'afficher";
     this.notificationsSegmented.selectedIndex = areNotificationsShown ? 0 : 1;
 
-    // 2. Batterie
+    // 2. Battery
     this.batteryIconNode.iconName = appState.isBatteryCharging
       ? 'battery-charging'
       : 'battery';
@@ -380,7 +380,7 @@ export class SettingsPageNode extends DisplayObject {
       ? 0
       : 1;
 
-    // 3. Ville météo
+    // 3. Weather city
     const currentPlaceName = getWeatherCityName();
     const hasCustomCoordinates =
       appState.config.weatherLatitude !== 0 ||

@@ -1,11 +1,11 @@
 // ============================================================================
-// core/display.ts — Arbre d'affichage AS3/Haxe + Moteur de Layout Flex léger
+// core/display.ts — AS3/Haxe display tree + light Flex layout engine
 // ============================================================================
-// Ce module combine :
-// 1. La DisplayList façon ActionScript 3 / Haxe (`DisplayObject`, `Stage`,
-//    `addChild`, `removeChild`, coordonnées locales et cycle de vie
+// This module combines:
+// 1. An ActionScript 3 / Haxe style DisplayList (`DisplayObject`, `Stage`,
+//    `addChild`, `removeChild`, local coordinates and lifecycle
 //    `onAddedToStage` / `onRemovedFromStage` / `onUpdate` / `onDraw`).
-// 2. Un moteur de mise en page Flexbox ultra-léger intégré directement dans
+// 2. An ultra-light Flexbox layout engine built right into
 //    `DisplayObject` (`direction: 'none' | 'row' | 'column'`, `gap`, `padding`,
 //    `flex`, `alignItems`, `justifyContent`, `autoWidth`, `autoHeight`).
 
@@ -19,63 +19,63 @@ import { uiState } from './input';
 let isFramePassRunning = false;
 
 /**
- * Élément visuel de base de l'arbre d'affichage avec support Flexbox léger intégré.
+ * Base visual element of the display tree with built-in light Flexbox support.
  */
 export class DisplayObject {
-  /** Nom lisible du nœud (pour la clarté et le débogage). */
+  /** Readable name of the node (for clarity and debugging). */
   name: string = '';
 
-  /** Position X locale par rapport au parent. */
+  /** Local X position relative to the parent. */
   x: number = 0;
 
-  /** Position Y locale par rapport au parent. */
+  /** Local Y position relative to the parent. */
   y: number = 0;
 
-  /** Largeur du nœud en pixels. */
+  /** Width of the node in pixels. */
   width: number = 0;
 
-  /** Hauteur du nœud en pixels. */
+  /** Height of the node in pixels. */
   height: number = 0;
 
-  /** Si `true`, la largeur d'un conteneur 'row' est calculée à partir de ses enfants. */
+  /** If `true`, the width of a 'row' container is computed from its children. */
   autoWidth: boolean = false;
 
-  /** Si `true`, la hauteur d'un conteneur 'column' est calculée à partir de ses enfants. */
+  /** If `true`, the height of a 'column' container is computed from its children. */
   autoHeight: boolean = false;
 
-  /** Si `false`, le nœud est ignoré par le layout, par `onUpdate` et par `onDraw`. */
+  /** If `false`, the node is ignored by layout, `onUpdate` and `onDraw`. */
   visible: boolean = true;
 
-  /** Opacité logique (0..1). */
+  /** Logical opacity (0..1). */
   alpha: number = 1;
 
   // --------------------------------------------------------------------------
-  // Propriétés du moteur de mise en page Flexbox léger
+  // Properties of the light Flexbox layout engine
   // --------------------------------------------------------------------------
 
   /** `'none'` | `'row'` | `'column'` */
   direction: string = 'none';
 
-  /** Espacement (en pixels) inséré automatiquement entre deux enfants visibles. */
+  /** Spacing (in pixels) inserted automatically between two visible children. */
   gap: number = 0;
 
-  /** Marges intérieures du conteneur (en pixels). */
+  /** Inner margins of the container (in pixels). */
   paddingTop: number = 0;
   paddingRight: number = 0;
   paddingBottom: number = 0;
   paddingLeft: number = 0;
 
-  /** Poids d'expansion flexible dans un parent `'row'` ou `'column'` (`0` = fixe). */
+  /** Flexible grow weight in a `'row'` or `'column'` parent (`0` = fixed). */
   flex: number = 0;
 
-  /** Alignement sur l'axe secondaire : `'start'` | `'center'` | `'end'` | `'stretch'`. */
+  /** Alignment on the cross axis: `'start'` | `'center'` | `'end'` | `'stretch'`. */
   alignItems: string = 'start';
 
-  /** Répartition sur l'axe principal : `'start'` | `'center'` | `'end'` | `'space-between'`. */
+  /** Distribution on the main axis: `'start'` | `'center'` | `'end'` | `'space-between'`. */
   justifyContent: string = 'start';
 
   // --------------------------------------------------------------------------
-  // Relations dans l'arbre d'affichage
+  // Relations in the display tree
   // --------------------------------------------------------------------------
 
   parent: DisplayObject | null = null;
@@ -87,7 +87,7 @@ export class DisplayObject {
   }
 
   // --------------------------------------------------------------------------
-  // Helpers fluides de configuration du layout
+  // Fluent helpers to configure the layout
   // --------------------------------------------------------------------------
 
   setPadding(allSides: number): DisplayObject {
@@ -115,7 +115,7 @@ export class DisplayObject {
   }
 
   // --------------------------------------------------------------------------
-  // Gestion de la hiérarchie (addChild / removeChild)
+  // Hierarchy management (addChild / removeChild)
   // --------------------------------------------------------------------------
 
   addChild(child: DisplayObject): DisplayObject {
@@ -156,7 +156,7 @@ export class DisplayObject {
   }
 
   // --------------------------------------------------------------------------
-  // Coordonnées globales (monde)
+  // Global (world) coordinates
   // --------------------------------------------------------------------------
 
   worldX(): number {
@@ -180,7 +180,7 @@ export class DisplayObject {
   }
 
   // --------------------------------------------------------------------------
-  // Cycle de vie (Lifecycle)
+  // Lifecycle
   // --------------------------------------------------------------------------
 
   onAddedToStage(): void {}
@@ -190,7 +190,7 @@ export class DisplayObject {
   onDraw(localWidth: number, localHeight: number): void {}
 
   // --------------------------------------------------------------------------
-  // Moteur de mise en page Flexbox léger (Row / Column)
+  // Light Flexbox layout engine (Row / Column)
   // --------------------------------------------------------------------------
 
   computeLayout(availableWidth: number, availableHeight: number): void {
@@ -225,7 +225,7 @@ export class DisplayObject {
     let totalFlexWeight = 0;
     let maxChildCrossHeight = 0;
 
-    // 1. Mesure des enfants à taille fixe et somme des poids flex
+    // 1. Measure the fixed-size children and sum the flex weights
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
       if (!child.visible) continue;
@@ -254,7 +254,7 @@ export class DisplayObject {
     const totalGapsWidth = this.gap * (visibleCount - 1);
     const remainingWidth = Math.max(0, innerWidth - totalFixedWidth - totalGapsWidth);
 
-    // 2. Attribution des largeurs flexibles et layout des enfants flex
+    // 2. Assign the flexible widths and lay out the flex children
     let occupiedMainWidth = totalGapsWidth;
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
@@ -276,7 +276,7 @@ export class DisplayObject {
       this.width = occupiedMainWidth + this.paddingLeft + this.paddingRight;
     }
 
-    // 3. Positionnement horizontal et vertical
+    // 3. Horizontal and vertical positioning
     let cursorX = this.paddingLeft;
     let extraStepBetween = 0;
 
@@ -314,7 +314,7 @@ export class DisplayObject {
     let totalFlexWeight = 0;
     let maxChildCrossWidth = 0;
 
-    // 1. Mesure et layout récursif des enfants à hauteur fixe (y compris sous-VBox autoHeight)
+    // 1. Measure and lay out recursively the fixed-height children (including autoHeight sub-VBoxes)
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
       if (!child.visible) continue;
@@ -346,7 +346,7 @@ export class DisplayObject {
     const totalGapsHeight = this.gap * (visibleCount - 1);
     const remainingHeight = Math.max(0, innerHeight - totalFixedHeight - totalGapsHeight);
 
-    // 2. Attribution des hauteurs flexibles
+    // 2. Assign the flexible heights
     let occupiedMainHeight = totalGapsHeight;
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
@@ -368,7 +368,7 @@ export class DisplayObject {
       this.height = occupiedMainHeight + this.paddingTop + this.paddingBottom;
     }
 
-    // 3. Positionnement vertical et horizontal
+    // 3. Vertical and horizontal positioning
     let cursorY = this.paddingTop;
     let extraStepBetween = 0;
 
@@ -398,7 +398,7 @@ export class DisplayObject {
   }
 
   // --------------------------------------------------------------------------
-  // Propagation interne dans l'arbre
+  // Internal propagation down the tree
   // --------------------------------------------------------------------------
 
   notifyAddedToStage(): void {
@@ -478,8 +478,8 @@ export class DisplayObject {
 }
 
 /**
- * La scène racine (Stage) qui exécute d'abord la passe de layout (`computeLayout`)
- * puis la passe de rendu (`renderTree`).
+ * The root scene (Stage), which first runs the layout pass (`computeLayout`)
+ * then the render pass (`renderTree`).
  */
 export class Stage extends DisplayObject {
   constructor() {

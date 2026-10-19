@@ -1,8 +1,8 @@
 // ============================================================================
-// pages/radios/radios-page.ts — Page Radios (Mes radios, Populaires, Rechercher)
+// pages/radios/radios-page.ts — Radios page (My radios, Popular, Search)
 // ============================================================================
-// Construite avec l'arbre `DisplayObject` et ses composants de layout Flexbox :
-// - `headerBar` (`PageHeaderBarNode` : titre + `SpacerNode(1)` + bouton Modifier + onglets)
+// Built with the `DisplayObject` tree and its Flexbox layout components:
+// - `headerBar` (`PageHeaderBarNode`: title + `SpacerNode(1)` + Edit button + tabs)
 // - `searchFieldNode` (`SearchFieldNode`)
 // - `keyboardNode` (`VirtualKeyboardNode`)
 
@@ -61,7 +61,7 @@ export class RadiosPageNode extends DisplayObject {
   constructor() {
     super('RadiosPage');
 
-    // Barre d'en-tête Flexbox : Titre à gauche, Spacer au centre, bouton Modifier + Onglets à droite
+    // Flexbox header bar: Title on the left, Spacer in the middle, Edit button + Tabs on the right
     this.headerBar = new PageHeaderBarNode('Radios', 14);
     this.editButtonNode = new PillButtonNode('radio/edit', 'Modifier', '', () => {
       appState.isEditingMyRadios = !appState.isEditingMyRadios;
@@ -82,7 +82,7 @@ export class RadiosPageNode extends DisplayObject {
     this.headerBar.addChild(this.editButtonNode);
     this.headerBar.addChild(this.tabsSegmentedNode);
 
-    // Champ de recherche (visible sur l'onglet Rechercher)
+    // Search field (visible on the Search tab)
     this.searchFieldNode = new SearchFieldNode(
       "Nom d'une radio, d'une ville, d'un style",
       () => {
@@ -94,7 +94,7 @@ export class RadiosPageNode extends DisplayObject {
     );
     this.searchFieldNode.y = 100;
 
-    // Clavier virtuel AZERTY
+    // Virtual AZERTY keyboard
     this.keyboardNode = new VirtualKeyboardNode();
 
     this.addChild(this.headerBar);

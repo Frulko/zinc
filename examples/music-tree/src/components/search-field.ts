@@ -1,5 +1,5 @@
 // ============================================================================
-// components/search-field.ts — Barre de recherche interactive
+// components/search-field.ts — Interactive search bar
 // ============================================================================
 
 import { rrect, rect, drawText, textWidth } from 'zinc:gfx';
@@ -16,8 +16,8 @@ import { drawGlyph, drawLabel } from './primitives';
 import { drawIconButton } from './buttons';
 
 /**
- * Dessine un champ de saisie de recherche avec loupe, texte d'invite (placeholder),
- * curseur d'insertion et bouton d'effacement rapide.
+ * Draws a search input field with a magnifier, a prompt text (placeholder),
+ * an insertion caret and a quick clear button.
  */
 export function drawSearchField(
   x: number,

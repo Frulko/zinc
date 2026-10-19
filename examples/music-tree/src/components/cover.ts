@@ -1,5 +1,5 @@
 // ============================================================================
-// components/cover.ts — Pochettes d'albums, logos de radios et tuiles de grille
+// components/cover.ts — Album covers, radio logos and grid tiles
 // ============================================================================
 
 import { rrect, gradient, drawImage, fontAscent } from 'zinc:gfx';
@@ -22,9 +22,9 @@ import { drawCenteredText, drawGlyph, drawLabel } from './primitives';
 import { drawActivitySpinner } from './slider';
 
 /**
- * Dessine une pochette carrée de côté `size` en `(x, y)` :
- * - Si l'image réseau est prête, elle apparaît avec un fondu doux (`getPictureFadeAlpha`).
- * - Si `isStationLogo` vaut `true`, le logo est centré sur un carré clair avec une marge interne.
+ * Draws a square cover of side `size` at `(x, y)`:
+ * - If the network picture is ready, it appears with a soft fade (`getPictureFadeAlpha`).
+ * - If `isStationLogo` is `true`, the logo is centred on a light square with an inner margin.
  * - While it loads: a quiet tile (and a spinner on a large cover).
  * - When there is no picture at all (no URL, or one that cannot be read): a tile with a gradient picked from the title and its
  *   initials (a note when the title is empty).
@@ -68,7 +68,7 @@ export function drawCoverArt(
     return;
   }
 
-  // Choix déterministe d'une teinte à partir du titre
+  // Deterministic choice of a hue from the title
   let nameHash: i32 = 0;
   for (let charIndex = 0; charIndex < title.length; charIndex++) {
     nameHash = (nameHash * 31 + title.charCodeAt(charIndex)) & 0xffff;
@@ -95,7 +95,7 @@ export function drawCoverArt(
 }
 
 /**
- * Dessine une tuile cliquable dans une grille (utilisée pour les radios et les playlists/albums Spotify).
+ * Draws a clickable tile in a grid (used for radios and Spotify playlists/albums).
  */
 export function drawMediaTile(
   zoneId: string,
@@ -127,7 +127,7 @@ export function drawMediaTile(
 }
 
 /**
- * Dessine des formes grises de substitution (squelette) et un spinner pendant le chargement initial d'une liste.
+ * Draws grey placeholder shapes (skeleton) and a spinner during the initial load of a list.
  */
 export function drawLoadingSkeleton(
   isGridView: boolean,

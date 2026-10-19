@@ -1,9 +1,9 @@
 // ============================================================================
-// components/status-bar.ts — Barre d'état supérieure (heure, date, batterie, pièce)
+// components/status-bar.ts — Top status bar (time, date, battery, room)
 // ============================================================================
-// Affichée tout en haut de l'écran (30 px de haut), elle indique l'heure et la
-// date à gauche, les points de position du carrousel au centre, et l'état de la
-// batterie ainsi que le groupe d'enceintes actif à droite.
+// Shown at the very top of the screen (30 px high), it shows the time and the
+// date on the left, the carousel position dots in the centre, and the battery
+// state and the active speaker group on the right.
 
 import { rect, rrect, drawText, textWidth, fontAscent } from 'zinc:gfx';
 import { device } from 'zinc:sys';
@@ -32,7 +32,7 @@ import {
 } from './primitives';
 import { appState } from '../state';
 
-/** Retourne `[heures, minutes, jourSemaine, jourMois, mois]` de l'heure locale. */
+/** Returns `[hours, minutes, weekday, dayOfMonth, month]` of the local time. */
 export function getCurrentClockParts(): i32[] {
   const nowDate = new Date();
   return [
@@ -45,8 +45,8 @@ export function getCurrentClockParts(): i32[] {
 }
 
 /**
- * Dessine l'icône de batterie style iOS à l'extrémité droite de la barre d'état.
- * Retourne l'abscisse X de son bord gauche pour que le nom de l'enceinte se place à côté.
+ * Draws the iOS style battery icon at the right end of the status bar.
+ * Returns the X of its left edge so the speaker name sits next to it.
  */
 function drawBatteryStatusIndicator(rightEdgeX: number, textTopY: number): number {
   if (!appState.config.showBatteryIndicator || appState.batteryLevelPercent < 0) {
@@ -91,8 +91,8 @@ function drawBatteryStatusIndicator(rightEdgeX: number, textTopY: number): numbe
 }
 
 /**
- * Nœud de l'arbre d'affichage représentant la barre d'état supérieure.
- * Gère également la lecture périodique du niveau de batterie dans son `onUpdate`.
+ * Display tree node for the top status bar.
+ * Also handles the periodic reading of the battery level in its `onUpdate`.
  */
 export class StatusBarNode extends DisplayObject {
   private batteryPollTimerSeconds: number = 99;
@@ -117,7 +117,7 @@ export class StatusBarNode extends DisplayObject {
         readCharging = parsed.charging === true;
       }
     } catch (error) {
-      /* pas de batterie sur cet appareil */
+      /* no battery on this device */
     }
 
     if (
@@ -163,7 +163,7 @@ export class StatusBarNode extends DisplayObject {
       0
     );
 
-    // Indicateurs de page du carrousel au centre de la barre
+    // Carousel page indicators in the centre of the bar
     if (appState.currentPage === PAGE_NOW_PLAYING) {
       for (let slideIndex: i32 = 0; slideIndex < SLIDE_COUNT; slideIndex++) {
         const activeProximity = Math.max(0, 1 - Math.abs(appState.animatedSlideX - slideIndex));

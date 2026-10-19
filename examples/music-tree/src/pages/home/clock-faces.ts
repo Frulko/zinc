@@ -1,11 +1,11 @@
 // ============================================================================
-// pages/home/clock-faces.ts — Dessin des cadrans d'horloge et de la lampe à lave
+// pages/home/clock-faces.ts — Drawing of the clock faces and the lava lamp
 // ============================================================================
-// Ce module contient les rendus graphiques de l'horloge StandBy :
-// - Arcs de cercle à extrémités arrondies (`drawRingArc`)
-// - Cadran horloger analogique style Apple Watch (`drawAnalogWatchFace`)
-// - Lampe à lave par métaballes sur GPU (shader GLSL) ou CPU (`drawLavaLampBackground`)
-// - Odomètre mécanique à volets roulants (`drawOdometerDigits`).
+// This module holds the graphic renderings of the StandBy clock:
+// - Circle arcs with rounded ends (`drawRingArc`)
+// - Analog watch face, Apple Watch style (`drawAnalogWatchFace`)
+// - Lava lamp made of metaballs on the GPU (GLSL shader) or CPU (`drawLavaLampBackground`)
+// - Mechanical rolling-flap odometer (`drawOdometerDigits`).
 
 import {
   stroke,
@@ -34,8 +34,8 @@ import { uiState } from '../../core/input';
 import { drawCenteredText } from '../../components/primitives';
 
 /**
- * Dessine un arc de cercle partant de 12 h dans le sens horaire sur une fraction `turnRatio` (0..1)
- * du tour complet, avec une épaisseur `strokeWidth` et des extrémités arrondies.
+ * Draws a circle arc starting at 12 o'clock, clockwise, over a fraction `turnRatio` (0..1)
+ * of the full turn, with a thickness `strokeWidth` and rounded ends.
  */
 export function drawRingArc(
   centerX: number,
@@ -86,8 +86,8 @@ export function drawRingArc(
 }
 
 /**
- * Dessine une aiguille de montre à la fraction de tour `turnRatio`,
- * allant de `tailLength` derrière l'axe jusqu'à `tipLength` devant.
+ * Draws a watch hand at the turn fraction `turnRatio`,
+ * going from `tailLength` behind the axis to `tipLength` in front.
  */
 function drawWatchHand(
   centerX: number,
@@ -112,8 +112,8 @@ function drawWatchHand(
 }
 
 /**
- * Dessine un cadran horloger analogique complet (graduations des minutes, chiffres des heures,
- * aiguilles des heures et minutes à double corps et trotteuse orange).
+ * Draws a complete analog watch face (minute ticks, hour numerals,
+ * double-body hour and minute hands and an orange seconds hand).
  */
 export function drawAnalogWatchFace(
   centerX: number,
@@ -176,18 +176,18 @@ export function drawAnalogWatchFace(
 }
 
 // ----------------------------------------------------------------------------
-// Lampe à lave (Métaballes GPU / CPU)
+// Lava lamp (GPU / CPU metaballs)
 // ----------------------------------------------------------------------------
 const LAVA_GRID_WIDTH: i32 = 80;
 const LAVA_GRID_HEIGHT: i32 = 60;
 const LAVA_BLOB_COUNT: i32 = 4;
 
 export const LAVA_COLOR_PALETTES: number[][][] = [
-  [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]],    // Lave
+  [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]],    // Lava
   [[190, 20, 20], [220, 90, 10], [230, 160, 20], [120, 10, 60]],    // Magma
-  [[10, 90, 200], [20, 170, 190], [90, 60, 200], [10, 40, 120]],    // Océan
-  [[60, 200, 40], [190, 210, 20], [20, 150, 110], [10, 90, 60]],    // Acide
-  [[220, 60, 150], [240, 120, 90], [150, 60, 200], [90, 30, 120]],  // Bonbon
+  [[10, 90, 200], [20, 170, 190], [90, 60, 200], [10, 40, 120]],    // Ocean
+  [[60, 200, 40], [190, 210, 20], [20, 150, 110], [10, 90, 60]],    // Acid
+  [[220, 60, 150], [240, 120, 90], [150, 60, 200], [90, 30, 120]],  // Candy
 ];
 
 export const LAVA_PALETTE_NAMES: string[] = ['Lave', 'Magma', 'Océan', 'Acide', 'Bonbon'];
@@ -226,7 +226,7 @@ const lavaCpuPixelsRgba: u8[] = [];
 let lavaCpuTextureId: i32 = -1;
 
 /**
- * Dessine l'animation de lampe à lave sur toute la surface `(width, height)`.
+ * Draws the lava lamp animation over the whole `(width, height)` surface.
  */
 export function drawLavaLampBackground(width: number, height: number): void {
   const elapsedSeconds = (performance.now() / 1000) % 1200;
@@ -276,7 +276,7 @@ export function drawLavaLampBackground(width: number, height: number): void {
     return;
   }
 
-  // Repli CPU pour les plateformes sans shader (ex: HP TouchPad sous webOS)
+  // CPU fallback for platforms without shaders (e.g. HP TouchPad on webOS)
   lavaCpuPixelsRgba.length = 0;
   for (let gridY = 0; gridY < LAVA_GRID_HEIGHT; gridY++) {
     const normalizedV = 1 - gridY / (LAVA_GRID_HEIGHT - 1);
@@ -354,7 +354,7 @@ export function drawLavaLampBackground(width: number, height: number): void {
 }
 
 // ----------------------------------------------------------------------------
-// Horloge à volets roulants (Odomètre)
+// Rolling-flap clock (odometer)
 // ----------------------------------------------------------------------------
 let previousOdometerDigits: string = '';
 let currentOdometerDigits: string = '';
@@ -362,8 +362,8 @@ const odometerRollState = { progress: 1 };
 const ODOMETER_ROLL_SECONDS = 0.65;
 
 /**
- * Dessine quatre cartes de chiffres centrées en `(centerX, centerY)`.
- * Lorsqu'une minute tourne, seuls les chiffres modifiés roulent verticalement.
+ * Draws four digit cards centered at `(centerX, centerY)`.
+ * When a minute turns, only the changed digits roll vertically.
  */
 export function drawOdometerDigits(
   centerX: number,
@@ -432,7 +432,7 @@ export function drawOdometerDigits(
     }
 
     unclip();
-    rect(cardX, centerY - 1.5, cardWidth, 3, 0x000000); // Charnière centrale d'horloge à palettes
+    rect(cardX, centerY - 1.5, cardWidth, 3, 0x000000); // Central hinge of the flap clock
     cardX += cardWidth + cardGap;
 
     if (digitIndex === 1) {

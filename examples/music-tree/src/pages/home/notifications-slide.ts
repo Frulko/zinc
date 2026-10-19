@@ -1,9 +1,9 @@
 // ============================================================================
-// pages/home/notifications-slide.ts — Slide 4 : Notifications et appairage Mac
+// pages/home/notifications-slide.ts — Slide 4: Notifications and Mac pairing
 // ============================================================================
-// Affiche la liste des notifications reçues depuis le Mac (regroupées par
-// application, balayage vers la gauche pour supprimer, toucher pour ouvrir sur
-// le Mac) ou l'assistant d'appairage en 3 étapes si aucun Mac n'est encore relié.
+// Shows the list of notifications received from the Mac (grouped by
+// application, swipe left to delete, tap to open on
+// the Mac) or the 3-step pairing assistant if no Mac is linked yet.
 
 import { rrect, textWidth, fontAscent } from 'zinc:gfx';
 import * as link from 'zinc:link';
@@ -165,7 +165,7 @@ export class NotificationsSlideNode extends DisplayObject {
       return;
     }
 
-    // Regroupement par application (groupe le plus récent en premier)
+    // Grouping by application (most recent group first)
     const groupKeysOrder: string[] = [];
     const notificationsByGroup = new Map<string, MacNotification[]>();
     for (let index = 0; index < storedNotifications.length; index++) {

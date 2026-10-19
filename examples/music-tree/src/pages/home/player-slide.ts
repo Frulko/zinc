@@ -1,10 +1,10 @@
 // ============================================================================
-// pages/home/player-slide.ts — Slide 0 : Lecteur "À l'écoute"
+// pages/home/player-slide.ts — Slide 0: "À l'écoute" player
 // ============================================================================
-// Affiche la pochette du titre en cours, les métadonnées (titre, artiste, album),
-// la barre de progression (ou le badge EN DIRECT pour une radio), les contrôles
-// de transport (précédent, lecture/pause, suivant, aléatoire, répétition, like),
-// le curseur de volume du groupe et les raccourcis vers les autres enceintes.
+// Shows the cover of the current track, the metadata (title, artist, album),
+// the progress bar (or the EN DIRECT badge for a radio), the transport
+// controls (previous, play/pause, next, shuffle, repeat, like),
+// the group volume slider and the shortcuts to the other speakers.
 
 import { rrect, drawText, textWidth } from 'zinc:gfx';
 import { System, Group } from 'zinc:sonos';
@@ -54,7 +54,7 @@ import {
 import { dismissHandoffCard, playsElsewhere, resumeHere } from '../../services/spotify-on-sonos';
 
 /**
- * Dessine l'état vide lorsqu'aucune enceinte Sonos n'a encore été trouvée.
+ * Draws the empty state when no Sonos speaker has been found yet.
  */
 export function drawNoSpeakerEmptyState(viewWidth: number, viewHeight: number): void {
   const centerX = appState.sidebarWidth + (viewWidth - appState.sidebarWidth) / 2;
@@ -136,7 +136,7 @@ function drawHandoffCard(x: number, y: number, width: number, group: Group): voi
 }
 
 /**
- * Nœud de l'arbre d'affichage pour le premier slide de la page d'accueil (Lecteur + Barre latérale).
+ * Display-tree node for the first slide of the home page (Player + sidebar).
  */
 export class PlayerSlideNode extends DisplayObject {
   constructor() {
@@ -176,7 +176,7 @@ export class PlayerSlideNode extends DisplayObject {
     const track = group.track;
     const artworkUrl = getGroupArtworkUrl(group);
 
-    // En-tête : pièce contrôlée et source audio
+    // Header: controlled room and audio source
     const roomPillWidth = drawPillButton(
       'now/room',
       contentStartX + 50,
@@ -202,7 +202,7 @@ export class PlayerSlideNode extends DisplayObject {
       );
     }
 
-    // Pochette d'album à gauche
+    // Album cover on the left
     const coverSize = isFullScreen ? 430 : 340;
     const coverTopY = isFullScreen ? 86 : 96;
     drawCardShadow(contentStartX, coverTopY, coverSize, coverSize, 14);
@@ -230,7 +230,7 @@ export class PlayerSlideNode extends DisplayObject {
       );
     }
 
-    // Titre, artiste, album et contrôles à droite
+    // Title, artist, album and controls on the right
     const rightColumnX = contentStartX + coverSize + (isFullScreen ? 64 : 44);
     const rightColumnWidth = viewWidth - rightColumnX - (isFullScreen ? 64 : PAGE_PADDING);
     let currentTextY = coverTopY + 6;
@@ -287,7 +287,7 @@ export class PlayerSlideNode extends DisplayObject {
       );
     }
 
-    // Barre de progression ou badge EN DIRECT
+    // Progress bar or EN DIRECT badge
     const progressY = coverTopY + coverSize * 0.58;
     if (track.duration > 0) {
       const currentPosition = getInterpolatedTrackPositionSeconds();
@@ -335,7 +335,7 @@ export class PlayerSlideNode extends DisplayObject {
       drawText(Fonts.tinyBold, rightColumnX + 28, progressY - 6, 'EN DIRECT', COLOR_TEXT_PRIMARY, 255, 0);
     }
 
-    // Boutons de transport (Précédent, Lecture/Pause, Suivant)
+    // Transport buttons (Previous, Play/Pause, Next)
     const transportCenterY = coverTopY + coverSize * 0.79;
     const transportCenterX = rightColumnX + rightColumnWidth / 2;
 
@@ -389,7 +389,7 @@ export class PlayerSlideNode extends DisplayObject {
       () => executeGroupCommand('Suivant', (system, targetGroup) => system.next(targetGroup))
     );
 
-    // Aléatoire, Répétition et J'aime (Spotify ou file d'attente Sonos)
+    // Shuffle, Repeat and Like (Spotify or Sonos queue)
     const modeRowY = coverTopY + coverSize - 4;
     if (
       track.source === 'spotify' &&
@@ -500,14 +500,14 @@ export class PlayerSlideNode extends DisplayObject {
       );
     }
 
-    // Curseur de volume du groupe
+    // Group volume slider
     const volumeBarY = coverTopY + coverSize + 50;
     drawGroupVolumeBar(contentStartX, volumeBarY, viewWidth - contentStartX - PAGE_PADDING, group);
     if (playsElsewhere()) {
       drawHandoffCard(contentStartX, volumeBarY + 46, viewWidth - contentStartX - PAGE_PADDING, group);
     }
 
-    // Raccourcis vers les autres groupes d'enceintes en bas de l'écran
+    // Shortcuts to the other speaker groups at the bottom of the screen
     if (appState.sonosSystem !== null && (appState.sonosSystem as System).groups.length > 1) {
       const system = appState.sonosSystem as System;
       drawText(Fonts.tinyBold, contentStartX, viewHeight - 108, 'ENCEINTES', COLOR_TEXT_SECONDARY, 255, 0);

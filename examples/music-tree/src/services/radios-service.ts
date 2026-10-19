@@ -1,21 +1,21 @@
 // ============================================================================
-// services/radios-service.ts — Radios favorites et annuaire radio-browser.info
+// services/radios-service.ts — Favorite radios and the radio-browser.info directory
 // ============================================================================
-// Gère la liste personnelle de stations (`radios.json`) ainsi que la recherche
-// dans l'annuaire libre radio-browser.info (sans clé API). Seuls les flux MP3,
-// AAC et AAC+ directement lisibles par les enceintes Sonos sont retenus.
+// Handles the personal list of stations (`radios.json`) and the search
+// in the free radio-browser.info directory (no API key). Only the MP3,
+// AAC and AAC+ streams that Sonos speakers can play directly are kept.
 
 import { exists, readText, writeText } from 'zinc:fs';
 
 /**
- * Représente une station de radio web.
+ * A web radio station.
  */
 export class RadioStation {
   name: string = '';
   streamUrl: string = '';
-  /** URL du logo de la station ('' si aucun). */
+  /** URL of the station's logo ('' when none). */
   artworkUrl: string = '';
-  /** Styles musicaux ou courte description (ex: 'jazz, soul'). */
+  /** Music styles or short description (e.g. 'jazz, soul'). */
   tags: string = '';
 }
 
@@ -36,7 +36,7 @@ export function createRadioStation(
   return station;
 }
 
-/** Liste initiale de radios françaises fournie avant toute modification par l'utilisateur. */
+/** Initial list of French radios, provided before the user changes anything. */
 function getDefaultRadioStations(): RadioStation[] {
   return [
     createRadioStation(
@@ -96,7 +96,7 @@ function getDefaultRadioStations(): RadioStation[] {
   ];
 }
 
-/** Charge les radios favorites depuis `radios.json` (ou la sélection par défaut). */
+/** Loads the favorite radios from `radios.json` (or the default selection). */
 export function loadMyRadioStations(): RadioStation[] {
   if (!exists(RADIOS_FILE_PATH)) return getDefaultRadioStations();
   try {
@@ -114,7 +114,7 @@ export function loadMyRadioStations(): RadioStation[] {
   }
 }
 
-/** Sauvegarde la liste des radios favorites dans `radios.json`. */
+/** Saves the list of favorite radios to `radios.json`. */
 export function saveMyRadioStations(stationList: RadioStation[]): void {
   const serializedRows: string[] = [];
   for (let index = 0; index < stationList.length; index++) {
@@ -135,7 +135,7 @@ export function saveMyRadioStations(stationList: RadioStation[]): void {
   }
 }
 
-/** Retourne l'indice d'une station dans `stationList` ayant la même URL de flux, ou `-1`. */
+/** Returns the index of the station in `stationList` with the same stream URL, or `-1`. */
 export function findStationIndexByUrl(stationList: RadioStation[], streamUrl: string): i32 {
   for (let index = 0; index < stationList.length; index++) {
     if (stationList[index].streamUrl === streamUrl) return index;
@@ -144,9 +144,9 @@ export function findStationIndexByUrl(stationList: RadioStation[], streamUrl: st
 }
 
 /**
- * Interroge l'annuaire radio-browser.info :
- * - Si `searchQuery` est vide, retourne les stations les plus populaires du pays `countryCode`.
- * - Sinon, recherche les stations dont le nom correspond à `searchQuery`.
+ * Queries the radio-browser.info directory:
+ * - If `searchQuery` is empty, returns the most popular stations of the country `countryCode`.
+ * - Otherwise, searches the stations whose name matches `searchQuery`.
  */
 export async function searchRadioDirectory(
   searchQuery: string,

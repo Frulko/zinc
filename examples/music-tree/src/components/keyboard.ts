@@ -1,9 +1,9 @@
 // ============================================================================
-// components/keyboard.ts — Clavier virtuel AZERTY (style iPad sombre)
+// components/keyboard.ts — AZERTY virtual keyboard (dark iPad style)
 // ============================================================================
-// Sur webOS 3 (HP TouchPad), les applications PDK n'ont pas accès au clavier
-// système. Ce composant dessine un clavier AZERTY complet avec bascule
-// lettres/chiffres (`123` / `ABC`), touche effacer et bouton `Rechercher`.
+// On webOS 3 (HP TouchPad), PDK apps have no access to the system
+// keyboard. This component draws a full AZERTY keyboard with a
+// letters/digits toggle (`123` / `ABC`), a delete key and a `Rechercher` button.
 
 import { rrect, fontAscent } from 'zinc:gfx';
 import { platform } from 'zinc:sys';
@@ -33,8 +33,8 @@ export function getTouchKeyboardHeight(): number {
 }
 
 /**
- * Dessine le clavier virtuel dans le rectangle `(x, y, width, KEYBOARD_HEIGHT)`
- * et transmet chaque frappe à `onKeyPress`.
+ * Draws the virtual keyboard in the rectangle `(x, y, width, KEYBOARD_HEIGHT)`
+ * and passes each keystroke to `onKeyPress`.
  */
 export function drawVirtualKeyboard(
   x: number,
@@ -82,7 +82,7 @@ export function drawVirtualKeyboard(
       keyX += keyWidth + keyGap;
     }
 
-    // Touche Effacer (retour arrière) à la fin de la troisième rangée
+    // Delete key (backspace) at the end of the third row
     if (rowIndex === 2) {
       const backspaceWidth = keyWidth * 1.5;
       rrect(
@@ -99,11 +99,11 @@ export function drawVirtualKeyboard(
     }
   }
 
-  // Quatrième rangée : bascule 123/ABC, barre d'espace et bouton Rechercher
+  // Fourth row: 123/ABC toggle, space bar and Rechercher button
   const bottomRowY = y + keyGap + 3 * (keyHeight + keyGap);
   const sideButtonWidth = keyWidth * 2 + keyGap;
 
-  // Bouton 123 / ABC
+  // 123 / ABC button
   rrect(
     x + keyGap,
     bottomRowY,
@@ -124,7 +124,7 @@ export function drawVirtualKeyboard(
     isSymbolsModeActive = !isSymbolsModeActive;
   });
 
-  // Barre d'espace
+  // Space bar
   const spaceBarX = x + keyGap * 2 + sideButtonWidth;
   const spaceBarWidth = width - sideButtonWidth * 2 - keyGap * 4;
   rrect(
@@ -145,7 +145,7 @@ export function drawVirtualKeyboard(
   );
   registerTapZone('key/ ', spaceBarX, bottomRowY, spaceBarWidth, keyHeight, () => onKeyPress(' '));
 
-  // Bouton Rechercher (Entrée)
+  // Rechercher button (Enter)
   const enterButtonX = x + width - keyGap - sideButtonWidth;
   rrect(
     enterButtonX,
@@ -169,7 +169,7 @@ export function drawVirtualKeyboard(
 }
 
 /**
- * Nœud de l'arbre d'affichage représentant le clavier virtuel en bas de page.
+ * Display tree node for the virtual keyboard at the bottom of the page.
  */
 export class VirtualKeyboardNode extends DisplayObject {
   constructor() {

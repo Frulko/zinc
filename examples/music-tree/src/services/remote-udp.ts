@@ -1,8 +1,8 @@
 // ============================================================================
-// services/remote-udp.ts — Commandes réseau UDP sur le port 7777
+// services/remote-udp.ts — UDP network commands on port 7777
 // ============================================================================
-// Permet à un bouton physique (ESP32 sur le Wi-Fi) ou à un téléphone d'envoyer
-// des commandes textuelles simples : `toggle`, `play`, `pause`, `next`, `prev`,
+// Lets a physical button (ESP32 on Wi-Fi) or a phone send
+// simple text commands: `toggle`, `play`, `pause`, `next`, `prev`,
 // `vol+`, `vol-`, `radio <n>`, `wake`.
 
 import { udp } from 'zinc:socket';

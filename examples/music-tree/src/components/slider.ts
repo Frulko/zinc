@@ -1,5 +1,5 @@
 // ============================================================================
-// components/slider.ts — Curseur horizontal et indicateur de chargement
+// components/slider.ts — Horizontal slider and loading indicator
 // ============================================================================
 
 import { rrect, shadow, stroke } from 'zinc:gfx';
@@ -7,11 +7,11 @@ import { COLOR_TEXT_SECONDARY } from '../constants';
 import { registerDragZone, isZonePressed, isLocalRectVisible, uiState } from '../core/input';
 
 /**
- * Dessine un curseur horizontal dont la valeur est comprise entre `0` et `1`.
- * - Si `alwaysShowKnob` vaut `false` (ex: barre de progression d'un morceau), la pastille
- *   ronde n'apparaît que lorsque l'utilisateur maintient le curseur.
- * - `onChange(newValue, isReleased)` est appelé en continu pendant le glisser et avec
- *   `isReleased = true` lorsque le doigt se relève.
+ * Draws a horizontal slider whose value is between `0` and `1`.
+ * - If `alwaysShowKnob` is `false` (e.g. a track's progress bar), the round
+ *   knob shows only while the user holds the slider.
+ * - `onChange(newValue, isReleased)` is called continuously during the drag and with
+ *   `isReleased = true` when the finger lifts.
  */
 export function drawSlider(
   zoneId: string,
@@ -55,8 +55,8 @@ export function drawSlider(
 }
 
 /**
- * Dessine l'indicateur d'activité rotatif à 12 branches (style iOS) centré en `(centerX, centerY)`.
- * Active automatiquement `uiState.animating` pour maintenir le rafraîchissement des frames.
+ * Draws the 12-spoke rotating activity indicator (iOS style) centred at `(centerX, centerY)`.
+ * Turns on `uiState.animating` automatically to keep the frames refreshing.
  */
 export function drawActivitySpinner(
   centerX: number,

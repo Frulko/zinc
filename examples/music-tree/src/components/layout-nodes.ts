@@ -1,17 +1,17 @@
 // ============================================================================
-// components/layout-nodes.ts — Conteneurs et Composants Flexbox légers (AS3/Haxe)
+// components/layout-nodes.ts — Light Flexbox containers and components (AS3/Haxe)
 // ============================================================================
-// Ce module fournit les nœuds prêts à l'emploi qui exploitent le moteur de
-// layout Flexbox léger de `DisplayObject` :
-// - `VBox`                  : Empilement vertical (`direction = 'column'`)
-// - `HBox`                  : Alignement horizontal (`direction = 'row'`)
-// - `SpacerNode`            :Ressort flexible (`flex = 1`)
-// - `CardBox`               : Conteneur `VBox` ou `HBox` avec fond de carte arrondi
-// - `ScrollContainerNode`   : Zone de défilement verticale automatique pour un `VBox`
-// - `LabelNode`             : Nœud de texte auto-mesuré ou flexible (`flex = 1`)
-// - `IconNode`              : Nœud d'icône vectorielle Lucide
-// - `PillButtonNode`        : Bouton capsule auto-mesuré
-// - `SegmentedControlNode`  : Sélecteur à onglets iOS auto-mesuré
+// This module provides ready-to-use nodes that use the light Flexbox
+// layout engine of `DisplayObject`:
+// - `VBox`                  : Vertical stacking (`direction = 'column'`)
+// - `HBox`                  : Horizontal alignment (`direction = 'row'`)
+// - `SpacerNode`            : Flexible spring (`flex = 1`)
+// - `CardBox`               : `VBox` or `HBox` container with a rounded card background
+// - `ScrollContainerNode`   : Automatic vertical scroll zone for a `VBox`
+// - `LabelNode`             : Self-measuring or flexible text node (`flex = 1`)
+// - `IconNode`              : Lucide vector icon node
+// - `PillButtonNode`        : Self-measuring capsule button
+// - `SegmentedControlNode`  : Self-measuring iOS tab selector
 
 import { rrect, textWidth, fontAscent, setTransform } from 'zinc:gfx';
 import {
@@ -29,8 +29,8 @@ import { drawActivitySpinner, drawSlider } from './slider';
 import { drawCoverArt } from './cover';
 
 /**
- * Conteneur vertical Flexbox (`direction = 'column'`).
- * Empile automatiquement ses enfants de haut en bas avec un espacement `gap`.
+ * Vertical Flexbox container (`direction = 'column'`).
+ * Stacks its children automatically from top to bottom with a `gap` spacing.
  */
 export class VBox extends DisplayObject {
   constructor(gap: number = 0, name: string = 'VBox') {
@@ -43,8 +43,8 @@ export class VBox extends DisplayObject {
 }
 
 /**
- * Conteneur horizontal Flexbox (`direction = 'row'`).
- * Aligne automatiquement ses enfants de gauche à droite, centrés verticalement par défaut.
+ * Horizontal Flexbox container (`direction = 'row'`).
+ * Lines up its children automatically from left to right, vertically centred by default.
  */
 export class HBox extends DisplayObject {
   constructor(gap: number = 0, name: string = 'HBox') {
@@ -57,8 +57,8 @@ export class HBox extends DisplayObject {
 }
 
 /**
- * Élément élastique invisible (`flex = 1`) qui pousse les éléments suivants
- * vers la droite (dans un `HBox`) ou vers le bas (dans un `VBox`).
+ * Invisible elastic element (`flex = 1`) that pushes the following elements
+ * to the right (in an `HBox`) or down (in a `VBox`).
  */
 export class SpacerNode extends DisplayObject {
   constructor(flexWeight: number = 1) {
@@ -68,8 +68,8 @@ export class SpacerNode extends DisplayObject {
 }
 
 /**
- * Conteneur Flexbox (`'row'` ou `'column'`) qui dessine automatiquement un fond
- * de carte arrondi (`COLOR_CARD`) sur toute sa surface calculée par le layout.
+ * Flexbox container (`'row'` or `'column'`) that automatically draws a rounded
+ * card background (`COLOR_CARD`) over its whole surface computed by the layout.
  */
 export class CardBox extends DisplayObject {
   backgroundColor: u32 = COLOR_CARD;
@@ -97,10 +97,10 @@ export class CardBox extends DisplayObject {
 }
 
 /**
- * Nœud de texte dans l'arbre d'affichage.
- * - Si `flex === 0` et `width === 0`, il mesure automatiquement la largeur de son texte.
- * - Si `flex > 0` (ou dans un `VBox` en `stretch`), il tronque proprement le texte avec `…`
- *   pour tenir dans la largeur attribuée par son parent Flexbox.
+ * Text node in the display tree.
+ * - If `flex === 0` and `width === 0`, it measures the width of its text automatically.
+ * - If `flex > 0` (or in a `stretch` `VBox`), it cleanly truncates the text with `…`
+ *   to fit the width given by its Flexbox parent.
  */
 export class LabelNode extends DisplayObject {
   fontId: i32;
@@ -146,7 +146,7 @@ export class LabelNode extends DisplayObject {
 }
 
 /**
- * Nœud d'icône vectorielle Lucide de taille fixe `iconSize × iconSize`.
+ * Lucide vector icon node of fixed size `iconSize × iconSize`.
  */
 export class IconNode extends DisplayObject {
   iconName: string;
@@ -202,8 +202,8 @@ export class SpinnerNode extends DisplayObject {
 }
 
 /**
- * Nœud de bouton capsule (pilule) qui calcule automatiquement sa largeur
- * en fonction de son libellé et de son icône lors de la passe `onMeasure()`.
+ * Capsule (pill) button node that computes its width automatically
+ * from its label and icon during the `onMeasure()` pass.
  */
 export class PillButtonNode extends DisplayObject {
   zoneId: string;
@@ -250,7 +250,7 @@ export class PillButtonNode extends DisplayObject {
 }
 
 /**
- * Nœud de contrôle segmenté (barre d'onglets iOS) auto-mesuré.
+ * Self-measuring segmented control node (iOS tab bar).
  */
 export class SegmentedControlNode extends DisplayObject {
   zoneIdPrefix: string;
@@ -300,10 +300,10 @@ export class SegmentedControlNode extends DisplayObject {
 }
 
 /**
- * Conteneur de défilement vertical qui héberge un `contentBox` (`VBox`).
- * Calcule automatiquement la hauteur totale `scrollBox.contentHeight` à partir
- * des enfants du `contentBox` et applique le décalage `-scrollBox.scrollY` ainsi
- * que le masque de découpe `beginScrollBox` / `endScrollBox`.
+ * Vertical scroll container that hosts a `contentBox` (`VBox`).
+ * Automatically computes the total height `scrollBox.contentHeight` from
+ * the children of the `contentBox` and applies the `-scrollBox.scrollY` offset as well
+ * as the `beginScrollBox` / `endScrollBox` clipping mask.
  */
 export class ScrollContainerNode extends DisplayObject {
   readonly scrollBox: ScrollBox;
@@ -326,10 +326,10 @@ export class ScrollContainerNode extends DisplayObject {
     this.contentBox.y = -this.scrollBox.scrollY;
     this.contentBox.width = viewportWidth;
 
-    // Calcul du layout vertical du contentBox
+    // Vertical layout of the contentBox
     this.contentBox.computeLayout(viewportWidth, viewportHeight);
 
-    // Mesure de la hauteur totale occupée par les enfants du contentBox
+    // Measure the total height taken by the contentBox's children
     let maxChildBottom = this.contentBox.paddingTop;
     for (let index = 0; index < this.contentBox.children.length; index++) {
       const child = this.contentBox.children[index];
@@ -362,9 +362,9 @@ export class ScrollContainerNode extends DisplayObject {
 }
 
 /**
- * Barre d'en-tête Flexbox horizontale d'une page (`HBox`) :
- * Place le grand titre à gauche, un `SpacerNode(1)` extensible au milieu,
- * et les boutons d'action ou contrôles segmentés alignés à droite.
+ * Horizontal Flexbox header bar of a page (`HBox`):
+ * Puts the large title on the left, a stretchable `SpacerNode(1)` in the middle,
+ * and the action buttons or segmented controls aligned to the right.
  */
 export class PageHeaderBarNode extends HBox {
   readonly titleLabel: LabelNode;
@@ -386,8 +386,8 @@ export class PageHeaderBarNode extends HBox {
 }
 
 /**
- * Champ de recherche sous forme de nœud `DisplayObject` pouvant être inséré
- * directement dans un `VBox` ou positionné en haut d'une page.
+ * Search field as a `DisplayObject` node that can be inserted
+ * directly in a `VBox` or placed at the top of a page.
  */
 export class SearchFieldNode extends DisplayObject {
   placeholder: string;
@@ -423,7 +423,7 @@ export class SearchFieldNode extends DisplayObject {
 }
 
 /**
- * Ligne de séparation horizontale de 1 pixel qui s'étire sur toute la largeur de son parent.
+ * 1-pixel horizontal separator line that stretches over the whole width of its parent.
  */
 export class SeparatorNode extends DisplayObject {
   insetLeft: number = 0;
@@ -445,7 +445,7 @@ export class SeparatorNode extends DisplayObject {
 }
 
 /**
- * Curseur horizontal (`Slider`) sous forme de nœud Flexbox (souvent utilisé avec `flex = 1` dans une `HBox`).
+ * Horizontal slider (`Slider`) as a Flexbox node (often used with `flex = 1` in an `HBox`).
  */
 export class SliderNode extends DisplayObject {
   zoneId: string;
@@ -488,7 +488,7 @@ export class SliderNode extends DisplayObject {
 }
 
 /**
- * Bouton icône circulaire sous forme de nœud Flexbox de taille fixe.
+ * Round icon button as a fixed-size Flexbox node.
  */
 export class IconButtonNode extends DisplayObject {
   zoneId: string;
@@ -533,7 +533,7 @@ export class IconButtonNode extends DisplayObject {
 }
 
 /**
- * Pochette d'album ou logo de station carré (`size × size`) sous forme de nœud Flexbox.
+ * Square album cover or station logo (`size × size`) as a Flexbox node.
  */
 export class CoverArtNode extends DisplayObject {
   imageUrl: string = '';

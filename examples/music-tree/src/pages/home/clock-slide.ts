@@ -1,10 +1,10 @@
 // ============================================================================
-// pages/home/clock-slide.ts — Slide 1 : Horloge StandBy à 5 cadrans
+// pages/home/clock-slide.ts — Slide 1: StandBy clock with 5 faces
 // ============================================================================
-// L'utilisateur balaie verticalement pour choisir l'un des 5 cadrans :
-// 0 = Analogique, 1 = Numérique géant, 2 = Anneaux d'activité,
-// 3 = Lampe à lave interactive, 4 = Odomètre à volets roulants.
-// Chaque cadran est lui-même un `DisplayObject` enfant positionné verticalement !
+// The user swipes vertically to choose one of the 5 faces:
+// 0 = Analog, 1 = Giant digital, 2 = Activity rings,
+// 3 = Interactive lava lamp, 4 = Rolling-flap odometer.
+// Each face is itself a child `DisplayObject` positioned vertically!
 
 import { rrect, fontAscent, setTransform } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
@@ -55,7 +55,7 @@ import {
   togglePlayPause,
 } from '../../state';
 
-/** Dessine le jour de la semaine et la date complète sur deux lignes. */
+/** Draws the day of the week and the full date on two lines. */
 function drawDateBlock(x: number, y: number, maxWidth: number): void {
   const nowDate = new Date();
   const weekdayName = WEEKDAYS_LONG[nowDate.getDay()];
@@ -157,7 +157,7 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
 }
 
 /**
- * Nœud enfant représentant l'un des 5 cadrans de l'horloge StandBy.
+ * Child node representing one of the 5 faces of the StandBy clock.
  */
 class SingleClockFaceNode extends DisplayObject {
   faceKind: i32;
@@ -333,8 +333,8 @@ class SingleClockFaceNode extends DisplayObject {
 }
 
 /**
- * Nœud conteneur de l'horloge StandBy : contient les 5 cadrans enfants et
- * les indicateurs de pagination verticale sur le bord droit.
+ * Container node of the StandBy clock: holds the 5 child faces and
+ * the vertical pagination indicators on the right edge.
  */
 export class ClockSlideNode extends DisplayObject {
   private faceNodes: SingleClockFaceNode[] = [];
@@ -349,7 +349,7 @@ export class ClockSlideNode extends DisplayObject {
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
-    // Positionne chaque cadran enfant selon le défilement vertical `animatedClockFaceY`
+    // Positions each child face according to the vertical scroll `animatedClockFaceY`
     for (let faceIndex: i32 = 0; faceIndex < CLOCK_FACE_COUNT; faceIndex++) {
       const verticalOffset = Math.round((faceIndex - appState.animatedClockFaceY) * viewHeight);
       const faceNode = this.faceNodes[faceIndex];
@@ -362,7 +362,7 @@ export class ClockSlideNode extends DisplayObject {
   }
 
   /**
-   * Après le dessin des cadrans enfants, dessine les points de repère verticaux à droite.
+   * After the child faces are drawn, draws the vertical marker dots on the right.
    */
   override renderTree(
     stageWidth: number,

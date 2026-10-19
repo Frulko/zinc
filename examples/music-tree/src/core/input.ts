@@ -1,70 +1,70 @@
 // ============================================================================
-// core/input.ts — Gestion des zones tactiles, du glisser et du défilement
+// core/input.ts — Touch zones, dragging and scrolling
 // ============================================================================
-// Comme l'écran n'est redessiné que lorsque quelque chose change (`uiState.dirty`),
-// chaque composant enregistre ses zones interactives (`TouchZone`) pendant son
-// dessin `onDraw()`. Le gestionnaire d'entrées teste ensuite les coordonnées du
-// doigt ou de la souris du dernier élément dessiné vers le premier (ordre Z).
+// Since the screen is redrawn only when something changes (`uiState.dirty`),
+// each component registers its interactive zones (`TouchZone`) while it
+// draws in `onDraw()`. The input handler then tests the coordinates of the
+// finger or mouse against the last element drawn back to the first (Z order).
 
 import { clip, unclip } from 'zinc:gfx';
 
 /**
- * État global du rendu et du pointeur partagé par l'arbre d'affichage.
+ * Global render and pointer state shared by the display tree.
  */
 export class UiRenderState {
-  /** Indique qu'au moins un élément a changé et que la scène doit être redessinée. */
+  /** Set when at least one element changed and the scene must be redrawn. */
   dirty: boolean = true;
 
-  /** Coordonnée X actuelle du pointeur pour la frame en cours. */
+  /** Current X coordinate of the pointer for this frame. */
   pointerX: number = 0;
 
-  /** Coordonnée Y actuelle du pointeur pour la frame en cours. */
+  /** Current Y coordinate of the pointer for this frame. */
   pointerY: number = 0;
 
-  /** Identifiant de la zone actuellement maintenue sous le doigt ('' si aucune). */
+  /** Id of the zone currently held under the finger ('' if none). */
   pressedZoneId: string = '';
 
-  /** Décalage X courant injecté par le DisplayObject en cours de dessin. */
+  /** Current X offset injected by the DisplayObject being drawn. */
   offsetX: number = 0;
 
-  /** Décalage Y courant injecté par le DisplayObject en cours de dessin. */
+  /** Current Y offset injected by the DisplayObject being drawn. */
   offsetY: number = 0;
 
-  /** Mis à `true` par un composant animé (spinner, fondu d'image, lampe à lave) pour demander la frame suivante. */
+  /** Set to `true` by an animated component (spinner, image fade, lava lamp) to ask for the next frame. */
   animating: boolean = false;
 }
 
 export const uiState = new UiRenderState();
 
 /**
- * État d'une liste déroulante verticale avec défilement inertiel (physique de lancer).
+ * State of a vertical scrolling list with inertial scrolling (fling physics).
  */
 export class ScrollBox {
-  /** Position verticale actuelle du défilement (en pixels). */
+  /** Current vertical scroll position (in pixels). */
   scrollY: number = 0;
 
-  /** Hauteur totale du contenu mesurée lors du dessin. */
+  /** Total content height measured while drawing. */
   contentHeight: number = 0;
 
-  /** Hauteur visible de la fenêtre de découpe (viewport). */
+  /** Visible height of the clipping window (viewport). */
   viewportHeight: number = 0;
 
-  /** Vitesse actuelle du défilement inertiel (en pixels par seconde). */
+  /** Current speed of the inertial scroll (in pixels per second). */
   velocityY: number = 0;
 
-  /** Valeur maximale que peut prendre `scrollY`. */
+  /** Maximum value `scrollY` can take. */
   maxScrollY(): number {
     return Math.max(0, this.contentHeight - this.viewportHeight);
   }
 
-  /** Contraint `scrollY` dans les bornes `[0, maxScrollY()]`. */
+  /** Clamps `scrollY` to the bounds `[0, maxScrollY()]`. */
   clamp(): void {
     this.scrollY = Math.max(0, Math.min(this.maxScrollY(), this.scrollY));
   }
 
   /**
-   * Fait avancer l'inertie après un lancer du doigt.
-   * Retourne `true` tant que la liste est en mouvement.
+   * Advances the inertia after a finger fling.
+   * Returns `true` while the list is moving.
    */
   stepInertia(deltaSeconds: number): boolean {
     if (Math.abs(this.velocityY) < 8) {
@@ -82,7 +82,7 @@ export class ScrollBox {
 }
 
 /**
- * Une zone interactive rectangulaire enregistrée pendant le rendu d'un composant.
+ * A rectangular interactive zone registered while a component renders.
  */
 export class TouchZone {
   id: string = '';
@@ -91,19 +91,19 @@ export class TouchZone {
   width: number = 0;
   height: number = 0;
 
-  /** Action déclenchée lors d'un appui court (tap) sans déplacement. */
+  /** Action fired on a short press (tap) with no movement. */
   onTapCallback: (() => void) | null = null;
 
   /**
-   * Action déclenchée lors d'un glisser (curseur de volume, balayage d'une ligne).
-   * `phase` vaut : 0 = appui initial, 1 = mouvement, 2 = relâchement, 3 = annulé au profit du carrousel.
+   * Action fired on a drag (volume slider, swipe on a row).
+   * `phase` is: 0 = initial press, 1 = move, 2 = release, 3 = cancelled in favour of the carousel.
    */
   onDragCallback: ((localX: number, localY: number, phase: i32) => void) | null = null;
 
-  /** Zone de défilement associée si cette zone est un conteneur scrollable. */
+  /** Associated scroll box if this zone is a scrollable container. */
   scrollBox: ScrollBox | null = null;
 
-  /** Vérifie si le point écran `(pointX, pointY)` se trouve dans ce rectangle. */
+  /** Checks whether the screen point `(pointX, pointY)` lies inside this rectangle. */
   containsPoint(pointX: number, pointY: number): boolean {
     return (
       pointX >= this.x &&
@@ -144,7 +144,7 @@ function clipZoneToScrollBox(zone: TouchZone): boolean {
   return zone.width > 0 && zone.height > 0;
 }
 
-/** Liste des zones interactives collectées lors du dernier rendu de l'arbre. */
+/** List of the interactive zones collected during the last render of the tree. */
 export let activeZones: TouchZone[] = [];
 
 /** Takes the zones of the frame on the screen out of the list, for a drawing whose zones must not count (the offscreen warm-up). */
@@ -159,14 +159,14 @@ export function restoreTouchZones(zones: TouchZone[]): void {
   activeZones = zones;
 }
 
-/** Vide les zones au début d'un nouveau rendu de la scène. */
+/** Clears the zones at the start of a new render of the scene. */
 export function clearTouchZones(): void {
   activeZones = [];
 }
 
 /**
- * Enregistre une zone de clic/tap aux coordonnées locales `(x, y, width, height)`.
- * Le décalage global du `DisplayObject` courant (`uiState.offsetX/Y`) est ajouté automatiquement.
+ * Registers a click/tap zone at the local coordinates `(x, y, width, height)`.
+ * The global offset of the current `DisplayObject` (`uiState.offsetX/Y`) is added automatically.
  */
 export function registerTapZone(
   zoneId: string,
@@ -187,8 +187,8 @@ export function registerTapZone(
 }
 
 /**
- * Enregistre une zone de glisser (drag) aux coordonnées locales `(x, y, width, height)`.
- * Les coordonnées passées au callback sont automatiquement ramenées dans le repère local du composant.
+ * Registers a drag zone at the local coordinates `(x, y, width, height)`.
+ * The coordinates passed to the callback are automatically brought back to the component's local frame.
  */
 export function registerDragZone(
   zoneId: string,
@@ -213,9 +213,9 @@ export function registerDragZone(
 }
 
 /**
- * Recherche la zone interactive la plus haute sous le point `(pointX, pointY)`.
- * - Si `forTapsAndDrags` vaut `true`, ignore les zones de défilement pour trouver les boutons/curseurs.
- * - Si `forTapsAndDrags` vaut `false`, ne cherche que les conteneurs de défilement (`ScrollBox`).
+ * Finds the topmost interactive zone under the point `(pointX, pointY)`.
+ * - If `forTapsAndDrags` is `true`, skips the scroll zones to find buttons/sliders.
+ * - If `forTapsAndDrags` is `false`, looks only for scroll containers (`ScrollBox`).
  */
 export function findTopmostZoneAt(pointX: number, pointY: number, forTapsAndDrags: boolean): TouchZone | null {
   for (let index = activeZones.length - 1; index >= 0; index--) {
@@ -245,14 +245,14 @@ export function scrollBoxUnderPointerByWheel(pointX: number, pointY: number, del
   return true;
 }
 
-/** Indique si la zone `zoneId` est actuellement maintenue enfoncée par l'utilisateur. */
+/** Tells whether the zone `zoneId` is currently held down by the user. */
 export function isZonePressed(zoneId: string): boolean {
   return uiState.pressedZoneId === zoneId;
 }
 
 /**
- * Ouvre une zone de défilement verticale et active le masque de découpe graphique (`clip`).
- * Doit toujours être fermé par un appel à `endScrollBox()`.
+ * Opens a vertical scroll zone and turns on the graphic clipping mask (`clip`).
+ * Must always be closed by a call to `endScrollBox()`.
  */
 export function beginScrollBox(
   scrollBox: ScrollBox,
@@ -280,7 +280,7 @@ export function beginScrollBox(
   scrollClipBottom = zone.y + height;
 }
 
-/** Ferme la zone de défilement ouverte par `beginScrollBox()`. */
+/** Closes the scroll zone opened by `beginScrollBox()`. */
 export function endScrollBox(): void {
   unclip();
   isScrollClipOpen = false;
