@@ -1,6 +1,7 @@
 #!/bin/sh
-# Releases Zinc from main: checks the repository, proposes the next version from the commits since the last tag, shows the changelog, asks, tags, pushes the tag
-# (the workflow does the rest: build, both macOS downloads, signed manifests, the GitHub release) and watches it. `make release` runs it.
+# Releases Zinc from develop (owner, 2026-10-19: the work happens on develop, main only moves at a release): checks the repository, proposes the next version
+# from the commits since the last tag, shows the changelog, asks, commits it on develop, fast-forwards main to it, pushes develop, main and the tag (the tag's
+# workflow is the CI: the whole tier, both macOS downloads, signed manifests, the GitHub release) and watches it. `make release` runs it.
 #
 #   tools/release [--bump patch|minor|major|X.Y.Z] [--yes] [--dry-run] [--no-watch]
 #   tools/release --undo vX.Y.Z      delete a tag (local and remote) and its release, after a question
@@ -48,25 +49,19 @@ fi
 
 printf '\n  %sZinc release%s  %s%s%s\n\n' "$b" "$z" "$d" "$repo" "$z"
 fail=0
-branch=${RELEASE_BRANCH:-main}
+branch=${RELEASE_BRANCH:-develop}
 cur=$(git rev-parse --abbrev-ref HEAD)
 if [ "$cur" = "$branch" ]; then ok "on $branch"; else bad "on $cur: a release is made from $branch (git switch $branch)"; fail=1; fi
 if [ -z "$(git status --porcelain --untracked-files=no)" ]; then ok "working tree clean"; else warn "uncommitted changes in the working tree: they are not in the release (a tag is a commit)"; fi
-git fetch --quiet origin "$branch" --tags 2>/dev/null || warn "could not reach origin: the checks below use what is already fetched"
+git fetch --quiet origin "$branch" main --tags 2>/dev/null || warn "could not reach origin: the checks below use what is already fetched"
 ahead=$(git rev-list --count "origin/$branch..HEAD" 2>/dev/null || echo 0); behind=$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
 if [ "$behind" != 0 ]; then bad "$behind commit(s) on origin/$branch are not here: git pull"; fail=1
 elif [ "$ahead" != 0 ]; then warn "$ahead commit(s) not pushed yet: they are pushed with the tag"; else ok "in step with origin/$branch"; fi
+if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then ok "main fast-forwards to $branch"; else bad "origin/main has commits $branch has not: git merge origin/main"; fail=1; fi
 gh auth status >/dev/null 2>&1 && ok "gh is signed in" || { bad "gh is not signed in: gh auth login"; fail=1; }
 if gh secret list --repo "$repo" 2>/dev/null | grep -q '^ZINC_UPDATE_SEED'; then ok "secret ZINC_UPDATE_SEED is set (the update manifests are signed)"; else warn "no ZINC_UPDATE_SEED secret: the manifests would be unsigned (zinc update refuses them)"; fi
 if [ -f next/update.pub ] && grep -Eq '^[0-9a-f]{64}$' next/update.pub && ! grep -Eq '^0{64}$' next/update.pub; then ok "next/update.pub holds the update public key"; else warn "next/update.pub is missing or a placeholder: builds could not verify updates"; fi
 sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD)
-ci=$(gh run list --repo "$repo" --workflow zinc-next --commit "$sha" --json status,conclusion -q '.[0] | if .status=="completed" then .conclusion else .status end' 2>/dev/null)
-case ${ci:-none} in
-  success) ok "CI of $short: all green" ;;
-  none) warn "no CI run of $short yet" ;;
-  in_progress|queued|pending) warn "CI of $short is still running" ;;
-  *) warn "CI of $short ended '$ci': the release does not wait for the tests (the report is attached), but look at them" ;;
-esac
 [ $fail = 0 ] || { echo; die "fix the red points above, then run it again"; }
 
 last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo)
@@ -145,6 +140,8 @@ PY
 fi
 git tag -a "$tag" -F "$notes" "$sha" || die "could not tag"
 if [ "$ahead" != 0 ]; then git push origin "$branch" || { git tag -d "$tag" >/dev/null; die "could not push $branch (the tag is removed)"; }; fi
+git push origin "$sha:refs/heads/main" || { git tag -d "$tag" >/dev/null; die "could not move main to $short (the tag is removed)"; }
+git fetch --quiet . "$sha:refs/heads/main" 2>/dev/null || true   # the local main follows (a fast-forward; never the branch you are on)
 git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push the tag (removed here)"; }
 ok "pushed $tag"
 [ -n "$watch" ] || { echo "  watch it: gh run watch -R $repo"; exit 0; }

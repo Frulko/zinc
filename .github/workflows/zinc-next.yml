@@ -1,5 +1,6 @@
-# Zinc Next, by branch (owner, 2026-10-16): feature/* branches are built and tested only through their pull request into develop (affected T0/T1 tests, no package);
-# a push to develop does the same; a push to main (a merge from develop) and every nightly, manual or `v*` tag run does the whole tier T2 and the package; only a tag releases.
+# Zinc Next, by branch (owner, 2026-10-19): the work happens on develop and its pushes run nothing. A release (`make release`, from develop) fast-forwards main to
+# develop and pushes a `v*` tag: only that tag runs the CI (the whole tier T2, the packages, the release). The push to main a release makes only updates the plugin
+# mirrors; a manual run (workflow_dispatch) does the whole tier without releasing.
 # macOS first (owner, 2026-10-15): the Linux jobs are out of the matrix; Windows has its own package job (package-windows, experimental: a zip and install.ps1);
 # windows-cross and windows-console (the cross build from Linux) stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
@@ -7,14 +8,8 @@
 name: zinc-next
 on:
   push:
-    branches: [main, develop]   # a feature branch is not built on every push: open a pull request into develop
-    tags: ['v*']   # path filters are not applied to tags
-    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
-  pull_request:
-    branches: [develop, main]
-    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
-  schedule:
-    - cron: '0 3 * * *'
+    branches: [main]   # the fast-forward of a release: only plugin-mirrors runs (plan selects nothing)
+    tags: ['v*']
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
@@ -40,6 +35,9 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          if [ "$EVENT" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then   # a release moving main: its tag runs the checks
+            printf 'test=false\nfull=false\nbench=false\nreproducible=false\npackage=false\nbase=\n' >> "$GITHUB_OUTPUT"; exit 0
+          fi
           full=
           if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_REF" == refs/heads/main ]]; then full=--full; fi
           base="$BEFORE"

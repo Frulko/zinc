@@ -24,6 +24,7 @@ git init -q -b main . && git config user.email t@t && git config user.name t && 
 mkdir -p next && printf '%064d\n' 1 | tr 0 a > next/update.pub
 printf '# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-01-01\n\n- first\n\n[Unreleased]: https://example.test/compare/v0.1.0...HEAD\n[0.1.0]: https://example.test/releases/tag/v0.1.0\n' > CHANGELOG.md
 echo a > a && git add -A && git commit -q -m "feat: first" && git tag -a v0.1.0 -m "Zinc 0.1.0" && git push -q origin main --tags
+git switch -q -c develop && git push -q origin develop   # the work happens on develop; a release moves main to it
 echo b > b && git add b && git commit -q -m "fix(core): a bug"
 echo c > c && git add c && git commit -q -m "feat(ui): a thing"
 run() { PATH="$tmp/bin:$PATH" NO_COLOR=1 sh "$rel" "$@" </dev/null 2>&1; }
@@ -33,6 +34,9 @@ echo "$out" | grep -q "Changelog of v0.2.0" || { echo "feat since the last tag m
 run --yes --bump patch --no-watch > "$tmp/out" || { echo "release failed: $(head -c 500 "$tmp/out")"; fail=1; }
 git tag -l v0.1.1 | grep -q . || { echo "no tag v0.1.1"; fail=1; }
 git -C "$tmp/origin.git" tag -l v0.1.1 | grep -q . || { echo "the tag was not pushed"; fail=1; }
+t=$(git rev-parse 'v0.1.1^{commit}')
+[ "$(git -C "$tmp/origin.git" rev-parse main)" = "$t" ] && [ "$(git -C "$tmp/origin.git" rev-parse develop)" = "$t" ] || { echo "main and develop on origin are not at the release"; fail=1; }
+[ "$(git rev-parse main)" = "$t" ] || { echo "the local main did not follow the release"; fail=1; }
 git tag -l --format='%(contents)' v0.1.1 | grep -q "a thing" || { echo "the draft from the commits is not the tag message"; fail=1; }
 grep -q '^## \[0.1.1\] - ' CHANGELOG.md && grep -q '^## \[Unreleased\]' CHANGELOG.md || { echo "CHANGELOG.md has no 0.1.1 section and a fresh Unreleased"; fail=1; }
 [ "$(git log -1 --format=%s v0.1.1)" = "docs(changelog): 0.1.1" ] || { echo "the tag does not point at the changelog commit"; fail=1; }
