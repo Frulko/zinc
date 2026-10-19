@@ -79,7 +79,30 @@ static int ev[16], nev;
 static int32_t absx[16][2], absy[16][2];  // min/max per device (touchscreens)
 static float px, py;
 static uint32_t keys;
-static bool pdown, quit;
+static bool pdown, quit, mouse;
+
+// The mouse pointer is the display controller's cursor plane (drmModeSetCursor): a 64x64 ARGB image the scan-out adds, so it costs the GPU nothing
+// and a frame never has to be redrawn for it. Shown from the first movement of a relative device (a touchscreen has no pointer to show).
+static gbm_bo* cur_bo;
+static bool cur_on, cur_ready;
+static const char* ARROW[] = {  // X outline, . fill
+  "X          ", "XX         ", "X.X        ", "X..X       ", "X...X      ", "X....X     ", "X.....X    ", "X......X   ", "X.......X  ", "X........X ",
+  "X.....XXXXX", "X..X..X    ", "X.X X..X   ", "XX  X..X   ", "X    X..X  ", "     X..X  ", "      XX   "};
+static void make_cursor() {
+  cur_ready = true;
+  cur_bo = gbm ? gbm_bo_create(gbm, 64, 64, GBM_FORMAT_ARGB8888, GBM_BO_USE_CURSOR | GBM_BO_USE_WRITE) : nullptr;
+  if (!cur_bo) return;
+  static uint32_t px64[64 * 64];
+  for (int y = 0; y < 17; y++)
+    for (int x = 0; ARROW[y][x]; x++) px64[y * 64 + x] = ARROW[y][x] == 'X' ? 0xFF000000u : ARROW[y][x] == '.' ? 0xFFFFFFFFu : 0;
+  gbm_bo_write(cur_bo, px64, sizeof px64);
+}
+static void move_cursor(float x, float y, int32_t W, int32_t H) {
+  if (!cur_ready) make_cursor();
+  if (!cur_bo) return;
+  if (!cur_on) { cur_on = drmModeSetCursor(fd, crtc_id, gbm_bo_get_handle(cur_bo).u32, 64, 64) == 0; if (!cur_on) return; }
+  drmModeMoveCursor(fd, crtc_id, (int)(x * mode.hdisplay / W), (int)(y * mode.vdisplay / H));
+}
 
 static void open_inputs() {
   for (int i = 0; i < 32 && nev < 16; i++) {
@@ -122,6 +145,7 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
         if (e.code == BTN_LEFT || e.code == BTN_TOUCH) pdown = e.value != 0;
         if (uint32_t b = key_bit(e.code)) keys = e.value ? keys | b : keys & ~b;
       } else if (e.type == EV_REL) {
+        mouse = true;
         if (e.code == REL_X) px += e.value;
         if (e.code == REL_Y) py += e.value;
         if (e.code == REL_WHEEL) in->wheel += e.value;
@@ -136,6 +160,7 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   static bool info = getenv("ZINC_GL_INFO") != nullptr, was_down;
   if (info && pdown != was_down) { was_down = pdown; fprintf(stderr, "gl-info: pointer %s at %.0f,%.0f\n", pdown ? "down" : "up", px, py); }
   in->buttons = keys; in->px = px; in->py = py; in->pdown = pdown; in->quit = quit;
+  if (mouse && !first_frame) move_cursor(px, py, W, H);
   in->ntouch = 0;  // ponytail: single pointer; multitouch slots when a touch UI needs them
 }
 
