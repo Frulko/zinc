@@ -2360,9 +2360,15 @@ int main(int argc, char** argv) {
     if (zn::log::steps()) std::fprintf(stderr, "zinc build %s for %s\n", zn::log::shortPath(std::filesystem::absolute(argv[2]).string()).c_str(), zn::tc::hostName().c_str());
     zn::log::step("engine", "Zinc, C++ AOT");
     static std::string bundleExe;
+    if (gBundleOut.empty() && std::filesystem::is_directory(argv[4])) {   // a bundle of an earlier --bundle build, a folder: the linker would only say errno=21
+      std::fprintf(stderr, "zinc: %s is a directory%s: remove it, or name the program with -o\n", argv[4],
+                   std::filesystem::exists(std::filesystem::path(argv[4]) / "Contents" / "Info.plist") ? " (a macOS app bundle, written by zinc build --bundle)" : "");
+      return 2;
+    }
     if (!gBundleOut.empty()) {   // --bundle: <out> is the .app, the program is linked into it
 #ifdef __APPLE__
       gBundleOut = argv[4];
+      if (std::filesystem::path(gBundleOut).extension() != ".app") gBundleOut += ".app";   // the Finder opens a bundle as an app only by its name, and build/<name> stays the plain program's
       std::string pf = zn::frontend::findProjectFile(argv[2]);
       zn::frontend::Project proj;
       std::string perr;

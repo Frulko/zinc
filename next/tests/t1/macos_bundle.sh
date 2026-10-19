@@ -26,6 +26,11 @@ for want in '"CFBundleIdentifier" => "dev.zinc.test.bundle"' '"LSUIElement" => 1
 done
 [ -s "$tmp/Test.app/Contents/Resources/icon.icns" ] || { echo "no icon.icns"; fail=1; }
 [ "$("$tmp/Test.app/Contents/MacOS/zinc" 2>&1)" = "" ] || true
+# an out without .app gets it, so the bundle does not take the path of the plain program; a plain build into a folder says so
+"$ZINC" build --bundle main.ts -o "$tmp/Named" >"$tmp/log" 2>&1 && [ -d "$tmp/Named.app/Contents/MacOS" ] && [ ! -e "$tmp/Named" ] || { echo "build --bundle -o Named did not write Named.app: $(cat "$tmp/log")"; fail=1; }
+mkdir "$tmp/plain"
+"$ZINC" build main.ts -o "$tmp/plain" >"$tmp/log" 2>&1 && { echo "a plain build into a directory succeeded"; fail=1; }
+grep -q "is a directory: remove it, or name the program with -o" "$tmp/log" || { echo "a plain build into a directory does not say so: $(tail -2 "$tmp/log")"; fail=1; }
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$ZINC_HOME/cache/macos/devapp/dev.zinc.test.bundle.app" >/dev/null 2>&1
 [ $fail -eq 0 ] && echo "macos bundle: ok"
 exit $fail
