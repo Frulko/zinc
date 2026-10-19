@@ -6,7 +6,8 @@ import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
 import { utf8Decode, device, platform } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
-import { Spotify, Item, Playback, Login } from 'zinc:spotify';
+import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
+import { SPOTIFY_CLIENT_ID } from './spotify-client';
 import { openUrl } from 'zinc:system/opener';
 import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
@@ -88,8 +89,18 @@ let spotifyUser = '';
 // instructions for the computer (spotifyPage)
 const browserHere = platform() === 'macos';
 let spLogin: Login | null = null;
+/** What to tell about a failed Spotify call: a 403 is an account the Spotify app does not let in (development mode: 5 accounts, each added
+ *  under User Management on developer.spotify.com). */
+function spotifyWhy(m: string): string {
+  return m.indexOf(': 403') >= 0 || m.endsWith(' 403') || m.indexOf('Forbidden') >= 0 || m.indexOf('not be registered') >= 0
+    ? 'ce compte Spotify n\'est pas autorisé dans l\'app : demande à son propriétaire de l\'ajouter (User Management)' : m;
+}
+/** The client id to log in with: the login file's (an earlier login), else the one built into the app. */
+function spotifyClientId(): string { return spotify.clientId !== '' ? spotify.clientId : SPOTIFY_CLIENT_ID; }
 function startSpotifyLogin(): void {
-  spLogin = new Login(spotify.clientId, spotify.file);
+  // a computer without a login file gets the shared one (~/.zinc/spotify.json), which every Zinc app of it reads
+  const file = exists(spotify.file) || sharedLoginFile() === '' ? spotify.file : sharedLoginFile();
+  spLogin = new Login(spotifyClientId(), file);
   if ((spLogin as Login).status === 'waiting') openUrl((spLogin as Login).url);
   ui.dirty = true;
 }
@@ -105,7 +116,7 @@ async function checkSpotify(): Promise<void> {
       spotifyUser = await spotify.me();
       const d = await spotify.devices();
       spCheck = `Tout est bon : ${spotifyUser}, ${plural(d.length as i32, 'appareil')} Spotify Connect.`;
-    } catch (e) { spCheck = `Problème : ${e.message}`; }
+    } catch (e) { spCheck = `Problème : ${spotifyWhy(e.message)}`; }
   }
   spChecking = false; ui.dirty = true;
 }
@@ -413,7 +424,7 @@ function loadSpotify(tab: i32, force: boolean): void {
       const list = await spotifyPageOf(tab, 0, q);
       spLists[tab] = list; spMore[tab] = tab <= 2 && list.length === SP_PAGE;
       spState[tab] = list.length === 0 ? 'Rien ici pour le moment' : 'ok';
-    } catch (e) { spState[tab] = e.message; }
+    } catch (e) { spState[tab] = spotifyWhy(e.message); }
   });
 }
 async function spotifyPageOf(tab: i32, offset: i32, q: string): Promise<Item[]> {
@@ -1085,7 +1096,15 @@ function spotifyConnect(W: number): void {
 
 function spotifyPage(W: number, H: number): void {
   header('Spotify');
-  if (!spotify.ready() && browserHere && spotify.clientId !== '') { spotifyConnect(W); return; }
+  if (!spotify.ready() && browserHere && spotifyClientId() !== '') { spotifyConnect(W); return; }
+  if (!spotify.ready() && browserHere) {   // a build without a client id (src/spotify-client.ts): nothing a person can do from the app
+    const x = SIDE + P, w = W - SIDE - P * 2;
+    card(x, 110, w, 150);
+    glyph('library', x + 24, 134, 32, TEXT3);
+    drawText(F.head, x + 72, 138, 'Spotify n\'est pas disponible', TEXT, 255, 0);
+    label(F.small, x + 24, 196, 'Cette version de Musique n\'a pas d\'identifiant d\'app Spotify : demande une version qui en a un.', TEXT2, w - 48);
+    return;
+  }
   if (!spotify.ready()) {
     const x = SIDE + P, w = W - SIDE - P * 2;
     card(x, 110, w, 250);

@@ -2,7 +2,7 @@
 // playlists, liked songs, recent plays and search, and starting them on a Spotify Connect device (a Sonos room, a computer...).
 // The login is done once on a computer (Login below, or plugins/spotify/login.py; PKCE): it writes { client_id, refresh_token }; this module
 // refreshes the access token, saves the refresh token Spotify rotates, and calls the API over HTTPS.
-import { exists, readText, writeText, chmod } from 'zinc:fs';
+import { exists, readText, writeText, chmod, mkdir } from 'zinc:fs';
 import { env, randomBytes, utf8Encode } from 'zinc:sys';
 import { serveAsync, stop, Request, Reply } from 'zinc:net';
 import { sha256, base64Encode } from 'zinc:web';
@@ -333,6 +333,8 @@ export class Login {
       });
       const j = JSON.parse(await r.text());
       if (r.status !== 200 || j.refresh_token === undefined || j.refresh_token === null) return this.finish(this.page(502, 'Spotify refused the login: ' + j.error + '.'), 'token: ' + j.error);
+      const slash = this.file.lastIndexOf('/');
+      if (slash > 0) mkdir(this.file.slice(0, slash), true);   // ~/.zinc on a computer that never ran zinc
       writeText(this.file, JSON.stringify({ client_id: this.clientId, refresh_token: '' + j.refresh_token }));
       try { chmod(this.file, 0o600); } catch (e) { /* a system without modes */ }
       return this.finish(this.page(200, 'Connected to Spotify. You can close this tab and go back to the app.'), '');
