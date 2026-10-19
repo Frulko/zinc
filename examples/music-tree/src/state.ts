@@ -865,6 +865,21 @@ async function playSpotifyThroughSonosService(
   );
 }
 
+/**
+ * What to tell about a failed Spotify call: a 403 is an account the Spotify app does not let in (development mode: 5 accounts, each
+ * added under User Management on developer.spotify.com).
+ */
+export function explainSpotifyError(message: string): string {
+  const isRefusedAccount =
+    message.indexOf(': 403') >= 0 ||
+    message.endsWith(' 403') ||
+    message.indexOf('Forbidden') >= 0 ||
+    message.indexOf('not be registered') >= 0;
+  return isRefusedAccount
+    ? "Spotify refuse ce compte : le propriétaire de l'app Spotify doit l'ajouter dans developer.spotify.com, User Management (avec l'e-mail du compte), puis se déconnecter et se reconnecter dans les réglages."
+    : message;
+}
+
 export function loadSpotifyTab(tabIndex: i32, forceReload: boolean): void {
   if (!appState.spotifyClient.ready() || (!forceReload && appState.spotifyTabStates[tabIndex] !== '')) {
     return;
@@ -887,7 +902,7 @@ export function loadSpotifyTab(tabIndex: i32, forceReload: boolean): void {
         itemsPage.length === 0 ? 'Rien ici pour le moment' : 'ok';
     } catch (error) {
       if (requestId !== latestSpotifyTabRequestIds[tabIndex]) return;
-      appState.spotifyTabStates[tabIndex] = error.message;
+      appState.spotifyTabStates[tabIndex] = explainSpotifyError(error.message);
     }
   });
 }

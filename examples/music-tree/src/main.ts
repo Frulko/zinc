@@ -101,6 +101,7 @@ import {
   startNotificationRelay,
   tickNotificationRelay,
 } from './services/notify-service';
+import { tickSpotifyAccount } from './services/spotify-account';
 import { SidebarNode } from './components/sidebar';
 import { StatusBarNode, getCurrentClockParts } from './components/status-bar';
 import { VolumePopoverNode } from './components/volume-popover';
@@ -881,6 +882,7 @@ onFrame((deltaSeconds: number) => {
 
   tickWeatherService(deltaSeconds, !appState.screenPower.asleep);
   tickNotificationRelay(deltaSeconds);
+  tickSpotifyAccount(deltaSeconds);
 
   // Mise à jour de tous les nœuds actifs de l'arbre d'affichage (StatusBar, ToastLayer, etc.)
   stage.updateTree(deltaSeconds);

@@ -25,7 +25,7 @@ import { ScrollBox, beginScrollBox, endScrollBox, uiState } from '../core/input'
 import { drawGlyph, drawLabel, drawSeparatorLine } from './primitives';
 import { drawIconButton, drawPillButton, drawSegmentedControl } from './buttons';
 import { drawSearchField } from './search-field';
-import { drawSlider } from './slider';
+import { drawActivitySpinner, drawSlider } from './slider';
 import { drawCoverArt } from './cover';
 
 /**
@@ -182,6 +182,22 @@ export class IconNode extends DisplayObject {
       this.iconAlpha,
       this.strokeWidth
     );
+  }
+}
+
+/** An activity spinner centred in its square; it animates only while visible. */
+export class SpinnerNode extends DisplayObject {
+  radius: number;
+
+  constructor(radius: number = 12) {
+    super('Spinner');
+    this.radius = radius;
+    this.width = radius * 2 + 4;
+    this.height = radius * 2 + 4;
+  }
+
+  override onDraw(localWidth: number, localHeight: number): void {
+    drawActivitySpinner(localWidth / 2, localHeight / 2, this.radius);
   }
 }
 

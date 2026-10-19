@@ -31,6 +31,7 @@ src/
 ├── constants.ts                     # Palette de couleurs, dimensions, ports réseau et identifiants
 ├── fonts.ts                         # Polices de caractères typées et nommées
 ├── state.ts                         # État central de l'application (ApplicationState) et actions métier
+├── spotify-client.ts                # Identifiant d'app Spotify intégré à la build (vide dans le dépôt)
 ├── core/
 │   ├── display.ts                   # DisplayObject, Stage et moteur de layout Flexbox léger (row/column)
 │   ├── input.ts                     # Zones tactiles (TouchZone), glisser et défilement inertiel (ScrollBox)
@@ -41,6 +42,7 @@ src/
 │   ├── radios-service.ts            # Favoris (radios.json) et annuaire radio-browser.info
 │   ├── remote-udp.ts                # Commandes physiques UDP sur le port 7777
 │   ├── weather-service.ts           # Prévisions Open-Meteo et géocodage des villes
+│   ├── spotify-account.ts           # Compte Spotify : connexion depuis un Mac, vérification, déconnexion
 │   └── notify-service.ts            # Relais de notifications macOS (zinc:link) et cache d'icônes
 ├── components/
 │   ├── layout-nodes.ts              # Nœuds Flexbox : VBox, HBox, SpacerNode, CardBox, ScrollContainerNode, LabelNode, IconNode, PillButtonNode, SegmentedControlNode, SliderNode, CoverArtNode...

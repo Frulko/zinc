@@ -12,6 +12,8 @@
 
 import { System } from 'zinc:sonos';
 import {
+  COLOR_DANGER,
+  COLOR_FILL,
   COLOR_GREEN,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
@@ -31,8 +33,16 @@ import {
   ScrollContainerNode,
   SegmentedControlNode,
   SeparatorNode,
+  SpinnerNode,
   VBox,
 } from '../../components/layout-nodes';
+import {
+  askOrConfirmSpotifyLogout,
+  checkSpotifyAccount,
+  isCheckingSpotify,
+  spotifyCheckText,
+  spotifyLogoutConfirmSeconds,
+} from '../../services/spotify-account';
 import { setNotificationsShown } from '../../services/notify-service';
 import { saveAppConfig } from '../../services/config';
 import {
@@ -81,6 +91,12 @@ export class SettingsPageNode extends DisplayObject {
   private readonly weatherCityLabel: LabelNode;
   private readonly spotifyIconNode: IconNode;
   private readonly spotifyStatusLabel: LabelNode;
+  private readonly spotifyCard: CardBox;
+  private readonly spotifyCheckButton: PillButtonNode;
+  private readonly spotifyCheckSpinner: SpinnerNode;
+  private readonly spotifyLogoutButton: PillButtonNode;
+  private readonly spotifyCheckResultRow: HBox;
+  private readonly spotifyCheckResultLabel: LabelNode;
   private readonly sonosIconNode: IconNode;
   private readonly sonosStatusLabel: LabelNode;
 
@@ -224,15 +240,36 @@ export class SettingsPageNode extends DisplayObject {
     const spotifySection = new VBox(8, 'SpotifySection');
     spotifySection.addChild(createSectionHeader('SPOTIFY'));
 
-    const spotifyCard = new CardBox('row', 64, 'SpotifyCard');
-    spotifyCard.setPaddingSymmetric(20, 0);
-    spotifyCard.gap = 14;
+    // the account's row ("Vérifier": the login file read again, the profile, the Connect devices; "Déconnecter" asks a second tap),
+    // and the check's answer under it
+    this.spotifyCard = new CardBox('column', 64, 'SpotifyCard');
+    this.spotifyCard.setPaddingSymmetric(20, 0);
+    const spotifyRow = new HBox(14, 'SpotifyRow');
+    spotifyRow.height = 64;
+    spotifyRow.autoHeight = false;
+    spotifyRow.alignItems = 'center';
     this.spotifyIconNode = new IconNode('library', 24, COLOR_TEXT_TERTIARY);
     this.spotifyStatusLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
     this.spotifyStatusLabel.flex = 1;
-    spotifyCard.addChild(this.spotifyIconNode);
-    spotifyCard.addChild(this.spotifyStatusLabel);
-    spotifySection.addChild(spotifyCard);
+    this.spotifyCheckButton = new PillButtonNode('set/sp/check', 'Vérifier', '', () => {
+      checkSpotifyAccount();
+    });
+    this.spotifyCheckSpinner = new SpinnerNode(10);
+    this.spotifyLogoutButton = new PillButtonNode('set/sp/logout', 'Déconnecter', '', askOrConfirmSpotifyLogout);
+    spotifyRow.addChild(this.spotifyIconNode);
+    spotifyRow.addChild(this.spotifyStatusLabel);
+    spotifyRow.addChild(this.spotifyCheckButton);
+    spotifyRow.addChild(this.spotifyCheckSpinner);
+    spotifyRow.addChild(this.spotifyLogoutButton);
+    this.spotifyCard.addChild(spotifyRow);
+    this.spotifyCheckResultRow = new HBox(0, 'SpotifyCheckResultRow');
+    this.spotifyCheckResultRow.height = 24;
+    this.spotifyCheckResultRow.paddingLeft = 38; // under the status, past the icon
+    this.spotifyCheckResultLabel = new LabelNode(Fonts.small, '', COLOR_TEXT_SECONDARY, 24);
+    this.spotifyCheckResultLabel.flex = 1;
+    this.spotifyCheckResultRow.addChild(this.spotifyCheckResultLabel);
+    this.spotifyCard.addChild(this.spotifyCheckResultRow);
+    spotifySection.addChild(this.spotifyCard);
     this.scrollContainer.contentBox.addChild(spotifySection);
 
     // ---- 5. Section SONOS ----
@@ -366,6 +403,20 @@ export class SettingsPageNode extends DisplayObject {
       : appState.spotifyClient.problem === 'login expired'
       ? 'Connexion expirée : refaire la connexion'
       : 'Non connecté (voir la page Spotify)';
+    const client = appState.spotifyClient;
+    const isLogoutAsked = spotifyLogoutConfirmSeconds > 0;
+    this.spotifyLogoutButton.visible = client.ready() || client.problem === 'login expired';
+    this.spotifyLogoutButton.label = isLogoutAsked ? 'Confirmer' : 'Déconnecter';
+    this.spotifyLogoutButton.foregroundColor = isLogoutAsked ? 0xffffff : COLOR_TEXT_PRIMARY;
+    this.spotifyLogoutButton.backgroundColor = isLogoutAsked ? COLOR_DANGER : COLOR_FILL;
+    this.spotifyCheckButton.visible = !isCheckingSpotify;
+    this.spotifyCheckSpinner.visible = isCheckingSpotify;
+    const hasCheckResult = isCheckingSpotify || spotifyCheckText !== '';
+    this.spotifyCheckResultRow.visible = hasCheckResult;
+    this.spotifyCheckResultLabel.text = isCheckingSpotify ? 'Vérification…' : spotifyCheckText;
+    this.spotifyCheckResultLabel.color =
+      !isCheckingSpotify && spotifyCheckText.startsWith('Tout est bon') ? COLOR_GREEN : COLOR_TEXT_SECONDARY;
+    this.spotifyCard.height = hasCheckResult ? 100 : 64;
 
     // 5. Sonos
     this.sonosIconNode.color =

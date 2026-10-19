@@ -4,6 +4,7 @@
 // Construite avec l'arbre `DisplayObject` et ses composants Flexbox :
 // - `headerBar` (`PageHeaderBarNode` : titre + `SpacerNode(1)` + 5 onglets)
 // - `disconnectedCard` (`CardBox` : instructions de connexion si non connecté)
+// - `loginCard` (`CardBox`: on a Mac, the login from the app, or why it cannot)
 // - `searchFieldNode` (`SearchFieldNode`)
 // - `keyboardNode` (`VirtualKeyboardNode`)
 
@@ -15,6 +16,7 @@ import {
   COLOR_GREEN,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
+  COLOR_TEXT_TERTIARY,
   GRID_COLUMNS,
   GRID_GAP,
   KEYBOARD_HEIGHT,
@@ -32,10 +34,10 @@ import {
   registerTapZone,
 } from '../../core/input';
 import {
-  drawCenteredText,
   drawGlyph,
   drawLabel,
   drawSeparatorLine,
+  drawWrappedText,
 } from '../../components/primitives';
 import { drawActivitySpinner } from '../../components/slider';
 import {
@@ -50,6 +52,8 @@ import {
   IconNode,
   LabelNode,
   PageHeaderBarNode,
+  PillButtonNode,
+  SpinnerNode,
   SearchFieldNode,
   SegmentedControlNode,
 } from '../../components/layout-nodes';
@@ -59,6 +63,14 @@ import {
   loadSpotifyTab,
   playSpotifyItem,
 } from '../../state';
+import {
+  canLogInFromThisDevice,
+  cancelSpotifyLogin,
+  getSpotifyLoginClientId,
+  getSpotifyLoginError,
+  isSpotifyLoginWaiting,
+  startSpotifyLogin,
+} from '../../services/spotify-account';
 
 const SPOTIFY_TAB_LABELS: string[] = [
   'Playlists',
@@ -74,6 +86,14 @@ export class SpotifyPageNode extends DisplayObject {
   readonly disconnectedCard: CardBox;
   readonly disconnectedHeadingLabel: LabelNode;
   readonly disconnectedLeadLabel: LabelNode;
+  readonly loginCard: CardBox;
+  readonly loginIconNode: IconNode;
+  readonly loginHeadingLabel: LabelNode;
+  readonly loginLeadLabel: LabelNode;
+  readonly loginActionsRow: HBox;
+  readonly loginButton: PillButtonNode;
+  readonly loginSpinner: SpinnerNode;
+  readonly loginCancelButton: PillButtonNode;
   readonly searchFieldNode: SearchFieldNode;
   readonly keyboardNode: VirtualKeyboardNode;
 
@@ -148,6 +168,34 @@ export class SpotifyPageNode extends DisplayObject {
       )
     );
 
+    // On a Mac (a browser at hand): the login from the app, or why this build cannot log in
+    this.loginCard = new CardBox('column', 180, 'SpotifyLoginCard');
+    this.loginCard.y = 110;
+    this.loginCard.setPaddingSymmetric(24, 24);
+    this.loginCard.gap = 12;
+    const loginHeaderRow = new HBox(16, 'LoginHeaderRow');
+    loginHeaderRow.height = 36;
+    loginHeaderRow.autoHeight = false;
+    this.loginIconNode = new IconNode('library', 32, COLOR_GREEN);
+    this.loginHeadingLabel = new LabelNode(Fonts.heading, '', COLOR_TEXT_PRIMARY, 32);
+    loginHeaderRow.addChild(this.loginIconNode);
+    loginHeaderRow.addChild(this.loginHeadingLabel);
+    this.loginCard.addChild(loginHeaderRow);
+    this.loginLeadLabel = new LabelNode(Fonts.small, '', COLOR_TEXT_SECONDARY, 24);
+    this.loginCard.addChild(this.loginLeadLabel);
+    this.loginActionsRow = new HBox(14, 'LoginActionsRow');
+    this.loginActionsRow.height = 48;
+    this.loginActionsRow.alignItems = 'center';
+    this.loginButton = new PillButtonNode('sp/login', 'Se connecter à Spotify', 'library', startSpotifyLogin, 44);
+    this.loginButton.foregroundColor = 0x000000;
+    this.loginButton.backgroundColor = COLOR_GREEN;
+    this.loginSpinner = new SpinnerNode(12);
+    this.loginCancelButton = new PillButtonNode('sp/login/cancel', 'Annuler', '', cancelSpotifyLogin);
+    this.loginActionsRow.addChild(this.loginButton);
+    this.loginActionsRow.addChild(this.loginSpinner);
+    this.loginActionsRow.addChild(this.loginCancelButton);
+    this.loginCard.addChild(this.loginActionsRow);
+
     // Champ de recherche (onglet Rechercher)
     this.searchFieldNode = new SearchFieldNode(
       'Titres, artistes, albums, playlists',
@@ -165,6 +213,7 @@ export class SpotifyPageNode extends DisplayObject {
 
     this.addChild(this.headerBar);
     this.addChild(this.disconnectedCard);
+    this.addChild(this.loginCard);
     this.addChild(this.searchFieldNode);
     this.addChild(this.keyboardNode);
   }
@@ -185,10 +234,15 @@ export class SpotifyPageNode extends DisplayObject {
     this.tabsSegmentedNode.visible = isConnected;
     this.tabsSegmentedNode.selectedIndex = appState.activeSpotifyTab;
 
-    this.disconnectedCard.visible = !isConnected;
+    this.disconnectedCard.visible = !isConnected && !canLogInFromThisDevice;
     this.disconnectedCard.x = sidebarWidth + PAGE_PADDING;
     this.disconnectedCard.width = pageWidth - sidebarWidth - PAGE_PADDING * 2;
-    if (!isConnected) {
+    this.loginCard.visible = !isConnected && canLogInFromThisDevice;
+    this.loginCard.x = this.disconnectedCard.x;
+    this.loginCard.width = this.disconnectedCard.width;
+    if (this.loginCard.visible) {
+      this.measureLoginCard();
+    } else if (!isConnected) {
       const isExpired = appState.spotifyClient.problem === 'login expired';
       this.disconnectedHeadingLabel.text = isExpired
         ? 'La connexion Spotify a expiré'
@@ -205,6 +259,36 @@ export class SpotifyPageNode extends DisplayObject {
     this.searchFieldNode.isTypingActive = appState.isKeyboardVisible;
 
     this.keyboardNode.visible = isConnected && appState.isKeyboardVisible;
+  }
+
+  private measureLoginCard(): void {
+    const hasClientId = getSpotifyLoginClientId() !== '';
+    const isExpired = appState.spotifyClient.problem === 'login expired';
+    const isWaiting = isSpotifyLoginWaiting();
+    const loginError = getSpotifyLoginError();
+    this.loginIconNode.color = hasClientId ? COLOR_GREEN : COLOR_TEXT_TERTIARY;
+    this.loginHeadingLabel.text = !hasClientId
+      ? "Spotify n'est pas disponible"
+      : isExpired
+      ? 'La connexion Spotify a expiré'
+      : "Spotify n'est pas connecté";
+    // a build without a client id (src/spotify-client.ts): nothing a person can do from the app
+    this.loginLeadLabel.text = !hasClientId
+      ? "Cette version n'a pas d'identifiant d'app Spotify : demande une version qui en a un."
+      : isWaiting
+      ? "Termine la connexion dans le navigateur qui vient de s'ouvrir."
+      : loginError !== ''
+      ? `La connexion n'a pas abouti (${loginError}) : réessaie.`
+      : isExpired
+      ? 'Spotify demande de se reconnecter tous les six mois.'
+      : 'Une connexion pour toutes les apps de ce Mac.';
+    this.loginLeadLabel.color =
+      hasClientId && (isWaiting || loginError !== '') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY;
+    this.loginActionsRow.visible = hasClientId;
+    this.loginButton.visible = !isWaiting;
+    this.loginSpinner.visible = isWaiting;
+    this.loginCancelButton.visible = isWaiting;
+    this.loginCard.height = hasClientId ? 180 : 132;
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
@@ -227,12 +311,16 @@ export class SpotifyPageNode extends DisplayObject {
         sidebarWidth
       );
     } else if (currentTabState !== '' && currentTabState !== 'ok') {
-      drawCenteredText(
+      // an error can be long: wrapped, not cut at the edges
+      drawWrappedText(
         Fonts.label,
-        sidebarWidth + (viewWidth - sidebarWidth) / 2,
-        listTopY + 100,
+        sidebarWidth + PAGE_PADDING,
+        listTopY + 80,
         currentTabState,
-        COLOR_TEXT_SECONDARY
+        COLOR_TEXT_SECONDARY,
+        viewWidth - sidebarWidth - PAGE_PADDING * 2,
+        3,
+        30
       );
     } else if (appState.activeSpotifyTab <= 1) {
       this.drawSpotifyTileGrid(
