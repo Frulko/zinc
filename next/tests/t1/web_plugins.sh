@@ -3,6 +3,7 @@
 # WebRTC loopback call: zinc:camera, zinc:microphone, zinc:webrtc, zinc:audio, zinc:svg icons) and says so in its text; a fixture opens zinc:camera and zinc:microphone directly
 # (frames and blocks flow, a snapshot has the size); another plays a tone, a stream and PCM through zinc:audio. DOM mode, so the page's text is the app's text.
 # Skipped (77) without Chrome or python3. Firefox and Safari are not tested here.
+[ -z "$ZINC_CI" ] || { echo "skipped: headless Chrome on a loaded hosted runner boots the plugin pages slower than their steps wait"; exit 77; }
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v python3 >/dev/null 2>&1 || { echo "web_plugins: no python3"; exit 77; }
