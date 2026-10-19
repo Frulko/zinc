@@ -11,11 +11,11 @@
 
 import { drawImage, drawText, textWidth, fontAscent } from 'zinc:gfx';
 
-export const EMOJI_PLACEHOLDER = '￼';
+const EMOJI_PLACEHOLDER = '￼';
 const EMOJI_GAP = 3;
 
 /** An emoji of font `fontId`: a little taller than the capitals (they are 3/4 of the ascent). */
-export function emojiSize(fontId: i32): number {
+function emojiSize(fontId: i32): number {
   return Math.round(fontAscent(fontId) * 0.92);
 }
 

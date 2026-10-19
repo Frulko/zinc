@@ -7,7 +7,7 @@
 //    `onAddedToStage` / `onRemovedFromStage` / `onUpdate` / `onDraw`).
 // 2. An ultra-light Flexbox layout engine built right into
 //    `DisplayObject` (`direction: 'none' | 'row' | 'column'`, `gap`, `padding`,
-//    `flex`, `alignItems`, `justifyContent`, `autoWidth`, `autoHeight`).
+//    `flex`, `alignItems`, `autoHeight`).
 
 import { setTransform, resetTransform } from 'zinc:gfx';
 import { uiState } from './input';
@@ -37,17 +37,11 @@ export class DisplayObject {
   /** Height of the node in pixels. */
   height: number = 0;
 
-  /** If `true`, the width of a 'row' container is computed from its children. */
-  autoWidth: boolean = false;
-
   /** If `true`, the height of a 'column' container is computed from its children. */
   autoHeight: boolean = false;
 
   /** If `false`, the node is ignored by layout, `onUpdate` and `onDraw`. */
   visible: boolean = true;
-
-  /** Logical opacity (0..1). */
-  alpha: number = 1;
 
   // --------------------------------------------------------------------------
   // Properties of the light Flexbox layout engine
@@ -71,9 +65,6 @@ export class DisplayObject {
   /** Alignment on the cross axis: `'start'` | `'center'` | `'end'` | `'stretch'`. */
   alignItems: string = 'start';
 
-  /** Distribution on the main axis: `'start'` | `'center'` | `'end'` | `'space-between'`. */
-  justifyContent: string = 'start';
-
   // --------------------------------------------------------------------------
   // Relations in the display tree
   // --------------------------------------------------------------------------
@@ -90,27 +81,11 @@ export class DisplayObject {
   // Fluent helpers to configure the layout
   // --------------------------------------------------------------------------
 
-  setPadding(allSides: number): DisplayObject {
-    this.paddingTop = allSides;
-    this.paddingRight = allSides;
-    this.paddingBottom = allSides;
-    this.paddingLeft = allSides;
-    return this;
-  }
-
   setPaddingSymmetric(horizontal: number, vertical: number): DisplayObject {
     this.paddingLeft = horizontal;
     this.paddingRight = horizontal;
     this.paddingTop = vertical;
     this.paddingBottom = vertical;
-    return this;
-  }
-
-  setSize(width: number, height: number): DisplayObject {
-    this.width = width;
-    this.height = height;
-    this.autoWidth = false;
-    this.autoHeight = false;
     return this;
   }
 
@@ -155,29 +130,6 @@ export class DisplayObject {
     return this.children.indexOf(child) >= 0;
   }
 
-  // --------------------------------------------------------------------------
-  // Global (world) coordinates
-  // --------------------------------------------------------------------------
-
-  worldX(): number {
-    let totalX = this.x;
-    let current = this.parent;
-    while (current !== null) {
-      totalX += (current as DisplayObject).x;
-      current = (current as DisplayObject).parent;
-    }
-    return totalX;
-  }
-
-  worldY(): number {
-    let totalY = this.y;
-    let current = this.parent;
-    while (current !== null) {
-      totalY += (current as DisplayObject).y;
-      current = (current as DisplayObject).parent;
-    }
-    return totalY;
-  }
 
   // --------------------------------------------------------------------------
   // Lifecycle
@@ -196,7 +148,7 @@ export class DisplayObject {
   computeLayout(availableWidth: number, availableHeight: number): void {
     this.onMeasure();
 
-    const containerWidth = !this.autoWidth && this.width > 0 ? this.width : availableWidth;
+    const containerWidth = this.width > 0 ? this.width : availableWidth;
     const containerHeight = !this.autoHeight && this.height > 0 ? this.height : availableHeight;
 
     if (this.direction === 'row') {
@@ -241,7 +193,6 @@ export class DisplayObject {
     }
 
     if (visibleCount === 0) {
-      if (this.autoWidth) this.width = this.paddingLeft + this.paddingRight;
       if (this.autoHeight) this.height = this.paddingTop + this.paddingBottom;
       return;
     }
@@ -255,7 +206,6 @@ export class DisplayObject {
     const remainingWidth = Math.max(0, innerWidth - totalFixedWidth - totalGapsWidth);
 
     // 2. Assign the flexible widths and lay out the flex children
-    let occupiedMainWidth = totalGapsWidth;
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
       if (!child.visible) continue;
@@ -269,24 +219,10 @@ export class DisplayObject {
       } else if (this.alignItems === 'stretch') {
         child.height = effectiveInnerHeight;
       }
-      occupiedMainWidth += child.width;
-    }
-
-    if (this.autoWidth) {
-      this.width = occupiedMainWidth + this.paddingLeft + this.paddingRight;
     }
 
     // 3. Horizontal and vertical positioning
     let cursorX = this.paddingLeft;
-    let extraStepBetween = 0;
-
-    if (this.justifyContent === 'center') {
-      cursorX += Math.max(0, (innerWidth - occupiedMainWidth) / 2);
-    } else if (this.justifyContent === 'end') {
-      cursorX += Math.max(0, innerWidth - occupiedMainWidth);
-    } else if (this.justifyContent === 'space-between' && visibleCount > 1) {
-      extraStepBetween = Math.max(0, (innerWidth - occupiedMainWidth) / (visibleCount - 1));
-    }
 
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
@@ -301,7 +237,7 @@ export class DisplayObject {
         child.y = this.paddingTop;
       }
 
-      cursorX += child.width + this.gap + extraStepBetween;
+      cursorX += child.width + this.gap;
     }
   }
 
@@ -312,7 +248,6 @@ export class DisplayObject {
     let visibleCount: i32 = 0;
     let totalFixedHeight = 0;
     let totalFlexWeight = 0;
-    let maxChildCrossWidth = 0;
 
     // 1. Measure and lay out recursively the fixed-height children (including autoHeight sub-VBoxes)
     for (let index = 0; index < this.children.length; index++) {
@@ -329,19 +264,13 @@ export class DisplayObject {
         child.computeLayout(innerWidth, innerHeight);
         totalFixedHeight += child.height;
       }
-      maxChildCrossWidth = Math.max(maxChildCrossWidth, child.width);
     }
 
     if (visibleCount === 0) {
-      if (this.autoWidth) this.width = this.paddingLeft + this.paddingRight;
       if (this.autoHeight) this.height = this.paddingTop + this.paddingBottom;
       return;
     }
 
-    const effectiveInnerWidth = this.autoWidth ? maxChildCrossWidth : innerWidth;
-    if (this.autoWidth) {
-      this.width = effectiveInnerWidth + this.paddingLeft + this.paddingRight;
-    }
 
     const totalGapsHeight = this.gap * (visibleCount - 1);
     const remainingHeight = Math.max(0, innerHeight - totalFixedHeight - totalGapsHeight);
@@ -355,11 +284,11 @@ export class DisplayObject {
       if (child.flex > 0 && totalFlexWeight > 0) {
         child.height = (remainingHeight * child.flex) / totalFlexWeight;
         if (this.alignItems === 'stretch') {
-          child.width = effectiveInnerWidth;
+          child.width = innerWidth;
         }
-        child.computeLayout(child.width > 0 ? child.width : effectiveInnerWidth, child.height);
+        child.computeLayout(child.width > 0 ? child.width : innerWidth, child.height);
       } else if (this.alignItems === 'stretch') {
-        child.width = effectiveInnerWidth;
+        child.width = innerWidth;
       }
       occupiedMainHeight += child.height;
     }
@@ -370,15 +299,6 @@ export class DisplayObject {
 
     // 3. Vertical and horizontal positioning
     let cursorY = this.paddingTop;
-    let extraStepBetween = 0;
-
-    if (this.justifyContent === 'center') {
-      cursorY += Math.max(0, (innerHeight - occupiedMainHeight) / 2);
-    } else if (this.justifyContent === 'end') {
-      cursorY += Math.max(0, innerHeight - occupiedMainHeight);
-    } else if (this.justifyContent === 'space-between' && visibleCount > 1) {
-      extraStepBetween = Math.max(0, (innerHeight - occupiedMainHeight) / (visibleCount - 1));
-    }
 
     for (let index = 0; index < this.children.length; index++) {
       const child = this.children[index];
@@ -386,14 +306,14 @@ export class DisplayObject {
 
       child.y = Math.round(cursorY);
       if (this.alignItems === 'center') {
-        child.x = Math.round(this.paddingLeft + (effectiveInnerWidth - child.width) / 2);
+        child.x = Math.round(this.paddingLeft + (innerWidth - child.width) / 2);
       } else if (this.alignItems === 'end') {
-        child.x = Math.round(this.paddingLeft + effectiveInnerWidth - child.width);
+        child.x = Math.round(this.paddingLeft + innerWidth - child.width);
       } else {
         child.x = this.paddingLeft;
       }
 
-      cursorY += child.height + this.gap + extraStepBetween;
+      cursorY += child.height + this.gap;
     }
   }
 
@@ -455,7 +375,7 @@ export class DisplayObject {
     parentWorldX: number,
     parentWorldY: number
   ): void {
-    if (!this.visible || this.alpha <= 0) return;
+    if (!this.visible) return;
 
     const absoluteX = parentWorldX + this.x;
     const absoluteY = parentWorldY + this.y;

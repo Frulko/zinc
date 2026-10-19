@@ -11,7 +11,7 @@ import { clip, unclip } from 'zinc:gfx';
 /**
  * Global render and pointer state shared by the display tree.
  */
-export class UiRenderState {
+class UiRenderState {
   /** Set when at least one element changed and the scene must be redrawn. */
   dirty: boolean = true;
 
@@ -145,7 +145,7 @@ function clipZoneToScrollBox(zone: TouchZone): boolean {
 }
 
 /** List of the interactive zones collected during the last render of the tree. */
-export let activeZones: TouchZone[] = [];
+let activeZones: TouchZone[] = [];
 
 /** Takes the zones of the frame on the screen out of the list, for a drawing whose zones must not count (the offscreen warm-up). */
 export function takeTouchZones(): TouchZone[] {

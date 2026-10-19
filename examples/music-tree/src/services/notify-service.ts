@@ -71,7 +71,7 @@ export class StandByOverlayAnimation {
 /**
  * Animation state of a gray banner stacked at the top of the screen.
  */
-export class NotificationBannerItem {
+class NotificationBannerItem {
   notification: MacNotification = new MacNotification();
   remainingSeconds: number = 0;
   slideOffsetFactor: number = -1;
@@ -262,7 +262,7 @@ function isValidHexHash(hash: string): boolean {
   return true;
 }
 
-export function getCachedNotificationIcon(hash: string): i32 {
+function getCachedNotificationIcon(hash: string): i32 {
   if (!isValidHexHash(hash)) return -1;
   if (cachedIconImagesByHash.has(hash)) {
     return cachedIconImagesByHash.get(hash) as i32;
@@ -410,7 +410,7 @@ export function getNotificationSenderText(notification: MacNotification): string
 }
 
 /** Who it is from as plain text (no emoji): for the initials of a face. */
-export function getNotificationSenderLabel(notification: MacNotification): string {
+function getNotificationSenderLabel(notification: MacNotification): string {
   return stripEmojiPlaceholders(getNotificationSenderText(notification));
 }
 
@@ -651,7 +651,7 @@ export function showTrackNotification(notification: MacNotification): void {
   showStandByOverlayNotification(notification);
 }
 
-export function showStandByOverlayNotification(notification: MacNotification): void {
+function showStandByOverlayNotification(notification: MacNotification): void {
   if (currentStandByOverlay !== null && !isClosingStandByOverlay) {
     pendingStandByQueue.push(notification);
     return;

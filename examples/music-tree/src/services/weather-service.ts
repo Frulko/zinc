@@ -13,7 +13,7 @@ import { uiState } from '../core/input';
 /**
  * Complete weather data for the chosen city.
  */
-export class WeatherForecast {
+class WeatherForecast {
   isLoaded: boolean = false;
   cityName: string = '';
   currentTemp: number = 0;

@@ -26,7 +26,7 @@ const LOGOUT_CONFIRM_SECONDS = 4;
 /** A Mac has a browser: the Spotify page logs in from there. */
 export const canLogInFromThisDevice = platform() === 'macos';
 
-export let spotifyLogin: Login | null = null;
+let spotifyLogin: Login | null = null;
 export let spotifyCheckText = '';
 export let isCheckingSpotify = false;
 /** Seconds left to confirm "Déconnecter" (the second tap), 0 when not asked. */

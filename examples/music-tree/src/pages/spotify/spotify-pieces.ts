@@ -66,7 +66,7 @@ export function beginViewScroll(topY: number, bottomY: number, viewWidth: number
 }
 
 /** What the pieces ask of the stack of views, and the song whose menu is open (with the bottom of its row). */
-export class SpotifyNavigation {
+class SpotifyNavigation {
   open: (kind: string, item: Item) => void = (kind: string, item: Item) => {};
   menuSong: Item | null = null;
   menuAnchorY = 0;

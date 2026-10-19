@@ -10,10 +10,9 @@
 // - Lucide vector icons (`drawGlyph`) and geometric transport icons
 // - Rounded cards, drop shadows and iOS separators.
 
-import { rrect, rect, drawText, textWidth, fontAscent, shadow, polygon } from 'zinc:gfx';
+import { rrect, rect, drawText, textWidth, shadow, polygon } from 'zinc:gfx';
 import { icon } from 'zinc:icons';
 import {
-  COLOR_CARD,
   COLOR_SEPARATOR,
   COLOR_TEXT_PRIMARY,
   PAGE_PADDING,
@@ -29,7 +28,7 @@ import { uiState } from '../core/input';
  * Cuts the string `text` with `…` if it exceeds `maxWidth` pixels.
  * Uses a fast binary search.
  */
-export function fitTextToWidth(fontId: i32, text: string, maxWidth: number): string {
+function fitTextToWidth(fontId: i32, text: string, maxWidth: number): string {
   if (textWidth(fontId, text, 0) <= maxWidth) return text;
   let lowIndex: i32 = 0;
   let highIndex: i32 = text.length as i32;
@@ -267,11 +266,6 @@ export function drawTransportIcon(
 // ----------------------------------------------------------------------------
 // Cards, separators, shadows and page headers
 // ----------------------------------------------------------------------------
-
-/** Draws a rounded card background in the style of iOS grouped lists. */
-export function drawCardBackground(x: number, y: number, width: number, height: number): void {
-  rrect(x, y, width, height, 14, COLOR_CARD, 255);
-}
 
 /** Draws a 1-pixel horizontal separator line. */
 export function drawSeparatorLine(x: number, y: number, width: number): void {

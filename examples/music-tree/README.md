@@ -20,7 +20,7 @@ zinc check examples/music-tree           # strict type check by the Zinc compile
    - `onDraw(localWidth, localHeight)`: called only when a visual refresh is needed (`uiState.dirty`).
 3. **Light built-in Flexbox layout (without the cost of `zinc:ui`)**:
    - `VBox` (`direction = 'column'`), `HBox` (`direction = 'row'`), `SpacerNode` (`flex = 1`), `CardBox`, `ScrollContainerNode`, `PageHeaderBarNode`.
-   - Supports `gap`, `paddingTop/Right/Bottom/Left`, `flex`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`), `autoWidth` and `autoHeight`.
+   - Supports `gap`, `paddingTop/Right/Bottom/Left`, `flex`, `alignItems` (`start`, `center`, `end`, `stretch`) and `autoHeight`.
    - **No CSS parsing, and frames are drawn only when something changes** (`uiState.dirty`), which keeps `zinc:gfx` fast on the HP TouchPad and the Nexus 7.
 
 ## Files (`src/`)
@@ -52,7 +52,7 @@ src/
 │   ├── emoji-text.ts                # Text with the Mac's emoji as pictures (one cut line, a paragraph)
 │   ├── buttons.ts                   # Low-level drawing of buttons and segmented controls
 │   ├── slider.ts                    # Drawing of the horizontal slider and the activity indicator (spinner)
-│   ├── cover.ts                     # Drawing of covers with fallback initials, tiles and skeletons
+│   ├── cover.ts                     # Drawing of covers with fallback initials, and grid tiles
 │   ├── search-field.ts              # Drawing of the search field
 │   ├── keyboard.ts                  # VirtualKeyboardNode: AZERTY virtual keyboard
 │   ├── sidebar.ts                   # SidebarNode: navigation sidebar and mini player

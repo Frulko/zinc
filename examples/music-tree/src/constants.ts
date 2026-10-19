@@ -21,7 +21,6 @@ export const COLOR_TEXT_TERTIARY: u32 = 0x636366;
 
 export const COLOR_ACCENT: u32 = 0xfa2d48;   // Apple Music red
 export const COLOR_GREEN: u32 = 0x1ed760;    // Spotify green / active playback
-export const COLOR_BLUE: u32 = 0x0a84ff;     // iOS blue
 export const COLOR_ORANGE: u32 = 0xff9f0a;   // Orange of the seconds hand
 export const COLOR_DANGER: u32 = 0xff453a;   // Red for delete / low battery
 
@@ -53,7 +52,6 @@ export const STATUS_BAR_HEIGHT = 30;
 export const SIDEBAR_WIDTH_DEFAULT = 240;
 export const PAGE_PADDING = 36;
 export const KEYBOARD_HEIGHT = 300;
-export const LIST_ROW_HEIGHT = 68;
 export const GRID_COLUMNS: i32 = 4;
 export const GRID_GAP = 24;
 
@@ -65,7 +63,6 @@ export const PAGE_RADIOS: i32 = 1;
 export const PAGE_SPOTIFY: i32 = 2;
 export const PAGE_ROOMS: i32 = 3;
 export const PAGE_SETTINGS: i32 = 4;
-export const PAGE_COUNT: i32 = 5;
 
 // ----------------------------------------------------------------------------
 // Identifiers of the slides of the home page carousel

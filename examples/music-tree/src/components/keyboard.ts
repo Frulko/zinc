@@ -36,7 +36,7 @@ export function getTouchKeyboardHeight(): number {
  * Draws the virtual keyboard in the rectangle `(x, y, width, KEYBOARD_HEIGHT)`
  * and passes each keystroke to `onKeyPress`.
  */
-export function drawVirtualKeyboard(
+function drawVirtualKeyboard(
   x: number,
   y: number,
   width: number,

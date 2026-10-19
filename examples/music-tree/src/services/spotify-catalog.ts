@@ -22,7 +22,7 @@ const STATE_LOADING = 'loading';
 const STATE_DONE = 'ok';
 const STATE_HAS_MORE = 'more';
 
-export class SpotifyCatalog {
+class SpotifyCatalog {
   private lists = new Map<string, Item[]>();
   private founds = new Map<string, Found>();
   /** key -> 'loading', 'ok', 'more' (a next page exists) or an error to show. */

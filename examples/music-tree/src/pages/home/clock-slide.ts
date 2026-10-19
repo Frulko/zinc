@@ -371,7 +371,7 @@ export class ClockSlideNode extends DisplayObject {
     parentWorldY: number
   ): void {
     super.renderTree(stageWidth, stageHeight, parentWorldX, parentWorldY);
-    if (!this.visible || this.alpha <= 0) return;
+    if (!this.visible) return;
 
     // Back to this slide's own frame: the last face drawn left its transform (it slides during a swipe)
     const slideWorldX = parentWorldX + this.x;

@@ -7,17 +7,17 @@
 
 import { font } from 'zinc:gfx';
 
-export const FONT_HERO: i32 = font('sans-bold', 34);
-export const FONT_TITLE: i32 = font('sans-bold', 28);
-export const FONT_HEADING: i32 = font('sans-bold', 22);
-export const FONT_BODY: i32 = font('sans', 20);
-export const FONT_BODY_BOLD: i32 = font('sans-bold', 18);
-export const FONT_LABEL: i32 = font('sans', 17);
-export const FONT_SMALL: i32 = font('sans', 15);
-export const FONT_SMALL_BOLD: i32 = font('sans-bold', 15);
-export const FONT_TINY: i32 = font('sans', 13);
-export const FONT_TINY_BOLD: i32 = font('sans-bold', 12);
-export const FONT_KEYBOARD_KEY: i32 = font('sans', 24);
+const FONT_HERO: i32 = font('sans-bold', 34);
+const FONT_TITLE: i32 = font('sans-bold', 28);
+const FONT_HEADING: i32 = font('sans-bold', 22);
+const FONT_BODY: i32 = font('sans', 20);
+const FONT_BODY_BOLD: i32 = font('sans-bold', 18);
+const FONT_LABEL: i32 = font('sans', 17);
+const FONT_SMALL: i32 = font('sans', 15);
+const FONT_SMALL_BOLD: i32 = font('sans-bold', 15);
+const FONT_TINY: i32 = font('sans', 13);
+const FONT_TINY_BOLD: i32 = font('sans-bold', 12);
+const FONT_KEYBOARD_KEY: i32 = font('sans', 24);
 
 // Large fonts for the StandBy clock, the weather and the notifications
 export const FONT_CLOCK_HUGE: i32 = font('sans-bold', 250);

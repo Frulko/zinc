@@ -71,7 +71,7 @@ const SHELF_TILE_COUNT: i32 = 5;
 // The stack of views
 // ----------------------------------------------------------------------------
 
-export class SpotifyBrowser {
+class SpotifyBrowser {
   /** The node that holds the view on top (the page's child). */
   readonly viewHost: DisplayObject = new DisplayObject('SpotifyViewHost');
   readonly libraryView: LibraryViewNode;
@@ -152,7 +152,7 @@ export class SpotifyBrowser {
 }
 
 /** A view of the page: its title for the header, and where its scroll stood when another view was opened over it. */
-export class SpotifyViewNode extends DisplayObject {
+class SpotifyViewNode extends DisplayObject {
   savedScrollY = 0;
 
   title(): string {

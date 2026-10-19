@@ -106,7 +106,6 @@ export class LabelNode extends DisplayObject {
   fontId: i32;
   text: string;
   color: u32;
-  textAlpha: i32 = 255;
   fixedWidth: number = 0;
 
   constructor(
@@ -140,7 +139,7 @@ export class LabelNode extends DisplayObject {
       this.text,
       this.color,
       localWidth > 0 ? localWidth : 10000,
-      this.textAlpha
+      255
     );
   }
 }
@@ -152,7 +151,6 @@ export class IconNode extends DisplayObject {
   iconName: string;
   iconSize: number;
   color: u32;
-  iconAlpha: i32 = 255;
   strokeWidth: number = 2;
 
   constructor(iconName: string, iconSize: number = 24, color: u32 = COLOR_TEXT_PRIMARY) {
@@ -179,7 +177,7 @@ export class IconNode extends DisplayObject {
       offsetY,
       this.iconSize,
       this.color,
-      this.iconAlpha,
+      255,
       this.strokeWidth
     );
   }
@@ -345,7 +343,7 @@ export class ScrollContainerNode extends DisplayObject {
     parentWorldX: number,
     parentWorldY: number
   ): void {
-    if (!this.visible || this.alpha <= 0) return;
+    if (!this.visible) return;
 
     const absoluteX = parentWorldX + this.x;
     const absoluteY = parentWorldY + this.y;

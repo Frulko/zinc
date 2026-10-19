@@ -22,7 +22,7 @@ export class RadioStation {
 const RADIOS_FILE_PATH = 'radios.json';
 const RADIO_BROWSER_API_URL = 'https://de1.api.radio-browser.info/json/stations/search';
 
-export function createRadioStation(
+function createRadioStation(
   name: string,
   streamUrl: string,
   tags: string,

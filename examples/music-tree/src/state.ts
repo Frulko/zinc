@@ -74,12 +74,12 @@ class LatestRequestQueue {
   }
 }
 
-export const volumeRequestQueue = new LatestRequestQueue();
+const volumeRequestQueue = new LatestRequestQueue();
 
 /**
  * Single container of all the reactive state of the application.
  */
-export class ApplicationState {
+class ApplicationState {
   /** Persistent settings (`config.json`). */
   config: AppConfig = loadAppConfig();
 
@@ -373,7 +373,7 @@ export function isStationCurrentlyPlaying(station: RadioStation): boolean {
 // Sonos & Spotify discovery and polling
 // ----------------------------------------------------------------------------
 
-export function pickDefaultSonosGroup(): void {
+function pickDefaultSonosGroup(): void {
   if (appState.sonosSystem === null) return;
   const system = appState.sonosSystem as System;
   let chosenGroup: Group | null = null;
@@ -783,7 +783,7 @@ export function loadPopularRadios(): void {
 // Request ids: an answer is only applied when no newer request was sent since (a slow search never overwrites a newer one)
 let latestRadioSearchId: i32 = 0;
 
-export function searchRadiosByQuery(): void {
+function searchRadiosByQuery(): void {
   appState.searchedStationsState = 'loading';
   appState.searchedStations = [];
   const currentQuery = appState.searchQuery;

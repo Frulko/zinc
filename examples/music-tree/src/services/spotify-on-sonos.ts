@@ -243,7 +243,7 @@ export function resumeHere(): void {
  * of it, then the moment in the song. A context the speakers cannot read (some of Spotify's playlists) gives Spotify's radio of the
  * song instead: the song first, then songs like it, as Spotify goes on after a list.
  */
-export async function resumeThroughSonos(system: System, group: Group, playback: Playback): Promise<void> {
+async function resumeThroughSonos(system: System, group: Group, playback: Playback): Promise<void> {
   const startedAtSeconds = Date.now() / 1000;
   const songId = playback.item.uri.split(':').pop() as string;
   let queuePosition: i32 = 0;

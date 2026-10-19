@@ -182,7 +182,7 @@ const LAVA_GRID_WIDTH: i32 = 80;
 const LAVA_GRID_HEIGHT: i32 = 60;
 const LAVA_BLOB_COUNT: i32 = 4;
 
-export const LAVA_COLOR_PALETTES: number[][][] = [
+const LAVA_COLOR_PALETTES: number[][][] = [
   [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]],    // Lava
   [[190, 20, 20], [220, 90, 10], [230, 160, 20], [120, 10, 60]],    // Magma
   [[10, 90, 200], [20, 170, 190], [90, 60, 200], [10, 40, 120]],    // Ocean

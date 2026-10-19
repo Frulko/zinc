@@ -5,15 +5,11 @@
 import { rrect, gradient, drawImage, fontAscent } from 'zinc:gfx';
 import {
   COLOR_ACCENT,
-  COLOR_CARD,
   COLOR_CARD_ELEVATED,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   COLOR_TEXT_TERTIARY,
   COVER_TINT_COLORS,
-  GRID_COLUMNS,
-  GRID_GAP,
-  PAGE_PADDING,
 } from '../constants';
 import { Fonts } from '../fonts';
 import { registerTapZone, isZonePressed } from '../core/input';
@@ -124,44 +120,4 @@ export function drawMediaTile(
     drawLabel(Fonts.tiny, x, y + tileSize + 32, subtitle, COLOR_TEXT_SECONDARY, tileSize);
   }
   registerTapZone(zoneId, x, y, tileSize, tileSize + 50, onTap);
-}
-
-/**
- * Draws grey placeholder shapes (skeleton) and a spinner during the initial load of a list.
- */
-export function drawLoadingSkeleton(
-  isGridView: boolean,
-  topY: number,
-  bottomY: number,
-  screenWidth: number,
-  sidebarWidth: number
-): void {
-  const contentStartX = sidebarWidth + PAGE_PADDING;
-  const contentWidth = screenWidth - sidebarWidth - PAGE_PADDING * 2;
-
-  if (isGridView) {
-    const tileSize = (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
-    for (let itemIndex = 0; itemIndex < GRID_COLUMNS * 2; itemIndex++) {
-      const columnIndex = itemIndex % GRID_COLUMNS;
-      const rowIndex = Math.floor(itemIndex / GRID_COLUMNS);
-      const tileX = contentStartX + columnIndex * (tileSize + GRID_GAP);
-      const tileY = topY + 8 + rowIndex * (tileSize + 62);
-      if (tileY > bottomY) break;
-
-      rrect(tileX, tileY, tileSize, tileSize, 14, COLOR_CARD, 255);
-      rrect(tileX, tileY + tileSize + 12, tileSize * 0.7, 14, 7, COLOR_CARD, 255);
-      rrect(tileX, tileY + tileSize + 34, tileSize * 0.4, 10, 5, COLOR_CARD, 255);
-    }
-  } else {
-    for (let rowIndex = 0; rowIndex < 8; rowIndex++) {
-      const rowY = topY + rowIndex * 68;
-      if (rowY + 68 > bottomY) break;
-
-      rrect(contentStartX, rowY + 10, 48, 48, 6, COLOR_CARD, 255);
-      rrect(contentStartX + 64, rowY + 16, 260 - (rowIndex % 3) * 40, 14, 7, COLOR_CARD, 255);
-      rrect(contentStartX + 64, rowY + 40, 160, 10, 5, COLOR_CARD, 255);
-    }
-  }
-
-  drawActivitySpinner(sidebarWidth + (screenWidth - sidebarWidth) / 2, topY + 120, 18);
 }
