@@ -15,6 +15,7 @@ import gsap, { Timeline } from 'gsap';
 import {
   COLOR_FILL,
   COLOR_TEXT_PRIMARY,
+  COLOR_TEXT_SECONDARY,
   MONTHS_SHORT,
 } from '../constants';
 import {
@@ -23,6 +24,7 @@ import {
   Fonts,
 } from '../fonts';
 import { uiState, ScrollBox } from '../core/input';
+import { getPicture } from '../core/pictures';
 import { drawCenteredText, drawGlyph } from '../components/primitives';
 import { countEmojiPlaceholders, stripEmojiPlaceholders } from '../components/emoji-text';
 
@@ -40,7 +42,7 @@ export class MacNotification {
   timestampSeconds: number = 0;
   domain: string = '';
   thread: string = '';
-  /** 'message' (message direct avec expéditeur et avatar) ou 'other'. */
+  /** 'message' (a person wrote: sender and avatar), 'track' (the next song, from this app: its cover) or 'other'. */
   kind: string = 'other';
   senderName: string = '';
   avatarHash: string = '';
@@ -48,6 +50,8 @@ export class MacNotification {
   emoji: string[] = [];
   /** The hash of a photo the message carries (a JPEG fitted in 640 px, fetched like an icon), '' when none. */
   attachmentHash: string = '';
+  /** A track's cover: a picture URL (core/pictures.ts), '' when none. */
+  coverArtUrl: string = '';
 }
 
 /**
@@ -337,6 +341,19 @@ export function drawNotificationAvatarOrIcon(
   alpha: i32,
   badgeRingColor: u32
 ): void {
+  if (notification.kind === 'track') {
+    // a song: its cover, square with round corners like an album
+    const left = centerX - diameter / 2;
+    const top = centerY - diameter / 2;
+    const coverImage = getPicture(notification.coverArtUrl);
+    if (coverImage >= 0) {
+      drawImage(coverImage, left, top, diameter, diameter, alpha, diameter * 0.12);
+    } else {
+      rrect(left, top, diameter, diameter, diameter * 0.12, COLOR_FILL, alpha);
+      drawGlyph('music', centerX - diameter * 0.25, centerY - diameter * 0.25, diameter * 0.5, COLOR_TEXT_SECONDARY, alpha);
+    }
+    return;
+  }
   if (notification.kind !== 'message') {
     drawNotificationAppIcon(notification, centerX - diameter / 2, centerY - diameter / 2, diameter, alpha);
     return;
@@ -628,6 +645,12 @@ function presentIncomingNotification(notification: MacNotification): void {
   }
 }
 
+/** A song of this app, shown as a Mac's notification is (StandBy's overlay, the screen woken for it) but never kept in the list. */
+export function showTrackNotification(notification: MacNotification): void {
+  notification.kind = 'track';
+  showStandByOverlayNotification(notification);
+}
+
 export function showStandByOverlayNotification(notification: MacNotification): void {
   if (currentStandByOverlay !== null && !isClosingStandByOverlay) {
     pendingStandByQueue.push(notification);
@@ -686,7 +709,8 @@ function advanceStandByOverlayQueue(): void {
 
 export function onStandByOverlayTapped(): void {
   if (currentStandByOverlay === null || isClosingStandByOverlay) return;
-  openNotificationOnMac((currentStandByOverlay as StandByOverlayAnimation).notification.id);
+  const notification = (currentStandByOverlay as StandByOverlayAnimation).notification;
+  if (notification.kind !== 'track') openNotificationOnMac(notification.id);
   advanceStandByOverlayQueue();
 }
 

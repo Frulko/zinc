@@ -1026,7 +1026,10 @@ onFrame((deltaSeconds: number) => {
 
   // Décodage d'images et préchargement pendant les temps morts
   pointerIdleSeconds += deltaSeconds;
-  if (!pointerDown() && !isAnyScrollMoving && !appState.screenPower.asleep) {
+  if (appState.screenPower.asleep && appState.screenPower.peeking) {
+    // a song's notification shows its cover on the sleeping screen
+    if (decodeNextPicture()) uiState.dirty = true;
+  } else if (!pointerDown() && !isAnyScrollMoving && !appState.screenPower.asleep) {
     if (decodeNextPicture()) {
       uiState.dirty = true;
     } else if (pointerIdleSeconds > 1 && warmRenderQueue.length > 0) {

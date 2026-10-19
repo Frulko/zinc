@@ -37,6 +37,7 @@ import {
   searchRadioDirectory,
 } from './services/radios-service';
 import { triggerPlaceSearch } from './services/weather-service';
+import { MacNotification, showTrackNotification } from './services/notify-service';
 import { getLavaLampPaletteIndex, setLavaLampPaletteIndex } from './pages/home/clock-faces';
 
 // Sur webOS, les ports UDP doivent être ouverts explicitement via zinc-helper
@@ -441,6 +442,15 @@ export async function pollActiveSonosGroup(): Promise<void> {
       appState.trackPositionBaseSeconds = group.track.position;
       appState.trackPositionTimestampSeconds = appState.elapsedAppClockSeconds;
     }
+    if (
+      previousTrackSignature !== currentSignature &&
+      appState.screenPower.asleep &&
+      group.playing() &&
+      group.track.title !== '' &&
+      appState.activeGroup === group
+    ) {
+      showNextTrackNotification(group);
+    }
   } catch (error) {
     logErrorToFile(`poll ${group.coordinator.name}: ${error.message}`);
     appState.consecutivePollFailures++;
@@ -452,6 +462,28 @@ export async function pollActiveSonosGroup(): Promise<void> {
   }
   appState.isPollingGroup = false;
   uiState.dirty = true;
+}
+
+/**
+ * The next song while the screen sleeps: a notification in the manner of the Mac's (the cover, the title, the artist and the album);
+ * the screen wakes for it and goes back to sleep. Awake, the player shows the song itself.
+ */
+function showNextTrackNotification(group: Group): void {
+  const track = group.track;
+  const notification = new MacNotification();
+  notification.id = 'track/' + track.uri + '/' + track.title;
+  notification.timestampSeconds = Date.now() / 1000;
+  notification.title = track.title;
+  notification.appName = group.name();
+  notification.coverArtUrl = getGroupArtworkUrl(group);
+  const byLine = track.artist !== '' ? track.artist : track.station;
+  if (track.album !== '' && byLine !== '') {
+    notification.subtitle = byLine;
+    notification.body = track.album;
+  } else {
+    notification.body = byLine !== '' ? byLine : track.album;
+  }
+  showTrackNotification(notification);
 }
 
 export async function pollSonosTopology(): Promise<void> {
