@@ -818,7 +818,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   if (cppOnly) {   // out.cpp (and out.partN.cpp) kept, out.libs: what the program links beside the engine library (its plugins)
     std::ofstream l(std::string(out) + ".libs"), pn(std::string(out) + ".plugins");   // .plugins: their names, one per line (an app project compiles their sources)
     l << nativeLibs << "\n";
-    for (const zn::tc::PluginLib& pl : gPlugins) pn << pl.plugin << "\n";
+    std::set<std::string> named;   // once each: a plugin imported from several files is resolved for each, and an app project makes one target a plugin
+    for (const zn::tc::PluginLib& pl : gPlugins) if (named.insert(pl.plugin).second) pn << pl.plugin << "\n";
     return l && pn ? 0 : 2;
   }
 #if defined(__APPLE__) && defined(__aarch64__)

@@ -58,6 +58,11 @@ grep -q "id 'org.jetbrains.kotlin.android'" "$tmp/beep/app/build.gradle" && grep
 grep -q "new org.example.beep.BeepLife()," "$j/dev/zinc/app/ZincPlugins.java" || { echo "the lifecycle subscriber is not in ZincPlugins.java"; fail=1; }
 grep -q "new ZincLifecycle\[\] {" "$tmp/hello/app/src/main/java/dev/zinc/app/ZincPlugins.java" && ! grep -q "kotlin" "$tmp/hello/app/build.gradle" || { echo "hello's ZincPlugins.java or Gradle files are wrong"; fail=1; }
 # a plugin without an entry for the target is refused, with a message that names it
+# a plugin imported from two files of the program: one target for it (CMake refuses a second add_library of the same name; examples/music)
+cp -R tests/data/mobile-plugin "$tmp/twice" && printf "import { ping } from 'zinc:beep';\nexport function again(): string { return 'again ' + ping(); }\n" > "$tmp/twice/again.ts"
+printf "import { again } from './again';\nconsole.log(again());\n" >> "$tmp/twice/main.ts"
+PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export "$tmp/twice" --target android -o "$tmp/twice-out" >/dev/null 2>"$tmp/twice.err" || { echo "export of a plugin imported twice failed: $(tail -3 "$tmp/twice.err")"; fail=1; }
+[ "$(grep -c "add_library(zn_app_plugin_beep STATIC" "$tmp/twice-out/app/jni/src/CMakeLists.txt" 2>/dev/null)" = 1 ] || { echo "a plugin imported from two files has more than one target"; fail=1; }
 cp -R tests/data/mobile-plugin "$tmp/noentry"
 perl -0pi -e 's/"android": \{.*?\n    \},\n//s' "$tmp/noentry/plugins/beep/plugin.json"
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target android -o "$tmp/noentry-android" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an android entry was exported"; fail=1; }
