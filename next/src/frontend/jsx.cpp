@@ -7,6 +7,7 @@
 #include "frontend/diagnostics.h"
 #include "frontend/project.h"
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cmath>
