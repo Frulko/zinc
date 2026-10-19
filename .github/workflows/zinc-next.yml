@@ -348,12 +348,14 @@ jobs:
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm lld   # lld: tools/fuzz links with it (the runner's ld refuses newer LLVM objects)
+        # llvm@19: the runner's Xcode ld refuses the objects of a newer LLVM ("invalid r_symbolnum"), and LLVM's own lld links a fuzzer whose exceptions
+        # are never caught (the parser's diagnostics end in terminate)
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm@19
       - name: Fuzz
         env:
           ZINC_CI: '1'
           ZINC_FUZZ: '1'
-        run: tests/run --tier t2 --only fuzz
+        run: LLVM=$(brew --prefix llvm@19) tests/run --tier t2 --only fuzz
       - name: Keep the crashes
         if: always()
         uses: actions/upload-artifact@v4

@@ -85,7 +85,7 @@ def prebuild_plugins(zinc, share, target):
             r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
             pre = os.path.join(d, "prebuilt", target)
             if r.returncode != 0 or not os.path.exists(os.path.join(pre, "key")):
-                without[name] = (r.stderr.strip().splitlines() or ["no library"])[0][:160]; continue
+                without[name] = (r.stderr.strip().splitlines() or ["no library"])[-1][:200]; continue   # the last line: the error, not the first progress line
             shutil.copytree(pre, os.path.join(share, "plugins", name, "prebuilt", target))
     return without
 
