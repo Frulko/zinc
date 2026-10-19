@@ -93,6 +93,27 @@ function startSpotifyLogin(): void {
   if ((spLogin as Login).status === 'waiting') openUrl((spLogin as Login).url);
   ui.dirty = true;
 }
+// the Spotify card of the settings: a check of the account (the login file read again, the profile, the Connect devices) and a logout
+// that asks to be tapped twice
+let spCheck = '', spChecking = false, spLogoutAsked = 0;
+async function checkSpotify(): Promise<void> {
+  spChecking = true; spCheck = ''; ui.dirty = true;
+  spotify.reload();   // the file as it is now: another app of the Mac may have logged in or out
+  if (!spotify.ready()) spCheck = spotify.problem === 'login expired' ? 'La connexion a expiré : reconnecte-toi depuis la page Spotify.' : spotify.problem === 'unreadable login file' ? 'Le fichier de connexion est illisible.' : 'Pas de compte connecté.';
+  else {
+    try {
+      spotifyUser = await spotify.me();
+      const d = await spotify.devices();
+      spCheck = `Tout est bon : ${spotifyUser}, ${plural(d.length as i32, 'appareil')} Spotify Connect.`;
+    } catch (e) { spCheck = `Problème : ${e.message}`; }
+  }
+  spChecking = false; ui.dirty = true;
+}
+function logoutSpotify(): void {
+  spotify.logout(); spotifyUser = ''; spCheck = ''; spLogoutAsked = 0;
+  spState = ['', '', '', '', ''];
+  toast('Spotify déconnecté');
+}
 /** The login ended in the browser: on success the account is read again and the page loads. */
 function spotifyLoginTick(): void {
   if (spLogin === null || (spLogin as Login).status === 'waiting') return;
@@ -1244,10 +1265,21 @@ function settingsPage(W: number, H: number): void {
   pill('set/city', x0 + w - 200, y + 12, 'Choisir', TEXT, FILL, () => { citySearch = true; cityQuery = ''; searchPlaces(''); typing = true; scrolls[SETTINGS].y = 0; }, 'search');
   y += 88;
   drawText(F.tinyB, x0 + 4, y, 'SPOTIFY', TEXT2, 255, 0); y += 24;
-  card(x0, y, w, 64);
+  const spH = spCheck !== '' || spChecking ? 100 : 64;
+  card(x0, y, w, spH);
   glyph('library', x0 + 20, y + 20, 24, spotify.ready() ? GREEN : TEXT3);
-  label(F.label, x0 + 58, y + 21, spotify.ready() ? (spotifyUser !== '' ? `Connecté : ${spotifyUser}` : 'Connecté') : spotify.problem === 'login expired' ? 'Connexion expirée : refaire la connexion' : 'Non connecté (voir la page Spotify)', TEXT, w - 80);
-  y += 88;
+  const canLogout = spotify.ready() || spotify.problem === 'login expired';
+  const logoutText = spLogoutAsked > 0 ? 'Confirmer' : 'Déconnecter', checkText = 'Vérifier';
+  const lw = canLogout ? textWidth(F.smallB, logoutText, 0) + 36 : 0, cw = textWidth(F.smallB, checkText, 0) + 36;
+  label(F.label, x0 + 58, y + 21, spotify.ready() ? (spotifyUser !== '' ? `Connecté : ${spotifyUser}` : 'Connecté') : spotify.problem === 'login expired' ? 'Connexion expirée : refaire la connexion' : 'Non connecté (voir la page Spotify)', TEXT, w - 100 - lw - cw);
+  if (canLogout) pill('set/sp/logout', x0 + w - 16 - lw, y + 12, logoutText, spLogoutAsked > 0 ? 0xffffff : TEXT, spLogoutAsked > 0 ? 0xff453a : FILL, () => {
+    if (spLogoutAsked > 0) logoutSpotify(); else { spLogoutAsked = 4; ui.dirty = true; }
+  });
+  if (!spChecking) pill('set/sp/check', x0 + w - 16 - lw - (canLogout ? 10 : 0) - cw, y + 12, checkText, TEXT, FILL, () => { checkSpotify(); });
+  else spinner(x0 + w - 16 - lw - (canLogout ? 10 : 0) - cw / 2, y + 32, 10);
+  if (spChecking) label(F.small, x0 + 58, y + 64, 'Vérification…', TEXT2, w - 80);
+  else if (spCheck !== '') label(F.small, x0 + 58, y + 64, spCheck, spCheck.startsWith('Tout est bon') ? GREEN : TEXT2, w - 80);
+  y += spH + 24;
   drawText(F.tinyB, x0 + 4, y, 'SONOS', TEXT2, 255, 0); y += 24;
   card(x0, y, w, 64);
   glyph('speaker', x0 + 20, y + 20, 24, sys !== null ? GREEN : TEXT3);
@@ -1436,6 +1468,7 @@ onFrame((dt: number) => {
   if (volumeOpen && tRooms >= 1) { tRooms = 0; if (volumeHeld <= 0) pollMembers(); }
   if (page === NOW && group !== null && (group as Group).track.source === 'spotify' && tSpotify >= 5 && !screen.asleep) { tSpotify = 0; pollSpotify(); }
   spotifyLoginTick();
+  if (spLogoutAsked > 0) { spLogoutAsked -= dt; if (spLogoutAsked <= 0) { spLogoutAsked = 0; ui.dirty = true; } }   // the confirmation lasts four seconds
   if (volumeHeld > 0) volumeHeld -= dt;
   weatherTick(dt, !screen.asleep);
   if (!screen.asleep) batteryTick(dt);

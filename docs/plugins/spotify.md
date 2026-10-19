@@ -28,7 +28,9 @@ On a computer with a browser the app can do the login itself, with the client id
 `new Login(sp.clientId, sp.file)` serves the redirect on port 8765, `openUrl(login.url)` (`zinc:system/opener`, the
 permission `opener`) opens the consent page, and when `login.status` is `'done'` the file is written: `sp.reload()` reads
 it. `status` is `'failed'` with `error` when Spotify refuses, when the port is taken, or after `cancel()`.
-`examples/music` does this on macOS (the Spotify page); a tablet keeps the instructions above.
+`sp.logout()` forgets the account: the file keeps the client id only, so the next `Login` is one step (Spotify's
+spotify.com/account/apps removes the app on its side). `examples/music` does the login on macOS (the Spotify page), and its
+settings check the account (the profile and the Connect devices) and log out; a tablet keeps the instructions above.
 
 Things to know: since 2026-07-20 a refresh token expires six months after the login, and refreshing does not extend it.
 When it does, `problem` becomes `'login expired'`: run the script again. Spotify may rotate the refresh token; the plugin

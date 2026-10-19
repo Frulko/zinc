@@ -111,10 +111,21 @@ export class Spotify {
     if (!exists(this.file)) { this.problem = 'not logged in'; return; }
     try {
       const j = JSON.parse(readText(this.file));
-      this.clientId = '' + j.client_id; this.refreshToken = '' + j.refresh_token;
+      this.clientId = j.client_id !== undefined && j.client_id !== null ? '' + j.client_id : '';
+      this.refreshToken = j.refresh_token !== undefined && j.refresh_token !== null ? '' + j.refresh_token : '';
+      if (this.refreshToken === '') this.problem = 'not logged in';   // after logout(): the client id stays for the next Login
     } catch (e) { this.problem = 'unreadable login file'; }
   }
   ready(): boolean { return this.problem === ''; }
+  /** Forgets the account here: the login file keeps the client id only, so a Login connects again in one step. Spotify itself keeps the
+   *  app among the account's (spotify.com/account/apps removes it there). */
+  logout(): void {
+    if (exists(this.file)) {
+      writeText(this.file, this.clientId !== '' ? JSON.stringify({ client_id: this.clientId }) : '{}');
+      try { chmod(this.file, 0o600); } catch (e) { /* a system without modes */ }
+    }
+    this.reload();
+  }
 
   private async refresh(): Promise<void> {
     const body = `grant_type=refresh_token&refresh_token=${encodeURIComponent(this.refreshToken)}&client_id=${encodeURIComponent(this.clientId)}`;
