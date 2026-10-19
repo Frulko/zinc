@@ -11,6 +11,7 @@
     {"paths": ["../plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "../docs/plugins/leapmotion.md", "../docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["../examples/leapmotion/", "tests/t1/leapmotion_demo.sh", "tests/golden/leapmotion/"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["../examples/music/", "tests/t1/music_city_standby.sh", "tests/t1/music_notify.sh", "tests/data/music/", "tests/golden/music/"], "tests": ["music_city_standby", "music_notify"]},
+    {"paths": ["../examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/data/music-tree/"], "tests": ["music_tree_sonos"]},
     {"paths": ["src/cli_core.cpp", "third_party/SDL3/android-project/", "src/tc/plugin_build.cpp", "tests/t0/export_android.sh", "tests/golden/export-android/"], "tests": ["export_android"]},
     {"paths": ["src/cli_core.cpp", "src/app/shell_sdl.cpp", "tests/t0/export_ios.sh", "tests/golden/export-ios/"], "tests": ["export_ios"]},
     {"paths": ["../targets/macos/hal_sdl.cpp", "../targets/macos/hal_metal.mm", "tests/t0/ios_present.sh"], "tests": ["ios_present"]},
