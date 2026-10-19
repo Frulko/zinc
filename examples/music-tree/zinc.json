@@ -1,0 +1,76 @@
+{
+  "name": "music-tree",
+  "entry": "src/main.ts",
+  "app": {
+    "name": "Musique (arbre)",
+    "id": "dev.zinc.music-tree",
+    "version": "1.0.0",
+    "icon": "icon-512.png",
+    "orientation": "landscape"
+  },
+  "targets": {
+    "macos": {
+      "width": 1024,
+      "height": 768
+    },
+    "linux": {
+      "width": 1024,
+      "height": 768
+    },
+    "sim": {
+      "width": 1024,
+      "height": 768
+    },
+    "android": {
+      "kiosk": true
+    }
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "icons": [
+    "audio-lines",
+    "battery",
+    "battery-charging",
+    "zap",
+    "radio",
+    "library",
+    "speaker",
+    "settings",
+    "volume-1",
+    "volume-2",
+    "volume-x",
+    "shuffle",
+    "repeat",
+    "repeat-1",
+    "heart",
+    "plus",
+    "check",
+    "search",
+    "x",
+    "music",
+    "delete",
+    "refresh-cw",
+    "chevron-right",
+    "chevron-down",
+    "unlink",
+    "link",
+    "panel-left-close",
+    "panel-left-open",
+    "sun",
+    "moon",
+    "cloud",
+    "cloud-sun",
+    "cloud-moon",
+    "cloud-fog",
+    "cloud-drizzle",
+    "cloud-rain",
+    "cloud-snow",
+    "cloud-lightning",
+    "bell",
+    "laptop",
+    "wifi",
+    "trash"
+  ]
+}

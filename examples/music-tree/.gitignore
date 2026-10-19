@@ -1,0 +1,7 @@
+config.json
+radios.json
+spotify.json
+notifications.json
+notif-icons/
+node_modules/
+build/

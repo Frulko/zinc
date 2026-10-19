@@ -1,0 +1,294 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noLib": true,
+    "types": [],
+    "useUnknownInCatchVariables": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "paths": {
+      "zinc:ui": [
+        "../../lib/std/ui.ts"
+      ],
+      "zinc:ui/solid": [
+        "../../lib/std/solid.ts"
+      ],
+      "zinc:ui/react": [
+        "../../lib/std/react.ts"
+      ],
+      "zinc:ui/kit": [
+        "../../lib/std/kit/index.ts"
+      ],
+      "zinc:web": [
+        "../../lib/std/web.ts"
+      ],
+      "zinc:web/fetch": [
+        "../../lib/std/fetch.ts"
+      ],
+      "zinc:path": [
+        "../../lib/std/path.ts"
+      ],
+      "zinc:assert": [
+        "../../lib/std/assert.ts"
+      ],
+      "zinc:signals": [
+        "../../lib/std/signals.ts"
+      ],
+      "zinc:__layout": [
+        "../../lib/compat/proto-layout.ts"
+      ],
+      "solid-js": [
+        "../../lib/std/solid.ts"
+      ],
+      "@pocketjs/framework/solid/components": [
+        "../../lib/compat/pocketjs/components.ts"
+      ],
+      "@pocketjs/framework/solid/lifecycle": [
+        "../../lib/compat/pocketjs/lifecycle.ts"
+      ],
+      "@pocketjs/framework/animation": [
+        "../../lib/compat/pocketjs/animation.ts"
+      ],
+      "@pocketjs/framework/solid/std": [
+        "../../lib/compat/pocketjs/std.ts"
+      ],
+      "@pocketjs/framework/solid": [
+        "../../lib/compat/pocketjs/mount.ts"
+      ],
+      "@pocketjs/framework/clock": [
+        "../../lib/compat/pocketjs/clock.ts"
+      ],
+      "inferno": [
+        "../../lib/compat/inferno.ts"
+      ],
+      "react": [
+        "../../lib/std/react.ts"
+      ],
+      "zinc:3d": [
+        "../../plugins/3d/index.ts"
+      ],
+      "zinc:3d/gltf": [
+        "../../plugins/3d/gltf.ts"
+      ],
+      "zinc:async-storage": [
+        "../../plugins/async-storage/index.ts"
+      ],
+      "@react-native-async-storage/async-storage": [
+        "../../plugins/async-storage/index.ts"
+      ],
+      "zinc:audio": [
+        "../../plugins/audio/index.ts"
+      ],
+      "zinc:browser": [
+        "../../plugins/browser/index.ts"
+      ],
+      "zinc:camera": [
+        "../../plugins/camera/index.ts"
+      ],
+      "zinc:canvas": [
+        "../../plugins/canvas2d/index.ts"
+      ],
+      "zinc:device": [
+        "../../plugins/device/index.ts"
+      ],
+      "zinc:devtools": [
+        "../../plugins/devtools/index.ts"
+      ],
+      "zinc:ffi": [
+        "../../plugins/ffi/index.ts"
+      ],
+      "zinc:gestures": [
+        "../../plugins/gestures/index.ts"
+      ],
+      "zinc:gphoto2": [
+        "../../plugins/gphoto2/index.ts"
+      ],
+      "zinc:gsap": [
+        "../../plugins/gsap/index.ts"
+      ],
+      "gsap": [
+        "../../plugins/gsap/index.ts"
+      ],
+      "zinc:imu": [
+        "../../plugins/imu-qmi8658/index.ts"
+      ],
+      "zinc:ink": [
+        "../../plugins/ink/index.ts"
+      ],
+      "zinc:leapmotion": [
+        "../../plugins/leapmotion/index.ts"
+      ],
+      "zinc:link": [
+        "../../plugins/link/index.ts"
+      ],
+      "zinc:loader": [
+        "../../plugins/loader/index.ts"
+      ],
+      "zinc:loader/ui": [
+        "../../plugins/loader/ui.tsx"
+      ],
+      "zinc:lottie": [
+        "../../plugins/lottie/index.ts"
+      ],
+      "zinc:map": [
+        "../../plugins/map/index.ts"
+      ],
+      "zinc:mapping": [
+        "../../plugins/mapping/index.ts"
+      ],
+      "zinc:microphone": [
+        "../../plugins/microphone/index.ts"
+      ],
+      "zinc:midi": [
+        "../../plugins/midi/index.ts"
+      ],
+      "zinc:osc/full": [
+        "../../plugins/osc/index.ts"
+      ],
+      "zinc:physics2d": [
+        "../../plugins/physics2d/index.ts"
+      ],
+      "zinc:physics3d": [
+        "../../plugins/physics3d/index.ts"
+      ],
+      "zinc:pixelfont": [
+        "../../plugins/pixelfont/index.ts"
+      ],
+      "zinc:process": [
+        "../../plugins/process/index.ts"
+      ],
+      "zinc:remarkable": [
+        "../../plugins/remarkable/index.tsx"
+      ],
+      "zinc:remote": [
+        "../../plugins/remote-view/index.ts"
+      ],
+      "zinc:script": [
+        "../../plugins/script/index.ts"
+      ],
+      "zinc:serial": [
+        "../../plugins/serial/index.ts"
+      ],
+      "zinc:socket": [
+        "../../plugins/socket/index.ts"
+      ],
+      "zinc:sonos": [
+        "../../plugins/sonos/index.ts"
+      ],
+      "zinc:spotify": [
+        "../../plugins/spotify/index.ts"
+      ],
+      "zinc:sprite": [
+        "../../plugins/sprite/index.ts"
+      ],
+      "zinc:sqlite": [
+        "../../plugins/sqlite/index.ts"
+      ],
+      "zinc:svg": [
+        "../../plugins/svg/index.ts"
+      ],
+      "zinc:system": [
+        "../../plugins/system/index.ts"
+      ],
+      "zinc:system/notification": [
+        "../../plugins/system/notification.ts"
+      ],
+      "zinc:system/menu": [
+        "../../plugins/system/menu.ts"
+      ],
+      "zinc:system/dock": [
+        "../../plugins/system/dock.ts"
+      ],
+      "zinc:system/tray": [
+        "../../plugins/system/tray.ts"
+      ],
+      "zinc:system/dialog": [
+        "../../plugins/system/dialog.ts"
+      ],
+      "zinc:system/window": [
+        "../../plugins/system/window.ts"
+      ],
+      "zinc:system/shortcut": [
+        "../../plugins/system/shortcut.ts"
+      ],
+      "zinc:system/instance": [
+        "../../plugins/system/instance.ts"
+      ],
+      "zinc:system/autostart": [
+        "../../plugins/system/autostart.ts"
+      ],
+      "zinc:system/deeplink": [
+        "../../plugins/system/deeplink.ts"
+      ],
+      "zinc:system/opener": [
+        "../../plugins/system/opener.ts"
+      ],
+      "zinc:system/share": [
+        "../../plugins/system/share.ts"
+      ],
+      "zinc:system/power": [
+        "../../plugins/system/power.ts"
+      ],
+      "zinc:system/clipboard": [
+        "../../plugins/system/clipboard.ts"
+      ],
+      "zinc:system/update": [
+        "../../plugins/system/update.ts"
+      ],
+      "three": [
+        "../../plugins/three/index.ts"
+      ],
+      "three/addons/loaders/GLTFLoader.js": [
+        "../../plugins/three/addons/GLTFLoader.ts"
+      ],
+      "three/examples/jsm/loaders/GLTFLoader.js": [
+        "../../plugins/three/addons/GLTFLoader.ts"
+      ],
+      "three/addons/controls/OrbitControls.js": [
+        "../../plugins/three/addons/OrbitControls.ts"
+      ],
+      "three/examples/jsm/controls/OrbitControls.js": [
+        "../../plugins/three/addons/OrbitControls.ts"
+      ],
+      "zinc:tilemap": [
+        "../../plugins/tilemap/index.ts"
+      ],
+      "zinc:video": [
+        "../../plugins/video/index.ts"
+      ],
+      "zinc:wasm": [
+        "../../plugins/wasm/index.ts"
+      ],
+      "zinc:webos": [
+        "../../plugins/webos/index.ts"
+      ],
+      "zinc:webrtc": [
+        "../../plugins/webrtc/index.ts"
+      ],
+      "zinc:webview": [
+        "../../plugins/webview/index.ts"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "zinc-ts-plugin"
+      }
+    ]
+  },
+  "files": [
+    "../../lib/zinc.d.ts",
+    "../../lib/gfx.d.ts",
+    "../../lib/modules.d.ts",
+    "../../lib/ui.d.ts",
+    "../../lib/editor/jsx.d.ts"
+  ],
+  "include": [
+    "src/**/*",
+    "*.ts",
+    "*.tsx"
+  ]
+}

@@ -1,0 +1,330 @@
+// ============================================================================
+// pages/settings/settings-page.ts — Page Réglages (construite en arbre Flexbox)
+// ============================================================================
+// Cette page illustre l'utilisation du moteur de layout Flexbox léger intégré
+// à `DisplayObject` (`VBox`, `HBox`, `CardBox`, `ScrollContainerNode`,
+// `LabelNode`, `IconNode`, `PillButtonNode`, `SegmentedControlNode`).
+//
+// Toute la hiérarchie des cartes, icônes, textes et boutons est assemblée une
+// seule fois dans le `constructor()` avec `addChild()`. Lors du rendu, le
+// moteur de layout calcule automatiquement les positions et largeurs flexibles
+// (`flex = 1`), sans aucun calcul de coordonnée `x` ou `y` manuel !
+
+import { System } from 'zinc:sonos';
+import {
+  COLOR_GREEN,
+  COLOR_TEXT_PRIMARY,
+  COLOR_TEXT_SECONDARY,
+  COLOR_TEXT_TERTIARY,
+  PAGE_PADDING,
+  PAGE_SETTINGS,
+} from '../../constants';
+import { Fonts } from '../../fonts';
+import { DisplayObject } from '../../core/display';
+import { drawPageHeader } from '../../components/primitives';
+import {
+  CardBox,
+  HBox,
+  IconNode,
+  LabelNode,
+  PillButtonNode,
+  ScrollContainerNode,
+  SegmentedControlNode,
+  VBox,
+} from '../../components/layout-nodes';
+import { saveAppConfig } from '../../services/config';
+import {
+  getWeatherCityName,
+  triggerPlaceSearch,
+} from '../../services/weather-service';
+import {
+  appState,
+  discoverSonosSystem,
+  formatPlural,
+} from '../../state';
+import { CitySearchSubpageNode } from './city-search-page';
+
+const SLEEP_DELAY_OPTIONS_SECONDS: number[] = [30, 60, 120, 300, 600, 0];
+const SLEEP_DELAY_LABELS: string[] = [
+  '30 s',
+  '1 min',
+  '2 min',
+  '5 min',
+  '10 min',
+  'Jamais',
+];
+
+/** Crée un petit titre de rubrique en majuscules grises (ex: 'ÉCRAN', 'MÉTÉO'). */
+function createSectionHeader(title: string): HBox {
+  const row = new HBox(0, `SectionHeader_${title}`);
+  row.height = 16;
+  row.paddingLeft = 4;
+  row.addChild(new LabelNode(Fonts.tinyBold, title, COLOR_TEXT_SECONDARY, 16));
+  return row;
+}
+
+export class SettingsPageNode extends DisplayObject {
+  readonly scrollContainer: ScrollContainerNode;
+  readonly citySearchSubpage: CitySearchSubpageNode;
+
+  // Références vers les nœuds dynamiques mis à jour dans onMeasure()
+  private readonly sleepSegmentedControl: SegmentedControlNode;
+  private readonly batteryIconNode: IconNode;
+  private readonly batteryVisibilitySegmented: SegmentedControlNode;
+  private readonly batteryPercentSegmented: SegmentedControlNode;
+  private readonly weatherCityLabel: LabelNode;
+  private readonly spotifyIconNode: IconNode;
+  private readonly spotifyStatusLabel: LabelNode;
+  private readonly sonosIconNode: IconNode;
+  private readonly sonosStatusLabel: LabelNode;
+
+  constructor() {
+    super('SettingsPage');
+
+    // Conteneur de défilement vertical contenant une VBox avec gap = 24 px entre chaque section
+    this.scrollContainer = new ScrollContainerNode(
+      appState.pageScrollBoxes[PAGE_SETTINGS],
+      24,
+      'SettingsScroll'
+    );
+    this.scrollContainer.y = 96;
+    this.scrollContainer.contentBox.setPaddingSymmetric(PAGE_PADDING, 8);
+    this.scrollContainer.contentBox.paddingBottom = 32;
+
+    // ---- 1. Section ÉCRAN ----
+    const screenSection = new VBox(8, 'ScreenSection');
+    screenSection.addChild(createSectionHeader('ÉCRAN'));
+
+    const screenCard = new CardBox('column', 120, 'ScreenCard');
+    screenCard.setPaddingSymmetric(20, 18);
+    screenCard.gap = 18;
+    screenCard.addChild(
+      new LabelNode(
+        Fonts.label,
+        "Éteindre l'écran sans contact après",
+        COLOR_TEXT_PRIMARY,
+        22
+      )
+    );
+    this.sleepSegmentedControl = new SegmentedControlNode(
+      'set/sleep',
+      SLEEP_DELAY_LABELS,
+      (chosenIndex: i32) => {
+        appState.config.sleepDelaySeconds = SLEEP_DELAY_OPTIONS_SECONDS[chosenIndex];
+        appState.screenPower.delaySeconds = appState.config.sleepDelaySeconds;
+        saveAppConfig(appState.config);
+      }
+    );
+    screenCard.addChild(this.sleepSegmentedControl);
+    screenSection.addChild(screenCard);
+    this.scrollContainer.contentBox.addChild(screenSection);
+
+    // ---- 2. Section BATTERIE ----
+    const batterySection = new VBox(8, 'BatterySection');
+    batterySection.addChild(createSectionHeader('BATTERIE'));
+
+    const batteryCard = new CardBox('row', 64, 'BatteryCard');
+    batteryCard.setPaddingSymmetric(20, 0);
+    batteryCard.gap = 16;
+    this.batteryIconNode = new IconNode('battery', 24, COLOR_TEXT_SECONDARY);
+    this.batteryVisibilitySegmented = new SegmentedControlNode(
+      'set/bat',
+      ['Affichée', 'Masquée'],
+      (chosenIndex: i32) => {
+        appState.config.showBatteryIndicator = chosenIndex === 0;
+        saveAppConfig(appState.config);
+      }
+    );
+    this.batteryPercentSegmented = new SegmentedControlNode(
+      'set/batpct',
+      ['Avec le pourcentage', 'Sans'],
+      (chosenIndex: i32) => {
+        appState.config.showBatteryPercentage = chosenIndex === 0;
+        saveAppConfig(appState.config);
+      }
+    );
+    batteryCard.addChild(this.batteryIconNode);
+    batteryCard.addChild(this.batteryVisibilitySegmented);
+    batteryCard.addChild(this.batteryPercentSegmented);
+    batterySection.addChild(batteryCard);
+    this.scrollContainer.contentBox.addChild(batterySection);
+
+    // ---- 3. Section MÉTÉO ----
+    const weatherSection = new VBox(8, 'WeatherSection');
+    weatherSection.addChild(createSectionHeader('MÉTÉO'));
+
+    const weatherCard = new CardBox('row', 64, 'WeatherCard');
+    weatherCard.setPaddingSymmetric(20, 0);
+    weatherCard.paddingRight = 92;
+    weatherCard.gap = 14;
+    weatherCard.addChild(new IconNode('cloud-sun', 24, COLOR_TEXT_SECONDARY));
+    this.weatherCityLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.weatherCityLabel.flex = 1; // Prend automatiquement tout l'espace entre l'icône et le bouton !
+    weatherCard.addChild(this.weatherCityLabel);
+    weatherCard.addChild(
+      new PillButtonNode('set/city', 'Choisir', 'search', () => {
+        appState.isSearchingWeatherCity = true;
+        appState.weatherCityQuery = '';
+        triggerPlaceSearch('');
+        appState.isKeyboardVisible = true;
+        appState.pageScrollBoxes[PAGE_SETTINGS].scrollY = 0;
+      })
+    );
+    weatherSection.addChild(weatherCard);
+    this.scrollContainer.contentBox.addChild(weatherSection);
+
+    // ---- 4. Section SPOTIFY ----
+    const spotifySection = new VBox(8, 'SpotifySection');
+    spotifySection.addChild(createSectionHeader('SPOTIFY'));
+
+    const spotifyCard = new CardBox('row', 64, 'SpotifyCard');
+    spotifyCard.setPaddingSymmetric(20, 0);
+    spotifyCard.gap = 14;
+    this.spotifyIconNode = new IconNode('library', 24, COLOR_TEXT_TERTIARY);
+    this.spotifyStatusLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.spotifyStatusLabel.flex = 1;
+    spotifyCard.addChild(this.spotifyIconNode);
+    spotifyCard.addChild(this.spotifyStatusLabel);
+    spotifySection.addChild(spotifyCard);
+    this.scrollContainer.contentBox.addChild(spotifySection);
+
+    // ---- 5. Section SONOS ----
+    const sonosSection = new VBox(8, 'SonosSection');
+    sonosSection.addChild(createSectionHeader('SONOS'));
+
+    const sonosCard = new CardBox('row', 64, 'SonosCard');
+    sonosCard.setPaddingSymmetric(20, 0);
+    sonosCard.paddingRight = 64;
+    sonosCard.gap = 14;
+    this.sonosIconNode = new IconNode('speaker', 24, COLOR_TEXT_TERTIARY);
+    this.sonosStatusLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.sonosStatusLabel.flex = 1;
+    sonosCard.addChild(this.sonosIconNode);
+    sonosCard.addChild(this.sonosStatusLabel);
+    sonosCard.addChild(
+      new PillButtonNode('set/find', 'Rechercher', 'refresh-cw', () => {
+        appState.sonosSystem = null;
+        appState.activeGroup = null;
+        discoverSonosSystem();
+      })
+    );
+    sonosSection.addChild(sonosCard);
+    this.scrollContainer.contentBox.addChild(sonosSection);
+
+    // ---- 6. Section BOUTONS PHYSIQUES ----
+    const hardwareButtonsSection = new VBox(8, 'HardwareButtonsSection');
+    hardwareButtonsSection.addChild(createSectionHeader('BOUTONS PHYSIQUES'));
+
+    const hardwareButtonsCard = new CardBox('column', 64, 'HardwareButtonsCard');
+    hardwareButtonsCard.setPaddingSymmetric(20, 12);
+    hardwareButtonsCard.gap = 4;
+    hardwareButtonsCard.addChild(
+      new LabelNode(
+        Fonts.small,
+        'Commandes UDP sur le port 7777 : toggle, play, pause, next, prev,',
+        COLOR_TEXT_SECONDARY,
+        18
+      )
+    );
+    hardwareButtonsCard.addChild(
+      new LabelNode(
+        Fonts.small,
+        'vol+, vol-, radio <n>, wake (un ESP32 ou un téléphone sur le Wi-Fi).',
+        COLOR_TEXT_SECONDARY,
+        18
+      )
+    );
+    hardwareButtonsSection.addChild(hardwareButtonsCard);
+    this.scrollContainer.contentBox.addChild(hardwareButtonsSection);
+
+    // Sous-page de recherche de ville météo
+    this.citySearchSubpage = new CitySearchSubpageNode();
+
+    this.addChild(this.scrollContainer);
+    this.addChild(this.citySearchSubpage);
+  }
+
+  /**
+   * Synchronise les propriétés dynamiques des nœuds avant que le moteur Flexbox
+   * ne calcule les dimensions et positions de l'arbre.
+   */
+  override onMeasure(): void {
+    const sidebarWidth = appState.sidebarWidth;
+    const pageWidth = this.width > 0 ? this.width : 1024;
+    const pageHeight = this.height > 0 ? this.height : 738;
+
+    this.citySearchSubpage.visible = appState.isSearchingWeatherCity;
+    this.scrollContainer.visible = !appState.isSearchingWeatherCity;
+    if (appState.isSearchingWeatherCity) return;
+
+    this.scrollContainer.x = sidebarWidth;
+    this.scrollContainer.y = 96;
+    this.scrollContainer.width = pageWidth - sidebarWidth;
+    this.scrollContainer.height = pageHeight - 96;
+
+    const cardWidth = pageWidth - sidebarWidth - PAGE_PADDING * 2;
+
+    // 1. Délai d'extinction de l'écran
+    let selectedSleepIndex: i32 = 2;
+    for (let index = 0; index < SLEEP_DELAY_OPTIONS_SECONDS.length; index++) {
+      if (SLEEP_DELAY_OPTIONS_SECONDS[index] === appState.config.sleepDelaySeconds) {
+        selectedSleepIndex = index as i32;
+      }
+    }
+    this.sleepSegmentedControl.selectedIndex = selectedSleepIndex;
+    this.sleepSegmentedControl.fixedSegmentWidth = (cardWidth - 44) / 6;
+
+    // 2. Batterie
+    this.batteryIconNode.iconName = appState.isBatteryCharging
+      ? 'battery-charging'
+      : 'battery';
+    this.batteryIconNode.color =
+      appState.batteryLevelPercent < 0 ? COLOR_TEXT_TERTIARY : COLOR_TEXT_SECONDARY;
+    this.batteryVisibilitySegmented.selectedIndex = appState.config.showBatteryIndicator
+      ? 0
+      : 1;
+    this.batteryPercentSegmented.selectedIndex = appState.config.showBatteryPercentage
+      ? 0
+      : 1;
+
+    // 3. Ville météo
+    const currentPlaceName = getWeatherCityName();
+    const hasCustomCoordinates =
+      appState.config.weatherLatitude !== 0 ||
+      appState.config.weatherLongitude !== 0;
+    this.weatherCityLabel.text =
+      currentPlaceName === ''
+        ? 'Ville : pas encore trouvée'
+        : hasCustomCoordinates
+        ? `Ville : ${currentPlaceName}`
+        : `Ville : ${currentPlaceName} (d'après la connexion)`;
+
+    // 4. Spotify
+    this.spotifyIconNode.color = appState.spotifyClient.ready()
+      ? COLOR_GREEN
+      : COLOR_TEXT_TERTIARY;
+    this.spotifyStatusLabel.text = appState.spotifyClient.ready()
+      ? appState.spotifyUserName !== ''
+        ? `Connecté : ${appState.spotifyUserName}`
+        : 'Connecté'
+      : appState.spotifyClient.problem === 'login expired'
+      ? 'Connexion expirée : refaire la connexion'
+      : 'Non connecté (voir la page Spotify)';
+
+    // 5. Sonos
+    this.sonosIconNode.color =
+      appState.sonosSystem !== null ? COLOR_GREEN : COLOR_TEXT_TERTIARY;
+    this.sonosStatusLabel.text =
+      appState.sonosSystem !== null
+        ? formatPlural((appState.sonosSystem as System).speakers.length, 'pièce') +
+          ', ' +
+          formatPlural((appState.sonosSystem as System).groups.length, 'groupe')
+        : appState.sonosStatusMessage;
+  }
+
+  override onDraw(viewWidth: number, viewHeight: number): void {
+    if (!appState.isSearchingWeatherCity) {
+      drawPageHeader('Réglages', appState.sidebarWidth);
+    }
+  }
+}
