@@ -231,7 +231,9 @@ jobs:
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache   # the build tree names ccache as its compiler launcher: tests that run cmake --build on it need it
+        run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
+          brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint
+          python -m pip install --quiet pyyaml
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:
@@ -429,14 +431,14 @@ jobs:
       - name: Build zinc.exe
         run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe; the update key is next/update.pub
           ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
-          zig=$(ls -d "$USERPROFILE"/.zinc/toolchains/zig-*-windows-*/zig.exe | head -1)
+          for zig in "$USERPROFILE"/.zinc/toolchains/zig-*-windows-*/zig.exe; do break; done
           cmake -S next -B next/build -G Ninja -DCMAKE_TOOLCHAIN_FILE="$PWD/next/cmake/zig-windows.cmake" -DZIG="$zig" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON "${ver[@]}"
-          cmake --build next/build --target zinc
+          cmake --build next/build --target zinc zinc-atelier
       - name: Package
         working-directory: next
         run: |
           python tools/package --out dist   # the version the binary reports
-          ls dist/zinc-*-windows-*.zip
+          for f in dist/zinc-*-windows-*.zip dist/Zinc-Atelier-*-windows-*.zip; do [ -f "$f" ] || { echo "::error::no $f"; exit 1; }; echo "$f"; done
       - name: Smoke test of the archive, unpacked, no compiler on the PATH
         run: |
           mkdir smoke && cd smoke && python -m zipfile -e ../next/dist/zinc-*-windows-*.zip . && cd zinc-*
@@ -446,7 +448,17 @@ jobs:
           printf 'console.log(6 * 7);\n' > "$RUNNER_TEMP/answer.ts"
           [ "$(./bin/zinc.exe run "$RUNNER_TEMP/answer.ts" | tr -d '\r' | tail -1)" = 42 ]
           ZINC_FRAMES=20 ./bin/zinc.exe run "$GITHUB_WORKSPACE/examples/hero"
-          ZINC_FRAMES=20 ZINC_RENDERER=cpu ZINC_HEADLESS= ./bin/zinc.exe run "$GITHUB_WORKSPACE/examples/hero" || echo "::warning::no window on this runner: the CPU window run failed"
+          ZINC_FRAMES=20 ZINC_RENDERER=cpu ZINC_HEADLESS='' ./bin/zinc.exe run "$GITHUB_WORKSPACE/examples/hero" || echo "::warning::no window on this runner: the CPU window run failed"
+      - name: Smoke test of the app, unpacked
+        # Zinc Atelier.exe starts zinc.exe on the Atelier (headless here, its environment is inherited) and writes the first project's hello.ts
+        run: |
+          mkdir smoke-app && cd smoke-app && python -m zipfile -e ../next/dist/Zinc-Atelier-*-windows-*.zip . && cd "Zinc Atelier"
+          ZINC_PROJECT=$(cygpath -w "$RUNNER_TEMP/atelier-project")
+          export ZINC_HOME="$RUNNER_TEMP/zinc-home-app" ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_FRAMES=30 ZINC_PROJECT
+          ./bin/zinc.exe run share/zinc/next/app/atelier/main.tsx -- "$RUNNER_TEMP/atelier-direct"   # the Atelier itself runs from the download
+          ./"Zinc Atelier.exe"
+          for _ in $(seq 60); do [ -f "$RUNNER_TEMP/atelier-project/hello.ts" ] && break; sleep 1; done
+          [ -f "$RUNNER_TEMP/atelier-project/hello.ts" ] || { echo "::error::Zinc Atelier.exe did not start the Atelier"; exit 1; }
       - name: Test the installer against the archive
         shell: pwsh
         run: |
@@ -463,7 +475,7 @@ jobs:
           ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
         run: |
           cd next
-          pkg=$(ls dist/zinc-*-windows-*.zip | head -1)
+          for pkg in dist/zinc-*-windows-*.zip; do break; done
           v=${GITHUB_REF_NAME#v} file=$(basename "$pkg") sum=$(sha256sum "$pkg" | cut -d' ' -f1)
           manifest() {   # manifest <channel> <url> <out>
             printf 'channel=%s\nversion=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "$1" "$v" "$2" "$sum" "Zinc $GITHUB_REF_NAME" > "$RUNNER_TEMP/m"
@@ -587,10 +599,32 @@ jobs:
           $z --version
           [ "$(ZINC_ROOT="$PWD" $z run --interp "$RUNNER_TEMP/answer.ts" 2>/dev/null)" = 42 ]
           ZINC_ROOT="$PWD" $z check "$RUNNER_TEMP/answer.ts"
+          tar -tzf dist/linux-${{ matrix.arch }}/zinc-*.tar.gz | grep '/bin/zinc-atelier$' >/dev/null   # the Atelier's launcher, for install.sh --atelier
+      - name: Update manifests (release)
+        # zinc-linux-<arch>.manifest and its beta, as the macOS and Windows jobs write them (signed with ZINC_UPDATE_SEED, by the zinc just built)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
+        run: |
+          d=dist/linux-${{ matrix.arch }}
+          for pkg in "$d"/zinc-*-linux-*.tar.gz; do break; done
+          v=${GITHUB_REF_NAME#v} file=$(basename "$pkg") sum=$(sha256sum "$pkg" | cut -d' ' -f1)
+          manifest() {   # manifest <channel> <url> <out>
+            printf 'channel=%s\nversion=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "$1" "$v" "$2" "$sum" "Zinc $GITHUB_REF_NAME" > "$RUNNER_TEMP/m"
+            if [ -n "$ZINC_UPDATE_SEED" ]; then ${{ matrix.run }} build-linux-${{ matrix.arch }}/zinc update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "$3"
+            else { echo "signature=none"; cat "$RUNNER_TEMP/m"; } > "$3"; fi
+          }
+          [ -n "$ZINC_UPDATE_SEED" ] || echo "::warning::no ZINC_UPDATE_SEED: the update manifests of linux-${{ matrix.arch }} are unsigned (signature=none)"
+          case "$v" in
+            *-*) manifest beta "${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$file" "$d/zinc-linux-${{ matrix.arch }}-beta.manifest" ;;
+            *) manifest stable "$file" "$d/zinc-linux-${{ matrix.arch }}.manifest"; manifest beta "$file" "$d/zinc-linux-${{ matrix.arch }}-beta.manifest" ;;
+          esac
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
-          path: next/dist/linux-${{ matrix.arch }}/*.tar.gz
+          path: |
+            next/dist/linux-${{ matrix.arch }}/*.tar.gz
+            next/dist/linux-${{ matrix.arch }}/*.manifest
   release:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
@@ -648,7 +682,8 @@ jobs:
           notes="Zinc ${GITHUB_REF_NAME}${nl}${nl}${changelog:+$changelog$nl$nl}## Downloads${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
-          if ls release/zinc-*-linux-*.tar.gz >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-linux-<arch>.tar.gz\`: the zinc CLI for Linux (x86_64, aarch64, armhf, i686; glibc 2.28 or later), the same layout as macOS; \`install.sh\` picks it. Zinc Atelier is not packaged for Linux yet: \`zinc run \"\$(zinc --root)/app/atelier/main.tsx\"\`.${nl}"; fi
+          if ls release/zinc-*-linux-*.tar.gz >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-linux-<arch>.tar.gz\`: the zinc CLI for Linux (x86_64, aarch64, armhf, i686; glibc 2.28 or later), the same layout as macOS; \`install.sh\` picks it. With \`install.sh --atelier\`, Zinc Atelier goes into the applications menu.${nl}"; fi
+          if ls release/Zinc-Atelier-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`Zinc-Atelier-<version>-windows-x86_64.zip\`: the Zinc Atelier app for Windows, the engine inside; unzip it and open \"Zinc Atelier.exe\" in the folder.${nl}"; fi
           if ls release/zinc-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-windows-x86_64.zip\`: the zinc CLI for Windows 10/11 (bin\\zinc.exe, the standard library, templates); install it with \`irm https://github.com/${GH_REPO}/releases/latest/download/install.ps1 | iex\` in PowerShell. Not signed yet: SmartScreen may ask you to confirm.${nl}"; fi
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi
