@@ -8,6 +8,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-19
+
+### Added
+- music: scroll and swipe with the mouse wheel and the trackpad
+
+### Fixed
+- frontend: include algorithm for the JSX source map lookup
+
 ## [0.2.1] - 2026-10-19
 
 ### Fixed
@@ -246,6 +254,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Frulko/zinc/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Frulko/zinc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Frulko/zinc/compare/v0.1.1...v0.2.0
