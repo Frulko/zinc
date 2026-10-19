@@ -1,4 +1,6 @@
 badge readback "7"
 {"ok":true}
+visible true
+visible false
 badge cleared ""
 dock item fired from dock

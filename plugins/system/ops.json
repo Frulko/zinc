@@ -395,6 +395,22 @@
    "sim": "{}"
   },
   {
+   "op": "dock.setVisible",
+   "permission": "dock",
+   "params": {
+    "visible": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "dock.isVisible",
+   "permission": "dock",
+   "params": {},
+   "returns": "{visible: boolean}",
+   "sim": "{\"visible\":true}"
+  },
+  {
    "op": "tray.dump",
    "permission": "tray",
    "params": {},

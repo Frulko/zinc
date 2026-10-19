@@ -74,6 +74,7 @@ const ops = {
   'power.release': (a) => { const s = wake.get(a.token); if (s) { s.release().catch(() => {}); wake.delete(a.token); } return ok(); },
   'dock.setBadge': (a) => { const n = parseInt(a.text, 10); if (g.navigator.setAppBadge) { (Number.isFinite(n) && n > 0 ? g.navigator.setAppBadge(n) : g.navigator.clearAppBadge()).catch(() => {}); } return ok(); },
   'dock.getBadge': () => ok({ text: '' }),
+  'dock.isVisible': () => ok({ visible: true }),
   'dialog.message': (a) => {   // the browser's own blocking boxes: an OK, or OK and Cancel
     const text = [a.title, a.message, a.detail].filter(Boolean).join('\n\n');
     if ((a.buttons || []).length >= 2) return ok({ button: g.confirm(text) ? 0 : 1 });
@@ -88,7 +89,7 @@ const ops = {
 };
 // Presentation only: an application menu, a tray icon, a dock menu, the window's size or look. A page has none of them, and a program that sets them up loses nothing by
 // their absence (supports('menu') and supports('tray') say false for the programs that want to adapt), so the call is accepted and does nothing.
-for (const op of ['menu.setApp', 'menu.update', 'tray.create', 'tray.update', 'tray.remove', 'dock.setMenu', 'dock.setProgress', 'dock.bounce', 'window.setSize', 'window.setPosition', 'window.center',
+for (const op of ['menu.setApp', 'menu.update', 'tray.create', 'tray.update', 'tray.remove', 'dock.setMenu', 'dock.setProgress', 'dock.bounce', 'dock.setVisible', 'window.setSize', 'window.setPosition', 'window.center',
   'window.setAlwaysOnTop', 'window.setOpacity', 'window.setMinSize', 'window.maximize', 'window.minimize', 'window.hide', 'window.setTitleBar', 'window.setTrafficLights', 'window.setVibrancy'])
   ops[op] = () => ok();
 

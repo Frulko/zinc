@@ -297,7 +297,14 @@ static int dockCall(const char* op, NSDictionary* a, char* out, int cap) {
     else { ZnDockView* view = [[ZnDockView alloc] initWithFrame:NSMakeRect(0, 0, 128, 128)]; view->progress = v > 1 ? 1 : v; NSApp.dockTile.contentView = view; }
     [NSApp.dockTile display];
     result = @"{}";
-  } else if (!strcmp(op, "dock.setMenu")) {
+  } else if (!strcmp(op, "dock.setVisible")) {   // a tray-only app ("dock": false, LSUIElement) in the Dock and Cmd+Tab while a window is open
+    BOOL show = [a[@"visible"] boolValue];
+    [NSApp setActivationPolicy:show ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory];
+    const char* bg = getenv("ZINC_BACKGROUND");
+    if (show && !(bg && bg[0] != '0')) [NSApp activateIgnoringOtherApps:YES];   // an Accessory app is not active: its window would open behind; a background run never takes the focus
+    result = @"{}";
+  } else if (!strcmp(op, "dock.isVisible")) result = json(@{@"visible": @(NSApp.activationPolicy == NSApplicationActivationPolicyRegular)});
+  else if (!strcmp(op, "dock.setMenu")) {
     gDockMenu = buildMenu(a[@"template"], @"", 1);
     id del = NSApp.delegate;
     if (!del) { gOwnDelegate = [ZnAppDelegate new]; NSApp.delegate = gOwnDelegate; del = gOwnDelegate; }

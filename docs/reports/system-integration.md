@@ -183,7 +183,7 @@ if (tray.isAvailable()) {                       // Linux: a StatusNotifierWatche
 }
 ```
 
-On macOS the status item needs `NSApp.activationPolicy`: `app.dock: false` in the manifest sets `LSUIElement` (no dock icon, tray-only apps). Linux without a host: `isAvailable()` false and `create` rejects `unsupported`; the app is expected to fall back (e.g. keep the window). Icons cross as PNG bytes (ARGB `IconPixmap` on Linux, `NSImage` on macOS), from the baked asset table of `src/res` (no file path at run time).
+On macOS the status item needs `NSApp.activationPolicy`: `app.dock: false` in the manifest sets `LSUIElement` (no dock icon, tray-only apps). Such an app calls `dock.setVisible(true)` when it opens a window (settings, a main window) and `dock.setVisible(false)` when the last one closes: the activation policy goes Regular then back to Accessory, so the app is in the Dock and Cmd+Tab while the window is open; showing also activates the app so the window comes to the front, except in a background run (`ZINC_BACKGROUND`). Linux without a host: `isAvailable()` false and `create` rejects `unsupported`; the app is expected to fall back (e.g. keep the window). Icons cross as PNG bytes (ARGB `IconPixmap` on Linux, `NSImage` on macOS), from the baked asset table of `src/res` (no file path at run time).
 
 ### 4.5 `zinc:system/window`
 
@@ -259,6 +259,7 @@ await clipboard.readImage(); clipboard.writeImage(png); clipboard.readFiles(); c
 
 import { dock } from 'zinc:system/dock';
 dock.setBadge('3'); dock.bounce('informational' | 'critical'); dock.setMenu([...]); dock.setProgress(0.4);  // Linux: badge + progress via Unity LauncherEntry
+dock.setVisible(true); dock.isVisible();  // macOS: in the Dock and Cmd+Tab (policy Regular) or not (Accessory); elsewhere a no-op
 ```
 
 `system.appearance` (`{dark, accent}` and the `appearance` event) comes from `NSApp.effectiveAppearance` / `SDL_GetSystemTheme`.

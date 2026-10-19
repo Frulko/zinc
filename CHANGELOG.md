@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - Install with Homebrew on macOS or Linux: `brew install frulko/zinc/zinc`; `brew upgrade zinc` installs each new release, and `zinc update` on that install says so.
 - An `agents` example: a small desktop tool that finds the Claude Code, Codex and opencode CLIs and their configuration, and chats with them in a folder, their answers streaming in; each turn picks its mode, model, effort and fast mode as the CLIs do (`zinc run examples/agents`).
+- `zinc:system/dock`: `setVisible(true|false)` and `isVisible()` put a tray-only macOS app (`"dock": false`) in the Dock and Cmd+Tab while its window is open, and take it out again; elsewhere they do nothing.
 - `zinc:socket`: `new WebSocket('wss://…')` and `connectTls(host, port)` connect over TLS, with the server's certificate checked against the system's roots as `fetch` does for https; a certificate that does not verify fails the connection.
 - `zinc:spotify`: `find` and `findMore` (a search by kind, with pages), `artist`, `artistAlbums`, `artistTracks`, `album` and `playlist` pages, `pause`; items carry their artist, length and year.
 - `zinc:sonos`: `queueSpotify` adds a Spotify song, album or playlist after the current song or at the end of the queue, `spotifyItem` builds it, Spotify's song and artist radios (`spotify:trackRadio:<id>`, `spotify:artistRadio:<id>`) play; a track knows its number in the queue and the queue's length.

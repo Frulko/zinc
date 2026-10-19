@@ -12,4 +12,8 @@ export function bounce(kind: string = 'informational'): void { call('dock.bounce
 export function setProgress(value: number): void { call('dock.setProgress', { value: value }); }
 /** The menu of the dock icon; choosing an item reports onClick(id) with source 'dock'. */
 export function setMenu(items: Item[]): void { callRaw('dock.setMenu', '{"template":' + encodeItems(items) + '}'); }
+/** Shows or hides the app in the Dock and the Cmd+Tab switcher (macOS activation policy Regular or Accessory): a tray-only app ("dock": false) calls
+ *  setVisible(true) when it opens a window and setVisible(false) when the last one closes. Showing also brings the app to the front, except in a background run. */
+export function setVisible(visible: boolean): void { call('dock.setVisible', { visible: visible }); }
+export function isVisible(): boolean { const r = call('dock.isVisible', {}) as { visible: boolean }; return r.visible; }
 export { onClick };

@@ -42,6 +42,8 @@ export interface OpArgs {
   'dock.getBadge': {  };
   'dock.setMenu': { template: MenuItem[] };
   'dock.setProgress': { value: number };
+  'dock.setVisible': { visible: boolean };
+  'dock.isVisible': {  };
   'tray.dump': {  };
   'tray.click': { id: string; button?: 'left' | 'right' };
   'tray.available': {  };
@@ -121,6 +123,8 @@ export interface OpResult {
   'dock.getBadge': {text: string};
   'dock.setMenu': {};
   'dock.setProgress': {};
+  'dock.setVisible': {};
+  'dock.isVisible': {visible: boolean};
   'tray.dump': {trays: {id: string; template: boolean; width: number; height: number; title: string; tooltip: string; menu: string}[]};
   'tray.click': {ok: boolean};
   'tray.available': {available: boolean};

@@ -117,6 +117,7 @@ struct Sim : NativeSystem, zrt::Poller {
   int sleepTokens = 0;
   char clipText[256] = "", clipHtml[512] = "", clipPng[1024] = "", clipFiles[512] = "[]";   // the simulator's pasteboard
   char badge[64] = "";
+  bool dockVisible = true;
   char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
   int nhotkeys = 0;
   SimNote notes[32];
@@ -257,6 +258,8 @@ struct Sim : NativeSystem, zrt::Poller {
       if (!strcmp(name, "clipboard.writeFiles")) { const char* p = strstr(args, "\"paths\":"); snprintf(clipFiles, sizeof clipFiles, "%s", p ? p + 8 : "[]"); size_t n = strlen(clipFiles); if (n && clipFiles[n - 1] == '}') clipFiles[n - 1] = 0; return reply("{}"); }
       if (!strcmp(name, "clipboard.readFiles")) { char b[600]; snprintf(b, sizeof b, "{\"paths\":%s}", clipFiles); return reply(b); }
       if (!strcmp(name, "dock.setBadge")) { badge[0] = 0; jsonString(args, "text", badge, sizeof badge); return reply("{}"); }
+      if (!strcmp(name, "dock.setVisible")) { dockVisible = strstr(args, "\"visible\":true") != nullptr; return reply("{}"); }
+      if (!strcmp(name, "dock.isVisible")) return reply(dockVisible ? "{\"visible\":true}" : "{\"visible\":false}");
       if (!strcmp(name, "dock.getBadge")) { char b[160] = "{\"text\":"; appendJson(b, sizeof b, badge); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
       if (!strcmp(name, "menu.popup") || !strncmp(name, "dialog.", 7)) return answer(name);

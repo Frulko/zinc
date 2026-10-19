@@ -42,6 +42,8 @@ static const ZnSystemOp kSystemOps[] = {
   {"dock.getBadge", "dock", "{\"text\":\"\"}"},
   {"dock.setMenu", "dock", "{}"},
   {"dock.setProgress", "dock", "{}"},
+  {"dock.setVisible", "dock", "{}"},
+  {"dock.isVisible", "dock", "{\"visible\":true}"},
   {"tray.dump", "tray", "{\"trays\":[]}"},
   {"tray.click", "tray", "{\"ok\":false}"},
   {"tray.available", "tray", "{\"available\":true}"},
