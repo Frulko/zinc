@@ -38,6 +38,9 @@ export class ScreenPowerManager {
   /** Indique si le carrousel est sur le cadran d'horloge (mode StandBy actif). */
   standbyMode: boolean = false;
 
+  /** The StandBy glances (a wake every few minutes while asleep on the clock); the settings can turn them off. */
+  glancesEnabled: boolean = true;
+
   /** Indique si l'écran est entrouvert uniquement pour afficher une notification sur fond noir. */
   peeking: boolean = false;
 
@@ -149,7 +152,12 @@ export class ScreenPowerManager {
     if (this.delaySeconds <= 0) return false;
 
     if (this.asleep) {
-      if (this.standbyMode && !this.peeking && this.totalElapsedSeconds >= this.nextGlanceTimestamp) {
+      if (
+        this.standbyMode &&
+        this.glancesEnabled &&
+        !this.peeking &&
+        this.totalElapsedSeconds >= this.nextGlanceTimestamp
+      ) {
         this.nextGlanceTimestamp += GLANCE_INTERVAL_SECONDS;
         this.wakeForDuration(GLANCE_DURATION_SECONDS);
       }

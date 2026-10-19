@@ -178,6 +178,7 @@ export class ApplicationState {
 
   constructor() {
     this.screenPower = new ScreenPowerManager(this.config.sleepDelaySeconds);
+    this.screenPower.glancesEnabled = this.config.clockGlancesEnabled;
   }
 }
 

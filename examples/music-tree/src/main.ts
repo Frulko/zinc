@@ -87,6 +87,7 @@ import {
   doesNotificationRowYieldToCarousel,
   hasActiveStandByOverlay,
   isStandByOverlayHoldingStill,
+  setNotificationsShown,
   startNotificationRelay,
   tickNotificationRelay,
 } from './services/notify-service';
@@ -996,6 +997,7 @@ discoverSonosSystem();
 startRemoteUdpListener();
 preloadCatalogListsAndQueueWarmup();
 
+setNotificationsShown(appState.config.macNotificationsShown);
 startNotificationRelay(
   (notification: MacNotification) => {
     appState.isVolumePopoverOpen = false;

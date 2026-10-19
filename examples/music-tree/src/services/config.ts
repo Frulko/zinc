@@ -31,6 +31,12 @@ export class AppConfig {
   /** Affichage de l'indicateur de batterie et de son pourcentage dans la barre d'état. */
   showBatteryIndicator: boolean = true;
   showBatteryPercentage: boolean = true;
+
+  /** The clock slide's glances: the sleeping screen lights up every few minutes on the clock (`glances`). */
+  clockGlancesEnabled: boolean = true;
+
+  /** The Mac's notifications shown over the views and waking the screen; off, they only go to the list (`notify`). */
+  macNotificationsShown: boolean = true;
 }
 
 const CONFIG_FILE_PATH = 'config.json';
@@ -50,6 +56,8 @@ export function loadAppConfig(): AppConfig {
     if (parsed.full !== undefined) config.fullScreenPlayer = parsed.full === true;
     if (parsed.battery !== undefined) config.showBatteryIndicator = parsed.battery === true;
     if (parsed.batteryPct !== undefined) config.showBatteryPercentage = parsed.batteryPct === true;
+    if (parsed.glances !== undefined) config.clockGlancesEnabled = parsed.glances === true;
+    if (parsed.notify !== undefined) config.macNotificationsShown = parsed.notify === true;
     if (parsed.lat !== undefined && parsed.lon !== undefined) {
       config.weatherLatitude = parsed.lat as number;
       config.weatherLongitude = parsed.lon as number;
@@ -85,6 +93,8 @@ export function saveAppConfig(config: AppConfig): void {
     stored.city = config.weatherCityName;
     stored.battery = config.showBatteryIndicator;
     stored.batteryPct = config.showBatteryPercentage;
+    stored.glances = config.clockGlancesEnabled;
+    stored.notify = config.macNotificationsShown;
     writeText(CONFIG_FILE_PATH, JSON.stringify(stored) + '\n');
   } catch (error) {
     console.error(`music: config.json: ${error.message}`);

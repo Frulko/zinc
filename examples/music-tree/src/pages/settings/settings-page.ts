@@ -30,8 +30,10 @@ import {
   PillButtonNode,
   ScrollContainerNode,
   SegmentedControlNode,
+  SeparatorNode,
   VBox,
 } from '../../components/layout-nodes';
+import { setNotificationsShown } from '../../services/notify-service';
 import { saveAppConfig } from '../../services/config';
 import {
   getWeatherCityName,
@@ -69,6 +71,10 @@ export class SettingsPageNode extends DisplayObject {
 
   // Références vers les nœuds dynamiques mis à jour dans onMeasure()
   private readonly sleepSegmentedControl: SegmentedControlNode;
+  private readonly glancesSegmented: SegmentedControlNode;
+  private readonly notificationsIconNode: IconNode;
+  private readonly notificationsLabel: LabelNode;
+  private readonly notificationsSegmented: SegmentedControlNode;
   private readonly batteryIconNode: IconNode;
   private readonly batteryVisibilitySegmented: SegmentedControlNode;
   private readonly batteryPercentSegmented: SegmentedControlNode;
@@ -116,8 +122,49 @@ export class SettingsPageNode extends DisplayObject {
       }
     );
     screenCard.addChild(this.sleepSegmentedControl);
+    screenCard.addChild(new SeparatorNode());
+    const glancesRow = new HBox(14, 'GlancesRow');
+    const glancesLabel = new LabelNode(Fonts.label, "Réveil automatique sur l'horloge", COLOR_TEXT_PRIMARY, 22);
+    glancesLabel.flex = 1;
+    this.glancesSegmented = new SegmentedControlNode(
+      'set/glances',
+      ['Activé', 'Désactivé'],
+      (chosenIndex: i32) => {
+        appState.config.clockGlancesEnabled = chosenIndex === 0;
+        appState.screenPower.glancesEnabled = appState.config.clockGlancesEnabled;
+        saveAppConfig(appState.config);
+      }
+    );
+    glancesRow.addChild(glancesLabel);
+    glancesRow.addChild(this.glancesSegmented);
+    screenCard.addChild(glancesRow);
+    screenCard.autoHeight = true;
     screenSection.addChild(screenCard);
     this.scrollContainer.contentBox.addChild(screenSection);
+
+    // ---- Section NOTIFICATIONS DU MAC ----
+    const notificationsSection = new VBox(8, 'NotificationsSection');
+    notificationsSection.addChild(createSectionHeader('NOTIFICATIONS DU MAC'));
+    const notificationsCard = new CardBox('row', 64, 'NotificationsCard');
+    notificationsCard.setPaddingSymmetric(20, 0);
+    notificationsCard.gap = 14;
+    this.notificationsIconNode = new IconNode('bell', 24, COLOR_TEXT_SECONDARY);
+    this.notificationsLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.notificationsLabel.flex = 1;
+    this.notificationsSegmented = new SegmentedControlNode(
+      'set/notify',
+      ['Activées', 'Désactivées'],
+      (chosenIndex: i32) => {
+        appState.config.macNotificationsShown = chosenIndex === 0;
+        setNotificationsShown(appState.config.macNotificationsShown);
+        saveAppConfig(appState.config);
+      }
+    );
+    notificationsCard.addChild(this.notificationsIconNode);
+    notificationsCard.addChild(this.notificationsLabel);
+    notificationsCard.addChild(this.notificationsSegmented);
+    notificationsSection.addChild(notificationsCard);
+    this.scrollContainer.contentBox.addChild(notificationsSection);
 
     // ---- 2. Section BATTERIE ----
     const batterySection = new VBox(8, 'BatterySection');
@@ -273,6 +320,15 @@ export class SettingsPageNode extends DisplayObject {
     }
     this.sleepSegmentedControl.selectedIndex = selectedSleepIndex;
     this.sleepSegmentedControl.fixedSegmentWidth = (cardWidth - 44) / 6;
+    this.glancesSegmented.selectedIndex = appState.config.clockGlancesEnabled ? 0 : 1;
+
+    // Notifications of the Mac
+    const areNotificationsShown = appState.config.macNotificationsShown;
+    this.notificationsIconNode.color = areNotificationsShown ? COLOR_TEXT_SECONDARY : COLOR_TEXT_TERTIARY;
+    this.notificationsLabel.text = areNotificationsShown
+      ? "Affichées et réveillent l'écran"
+      : "Gardées dans la liste, sans s'afficher";
+    this.notificationsSegmented.selectedIndex = areNotificationsShown ? 0 : 1;
 
     // 2. Batterie
     this.batteryIconNode.iconName = appState.isBatteryCharging

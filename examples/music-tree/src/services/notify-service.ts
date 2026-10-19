@@ -537,8 +537,17 @@ function handleIncomingRelayMessage(message: any, channel: link.Channel | null):
     }
   }
 
-  presentIncomingNotification(notification);
+  if (areNotificationsShown) {
+    presentIncomingNotification(notification);
+  }
   uiState.dirty = true;
+}
+
+let areNotificationsShown = true;
+
+/** The settings' "Notifications du Mac": off, a notification arrives silently, kept in the list but never shown nor waking the screen. */
+export function setNotificationsShown(isShown: boolean): void {
+  areNotificationsShown = isShown;
 }
 
 function presentIncomingNotification(notification: MacNotification): void {
