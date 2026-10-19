@@ -30,9 +30,13 @@ import {
   drawGlyph,
   drawLabel,
   drawSeparatorLine,
-  drawWrappedText,
 } from '../../components/primitives';
 import { drawPillButton } from '../../components/buttons';
+import {
+  countEmojiPlaceholders,
+  drawInlineEmojiText,
+  drawWrappedEmojiText,
+} from '../../components/emoji-text';
 import { drawActivitySpinner } from '../../components/slider';
 import {
   MacNotification,
@@ -63,6 +67,9 @@ import {
   drawNotificationAppIcon,
   formatNotificationAppHeader,
   formatRelativeTimeAgo,
+  getNotificationTitleText,
+  getNotificationBodyText,
+  getNotificationEmojiImages,
   relayListeningPort,
   TEST_RELAY_FEED_FILE,
 } from '../../services/notify-service';
@@ -289,12 +296,17 @@ export class NotificationsSlideNode extends DisplayObject {
     }
 
     const relativeTimeText = formatRelativeTimeAgo(notification.timestampSeconds);
-    drawLabel(
+    const emojiImages = getNotificationEmojiImages(notification);
+    const titleText = getNotificationTitleText(notification);
+    drawInlineEmojiText(
       Fonts.bodyBold,
       rowDrawX + 20,
       y + 12,
-      notification.title !== '' ? notification.title : notification.appName,
+      titleText,
+      emojiImages,
+      0,
       COLOR_TEXT_PRIMARY,
+      255,
       width - 60 - textWidth(Fonts.tiny, relativeTimeText, 0)
     );
     drawLabel(
@@ -305,14 +317,15 @@ export class NotificationsSlideNode extends DisplayObject {
       COLOR_TEXT_SECONDARY
     );
 
-    const bodyAndSubtitle =
-      (notification.subtitle !== '' ? notification.subtitle + ' · ' : '') + notification.body;
+    const bodyAndSubtitle = getNotificationBodyText(notification);
     if (bodyAndSubtitle !== '') {
-      drawWrappedText(
+      drawWrappedEmojiText(
         Fonts.small,
         rowDrawX + 20,
         y + 40,
         bodyAndSubtitle,
+        emojiImages,
+        countEmojiPlaceholders(titleText),
         COLOR_TEXT_SECONDARY,
         width - 40,
         2,

@@ -45,6 +45,7 @@ src/
 ├── components/
 │   ├── layout-nodes.ts              # Nœuds Flexbox : VBox, HBox, SpacerNode, CardBox, ScrollContainerNode, LabelNode, IconNode, PillButtonNode, SegmentedControlNode, SliderNode, CoverArtNode...
 │   ├── primitives.ts                # Textes (fit, label, centered, wrap, tabular), icônes Lucide et ombres
+│   ├── emoji-text.ts                # Textes avec les emoji du Mac en images (une ligne coupée, un paragraphe)
 │   ├── buttons.ts                   # Rendu bas niveau des boutons et contrôles segmentés
 │   ├── slider.ts                    # Rendu du curseur horizontal et de l'indicateur d'activité (spinner)
 │   ├── cover.ts                     # Rendu des pochettes avec initiales de secours, tuiles et squelettes

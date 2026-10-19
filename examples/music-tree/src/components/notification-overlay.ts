@@ -6,7 +6,7 @@
 //    ou lorsque l'écran était en veille).
 // 2. Soit les cartes de bannières grises empilées en haut de l'écran.
 
-import { rrect, textWidth, fontAscent } from 'zinc:gfx';
+import { rrect, textWidth, fontAscent, drawImage, imageWidth, imageHeight } from 'zinc:gfx';
 import {
   COLOR_CARD_ELEVATED,
   COLOR_TEXT_PRIMARY,
@@ -26,8 +26,13 @@ import {
   drawCardShadow,
   drawCenteredText,
   drawLabel,
-  drawWrappedText,
 } from './primitives';
+import {
+  countEmojiPlaceholders,
+  drawInlineEmojiText,
+  drawWrappedEmojiText,
+  measureInlineEmojiText,
+} from './emoji-text';
 import {
   StandByOverlayAnimation,
   currentStandByOverlay,
@@ -35,8 +40,14 @@ import {
   onStandByOverlayTapped,
   drawNotificationAvatarOrIcon,
   drawNotificationAppIcon,
-  getNotificationSenderLabel,
+  getNotificationSenderText,
+  getNotificationSenderFirstEmoji,
   getNotificationExcerpt,
+  getNotificationExcerptFirstEmoji,
+  getNotificationTitleText,
+  getNotificationBodyText,
+  getNotificationEmojiImages,
+  getNotificationAttachmentImage,
   formatRelativeTimeAgo,
   formatNotificationAppHeader,
   formatBannerTimeLabel,
@@ -78,9 +89,12 @@ export function drawNotificationOverlayLayer(
   const centeredLabelsOpacity =
     anim.phase1Grow * Math.max(0, 1 - anim.phase2SlideLeft * 2) * visibilityFactor;
 
+  // A photo the message carries shows large on the right as the text comes in; the face and the margins shrink for it.
+  const attachmentImage = getNotificationAttachmentImage(notification);
+  const hasPhoto = attachmentImage >= 0;
   const initialDiameter = 210;
-  const compactDiameter = 128;
-  const targetLeftCenterX = 90 + compactDiameter / 2;
+  const compactDiameter = hasPhoto ? 100 : 128;
+  const targetLeftCenterX = (hasPhoto ? 56 : 90) + compactDiameter / 2;
 
   const currentDiameter = interpolateLinear(
     initialDiameter * (0.5 + 0.5 * anim.phase1Grow),
@@ -107,14 +121,21 @@ export function drawNotificationOverlayLayer(
     0x000000
   );
 
+  const emojiImages = getNotificationEmojiImages(notification);
+  const senderText = getNotificationSenderText(notification);
+  const senderFirstEmoji = getNotificationSenderFirstEmoji(notification);
   if (centeredLabelsOpacity > 0.01) {
-    drawCenteredText(
+    const nameWidth = Math.min(screenWidth - 80, measureInlineEmojiText(FONT_STANDBY_NAME, senderText));
+    drawInlineEmojiText(
       FONT_STANDBY_NAME,
-      currentCenterX,
+      currentCenterX - nameWidth / 2,
       currentCenterY + currentDiameter / 2 + 28,
-      getNotificationSenderLabel(notification),
+      senderText,
+      emojiImages,
+      senderFirstEmoji,
       COLOR_TEXT_PRIMARY,
-      toByteAlpha(centeredLabelsOpacity)
+      toByteAlpha(centeredLabelsOpacity),
+      nameWidth
     );
     drawCenteredText(
       FONT_STANDBY_META,
@@ -126,8 +147,18 @@ export function drawNotificationOverlayLayer(
     );
   }
 
-  const textColumnX = targetLeftCenterX + compactDiameter / 2 + 44;
-  const textColumnWidth = screenWidth - textColumnX - 90;
+  let photoWidth = 0;
+  let photoHeight = 0;
+  if (hasPhoto) {
+    const scale = Math.min(
+      Math.min(460, screenWidth * 0.44) / imageWidth(attachmentImage),
+      (screenHeight - 120) / imageHeight(attachmentImage)
+    );
+    photoWidth = imageWidth(attachmentImage) * scale;
+    photoHeight = imageHeight(attachmentImage) * scale;
+  }
+  const textColumnX = targetLeftCenterX + compactDiameter / 2 + (hasPhoto ? 32 : 44);
+  const textColumnWidth = screenWidth - textColumnX - (hasPhoto ? 48 + photoWidth + 32 : 90);
   const textBaseY = screenHeight / 2 - 92;
 
   if (anim.line1Progress > 0) {
@@ -142,28 +173,49 @@ export function drawNotificationOverlayLayer(
     );
   }
   if (anim.line2Progress > 0) {
-    drawLabel(
-      FONT_STANDBY_SENDER,
+    // a long name takes the smaller size before it is cut
+    const senderFont =
+      measureInlineEmojiText(FONT_STANDBY_SENDER, senderText) <= textColumnWidth
+        ? FONT_STANDBY_SENDER
+        : FONT_STANDBY_NAME;
+    drawInlineEmojiText(
+      senderFont,
       textColumnX,
-      textBaseY + 34 + (1 - anim.line2Progress) * 18,
-      getNotificationSenderLabel(notification),
+      textBaseY + 34 + (1 - anim.line2Progress) * 18 +
+        (fontAscent(FONT_STANDBY_SENDER) - fontAscent(senderFont)) / 2,
+      senderText,
+      emojiImages,
+      senderFirstEmoji,
       COLOR_TEXT_PRIMARY,
-      textColumnWidth,
-      toByteAlpha(anim.line2Progress * visibilityFactor)
+      toByteAlpha(anim.line2Progress * visibilityFactor),
+      textColumnWidth
     );
   }
   if (anim.line3Progress > 0) {
-    drawWrappedText(
+    drawWrappedEmojiText(
       FONT_STANDBY_EXCERPT,
       textColumnX,
       textBaseY + 108 + (1 - anim.line3Progress) * 18,
       getNotificationExcerpt(notification),
+      emojiImages,
+      getNotificationExcerptFirstEmoji(notification),
       COLOR_TEXT_SECONDARY,
       textColumnWidth,
       2,
       42,
       toByteAlpha(anim.line3Progress * visibilityFactor)
     );
+    if (hasPhoto) {
+      drawImage(
+        attachmentImage,
+        screenWidth - 48 - photoWidth,
+        screenHeight / 2 - photoHeight / 2 + (1 - anim.line3Progress) * 18,
+        photoWidth,
+        photoHeight,
+        toByteAlpha(anim.line3Progress * visibilityFactor),
+        20
+      );
+    }
   }
 }
 
@@ -194,19 +246,22 @@ function drawTopBannerStack(
     const bodyFont = Fonts.small;
     const lineHeight = 20;
 
+    // a photo the message carries: a thumbnail on the right, as iOS does
+    const attachmentImage = getNotificationAttachmentImage(notification);
+    const hasPhoto = attachmentImage >= 0;
     const cardX = (screenWidth - cardWidth) / 2;
     const textX = cardX + innerPadding + iconSize + 14;
-    const textMaxWidth = cardWidth - (textX - cardX) - innerPadding;
+    const textMaxWidth = cardWidth - (textX - cardX) - innerPadding - (hasPhoto ? iconSize + 12 : 0);
 
-    const bodyText =
-      (notification.subtitle !== '' ? notification.subtitle + ' · ' : '') +
-      notification.body;
+    const emojiImages = getNotificationEmojiImages(notification);
+    const titleText = getNotificationTitleText(notification);
+    const bodyText = getNotificationBodyText(notification);
     const bodyLineCount =
-      bodyText === '' ? 0 : textWidth(bodyFont, bodyText, 0) > textMaxWidth ? 2 : 1;
+      bodyText === '' ? 0 : measureInlineEmojiText(bodyFont, bodyText) > textMaxWidth ? 2 : 1;
 
     const cardHeight =
       Math.max(
-        iconSize,
+        iconSize + (hasPhoto ? fontAscent(appHeaderFont) + 8 : 0),
         fontAscent(appHeaderFont) +
           8 +
           fontAscent(titleFont) +
@@ -240,18 +295,37 @@ function drawTopBannerStack(
     );
 
     let lineY = animatedCardY + innerPadding + fontAscent(appHeaderFont) + 8;
-    drawLabel(
-      titleFont,
-      textX,
-      lineY,
-      notification.title !== '' ? notification.title : notification.appName,
-      COLOR_TEXT_PRIMARY,
-      textMaxWidth
-    );
+    if (hasPhoto) {
+      // fitted in the square, its shape kept
+      const scale = Math.min(iconSize / imageWidth(attachmentImage), iconSize / imageHeight(attachmentImage));
+      const thumbWidth = imageWidth(attachmentImage) * scale;
+      const thumbHeight = imageHeight(attachmentImage) * scale;
+      drawImage(
+        attachmentImage,
+        cardX + cardWidth - innerPadding - iconSize + (iconSize - thumbWidth) / 2,
+        lineY + (iconSize - thumbHeight) / 2,
+        thumbWidth,
+        thumbHeight,
+        255,
+        8
+      );
+    }
+    drawInlineEmojiText(titleFont, textX, lineY, titleText, emojiImages, 0, COLOR_TEXT_PRIMARY, 255, textMaxWidth);
     lineY += fontAscent(titleFont) + 8;
 
     if (bodyLineCount > 0) {
-      drawWrappedText(bodyFont, textX, lineY, bodyText, COLOR_TEXT_PRIMARY, textMaxWidth, 2, lineHeight);
+      drawWrappedEmojiText(
+        bodyFont,
+        textX,
+        lineY,
+        bodyText,
+        emojiImages,
+        countEmojiPlaceholders(titleText),
+        COLOR_TEXT_PRIMARY,
+        textMaxWidth,
+        2,
+        lineHeight
+      );
     }
 
     const capturedBanner = bannerItem;

@@ -24,6 +24,7 @@ import {
 } from '../fonts';
 import { uiState, ScrollBox } from '../core/input';
 import { drawCenteredText, drawGlyph } from '../components/primitives';
+import { countEmojiPlaceholders, stripEmojiPlaceholders } from '../components/emoji-text';
 
 /**
  * Représente une notification reçue depuis le Mac.
@@ -43,6 +44,10 @@ export class MacNotification {
   kind: string = 'other';
   senderName: string = '';
   avatarHash: string = '';
+  /** The emoji of the title, subtitle, body and sender, in that order, as base64 PNGs; each stands for one U+FFFC of the texts. */
+  emoji: string[] = [];
+  /** The hash of a photo the message carries (a JPEG fitted in 640 px, fetched like an icon), '' when none. */
+  attachmentHash: string = '';
 }
 
 /**
@@ -181,6 +186,8 @@ function parseNotificationFromJson(raw: any): MacNotification {
   notification.kind = asSafeString(raw.kind) === 'message' ? 'message' : 'other';
   notification.senderName = asSafeString(raw.sender);
   notification.avatarHash = asSafeString(raw.avatar);
+  notification.attachmentHash = asSafeString(raw.attachment);
+  notification.emoji = Array.isArray(raw.emoji) ? (raw.emoji as string[]) : [];
   notification.timestampSeconds =
     raw.date !== undefined && raw.date !== null ? (raw.date as number) : Date.now() / 1000;
   if (raw.app !== undefined && raw.app !== null) {
@@ -207,6 +214,8 @@ function saveStoredNotifications(): void {
       kind: item.kind,
       sender: item.senderName,
       avatar: item.avatarHash,
+      attachment: item.attachmentHash,
+      emoji: item.emoji,
     });
   }
   try {
@@ -217,6 +226,7 @@ function saveStoredNotifications(): void {
 }
 
 export function removeNotificationById(notificationId: string): void {
+  emojiImagesByNotificationId.delete(notificationId);
   storedNotifications = storedNotifications.filter(
     (item: MacNotification) => item.id !== notificationId
   );
@@ -225,6 +235,7 @@ export function removeNotificationById(notificationId: string): void {
 }
 
 export function clearAllNotifications(): void {
+  emojiImagesByNotificationId.clear();
   storedNotifications = [];
   saveStoredNotifications();
   uiState.dirty = true;
@@ -273,6 +284,31 @@ function storeNotificationIconOnDisk(hash: string, base64Png: string): void {
   } catch (error) {
     console.error(`music: icon ${hash}: ${error.message}`);
   }
+}
+
+// ponytail: one decode per notification id, kept until it is removed (at most the 50 kept plus the session's banners)
+const emojiImagesByNotificationId = new Map<string, i32[]>();
+
+/** The emoji pictures of a notification, decoded once; -1 for one that does not decode. */
+export function getNotificationEmojiImages(notification: MacNotification): i32[] {
+  if (emojiImagesByNotificationId.has(notification.id)) {
+    return emojiImagesByNotificationId.get(notification.id) as i32[];
+  }
+  const images: i32[] = [];
+  for (let index = 0; index < notification.emoji.length; index++) {
+    try {
+      images.push(imageFromBytes(base64Decode(notification.emoji[index])));
+    } catch (error) {
+      images.push(-1);
+    }
+  }
+  emojiImagesByNotificationId.set(notification.id, images);
+  return images;
+}
+
+/** The photo the message carries, -1 when none or not received yet. */
+export function getNotificationAttachmentImage(notification: MacNotification): i32 {
+  return notification.attachmentHash !== '' ? getCachedNotificationIcon(notification.attachmentHash) : -1;
 }
 
 /** Dessine l'icône de l'application (ou une cloche par défaut) avec opacité. */
@@ -348,15 +384,49 @@ export function drawNotificationAvatarOrIcon(
 // Formatage des textes et dates de notifications
 // ----------------------------------------------------------------------------
 
-export function getNotificationSenderLabel(notification: MacNotification): string {
+/** Who it is from, emoji placeholders kept (draw it with components/emoji-text.ts). */
+export function getNotificationSenderText(notification: MacNotification): string {
   if (notification.kind === 'message' && notification.senderName !== '') {
     return notification.senderName;
   }
   return notification.title !== '' ? notification.title : notification.appName;
 }
 
+/** Who it is from as plain text (no emoji): for the initials of a face. */
+export function getNotificationSenderLabel(notification: MacNotification): string {
+  return stripEmojiPlaceholders(getNotificationSenderText(notification));
+}
+
+/** The first emoji of the sender's text: a sender's come after the title's, subtitle's and body's (the relay's order). */
+export function getNotificationSenderFirstEmoji(notification: MacNotification): i32 {
+  if (notification.kind !== 'message' || notification.senderName === '') return 0;
+  return (
+    countEmojiPlaceholders(notification.title) +
+    countEmojiPlaceholders(notification.subtitle) +
+    countEmojiPlaceholders(notification.body)
+  );
+}
+
+/** What it says, emoji placeholders kept: a message's body, else the subtitle and the body. */
 export function getNotificationExcerpt(notification: MacNotification): string {
   if (notification.kind === 'message') return notification.body;
+  return (notification.subtitle !== '' ? notification.subtitle + ' · ' : '') + notification.body;
+}
+
+/** The first emoji of the excerpt: after the title's (and the subtitle's, which a message's excerpt leaves out). */
+export function getNotificationExcerptFirstEmoji(notification: MacNotification): i32 {
+  return (
+    countEmojiPlaceholders(notification.title) +
+    (notification.kind === 'message' ? countEmojiPlaceholders(notification.subtitle) : 0)
+  );
+}
+
+/** The title of a banner or a row (else the app's name) and its excerpt, the subtitle and the body, whose emoji follow the title's. */
+export function getNotificationTitleText(notification: MacNotification): string {
+  return notification.title !== '' ? notification.title : notification.appName;
+}
+
+export function getNotificationBodyText(notification: MacNotification): string {
   return (notification.subtitle !== '' ? notification.subtitle + ' · ' : '') + notification.body;
 }
 
@@ -523,7 +593,7 @@ function handleIncomingRelayMessage(message: any, channel: link.Channel | null):
     channel.send({ t: 'ack', id: notification.id });
   }
 
-  const hashesToCheck = [notification.iconHash, notification.avatarHash];
+  const hashesToCheck = [notification.iconHash, notification.avatarHash, notification.attachmentHash];
   for (let index = 0; index < hashesToCheck.length; index++) {
     const iconHash = hashesToCheck[index];
     if (
