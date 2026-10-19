@@ -903,3 +903,7 @@ Microseconds per unit, medians; "floor" is `floor.c` (QuickJS C API, no JSON).
 The fast path is 8 to 51 times faster than before and within 1.4 to 2.3 times of the floor (the rest is the Zinc side's callback entry and the `Entry` bookkeeping). The generic path is about 2 times
 faster for primitives. 5,000 UI mutations cost 6.7 ms on the Nexus 7 and 9.8 ms on the TouchPad through the fast path (307 and 501 ms before). Not changed: objects, arrays and
 the Zinc-side JSON of the generic path (`JSON.stringify` / `JSON.parse` on Dyn values), which is what the generic host -> script call still pays.
+
+## Window memory on macOS (ZN-764, 2026-10-20)
+
+Physical footprint (Activity Monitor) 8 s after start, `next/tools/window-memory`, MacBook Pro arm64, macOS 15.7, 4K screens, load 15 to 19 from other sessions (memory, not time). OpenGL replay before -> software raster through Metal, two drawables: examples/agents 1180x760 211-216 -> 81/82/103 MB (three passes, the 103 first after a build); ui/forms 133 -> 45 MB; notify-relay (app.window config) 134 -> 59 MB; nuxt-ui 79 -> 75 MB; rn-showcase 96 -> 65-89 MB. `ZINC_RENDERER=gl` after freeing the splash buffers: agents 211 -> 170 MB, ui/forms 133 -> 116 MB. What remains for a 2360x1520 surface: the shared frame 13.9 MB and three CAMetalLayer drawables 41.2 MB (WindowServer holds one beyond maximumDrawableCount 2; four and 96 MB with 3). Speed on the Metal path: breakout and hero at 60 fps (present interval p50 16.7 ms), raster p50 0.5 ms (breakout) and 2.5 ms (hero, p99 22 ms under load).
