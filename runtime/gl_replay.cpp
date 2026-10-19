@@ -146,7 +146,7 @@ static void gpu_init() {
   const bool finish = want && !strcmp(want, "finish");
 #if GLR_CORE && defined(__APPLE__)
   if (!finish) { gpu_mode = 1; gpu_source = "GL_TIME_ELAPSED"; return; }
-#else
+#elif !GLR_CORE   // a desktop core profile elsewhere (Linux, Windows) loads no query entry points: no GPU timer there
   const char* ext = (const char*)glGetString(GL_EXTENSIONS);
   if (!finish && ext && strstr(ext, "GL_EXT_disjoint_timer_query")) {
     pGenQ = (void (*)(int, GLuint*))gl_proc("glGenQueriesEXT"); pBeginQ = (void (*)(GLenum, GLuint))gl_proc("glBeginQueryEXT"); pEndQ = (void (*)(GLenum))gl_proc("glEndQueryEXT");
@@ -167,7 +167,7 @@ static void gpu_begin() {
   if (!gq[0]) glGenQueries(4, gq);
   if (gq_n >= 4) { GLuint64 ns = 0; glGetQueryObjectui64v(gq[k], GL_QUERY_RESULT, &ns); gpu_us += ns / 1000.0; gpu_n++; }
   glBeginQuery(GL_TIME_ELAPSED, gq[k]);
-#else
+#elif !GLR_CORE
   const GLenum TIME_ELAPSED = 0x88BF, RESULT = 0x8866, AVAILABLE = 0x8867, DISJOINT = 0x8FBB;
   if (!gq[0]) pGenQ(4, gq);
   if (gq_n >= 4) {   // the query of four frames ago: read it when it is there and the GPU was not disjoint (a clock change, a context loss), else count it lost
@@ -183,7 +183,7 @@ static void gpu_end() {
   if (gpu_mode == 3) { glFinish(); gpu_us += now_us_early() - gpu_t0; gpu_n++; return; }
 #if GLR_CORE && defined(__APPLE__)
   glEndQuery(GL_TIME_ELAPSED);
-#else
+#elif !GLR_CORE
   pEndQ(0x88BF);
 #endif
   gq_n++;
