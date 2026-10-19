@@ -146,6 +146,6 @@ wait_event("terminated")
 out = "".join(e["body"]["output"] for e in events if e["event"] == "output" and e["body"]["category"] == "stdout")
 check("zinc 6 1\ndone" in out, "the program's output as output events: %r" % out)
 try: request("disconnect")
-except SystemExit: pass
+except (SystemExit, BrokenPipeError): pass   # the adapter may already have ended after "terminated"
 p.wait(timeout=10)
 sys.exit(1 if failed else 0)
