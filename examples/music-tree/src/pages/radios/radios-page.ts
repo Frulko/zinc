@@ -26,7 +26,6 @@ import {
   beginScrollBox,
   endScrollBox,
   registerTapZone,
-  uiState,
 } from '../../core/input';
 import {
   drawCenteredText,
@@ -43,13 +42,13 @@ import {
 import {
   RadioStation,
   findStationIndexByUrl,
-  saveMyRadioStations,
 } from '../../services/radios-service';
 import {
   appState,
   isStationCurrentlyPlaying,
   loadPopularRadios,
   playRadioStation,
+  removeMyRadioStation,
   toggleFavoriteRadioStation,
 } from '../../state';
 
@@ -280,12 +279,7 @@ export class RadiosPageNode extends DisplayObject {
         isStationCurrentlyPlaying(station),
         () => {
           if (appState.isEditingMyRadios && isEditableFavorites) {
-            appState.myStations.splice(
-              findStationIndexByUrl(appState.myStations, station.streamUrl),
-              1
-            );
-            saveMyRadioStations(appState.myStations);
-            uiState.dirty = true;
+            removeMyRadioStation(station);
           } else {
             playRadioStation(station);
           }
@@ -296,14 +290,9 @@ export class RadiosPageNode extends DisplayObject {
       if (isEditableFavorites && appState.isEditingMyRadios) {
         rrect(tileX - 8, tileY - 8, 32, 32, 16, COLOR_DANGER, 255);
         rrect(tileX, tileY + 6, 16, 3, 1, 0xffffff, 255);
-        registerTapZone(`${zoneIdPrefix}/rm/${index}`, tileX - 14, tileY - 14, 44, 44, () => {
-          appState.myStations.splice(
-            findStationIndexByUrl(appState.myStations, station.streamUrl),
-            1
-          );
-          saveMyRadioStations(appState.myStations);
-          uiState.dirty = true;
-        });
+        registerTapZone(`${zoneIdPrefix}/rm/${index}`, tileX - 14, tileY - 14, 44, 44, () =>
+          removeMyRadioStation(station)
+        );
       } else if (!isEditableFavorites) {
         const badgeX = tileX + tileSize - 40;
         const badgeY = tileY + 8;

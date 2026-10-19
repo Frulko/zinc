@@ -4,7 +4,7 @@
 
 import { rrect, shadow, stroke } from 'zinc:gfx';
 import { COLOR_TEXT_SECONDARY } from '../constants';
-import { registerDragZone, isZonePressed, uiState } from '../core/input';
+import { registerDragZone, isZonePressed, isLocalRectVisible, uiState } from '../core/input';
 
 /**
  * Dessine un curseur horizontal dont la valeur est comprise entre `0` et `1`.
@@ -64,6 +64,8 @@ export function drawActivitySpinner(
   radius: number,
   color: u32 = COLOR_TEXT_SECONDARY
 ): void {
+  // Scrolled out of its list (the "more pages" spinner below the last row): neither drawn nor animated
+  if (!isLocalRectVisible(centerX - radius, centerY - radius, radius * 2, radius * 2)) return;
   const activeStep = Math.floor(performance.now() / 83) % 12;
   for (let spokeIndex = 0; spokeIndex < 12; spokeIndex++) {
     const angle = (spokeIndex / 12) * Math.PI * 2;

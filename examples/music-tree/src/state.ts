@@ -683,6 +683,15 @@ export function toggleFavoriteRadioStation(station: RadioStation): void {
   saveMyRadioStations(appState.myStations);
 }
 
+/** Takes a station out of "my radios" (a second tap on a station already gone does nothing). */
+export function removeMyRadioStation(station: RadioStation): void {
+  const index = findStationIndexByUrl(appState.myStations, station.streamUrl);
+  if (index < 0) return;
+  appState.myStations.splice(index, 1);
+  saveMyRadioStations(appState.myStations);
+  uiState.dirty = true;
+}
+
 export function loadPopularRadios(): void {
   if (appState.popularStationsState === 'loading' || appState.popularStationsState === 'ok') return;
   appState.popularStationsState = 'loading';
@@ -696,16 +705,23 @@ export function loadPopularRadios(): void {
   });
 }
 
+// Request ids: an answer is only applied when no newer request was sent since (a slow search never overwrites a newer one)
+let latestRadioSearchId: i32 = 0;
+const latestSpotifyTabRequestIds: i32[] = [0, 0, 0, 0, 0];
+
 export function searchRadiosByQuery(): void {
   appState.searchedStationsState = 'loading';
   appState.searchedStations = [];
   const currentQuery = appState.searchQuery;
+  const requestId = ++latestRadioSearchId;
   runSafeNetworkAction('Recherche', async (): Promise<void> => {
     try {
-      appState.searchedStations = await searchRadioDirectory(currentQuery);
-      appState.searchedStationsState =
-        appState.searchedStations.length === 0 ? 'Aucune radio trouvée' : 'ok';
+      const stations = await searchRadioDirectory(currentQuery);
+      if (requestId !== latestRadioSearchId) return;
+      appState.searchedStations = stations;
+      appState.searchedStationsState = stations.length === 0 ? 'Aucune radio trouvée' : 'ok';
     } catch (error) {
+      if (requestId !== latestRadioSearchId) return;
       appState.searchedStationsState = 'Annuaire injoignable : ' + error.message;
     }
   });
@@ -807,6 +823,7 @@ export function loadSpotifyTab(tabIndex: i32, forceReload: boolean): void {
   }
   appState.spotifyTabStates[tabIndex] = 'loading';
   const currentQuery = appState.searchQuery;
+  const requestId = ++latestSpotifyTabRequestIds[tabIndex];
 
   runSafeNetworkAction('Spotify', async (): Promise<void> => {
     try {
@@ -814,12 +831,14 @@ export function loadSpotifyTab(tabIndex: i32, forceReload: boolean): void {
         appState.spotifyUserName = await appState.spotifyClient.me();
       }
       const itemsPage = await fetchSpotifyPageItems(tabIndex, 0, currentQuery);
+      if (requestId !== latestSpotifyTabRequestIds[tabIndex]) return;
       appState.spotifyTabLists[tabIndex] = itemsPage;
       appState.spotifyTabHasMore[tabIndex] =
         tabIndex <= 2 && itemsPage.length === SPOTIFY_PAGE_SIZE;
       appState.spotifyTabStates[tabIndex] =
         itemsPage.length === 0 ? 'Rien ici pour le moment' : 'ok';
     } catch (error) {
+      if (requestId !== latestSpotifyTabRequestIds[tabIndex]) return;
       appState.spotifyTabStates[tabIndex] = error.message;
     }
   });
@@ -846,15 +865,19 @@ export function loadMoreSpotifyItems(tabIndex: i32): void {
     return;
   }
   appState.spotifyTabIsPaging[tabIndex] = true;
-  const currentOffset = appState.spotifyTabLists[tabIndex].length as i32;
+  const pagedList = appState.spotifyTabLists[tabIndex];
+  const currentOffset = pagedList.length as i32;
 
   runSafeNetworkAction('Spotify', async (): Promise<void> => {
     try {
       const nextItems = await fetchSpotifyPageItems(tabIndex, currentOffset, '');
-      for (let index = 0; index < nextItems.length; index++) {
-        appState.spotifyTabLists[tabIndex].push(nextItems[index]);
+      // The list was replaced meanwhile (a reload): this page belongs to the old one
+      if (appState.spotifyTabLists[tabIndex] === pagedList) {
+        for (let index = 0; index < nextItems.length; index++) {
+          pagedList.push(nextItems[index]);
+        }
+        appState.spotifyTabHasMore[tabIndex] = nextItems.length === SPOTIFY_PAGE_SIZE;
       }
-      appState.spotifyTabHasMore[tabIndex] = nextItems.length === SPOTIFY_PAGE_SIZE;
     } catch (error) {
       appState.spotifyTabHasMore[tabIndex] = false;
       showToast(error.message);

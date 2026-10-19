@@ -114,6 +114,36 @@ export class TouchZone {
   }
 }
 
+/**
+ * The screen rectangle of the scroll box being drawn (between `beginScrollBox` and `endScrollBox`): the zones registered
+ * inside are cut to it, so a row scrolled under a header takes no tap, and what lies outside need not be drawn.
+ */
+let isScrollClipOpen = false;
+let scrollClipLeft = 0;
+let scrollClipTop = 0;
+let scrollClipRight = 0;
+let scrollClipBottom = 0;
+
+/** False when the local rectangle lies wholly outside the scroll box being drawn (always true outside a scroll box). */
+export function isLocalRectVisible(x: number, y: number, width: number, height: number): boolean {
+  if (!isScrollClipOpen) return true;
+  const left = x + uiState.offsetX;
+  const top = y + uiState.offsetY;
+  return left < scrollClipRight && left + width > scrollClipLeft && top < scrollClipBottom && top + height > scrollClipTop;
+}
+
+/** Cuts a zone in screen coordinates to the scroll box being drawn; false when nothing of it is left. */
+function clipZoneToScrollBox(zone: TouchZone): boolean {
+  if (!isScrollClipOpen) return true;
+  const right = Math.min(zone.x + zone.width, scrollClipRight);
+  const bottom = Math.min(zone.y + zone.height, scrollClipBottom);
+  zone.x = Math.max(zone.x, scrollClipLeft);
+  zone.y = Math.max(zone.y, scrollClipTop);
+  zone.width = right - zone.x;
+  zone.height = bottom - zone.y;
+  return zone.width > 0 && zone.height > 0;
+}
+
 /** Liste des zones interactives collectées lors du dernier rendu de l'arbre. */
 export let activeZones: TouchZone[] = [];
 
@@ -153,7 +183,7 @@ export function registerTapZone(
   zone.width = width;
   zone.height = height;
   zone.onTapCallback = onTapCallback;
-  activeZones.push(zone);
+  if (clipZoneToScrollBox(zone)) activeZones.push(zone);
 }
 
 /**
@@ -179,7 +209,7 @@ export function registerDragZone(
   zone.onDragCallback = (screenX: number, screenY: number, phase: i32) => {
     onDragCallback(screenX - capturedOffsetX, screenY - capturedOffsetY, phase);
   };
-  activeZones.push(zone);
+  if (clipZoneToScrollBox(zone)) activeZones.push(zone);
 }
 
 /**
@@ -225,9 +255,16 @@ export function beginScrollBox(
 
   scrollBox.viewportHeight = height;
   clip(x, y, width, height);
+  // ponytail: one level, a scroll box inside another would need a stack of rectangles
+  isScrollClipOpen = true;
+  scrollClipLeft = zone.x;
+  scrollClipTop = zone.y;
+  scrollClipRight = zone.x + width;
+  scrollClipBottom = zone.y + height;
 }
 
 /** Ferme la zone de défilement ouverte par `beginScrollBox()`. */
 export function endScrollBox(): void {
   unclip();
+  isScrollClipOpen = false;
 }
