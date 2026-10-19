@@ -36,17 +36,26 @@ import {
   pointerX,
   pointerY,
   pointerDown,
+  wheel,
+  wheelX,
+  scrollDX,
+  scrollDY,
+  startTextInput,
+  stopTextInput,
   keyCount,
   keyKind,
   keyName,
   KeyKind,
 } from 'zinc:gfx';
+import { platform } from 'zinc:sys';
+import { isWebOS } from 'zinc:webos';
 import { exists, appendText } from 'zinc:fs';
 import { Group } from 'zinc:sonos';
 import gsap from 'gsap';
 import {
   CLOCK_FACE_COUNT,
   COLOR_BACKGROUND,
+  PAGE_PADDING,
   PAGE_NOW_PLAYING,
   PAGE_RADIOS,
   PAGE_ROOMS,
@@ -67,6 +76,7 @@ import {
   clearTouchZones,
   findTopmostZoneAt,
   restoreTouchZones,
+  scrollBoxUnderPointerByWheel,
   takeTouchZones,
   uiState,
 } from './core/input';
@@ -273,6 +283,114 @@ let carouselSwipeVelocity = 0;
 let isDraggingClockFaceVertically = false;
 let clockFaceSwipeInitialY = 0;
 let clockFaceSwipeVelocity = 0;
+
+// A mouse wheel (steps) or two fingers on a trackpad (pixels: scrollDX/DY, macOS sends them apart) do what a finger's swipe
+// does: a list scrolls, the carousel and the clock's faces move one step per gesture. A trackpad's swipe and its momentum
+// come as many small moves; 0.25 s without one ends the gesture. 40 px of a trackpad count as one wheel step, as zinc:ui counts.
+const TRACKPAD_PIXELS_PER_WHEEL_STEP = 40;
+const WHEEL_STEP_PIXELS = 48;
+let wheelGestureY = 0;
+let wheelGestureX = 0;
+let wheelQuietSeconds = 0;
+let hasWheelGestureStepped = false;
+
+function processWheelInput(deltaSeconds: number, pointerAtX: number, pointerAtY: number): void {
+  const trackpadDeltaX = scrollDX();
+  const trackpadDeltaY = scrollDY();
+  const stepsY = wheel() + trackpadDeltaY / TRACKPAD_PIXELS_PER_WHEEL_STEP;
+  const stepsX = wheelX() - trackpadDeltaX / TRACKPAD_PIXELS_PER_WHEEL_STEP;
+  if (stepsY === 0 && stepsX === 0) {
+    wheelQuietSeconds += deltaSeconds;
+    if (wheelQuietSeconds > 0.25) {
+      wheelGestureY = 0;
+      wheelGestureX = 0;
+      hasWheelGestureStepped = false;
+    }
+    return;
+  }
+  wheelQuietSeconds = 0;
+  pointerIdleSeconds = 0;
+  // It woke the screen, or a finger already moves things
+  if (appState.screenPower.onUserTouch() || pointerDown()) return;
+
+  wheelGestureY += stepsY;
+  wheelGestureX += stepsX;
+  const isSideways = Math.abs(wheelGestureX) > Math.abs(wheelGestureY);
+  if (
+    !isSideways &&
+    scrollBoxUnderPointerByWheel(pointerAtX, pointerAtY, wheel() * WHEEL_STEP_PIXELS + trackpadDeltaY)
+  ) {
+    return;
+  }
+  if (
+    appState.currentPage !== PAGE_NOW_PLAYING ||
+    appState.isVolumePopoverOpen ||
+    appState.isContextSheetOpen ||
+    hasWheelGestureStepped
+  ) {
+    return;
+  }
+  if (isSideways && Math.abs(wheelGestureX) >= 1) {
+    // + = right: the next slide
+    appState.targetSlideIndex = Math.max(
+      0,
+      Math.min(SLIDE_COUNT - 1, appState.targetSlideIndex + (wheelGestureX > 0 ? 1 : -1))
+    ) as i32;
+    if (appState.targetSlideIndex === SLIDE_RINGS) {
+      roomsPollTimerSeconds = 99;
+    }
+    hasWheelGestureStepped = true;
+    saveCarouselAndClockPreferences();
+  } else if (
+    !isSideways &&
+    Math.abs(wheelGestureY) >= 1 &&
+    appState.targetSlideIndex === SLIDE_CLOCK &&
+    Math.round(appState.animatedSlideX) === SLIDE_CLOCK
+  ) {
+    // + = up: the face above
+    appState.targetClockFaceIndex = Math.max(
+      0,
+      Math.min(CLOCK_FACE_COUNT - 1, appState.targetClockFaceIndex + (wheelGestureY > 0 ? -1 : 1))
+    ) as i32;
+    hasWheelGestureStepped = true;
+    saveCarouselAndClockPreferences();
+  }
+  uiState.dirty = true;
+}
+
+// A computer's keyboard types in the search fields: the window's text input is on while a field takes the typing (else no
+// character comes, only keys). A tablet keeps the app's own keyboard: no system keyboard over it.
+const hasTouchKeyboardOnly = isWebOS() || platform() === 'android' || platform() === 'ios';
+let isWindowTextInputOn = false;
+
+function processDesktopKeyboard(): void {
+  if (!hasTouchKeyboardOnly && appState.isKeyboardVisible !== isWindowTextInputOn) {
+    isWindowTextInputOn = appState.isKeyboardVisible;
+    if (isWindowTextInputOn) {
+      const fieldX = appState.sidebarWidth + PAGE_PADDING;
+      startTextInput(fieldX, STATUS_BAR_HEIGHT + 100, width() - fieldX - PAGE_PADDING, 46);
+    } else {
+      stopTextInput();
+    }
+  }
+  if (!appState.isKeyboardVisible) return;
+  const eventsCount = keyCount();
+  for (let index = 0; index < eventsCount; index++) {
+    const kind = keyKind(index);
+    const name = keyName(index);
+    if (kind === KeyKind.Text) {
+      handleTypedKeyboardKey(name);
+    } else if (kind === KeyKind.Down && name === 'Escape') {
+      appState.isKeyboardVisible = false;
+      uiState.dirty = true;
+    } else if ((kind === KeyKind.Down || kind === KeyKind.Repeat) && name === 'Backspace') {
+      // Held: it goes on erasing
+      handleTypedKeyboardKey('back');
+    } else if (kind === KeyKind.Down && name === 'Enter') {
+      handleTypedKeyboardKey('enter');
+    }
+  }
+}
 
 function processUserInput(deltaSeconds: number): void {
   const isDown = pointerDown();
@@ -509,22 +627,8 @@ function processUserInput(deltaSeconds: number): void {
   }
 
   wasPointerDownLastFrame = isDown;
-
-  // Saisie depuis un clavier physique de bureau lorsque le champ de recherche est actif
-  if (appState.isKeyboardVisible) {
-    const eventsCount = keyCount();
-    for (let index = 0; index < eventsCount; index++) {
-      const kind = keyKind(index);
-      const name = keyName(index);
-      if (kind === KeyKind.Text) {
-        handleTypedKeyboardKey(name);
-      } else if (kind === KeyKind.Down && name === 'Backspace') {
-        handleTypedKeyboardKey('back');
-      } else if (kind === KeyKind.Down && name === 'Enter') {
-        handleTypedKeyboardKey('enter');
-      }
-    }
-  }
+  processWheelInput(deltaSeconds, currentX, currentY);
+  processDesktopKeyboard();
 }
 
 // ----------------------------------------------------------------------------

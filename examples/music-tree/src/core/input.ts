@@ -228,6 +228,23 @@ export function findTopmostZoneAt(pointX: number, pointY: number, forTapsAndDrag
   return null;
 }
 
+/**
+ * A mouse wheel or two fingers on a trackpad over a scroll box: `deltaY` pixels (+ = up) scroll it, as a finger's drag
+ * would. False when no scroll box is under the pointer (the page's own swipes get it).
+ */
+export function scrollBoxUnderPointerByWheel(pointX: number, pointY: number, deltaY: number): boolean {
+  const zone = findTopmostZoneAt(pointX, pointY, false);
+  if (zone === null) return false;
+  if (deltaY !== 0) {
+    const scrollBox = (zone as TouchZone).scrollBox as ScrollBox;
+    scrollBox.velocityY = 0;
+    scrollBox.scrollY -= deltaY;
+    scrollBox.clamp();
+    uiState.dirty = true;
+  }
+  return true;
+}
+
 /** Indique si la zone `zoneId` est actuellement maintenue enfoncée par l'utilisateur. */
 export function isZonePressed(zoneId: string): boolean {
   return uiState.pressedZoneId === zoneId;
