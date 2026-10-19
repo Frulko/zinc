@@ -13,6 +13,12 @@ import { setTransform, resetTransform } from 'zinc:gfx';
 import { uiState } from './input';
 
 /**
+ * True while a layout and render pass runs (`layoutAndRender`). The tree changes made then (a page that mounts its
+ * rows in `onMeasure`) are drawn by that same pass, so they never ask for another frame: only events set `dirty`.
+ */
+let isFramePassRunning = false;
+
+/**
  * Élément visuel de base de l'arbre d'affichage avec support Flexbox léger intégré.
  */
 export class DisplayObject {
@@ -121,7 +127,7 @@ export class DisplayObject {
     if (this.isOnStage) {
       child.notifyAddedToStage();
     }
-    uiState.dirty = true;
+    if (!isFramePassRunning) uiState.dirty = true;
     return child;
   }
 
@@ -133,7 +139,7 @@ export class DisplayObject {
       if (child.isOnStage) {
         child.notifyRemovedFromStage();
       }
-      uiState.dirty = true;
+      if (!isFramePassRunning) uiState.dirty = true;
     }
     return child;
   }
@@ -424,6 +430,25 @@ export class DisplayObject {
     }
   }
 
+  /**
+   * Lays this node out in `availableWidth` x `availableHeight` and draws it, its parent's origin at
+   * (`parentWorldX`, `parentWorldY`): one frame pass with this node as the root (the stage, or a page drawn offscreen).
+   */
+  layoutAndRender(
+    availableWidth: number,
+    availableHeight: number,
+    parentWorldX: number,
+    parentWorldY: number
+  ): void {
+    isFramePassRunning = true;
+    this.computeLayout(availableWidth, availableHeight);
+    this.renderTree(availableWidth, availableHeight, parentWorldX, parentWorldY);
+    isFramePassRunning = false;
+    resetTransform();
+    uiState.offsetX = 0;
+    uiState.offsetY = 0;
+  }
+
   renderTree(
     parentWidth: number,
     parentHeight: number,
@@ -465,10 +490,6 @@ export class Stage extends DisplayObject {
   renderStage(screenWidth: number, screenHeight: number): void {
     this.width = screenWidth;
     this.height = screenHeight;
-    this.computeLayout(screenWidth, screenHeight);
-    this.renderTree(screenWidth, screenHeight, 0, 0);
-    resetTransform();
-    uiState.offsetX = 0;
-    uiState.offsetY = 0;
+    this.layoutAndRender(screenWidth, screenHeight, 0, 0);
   }
 }

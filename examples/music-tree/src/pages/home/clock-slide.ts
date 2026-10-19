@@ -6,7 +6,7 @@
 // 3 = Lampe à lave interactive, 4 = Odomètre à volets roulants.
 // Chaque cadran est lui-même un `DisplayObject` enfant positionné verticalement !
 
-import { rrect, fontAscent } from 'zinc:gfx';
+import { rrect, fontAscent, setTransform } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
 import gsap, { Timeline } from 'gsap';
 import {
@@ -349,6 +349,12 @@ export class ClockSlideNode extends DisplayObject {
     super.renderTree(stageWidth, stageHeight, parentWorldX, parentWorldY);
     if (!this.visible || this.alpha <= 0) return;
 
+    // Back to this slide's own frame: the last face drawn left its transform (it slides during a swipe)
+    const slideWorldX = parentWorldX + this.x;
+    const slideWorldY = parentWorldY + this.y;
+    setTransform(1, 0, 0, 1, slideWorldX, slideWorldY);
+    uiState.offsetX = slideWorldX;
+    uiState.offsetY = slideWorldY;
     const viewWidth = this.width > 0 ? this.width : stageWidth;
     const viewHeight = this.height > 0 ? this.height : stageHeight;
     for (let faceIndex: i32 = 0; faceIndex < CLOCK_FACE_COUNT; faceIndex++) {

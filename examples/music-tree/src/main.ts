@@ -66,6 +66,8 @@ import {
   TouchZone,
   clearTouchZones,
   findTopmostZoneAt,
+  restoreTouchZones,
+  takeTouchZones,
   uiState,
 } from './core/input';
 import {
@@ -125,7 +127,14 @@ import {
 // Construction de la scène (Stage) et des nœuds de l'arbre d'affichage
 // ----------------------------------------------------------------------------
 
-const stage = new Stage();
+/** The root: before each layout it sizes the layers and mounts the current page, inside the frame pass (no extra frame). */
+class ApplicationStage extends Stage {
+  override onMeasure(): void {
+    sizeLayersAndMountCurrentPage(this.width, this.height);
+  }
+}
+
+const stage = new ApplicationStage();
 
 const mainContentContainer = new DisplayObject('MainContentContainer');
 mainContentContainer.y = STATUS_BAR_HEIGHT;
@@ -194,16 +203,14 @@ stage.addChild(toastContainer);
 stage.addChild(statusBarNode);
 stage.addChild(notificationOverlayNode);
 
-/**
- * Dessine toute la scène pour la frame en cours.
- */
-function renderFullApplicationStage(screenWidth: number, screenHeight: number): void {
-  clear(COLOR_BACKGROUND);
+function sidebarWidthForCurrentPage(): number {
+  return appState.currentPage === PAGE_NOW_PLAYING && appState.config.fullScreenPlayer
+    ? 0
+    : SIDEBAR_WIDTH_DEFAULT;
+}
 
-  appState.sidebarWidth =
-    appState.currentPage === PAGE_NOW_PLAYING && appState.config.fullScreenPlayer
-      ? 0
-      : SIDEBAR_WIDTH_DEFAULT;
+function sizeLayersAndMountCurrentPage(screenWidth: number, screenHeight: number): void {
+  appState.sidebarWidth = sidebarWidthForCurrentPage();
 
   const contentHeight = screenHeight - STATUS_BAR_HEIGHT;
 
@@ -228,7 +235,13 @@ function renderFullApplicationStage(screenWidth: number, screenHeight: number): 
   statusBarNode.height = screenHeight;
   notificationOverlayNode.width = screenWidth;
   notificationOverlayNode.height = screenHeight;
+}
 
+/**
+ * Dessine toute la scène pour la frame en cours.
+ */
+function renderFullApplicationStage(screenWidth: number, screenHeight: number): void {
+  clear(COLOR_BACKGROUND);
   stage.renderStage(screenWidth, screenHeight);
 }
 
@@ -578,10 +591,23 @@ function warmRenderSinglePageOffscreen(screenWidth: number, screenHeight: number
   appState.isKeyboardVisible = false;
   appState.isVolumePopoverOpen = false;
   appState.isContextSheetOpen = false;
+  const savedSidebarWidth = appState.sidebarWidth;
+  appState.sidebarWidth = sidebarWidthForCurrentPage();
+  const wasAnimating = uiState.animating;
 
+  // The page node alone, never mounted in the live tree: no onAddedToStage (network calls), no zone left behind
+  const warmPageNode = allPageNodes[appState.currentPage];
+  const contentHeight = screenHeight - STATUS_BAR_HEIGHT;
+  warmPageNode.width = screenWidth;
+  warmPageNode.height = contentHeight;
+  const touchZonesOnScreen = takeTouchZones();
   beginImage(warmRenderOffscreenImage);
-  renderFullApplicationStage(screenWidth, screenHeight);
+  clear(COLOR_BACKGROUND);
+  warmPageNode.layoutAndRender(screenWidth, contentHeight, 0, STATUS_BAR_HEIGHT);
   endImage();
+  restoreTouchZones(touchZonesOnScreen);
+  uiState.animating = wasAnimating;
+  appState.sidebarWidth = savedSidebarWidth;
 
   if (warmRenderQueue.length === 0) {
     destroyImage(warmRenderOffscreenImage);
@@ -595,7 +621,7 @@ function warmRenderSinglePageOffscreen(screenWidth: number, screenHeight: number
   appState.isVolumePopoverOpen = savedVolumePopover;
   appState.isContextSheetOpen = savedContextSheet;
   appState.animatedSlideX = savedSlideX;
-  uiState.dirty = true;
+  // The screen keeps its frame: endImage took the warm-up's commands out of this frame's list
 }
 
 function prefetchNextIdleArtwork(): void {

@@ -19,6 +19,8 @@ import {
   createImage,
   beginImage,
   endImage,
+  resetTransform,
+  setTransform,
   imageWidth,
   imageHeight,
 } from 'zinc:gfx';
@@ -261,9 +263,12 @@ export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeig
     if (cachedBlurTexture < 0) {
       cachedBlurTexture = createImage(12, 12);
     }
+    // Drawn at identity: beginImage keeps the matrix in force, and the node's offset would put the picture outside the 12x12 texture
+    resetTransform();
     beginImage(cachedBlurTexture);
     drawImage(sourceImage, 0, 0, 12, 12, 255, 0);
     endImage();
+    setTransform(1, 0, 0, 1, uiState.offsetX, uiState.offsetY);
     cachedBlurUrl = url;
   }
 

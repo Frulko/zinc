@@ -117,6 +117,18 @@ export class TouchZone {
 /** Liste des zones interactives collectées lors du dernier rendu de l'arbre. */
 export let activeZones: TouchZone[] = [];
 
+/** Takes the zones of the frame on the screen out of the list, for a drawing whose zones must not count (the offscreen warm-up). */
+export function takeTouchZones(): TouchZone[] {
+  const zones = activeZones;
+  activeZones = [];
+  return zones;
+}
+
+/** Puts back the zones taken by `takeTouchZones`, dropping the ones registered since. */
+export function restoreTouchZones(zones: TouchZone[]): void {
+  activeZones = zones;
+}
+
 /** Vide les zones au début d'un nouveau rendu de la scène. */
 export function clearTouchZones(): void {
   activeZones = [];
