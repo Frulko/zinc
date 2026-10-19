@@ -6,6 +6,7 @@ import { utf8Decode } from 'zinc:sys';
 import { tag, attr, escape } from './xml';
 
 const TIMEOUT_MS = 4000;
+const QUEUE_MS = 20000;   // AddURIToQueue of a list: the speaker fetches all its songs from the service first (a playlist of Spotify: over 4 s)
 
 /** One room as the Sonos app shows it (a stereo pair or a home theatre with its satellites is one speaker). */
 export class Speaker {
@@ -34,6 +35,9 @@ export class Track {
   /** The station's or the service's name for a stream. */
   station: string = '';
   uri: string = '';
+  /** In the queue: the song's number (1 for the first) and how many the queue holds; 0 when the group plays no queue. */
+  number: i32 = 0;
+  count: i32 = 0;
 }
 
 /** Speakers that play together; commands go to the coordinator. */
@@ -68,11 +72,11 @@ export class Favorite {
 }
 
 /** Envelope of one UPnP action, sent to a speaker; the answer's text. @throws Error('Action: UPnP 701') on a fault */
-export async function soap(ip: string, service: string, path: string, action: string, args: string): Promise<string> {
+export async function soap(ip: string, service: string, path: string, action: string, args: string, timeoutMs: i32 = TIMEOUT_MS): Promise<string> {
   const body = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">'
     + `<s:Body><u:${action} xmlns:u="urn:schemas-upnp-org:service:${service}:1">${args}</u:${action}></s:Body></s:Envelope>`;
   const r = await fetch(`http://${ip}:1400${path}`, {
-    method: 'POST', body, timeoutMs: TIMEOUT_MS,
+    method: 'POST', body, timeoutMs,
     headers: [['Content-Type', 'text/xml; charset="utf-8"'], ['SOAPACTION', `"urn:schemas-upnp-org:service:${service}:1#${action}"`]],
   });
   const text = await r.text();
@@ -87,7 +91,7 @@ const AVT = '/MediaRenderer/AVTransport/Control', RC = '/MediaRenderer/Rendering
 const CD = '/MediaServer/ContentDirectory/Control', ZGT = '/ZoneGroupTopology/Control';
 const I0 = '<InstanceID>0</InstanceID>';
 
-function avt(g: Group, action: string, args: string = ''): Promise<string> { return soap(g.coordinator.ip, 'AVTransport', AVT, action, I0 + args); }
+function avt(g: Group, action: string, args: string = '', timeoutMs: i32 = TIMEOUT_MS): Promise<string> { return soap(g.coordinator.ip, 'AVTransport', AVT, action, I0 + args, timeoutMs); }
 function seconds(hms: string): number {
   const p = hms.split(':');
   return p.length === 3 ? parseInt(p[0]) * 3600 + parseInt(p[1]) * 60 + parseInt(p[2]) : 0;
@@ -175,6 +179,7 @@ export class System {
     }
     const media = await avt(g, 'GetMediaInfo');
     const current = tag(media, 'CurrentURI');
+    if (current.startsWith('x-rincon-queue:')) { t.number = (parseInt(tag(pos, 'Track')) || 0) as i32; t.count = (parseInt(tag(media, 'NrTracks')) || 0) as i32; }
     t.source = sourceOf(current !== '' ? current : t.uri);
     const cmeta = tag(media, 'CurrentURIMetaData');
     if (cmeta !== '' && cmeta !== 'NOT_IMPLEMENTED') t.station = tag(cmeta, 'dc:title');
@@ -209,7 +214,7 @@ export class System {
   async previous(g: Group): Promise<void> { await avt(g, 'Previous'); }
   /** Where a track is in the group's queue, 1 for the first, 0 when it is not in its first `max` entries: `part` is a piece of its URI (a
    *  Spotify track's id, which the queue's x-sonos-spotify URIs carry). */
-  async queueIndex(g: Group, part: string, max: i32 = 500): Promise<i32> {
+  async queueIndex(g: Group, part: string, max: i32 = 3000): Promise<i32> {
     for (let start: i32 = 0; start < max; start += 100) {
       const text = await soap(g.coordinator.ip, 'ContentDirectory', CD, 'Browse',
         `<ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>${start}</StartingIndex><RequestedCount>100</RequestedCount><SortCriteria></SortCriteria>`);
@@ -219,6 +224,14 @@ export class System {
     }
     return 0;
   }
+  /** The URI of the queue's entry `n` (1 for the first), '' when there is none. */
+  async queueEntry(g: Group, n: i32): Promise<string> {
+    const text = await soap(g.coordinator.ip, 'ContentDirectory', CD, 'Browse',
+      `<ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>${n - 1}</StartingIndex><RequestedCount>1</RequestedCount><SortCriteria></SortCriteria>`);
+    return tag(tag(text, 'Result'), 'res');
+  }
+  /** Takes the queue's entry `n` (1 for the first) out. */
+  async removeFromQueue(g: Group, n: i32): Promise<void> { await avt(g, 'RemoveTrackFromQueue', `<ObjectID>Q:0/${n}</ObjectID><UpdateID>0</UpdateID>`); }
   /** Jumps to a track of the queue, 1 for the first. */
   async seekTrack(g: Group, n: i32): Promise<void> { await avt(g, 'Seek', `<Unit>TRACK_NR</Unit><Target>${n}</Target>`); }
   async seek(g: Group, s: number): Promise<void> { await avt(g, 'Seek', `<Unit>REL_TIME</Unit><Target>${hms(s)}</Target>`); g.track.position = s; }
@@ -275,12 +288,17 @@ export class System {
     return out;
   }
 
+  /** Adds a favorite's item at the end of the group's queue, or right after the song that plays (`next`), without touching the rest. */
+  async enqueue(g: Group, f: Favorite, next: boolean = false): Promise<void> {
+    const at = next && g.track.number > 0 ? g.track.number + 1 : 0;
+    await avt(g, 'AddURIToQueue', `<EnqueuedURI>${escape(f.uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(f.meta)}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>${at}</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>${next ? 1 : 0}</EnqueueAsNext>`, QUEUE_MS);
+  }
   async playFavorite(g: Group, f: Favorite): Promise<void> {
     if (!f.container) {
       await avt(g, 'SetAVTransportURI', `<CurrentURI>${escape(f.uri)}</CurrentURI><CurrentURIMetaData>${escape(f.meta)}</CurrentURIMetaData>`);
     } else {
       await avt(g, 'RemoveAllTracksFromQueue');
-      await avt(g, 'AddURIToQueue', `<EnqueuedURI>${escape(f.uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(f.meta)}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>0</EnqueueAsNext>`);
+      await avt(g, 'AddURIToQueue', `<EnqueuedURI>${escape(f.uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(f.meta)}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>0</EnqueueAsNext>`, QUEUE_MS);
       await avt(g, 'SetAVTransportURI', `<CurrentURI>x-rincon-queue:${g.coordinator.uuid}#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>`);
     }
     await this.play(g);
@@ -308,24 +326,34 @@ export async function accountOf(sys: System, sid: i32): Promise<i32> {
   return -1;
 }
 
-/** Plays a Spotify URI (spotify:playlist:..., :album:, :track:, :artist: its top tracks, :user:<id>:collection the liked songs) through the
- *  Spotify service of the speakers, the way the Sonos app does. It works when Spotify Connect sees the speakers as restricted.
- *  `sid`: serviceId(sys, 'Spotify'); `sn`: the account number in the household (accountOf, else 1 for the first account). */
-export async function playSpotify(sys: System, g: Group, uri: string, title: string, sid: i32, sn: i32): Promise<void> {
+/** A Spotify URI as an item of the speakers' Spotify service, the way the Sonos app sends it: spotify:playlist:..., :album:, :track:,
+ *  :artist: its top tracks, :user:<id>:collection the liked songs, and Spotify's radios, :trackRadio:<track id> (the song, then songs like
+ *  it: what Spotify plays after a list ends) and :artistRadio:<artist id> (proven on S2, 2026-10-19). It works when Spotify Connect sees
+ *  the speakers as restricted. `sid`: serviceId(sys, 'Spotify'); `sn`: the account number in the household (accountOf, else 1 for the first). */
+export function spotifyItem(uri: string, title: string, sid: i32, sn: i32): Favorite {
   const parts = uri.split(':');
   const kind = parts.length > 2 && parts[1] === 'user' ? 'collection' : parts.length > 1 ? parts[1] : '';
   const target = kind === 'artist' ? `spotify:artistTopTracks:${parts[2]}` : uri;
   const enc = encodeURIComponent(target).split('%3A').join('%3a');
-  const prefix = kind === 'track' ? '00032020' : kind === 'album' ? '1004206c' : kind === 'artist' ? '100e206c' : '1006206c';
+  const radio = kind === 'trackRadio' || kind === 'artistRadio';
+  const prefix = kind === 'track' ? '00032020' : kind === 'album' ? '1004206c' : kind === 'artist' ? '100e206c' : radio ? '0006206c' : '1006206c';
   const cls = kind === 'track' ? 'object.item.audioItem.musicTrack' : kind === 'album' ? 'object.container.album.musicAlbum' : 'object.container.playlistContainer';
-  const res = kind === 'track' ? `x-sonos-spotify:${enc}?sid=${sid}&flags=8224&sn=${sn}` : `x-rincon-cpcontainer:${prefix}${enc}?sid=${sid}&flags=8300&sn=${sn}`;
+  const res = kind === 'track' ? `x-sonos-spotify:${enc}?sid=${sid}&flags=8224&sn=${sn}` : radio ? `x-rincon-cpcontainer:${prefix}${enc}` : `x-rincon-cpcontainer:${prefix}${enc}?sid=${sid}&flags=8300&sn=${sn}`;
   const type = sid * 256 + 7;
   const didl = '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
     + `<item id="${prefix}${enc}" parentID="" restricted="true"><dc:title>${escape(title)}</dc:title><upnp:class>${cls}</upnp:class>`
     + `<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">SA_RINCON${type}_X_#Svc${type}-0-Token</desc></item></DIDL-Lite>`;
   const f = new Favorite();
   f.title = title; f.uri = res; f.meta = didl; f.container = true;   // queued, even a track: the queue is what the Sonos app shows
-  await sys.playFavorite(g, f);
+  return f;
+}
+/** Plays a Spotify URI (spotifyItem) on a group: the queue becomes it. */
+export async function playSpotify(sys: System, g: Group, uri: string, title: string, sid: i32, sn: i32): Promise<void> {
+  await sys.playFavorite(g, spotifyItem(uri, title, sid, sn));
+}
+/** Adds a Spotify URI (spotifyItem) to the group's queue: at its end, or right after the song that plays (`next`). */
+export async function queueSpotify(sys: System, g: Group, uri: string, title: string, sid: i32, sn: i32, next: boolean = false): Promise<void> {
+  await sys.enqueue(g, spotifyItem(uri, title, sid, sn), next);
 }
 
 /** Finds the household: an SSDP search on the network (or `known`, the address of a speaker that answered before), then its

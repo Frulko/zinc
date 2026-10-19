@@ -5,7 +5,7 @@ import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransfor
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
 import { utf8Decode, device, platform } from 'zinc:sys';
-import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
+import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify, queueSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
 import { SPOTIFY_CLIENT_ID } from './spotify-client';
 import { openUrl } from 'zinc:system/opener';
@@ -248,6 +248,7 @@ async function pollGroup(): Promise<void> {
     failures = 0;
     if (Math.abs(g.track.position - position()) > 2 || before !== g.track.uri + g.track.title || !g.playing()) { posBase = g.track.position; posAt = now(); }
     if (before !== g.track.uri + g.track.title && screen.asleep && g.playing() && g.track.title !== '' && group === g) trackNotif(g);
+    await goOn(sys as System, g);
   } catch (e) {
     logError(`poll ${g.coordinator.name}: ${e.message}`);
     failures++;
@@ -415,6 +416,22 @@ function resumeHere(): void {
     await sleep(800); await pollGroup(); await pollSpotify();
   });
 }
+// The queue of Spotify songs on the speakers goes on like Spotify (owner 2026-10-19: "it goes into songs I do not have, that is what is
+// good"): on its last song, Spotify's radio of that song is added after it (its first entry, the song again, taken out). Spotify's own
+// autoplay belongs to a Connect session the Web API cannot give the speakers (docs/reports/sonos-spotify-control.md).
+let extendedFor = '';
+async function goOn(s: System, g: Group): Promise<void> {
+  const t = g.track, at = t.uri.indexOf('spotify%3atrack%3a');
+  if (t.count === 0 || t.number !== t.count || at < 0 || !g.playing()) return;
+  const id = t.uri.slice(at + 18).split('?')[0].split('%')[0];
+  if (id === '' || extendedFor === id) return;
+  extendedFor = id;
+  try {
+    if (spotifySid < 0) spotifySid = await serviceId(s, 'Spotify');   // a queue the Sonos app made
+    await queueSpotify(s, g, 'spotify:trackRadio:' + id, t.title, spotifySid, cfg.spotifySn > 0 ? cfg.spotifySn : 1);
+    if ((await s.queueEntry(g, t.count + 1)).indexOf(id) >= 0) await s.removeFromQueue(g, t.count + 1);
+  } catch (e) { logError(`go on after ${t.title}: ${e.message}`); }
+}
 async function resumeThroughSonos(s: System, g: Group, pb: Playback): Promise<void> {
   const t0 = now(), id = pb.item.uri.split(':').pop() as string;
   let at: i32 = 0;
@@ -424,13 +441,14 @@ async function resumeThroughSonos(s: System, g: Group, pb: Playback): Promise<vo
     try { await playThroughSonos(s, g, ctx); at = await s.queueIndex(g, id); } catch (e) { at = 0; }   // a context the speakers cannot read (some playlists of Spotify's)
   }
   if (at > 1) await s.seekTrack(g, at);
-  else if (at === 0) {   // the song alone
+  else if (at === 0) {   // no list the speakers read: Spotify's radio of the song, the song first then songs like it, as Spotify goes on
     const one = new Item();
-    one.kind = 'track'; one.uri = pb.item.uri; one.name = pb.item.name;
+    one.kind = 'playlist'; one.uri = 'spotify:trackRadio:' + id; one.name = pb.item.name;
     await playThroughSonos(s, g, one);
   }
   const secs = pb.progressMs / 1000 + (pb.playing ? now() - t0 : 0);   // where the song is by now
   if (secs > 3 && (pb.durationMs <= 0 || secs < pb.durationMs / 1000 - 3)) await s.seek(g, secs);
+  if (pb.shuffle && at > 0) await s.setPlayMode(g, 'SHUFFLE_NOREPEAT');   // Spotify played the list in shuffle: the speakers go on so
 }
 let spotifySid: i32 = -1;
 async function playThroughSonos(s: System, g: Group, it: Item): Promise<void> {
