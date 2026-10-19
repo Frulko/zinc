@@ -4,6 +4,7 @@
 # (else skipped, 77); uses the booted simulator or boots the first available iPhone and shuts it down after. About 5 minutes, most of it the
 # first configure of CMake's Xcode generator. KEEP=dir keeps the project.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: CMake's Xcode generator does not finish its first configure on a hosted runner (killed after 970 s, v0.2.1 CI)"; exit 77; }
 Z=$(cd "$(dirname "${ZINC:-build/zinc}")" && pwd)/$(basename "${ZINC:-build/zinc}")
 command -v xcodebuild >/dev/null 2>&1 && xcrun simctl help >/dev/null 2>&1 || { echo "skipped: no Xcode"; exit 77; }
 tmp=${KEEP:-$(mktemp -d)}; [ -n "$KEEP" ] || trap 'rm -rf "$tmp"' EXIT

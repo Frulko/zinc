@@ -4,6 +4,7 @@
 # download link; lottie-web is loaded the first time an animation is drawn and puts an <svg> in the node's box that follows the Player. The export warns about the codecs a browser of the
 # target set cannot play (W0604), and the same programs run on a canvas render. Skipped (77) without Chrome or python3. Firefox and Safari are not tested here.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: the hosted runner's headless Chrome decodes no VP9 (v0.2.1 CI)"; exit 77; }
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v python3 >/dev/null 2>&1 || { echo "web_video: no python3"; exit 77; }
 python3 -I -c "import sys; sys.path.insert(0, 'tools'); from cdp import find_chrome; sys.exit(0 if find_chrome() else 1)" || { echo "web_video: no Chrome"; exit 77; }
