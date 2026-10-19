@@ -442,6 +442,22 @@ export async function discoverSonosSystem(): Promise<void> {
   uiState.dirty = true;
 }
 
+/**
+ * What the pages show of the speakers: the rooms and groups, what each group plays, the volumes. A poll asks for a frame only when it
+ * changes (polls answer every 2 to 4 s and the house mostly stays the same; the player's moving position has its own 1 s tick).
+ */
+function sonosShownSignature(): string {
+  if (appState.sonosSystem === null) return '';
+  const system = appState.sonosSystem as System;
+  let signature = appState.activeGroup !== null ? (appState.activeGroup as Group).coordinator.uuid : '';
+  for (const group of system.groups) {
+    const track = group.track;
+    signature += `|${group.name()}|${group.state}|${group.volume}|${group.playMode}|${group.actions}|${track.uri}|${track.title}|${track.artist}|${track.album}|${track.art}|${track.duration}|${track.source}|${track.station}|${track.number}|${track.count}`;
+    for (const member of group.members) signature += `|${member.volume}|${member.muted}`;
+  }
+  return signature;
+}
+
 export async function pollActiveSonosGroup(): Promise<void> {
   if (appState.isPollingGroup || appState.sonosSystem === null || appState.activeGroup === null) {
     return;
@@ -449,6 +465,8 @@ export async function pollActiveSonosGroup(): Promise<void> {
   appState.isPollingGroup = true;
   const group = appState.activeGroup as Group;
   const previousTrackSignature = group.track.uri + group.track.title;
+  const shownBefore = sonosShownSignature();
+  const shownPositionBefore = getInterpolatedTrackPositionSeconds();
 
   try {
     await (appState.sonosSystem as System).update(group);
@@ -481,7 +499,12 @@ export async function pollActiveSonosGroup(): Promise<void> {
     }
   }
   appState.isPollingGroup = false;
-  uiState.dirty = true;
+  if (
+    sonosShownSignature() !== shownBefore ||
+    Math.abs(getInterpolatedTrackPositionSeconds() - shownPositionBefore) >= 1
+  ) {
+    uiState.dirty = true;
+  }
 }
 
 /**
@@ -509,6 +532,7 @@ function showNextTrackNotification(group: Group): void {
 export async function pollSonosTopology(): Promise<void> {
   if (appState.isPollingTopology || appState.sonosSystem === null) return;
   appState.isPollingTopology = true;
+  const shownBefore = sonosShownSignature();
   try {
     const system = appState.sonosSystem as System;
     await system.refresh();
@@ -527,12 +551,13 @@ export async function pollSonosTopology(): Promise<void> {
     /* handled by pollActiveSonosGroup */
   }
   appState.isPollingTopology = false;
-  uiState.dirty = true;
+  if (sonosShownSignature() !== shownBefore) uiState.dirty = true;
 }
 
 export async function pollAllRoomVolumes(): Promise<void> {
   if (appState.isPollingVolumes || appState.sonosSystem === null) return;
   appState.isPollingVolumes = true;
+  const shownBefore = sonosShownSignature();
   const system = appState.sonosSystem as System;
   for (let index = 0; index < system.groups.length; index++) {
     try {
@@ -545,7 +570,7 @@ export async function pollAllRoomVolumes(): Promise<void> {
     }
   }
   appState.isPollingVolumes = false;
-  uiState.dirty = true;
+  if (sonosShownSignature() !== shownBefore) uiState.dirty = true;
 }
 
 export async function pollActiveGroupMemberVolumes(): Promise<void> {
@@ -553,13 +578,14 @@ export async function pollActiveGroupMemberVolumes(): Promise<void> {
     return;
   }
   appState.isPollingVolumes = true;
+  const shownBefore = sonosShownSignature();
   try {
     await (appState.sonosSystem as System).readVolumes(appState.activeGroup as Group);
   } catch (error) {
     /* next cycle */
   }
   appState.isPollingVolumes = false;
-  uiState.dirty = true;
+  if (sonosShownSignature() !== shownBefore) uiState.dirty = true;
 }
 
 export async function pollSpotifyPlaybackState(): Promise<void> {
