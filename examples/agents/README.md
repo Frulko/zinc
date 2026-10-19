@@ -18,6 +18,11 @@ zinc run examples/agents -- ~/code/project     # that folder first
   The folder's own configuration for the selected agent (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`,
   `opencode.json`) shows above the chat; a click opens a file read-only.
 - **Chats**: one per agent and folder. The first message starts a session; the next ones resume it.
+- **Settings of the next turn**, as the CLIs offer them, above the message field: the mode, the model (Claude's
+  aliases, Codex's own catalog from `codex debug models`, `opencode models`), the effort the model accepts, and fast
+  mode where the model has it. Each answer says what it ran with (`opus · high · fast · Edit files`).
+- **Motion**: a message fades in from below, three dots pulse while the agent thinks, menus open with a short fade,
+  hovers change colour smoothly. All are engine tweens that stop when they end: a still window paints nothing.
 
 ## How the streaming works
 
@@ -25,16 +30,26 @@ One process per turn, no SDK and no API key: the CLIs use the login they already
 
 | CLI | Command | What streams |
 |---|---|---|
-| Claude Code 2.1 | `claude -p <prompt> --output-format stream-json --verbose --include-partial-messages --permission-mode plan [--resume <id>]` | token deltas |
-| Codex 0.162 | `codex exec --json --skip-git-repo-check -s read-only [resume <id>] <prompt>` | whole messages |
-| opencode 2.0 | `opencode run --format json --agent plan [--session <id>] <prompt>` | whole text parts |
+| Claude Code 2.1 | `claude -p <prompt> --output-format stream-json --verbose --include-partial-messages --permission-mode <mode> [--model m] [--effort e] [--settings '{"fastMode":true}'] [--resume <id>]` | token deltas |
+| Codex 0.162 | `codex exec --json --skip-git-repo-check -c sandbox_mode=… -c service_tier=… [-c model=…] [-c model_reasoning_effort=…] [resume <id>] <prompt>` | whole messages |
+| opencode 2.0 | `opencode run --format json --agent plan\|build [--auto] [--model provider/model] [--session <id>] <prompt>` | whole text parts |
+
+The three modes, in each CLI's words:
+
+| Mode | Claude Code | Codex | opencode |
+|---|---|---|---|
+| Read only (the default) | `--permission-mode plan` | `sandbox_mode="read-only"` | `--agent plan` |
+| Edit files | `acceptEdits` | `workspace-write` | `--agent build` |
+| Full access (red in the bar) | `bypassPermissions` | `danger-full-access` | `--agent build --auto` |
+
+Fast off is said too (`CLAUDE_CODE_DISABLE_FAST_MODE=1`, `service_tier="default"`), so a fast mode turned on in the
+user's own settings does not apply behind the bar's back.
 
 `zinc:process` hands stdout over line by line; `services/agents.ts` reads each CLI's JSON lines and `services/chat.ts`
 appends them to the last message, whose text is a signal: only that text is laid out again while it streams, and a
 window with nothing streaming paints nothing.
 
-Every agent runs **read-only** (plan mode, read-only sandbox, the plan agent): this demo reads folders, it never edits
-them.
+Every agent starts **read-only**: nothing is edited until the mode says so.
 
 ## Layout of `src/`
 
@@ -50,6 +65,8 @@ src/
 └── components/
     ├── Sidebar.tsx          # agents with their configuration, folders
     ├── ChatPane.tsx         # agent tabs, the folder's configuration, messages, the composer
+    ├── SettingsBar.tsx      # mode, model, effort and fast of the next turn, with their menus
+    ├── motion.tsx           # the entrance and the thinking dots
     └── FileViewer.tsx       # a configuration file or folder, read-only
 ```
 

@@ -5,9 +5,11 @@
 //   zinc run examples/agents                       the folders Claude Code knows
 //   zinc run examples/agents -- /path/to/project   that folder first
 import { render } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
 import { Sidebar } from './components/Sidebar';
 import { ChatPane, followChat } from './components/ChatPane';
-import { loadVersions } from './state';
+import { menuOpen, closeMenu } from './components/SettingsBar';
+import { loadCatalogs } from './state';
 import { BACKGROUND } from './theme';
 
 function App(): i32 {
@@ -17,5 +19,8 @@ function App(): i32 {
   </View>;
 }
 
-loadVersions();
+// Escape closes an open settings menu
+ui.onKey((e: ui.KeyEvent) => { if (e.key === 'Escape' && menuOpen()) { closeMenu(); e.preventDefault(); } });
+
+loadCatalogs();
 render(App, BACKGROUND, (dt: number) => followChat());

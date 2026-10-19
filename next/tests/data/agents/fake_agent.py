@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """A stand-in for the claude, codex and opencode CLIs (tests/t1/agents_chat.sh), named by the link that starts it.
-It logs its arguments and folder to $FAKE_AGENT_LOG and prints an answer in that CLI's own stream format
+It logs its arguments, folder and fast-mode switch to $FAKE_AGENT_LOG and prints an answer in that CLI's own stream format
 (the versions examples/agents/src/services/agents.ts names). The prompt `fail` makes opencode fail."""
 import json, os, sys
 
 name, args = os.path.basename(sys.argv[0]), sys.argv[1:]
 with open(os.environ["FAKE_AGENT_LOG"], "a") as log:
-    log.write("%s %s cwd=%s\n" % (name, json.dumps(args), os.getcwd()))
+    log.write("%s %s cwd=%s fastoff=%s\n" % (name, json.dumps(args), os.getcwd(), os.environ.get("CLAUDE_CODE_DISABLE_FAST_MODE", "")))
 if args == ["--version"]:
     print("%s 9.9.9 (fake)" % name)
+    sys.exit(0)
+if name == "codex" and args[:2] == ["debug", "models"]:
+    tiers = [{"id": "priority", "name": "Fast"}]
+    print(json.dumps({"models": [
+        {"slug": "gpt-test", "display_name": "GPT-Test", "visibility": "list", "service_tiers": tiers,
+         "supported_reasoning_levels": [{"effort": "low"}, {"effort": "high"}, {"effort": "ultra"}]},
+        {"slug": "gpt-hidden", "display_name": "GPT-Hidden", "visibility": "hide", "service_tiers": [], "supported_reasoning_levels": []},
+    ]}))
+    sys.exit(0)
+if name == "opencode" and args == ["models"]:
+    print("prov/model-a\nprov/model-b")
     sys.exit(0)
 
 prompt = args[args.index("-p") + 1] if name == "claude" else args[-1]

@@ -12,5 +12,5 @@
   },
   "requires": ["keyboard", "pointer", "fs"],
   "permissions": ["fs", "process"],
-  "icons": ["folder", "file-text", "lock", "send", "square"]
+  "icons": ["folder", "file-text", "lock", "send", "square", "check", "chevron-down", "zap"]
 }

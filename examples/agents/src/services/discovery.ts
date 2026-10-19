@@ -58,7 +58,7 @@ export function findBinary(name: string): string {
 /** The first line `binary --version` prints, '' when it fails. */
 export async function versionOf(binary: string): Promise<string> {
   try {
-    const r = await proc.run(binary, ['--version'], {});
+    const r = await proc.run(binary, ['--version'], { cwd: fs.tmpdir() });   // not where the app runs: see agents.ts outputOf
     return r.code === 0 ? r.stdout.trim().split('\n')[0] : '';
   } catch (e) {
     return '';

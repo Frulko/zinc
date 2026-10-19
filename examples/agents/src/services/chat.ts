@@ -3,13 +3,26 @@
 // so the window redraws that one text and nothing else.
 import { createSignal } from 'zinc:ui/solid';
 import * as proc from 'zinc:process';
-import { Agent, EV_SESSION, EV_DELTA, EV_BLOCK, EV_TOOL, EV_ERROR, EV_DONE } from './agents';
+import { Agent, TurnSettings, MODE_LABELS, EV_SESSION, EV_DELTA, EV_BLOCK, EV_TOOL, EV_ERROR, EV_DONE } from './agents';
 
 /** Lines of stderr kept to explain a failed turn. */
 const STDERR_TAIL = 4;
 
+/** `opus · high · fast · Edit files`: what a turn ran with, shown above its answer. */
+function describe(s: TurnSettings): string {
+  const parts = [s.model === '' ? 'default model' : s.model];
+  if (s.effort !== '') parts.push(s.effort);
+  if (s.fast) parts.push('fast');
+  parts.push(MODE_LABELS[s.mode]);
+  return parts.join(' · ');
+}
+
 export class Message {
   readonly fromUser: boolean;
+  /** For an answer: the settings of its turn. */
+  readonly meta: string;
+  /** When it was created (ms): only a new message plays its entrance. */
+  readonly born: number = Date.now();
   readonly text: () => string;
   readonly setText: (v: string) => void;
   /** While the agent is still answering. */
@@ -20,8 +33,9 @@ export class Message {
   /** The next text starts a new paragraph (after a tool line). */
   breakBefore: boolean = false;
 
-  constructor(fromUser: boolean, text: string) {
+  constructor(fromUser: boolean, text: string, meta: string) {
     this.fromUser = fromUser;
+    this.meta = meta;
     const t = createSignal(text), s = createSignal(!fromUser), e = createSignal('');
     this.text = t[0]; this.setText = t[1];
     this.streaming = s[0]; this.setStreaming = s[1];
@@ -71,19 +85,19 @@ export class Chat {
     this.revision = r[0]; this.setRevision = r[1];
   }
 
-  /** Starts a turn with `binary` (the agent's CLI, found by discovery). Ignored while a turn runs. */
-  send(binary: string, prompt: string): void {
+  /** Starts a turn with `binary` (the agent's CLI, found by discovery) and `settings`. Ignored while a turn runs. */
+  send(binary: string, prompt: string, settings: TurnSettings): void {
     const text = prompt.trim();
     if (text === '' || this.busy()) return;
-    const answer = new Message(false, '');
-    this.push(new Message(true, text));
+    const answer = new Message(false, '', describe(settings));
+    this.push(new Message(true, text, ''));
     this.push(answer);
     this.setBusy(true);
     this.stopping = false;
 
     let p: proc.Process;
     try {
-      p = proc.spawn(binary, this.agent.args(text, this.session), { cwd: this.folder });
+      p = proc.spawn(binary, this.agent.args(text, this.session, settings), { cwd: this.folder, env: this.agent.env(settings) });
     } catch (e) {
       this.finish(answer, `${this.agent.name} could not start: ${e.message}`);
       return;
