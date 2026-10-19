@@ -1,7 +1,7 @@
 // Musique: a wall remote for Sonos speakers, made for an HP TouchPad on its charger (README.md). What plays, Spotify (zinc:spotify), radios,
 // rooms and groups, volumes; the screen goes off when nobody touches it and a touch wakes it. Drawn with zinc:gfx at 1024x768, a frame
 // only when something changed.
-import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, wheel, wheelX, scrollDX, scrollDY, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
+import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, wheel, wheelX, scrollDX, scrollDY, startTextInput, stopTextInput, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
 import { utf8Decode, device, platform } from 'zinc:sys';
@@ -562,7 +562,7 @@ async function listenRemote(): Promise<void> {
 }
 
 // ---------------------------------------------------------------- touch
-let wasDown = false, swallow = false, moved = false, idleFor = 0;
+let wasDown = false, swallow = false, moved = false, idleFor = 0, textInputOn = false;
 let downX = 0, downY = 0, lastY = 0, scrollStart = 0;
 let dragZone: Zone | null = null, tapZone: Zone | null = null, scrolling: Scroll | null = null;
 // a mouse wheel (steps) or two fingers on a trackpad (pixels, scrollDX/DY: macOS sends them apart) do what a finger's swipe does: a list
@@ -656,11 +656,18 @@ function input(dt: number): void {
   }
   wasDown = down;
   wheelInput(dt, x, y);
-  if (typing) {   // a desktop's keyboard types too
+  // a computer's keyboard: the window's text input is on while a field takes the typing (else no character comes, only keys); a tablet
+  // keeps its own keyboard on the screen
+  if (!touchKeyboard && typing !== textInputOn) {
+    textInputOn = typing;
+    if (typing) startTextInput(SIDE + P, 100, width() - SIDE - P * 2, 46); else stopTextInput();
+  }
+  if (typing) {
     for (let i = 0; i < keyCount(); i++) {
       const k = keyKind(i), n = keyName(i);
       if (k === KeyKind.Text) typed(n);
-      else if (k === KeyKind.Down && n === 'Backspace') typed('back');
+      else if (k === KeyKind.Down && n === 'Escape') { typing = false; ui.dirty = true; }
+      else if ((k === KeyKind.Down || k === KeyKind.Repeat) && n === 'Backspace') typed('back');   // held: it goes on erasing
       else if (k === KeyKind.Down && n === 'Enter') typed('enter');
     }
   }
