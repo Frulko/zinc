@@ -62,24 +62,30 @@ export function loadAppConfig(): AppConfig {
 }
 
 /**
- * Enregistre la configuration actuelle dans `config.json` en conservant les clés
- * exactes attendues par le format historique.
+ * Writes the settings to `config.json`, keeping the keys this version does not know (another version of the app,
+ * or `examples/music`, may have written them).
  */
 export function saveAppConfig(config: AppConfig): void {
   try {
-    const serialized = JSON.stringify({
-      sleep: config.sleepDelaySeconds,
-      group: config.selectedGroupUuid,
-      seed: config.sonosSeedIp,
-      spotifySn: config.spotifyAccountSerial,
-      full: config.fullScreenPlayer,
-      lat: config.weatherLatitude,
-      lon: config.weatherLongitude,
-      city: config.weatherCityName,
-      battery: config.showBatteryIndicator,
-      batteryPct: config.showBatteryPercentage,
-    });
-    writeText(CONFIG_FILE_PATH, serialized + '\n');
+    let stored = JSON.parse('{}');
+    if (exists(CONFIG_FILE_PATH)) {
+      try {
+        stored = JSON.parse(readText(CONFIG_FILE_PATH));
+      } catch (error) {
+        /* unreadable: written again from the settings in memory */
+      }
+    }
+    stored.sleep = config.sleepDelaySeconds;
+    stored.group = config.selectedGroupUuid;
+    stored.seed = config.sonosSeedIp;
+    stored.spotifySn = config.spotifyAccountSerial;
+    stored.full = config.fullScreenPlayer;
+    stored.lat = config.weatherLatitude;
+    stored.lon = config.weatherLongitude;
+    stored.city = config.weatherCityName;
+    stored.battery = config.showBatteryIndicator;
+    stored.batteryPct = config.showBatteryPercentage;
+    writeText(CONFIG_FILE_PATH, JSON.stringify(stored) + '\n');
   } catch (error) {
     console.error(`music: config.json: ${error.message}`);
   }
