@@ -257,6 +257,8 @@ export class Spotify {
     else body = `{"context_uri":${JSON.stringify(it.uri)}}`;
     await this.call('PUT', `/me/player/play?device_id=${encodeURIComponent(deviceId)}`, body);
   }
+  /** Pauses a device (the one the playback leaves when another takes it: Connect devices that are not restricted). */
+  async pause(deviceId: string): Promise<void> { await this.call('PUT', `/me/player/pause?device_id=${encodeURIComponent(deviceId)}`); }
   /** Moves the playback to a device. */
   async transfer(deviceId: string, play: boolean): Promise<void> { await this.call('PUT', '/me/player', `{"device_ids":[${JSON.stringify(deviceId)}],"play":${play}}`); }
   async setShuffle(on: boolean): Promise<void> { await this.call('PUT', `/me/player/shuffle?state=${on}`); }

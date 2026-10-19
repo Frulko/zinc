@@ -207,6 +207,20 @@ export class System {
   async pause(g: Group): Promise<void> { await avt(g, g.can('Pause') ? 'Pause' : 'Stop'); g.state = 'PAUSED_PLAYBACK'; }
   async next(g: Group): Promise<void> { await avt(g, 'Next'); }
   async previous(g: Group): Promise<void> { await avt(g, 'Previous'); }
+  /** Where a track is in the group's queue, 1 for the first, 0 when it is not in its first `max` entries: `part` is a piece of its URI (a
+   *  Spotify track's id, which the queue's x-sonos-spotify URIs carry). */
+  async queueIndex(g: Group, part: string, max: i32 = 500): Promise<i32> {
+    for (let start: i32 = 0; start < max; start += 100) {
+      const text = await soap(g.coordinator.ip, 'ContentDirectory', CD, 'Browse',
+        `<ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>${start}</StartingIndex><RequestedCount>100</RequestedCount><SortCriteria></SortCriteria>`);
+      const items = tag(text, 'Result').split('<item ').slice(1);
+      for (let i: i32 = 0; i < items.length; i++) if (items[i].indexOf(part) >= 0) return start + i + 1;
+      if (items.length < 100) return 0;
+    }
+    return 0;
+  }
+  /** Jumps to a track of the queue, 1 for the first. */
+  async seekTrack(g: Group, n: i32): Promise<void> { await avt(g, 'Seek', `<Unit>TRACK_NR</Unit><Target>${n}</Target>`); }
   async seek(g: Group, s: number): Promise<void> { await avt(g, 'Seek', `<Unit>REL_TIME</Unit><Target>${hms(s)}</Target>`); g.track.position = s; }
   /** NORMAL, SHUFFLE_NOREPEAT, REPEAT_ALL, SHUFFLE (shuffle and repeat all), REPEAT_ONE, SHUFFLE_REPEAT_ONE. */
   async setPlayMode(g: Group, mode: string): Promise<void> { await avt(g, 'SetPlayMode', `<NewPlayMode>${mode}</NewPlayMode>`); g.playMode = mode; }

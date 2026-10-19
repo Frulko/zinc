@@ -374,6 +374,54 @@ function playSpotify(it: Item): void {
     await sleep(800); await pollGroup(); await pollSpotify();
   });
 }
+// "Reprendre ici" (owner 2026-10-19): the account plays on another device (a Mac, an iPhone, the speakers of the other house): the player
+// shows it in a card, one touch moves the listening to the group the tablet has chosen, at the same song and moment. Through Spotify
+// Connect when it may command the speakers (the queue moves along), else through the speakers' Spotify service: the album or playlist from
+// that song, the position, and the other device paused.
+let handoffSkip = '';   // the song whose card was closed
+function playsElsewhere(): boolean {
+  const pb = spPlayback;
+  if (!spotify.ready() || !pb.active || !pb.playing || pb.item.uri === '' || pb.item.uri === handoffSkip || sys === null) return false;
+  const d = pb.device.name.toLowerCase().replace(/ \+ \d+$/, '');   // Spotify names a Sonos group after a room: "Bureau Plafond + 1"
+  for (const sp of (sys as System).speakers) if (sp.name.toLowerCase() === d) return false;   // already on speakers of this house
+  return true;
+}
+function resumeHere(): void {
+  const g = g0();
+  if (sys === null || g === null) { toast('Aucune enceinte'); return; }
+  const gg = g as Group, s = sys as System;
+  toast(`Reprise sur ${gg.name()}…`);
+  attempt('Reprendre', async (): Promise<void> => {
+    const pb = await spotify.playback();   // now: the song may have moved on since the last look
+    if (!pb.active || pb.item.uri === '') throw new Error('plus rien ne joue sur Spotify');
+    const dev = await spotify.device(gg.coordinator.name);
+    if (dev !== null && !dev.restricted) await spotify.transfer(dev.id, true);
+    else {
+      await resumeThroughSonos(s, gg, pb);
+      if (pb.device.id !== '' && !pb.device.restricted) { try { await spotify.pause(pb.device.id); } catch (e) { /* it may have stopped by itself */ } }
+    }
+    handoffSkip = pb.item.uri;
+    toast(`${pb.item.name} sur ${gg.name()}`);
+    await sleep(800); await pollGroup(); await pollSpotify();
+  });
+}
+async function resumeThroughSonos(s: System, g: Group, pb: Playback): Promise<void> {
+  const t0 = now(), id = pb.item.uri.split(':').pop() as string;
+  let at: i32 = 0;
+  if (pb.context !== '') {   // its album or playlist, so the next songs follow; the song found in the queue the speakers made of it
+    const ctx = new Item();
+    ctx.kind = 'playlist'; ctx.uri = pb.context; ctx.name = pb.item.name;
+    try { await playThroughSonos(s, g, ctx); at = await s.queueIndex(g, id); } catch (e) { at = 0; }   // a context the speakers cannot read (some playlists of Spotify's)
+  }
+  if (at > 1) await s.seekTrack(g, at);
+  else if (at === 0) {   // the song alone
+    const one = new Item();
+    one.kind = 'track'; one.uri = pb.item.uri; one.name = pb.item.name;
+    await playThroughSonos(s, g, one);
+  }
+  const secs = pb.progressMs / 1000 + (pb.playing ? now() - t0 : 0);   // where the song is by now
+  if (secs > 3 && (pb.durationMs <= 0 || secs < pb.durationMs / 1000 - 3)) await s.seek(g, secs);
+}
 let spotifySid: i32 = -1;
 async function playThroughSonos(s: System, g: Group, it: Item): Promise<void> {
   if (spotifySid < 0) spotifySid = await serviceId(s, 'Spotify');
@@ -393,7 +441,7 @@ async function playThroughSonos(s: System, g: Group, it: Item): Promise<void> {
       if (g.playing()) { if (cfg.spotifySn !== tries[i]) { cfg.spotifySn = tries[i]; saveConfig(); } return; }
     } catch (e) { why = e.message; }
   }
-  throw new Error(`les Sonos n'ont pas pu lire « ${it.name} »${why !== '' ? ' (' + why + ')' : ''}. Ajoute une playlist Spotify aux favoris dans l'app Sonos, puis réessaie.`);
+  throw new Error(`les Sonos n'ont pas pu lire « ${it.name} »${why !== '' ? ' (' + why + ')' : ''}. Dans l'app Sonos, ajoute Spotify aux services (Réglages, Services et voix) et une playlist Spotify aux favoris, puis réessaie.`);
 }
 function addStation(st: Station): void {
   const i = indexOf(mine, st.url);
@@ -754,6 +802,7 @@ function nowPlaying(W: number, H: number): void {
   // the group's volume: touching it opens the rooms' sliders
   const vy = ay + S + 50;
   volumeBar(x0, vy, W - x0 - P, g);
+  if (playsElsewhere()) handoffCard(x0, vy + 46, W - x0 - P, g);
   // the other groups, one touch away
   if (sys !== null && (sys as System).groups.length > 1) {
     drawText(F.tinyB, x0, H - 108, 'ENCEINTES', TEXT2, 255, 0);
@@ -764,6 +813,19 @@ function nowPlaying(W: number, H: number): void {
       if (px > W - 120) break;
     }
   }
+}
+
+/** The card of a listening on another device, under the volume: its cover, where it plays and what, and the button that moves it to the
+ *  group chosen here (the room at the top, the speakers below). */
+function handoffCard(x: number, y: number, w: number, g: Group): void {
+  const pb = spPlayback, it = pb.item, h = 72;
+  rrect(x, y, w, h, 18, CARD, 240);
+  cover(it.thumb !== '' ? it.thumb : it.art, it.name, x + 12, y + 12, 48, 8);
+  const btn = 'Reprendre ici', bw = textWidth(F.smallB, btn, 0) + 36 + 22, tw = w - 12 - 48 - 16 - bw - 16 - 44;
+  label(F.tiny, x + 76, y + 14, `En cours sur ${pb.device.name} · vers ${g.name()}`, GREEN, tw);
+  label(F.smallB, x + 76, y + 36, it.subtitle !== '' ? `${it.name} · ${it.subtitle}` : it.name, TEXT, tw);
+  pill('now/handoff', x + w - 44 - bw, y + 16, btn, 0x000000, GREEN, resumeHere, 'audio-lines');
+  iconButton('now/handoff/x', 'x', x + w - 22, y + h / 2, 16, TEXT2, () => { handoffSkip = it.uri; ui.dirty = true; });
 }
 
 const DAYS_LONG = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
@@ -1497,6 +1559,7 @@ onFrame((dt: number) => {
   // the popover: the rooms follow a change of the group's volume (Sonos scales each room), read once the sliders are let go
   if (volumeOpen && tRooms >= 1) { tRooms = 0; if (volumeHeld <= 0) pollMembers(); }
   if (page === NOW && group !== null && (group as Group).track.source === 'spotify' && tSpotify >= 5 && !screen.asleep) { tSpotify = 0; pollSpotify(); }
+  else if (page === NOW && slide === PLAYER && spotify.ready() && tSpotify >= 8 && !screen.asleep) { tSpotify = 0; pollSpotify(); }   // what plays elsewhere (Reprendre ici)
   spotifyLoginTick();
   if (spLogoutAsked > 0) { spLogoutAsked -= dt; if (spLogoutAsked <= 0) { spLogoutAsked = 0; ui.dirty = true; } }   // the confirmation lasts four seconds
   if (volumeHeld > 0) volumeHeld -= dt;
