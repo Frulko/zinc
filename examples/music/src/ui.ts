@@ -269,10 +269,16 @@ function fadeOf(url: string): i32 {
   ui.animating = true;
   return Math.round(a * 255) as i32;
 }
-/** A cover: the picture when it is there (fading in over the tile when it just arrived), else a tile with a gradient picked from the name
- *  and its initials (a note without a name). */
+/** A cover: the picture when it is there, fading in over a quiet tile while it loads (a spinner on a large one); the tile with a gradient
+ *  picked from the name and its initials only when there is no picture at all (no URL, or one that cannot be read), so a cover never
+ *  shows the made-up tile and then switches to the real one. A note without a name. */
 export function cover(url: string, name: string, x: number, y: number, s: number, radius: number, logo: boolean = false): void {
   const img = picture(url);
+  if (img < 0 && url !== '' && pics.get(url) !== -1) {   // on its way
+    rrect(x, y, s, s, radius, logo ? 0xf2f2f7 : CARD2, logo ? 40 : 255);
+    if (s >= 120) spinner(x + s / 2, y + s / 2, Math.min(18, s * 0.06));
+    return;
+  }
   const a = img >= 0 ? fadeOf(url) : 0;
   if (img >= 0 && a === 255 && !logo) { drawImage(img, x, y, s, s, 255, radius); return; }
   if (img >= 0 && logo) { rrect(x, y, s, s, radius, 0xf2f2f7, a); drawFit(img, x + s * 0.14, y + s * 0.14, s * 0.72, s * 0.72, 4); return; }

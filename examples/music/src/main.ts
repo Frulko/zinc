@@ -379,12 +379,22 @@ function playSpotify(it: Item): void {
 // Connect when it may command the speakers (the queue moves along), else through the speakers' Spotify service: the album or playlist from
 // that song, the position, and the other device paused.
 let handoffSkip = '';   // the song whose card was closed
+/** Whether a Spotify device is speakers of this house: Spotify names a Sonos group after one of its rooms ("Bureau Plafond + 1"). */
+function ourSpeakers(device: string): boolean {
+  if (sys === null) return false;
+  const d = device.toLowerCase().replace(/ \+ \d+$/, '');
+  for (const sp of (sys as System).speakers) if (sp.name.toLowerCase() === d) return true;
+  return false;
+}
 function playsElsewhere(): boolean {
   const pb = spPlayback;
   if (!spotify.ready() || !pb.active || !pb.playing || pb.item.uri === '' || pb.item.uri === handoffSkip || sys === null) return false;
-  const d = pb.device.name.toLowerCase().replace(/ \+ \d+$/, '');   // Spotify names a Sonos group after a room: "Bureau Plafond + 1"
-  for (const sp of (sys as System).speakers) if (sp.name.toLowerCase() === d) return false;   // already on speakers of this house
-  return true;
+  return !ourSpeakers(pb.device.name);
+}
+/** The song of the account when the group plays it through Spotify Connect: the speakers then tell neither its title nor its cover. */
+function connectItem(g: Group): Item | null {
+  if (g.track.source !== 'spotify' || g.track.art !== '' || !spPlayback.active || spPlayback.item.uri === '' || !ourSpeakers(spPlayback.device.name)) return null;
+  return spPlayback.item;
 }
 function resumeHere(): void {
   const g = g0();
@@ -674,6 +684,8 @@ function trackNotif(g: Group): void {
 }
 function artOf(g: Group): string {
   if (g.track.art !== '') return g.track.art;
+  const ci = connectItem(g);
+  if (ci !== null) return (ci as Item).art;
   for (const st of mine) if (st.name === g.track.station) return st.art;
   return '';
 }
@@ -745,15 +757,16 @@ function nowPlaying(W: number, H: number): void {
   // the cover
   const S = full ? 430 : 340, ay = full ? 86 : 96;
   cardShadow(x0, ay, S, S, 14);
-  const nothing = t.title === '' && t.station === '';
+  const ci = connectItem(g);
+  const nothing = t.title === '' && t.station === '' && ci === null;
   if (nothing) { rrect(x0, ay, S, S, 14, CARD2, 255); glyph('music', x0 + S / 2 - 48, ay + S / 2 - 48, 96, TEXT3); }
   else cover(art, t.title !== '' ? t.title : t.station, x0, ay, S, 14, t.source === 'radio' && t.art === '');
   // text and transport on the right
   const rx = x0 + S + (full ? 64 : 44), rw2 = W - rx - (full ? 64 : P);
   let ty = ay + 6;
-  const title = nothing ? 'Rien en lecture' : t.title !== '' ? t.title : t.station;
+  const title = ci !== null && (t.title === '' || t.title === 'Spotify') ? (ci as Item).name : nothing ? 'Rien en lecture' : t.title !== '' ? t.title : t.station;
   ty += wrap(full ? F.hero : F.title, rx, ty, title, TEXT, rw2, 3, full ? 42 : 36) + 6;
-  const sub = t.artist !== '' ? t.artist : t.source === 'spotify' && t.title === '' ? (g.playing() ? 'Spotify Connect' : 'En pause dans Spotify') : '';
+  const sub = t.artist !== '' ? t.artist : ci !== null && (ci as Item).subtitle !== '' ? (ci as Item).subtitle : t.source === 'spotify' && t.title === '' ? (g.playing() ? 'Spotify Connect' : 'En pause dans Spotify') : '';
   if (sub !== '') { label(F.body, rx, ty, sub, ACCENT, rw2); ty += 30; }
   const sub2 = t.album !== '' ? t.album : t.source === 'radio' && t.station !== title ? t.station : '';
   if (sub2 !== '') label(F.label, rx, ty, sub2, TEXT2, rw2);
