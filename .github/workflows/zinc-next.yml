@@ -326,8 +326,7 @@ jobs:
           name: test-results-${{ matrix.shard }}
           path: ${{ runner.temp }}/out/
   fuzz:
-    # Fuzzing (60 s per target with ASan and UBSan) is a milestone check: the nightly and manual runs, not every push. It needs Homebrew's clang: Apple's libc++ marks the
-    # unused capacity of a vector as poisoned and reports a read there as a heap overflow, which the same code does not do with LLVM's libc++.
+    # Fuzzing (60 s per target with ASan and UBSan) is a milestone check: the nightly and manual runs, not every push. Apple's clang (see its Dependencies step).
     name: fuzz
     needs: [plan, build]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
@@ -348,14 +347,15 @@ jobs:
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        # llvm@19: the runner's Xcode ld refuses the objects of a newer LLVM ("invalid r_symbolnum"), and LLVM's own lld links a fuzzer whose exceptions
-        # are never caught (the parser's diagnostics end in terminate)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm@19
+        # Apple's clang and the libFuzzer tools/libfuzzer builds from the pinned compiler-rt (ZN-433), not Homebrew's LLVM: Xcode's ld refuses the
+        # archives Homebrew's clang writes on this runner ("invalid r_symbolnum", LLVM 19 and 23 alike) and LLVM's lld links a fuzzer whose exceptions are
+        # never caught. Apple's libc++ marks the unused capacity of a vector as poisoned: ASan's container-overflow check is off (ASAN_OPTIONS below)
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache
       - name: Fuzz
         env:
           ZINC_CI: '1'
           ZINC_FUZZ: '1'
-        run: LLVM=$(brew --prefix llvm@19) tests/run --tier t2 --only fuzz
+        run: LLVM=none ASAN_OPTIONS=detect_container_overflow=0 tests/run --tier t2 --only fuzz   # LLVM=none: tools/fuzz takes Apple's clang
       - name: Keep the crashes
         if: always()
         uses: actions/upload-artifact@v4
