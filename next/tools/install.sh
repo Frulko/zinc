@@ -2,12 +2,13 @@
 # Installs zinc with nothing to compile (ZN-718): the engine, its libraries, the templates and the plugins' native libraries, as released for this machine.
 #
 #   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh                  # the zinc CLI
-#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier  # and the Zinc Atelier app (macOS)
+#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier  # and the Zinc Atelier app (macOS: the .app; Linux: an applications menu entry)
 #
 # It reads SHA256SUMS beside it, downloads the CLI archive of this system (zinc-<version>-<os>-<arch>.tar.gz: macOS arm64 / x86_64, Linux x86_64 / aarch64),
 # checks its SHA-256, unpacks it into ~/.zinc/engine and links `zinc` into /usr/local/bin when you can write there, else into ~/.local/bin (added to your PATH
 # in ~/.zprofile or ~/.profile). With --atelier (or ZINC_INSTALL_ATELIER=1) on a Mac it also installs Zinc-Atelier-<version>-macos-<arch>.zip, checked the same
-# way, as "Zinc Atelier.app" in /Applications when you can write there, else in ~/Applications.
+# way, as "Zinc Atelier.app" in /Applications when you can write there, else in ~/Applications; on Linux it adds Zinc Atelier to the applications
+# menu (~/.local/share/applications/zinc-atelier.desktop, on bin/zinc-atelier of the engine).
 # Needs curl and what every Mac and Linux has (shasum or sha256sum, tar, ditto on a Mac); no compiler, no CMake, no Xcode, no administrator password.
 # `zinc update` updates it (or run this again); `rm -rf ~/.zinc/engine ~/.zinc/engine.prev` and the link (and the app) to uninstall.
 #   ZINC_INSTALL_URL   where SHA256SUMS and the archives are (default: the latest release of $ZINC_REPO, default zinc-engine/zinc; file:// works)
@@ -24,7 +25,7 @@ die() { echo "zinc install: $*" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || die "curl is needed to download zinc (Linux: install the curl package)"
 case "$(uname -s)" in
   Darwin) os=macos ;;
-  Linux) os=linux; [ "$atelier" = 0 ] || die "Zinc Atelier is a macOS app for now: on Linux, zinc run \"\$(zinc --root)/app/atelier/main.tsx\"" ;;
+  Linux) os=linux ;;
   *) die "no prebuilt zinc for $(uname -s) yet: macOS and Linux only (Windows: build from the sources, docs/guide/01-getting-started.md)" ;;
 esac
 arch=$(uname -m)
@@ -54,7 +55,7 @@ fetch() {
 
 # both downloads are checked before anything is installed
 pkg=$(fetch zinc- "-$os-$arch.tar.gz")
-[ "$atelier" = 0 ] || appzip=$(fetch Zinc-Atelier- "-$os-$arch.zip")
+[ "$atelier" = 0 ] || [ "$os" = linux ] || appzip=$(fetch Zinc-Atelier- "-$os-$arch.zip")   # Linux: the CLI archive holds the Atelier's launcher
 mkdir -p "$tmp/new"
 tar -xzf "$pkg" -C "$tmp/new"
 inner=$(echo "$tmp"/new/*)
@@ -76,7 +77,14 @@ mkdir -p "$bindir"
 ln -sf "$bin" "$bindir/zinc"
 echo "zinc install: $version in $dir, linked as $bindir/zinc"
 
-if [ "$atelier" != 0 ]; then
+if [ "$atelier" != 0 ] && [ "$os" = linux ]; then   # an entry of the applications menu (freedesktop), on bin/zinc-atelier of the engine
+  [ -x "$dir/bin/zinc-atelier" ] || die "the archive holds no Atelier launcher ($dir/bin/zinc-atelier)"
+  apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
+  mkdir -p "$apps"
+  printf '[Desktop Entry]\nType=Application\nName=Zinc Atelier\nComment=Make apps and games with Zinc\nExec="%s"\nIcon=%s\nTerminal=false\nCategories=Development;Education;\n' \
+    "$dir/bin/zinc-atelier" "$dir/share/zinc/next/app/atelier/icon.png" > "$apps/zinc-atelier.desktop"
+  echo "zinc install: Zinc Atelier in the applications menu ($apps/zinc-atelier.desktop), or run $dir/bin/zinc-atelier"
+elif [ "$atelier" != 0 ]; then
   appdir=${ZINC_APP_DIR:-}
   if [ -z "$appdir" ]; then
     if [ -d /Applications ] && [ -w /Applications ]; then appdir=/Applications; else appdir=$HOME/Applications; fi

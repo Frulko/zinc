@@ -514,6 +514,9 @@ if(WIN32)   # plugins as .dll: the def exports the engine's C symbols their nati
   target_sources(zinc PRIVATE src/host/gpu_select_win.cpp)   # a laptop with two GPUs gives the window the NVIDIA or AMD one, not the integrated one
   set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def)
+  # "Zinc Atelier.exe" of the Windows download of the app (tools/package): a GUI program that starts zinc.exe without a console window
+  add_executable(zinc-atelier src/app/atelier_launcher_win.c)
+  target_link_options(zinc-atelier PRIVATE -Wl,--subsystem,windows)   # zig's driver ignores -mwindows, CMake's WIN32 flag
 endif()
 if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates it instantiates: exported weak definitions cost dyld a coalescing bind each
   # at every launch (629, 388 of them for one template) and the libc++ ones a patch of the shared cache; no plugin or module imports them (ZN-592.01)

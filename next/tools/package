@@ -19,7 +19,7 @@ NEXT = os.path.dirname(HERE)
 REPO = os.path.dirname(NEXT)
 VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
 # size budgets in MB of the download (the archive); a package over its budget fails the script
-BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
+BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
 
 def arg(name, default):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
@@ -176,6 +176,9 @@ mkdir -p "$proj"
 exec "$here/zinc" run "$here/../Resources/zinc/next/app/atelier/main.tsx" -- "$proj"
 """
 
+# Linux: bin/zinc-atelier in the CLI archive; `install.sh --atelier` puts it in the applications menu (a .desktop entry)
+LAUNCHER_LINUX = LAUNCHER.replace("$here/../Resources/zinc/next", "$here/../share/zinc/next")
+
 PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -251,6 +254,8 @@ def package_linux(build, out, arch=None):
     if shutil.which("patchelf") and not cross:
         run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", "zinc"))
     payload(os.path.join(root, "share", "zinc"))
+    with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)
+    os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)
     if cross:   # the plugins' native sources: zinc compiles them on the device at first use, with the zig it fetches there
         without = {}
         native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if os.path.isdir(os.path.join(REPO, "plugins", p, "native"))]
@@ -278,7 +283,13 @@ def package_windows(build, out):
     without = prebuild_plugins(os.path.join(build, "zinc.exe"), os.path.join(root, "share", "zinc"), "windows")
     archive = os.path.join(out, name + ".zip")
     zip_dir(root, archive, name)
-    return [("windows", archive)], without
+    # the app: the same engine and share\zinc in a "Zinc Atelier" folder, opened by "Zinc Atelier.exe" (src/app/atelier_launcher_win.c), no console window
+    launcher = os.path.join(build, "zinc-atelier.exe")
+    if not os.path.exists(launcher): return [("windows", archive)], without   # a build without the target (cmake --build --target zinc-atelier)
+    shutil.copy2(launcher, os.path.join(root, "Zinc Atelier.exe"))
+    app = os.path.join(out, "Zinc-Atelier-%s-windows-%s.zip" % (VERSION, name.rsplit("-", 1)[1]))
+    zip_dir(root, app, "Zinc Atelier")
+    return [("windows", archive), ("windows-app", app)], without
 
 def main():
     global VERSION

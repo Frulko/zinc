@@ -28,14 +28,14 @@ others): a program that imports them starts at once. `zinc doctor` ends with the
 sources, and they are compiled the first time a program imports them, on a machine that has those libraries and, on a Mac,
 the Xcode command line tools.
 
-On a Mac, add `--atelier` to get Zinc Atelier too, the app that edits and runs projects with no terminal (it goes into
-`/Applications`, or `~/Applications` when you cannot write there):
+Add `--atelier` to get Zinc Atelier too, the app that edits and runs projects with no terminal: on a Mac it goes into
+`/Applications`, or `~/Applications` when you cannot write there; on Linux it is added to the applications menu:
 
 ```sh
 curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier
 ```
 
-By hand instead, each release has two downloads per machine on its
+By hand instead, each release has these downloads on its
 [releases page](https://github.com/zinc-engine/zinc/releases):
 
 - `zinc-<version>-macos-<arch>.tar.gz` (or `-linux-<arch>.tar.gz`): the CLI. Unpack it anywhere and link its `bin/zinc`
@@ -44,6 +44,9 @@ By hand instead, each release has two downloads per machine on its
 - `Zinc-Atelier-<version>-macos-<arch>.zip`: the app, with its own copy of the engine. Unzip it and drag "Zinc Atelier" to
   Applications. A Mac asks you to confirm an app that came through a browser and is not notarized: right-click > Open on
   "Zinc Atelier" once.
+- `zinc-<version>-windows-x86_64.zip`: the CLI for Windows 10 and 11 (`irm .../install.ps1 | iex` in PowerShell installs it).
+- `Zinc-Atelier-<version>-windows-x86_64.zip`: the app for Windows, with its own copy of the engine. Unzip the whole folder and
+  open "Zinc Atelier.exe" in it. It is not signed yet: SmartScreen may ask you to confirm.
 
 ### Updating
 
