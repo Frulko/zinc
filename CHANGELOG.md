@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Fixed
+- Windows: the `zinc` download is back; 0.2.0 shipped without it because its build failed.
+
 ## [0.2.0] - 2026-10-19
 
 ### Added
