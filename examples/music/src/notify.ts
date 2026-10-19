@@ -11,15 +11,17 @@ import { env } from 'zinc:sys';
 import { base64Decode } from 'zinc:web';
 import * as link from 'zinc:link';
 import gsap, { Timeline } from 'gsap';
-import { ui, F, TEXT, TEXT2, TEXT3, ACCENT, GREEN, CARD, FILL, Scroll, onTap, onDrag, beginScroll, endScroll, label, centered, wrap, glyph, pill, spinner, separator, cardShadow } from './ui';
+import { ui, F, TEXT, TEXT2, TEXT3, ACCENT, GREEN, CARD, FILL, Scroll, picture, onTap, onDrag, beginScroll, endScroll, label, centered, wrap, glyph, pill, spinner, separator, cardShadow } from './ui';
 
 export class Notif {
   id: string = ''; appId: string = ''; appName: string = ''; icon: string = '';
   title: string = ''; subtitle: string = ''; body: string = ''; date: number = 0; domain: string = ''; thread: string = ''; emoji: string[] = [];
-  /** 'message' (a person wrote: sender and avatar) or 'other'. */
+  /** 'message' (a person wrote: sender and avatar), 'track' (the next song, from this app: its cover) or 'other'. */
   kind: string = 'other'; sender: string = ''; avatar: string = '';
   /** The hash of a photo the message carries (a JPEG fitted in 640 px), '' when none. */
   attachment: string = '';
+  /** A track's cover: a picture URL (ui.ts picture), '' when none. */
+  art: string = '';
 }
 
 const MAX = 50, FILE = 'notifications.json', ICONS = 'notif-icons';
@@ -290,10 +292,12 @@ function next(): void {
   cur.out = 1;
   gsap.to(ov, { dim: 0, duration: 0.4, ease: 'power2.in' }).onComplete(() => { if (closing) { cur = null; closing = false; } ui.dirty = true; });
 }
+/** A song of this app, shown as a notification of the Mac is (StandBy's overlay, the screen woken for it) but never kept in the list. */
+export function showTrack(n: Notif): void { n.kind = 'track'; show(n); }
 /** A touch on the overlay: the notification opens on the Mac, the queue goes on. */
 function tapped(): void {
   if (cur === null || closing) return;
-  openOnMac((cur as Play).n.id);
+  if ((cur as Play).n.kind !== 'track') openOnMac((cur as Play).n.id);
   next();
 }
 /** While the overlay holds still, its timeline needs no frame (the view under it is still too: the touches are the overlay's). */
@@ -328,6 +332,12 @@ function appIconA(n: Notif, x: number, y: number, s: number, alpha: i32): void {
 }
 /** The round image of a notification, centred on cx, cy: an avatar with the app's badge, or the app's icon. */
 function face(n: Notif, cx: number, cy: number, d: number, alpha: i32, ring: u32): void {
+  if (n.kind === 'track') {   // a song: its cover, square with round corners like an album
+    const img = picture(n.art);
+    if (img >= 0) drawImage(img, cx - d / 2, cy - d / 2, d, d, alpha, d * 0.12);
+    else { rrect(cx - d / 2, cy - d / 2, d, d, d * 0.12, FILL, alpha); glyph('music', cx - d * 0.25, cy - d * 0.25, d * 0.5, TEXT2, alpha); }
+    return;
+  }
   if (!msg(n)) { appIconA(n, cx - d / 2, cy - d / 2, d, alpha); return; }
   const av = iconOf(n.avatar);
   if (av >= 0) drawImage(av, cx - d / 2, cy - d / 2, d, d, alpha, d / 2);

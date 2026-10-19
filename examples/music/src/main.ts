@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
 import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
 import { openPort } from 'zinc:webos';
-import { startRelay, setNotificationsShown, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
+import { startRelay, showTrack, setNotificationsShown, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
 
 // ---------------------------------------------------------------- settings beside the program
 class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; glances: boolean = true; notify: boolean = true; }
@@ -247,6 +247,7 @@ async function pollGroup(): Promise<void> {
     await (sys as System).update(g);
     failures = 0;
     if (Math.abs(g.track.position - position()) > 2 || before !== g.track.uri + g.track.title || !g.playing()) { posBase = g.track.position; posAt = now(); }
+    if (before !== g.track.uri + g.track.title && screen.asleep && g.playing() && g.track.title !== '' && group === g) trackNotif(g);
   } catch (e) {
     logError(`poll ${g.coordinator.name}: ${e.message}`);
     failures++;
@@ -613,6 +614,16 @@ function sourceName(g: Group): string {
   return s === 'spotify' ? 'SPOTIFY' : s === 'radio' ? 'RADIO' : s === 'tv' ? 'TÉLÉVISION' : s === 'line-in' ? 'ENTRÉE LIGNE' : s === 'queue' ? 'FILE D\'ATTENTE' : s === 'airplay' ? 'AIRPLAY' : s === 'none' ? '' : 'FLUX';
 }
 /** The art of what plays: the cover, else the logo of the station when it is one of mine. */
+/** The next song while the app's screen sleeps (owner 2026-10-19): a notification in the manner of the Mac's, the cover, the title and the
+ *  artist and album; the screen wakes for it and goes back to sleep. Awake, the player shows the song itself. */
+function trackNotif(g: Group): void {
+  const t = g.track, n = new Notif();
+  n.id = 'track/' + t.uri + '/' + t.title; n.date = Date.now() / 1000;
+  n.title = t.title; n.appName = g.name(); n.art = artOf(g);
+  const by = t.artist !== '' ? t.artist : t.station;
+  if (t.album !== '' && by !== '') { n.subtitle = by; n.body = t.album; } else n.body = by !== '' ? by : t.album;
+  showTrack(n);
+}
 function artOf(g: Group): string {
   if (g.track.art !== '') return g.track.art;
   for (const st of mine) if (st.name === g.track.station) return st.art;
@@ -1533,7 +1544,7 @@ onFrame((dt: number) => {
   }
   // pictures and preloading, never while a finger is down or a list moves
   idleFor += dt;
-  if (!pointerDown() && !moving && !screen.asleep) {
+  if (!pointerDown() && !moving && (!screen.asleep || screen.peeking)) {   // peeking: a notification's cover (the song's) shows
     if (decodeOne()) ui.dirty = true;
     else if (idleFor > 1 && warmQueue.length > 0) warmOne(W, H);
     else if (idleFor > 1.5) prefetchSome();
