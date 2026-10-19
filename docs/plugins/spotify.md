@@ -24,6 +24,12 @@ Spotify Connect device. One login on a computer, then the plugin refreshes the a
    the one login. A device gets the file beside the app when it is installed (examples/music/install.sh copies it to a
    TouchPad). The device that runs the program needs no browser.
 
+On a computer with a browser the app can do the login itself, with the client id of an earlier login (the file keeps it):
+`new Login(sp.clientId, sp.file)` serves the redirect on port 8765, `openUrl(login.url)` (`zinc:system/opener`, the
+permission `opener`) opens the consent page, and when `login.status` is `'done'` the file is written: `sp.reload()` reads
+it. `status` is `'failed'` with `error` when Spotify refuses, when the port is taken, or after `cancel()`.
+`examples/music` does this on macOS (the Spotify page); a tablet keeps the instructions above.
+
 Things to know: since 2026-07-20 a refresh token expires six months after the login, and refreshing does not extend it.
 When it does, `problem` becomes `'login expired'`: run the script again. Spotify may rotate the refresh token; the plugin
 then rewrites the file. Keep the file private and out of git: it gives access to the account.

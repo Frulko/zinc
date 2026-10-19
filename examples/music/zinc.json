@@ -25,6 +25,7 @@
       "kiosk": true
     }
   },
+  "permissions": ["opener", "fs", "net"],
   "requires": [
     "display",
     "pointer|touch"

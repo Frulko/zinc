@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- `zinc:spotify`: `Login` logs in from the app on a computer with a browser (the redirect served on port 8765), and `reload()` reads the login file again; the music example connects Spotify from its Spotify page on macOS.
+
 ## [0.3.1] - 2026-10-19
 
 ### Fixed

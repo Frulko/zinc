@@ -1,9 +1,11 @@
 // zinc:spotify — the Spotify Web API for a remote (docs/plugins/spotify.md, docs/reports/spotify-web-api.md): the account's
 // playlists, liked songs, recent plays and search, and starting them on a Spotify Connect device (a Sonos room, a computer...).
-// The login is done once on a computer (plugins/spotify/login.py, PKCE): it writes { client_id, refresh_token }; this module
+// The login is done once on a computer (Login below, or plugins/spotify/login.py; PKCE): it writes { client_id, refresh_token }; this module
 // refreshes the access token, saves the refresh token Spotify rotates, and calls the API over HTTPS.
-import { exists, readText, writeText } from 'zinc:fs';
-import { env } from 'zinc:sys';
+import { exists, readText, writeText, chmod } from 'zinc:fs';
+import { env, randomBytes, utf8Encode } from 'zinc:sys';
+import { serveAsync, stop, Request, Reply } from 'zinc:net';
+import { sha256, base64Encode } from 'zinc:web';
 
 const API = 'https://api.spotify.com/v1';
 const TIMEOUT_MS = 10000;
@@ -93,11 +95,19 @@ export class Spotify {
   /** Why the account cannot be used ('' when it can): no login file, or a login to do again (it expires after six months). */
   problem: string = '';
 
+  private own: string;
+
   constructor(file: string) {
-    // a program without its own login file takes the machine's shared one, $ZINC_HOME/spotify.json (~/.zinc), so every app of a desktop
-    // uses one login (login.py writes it there); a device (Android, webOS) gets that file beside the app when it is installed
-    const home = env('ZINC_HOME') !== '' ? env('ZINC_HOME') : env('HOME') !== '' ? env('HOME') + '/.zinc' : '';
-    this.file = !exists(file) && home !== '' && exists(home + '/spotify.json') ? home + '/spotify.json' : file;
+    this.own = file;
+    this.file = file;
+    this.reload();
+  }
+  /** Reads the login file again (after a Login): a program without its own file takes the machine's shared one, sharedLoginFile(),
+   *  so every app of a desktop uses one login; a device (Android, webOS) gets that file beside the app when it is installed. */
+  reload(): void {
+    const shared = sharedLoginFile();
+    this.file = !exists(this.own) && shared !== '' && exists(shared) ? shared : this.own;
+    this.problem = ''; this.token = ''; this.expires = 0;
     if (!exists(this.file)) { this.problem = 'not logged in'; return; }
     try {
       const j = JSON.parse(readText(this.file));
@@ -244,4 +254,84 @@ export class Spotify {
   async queue(uri: string): Promise<void> { await this.call('POST', `/me/player/queue?uri=${encodeURIComponent(uri)}`); }
   async isLiked(uri: string): Promise<boolean> { const j = await this.call('GET', `/me/library/contains?uris=${encodeURIComponent(uri)}`); return j !== null && j[0] === true; }
   async setLiked(uri: string, liked: boolean): Promise<void> { await this.call(liked ? 'PUT' : 'DELETE', `/me/library?uris=${encodeURIComponent(uri)}`); }
+}
+
+/** The machine's shared login, $ZINC_HOME/spotify.json (~/.zinc): what Login and login.py write and every app of the desktop reads; '' without a home. */
+export function sharedLoginFile(): string {
+  const home = env('ZINC_HOME') !== '' ? env('ZINC_HOME') : env('HOME') !== '' ? env('HOME') + '/.zinc' : env('USERPROFILE') !== '' ? env('USERPROFILE') + '/.zinc' : '';
+  return home === '' ? '' : home + '/spotify.json';
+}
+
+const REDIRECT = 'http://127.0.0.1:8765/callback';   // the redirect URI of the app on developer.spotify.com/dashboard, as login.py has it
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative ' +
+  'user-library-read user-library-modify user-read-recently-played user-read-playback-position';
+
+function b64url(b: u8[]): string { return base64Encode(b).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', ''); }
+function queryParam(path: string, name: string): string {
+  const q = path.indexOf('?');
+  if (q < 0) return '';
+  for (const kv of path.slice(q + 1).split('&')) {
+    const eq = kv.indexOf('=');
+    if (eq > 0 && kv.slice(0, eq) === name) return decodeURIComponent(kv.slice(eq + 1).replaceAll('+', ' '));
+  }
+  return '';
+}
+
+/** The login of a computer with a browser, in the app (PKCE, what login.py does): open `url` in the browser; Spotify sends the consent
+ *  back to http://127.0.0.1:8765/callback, served here, which trades it for a refresh token and writes `file` (mode 0600). `status` is
+ *  'waiting', then 'done' or 'failed' (`error` says why); then Spotify.reload() reads the file. The client id is the one of the
+ *  developer app, kept in the login file of an earlier login. */
+export class Login {
+  url: string = '';
+  status: string = 'waiting';
+  error: string = '';
+  private clientId: string;
+  private file: string;
+  private verifier: string;
+  private state: string;
+
+  constructor(clientId: string, file: string) {
+    this.clientId = clientId; this.file = file;
+    this.verifier = b64url(randomBytes(64));   // 86 characters of [A-Za-z0-9_-]: PKCE asks for 43 to 128
+    this.state = b64url(randomBytes(16));
+    const challenge = b64url(sha256(utf8Encode(this.verifier)));
+    this.url = 'https://accounts.spotify.com/authorize?client_id=' + encodeURIComponent(clientId) + '&response_type=code&redirect_uri=' +
+      encodeURIComponent(REDIRECT) + '&scope=' + encodeURIComponent(SCOPES) + '&state=' + this.state + '&code_challenge_method=S256&code_challenge=' + challenge;
+    try { serveAsync(8765, (req: Request): Promise<Reply> => this.answer(req)); }
+    catch (e) { this.status = 'failed'; this.error = 'port 8765: ' + e.message; }
+  }
+  /** Stops waiting for the browser. */
+  cancel(): void { if (this.status === 'waiting') { stop(); this.status = 'failed'; this.error = 'cancelled'; } }
+
+  private page(status: i32, text: string): Reply {
+    return { status, contentType: 'text/html; charset=utf-8', body: '<!doctype html><meta charset="utf-8"><title>Spotify</title><body style="font: 18px system-ui; margin: 4em; text-align: center">' + text + '</body>' };
+  }
+  private async answer(req: Request): Promise<Reply> {
+    if (!req.path.startsWith('/callback')) return this.page(404, 'Not found');
+    if (this.status !== 'waiting') return this.page(410, 'This login is over: start it again from the app.');
+    const code = queryParam(req.path, 'code');
+    if (queryParam(req.path, 'state') !== this.state || code === '') {
+      const why = queryParam(req.path, 'error');
+      return this.finish(this.page(400, 'Spotify did not grant the access' + (why !== '' ? ' (' + why + ')' : '') + '. Back to the app to try again.'), why !== '' ? why : 'no code');
+    }
+    try {
+      const body = 'grant_type=authorization_code&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(REDIRECT) +
+        '&client_id=' + encodeURIComponent(this.clientId) + '&code_verifier=' + this.verifier;
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST', body, timeoutMs: TIMEOUT_MS, headers: [['Content-Type', 'application/x-www-form-urlencoded']],
+      });
+      const j = JSON.parse(await r.text());
+      if (r.status !== 200 || j.refresh_token === undefined || j.refresh_token === null) return this.finish(this.page(502, 'Spotify refused the login: ' + j.error + '.'), 'token: ' + j.error);
+      writeText(this.file, JSON.stringify({ client_id: this.clientId, refresh_token: '' + j.refresh_token }));
+      try { chmod(this.file, 0o600); } catch (e) { /* a system without modes */ }
+      return this.finish(this.page(200, 'Connected to Spotify. You can close this tab and go back to the app.'), '');
+    } catch (e) {
+      return this.finish(this.page(502, 'The login failed: ' + e.message + '.'), e.message);
+    }
+  }
+  private finish(reply: Reply, error: string): Reply {
+    this.status = error === '' ? 'done' : 'failed'; this.error = error;
+    setTimeout(() => { stop(); }, 300);   // after the reply has gone out
+    return reply;
+  }
 }

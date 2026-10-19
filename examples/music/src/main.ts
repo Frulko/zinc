@@ -4,9 +4,10 @@
 import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, wheel, wheelX, scrollDX, scrollDY, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
-import { utf8Decode, device } from 'zinc:sys';
+import { utf8Decode, device, platform } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
-import { Spotify, Item, Playback } from 'zinc:spotify';
+import { Spotify, Item, Playback, Login } from 'zinc:spotify';
+import { openUrl } from 'zinc:system/opener';
 import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
@@ -83,6 +84,26 @@ screen.glances = cfg.glances;
 setNotificationsShown(cfg.notify);
 const spotify = new Spotify('spotify.json');
 let spotifyUser = '';
+// a Mac has a browser: the Spotify page logs in from here (zinc:spotify Login), with the client id of the last login; a tablet keeps the
+// instructions for the computer (spotifyPage)
+const browserHere = platform() === 'macos';
+let spLogin: Login | null = null;
+function startSpotifyLogin(): void {
+  spLogin = new Login(spotify.clientId, spotify.file);
+  if ((spLogin as Login).status === 'waiting') openUrl((spLogin as Login).url);
+  ui.dirty = true;
+}
+/** The login ended in the browser: on success the account is read again and the page loads. */
+function spotifyLoginTick(): void {
+  if (spLogin === null || (spLogin as Login).status === 'waiting') return;
+  if ((spLogin as Login).status === 'done') {
+    spLogin = null;
+    spotify.reload(); spotifyUser = '';
+    spState = ['', '', '', '', ''];
+    if (page === SPOTIFY && spTab < 4) loadSpotify(spTab, true);
+  }
+  ui.dirty = true;
+}
 let spPlayback = new Playback();
 let liked = false, likedUri = '';
 
@@ -1024,8 +1045,26 @@ function itemRows(list: Item[], top: number, bottom: number, W: number, scroll: 
   endScroll();
 }
 
+/** The Spotify page of a Mac that is not logged in: one button opens the consent page in the browser; the app follows the answer. */
+function spotifyConnect(W: number): void {
+  const x = SIDE + P, w = W - SIDE - P * 2, l = spLogin;
+  card(x, 110, w, 220);
+  glyph('library', x + 24, 134, 32, GREEN);
+  drawText(F.head, x + 72, 138, spotify.problem === 'login expired' ? 'La connexion Spotify a expiré' : 'Spotify n\'est pas connecté', TEXT, 255, 0);
+  if (l !== null && (l as Login).status === 'waiting') {
+    label(F.small, x + 24, 196, 'Termine la connexion dans le navigateur qui vient de s\'ouvrir.', TEXT, w - 48);
+    spinner(x + 36, 266, 12);
+    pill('sp/login/cancel', x + 64, 246, 'Annuler', TEXT, FILL, () => { if (spLogin !== null) (spLogin as Login).cancel(); spLogin = null; ui.dirty = true; });
+    return;
+  }
+  const failed = l !== null && (l as Login).error !== 'cancelled' ? (l as Login).error : '';
+  label(F.small, x + 24, 196, failed !== '' ? `La connexion n'a pas abouti (${failed}) : réessaie.` : spotify.problem === 'login expired' ? 'Spotify demande de se reconnecter tous les six mois.' : 'Une connexion pour toutes les apps de ce Mac.', failed !== '' ? TEXT : TEXT2, w - 48);
+  pill('sp/login', x + 24, 246, 'Se connecter à Spotify', 0x000000, GREEN, startSpotifyLogin, 'library');
+}
+
 function spotifyPage(W: number, H: number): void {
   header('Spotify');
+  if (!spotify.ready() && browserHere && spotify.clientId !== '') { spotifyConnect(W); return; }
   if (!spotify.ready()) {
     const x = SIDE + P, w = W - SIDE - P * 2;
     card(x, 110, w, 250);
@@ -1396,6 +1435,7 @@ onFrame((dt: number) => {
   // the popover: the rooms follow a change of the group's volume (Sonos scales each room), read once the sliders are let go
   if (volumeOpen && tRooms >= 1) { tRooms = 0; if (volumeHeld <= 0) pollMembers(); }
   if (page === NOW && group !== null && (group as Group).track.source === 'spotify' && tSpotify >= 5 && !screen.asleep) { tSpotify = 0; pollSpotify(); }
+  spotifyLoginTick();
   if (volumeHeld > 0) volumeHeld -= dt;
   weatherTick(dt, !screen.asleep);
   if (!screen.asleep) batteryTick(dt);
