@@ -65,6 +65,7 @@ import {
   SLIDE_CLOCK,
   SLIDE_COUNT,
   SLIDE_NOTIFICATIONS,
+  SLIDE_PLAYER,
   SLIDE_RINGS,
   SLIDE_WEATHER,
   STATUS_BAR_HEIGHT,
@@ -102,6 +103,7 @@ import {
   tickNotificationRelay,
 } from './services/notify-service';
 import { tickSpotifyAccount } from './services/spotify-account';
+import { tickQueueContinuation } from './services/spotify-on-sonos';
 import { SidebarNode } from './components/sidebar';
 import { StatusBarNode, getCurrentClockParts } from './components/status-bar';
 import { VolumePopoverNode } from './components/volume-popover';
@@ -875,7 +877,18 @@ onFrame((deltaSeconds: number) => {
   ) {
     spotifyPollTimerSeconds = 0;
     pollSpotifyPlaybackState();
+  } else if (
+    appState.currentPage === PAGE_NOW_PLAYING &&
+    appState.targetSlideIndex === SLIDE_PLAYER &&
+    appState.spotifyClient.ready() &&
+    spotifyPollTimerSeconds >= 8 &&
+    !appState.screenPower.asleep
+  ) {
+    // what the account plays elsewhere ("Reprendre ici")
+    spotifyPollTimerSeconds = 0;
+    pollSpotifyPlaybackState();
   }
+  tickQueueContinuation();
   if (appState.volumeHoldCooldownSeconds > 0) {
     appState.volumeHoldCooldownSeconds -= deltaSeconds;
   }

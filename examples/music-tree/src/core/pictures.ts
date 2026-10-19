@@ -85,6 +85,11 @@ export function getPicture(url: string): i32 {
   return -1;
 }
 
+/** True while a picture is asked for and not yet decoded nor failed (a cover then shows a quiet tile, not a made-up one). */
+export function isPictureOnItsWay(url: string): boolean {
+  return url !== '' && cachedPicturesByUrl.get(url) === undefined;
+}
+
 /**
  * Précharge une image en arrière-plan pendant que l'application est au repos.
  * Retourne `false` s'il n'y a pas de créneau libre pour le moment.

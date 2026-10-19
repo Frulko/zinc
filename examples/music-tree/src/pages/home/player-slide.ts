@@ -8,6 +8,7 @@
 
 import { rrect, drawText, textWidth } from 'zinc:gfx';
 import { System, Group } from 'zinc:sonos';
+import { Item } from 'zinc:spotify';
 import {
   COLOR_ACCENT,
   COLOR_CARD_ELEVATED,
@@ -37,6 +38,7 @@ import { drawSidebarContent } from '../../components/sidebar';
 import { saveAppConfig } from '../../services/config';
 import {
   appState,
+  getConnectSongOfGroup,
   getGroupArtworkUrl,
   getTrackSourceLabel,
   getInterpolatedTrackPositionSeconds,
@@ -49,6 +51,7 @@ import {
   selectActiveSonosGroup,
   discoverSonosSystem,
 } from '../../state';
+import { dismissHandoffCard, playsElsewhere, resumeHere } from '../../services/spotify-on-sonos';
 
 /**
  * Dessine l'état vide lorsqu'aucune enceinte Sonos n'a encore été trouvée.
@@ -104,6 +107,32 @@ function drawGroupVolumeBar(x: number, y: number, width: number, group: Group): 
     6
   );
   drawGlyph('volume-2', x + width - 24, y - 11, 22, COLOR_TEXT_SECONDARY);
+}
+
+/**
+ * "Reprendre ici", under the volume: the account plays on another device; its cover, where it plays and what, and the button that
+ * moves it to the group chosen here.
+ */
+function drawHandoffCard(x: number, y: number, width: number, group: Group): void {
+  const playback = appState.spotifyPlayback;
+  const song = playback.item;
+  const cardHeight = 72;
+  rrect(x, y, width, cardHeight, 18, COLOR_CARD_ELEVATED, 240);
+  drawCoverArt(song.thumb !== '' ? song.thumb : song.art, song.name, x + 12, y + 12, 48, 8);
+  const buttonLabel = 'Reprendre ici';
+  const buttonWidth = textWidth(Fonts.smallBold, buttonLabel, 0) + 36 + 22;
+  const textWidthLeft = width - 12 - 48 - 16 - buttonWidth - 16 - 44;
+  drawLabel(Fonts.tiny, x + 76, y + 14, `En cours sur ${playback.device.name} · vers ${group.name()}`, COLOR_GREEN, textWidthLeft);
+  drawLabel(
+    Fonts.smallBold,
+    x + 76,
+    y + 36,
+    song.subtitle !== '' ? `${song.name} · ${song.subtitle}` : song.name,
+    COLOR_TEXT_PRIMARY,
+    textWidthLeft
+  );
+  drawPillButton('now/handoff', x + width - 44 - buttonWidth, y + 16, buttonLabel, 0x000000, COLOR_GREEN, resumeHere, 'audio-lines');
+  drawIconButton('now/handoff/x', 'x', x + width - 22, y + cardHeight / 2, 16, COLOR_TEXT_SECONDARY, dismissHandoffCard);
 }
 
 /**
@@ -178,7 +207,8 @@ export class PlayerSlideNode extends DisplayObject {
     const coverTopY = isFullScreen ? 86 : 96;
     drawCardShadow(contentStartX, coverTopY, coverSize, coverSize, 14);
 
-    const isNothingPlaying = track.title === '' && track.station === '';
+    const connectSong = getConnectSongOfGroup(group);
+    const isNothingPlaying = track.title === '' && track.station === '' && connectSong === null;
     if (isNothingPlaying) {
       rrect(contentStartX, coverTopY, coverSize, coverSize, 14, COLOR_CARD_ELEVATED, 255);
       drawGlyph(
@@ -205,7 +235,10 @@ export class PlayerSlideNode extends DisplayObject {
     const rightColumnWidth = viewWidth - rightColumnX - (isFullScreen ? 64 : PAGE_PADDING);
     let currentTextY = coverTopY + 6;
 
-    const mainTitle = isNothingPlaying
+    const mainTitle =
+      connectSong !== null && (track.title === '' || track.title === 'Spotify')
+        ? (connectSong as Item).name
+        : isNothingPlaying
       ? 'Rien en lecture'
       : track.title !== ''
       ? track.title
@@ -225,6 +258,8 @@ export class PlayerSlideNode extends DisplayObject {
     const artistSubtitle =
       track.artist !== ''
         ? track.artist
+        : connectSong !== null && (connectSong as Item).subtitle !== ''
+        ? (connectSong as Item).subtitle
         : track.source === 'spotify' && track.title === ''
         ? group.playing()
           ? 'Spotify Connect'
@@ -468,6 +503,9 @@ export class PlayerSlideNode extends DisplayObject {
     // Curseur de volume du groupe
     const volumeBarY = coverTopY + coverSize + 50;
     drawGroupVolumeBar(contentStartX, volumeBarY, viewWidth - contentStartX - PAGE_PADDING, group);
+    if (playsElsewhere()) {
+      drawHandoffCard(contentStartX, volumeBarY + 46, viewWidth - contentStartX - PAGE_PADDING, group);
+    }
 
     // Raccourcis vers les autres groupes d'enceintes en bas de l'écran
     if (appState.sonosSystem !== null && (appState.sonosSystem as System).groups.length > 1) {

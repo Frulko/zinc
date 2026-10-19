@@ -43,6 +43,7 @@ src/
 │   ├── remote-udp.ts                # Commandes physiques UDP sur le port 7777
 │   ├── weather-service.ts           # Prévisions Open-Meteo et géocodage des villes
 │   ├── spotify-account.ts           # Compte Spotify : connexion depuis un Mac, vérification, déconnexion
+│   ├── spotify-on-sonos.ts          # Spotify sur les enceintes : lecture, « Reprendre ici », la file qui continue
 │   └── notify-service.ts            # Relais de notifications macOS (zinc:link) et cache d'icônes
 ├── components/
 │   ├── layout-nodes.ts              # Nœuds Flexbox : VBox, HBox, SpacerNode, CardBox, ScrollContainerNode, LabelNode, IconNode, PillButtonNode, SegmentedControlNode, SliderNode, CoverArtNode...

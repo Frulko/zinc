@@ -7,7 +7,7 @@
 // aux noms explicites sans dupliquer la logique métier.
 
 import { exists, appendText, stat } from 'zinc:fs';
-import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
+import { discover, System, Group, Speaker } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
 import { openPort } from 'zinc:webos';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -329,8 +329,36 @@ export function getTrackSourceLabel(group: Group): string {
   return 'FLUX';
 }
 
+/** Whether a Spotify Connect device is speakers of this house: Spotify names a Sonos group after one of its rooms ("Bureau Plafond + 1"). */
+export function isOurSpeakers(deviceName: string): boolean {
+  if (appState.sonosSystem === null) return false;
+  const roomName = deviceName.toLowerCase().replace(/ \+ \d+$/, '');
+  const speakers = (appState.sonosSystem as System).speakers;
+  for (let index = 0; index < speakers.length; index++) {
+    if (speakers[index].name.toLowerCase() === roomName) return true;
+  }
+  return false;
+}
+
+/** The account's song when the group plays it through Spotify Connect: the speakers then tell neither its title nor its cover. */
+export function getConnectSongOfGroup(group: Group): Item | null {
+  const playback = appState.spotifyPlayback;
+  if (
+    group.track.source !== 'spotify' ||
+    group.track.art !== '' ||
+    !playback.active ||
+    playback.item.uri === '' ||
+    !isOurSpeakers(playback.device.name)
+  ) {
+    return null;
+  }
+  return playback.item;
+}
+
 export function getGroupArtworkUrl(group: Group): string {
   if (group.track.art !== '') return group.track.art;
+  const connectSong = getConnectSongOfGroup(group);
+  if (connectSong !== null) return (connectSong as Item).art;
   for (let index = 0; index < appState.myStations.length; index++) {
     const station = appState.myStations[index];
     if (station.name === group.track.station) return station.artworkUrl;
@@ -545,6 +573,7 @@ export async function pollActiveGroupMemberVolumes(): Promise<void> {
 export async function pollSpotifyPlaybackState(): Promise<void> {
   if (appState.isPollingSpotify || !appState.spotifyClient.ready()) return;
   appState.isPollingSpotify = true;
+  const shownBefore = spotifyPlaybackSignature();
   try {
     appState.spotifyPlayback = await appState.spotifyClient.playback();
     const trackUri = appState.spotifyPlayback.item.uri;
@@ -556,7 +585,13 @@ export async function pollSpotifyPlaybackState(): Promise<void> {
     /* affiché lors d'une action explicite */
   }
   appState.isPollingSpotify = false;
-  uiState.dirty = true;
+  // a frame only when the answer changes what is shown (this runs every 8 s on the player)
+  if (spotifyPlaybackSignature() !== shownBefore) uiState.dirty = true;
+}
+
+function spotifyPlaybackSignature(): string {
+  const playback = appState.spotifyPlayback;
+  return `${playback.active}|${playback.playing}|${playback.item.uri}|${playback.device.name}|${playback.shuffle}|${playback.repeat}|${appState.isCurrentTrackLiked}`;
 }
 
 // ----------------------------------------------------------------------------
@@ -773,96 +808,6 @@ export function searchRadiosByQuery(): void {
       appState.searchedStationsState = 'Annuaire injoignable : ' + error.message;
     }
   });
-}
-
-export function playSpotifyItem(item: Item): void {
-  if (appState.sonosSystem === null || appState.activeGroup === null) {
-    showToast('Aucune enceinte');
-    return;
-  }
-  const group = appState.activeGroup as Group;
-  const system = appState.sonosSystem as System;
-  showToast(`${item.name}…`);
-
-  runSafeNetworkAction('Spotify', async (): Promise<void> => {
-    if (appState.spotifyUserName === '') {
-      appState.spotifyUserName = await appState.spotifyClient.me();
-    }
-    const connectDevice = await appState.spotifyClient.device(group.coordinator.name);
-    if (connectDevice !== null && !connectDevice.restricted) {
-      await appState.spotifyClient.play(item, connectDevice.id);
-    } else {
-      await playSpotifyThroughSonosService(system, group, item);
-    }
-    showToast(`${item.name} sur ${group.name()}`);
-    navigateToHomePlayer();
-    await sleepMilliseconds(800);
-    await pollActiveSonosGroup();
-    await pollSpotifyPlaybackState();
-  });
-}
-
-async function playSpotifyThroughSonosService(
-  system: System,
-  group: Group,
-  item: Item
-): Promise<void> {
-  if (appState.spotifyServiceIdOnSonos < 0) {
-    appState.spotifyServiceIdOnSonos = await serviceId(system, 'Spotify');
-  }
-  if (appState.spotifyServiceIdOnSonos < 0) {
-    throw new Error("le service Spotify n'est pas disponible sur ces enceintes");
-  }
-
-  const targetUri =
-    item.kind === 'liked'
-      ? `spotify:user:${appState.spotifyClient.userId}:collection`
-      : item.uri;
-
-  const candidateSerialNumbers: i32[] = [];
-  if (appState.config.spotifyAccountSerial > 0) {
-    candidateSerialNumbers.push(appState.config.spotifyAccountSerial);
-  }
-  const favoriteAccountSerial = await accountOf(system, appState.spotifyServiceIdOnSonos);
-  if (favoriteAccountSerial > 0 && candidateSerialNumbers.indexOf(favoriteAccountSerial) < 0) {
-    candidateSerialNumbers.push(favoriteAccountSerial);
-  }
-  for (let serial: i32 = 1; serial <= 4; serial++) {
-    if (candidateSerialNumbers.indexOf(serial) < 0) {
-      candidateSerialNumbers.push(serial);
-    }
-  }
-
-  let lastErrorMessage = '';
-  for (let index = 0; index < candidateSerialNumbers.length; index++) {
-    const serialNumber = candidateSerialNumbers[index];
-    try {
-      await sonosSpotify(
-        system,
-        group,
-        targetUri,
-        item.name,
-        appState.spotifyServiceIdOnSonos,
-        serialNumber
-      );
-      await sleepMilliseconds(2500);
-      await system.update(group);
-      if (group.playing()) {
-        if (appState.config.spotifyAccountSerial !== serialNumber) {
-          appState.config.spotifyAccountSerial = serialNumber;
-          saveAppConfig(appState.config);
-        }
-        return;
-      }
-    } catch (error) {
-      lastErrorMessage = error.message;
-    }
-  }
-  throw new Error(
-    `les Sonos n'ont pas pu lire « ${item.name} »${
-      lastErrorMessage !== '' ? ' (' + lastErrorMessage + ')' : ''
-    }. Ajoute une playlist Spotify aux favoris dans l'app Sonos, puis réessaie.`
-  );
 }
 
 /**

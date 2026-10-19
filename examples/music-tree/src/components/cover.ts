@@ -17,7 +17,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { registerTapZone, isZonePressed } from '../core/input';
-import { getPicture, getPictureFadeAlpha, drawPictureContained } from '../core/pictures';
+import { getPicture, getPictureFadeAlpha, drawPictureContained, isPictureOnItsWay } from '../core/pictures';
 import { drawCenteredText, drawGlyph, drawLabel } from './primitives';
 import { drawActivitySpinner } from './slider';
 
@@ -25,8 +25,9 @@ import { drawActivitySpinner } from './slider';
  * Dessine une pochette carrée de côté `size` en `(x, y)` :
  * - Si l'image réseau est prête, elle apparaît avec un fondu doux (`getPictureFadeAlpha`).
  * - Si `isStationLogo` vaut `true`, le logo est centré sur un carré clair avec une marge interne.
- * - En attendant le téléchargement (ou si aucune image n'existe), affiche un carré dégradé
- *   coloré déterministe avec les initiales du titre (ou une note de musique si le nom est vide).
+ * - While it loads: a quiet tile (and a spinner on a large cover).
+ * - When there is no picture at all (no URL, or one that cannot be read): a tile with a gradient picked from the title and its
+ *   initials (a note when the title is empty).
  */
 export function drawCoverArt(
   imageUrl: string,
@@ -38,6 +39,12 @@ export function drawCoverArt(
   isStationLogo: boolean = false
 ): void {
   const imageId = getPicture(imageUrl);
+  // On its way: a quiet tile (a spinner on a large cover), so a cover never shows the made-up tile and then switches to the real one
+  if (imageId < 0 && isPictureOnItsWay(imageUrl)) {
+    rrect(x, y, size, size, cornerRadius, isStationLogo ? 0xf2f2f7 : COLOR_CARD_ELEVATED, isStationLogo ? 40 : 255);
+    if (size >= 120) drawActivitySpinner(x + size / 2, y + size / 2, Math.min(18, size * 0.06));
+    return;
+  }
   const fadeAlpha = imageId >= 0 ? getPictureFadeAlpha(imageUrl) : 0;
 
   if (imageId >= 0 && fadeAlpha === 255 && !isStationLogo) {

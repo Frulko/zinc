@@ -61,8 +61,8 @@ import {
   appState,
   loadMoreSpotifyItems,
   loadSpotifyTab,
-  playSpotifyItem,
 } from '../../state';
+import { playSpotifyItem } from '../../services/spotify-on-sonos';
 import {
   canLogInFromThisDevice,
   cancelSpotifyLogin,
