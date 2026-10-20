@@ -4,7 +4,8 @@
 # answers --version and runs a copy of this zinc for the rest). Proves: the version stamp; --check (exit 10) on the default channel URL and on --channel beta;
 # a wrong checksum, a wrong signature, an unsigned manifest and a read-only install directory change nothing; the install swaps the directories and keeps
 # engine.prev, the link follows; --rollback swaps them back; the daily notice: on a terminal it says so once the background check has run, and it is silent
-# with ZINC_NO_UPDATE_CHECK, ZINC_CI, --quiet, without a terminal and offline; zinc doctor says it.
+# with ZINC_NO_UPDATE_CHECK, ZINC_CI, --quiet, without a terminal and offline; it shows on every command but --version and the like, and a Homebrew zinc
+# names brew upgrade in it and in zinc update (up to date or not); zinc doctor says it.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -55,6 +56,8 @@ refused() {   # refused <manifest> <expected message> <what>
 H="$tmp/brew/Cellar/zinc/$V/libexec"
 mkdir -p "$H/bin" && cp "$ZINC" "$H/bin/zinc" && cp "$E/.zinc-install" "$H/"
 out=$("$H/bin/zinc" update "file://$tmp/rel/$m.manifest" 2>&1); [ $? -eq 1 ] && echo "$out" | grep -q "brew upgrade zinc" || { echo "a Homebrew zinc is not sent to brew upgrade: $out"; fail=1; }
+manifest "$tmp/rel/same.manifest" "$V" "$sum" "$seed"   # up to date, it still says where the next release comes from
+out=$("$H/bin/zinc" update "file://$tmp/rel/same.manifest" 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q "is up to date" && echo "$out" | grep -q "brew upgrade zinc" || { echo "an up-to-date Homebrew zinc does not name brew upgrade: $out"; fail=1; }
 manifest "$tmp/rel/badsum.manifest" 99.0.0 "$(printf '%064d' 0)" "$seed"
 refused "$tmp/rel/badsum.manifest" "checksum mismatch" "a wrong checksum"
 manifest "$tmp/rel/badsig.manifest" 99.0.0 "$sum" "$other"
@@ -74,6 +77,10 @@ out=$(tty "$L" run "$tmp/hi.ts")
 n=0; while ! grep -q '"latest": "99.0.0"' "$ZINC_HOME/update-check.json" 2>/dev/null && [ $n -lt 50 ]; do sleep 0.1; n=$((n+1)); done
 grep -q '"latest": "99.0.0"' "$ZINC_HOME/update-check.json" 2>/dev/null || { echo "the background check wrote no result: $(cat "$ZINC_HOME/update-check.json" 2>&1)"; fail=1; }
 tty "$L" run "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available: run zinc update" || { echo "no notice on a terminal: $(tty "$L" run "$tmp/hi.ts")"; fail=1; }
+tty "$L" check "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available" || { echo "no notice on zinc check: $(tty "$L" check "$tmp/hi.ts")"; fail=1; }
+tty "$L" --version | grep -q "is available" && { echo "a notice on zinc --version"; fail=1; }
+# whatever installed it, the notice names its way: Homebrew
+tty "$H/bin/zinc" run "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available: run brew upgrade zinc" || { echo "no Homebrew notice: $(tty "$H/bin/zinc" run "$tmp/hi.ts")"; fail=1; }
 for quiet in "env ZINC_NO_UPDATE_CHECK=1" "env ZINC_CI=1" "env ZINC_HEADLESS=1" "env ZINC_DETERMINISTIC=1"; do
   tty $quiet "$L" run "$tmp/hi.ts" | grep -q "is available" && { echo "a notice with $quiet"; fail=1; }
 done

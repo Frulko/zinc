@@ -49,6 +49,7 @@ struct Install {
   fs::path engine;                          // <engine>: bin/zinc is the running binary
   std::map<std::string, std::string> conf;  // the marker's lines
   std::string why;                          // not empty: this zinc does not update itself, and what to do instead
+  std::string how;                          // how this install is updated, whatever it came from: "run zinc update", "run brew upgrade zinc"...
 };
 Install installOf() {
   Install in;
@@ -57,14 +58,20 @@ Install installOf() {
   in.engine = fs::path(exe).parent_path().parent_path();
   const std::size_t app = exe.find(".app/Contents/MacOS/");
   std::error_code ec;
-  if (app != std::string::npos)
+  in.how = "run zinc update";
+  if (app != std::string::npos) {
     in.why = "this zinc is the one inside " + exe.substr(0, app + 4) + ": download the new Zinc-Atelier-<version>-macos-<arch>.zip from " + releases() +
              " and put it in place of the app (the zinc CLI installed with install.sh updates itself with zinc update)";
-  else if (exe.find("/Cellar/zinc/") != std::string::npos)   // the formula of tools/homebrew-formula: Homebrew owns the files
+    in.how = "download the new Zinc Atelier from " + releases();
+  } else if (exe.find("/Cellar/zinc/") != std::string::npos) {   // the formula of tools/homebrew-formula: Homebrew owns the files
     in.why = "this zinc was installed by Homebrew: update it with  brew upgrade zinc";
-  else if (!fs::exists(in.engine / kMarker, ec))
+    in.how = "run brew upgrade zinc";
+  } else if (!fs::exists(in.engine / kMarker, ec)) {
+    const bool checkout = fs::exists(in.engine / ".git", ec);   // build/zinc of a clone: the engine is the checkout
     in.why = "this zinc was not installed by install.sh (it runs from " + in.engine.string() + "): update it the way it was installed (a source build: git pull, then "
              "tools/build zinc; a package manager: its upgrade command), or install the release with  curl -fsSL " + releases() + "/download/install.sh | sh";
+    in.how = checkout ? "run git pull, then tools/build zinc" : "update it the way it was installed";
+  }
   std::ifstream f(in.engine / kMarker);
   for (std::string l; std::getline(f, l);) if (const std::size_t eq = l.find('='); eq != std::string::npos) in.conf[l.substr(0, eq)] = l.substr(eq + 1);
   return in;
@@ -212,9 +219,17 @@ int updateCommand(const std::vector<std::string>& args) {
   if (!haveKey() && !envOn("ZINC_UPDATE_ALLOW_UNSIGNED"))
     std::fprintf(stderr, "zinc update: this build has no update key (update.pub is the placeholder): signed updates cannot be checked, unsigned ones need ZINC_UPDATE_ALLOW_UNSIGNED=1\n");
   const std::string murl = manifestUrl(in, channel, url);
-  if (!fetch(murl, info, err)) { std::fprintf(stderr, "zinc update: %s (%s)\n", err.c_str(), murl.c_str()); return 1; }
+  if (!fetch(murl, info, err)) {
+    std::fprintf(stderr, "zinc update: %s (%s)\n", err.c_str(), murl.c_str());
+    if (!in.why.empty()) std::fprintf(stderr, "zinc update: %s\n", in.why.c_str());
+    return 1;
+  }
   writeCache(info.version);
-  if (!newerVersion(info.version, version())) { std::printf("zinc %s is up to date (latest %s on %s)\n", version(), info.version.c_str(), channel.c_str()); return 0; }
+  if (!newerVersion(info.version, version())) {
+    std::printf("zinc %s is up to date (latest %s on %s)\n", version(), info.version.c_str(), channel.c_str());
+    if (!in.why.empty()) std::printf("%s\n", in.why.c_str());   // where the next one comes from: Homebrew, the app, the sources
+    return 0;
+  }
   std::printf("zinc %s is available (this is %s)%s%s\n", info.version.c_str(), version(), info.notes.empty() ? "" : ": ", info.notes.c_str());
   std::fflush(stdout);   // before what the install prints on stderr
   if (check) return 10;   // an update exists
@@ -225,18 +240,18 @@ int updateCommand(const std::vector<std::string>& args) {
 void updateNotice() {
   if (checksOff() || envOn("ZINC_HEADLESS") || envOn("ZINC_DETERMINISTIC") || !::isatty(2) || (std::getenv("ZINC_STEPS") && !std::strcmp(std::getenv("ZINC_STEPS"), "0"))) return;
   ::setenv("ZINC_NO_UPDATE_CHECK", "1", 1);   // the zincs this one starts (zinc dev's runs) stay silent
-  if (!installOf().why.empty() || !haveKey()) return;   // a source build, an app bundle, a build without a release key: nothing to say
+  if (!haveKey()) return;   // a build without a release key cannot check a release: nothing to say
   const Cache c = readCache();
-  if (!c.latest.empty() && newerVersion(c.latest, version())) {
+  if (!c.latest.empty() && newerVersion(c.latest, version())) {   // whatever installed this zinc, with the way it is updated
     const bool colour = !std::getenv("NO_COLOR");
-    std::fprintf(stderr, "%szinc %s is available: run zinc update%s\n", colour ? "\033[2m" : "", c.latest.c_str(), colour ? "\033[0m" : "");
+    std::fprintf(stderr, "%szinc %s is available: %s%s\n", colour ? "\033[2m" : "", c.latest.c_str(), installOf().how.c_str(), colour ? "\033[0m" : "");
   }
   if (std::time(nullptr) - c.checked >= 86400) { writeCache(c.latest); spawnCheck(); }   // the stamp first: one check a day, whatever runs meanwhile
 }
 
 std::string updateStatus() {
   const Install in = installOf();
-  if (!in.why.empty() || !haveKey()) return "";
+  if (!haveKey()) return "";
   if (checksOff()) return "?not checked (ZINC_NO_UPDATE_CHECK or CI)";
   Cache c = readCache();
   if (std::time(nullptr) - c.checked >= 86400 || c.latest.empty()) {
@@ -247,5 +262,7 @@ std::string updateStatus() {
   }
   return newerVersion(c.latest, version()) ? c.latest : "up to date";
 }
+
+std::string updateHow() { return installOf().how; }
 
 }  // namespace zn::tc

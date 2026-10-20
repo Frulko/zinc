@@ -530,11 +530,14 @@ on the status line; Help > Install the Update runs `zinc update`. The zinc insid
 running, notarized `.app` is not rewritten in place): it answers with the address of the release, whose
 `Zinc-Atelier-<version>-macos-<arch>.zip` replaces the app (or run `install.sh --atelier` again).
 
-**The daily notice.** `zinc run` and `zinc dev` print one dim line on stderr when a newer zinc exists
-("zinc 0.2.0 is available: run zinc update"). The check runs at most once a day, in a detached background process (one try,
+**The notice.** Every command (but `zinc update`, `zinc doctor`, `zinc lsp`, `zinc agent`, `zinc device` and the options such as
+`--version`) prints one dim line on stderr when a newer zinc exists, with the way this zinc is updated, whatever installed it:
+"zinc 0.2.0 is available: run zinc update" (install.sh), "...: run brew upgrade zinc" (Homebrew), "...: download the new Zinc
+Atelier from ..." (the app), "...: run git pull, then tools/build zinc" (a clone). `zinc update` on a zinc it does not replace
+says the same, up to date or not. The check runs at most once a day, in a detached background process (one try,
 1.5 s at most), so no command waits for the network, and offline it says nothing; its result is kept in
 `~/.zinc/update-check.json`. It is silent with `ZINC_NO_UPDATE_CHECK=1`, in CI (`CI`, `ZINC_CI`), with `ZINC_HEADLESS`,
-with `--quiet`, when stderr is not a terminal, and for a zinc that does not update itself. The short `zinc doctor` has a line
+with `--quiet`, when stderr is not a terminal, and for a build without a release key. The short `zinc doctor` has a line
 for it: "Zinc is up to date" or "Zinc 0.2.0 is available". `tests/t1/self_update.sh` proves all of it on a local release.
 
 Next: [security](08-security.md).

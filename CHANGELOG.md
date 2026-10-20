@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Changed
+- When a newer zinc exists, every command (not only `zinc run` and `zinc dev`) prints one dim line with the command that updates yours, whatever installed it: `zinc update`, `brew upgrade zinc`, the Zinc Atelier download, or `git pull` and `tools/build zinc` for a clone. `zinc update` on a Homebrew zinc says to use `brew upgrade zinc`, up to date or not.
+
 ## [0.4.0] - 2026-10-20
 
 ### Added

@@ -593,7 +593,8 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   line("ok", "Zinc " + version, engineRoot);
   if (const std::string up = zn::tc::updateStatus(); up == "up to date") line("ok", "Zinc is up to date", "");
   else if (!up.empty() && up[0] == '?') line("info", "Updates", up.substr(1));
-  else if (!up.empty()) { line("warn", "Zinc " + up + " is available", "this is " + version); todo.push_back("To update zinc, run  " + P.cmd("zinc update") + "  (" + P.cmd("zinc update --rollback") + " goes back)"); }
+  else if (!up.empty()) { line("warn", "Zinc " + up + " is available", "this is " + version); const std::string how = zn::tc::updateHow();
+    todo.push_back(how == "run zinc update" ? "To update zinc, run  " + P.cmd("zinc update") + "  (" + P.cmd("zinc update --rollback") + " goes back)" : "To update zinc, " + how); }
   line("ok", "Window and graphics", "built in: nothing to install" + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
   const std::vector<zn::tc::PinnedTool> tools = zn::tc::pinnedTools();
   for (const zn::tc::PinnedTool& t : tools) {

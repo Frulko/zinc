@@ -1428,7 +1428,12 @@ int main(int argc, char** argv) {
     for (int j = k; j + used < argc; ++j) argv[j] = argv[j + used];
     argc -= used; --k;
   }
-  if (argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev"))) zn::tc::updateNotice();   // one dim line a day at most when a newer zinc exists
+  {   // one dim line when a newer zinc exists, on every command but those that say it themselves (update, doctor), speak a protocol (lsp, agent,
+      // device) or answer a script (--version, --root...)
+    const char* c = argc >= 2 ? argv[1] : "";
+    if (c[0] != '-' && std::strcmp(c, "update") && std::strcmp(c, "doctor") && std::strcmp(c, "lsp") && std::strcmp(c, "agent") && std::strcmp(c, "device"))
+      zn::tc::updateNotice();
+  }
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
 #ifdef ZN_AGENT   // the device agent and its client (ZN-729); before --help is read, which belongs to the command a remote shell runs

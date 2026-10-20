@@ -65,8 +65,8 @@ zinc update --rollback   # back to the previous version
 
 `zinc update` downloads the new release for your machine, checks its signature and its SHA-256, and puts it in place of
 `~/.zinc/engine` in one step (the old one stays in `~/.zinc/engine.prev`); if anything fails, nothing changes.
-`zinc update --channel beta` follows the beta releases (`--channel stable` goes back). Once a day at most, `zinc run` and
-`zinc dev` print one dim line when a newer zinc exists, and `zinc doctor` says whether yours is up to date; the check runs in
+`zinc update --channel beta` follows the beta releases (`--channel stable` goes back). When a newer zinc exists, every command
+prints one dim line with the command that updates yours (`zinc update`, `brew upgrade zinc`...), and `zinc doctor` says whether yours is up to date; the check runs in
 the background and never slows a command. Turn it off with `export ZINC_NO_UPDATE_CHECK=1` (it is already off in CI and
 when the output is not a terminal). Zinc Atelier has Help > Check for Updates…; the app itself is updated by downloading its
 new zip (or `install.sh --atelier` again). A zinc built from the sources updates with `git pull` and `tools/build zinc`. A zinc installed with Homebrew updates with

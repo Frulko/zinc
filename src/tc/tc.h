@@ -153,9 +153,12 @@ const char* releaseKey();
 // `zinc update [--check] [--rollback] [--channel stable|beta] [manifest-url]`: the engine installed by install.sh (<engine>/.zinc-install) replaced by the
 // release of its channel, verified, unpacked beside it and swapped in as a whole directory (the old one kept as <engine>.prev).
 int updateCommand(const std::vector<std::string>& args);
-// One dim line on stderr when the daily check found a newer release (zinc run, zinc dev); the check itself runs in a detached child.
+// One dim line on stderr when the daily check found a newer release (every command but a few: main.cpp), with the way this install is updated
+// (install.sh, Homebrew, the app, the sources); the check itself runs in a detached child.
 void updateNotice();
-// For zinc doctor: "" when this zinc does not update itself (a source build, an app bundle), else "up to date" / "<version> available" / "not checked: <why>".
+// How this install is updated: "run zinc update", "run brew upgrade zinc", "download the new Zinc Atelier from ...", "run git pull, then tools/build zinc".
+std::string updateHow();
+// For zinc doctor: "" for a build without a release key, else "up to date" / "<version> available" / "not checked: <why>".
 std::string updateStatus();
 
 }  // namespace zn::tc
