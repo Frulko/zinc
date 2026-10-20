@@ -623,6 +623,22 @@ export function scrollTo(h: i32, x: number, y: number): void {
   if (n.virt !== null) layoutDirty = true;
   paintDirty = true;
 }
+/** Moves a container's offset by (dx, dy) without stopping a scroll in progress (fingers, momentum, inertia, wheel easing): content inserted
+ *  above what is shown keeps its place on screen while the user scrolls through it. At rest it is scrollTo. */
+export function scrollBy(h: i32, dx: number, dy: number): void {
+  const n = node(h);
+  if (scrollers.indexOf(h) < 0) { scrollTo(h, n.sx + dx, n.sy + dy); return; }
+  shiftAxis(n.ax, dx); shiftAxis(n.ay, dy);
+  n.sx += dx; n.sy += dy;
+  if (n.virt !== null) layoutDirty = true;
+  paintDirty = true;
+}
+function shiftAxis(x: ScrollAxis | null, d: number): void {
+  if (x === null || d === 0) return;
+  const a = x as ScrollAxis;
+  a.pos += d; a.raw += d; a.target += d; a.p0 += d;
+  for (let i = 0; i < a.ps.length; i++) a.ps[i] += d;
+}
 /**
  * Makes a scroll container a virtual list of `count` rows of `itemH` pixels: only the rows in view (+3) are built by
  * `render(i)`, positioned absolutely, and destroyed when they scroll out. Calling it again with a new count or render
@@ -4565,7 +4581,7 @@ function editDirect(h: i32, n: UiNode, e: Edit, dx: number, dy: number): void {
   e.sx = Math.max(0, Math.min(editMaxX(n, e), e.sx + dx));
   wakeEdit(h);
 }
-function editRelease(h: i32): void { const e = nodes[h].ed; if (e !== null && e.ay !== null) releaseAxis(e.ay as ScrollAxis, editMaxY(nodes[h], e as Edit)); wakeEdit(h); }
+function editRelease(h: i32, os: boolean = false): void { const e = nodes[h].ed; if (e !== null && e.ay !== null) releaseAxis(e.ay as ScrollAxis, editMaxY(nodes[h], e as Edit), os); wakeEdit(h); }
 /** Advances the text areas whose scroll is animating (wheel easing, inertia, bounce). */
 function stepEdits(dt: number): void {
   for (let i = editScrollers.length - 1; i >= 0; i--) {
@@ -4711,11 +4727,14 @@ function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: n
 //            overscrolled -> bounce with that velocity, fast enough -> inertia, else stop
 //   inertia  v(t) = v0 * 0.998^ms (iOS normal deceleration); crossing an edge hands the velocity to the bounce
 //   bounce   critically damped spring toward the edge (omega 10/s, like the iOS / GTK overshoot)
-//   wheel    mouse-wheel notches: a critically damped spring (omega 30/s) toward a target 48 px per notch
+//   wheel    mouse-wheel notches: a critically damped spring (omega 30/s) toward a target 48 px per notch (a jump with reduced motion)
+//   momentum macOS sends the inertia itself after the lift (HAL phases 4 and 5): the content follows those deltas 1:1, nothing is added, and an
+//            edge reached hands their velocity to the bounce (the rest of the stream is dropped); 100 ms without one and it rests
 // Trackpad deltas arrive resampled at frame time (HAL scroll_dx / dy), so the stream is even and nothing judders.
 const RUBBER_C: number = 0.55, DECEL: number = 0.998, BOUNCE_W: number = 10, WHEEL_W: number = 30;
 const MIN_FLING: number = 100, MAX_FLING: number = 8000, MAX_EDGE_V: number = 5000, NOTCH_PX: number = 48;
-const IDLE: i32 = 0, DIRECT: i32 = 1, INERTIA: i32 = 2, BOUNCE: i32 = 3, WHEEL: i32 = 4, FLING: i32 = 5, STRETCH: i32 = 6;
+const IDLE: i32 = 0, DIRECT: i32 = 1, INERTIA: i32 = 2, BOUNCE: i32 = 3, WHEEL: i32 = 4, FLING: i32 = 5, STRETCH: i32 = 6, MOMENTUM: i32 = 7;
+const MOMENTUM_GAP: number = 100;
 // Android's physics instead (platformStyle() 'android', ZINC_PLATFORM=android; lib/std/overscroller.ts): no rubber band; a pull past an edge
 // stretches the content (Android 12+) or lights a glow (before), the fling is OverScroller's spline, and an edge it reaches absorbs it as a stretch
 const ANDROID_SCROLL: boolean = platform() === 'android';
@@ -4764,7 +4783,8 @@ function releaseVelocity(a: ScrollAxis): number {
   for (let i = 0; i < n; i++) { const dt = a.ts[i] - mt; num += dt * (a.ps[i] - mp); den += dt * dt; }
   return den > 0 ? Math.max(-MAX_FLING, Math.min(MAX_FLING, num / den * 1000)) : 0;
 }
-function releaseAxis(a: ScrollAxis, max: number): void {
+/** The fingers left: bounce, inertia or rest; with `os` the OS sends the momentum (phase 5, momentumBy) instead of the engine's inertia. */
+function releaseAxis(a: ScrollAxis, max: number, os: boolean = false): void {
   if (a.mode !== DIRECT) return;
   const v = releaseVelocity(a);
   if (ANDROID_SCROLL) {
@@ -4774,8 +4794,19 @@ function releaseAxis(a: ScrollAxis, max: number): void {
     return;
   }
   if (a.pos < 0 || a.pos > max) { a.mode = BOUNCE; a.v = Math.max(-MAX_EDGE_V, Math.min(MAX_EDGE_V, v)); }
+  else if (os) { a.mode = MOMENTUM; a.v = v; }
   else if (Math.abs(v) > MIN_FLING) { a.mode = INERTIA; a.v = v; }
   else { a.mode = IDLE; a.v = 0; }
+}
+/** A delta of the OS momentum: followed as it is; past an edge its velocity goes on as the bounce. */
+function momentumBy(a: ScrollAxis, d: number, max: number, dim: number): void {
+  if (a.mode !== MOMENTUM || d === 0) return;
+  a.raw = a.pos + d;
+  a.ts.push(clock); a.ps.push(a.raw);
+  while (a.ts.length > 1 && clock - a.ts[0] > 100) { a.ts.shift(); a.ps.shift(); }
+  if (a.raw >= 0 && a.raw <= max) { a.pos = a.raw; return; }
+  a.v = Math.max(-MAX_EDGE_V, Math.min(MAX_EDGE_V, releaseVelocity(a)));
+  a.pos = banded(a.raw, max, dim); a.mode = BOUNCE;
 }
 /** Critically damped spring step toward `to` (semi-implicit, small substeps: stable at any frame time). */
 function springStep(a: ScrollAxis, to: number, w: number, dt: number): boolean {
@@ -4810,7 +4841,15 @@ function stepAxis(a: ScrollAxis, max: number, dt: number): boolean {
     return true;
   }
   if (a.mode === BOUNCE) { if (!springStep(a, Math.max(0, Math.min(max, a.pos < 0 ? 0 : max)), BOUNCE_W, dt)) a.mode = IDLE; return a.mode !== IDLE; }
-  if (a.mode === WHEEL) { if (!springStep(a, a.target, WHEEL_W, dt)) a.mode = IDLE; return a.mode !== IDLE; }
+  if (a.mode === WHEEL) {
+    if (reduceMotion) { a.pos = a.target; a.v = 0; a.mode = IDLE; return false; }
+    if (!springStep(a, a.target, WHEEL_W, dt)) a.mode = IDLE;
+    return a.mode !== IDLE;
+  }
+  if (a.mode === MOMENTUM) {   // moved by momentumBy; it rests when the deltas stop
+    if (a.ts.length > 0 && clock - a.ts[a.ts.length - 1] <= MOMENTUM_GAP) return true;
+    a.mode = IDLE; a.v = 0; return false;
+  }
   return a.mode === DIRECT;
 }
 function maxScrollY(n: UiNode): number { return Math.max(0, n.contentH - n.lh); }
@@ -4833,17 +4872,17 @@ function directScroll(h: i32, dx: number, dy: number): void {
   scrolled(n);
   wakeScroll(h);
 }
-/** The fingers left: inertia or bounce from the release velocity. */
-function releaseScroll(h: i32): void {
+/** The fingers left: inertia or bounce from the release velocity (`os`: the OS momentum follows). */
+function releaseScroll(h: i32, os: boolean = false): void {
   const n = node(h);
-  if (n.ay !== null) releaseAxis(n.ay as ScrollAxis, maxScrollY(n));
-  if (n.ax !== null) releaseAxis(n.ax as ScrollAxis, maxScrollX(n));
+  if (n.ay !== null) releaseAxis(n.ay as ScrollAxis, maxScrollY(n), os);
+  if (n.ax !== null) releaseAxis(n.ax as ScrollAxis, maxScrollX(n), os);
   wakeScroll(h);
 }
 /** Fingers landed on a moving scroller: it stops where it is (an overscroll still springs back). */
 function catchScroll(h: i32): void {
   const n = node(h);
-  for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL || a.mode === FLING)) { a.mode = IDLE; a.v = 0; }
+  for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL || a.mode === FLING || a.mode === MOMENTUM)) { a.mode = IDLE; a.v = 0; }
 }
 // ---- scroll snap: the snap points are the offsets that put a child with snap-start / snap-center / snap-end at the start, centre or end of the scroll container's padded viewport
 const snapPts: number[] = [];
@@ -5445,12 +5484,25 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
 // with its own wheel handler gets the deltas as wheel steps instead.
 // A swipe that starts mostly along one axis (twice the other) stays on it until the fingers lift, as macOS scroll views and Safari lock it (ZN-607):
 // a vertical swipe no longer drifts sideways in content that is also wider; a diagonal start moves freely.
+// Phase 4 lifts the fingers with the OS momentum to follow (macOS), phase 5 brings its deltas to what the fingers moved, on the same axis.
 let padScroller: i32 = -1, padEdit: i32 = -1, padAxis: i32 = 0;   // padAxis: 0 not decided yet, 1 vertical, 2 horizontal, 3 both
+let momScroller: i32 = -1, momEdit: i32 = -1, momAxis: i32 = 0;   // what the OS momentum moves
 function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
-  if (phase === 3) { padAxis = 0; const sc = scrollerTop(px, py, 3); if (sc >= 0) catchScroll(sc); return; }
+  if (phase === 3) {
+    padAxis = 0;
+    const sc = scrollerTop(px, py, 3);
+    if (sc >= 0) catchScroll(sc);
+    if (momScroller >= 0 && nodes[momScroller].alive) catchScroll(momScroller);
+    if (momEdit >= 0 && nodes[momEdit].ed !== null) { const a = (nodes[momEdit].ed as Edit).ay; if (a !== null && a.mode === MOMENTUM) a.mode = IDLE; }
+    momScroller = -1; momEdit = -1;
+    return;
+  }
+  if (phase === 5) { momentumInput(px, py, dx, dy); return; }
   if (phase === 0) return;
+  const lift = phase === 2 || phase === 4;
   if (padEdit < 0 && (padScroller < 0 || !nodes[padScroller].alive)) {
-    if (dx === 0 && dy === 0 && phase !== 2) return;
+    if (dx === 0 && dy === 0 && !lift) return;
+    momScroller = -1; momEdit = -1;
     const w = hit(px, py, HIT_WHEEL);
     const sc = scrollerTop(px, py, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
     if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
@@ -5463,14 +5515,42 @@ function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i3
   if (padEdit >= 0) {
     if (nodes[padEdit].alive && nodes[padEdit].ed !== null) {
       editDirect(padEdit, nodes[padEdit], nodes[padEdit].ed as Edit, -dx, -dy);
-      if (phase === 2) editRelease(padEdit);
+      if (lift) editRelease(padEdit, phase === 4);
     }
-    if (phase === 2) padEdit = -1;
+    if (phase === 4) momEdit = padEdit;
+    if (lift) padEdit = -1;
     return;
   }
   if (padAxis === 0 && (dx !== 0 || dy !== 0)) padAxis = Math.abs(dy) >= 2 * Math.abs(dx) ? 1 : Math.abs(dx) >= 2 * Math.abs(dy) ? 2 : 3;
   directScroll(padScroller, padAxis === 1 ? 0 : -dx, padAxis === 2 ? 0 : -dy);
-  if (phase === 2) { releaseScroll(padScroller); padScroller = -1; padAxis = 0; }
+  if (lift) {
+    releaseScroll(padScroller, phase === 4);
+    if (phase === 4) { momScroller = padScroller; momAxis = padAxis; }
+    padScroller = -1; padAxis = 0;
+  }
+}
+/** Deltas of the OS momentum (phase 5) for what the fingers moved; a node with its own wheel handler gets them as wheel steps, as a browser's wheel events carry them. */
+function momentumInput(px: number, py: number, dx: number, dy: number): void {
+  // once a bounce or a rest took over (an edge, a gap, a catch) the rest of the stream is dropped: the scroller is still stepping until then
+  if (momScroller >= 0) {
+    const n = nodes[momScroller];
+    const ay = n.ay !== null && momAxis !== 2 && (n.ay as ScrollAxis).mode === MOMENTUM, ax = n.ax !== null && momAxis !== 1 && (n.ax as ScrollAxis).mode === MOMENTUM;
+    if (!n.alive || (!ay && !ax)) { momScroller = -1; return; }
+    const sx0 = n.sx, sy0 = n.sy;
+    if (ay) { const a = n.ay as ScrollAxis; momentumBy(a, -dy, maxScrollY(n), n.lh); n.sy = a.pos; }
+    if (ax) { const a = n.ax as ScrollAxis; momentumBy(a, -dx, maxScrollX(n), n.lw); n.sx = a.pos; }
+    if (n.sx !== sx0 || n.sy !== sy0) { n.scrolledAt = clock; scrolled(n); }
+  } else if (momEdit >= 0) {
+    const n = nodes[momEdit], e = n.ed;
+    if (!n.alive || e === null || (e as Edit).ay === null || ((e as Edit).ay as ScrollAxis).mode !== MOMENTUM) { momEdit = -1; return; }
+    const a = (e as Edit).ay as ScrollAxis;
+    momentumBy(a, -dy, editMaxY(n, e as Edit), n.lh);
+    (e as Edit).sy = a.pos;
+    wakeEdit(momEdit);
+  } else if (dx !== 0 || dy !== 0) {
+    const w = hit(px, py, HIT_WHEEL);
+    if (w >= 0 && handlerOf(nodes[w], PWHEEL) !== null) wheelInput(px, py, dy / 40, -dx / 40, 1);
+  }
 }
 function hasHoverStyle(n: UiNode): boolean { return n.it.hoverBg >= 0 || n.it.hoverFg >= 0 || n.it.hoverBorder >= 0 || n.ov !== null; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
@@ -5994,7 +6074,8 @@ export function wheelAt(x: number, y: number, dy: number, dx: number = 0, pinchB
   if (layoutDirty) layout();
   wheelInput(x, y, dy, dx, pinchBy);
 }
-/** A trackpad sample, as the HAL reports it: dx / dy pixels (+ = up / left), phase 1 fingers down, 2 lifted, 3 landed. */
+/** A trackpad sample, as the HAL reports it: dx / dy pixels (+ = up / left), phase 1 fingers down, 2 lifted, 3 landed,
+ *  4 lifted with the OS momentum to follow, 5 a delta of that momentum. */
 export function trackpadAt(x: number, y: number, dx: number, dy: number, phase: i32): void {
   synthetic = true;
   if (layoutDirty) layout();

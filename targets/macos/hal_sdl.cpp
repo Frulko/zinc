@@ -42,6 +42,9 @@ extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler
 extern "C" __attribute__((weak)) void hal_sdl_transparent_layers(void*) {}   // the real one is targets/macos/hal_cocoa.mm; this weak no-op keeps the prototype's CMake build (which does not link it) working
 extern "C" __attribute__((weak)) void hal_sdl_window_background(void*, uint32_t) {}   // the same: the window's own colour, behind the frame
 #endif
+// hal_cocoa.mm on macOS: the main window's precise scrolls with their phases (0 here: none, the SDL wheel events are the source) and Reduce motion (-1: unknown)
+extern "C" __attribute__((weak)) int hal_sdl_scroll_monitor(void*, void (*)(double, double, double, uint32_t, uint32_t)) { return 0; }
+extern "C" __attribute__((weak)) int hal_sdl_reduce_motion(void) { return -1; }
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
@@ -423,6 +426,7 @@ static void sys_signal(const char* line) { if (zn_hal_signal) zn_hal_signal(line
 static void signal_theme() {
   const SDL_SystemTheme t = SDL_GetSystemTheme();
   if (t != SDL_SYSTEM_THEME_UNKNOWN) sys_signal(t == SDL_SYSTEM_THEME_DARK ? "theme dark" : "theme light");
+  if (const int r = hal_sdl_reduce_motion(); r >= 0) sys_signal(r ? "reducemotion 1" : "reducemotion 0");   // ponytail: read when the window opens, not followed live
 }
 static void signal_safe_area() {   // window points into the surface's units
   SDL_Rect r;
@@ -456,11 +460,11 @@ void hal_init(const HalConfig* cfg) {
   const char* d = getenv("ZINC_DETERMINISTIC");
   det = (d && *d && *d != '0') || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
   if (!gfx_on) return;
-  // Trackpad scrolling: zinc:ui follows the fingers 1:1 and runs its own inertia from the release velocity, so the
-  // OS momentum events are off, and trackpad touches are reported (without mouse emulation) to know when the
-  // fingers lift (docs/ui.md, scrolling).
+  // Trackpad scrolling (docs/ui.md, scrolling): zinc:ui follows the fingers 1:1. On macOS the NSEvent stream (hal_cocoa.mm) brings the gesture
+  // phases and the OS momentum, which zinc:ui follows as macOS sends it: the momentum events are on. Without that stream the engine runs its
+  // own inertia from the release velocity, and trackpad touches are reported (without mouse emulation) to know when the fingers lift.
 #ifdef SDL_HINT_MAC_SCROLL_MOMENTUM
-  SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "0");
+  SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, hal_sdl_scroll_monitor(nullptr, nullptr) ? "1" : "0");
 #endif
 #ifdef SDL_HINT_TRACKPAD_IS_TOUCH_ONLY
   SDL_SetHint(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, "1");
@@ -694,15 +698,11 @@ static void scroll_push(uint64_t t, double dx, double dy) {
   if (nss == 32) { memmove(ss, ss + 1, sizeof(ss[0]) * 31); nss--; }
   ss[nss++] = ScrollSample{t, cum_x, cum_y};
 }
-static void scroll_resample(HalInput* in) {
-  in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0;
-  const bool touched = tp_fingers > 0 && tp_fingers_prev == 0;
-  tp_fingers_prev = tp_fingers;
-  if (!gesture) { if (touched) in->scroll_phase = 3; return; }   // fingers landed: catches a running inertia
-  const uint64_t now = SDL_GetTicksNS() / 1000;
-  const bool lifted = saw_fingers ? (tp_fingers == 0) : (now - last_precise_us > 50000);
+static void stream_start(uint64_t t) { gesture = true; nss = 0; cum_x = cum_y = out_x = out_y = 0; scroll_push(t > 16000 ? t - 16000 : 0, 0, 0); }
+/** The deltas since the last poll, at sample time now - 5 ms (all that is left with `flush`). */
+static void resample(HalInput* in, uint64_t now, bool flush) {
   double x = cum_x, y = cum_y;
-  if (!lifted && nss > 0) {
+  if (!flush && nss > 0) {
     uint64_t ts = now > 5000 ? now - 5000 : 0;
     const ScrollSample& last = ss[nss - 1];
     if (nss >= 2 && ts > last.t) {   // extrapolate a little past the newest event
@@ -723,8 +723,51 @@ static void scroll_resample(HalInput* in) {
   }
   in->scroll_dx = (float)(x - out_x); in->scroll_dy = (float)(y - out_y);
   out_x = x; out_y = y;
+}
+
+// macOS: the main window's precise scrolls come from its NSEvents (hal_cocoa.mm) with their phases, so the lift is exact for the trackpad and the
+// Magic Mouse alike, and after it the OS momentum (macOS's own inertia) is passed on as phase 5 instead of the engine running one
+static bool native_scroll = false, ns_tried = false;
+static bool sdl_stream = false;   // the running stream is SDL's precise wheel events (no NSEvent stream, or a device without phases)
+static bool ns_fingers = false, ns_momentum = false, ns_lifted = false, ns_ended = false, ns_caught = false;
+static uint64_t ns_lift_us = 0;
+static void ns_scroll(double age_s, double dx, double dy, uint32_t phase, uint32_t momentum) {
+  enum : uint32_t { BEGAN = 1, ENDED = 8, CANCELLED = 16, MAY_BEGIN = 32 };   // NSEventPhase bits
+  const uint64_t now = SDL_GetTicksNS() / 1000, age = age_s > 0 ? (uint64_t)(age_s * 1e6) : 0, t = now > age ? now - age : 0;
+  if (phase & MAY_BEGIN) { ns_caught = true; gesture = ns_fingers = ns_momentum = false; return; }   // fingers rest on the pad: the momentum stops
+  if (phase & BEGAN) { stream_start(t); sdl_stream = false; ns_fingers = true; ns_momentum = false; }
+  else if ((momentum & BEGAN) && !gesture) stream_start(t);   // its gesture began before this window had the events
+  if (momentum & BEGAN) ns_momentum = true;
+  if (!gesture) return;   // what is left of a stopped momentum
+  scroll_push(t, -dx, dy);   // SDL's signs (Cocoa_HandleMouseWheel): + = up / left
+  if (phase & (ENDED | CANCELLED)) { ns_fingers = false; ns_lifted = true; ns_lift_us = now; }
+  if (momentum & (ENDED | CANCELLED)) { ns_momentum = false; ns_ended = true; }
+}
+static void ns_resample(HalInput* in) {
+  const uint64_t now = SDL_GetTicksNS() / 1000;
+  if (!gesture) { if (ns_caught) in->scroll_phase = 3; ns_caught = ns_lifted = ns_ended = false; return; }
+  ns_caught = false;
+  if (ns_lifted) {   // the fingers left: all they moved, then the momentum starts a new segment from here
+    resample(in, now, true);
+    nss = 0; scroll_push(now, 0, 0);
+    in->scroll_phase = 4; ns_lifted = false;
+    return;
+  }
+  if (ns_fingers) { resample(in, now, false); in->scroll_phase = 1; return; }
+  if (ns_momentum || ns_ended) { resample(in, now, ns_ended); in->scroll_phase = 5; }
+  if (ns_ended || (!ns_momentum && now - ns_lift_us > 100000)) { gesture = false; ns_ended = false; }   // over, or no momentum came after the lift
+}
+static void scroll_resample(HalInput* in) {
+  in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0;
+  const bool touched = tp_fingers > 0 && tp_fingers_prev == 0;
+  tp_fingers_prev = tp_fingers;
+  if (native_scroll && !sdl_stream) { ns_resample(in); return; }
+  if (!gesture) { if (touched) in->scroll_phase = 3; return; }   // fingers landed: catches a running inertia
+  const uint64_t now = SDL_GetTicksNS() / 1000;
+  const bool lifted = saw_fingers ? (tp_fingers == 0) : (now - last_precise_us > 50000);
+  resample(in, now, lifted);
   in->scroll_phase = lifted ? 2 : 1;
-  if (lifted) { gesture = false; nss = 0; cum_x = cum_y = out_x = out_y = 0; }
+  if (lifted) { gesture = sdl_stream = false; nss = 0; cum_x = cum_y = out_x = out_y = 0; }
 }
 
 // ---- more windows (ZN-663): windows beside the main one, each with an SDL_Renderer and a streaming texture of the pixels the runtime
@@ -961,6 +1004,7 @@ void hal_poll_input(HalInput* in) {
     in->quit = quit;
     return;
   }
+  if (!ns_tried && win) { ns_tried = true; native_scroll = hal_sdl_scroll_monitor(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), ns_scroll) != 0; }
   SDL_Event e;
   const bool several = secs_open() > 0 || main_hidden;
   while (next_event(&e)) {
@@ -984,10 +1028,11 @@ void hal_poll_input(HalInput* in) {
     }
     if (e.type == SDL_EVENT_MOUSE_WHEEL) {
       // notches are whole steps outside a trackpad gesture; anything else is precise (px = delta * 10 on macOS)
-      const bool precise = tp_fingers > 0 || gesture || e.wheel.y != SDL_floorf(e.wheel.y) || e.wheel.x != SDL_floorf(e.wheel.x);
+      const bool fraction = e.wheel.y != SDL_floorf(e.wheel.y) || e.wheel.x != SDL_floorf(e.wheel.x);
+      const bool precise = native_scroll ? sdl_stream || fraction : tp_fingers > 0 || gesture || fraction;   // natively, only devices without phases come here
       if (precise) {
         const uint64_t t = e.wheel.timestamp / 1000;
-        if (!gesture) { gesture = true; nss = 0; cum_x = cum_y = out_x = out_y = 0; scroll_push(t > 16000 ? t - 16000 : 0, 0, 0); }
+        if (!gesture) { stream_start(t); sdl_stream = true; }
         scroll_push(t, e.wheel.x * 10, e.wheel.y * 10);
         last_precise_us = SDL_GetTicksNS() / 1000;
       } else { in->wheel_x += e.wheel.x; in->wheel += e.wheel.y; }

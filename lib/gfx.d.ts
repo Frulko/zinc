@@ -209,7 +209,8 @@ declare module 'zinc:gfx' {
   /** Precise scrolling (trackpads) since the last frame, in pixels, resampled at frame time (+ = up / left). */
   export function scrollDX(): number;
   export function scrollDY(): number;
-  /** 0 none, 1 gesture active (fingers down), 2 ended this frame (fingers lifted: start the inertia), 3 fingers landed. */
+  /** 0 none, 1 gesture active (fingers down), 2 ended this frame (fingers lifted: start the inertia), 3 fingers landed,
+   *  4 fingers lifted this frame and the OS sends the momentum (macOS: no inertia of your own), 5 deltas of that OS momentum. */
   export function scrollPhase(): i32;
   /** true: Escape is an ordinary key for the app (zinc:ui sets it); the HAL no longer quits / leaves fullscreen on it. */
   export function escapeByApp(on: boolean): void;

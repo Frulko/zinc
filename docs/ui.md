@@ -39,7 +39,7 @@ Alt/Ctrl, to the line start with Cmd); Cmd/Ctrl+A, C, X, V, Z, Shift+Z / Y; Tab 
 a single-line field selects it); Escape blurs. Undo coalesces consecutive typing into one step (100 steps).
 The caret blinks without repainting in between; horizontal scroll follows the caret in inputs, vertical scroll and
 the wheel in textareas. The wheel scrolls textareas like scroll containers: trackpads 1:1 with a rubber band past the
-edges (the OS supplies the momentum), mouse notches ease 60 px each; at an edge the wheel goes on to an enclosing
+edges and the OS momentum after the lift, mouse notches ease 48 px each; at an edge the wheel goes on to an enclosing
 scroll container.
 
 Host ABI: `ui.createNode(ui.INPUT | ui.TEXTAREA)`, `setValue`, `getValue`, `setPlaceholder`, `onText(h, change, f)`,
@@ -396,7 +396,8 @@ Scroll containers (`<ScrollView>`, `overflow-y-auto` / `overflow-x-auto`) run on
 | release | velocity = least-squares slope of the last 100 ms (0 if the fingers rested > 40 ms, like Flutter's VelocityTracker), capped at 8000 px/s |
 | inertia | `v·0.998^ms` (iOS normal deceleration); an edge reached hands the velocity (≤ 5000 px/s) to the bounce |
 | bounce | critically damped spring toward the edge, ω = 10/s (iOS / GTK overshoot) |
-| wheel | notches: a critically damped spring toward 48 px per notch, retargeted while turning |
+| wheel | notches: a critically damped spring toward 48 px per notch, retargeted while turning; with reduced motion the offset jumps |
+| momentum | macOS: after the lift the content follows the OS momentum's deltas 1:1 (macOS's own inertia, nothing added); an edge reached hands their velocity to the bounce and drops the rest; fingers landing stop it |
 
 On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the desktop) the physics are Android's (`lib/std/overscroller.ts`):
 
@@ -410,12 +411,19 @@ On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the deskt
 
 `tests/t1/scroll_platform.sh` runs one script of fingers under each platform and keeps every frame's offset and stretch.
 
-Input: the SDL HAL reports trackpad fingers (`SDL_HINT_TRACKPAD_IS_TOUCH_ONLY`), so the lift is exact, and
-resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms: Chromium /
-Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). OS momentum is off;
-the engine's inertia replaces it, so the same physics run on touch screens and in tests
-(`tests/conformance/scroll_physics.tsx`). Without finger events a 50 ms gap ends the gesture. Landing fingers
-catches a running inertia.
+Input: the SDL HAL resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms:
+Chromium / Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). On macOS the main
+window's precise scrolls (trackpad, Magic Mouse) come from their NSEvents (`targets/macos/hal_cocoa.mm`) with the gesture
+and momentum phases: the lift is exact for both devices (phase 4), and the OS momentum that follows is passed on as
+phase 5, followed as it is instead of an inertia of the engine, so a fling feels like any Mac app. Fingers resting on
+the pad (`MayBegin`, phase 3) stop it; 100 ms without a momentum delta after the lift and the scroll rests. Elsewhere
+(Linux, devices without phases, other windows) the HAL reports trackpad fingers (`SDL_HINT_TRACKPAD_IS_TOUCH_ONLY`) to
+know the lift, or a 50 ms gap ends the gesture, and the engine's inertia runs (phase 2), the physics of touch screens
+and of `tests/conformance/scroll_physics.tsx`. A gesture stays on the scroller under the pointer when it starts (the
+innermost that scrolls that way; at its end it rubber-bands, it does not hand over to an enclosing one), and its
+momentum too. `ui.scrollBy(h, dx, dy)` moves an offset without stopping a scroll in progress (rows inserted above what is
+shown, as `examples/agents` does when it reads older items). `tests/t1/scroll_momentum.sh` scripts a gesture, its
+momentum, a catch, a momentum into the end and wheel notches with ZINC_INPUT `scroll DX DY PHASE`.
 
 ## Platform and system signals
 

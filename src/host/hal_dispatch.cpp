@@ -49,7 +49,8 @@ static void hold() {
 }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
+//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | scroll DX DY PHASE (precise pixels and
+//   the phase, as a trackpad's HAL reports them: HalInput.scroll_*) | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
 //   0 to 16, held until gbuttonup; VALUE 0..1: a trigger's travel or a pressure-sensitive button's press) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
@@ -173,6 +174,7 @@ bool applyEvent(const Event& e, HalInput* in, float& x, float& y, uint32_t& held
   else if (e.kind == "right-down") button(2, 1);
   else if (e.kind == "right-up") button(2, 0);
   else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
+  else if (e.kind == "scroll") { in->scroll_dx += static_cast<float>(atof(e.a.c_str())); in->scroll_dy += static_cast<float>(atof(e.b.c_str())); in->scroll_phase = atoi(e.c.c_str()); }
   else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
     uint32_t mods = 0;
     for (size_t at = 0; at <= e.b.size();) {   // "shift", or several joined with '+': "shift+meta"
@@ -195,7 +197,7 @@ bool applyEvent(const Event& e, HalInput* in, float& x, float& y, uint32_t& held
 }
 void applyScript(HalInput* in) {
   if (!scriptRead) readScript();
-  in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;  // the events of a frame are the script's, like the window HAL's (hal_sdl.cpp)
+  in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0; in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0;  // the events of a frame are the script's, like the window HAL's (hal_sdl.cpp)
   in->px = curX; in->py = curY; in->pdown = heldButtons & 1; in->pbuttons = heldButtons;
   int32_t target = 0;
   for (const Event& e : script) {
@@ -259,7 +261,7 @@ void nullWinInput(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
   NullWin* n = nullWin(id);
   if (!n) return;
   *in = n->in;
-  n->in.nkeys = 0; n->in.ntext = 0; n->in.nbtn = 0; n->in.wheel = n->in.wheel_x = 0; n->in.pinch = 1;
+  n->in.nkeys = 0; n->in.ntext = 0; n->in.nbtn = 0; n->in.wheel = n->in.wheel_x = 0; n->in.pinch = 1; n->in.scroll_dx = n->in.scroll_dy = 0; n->in.scroll_phase = 0;
   in->px = n->x; in->py = n->y; in->pdown = n->held & 1; in->pbuttons = n->held;
   *w = n->w; *h = n->h;
 }

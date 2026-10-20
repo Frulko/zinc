@@ -1,0 +1,56 @@
+2 move 50 100
+5 scroll 0 -10.5 1
+6 scroll 0 -10.5 1
+7 scroll 0 -10.5 1
+8 scroll 0 -10.25 1
+9 scroll 0 -10.25 1
+10 scroll 0 -10 4
+12 scroll 0 -9 5
+13 scroll 0 -8.1 5
+14 scroll 0 -7.29 5
+15 scroll 0 -6.56 5
+16 scroll 0 -5.9 5
+17 scroll 0 -5.31 5
+18 scroll 0 -4.78 5
+19 scroll 0 -4.3 5
+20 scroll 0 -3.87 5
+21 scroll 0 -3.49 5
+22 scroll 0 -3.14 5
+23 scroll 0 -2.82 5
+24 scroll 0 -2.54 5
+25 scroll 0 -1.5 5
+26 scroll 0 -0.75 5
+27 scroll 0 -0.25 5
+40 scroll 0 -10 1
+41 scroll 0 -10 1
+42 scroll 0 -10 4
+43 scroll 0 -20 5
+44 scroll 0 -20 5
+45 scroll 0 0 3
+46 scroll 0 -20 5
+47 scroll 0 -20 5
+60 scroll 0 -60 1
+61 scroll 0 -60 1
+62 scroll 0 -60 1
+63 scroll 0 -60 1
+64 scroll 0 -60 1
+65 scroll 0 -60 4
+66 scroll 0 -55 5
+67 scroll 0 -50 5
+68 scroll 0 -45 5
+69 scroll 0 -40 5
+70 scroll 0 -36 5
+71 scroll 0 -32 5
+72 scroll 0 -28 5
+73 scroll 0 -25 5
+74 scroll 0 -22 5
+75 scroll 0 -20 5
+76 scroll 0 -18 5
+150 wheel 0 1
+180 reducemotion 1
+182 wheel 0 1
+190 scroll 0 12 1
+191 scroll 0 12 1
+192 scroll 0 12 1
+193 scroll 0 12 1
+194 scroll 0 12 2

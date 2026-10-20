@@ -81,7 +81,8 @@ struct HalInput {
   // uneven event timing does not judder (+ = up / left, like wheel), and the gesture phase
   float scroll_dx, scroll_dy;
   int32_t scroll_phase;   // 0 none, 1 fingers down / precise stream active, 2 the gesture ended during this poll,
-                          // 3 fingers landed on the trackpad (stops a running inertia)
+                          // 3 fingers landed on the trackpad (stops a running inertia), 4 the fingers lifted during this poll and the OS
+                          // sends the momentum itself (no inertia of the engine), 5 deltas of that OS momentum (macOS)
   HalGamepad pad[HAL_MAX_GAMEPADS];   // their zinc:gfx buttons are also in `buttons` (the runtime adds them after the poll)
 };
 // Optional (the runtime has weak defaults: no text input, a process-local clipboard, no cursor shapes).

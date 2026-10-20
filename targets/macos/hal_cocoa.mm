@@ -19,3 +19,21 @@ extern "C" void hal_sdl_window_background(void* nswindow, uint32_t rgb) {
   w.backgroundColor = c;
   if (w.contentView.layer) w.contentView.layer.backgroundColor = c.CGColor;
 }
+// Precise scrolling of the main window (trackpad, Magic Mouse) straight from its NSEvents (hal_sdl.cpp ns_scroll): SDL keeps only the deltas, and the
+// gesture phase (fingers down, lifted) and the OS momentum phase are what lets zinc:ui follow the fingers and then macOS's own inertia. Such an event
+// is not passed on to SDL; notched wheels, precise devices without phases and the other windows' events still go through SDL. With nswindow null it
+// only answers that the stream exists (the weak stand-in in hal_sdl.cpp answers 0).
+extern "C" int hal_sdl_scroll_monitor(void* nswindow, void (*cb)(double age_s, double dx, double dy, uint32_t phase, uint32_t momentum)) {
+  static id monitor;
+  NSWindow* w = (__bridge NSWindow*)nswindow;
+  if (!w || monitor) return 1;
+  __weak NSWindow* main = w;
+  monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel handler:^NSEvent*(NSEvent* e) {
+    if (e.window != main || !e.hasPreciseScrollingDeltas || (e.phase == NSEventPhaseNone && e.momentumPhase == NSEventPhaseNone)) return e;
+    cb(NSProcessInfo.processInfo.systemUptime - e.timestamp, e.scrollingDeltaX, e.scrollingDeltaY, (uint32_t)e.phase, (uint32_t)e.momentumPhase);
+    return nil;
+  }];
+  return 1;
+}
+// System Settings > Accessibility > Display > Reduce motion (hal_sdl.cpp signal_theme: the `reducemotion` signal)
+extern "C" int hal_sdl_reduce_motion(void) { return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 1 : 0; }
