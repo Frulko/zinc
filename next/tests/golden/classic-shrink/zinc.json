@@ -1,0 +1,1 @@
+{ "name": "classic-shrink", "entry": "main.ts", "targets": { "macos": { "width": 900, "height": 500 }, "linux": { "width": 900, "height": 500 } } }

@@ -14,6 +14,7 @@
     {"paths": ["../examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/data/music-tree/"], "tests": ["music_tree_sonos"]},
     {"paths": ["../examples/agents/", "tests/t1/agents_chat.sh", "tests/t1/agents_memory.sh", "tests/t1/agents_markdown.sh", "tests/t1/agents_usage.sh", "tests/data/agents/"], "tests": ["agents_chat", "agents_memory", "agents_markdown", "agents_usage"]},
     {"paths": ["../lib/std/ui.ts", "tests/golden/ui-runs/", "tests/t1/ui_runs.sh"], "tests": ["ui_runs", "agents_markdown"]},
+    {"paths": ["../lib/std/ui.ts", "tests/golden/classic-shrink/", "tests/t1/classic_shrink.sh"], "tests": ["classic_shrink", "classic_rewrap", "agents_markdown"]},
     {"paths": ["../lib/std/ui.ts", "../runtime/gfx.cpp", "../runtime/zrt_raster.h", "../plugins/svg/native/", "tests/golden/ui-rotate-icon/", "tests/t1/ui_rotate_icon.sh", "tests/golden/style-transform/"], "tests": ["ui_rotate_icon", "style_transform", "icons", "agents_usage"]},
     {"paths": ["src/frontend/modules.cpp", "tests/golden/host/process_flood.ts", "tests/golden/host/process_flood.out"], "tests": ["host"]},
     {"paths": ["../plugins/process/index.ts", "tests/golden/host/process_stdin.ts", "tests/golden/host/process_stdin.out"], "tests": ["host"]},

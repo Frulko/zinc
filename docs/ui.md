@@ -74,8 +74,9 @@ code that walks the value of a large field should do the same (`value.split('\n'
 order; `style` or-s `ui.RUN_BOLD`, `RUN_ITALIC`, `RUN_MONO` and `RUN_UNDERLINE` (0: the text's own), `color` is `0xRRGGBB`, `-1` for
 the text's colour, or `ui.schemeColor('name')` for a `defineScheme` variable that follows the scheme. The lines wrap at spaces with each
 run measured in its own face, and a `select-text` node still selects and copies as one text (`tests/golden/ui-runs`). It is how a
-paragraph of markdown keeps its **bold**, `code` and links in one selectable text (examples/agents). Plain wrapping only: with a
-`whitespace-*`, `break-*`, `line-clamp-*`, `truncate`, `text-balance`, case transform or word-spacing class the runs are ignored, and
+paragraph of markdown keeps its **bold**, `code` and links in one selectable text (examples/agents). `break-words` cuts a word longer
+than the line (a path, a URL) where it stops fitting. Otherwise plain wrapping only: with a `whitespace-*`, `break-all`,
+`line-clamp-*`, `truncate`, `text-balance`, case transform or word-spacing class the runs are ignored, and
 a text shadow is not drawn under runs. A face is only there if the program bakes it: `RUN_MONO` needs a `font-mono` somewhere in the
 program. `setTextRuns(h, [])` removes them.
 
@@ -673,6 +674,12 @@ is black by default. On a target without Yoga (esp32, ps1) the preset falls back
 `minWidth/maxWidth` (a growing item is frozen at its limit and the others share the rest), `alignSelf`, `aspectRatio` and `alignContent` also work; an
 explicit `"layout": "rn"` on such a target is a build error, except on the web, where it means the same as the preset (the browser has its own layout; there is no Yoga there, see
 `docs/targets/web.md`). Programs read the choice as `UI_LAYOUT` and `UI_PRESET` of `zinc:platform`.
+
+In `classic`, flex-shrink is opt-in (`shrink`, `shrink-[n]`): in a row too narrow for its children, those with it lose the overflow in
+proportion to shrink x width, an item that reaches its `min-w-*` (0 without one) stays there and the others share the rest, as CSS does.
+Each shrunk item is then laid out again at the width it gets, and so is a child wider than its column, so the texts in them wrap at
+that width and the row takes the height that gives: a pane between two fixed panels wraps its paragraphs inside its own edge
+(`tests/golden/classic-shrink`).
 
 ## Gestures: PanResponder and Animated.event
 

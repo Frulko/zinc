@@ -2741,7 +2741,7 @@ function runFace(n: UiNode, style: i32): i32 {
   return faceIn((style & RUN_MONO) !== 0 ? 'mono' : n.family, w, (style & RUN_ITALIC) !== 0 || n.italic, n.size);
 }
 function runsOn(n: UiNode): boolean {
-  return n.runs !== null && n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance && n.transform === 0 && n.wordSp === 0;
+  return n.runs !== null && n.ws === 0 && n.brk <= 1 && n.clamp === 0 && !n.ellipsis && !n.balance && n.transform === 0 && n.wordSp === 0;
 }
 /** The width of n.text[a, b) with its runs. */
 function runsWidth(n: UiNode, a: i32, b: i32): number {
@@ -2755,7 +2755,8 @@ function runsWidth(n: UiNode, a: i32, b: i32): number {
   }
   return w;
 }
-/** Greedy wrap at spaces with the runs' faces: n.lines, n.lineW and where each line starts (n.lineAt). */
+/** Greedy wrap at spaces with the runs' faces: n.lines, n.lineW and where each line starts (n.lineAt); with break-words a word wider than
+ *  the line is cut where it stops fitting (a long path or URL), as wrapPara does. */
 function wrapRuns(n: UiNode, avail: number): void {
   const t = n.text, at: i32[] = [];
   n.lines = []; n.lineW = [];
@@ -2763,12 +2764,18 @@ function wrapRuns(n: UiNode, avail: number): void {
   while (i <= t.length) {
     let j = t.indexOf(' ', i);
     if (j < 0) j = t.length;
-    if (le > ls && runsWidth(n, ls, j) > avail) { n.lines.push(t.slice(ls, le)); n.lineW.push(runsWidth(n, ls, le)); at.push(ls); ls = i; }
+    if (le > ls && runsWidth(n, ls, j) > avail) { runsLine(n, at, ls, le); ls = i; }
+    if (n.brk === 1) while (j - ls > 1 && runsWidth(n, ls, j) > avail) {   // [ls, j) is one word here
+      let k = j - 1;
+      while (k > ls + 1 && runsWidth(n, ls, k) > avail) k--;
+      runsLine(n, at, ls, k); ls = k;
+    }
     le = j; i = j + 1;
   }
-  n.lines.push(t.slice(ls, le)); n.lineW.push(runsWidth(n, ls, le)); at.push(ls);
+  runsLine(n, at, ls, le);
   n.lineAt = at;
 }
+function runsLine(n: UiNode, at: i32[], a: i32, b: i32): void { n.lines.push(n.text.slice(a, b)); n.lineW.push(runsWidth(n, a, b)); at.push(a); }
 function fontOf(n: UiNode): i32 {
   n.fontId = faceOf(n, n.size);
   return n.fontId;
@@ -3008,6 +3015,20 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     }
     if (lineMain > main) main = lineMain;
     cross += lineCross;
+    // a row too narrow for its children: the ones with flex-shrink are measured again at the width they will get, so that what wraps in them wraps
+    // there and the row takes the height that gives (each child was offered the whole row above)
+    if (n.row && !n.wrap && main > inner + 0.5) {
+      const t = shrunk(kids, 0, kids.length, inner, gm);
+      if (t !== null) {
+        main = 0; cross = 0;
+        for (let i = 0; i < kids.length; i++) {
+          const c = kids[i];
+          if (t[i] < c.lw - 0.5) { measure(c, t[i], innerH); c.lw = t[i]; }
+          main += (i > 0 ? gm : 0) + outerW(c);
+          if (outerH(c) > cross) cross = outerH(c);
+        }
+      }
+    }
     n.lw = (n.row ? main : cross) + n.pl + n.pr;
     n.lh = (n.row ? cross : main) + n.pt + n.pb;
     mDepth--;   // (the absolute children are measured by place(), for the box this node ends with)
@@ -3022,6 +3043,32 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   if (ownW >= 0) n.lw = Math.max(ownW, n.pl + n.pr);
   if (ownH >= 0) n.lh = Math.max(ownH, n.pt + n.pb);
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
+}
+/** The widths flex-shrink leaves kids[start, end) in a row of `inner` px, CSS's loop: an item that reaches its min-width (0 without one) is frozen
+ *  there and the others share the rest of the overflow, weighted by shrink x width. null when nothing shrinks. */
+function shrunk(kids: UiNode[], start: i32, end: i32, inner: number, gm: number): number[] | null {
+  const t: number[] = [], done: boolean[] = [];
+  let any = false;
+  for (let i = start; i < end; i++) { t.push(kids[i].lw); done.push(kids[i].shrink <= 0); if (kids[i].shrink > 0) any = true; }
+  if (!any) return null;
+  for (let it = start; it < end; it++) {
+    let room: number = inner - gm * (end - start - 1), st: number = 0;
+    for (let i = start; i < end; i++) {
+      const c = kids[i], k = i - start;
+      room -= (done[k] ? t[k] : c.lw) + c.ml + c.mr;
+      if (!done[k]) st += c.shrink * c.lw;
+    }
+    if (room >= 0 || st <= 0) break;
+    let clamped = false;
+    for (let i = start; i < end; i++) {
+      const c = kids[i], k = i - start;
+      if (done[k]) continue;
+      const lo: number = c.minW >= 0 ? c.minW : 0, v = c.lw + room * c.shrink * c.lw / st;
+      if (v < lo) { t[k] = lo; done[k] = true; clamped = true; } else t[k] = v > c.lw - 1 ? c.lw : Math.floor(v);   // less than a pixel: kept (a row of tabs would wrap for it)
+    }
+    if (!clamped) break;
+  }
+  return t;
 }
 /** The main sizes of the growing items of one line when one of them has a min or max on the main axis (ZN-288), else null (the legacy share runs):
  *  CSS's "resolve flexible lengths" loop, an item clamped by its limit is frozen at it and the others share what is left. */
@@ -3119,6 +3166,24 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       if (n.wrap && end > start && used + gm + cm > innerMain) break;
       used += (end > start ? gm : 0) + cm;
       end++;
+    }
+    // A child placed narrower than it was measured at (flex-shrink in a row; a column narrower than its child) is measured again at the width it gets, so
+    // the texts in it wrap there and its height follows, as CSS lays a flex item out at its final size: a row is measured with each child offered the
+    // whole width, and a pane beside two panels kept the lines of that width, clipped at its edge.
+    if (n.row && innerMain - used < -0.5) {
+      const t = shrunk(kids, start, end, innerMain, gm);
+      if (t !== null) {
+        for (let i = start; i < end; i++) { const c = kids[i]; if (t[i - start] < c.lw - 0.5) { measure(c, t[i - start], ih); c.lw = t[i - start]; } }
+        used = 0;
+        for (let i = start; i < end; i++) used += (i > start ? gm : 0) + outerW(kids[i]);
+      }
+    } else if (!n.row && !n.wrap) {
+      for (let i = start; i < end; i++) {
+        const c = kids[i], room = iw - c.ml - c.mr;
+        if (c.lw > room + 0.5 && c.w < 0 && c.wFrac === 0) measure(c, room, ih);
+      }
+      used = 0;
+      for (let i = start; i < end; i++) used += (i > start ? gm : 0) + outerH(kids[i]);
     }
     let lineCross: number = 0;
     let grows: number = 0;
