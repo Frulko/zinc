@@ -161,7 +161,7 @@ export function clock(s: number): string {
 // (a runtime image is opaque black, so icons cannot be cached as pictures).
 export function glyph(name: string, x: number, y: number, size: number, color: u32, alpha: i32 = 255, stroke: number = 2): void {
   const svg = icon(name, color as i32, stroke);
-  if (svg !== null) svg.draw(x + ui.ox, y + ui.oy, size, size, alpha);   // ponytail: zinc:svg ignores setTransform, the offset is added here (later.md)
+  if (svg !== null) svg.draw(x, y, size, size, alpha);   // zinc:svg follows setTransform: ui.ox/oy are already in the matrix
 }
 /** A filled glyph drawn as polygons, crisper than strokes for the transport buttons. */
 export function transport(kind: string, cx: number, cy: number, s: number, color: u32): void {

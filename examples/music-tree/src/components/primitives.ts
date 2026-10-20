@@ -18,7 +18,6 @@ import {
   PAGE_PADDING,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { uiState } from '../core/input';
 
 // ----------------------------------------------------------------------------
 // Text measuring and drawing
@@ -183,7 +182,7 @@ export function formatDurationClock(totalSeconds: number): string {
 
 /**
  * Draws a Lucide icon by name.
- * Note: `zinc:svg` ignores `setTransform`, so `uiState.offsetX / offsetY` is added to it.
+ * `zinc:svg` follows `setTransform`, so the display offset is already applied.
  */
 export function drawGlyph(
   iconName: string,
@@ -196,7 +195,7 @@ export function drawGlyph(
 ): void {
   const svgIcon = icon(iconName, color as i32, strokeWidth);
   if (svgIcon !== null) {
-    svgIcon.draw(x + uiState.offsetX, y + uiState.offsetY, size, size, alpha);
+    svgIcon.draw(x, y, size, size, alpha);
   }
 }
 
