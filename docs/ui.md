@@ -751,8 +751,9 @@ Supported properties:
   0.12 + 0.012e up to 0.4).
 - React Native's `transform: [{ rotate: '45deg' }, { scale: 1.2 }, ...]` with `translateX/Y`, `scale`, `scaleX/Y`, `rotate`/`rotateZ` (`deg`, `rad`,
   `turn`, or a number of degrees), `skewX/Y`; static or dynamic values. It applies around the centre in one fixed order (translate, rotate, scale, skew; a
-  repeated entry keeps the last value) and 3D entries are refused. Hits follow the transformed shape; an even scale paints today, rotate, skew and uneven
-  scales paint once the renderer takes a matrix (ZN-361.01).
+  repeated entry keeps the last value) and 3D entries are refused. Hits and paint follow the transformed shape: the node and its subtree, texts and
+  icons included, are drawn through the renderer's matrix (an `animate(ref, 'rotate', 360, …)` spins it); a clip under a turn is the bounding box of
+  the turned rectangle. Canvas and 3D plugins that record their own commands draw upright inside a turned parent.
 - Text: `fontSize`, `fontFamily`, `fontWeight`, `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
 - Existing numeric aliases remain: `bg`, `radius`, `x/y`, `hidden`, `lazy` (canvas).
 

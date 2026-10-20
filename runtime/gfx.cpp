@@ -1472,6 +1472,7 @@ void setTransform(double a, double b, double c, double d, double e, double f) {
   xf_m[0] = a; xf_m[1] = b; xf_m[2] = c; xf_m[3] = d; xf_m[4] = e; xf_m[5] = f;
 }
 void resetTransform() { xf_on = false; }
+bool matrix(double m[6]) { if (!xf_on) return false; for (int k = 0; k < 6; k++) m[k] = xf_m[k]; return true; }
 
 void onFrame(Fn<void(double)> cb) { frame_cb = cb; }
 void onResize(Fn<void(int32_t, int32_t)>) {}

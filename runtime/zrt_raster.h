@@ -215,6 +215,9 @@ namespace gfx {
 /** For C++ plugins: appends a raw command to the current frame, copying `len` floats of payload into the point pool
  *  (POLY: [count, x, y, ...]*, contour count is filled in). The caller sets the box, colors and flags. Null when full. */
 raster::Cmd* emit(uint8_t kind, const float* pts, uint32_t len);
+/** For C++ plugins that emit(): the setTransform matrix in force, in logical pixels (x' = m[0] x + m[2] y + m[4], y' = m[1] x + m[3] y
+ *  + m[5]), which emit() does not apply: the plugin puts its points through it. False when there is none. */
+bool matrix(double m[6]);
 /** Set by a display that replays the command lists on the GPU and draws STROKE itself (the GL window, display-gl): stroke() then records
  *  the polyline instead of tessellating it. The software raster draws a STROKE too (it tessellates it), so a fallback stays correct. */
 extern bool gpu_strokes;

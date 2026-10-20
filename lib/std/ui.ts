@@ -252,9 +252,37 @@ export class ImgX {
 const DEF_IMGX = new ImgX();
 /** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
 class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; }
-/** The part of a transform painted today: an even scale around the centre. Rotate, skew and uneven scales only hit-test until the
- *  renderer takes a matrix (ZN-361.01). */
+/** The even scale of a transform, which paint folds into its scale k; the rest (rotate, skew, an uneven scale) paints through the
+ *  renderer's matrix around the centre (pushTf). */
 function tfK(n: UiNode): number { const t = n.tf; if (t === null) return 1; return t.sx === t.sy ? t.sx : 1; }
+// The matrix paint draws through (x' = a x + c y + e, y' = b x + d y + f), the product of the rotated and skewed ancestors' (ZN-361.01).
+let mA: number = 1, mB: number = 0, mC: number = 0, mD: number = 1, mE: number = 0, mF: number = 0, mOn = false;
+/** Sets the renderer's matrix to the current one times [a c e; b d f]. */
+function setTf(a: number, b: number, c: number, d: number, e: number, f: number): void {
+  if (!mOn) { setTransform(a, b, c, d, e, f); return; }
+  setTransform(mA * a + mC * b, mB * a + mD * b, mA * c + mC * d, mB * c + mD * d, mA * e + mC * f + mE, mB * e + mD * f + mF);
+}
+/** Back to the current matrix after setTf. */
+function unsetTf(): void { if (mOn) setTransform(mA, mB, mC, mD, mE, mF); else resetTransform(); }
+/** n's rotate, skew or uneven scale around (cx, cy) joins the current matrix for its subtree; returns the matrix to restore (popTf),
+ *  or null when n has none. */
+function pushTf(n: UiNode, cx: number, cy: number): number[] | null {
+  const t = n.tf;
+  if (t === null || (t.rot === 0 && t.skX === 0 && t.skY === 0 && t.sx === t.sy)) return null;
+  const saved = [mA, mB, mC, mD, mE, mF, mOn ? 1 : 0];
+  const s = t.sx === t.sy ? t.sx : 1, r = t.rot * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const dx = t.sx / s, dy = t.sy / s, kx = Math.tan(t.skX * Math.PI / 180), ky = Math.tan(t.skY * Math.PI / 180);
+  const a = cs * dx - sn * dy * ky, b = sn * dx + cs * dy * ky, c = cs * dx * kx - sn * dy, d = sn * dx * kx + cs * dy;   // as untransform
+  const e = cx - a * cx - c * cy, f = cy - b * cx - d * cy;
+  const na = mA * a + mC * b, nb = mB * a + mD * b, nc = mA * c + mC * d, nd = mB * c + mD * d, ne = mA * e + mC * f + mE, nf = mB * e + mD * f + mF;
+  mA = na; mB = nb; mC = nc; mD = nd; mE = ne; mF = nf; mOn = true;
+  setTransform(mA, mB, mC, mD, mE, mF);
+  return saved;
+}
+function popTf(saved: number[]): void {
+  mA = saved[0]; mB = saved[1]; mC = saved[2]; mD = saved[3]; mE = saved[4]; mF = saved[5]; mOn = saved[6] !== 0;
+  unsetTf();
+}
 let tpx: number = 0, tpy: number = 0;
 /** (px, py) brought back through the rest of n's transform (rotate, uneven scale, skew) around the centre (cx, cy) into tpx, tpy. */
 function untransform(n: UiNode, px: number, py: number, cx: number, cy: number): void {
@@ -3855,6 +3883,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
+  const tfSaved = n.tf !== null ? pushTf(n, x + w / 2, y + hh / 2) : null;   // rotate, skew: the node and its subtree through a matrix
   if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
     if (n.sticky) tileSticky = true;
     // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
@@ -3924,10 +3953,10 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
         const lx = kk !== 1 ? 0 : tx, ly = kk !== 1 ? 0 : ty;
-        if (kk !== 1) setTransform(kk, 0, 0, kk, tx, ty);
+        if (kk !== 1) setTf(kk, 0, 0, kk, tx, ty);
         if (n.tsAlpha > 0 && n.lineAt === null && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
         if (n.lineAt !== null) drawRunsLine(n, i, lx, ly, fg, tai); else drawLine(n, f, lx, ly, n.lines[i], fg, tai, jx, 1);
-        if (kk !== 1) resetTransform();
+        if (kk !== 1) unsetTf();
         if (n.deco !== 0) {
           const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f) * kk, lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
           if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
@@ -3957,6 +3986,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   else if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
+  if (tfSaved !== null) popTf(tfSaved);
 }
 // ---- extended borders (ZN-257): dashed and dotted lines, a colour per side, a radius per corner; the plain border keeps its old drawing (border() and rrect() bands)
 function pt(o: number[], x: number, y: number): void { o.push(x); o.push(y); }

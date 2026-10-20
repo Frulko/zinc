@@ -1,6 +1,6 @@
 #!/bin/sh
 # React Native's transform array (ZN-361): tests/golden/style-transform (rotate in deg/turn, scale, skewX + scaleX, translate, a dynamic rotate) renders to
-# its frame hash (the even scale around the centre paints; rotate and skew paint with ZN-361.01), the hits follow the transformed shapes, and 3D entries fail.
+# its frame hash (rotate, skew and the even scale paint around the centre, ZN-361.01), the hits follow the transformed shapes, and 3D entries fail.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_DETERMINISTIC=1 ZINC_SIZE=620x320 ZINC_SCALE=1 ZINC_HEADLESS=1

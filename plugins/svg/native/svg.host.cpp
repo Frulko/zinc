@@ -630,6 +630,9 @@ struct Engine : NativeSvgEngine {
     ox -= d->vx * sx; oy -= d->vy * sy;
     if (d->slice) gfx::clip(x, y, w, hh);
     float k = sqrtf(sx * sy);
+    double m[6];   // a turned or skewed parent (zinc:ui rotate): the points go through the matrix, emit() does not apply it
+    const bool xf = gfx::matrix(m);
+    if (xf) { const double det = m[0] * m[3] - m[1] * m[2]; k *= sqrtf((float)(det < 0 ? -det : det)); }
     for (uint32_t ii = 0; ii < d->items.n; ii++) {
       const Item& it = d->items[ii];
       out.n = 0;
@@ -639,6 +642,7 @@ struct Engine : NativeSvgEngine {
         tmp.n = 0; tmp.reserve(n * 2);
         for (uint32_t j = 0; j < n; j++) {
           float px = d->pts[i + 1 + j * 2] * sx + ox, py = d->pts[i + 2 + j * 2] * sy + oy;
+          if (xf) { const float qx = px; px = (float)(m[0] * qx + m[2] * py + m[4]); py = (float)(m[1] * qx + m[3] * py + m[5]); }
           tmp.p[tmp.n++] = px; tmp.p[tmp.n++] = py;
           if (px < x0) x0 = px; if (py < y0) y0 = py; if (px > x1) x1 = px; if (py > y1) y1 = py;
         }
