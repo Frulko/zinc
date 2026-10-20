@@ -852,7 +852,8 @@ async function boot() {
     await (globalThis.__zincLoadEntry ? globalThis.__zincLoadEntry() : import(/* @vite-ignore */ CFG.entry));   // a bundler (the Vite plugin) sets __zincLoadEntry to its own import() of the app, so it can split and hash it
     document.getElementById('zinc-splash')?.remove();
     root.focus && root.focus();
-    requestAnimationFrame(frame);
+    // a prerender capture (?zn-capture, headless Chrome without a display) gets no animation frame in time: the first frame runs from a timer
+    if (/[?&]zn-capture/.test(location.search)) setTimeout(() => frame(performance.now()), 0); else requestAnimationFrame(frame);
   } catch (e) {
     document.getElementById('zinc-splash')?.remove();
     showError(e);
