@@ -7,7 +7,7 @@ tools/build-wasm >/dev/null 2>&1 || { echo "tools/build-wasm failed"; tools/buil
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
 for b in $(cat corpus/M3-set.txt); do
-  "$ZINC" --emit=zbc-bin ../tests/conformance/$b.ts "$t/$b.zbc" 2>/dev/null || { echo "$b: no zbc"; fail=1; continue; }
+  "$ZINC" --emit=zbc-bin tests/conformance/$b.ts "$t/$b.zbc" 2>/dev/null || { echo "$b: no zbc"; fail=1; continue; }
   if command -v wasmtime >/dev/null; then wasmtime run --dir "$t" build-wasm/vm.wasm "$t/$b.zbc" > "$t/$b.w" 2>/dev/null; w=$?; else node --no-warnings tests/wasm/run.mjs build-wasm/vm.wasm "$t" "$b.zbc" > "$t/$b.w" 2>/dev/null; w=$?; fi
   ZINC_DETERMINISTIC=1 "$ZINC" run "$t/$b.zbc" > "$t/$b.i" 2>/dev/null; i=$?
   cmp -s "$t/$b.w" "$t/$b.i" && [ "$w" = "$i" ] || { echo "$b: wasm exit $w, interpreter exit $i, outputs $(cmp -s "$t/$b.w" "$t/$b.i" && echo same || echo differ)"; fail=1; }

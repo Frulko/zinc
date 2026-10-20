@@ -6,7 +6,7 @@
 #define ZP_IMU_QMI8658_X "-y"
 #define ZP_IMU_QMI8658_Y "+x"
 #define ZP_IMU_QMI8658_Z "+z"
-#include "../../../plugins/imu-qmi8658/native/imu.esp32.cpp"
+#include "../../plugins/imu-qmi8658/native/imu.esp32.cpp"
 #include "chip_common.h"
 #include "sim/chips/qmi8658.h"
 #include <cmath>

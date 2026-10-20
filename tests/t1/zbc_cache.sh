@@ -28,7 +28,7 @@ run "$ZINC"; expect "an imported file" miss three
 printf 'export const word = "four!";\n' > "$tmp/app/lib/word.ts"
 run "$ZINC"; expect "after the imported file changed" miss four!
 run "$ZINC"; expect "unchanged again" hit four!
-std=../lib/std/assert.ts   # an engine module read at every compile: its time changes, its bytes do not, and its time is put back after
+std=lib/std/assert.ts   # an engine module read at every compile: its time changes, its bytes do not, and its time is put back after
 touch -r "$std" "$tmp/stamp" && touch "$std"
 run "$ZINC"; expect "after a lib/std module changed" miss four!
 touch -r "$tmp/stamp" "$std"

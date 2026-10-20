@@ -39,7 +39,7 @@ for f in "$work"/photos/*.jpg; do
 done
 
 (cd "$work/model" && unzip -o -q vase.zip)
-c++ -O2 -std=c++17 -I "$repo/next/third_party/meshoptimizer" "$here/decimate.cpp" "$repo"/next/third_party/meshoptimizer/*.cpp -o "$work/decimate"
+c++ -O2 -std=c++17 -I "$repo/third_party/meshoptimizer" "$here/decimate.cpp" "$repo"/third_party/meshoptimizer/*.cpp -o "$work/decimate"
 "$work/decimate" "$work/model/f1980_191-150k.obj" "$assets/models/vase.obj" 12000
 sips -Z 1536 -s format jpeg -s formatOptions 80 "$work/model/f1980_191-150k-4096-diffuse.jpg" --out "$assets/models/vase.jpg" >/dev/null
 

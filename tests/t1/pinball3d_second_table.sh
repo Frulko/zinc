@@ -14,7 +14,7 @@
 # To make the log again after an intended change of the table: tests/t1/pinball3d_second_table.sh --update (with ZINC set).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"; exit 77; }
-ed=$PWD/../examples/pinball3d-editor; game=$PWD/../examples/pinball3d
+ed=$PWD/examples/pinball3d-editor; game=$PWD/examples/pinball3d
 table=$game/assets/tables/twilight-fair; made=$game/tools/twilight_fair
 data=$PWD/tests/data/pinball3d
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

@@ -53,11 +53,11 @@ One program goes down the stack, and each layer only knows the one below it:
 From the sources (CMake 3.20+ and a C++20 compiler; every library is vendored, Node.js is not needed):
 
 ```sh
-git clone https://github.com/Frulko/zinc && cd zinc/next
+git clone https://github.com/Frulko/zinc && cd zinc
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
 build/zinc doctor                             # what this machine can do
 build/zinc new desktop-app ../my-app && cd ../my-app
-../next/build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
+../build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
 ```
 
 Or, from a release, nothing to compile, with [Homebrew](https://brew.sh) on macOS or Linux (`brew upgrade zinc` installs each new release):
@@ -226,30 +226,31 @@ declared by `async-storage` only and not yet proven anywhere.
 Zinc has been a project of several years, and of many failures: attempts that went nowhere, designs that had to be thrown away. It
 exists today thanks to intensive help from AI. A large part of the code, tests and documentation of Zinc Next was written with AI
 coding agents, working through a backlog of precise tasks under rules a person sets and checks: [AGENTS.md](AGENTS.md) and
-[next/RULES.md](next/RULES.md) are the instructions they follow. The direction, the design choices and the tests on real hardware stay
+[RULES.md](RULES.md) are the instructions they follow. The direction, the design choices and the tests on real hardware stay
 human. Mistakes remain possible; every behaviour is meant to be proven by a test, and reports of what is wrong are welcome.
 
 ## 📚 Documentation
 
 - 📖 [Developer guide](docs/guide/README.md): getting started, language, UI apps, services, plugins, testing, distribution, security, web APIs
 - 🎨 UI: [ui](docs/ui.md), [kit](docs/ui-kit.md), [Nuxt UI](docs/nuxt-ui.md), [React Native](docs/react-native.md) · 🎯 [targets](docs/targets/) · 🔧 [boards](docs/boards.md)
-- 🛠 Working on Zinc: [AGENTS.md](AGENTS.md), [architecture](next/ARCHITECTURE.md), [rules](next/RULES.md), [testing](next/TESTING.md),
+- 🛠 Working on Zinc: [AGENTS.md](AGENTS.md), [architecture](ARCHITECTURE.md), [rules](RULES.md), [testing](TESTING.md),
   [decisions](docs/reports/zinc-next-decisions.md), [performance log](docs/reports/zinc-next-perf.md), [hardware notes](docs/reports/hardware/)
-- 🧪 [The prototype](docs/prototype.md): the first generation (TypeScript to C++17 on Node), kept as the specification
+- 🧪 [The prototype](docs/prototype.md): the first generation (TypeScript to C++17 on Node), removed; its code is under the git tag `prototype-final`
 
 <details>
 <summary>🗂 Repository layout</summary>
 
 ```
-next/        Zinc Next: src/ (frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, tc, dev, lsp), include/zn, tests/, tools/, backlog/, app/
-lib/         the standard library in Zinc (std/, the UI kits), shared by both generations; zinc.d.ts
+src/         the engine: frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, tc, dev, lsp; include/zn its definitions
+runtime/     zrt, the raster, the GL replay, the HAL headers
+tests/, tools/, backlog/, app/, corpus/, third_party/   tests, tools, the backlog, Zinc Atelier and the inspector, the frozen corpus, vendored libraries
+lib/         the standard library in Zinc (std/, the UI kits); zinc.d.ts
 plugins/     optional modules and display drivers, one directory each (plugin.json)
 examples/    the demos every engine must run unchanged
 templates/   the projects of `zinc new`
 targets/, boards/, devices/   target capabilities, board presets, simulated devices
 docs/        guides, plugin and target docs, reports, decisions
-compiler/, runtime/, sim/, docker/   the prototype
-apps/studio, integrations/, site/    ZincStudio, Figma and reMarkable integrations, the web site
+packages/, integrations/, site/    the Vite plugin, the reMarkable integration, the web site
 ```
 
 </details>

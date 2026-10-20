@@ -18,7 +18,7 @@ ordinal: 26500
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Owner request (2026-10-11): at the start of a run or a build, see which plugins the program calls, as the prototype does.
 
-The prototype prints one line on stderr, `zinc: plugins: a, b`, from the plugins the sources really import, and nothing under `--json` (`compiler/src/cli.ts:445` and its `log` at line 712, `activePlugins` in `compiler/src/plugins.ts`). Zinc Next resolves the same set (`gPluginDirs` in `next/src/main.cpp`, the plugin discovery of `zn::frontend`) and builds or loads each plugin, but prints nothing unless one fails.
+The prototype prints one line on stderr, `zinc: plugins: a, b`, from the plugins the sources really import, and nothing under `--json` (`compiler/src/cli.ts:445` and its `log` at line 712, `activePlugins` in `compiler/src/plugins.ts`). Zinc Next resolves the same set (`gPluginDirs` in `src/main.cpp`, the plugin discovery of `zn::frontend`) and builds or loads each plugin, but prints nothing unless one fails.
 
 Print the line for `run` (interpreter, compiled, `--engine quickjs`), `build` and `dev`. Not the plugins that are installed: the ones this program imports, display drivers included.
 <!-- SECTION:DESCRIPTION:END -->

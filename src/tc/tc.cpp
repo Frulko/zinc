@@ -732,7 +732,7 @@ std::string sourceRoot(const std::string& compiledIn) {
   std::string exe = executablePath();
   if (!exe.empty()) {
     fs::path dir = fs::path(exe).parent_path();
-    for (const char* rel : {"../share/zinc/next", "../Resources/zinc/next"}) {
+    for (const char* rel : {"../share/zinc", "../Resources/zinc"}) {
       fs::path c = dir / rel;
       std::error_code ec;
       if (fs::exists(c / "include/zn/runtime.h", ec)) return fs::weakly_canonical(c, ec).string();

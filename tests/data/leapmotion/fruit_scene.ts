@@ -1,6 +1,6 @@
 import { clear, onFrame } from 'zinc:gfx';
-import { FruitScene } from '../../../../examples/leapmotion/src/scene3d';
-import { Game, Fruit } from '../../../../examples/leapmotion/src/model';
+import { FruitScene } from '../../../examples/leapmotion/src/scene3d';
+import { Game, Fruit } from '../../../examples/leapmotion/src/model';
 const view = new FruitScene(), game = new Game();
 game.running = true;
 for (let i = 0; i < 5; i++) {

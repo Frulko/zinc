@@ -22,15 +22,15 @@ grep -q 'add_library(zn_app_plugin_video STATIC ${ZINC_PLUGINS}/video/native/vid
 grep -q '"-framework AVFoundation" "-framework CoreMedia" "-framework CoreVideo"' "$cm" || { echo "the iOS export does not link AVFoundation"; fail=1; }
 [ -f "$tmp/i/assets/a.mp4" ] || { echo "the clips are not in the iOS bundle's assets"; fail=1; }
 # the backends compile for their SDKs, when this machine has them
-inc="-I src -I include -I ../runtime -I ../runtime/include -I third_party"
+inc="-I src -I include -I runtime -I runtime/include -I third_party"
 ndk=$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/*/toolchains/llvm/prebuilt/*/bin 2>/dev/null | tail -1)
 if [ -n "$ndk" ]; then
   for t in aarch64-linux-android24 armv7a-linux-androideabi24; do
-    "$ndk/clang++" --target=$t -std=c++17 -fno-exceptions -fno-rtti -fsyntax-only -Wall -Wextra -Werror -I "$tmp/a/app/jni/src/plugins/video" $inc ../plugins/video/native/video.android.cpp || { echo "video.android.cpp does not compile for $t"; fail=1; }
+    "$ndk/clang++" --target=$t -std=c++17 -fno-exceptions -fno-rtti -fsyntax-only -Wall -Wextra -Werror -I "$tmp/a/app/jni/src/plugins/video" $inc plugins/video/native/video.android.cpp || { echo "video.android.cpp does not compile for $t"; fail=1; }
   done
 fi
 if command -v xcrun >/dev/null 2>&1 && sdk=$(xcrun --sdk iphonesimulator --show-sdk-path 2>/dev/null); then
-  xcrun --sdk iphonesimulator clang++ -target arm64-apple-ios16.3-simulator -isysroot "$sdk" -std=c++17 -fno-exceptions -fno-rtti -fsyntax-only -Wall -Wextra -Werror -x objective-c++ -I "$tmp/i/src/plugins/video" $inc ../plugins/video/native/video.ios.mm || { echo "video.ios.mm does not compile for the iOS simulator"; fail=1; }
+  xcrun --sdk iphonesimulator clang++ -target arm64-apple-ios16.3-simulator -isysroot "$sdk" -std=c++17 -fno-exceptions -fno-rtti -fsyntax-only -Wall -Wextra -Werror -x objective-c++ -I "$tmp/i/src/plugins/video" $inc plugins/video/native/video.ios.mm || { echo "video.ios.mm does not compile for the iOS simulator"; fail=1; }
 fi
 [ $fail -eq 0 ] && echo "video phone: ok"
 exit $fail

@@ -22,7 +22,7 @@ As an **App developer**, I want types checked (numbers, functions, returns), so 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 on a 30-file differential set, every program we accept is accepted by the oracle (`next/tools/oracle`); any violation is a bug; rejections of invalid fixtures carry a Z-code; notes record which parts were ported from the reference checker.
+- [x] #1 on a 30-file differential set, every program we accept is accepted by the oracle (`tools/oracle`); any violation is a bug; rejections of invalid fixtures carry a Z-code; notes record which parts were ported from the reference checker.
 <!-- AC:END -->
 
 ## Implementation Notes

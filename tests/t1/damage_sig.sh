@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
-for app in ../examples/hero/src/main.tsx ../examples/maps/navigation/src/main.tsx ../examples/bouncing-ball/src/main.ts; do
+for app in examples/hero/src/main.tsx examples/maps/navigation/src/main.tsx examples/bouncing-ball/src/main.ts; do
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SHOT_FRAMES=3,8,12 ZINC_SHOT="$t/x.png" ZINC_SCENE_DUMP="$t/s.scn" "$ZINC" run "$app" >/dev/null 2>&1
   for p in "3 8" "8 12" "3 12" "12 3" "8 8"; do
     set -- $p

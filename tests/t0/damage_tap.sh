@@ -8,7 +8,7 @@ t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 printf '90 move 145 815\n100 down\n103 up\n140 move 210 400\n150 wheel 0 -1\n' >"$t/in"
 frames="100,101,$(seq -s, 225 241)"
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=241 ZINC_INPUT="$t/in" ZINC_SHOT_FRAMES="$frames" ZINC_SHOT="$t/x.png" \
-  ZINC_SCENE_DUMP="$t/s.scn" "$ZINC" run ../examples/rn-showcase >/dev/null 2>&1
+  ZINC_SCENE_DUMP="$t/s.scn" "$ZINC" run examples/rn-showcase >/dev/null 2>&1
 fail=0
 # the press on the empty gap of the tab bar changes nothing on the screen (it used to show the indicator for 1.2 s: the screen, twice)
 press=$("$ZINC" capture --scene "$t/s-100.scn" --damage "$t/s-101.scn") || { echo "damage_tap: press: $press"; fail=1; }

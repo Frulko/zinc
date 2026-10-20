@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 export const REPO = 'https://github.com/Frulko/zinc';
 export const INSTALL = 'brew install frulko/zinc/zinc';
-export const SOURCES = 'git clone https://github.com/Frulko/zinc && cd zinc/next && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc';
+export const SOURCES = 'git clone https://github.com/Frulko/zinc && cd zinc && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc';
 export const img = (f: string) => `${import.meta.env.BASE_URL}docs-assets/img/${f}`;
 
 export type Demo = { f: string; t: string; d: string; cmd: string };

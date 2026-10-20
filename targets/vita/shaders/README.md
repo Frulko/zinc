@@ -9,7 +9,7 @@ the open-source path below (not invented, not copied).
 ## How the pair is compiled (from this machine's sources)
 
 ```sh
-# 1. GLSL -> SPIR-V (vendored glslang next/third_party/glslang/glslang/, built
+# 1. GLSL -> SPIR-V (vendored glslang third_party/glslang/glslang/, built
 #    out of tree with -DENABLE_OPT=0):
 glslang -V color3d.vert -o color3d-v.spv
 glslang -V color3d.frag -o color3d-f.spv
@@ -41,6 +41,6 @@ still holds `aPosition`, `aColor`, `Wvp`.
 - `zn_gxp_3d.h` — the byte-table header generated from the two blobs.
 
 Only these three files are the pair's compiled form; the test
-`next/tests/t0/vita_gxp_3d.sh` checks that every blob present is a real
+`tests/t0/vita_gxp_3d.sh` checks that every blob present is a real
 GXP (`GGP\0` magic, non-empty) and, when none is checked in, exits 77 with the
 reason, never failing the build.

@@ -215,7 +215,7 @@ namespace {
 // ---- plugins with a browser backend
 struct WebPlugin { std::string name, dir, native, impl, module, entry; std::vector<std::string> needs, wasmSources, wasmFlags, wasmExports; std::string wasmName; std::vector<std::pair<std::string, std::string>> scripts; };   // scripts: libraries the plugin loads when it first needs them (name, file): Z.loadScript(name)   // native + impl: a browser backend of the native side; entry: the plugin's module written for the browser
 std::vector<WebPlugin> findPlugins(const WebArgs& a, const Cfg& c) {
-  std::vector<fs::path> roots = {fs::path(a.engineRoot) / ".." / "plugins", fs::path(a.dir) / "plugins"};
+  std::vector<fs::path> roots = {fs::path(a.engineRoot) / "plugins", fs::path(a.dir) / "plugins"};
   for (const std::string& d : c.pluginDirs) roots.push_back(fs::path(a.dir) / d);
   std::vector<WebPlugin> out;
   std::error_code ec;

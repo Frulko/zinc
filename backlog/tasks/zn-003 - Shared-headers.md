@@ -22,7 +22,7 @@ As a **Maintainer**, I want opcodes, value layouts, limits and ABI constants def
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 a stub compiler and a stub VM include the same header; one test fails if either redefines a constant.
-- [x] #2 M0 demo: next/tests/run --tier t1 on the frozen corpus with the stub binary prints only totals
+- [x] #2 M0 demo: tests/run --tier t1 on the frozen corpus with the stub binary prints only totals
 <!-- AC:END -->
 
 ## Implementation Notes

@@ -28,7 +28,7 @@ Reproduce on the tested revision and separate correctness failures from machine/
 - [ ] #1 Capture fib interpreter exit status, stdout and stderr on the tested revision; fix the cause of the mismatch with a focused regression test.
 - [ ] #2 Explain each ratio regression using repeatable measurements on comparable runner hardware and record the evidence; do not silently relax the threshold or overwrite the baseline.
 - [ ] #3 The benchmark gate passes on a fresh GitHub run, or a reviewed measurement correction explains and fixes the runner mismatch while retaining meaningful regression detection.
-- [ ] #4 Keep any runtime fix separate from benchmark measurement changes and run the relevant focused tests plus `next/tests/run --changed`.
+- [ ] #4 Keep any runtime fix separate from benchmark measurement changes and run the relevant focused tests plus `tests/run --changed`.
 <!-- AC:END -->
 
 ## Implementation Notes

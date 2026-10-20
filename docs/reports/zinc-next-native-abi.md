@@ -1,8 +1,8 @@
 # Native-module ABI (ZN-096)
 
-`next/include/zn/native.h` is the whole contract between the engine and a native module (a plugin written in C, C++ or Rust). It is plain C99, also valid
-C++20, and names no libuv, runtime or engine type, so a module needs nothing else to build. The registry is `next/src/rt/native.cpp` (`zn_native` library).
-Design source: `docs/reports/parity/03-plugins-targets.md` §4. Test: `next/tests/native/` (a module in C99 + a driver), run by `next/tests/t0/native.sh`.
+`include/zn/native.h` is the whole contract between the engine and a native module (a plugin written in C, C++ or Rust). It is plain C99, also valid
+C++20, and names no libuv, runtime or engine type, so a module needs nothing else to build. The registry is `src/rt/native.cpp` (`zn_native` library).
+Design source: `docs/reports/parity/03-plugins-targets.md` §4. Test: `tests/native/` (a module in C99 + a driver), run by `tests/t0/native.sh`.
 
 ## Shape
 

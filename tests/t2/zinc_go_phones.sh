@@ -19,7 +19,7 @@ sim=$(xcrun simctl list devices booted 2>/dev/null | grep -o '[0-9A-F-]\{36\}' |
 t=$(mktemp -d); trap 'kill $dev 2>/dev/null; wait $dev 2>/dev/null; rm -rf "$t"' EXIT
 fail=0
 waitfor() { n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -aq "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
-cp -R ../examples/rn-showcase "$t/rn" && rm -rf "$t/rn/build"
+cp -R examples/rn-showcase "$t/rn" && rm -rf "$t/rn/build"
 "$Z" dev "$t/rn" --lan --port 18300 > "$t/dev.log" 2>&1 &
 dev=$!
 waitfor "$t/dev.log" "Scan it with Zinc Go" 20 || { echo "zinc dev --lan did not start: $(tail -3 "$t/dev.log")"; exit 1; }
@@ -43,7 +43,7 @@ if [ -n "$android" ]; then
   abi=$("$ADB" -s "$EMU" shell getprop ro.product.cpu.abi | tr -d '\r')
   if [ -z "$ZINC_GO_SKIP_BUILD" ]; then
     rm -rf /tmp/zn631-go-android
-    "$Z" export ../examples/zinc-go --target android -o /tmp/zn631-go-android --apk --abis "$abi" > "$t/apk.log" 2>&1 || { echo "the Android player did not build: $(grep -a -m3 'error' "$t/apk.log")"; exit 1; }
+    "$Z" export examples/zinc-go --target android -o /tmp/zn631-go-android --apk --abis "$abi" > "$t/apk.log" 2>&1 || { echo "the Android player did not build: $(grep -a -m3 'error' "$t/apk.log")"; exit 1; }
   fi
   "$ADB" -s "$EMU" install -r /tmp/zn631-go-android/app/build/outputs/apk/debug/app-debug.apk >/dev/null || { echo "install failed"; exit 1; }
   "$ADB" -s "$EMU" shell am force-stop dev.zinc.go
@@ -69,7 +69,7 @@ fi
 if [ -n "$ios" ]; then
   if [ -z "$ZINC_GO_SKIP_BUILD" ]; then
     rm -rf /tmp/zn631-go-ios
-    "$Z" export ../examples/zinc-go --target ios -o /tmp/zn631-go-ios --ipa --simulator > "$t/ios.log" 2>&1 || { echo "the iOS player did not build: $(grep -a -m3 'error' "$t/ios.log")"; exit 1; }
+    "$Z" export examples/zinc-go --target ios -o /tmp/zn631-go-ios --ipa --simulator > "$t/ios.log" 2>&1 || { echo "the iOS player did not build: $(grep -a -m3 'error' "$t/ios.log")"; exit 1; }
   fi
   xcrun simctl install "$sim" /tmp/zn631-go-ios/build/Debug-iphonesimulator/zinc-go.app || { echo "install failed"; exit 1; }
   # the link as the launch's argument, as a deep link at a cold start (`simctl openurl` asks "Open in Zinc Go?" first, which simctl cannot tap)

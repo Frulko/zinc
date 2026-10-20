@@ -1,5 +1,5 @@
 // Webcam: a small camera app on zinc:camera (docs/plugins/camera.md), in the React model. See README.md.
-//   cd next && build/zinc run ../examples/webcam
+//   build/zinc run examples/webcam
 // Keys: Space takes a photo, M mirrors, C switches camera, F fits or fills, arrows browse the viewer, Esc closes the viewer then the app.
 // Test and screenshot hooks: WEBCAM_DEMO_PERMISSION=undetermined|denied|granted stands in for the system's answer, WEBCAM_LOG=1 prints what
 // happens (tests/t1/webcam_demo.sh), ZINC_SCHEME=dark the dark scheme.

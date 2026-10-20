@@ -9,7 +9,7 @@ The output is normalised (ANSI, timestamps, ports, durations) before the compari
 """
 import os, re, subprocess, sys, json, socket, time, threading, urllib.request
 
-HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = NEXT
 GOLD = os.path.join(NEXT, "tests", "golden", "examples", "output")
 ZN = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
 PROTO = ["node", os.path.join(ROOT, "compiler", "bin", "zinc.mjs")]

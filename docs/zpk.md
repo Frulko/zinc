@@ -5,7 +5,7 @@ file (or the member of a `.zapp`, which a ustar archive stores on a 512-byte bou
 mapped index and decodes only what it reads. Opening a pack reads its index, never its data; an entry is checked against its SHA-256
 when it is first read. The design and the measurements behind it are in `docs/reports/games/toolchain-assets-loading.md`, section 6.1.
 
-The module is `next/src/zpk` (`zpk.h`): `zn::zpk::write` makes a pack, `zn::zpk::Reader` reads one. The asset build (`zinc assets
+The module is `src/zpk` (`zpk.h`): `zn::zpk::write` makes a pack, `zn::zpk::Reader` reads one. The asset build (`zinc assets
 build`, ZN-434) writes packs and the asset manager (`zinc:assets` v2, ZN-436) mounts them; this page is the format they share.
 
 A program writes a pack of its own with `assets.writePack(path, names, data)` and reads it back with `assets.mount(path)`: an app's

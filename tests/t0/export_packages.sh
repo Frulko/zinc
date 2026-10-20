@@ -15,7 +15,7 @@ run() { PATH="$tmp/bin:$PATH" JAVA_HOME=/nonexistent ANDROID_HOME= ANDROID_SDK_R
 want() { echo "$1" | grep -q -- "$2" || { echo "$3: no \"$2\" in: $(echo "$1" | grep '^+' | head -5)"; fail=1; }; }
 
 # android --aab without a key: the debug keystore, said so
-out=$(run ../examples/hello --target android -o "$tmp/a1" --aab --dry-run) || { echo "--aab --dry-run failed: $out"; fail=1; }
+out=$(run examples/hello --target android -o "$tmp/a1" --aab --dry-run) || { echo "--aab --dry-run failed: $out"; fail=1; }
 want "$out" '^+ ./gradlew bundleRelease$' "--aab"
 want "$out" "^+ unzip -qq -o '$tmp/a1/app/build/outputs/bundle/release/app-release.aab' 'base/lib/\*.so'" "--aab"
 want "$out" 'signed with the debug keystore' "--aab without a key"
@@ -25,7 +25,7 @@ g="$tmp/a1/app/build.gradle"
 grep -q "signingConfig signingConfigs.upload.storeFile ? signingConfigs.upload : signingConfigs.debug" "$g" && grep -q "storePassword System.getenv('ZINC_ANDROID_STORE_PASSWORD')" "$g" || { echo "app/build.gradle has no upload signing config"; fail=1; }
 
 # the key from the environment: path and alias on the Gradle line, the passwords nowhere
-out=$(ZINC_ANDROID_STORE_PASSWORD=s3cret-zn629 ZINC_ANDROID_KEY_PASSWORD=k3y-zn629 PATH="$tmp/bin:$PATH" JAVA_HOME=/nonexistent ZINC_ANDROID_KEYSTORE="$tmp/keys/upload.jks" ZINC_ANDROID_KEY_ALIAS=up "$Z" export ../examples/hello --target android -o "$tmp/a2" --aab --dry-run 2>&1)
+out=$(ZINC_ANDROID_STORE_PASSWORD=s3cret-zn629 ZINC_ANDROID_KEY_PASSWORD=k3y-zn629 PATH="$tmp/bin:$PATH" JAVA_HOME=/nonexistent ZINC_ANDROID_KEYSTORE="$tmp/keys/upload.jks" ZINC_ANDROID_KEY_ALIAS=up "$Z" export examples/hello --target android -o "$tmp/a2" --aab --dry-run 2>&1)
 want "$out" "^+ ./gradlew bundleRelease -Pzinc.keystore='$tmp/keys/upload.jks' -Pzinc.keyAlias='up'$" "--aab with ZINC_ANDROID_KEYSTORE"
 want "$out" "--ks='$tmp/keys/upload.jks' --ks-key-alias='up' --ks-pass=pass:\"\$ZINC_ANDROID_STORE_PASSWORD\"" "--aab with a key"
 echo "$out" | grep -q 's3cret-zn629\|k3y-zn629' && { echo "a password is in the output"; fail=1; }
@@ -42,26 +42,26 @@ out=$(run "$tmp/signed" --target android -o "$tmp/a4" --aab --dry-run) && { echo
 want "$out" 'a password is not kept in zinc.json; set ZINC_ANDROID_STORE_PASSWORD' "a password in zinc.json"
 
 # --apk: the debug APK of chosen ABIs, zipalign -c -P 16 then the ELF check
-out=$(run ../examples/hello --target android -o "$tmp/a5" --apk --abis arm64-v8a --dry-run)
+out=$(run examples/hello --target android -o "$tmp/a5" --apk --abis arm64-v8a --dry-run)
 want "$out" "^+ ./gradlew assembleDebug -Pzinc.abis='arm64-v8a'$" "--apk"
 want "$out" "^+ 'zipalign' -c -P 16 4 '$tmp/a5/app/build/outputs/apk/debug/app-debug.apk'$" "--apk"
 want "$out" "'lib/\*.so'" "--apk"
 want "$out" 'every LOAD segment of a 64-bit library must be aligned to 16 KB' "--apk"
 # --apk --release: assembleRelease, the release APK; without an upload key the debug keystore signs it (adb installs it)
-out=$(run ../examples/hello --target android -o "$tmp/a6" --apk --release --abis armeabi-v7a --dry-run)
+out=$(run examples/hello --target android -o "$tmp/a6" --apk --release --abis armeabi-v7a --dry-run)
 want "$out" "^+ ./gradlew assembleRelease -Pzinc.abis='armeabi-v7a'$" "--apk --release"
 want "$out" "^+ 'zipalign' -c -P 16 4 '$tmp/a6/app/build/outputs/apk/release/app-release.apk'$" "--apk --release"
 want "$out" 'the release APK is signed with the debug keystore, for an install with adb' "--apk --release"
-out=$(run ../examples/hello --target android -o "$tmp/a7" --release --dry-run) && { echo "--release without --apk was accepted"; fail=1; }
+out=$(run examples/hello --target android -o "$tmp/a7" --release --dry-run) && { echo "--release without --apk was accepted"; fail=1; }
 want "$out" '--release goes with --apk' "--release alone"
 
 # ios --ipa: archive and export; without a team the placeholder, and a real run stops before any tool
-out=$(run ../examples/hello --target ios -o "$tmp/i1" --ipa --dry-run)
+out=$(run examples/hello --target ios -o "$tmp/i1" --ipa --dry-run)
 want "$out" "^+ cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM='<team id>'$" "--ipa"
 want "$out" '^+ xcodebuild -quiet -project build-device/hello.xcodeproj -scheme hello -configuration Release -sdk iphoneos .* archive -archivePath build-device/hello.xcarchive$' "--ipa"
 want "$out" '^+ xcodebuild -quiet -exportArchive -archivePath build-device/hello.xcarchive -exportPath build-device/ipa -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates$' "--ipa"
 want "$out" 'xcrun altool --upload-app -f' "--ipa"
-out=$(run ../examples/hello --target ios -o "$tmp/i2" --ipa) && { echo "a device IPA without a team went on"; fail=1; }
+out=$(run examples/hello --target ios -o "$tmp/i2" --ipa) && { echo "a device IPA without a team went on"; fail=1; }
 want "$out" 'a device build is signed by your Apple team: set zinc.json signing.ios.team or ZINC_IOS_TEAM' "--ipa without a team"
 pl="$tmp/i1/ExportOptions.plist"
 command -v plutil >/dev/null 2>&1 && { plutil -lint "$pl" "$tmp/i1/PrivacyInfo.xcprivacy" >/dev/null || { echo "ExportOptions.plist or PrivacyInfo.xcprivacy is not a valid plist"; fail=1; }; }
@@ -83,7 +83,7 @@ out=$(run "$tmp/pad" --target ios -o "$tmp/i4" --ipa --dry-run) && { echo "an un
 want "$out" 'one of app-store-connect (app-store), release-testing (ad-hoc), debugging (development), enterprise' "an unknown method"
 
 # --ipa --simulator: the Debug .app for the simulator, zipped
-out=$(run ../examples/hello --target ios -o "$tmp/i5" --ipa --simulator --dry-run)
+out=$(run examples/hello --target ios -o "$tmp/i5" --ipa --simulator --dry-run)
 want "$out" '^+ cmake -S . -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=[a-z0-9_]* -DCMAKE_OSX_SYSROOT=iphonesimulator$' "--simulator"
 want "$out" '^+ xcodebuild -quiet -project build/hello.xcodeproj -scheme hello -configuration Debug -sdk iphonesimulator .* CODE_SIGNING_ALLOWED=NO build$' "--simulator"
 want "$out" '^+ ditto -c -k --keepParent build/Debug-iphonesimulator/hello.app hello-simulator.zip$' "--simulator"
@@ -103,8 +103,8 @@ grep -A4 'NSPrivacyAccessedAPICategoryUserDefaults<' "$p" | grep -q CA92.1 && gr
   { echo "the plugin's privacy categories are not merged: $(grep -c string "$p") strings"; fail=1; }
 
 # the options belong to their targets
-run ../examples/hello --target ios -o "$tmp/x" --aab >/dev/null && { echo "--aab was taken for ios"; fail=1; }
-run ../examples/hello --target android -o "$tmp/x" --dry-run >/dev/null && { echo "--dry-run alone was taken"; fail=1; }
+run examples/hello --target ios -o "$tmp/x" --aab >/dev/null && { echo "--aab was taken for ios"; fail=1; }
+run examples/hello --target android -o "$tmp/x" --dry-run >/dev/null && { echo "--dry-run alone was taken"; fail=1; }
 [ -f "$tmp/ran" ] && { echo "a tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export packages: ok"
 exit $fail

@@ -10,7 +10,7 @@ fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 d=tests/data/midi
 ZINC_DETERMINISTIC=1 timeout 30 "$ZINC" run $d/loop.ts 2>&1 | diff - $d/loop.out >"$tmp/d" || { echo "midi: loop.ts on the stand-in: $(head -4 "$tmp/d" | cut -c1-300)"; fail=1; }
-out=$(ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=12 ZINC_INPUT="$PWD/$d/keys.input" timeout 30 "$ZINC" run ../examples/midi 2>&1)
+out=$(ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=12 ZINC_INPUT="$PWD/$d/keys.input" timeout 30 "$ZINC" run examples/midi 2>&1)
 echo "$out" | grep -q "^midi: note on 60$" && echo "$out" | grep -q "^midi: note on 67$" || { echo "midi: examples/midi played no note from the keys: $(echo "$out" | head -3)"; fail=1; }
 MIDI_PORT="zinc-test-$$" ZINC_NATIVE=real timeout 50 "$ZINC" run $d/loop.ts >"$tmp/i.out" 2>&1
 if grep -q "MidiInAlsa\|MidiOutAlsa\|error creating" "$tmp/i.out"; then echo "midi: no MIDI system on this machine: $(head -1 "$tmp/i.out" | cut -c1-200)"; [ $fail = 0 ] && exit 77; exit 1; fi

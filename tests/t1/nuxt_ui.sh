@@ -5,7 +5,7 @@
 # Accordion, Table, Pagination and sidebar respond (inspect-nav.tsx), and the dashboard navigates, filters, adds a customer through its modal, switches the
 # scheme and collapses its sidebar (inspect-dashboard.tsx). The app's text is Public Sans at 400 to 700 (ZN-379, inspect-font.tsx).
 cd "$(dirname "$0")/../.." || exit 2
-app=../examples/nuxt-ui
+app=examples/nuxt-ui
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1
 fail=0
 while read -r name scheme open page sect want; do

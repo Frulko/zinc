@@ -17,7 +17,7 @@ ordinal: 5050
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-next/src/host/gfx_host.cpp:35 arr() copies a Zinc array into a TLSF-allocated zrt::Array<double> element by element, then add_points copies into the frame pool. Navigation AOT: push_raw, arr, add_points, tlsf malloc/free and memmove are ~10% of main-thread samples. Add (const double*, n) overloads in zrt::gfx and pass the f64[] storage directly.
+src/host/gfx_host.cpp:35 arr() copies a Zinc array into a TLSF-allocated zrt::Array<double> element by element, then add_points copies into the frame pool. Navigation AOT: push_raw, arr, add_points, tlsf malloc/free and memmove are ~10% of main-thread samples. Add (const double*, n) overloads in zrt::gfx and pass the f64[] storage directly.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

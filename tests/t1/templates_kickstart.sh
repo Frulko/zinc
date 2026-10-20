@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-for d in ../templates/*/; do
+for d in templates/*/; do
   t=$(basename "$d")
   p="$tmp/$t"
   "$Z" new "$t" "$p" >/dev/null || { echo "zinc new $t failed"; fail=1; continue; }

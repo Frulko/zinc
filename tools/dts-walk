@@ -10,7 +10,7 @@ import os, re, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DTS = os.path.join(ROOT, "..", "lib", "zinc.d.ts")
+DTS = os.path.join(ROOT, "lib", "zinc.d.ts")
 ZINC = os.environ.get("ZINC", os.path.join(ROOT, "build", "zinc"))
 
 # receiver declaration and member prefix per interface; T is bound to f64, K to string, V to f64, U to f64

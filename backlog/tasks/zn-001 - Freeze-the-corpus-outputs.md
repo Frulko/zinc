@@ -26,5 +26,5 @@ As a **Maintainer**, I want the expected outputs and pixel goldens of the curren
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Froze 62 conformance .out (default profile, all programs, the '18' subset is not defined anywhere so all are frozen), 11 bench kernel outputs (sim oracle) and 1 UI frame (clock-20.png) into next/corpus with MANIFEST.sha256. freeze.sh regenerates (needs Node, reproducible), tests/t0/corpus.sh checks hashes without Node. usage: 65528 in / 3302508 cached / 24404 out tokens, 46 turns (session total, estimate)
+Froze 62 conformance .out (default profile, all programs, the '18' subset is not defined anywhere so all are frozen), 11 bench kernel outputs (sim oracle) and 1 UI frame (clock-20.png) into corpus with MANIFEST.sha256. freeze.sh regenerates (needs Node, reproducible), tests/t0/corpus.sh checks hashes without Node. usage: 65528 in / 3302508 cached / 24404 out tokens, 46 turns (session total, estimate)
 <!-- SECTION:NOTES:END -->

@@ -40,7 +40,7 @@ Done 2026-10-16 (worktree, Android chain). Reworked on the owner's request (via 
 - The activity overrides getLibraries() -> {"main"}: SDL3 is linked into libmain.so, no libSDL3.so.
 - minSdk 24, not 21: libuv calls pthread_barrier_*, in bionic since API 24 (the NDK refuses the calls below it); the owner's limit was "at most 25" and the Nexus 7 2012 runs 25. Profile id note updated (Android 7.0, API 24).
 - The program's C++ comes from `ZN_AOT_CPP_ONLY=1 zinc build --profile android` (ZN-620): program.cpp, program.partN.cpp, and program.plugins (the names).
-- engine CMake (next/CMakeLists.txt) usable as a subdirectory: CMAKE_SOURCE_DIR/CMAKE_BINARY_DIR -> CMAKE_CURRENT_*; ANDROID: libuv's [linux] sources, _GNU_SOURCE, libdl; ZRT_PLATFORM "android".
+- engine CMake (CMakeLists.txt) usable as a subdirectory: CMAKE_SOURCE_DIR/CMAKE_BINARY_DIR -> CMAKE_CURRENT_*; ANDROID: libuv's [linux] sources, _GNU_SOURCE, libdl; ZRT_PLATFORM "android".
 
 Test tests/t0/export_android.sh (1 s): the exported tree of examples/hello equals tests/golden/export-android/hello.txt (every file and its sha256 with the engine and output paths normalized; the program's C++ by name), --print lists ./gradlew assembleDebug and bundleRelease, traps for gradle/adb/java/sdkmanager/aapt2/ndk-build on the PATH are not called, and the package id, ABIs, activity, SDK levels and 16 KB flag are where they belong. UPDATE=1 rewrites the golden.
 - app/build.gradle: targets "main" in the cmake block: AGP builds every library and executable of the CMake project otherwise (the engine's CLI, its tests).

@@ -19,7 +19,7 @@ dependencies: []
 <!-- AC:BEGIN -->
 - [x] #1 the same small app (a window, a list, a text field, an image) exists for Zinc, Electron and Tauri in a bench directory, with the script that builds and measures them
 - [ ] #2 size on disk of the shipped app, time from launch to first frame and resident memory after 10 s are measured on the development Mac, alone on the machine, five runs each, and logged in docs/reports/zinc-next-perf.md
-- [x] #3 where Zinc is not clearly ahead, the cause is named and given as lines for next/backlog/later.md
+- [x] #3 where Zinc is not clearly ahead, the cause is named and given as lines for backlog/later.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -27,9 +27,9 @@ dependencies: []
 <!-- SECTION:NOTES:BEGIN -->
 ## Handover (2026-10-11, parallel agent)
 
-Done: `next/bench/vs-electron/` holds the app three times (`zinc/` with zinc:ui/nuxt, `electron/` 44.7.0 packaged with @electron/packager and asar, `tauri/` 2.12 release bundle with the size profile of Tauri's guide) and `measure.sh [build] [measure]` (`ZINC=`, `RUNS=`, `APPS=`). Rust is in `~/.zinc/bench-tools/` (rustup with RUSTUP_HOME and CARGO_HOME there, `--no-modify-path`); the Tauri build took 4 min 49 s.
+Done: `bench/vs-electron/` holds the app three times (`zinc/` with zinc:ui/nuxt, `electron/` 44.7.0 packaged with @electron/packager and asar, `tauri/` 2.12 release bundle with the size profile of Tauri's guide) and `measure.sh [build] [measure]` (`ZINC=`, `RUNS=`, `APPS=`). Rust is in `~/.zinc/bench-tools/` (rustup with RUSTUP_HOME and CARGO_HOME there, `--no-modify-path`); the Tauri build took 4 min 49 s.
 
-How it measures (header of measure.sh): installed = `du -sk` of the .app, download = the .app zipped with ditto (same container for the three); start = `open -n` to the `first-frame` line (each app prints it at the start of its second frame); memory = sum of `ps` RSS at 10 s of the main process, its descendants and the processes it is responsible for (Tauri's WebKit XPC services are children of launchd; `open` makes the app their responsible process, a direct exec from a terminal does not). A sum of RSS counts shared pages once per process, which is against Electron and Tauri. `next/tools/resmon` was read and not used: it samples one pid, not a process family.
+How it measures (header of measure.sh): installed = `du -sk` of the .app, download = the .app zipped with ditto (same container for the three); start = `open -n` to the `first-frame` line (each app prints it at the start of its second frame); memory = sum of `ps` RSS at 10 s of the main process, its descendants and the processes it is responsible for (Tauri's WebKit XPC services are children of launchd; `open` makes the app their responsible process, a direct exec from a terminal does not). A sum of RSS counts shared pages once per process, which is against Electron and Tauri. `tools/resmon` was read and not used: it samples one pid, not a process family.
 
 Numbers, Intel Mac, 2026-10-11 20:37 to 20:45, TAKEN UNDER LOAD, TO RETAKE ALONE (other trees were building; CPU speed limit 40 to 66 of 100):
 
@@ -48,7 +48,7 @@ Where Zinc is not clearly ahead (read from the exported binary and one `vmmap -s
 - Memory: 83 MB RSS against Tauri's 104 MB summed over 4 processes is a lead of 20%, not a clear one. Physical footprint 65.3 MB: 23.3 MB IOKit and 9.9 MB IOAccelerator (the GPU context; the process has OpenGL GLSL regions), about 25 MB of dirty malloc heap (LARGE 8.4, MEDIUM 8.1, SMALL 4.3, NANO 2.7, TINY 1.4) for a list of 200 text rows, 14 threads.
 - Start: about 0.5 s under load against 0.65 to 0.75 s for Electron: not a clear lead until retaken alone; what the 0.5 s is made of was not profiled.
 
-Lines for `next/backlog/later.md` (the coordinator adds them):
+Lines for `backlog/later.md` (the coordinator adds them):
 - ZN-713: a UI-only export links Mbed TLS, libuv, llhttp, libwebp and every SDL3 subsystem (gamepad, haptics, Bluetooth, sensors, audio, camera): link them only when the program or its permissions use them; the 5.5 MB .app is larger than Tauri's 4.9 MB.
 - ZN-713: 33 MB of the 65 MB footprint of a list app is the GPU context (IOKit 23.3 MB, IOAccelerator 9.9 MB, OpenGL on the Intel Mac): measure the Metal path and a CPU-raster window for a UI-only app.
 - ZN-713: 25 MB of malloc heap for 200 text rows, one field and one image: find what holds it (glyph atlas, baked fonts, node tree, mimalloc arenas) with a heap profile.
@@ -56,5 +56,5 @@ Lines for `next/backlog/later.md` (the coordinator adds them):
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load): what happens before the window opens.
 - ZN-713: measure.sh could add the physical footprint (what Activity Monitor shows) beside the RSS sum, which counts shared pages once per process.
 
-Next command, on a quiet machine (no other tree building, `pmset -g therm` at 100), from `next/bench/vs-electron`: `./measure.sh build measure` (or `./measure.sh measure` while the bundles are still there), then log the table in `docs/reports/zinc-next-perf.md` and tick criterion 2.
+Next command, on a quiet machine (no other tree building, `pmset -g therm` at 100), from `bench/vs-electron`: `./measure.sh build measure` (or `./measure.sh measure` while the bundles are still there), then log the table in `docs/reports/zinc-next-perf.md` and tick criterion 2.
 <!-- SECTION:NOTES:END -->

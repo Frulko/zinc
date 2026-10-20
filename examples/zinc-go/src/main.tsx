@@ -2,7 +2,7 @@
 // one from `expo start`. Scan the QR code zinc dev prints, or type its zinc:// link, and the player (src/app/player.cpp, in the package)
 // connects, runs the project and keeps it live: a save on your computer updates the phone in place. This screen is the app's own program:
 // the player starts it with what it has to say (args: --message, --last, --connecting) and opens the links it hands to the system.
-//   zinc export ../examples/zinc-go --target android --apk     (or --target ios; "player": true in zinc.json)
+//   zinc export examples/zinc-go --target android --apk     (or --target ios; "player": true in zinc.json)
 import { render, useState } from 'zinc:ui/react';
 import { View, Text, Pressable, TextInput, ScrollView, SafeAreaView, StyleSheet, Platform } from 'zinc:react-native';
 import { Linking } from 'zinc:react-native/linking';

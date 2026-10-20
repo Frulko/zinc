@@ -24,7 +24,7 @@ seed() {   # $1 target: fills build-fuzz/corpus/$1
   d=build-fuzz/corpus/$1; mkdir -p "$d"
   case $1 in
     parse|check)
-      for f in tests/golden/run/*.ts tests/golden/checker/ok/*.ts tests/golden/checker/errors/*.ts tests/golden/unsupported/*.ts ../tests/conformance/*.ts; do [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 30000 ] && cp "$f" "$d/$(echo "$f" | tr '/' '_')"; done ;;
+      for f in tests/golden/run/*.ts tests/golden/checker/ok/*.ts tests/golden/checker/errors/*.ts tests/golden/unsupported/*.ts tests/conformance/*.ts; do [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 30000 ] && cp "$f" "$d/$(echo "$f" | tr '/' '_')"; done ;;
     zbc)
       for f in tests/compat/*.zbc; do cp "$f" "$d/"; done
       for f in tests/golden/run/*.ts; do ./build/zinc --emit=zbc-bin "$f" "$d/$(basename "$f" .ts).zbc" 2>/dev/null; done ;;

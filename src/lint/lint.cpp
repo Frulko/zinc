@@ -232,7 +232,7 @@ struct Linter {
     fe::setSystemPermissions(&granted);
     fe::setUiLayout(layout);
     fe::setUiPreset(project.uiPreset);
-    fe::Program prog = fe::loadProgram(entry, readFile, false, engineRoot + "/../lib/std");
+    fe::Program prog = fe::loadProgram(entry, readFile, false, engineRoot + "/lib/std");
     for (const fe::Diag& d : prog.diags) {
       const std::string code = d.code ? d.code : "";
       if (code == "Z0006" || code == "Z0007") continue;   // the source rules say it, with the codemod
@@ -337,7 +337,7 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
   if (!fs::exists(path, ec)) { std::fprintf(stderr, "zinc lint: no such file or directory: %s\n%s", path.c_str(), usage); return 2; }
   Linter L;
   L.engineRoot = engineRoot;
-  L.capsJson = engineRoot + "/../targets/capabilities.json";
+  L.capsJson = engineRoot + "/targets/capabilities.json";
   L.capsText = readAll(L.capsJson);
   L.projectFile = fe::findProjectFile(path);
   if (!L.projectFile.empty()) {
@@ -350,7 +350,7 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
   if (L.projectDir.empty()) L.projectDir = ".";
   L.entry = isDir ? fe::entryOf(path, L.haveProject ? &L.project : nullptr) : path;
   std::vector<std::string> problems;
-  L.plugins = fe::discoverPlugins(engineRoot + "/..", L.projectDir, problems);   // the checkout (or package) root holds plugins/
+  L.plugins = fe::discoverPlugins(engineRoot, L.projectDir, problems);   // the checkout (or package) root holds plugins/
 
   // the targets in force decide the exit code; --all-targets adds every profile of targets/capabilities.json to the matrix
   std::vector<std::string> inForce, run;

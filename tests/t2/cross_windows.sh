@@ -12,7 +12,7 @@ if [ -f "$tmp/library.exe" ]; then
   cmp -s "$tmp/library.out" tests/golden/run/library.out || { echo "cross_windows: the frozen output is not beside the program"; fail=1; }
 fi
 "$ZINC" build --target windows-x86_64 tests/golden/run/records.ts -o "$tmp/alias.exe" >"$tmp/log" 2>&1 && [ -f "$tmp/alias.exe" ] || { echo "cross_windows: the name windows-x86_64 is not accepted: $(tail -3 "$tmp/log")"; fail=1; }
-"$ZINC" build --target x86_64-windows ../examples/hero/src/main.tsx -o "$tmp/hero.exe" >"$tmp/log" 2>&1 && { echo "cross_windows: a program with a window builds?"; fail=1; }
+"$ZINC" build --target x86_64-windows examples/hero/src/main.tsx -o "$tmp/hero.exe" >"$tmp/log" 2>&1 && { echo "cross_windows: a program with a window builds?"; fail=1; }
 grep -q "console programs only" "$tmp/log" || { echo "cross_windows: no clear message for a program with a window: $(head -3 "$tmp/log")"; fail=1; }
 [ $fail -eq 0 ] && echo "cross windows: ok"
 exit $fail

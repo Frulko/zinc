@@ -1,7 +1,7 @@
 import { Hand, Device, Tracker } from 'zinc:leapmotion';
-import { Duel, gesture, winner } from '../../../../examples/leapmotion/src/shifumi';
-import { cuts, cutTime, Blade, Game, Fruit, Ink } from '../../../../examples/leapmotion/src/model';
-import { FruitInput } from '../../../../examples/leapmotion/src/fruit-input';
+import { Duel, gesture, winner } from '../../../examples/leapmotion/src/shifumi';
+import { cuts, cutTime, Blade, Game, Fruit, Ink } from '../../../examples/leapmotion/src/model';
+import { FruitInput } from '../../../examples/leapmotion/src/fruit-input';
 function blade(ax: number, ay: number, bx: number, by: number): Blade { const b = new Blade(); b.move(ax, ay, true, 1, 1); b.move(bx, by, true, 1, 1); return b; }
 function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
 check(cuts(0, 40, 100, 40, 50, 40, 8), 'fast blade crossed a fruit');

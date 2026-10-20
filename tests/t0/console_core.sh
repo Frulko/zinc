@@ -12,9 +12,9 @@ fail=0
 core=$PWD/$B/zinc-core
 same() {   # same <example>: the packed program on the core prints what zinc run prints, frame hashes included
   mkdir -p "$tmp/$1"
-  "$Z" pack "../examples/$1" -o "$tmp/$1.zapp" >/dev/null 2>&1 && tar -xf "$tmp/$1.zapp" -C "$tmp/$1" program.zbc || { echo "console core: zinc pack $1 failed"; fail=1; return; }
+  "$Z" pack "examples/$1" -o "$tmp/$1.zapp" >/dev/null 2>&1 && tar -xf "$tmp/$1.zapp" -C "$tmp/$1" program.zbc || { echo "console core: zinc pack $1 failed"; fail=1; return; }
   tar -xf "$tmp/$1.zapp" -C "$tmp/$1" resources.bin 2>/dev/null
-  want=$(cd "../examples/$1" && ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$Z" run --interp . 2>&1 | grep -v "^  \|^zinc run")
+  want=$(cd "examples/$1" && ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$Z" run --interp . 2>&1 | grep -v "^  \|^zinc run")
   got=$(ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$core" "$tmp/$1/program.zbc" 2>&1); rc=$?
   [ $rc -eq 0 ] || { echo "console core: $1 exits $rc: $got"; fail=1; }
   [ "$(echo "$got" | head -1)" = "zinc:start" ] && [ "$(echo "$got" | tail -1)" = "zinc:exit 0" ] || { echo "console core: $1 is not framed by zinc:start / zinc:exit 0"; fail=1; }

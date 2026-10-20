@@ -8,7 +8,7 @@ below needs a maintainer decision first, not a silent exception.
 ## Layout
 
 ```
-next/
+(the repository root)
   include/zn/     shared headers (opcodes, value layouts, limits, ABI, ops.h: the value semantics of every pure operation): the only place a constant or an operation is defined
   src/frontend/   lexer, parser, binder, checker, diagnostics
   src/ir/         typed SSA IR and passes
@@ -25,7 +25,7 @@ next/
                   compiles dnssd.cpp into its own library (ZN-756); depends on nothing of the engine
   src/zpk/        ZPK packs (ZN-433, docs/zpk.md): the writer (build side) and the reader in place over a mapping, lz4 and zstd per entry; depends on nothing of the engine
   src/assets/     the asset build (ZN-434, docs/reports/zinc-next-assets.md): rules, importers, the content-addressed cache, groups to ZPK packs, report.json; the font baker behind the cache; CLI only, includes zpk and res
-  src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
+  src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from the prototype's resources.ts (tag prototype-final), PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
   src/agent/      the device agent (ZN-729, docs/reports/zinc-next-agent.md): `zinc agent`, the daemon on a device, and `zinc device`, its client (pairing by code,
                   TLS sessions, mDNS discovery, shell, files, apps, forwarded ports); compiled into zinc, includes host/tls.h, tc, zapp and the hooks of `zinc dev` (cli_core.h, for `zinc dev --device`), only main includes it
@@ -53,13 +53,13 @@ never include each other. The programs `aot` writes include `include/zn` and `rt
 - C++20, builds warning-free with `-Wall -Wextra` on clang and `zig c++`, clean under ASan/UBSan.
 - Every module ships a T0 test in `tests/t0/` in the same commit.
 - Prefer a proven library to our own code (JSON, number formatting, allocator, regex, Unicode, hashing, compression...). A dependency is vendored under `third_party/<name>/` with its licence and a pinned version, builds with clang and `zig c++`, needs no install step for the user, and is listed in `third_party/README.md`. Write our own only when no mature library fits, and say why in the task notes.
-- Do not touch `compiler/` except for fixes. Reuse `runtime/` through its existing headers, never copy it.
+- Reuse `runtime/` through its existing headers, never copy it.
 - Commits: English, conventional (`type(scope): imperative description`, no final period, 72 chars max, scope `next` or
   the module), no co-author, explicit paths only, task file in the same commit as its code.
 
 ## Harness (used by /zn-start, /zn-end and loops)
 
-- `next/tools/next-task`: prints `TASK ZN-xxx <title>` or `STOP <reason>` (gate, decision, nothing left). Never pick a task any other way.
-- `next/tools/usage`: prints the session token usage line to paste into the task notes (estimate, not `/usage`).
-- `next/tests/run --tier t0|t1|t2 [--only name]`: quiet runner, details in `next/.logs/`.
+- `tools/next-task`: prints `TASK ZN-xxx <title>` or `STOP <reason>` (gate, decision, nothing left). Never pick a task any other way.
+- `tools/usage`: prints the session token usage line to paste into the task notes (estimate, not `/usage`).
+- `tests/run --tier t0|t1|t2 [--only name]`: quiet runner, details in `.logs/`.
 - Loop contract: one invocation = one task, ending with `NEXT: ZN-xxx` or `STOP: <reason>` on the last line.

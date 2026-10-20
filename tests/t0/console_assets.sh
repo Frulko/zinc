@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 command -v cmake >/dev/null 2>&1 || { echo "console assets: no cmake"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-env -u ZINC_DETERMINISTIC "$Z" pack ../examples/platformer -o "$tmp/p.zapp" >/dev/null 2>&1 && tar -xf "$tmp/p.zapp" -C "$tmp" program.zbc resources.bin packs/default.zpk ||
+env -u ZINC_DETERMINISTIC "$Z" pack examples/platformer -o "$tmp/p.zapp" >/dev/null 2>&1 && tar -xf "$tmp/p.zapp" -C "$tmp" program.zbc resources.bin packs/default.zpk ||
   { echo "console assets: zinc pack examples/platformer failed"; exit 1; }
 B=${ZN_CONSOLE_BUILD:-build/console-assets}
 { cmake -S targets/console -B "$B" -DZN_CONSOLE_EMBED="$tmp/program.zbc" -DZN_CONSOLE_EMBED_RES="$tmp/resources.bin" -DZN_CONSOLE_EMBED_PACK="$tmp/packs/default.zpk" &&

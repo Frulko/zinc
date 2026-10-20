@@ -88,7 +88,7 @@ cat > "$tmp/input" <<'IN'
 IN
 env HOME="$home" PATH="$tmp/bin:$PATH" FAKE_AGENT_LOG="$tmp/agents.log" ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_PROFILE=1 \
   ZINC_INPUT="$tmp/input" ZINC_FRAMES=230300 ZINC_SHOT="$tmp/f.png" ZINC_SHOT_FRAMES=39990,69990,109990,149990,150100,150200,189990,229990,230290 \
-  ZINC_SCENE_DUMP="$tmp/s.scn" timeout 90 "$Z" run ../examples/agents -- "$proj" > "$tmp/run.out" 2>&1 \
+  ZINC_SCENE_DUMP="$tmp/s.scn" timeout 90 "$Z" run examples/agents -- "$proj" > "$tmp/run.out" 2>&1 \
   || { echo "agents: the run failed: $(tail -5 "$tmp/run.out")"; exit 1; }
 [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$tmp"/*.scn "$tmp/agents.log" "$tmp/run.out" "$KEEP/" 2>/dev/null
 fail=0

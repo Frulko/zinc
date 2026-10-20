@@ -84,7 +84,7 @@ bool qemuCommand(const std::string& chip, const std::string& sourceRoot, std::st
 // archive (one top directory, any format tar reads) into `dir`; nothing happens when `dir/marker` is already there.
 bool fetchArchive(const char* what, const std::string& file, const std::string& sha256, const std::string& url, const std::string& dir, const char* marker, std::string& err);
 
-// The consoles and old phones (ZN-456, src/tc/consoles.cpp): their SDKs are needed only to rebuild a console core (next/targets/console) or for an
+// The consoles and old phones (ZN-456, src/tc/consoles.cpp): their SDKs are needed only to rebuild a console core (targets/console) or for an
 // AOT build; users of the prebuilt core need none. psp (pspdev), vita (VitaSDK) and ps2 (ps2dev): a prebuilt archive per host, pinned by SHA-256,
 // unpacked into ~/.zinc/toolchains/<sdk>-<host>-<version> ($PSPDEV, $VITASDK, $PS2DEV name your own); n3ds: devkitARM in devkitPro's docker image
 // pinned by digest ($DEVKITPRO names a local install; devkitPro asks that its packages are not mirrored); ios-legacy: Xcode's clang and ld-classic
@@ -114,15 +114,15 @@ struct PinnedTool { std::string name, version, archive, sha256, dir; bool presen
 std::vector<PinnedTool> pinnedTools();
 
 // Compiles `cppFile` (the C++ of a program, src/aot) together with the runtime for `target` and writes the executable `outFile`.
-// `sourceRoot` is the directory of the engine sources (next/). Objects of the runtime are cached per target under home()/cache.
+// `sourceRoot` is the directory of the engine sources (the checkout). Objects of the runtime are cached per target under home()/cache.
 bool crossBuild(const std::string& zig, const std::string& sourceRoot, const std::string& cppFile, const std::string& target, const std::string& outFile, std::string& err);
 
 // The libraries of the graphics host (zn_host_gfx and what it needs: runtime, rasterizer, null HAL, codecs, libuv, TLS...) built for `target` with the pinned zig, in
 // <sourceRoot>/build/cross-<target>; built when missing (CMake with zig as the compiler: tools/cross-libs does the same by hand). `dir` is where they are.
 bool ensureCrossLibs(const std::string& zig, const std::string& sourceRoot, const std::string& target, std::string& dir, std::string& err);
 
-// The directory of the engine's own files (next/ of a checkout, or share/zinc/next of a package): lib/std, the runtime sources for cross builds, the
-// core firmware. $ZINC_ROOT, else `<exe>/../share/zinc/next` (Linux package) or `<exe>/../Resources/zinc/next` (macOS app), else `compiledIn` (a
+// The directory of the engine's own files (the checkout, or share/zinc of a package): lib/std, the runtime sources for cross builds, the
+// core firmware. $ZINC_ROOT, else `<exe>/../share/zinc` (Linux package) or `<exe>/../Resources/zinc` (macOS app), else `compiledIn` (a
 // development build runs from its checkout).
 std::string sourceRoot(const std::string& compiledIn);
 std::string executablePath();  // the running binary, resolved; empty when unknown

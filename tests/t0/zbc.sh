@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for k in fib mandelbrot; do
-  src=../tests/bench/kernels/$k.ts
+  src=tests/bench/kernels/$k.ts
   "$ZINC" --emit=zbc "$src" 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "zbc golden differs: $k"; fail=1; }
   "$ZINC" --emit=zbc-bin "$src" "$tmp/$k.zbc" || { echo "cannot write $k.zbc"; fail=1; continue; }
   "$ZINC" zbc --dump "$tmp/$k.zbc" 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "binary round trip differs: $k"; fail=1; }

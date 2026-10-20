@@ -15,10 +15,9 @@ last shots with a viewer, adjustments, the capture format, and the screens for t
 ## Run it
 
 ```sh
-cd next
-build/zinc run ../examples/webcam                         # your webcam (macOS: AVFoundation; Linux and the Pi: V4L2)
-ZINC_FAKE_CAMERA=1 build/zinc run ../examples/webcam      # the simulated "Zinc Fake Camera" instead
-build/zinc run ../examples/webcam/src/web.tsx             # the same camera through navigator.mediaDevices.getUserMedia
+build/zinc run examples/webcam                         # your webcam (macOS: AVFoundation; Linux and the Pi: V4L2)
+ZINC_FAKE_CAMERA=1 build/zinc run examples/webcam      # the simulated "Zinc Fake Camera" instead
+build/zinc run examples/webcam/src/web.tsx             # the same camera through navigator.mediaDevices.getUserMedia
 ```
 
 **The first run on a Mac** shows "Allow the camera". Press **Allow camera**: macOS asks once whether the app that started Zinc (Terminal,
@@ -83,7 +82,7 @@ The photos go to `webcam/Photos/` next to the app's storage: `~/.zinc/webcam/Pho
 
 ## Tests and screenshots
 
-`next/tests/t1/webcam_demo.sh` drives the app headless on the fake camera (`ZINC_FAKE_CAMERA=1 ZINC_DETERMINISTIC=1`) with scripted
+`tests/t1/webcam_demo.sh` drives the app headless on the fake camera (`ZINC_FAKE_CAMERA=1 ZINC_DETERMINISTIC=1`) with scripted
 input and checks a frame hash per state and the log of each session (`WEBCAM_LOG=1`). A test never asks the system for the camera:
 the permission screens are shown with `WEBCAM_DEMO_PERMISSION=undetermined|denied|granted`, which only replaces the first reading of
 the status (tests and screenshots; pressing **Allow camera** or **Retry** still asks the plugin, which grants the fake camera).

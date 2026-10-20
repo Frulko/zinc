@@ -6,7 +6,7 @@ file:  {"milestone": "M7 Language parity",          # optional default milestone
         "ordinal_base": 40000,                       # optional: tasks get base, base+10, ... in file order unless they set "ordinal"
         "tasks": [{"key": "regex", "title": "...", "description": "...", "ac": ["..."], "size": "M",
                    "labels": ["language"], "deps": ["other-key", "ZN-012"], "parent": "ZN-100", "milestone": "...", "priority": "high"}]}
-Keys are remembered in next/backlog/keys.json; `deps` may mix keys of earlier tasks (this file or an earlier import) and existing ids. Prints `key ZN-xxx` per task.
+Keys are remembered in backlog/keys.json; `deps` may mix keys of earlier tasks (this file or an earlier import) and existing ids. Prints `key ZN-xxx` per task.
 """
 import json, os, re, subprocess, sys
 

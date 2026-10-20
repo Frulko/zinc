@@ -9,7 +9,7 @@ KNOWN lists pairs below 4.5 that are accepted until the theme changes (an unchan
 """
 import json, os, re, sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEME = open(os.path.join(ROOT, "lib/std/kit/theme.ts")).read(); PAL = open(os.path.join(ROOT, "lib/std/palette.ts")).read()
 PALETTE = {m.group(1): m.group(2).split(",") for m in re.finditer(r"'([a-z]+):([0-9a-f,]+);'", PAL)}
 SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]

@@ -1,4 +1,4 @@
-// The assets/ directory of a program built ahead of time, shared by the host's zinc:assets (next/src/host/sys_host.cpp) and zinc:webview's
+// The assets/ directory of a program built ahead of time, shared by the host's zinc:assets (src/host/sys_host.cpp) and zinc:webview's
 // zinc:// URLs (ZN-314, ZN-645): assets/ beside the executable (zinc export), in the bundle's Resources (the .app of zinc export: the
 // executable is in Contents/MacOS), one level above it (zinc build writes <project>/build/<name>); with `cwd`, else the assets/ of the
 // directory the program was started in. "" when none. ZINC_ASSETS, which zinc run sets, is the callers' to check first.

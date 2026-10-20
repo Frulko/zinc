@@ -11,8 +11,8 @@
 #   it names is not exported, and the refusal names the file.
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
-game=$PWD/../examples/pinball3d
+ex=$PWD/examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
+game=$PWD/examples/pinball3d
 play=$PWD/tests/data/pinball3d/play.input
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0

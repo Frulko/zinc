@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-n=$(ls ../plugins/*/plugin.json | wc -l | tr -d ' ')
+n=$(ls plugins/*/plugin.json | wc -l | tr -d ' ')
 out=$("$ZINC" plugins 2>"$tmp/err"); rc=$?
 [ $rc -eq 0 ] && [ "$(echo "$out" | wc -l | tr -d ' ')" = "$((n + 1))" ] || { echo "zinc plugins does not list the $n manifests (and the header): rc=$rc $(head -c 200 "$tmp/err")"; fail=1; }
 # the table of the prototype's `zinc plugins` (tests/data/plugins-table.txt is its output at the time of the port), plus the plugins Next added since (zinc:system)

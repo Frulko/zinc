@@ -6,8 +6,8 @@
 """
 import os, re, sys
 
-HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(HERE))
-UI = os.path.join(ROOT, "lib/std/ui.ts"); DOC = os.path.join(ROOT, "docs/ui.md"); TOK = os.path.join(HERE, "..", "tests/golden/ui-tokens/main.out")
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
+UI = os.path.join(ROOT, "lib/std/ui.ts"); DOC = os.path.join(ROOT, "docs/ui.md"); TOK = os.path.join(ROOT, "tests/golden/ui-tokens/main.out")
 BEGIN, END = "<!-- ui-docs:begin -->", "<!-- ui-docs:end -->"
 
 def table():
@@ -26,7 +26,7 @@ def main():
     if BEGIN in doc: new = re.sub(re.escape(BEGIN) + ".*?" + re.escape(END), lambda m: block, doc, flags=re.S)
     else: new = doc.rstrip("\n") + "\n\n## Style reference\n\n" + block + "\n"
     if "--check" in sys.argv:
-        if new != doc: print("docs/ui.md is stale: run next/tools/ui-docs"); return 1
+        if new != doc: print("docs/ui.md is stale: run tools/ui-docs"); return 1
         print("ui-docs: docs/ui.md is up to date"); return 0
     open(DOC, "w").write(new); print("docs/ui.md updated"); return 0
 sys.exit(main())

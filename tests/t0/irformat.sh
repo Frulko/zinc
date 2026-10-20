@@ -16,7 +16,7 @@ printf 'zir 2\n' > "$tmp/v2.ir"
 sed 's/%1: i32 = const 2/%1: i32 = frobnicate 2/' tests/compat/ir-v1-fib.ir > "$tmp/bad.ir"
 "$ZINC" ir --check "$tmp/bad.ir" 2>&1 | grep -q "line [0-9]*: unknown instruction" || { echo "a malformed dump does not name its line"; fail=1; }
 # ZBC: the version 7 file of tests/compat loads and runs; version 6 (no profile), 5 (no fixed-point ops), 4 (no natives table) and every other version are refused with a message
-[ "$("$ZINC" run tests/compat/fib-v7.zbc 2>&1)" = "$("$ZINC" run ../tests/bench/kernels/fib.ts 2>&1)" ] || { echo "tests/compat/fib-v7.zbc does not run like its source"; fail=1; }
+[ "$("$ZINC" run tests/compat/fib-v7.zbc 2>&1)" = "$("$ZINC" run tests/bench/kernels/fib.ts 2>&1)" ] || { echo "tests/compat/fib-v7.zbc does not run like its source"; fail=1; }
 "$ZINC" zbc --check tests/compat/fib-v6.zbc 2>&1 | grep -q "version 6 is older than the supported version 7: rebuild" || { echo "the version 6 file is not refused as older"; fail=1; }
 "$ZINC" zbc --check tests/compat/fib-v5.zbc 2>&1 | grep -q "version 5 is older than the supported version 7: rebuild" || { echo "the version 5 file is not refused as older"; fail=1; }
 "$ZINC" zbc --check tests/compat/fib-v4.zbc 2>&1 | grep -q "version 4 is older than the supported version 7: rebuild" || { echo "the version 4 file is not refused as older"; fail=1; }

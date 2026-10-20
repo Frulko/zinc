@@ -17,9 +17,9 @@ adb shell am start -n dev.zinc.rn_showcase/.Rn_showcaseActivity --es zinc.env "Z
 Needs: the Android SDK (`ANDROID_HOME`), NDK r29 (29.0.14206865), a JDK 17 to 21 (Android Studio's `jbr`); the wrapper fetches Gradle 8.14.3
 (pinned by its sha256) and the Android Gradle Plugin 8.13.2, and AGP fetched the SDK's CMake 3.22.1 by itself on the first build.
 
-- The project is SDL 3.4.16's `android-project/` (vendored whole in `next/third_party/SDL3`), changed the way SDL's
+- The project is SDL 3.4.16's `android-project/` (vendored whole in `third_party/SDL3`), changed the way SDL's
   `build-scripts/create-android-project.py` changes it, plus a short list of Zinc changes (ZN-621 notes): an SDL upgrade is a re-copy.
-- `libmain.so` = the program's AOT C++ (`ZN_AOT_CPP_ONLY=1 zinc build --profile android`), the shell `next/src/app/shell_sdl.cpp` (SDL3 main
+- `libmain.so` = the program's AOT C++ (`ZN_AOT_CPP_ONLY=1 zinc build --profile android`), the shell `src/app/shell_sdl.cpp` (SDL3 main
   callbacks over `include/zn/app.h`), the engine library `zn_app` with SDL3 inside, and the program's plugins compiled from their sources.
 - minSdk 24: libuv calls `pthread_barrier_*`, in bionic since API 24 (SDL3 alone needs 21). `posix_spawn` (API 28) is declared weak with the
   NDK's `__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__`: an app never spawns, the linker drops `uv_spawn`.
@@ -63,7 +63,7 @@ region is only reserved address space until it is touched. Revisit with zinc.jso
 | Start after dropping the page cache | | 741 ms | |
 | Software raster through SDL_Renderer (ZN-622; `ZINC_PRESENT=texture` since ZN-743): frame | | 60.0 fps, 16.66 ms; work p50 1.38 p99 4.3 ms; present p50 15.0 p99 17.4 to 19.9 ms (300 to 700 frames) | 59.9 fps, 16.68 ms; work p50 0.26 p99 1.5 ms; present p50 16.2 p99 22.7 ms |
 | GLES 2 replay (`ZINC_RENDERER=gl`): frame | | 13.7 fps, 72.9 ms; work p50 1.98 p99 23.4 ms; present p50 89 p99 158 ms | present p50 16.3 p99 32.8 ms |
-| Output | logcat (tag `zinc`) equals `zinc run ../examples/hello`, 29 lines | | |
+| Output | logcat (tag `zinc`) equals `zinc run examples/hello`, 29 lines | | |
 
 - The owner, on the device: everything works, responsive layout and rotation, touch; "fluidité perceptible mais c'est ok".
 - Scrolling the rn-showcase feed by hand: 25 fps, frames of about 40 ms (raster about 23 ms, present about 13 ms): a full-screen raster of

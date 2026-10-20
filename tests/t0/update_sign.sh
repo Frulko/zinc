@@ -14,5 +14,5 @@ out=$(check "$pub2" "$t/signed.txt"); echo "$out" | grep -q "does not verify" ||
 sed 's/^sig=\(..\)/sig=00/' "$t/signed.txt" > "$t/bad.txt"
 out=$(check "$pub" "$t/bad.txt"); echo "$out" | grep -q "does not verify" || { echo "a bad signature was not refused: $out"; exit 1; }
 out=$(check "$pub" "$t/m.txt"); echo "$out" | grep -q "not signed" || { echo "an unsigned manifest was not refused: $out"; exit 1; }
-out=$(ZINC_UPDATE_PUBKEY= "$ZINC" update --check "file://$t/signed.txt" 2>&1); echo "$out" | grep -q "no trusted update key\|does not verify" || { echo "no trusted key (or only the release key of next/update.pub) must refuse: $out"; exit 1; }
+out=$(ZINC_UPDATE_PUBKEY= "$ZINC" update --check "file://$t/signed.txt" 2>&1); echo "$out" | grep -q "no trusted update key\|does not verify" || { echo "no trusted key (or only the release key of update.pub) must refuse: $out"; exit 1; }
 echo "update_sign: ok"

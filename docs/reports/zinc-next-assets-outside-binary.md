@@ -118,10 +118,10 @@ Nous ne pouvons pas annoncer une économie RSS égale à 87 Mo ou 155 Mo : dépl
 
 ## Sources locales et portée
 
-- [Détail des mesures et tests de contrôle](zinc-next-museum-memory-probe.md) ; relevé local `next/.logs/museum-probe/samples.jsonl`.
+- [Détail des mesures et tests de contrôle](zinc-next-museum-memory-probe.md) ; relevé local `.logs/museum-probe/samples.jsonl`.
 - Inventaire de taille local : `examples/museum-table/build/museum-table-sizes.json` et lecture du bloc `ZRS1` dans le `.app` préparé.
-- [Baker et ses exclusions](../../next/src/res/res.h), [installation et copies au démarrage](../../next/src/host/resources.cpp), [copie des assets dans le bundle](../../next/src/tc/bundle.cpp).
-- [Gestionnaire de packs/groupes/handles](../../next/src/host/assets_host.h), [chargement des fichiers du musée](../../examples/museum-table/src/files.ts), [vue du modèle OBJ](../../examples/museum-table/src/viewer.ts).
+- [Baker et ses exclusions](../../src/res/res.h), [installation et copies au démarrage](../../src/host/resources.cpp), [copie des assets dans le bundle](../../src/tc/bundle.cpp).
+- [Gestionnaire de packs/groupes/handles](../../src/host/assets_host.h), [chargement des fichiers du musée](../../examples/museum-table/src/files.ts), [vue du modèle OBJ](../../examples/museum-table/src/viewer.ts).
 - [Recherche sur les cycles de vie](zinc-next-resource-lifecycle.md) pour les techniques de partage, de cache borné et de libération.
 
 Aucun nouveau benchmark, changement de moteur ou test sur un autre appareil n’a été réalisé pour ce rapport. Les tests précédents vérifient que les fonctions de destruction d’images, de cibles/meshes logiciels et de fermeture vidéo savent libérer leurs ressources ; le parcours du musée ne les appelle pas encore à chaque départ de vue.

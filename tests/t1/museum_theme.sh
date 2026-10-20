@@ -7,9 +7,9 @@ cd "$(dirname "$0")/../.." || exit 2
 d=$PWD/tests/data/museum_theme; golden=$PWD/tests/golden/museum-table/theme.png; editor=$PWD/tests/golden/museum-table/theme-editor.png; tools=$PWD/tools
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/a/fonts"
-cp tests/data/fonts_runtime/assets/fonts/PublicSans-Medium.ttf ../lib/fonts/JetBrainsMono-Regular.ttf "$tmp/a/fonts/" || exit 2
-cp ../examples/pocket-hero/assets/logo.png "$tmp/a/logo.png" || exit 2
-cd ../examples/museum-table || exit 2
+cp tests/data/fonts_runtime/assets/fonts/PublicSans-Medium.ttf lib/fonts/JetBrainsMono-Regular.ttf "$tmp/a/fonts/" || exit 2
+cp examples/pocket-hero/assets/logo.png "$tmp/a/logo.png" || exit 2
+cd examples/museum-table || exit 2
 fail=0
 table() {  # the project file, extra arguments of zinc run: the story on stdout, the frame in $tmp/shot.png, its hash in $tmp/hash
   cp "$1" "$tmp/a/project.json"

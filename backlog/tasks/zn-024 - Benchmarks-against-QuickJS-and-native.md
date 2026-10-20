@@ -20,6 +20,6 @@ As the **Maintainer**, I want honest numbers, including losses (lesson from Perr
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 median of 11 runs of the M4 kernels (interpreter, AOT, QuickJS, current native) with a JSON artifact kept (next/bench/m4.json, made by tools/bench-m4)
-- [x] #2 M4 demo: the benchmark table with every threshold of next/TESTING.md, losses included, committed (docs/reports/zinc-next-m4-benchmarks.md); meeting the thresholds is ZN-025 and ZN-026
+- [x] #1 median of 11 runs of the M4 kernels (interpreter, AOT, QuickJS, current native) with a JSON artifact kept (bench/m4.json, made by tools/bench-m4)
+- [x] #2 M4 demo: the benchmark table with every threshold of TESTING.md, losses included, committed (docs/reports/zinc-next-m4-benchmarks.md); meeting the thresholds is ZN-025 and ZN-026
 <!-- AC:END -->

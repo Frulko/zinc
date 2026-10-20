@@ -21,15 +21,15 @@ app() {   # app <entry> <name> <shell>: the program's C++ units and the shell, a
   eval "set -- $(cat "$tmp/$n.libs")"   # the plugins' archives, quoted by zinc build
   c++ -std=c++20 -O1 -w -ffp-contract=off -DZN_APP_LIBRARY -I include -I src -I third_party/mimalloc/include -I third_party/SDL3/include "$tmp/$n".cpp $(ls "$tmp/$n".part*.cpp 2>/dev/null) "$shell" "$@" $libs $sys -o "$tmp/$n" 2>"$tmp/$n.err" || { echo "linking $n against zn_app failed: $(head -5 "$tmp/$n.err")"; return 1; }
 }
-if app ../examples/hello hello "$tmp/main.cpp"; then
+if app examples/hello hello "$tmp/main.cpp"; then
   "$tmp/hello" > "$tmp/hello.out" 2>/dev/null; got=$?
-  "$Z" run ../examples/hello > "$tmp/hello.want" 2>/dev/null; want=$?
+  "$Z" run examples/hello > "$tmp/hello.want" 2>/dev/null; want=$?
   cmp -s "$tmp/hello.out" "$tmp/hello.want" || { echo "hello linked against zn_app prints differently:"; diff "$tmp/hello.want" "$tmp/hello.out" | head -5; fail=1; }
   [ $got -eq $want ] || { echo "hello linked against zn_app exits with $got, zinc run with $want"; fail=1; }
 else fail=1; fi
-if app ../examples/rn-showcase rn src/app/shell_sdl.cpp; then
+if app examples/rn-showcase rn src/app/shell_sdl.cpp; then
   read -r screen scheme want _ < tests/golden/rn-showcase/hashes.txt
-  got=$(cd ../examples/rn-showcase && ZINC_STORAGE="$tmp/s.kv" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20 ZINC_SCALE=1 ZINC_SIZE=420x860 ZINC_FRAMEHASH=last SHOWCASE_SCREEN=$screen SHOWCASE_SCHEME=$scheme "$tmp/rn" 2>&1 | grep framehash | awk '{print $5}')
+  got=$(cd examples/rn-showcase && ZINC_STORAGE="$tmp/s.kv" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20 ZINC_SCALE=1 ZINC_SIZE=420x860 ZINC_FRAMEHASH=last SHOWCASE_SCREEN=$screen SHOWCASE_SCHEME=$scheme "$tmp/rn" 2>&1 | grep framehash | awk '{print $5}')
   [ "$got" = "$want" ] || { echo "rn-showcase on the SDL callbacks shell: frame hash '$got', recorded $want ($screen $scheme)"; fail=1; }
 else fail=1; fi
 # timers and promises on the real clock, one turn per tick of the callbacks shell (__loopStep: nothing sleeps, the next tick comes back)

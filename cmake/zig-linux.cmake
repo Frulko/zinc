@@ -1,6 +1,6 @@
 # Cross-build zinc for Linux with the pinned zig, from macOS or another Linux (docs/targets/linux.md):
-#   cmake -S next -B next/build-linux-aarch64 -DCMAKE_TOOLCHAIN_FILE=next/cmake/zig-linux.cmake -DZN_LINUX_ARCH=aarch64 -DCMAKE_BUILD_TYPE=Release
-#   BUILD_DIR=next/build-linux-aarch64 next/tools/build zinc        (next/tools/build-linux --arch aarch64 does both and packs the result)
+#   cmake -S next -B build-linux-aarch64 -DCMAKE_TOOLCHAIN_FILE=cmake/zig-linux.cmake -DZN_LINUX_ARCH=aarch64 -DCMAKE_BUILD_TYPE=Release
+#   BUILD_DIR=build-linux-aarch64 tools/build zinc        (tools/build-linux --arch aarch64 does both and packs the result)
 # ZN_LINUX_ARCH: aarch64 (Pi 3/4/5 on a 64-bit OS, ARM servers), armhf (ARMv6 + VFP: every 32-bit Raspberry Pi OS, the Pi 1 and Zero
 # included), armv7 (ARMv7 + NEON: Pi 2 and later on a 32-bit OS), x86_64, x86 (i686).
 # ZN_LINUX_LIBC: gnu (default, glibc 2.28 and newer: Debian 10 / Raspberry Pi OS Buster, Ubuntu 20.04, RHEL 8) or musl (one static file:

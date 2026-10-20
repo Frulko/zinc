@@ -346,7 +346,7 @@ the new material changes. Sizes: S under a day, M a few days, L a week or more.
 1. **A cook profile file and receipt per target, in `zinc assets` (M).** Copy the model: one JSON per target with caps (texture
    side, mesh vertices 65,535, section budgets, fps), a deterministic receipt with hashes and no timestamps, `check --target`
    that rejects an unsupported feature *before* cooking, and "a failed cook leaves the previous output". Files:
-   `next/src/assets/assets.cpp`, `model.cpp`, `texture.cpp`, `next/src/cli_core.cpp` (`zinc assets check/report`, ZN-436/437),
+   `src/assets/assets.cpp`, `model.cpp`, `texture.cpp`, `src/cli_core.cpp` (`zinc assets check/report`, ZN-436/437),
    new `targets/<id>/cook.json` read from `zinc.json` `targets`. Marble's `assets.rules` (`"format":"zmesh"`) gains a
    per-target override. Also: annotation of a texture's *purpose* (`surface`, `text-atlas`, `flipbook`) so the cooker, not the
    artist, picks size and format per target.
@@ -355,7 +355,7 @@ the new material changes. Sizes: S under a day, M a few days, L a week or more.
    `sceGuTexFlush` on every bind; 64-byte aligned display lists written through the uncached mirror; pools reset only after
    `sceGuSync`; `scePowerSetClockFrequency(333,333,166)` first; frame thread with the VFPU attribute and a 1 MB stack;
    `MEMSIZE=1`; a display-vcount guard instead of an unconditional vblank wait; PSM5650 draw buffer + dither as the default
-   (halves ROP bandwidth; ZN-468 says the same). Files: `targets/psp/hal_psp.cpp`, `next/targets/console/psp.cmake`, ZN-468/476/491
+   (halves ROP bandwidth; ZN-468 says the same). Files: `targets/psp/hal_psp.cpp`, `targets/console/psp.cmake`, ZN-468/476/491
    notes. Note ZN-476 says "sceGum matrices on the VFPU": Pocket3D uses the VFPU only as a thread attribute and keeps the CPU on
    scalar f32; measure before committing to hand VFPU transforms.
 3. **Index order as culling structure, and a budget governor, in the cooker and in zinc:3d (M).** Sort walls/clusters by facing
@@ -371,28 +371,28 @@ the new material changes. Sizes: S under a day, M a few days, L a week or more.
    (2.8 ms vs 9.4 ms for 383 draws). Plan it from the start: own command writing for the cell/uniform registers, citro3d state
    only after texture or combiner changes; rigid skin = 29 joints x 3 rows; hidden joint = zero matrix; the three-coordinate
    rule; a parking shader/texture; retire on `C3D_FrameBegin`, never on `FrameSync`. Files: `targets/n3ds/hal_n3ds.cpp`,
-   future `render3d.n3ds.cpp`, `next/targets/console/n3ds.cmake`. **Stereo (ZN-478)**: no Pocket3D game uses it; keep it behind the
+   future `render3d.n3ds.cpp`, `targets/console/n3ds.cmake`. **Stereo (ZN-478)**: no Pocket3D game uses it; keep it behind the
    slider and last, do not budget it into Marble's 30 fps.
 6. **Vita: precompiled GXP set with a "required console pass" (M, ZN-470/471/493).** Cg compile happens on a console; the
    cache key is a hash of expanded source + label + stage; the release tool refuses a set whose manifest or coverage does not
    match the shader sources and every setting. Zinc has fewer programs (GLSL ES 1.00 per D119/D124), so the Pocket3D numbers
    (864 programs) do not apply; but the *gate* does. D141 already pins a SDK; add the coverage file. Also: draw into the 4x MSAA
    display surface directly, 32 MB parameter buffer, clocks 444/222/222/166 re-asserted after suspend. Files:
-   `targets/vita/hal_vita.cpp`, `next/targets/console/vita.cmake`, `plugins/display-gl` (gl_renderer shared, ZN-471).
+   `targets/vita/hal_vita.cpp`, `targets/console/vita.cmake`, `plugins/display-gl` (gl_renderer shared, ZN-471).
 7. **PS2 GS/VU1 path (M, ZN-197 and zinc:3d on PS2).** Pocket3D has no PS2 target [unverified, absent from all repos], so only
    indirect lessons apply: it is the closest relative of the GE (fixed pipeline, fill-bound): prefer baked vertex light, small
    textures with CLUT, ordered index ranges, a per-profile triangle budget and a measured 640x448 frame cost. Marble's
-   `--profile ps2` rules test already runs f32. Files: `targets/ps2/hal_ps2.cpp`, `next/targets/console/ps2.cmake`.
+   `--profile ps2` rules test already runs f32. Files: `targets/ps2/hal_ps2.cpp`, `targets/console/ps2.cmake`.
 8. **Texture layouts in the asset tool, with reference decoders (L, ZN-452).** Confirmed formats: PSP swizzle 16 B x 8 rows +
    CLUT8 (+RGBA4444/8888 for glossy); 3DS ETC1 in PICA order (last row first, 8x8 tiles in Z order, bytes reversed) and Morton
    RGB565/RGBA4; Vita BC1/BC3/BC5 (mips averaged in linear light, a smaller level's alpha raised to keep cover) and linear for
    the transfer engine; iPod RGB565 rows (no PVRTC in Pocket3D: re-check ZN-452's PVRTC1 plan for the 4S). Test: decode of
-   the output equals the emulator's reference (already ZN-452 AC1). Files: `next/src/assets/texture.cpp`, new `texture_psp.cpp`,
+   the output equals the emulator's reference (already ZN-452 AC1). Files: `src/assets/texture.cpp`, new `texture_psp.cpp`,
    `texture_pica.cpp`.
 9. **UI over 3D: one presentation per modality, composed by the renderer (S-M, ZN-474/475/492).** Reuse `lib/std/ui.ts` kits
    with three presentations (pad / dual-screen / touch), the renderer owning timers (`wake`), the guest turn rate far below the
    frame rate, and a heap collection scheduled behind a fade or a load. Give the console core a "UI over the frame" budget (the
-   city gave up 8k of 32k triangles on iPod, 3-11k on PSP). Files: `lib/std/ui.ts`, `lib/std/kit`, `next/targets/console/core_main.cpp`.
+   city gave up 8k of 32k triangles on iPod, 3-11k on PSP). Files: `lib/std/ui.ts`, `lib/std/kit`, `targets/console/core_main.cpp`.
 10. **Evidence discipline (S).** Record in `docs/reports/zinc-next-consoles.md` per device: clocks, frame count, late frames,
     worst frame, triangles, draws, CPU/GPU ms from a real console, and keep emulator-only results labelled; add the list in
     section 5 to `docs/targets/handhelds.md`. A cook receipt never claims a frame time.
@@ -417,5 +417,5 @@ https://3d.pocket.nexus/ ; https://pocketjs.pocket.nexus/ and https://pocketjs.d
 `PJ/site/content/blog/introducing-pocket3d.md`, `pocket-voxel.md`, `shipping-openstrike.md`) ;
 https://studio.pocket.nexus/games/{maneuver,requiem,duty} ; https://github.com/pocket-nexus/{pocketjs,pocket-tokyo,
 pocket-atlas,pocket-duty,open-strike,pocket-voxel,pocket-island} (READMEs, `docs/COMPILER.md`, `devices/*/README.md`,
-`engine/pocket3d/PSP.md`, `engine/pocket3d/backends/citro3d/README.md`, profiles). Zinc side: `next/backlog/tasks/zn-452, 468,
+`engine/pocket3d/PSP.md`, `engine/pocket3d/backends/citro3d/README.md`, profiles). Zinc side: `backlog/tasks/zn-452, 468,
 469, 470, 471, 476, 478, 489-495, 754`, `docs/targets/handhelds.md`, `examples/marble/README.md`.

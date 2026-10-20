@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
-for app in ../examples/hero/src/main.tsx ../examples/maps/navigation/src/main.tsx; do
+for app in examples/hero/src/main.tsx examples/maps/navigation/src/main.tsx; do
   n=$(basename "$(dirname "$(dirname "$app")")")
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SHOT_FRAMES=3,8,12 ZINC_SHOT="$t/$n.png" ZINC_SCENE_DUMP="$t/$n.scn" ZINC_RENDER_STATS=1 "$ZINC" run "$app" >/dev/null 2>"$t/$n.err"
   grep -q '^zinc stats: .* cmds=[0-9]* ' "$t/$n.err" || { echo "$n: no render stats: $(tail -3 "$t/$n.err")"; fail=1; }

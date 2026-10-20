@@ -15,7 +15,7 @@ print(len({px[i:i+3] for i in range(0, len(px) - 2, 3)}))" "$1"; }
 for e in led/scroll-text:ws2812:'ws2812: 32x8' led/oled-clock:ssd1306:'ssd1306: 128x64' boards/scrollphat/badge:scrollphat:'scrollphat: 11x5' boards/s3-matrix/dice:ws2812:'ws2812: 8x8'; do
   ex=${e%%:*}; rest=${e#*:}; drv=${rest%%:*}; want=${rest#*:}
   rm -f "$tmp/shot.bmp"
-  out=$(SDL_VIDEODRIVER=dummy ZINC_DISPLAY=$drv ZINC_FRAMES=20 ZINC_SHOT="$tmp/shot.bmp" "$ZINC" run "../examples/$ex" 2>&1)
+  out=$(SDL_VIDEODRIVER=dummy ZINC_DISPLAY=$drv ZINC_FRAMES=20 ZINC_SHOT="$tmp/shot.bmp" "$ZINC" run "examples/$ex" 2>&1)
   case "$out" in *"SDL"*"not"*|*"SDL_Init"*) echo "skipped: no SDL here"; exit 77 ;; esac
   echo "$out" | grep -q "$want" || { echo "$ex: the driver did not start ($want): $(echo "$out" | head -c 300)"; fail=1; continue; }
   [ -s "$tmp/shot.bmp" ] && [ "$(distinct "$tmp/shot.bmp")" -ge 2 ] || { echo "$ex: the emulator window shows no picture"; fail=1; }

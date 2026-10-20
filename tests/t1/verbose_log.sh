@@ -20,12 +20,12 @@ echo "$out" | grep -q "^zinc\[plugin\] device: built (" || { echo "verbose_log: 
 # the second build: the plugin's stamp says nothing changed (ZN-617), or its cache entry is hit
 "$Z" build -v "$tmp/p/main.ts" -o "$tmp/p/app" 2>&1 >/dev/null | grep -Eq "^zinc\[plugin\] device: (cache hit|unchanged since its last build) \(" || { echo "verbose_log: the second build does not say the plugin came from the cache"; fail=1; }
 [ -z "$("$Z" build "$tmp/p/main.ts" -o "$tmp/p/app" 2>&1)" ] || { echo "verbose_log: zinc build without -v says something"; fail=1; }
-quiet=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 "$Z" run ../examples/ui/forms 2>&1)
+quiet=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 "$Z" run examples/ui/forms 2>&1)
 [ -z "$(echo "$quiet" | grep 'zinc\[')" ] || { echo "verbose_log: a run without ZINC_LOG logs"; fail=1; }
-ui=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_LOG=ui=debug "$Z" run ../examples/ui/forms 2>&1)
+ui=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_LOG=ui=debug "$Z" run examples/ui/forms 2>&1)
 echo "$ui" | grep -q "^zinc\[ui\] layout pass [0-9.]* ms$" || { echo "verbose_log: ZINC_LOG=ui=debug does not show the layout passes: $ui"; fail=1; }
 [ "$(echo "$ui" | grep -v '^zinc\[')" = "$quiet" ] || { echo "verbose_log: logging changed the program's output"; fail=1; }
-"$Z" run --log-format json -vv ../examples/hello 2>&1 >/dev/null | python3 -c "
+"$Z" run --log-format json -vv examples/hello 2>&1 >/dev/null | python3 -c "
 import json, sys
 lines = [l for l in sys.stdin.read().splitlines() if l.strip()]
 assert lines, 'no JSON lines'

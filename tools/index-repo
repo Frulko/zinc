@@ -3,7 +3,7 @@
 
   tools/index-repo keys <keys.json>                         a key pair per top-level role (root, targets, snapshot, timestamp), from `zinc update-keygen`
   tools/index-repo build <repo> <keys.json> <entries.json> [root.json]  writes root.json (and 1.root.json), targets.json, snapshot.json, timestamp.json and
-                                                          targets/; with a root.json (the engine's next/index/root.json) that root is published as it is
+                                                          targets/; with a root.json (the engine's index/root.json) that root is published as it is
   tools/index-repo entries <checkout> <out-dir> [version]   entries.json and a descriptor per plugin (plugins/*/plugin.json) and template (templates/*/template.json)
 
 Signing: with the `cryptography` package (CI) when it is installed, else `zinc index-sign`; both sign the OLPC canonical form, as TUF and securesystemslib do.

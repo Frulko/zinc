@@ -5,8 +5,8 @@
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 data=$PWD/tests/data/pinball3d
-"$ZINC" build ../examples/pinball3d -o "$tmp/pinball3d" >"$tmp/build.log" 2>&1 || { echo "pinball3d_aot: the game does not compile: $(tail -c 400 "$tmp/build.log")"; exit 1; }
-cd ../examples/pinball3d || exit 2   # a compiled program reads its files from where it runs: the project's folder
+"$ZINC" build examples/pinball3d -o "$tmp/pinball3d" >"$tmp/build.log" 2>&1 || { echo "pinball3d_aot: the game does not compile: $(tail -c 400 "$tmp/build.log")"; exit 1; }
+cd examples/pinball3d || exit 2   # a compiled program reads its files from where it runs: the project's folder
 fail=0
 for log in play sounds; do
   flag=--log; [ $log = sounds ] && flag=--sounds

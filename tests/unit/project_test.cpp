@@ -1,7 +1,7 @@
 // zinc.json game keys (ZN-435, docs/reports/games/toolchain-assets-loading.md §10): the report's example parses into every field, each error
 // stops the manifest (fatal, with its line), unknown keys inside the new objects are warnings, sizes read and print, the asset profile of a
 // target merges its default, the named profile and its own keys, and the defaults of targets/capabilities.json are valid.
-// Run from next/ (it reads ../targets/capabilities.json); prints "all checks passed" or one line per failure.
+// Run from the repository root (it reads targets/capabilities.json); prints "all checks passed" or one line per failure.
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -206,7 +206,7 @@ void profiles() {
   CHECK(!assetProfiles(p, R"({"a": {"assets": {"budgets": {"vram": 1}}}})", rows, err) && err.find("a.assets.budgets.vram is not a budget") != std::string::npos, "%s", err.c_str());
 
   // the shipped defaults: every target has a valid entry with formats, a pack codec and (but the simulator) budgets
-  std::ifstream in("../targets/capabilities.json");
+  std::ifstream in("targets/capabilities.json");
   std::stringstream ss;
   ss << in.rdbuf();
   rows.clear();

@@ -1,6 +1,6 @@
 // The same camera through the Web's API: navigator.mediaDevices.getUserMedia({ video: true }), the facade zinc:web keeps over zinc:camera
 // (docs/plugins/camera.md, "navigator.mediaDevices"). A browser page would put the stream in a <video>; here the track's image is drawn.
-//   cd next && build/zinc run ../examples/webcam/src/web.tsx
+//   build/zinc run examples/webcam/src/web.tsx
 // getUserMedia does not ask for the camera (a browser would): when access was never given, it fails with NotAllowedError; the main app's
 // "Allow camera" button asks once, and this page works from then on.
 import 'zinc:camera';

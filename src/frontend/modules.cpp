@@ -1519,7 +1519,7 @@ struct Loader {
   // (every directory above the importing file may hold one, like the old compiler's project plugins).
   void readPluginsIn(const std::string& dirIn) {
     namespace fs = std::filesystem;
-    const std::string dir = fs::path(dirIn).lexically_normal().string();   // "next/../plugins" and "plugins" are one directory, so one module identity
+    const std::string dir = fs::path(dirIn).lexically_normal().string();   // "next/plugins" and "plugins" are one directory, so one module identity
     if (!pluginDirsRead.insert(dir).second) return;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
@@ -1658,7 +1658,7 @@ struct Loader {
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
         if (done.count(path)) return done[path];
-        return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../next/third_party/lucide/icon-nodes.json"));
+        return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../third_party/lucide/icon-nodes.json"));
       }
       auto hit = kStd.find(spec);
       if (std::string feature = systemFeatureOf(spec); !feature.empty() && hit != kStd.end()) {   // a system module needs its permission in zinc.json (deny by default)
@@ -1809,7 +1809,7 @@ struct Loader {
     }
   }
   std::set<std::string> classTagsOf(const std::string& path, const std::string& text) { return jsxClassTags(path, text, read); }
-  // A file reached by two spellings of its path (`lib/std/solid.ts` through a tsconfig `paths` entry, `next/../lib/std/solid.ts` through the std root) is one module:
+  // A file reached by two spellings of its path (`lib/std/solid.ts` through a tsconfig `paths` entry, `next/lib/std/solid.ts` through the std root) is one module:
   // two instances would each have their own state (a Solid signal read in one and tracked in the other never updates).
   std::map<std::string, std::uint32_t> byCanonical;
   std::uint32_t load(const std::string& path, std::string text) {

@@ -29,7 +29,7 @@ for p in ('plain', 'db'):
         if c['name'] not in names: continue
         if f"==== {c['name']}" not in lic: print(f'{p}: no licence section for {c["name"]}'); fail = True
         if 'licenseFile' in c:
-            text = open('../' + c['licenseFile'], encoding='utf-8', errors='replace').read().strip()
+            text = open(c['licenseFile'], encoding='utf-8', errors='replace').read().strip()
             if text not in lic: print(f'{p}: the licence of {c["name"]} is not there in full'); fail = True
 sys.exit(1 if fail else 0)
 PY

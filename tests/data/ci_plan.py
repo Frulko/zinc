@@ -12,21 +12,21 @@ plan = runpy.run_path(str(ROOT / "tools/ci-plan"))["plan"]
 
 class Scope(unittest.TestCase):
     def test_docs_do_not_build(self):
-        self.assertFalse(plan(["next/backlog/tasks/task.md", "docs/report.md", "tests/compat/results/next.json"])["test"])
+        self.assertFalse(plan(["backlog/tasks/task.md", "docs/report.md", "tests/compat/results/next.json"])["test"])
 
     def test_fixture_keeps_macos_without_bench(self):
-        result = plan(["next/tests/t1/macos_window.sh"])
+        result = plan(["tests/t1/macos_window.sh"])
         self.assertTrue(result["test"])
         self.assertFalse(result["full"])
         self.assertFalse(result["bench"])
         self.assertFalse(result["reproducible"])
 
     def test_core_keeps_performance_gate(self):
-        for path in ("next/src/vm/vm.cpp", "runtime/gfx.cpp", "plugins/ui/native/main.cpp", "next/corpus/bench/fib.out"):
+        for path in ("src/vm/vm.cpp", "runtime/gfx.cpp", "plugins/ui/native/main.cpp", "corpus/bench/fib.out"):
             self.assertTrue(plan([path])["bench"], path)
 
     def test_build_changes_keep_reproducibility(self):
-        self.assertTrue(plan(["next/CMakeLists.txt"])["reproducible"])
+        self.assertTrue(plan(["CMakeLists.txt"])["reproducible"])
 
     def test_full_runs_include_all_gates(self):
         self.assertTrue(all(plan([], full=True).values()))
@@ -50,17 +50,17 @@ class Scope(unittest.TestCase):
                     input="\n".join(paths), text=True).splitlines())
 
             self.assertEqual(select(["next/lib/theme.ts"]), {"ui"})
-            self.assertEqual(select(["next/tests/t1/ui.sh"]), {"ui"})
-            self.assertEqual(select(["next/tests/t2/cross.sh"]), {"cross"})
-            self.assertEqual(select(["next/lib/theme.ts", "next/src/new_module.cpp"]), {"checker", "ui"})
-            self.assertEqual(select(["next/src/vm/vm.cpp"]), {"checker", "ui"})
+            self.assertEqual(select(["tests/t1/ui.sh"]), {"ui"})
+            self.assertEqual(select(["tests/t2/cross.sh"]), {"cross"})
+            self.assertEqual(select(["next/lib/theme.ts", "src/new_module.cpp"]), {"checker", "ui"})
+            self.assertEqual(select(["src/vm/vm.cpp"]), {"checker", "ui"})
             self.assertEqual(select(["docs/report.md"]), set())
             self.assertEqual(select(["tests/compat/results/next.json"]), set())
 
     def test_runner_uses_committed_comparison(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            tests = repo / "next/tests"
+            tests = repo / "tests"
             (tests / "t0").mkdir(parents=True)
             (tests / "t1").mkdir()
             for name in ("run", "affected.py"):
@@ -73,7 +73,7 @@ class Scope(unittest.TestCase):
                 return subprocess.check_output(["git", "-C", tmp, *args], stderr=subprocess.DEVNULL, text=True).strip()
 
             git("init")
-            git("add", "next", "input.ts")
+            git("add", "tests", "input.ts")
             commit = ("-c", "user.name=CI Test", "-c", "user.email=ci@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m")
             git(*commit, "initial")
             base = git("rev-parse", "HEAD")

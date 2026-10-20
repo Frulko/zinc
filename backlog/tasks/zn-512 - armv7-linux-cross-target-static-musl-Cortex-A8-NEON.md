@@ -15,7 +15,7 @@ ordinal: 269000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add armv7-linux to next/src/tc (targets(), crossBuild, ensureCrossLibs wrappers, plugin_build crossArch): zig target arm-linux-musleabihf, -mcpu=cortex_a8+neon (zig's cortex_a8 model has no NEON/VFP3 by default), -static, -O2 -ffp-contract=off. Static musl runs on NTC 4.4 jessie (glibc 2.19), Debian trixie, OpenWrt and Buildroot; zig's default glibc for 32-bit Arm is 2.34. dynlib is false (no dlopen). Measure -mthumb against -marm. See docs/reports/hardware/ntc-chip.md 3.5 and 9.1. (From docs/reports/hardware/ntc-chip.md.)
+Add armv7-linux to src/tc (targets(), crossBuild, ensureCrossLibs wrappers, plugin_build crossArch): zig target arm-linux-musleabihf, -mcpu=cortex_a8+neon (zig's cortex_a8 model has no NEON/VFP3 by default), -static, -O2 -ffp-contract=off. Static musl runs on NTC 4.4 jessie (glibc 2.19), Debian trixie, OpenWrt and Buildroot; zig's default glibc for 32-bit Arm is 2.34. dynlib is false (no dlopen). Measure -mthumb against -marm. See docs/reports/hardware/ntc-chip.md 3.5 and 9.1. (From docs/reports/hardware/ntc-chip.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

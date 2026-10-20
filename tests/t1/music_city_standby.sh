@@ -11,7 +11,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); srv=; trap '[ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; rm -rf "$tmp"' EXIT
 data=$(pwd)/tests/data/music
-cp -R ../examples/music "$tmp/music"
+cp -R examples/music "$tmp/music"
 rm -f "$tmp/music/config.json" "$tmp/music/radios.json" "$tmp/music/spotify.json"
 printf '{"sleep":120,"lat":48.85341,"lon":2.3488,"city":"Paris"}\n' > "$tmp/music/config.json"
 port=$((20000 + ($$ + 31) % 20000))

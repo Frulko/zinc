@@ -1,4 +1,4 @@
-// Test entry of the dashboard app (next/tests/t1/nuxt_ui.sh): the sidebar navigates, the customer search filters, the "New customer" modal adds a row and
+// Test entry of the dashboard app (tests/t1/nuxt_ui.sh): the sidebar navigates, the customer search filters, the "New customer" modal adds a row and
 // a toast, the scheme switch and the sidebar collapse (icons only, then the labels again) work.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';

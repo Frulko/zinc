@@ -78,4 +78,4 @@ src/
 - A Claude project whose path holds `-` or `.` is not offered in the folder list (Claude's folder names do not decode
   back); add it with the field.
 
-Test: `next/tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless).
+Test: `tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless).

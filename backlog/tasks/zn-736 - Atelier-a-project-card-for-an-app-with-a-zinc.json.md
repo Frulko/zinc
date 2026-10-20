@@ -46,7 +46,7 @@ Decisions (reversible, no record number taken): zinc.json is read and edited as 
 
 Not proven: Show Folder on a desktop (`open <dir>`, `xdg-open` on Linux; a session without a desktop says where the folder is); the card on Linux (its label says `Window, linux`: the golden is the Mac's); a zinc.json with comments or a byte order mark (the scanner reads plain JSON; such a file shows the plain sketch card); the pointer on the removal cross of a permission (the session uses `permission:<id>`, the same function).
 
-Lines for next/backlog/later.md:
+Lines for backlog/later.md:
 - ZN-736: edit the app's id, the icon (a file dialog), the entry and the per-target sizes from the card; today they are read there and changed in zinc.json.
 - ZN-736: a `zinc project --json` that prints the parsed project (name, app, targets, permissions in force per target, plugins used), so tools stop reading zinc.json themselves.
 - ZN-736 (Cross-platform pass): the project card on Linux (the `Window, linux` label, xdg-open), with its own golden or a crop without that label.

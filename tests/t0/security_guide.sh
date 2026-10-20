@@ -2,7 +2,7 @@
 # The distribution threat model (ZN-351): every test the guide's attack table cites exists, the TUF and transparency-log attacks are all in the table, and
 # `zinc help add` points to the guide.
 cd "$(dirname "$0")/../.." || exit 2
-g=../docs/guide/08-security.md
+g=docs/guide/08-security.md
 fail=0
 sec=$(mktemp); trap 'rm -f "$sec"' EXIT
 sed -n '/^## Plugin distribution: threat model and guarantees/,/^## /p' "$g" > "$sec"

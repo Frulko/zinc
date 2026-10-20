@@ -86,7 +86,7 @@ earned by a stable signing identity over downloads; an EV certificate no longer 
 needs no hardware token and signs from CI (`jsign` from macOS or Linux, `signtool` on Windows); an individual is eligible only in the US and
 Canada, so in France it goes through a company. Sources: learn.microsoft.com "code signing options" (updated 2026-08-29).
 
-## What is POSIX-only today (counts from grep over `next/src`, `include`, `runtime/`, `targets/common`)
+## What is POSIX-only today (counts from grep over `src`, `include`, `runtime/`, `targets/common`)
 
 | Area | Hits | Where | Windows answer |
 |---|---|---|---|
@@ -139,13 +139,13 @@ double-quoted command lines, size and mtime stamps (no inode or ctime; done), an
 
 ## The cross build from the Mac (this session)
 
-`next/cmake/zig-windows.cmake` is a CMake toolchain file for the pinned zig: `CMAKE_SYSTEM_NAME Windows`, wrappers `zig cc|c++ -target
+`cmake/zig-windows.cmake` is a CMake toolchain file for the pinned zig: `CMAKE_SYSTEM_NAME Windows`, wrappers `zig cc|c++ -target
 <arch>-windows-gnu`, `zig ar|ranlib|rc`, static link; it finds zig in `$ZINC_HOME/toolchains` (or `-DZIG=`), takes `-DZN_WIN_ARCH=aarch64`, and on a
 Windows host writes `.cmd` wrappers so the same file builds natively there.
 
 ```sh
-cmake -S next -B next/build-win -DCMAKE_TOOLCHAIN_FILE=next/cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
-BUILD_DIR=next/build-win next/tools/build zinc
+cmake -S next -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
+BUILD_DIR=build-win tools/build zinc
 ```
 
 - With the graphics host on, configure stops in SDL3: its Windows sources are not vendored (`src/thread/windows/SDL_syscond_cv.c` first).

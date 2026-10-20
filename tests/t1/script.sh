@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for n in script_basic script_async script_fast; do
-  "$ZINC" run ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.out >/dev/null || { echo "$n differs from its frozen output"; fail=1; }
-  "$ZINC" build ../tests/conformance/$n.ts -o "$tmp/$n" >"$tmp/b.log" 2>&1 && "$tmp/$n" 2>&1 | diff -q - ../tests/conformance/$n.out >/dev/null || { echo "$n differs as an AOT program: $(head -c 300 "$tmp/b.log")"; fail=1; }
+  "$ZINC" run tests/conformance/$n.ts 2>&1 | diff -q - tests/conformance/$n.out >/dev/null || { echo "$n differs from its frozen output"; fail=1; }
+  "$ZINC" build tests/conformance/$n.ts -o "$tmp/$n" >"$tmp/b.log" 2>&1 && "$tmp/$n" 2>&1 | diff -q - tests/conformance/$n.out >/dev/null || { echo "$n differs as an AOT program: $(head -c 300 "$tmp/b.log")"; fail=1; }
 done
 exit $fail

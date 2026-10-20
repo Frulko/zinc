@@ -8,8 +8,8 @@ Exit 1 on any change. Landing a deliberate re-baseline means committing the mani
 """
 import json, os, subprocess, sys
 
-HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
-MAN = "next/tests/golden/examples/proto/manifest.json"
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = NEXT
+MAN = "tests/golden/examples/proto/manifest.json"
 args = sys.argv[1:]
 compare = "--no-compare" not in args
 entries = [a for a in args if not a.startswith("--")]

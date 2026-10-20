@@ -73,7 +73,7 @@ point is repeated beside it. Every narration has subtitles; each picture, object
 the synthesised voice with its own subtitles (`tools/narration.sh` makes the clips; a museum replaces them with a recorded voice).
 
 ```sh
-next/tools/contrast-check --museum examples/museum-table/assets/project.json   # the contrast of the theme and of the high-contrast colours
+tools/contrast-check --museum examples/museum-table/assets/project.json   # the contrast of the theme and of the high-contrast colours
 ```
 
 ## macOS distribution
@@ -81,8 +81,8 @@ next/tools/contrast-check --museum examples/museum-table/assets/project.json   #
 From the repository root on a Mac:
 
 ```sh
-next/build/zinc build --bundle examples/museum-table/src/main.ts -o examples/museum-table/build/museum-table.app
-next/tools/package --app examples/museum-table/build/museum-table.app
+build/zinc build --bundle examples/museum-table/src/main.ts -o examples/museum-table/build/museum-table.app
+tools/package --app examples/museum-table/build/museum-table.app
 ```
 
 The second command copies FFmpeg and its transitive non-system dylibs into `Contents/Frameworks`, rewrites their
@@ -107,13 +107,12 @@ and automatic view unload have not yet been implemented.
 Build once, then let the driver start and stop the native app and repeat the actual player transitions:
 
 ```sh
-cd next
-build/zinc build --bundle ../examples/museum-table/src/main.ts -o ../examples/museum-table/build/museum-probe.app
-tools/museum-probe --launch ../examples/museum-table/build/museum-probe.app/Contents/MacOS/zinc --cycles 3 --output .logs/museum-probe
+build/zinc build --bundle examples/museum-table/src/main.ts -o examples/museum-table/build/museum-probe.app
+tools/museum-probe --launch examples/museum-table/build/museum-probe.app/Contents/MacOS/zinc --cycles 3 --output .logs/museum-probe
 ```
 
-`museum-probe` is a convenience entry for the shared `next/tools/resource-probe`; the route and launch
-settings live in `next/tools/scenarios/museum.json`. Copy that scenario for another demo instead of duplicating
+`museum-probe` is a convenience entry for the shared `tools/resource-probe`; the route and launch
+settings live in `tools/scenarios/museum.json`. Copy that scenario for another demo instead of duplicating
 the sampler. `resource-probe --scenario <json> --remote --port <forwarded-port>` also collects device counters
 without querying a local process for a remote PID. See [reusable diagnostics](../../docs/dev-mode.md#reusable-resource-diagnostics).
 
@@ -188,7 +187,7 @@ zinc run examples/museum-table/editor -- examples/museum-table/assets/project.js
 
 Undo and redo cover every step; the advanced mode (Ctrl or Cmd + E) adds exact numbers, the keys and the selection as the file has it.
 The document is `editor/doc.ts` (one operation per command, checked without a window by `editor/selftest.ts`). Test:
-`next/tests/run --tier t1 --only museum_editor` (scripted mouse and keyboard sessions, file and frame goldens), `museum_editor_views`, `museum_editor_sound`.
+`tests/run --tier t1 --only museum_editor` (scripted mouse and keyboard sessions, file and frame goldens), `museum_editor_views`, `museum_editor_sound`.
 
 ## What to look at
 
@@ -211,9 +210,9 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_stats`, `museum_update`, `museum_polish`, `museum_format`, `museum_assets`, `museum_table`,
-`museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
-is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
+Tests: `tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_stats`, `museum_update`, `museum_polish`, `museum_format`, `museum_assets`, `museum_table`,
+`museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `tests/data/museum_visit/visit.py`
+is a whole visit, `tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.
 
 ## Not there yet

@@ -34,7 +34,7 @@ most samples (samples, share, calls, backward jumps, name, `file:line`) and the 
 the patch's code is under `#ifdef ZN_QJS_PROFILE` and the interpreter compiles to the same instructions as the release, so the counting
 build is a separate build directory, and a default `zinc profile --engine quickjs` says how to make one.
 
-The workloads of [quickjs-aot-jit-and-ffi.md](quickjs-aot-jit-and-ffi.md) section 2.1, in `next/bench/qjs/`:
+The workloads of [quickjs-aot-jit-and-ffi.md](quickjs-aot-jit-and-ffi.md) section 2.1, in `bench/qjs/`:
 
 - `three.mjs`: three.js r186 (`three.core.js`, no GL), 500 meshes in 50 groups, the CPU half of a render (matrices, culling, render list).
 - `sprite.mjs`: 10,000 sprites moved, bounced and written as 4 rotated corners into a vertex Array.

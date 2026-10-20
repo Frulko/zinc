@@ -52,7 +52,7 @@ std::string trim(const std::string& s) {
 
 }  // namespace
 
-Caps capsFor(const Profile& p, const std::string& engineRoot) { return capsFromFile(p, engineRoot + "/../targets/capabilities.json"); }
+Caps capsFor(const Profile& p, const std::string& engineRoot) { return capsFromFile(p, engineRoot + "/targets/capabilities.json"); }
 
 Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson) {
   Caps caps;

@@ -10,7 +10,7 @@ receives one character per frame).
 
 ```sh
 # Zinc: AOT executable (about 5 MB)
-cd next && tools/build zinc && build/zinc build ../examples/perf-compare/zinc -o /tmp/pc-zinc
+tools/build zinc && build/zinc build examples/perf-compare/zinc -o /tmp/pc-zinc
 
 # Flutter: SDK unpacked anywhere, a macOS shell around flutter/lib/main.dart
 flutter create --platforms=macos --project-name pc_flutter /tmp/pc-flutter

@@ -28,10 +28,10 @@ grep -q 'system/native/system.host.cpp ${ZINC_PLUGINS}/system/native/system.ios.
 # the backends compile for their SDKs, when this machine has them
 ndk=$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/*/toolchains/llvm/prebuilt/*/bin 2>/dev/null | tail -1)
 if [ -n "$ndk" ]; then
-  "$ndk/clang++" --target=aarch64-linux-android24 -std=c++17 -fsyntax-only -Wall -Wextra -Werror -I src ../plugins/system/native/system.android.cpp || { echo "system.android.cpp does not compile with the NDK"; fail=1; }
+  "$ndk/clang++" --target=aarch64-linux-android24 -std=c++17 -fsyntax-only -Wall -Wextra -Werror -I src plugins/system/native/system.android.cpp || { echo "system.android.cpp does not compile with the NDK"; fail=1; }
 fi
 if command -v xcrun >/dev/null 2>&1 && sdk=$(xcrun --sdk iphonesimulator --show-sdk-path 2>/dev/null); then
-  xcrun --sdk iphonesimulator clang++ -target arm64-apple-ios16.3-simulator -isysroot "$sdk" -std=c++17 -fobjc-arc -fsyntax-only -Wall -Wextra -Werror -x objective-c++ ../plugins/system/native/system.ios.mm || { echo "system.ios.mm does not compile for the iOS simulator"; fail=1; }
+  xcrun --sdk iphonesimulator clang++ -target arm64-apple-ios16.3-simulator -isysroot "$sdk" -std=c++17 -fobjc-arc -fsyntax-only -Wall -Wextra -Werror -x objective-c++ plugins/system/native/system.ios.mm || { echo "system.ios.mm does not compile for the iOS simulator"; fail=1; }
 fi
 [ $fail -eq 0 ] && echo "system phone: ok"
 exit $fail

@@ -177,7 +177,7 @@ static void installNativeProvider(const char* entry) {
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     if (packedPlugin(module)) return true;
     std::vector<std::string> problems;
-    std::string root = gRoot + "/..";
+    std::string root = gRoot;
     static std::vector<zn::frontend::FoundPlugin> found;
     found = zn::frontend::discoverPlugins(root, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
@@ -200,7 +200,7 @@ static void installNativeProvider(const char* entry) {
     const char* det = std::getenv("ZINC_DETERMINISTIC");
     if (det && *det && std::strcmp(det, "0")) return false;
     std::vector<std::string> problems;
-    auto found = zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems);
+    auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     return p && p->manifest.live;
   };
@@ -208,7 +208,7 @@ static void installNativeProvider(const char* entry) {
     const char* det = std::getenv("ZINC_DETERMINISTIC");
     if (!det || !*det || !std::strcmp(det, "0")) return true;
     std::vector<std::string> problems;
-    auto found = zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems);
+    auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     return p && p->manifest.deterministic;
   };
@@ -225,7 +225,7 @@ static void notePlugins(const zn::frontend::Program& prog) {
   gUsedPlugins.clear();
   std::vector<std::string> problems, files;
   for (const auto& f : prog.files) if (!f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());
-  for (const auto& p : zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems)) {
+  for (const auto& p : zn::frontend::discoverPlugins(gRoot, gProjectDir, problems)) {
     const std::string dir = (fs::absolute(p.dir).lexically_normal() / "").string();
     for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }
   }
@@ -266,11 +266,11 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   std::string dir = projectDir;
   if (dir.empty()) { std::string pf = zn::frontend::findProjectFile(entry); if (!pf.empty()) dir = fs::path(pf).parent_path().string(); }
   if (dir.empty()) dir = ".";
-  auto sel = zn::frontend::selectDisplay(dir, gRoot + "/..", zn::tc::pluginTarget());
+  auto sel = zn::frontend::selectDisplay(dir, gRoot, zn::tc::pluginTarget());
   if (sel.width > 0 && sel.height > 0) { gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height); setenv("ZINC_SIZE", gBakedSize.c_str(), 0); }
   if (sel.driver.empty() || (headless && !set("ZINC_DISPLAY"))) return;
   std::vector<std::string> problems;
-  auto found = zn::frontend::discoverPlugins(gRoot + "/..", dir, problems);
+  auto found = zn::frontend::discoverPlugins(gRoot, dir, problems);
   const zn::frontend::FoundPlugin* hit = nullptr;
   for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
   if (!hit) { std::fprintf(stderr, "zinc: display driver '%s' not found (zinc plugins lists them)\n", sel.driver.c_str()); return; }
@@ -360,7 +360,7 @@ static bool loadManifestPermissions(const char* path) {
     else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
   }
   if (const zn::frontend::Profile* rp = zn::frontend::currentProfile(); rp && !p.requires_.empty() && !zn::frontend::force()) {   // zinc.json "requires" for zinc check and build --profile (ZN-618; zinc run checks it before, with --force's warning)
-    const std::string why = zn::frontend::explain(p.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/../targets/capabilities.json"), rp->name);
+    const std::string why = zn::frontend::explain(p.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/targets/capabilities.json"), rp->name);
     if (!why.empty()) { std::fprintf(stderr, "zinc: %s cannot run on %s: it requires %s (zinc.json \"requires\"; --force builds anyway)\n", p.name.empty() ? std::filesystem::path(pf).parent_path().filename().string().c_str() : p.name.c_str(), rp->name, why.c_str()); return false; }
   }
   {  // the layout engine (ZN-285): zinc.json "ui", or ZINC_UI_LAYOUT for a run (ZN-286), against the rules of the machine compiled for
@@ -368,7 +368,7 @@ static bool loadManifestPermissions(const char* path) {
     const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
     std::string lerr;
     zn::frontend::Caps caps;
-    if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/../targets/capabilities.json");
+    if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/targets/capabilities.json");
     if (p.uiLayout != "" && p.uiLayout != "classic" && p.uiLayout != "rn" && p.uiLayout != "auto") { std::fprintf(stderr, "zinc: ZINC_UI_LAYOUT must be classic, rn or auto\n"); return false; }
     if (!zn::frontend::resolveUiLayout(p, caps, target, uiLayout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.empty() ? "ZINC_UI_LAYOUT" : pf.c_str(), lerr.c_str()); return false; }
     if (target == "web" && p.uiLayout == "rn" && uiLayout == "classic") p.uiPreset = "react-native";   // no Yoga on the web: the classic layout with React Native's style semantics
@@ -389,7 +389,7 @@ static bool hotMode() { const char* h = std::getenv("ZINC_HOT"); return h && std
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
-  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std", hotMode()); }
+  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode()); }
   gNativeFallbacks = prog.nativeFallbacks;
   if (zn::log::on("build", zn::log::Info)) zn::log::write("build", zn::log::Info, std::to_string(prog.files.size()) + " files; target " + (gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget) + ", profile " + (gProfile ? gProfile->name : std::string("host")) + ", layout " + (zn::frontend::uiLayout().empty() ? std::string("classic") : zn::frontend::uiLayout()));
   auto diags = prog.diags;
@@ -413,7 +413,7 @@ static std::vector<std::string> gSourcePaths;   // the files of gSources that ar
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
-  o.fontDir = gRoot + "/../lib/fonts";
+  o.fontDir = gRoot + "/lib/fonts";
   o.library = gSourceIsLib;   // ZN-428: the library's style tables do not decide what is baked
   std::vector<zn::assets::Rule> rules;
   {   // "text": "shaped" (or ZINC_TEXT=shaped): the shaper reads the whole TrueType files
@@ -955,10 +955,10 @@ static void write(const fs::path& file, const std::string& signature, const std:
   };
   const fs::path ed = fs::absolute(entry).parent_path();
   for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { tree(d); break; }   // as bakeResources finds them
-  tree(fs::path(gRoot + "/../lib/fonts"));
-  tree(fs::path(gRoot + "/../lib/std"));      // zinc:* modules are read from here at every compile
-  tree(fs::path(gRoot + "/../lib/compat"));
-  in.insert(gRoot + "/../targets/capabilities.json");   // zinc:platform
+  tree(fs::path(gRoot + "/lib/fonts"));
+  tree(fs::path(gRoot + "/lib/std"));      // zinc:* modules are read from here at every compile
+  tree(fs::path(gRoot + "/lib/compat"));
+  in.insert(gRoot + "/targets/capabilities.json");   // zinc:platform
   in.insert(gRoot + "/third_party/lucide/icon-nodes.json");   // zinc:icons/lucide
   for (const std::string& d : gPluginDirs) tree(d);
   const fs::path tmp = file.string() + ".part";
@@ -1448,12 +1448,11 @@ int main(int argc, char** argv) {
 #endif
       return zn::cli::dev(cl, remote.start ? &remote : nullptr);
     }
-    if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/../lib/std");
+    if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/lib/std");
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "assets")) return zn::cli::assets(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "compat")) return zn::cli::compat(cl, gRoot);
-    if (argc >= 2 && !std::strcmp(argv[1], "ui")) return zn::cli::ui(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::isNpmCommand(cl) ? zn::cli::npmAdd(cl, false) : zn::cli::addPlugin(cl, gRoot);   // npm:<package>: the project's package manager (cli_pm.h)
     if (argc >= 2 && !std::strcmp(argv[1], "index-sign")) return zn::cli::indexSign(cl);
@@ -1606,7 +1605,7 @@ int main(int argc, char** argv) {
     zn::log::step("engine", "QuickJS-ng (JavaScript)");
     const auto preparedAt = std::chrono::steady_clock::now();
     zn::log::step("prepare", "project, plugins and resources...");
-    qo.stdRoot = gRoot + "/../lib/std";
+    qo.stdRoot = gRoot + "/lib/std";
     qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
@@ -1691,8 +1690,8 @@ int main(int argc, char** argv) {
     if (!fs::exists(entry)) { std::fprintf(stderr, "zinc bundle: no such file: %s\n", entry.c_str()); return 2; }
     bo.entry = fs::absolute(entry).lexically_normal().string();
     if (!loadManifestPermissions(bo.entry.c_str())) return 2;   // zinc.json: the ui preset and layout, the permissions (zinc:system/permissions)
-    bo.stdRoot = fs::path(gRoot + "/../lib/std").lexically_normal().string();
-    bo.capsFile = gRoot + "/../targets/capabilities.json";
+    bo.stdRoot = fs::path(gRoot + "/lib/std").lexically_normal().string();
+    bo.capsFile = gRoot + "/targets/capabilities.json";
     if (bo.out.empty()) {   // dist/<entry>.js beside the project's zinc.json (dist/ is ignored by git)
       const std::string pf = zn::frontend::findProjectFile(bo.entry);
       bo.out = ((pf.empty() ? fs::path(bo.entry).parent_path() : fs::path(pf).parent_path()) / "dist" / (fs::path(bo.entry).stem().string() + ".js")).string();
@@ -1867,7 +1866,7 @@ int main(int argc, char** argv) {
       if (have && !project.requires_.empty()) {   // zinc.json "requires" against the profile in force (ZN-123); the host's own profile meets what the machine has
         const zn::frontend::Profile* rp = zn::frontend::currentProfile();
         if (rp) {
-          std::string why = zn::frontend::explain(project.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/../targets/capabilities.json"), rp->name);
+          std::string why = zn::frontend::explain(project.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/targets/capabilities.json"), rp->name);
           if (!why.empty()) {
             std::string nm = project.name.empty() ? fs::path(projectDir).filename().string() : project.name;
             if (!zn::frontend::force()) { std::fprintf(stderr, "zinc: %s cannot run on %s: it requires %s (zinc.json \"requires\"; --force builds anyway)\n", nm.c_str(), rp->name, why.c_str()); return 1; }
@@ -2117,7 +2116,7 @@ int main(int argc, char** argv) {
         for (std::size_t from = 0; m != "-" && from <= m.size();) { std::size_t c = m.find(',', from); cfg.modules.push_back(m.substr(from, c == std::string::npos ? std::string::npos : c - from)); if (c == std::string::npos) break; from = c + 1; }
       } else if (!std::strcmp(argv[k], "--board")) {   // a board preset (boards/<name>.json): what its display and sensors make available
         std::string text, err2;
-        std::ifstream bf(gRoot + "/../boards/" + argv[k + 1] + ".json");
+        std::ifstream bf(gRoot + "/boards/" + argv[k + 1] + ".json");
         if (!bf) { std::fprintf(stderr, "zinc: unknown board '%s' (boards/*.json)\n", argv[k + 1]); return 2; }
         std::stringstream bs; bs << bf.rdbuf(); text = bs.str();
         cfg.reportModules = true;
@@ -2305,12 +2304,12 @@ int main(int argc, char** argv) {
       pdir = pdir.empty() ? "." : fs::path(pdir).parent_path().string();
       // webOS: the program is a full-screen card on the GPU unless its zinc.json says otherwise under "webos" (the size it names for Linux is a desktop window's)
       const bool webos = std::strstr(target->name, "-webos") != nullptr;
-      auto sel = zn::frontend::selectDisplay(pdir, gRoot + "/..", webos ? "webos" : "linux");
+      auto sel = zn::frontend::selectDisplay(pdir, gRoot, webos ? "webos" : "linux");
       if (webos && sel.driver.empty()) sel.driver = "gl";
       if (sel.width > 0 && sel.height > 0) gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height);
       // the native code of the plugins the program calls, built again for the target (the desktop ones, dlopen'ed to compile, are for this machine)
       std::vector<std::string> problems;
-      auto found = zn::frontend::discoverPlugins(gRoot + "/..", pdir, problems);
+      auto found = zn::frontend::discoverPlugins(gRoot, pdir, problems);
       const zn::tc::Target* tg0 = zn::tc::findTarget(argv[3]);
       zn::tc::setCrossTarget(tg0->name, tg0->zigTarget, zig);
       // the entry of a plugin's manifest: "linux" for every Linux, or the system's own when the plugin has one (webOS: its SDL, no KMS)
@@ -2417,7 +2416,7 @@ int main(int argc, char** argv) {
 #endif
     {   // the plugin of each native module, which a player that lacks it names
       std::vector<std::string> problems, seen;
-      const auto found = zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems);
+      const auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
       for (const auto& nt : u.zbc.natives) {
         if (std::find(seen.begin(), seen.end(), nt.module) != seen.end()) continue;
         seen.push_back(nt.module);
@@ -2514,7 +2513,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file>: the diagnostics as LSP-shaped JSON on stdout (what the prototype prints), exit 1 when there are errors
-    zn::frontend::Program prog = zn::frontend::loadProgram(argv[3], readFile, gStrict, gRoot + "/../lib/std");
+    zn::frontend::Program prog = zn::frontend::loadProgram(argv[3], readFile, gStrict, gRoot + "/lib/std");
     std::vector<zn::frontend::Diag> diags = prog.diags;
     if (diags.empty()) { zn::frontend::Checked checked = zn::frontend::check(prog.ast); diags = checked.diags; }
     auto quote = [](const std::string& t) { std::string q = "\""; for (char c : t) { if (c == '"' || c == '\\') { q += '\\'; q += c; } else if (c == '\n') q += "\\n"; else if (static_cast<unsigned char>(c) < 32) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); q += b; } else q += c; } return q + "\""; };
@@ -2546,7 +2545,7 @@ int main(int argc, char** argv) {
     std::printf("seed=%s\npublic=%s\n", seed.c_str(), pub.c_str());
     return 0;
   }
-  if (argc == 3 && !std::strcmp(argv[1], "update-pubkey")) {   // zinc update-pubkey <seed-hex>: the public key of a signing seed (next/update.pub of a release key)
+  if (argc == 3 && !std::strcmp(argv[1], "update-pubkey")) {   // zinc update-pubkey <seed-hex>: the public key of a signing seed (update.pub of a release key)
     const std::string pub = zn::tc::publicKeyOf(argv[2]);
     if (pub.empty()) { std::fprintf(stderr, "zinc update-pubkey: the seed is 64 hex digits (zinc update-keygen prints one)\n"); return 2; }
     std::printf("%s\n", pub.c_str());
@@ -2651,7 +2650,7 @@ int main(int argc, char** argv) {
   if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
     std::vector<std::string> problems;
     std::string project = argc >= 3 && std::strncmp(argv[2], "--", 2) ? argv[2] : ".";
-    std::string root = gRoot + "/..";
+    std::string root = gRoot;
     auto found = zn::frontend::discoverPlugins(root, project, problems);
     int rc = problems.empty() ? 0 : 1;
     if (argc >= 5 && !std::strcmp(argv[argc - (argc >= 6 ? 3 : 2)], "--defines")) {
@@ -2681,7 +2680,7 @@ int main(int argc, char** argv) {
     if (prebuild) --argc;
     std::string project = argc >= 4 ? argv[3] : ".";
     std::vector<std::string> problems;
-    auto found = zn::frontend::discoverPlugins(gRoot + "/..", project, problems);
+    auto found = zn::frontend::discoverPlugins(gRoot, project, problems);
     const zn::frontend::FoundPlugin* hit = nullptr;
     for (const auto& f : found) if (f.manifest.name == argv[2]) hit = &f;
     if (!hit) { std::fprintf(stderr, "zinc: no plugin named '%s' (zinc plugins lists them)\n", argv[2]); return 1; }

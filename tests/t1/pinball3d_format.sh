@@ -13,9 +13,9 @@ command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 # absolute paths: a program of a project (a folder with a zinc.json) runs from the project's folder
-tool=../examples/pinball3d/tools/table.ts
-table=$(cd ../examples/pinball3d/assets/tables/tidal-lock && pwd)
-doc=$(cd ../docs && pwd)/pinball-table-format.md
+tool=examples/pinball3d/tools/table.ts
+table=$(cd examples/pinball3d/assets/tables/tidal-lock && pwd)
+doc=$(cd docs && pwd)/pinball-table-format.md
 "$ZINC" run $tool -- check $table >"$tmp/check.out" 2>&1 || { echo "pinball3d_format: the table does not load: $(head -c 600 "$tmp/check.out")"; exit 1; }
 grep -q '"Tidal Lock" is a valid table (version 1)' "$tmp/check.out" || { echo "pinball3d_format: check does not say the table is valid: $(cat "$tmp/check.out")"; fail=1; }
 "$ZINC" run $tool -- print $table >"$tmp/saved.json" 2>&1

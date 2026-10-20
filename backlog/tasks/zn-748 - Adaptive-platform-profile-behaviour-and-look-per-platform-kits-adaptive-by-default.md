@@ -53,7 +53,7 @@ Goldens added: tests/golden/platform-look/hashes.txt: the kit gallery on ios, an
 
 Tests: PASS platform_look (new, 11 s: the goldens, one compiled hash, the switch forcing kit, nuxt and RN together, the haptics and the long press), ui_kit_sections, rn_showcase, ui, ui_style, ui_theme, ui_docs, scroll_platform, navigation, system_signals, platform_identity, text_touch, rn_idle, react_native, react_native_modal, kit_menubar, ui_press, contrast, ui_layout_option, qjs_demos, rn_port, rn_tester; pixel canary 4 of 4. From a worktree inside the main checkout, zinc also reads the main checkout's plugins/system/plugin.json, whose uncommitted keys print two warnings that fail every output-comparing test (baseline included): run through a wrapper that drops those two lines. nuxt_ui: its navigation light and dark and navsection hashes fail identically at 19b6d5f1 without this change (pre-existing).
 
-Lines for next/backlog/later.md (the coordinator adds them):
+Lines for backlog/later.md (the coordinator adds them):
 - ZN-748: use the OS's UI font at run time (CoreText's UI font file on iOS and macOS, /system/fonts through fonts.xml on Android): SFNS.ttf and Android 12+'s Roboto are variable fonts, so runtime/ttf.cpp needs gvar instancing (or HarfBuzz's hb-draw with variations) first; today a look's font applies only when the app ships the family.
 - ZN-748: Android 12+ dynamic colour (system_accent1 through the activity) as the android look's tint, as macOS's accent is; re-read the macOS accent on AppleColorPreferencesChangedNotification (today at the start and on a look change).
 - ZN-748: the kit ContextMenu as the native menu on macOS (menu.popup) when menu.native, and iOS's context-menu preview (the lifted item over a blur).

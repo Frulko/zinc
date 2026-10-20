@@ -1,5 +1,5 @@
 // Process runner: starts commands with zinc:process and streams their output into a scrolling list.
-//   node compiler/bin/zinc.mjs run examples/process/shell     (from the zinc checkout: the commands use relative paths)
+//   build/zinc run examples/process/shell     (from the zinc checkout: the commands use relative paths)
 import { createSignal, render, For, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as proc from 'zinc:process';
@@ -14,7 +14,7 @@ class Cmd {
   constructor(label: string, cmd: string, args: string[]) { this.label = label; this.cmd = cmd; this.args = args; }
 }
 const CMDS: Cmd[] = [
-  new Cmd('zinc plugins', 'node', ['compiler/bin/zinc.mjs', 'plugins']),
+  new Cmd('zinc plugins', 'build/zinc', ['plugins']),
   new Cmd('ls -la', 'ls', ['-la']),
   new Cmd('stream', 'sh', ['-c', 'for i in 1 2 3 4 5 6 7 8 9 10; do echo "tick $i"; sleep 0.3; done; echo done >&2']),
   new Cmd('fail', 'sh', ['-c', 'echo "about to fail" >&2; exit 7']),

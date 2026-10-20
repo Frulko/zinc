@@ -1,15 +1,15 @@
-// three in the browser (docs/targets/web.md, "Plugins"): the real three.js (next/third_party/three, r186, unmodified) runs on a WebGL2 canvas the page makes, with no
+// three in the browser (docs/targets/web.md, "Plugins"): the real three.js (third_party/three, r186, unmodified) runs on a WebGL2 canvas the page makes, with no
 // re-implementation: this module hands the browser's own context to three.js and shows its canvas in the Zinc surface. What differs from index.ts (the Zinc subset on zinc:3d):
 //  - WebGLRenderer draws into its own canvas (renderer.domElement, a detached <canvas>) and each render() copies it into a zinc:gfx image drawn at the viewport, in paint order,
 //    so a zinc:ui overlay draws over it and canvas and DOM modes alike show it (DOM mode: the image is a <canvas> element where the component sits);
 //  - setAnimationLoop runs in Zinc's frame (zinc:gfx onFrame), not in a second requestAnimationFrame;
 //  - `window` and `CanvasElement` are the ones of index.ts (the Zinc surface size and the pixel ratio); TextureLoader reads the app's assets first.
 // Context loss is three.js's own (it handles webglcontextlost and restored on its canvas); resizes follow setSize, which programs call from zinc:gfx width() and height().
-import * as T from '../../../next/third_party/three/three.module.js';
+import * as T from '../../../third_party/three/three.module.js';
 import { createImage, drawImage, width, height } from 'zinc:gfx';
 import { exists, readBytes } from 'zinc:assets';
 
-export * from '../../../next/third_party/three/three.module.js';
+export * from '../../../third_party/three/three.module.js';
 
 const TT: any = T;
 const Z: any = (globalThis as any).__zincWeb;

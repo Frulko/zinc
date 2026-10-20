@@ -8,7 +8,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 shot() {   # example frame file [env...]
   ex=$1; f=$2; out=$3; shift 3
-  env "$@" ZINC_RUN=native ZINC_3D=gpu ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=$f ZINC_SCALE=1 ZINC_SHOT="$tmp/$out.png" ZINC_SHOT_FRAMES=$f "$ZINC" run "../examples/$ex" >"$tmp/$out.log" 2>&1
+  env "$@" ZINC_RUN=native ZINC_3D=gpu ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=$f ZINC_SCALE=1 ZINC_SHOT="$tmp/$out.png" ZINC_SHOT_FRAMES=$f "$ZINC" run "examples/$ex" >"$tmp/$out.log" 2>&1
   [ -f "$tmp/$out-$f.png" ] || { echo "$ex: no frame $f: $(head -c 300 "$tmp/$out.log")"; fail=1; return 1; }
 }
 for e in three/cubes:three-cubes three/gltf-viewer:three-gltf-viewer; do

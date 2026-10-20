@@ -15,7 +15,7 @@ ordinal: 21900
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-- Acceptance: the 18 M3 programs (next/corpus/M3-set.txt) match their frozen goldens and live objects are 0 at exit where no cycle is built on purpose; report committed. Depends on ZN-037, ZN-038, ZN-039 and ZN-040.
+- Acceptance: the 18 M3 programs (corpus/M3-set.txt) match their frozen goldens and live objects are 0 at exit where no cycle is built on purpose; report committed. Depends on ZN-037, ZN-038, ZN-039 and ZN-040.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

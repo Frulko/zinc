@@ -152,11 +152,10 @@ options are listed in `docs/plugins/display-fbdev.md`.
 `hero` and `museum-table` are exported on the Mac with the pinned zig (no Docker) and run on the same Pi 3B+:
 
 ```sh
-cd next
-build/zinc export ../examples/hero --target rpi                              # ../examples/hero/dist/hero-rpi/ (aarch64, 58 MB, not stripped)
+build/zinc export examples/hero --target rpi                              # examples/hero/dist/hero-rpi/ (aarch64, 58 MB, not stripped)
 rsync -aL ../examples/hero/dist/hero-rpi/ pi@spark.local:zn/hero/            # ~/hero on the Pi is the prototype's binary: another directory
 ssh pi@spark.local 'cd ~/zn/hero && ln -sfn ~/media media && (setsid nohup ./hero >/tmp/zn-hero.log 2>&1 </dev/null &)'
-ZINC_DISPLAY=fbdev build/zinc export ../examples/museum-table --target rpi   # its zinc.json has no Linux target: the driver from the environment
+ZINC_DISPLAY=fbdev build/zinc export examples/museum-table --target rpi   # its zinc.json has no Linux target: the driver from the environment
 ```
 
 What was missing, and what the session changed:
@@ -219,7 +218,7 @@ p50 in ms:
 - The firmware's memory split (`gpu_mem`, 76 MB here) is not involved: with `vc4-kms-v3d` the GPU's buffers come from the kernel's CMA
   (256 MB, 115 MB free during the run).
 
-The tools of this session are kept in `next/tools/device` (status, sysroot, push, run, shot, profile, stacks) for the next boards.
+The tools of this session are kept in `tools/device` (status, sysroot, push, run, shot, profile, stacks) for the next boards.
 
 ### Why the GL renderer is slow on VideoCore IV, measured (2026-10-12)
 
@@ -378,7 +377,7 @@ No picture was dropped in any run: before, the decode thread simply delivered 11
 **The matrix.** Since ZN-726 every card of the museum is drawn through one `gfx.setTransform` (its angle and its zoom), and every box
 command under a matrix was an XFORM, drawn pixel by pixel through the inverse matrix (D71). A matrix that only scales and moves now
 leaves no trace: the command is recorded at its place and size on the screen and takes the plain paths (`runtime/gfx.cpp` `xf_plain`;
-a text and a gradient paint keep the matrix). The picture alone (`next/tests/data/xform_plain -- film-direct | film-matrix |
+a text and a gradient paint keep the matrix). The picture alone (`tests/data/xform_plain -- film-direct | film-matrix |
 film-turned`, the same 854x480 runtime image drawn 500x281 at each frame; raster p50 wall / CPU of the four threads):
 
 | | Mac (one thread, ms a picture) | Pi 3B+ before, at 1200 MHz beside a program at 146% | Pi 3B+ after, cooled, the others paused |
@@ -428,7 +427,7 @@ of the Pi's compositor (the HVS scales and converts it), and the software frame 
 film shows. How it is built: [docs/plugins/display-fbdev.md](../plugins/display-fbdev.md) ("Hardware layers") and
 [docs/plugins/video.md](../plugins/video.md); the research and what the device confirmed: [video-zero-copy.md](video-zero-copy.md).
 
-**The spike first** (`next/tools/kmsvid.cpp`, outside the engine: FFmpeg and libdrm, the museum's clip, the owner's program stopped,
+**The spike first** (`tools/kmsvid.cpp`, outside the engine: FFmpeg and libdrm, the museum's clip, the owner's program stopped,
 board at 52 to 54 C). The frame is one dmabuf of 622 080 bytes, DRM format `YU12`, pitches 864/432/432, linear. The screen's CRTC has the
 console's primary plane and 16 free overlay planes; each takes `YU12`, `NV12` and `AR24`.
 
@@ -472,7 +471,7 @@ the launch; the board under 55 C before each run, `get_throttled` 0xd0000 after 
 - **What is drawn over the film stays in front of it**: museum-table's translucent timeline and the box of its subtitles, the rounded
   corners of hero's box. The driver draws the rows they touch a second time over white holes and takes each pixel's alpha from the two
   renders, so nothing sends the film back to software but the way the film itself is drawn: turned, blended, with rounded corners of
-  its own or a part of it. Then the frame is the software one (`next/tests/t1/video_layers.sh` compares the two).
+  its own or a part of it. Then the frame is the software one (`tests/t1/video_layers.sh` compares the two).
 - **The fallback costs what the software path cost, no more.** A picture that came as a dmabuf and is drawn by the rasterizer is
   mapped, copied and converted: the first four at the draw, on the main thread, then in the decode thread (555 of 559 in the run
   above), at 38.1 ms of CPU a picture against 37.0 for a decoder that gives pixels.

@@ -2,7 +2,7 @@
 
 Why: measuring Zinc meant launching dozens of different programs with different switches and reading text from stderr, logcat, os_log or a novacom pipe.
 Nothing was comparable between a Mac, a Nexus 7 and an iPad, nothing recorded the machine's state, and a hash, a stall or a thermal drift went unseen.
-`next/tools/zbench` is the single entry point: one corpus of scenes, one app per device (not one app per scene), one JSON format, one comparison, one gate.
+`tools/zbench` is the single entry point: one corpus of scenes, one app per device (not one app per scene), one JSON format, one comparison, one gate.
 Inputs behind it: `render-bench-audit.md` (what the engine could already measure), `render-bench-research.md` (the methods that experts trust; claims tagged V or U there).
 
 ## What runs
@@ -19,7 +19,7 @@ tools/zbench gate BASE.json NEW.json         # exit 3: slower than the noise all
 
 Options: `--scene a,b`, `--runs N` (3), `--frames N` (240), `--skip N` (30 warm-up frames not counted), `--mode uncapped|paced|both`, `--size WxH` (Mac window), `--no-build`.
 
-## The corpus (`next/tests/bench/render_suite`)
+## The corpus (`tests/bench/render_suite`)
 
 One program, one scene per launch (`ZB_SCENE=<id>`); every scene is seeded, driven by the frame number (never the clock) and draws the same commands on every backend,
 and every frame differs from the one before by one colour bit so the whole frame is damaged and repainted (the worst case a screen can ask).

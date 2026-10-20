@@ -1,8 +1,8 @@
 # The console core (ZN-454, ZN-455): the interpreter, src/rt, the console system host and an entry that loads program.zbc, built by a console's own SDK
 # (its CMake toolchain file) or, for the tests, by this machine's compiler with the headless HAL. No libuv, no mimalloc, no dlopen.
 #
-#   cmake -S next/targets/console -B build-core                                             # this machine, headless HAL (the T0 tests)
-#   cmake -S next/targets/console -B build-psp -DCMAKE_TOOLCHAIN_FILE=$PSPDEV/psp/share/pspdev.cmake -DZN_CONSOLE=psp -DZN_CONSOLE_HAL=<hal.cpp>
+#   cmake -S targets/console -B build-core                                             # this machine, headless HAL (the T0 tests)
+#   cmake -S targets/console -B build-psp -DCMAKE_TOOLCHAIN_FILE=$PSPDEV/psp/share/pspdev.cmake -DZN_CONSOLE=psp -DZN_CONSOLE_HAL=<hal.cpp>
 #
 # ZN_CONSOLE names the platform (zinc:sys platform(), default "console"); ZN_CONSOLE_HAL the HAL source of the console (runtime/include/hal.h; default
 # the headless HAL of targets/null with the POSIX helpers of targets/common); ZN_CONSOLE_GFX OFF builds the pure core (no zinc:gfx);
@@ -24,8 +24,8 @@ set(ZN_CONSOLE_INPUT "" CACHE STRING "a pad session built into the HAL (console_
 set(ZN_CONSOLE_ENV "" CACHE STRING "environment of the program, NAME=VALUE,... (ZINC_PROFILE=1: the frame times at exit)")
 
 get_filename_component(ZN_NEXT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
-get_filename_component(ZN_RUNTIME ${ZN_NEXT}/../runtime ABSOLUTE)
-get_filename_component(ZN_TARGETS ${ZN_NEXT}/../targets ABSOLUTE)
+get_filename_component(ZN_RUNTIME ${ZN_NEXT}/runtime ABSOLUTE)
+get_filename_component(ZN_TARGETS ${ZN_NEXT}/targets ABSOLUTE)
 if(NOT ZN_CONSOLE_HAL AND EXISTS ${ZN_TARGETS}/${ZN_CONSOLE}/hal_${ZN_CONSOLE}.cpp)   # targets/<console>/hal_<console>.cpp, shared with the prototype
   set(ZN_CONSOLE_HAL ${ZN_TARGETS}/${ZN_CONSOLE}/hal_${ZN_CONSOLE}.cpp)
 endif()
@@ -43,8 +43,8 @@ target_compile_options(zn_console_engine PRIVATE -fwrapv -ffp-contract=off $<$<C
 
 set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp   # zinc:audio's mixer (ZN-759): the one native module a core links
-  ${ZN_NEXT}/../plugins/audio/vendor/stb_vorbis.c)   # its Ogg Vorbis decoder, the one plugins/audio vendors (stb_vorbis 1.22, public domain)
-set_source_files_properties(${ZN_NEXT}/../plugins/audio/vendor/stb_vorbis.c PROPERTIES COMPILE_OPTIONS "-w")
+  ${ZN_NEXT}/plugins/audio/vendor/stb_vorbis.c)   # its Ogg Vorbis decoder, the one plugins/audio vendors (stb_vorbis 1.22, public domain)
+set_source_files_properties(${ZN_NEXT}/plugins/audio/vendor/stb_vorbis.c PROPERTIES COMPILE_OPTIONS "-w")
 if(ZN_CONSOLE_HAL)
   list(APPEND ZN_CORE_SRC ${ZN_CONSOLE_HAL})
 else()
@@ -72,7 +72,7 @@ target_compile_options(zinc-core PRIVATE -Wall -Wextra)
 set_target_properties(zinc-core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS ON)   # gnu++20: newlib shows setenv and gettimeofday only then
 
 if(ZN_CONSOLE_GFX)
-  # the graphics host over the old runtime (zrt, raster, gfx), compiled with the runtime's own flags as in next/CMakeLists.txt
+  # the graphics host over the old runtime (zrt, raster, gfx), compiled with the runtime's own flags as in CMakeLists.txt
   add_library(zn_console_gfx STATIC ${ZN_NEXT}/src/host/gfx_host.cpp ${ZN_NEXT}/src/host/resources.cpp ${CMAKE_CURRENT_SOURCE_DIR}/gfx_stubs.cpp
     ${ZN_RUNTIME}/zrt.cpp ${ZN_RUNTIME}/host.cpp ${ZN_RUNTIME}/raster.cpp ${ZN_RUNTIME}/ttf.cpp ${ZN_RUNTIME}/gfx.cpp)
   set_target_properties(zn_console_gfx PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)

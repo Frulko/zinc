@@ -10,7 +10,7 @@ cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 d=$PWD/tests/data/museum_viewer; golden=$PWD/tests/golden/museum-viewer/frames.txt; tools=$PWD/tools
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$d/session.input"
 for mode in "--interp" ""; do

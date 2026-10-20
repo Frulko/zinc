@@ -13,8 +13,8 @@ onFrame(() => { clear(0x202020); rect(10, 10, 50, 50, 0xff0000); if (pointerDown
 T
 hud() { echo "$1" | sed -n 's/^zinc perf hud: x=\([0-9]*\) y=\([0-9]*\) w=\([0-9]*\) h=\([0-9]*\).*/\1 \2 \3 \4/p'; }
 # 1. hero: only the panel's rectangle differs, and the panel's p50 / p99 are the summary's
-ZINC_FRAMES=60 ZINC_SHOT="$tmp/off.png" "$ZINC" run ../examples/hero --interp >/dev/null 2>&1
-out=$(ZINC_PERF_HUD=1 ZINC_FRAMES=60 ZINC_SHOT="$tmp/on.png" "$ZINC" run ../examples/hero --interp 2>&1)
+ZINC_FRAMES=60 ZINC_SHOT="$tmp/off.png" "$ZINC" run examples/hero --interp >/dev/null 2>&1
+out=$(ZINC_PERF_HUD=1 ZINC_FRAMES=60 ZINC_SHOT="$tmp/on.png" "$ZINC" run examples/hero --interp 2>&1)
 set -- $(hud "$out")
 [ $# -eq 4 ] || { echo "no panel line: $out"; exit 1; }
 bb=$(tools/pngdiff "$tmp/off.png" "$tmp/on.png" --bbox | sed -n 's/^bbox //p')

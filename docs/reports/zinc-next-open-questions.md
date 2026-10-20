@@ -1,8 +1,8 @@
 # Zinc Next: engines, QuickJS, benchmarks, conformance and UI (open questions)
 
 Note, 2026-10-06. It records answers given during the ZN-015..033 sessions so they are not lost in a chat. Sources:
-`docs/reports/zinc-next-design.md` (sections cited by topic), the backlog (`next/backlog/tasks`), and measurements in
-`next/RESUME.md`. Nothing here is a decision; items marked **proposal** need one. Companion note:
+`docs/reports/zinc-next-design.md` (sections cited by topic), the backlog (`backlog/tasks`), and measurements in
+`RESUME.md`. Nothing here is a decision; items marked **proposal** need one. Companion note:
 `haxe-as3-prior-art.md`.
 
 ## 1. Execution modes: is it the same system as today?
@@ -16,7 +16,7 @@ Note, 2026-10-06. It records answers given during the ZN-015..033 sessions so th
 - One semantic source: the interpreter is the reference; AOT (and later JIT) derive from the same IR and ops, and the
   differential runner (ZN-023) compares them byte for byte on the corpus.
 - The old compiler stays in place. The new tree is a proof of concept in `next/`; the old and new outputs are compared
-  on the frozen corpus (`next/corpus`).
+  on the frozen corpus (`corpus`).
 - Performance: the M1 gate measured the interpreter at 4.45x QuickJS on `fib` and 2.7x on `mandelbrot` (target was 5x,
   accepted in decision 0015). The M4 acceptance is AOT within 3x of current native. This is **not proven yet**; until
   ZN-022 exists the current native path is faster.
@@ -37,8 +37,8 @@ Pick (a) unless a requirement for running arbitrary JS appears; (b) multiplies t
 
 ## 3. Benchmarks like javascript-zoo
 
-What exists: `next/tools/bench-m1` (median of 11 or 21 runs, vs QuickJS and Node), the kernels in
-`tests/bench/kernels`, frozen outputs in `next/corpus/bench`. ZN-024 plans the comparison against QuickJS and native.
+What exists: `tools/bench-m1` (median of 11 or 21 runs, vs QuickJS and Node), the kernels in
+`tests/bench/kernels`, frozen outputs in `corpus/bench`. ZN-024 plans the comparison against QuickJS and native.
 
 **Proposal** for a zoo-style table:
 - One reproducible script that, for each engine (zinc interpreter, zinc AOT, QuickJS, Node, optionally Hermes/others),

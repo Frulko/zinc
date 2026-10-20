@@ -6,9 +6,9 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}
-M=$PWD/../examples/video/bounce/media/fractal.mp4
-A=$PWD/../examples/video/looper/media/02-bars.mp4
-B=$PWD/../examples/video/looper/media/03-life.mp4
+M=$PWD/examples/video/bounce/media/fractal.mp4
+A=$PWD/examples/video/looper/media/02-bars.mp4
+B=$PWD/examples/video/looper/media/03-life.mp4
 if command -v pkg-config >/dev/null && pkg-config --exists libavformat libavcodec libavutil libswscale && command -v c++ >/dev/null; then
   real=1
   out=$(env -u ZINC_DETERMINISTIC ZINC_NATIVE=real VIDEO_FILE=$M VIDEO_SHOT="$tmp/first.png" ZINC_SCALE=1 ZINC_SIZE=320x240 ZINC_HEADLESS=1 ZINC_FRAMES=3000000 timeout 120 "$ZINC" run tests/golden/host/video_first.ts 2>&1)
@@ -23,8 +23,8 @@ else
   echo "note: no FFmpeg libraries or no compiler: the examples run on the fake player (video.next.ts)" >&2
 fi
 for e in bounce looper quad; do
-  if [ $real = 1 ]; then env -u ZINC_DETERMINISTIC ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=600 timeout 120 "$ZINC" run "../examples/video/$e" >"$tmp/o.txt" 2>&1; rc=$?
-  else ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 timeout 120 "$ZINC" run "../examples/video/$e" >"$tmp/o.txt" 2>&1; rc=$?; fi
+  if [ $real = 1 ]; then env -u ZINC_DETERMINISTIC ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=600 timeout 120 "$ZINC" run "examples/video/$e" >"$tmp/o.txt" 2>&1; rc=$?
+  else ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 timeout 120 "$ZINC" run "examples/video/$e" >"$tmp/o.txt" 2>&1; rc=$?; fi
   [ $rc -eq 0 ] || { echo "examples/video/$e: exit $rc: $(head -c 200 "$tmp/o.txt")"; fail=1; }
 done
 exit $fail

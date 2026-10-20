@@ -1,12 +1,12 @@
 // What a visitor hears of the audio descriptions (ZN-650.10): for every picture, object and panorama of a museum-table project, in every
 // language, the description is there, its clip decodes, lasts what its subtitles say and gives sound when it is played. One line per clip.
-//   ZINC_HEADLESS=1 zinc run next/tests/data/museum_access/heard.ts -- <assets directory>
+//   ZINC_HEADLESS=1 zinc run tests/data/museum_access/heard.ts -- <assets directory>
 // Not in a deterministic run, which decodes no sound: the mix of the silent output is read instead (zinc:audio's `mix`).
 import { args, exit } from 'zinc:sys';
 import { readText, readBytes, exists } from 'zinc:fs';
 import { decode, mix, SAMPLE_RATE } from 'zinc:audio';
-import { parseProject, spokenDescription } from '../../../../examples/museum-table/src/project';
-import { parseVtt } from '../../../../examples/museum-table/src/narration';
+import { parseProject, spokenDescription } from '../../../examples/museum-table/src/project';
+import { parseVtt } from '../../../examples/museum-table/src/narration';
 
 const dir = args()[0], project = parseProject(readText(`${dir}/project.json`));
 let said = 0, bad = 0;

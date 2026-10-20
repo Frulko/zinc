@@ -1,16 +1,16 @@
 #!/bin/sh
 # zinc for Linux, built on this machine in a container (ZN-729.07): the engine for a Raspberry Pi or another Linux device, with no build there.
 #   tools/linux-build [--arch arm64|amd64] [--jobs n] [--test name]... [--no-package] [target...]     (default: arm64, the target zinc, then the package)
-#   tools/linux-build --shell                                                              a shell in the container, in next/
+#   tools/linux-build --shell                                                              a shell in the container, at the root
 # The container is Debian trixie (the system of the Raspberry Pi OS of 2025, glibc 2.41): what it builds runs on that system and newer ones.
-# It builds from the checkout this script is in, through tools/build, in next/build-linux-<arch> (never the machine's own next/build), then
-# tools/package writes next/dist/linux-<arch>/zinc-<version>-linux-<machine>.tar.gz (bin/zinc, lib, share/zinc) and the last line says where.
+# It builds from the checkout this script is in, through tools/build, in build-linux-<arch> (never the machine's own build), then
+# tools/package writes dist/linux-<arch>/zinc-<version>-linux-<machine>.tar.gz (bin/zinc, lib, share/zinc) and the last line says where.
 # --test runs tests/run --tier t1 --only <name> in the container, as a plain user (the agent refuses root), with the engine just built.
 # It stays polite beside other work: 4 compile jobs and 4 CPUs for the container, whatever the machine has (--jobs n or ZN_BUILD_JOBS for more).
 # ccache, the pinned tools and the container's home are kept in the Docker volume zinc-linux-build-<arch>, so a second tree or a second run reuses
 # them. ZN_LINUX_IMAGE names another base image (an older Debian for an older device); DOCKER another command (podman).
 here=$(cd "$(dirname "$0")" && pwd -P)
-repo=$(dirname "$(dirname "$here")")
+repo=$(dirname "$here")
 docker=${DOCKER:-docker}
 arch=arm64 tests= package=1 shell= jobs=${ZN_BUILD_JOBS:-4}
 while [ $# -gt 0 ]; do
@@ -40,14 +40,14 @@ USER zinc
 ENV HOME=/cache CCACHE_DIR=/cache/ccache ZINC_HOME=/cache/zinc
 EOF
 tty=; [ -t 0 ] && [ -t 1 ] && tty=-it
-run() { "$docker" run --rm $tty --platform "linux/$arch" --cpus "$jobs" -v "$repo:/zinc" -v "zinc-linux-build-$arch:/cache" -w /zinc/next \
-          -e "ZN_BUILD_JOBS=$jobs" -e ZN_BUILD_LOAD -e ZINC_VERSION -e "BUILD_DIR=/zinc/next/build-linux-$arch" "$image" "$@"; }
+run() { "$docker" run --rm $tty --platform "linux/$arch" --cpus "$jobs" -v "$repo:/zinc" -v "zinc-linux-build-$arch:/cache" -w /zinc \
+          -e "ZN_BUILD_JOBS=$jobs" -e ZN_BUILD_LOAD -e ZINC_VERSION -e "BUILD_DIR=/zinc/build-linux-$arch" "$image" "$@"; }
 [ -z "$shell" ] || { run sh; exit $?; }
 run tools/build "$@" || exit 1
 for t in $tests; do
   run sh -c "ZINC=\$BUILD_DIR/zinc tests/run --tier t1 --only $t" || exit 1
 done
-[ -n "$package" ] || { echo "linux-build: $repo/next/build-linux-$arch/zinc"; exit 0; }
+[ -n "$package" ] || { echo "linux-build: $repo/build-linux-$arch/zinc"; exit 0; }
 run tools/package --build "build-linux-$arch" --out "dist/linux-$arch"
 case $? in 0) ;; 3) echo "linux-build: over the size budget of a release (above); the package is usable" >&2 ;; *) exit 1 ;; esac
-echo "linux-build: $(ls -t "$repo/next/dist/linux-$arch"/zinc-*.tar.gz | head -1)"
+echo "linux-build: $(ls -t "$repo/dist/linux-$arch"/zinc-*.tar.gz | head -1)"

@@ -4,7 +4,7 @@
 # `zinc test`; an unknown template (exit 2) and a non-empty directory (exit 1) are refused with the list of templates; `zinc init --template` is an alias.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
-tpl=$(cd ../templates && pwd)
+tpl=$(cd templates && pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 list=$("$Z" new --list)

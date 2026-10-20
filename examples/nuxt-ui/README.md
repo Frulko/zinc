@@ -10,7 +10,7 @@ the dark scheme (the moon button in the sidebar). Mapping and gaps: `docs/nuxt-u
     NUXT_PAGE=gallery NUXT_OPEN=modal zinc run examples/nuxt-ui          # one gallery alone; slideover, menu, tooltip, toast
     NUXT_PAGE=navigation zinc run examples/nuxt-ui
 
-The checks: `next/tests/t1/nuxt_ui.sh` (15 frame hashes, every control, overlay and dashboard action driven by scripted input).
+The checks: `tests/t1/nuxt_ui.sh` (15 frame hashes, every control, overlay and dashboard action driven by scripted input).
 
 | Light | Dark |
 |---|---|

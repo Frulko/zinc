@@ -23,6 +23,6 @@ out=$(ZINC_VERIFY_FIXED=1 ZN_NO_OPT=1 ZN_FIXED_INPUT=2 "$ZINC" run "$tmp/neg.ts"
 [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "mul on f64 in a fixed-point profile" || { echo "a dynamic f64 multiplication is not refused before optimization"; fail=1; }
 [ "$(ZN_FIXED_INPUT=2 "$ZINC" run "$tmp/neg.ts" 2>&1)" = "3" ] || { echo "the audit is not opt-in"; fail=1; }
 for n in tour features generic_static hardening literal_member_arrays path pinball_physics regressions shapes signals modules; do
-  ZINC_VERIFY_FIXED=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 ../tests/conformance/$n.ts 2>&1 | grep -q "in a fixed-point profile" && { echo "$n: f64 arithmetic in the lowered fixed-point IR"; fail=1; }
+  ZINC_VERIFY_FIXED=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 tests/conformance/$n.ts 2>&1 | grep -q "in a fixed-point profile" && { echo "$n: f64 arithmetic in the lowered fixed-point IR"; fail=1; }
 done
 exit $fail

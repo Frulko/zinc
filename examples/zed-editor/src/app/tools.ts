@@ -1,5 +1,5 @@
 // External tools through zinc:process: diagnostics from `zinc check --json` and the terminal panel's `zinc run`.
-// Both need the zinc CLI: $ZINC_ROOT/compiler/bin/zinc.mjs, else found relative to the working directory or to the
+// Both need the zinc CLI: $ZINC_ROOT/build/zinc, else the checkout's build/zinc found relative to the working directory or to the
 // sample project. Without it, the features stay quiet (no diagnostics, a message in the terminal).
 import { createSignal } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
@@ -12,10 +12,10 @@ import { L_TS } from './syntax';
 function findCli(): string {
   const env = sys.env('ZINC_ROOT');
   const cands: string[] = [];
-  if (env !== '') cands.push(env + '/compiler/bin/zinc.mjs');
-  cands.push('compiler/bin/zinc.mjs');
-  cands.push('../../compiler/bin/zinc.mjs');
-  cands.push(root.path + '/../../../compiler/bin/zinc.mjs');
+  if (env !== '') cands.push(env + '/build/zinc');
+  cands.push('build/zinc');
+  cands.push('../../build/zinc');
+  cands.push(root.path + '/../../../build/zinc');
   for (const c of cands) if (fs.exists(c)) return c;
   return '';
 }
@@ -62,6 +62,20 @@ export function parseDiagnostics(json: string): Diagnostic[] {
   return out;
 }
 
+/** `zinc check` output (`file:line:col: error Z1234: message`, one per line, 1-based) to diagnostics of `path`. */
+export function parseCheck(text: string, path: string): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  for (const l of text.split('\n')) {
+    const at = l.indexOf(': error ') >= 0 ? l.indexOf(': error ') : l.indexOf(': warning ');
+    if (at < 0) continue;
+    const head = l.slice(0, at), c2 = head.lastIndexOf(':'), c1 = head.lastIndexOf(':', c2 - 1);
+    if (c1 < 0 || !path.endsWith(head.slice(0, c1).replace(/^\.\//, ''))) continue;
+    const sev = l.slice(at + 2, at + 7) === 'error' ? 1 : 2;
+    out.push(new Diagnostic(parseInt(head.slice(c1 + 1, c2)) - 1, parseInt(head.slice(c2 + 1)) - 1, sev, l.slice(l.indexOf(': ', at + 2) + 2)));
+  }
+  return out;
+}
+
 const generation = new Map<string, i32>();
 /** Type-checks a TypeScript buffer's file (as saved) and shows the result as squiggles and gutter dots. */
 export function check(b: Buffer): void {
@@ -72,9 +86,9 @@ export function check(b: Buffer): void {
 }
 async function runCheck(b: Buffer, gen: i32): Promise<void> {
   try {
-    const r = await proc.run('node', [CLI, 'check', b.path, '--json'], {});
+    const r = await proc.run(CLI, ['check', b.path], {});
     if (generation.get(b.path) !== gen) return;   // a newer check is running
-    b.setDiagnostics(parseDiagnostics(r.stdout));
+    b.setDiagnostics(parseCheck(r.stdout + '\n' + r.stderr, b.path));
   } catch (e) { say('zinc check: ' + (e as Error).message); }
 }
 
@@ -137,15 +151,15 @@ function add(text: string, base: i32): void {
 }
 export function clearTerminal(): void { buf = []; setTermLines([]); }
 
-/** Runs the project with `zinc run <project> --target sim` and streams its output. */
+/** Runs the project with `zinc run <project>` (headless, a few seconds of frames) and streams its output. */
 export function runProject(): void {
   if (child !== null) (child as proc.Process).kill(9);
   clearTerminal();
   if (CLI === '') { add('zinc CLI not found: set ZINC_ROOT to the zinc checkout', 1); return; }
-  add(`$ zinc run ${root.path} --target sim`, 8 + 4);
+  add(`$ zinc run ${root.path}`, 8 + 4);
   const t0 = sys.clock();
   try {
-    const p = proc.spawn('node', [CLI, 'run', root.path, '--target', 'sim'], { env: ['FORCE_COLOR=1'] });
+    const p = proc.spawn(CLI, ['run', root.path], { env: ['FORCE_COLOR=1', 'ZINC_HEADLESS=1', 'ZINC_FRAMES=300'] });
     child = p;
     setRunning(true);
     p.onStdout((l: string) => { add(l, -1); });

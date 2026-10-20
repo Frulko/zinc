@@ -82,7 +82,7 @@ if [ "$atelier" != 0 ] && [ "$os" = linux ]; then   # an entry of the applicatio
   apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
   mkdir -p "$apps"
   printf '[Desktop Entry]\nType=Application\nName=Zinc Atelier\nComment=Make apps and games with Zinc\nExec="%s"\nIcon=%s\nTerminal=false\nCategories=Development;Education;\n' \
-    "$dir/bin/zinc-atelier" "$dir/share/zinc/next/app/atelier/icon.png" > "$apps/zinc-atelier.desktop"
+    "$dir/bin/zinc-atelier" "$dir/share/zinc/app/atelier/icon.png" > "$apps/zinc-atelier.desktop"
   echo "zinc install: Zinc Atelier in the applications menu ($apps/zinc-atelier.desktop), or run $dir/bin/zinc-atelier"
 elif [ "$atelier" != 0 ]; then
   appdir=${ZINC_APP_DIR:-}

@@ -29,7 +29,7 @@ import glob, json, os, platform, shutil, re, subprocess, sys, time, datetime
 
 here = os.path.dirname(os.path.abspath(__file__))
 nxt = os.path.dirname(here)
-repo = os.path.dirname(nxt)
+repo = nxt
 zinc = os.environ.get("ZINC", os.path.join(nxt, "build", "zinc"))
 proj = os.path.join(nxt, "tests", "bench", "script_bridge")
 outdir = os.path.join(repo, "docs", "reports", "bench")

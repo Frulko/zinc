@@ -19,7 +19,7 @@ git() { command git -c user.name=Publisher -c user.email=publisher@example.com -
 fail=0
 ws="$tmp/ws"   # $GITHUB_WORKSPACE: the plugin's checkout and the engine's, side by side
 p="$ws/plugin"
-mkdir -p "$ws/zinc/next/build" && ln -s "$Z" "$ws/zinc/next/build/zinc" && ln -s "$PWD/tools" "$ws/zinc/next/tools"
+mkdir -p "$ws/zinc/build" && ln -s "$Z" "$ws/zinc/build/zinc" && ln -s "$PWD/tools" "$ws/zinc/tools"
 "$Z" new plugin "$tmp/hello-zinc" >/dev/null && mv "$tmp/hello-zinc" "$p" || { echo "plugin_starter: zinc new plugin failed"; exit 1; }
 grep -q "requireNative<Spec>('hello_zinc')" "$p/native/hello-zinc.spec.ts" && grep -q "Nativehello_zinc\* zinc_create_hello_zinc()" "$p/native/hello-zinc.host.cpp" || { echo "plugin_starter: the native names are not filled"; fail=1; }
 [ "$(cd "$p" && "$Z" run 2>&1 | tail -1)" = 'checksum of "zinc": -1256488513' ] || { echo "plugin_starter: the example does not run on the plugin: $(cd "$p" && "$Z" run 2>&1 | tail -3)"; fail=1; }
@@ -47,7 +47,7 @@ git -C "$p" commit -qam "publisher key" && git -C "$p" tag v0.1.0 || exit 1
 mkdir -p "$tmp/bin" && printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/gh-args"\n' "$tmp" > "$tmp/bin/gh" && chmod +x "$tmp/bin/gh"
 step() {   # job, step name, VAR=value...: one step of plugin.yml in the workspace, with GitHub's `run` shell; its exit code
   job=$1 name=$2; shift 2
-  python3 - "$PWD/../.github/workflows/plugin.yml" "$job" "$name" > "$tmp/step" <<'PY' || return 99
+  python3 - "$PWD/.github/workflows/plugin.yml" "$job" "$name" > "$tmp/step" <<'PY' || return 99
 import re, sys, yaml
 steps = yaml.safe_load(open(sys.argv[1]))["jobs"][sys.argv[2]]["steps"]
 s = [x for x in steps if x.get("name") == sys.argv[3]][0]
@@ -97,7 +97,7 @@ ln -s "$Z" "$tmp/bin/zinc"
 grep -q "$pub" "$tmp/some-project/zinc.lock" 2>/dev/null || { echo "plugin_starter: the README's release by hand does not pin the publisher's key"; fail=1; }
 
 # the workflows and the README's commands
-python3 - ../.github/workflows/plugin.yml "$p/.github/workflows/ci.yml" <<'PY' || fail=1
+python3 - .github/workflows/plugin.yml "$p/.github/workflows/ci.yml" <<'PY' || fail=1
 import sys, yaml
 w, c = (yaml.safe_load(open(f)) for f in sys.argv[1:3])
 bad = []

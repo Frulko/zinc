@@ -33,7 +33,7 @@ unset ZINC_HOT
 "$ZINC" --emit=zbc-bin "$tmp/plain/main.ts" "$tmp/plain.zbc" > "$tmp/e2.log" 2>&1 || { echo "plain compile failed: $(head -c 300 "$tmp/e2.log")"; exit 1; }
 cmp -s "$tmp/hot.zbc" "$tmp/plain.zbc" || { echo "import.meta.hot blocks change the non-hot ZBC"; fail=1; }
 # 2. the machinery: in the hot ZBC of a real app (the desktop-app template), nowhere else
-cp -R ../templates/desktop-app "$tmp/app"
+cp -R templates/desktop-app "$tmp/app"
 find "$tmp/app" -type f \( -name '*.json' -o -name '*.ts' -o -name '*.tsx' \) -exec perl -pi -e 's/\{\{(name|id)\}\}/hotapp/g' {} +
 machinery='@init:|hotModule|beforeUpdate|afterUpdate'
 "$ZINC" --emit=zbc "$tmp/app/src/main.tsx" > "$tmp/off.txt" 2>&1 || { echo "desktop-app compile failed: $(head -c 300 "$tmp/off.txt")"; exit 1; }

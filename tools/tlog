@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The transparency log of publications (ZN-343, D42): a Merkle log (RFC 6962 / 9162) of every artifact under an index repository's targets/.
 
-  tools/tlog keys <log-key.json>              an Ed25519 key pair for the log (`zinc update-keygen`); its public half is what clients pin (next/index/log.pub)
+  tools/tlog keys <log-key.json>              an Ed25519 key pair for the log (`zinc update-keygen`); its public half is what clients pin (index/log.pub)
   tools/tlog publish <index-repo> <log-key.json>
       appends the artifacts of <index-repo>/targets/ not yet in <index-repo>/log/entries.json (sorted by path), then writes log/checkpoint.json (size, root,
       signed), log/proof/<leaf hash>.json for every entry and log/consistency/<size>.json from every earlier published size. Entries are never removed.

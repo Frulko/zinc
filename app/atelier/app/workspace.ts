@@ -127,9 +127,9 @@ export function cycle(step: i32): void {
  *  found from the launch directory or the binary. '' when not found. */
 function appHome(): string {
   const bin = sys.env('ZINC_BIN'), up = bin.lastIndexOf('/build/');
-  const cands: string[] = ['.', sys.launchDir() + '/next/app/atelier', sys.launchDir() + '/app/atelier', sys.launchDir()];
+  const cands: string[] = ['.', sys.launchDir() + '/app/atelier', sys.launchDir() + '/app/atelier', sys.launchDir()];
   if (up > 0) cands.push(bin.slice(0, up) + '/app/atelier');
-  if (bin !== '') cands.push(bin.slice(0, bin.lastIndexOf('/')) + '/../Resources/zinc/next/app/atelier');
+  if (bin !== '') cands.push(bin.slice(0, bin.lastIndexOf('/')) + '/../Resources/zinc/app/atelier');
   for (const c of cands) if (fs.exists(c + '/examples/index.txt')) { try { return fs.realpath(c); } catch (e) { return c; } }
   return '';
 }

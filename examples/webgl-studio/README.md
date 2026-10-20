@@ -9,8 +9,7 @@ Real three.js (r186, unmodified) on zinc's WebGL 2, inside a normal `zinc:ui` pa
 - a panel with the kit's sliders (sun direction, sun power, exposure) and switches (shadows, custom shader, wireframe, auto-rotate, pause).
 
 ```sh
-cd next
-./build/zinc run ../examples/webgl-studio
+./build/zinc run examples/webgl-studio
 ```
 
 `assets/scene.mjs` is the three.js side; `src/main.tsx` the page. The script context runs at twice the screen resolution and `zincPresent` averages it down (anti-aliasing); `tests/t1/webgl_studio.sh` checks the scene's logic headless.

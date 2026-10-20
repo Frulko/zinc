@@ -33,7 +33,7 @@ Bundled seven unmodified 1K CC0 skin/cut-face images from TextureCan, qubodup an
 
 Solo is the default. M or Solo/2 joueurs selects optional local competition with one Leap per player. Device assignments survive a lost stream/navigation; restart can rebind them. Independent blades, scores, combos and bomb penalties; earliest segment-circle contact owns a fruit once. Changing player count resets to ready. No network multiplayer added.
 
-PASS next/tests/run --only leapmotion and next/tests/run --tier t1 --only leapmotion_demo after final code changes. Gameplay checks cover independent awards/penalties, first contact, no double award, solo ignoring player two, tracking loss/reacquisition and calibration/navigation continuity. The scripted UI exercises the keyboard and button toggles. Updated geometry/duel and new multiplayer goldens inspected; textured multiplayer frames match interpreter, QuickJS and AOT. Downloaded asset checksums verified.
+PASS tests/run --only leapmotion and tests/run --tier t1 --only leapmotion_demo after final code changes. Gameplay checks cover independent awards/penalties, first contact, no double award, solo ignoring player two, tracking loss/reacquisition and calibration/navigation continuity. The scripted UI exercises the keyboard and button toggles. Updated geometry/duel and new multiplayer goldens inspected; textured multiplayer frames match interpreter, QuickJS and AOT. Downloaded asset checksums verified.
 
 Launched the updated real-tracking demo in solo for the owner. Both players scored in a deterministic simulated match. Two physical sensors together remain unverified; no cross-target tests or engine build were needed.
 <!-- SECTION:NOTES:END -->

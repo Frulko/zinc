@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Median-of-N wall-clock benchmark of commands, written as a JSON artifact (method: docs in next/TESTING.md).
+"""Median-of-N wall-clock benchmark of commands, written as a JSON artifact (method: docs in TESTING.md).
 
 usage: tools/bench OUT.json NAME=CMD [NAME=CMD ...]   (env ZN_RUNS, default 11; one warm-up run each, not counted)
 Each CMD is run through the shell with stdout discarded. Records every run, the median and the machine, so losses are

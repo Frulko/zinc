@@ -5,11 +5,11 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for t in armhf-linux armv7-linux aarch64-linux; do
-  "$ZINC" build --target "$t" ../tests/bench/kernels/fib.ts -o "$tmp/$t" >"$tmp/log" 2>&1 || { echo "$t: build fails: $(tail -c 300 "$tmp/log")"; fail=1; }
+  "$ZINC" build --target "$t" tests/bench/kernels/fib.ts -o "$tmp/$t" >"$tmp/log" 2>&1 || { echo "$t: build fails: $(tail -c 300 "$tmp/log")"; fail=1; }
 done
 # boards pick their variant (export, and deploy through it): rpi1 is armhf-linux, rpi2 and the CHIPs armv7-linux
 for b in rpi1 rpi2 chip; do
-  "$ZINC" export ../tests/bench/kernels/fib.ts --target "$b" -o "$tmp/x-$b" >"$tmp/log" 2>&1 || { echo "export --target $b fails: $(tail -c 300 "$tmp/log")"; fail=1; }
+  "$ZINC" export tests/bench/kernels/fib.ts --target "$b" -o "$tmp/x-$b" >"$tmp/log" 2>&1 || { echo "export --target $b fails: $(tail -c 300 "$tmp/log")"; fail=1; }
 done
 python3 - "$tmp/armhf-linux" "$tmp/armv7-linux" "$tmp/x-rpi1/fib" "$tmp/x-rpi2/fib" "$tmp/x-chip/fib" <<'PY' || fail=1
 import struct, sys

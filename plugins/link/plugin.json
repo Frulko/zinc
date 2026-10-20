@@ -7,26 +7,26 @@
   "requires": ["net"],
   "targets": {
     "macos": {
-      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "sources": ["../../src/net/dnssd.cpp", "../../src/host/tls.cpp"],
       "defines": ["TLS_NS=linktls"],
-      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
+      "flags": ["-I../../third_party/mbedtls/include", "-I../../third_party/mbedtls/tf-psa-crypto/include", "-I../../third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
     },
     "linux": {
-      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "sources": ["../../src/net/dnssd.cpp", "../../src/host/tls.cpp"],
       "defines": ["TLS_NS=linktls"],
-      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
+      "flags": ["-I../../third_party/mbedtls/include", "-I../../third_party/mbedtls/tf-psa-crypto/include", "-I../../third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
     },
     "android": {
-      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp", "native/android/LinkLife.java"],
+      "sources": ["../../src/net/dnssd.cpp", "../../src/host/tls.cpp", "native/android/LinkLife.java"],
       "defines": ["TLS_NS=linktls"],
-      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
+      "flags": ["-I../../third_party/mbedtls/include", "-I../../third_party/mbedtls/tf-psa-crypto/include", "-I../../third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
       "lifecycle": "dev.zinc.plugins.link.LinkLife",
       "manifest": { "permissions": ["INTERNET", "CHANGE_WIFI_MULTICAST_STATE"] }
     },
     "ios": {
-      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "sources": ["../../src/net/dnssd.cpp", "../../src/host/tls.cpp"],
       "defines": ["TLS_NS=linktls"],
-      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
+      "flags": ["-I../../third_party/mbedtls/include", "-I../../third_party/mbedtls/tf-psa-crypto/include", "-I../../third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
       "plist": { "NSLocalNetworkUsageDescription": "Pairs with your other devices on this network.", "NSBonjourServices": ["_zinclink._tcp"] }
     }
   }

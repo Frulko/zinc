@@ -18,7 +18,7 @@ cat > "$tmp/card" <<'EOF'
 0.1 {"t":"hello","app":"notify-relay","v":1,"host":"MacBook de test"}
 1.0 {"t":"notif","id":"n5","kind":"other","app":{"id":"com.google.Chrome","name":"Google Chrome","icon":""},"title":"Calendrier","subtitle":"","body":"Dans 10 minutes : appel avec l'équipe","date":-10,"domain":"calendar.google.com","thread":""}
 EOF
-cp -R ../examples/music "$tmp/music"
+cp -R examples/music "$tmp/music"
 rm -rf "$tmp/music/config.json" "$tmp/music/radios.json" "$tmp/music/spotify.json" "$tmp/music/notifications.json" "$tmp/music/notif-icons"
 printf '{"sleep":4,"lat":48.85341,"lon":2.3488,"city":"Paris"}\n' > "$tmp/music/config.json"
 run() {   # run <name> <feed> <input> <frames> <shots>

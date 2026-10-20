@@ -16,7 +16,7 @@ ordinal: 122000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Found in ZN-282: `zinc build ../examples/hero/src/main.tsx -o hero` builds, but the binary panics with 'Uncaught Error: ENOENT: open city.bin' when run from examples/hero or examples/hero/assets, while `zinc run` finds assets/city.bin. The AOT output has no asset root (zinc.json "assets"/cwd of ZN-078).
+Found in ZN-282: `zinc build examples/hero/src/main.tsx -o hero` builds, but the binary panics with 'Uncaught Error: ENOENT: open city.bin' when run from examples/hero or examples/hero/assets, while `zinc run` finds assets/city.bin. The AOT output has no asset root (zinc.json "assets"/cwd of ZN-078).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -29,7 +29,7 @@ Found in ZN-282: `zinc build ../examples/hero/src/main.tsx -o hero` builds, but 
 <!-- SECTION:NOTES:BEGIN -->
 Done 2026-10-10 (parallel worktree agent).
 
-Cause: zinc:assets reads one directory, assetsDir() in next/src/host/sys_host.cpp, which was only the variable ZINC_ASSETS. zinc run sets it (assets beside the entry file or above it); a program built ahead of time has no zinc run in front of it, so it had no assets directory at all. The same held for zinc export: dist/<name>-<target>/assets was copied beside the executable and never read.
+Cause: zinc:assets reads one directory, assetsDir() in src/host/sys_host.cpp, which was only the variable ZINC_ASSETS. zinc run sets it (assets beside the entry file or above it); a program built ahead of time has no zinc run in front of it, so it had no assets directory at all. The same held for zinc export: dist/<name>-<target>/assets was copied beside the executable and never read.
 
 Fix (one place, where every asset open and the permission exemption route through): assetsDir() = ZINC_ASSETS when set; else assets/ beside the executable (zinc export, the .deb in /opt/<pkg>), else one level above it (zinc build <project> writes <project>/build/<name>: the rule zinc run applies to the entry file), else assets/ of the directory the program is started in (the case of this task: zinc build src/main.tsx -o hero, run from examples/hero). Resolved once, at the first asset call.
 
@@ -39,7 +39,7 @@ Decision (for the coordinator to record, no number allocated here): asset root o
 
 Proof (Intel Mac, build/zinc of this branch):
 - before: /tmp/zn314/hero_before run from examples/hero: "panic: Uncaught Error: ENOENT: open city.bin".
-- after: zinc build ../examples/hero/src/main.tsx -o /tmp/zn314/hero_after; ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT=... from examples/hero, and the same binary as <dir>/build/hero with <dir>/assets, started in /; interpreter: zinc run --interp . with the same variables. tools/pngdiff interpreter vs each: "differing pixels: 0 (tolerance 0, max diff 0, mae 0.000, psnr inf)"; the three PNGs have the same SHA-256 (3d7a2015...).
+- after: zinc build examples/hero/src/main.tsx -o /tmp/zn314/hero_after; ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT=... from examples/hero, and the same binary as <dir>/build/hero with <dir>/assets, started in /; interpreter: zinc run --interp . with the same variables. tools/pngdiff interpreter vs each: "differing pixels: 0 (tolerance 0, max diff 0, mae 0.000, psnr inf)"; the three PNGs have the same SHA-256 (3d7a2015...).
 - tests/run --tier t1 --only aot_assets: PASS (new, tests/t1/aot_assets.sh: no assets, beside, above, start directory, executable before start directory, ZINC_ASSETS first; enforced: own assets readable, ".." refused with EACCES, start directory not taken). Also PASS: permissions, permissions_export, run_cache, clock.
 - hero AOT build: about 60 s (not a measurement: the machine is shared with other trees).
 

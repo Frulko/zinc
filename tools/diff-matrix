@@ -12,7 +12,7 @@ list=$tmp/list
 if [ $# -gt 0 ]; then for n in "$@"; do echo "$n"; done > "$list"; else
   { for f in tests/golden/run/*.ts; do echo "run:$(basename "$f" .ts)"; done
     for b in $(cat corpus/M3-set.txt); do echo "conf:$b"; done
-    for f in ../tests/bench/kernels/*.ts; do k=$(basename "$f" .ts); [ -f "corpus/bench/$k.out" ] && echo "bench:$k"; done; } > "$list"
+    for f in tests/bench/kernels/*.ts; do k=$(basename "$f" .ts); [ -f "corpus/bench/$k.out" ] && echo "bench:$k"; done; } > "$list"
 fi
 cat > "$tmp/one" <<'ONE'
 #!/bin/sh
@@ -21,8 +21,8 @@ cd "$ROOT" || exit 2
 kind=${1%%:*}; name=${1#*:}
 case $kind in
   run) src=tests/golden/run/$name.ts; exp=tests/golden/run/$name.out ;;
-  conf) src=../tests/conformance/$name.ts; exp=corpus/conformance/$name.out ;;
-  bench) src=../tests/bench/kernels/$name.ts; exp=corpus/bench/$name.out ;;
+  conf) src=tests/conformance/$name.ts; exp=corpus/conformance/$name.out ;;
+  bench) src=tests/bench/kernels/$name.ts; exp=corpus/bench/$name.out ;;
 esac
 # run a command, printing stdout, then stderr, and for a failing exit code the frozen `[exit N] <stderr>` form (conformance only)
 exec_one() {

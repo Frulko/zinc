@@ -6,7 +6,7 @@
 # A plugin whose native code does not build stops the build (ZINC_NATIVE=real): its simulation would be installed in its place, silently.
 # docs/reports/hardware/hp-touchpad-webos.md
 set -e
-here=$(cd "$(dirname "$0")" && pwd -P); next=$(dirname "$here"); repo=$(dirname "$next")
+here=$(cd "$(dirname "$0")" && pwd -P); next=$(dirname "$here"); repo=$next
 ZINC=${ZINC:-$next/build/zinc}
 APPS=/media/cryptofs/apps/usr/palm/applications
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT

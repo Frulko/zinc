@@ -3,7 +3,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-out=$("$ZINC" run ../examples/hero --profile esp32 2>&1); code=$?
+out=$("$ZINC" run examples/hero --profile esp32 2>&1); code=$?
 case "$out" in *"hero cannot run on esp32: it requires heap>=8M (esp32 has heap 160K) (zinc.json \"requires\"; --force builds anyway)"*) [ $code -ne 0 ] || { echo "hero on esp32 exits 0"; fail=1; } ;; *) echo "hero on esp32: $out"; fail=1 ;; esac
 printf "// zinc-profile: esp32\nimport 'zinc:sqlite';\n" > "$tmp/sq.ts"
 out=$("$ZINC" run "$tmp/sq.ts" 2>&1)

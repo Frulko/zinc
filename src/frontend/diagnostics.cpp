@@ -51,7 +51,7 @@ std::string explain(std::string_view code) {
 }
 
 std::string markdown() {
-  std::string out = "# Diagnostics\n\nGenerated from `next/include/zn/diagnostics.h` by `zinc explain --markdown`. Do not edit.\n";
+  std::string out = "# Diagnostics\n\nGenerated from `include/zn/diagnostics.h` by `zinc explain --markdown`. Do not edit.\n";
   for (const DiagInfo& d : kDiagnostics) {
     out += std::string("\n## ") + d.code + ": " + d.title + "\n\n" + d.why + "\n\nFix: " + d.fix + "\n\n```ts\n" + d.example + "\n```\n";
   }

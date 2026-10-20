@@ -1,13 +1,13 @@
 # Parity audit 02: example apps on the new engine (unchanged sources)
 
-Date: 2026-10-07. Engine: `next/build/zinc` (M3/M4 state, see `next/RESUME.md`). Method: every `main*.ts[x]` under `examples/` was run with
-`ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZN_TRAP_TRACE=1 timeout 60 build/zinc run ../examples/<entry>` (cwd `next/`; the video examples
+Date: 2026-10-07. Engine: `build/zinc` (M3/M4 state, see `RESUME.md`). Method: every `main*.ts[x]` under `examples/` was run with
+`ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZN_TRAP_TRACE=1 timeout 60 build/zinc run examples/<entry>` (cwd `next/`; the video examples
 also from their own directory because they open `media/...` relative to the cwd). The first blocker is the exact message of that run. The "likely further
 blockers" were found by running a scratch copy of the tree (`/tmp/parity/ex`, sources patched one blocker at a time, stub plugins for the missing
 `zinc:*` modules, a plugin manifest with an `entry`) and reading the next diagnostic; items marked (static) come from reading only.
 Minimal reproductions: `/tmp/parity/r/*.ts` (one per root cause, quoted below as `rNN`). Scripts: `/tmp/parity/run2.sh`, `/tmp/parity/try.sh`.
 
-"OK" means exit 0 after 3 headless frames, no pixel comparison (only `hero`, `remarkable/*` have regression goldens in `next/tests/golden/examples`).
+"OK" means exit 0 after 3 headless frames, no pixel comparison (only `hero`, `remarkable/*` have regression goldens in `tests/golden/examples`).
 "OK (fake)" means it runs, but a sim written for the old Node oracle or for this engine stands in for the native part (no real decode/render).
 
 ## Result in numbers
@@ -43,7 +43,7 @@ Minimal reproductions: `/tmp/parity/r/*.ts` (one per root cause, quoted below as
 | flipctl/src/main.ts | OK | | |
 | hello/src/main.ts | OK | | |
 | hero/src/main.tsx | OK | | |
-| inferno-todo/src/main.tsx | compile error | `src/main.tsx:3:1 Z0005 package imports ('inferno')` (r18; `tsconfig.json` `paths` maps it to `lib/compat/inferno.ts`) | `src/app.tsx:38:7 Z0005 JSX: <VirtualList> is not supported yet` (`next/src/frontend/jsx.cpp:569`); then (static) class components with `setState` on `zinc:ui/react` |
+| inferno-todo/src/main.tsx | compile error | `src/main.tsx:3:1 Z0005 package imports ('inferno')` (r18; `tsconfig.json` `paths` maps it to `lib/compat/inferno.ts`) | `src/app.tsx:38:7 Z0005 JSX: <VirtualList> is not supported yet` (`src/frontend/jsx.cpp:569`); then (static) class components with `setState` on `zinc:ui/react` |
 | iot-panel/src/main.tsx | compile error | `src/board.ts:6:1 Z0119 'zinc:gpio'`, `:7 'zinc:telemetry'`, `:8 'zinc:osc'` | none (OK in the scratch copy with no-op stubs); real behaviour needs the three modules |
 | lang/src/main.ts | OK | | |
 | led/falling-cubes/src/main.ts | OK | | |
@@ -95,10 +95,10 @@ Minimal reproductions: `/tmp/parity/r/*.ts` (one per root cause, quoted below as
 |---|---|---|---|---|
 | RC15 | Native part of 17 plugins not linked: the sim stand-ins are 5..35-line stubs or use TS beyond the subset; real output needs host code. Sub-causes a..i below | `plugins/*/native/*.host.cpp`, `runtime/mod/*` | 3d x2, three x2, camera x3, scripting x3, maps x2, remote, webview, mapper, native-module, video x4, lottie | see sub-rows |
 | RC03 | Missing host modules `zinc:osc`, `zinc:mqtt`, `zinc:telemetry`, `zinc:gpio`, `zinc:events`, `zinc:platform` (`Z0119`) | `runtime/mod/{osc,mqtt,telemetry,gpio,events}.cpp`, `lib/modules.d.ts:144-195`, `compiler/src/capabilities.ts:75` (platformModule) | chataigne, iot-panel, modules-showcase, mapper, native-module, sensor-hub, looper, pinball (8) | iot-panel, native-module, pinball, chataigne (4; others wait for RC04/RC05/RC18) |
-| RC01 | `zinc:pixelfont` not found: `plugins/pixelfont/plugin.json` has no `"entry"` and `readPluginsIn` (`next/src/frontend/modules.cpp:~391`) requires one (also the 8 `display-*` manifests, harmless) | `compiler/src/plugins.ts` (defaults to `index.ts`) | text-scroller, badge, cpu-graph, snake, scroll-text (5) | text-scroller, cpu-graph, scroll-text (3) |
+| RC01 | `zinc:pixelfont` not found: `plugins/pixelfont/plugin.json` has no `"entry"` and `readPluginsIn` (`src/frontend/modules.cpp:~391`) requires one (also the 8 `display-*` manifests, harmless) | `compiler/src/plugins.ts` (defaults to `index.ts`) | text-scroller, badge, cpu-graph, snake, scroll-text (5) | text-scroller, cpu-graph, scroll-text (3) |
 | RC02 | `zinc:process` of the engine is a 4-function handle API (`spawn(cmdline)`, `read`, `status`, `kill`); the prototype's is `spawn(cmd, args, opts): Process`, `run(...): Promise<Result>`, `Process.onStdout/onStderr/onExit/write/kill(sig)/exited/code`. A built-in always wins over the plugin (`hostModuleSource` before `plugins`) | `plugins/process/index.ts` (109 lines, pure Zinc over a `Spec`), `native/process.host.cpp` (posix_spawn) | badge, zed-editor, process/cli, process/shell (4) | process/shell, process/cli (needs RC07 too), badge (with RC01, RC06) |
 | RC19 | Checker crash (EXC_BAD_ACCESS in `Checker::expr0`) when a member is read from the result of an unresolved export (r14d) | n/a | badge, zed-editor x3 | 0 alone (turns a segfault into a diagnostic) |
-| RC07 | `await` outside the four statement forms (`await e;`, `x = await e;`, `const x = await e;`, `return await e;`): call argument, template literal, binary operand, for-of header (`next/src/frontend/desugar.cpp:93-201`) | tsc async lowering in `compiler/src/` | camera x3, modules-showcase, process/cli (5) | 0 alone (each needs another cause) |
+| RC07 | `await` outside the four statement forms (`await e;`, `x = await e;`, `const x = await e;`, `return await e;`): call argument, template literal, binary operand, for-of header (`src/frontend/desugar.cpp:93-201`) | tsc async lowering in `compiler/src/` | camera x3, modules-showcase, process/cli (5) | 0 alone (each needs another cause) |
 | RC06 | `x!` non-null assertion (`Z0005`) | tsc | snake, scripting x3 (4), plus `process.sim.ts`, `script/index.ts:127` | snake (with RC01) |
 | RC08 | Checker rejects `Map.get` of number/boolean outside `??`/`as T` and `find` outside `??` (`Z0005`) | tsc `T | undefined` | pinball, chataigne, zed-editor, gphoto2.sim (4) | pinball (with RC03) |
 | RC09 | Parser: inline `type` import specifier (`import { a, type B }`); `export const enum`; parenthesized function type as arrow return type (`): (() => string) =>`) | tsc | pocket-hero, mapper, 3d x2, three x2, esp32-2432s022 (7) | mapper (with RC03) |
@@ -120,10 +120,10 @@ Minimal reproductions: `/tmp/parity/r/*.ts` (one per root cause, quoted below as
 
 | Id | Native part | Examples | Prototype code | Recommended implementation in the new engine |
 |---|---|---|---|---|
-| 15a | `Render3D`, `Three` | 3d x2, three x2 | `plugins/3d/native/render3d.host.cpp` (442), `plugins/three/native/three.host.cpp` (489), `zrt_raster.h` | Port the two software rasterizers onto the engine's image buffers as `__host_3d*` rows; `stb_image` is already in `next/third_party/stb`. No GPU library: the targets include a Pi 1. |
+| 15a | `Render3D`, `Three` | 3d x2, three x2 | `plugins/3d/native/render3d.host.cpp` (442), `plugins/three/native/three.host.cpp` (489), `zrt_raster.h` | Port the two software rasterizers onto the engine's image buffers as `__host_3d*` rows; `stb_image` is already in `third_party/stb`. No GPU library: the targets include a Pi 1. |
 | 15b | `SvgEngine` | svg-gallery | `plugins/svg/native/svg.host.cpp` (679) | Reuse NanoSVG (zlib licence, parser + rasterizer, ~3k lines single header) or lunasvg/ThorVG if CSS support is needed; vendor with licence. Compare against the prototype output before dropping its engine. |
 | 15c | `MapEngine` | maps/explorer | `plugins/map/native/map.host.cpp` (728) | Reuse protozero + vtzero (BSD) for MVT decoding, keep the style-spec evaluator of the prototype; polygon fill via the engine rasterizer. |
-| 15d | QuickJS VM (`zinc:script`) | scripting x3 | `plugins/script/native/quickjs.host.cpp`, `vendor/quickjs` | quickjs-ng is already vendored (`next/third_party/quickjs-ng`, `next/src/qjs`): wrap it as the `Spec` (eval, call, fn, dispose). Zero new dependency. |
+| 15d | QuickJS VM (`zinc:script`) | scripting x3 | `plugins/script/native/quickjs.host.cpp`, `vendor/quickjs` | quickjs-ng is already vendored (`third_party/quickjs-ng`, `src/qjs`): wrap it as the `Spec` (eval, call, fn, dispose). Zero new dependency. |
 | 15e | libgphoto2 | camera x3 | `plugins/gphoto2/native/gphoto2.host.cpp` (661, libgphoto2 + turbojpeg) | Keep libgphoto2 (LGPL, dynamic) and libjpeg-turbo (BSD); add a Zinc-subset `gphoto2.next.ts` fake first so the examples run in CI. |
 | 15f | libav decode | video x4 | `plugins/video/native/video.host.cpp` (552) | FFmpeg libav* (LGPL, dynamic) as in the prototype; `video.next.ts` fake stays for CI. |
 | 15g | WebView | webview/hybrid | `plugins/webview/` (macOS WKWebView) | Platform web view (WKWebView / WebKitGTK); keep sim as headless fallback. |
@@ -154,7 +154,7 @@ Each task lists the examples it unlocks together with the tasks it needs.
 | P14 | Promise statics | `Promise.reject/resolve/all/race/allSettled` typed generically, `Promise` usable as a value | r11 and gphoto2.sim compile | S | P9 | remote/viewer, gphoto2 sim |
 | P15 | `zinc.json` loader | Read `zinc.json` for `zinc run`: width/height/zoom/resize to the window, `growDrawCommands`, plugin options (`3d.scale`), `requires` check, chdir to the project directory (RC24) | level prints no draw-pool warning; pinball opens 960x600; bounce runs from any cwd | M | none | level, bouncing-ball, pinball, bounce, quad, looper |
 | P16 | `zinc:web`/`zinc:fetch`/`zinc:sqlite` mapping | Add them to `kStd`, SQLite amalgamation (vendored in `plugins/sqlite/vendor`) as a host module | `examples/testing/tests` pass | M | P7 | testing x2 (not apps) |
-| P17 | zinc:script on quickjs-ng | `Spec` over `next/src/qjs` | scripting/bench prints its timings; breakout-mods and playground run | M | P6d | scripting x3 |
+| P17 | zinc:script on quickjs-ng | `Spec` over `src/qjs` | scripting/bench prints its timings; breakout-mods and playground run | M | P6d | scripting x3 |
 | P18 | 3D software renderer | Port render3d.host.cpp and three.host.cpp as host rows | 3d/cubes and three/cubes match a stored PNG | L | P6b, P9e, P11 | 3d x2, three x2 |
 | P19 | Camera: gphoto2 fake then real | `gphoto2.next.ts` in the Zinc subset (CI), then libgphoto2 host | camera cli/bench/remote run headless with the fake | M | P7, P9, P14 | camera x3 |
 | P20 | Video decode | libav host over the engine images | bounce shows moving pixels; goldens | L | P15 | bounce, quad, looper, mapper (real) |

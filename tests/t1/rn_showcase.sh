@@ -6,7 +6,7 @@
 # and echoes, a note added on the Data screen is still there after a restart (same ZINC_STORAGE), the camera page shows the simulated preview and
 # takes a photo. ZN_UPDATE_GOLDEN=1 records the hashes and session.out again.
 cd "$(dirname "$0")/../.." || exit 2
-app=$PWD/../examples/rn-showcase; golden=$PWD/tests/golden/rn-showcase
+app=$PWD/examples/rn-showcase; golden=$PWD/tests/golden/rn-showcase
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 if grep -rnE 'class=|className=|zinc:ui/kit|std/kit' "$app/src" >/dev/null; then echo "rn-showcase uses a class string or the kit: $(grep -rnE 'class=|className=|zinc:ui/kit' "$app/src" | head -3)"; fail=1; fi

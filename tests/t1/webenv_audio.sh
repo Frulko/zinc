@@ -21,7 +21,7 @@ run ZINC_WEB=1 ZINC_NATIVE=real ZINC_FRAMES=400 "$ZINC" run $G/page.js --engine 
 [ "$1" = "--update" ] && { cp "$tmp/out" $G/page.out; echo "webenv_audio: page.out is written again"; }
 diff "$tmp/out" $G/page.out > "$tmp/diff" || { echo "webenv_audio: the page differs from $G/page.out:"; head -20 "$tmp/diff"; fail=1; }
 
-run ZINC_NATIVE=real ZINC_SIZE=320x240 ZINC_FRAMES=600 ZINC_INPUT=tests/golden/js-examples/phaser.input "$ZINC" run ../examples/js-phaser > "$tmp/game" 2> "$tmp/err" \
+run ZINC_NATIVE=real ZINC_SIZE=320x240 ZINC_FRAMES=600 ZINC_INPUT=tests/golden/js-examples/phaser.input "$ZINC" run examples/js-phaser > "$tmp/game" 2> "$tmp/err" \
   || { echo "webenv_audio: js-phaser failed: $(noise "$tmp/err")"; fail=1; }
 python3 - "$tmp/game" <<'PY' || fail=1
 import re, sys

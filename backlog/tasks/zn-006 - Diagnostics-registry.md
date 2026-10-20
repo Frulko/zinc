@@ -27,5 +27,5 @@ As an **App developer**, I want every error to have a code, a title, a reason, a
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-include/zn/diagnostics.h is the registry (X-macro: name, code, title, why, fix, example); generates kZ* constants, messages, 'zinc explain <code>|--codes|--markdown' and next/docs/diagnostics.md. Parser codes renumbered Z0001-Z0005 (unsupported is now Z0005). T0 diagnostics: every code has a fixture, every registry example triggers its own code, docs are current, unknown code rejected (each verified by breaking it). Not done (ponytail): code frames in output, add when the checker emits multi-line context. usage: 28000 in / 265691 cached / 2479 out tokens, 5 turns (session total, estimate)
+include/zn/diagnostics.h is the registry (X-macro: name, code, title, why, fix, example); generates kZ* constants, messages, 'zinc explain <code>|--codes|--markdown' and docs/diagnostics.md. Parser codes renumbered Z0001-Z0005 (unsupported is now Z0005). T0 diagnostics: every code has a fixture, every registry example triggers its own code, docs are current, unknown code rejected (each verified by breaking it). Not done (ponytail): code frames in output, add when the checker emits multi-line context. usage: 28000 in / 265691 cached / 2479 out tokens, 5 turns (session total, estimate)
 <!-- SECTION:NOTES:END -->

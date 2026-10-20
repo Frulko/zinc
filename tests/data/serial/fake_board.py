@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# The board of next/tests/t1/serial.sh: opens a pseudo-terminal pair, runs `<command...>` with SERIAL_PORT set to the slave side, and talks to it
+# The board of tests/t1/serial.sh: opens a pseudo-terminal pair, runs `<command...>` with SERIAL_PORT set to the slave side, and talks to it
 # on the master side. Prints the program's output, then one line per check of what the program wrote to the port.
 import os, pty, select, subprocess, sys, time
 

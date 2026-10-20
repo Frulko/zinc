@@ -21,7 +21,7 @@ chmod +x "$tmp/bin/gh"
 git init -q --bare "$tmp/origin.git"
 cd "$tmp/work" || exit 2   # the tool works on the repository of the current directory: never on this one
 git init -q -b main . && git config user.email t@t && git config user.name t && git remote add origin "$tmp/origin.git"
-mkdir -p next && printf '%064d\n' 1 | tr 0 a > next/update.pub
+mkdir -p next && printf '%064d\n' 1 | tr 0 a > update.pub
 printf '# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-01-01\n\n- first\n\n[Unreleased]: https://example.test/compare/v0.1.0...HEAD\n[0.1.0]: https://example.test/releases/tag/v0.1.0\n' > CHANGELOG.md
 echo a > a && git add -A && git commit -q -m "feat: first" && git tag -a v0.1.0 -m "Zinc 0.1.0" && git push -q origin main --tags
 git switch -q -c develop && git push -q origin develop   # the work happens on develop; a release moves main to it

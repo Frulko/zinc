@@ -14,6 +14,6 @@ diff "$tmp/i.out" $d/board.out >"$tmp/d" || { echo "serial: board.ts interpreted
 ZINC_NATIVE=real "$ZINC" build $d/board.ts -o "$tmp/board" >"$tmp/b.log" 2>&1 || { echo "serial: board.ts does not build: $(tail -c 300 "$tmp/b.log")"; fail=1; }
 timeout 50 python3 $d/fake_board.py "$tmp/board" 2>&1 | diff - $d/board.out >"$tmp/d" || { echo "serial: board.ts compiled: $(head -4 "$tmp/d" | cut -c1-300)"; fail=1; }
 ZINC_DETERMINISTIC=1 timeout 30 "$ZINC" run $d/loopback.ts 2>&1 | diff - $d/loopback.out >"$tmp/d" || { echo "serial: loopback.ts on the stand-in: $(head -4 "$tmp/d" | cut -c1-300)"; fail=1; }
-out=$(ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=10 timeout 30 "$ZINC" run ../examples/serial 2>&1)
+out=$(ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=10 timeout 30 "$ZINC" run examples/serial 2>&1)
 echo "$out" | grep -q "^serial: first value [0-9]*$" || { echo "serial: examples/serial plotted nothing: $(echo "$out" | head -3)"; fail=1; }
 exit $fail

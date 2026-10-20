@@ -1,7 +1,7 @@
 # Zinc Next: backlog
 
 The backlog lives in [Backlog.md](https://github.com/MrLesk/Backlog.md) (config: `backlog.config.yml`, tasks:
-`next/backlog/tasks/`, milestones M0–M6). Design: [docs/reports/zinc-next-design.md](../docs/reports/zinc-next-design.md).
+`backlog/tasks/`, milestones M0–M6). Design: [docs/reports/zinc-next-design.md](docs/reports/zinc-next-design.md).
 
 ```sh
 backlog board view          # kanban in the terminal
@@ -18,7 +18,7 @@ Columns: Backlog → Ready → In Progress → Review → Done. At most one task
 
 - One session = one task. A task is Done only when its acceptance criteria pass, not when the code is written.
 - Sizes (labels `size-S/M/L`): S ≈ 1 session, M ≈ 2–3, L ≈ 4+. Estimates, unvalidated.
-- End of session: update the task status, commit the unit (conventional commits, English), update `next/RESUME.md`.
+- End of session: update the task status, commit the unit (conventional commits, English), update `RESUME.md`.
 - ZN-011 is a decision gate: continue, simplify or stop, with measurements and `/usage` noted.
 
 Personas used in the stories: **Maintainer**, **App developer**, **Device user**, **CI**.

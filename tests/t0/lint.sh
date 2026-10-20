@@ -20,7 +20,7 @@ for r in $("$ZINC" lint --rules | cut -d' ' -f1); do
 done
 [ "$("$ZINC" lint --rules | wc -l | tr -d ' ')" = 13 ] || { echo "--rules does not list 13 rules"; fail=1; }
 (cd $g/rules && "$ZINC" lint --json 2>/dev/null) | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['targets']==['esp32'] and len(d['diagnostics'])==14, d" || { echo "--json is not the expected JSON"; fail=1; }
-"$ZINC" lint --all-targets ../examples/hero >"$tmp/hero.out" 2>/dev/null || { echo "hero: errors on its own targets"; fail=1; }
+"$ZINC" lint --all-targets examples/hero >"$tmp/hero.out" 2>/dev/null || { echo "hero: errors on its own targets"; fail=1; }
 sed -n '/^target /,$p' "$tmp/hero.out" >"$tmp/hero.matrix"
 check hero.matrix "$tmp/hero.matrix"
 (cd $g/esp32-app && "$ZINC" lint --all-targets >"$tmp/esp.out" 2>/dev/null) || { echo "esp32-app: errors on esp32"; fail=1; }

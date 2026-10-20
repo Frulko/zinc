@@ -47,7 +47,7 @@ clean ZINC_INSTALL_URL="file://$tmp/release" ZINC_BIN_DIR="$tmp/home/.local/bin"
 Z="$tmp/home/.local/bin/zinc"
 [ -x "$Z" ] && grep -q '\.local/bin' "$tmp/home/.zprofile" || { echo "no zinc link or no PATH line: $(cat "$tmp/out")"; fail=1; }
 real=$(cd "$tmp" && pwd -P)
-[ "$(clean "$Z" --root)" = "$real/home/.zinc/engine/share/zinc/next" ] || { echo "the engine files are not read from the install: $(clean "$Z" --root)"; fail=1; }
+[ "$(clean "$Z" --root)" = "$real/home/.zinc/engine/share/zinc" ] || { echo "the engine files are not read from the install: $(clean "$Z" --root)"; fail=1; }
 [ ! -e "$tmp/home/.zinc/engine/Zinc Atelier.app" ] || { echo "the CLI archive holds the app"; fail=1; }
 
 # the CLI archive unpacked by hand anywhere, run through a symlink with HOME empty and PATH=/usr/bin:/bin
@@ -99,7 +99,7 @@ clean "$Z" check "$(clean "$Z" --root)/app/atelier" >"$tmp/atelier" 2>&1 || { ec
 # the app as the Finder starts it (its launcher, a bare PATH): it opens on ZINC_PROJECT with the engine of its own bundle
 if [ $mac = 1 ]; then
   A="$tmp/home/Applications/Zinc Atelier.app"
-  [ "$(clean "$A/Contents/MacOS/zinc" --root)" = "$real/home/Applications/Zinc Atelier.app/Contents/Resources/zinc/next" ] || { echo "the app does not read its own engine files: $(clean "$A/Contents/MacOS/zinc" --root)"; fail=1; }
+  [ "$(clean "$A/Contents/MacOS/zinc" --root)" = "$real/home/Applications/Zinc Atelier.app/Contents/Resources/zinc" ] || { echo "the app does not read its own engine files: $(clean "$A/Contents/MacOS/zinc" --root)"; fail=1; }
   clean ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2 ZINC_SIZE=800x500 ZINC_SHOT="$tmp/atelier.png" ZINC_SHOT_FRAMES=2 ZINC_PROJECT="$tmp/work/atelier" \
     "$A/Contents/MacOS/zinc-atelier" >/dev/null 2>"$tmp/err" && [ -s "$tmp/atelier-2.png" ] && [ -e "$tmp/work/atelier/hello.ts" ] || { echo "the app does not open from its launcher: $(head -c 300 "$tmp/err")"; fail=1; }
 fi

@@ -12,7 +12,7 @@ Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/bin" "$tmp/work" && ln -s "$Z" "$tmp/bin/zinc"
-pages="../docs/guide/07-distribution.md ../docs/guide/08-security.md"
+pages="docs/guide/07-distribution.md docs/guide/08-security.md"
 
 cat > "$tmp/merge.py" <<'PY'
 import json, os, re, sys

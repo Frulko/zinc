@@ -10,7 +10,7 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}
 data=$PWD/tests/data/marble
-ex=$PWD/../examples/marble
+ex=$PWD/examples/marble
 fail=0
 run() {   # size frames input engine args...: the program's output on stdout, the frame hashes in $tmp/err
   size=$1; frames=$2; in=$3; shift 3

@@ -335,7 +335,7 @@ All with the same `navdrive` scenario as `raspberry-pi.md` (260 frames, clock re
 | Option | Measurement | Success |
 |---|---|---|
 | A | fps and p99 of the map with auto-select vs `renderer: "gl"` and `"cpu"`; Home/Kit/Forms screens `present` p50 for GL vs bands (not yet measured) | map = bands (43 ms); UI GL <= bands |
-| B | ablation: map with strokes as strips vs capsules; draw-call count, `VC4_DEBUG=perf` warnings, frame ms | GPU frame time down by a clear margin; crop-compare at 4x zoom against the software frame (`next/tools/pixel-compare`) |
+| B | ablation: map with strokes as strips vs capsules; draw-call count, `VC4_DEBUG=perf` warnings, frame ms | GPU frame time down by a clear margin; crop-compare at 4x zoom against the software frame (`tools/pixel-compare`) |
 | C | ablation with POLY only; CPU time for tessellation per frame in `ZINC_PROFILE`; seam check on the Paris map tiles | GPU ms down more than CPU ms up; no visible seams |
 | D | UI screens and the glyph-heavy gallery; CPU time to submit and GPU frame ms | lower ms, bytes/frame down (count `nq*4*sizeof(V)`) |
 | E | `EGL_SAMPLES=4` build; same run; `v3d_regs`/frame time | lower than B+C without MSAA, or reject |

@@ -1,5 +1,5 @@
 ./Assets.xcassets/Contents.json 0fd49ba3c3585c70
-./CMakeLists.txt 9475c705b3776a47
+./CMakeLists.txt 002f88e5c29f2d52
 ./ExportOptions.plist c9019fc4145fd92f
 ./Info.plist 559dc7607b6c31ca
 ./PrivacyInfo.xcprivacy 145a659e6279151f

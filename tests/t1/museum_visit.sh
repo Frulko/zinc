@@ -16,7 +16,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 d=$PWD/tests/data/museum_visit; golden=$PWD/tests/golden/museum-visit/frames.txt
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 play() {  # input, frames, mode: the story on stdout, the hash of the last frame in $tmp/hash
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$d/$1" ZINC_FRAMES=$2 ZINC_FRAMEHASH=last "$ZINC" run $3 . -- --story 2>"$tmp/err"

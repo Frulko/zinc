@@ -9,7 +9,7 @@
 #   plugin-<name>    one mirror per official plugin, pushed from plugins/<name> by tools/plugin-split (ZN-335)
 # then lists the secrets the CI needs that are not set yet (values are the owner's: the script never writes one).
 # --dry-run runs no gh command and prints every one it would run. Needs gh, logged in as an owner of the organization.
-cd "$(dirname "$0")/../.." || exit 2
+cd "$(dirname "$0")/.." || exit 2
 org=zinc-engine; dry=0
 while [ $# -gt 0 ]; do
   case $1 in --dry-run) dry=1 ;; --org) org=$2; shift ;; *) sed -n '2,13p' "$0"; exit 2 ;; esac
@@ -37,7 +37,7 @@ done
 # main of the engine: pull requests and the checks of the zinc-next workflow before a merge
 if exists api "repos/$org/zinc/branches/main/protection"; then echo "= $org/zinc main is protected"
 else
-  do_ "$GH" api -X PUT "repos/$org/zinc/branches/main/protection" --input next/tools/gh-org-protection.json
+  do_ "$GH" api -X PUT "repos/$org/zinc/branches/main/protection" --input tools/gh-org-protection.json
 fi
 # the secrets the CI reads (zinc-next.yml, pages.yml): named here, set by the owner with `gh secret set -R $org/zinc NAME`
 missing=

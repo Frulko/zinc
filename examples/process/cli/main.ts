@@ -1,5 +1,5 @@
 // Headless self-check of zinc:process: run(), streamed lines, stdin, cwd/env, kill, spawn errors.
-//   node compiler/bin/zinc.mjs run examples/process/cli            (macos; --target rpi1 / sim too)
+//   build/zinc run examples/process/cli
 import * as proc from 'zinc:process';
 import * as sys from 'zinc:sys';
 

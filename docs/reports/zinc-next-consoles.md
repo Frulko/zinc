@@ -11,11 +11,11 @@ output (PS2), and the framebuffer the display scans out, read back through the c
 3DS buffer shown since the last swap). Vita3K and Azahar have no screenshot a script can ask for (a key in their window), and window captures
 need the Screen Recording permission.
 
-The console hello (`next/targets/console/hello`), PSP, Vita, PS2 (PAL BIOS: 640x512, the 448-row frame centred) and 3DS:
+The console hello (`targets/console/hello`), PSP, Vita, PS2 (PAL BIOS: 640x512, the 448-row frame centred) and 3DS:
 
 ![hello on the four consoles](../img/consoles/hello.png)
 
-breakout's pad session (`next/tests/golden/breakout/pad.input`: start, serve, move left and right, break bricks, lose a life, serve again), at
+breakout's pad session (`tests/golden/breakout/pad.input`: start, serve, move left and right, break bricks, lose a life, serve again), at
 frames 300, 600 and 900:
 
 PSP, 480x272 (PPSSPPHeadless 1.20.4, software renderer):
@@ -86,7 +86,7 @@ choice); `breakout-mods` still draws `render.ts` and is compared.
 
 `~/Documents/psp/breakout/EBOOT.PBP`, `~/Documents/vita/breakout.vpk` (title "Breakout", ZINC00002), `~/Documents/ps2/breakout.elf`,
 `~/Documents/3ds/breakout.3dsx`, and the hello beside them (`zinc-hello`, ZINC00001). Controls: the d-pad or the left stick (circle pad) move
-the paddle, Cross (A on the 3DS) or START starts and serves. Rebuild them with `tools/console-demos ../examples/breakout breakout --title
+the paddle, Cross (A on the 3DS) or START starts and serves. Rebuild them with `tools/console-demos examples/breakout breakout --title
 Breakout --id ZINC00002`.
 
 ## Hardware demos: every part of each console (ZN-759)

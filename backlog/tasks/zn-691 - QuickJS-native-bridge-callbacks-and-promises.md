@@ -15,7 +15,7 @@ ordinal: 452410
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-(Follow-up of the first playable pinball, D77.) The generic bridge that lets a plugin's native module be called from QuickJS (next/src/qjs/native_js.cpp) passes values and arrays; a native function that takes a callback or returns a promise is not bridged.
+(Follow-up of the first playable pinball, D77.) The generic bridge that lets a plugin's native module be called from QuickJS (src/qjs/native_js.cpp) passes values and arrays; a native function that takes a callback or returns a promise is not bridged.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

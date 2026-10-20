@@ -7,7 +7,7 @@
 # ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
 command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
-app=$PWD/../examples/webrtc-call; golden=$PWD/tests/golden/webrtc-call
+app=$PWD/examples/webrtc-call; golden=$PWD/tests/golden/webrtc-call
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_FAKE_CAMERA=1 ZINC_FAKE_MICROPHONE=1
 fail=0

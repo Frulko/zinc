@@ -18,7 +18,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:spotify`: `Login` logs in from the app on a computer with a browser (the redirect served on port 8765), `reload()` reads the login file again and `logout()` forgets the account (the client id stays); the music example connects Spotify from its Spotify page on macOS, and checks or logs out the account in its settings; with a client id built in (src/spotify-client.ts) it logs in on a computer that never ran zinc.
 
 ### Changed
+- A checkout builds and runs from its root: the engine moved out of `next/` (`cmake -S . -B build && tools/build zinc`, then `build/zinc run examples/hero`); an installed zinc reads its files from `share/zinc`.
 - macOS: a window uses about a third of the memory it did (Activity Monitor: about 80 MB instead of 210 for a 1180x760 window on a Retina screen, 45 MB for a small form): it shows the frame through Metal instead of OpenGL. `ZINC_RENDERER=gl` brings OpenGL back, for shaders drawn on the GPU.
+
+### Removed
+- `zinc ui` (the Figma design tools), ZincStudio and the Figma plugin: they ran on the Node prototype, which is removed with them (its code is under the git tag `prototype-final`).
 
 ### Fixed
 - Two programs started at the same time (two `zinc run`, a test beside an app) no longer fail to build or load the same plugin: the builds of a `ZINC_HOME` take turns.

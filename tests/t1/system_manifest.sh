@@ -18,7 +18,7 @@ printf '{"name":"a","app":{"id":"bad id"}}\n' > "$tmp/zinc.json"
 out=$("$ZINC" run "$tmp/a.ts" 2>&1); code=$?; case "$out" in *"line 1: app.id 'bad id' is not a reverse-DNS id"*) [ $code -eq 2 ] || { echo "bad app id exit code $code"; fail=1; } ;; *) echo "bad app id: $out"; fail=1 ;; esac
 printf '{\n "name":"a",\n "permissions":["tray","wifi"]\n}\n' > "$tmp/zinc.json"
 out=$("$ZINC" run "$tmp/a.ts" 2>&1); case "$out" in *"line 3: unknown permission 'wifi'"*) ;; *) echo "unknown permission: $out"; fail=1 ;; esac
-python3 - ../targets/capabilities.json <<'P' || fail=1
+python3 - targets/capabilities.json <<'P' || fail=1
 import json, sys
 d = json.load(open(sys.argv[1]))
 keys = "desktop notifications tray menubar dialogs windowctl multiwindow shortcuts instance autostart deeplink power".split()

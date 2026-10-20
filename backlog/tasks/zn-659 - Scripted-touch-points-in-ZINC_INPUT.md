@@ -30,5 +30,5 @@ ordinal: 412410
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Done by the museum-table agent as commit 611f27b9 (20 lines in next/src/host/hal_dispatch.cpp): `<frame> touch ID X Y` and `<frame> touchup ID`, up to 10 fingers held, in landing order, the first finger also being the pointer. tests/t1/input_touch.sh (PASS on the compiled program and on the interpreter, coordinator's run), tests input and pointer_kind unchanged. The syntax is documented where the input script is, docs/reports/zinc-next-window.md, not in the guide.
+Done by the museum-table agent as commit 611f27b9 (20 lines in src/host/hal_dispatch.cpp): `<frame> touch ID X Y` and `<frame> touchup ID`, up to 10 fingers held, in landing order, the first finger also being the pointer. tests/t1/input_touch.sh (PASS on the compiled program and on the interpreter, coordinator's run), tests input and pointer_kind unchanged. The syntax is documented where the input script is, docs/reports/zinc-next-window.md, not in the guide.
 <!-- SECTION:NOTES:END -->

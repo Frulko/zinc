@@ -3,8 +3,8 @@
 // last three views are those of a visitor at the right, the far and the left side of a table (ZN-650.13): the image is rolled for them,
 // and a point is still where it is projected.
 import { onFrame, clear, width, height, createImage, beginImage, endImage, rect } from 'zinc:gfx';
-import { PanoramaView, direction } from '../../../../examples/museum-table/src/panorama';
-import { View } from '../../../../examples/museum-table/src/project';
+import { PanoramaView, direction } from '../../../examples/museum-table/src/panorama';
+import { View } from '../../../examples/museum-table/src/project';
 
 const W: i32 = 2048, H: i32 = 1024;
 const POINTS: number[][] = [[62, -12], [117, 4], [-113, 27], [0, 0], [-30, -45]];

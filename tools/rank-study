@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline order-rank study (ZN-173, spike S1 of docs/reports/ui-rendering-architecture.md): draw calls of painter-order batching vs GPUI-style ranks, from scene dumps.
 
-usage: tools/rank-study [--out ../docs/reports/render-rank-study.md] [dump.scn ...]    (no dumps: renders the hero and navigation frames 3, 8 and 12 itself)
+usage: tools/rank-study [--out docs/reports/render-rank-study.md] [dump.scn ...]    (no dumps: renders the hero and navigation frames 3, 8 and 12 itself)
 rank(p) = 1 + max rank of any earlier primitive whose bounds (clipped by the active clip) intersect p's; then primitives are sorted by (rank, kind, texture) and runs merged.
 painter: consecutive primitives with the same (kind, texture) merge; painter+clip: a clip change also breaks the batch (a scissor state change).
 """
@@ -70,13 +70,13 @@ def study(cmds, W, H):
     return {"prims": n, "painter": painter, "painter_clip": painter_clip, "ranked": ranked, "ranks": max([p[2] for p in prims], default=0)}
 
 args = sys.argv[1:]
-out = "../docs/reports/render-rank-study.md"
+out = "docs/reports/render-rank-study.md"
 if "--out" in args: i = args.index("--out"); out = args[i + 1]; del args[i:i + 2]
 tmp = tempfile.mkdtemp()
 zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
 frames = [(os.path.basename(a), a) for a in args]
 if not frames:
-    for name, prog in (("hero", "../examples/hero/src/main.tsx"), ("nav", "../examples/maps/navigation/src/main.tsx")):
+    for name, prog in (("hero", "examples/hero/src/main.tsx"), ("nav", "examples/maps/navigation/src/main.tsx")):
         env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES="12", ZINC_SHOT_FRAMES="3,8,12", ZINC_SHOT=os.path.join(tmp, name + ".png"), ZINC_SCENE_DUMP=os.path.join(tmp, name + ".scn"))
         subprocess.run([zinc, "run", prog], env=env, capture_output=True, check=True)
         frames += [("%s frame %d" % (name, f), os.path.join(tmp, "%s-%d.scn" % (name, f))) for f in (3, 8, 12)]

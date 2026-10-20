@@ -1,6 +1,6 @@
 ---
 id: ZN-331
-title: 'CI: configure on every host again (next/.gitignore hides SDL3''s build_config)'
+title: 'CI: configure on every host again (.gitignore hides SDL3''s build_config)'
 status: Review
 assignee: []
 created_date: '2026-10-08 14:34'
@@ -17,7 +17,7 @@ ordinal: 357000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-next/.gitignore has `build*/`, which also ignores next/third_party/SDL3/include/build_config/ (SDL_build_config.h.cmake, SDL_revision.h.cmake): every job of .github/workflows/zinc-next.yml fails at cmake configure since at least run 37625557372 (2026-10-07). Anchor the rule (`/build*/`), add the missing files, and make a fresh clone configure.
+.gitignore has `build*/`, which also ignores third_party/SDL3/include/build_config/ (SDL_build_config.h.cmake, SDL_revision.h.cmake): every job of .github/workflows/zinc-next.yml fails at cmake configure since at least run 37625557372 (2026-10-07). Anchor the rule (`/build*/`), add the missing files, and make a fresh clone configure.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

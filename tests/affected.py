@@ -8,12 +8,12 @@ out = []
 def add(n):
     if n not in out: out.append(n)
 for p in paths:
-    if p.startswith(("docs/", "next/backlog/", "tests/compat/results/")) or p.endswith(".md"):
+    if p.startswith(("docs/", "backlog/", "tests/compat/results/")) or p.endswith(".md"):
         continue
-    q = p[5:] if p.startswith("next/") else p   # next/src/... and src/... name the same files
+    q = p[5:] if p.startswith("next/") else p   # src/... and src/... name the same files
     hit = False
     for rule in cfg["map"]:
-        rule_paths = [x.removeprefix("../") for x in rule["paths"]]   # "../plugins/x/" names a path outside next/, which a changed path spells without the "../"
+        rule_paths = [x.removeprefix("../") for x in rule["paths"]]   # "plugins/x/" names a path outside next/, which a changed path spells without the "../"
         if any(q.startswith(x) or x in q for x in rule_paths):
             hit = True
             for t in rule["tests"]: add(t)

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Breakout in headless Chrome on vm-web.wasm (ZN-135, tests/t2/wasm_browser.sh): serves next/ with COOP/COEP, loads the glue page for 90 ticks, reads the last frame from the page's #png and checks it."""
+"""Breakout in headless Chrome on vm-web.wasm (ZN-135, tests/t2/wasm_browser.sh): serves the checkout with COOP/COEP, loads the glue page for 90 ticks, reads the last frame from the page's #png and checks it."""
 import base64, http.server, importlib.machinery, importlib.util, os, re, socketserver, subprocess, sys, tempfile, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE)
 chrome = sys.argv[1]; zinc = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
 loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader); pd = importlib.util.module_from_spec(spec); loader.exec_module(pd)
 tmp = tempfile.mkdtemp()
-subprocess.run([zinc, "--emit=zbc-bin", os.path.join(NEXT, "..", "examples", "breakout", "src", "main.ts"), os.path.join(tmp, "breakout.zbc")], check=True)
+subprocess.run([zinc, "--emit=zbc-bin", os.path.join(NEXT, "examples", "breakout", "src", "main.ts"), os.path.join(tmp, "breakout.zbc")], check=True)
 
 class H(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.mjs': 'text/javascript', '.js': 'text/javascript', '.wasm': 'application/wasm'})

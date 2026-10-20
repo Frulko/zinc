@@ -14,7 +14,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 tmp=$(cd "$tmp" && pwd -P)
 fail=0
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1
-for d in ../templates/*/; do
+for d in templates/*/; do
   t=$(basename "$d")
   p="$tmp/$t"
   "$Z" new "$t" "$p" >/dev/null || { echo "zinc new $t failed"; fail=1; continue; }
@@ -46,7 +46,7 @@ mistake() {
   # every golden names a file and a line, and says what to do
   grep -Eq '^(<project>/)?src/[a-z.]+:[0-9]+:[0-9]+: error Z[0-9]+: ' "$tmp/$name.txt" || { echo "mistake $name: no file:line:col: error line"; fail=1; }
   # the guide quotes the message as it is printed
-  grep -qF "$(sed -n 1p "$tmp/$name.txt" | sed 's|^<project>/||; s|<project>|my-game|g')" ../docs/guide/01-getting-started.md || { echo "mistake $name: docs/guide/01-getting-started.md does not quote its first line"; fail=1; }
+  grep -qF "$(sed -n 1p "$tmp/$name.txt" | sed 's|^<project>/||; s|<project>|my-game|g')" docs/guide/01-getting-started.md || { echo "mistake $name: docs/guide/01-getting-started.md does not quote its first line"; fail=1; }
   grep -Eq '^zinc: [0-9]+ errors?[.,].*zinc explain Z' "$tmp/$name.txt" || { echo "mistake $name: no closing line with the fix and zinc explain"; fail=1; }
 }
 # 1. a misspelt import: a name of a module, then the path of a file of the project

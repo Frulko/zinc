@@ -67,14 +67,14 @@ Not proven:
 - At 38 fps on a 60 Hz panel a flipped frame stays one or two refreshes: no tear, but the motion is not even. Faster frames are the cure, not the driver.
 
 On the Pi now: ~/zn/hero-flip runs with the flip (home screen, touch works). To compare:
-  next/tools/device pi@192.168.2.107 run hero-flip                        # flip
-  next/tools/device pi@192.168.2.107 run hero-flip ZINC_FBDEV_FLIP=0      # the old path, straight into /dev/fb0
-(add ZINC_DEMO=navdrive for the navigation already driving; `next/tools/device pi@192.168.2.107 stop` ends it.)
+  tools/device pi@192.168.2.107 run hero-flip                        # flip
+  tools/device pi@192.168.2.107 run hero-flip ZINC_FBDEV_FLIP=0      # the old path, straight into /dev/fb0
+(add ZINC_DEMO=navdrive for the navigation already driving; `tools/device pi@192.168.2.107 stop` ends it.)
 While it runs, /dev/fb0 is under its plane: a sketch started by the agent with the engine installed in ~/zinc-engine (the old driver) draws into /dev/fb0 and is not seen until hero-flip is stopped.
 
 Decision (reversible): the flip is the default wherever the test commit passes, scaled surfaces included; 32 bpp buffers kept for the 3.5 to 5% they cost rather than a second 16 bpp pair without pictures.
 
-Lines for next/backlog/later.md:
+Lines for backlog/later.md:
 - ZN-735: RGB565 buffers for the flip while no picture is shown, the frame is converted at 32 bpp today (navigation 1.44 to 2.07 ms, 3.5 to 5% of the frames).
 - ZN-735: a third buffer, so that a frame's conversion does not wait for the refresh of the frame before (matters when raster plus convert is near one period).
 - ZN-735: tools/device shot reads /dev/fb0, black while a flipping program runs: read the frame back through the program, or say it in the tool.

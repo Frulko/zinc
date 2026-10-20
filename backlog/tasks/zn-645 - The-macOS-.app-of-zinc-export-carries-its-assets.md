@@ -17,7 +17,7 @@ ordinal: 120900
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Found in ZN-314 (D66): the .app written by zinc export holds only the executable; the assets stay in dist/<name>-macos/assets, so the app started from Finder or moved elsewhere finds none. Copy them into Contents/Resources/assets before codesign (tc/bundle.cpp writeBundle) and add <exe dir>/../Resources/assets to assetsDir() (next/src/host/sys_host.cpp). plugins/webview/src/webview.mm reads getenv("ZINC_ASSETS") itself for zinc:// URLs: route it through the same function.
+Found in ZN-314 (D66): the .app written by zinc export holds only the executable; the assets stay in dist/<name>-macos/assets, so the app started from Finder or moved elsewhere finds none. Copy them into Contents/Resources/assets before codesign (tc/bundle.cpp writeBundle) and add <exe dir>/../Resources/assets to assetsDir() (src/host/sys_host.cpp). plugins/webview/src/webview.mm reads getenv("ZINC_ASSETS") itself for zinc:// URLs: route it through the same function.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

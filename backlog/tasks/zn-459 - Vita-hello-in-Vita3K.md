@@ -20,7 +20,7 @@ ordinal: 214582
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-targets/vita/hal_vita.cpp: scePowerSetArmClockFrequency(444) and GPU 222, CDRAM framebuffers through sceDisplaySetFrameBuf, sceCtrl, sceClibPrintf log, _newlib_heap_size_user. next/targets/vita: CMake with VitaSDK (vita_create_self, vita_create_vpk). zinc export --target vita writes the VPK with its own zip writer (prebuilt eboot.bin and param.sfo plus program.zbc).
+targets/vita/hal_vita.cpp: scePowerSetArmClockFrequency(444) and GPU 222, CDRAM framebuffers through sceDisplaySetFrameBuf, sceCtrl, sceClibPrintf log, _newlib_heap_size_user. targets/vita: CMake with VitaSDK (vita_create_self, vita_create_vpk). zinc export --target vita writes the VPK with its own zip writer (prebuilt eboot.bin and param.sfo plus program.zbc).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

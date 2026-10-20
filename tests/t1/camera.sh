@@ -21,7 +21,7 @@ printf "import * as cam from 'zinc:gphoto2';\ncam.detect().then(() => console.lo
 out=$(cd "$tmp/denied" && ZINC_PERMISSIONS=enforce ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 timeout 120 "$ZINC" run . 2>&1)
 echo "$out" | grep -q 'needs the permission "camera"' || { echo "an undeclared camera is not refused: $out"; fail=1; }
 for e in cli bench remote; do
-  out=$(env -u ZINC_DETERMINISTIC ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=900 timeout 120 "$ZINC" run "../examples/camera/$e" 2>&1 >/dev/null); rc=$?
+  out=$(env -u ZINC_DETERMINISTIC ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=900 timeout 120 "$ZINC" run "examples/camera/$e" 2>&1 >/dev/null); rc=$?
   [ $rc -eq 0 ] || { echo "examples/camera/$e: exit $rc: $(echo "$out" | head -c 200)"; fail=1; }
 done
 exit $fail

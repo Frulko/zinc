@@ -11,7 +11,7 @@ export ZINC_HOME=${ZINC_HOME:-$tmp/home}
 fail=0
 printf '30 touch 1 126 835\n33 touchup 1\n60 touch 1 210 650\n61 touch 1 210 600\n62 touch 1 210 550\n63 touch 1 210 500\n64 touch 1 210 450\n65 touchup 1\n100 touch 1 210 300\n101 touch 1 210 400\n102 touch 1 210 500\n103 touch 1 210 600\n104 touchup 1\n' >"$tmp/a"
 printf '30 touch 1 210 500\n31 touch 1 210 460\n32 touch 1 210 420\n33 touch 1 210 380\n34 touch 1 210 340\n35 touchup 1\n90 touch 1 210 200\n91 touch 1 210 300\n92 touch 1 210 400\n93 touchup 1\n' >"$tmp/b"
-for e in ../examples/rn-showcase:a tests/data/scroll_header:b; do
+for e in examples/rn-showcase:a tests/data/scroll_header:b; do
   p=${e%%:*}; in=${e#*:}
   env -u ZINC_HEADLESS -u ZINC_DETERMINISTIC ZINC_BACKGROUND=1 ZINC_RENDERER=gl ZINC_GL_MOVE=1 ZINC_GL_STATS=1 ZINC_GL_VERIFY=1 ZINC_FRAMES=160 ZINC_INPUT="$tmp/$in" \
     timeout 90 "$ZINC" run "$p" >"$tmp/log" 2>&1

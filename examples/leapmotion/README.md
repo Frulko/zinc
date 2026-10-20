@@ -6,7 +6,7 @@ The reusable sensor API is the `zinc:leapmotion` plugin in `plugins/leapmotion`.
 From the repository root:
 
 ```sh
-next/build/zinc run examples/leapmotion
+build/zinc run examples/leapmotion
 ```
 
 Install **Ultraleap Hand Tracking** in `/Applications`, start its service, and plug in the sensor.
@@ -48,22 +48,22 @@ at the reveal gives no point. A fist is rock, four extended fingers are paper, a
 
 ```sh
 # Start with two simulated devices, retaining the real 3D renderer:
-ZINC_NATIVE=real ZINC_LEAP_SIM=1 next/build/zinc run examples/leapmotion
+ZINC_NATIVE=real ZINC_LEAP_SIM=1 build/zinc run examples/leapmotion
 # Open a particular mode (hands, ink or duel), or start the fruit round immediately:
-ZINC_LEAP_MODE=hands next/build/zinc run examples/leapmotion
-ZINC_LEAP_AUTOPLAY=1 next/build/zinc run examples/leapmotion
+ZINC_LEAP_MODE=hands build/zinc run examples/leapmotion
+ZINC_LEAP_AUTOPLAY=1 build/zinc run examples/leapmotion
 # Start in two-player Fruit 3D (still waiting for Play):
-ZINC_LEAP_MULTIPLAYER=1 next/build/zinc run examples/leapmotion
+ZINC_LEAP_MULTIPLAYER=1 build/zinc run examples/leapmotion
 # Other engines:
-next/build/zinc run examples/leapmotion --engine quickjs
-next/build/zinc build examples/leapmotion -o /tmp/air-arcade
+build/zinc run examples/leapmotion --engine quickjs
+build/zinc build examples/leapmotion -o /tmp/air-arcade
 /tmp/air-arcade
 ```
 
 The plugin clears stale tracking after 250 ms and breaks drawing/cutting on lost or changed hands. Pinching uses hysteresis
 (start at 0.8, release below 0.55); the pen uses time-based smoothing. Drawing history and particles have fixed upper bounds.
 
-Checks: `next/tests/run --only leapmotion` and `next/tests/run --tier t1 --only leapmotion_demo`.
+Checks: `tests/run --only leapmotion` and `tests/run --tier t1 --only leapmotion_demo`.
 The latter scripts all four modes and the optional multiplayer toggle, verifies duel, cut-fruit and multiplayer visual goldens,
 and compares short textured multiplayer frames across all three engines.
 The two-device route is tested with a fake SDK; the development session detected one physical sensor, so a real two-player duel

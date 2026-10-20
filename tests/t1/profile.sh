@@ -8,21 +8,21 @@ fail=0
 # psp (ZN-414): the Allegrex FPU is single precision, so its numbers are f32 too and print the same goldens
 for prof in esp32 psp; do
   for n in tour clock array_search async string_number_edges conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals clock_frames hardening canvas2d scene3d ink lottie fetch_web three; do
-    [ -f ../tests/conformance/$n.f32.out ] || continue
-    ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile $prof ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile $prof does not print $n.f32.out"; fail=1; }
+    [ -f tests/conformance/$n.f32.out ] || continue
+    ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile $prof tests/conformance/$n.ts 2>&1 | diff -q - tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile $prof does not print $n.f32.out"; fail=1; }
   done
 done
 # fixed point (ZN-121): the fx12 corpus type-checks under --profile ps1 and prints the .fx12.out goldens (the programs that need the network, a plugin or the old simulator's wording excepted)
-for f in ../tests/conformance/*.fx12.out; do
+for f in tests/conformance/*.fx12.out; do
   n=$(basename "$f" .fx12.out)
-  [ -f ../tests/conformance/$n.ts ] || continue
+  [ -f tests/conformance/$n.ts ] || continue
   [ "$n" = string_number_edges ] && continue   # its Math.max() is the Z4001 case (tests/golden/checker/errors/fixed_max_empty.ts)
-  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 ../tests/conformance/$n.ts 2>&1 | grep -q "error Z" && { echo "$n: --profile ps1 does not type-check"; fail=1; }
+  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 tests/conformance/$n.ts 2>&1 | grep -q "error Z" && { echo "$n: --profile ps1 does not type-check"; fail=1; }
 done
 for n in tour clock async array_search conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals hardening canvas2d scene3d ink lottie errors path pinball_physics shapes signals clock_frames dyn_unknown; do
-  [ -f ../tests/conformance/$n.fx12.out ] || continue
-  out=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 ../tests/conformance/$n.ts 2>"$tmp/err"); code=$?
-  { [ -n "$out" ] && printf '%s\n' "$out"; if [ $code -ne 0 ]; then printf '[exit %s] %s\n' "$code" "$(cat "$tmp/err")"; else cat "$tmp/err"; fi; } | diff -q - ../tests/conformance/$n.fx12.out >/dev/null || { echo "$n: --profile ps1 does not print $n.fx12.out"; fail=1; }
+  [ -f tests/conformance/$n.fx12.out ] || continue
+  out=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 tests/conformance/$n.ts 2>"$tmp/err"); code=$?
+  { [ -n "$out" ] && printf '%s\n' "$out"; if [ $code -ne 0 ]; then printf '[exit %s] %s\n' "$code" "$(cat "$tmp/err")"; else cat "$tmp/err"; fi; } | diff -q - tests/conformance/$n.fx12.out >/dev/null || { echo "$n: --profile ps1 does not print $n.fx12.out"; fail=1; }
 done
 cat > "$tmp/oom.ts" <<'T'
 const keep: number[][] = [];

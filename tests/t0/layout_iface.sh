@@ -39,7 +39,7 @@ c++ -std=c++20 -Wall -Wextra -Werror -Isrc "$tmp/t.cpp" -o "$tmp/t" 2>"$tmp/err"
 fail=0
 while read -r name id; do   # WidthPercent -> P_WIDTH_PERCENT
   p=P_$(echo "$name" | sed 's/\([a-z]\)\([A-Z]\)/\1_\2/g' | tr '[:lower:]' '[:upper:]')
-  want=$(sed -n "s/^const $p: i32 = \([0-9]*\);.*/\1/p" ../lib/std/ui.ts)
+  want=$(sed -n "s/^const $p: i32 = \([0-9]*\);.*/\1/p" lib/std/ui.ts)
   [ "$want" = "$id" ] || { echo "layout.h: $name is $id, lib/std/ui.ts has $p = ${want:-missing}"; fail=1; }
 done < "$tmp/ids"
 [ $fail -eq 0 ] && echo "layout iface: ok"

@@ -24,7 +24,7 @@ tmp = tempfile.mkdtemp()
 baseline = baseline or out
 
 cases = [(os.path.basename(p)[:-3], p) for p in sorted(glob.glob("bench/render/*.ts"))]
-cases += [("b4-hero", "../examples/hero/src/main.tsx"), ("b5-nav", "../examples/maps/navigation/src/main.tsx")]
+cases += [("b4-hero", "examples/hero/src/main.tsx"), ("b5-nav", "examples/maps/navigation/src/main.tsx")]
 
 def sh(cmd, env=None):
     r = subprocess.run(cmd, capture_output=True, text=True, env=env)

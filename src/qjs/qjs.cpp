@@ -214,8 +214,8 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty() && name == st.path) return stripTypes(st.source, name, js, err);   // ZN-447
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:gfx") src = gfxSource();
-    else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
-    else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../next/third_party/lucide/icon-nodes.json");
+    else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../targets/capabilities.json");
+    else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json");
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
     else if (std::string g = zn::frontend::generatedModuleSource(name); !g.empty()) src = std::move(g);
     else {
@@ -682,7 +682,7 @@ int run(const Options& o) {
   if (JS_IsException(shims)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
   JS_FreeValue(e.ctx, shims);
   {   // what a bundle has folded in (zinc bundle --define), as globals: the same program runs bundled or not
-    const std::string caps = capsJson(o.stdRoot + "/../../targets/capabilities.json");
+    const std::string caps = capsJson(o.stdRoot + "/../targets/capabilities.json");
     const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
                              "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;";
     JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));

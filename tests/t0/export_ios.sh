@@ -12,7 +12,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/bin"
 for t in xcodebuild xcrun simctl actool ibtool codesign xcode-select; do printf '#!/bin/sh\necho "%s $*" >> %s/ran\n' "$t" "$tmp" > "$tmp/bin/$t"; chmod +x "$tmp/bin/$t"; done
-out=$(PATH="$tmp/bin:$PATH" "$Z" export ../examples/hello --target ios -o "$tmp/hello" --print 2>/dev/null) || { echo "export --target ios failed"; exit 1; }
+out=$(PATH="$tmp/bin:$PATH" "$Z" export examples/hello --target ios -o "$tmp/hello" --print 2>/dev/null) || { echo "export --target ios failed"; exit 1; }
 [ -f "$tmp/ran" ] && { echo "an Apple tool ran: $(cat "$tmp/ran")"; fail=1; }
 for c in 'cmake -S . -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS' 'xcodebuild -project build/hello.xcodeproj -scheme hello -configuration Debug -sdk iphonesimulator' \
          'xcrun simctl install booted build/Debug-iphonesimulator/hello.app' 'xcrun simctl launch --console-pty booted dev.zinc.hello' '-sdk iphoneos .* archive'; do
@@ -34,7 +34,7 @@ grep -q "ZN_APP_ENV\|AppIcon\|UsageDescription" "$cm" "$pl" && { echo "hello has
 mkdir -p "$tmp/cam/assets"
 echo 'console.log("cam");' > "$tmp/cam/main.ts"
 echo 'data' > "$tmp/cam/assets/a.txt"
-cp ../examples/flipctl/assets/icons/keyboard_lang-k.png "$tmp/cam/icon.png"
+cp examples/flipctl/assets/icons/keyboard_lang-k.png "$tmp/cam/icon.png"
 echo '{ "name": "cam", "entry": "main.ts", "app": { "id": "org.example.cam-app", "name": "Cam & Co", "version": "1.2.3", "icon": "icon.png", "orientation": "portrait" },
   "permissions": ["camera", "net"], "targets": { "ios": { "kiosk": true } } }' > "$tmp/cam/zinc.json"
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/cam" --target ios -o "$tmp/cam-ios" >/dev/null 2>&1 || { echo "export of the cam project failed"; fail=1; }

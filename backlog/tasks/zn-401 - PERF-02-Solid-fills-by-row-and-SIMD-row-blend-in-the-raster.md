@@ -17,7 +17,7 @@ ordinal: 5010
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-runtime/raster.cpp:528-535 (CLEAR, opaque RECT) store per pixel through at(), 0.45 ns/px; covered runs of fill_rrect/shadow_rrect and blend() are scalar. Harness: std::fill_n per row 60.7 -> 19.7 ms (3.1x) on the 200k scene, same pixels; CLEAR 1000x640 0.27 ms. Row pointer per row, fill_n for opaque runs, NEON/SSE2 constant-colour row blend, CLEAR as row fill; then try -O3 for zn_host_gfx (next/CMakeLists.txt:196).
+runtime/raster.cpp:528-535 (CLEAR, opaque RECT) store per pixel through at(), 0.45 ns/px; covered runs of fill_rrect/shadow_rrect and blend() are scalar. Harness: std::fill_n per row 60.7 -> 19.7 ms (3.1x) on the 200k scene, same pixels; CLEAR 1000x640 0.27 ms. Row pointer per row, fill_n for opaque runs, NEON/SSE2 constant-colour row blend, CLEAR as row fill; then try -O3 for zn_host_gfx (CMakeLists.txt:196).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

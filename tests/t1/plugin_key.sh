@@ -11,7 +11,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/h1" "$tmp/h2" "$tmp/a/plugins" "$tmp/b/deeper/b/plugins"
 ln -s "$tc" "$tmp/h1/toolchains"; ln -s "$tc" "$tmp/h2/toolchains"
-cp -R ../plugins/device "$tmp/a/plugins/"; cp -R ../plugins/device "$tmp/b/deeper/b/plugins/"
+cp -R plugins/device "$tmp/a/plugins/"; cp -R plugins/device "$tmp/b/deeper/b/plugins/"
 echo '{ "name": "a" }' > "$tmp/a/zinc.json"; echo '{ "name": "b" }' > "$tmp/b/deeper/b/zinc.json"
 key() { sed -n 's#.*/plugins/\(device-[0-9a-f]*\)/.*#\1#p'; }
 k1=$(ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/a" 2>&1 | key)

@@ -2,7 +2,7 @@
 
 Goal of the owner: the fastest possible engine, measured, because apps will be ported to weak hardware (Raspberry Pi 1 and 3, PSP, PS Vita, 3DS, iPhone 4S, NTC CHIP).
 This file is the tracker: section 1 is the table (one row per point, a backlog id once the task exists), section 3 the evidence per point, section 5 how to measure again. The M4 kernel table stays in
-`zinc-next-m4-benchmarks.md` (`tools/bench-m4`); the render corpus in `next/bench/render.csv` (`tools/bench-render`). Earlier work (ZN-041, ZN-042) is kept at the end, with a correction of ZN-042's diagnosis (section 4).
+`zinc-next-m4-benchmarks.md` (`tools/bench-m4`); the render corpus in `bench/render.csv` (`tools/bench-render`). Earlier work (ZN-041, ZN-042) is kept at the end, with a correction of ZN-042's diagnosis (section 4).
 
 Audit of 2026-10-09, after ZN-397's first changes (direct host entries `zn::host::hostFast`, registers as C++ locals in non-leaf AOT functions; both uncommitted at the time of the audit and treated as the baseline here).
 
@@ -10,7 +10,7 @@ Audit of 2026-10-09, after ZN-397's first changes (direct host entries `zn::host
 
 - Machine: Apple M1 Pro (8 performance + 2 efficiency cores), 16 GB, macOS 15.7. Another session was building during the audit: load average moved between 8 and 127, so every number is a median of 5 to 25 runs and the
   minimum is quoted where the spread was large. Ratios between variants measured back to back are more reliable than absolute values.
-- No engine rebuild was allowed. Engine numbers come from the existing `next/build/zinc` and AOT programs; candidate fixes were measured as **experiments**: hand edits of generated AOT C++ compiled with the exact `zinc build` line, and
+- No engine rebuild was allowed. Engine numbers come from the existing `build/zinc` and AOT programs; candidate fixes were measured as **experiments**: hand edits of generated AOT C++ compiled with the exact `zinc build` line, and
   small harnesses linked against the engine's own `libzn_host_gfx.a` (the real `zrt::raster::render`, `diff_rects`) or reproducing its algorithm. Every experiment checks equality: program output md5 for AOT edits, a pixel hash for raster
   variants. Nothing measured here changes pixels or output.
 - Stress scene: `examples/bouncing-ball` with 200,000 balls (the owner's case), headless and deterministic, frame 400 (balls spread). Surface 320x240 logical; the macOS window renders it at 1280x960 physical (zoom 2 x Retina 2),
@@ -78,7 +78,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Where**: `runtime/raster.cpp:528-535` (CLEAR and the opaque RECT path: per-pixel `at(t, x, y) = c`, which recomputes `(y - y0) * w + x`), the covered runs inside `fill_rrect` / `shadow_rrect` (`:85`, `:131`), `blend` (`:29`, scalar).
 - **Cost now**: CLEAR of 1000x640 = 0.27 ms (0.42 ns/px, scalar store per pixel); the 200k-rect scene on one thread 60-65 ms (0.45 ns/px). Harness `ref/fill.cpp`, 1280x960, 1 thread: per-pixel loop 60.7 ms, `std::fill_n` per row 19.7 ms, same pixel hash.
 - **Fix**: row pointer once per row, `std::fill_n` (the compiler emits 128-bit stores) for opaque runs; a row blend with constant colour and alpha in NEON / SSE2 (4 pixels per step) for the alpha and covered runs; CLEAR as a row fill over the clip.
-  Compile `zn_host_gfx` at -O3 (it is -O2 today, `next/CMakeLists.txt:196`) once the loops are vectorizable.
+  Compile `zn_host_gfx` at -O3 (it is -O2 today, `CMakeLists.txt:196`) once the loops are vectorizable.
 - **Gain**: 3x on solid fills, which are most of the pixels of UI backgrounds, cards and immediate-mode games. **Effort** S. **Risk** low (same integer arithmetic; pixel goldens must stay exact).
 - **Hardware**: all; single-core devices first (Pi 1, PSP, CHIP, 3DS), where nothing else hides the cost. ARMv6 (Pi 1) has no NEON: the row loop still saves the index arithmetic and allows `stm` multi-stores.
 
@@ -105,7 +105,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-05: fold top-level numeric constants
 
-- **Where**: the frontend lowers a module-level `const GRAVITY = 240` to a global: every use is `GetGlobal` (AOT: `r = m.globals[17]`, `next/src/aot/aot.cpp:169`; a load of the vector's data then of the slot). `src/ir/opt.cpp:461` has no pass for it.
+- **Where**: the frontend lowers a module-level `const GRAVITY = 240` to a global: every use is `GetGlobal` (AOT: `r = m.globals[17]`, `src/aot/aot.cpp:169`; a load of the vector's data then of the slot). `src/ir/opt.cpp:461` has no pass for it.
 - **Cost now**: in the ball update loop 4 constants are reloaded per ball per frame (800k loads per frame), and they block constant folding (`-vy * FLOOR_DAMPING`). Part of the 2x of the PERF-10 experiment, which hoisted them.
 - **Fix**: an IR pass: a global with one `SetGlobal` (in the module init) of a `Const` and no other store becomes that constant at every `GetGlobal`; then `hoistConsts` and CSE do the rest.
 - **Gain**: a few percent on numeric loops; more on in-order cores where load latency is not hidden. **Effort** S. **Risk** low (a read before the initialisation would see the value instead of 0: the checker rejects use before definition).
@@ -113,7 +113,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-06: host rows read program arrays in place
 
-- **Where**: `next/src/host/gfx_host.cpp:35` (`arr()`: a `zrt::Array<double>` allocated from TLSF and filled element by element), `:124-126` (polygon, path, stroke), then `runtime/gfx.cpp` `add_points` copies again into the frame's point pool.
+- **Where**: `src/host/gfx_host.cpp:35` (`arr()`: a `zrt::Array<double>` allocated from TLSF and filled element by element), `:124-126` (polygon, path, stroke), then `runtime/gfx.cpp` `add_points` copies again into the frame's point pool.
 - **Cost now**: `sample` of navigation AOT (headless, 3000 frames): `push_raw` 81, `arr` 35, `add_points` 27, `tlsf::malloc`/`mfree` 54, memmove 34 of 2285 main-thread samples = ~10%.
 - **Fix**: a `zrt::gfx` overload taking `(const double*, n)`; the host row passes the `ArrObj`'s storage (the Slots of an `f64[]` are the doubles). One copy remains: into the pool as float.
 - **Gain**: most of that 10% of navigation's paint; every chart, map and vector program. **Effort** S. **Risk** low. **Hardware**: all.
@@ -134,14 +134,14 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-09: string building
 
-- **Where**: `next/src/rt/rtcalls.cpp:933` (`StrConcat`: `std::string r(x); r.append(y)`, then `newStr` copies again), `next/src/rt/machine.cpp:265` (`newStr` scans every byte for `ascii` and the UTF-16 length).
+- **Where**: `src/rt/rtcalls.cpp:933` (`StrConcat`: `std::string r(x); r.append(y)`, then `newStr` copies again), `src/rt/machine.cpp:265` (`newStr` scans every byte for `ascii` and the UTF-16 length).
 - **Cost now**: two copies and one heap `std::string` per concatenation; the M4 table: jsonout interpreter 16.0 ms vs QuickJS 9.0 ms (the published LOSS), AOT 7.4 vs native 6.8.
 - **Fix**: allocate the `StrObj` at `x->len + y->len` and copy once; `ascii = x->ascii && y->ascii`, `u16len = x->u16len + y->u16len` (no rescan); a builder for template literals with more than two parts (`StrConcatM`).
 - **Gain**: 1.3-2x on concatenation-heavy code; jsonout interpreter to QuickJS parity. **Effort** S. **Risk** low. **Hardware**: all.
 
 ### PERF-10: typed AOT emission
 
-- **Where**: `next/src/aot/aot.cpp:120-200` (every value is a `Slot`; fields are `o->fields()[c]`; `SetField` checks `o->cls->fieldRef[c]` at run time even when the IR knows the field is a number).
+- **Where**: `src/aot/aot.cpp:120-200` (every value is a `Slot`; fields are `o->fields()[c]`; `SetField` checks `o->cls->fieldRef[c]` at run time even when the IR knows the field is a number).
 - **Cost now**: M4 table nbody AOT 109.8 ms vs native 40.7 ms (2.7x); bouncing-ball script 4.2 ms per frame at 200k vs prototype 1.9 ms.
 - **Experiments** (output md5 identical in all):
 
@@ -180,7 +180,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-12: WebGL present without readback
 
-- **Where**: `next/src/gl/webgl_js.cpp:387` (`zincPresent`: `Offscreen::read` = `glReadPixels` of the whole canvas into a new vector), `next/src/main.cpp:489` (`glPresent`: flips rows, drops alpha and averages 2x2 supersamples on the CPU), then the
+- **Where**: `src/gl/webgl_js.cpp:387` (`zincPresent`: `Offscreen::read` = `glReadPixels` of the whole canvas into a new vector), `src/main.cpp:489` (`glPresent`: flips rows, drops alpha and averages 2x2 supersamples on the CPU), then the
   software raster draws the image and the HAL uploads the frame again; `webgl1.cpp` `compositeClear` queries ~15 `glGet*` per frame.
 - **Cost now**: `sample` of `examples/webgl-cube` (720x480 canvas, SS = 2): `zincPresent` 1077 of 2310 main-thread samples (47%): `glReadPixels` 809 (of which 506 waiting for the GPU), CPU downsample 253.
 - **Fix**: compose the canvas texture on the GPU: when the window renderer and the WebGL context share a GL context (or the canvas is the only content, as in a full-screen WebGL app), draw the canvas texture and upload only the software
@@ -197,7 +197,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-14: reference counting elided per value range
 
-- **Where**: `next/src/ir/rc.cpp:76` (`lendsForever`: a borrowed load skips its retain/release only if the **whole function** has no call, no runtime call, no reference store); `src/rt/rt.h:220` (`retain` checks `mem` statistics on every call);
+- **Where**: `src/ir/rc.cpp:76` (`lendsForever`: a borrowed load skips its retain/release only if the **whole function** has no call, no runtime call, no reference store); `src/rt/rt.h:220` (`retain` checks `mem` statistics on every call);
   `op::release` is out of line in AOT programs (navigation sample: 130 samples, 6%).
 - **Cost now**: `zinc mem` on 200k balls, 10 frames: 4.6 M retains and releases: 400k pairs per frame, all for loop elements that nothing can free (the loop bodies only call `width()`, `height()`, `rect()`). In the draw loop they turn a read-only
   pass into writes to 200k objects.
@@ -207,7 +207,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-15: per-target CPU flags and number profiles
 
-- **Where**: `next/src/main.cpp:1250`, `src/tc/tc.cpp:321,362`, `src/tc/plugin_build.cpp:87`: armhf is always `-mcpu=arm1176jzf_s`; aarch64 has no `-mcpu`; `src/frontend/profile.cpp:8-15` has no psp, vita, 3ds, chip, iphone profile.
+- **Where**: `src/main.cpp:1250`, `src/tc/tc.cpp:321,362`, `src/tc/plugin_build.cpp:87`: armhf is always `-mcpu=arm1176jzf_s`; aarch64 has no `-mcpu`; `src/frontend/profile.cpp:8-15` has no psp, vita, 3ds, chip, iphone profile.
 - **Cost now**: a Pi 2/3 running a 32-bit OS gets ARMv6 code: no NEON (so no vector fill of PERF-02), VFPv2 scheduling, no ARMv7 instructions. On PSP `number` (f64) would be software double: the Allegrex FPU is single precision.
 - **Fix**: two armhf variants (armv6+vfp2 for Pi 0/1; `-mcpu=cortex-a7`/`cortex-a53 -mfpu=neon-vfpv4` for Pi 2/3/4 32-bit), `-mcpu=cortex-a53` for aarch64 Pi 3, `cortex-a8+neon` for CHIP; picked by `zinc deploy`/`export` from the board;
   profiles `psp` (`number` = f32), `vita`, `3ds`, `chip` with their heaps and screens. Measure each under QEMU user and on the Pi rig.
@@ -216,7 +216,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-16: `zinc run` / `zinc dev` startup
 
-- **Where**: the compile pipeline, `next/src/ir/rc.cpp` (liveness as dense `std::vector<std::vector<char>>` of blocks x values per function), `src/ir/lower.cpp`, `src/zbc`.
+- **Where**: the compile pipeline, `src/ir/rc.cpp` (liveness as dense `std::vector<std::vector<char>>` of blocks x values per function), `src/ir/lower.cpp`, `src/zbc`.
 - **Cost now**: `zinc run examples/hero -v`: parse 85, check 227, lower 436, optimise 100, reference counting 353, emit ZBC 269 ms; the program itself 36 ms; 1.7 s wall before the first frame on the M1 (a Pi 3 is roughly 10x slower).
   AOT hero starts in 50-60 ms warm (no compile).
 - **Fix**: sparse liveness (bitsets per block over the tracked values only), profile `lower` and `emit` for quadratic spots; a ZBC cache keyed by the hash of the sources, the profile and the engine version, so an unchanged project starts at once
@@ -241,7 +241,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-18: borrowed (+0) parameters
 
-- **Where**: `next/src/ir/rc.cpp:24` (`consumes`: a call consumes its arguments), the native ABI.
+- **Where**: `src/ir/rc.cpp:24` (`consumes`: a call consumes its arguments), the native ABI.
 - **Cost now**: every call that passes an object it keeps (a method's `this`, a node handle) retains it and the callee releases it; `callComparator` does 3 retains and 3 releases per comparison; `zinc mem` on hero's start: 153k retains for 2.4k allocations.
 - **Fix**: parameters are borrowed by default; the callee retains only what it stores or returns; the RC pass and the native ABI change together.
 - **Gain**: estimated 10-30% on method-heavy code (zinc:ui, kit). **Effort** L. **Risk** high (a convention used by every back end and native module). **Hardware**: all.
@@ -250,7 +250,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-19: packed numeric arrays and narrow fields
 
-- **Where**: `next/src/rt/rt.h` (`ArrObj::v` is `ObjVec<Slot>`; every field is a `Slot`).
+- **Where**: `src/rt/rt.h` (`ArrObj::v` is `ObjVec<Slot>`; every field is a `Slot`).
 - **Cost now**: a `u8[]` uses 8 bytes per element, an `i32[]`/`f32[]` 8; a `Ball` is 64 bytes. Memory and bandwidth 2-8x on numeric arrays.
 - **Fix**: element storage at the element's size for numeric arrays (typed views in the AOT, a size switch in the interpreter), fields at their size in the PERF-10 structs.
 - **Gain**: memory and cache 2-8x on numeric data. **Effort** L. **Risk** medium (natives, JSON, sort see arrays). **Hardware**: PSP (24 MB for the program), 3DS, ESP32. With ZN-145 and ZN-158.
@@ -264,7 +264,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-21: sort with a comparator
 
-- **Where**: `next/src/rt/rtcalls.cpp:276` (`mergeSort`), `src/rt/machine.cpp:334` (`callComparator`: retains the closure and both elements, goes through `Machine::exec`, the callee releases them).
+- **Where**: `src/rt/rtcalls.cpp:276` (`mergeSort`), `src/rt/machine.cpp:334` (`callComparator`: retains the closure and both elements, goes through `Machine::exec`, the callee releases them).
 - **Cost now**: navigation AOT: `mergeSort` 79, `callComparator` 59, `exec` 125 of 2285 samples (~12%).
 - **Fix**: AOT calls the comparator's native function directly with borrowed arguments; the optimizer extends ZN-042's `specializeSort` to `(a, b) => a.k - b.k` on objects (extract the keys once, sort indices, stable).
 - **Gain**: most of the 12%. **Effort** M. **Risk** low (the stability and NaN cases have goldens). **Hardware**: all.
@@ -273,7 +273,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-22: interpreter hot paths
 
-- **Where**: `next/src/vm/vm.cpp` (`L_SetField` through `op::setField`: three dependent loads for `fieldRef` per store; `L_GetGlobal` through the `globals` vector; Rt rows through `rtCall`).
+- **Where**: `src/vm/vm.cpp` (`L_SetField` through `op::setField`: three dependent loads for `fieldRef` per store; `L_GetGlobal` through the `globals` vector; Rt rows through `rtCall`).
 - **Cost now**: bouncing-ball script at 200k: interpreter 13.2 ms, AOT 4.2 ms per frame; navigation paint: interpreter 6.5 ms, AOT 3.5 ms.
 - **Fix**: `SetFieldS` / `SetFieldR` opcodes chosen by the compiler from the field type (no run-time `fieldRef`); the globals' data pointer in a local of the loop; the hostFast entry tested before `rtCall` in `L_Rt`.
 - **Gain**: ~25% on object-heavy scripts (estimate). **Effort** M. **Risk** low (ZBC opcode table change: the device core of an older release needs the version check). **Hardware**: the ESP32 bytecode core, device-sim, `zinc run`.
@@ -282,7 +282,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-23: allocation registry
 
-- **Where**: `next/src/rt/rt.h:207` (`track`: `allocated.push_back`), `src/rt/machine.cpp:161-163` (swap-remove on free, writing into the header of the object moved).
+- **Where**: `src/rt/rt.h:207` (`track`: `allocated.push_back`), `src/rt/machine.cpp:161-163` (swap-remove on free, writing into the header of the object moved).
 - **Cost now**: one vector push per allocation and a write into an unrelated object per free (a likely cache miss); the registry exists to count and free leftovers at exit. Not isolated by measurement (needs a runtime rebuild).
 - **Fix**: live counters for the leak count; objects in a dedicated `mi_heap_t`, `mi_heap_destroy` at exit; `mi_heap_visit_blocks` when a leak listing is asked for; `traceFree` keeps its serials.
 - **Gain**: estimated 5-15% on allocation-heavy code (binarytrees, strings, building a UI tree). **Effort** M. **Risk** low-medium (leak reports and destruction-order tests must stay identical). **Hardware**: all; small caches most.
@@ -291,7 +291,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-24: LTO across runtime, host and program
 
-- **Where**: `next/src/main.cpp:1349` (the program at -O2 links `libzn_rt.a`, `libzn_host_gfx.a` built separately); host rows are function pointers (`zn::host::hostFast`), so `gfx::rect` and `push` are never inlined into the loop.
+- **Where**: `src/main.cpp:1349` (the program at -O2 links `libzn_rt.a`, `libzn_host_gfx.a` built separately); host rows are function pointers (`zn::host::hostFast`), so `gfx::rect` and `push` are never inlined into the loop.
 - **Cost now**: not measured (needs LTO builds of the libraries). `push` + `rect` + `width`/`height` entries are ~0.9 ms of the 2.1 ms typed script at 200k.
 - **Fix**: ThinLTO objects for the runtime and the host; direct calls instead of `hostFast` pointers when the host is linked statically (keep the table for the interpreter and plugins).
 - **Gain**: estimated 3-10% of script time in host-call-heavy loops. **Effort** M (link time grows; see PERF-28). **Risk** low. **Hardware**: all.
@@ -326,7 +326,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 ### PERF-28: parallel AOT compile
 
-- **Where**: `next/src/main.cpp:1349` (one C++ file per program at -O2).
+- **Where**: `src/main.cpp:1349` (one C++ file per program at -O2).
 - **Cost now**: `zinc build examples/maps/navigation`: 81 s wall (68 s user); bouncing-ball 5.6 s; nbody 1.3 s.
 - **Fix**: split the generated functions into N translation units compiled with the machine's job limit (`WGC_JOBS`, 16 GB machines: 3), cache objects by the hash of their functions.
 - **Gain**: <= 30 s for navigation; incremental rebuilds in seconds. **Effort** M. **Risk** low. **Hardware**: the dev loop.
@@ -405,7 +405,7 @@ Measured on the Intel Mac with other trees building (load average 5.1 to 6.3, CP
 
 After the look of ZN-649.08 (textures, models, the deck; window 1280x800, 2560x1600 physical, GPU, 60 Hz, load 4.4 to 5.2): physics and rules 0.35 to 0.42 ms, scene and panel 1.3 to 1.8 ms compiled; 0.53 to 0.65 and 1.9 to 2.3 ms on the interpreter; 295 to 300 frames per 5 s in both.
 
-The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 within noise; QuickJS +0.9 ms for 1,000 bodies read in bulk). Reaching 3 ms needs Jolt's job system on several threads (ZN-690). Reproduce: `cd next && build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile`; `ZINC_FRAMES=900 build/zinc run ../examples/pinball3d -- --stats --demo`.
+The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 within noise; QuickJS +0.9 ms for 1,000 bodies read in bulk). Reaching 3 ms needs Jolt's job system on several threads (ZN-690). Reproduce: `build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile`; `ZINC_FRAMES=900 build/zinc run examples/pinball3d -- --stats --demo`.
 
 ### ZN-669: fonts at run time (2026-10-10, Intel Mac, load 4 to 8 from other trees)
 
@@ -510,7 +510,7 @@ second. Frames at scales 1 and 2 hash the same as the loose images.
 
 ### ZN-581: GPU sprites, the zinc:gfx bunnymark (2026-10-11, Intel Mac, Radeon Pro 555X, load 2.8 to 3.3 with other agents building)
 
-20,000 sprites of 26x37 at 800x600 Retina, AOT, the GL window (`next/tests/data/sprites/bunny`); frame work = the profile's work p50 + the
+20,000 sprites of 26x37 at 800x600 Retina, AOT, the GL window (`tests/data/sprites/bunny`); frame work = the profile's work p50 + the
 GL replay's CPU time to submit: before 0.64 + 3.38 = 4.02 ms, after 0.95 + 2.80 = 3.75 ms (target 4; another run 2.70 ms, the program's
 own update varying 0.22 to 0.39 ms with the clock); GPU about 10 ms before and after. Over 4 ms on this Mac: 20,000 tinted Add sprites
 4.63 ms, 15,000 turned sprites 4.78 ms. Recording a turned sprite costs about 110 ns in AOT. To remeasure on a quiet machine (the M1 Pro).
@@ -530,7 +530,7 @@ uncompressed pack is bound by `third_party/sha256` (169 MB/s). Sizes: D40.
 
 ### ZN-583.01: zinc:physics2d, 2,000 piled bodies (2026-10-11, Intel Mac, load 3.79 to 3.96 from another session, not throttled)
 
-`next/bench/physics2d_pile.ts` (Box2D 3.1.1, 60 Hz with 4 sub-steps, every body awake), ms per step: compiled 1.786 (target 2),
+`bench/physics2d_pile.ts` (Box2D 3.1.1, 60 Hz with 4 sub-steps, every body awake), ms per step: compiled 1.786 (target 2),
 QuickJS 2.613 (target 3), interpreter 1.835. A program that does not import the plugin is byte-identical (`console.log('hello')`
 231,232 bytes before and after); one that does (`tests/data/physics2d/drop.ts`) is 1,459,368 bytes. The plugin builds cold in 7.9 s
 (Box2D as one unity C file, 4 s) and in 2.4 s after an edit. To remeasure on a quiet machine (backlog/later.md).
@@ -544,7 +544,7 @@ now reads the ustar headers and the manifest only, while the file keeps its size
 
 ### ZN-567: WebGL binding fast paths on QuickJS (2026-10-11, Intel Mac, load 3.6 to 3.9)
 
-`zinc run next/bench/webgl_binding.js --engine quickjs`, ns per call, best of 5 runs, before -> after:
+`zinc run bench/webgl_binding.js --engine quickjs`, ns per call, best of 5 runs, before -> after:
 
 | call | before | after | the task's M1 Pro target |
 |---|---|---|---|
@@ -616,8 +616,8 @@ So no fast-math profile is needed; a typed backend with per-class structs is (PE
 
 ## 5. Reproducing the measurements
 
-Scratch harnesses of this audit (to be added under `next/bench/` by the first task that needs them): `ref/fill.cpp` (fill variants, bands, stripes, tiles, occlusion on a scene dump), `ref/kinds.cpp` (cost per command kind through the
-engine's `zrt::raster::render`), `ref/diff.cpp` / `ref/diff2.cpp` (`diff_rects` and candidate variants on two consecutive dumps), `ref/nbody.cpp` (plain C++ reference). They link `next/build/libzn_host_gfx.a libzn_rt.a libzn_mimalloc.a`
+Scratch harnesses of this audit (to be added under `bench/` by the first task that needs them): `ref/fill.cpp` (fill variants, bands, stripes, tiles, occlusion on a scene dump), `ref/kinds.cpp` (cost per command kind through the
+engine's `zrt::raster::render`), `ref/diff.cpp` / `ref/diff2.cpp` (`diff_rects` and candidate variants on two consecutive dumps), `ref/nbody.cpp` (plain C++ reference). They link `build/libzn_host_gfx.a libzn_rt.a libzn_mimalloc.a`
 with `-I runtime`.
 
 ```sh
@@ -665,11 +665,11 @@ AOT / native: fib 1.93x to 1.42x, sort 2.68x to **1.15x**, spectralnorm 1.14x, m
   infinities and signed zeros included (`tests/golden/run/sort_numbers.ts` compares with the generic path). Programs for a device core are compiled without the rewrite (the core of an older release lacks the rows).
 - Not done: the typed C calling convention for numeric functions (fib is 1.4x because every call goes through the `Slot` window), and 4-byte references on 32-bit targets (acceptance criterion 2 of ZN-042).
 
-- ZN-713, 2026-10-11, the same small app (window 900x600, 200-row list, filter field, image) against Electron 44.7.0 and Tauri 2.12 on the Intel Mac, **under load (4.5 to 7.4, CPU speed limit 40 to 66 %), to retake alone**: size installed / zipped Zinc 5484 / 2379 KB, Electron 300248 / 130838 KB, Tauri 4888 / 2069 KB; launch to first frame Zinc 463 to 585 ms, Electron 657 to 740 ms, Tauri 865 to 1050 ms (medians of two passes of 5); RSS at 10 s summed over the app's processes Zinc 83 MB (1 process), Electron 213 MB (4), Tauri 104 to 107 MB (4); Zinc physical footprint 65.3 MB. Sizes are valid; Zinc is not ahead of Tauri on size. Script: `next/bench/vs-electron/measure.sh`.
+- ZN-713, 2026-10-11, the same small app (window 900x600, 200-row list, filter field, image) against Electron 44.7.0 and Tauri 2.12 on the Intel Mac, **under load (4.5 to 7.4, CPU speed limit 40 to 66 %), to retake alone**: size installed / zipped Zinc 5484 / 2379 KB, Electron 300248 / 130838 KB, Tauri 4888 / 2069 KB; launch to first frame Zinc 463 to 585 ms, Electron 657 to 740 ms, Tauri 865 to 1050 ms (medians of two passes of 5); RSS at 10 s summed over the app's processes Zinc 83 MB (1 process), Electron 213 MB (4), Tauri 104 to 107 MB (4); Zinc physical footprint 65.3 MB. Sizes are valid; Zinc is not ahead of Tauri on size. Script: `bench/vs-electron/measure.sh`.
 
 ## Run/build visibility and museum payload (ZN-720, 2026-10-12)
 
-Observed on the current development Mac (arm64), with warm native plugin and C++ object caches, during targeted verification; these are diagnostic timings, not a cold-build benchmark. `ZINC_HEADLESS=1 ZINC_FRAMES=3 next/build/zinc run --native -v examples/museum-table` succeeded: 43 files, 618 functions, Zinc compile 205 ms, resources 76 ms, C++ emission 3.64 s, 14/14 objects reused, link 377 ms, native build stage 11.2 s including emission and object-cache preparation. The resulting executable is 93,647,232 bytes. Parsing its embedded ZRS1 table gives 87,353,953 bytes of baked resources: 75,596,032 bytes of RGBA pixels across 15 images, 11,689,077 bytes of glyph tables/bitmaps, and 68,273 bytes of TrueType subsets plus format metadata. Museum source assets total 9,159,587 bytes; the dev asset report expands them to 79,048,233 bytes before pack overhead/compression. The old resource baker and the newer asset packs both hold those decoded images.
+Observed on the current development Mac (arm64), with warm native plugin and C++ object caches, during targeted verification; these are diagnostic timings, not a cold-build benchmark. `ZINC_HEADLESS=1 ZINC_FRAMES=3 build/zinc run --native -v examples/museum-table` succeeded: 43 files, 618 functions, Zinc compile 205 ms, resources 76 ms, C++ emission 3.64 s, 14/14 objects reused, link 377 ms, native build stage 11.2 s including emission and object-cache preparation. The resulting executable is 93,647,232 bytes. Parsing its embedded ZRS1 table gives 87,353,953 bytes of baked resources: 75,596,032 bytes of RGBA pixels across 15 images, 11,689,077 bytes of glyph tables/bitmaps, and 68,273 bytes of TrueType subsets plus format metadata. Museum source assets total 9,159,587 bytes; the dev asset report expands them to 79,048,233 bytes before pack overhead/compression. The old resource baker and the newer asset packs both hold those decoded images.
 
 The command runner now polls completed children rather than waiting on the oldest one; its progress costs no work on a cached native exec. No cold-build speed improvement or cross-platform performance claim is made.
 
@@ -677,7 +677,7 @@ The command runner now polls completed children rather than waiting on the oldes
 
 The development Mac (M1 Pro, macOS 15.7.4, 120 Hz display), **under a load of 4.5 to 6 (another session worked), one run each: to retake alone**. The ratios are large against that noise.
 
-`build/zinc run ../examples/js-p5` (p5.js 1.11.13 in WEBGL mode, 144 lit boxes, 800 x 500 window, 1600 x 1000 canvas): `ZINC_PROFILE=1` gives work p50 16.13 ms and present p50 8.78 ms over 420 frames, 25 ms a frame (40 fps, three refreshes). `sample <pid> 4` on the main thread, 2,806 samples: the frame callback 69% (17.2 ms; the WebGL calls inside it 1.6 ms), the wait for the refresh in `SDL_GL_SwapWindow` 24% (6.0 ms), the upload of the canvas image `glr::draw_image` 4% (1.2 ms), the swap 2% (0.5 ms). Of the script's samples inside zinc (1,639), `JS_CallInternal` itself is 57%; the rest is QuickJS's runtime: `JS_DefineProperty`, `JS_CreateProperty`, `add_shape_property`, `JS_NewObjectFromShape`, `js_free_rt`, `js_arena_malloc`, `js_realloc_rt`. A copy of the sketch with every method of p5, its renderer, its shader and its matrix wrapped (the wrappers double the frame, so only counts and order count): per frame 6,480 `Shader.setUniform` (45 a box), 3,312 `RendererGL._arraysEqual`, 1,152 `Matrix.copy`, 144 `Renderer.pop`, 4,301 WebGL calls (30 a box).
+`build/zinc run examples/js-p5` (p5.js 1.11.13 in WEBGL mode, 144 lit boxes, 800 x 500 window, 1600 x 1000 canvas): `ZINC_PROFILE=1` gives work p50 16.13 ms and present p50 8.78 ms over 420 frames, 25 ms a frame (40 fps, three refreshes). `sample <pid> 4` on the main thread, 2,806 samples: the frame callback 69% (17.2 ms; the WebGL calls inside it 1.6 ms), the wait for the refresh in `SDL_GL_SwapWindow` 24% (6.0 ms), the upload of the canvas image `glr::draw_image` 4% (1.2 ms), the swap 2% (0.5 ms). Of the script's samples inside zinc (1,639), `JS_CallInternal` itself is 57%; the rest is QuickJS's runtime: `JS_DefineProperty`, `JS_CreateProperty`, `add_shape_property`, `JS_NewObjectFromShape`, `js_free_rt`, `js_arena_malloc`, `js_realloc_rt`. A copy of the sketch with every method of p5, its renderer, its shader and its matrix wrapped (the wrappers double the frame, so only counts and order count): per frame 6,480 `Shader.setUniform` (45 a box), 3,312 `RendererGL._arraysEqual`, 1,152 `Matrix.copy`, 144 `Renderer.pop`, 4,301 WebGL calls (30 a box).
 
 The same files on five engines, ms per frame (`bench/qjs`; three is three.js r186's CPU half for 500 meshes; p5shape is a kernel shaped like p5's path for one box, 144 a frame; the outputs are identical):
 
@@ -856,7 +856,7 @@ Real hardware (ZINC_PROFILE through ux0:data/ZINC00011/zinc.log, 7 windows of 60
 frame p50 16.68 ms (max 17.9), work p50 3.2-3.7 ms (max 8.8), GXM replay CPU p50 0.3-0.44 ms, about 12.5 ms waiting for the vblank. The
 software path at 960x544 costs 28 ms a frame in Vita3K on the Mac's clock (30 fps); its hardware number is pending one measuring launch.
 
-## 2026-10-18: the zinc:script boundary on four machines (`next/tools/bench-bridge`, `next/tests/bench/script_bridge`)
+## 2026-10-18: the zinc:script boundary on four machines (`tools/bench-bridge`, `tests/bench/script_bridge`)
 
 What it measures: the cost of crossing between typed Zinc and QuickJS through `zinc:script` (values cross as Dyn), by traffic shape, with a typed
 Zinc loop and a JavaScript loop as references. One warm-up run and 5 timed runs per case, median; artifacts in `docs/reports/bench/script-bridge-*.json`
@@ -883,7 +883,7 @@ pays more on the tablets (x5.6 on both) than on the Mac (x2.5); a 10,000-value D
 1.3 to 2.2 times of each other. At 60 Hz, 1 ms buys about 1,000 per-call crossings on the Mac, 16 on the Nexus 7, 12 on the TouchPad; batched mutations 2,200, 91 and 56. Not measured: typed arrays and host objects (the API has none), strings through objects, memory. iPad: not reachable (offline).
 Two engine gaps found and fixed on the way: `zinc:script` was not linked in cross builds (`--target armv7-webos`: undefined `zn_module_QuickJS`) nor in the exported Android project.
 
-Addendum, same day: the boundary written directly against QuickJS (no JSON text, `next/tests/bench/script_bridge/floor/floor.c`, `tools/bench-bridge floor`) costs 0.040 us (Mac), 0.72 us (Nexus 7) and
+Addendum, same day: the boundary written directly against QuickJS (no JSON text, `tests/bench/script_bridge/floor/floor.c`, `tools/bench-bridge floor`) costs 0.040 us (Mac), 0.72 us (Nexus 7) and
 1.07 us (TouchPad) per script -> host call, against 1.02, 61.6 and 82.1 us through `zinc:script`: 25, 86 and 77 times less. The "JSON and Dyn within 1.3 to 2.2 times" line above compares two
 paths that are both JSON text (D22) and says nothing about the format; the floor does. Where the time goes, what others do and the changes proposed: `docs/reports/script-boundary-optimisation.md`.
 
@@ -906,4 +906,4 @@ the Zinc-side JSON of the generic path (`JSON.stringify` / `JSON.parse` on Dyn v
 
 ## Window memory on macOS (ZN-764, 2026-10-20)
 
-Physical footprint (Activity Monitor) 8 s after start, `next/tools/window-memory`, MacBook Pro arm64, macOS 15.7, 4K screens, load 15 to 19 from other sessions (memory, not time). OpenGL replay before -> software raster through Metal, two drawables: examples/agents 1180x760 211-216 -> 81/82/103 MB (three passes, the 103 first after a build); ui/forms 133 -> 45 MB; notify-relay (app.window config) 134 -> 59 MB; nuxt-ui 79 -> 75 MB; rn-showcase 96 -> 65-89 MB. `ZINC_RENDERER=gl` after freeing the splash buffers: agents 211 -> 170 MB, ui/forms 133 -> 116 MB. What remains for a 2360x1520 surface: the shared frame 13.9 MB and three CAMetalLayer drawables 41.2 MB (WindowServer holds one beyond maximumDrawableCount 2; four and 96 MB with 3). Speed on the Metal path: breakout and hero at 60 fps (present interval p50 16.7 ms), raster p50 0.5 ms (breakout) and 2.5 ms (hero, p99 22 ms under load).
+Physical footprint (Activity Monitor) 8 s after start, `tools/window-memory`, MacBook Pro arm64, macOS 15.7, 4K screens, load 15 to 19 from other sessions (memory, not time). OpenGL replay before -> software raster through Metal, two drawables: examples/agents 1180x760 211-216 -> 81/82/103 MB (three passes, the 103 first after a build); ui/forms 133 -> 45 MB; notify-relay (app.window config) 134 -> 59 MB; nuxt-ui 79 -> 75 MB; rn-showcase 96 -> 65-89 MB. `ZINC_RENDERER=gl` after freeing the splash buffers: agents 211 -> 170 MB, ui/forms 133 -> 116 MB. What remains for a 2360x1520 surface: the shared frame 13.9 MB and three CAMetalLayer drawables 41.2 MB (WindowServer holds one beyond maximumDrawableCount 2; four and 96 MB with 3). Speed on the Metal path: breakout and hero at 60 fps (present interval p50 16.7 ms), raster p50 0.5 ms (breakout) and 2.5 ms (hero, p99 22 ms under load).

@@ -60,7 +60,7 @@ elif [ "$ahead" != 0 ]; then warn "$ahead commit(s) not pushed yet: they are pus
 if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then ok "main fast-forwards to $branch"; else bad "origin/main has commits $branch has not: git merge origin/main"; fail=1; fi
 gh auth status >/dev/null 2>&1 && ok "gh is signed in" || { bad "gh is not signed in: gh auth login"; fail=1; }
 if gh secret list --repo "$repo" 2>/dev/null | grep -q '^ZINC_UPDATE_SEED'; then ok "secret ZINC_UPDATE_SEED is set (the update manifests are signed)"; else warn "no ZINC_UPDATE_SEED secret: the manifests would be unsigned (zinc update refuses them)"; fi
-if [ -f next/update.pub ] && grep -Eq '^[0-9a-f]{64}$' next/update.pub && ! grep -Eq '^0{64}$' next/update.pub; then ok "next/update.pub holds the update public key"; else warn "next/update.pub is missing or a placeholder: builds could not verify updates"; fi
+if [ -f update.pub ] && grep -Eq '^[0-9a-f]{64}$' update.pub && ! grep -Eq '^0{64}$' update.pub; then ok "update.pub holds the update public key"; else warn "update.pub is missing or a placeholder: builds could not verify updates"; fi
 sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD)
 [ $fail = 0 ] || { echo; die "fix the red points above, then run it again"; }
 

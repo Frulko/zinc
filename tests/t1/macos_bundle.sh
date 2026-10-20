@@ -9,7 +9,7 @@ fail=0
 mkdir "$tmp/app"
 printf "import * as system from 'zinc:system';\nconsole.log(system.backend);\n" > "$tmp/app/main.ts"
 printf '{"name":"t","entry":"main.ts","permissions":["notification"],"app":{"id":"dev.zinc.test.bundle","name":"Bundle Test","urlSchemes":["zbt"],"fileTypes":["zbt"],"dock":false,"version":"2.0.1","icon":"icon.png"}}\n' > "$tmp/app/zinc.json"
-cp ../docs/img/breakout-demo.png "$tmp/app/icon.png"
+cp docs/img/breakout-demo.png "$tmp/app/icon.png"
 cd "$tmp/app" || exit 2
 out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
 case "$out" in *"refreshed"*"bundle id of this process: dev.zinc.test.bundle"*) ;; *) echo "dev bundle: $out"; fail=1 ;; esac

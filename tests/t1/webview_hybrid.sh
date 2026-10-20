@@ -5,7 +5,7 @@
 # the bar, which clips it: the container keeps the clip, the web view moves inside it (ZINC_WEBVIEW_TRACE prints the frames AppKit got).
 [ "$(uname)" = Darwin ] || exit 77
 cd "$(dirname "$0")/../.." || exit 2
-ex=$(cd ../examples/webview/hybrid && pwd)
+ex=$(cd examples/webview/hybrid && pwd)
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 unset ZINC_HEADLESS ZINC_DETERMINISTIC ZINC_ASSETS
 export ZINC_NATIVE=real ZINC_BACKGROUND=1 ZINC_WEBVIEW_TRACE=1 HYBRID_DEMO=1 ZINC_FRAMES=240

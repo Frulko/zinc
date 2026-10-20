@@ -13,7 +13,7 @@ awk 'BEGIN { print "5 touch 1 1527 682"; print "7 touchup 1"
   for (c = 0; c < 2; c++) { first = c ? 100 : 30; cx = c ? 1350 : 520
     for (f = first; f <= first + 60; f++) { d = 50 * (1 + 2 * (f - first) / 60); printf "%d touch 1 %.1f 540\n%d touch 2 %.1f 540\n", f, cx - d, f, cx + d }
     printf "%d touchup 1\n%d touchup 2\n", first + 61, first + 61 } }' > "$tmp/zoom.input"
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 session() {  # more environment, then the zinc command: the poses on stdout, the hash of the last frame in $tmp/hash
   env ZINC_ASSETS="$tmp/assets" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$tmp/zoom.input" ZINC_FRAMES=165 ZINC_FRAMEHASH=last "$@" 2>"$tmp/err"

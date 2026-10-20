@@ -29,5 +29,5 @@ Carry the supported contract into Zinc Next through its existing generic host AB
 - [ ] #2 Validate element tags, record shapes, null elements, lengths and the proposed 1,048,576-element / 64 MiB limits before guest allocation; cover rejection cases with focused tests.
 - [ ] #3 Copy borrowed strings and records before the next native call; guest mutations cannot modify native snapshots. Reject unsupported array arguments explicitly.
 - [ ] #4 A focused prebuilt UI core check proves script-only recompilation changes rendered pixels without rebuilding the core, and rejects incompatible exports before execution.
-- [ ] #5 Document supported ABI versions, core cache invalidation and remaining prototype limitations; pass the relevant tests and `next/tests/run --changed`.
+- [ ] #5 Document supported ABI versions, core cache invalidation and remaining prototype limitations; pass the relevant tests and `tests/run --changed`.
 <!-- AC:END -->

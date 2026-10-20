@@ -232,7 +232,7 @@
     "risk": 4
    },
    "lane": "agent",
-   "why": "Museum table: photos as cards under several hands. Two engine gaps stand before it. Checked: ZINC_INPUT (next/src/host/hal_dispatch.cpp) reads move, down, up, wheel, key and text, no touch, so its scripted multi-touch session cannot be written yet: no task carries that. And a card turned by two fingers needs rotated painting: ZN-263 in zinc:ui, with images from bytes (ZN-432) for photos read from a project folder.",
+   "why": "Museum table: photos as cards under several hands. Two engine gaps stand before it. Checked: ZINC_INPUT (src/host/hal_dispatch.cpp) reads move, down, up, wheel, key and text, no touch, so its scripted multi-touch session cannot be written yet: no task carries that. And a card turned by two fingers needs rotated painting: ZN-263 in zinc:ui, with images from bytes (ZN-432) for photos read from a project folder.",
    "action": "keep",
    "title": "Museum table: photos on a light table with multi-touch gestures",
    "deps_add": [
@@ -1815,7 +1815,7 @@
    "lane": "agent",
    "why": "QuickJS binding rules written down with a boundary micro-benchmark as a gate. With ZN-567.",
    "action": "keep",
-   "title": "QuickJS binding rules for native modules, with the boundary micro-benchmark in next/bench"
+   "title": "QuickJS binding rules for native modules, with the boundary micro-benchmark in bench"
   },
   {
    "id": "ZN-639",
@@ -7218,7 +7218,7 @@
    "lane": "agent",
    "why": "CI configures again on a fresh clone. Open: the three jobs green, which needs the owner's push.",
    "action": "keep",
-   "title": "CI: configure on every host again (next/.gitignore hides SDL3's build_config)"
+   "title": "CI: configure on every host again (.gitignore hides SDL3's build_config)"
   },
   {
    "id": "ZN-113",

@@ -1,5 +1,5 @@
 // The SDKs of the consoles and the old iPhone (ZN-456): pinned like the zig, checked before anything is unpacked. Only a maintainer rebuilding a
-// console core (next/targets/console) or an AOT build needs them; docs/targets/handhelds.md says how to use each.
+// console core (targets/console) or an AOT build needs them; docs/targets/handhelds.md says how to use each.
 #include "platform/platform.h"
 #include <cstdio>
 #include <cstdlib>

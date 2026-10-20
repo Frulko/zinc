@@ -7,7 +7,7 @@
 # no SetVolume. Run home: (c) "Reprendre ici" (the account plays on a Mac) moves the song to the speakers through their Spotify service:
 # the album queued, its queue searched for the song, the song's radio when it is not there, the moment in the song, the Mac paused.
 # KEEP=dir keeps the frames and the logs.
-DEMO=../examples/music-tree   # the demo under test, from next/
+DEMO=examples/music-tree   # the demo under test, from the root
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 data=$(pwd)/tests/data/music-tree
@@ -16,7 +16,7 @@ trap '[ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; [ -n "$KEEP" ] && 
 port=$((20000 + ($$ + 57) % 20000))
 app=$tmp/app
 cp -R "$DEMO" "$app" && rm -rf "$app/build" "$app/node_modules" "$app/config.json" "$app/spotify.json" "$app/radios.json" "$app/notifications.json" "$app/notif-icons" "$app/tsconfig.json"
-mkdir -p "$app/plugins" && cp -R ../plugins/sonos "$app/plugins/sonos"
+mkdir -p "$app/plugins" && cp -R plugins/sonos "$app/plugins/sonos"
 printf '{"sleep":0,"seed":"127.0.0.1","group":"RINCON_A"}\n' > "$app/config.json"
 printf '{"client_id":"fake","refresh_token":"fake"}\n' > "$app/spotify.json"
 cat > "$app/src/fake-spotify.ts" <<EOF

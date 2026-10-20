@@ -228,14 +228,14 @@ zinc:ui app). A program that draws with `zinc:gfx` alone (or with three.js), wit
 - **Context loss**: `loseContext` / `restoreContext` and the browser's own events work; a restored context has no objects, as in any browser (the program creates them again). three.js handles it itself.
 - **`drawShader`** (D124): the fragment `main()` is compiled behind the same head (`v_uv`, `u_size`, `u_p[8]`) on one shared WebGL context at 1 / `scale` of the physical resolution and drawn as an
   image of the box. `shaderAvailable()` is true where the browser has WebGL. The shader fixture's frame differs from the CPU path of the native engine by at most 16 levels.
-- **three.js**: the real library (r186, `next/third_party/three`, unmodified) runs on a WebGL2 canvas created by the page. `plugins/three/web/index.ts` re-exports it and replaces three things: `WebGLRenderer`
+- **three.js**: the real library (r186, `third_party/three`, unmodified) runs on a WebGL2 canvas created by the page. `plugins/three/web/index.ts` re-exports it and replaces three things: `WebGLRenderer`
   (its `render` copies the canvas into the surface at the end of each call; `setAnimationLoop` runs in Zinc's frame, before the app's own `onFrame`; `setViewport(x, y, w, h)` is the screen box the picture is drawn at, as on the desktop), `window` / `CanvasElement` (the Zinc surface size and pixel
   ratio) and `TextureLoader`, `CanvasTexture`, `GLTFLoader`, `OrbitControls` (assets of the app and zinc:canvas images work; the controls listen on the page). `examples/three/cubes` and
   `examples/three/gltf-viewer` (model, orbit, picking, a zinc:ui overlay) run unchanged. The subset of `index.ts` is not used on the web: the whole of three.js is.
   Not done: the frame of `cubes` is not compared with the desktop (the desktop draws with the Zinc subset, a different renderer; the real library on the desktop's WebGL is `--engine quickjs`,
   `docs/reports/three-on-zinc.md`); a worker renderer on `OffscreenCanvas` (the copy needs the canvas on the main thread); pixel ratio above 1 is the renderer's drawing buffer scaled into the box.
 - **`zinc:canvas`** is the browser's Canvas2D: a canvas that draws into an image is the image's own 2D context, a screen context draws into a canvas of its box and shows it at `end()`.
-- **`zinc:map`**: MapLibre GL JS (BSD-3, `next/third_party/maplibre`, 5.24, loaded as a classic script: a minifier breaks its inline worker) behind the plugin's own `MapView`. Tiles come from the app's
+- **`zinc:map`**: MapLibre GL JS (BSD-3, `third_party/maplibre`, 5.24, loaded as a classic script: a minifier breaks its inline worker) behind the plugin's own `MapView`. Tiles come from the app's
   `assets/tiles/z/x/y.pbf` or from `url` through `fetch` (CORS; gzip is handled); labels use the glyph server `demotiles.maplibre.org` unless the style names one. Not in `zinc dev` (unbundled modules).
   The desktop engine's `stats()` are zeros.
 

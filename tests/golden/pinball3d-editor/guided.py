@@ -15,7 +15,7 @@ usage: guided.py [folder]    (writes the .input files in the folder; without one
 import os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', '..', '..', '..', 'examples', 'pinball3d', 'tools', 'twilight_fair'))
+sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'examples', 'pinball3d', 'tools', 'twilight_fair'))
 from typist import Session, FIELD_X   # noqa: E402
 
 TESTS = ['counter', 'lights', 'targets', 'mode', 'rank', 'mission', 'balls']

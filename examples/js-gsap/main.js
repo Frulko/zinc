@@ -1,12 +1,12 @@
 // GSAP, the whole library (core and every plugin), on the QuickJS engine with the web environment: a timeline of staggered, elastic and
 // eased tweens on plain objects, drawn on a canvas 2D every tick of gsap's own ticker.
-// Run it:  next/tools/test-lib gsap-3.15.0     (once: it downloads GSAP from its npm release; GreenSock's licence is not open source and the
+// Run it:  tools/test-lib gsap-3.15.0     (once: it downloads GSAP from its npm release; GreenSock's licence is not open source and the
 //                                               file is not in this repository)
 //          zinc run examples/js-gsap
 const home = __host_sysEnv('ZINC_HOME') || __host_sysEnv('HOME') + '/.zinc';
 const script = document.createElement('script');
 script.src = home + '/cache/test-libs/gsap-3.15.0/all.js';
-script.onerror = () => console.error('js-gsap: cannot load ' + script.src + ': run next/tools/test-lib gsap-3.15.0 once, it downloads GSAP');
+script.onerror = () => console.error('js-gsap: cannot load ' + script.src + ': run tools/test-lib gsap-3.15.0 once, it downloads GSAP');
 script.onload = start;
 document.head.appendChild(script);
 

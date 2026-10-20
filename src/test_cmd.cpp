@@ -117,7 +117,7 @@ int runWithDeadline(const std::string& cmd, int ms) {
 int runTestCommand(const std::string& self, const Profile& p, const std::string& engineRoot, std::string dir, const std::string& runnerName) {
   Runner runner{runnerName.empty() ? "interp" : runnerName};
   if (std::string why = runner.unavailable(p); !why.empty() && runner.name != "aot" && runner.name != "quickjs") { std::printf("skip all [%s] (%s)\n", runner.name.c_str(), why.c_str()); return runner.name == "interp" ? 2 : 0; }
-  if (dir.empty()) dir = fs::exists("zinc.json") ? "." : (fs::path(engineRoot) / ".." / "tests" / "conformance").lexically_normal().string();   // in a project: its tests
+  if (dir.empty()) dir = fs::exists("zinc.json") ? "." : (fs::path(engineRoot) / "tests" / "conformance").lexically_normal().string();   // in a project: its tests
   if (!fs::is_directory(dir)) { std::fprintf(stderr, "zinc test: %s is not a directory\n", dir.c_str()); return 2; }
   Caps caps = capsFor(p, engineRoot);
   std::vector<fs::path> files;

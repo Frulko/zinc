@@ -8,14 +8,14 @@ PSP, Vita, 3DS, iPhone 4S on iOS 9, ESP32); and what to do now. Companion report
 [hardware/raspberry-pi-threejs-and-sdk.md](hardware/raspberry-pi-threejs-and-sdk.md) (about 20 us of three.js JavaScript per mesh).
 
 Evidence tags: **[M]** measured here, **[C]** read in Zinc's or QuickJS-ng's code (file given), **[W]** from the web (URL given),
-**[I]** inferred or estimated. Measurements: Apple M1 Pro, macOS 15 (Darwin 24.6), Apple clang 17 `-O2` (the flags `next/CMakeLists.txt`
+**[I]** inferred or estimated. Measurements: Apple M1 Pro, macOS 15 (Darwin 24.6), Apple clang 17 `-O2` (the flags `CMakeLists.txt`
 uses for `zn_quickjs`), Node 24.14 for V8. The machine was shared with another session's builds (load average 6 to 11, once 90):
 every number is a median of 3 to 7 runs, and differences under about 5% are noise. No `cmake` build of the engine was run: QuickJS-ng
-0.17.0 was copied from `next/third_party/quickjs-ng` and built standalone with a small harness.
+0.17.0 was copied from `third_party/quickjs-ng` and built standalone with a small harness.
 
 The harness and every script are outside the repository, in `/Users/mowmow/.claude/jobs/f633d587/tmp/qjs-analysis/` (`README.txt` lists
-them): `harness.cpp` (a QuickJS host with a fake `GL` class whose methods copy the shapes of `next/src/gl/webgl_js.cpp` and
-`next/src/qjs/qjs.cpp`), `patch.py` and `patch2.py` (measurement-only engine patches: opcode histogram, a typed fast-call path, a
+them): `harness.cpp` (a QuickJS host with a fake `GL` class whose methods copy the shapes of `src/gl/webgl_js.cpp` and
+`src/qjs/qjs.cpp`), `patch.py` and `patch2.py` (measurement-only engine patches: opcode histogram, a typed fast-call path, a
 non-throwing typed-array accessor, number fast paths), `aot_proxy.inc` (a hand-written "compiled" sprite loop at four levels), and the
 workloads in `js/`.
 
@@ -100,10 +100,10 @@ workloads in `js/`.
   (1,424 KB of source): parse and compile 22.8 ms, bytecode read back 1.6 ms (438 KB stripped; 2.6 ms and 2,348 KB with debug
   information); matter.js (366 KB): 9.5 ms -> 0.4 ms (87 KB) [M]. This is ZN-575/ZN-445's job.
 
-Zinc's integration [C]: `next/src/qjs/qjs.cpp` generates one `__host_<name>` function per runtime-table row (`hostFn`, one
-`JS_CFUNC_generic_magic` thunk decoding arguments by the row's letters, `qjs.cpp:66`); `next/src/gl/webgl_js.cpp` installs WebGL as a
+Zinc's integration [C]: `src/qjs/qjs.cpp` generates one `__host_<name>` function per runtime-table row (`hostFn`, one
+`JS_CFUNC_generic_magic` thunk decoding arguments by the row's letters, `qjs.cpp:66`); `src/gl/webgl_js.cpp` installs WebGL as a
 native class with a few hundred methods through one magic thunk (`callThunk`, `webgl_js.cpp:1150`) and ~600 constants on the prototype, built as
-`libzn_webgl` and loaded with `dlopen` (D40). `next/src/qjs/ext.cpp` holds the JS shims (TextEncoder/Decoder, AbortController).
+`libzn_webgl` and loaded with `dlopen` (D40). `src/qjs/ext.cpp` holds the JS shims (TextEncoder/Decoder, AbortController).
 
 ---
 
@@ -547,8 +547,8 @@ V8-class numbers stays out of reach without speculation (L2), which needs a JIT 
 
 ## 10. Sources
 
-Zinc [C]: `next/src/qjs/qjs.cpp`, `next/src/qjs/ext.cpp`, `next/src/gl/webgl_js.cpp`, `next/third_party/quickjs-ng/` (0.17.0:
-`quickjs.c`, `quickjs.h`, `quickjs-opcode.h`), `next/CMakeLists.txt`, `compiler/src/infer.ts`, `docs/decisions/0014-dyn.md`,
+Zinc [C]: `src/qjs/qjs.cpp`, `src/qjs/ext.cpp`, `src/gl/webgl_js.cpp`, `third_party/quickjs-ng/` (0.17.0:
+`quickjs.c`, `quickjs.h`, `quickjs-opcode.h`), `CMakeLists.txt`, `compiler/src/infer.ts`, `docs/decisions/0014-dyn.md`,
 `docs/reports/zinc-next-decisions.md` (D3, D13, D14, D22, D27, D36, D40, D43), `docs/reports/games/js-game-libraries.md`,
 `docs/reports/hardware/raspberry-pi-threejs-and-sdk.md`, `docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md`,
 `docs/reports/hardware/pocketjs-pocket3d.md`, `docs/reports/ios-core-runtime.md`, `docs/reports/zinc-next-quickjs.md`,

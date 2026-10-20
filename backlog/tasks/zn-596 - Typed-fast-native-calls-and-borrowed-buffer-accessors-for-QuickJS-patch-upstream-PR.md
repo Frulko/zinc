@@ -27,7 +27,7 @@ Measured in the report (M1 Pro harness): a generic C method with 4 doubles costs
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a next/bench micro-benchmark (the report's boundary.js shape) shows 4-double calls <= 30 ns and int calls <= 22 ns over the empty loop on the M1 Pro (today 40-45 and 27-29)
+- [ ] #1 a bench micro-benchmark (the report's boundary.js shape) shows 4-double calls <= 30 ns and int calls <= 22 ns over the empty loop on the M1 Pro (today 40-45 and 27-29)
 - [ ] #2 __host_* rows with only d/i/u/b letters are fast functions; a zinc:gfx host call from QuickJS costs <= 40 ns raw (today ~150 ns, ~35 after ZN-567's stack arrays)
 - [ ] #3 WebGL conformance unchanged (695 of 787 or better); fallback path covered by a test that passes strings, objects and detached buffers
 - [ ] #4 upstream PR opened on quickjs-ng (link in the patch header)

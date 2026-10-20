@@ -12,7 +12,7 @@ out=$("$ZINC" plugin-build sqlite 2>&1)
 echo "$out" | grep -q "^sqlite cached " || { echo "second build is not served from the cache: $out"; fail=1; }
 # a copy of the plugin in a project: an edit rebuilds only that plugin's own sources, in well under 5 s, and the vendored sqlite3.c archive is reused
 mkdir -p "$tmp/proj/plugins"
-cp -R ../plugins/sqlite "$tmp/proj/plugins/sqlite"
+cp -R plugins/sqlite "$tmp/proj/plugins/sqlite"
 "$ZINC" plugin-build sqlite "$tmp/proj" >/dev/null 2>&1 || { echo "the project copy does not build"; fail=1; }
 vend=$(ls -d "$ZINC_HOME"/cache/*/plugins/sqlite-vendor-* | wc -l | tr -d ' ')
 echo "// edited" >> "$tmp/proj/plugins/sqlite/native/sqlite.host.cpp"
@@ -37,8 +37,8 @@ mkdir -p "$tmp/p2/plugins/foo/native"
 cat > "$tmp/p2/plugins/foo/plugin.json" <<'JSON'
 {"name":"foo","kind":"module","module":"zinc:foo","entry":"index.ts","description":"needs a library","targets":{"macos":{"pkg":["zn-no-such-lib"],"packages":["libnosuch-dev"]},"linux":{"pkg":["zn-no-such-lib"],"packages":["libnosuch-dev"]}}}
 JSON
-sed "s/'Sqlite'/'Foo'/" ../plugins/sqlite/native/sqlite.spec.ts > "$tmp/p2/plugins/foo/native/foo.spec.ts"
-cp ../plugins/sqlite/native/sqlite.host.cpp "$tmp/p2/plugins/foo/native/foo.host.cpp"
+sed "s/'Sqlite'/'Foo'/" plugins/sqlite/native/sqlite.spec.ts > "$tmp/p2/plugins/foo/native/foo.spec.ts"
+cp plugins/sqlite/native/sqlite.host.cpp "$tmp/p2/plugins/foo/native/foo.host.cpp"
 echo 'export default 1;' > "$tmp/p2/plugins/foo/index.ts"
 out=$("$ZINC" plugin-build foo "$tmp/p2" 2>&1)
 echo "$out" | grep -q "needs the system library 'zn-no-such-lib'.*libnosuch-dev" || { echo "a missing library is not reported with its package: $out"; fail=1; }

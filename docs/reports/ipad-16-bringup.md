@@ -39,8 +39,8 @@ Read from docs and source only; nothing was installed or run (not verified).
 ## 3. Benchmark results without console access (optional)
 
 Console route (2) already gives the BENCH lines, so this is a fallback.
-- The bench (`next/tests/bench/script_bridge/src/main.ts`) only `console.log`s; **no POST exists yet** (small addition needed, untested): after `BENCH_DONE`, `fetch('http://<mac-ip>:8000/', {method:'POST', body})` with the lines collected.
-- ATS: Zinc's `zinc:http` (`next/src/host/http.cpp`) is libuv TCP + mbedTLS and accepts `http://` itself, never NSURLSession, so **App Transport Security does not apply and no NSAppTransportSecurity key is needed** (grep for NSURLSession/NSAppTransport in next/src/host: none). The one iOS gate is Local Network privacy (iOS 14+) for a private IP: the first connection asks the user on the iPad. zinc.json key: `"permissions": ["net"]` which the iOS export writes as `NSLocalNetworkUsageDescription` ("<name> talks to devices on your network."), see `next/src/cli_core.cpp` exportIos. Arbitrary Info.plist keys have no zinc.json field; only plugins add them (`plugin.json` `targets.ios.plist`, docs/plugins.md), so an ATS exception, if ever needed, is not available from zinc.json.
+- The bench (`tests/bench/script_bridge/src/main.ts`) only `console.log`s; **no POST exists yet** (small addition needed, untested): after `BENCH_DONE`, `fetch('http://<mac-ip>:8000/', {method:'POST', body})` with the lines collected.
+- ATS: Zinc's `zinc:http` (`src/host/http.cpp`) is libuv TCP + mbedTLS and accepts `http://` itself, never NSURLSession, so **App Transport Security does not apply and no NSAppTransportSecurity key is needed** (grep for NSURLSession/NSAppTransport in src/host: none). The one iOS gate is Local Network privacy (iOS 14+) for a private IP: the first connection asks the user on the iPad. zinc.json key: `"permissions": ["net"]` which the iOS export writes as `NSLocalNetworkUsageDescription` ("<name> talks to devices on your network."), see `src/cli_core.cpp` exportIos. Arbitrary Info.plist keys have no zinc.json field; only plugins add them (`plugin.json` `targets.ios.plist`, docs/plugins.md), so an ATS exception, if ever needed, is not available from zinc.json.
 - Mac side: `python3 -m http.server` handles GET only; use a 6-line `BaseHTTPRequestHandler` with `do_POST` that prints the body (not written, trivial). Listen on 0.0.0.0, the Mac firewall may prompt.
 
 ## 4. Signing without account mutation
@@ -54,15 +54,15 @@ Verified read-only (`security cms -D -i`):
 **Route (a), existing profile, no Apple contact (recommended).** Use the bundle id of an existing profile, e.g. `dev.zinc.music`. Work on a copy so the repo is untouched:
 ```sh
 B=/private/tmp/claude-501/-Users-mowmow-Lab-zinc/478464c2-2117-48b5-9bff-460ea5fb5b17/scratchpad/ipad
-cp -R /Users/mowmow/Lab/zinc/next/tests/bench/script_bridge $B/proj
+cp -R /Users/mowmow/Lab/zinc/tests/bench/script_bridge $B/proj
 sed -i '' 's/dev.zinc.bench.scriptbridge/dev.zinc.music/' $B/proj/zinc.json     # + "permissions": ["net"] only for the POST fallback
-/Users/mowmow/Lab/zinc/next/build/zinc export $B/proj --target ios -o $B/out       # project only, no --ipa (--ipa adds -allowProvisioningUpdates)
+/Users/mowmow/Lab/zinc/build/zinc export $B/proj --target ios -o $B/out       # project only, no --ipa (--ipa adds -allowProvisioningUpdates)
 cd $B/out
 cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM=QY259SN7XP -DZINC_PROFILE="iOS Team Provisioning Profile: dev.zinc.music"
 xcodebuild -quiet -project build-device/script_bridge.xcodeproj -scheme script_bridge -configuration Release -sdk iphoneos \
   -derivedDataPath build-device/dd CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Development" build     # no -allowProvisioningUpdates
 ```
-The generated CMake defaults the manual identity to "Apple Distribution" (`next/src/cli_core.cpp` ~1629, `Apple Development` only for method `debugging`), hence the command-line override. If xcodebuild does not find the profile by name in `UserData`, copy it to `~/Library/MobileDevice/Provisioning Profiles/<UUID>.mobileprovision` (UUID of `dev.zinc.music`: `8cbac47b-8325-4279-828e-1417dd11366a`) or pass `PROVISIONING_PROFILE=<UUID>`. Untested: no device build was made (the instructions said not to build if signing was needed; this route needs only local files, but I stopped before the multi-minute engine build).
+The generated CMake defaults the manual identity to "Apple Distribution" (`src/cli_core.cpp` ~1629, `Apple Development` only for method `debugging`), hence the command-line override. If xcodebuild does not find the profile by name in `UserData`, copy it to `~/Library/MobileDevice/Provisioning Profiles/<UUID>.mobileprovision` (UUID of `dev.zinc.music`: `8cbac47b-8325-4279-828e-1417dd11366a`) or pass `PROVISIONING_PROFILE=<UUID>`. Untested: no device build was made (the instructions said not to build if signing was needed; this route needs only local files, but I stopped before the multi-minute engine build).
 
 **Route (b), automatic provisioning: OWNER STEP, not run.** It registers the iPad and creates the App ID `dev.zinc.bench.scriptbridge` (and may refresh certs/profiles) on the owner's Apple account:
 ```sh
@@ -72,7 +72,7 @@ xcodebuild -project build-device/script_bridge.xcodeproj -scheme script_bridge -
 ```
 (`zinc export <dir> --target ios --ipa` with `ZINC_IOS_TEAM=QY259SN7XP` prints the equivalent archive and export commands, with `-allowProvisioningUpdates`; its `ExportOptions.plist` uses method app-store-connect unless `signing.ios.method` is `debugging`. Xcode would also need the owner logged in under Settings > Accounts.)
 
-## 5. End-to-end commands for next/tests/bench/script_bridge (route a)
+## 5. End-to-end commands for tests/bench/script_bridge (route a)
 
 | # | Step | Status |
 |---|---|---|
@@ -92,7 +92,7 @@ Needs the owner: only step 7 consent (it replaces the binary of one of their ins
 ## Sources
 - https://github.com/xtool-org/xtool, https://github.com/xtool-org/xtool/releases/latest, Installation-macOS.md, `Sources/XToolSupport/{InstallCommand,LaunchCommand,DevCommand}.swift` (raw.githubusercontent.com)
 - https://github.com/doronz88/pymobiledevice3 (README, `pyproject.toml`), https://doronz88.github.io/pymobiledevice3/
-- Local: `docs/reports/zinc-next-ios.md`, `next/src/cli_core.cpp` (exportIos, packIos), `next/src/host/http.cpp`, `docs/plugins.md`
+- Local: `docs/reports/zinc-next-ios.md`, `src/cli_core.cpp` (exportIos, packIos), `src/host/http.cpp`, `docs/plugins.md`
 
 ## Result (2026-10-18): it runs, on the real iPad
 

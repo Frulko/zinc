@@ -11,7 +11,7 @@
 # ZN_UPDATE_GOLDEN=1 records the hashes and session.out again.
 cd "$(dirname "$0")/../.." || exit 2
 command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
-app=$PWD/../examples/webcam; golden=$PWD/tests/golden/webcam-demo
+app=$PWD/examples/webcam; golden=$PWD/tests/golden/webcam-demo
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # run <name> <frames> <input|-> <permission|-> <scheme> <size>: one run on a fresh storage folder ($tmp/<name>), the Photos folder under it

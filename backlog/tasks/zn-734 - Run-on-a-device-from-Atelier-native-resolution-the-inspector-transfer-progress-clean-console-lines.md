@@ -55,7 +55,7 @@ Decisions (reversible, no record number taken): the default size is asked from t
 
 Not proven: the Pi (above); a transfer slow enough to show several lines without ZINC_PROGRESS_MS; the in-place line of a terminal (looked at in the code, not in a tty); Chrome on a device's inspector.
 
-Lines for next/backlog/later.md:
+Lines for backlog/later.md:
 - ZN-734 (Cross-platform pass): run the Pi command of the task notes on spark (fbdev 800x480, 1:1), and a sketch without a size under ZINC_DISPLAY=gl on a KMS screen.
 - ZN-734: zinc:platform's SCREEN_W and SCREEN_H are the size known at compile time (320x240 for a sketch): on a device that gives its own they differ from width() and height(); two examples read them.
 - ZN-734: a large screen (1080p HDMI on a Pi 3) is now drawn whole by the software rasterizer for a sketch without a size: measure, and consider a cap or a scale for slow boards.

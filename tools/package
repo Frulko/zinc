@@ -16,7 +16,7 @@ import json, os, platform, plistlib, re, shutil, subprocess, sys, tarfile, tempf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
-REPO = os.path.dirname(NEXT)
+REPO = NEXT
 VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
 # size budgets in MB of the download (the archive); a package over its budget fails the script
 BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
@@ -38,8 +38,8 @@ def copy_tree(src, dst, keep=None):
             shutil.copy2(os.path.join(root, f), out)
 
 def payload(share):
-    """share/zinc: next/ (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, templates, the plugins' Zinc sources."""
-    nx = os.path.join(share, "next")
+    """share/zinc: the engine (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, templates, the plugins' Zinc sources."""
+    nx = share
     copy_tree(os.path.join(NEXT, "include"), os.path.join(nx, "include"))
     copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
     mi = os.path.join(NEXT, "third_party", "mimalloc")
@@ -173,11 +173,11 @@ here="$(cd "$(dirname "$0")" && pwd)"
 proj="${ZINC_PROJECT:-$HOME/Zinc}"
 mkdir -p "$proj"
 [ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\\n' > "$proj/hello.ts"
-exec "$here/zinc" run "$here/../Resources/zinc/next/app/atelier/main.tsx" -- "$proj"
+exec "$here/zinc" run "$here/../Resources/zinc/app/atelier/main.tsx" -- "$proj"
 """
 
 # Linux: bin/zinc-atelier in the CLI archive; `install.sh --atelier` puts it in the applications menu (a .desktop entry)
-LAUNCHER_LINUX = LAUNCHER.replace("$here/../Resources/zinc/next", "$here/../share/zinc/next")
+LAUNCHER_LINUX = LAUNCHER.replace("$here/../Resources/zinc", "$here/../share/zinc")
 
 PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -210,10 +210,10 @@ def package_macos(build, out):
     stage = os.path.join(out, "stage")
     shutil.rmtree(stage, ignore_errors=True)
     floor = minos(os.path.join(build, "zinc")) or "12.0"   # what the engine really asks for: the plist and the plugins say the same
-    # the CLI: the layout of the Linux archive; zinc resolves its symlinks and reads <exe>/../share/zinc/next (tc::sourceRoot)
+    # the CLI: the layout of the Linux archive; zinc resolves its symlinks and reads <exe>/../share/zinc (tc::sourceRoot)
     name = "zinc-%s-macos-%s" % (VERSION, arch)
     root = os.path.join(stage, name)
-    engine_macos(build, os.path.join(root, "bin"), os.path.join(root, "lib"), "@executable_path/../lib/")
+    engine_macos(build, os.path.join(root, "bin"), os.path.join(root, "lib"), "@executable_path/lib/")
     share = os.path.join(root, "share", "zinc")
     payload(share)
     without = prebuild_plugins(os.path.join(build, "zinc"), share, "macos")
@@ -252,7 +252,7 @@ def package_linux(build, out, arch=None):
             continue
         shutil.copy2(m.group(2), os.path.join(root, "lib", m.group(1)))
     if shutil.which("patchelf") and not cross:
-        run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", "zinc"))
+        run("patchelf", "--set-rpath", "$ORIGIN/lib", os.path.join(root, "bin", "zinc"))
     payload(os.path.join(root, "share", "zinc"))
     with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)
     os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)

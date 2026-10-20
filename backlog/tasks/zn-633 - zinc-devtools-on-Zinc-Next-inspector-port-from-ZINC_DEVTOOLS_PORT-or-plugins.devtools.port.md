@@ -35,7 +35,7 @@ Done in a parallel worktree (branch worktree-agent-a0700e36f27b616d0).
 
 What changed
 - plugins/devtools/native/cdp.next.ts: the inspector listens on ZINC_DEVTOOLS_PORT when it is set, else on the port the plugin asks for (9229). 0 takes any free port (the line 'zinc devtools: ...' on stderr names it). The network log is started with the port really in use, so the program's own connections to its inspector stay out of the log on any port (index.ts no longer passes '9229').
-- next/src/cli_core.cpp: devtoolsPort(entry) = ZINC_DEVTOOLS_PORT, else zinc.json plugins.devtools.port (targets.<host>.plugins.devtools over it, merged by frontend::pluginOptions). zinc run exports it as ZINC_DEVTOOLS_PORT before the program starts (interpreted, compiled and dev-bundle runs inherit it); zinc dev prints the port in 'started with the inspector on port N'.
+- src/cli_core.cpp: devtoolsPort(entry) = ZINC_DEVTOOLS_PORT, else zinc.json plugins.devtools.port (targets.<host>.plugins.devtools over it, merged by frontend::pluginOptions). zinc run exports it as ZINC_DEVTOOLS_PORT before the program starts (interpreted, compiled and dev-bundle runs inherit it); zinc dev prints the port in 'started with the inspector on port N'.
 - Tests: new tests/t0/devtools_port.sh; tests/free_ports.py prints free loopback ports; netlog.sh takes 5 free ports (HTTP, HTTPS, MQTT, quit, inspector) and no longer skips when 9229 is busy; socket.sh runs devtools.tsx on a free port (golden devtools.out says PORT); t1 dev_mode.sh gives its UI project a free port through zinc.json and probes it.
 - docs/dev-mode.md: the variable wins, 0 takes a free port.
 
@@ -53,5 +53,5 @@ For the coordinator
 - Follow-up (size S): tests/golden/host/socket.ts binds the fixed UDP ports 9731 and 9732: two trees running socket.sh in the same 100 ms can still collide; take them from udp(0) or from arguments. AC: socket.sh passes twice at once.
 - Follow-up (size S, optional): zinc build bakes zinc.json plugins.devtools.port into a program that imports zinc:devtools (today only the variable changes the port of a built executable). AC: a built program with plugins.devtools.port 9300 listens on 9300 without the variable.
 
-usage: n/a (next/tools/usage)
+usage: n/a (tools/usage)
 <!-- SECTION:NOTES:END -->

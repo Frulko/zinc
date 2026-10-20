@@ -5,7 +5,7 @@
 # (8 MB of media, and the narration of every sequence and medium in two languages).
 cd "$(dirname "$0")/../.." || exit 2
 want=$PWD/tests/data/museum_assets/expected.txt
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 got=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 "$ZINC" run src/assets.ts 2>&1) || { echo "an asset does not load"; fail=1; }
 [ "$got" = "$(cat "$want")" ] || { printf '%s\n' "$got" | diff - "$want" | head -20; fail=1; }

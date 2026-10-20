@@ -136,7 +136,7 @@ unchecked (`exists`, `stat`, `lstat`, `readlink`, `realpath` and `mkdtemp`) are 
 
 **Exported apps enforce them.** `zinc build` and `zinc export` of a project with `"permissions"` compile a program that enforces the list from
 its first instruction; `zinc export` prints the list. Cross builds for the Linux targets do the same with the `linux` list (proven on macOS
-only so far: `next/tests/t1/permissions_export.sh`). On macOS `camera`, `microphone` and `location` add the usage strings
+only so far: `tests/t1/permissions_export.sh`). On macOS `camera`, `microphone` and `location` add the usage strings
 (`NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSLocationWhenInUseUsageDescription`) the system shows when it asks the user,
 and the entitlements of the hardened runtime follow the list ([distribution](07-distribution.md#signing)).
 
@@ -212,7 +212,7 @@ checked by the runtime (above), not by the compiler. ESP32 uses the ESP-IDF defa
 
 - The toolchains zinc downloads (the pinned zig, esptool, Espressif's QEMU) are checked against SHA-256 pins compiled into
   zinc before anything is unpacked; a mirror or proxy that serves other bytes is refused (see below).
-- Vendored libraries are listed with their licences and versions in `next/third_party/components.json`; every
+- Vendored libraries are listed with their licences and versions in `third_party/components.json`; every
   `zinc export` writes an SPDX SBOM of what the app links (ZN-323).
 - Builds are reproducible (`-DZN_REPRODUCIBLE=ON`, docs/reports/zinc-next-reproducible.md): a release can be rebuilt and
   compared byte for byte, and the CI does so for zinc and three plugins.
@@ -254,7 +254,7 @@ key; the starter's CI runs the reusable workflow `.github/workflows/plugin.yml`,
 publication into the index under the delegation is ZN-338). 4. Rebuilders rebuild the archives (`-DZN_REPRODUCIBLE`, the pinned zig)
 and the index records `rebuilds/<sha256>.json`; your binaries are used once the policy's number of rebuilds match.
 
-**A private index and mirror for a company.** Run `next/tools/index-repo` with the company's keys over its plugins, publish it
+**A private index and mirror for a company.** Run `tools/index-repo` with the company's keys over its plugins, publish it
 on any static host, and set on every machine `ZINC_INDEX_URL`, `ZINC_INDEX_ROOT` (the company's root), `ZINC_MIRRORS` (an
 internal mirror of `index/` and of the toolchains, laid out as described in [distribution](07-distribution.md)) and a
 system policy (`/etc/zinc/policy.json`: tiers, `prebuilt`, `transparency`, `mirrors`) that projects cannot loosen.
@@ -276,10 +276,10 @@ page.
 Two sets of libFuzzer harnesses run with ASan and UBSan. `scripts/fuzz.sh 60` fuzzes, 60 s each, the parsers of untrusted input of the
 runtime Zinc Next links (`tests/fuzz/`: JSON, the HTTP request parser, MQTT, OSC, the DevTools endpoint, the remote-display stream, SVG,
 Lottie, glTF, PNG/JPEG, TrueType, vector tiles and map styles, the `gfx` path); `scripts/fuzz.sh --replay` runs their checked-in corpora
-once. `next/tools/fuzz all 60` fuzzes the engine's own inputs: programs through the parser and the checker, ZBC files through the decoder
-and verifier, the native ABI and ZPK packs; `next/tests/t0/fuzz_regress.sh` replays every input that once failed (`next/tests/fuzz/regress`).
-A crash leaves its input (`tests/fuzz/build/crash-<harness>-*`, `next/tests/fuzz/crashes/<target>-<hash>`): fix it, then add the file to the
-corpus or to the regressions. Both need a clang with libFuzzer: LLVM's, or Apple's with the libFuzzer `next/tools/libfuzzer` builds.
+once. `tools/fuzz all 60` fuzzes the engine's own inputs: programs through the parser and the checker, ZBC files through the decoder
+and verifier, the native ABI and ZPK packs; `tests/t0/fuzz_regress.sh` replays every input that once failed (`tests/fuzz/regress`).
+A crash leaves its input (`tests/fuzz/build/crash-<harness>-*`, `tests/fuzz/crashes/<target>-<hash>`): fix it, then add the file to the
+corpus or to the regressions. Both need a clang with libFuzzer: LLVM's, or Apple's with the libFuzzer `tools/libfuzzer` builds.
 
 ## Obfuscation: what a native build hides
 

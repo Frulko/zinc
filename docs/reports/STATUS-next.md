@@ -1,6 +1,6 @@
 # Zinc Next: parity status
 
-The parity gate of the plan (ZN-155): Zinc Next does what the prototype did. Measured on 2026-10-11 by `next/tools/parity-audit`,
+The parity gate of the plan (ZN-155): Zinc Next does what the prototype did. Measured on 2026-10-11 by `tools/parity-audit`,
 which re-runs the three audits of `docs/reports/parity/` as one script (85 s) and writes `docs/reports/parity/gate.md`.
 
 ## Result
@@ -23,7 +23,6 @@ programs the prototype refuses run here (regular expression literals, `await` in
 ## Reproduce
 
 ```sh
-cd next
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
 tools/parity-audit                          # the three audits; exit 1 on any MISSING; writes docs/reports/parity/gate.md
 tools/parity-audit --only A,C --out /tmp/a  # some sections only

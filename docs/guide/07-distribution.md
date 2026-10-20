@@ -3,7 +3,7 @@
 From a template to a store page with the commands `zinc new`, `run`, `test`, `pack`, `fuse`, `export`, `verify`, `publish` and `update-app`, and
 the `"permissions"` of zinc.json. The first section is a worked example; the sections after it are the reference of each step.
 
-Every command in a code block of this page and of [security](08-security.md) is run, in order, by `next/tests/t1/guide_store.sh`, and every
+Every command in a code block of this page and of [security](08-security.md) is run, in order, by `tests/t1/guide_store.sh`, and every
 `zinc` command written in the text is checked against `zinc help`. The outward steps (uploading to itch.io, notarizing with Apple, serving the
 update channel) are shown as a `--dry-run` or as the commands zinc prints: they are yours to run.
 
@@ -72,7 +72,7 @@ zinc verify dist/my-game-0.1.0.dmg
 codesign --verify --strict dist/my-game-macos/my-game.app
 ```
 
-In a Zinc checkout, `next/tools/package --app path/to/my-game.app` bundles the app's non-system dylibs
+In a Zinc checkout, `tools/package --app path/to/my-game.app` bundles the app's non-system dylibs
 (including transitive dependencies), rewrites their paths, signs ad hoc and verifies the bundle, then writes
 `my-game.app.zip`. Run it before Developer ID signing/notarization. It does not build the app itself.
 
@@ -217,7 +217,7 @@ of the same project give the same bytes. Install with `sudo dpkg -i <name>_<vers
 
 Every `zinc export` writes, beside the executable, `sbom.spdx.json` (SPDX 2.3: the app, the Zinc runtime and each third-party component
 it links, with versions, licences and SHA-256 where pinned) and `THIRD-PARTY-LICENSES.txt` (the full text of each of those licences).
-What is listed is what the program links: the components of `next/third_party/components.json` whose scope the build pulled in (the runtime
+What is listed is what the program links: the components of `third_party/components.json` whose scope the build pulled in (the runtime
 always; the host libraries and fonts for programs that use the host; Yoga, the shaped-text stack, QuickJS when used; each plugin's own
 libraries, such as SQLite for `zinc:sqlite`; Lucide when `zinc.json` names icons). The SBOM's creation time is `SOURCE_DATE_EPOCH` when set,
 else the newest modification time of the project's sources, so two exports of the same sources give the same bytes (and the same `.deb`).
@@ -226,11 +226,11 @@ else the newest modification time of the project's sources, so two exports of th
 
 `zinc export --target wasm` writes a static site: `index.html` (title = the app's name, favicon = `app.icon`, the canvas size from
 `targets.wasm` `width` / `height` in zinc.json, 480 x 320 otherwise), `app.js` with its worker and WASI shim, `app.wasm` (the interpreter,
-built by `next/tools/build-wasm` with the pinned zig), `app.zbc` (the program), `app.res` (the baked images) and `serve.py`. The program runs in
+built by `tools/build-wasm` with the pinned zig), `app.zbc` (the program), `app.res` (the baked images) and `serve.py`. The program runs in
 a worker that draws on an `OffscreenCanvas`. The frame loop waits on a `SharedArrayBuffer`, so the server must send
 `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`: `dist/<name>-wasm/serve.py 8080` does, a plain
 `python3 -m http.server` does not; on itch.io, tick "SharedArrayBuffer support" in the embed options. Native modules and plugins with native
-code are not available in the browser. `next/tests/t1/export_wasm.sh` runs two exports in headless Chrome.
+code are not available in the browser. `tests/t1/export_wasm.sh` runs two exports in headless Chrome.
 
 ### ESP32
 
@@ -239,7 +239,7 @@ interpreter), `app.bin` (the program as bytecode, at 0x300000) and `flash.sh`. A
 then waits for `zinc run --target esp32` uploads as usual. The bytecode must fit the core's 48 KB; the export refuses a larger program.
 `dist/<name>-esp32/flash.sh /dev/ttyUSB0` flashes both with the pinned esptool (`zinc toolchain esptool`), else esptool from the PATH. The
 program's output arrives on the UART at 115200 baud, framed by the upload protocol (`include/zn/devproto.h`).
-`next/tests/t1/export_esp32.sh` boots the two images in the pinned QEMU, with no host attached.
+`tests/t1/export_esp32.sh` boots the two images in the pinned QEMU, with no host attached.
 
 ### Phones: Google Play and the App Store
 
@@ -301,7 +301,7 @@ phones with 16 KB pages refuse it). The engine and the plugins compiled from sou
 a deep link), runs the project with the plugins it has, and swaps each save in place (Fast Refresh) with the state kept. A shake, a press with
 three fingers or the Menu key (`adb shell input keyevent 82`) opens the dev menu: reload, go home. A project that needs a plugin the player
 does not have gets the plugin's name on the home screen; export your own player with it (a project with `"player": true` and the plugin).
-Build Zinc Go: `zinc export ../examples/zinc-go --target android --apk` or `--target ios --ipa --simulator`
+Build Zinc Go: `zinc export examples/zinc-go --target android --apk` or `--target ios --ipa --simulator`
 ([report](../reports/zinc-next-zinc-go.md)).
 
 ### `zinc deploy`
@@ -325,7 +325,7 @@ follow `"permissions"`: `camera` gives `com.apple.security.device.camera`, `micr
 `personal-information.location`, any `net` entry `network.client`, and `net` or `net:*` (listening) `network.server`. The export then prints
 the notarization commands (step 5): for the `.dmg` when `--dmg` made one, else for a zip of the `.app` (`ditto -c -k --keepParent`).
 Notarization is Apple's server-side step and needs your Apple account; Gatekeeper (`spctl`) accepts only a notarized Developer ID app.
-`codesign --verify --strict` checks any signature, ad hoc included. `next/tests/t1/codesign.sh` signs with a test identity.
+`codesign --verify --strict` checks any signature, ad hoc included. `tests/t1/codesign.sh` signs with a test identity.
 
 ## Stores and download pages
 
@@ -395,10 +395,10 @@ Zinc lives in the GitHub organization `zinc-engine` (decision D37):
 | `plugin-starter` | the repository a community author clones to publish a plugin |
 | `plugin-<name>` | one per official plugin: a mirror of `plugins/<name>` pushed by `tools/plugin-split` from `zinc` (history kept) |
 
-`next/tools/gh-org-setup` creates what is missing (the repositories, the protection of `zinc`'s main branch with the `zinc-next` checks) and
+`tools/gh-org-setup` creates what is missing (the repositories, the protection of `zinc`'s main branch with the `zinc-next` checks) and
 lists the CI secrets not set yet; it never writes a secret's value, and running it twice changes nothing the second time. The owner's steps:
-`gh auth login` as an owner of zinc-engine, `next/tools/gh-org-setup --dry-run` (every gh command it would run), then
-`next/tools/gh-org-setup` and `gh secret set -R zinc-engine/zinc NAME` for each secret it lists.
+`gh auth login` as an owner of zinc-engine, `tools/gh-org-setup --dry-run` (every gh command it would run), then
+`tools/gh-org-setup` and `gh secret set -R zinc-engine/zinc NAME` for each secret it lists.
 
 Branches (owner, 2026-10-19): the work happens on `develop`; `make release` fast-forwards `main` to it and pushes a `v*` tag. A release
 runs one pipeline, the tag's (owner, 2026-10-20). What CI does with each:
@@ -426,7 +426,7 @@ it on a Windows runner with the pinned zig (no Visual Studio), smoke tests the u
 release; the job is experimental (its failure does not stop the macOS release) and the binary is not signed yet, so SmartScreen may ask to confirm.
 
 Linux keeps its one archive, `zinc-<version>-linux-<arch>.tar.gz`, with the same layout as the macOS CLI (the Linux jobs are off for now). The CLI finds its files beside the binary: `zinc` resolves its own path through symlinks and reads
-`<bin>/../share/zinc/next` (`tc::sourceRoot`), so the archive works wherever it is unpacked and through a link on the `PATH`.
+`<bin>/../share/zinc` (`tc::sourceRoot`), so the archive works wherever it is unpacked and through a link on the `PATH`.
 
 Why the app embeds the engine rather than calling the CLI of the same release: an app started from the Finder gets a bare
 `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`) and no shell profile, so it cannot count on a `zinc` installed elsewhere, and a
@@ -453,7 +453,7 @@ The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Rele
 builds with `-DZN_VERSION=<the tag's version>` and packages (`tools/package` names the archives after the version the binary reports), smoke-tests both downloads
 (`tests/t1/install_nocompiler.sh`: installed with no compiler, the app opened headless), signs and notarizes them with
 `tools/sign-macos`, and writes the update manifests `zinc-<os>-<arch>.manifest` (stable) and `zinc-<os>-<arch>-beta.manifest`, signed with the release key; then the
-`release` job attaches the downloads and the manifests to the release, with `install.sh` (`next/tools/install.sh`, the one
+`release` job attaches the downloads and the manifests to the release, with `install.sh` (`tools/install.sh`, the one
 command of [Getting started](01-getting-started.md)), the `SHA256SUMS` it checks its downloads against and `plugins.lock`,
 and release notes that say what each file is. Each download holds
 the native libraries of the plugins, built in that job with the pinned zig (the log of `tools/package` names the plugins left
@@ -466,8 +466,8 @@ address, which the job uploads to the latest release, where `zinc update --chann
 
 ### Releasing with `make release`
 
-`make release` (`next/tools/release`) is the one command that publishes a version. It runs from `develop`, where the work happens, and checks the repository (on `develop`, clean tree, in
-step with origin, `main` behind `develop`, `gh` signed in, the `ZINC_UPDATE_SEED` secret, `next/update.pub`), proposes the next version from the commits since the last tag, shows the notes, and asks.
+`make release` (`tools/release`) is the one command that publishes a version. It runs from `develop`, where the work happens, and checks the repository (on `develop`, clean tree, in
+step with origin, `main` behind `develop`, `gh` signed in, the `ZINC_UPDATE_SEED` secret, `update.pub`), proposes the next version from the commits since the last tag, shows the notes, and asks.
 The notes are the `## [Unreleased]` section of `CHANGELOG.md` (written as the work goes, see AGENTS.md); when it is empty the tool drafts one from the `feat`, `fix` and
 `perf` commits and offers to open it in `$EDITOR`. On a yes it moves the section under the new version in a `docs(changelog)` commit, tags that commit with the notes as the
 tag message, fast-forwards `main` to it, pushes `develop`, `main` and the tag, and watches the tag's workflow: the CI (the whole test tier, the packages), which publishes the downloads, the signed manifests and the notes. `make release BUMP=minor` (or `patch`, `major`, `X.Y.Z`),
@@ -481,11 +481,11 @@ The owner's steps, once (Settings > Secrets and variables > Actions):
 | `MACOS_CERTIFICATE_PASSWORD` | the password of that .p12 |
 | `ZINC_SIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
 | `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | the notarization account: Apple ID, team ID, an app-specific password |
-| `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` that signs the update manifests; its public key is `next/update.pub` |
-| `HOMEBREW_TAP_KEY` | the private half of a write deploy key of `<owner>/homebrew-zinc`: each stable release pushes its formula there (`next/tools/homebrew-formula`), so `brew upgrade zinc` follows; without it the formula stays at the previous version |
+| `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` that signs the update manifests; its public key is `update.pub` |
+| `HOMEBREW_TAP_KEY` | the private half of a write deploy key of `<owner>/homebrew-zinc`: each stable release pushes its formula there (`tools/homebrew-formula`), so `brew upgrade zinc` follows; without it the formula stays at the previous version |
 
 The release key, once: `zinc update-keygen` prints `seed=` (the secret above) and `public=`; the public key goes into
-`next/update.pub` (one line, 64 hex digits), committed: a public key is not secret, and a source build then trusts the same key
+`update.pub` (one line, 64 hex digits), committed: a public key is not secret, and a source build then trusts the same key
 as a release. CMake reads it into the build (`-DZN_UPDATE_PUBKEY=<hex>` overrides it); the workflow needs no other variable.
 Until then the file holds the placeholder (64 zeros): such a build has no update key, `zinc update` says so, and only unsigned
 manifests with `ZINC_UPDATE_ALLOW_UNSIGNED=1` pass. When the seed is stored but the keygen output was not kept,
@@ -493,9 +493,9 @@ manifests with `ZINC_UPDATE_ALLOW_UNSIGNED=1` pass. When the seed is stored but 
 
 Then, for each release, `git tag -a v0.1.0 -m "Zinc 0.1.0"` and `git push origin v0.1.0`.
 `zinc update` then finds it at `https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest` (the manifest's package URL
-is relative, so it resolves to the CLI archive next to it). `next/tests/t0/release_workflow.sh` runs the manifest, checksum and release steps of
+is relative, so it resolves to the CLI archive next to it). `tests/t0/release_workflow.sh` runs the manifest, checksum and release steps of
 the workflow locally (a stand-in for `gh`) and lints the workflow with actionlint. The packaging steps run on a Mac as the job runs them:
-`cd next && python3 tools/package --out /tmp/zd`, then `ZINC_DIST=/tmp/zd tests/run --only install_nocompiler`.
+`python3 tools/package --out /tmp/zd`, then `ZINC_DIST=/tmp/zd tests/run --only install_nocompiler`.
 
 ### Updating zinc
 
@@ -535,6 +535,6 @@ running, notarized `.app` is not rewritten in place): it answers with the addres
 1.5 s at most), so no command waits for the network, and offline it says nothing; its result is kept in
 `~/.zinc/update-check.json`. It is silent with `ZINC_NO_UPDATE_CHECK=1`, in CI (`CI`, `ZINC_CI`), with `ZINC_HEADLESS`,
 with `--quiet`, when stderr is not a terminal, and for a zinc that does not update itself. The short `zinc doctor` has a line
-for it: "Zinc is up to date" or "Zinc 0.2.0 is available". `next/tests/t1/self_update.sh` proves all of it on a local release.
+for it: "Zinc is up to date" or "Zinc 0.2.0 is available". `tests/t1/self_update.sh` proves all of it on a local release.
 
 Next: [security](08-security.md).

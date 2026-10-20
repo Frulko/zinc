@@ -1,11 +1,11 @@
 # Zinc Next: M3 conformance report
 
-Date: 2026-10-06. Interpreter build `next/build/zinc`, commit after ZN-039.
+Date: 2026-10-06. Interpreter build `build/zinc`, commit after ZN-039.
 
 ## Result
 
-The 18 pure-language conformance programs of `next/corpus/M3-set.txt` print exactly the output frozen from the old toolchain
-(`next/corpus/conformance/*.out`). A program that ends with an uncaught exception has a last line `[exit 101] panic: Uncaught
+The 18 pure-language conformance programs of `corpus/M3-set.txt` print exactly the output frozen from the old toolchain
+(`corpus/conformance/*.out`). A program that ends with an uncaught exception has a last line `[exit 101] panic: Uncaught
 <Name>: <message>`: the interpreter prints the `panic: ...` line on stderr and exits with 101, `tests/t1/conformance.sh` adds the
 `[exit N]` prefix. The same programs pass under the ASan build and are accepted by the oracle (tsc 7 with `lib/zinc.d.ts`).
 

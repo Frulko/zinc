@@ -38,7 +38,7 @@ that its data, descriptions aside, is under CC0 (the descriptions were not copie
 | `models/vase.obj`, `models/vase.jpg` | *Baluster vase, from a five-piece garniture*, Jingdezhen, Qing dynasty, Kangxi reign (1662–1722) | National Museum of Asian Art, Smithsonian Institution, F1980.191a-c. Gift of Myron S. Falk, Jr. and his sisters, Mrs. Mildred F. Loew and Mrs. Eleanor F. Lenzner | <https://asia.si.edu/object/F1980.191a-c/>; model package `3d_package:d8c6393a-4ebc-11ea-b77f-2e728ce88125`, file `f1980_191-150k-obj.zip` on <https://3d-api.si.edu> | CC0 1.0 (Smithsonian Open Access) |
 
 The Smithsonian's record gives "Restrictions & Rights: CC0" for the object and for its 3D model. The 149 999-triangle OBJ was decimated to 12 000
-triangles (7 058 vertices) with `tools/decimate.cpp`, which uses meshoptimizer 1.3 (vendored in `next/third_party`), keeping texture
+triangles (7 058 vertices) with `tools/decimate.cpp`, which uses meshoptimizer 1.3 (vendored in `third_party`), keeping texture
 coordinates and normals; its 4096-pixel texture was resized to 1536 pixels with `sips`.
 
 ## Panorama

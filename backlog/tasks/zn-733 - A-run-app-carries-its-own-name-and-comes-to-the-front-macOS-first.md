@@ -45,7 +45,7 @@ Decision for the coordinator's record: a run app takes its name from its executa
 
 Not checked, by eye only: the Dock's label and icon (System Events names the process "Blue Demo"; nobody looked at the Dock), that the raised window takes typed keys (no key was sent to the desktop), the fullscreen path of show_main.
 
-Lines for next/backlog/later.md (cross-platform pass):
+Lines for backlog/later.md (cross-platform pass):
 - ZN-733: Linux: the window title follows ZINC_APP_NAME already; check the taskbar name (SDL app metadata, the WM class) and `ps` (prctl PR_SET_NAME or the same link), and that the window is raised under X11 and Wayland (a compositor may refuse)
 - ZN-733: Windows: the taskbar and Task Manager name of a run app (the executable's name, or an AppUserModelID), and SetForegroundWindow's rules when started from a console
 - ZN-733: `zinc build` and packaged apps name their window "zinc" unless zinc.json sets window.title: give them the project's name at build time

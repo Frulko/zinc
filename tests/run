@@ -1,5 +1,5 @@
 #!/bin/sh
-# Quiet runner: one PASS/FAIL line per test, details in next/.logs/. See next/TESTING.md.
+# Quiet runner: one PASS/FAIL line per test, details in .logs/. See TESTING.md.
 # Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
 # Usage: tests/run [--tier t0|t1|t2] [--only <name>] [--changed | --changed-from <ref>]
 here=$(cd "$(dirname "$0")" && pwd)
@@ -32,9 +32,9 @@ if [ -z "$ZINC_ZIG" ] && [ -x "$ZINC" ]; then
 fi
 if [ -n "$changed" ]; then   # the names of the tests covering the changed files, one per line
   if [ -n "$base" ]; then
-    paths=$(git -C "$root/.." diff --name-only "$base" HEAD --) || exit 2
+    paths=$(git -C "$root" diff --name-only "$base" HEAD --) || exit 2
   else
-    paths=$(cd "$root/.." && { git diff --name-only HEAD; git ls-files --others --exclude-standard; }) || exit 2
+    paths=$(cd "$root" && { git diff --name-only HEAD; git ls-files --others --exclude-standard; }) || exit 2
   fi
   wanted=$(printf '%s\n' "$paths" | python3 "$here/affected.py" "$here/affected.json") || exit 2
   echo "affected tests: $(echo "$wanted" | grep -v '^canary' | tr '\n' ' ')" >&2

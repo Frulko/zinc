@@ -9,7 +9,7 @@
     "wave",
     "ukiyo-e"
   ],
-  "projectDir": "../../../examples/museum-table",
+  "projectDir": "../../examples/museum-table",
   "arguments": [
     "--probe",
     "--story"

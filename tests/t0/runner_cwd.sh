@@ -1,5 +1,5 @@
 #!/bin/sh
-# The runner resolves relative native test paths from next/, regardless of its caller's directory.
+# The runner resolves relative native test paths from the repository root, regardless of its caller's directory.
 root=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cd "$tmp" || exit 2

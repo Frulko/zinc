@@ -10,7 +10,7 @@ python3 -I -c "import sys; sys.path.insert(0, 'tools'); from cdp import find_chr
 export ZINC_BACKGROUND=1
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-"$Z" export ../examples/hero --target web -o "$tmp/hero" >/dev/null 2>"$tmp/err" || { echo "web_export: the hero export failed"; cat "$tmp/err"; exit 1; }
+"$Z" export examples/hero --target web -o "$tmp/hero" >/dev/null 2>"$tmp/err" || { echo "web_export: the hero export failed"; cat "$tmp/err"; exit 1; }
 "$Z" export tests/fixtures/web-hot --target web --render dom -o "$tmp/hot" >/dev/null 2>&1 || { echo "web_export: the web-hot export failed"; exit 1; }
 for f in index.html sw.js manifest.webmanifest _headers serve.py README.txt; do [ -s "$tmp/hero/$f" ] || { echo "web_export: $f is missing"; fail=1; }; done
 ls "$tmp"/hero/zinc.*.js "$tmp"/hero/app.*.js "$tmp"/hero/native.*.js >/dev/null 2>&1 || { echo "web_export: the hashed scripts are missing"; fail=1; }

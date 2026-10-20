@@ -133,7 +133,7 @@ void shutdown() {   // the device stops with the program instead of being cut by
   opened = false;
 }
 // The mixer, started on first use, and with it the opening of the output unless the run is headless (the rule of the
-// window: next/src/host/hal_dispatch.cpp) or ZINC_AUDIO=null asks for silence.
+// window: src/host/hal_dispatch.cpp) or ZINC_AUDIO=null asks for silence.
 ma_engine* engine() {
   if (opened) return &eng;
   ma_engine_config c = ma_engine_config_init();

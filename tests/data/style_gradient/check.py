@@ -28,7 +28,7 @@ elif sys.argv[1] == "esp32":   # tier T0: the 45-degree box is a vertical two-st
     if len({px(x, y) for x in (380, 400, 420) for y in (190, 208, 230)}) != 1: fails.append("esp32: the conic box is not one colour")
 else:
     region_equal("via- vs stacked bg-gradient-to-b", 16, 16, 80, 144, 80)
-    pal = open(os.path.join(here, "..", "..", "..", "..", "lib", "std", "palette.ts")).read()
+    pal = open(os.path.join(here, "..", "..", "..", "lib", "std", "palette.ts")).read()
     fam = {m.group(1): [int(c, 16) for c in m.group(2).split(",")] for m in re.finditer(r"'([a-z]+):([0-9a-f,]+);'", pal)}
     shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
     def tw(name): f, s = name.rsplit("-", 1); return fam[f][shades.index(int(s))]

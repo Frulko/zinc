@@ -64,7 +64,7 @@ code=$(sed -n 's/^ready port [0-9]* code \([0-9]*\).*/\1/p' "$tmp/tablet1.log")
 mkdir -p "$tmp/settings"
 printf '{"v":1,"paused":false,"welcomed":true,"skipped":["contacts","notify"],"focus":"relay","focusModes":[{"id":"com.apple.focus.work","policy":"follow"},{"id":"com.apple.sleep.sleep-mode","policy":"hold"}],"apps":[{"id":"com.example.blocked","name":"Blocked App","allowed":false,"count":0,"last":0}],"domains":[{"domain":"ads.example.com","allowed":false,"count":0,"last":0}]}' > "$tmp/settings/settings.json"
 export RELAY_DB="$db" RELAY_DIR="$tmp/settings" RELAY_FOCUS_DIR="$tmp/focus"
-RELAY_CODE=$code LINK_STORE="$tmp/relay.keys" ZINC_REALTIME=1 "$Z" run ../examples/notify-relay > "$tmp/relay.log" 2>&1 & rpid=$!
+RELAY_CODE=$code LINK_STORE="$tmp/relay.keys" ZINC_REALTIME=1 "$Z" run examples/notify-relay > "$tmp/relay.log" 2>&1 & rpid=$!
 until_grep "^ready pid" "$tmp/relay.log" 600 || { echo "the relay did not start: $(tail -20 "$tmp/relay.log")"; exit 1; }
 app=$(sed -n 's/^ready pid \([0-9]*\).*/\1/p' "$tmp/relay.log")
 until_grep "^tablet connected" "$tmp/relay.log" || { echo "the relay did not pair and connect: $(tail -20 "$tmp/relay.log")"; exit 1; }
@@ -151,7 +151,7 @@ for k in '"id":"com.apple.mail","name":"Mail","allowed":true,"count":8' '"id":"c
 done
 
 # the settings window, headless: the apps seen, their counts and the blocked one
-RELAY_OPEN=Applications ZINC_HEADLESS=1 ZINC_FRAMES=4 ZINC_SCENE_DUMP="$tmp/scene.bin" timeout 120 "$Z" run ../examples/notify-relay > "$tmp/window.log" 2>&1
+RELAY_OPEN=Applications ZINC_HEADLESS=1 ZINC_FRAMES=4 ZINC_SCENE_DUMP="$tmp/scene.bin" timeout 120 "$Z" run examples/notify-relay > "$tmp/window.log" 2>&1
 [ -f "$tmp/scene.bin" ] || bad "the settings window drew nothing: $(tail -5 "$tmp/window.log")"
 [ -f "$tmp/scene.bin" ] && python3 tools/scene-texts "$tmp/scene.bin" > "$tmp/texts.txt" 2>&1
 for t in "^Mail$" "Blocked App" "^Bloquée$" "com.google.Chrome · 4 notifications" "com.example.blocked · 1 notification ·" "^Relayée$"; do
@@ -159,7 +159,7 @@ for t in "^Mail$" "Blocked App" "^Bloquée$" "com.google.Chrome · 4 notificatio
 done
 
 # --inspect: the records' shape, never a value
-timeout 120 "$Z" run ../examples/notify-relay -- --inspect 3 > "$tmp/inspect.log" 2>&1
+timeout 120 "$Z" run examples/notify-relay -- --inspect 3 > "$tmp/inspect.log" 2>&1
 grep -q "^record of com.apple.MobileSMS presented 1 style 1" "$tmp/inspect.log" && grep -q "^  /req/titl string 17" "$tmp/inspect.log" || bad "--inspect: $(tail -5 "$tmp/inspect.log")"
 grep -q "Queued\|After focus\|sent when" "$tmp/inspect.log" && bad "--inspect printed a value"
 exit $fail

@@ -81,7 +81,7 @@ Lines for later.md, "Engine and tools":
 - ZN-731: a film in a turned card still costs 38 ms of CPU a picture on a Pi 3; design C of video-zero-copy.md (an EGLImage in display-gl) or a card kept upright while its film plays.
 - ZN-731: display-gl's KMS backend takes HalDisplay.layers as well (it owns the primary plane; the film under its frame needs an alpha frame buffer).
 Lines for later.md, "Cross-platform pass":
-- ZN-731: hardware layers on a Pi 4 and 5 (the newer HVS, SAND formats with modifiers, HEVC through v4l2request): the driver passes format and modifier through, never run there; next/tools/kmsvid.cpp --planes lists what the planes take.
+- ZN-731: hardware layers on a Pi 4 and 5 (the newer HVS, SAND formats with modifiers, HEVC through v4l2request): the driver passes format and modifier through, never run there; tools/kmsvid.cpp --planes lists what the planes take.
 - ZN-731: on the Pi 3B+ with someone at the screen: the colours of a film on the plane beside the software path, the edge of the hole, a card dragged and zoomed with its film playing, the moment the planes come and go; two films at once, a 1080p clip, an hour of play.
 - ZN-731: Linux desktop: VA-API surfaces exported as dmabufs into the same HalPicture; under a compositor a subsurface instead of a KMS plane.
 - ZN-731: display-fbdev's pacing on screens where the vsync wait really waits (HDMI on a Pi) and on SPI panels; its build for rpi1 (musl) with and without the kernel's DRM headers.

@@ -7,14 +7,14 @@ Owner policy applied throughout: hardware is validated by simulators and emulato
 
 ## 0. Findings in ten lines
 
-1. The new engine has **no native-module story**: `requireNative` throws (`next/src/frontend/modules.cpp:338`), plugins with `x.next.ts` or `x.sim.ts` run that instead. Only two plugins have a `.next.ts` (lottie, video, both metadata-only stubs that draw nothing).
-2. Every `Rt::Host*` function is a row of the central X-macro `next/include/zn/runtime.h`. That is right for the built-ins (gfx, sys, fs, storage, assets, os, process: stable ids, hot path) and wrong for plugins (a plugin must not edit a core header). Plugins need **name-based late binding**.
-3. The prototype already has the right shared C ABI: `runtime/include/zinc_abi.h` v4 (`ZincModule`, `ZincExport`, `ZincValue`, resources, callbacks), tested across the VM and QuickJS. Decision: **evolve it into `next/include/zn/native.h`**, do not invent a new one (section 4).
+1. The new engine has **no native-module story**: `requireNative` throws (`src/frontend/modules.cpp:338`), plugins with `x.next.ts` or `x.sim.ts` run that instead. Only two plugins have a `.next.ts` (lottie, video, both metadata-only stubs that draw nothing).
+2. Every `Rt::Host*` function is a row of the central X-macro `include/zn/runtime.h`. That is right for the built-ins (gfx, sys, fs, storage, assets, os, process: stable ids, hot path) and wrong for plugins (a plugin must not edit a core header). Plugins need **name-based late binding**.
+3. The prototype already has the right shared C ABI: `runtime/include/zinc_abi.h` v4 (`ZincModule`, `ZincExport`, `ZincValue`, resources, callbacks), tested across the VM and QuickJS. Decision: **evolve it into `include/zn/native.h`**, do not invent a new one (section 4).
 4. Plugin native C++ does not talk to the engine. It implements `struct NativeX` from a generated `zinc_native_x.h` using the old runtime's `zrt::String / Array / Fn / Promise / Poller`, and `runtime/zrt_raster.h`. The new host library already links the old `zrt`, so a **marshalling adapter** lets all 33 plugins' native sources link unchanged.
 5. The header generator is TypeScript (`compiler/src/native.ts`). A product without Node needs a C++ generator in `next/` (backlog ZN-060).
 6. The display plugins are already `HalDisplay` drivers, and `runtime/gfx.cpp` already calls `hal_display`. Linking a display plugin into the new host library works with no engine change except the driver selection (ZN-070).
 7. Finding about the old emulators: on macOS `display-ssd1306` makes `dev_write` a no-op and paints from its own page buffer, so the **I2C command stream is never checked**; the ESP32 QEMU runs only print frame checksums over UART. Chip-level models (bus shim plus SSD1306, ST7789, WS2812, IS31FL3730, QMI8658 models) would validate the real driver code (section 5).
-8. Fixed-point is the biggest hole in the targets: `fx12`/`fx16` exist in the checker enum (`next/src/frontend/check.h:21`) but the IR rejects them (`next/RESUME.md:74`), so **PS1 is blocked** by an IR lowering pass. f32 has opcodes; there is no `--profile` switch. The old tree has 44 `.fx12.out` and 46 `.f32.out` goldens in `tests/conformance` to reuse.
+8. Fixed-point is the biggest hole in the targets: `fx12`/`fx16` exist in the checker enum (`src/frontend/check.h:21`) but the IR rejects them (`RESUME.md:74`), so **PS1 is blocked** by an IR lowering pass. f32 has opcodes; there is no `--profile` switch. The old tree has 44 `.fx12.out` and 46 `.f32.out` goldens in `tests/conformance` to reuse.
 9. The "sim oracle on Node" becomes: **frozen goldens (data) plus the interpreter as the reference engine plus a runner abstraction** (section 6.3). QuickJS is not an oracle for numerics (JS numbers do not wrap i32); it stays a second engine and the `zinc:script` backend.
 10. Cross-target execution without Docker is only solved for ESP32 (pinned Espressif QEMU). Pi and reMarkable binaries need a pinned `qemu-user` on Linux and a decision for macOS (section 6.2). PS1 on the new engine needs a freestanding runtime (the engine's `src/rt` uses `std::vector`, `unordered_map`, mimalloc), PS2 needs the ps2dev toolchain and a BIOS the owner must supply.
 
@@ -43,7 +43,7 @@ LOC = lines of the native C++ I counted (`wc -l`); "spec fns" = functions in the
 | `process` (`zinc:process`) | spawn with args, cwd, env; streamed stdout/stderr, stdin, kill, exit code | `process.host/.rpi1.cpp`, 203 LOC, 7 fns | posix_spawn | macos linux rpi1 (capability `process`) | `process.sim.ts` (35) | event-loop poller |
 | `remarkable` (`zinc:remarkable`) | toolbar: local clock, battery, app-owned exit | `status.host/.rmpp.cpp`, 8 + 33 LOC, 3 fns | none | rmpp macos linux | `status.sim.ts` (5) | reads `/sys` battery on device |
 | `remote-view` (`zinc:remote`) | viewer for `display-remote` apps: live screen as a runtime image, input forwarding, LAN discovery | `remote.host/.rpi1.cpp`, 261 LOC, 17 fns | none (own RLE/damage protocol `display-remote/remote_proto.h`) | macos linux rpi1 | `remote.sim.ts` (20) | sockets, runtime image |
-| `script` (`zinc:script`) | sandboxed JavaScript contexts with typed host functions, time and memory limits, ES modules, promises, values as `Dyn` | `quickjs.host/.rpi1/.rmpp.cpp`, 667 LOC, 23 fns | **QuickJS-ng** (3 MB vendored amalgamation; `next/third_party/quickjs-ng` already holds 0.17.0) | macos linux rpi1 rmpp; `requires heap>=4M` | `quickjs.sim.ts` (325, node:vm) | `Dyn` values across the boundary, callbacks, promises |
+| `script` (`zinc:script`) | sandboxed JavaScript contexts with typed host functions, time and memory limits, ES modules, promises, values as `Dyn` | `quickjs.host/.rpi1/.rmpp.cpp`, 667 LOC, 23 fns | **QuickJS-ng** (3 MB vendored amalgamation; `third_party/quickjs-ng` already holds 0.17.0) | macos linux rpi1 rmpp; `requires heap>=4M` | `quickjs.sim.ts` (325, node:vm) | `Dyn` values across the boundary, callbacks, promises |
 | `socket` (`zinc:socket`) | TCP, Unix, UDP, DNS, WebSocket client and server, non-blocking on the event loop | `socket.host/.rpi1/.rmpp.cpp`, 364 LOC, 16 fns (`onEvent` callback) | BSD sockets, `getaddrinfo`; own WebSocket | macos linux rpi1 rmpp (`net`, `process`) | `socket.sim.ts` (110) | poller, callbacks |
 | `sqlite` (`zinc:sqlite`) | `Database`, `Statement.run/get/all/values`, parameters, transactions, BLOB | `sqlite.host/.rpi1/.rmpp.cpp`, 120 LOC, 26 fns (all `i32` handles) | **SQLite amalgamation 3.53.4** (public domain, 10 MB source, compiled as C with 5 `-D` options) | macos linux rpi1 rmpp (`fs`, `heap>=4M`) | `sqlite.sim.ts` (113, node:sqlite) | none (the model plugin) |
 | `svg` (`zinc:svg`) | runtime SVG: paths, shapes, transforms, gradients, CSS classes on the vector rasterizer | `svg.host/.rpi1/.wasm.cpp`, 679 LOC, 7 fns | none (own) | macos linux rpi1 wasm | none | raster |
@@ -87,9 +87,9 @@ All implement `HalDisplay {init, present, poll, shutdown, owns_input, host_windo
 
 | Library | Licence | Used by | In next today | Proposal |
 |---|---|---|---|---|
-| SQLite amalgamation 3.53.4 | public domain | sqlite | no | vendor the same file under `next/third_party/sqlite/`; build as C, `SQLITE_THREADSAFE=0`, `SQLITE_OMIT_LOAD_EXTENSION` etc. as in plugin.json |
+| SQLite amalgamation 3.53.4 | public domain | sqlite | no | vendor the same file under `third_party/sqlite/`; build as C, `SQLITE_THREADSAFE=0`, `SQLITE_OMIT_LOAD_EXTENSION` etc. as in plugin.json |
 | wasm3 0.5.0 | MIT | wasm | no | keep for now. wasm3 is in low maintenance (unverified: check the repository state); spike **WAMR** (Bytecode Alliance, interpreter plus AOT) as the replacement behind the same spec |
-| QuickJS-ng 0.17.0 | MIT | script | **yes**, `next/third_party/quickjs-ng`, used by `src/qjs` | one copy only: rebase the `script` plugin on `src/qjs` (ZN-066) |
+| QuickJS-ng 0.17.0 | MIT | script | **yes**, `third_party/quickjs-ng`, used by `src/qjs` | one copy only: rebase the `script` plugin on `src/qjs` (ZN-066) |
 | stb_image v2.30 | MIT / PD | three | **yes** (`third_party/stb`, PNG only) | add JPEG (`STBI_ONLY_PNG,JPEG` as in the prototype) |
 | FFmpeg (avformat, avcodec, avutil, swscale) | LGPL | video | no | system library through `pkg-config`, dynamic link (LGPL); never vendored; Mac VideoToolbox, Pi V4L2 M2M as in the plugin |
 | libgphoto2, libjpeg-turbo | LGPL, BSD | gphoto2 | no | system libraries, dynamic; fake camera (`fake` option) stays the sim |
@@ -114,7 +114,7 @@ Own code that a proven library could replace (decide per item; the old pixel gol
 
 Schema (from `docs/plugins.md` and the 33 files): `name`, `kind` (`module`|`display`), `module`, `entry`, `description`, `options` (defaults; C++ sees them as `ZP_<PLUGIN>_<KEY>` plus `ZP_<PLUGIN>=1`), `modules` (extra import specifiers), `requires` (capability expressions), `targets.<id>` with `sources`, `pkg`, `frameworks`, `libs`, `linkFlags`, `defines`, `flags`, `packages` (Alpine/apt packages for the SDK image), `idf`, `idfComponents`, `nodeFlags` (sim). Plugin search: `<zinc>/plugins/*`, `<project>/plugins/*`, `zinc.json` `pluginDirs`. Unlisted target = error Z5003 (sim always allowed); capability mismatch = Z5005.
 
-What the new engine reads: `next/src/frontend/modules.cpp:380-400` finds `module` and `entry` with a `std::string::find` hack (no JSON parser, no targets, no options, no `requires`). Everything else is unread.
+What the new engine reads: `src/frontend/modules.cpp:380-400` finds `module` and `entry` with a `std::string::find` hack (no JSON parser, no targets, no options, no `requires`). Everything else is unread.
 
 Proposed v2 (all new keys optional, so the 33 existing files stay valid):
 
@@ -162,11 +162,11 @@ R8 Works where there is no `dlopen` (static rmpp, ESP32, wasm).
 | libffi (`ffi_cif`, `ffi_call`) | call any C function at run time from a signature | the right tool for `zinc:ffi` only (arbitrary C), also as a universal thunk if generated thunks are not wanted | for plugins, generated typed thunks are faster and need no runtime cif |
 | Existing `zinc_abi.h` v4 (prototype) | `ZincModule{abi,size,name,exports,dispose}`, `ZincExport{name,params[],result,invoke,ctx}`, `ZincValue` (16 bytes), resources with generational handles, scalar callbacks, `zinc_module_open(version, host, out, error)` for shared libraries; tested on VM, JIT and QuickJS | **base of the design**: same concepts, already implemented once, borrowed-argument and module-owned-result rules already stated | arrays of `ZincType` instead of a signature string (verbose); no async completion; no thread-safe post; records only as snapshots |
 
-**Decision:** a **WAMR/wasm3-style typed export table with the signature letters of `runtime.h`**, grown out of `zinc_abi.h` v4, with Node-API's rules for versioning, finalizers and thread-safe posting, and WIT's own/borrow vocabulary for resources. Reasons: (a) the signature letters (`s i u b d n B D ...`) already exist in `next/include/zn/runtime.h` and the marshalling code that decodes them already exists twice (`hostRt` in `src/rt/rtcalls.cpp:545`, the `__host_*` binder in `src/qjs/qjs.cpp:73`): one more consumer is cheap; (b) `.spec.ts` is already the IDL, so no new language; (c) a shared C table works the same for static link, `dlopen` and firmware (R8); (d) nothing in it names an engine, so the interpreter, AOT and QuickJS share one marshaller; (e) libffi stays confined to `zinc:ffi`.
+**Decision:** a **WAMR/wasm3-style typed export table with the signature letters of `runtime.h`**, grown out of `zinc_abi.h` v4, with Node-API's rules for versioning, finalizers and thread-safe posting, and WIT's own/borrow vocabulary for resources. Reasons: (a) the signature letters (`s i u b d n B D ...`) already exist in `include/zn/runtime.h` and the marshalling code that decodes them already exists twice (`hostRt` in `src/rt/rtcalls.cpp:545`, the `__host_*` binder in `src/qjs/qjs.cpp:73`): one more consumer is cheap; (b) `.spec.ts` is already the IDL, so no new language; (c) a shared C table works the same for static link, `dlopen` and firmware (R8); (d) nothing in it names an engine, so the interpreter, AOT and QuickJS share one marshaller; (e) libffi stays confined to `zinc:ffi`.
 
 ### 4.3 Binding: how `requireNative<Spec>('X')` resolves
 
-Compile time (frontend, `next/src/frontend/modules.cpp` plus a new `native.cpp`):
+Compile time (frontend, `src/frontend/modules.cpp` plus a new `native.cpp`):
 1. `requireNative<T>('Name')` is recognised as an intrinsic (today it is the stub at `modules.cpp:338`). `T` must be an interface extending `NativeModule`.
 2. Each member is checked against the allowed signature set and encoded as a signature string. Unknown type = diagnostic `Z5010`.
 3. For every member the program actually calls, the module gets an entry in a new ZBC section `natives`: `{ module "Sqlite", export "open", sig "si>i", abi 1 }`.
@@ -177,7 +177,7 @@ Load time (interpreter, AOT program start, device core):
 2. Registry sources, in order: (a) modules registered at link time by `zn_register_module(&mod)` (explicit call from the generated `main`, **not** static constructors, so firmware and wasm are safe); (b) shared libraries named by `--native-library` or found by plugin discovery, each exporting `zn_module_open` (the `zinc_abi.h` v4 entry); (c) none.
 3. If nothing is registered, the loader keeps the **sim fallback chain** that exists today and extends it: native real > `x.next.ts` > `x.sim.ts` (only if it parses in the subset) > error `Z5011` at load ("native module `X` is not linked in this build; plugin `sqlite` has no `.next.ts`"), a diagnostic at load instead of the runtime `throw` of today. A flag `--native=real|sim|auto` (default `auto`) forces one side; golden tests use `sim` or `real` explicitly depending on the plugin's `deterministic` key.
 
-### 4.4 The wire contract (`next/include/zn/native.h`, C only)
+### 4.4 The wire contract (`include/zn/native.h`, C only)
 
 Sketch; names final at implementation.
 
@@ -229,7 +229,7 @@ Signature letters: the existing set (`s i u b d n`, `B` u8[] view, `D` f64[] vie
 
 ### 4.7 Compatibility layer so plugin sources do not change
 
-`next/src/native/zrt_compat/` (new). It provides the generated `zinc_native_<x>.h` with the same shape as today:
+`src/native/zrt_compat/` (new). It provides the generated `zinc_native_<x>.h` with the same shape as today:
 
 ```cpp
 struct NativeSqlite : zrt::Object { virtual int32_t open(zrt::String path, int32_t flags) = 0; ... };
@@ -251,7 +251,7 @@ Two tiers result: **Tier A** (compat, links old `zrt`: all 33 existing plugins, 
 | **PS1 / PS2** | static link | only Tier B or freestanding Tier A (3d, canvas2d, lottie on ps2; pixelfont, gestures) | see 6.1 |
 | **Host library of the engine** | `libzn_host_gfx.a` stays the home of gfx, sys, fs, storage, assets, os, process | unchanged | later these seven built-ins can be registered as a `ZnModule` too (one mechanism) without touching ZBC: the `Rt::Host*` rows stay as the fast built-in path |
 
-Compile flags for plugin C++: the runtime's own (`-std=c++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -O2`, `next/CMakeLists.txt:85`), plus `-DZP_<PLUGIN>_<KEY>=<value>` for options and `defines`/`flags` of the target entry.
+Compile flags for plugin C++: the runtime's own (`-std=c++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -O2`, `CMakeLists.txt:85`), plus `-DZP_<PLUGIN>_<KEY>=<value>` for options and `defines`/`flags` of the target entry.
 
 ### 4.9 Security note
 
@@ -260,13 +260,13 @@ A native module is trusted code (`engines.md` says the same); the dynamic loader
 ### 4.10 File layout
 
 ```
-next/include/zn/native.h                  C ABI (ZnModule, ZnExport, ZnVal, ZnHostApi)
-next/src/rt/native.cpp                    registry, CallNative, handles, promise and post queues
-next/src/frontend/native.cpp              requireNative intrinsic, spec validation, sig encoding, natives section
-next/src/native/gen/                      spec header and thunk generator (replaces compiler/src/native.ts)
-next/src/native/zrt_compat/               zrt::String/Array/Fn/Promise/Poller adapters (Tier A)
-next/src/plugins/                         plugin.json v2 reader, discovery, build cache, dlopen loader
-next/tests/t0/native_demo/                fixture module in both tiers
+include/zn/native.h                  C ABI (ZnModule, ZnExport, ZnVal, ZnHostApi)
+src/rt/native.cpp                    registry, CallNative, handles, promise and post queues
+src/frontend/native.cpp              requireNative intrinsic, spec validation, sig encoding, natives section
+src/native/gen/                      spec header and thunk generator (replaces compiler/src/native.ts)
+src/native/zrt_compat/               zrt::String/Array/Fn/Promise/Poller adapters (Tier A)
+src/plugins/                         plugin.json v2 reader, discovery, build cache, dlopen loader
+tests/t0/native_demo/                fixture module in both tiers
 ```
 
 ---
@@ -286,12 +286,12 @@ Per-device finding: the macOS branch of `ssd1306.cpp` replaces the bus (`dev_wri
 
 **Level 1 (no source change, first):** link the existing drivers, keep the emulator windows, add a headless capture contract so the sims become testable: `ZINC_SHOT=file.bmp` exists for the SDL emulators (`emu_sdl.h`); add `ZINC_FRAMEHASH=1` (print `frame <n> <fnv32>` per presented frame) to every driver and to the null HAL, and store golden hashes next to the example (`examples/boards/*`). This is the same signal the QEMU runs already print, so the **same golden validates host emulator and ESP32 QEMU**.
 
-**Level 2 (chip models, the real simulator):** a small bus shim and chip models in `next/src/sim/`:
+**Level 2 (chip models, the real simulator):** a small bus shim and chip models in `src/sim/`:
 
 ```
-next/include/zn/hw.h        zn_i2c_open/write/read, zn_spi_xfer, zn_gpio_*, zn_rmt_write, zn_pwm_*  (C)
+include/zn/hw.h        zn_i2c_open/write/read, zn_spi_xfer, zn_gpio_*, zn_rmt_write, zn_pwm_*  (C)
   backends: esp32 (IDF drivers), linux (i2c-dev, spidev, gpiod), sim (models)
-next/src/sim/chips/         ssd1306.cpp  st7789.cpp (+ ILI9341 flavour)  ws2812.cpp  is31fl3730.cpp  qmi8658.cpp  cst820.cpp  eink_panel.cpp
+src/sim/chips/         ssd1306.cpp  st7789.cpp (+ ILI9341 flavour)  ws2812.cpp  is31fl3730.cpp  qmi8658.cpp  cst820.cpp  eink_panel.cpp
 ```
 
 Each driver's `#if ESP_PLATFORM / __APPLE__ / __linux__` branch is replaced by calls into `hw.h` over time (a mechanical refactor per driver, 20 to 80 lines each; the drivers' logic, dithering, damage bands, gamma, serpentine mapping stays). The `sim` backend decodes the byte stream (SSD1306 GDDRAM and page addressing, ST7789 `CASET/RASET/RAMWR` and RGB565, WS2812 bit timing or the SPI-encoded bits, IS31FL3730 matrix registers, QMI8658 register map and who-am-i `0x05`, CST820 touch frames) into a pixel buffer shown in the SDL window or captured to PNG, and takes input from keys, mouse and a script. The QMI8658 model feeds the accelerometer registers from the keyboard or mouse (what `index.ts` does today in Zinc) so the real I2C read path runs. Chip models are also unit-testable alone (feed a captured byte stream, compare the bitmap).
@@ -344,7 +344,7 @@ Profile values come from `compiler/src/cli.ts:34-45` (`PROFILES`) and `targets/c
 | **null** | host | f64 | | any | | `targets/null/hal_null.cpp`: virtual clock, fixed step | **done**: it is the headless HAL of the host library | none |
 | **common** | host | | | | | `targets/common/hal_posix.cpp` | done (linked by the host library) | none |
 
-Numeric profiles (single source to create: `next/include/zn/profile.h` plus a table `targets/profiles.json` merged with `capabilities.json`):
+Numeric profiles (single source to create: `include/zn/profile.h` plus a table `targets/profiles.json` merged with `capabilities.json`):
 
 | Profile | `number` is | Used by | In next |
 |---|---|---|---|
@@ -373,10 +373,10 @@ Capabilities and requirements (`targets/capabilities.json`, `docs/targets/capabi
 
 The prototype oracle is `sim/*.mjs` plus the emitted JS run by Node, compared byte for byte with each target. In the new engine (design §5.5: the interpreter replaces the Node sim) four roles replace it:
 
-1. **Frozen goldens are the data oracle.** `next/corpus/conformance/*.out` (18 pure-language programs, the M3 set) and `tests/conformance/*.out` (61 programs, with 44 `.fx12.out`, 46 `.f32.out`, `.1280x720.out`, `.1620x2160.out` variants produced by the old toolchain) are checked in; no Node needed. Add a manifest of which golden applies to which profile and size.
+1. **Frozen goldens are the data oracle.** `corpus/conformance/*.out` (18 pure-language programs, the M3 set) and `tests/conformance/*.out` (61 programs, with 44 `.fx12.out`, 46 `.f32.out`, `.1280x720.out`, `.1620x2160.out` variants produced by the old toolchain) are checked in; no Node needed. Add a manifest of which golden applies to which profile and size.
 2. **The interpreter is the reference engine.** `zinc test` runs a program on the interpreter under the target's **profile** (numeric kind, heap budget, screen size, typing) and compares with the golden. AOT, native hosts, QEMU, PCSX-Redux and wasm runs compare with the **interpreter's output** (the diff matrix already does interpreter vs AOT: `tools/diff-matrix`, `tests/t2/diff.sh`, 67 programs).
 3. **QuickJS is not an oracle for typed numerics**: JS numbers do not wrap `i32` and have no f32 or fixed point (`zinc-next-quickjs.md`: `tour` and `features` differ). Its roles: the second engine, the backend of `zinc:script`, a conformance run on the 13 programs without typed features (`tests/t1/quickjs.sh`), and a test262 subset for Dyn (open item 4 of `zinc-next-open-questions.md`).
-4. **Node and tsc stay as an optional one-way checker oracle** (`next/tools/oracle`: everything we accept, tsc accepts), never required to run tests (tests exit 77 and print SKIP without it).
+4. **Node and tsc stay as an optional one-way checker oracle** (`tools/oracle`: everything we accept, tsc accepts), never required to run tests (tests exit 77 and print SKIP without it).
 
 `zinc test` architecture (one task, ZN-080): a `Runner` interface with `build(program, target, profile) -> artifact`, `run(artifact, env, frames) -> {stdout, exit, frames}` and `requires`. Implementations: `HostInterp`, `HostAot`, `Quickjs`, `Esp32Qemu` (device protocol over the QEMU serial TCP socket), `DeviceSim`, `QemuUser(arm|aarch64)`, `Wasmtime`, `PcsxRedux`, `Pcsx2`. A program is skipped on a profile by `// zinc-test: requires ...` and `capabilities.json` (printing the reason, as `docs/targets/capabilities.md` describes). Output of the runner stays the `PASS/FAIL/SKIP` one-liner format of `tests/run`.
 
@@ -475,4 +475,4 @@ Suggested order: 058, 059, 060, 061, 062 then 063; in parallel 072 to 075; then 
 
 ## 9. Sources read
 
-`next/ARCHITECTURE.md`, `next/RESUME.md`, `next/include/zn/{runtime,host,hostsys,devproto,value,limits}.h`, `next/src/host/*`, `next/src/rt/rt.h`, `next/src/rt/rtcalls.cpp`, `next/src/frontend/modules.cpp`, `next/src/qjs/qjs.cpp`, `next/CMakeLists.txt`, `next/third_party/README.md`, `docs/reports/zinc-next-{design,hostmodules,esp32,hosts,hardware,decisions,open-questions,quickjs,m3-conformance,toolchain,packaging}.md`, `docs/{plugins,engines,boards,precompiled-core}.md`, `docs/reports/{STATUS,raspberry-pi}.md`, `docs/targets/{capabilities,playstation,remarkable-paper-pro}.md`, `docs/security/third-party.md`, `docs/decisions/0010-native-modules.md`, `runtime/include/{hal,zinc_abi}.h`, `runtime/mod/native.h`, `targets/capabilities.json`, `compiler/src/cli.ts` (PROFILES), all 33 `plugins/*/plugin.json`, the 22 `native/*.spec.ts` (sampled: sqlite, script, video, gphoto2, socket, ffi, mapping, devtools, lottie), and the native sources of ssd1306, st7789, rmpp emulator, ws2812 emulator, canvas2d, device, imu.
+`ARCHITECTURE.md`, `RESUME.md`, `include/zn/{runtime,host,hostsys,devproto,value,limits}.h`, `src/host/*`, `src/rt/rt.h`, `src/rt/rtcalls.cpp`, `src/frontend/modules.cpp`, `src/qjs/qjs.cpp`, `CMakeLists.txt`, `third_party/README.md`, `docs/reports/zinc-next-{design,hostmodules,esp32,hosts,hardware,decisions,open-questions,quickjs,m3-conformance,toolchain,packaging}.md`, `docs/{plugins,engines,boards,precompiled-core}.md`, `docs/reports/{STATUS,raspberry-pi}.md`, `docs/targets/{capabilities,playstation,remarkable-paper-pro}.md`, `docs/security/third-party.md`, `docs/decisions/0010-native-modules.md`, `runtime/include/{hal,zinc_abi}.h`, `runtime/mod/native.h`, `targets/capabilities.json`, `compiler/src/cli.ts` (PROFILES), all 33 `plugins/*/plugin.json`, the 22 `native/*.spec.ts` (sampled: sqlite, script, video, gphoto2, socket, ffi, mapping, devtools, lottie), and the native sources of ssd1306, st7789, rmpp emulator, ws2812 emulator, canvas2d, device, imu.

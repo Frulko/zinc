@@ -15,7 +15,7 @@ cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 jobs=${ZN_BUILD_JOBS:-$cores}
 load=${ZN_BUILD_LOAD:-$cores}
 if command -v ccache >/dev/null 2>&1; then
-  export CCACHE_BASEDIR="$(dirname "$next")" CCACHE_NOHASHDIR=1
+  export CCACHE_BASEDIR="$next" CCACHE_NOHASHDIR=1
   # no precompiled header with the cache: ccache cannot store a file compiled through one (SDL3's 190 files), and a hit beats a faster miss
   launcher="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"
 fi

@@ -2,8 +2,8 @@
 
 2026-10-16. The owner asked for (1) a migration tool, so that every language or API change ships with its codemod, (2) an analysis tool
 that stops a defect like `class` in JSX before a compile and, per platform, stops a program from using what cannot work or weighs too
-much there, and (3) existing tools first. This page holds the survey, the scores (`next/RULES.md` §4) and what was built
-(`next/src/lint/`, user guide: [docs/guide/10-lint-migrate.md](../guide/10-lint-migrate.md)).
+much there, and (3) existing tools first. This page holds the survey, the scores (`RULES.md` §4) and what was built
+(`src/lint/`, user guide: [docs/guide/10-lint-migrate.md](../guide/10-lint-migrate.md)).
 
 ## The constraints that decide
 
@@ -12,7 +12,7 @@ much there, and (3) existing tools first. This page holds the survey, the scores
 - The input is the Zinc subset (strict, typed TSX), and the questions are Zinc's: `targets/capabilities.json`, the profile table,
   `zinc.json` `requires` / `targets` / `ui` / `assets`, `plugin.json` `requires` / `targets`, `@requires` comments, the UI tiers T0..T4.
   No outside tool knows any of these.
-- A tool we pin must be a single Rust or C binary, downloaded by `zinc toolchain` with its SHA-256 like zig (`next/src/tc/tc.cpp`), with a
+- A tool we pin must be a single Rust or C binary, downloaded by `zinc toolchain` with its SHA-256 like zig (`src/tc/tc.cpp`), with a
   licence that allows it (MIT, BSD, Apache-2.0, zlib, ISC). Code linked into `zinc` counts against the archive budget (< 40 MB, ~28 now).
 
 ## Survey (facts checked on GitHub, 2026-10-16)
@@ -75,7 +75,7 @@ outside tool has. The cost is small: about 300 lines for the codemods, 450 for t
 What would make us revisit: users asking for their own rewrite rules (pin ast-grep, rules in the project), or a request for React-style
 hygiene rules (pin oxlint behind `--js`).
 
-## What exists (`next/src/lint/`, one header `lint.h`)
+## What exists (`src/lint/`, one header `lint.h`)
 
 - `zinc migrate [--list] [--dry-run|--apply] [<codemod>...] [paths]`: the codemod table (`id`, `since`, the code it fixes, `scan`).
   `jsx-classname` (Z0006: the attribute, and the prop of components: `class?:` keys, `props.class`, `{ class: c }`) and

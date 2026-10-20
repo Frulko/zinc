@@ -10,7 +10,7 @@ fail=0
 commit() { (cd "$1" && git init -q && git add -A && git -c user.name=t -c user.email=t@t commit -qm one && git rev-parse HEAD) || exit 2; }
 mkdir -p "$tmp/greet" && printf '{ "name": "greet", "kind": "module", "module": "zinc:greet", "entry": "index.ts", "version": "1.0" }\n' > "$tmp/greet/plugin.json" && echo "export const g = 1;" > "$tmp/greet/index.ts"
 commit "$tmp/greet" > /dev/null
-cp -R ../templates/cli "$tmp/tpl"
+cp -R templates/cli "$tmp/tpl"
 python3 -c "import json; p='$tmp/tpl/template.json'; t=json.load(open(p)); t['name']='hello'; t['description']='hello with greet'; t['plugins']=['file://$tmp/greet']; json.dump(t, open(p,'w'))"
 c=$(commit "$tmp/tpl")
 python3 - "$PWD/tools/index-repo" "$tmp" "$c" <<'PY' || exit 1

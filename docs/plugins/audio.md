@@ -9,7 +9,7 @@ This plugin plays sound effects and music: a game rings a coin over its music, a
 - **No output.** A headless or deterministic run (`ZINC_HEADLESS`, `ZINC_DETERMINISTIC`), `ZINC_AUDIO=null`, or a
   machine without a playback device gets the `null` backend: every call works and nothing is heard. Sound never stops a
   program.
-- **Test.** `next/tests/t1/audio.sh` (`next/tests/golden/audio/`).
+- **Test.** `tests/t1/audio.sh` (`tests/golden/audio/`).
 
 | target | status | output |
 |---|---|---|
@@ -90,7 +90,7 @@ run `ZINC_AUDIO_LOG=1` prints each sound started and ended and when the mix held
   `stop()`, and only `mix()` moves it forward. That is what makes a headless run repeatable, and how a test checks what
   a game plays: `coin.play(); mix(480)` returns the first 10 ms of it.
 - **Deterministic runs** use the stand-in, which decodes and mixes nothing: `duration` is 0 for a loaded file and
-  `mix()` returns silence. `ZINC_NATIVE=real` keeps the native code (as `next/tests/t1/audio.sh` does).
+  `mix()` returns silence. `ZINC_NATIVE=real` keeps the native code (as `tests/t1/audio.sh` does).
 - **Packed and fused apps.** A `.zapp` holds no native code: `zinc run app.zapp` builds or fetches the plugin where it
   runs. A fused executable meant for machines without Zinc should be packed with `ZINC_DETERMINISTIC=1` (silent) until
   fused apps carry their plugins; `zinc build` and `zinc export` link the plugin into the program.

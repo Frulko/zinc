@@ -4,7 +4,7 @@
 # types (`type i32 = number`, f32, u8, ...). So the oracle sees i32 as number: it accepts a superset of what our checker
 # accepts, never a subset. Our checker adds the numeric-kind rules on top; those extra rejections are covered by our own
 # fixtures, not by the oracle. Swap the checker with ZN_ORACLE (it receives the file as its last argument).
-root=$(cd "$(dirname "$0")/../.." && pwd)
+root=$(cd "$(dirname "$0")/.." && pwd)
 if [ "$1" = "--available" ]; then  # exit 0 when the reference checker can run here (Node and the repo's node_modules), else 1: the tests that need it skip themselves
   if [ -n "$ZN_ORACLE" ]; then exit 0; fi
   "$root/node_modules/.bin/tsc" --version >/dev/null 2>&1; exit $?

@@ -6,7 +6,7 @@ sibling is [physics3d](physics3d.md); the two read alike.
 
 - **Native.** [Box2D](https://github.com/erincatto/box2d) 3.1.1 (MIT) is compiled into the program from
   `plugins/physics2d/vendor/box2d/` (pin and checksums: `vendor/box2d/PIN`). Only programs that import the module carry
-  it: a program that steps worlds (`next/tests/data/physics2d/drop.ts`) is 1,459,368 bytes, `console.log('hello')` 231,232
+  it: a program that steps worlds (`tests/data/physics2d/drop.ts`) is 1,459,368 bytes, `console.log('hello')` 231,232
   (x86_64 macOS), and the latter is byte for byte the same with or without the plugin in the tree. The first build of the
   plugin compiles the library once (one C file, 8 s for the whole plugin on the development Mac); it then stays in the
   plugin cache, and an edit of the plugin's own code rebuilds in 2.4 s.
@@ -14,7 +14,7 @@ sibling is [physics3d](physics3d.md); the two read alike.
   built with `-ffp-contract=off` as its own build does for its cross-platform determinism. The same program prints the
   same positions on the interpreter, compiled and on QuickJS, run after run. The plugin is `deterministic`, so headless and
   golden runs use the real code.
-- **Test.** `next/tests/t1/physics2d.sh` (`next/tests/data/physics2d/`), benchmark `next/bench/physics2d_pile.ts`.
+- **Test.** `tests/t1/physics2d.sh` (`tests/data/physics2d/`), benchmark `bench/physics2d_pile.ts`.
 
 | target | status |
 |---|---|
@@ -110,7 +110,7 @@ from the positions before and after the step.
 
 A body moves in steps; one that travels more than its own size in a step can jump over a thin wall. Box2D sweeps every fast
 body against static shapes (the world's `continuous`); `continuous: true` on a body (a Box2D bullet) sweeps it against
-moving bodies too. In `next/tests/data/physics2d/shots.ts`, 27 mm balls at 3 to 20 m/s stepped at 240 Hz are fired 2,500
+moving bodies too. In `tests/data/physics2d/shots.ts`, 27 mm balls at 3 to 20 m/s stepped at 240 Hz are fired 2,500
 times each at a 2 mm wall, at a segment, at a flipper swung by its motor at 40 rad/s and at each other, and none goes
 through. Two rules come from that test:
 
@@ -140,12 +140,12 @@ than its bodies (1e30) overpowers the limits and the contacts until the solve bl
 ## On QuickJS
 
 The same module runs on `zinc run --engine quickjs` through the native-module bridge of that engine
-(`next/src/qjs/native_js.cpp`). A program that must run on both imports only values from the module (classes, enums,
+(`src/qjs/native_js.cpp`). A program that must run on both imports only values from the module (classes, enums,
 functions), not its option interfaces.
 
 ## Performance
 
-`next/bench/physics2d_pile.ts`: 2,000 boxes and circles in one heap, none asleep, 60 Hz with 4 sub-steps, the mean time of
+`bench/physics2d_pile.ts`: 2,000 boxes and circles in one heap, none asleep, 60 Hz with 4 sub-steps, the mean time of
 `world.step()` over 600 steps (the native step and the state of the 2,000 bodies read back). Intel Mac (i7-9750H), measured
 once on 2026-10-11 while another session worked (load average 3.8 to 4.0, CPU not throttled):
 
@@ -155,7 +155,7 @@ once on 2026-10-11 while another session worked (load average 3.8 to 4.0, CPU no
 | interpreter | 1.84 | |
 | QuickJS | 2.61 | 3 |
 
-The step runs on one thread. To measure again on a quiet machine: `cd next && build/zinc build bench/physics2d_pile.ts -o /tmp/pile && /tmp/pile; build/zinc run bench/physics2d_pile.ts --engine quickjs`.
+The step runs on one thread. To measure again on a quiet machine: `build/zinc build bench/physics2d_pile.ts -o /tmp/pile && /tmp/pile; build/zinc run bench/physics2d_pile.ts --engine quickjs`.
 
 ## Limits
 

@@ -12,7 +12,7 @@
 #   game, run by the interpreter: nothing is compiled for it.)
 # ZN_UPDATE_GOLDEN=1 rewrites the golden from this run.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/pinball3d; gold=$PWD/tests/golden/pinball3d
+ex=$PWD/examples/pinball3d; gold=$PWD/tests/golden/pinball3d
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 
@@ -41,7 +41,7 @@ game "$tmp/press.log" "$tmp/press.input" 14 0 "$ex" --interp -- --log
 
 # ---- tables put in the folder (a folder, a package) and a package named: all in the list
 cp -R "$ex" "$tmp/game"
-small=$PWD/../examples/pinball3d-editor/assets/new-table/table.json   # a table with no file of its own: a board and a plunger
+small=$PWD/examples/pinball3d-editor/assets/new-table/table.json   # a table with no file of its own: a board and a plunger
 named() {   # folder, name: the small table under that name
   mkdir -p "$1"; sed "s/\"name\": \"[^\"]*\"/\"name\": \"$2\"/" "$small" > "$1/table.json"
 }

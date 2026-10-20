@@ -21,7 +21,7 @@ case $1 in
   pi)
     host=$2; arch=${3:-aarch64-linux}; [ -n "$host" ] || { echo "usage: $0 pi <user@host> [aarch64-linux|armhf-linux]"; exit 2; }
     check build "$ZINC" build --target "$arch" "$tmp/hello.ts" -o "$tmp/hello-pi"
-    check build-fib "$ZINC" build --target "$arch" ../tests/bench/kernels/fib.ts -o "$tmp/fib-pi"
+    check build-fib "$ZINC" build --target "$arch" tests/bench/kernels/fib.ts -o "$tmp/fib-pi"
     check copy scp -q "$tmp/hello-pi" "$tmp/fib-pi" "$host:/tmp/"
     check hello sh -c "[ \"\$(ssh $host /tmp/hello-pi)\" = 'hello from the board
 499500' ]"

@@ -104,7 +104,7 @@ for k in ("yoga", "classic_interp", "classic_aot"):
 if check:
     base = baseline or out
     try:
-        old = json.load(open(base)) if baseline else json.loads(subprocess.run("git show HEAD:next/%s" % out, shell=True, capture_output=True, text=True).stdout)
+        old = json.load(open(base)) if baseline else json.loads(subprocess.run("git show HEAD:%s" % out, shell=True, capture_output=True, text=True).stdout)
     except ValueError:
         sys.exit("bench-layout: no baseline (%s)" % base)
     bad = []

@@ -9,7 +9,7 @@
 #   in (ja): the saved file equals details.json, and the player's loader accepts it with English first
 # The document's own checks of these are in editor/selftest.ts (museum_editor runs it). ZN_UPDATE_GOLDEN=1 rewrites the goldens.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/museum-table; d=$PWD/tests/data/museum_details; g=$PWD/tests/golden/museum-details
+ex=$PWD/examples/museum-table; d=$PWD/tests/data/museum_details; g=$PWD/tests/golden/museum-details
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/p/photos" "$tmp/p/films" "$g"

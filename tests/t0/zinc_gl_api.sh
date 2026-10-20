@@ -8,7 +8,7 @@ python3 - <<'P'
 import re, sys
 js = open('src/gl/webgl_js.cpp').read()
 names = set(re.findall(r'F_\((\w+), \d+\)', js)) | set(re.findall(r'\{"(\w+)", js_\w+, \d+\}', js))
-ts = open('../lib/std/gl.ts').read()
+ts = open('lib/std/gl.ts').read()
 cls = ts[ts.index('export class WebGLRenderingContext'):ts.index('export function createContext')]
 have = set(re.findall(r'^  (\w+)\(', cls, re.M))
 renamed = {'zincPresent': 'present'}

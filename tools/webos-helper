@@ -3,7 +3,7 @@
 # job /etc/event.d/zinc-helper (started at boot, restarted if it dies). It serves what zinc:webos programs ask for from their jail: full
 # speed, the backlight, firewall ports, the time zone (the comment of helper.sh). Idempotent: a newer helper replaces the running one.
 set -e
-here=$(cd "$(dirname "$0")" && pwd -P); repo=$(dirname "$(dirname "$here")")
+here=$(cd "$(dirname "$0")" && pwd -P); repo=$(dirname "$here")
 novacom -l | grep -q . || { echo "webos-helper: no device (novacomd running? developer mode?)" >&2; exit 1; }
 remote() { printf '%s\n' "$1" | novacom run file://bin/sh; }
 remote "mkdir -p /var/zinc"

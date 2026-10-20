@@ -1,2 +1,2 @@
-# sources stay LF whatever the checkout (a Windows editor once turned files of next/src into CRLF)
-next/src/** text eol=lf
+# sources stay LF whatever the checkout (a Windows editor once turned files of src into CRLF)
+src/** text eol=lf

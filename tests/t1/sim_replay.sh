@@ -3,7 +3,7 @@
 # the first diverging event and its time; the trace of 60 s of the s3-matrix dice stays far below 1 MB.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-dice=$(cd ../examples/boards/s3-matrix/dice && pwd)
+dice=$(cd examples/boards/s3-matrix/dice && pwd)
 cat > "$tmp/long.yaml" <<Y
 name: dice 60 s
 project: $dice

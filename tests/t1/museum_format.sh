@@ -4,7 +4,7 @@
 # saves to a form that loads and saves to the same bytes; fifteen broken files are each refused with the message that names the field;
 # a sequence nothing leads to is named, and one that only a point of interest leads to is not.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/museum-table; d=$PWD/tests/data/museum_format
+ex=$PWD/examples/museum-table; d=$PWD/tests/data/museum_format
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 check() { "$ZINC" run "$ex/src/check.ts" -- "$@" 2>&1; }

@@ -11,7 +11,7 @@ synthesizer, and through virtual ports it talks to the music software of the sam
   [`zinc:audio`](audio.md).
 - **No instrument.** A deterministic run, `ZINC_NATIVE=sim`, or a machine that cannot build the native code gets the
   stand-in `native/midi.sim.ts`: the virtual ports work, in memory, and nothing else is ever plugged in.
-- **Test.** `next/tests/t1/midi.sh` (virtual ports; `next/tests/data/midi/`). **Example.** `examples/midi`, a
+- **Test.** `tests/t1/midi.sh` (virtual ports; `tests/data/midi/`). **Example.** `examples/midi`, a
   one-octave keyboard on the keys A to K.
 
 | target | status |

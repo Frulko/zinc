@@ -2,9 +2,9 @@
 """Writes the editor sessions that make the table Twilight Fair (sessions/*.input), with the typist of typist.py.
 
 The sessions are what a person does in the table editor, in order, starting from the table the editor's own test makes
-from nothing (next/tests/golden/pinball3d-editor/new.json: a board, an arch, a plunger lane, two flippers, three
+from nothing (tests/golden/pinball3d-editor/new.json: a board, an arch, a plunger lane, two flippers, three
 bumpers, three targets) in a folder that already holds the table's art/ and sounds/ (tools/twilight_fair_art.py and
-tools/twilight_fair_sounds.py). next/tests/t1/pinball3d_second_table.sh replays them and checks that the result is,
+tools/twilight_fair_sounds.py). tests/t1/pinball3d_second_table.sh replays them and checks that the result is,
 byte for byte, assets/tables/twilight-fair/table.json. No line of that file was typed outside the editor.
 
 usage: sessions.py [folder]     (writes 01-layout.input ... in the folder; without one, in sessions/ beside itself)"""

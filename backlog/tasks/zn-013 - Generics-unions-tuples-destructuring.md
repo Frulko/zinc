@@ -15,12 +15,12 @@ ordinal: 13000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-- Acceptance: the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`next/tools/oracle`).
+- Acceptance: the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`tools/oracle`).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`next/tools/oracle`).
+- [x] #1 the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`tools/oracle`).
 <!-- AC:END -->
 
 ## Implementation Notes

@@ -9,11 +9,11 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ls -d "${ZINC_HOME:-$HOME/.zinc}"/toolchains/zig-* >/dev/null 2>&1 || { echo "export_wasm: no pinned zig downloaded"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-"$Z" export ../examples/hello --target wasm -o "$tmp/hello" >/dev/null || { echo "export_wasm: the hello export failed"; exit 1; }
-"$Z" export ../examples/ui/forms --target wasm -o "$tmp/forms" >/dev/null || { echo "export_wasm: the forms export failed"; exit 1; }
+"$Z" export examples/hello --target wasm -o "$tmp/hello" >/dev/null || { echo "export_wasm: the hello export failed"; exit 1; }
+"$Z" export examples/ui/forms --target wasm -o "$tmp/forms" >/dev/null || { echo "export_wasm: the forms export failed"; exit 1; }
 for f in index.html app.js app.wasm app.zbc worker.mjs wasi.mjs serve.py; do [ -s "$tmp/hello/$f" ] || { echo "export_wasm: $f is missing"; fail=1; }; done
 grep -q '<title>hello</title>' "$tmp/hello/index.html" || { echo "export_wasm: the page is not titled after the app"; fail=1; }
 grep -q 'width="960" height="600"' "$tmp/forms/index.html" || { echo "export_wasm: the canvas does not take zinc.json targets.wasm"; fail=1; }
-python3 tools/wasm-export-test "$CHROME" "$tmp/hello" 0 "$("$Z" run ../examples/hello)" || fail=1   # the same bytes as the native run
+python3 tools/wasm-export-test "$CHROME" "$tmp/hello" 0 "$("$Z" run examples/hello)" || fail=1   # the same bytes as the native run
 python3 tools/wasm-export-test "$CHROME" "$tmp/forms" 30 "exit 0" || fail=1
 exit $fail

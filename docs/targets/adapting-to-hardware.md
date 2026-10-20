@@ -26,7 +26,7 @@ One script, run on the device, read-only:
 
 ## 2. The target row
 
-`next/src/tc/tc.cpp`: a name, zig's target with the C library version, the CPU flags.
+`src/tc/tc.cpp`: a name, zig's target with the C library version, the CPU flags.
 
 - Name the device's own C library version (`arm-linux-gnueabi.2.8`), never a newer one.
 - Match the system's calling convention. With an FPU and soft-float calls (`-mfloat-abi=softfp`) check that the FPU is
@@ -42,7 +42,7 @@ Three kinds of failure, each with its own symptom:
 
 | Symptom | Cause | Where it is handled |
 |---|---|---|
-| the link fails on an undefined symbol | the C library is older than the call (`pipe2`, `accept4`, `aligned_alloc`) | `next/src/host/glibc_compat.c`, `next/src/rt/alloc.cpp`: the call made as a system call |
+| the link fails on an undefined symbol | the C library is older than the call (`pipe2`, `accept4`, `aligned_alloc`) | `src/host/glibc_compat.c`, `src/rt/alloc.cpp`: the call made as a system call |
 | the program starts and dies or hangs | the C library has the call, but an older meaning: glibc 2.8 refuses every flag of `eventfd`, and its `epoll_pwait` for ARM is a stub that answers ENOSYS without a system call | the same file; found with `strace` on the device |
 | the kernel answers ENOSYS | the system call came later (`sendmmsg`, `getrandom`) | nothing to do when the library has a fallback: check that it takes it |
 
@@ -67,7 +67,7 @@ list should hold conversions and 64-bit divisions only. To check on each target:
 - PSP and PS2 (MIPS with a single-precision FPU): a `double` has no hardware there. Zinc numbers are f64, so every
   number operation is a software call unless the program is built with the f32 number profile. This is the first
   thing to measure on those targets.
-- Any soft-float ABI with an FPU: `next/src/rt/alloc.cpp` already sends the five functions to the device's libm.
+- Any soft-float ABI with an FPU: `src/rt/alloc.cpp` already sends the five functions to the device's libm.
 
 ## 5. The screen, and what a frame costs on this GPU
 

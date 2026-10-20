@@ -10,7 +10,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/bin"
 for t in gradle gradlew adb java javac sdkmanager aapt2 ndk-build; do printf '#!/bin/sh\necho "%s $*" >> %s/ran\n' "$t" "$tmp" > "$tmp/bin/$t"; chmod +x "$tmp/bin/$t"; done
-out=$(PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export ../examples/hello --target android -o "$tmp/hello" --print 2>/dev/null) || { echo "export --target android failed"; exit 1; }
+out=$(PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export examples/hello --target android -o "$tmp/hello" --print 2>/dev/null) || { echo "export --target android failed"; exit 1; }
 [ -f "$tmp/ran" ] && { echo "an Android tool ran: $(cat "$tmp/ran")"; fail=1; }
 echo "$out" | grep -q '\./gradlew assembleDebug' && echo "$out" | grep -q '\./gradlew bundleRelease' || { echo "--print does not list the Gradle commands: $out"; fail=1; }
 engine=$(cd . && pwd -P)
@@ -69,7 +69,7 @@ PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target android -o "$tmp/noent
 grep -q "plugin 'beep' is not made for android: its plugin.json has no \"targets\".\"android\" entry" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
 # a player (zinc.json "player": true, Zinc Go, ZN-631): the home screen as a hot unit in the assets, every phone plugin registered, the
 # interpreter linked; a user's app links none of it
-PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export ../examples/zinc-go --target android -o "$tmp/go" >/dev/null 2>"$tmp/go.err" || { echo "export of zinc-go failed: $(tail -2 "$tmp/go.err")"; fail=1; }
+PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export examples/zinc-go --target android -o "$tmp/go" >/dev/null 2>"$tmp/go.err" || { echo "export of zinc-go failed: $(tail -2 "$tmp/go.err")"; fail=1; }
 head -c 8 "$tmp/go/app/src/main/assets/zinc/home.unit" 2>/dev/null | grep -q "ZNHOTU1" || { echo "no home screen unit in the player's assets"; fail=1; }
 grep -q "zn_register_module(zn_module_Camera()" "$tmp/go/app/jni/src/player_modules.cpp" && grep -q "zn_register_module(zn_module_Sqlite()" "$tmp/go/app/jni/src/player_modules.cpp" || { echo "the player does not register its plugins"; fail=1; }
 grep -q " zn_app_player zn_app log android)" "$tmp/go/app/jni/src/CMakeLists.txt" || { echo "the player does not link zn_app_player"; fail=1; }

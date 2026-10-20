@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc-helper: what a Zinc program on webOS 3 (HP TouchPad) may ask for but not do itself from its jail. Run as root by the upstart job
-# zinc-helper (next/tools/webos-helper installs it). A program writes its requests into /tmp/zinc, which its jail shares (zinc:webos does it):
+# zinc-helper (tools/webos-helper installs it). A program writes its requests into /tmp/zinc, which its jail shares (zinc:webos does it):
 #   perf/<pid>          full speed while process <pid> lives: both cores held at their top frequency. webOS's ondemandtcl holds the CPU at 192 MHz
 #                       with the second core off and samples every 200 ms; only a touch lifts it, for 3 s (hp-touchpad-webos.md, section 14)
 #   backlight           'off <pid>' turns the screen's backlight off while <pid> lives, 'on' lights it again (the system's own "display off"

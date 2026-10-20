@@ -61,7 +61,7 @@ keyboard types in text fields (`startTextInput`, Backspace held, Enter, Escape).
 ## Proof before it is done
 
 - `zinc check <demo>` passes.
-- One T1 test (`next/tests/t1/<demo>_*.sh`): a scripted headless session (`ZINC_INPUT`, `ZINC_SHOT_FRAMES`) with one golden per feature,
+- One T1 test (`tests/t1/<demo>_*.sh`): a scripted headless session (`ZINC_INPUT`, `ZINC_SHOT_FRAMES`) with one golden per feature,
   no network (point the services at `127.0.0.1:9` through env).
 - The idle check above: frames drawn while nothing moves.
 - A user-visible change to a demo adds a line to `CHANGELOG.md`.

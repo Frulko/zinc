@@ -9,19 +9,19 @@ Goal: an asset (image, font, audio, video, model, data, shader) is stored once, 
 | Piece | Evidence |
 |---|---|
 | ZPK packs: per-entry codec (none, lz4, zstd, zstd+dict), group, kind, 16-byte SHA-256 per entry, index hash for signing, deterministic bytes, alignment up to 1 MiB | `docs/zpk.md` (Layout, Codecs, Determinism); decision D89, `docs/reports/zinc-next-decisions.md:159` |
-| Packs are mapped read-only, never read into a buffer; an entry stored `none` is a pointer into the mapping | `next/src/host/assets_host.cpp:138` (`mmap(... PROT_READ, MAP_PRIVATE ...)`); `docs/zpk.md` ("read in place") |
-| Asset build: import graph, XXH3-128 content-addressed cache (`~/.zinc/cache/assets`), one pack per group, rewritten only when its key changes; the same file under two names is imported once | D91 (`decisions.md:161`); `docs/reports/zinc-next-assets.md:220`; `next/src/assets/assets.cpp` |
+| Packs are mapped read-only, never read into a buffer; an entry stored `none` is a pointer into the mapping | `src/host/assets_host.cpp:138` (`mmap(... PROT_READ, MAP_PRIVATE ...)`); `docs/zpk.md` ("read in place") |
+| Asset build: import graph, XXH3-128 content-addressed cache (`~/.zinc/cache/assets`), one pack per group, rewritten only when its key changes; the same file under two names is imported once | D91 (`decisions.md:161`); `docs/reports/zinc-next-assets.md:220`; `src/assets/assets.cpp` |
 | Per-target asset profile (texture format list, maxSize, audio codec, pack codec, budgets) | `targets/capabilities.json:3-19` (e.g. android `etc2\|etc1\|rgba8`, `pack: lz4`; ios `astc`; wasm `ktx2:uastc`, `pack: none`, `split: group`; esp32 `rgb565`, `lz4`, flash budget 2MB) |
-| Texture importer to GPU block formats via pinned basisu (ZN-439, Review) | `next/src/assets/texture.cpp:47-54`; `next/backlog/tasks/zn-439*.md` status Review |
-| The baker skips images that a `texture` rule takes (`o.leave`), so a compressed texture is not also baked as RGBA | `next/src/main.cpp:421-428` |
-| Fonts subset to the characters the program can show (whole fonts only with `"text": "shaped"`) | `next/src/res/res.h:19`, `res.cpp:610` |
-| System-font fallback for what the embedded faces do not cover (no embedding of emoji fonts) | `next/src/text/shaped_gfx.cpp:28-38` |
+| Texture importer to GPU block formats via pinned basisu (ZN-439, Review) | `src/assets/texture.cpp:47-54`; `backlog/tasks/zn-439*.md` status Review |
+| The baker skips images that a `texture` rule takes (`o.leave`), so a compressed texture is not also baked as RGBA | `src/main.cpp:421-428` |
+| Fonts subset to the characters the program can show (whole fonts only with `"text": "shaped"`) | `src/res/res.h:19`, `res.cpp:610` |
+| System-font fallback for what the embedded faces do not cover (no embedding of emoji fonts) | `src/text/shaped_gfx.cpp:28-38` |
 | Mounting order and overlays: later pack replaces earlier entry per name (patches, mods) | D92 (`decisions.md:162`), `assets_host.cpp:148` |
 | Resident-set budgets enforced, refcounted handles, group load/release | D92; `assets_host.cpp:361,476` |
-| `zinc dev` asset hot reload by entry hash: rebuild dev packs, send only entries whose hash changed (`ZINC_DEV_FD`), swap in place | D97 (`decisions.md:164`); `next/src/cli_core.cpp:2726-2754` |
-| Boot splash as an uncompressed entry of `boot.zpk`, mapped before anything starts | D96; `next/src/host/splash.cpp:3,82-100` |
+| `zinc dev` asset hot reload by entry hash: rebuild dev packs, send only entries whose hash changed (`ZINC_DEV_FD`), swap in place | D97 (`decisions.md:164`); `src/cli_core.cpp:2726-2754` |
+| Boot splash as an uncompressed entry of `boot.zpk`, mapped before anything starts | D96; `src/host/splash.cpp:3,82-100` |
 | Per-file SHA-256 in `.zapp` manifest; file-level delta idea for OTA | `docs/zapp.md`; OTA report section 5.4 |
-| Dev vs release split: `zinc run`/`dev` mount dev packs from `build/assets/<target>` and read loose `assets/` (`ZINC_ASSETS`); `export` builds release packs | `next/src/main.cpp:681-695`; `cli_core.cpp:1753`; D66 / `docs/guide/07-distribution.md:186-201` |
+| Dev vs release split: `zinc run`/`dev` mount dev packs from `build/assets/<target>` and read loose `assets/` (`ZINC_ASSETS`); `export` builds release packs | `src/main.cpp:681-695`; `cli_core.cpp:1753`; D66 / `docs/guide/07-distribution.md:186-201` |
 
 ## 2. Partial (works, but a second copy is possible or the check is missing)
 
@@ -37,9 +37,9 @@ Duplicates, ordered by size of the effect:
 
 1. **Baked RGBA and the source file.** The `.app`/dist keeps `assets/photo.jpg` and the baked RGBA of it in the executable. Measured on the museum build: executable 93.67 MB of which 87.35 MB is the `ZRS1` blob; 15 images become 75.60 MB of RGBA from 5.71 MB of JPEG; the `.app` holds both (`docs/reports/zinc-next-assets-outside-binary.md`, "Ce que contient actuellement le build"). Cause: `exportNative` always copies the whole `assets/` (`cli_core.cpp:1763`) and the baker bakes every image of it (`main.cpp:419-428` skips only `texture`-rule images).
 2. **Baked blob embedded and then copied to the heap.** The blob lives in the binary's data segment and `installResources` mallocs and memcpys every image and font (`resources.cpp:83-84,94-95`): two copies in RAM terms (file-backed pages plus heap). The museum report counts 75.60 MB images + 11.61 MB fonts copied at start.
-3. **`.zapp` unpacked into a cache.** `zinc run app.zapp` and a fused exe unpack all members to `~/.zinc/cache/zapp/<id>` (`main.cpp:1124-1132`); the archive and the cache hold the data twice on disk. The docs promise "read in place from the member" (`docs/zpk.md`, 1st paragraph) but the code unpacks; recorded as open in `next/backlog/later.md:43` (ZN-430). A fused exe also contains the whole engine (15 MB for a hello, `docs/zapp.md`).
+3. **`.zapp` unpacked into a cache.** `zinc run app.zapp` and a fused exe unpack all members to `~/.zinc/cache/zapp/<id>` (`main.cpp:1124-1132`); the archive and the cache hold the data twice on disk. The docs promise "read in place from the member" (`docs/zpk.md`, 1st paragraph) but the code unpacks; recorded as open in `backlog/later.md:43` (ZN-430). A fused exe also contains the whole engine (15 MB for a hello, `docs/zapp.md`).
 4. **`.zapp` containing loose `assets/` and the packs.** `pack` adds every file of `assets/` as a member and, when `assets.packed()`, also the `packs/*.zpk` built from them (`main.cpp:1760-1769`). A packed project therefore ships each source and its pack entry.
-5. **Android: APK `assets/` then copy to app storage.** The shell copies `zinc/assets/*` to disk once per version (`cli_core.cpp:1404-1414`, `next/src/app/shell_sdl.cpp:90-95`): APK copy plus filesystem copy. Compression is not controlled (no `noCompress`/`androidResources` found in `cli_core.cpp` or `templates/`), so an asset read through the APK cannot be mapped without inflating it.
+5. **Android: APK `assets/` then copy to app storage.** The shell copies `zinc/assets/*` to disk once per version (`cli_core.cpp:1404-1414`, `src/app/shell_sdl.cpp:90-95`): APK copy plus filesystem copy. Compression is not controlled (no `noCompress`/`androidResources` found in `cli_core.cpp` or `templates/`), so an asset read through the APK cannot be mapped without inflating it.
 6. **Web: `app.res` baked images and the loose `assets/` copy** (`cli_core.cpp:1650,1680`), and the page splash as a data URL in `index.html` (D96). Same file twice in the download; the 40 MB `download` budget (`capabilities.json:14`) does not see it.
 7. **Texture-compressed and source image.** Avoided only if a `texture` rule exists; without it (the museum case, simple `"assets": "assets"`) no rule applies, so the RGBA bake and the file coexist (museum report: "cette exclusion n'a pas été appliquée").
 8. **Fonts.** Subsets of `lib/fonts` Inter/JetBrains Mono are baked into every program (3 subsets 0.068 MB) plus 58 rasterized variants 11.69 MB in the museum build; with `"text": "shaped"` whole TTFs are embedded (`res.h:19`) and the system font fallback may load the same family from `/System/Library/Fonts` (`shaped_gfx.cpp:38`). Not a duplicate by design, but nothing checks it.
@@ -49,8 +49,8 @@ Duplicates, ordered by size of the effect:
 
 Other gaps in the pieces that exist:
 
-- `zinc assets` implements `build|info` only (`cli_core.cpp:99`); `ls`, `report`, `check`, `clean`, `verify` are task ZN-437, status Backlog (`next/backlog/tasks/zn-437*.md`). The budgets in `capabilities.json` are therefore not enforced by any command.
-- The pack codec per profile is not wired into release packs (`next/backlog/later.md:77`, ZN-435); `assets.dir` is ignored by the baker, export and `zinc:assets` (`later.md:76`).
+- `zinc assets` implements `build|info` only (`cli_core.cpp:99`); `ls`, `report`, `check`, `clean`, `verify` are task ZN-437, status Backlog (`backlog/tasks/zn-437*.md`). The budgets in `capabilities.json` are therefore not enforced by any command.
+- The pack codec per profile is not wired into release packs (`backlog/later.md:77`, ZN-435); `assets.dir` is ignored by the baker, export and `zinc:assets` (`later.md:76`).
 - `report.json` has per-asset rows (`assets.h:58-60`) but no refcount, no location column and no duplicate section.
 
 ## 3. Missing
@@ -60,7 +60,7 @@ Other gaps in the pieces that exist:
 - Content-hash identity above the entry: pack file names include no hash (the research report proposes `level1.3f9a….zpk` for the browser, `toolchain-assets-loading.md:482-486`), so no cache, CDN or OTA step can say "same bytes".
 - Build-time duplicate and dead-asset report (`--report-assets`), and unreferenced-asset stripping (references from code literals are known to the baker; dynamic names such as `project.json` entries need a manifest, as the museum report notes).
 - Android `noCompress` for packs, and Play Asset Delivery / iOS ODR mapping of groups.
-- ESP32 data partition for packs and `esp_partition_mmap` reader (design only, `toolchain-assets-loading.md:402-415`; nothing in `next/firmware/esp32`).
+- ESP32 data partition for packs and `esp_partition_mmap` reader (design only, `toolchain-assets-loading.md:402-415`; nothing in `firmware/esp32`).
 - Pack-level delta for OTA: no per-pack hash is exposed in a manifest (only per-file SHA-256 in `.zapp`, `docs/zapp.md`).
 
 ## 4. How others do it (sources)

@@ -26,3 +26,5 @@ __ZNK2OT*
 __ZN*hb_*
 __ZNK*hb_*
 _hal_heap_region_more
+_zn_hal_sdl_gpu_layers
+__ZZN17meshopt_Allocator7storageEvE1s

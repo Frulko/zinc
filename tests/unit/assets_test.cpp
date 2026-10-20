@@ -1,7 +1,7 @@
 // The asset build (ZN-434): rules and groups to packs, the image layouts (premultiplied RGBA8, RGB565, RGBA4444), the cache (a second build
 // imports nothing, a changed file is imported alone, no cache imports everything), stale packs, and an unknown importer's error.
 // Sprites and atlases (ZN-438): the page layout and extrusion, the errors of the atlas. Textures (ZN-439): formats, mipmaps, alpha, sizes.
-// Run from next/ (it reads tests/data/images); prints "all checks passed" or one line per failure.
+// Run from the repository root (it reads tests/data/images); prints "all checks passed" or one line per failure.
 #include <cstdio>
 #include <cstring>
 #include <filesystem>

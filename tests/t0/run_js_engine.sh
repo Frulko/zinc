@@ -35,7 +35,7 @@ echo '{ "name": "t", "entry": "main.js", "engine": "v8" }' > "$tmp/t/zinc.json"
 
 for e in three:800x500 pixi:800x500 p5:800x500 phaser:320x240; do   # the examples, a plain run: the first frame has the size of their zinc.json
   n=${e%%:*}; want=${e##*:}
-  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=1 ZINC_SHOT="$tmp/$n.png" "$ZINC" run ../examples/js-$n > "$tmp/out" 2>&1
+  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=1 ZINC_SHOT="$tmp/$n.png" "$ZINC" run examples/js-$n > "$tmp/out" 2>&1
   got=$(file "$tmp/$n.png" 2>/dev/null | sed -n 's/.*PNG image data, \([0-9]*\) x \([0-9]*\),.*/\1x\2/p')
   is "examples/js-$n opens at its size" "$got" "$want"
   [ -n "$got" ] || echo "  (its output: $(head -c 400 "$tmp/out" | tr '\n' ' '))"

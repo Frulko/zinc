@@ -1,9 +1,9 @@
 # Zinc Next benchmark gate
 
-`next/tools/bench-gate --baseline-zinc /path/to/reference/next/build/zinc`
+`tools/bench-gate --baseline-zinc /path/to/reference/build/zinc`
 compiles the four kernels with both builds and measures them on the same machine.
 The reference is fixed at `fb610f986e50a0533301cbcc16b5addefb56089f`, the source
-revision of the committed `next/bench/m4.json`. The candidate fails if either
+revision of the committed `bench/m4.json`. The candidate fails if either
 engine produces incorrect output, exits unsuccessfully, or its median time is
 more than 15% slower than the reference. `--inject-slowdown 1.2` still exercises
 the regression failure. The JSON artifact retains both sets of measurements.
@@ -46,7 +46,7 @@ regression baselines remain failures.
 
 ## Focused validation
 
-`sh next/tests/t0/bench_harness.sh` tests successful reference comparisons,
+`sh tests/t0/bench_harness.sh` tests successful reference comparisons,
 injected 20% regressions, timed-run crashes, resource-sample failures, missing
 references, unreadable baselines, and the unchanged ordinary M4 target verdicts.
 These deterministic tests prove the gate's contract; actual performance still
@@ -83,8 +83,8 @@ Five paired samples per engine, with one checked warm-up each:
 The following command exited 0:
 
 ```sh
-ZINC=/tmp/zinc-fix-macos-ci/next/build/zinc next/tools/bench-gate \
-  --baseline-zinc /tmp/zinc-benchmark-reference/next/build/zinc \
+ZINC=/tmp/zinc-fix-macos-ci/build/zinc tools/bench-gate \
+  --baseline-zinc /tmp/zinc-benchmark-reference/build/zinc \
   --out /tmp/zinc-ci-pinned-paired.json
 ```
 

@@ -14,11 +14,11 @@ cmake --build "$gen" --target zinc -j"${JOBS:-8}" >/dev/null
 rm -rf "$prof" && mkdir -p "$prof"
 export LLVM_PROFILE_FILE="$prof/%p.profraw" ZINC_HEADLESS=1 ZINC_RUN=interp ZINC_NO_CACHE=1
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-for k in ../tests/bench/kernels/*.ts; do
+for k in tests/bench/kernels/*.ts; do
   "$gen/zinc" --emit=zbc-bin "$k" "$tmp/k.zbc" >/dev/null 2>&1 && "$gen/zinc" run "$tmp/k.zbc" >/dev/null 2>&1 || true
 done
-"$gen/zinc" --emit=zbc-bin ../examples/hero/src/main.tsx "$tmp/hero.zbc" >/dev/null 2>&1 || true
-for e in hero nuxt-ui bouncing-ball; do (cd "../examples/$e" && ZINC_ASSETS="$PWD/assets" ZINC_FRAMES=90 "../../next/$gen/zinc" run . >/dev/null 2>&1) || true; done
+"$gen/zinc" --emit=zbc-bin examples/hero/src/main.tsx "$tmp/hero.zbc" >/dev/null 2>&1 || true
+for e in hero nuxt-ui bouncing-ball; do (cd "examples/$e" && ZINC_ASSETS="$PWD/assets" ZINC_FRAMES=90 "../../$gen/zinc" run . >/dev/null 2>&1) || true; done
 "$profdata" merge -o "$use/zinc.profdata" "$prof"/*.profraw
 echo "pgo: profile $use/zinc.profdata ($(ls "$prof" | wc -l | tr -d ' ') runs)"
 [ "$1" = --train-only ] && exit 0

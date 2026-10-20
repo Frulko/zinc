@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=62 ZINC_INPUT=tests/golden/js-examples/pixi.input ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=60 \
-  "$ZINC" run ../examples/js-pixi > "$tmp/out" 2> "$tmp/err" || { echo "example_js_pixi: the example failed: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
+  "$ZINC" run examples/js-pixi > "$tmp/out" 2> "$tmp/err" || { echo "example_js_pixi: the example failed: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
 grep -v '^zinc: Canvas 2D' "$tmp/err" | grep -q . && { echo "example_js_pixi: PixiJS wrote on stderr: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
-tools/pngdiff "$tmp/shot-60.png" ../examples/js-pixi/screenshot.png --tol 24 --max-diff 400 > "$tmp/diff" || { echo "example_js_pixi: frame 60 is not examples/js-pixi/screenshot.png: $(tail -1 "$tmp/diff")"; fail=1; }
+tools/pngdiff "$tmp/shot-60.png" examples/js-pixi/screenshot.png --tol 24 --max-diff 400 > "$tmp/diff" || { echo "example_js_pixi: frame 60 is not examples/js-pixi/screenshot.png: $(tail -1 "$tmp/diff")"; fail=1; }
 exit $fail

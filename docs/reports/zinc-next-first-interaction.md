@@ -2,7 +2,7 @@
 
 2026-10-16. The owner's report: on the Nexus 7 2012 (examples/rn-showcase, AOT, software raster), the first touch after launch is slow and
 then everything is fluid. This is the desktop half. The device half is in `zinc-next-android.md`, "The first interaction". Binary:
-`next/build/zinc` of main 23b98385. No code was changed.
+`build/zinc` of main 23b98385. No code was changed.
 
 ## Verdict
 
@@ -15,7 +15,7 @@ whole screen twice per tap. That is the cheapest thing to fix on the software ra
 
 - Real time throughout (`ZINC_TRACE` per-frame spans, `ZINC_DETERMINISTIC` unset), except for the structural scene dumps.
 - **Headless** (`ZINC_HEADLESS=1`, `ZINC_INPUT`): the app, input, layout and paint phases. No raster, because the null HAL presents nothing.
-- **Software raster with input**: `ZINC_INPUT` only works headless (`next/src/host/hal_dispatch.cpp:247`), and `ZINC_RECORD`/`ZINC_REPLAY`
+- **Software raster with input**: `ZINC_INPUT` only works headless (`src/host/hal_dispatch.cpp:247`), and `ZINC_RECORD`/`ZINC_REPLAY`
   force headless (`hal_dispatch.cpp:34`). Two workarounds were used:
   - display-remote (`ZINC_DISPLAY=remote`, which rasterizes the damage) driven by a Python client over its TCP protocol;
   - a scratch copy of rn-showcase whose frame callback calls `ui.pointerAt` (env `TAPS` / `DRAGS`), run in a window with
@@ -36,7 +36,7 @@ whole screen twice per tap. That is the cheapest thing to fix on the software ra
 | Page faults per interaction (`top -stats faults`) | AOT 2 / 3 / 4; interpreter 4 / 3 / 25 |
 
 The first visit to a screen costs about +0.1 ms of input and layout (AOT) and up to +0.5 to 2.7 ms of raster. That is the shaped-text cache
-(`next/src/text/shaped_gfx.cpp:81`) and the glyphs rasterized on first use (`runtime/ttf.cpp:250`): it is the first visit of a screen, not
+(`src/text/shaped_gfx.cpp:81`) and the glyphs rasterized on first use (`runtime/ttf.cpp:250`): it is the first visit of a screen, not
 the first touch. Scaled to the Tegra 3 (a tab switch takes 0.6 ms here against about 21 ms of input and layout there), it is a few
 milliseconds. Cold code pages are ruled out on both sides: a handful of faults here, and no change on the device after dropping the page cache.
 
@@ -74,7 +74,7 @@ milliseconds. Cold code pages are ruled out on both sides: a handful of faults h
 **How to prove it:** a T0 case beside `damage_sig.sh`.
 - Two scene dumps of rn-showcase, before and after a press: deterministic, `ZINC_INPUT` `90 move 145 815` / `100 down` / `103 up`,
   `ZINC_SHOT_FRAMES=100,101`, `ZINC_SCENE_DUMP`.
-- Give `zinc capture --scene A --damage B` (`next/src/main.cpp:2074`) the union box of the damage, and assert it is the indicator's box
+- Give `zinc capture --scene A --damage B` (`src/main.cpp:2074`) the union box of the damage, and assert it is the indicator's box
   (about 414,1 → 419,603).
 - Today it prints the whole 420×860 screen. Pair it with a window run of `ZINC_RENDERER=cpu ZINC_PROFILE=1` where the press frame's
   raster drops to about 0.

@@ -10,7 +10,7 @@ export ZINC_HOME="$tmp/home" ZINC_PREBUILT=0
 "$Z" update-keygen > "$tmp/k1"; "$Z" update-keygen > "$tmp/k2"
 s1=$(sed -n 's/^seed=//p' "$tmp/k1"); p1=$(sed -n 's/^public=//p' "$tmp/k1"); s2=$(sed -n 's/^seed=//p' "$tmp/k2"); p2=$(sed -n 's/^public=//p' "$tmp/k2")
 pack() {   # pack <n> <public key> <seed or ''>: device-<n>.tar.gz of a fork published by Alice with that key
-  rm -rf "$tmp/src" && mkdir -p "$tmp/src" && cp -R ../plugins/device "$tmp/src/device"
+  rm -rf "$tmp/src" && mkdir -p "$tmp/src" && cp -R plugins/device "$tmp/src/device"
   python3 -c "import json,sys; p='$tmp/src/device/plugin.json'; m=json.load(open(p)); m['publisher']={'name':'Alice','publicKey':'$2'}; m['description']+=' (fork $1)'; json.dump(m,open(p,'w'),indent=2)"
   tar -czf "$tmp/device-$1.tar.gz" -C "$tmp/src" device
   [ -z "$3" ] || "$Z" sign "$tmp/device-$1.tar.gz" "$3" >/dev/null

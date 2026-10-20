@@ -58,7 +58,7 @@ for c in psp vita ps2 n3ds; do
   set -- $(colors "$tmp/$c-text.png" 101828 e0e6ff)
   [ "$got" = "hello from zinc on $c" ] && [ "$1" -gt 500 ] && [ "$2" -gt 20 ] || { echo "console emulators: $c: the text program's line is not on the screen ($got; $1/1000 background, $2 text pixels)"; fail=1; }
   # breakout's pad session built into the core (ZN-753): the console's last frame is the interpreter's (tests/golden/breakout/pad.hashes)
-  "$Z" pack --profile "$c" ../examples/breakout -o "$tmp/breakout-$c.zapp" >/dev/null 2>&1 && mkdir -p "$tmp/b-$c" && tar -xf "$tmp/breakout-$c.zapp" -C "$tmp/b-$c" program.zbc resources.bin || { echo "console emulators: zinc pack breakout for $c failed"; fail=1; continue; }
+  "$Z" pack --profile "$c" examples/breakout -o "$tmp/breakout-$c.zapp" >/dev/null 2>&1 && mkdir -p "$tmp/b-$c" && tar -xf "$tmp/breakout-$c.zapp" -C "$tmp/b-$c" program.zbc resources.bin || { echo "console emulators: zinc pack breakout for $c failed"; fail=1; continue; }
   size=$(awk -v c="$c" '$1 == c { print $2 }' tests/golden/breakout/pad.hashes)   # zinc.json targets.<console> (the Vita: 480x272, doubled)
   out=$(tools/build-console-core "$c" --embed "$tmp/b-$c/program.zbc" "$tmp/b-$c/resources.bin" --frames 900 --size "$size" --input tests/golden/breakout/pad.input \
     --env ZINC_DETERMINISTIC=1 --env ZINC_FRAMEHASH=last --env ZINC_PROFILE=1 -B "build/console-test-$c-gfx" 2>&1) || { echo "console emulators: $c: breakout does not build"; fail=1; continue; }

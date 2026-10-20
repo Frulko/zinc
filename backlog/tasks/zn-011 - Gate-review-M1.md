@@ -27,5 +27,5 @@ As the **Maintainer**, I want a recorded review of the checker-port effort and t
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Decision recorded in docs/decisions/0015-zinc-next-m1-gate.md: continue to M2. Maintainer chose to invest in interpreter speed first (fib 2.15x -> 4.45x vs QuickJS, 5x target missed by about 10 percent, carried to M4/AOT). Budget and usage figures in the decision and in next/RESUME.md.
+Decision recorded in docs/decisions/0015-zinc-next-m1-gate.md: continue to M2. Maintainer chose to invest in interpreter speed first (fib 2.15x -> 4.45x vs QuickJS, 5x target missed by about 10 percent, carried to M4/AOT). Budget and usage figures in the decision and in RESUME.md.
 <!-- SECTION:NOTES:END -->

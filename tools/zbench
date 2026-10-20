@@ -33,7 +33,7 @@ import datetime, glob, json, os, platform, re, shlex, shutil, signal, statistics
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NXT = os.path.dirname(HERE)
-REPO = os.path.dirname(NXT)
+REPO = NXT
 ZINC = os.environ.get("ZINC", os.path.join(NXT, "build", "zinc"))
 OUT = os.path.join(REPO, "docs", "reports", "bench")
 SCENES = ["fill_opaque", "fill_blend", "quads_10k", "rounded_shadow", "gradients", "text_static", "text_churn", "clip_nested", "poly", "scroll_list", "image_update", "image_fill_only", "image_upload_only", "damage_small",
@@ -67,7 +67,7 @@ def say(*a):
 
 def git_state():
     r = sh(["git", "-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.strip()
-    d = sh(["git", "-C", REPO, "status", "--porcelain", "--", "next/src", "runtime", "plugins", "lib"]).stdout.strip()
+    d = sh(["git", "-C", REPO, "status", "--porcelain", "--", "src", "runtime", "plugins", "lib"]).stdout.strip()
     return {"rev": r, "dirty": bool(d)}
 
 

@@ -12,6 +12,6 @@ timeout 30 "$ZINC" run $d/loopback.ts >"$tmp/i.out" 2>&1
 diff "$tmp/i.out" $d/loopback.out >"$tmp/d" || { echo "osc_full: loopback.ts interpreted: $(head -4 "$tmp/d" | cut -c1-300)"; fail=1; }
 "$ZINC" build $d/loopback.ts -o "$tmp/loopback" >"$tmp/b.log" 2>&1 || { echo "osc_full: loopback.ts does not build: $(tail -c 300 "$tmp/b.log")"; fail=1; }
 timeout 30 "$tmp/loopback" 2>&1 | diff - $d/loopback.out >"$tmp/d" || { echo "osc_full: loopback.ts compiled: $(head -4 "$tmp/d" | cut -c1-300)"; fail=1; }
-out=$(OSC_PORT=0 OSC_DEMO=1 ZINC_HEADLESS=1 ZINC_FRAMES=20 timeout 30 "$ZINC" run ../examples/osc 2>&1)
+out=$(OSC_PORT=0 OSC_DEMO=1 ZINC_HEADLESS=1 ZINC_FRAMES=20 timeout 30 "$ZINC" run examples/osc 2>&1)
 echo "$out" | grep -q "^osc: first message /shape/xy, the shape is at 0\.8[0-9] 0\.5[0-9]$" || { echo "osc_full: examples/osc did not move its shape: $(echo "$out" | head -3)"; fail=1; }
 exit $fail

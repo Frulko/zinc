@@ -18,7 +18,7 @@ ordinal: 40450
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Rebase the script plugin on next/src/qjs (one vendored QuickJS, decision D10): eval, call, function handles, Dyn crossing as a snapshot, memory/time limits and the interrupt handler through QuickJS hooks, module loading, promises pumped per entry as the prototype's quickjs.host.cpp does; plugins/script/vendor/quickjs is no longer used by next.
+Rebase the script plugin on src/qjs (one vendored QuickJS, decision D10): eval, call, function handles, Dyn crossing as a snapshot, memory/time limits and the interrupt handler through QuickJS hooks, module loading, promises pumped per entry as the prototype's quickjs.host.cpp does; plugins/script/vendor/quickjs is no longer used by next.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

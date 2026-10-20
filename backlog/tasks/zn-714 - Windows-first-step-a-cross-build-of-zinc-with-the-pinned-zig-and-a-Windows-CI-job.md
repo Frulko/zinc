@@ -19,7 +19,7 @@ dependencies: []
 <!-- AC:BEGIN -->
 - [x] #1 zinc build --target windows-x86_64 of a console program links with the pinned zig; what does not compile is listed by module
 - [ ] #2 a CI job on a Windows runner builds zinc natively or runs the cross-built program and its T0 tests; the workflow file is committed, pushing it is the owner's step
-- [x] #3 the list of what a window, a file dialog and an installer need on Windows is written as lines for next/backlog/later.md
+- [x] #3 the list of what a window, a file dialog and an installer need on Windows is written as lines for backlog/later.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -35,7 +35,7 @@ Not proven: nothing ran on Windows (no machine, no Wine, as asked). Unknown unti
 
 Decision to record (coordinator): Windows programs are built with zig's mingw-w64 target (x86_64-windows-gnu), linked statically, not MSVC: the pinned zig is already the cross compiler of every target, needs no Visual Studio or Windows SDK, and the .exe needs no redistributable. Revisit if a plugin needs an MSVC-only SDK (WebView2 has a mingw-usable C header; Media Foundation works with mingw).
 
-Lines for next/backlog/later.md (criterion 3), under "Cross-platform pass":
+Lines for backlog/later.md (criterion 3), under "Cross-platform pass":
 - ZN-714: push and read the first run of the CI jobs windows-cross and windows-console, then make them blocking; nothing has run on Windows yet.
 - ZN-714: Windows runtime details to check on the first machine: cStackLimit (GetCurrentThreadStackLimits) so endless recursion prints "stack overflow", SetConsoleOutputCP(65001) for UTF-8 console.log, VirtualAlloc for the VM stack if launch time shows the calloc.
 - ZN-714: the host library for Windows (timers, files, sockets: every program aot::usesHost sees): vendor libuv's src/win, port src/host/sys_host.cpp (CreateProcess for fork/pipe/waitpid, FindFirstFile or std::filesystem for dirent, no pwd/utsname/sysctl), link ws2_32 iphlpapi userenv dbghelp ole32.

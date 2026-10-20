@@ -98,7 +98,7 @@ interval in `/sys/bus/i2c/devices/0-0018/pollrate_ms` (root).
   sleepd on other models writes `core_navi_center`, "0" before suspend and "15" after). CyanogenMod's lights HAL
   writes **25 for on, 0 for off** to both files (max not probed; try 0..255).
 - Owner: root on webOS (CM's init.rc chmods them 0664 for `system` on Android; webOS has no such rule). From a jailed
-  program as non-root: **no**. Use the root helper (`next/tools/webos-helper` mechanism that already does
+  program as non-root: **no**. Use the root helper (`tools/webos-helper` mechanism that already does
   `setBacklight`); the program asks through a file under `/tmp/zinc`.
 - The notification pulse patterns ("blink") are separate: the LM8502 LED engine is driven through `/dev/lm8502` by
   ioctl (`LM8502_DOWNLOAD_MICROCODE`, `STOP_ENGINE`), 96 x uint16 microcode programs (CM ships pulse_quick,

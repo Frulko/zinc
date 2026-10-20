@@ -15,9 +15,8 @@ window and a phone held upright.
 ## Run it
 
 ```sh
-cd next
-build/zinc run ../examples/webrtc-call                                          # your camera and microphone
-ZINC_FAKE_CAMERA=1 ZINC_FAKE_MICROPHONE=1 build/zinc run ../examples/webrtc-call  # the simulated ones instead
+build/zinc run examples/webrtc-call                                          # your camera and microphone
+ZINC_FAKE_CAMERA=1 ZINC_FAKE_MICROPHONE=1 build/zinc run examples/webrtc-call  # the simulated ones instead
 ```
 
 Press **Call** (or Enter). The first time, macOS asks whether the app that started Zinc (Terminal, iTerm, your editor) may use the camera
@@ -26,7 +25,7 @@ and the microphone; the answers are kept in System Settings > Privacy & Security
 - **This window** (the default): your camera and microphone go to an echo peer in the same program, which sends what it receives straight
   back. The big picture went through the encoder, the network stack and the decoder twice; nothing leaves the machine.
 - **Room**: one person per copy of the app, on two machines of a LAN. Start webrtc-chat's signalling server on one of them
-  (`build/zinc run ../examples/webrtc-chat/signal-server.ts`), put its address and the same room name in both apps, press Call.
+  (`build/zinc run examples/webrtc-chat/signal-server.ts`), put its address and the same room name in both apps, press Call.
 
 Keys: **M** mutes, **V** stops the video, **C** picks the next camera, **S** shows or hides the stats, **Esc** hangs up, then quits.
 
@@ -45,5 +44,5 @@ headset when you turn it on in a room call.
 - Codecs: H.264 in hardware where the machine has it (VideoToolbox on macOS), VP8 otherwise, Opus for the audio.
 
 Test hooks: `CALL_DEMO=1` runs a scripted session (call, mute, video off, the camera again, hang up, quit), `CALL_LOG=1` prints what happens
-(`next/tests/t1/webrtc_call.sh`), `CALL_DEMO=shot` waits for the picture and the numbers then quits (the screenshots), `CALL_MODE=room`
+(`tests/t1/webrtc_call.sh`), `CALL_DEMO=shot` waits for the picture and the numbers then quits (the screenshots), `CALL_MODE=room`
 starts on the room tab, `CALL_SIGNAL=ws://host:port` names the signalling server, `ZINC_SCHEME=dark` the dark scheme.

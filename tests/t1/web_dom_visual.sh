@@ -25,14 +25,14 @@ for r, (m, g) in zip(res, lim):
     elif r["mean"] > m or r["gt16"] > g: bad.append("%s: mean %.2f (max %g), %.1f%% of the pixels differ (max %g%%)" % (r["step"], r["mean"], m, r["gt16"] * 100, g * 100))
 sys.exit("web_dom_visual: %s: %s" % (sys.argv[1], "; ".join(bad)) if bad else 0)' "$name" "$json" "$@" || fail=1
 }
-both hero ../examples/hero || exit 1
+both hero examples/hero || exit 1
 out=$(python3 tools/web-compare "$tmp/hero-canvas" "$tmp/hero-dom" --size 1200x800 --steps "wait:1;click-text:Get started;wait:2" --mask "264,176,904,110;264,308,590,330;1050,20,70,30;60,10,90,20" 2>"$tmp/err") || { echo "web_dom_visual: hero: $(cat "$tmp/err") $out"; exit 1; }
 judge hero "$out" 2.0,0.03 3.0,0.06 3.0,0.06
 "$Z" new desktop-app "$tmp/notes" >/dev/null 2>&1 || { echo "web_dom_visual: zinc new desktop-app failed"; exit 1; }
 both notes "$tmp/notes" || exit 1
 out=$(python3 tools/web-compare "$tmp/notes-canvas" "$tmp/notes-dom" --size 1100x700 --steps "wait:1;click-text:Open notes;wait:1;click-text:Settings;wait:1" 2>"$tmp/err") || { echo "web_dom_visual: notes: $(cat "$tmp/err") $out"; exit 1; }
 judge notes "$out" 1.8,0.025 1.8,0.025 1.8,0.025 2.2,0.03 2.2,0.03
-both nuxt ../examples/nuxt-ui || exit 1
+both nuxt examples/nuxt-ui || exit 1
 out=$(python3 tools/web-compare "$tmp/nuxt-canvas" "$tmp/nuxt-dom" --size 1100x720 --steps "wait:1.5" 2>"$tmp/err") || { echo "web_dom_visual: nuxt-ui: $(cat "$tmp/err") $out"; exit 1; }
 judge nuxt-ui "$out" 6.0,0.06
 exit $fail

@@ -37,7 +37,7 @@ f="$tmp/index/targets/binaries/$t/device-$key.tar"; printf 'X' | dd of="$f" bs=1
 : > "$tmp/runs"
 out=$(ZINC_HOME="$tmp/tampered" "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "was refused" && echo "$out" | grep -q "^device built " && [ "$(runs)" -gt 0 ] || { echo "plugin_fetch: a tampered archive is not reported and rebuilt: $out"; fail=1; }
-mkdir -p "$tmp/proj/plugins" && cp -R ../plugins/device "$tmp/proj/plugins/" && echo "// changed" >> "$tmp/proj/plugins/device/native/device.host.cpp"
+mkdir -p "$tmp/proj/plugins" && cp -R plugins/device "$tmp/proj/plugins/" && echo "// changed" >> "$tmp/proj/plugins/device/native/device.host.cpp"
 : > "$tmp/runs"
 out=$(ZINC_HOME="$tmp/changed" "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^device built " && ! echo "$out" | grep -q "device-$key" && [ "$(runs)" -gt 0 ] || { echo "plugin_fetch: a changed plugin did not miss: $out"; fail=1; }

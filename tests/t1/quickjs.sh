@@ -12,9 +12,9 @@ for f in tests/golden/run/*.ts; do
   "$ZINC" run "$f" --engine quickjs 2>/dev/null | cmp -s - "tests/golden/run/$b.out" || { echo "$b differs on quickjs"; fail=1; }
 done
 for b in array_search async conversions dyn_literals errors generic_static literal_errors literal_member_arrays pinball_physics regressions regressions2 shapes string_number_edges; do
-  "$ZINC" run "../tests/conformance/$b.ts" --engine quickjs 2>/dev/null | cmp -s - "../tests/conformance/$b.out" || { echo "conformance $b differs on quickjs"; fail=1; }
+  "$ZINC" run "tests/conformance/$b.ts" --engine quickjs 2>/dev/null | cmp -s - "tests/conformance/$b.out" || { echo "conformance $b differs on quickjs"; fail=1; }
 done
-ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/shapes.png" ZINC_SHOT_FRAMES=30 "$ZINC" run ../tests/visual/shapes.ts --engine quickjs >/dev/null 2>"$tmp/err" \
+ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/shapes.png" ZINC_SHOT_FRAMES=30 "$ZINC" run tests/visual/shapes.ts --engine quickjs >/dev/null 2>"$tmp/err" \
   || { echo "shapes.ts failed on quickjs: $(head -c 300 "$tmp/err")"; fail=1; }
-tools/pngdiff "$tmp/shapes-30.png" ../tests/visual/shapes-30.png >/dev/null || { echo "shapes frame 30 on quickjs differs from the golden"; fail=1; }
+tools/pngdiff "$tmp/shapes-30.png" tests/visual/shapes-30.png >/dev/null || { echo "shapes frame 30 on quickjs differs from the golden"; fail=1; }
 exit $fail

@@ -57,4 +57,4 @@ PDKs document. The accelerometer goes through SDL's joystick; the light sensor t
 4. The rest answers "not available" the web's way.
 
 Each feature: its desktop backend in the same change where macOS has the hardware (the rule: built and tested on the Mac); the Linux one
-goes under "Cross-platform pass" in next/backlog/later.md.
+goes under "Cross-platform pass" in backlog/later.md.

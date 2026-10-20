@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the console core (next/targets/console, ZN-455) for a console with its pinned SDK (zinc toolchain install <console>, ZN-456):
+# Builds the console core (targets/console, ZN-455) for a console with its pinned SDK (zinc toolchain install <console>, ZN-456):
 #   tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [-B dir]
 # --pure: without the graphics host (text programs); --embed: the program linked into the binary (the emulators that give it no file system),
 # with its fonts and images (resources.bin) and its asset pack (zinc pack's packs/default.zpk: zinc:assets, sprite atlases, tile maps);
@@ -57,7 +57,7 @@ cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack' -DZN_VITA_GXP_3D=$gxp3d"
 build="cmake --build '$dir' -j $cores -- -l $cores"
 if [ -n "$docker" ]; then
-  root=$(dirname "$here")
+  root=$here
   docker run --rm -v "$root:$root" -w "$here" -e DEVKITPRO=/opt/devkitpro -e DEVKITARM=/opt/devkitpro/devkitARM "$docker" sh -c "$configure && $build" >"$dir.log" 2>&1 ||
     { grep -m 20 -E "error|undefined" "$dir.log" >&2 || tail -30 "$dir.log" >&2; exit 1; }
 else

@@ -31,8 +31,8 @@ zinc run --har writes the file at normal exit only: a killed program leaves none
 Done in a parallel worktree (branch worktree-agent-a0700e36f27b616d0), on top of ZN-633 and ZN-635.
 
 What changed
-- next/src/host/netlog.cpp: the HAR file follows the log while the program runs. tick(sleepMs) rewrites it when the log changed (a dirty flag set by open() and by find(), through which every other call reaches its entry): at most once a second, less often when a write is slow (the next one waits 20 times the time the last took, so under 5% of the time), and always before a sleep that would outlast that second. Each write is whole, to <file>.tmp, then renamed over the file: what is on disk is a valid HAR at every moment. The first tick writes an empty log, so a program killed before its first request leaves a file too. The write at normal exit stays (and falls back to writing in place when the path cannot be renamed over, e.g. /dev/stdout).
-- next/src/host/loop.cpp: pump() and wait(ms) call netlog::tick (two flag tests when ZINC_HAR is not set).
+- src/host/netlog.cpp: the HAR file follows the log while the program runs. tick(sleepMs) rewrites it when the log changed (a dirty flag set by open() and by find(), through which every other call reaches its entry): at most once a second, less often when a write is slow (the next one waits 20 times the time the last took, so under 5% of the time), and always before a sleep that would outlast that second. Each write is whole, to <file>.tmp, then renamed over the file: what is on disk is a valid HAR at every moment. The first tick writes an empty log, so a program killed before its first request leaves a file too. The write at normal exit stays (and falls back to writing in place when the path cannot be renamed over, e.g. /dev/stdout).
+- src/host/loop.cpp: pump() and wait(ms) call netlog::tick (two flag tests when ZINC_HAR is not set).
 - Tests: new tests/t0/netlog_kill.sh; tests/netlog_check.py also checks that the HAR on disk lists the 9 requests while the UI program still runs. docs/dev-mode.md (HAR export) and netlog.h say it.
 
 Decision (no record number, for the coordinator; D60 should lose 'The HAR is written at normal exit only')
@@ -49,5 +49,5 @@ For the coordinator
 - affected.json: add netlog_kill to the row of src/host/netlog.cpp; src/host/loop.cpp has no row (a change there falls back to every test).
 - No follow-up task needed. If a second is too coarse one day: an option for the period (ZINC_HAR_EVERY); not added, nobody asked.
 
-usage: n/a (next/tools/usage)
+usage: n/a (tools/usage)
 <!-- SECTION:NOTES:END -->

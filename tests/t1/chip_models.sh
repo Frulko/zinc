@@ -4,12 +4,12 @@
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-cc() { c++ -std=c++17 -w -DZN_HW_SIM -DSSD1306_STUB -DWS2812_STUB -DSCROLLPHAT_STUB -Isrc/sim/chips -Isrc -Itests/native -Itests/native/stubs -I../runtime/include -I../plugins/display-ssd1306 -I../plugins/display-ws2812 -I../plugins/display-st7789 -I../plugins/display-scrollphat -I../plugins/display-fbdev "$@"; }
+cc() { c++ -std=c++17 -w -DZN_HW_SIM -DSSD1306_STUB -DWS2812_STUB -DSCROLLPHAT_STUB -Isrc/sim/chips -Isrc -Itests/native -Itests/native/stubs -Iruntime/include -Iplugins/display-ssd1306 -Iplugins/display-ws2812 -Iplugins/display-st7789 -Iplugins/display-scrollphat -Iplugins/display-fbdev "$@"; }
 cc tests/native/chip_ssd1306.cpp -o "$tmp/ssd" 2>"$tmp/e1" || { echo "ssd1306 test does not build: $(head -c 400 "$tmp/e1")"; fail=1; }
 cc tests/native/chip_ws2812.cpp -o "$tmp/ws" 2>"$tmp/e2" || { echo "ws2812 test does not build: $(head -c 400 "$tmp/e2")"; fail=1; }
 cc tests/native/chip_st7789.cpp -o "$tmp/st" 2>"$tmp/e4" || { echo "st7789 test does not build: $(head -c 600 "$tmp/e4")"; fail=1; }
 cc tests/native/chip_scrollphat.cpp -o "$tmp/sp" 2>"$tmp/e5" || { echo "scrollphat test does not build: $(head -c 600 "$tmp/e5")"; fail=1; }
-cc tests/native/chip_fbdev.cpp -o "$tmp/fb" -I../plugins/display-fbdev 2>"$tmp/e6" || { echo "fbdev test does not build: $(head -c 600 "$tmp/e6")"; fail=1; }
+cc tests/native/chip_fbdev.cpp -o "$tmp/fb" -Iplugins/display-fbdev 2>"$tmp/e6" || { echo "fbdev test does not build: $(head -c 600 "$tmp/e6")"; fail=1; }
 cc tests/native/chip_qmi8658.cpp -o "$tmp/qmi" 2>"$tmp/e3" || { echo "qmi8658 test does not build: $(head -c 400 "$tmp/e3")"; fail=1; }
 cc tests/native/chip_wave3.cpp -o "$tmp/w3" 2>"$tmp/e7" || { echo "wave 3 test does not build: $(head -c 600 "$tmp/e7")"; fail=1; }
 [ -x "$tmp/w3" ] && { "$tmp/w3" tests/golden/sim 2>&1 | grep -q "wave 3 models ok" || { echo "wave 3 models: $("$tmp/w3" tests/golden/sim 2>&1 | head -c 600)"; fail=1; }; }

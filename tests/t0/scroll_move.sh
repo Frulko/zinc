@@ -7,11 +7,11 @@ cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 printf '60 touch 1 210 650\n61 touch 1 210 600\n62 touch 1 210 550\n63 touch 1 210 500\n64 touch 1 210 450\n65 touchup 1\n' >"$t/in"
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=96 ZINC_INPUT="$t/in" ZINC_SHOT_FRAMES=61,62,70,71,90,91,95,96 ZINC_SHOT="$t/x.png" \
-  ZINC_SCENE_DUMP="$t/s.scn" "$ZINC" run ../examples/rn-showcase >/dev/null 2>&1
+  ZINC_SCENE_DUMP="$t/s.scn" "$ZINC" run examples/rn-showcase >/dev/null 2>&1
 fail=0
 for p in "61 62" "70 71" "90 91" "95 96"; do
   set -- $p
-  out=$("$ZINC" capture --scene "$t/s-$1.scn" ../examples/rn-showcase/src/main.tsx --scroll "$t/s-$2.scn" 2>"$t/err" | tail -1)
+  out=$("$ZINC" capture --scene "$t/s-$1.scn" examples/rn-showcase/src/main.tsx --scroll "$t/s-$2.scn" 2>"$t/err" | tail -1)
   case "$out" in
     "scroll "*" equal") ;;
     *) echo "scroll_move: frames $1 -> $2: $out $(grep 'scroll:' "$t/err")"; fail=1; continue ;;

@@ -33,7 +33,7 @@
       ]
     },
     "interp_with_compile": {
-      "cmd": "build/zinc run ../tests/bench/kernels/fib.ts",
+      "cmd": "build/zinc run tests/bench/kernels/fib.ts",
       "median_s": 0.05599487499999989,
       "min_s": 0.05358079199999999,
       "max_s": 0.06560625000000009,

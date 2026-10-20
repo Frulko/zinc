@@ -13,7 +13,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 d=$PWD/tests/data/museum_polish; g=$PWD/tests/golden/museum-polish; sides=$PWD/tests/data/museum_mode/sides.input
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 mkdir -p "$g" "$tmp/attract" "$tmp/tours"
 for part in audio models panoramas photos video; do ln -s "$PWD/assets/$part" "$tmp/attract/$part"; ln -s "$PWD/assets/$part" "$tmp/tours/$part"; done

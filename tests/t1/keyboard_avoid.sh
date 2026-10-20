@@ -5,7 +5,7 @@
 # made. The boxes are read from the screen reader's mirror (`a11y 1`: each node's box on the surface, ZINC_DEVICE_LOG): the focused field must end
 # above the keyboard's top and start below the safe area's top.
 cd "$(dirname "$0")/../.." || exit 2
-app=$PWD/../examples/rn-showcase
+app=$PWD/examples/rn-showcase
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # check <platform> <W>x<H> <safe area> <keyboard>

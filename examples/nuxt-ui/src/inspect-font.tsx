@@ -1,4 +1,4 @@
-// Test entry of the font (next/tests/t1/nuxt_ui.sh, ZN-379): with setFontSans('PublicSans') the default sans text resolves to assets/PublicSans*.ttf at
+// Test entry of the font (tests/t1/nuxt_ui.sh, ZN-379): with setFontSans('PublicSans') the default sans text resolves to assets/PublicSans*.ttf at
 // 400, 500, 600 and 700 (font-normal, font-medium, font-semibold, font-bold), and font-mono stays JetBrains Mono.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';

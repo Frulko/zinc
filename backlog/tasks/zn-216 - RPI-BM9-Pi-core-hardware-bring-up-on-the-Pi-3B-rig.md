@@ -16,7 +16,7 @@ ordinal: 332000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Boot timing, DSI 800x480, USB, SD, next/bench, try start_cd.elf; answers spikes S1 to S5. See docs/reports/zinc-next-baremetal-pi.md section 10.
+Boot timing, DSI 800x480, USB, SD, bench, try start_cd.elf; answers spikes S1 to S5. See docs/reports/zinc-next-baremetal-pi.md section 10.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

@@ -30,7 +30,7 @@ Headers and URL userinfo are masked at record time; query strings and bodies are
 <!-- SECTION:NOTES:BEGIN -->
 Done in a parallel worktree (branch worktree-agent-a0700e36f27b616d0), on top of ZN-633.
 
-What changed (next/src/host/netlog.cpp, all at record time, so the events, getResponseBody, getRequestPostData and the HAR hold no secret)
+What changed (src/host/netlog.cpp, all at record time, so the events, getResponseBody, getRequestPostData and the HAR hold no secret)
 - Query parameters: maskQuery on the URL of every request, on the request target of a WebSocket upgrade and on the value of a Location header (so the HAR's redirectURL too).
 - Bodies of requests and responses (maskBody, before the 4 MiB cut): a urlencoded form by its fields (Content-Type), any other text as JSON: the value after a listed "name": becomes "***" (string, number, object or array), at any depth; every other byte is kept.
 - WebSocket text frames and MQTT messages go through the same JSON masking (addFrame).
@@ -54,5 +54,5 @@ Follow-ups for the coordinator
 - (size S, optional) Network log: percent-decode parameter names and read JSON escapes in keys before comparing. AC: pass%77ord and "p\u0069n" are masked when password and pin are listed.
 - No affected.json change (netlog.cpp and the test files are already mapped to netlog).
 
-usage: n/a (next/tools/usage)
+usage: n/a (tools/usage)
 <!-- SECTION:NOTES:END -->

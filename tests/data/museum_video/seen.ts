@@ -1,12 +1,12 @@
 // What a visitor sees of a film of the museum table (ZN-650.08) when zinc:video decodes for real: the clip opens, gives pictures, its time
 // runs at the pace of the clock and it lasts what the file says. One line, and exit 1 when one of these fails within five seconds.
-//   ZINC_NATIVE=real ZINC_ASSETS=<assets directory> ZINC_HEADLESS=1 zinc run next/tests/data/museum_video/seen.ts -- <medium id>
+//   ZINC_NATIVE=real ZINC_ASSETS=<assets directory> ZINC_HEADLESS=1 zinc run tests/data/museum_video/seen.ts -- <medium id>
 // Not in a deterministic run: it gets the stand-in of zinc:video, which decodes nothing, and the film then shows its poster.
 import { onFrame } from 'zinc:gfx';
 import { args, clock, exit } from 'zinc:sys';
 import { readText } from 'zinc:assets';
-import { parseProject } from '../../../../examples/museum-table/src/project';
-import { Film } from '../../../../examples/museum-table/src/film';
+import { parseProject } from '../../../examples/museum-table/src/project';
+import { Film } from '../../../examples/museum-table/src/film';
 
 const project = parseProject(readText('project.json')), found = project.medium(args()[0]);
 if (found === null) { console.log(`no medium ${args()[0]}`); exit(1); }

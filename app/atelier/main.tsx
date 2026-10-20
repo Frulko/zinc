@@ -1,7 +1,7 @@
 // Zinc Atelier: the place to write Zinc sketches and run them, written in Zinc. One window: the run control and the
 // sketch's files as tabs, the editor, and a console that is one line of status until the program speaks.
-//   zinc run next/app/atelier                 the sketch opened last time, else the start view (examples, a new sketch)
-//   zinc run next/app/atelier -- <folder>     that sketch
+//   zinc run app/atelier                 the sketch opened last time, else the start view (examples, a new sketch)
+//   zinc run app/atelier -- <folder>     that sketch
 // It drives the zinc binary it runs on ($ZINC_BIN): zinc run, zinc dev, zinc check, zinc plugins, and zinc lsp beside the editor.
 // Tests: ZINC_ATELIER_HOME (the sketchbook), ZINC_ATELIER_SYNC=1 (a frame waits for the child), ZINC_ATELIER_PACE=ms (a frame
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:

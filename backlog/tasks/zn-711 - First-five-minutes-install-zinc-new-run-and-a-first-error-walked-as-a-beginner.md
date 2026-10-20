@@ -19,9 +19,9 @@ dependencies: []
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Owner request (2026-10-11): Zinc is for education, makers, artists and DIY, and nobody outside the project has walked its first run. Walk it as a newcomer on the development Mac: install, `zinc doctor`, `zinc new` with each template, `zinc run`, a first change, a first mistake, `zinc dev`. Fix on the way what takes less than an hour; the rest is lines for `next/backlog/later.md`.
+Owner request (2026-10-11): Zinc is for education, makers, artists and DIY, and nobody outside the project has walked its first run. Walk it as a newcomer on the development Mac: install, `zinc doctor`, `zinc new` with each template, `zinc run`, a first change, a first mistake, `zinc dev`. Fix on the way what takes less than an hour; the rest is lines for `backlog/later.md`.
 
-Second lane of the parallel agents, after the pinball and the museum (owner's order, `next/backlog/priority.json`).
+Second lane of the parallel agents, after the pinball and the museum (owner's order, `backlog/priority.json`).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -29,7 +29,7 @@ Second lane of the parallel agents, after the pinball and the museum (owner's or
 - [x] #1 a scripted test creates a project from every template of templates/ in an empty directory, runs it headless for a few frames and passes; a template that fails is fixed
 - [x] #2 six beginner mistakes (a misspelt import, a type error, an unknown zinc: module, a plugin that is not installed, a JSX tag left open, a missing file) each print the file, the line and what to do next; the messages are goldens
 - [x] #3 docs/guide/01-getting-started.md follows the tested path command for command, from the install to a changed line seen on screen, and says what a teacher, a maker and an artist can open next
-- [x] #4 what the walk found and did not fix is given as lines for next/backlog/later.md
+- [x] #4 what the walk found and did not fix is given as lines for backlog/later.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -37,7 +37,7 @@ Second lane of the parallel agents, after the pinball and the museum (owner's or
 <!-- SECTION:NOTES:BEGIN -->
 Walked on the development Mac with the main binary, then a worktree build (2026-10-11).
 
-Test: next/tests/t1/first_run.sh (17 s): the 13 templates created in an empty directory and run headless 3 frames (servers: listening until the timeout), a changed text changes the frame hash, seven goldens in next/tests/golden/first-run/ for the six mistakes (the misspelt import has two: a name, a path), the guide quotes each message, bare zinc / --help / a misspelt command. PASS first_run, checker, diagnostics, rejections, cli_core, cli_tools, modules, jsx, jsx_style, react_class, parser, templates, run, project, dev_mode, tdz, security_guide, ci_plan. plugin_manifest fails on main's binary too (zinc plugins differs from the prototype's table): not from this task.
+Test: tests/t1/first_run.sh (17 s): the 13 templates created in an empty directory and run headless 3 frames (servers: listening until the timeout), a changed text changes the frame hash, seven goldens in tests/golden/first-run/ for the six mistakes (the misspelt import has two: a name, a path), the guide quotes each message, bare zinc / --help / a misspelt command. PASS first_run, checker, diagnostics, rejections, cli_core, cli_tools, modules, jsx, jsx_style, react_class, parser, templates, run, project, dev_mode, tdz, security_guide, ci_plan. plugin_manifest fails on main's binary too (zinc plugins differs from the prototype's table): not from this task.
 
 Every template ran as it was: none needed a fix.
 
@@ -50,7 +50,7 @@ Fixed in the engine:
 
 Not proven here: no window was opened (parallel worktree): the windowed first run and the red box of zinc dev were run headless only; the install is the build of this worktree (cmake + tools/build), not a clone on a clean machine.
 
-Lines for next/backlog/later.md (First five minutes):
+Lines for backlog/later.md (First five minutes):
 - ZN-711: no installer or release download: the first step is a 6 to 8 minute build with CMake and a C++20 compiler, the highest wall for a teacher or an artist.
 - ZN-711: type messages say 'f64' where the user wrote number (Type is not assignable: 'string' to 'f64'); print the name the user wrote.
 - ZN-711: one misspelt import gives one more Cannot find name per use (5 errors for one typo), and Cannot find name has no did-you-mean from the names in scope.

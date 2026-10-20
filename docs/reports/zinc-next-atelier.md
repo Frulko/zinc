@@ -42,7 +42,7 @@ their order and the layout stay as they were (`model.ts: jsonSet`). It goes thro
 zinc.json makes it a tab, Show Folder opens the folder in the Finder, Build App runs `zinc export .` with its steps in the console and
 says where the app is. A plain sketch's card offers Make it a Project: a zinc.json with its name, an id, a version and its entry.
 
-zinc.json is read as text in the app: the CLI has no command that prints a parsed project (a line of `next/backlog/later.md` asks for one).
+zinc.json is read as text in the app: the CLI has no command that prints a parsed project (a line of `backlog/later.md` asks for one).
 
 ## Limits and lessons
 

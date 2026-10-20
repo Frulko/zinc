@@ -17,7 +17,7 @@ cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"; exit 77; }
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-ex=../examples/pinball3d
+ex=examples/pinball3d
 data=$PWD/tests/data/pinball3d
 table=$(cd $ex/assets/tables && ls | head -1)
 folder=$(cd $ex/assets/tables/$table && pwd)

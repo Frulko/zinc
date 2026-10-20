@@ -11,7 +11,7 @@ namespace zn::frontend {
 // capability name -> "true", "false", "plugin", "optional", a number (heap in bytes, width, height) or a string (numbers = f64)
 using Caps = std::map<std::string, std::string>;
 
-/** The hardware flags of the profile from `<engineRoot>/../targets/capabilities.json`, plus heap, numbers, fpu, width and height of the profile table. */
+/** The hardware flags of the profile from `<engineRoot>/targets/capabilities.json`, plus heap, numbers, fpu, width and height of the profile table. */
 Caps capsFor(const Profile& p, const std::string& engineRoot);
 /** The same from the file itself (a path to targets/capabilities.json). */
 Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson);

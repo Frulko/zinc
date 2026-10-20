@@ -3,7 +3,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf 'other\tkept\n' > "$tmp/s.kv"   # a key of zinc:storage that clear() must leave
-got=$(ZINC_STORAGE="$tmp/s.kv" "$ZINC" run ../plugins/async-storage/tests/async_storage.ts 2>&1 | grep -v '^  \|^zinc')
+got=$(ZINC_STORAGE="$tmp/s.kv" "$ZINC" run plugins/async-storage/tests/async_storage.ts 2>&1 | grep -v '^  \|^zinc')
 want='null
 ""
 {"name":"Ada","prefs":{"theme":"dark","size":3},"tags":["b"]}

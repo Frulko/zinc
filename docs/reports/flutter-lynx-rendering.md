@@ -59,7 +59,7 @@ Zinc sits between the two: it draws every pixel itself, like Flutter, but on the
 3. **From both, keep the CPU raster.** It stays the reference (pixels byte-identical across targets) and the fallback for GPUs
    that are slower than their CPU, as Skia stays for Flutter.
 4. **From Lynx, compositing by the system.** A scrolling view or a page transition can become a `CALayer` that Core Animation
-   moves without redrawing (the music carousel line in `next/backlog/later.md`). And `NativeView` stays the way to embed a
+   moves without redrawing (the music carousel line in `backlog/later.md`). And `NativeView` stays the way to embed a
    real platform control where fidelity matters (text input, maps, web views).
 5. **From Lynx, the first frame.** Measure the time to the first frame on a real device and keep it short: the program's first
    render before anything optional loads.

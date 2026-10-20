@@ -13,13 +13,13 @@ shot() {   # frames, png, args...
 same() { [ -f "$1" ] && cmp -s "$1" "$2"; }
 for d in hero:20 rn-showcase:20 nuxt-ui:20 breakout:20 webcam:40; do
   ex=${d%%:*}; n=${d#*:}
-  shot "$n" "$tmp/$ex.i.png" "../examples/$ex" --interp
-  shot "$n" "$tmp/$ex.q.png" "../examples/$ex" --engine quickjs
+  shot "$n" "$tmp/$ex.i.png" "examples/$ex" --interp
+  shot "$n" "$tmp/$ex.q.png" "examples/$ex" --engine quickjs
   same "$tmp/$ex.q.png" "$tmp/$ex.i.png" || { echo "$ex: frame $n on quickjs differs from the interpreter's"; fail=1; }
 done
 if ZINC_OFFLINE=1 "$ZINC" toolchain esbuild >/dev/null 2>&1; then
-  out=../examples/hero/dist/qjs-demos-$$.js   # in the project (dist/ is ignored by git): its zinc.json sizes the window
-  "$ZINC" bundle ../examples/hero -o "$out" --minify >/dev/null 2>&1 || { echo "zinc bundle hero failed"; fail=1; }
+  out=examples/hero/dist/qjs-demos-$$.js   # in the project (dist/ is ignored by git): its zinc.json sizes the window
+  "$ZINC" bundle examples/hero -o "$out" --minify >/dev/null 2>&1 || { echo "zinc bundle hero failed"; fail=1; }
   shot 20 "$tmp/hero.b.png" "$out"
   rm -f "$out"
   same "$tmp/hero.b.png" "$tmp/hero.i.png" || { echo "hero: frame 20 of the minified bundle differs from the interpreter's"; fail=1; }

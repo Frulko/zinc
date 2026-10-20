@@ -9,7 +9,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 d=$PWD/tests/data/museum_table; golden=$PWD/tests/golden/museum-table/frames.txt; tools=$PWD/tools
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 session() {  # frames, then extra arguments of zinc run: the log on stdout, the hash of the last frame in $tmp/hash
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$d/hands.input" ZINC_FRAMES=$1 ZINC_FRAMEHASH=last "$ZINC" run $2 . -- --log 2>"$tmp/err"

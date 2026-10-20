@@ -1,7 +1,7 @@
 // Self-check of the editor's logic that needs no window: the editing commands of app/edit.ts (indent, several cursors,
 // comments, pairs, line commands, word and line deletion, undo) and the language server's protocol of app/rpc.ts (framing,
 // URIs, the answers and the filtering of completion items). One line per check; exits 1 on a failure.
-//   zinc run next/app/atelier/selftest.ts
+//   zinc run app/atelier/selftest.ts
 import * as sys from 'zinc:sys';
 import { Ed, norm, typeText, paste, copyText, erase, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
   single, addSel, selectNext, addCursorV, move, eraseTo, complete, occurrences, History, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN } from './app/edit';

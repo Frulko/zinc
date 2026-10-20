@@ -280,7 +280,7 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
 std::vector<std::string> buildDefines(const frontend::FoundPlugin& p, const frontend::PluginTarget& ts, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", pluginTarget() == "macos" ? "ZRT_PLATFORM=\"macos\"" : pluginTarget() == "windows" ? "ZRT_PLATFORM=\"windows\"" : "ZRT_PLATFORM=\"linux\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
-  for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
+  for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot, target)) defines.push_back(d);
   return defines;
 }
 bool systemCompiler(const std::string& projectDir) {   // ZINC_PLUGIN_CC=system or zinc.json "pluginCompiler": "system"
@@ -290,7 +290,7 @@ bool systemCompiler(const std::string& projectDir) {   // ZINC_PLUGIN_CC=system 
 }
 
 std::string prebuiltKey(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
-  const std::string runtime = engineRoot + "/../runtime";
+  const std::string runtime = engineRoot + "/runtime";
   Hash k;
   for (const std::string& d : buildDefines(p, p.manifest.targetSettings.at(target), engineRoot, projectDir, target)) k.add(d);
   for (const std::string& hp : {engineRoot + "/include/zn/native.h", engineRoot + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) k.add(sha256File(hp));
@@ -397,7 +397,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   std::string defs;
   for (const std::string& d : defines) defs += " -D" + q(d);
   std::string root = fs::path(engineRoot).string();
-  std::string runtime = root + "/../runtime";
+  std::string runtime = root + "/runtime";
   // sources of the manifest: .c files, and C++ files under vendor/ (ZN-583.02: Jolt), are vendored libraries; the rest are compiled with the plugin
   std::vector<std::string> own, vendored;
   if (!display) own.push_back(impl);
@@ -468,7 +468,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   (void)dyn;
   // reproducible objects (ZN-333): the paths of this machine (the plugin, the cache entry, the engine, the toolchains) become fixed names in __FILE__ and the object files
   const std::string remap = " -ffile-prefix-map=" + q(p.dir) + "=plugins/" + m.name + " -ffile-prefix-map=" + q(dir) + "=cache -ffile-prefix-map=" + q(vdir) + "=cache" +
-                            " -ffile-prefix-map=" + q(fs::path(root).parent_path().string()) + "=zinc -ffile-prefix-map=" + q(home() + "/toolchains") + "=toolchains";
+                            " -ffile-prefix-map=" + q(root) + "=zinc -ffile-prefix-map=" + q(home() + "/toolchains") + "=toolchains";
   fs::create_directories(dir, ec);
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) fetchPrebuilt(m.name, keyHex, gCross.on ? gCross.name : target, engineRoot, dir, vdir, out);   // ZN-337: a published binary first
   if (!vendored.empty() && !fs::exists(out.vendor)) {   // the vendored C libraries: compiled once for these defines
@@ -510,7 +510,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     // third_party last: a plugin may compile a library the engine vendors by its directory (three: "meshoptimizer/vertexcodec.cpp", ZN-441)
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
-      + (!display && fs::exists(root + "/../plugins/display-gl/zgl.h") ? " -I" + q(root + "/../plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
+      + (!display && fs::exists(root + "/plugins/display-gl/zgl.h") ? " -I" + q(root + "/plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
       + (pluginTarget() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
 #endif
       + " -I" + q(root + "/third_party");
@@ -591,7 +591,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   const frontend::PluginManifest& m = p.manifest;
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   std::vector<std::string> in{(fs::path(p.dir) / "plugin.json").string(), executablePath()};
-  const std::string root = engineRoot, runtime = root + "/../runtime";
+  const std::string root = engineRoot, runtime = root + "/runtime";
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/include/hal.h"}) in.push_back(hp);
   if (target == "windows") { const std::string im = zincImplib(engineRoot); if (!im.empty()) in.push_back(im); }
   std::vector<std::string> dirs;

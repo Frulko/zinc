@@ -5,7 +5,7 @@ Owner's instructions of 2026-10-07 are the source; if a rule here and a task dis
 
 ## 1. The goal that every task serves
 
-Every demo of the prototype (`examples/*`, every entry of every `zinc.json`) runs on this engine **without changing its source**, on the interpreter, the AOT and (where it applies) `--engine quickjs`, with the plugins of `plugins/*`
+Every demo (`examples/*`, every entry of every `zinc.json`) runs on this engine **without changing its source**, on the interpreter, the AOT and (where it applies) `--engine quickjs`, with the plugins of `plugins/*`
 working through their simulators. The engine stays **agnostic** (no target or plugin special cases in the core), **pluggable** (modules, plugins, HALs, engines behind one ABI each), **maintainable**, **readable** and **fast**
 (measured, never assumed). The parity matrix is `docs/reports/parity/` (audit of 2026-10-07); the backlog is derived from it.
 
@@ -15,13 +15,13 @@ A task never ends in "needs a person". When something seems to block, apply the 
 
 | Obstacle | What to do |
 |---|---|
-| No hardware (ESP32, Pi, reMarkable, panels, PS1/PS2, camera, IMU) | Use the **simulator or emulator** as the prototype did: QEMU, Espressif QEMU, PCSX-Redux, the in-process panel emulators, fake camera/IMU, `zinc device-sim`. A task is Done on the simulator. A real-board run is one line under "Cross-platform pass" in `backlog/later.md` while the backlog is frozen (AGENTS.md), never a dependency. |
+| No hardware (ESP32, Pi, reMarkable, panels, PS1/PS2, camera, IMU) | Use the **simulator or emulator**: QEMU, Espressif QEMU, PCSX-Redux, the in-process panel emulators, fake camera/IMU, `zinc device-sim`. A task is Done on the simulator. A real-board run is one line under "Cross-platform pass" in `backlog/later.md` while the backlog is frozen (AGENTS.md), never a dependency. |
 | Windows | A target since 2026-10-11 (owner: education and the general public are there), worked once the Mac is stable: it opens the cross-platform pass, before the handhelds. No Windows build or test during a Mac task; it needs a Windows machine or CI the project does not have yet (label `windows`). Keep code portable (no new POSIX-only assumptions in `include/zn`, `src/frontend`, `src/ir`, `src/zbc`, `src/vm`). |
 | A decision (library, design, trade-off) | **Decide it yourself**: research (§3), score the options (§4), write the decision record (§5), proceed. Do not ask. |
 | A task is too big | Split it into subtasks with `backlog task create --parent <id>`, each with precise acceptance criteria, and do the first one. A split holds the task's own criteria and no new scope (commit trailer `New-task: split ZN-n`); any other idea is one line in `backlog/later.md`, not a task. |
 | A test fails twice | Write the failing case as a test, find the root cause (not the symptom), fix it once where all callers route through. If it is a prior bug in another module, fix it there in its own commit. |
 | Missing third-party code | Vendor a proven library (§3). Never write a regex engine, a TLS stack, a font rasterizer, an SQL engine, a video decoder, a JSON parser or similar from scratch. |
-| An unclear requirement | The prototype is the specification: read its code and docs, run it (`node compiler/bin/zinc.mjs ...`) and match its observable behaviour. |
+| An unclear requirement | The frozen corpus and goldens (`corpus/`, `tests/conformance`, `tests/golden`) say what a program prints and draws; the docs and the decision records say the rest. The prototype's code, removed, is under the git tag `prototype-final` (`git show prototype-final:compiler/src/<file>`). |
 | Budget overrun (>1.5x size) | Re-plan: split and continue; record the cost in the task notes. Not a stop. |
 | Uncommitted changes of others | Never touch or commit them; work around them with explicit paths. |
 
@@ -30,7 +30,7 @@ Irreversible or outward-facing actions (publishing, pushing, deleting data, spen
 
 ## 3. Proven libraries first, with research
 
-Before writing any non-trivial component: (1) read what the prototype did (`runtime/`, `plugins/*/native`, `compiler/src`) and reuse its code through its existing headers when it is good; (2) search the web and the owner's sources
+Before writing any non-trivial component: (1) read what the engine already has (`src/`, `runtime/`, `plugins/*/native`) and reuse it when it is good; (2) search the web and the owner's sources
 (`docs/reports/research-2026-09-30/`, `docs/reports/parity/04-library-choices.md`) for a mature library; (3) vendor it under `third_party/<name>/` with its licence, a pinned version or commit, the checksum of the archive, a
 `third_party/README.md` row, a build that works with clang and `zig c++` and needs no install step. Licences: MIT, BSD, Apache-2.0, zlib, ISC, public domain; LGPL/GPL only as a separately loaded plugin library, never linked into the core.
 Wrap the library behind a small interface owned by us (one header per module) so it can be replaced.

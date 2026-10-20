@@ -1,9 +1,9 @@
 # Backlog review: importance and order of every open task (2026-10-10)
 
-Asked by the owner on 2026-10-10. Scope: every task of `next/backlog/tasks` that is not Done (381 tasks when this was written), read in full
+Asked by the owner on 2026-10-10. Scope: every task of `backlog/tasks` that is not Done (381 tasks when this was written), read in full
 (description, acceptance criteria, notes where they mattered). Nothing was built or run; statements marked "checked" were read in the code or in a
 file named beside them. The machine-readable result is `docs/reports/backlog-review-2026-10-10.json`: one line per task (rank, new ordinal, class,
-six marks, score, lane, action, reason) and the new `groups` for `next/backlog/priority.json`. This page explains it.
+six marks, score, lane, action, reason) and the new `groups` for `backlog/priority.json`. This page explains it.
 
 The backlog moved while it was reviewed: the loop closed seven tasks, one agent finished zinc:audio (ZN-390), and the owner asked for two showcase
 demos, filed as M27 (15 tasks). All of it is in the result.
@@ -27,7 +27,7 @@ demos, filed as M27 (15 tasks). All of it is in the result.
 - A throwaway script dumped every open task into one text file; all of it was read. A second script holds one line of judgement per task and
   computes the rest (scores, order, ordinals, the simulation of the tool).
 - **Class**: feature, parity, perf, defect, hardening, tooling, docs, research; `cross` for everything in the cross-platform pass; `parked`.
-- **Score**, the weights of `next/RULES.md` section 4 adapted to tasks, each mark 1 to 5: value to the goal and to what the owner asked x3,
+- **Score**, the weights of `RULES.md` section 4 adapted to tasks, each mark 1 to 5: value to the goal and to what the owner asked x3,
   user-visible novelty x3, what it unblocks x2 (counted from the dependency graph: 0, 1, 2-3, 4-7, 8 or more open tasks behind it), confidence that
   it can be finished and proven on the development Mac x2, effort x1 (S 5, M 3, L 1), risk to the shared core x1 (5 isolated, 1 deep in IR,
   runtime, raster, layout, text or `lib/std/ui.ts`). Maximum 60.
@@ -75,7 +75,7 @@ The first block holds 17 tasks: the 15 of M27, ZN-432 (in flight) and ZN-263.
 
 **What the demos need and no task carries** (to file; not ranked here)
 
-1. **Scripted touches.** Checked: `ZINC_INPUT` (`next/src/host/hal_dispatch.cpp`) reads `move`, `down`, `up`, `wheel`, `key`, `text`; no touch.
+1. **Scripted touches.** Checked: `ZINC_INPUT` (`src/host/hal_dispatch.cpp`) reads `move`, `down`, `up`, `wheel`, `key`, `text`; no touch.
    The scripted multi-touch sessions of ZN-650.03, .04 and .06 cannot be written. S, and it should be the first task of the museum chain.
 2. **Quality of the GPU renderer of zinc:3d.** Checked: `plugins/3d/native/render3d.gl.cpp` samples textures at the nearest texel (to match the
    software renderer) and has no multisampling. A textured object seen up close and a pinball table in 3D are the main picture of both demos.

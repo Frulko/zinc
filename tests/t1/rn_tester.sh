@@ -2,7 +2,7 @@
 # The RNTester of zinc:react-native (ZN-386): examples/rn-tester's home and every page (Pressable, Switch, TextInput, FlatList, SectionList, Animated,
 # gestures, LayoutAnimation, styles, Platform) render to their recorded frame hashes, three of them in the dark scheme too.
 cd "$(dirname "$0")/../.." || exit 2
-app=../examples/rn-tester
+app=examples/rn-tester
 fail=0
 while read -r page scheme want; do
   pg=$page; [ "$page" = home ] && pg=''

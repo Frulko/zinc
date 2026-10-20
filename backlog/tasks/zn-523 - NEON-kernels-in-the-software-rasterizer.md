@@ -21,6 +21,6 @@ NEON intrinsics for span fill, source-over blend, XRGB8888 to RGB565 conversion 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 the pixel corpus gives identical CRCs with and without the NEON kernels under qemu-arm -cpu cortex-a8 or the CHIP-03 simulator
-- [ ] #2 a microbenchmark of the four kernels is added to next/bench
+- [ ] #2 a microbenchmark of the four kernels is added to bench
 - [ ] #3 on hardware fill and conversion are at least 2x faster than scalar
 <!-- AC:END -->

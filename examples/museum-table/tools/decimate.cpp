@@ -1,6 +1,6 @@
 // Decimates a Wavefront OBJ (v, vt, vn, triangles `f v/vt/vn`) to a target triangle count with meshoptimizer, keeping texture seams and normals.
 // The sample model of this example was made with it from the Smithsonian's 150 000-triangle file (see ../LICENSES.md and fetch-collection.sh):
-//   c++ -O2 -std=c++17 -I next/third_party/meshoptimizer examples/museum-table/tools/decimate.cpp next/third_party/meshoptimizer/*.cpp -o /tmp/decimate
+//   c++ -O2 -std=c++17 -I third_party/meshoptimizer examples/museum-table/tools/decimate.cpp third_party/meshoptimizer/*.cpp -o /tmp/decimate
 //   /tmp/decimate in.obj out.obj 14000
 // The output has one v, vt and vn per vertex and faces `f i/i/i`, at most 65535 vertices (the limit of a zinc:3d mesh).
 #include <cstdio>

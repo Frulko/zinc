@@ -114,11 +114,10 @@ const Command kCommands[] = {
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--release] [--abis list] | --ipa [--simulator]] [--dry-run]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh; android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs), --apk --release the release APK (not debuggable, signed with the upload key when one is named, else with the debug keystore for an install with adb); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
-  {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "build a plugin's native part", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (next/tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
-  {"update-pubkey", "zinc update-pubkey <seed-hex>", "the public key of a signing seed", "Prints the hex Ed25519 public key of a seed of zinc update-keygen: what next/update.pub holds for the release key."},
+  {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "build a plugin's native part", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
+  {"update-pubkey", "zinc update-pubkey <seed-hex>", "the public key of a signing seed", "Prints the hex Ed25519 public key of a seed of zinc update-keygen: what update.pub holds for the release key."},
   {"update-keygen", "zinc update-keygen", "make a signing key pair", "Prints seed=<64 hex digits>, the Ed25519 secret that signs (zinc sign, zinc publish --key, zinc export --key: keep it secret, for example as a CI secret), and public=<64 hex digits>, the key that checks (plugin.json publisher.publicKey, zinc.json update.publicKey, zinc add --key, zinc verify --key)."},
   {"compat", "zinc compat [--suite wpt,test262,node,quickjs] [--engines next,next-qjs,...] [--filter text] [--check]", "standards conformance", "Runs the pinned external suites (WPT, test262, quickjs-ng's tests, a Node API set) through this zinc (engines next and next-qjs by default) and the reference engines found, and writes docs/reports/zinc-next-compat.md: the harness of the checkout, tests/compat/run.mjs (needs Node)."},
-  {"ui", "zinc ui check|code|import|pack|serve <design.zui.json|zip|project> [--out path] [--port 7331]", "Figma designs to Zinc UI", "zinc-ui/1 documents from the Figma plugin (integrations/figma): check validates one, code prints the generated UI, import writes a project, pack makes a .zui.zip, serve pairs a project with the plugin. The tools of the checkout (compiler/src/ui-tools.ts, needs Node)."},
   {"verify", "zinc verify <file> [--key <public-hex>]", "check a signed artifact", "Checks <file>.sig (zinc sign, zinc export --key) against the key, by default zinc.json update.publicKey of the project above the file; exit 1 when the file or the signature changed."},
   {"remove", "zinc remove <plugin> [dir]", "remove a plugin", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
   {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
@@ -209,7 +208,7 @@ std::string fetchTemplate(const std::string& spec, const fs::path& into, fs::pat
 std::vector<TemplateInfo> listTemplates(const std::string& engineRoot) {
   std::vector<TemplateInfo> out;
   std::error_code ec;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "templates", ec)) {
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "templates", ec)) {
     TemplateInfo t;
     if (fs::exists(e.path() / "template.json", ec) && readTemplateInfo(e.path(), t).empty()) { t.name = e.path().filename().string(); out.push_back(t); }
   }
@@ -278,10 +277,10 @@ bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std
   const std::string name = args[k + 1];
   args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2);
   std::error_code ec;
-  fs::path def = fs::exists(name, ec) ? fs::absolute(name) : fs::path(engineRoot) / ".." / "devices" / (name + ".json");
+  fs::path def = fs::exists(name, ec) ? fs::absolute(name) : fs::path(engineRoot) / "devices" / (name + ".json");
   if (!fs::exists(def, ec)) {
     std::string known;
-    for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "devices", ec)) if (e.path().extension() == ".json") known += " " + e.path().stem().string();
+    for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "devices", ec)) if (e.path().extension() == ".json") known += " " + e.path().stem().string();
     err = "no device '" + name + "' (devices/<name>.json):" + (known.empty() ? " none" : known);
     return false;
   }
@@ -472,7 +471,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     ok = writeFile(root / fillVariables(rel.string(), vars, false), fillVariables(ss.str(), vars, rel.extension() == ".json"));   // names too: deploy/{{id}}.service
   }
   std::string libFiles;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "lib", ec))
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "lib", ec))
     if (e.path().extension() == ".ts" && e.path().filename().string().size() > 5 && e.path().filename().string().rfind(".d.ts") == e.path().filename().string().size() - 5)
       libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
   // the editor configuration names this machine's engine files, so it is written here rather than kept in the template
@@ -521,12 +520,12 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
   std::printf("\ndisplay: SDL3 is built into the engine (static), no install needed; ZINC_HEADLESS=1 runs without a window\n");
   std::error_code ec;
   int plugins = 0;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "plugins", ec)) if (e.is_directory() && fs::exists(e.path() / "plugin.json")) ++plugins;
-  std::printf("plugins: %d in %s/../plugins (zinc plugins lists them with the targets they run on)\n", plugins, engineRoot.c_str());
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "plugins", ec)) if (e.is_directory() && fs::exists(e.path() / "plugin.json")) ++plugins;
+  std::printf("plugins: %d in %s/plugins (zinc plugins lists them with the targets they run on)\n", plugins, engineRoot.c_str());
   {   // ZN-718: which plugins with native code have no prebuilt library. This machine: the key of prebuilt/<target>/ is checked. The other platform: by the
       // manifest alone (a release prebuilds every plugin that names the platform and needs no system library)
     std::vector<std::string> problems;
-    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot + "/..", ".", problems);
+    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot, ".", problems);
     const std::string here = zn::tc::pluginTarget();
     for (const std::string& target : {here, std::string(here == "macos" ? "linux" : "macos")}) {
       int have = 0;
@@ -627,7 +626,7 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   }
   {   // the plugins with native code that this machine has a prebuilt library for
     std::vector<std::string> problems; std::error_code ec;
-    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot + "/..", ".", problems);
+    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot, ".", problems);
     const std::string here = zn::tc::pluginTarget();
     int total = 0, ready = 0; std::string missing;
     for (const zn::frontend::FoundPlugin& p : found) {
@@ -795,7 +794,7 @@ static bool writeDeb(const fs::path& exportDir, const std::string& name, const s
 }
 
 // The SBOM (SPDX 2.3 JSON) and the licence texts of what an exported program links (ZN-323): the scopes the build wrote in <exe>.components,
-// matched against next/third_party/components.json; the program and the Zinc engine are packages too.
+// matched against third_party/components.json; the program and the Zinc engine are packages too.
 static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::string& engineRoot, bool icons, std::string& err) {
   const fs::path exe = out / p.name, compFile = exe.string() + ".components";
   std::ifstream cf(compFile);
@@ -806,7 +805,7 @@ static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::stri
   std::error_code ec;
   fs::remove(compFile, ec);
   if (icons) scopes.push_back("icons");
-  const fs::path repo = fs::path(engineRoot) / "..";
+  const fs::path repo = fs::path(engineRoot);
   std::ifstream jf(fs::path(engineRoot) / "third_party" / "components.json");
   std::stringstream js; js << jf.rdbuf();
   const std::string text = js.str();
@@ -955,7 +954,7 @@ static std::string splashStyle(const zn::assets::Splash& s) {
 // zinc export --target android (ZN-621, D59, docs/reports/zinc-next-mobile-core.md): SDL's own Android project (third_party/SDL3/android-project,
 // the template of SDL 3.4.16) changed as SDL's generator (third_party/SDL3/build-scripts/create-android-project.py) changes it: the package id, the
 // activity subclass, the sources of libmain.so. Zinc changes little more, all listed in exportAndroid: the app's name, version, orientation and
-// permissions, the ABIs (armeabi-v7a included), API 36, the Gradle and AGP pins, and the CMake entry that adds the engine (next/, the target
+// permissions, the ABIs (armeabi-v7a included), API 36, the Gradle and AGP pins, and the CMake entry that adds the engine (the checkout, the target
 // zn_app, which builds SDL3) instead of SDL alone. So an SDL upgrade is a re-copy of the template. The engine's sources are referenced
 // (gradle.properties zinc.engine), not copied. Nothing of Android runs here: ./gradlew assembleDebug does, with the SDK and the NDK.
 namespace android {
@@ -1004,7 +1003,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
   if (names.empty()) return true;
   std::vector<std::string> problems;
   std::string err;
-  const auto found = zn::frontend::discoverPlugins(engine.parent_path().string(), p.dir, problems);
+  const auto found = zn::frontend::discoverPlugins(engine.string(), p.dir, problems);
   for (const std::string& nm : names) {
     const zn::frontend::FoundPlugin* hit = nullptr;
     for (const auto& f : found) if (f.manifest.name == nm) hit = &f;
@@ -1022,7 +1021,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     if (!zn::tc::pluginSource(*hit, engine.string(), p.dir, platform, (copyDir / nm).string(), ps, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return false; }
     const std::string lib = "zn_app_plugin_" + nm, pdir = fs::path(hit->dir).lexically_normal().string();
     // the engine's plugins by ${ZINC_PLUGINS}, as the engine by ${ZINC_ENGINE}; a project's own plugin (its plugins/ or pluginDirs) by its absolute path
-    const std::string home = (engine.parent_path() / "plugins" / nm).lexically_normal().string() == pdir ? "${ZINC_PLUGINS}/" + nm : fs::path(pdir).generic_string();
+    const std::string home = (engine / "plugins" / nm).lexically_normal().string() == pdir ? "${ZINC_PLUGINS}/" + nm : fs::path(pdir).generic_string();
     auto path = [&](const std::string& s) { return s.rfind(pdir, 0) == 0 ? home + s.substr(pdir.size()) : fs::path(s).lexically_relative(cmakeDir).generic_string(); };
     std::string swift;   // a plugin's Swift in a library of its own: the C++ options and NAME=value defines are not swiftc's
     for (const std::string& s : ps.own) if (fs::path(s).extension() == ".swift") swift += " " + path(s);
@@ -1030,7 +1029,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     out.cmake += "add_library(" + lib + " STATIC";
     for (const std::string& s : ps.own) if (fs::path(s).extension() != ".swift") out.cmake += " " + path(s);
     for (const std::string& s : ps.vendored) out.cmake += " " + path(s);
-    out.cmake += ")\ntarget_include_directories(" + lib + " PRIVATE " + (copyDir / nm).lexically_relative(cmakeDir).generic_string() + " " + home + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party ${ZINC_ENGINE}/third_party/SDL3/include)\n"
+    out.cmake += ")\ntarget_include_directories(" + lib + " PRIVATE " + (copyDir / nm).lexically_relative(cmakeDir).generic_string() + " " + home + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/runtime ${ZINC_ENGINE}/runtime/include ${ZINC_ENGINE}/third_party ${ZINC_ENGINE}/third_party/SDL3/include)\n"
              "target_compile_options(" + lib + " PRIVATE -O2 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
     for (std::string f : ps.flags) { if (const std::size_t at = f.find(pdir); at != std::string::npos) f.replace(at, pdir.size(), home); out.cmake += " " + f; }   // a flag's path, made absolute by pluginSource
     out.cmake += ")\nset_target_properties(" + lib + " PROPERTIES CXX_STANDARD 17)\ntarget_compile_definitions(" + lib + " PRIVATE";
@@ -1125,7 +1124,7 @@ static bool playerProgram(const ProjectInfo& p, const fs::path& engine, const ch
   const std::string build = "ZN_AOT_CPP_ONLY=1 " + q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(unit.string()) + " --profile " + profile;
   if (status(std::system(build.c_str())) != 0) { std::fprintf(stderr, "zinc export: the build of the home screen failed\n"); return false; }
   std::vector<std::string> problems;
-  for (const auto& f : zn::frontend::discoverPlugins(engine.parent_path().string(), p.dir, problems)) {
+  for (const auto& f : zn::frontend::discoverPlugins(engine.string(), p.dir, problems)) {
     bool native = false;   // a plugin of Zinc code only (async-storage, gsap) travels in the programs zinc dev sends
     for (const auto& e : fs::directory_iterator(fs::path(f.dir) / "native", ec)) native = native || e.path().filename().string().find(".spec.ts") != std::string::npos;
     if (native && f.manifest.kind != "display" && f.manifest.targetSettings.count(profile) && std::find(plugins.begin(), plugins.end(), f.manifest.name) == plugins.end()) plugins.push_back(f.manifest.name);
@@ -1310,7 +1309,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       // Zinc: the engine and the program in libmain.so (SDL3 is built inside the engine), linked with zn_app and the program's plugins
       replaceIn(out / "app/jni/CMakeLists.txt", "add_subdirectory(SDL)\n", "add_compile_options(-O2)   # Zinc: the engine and SDL optimized in a debug APK too (AGP builds it as Debug, -O0)\nset(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # Zinc: the engine (zn_app), SDL3 inside it\n", err) &&
       replaceIn(src / "CMakeLists.txt", "target_link_libraries(main PRIVATE SDL3::SDL3)\n",
-                "# Zinc (zinc export --target android): the program's plugins, then libmain.so = the program, the shell, the engine\nset(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
+                "# Zinc (zinc export --target android): the program's plugins, then libmain.so = the program, the shell, the engine\nset(ZINC_PLUGINS ${ZINC_ENGINE}/plugins)\n" + pluginCmake +
                 "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") + (appEnv.empty() ? "" : " \"ZN_APP_ENV=\\\"" + appEnv.substr(1) + "\\\"\"") + ")\n"   // zinc.json \"dev\": {\"perfHud\": true}, for debuggable builds (shell_sdl.cpp)
                 "target_compile_options(main PRIVATE -O2 -w -ffp-contract=off -fno-stack-protector)\n"
                 "target_include_directories(main PRIVATE ${ZINC_ENGINE}/include ${ZINC_ENGINE}/src ${ZINC_ENGINE}/third_party/mimalloc/include)\n"
@@ -1382,7 +1381,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   }
   {   // gradle.properties: the CMake build of the template (BUILD_WITH_CMAKE), the engine, the ABIs
     std::ifstream in(out / "gradle.properties"); std::stringstream ss; ss << in.rdbuf();
-    writeFile(out / "gradle.properties", ss.str() + "\n# Zinc (zinc export --target android): the CMake build, the engine whose sources it compiles (next/ of a checkout), the ABIs\n"
+    writeFile(out / "gradle.properties", ss.str() + "\n# Zinc (zinc export --target android): the CMake build, the engine whose sources it compiles (a checkout), the ABIs\n"
               "# (-Pzinc.abis=armeabi-v7a builds one)\nBUILD_WITH_CMAKE=1\nzinc.engine=" + engine.string() + "\nzinc.abis=armeabi-v7a,arm64-v8a,x86_64\n# the plugins' Gradle dependencies are AndroidX libraries (androidx.core, androidx.webkit...)\nandroid.useAndroidX=true\n");
   }
   fs::create_directories(out / "app/src/main/java" / pkgPath, ec);
@@ -1600,13 +1599,13 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "cmake_minimum_required(VERSION 3.24)\n"
             "set(CMAKE_OSX_DEPLOYMENT_TARGET " + ios::kMinIos + " CACHE STRING \"the oldest iOS the app runs on\")\n"
             "project(" + n + " C CXX OBJC OBJCXX" + (plugs.swift ? " Swift" : "") + ")   # Objective-C for the plugins' .m and .mm sources, Swift for their .swift ones\n"
-            "set(ZINC_ENGINE \"" + engine.generic_string() + "\" CACHE PATH \"the engine whose sources this project compiles (next/ of a checkout)\")\n"
+            "set(ZINC_ENGINE \"" + engine.generic_string() + "\" CACHE PATH \"the engine whose sources this project compiles (a checkout)\")\n"
             "set(ZINC_TEAM \"\" CACHE STRING \"the Apple team that signs a device build (DEVELOPMENT_TEAM)\")\n"
             "set(ZINC_PROFILE \"\" CACHE STRING \"a provisioning profile that signs a device build manually (zinc.json signing.ios.profile; empty: automatic signing)\")\n"
             "add_compile_options(" + std::string(plugs.swift ? "\"$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-O2>\"" : "-O2") + ")   # the engine and SDL optimized in a Debug build too\n"
             "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\n"
             "add_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # the engine (zn_app), SDL3 inside it\n"
-            "set(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
+            "set(ZINC_PLUGINS ${ZINC_ENGINE}/plugins)\n" + pluginCmake +
             "# the app: the program, the shell (SDL3's main callbacks over include/zn/app.h), the asset catalog and assets/ in the bundle\n"
             "file(GLOB_RECURSE ZINC_ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)\n"
             "add_executable(" + n + " MACOSX_BUNDLE" + unitList + " ${ZINC_ENGINE}/src/app/shell_sdl.cpp Assets.xcassets PrivacyInfo.xcprivacy ${ZINC_ASSET_FILES}" + (proj.player ? " zinc/home.unit" : "") + ")\n"
@@ -1832,7 +1831,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
 // zinc compat and zinc ui (ZN-155): the checkout's Node tools, run as they are (tests/compat/run.mjs already measures this engine; the zinc-ui
 // tools generate code for the shared UI library, whichever engine runs it). ponytail: through Node; a C++ port of zinc ui if a release ships without it.
 static int nodeTool(const std::string& engineRoot, const std::string& script, const std::vector<std::string>& args, const char* what) {
-  const fs::path js = fs::path(engineRoot) / ".." / script;
+  const fs::path js = fs::path(engineRoot) / script;
   if (!fs::exists(js)) { std::fprintf(stderr, "zinc %s: %s is not in this installation (it comes with a Zinc checkout)\n", what, script.c_str()); return 2; }
   if (std::system("command -v node >/dev/null 2>&1") != 0) { std::fprintf(stderr, "zinc %s needs Node.js: it runs %s\n", what, script.c_str()); return 2; }
   std::string cmd = "node " + q(fs::absolute(js).lexically_normal().string());
@@ -1844,11 +1843,6 @@ int compat(const std::vector<std::string>& args, const std::string& engineRoot) 
   if (std::find(rest.begin(), rest.end(), "--engines") == rest.end()) { rest.push_back("--engines"); rest.push_back("next,next-qjs"); }
   rest.push_back("--zinc-next"); rest.push_back(self());
   return nodeTool(engineRoot, "tests/compat/run.mjs", rest, "compat");
-}
-int ui(const std::vector<std::string>& args, const std::string& engineRoot) {
-  std::vector<std::string> rest{"ui"};
-  rest.insert(rest.end(), args.begin() + 2, args.end());
-  return nodeTool(engineRoot, "compiler/bin/zinc.mjs", rest, "ui");
 }
 
 // zinc publish --itch / --site (ZN-325): the exports of dist/ to itch.io through butler, and a static download page. Uploading is the owner's
@@ -2631,7 +2625,7 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) { std::fprintf(stderr, "zinc tsconfig: %s is not a directory\n", dir.c_str()); return 2; }
   std::string libFiles;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "lib", ec)) {
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "lib", ec)) {
     const std::string f = e.path().filename().string();
     if (f.size() > 5 && f.compare(f.size() - 5, 5, ".d.ts") == 0) libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
   }
@@ -3500,7 +3494,7 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
   o.target = target;
   o.profile = release ? "release" : "dev";
   std::vector<zn::frontend::TargetAssets> rows;   // the target's asset profile: texture formats, sizes, pack codec (ZN-439)
-  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(zn::tc::sourceRoot(ZN_SOURCE_DIR)) / ".." / "targets" / "capabilities.json"), rows, err)) return false;
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(zn::tc::sourceRoot(ZN_SOURCE_DIR)) / "targets" / "capabilities.json"), rows, err)) return false;
   for (const auto& t : rows) if (t.target == target) o.targetProfile = t.keys;
   o.basisu = [](std::string& path, std::string& e) { return zn::tc::ensureBasisu(path, e); };
   o.gltfpack = [](std::string& path, std::string& e) { return zn::tc::ensureGltfpack(path, e); };
@@ -3524,7 +3518,7 @@ bool assetRun(const std::string& dir, const std::string& target, const std::stri
   ram = 0;
   if (!readProject(project, proj, err)) return false;
   std::vector<zn::frontend::TargetAssets> rows;
-  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) return false;
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / "targets" / "capabilities.json"), rows, err)) return false;
   for (const auto& t : rows)
     if (t.target == target) { auto b = t.budgets.find("ram"); ram = b == t.budgets.end() ? 0 : b->second; }
   if (!build || !proj.assets.packed()) return true;   // no rules nor groups: the program reads its assets directory as before, no pack to build
@@ -3540,7 +3534,7 @@ int assetsInfo(const fs::path& project, const std::string& only, const std::stri
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
   for (const std::string& w : proj.warnings) std::fprintf(stderr, "zinc assets: %s: %s\n", (project / "zinc.json").string().c_str(), w.c_str());
   std::vector<zn::frontend::TargetAssets> rows;
-  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / "targets" / "capabilities.json"), rows, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
   std::string groups;
   for (const auto& g : proj.assets.groups) groups += (groups.empty() ? " (" : ", ") + g.name;
   std::printf("assets: %s, %zu rule%s, %zu group%s%s\n", proj.assets.dir.c_str(), proj.assets.rules.size(), proj.assets.rules.size() == 1 ? "" : "s",

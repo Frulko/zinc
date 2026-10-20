@@ -21,5 +21,5 @@ As a **Maintainer**, I want `next/` to build with clang and with `zig c++`, with
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 `cmake --build` succeeds on macOS arm64 with both compilers; `zinc --version` prints; sanitizer build runs.
-- [x] #2 Quiet test runner exists: one PASS/FAIL line per program, details in next/.logs/, flags --only and --tier t0|t1|t2 (see next/TESTING.md)
+- [x] #2 Quiet test runner exists: one PASS/FAIL line per program, details in .logs/, flags --only and --tier t0|t1|t2 (see TESTING.md)
 <!-- AC:END -->

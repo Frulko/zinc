@@ -1,6 +1,6 @@
 # The demos on the web target, in a real-input Chrome
 
-Measured with `next/tools/web-real-test` (docs/targets/web.md, "Tests"): Chrome 155 with trusted mouse and key events (a move, a press, a release 90 ms later), a device pixel ratio of 2
+Measured with `tools/web-real-test` (docs/targets/web.md, "Tests"): Chrome 155 with trusted mouse and key events (a move, a press, a release 90 ms later), a device pixel ratio of 2
 (`--force-device-scale-factor=2`) at 1280 x 800, then Tab, arrows and typing, a wheel, a window resize, focus lost and regained. A run passes when the page produced no console error, warning,
 exception or failed request, the frames kept running, the canvas followed the window at the device ratio, and (when the demo is interactive) a click or key changed the picture.
 `web-real-test --matrix <zinc> <dirs...>` prints the table below (add `--matrix-dev` for `zinc dev --target web`).

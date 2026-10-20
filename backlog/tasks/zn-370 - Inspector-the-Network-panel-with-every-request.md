@@ -33,7 +33,7 @@ The CDP Network domain for fetch, zinc:net http, WebSockets, MQTT and sockets: r
 Done 2026-10-10 (worktree agent, branch based on local main).
 
 What was built
-- `next/src/host/netlog.{h,cpp}`: the host's network log. Hooks of one line in `http.cpp` (fetch: an entry per redirect hop, marks for DNS, connect, TLS, sent, first byte), `mqtt.cpp` (connect, CONNACK, PUBLISH / SUBSCRIBE, close) and `sock.cpp` (outgoing TCP: bytes; a WebSocket is recognised from its upgrade request and its RFC 6455 frames are decoded). Off unless the inspector or ZINC_HAR asked.
+- `src/host/netlog.{h,cpp}`: the host's network log. Hooks of one line in `http.cpp` (fetch: an entry per redirect hop, marks for DNS, connect, TLS, sent, first byte), `mqtt.cpp` (connect, CONNACK, PUBLISH / SUBSCRIBE, close) and `sock.cpp` (outgoing TCP: bytes; a WebSocket is recognised from its upgrade request and its RFC 6455 frames are decoded). Off unless the inspector or ZINC_HAR asked.
 - One runtime row appended, `host.netLog(op, arg)` (start, drain events, response body, request body), exposed as `zinc:__netlog`; `plugins/devtools` gets `Cdp.net` in its Spec (Next: the row; prototype natives and sim: '') and answers `Network.enable/disable/getResponseBody/getRequestPostData`, forwarding the queued events every 100 ms. Recording starts when `zinc:devtools` loads, so requests made before DevTools attaches are listed.
 - `zinc run --har file` (parsed in `cli_core.cpp` discoverEntry, sets ZINC_HAR; no change to main.cpp): HAR 1.2 written at process exit, with Chrome's `_webSocketMessages` for WebSockets and MQTT.
 - Masking at record time: Authorization, Proxy-Authorization, Cookie, Set-Cookie, names containing token/secret/password/passwd/api-key/apikey/session/credential, names in ZINC_NET_SENSITIVE; `user:password@` of URLs. Bodies and query strings are not masked.
@@ -62,7 +62,7 @@ Follow-up tasks proposed (not created here)
 - "HAR written periodically or on SIGTERM" - a killed program writes no file. AC: `kill` of a `zinc run --har` leaves a valid HAR.
 - "Prototype: build plugins/devtools with the new Spec member" - `cdp.host.cpp` got a `net()` stub that I could not compile here (prototype toolchain not run). AC: the prototype builds an app with zinc:devtools on macOS.
 
-affected.json mapping wanted: {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "../plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "socket", "net", "mqtt"]}
+affected.json mapping wanted: {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "socket", "net", "mqtt"]}
 
 Not verified: the DevTools UI itself (a person looking at the Network panel); the prototype build of plugins/devtools; any other platform than the development Mac.
 

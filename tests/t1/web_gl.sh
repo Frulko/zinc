@@ -15,7 +15,7 @@ export ZINC_BACKGROUND=1
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 python3 -I tools/gen-web-gl --check >/dev/null || { echo "web_gl: targets/web/rows-gl.js is out of date: run tools/gen-web-gl"; fail=1; }
-for p in "gl-cube:../examples/gl-cube:canvas" "wcanvas:tests/fixtures/web-canvas:canvas" "wcanvas-dom:tests/fixtures/web-canvas:dom" "shader:tests/fixtures/web-shader:canvas" "three:tests/fixtures/web-three:canvas" "cubes:../examples/three/cubes:canvas"; do
+for p in "gl-cube:examples/gl-cube:canvas" "wcanvas:tests/fixtures/web-canvas:canvas" "wcanvas-dom:tests/fixtures/web-canvas:dom" "shader:tests/fixtures/web-shader:canvas" "three:tests/fixtures/web-three:canvas" "cubes:examples/three/cubes:canvas"; do
   n=${p%%:*}; r=${p#*:}; d=${r%%:*}; m=${r#*:}
   "$Z" export "$d" --target web --render "$m" -o "$tmp/$n" >/dev/null 2>"$tmp/$n.err" || { echo "web_gl: the $n export failed: $(cut -c1-400 "$tmp/$n.err")"; exit 1; }
 done
@@ -25,7 +25,7 @@ pix='(x, y) => { const c = document.getElementById("zinc-canvas"); const d = c.g
 out=$(python3 -I tools/web-browser-test "$tmp/gl-cube" --wait 2 --size 480x360 --frame-pause 30 --eval "globalThis.__zincFrames" --shot "$tmp/gl-cube.png") || { echo "web_gl: gl-cube: $out"; exit 1; }
 frames=$(echo "$out" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["eval"])')
 echo "$out" | grep -q '"errors": \[\]' || { echo "web_gl: errors in the gl-cube page: $(echo "$out" | cut -c1-400)"; fail=1; }
-ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES="$frames" ZINC_SHOT="$tmp/gl-cube-native.png" "$Z" run ../examples/gl-cube >/dev/null 2>&1 || { echo "web_gl: the native gl-cube run failed"; exit 1; }
+ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES="$frames" ZINC_SHOT="$tmp/gl-cube-native.png" "$Z" run examples/gl-cube >/dev/null 2>&1 || { echo "web_gl: the native gl-cube run failed"; exit 1; }
 python3 -I tools/pngdiff "$tmp/gl-cube-native.png" "$tmp/gl-cube.png" --ssim 0.98 --tol 8 --max-diff 600 >"$tmp/cmp.out" 2>&1 || { echo "web_gl: gl-cube at frame $frames differs from the native frame: $(cat "$tmp/cmp.out")"; fail=1; }
 # zinc:gl and three.js inside a zinc:ui app (two Canvas nodes), canvas mode: pixels of the green clear and the red cube; DOM mode: each node is a <canvas> element with the same pixels
 out=$(python3 -I tools/web-browser-test "$tmp/wcanvas" --wait 2 --size 700x300 --eval '(async () => { const p = '"$pix"'; return JSON.stringify([p(116, 91), p(382, 116), p(240, 24)]); })()') || { echo "web_gl: web-canvas: $out"; exit 1; }

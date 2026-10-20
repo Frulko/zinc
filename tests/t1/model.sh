@@ -20,7 +20,7 @@ if [ -z "$ZINC_GLTFPACK" ]; then
 fi
 [ -x "$ZINC_GLTFPACK" ] || { echo "skipped: no gltfpack (zinc toolchain gltfpack)"; exit 77; }
 export ZINC_GLTFPACK
-M=$(cd ../examples/three/gltf-viewer && pwd)
+M=$(cd examples/three/gltf-viewer && pwd)
 [ -f "$M/assets/CesiumMilkTruck.glb" ] || { echo "skipped: the viewer's models are not here"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 unset ZINC_ASSETS ZINC_PACKS

@@ -5,9 +5,8 @@ A wave of boxes, a [p5.js](https://p5js.org) sketch (1.11.13, unmodified) in WEB
 ![the wave](screenshot.png)
 
 ```sh
-cd next
 tools/test-lib p5-1.11.13          # once: downloads p5.js
-build/zinc run ../examples/js-p5
+build/zinc run examples/js-p5
 ```
 
 Move the pointer left and right to turn the wave, up and down to tilt it. The sketch fills the window, which opens at the size `zinc.json` gives (800 by 500).
@@ -25,9 +24,9 @@ A second sketch, `sketch2d.js`, is in p5's default 2D mode (a plain `createCanva
 ![the 2D sketch](screenshot2d.png)
 
 ```sh
-P5_SKETCH=sketch2d.js build/zinc run ../examples/js-p5
+P5_SKETCH=sketch2d.js build/zinc run examples/js-p5
 ```
 
 (`main.js` loads the file named by `P5_SKETCH`, or `sketch.js`.) Text uses the bundled Inter or a font of the project. Not there yet: patterns, filters and blend modes beyond the common eleven (ZN-572); no sound (waits for ZN-573).
 
-Test: `next/tests/run --only example_js_p5` (a scripted pointer, then frame 30 of each sketch against `screenshot.png` and `screenshot2d.png`).
+Test: `tests/run --only example_js_p5` (a scripted pointer, then frame 30 of each sketch against `screenshot.png` and `screenshot2d.png`).

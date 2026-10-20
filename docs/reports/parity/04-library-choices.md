@@ -7,8 +7,8 @@ sizes). `[bg]` = background knowledge, not re-checked online today (performance 
 source KB unless "code" is written. Nothing below was benchmarked by this study: perf claims are the upstream's own, so every "pick" that
 depends on speed carries a measuring task (see the end).
 
-**Rules applied** (`next/ARCHITECTURE.md`, `next/third_party/README.md`, owner memory): mature library over our own code; permissive licence
-(MIT/BSD/Apache/zlib/ISC/PD; GPL/LGPL only as a separately loaded plugin); vendored under `next/third_party/<name>/` with licence, pinned
+**Rules applied** (`ARCHITECTURE.md`, `third_party/README.md`, owner memory): mature library over our own code; permissive licence
+(MIT/BSD/Apache/zlib/ISC/PD; GPL/LGPL only as a separately loaded plugin); vendored under `third_party/<name>/` with licence, pinned
 tag and per-file sha256 in `third_party/README.md` (the format already used for QuickJS-ng and stb); builds with clang and `zig c++`;
 no install step; desktop first, small targets (ESP32 ~300 KB RAM, Pi 1 armv6, PS1/PS2) when possible; the engine stays pluggable: every
 heavy library sits behind `include/zn/host.h` or a `zinc:` plugin, never in `src/rt`.
@@ -181,7 +181,7 @@ to avoid the toolchain depending on a TLS build.
 | DuckDB | MIT | 30+ MB | | Analytical, huge |
 | UnQLite / litedb | BSD / | small | stale | Not SQL |
 
-**Decision: SQLite 3.53.4 amalgamation (already vendored), moved from `plugins/sqlite/vendor` to `next/third_party/sqlite/` with the zip sha3-256.** Compile with
+**Decision: SQLite 3.53.4 amalgamation (already vendored), moved from `plugins/sqlite/vendor` to `third_party/sqlite/` with the zip sha3-256.** Compile with
 `-DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_ENABLE_JSON1(default on)`, WAL on desktop. ESP32 and PS targets get
 a small key-value `zinc:storage` over NVS/LittleFS instead (SQLite flash cost too high for ~300 KB RAM). Risk: allocation: route `sqlite3_config(SQLITE_CONFIG_MALLOC)` to mimalloc. Integration: `plugins/sqlite` links it, task **ZN-063 "zinc:sqlite on the next engine"**.
 
@@ -199,7 +199,7 @@ a small key-value `zinc:storage` over NVS/LittleFS instead (SQLite flash cost to
 **Decision: wasm3 for the baseline `WebAssembly` implementation** (already vendored, MIT, smallest, runs everywhere including ESP32; the whole plugin exists) **and WAMR 2.4.5 as the
 named upgrade path** the day a user needs SIMD/threads/GC/AOT-compiled modules (desktop plugin `wasm-fast`, same `zinc:wasm` surface). No wasmtime/wasmi.
 **Risks.** wasm3 had a maintenance lull; the 2026 beta shows life but pin the commit. JS API shape (`WebAssembly.instantiate`, `Memory`, `Table`, `Global`, exceptions) is our binding code: test with the WebAssembly spec testsuite (section 18), not just toy modules. Run the "Benchmarks Game" wasm cases once to replace the bg claims.
-**Integration.** Move `plugins/wasm/vendor/wasm3` to `next/third_party/wasm3` with README entry; **ZN-064 "WebAssembly JS API on wasm3 + spec tests"**.
+**Integration.** Move `plugins/wasm/vendor/wasm3` to `third_party/wasm3` with README entry; **ZN-064 "WebAssembly JS API on wasm3 + spec tests"**.
 
 ---
 
@@ -403,7 +403,7 @@ and H.264/HEVC/AAC carry patent royalties. Allowed only as a **separately loaded
 
 | Corpus | Licence | Size / activity | What it checks | Use |
 |---|---|---|---|---|
-| **test262** (tc39/test262) | BSD-3 | ~50k tests, 2.8k stars, pushed 2026-10-06 [V] | ECMAScript semantics | Adopt a **subset** run on the QuickJS engine path (`--engine quickjs`) and on the typed engine for the tests it can express: `language/expressions`, `language/statements`, `built-ins/{Array,String,Number,Math,JSON,RegExp,Map,Set,Date}`; ship a harness that reads `includes:`, `flags:`, `negative:`, plus an expectations file (`next/corpus/test262-expected.txt`) of known failures. Pin a commit and vendor only the selected directories (sha list), not the whole tree (~ 100 MB) |
+| **test262** (tc39/test262) | BSD-3 | ~50k tests, 2.8k stars, pushed 2026-10-06 [V] | ECMAScript semantics | Adopt a **subset** run on the QuickJS engine path (`--engine quickjs`) and on the typed engine for the tests it can express: `language/expressions`, `language/statements`, `built-ins/{Array,String,Number,Math,JSON,RegExp,Map,Set,Date}`; ship a harness that reads `includes:`, `flags:`, `negative:`, plus an expectations file (`corpus/test262-expected.txt`) of known failures. Pin a commit and vendor only the selected directories (sha list), not the whole tree (~ 100 MB) |
 | **WebAssembly spec testsuite** (WebAssembly/testsuite) | Apache-2.0 | 249 stars, pushed 2026-09-15 [V] | `.wast` -> run through `wast2json`/wabt (offline) and the wasm3 binding | Adopt for ZN-064; the `.json` + `.wasm` outputs are the vendored artifacts |
 | **WPT** (web-platform-tests) | BSD-3 | huge; use `url/resources/urltestdata.json`, `encoding`, `dom/abort`, `fetch/api` subsets | URL parsing (WHATWG), TextEncoder, AbortController, Headers, JSON | Adopt **URL data and encoding tests only** (JSON data files, small); pin a commit |
 | **Benchmarks Game** | 3-clause BSD | ~10 programs | Perf | Already used (fannkuch, nbody, spectralnorm, binarytrees, mandelbrot per `zinc-next-m4-benchmarks.md`); keep as the perf oracle, add `regex-redux`, `k-nucleotide`, `fasta` after ZN-058 |
@@ -411,9 +411,9 @@ and H.264/HEVC/AAC carry patent royalties. Allowed only as a **separately loaded
 | Ecosystem: JSON test suite (nst/JSONTestSuite MIT; "y_/n_/i_" files) | MIT | 300 files [bg] | JSON parse conformance | for yyjson wrapper |
 | Net: HTTP request smuggling vectors | | | | for llhttp glue |
 
-**Decision: test262 subset + WPT URL/encoding data + wasm testsuite + JSONTestSuite + Benchmarks Game**, each as pinned data under `next/corpus/<name>/` with a manifest sha256 and a runner in `tests/t1` or `tests/t2` (nightly), never all at once in T0.
+**Decision: test262 subset + WPT URL/encoding data + wasm testsuite + JSONTestSuite + Benchmarks Game**, each as pinned data under `corpus/<name>/` with a manifest sha256 and a runner in `tests/t1` or `tests/t2` (nightly), never all at once in T0.
 **Risks.** Typed Zinc does not support every JS feature (test262 tests untyped dynamic code): run on QuickJS path for full ES, on the typed engine only a curated list; a failing-expected list must be reviewed, not auto-grown. Licence of test262 files: BSD-3 with per-file "Copyright" headers; keep them.
-**Integration.** `next/tests/t2/test262.sh`, `next/corpus/`; **ZN-076 "Conformance corpora: test262 subset, WPT URL, wasm spec, JSONTestSuite"**.
+**Integration.** `tests/t2/test262.sh`, `corpus/`; **ZN-076 "Conformance corpora: test262 subset, WPT URL, wasm spec, JSONTestSuite"**.
 
 ---
 
@@ -421,16 +421,16 @@ and H.264/HEVC/AAC carry patent royalties. Allowed only as a **separately loaded
 
 | Candidate | Licence | Notes |
 |---|---|---|
-| **libFuzzer** (in LLVM/clang, `-fsanitize=fuzzer`) | Apache-2.0 w/ LLVM exception | In-process, no install beyond clang; works with ASan/UBSan which the repo already uses (`next/build-san`); Apple clang ships it only in Xcode toolchains? Not in Apple clang: needs upstream clang (Homebrew `llvm`) or `zig c++` (zig bundles compiler-rt libFuzzer? partial, unverified) [bg] |
+| **libFuzzer** (in LLVM/clang, `-fsanitize=fuzzer`) | Apache-2.0 w/ LLVM exception | In-process, no install beyond clang; works with ASan/UBSan which the repo already uses (`build-san`); Apple clang ships it only in Xcode toolchains? Not in Apple clang: needs upstream clang (Homebrew `llvm`) or `zig c++` (zig bundles compiler-rt libFuzzer? partial, unverified) [bg] |
 | AFL++ v5.03c | **AGPL-3.0** [V] (tool, not linked into our binary; the output corpora are ours) | Best for coverage-guided binary mutation with persistent mode; the licence applies to the tool only; allowed as an external dev tool, not vendored |
 | honggfuzz | Apache-2.0 | alternative, less used |
 | OSS-Fuzz (google/oss-fuzz, Apache-2.0, 12.7k stars [V]) | | Continuous fuzzing for free once the project is public and has a build script: Atelier engine is a candidate |
 | Sanitizers: ASan, UBSan, MSan, TSan (compiler-rt) | | Already in use (`build-san`); add TSan for `plugins/net` threadpool |
 | Grammar-aware: Fuzzilli (JS engine fuzzer, Apache-2.0) | | Targets JS engines with FuzzIL; relevant for the QuickJS path only |
 
-**Decision: libFuzzer harnesses (clang) + ASan/UBSan, built as `tests/fuzz/<target>.cpp`** for: the lexer/parser (`src/frontend`), the ZBC verifier and loader (`src/zbc`), the upload protocol (`src/dev`), JSON (wrapper), HTTP glue, image decode (stb), IR text parser. Seeds from `tests/golden` and `next/corpus`. AFL++ used only as an external tool when a harness needs persistent-mode scaling (not vendored, tool licence AGPL). `-fsanitize=fuzzer` on `zig c++`: verify; fall back to `brew llvm` on the developer machine and CI Linux clang (this is a developer tool, not a user install). Nightly: 10 minutes per target; crashes become `tests/regress/` files.
+**Decision: libFuzzer harnesses (clang) + ASan/UBSan, built as `tests/fuzz/<target>.cpp`** for: the lexer/parser (`src/frontend`), the ZBC verifier and loader (`src/zbc`), the upload protocol (`src/dev`), JSON (wrapper), HTTP glue, image decode (stb), IR text parser. Seeds from `tests/golden` and `corpus`. AFL++ used only as an external tool when a harness needs persistent-mode scaling (not vendored, tool licence AGPL). `-fsanitize=fuzzer` on `zig c++`: verify; fall back to `brew llvm` on the developer machine and CI Linux clang (this is a developer tool, not a user install). Nightly: 10 minutes per target; crashes become `tests/regress/` files.
 **Risks.** The ZBC verifier must exist and be total (every malformed program rejected before `exec`): fuzzing it is how that is proven; ZBC format stability is ZN-052.
-**Integration.** `next/tests/fuzz/`, CMake option `ZN_FUZZ`; **ZN-077 "libFuzzer harnesses for parser, ZBC verifier, upload protocol"**.
+**Integration.** `tests/fuzz/`, CMake option `ZN_FUZZ`; **ZN-077 "libFuzzer harnesses for parser, ZBC verifier, upload protocol"**.
 
 ---
 
@@ -447,7 +447,7 @@ and H.264/HEVC/AAC carry patent royalties. Allowed only as a **separately loaded
 
 **Decision.** **macOS: `.app` in a DMG, hardened runtime, `codesign` + `xcrun notarytool submit --wait` + `stapler`, Sparkle 2.10.0 for in-app updates** (appcast on static hosting, EdDSA key kept offline). **Linux: a self-contained tarball and an AppImage** (zsync `.zsync` file for AppImageUpdate-compatible updates), static SDL3 and no external libs so it runs everywhere. **CLI/engine updates: our own** (`zinc update`: version manifest, sha256 + minisign/ed25519 signature check using mbedTLS, atomic swap), consistent with `src/tc`. Entitlement `com.apple.security.cs.allow-jit` only if the JIT ships; FFI closures may need it (section 8).
 **Risks.** Apple Developer ID and a notary account are owner prerequisites (the repo cannot do it alone). AppImage FUSE requirement: provide `--appimage-extract-and-run` doc and the tarball. Sparkle updating an app that contains an engine, toolchains in `~/.zinc`: update the app only, keep toolchain cache separate.
-**Integration.** `next/tools/package-*`, `app/atelier`; tasks ZN-053 (packaging, planned) and **ZN-078 "updater: Sparkle on macOS, zsync AppImage on Linux, signed zinc update"**. Decision text lives with `zinc-next-packaging.md`.
+**Integration.** `tools/package-*`, `app/atelier`; tasks ZN-053 (packaging, planned) and **ZN-078 "updater: Sparkle on macOS, zsync AppImage on Linux, signed zinc update"**. Decision text lives with `zinc-next-packaging.md`.
 
 ---
 
@@ -511,10 +511,10 @@ mongoose (GPL-2.0 or commercial), wolfSSL (GPL-3.0 or commercial), GxEPD2 (GPL-3
 1. **Golden pixels.** Fonts (10), SVG/Lottie (11), GPU (13) each change pixels; do them one at a time with a re-bake commit and keep the software path as the reference.
 2. **Build matrix.** libuv, libffi, SDL3, ThorVG, HarfBuzz, mbedTLS use CMake/meson/autoconf: vendor a **file list** per library in `third_party/<lib>/zn-sources.txt` and one `third_party/CMakeLists.txt` per target; verify every library with clang and `zig c++` for macOS arm64, Linux x86_64/aarch64/armhf in T2 CI; never require the user to run cmake/meson.
 3. **Footprint.** The default `zinc` binary must not link what a program does not use: heavy libraries (HarfBuzz, ThorVG, mbedTLS, libuv, SQLite, libffi) are plugins linked on demand (the AOT "link the graphics host on demand" mechanism of ZN-045). ESP32 core stays at current size: only libregexp+libunicode (opt-in), yyjson, mbedTLS (via ESP-IDF), miniaudio-free.
-4. **Unmeasured claims.** Every `[bg]` speed or size claim is to be replaced by a measurement in the task that adopts the library (benchmark file in `next/bench/`), per `zinc-next-profiling.md`.
+4. **Unmeasured claims.** Every `[bg]` speed or size claim is to be replaced by a measurement in the task that adopts the library (benchmark file in `bench/`), per `zinc-next-profiling.md`.
 5. **Maintainer-bus factor.** Single-maintainer projects: dragonbox, wasm3, wslay (stale since 2022), libunibreak, SheenBidi, stb. All are small, stable and vendored with source, so a freeze is survivable.
 
-## Proposed task list (to create in `next/backlog/tasks`)
+## Proposed task list (to create in `backlog/tasks`)
 
 ZN-058 regex + String Unicode ops; ZN-059 JSON and number formatting; ZN-060 text shaping and layout; ZN-061 zinc:net; ZN-062 WebCrypto; ZN-063 zinc:sqlite;
 ZN-064 WebAssembly + spec tests; ZN-065 zinc:ffi on libffi; ZN-066 audio; ZN-067 video backends; ZN-068 stb_truetype baker; ZN-069 ThorVG; ZN-070 image formats;
@@ -534,4 +534,4 @@ https://github.com/libsdl-org/SDL, https://github.com/glfw/glfw, https://github.
 https://github.com/mapbox/protozero, https://github.com/mapbox/vtzero, https://github.com/mapbox/earcut.hpp, https://github.com/AngusJohnson/Clipper2, https://github.com/maplibre/maplibre-native,
 https://github.com/zherczeg/sljit, https://github.com/asmjit/asmjit, https://github.com/vnmakarov/mir, https://github.com/tc39/test262, https://github.com/WebAssembly/testsuite, https://github.com/web-platform-tests/wpt,
 https://github.com/AFLplusplus/AFLplusplus, https://github.com/google/oss-fuzz, https://github.com/sparkle-project/Sparkle, https://github.com/AppImageCommunity/AppImageUpdate, https://github.com/tree-sitter/tree-sitter.
-Local: `next/ARCHITECTURE.md`, `next/third_party/README.md`, `docs/reports/zinc-next-{design,decisions,perf,m4-benchmarks,mquickjs,packaging}.md`, `docs/reports/research-2026-09-30-all.md`, `docs/reports/research-2026-09-30/code-editor-lsp.md`.
+Local: `ARCHITECTURE.md`, `third_party/README.md`, `docs/reports/zinc-next-{design,decisions,perf,m4-benchmarks,mquickjs,packaging}.md`, `docs/reports/research-2026-09-30-all.md`, `docs/reports/research-2026-09-30/code-editor-lsp.md`.

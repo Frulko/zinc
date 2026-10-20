@@ -19,7 +19,7 @@
 # tests/t1/museum_editor_views.sh: one test lasted two minutes.
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/museum-table; g=$PWD/tests/golden/museum-editor
+ex=$PWD/examples/museum-table; g=$PWD/tests/golden/museum-editor
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 

@@ -6,7 +6,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 python3 -c "import yaml" 2>/dev/null || { echo "release_workflow: no PyYAML"; exit 77; }
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
-WF=../.github/workflows/zinc-next.yml
+WF=.github/workflows/zinc-next.yml
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 if command -v actionlint >/dev/null; then actionlint "$WF" || fail=1; fi
@@ -66,7 +66,7 @@ mkdir -p "$tmp/r1/release" && cp "$tmp/job/dist/$cli" "$tmp/job/dist/$app" "$tmp
 linux=zinc-9.1.0-linux-x86_64.tar.gz wapp=Zinc-Atelier-9.1.0-windows-x86_64.zip   # the Linux CLI (linux-cross) and the Windows app (package-windows)
 echo "linux" > "$tmp/r1/release/$linux"; echo "wapp" > "$tmp/r1/release/$wapp"
 # ZN-718: the installer and the checksums it reads are release assets; one line per download, the CLI and the app
-mkdir -p "$tmp/r1/next/tools" && cp tools/install.sh tools/install.ps1 "$tmp/r1/next/tools/"
+mkdir -p "$tmp/r1/tools" && cp tools/install.sh tools/install.ps1 "$tmp/r1/tools/"
 (cd "$tmp/r1" && bash -e "$tmp/sums.sh") || { echo "release_workflow: the checksums step failed"; fail=1; }
 [ "$(cat "$tmp/r1/release/SHA256SUMS")" = "$(cd "$tmp/r1/release" && shasum -a 256 "$linux" "$cli" "$app" "$wapp")" ] || { echo "release_workflow: SHA256SUMS: $(cat "$tmp/r1/release/SHA256SUMS")"; fail=1; }
 (cd "$tmp/r1" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the release step failed"; fail=1; }

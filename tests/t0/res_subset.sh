@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$ZINC" bake tests/golden/res/main.ts -o "$tmp/sub.bin" || { echo "zinc bake failed"; exit 1; }
 "$ZINC" bake tests/golden/shaped-ui/main.tsx -o "$tmp/whole.bin" || { echo "zinc bake failed on the shaped project"; exit 1; }
-python3 - "$tmp/sub.bin" "$tmp/whole.bin" ../lib/fonts <<'EOF'
+python3 - "$tmp/sub.bin" "$tmp/whole.bin" lib/fonts <<'EOF'
 import struct, sys
 def ttfs(path):
     b = open(path, 'rb').read(); p = 4

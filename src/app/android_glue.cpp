@@ -2,7 +2,7 @@
 // `zinc export --target android` (src/app/android/java/dev/zinc/app/ZincActivity.java) and the program's zinc:sys device() commands that it does
 // (haptics, the status bar, the system's back, the text input connection). Compiled into zn_app for Android only; the shell calls
 // zn_mobile_glue_init (src/app/shell_sdl.cpp) so the linker keeps this file. Strings cross as UTF-16 (JNI's "modified UTF-8" mangles emoji).
-// Unproven on a device (written 2026-10-16 without one): next/backlog/later.md, cross-platform pass.
+// Unproven on a device (written 2026-10-16 without one): backlog/later.md, cross-platform pass.
 #ifdef __ANDROID__
 #include <jni.h>
 #include <android/log.h>

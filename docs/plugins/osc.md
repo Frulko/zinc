@@ -9,7 +9,7 @@ of OSC 1.0 over UDP.
 - **Two modules, one protocol.** The engine's built-in `zinc:osc` is the short form: `send(host, port, address, numbers,
   strings)` and one `listen(port, cb)`. Import `zinc:osc/full` when you need blobs, time tags, bundles, the type of each
   argument, address patterns, several endpoints, or a port chosen by the system. Both speak to the same software.
-- **Test.** `next/tests/t1/osc_full.sh` (`next/tests/data/osc/`). **Example.** `examples/osc`.
+- **Test.** `tests/t1/osc_full.sh` (`tests/data/osc/`). **Example.** `examples/osc`.
 
 | target | status |
 |---|---|

@@ -17,7 +17,7 @@ echo "$out" | grep -q "nothing to warn about" || { echo "web_caps: a Chromium-on
 "$Z" export tests/fixtures/web-caps --target web --check --werror >/dev/null 2>&1 && { echo "web_caps: --werror did not fail on a warning"; fail=1; }
 out=$("$Z" export tests/fixtures/web-caps --target web --check --browsers "firefox >= 100" 2>&1)
 echo "$out" | grep -q "importmap" || { echo "web_caps: no warning that Firefox 100 lacks import maps: $out"; fail=1; }
-out=$("$Z" export ../examples/webrtc-call --target web --check 2>&1)
+out=$("$Z" export examples/webrtc-call --target web --check 2>&1)
 echo "$out" | grep -q "W060" && { echo "web_caps: the web-ready call demo warns: $out"; fail=1; }
 "$Z" explain W0601 | grep -q "browser of the target set" || { echo "web_caps: zinc explain W0601"; fail=1; }
 "$Z" explain W0602 | grep -q "browser backend" || { echo "web_caps: zinc explain W0602"; fail=1; }

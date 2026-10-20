@@ -20,7 +20,7 @@ ordinal: 214560
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-targets/psp/hal_psp.cpp: exit callback (HOME), scePowerSetClockFrequency(333,333,166), sceKernelGetSystemTimeWide clock, sceCtrl buttons, sceDisplay + sceGu init with 16-bit framebuffers, log to stdout. next/targets/psp: CMake with the pspdev toolchain building the core PRX into EBOOT.PBP with PARAM.SFO (MEMSIZE). zinc export --target psp writes the folder with program.zbc without the SDK; zinc run --target psp --emu uses PPSSPPHeadless.
+targets/psp/hal_psp.cpp: exit callback (HOME), scePowerSetClockFrequency(333,333,166), sceKernelGetSystemTimeWide clock, sceCtrl buttons, sceDisplay + sceGu init with 16-bit framebuffers, log to stdout. targets/psp: CMake with the pspdev toolchain building the core PRX into EBOOT.PBP with PARAM.SFO (MEMSIZE). zinc export --target psp writes the folder with program.zbc without the SDK; zinc run --target psp --emu uses PPSSPPHeadless.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

@@ -11,7 +11,7 @@ from cdp import Chrome, find_chrome
 
 zinc, fixture = os.path.abspath(sys.argv[1]), sys.argv[2]
 here = os.path.dirname(os.path.abspath(__file__))
-plugin = os.path.abspath(os.path.join(here, "..", "..", "packages", "vite-plugin-zinc"))
+plugin = os.path.abspath(os.path.join(here, "..", "packages", "vite-plugin-zinc"))
 if not find_chrome() or not shutil.which("node") or not shutil.which("npm"):
     print("SKIP no Chrome, node or npm"); sys.exit(77)
 work = tempfile.mkdtemp(prefix="zinc-web-vite-")

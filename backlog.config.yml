@@ -14,4 +14,4 @@ bypass_git_hooks: true
 check_active_branches: true
 active_branch_days: 30
 task_prefix: "zn"
-backlog_directory: "next/backlog"
+backlog_directory: "backlog"

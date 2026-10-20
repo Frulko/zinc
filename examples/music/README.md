@@ -24,7 +24,7 @@ examples/music/install.sh                # on the TouchPad (novacom), in the web
   app, newest first: a touch opens one on the Mac, swipe one to the left to delete it, "Tout effacer" for all (kept in
   `notifications.json`, icons and pictures in `notif-icons/`). Before the first pairing that slide is the
   assistant: install Zinc Relay, then the 6-digit code and the tablet's address to type on the Mac (and what to do when the network blocks
-  discovery). Protocol: docs/reports/notification-relay-design.md; `next/tests/data/music/relay.ts` stands in for the Mac with made-up
+  discovery). Protocol: docs/reports/notification-relay-design.md; `tests/data/music/relay.ts` stands in for the Mac with made-up
   notifications.
 - **Context**: the room button (top of the player, or the sidebar) lists every group with what it plays and a play button; a touch makes it
   the group every command goes to. "Regrouper" opens the rooms.
@@ -47,7 +47,7 @@ examples/music/install.sh                # on the TouchPad (novacom), in the web
 - The screen (webOS): the system's own "display off" also turns the touch panel off, so the program keeps the display on for the system
   (`screenTimeout(false)` of zinc:webos), draws black and turns the backlight off with `setBacklight(false)`; while the screen is on it asks
   for full speed with `setPerformance(true)` (webOS's governor leaves the CPU at 192 MHz between touches). Both are done by zinc-helper,
-  the root job of zinc:webos that install.sh installs (`next/tools/webos-helper`), which also opens the two UDP ports (`openPort`).
+  the root job of zinc:webos that install.sh installs (`tools/webos-helper`), which also opens the two UDP ports (`openPort`).
   docs/reports/hardware/webos-screen-power.md, hp-touchpad-webos.md section 14.
 - Buttons on the network (an ESP32, a phone): UDP text commands on port 7777: `toggle`, `play`, `pause`, `next`, `prev`, `vol+`, `vol-`,
   `radio <n>` (the n-th of my radios), `wake`. `echo toggle | nc -u -w0 <tablet> 7777`.

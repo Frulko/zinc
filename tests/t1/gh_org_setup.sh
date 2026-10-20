@@ -17,7 +17,7 @@ case "\$1 \$2" in
 esac
 FAKE
 chmod +x "$tmp/gh"
-n=$(git -C .. ls-files 'plugins/*/plugin.json' | awk -F/ 'NF == 3' | wc -l | tr -d ' ')   # the committed official plugins
+n=$(git ls-files 'plugins/*/plugin.json' | awk -F/ 'NF == 3' | wc -l | tr -d ' ')   # the committed official plugins
 out=$(GH="$tmp/gh" tools/gh-org-setup --dry-run)
 [ ! -f "$tmp/calls" ] || { echo "gh_org_setup: --dry-run ran gh"; fail=1; }
 [ "$(echo "$out" | grep -c '^+ .*/gh repo create zinc-engine/')" = "$((n + 4))" ] || { echo "gh_org_setup: --dry-run does not list the $((n + 4)) repositories: $(echo "$out" | grep -c 'repo create')"; fail=1; }

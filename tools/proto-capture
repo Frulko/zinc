@@ -12,7 +12,7 @@ Goldens are re-compressed PNGs named <entry with / as ->-<frame>.png; the protot
 """
 import concurrent.futures, json, os, subprocess, sys, tempfile, zlib, struct, importlib.machinery, importlib.util
 
-HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = NEXT
 EX = os.path.join(ROOT, "examples"); DIR = os.path.join(NEXT, "tests", "golden", "examples", "proto"); MAN = os.path.join(DIR, "manifest.json")
 loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader)
 pd = importlib.util.module_from_spec(spec)
@@ -47,6 +47,8 @@ def init():
     print(len(rows), "rows in", MAN)
 
 def capture_one(row):
+    if not os.path.exists(os.path.join(ROOT, "compiler/bin/zinc.mjs")):
+        sys.exit("proto-capture capture: the prototype was removed (git tag prototype-final): the goldens are frozen, compare still works")
     e = row["entry"]; tmp = tempfile.mkdtemp(); shot = os.path.join(tmp, "s.png")
     r = subprocess.run(["node", os.path.join(ROOT, "compiler/bin/zinc.mjs"), "run", os.path.join(EX, e.split("#")[0])], cwd=project(e), env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=600)
     got = []

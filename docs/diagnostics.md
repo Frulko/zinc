@@ -1,6 +1,6 @@
 # Diagnostics
 
-Generated from `next/include/zn/diagnostics.h` by `zinc explain --markdown`. Do not edit.
+Generated from `include/zn/diagnostics.h` by `zinc explain --markdown`. Do not edit.
 
 ## Z0001: Unexpected token
 

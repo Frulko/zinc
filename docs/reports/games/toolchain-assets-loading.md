@@ -5,7 +5,7 @@ target, from desktop to the Raspberry Pi 1, the NTC CHIP, PSP, Vita, 3DS, iPhone
 pipeline (convert, pack, cache), the run-time side (mount, stream, decode, budget), the start experience (splash, pre-launcher,
 loader) and the command line, and maps all of it onto Zinc's rule "a minimal core, pluggable, with a suite of plugins or deps".
 
-Evidence tags: **[M]** measured here on this Mac (M-series, macOS, `next/build/zinc` 0.0.1 of 2026-10-09), **[C]** read in the code
+Evidence tags: **[M]** measured here on this Mac (M-series, macOS, `build/zinc` 0.0.1 of 2026-10-09), **[C]** read in the code
 (file given), **[W]** from the web (source in section 13), **[I]** inferred or estimated, not measured.
 
 ## 0. Summary
@@ -37,17 +37,17 @@ Evidence tags: **[M]** measured here on this Mac (M-series, macOS, `next/build/z
 
 | Piece | Where | What it does | Limits for games |
 | --- | --- | --- | --- |
-| Resource baker | `next/src/res/res.cpp` (`zn::res::bake`), called by `bakeResources` in `next/src/main.cpp` | Scans the program's text for text sizes, families and literal characters; rasterizes glyphs (own TrueType rasterizer, bit-identical port of the old `resources.ts`); decodes every PNG, JPEG, WebP and SVG of `assets/` (`@2x` variants); writes one blob `ZRS1` (fonts, images as **raw RGBA8**, the TrueType files) **[C]** | No atlas, no mipmaps, no GPU formats, no compression, no cache (re-baked on every `run`, `pack`, `build`); every image of `assets/` is baked whether used or not; the grid fonts of the legacy `gfx.text` are always baked; the TrueType files are embedded whole |
-| `zinc:assets` | `lib/modules.d.ts`, `next/src/host/sys_host.cpp` | `readText`, `readBytes` (a copy into a `u8[]`), `exists`, `list`, synchronous, from the directory `ZINC_ASSETS` **[C]** | No async, no progress, no streaming, no mmap; an AOT binary does not find its assets (ZN-314); the guide's "assets compiled into the executable" (`docs/guide/07-distribution.md`) describes the old compiler, Next copies `assets/` beside the executable |
-| `zinc:gfx` images | `lib/gfx.d.ts`, rows `host.gfxImage*` in `next/include/zn/runtime.h` | `image(name)` finds a baked image; `drawImage(img, x, y, w, h, alpha, radius)`; render targets **[C]** | No source rectangle (sprite sheets: `zinc:canvas` emulates it with a clip and a scaled whole-image draw, `plugins/canvas2d/index.ts`), no image from bytes at run time (only `three`'s native `T.decode`), no audio module at all (ZN-390) |
-| `.zapp` | `next/src/zapp.cpp`, `docs/zapp.md` | Deterministic ustar: `manifest.json` (SHA-256 per file), `program.zbc`, `resources.bin`, `zinc.json`, `assets/` **[C]** | Each launch reads the whole archive into memory, untars it into a map of copies and hashes every member, even when it is already unpacked in `~/.zinc/cache/zapp` |
+| Resource baker | `src/res/res.cpp` (`zn::res::bake`), called by `bakeResources` in `src/main.cpp` | Scans the program's text for text sizes, families and literal characters; rasterizes glyphs (own TrueType rasterizer, bit-identical port of the old `resources.ts`); decodes every PNG, JPEG, WebP and SVG of `assets/` (`@2x` variants); writes one blob `ZRS1` (fonts, images as **raw RGBA8**, the TrueType files) **[C]** | No atlas, no mipmaps, no GPU formats, no compression, no cache (re-baked on every `run`, `pack`, `build`); every image of `assets/` is baked whether used or not; the grid fonts of the legacy `gfx.text` are always baked; the TrueType files are embedded whole |
+| `zinc:assets` | `lib/modules.d.ts`, `src/host/sys_host.cpp` | `readText`, `readBytes` (a copy into a `u8[]`), `exists`, `list`, synchronous, from the directory `ZINC_ASSETS` **[C]** | No async, no progress, no streaming, no mmap; an AOT binary does not find its assets (ZN-314); the guide's "assets compiled into the executable" (`docs/guide/07-distribution.md`) describes the old compiler, Next copies `assets/` beside the executable |
+| `zinc:gfx` images | `lib/gfx.d.ts`, rows `host.gfxImage*` in `include/zn/runtime.h` | `image(name)` finds a baked image; `drawImage(img, x, y, w, h, alpha, radius)`; render targets **[C]** | No source rectangle (sprite sheets: `zinc:canvas` emulates it with a clip and a scaled whole-image draw, `plugins/canvas2d/index.ts`), no image from bytes at run time (only `three`'s native `T.decode`), no audio module at all (ZN-390) |
+| `.zapp` | `src/zapp.cpp`, `docs/zapp.md` | Deterministic ustar: `manifest.json` (SHA-256 per file), `program.zbc`, `resources.bin`, `zinc.json`, `assets/` **[C]** | Each launch reads the whole archive into memory, untars it into a map of copies and hashes every member, even when it is already unpacked in `~/.zinc/cache/zapp` |
 | Fused executable | `zinc fuse`, `fusedArchive` in `main.cpp` | The engine with a `.zapp` appended (15 MB for a hello) **[C]** | Same whole-archive read |
-| AOT build | `zn::aot::emitCpp`, `next/src/aot/aot.cpp:279` | The baked blob becomes `static const unsigned char kResources[] = {12,34,...}` in the generated C++ **[C]** | A decimal array literal: compile time and memory grow with the assets (measured below) |
-| wasm export | `next/src/cli_core.cpp` `exportWasm`, `next/targets/wasm/glue/*` | `index.html` + `app.js` + worker; fetches `app.wasm` and `app.zbc` whole, then `WebAssembly.compile`; draws `zinc:gfx` on an `OffscreenCanvas` 2D context **[C]** | The page shows nothing until both files arrived; no streaming compile; images are not drawn (`host.gfxImage` falls in the "not available in the browser" default of `worker.mjs`) and text uses the browser's fonts, not the baked ones; `assets/` is copied but unread |
+| AOT build | `zn::aot::emitCpp`, `src/aot/aot.cpp:279` | The baked blob becomes `static const unsigned char kResources[] = {12,34,...}` in the generated C++ **[C]** | A decimal array literal: compile time and memory grow with the assets (measured below) |
+| wasm export | `src/cli_core.cpp` `exportWasm`, `targets/wasm/glue/*` | `index.html` + `app.js` + worker; fetches `app.wasm` and `app.zbc` whole, then `WebAssembly.compile`; draws `zinc:gfx` on an `OffscreenCanvas` 2D context **[C]** | The page shows nothing until both files arrived; no streaming compile; images are not drawn (`host.gfxImage` falls in the "not available in the browser" default of `worker.mjs`) and text uses the browser's fonts, not the baked ones; `assets/` is copied but unread |
 | esp32 export | `exportEsp32` in `cli_core.cpp` | `core.bin` + `app.bin` (ZBC) at 0x300000 **[C]** | The program must fit 48 KB of bytecode |
 | Templates | `templates/game-2d`, `templates/3d` | Scenes, input, SVG sprites, a saved score; three.js scene **[C]** | No sound, no loading, no atlas |
 | 3D | `plugins/3d` (software), `plugins/three` (three.js API), cgltf 1.15 and meshoptimizer 1.3 vendored (D25) | glTF/GLB and OBJ through `zinc:assets` (`readFile` in `plugins/three/index.ts`), `TextureLoader` decodes PNG/JPEG at run time **[C]** | Synchronous loads, callbacks called inline; meshoptimizer is not used by any build step yet |
-| WebGL | `next/src/gl` (D40: `libzn_webgl`) | WebGL 1/2 with S3TC, S3TC sRGB and RGTC compressed formats (`webgl_ext.h`) **[C]** | No ETC1/ETC2/ASTC/PVRTC extension yet; `display-gl` (the `zinc:gfx` GPU path) uploads only RGBA |
+| WebGL | `src/gl` (D40: `libzn_webgl`) | WebGL 1/2 with S3TC, S3TC sRGB and RGTC compressed formats (`webgl_ext.h`) **[C]** | No ETC1/ETC2/ASTC/PVRTC extension yet; `display-gl` (the `zinc:gfx` GPU path) uploads only RGBA |
 
 ### 1.2 Measurements
 
@@ -904,14 +904,14 @@ format, a decode of the output equals the emulator's or a reference decoder's (P
 
 Checked on 2026-10-09.
 
-**Repository (read for this report):** `next/ARCHITECTURE.md`, `next/RESUME.md`, `docs/reports/zinc-next-decisions.md` (D2, D8, D11,
+**Repository (read for this report):** `ARCHITECTURE.md`, `RESUME.md`, `docs/reports/zinc-next-decisions.md` (D2, D8, D11,
 D13, D15, D23, D25, D29, D30, D31, D36, D40), `docs/reports/zinc-next-resources.md`, `docs/reports/zinc-next-packaging.md`,
 `docs/reports/zinc-next-reproducible.md`, `docs/reports/gpu-renderer-design.md`, `docs/reports/research-2026-09-30/toolbelt-build-pipeline.md`,
 `docs/guide/05-plugins.md`, `docs/guide/07-distribution.md`, `docs/plugins.md`, `docs/plugins/3d.md`, `docs/zapp.md`,
-`next/src/res/res.cpp`, `next/src/res/codec.h`, `next/src/zapp.cpp`, `next/src/main.cpp` (`bakeResources`, `pack`, `fuse`, `unpackZapp`),
-`next/src/cli_core.cpp` (`exportWasm`, `exportEsp32`), `next/src/aot/aot.cpp`, `next/src/host/sys_host.cpp`, `next/src/frontend/project.h`,
-`next/src/gl/webgl_ext.h`, `next/targets/wasm/glue/*`, `lib/gfx.d.ts`, `lib/modules.d.ts`, `plugins/three/index.ts`,
-`plugins/canvas2d/index.ts`, `templates/game-2d`, `templates/3d`, `targets/capabilities.json`, `next/third_party/README.md`,
+`src/res/res.cpp`, `src/res/codec.h`, `src/zapp.cpp`, `src/main.cpp` (`bakeResources`, `pack`, `fuse`, `unpackZapp`),
+`src/cli_core.cpp` (`exportWasm`, `exportEsp32`), `src/aot/aot.cpp`, `src/host/sys_host.cpp`, `src/frontend/project.h`,
+`src/gl/webgl_ext.h`, `targets/wasm/glue/*`, `lib/gfx.d.ts`, `lib/modules.d.ts`, `plugins/three/index.ts`,
+`plugins/canvas2d/index.ts`, `templates/game-2d`, `templates/3d`, `targets/capabilities.json`, `third_party/README.md`,
 backlog tasks ZN-164, ZN-182, ZN-314, ZN-348, ZN-390.
 
 **Libraries and tools:**

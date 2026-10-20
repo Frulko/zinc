@@ -6,7 +6,7 @@
 # in a room of signal-server.ts on a free port and hear each other. The server is stopped at the end. ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
 command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
-app=$PWD/../examples/webrtc-chat; golden=$PWD/tests/golden/webrtc-chat
+app=$PWD/examples/webrtc-chat; golden=$PWD/tests/golden/webrtc-chat
 tmp=$(mktemp -d); server=
 trap '[ -n "$server" ] && kill $server 2>/dev/null; rm -rf "$tmp"' EXIT
 export ZINC_HEADLESS=1 ZINC_BACKGROUND=1

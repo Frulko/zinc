@@ -8,7 +8,7 @@ command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}
 fail=0
-for p in ../tests/visual/shapes.ts ../examples/maps/navigation/src/main.tsx ../examples/ui/lottie-gallery ../examples/maps/svg-gallery; do
+for p in tests/visual/shapes.ts examples/maps/navigation/src/main.tsx examples/ui/lottie-gallery examples/maps/svg-gallery; do
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20 ZINC_SHOT="$tmp/sw.png" "$ZINC" run "$p" >/dev/null 2>&1
   ZINC_GL_STRIPS=1 ZINC_GL_STATS=1 ZINC_RENDERER=gl ZINC_DETERMINISTIC=1 ZINC_DISPLAY=gl ZINC_FRAMES=20 ZINC_SHOT="$tmp/gl.bmp" timeout 90 "$ZINC" run "$p" >"$tmp/gl.log" 2>&1
   [ -s "$tmp/gl.bmp" ] || { echo "skipped: no GL window here ($(head -c 200 "$tmp/gl.log"))"; exit 77; }

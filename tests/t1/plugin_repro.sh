@@ -11,7 +11,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 for n in 1 2; do
   mkdir -p "$tmp/home$n" "$tmp/p$n/nested$n/plugins"
-  cp -R ../plugins/device ../plugins/svg "$tmp/p$n/nested$n/plugins/"
+  cp -R plugins/device plugins/svg "$tmp/p$n/nested$n/plugins/"
   echo '{ "name": "repro" }' > "$tmp/p$n/nested$n/zinc.json"
   for p in device svg; do ZINC_HOME="$tmp/home$n" "$Z" plugin-build "$p" "$tmp/p$n/nested$n" --pack "$tmp/$p-$n.tar" >/dev/null 2>&1 || { echo "plugin_repro: $p does not build"; fail=1; }; done
   sleep 1

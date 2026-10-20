@@ -6,7 +6,7 @@
 # platform (app.tsx prints their widths), and draws what the platform itself draws; a long press opens the kit's context menu on a touch screen,
 # with the platform's haptic, and a flipped switch ticks on iOS only (ZINC_DEVICE_LOG). ZN_UPDATE_GOLDEN=1 records the hashes again.
 cd "$(dirname "$0")/../.." || exit 2
-golden=$PWD/tests/golden/platform-look; ex=$PWD/../examples
+golden=$PWD/tests/golden/platform-look; ex=$PWD/examples
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 hash() { sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p'; }

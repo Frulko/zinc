@@ -3,7 +3,7 @@
 # the compositor (tests/native/rmpp/sim.cpp). The trace of messages (modes, update rectangles, hash of the glass after each) is compared with tests/golden/sim/rmpp-<app>.trace.
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens.
 cd "$(dirname "$0")/../.." || exit 2
-root=$(cd .. && pwd)
+root=$(pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 for app in notes dashboard; do

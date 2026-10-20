@@ -7,7 +7,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf abc > "$tmp/abc"
 [ "$("$ZINC" toolchain sha256 "$tmp/abc" | cut -d' ' -f1)" = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad ] || { echo "sha256 differs from the test vector of 'abc'"; fail=1; }
 "$ZINC" toolchain targets | grep -q "^aarch64-linux " || { echo "aarch64-linux is not a target"; fail=1; }
-"$ZINC" build --target nowhere-os ../tests/bench/kernels/fib.ts -o "$tmp/x" 2>&1 | grep -q "unknown target" || { echo "an unknown target is not refused"; fail=1; }
+"$ZINC" build --target nowhere-os tests/bench/kernels/fib.ts -o "$tmp/x" 2>&1 | grep -q "unknown target" || { echo "an unknown target is not refused"; fail=1; }
 # the Linux targets (docs/targets/linux.md): the spellings people type are targets (the build goes on to the program, missing here), i686 is one,
 # and every one names its oldest glibc (zig's default for 32-bit ARM is 2.34, too new for Raspberry Pi OS Bullseye)
 for t in linux-arm64 linux-armhf linux-x86_64 linux-x86; do

@@ -18,7 +18,7 @@ ordinal: 40210
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-tools/examples-status runs every entry of every example (63 entries today, discovered from zinc.json) headless for N frames and prints a table OK/COMPILE/RUNTIME/CRASH with the first error; next/tests/examples.lst records the expected status per entry with a reason for each xfail and the task that will fix it. tests/t1/examples_all.sh fails when an entry that was OK regresses or an xfail starts to pass without being promoted (so progress is forced into the list).
+tools/examples-status runs every entry of every example (63 entries today, discovered from zinc.json) headless for N frames and prints a table OK/COMPILE/RUNTIME/CRASH with the first error; tests/examples.lst records the expected status per entry with a reason for each xfail and the task that will fix it. tests/t1/examples_all.sh fails when an entry that was OK regresses or an xfail starts to pass without being promoted (so progress is forced into the list).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

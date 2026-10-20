@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 for k in fib mandelbrot nbody; do
-  src=../tests/bench/kernels/$k.ts
+  src=tests/bench/kernels/$k.ts
   "$ZINC" parse --check "$src" || fail=1
   "$ZINC" parse --dump "$src" | diff -q - tests/golden/parser/$k.ast >/dev/null || { echo "golden differs: $k"; fail=1; }
 done

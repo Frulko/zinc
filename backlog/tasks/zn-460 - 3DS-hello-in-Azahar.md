@@ -20,7 +20,7 @@ ordinal: 214570
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-targets/n3ds/hal_n3ds.cpp: gfxInitDefault, aptMainLoop each frame (quit), osSetSpeedupEnable on New 3DS, hid buttons, svcOutputDebugString log, romfsInit. next/targets/n3ds: Makefile or CMake with devkitARM producing the core .3dsx; zinc export --target n3ds appends a RomFS holding program.zbc and writes the SMDH without the SDK.
+targets/n3ds/hal_n3ds.cpp: gfxInitDefault, aptMainLoop each frame (quit), osSetSpeedupEnable on New 3DS, hid buttons, svcOutputDebugString log, romfsInit. targets/n3ds: Makefile or CMake with devkitARM producing the core .3dsx; zinc export --target n3ds appends a RomFS holding program.zbc and writes the SMDH without the SDK.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

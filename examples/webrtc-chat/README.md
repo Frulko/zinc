@@ -20,4 +20,4 @@ Three ways to bring the peers together (the signalling: who sends the offer, the
 The "Mic level" switch asks for the microphone (macOS asks once) and shows its level; the audio itself is not sent (audio tracks come
 later). `zinc.json` declares the permissions the app uses: `net` and `microphone`.
 
-`WEBRTC_DEMO=1 WEBRTC_DEMO_LOG=1` runs the scripted session the test uses (`next/tests/t1/webrtc_chat.sh`).
+`WEBRTC_DEMO=1 WEBRTC_DEMO_LOG=1` runs the scripted session the test uses (`tests/t1/webrtc_chat.sh`).

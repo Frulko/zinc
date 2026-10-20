@@ -19,7 +19,7 @@ here="$(dirname "$(readlink -f "$0")")"
 proj="${ZINC_PROJECT:-$HOME/Zinc}"
 mkdir -p "$proj"
 [ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\n' > "$proj/hello.ts"
-exec "$here/usr/bin/zinc" run "$here/usr/share/zinc/next/app/atelier/main.tsx" -- "$proj"
+exec "$here/usr/bin/zinc" run "$here/usr/share/zinc/app/atelier/main.tsx" -- "$proj"
 RUN
 chmod +x "$app/AppRun"
 cat > "$app/zinc-atelier.desktop" <<'DESKTOP'

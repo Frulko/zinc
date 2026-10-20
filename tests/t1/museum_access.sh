@@ -26,7 +26,7 @@ cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 d=$PWD/tests/data/museum_access; g=$PWD/tests/golden/museum-access; fresh=$PWD/tests/data/museum_mode/fresh.input; tools=$PWD/tools
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cd ../examples/museum-table || exit 2
+cd examples/museum-table || exit 2
 fail=0
 play() {  # input, frames, mode, arguments of the app: the story in $tmp/story, the controls added to $tmp/controls, the last frame's hash to $tmp/frames
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$1" ZINC_FRAMES=$2 ZINC_FRAMEHASH=last "$ZINC" run $3 . -- --story --controls $4 >"$tmp/out" 2>"$tmp/err"

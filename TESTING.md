@@ -30,11 +30,11 @@ Nightly runs (03:00 UTC), manual workflow dispatches and `v*` release tags run t
 |---|---|---|---|
 | T0 | After each change (seconds) | Golden or unit test of the stage touched only | One line per failure |
 | T1 | End of a task | The milestone demo (below) | A summary of a few lines |
-| T2 | End of a milestone, once | Whole corpus, interpreter vs AOT vs the frozen output of the current native toolchain (`tools/diff-matrix`, one line per program), benchmarks | Summary only; full log in `next/.logs/` |
+| T2 | End of a milestone, once | Whole corpus, interpreter vs AOT vs the frozen output of the current native toolchain (`tools/diff-matrix`, one line per program), benchmarks | Summary only; full log in `.logs/` |
 
 Runner rules (built in ZN-002):
 
-- One line per program: `PASS name` or `FAIL name`. Details (diff, stack, sanitizer report) go to `next/.logs/<run>.log`;
+- One line per program: `PASS name` or `FAIL name`. Details (diff, stack, sanitizer report) go to `.logs/<run>.log`;
   print the path and the first 20 lines of a failure only.
 - Exit code is non-zero if anything fails; no other output on success except the totals.
 - `--only <name>` runs one program; `--tier t0|t1|t2` selects the scope.
@@ -44,7 +44,7 @@ Runner rules (built in ZN-002):
 
 | Milestone | Demo | Proves |
 |---|---|---|
-| M0 | `next/tests/run --tier t1` on the frozen corpus with the stub binary | Goldens are readable without Node; runner is quiet |
+| M0 | `tests/run --tier t1` on the frozen corpus with the stub binary | Goldens are readable without Node; runner is quiet |
 | M1 | `zinc run fib.ts` | Parser → checker → IR → ZBC → interpreter, no Node |
 | M2 | `examples/lang` | Subset breadth |
 | M3 | `errors` and `async` conformance, live objects 0 at exit | Memory and control flow |
@@ -54,7 +54,7 @@ Runner rules (built in ZN-002):
 
 ## Pixel goldens (ZN-113)
 
-`tests/golden/examples/proto/` holds the prototype's frames (`tools/proto-capture capture`, one command, `ZINC_SCALE=1`, deterministic; `ZINC_SCALE=1..4` is the pixel scale of a headless run) and `manifest.json` (entry, frame numbers, env, tolerance, `skip` reason). `tools/proto-capture compare` (T2: `tests/t2/examples_pixels.sh`) renders the same entries with this engine and runs the `tools/pngdiff` rules; a failure prints the differing pixel count and writes a diff image.
+`tests/golden/examples/proto/` holds the prototype's frames, frozen since the prototype was removed (captured at `ZINC_SCALE=1`, deterministic; `ZINC_SCALE=1..4` is the pixel scale of a headless run; a new entry gets a golden of this engine, reviewed by eye) and `manifest.json` (entry, frame numbers, env, tolerance, `skip` reason). `tools/proto-capture compare` (T2: `tests/t2/examples_pixels.sh`) renders the same entries with this engine and runs the `tools/pngdiff` rules; a failure prints the differing pixel count and writes a diff image.
 
 Tolerance policy: exact (`tol` 0, `max_diff` 0) by default, which holds for text-free UI and for text too while the engine uses the prototype's font renderer. A tolerance is allowed only where a library replaces the prototype's renderer (ThorVG, HarfBuzz, a codec) and is set per entry with the reason in the task that introduced the library. A difference not yet explained is a `known` row: it records the pixel count, may not grow, and is listed in ZN-223 until fixed. Entries the prototype renders no frame for (console, LED-matrix, device programs) are `skip` rows. Input scripts are not replayed yet (the manifest has no `input` field): frames are the first 30 of an idle run.
 
@@ -66,13 +66,13 @@ reported with the measurement, not rounded.
 | Gate | Threshold |
 |---|---|
 | M1 / ZN-011 | `fib` output equals golden with no Node; every program the checker accepts on a 30-file set is accepted by the oracle (0 violations); interpreter `fib` at least 5× faster than QuickJS; M1 used at most 1.5× its budget |
-| M3 | 18/18 conformance in the interpreter (the 18 programs are listed in `next/corpus/M3-set.txt`: the pure-language ones, no `zinc:` imports or UI, which belong to M5); live objects 0 at exit; destruction order equals current native on the order fixtures |
+| M3 | 18/18 conformance in the interpreter (the 18 programs are listed in `corpus/M3-set.txt`: the pure-language ones, no `zinc:` imports or UI, which belong to M5); live objects 0 at exit; destruction order equals current native on the order fixtures |
 | M4 | Interpreter and AOT byte-identical on the corpus; fib, nbody, binarytrees, sort within 3× of current native on AOT; interpreter at least 5× faster than QuickJS on numeric kernels and not slower on strings, jsonout and the Dyn kernel (jsonout, ~1 ms of work, is judged on its work: each engine's cycles for the kernel minus its cycles for an empty program, measured in alternation by `tools/bench-m4`, ZN-648) |
 | M5 | Pixel golden identical |
 | M6 | Hello runs on a device with no manual toolchain step |
 
 Oracle and machine types: the oracle is the repo's tsc 7 with `lib/zinc.d.ts`, where `i32`, `f32`, `u8` and the other machine
-types are aliases of `number` (`next/tools/oracle`). Our checker is therefore stricter than the oracle by design (it tracks
+types are aliases of `number` (`tools/oracle`). Our checker is therefore stricter than the oracle by design (it tracks
 numeric kinds); the check is one-way: everything we accept the oracle accepts, and our extra rejections have our own
 fixtures with Z-codes.
 

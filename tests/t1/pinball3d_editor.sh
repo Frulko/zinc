@@ -45,8 +45,8 @@
 #   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
-ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
-game=$PWD/../examples/pinball3d
+ex=$PWD/examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
+game=$PWD/examples/pinball3d
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # the top view and the heights, in a window of 1440 x 900: x, y, width, height

@@ -1,7 +1,7 @@
 // zinc updates itself (docs/guide/07-distribution.md, "Updating zinc"): the engine directory install.sh made (~/.zinc/engine, marked by .zinc-install)
 // is replaced by the CLI archive of the release channel, verified (the manifest's Ed25519 signature, the archive's SHA-256), unpacked beside it on the
 // same filesystem and swapped in whole: the running zinc keeps its files (they move to engine.prev), the `zinc` link points at engine/bin/zinc.
-// The version and the release key are build constants (CMakeLists.txt: ZN_VERSION, ZN_UPDATE_PUBKEY from next/update.pub); only this file sees them.
+// The version and the release key are build constants (CMakeLists.txt: ZN_VERSION, ZN_UPDATE_PUBKEY from update.pub); only this file sees them.
 #include "tc/tc.h"
 
 #include <unistd.h>
@@ -210,7 +210,7 @@ int updateCommand(const std::vector<std::string>& args) {
   std::string err;
   if (notice) { if (fetch(manifestUrl(in, channel, ""), info, err, 1.5)) writeCache(info.version); return 0; }
   if (!haveKey() && !envOn("ZINC_UPDATE_ALLOW_UNSIGNED"))
-    std::fprintf(stderr, "zinc update: this build has no update key (next/update.pub is the placeholder): signed updates cannot be checked, unsigned ones need ZINC_UPDATE_ALLOW_UNSIGNED=1\n");
+    std::fprintf(stderr, "zinc update: this build has no update key (update.pub is the placeholder): signed updates cannot be checked, unsigned ones need ZINC_UPDATE_ALLOW_UNSIGNED=1\n");
   const std::string murl = manifestUrl(in, channel, url);
   if (!fetch(murl, info, err)) { std::fprintf(stderr, "zinc update: %s (%s)\n", err.c_str(), murl.c_str()); return 1; }
   writeCache(info.version);

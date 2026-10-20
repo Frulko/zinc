@@ -46,7 +46,7 @@ Results:
 - Compiled 200k loop, headless, 1100 minus 100 frames, two alternations: 2.70 / 2.85 ms per frame without lending, 2.51 / 2.68 ms with it.
 
 AC3, ASan:
-- next/build-san was unusable: Swift toolchain clang++ with Apple cc, and unlinkable since ZN-229 (setHeapBudget is not compiled under ZN_SANITIZE).
+- build-san was unusable: Swift toolchain clang++ with Apple cc, and unlinkable since ZN-229 (setHeapBudget is not compiled under ZN_SANITIZE).
 - Fixed: src/rt/program.cpp guards the call under ZN_NO_MIMALLOC; third_party/sha256/sha256.c shifts bytes as WORD (UBSan, reached on every zinc run since ZN-605).
 - A fresh ASan and UBSan tree (Apple clang) ran 107 programs: the run goldens, 6 kernels and rc_lend. No report; the same ZN_LEAK_CHECK exit codes with and without lending.
 - dates and date_full differ under that build with and without lending alike (time zone data from the temporary tree), not from RC.

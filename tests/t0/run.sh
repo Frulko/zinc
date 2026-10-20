@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for k in fib mandelbrot nbody spectralnorm strings mapset sort; do
-  "$ZINC" run ../tests/bench/kernels/$k.ts 2>&1 | diff -q - corpus/bench/$k.out >/dev/null || { echo "output differs from the frozen corpus: $k"; fail=1; }
+  "$ZINC" run tests/bench/kernels/$k.ts 2>&1 | diff -q - corpus/bench/$k.out >/dev/null || { echo "output differs from the frozen corpus: $k"; fail=1; }
 done
 for f in tests/golden/run/*.ts; do
   "$ZINC" run "$f" 2>&1 | diff -q - "${f%.ts}.out" >/dev/null || { echo "run golden differs: $(basename "$f")"; fail=1; }
@@ -17,7 +17,7 @@ for f in tests/golden/checker/ok/*.ts; do
 done
 # the prototype's `zinc run <file> --target sim` (and this machine's own target) runs here (ZN-155)
 "$ZINC" run tests/golden/run/string_index.ts --target sim 2>&1 | diff -q - tests/golden/run/string_index.out >/dev/null || { echo "zinc run --target sim differs from zinc run"; fail=1; }
-"$ZINC" --emit=zbc-bin ../tests/bench/kernels/fib.ts "$tmp/fib.zbc" && "$ZINC" run "$tmp/fib.zbc" | diff -q - corpus/bench/fib.out >/dev/null || { echo "bytecode file output differs"; fail=1; }
+"$ZINC" --emit=zbc-bin tests/bench/kernels/fib.ts "$tmp/fib.zbc" && "$ZINC" run "$tmp/fib.zbc" | diff -q - corpus/bench/fib.out >/dev/null || { echo "bytecode file output differs"; fail=1; }
 for f in tests/golden/run/errors/*.ts; do
   out=$("$ZINC" run "$f" 2>&1); rc=$?
   # an uncaught exception ends the program with code 101 and `panic: Uncaught <Name>: <message>`; other runtime errors with code 1

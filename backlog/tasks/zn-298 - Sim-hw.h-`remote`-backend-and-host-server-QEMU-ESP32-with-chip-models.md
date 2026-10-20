@@ -30,5 +30,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-07). Wokwi-styl
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Started 2026-10-08, stopped when the owner asked for UI first. Plan: split into 298.01 (hw.h remote backend = the sim backend with proxy models, 8-byte framed request/reply with seq and timeout; host server src/sim/remote.{h,cpp}; T0 test over a socketpair: ssd1306 golden through the remote, 10 000 round trips, dropped frame -> timeout) and 298.02 (firmware UART2 transport, QEMU -serial tcp, zinc run --target esp32 --qemu --board). Draft of the hw.h part: next/.logs/zn-298-hw-remote.patch (untested).
+Started 2026-10-08, stopped when the owner asked for UI first. Plan: split into 298.01 (hw.h remote backend = the sim backend with proxy models, 8-byte framed request/reply with seq and timeout; host server src/sim/remote.{h,cpp}; T0 test over a socketpair: ssd1306 golden through the remote, 10 000 round trips, dropped frame -> timeout) and 298.02 (firmware UART2 transport, QEMU -serial tcp, zinc run --target esp32 --qemu --board). Draft of the hw.h part: .logs/zn-298-hw-remote.patch (untested).
 <!-- SECTION:NOTES:END -->
