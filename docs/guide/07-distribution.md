@@ -400,17 +400,15 @@ lists the CI secrets not set yet; it never writes a secret's value, and running 
 `gh auth login` as an owner of zinc-engine, `next/tools/gh-org-setup --dry-run` (every gh command it would run), then
 `next/tools/gh-org-setup` and `gh secret set -R zinc-engine/zinc NAME` for each secret it lists.
 
-Branches (owner, 2026-10-16): work happens on `feature/*` branches, merged into `develop` through a pull request; `develop` is merged
-into `main` when it is worth releasing; a `v*` tag on `main` releases. What CI does with each:
+Branches (owner, 2026-10-19): the work happens on `develop`; `make release` fast-forwards `main` to it and pushes a `v*` tag. A release
+runs one pipeline, the tag's (owner, 2026-10-20). What CI does with each:
 
 | event | what runs |
 | --- | --- |
-| push to a `feature/*` branch | nothing: open a pull request |
-| pull request into `develop` or `main`, push to `develop` | the arm64 build and the tests the change touches (T0/T1, no package) |
-| push to `main` | the build, the whole tier T2 in six shards, the package and its smoke test (no release) |
-| nightly, manual run, `v*` tag | the same as `main`; the tag also signs, notarizes and releases |
+| push to `develop` or `main` | nothing |
+| `v*` tag (`make release`) | the build, the whole tier T2 in six shards, the packages; when every test passed, the release, then the plugin mirrors and the site |
+| manual run (`gh workflow run zinc-next --ref develop`) | the same tests and packages, no release |
 
-Set `develop` as the default branch of the repository so that the nightly run, which GitHub runs on the default branch, tests it.
 
 ### The two downloads of a release
 

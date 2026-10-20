@@ -1,6 +1,6 @@
 # Zinc Next, by branch (owner, 2026-10-19): the work happens on develop and its pushes run nothing. A release (`make release`, from develop) fast-forwards main to
-# develop and pushes a `v*` tag: only that tag runs the CI (the whole tier T2, the packages, the release). The push to main a release makes only updates the plugin
-# mirrors; a manual run (workflow_dispatch) does the whole tier without releasing.
+# develop and pushes a `v*` tag: that tag is the one pipeline of a release (owner, 2026-10-20): the whole tier T2, the packages, the release, then the plugin
+# mirrors and the site. Pushes to main and develop run nothing; a manual run (workflow_dispatch) does the whole tier without releasing.
 # macOS first (owner, 2026-10-15): the Linux jobs are out of the matrix; Windows has its own package job (package-windows, experimental: a zip and install.ps1);
 # windows-cross and windows-console (the cross build from Linux) stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
@@ -8,12 +8,11 @@
 name: zinc-next
 on:
   push:
-    branches: [main]   # the fast-forward of a release: only plugin-mirrors runs (plan selects nothing)
     tags: ['v*']
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}   # a main or tag run is never cancelled by the next push
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}   # a release is never cancelled; a newer manual run replaces the older one
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -35,11 +34,8 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ "$EVENT" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then   # a release moving main: its tag runs the checks
-            printf 'test=false\nfull=false\nbench=false\nreproducible=false\npackage=false\nbase=\n' >> "$GITHUB_OUTPUT"; exit 0
-          fi
           full=
-          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_REF" == refs/heads/main ]]; then full=--full; fi
+          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then full=--full; fi
           base="$BEFORE"
           if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
           if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
@@ -718,9 +714,11 @@ jobs:
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -m "zinc ${GITHUB_REF_NAME#v}"
           git push
   plugin-mirrors:
-    # ZN-335, D37: each plugins/<name> changed on main is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>
+    # ZN-335, D37: each plugins/<name> changed since the previous release is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>,
+    # once the release is published
     name: plugin-mirrors
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: release
+    if: needs.release.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -728,9 +726,9 @@ jobs:
       - name: Split and push the changed plugins
         env:
           PLUGIN_MIRROR_TOKEN: ${{ secrets.PLUGIN_MIRROR_TOKEN }}
-          BEFORE: ${{ github.event.before }}
         run: |
-          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- plugins/ 2>/dev/null | cut -d/ -f2 | sort -u)
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null) || prev=$(git hash-object -t tree /dev/null)   # the first release: every plugin
+          changed=$(git diff --name-only "$prev" "$GITHUB_SHA" -- plugins/ 2>/dev/null | cut -d/ -f2 | sort -u)
           [ -n "$changed" ] || { echo "no plugin changed"; exit 0; }
           if [ -z "$PLUGIN_MIRROR_TOKEN" ]; then
             echo "::notice::no PLUGIN_MIRROR_TOKEN: splitting without pushing ($(echo "$changed" | tr '\n' ' '))"
@@ -741,6 +739,15 @@ jobs:
             [ -f "plugins/$n/plugin.json" ] || continue
             ZINC_PLUGIN_REPO_BASE="https://x-access-token:${PLUGIN_MIRROR_TOKEN}@github.com/zinc-engine" next/tools/plugin-split --push "$n"
           done
+  pages:
+    # the site (site/, docs/) with the release, from this same pipeline
+    needs: release
+    if: needs.release.result == 'success'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
   reproducible:
     # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
     name: reproducible
