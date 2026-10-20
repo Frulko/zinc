@@ -53,7 +53,7 @@ export function ShowAll(props: { item: Item }): i32 {
 function UserBubble(props: { item: Item }): i32 {
   return <View className="flex-row justify-end">
     <View className={`max-w-[640] px-3 py-2 rounded-lg ${bg(USER_BUBBLE)}`}>
-      <Text className={`select-text text-[14px] whitespace-pre-wrap ${fg(TEXT)}`}>{props.item.text()}</Text>
+      <Text className={`select-text text-[14px] whitespace-pre-wrap break-words ${fg(TEXT)}`}>{props.item.text()}</Text>
     </View>
   </View>;
 }
@@ -69,12 +69,12 @@ function TurnHeader(props: { item: Item; chat: Chat }): i32 {
     <View className="flex-row items-center gap-2">
       <View className="w-[8] h-[8] rounded-full" style={{ backgroundColor: props.chat.agent.color }} />
       <Text className={`text-[12px] font-semibold ${fg(TEXT)}`}>{it.name}</Text>
-      <Text className={`text-[11px] ${fg(FAINT)}`}>{it.text()}</Text>
-      <Text className={`grow text-[11px] ${fg(FAINT)}`}>{end()}</Text>
+      <Text className={`shrink min-w-0 truncate text-[11px] ${fg(FAINT)}`}>{it.text()}</Text>
+      <Text className={`grow shrink min-w-0 truncate text-[11px] ${fg(FAINT)}`}>{end()}</Text>
       <CopyButton text={() => props.chat.answer(it)} label="Copy answer" />
     </View>
     <ActivityLine item={it} chat={props.chat} />
-    {it.detail() !== '' && <Text className={`select-text text-[12px] whitespace-pre-wrap ${fg(ERROR)}`}>{it.detail()}</Text>}
+    {it.detail() !== '' && <Text className={`select-text text-[12px] whitespace-pre-wrap break-words ${fg(ERROR)}`}>{it.detail()}</Text>}
   </View>;
 }
 
@@ -113,7 +113,7 @@ function ActivityLine(props: { item: Item; chat: Chat }): i32 {
     {running()
       ? <Spinner size={13} color={() => color(ACCENT)} active={running} />
       : <Icon name={c.showTools() ? 'chevron-down' : 'chevron-right'} size={12} color={() => color(FAINT)} />}
-    <Text className={`text-[12px] ${fg(running() ? TEXT : MUTED)}`}>{running() ? live() : summaryText(it.tools, it.agents, took(it))}</Text>
+    <Text className={`shrink min-w-0 truncate text-[12px] ${fg(running() ? TEXT : MUTED)}`}>{running() ? live() : summaryText(it.tools, it.agents, took(it))}</Text>
     {!running() && bad() && <View className={`w-[7] h-[7] rounded-full ${bg(ERROR)}`} />}
     {!running() && bad() && <Text className={`text-[12px] ${fg(ERROR)}`}>{marker()}</Text>}
   </View>;
@@ -125,7 +125,7 @@ function Paragraph(props: { item: Item }): i32 {
   // streaming: plain text as it comes; finished: its markdown, parsed once (at most its TEXT_CAP head)
   return <View className="flex-col gap-1 max-w-[760]">
     {it.status() === S_RUNNING
-      ? <Text className={`select-text ${sub ? 'text-[12px]' : 'text-[14px]'} whitespace-pre-wrap ${fg(sub ? MUTED : TEXT)}`}>{it.text()}</Text>
+      ? <Text className={`select-text ${sub ? 'text-[12px]' : 'text-[14px]'} whitespace-pre-wrap break-words ${fg(sub ? MUTED : TEXT)}`}>{it.text()}</Text>
       : <Markdown blocks={parse(it.text())} small={sub} />}
     <ShowAll item={it} />
   </View>;
@@ -138,7 +138,7 @@ function Thinking(props: { item: Item }): i32 {
       <Icon name="brain" size={13} color={() => color(FAINT)} />
       <Text className={`grow shrink min-w-0 truncate text-[12px] ${fg(FAINT)}`}>{it.open() ? 'Thinking' : `Thinking: ${it.text()}`}</Text>
     </View>
-    {it.open() && <Text className={`select-text text-[12px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.text()}</Text>}
+    {it.open() && <Text className={`select-text text-[12px] whitespace-pre-wrap break-words ${fg(MUTED)}`}>{it.text()}</Text>}
   </View>;
 }
 
@@ -146,9 +146,9 @@ function Thinking(props: { item: Item }): i32 {
 export function ToolBody(props: { item: Item }): i32 {
   const it = props.item;
   return <View className="flex-col gap-2">
-    {it.detail() !== '' && <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.detail()}</Text>}
+    {it.detail() !== '' && <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap break-words ${fg(MUTED)}`}>{it.detail()}</Text>}
     {it.output() !== '' && <View className={`rounded p-2 ${bg(CODE)}`}>
-      <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap ${fg(it.status() === S_ERROR ? ERROR : TEXT)}`}>{it.output()}</Text>
+      <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap break-words ${fg(it.status() === S_ERROR ? ERROR : TEXT)}`}>{it.output()}</Text>
     </View>}
     {it.output() === '' && it.status() !== S_RUNNING && <Text className={`text-[11px] ${fg(FAINT)}`}>no output</Text>}
     <ShowAll item={it} />

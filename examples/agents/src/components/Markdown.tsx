@@ -53,7 +53,7 @@ export function RichText(props: { inline: Inline; className: string }): i32 {
     }
     ui.setTextRuns(ref.node, r);
   });
-  return <Text ref={ref} className={`select-text ${props.className}`}>{x.text}</Text>;
+  return <Text ref={ref} className={`select-text break-words ${props.className}`}>{x.text}</Text>;
 }
 const CODE_COLOR = ui.schemeColor(varName(CODE_TEXT)), LINK_COLOR = ui.schemeColor(varName(ACCENT));
 
@@ -64,7 +64,7 @@ function CodeBlock(props: { block: Block }): i32 {
       <Text className={`grow text-[11px] ${fg(FAINT)}`}>{b.lang === '' ? 'code' : b.lang}</Text>
       <CopyButton text={() => b.code} label="Copy code" />
     </View>
-    <Text className={`select-text px-3 py-2 font-mono text-[12px] whitespace-pre-wrap ${fg(TEXT)}`}>{b.code}</Text>
+    <Text className={`select-text px-3 py-2 font-mono text-[12px] whitespace-pre-wrap break-words ${fg(TEXT)}`}>{b.code}</Text>
   </View>;
 }
 

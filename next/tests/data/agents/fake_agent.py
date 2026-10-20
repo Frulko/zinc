@@ -8,6 +8,7 @@ stream format (the versions examples/agents/src/services/agents.ts names). Promp
   markdown Claude answers in markdown (heading, list, inline marks, a fenced block, a table), streamed in small pieces
   flood    $FAKE_FLOOD_EVENTS tool calls carrying $FAKE_FLOOD_MB megabytes of output in all, two of them in lines too long
            to parse (Claude's format)
+  wrap…    Claude answers with words longer than a narrow pane (paths, a URL, inline code, a long code line)
   slow     Claude runs a Bash tool for $FAKE_SLOW_S seconds (3 by default), then a Read that fails, then answers
 Every turn reports its usage as that CLI does; `claude -p /usage` and `codex app-server` answer the plan limits, `opencode api
 GET …` the models and a session's messages (no model call in the real CLIs either; FAKE_OPENCODE_NO_API: it fails)."""
@@ -135,6 +136,16 @@ MARKDOWN = (
     "- first step\n- second with `code`\n  - nested item\n1. numbered\n\n"
     "> a quoted line\n\n```sh\nmake all\necho done\n```\n\n"
     "| Name | Size |\n|------|-----:|\n| a.ts | 12 |\n| b.ts | 7 |\n\nThat is all.")
+WRAP = ("Read `orchestrator/src/components/conversation/handlers/assistant/streaming/chat.ts:198` and "
+        "https://example.com/a/very/long/address/that/keeps/going/without/a/single/space/until/it/ends/index.html before "
+        "you change anything, then this sentence runs on long enough to wrap several times in a narrow pane.\n\n"
+        "- a list item that names `orchestrator/src/chat.ts:198` with more words after it so that it wraps\n\n"
+        "```\nconst line = 'a code line that is far longer than the pane is wide, so it must wrap or scroll in its own box';\n```")
+if name == "claude" and prompt.startswith("wrap"):   # long words: paths, a URL, inline code, a long code line
+    out({"type": "system", "subtype": "init", "session_id": "s-claude"})
+    out({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": WRAP}}})
+    out({"type": "result", "subtype": "success", "is_error": False, "result": "", "session_id": "s-claude"})
+    sys.exit(0)
 if name == "claude" and "markdown" in prompt:
     out({"type": "system", "subtype": "init", "session_id": "s-claude"})
     for k in range(0, len(MARKDOWN), 23):

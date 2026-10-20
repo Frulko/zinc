@@ -188,7 +188,7 @@ function Composer(props: { chat: Chat }): i32 {
     <SettingsBar info={agent()} />
     {c.attachments().length > 0 && <Chips chat={c} />}
     <View className="flex-row items-center gap-2 p-3" onSubmit={submit}>
-      <Input ref={field} className={`grow h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
+      <Input ref={field} className={`grow shrink min-w-0 h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
         value={c.draft()} onInput={(v: string) => { c.setDraft(v); setAt(0); }} onKeyDown={keys}
         placeholder={installed() ? `Ask ${agent().agent.name} about ${shortPath(c.folder)} · @ for a file, or drop one here` : `${agent().agent.name} is not installed`} />
       {props.chat.phase() === IDLE
@@ -214,8 +214,8 @@ function ChatView(props: { chat: Chat }): i32 {
     <View className={`flex-col gap-1 px-4 py-2 border-b shrink-0 ${bd(BORDER)}`}>
       <View className="flex-row items-center gap-2">
         <Icon name="folder" size={14} color={() => color(MUTED)} />
-        <Text className={`grow shrink min-w-0 truncate text-[13px] font-semibold ${fg(TEXT)}`}>{shortPath(c.folder)}</Text>
-        {agents.map((a: AgentInfo) => <AgentTab info={a} />)}
+        <Text className={`grow shrink-[100] min-w-[60] truncate text-[13px] font-semibold ${fg(TEXT)}`}>{shortPath(c.folder)}</Text>
+        <View className="shrink min-w-0 flex-row flex-wrap justify-end gap-2">{agents.map((a: AgentInfo) => <AgentTab info={a} />)}</View>
       </View>
       <View className="flex-row flex-wrap items-center gap-1">
         <Text className={`text-[11px] mr-1 ${fg(FAINT)}`}>{local.length === 0 ? `no ${c.agent.name} configuration in this folder` : `${c.agent.name} configuration:`}</Text>

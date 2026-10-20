@@ -121,7 +121,7 @@ function FastToggle(props: { info: AgentInfo }): i32 {
 export function SettingsBar(props: { info: AgentInfo }): i32 {
   const a = props.info;
   const efforts = (): string[] => ['default', ...a.model().efforts];
-  return <View className="flex-row items-center gap-2 px-3 pt-3">
+  return <View className="flex-row flex-wrap items-center gap-2 px-3 pt-3">
     <View>
       <Pill name="mode" label="Mode" value={MODE_LABELS[a.mode()]} warn={a.mode() === MODE_FULL} />
       {openMenu() === 'mode' && <Menu items={MODE_LABELS} selected={a.mode()} onPick={(i: i32) => a.setMode(i)} />}

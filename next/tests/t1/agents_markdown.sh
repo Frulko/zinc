@@ -5,7 +5,8 @@
 # small pieces, is drawn as markdown once done: a heading, inline marks inside one text, list items, a quote, a fenced block under its
 # language, a table. The answer's copy button puts its markdown source on the clipboard ("Copied"), a code block's its code; a part of a
 # paragraph selected with the mouse copies with Cmd+C (each pasted into the field to read it back). Typing `@wo` lists the folder's
-# matching files; ArrowDown and Enter put the second one in. KEEP=dir keeps the frames and the logs.
+# matching files; ArrowDown and Enter put the second one in. Every text of the chat pane wraps inside it with the Agents and detail panels open
+# at 1440 and 900 px, long paths and URLs included (below). KEEP=dir keeps the frames and the logs.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 export ZINC_HOME="${ZINC_HOME:-$HOME/.zinc}"
@@ -121,5 +122,75 @@ has 40560 'un make all with care, then read build/l'
 has 40650 'make all echo done'
 grep '^claude ' "$tmp/agents.log" | grep -qF '["-p", "@red.png @src/word.ts markdown please",' \
   || { echo "agents markdown: claude did not get the references: $(grep '^claude .*-p' "$tmp/agents.log")"; fail=1; }
+
+# Wrapping in a narrow pane: the Agents panel (wider than Conversations) and the detail panel open, at 1440 and 900 px. Claude answers with a long
+# path, a URL, inline code and a long code line; the message holds a long path. No text of the chat pane passes its right edge (the message
+# field's placeholder is clipped by its field), after a switch of side panel, the detail panel closed and opened, and the window turned (a resize).
+# overflow <scene>: the chat pane's texts whose right edge passes the pane's (from the composer's « Mode » to the detail panel's « THIS TURN »)
+overflow() {
+  python3 - "$1" <<'PY'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+magic, version, W, H, size, ncmd, ntext, npts = struct.unpack('<8I', d[:32])
+pool = d[32 + ncmd * size:32 + ncmd * size + ntext]; P = 32 + ncmd * size + ntext
+ts = []
+for i in range(ncmd):
+    c = d[32 + i * size:32 + (i + 1) * size]
+    x, w = struct.unpack('<f', c[8:12])[0], struct.unpack('<f', c[16:20])[0]; off, n = struct.unpack('<II', c[40:48])
+    if c[0] == 11:
+        p = P + off * 4
+        if struct.unpack('<f', d[p:p + 4])[0] != 5: continue
+        off, n = struct.unpack('<II', d[p + 52:p + 60])
+    elif c[0] != 5: continue
+    ts.append((x, w, pool[off:off + n].decode('utf-8', 'replace')))
+mode = [t for t in ts if t[2] == 'Mode']; turn = [t for t in ts if t[2] == 'THIS TURN']
+left, right = (mode[0][0] - 30 if mode else 0), (turn[0][0] - 12 if turn else W)
+print(' | '.join('%r ends at %d, the pane at %d' % (t[2][:40], t[0] + t[1], right) for t in ts if left <= t[0] < right and t[0] + t[1] > right + 1 and not t[2].startswith('Ask ')))
+PY
+}
+# wraprun <name> <WxH> <composer x> <composer y> <detail toggle x> <detail toggle x once closed> <the last event: rotate, or a pause>
+wraprun() {
+  n=$1 size=$2
+  cat > "$tmp/$n.in" <<IN
+10 move 24 110
+11 down
+12 up
+20 move $3 $4
+21 down
+22 up
+30 text "wrap please: orchestrator/src/components/conversation/handlers/assistant/streaming/chat.ts:198"
+31 key Enter
+40000 move 24 22
+40001 down
+40002 up
+40100 move 24 66
+40101 down
+40102 up
+40200 move 24 110
+40201 down
+40202 up
+40300 move $5 18
+40301 down
+40302 up
+40400 move $6 18
+40401 down
+40402 up
+40500 $7
+IN
+  env HOME="$home" PATH="$tmp/bin:$PATH" FAKE_AGENT_LOG="$tmp/agents.log" AGENTS_DATA="$tmp/data-$n" ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=$size \
+    ZINC_INPUT="$tmp/$n.in" ZINC_FRAMES=40600 ZINC_SHOT="$tmp/$n.png" ZINC_SHOT_FRAMES=39990,40090,40190,40290,40390,40490,40590 \
+    ZINC_SCENE_DUMP="$tmp/$n.scn" timeout 100 "$Z" run ../examples/agents -- "$proj" > "$tmp/$n.out" 2>&1 \
+    || { echo "agents markdown: the $n run failed: $(tail -5 "$tmp/$n.out")"; fail=1; return; }
+  [ -n "$KEEP" ] && cp "$tmp/$n"-*.png "$tmp/$n"-*.scn "$KEEP/" 2>/dev/null
+  for f in 39990 40090 40190 40290 40390 40490 40590; do
+    o=$(overflow "$tmp/$n-$f.scn")
+    [ -z "$o" ] || { echo "agents markdown: $n frame $f: $o"; fail=1; }
+  done
+  for w in Send Fast opencode 'so that it wraps'; do   # the composer, the settings, the agent tabs and the answer are all there
+    tools/scene-texts "$tmp/$n-39990.scn" | grep -qF -- "$w" || { echo "agents markdown: $n frame 39990 does not show: $w"; fail=1; }
+  done
+}
+wraprun wide 1440x860 700 806 1100 1420 rotate   # turned: 860 px wide
+wraprun narrow 900x700 400 646 560 880 'move 400 400'
 [ $fail -eq 0 ] && echo "agents markdown: ok"
 exit $fail
