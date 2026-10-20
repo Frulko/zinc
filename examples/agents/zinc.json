@@ -4,13 +4,64 @@
   "app": {
     "name": "Agents",
     "id": "dev.zinc.agents",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "targets": {
-    "macos": { "width": 1180, "height": 760, "resize": "fill" },
-    "linux": { "width": 1180, "height": 760, "resize": "fill" }
+    "macos": {
+      "width": 1440,
+      "height": 860,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 1440,
+      "height": 860,
+      "resize": "fill"
+    }
   },
-  "requires": ["keyboard", "pointer", "fs"],
-  "permissions": ["fs", "process"],
-  "icons": ["folder", "file-text", "lock", "send", "square", "check", "chevron-down", "zap"]
+  "requires": [
+    "keyboard",
+    "pointer",
+    "fs"
+  ],
+  "permissions": [
+    "fs",
+    "process"
+  ],
+  "icons": [
+    "ban",
+    "bot",
+    "brain",
+    "check",
+    "chevron-down",
+    "chevron-right",
+    "circle-check",
+    "circle-stop",
+    "circle-x",
+    "file-pen",
+    "file-text",
+    "folder",
+    "folder-open",
+    "globe",
+    "list-checks",
+    "loader-circle",
+    "lock",
+    "memory-stick",
+    "messages-square",
+    "monitor",
+    "moon",
+    "panel-right-close",
+    "panel-right-open",
+    "plug",
+    "plus",
+    "search",
+    "send",
+    "settings",
+    "square",
+    "square-terminal",
+    "sun",
+    "wrench",
+    "x",
+    "zap"
+  ],
+  "scheme": "auto"
 }

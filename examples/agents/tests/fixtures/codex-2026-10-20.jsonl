@@ -1,0 +1,11 @@
+{"type": "thread.started", "thread_id": "01a15657-21f6-7fd3-ab6f-c0d41cffb959"}
+{"type": "item.completed", "item": {"id": "item_0", "type": "error", "message": "Codex is ignoring 1 unrecognized configuration setting."}}
+{"type": "item.completed", "item": {"id": "item_1", "type": "error", "message": "Codex is ignoring 1 unrecognized configuration setting."}}
+{"type": "turn.started"}
+{"type": "item.completed", "item": {"id": "item_2", "type": "agent_message", "text": "I’ll run `ls` and read `notes.txt`.\n"}}
+{"type": "item.started", "item": {"id": "item_3", "type": "command_execution", "command": "/bin/zsh -lc 'cat notes.txt'", "aggregated_output": "", "exit_code": null, "status": "in_progress"}}
+{"type": "item.started", "item": {"id": "item_4", "type": "command_execution", "command": "/bin/zsh -lc ls", "aggregated_output": "", "exit_code": null, "status": "in_progress"}}
+{"type": "item.completed", "item": {"id": "item_4", "type": "command_execution", "command": "/bin/zsh -lc ls", "aggregated_output": "README.md\nnotes.txt\n", "exit_code": 0, "status": "completed"}}
+{"type": "item.completed", "item": {"id": "item_3", "type": "command_execution", "command": "/bin/zsh -lc 'cat notes.txt'", "aggregated_output": "alpha\nbeta\n", "exit_code": 0, "status": "completed"}}
+{"type": "item.completed", "item": {"id": "item_5", "type": "agent_message", "text": "`ls` shows `README.md` and `notes.txt`; `notes.txt` contains “alpha” and “beta” on separate lines."}}
+{"type": "turn.completed", "usage": {"input_tokens": 41174, "cached_input_tokens": 32640, "cache_write_input_tokens": 0, "output_tokens": 134, "reasoning_output_tokens": 0}}

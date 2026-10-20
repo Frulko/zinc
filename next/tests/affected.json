@@ -12,7 +12,7 @@
     {"paths": ["../examples/leapmotion/", "tests/t1/leapmotion_demo.sh", "tests/golden/leapmotion/"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["../examples/music/", "tests/t1/music_city_standby.sh", "tests/t1/music_notify.sh", "tests/data/music/", "tests/golden/music/"], "tests": ["music_city_standby", "music_notify"]},
     {"paths": ["../examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/data/music-tree/"], "tests": ["music_tree_sonos"]},
-    {"paths": ["../examples/agents/", "tests/t1/agents_chat.sh", "tests/data/agents/"], "tests": ["agents_chat"]},
+    {"paths": ["../examples/agents/", "tests/t1/agents_chat.sh", "tests/t1/agents_memory.sh", "tests/data/agents/"], "tests": ["agents_chat", "agents_memory"]},
     {"paths": ["src/frontend/modules.cpp", "tests/golden/host/process_flood.ts", "tests/golden/host/process_flood.out"], "tests": ["host"]},
     {"paths": ["src/cli_core.cpp", "third_party/SDL3/android-project/", "src/tc/plugin_build.cpp", "tests/t0/export_android.sh", "tests/golden/export-android/"], "tests": ["export_android"]},
     {"paths": ["src/cli_core.cpp", "src/app/shell_sdl.cpp", "tests/t0/export_ios.sh", "tests/golden/export-ios/"], "tests": ["export_ios"]},
