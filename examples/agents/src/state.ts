@@ -6,7 +6,7 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { on } from 'zinc:system';
-import { Agent, AGENTS, ModelChoice, TurnSettings, MODE_READ } from './services/agents';
+import { Agent, AGENTS, ModelChoice, TurnSettings, MODE_READ, setGoUsage } from './services/agents';
 import { ConfigFile, HOME, findBinary, versionOf, findConfig, initialFolders } from './services/discovery';
 import { Chat, onLimits } from './services/chat';
 import { Limit, refreshMinutes } from './services/usage';
@@ -67,7 +67,8 @@ export class AgentInfo {
     this.setChecking(true);
     this.agent.limits(this.binary).then((l: Limit[] | null) => {
       this.setChecking(false);
-      if (l !== null || this.limitsAt() === 0) this.setLimits(l);   // a failed check keeps what a turn reported
+      // a failed check keeps what a turn reported, unless it says why (OpenCode Go: off, no key, refused)
+      if (l !== null || this.limitsAt() === 0 || this.agent.limitsNote() !== '') this.setLimits(l);
       this.setLimitsAt(Date.now());
     }).catch((e: Error) => { this.setChecking(false); this.setLimitsAt(Date.now()); });
   }
@@ -271,9 +272,22 @@ function readSettings(): any { try { return JSON.parse(fs.readText(SETTINGS)); }
 const refreshSig = createSignal<i32>(refreshMinutes(readSettings().limitsRefresh));
 /** Minutes between two checks of the plan limits (Settings; 5 by default, 1 to 60). */
 export const limitsRefresh = refreshSig[0];
+function writeSettings(): void {
+  try { fs.mkdir(DATA_DIR, true); fs.writeText(SETTINGS, JSON.stringify({ limitsRefresh: limitsRefresh(), goUsage: goUsage() }) + '\n'); } catch (e) { }
+}
 export function setLimitsRefresh(v: number): void {
   refreshSig[1](refreshMinutes(v));
-  try { fs.mkdir(DATA_DIR, true); fs.writeText(SETTINGS, JSON.stringify({ limitsRefresh: limitsRefresh() }) + '\n'); } catch (e) { }
+  writeSettings();
+}
+const goSig = createSignal<boolean>(readSettings().goUsage !== false);
+setGoUsage(goSig[0]());
+/** Whether OpenCode Go's usage is read with the user's Go key (Settings; on by default). */
+export const goUsage = goSig[0];
+export function setGoUsageOn(on: boolean): void {
+  goSig[1](on);
+  setGoUsage(on);
+  writeSettings();
+  for (const a of agents) if (a.agent.id === 'opencode' && a.binary !== '') a.refreshLimits();
 }
 /** Checks the limits of every installed agent whose last check is older than the interval. */
 function refreshDue(): void {

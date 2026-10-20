@@ -11,13 +11,17 @@ stream format (the versions examples/agents/src/services/agents.ts names). Promp
   wrap…    Claude answers with words longer than a narrow pane (paths, a URL, inline code, a long code line)
   slow     Claude runs a Bash tool for $FAKE_SLOW_S seconds (3 by default), then a Read that fails, then answers
 Every turn reports its usage as that CLI does; `claude -p /usage` and `codex app-server` answer the plan limits, `opencode api
-GET …` the models and a session's messages (no model call in the real CLIs either; FAKE_OPENCODE_NO_API: it fails)."""
+GET …` the models and a session's messages (no model call in the real CLIs either; FAKE_OPENCODE_NO_API: it fails), `opencode auth
+export` its credentials with a fake OpenCode Go key (FAKE_GO_KEYS=none: no active Go key). FAKE_AGENT_ENV: each start appends its
+environment there, so a test can tell what the app passed on."""
 import glob, json, os, signal, sys, time
 
 name, args = os.path.basename(sys.argv[0]), sys.argv[1:]
 with open(os.environ["FAKE_AGENT_LOG"], "a") as log:
     log.write("%s %s pwd=%s cwd=%s fastoff=%s\n" % (name, json.dumps(args), os.environ.get("PWD", ""), os.getcwd(),
                                                     os.environ.get("CLAUDE_CODE_DISABLE_FAST_MODE", "")))
+if os.environ.get("FAKE_AGENT_ENV"):
+    with open(os.environ["FAKE_AGENT_ENV"], "a") as f: f.write("%s %s\n%s\n" % (name, json.dumps(args), "\n".join("%s=%s" % kv for kv in os.environ.items())))
 if args == ["--version"]:
     print("%s 9.9.9 (fake)" % name)
     sys.exit(0)
@@ -42,6 +46,14 @@ if name == "codex" and args == ["app-server"]:
                                                          "secondary": {"usedPercent": 12, "windowDurationMins": 10080, "resetsAt": int(time.time()) + 4 * 86400}}}}
         else: continue
         print(json.dumps(out_), flush=True)
+    sys.exit(0)
+if name == "opencode" and args == ["auth", "export"]:   # the shape of opencode 2.0's export: API keys, OAuth tokens, inactive entries
+    def entry(i, integ, active, value): return {"id": i, "integrationID": integ, "label": integ, "active": active, "value": value}
+    keys = [entry("a1", "opencode-go", False, {"type": "key", "key": "sk-go-FAKE-inactive"}),
+            entry("a2", "anthropic", True, {"type": "oauth", "access": "fake-access", "refresh": "fake-refresh", "expires": 0}),
+            entry("a3", "opencode", True, {"type": "key", "key": "sk-zen-FAKE"})]
+    if os.environ.get("FAKE_GO_KEYS") != "none": keys.append(entry("a4", "opencode-go", True, {"type": "key", "key": "sk-go-FAKE-7f3a9c2e1d"}))
+    print(json.dumps(keys, indent=2))
     sys.exit(0)
 if name == "opencode" and args == ["models"]:
     print("prov/model-a\nprov/model-b")

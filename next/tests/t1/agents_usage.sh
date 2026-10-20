@@ -108,7 +108,7 @@ count again-300 'npm test' 0
 has again-10 '5 min'
 has again-100 '7 min'
 has again-300 '1 min'
-[ "$(cat "$home/.zinc-agents/settings.json")" = '{"limitsRefresh":1}' ] || { echo "agents usage: the interval does not stop at 1 minute"; fail=1; }
+[ "$(cat "$home/.zinc-agents/settings.json")" = '{"limitsRefresh":1,"goUsage":true}' ] || { echo "agents usage: the interval does not stop at 1 minute"; fail=1; }
 # reduced motion: the same line, a spinner that does not move
 has still-8000 'Running… · '
 has still-8000 'running'   # the card says it in words

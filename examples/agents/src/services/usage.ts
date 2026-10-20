@@ -137,6 +137,8 @@ export class Limit {
   name: string;
   used: number;
   resets: number;
+  /** The plan stops turns in this window now (OpenCode Go's `rate-limited`). */
+  limited: boolean = false;
   constructor(name: string, used: number, resets: number) { this.name = name; this.used = used; this.resets = resets; }
 }
 
@@ -203,6 +205,42 @@ export function codexLimits(result: any): Limit[] {
     out.push(new Limit(name, num(w.usedPercent), num(w.resetsAt) * 1000));
   }
   return out;
+}
+
+/** OpenCode Go's plan usage as `GET https://opencode.ai/zen/go/v1/usage` answers it, or why it does not: `limits` null
+ *  and `error` a short reason. */
+export class GoUsage {
+  limits: Limit[] | null = null;
+  error: string = '';
+}
+/** The answer of opencode's Go usage route (anomalyco/opencode PR #16513, packages/console/app/src/routes/zen/go/v1/usage.ts:
+ *  `{usage: {rolling, weekly, monthly: {status, percent, resetsAt}}}`; not in its docs, so it may change). */
+export function goLimits(status: i32, body: string): GoUsage {
+  const r = new GoUsage();
+  if (status === 401 || body.indexOf('api_key_expired') >= 0) {
+    r.error = body.indexOf('api_key_expired') >= 0 ? 'the Go key has expired' : 'the Go key was refused or revoked';
+    return r;
+  }
+  if (status === 403) { r.error = 'no OpenCode Go subscription on this key (403)'; return r; }
+  if (status === 404) { r.error = 'the usage route has changed (404)'; return r; }
+  if (status !== 200) { r.error = `the usage route answered ${status}`; return r; }
+  let u: any = null;
+  try { u = JSON.parse(body).usage; } catch (e) { }
+  const out: Limit[] = [];
+  if (u !== undefined && u !== null) {
+    const names = ['5-hour session', 'Week', 'Month'], keys = ['rolling', 'weekly', 'monthly'];
+    for (let i = 0; i < 3; i++) {
+      const w = u[keys[i]];
+      if (w === undefined || w === null || typeof w.percent !== 'number') continue;
+      const at = typeof w.resetsAt === 'string' ? Date.parse('' + w.resetsAt) : NaN;
+      const l = new Limit(names[i], num(w.percent), isNaN(at) ? 0 : at);
+      l.limited = '' + w.status === 'rate-limited';
+      out.push(l);
+    }
+  }
+  if (out.length === 0) r.error = 'the usage route has changed (an answer the app does not know)';
+  else r.limits = out;
+  return r;
 }
 
 /** `in 2 h 14 min`, `in 3 d`, `now` for a reset at `at` (epoch ms) seen at `now`. */

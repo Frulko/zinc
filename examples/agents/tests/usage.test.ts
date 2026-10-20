@@ -3,10 +3,10 @@
 // turn's usage as its local server lists them.
 import * as assert from 'zinc:assert';
 import * as fs from 'zinc:fs';
-import { AGENTS, Agent, AgentEvent, ParseState, EV_USAGE, EV_LIMITS, EV_DONE, opencodeModels, ModelChoice, TurnSettings, MODE_READ } from '../src/services/agents';
+import { AGENTS, Agent, AgentEvent, ParseState, EV_USAGE, EV_LIMITS, EV_DONE, opencodeModels, ModelChoice, TurnSettings, MODE_READ, goKeyOf } from '../src/services/agents';
 import {
   Usage, Limit, COST_NONE, COST_REPORTED, COST_ESTIMATE, estimate, usageLabel, tokens, money, claudeUsageText, codexLimits,
-  resetsIn, refreshMinutes, REFRESH_DEFAULT, REFRESH_MIN, REFRESH_MAX, activityText, summaryText, knownWindow, usageOf, opencodeMessages, TurnUsage,
+  resetsIn, refreshMinutes, REFRESH_DEFAULT, REFRESH_MIN, REFRESH_MAX, activityText, summaryText, knownWindow, usageOf, opencodeMessages, TurnUsage, goLimits, GoUsage,
 } from '../src/services/usage';
 import { Item, Transcript, K_USER, K_TURN, K_TEXT, K_TOOL } from '../src/services/transcript';
 
@@ -209,3 +209,33 @@ assert.ok(goTurn.length > 0);
 // a Go model the workspace's privacy settings refuse: the error line's message is shown
 const refused = eventsOf(AGENTS[2], 'error-opencode-go-2026-10-20.jsonl').filter((e: AgentEvent) => e.text.indexOf('Global regions') >= 0);
 assert.ok(refused.length > 0, 'the provider refusal is shown');
+
+// OpenCode Go's usage route (made-up numbers in its shape): three windows, one rate-limited; each refusal a short reason
+const go = goLimits(200, '{"usage":{"rolling":{"status":"ok","percent":12,"resetsAt":"2030-01-01T05:00:00.000Z"},'
+  + '"weekly":{"status":"rate-limited","percent":100,"resetsAt":"2030-01-06T00:00:00.000Z"},'
+  + '"monthly":{"status":"ok","percent":33.4,"resetsAt":"2030-01-20T00:00:00.000Z"}}}');
+assert.equal(go.error, '');
+const gl = go.limits as Limit[];
+assert.deepEqual(gl.map((x: Limit) => x.name), ['5-hour session', 'Week', 'Month']);
+assert.deepEqual(gl.map((x: Limit) => x.used), [12, 100, 33.4]);
+assert.deepEqual(gl.map((x: Limit) => x.limited), [false, true, false]);
+assert.equal(gl[0].resets, Date.parse('2030-01-01T05:00:00.000Z'));
+const reason = (status: i32, body: string): string => { const g = goLimits(status, body); assert.equal(g.limits, null); return g.error; };
+assert.equal(reason(401, '{"type":"error","error":{"type":"AuthError","message":"Unauthorized"}}'), 'the Go key was refused or revoked');
+assert.equal(reason(401, '{"error":{"type":"authentication_error","code":"api_key_expired","message":"expired"}}'), 'the Go key has expired');
+assert.equal(reason(403, '{"type":"error","error":{"type":"EntitlementError","message":"OpenCode Go subscription required."}}'), 'no OpenCode Go subscription on this key (403)');
+assert.equal(reason(404, 'Not Found'), 'the usage route has changed (404)');
+assert.equal(reason(500, ''), 'the usage route answered 500');
+assert.equal(reason(200, '{"rolling":{"percent":1}}'), 'the usage route has changed (an answer the app does not know)');
+assert.equal(reason(200, 'not json'), 'the usage route has changed (an answer the app does not know)');
+
+// `opencode auth export`: only the active OpenCode Go API key counts; OAuth entries and other providers are left alone
+const exported = '[{"id":"a","integrationID":"opencode-go","label":"old","active":false,"value":{"type":"key","key":"sk-old"}},'
+  + '{"id":"b","integrationID":"anthropic","label":"claude","active":true,"value":{"type":"oauth","access":"x","refresh":"y"}},'
+  + '{"id":"c","integrationID":"opencode","label":"zen","active":true,"value":{"type":"key","key":"sk-zen"}},'
+  + '{"id":"d","integrationID":"opencode-go","label":"go","active":true,"value":{"type":"key","key":"sk-go-test"}}]';
+assert.equal(goKeyOf(exported), 'sk-go-test');
+assert.equal(goKeyOf('[{"integrationID":"opencode-go","active":true,"value":{"type":"oauth","access":"x"}}]'), '');
+assert.equal(goKeyOf('[]'), '');
+assert.equal(goKeyOf(''), '');
+assert.equal(goKeyOf('{"not":"an array"}'), '');

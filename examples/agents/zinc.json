@@ -26,7 +26,8 @@
   "permissions": [
     "fs",
     "process",
-    "opener"
+    "opener",
+    "net:opencode.ai"
   ],
   "icons": [
     "at-sign",

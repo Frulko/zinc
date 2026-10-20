@@ -74,15 +74,15 @@ function UsagePanel(props: { chat: Chat }): i32 {
 function limitsShort(a: AgentInfo): string {
   const l = a.limits();
   if (l === null) return a.limitsAt() === 0 ? 'limits …' : 'limits ?';
-  // the session and the week; other windows (a model's own week, Codex's other spans) are in the hover
-  const main = (l as Limit[]).filter((x: Limit) => x.name === '5-hour session' || x.name === 'Week');
+  // the session, the week and the month (OpenCode Go); other windows (a model's own week, Codex's other spans) are in the hover
+  const main = (l as Limit[]).filter((x: Limit) => x.name === '5-hour session' || x.name === 'Week' || x.name === 'Month');
   return (main.length > 0 ? main : (l as Limit[]).slice(0, 1))
-    .map((x: Limit) => `${x.name === '5-hour session' ? '5h' : x.name === 'Week' ? 'wk' : x.name} ${Math.round(x.used)}%`).join(' · ');
+    .map((x: Limit) => `${x.name === '5-hour session' ? '5h' : x.name === 'Week' ? 'wk' : x.name === 'Month' ? 'mo' : x.name} ${Math.round(x.used)}%${x.limited ? ' limited' : ''}`).join(' · ');
 }
 function worst(a: AgentInfo): number {
   const l = a.limits();
   let w = 0;
-  if (l !== null) for (const x of l as Limit[]) if (x.used > w) w = x.used;
+  if (l !== null) for (const x of l as Limit[]) if (x.limited) w = 100; else if (x.used > w) w = x.used;
   return w;
 }
 
@@ -91,9 +91,9 @@ export function LimitsPanel(props: { info: AgentInfo }): i32 {
   const l = (): Limit[] | null => a.limits();
   return <View className="flex-col gap-1">
     <Text className={`text-[11px] font-semibold ${fg(TEXT)}`}>{`${a.agent.name} plan limits`}</Text>
-    {l() === null && <Text className={`text-[11px] ${fg(MUTED)}`}>{a.limitsAt() === 0 ? 'Checking…' : 'Unknown: the CLI does not expose them'}</Text>}
+    {l() === null && <Text className={`text-[11px] ${fg(MUTED)}`}>{a.limitsAt() === 0 ? 'Checking…' : `Unknown: ${a.agent.limitsNote() !== '' ? a.agent.limitsNote() : 'the CLI does not expose them'}`}</Text>}
     {l() === null && a.agent.limitsUrl() !== '' && <Text className={`text-[11px] ${fg(MUTED)}`}>{`They show on ${a.agent.limitsUrl().replace('https://', '')} (the Agents panel opens it)`}</Text>}
-    {(l() === null ? [] : l() as Limit[]).map((x: Limit) => <Row name={x.name} value={`${Math.round(x.used)}% used · ${resetsIn(x.resets, now())}`} tone={x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT} />)}
+    {(l() === null ? [] : l() as Limit[]).map((x: Limit) => <Row name={x.name} value={`${Math.round(x.used)}% used${x.limited ? ' · rate-limited' : ''} · ${resetsIn(x.resets, now())}`} tone={x.limited || x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT} />)}
     <Text className={`text-[10px] mt-1 ${fg(FAINT)}`}>Click to check again (no model call)</Text>
   </View>;
 }
@@ -125,7 +125,7 @@ export function StatusBar(): i32 {
     {usage() !== '' && <Hover panel={P_USAGE}><Part text={usage()} tone={MUTED} /></Hover>}
     {agent().binary !== '' && <Hover panel={P_LIMITS} onPress={() => agent().refreshLimits()}>
       <Icon name="gauge" size={12} color={() => color(worst(agent()) >= 90 ? ERROR : worst(agent()) >= 70 ? WARN : FAINT)} />
-      <Part text={limitsShort(agent())} tone={MUTED} />
+      <Part text={limitsShort(agent())} tone={worst(agent()) >= 100 ? ERROR : MUTED} />
     </Hover>}
     <Part text={held()} tone={FAINT} />
     <Icon name="memory-stick" size={12} color={() => color(FAINT)} />

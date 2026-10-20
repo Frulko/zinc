@@ -13,7 +13,8 @@
 //   opencode 2.0         `run --format json`   whole text parts; a tool part once it is completed
 // So Claude streams word by word, Codex and opencode paragraph by paragraph: that is the CLIs, not this tool.
 import { Attachment, A_IMAGE, A_FOLDER, imagesAsMentions } from './attach';
-import { Usage, Limit, COST_REPORTED, claudeCall, codexTurn, opencodeStep, claudeLimits, claudeUsageText, codexLimits, num, keysOf, tokens, TurnUsage, opencodeMessages } from './usage';
+import { Usage, Limit, COST_REPORTED, claudeCall, codexTurn, opencodeStep, claudeLimits, claudeUsageText, codexLimits, num, keysOf, tokens, TurnUsage, opencodeMessages, goLimits, GoUsage } from './usage';
+import { fetch, Headers } from 'zinc:net';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import * as sys from 'zinc:sys';
@@ -168,6 +169,8 @@ export abstract class Agent {
   async limits(binary: string): Promise<Limit[] | null> { return null; }
   /** Where the user sees the plan's usage when the CLI does not tell it ('' nowhere known). */
   limitsUrl(): string { return ''; }
+  /** Why the last check found no limits, '' when it does not say (the CLI does not expose them). */
+  limitsNote(): string { return ''; }
   /** The finished turn's usage as the CLI keeps it, for a CLI whose stream leaves some out (null: the stream's is whole). */
   async finalUsage(binary: string, session: string, since: number): Promise<TurnUsage | null> { return null; }
   /** Reads one line of stdout and emits what it means (nothing for the lines it does not use). */
@@ -212,6 +215,51 @@ function resultText(c: any): string {
 /** A prompt is a positional argument: one starting with '-' would be read as an option. */
 function positional(prompt: string): string {
   return prompt.startsWith('-') ? ' ' + prompt : prompt;   // ponytail: a leading space, the models ignore it
+}
+
+/** Whether the app reads OpenCode Go's usage with the user's Go key (the Settings toggle; on by default). */
+let goUsageOn = true;
+export function setGoUsage(on: boolean): void { goUsageOn = on; }
+
+/** OpenCode Go's usage route (anomalyco/opencode PR #16513): in opencode's repository, not in its docs. */
+export const GO_USAGE_URL = 'https://opencode.ai/zen/go/v1/usage';
+
+/** The key of the active OpenCode Go entry of `opencode auth export` (a JSON array of {integrationID, active,
+ *  value: {type, key}}), '' when there is none. Every other entry, OAuth tokens included, is left alone. */
+export function goKeyOf(exported: string): string {
+  try {
+    const all = JSON.parse(exported);
+    for (let i = 0; i < all.length; i++) {
+      const e = all[i];
+      if (e !== null && '' + e.integrationID === 'opencode-go' && e.active === true && e.value !== undefined && e.value !== null
+        && '' + e.value.type === 'key' && typeof e.value.key === 'string') return '' + e.value.key;
+    }
+  } catch (e) { }
+  return '';
+}
+
+/** One GET of the usage route with `key`, sent to opencode.ai only, in the Authorization header; the key is not kept.
+ *  AGENTS_GO_USAGE_FILE (tests) stands for the network: its first line is the status, the rest the body. */
+async function goUsage(key: string): Promise<GoUsage> {
+  const file = sys.env('AGENTS_GO_USAGE_FILE');
+  if (file !== '') {
+    const t = fs.readText(file), nl = t.indexOf('\n');
+    return goLimits(parseInt(nl < 0 ? t : t.slice(0, nl)) as i32, nl < 0 ? '' : t.slice(nl + 1));
+  }
+  const h = new Headers();
+  h.set('Authorization', `Bearer ${key}`);
+  h.set('Accept', 'application/json');
+  try {
+    // a redirect to another origin drops the Authorization header (zinc:net), and one that left opencode.ai is refused here
+    const r = await fetch(GO_USAGE_URL, { headers: h, timeoutMs: 15000, maxBytes: 65536 });
+    const body = await r.text();
+    if (!r.url.startsWith('https://opencode.ai/')) { const g = new GoUsage(); g.error = 'the usage route has changed (it moved)'; return g; }
+    return goLimits(r.status, body);
+  } catch (e) {
+    const g = new GoUsage();
+    g.error = 'opencode.ai did not answer';
+    return g;
+  }
 }
 
 /** The lines of `binary args` on stdout, [] when it fails. Run in the temporary folder: some CLIs and their plugins
@@ -568,8 +616,22 @@ class OpenCode extends Agent {
     return models;
   }
 
-  /** OpenCode Go and Zen tell their usage on the website only (opencode.ai/docs/go: "track your current usage in the
-   *  console"); no command or route of the CLI's server gives it. */
+  note: string = '';
+
+  /** OpenCode Go's 5-hour, week and month usage from opencode.ai's usage route, with the Go key `opencode auth export`
+   *  prints (read for this one request, never written or passed on); the CLI and its server do not tell it. Null, with
+   *  the reason in limitsNote, when the toggle is off, there is no Go key or the route refuses. */
+  async limits(binary: string): Promise<Limit[] | null> {
+    if (!goUsageOn) { this.note = 'reading them with the Go key is off in Settings'; return null; }
+    const key = goKeyOf((await outputOf(binary, ['auth', 'export'])).join('\n'));
+    if (key === '') { this.note = 'no active OpenCode Go key in opencode'; return null; }
+    const g = await goUsage(key);
+    if (!goUsageOn) { this.note = 'reading them with the Go key is off in Settings'; return null; }   // turned off meanwhile
+    this.note = g.error;
+    return g.limits;
+  }
+  limitsNote(): string { return this.note; }
+  /** The console shows Go's and Zen's usage too (opencode.ai/docs/go: "track your current usage in the console"). */
   limitsUrl(): string { return 'https://opencode.ai/console'; }
 
   /** The last step of a turn has no step_finish line: its session's messages, read from opencode's server, have them all. */

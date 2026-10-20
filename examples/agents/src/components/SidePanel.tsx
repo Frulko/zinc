@@ -14,6 +14,7 @@ import { LINE_CAP } from '../services/stream';
 import {
   AgentInfo, agents, agent, selectAgent, folders, folder, selectFolder, addFolder, viewFile, viewed, chats, current, openChat,
   newChat, activity, ACT_CHATS, ACT_FOLDERS, ACT_AGENTS, schemeChoice, setSchemeChoice, now, DATA_DIR, limitsRefresh, setLimitsRefresh,
+  goUsage, setGoUsageOn,
 } from '../state';
 import { Limit, resetsIn, REFRESH_MIN, REFRESH_MAX } from '../services/usage';
 import { SURFACE, SURFACE_HOVER, SELECTED, BORDER, TEXT, MUTED, FAINT, ERROR, WARN, ACCENT, bg, fg, bd, color, sizeLabel, ago } from '../theme';
@@ -157,23 +158,25 @@ function AgentRow(props: { info: AgentInfo }): i32 {
   </View>;
 }
 
-/** The plan's usage windows as the CLI tells them: a bar, the share used and when it resets; « unknown » when it does not. */
+/** The plan's usage windows as the CLI tells them: a bar, the share used and when it resets (red when the plan stops turns
+ *  in it now); « unknown » and why when it does not. */
 function Limits(props: { info: AgentInfo }): i32 {
   const a = props.info;
+  const tone = (x: Limit): i32 => x.limited || x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT;
   const list = (): Limit[] => { const l = a.limits(); return l === null ? [] : l as Limit[]; };
   const checked = (): string => a.checking() ? 'checking…' : a.limitsAt() === 0 ? '' : `checked ${ago(a.limitsAt(), now())}${ago(a.limitsAt(), now()) === 'now' ? '' : ' ago'}`;
   return <View className="flex-col gap-1 pl-6 pr-2 pb-2">
     {list().map((x: Limit) => <View className="flex-col gap-1">
       <View className="flex-row items-center gap-2">
         <Text className={`grow text-[11px] ${fg(MUTED)}`}>{x.name}</Text>
-        <Text className={`text-[11px] ${fg(x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT)}`}>{`${Math.round(x.used)}% used`}</Text>
+        <Text className={`text-[11px] ${fg(tone(x))}`}>{`${Math.round(x.used)}% used${x.limited ? ' · rate-limited' : ''}`}</Text>
       </View>
       <View className={`h-[4] rounded-full ${bg(SELECTED)}`}>
-        <View className={`h-[4] rounded-full ${bg(x.used >= 90 ? ERROR : x.used >= 70 ? WARN : ACCENT)}`} style={{ width: `${Math.max(2, Math.min(100, x.used))}%` }} />
+        <View className={`h-[4] rounded-full ${bg(tone(x) === TEXT ? ACCENT : tone(x))}`} style={{ width: `${x.limited ? 100 : Math.max(2, Math.min(100, x.used))}%` }} />
       </View>
       <Text className={`text-[10px] ${fg(FAINT)}`}>{resetsIn(x.resets, now())}</Text>
     </View>)}
-    {a.limits() === null && a.limitsAt() > 0 && <Text className={`text-[11px] ${fg(FAINT)}`}>Usage limits: unknown (the CLI does not expose them)</Text>}
+    {a.limits() === null && a.limitsAt() > 0 && <Text className={`text-[11px] ${fg(FAINT)}`}>{`Usage limits: unknown (${a.agent.limitsNote() !== '' ? a.agent.limitsNote() : 'the CLI does not expose them'})`}</Text>}
     {a.limits() === null && a.agent.limitsUrl() !== '' && <View className={`flex-row items-center gap-1 h-[20] self-start cursor-pointer`}
       aria-label="Open the usage page" onPress={() => { openUrl(a.agent.limitsUrl()); }}>
       <Icon name="external-link" size={11} color={() => color(ACCENT)} />
@@ -230,7 +233,15 @@ function Settings(): i32 {
       <Text className={`w-[44] text-center text-[12px] ${fg(TEXT)}`}>{`${limitsRefresh()} min`}</Text>
       <Step icon="plus" label="More often" onPress={() => setLimitsRefresh(limitsRefresh() + 1)} off={limitsRefresh() >= REFRESH_MAX} />
     </View>
-    <Line text="Each agent's plan limits, as its CLI tells them without a model call; a turn's own report updates them too. The app never reads a login file." />
+    <View className={`flex-row items-center gap-2 px-2 py-1 cursor-pointer rounded hover:${bg(SURFACE_HOVER)}`} aria-label="Read OpenCode Go usage with my Go key"
+      onPress={() => setGoUsageOn(!goUsage())}>
+      <Text className={`grow shrink min-w-0 text-[12px] ${fg(MUTED)}`}>Read OpenCode Go usage with my Go key</Text>
+      <View className={`shrink-0 w-[30] h-[16] rounded-full flex-row items-center px-[2] ${goUsage() ? 'justify-end' : 'justify-start'} ${bg(goUsage() ? ACCENT : SELECTED)}`}>
+        <View className={`w-[12] h-[12] rounded-full ${bg(SURFACE)}`} />
+      </View>
+    </View>
+    <Line text="Each agent's plan limits, as its CLI tells them without a model call; a turn's own report updates them too. The app never opens a login file." />
+    <Line text="OpenCode Go: when on, the app asks `opencode auth export` for the active Go key and sends it to opencode.ai only, to read the usage (no model call); the key is not kept." />
     <SectionTitle text="CONVERSATIONS" />
     <Line text={`Kept in ${shortPath(DATA_DIR)}/chats`} />
     <Line text="The agent keeps the context in its own session: the app sends only the new message." />

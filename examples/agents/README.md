@@ -72,9 +72,10 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
   The totals are kept with the conversation and come back after a restart.
 - **Plan limits.** The Agents panel shows each CLI's usage windows (the 5-hour session, the week, a model's own week):
   a bar, the share used and when it resets, « unknown » when the CLI does not tell them; the status bar shows the
-  current agent's (`5h 13% · wk 24%`, each window and its reset on hover, a click checks again). opencode's are
-  « unknown », with a link to [opencode.ai/console](https://opencode.ai/console), the only place OpenCode Go shows them. They are checked at
-  start and every 5 minutes (Settings: 1 to 60), and a Claude turn's own report updates them in between.
+  current agent's (`5h 13% · wk 24%`, each window and its reset on hover, a click checks again). OpenCode Go's 5-hour,
+  week and month windows come from opencode.ai with the Go key (below), a rate-limited one in red; when that is off in
+  Settings or refused, they are « unknown » with the reason and a link to [opencode.ai/console](https://opencode.ai/console).
+  They are checked at start and every 5 minutes (Settings: 1 to 60), and a Claude turn's own report updates them in between.
 - **Motion**: an item fades in from below, a spinner turns while a turn or a tool runs, menus open with a short fade,
   hovers change colour smoothly. All are engine tweens that stop when they end: a still window paints nothing. With
   reduced motion nothing moves, and the spinners stand still beside words that say what runs.
@@ -142,9 +143,9 @@ temporary folder):
 
 ## Usage, cost and limits: where the numbers come from
 
-Only from what each CLI prints or answers itself. The app never opens a login file (`~/.claude/.credentials.json`,
-`auth.json`: listed, never read), never reads the keychain, and never calls a provider's API: each CLI asks its own
-backend with its own login. No check of the limits starts a model turn. Checked on the real CLIs on 2026-10-20,
+Only from what each CLI prints or answers itself, and for OpenCode Go one read of opencode.ai's usage route. The app
+never opens a login file (`~/.claude/.credentials.json`, `auth.json`: listed, never read) and never reads the keychain;
+each CLI asks its own backend with its own login. No check of the limits starts a model turn. Checked on the real CLIs on 2026-10-20,
 read-only, in a temporary folder (`tests/fixtures/usage-*`, `limits-*`, ids redacted):
 
 | | Claude Code 2.1.304 | Codex 0.162.1 | opencode 2.0.32 |
@@ -152,14 +153,22 @@ read-only, in a temporary folder (`tests/fixtures/usage-*`, `limits-*`, ids reda
 | Tokens | each call: `message_start`, `message_delta`; the turn: `result.modelUsage` (subagents included) | `turn.completed.usage` once per turn (its input counts the cached part) | `step_finish` per step while it runs; the turn's, by model, from its session's messages once it ends (`opencode api GET /api/session/<id>/message`, a local read: the last step has no `step_finish`) |
 | Cost | `total_cost_usd`, `costUSD` per model | none: ≈ from a few list prices, none for a model outside them | the messages' `cost` (an OpenCode Go turn: its dollars, $0.002 for a short one; a free model: none) |
 | Context window | `modelUsage[model].contextWindow` | `context_window` of `codex debug models` (the default is the model `config.toml` names) | `limit.context` of `opencode api GET /api/model`; the default model: the previous turn's, else a small table |
-| Plan limits | `claude -p /usage --output-format json --no-session-persistence` (a local command: no turn, no cost) and the stream's `rate_limit_event` | `codex app-server`, `account/rateLimits/read` over stdio (no model call) | none: « unknown » and a link to the console (below) |
+| Plan limits | `claude -p /usage --output-format json --no-session-persistence` (a local command: no turn, no cost) and the stream's `rate_limit_event` | `codex app-server`, `account/rateLimits/read` over stdio (no model call) | OpenCode Go: `GET https://opencode.ai/zen/go/v1/usage` with the Go key (below); « unknown » and a link to the console otherwise |
 
 OpenCode Go is opencode's subscription (provider `opencode-go`, models `opencode-go/<id>`). Its limits are dollar
 amounts: over 5 hours 20 %, over a week 50 % and over a month 100 % of a monthly limit, each model its own
 ([opencode.ai/docs/go](https://opencode.ai/docs/go/)), and its usage shows only in the
 [console](https://opencode.ai/console). opencode 2.0.32 has no command and its server no route for them (its OpenAPI
-document has no usage, quota or billing route; asked for in [anomalyco/opencode#31084](https://github.com/anomalyco/opencode/issues/31084)),
-and calling the console with the Go key would mean reading `auth.json`, which the app never does.
+document has no usage, quota or billing route). opencode.ai has one, in opencode's repository but not in its docs:
+`GET https://opencode.ai/zen/go/v1/usage` with `Authorization: Bearer <Go key>` answers
+`{"usage": {"rolling" | "weekly" | "monthly": {"status": "ok" | "rate-limited", "percent", "resetsAt"}}}`
+([anomalyco/opencode#16513](https://github.com/anomalyco/opencode/pull/16513), closing #16017). With Settings' « Read
+OpenCode Go usage with my Go key » on (the default), each check runs `opencode auth export` in the temporary folder,
+takes from its output the key of the active `opencode-go` entry only (OAuth tokens and other providers are left
+alone), and sends it in that one request's header to opencode.ai over https, then drops it: the key is never written,
+logged, shown or passed to a program, a redirect does not carry it to another address, and an answer from off
+opencode.ai is refused. A refused key (revoked, expired), no
+Go key, or an answer the app does not know (the route is undocumented and may change) shows as « unknown » and why.
 
 ## Layout of `src/`
 
@@ -216,7 +225,8 @@ src/
   Not tried on the real CLIs: Codex with a 5-hour window reported, a Claude plan over its limit. opencode's turn is
   read from the first page of its session's messages (newest first): a turn longer than a page would be undercounted.
   A Go model the workspace keeps out (« This Go model requires Global regions »: the console's Privacy settings) fails
-  with opencode's message.
+  with opencode's message. OpenCode Go's usage route is undocumented: checked once on 2026-10-20 (200, three windows
+  « ok »); a rate-limited window and the refusals were tried against made-up answers only.
 - The picker folds the accents of Latin letters only.
 - Unfolding the cards in the middle of a long conversation reads the same stretch again: the view may move.
 - A Claude project whose path holds `-` or `.` is not offered in the folder list (Claude's folder names do not decode
@@ -228,5 +238,7 @@ opencode's models and a Go turn's usage, cost, context, the activity line's text
 search and grouping); `next/tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
 picker typed in and driven by keys), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
 copy, selection, the `@` list), `next/tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
-the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval) and
+the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval),
+`next/tests/t1/agents_go.sh` (OpenCode Go's windows from a fake `opencode auth export` and made-up answers of the route,
+the toggle, each refusal, and the fake key found nowhere: data, output, scenes, a child's arguments or environment) and
 `next/tests/t1/agents_memory.sh` (the flood).
