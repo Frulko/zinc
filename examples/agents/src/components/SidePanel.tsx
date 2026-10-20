@@ -5,6 +5,7 @@
 // - Agents: the CLIs found with their configuration under ~;
 // - Settings: the colour scheme, where conversations are kept and what the app holds in memory.
 import { createSignal } from 'zinc:ui/solid';
+import { openUrl } from 'zinc:system/opener';
 import { Icon } from 'zinc:icons';
 import { ConfigFile, shortPath } from '../services/discovery';
 import { Chat, WINDOW_MAX, WINDOW_CHARS } from '../services/chat';
@@ -173,6 +174,11 @@ function Limits(props: { info: AgentInfo }): i32 {
       <Text className={`text-[10px] ${fg(FAINT)}`}>{resetsIn(x.resets, now())}</Text>
     </View>)}
     {a.limits() === null && a.limitsAt() > 0 && <Text className={`text-[11px] ${fg(FAINT)}`}>Usage limits: unknown (the CLI does not expose them)</Text>}
+    {a.limits() === null && a.agent.limitsUrl() !== '' && <View className={`flex-row items-center gap-1 h-[20] self-start cursor-pointer`}
+      aria-label="Open the usage page" onPress={() => { openUrl(a.agent.limitsUrl()); }}>
+      <Icon name="external-link" size={11} color={() => color(ACCENT)} />
+      <Text className={`text-[11px] ${fg(ACCENT)}`}>{`See them on ${a.agent.limitsUrl().replace('https://', '')}`}</Text>
+    </View>}
     <View className="flex-row items-center gap-1">
       <Text className={`grow text-[10px] ${fg(FAINT)}`}>{checked()}</Text>
       <View className={`flex-row items-center gap-1 h-[20] px-1 rounded cursor-pointer hover:${bg(SURFACE_HOVER)}`} aria-label="Refresh limits" onPress={() => a.refreshLimits()}>

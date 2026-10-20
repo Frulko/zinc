@@ -13,7 +13,7 @@
 //   opencode 2.0         `run --format json`   whole text parts; a tool part once it is completed
 // So Claude streams word by word, Codex and opencode paragraph by paragraph: that is the CLIs, not this tool.
 import { Attachment, A_IMAGE, A_FOLDER, imagesAsMentions } from './attach';
-import { Usage, Limit, COST_REPORTED, claudeCall, codexTurn, opencodeStep, claudeLimits, claudeUsageText, codexLimits, num, keysOf } from './usage';
+import { Usage, Limit, COST_REPORTED, claudeCall, codexTurn, opencodeStep, claudeLimits, claudeUsageText, codexLimits, num, keysOf, tokens, TurnUsage, opencodeMessages } from './usage';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import * as sys from 'zinc:sys';
@@ -103,6 +103,10 @@ export class ModelChoice {
   window: number = 0;
   /** The model it is, for the default one when the configuration names it ('' unknown): prices and usage go by it. */
   model: string;
+  /** The provider it comes from, for a CLI that has several (opencode: `OpenCode Go`); '' none. */
+  group: string = '';
+  /** What the picker says beside it: its window and price when the CLI gives them (`1M context · $0.15 / $0.50 per M`). */
+  hint: string = '';
   constructor(id: string, label: string, efforts: string[], fast: boolean) {
     this.id = id; this.label = label; this.efforts = efforts; this.fast = fast; this.model = id;
   }
@@ -162,6 +166,10 @@ export abstract class Agent {
   env(s: TurnSettings): string[] { return []; }
   /** The plan's usage limits as the CLI tells them without a model call; null when it does not tell them. */
   async limits(binary: string): Promise<Limit[] | null> { return null; }
+  /** Where the user sees the plan's usage when the CLI does not tell it ('' nowhere known). */
+  limitsUrl(): string { return ''; }
+  /** The finished turn's usage as the CLI keeps it, for a CLI whose stream leaves some out (null: the stream's is whole). */
+  async finalUsage(binary: string, session: string, since: number): Promise<TurnUsage | null> { return null; }
   /** Reads one line of stdout and emits what it means (nothing for the lines it does not use). */
   abstract parse(line: string, st: ParseState, emit: Emit): void;
   /**
@@ -210,7 +218,7 @@ function positional(prompt: string): string {
  *  write files where they start. */
 async function outputOf(binary: string, args: string[]): Promise<string[]> {
   try {
-    const r = await proc.run(binary, args, { cwd: fs.tmpdir() });
+    const r = await proc.run(binary, args, { cwd: fs.tmpdir(), env: [`PWD=${fs.tmpdir()}`] });
     return r.code === 0 ? r.stdout.split('\n') : [];
   } catch (e) {
     return [];
@@ -419,6 +427,7 @@ class Codex extends Agent {
         for (let k = 0; k < n; k++) efforts.push('' + levels[k].effort);
         const c = new ModelChoice('' + m.slug, '' + m.display_name, efforts, (m.service_tiers.length as i32) > 0);
         c.window = num(m.context_window);
+        if (c.window > 0) c.hint = `${tokens(c.window)} context`;
         models.push(c);
       }
     } catch (e) { }   // an older CLI without the catalog: the default only
@@ -435,7 +444,7 @@ class Codex extends Agent {
       let done = false, buf = '';
       let p: proc.Process;
       const finish = (v: Limit[] | null): void => { if (done) return; done = true; try { p.kill(15); } catch (e) { } resolve(v); };
-      try { p = proc.spawn(binary, ['app-server'], { cwd: fs.tmpdir(), env: [] }); } catch (e) { resolve(null); return; }
+      try { p = proc.spawn(binary, ['app-server'], { cwd: fs.tmpdir(), env: [`PWD=${fs.tmpdir()}`] }); } catch (e) { resolve(null); return; }
       p.onData((s: string, isErr: boolean) => {
         if (isErr || done) return;
         buf = (buf + s).slice(-262144);
@@ -540,14 +549,35 @@ class OpenCode extends Agent {
     ], [spec('opencode.json'), spec('opencode.jsonc'), spec('AGENTS.md'), spec('.opencode')]);
   }
 
-  /** `opencode models`: `provider/model`, one per line. An effort is a variant of a model there, not a setting. */
+  /** The models of opencode's server (`opencode api GET /api/model`, a local read: names, windows, prices, variants) under their
+   *  providers' names (`GET /api/provider`); `opencode models` (ids only) when the server does not answer. A variant is the
+   *  effort (`provider/model#variant`). */
   async loadModels(binary: string): Promise<ModelChoice[]> {
     const models = [new ModelChoice('', 'Default', [], false)];
+    const answers = await Promise.all([outputOf(binary, ['api', 'GET', '/api/model']), outputOf(binary, ['api', 'GET', '/api/provider'])]);
+    const found = opencodeModels(answers[0].join('\n'), answers[1].join('\n'));
+    if (found.length > 0) return [...models, ...found];
     for (const line of await outputOf(binary, ['models'])) {
       const id = line.trim();
-      if (id.indexOf('/') > 0 && id.indexOf(' ') < 0) models.push(new ModelChoice(id, id, [], false));
+      if (id.indexOf('/') > 0 && id.indexOf(' ') < 0) {
+        const c = new ModelChoice(id, id, [], false);
+        c.group = id.slice(0, id.indexOf('/'));
+        models.push(c);
+      }
     }
     return models;
+  }
+
+  /** OpenCode Go and Zen tell their usage on the website only (opencode.ai/docs/go: "track your current usage in the
+   *  console"); no command or route of the CLI's server gives it. */
+  limitsUrl(): string { return 'https://opencode.ai/console'; }
+
+  /** The last step of a turn has no step_finish line: its session's messages, read from opencode's server, have them all. */
+  async finalUsage(binary: string, session: string, since: number): Promise<TurnUsage | null> {
+    if (session === '' || session.indexOf('/') >= 0) return null;
+    // ponytail: the first page (newest first) only; a turn longer than a page would be undercounted, follow `cursor` then
+    const lines = await outputOf(binary, ['api', 'GET', `/api/session/${session}/message`]);
+    try { return opencodeMessages(JSON.parse(lines.join('\n')), since); } catch (e) { return null; }
   }
 
   fastByDefault(home: string): boolean { return false; }
@@ -556,7 +586,7 @@ class OpenCode extends Agent {
     // the plan agent cannot edit; the build agent can, and --auto approves what is not explicitly denied
     const a = ['run', '--format', 'json', '--agent', s.mode === MODE_READ ? 'plan' : 'build'];
     if (s.mode === MODE_FULL) a.push('--auto');
-    if (s.model !== '') { a.push('--model'); a.push(s.model); }
+    if (s.model !== '') { a.push('--model'); a.push(s.effort !== '' ? `${s.model}#${s.effort}` : s.model); }
     if (session !== '') { a.push('--session'); a.push(session); }
     for (const at of atts) if (at.kind !== A_FOLDER) { a.push('-f'); a.push(at.path); }
     a.push(positional(prompt));
@@ -587,7 +617,10 @@ class OpenCode extends Agent {
     } else if (type === 'step_finish') {   // one model call: its tokens and cost
       st.done.add(opencodeStep(j.part));
       emit(st.usageEvent());
-    } else if (type === 'error') emit(ev(EV_ERROR, '', j.error.data !== undefined ? str(j.error.data.message) : str(j.error.name)));
+    } else if (type === 'error') {   // {name, data: {message}}, or {type, message} (2.0.32: a provider's refusal)
+      const e = j.error;
+      emit(ev(EV_ERROR, '', e.data !== undefined && e.data !== null ? str(e.data.message) : e.message !== undefined ? str(e.message) : str(e.name)));
+    }
     // opencode prints no end-of-turn line: the turn ends when the process exits
   }
 
@@ -596,3 +629,38 @@ class OpenCode extends Agent {
 }
 
 export const AGENTS: Agent[] = [new ClaudeCode(), new Codex(), new OpenCode()];
+
+/** The models of opencode's `GET /api/model` answer, with the provider names of `GET /api/provider`: grouped by provider,
+ *  each with its window, its price per million tokens and its variants. [] when the answer does not read. */
+export function opencodeModels(modelsJson: string, providersJson: string): ModelChoice[] {
+  const out: ModelChoice[] = [];
+  const names = new Map<string, string>();
+  try { for (const p of JSON.parse(providersJson).data) names.set('' + p.id, '' + p.name); } catch (e) { }
+  let list: any = null;
+  try { list = JSON.parse(modelsJson).data; } catch (e) { return out; }
+  if (list === undefined || list === null) return out;
+  for (const m of list) {
+    if (m.enabled === false) continue;
+    const provider = '' + m.providerID;
+    const efforts: string[] = [];
+    if (m.variants !== undefined && m.variants !== null) for (const v of m.variants) efforts.push('' + v.id);
+    const c = new ModelChoice(`${provider}/${m.id}`, m.name !== undefined ? '' + m.name : '' + m.id, efforts, false);
+    c.group = names.has(provider) ? names.get(provider) as string : provider;
+    if (m.limit !== undefined && m.limit !== null) c.window = num(m.limit.context);
+    const hint: string[] = [];
+    if (c.window > 0) hint.push(`${tokens(c.window)} context`);
+    if (m.cost !== undefined && m.cost !== null && (m.cost.length as i32) > 0 && m.cost[0].input !== undefined && m.cost[0].input !== null) {
+      const k = m.cost[0];
+      hint.push(num(k.input) === 0 && num(k.output) === 0 ? 'free' : `$${price(num(k.input))} / $${price(num(k.output))} per M`);
+    }
+    c.hint = hint.join(' · ');
+    out.push(c);
+  }
+  // each provider's models together, in the order the providers come
+  const order: string[] = [];
+  for (const c of out) if (order.indexOf(c.group) < 0) order.push(c.group);
+  const sorted: ModelChoice[] = [];
+  for (const g of order) for (const c of out) if (c.group === g) sorted.push(c);
+  return sorted;
+}
+function price(v: number): string { return v >= 1 ? v.toFixed(2).replace('.00', '') : v.toFixed(2); }

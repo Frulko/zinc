@@ -46,8 +46,12 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
   and the next message resumes the session. Checked with Claude Code 2.1.304: on SIGINT it ends with an error result
   (exit 0), and `--resume` then knows what it had written before the stop.
 - **Settings of the next turn**, as the CLIs offer them, above the message field: the mode, the model (Claude's
-  aliases, Codex's own catalog from `codex debug models`, `opencode models`), the effort the model accepts, and fast
-  mode where the model has it. Each answer says what it ran with (`opus · high · fast · Edit files`). The status bar
+  aliases, Codex's own catalog from `codex debug models`, opencode's from its local server), the effort the model
+  accepts (opencode: the model's variants), and fast mode where the model has it. **The model picker searches**: type
+  to filter (case and accents aside, anywhere in the name, the id or the provider, every word: `go glm`), ↑ ↓ to move,
+  Enter or Tab to pick, Escape to close, or click; « Default » stays first. opencode's models come under their
+  providers (« OpenCode Go », « Default / OpenCode », « LM Studio (local) ») with their context window and price per
+  million tokens in and out, or « free ». Each answer says what it ran with (`opus · high · fast · Edit files`). The status bar
   repeats them, with the turns running and the app's memory.
 - **Answers in markdown.** A paragraph streams in as plain text and is drawn as markdown once it ends: headings, lists
   (nested, numbered), **bold**, *italic*, `inline code` and links in their colours, quotes, rules, fenced code blocks
@@ -68,7 +72,8 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
   The totals are kept with the conversation and come back after a restart.
 - **Plan limits.** The Agents panel shows each CLI's usage windows (the 5-hour session, the week, a model's own week):
   a bar, the share used and when it resets, « unknown » when the CLI does not tell them; the status bar shows the
-  current agent's (`5h 13% · wk 24%`, each window and its reset on hover, a click checks again). They are checked at
+  current agent's (`5h 13% · wk 24%`, each window and its reset on hover, a click checks again). opencode's are
+  « unknown », with a link to [opencode.ai/console](https://opencode.ai/console), the only place OpenCode Go shows them. They are checked at
   start and every 5 minutes (Settings: 1 to 60), and a Claude turn's own report updates them in between.
 - **Motion**: an item fades in from below, a spinner turns while a turn or a tool runs, menus open with a short fade,
   hovers change colour smoothly. All are engine tweens that stop when they end: a still window paints nothing. With
@@ -107,7 +112,7 @@ One process per turn, no SDK and no API key: the CLIs use the login they already
 |---|---|---|
 | Claude Code 2.1 | `claude -p <prompt with @references> --output-format stream-json --verbose --include-partial-messages --permission-mode <mode> [--model m] [--effort e] [--settings '{"fastMode":true}'] [--resume <id>]` | token and tool-input deltas; a subagent's whole messages with `parent_tool_use_id` |
 | Codex 0.162 | `codex exec --json --skip-git-repo-check -c sandbox_mode=… -c service_tier=… [-c model=…] [-c model_reasoning_effort=…] [resume <id>] [-i <image>…] -- <prompt>` | items: `command_execution` started then completed, `file_change`, `mcp_tool_call`, `reasoning`, whole messages |
-| opencode 2.0 | `opencode run --format json --agent plan\|build [--auto] [--model provider/model] [--session <id>] [-f <file or image>…] <prompt>` | whole text parts; a tool part once it is done (no live status) |
+| opencode 2.0 | `opencode run --format json --agent plan\|build [--auto] [--model provider/model[#variant]] [--session <id>] [-f <file or image>…] <prompt>` (and `PWD` set to the folder: opencode takes its folder from it) | whole text parts; a tool part once it is done (no live status) |
 
 The three formats were checked against the CLIs on 2026-10-20 (Claude Code 2.1.304, codex-cli 0.162.1, opencode
 2.0.32), each on a small prompt in a temporary folder, read-only; `tests/fixtures/` keeps what they printed and
@@ -144,10 +149,17 @@ read-only, in a temporary folder (`tests/fixtures/usage-*`, `limits-*`, ids reda
 
 | | Claude Code 2.1.304 | Codex 0.162.1 | opencode 2.0.32 |
 |---|---|---|---|
-| Tokens | each call: `message_start`, `message_delta`; the turn: `result.modelUsage` (subagents included) | `turn.completed.usage` once per turn (its input counts the cached part) | `step_finish` per step |
-| Cost | `total_cost_usd`, `costUSD` per model | none: ≈ from a few list prices, none for a model outside them | `cost` (0 on a plan: shown as none) |
-| Context window | `modelUsage[model].contextWindow` | `context_window` of `codex debug models` (the default is the model `config.toml` names) | none: the previous turn's, else a small table |
-| Plan limits | `claude -p /usage --output-format json --no-session-persistence` (a local command: no turn, no cost) and the stream's `rate_limit_event` | `codex app-server`, `account/rateLimits/read` over stdio (no model call) | none (`opencode stats` is local history): « unknown » |
+| Tokens | each call: `message_start`, `message_delta`; the turn: `result.modelUsage` (subagents included) | `turn.completed.usage` once per turn (its input counts the cached part) | `step_finish` per step while it runs; the turn's, by model, from its session's messages once it ends (`opencode api GET /api/session/<id>/message`, a local read: the last step has no `step_finish`) |
+| Cost | `total_cost_usd`, `costUSD` per model | none: ≈ from a few list prices, none for a model outside them | the messages' `cost` (an OpenCode Go turn: its dollars, $0.002 for a short one; a free model: none) |
+| Context window | `modelUsage[model].contextWindow` | `context_window` of `codex debug models` (the default is the model `config.toml` names) | `limit.context` of `opencode api GET /api/model`; the default model: the previous turn's, else a small table |
+| Plan limits | `claude -p /usage --output-format json --no-session-persistence` (a local command: no turn, no cost) and the stream's `rate_limit_event` | `codex app-server`, `account/rateLimits/read` over stdio (no model call) | none: « unknown » and a link to the console (below) |
+
+OpenCode Go is opencode's subscription (provider `opencode-go`, models `opencode-go/<id>`). Its limits are dollar
+amounts: over 5 hours 20 %, over a week 50 % and over a month 100 % of a monthly limit, each model its own
+([opencode.ai/docs/go](https://opencode.ai/docs/go/)), and its usage shows only in the
+[console](https://opencode.ai/console). opencode 2.0.32 has no command and its server no route for them (its OpenAPI
+document has no usage, quota or billing route; asked for in [anomalyco/opencode#31084](https://github.com/anomalyco/opencode/issues/31084)),
+and calling the console with the Go key would mean reading `auth.json`, which the app never does.
 
 ## Layout of `src/`
 
@@ -166,6 +178,7 @@ src/
 │   ├── usage.ts             # tokens, context, cost and plan limits as each CLI reports them; the activity line's texts
 │   ├── markdown.ts          # an answer's markdown as blocks, inline marks as style runs
 │   ├── attach.ts            # dropped files and images: references, the @ completion, how each CLI takes them
+│   ├── pick.ts              # the model picker's search (case and accents aside) and its grouping by provider
 │   └── chat.ts              # a conversation: one process per turn, its window of items
 └── components/
     ├── ActivityBar.tsx      # the icons on the far left
@@ -175,7 +188,7 @@ src/
     ├── Markdown.tsx         # an answer's blocks as views, the copy button and its tooltip
     ├── DetailPanel.tsx      # the turn's agents and tools, one in full
     ├── StatusBar.tsx        # agent, model, mode, turns running, tokens and cost, plan limits, memory
-    ├── SettingsBar.tsx      # mode, model, effort and fast of the next turn, with their menus
+    ├── SettingsBar.tsx      # mode, model, effort and fast of the next turn, their menus, the model picker
     ├── motion.tsx           # the entrance, the spinner
     └── FileViewer.tsx       # a configuration file, or a long text from disk, read-only
 ```
@@ -200,15 +213,20 @@ src/
 - Usage: Codex reports one figure per turn, so its context is the turn's whole input (a turn of several calls
   overstates it); a model the CLI gives no window for borrows the previous turn's; the price table behind « ≈ » holds a
   few OpenAI list prices and nothing else. Claude's `/usage` resets are read in local time, as it prints them.
-  Not tried on the real CLIs: Codex with a 5-hour window reported, a Claude plan over its limit.
+  Not tried on the real CLIs: Codex with a 5-hour window reported, a Claude plan over its limit. opencode's turn is
+  read from the first page of its session's messages (newest first): a turn longer than a page would be undercounted.
+  A Go model the workspace keeps out (« This Go model requires Global regions »: the console's Privacy settings) fails
+  with opencode's message.
+- The picker folds the accents of Latin letters only.
 - Unfolding the cards in the middle of a long conversation reads the same stretch again: the view may move.
 - A Claude project whose path holds `-` or `.` is not offered in the folder list (Claude's folder names do not decode
   back); add it with the field.
 
 Tests: `zinc test examples/agents/tests` (the parsers against the real CLIs' streams, the stop state machine, the
 bounded reader, the markdown parser, the references and each CLI's arguments for them, the usage and limits of each CLI,
-cost, context, the activity line's texts, the refresh interval); `next/tests/t1/agents_chat.sh`
-(fake CLIs that answer in each format, headless), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
+opencode's models and a Go turn's usage, cost, context, the activity line's texts, the refresh interval, the picker's
+search and grouping); `next/tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
+picker typed in and driven by keys), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
 copy, selection, the `@` list), `next/tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
 the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval) and
 `next/tests/t1/agents_memory.sh` (the flood).

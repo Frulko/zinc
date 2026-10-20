@@ -271,3 +271,34 @@ export function keysOf(o: any): string[] {
   }
   return keys;
 }
+
+// ---- opencode's own record of a turn ----
+
+/** A turn's usage, in all and by model. */
+export class TurnUsage {
+  total: Usage = new Usage();
+  byModel: Map<string, Usage> = new Map<string, Usage>();
+}
+
+/** opencode's assistant messages created at `since` (epoch ms) or later, from its server's `GET /api/session/<id>/message`
+ *  (a read of the local session, no model call): the turn's tokens and cost, in all and by `provider/model`. `run --format json`
+ *  prints no step_finish for a turn's last step, so the stream alone misses it. null when no such message holds tokens. */
+export function opencodeMessages(j: any, since: number): TurnUsage | null {
+  const r = new TurnUsage();
+  const list = j.data;
+  if (list === undefined || list === null) return null;
+  let found = false;
+  for (const m of list) {
+    if ('' + m.type !== 'assistant' || m.tokens === undefined || m.tokens === null) continue;
+    if (m.time === undefined || num(m.time.created) < since) continue;
+    const u = opencodeStep(m);   // the same fields as a step_finish part: tokens {…}, cost
+    const name = m.model !== undefined && m.model !== null ? `${m.model.providerID}/${m.model.id}` : '';
+    const was = r.byModel.get(name);
+    const sum = was === undefined ? new Usage() : (was as Usage).copy();
+    sum.add(u);
+    r.byModel.set(name, sum);
+    r.total.add(u);
+    found = true;
+  }
+  return found ? r : null;
+}

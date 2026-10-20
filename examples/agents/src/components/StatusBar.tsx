@@ -92,6 +92,7 @@ export function LimitsPanel(props: { info: AgentInfo }): i32 {
   return <View className="flex-col gap-1">
     <Text className={`text-[11px] font-semibold ${fg(TEXT)}`}>{`${a.agent.name} plan limits`}</Text>
     {l() === null && <Text className={`text-[11px] ${fg(MUTED)}`}>{a.limitsAt() === 0 ? 'Checking…' : 'Unknown: the CLI does not expose them'}</Text>}
+    {l() === null && a.agent.limitsUrl() !== '' && <Text className={`text-[11px] ${fg(MUTED)}`}>{`They show on ${a.agent.limitsUrl().replace('https://', '')} (the Agents panel opens it)`}</Text>}
     {(l() === null ? [] : l() as Limit[]).map((x: Limit) => <Row name={x.name} value={`${Math.round(x.used)}% used · ${resetsIn(x.resets, now())}`} tone={x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT} />)}
     <Text className={`text-[10px] mt-1 ${fg(FAINT)}`}>Click to check again (no model call)</Text>
   </View>;

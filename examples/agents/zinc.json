@@ -25,7 +25,8 @@
   ],
   "permissions": [
     "fs",
-    "process"
+    "process",
+    "opener"
   ],
   "icons": [
     "at-sign",
@@ -39,6 +40,7 @@
     "circle-stop",
     "circle-x",
     "copy",
+    "external-link",
     "file",
     "file-pen",
     "file-text",

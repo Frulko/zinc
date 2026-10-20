@@ -9,13 +9,14 @@ stream format (the versions examples/agents/src/services/agents.ts names). Promp
   flood    $FAKE_FLOOD_EVENTS tool calls carrying $FAKE_FLOOD_MB megabytes of output in all, two of them in lines too long
            to parse (Claude's format)
   slow     Claude runs a Bash tool for $FAKE_SLOW_S seconds (3 by default), then a Read that fails, then answers
-Every turn reports its usage as that CLI does; `claude -p /usage` and `codex app-server` answer the plan limits (no model call
-in the real CLIs either)."""
+Every turn reports its usage as that CLI does; `claude -p /usage` and `codex app-server` answer the plan limits, `opencode api
+GET …` the models and a session's messages (no model call in the real CLIs either; FAKE_OPENCODE_NO_API: it fails)."""
 import glob, json, os, signal, sys, time
 
 name, args = os.path.basename(sys.argv[0]), sys.argv[1:]
 with open(os.environ["FAKE_AGENT_LOG"], "a") as log:
-    log.write("%s %s cwd=%s fastoff=%s\n" % (name, json.dumps(args), os.getcwd(), os.environ.get("CLAUDE_CODE_DISABLE_FAST_MODE", "")))
+    log.write("%s %s pwd=%s cwd=%s fastoff=%s\n" % (name, json.dumps(args), os.environ.get("PWD", ""), os.getcwd(),
+                                                    os.environ.get("CLAUDE_CODE_DISABLE_FAST_MODE", "")))
 if args == ["--version"]:
     print("%s 9.9.9 (fake)" % name)
     sys.exit(0)
@@ -43,6 +44,26 @@ if name == "codex" and args == ["app-server"]:
     sys.exit(0)
 if name == "opencode" and args == ["models"]:
     print("prov/model-a\nprov/model-b")
+    sys.exit(0)
+if name == "opencode" and args[:2] == ["api", "GET"]:   # opencode's local server: models, providers, a session's messages
+    if os.environ.get("FAKE_OPENCODE_NO_API"): sys.exit(1)
+    path = args[2]
+    def model(p, i, n, ctx, cost, variants):
+        return {"id": i, "providerID": p, "name": n, "enabled": True, "limit": {"context": ctx, "output": 32000},
+                "cost": [{"input": cost[0], "output": cost[1], "cache": {"read": 0, "write": 0}}], "variants": [{"id": v} for v in variants]}
+    if path == "/api/provider":
+        print(json.dumps({"data": [{"id": "opencode", "name": "Default / OpenCode"}, {"id": "opencode-go", "name": "OpenCode Go"}]}))
+    elif path == "/api/model":
+        print(json.dumps({"data": [
+            model("opencode", "big-pickle", "Big Pickle", 200000, (0, 0), []),
+            model("opencode-go", "glm-5.3-flash", "GLM-5.3 Flash", 200000, (0.15, 0.5), ["low", "high"]),
+            model("opencode-go", "kimi-k3", "Kimi K3", 262144, (0.6, 2.5), []),
+            dict(model("opencode-go", "hidden", "Hidden", 1000, (0, 0), []), enabled=False)]}))
+    elif path.startswith("/api/session/"):
+        now = int(time.time() * 1000)
+        print(json.dumps({"data": [{"id": "msg_1", "type": "user", "time": {"created": now}},
+            {"id": "msg_2", "type": "assistant", "time": {"created": now}, "cost": 0.0021, "model": {"id": "glm-5.3-flash", "providerID": "opencode-go"},
+             "tokens": {"input": 13000, "output": 4, "reasoning": 20, "cache": {"read": 700, "write": 0}}}], "cursor": None}))
     sys.exit(0)
 
 prompt = args[args.index("-p") + 1] if name == "claude" else args[-1]

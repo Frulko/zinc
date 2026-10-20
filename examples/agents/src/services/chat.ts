@@ -18,7 +18,7 @@ import {
   EV_SESSION, EV_DELTA, EV_BLOCK, EV_TOOL, EV_TOOL_DELTA, EV_TOOL_INPUT, EV_TOOL_END, EV_THINKING, EV_PROGRESS, EV_ERROR, EV_DONE,
   EV_USAGE, EV_LIMITS,
 } from './agents';
-import { Usage, Limit, usageOf, estimate, knownWindow } from './usage';
+import { Usage, Limit, TurnUsage, usageOf, estimate, knownWindow } from './usage';
 import { LineReader, Spill, unescapeLoose, head } from './stream';
 import { Item, Transcript, K_USER, K_TURN, K_TEXT, K_TOOL, K_THINKING, S_RUNNING, S_DONE, S_ERROR, S_STOPPED, TEXT_CAP, OUTPUT_HEAD, SEG } from './transcript';
 import { summarize, detailOf, DETAIL_CAP } from './tools';
@@ -66,6 +66,8 @@ class Run {
   model: string = '';
   window: number = 0;
   byModel: Map<string, Usage> | null = null;
+  /** The CLI it runs ('' it did not start). */
+  binary: string = '';
   constructor(item: Item, gen: i32) { this.item = item; this.gen = gen; }
 }
 
@@ -403,7 +405,9 @@ export class Chat {
 
     let p: proc.Process;
     try {
-      p = proc.spawn(binary, this.agent.args(text, this.session, settings, atts, this.folder), { cwd: this.folder, env: this.agent.env(settings) });
+      // PWD too: opencode 2.0.32 takes its project folder from it, not from the working directory (it ran where the app started)
+      p = proc.spawn(binary, this.agent.args(text, this.session, settings, atts, this.folder),
+        { cwd: this.folder, env: [`PWD=${this.folder}`, ...this.agent.env(settings)] });
     } catch (e) {
       const failed = new Run(turn, -1);
       failed.model = settings.model;
@@ -413,6 +417,7 @@ export class Chat {
     }
     this.machine.start((signal: i32) => p.kill(signal));
     const run = new Run(turn, this.machine.gen);
+    run.binary = binary;
     run.model = settings.modelName !== '' ? settings.modelName : settings.model;
     run.window = settings.window > 0 ? settings.window : this.total().window > 0 ? this.total().window : knownWindow(run.model !== '' ? run.model : this.agent.id);
     this.run = run;
@@ -597,7 +602,22 @@ export class Chat {
     turn.tools = this.toolCount;
     turn.agents = this.agentCalls.size;
     this.setActive(null);
-    this.addUsage(run);
+    // the CLI's own record of the turn when its stream leaves some out (opencode's last step), then the conversation's totals
+    const done = (f: TurnUsage | null): void => {
+      if (f !== null) {
+        const u = (f as TurnUsage).total;
+        const by = (f as TurnUsage).byModel;
+        if (u.window === 0) u.window = run.window;
+        by.forEach((m: Usage, k: string) => { if (m.window === 0) m.window = run.window; });
+        run.item.setUsage(u);
+        run.byModel = by;
+        this.store.write(run.item);   // again, with the whole usage: the last line of an item is its state
+      }
+      this.addUsage(run);
+      this.saveMeta();
+    };
+    if (run.binary === '') done(null);
+    else this.agent.finalUsage(run.binary, this.session, turn.started).then(done).catch((e: Error) => done(null));
     turn.setNote(toolsLabel(this.toolCount));   // what the disk keeps: the frame's flush may not have come yet
     turn.setStatus(status);
     this.finish(turn);
@@ -646,7 +666,7 @@ export class Chat {
   /** The turn's usage joins the conversation's, by model too (the CLI's split when it gave one). */
   private addUsage(run: Run): void {
     const u = run.item.usage();
-    this.setTurnUsage(null);
+    if (this.run === null) this.setTurnUsage(null);   // not a newer turn's
     if (u === null) return;
     const t = this.total().copy();
     t.add(u as Usage);

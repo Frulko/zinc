@@ -1,8 +1,10 @@
 // The settings of the next turn, above the message field, as the CLIs show them: mode, model, effort and fast.
-// Each is the selected agent's own; a pill opens a menu of what that agent and model accept.
-import { createSignal, createNodeRef } from 'zinc:ui/solid';
+// Each is the selected agent's own; a pill opens a menu of what that agent and model accept, the model's one with a search.
+import { createSignal, createNodeRef, onMount } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import { ModelChoice, MODE_LABELS, MODE_FULL } from '../services/agents';
+import { Pickable, Row, filter, rows, step } from '../services/pick';
 import { AgentInfo } from '../state';
 import { enter, enterOpacity, enterY } from './motion';
 import { SURFACE, SURFACE_HOVER, SELECTED, BORDER, TEXT, MUTED, FAINT, ERROR, WARN, bg, fg, bd, color } from '../theme';
@@ -32,6 +34,67 @@ function Menu(props: { items: string[]; selected: i32; onPick: (i: i32) => void 
         {i === props.selected && <Icon name="check" size={13} color={() => color(TEXT)} />}
       </View>)}
     </ScrollView>
+  </View>;
+}
+
+const HEAD_H = 22;
+const FIELD_H = 36;
+
+/** The model picker: a field that filters the CLI's models as you type, the kept ones below it grouped by provider.
+ *  ↑/↓ move, Enter or Tab picks, Esc closes, a click picks too. */
+function ModelPicker(props: { models: ModelChoice[]; selected: ModelChoice; onPick: (m: ModelChoice) => void }): i32 {
+  const ref = createNodeRef(), field = createNodeRef(), list = createNodeRef();
+  enter(ref, 6);
+  // the CLI's list may still be loading when the picker opens
+  const items = (): Pickable[] => props.models.map((m: ModelChoice) => new Pickable(m.id, m.label, m.group));
+  const [query, setQuery] = createSignal<string>('');
+  const shown = (): Row[] => rows(items(), filter(items(), query()));
+  const first = (): i32 => { const l = shown(), k = l.findIndex((r: Row) => r.index >= 0 && props.models[r.index] === props.selected); return k >= 0 ? k : step(l, -1, 1); };
+  const [at, setAt] = createSignal<i32>(first());
+  onMount(() => { ui.focusNode(field.node); reveal(); });
+  const top = (k: i32): number => { let y = 0; const l = shown(); for (let i = 0; i < k; i++) y += l[i].index < 0 ? HEAD_H : ROW_H; return y; };
+  const height = (): number => Math.min(Math.max(top(shown().length), ROW_H) + 8, MENU_MAX_H - FIELD_H);
+  // the highlighted row stays in view as the keys move it
+  function reveal(): void {
+    if (at() < 0) return;
+    const y = top(at()), sy = ui.scrollTop(list.node), h = height() - 8;
+    if (y < sy) ui.scrollTo(list.node, 0, y);
+    else if (y + ROW_H > sy + h) ui.scrollTo(list.node, 0, y + ROW_H - h);
+  }
+  const pick = (k: i32): void => { props.onPick(props.models[shown()[k].index]); closeMenu(); };
+  const keys = (e: ui.KeyEvent): void => {
+    const l = shown();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { setAt(step(l, at(), e.key === 'ArrowDown' ? 1 : -1)); reveal(); e.preventDefault(); }
+    else if ((e.key === 'Enter' || e.key === 'Tab') && at() >= 0) { pick(at()); e.preventDefault(); }
+    else if (e.key === 'Escape') { closeMenu(); e.preventDefault(); }   // this handler hides the root's from the field
+  };
+  return <View ref={ref} className={`absolute bottom-[34] left-0 w-[460] flex-col rounded-lg border ${bg(SURFACE)} ${bd(BORDER)}`}
+    style={{ opacity: enterOpacity(), translateY: enterY(6) }}>
+    <View className={`flex-row items-center gap-2 h-[${FIELD_H}] px-2 border-b ${bd(BORDER)}`}>
+      <Icon name="search" size={13} color={() => color(FAINT)} />
+      <Input ref={field} className={`grow h-[26] text-[12px] bg-transparent border-0 px-1 ${fg(TEXT)}`} value={query()}
+        onInput={(v: string) => { setQuery(v); setAt(step(shown(), -1, 1)); ui.scrollTo(list.node, 0, 0); }} onKeyDown={keys}
+        placeholder="Search models" aria-label="Search models" />
+    </View>
+    <ScrollView ref={list} className="flex-col p-1" style={{ height: height() }}>
+      {shown().map((r: Row, k: i32) => <PickRow row={r} model={r.index < 0 ? null : props.models[r.index]} on={k === at()}
+        selected={r.index >= 0 && props.models[r.index] === props.selected} onPress={() => pick(k)} />)}
+      {shown().length === 0 && <Text className={`h-[28] px-2 pt-[7] text-[12px] ${fg(FAINT)}`}>{query() === '' ? 'Loading the models…' : `No model holds “${query()}”`}</Text>}
+    </ScrollView>
+  </View>;
+}
+
+/** A provider's heading, or a model: its name, its id when it differs, the window and price hint, a check when chosen. */
+function PickRow(props: { row: Row; model: ModelChoice | null; on: boolean; selected: boolean; onPress: () => void }): i32 {
+  if (props.model === null) return <Text className={`h-[22] shrink-0 px-2 pt-[6] text-[10px] font-semibold ${fg(FAINT)}`}>{props.row.heading}</Text>;
+  const m = props.model as ModelChoice;
+  return <View className={`flex-row items-center gap-2 h-[28] shrink-0 px-2 rounded cursor-pointer transition-colors duration-100 ${props.on ? bg(SELECTED) : ''} hover:${bg(SURFACE_HOVER)}`}
+    onPress={props.onPress}>
+    <Text className={`shrink-0 max-w-[200] truncate text-[12px] ${fg(props.on ? TEXT : MUTED)}`}>{m.label}</Text>
+    {m.id !== '' && m.id !== m.label && <Text className={`shrink min-w-0 truncate text-[11px] ${fg(FAINT)}`}>{m.id}</Text>}
+    <View className="grow" />
+    {m.hint !== '' && <Text className={`shrink-0 text-[10px] ${fg(FAINT)}`}>{m.hint}</Text>}
+    {props.selected && <Icon name="check" size={13} color={() => color(TEXT)} />}
   </View>;
 }
 
@@ -65,8 +128,7 @@ export function SettingsBar(props: { info: AgentInfo }): i32 {
     </View>
     <View>
       <Pill name="model" label="Model" value={a.model().label} warn={false} />
-      {openMenu() === 'model' && <Menu items={a.models().map((m: ModelChoice) => m.label)} selected={a.models().indexOf(a.model())}
-        onPick={(i: i32) => a.setModel(a.models()[i])} />}
+      {openMenu() === 'model' && <ModelPicker models={a.models()} selected={a.model()} onPick={(m: ModelChoice) => a.setModel(m)} />}
     </View>
     {a.model().efforts.length > 0 && <View>
       <Pill name="effort" label="Effort" value={a.effort() === '' ? 'default' : a.effort()} warn={false} />

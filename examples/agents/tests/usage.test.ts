@@ -1,11 +1,12 @@
 // Tokens, context, cost and plan limits as the real CLIs reported them on 2026-10-20 (tests/fixtures/usage-*, limits-*: captured
-// in a temporary folder, ids redacted), the activity line's texts and the limits' refresh interval.
+// in a temporary folder, ids redacted), the activity line's texts and the limits' refresh interval; opencode's models and a Go
+// turn's usage as its local server lists them.
 import * as assert from 'zinc:assert';
 import * as fs from 'zinc:fs';
-import { AGENTS, Agent, AgentEvent, ParseState, EV_USAGE, EV_LIMITS, EV_DONE } from '../src/services/agents';
+import { AGENTS, Agent, AgentEvent, ParseState, EV_USAGE, EV_LIMITS, EV_DONE, opencodeModels, ModelChoice, TurnSettings, MODE_READ } from '../src/services/agents';
 import {
   Usage, Limit, COST_NONE, COST_REPORTED, COST_ESTIMATE, estimate, usageLabel, tokens, money, claudeUsageText, codexLimits,
-  resetsIn, refreshMinutes, REFRESH_DEFAULT, REFRESH_MIN, REFRESH_MAX, activityText, summaryText, knownWindow, usageOf,
+  resetsIn, refreshMinutes, REFRESH_DEFAULT, REFRESH_MIN, REFRESH_MAX, activityText, summaryText, knownWindow, usageOf, opencodeMessages, TurnUsage,
 } from '../src/services/usage';
 import { Item, Transcript, K_USER, K_TURN, K_TEXT, K_TOOL } from '../src/services/transcript';
 
@@ -169,3 +170,42 @@ assert.equal(shown.map((it: Item) => it.seq).join(','), '0,1,3');
 assert.equal(shown[1].tools, 1);
 assert.equal((shown[1].usage() as Usage).input, 7, "a turn's usage comes back from disk");
 fs.remove(tdir, true);
+
+// opencode 2.0.32 with an OpenCode Go model: the models and providers its local server lists (GET /api/model, /api/provider)
+const ocm = opencodeModels(fs.readText('tests/fixtures/models-opencode-2026-10-20.json'), fs.readText('tests/fixtures/providers-opencode-2026-10-20.json'));
+const ocBy = (id: string): ModelChoice => ocm.filter((m: ModelChoice) => m.id === id)[0];
+assert.ok(ocm.length > 0);
+const groups: string[] = [];
+for (const m of ocm) if (groups.indexOf(m.group) < 0) groups.push(m.group);
+assert.ok(groups.indexOf('OpenCode Go') >= 0 && groups.indexOf('Default / OpenCode') >= 0 && groups.indexOf('LM Studio (local)') >= 0, groups.join('|'));
+for (let i = 1; i < ocm.length; i++) if (ocm[i].group !== ocm[i - 1].group) assert.ok(groups.indexOf(ocm[i].group) > groups.indexOf(ocm[i - 1].group), 'each provider together');
+const glm = ocBy('opencode-go/glm-5.3-flash');
+assert.equal(glm.group, 'OpenCode Go');
+assert.ok(glm.window > 0 && glm.hint.indexOf('context') > 0 && glm.hint.indexOf('per M') > 0, glm.hint);
+assert.ok(ocBy('opencode/minimax-m3.1-flash-free').hint.endsWith('free'), 'a free model says so');
+assert.ok(ocBy('lmstudio/qwen/qwen3.6-35b-a3b').hint.indexOf('$') < 0, 'a local model has no price');
+const withVariants = ocm.filter((m: ModelChoice) => m.efforts.length > 0);
+assert.ok(withVariants.length > 0, 'variants are the efforts');
+// the variant reaches the CLI after a #
+const ts = new TurnSettings(MODE_READ, 'opencode-go/glm-5.3-flash', 'high', false);
+const oa = AGENTS[2].args('hi', '', ts, [], '/tmp');
+assert.equal(oa[oa.indexOf('--model') + 1], 'opencode-go/glm-5.3-flash#high');
+assert.equal(AGENTS[2].limitsUrl(), 'https://opencode.ai/console', "Go's usage is on the website only");
+
+// a Go turn's stream has no step_finish for its last step: the session's messages (GET /api/session/<id>/message) have it
+const msgs = JSON.parse(fs.readText('tests/fixtures/messages-opencode-go-2026-10-20.json'));
+const goUse = opencodeMessages(msgs, 0) as TurnUsage;
+assert.ok(Math.abs(goUse.total.cost - 0.00197774) < 1e-9, '' + goUse.total.cost);
+assert.equal(goUse.total.input, 12948);
+assert.equal(goUse.total.output, 25, 'output and reasoning');
+assert.equal(goUse.total.cacheRead, 768);
+assert.equal(goUse.byModel.size, 1);
+assert.equal((goUse.byModel.get('opencode-go/glm-5.3-flash') as Usage).input, 12948);
+assert.equal(opencodeMessages(msgs, 1792488728073 + 1), null, 'messages before the turn are left out');
+assert.equal(opencodeMessages(JSON.parse('{}'), 0), null);
+const goTurn = eventsOf(AGENTS[2], 'go-opencode-2026-10-20.jsonl');
+assert.ok(goTurn.length > 0);
+
+// a Go model the workspace's privacy settings refuse: the error line's message is shown
+const refused = eventsOf(AGENTS[2], 'error-opencode-go-2026-10-20.jsonl').filter((e: AgentEvent) => e.text.indexOf('Global regions') >= 0);
+assert.ok(refused.length > 0, 'the provider refusal is shown');
