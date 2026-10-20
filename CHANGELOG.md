@@ -8,8 +8,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-20
-
 ### Added
 - Install with Homebrew on macOS or Linux: `brew install frulko/zinc/zinc`; `brew upgrade zinc` installs each new release, and `zinc update` on that install says so.
 - An `agents` example: a small desktop tool that finds the Claude Code, Codex and opencode CLIs and their configuration, and chats with them in a folder, their answers streaming in; each turn picks its mode, model, effort and fast mode as the CLIs do (`zinc run examples/agents`).
@@ -299,8 +297,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/Frulko/zinc/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Frulko/zinc/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/Frulko/zinc/compare/v0.2.2...v0.2.3
