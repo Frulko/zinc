@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc check` reports an error inside a class's `static { }` block (a static it assigns that the class does not declare) instead of accepting it and crashing when the program is compiled.
 - A file that uses Dyn values (`JSON.parse`...) can write `T | undefined` as a type again: it failed with Z0101 "Cannot find name 'undefined'".
 - Magic Mouse scrolling on macOS had no momentum at all; it now glides like the trackpad.
+- `examples/agents`: scrolling up through a long conversation no longer stops dead each time older messages load.
 
 ## [0.4.3] - 2026-10-21
 

@@ -53,7 +53,7 @@ function keepPlace(anchor: Item, change: () => void): void {
   change();
   if (anchor.ref.node < 0) return;
   const after = yOf(anchor);
-  if (after !== before) ui.scrollTo(logRef.node, 0, ui.scrollTop(logRef.node) + after - before);
+  if (after !== before) ui.scrollBy(logRef.node, 0, after - before);   // a fling or the trackpad's momentum goes on
 }
 
 /** The view moved: read the items it reaches, and follow the conversation again once it is back at the end. */
