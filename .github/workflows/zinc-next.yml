@@ -245,7 +245,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.zinc/cache
-          key: zinc-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('plugins/**', 'examples/marble/**', 'src/tc/**', 'src/assets/**') }}
+          key: zinc-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('plugins/**', 'examples/marble/**', 'templates/3d/**', 'src/tc/**', 'src/assets/**', 'include/zn/**', 'src/native/**', 'runtime/**') }}
       - name: Warm the cache
         # on an empty cache, webrtc's native libraries and marble's assets and plugins are built inside a test's timeout and the test times out
         # (docs/reports/ci-runner-failures-2026-10-18.md): built once here, before the clock of any test starts
@@ -255,6 +255,8 @@ jobs:
           build/zinc plugin-build webrtc examples/webrtc-chat >/dev/null
           build/zinc assets build examples/marble >/dev/null
           ZINC_HEADLESS=1 ZINC_FRAMES=3 build/zinc run examples/marble >/dev/null   # its native plugins (zinc:audio, zinc:3d) too
+          build/zinc new 3d "$RUNNER_TEMP/warm-3d" >/dev/null   # the 3d template's plugin (three): first_run gives each template 20 s
+          (cd "$RUNNER_TEMP/warm-3d" && ZINC_HEADLESS=1 ZINC_FRAMES=3 "$GITHUB_WORKSPACE/build/zinc" run >/dev/null)
       - name: Save the plugin and asset cache
         if: steps.zcache.outputs.cache-hit != 'true'
         continue-on-error: true   # six shards save the same key: the first one wins
