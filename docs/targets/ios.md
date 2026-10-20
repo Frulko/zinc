@@ -29,4 +29,4 @@ signals come from a `ZINC_INPUT` script: `safearea 47 0 34 0`, `theme dark`, `fo
 
 `src/app/ios_glue.mm` compiles against the iOS simulator SDK but has run on neither the simulator nor a phone (2026-10-16): the text input
 connection (suggestions, the Japanese and Chinese IMEs, dictation, a password manager), the keyboard height, Dynamic Type, haptics and the
-status bar are lines of the cross-platform pass in `next/backlog/later.md`.
+status bar are lines of the cross-platform pass in `backlog/later.md`.

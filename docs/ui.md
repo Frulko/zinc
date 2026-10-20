@@ -463,7 +463,7 @@ one does (`a11y 1`: VoiceOver or Switch Control running, `AccessibilityManager.i
 - **From the OS**, as signals: `a11yactivate ID` (VoiceOver's double tap, TalkBack's ACTION_CLICK: a field takes the focus, a button is
   pressed), `a11yfocus ID` (the reader's cursor: the node is scrolled into view), `a11yscroll ID 1|-1` (a page on or back).
 - On iOS a node that takes clicks holds its descendants, as a `UIButton` holds its label; on Android TalkBack reads a button's text children
-  itself. `ZINC_INSPECT=N` prints `ui.inspect()` at frame N; `next/tools/a11y-tree` puts the tree, the log of what was sent and the platform
+  itself. `ZINC_INSPECT=N` prints `ui.inspect()` at frame N; `tools/a11y-tree` puts the tree, the log of what was sent and the platform
   dumps in one form to diff them. Details and proofs: docs/reports/zinc-next-a11y-bridges.md; `tests/t0/ui_a11y_bridge.sh`.
 
 ## Semantic hints and Form (the web page)
@@ -628,7 +628,7 @@ selection after a double click, exact-size fonts for continuous zoom.
 
 ## Icons
 
-`zinc:icons` draws the [Lucide](https://lucide.dev) set (1848 icons, ISC, pinned in `next/third_party/lucide`) through `zinc:svg`:
+`zinc:icons` draws the [Lucide](https://lucide.dev) set (1848 icons, ISC, pinned in `third_party/lucide`) through `zinc:svg`:
 
 ```tsx
 import { Icon, icon } from 'zinc:icons';

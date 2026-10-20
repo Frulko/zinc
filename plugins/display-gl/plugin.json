@@ -6,7 +6,7 @@
   "targets": {
     "macos": { "sources": ["src/display_gl.cpp", "src/sdl.cpp"], "frameworks": ["OpenGL"], "defines": ["GL_SILENCE_DEPRECATION"] },
     "rpi1": { "sources": ["src/display_gl.cpp", "src/kms.cpp"], "pkg": ["egl", "glesv2", "gbm", "libdrm"], "packages": ["mesa-dev", "libdrm-dev"] },
-    "webos": { "sources": ["src/display_gl.cpp", "src/webos.cpp", "src/webos_device.cpp"], "pkg": ["glesv2"], "linkFlags": ["-ldl", "-pthread"], "packages": ["next/tools/webos-sysroot"] },
+    "webos": { "sources": ["src/display_gl.cpp", "src/webos.cpp", "src/webos_device.cpp"], "pkg": ["glesv2"], "linkFlags": ["-ldl", "-pthread"], "packages": ["tools/webos-sysroot"] },
     "linux": { "sources": ["src/display_gl.cpp", "src/kms.cpp"], "pkg": ["egl", "glesv2", "gbm", "libdrm"], "packages": ["pkg-config", "libegl-dev", "libgles-dev", "libgbm-dev", "libdrm-dev"] }
   }
 }

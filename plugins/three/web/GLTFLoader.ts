@@ -1,5 +1,5 @@
 // GLTFLoader in the browser: the real addon (unmodified); a file that is one of the app's assets is read from them (a Zinc app has no URL for its assets), any other URL is fetched.
-import { GLTFLoader as Real } from '../../../next/third_party/three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader as Real } from '../../../third_party/three/examples/jsm/loaders/GLTFLoader.js';
 import { exists, readBytes } from 'zinc:assets';
 
 const Base: any = Real;

@@ -63,5 +63,5 @@ makes one block per poll. It is the only microphone with `ZINC_FAKE_MICROPHONE=1
 in a deterministic run (`ZINC_DETERMINISTIC`, unless `ZINC_FAKE_MICROPHONE=0` or `ZINC_REALTIME`), and the one `devices()` gives when the
 machine has none. `ZINC_FAKE_MICROPHONE=0` never lists it.
 
-Tests: `next/tests/t1/microphone.sh` (interpreter, QuickJS, compiled, the permission checks; no real microphone is opened) and
-`next/tests/t0/microphone_sim.sh` (the stand-in without native code), against `next/tests/golden/host/microphone_session.out`.
+Tests: `tests/t1/microphone.sh` (interpreter, QuickJS, compiled, the permission checks; no real microphone is opened) and
+`tests/t0/microphone_sim.sh` (the stand-in without native code), against `tests/golden/host/microphone_session.out`.

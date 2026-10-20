@@ -241,7 +241,7 @@ or an SD image. Everything above can be a T2 test on macOS, which unparks the ar
 
 ## 9. Adding the target to Zinc
 
-### 9.1 Tool chain and flags (`next/src/tc/tc.cpp`, `plugin_build.cpp`)
+### 9.1 Tool chain and flags (`src/tc/tc.cpp`, `plugin_build.cpp`)
 
 - New entry in `targets()`: `{"armv7-linux", "arm-linux-musleabihf", "ARMv7-A + NEON, static (NTC CHIP, BeagleBone, i.MX6, Allwinner A10-A20/H3, Pi 2+ 32-bit)"}`.
 - Flags in `crossBuild`, `ensureCrossLibs` wrappers and `crossArch()`: `-mcpu=cortex_a8+neon -static` (keep
@@ -254,7 +254,7 @@ or an SD image. Everything above can be a T2 test on macOS, which unparks the ar
 
 ### 9.2 Profiles and capabilities
 
-`next/src/frontend/profile.cpp` and `compiler/src/cli.ts` (same table), `next/src/cli_core.cpp`
+`src/frontend/profile.cpp` and `compiler/src/cli.ts` (same table), `src/cli_core.cpp`
 (`zigTargetFor`: `chip`, `pocketchip` -> `armv7-linux`), `targets/capabilities.json`, `docs/targets/capabilities.md`:
 
 | profile | numbers | default size | heap | key capabilities |
@@ -330,7 +330,7 @@ cannot help doubles. A GPU UI renderer on lima is the way past the single core f
 ## 11. Ordered backlog
 
 Headless first, then GUI on composite/HDMI, then PocketCHIP. Ids `CHIP-nn` are proposals; `ZN-xxx` are existing
-tasks. The same list as JSON (ready for `next/tools/tasks-import` after adding keys) is in the appendix.
+tasks. The same list as JSON (ready for `tools/tasks-import` after adding keys) is in the appendix.
 
 | # | Title | Depends on |
 |---|---|---|
@@ -362,11 +362,11 @@ tasks. The same list as JSON (ready for `next/tools/tasks-import` after adding k
 ```json
 [
   {"title": "CHIP-01 armv7-linux cross target: static musl, Cortex-A8 + NEON",
-   "description": "Add armv7-linux to next/src/tc (targets(), crossBuild, ensureCrossLibs wrappers, plugin_build crossArch): zig target arm-linux-musleabihf, -mcpu=cortex_a8+neon (zig's cortex_a8 model has no NEON/VFP3 by default), -static, -O2 -ffp-contract=off. Static musl runs on NTC 4.4 jessie (glibc 2.19), Debian trixie, OpenWrt and Buildroot; zig's default glibc for 32-bit Arm is 2.34. dynlib is false (no dlopen). Measure -mthumb against -marm. See docs/reports/hardware/ntc-chip.md 3.5 and 9.1.",
+   "description": "Add armv7-linux to src/tc (targets(), crossBuild, ensureCrossLibs wrappers, plugin_build crossArch): zig target arm-linux-musleabihf, -mcpu=cortex_a8+neon (zig's cortex_a8 model has no NEON/VFP3 by default), -static, -O2 -ffp-contract=off. Static musl runs on NTC 4.4 jessie (glibc 2.19), Debian trixie, OpenWrt and Buildroot; zig's default glibc for 32-bit Arm is 2.34. dynlib is false (no dlopen). Measure -mthumb against -marm. See docs/reports/hardware/ntc-chip.md 3.5 and 9.1.",
    "ac": ["zinc build --target armv7-linux hello.ts produces a static ELF32 ARM EABI5 hard-float executable with no NEEDED entries", "readelf -A shows Tag_CPU_arch v7, Tag_FP_arch VFPv3 and Tag_Advanced_SIMD_arch NEONv1", "examples/hero and examples/bouncing-ball link with the graphics host (null HAL) for armv7-linux; sizes recorded for -marm and -mthumb", "hello prints the same output under qemu-arm -cpu cortex-a8 as on the host (Linux CI; on macOS through CHIP-03)", "tests/t2/cross_linux.sh covers the new target"],
    "deps": ["ZN-132"]},
   {"title": "CHIP-02 chip and pocketchip profiles and capabilities",
-   "description": "Profile rows in next/src/frontend/profile.cpp and compiler/src/cli.ts (chip: f64, 720x576, heap 128M; pocketchip: f64, 480x272, heap 128M), zigTargetFor chip/pocketchip -> armv7-linux in next/src/cli_core.cpp, entries in targets/capabilities.json (tier T2, gpu gles2, gpio, power, dynlib false; pocketchip with touch and keyboard true, pointer false) and the table of docs/targets/capabilities.md; new docs/targets/chip.md (boards, OS choice, flashing, deploy).",
+   "description": "Profile rows in src/frontend/profile.cpp and compiler/src/cli.ts (chip: f64, 720x576, heap 128M; pocketchip: f64, 480x272, heap 128M), zigTargetFor chip/pocketchip -> armv7-linux in src/cli_core.cpp, entries in targets/capabilities.json (tier T2, gpu gles2, gpio, power, dynlib false; pocketchip with touch and keyboard true, pointer false) and the table of docs/targets/capabilities.md; new docs/targets/chip.md (boards, OS choice, flashing, deploy).",
    "ac": ["zinc build --target chip and --target pocketchip build hello and hero", "zinc:platform exposes PROFILE, SCREEN_W/H, TOUCH, KEYBOARD, GPIO, POWER for both profiles", "a zinc.json requires that the profile does not meet is refused with the profile named", "T0 test of the profile table and the capabilities rows", "docs/targets/chip.md exists and links this report"],
    "deps": ["CHIP-01"]},
   {"title": "CHIP-03 QEMU cubieboard simulator for the CHIP",
@@ -407,7 +407,7 @@ tasks. The same list as JSON (ready for `next/tools/tasks-import` after adding k
    "deps": ["CHIP-03"]},
   {"title": "CHIP-12 NEON kernels in the software rasterizer",
    "description": "NEON intrinsics for span fill, source-over blend, XRGB8888 to RGB565 conversion and glyph blits, compiled for armv7 NEON targets and bit-exact with the scalar path; no +neonfp (denormal flush would break interpreter/AOT/host bit-exactness).",
-   "ac": ["the pixel corpus gives identical CRCs with and without the NEON kernels under qemu-arm -cpu cortex-a8 or the CHIP-03 simulator", "a microbenchmark of the four kernels is added to next/bench", "on hardware fill and conversion are at least 2x faster than scalar"],
+   "ac": ["the pixel corpus gives identical CRCs with and without the NEON kernels under qemu-arm -cpu cortex-a8 or the CHIP-03 simulator", "a microbenchmark of the four kernels is added to bench", "on hardware fill and conversion are at least 2x faster than scalar"],
    "deps": ["CHIP-01"]},
   {"title": "CHIP-13 Composite TV output: PAL/NTSC, safe area, interlace, pixel aspect",
    "description": "zinc.json display.tv {standard: pal|ntsc, overscan}: mode selection on the TVE connector, safe-area insets in zinc:ui, pixel-aspect correction (720 wide 4:3), interlace-friendly theme defaults (no 1 px horizontal lines), optional half-resolution rendering scaled by a display-engine plane when sun4i supports it.",
@@ -496,8 +496,8 @@ tasks. The same list as JSON (ready for `next/tools/tasks-import` after adding k
 40. Parallax forum, HDMI/VGA DIP power: https://forums.parallax.com/discussion/comment/1381628
 41. Apache NimBLE Linux HCI socket transport: https://github.com/apache/mynewt-nimble/blob/master/nimble/transport/socket/src/ble_hci_socket.c
 
-Zinc tree references: `next/src/tc/tc.cpp`, `next/src/tc/plugin_build.cpp`, `next/src/frontend/profile.cpp`,
-`next/src/cli_core.cpp`, `targets/capabilities.json`, `runtime/mod/gpio_linux.cpp`, `runtime/include/hw.h`,
-`plugins/display-fbdev`, `plugins/display-gl`, `next/src/gl/offscreen.cpp`, `docs/reports/raspberry-pi.md`,
+Zinc tree references: `src/tc/tc.cpp`, `src/tc/plugin_build.cpp`, `src/frontend/profile.cpp`,
+`src/cli_core.cpp`, `targets/capabilities.json`, `runtime/mod/gpio_linux.cpp`, `runtime/include/hw.h`,
+`plugins/display-fbdev`, `plugins/display-gl`, `src/gl/offscreen.cpp`, `docs/reports/raspberry-pi.md`,
 `docs/plugins/display-fbdev.md`, `docs/plugins/display-gl.md`, `docs/reports/three-on-zinc.md`, backlog ZN-132,
 ZN-133, ZN-145, ZN-178, ZN-203, ZN-245, ZN-390.

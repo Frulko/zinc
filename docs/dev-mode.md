@@ -175,7 +175,7 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 - **Performance** (`Tracing.start` / `Tracing.end` → `Tracing.dataCollected`, `tracingComplete`): the frames recorded
   in between, as Chrome trace events (see [Profiling](#profiling));
 - **Network** (Zinc Next; `Network.enable`): every request the program starts, from the host's network log
-  (`next/src/host/netlog.h`). `fetch` and `zinc:net` show as requests (`requestWillBeSent`, `responseReceived` with
+  (`src/host/netlog.h`). `fetch` and `zinc:net` show as requests (`requestWillBeSent`, `responseReceived` with
   status, headers and the timing of DNS, connect, TLS and first byte, `loadingFinished` / `loadingFailed`; a redirect is
   an entry per hop; `getResponseBody`, `getRequestPostData`); a WebSocket of `zinc:socket` and a `zinc:mqtt` client show
   as WebSockets with their messages (`webSocketCreated`, `webSocketFrameSent` / `Received`; MQTT packets read
@@ -194,7 +194,7 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
 `executionContextsCleared`/`Created` and `documentUpdated`: DevTools stays connected.
 `node scripts/cdp-check.mjs [port]` is a scripted client that checks all of the above against a running program; with `--styles` it
-checks the Styles panel on `next/tests/data/devtools_styles` (`next/tests/t1/devtools_styles.sh`).
+checks the Styles panel on `tests/data/devtools_styles` (`tests/t1/devtools_styles.sh`).
 
 **Zinc Inspector** (ZN-373.01): `zinc run app/inspector/main.tsx -- [port...]` is the same client written in Zinc (zinc:ui, the WebSocket
 of zinc:socket): it finds the programs listening on the ports (9229 and 9222 by default: `zinc:devtools` and `zinc debug --cdp`), attaches
@@ -205,7 +205,7 @@ sets or removes a breakpoint (with the condition typed in the toolbar), Run star
 drive it; the right column shows the call stack, the scopes (objects and arrays unfold) and the watches, evaluated in the selected frame.
 The Performance view records the runtime's frames (Tracing.start / end, the same spans as `ZINC_TRACE`): the time of each phase over the
 recording, the frames as bars of their phases to scale, and the phases of the frame picked (the slowest at first). The runtime keeps the
-last 32768 spans (about 3600 frames). `next/tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
+last 32768 spans (about 3600 frames). `tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
 (`ZINC_INSPECTOR_DUMP=1` prints its views).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
@@ -300,12 +300,12 @@ floats, the extra is dropped and the runtime warns once per pool on stderr.
 
 ## Reusable resource diagnostics
 
-`next/tools/resource-probe` is the common sampler/driver. Demo-specific routes are JSON files in
-`next/tools/scenarios/`; `museum-probe` is only a convenience entry for `scenarios/museum.json`. The native
+`tools/resource-probe` is the common sampler/driver. Demo-specific routes are JSON files in
+`tools/scenarios/`; `museum-probe` is only a convenience entry for `scenarios/museum.json`. The native
 resource counters live beside their owners and are available through `Zinc.getResourceStats` on the existing
 CDP endpoint. No museum code is needed in the host's collector.
 
-From `next/`, attach to an instrumented app on this Mac:
+From the repository root, attach to an instrumented app on this Mac:
 
 ```sh
 tools/resource-probe --scenario tools/scenarios/museum.json --pid APP_PID --cycles 3 --output .logs/probe
@@ -381,7 +381,7 @@ list: number[] = [1, 2, 3]
 Commands (the expressions ones are below): `b [file:]line` (a breakpoint on the first line with code at or after it; the file is matched by its trailing path, the current one
 when omitted), `d n`, `c`, `n` (next statement, over calls), `s` (into calls), `o` (out of the function), `bt` (the stack with lines), `locals
 [frame]` (numbers, booleans, strings, arrays, objects one level deep, `this`; a captured variable shows its value), `p name`, `q` (ends the
-program, exit 0). Without a terminal the commands are echoed: `zinc debug app.ts < commands.txt` gives a transcript (`next/tests/t1/debug_cli.sh`).
+program, exit 0). Without a terminal the commands are echoed: `zinc debug app.ts < commands.txt` gives a transcript (`tests/t1/debug_cli.sh`).
 The end of the input lets the program run to its end. The standard library, `zinc:*` modules and plugins run without stops and are left out of
 the stack.
 
@@ -408,7 +408,7 @@ for another; 9222 is in `chrome://inspect`'s default list, the inspector of `zin
 DevTools with the Sources panel: the program's files (`Debugger.scriptParsed`, their text), breakpoints by line, the paused program's call
 stack and Scope (locals, objects and arrays unfold through `Runtime.getProperties`), watches and hovers on a local's name, resume, step over,
 into, out and pause. The program starts paused at its first statement when DevTools attaches (`Runtime.runIfWaitingForDebugger`), as
-`node --inspect-brk` does; its output stays on the terminal. `next/tests/cdp_debug_check.mjs` is a scripted client (`next/tests/t1/debug_cdp.sh`).
+`node --inspect-brk` does; its output stays on the terminal. `tests/cdp_debug_check.mjs` is a scripted client (`tests/t1/debug_cdp.sh`).
 
 In a `.tsx` file the lines are the file's own, inside JSX elements as well (ZN-371.03): the JSX lowering starts each copied expression and
 each element's code on its source line and keeps where every piece of the lowered text comes from, which compile errors use for their
@@ -417,8 +417,8 @@ line and column too. Arrow functions show as `<anonymous>` in the stack (an elem
 `zinc debug --dap` speaks the Debug Adapter Protocol on standard input and output (ZN-371.02): VS Code's Zinc Debug extension
 (`lib/editor/vscode-zinc-debug`, set up in [the guide](guide/01-getting-started.md#debugging)) starts it, sends `launch` with the program,
 then breakpoints, steps, the stack, scopes, variables (objects and arrays unfold), `evaluate` of a local's name and `pause` of a running
-program; the program's standard output and error arrive as `output` events. `next/tests/dap_check.py` is a scripted client
-(`next/tests/t1/debug_dap.sh`).
+program; the program's standard output and error arrive as `output` events. `tests/dap_check.py` is a scripted client
+(`tests/t1/debug_dap.sh`).
 
 ## Not available
 

@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""The plugin and template index as a TUF repository (ZN-336, D41): metadata in the TUF 1.0 format, signed with `zinc index-sign` (Ed25519).
+
+  tools/index-repo keys <keys.json>                         a key pair per top-level role (root, targets, snapshot, timestamp), from `zinc update-keygen`
+  tools/index-repo build <repo> <keys.json> <entries.json> [root.json]  writes root.json (and 1.root.json), targets.json, snapshot.json, timestamp.json and
+                                                          targets/; with a root.json (the engine's index/root.json) that root is published as it is
+  tools/index-repo entries <checkout> <out-dir> [version]   entries.json and a descriptor per plugin (plugins/*/plugin.json) and template (templates/*/template.json)
+
+Signing: with the `cryptography` package (CI) when it is installed, else `zinc index-sign`; both sign the OLPC canonical form, as TUF and securesystemslib do.
+
+entries.json: {"version": N, "expires_days": D, "targets": {"<path>": {"file": "<local file>", "custom": {...}}}}. Versions of every role follow `version`;
+the root keeps version 1 unless keys.json changes (then publish N.root.json by hand). Also a module: the attack tests (tests/t1/tuf_index.sh) build
+repositories with metadata() and sign().
+"""
+import datetime, hashlib, json, os, shutil, subprocess, sys
+
+ZINC = os.environ.get("ZINC", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", "zinc"))
+ROLES = ("root", "targets", "snapshot", "timestamp")
+
+def keygen():
+    out = subprocess.run([ZINC, "update-keygen"], check=True, capture_output=True, text=True).stdout
+    kv = dict(line.split("=", 1) for line in out.split())
+    return {"seed": kv["seed"], "public": kv["public"]}
+
+def key_obj(pub):
+    return {"keytype": "ed25519", "keyval": {"public": pub}, "scheme": "ed25519"}
+
+def keyid(pub):
+    return hashlib.sha256(canonical(key_obj(pub)).encode()).hexdigest()
+
+def expires(days):
+    t = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0) + datetime.timedelta(days=days)
+    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def metadata(kind, version, days, **body):
+    return {"signed": dict({"_type": kind, "spec_version": "1.0.31", "version": version, "expires": expires(days)}, **body), "signatures": []}
+
+def canonical(v):
+    """OLPC canonical JSON, as securesystemslib.formats.encode_canonical: sorted keys, no spaces, only \\ and \" escaped, integers only."""
+    if isinstance(v, bool) or v is None: return json.dumps(v)
+    if isinstance(v, int): return str(v)
+    if isinstance(v, str): return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, (list, tuple)): return "[" + ",".join(canonical(x) for x in v) + "]"
+    if isinstance(v, dict): return "{" + ",".join(canonical(k) + ":" + canonical(v[k]) for k in sorted(v)) + "}"
+    raise ValueError("TUF metadata has no %r" % type(v))
+
+def sign(path, md, seeds):
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ImportError:
+        Ed25519PrivateKey = None
+    if seeds and Ed25519PrivateKey and not os.environ.get("INDEX_SIGN_WITH_ZINC"):
+        body = canonical(md["signed"]).encode()
+        md = dict(md, signatures=list(md["signatures"]))   # the caller's metadata keeps its own signatures, as with zinc index-sign
+        for seed in seeds:
+            sk = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed))
+            md["signatures"].append({"keyid": keyid(sk.public_key().public_bytes_raw().hex()), "sig": sk.sign(body).hex()})
+        seeds = ()
+    with open(path, "w") as f: json.dump(md, f, indent=2, sort_keys=True, ensure_ascii=False)
+    if seeds: subprocess.run([ZINC, "index-sign", path] + list(seeds), check=True)
+    return open(path, "rb").read()
+
+def meta_of(data, version):
+    return {"version": version, "length": len(data), "hashes": {"sha256": hashlib.sha256(data).hexdigest()}}
+
+def root_md(keys, version=1, days=365, thresholds=None):
+    th = thresholds or {}
+    return metadata("root", version, days, consistent_snapshot=False,
+                    keys={keyid(k["public"]): key_obj(k["public"]) for r in ROLES for k in keys[r]},
+                    roles={r: {"keyids": [keyid(k["public"]) for k in keys[r]], "threshold": th.get(r, 1)} for r in ROLES})
+
+def target_entry(data, custom=None):
+    e = {"length": len(data), "hashes": {"sha256": hashlib.sha256(data).hexdigest()}}
+    if custom: e["custom"] = custom
+    return e
+
+def build(repo, keys, targets, version=1, days=30, delegations=None, extra_roles=None, root_file=None):
+    """targets: {path: (bytes, custom)}; delegations: the "delegations" object of targets.json; extra_roles: {name: (md, seeds)} written as <name>.json."""
+    os.makedirs(os.path.join(repo, "targets"), exist_ok=True)
+    seeds = {r: [k["seed"] for k in keys[r]] for r in ROLES}
+    root = open(root_file, "rb").read() if root_file else sign(os.path.join(repo, "1.root.json"), root_md(keys), seeds["root"])   # the trusted root clients ship stays the one published
+    open(os.path.join(repo, "1.root.json"), "wb").write(root)
+    open(os.path.join(repo, "root.json"), "wb").write(root)
+    for path, (data, _) in targets.items():
+        p = os.path.join(repo, "targets", path)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "wb").write(data)
+    body = {"targets": {p: target_entry(d, c) for p, (d, c) in targets.items() if not any(p.startswith(x + "/") for x in (extra_roles or {}))}}
+    if delegations: body["delegations"] = delegations
+    tj = sign(os.path.join(repo, "targets.json"), metadata("targets", version, days, **body), seeds["targets"])
+    snap_meta = {"targets.json": {"version": version}}
+    for name, (md, s) in (extra_roles or {}).items():
+        sign(os.path.join(repo, name + ".json"), md, s)
+        snap_meta[name + ".json"] = {"version": md["signed"]["version"]}
+    sj = sign(os.path.join(repo, "snapshot.json"), metadata("snapshot", version, days, meta=snap_meta), seeds["snapshot"])
+    sign(os.path.join(repo, "timestamp.json"), metadata("timestamp", version, min(days, 7), meta={"snapshot.json": meta_of(sj, version)}), seeds["timestamp"])
+
+def entries(checkout, out, version):
+    """A descriptor per plugin and template of the checkout, and entries.json for build(): custom carries what `zinc plugins search` shows."""
+    lock = {}
+    if os.path.exists(os.path.join(checkout, "plugins.lock")):
+        lock = {p["name"]: p for p in json.load(open(os.path.join(checkout, "plugins.lock")))["plugins"]}
+    targets = {}
+    for kind, folder, manifest in (("plugin", "plugins", "plugin.json"), ("template", "templates", "template.json")):
+        for name in sorted(os.listdir(os.path.join(checkout, folder))):
+            path = os.path.join(checkout, folder, name, manifest)
+            if not os.path.isfile(path): continue
+            m = json.load(open(path))
+            t = m.get("targets", [])
+            d = {"kind": kind, "name": m.get("name", name), "description": m.get("description", ""), "targets": sorted(t if isinstance(t, list) else t.keys()), "version": m.get("version", "")}
+            if kind == "plugin":
+                d["module"] = m.get("module", "")
+                src = lock.get(name)
+                d["source"] = {"repository": src["repository"], "commit": src["commit"]} if src else {"repository": "https://github.com/zinc-engine/zinc", "path": folder + "/" + name}
+            else:
+                d["tags"] = m.get("tags", [])
+            file = os.path.join(out, folder, name + ".json")
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            json.dump(d, open(file, "w"), indent=2, sort_keys=True, ensure_ascii=False)
+            targets[folder + "/" + name + ".json"] = {"file": file, "custom": {k: d[k] for k in ("kind", "name", "description", "targets", "version")}}
+    json.dump({"version": version, "expires_days": 30, "targets": targets}, open(os.path.join(out, "entries.json"), "w"), indent=2, ensure_ascii=False)
+    return len(targets)
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "keys":
+        json.dump({r: [keygen()] for r in ROLES}, open(sys.argv[2], "w"), indent=2)
+        os.chmod(sys.argv[2], 0o600)
+        return
+    if len(sys.argv) in (5, 6) and sys.argv[1] == "build":
+        repo, keys, spec = sys.argv[2], json.load(open(sys.argv[3])), json.load(open(sys.argv[4]))
+        if os.path.isdir(repo): shutil.rmtree(repo)
+        targets = {p: (open(e["file"], "rb").read(), e.get("custom")) for p, e in spec["targets"].items()}
+        build(repo, keys, targets, spec.get("version", 1), spec.get("expires_days", 30), root_file=sys.argv[5] if len(sys.argv) == 6 else None)
+        print(repo)
+        return
+    if len(sys.argv) in (4, 5) and sys.argv[1] == "entries":
+        n = entries(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) == 5 else 1)
+        print("%d entries in %s" % (n, os.path.join(sys.argv[3], "entries.json")))
+        return
+    sys.exit(__doc__)
+
+if __name__ == "__main__":
+    main()

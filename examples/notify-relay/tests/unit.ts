@@ -1,4 +1,4 @@
-// next/tests/t0/notify_relay_unit.sh: Zinc Relay's decisions without a database or a tablet. The sender's image found in a record's
+// tests/t0/notify_relay_unit.sh: Zinc Relay's decisions without a database or a tablet. The sender's image found in a record's
 // property list (and its rank), the monogram (initials, its gradient, a 128 px PNG), the site of a web notification, the filters with
 // the Focus policies, the Focus files' parsing. Made-up data only. Prints one line per failure and "unit ok" at the end.
 import * as mac from 'zinc:notifymac';

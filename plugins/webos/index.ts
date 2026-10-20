@@ -22,13 +22,13 @@ export function screenTimeout(enable: boolean): boolean { return W.screenTimeout
 
 // ---------------------------------------------------------------- what the root helper does for a program (plugins/webos/helper.sh)
 // A program's jail may not change the CPU's governor, the backlight, the lights or the firewall; zinc-helper, a root job installed once
-// with next/tools/webos-helper, does it on request. The requests are files in /tmp/zinc, which the jail shares; they hold the program's
+// with tools/webos-helper, does it on request. The requests are files in /tmp/zinc, which the jail shares; they hold the program's
 // pid, so the helper drops them when the program is gone. Off webOS the call goes to `device()` of zinc:sys: a simulated device
 // (zinc run --simulate hp-touchpad) shows it in its panel; elsewhere it answers false, as when the helper is not installed.
 
 const Z = '/tmp/zinc';
 
-/** True when zinc-helper runs on this device (next/tools/webos-helper installs it). */
+/** True when zinc-helper runs on this device (tools/webos-helper installs it). */
 export function helperRunning(): boolean {
   if (!isWebOS() || !exists(`${Z}/helper.pid`)) return false;
   try { return exists(`/proc/${readText(`${Z}/helper.pid`).trim()}`); } catch (e) { return false; }

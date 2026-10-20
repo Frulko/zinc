@@ -88,16 +88,16 @@ further step: a `layout-baked` subtree has its rects solved at build time and st
 
 | Axis | Zinc Next |
 |---|---|
-| Pipeline | Strict TypeScript, C++20 frontend, typed SSA IR, then ZBC (interpreter) or C++ (AOT) or a QuickJS engine (`docs/reports/zinc-next-design.md:63-69`, `next/ARCHITECTURE.md`). No JS engine needed on the main path. |
+| Pipeline | Strict TypeScript, C++20 frontend, typed SSA IR, then ZBC (interpreter) or C++ (AOT) or a QuickJS engine (`docs/reports/zinc-next-design.md:63-69`, `ARCHITECTURE.md`). No JS engine needed on the main path. |
 | Subset | Much larger than MicroTS's model: classes, generics, unions, tuples, destructuring, closures, async, generators, JSX (design 5.1; D102 in `docs/reports/zinc-next-decisions.md`). Outside it: `var`, `eval`, regex literals, `with`, holey arrays, `any` in strict profiles. |
-| Numbers | Machine types are real source types: `i8..u64`, `f32`, `f64`, `fx12`, `fx16` (`next/src/frontend/check.cpp:31-39`; `lib/zinc.d.ts:4-6`); `number` is `f64`; `i32` wraps; profiles lower numbers in one pass (design 5.2, line 99); fixed-point is bit-identical (`next/include/zn/ops.h:34-60`). |
-| Admission | Registry of 40 `Z` codes, each with title, why, fix, example and one fixture, enforced by `tests/t0/diagnostics.sh`; `zinc explain Zxxxx`; nearest-name hints; several errors per run (`next/include/zn/diagnostics.h:1-5`, `next/src/frontend/diagnostics.cpp:30-35`). Target admission is a declared `requires` list checked against `targets/capabilities.json` (`docs/targets/capabilities.md`, "Requirements"). |
-| IR | One typed SSA IR (`next/src/ir`), with reference counting inserted as explicit ops (`next/src/ir/rc.cpp:1-13`) so destruction order is a property of the IR. No separate model/view IR. |
+| Numbers | Machine types are real source types: `i8..u64`, `f32`, `f64`, `fx12`, `fx16` (`src/frontend/check.cpp:31-39`; `lib/zinc.d.ts:4-6`); `number` is `f64`; `i32` wraps; profiles lower numbers in one pass (design 5.2, line 99); fixed-point is bit-identical (`include/zn/ops.h:34-60`). |
+| Admission | Registry of 40 `Z` codes, each with title, why, fix, example and one fixture, enforced by `tests/t0/diagnostics.sh`; `zinc explain Zxxxx`; nearest-name hints; several errors per run (`include/zn/diagnostics.h:1-5`, `src/frontend/diagnostics.cpp:30-35`). Target admission is a declared `requires` list checked against `targets/capabilities.json` (`docs/targets/capabilities.md`, "Requirements"). |
+| IR | One typed SSA IR (`src/ir`), with reference counting inserted as explicit ops (`src/ir/rc.cpp:1-13`) so destruction order is a property of the IR. No separate model/view IR. |
 | Ownership | Reference-counted heap objects; borrowed parameters and lent loads elide most retains (D50, D51); `Arena.frame()` scopes (`lib/zinc.d.ts:288`). Strings: UTF-8 storage, UTF-16 indices (`docs/guide/02-language.md:15`). |
-| Semantics | Pure ops defined once in `next/include/zn/ops.h`, called by the interpreter and by the C++ the AOT writes (`ops.h:1-4`); limits (recursion) defined once in `next/include/zn/limits.h`. |
-| Views | JSX is rewritten at token level to calls on a Solid runtime written in Zinc (`next/src/frontend/jsx.cpp:1-5`, `lib/std/solid.ts`); layout, styling and painting run in `lib/std/ui.ts` (5,729 lines) at run time. Tailwind-style classes are resolved to style records at compile time (`jsx.cpp`, class tables). |
+| Semantics | Pure ops defined once in `include/zn/ops.h`, called by the interpreter and by the C++ the AOT writes (`ops.h:1-4`); limits (recursion) defined once in `include/zn/limits.h`. |
+| Views | JSX is rewritten at token level to calls on a Solid runtime written in Zinc (`src/frontend/jsx.cpp:1-5`, `lib/std/solid.ts`); layout, styling and painting run in `lib/std/ui.ts` (5,729 lines) at run time. Tailwind-style classes are resolved to style records at compile time (`jsx.cpp`, class tables). |
 | Reactivity | A runtime signal graph: `Computation` objects, subscriptions, ownership (`lib/std/solid.ts:109-121`); an effect that reads no signal is dropped right after its first run (same lines). |
-| Tests | Corpus differential `next/tools/diff-matrix` (interpreter, AOT, frozen output) over fixed programs; five libFuzzer targets for parse, check through ZBC verifier, native ABI, ZPK (crash/hang only, `docs/reports/zinc-next-fuzzing.md`); `layout-fuzz` against headless Chrome; T0/T1/T2 tiers. A Csmith-style generator is only an idea (`docs/reports/zinc-vm.md:387-389`); no generator exists in `next/tools` (not verified beyond a directory listing). |
+| Tests | Corpus differential `tools/diff-matrix` (interpreter, AOT, frozen output) over fixed programs; five libFuzzer targets for parse, check through ZBC verifier, native ABI, ZPK (crash/hang only, `docs/reports/zinc-next-fuzzing.md`); `layout-fuzz` against headless Chrome; T0/T1/T2 tiers. A Csmith-style generator is only an idea (`docs/reports/zinc-vm.md:387-389`); no generator exists in `tools` (not verified beyond a directory listing). |
 | Boards | Per-profile `heap` and `numbers` (esp32 160K f32, ps1 256K fx12); `allocations()` of zinc:sys checks at run time that a frame does not allocate (`alloc_stats.h:1-2`). No compile-time memory bound. |
 
 ## 3. Things worth taking, ranked
@@ -110,7 +110,7 @@ MicroTS: a seeded typed-grammar generator emits a program plus an input tape; th
 each backend and compared frame by frame; invalid-program probes check the exact diagnostic; failures are reduced
 (`PJ/microts/compiler/model-fuzz.ts`, `model-harness.ts`, `aot-model-metamorphic.test.ts`).
 Zinc today: fixed-corpus `diff-matrix` plus crash-only libFuzzer. The goal "interpreter, AOT and `--engine quickjs` match byte for
-byte" (`next/RULES.md` line 8) is only proven on programs somebody wrote. Why: wrap-around, `f32` rounding, string indices, RC order and
+byte" (`RULES.md` line 8) is only proven on programs somebody wrote. Why: wrap-around, `f32` rounding, string indices, RC order and
 fixed point are where three engines drift, and nobody sees it until a demo breaks.
 Take: a small generator over the strict profile (integers of every width, `f32`, strings, arrays, closures), outputs hashed and
 compared across interpreter, AOT, QuickJS; a fixed seed set in T1, a long run in T2; plus a metamorphic pass (rename, inline,
@@ -122,7 +122,7 @@ MicroTS infers which buttons, axes, touch and motion a program uses and refuses 
 (`PJ/microts/compiler/aot-admission.ts:23-45`; `--board`, `--boards` in `microts-reference.md:389-395`).
 Zinc: `requires` in `zinc.json` or `plugin.json` is declared by hand; a module's `@requires` is checked on import
 (`docs/targets/capabilities.md`). Whether the compiler infers the need from `onPointer*`, `touch`, `keyboard` or `gamepad` use in
-JSX and `zinc:ui` is not verified in `next/src/frontend/capabilities.cpp`; the file reads declared strings only. Why: a maker
+JSX and `zinc:ui` is not verified in `src/frontend/capabilities.cpp`; the file reads declared strings only. Why: a maker
 who builds for a button-only panel gets "this app needs a pointer" at build time, not a dead screen. Take: derive demands from
 the lowered JSX attributes (`jsx.cpp` `kPointerAttrs`) and the imported modules, report them through the existing capability
 check and a Z code with a fix. Size S to M.
@@ -131,8 +131,8 @@ check and a Z code with a fix. Size S to M.
 
 MicroTS rewrites arithmetic in the JS output so `i8/i16/i32` wrap and `f32` rounds as in Rust (`PJ/microts/compiler/aot-numeric-semantics.ts:34-45`
 and `aot-model-js.ts`), then tests it against Rust.
-Zinc: the QuickJS engine "blanks the type syntax in place" and runs plain JS numbers (`next/src/qjs/strip.h:2-4`); the stripper
-works from the parser, with no type information, and a grep of `next/src/qjs` for `imul`/wrap found nothing. So an `i32` overflow,
+Zinc: the QuickJS engine "blanks the type syntax in place" and runs plain JS numbers (`src/qjs/strip.h:2-4`); the stripper
+works from the parser, with no type information, and a grep of `src/qjs` for `imul`/wrap found nothing. So an `i32` overflow,
 a `u8` wrap or an `f32` sum probably differs between `--engine quickjs` and the typed engines (not verified by running). The
 product rule is one result per program. Take: use checker types to emit `Math.imul`, `|0`, `>>>0`, `Math.fround` at typed sites
 when the program declares machine types (programs using only `number` pay nothing). Needs the checker's types in the stripper,
@@ -153,7 +153,7 @@ release" rule: it contradicts D14's byte-identical principle.
 
 MicroTS: a JSON tape of frames (buttons, axes, service deliveries, virtual clock, targets) drives any executor and every frame's
 state and commands are compared (`microts-model.md:62-67`, `PJ/microts/compiler/aot-model-tape.ts`).
-Zinc: scripted pointer events exist in tests (`next/tests/t2/input_aot.sh:2`) and `ZINC_FRAMES`/`ZINC_DETERMINISTIC`, but no tape
+Zinc: scripted pointer events exist in tests (`tests/t2/input_aot.sh:2`) and `ZINC_FRAMES`/`ZINC_DETERMINISTIC`, but no tape
 format shared by interpreter, AOT and QuickJS (not verified beyond that). Why: it makes a UI regression test a file a student can
 record, and it feeds 3.1. Size S to M.
 
@@ -183,7 +183,7 @@ panels, useless for resizable windows; Zinc's layout runs in `lib/std/ui.ts`. Pa
 - The model/view contract split (view-model trait, basename `.ts`/`.d.ts`): it exists because the view crosses into Rust while the
   model may stay handwritten; Zinc compiles one program, so it would only add files.
 - Static reaction schedule and ledgers (`aot-model-ledger.ts`): they require refusing programs Zinc wants to run.
-- Generated host contracts with drift checks: already adopted (`docs/engines.md:251`, `next/include/zn`, `tools/abi-check`);
+- Generated host contracts with drift checks: already adopted (`docs/engines.md:251`, `include/zn`, `tools/abi-check`);
   MicroTS byte-compares generated Rust with the committed file (`PJ/contracts/spec/gen-rust.ts:1-7`), equivalent to `abi-check`.
 - Dev/release differences (trap vs truncate, recursion guard omitted): Zinc defines limits once for all tiers.
 

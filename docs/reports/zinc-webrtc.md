@@ -2,11 +2,11 @@
 
 Owner's order: the microphone and WebRTC data channels first, audio and video tracks next (below, 2026-10-16). What we need: a single `zinc` binary plus
 prebuilt plugins (no developer tools on a teacher's or an artist's machine), hardware down to a Raspberry Pi, licences that allow
-vendoring, a small archive. Plugins build with the pinned zig and no system library (`next/src/tc/plugin_build.cpp`, `docs/plugins.md`).
+vendoring, a small archive. Plugins build with the pinned zig and no system library (`src/tc/plugin_build.cpp`, `docs/plugins.md`).
 
 ## WebRTC stack: the options
 
-Scores 1-5, weights of `next/RULES.md` section 4 (fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability
+Scores 1-5, weights of `RULES.md` section 4 (fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability
 x1, effort x1; 70 at most).
 
 | option | fit | perf | size | maint | licence | port | effort | total |

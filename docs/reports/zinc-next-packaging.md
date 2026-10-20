@@ -8,8 +8,8 @@ One download per OS; nothing else to install. `tools/package` builds it from `bu
 | Linux | `zinc-<version>-linux-<arch>.tar.gz`, and the AppImage when `appimagetool` is installed (`tools/appimage`) | `bin/zinc`, `lib/` (SDL3), `share/zinc/{next,lib,plugins}` | budget 40 MB, not measured here (the script has not run on Linux yet) |
 | Windows | with the Windows host (ZN-054) | | budget to set then |
 
-`share/zinc/` (`Resources/zinc/` in the app) mirrors the repository: `next/include` and `next/src` and `next/third_party/mimalloc` (what a cross build compiles), `next/firmware/esp32/prebuilt`
-(the core image), `next/app/atelier`, `lib/std`, `lib/fonts`, and the Zinc sources of the plugins. The binary finds it with `zn::tc::sourceRoot`: `$ZINC_ROOT`, else beside the executable
+`share/zinc/` (`Resources/zinc/` in the app) mirrors the repository: `include` and `src` and `third_party/mimalloc` (what a cross build compiles), `firmware/esp32/prebuilt`
+(the core image), `app/atelier`, `lib/std`, `lib/fonts`, and the Zinc sources of the plugins. The binary finds it with `zn::tc::sourceRoot`: `$ZINC_ROOT`, else beside the executable
 (`../share/zinc/next`, `../Resources/zinc/next`), else the checkout it was built in. `zinc --root` prints which. The pinned tools (zig, QEMU for ESP32, esptool) are not in the package: they are
 downloaded on first use, checksum verified, into `~/.zinc` (`zinc-next-toolchain.md`), which keeps the package small.
 
@@ -38,7 +38,7 @@ Windows and Linux packages have not been built or run (no such machine here); th
 
 ## TLS and crypto: binary size (ZN-089)
 
-mbedTLS 4.0.0 with TF-PSA-Crypto (`next/third_party/mbedtls`, default configuration, TLS 1.2 and 1.3, X.509, PSA crypto) backs https in `zinc:net`, TLS in
+mbedTLS 4.0.0 with TF-PSA-Crypto (`third_party/mbedtls`, default configuration, TLS 1.2 and 1.3, X.509, PSA crypto) backs https in `zinc:net`, TLS in
 `zinc:mqtt`, an https `serve()` and `crypto.subtle`. Measured on macOS arm64, release flags of the default CMake build, same tree, `-DZN_TLS=OFF` against ON:
 
 | `zinc` binary | TLS off | TLS on | difference |

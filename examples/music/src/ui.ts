@@ -104,7 +104,7 @@ export function fit(f: i32, s: string, w: number): string {
   return s.slice(0, lo).trimEnd() + '…';
 }
 // Tabular figures (owner, 2026-10-15): every digit takes the width of the widest one, so a clock does not shift as its digits change.
-// Done here, a cell per character; the engine's own font feature (OpenType tnum) is a line of next/backlog/later.md.
+// Done here, a cell per character; the engine's own font feature (OpenType tnum) is a line of backlog/later.md.
 const cellOf = new Map<i32, number>();
 function digitCell(f: i32): number {
   const c = cellOf.get(f);

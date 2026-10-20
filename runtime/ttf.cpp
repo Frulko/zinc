@@ -93,7 +93,7 @@ static uint32_t glyph_index(const Ttf& t, uint32_t cp) {
 }
 static uint32_t loc(const Ttf& t, uint32_t g) { Rd r = t.rd(); return t.longLoca ? r.u32(t.loca + g * 4) : r.u16(t.loca + g * 2) * 2u; }
 
-// ---- outline -> coverage, the way the baker does it (next/src/res/res.cpp, a port of the prototype's resources.ts): contours in font units,
+// ---- outline -> coverage, the way the baker does it (src/res/res.cpp, a port of the prototype's resources.ts): contours in font units,
 // quadratics flattened into 8 segments, composites placed by their offset and x/y scale, then nonzero winding sampled 4 x 4 per pixel, in
 // doubles and without fused multiply-adds, so a glyph rasterized here has the pixels a baked glyph of the same size has (ZN-669): a size or a
 // file chosen at run time draws like one written in the program.

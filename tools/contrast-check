@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""contrast-check: WCAG AA contrast (4.5:1) of the text roles of the kit themes LIGHT and DARK (lib/std/kit/theme.ts, palette lib/std/palette.ts) (ZN-276).
+
+  tools/contrast-check            print every pair; exit 1 when a pair that is not in KNOWN falls below 4.5
+KNOWN lists pairs below 4.5 that are accepted until the theme changes (an unchanged light theme keeps every prototype golden).
+
+  tools/contrast-check --museum project.json   the colours of a museum-table project (docs/museum-table-format.md, ZN-650.10): its theme
+                                               at 4.5:1 and its high-contrast colours at 7:1 (WCAG AAA); exit 1 below
+"""
+import json, os, re, sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+THEME = open(os.path.join(ROOT, "lib/std/kit/theme.ts")).read(); PAL = open(os.path.join(ROOT, "lib/std/palette.ts")).read()
+PALETTE = {m.group(1): m.group(2).split(",") for m in re.finditer(r"'([a-z]+):([0-9a-f,]+);'", PAL)}
+SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+# text role on the surfaces it sits on
+PAIRS = [("foreground", "background"), ("foreground", "card"), ("foreground", "muted"), ("mutedForeground", "background"), ("mutedForeground", "card"), ("mutedForeground", "muted"),
+         ("primaryForeground", "primary"), ("secondaryForeground", "secondary"), ("accentForeground", "accent"), ("accentSoftForeground", "accentSoft"),
+         ("destructiveForeground", "destructive"), ("destructiveSoftForeground", "destructiveSoft"), ("successSoftForeground", "successSoft"), ("warningSoftForeground", "warningSoft")]
+KNOWN = {("light", "mutedForeground", "muted"), ("dark", "accentForeground", "accent")}   # white on indigo-500 is 4.47:1: kept, the prototype's dark examples (boards/esp32-2432s022) draw with it and stay pixel-identical
+
+def theme(name):
+    body = re.search(r"export const %s: Theme = \{(.*?)\n\};" % name, THEME, re.S).group(1)
+    return dict(re.findall(r"(\w+): '([a-z0-9-]+)'", body))
+def rgb(colour):
+    if colour == "white": return (255, 255, 255)
+    if colour.startswith("#"): return tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
+    fam, shade = colour.rsplit("-", 1); h = PALETTE[fam][SHADES.index(int(shade))]
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+def lum(c):
+    f = lambda v: (v / 255 / 12.92) if v / 255 <= 0.03928 else (((v / 255) + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
+def ratio(a, b):
+    la, lb = lum(rgb(a)), lum(rgb(b)); hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+if len(sys.argv) == 3 and sys.argv[1] == "--museum":
+    # what the player writes on what (examples/museum-table/src): texts, secondary texts and the outline of a button on the table, a card's
+    # text on its paper, the label of a panel's button, the label of a pressed button. The defaults are those of src/project.ts.
+    USES = [("text", "background"), ("muted", "background"), ("accent", "background"), ("ink", "paper"), ("ink", "accent"), ("background", "accent")]
+    THEMES = {"theme": dict(background="#14151a", paper="#f4f1ea", ink="#23211d", text="#ece8df", muted="#9b978d", accent="#d0a441"),
+              "highContrast": dict(background="#000000", paper="#ffffff", ink="#000000", text="#ffffff", muted="#e0e0e0", accent="#ffd400")}
+    project = json.load(open(sys.argv[2])); bad = 0
+    for name, least in (("theme", 4.5), ("highContrast", 7)):
+        t = dict(THEMES[name], **(project.get("theme", {}) if name == "theme" else project.get("accessibility", {}).get("highContrast", {})))
+        for fg, bg in USES:
+            r = ratio(t[fg], t[bg]); bad += r < least
+            print("%-12s %-10s on %-10s %s on %s %5.2f %s" % (name, fg, bg, t[fg], t[bg], r, "ok" if r >= least else "FAIL (below %g)" % least))
+    print("contrast-check: %s" % ("%d pair(s) too weak" % bad if bad else "the theme is at least 4.5:1 and the high-contrast colours 7:1"))
+    sys.exit(1 if bad else 0)
+
+bad = 0
+for name in ("LIGHT", "DARK"):
+    t = theme(name)
+    for fg, bg in PAIRS:
+        r = ratio(t[fg], t[bg]); ok = r >= 4.5; known = (name.lower(), fg, bg) in KNOWN
+        print("%-5s %-26s on %-12s %-12s on %-12s %5.2f %s" % (name, fg, bg, t[fg], t[bg], r, "ok" if ok else ("KNOWN" if known else "FAIL")))
+        bad += (not ok) and not known
+print("contrast-check: %s" % ("%d pair(s) below 4.5:1" % bad if bad else "every text pair is at least 4.5:1 (known exceptions listed)"))
+sys.exit(1 if bad else 0)

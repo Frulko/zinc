@@ -1,9 +1,7 @@
 name: Pages
 
-on:
-  push:
-    branches: [main]
-    paths: ['site/**', 'docs/**', 'README.md', '.github/workflows/pages.yml']
+on:   # called by zinc-next on a release (one pipeline per release, owner 2026-10-20); a manual run deploys the site alone
+  workflow_call:
   workflow_dispatch:
 
 permissions:

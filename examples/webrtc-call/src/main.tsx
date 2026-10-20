@@ -1,6 +1,6 @@
 // webrtc-call: a video call on zinc:webrtc (audio and video tracks), zinc:camera, zinc:microphone and zinc:audio, in the React model. See
 // README.md.
-//   cd next && build/zinc run ../examples/webrtc-call
+//   build/zinc run examples/webrtc-call
 // Keys: M mutes, V stops the video, C picks the next camera, S the stats, Enter calls, Esc hangs up then quits.
 // Test hooks: CALL_DEMO=1 runs the scripted session (call, mute, video off, a camera switch, the stats, hang up, quit), CALL_LOG=1 prints
 // what happens (tests/t1/webrtc_call.sh), CALL_MODE=room starts on the room tab, CALL_SIGNAL=ws://host:port the signalling server,

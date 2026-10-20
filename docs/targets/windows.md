@@ -9,7 +9,7 @@ machine, build, test and debug, and the milestones to a working `zinc run exampl
 | What | Status |
 |---|---|
 | Console programs (`zinc build --target x86_64-windows prog.ts -o prog.exe`, from a Mac or Linux) | cross-built since ZN-714; never run on Windows |
-| `zinc.exe` itself, headless (checker, interpreter, QuickJS, ZBC; no window, no event loop) | cross-built from the Mac with `next/cmake/zig-windows.cmake`; `--version`, `run`, `run --engine quickjs`, `check`, `doctor` work under Wine 11; never run on Windows |
+| `zinc.exe` itself, headless (checker, interpreter, QuickJS, ZBC; no window, no event loop) | cross-built from the Mac with `cmake/zig-windows.cmake`; `--version`, `run`, `run --engine quickjs`, `check`, `doctor` work under Wine 11; never run on Windows |
 | `zinc build` on Windows, serial ports, `zinc dev`'s live reload, the profiler | report that they are not there yet |
 | `zinc.exe` built natively on Windows with the window (SDL3, OpenGL through WGL or the CPU renderer), the event loop and the plugins that build as DLLs | `zinc run examples/hero` runs on the GPU and on the CPU renderer; `zinc doctor` names the Windows profile |
 | The package and the installer | `tools/package` makes `zinc-<version>-windows-x86_64.zip`, `tools/install.ps1` installs it, the `package-windows-x86_64` CI job builds, tests and releases it (experimental, unsigned) |
@@ -28,11 +28,11 @@ A program exported with `zinc export` does not carry the exports yet.
 Wine runs the cross-built console programs without a Windows machine (not a proof: its console and file system are not Windows'):
 
 ```sh
-cmake -S next -B next/build-win -DCMAKE_TOOLCHAIN_FILE=next/cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
-BUILD_DIR=next/build-win next/tools/build zinc platform_test
-export WINEDEBUG=-all MVK_CONFIG_LOG_LEVEL=0 ZINC_ROOT=$PWD/next   # quiet Wine and MoltenVK; the engine's files
-wine next/build-win/platform_test.exe                                # platform: ok (windows x86_64)
-wine next/build-win/zinc.exe run next/tests/golden/run/library.ts    # the frozen output of library.out
+cmake -S . -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
+BUILD_DIR=build-win tools/build zinc platform_test
+export WINEDEBUG=-all MVK_CONFIG_LOG_LEVEL=0 ZINC_ROOT=$PWD   # quiet Wine and MoltenVK; the engine's files
+wine build-win/platform_test.exe                                # platform: ok (windows x86_64)
+wine build-win/zinc.exe run tests/golden/run/library.ts    # the frozen output of library.out
 ```
 
 The first run creates the Wine prefix (`~/.wine`) without a window. Nothing stays running: `wineserver -k` when done.
@@ -49,10 +49,10 @@ The first run creates the Wine prefix (`~/.wine`) without a window. Nothing stay
 From PowerShell, in the checkout:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -DryRun   # what it would do
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1           # do it (no administrator rights)
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 -DryRun   # what it would do
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1           # do it (no administrator rights)
 # from an elevated PowerShell, once: long paths on and Defender exclusions for the checkout and ZINC_HOME
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -Admin -NoBuild
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 -Admin -NoBuild
 ```
 
 It is idempotent and prints each step. It installs with `winget` what is missing (per user when the package allows; winget asks
@@ -60,7 +60,7 @@ for elevation otherwise): **Git for Windows** (git and the bash the tests run in
 `~/bin/python3` shim for Git Bash (the tests call `python3`, which the python.org installer does not create); sets `ZINC_HOME` (default `%USERPROFILE%\.zinc`); downloads
 **zig 0.15.2** (the pin of `src/tc/tc.cpp`) into `%ZINC_HOME%\toolchains\zig-<arch>-windows-0.15.2` and checks its SHA-256;
 sets `core.autocrlf=false`, `core.symlinks=true`, `core.longpaths=true` and the commit hook on the checkout; then configures
-`next\build` with Ninja and the zig toolchain file and builds `zinc.exe`.
+`build` with Ninja and the zig toolchain file and builds `zinc.exe`.
 
 **No Visual Studio.** The pinned zig is the C and C++ compiler (mingw-w64 13 headers and import libraries, libc++ and
 winpthreads linked statically): `zinc.exe` and the programs it builds need nothing installed. If a component ever needs
@@ -75,7 +75,7 @@ winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait
 | Variable | What |
 |---|---|
 | `ZINC_HOME` | toolchains and caches (default `%USERPROFILE%\.zinc`; the setup script sets it for the user) |
-| `ZINC_ROOT` | the `next` directory of a checkout, for a `zinc.exe` built with `ZN_REPRODUCIBLE` or moved elsewhere |
+| `ZINC_ROOT` | the root of a checkout, for a `zinc.exe` built with `ZN_REPRODUCIBLE` or moved elsewhere |
 | `ZIG` | the zig the toolchain file uses (default: the newest under `%ZINC_HOME%\toolchains`) |
 | `ZINC_BACKGROUND=1` | windows open without taking the focus (`tests/run` sets it) |
 | `ZINC_HEADLESS=1`, `ZINC_RENDERER=cpu` | no window; the CPU renderer |
@@ -85,22 +85,21 @@ winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait
 
 ```sh
 # Git Bash, in the checkout (the same tools/build as on the Mac: one job per core, load-aware)
-cmake -S next -B next/build -G Ninja -DCMAKE_TOOLCHAIN_FILE=next/cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
-BUILD_DIR=next/build next/tools/build zinc
-next/build/zinc.exe --version
+cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
+BUILD_DIR=build tools/build zinc
+build/zinc.exe --version
 ```
 
-From the Mac (cross, the same toolchain file): `cmake -S next -B next/build-win -DCMAKE_TOOLCHAIN_FILE=next/cmake/zig-windows.cmake -DZN_HOST_GFX=OFF`,
-then `BUILD_DIR=next/build-win next/tools/build zinc`. Add `-DZN_WIN_ARCH=aarch64` for Windows on Arm. `-DZN_HOST_GFX=OFF`
+From the Mac (cross, the same toolchain file): `cmake -S . -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF`,
+then `BUILD_DIR=build-win tools/build zinc`. Add `-DZN_WIN_ARCH=aarch64` for Windows on Arm. `-DZN_HOST_GFX=OFF`
 leaves the host library out until libuv's and SDL3's Windows sources are vendored (milestones 4 and 5).
 
 ## Run the tests
 
-The tests are POSIX shell scripts (`next/tests/<tier>/*.sh`) and stay so: they run in **Git Bash** (the choice is scored in
+The tests are POSIX shell scripts (`tests/<tier>/*.sh`) and stay so: they run in **Git Bash** (the choice is scored in
 the report). In Git Bash:
 
 ```sh
-cd next
 ZINC=build/zinc.exe tests/run --only <name>        # one test
 ZINC=build/zinc.exe tests/run --tier t0            # the stage tests
 ```
@@ -112,7 +111,7 @@ a program that prints through the C runtime in text mode writes `\r\n` (`tools/w
 ## Debug
 
 - **lldb** (from the LLVM release for Windows, `winget install LLVM.LLVM`) reads the DWARF that zig writes with `-g`:
-  `cmake ... -DCMAKE_BUILD_TYPE=RelWithDebInfo`, then `lldb next/build/zinc.exe -- run examples/hero`.
+  `cmake ... -DCMAKE_BUILD_TYPE=RelWithDebInfo`, then `lldb build/zinc.exe -- run examples/hero`.
 - **WinDbg** (`winget install Microsoft.WinDbg`) needs a PDB: compile with `-gcodeview` and link with `-Wl,--pdb=` (lld's
   MinGW driver); not tried yet with the pinned zig, the first Windows session checks it.
 - `ZN_TRAP_TRACE=1` prints the interpreter's trace on a trap, as on the Mac. Crashes outside the engine: `procdump -e -ma zinc.exe`

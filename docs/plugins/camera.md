@@ -59,7 +59,7 @@ and sleep in between (`examples/webcam`).
 | platform | what the person sees | what Zinc writes or checks |
 |---|---|---|
 | macOS | a system question the first time `requestPermission()` runs; the answer in System Settings > Privacy & Security > Camera (under `zinc run`: for the terminal app) | `zinc export --target macos`: `NSCameraUsageDescription`, `NSCameraUseContinuityCameraDeviceType` in the Info.plist, the entitlement `com.apple.security.device.camera` |
-| iOS | the system question, with the text of `"permissionStrings": {"camera": "..."}` (default "<App> uses the camera.") | `NSCameraUsageDescription` in the Info.plist (`iosInfoPlist`, `next/src/frontend/project.cpp`); without it the backend reports `denied` instead of asking (iOS would end the app) |
+| iOS | the system question, with the text of `"permissionStrings": {"camera": "..."}` (default "<App> uses the camera.") | `NSCameraUsageDescription` in the Info.plist (`iosInfoPlist`, `src/frontend/project.cpp`); without it the backend reports `denied` instead of asking (iOS would end the app) |
 | Android | the system dialog when `requestPermission()` runs (through SDL's `SDL_RequestAndroidPermission`); later in Settings > Apps > the app > Permissions > Camera | `zinc export --target android`: `<uses-permission android:name="android.permission.CAMERA" />` and `<uses-feature android:name="android.hardware.camera" android:required="false" />` (the store keeps the app for devices without a camera) |
 | Linux, Raspberry Pi | nothing to answer: `/dev/video*` belongs to the `video` group. `permissionStatus()` is `denied` when there are cameras and the user may open none | the error names the fix: `sudo usermod -aG video $USER`, then log out and in again |
 
@@ -70,9 +70,9 @@ and sleep in between (`examples/webcam`).
   never stops on a question it did not ask. Under `zinc run` the system asks for the terminal app that started it.
 - **Exported apps**: with `camera` in the permissions, `zinc export --target macos` writes `NSCameraUsageDescription` (the text of
   `"permissionStrings": {"camera": "..."}`, else "<App> uses the camera.") into the `.app`'s Info.plist (without it macOS kills an app that
-  asks) and the hardened-runtime entitlement `com.apple.security.device.camera` (`next/src/main.cpp` `bundleSpecOf`, checked by
-  `next/tests/t1/permissions_export.sh`). The Android manifest lines and the iOS Info.plist come from the same list
-  (`next/tests/unit/project_test.cpp`, `next/tests/t0/export_android.sh`).
+  asks) and the hardened-runtime entitlement `com.apple.security.device.camera` (`src/main.cpp` `bundleSpecOf`, checked by
+  `tests/t1/permissions_export.sh`). The Android manifest lines and the iOS Info.plist come from the same list
+  (`tests/unit/project_test.cpp`, `tests/t0/export_android.sh`).
 - **`requires`**: the plugin needs the `camera` capability (`targets/capabilities.json`): true on macos, android, ios and sim, optional on
   linux and rpi1, false elsewhere, so `zinc build --target esp32` of a program that imports it is refused with Z5005.
 
@@ -116,9 +116,9 @@ Without the import, `getUserMedia` is `NotFoundError` with the line to add.
 - macOS (the development Mac): the plugin builds and lists the real cameras (a Logitech C920, the FaceTime HD camera, OBS Virtual
   Camera). The camera access of the terminal was undetermined and the tests never ask (a question would wait on a dialog), so **no
   frame of a real camera was captured**: the AVFoundation capture path is written to Apple's documented API and unproven.
-- The fake camera on the interpreter, AOT, QuickJS and the sim stand-in: `next/tests/t1/webcam.sh`, `next/tests/t0/webcam_sim.sh`.
-- The demo `examples/webcam` on the fake camera, scripted (photos, viewer, adjustments, formats, permission screens): `next/tests/t1/webcam_demo.sh`.
-- Linux and the Pi: the V4L2 backend is not built or run yet (the cross-platform pass, `next/backlog/later.md`).
+- The fake camera on the interpreter, AOT, QuickJS and the sim stand-in: `tests/t1/webcam.sh`, `tests/t0/webcam_sim.sh`.
+- The demo `examples/webcam` on the fake camera, scripted (photos, viewer, adjustments, formats, permission screens): `tests/t1/webcam_demo.sh`.
+- Linux and the Pi: the V4L2 backend is not built or run yet (the cross-platform pass, `backlog/later.md`).
 - Android and iOS: the backends and the manifests are written; the manifests' text is unit-tested on the Mac, the backends are not built
   or run yet (the cross-platform pass).
 

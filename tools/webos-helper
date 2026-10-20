@@ -1,0 +1,20 @@
+#!/bin/sh
+# Installs zinc-helper on an HP TouchPad (webOS 3) over novacom: plugins/webos/helper.sh as /var/zinc/helper.sh, run as root by the upstart
+# job /etc/event.d/zinc-helper (started at boot, restarted if it dies). It serves what zinc:webos programs ask for from their jail: full
+# speed, the backlight, firewall ports, the time zone (the comment of helper.sh). Idempotent: a newer helper replaces the running one.
+set -e
+here=$(cd "$(dirname "$0")" && pwd -P); repo=$(dirname "$here")
+novacom -l | grep -q . || { echo "webos-helper: no device (novacomd running? developer mode?)" >&2; exit 1; }
+remote() { printf '%s\n' "$1" | novacom run file://bin/sh; }
+remote "mkdir -p /var/zinc"
+# the banners of zinc:web Notification go through a headless web application: webOS 3 gives banners to web applications only
+N=/media/cryptofs/apps/usr/palm/applications/org.zinc.notifier
+remote "mkdir -p $N"
+for f in appinfo.json index.html popup.html; do novacom put "file:/$N/$f" < "$repo/plugins/webos/notifier/$f"; done
+remote 'luna-send -n 1 palm://com.palm.applicationManager/rescan "{}" < /dev/null > /dev/null 2>&1'
+novacom put file://var/zinc/helper.sh.new < "$repo/plugins/webos/helper.sh"
+printf 'description "Zinc: what zinc:webos programs ask for (full speed, backlight, firewall ports, time zone)"\n\nstart on stopped finish\nstop on started start_update\n\nrespawn\n\nexec /bin/sh /var/zinc/helper.sh\n' | novacom put file://var/zinc/zinc-helper.job
+# the system's files are read-only: mounted writable for the copy
+remote "chmod 755 /var/zinc/helper.sh.new && mv -f /var/zinc/helper.sh.new /var/zinc/helper.sh && \
+  mount -o remount,rw / && cp /var/zinc/zinc-helper.job /etc/event.d/zinc-helper; mount -o remount,ro /; \
+  stop zinc-helper > /dev/null 2>&1; start zinc-helper > /dev/null && echo 'webos-helper: zinc-helper running'"

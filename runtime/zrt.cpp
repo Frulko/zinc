@@ -1020,7 +1020,7 @@ static void teardown() {
   drain_deferred();
 }
 
-// For hosts that run the frames themselves (next/src/host): the end of a run, so the finishers (profile summary, trace file, last-frame capture) fire.
+// For hosts that run the frames themselves (src/host): the end of a run, so the finishers (profile summary, trace file, last-frame capture) fire.
 void finish_run() { teardown(); }
 PromiseBase* promises_head = nullptr;
 void finish() {

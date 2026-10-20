@@ -59,7 +59,7 @@ Within a version, fields may be added only as optional ones with a default that 
 
 `serializeProject` writes one layout: two spaces, the fields in the order of this page, the top-level objects always in full, optional fields of
 media, items, links and sequences left out when they have their default, one line per item and per view, numbers as JavaScript prints them.
-A file written by it loads and saves to the same bytes (`next/tests/t1/museum_format.sh`), so a project under version control shows only real
+A file written by it loads and saves to the same bytes (`tests/t1/museum_format.sh`), so a project under version control shows only real
 changes.
 
 ## The project
@@ -130,7 +130,7 @@ are kept for the visit and forgotten with it (`kiosk.resetAfter`).
 | field | default | meaning |
 | --- | --- | --- |
 | `textSizes` | `[1, 1.3, 1.6]` | The text sizes a visitor steps through, as factors of the designed size; the first is the one at rest. Every text grows, and what holds a text with it: the buttons, the caption of a card, the panels. With one size there is no button |
-| `highContrast` | black, white, yellow | The six colours of the theme in high-contrast mode, in which nothing is drawn faintly either. `next/tools/contrast-check --museum project.json` checks them: 7:1 at least between a text and what it is written on (4.5:1 for the theme) |
+| `highContrast` | black, white, yellow | The six colours of the theme in high-contrast mode, in which nothing is drawn faintly either. `tools/contrast-check --museum project.json` checks them: 7:1 at least between a text and what it is written on (4.5:1 for the theme) |
 | `descriptions` | none | Where the spoken audio descriptions are: the clip of a medium, `{id}` standing for the id of the medium and `{lang}` for the language code. Its subtitles lie beside it, the same name ending in `.vtt`. `tools/narration.sh` makes both from the `audioDescription` texts. Without it, or for a clip that is not there, a description is shown as subtitles and not said |
 
 Two more accessibility fields are on the media: `audioDescription`, what a visitor who cannot see a picture, an object or a panorama needs to

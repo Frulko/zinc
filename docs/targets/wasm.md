@@ -3,7 +3,7 @@
 > To put a Zinc app in a browser as a normal web page (the app's JavaScript on the browser's own engine, canvas or DOM, hot reload, the plugins that have a web version), use
 > `zinc export --target web` ([web.md](web.md)). This page is the other way: the bytecode interpreter of the engine in WebAssembly, for small console-style programs.
 
-`next/tools/build-wasm` builds the ZBC interpreter with the pinned zig (`zig c++ -target wasm32-wasi`, no emscripten) into `build-wasm/`:
+`tools/build-wasm` builds the ZBC interpreter with the pinned zig (`zig c++ -target wasm32-wasi`, no emscripten) into `build-wasm/`:
 
 | file | what |
 |---|---|
@@ -14,7 +14,7 @@ The pure runtime (strings, arrays, Maps, classes, exceptions, closures, async wi
 
 ## In a browser
 
-`next/targets/wasm/glue/index.html?zbc=<file>&wasm=<vm-web.wasm>[&frames=N]` runs the program in a worker: zinc:gfx draws on an OffscreenCanvas (`worker.mjs`: rectangles, rounded rectangles, lines, text, clear, the baked images with `drawImage` and `drawImageRect`, the input rows), and the runtime's frame loop blocks on `Atomics.wait` until the page's next `requestAnimationFrame` tick, so no asyncify is needed. Keys, pointer and ticks reach the worker through a SharedArrayBuffer, which needs cross-origin isolation: serve the page with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. Rows the glue does not draw yet (gradients, shadows, polygons, clip, runtime images) warn once in the console.
+`targets/wasm/glue/index.html?zbc=<file>&wasm=<vm-web.wasm>[&frames=N]` runs the program in a worker: zinc:gfx draws on an OffscreenCanvas (`worker.mjs`: rectangles, rounded rectangles, lines, text, clear, the baked images with `drawImage` and `drawImageRect`, the input rows), and the runtime's frame loop blocks on `Atomics.wait` until the page's next `requestAnimationFrame` tick, so no asyncify is needed. Keys, pointer and ticks reach the worker through a SharedArrayBuffer, which needs cross-origin isolation: serve the page with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. Rows the glue does not draw yet (gradients, shadows, polygons, clip, runtime images) warn once in the console.
 
 Images: `&res=<file>` (default `app.res` beside the page) is the blob of `zinc bake`; the worker puts each baked image on a canvas of its own and `image(name)` finds it. `drawImageRect` mirrors with the canvas transform and samples nearest with `imageSmoothingEnabled = false`; nearest sprites are the engine's pixels (translucent texels within 2 a channel: the canvas keeps premultiplied pixels). A linear sample stays inside the source rectangle on a 2D canvas, where the engine and a GPU read the texels around it. `imageFromBytes` answers -1 (no decoder in the page yet) and text is the browser's own, not the baked fonts.
 

@@ -6,6 +6,6 @@
   "entry": "index.ts",
   "description": "Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels",
   "options": { "tiles": 24, "dataMb": 16, "budgetMs": 12 },
-  "web": { "entry": "web/index.ts", "native": "MapEngine", "impl": "web/map.js", "needs": ["webgl2"], "scripts": { "maplibre": "../../next/third_party/maplibre/maplibre-gl.js" } },
+  "web": { "entry": "web/index.ts", "native": "MapEngine", "impl": "web/map.js", "needs": ["webgl2"], "scripts": { "maplibre": "../../third_party/maplibre/maplibre-gl.js" } },
   "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {} }
 }

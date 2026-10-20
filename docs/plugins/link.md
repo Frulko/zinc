@@ -3,8 +3,8 @@
 Two Zinc programs find each other on the local network, pair once with a 6-digit code, then talk over an authenticated, encrypted
 channel: JSON messages and bytes, both ways, reconnecting by itself while both stay paired. A phone remote, a game controller on a phone,
 the Mac's notifications on a tablet ([the relay](../reports/notification-relay-design.md)), a dev link: the same need each time. The
-protocol is [zinc agent](../reports/zinc-next-agent.md)'s, and so is the code: discovery is `next/src/net/dnssd.cpp` (DNS-SD over mDNS,
-mjansson/mdns), the TLS sessions are `next/src/host/tls.cpp` (mbedTLS), the frames `next/src/net/frame.h`.
+protocol is [zinc agent](../reports/zinc-next-agent.md)'s, and so is the code: discovery is `src/net/dnssd.cpp` (DNS-SD over mDNS,
+mjansson/mdns), the TLS sessions are `src/host/tls.cpp` (mbedTLS), the frames `src/net/frame.h`.
 
 Targets: macOS, Linux, Android. Engines: the native engine (`zinc run`, `zinc build`) and the interpreter (`--interp`). The QuickJS engine
 loads it, but its timers run on a virtual clock that does not wait, so a program there gives up before the network answers (`later.md`).
@@ -116,7 +116,7 @@ Music's kiosk keeps its activity in front with the screen dimmed, so it stays di
 
 ## Proven
 
-- `next/tests/t1/link.sh` (about 9 s, two programs on this Mac, `tests/data/link`): a wrong code refused at an address typed by hand and
+- `tests/t1/link.sh` (about 9 s, two programs on this Mac, `tests/data/link`): a wrong code refused at an address typed by hand and
   counted by the advertiser; the advertiser found over DNS-SD with its pairing open; the right code paired; JSON and bytes both ways;
   both restarted without a code (the stored keys); the advertiser restarted on another port under the open channel, which reconnects by
   itself, found again by discovery, and talks again; the key files mode 0600. The interpreter (advertiser) and the native engine

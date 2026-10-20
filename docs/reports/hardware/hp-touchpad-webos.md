@@ -11,7 +11,7 @@ replaces every "not found" and "to read on the device" above it; section 9 is wh
 |---|---|
 | Build a Zinc app for it? | **Yes, with the pinned zig.** A C++20 program builds for `arm-linux-gnueabi` (ARMv7, NEON, soft-float calling convention as webOS wants [3]) against glibc 2.5 and 2.8 once `aligned_alloc` is supplied (absent before glibc 2.17, used by libc++); the result needs only `GLIBC_2.4` symbols. A static musl build also links. Not executed anywhere yet. |
 | Send it to the tablet? | Developer mode (`webos20090606` in Just Type [9][10]) then `novacom` over USB. HP's driver is dead on current macOS; a rebuilt 64-bit `novacomd` on libusb is documented for macOS Sequoia [11][12]. Apps install as `.ipk` [7]. |
-| HTTPS in Zinc apps? | **Already independent of the tablet**: Zinc has its own TLS (mbedTLS, `next/src/host/tls.cpp`), so the OpenSSL 0.9.8 of webOS [2] does not matter. One gap: the root store is read from `/etc/ssl/...` or `ZINC_CA_FILE`; the webOS store is from 2011. The app must carry a CA bundle. |
+| HTTPS in Zinc apps? | **Already independent of the tablet**: Zinc has its own TLS (mbedTLS, `src/host/tls.cpp`), so the OpenSSL 0.9.8 of webOS [2] does not matter. One gap: the root store is read from `/etc/ssl/...` or `ZINC_CA_FILE`; the webOS store is from 2011. The app must carry a CA bundle. |
 | webOS SDK access? | The PDK gives native code `PDL_ServiceCall` to the Luna bus (`palm://com.palm.*`), sensors, compass, location, vibration, orientation, keyboard [6]. A `webos` plugin wraps it. |
 | Replace the webOS UI and keep the drivers? | **Plausible, unproven.** The UI is one process, LunaSysMgr, started by Upstart [1]; the drivers and the system services are separate. Three facts decide it and none was found on the web: how the Adreno libraries give a GL surface without LunaSysMgr, how touch reaches user space, and which services survive. All three are read in an hour on the device. |
 | Risk | Low while the kernel, the bootloader and the partitions are untouched: recovery mode (Volume Up at power-on) plus webOS Doctor restores the system [22][23]. Doctor wipes user data. |
@@ -46,7 +46,7 @@ replaces every "not found" and "to read on the device" above it; section 9 is wh
   glibc is the next proof.
 - Open risks, all about the 2011 kernel: libuv 1.53 (vendored) supports Linux from 3.10 (from memory of its platform
   notes, not checked for this report) and reaches older kernels only through its `ENOSYS` fallbacks; mimalloc and the zig start code assume recent kernels by default. Only a run on the tablet tells.
-- The existing `armv7-linux` target (`next/src/tc/tc.cpp`) is hard-float (`gnueabihf`): its binaries cannot call the
+- The existing `armv7-linux` target (`src/tc/tc.cpp`) is hard-float (`gnueabihf`): its binaries cannot call the
   tablet's soft-float GL libraries. A new target row is needed (`armv7-webos`: `arm-linux-gnueabi`, glibc floor read on
   the device, `-mcpu=cortex_a8+neon -mfloat-abi=softfp`).
 
@@ -59,7 +59,7 @@ replaces every "not found" and "to read on the device" above it; section 9 is wh
 2. **A Zinc app as a webOS card** (the supported way, GPU included). A `display-webos` plugin, the size of
    `plugins/display-rmpp`: Palm's SDL 1.2 opens the GLES 2 context and delivers touch and keys, PDL gives services and
    sensors [2][6]. Linked against the PDK's device libraries (`-lSDL -lGLESv2 -lpdl`, `--allow-shlib-undefined` [3]),
-   the way `next/src/tc/plugin_build.cpp` already links against a device sysroot. Package: `appinfo.json` with
+   the way `src/tc/plugin_build.cpp` already links against a device sysroot. Package: `appinfo.json` with
    `"type": "pdk"`, `main`, `requiredMemory`, in an `.ipk` [7] (an `ar` archive like a `.deb`). PDK apps are full
    screen, so a Zinc launcher started as a card already looks like a shell, with webOS still underneath.
 3. **Zinc instead of LunaSysMgr.** Stop the Upstart job and start a Zinc shell in its place, on the stock kernel with
@@ -157,8 +157,8 @@ was never stopped, no `.ipk` was installed.
 Branch `touchpad-webos`. Nothing is installed on the tablet: programs are pushed to `/tmp` and started from the Mac.
 
 ```sh
-next/tools/webos-sysroot                      # once: the tablet's libGLESv2.so and the GLES headers, in ~/.zinc/sysroots/armv7-webos
-ZINC_DISPLAY=gl next/build/zinc build --target armv7-webos examples/nuxt-ui/src/main.tsx -o nuxt-ui
+tools/webos-sysroot                      # once: the tablet's libGLESv2.so and the GLES headers, in ~/.zinc/sysroots/armv7-webos
+ZINC_DISPLAY=gl build/zinc build --target armv7-webos examples/nuxt-ui/src/main.tsx -o nuxt-ui
 llvm-strip nuxt-ui                            # 44 MB to 7 MB (zig's objcopy cannot strip)
 novacom put file://tmp/nuxt-ui < nuxt-ui
 echo 'cd /tmp; chmod 755 nuxt-ui; ZINC_SIZE=1024x768 ZINC_PERF_HUD=1 ./nuxt-ui < /dev/null &' | novacom run file://bin/sh
@@ -167,10 +167,10 @@ echo 'cd /tmp; chmod 755 nuxt-ui; ZINC_SIZE=1024x768 ZINC_PERF_HUD=1 ./nuxt-ui <
 | Piece | What it is |
 |---|---|
 | Target `armv7-webos` (`touchpad`, `webos`) | `arm-linux-gnueabi.2.8 -mcpu=cortex_a8+neon -mfloat-abi=softfp`, plus `+vfp2` forced back (zig 0.15.2 turns it off for a gnueabi target and LLVM then dies on NEON intrinsics in zstd and mbedTLS) and no UBSan runtime (it calls `pwritev64`, glibc 2.10). Without `softfp` every number operation would be a library call. |
-| `next/src/host/glibc_compat.c` | What glibc 2.8 lacks or has wrong, as system calls: `pipe2`, `accept4`, `dup3`, `epoll_create1`, `inotify_init1`, `recvmmsg`, `sendmmsg`, thread names; `eventfd` (2.8 refuses every flag: the libuv loop did not start) and `epoll_pwait` (a stub that answers ENOSYS without a system call: libuv saw no event and spun). `aligned_alloc` is in `src/rt/alloc.cpp`. |
+| `src/host/glibc_compat.c` | What glibc 2.8 lacks or has wrong, as system calls: `pipe2`, `accept4`, `dup3`, `epoll_create1`, `inotify_init1`, `recvmmsg`, `sendmmsg`, thread names; `eventfd` (2.8 refuses every flag: the libuv loop did not start) and `epoll_pwait` (a stub that answers ENOSYS without a system call: libuv saw no event and spun). `aligned_alloc` is in `src/rt/alloc.cpp`. |
 | `plugins/display-gl/src/webos.cpp` | The GPU screen: a GLES 2 context from Palm's SDL 1.2 (`SDL_GL_CONTEXT_MAJOR_VERSION` is attribute 17 there), loaded with `dlopen`, so no PDK is needed. Reported by the driver: `Adreno (TM) 220, OpenGL ES 2.0`. Touch: one state per finger, so a release is always seen before the next press. |
 | `plugins/display-webos` | The first, software-only screen (SDL surface, bands on both cores). Kept until the GPU path is proven on more demos, then to delete. |
-| `next/src/host/tls.cpp` | A `cacert.pem` beside the program replaces the device's store. |
+| `src/host/tls.cpp` | A `cacert.pem` beside the program replaces the device's store. |
 
 Results:
 
@@ -298,7 +298,7 @@ The software frame on two cores gives 19.5, 21.9, 17.3, 15.7 and 12.9 on the sam
   square; what a rounded container holds can then reach into its corners. The repair that keeps the corners: the clip in the stencil buffer.
 - **Math without the FPU**: `sin`, `cos`, `tan`, `exp`, `exp2`, `log`, `sqrt`, `fmod` were zig's compiler-rt, built soft-float for the
   gnueabi ABI and taken before the device's libm (PC samples in `__aeabi_dmul`; `llvm-nm` shows them as local text symbols).
-  `next/src/rt/alloc.cpp` now sends them to the device's libm. `floor`, `ceil` and `round` are still zig's (bit operations, no arithmetic).
+  `src/rt/alloc.cpp` now sends them to the device's libm. `floor`, `ceil` and `round` are still zig's (bit operations, no arithmetic).
 - A capture of the Kit screen drawn by the lean programs matches the software frame (3.6% of the pixels differ, the animated counters and edges).
 
 Left, in the order of the expected gain: fewer draw calls (95 to 150 a frame, 11 ms of CPU: a program change ends a batch and the lean
@@ -316,7 +316,7 @@ found by their relative path.
 - `plugins/webos` (`zinc:webos`): `isWebOS()`, `serviceCall(uri, params)`, `launch(appId)`, through the PDK's `libpdl.so` loaded with `dlopen`.
 - `examples/webos-shell`: a grid of icons from `apps.txt` (id, title, icon file); a tap calls `launch`. Each program has its own card, and
   the tablet's home gesture brings the shell back.
-- `next/tools/webos-apps <project>[=Title] ...`: builds the projects and the shell, makes the icons (the project's `icon.png`, else a
+- `tools/webos-apps <project>[=Title] ...`: builds the projects and the shell, makes the icons (the project's `icon.png`, else a
   picture of its first second on the workstation), installs everything over novacom and writes the shell's list.
 - A build for `armv7-webos` now takes the GL display and the screen's own size unless `zinc.json` has a `webos` target; the backend
   sets the GL renderer, the lean programs and square clips.
@@ -341,7 +341,7 @@ screen and a tap starting a program.
 - **TLS 1.3.** `fetch` to `api.spotify.com` and `upload.wikimedia.org` failed with ECONNRESET on the Mac (the `example.com` failure of
   section 9 too). mbedTLS 4.0's debug output: the TLS 1.3 handshake completes, the request goes out (one record), the server sends two
   NewSessionTickets and closes, with no alert. OpenSSL's TLS 1.3 with the same request gets the answer; mbedTLS capped at TLS 1.2 too.
-  Record padding is not the cause (granularity 1 tried). Root cause not found; `next/src/host/http.cpp` now makes the request again once
+  Record padding is not the cause (granularity 1 tried). Root cause not found; `src/host/http.cpp` now makes the request again once
   over TLS 1.2 when a TLS 1.3 session is closed after the request with no byte of answer (`tls::openClient(..., tls12)`). Verified: the
   five hosts answer; `t0/tls` and `t1/plugin_fetch` pass.
 - **Spotify and Sonos.** Spotify lists the owner's Sonos group as the active device but `is_restricted` and absent from `/me/player/devices`:
@@ -360,7 +360,7 @@ screen and a tap starting a program.
   (zinc-helper while the app shows, below): a 300 px cover decodes in 0 to 5 ms instead of 15 to 40. The GPU's clock has no knob
   in this kernel (`/sys/devices/platform/kgsl/msm_kgsl` holds only `io_fraction`).
 - **zinc-helper.** What a jailed program may not do is served by one root job, `plugins/webos/helper.sh` (installed by
-  `next/tools/webos-helper`, called by `webos-apps` and `examples/music/install.sh`): `setPerformance`, `setBacklight`, `openPort` of
+  `tools/webos-helper`, called by `webos-apps` and `examples/music/install.sh`): `setPerformance`, `setBacklight`, `openPort` of
   zinc:webos write request files into /tmp/zinc holding the program's pid, and the helper drops them when the process is gone. It writes
   the system's zone to /tmp/zinc/tz and the GL display sets `TZ` from it (a jail has no /etc/localtime; the clock read UTC).
 - **Other facts.** An application has no right to `com.palm.firewall` (PDL_SetFirewallPortStatus fails: "does not have sufficient

@@ -107,7 +107,7 @@ program's thread. Promises, arrays and records are not carried yet: use a callba
 `zinc export --target web` runs the app as JavaScript in a browser, so a plugin's native code is not there. A plugin brings its browser version with a `"web"` entry in `plugin.json`:
 `{ "entry": "web/index.ts" }` (a module written for the page, used instead of `entry`), `{ "native": "Audio", "impl": "web/audio.js" }` (JavaScript that answers the calls of the native spec
 with browser APIs; `index.ts` runs unchanged), or a `"wasm"` block (C or C++ sources, flags and exports, built to WebAssembly by the pinned zig). `"needs"` lists the browser features it cannot run
-without (names of `next/targets/web/browsers.json`), which the export checks against the browsers of the project. A plugin with a native spec and no `web` entry loads, and each call of its native side
+without (names of `targets/web/browsers.json`), which the export checks against the browsers of the project. A plugin with a native spec and no `web` entry loads, and each call of its native side
 throws `ZnUnsupported` (warning W0602). The guide is [targets/web.md](targets/web.md), "Plugins".
 
 ## Native views
@@ -199,7 +199,7 @@ publishes alone, outside this repository (`templates/plugin/`, its README walks 
   there use the plugin as a project that adds it does.
 - `.github/workflows/ci.yml` calls this repository's reusable workflow `.github/workflows/plugin.yml` (`workflow_call`): for macos-arm64,
   linux-x86_64, linux-aarch64 and linux-armhf (cross-built with the pinned zig), zinc built at the input `zinc-ref`, `zinc test`, then
-  `next/tools/plugin-pack`, which writes what the index expects: `binaries/<target>/<name>-<key>.tar` (`zinc plugin-build --pack` in a project
+  `tools/plugin-pack`, which writes what the index expects: `binaries/<target>/<name>-<key>.tar` (`zinc plugin-build --pack` in a project
   that sets none of the plugin's options, named by the cache key such a project computes) and the descriptor `plugins/<name>/<version>.json`
   (source: the repository and commit). On a `v<version>` tag the release job signs every file and the source archive `<name>-<version>.tar.gz`
   with the secret `ZINC_PUBLISHER_SEED` (`zinc update-keygen`) and makes a GitHub release; without the secret, or with a tag that is not
@@ -210,7 +210,7 @@ publishes alone, outside this repository (`templates/plugin/`, its README walks 
 ## Plugin repositories
 
 Official plugins are developed here, in `plugins/`, and published as mirror repositories `zinc-engine/plugin-<name>` (D37):
-`next/tools/plugin-split <name>` runs `git subtree split`, so the plugin sits at the root of its repository with its history,
+`tools/plugin-split <name>` runs `git subtree split`, so the plugin sits at the root of its repository with its history,
 the same history always gives the same commit ids, and a commit that touches `plugins/<name>` gives exactly one new commit
 in its mirror. The `plugin-mirrors` CI job pushes the plugins a push to main changed (secret `PLUGIN_MIRROR_TOKEN`; without it
 the job only splits). A release attaches `plugins.lock` (`tools/plugin-split --lock`): for every plugin, its repository, its
@@ -225,8 +225,8 @@ split commit and its source tree id, so `zinc add <repository>@<commit>` gets ex
 `~/.zinc/index` and refuses an expired, rolled-back, below-threshold or tampered index. `ZINC_INDEX_URL` points it elsewhere
 (a mirror, `file://`), `ZINC_INDEX_ROOT` at another trusted root.
 
-The owner's steps, once: `next/tools/index-repo keys keys.json` (keep the file secret); `next/tools/index-repo entries . e 1`
-then `next/tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.json` as `next/index/root.json` (the root
+The owner's steps, once: `tools/index-repo keys keys.json` (keep the file secret); `tools/index-repo entries . e 1`
+then `tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.json` as `next/index/root.json` (the root
 zinc trusts); put the content of `keys.json` in the repository secret `ZINC_INDEX_KEYS`. Without the secret the workflow
 publishes no index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
 
@@ -250,10 +250,10 @@ installing, and the key is pinned in the lock on first use. A later archive sign
 
 **Transparency log** (decision D42). Every artifact of the index (its path and SHA-256) is appended to a Merkle log published
 beside it under `index/log/` (RFC 6962 / 9162 hashing, `checkpoint.json` signed with the log key, an inclusion proof per
-artifact, a consistency proof from every earlier size; `next/tools/tlog publish`). When a log key is pinned (`ZINC_TLOG_KEY`,
+artifact, a consistency proof from every earlier size; `tools/tlog publish`). When a log key is pinned (`ZINC_TLOG_KEY`,
 or `next/index/log.pub` in the engine), a published binary is installed only with an inclusion proof against a checkpoint
 that extends the last one this machine saw: a signed release left out of the log is refused, and a log that rewrote its
-history is caught. The owner's steps: `next/tools/tlog keys log-key.json`, commit its public key as `next/index/log.pub`,
+history is caught. The owner's steps: `tools/tlog keys log-key.json`, commit its public key as `next/index/log.pub`,
 and put the file's content in the secret `ZINC_LOG_KEY`.
 
 **Revocations.** The index can revoke a plugin version (by name and version, or by its source's SHA-256 or commit, with a

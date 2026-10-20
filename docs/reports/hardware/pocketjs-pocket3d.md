@@ -74,7 +74,7 @@ Pocket Requiem have no public repository; what is said about them comes from the
 | Blog | [pocketjs.dev/blog](https://pocketjs.dev/blog/) (19 posts, mirrored in `PJ/site/content/blog/*.md`) | 2026-07-06 to 2026-10-07 |
 | 3D | [3d.pocket.nexus](https://3d.pocket.nexus/) (mirrored in `PJ/site/pocket3d/public/index.html`) | 2026-10-09 |
 | Studio | [studio.pocket.nexus/games/tokyo](https://studio.pocket.nexus/games/tokyo), [/atlas](https://studio.pocket.nexus/games/atlas), [/maneuver](https://studio.pocket.nexus/games/maneuver), [/requiem](https://studio.pocket.nexus/games/requiem) | 2026-10-09 |
-| Zinc | this repository: `next/ARCHITECTURE.md`, `docs/targets/playstation.md`, `docs/reports/zinc-next-*.md`, `docs/plugins/{3d,three}.md`, `next/backlog/` | working tree 2026-10-09 |
+| Zinc | this repository: `ARCHITECTURE.md`, `docs/targets/playstation.md`, `docs/reports/zinc-next-*.md`, `docs/plugins/{3d,three}.md`, `backlog/` | working tree 2026-10-09 |
 
 A citation such as `TK/README.md:7` means the file in that repository. Numbers are quoted as the sources give them.
 Where the sources contradict each other, the code is preferred and the conflict is noted.
@@ -695,7 +695,7 @@ figure assumes the shared foundation is done (the "Foundation" rows).
    reuse the pack and the cooker.
 5. **Reproduce the games in order of cost:** Strike (PSP 60 fps, one map), City, Maneuver, Requiem, Atlas, Voxel,
    Island.
-6. **Placement in the backlog.** New console tasks fall into the last group of `next/backlog/priority.json`
+6. **Placement in the backlog.** New console tasks fall into the last group of `backlog/priority.json`
    ("deferred: cross builds and simulators"). If the owner wants this work early, create a milestone (suggested:
    "m-21 handhelds: PocketJS/Pocket3D parity") and place its group explicitly.
 
@@ -714,7 +714,7 @@ figure assumes the shared foundation is done (the "Foundation" rows).
 ### 4.3 Task list
 
 Sizes: S ≤1 day, M 2–4 days, L 1–2 weeks (labels `size-S/M/L` in `tools/tasks-import`). The full descriptions and
-acceptance criteria are in Appendix A as JSON for `next/tools/tasks-import`. Deps are task titles from this list or
+acceptance criteria are in Appendix A as JSON for `tools/tasks-import`. Deps are task titles from this list or
 existing `ZN-` ids.
 
 | # | Title | Size | Deps |
@@ -780,7 +780,7 @@ the cooker in parallel. Diorama on all four: about 5–6 months.
 ## Appendix A: tasks as JSON
 
 `deps` uses task titles from this appendix or existing `ZN-` ids. Add `key`, `size` and `milestone` when importing with
-`next/tools/tasks-import` (sizes are in §4.3).
+`tools/tasks-import` (sizes are in §4.3).
 
 ```json
 [
@@ -791,13 +791,13 @@ the cooker in parallel. Diorama on all four: about 5–6 months.
       "A D-numbered entry in docs/reports/zinc-next-decisions.md states each decision above with its reason",
       "A licence table lists every external source the plan may reuse, its licence and the rule for using it",
       "A target matrix gives profile name, number type, logical viewport, density, package format, runner and hardware path for psp, vita, n3ds and ios-legacy",
-      "next/backlog/priority.json places the new milestone in an explicit group (owner choice recorded)"
+      "backlog/priority.json places the new milestone in an explicit group (owner choice recorded)"
     ],
     "deps": []
   },
   {
     "title": "PSP toolchain in zinc tc: pinned pspdev SDK without Docker",
-    "description": "Add the pspdev SDK (GCC, newlib, libstdc++, PSPSDK, pack-pbp, mksfoex, psp-fixup-imports, prxgen) to next/src/tc as a pinned, checksum-verified download: release v20261001 publishes pspdev-macos-latest-arm64, pspdev-ubuntu-latest-x86_64 and pspdev-ubuntu-24.04-arm-arm64 tarballs. No Docker and no manual install, like the pinned zig. zinc doctor reports it.",
+    "description": "Add the pspdev SDK (GCC, newlib, libstdc++, PSPSDK, pack-pbp, mksfoex, psp-fixup-imports, prxgen) to src/tc as a pinned, checksum-verified download: release v20261001 publishes pspdev-macos-latest-arm64, pspdev-ubuntu-latest-x86_64 and pspdev-ubuntu-24.04-arm-arm64 tarballs. No Docker and no manual install, like the pinned zig. zinc doctor reports it.",
     "ac": [
       "zinc doctor lists the psp toolchain with version and sha256, and installs it on first use on macOS arm64 and Linux x86_64",
       "A tampered archive is rejected (checksum test in tests/t0 or t1)",

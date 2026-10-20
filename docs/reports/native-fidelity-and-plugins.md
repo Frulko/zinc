@@ -35,7 +35,7 @@ menu on macOS) together with `examples/webview/hybrid` (a real WKWebView over th
 | App menu bar, roles (About, Quit, Edit...) | `plugins/system/menu.ts`, `native/system.macos.mm`; kit fallback `lib/std/kit/menubar.tsx` (`native` prop renders nothing) | native NSMenu | none | none | kit-drawn (Linux, Pi, sim) |
 | Context menu | `menu.popup` (zinc:system); kit `ContextMenu` (`menubar.tsx:136`) | native via `menu.popup` (`examples/system/desktop/main.tsx:44`); the kit's `ContextMenu` is always drawn | drawn | drawn | drawn |
 | Tray, dock badge/bounce/menu | `plugins/system/tray.ts`, `dock.ts` | native NSStatusItem, dockTile | n/a | n/a | Linux: SNI over D-Bus (planned, `system-integration.md` §3) |
-| Notifications | `plugins/system/notification.ts` | native UNUserNotificationCenter (dev bundle `next/src/tc/bundle.cpp`) | none (`capabilities.json`: `notifications: false`) | none | sim |
+| Notifications | `plugins/system/notification.ts` | native UNUserNotificationCenter (dev bundle `src/tc/bundle.cpp`) | none (`capabilities.json`: `notifications: false`) | none | sim |
 | File dialogs, message boxes | `plugins/system/dialog.ts`, `system.macos.mm:393` | native NSOpenPanel/NSSavePanel/NSAlert | none (`dialogs: false`) | none | sim |
 | Global shortcuts, single instance, autostart, deep links, opener, power, rich clipboard | `plugins/system/*.ts`, one op table `plugins/system/ops.json` | native (Carbon, SMAppService, CFBundleURLTypes, IOKit, NSPasteboard) | none | none | sim |
 | Dark mode | `ui.setScheme('auto')` + `setSystemScheme` (`ui.ts:1764`); zinc:system `onAppearance` (`plugins/system/power.ts:25`) | native signal, but the **app** must wire it; RN `Appearance` reads only `ZINC_COLOR_SCHEME` | not read | not read | env var |
@@ -46,7 +46,7 @@ menu on macOS) together with `examples/webview/hybrid` (a real WKWebView over th
 | Scroll physics | `ui.ts:4302` | iOS rubber band on every platform | iOS physics (wrong) | iOS physics | same |
 | Press feedback | dim to 0.6 while pressed (commit `9b4290a3`) | iOS-like | no ripple | iOS-like | - |
 | Fonts | Inter built in, `ui.setFontSans` | not the system font | not Roboto | not SF | - |
-| Haptics, vibration | `navigator.vibrate` (`lib/std/web.ts:1666`) -> device query `vibrate` (`next/src/host/sys_host.cpp:234`) | n/a | none | none | webOS: real (`PDL_Vibrate`, `plugins/display-gl/src/webos_device.cpp:98`); sim panel |
+| Haptics, vibration | `navigator.vibrate` (`lib/std/web.ts:1666`) -> device query `vibrate` (`src/host/sys_host.cpp:234`) | n/a | none | none | webOS: real (`PDL_Vibrate`, `plugins/display-gl/src/webos_device.cpp:98`); sim panel |
 | Wake lock, brightness | zinc:sys device queries (D122) | - | native (SDL screensaver hint, window brightness) | - | webOS: native |
 | Web view | `plugins/webview` (`src/webview.mm`, `index.ts`) | native WKWebView added as a subview over the SDL surface, placed by hand in logical px | none (`plugin.json` targets macOS only) | none | - |
 | Video | `plugins/video` | decoded with VideoToolbox, drawn by Zinc | not ported | not ported | V4L2, GStreamer on webOS |
@@ -54,7 +54,7 @@ menu on macOS) together with `examples/webview/hybrid` (a real WKWebView over th
 | Maps | `plugins/map` | drawn by Zinc (MVT tiles) | same code | same code | same |
 | Platform identity | `Platform.OS` = `platform()` (`lib/std/react-native.tsx:118`) | `macos` | answers `linux` (bug, MNF #1) | would answer `macos` | - |
 | Platform-specific files | ZN-745 (Backlog): `x.android.tsx`, `x.ios.tsx`, `x.native.tsx` | - | - | - | - |
-| Permissions to manifests | `zinc.json` `permissions` -> `<uses-permission>` (`next/src/cli_core.cpp:1020`) | bundle Info.plist (`bundle.cpp:55`) | INTERNET, CAMERA, RECORD_AUDIO, location | ZN-623 (usage strings planned) | - |
+| Permissions to manifests | `zinc.json` `permissions` -> `<uses-permission>` (`src/cli_core.cpp:1020`) | bundle Info.plist (`bundle.cpp:55`) | INTERNET, CAMERA, RECORD_AUDIO, location | ZN-623 (usage strings planned) | - |
 | Native projects | `zinc export --target android` regenerates the Gradle project from SDL's `android-project` each time (`cli_core.cpp:941-1080`) | `.app` dev bundle, `.dmg` | regenerated | ZN-623 tonight | - |
 
 Reading: macOS is well served for desktop chrome (one plugin, 14 modules, a typed op table, a simulator). The phones have the
@@ -266,18 +266,18 @@ Sizes: S (a day), M (days), L (a week+). Backlog frozen: existing tasks are name
 
 | # | Step | Size | Files | Task |
 |---|---|---|---|---|
-| 1 | Platform identity: `platform()` = `ios`/`android`, `Platform.select` branches, `Version`, coarse pointer at start | S | `next/src/host/sys_host.cpp:570`, `lib/std/react-native.tsx:115-130` | MNF #1 (ZN-625 area) |
+| 1 | Platform identity: `platform()` = `ios`/`android`, `Platform.select` branches, `Version`, coarse pointer at start | S | `src/host/sys_host.cpp:570`, `lib/std/react-native.tsx:115-130` | MNF #1 (ZN-625 area) |
 | 2 | Platform profile with behaviour and look layers, adaptive kits by default, goldens per profile | M | `lib/std/ui.ts`, new `lib/std/platform/{ios,android,macos}.ts`, `lib/std/kit/*.tsx`, `lib/std/react-native.tsx` | MNF #2, #11 |
-| 3 | System signals fed by the host on all three: theme (`SDL_GetSystemTheme`, default `auto`), accent colour, safe area, font scale, locale, reduce motion, back | M | `targets/macos/hal_sdl.cpp`, `next/src/app/shell_sdl.cpp`, `ui.ts:1764-1769`, RN `Appearance` | ZN-625 |
-| 4 | Mobile plugin model: `android`/`ios` in `plugin.json` (sources, gradle, manifest, plist, entitlements), `native-gen --android/--ios`, lifecycle subscribers, refuse a plugin without the target | L | `next/src/tc/plugin_build.*`, `next/src/cli_core.cpp:975-1080` (move Android export to its own file), ZN-623 generator, `next/src/frontend` manifest parser | ZN-628 |
-| 5 | `<NativeView>` element + webview ported to it, then Android WebView and iOS WKWebView | M | `lib/std/ui.ts`, `next/src/host/gfx_host.cpp`, `plugins/webview/{index.ts,native/,src/}` | ZN-628 (webview), MNF #12 |
+| 3 | System signals fed by the host on all three: theme (`SDL_GetSystemTheme`, default `auto`), accent colour, safe area, font scale, locale, reduce motion, back | M | `targets/macos/hal_sdl.cpp`, `src/app/shell_sdl.cpp`, `ui.ts:1764-1769`, RN `Appearance` | ZN-625 |
+| 4 | Mobile plugin model: `android`/`ios` in `plugin.json` (sources, gradle, manifest, plist, entitlements), `native-gen --android/--ios`, lifecycle subscribers, refuse a plugin without the target | L | `src/tc/plugin_build.*`, `src/cli_core.cpp:975-1080` (move Android export to its own file), ZN-623 generator, `src/frontend` manifest parser | ZN-628 |
+| 5 | `<NativeView>` element + webview ported to it, then Android WebView and iOS WKWebView | M | `lib/std/ui.ts`, `src/host/gfx_host.cpp`, `plugins/webview/{index.ts,native/,src/}` | ZN-628 (webview), MNF #12 |
 | 6 | Text input connection: macOS marked text first (`SDL_EVENT_TEXT_EDITING`), then Android InputConnection, iOS UITextInput | L | `targets/macos/hal_sdl.cpp`, `ui.ts` text fields, shell Java/ObjC | ZN-626, MNF #4 |
 | 7 | `zinc:system` backends for phones: notifications (UNUserNotificationCenter shared with macOS), share sheet, photo/document pickers, haptics, opener, deep links; flip `capabilities.json` | M | `plugins/system/ops.json`, `native/system.ios.mm`, `native/android/*.java`, `targets/capabilities.json` | ZN-628 |
 | 8 | Kit `ContextMenu` uses `menu.popup` when `menu.native` (as `MenuBar` does) | S | `lib/std/kit/menubar.tsx:136`, nuxt `ContextMenu` | later.md |
-| 9 | System UI font at run time (CoreText on macOS/iOS, Android system fonts) as the profile's default `font-sans` | S | `next/src/text/`, `ui.ts:2508` | MNF #10 |
+| 9 | System UI font at run time (CoreText on macOS/iOS, Android system fonts) as the profile's default `font-sans` | S | `src/text/`, `ui.ts:2508` | MNF #10 |
 | 10 | Accessibility: tree ids and actions, macOS NSAccessibility first, AccessKit checked before the phone bridges | L | `ui.ts`, host | ZN-630, MNF #8 |
-| 11 | Pins table + `zinc doctor` row + yearly bump checklist + generated-project goldens | S | `next/src/cli_core.cpp` constants, `docs/targets/` | later.md |
-| 12 | `zinc run --target android|ios` in one command; the player | M | `next/src/cli_core.cpp`, `next/src/dev` | ZN-631 |
+| 11 | Pins table + `zinc doctor` row + yearly bump checklist + generated-project goldens | S | `src/cli_core.cpp` constants, `docs/targets/` | later.md |
+| 12 | `zinc run --target android|ios` in one command; the player | M | `src/cli_core.cpp`, `src/dev` | ZN-631 |
 
 Top five by value per effort: **1, 3, 2, 4, 5**. Step 1 is a day and unblocks every per-platform rule; 3 makes the first run look
 right (dark mode, notch, back); 2 makes the feel right on Android and iOS; 4 and 5 are what lets anyone add native features without
@@ -304,7 +304,7 @@ touching the engine.
 - Whether SDL reports precise (trackpad) versus wheel scrolling on macOS well enough for per-device physics.
 - The Expo autolinking and config-plugin pages were cited, not re-read; the CNG page was.
 
-## 8. Lines for `next/backlog/later.md` (the coordinator adds them)
+## 8. Lines for `backlog/later.md` (the coordinator adds them)
 
 - Native fidelity: a platform profile in two layers, behaviour (automatic) and look (tokens in `lib/std/platform/`), adaptive by default in the kits and zinc:react-native; macOS is a profile too (system font, accent, native context menus) (docs/reports/native-fidelity-and-plugins.md 4.2).
 - ZN-628: a `<NativeView>` zinc:ui leaf whose rect, clip and visibility the host forwards to a native view above the surface (NSView/UIView subview, Android view over SDL's SurfaceView), hidden or snapshotted under Zinc overlays; port `plugins/webview` to it (4.3).

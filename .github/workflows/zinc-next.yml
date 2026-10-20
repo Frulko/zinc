@@ -1,6 +1,6 @@
 # Zinc Next, by branch (owner, 2026-10-19): the work happens on develop and its pushes run nothing. A release (`make release`, from develop) fast-forwards main to
-# develop and pushes a `v*` tag: only that tag runs the CI (the whole tier T2, the packages, the release). The push to main a release makes only updates the plugin
-# mirrors; a manual run (workflow_dispatch) does the whole tier without releasing.
+# develop and pushes a `v*` tag: that tag is the one pipeline of a release (owner, 2026-10-20): the whole tier T2, the packages, the release, then the plugin
+# mirrors and the site. Pushes to main and develop run nothing; a manual run (workflow_dispatch) does the whole tier without releasing.
 # macOS first (owner, 2026-10-15): the Linux jobs are out of the matrix; Windows has its own package job (package-windows, experimental: a zip and install.ps1);
 # windows-cross and windows-console (the cross build from Linux) stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
@@ -8,12 +8,11 @@
 name: zinc-next
 on:
   push:
-    branches: [main]   # the fast-forward of a release: only plugin-mirrors runs (plan selects nothing)
     tags: ['v*']
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}   # a main or tag run is never cancelled by the next push
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}   # a release is never cancelled; a newer manual run replaces the older one
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -35,18 +34,15 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ "$EVENT" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then   # a release moving main: its tag runs the checks
-            printf 'test=false\nfull=false\nbench=false\nreproducible=false\npackage=false\nbase=\n' >> "$GITHUB_OUTPUT"; exit 0
-          fi
           full=
-          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_REF" == refs/heads/main ]]; then full=--full; fi
+          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then full=--full; fi
           base="$BEFORE"
           if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
           if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             base=$(git merge-base "origin/$DEFAULT_BRANCH" HEAD 2>/dev/null) || base=$(git hash-object -w -t tree /dev/null)
           fi
           git diff --name-only "$base" HEAD -- > "$RUNNER_TEMP/changed-paths"
-          python3 next/tools/ci-plan ${full:+"$full"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
+          python3 tools/ci-plan ${full:+"$full"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
   build:
     # The arm64 build, once: the tests and the arm64 package download it instead of compiling again (the Intel package builds its own, in parallel). ccache keeps
@@ -57,7 +53,6 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +68,7 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
           CCACHE_MAXSIZE: 600M
-        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is next/update.pub
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is update.pub
           ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Keep the build tree, objects included (12 tests run cmake --build on it)
@@ -81,7 +76,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: build-macos-arm64
-          path: next/build.tgz
+          path: build.tgz
           compression-level: 0
           retention-days: 3
   package:
@@ -100,7 +95,6 @@ jobs:
     continue-on-error: ${{ matrix.experimental == true }}
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +103,7 @@ jobs:
         if: matrix.name == 'macos-arm64'
         with:
           name: build-macos-arm64
-          path: next
+          path: .
       - name: Unpack the build
         if: matrix.name == 'macos-arm64'
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
@@ -127,14 +121,14 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
           CCACHE_MAXSIZE: 600M
-        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is next/update.pub
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is update.pub
           ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:
           path: ~/.zinc/toolchains
-          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/tc/tc.cpp', 'src/tc/tc.h') }}
       - name: Package
         # ZN-718: the engine and, built here with the pinned zig, the native library of every plugin that needs no system library (the log names the others)
         run: |
@@ -173,7 +167,7 @@ jobs:
           echo signed > dist/.signed
       - name: Update manifests (release)
         # what zinc update reads: zinc-<os>-<arch>.manifest (stable) and zinc-<os>-<arch>-beta.manifest, signed with ZINC_UPDATE_SEED (its public key is
-        # next/update.pub); without the secret they are written unsigned (signature=none), which zinc update refuses unless ZINC_UPDATE_ALLOW_UNSIGNED=1.
+        # update.pub); without the secret they are written unsigned (signature=none), which zinc update refuses unless ZINC_UPDATE_ALLOW_UNSIGNED=1.
         # A prerelease tag (v1.3.0-beta.1) writes the beta one only, with the archive's whole address: the release job puts it on the latest release.
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -195,7 +189,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.name }}
-          path: next/dist/
+          path: dist/
           include-hidden-files: true   # dist/.signed: the macOS package was signed and notarized
   test:
     # The whole tier, split in parallel shards (tests/run --shard i/n). A FAIL never blocks the release: each shard uploads its results and logs, and `report` gathers them.
@@ -210,7 +204,6 @@ jobs:
     continue-on-error: true
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -227,7 +220,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: build-${{ 'macos-arm64' }}
-          path: next
+          path: .
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
@@ -240,7 +233,7 @@ jobs:
           path: |
             ~/.zinc/toolchains
             ${{ runner.temp }}/zinc-home/toolchains
-          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/tc/tc.cpp', 'src/tc/tc.h') }}
       - name: Test libraries
         # third-party files some tests load and the repository does not carry (LGPL, licences): taken once from their official release, checked against a pinned SHA-256
         run: tools/test-lib p5-1.11.13 >/dev/null && tools/test-lib gsap-3.15.0 >/dev/null
@@ -252,16 +245,16 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.zinc/cache
-          key: zinc-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('plugins/**', 'examples/marble/**', 'next/src/tc/**', 'next/src/assets/**') }}
+          key: zinc-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('plugins/**', 'examples/marble/**', 'src/tc/**', 'src/assets/**') }}
       - name: Warm the cache
         # on an empty cache, webrtc's native libraries and marble's assets and plugins are built inside a test's timeout and the test times out
         # (docs/reports/ci-runner-failures-2026-10-18.md): built once here, before the clock of any test starts
         if: steps.zcache.outputs.cache-hit != 'true'
         run: |
-          build/zinc plugin-build webrtc ../examples/webrtc-call >/dev/null
-          build/zinc plugin-build webrtc ../examples/webrtc-chat >/dev/null
-          build/zinc assets build ../examples/marble >/dev/null
-          ZINC_HEADLESS=1 ZINC_FRAMES=3 build/zinc run ../examples/marble >/dev/null   # its native plugins (zinc:audio, zinc:3d) too
+          build/zinc plugin-build webrtc examples/webrtc-call >/dev/null
+          build/zinc plugin-build webrtc examples/webrtc-chat >/dev/null
+          build/zinc assets build examples/marble >/dev/null
+          ZINC_HEADLESS=1 ZINC_FRAMES=3 build/zinc run examples/marble >/dev/null   # its native plugins (zinc:audio, zinc:3d) too
       - name: Save the plugin and asset cache
         if: steps.zcache.outputs.cache-hit != 'true'
         continue-on-error: true   # six shards save the same key: the first one wins
@@ -334,7 +327,6 @@ jobs:
     continue-on-error: true
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -343,7 +335,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: build-macos-arm64
-          path: next
+          path: .
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
@@ -362,8 +354,8 @@ jobs:
         with:
           name: fuzz-crashes
           path: |
-            next/tests/fuzz/crashes/
-            next/build-fuzz/log-*.txt
+            tests/fuzz/crashes/
+            build-fuzz/log-*.txt
           if-no-files-found: ignore
   report:
     # One artifact with every test's result and the logs of the failures, plus the list in the run's summary.
@@ -404,7 +396,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: (cd report && zip -qr ../test-report.zip .) && gh release upload "$GITHUB_REF_NAME" test-report.zip --clobber
   package-windows:
-    # zinc.exe built natively on a Windows runner with the pinned zig (no Visual Studio: next/cmake/zig-windows.cmake, docs/targets/windows.md), with the graphics
+    # zinc.exe built natively on a Windows runner with the pinned zig (no Visual Studio: cmake/zig-windows.cmake, docs/targets/windows.md), with the graphics
     # host, packaged as zinc-<version>-windows-x86_64.zip by tools/package, smoke tested unpacked (CLI, doctor, a program, hero headless), and, on a v* tag,
     # given its update manifest. The runner has no GPU: the renderer under test is the CPU one. Experimental like the Intel Mac: its failure does not stop a release.
     name: package-windows-x86_64
@@ -425,25 +417,24 @@ jobs:
           path: |
             ~/.zinc/toolchains
             ~/AppData/Local/zig
-          key: windows-zig-${{ hashFiles('next/src/tc/tc.cpp', 'next/tools/windows-setup.ps1') }}-${{ github.sha }}
-          restore-keys: windows-zig-${{ hashFiles('next/src/tc/tc.cpp', 'next/tools/windows-setup.ps1') }}-
+          key: windows-zig-${{ hashFiles('src/tc/tc.cpp', 'tools/windows-setup.ps1') }}-${{ github.sha }}
+          restore-keys: windows-zig-${{ hashFiles('src/tc/tc.cpp', 'tools/windows-setup.ps1') }}-
       - name: Tools and the pinned zig
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -NoBuild
+        run: powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 -NoBuild
       - name: Build zinc.exe
-        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe; the update key is next/update.pub
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe; the update key is update.pub
           ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
           for zig in "$USERPROFILE"/.zinc/toolchains/zig-*-windows-*/zig.exe; do break; done
-          cmake -S next -B next/build -G Ninja -DCMAKE_TOOLCHAIN_FILE="$PWD/next/cmake/zig-windows.cmake" -DZIG="$zig" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON "${ver[@]}"
-          cmake --build next/build --target zinc zinc-atelier
+          cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE="$PWD/cmake/zig-windows.cmake" -DZIG="$zig" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON "${ver[@]}"
+          cmake --build build --target zinc zinc-atelier
       - name: Package
-        working-directory: next
         run: |
           python tools/package --out dist   # the version the binary reports
           for f in dist/zinc-*-windows-*.zip dist/Zinc-Atelier-*-windows-*.zip; do [ -f "$f" ] || { echo "::error::no $f"; exit 1; }; echo "$f"; done
       - name: Smoke test of the archive, unpacked, no compiler on the PATH
         run: |
-          mkdir smoke && cd smoke && python -m zipfile -e ../next/dist/zinc-*-windows-*.zip . && cd zinc-*
+          mkdir smoke && cd smoke && python -m zipfile -e ../dist/zinc-*-windows-*.zip . && cd zinc-*
           unset ZINC_ROOT; export ZINC_HOME="$RUNNER_TEMP/zinc-home" ZINC_BACKGROUND=1 ZINC_HEADLESS=1
           ./bin/zinc.exe --version
           root=$(./bin/zinc.exe --root | tr -d '\r')   # the package around zinc.exe, not the checkout's path compiled in (on a user's machine that path does not exist)
@@ -456,10 +447,10 @@ jobs:
       - name: Smoke test of the app, unpacked
         # Zinc Atelier.exe starts zinc.exe on the Atelier (headless here, its environment is inherited) and writes the first project's hello.ts
         run: |
-          mkdir smoke-app && cd smoke-app && python -m zipfile -e ../next/dist/Zinc-Atelier-*-windows-*.zip . && cd "Zinc Atelier"
+          mkdir smoke-app && cd smoke-app && python -m zipfile -e ../dist/Zinc-Atelier-*-windows-*.zip . && cd "Zinc Atelier"
           ZINC_PROJECT=$(cygpath -w "$RUNNER_TEMP/atelier-project")
           export ZINC_HOME="$RUNNER_TEMP/zinc-home-app" ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_FRAMES=30 ZINC_PROJECT
-          ./bin/zinc.exe run share/zinc/next/app/atelier/main.tsx -- "$RUNNER_TEMP/atelier-direct"   # the Atelier itself runs from the download
+          ./bin/zinc.exe run share/zinc/app/atelier/main.tsx -- "$RUNNER_TEMP/atelier-direct"   # the Atelier itself runs from the download
           ./"Zinc Atelier.exe"
           for _ in $(seq 60); do [ -f "$RUNNER_TEMP/atelier-project/hello.ts" ] && break; sleep 1; done
           [ -f "$RUNNER_TEMP/atelier-project/hello.ts" ] || { echo "::error::Zinc Atelier.exe did not start the Atelier"; exit 1; }
@@ -467,10 +458,10 @@ jobs:
         shell: pwsh
         run: |
           $rel = Join-Path $env:RUNNER_TEMP 'rel'; New-Item -ItemType Directory $rel | Out-Null
-          $zip = Get-ChildItem next\dist\zinc-*-windows-*.zip | Select-Object -First 1; Copy-Item $zip $rel
+          $zip = Get-ChildItem dist\zinc-*-windows-*.zip | Select-Object -First 1; Copy-Item $zip $rel
           "$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  $($zip.Name)" | Set-Content (Join-Path $rel SHA256SUMS)
           $env:ZINC_INSTALL_URL = "file:///$($rel -replace '\\','/')"; $env:ZINC_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'installed'; $env:ZINC_NO_MODIFY_PATH = '1'
-          powershell -ExecutionPolicy Bypass -File next\tools\install.ps1
+          powershell -ExecutionPolicy Bypass -File tools\install.ps1
           & (Join-Path $env:ZINC_INSTALL_DIR 'bin\zinc.exe') --version
       - name: Update manifest (release)
         # zinc-windows-x86_64.manifest (stable) and zinc-windows-x86_64-beta.manifest, as the macOS jobs write them (the same signature, ZINC_UPDATE_SEED)
@@ -478,7 +469,6 @@ jobs:
         env:
           ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
         run: |
-          cd next
           for pkg in dist/zinc-*-windows-*.zip; do break; done
           v=${GITHUB_REF_NAME#v} file=$(basename "$pkg") sum=$(sha256sum "$pkg" | cut -d' ' -f1)
           manifest() {   # manifest <channel> <url> <out>
@@ -494,7 +484,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: package-windows-x86_64
-          path: next/dist/
+          path: dist/
   windows-cross:
     # ZN-714: zinc does not build on Windows yet, its programs do: the console programs of tests/golden/run are cross-built here (zinc build --target x86_64-windows,
     # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
@@ -505,7 +495,6 @@ jobs:
     continue-on-error: true
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -549,7 +538,7 @@ jobs:
           name: windows-console
           path: windows-console
       - name: Run the console programs
-        run: next/tools/windows-cross check "$PWD/windows-console"
+        run: tools/windows-cross check "$PWD/windows-console"
       - uses: actions/download-artifact@v4
         with:
           name: windows-zinc
@@ -559,7 +548,7 @@ jobs:
           windows-zinc/platform_test.exe
           windows-zinc/zinc.exe --version
           printf 'console.log(6 * 7);\n' > answer.ts
-          [ "$(ZINC_ROOT="$PWD/next" windows-zinc/zinc.exe run answer.ts | tr -d '\r')" = 42 ]
+          [ "$(ZINC_ROOT="$PWD" windows-zinc/zinc.exe run answer.ts | tr -d '\r')" = 42 ]
   linux-cross:
     # zinc for Linux cross-built with the pinned zig (tools/build-linux, docs/targets/linux.md), one job per architecture, then started under
     # qemu-user against Ubuntu's cross C libraries (glibc 2.39: the 2.28 floor is proven in Debian 10 containers, not here). Off unless the
@@ -579,7 +568,6 @@ jobs:
           - { arch: i686, run: '', libc: libc6-i386 }
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -627,8 +615,8 @@ jobs:
         with:
           name: linux-${{ matrix.arch }}
           path: |
-            next/dist/linux-${{ matrix.arch }}/*.tar.gz
-            next/dist/linux-${{ matrix.arch }}/*.manifest
+            dist/linux-${{ matrix.arch }}/*.tar.gz
+            dist/linux-${{ matrix.arch }}/*.manifest
   release:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
@@ -664,12 +652,12 @@ jobs:
           path: release
           merge-multiple: true
       - name: plugins.lock (ZN-335)
-        run: next/tools/plugin-split --lock release/plugins.lock
+        run: tools/plugin-split --lock release/plugins.lock
       - name: Installer and checksums
         # ZN-718: install.sh reads SHA256SUMS beside it (curl -fsSL .../releases/latest/download/install.sh | sh), so both are release assets
         run: |
-          cp next/tools/install.sh release/
-          cp next/tools/install.ps1 release/   # Windows: irm .../install.ps1 | iex
+          cp tools/install.sh release/
+          cp tools/install.ps1 release/   # Windows: irm .../install.ps1 | iex
           cd release
           # one line per download: the CLI archives (zinc-<version>-<os>-<arch>.tar.gz, .zip on Windows) and the apps (Zinc-Atelier-<version>-macos-<arch>.zip)
           for f in zinc-*.tar.gz zinc-*.zip Zinc-Atelier-*.zip; do if [ -f "$f" ]; then shasum -a 256 "$f"; fi; done > SHA256SUMS
@@ -711,16 +699,18 @@ jobs:
           export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/tap_key -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/homebrew-zinc.git" "$RUNNER_TEMP/tap"
           mkdir -p "$RUNNER_TEMP/tap/Formula"
-          next/tools/homebrew-formula "${GITHUB_REF_NAME#v}" release/SHA256SUMS "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/tap/Formula/zinc.rb"
+          tools/homebrew-formula "${GITHUB_REF_NAME#v}" release/SHA256SUMS "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/tap/Formula/zinc.rb"
           cd "$RUNNER_TEMP/tap"
           git add Formula/zinc.rb
           git diff --cached --quiet && exit 0
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -m "zinc ${GITHUB_REF_NAME#v}"
           git push
   plugin-mirrors:
-    # ZN-335, D37: each plugins/<name> changed on main is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>
+    # ZN-335, D37: each plugins/<name> changed since the previous release is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>,
+    # once the release is published
     name: plugin-mirrors
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: release
+    if: needs.release.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -728,19 +718,28 @@ jobs:
       - name: Split and push the changed plugins
         env:
           PLUGIN_MIRROR_TOKEN: ${{ secrets.PLUGIN_MIRROR_TOKEN }}
-          BEFORE: ${{ github.event.before }}
         run: |
-          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- plugins/ 2>/dev/null | cut -d/ -f2 | sort -u)
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null) || prev=$(git hash-object -t tree /dev/null)   # the first release: every plugin
+          changed=$(git diff --name-only "$prev" "$GITHUB_SHA" -- plugins/ 2>/dev/null | cut -d/ -f2 | sort -u)
           [ -n "$changed" ] || { echo "no plugin changed"; exit 0; }
           if [ -z "$PLUGIN_MIRROR_TOKEN" ]; then
             echo "::notice::no PLUGIN_MIRROR_TOKEN: splitting without pushing ($(echo "$changed" | tr '\n' ' '))"
-            for n in $changed; do [ -f "plugins/$n/plugin.json" ] && next/tools/plugin-split "$n"; done
+            for n in $changed; do [ -f "plugins/$n/plugin.json" ] && tools/plugin-split "$n"; done
             exit 0
           fi
           for n in $changed; do
             [ -f "plugins/$n/plugin.json" ] || continue
-            ZINC_PLUGIN_REPO_BASE="https://x-access-token:${PLUGIN_MIRROR_TOKEN}@github.com/zinc-engine" next/tools/plugin-split --push "$n"
+            ZINC_PLUGIN_REPO_BASE="https://x-access-token:${PLUGIN_MIRROR_TOKEN}@github.com/zinc-engine" tools/plugin-split --push "$n"
           done
+  pages:
+    # the site (site/, docs/) with the release, from this same pipeline
+    needs: release
+    if: needs.release.result == 'success'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
   reproducible:
     # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
     name: reproducible
@@ -756,18 +755,18 @@ jobs:
       - name: Build twice
         run: |
           for d in one second/copy; do
-            cmake -S "$d/next" -B "$d/next/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DZN_REPRODUCIBLE=ON && cmake --build "$d/next/build" -j4 --target zinc
+            cmake -S "$d" -B "$d/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DZN_REPRODUCIBLE=ON && cmake --build "$d/build" -j4 --target zinc
             sleep 2
           done
       - name: Compare zinc and libzn_webgl
-        run: cmp one/next/build/zinc second/copy/next/build/zinc && cmp one/next/build/libzn_webgl.dylib second/copy/next/build/libzn_webgl.dylib
+        run: cmp one/build/zinc second/copy/build/zinc && cmp one/build/libzn_webgl.dylib second/copy/build/libzn_webgl.dylib
       - name: Compare plugin archives
         run: |
-          ZINC_ZIG="$(ZINC_ROOT="$PWD/one/next" one/next/build/zinc toolchain path | tail -1)"
+          ZINC_ZIG="$(ZINC_ROOT="$PWD/one" one/build/zinc toolchain path | tail -1)"
           export ZINC_ZIG
           for d in one second/copy; do
             for p in device sqlite svg; do
-              ZINC_ROOT="$PWD/$d/next" ZINC_HOME="$RUNNER_TEMP/home-${d%%/*}" "$d/next/build/zinc" plugin-build "$p" "$d" --pack "$RUNNER_TEMP/$p-${d%%/*}.tar"
+              ZINC_ROOT="$PWD/$d" ZINC_HOME="$RUNNER_TEMP/home-${d%%/*}" "$d/build/zinc" plugin-build "$p" "$d" --pack "$RUNNER_TEMP/$p-${d%%/*}.tar"
             done
           done
           for p in device sqlite svg; do cmp "$RUNNER_TEMP/$p-one.tar" "$RUNNER_TEMP/$p-second.tar"; done
@@ -779,7 +778,6 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: next
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -794,9 +792,10 @@ jobs:
           # Reconstruct headers omitted from the original measured checkout; leave engine sources unchanged.
           git -C "$reference" restore --source=dc4d08f4fef006c9858057ef54b7825308f1c7c3 --worktree -- next/third_party/SDL3/include/build_config
           git -C "$reference" restore --source=f1b0f48f675d8921879ac5859979033d08a4e5c3 --worktree -- runtime/include/hal.h
-          cmake -S "$reference/next" -B "$reference/next/build" -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$reference/next/build" --target zinc -j3
-          echo "ZINC_BENCH_BASELINE=$reference/next/build/zinc" >> "$GITHUB_ENV"
+          src="$reference"; [ -f "$reference/next/CMakeLists.txt" ] && src="$reference/next"   # a revision from before the engine moved to the root
+          cmake -S "$src" -B "$reference/build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$reference/build" --target zinc -j3
+          echo "ZINC_BENCH_BASELINE=$reference/build/zinc" >> "$GITHUB_ENV"
       - name: Gate
         run: tools/bench-gate
       - name: Upload benchmark measurements

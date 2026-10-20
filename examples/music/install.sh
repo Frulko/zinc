@@ -1,11 +1,11 @@
 #!/bin/sh
 # Installs Musique on an HP TouchPad (webOS 3) over novacom (README.md): builds it for armv7-webos, installs it as a webOS application shown in the
 # launcher (org.zinc.music), with its icon, a CA bundle for HTTPS (the Mac's /etc/ssl/cert.pem), the Spotify login when spotify.json is here and
-# not yet on the tablet (--spotify replaces it), and zinc-helper (next/tools/webos-helper: full speed, backlight, firewall ports, time zone).
-# Then starts it. Needs: the tablet in developer mode seen by `novacom -l`, next/tools/webos-sysroot run once.
+# not yet on the tablet (--spotify replaces it), and zinc-helper (tools/webos-helper: full speed, backlight, firewall ports, time zone).
+# Then starts it. Needs: the tablet in developer mode seen by `novacom -l`, tools/webos-sysroot run once.
 set -e
 here=$(cd "$(dirname "$0")" && pwd -P); repo=$(cd "$here/../.." && pwd -P)
-ZINC=${ZINC:-$repo/next/build/zinc}
+ZINC=${ZINC:-$repo/build/zinc}
 ID=org.zinc.music; APP=/media/cryptofs/apps/usr/palm/applications/$ID
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 strip=$(command -v llvm-strip || ls /opt/homebrew/opt/llvm*/bin/llvm-strip /usr/local/opt/llvm*/bin/llvm-strip 2>/dev/null | head -1 || true)
@@ -41,7 +41,7 @@ remote "chmod 755 $APP/music.new && mv -f $APP/music.new $APP/music && chmod 666
 
 # the root helper of zinc:webos, and the jobs of the first versions of this app gone
 remote "stop zinc-music > /dev/null 2>&1; stop zinc-backlight > /dev/null 2>&1; if [ -f /etc/event.d/zinc-music ] || [ -f /etc/event.d/zinc-backlight ]; then mount -o remount,rw / && rm -f /etc/event.d/zinc-music /etc/event.d/zinc-backlight; mount -o remount,ro /; fi; rm -f $APP/helper.sh $APP/backlight.sh"
-"$repo/next/tools/webos-helper"
+"$repo/tools/webos-helper"
 
 remote 'luna-send -n 1 palm://com.palm.applicationManager/rescan "{}" < /dev/null > /dev/null 2>&1'
 remote "luna-send -n 1 palm://com.palm.applicationManager/launch '{\"id\":\"$ID\"}' < /dev/null > /dev/null 2>&1"

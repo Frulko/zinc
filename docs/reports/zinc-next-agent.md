@@ -2,7 +2,7 @@
 
 What adb is to Android, for a machine that runs Zinc, over the network (ZN-729, owner 2026-10-12). `zinc agent` is a daemon without a
 UI on a Linux or macOS machine: the device. `zinc device` is the client on the workstation; Atelier will drive the same client
-(ZN-729.06). Code: `next/src/agent/` (`agent.h` is the public header); its discovery (`next/src/net/dnssd.cpp`) and frames (`next/src/net/frame.h`) are shared with `zinc:link` ([docs/plugins/link.md](../plugins/link.md)), which speaks the same protocol between two programs. Tests: `next/tests/t0/agent.sh` and, in `next/tests/t1/`,
+(ZN-729.06). Code: `src/agent/` (`agent.h` is the public header); its discovery (`src/net/dnssd.cpp`) and frames (`src/net/frame.h`) are shared with `zinc:link` ([docs/plugins/link.md](../plugins/link.md)), which speaks the same protocol between two programs. Tests: `tests/t0/agent.sh` and, in `tests/t1/`,
 `agent_apps.sh`, `agent_dev.sh`, `agent_inspect.sh`, `agent_ota.sh`, all on the loopback interface. Decision record: D116.
 
 ## Use
@@ -135,7 +135,7 @@ never names `zinc:ui` has nothing to inspect and is built as it is. `zinc device
 - A directory that holds `run.sh` and a `.zapp` file are sent as they are, as before.
 - Atelier's Run on a device is this command (`zinc device <name> deploy . --name <sketch>`): it needed no change.
 
-Test: `next/tests/t1/agent_deploy.sh`, on the loopback interface with agents that say they are another machine (`ZINC_AGENT_AS="os arch
+Test: `tests/t1/agent_deploy.sh`, on the loopback interface with agents that say they are another machine (`ZINC_AGENT_AS="os arch
 kind"`, a test switch of the agent): the `.zapp` for an agent of this machine, `rpi` and the framebuffer chosen for one that says it is
 a Pi 3B+ (the export stops at once on a directory that is no project: nothing is cross built in the test), the refusal for `linux
 riscv64`, and for that same agent `--pack`, then `--target macos`: the real `zinc export`, its directory installed, the app started,
@@ -152,19 +152,19 @@ this: the four commands are a forwarded port, the followed log and `top`.
 | Command | What it does |
 |---|---|
 | `zinc device [<d>] inspect <app> [--port n]` | forwards the app's inspector to a port of this machine (any free one, or `n`) and prints `ws://127.0.0.1:<port>/zinc` with the address for Chrome DevTools; until Ctrl-C. An app that is stopped, or has no inspector, is said so |
-| `zinc device inspect --all` | the same for every running app of every paired device: a line `<port> <device> <app>` each, then `ready`; it ends with the program that started it. Zinc Inspector (`next/app/inspector`) runs it and lists these apps with the programs of this machine, named `<app> on <device>` |
+| `zinc device inspect --all` | the same for every running app of every paired device: a line `<port> <device> <app>` each, then `ready`; it ends with the program that started it. Zinc Inspector (`app/inspector`) runs it and lists these apps with the programs of this machine, named `<app> on <device>` |
 | `zinc device [<d>] shot <app> [file.png]` | the frame the app shows (`Page.captureScreenshot` of its inspector), written as `<app>.png` or the file named. The DevTools protocol is spoken by a few lines of Zinc run by the engine (the WebSocket of `zinc:socket`), not by a second implementation in the agent |
 | `zinc device [<d>] monitor <app>` | the app's log, followed, through `zinc monitor`: the `zinc:telemetry` lines of an app that called `telemetry.connect('stdout')` in its words, the other lines as they are |
 | `zinc device [<d>] top [-n count] [--json]` | every second the machine's line (load, free memory, temperature where the system gives one) and, per running app, its pid, its share of one core since the sample before and its memory. `--json`: each sample as the agent sends it, one per line |
 
-Test: `next/tests/t1/agent_inspect.sh` (a DevTools client and Zinc Inspector attached through `inspect`, the frame of `shot` against the
+Test: `tests/t1/agent_inspect.sh` (a DevTools client and Zinc Inspector attached through `inspect`, the frame of `shot` against the
 same program run on the workstation, the lines of `monitor`, the numbers of `top`). Not covered: the debugger of a program on a device
 (`zinc debug --cdp` there is reached with `zinc device forward`, as any port), and the per-app numbers on Linux (read from
 `/proc/<pid>/stat`, written and not run: the cross-platform pass).
 
 ## The agent as a service, and signed updates (ZN-729.04)
 
-Code: `next/src/agent/ota.cpp`. Test: `next/tests/t1/agent_ota.sh` (loopback, a test key, `file://` channels).
+Code: `src/agent/ota.cpp`. Test: `tests/t1/agent_ota.sh` (loopback, a test key, `file://` channels).
 
 ```sh
 zinc agent install [--port n] [--bind a] [--name s] [--no-shell] [--no-mdns]   # on the device: the agent starts with the machine
@@ -219,7 +219,7 @@ restarting the agent is still done by hand (or by the service, once the binary i
 `zinc dev [dir] --device <name>` is the loop of `zinc dev` with the program on a paired device. The watching, the asset rebuild and the
 red box are those of `zinc dev` (`src/cli_core.cpp`), which runs the program through three hooks (`zn::cli::DevRemote`: start, assets,
 poll); `src/agent/dev.cpp` fills them with one session of the agent, and holds the agent's side of it (`opDev`). Test:
-`next/tests/t1/agent_dev.sh`.
+`tests/t1/agent_dev.sh`.
 
 - **A save** packs the project on the workstation (`zinc pack`: the program compiled there, its baked resources, `zinc.json`, its assets
   and packs, the native libraries of its plugins). The pack is the check: when it fails, what it printed is the diagnostics. The members
@@ -281,7 +281,7 @@ past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid` (the pid, t
 
 ## Atelier's devices panel (ZN-729.06)
 
-Zinc Atelier (`next/app/atelier`) drives the commands above through `zinc:process`, as it drives `zinc run`: no protocol in the app.
+Zinc Atelier (`app/atelier`) drives the commands above through `zinc:process`, as it drives `zinc run`: no protocol in the app.
 The pill that says where the sketch runs lists the paired devices under the engines, and "Devices…" (Sketch > Run on a Device…) opens
 the panel. State: `app/devices.ts`; view: `components/Devices.tsx`; the run itself: `app/tools.ts`; the JSON read: `model.ts`.
 
@@ -298,11 +298,11 @@ The first run is written for someone who has never paired: an empty list says to
 wrong code, a closed pairing and an address where nothing answers have their own sentence, any other refusal is the CLI's. A device that
 goes away during a run is "Lost <name>: the sketch may still run there".
 
-Test: `next/tests/t1/atelier_devices.sh`, one scripted session against an agent on the loopback interface (a wrong code, the right one typed
+Test: `tests/t1/atelier_devices.sh`, one scripted session against an agent on the loopback interface (a wrong code, the right one typed
 in its field, the figures, Run, the log, Stop, what the device then says of the app) and one golden of the panel, compared without its right column:
 addresses and figures change with the machine and the moment, and the session's own lines prove them. The session waits on what the app
 says (`wait:<text>` in `ZINC_ATELIER_SCRIPT`), not on a number of frames. The parsing of a list with a device found on the network is in
-`next/tests/t0/atelier.sh`.
+`tests/t0/atelier.sh`.
 
 Choices and limits:
 
@@ -326,7 +326,6 @@ container that has the device's system and architecture, and copied as it is: no
 905 MB of memory).
 
 ```sh
-cd next
 tools/linux-build                                   # Debian trixie arm64 in Docker: build-linux-arm64/, then the package; the last line is its path
 tools/linux-build --test agent --test agent_apps    # the same, and these tests run in the container, as a plain user
 tools/device pi@192.168.2.107 engine dist/linux-arm64/zinc-0.0.1-linux-aarch64.tar.gz    # unpacked in ~/zinc-engine, nothing started
@@ -339,7 +338,7 @@ On the device itself the same start is `(setsid nohup ~/zinc-engine/bin/zinc age
 stops it. The engine finds its files in the package around it (`bin/zinc`, `share/zinc`): no `ZINC_ROOT`, no other variable; the agent keeps
 its state in `~/.zinc/agent`. Then, on the workstation, `zinc device list` and `zinc device pair <name> <code>` as in "Use".
 
-`tools/linux-build` builds from the checkout it is in, through `tools/build`, in `next/build-linux-<arch>` (never `next/build`), with 4
+`tools/linux-build` builds from the checkout it is in, through `tools/build`, in `build-linux-<arch>` (never `build`), with 4
 jobs and 4 CPUs unless `--jobs n` says more, as the user `zinc` (the agent refuses root). ccache and the pinned tools live in the Docker
 volume `zinc-linux-build-<arch>`. `--arch amd64` builds for a PC; `ZN_LINUX_IMAGE=debian:bookworm` for an older system (a binary built
 on trixie needs glibc 2.41). `tools/package` then writes the same package as a release: `bin/zinc`, `bin/libzn_webgl.so`, `share/zinc`
@@ -362,4 +361,4 @@ info, shell, push and pull, an export installed and started); `zinc agent instal
 ## Next
 
 Open: the start of the service at login run for real (ZN-729.04, in review), and
-everything on Linux, a Raspberry Pi and a second machine (the cross-platform pass in `next/backlog/later.md`).
+everything on Linux, a Raspberry Pi and a second machine (the cross-platform pass in `backlog/later.md`).

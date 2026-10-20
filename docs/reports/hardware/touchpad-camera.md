@@ -25,7 +25,7 @@ Format to expect: **YUV422 (UYVY or YUYV), 640x480 at 30 fps (binned preview) an
 
 ## What Zinc has today
 
-- No camera capture anywhere: no `getUserMedia`, no AVFoundation, no V4L2 capture (grep over `lib/`, `plugins/`, `next/src`). `plugins/video` is playback only (FFmpeg, VideoToolbox, V4L2 M2M decode). `plugins/gphoto2` and `examples/camera/{cli,bench,remote}` are DSLR remote control (libgphoto2, JPEG live view), not webcams. `plugins/audio` ships miniaudio (capture exists for the mic, same shape as what camera needs).
+- No camera capture anywhere: no `getUserMedia`, no AVFoundation, no V4L2 capture (grep over `lib/`, `plugins/`, `src`). `plugins/video` is playback only (FFmpeg, VideoToolbox, V4L2 M2M decode). `plugins/gphoto2` and `examples/camera/{cli,bench,remote}` are DSLR remote control (libgphoto2, JPEG live view), not webcams. `plugins/audio` ships miniaudio (capture exists for the mic, same shape as what camera needs).
 - So a new plugin `zinc:camera` is needed; the W3C surface goes on top.
 
 ## Mapping to the W3C Media Capture API

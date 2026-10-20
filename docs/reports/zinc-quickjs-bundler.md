@@ -2,12 +2,12 @@
 
 The owner asked for a pipeline that prepares JS, TS and TSX for QuickJS the way Vite, Rspack, esbuild or Rollup prepare them for a browser,
 with a linter in the loop: one optimised JavaScript file, Zinc's bindings and standard library reachable from inside it. Before this work
-`zinc run --engine quickjs` refused TSX ("JSX needs the typed engine") and 31 of the 90 programs of `next/tests/examples.lst` ran on it.
+`zinc run --engine quickjs` refused TSX ("JSX needs the typed engine") and 31 of the 90 programs of `tests/examples.lst` ran on it.
 User guide: [guide/11-quickjs-bundle.md](../guide/11-quickjs-bundle.md). Earlier study of the same stages:
 [research-2026-09-30/toolbelt-build-pipeline.md](research-2026-09-30/toolbelt-build-pipeline.md) (esbuild 76 ms on a 195 KB UI bundle, parse
 time insensitive to minification, bytecode as the startup lever).
 
-## 1. What the vendored QuickJS-ng does (v0.17.0, `next/third_party/quickjs-ng`, read in the source)
+## 1. What the vendored QuickJS-ng does (v0.17.0, `third_party/quickjs-ng`, read in the source)
 
 | Area | In this build |
 |---|---|
@@ -94,7 +94,7 @@ single file costs nothing at start and is the only form that can be shipped alon
 
 ## 4. Demos
 
-Headless, deterministic, last frame hashed against the interpreter's (`next/tests/t1/qjs_demos.sh`):
+Headless, deterministic, last frame hashed against the interpreter's (`tests/t1/qjs_demos.sh`):
 
 | Demo | Frames | `--engine quickjs` | `zinc bundle --minify` | bytecode |
 |---|---|---|---|---|
@@ -132,13 +132,13 @@ where the first frame weighs less). Bytecode is larger than minified source (lin
 
 ## 6. Tests
 
-- `next/tests/t0/qjs_bundle.sh` (under a second): three JSX goldens of the typed engine printed identically on QuickJS; `check --engine
+- `tests/t0/qjs_bundle.sh` (under a second): three JSX goldens of the typed engine printed identically on QuickJS; `check --engine
   quickjs` (Z0006, Z0007, Q0001 with its position, an object key not reported, a clean program passes); `import.meta.url`, a web global,
   an ESM package of node_modules; with the pinned esbuild in ZINC_HOME (never downloaded by the test): zinc:native kept external,
   `__ZINC_ENGINE__` folded, unused functions dropped, the entry line, a CommonJS package with a relative `require`, `--minify` smaller,
   `.qbc` output, minified and bytecode traces mapped to `util.ts:4`.
-- `next/tests/t1/qjs_demos.sh` (18 s): the table of section 4.
-- Mappings in `next/tests/affected.json`.
+- `tests/t1/qjs_demos.sh` (18 s): the table of section 4.
+- Mappings in `tests/affected.json`.
 
 ## 7. Not proven here
 

@@ -11,8 +11,8 @@ home; this run does not reproduce an ever-growing allocation on every pass.
 From `next/`:
 
 ```sh
-build/zinc build --bundle ../examples/museum-table/src/main.ts -o ../examples/museum-table/build/museum-probe.app
-tools/museum-probe --launch ../examples/museum-table/build/museum-probe.app/Contents/MacOS/zinc --port 19329 --cycles 3 --dwell 2 --output .logs/museum-probe
+build/zinc build --bundle examples/museum-table/src/main.ts -o examples/museum-table/build/museum-probe.app
+tools/museum-probe --launch examples/museum-table/build/museum-probe.app/Contents/MacOS/zinc --port 19329 --cycles 3 --dwell 2 --output .logs/museum-probe
 ```
 
 The driver writes `.logs/museum-probe/samples.jsonl` and the launched app's log. It terminates only the app it

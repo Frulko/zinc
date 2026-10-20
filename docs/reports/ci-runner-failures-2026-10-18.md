@@ -50,8 +50,8 @@ The trace reruns of webrtc_call and webrtc_interop **pass**, because the cache i
 examples_all `marble/src/main.ts` CRASH is the same thing: its first run builds the asset packs (`level.ldtk` as a tilemap, `models/**/*.glb` to zmesh) inside the 40 s of `tools/examples-status`. The rerun reports it OK. On the dev Mac `examples/marble/build/` (untracked) already holds the packs.
 
 **Verdict: FIX (workflow).**
-- Add a "Warm the caches" step before Tests: `build/zinc plugin-build webrtc && build/zinc assets build ../examples/marble`.
-- Or cache `~/.zinc/cache` with actions/cache, keyed on `hashFiles('plugins/**', 'next/include/zn/native.h', 'runtime/zrt.h')`. The archive keys are by content, so a stale cache is harmless.
+- Add a "Warm the caches" step before Tests: `build/zinc plugin-build webrtc && build/zinc assets build examples/marble`.
+- Or cache `~/.zinc/cache` with actions/cache, keyed on `hashFiles('plugins/**', 'include/zn/native.h', 'runtime/zrt.h')`. The archive keys are by content, so a stale cache is harmless.
 
 The runner can do it; it only needs to do it once, outside the timed part.
 

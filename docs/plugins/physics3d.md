@@ -12,7 +12,7 @@ A game steps a `World` at a fixed rate and reads where its bodies are.
   built with its cross-platform determinism. The same program prints the same positions on the interpreter, compiled
   and on QuickJS, run after run, from a saved state, and on any number of threads. The plugin is `deterministic`, so
   headless and golden runs use the real code.
-- **Test.** `next/tests/t1/physics3d.sh` (`next/tests/data/physics3d/`), benchmark `next/bench/physics3d_pile.ts`.
+- **Test.** `tests/t1/physics3d.sh` (`tests/data/physics3d/`), benchmark `bench/physics3d_pile.ts`.
 
 | target | status |
 |---|---|
@@ -107,7 +107,7 @@ positions before and after the step.
 
 A body moves in steps; one that travels more than its own size in a step can jump over a thin wall. `continuous: true`
 sweeps the body through its step (the library's linear cast) and stops it at the first thing it meets. In
-`next/tests/data/physics3d/shots.ts`, 27 mm balls at 3 to 20 m/s stepped at 240 Hz are fired 2,500 times each at a 2 mm
+`tests/data/physics3d/shots.ts`, 27 mm balls at 3 to 20 m/s stepped at 240 Hz are fired 2,500 times each at a 2 mm
 wall, at a mesh ramp, at a flipper and at each other, and none goes through. Two rules come from that test:
 
 - **Something that sweeps into a ball needs short steps.** The sweep is the fast body's own: a kinematic body (a flipper
@@ -133,13 +133,13 @@ largest torque or force the motor may apply (0: any). Gravity counts: a motor we
 ## On QuickJS
 
 The same module runs on `zinc run --engine quickjs` through the native-module bridge of that engine
-(`next/src/qjs/native_js.cpp`). Arrays that come back from the native side (`saveState()`) are typed arrays there
+(`src/qjs/native_js.cpp`). Arrays that come back from the native side (`saveState()`) are typed arrays there
 (`Uint8Array`), plain arrays on the typed engines. A program that must run on both imports only values from the module
 (classes, enums, functions), not its option interfaces.
 
 ## Performance
 
-`next/bench/physics3d_pile.ts`: 1,000 boxes and spheres in one heap, none asleep, 60 Hz, the mean time of `world.step()`
+`bench/physics3d_pile.ts`: 1,000 boxes and spheres in one heap, none asleep, 60 Hz, the mean time of `world.step()`
 over 600 steps (the native step and the state of the 1,000 bodies read back), on one thread and on one per core
 (`threads: 0`, 6 on the development Mac). Intel Mac (i7-9750H, 6 cores), 2026-10-11, while other sessions built: load
 average 7 to 10 and the CPU held at 37 to 46% of its speed by heat, so these are upper bounds to measure again on a quiet

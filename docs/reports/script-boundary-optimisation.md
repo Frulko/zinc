@@ -1,6 +1,6 @@
 # The zinc:script boundary: where the time goes and what to change (2026-10-18)
 
-Measured on three machines with `next/tools/bench-bridge` (program: `next/tests/bench/script_bridge`; artifacts: `docs/reports/bench/`).
+Measured on three machines with `tools/bench-bridge` (program: `tests/bench/script_bridge`; artifacts: `docs/reports/bench/`).
 Tags: `[measured]` = a number from the bench on the machine named; `[code]` = read in this tree; URLs = web, read through search results only, not whole pages;
 `[general]` = my knowledge, not checked here.
 
@@ -22,7 +22,7 @@ At 60 Hz, 1 ms buys 980 / 16 / 12 crossings today (Mac / Nexus 7 / TouchPad) and
 
 ## 2. Where the time goes `[code]`, `[measured]`
 
-`next/src/qjs/script_native.cpp` says it itself (line 4): "Values cross as JSON text". For one script -> host call:
+`src/qjs/script_native.cpp` says it itself (line 4): "Values cross as JSON text". For one script -> host call:
 1. `argsJson` builds a JS array and copies the arguments into it (line 297).
 2. `toJson` creates a replacer function with `JS_NewCFunctionData` and runs `JS_JSONStringify` with it (lines 103-106); the replacer is called for every value.
 3. the text is copied into a `std::string`, handed to the Zinc side, and parsed again there into typed values;
@@ -76,7 +76,7 @@ Ordered by gain over risk; every step is measured by re-running `tools/bench-bri
 
 Risks: semantic fidelity (what `undefined`, NaN, -0, big integers, sparse arrays and getters do), error and exception propagation through the new path, function handles and their lifetime
 (the `__zn_fn` handles of lines 90-96), cycles, string encoding (UTF-8 against QuickJS's internal forms), and the AOT and interpreter engines keeping the same behaviour (the T1 `script` test
-compares frozen outputs: `next/tests/t1/script.sh`). The binary encoding is a change of the native ABI: other natives that pass `unknown` need the same decision.
+compares frozen outputs: `tests/t1/script.sh`). The binary encoding is a change of the native ABI: other natives that pass `unknown` need the same decision.
 
 ## 5. How to measure
 
@@ -92,7 +92,7 @@ the iPad (iPadOS 16.7 is not supported by Xcode 26's CoreDevice: `pairingState: 
 
 ## 6. Done on 2026-10-18 (items 1 and 3 of section 4, for numbers)
 
-- Plain values on the generic path: no temporary array, no replacer function, no JS_ParseJSON (`scalarJson`, `scalarFromJson`, `fastArgs` in `next/src/qjs/script_native.cpp`): about 2 times faster.
+- Plain values on the generic path: no temporary array, no replacer function, no JS_ParseJSON (`scalarJson`, `scalarFromJson`, `fastArgs` in `src/qjs/script_native.cpp`): about 2 times faster.
 - `zinc:script/fast` (`plugins/script/fast.ts`, module `QuickJSFast` in the same file): `exposeNum` and `callNum`, numbers only, no text, no Dyn, no context: 8 to 51 times faster than before,
   within 1.4 to 2.3 times of the floor. Numbers: `docs/reports/zinc-next-perf.md` (addendum "after the boundary changes").
 - Test: `tests/conformance/script_fast.ts` (frozen output, interpreter and AOT through `tests/t1/script.sh`; edge cases: escapes, unicode, -0, NaN, large integers, nested values, errors in both directions).

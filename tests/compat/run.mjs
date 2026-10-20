@@ -24,7 +24,7 @@ const val = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] :
 if (flag('--help') || flag('-h')) {
   console.log(`zinc compat [options]: standards conformance (docs/reports/compat.md)
   --suite a,b         wpt, test262, node, quickjs (default: all)
-  --engines a,b       zinc-sim, zinc-sim-strict, zinc-native, zinc-native-strict, node, deno, bun, qjs (default: all found)
+  --engines a,b       next, next-qjs, node, deno, bun, qjs (default: all found)
   --filter text       only tests whose id contains text (the run is not recorded as a dated result)
   --jobs n            parallel tests (default 4)
   --exhaustive        compile every Zinc variant even when zinc-sim already rejected the program
@@ -36,9 +36,8 @@ if (flag('--help') || flag('-h')) {
   process.exit(0);
 }
 const ZINC_ROOT = path.resolve(val('--zinc', ROOT));
-const ZINC_BIN = path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs');
-// the new engine (next/, ZN-139): its zinc binary; `next` runs the typed program (interpreter), `next-qjs` the plain JavaScript on its QuickJS-ng engine
-const NEXT_BIN = path.resolve(val('--zinc-next', path.join(ROOT, 'next/build/zinc')));
+// the engine (ZN-139): its zinc binary; `next` runs the typed program (interpreter), `next-qjs` the plain JavaScript on its QuickJS-ng engine
+const NEXT_BIN = path.resolve(val('--zinc-next', path.join(ROOT, 'build/zinc')));
 const JOBS = Number(val('--jobs', '4'));
 const FILTER = val('--filter', '');
 const SUITES = (val('--suite', 'wpt,test262,node,quickjs')).split(',');
@@ -46,10 +45,6 @@ const NATIVE = process.platform === 'darwin' ? 'macos' : 'linux';
 const TIMEOUT = { sim: 30000, native: 120000, ref: 20000 };
 
 const ENGINES = {
-  'zinc-sim': { zinc: true, target: 'sim', strict: false },
-  'zinc-sim-strict': { zinc: true, target: 'sim', strict: true },
-  'zinc-native': { zinc: true, target: NATIVE, strict: false },
-  'zinc-native-strict': { zinc: true, target: NATIVE, strict: true },
   next: { zinc: true, next: true, strict: false },
   'next-qjs': { zinc: false, next: true, qjs: true, version: [NEXT_BIN, '--version'] },
   node: { cmd: ['node', '--no-warnings'], version: ['node', '--version'] },
@@ -234,11 +229,11 @@ const TH_EXPORTS = [...read(path.join(HERE, 'shims/testharness.ts')).matchAll(/^
 /** Names the Zinc checkout exports from its Web / net modules, for WPT programs and the WinterTC table. */
 function zincApiIndex() {
   const idx = {};
-  // Web globals: the compiler adds their import itself (compiler/src/frontend.ts WEB_GLOBALS)
-  const fe = read(path.join(ZINC_ROOT, 'compiler/src/frontend.ts'));
-  for (const list of fe.matchAll(/for \(const n of \[([^\]]*)\]\) WEB_GLOBALS\[n\]/g))
-    for (const m of list[1].matchAll(/'(\w+)'/g)) idx[m[1]] = 'global';
-  for (const m of fe.matchAll(/^WEB_GLOBALS\.(\w+) =/gm)) idx[m[1]] = 'global';
+  // Web globals a program uses without an import (the WEB_GLOBALS of the prototype's front end, kept since it was removed)
+  for (const n of ['URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'atob', 'btoa', 'Event', 'EventTarget', 'CustomEvent',
+    'ErrorEvent', 'MessageEvent', 'PromiseRejectionEvent', 'MessageChannel', 'MessagePort', 'AbortController', 'AbortSignal',
+    'DOMException', 'crypto', 'Crypto', 'SubtleCrypto', 'CryptoKey', 'Blob', 'File', 'FormData', 'reportError', 'navigator', 'structuredClone',
+    'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI', 'fetch', 'Request', 'Response', 'Headers', 'WebAssembly']) idx[n] = 'global';
   const lib = path.join(ZINC_ROOT, 'lib');
   for (const f of ['zinc.d.ts', 'gfx.d.ts', 'modules.d.ts', 'ui.d.ts']) {
     const p = path.join(lib, f);
@@ -264,7 +259,7 @@ function zincWebImports(text) {
 
 let ts;
 async function loadTs() {
-  const req = (await import('node:module')).createRequire(path.join(ZINC_ROOT, 'compiler/src/frontend.ts'));
+  const req = (await import('node:module')).createRequire(path.join(ROOT, 'package.json'));
   ts = req('@typescript/typescript6');
 }
 // Zinc versions of quickjs-ng's assert helpers (the originals use `arguments`); assertThrows only when used
@@ -381,14 +376,6 @@ function classify(c, r, zinc) {
   return r.code === 0 && r.out.includes('ZC:PASS') ? ['pass', '', r.ms] : ['fail', detail(r), r.ms];
 }
 
-async function runZinc(c, eng, text) {
-  const dir = path.join(WORK, eng.strict ? 'strict' : 'gradual');
-  const file = path.join(dir, keyOf(c.id) + '.js');
-  fs.writeFileSync(file, text);
-  const r = await exec(process.execPath, [ZINC_BIN, 'run', file, '--target', eng.target], { cwd: dir, env: { ...process.env, ...DETERMINISTIC }, timeout: eng.target === 'sim' ? TIMEOUT.sim : TIMEOUT.native });
-  fs.rmSync(path.join(dir, 'build', `${keyOf(c.id)}-${eng.target}`), { recursive: true, force: true });
-  return classify(c, r, true);
-}
 async function runNext(c, eng, text) {
   const dir = path.join(WORK, 'next');   // the shims are copied once by prepareWork: a copy per test races with the programs reading them
   const file = path.join(dir, keyOf(c.id) + '.js');   // Zinc takes the program as .js too (gradual typing, like the prototype's harness)
@@ -420,7 +407,7 @@ async function runCase(c, engines, exhaustive) {
       if (p.zinc.unsupported) { r[name] = ['unsupported', p.zinc.unsupported, 0]; continue; }
       // a program zinc-sim rejects is rejected by every Zinc variant (same front end; strict only adds errors)
       const from = !exhaustive && (r['zinc-sim']?.[0] === 'rejected' ? r['zinc-sim'] : e.strict && e.target !== 'sim' && r['zinc-sim-strict']?.[0] === 'rejected' ? r['zinc-sim-strict'] : undefined);
-      r[name] = from ? ['rejected', from[1], 0, 'inherited'] : e.next ? await runNext(c, e, p.zinc.text) : await runZinc(c, e, p.zinc.text);
+      r[name] = from ? ['rejected', from[1], 0, 'inherited'] : await runNext(c, e, p.zinc.text);
     } else r[name] = await runRef(c, name, p.ref.text);
   }
   return res;
@@ -490,7 +477,7 @@ async function main() {
     }
   }));
   const commit = spawnSync('git', ['-C', ZINC_ROOT, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
-  const dirty = spawnSync('git', ['-C', ZINC_ROOT, 'status', '--porcelain', '--', 'compiler', 'runtime', 'lib', 'sim'], { encoding: 'utf8' }).stdout.trim() !== '';
+  const dirty = spawnSync('git', ['-C', ZINC_ROOT, 'status', '--porcelain', '--', 'src', 'runtime', 'lib'], { encoding: 'utf8' }).stdout.trim() !== '';
   const results = {
     date: new Date().toISOString().slice(0, 10), commit, dirty, zincRoot: path.relative(ROOT, ZINC_ROOT) || '.',
     platform: `${process.platform}-${process.arch}`, host: { cpus: os.cpus().length }, durationS: Math.round((Date.now() - t0) / 1000),
@@ -531,7 +518,7 @@ function writeNextReport(res) {
       }
     }
   }
-  const url = spawnSync(NEXT_BIN, ['run', path.join(ROOT, 'next/tests/golden/host/wpt_url.ts'), '--', path.join(ROOT, 'next/tests/data/wpt')], { encoding: 'utf8', cwd: path.join(ROOT, 'next'), env: { ...process.env, ZINC_HEADLESS: '1' } }).stdout.trim().split('\n').filter(l => /\d+\/\d+$/.test(l));
+  const url = spawnSync(NEXT_BIN, ['run', path.join(ROOT, 'tests/golden/host/wpt_url.ts'), '--', path.join(ROOT, 'tests/data/wpt')], { encoding: 'utf8', cwd: ROOT, env: { ...process.env, ZINC_HEADLESS: '1' } }).stdout.trim().split('\n').filter(l => /\d+\/\d+$/.test(l));
   const L = [];
   L.push('# Zinc Next: standards conformance', '', `Generated by \`node tests/compat/run.mjs --engines next,next-qjs\` (${res.date}, commit ${res.commit}). Pinned suites: ${Object.entries(res.pins).map(([k, p]) => `${k} ${p.commit.slice(0, 8)}`).join(', ')}.`, '',
     'Two ways of running the same programs on the new engine (the prototype\'s numbers are in [compat.md](compat.md)):', '',
@@ -542,11 +529,11 @@ function writeNextReport(res) {
     const total = Object.values(st).reduce((a, b) => a + b, 0);
     L.push(`| ${suite} | ${e} | ${st.pass ?? 0} | ${total} | ${(100 * (st.pass ?? 0) / total).toFixed(1)} | ${Object.entries(st).filter(([k]) => k !== 'pass').map(([k, v]) => `${k} ${v}`).join(', ')} |`);
   }
-  L.push('', '## WPT URL data (the prototype\'s 896/896 and 278/278)', '', 'The WPT `urltestdata.json` and `setters_tests.json` run through `new URL` by `next/tests/golden/host/wpt_url.ts` (T1 `wpt_url`):', '', '```', ...url, '```', '',
+  L.push('', '## WPT URL data (the prototype\'s 896/896 and 278/278)', '', 'The WPT `urltestdata.json` and `setters_tests.json` run through `new URL` by `tests/golden/host/wpt_url.ts` (T1 `wpt_url`):', '', '```', ...url, '```', '',
     'The typed WPT ports of the harness (`next`) reject most `.any.js` files at compile time (the strict subset refuses untyped callbacks), and the `next-qjs` engine has no web globals yet (`window`, `TextEncoder`, `URL`...): the WPT rows are the honest numbers of those two facts, not of the URL implementation.', '',
     '## Why the rest fails', '', '| engine / status: reason | tests |', '|---|---:|');
   for (const [k, v] of Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 25)) L.push(`| ${k.replace(/\|/g, '/')} | ${v} |`);
-  L.push('', `Failures that are not compile-time rejections (status fail or timeout) are listed with their first message in [zinc-next-compat-failures.txt](zinc-next-compat-failures.txt) (${failures.length} lines). Regressions are gated in T2 (\`next/tests/t2/compat.sh\`, baseline \`tests/compat/baseline.json\`).`, '');
+  L.push('', `Failures that are not compile-time rejections (status fail or timeout) are listed with their first message in [zinc-next-compat-failures.txt](zinc-next-compat-failures.txt) (${failures.length} lines). Regressions are gated in T2 (\`tests/t2/compat.sh\`, baseline \`tests/compat/baseline.json\`).`, '');
   fs.writeFileSync(path.join(ROOT, 'docs/reports/zinc-next-compat.md'), L.join('\n'));
   fs.writeFileSync(path.join(ROOT, 'docs/reports/zinc-next-compat-failures.txt'), failures.sort().join('\n') + '\n');
   console.error('compat: wrote docs/reports/zinc-next-compat.md');

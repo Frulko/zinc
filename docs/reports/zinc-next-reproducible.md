@@ -16,7 +16,7 @@ arm64 `ubuntu:24.04` container for the plugin keys (ZN-332).
 
 | Where | What | Why |
 | --- | --- | --- |
-| every target of `next/CMakeLists.txt` | `-ffile-prefix-map=<build dir>=build`, `-ffile-prefix-map=<checkout>=zinc` | `__FILE__` (mbedTLS's debug and assert strings, SDL3) named the checkout; the compiler compares prefixes as text, so the checkout is passed without `..` |
+| every target of `CMakeLists.txt` | `-ffile-prefix-map=<build dir>=build`, `-ffile-prefix-map=<checkout>=zinc` | `__FILE__` (mbedTLS's debug and assert strings, SDL3) named the checkout; the compiler compares prefixes as text, so the checkout is passed without `..` |
 | `zinc` | `-DZN_REPRODUCIBLE=ON`: `ZN_SOURCE_DIR` is empty | a build-tree zinc finds its engine files through the path of the checkout compiled in; a release finds them in its package (`share/zinc`, `Resources/zinc`) or `$ZINC_ROOT`. Off by default: the dev build and its devapp copy (ZN-231) keep finding the checkout |
 | `zinc` | `ZN_HOST_LIBS` writes the vendored `libSDL3.a` as `@bin@/third_party/SDL3/libSDL3.a`, `ZN_SDL_INCLUDE` as `@root@/third_party/SDL3/include` | filled in at run time with the directory of zinc and with the engine files |
 | plugins (zig) | `-ffile-prefix-map` for the plugin directory (`plugins/<name>`), the cache entry (`cache`), the checkout (`zinc`) and the toolchains (`toolchains`) | object files named their source and the generated thunk by absolute path |

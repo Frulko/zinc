@@ -6,7 +6,7 @@ where the limits are, and how the work fits Zinc's rule "a minimal core, pluggab
 [toolchain, assets and loading](toolchain-assets-loading.md) (asset pipeline, decoding on the thread pool, `zinc:assets` v2); this one
 covers the run-time API surface, the engine and the rendering path.
 
-Evidence tags: **[M]** measured here (Apple M1 Pro, 16 GB, macOS 15.7.4, `next/build/zinc` of 2026-10-09, `zinc run --engine quickjs`,
+Evidence tags: **[M]** measured here (Apple M1 Pro, 16 GB, macOS 15.7.4, `build/zinc` of 2026-10-09, `zinc run --engine quickjs`,
 `ZINC_WEBGL=1`, Apple GL 4.1 core through Zinc's WebGL translation; Node 24.14 for the V8 comparison), **[C]** read in Zinc's code (file
 given), **[W]** from the web or the library's shipped source (URL given), **[I]** inferred or estimated, not measured. Nothing was
 measured on a Raspberry Pi.
@@ -25,7 +25,7 @@ browser environment of about 400 lines that records every browser API a library 
    window through `zincPresent` + `zinc:gfx`.
 2. **What Zinc lacks is the browser around WebGL**, not WebGL itself: the QuickJS engine has no `window`, DOM tree, events,
    `requestAnimationFrame`, `Image` decoding, `fetch`/XHR, Canvas 2D, Web Audio, Gamepad, `Path2D`, `ResizeObserver`, `structuredClone`
-   [M]. The only DOM is `document.createElement('canvas')` with a WebGL `getContext` [C `next/src/gl/webgl_js.cpp`].
+   [M]. The only DOM is `document.createElement('canvas')` with a WebGL `getContext` [C `src/gl/webgl_js.cpp`].
 3. **Eleven Zinc defects were found by running real libraries** (section 4), four of them blocking: a WebGL 2 context is
    `instanceof WebGLRenderingContext` (PixiJS v8 falls to its WebGL 1 path, three.js refuses a context passed in), the ESSL 1.00
    pre-check rejects `#define in attribute` (every PixiJS v8 shader), the desktop translation of ESSL 1.00 breaks shaders that name a
@@ -42,7 +42,7 @@ browser environment of about 400 lines that records every browser API a library 
    sprite of program time, yet rasterizing 2,000 26x37 sprites at Retina scale takes 11 ms [M]. A GPU sprite path is the precondition
    for a native tier that beats the compatibility tier.
 7. **Presentation is a readback**: `zincPresent` reads the WebGL drawing buffer back with `glReadPixels`, converts it pixel by pixel and
-   hands it to the software UI [C `next/src/main.cpp` glPresent]: 2.1 ms at 1280x960 [M], several ms at full Retina [I]. A zero-copy
+   hands it to the software UI [C `src/main.cpp` glPresent]: 2.1 ms at 1280x960 [M], several ms at full Retina [I]. A zero-copy
    path (WebGL drawing straight into the window, or as a GPU layer of display-gl) is the single most valuable rendering task.
 8. **Recommended layout**: core unchanged; on-demand modules beside `libzn_webgl` for Canvas 2D, audio and physics; a JavaScript
    web-environment module evaluated only in QuickJS contexts that ask for it; one native audio engine (miniaudio, decision D12) with two
@@ -61,7 +61,7 @@ browser environment of about 400 lines that records every browser API a library 
 ## 1. Method
 
 - Libraries were fetched with `npm pack` (no install scripts) at the versions current on 2026-10-09: pixi.js 8.22.0 and 7.4.3, phaser
-  3.90.0 and 4.2.1 (Phaser 4.0.0 shipped 2026-04-10), p5 1.11.13 and 2.3.4, three 0.186.1 (the copy vendored in `next/third_party/three`),
+  3.90.0 and 4.2.1 (Phaser 4.0.0 shipped 2026-04-10), p5 1.11.13 and 2.3.4, three 0.186.1 (the copy vendored in `third_party/three`),
   babylonjs 9.30.0, kaplay 3001.0.19, matter-js 0.20.0, planck 1.5.0, cannon-es 0.20.0, howler 2.2.4, gsap 3.15.0, littlejsengine 1.27.0;
   tone 15.1.22 and playcanvas 2.23.1 were read, not run.
 - Each library was loaded unchanged in `zinc run --engine quickjs` (ESM through the module loader, UMD through indirect `eval` of the
@@ -85,7 +85,7 @@ browser environment of about 400 lines that records every browser API a library 
 | `document` (only `createElement('canvas')`), `performance.now` (real time), `TextEncoder`/`TextDecoder`, `AbortController`, `setTimeout`/`setInterval` (virtual clock), `queueMicrotask`, `WebGLRenderingContext`, `WebGL2RenderingContext`, `atob`/`btoa`, `WeakRef`, `FinalizationRegistry`, `SharedArrayBuffer`, `Atomics`, `Intl` (with `Segmenter`), a small `process`, `console` with Node's `inspect` | `window`, `self`, `navigator`, `location`, `requestAnimationFrame`, `Image`/`HTMLImageElement`, `HTMLCanvasElement`, `createImageBitmap`, `ImageData`, `OffscreenCanvas`, `fetch`, `XMLHttpRequest`, `AudioContext`, `Audio`, `Worker`, `FontFace`, `devicePixelRatio`, `addEventListener`, `matchMedia`, `getComputedStyle`, `localStorage`, `Blob`, `URL`, `structuredClone`, `DOMMatrix`, `Path2D`, `Event`/`EventTarget`, `PointerEvent`/`KeyboardEvent`, `crypto`, `WebAssembly` |
 
 - The typed engine's Web APIs (`lib/std/web.ts`: URL, fetch, Blob, events, crypto...) are Zinc code for typed programs; QuickJS contexts
-  do not get them [C `next/src/qjs/ext.cpp`, `prelude.cpp`].
+  do not get them [C `src/qjs/ext.cpp`, `prelude.cpp`].
 - `Date.now()` is the virtual clock; `performance.now()` is real time. A library that times frames with `Date.now()` sees time move only
   by the frame loop's `dt` [C `prelude.cpp`].
 - A QuickJS program gets a window frame loop when it registers `zinc:gfx` `onFrame`; `zinc:gfx` drawing calls are the same host table as
@@ -94,9 +94,9 @@ browser environment of about 400 lines that records every browser API a library 
 ### 2.2 WebGL (`libzn_webgl`, loaded on the first QuickJS context, decision D40)
 
 - WebGL 1 and 2 over an **offscreen** GL context in a hidden SDL window with an FBO as the default framebuffer
-  [C `next/src/gl/offscreen.h`]; validation in `WebGL1` [C `webgl1.h`]; ESSL validated by glslang and translated to GLSL 3.30 core on
+  [C `src/gl/offscreen.h`]; validation in `WebGL1` [C `webgl1.h`]; ESSL validated by glslang and translated to GLSL 3.30 core on
   desktop, passed through unchanged on GLES drivers [C `webgl1.cpp` translate]. Khronos conformance 695 of 787 pages
-  [C `next/RESUME.md`].
+  [C `RESUME.md`].
 - Extensions [M]: WebGL 1 has `OES_vertex_array_object`, `ANGLE_instanced_arrays`, `OES_element_index_uint`, `OES_standard_derivatives`,
   float and half-float textures, `WEBGL_depth_texture`, `WEBGL_draw_buffers`, `EXT_sRGB`, `EXT_blend_minmax`, `EXT_frag_depth`,
   `EXT_shader_texture_lod`, S3TC, RGTC, anisotropy, lose_context; WebGL 2 has `EXT_color_buffer_float`, `EXT_float_blend`,
@@ -111,7 +111,7 @@ browser environment of about 400 lines that records every browser API a library 
 
 - `zinc:gfx`: immediate 2D (rect, rrect, line, polygon, path, stroke, gradients, text, `drawImage(img, x, y, w, h, alpha, radius)`, clip,
   translate, runtime images). No rotation or scale of images, no source rectangle (atlas), no blend modes, no tint [C
-  `next/src/frontend/modules.cpp` kGfxModule]. Rasterized in software by the shared rasterizer; display-gl uploads the result.
+  `src/frontend/modules.cpp` kGfxModule]. Rasterized in software by the shared rasterizer; display-gl uploads the result.
 - `zinc:canvas` (`plugins/canvas2d`): a typed `CanvasRenderingContext2D` for Zinc programs on the software rasterizer. Its documented
   deviations rule it out for JS libraries as is: `fillGradient` instead of `fillStyle = gradient`, clip to the bounding box, text and
   images not rotated, no composite operations, no `getImageData`/`putImageData`, no patterns, no `Path2D`, and **runtime images have no
@@ -191,10 +191,10 @@ Union over the probes [M] (each entry was read by at least one library at boot o
 
 | # | Defect | Evidence | Impact | Fix |
 |---|---|---|---|---|
-| **D1** | `WebGL2RenderingContext.prototype` inherits from `WebGLRenderingContext.prototype` (`gProto2 = JS_NewObjectProto(c, proto)` in `install`), so a WebGL 2 context is `instanceof WebGLRenderingContext`; browsers make the two interfaces siblings | [C `next/src/gl/webgl_js.cpp` install], [M] `gl2 instanceof WebGLRenderingContext === true` | PixiJS v8 takes WebGL 2 for WebGL 1 and fails "Vertex Array Objects are not supported"; three.js throws "WebGL 1 is not supported" for a WebGL 2 context passed as `context` [M]; Phaser 4 patches WebGL 1 extensions onto it | Give WebGL2RenderingContext its own prototype with the shared methods copied (WebGLRenderingContextBase mixin); a conformance test on `instanceof` |
-| **D2** | `essl1Violation` rejects `in`/`out` declarations with a regex **before** the preprocessor runs, so `#ifdef GL_ES / #define in attribute` fails | [C `next/src/gl/webgl1.cpp:124`], [M] minimal repro fails in WebGL 1 and 2 | Every PixiJS v8 WebGL shader (its WebGL 1/2 compatible header) | Check the glslang-preprocessed text (the validator already preprocesses), or drop the regex where glslang reports the same error |
+| **D1** | `WebGL2RenderingContext.prototype` inherits from `WebGLRenderingContext.prototype` (`gProto2 = JS_NewObjectProto(c, proto)` in `install`), so a WebGL 2 context is `instanceof WebGLRenderingContext`; browsers make the two interfaces siblings | [C `src/gl/webgl_js.cpp` install], [M] `gl2 instanceof WebGLRenderingContext === true` | PixiJS v8 takes WebGL 2 for WebGL 1 and fails "Vertex Array Objects are not supported"; three.js throws "WebGL 1 is not supported" for a WebGL 2 context passed as `context` [M]; Phaser 4 patches WebGL 1 extensions onto it | Give WebGL2RenderingContext its own prototype with the shared methods copied (WebGLRenderingContextBase mixin); a conformance test on `instanceof` |
+| **D2** | `essl1Violation` rejects `in`/`out` declarations with a regex **before** the preprocessor runs, so `#ifdef GL_ES / #define in attribute` fails | [C `src/gl/webgl1.cpp:124`], [M] minimal repro fails in WebGL 1 and 2 | Every PixiJS v8 WebGL shader (its WebGL 1/2 compatible header) | Check the glslang-preprocessed text (the validator already preprocesses), or drop the regex where glslang reports the same error |
 | **D3** | The ESSL 1.00 → GLSL 3.30 translation defines `texture2D` as `texture`; a shader that names a variable `texture` (legal in ESSL 1.00) shadows the function | [C `webgl1.cpp` translate], [M] Phaser 3: "Invalid call of 'texture'" x16 | Phaser 3 multi-texture batch shader (the default pipeline) | Rename user identifiers that are GLSL 3.30 built-ins (as `desktopOnlyWord` does for others), or call a prelude helper `zn_texture2D`; long term ANGLE (D30) or glslang → SPIRV-Cross. GLES drivers (Pi, Linux ES) are not affected |
-| **D4** | `JS_SetMaxStackSize(rt, 8 MB)` equals the macOS main-thread stack (`ulimit -s` 8176 KB): deep recursion overflows the native stack before QuickJS's check, **SIGSEGV** instead of `RangeError` | [C `next/src/qjs/qjs.cpp` run], [M] `function f(){return f()+1}` exits 139; with `ulimit -s 65520` it throws `RangeError` | p5.js 1.11 dies while loading (a core-js feature test recurses and expects a catchable `RangeError`); any runaway recursion in user code kills the process without a stack | Set the limit to the thread stack minus a margin (or run the engine on a thread with a larger stack); a T0 test |
+| **D4** | `JS_SetMaxStackSize(rt, 8 MB)` equals the macOS main-thread stack (`ulimit -s` 8176 KB): deep recursion overflows the native stack before QuickJS's check, **SIGSEGV** instead of `RangeError` | [C `src/qjs/qjs.cpp` run], [M] `function f(){return f()+1}` exits 139; with `ulimit -s 65520` it throws `RangeError` | p5.js 1.11 dies while loading (a core-js feature test recurses and expects a catchable `RangeError`); any runaway recursion in user code kills the process without a stack | Set the limit to the thread stack minus a margin (or run the engine on a thread with a larger stack); a T0 test |
 | **D5** | Typed-array arguments go through `bytesOf`, which first calls `JS_GetArrayBuffer` on the view: it throws a `TypeError` (stack trace built) that is then discarded | [C `webgl_js.cpp:95` bytesOf], [M] `uniform4fv(Float32Array)` 1,352 ns vs `uniform4f` 99 ns; `bufferSubData(Float32Array)` 1,336 ns vs `(ArrayBuffer)` 114 ns; a JS throw+catch is 1,077 ns | Every `uniform*fv`, `uniformMatrix*fv`, buffer and texture upload with a view: three.js pays it per mesh, p5 twice per box | Test the class first (`JS_GetTypedArrayType` / `JS_IsArrayBuffer`) — 10x on these calls |
 | **D6** | The frame loop is chosen once, right after the synchronous part of the entry module: `onFrame` registered after a top-level `await` is never called | [C `qjs.cpp` run: `__zincFrameCb` checked after `drain`], [M] PixiJS window demo exits silently after `await app.init()` | Every async-initialised library (PixiJS v8 `await app.init()`, asset loading before the loop) | Enter the frame loop when `onFrame` is first called, or re-check after each timer turn |
 | **D7** | No promise rejection tracker: an exception in an async function that nobody awaits disappears | [C no `JS_SetHostPromiseRejectionTracker` in `src/qjs`], [M] p5 2.x stopped after one frame with no message (missing `Path2D` inside the async draw loop) | Silent failures in modern async libraries (p5 2.x, PixiJS v8) | Install the tracker, print "Uncaught (in promise)" like browsers and dispatch `unhandledrejection` |
@@ -306,7 +306,7 @@ Same bunnymark written against `zinc:gfx` (`drawImage` of a 26x37 runtime image 
 
 Reading: the typed path is 30-160x cheaper than PixiJS on QuickJS for the program's own work, but the shared software rasterizer
 (~1.4 ns per pixel) makes 2,000-3,000 sprites the limit, no better than PixiJS on WebGL. A GPU path for `zinc:gfx` images (display-gl
-already draws LINE/POLY on the GPU, `next/RESUME.md`) is required before the native tier can show its advantage. With it, the CPU side
+already draws LINE/POLY on the GPU, `RESUME.md`) is required before the native tier can show its advantage. With it, the CPU side
 alone would allow ~600,000 sprites per 16.7 ms in AOT [I].
 
 ### 5.6 Presentation and startup [M]
@@ -344,7 +344,7 @@ What a library needs is a small, believable browser, not a DOM implementation. F
 - **Workers**: an absent `Worker` is enough today (every library falls back). A real `Worker` on a second `JSRuntime` is a later task.
 
 Sizing [I]: the probe environment is ~400 lines; a production version with events, image decoding and fetch is ~1,500-2,000 lines of
-JS plus small host rows. The WebGL conformance shim (`next/tests/webgl-conformance/dom-shim.js`, 197 lines) is the other seed.
+JS plus small host rows. The WebGL conformance shim (`tests/webgl-conformance/dom-shim.js`, 197 lines) is the other seed.
 
 ### 6.2 Canvas 2D
 
@@ -524,7 +524,7 @@ benchmark, after the compat-tier work makes them run.
 ### 8.2 How a project opts in
 
 Today: `"webgl": true` gives `zinc:script` contexts a canvas with WebGL, and `importmap.json` beside the entry maps bare specifiers
-[C `next/src/frontend/project.cpp`, `next/src/qjs/qjs.cpp`]. Proposed generalisation (keeps `"webgl": true` as shorthand for
+[C `src/frontend/project.cpp`, `src/qjs/qjs.cpp`]. Proposed generalisation (keeps `"webgl": true` as shorthand for
 `"web": { "webgl": 2 }`):
 
 ```json
@@ -621,7 +621,7 @@ AC: (1) `function f(){return f()+1} try{f()}catch(e){}` prints the caught `Range
 index-range cache per element buffer range; stack arrays in the QuickJS host thunk.
 AC: (1) `uniform4fv(Float32Array)` ≤ 200 ns and `bufferSubData(Float32Array)` ≤ 250 ns on the reference machine (today 1,352 and 1,336);
 (2) `drawArrays` overhead ≤ 250 ns (today 463); (3) repeated `drawElements` of the same 60k-index range ≤ 3 µs (today 19); (4) WebGL
-conformance unchanged; a micro-benchmark in `next/bench`.
+conformance unchanged; a micro-benchmark in `bench`.
 
 **G4 — Zero-copy presentation of WebGL canvases.** Full-window mode: the first WebGL canvas of a program without `zinc:ui` renders into
 the window surface, presented by the frame loop. Composited mode: the canvas texture is a display-gl layer under or over the UI.
@@ -795,9 +795,9 @@ Backends: [Skia build](https://skia.org/docs/user/build/), [SkBlendMode](https:/
 [ImageBitmap](https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html), [Box2D](https://github.com/erincatto/box2d),
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics), [QuickJS-ng](https://github.com/quickjs-ng/quickjs).
 
-Zinc: `next/src/qjs/qjs.cpp`, `next/src/qjs/ext.cpp`, `next/src/qjs/prelude.cpp`, `next/src/qjs/script_native.cpp`,
-`next/src/gl/webgl_js.cpp`, `next/src/gl/webgl1.cpp`, `next/src/gl/offscreen.h`, `next/src/main.cpp`, `next/src/frontend/modules.cpp`,
-`next/include/zn/runtime.h`, `docs/plugins/canvas2d.md`, `docs/plugins/display-gl.md`, `docs/reports/three-on-zinc.md`,
+Zinc: `src/qjs/qjs.cpp`, `src/qjs/ext.cpp`, `src/qjs/prelude.cpp`, `src/qjs/script_native.cpp`,
+`src/gl/webgl_js.cpp`, `src/gl/webgl1.cpp`, `src/gl/offscreen.h`, `src/main.cpp`, `src/frontend/modules.cpp`,
+`include/zn/runtime.h`, `docs/plugins/canvas2d.md`, `docs/plugins/display-gl.md`, `docs/reports/three-on-zinc.md`,
 `docs/reports/zinc-next-decisions.md` (D3, D12, D13, D22, D29, D30, D34, D36, D40), `docs/reports/zinc-next-m4-benchmarks.md`,
 `docs/reports/creative-runtime-webgl-audio-2026-09-29.md`, `examples/webgl-cube`, `examples/webgl-studio`,
-`next/tests/webgl-conformance/dom-shim.js`, `next/backlog/tasks/zn-390*`.
+`tests/webgl-conformance/dom-shim.js`, `backlog/tasks/zn-390*`.

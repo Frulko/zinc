@@ -1,0 +1,897 @@
+﻿#include "monocypher-ed25519.h"
+#include "tc/tc.h"
+#include "tc/policy.h"
+#include "platform/platform.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <map>
+#include <sstream>
+#include <thread>
+#include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
+extern "C" {
+#include "sha256.h"  // third_party/sha256 (public domain)
+}
+
+namespace fs = std::filesystem;
+
+namespace zn::tc {
+namespace {
+
+constexpr const char* kVersion = "0.15.2";
+
+// The pins: the archive of each tool for each host and its SHA-256. zig: https://ziglang.org/download/index.json (0.15.2);
+// QEMU for ESP32 (Espressif's build, xtensa): the checksum file of https://github.com/espressif/qemu/releases/tag/esp-develop-9.2.2-20260417.
+struct Pin { const char* host; const char* file; const char* sha256; };
+constexpr Pin kZigPins[] = {
+    {"aarch64-macos", "zig-aarch64-macos-0.15.2.tar.xz", "3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b"},
+    {"x86_64-macos", "zig-x86_64-macos-0.15.2.tar.xz", "375b6909fc1495d16fc2c7db9538f707456bfc3373b14ee83fdd3e22b3d43f7f"},
+    {"x86_64-linux", "zig-x86_64-linux-0.15.2.tar.xz", "02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239"},
+    {"aarch64-linux", "zig-aarch64-linux-0.15.2.tar.xz", "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f"},
+    // the 32-bit Linux builds of zinc (docs/targets/linux.md): zig compiles plugins and programs on the device. zig's ARM build needs ARMv7:
+    // a Pi 2 or later on a 32-bit OS runs it, a Pi 1 or Zero does not (measured: qemu -cpu arm1176 stops on an illegal instruction)
+    {"arm-linux", "zig-arm-linux-0.15.2.tar.xz", "7d8401495065dae45d6249c68d5faf10508f8203c86362ccb698aeaafc66b7cd"},
+    {"x86-linux", "zig-x86-linux-0.15.2.tar.xz", "4c6e23f39daa305e274197bfdff0d56ffd1750fc1de226ae10505c0eff52d7a5"},
+    // Windows hosts (docs/targets/windows.md): the plan's pins, the same version and SHA-256 (the zip of the pinned 0.15.2)
+    {"x86_64-windows", "zig-x86_64-windows-0.15.2.zip", "3a0ed1e8799a2f8ce2a6e6290a9ff22e6906f8227865911fb7ddedc3cc14cb0c"},
+    {"aarch64-windows", "zig-aarch64-windows-0.15.2.zip", "b926465f8872bf983422257cd9ec248bb2b270996fbe8d57872cca13b56fc370"},
+};
+constexpr const char* kEsptoolVersion = "v5.4.0";  // checksums: the digests GitHub lists for the release assets
+constexpr Pin kEsptoolPins[] = {
+    {"aarch64-macos", "esptool-v5.4.0-macos-arm64.tar.gz", "ba332671130939e2e6db90c2784488f7e62a1459b0fe3c5ec66e9a366821de7a"},
+    {"x86_64-macos", "esptool-v5.4.0-macos-amd64.tar.gz", "910bb64fe39a84c792752701293c8aa294faeef229fe8705ecd6955b01db3778"},
+    {"aarch64-linux", "esptool-v5.4.0-linux-aarch64.tar.gz", "2964fff085071c1403f2cf812a7a1d425f987f9992851a60236bbee17b6e7dcc"},
+    {"x86_64-linux", "esptool-v5.4.0-linux-amd64.tar.gz", "61648fbae20735cabb342f2fbe8fc89b3046e1ed6f9c3e09528d837dc9a9b152"},
+};
+constexpr const char* kQemuVersion = "esp_develop_9.2.2_20260417";
+constexpr Pin kQemuPins[] = {
+    {"aarch64-macos", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-apple-darwin.tar.xz", "bb8c15810565d3df1665dc34962430885e11bc95575b228fb44698146be1e9d6"},
+    {"x86_64-macos", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-apple-darwin.tar.xz", "ae8170fe46bcdfa54a7c0d7afcdb7a066711991be680f72ff7bbc6c4ae3ad88f"},
+    {"aarch64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-linux-gnu.tar.xz", "00de5985094c14e47d1b38464a006b8ed64fd0fa7a289c56da24f3a329f65339"},
+    {"x86_64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz", "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35"},
+};
+
+// itch.io's butler (ZN-325), from its own distribution (broth.itch.zone); `file` is broth's channel. 15.31.0: 2026-08-31.
+constexpr const char* kButlerVersion = "15.31.0";
+constexpr Pin kButlerPins[] = {
+    {"aarch64-macos", "darwin-arm64", "5a5fcd3dc83de480748223388d9b5d6eab8df786bedb5d6730ffe59df87b2c5b"},
+    {"x86_64-macos", "darwin-amd64", "70a4b8543fddee7031052ea76f1846ba071913148e20cf7a2f18421702fc1929"},
+    {"aarch64-linux", "linux-arm64", "2ffd4071dfa715024eedd2b4ac7406c1c7802452214d89a48496adb9c171b737"},
+    {"x86_64-linux", "linux-amd64", "4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"},
+};
+
+// esbuild (docs/reports/zinc-quickjs-bundler.md), the linker and minifier of `zinc bundle`: the npm package of each platform
+// (https://registry.npmjs.org/@esbuild/<platform>/-/<platform>-0.28.2.tgz, 2026-08-08), its SHA-256 computed here and its SHA-1 checked against the registry's dist.shasum.
+constexpr const char* kEsbuildVersion = "0.28.2";
+constexpr Pin kEsbuildPins[] = {
+    {"aarch64-macos", "darwin-arm64-0.28.2.tgz", "1980cde09749094452b20d36ff267585ccb3f72749c7bc97291cd9996ccf5a2a"},
+    {"x86_64-macos", "darwin-x64-0.28.2.tgz", "abb6a7a895aaf2cc0df36fecc3bf0042479ffec51a643a056d54e9109f27db55"},
+    {"x86_64-linux", "linux-x64-0.28.2.tgz", "9573bb2233aab0f9ea7647d5cca9726113cc1768de61d66b17267f4db84488f6"},
+    {"aarch64-linux", "linux-arm64-0.28.2.tgz", "a96dbfa41d3ef5dbd1ef22b1c10d5187be9267e86093a870f06402a7ec931596"},
+    {"x86_64-windows", "win32-x64-0.28.2.tgz", "7286c3611b6f1f4c4d9ec90adcbc478407ff0d28ead96567f361d53e67613e19"},   // the binary is package/esbuild.exe
+};
+
+// Tools of the asset build whose projects publish no binaries: a source archive pinned by its SHA-256 and built once with the pinned zig into
+// ~/.zinc/toolchains/<name>-<host>-<version>/<name>. The pin's host is "any": the sources are the same for every machine.
+struct SourceTool {
+  const char* name;       // the executable, and the prefix of its directory
+  const char* version;
+  const char* env;        // the variable that names another build
+  const char* what;       // for the message of the first use
+  const char* url;
+  Pin pin;
+  const char* top;        // the archive's top directory
+  std::vector<const char*> members;   // what is unpacked (the rest of the archive is tests, docs, other builds)
+  std::vector<std::string> files;     // what is compiled, below `top`
+  const char* flags;
+  std::vector<const char*> keep;      // licence files kept beside the executable
+};
+// basis_universal's basisu (ZN-439), the texture encoder: tag v2_50, 2026-08-03, Apache-2.0. The sources of its CMakeLists.txt's basisu target
+// without OpenCL, astcenc or SSE: one code path on every machine, so that an encode gives the same bytes on x86_64 and aarch64 (ponytail: SSE off
+// costs ETC1S encodes speed, not UASTC ones; measure before turning it on per host).
+const SourceTool& basisuTool() {
+  static const SourceTool t = [] {
+    SourceTool b{"basisu", "2.50", "ZINC_BASISU", "basis_universal 2.50, the texture encoder (once: 190 MB of sources, then a few minutes to build it)",
+                 "https://github.com/BinomialLLC/basis_universal/archive/refs/tags/v2_50.tar.gz",
+                 {"any", "basis_universal-v2_50.tar.gz", "216e49e1f4213d4bfa4afaa07527e16bac28533dddd444197d3aa19230ac130c"}, "basis_universal-2_50/",
+                 {"encoder", "transcoder", "zstd", "basisu_tool.cpp", "basisu_tool_help.h", "basisu_tool_test_codecs.inl", "basisu_text_image.cpp", "basisu_text_image.h", "LICENSE", "NOTICE"},
+                 {"basisu_tool.cpp", "basisu_text_image.cpp", "transcoder/basisu_transcoder.cpp", "encoder/jpgd.cpp", "encoder/pvpngreader.cpp",
+                  "encoder/3rdparty/android_astc_decomp.cpp", "zstd/zstd.c"},
+                 " -O2 -DNDEBUG -w -fno-strict-aliasing -DBASISU_SUPPORT_SSE=0 -DBASISU_SUPPORT_OPENCL=0 -DBASISU_SUPPORT_ASTCENC=0 -DBASISD_SUPPORT_KTX2_ZSTD=1",
+                 {"LICENSE", "NOTICE"}};
+    for (const char* e : {"backend", "basis_file", "comp", "enc", "etc", "frontend", "gpu_texture", "pvrtc1_4", "resampler", "resample_filters", "ssim", "uastc_enc",
+                          "bc7e_scalar", "dds_export", "bc7enc", "kernels_sse", "bc15_spmd", "bc15_spmd_sse", "opencl", "uastc_hdr_4x4_enc", "astc_hdr_6x6_enc",
+                          "astc_hdr_common", "astc_ldr_common", "astc_ldr_encode", "astc_ldr_fencode", "xbc7_encode", "tinyexr"})
+      b.files.push_back(std::string("encoder/basisu_") + e + ".cpp");
+    return b;
+  }();
+  return t;
+}
+// gltfpack (ZN-441), the model processor: the meshoptimizer 1.3 archive whose library third_party/meshoptimizer vendors (the same SHA-256), MIT;
+// its CMakeLists.txt's gltfpack target without Basis or WebP (a model's textures go through the texture importer).
+const SourceTool& gltfpackTool() {
+  static const SourceTool t = [] {
+    SourceTool g{"gltfpack", "1.3", "ZINC_GLTFPACK", "meshoptimizer 1.3 for gltfpack, the model processor (once: 0.6 MB of sources, a minute to build)",
+                 "https://github.com/zeux/meshoptimizer/archive/refs/tags/v1.3.tar.gz",
+                 {"any", "meshoptimizer-v1.3.tar.gz", "ca4f47d451201593904b9e3067fa54b65db94bc34ab5173864950862b748a145"}, "meshoptimizer-1.3/",
+                 {"src", "gltf", "extern", "LICENSE.md"}, {}, " -O2 -DNDEBUG -w", {"LICENSE.md"}};
+    for (const char* f : {"animation", "encodebasis", "encodewebp", "fileio", "gltfpack", "image", "json", "material", "mesh", "node", "parseobj", "parselib",
+                          "parsegltf", "stream", "write"})
+      g.files.push_back(std::string("gltf/") + f + ".cpp");
+    for (const char* f : {"allocator", "clusterizer", "indexanalyzer", "indexcodec", "indexgenerator", "meshletcodec", "meshletutils", "opacitymap",
+                          "overdrawoptimizer", "partition", "quantization", "rasterizer", "remesher", "simplifier", "spatialorder", "stripifier",
+                          "tangentspace", "vcacheoptimizer", "vertexcodec", "vertexfilter", "vfetchoptimizer"})
+      g.files.push_back(std::string("src/") + f + ".cpp");
+    return g;
+  }();
+  return t;
+}
+std::string toolDir(const SourceTool& t) { return (fs::path(home()) / "toolchains" / (std::string(t.name) + "-" + hostName() + "-" + t.version)).string(); }
+
+std::string quote(const std::string& s) {
+  std::string r = "'";
+  for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; }
+  return r + "'";
+}
+
+bool run(const std::string& cmd, std::string& err, const char* what) {
+#ifdef _WIN32
+  // the lines are POSIX shell (`'...'` quoting, /dev/null, pipes): Git for Windows' sh runs them whole; cmd.exe would
+  // break on both and std::system cannot quote, so the argv goes through zn::plat::run, never a shell line
+  const std::string sh = zn::plat::shellPath();
+  if (sh.empty()) { err = std::string(what) + " runs a shell line and this Windows machine has no sh.exe: install Git for Windows"; return false; }
+  int rc = zn::plat::run({sh, "-c", cmd});
+#else
+  int rc = std::system(cmd.c_str());
+#endif
+  if (rc != 0) { err = std::string(what) + " failed: " + cmd; return false; }
+  return true;
+}
+
+}  // namespace
+
+const std::vector<Target>& targets() {
+  static const std::vector<Target> t = {
+      // ARMv8.0 tuned for the Pi 3's Cortex-A53, which the A55 (reMarkable Paper Pro), A72 (Pi 4) and A76 (Pi 5) also run
+      // glibc 2.28 and newer (.2.28): Debian 10 and Raspberry Pi OS Buster, Ubuntu 20.04, RHEL 8. Without it zig 0.15 picks 2.34 for the 32-bit
+      // ARM targets (the 64-bit time functions), and the program does not start on Raspberry Pi OS Bullseye (2.31) or older
+      {"aarch64-linux", "aarch64-linux-gnu.2.28", " -mcpu=cortex_a53", "Raspberry Pi 3, 4 and 5 (64-bit), reMarkable Paper Pro, servers; glibc 2.28 and newer"},
+      // ARMv6 with VFPv2, no NEON: the first Pi and the Pi Zero, and every later Pi on a 32-bit OS (slower there: armv7-linux)
+      {"armhf-linux", "arm-linux-gnueabihf.2.28", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6); glibc 2.28 and newer"},
+      // ARMv7-A with NEON and VFPv3: the Cortex-A8 of the NTC CHIP is the oldest core, so no VFPv4 instruction reaches it; the Pi 2 (A7) and Pi 3 (A53) run it
+      {"armv7-linux", "arm-linux-gnueabihf.2.28", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON); glibc 2.28 and newer"},
+      // webOS 3 on the HP TouchPad: glibc 2.8, and the soft-float calling convention its GL and system libraries were built with (hp-touchpad-webos.md).
+      // softfp: the FPU and NEON are used, numbers are passed in the integer registers. zig 0.15.2 turns VFPv2 off for a gnueabi target and leaves
+      // VFPv3 and NEON on, and LLVM's ARM backend then dies on NEON intrinsics ("Do not know how to split this operator's operand", zstd and
+      // mbedTLS): +vfp2 puts it back. No undefined-behaviour checks: the runtime zig links for them into an unoptimized program (CMake's compiler
+      // test) calls pwritev64, of glibc 2.10
+      {"armv7-webos", "arm-linux-gnueabi.2.8", " -mcpu=cortex_a8+neon -mfloat-abi=softfp -Xclang -target-feature -Xclang +vfp2 -fno-sanitize=undefined", "HP TouchPad on webOS 3 (ARMv7 with NEON, glibc 2.8, soft-float calls)"},
+      {"x86_64-linux", "x86_64-linux-gnu.2.28", "", "PC and server Linux; glibc 2.28 and newer"},
+      // i686 with SSE2 (an x87-only CPU would round doubles apart from every other target): old 32-bit PCs and netbooks still on a 32-bit Debian
+      {"x86-linux", "x86-linux-gnu.2.28", " -mcpu=pentium4", "32-bit PC Linux (i686 with SSE2); glibc 2.28 and newer"},
+      {"aarch64-macos", "aarch64-macos", "", "Apple Silicon"},
+      {"x86_64-macos", "x86_64-macos", "", "Intel Mac"},
+      // ZN-714: console programs only (the runtime, no window host yet); mingw-w64 from zig, so the .exe needs no Visual C++ runtime installed
+      {"x86_64-windows", "x86_64-windows-gnu", "", "PC Windows 10 and 11 (console programs; name the output .exe)"},
+  };
+  return t;
+}
+
+const std::vector<Target>& appTargets() {
+  static const std::vector<Target> t = {
+      // armeabi-v7a for the 32-bit devices still in use (the Nexus 7 2012, Android 7.1); x86_64 for the emulator
+      {"android", "", "", "Android 7.0 (API 24) and later, armeabi-v7a, arm64-v8a and x86_64 (needs the Android NDK: zinc export --target android)"},
+      {"ios", "", "", "iPhone and iPad, arm64 (needs Xcode: zinc export --target ios)"},
+      {"ios-sim", "", "", "the iOS simulator, arm64 and x86_64 (needs Xcode)"},
+  };
+  return t;
+}
+const Target* findAppTarget(const std::string& name) {
+  for (const Target& t : appTargets()) if (name == t.name) return &t;
+  return nullptr;
+}
+
+const Target* findTarget(const std::string& name) {
+  static const std::map<std::string, std::string> alias = {   // the names people type
+      {"windows-x86_64", "x86_64-windows"}, {"windows", "x86_64-windows"},
+      {"linux-arm64", "aarch64-linux"}, {"linux-aarch64", "aarch64-linux"}, {"arm64-linux", "aarch64-linux"}, {"linux-armhf", "armhf-linux"},
+      {"linux-armv7", "armv7-linux"}, {"arm-linux", "armhf-linux"}, {"linux-x86_64", "x86_64-linux"}, {"linux-amd64", "x86_64-linux"}, {"amd64-linux", "x86_64-linux"},
+      {"linux-x86", "x86-linux"}, {"linux-i686", "x86-linux"}, {"i686-linux", "x86-linux"}};
+  const auto a = alias.find(name);
+  const std::string n = a == alias.end() ? name : a->second;
+  for (const Target& t : targets()) if (n == t.name) return &t;
+  return nullptr;
+}
+
+std::vector<PinnedTool> pinnedTools() {
+  std::vector<PinnedTool> out;
+  auto add = [&](const char* name, const std::string& version, const Pin* pins, std::size_t n, const std::string& dirPrefix, const char* marker) {
+    for (std::size_t i = 0; i < n; ++i) {
+      if (hostName() != pins[i].host) continue;
+      std::string dir = (fs::path(home()) / "toolchains" / (dirPrefix + pins[i].host + "-" + version)).string();
+      out.push_back(PinnedTool{name, version, pins[i].file, pins[i].sha256, dir, fs::exists(fs::path(dir) / marker)});
+    }
+  };
+  add("zig", kVersion, kZigPins, sizeof kZigPins / sizeof *kZigPins, "zig-", "zig");
+  add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
+  add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
+  add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
+  add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
+  for (const SourceTool* t : {&basisuTool(), &gltfpackTool()})
+    out.push_back(PinnedTool{t->name, t->version, t->pin.file, t->pin.sha256, toolDir(*t), fs::exists(fs::path(toolDir(*t)) / t->name)});
+  return out;
+}
+
+std::string home() {
+  if (const char* h = std::getenv("ZINC_HOME")) return h;
+  const std::string h = zn::plat::homeDir();   // $HOME on POSIX; %USERPROFILE% on Windows, where HOME is usually unset
+  return (h.empty() ? std::string(".") : h) + "/.zinc";
+}
+
+std::string hostName() {
+#if defined(__APPLE__)
+  const char* os = "macos";
+#elif defined(__linux__)
+  const char* os = "linux";
+#elif defined(_WIN32)
+  const char* os = "windows";
+#else
+  const char* os = "unknown";
+#endif
+#if defined(__aarch64__) || defined(__arm64__)
+  return std::string("aarch64-") + os;
+#elif defined(__x86_64__)
+  return std::string("x86_64-") + os;
+#elif defined(__arm__)
+  return std::string("arm-") + os;   // zig's names for its 32-bit builds
+#elif defined(__i386__)
+  return std::string("x86-") + os;
+#else
+  return std::string("unknown-") + os;
+#endif
+}
+
+std::string zigVersion() { return kVersion; }
+
+std::string sha256Hex(const std::string& bytes) {
+  SHA256_CTX ctx;
+  sha256_init(&ctx);
+  sha256_update(&ctx, reinterpret_cast<const BYTE*>(bytes.data()), bytes.size());
+  BYTE out[SHA256_BLOCK_SIZE];
+  sha256_final(&ctx, out);
+  static const char* hex = "0123456789abcdef";
+  std::string r;
+  for (BYTE b : out) { r += hex[b >> 4]; r += hex[b & 15]; }
+  return r;
+}
+std::string sha256File(const std::string& path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) return "";
+  SHA256_CTX ctx;
+  sha256_init(&ctx);
+  char buf[1 << 16];
+  while (in.read(buf, sizeof buf) || in.gcount() > 0) sha256_update(&ctx, reinterpret_cast<const BYTE*>(buf), static_cast<size_t>(in.gcount()));
+  BYTE out[SHA256_BLOCK_SIZE];
+  sha256_final(&ctx, out);
+  static const char* hex = "0123456789abcdef";
+  std::string r;
+  for (BYTE b : out) { r += hex[b >> 4]; r += hex[b & 15]; }
+  return r;
+}
+
+bool offline() { const char* o = std::getenv("ZINC_OFFLINE"); return o && *o && std::string(o) != "0"; }
+
+std::vector<std::string> mirrors() {
+  std::vector<std::string> r;
+  const char* m = std::getenv("ZINC_MIRRORS");
+  std::string cur;
+  for (const char* c = m ? m : ""; ; ++c) {
+    if (*c == 0 || *c == ' ' || *c == ',' || *c == '\n') {
+      if (!cur.empty()) {
+        while (cur.back() == '/') cur.pop_back();
+        const auto& allowed = currentPolicy().mirrors;   // the trust policy may name the only mirrors allowed (ZN-346)
+        if (allowed.empty() || std::find(allowed.begin(), allowed.end(), cur) != allowed.end()) r.push_back(cur);
+      }
+      cur.clear();
+      if (!*c) break;
+    }
+    else cur += *c;
+  }
+  return r;
+}
+
+bool downloadTo(const std::string& origin, const std::string& rel, const std::string& out, const Accept& ok, std::string& err) {
+  std::vector<std::string> urls;
+  if (!rel.empty()) for (const std::string& m : mirrors()) urls.push_back(m + "/" + rel);   // no name a mirror would know: the origin only
+  if (!origin.empty()) urls.push_back(origin);
+  std::error_code ec;
+  int tried = 0;
+  std::string refused;
+  for (const std::string& url : urls) {
+    if (offline() && url.rfind("file://", 0) != 0) continue;   // offline: local sources only
+    ++tried;
+    std::string e;
+    if (!run("curl -fL --retry 2 -sS -o " + quote(out) + " " + quote(url) + " 2>/dev/null", e, "the download")) { fs::remove(out, ec); continue; }   // curl honours HTTPS_PROXY, http_proxy and NO_PROXY
+    std::string why;
+    if (ok && !ok(out, why)) {
+      std::fprintf(stderr, "zinc: %s served %s that does not verify (%s): refused, trying the next source\n", url.c_str(), rel.c_str(), why.c_str());
+      refused += (refused.empty() ? "" : ", ") + url;
+      fs::remove(out, ec);
+      continue;
+    }
+    return true;
+  }
+  err = offline() && !tried ? "offline (ZINC_OFFLINE): " + rel + " has no local source"
+                            : "cannot download " + rel + " from any of " + std::to_string(tried) + " source(s)" + (refused.empty() ? "" : " (refused: " + refused + ")");
+  return false;
+}
+
+bool downloadBytes(const std::string& origin, const std::string& rel, std::string& bytes, const std::function<bool(const std::string& bytes, std::string& why)>& ok, std::string& err) {
+  std::error_code ec;
+  const fs::path tmp = fs::temp_directory_path(ec) / ("zinc-dl-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand()));
+  const bool got = downloadTo(origin, rel, tmp.string(), [&](const std::string& path, std::string& why) {
+    std::ifstream f(path, std::ios::binary);
+    std::stringstream ss; ss << f.rdbuf();
+    bytes = ss.str();
+    return !ok || ok(bytes, why);
+  }, err);
+  fs::remove(tmp, ec);
+  return got;
+}
+
+// Downloads `pin` from `url`, checks it against the pin before anything is unpacked, and unpacks it into `dir` (the archive holds one directory).
+// `marker` is a file that must be in the unpacked directory. Nothing happens when `marker` is already there.
+static bool fetchTool(const char* what, const Pin& pin, const std::string& url, const fs::path& dir, const char* marker, std::string& err) {
+  if (fs::exists(dir / marker)) return true;
+  std::error_code ec;
+  fs::create_directories(dir.parent_path(), ec);
+  fs::path archive = dir.parent_path() / (std::string(pin.file) + ".part");
+  std::fprintf(stderr, "zinc: downloading %s %s (once)...\n", what, url.c_str());
+  std::string got;
+  if (!downloadTo(url, pin.file, archive.string(), [&](const std::string& path, std::string& why) {   // the mirrors first (ZINC_MIRRORS/<file>), then `url`; each checked against the pin
+        got = sha256File(path);
+        if (got == pin.sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + pin.sha256;
+        return false;
+      }, err)) return false;
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  fs::path tmp = dir.parent_path() / (std::string("extract-") + dir.filename().string());
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+#ifdef _WIN32
+  // Windows' own tar (bsdtar, Windows 10 1803 and later) reads a .zip and D:\ paths; the GNU tar of Git's sh, which run() would reach, reads no
+  // zip and takes "D:" for a remote host ("Cannot connect to D: resolve failed")
+  const char* sysRoot = std::getenv("SystemRoot");
+  const std::string tarExe = std::string(sysRoot && *sysRoot ? sysRoot : "C:\\Windows") + "\\System32\\tar.exe";
+  if (zn::plat::run({tarExe, "-xf", archive.string(), "-C", tmp.string()}) != 0) { err = "unpacking failed: " + tarExe + " -xf " + archive.string(); fs::remove_all(tmp, ec); return false; }
+#else
+  if (!run("tar -xf " + quote(archive.string()) + " -C " + quote(tmp.string()), err, "unpacking")) { fs::remove_all(tmp, ec); return false; }
+#endif
+  fs::path inner;
+  for (auto& e : fs::directory_iterator(tmp)) inner = e.path();
+  if (inner.empty() || !fs::exists(inner / marker)) { err = std::string("the archive has no ") + marker; fs::remove_all(tmp, ec); return false; }
+  fs::remove_all(dir, ec);
+  fs::rename(inner, dir, ec);
+  if (ec) { err = "cannot move the toolchain into place: " + ec.message(); return false; }
+  fs::remove_all(tmp, ec);
+  fs::remove(archive, ec);
+  std::ofstream(dir / "SHA256") << pin.sha256 << "  " << pin.file << "\n";
+  return true;
+}
+
+bool fetchArchive(const char* what, const std::string& file, const std::string& sha256, const std::string& url, const std::string& dir, const char* marker, std::string& err) {
+  const Pin pin{"", file.c_str(), sha256.c_str()};
+  return fetchTool(what, pin, url, dir, marker, err);
+}
+
+bool xcodeToolsInstalled() {
+#if defined(__APPLE__)
+  FILE* f = popen("xcode-select -p 2>/dev/null", "r");
+  if (!f) return false;
+  char buf[1024];
+  std::string dev;
+  if (std::fgets(buf, sizeof buf, f)) dev = buf;
+  const int rc = pclose(f);
+  while (!dev.empty() && (dev.back() == '\n' || dev.back() == '\r')) dev.pop_back();
+  if (rc != 0 || dev.empty()) return false;
+  std::error_code ec;
+  return fs::exists(fs::path(dev) / "SDKs", ec) || fs::exists(fs::path(dev) / "Platforms" / "MacOSX.platform" / "Developer" / "SDKs", ec);
+#else
+  return true;
+#endif
+}
+
+void offerXcodeTools(const char* why) {
+#if defined(__APPLE__)
+  std::fprintf(stderr, "zinc: %s\n", why);
+  std::fprintf(stderr, "      The Xcode command line tools are not installed on this Mac. Install them with:\n\n        xcode-select --install\n\n"
+                       "      (a system window asks, about 1.5 GB, a few minutes), then run this command again.\n");
+  if (isatty(0) && isatty(2)) {
+    std::fprintf(stderr, "\nInstall them now? [Y/n] ");
+    std::fflush(stderr);
+    char answer[16] = {0};
+    if (std::fgets(answer, sizeof answer, stdin) && (answer[0] == 'n' || answer[0] == 'N')) return;
+    if (std::system("xcode-select --install") != 0) std::fprintf(stderr, "zinc: xcode-select --install did not start; run it yourself from a terminal\n");
+    else std::fprintf(stderr, "zinc: the installer is open: when it has finished, run this command again\n");
+  }
+#else
+  (void)why;
+#endif
+}
+
+bool ensureZig(std::string& zigPath, std::string& err) {
+  const char* marker = hostName() == "x86_64-windows" || hostName() == "aarch64-windows" ? "zig.exe" : "zig";   // the unzipped program's name on each host
+  if (const char* z = std::getenv("ZINC_ZIG")) {
+    if (!fs::exists(z)) { err = std::string("ZINC_ZIG points to a missing file: ") + z; return false; }
+    zigPath = z;
+    return true;
+  }
+  const Pin* pin = nullptr;
+  for (const Pin& p : kZigPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned zig for this machine (" + hostName() + "); set ZINC_ZIG to a zig " + kVersion + " you installed"; return false; }
+  fs::path dir = fs::path(home()) / "toolchains" / (std::string("zig-") + pin->host + "-" + kVersion);
+  std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://ziglang.org/download/") + kVersion;
+  if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, marker, err)) return false;
+  zigPath = (dir / marker).string();
+  return true;
+}
+
+std::string esbuildVersion() { return kEsbuildVersion; }
+std::string esbuildPath() {
+  if (const char* e = std::getenv("ZINC_ESBUILD")) return e;
+  return (fs::path(home()) / "toolchains" / ("esbuild-" + hostName() + "-" + kEsbuildVersion) / (hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild")).string();
+}
+bool ensureEsbuild(std::string& path, std::string& err) {
+  path = esbuildPath();
+  if (std::getenv("ZINC_ESBUILD")) { if (fs::exists(path)) return true; err = "ZINC_ESBUILD points to a missing file: " + path; return false; }
+  const Pin* pin = nullptr;
+  for (const Pin& p : kEsbuildPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned esbuild for this machine (" + hostName() + "); set ZINC_ESBUILD to an esbuild " + kEsbuildVersion + " you installed"; return false; }
+  const std::string file = pin->file, platform = file.substr(0, file.size() - std::strlen(kEsbuildVersion) - 5);   // darwin-x64-0.28.2.tgz -> darwin-x64
+  const fs::path dir = fs::path(home()) / "toolchains" / ("esbuild-" + hostName() + "-" + kEsbuildVersion);
+  return fetchTool("esbuild", *pin, "https://registry.npmjs.org/@esbuild/" + platform + "/-/" + file, dir, hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild", err);   // the tarball's one directory is package/
+}
+
+std::string butlerVersion() { return kButlerVersion; }
+std::string butlerPath() {
+  if (const char* b = std::getenv("ZINC_BUTLER")) return b;
+  return (fs::path(home()) / "toolchains" / ("butler-" + hostName() + "-" + kButlerVersion) / "butler").string();
+}
+bool ensureButler(std::string& path, std::string& err) {
+  path = butlerPath();
+  if (std::getenv("ZINC_BUTLER") || fs::exists(path)) return true;
+  const Pin* pin = nullptr;
+  for (const Pin& p : kButlerPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned butler for this machine (" + hostName() + "); set ZINC_BUTLER to a butler you installed"; return false; }
+  const fs::path dir = fs::path(path).parent_path();
+  const std::string file = std::string("butler-") + pin->file + "-" + kButlerVersion + ".zip";
+  std::error_code ec;
+  fs::create_directories(dir.parent_path(), ec);
+  const fs::path archive = dir.parent_path() / (file + ".part"), tmp = dir.parent_path() / ("extract-" + dir.filename().string());
+  std::fprintf(stderr, "zinc: downloading butler %s (once)...\n", kButlerVersion);
+  std::string got;
+  if (!downloadTo(std::string("https://broth.itch.zone/butler/") + pin->file + "/" + kButlerVersion + "/archive/default", file, archive.string(), [&](const std::string& p, std::string& why) {
+        got = sha256File(p);
+        if (got == pin->sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + pin->sha256;
+        return false;
+      }, err)) return false;
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+  if (!run("unzip -q -o " + quote(archive.string()) + " -d " + quote(tmp.string()) + " >/dev/null 2>&1 || tar -xf " + quote(archive.string()) + " -C " + quote(tmp.string()), err, "unpacking butler") ||
+      !fs::exists(tmp / "butler")) { if (err.empty()) err = "the butler archive has no butler"; fs::remove_all(tmp, ec); return false; }
+  fs::permissions(tmp / "butler", fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add, ec);
+  fs::remove_all(dir, ec);
+  fs::rename(tmp, dir, ec);
+  fs::remove(archive, ec);
+  if (ec) { err = "cannot move butler into place: " + ec.message(); return false; }
+  std::ofstream(dir / "SHA256") << pin->sha256 << "  " << file << "\n";
+  return true;
+}
+
+namespace {
+std::string toolPath(const SourceTool& t) {
+  if (const char* e = std::getenv(t.env)) return e;
+  return (fs::path(toolDir(t)) / t.name).string();
+}
+/** The tool `t` at toolPath(t): its archive downloaded and checked, its files compiled with the pinned zig, the executable moved into place. */
+bool ensureSourceTool(const SourceTool& t, std::string& path, std::string& err) {
+  path = toolPath(t);
+  if (std::getenv(t.env) || fs::exists(path)) return true;
+  std::string zig;
+  if (!ensureZig(zig, err)) return false;
+  const fs::path dir = fs::path(path).parent_path(), work = dir.parent_path() / ("build-" + dir.filename().string() + "-" + std::to_string(::getpid()));
+  std::error_code ec;
+  fs::remove_all(work, ec);
+  fs::create_directories(work / "obj", ec);
+  const fs::path archive = work / t.pin.file;
+  std::fprintf(stderr, "zinc: downloading %s...\n", t.what);
+  std::string got;
+  if (!downloadTo(t.url, t.pin.file, archive.string(), [&](const std::string& p, std::string& why) {
+        got = sha256File(p);
+        if (got == t.pin.sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + t.pin.sha256;
+        return false;
+      }, err)) { fs::remove_all(work, ec); return false; }
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  std::string members;
+  for (const char* m : t.members) members += " " + quote(std::string(t.top) + m);
+  const bool unpacked = run("tar -xzf " + quote(archive.string()) + " -C " + quote(work.string()) + members, err, "unpacking the sources");
+  fs::remove(archive, ec);
+  if (!unpacked) { fs::remove_all(work, ec); return false; }
+  const fs::path src = work / t.top;
+  std::vector<std::string> cmds;
+  std::string objs;
+  for (std::size_t i = 0; i < t.files.size(); ++i) {
+    const bool c = t.files[i].size() > 2 && t.files[i].compare(t.files[i].size() - 2, 2, ".c") == 0;
+    const std::string obj = (work / "obj" / (std::to_string(i) + ".o")).string();
+    cmds.push_back(quote(zig) + (c ? " cc" : " c++ -std=c++17") + t.flags + " -c " + quote((src / t.files[i]).string()) + " -o " + quote(obj) + " 2>>" + quote((work / "log").string()));
+    objs += " " + quote(obj);
+  }
+  // half the hardware threads: a one-time build that leaves the machine usable meanwhile
+  const unsigned jobs = std::max(1u, std::thread::hardware_concurrency() / 2);
+  std::atomic<std::size_t> next{0};
+  std::atomic<bool> failed{false};
+  std::vector<std::thread> pool;
+  for (unsigned j = 0; j < jobs; ++j)
+    pool.emplace_back([&] { for (std::size_t i; !failed && (i = next++) < cmds.size();) if (std::system(cmds[i].c_str()) != 0) failed = true; });
+  for (std::thread& th : pool) th.join();
+  const fs::path tmpBin = work / t.name;
+  if (failed || !run(quote(zig) + " c++ -O2" + objs + " -o " + quote(tmpBin.string()) + " 2>>" + quote((work / "log").string()), err, "linking the tool")) {
+    std::string log;
+    std::ifstream in(work / "log");
+    std::getline(in, log, '\0');
+    err = "building " + std::string(t.name) + " " + t.version + " failed: " + log.substr(0, 600);
+    fs::remove_all(work, ec);
+    return false;
+  }
+  fs::create_directories(dir, ec);
+  for (const char* f : t.keep) fs::copy_file(src / f, dir / f, fs::copy_options::overwrite_existing, ec);
+  std::ofstream(dir / "SHA256") << t.pin.sha256 << "  " << t.pin.file << "\n";
+  fs::rename(tmpBin, path, ec);
+  if (ec) err = std::string("cannot move ") + t.name + " into place: " + ec.message();
+  std::error_code ignored;
+  fs::remove_all(work, ignored);
+  return !ec;
+}
+}  // namespace
+
+std::string basisuVersion() { return basisuTool().version; }
+std::string basisuPath() { return toolPath(basisuTool()); }
+bool ensureBasisu(std::string& path, std::string& err) { return ensureSourceTool(basisuTool(), path, err); }
+std::string gltfpackVersion() { return gltfpackTool().version; }
+std::string gltfpackPath() { return toolPath(gltfpackTool()); }
+bool ensureGltfpack(std::string& path, std::string& err) { return ensureSourceTool(gltfpackTool(), path, err); }
+
+bool ensureEsptool(std::string& path, std::string& err) {
+  if (const char* e = std::getenv("ZINC_ESPTOOL")) { path = e; return true; }
+  const Pin* pin = nullptr;
+  for (const Pin& p : kEsptoolPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned esptool for this machine (" + hostName() + "); set ZINC_ESPTOOL to an esptool you installed"; return false; }
+  fs::path dir = fs::path(home()) / "toolchains" / (std::string("esptool-") + pin->host + "-" + kEsptoolVersion);
+  std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://github.com/espressif/esptool/releases/download/") + kEsptoolVersion;
+  if (!fetchTool("esptool", *pin, base + "/" + pin->file, dir, "esptool", err)) return false;
+  path = (dir / "esptool").string();
+  return true;
+}
+
+bool qemuCommand(const std::string& chip, const std::string& root, std::string& cmd, std::string& err) {
+  if (chip != "esp32") { err = "no emulator for " + chip; return false; }
+  fs::path flash = fs::path(root) / "firmware/esp32/prebuilt/esp32-core-flash.bin";
+  if (!fs::exists(flash)) { err = "the core firmware image is missing: " + flash.string() + " (tools/build-esp32-core builds it)"; return false; }
+  fs::path bin;
+  if (const char* q = std::getenv("ZINC_QEMU")) bin = q;
+  else {
+    const Pin* pin = nullptr;
+    for (const Pin& p : kQemuPins) if (hostName() == p.host) pin = &p;
+    if (!pin) { err = "no pinned QEMU for this machine (" + hostName() + "); set ZINC_QEMU to qemu-system-xtensa from Espressif's build"; return false; }
+    fs::path dir = fs::path(home()) / "toolchains" / (std::string("qemu-xtensa-") + pin->host + "-" + kQemuVersion);
+    std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417");
+    if (!fetchTool("the emulator", *pin, base + "/" + pin->file, dir, "bin/qemu-system-xtensa", err)) return false;
+    bin = dir / "bin/qemu-system-xtensa";
+  }
+#ifdef __linux__
+  {  // Espressif's QEMU is dynamically linked against libraries a bare system may lack: say which, instead of a dead pipe
+    std::string missing;
+    if (FILE* p = popen(("ldd " + quote(bin.string()) + " 2>&1 | grep 'not found' | awk '{print $1}'").c_str(), "r")) {
+      char b[256];
+      while (std::fgets(b, sizeof b, p)) { std::string l = b; while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back(); missing += (missing.empty() ? "" : ", ") + l; }
+      pclose(p);
+    }
+    if (!missing.empty()) { err = "the emulator needs libraries this machine lacks: " + missing + " (Debian and Ubuntu: apt install libpixman-1-0 libsdl2-2.0-0 libslirp0)"; return false; }
+  }
+#endif
+  // a copy of the flash: the emulator writes to it
+  fs::path work = fs::path(home()) / "cache" / "esp32-flash.bin";
+  std::error_code ec;
+  fs::create_directories(work.parent_path(), ec);
+  fs::copy_file(flash, work, fs::copy_options::overwrite_existing, ec);
+  {  // the emulator wants a whole 4 MB flash: erased flash reads 0xFF
+    std::ofstream f(work, std::ios::binary | std::ios::app);
+    std::string pad(4096, '\xff');
+    for (std::uintmax_t n = fs::file_size(work, ec); n < (4u << 20);) {
+      std::size_t k = static_cast<std::size_t>(std::min<std::uintmax_t>(pad.size(), (4u << 20) - n));
+      f.write(pad.data(), static_cast<std::streamsize>(k));
+      n += k;
+    }
+  }
+  cmd = quote(bin.string()) + " -nographic -machine esp32 -m 4M -drive file=" + quote(work.string()) + ",if=mtd,format=raw -global driver=timer.esp32.timg,property=wdt_disable,value=true -serial stdio -monitor none 2>/dev/null";
+  return true;
+}
+
+bool crossBuild(const std::string& zig, const std::string& root, const std::string& cppFile, const std::string& target, const std::string& outFile, std::string& err) {
+  const Target* t = findTarget(target);
+  if (!t) { err = "unknown target '" + target + "' (zinc toolchain targets)"; return false; }
+  fs::path cache = fs::path(home()) / "cache" / t->name;
+  std::error_code ec;
+  fs::create_directories(cache, ec);
+  std::string flags = std::string("-target ") + t->zigTarget + t->cpuFlags + " -O2 -w -ffp-contract=off -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include") + " -I " + quote(root + "/third_party/quickjs-ng");
+  if (std::string(t->name).size() > 6 && std::string(t->name).substr(std::string(t->name).size() - 6) == "-macos") flags += " -I " + quote(root + "/third_party/macos-shim");  // CommonCrypto for mimalloc
+  struct Src { std::string path; bool c; };
+  std::vector<Src> srcs = {{"src/rt/machine.cpp", false}, {"src/rt/rtcalls.cpp", false}, {"src/rt/program.cpp", false}, {"src/rt/native.cpp", false}, {"src/rt/alloc.cpp", false}, {"src/rt/alloc_new.cpp", false}, {"src/rt/unicode.cpp", false}, {"third_party/quickjs-ng/libunicode.c", true}, {"src/zbc/zbc.cpp", false}, {"third_party/mimalloc/src/static.c", true}};
+  std::string objs;
+  for (const Src& s : srcs) {
+    std::string src = root + "/" + s.path;
+    std::string key = sha256File(src).substr(0, 16);
+    // a header change must rebuild too: the key covers the headers of include/ and src/ through their combined size and time
+    std::string headers;
+    for (const char* dir : {"include/zn", "src/rt", "src/zbc"})
+      for (auto& e : fs::directory_iterator(root + "/" + dir)) if (e.path().extension() == ".h") headers += e.path().filename().string() + std::to_string(fs::file_size(e.path())) + ";";
+    std::hash<std::string> h;
+    std::string obj = (cache / (fs::path(s.path).filename().string() + "." + key + "." + std::to_string(h(headers) & 0xFFFFFF) + ".o")).string();
+    if (!fs::exists(obj)) {
+      std::fprintf(stderr, "zinc: compiling %s for %s\n", s.path.c_str(), t->name);
+      std::string cmd = quote(zig) + (s.c ? " cc " : " c++ -std=c++20 ") + flags + " -c " + quote(src) + " -o " + quote(obj);
+      if (!run(cmd, err, "the compiler")) { fs::remove(obj, ec); return false; }
+    }
+    objs += " " + quote(obj);
+  }
+  // Windows: what mimalloc calls (random numbers, process memory); -static so the .exe carries libc++ and winpthreads and runs on a machine with nothing installed
+  if (std::string(t->name).find("-windows") != std::string::npos) objs += " -static -lbcrypt -ladvapi32 -lpsapi";
+  if (std::string(t->name).find("-webos") != std::string::npos) objs += " -ldl";   // the runtime finds the device's libm functions with dlsym (src/rt/alloc.cpp)
+  std::string cmd = quote(zig) + " c++ -std=c++20 " + flags + " " + quote(cppFile) + objs + " -o " + quote(outFile);
+  return run(cmd, err, "the compiler");
+}
+
+
+bool ensureCrossLibs(const std::string& zig, const std::string& root, const std::string& target, std::string& dir, std::string& err) {
+  const Target* t = findTarget(target);
+  if (!t) { err = "unknown target '" + target + "' (zinc toolchain targets)"; return false; }
+  std::string name = t->name;
+  if (std::string(t->zigTarget).find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
+  dir = root + "/build/cross-" + name;
+  {   // a tree configured for another triple or CPU (an older zinc, before the glibc floor) starts again: make would not see the wrappers change
+    const std::string want = std::string(t->zigTarget) + t->cpuFlags;
+    std::ifstream in(dir + "/zig-target");
+    std::string had;
+    std::getline(in, had);
+    std::error_code ec;
+    if (fs::exists(dir + "/CMakeCache.txt") && had != want) fs::remove_all(dir, ec);
+  }
+  const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls zn_zpk zn_lz4 zn_zstd zn_sha256 zn_script zn_qjs_ext zn_quickjs -j 3 >";
+  if (fs::exists(dir + "/libzn_host_gfx.a") && fs::exists(dir + "/CMakeCache.txt"))   // built before: brought up to date (sources added or changed since), quick when nothing did
+  {   // twice at most: when CMakeLists.txt gained a target since the last build, the first make regenerates its Makefile but has already read the old one ("No rule to make target")
+    const std::string cmd = "cmake --build " + quote(dir) + targets + quote(dir + "/build.log") + " 2>&1";
+    return run(cmd, err, "cmake --build") || run(cmd, err, "cmake --build");
+  }
+  if (fs::exists(dir + "/libzn_host_gfx.a")) return true;   // prebuilt libraries without a CMake tree (a package): used as they are
+  if (std::system("command -v cmake >/dev/null 2>&1") != 0) { err = "building the graphics host for " + name + " needs cmake (or the prebuilt libraries in " + dir + ")"; return false; }
+  std::error_code ec;
+  fs::create_directories(dir + "/wrap", ec);
+  for (const char* tool : {"cc", "c++", "ar", "ranlib"}) {   // CMake takes one program per compiler: wrappers that say which zig command and target
+    bool compiler = std::string(tool) == "cc" || std::string(tool) == "c++";
+    std::ofstream w(dir + "/wrap/" + tool);
+    w << "#!/bin/sh\nexec '" << zig << "' " << tool << (compiler ? std::string(" -target ") + t->zigTarget + t->cpuFlags : std::string()) << " \"$@\"\n";
+    w.close();
+    fs::permissions(dir + "/wrap/" + tool, fs::perms::owner_all, ec);
+  }
+  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : std::string(t->zigTarget).rfind("arm-", 0) == 0 ? "arm" : name.rfind("x86-", 0) == 0 ? "i686" : "x86_64";
+  std::ofstream(dir + "/zig-target") << t->zigTarget << t->cpuFlags << "\n";
+  std::fprintf(stderr, "zinc: building the graphics host for %s (first time only)\n", name.c_str());
+  std::string cfg = "cmake -S " + quote(root) + " -B " + quote(dir) + " -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=" + arch + " -DCMAKE_C_COMPILER=" + quote(dir + "/wrap/cc") + " -DCMAKE_CXX_COMPILER=" + quote(dir + "/wrap/c++") +
+                    " -DCMAKE_AR=" + quote(dir + "/wrap/ar") + " -DCMAKE_RANLIB=" + quote(dir + "/wrap/ranlib") + " -DCMAKE_BUILD_TYPE=Release -DZN_SDL_VENDORED=OFF >" + quote(dir + "/configure.log") + " 2>&1";
+  if (!run(cfg, err, "cmake")) return false;
+  std::string build = "cmake --build " + quote(dir) + targets + quote(dir + "/build.log") + " 2>&1";
+  if (!run(build, err, "cmake --build")) { fs::remove(dir + "/libzn_host_gfx.a", ec); return false; }
+  return fs::exists(dir + "/libzn_host_gfx.a");
+}
+
+std::string executablePath() {
+  static const std::string path = []() -> std::string {   // resolved once: a run asks several times
+#ifdef __APPLE__
+    char buf[4096];
+    std::uint32_t n = sizeof buf;
+    if (_NSGetExecutablePath(buf, &n) != 0) return "";
+    std::error_code ec;
+    fs::path p = fs::canonical(buf, ec);
+    return ec ? std::string(buf) : p.string();
+#elif defined(_WIN32)
+    return zn::plat::exePath();   // no /proc: without it the package around zinc.exe was never found (sourceRoot fell back to the checkout's path)
+#else
+    std::error_code ec;
+    fs::path p = fs::read_symlink("/proc/self/exe", ec);
+    return ec ? "" : p.string();
+#endif
+  }();
+  return path;
+}
+
+std::string sourceRoot(const std::string& compiledIn) {
+  if (const char* r = std::getenv("ZINC_ROOT")) if (*r) return r;
+  std::string exe = executablePath();
+  if (!exe.empty()) {
+    fs::path dir = fs::path(exe).parent_path();
+    for (const char* rel : {"../share/zinc", "../Resources/zinc"}) {
+      fs::path c = dir / rel;
+      std::error_code ec;
+      if (fs::exists(c / "include/zn/runtime.h", ec)) return fs::weakly_canonical(c, ec).string();
+    }
+  }
+  return compiledIn;
+}
+
+bool newerVersion(const std::string& candidate, const std::string& current) {
+  // semver order: 1.2.0 > 1.2.0-beta.2 > 1.2.0-beta.1; the build part (+46-gabc, what git describe adds) is ignored
+  auto parts = [](const std::string& v, char sep) { std::vector<std::string> r; std::stringstream ss(v); std::string t; while (std::getline(ss, t, sep)) r.push_back(t); return r; };
+  auto num = [](const std::string& t) { return !t.empty() && t.find_first_not_of("0123456789") == std::string::npos; };
+  auto split = [](const std::string& v, std::string& pre) { std::string core = v.substr(0, v.find('+')); const std::size_t d = core.find('-'); pre = d == std::string::npos ? "" : core.substr(d + 1); return core.substr(0, d); };
+  std::string pa, pb;
+  std::vector<std::string> a = parts(split(candidate, pa), '.'), b = parts(split(current, pb), '.');
+  for (std::size_t i = 0; i < std::max(a.size(), b.size()); ++i) {
+    long x = i < a.size() ? std::atol(a[i].c_str()) : 0, y = i < b.size() ? std::atol(b[i].c_str()) : 0;
+    if (x != y) return x > y;
+  }
+  if (pa.empty() || pb.empty()) return pa.empty() && !pb.empty();   // a release is newer than its prereleases
+  a = parts(pa, '.'); b = parts(pb, '.');
+  for (std::size_t i = 0; i < std::min(a.size(), b.size()); ++i) {
+    if (a[i] == b[i]) continue;
+    if (num(a[i]) && num(b[i])) return std::atol(a[i].c_str()) > std::atol(b[i].c_str());
+    return num(a[i]) != num(b[i]) ? !num(a[i]) : a[i] > b[i];
+  }
+  return a.size() > b.size();
+}
+
+namespace {
+int hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; }
+bool fromHex(const std::string& h, std::uint8_t* out, std::size_t n) {
+  if (h.size() != n * 2) return false;
+  for (std::size_t i = 0; i < n; ++i) { int a = hexv(h[2 * i]), b = hexv(h[2 * i + 1]); if (a < 0 || b < 0) return false; out[i] = static_cast<std::uint8_t>(a * 16 + b); }
+  return true;
+}
+std::string toHex(const std::uint8_t* p, std::size_t n) { static const char* d = "0123456789abcdef"; std::string s; for (std::size_t i = 0; i < n; ++i) { s += d[p[i] >> 4]; s += d[p[i] & 15]; } return s; }
+// the manifest without its `sig=` line, and the signature (empty when there is none)
+std::string unsignedPart(const std::string& text, std::string& sig) {
+  std::string out;
+  std::size_t pos = 0;
+  while (pos < text.size()) {
+    std::size_t nl = text.find('\n', pos);
+    std::string line = text.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos + 1);
+    if (line.rfind("sig=", 0) == 0) { sig = line.substr(4); while (!sig.empty() && (sig.back() == '\n' || sig.back() == '\r')) sig.pop_back(); }
+    else out += line;
+    if (nl == std::string::npos) break;
+    pos = nl + 1;
+  }
+  return out;
+}
+}  // namespace
+
+std::vector<std::string> trustedUpdateKeys() {
+  std::vector<std::string> keys;
+  if (const char* k = std::getenv("ZINC_UPDATE_PUBKEY")) if (*k) keys.push_back(k);
+  std::ifstream in(home() + "/update-keys");
+  std::string line;
+  while (std::getline(in, line)) if (line.size() == 64) keys.push_back(line);
+  if (*releaseKey()) keys.push_back(releaseKey());   // compiled in: ZN_UPDATE_PUBKEY (src/tc/selfupdate.cpp)
+  return keys;
+}
+bool verifyManifest(const std::string& text, const std::vector<std::string>& trusted, std::string& err) {
+  std::string sigHex, body = unsignedPart(text, sigHex);
+  std::uint8_t sig[64];
+  if (sigHex.empty()) { err = "the update manifest is not signed (no sig= line)"; return false; }
+  if (!fromHex(sigHex, sig, 64)) { err = "the update manifest has a malformed signature"; return false; }
+  if (trusted.empty()) { err = "no trusted update key (set ZINC_UPDATE_PUBKEY or list public keys in " + home() + "/update-keys)"; return false; }
+  for (const std::string& k : trusted) {
+    std::uint8_t pk[32];
+    if (fromHex(k, pk, 32) && crypto_ed25519_check(sig, pk, reinterpret_cast<const std::uint8_t*>(body.data()), body.size()) == 0) return true;
+  }
+  err = "the signature of the update manifest does not verify with a trusted key: refused";
+  return false;
+}
+bool signManifest(const std::string& text, const std::string& seedHex, std::string& signedText, std::string& err) {
+  std::uint8_t seed[32], sk[64], pk[32], sig[64];
+  if (!fromHex(seedHex, seed, 32)) { err = "the signing seed is 64 hex digits"; return false; }
+  crypto_ed25519_key_pair(sk, pk, seed);
+  std::string ignored, body = unsignedPart(text, ignored);
+  if (!body.empty() && body.back() != '\n') body += '\n';
+  crypto_ed25519_sign(sig, sk, reinterpret_cast<const std::uint8_t*>(body.data()), body.size());
+  signedText = body + "sig=" + toHex(sig, 64) + "\n";
+  return true;
+}
+bool signBytes(const std::string& bytes, const std::string& seedHex, std::string& sigHex, std::string& err) {
+  std::uint8_t seed[32], sk[64], pk[32], sig[64];
+  if (!fromHex(seedHex, seed, 32)) { err = "the signing seed is 64 hex digits"; return false; }
+  crypto_ed25519_key_pair(sk, pk, seed);
+  crypto_ed25519_sign(sig, sk, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+  sigHex = toHex(sig, 64);
+  return true;
+}
+bool verifyBytes(const std::string& bytes, const std::string& sigHex, const std::string& publicHex) {
+  std::uint8_t sig[64], pk[32];
+  return fromHex(sigHex, sig, 64) && fromHex(publicHex, pk, 32) && crypto_ed25519_check(sig, pk, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()) == 0;
+}
+bool newKeyPair(std::string& seedHex, std::string& publicHex) {
+  std::uint8_t seed[32], sk[64], pk[32];
+  std::ifstream r("/dev/urandom", std::ios::binary);
+  if (!r.read(reinterpret_cast<char*>(seed), 32)) return false;
+  seedHex = toHex(seed, 32);   // before: key_pair wipes the seed it is given
+  crypto_ed25519_key_pair(sk, pk, seed);
+  publicHex = toHex(pk, 32);
+  return true;
+}
+
+std::string publicKeyOf(const std::string& seedHex) {
+  std::uint8_t seed[32], sk[64], pk[32];
+  if (!fromHex(seedHex, seed, 32)) return "";
+  crypto_ed25519_key_pair(sk, pk, seed);
+  return toHex(pk, 32);
+}
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) { return fetchManifest(manifestUrl, info, err, trustedUpdateKeys()); }
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys, bool allowUnsigned, double maxSeconds) {
+  fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand()));
+  std::string cmd = "curl -fL -sS " + (maxSeconds > 0 ? "--max-time " + std::to_string(maxSeconds) + " -o " : std::string("--retry 2 -o ")) + quote(tmp.string()) + " " + quote(manifestUrl) + (maxSeconds > 0 ? " 2>/dev/null" : "");
+  if (!run(cmd, err, "fetching the update manifest")) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
+  std::string text;
+  { std::ifstream f(tmp, std::ios::binary); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
+  std::string sig;
+  const bool unsignedRelease = (text.rfind("signature=none\n", 0) == 0 || text.find("\nsignature=none\n") != std::string::npos) && (unsignedPart(text, sig), sig.empty());
+  if (unsignedRelease && !allowUnsigned) { std::error_code ec0; fs::remove(tmp, ec0); err = "the update manifest is unsigned (signature=none: the release was made without a signing key): refused; set ZINC_UPDATE_ALLOW_UNSIGNED=1 to trust its SHA-256 alone"; return false; }
+  if (!unsignedRelease && !verifyManifest(text, keys, err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
+  std::istringstream in(text);
+  std::string line;
+  while (std::getline(in, line)) {
+    auto eq = line.find('=');
+    if (eq == std::string::npos || line[0] == '#') continue;
+    std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+    if (k == "version") info.version = v; else if (k == "url") info.url = v; else if (k == "sha256") info.sha256 = v; else if (k == "notes") info.notes = v;
+  }
+  std::error_code ec;
+  fs::remove(tmp, ec);
+  if (info.version.empty() || info.url.empty() || info.sha256.size() != 64) { err = "the update manifest needs version, url and a 64 digit sha256"; return false; }
+  if (info.url.find("://") == std::string::npos) {   // a file beside the manifest
+    const std::size_t slash = manifestUrl.rfind('/');
+    info.url = (slash == std::string::npos ? std::string() : manifestUrl.substr(0, slash + 1)) + info.url;
+  }
+  return true;
+}
+
+bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string& path, std::string& err) {
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  std::string name = fs::path(info.url).filename().string();
+  if (name.empty()) name = "zinc-update-" + info.version;
+  fs::path part = fs::path(dir) / (name + ".part"), done = fs::path(dir) / name;
+  if (!run("curl -fL --retry 3 -sS -o " + quote(part.string()) + " " + quote(info.url), err, "the download")) return false;
+  std::string got = sha256File(part.string());
+  if (got != info.sha256) {
+    fs::remove(part, ec);
+    err = "checksum mismatch for " + name + ": expected " + info.sha256 + ", got " + (got.empty() ? "nothing" : got) + "; the download was discarded";
+    return false;
+  }
+  fs::rename(part, done, ec);
+  if (ec) { err = "cannot keep the download: " + ec.message(); return false; }
+  path = done.string();
+  return true;
+}
+
+}  // namespace zn::tc

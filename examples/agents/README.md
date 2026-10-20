@@ -99,7 +99,7 @@ CLIs and desktop tools tend to keep a whole conversation in memory, so a long on
 - **A bounded line buffer.** The output is read in raw chunks and split into lines with a buffer of 4 MB at most; a
   longer line (a huge tool result) goes to disk as it arrives, unparsed, and its first 16 KB tell which tool it belongs
   to.
-- **Flat, measured.** `next/tests/t1/agents_memory.sh` sends a turn of 20 000 tool calls carrying 200 MB of output, then
+- **Flat, measured.** `tests/t1/agents_memory.sh` sends a turn of 20 000 tool calls carrying 200 MB of output, then
   scrolls back a thousand items and down again, and checks what the app holds against fixed ceilings the whole time.
   Measured on an M-series Mac: at most 240 items (the window and the next frame's), 4 open, 494 KB of text, 4 700 UI
   nodes and 68 000 live objects, against ceilings of 240, 16, 1 MB, 8 000 and 120 000; a resident peak of 115 to 150 MB
@@ -235,10 +235,10 @@ src/
 Tests: `zinc test examples/agents/tests` (the parsers against the real CLIs' streams, the stop state machine, the
 bounded reader, the markdown parser, the references and each CLI's arguments for them, the usage and limits of each CLI,
 opencode's models and a Go turn's usage, cost, context, the activity line's texts, the refresh interval, the picker's
-search and grouping); `next/tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
-picker typed in and driven by keys), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
-copy, selection, the `@` list), `next/tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
+search and grouping); `tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
+picker typed in and driven by keys), `tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
+copy, selection, the `@` list), `tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
 the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval),
-`next/tests/t1/agents_go.sh` (OpenCode Go's windows from a fake `opencode auth export` and made-up answers of the route,
+`tests/t1/agents_go.sh` (OpenCode Go's windows from a fake `opencode auth export` and made-up answers of the route,
 the toggle, each refusal, and the fake key found nowhere: data, output, scenes, a child's arguments or environment) and
-`next/tests/t1/agents_memory.sh` (the flood).
+`tests/t1/agents_memory.sh` (the flood).

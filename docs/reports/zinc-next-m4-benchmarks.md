@@ -1,6 +1,6 @@
 # Zinc Next: M4 benchmarks
 
-Median of 11 runs (one warm-up), wall clock, ms. Machine: macOS-15.7.4-arm64-arm-64bit. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `next/bench/m4.json`.
+Median of 11 runs (one warm-up), wall clock, ms. Machine: macOS-15.7.4-arm64-arm-64bit. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `bench/m4.json`.
 
 | kernel | interp | AOT | QuickJS | native | AOT / native | QuickJS / interp |
 |---|---:|---:|---:|---:|---:|---:|

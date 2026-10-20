@@ -4,7 +4,7 @@ A table of [`examples/pinball3d`](../examples/pinball3d/README.md) is a folder: 
 models it names. The game has no table in its code, so a new table needs no code: it is made in the table editor,
 [`examples/pinball3d-editor`](../examples/pinball3d-editor). This page follows the making of the game's second table,
 **Twilight Fair**, a funfair at dusk, from an empty board to a table the game plays. Every step below is one of the five
-editor sessions kept in [`examples/pinball3d/tools/twilight_fair/sessions`](../examples/pinball3d/tools/twilight_fair/sessions):
+editor sessions kept in [`examples/pinball3d/tools/twilight_fair/sessions`](examples/pinball3d/tools/twilight_fair/sessions):
 what was clicked and typed, in order. A test replays them and gets the shipped `table.json` byte for byte.
 
 ![Twilight Fair in the game](img/pinball3d-twilight-fair.jpg)
@@ -18,8 +18,8 @@ zinc run examples/pinball3d -- --table=assets/tables/twilight-fair              
 
 The editor places, shapes, names and tunes; it does not paint or record. The files of a table come from elsewhere: a
 drawing program, a recorder, or, for the two tables of the game, a script kept in the example
-([`tools/twilight_fair_art.py`](../examples/pinball3d/tools/twilight_fair_art.py) draws 11 images and builds 2 models,
-[`tools/twilight_fair_sounds.py`](../examples/pinball3d/tools/twilight_fair_sounds.py) synthesises 34 sounds). Put them in
+([`tools/twilight_fair_art.py`](examples/pinball3d/tools/twilight_fair_art.py) draws 11 images and builds 2 models,
+[`tools/twilight_fair_sounds.py`](examples/pinball3d/tools/twilight_fair_sounds.py) synthesises 34 sounds). Put them in
 the table's folder (`art/`, `sounds/`), or bring them in one by one with **Import…** in any file list, or by dropping a
 file on the window. The painting of the playfield is the one file that depends on the layout (the canopy around the
 bumpers, the pad under each light): draw it last, or draw it again when the layout has settled.
@@ -135,5 +135,5 @@ The measure of the editor is what it could not do by its forms, lists and pointe
   (the sessions were typed by a script, which types more surely than it picks a shade; a person uses the picker).
 - Made outside the editor, as said above: every image, model and sound.
 
-The sessions were typed by a script, not by a person ([`sessions.py`](../examples/pinball3d/tools/twilight_fair/sessions.py):
+The sessions were typed by a script, not by a person ([`sessions.py`](examples/pinball3d/tools/twilight_fair/sessions.py):
 no person was at the keyboard); nobody has yet played Twilight Fair or judged its sounds by ear.

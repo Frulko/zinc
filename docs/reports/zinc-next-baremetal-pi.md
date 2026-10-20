@@ -8,7 +8,7 @@ Nothing was run on hardware or in QEMU (this Mac has no qemu and no ARM GCC). **
 1. A MicroPython/ESP32-style experience (flash once, then upload programs, REPL-less log + upload + run) is feasible on Pi 1, Zero, 2, 3, Zero 2 W, 4, 400, CM4 and, with more risk, Pi 5. The foundation is **Circle** (C++ bare-metal environment, README features: SD, FatFs, UART, GPIO, I2C, SPI, PWM, framebuffer, USB host HID/CDC/mass storage, USB CDC serial gadget, TCP/IP, serial and network bootloaders, QEMU support, Pi 5 RP1 drivers).
 2. "No Linux" does not mean "no proprietary firmware": Pi 1-4 need the VideoCore blobs on the SD card (`bootcode.bin` Pi 1-3 only, `start*.elf`, `fixup*.dat`); Pi 4/5 also depend on the bootloader EEPROM. `LICENCE.broadcom` allows unmodified binary redistribution for Raspberry Pi use: package it, or download and SHA-256-check it like the toolchain manager does for zig and esptool.
 3. **Owner decision S0: Circle is GPL-3.0-or-later with no linking exception.** A firmware image containing Circle is GPLv3 as a whole, VM included; ZBC programs are data and stay free. If GPLv3 is rejected, the permissive route is an own minimal kernel + FatFs + TinyUSB device CDC: upload works on OTG boards, but there is no USB keyboard/mouse (TinyUSB has no host on Broadcom) and Pi 4/5 would lack xHCI.
-4. Upload reuses `next/include/zn/devproto.h` and `next/src/dev/core.{h,cpp}` unchanged (the ESP32 pattern: a 28-line `main` wires the UART to `Core`). One protocol extension is needed: `run()` collects output until the program ends, which breaks graphical event loops.
+4. Upload reuses `include/zn/devproto.h` and `src/dev/core.{h,cpp}` unchanged (the ESP32 pattern: a 28-line `main` wires the UART to `Core`). One protocol extension is needed: `run()` collects output until the program ends, which breaks graphical event loops.
 5. `zinc:gfx` maps onto the mailbox property framebuffer (32 bpp, virtual offset double buffer, `WaitForVerticalSync`); the software rasterizer stays the ceiling. No documented bare-metal 2D GPU path (QPU/HVS); Circle `addon/vc4` offers Dispmanx over VCHIQ, experimental, AArch32 only, full `start.elf`.
 6. QEMU gates steps 1-5 on `raspi3b`, `raspi0`/`raspi1ap` (ARM1176), `raspi2b`, `raspi4b`. It has no Pi 5, no PWM, no PCIe/xHCI/GENET on `raspi4b`, no VideoCore, no GPIO pin model, no Wi-Fi. The rig (Pi 3B+, DSI 7") covers the rest.
 7. Boot time: bare metal removes Linux but not the VideoCore stage. Under a second to first pixel is plausible with `start_cd.elf` and a small kernel **[UNVERIFIED]** (spike S1); a tuned Linux Zero 2 W boot took 3.5 s.
@@ -18,10 +18,10 @@ Nothing was run on hardware or in QEMU (this Mac has no qemu and no ARM GCC). **
 
 | Item | Where | Use |
 |---|---|---|
-| Device core | `next/src/dev/core.{h,cpp}` | `Core::feed(bytes)` parses the protocol; write callback is a `std::function`; needs libc++ (circle-stdlib) |
-| Protocol | `next/include/zn/devproto.h` | `ZN ping/load/ready/err/out/done`, CRC-32, control lines start with 0x1E |
-| ESP32 firmware | `next/firmware/esp32` | the pattern to copy; limits are config values on a Pi |
-| Allocator | `next/src/rt/alloc.cpp` (mimalloc) | build with `ZN_NO_MIMALLOC` on bare metal **[UNVERIFIED]** that `zn_rt` builds on newlib |
+| Device core | `src/dev/core.{h,cpp}` | `Core::feed(bytes)` parses the protocol; write callback is a `std::function`; needs libc++ (circle-stdlib) |
+| Protocol | `include/zn/devproto.h` | `ZN ping/load/ready/err/out/done`, CRC-32, control lines start with 0x1E |
+| ESP32 firmware | `firmware/esp32` | the pattern to copy; limits are config values on a Pi |
+| Allocator | `src/rt/alloc.cpp` (mimalloc) | build with `ZN_NO_MIMALLOC` on bare metal **[UNVERIFIED]** that `zn_rt` builds on newlib |
 | Decision D6 | decisions doc | aarch64-linux is the primary Pi target (qemu-user gate), armhf secondary; `rpi-baremetal` is additional |
 | Hardware layer plan | `parity/03` (`zn/hw.h`: i2c, spi, gpio, pwm) | a Circle backend is a third implementation |
 | Rasterizer | `runtime/raster.cpp`, `render_bands.h` | band thread pool; bare metal needs a core-spinning variant |

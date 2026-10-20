@@ -169,5 +169,5 @@ choices and counts. `--inspect` prints the records' key paths, types and sizes, 
 
 The tests:
 
-- `next/tests/t0/notify_relay_unit.sh` runs `tests/unit.ts`: the image sources of a record, the monogram, the sites, the filters with the Focus policies, and the Focus files.
-- `next/tests/t1/notify_relay.sh` drives the whole app against a fixture of the real schema and a test tablet on this machine.
+- `tests/t0/notify_relay_unit.sh` runs `tests/unit.ts`: the image sources of a record, the monogram, the sites, the filters with the Focus policies, and the Focus files.
+- `tests/t1/notify_relay.sh` drives the whole app against a fixture of the real schema and a test tablet on this machine.

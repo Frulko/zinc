@@ -318,7 +318,7 @@ function nodesUnder(h: i32): i32 {
   return n;
 }
 
-/** AGENTS_STATS=<file>: a line of what the app holds, every half second (next/tests/t1/agents_memory.sh reads it). */
+/** AGENTS_STATS=<file>: a line of what the app holds, every half second (tests/t1/agents_memory.sh reads it). */
 function writeStats(path: string): void {
   let window = 0, open = 0, chars = 0, items = 0;
   for (const c of chats()) { const h = c.held(); window += h[0]; open += h[1]; chars += h[2]; items += c.count; }

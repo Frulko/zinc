@@ -82,7 +82,7 @@ developer machine and an extra toolchain to ship. Later, the compiler can be rew
   types are out unless the corpus needs them.
 - Validation: the *reference checker* is an oracle, one way only: **every program we accept, the oracle accepts**. We
   may reject more (that is the point of a strict subset). The oracle is a development-time tool behind one command
-  (`next/tools/oracle`, `ZN_ORACLE` env var), never a runtime dependency, and replaceable: `tsgo` now, a C++ port of
+  (`tools/oracle`, `ZN_ORACLE` env var), never a runtime dependency, and replaceable: `tsgo` now, a C++ port of
   tsgo or any other checker later, with no change to the tests.
 - Sources remain valid TypeScript, so editors and `tsserver` keep working (`zinc tsconfig`).
 - Diagnostics registry from the start: code, title, why, fix, example, one fixture per code, `zinc explain Zxxxx`

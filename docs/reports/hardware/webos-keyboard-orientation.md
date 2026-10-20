@@ -166,7 +166,7 @@ size change. Choose it only after T1; the table works without it.
 
 ## 6. On-device test plan
 
-Install as today (`next/tools/webos-apps`), launch with `luna-send`, screenshots with
+Install as today (`tools/webos-apps`), launch with `luna-send`, screenshots with
 `luna-send -n 1 palm://com.palm.systemmanager/takeScreenShot '{"file":"/tmp/x.png"}' < /dev/null`; logs with the
 existing `/tmp/zinc/glinfo` raw event log.
 

@@ -53,14 +53,13 @@ What is different, and why (the typed language cannot make a function a value of
 
 ## The whole library on the QuickJS engine
 
-GreenSock's licence ("no charge") is not an open-source one, so GSAP is not in this repository: `next/tools/test-lib gsap-3.15.0`
+GreenSock's licence ("no charge") is not an open-source one, so GSAP is not in this repository: `tools/test-lib gsap-3.15.0`
 downloads `dist/all.js` from GSAP's own npm release into Zinc's cache and checks its sha256. `examples/js-gsap` loads it with a script
 tag, as a page would, and animates a timeline on a canvas 2D:
 
 ```sh
-cd next
 tools/test-lib gsap-3.15.0
-build/zinc run ../examples/js-gsap
+build/zinc run examples/js-gsap
 ```
 
 `ScrollTrigger`, `Flip` and the DOM plugins find their DOM in the web environment (`"web": true`): see
@@ -68,6 +67,6 @@ build/zinc run ../examples/js-gsap
 
 ## Tests
 
-`next/tests/t1/gsap.sh` (the typed port: interpreter and AOT build against `tests/golden/gsap/gsap_core.out`),
-`next/tests/t1/example_js_gsap.sh` (the real library, frame 70 against `examples/js-gsap/screenshot.png`; skipped when GSAP cannot be
+`tests/t1/gsap.sh` (the typed port: interpreter and AOT build against `tests/golden/gsap/gsap_core.out`),
+`tests/t1/example_js_gsap.sh` (the real library, frame 70 against `examples/js-gsap/screenshot.png`; skipped when GSAP cannot be
 downloaded).

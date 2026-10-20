@@ -1,4 +1,4 @@
-// Test entry of the navigation page (next/tests/t1/nuxt_ui.sh): Tabs switch, the Accordion opens and closes, the Table sorts both ways and selects, the
+// Test entry of the navigation page (tests/t1/nuxt_ui.sh): Tabs switch, the Accordion opens and closes, the Table sorts both ways and selects, the
 // Pagination pages, the sidebar collapses, the navigation picks a section.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';

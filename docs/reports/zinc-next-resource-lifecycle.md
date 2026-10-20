@@ -10,9 +10,9 @@ This is the smallest approach that covers native, interpreted, QuickJS, UI and i
 
 ## What already exists
 
-- `next/include/zn/native.h`: resource kinds with finalizers, `res_new`, `res_get`, `res_retain`, `res_release`.
-- `next/src/rt/native.cpp`: indexed resource table, generation checks to reject stale handles, and finalization at the last release. Reuse this mechanism; do not create a parallel native handle registry. Audit kind allocation/namespacing and adapter support before migrating plugin APIs.
-- `zinc:assets` v2: ZPK mappings, asynchronous loading on libuv, group release, reference-counted handles and a resident-byte budget (`next/src/host/assets_host.h`).
+- `include/zn/native.h`: resource kinds with finalizers, `res_new`, `res_get`, `res_retain`, `res_release`.
+- `src/rt/native.cpp`: indexed resource table, generation checks to reject stale handles, and finalization at the last release. Reuse this mechanism; do not create a parallel native handle registry. Audit kind allocation/namespacing and adapter support before migrating plugin APIs.
+- `zinc:assets` v2: ZPK mappings, asynchronous loading on libuv, group release, reference-counted handles and a resident-byte budget (`src/host/assets_host.h`).
 - Solid owners/`onCleanup`, React effect cleanup/unmount, and UI node destruction.
 - Native video `close`, 3D mesh/camera `dispose` and graphics image destruction.
 

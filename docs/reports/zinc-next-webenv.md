@@ -21,9 +21,9 @@ The page's address is `file://<project directory>/index.html` (the directory of 
 | Piece | File | What it does |
 |---|---|---|
 | The environment | `lib/std/webenv.js` | one JavaScript file, read from `lib/std` when asked and evaluated before the program's module |
-| Its start and natives | `next/src/qjs/webenv.cpp` | decides (ZINC_WEB, `zinc.json`), and gives JavaScript what it cannot do alone, over host rows that exist: a file's or a response's bytes as an `ArrayBuffer`, UTF-8 decoding, `structuredClone` (QuickJS's serializer), a script run as global code, a module's namespace at once |
-| Frames | `next/src/qjs/qjs.cpp` | the engine enters its frame loop when `globalThis.__zincFrameCb` is a function (ZN-566): the first `requestAnimationFrame`, or the first canvas put in the document, sets it |
-| WebGL | `next/src/gl` (libzn_webgl), untouched | `document.createElement('canvas')` is the module's canvas object given an element's class and fields; `__srcPixels` hands it the pixels of a DOM texture source |
+| Its start and natives | `src/qjs/webenv.cpp` | decides (ZINC_WEB, `zinc.json`), and gives JavaScript what it cannot do alone, over host rows that exist: a file's or a response's bytes as an `ArrayBuffer`, UTF-8 decoding, `structuredClone` (QuickJS's serializer), a script run as global code, a module's namespace at once |
+| Frames | `src/qjs/qjs.cpp` | the engine enters its frame loop when `globalThis.__zincFrameCb` is a function (ZN-566): the first `requestAnimationFrame`, or the first canvas put in the document, sets it |
+| WebGL | `src/gl` (libzn_webgl), untouched | `document.createElement('canvas')` is the module's canvas object given an element's class and fields; `__srcPixels` hands it the pixels of a DOM texture source |
 
 What a program finds:
 
@@ -48,7 +48,7 @@ What a program finds:
 - **Canvas**: `getContext('webgl' | 'webgl2')` is the existing binding with the element as `gl.canvas`; each frame the window shows the canvases
   of the document that have a context, over black, at the box their style gives them (through `gl.zincPresent`, a read).
 - **Images** (ZN-569): `Image` / `HTMLImageElement` loads its `src` as `fetch` does (files, `data:` and `blob:` URLs, the network) and the
-  engine's codec decodes it (PNG, JPEG, BMP, a GIF's first frame, WebP: `next/src/res/codec.h`). The events come in a browser's order:
+  engine's codec decodes it (PNG, JPEG, BMP, a GIF's first frame, WebP: `src/res/codec.h`). The events come in a browser's order:
   `complete` false at once, then in a task of its own the natural size with `load`, or `error`; `decode()`; a `src` set again abandons the
   load before it. An image is a WebGL texture source and obeys `UNPACK_FLIP_Y_WEBGL` and `UNPACK_PREMULTIPLY_ALPHA_WEBGL`. A picture
   of more than 2^26 pixels (8192 x 8192) is refused from its header, by name. Decoding is on the main thread: 34 ms for a 1024 x 1024 PNG,
@@ -102,6 +102,6 @@ the trace, image elements), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and
 (images as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
 found, ZN-565) and one T1 test per library above. Their programs and goldens are in `tests/golden/webenv/`. PixiJS, three.js and Phaser (MIT)
 are test data in `third_party/pixi`, `third_party/three` and `third_party/phaser`. p5.js is LGPL-2.1, which
-`next/RULES.md` §3 keeps out of the tree: `next/tools/test-lib p5-1.11.13` takes `lib/p5.min.js` of p5's npm release once into
+`RULES.md` §3 keeps out of the tree: `tools/test-lib p5-1.11.13` takes `lib/p5.min.js` of p5's npm release once into
 `${ZINC_HOME:-~/.zinc}/cache/test-libs/`, checks it against the sha256 pinned in the tool and prints its path; `webenv_p5` hands that path to
 its page, and is skipped (exit 77, the reason in its first line) when the file is neither cached nor downloadable.

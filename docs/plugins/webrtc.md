@@ -93,7 +93,7 @@ role (`a=setup:active`): mbedTLS cannot be the server for Chrome, whose ClientHe
 - Simulcast and SVC (one encoding per sender), echo cancellation and noise suppression (use a headset), screen sharing
   (`getDisplayMedia`), insertable streams and encoded transforms, DTMF, transport-cc and send-side bandwidth estimation (the bit rate
   follows REMB and `maxBitrate`), RTX and FEC for video (a loss costs a key frame), header extensions (abs-send-time, MID).
-- H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `next/backlog/later.md`.
+- H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `backlog/later.md`.
 - `restartIce`, `setConfiguration`, `RTCCertificate` (the certificate is a fresh ECDSA one per connection), `RTCError.errorDetail`.
 - The browser target (wasm): the page's own `RTCPeerConnection` would be the way, not this plugin.
 - Windows, Android and iOS: no build yet (Android export: libdatachannel's `vendorFlags` are not passed to the app's CMake).
@@ -132,11 +132,11 @@ and about 5 MB to a program compiled with it (3.5 MB before). The first build fr
 
 ## Tests
 
-`next/tests/t1/webrtc.sh`: two connections in one process with no ICE server (no network, no server, nothing left listening) on the
-interpreter, QuickJS and a compiled program, against `next/tests/golden/host/webrtc_loopback.out`: trickle and whole descriptions, text
+`tests/t1/webrtc.sh`: two connections in one process with no ICE server (no network, no server, nothing left listening) on the
+interpreter, QuickJS and a compiled program, against `tests/golden/host/webrtc_loopback.out`: trickle and whole descriptions, text
 and bytes both ways in order, an unordered channel, a channel the answerer opens, 200 KB in one message, close events on both sides, the
-errors; and the RTC names as globals. `next/tests/t1/webrtc_media.sh`: audio and video between two connections in one process with the
+errors; and the RTC names as globals. `tests/t1/webrtc_media.sh`: audio and video between two connections in one process with the
 fake camera and microphone, on the interpreter (H.264 first on a Mac), with VP8 only, on QuickJS and compiled
-(`next/tests/golden/host/webrtc_media.ts`: the picture by PSNR, the rate, a PLI, the tone by Goertzel, disabled tracks, replaceTrack,
-setParameters, the stats, removeTrack and directions, setCodecPreferences, an edited SDP, close). `next/tests/t1/webrtc_chat.sh` and
-`webrtc_call.sh` run the demos; `next/tests/t2/webrtc_interop.sh` runs against headless Chrome.
+(`tests/golden/host/webrtc_media.ts`: the picture by PSNR, the rate, a PLI, the tone by Goertzel, disabled tracks, replaceTrack,
+setParameters, the stats, removeTrack and directions, setCodecPreferences, an edited SDP, close). `tests/t1/webrtc_chat.sh` and
+`webrtc_call.sh` run the demos; `tests/t2/webrtc_interop.sh` runs against headless Chrome.

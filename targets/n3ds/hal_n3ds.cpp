@@ -1,4 +1,4 @@
-// Nintendo 3DS HAL (devkitARM + libctru; the console core of next/targets/console, ZN-457): text through svcOutputDebugString (Azahar logs it as
+// Nintendo 3DS HAL (devkitARM + libctru; the console core of targets/console, ZN-457): text through svcOutputDebugString (Azahar logs it as
 // Debug.Emulated), the system tick as the clock, the pad, and the shared software rasterizer shown on the top screen (400x240, RGBA8; the 3DS
 // framebuffer is rotated: columns of 240 pixels, bottom to top), swapped at vblank. The PICA200 replay comes later
 // (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 4.4).
@@ -16,7 +16,7 @@
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or the system asks to quit
 #endif
 #ifndef ZRT_HEAP_BYTES
-#define ZRT_HEAP_BYTES (16u << 20)   // the n3ds profile's heap (next/src/frontend/profile.cpp)
+#define ZRT_HEAP_BYTES (16u << 20)   // the n3ds profile's heap (src/frontend/profile.cpp)
 #endif
 
 static const int32_t kScreenW = 400, kScreenH = 240;

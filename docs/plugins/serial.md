@@ -9,7 +9,7 @@ DMX or MIDI adapter, anything behind a USB serial cable.
   calls your handlers; what a port does not take at once is queued and sent as it drains.
 - **No board.** A deterministic run, `ZINC_NATIVE=sim`, or a machine that cannot build the native code gets the
   stand-in `native/serial.sim.ts`: one port, `'loopback'`, that gives back what is written to it.
-- **Test.** `next/tests/t1/serial.sh` (a pseudo-terminal plays the board; `next/tests/data/serial/`).
+- **Test.** `tests/t1/serial.sh` (a pseudo-terminal plays the board; `tests/data/serial/`).
   **Example.** `examples/serial` plots the values a board prints.
 
 | target | status |

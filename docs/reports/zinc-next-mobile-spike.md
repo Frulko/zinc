@@ -28,15 +28,15 @@ What matters for a phone, read from the code:
 
 | Piece | Today | Consequence for mobile |
 |---|---|---|
-| Window HAL | `targets/macos/hal_sdl.cpp` (761 lines), SDL3 3.4.16 vendored and linked statically; the same file serves macOS and Linux, its 16 `hal_*` functions renamed at compile time and picked by `next/src/host/hal_dispatch.cpp` [code: `next/CMakeLists.txt` lines 144-193] | The file is the mobile HAL too: SDL3 has UIKit and Android video backends behind the same API. No second HAL. |
+| Window HAL | `targets/macos/hal_sdl.cpp` (761 lines), SDL3 3.4.16 vendored and linked statically; the same file serves macOS and Linux, its 16 `hal_*` functions renamed at compile time and picked by `src/host/hal_dispatch.cpp` [code: `CMakeLists.txt` lines 144-193] | The file is the mobile HAL too: SDL3 has UIKit and Android video backends behind the same API. No second HAL. |
 | Pixels | Two paths in that file: software raster uploaded to an `SDL_Renderer` streaming texture (`ren`), or the GL replay of the command lists (`runtime/gl_replay.cpp`, `ZN_HAL_GL`), which already has a GLES 2 code path (no instancing) used by `plugins/display-gl` on the Pi | The `SDL_Renderer` path needs no GL of ours: SDL draws it with Metal on iOS and GLES on Android. The GL replay needs a GLES context instead of the desktop 3.2 core profile requested at lines 110-113. |
 | Input | Mouse, wheel, pinch, pen, keys, typed text, clipboard; `SDL_EVENT_FINGER_*` are handled; text input uses `SDL_StartTextInput` | Touch arrives already. Missing in the file: lifecycle events, safe areas, orientation, the Android back button (grep finds none of `SDL_EVENT_*_BACKGROUND`, `SDL_GetWindowSafeArea`). |
 | Safe areas, accessibility in the UI | `lib/std/ui.ts` has `setSafeArea(t, r, b, l)` and an accessibility tree (role, label, hidden: ZN-276); `lib/std/react-native.tsx` has `SafeAreaView` | The UI side is ready; only the host has to feed it (insets) and mirror it (screen readers). |
-| Execution | Typed interpreter over ZBC, AOT to C++ (`next/src/aot`), QuickJS-ng 0.17 (`next/src/qjs`). No JIT (D36: no-go; D44: no QuickJS JIT) | Nothing to remove for iOS. AOT is the store mode; the interpreter and QuickJS are legal with bundled code (section 5). |
-| Compiler | `zinc build`: the machine's `c++`; `--target`: the pinned zig 0.15.2 for `aarch64-linux`, `armhf-linux`, `x86_64-linux`, `aarch64-macos`, `x86_64-macos` [code: `next/src/tc/tc.cpp` lines 69-73]. `ensureCrossLibs` builds the graphics host for a target with CMake and zig | The target table and the cache layout carry over; the compiler does not (section 4). |
-| Plugins | `next/src/tc/plugin_build.h`: "The desktop interpreter dlopens the shared library; an AOT program links the static archives". Manifests list native sources per target (`macos`, `linux`, `rpi1`, `rmpp`) | Static archives are exactly what both stores accept. Each plugin needs an `ios` and an `android` entry, and those written in Objective-C against Cocoa (`plugins/webview/src/webview.mm`, parts of `plugins/system`) need a UIKit or Java version. |
-| Dynamic loading | `libzn_webgl` is loaded with `dlopen` on the first QuickJS context (`next/src/gl`); plugins in the interpreter | Link statically in a mobile build (iOS allows `dlopen` only of signed code inside the bundle; simpler not to depend on it). |
-| Processes and tools | `fork`/`pipe`/`waitpid` in `next/src/host/sys_host.cpp` (`zinc:process`); `src/tc` shells out to `curl`, `tar`, `sh` | iOS has no child processes: capability `process: false`, as on ESP32. `src/tc` and the CLI are not part of an app. |
+| Execution | Typed interpreter over ZBC, AOT to C++ (`src/aot`), QuickJS-ng 0.17 (`src/qjs`). No JIT (D36: no-go; D44: no QuickJS JIT) | Nothing to remove for iOS. AOT is the store mode; the interpreter and QuickJS are legal with bundled code (section 5). |
+| Compiler | `zinc build`: the machine's `c++`; `--target`: the pinned zig 0.15.2 for `aarch64-linux`, `armhf-linux`, `x86_64-linux`, `aarch64-macos`, `x86_64-macos` [code: `src/tc/tc.cpp` lines 69-73]. `ensureCrossLibs` builds the graphics host for a target with CMake and zig | The target table and the cache layout carry over; the compiler does not (section 4). |
+| Plugins | `src/tc/plugin_build.h`: "The desktop interpreter dlopens the shared library; an AOT program links the static archives". Manifests list native sources per target (`macos`, `linux`, `rpi1`, `rmpp`) | Static archives are exactly what both stores accept. Each plugin needs an `ios` and an `android` entry, and those written in Objective-C against Cocoa (`plugins/webview/src/webview.mm`, parts of `plugins/system`) need a UIKit or Java version. |
+| Dynamic loading | `libzn_webgl` is loaded with `dlopen` on the first QuickJS context (`src/gl`); plugins in the interpreter | Link statically in a mobile build (iOS allows `dlopen` only of signed code inside the bundle; simpler not to depend on it). |
+| Processes and tools | `fork`/`pipe`/`waitpid` in `src/host/sys_host.cpp` (`zinc:process`); `src/tc` shells out to `curl`, `tar`, `sh` | iOS has no child processes: capability `process: false`, as on ESP32. `src/tc` and the CLI are not part of an app. |
 | Packaging | `zinc export` (linux, rpi, rpi1, rmpp, macos, wasm, esp32: a directory per target, `.deb`, `.dmg`), `zinc pack` (.zapp: a signed-manifest ustar with the compiled program and assets), `zinc fuse` (zapp appended to the engine), `tools/sign-macos` (dry-run tested, never run against Apple) | `export --target ios|android` is the natural home. `.zapp` is the right payload for bundled bytecode. `fuse` (an appended executable) does not apply to store packages. |
 | Capabilities | `targets/capabilities.json`: one row per profile (`macos`, `linux`, `rpi1`, `rmpp`, `esp32`, `ps1`, `ps2`, `wasm`, `sim`) with `touch`, `process`, `dynlib`, `desktop`, `tray`... | Two new rows, `ios` and `android`: `touch: true`, `pointer: "optional"`, `keyboard: "optional"`, `process: false` (iOS), `dynlib: false`, every desktop key false. |
 | Size | `zinc` (engine and CLI, TLS on) is 5.3 MB on macOS arm64, 4.8 MB stripped (`docs/reports/zinc-next-packaging.md`) | An app is smaller than `zinc` (no frontend, no CLI, no toolchain manager) plus SDL3. Expect a few MB per ABI; to be measured (MOB-15). |
@@ -44,7 +44,7 @@ What matters for a phone, read from the code:
 Three structural facts make the port cheap: the engine has no JIT to lose; AOT output is plain C++ that includes `include/zn` and links `src/rt`
 (any clang compiles it); and plugins already have a static-archive form.
 
-Two facts make it not free: the vendored SDL3 was stripped of its Android backend (`next/third_party/README.md`: "without the Windows, WinRT,
+Two facts make it not free: the vendored SDL3 was stripped of its Android backend (`third_party/README.md`: "without the Windows, WinRT,
 GDK, Android, Emscripten... backends"; `src/video/uikit` is still there, 28 files; no `android-project/`), and the HAL has never met a platform
 that suspends the app, loses its GL context or covers the window with a keyboard.
 
@@ -79,7 +79,7 @@ The task says it: "the pinned zig cannot sign or package". The research confirms
   them, `flutter build ipa|appbundle` drives Xcode and Gradle), Tauri 2 (`tauri ios init`, `tauri android init` generate the projects in `gen/`).
   None brings its own linker for mobile.
 
-Options scored as `next/RULES.md` §4 (fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability x1, effort x1; max 70):
+Options scored as `RULES.md` §4 (fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability x1, effort x1; max 70):
 
 | Option | Fit | Perf | Size | Maint | Supply | Port | Effort | Total |
 |---|---|---|---|---|---|---|---|---|
@@ -115,7 +115,7 @@ and Play App Signing for new apps [S9], and developer verification, announced in
 countries in September 2026 [S11] (status not verified).
 
 **Both.** Permissions are fixed in the package (Info.plist usage strings, AndroidManifest): `zinc.json` and the plugin manifests must generate them,
-and the engine's permission model (`next/src/host/permissions.cpp`) can only narrow them.
+and the engine's permission model (`src/host/permissions.cpp`) can only narrow them.
 
 ## 6. What the reference products do
 
@@ -145,7 +145,7 @@ them, see section 10.)
 | C. Web view shell | 2 | 2 | 4 | 3 | 4 | 4 | 4 | 42 |
 | D. Native widgets | 1 | 4 | 3 | 1 | 4 | 1 | 1 | 33 |
 
-- **A** keeps one HAL for five systems, the same pixels as the desktop (the goal of `next/RULES.md` §1: every demo unchanged) and the plugins as
+- **A** keeps one HAL for five systems, the same pixels as the desktop (the goal of `RULES.md` §1: every demo unchanged) and the plugins as
   static archives. It loses a point of performance because the GPU path on iOS is not settled, and a point of size for SDL3.
 - **B** would be the best result per platform (Metal directly, the platform's text input with no intermediary) and is the fallback for whatever
   SDL3 does badly; it means two new HALs in two new languages to keep equal to the desktop one. The accessibility and IME bridges of A are small
@@ -170,13 +170,13 @@ already has `ZINC_SCALE` and rasterizes at the window's pixel size, so a density
 
 | Gap | Where | Size |
 |---|---|---|
-| Vendored SDL3 lacks the Android backend and the Java glue | `next/third_party/SDL3` | S |
-| An entry point without the CLI: program (AOT or bundled `.zapp`) + runtime + host, no `src/tc`, no `src/frontend`, plugins registered statically | `next/src`, CMake | M (provable on the Mac) |
-| `ios` and `android` profiles, target ids, `zinc.json` keys (bundle id, version code, orientation, permissions, icons) | `targets/capabilities.json`, `next/src/tc`, checker | S (provable on the Mac) |
-| Project generators | `zinc export` in `next/src/cli_core.cpp` | M each (the tree is provable on the Mac, the build is not) |
+| Vendored SDL3 lacks the Android backend and the Java glue | `third_party/SDL3` | S |
+| An entry point without the CLI: program (AOT or bundled `.zapp`) + runtime + host, no `src/tc`, no `src/frontend`, plugins registered statically | `src`, CMake | M (provable on the Mac) |
+| `ios` and `android` profiles, target ids, `zinc.json` keys (bundle id, version code, orientation, permissions, icons) | `targets/capabilities.json`, `src/tc`, checker | S (provable on the Mac) |
+| Project generators | `zinc export` in `src/cli_core.cpp` | M each (the tree is provable on the Mac, the build is not) |
 | Lifecycle, context loss, density, safe areas, orientation, back button | `targets/macos/hal_sdl.cpp` | M |
 | On-screen keyboard, IME composition, keyboard avoidance | HAL + `lib/std/ui.ts` | M |
-| Assets on Android (`assets://`, not `fopen`) | `next/src/host/resources.cpp`, `sys_host.cpp` | S |
+| Assets on Android (`assets://`, not `fopen`) | `src/host/resources.cpp`, `sys_host.cpp` | S |
 | `zinc:process` and friends absent on iOS | capability row, clear error | S |
 | Plugins: `ios` and `android` entries, UIKit and Java ports of the Cocoa ones (webview, system), permissions | `plugins/*` | L |
 | GPU path | `runtime/gl_replay.cpp`, HAL | M |
@@ -237,7 +237,7 @@ without a JIT, and plugins that already build as static archives. The pinned zig
 Apple requires Xcode 26 and the iOS 26 SDK for uploads (2026-04-28) and forbids executable memory and downloaded native code; Google Play requires
 target API 36, 16 KB pages and AAB with Play App Signing.
 
-**Options and scores** (`next/RULES.md` §4: fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability x1, effort x1):
+**Options and scores** (`RULES.md` §4: fit x3, performance x3, size x2, maintainability x2, licence and supply x2, portability x1, effort x1):
 
 | Hosting | Fit | Perf | Size | Maint | Supply | Port | Effort | Total |
 |---|---|---|---|---|---|---|---|---|
@@ -267,7 +267,7 @@ target API 36, 16 KB pages and AAB with Play App Signing.
 performance gain that is not needed to start; C and D fail the goal. T1 is what every reference product does and the only option that satisfies
 Apple's Xcode requirement without a second toolchain to keep working.
 
-**Evidence.** Sections 2 to 7 of `docs/reports/zinc-next-mobile-spike.md` and its sources; `next/src/tc/plugin_build.h`, `next/CMakeLists.txt`
+**Evidence.** Sections 2 to 7 of `docs/reports/zinc-next-mobile-spike.md` and its sources; `src/tc/plugin_build.h`, `CMakeLists.txt`
 lines 144-193, `targets/macos/hal_sdl.cpp`, `targets/capabilities.json`. No measurement: nothing was built for a phone.
 
 **What blocks.** Nothing in the engine. Outside it: no Xcode and no Android SDK on the development Mac, paid store accounts for uploads, and the
@@ -286,7 +286,7 @@ generation halves of MOB-04 and MOB-06 need a cross target and belong to the def
 | Key | Title | Description | Acceptance criteria | Size | Depends on |
 |---|---|---|---|---|---|
 | MOB-01 | Mobile targets: ids, profiles and capabilities for ios and android | Rows `ios` and `android` in `targets/capabilities.json` (touch, no desktop keys, `process` and `dynlib` false on iOS); target ids `ios`, `ios-sim`, `android` known to the CLI; `zinc.json` keys `app.id`, version code, orientation, permissions, icon | `zinc check --profile ios` and `--profile android` refuse a program that requires `process` or `tray` with the capability message; `zinc toolchain targets` lists the ids with "needs Xcode" / "needs the Android NDK"; a T0 test | S | - |
-| MOB-02 | Android: vendor the SDL3 Android backend and Java glue | Restore `src/video/android`, `src/core/android`, the Android audio-free subset and `android-project/app/src/main/java/org/libsdl/app` of SDL 3.4.16 in `next/third_party/SDL3`; README row updated | the files match the release archive (checksums in the README); the desktop build is unchanged (same `libSDL3.a` object list on macOS) | S | - |
+| MOB-02 | Android: vendor the SDL3 Android backend and Java glue | Restore `src/video/android`, `src/core/android`, the Android audio-free subset and `android-project/app/src/main/java/org/libsdl/app` of SDL 3.4.16 in `third_party/SDL3`; README row updated | the files match the release archive (checksums in the README); the desktop build is unchanged (same `libSDL3.a` object list on macOS) | S | - |
 | MOB-03 | App entry without the CLI: static engine library for embedders | A library target with one entry (`zn_app_main`): AOT program or bundled `.zapp`, runtime, host, plugins registered statically; no `src/tc`, no `src/frontend`, no `dlopen`, no `fork` | on macOS, hello and `examples/rn-showcase` linked against it print and draw what `zinc run` does (existing goldens); `nm` shows no `dlopen`, `fork` or `execv` reference; a T0 test | M | - |
 | MOB-04 | zinc export --target android: Gradle project generator | Writes `dist/<name>-android/`: Gradle and CMake files, an `SDLActivity` subclass, AndroidManifest from `zinc.json` (id, version, orientation, permissions), the AOT C++, the engine sources, assets; target API 36, min API 21, 16 KB alignment flags | the generated tree equals a golden for hello; `--print` lists the commands (`./gradlew assembleDebug`, `bundleRelease`); no Android tool is run by the test | M | MOB-01, MOB-03 |
 | MOB-05 | Android: hello and rn-showcase on the emulator | With the SDK 35+ and NDK r28c+, build the generated project (arm64-v8a and x86_64) and run both programs on an emulator, software raster through `SDL_Renderer` | screenshots of both in the report; the hello output in logcat equals its golden; what had to change in `hal_sdl.cpp` is listed (criterion 1 of ZN-372, Android half) | M | MOB-02, MOB-04 |

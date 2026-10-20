@@ -729,5 +729,5 @@ Repository:
   `docs/reports/zinc-next-baremetal-pi.md`, `docs/reports/gpu-renderer-design.md`,
   `docs/reports/ui-rendering-architecture.md`, `docs/reports/zinc-next-m4-benchmarks.md`,
   `docs/reports/zinc-next-toolchain.md`, `docs/reports/parity/03-plugins-targets.md`,
-  `docs/reports/hardware/pocketjs-pocket3d.md`, `targets/capabilities.json`, `next/src/gl/`, `plugins/display-gl/`,
+  `docs/reports/hardware/pocketjs-pocket3d.md`, `targets/capabilities.json`, `src/gl/`, `plugins/display-gl/`,
   `runtime/include/hw.h`.

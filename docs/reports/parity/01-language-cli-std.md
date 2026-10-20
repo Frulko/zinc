@@ -1,6 +1,6 @@
 # Parity 01: language, diagnostics, CLI and standard library
 
-Prototype (compiler/, runtime/, lib/) against Zinc Next (`next/build/zinc`, 0.0.1). Read-only audit, 2026-10-07. Every row below was run: the prototype with `node compiler/src/cli.ts run main.ts --target sim` (the oracle that applies the Zinc rules) and next with `zinc run file.ts` (interpreter/AOT default engine). Scratch programs: /tmp/parity (not in the repo).
+Prototype (compiler/, runtime/, lib/) against Zinc Next (`build/zinc`, 0.0.1). Read-only audit, 2026-10-07. Every row below was run: the prototype with `node compiler/src/cli.ts run main.ts --target sim` (the oracle that applies the Zinc rules) and next with `zinc run file.ts` (interpreter/AOT default engine). Scratch programs: /tmp/parity (not in the repo).
 
 ## Summary
 
@@ -623,7 +623,7 @@ next column: PASS where next is ahead; MISSING with next's error. "prototype als
 
 ## Table C: diagnostics
 
-Codes differ by design (next: `Z0001-5` syntax, `Z0101-0119` semantic, `Z1006` strict any, generated docs in next/docs/diagnostics.md; the prototype reuses TypeScript `TS####` for semantics and adds `Z1xxx/Z4xxx/Z5xxx/Z9xxx`). PASS here means a clear equivalent error on the same line; format is `file:line:col: error Z####: message` versus the prototype's `file:line:col - error`.
+Codes differ by design (next: `Z0001-5` syntax, `Z0101-0119` semantic, `Z1006` strict any, generated docs in docs/diagnostics.md; the prototype reuses TypeScript `TS####` for semantics and adds `Z1xxx/Z4xxx/Z5xxx/Z9xxx`). PASS here means a clear equivalent error on the same line; format is `file:line:col: error Z####: message` versus the prototype's `file:line:col - error`.
 
 | feature | prototype | next | status |
 |---|---|---|---|
@@ -682,7 +682,7 @@ Codes differ by design (next: `Z0001-5` syntax, `Z0101-0119` semantic, `Z1006` s
 
 ## Table D: CLI
 
-The prototype dispatches 19 commands (compiler/src/cli.ts). next/src/main.cpp dispatches `run`, `build`, `check`, `flash`, `lex`, `parse`, `ir`, `zbc`, `explain`, `bake`, `toolchain`, `update`, `profile`, `mem`, `device-sim` and `--emit=...`, with fixed argument shapes (no general option parser: `zinc check f.ts` and `zinc run f.ts --headless` print the usage line).
+The prototype dispatches 19 commands (compiler/src/cli.ts). src/main.cpp dispatches `run`, `build`, `check`, `flash`, `lex`, `parse`, `ir`, `zbc`, `explain`, `bake`, `toolchain`, `update`, `profile`, `mem`, `device-sim` and `--emit=...`, with fixed argument shapes (no general option parser: `zinc check f.ts` and `zinc run f.ts --headless` print the usage line).
 
 | command / flag | prototype evidence | next | note |
 |---|---|---|---|
@@ -703,11 +703,11 @@ The prototype dispatches 19 commands (compiler/src/cli.ts). next/src/main.cpp di
 | zinc check --json | cli.ts check --json | MISSING | no JSON/LSP output |
 | zinc infer <entry> [--write] | cli.ts infer | MISSING | no command; Dyn exists, `.js` entry runs directly (PASS: `zinc run j.js`) |
 | zinc dev (hot reload, red box, inspector) | cli.ts dev | MISSING | no command |
-| zinc test [--target --profile --update --pixels --fuzz] | cli.ts test | MISSING | tests are shell tiers (next/tests/t0..t2, TESTING.md); conformance 22/41 .ts programs pass (below) |
-| zinc bench / test --bench | cli.ts bench | MISSING | next/tools/bench-m4 script only |
+| zinc test [--target --profile --update --pixels --fuzz] | cli.ts test | MISSING | tests are shell tiers (tests/t0..t2, TESTING.md); conformance 22/41 .ts programs pass (below) |
+| zinc bench / test --bench | cli.ts bench | MISSING | tools/bench-m4 script only |
 | zinc compat (WPT, test262, node api) | cli.ts compat | MISSING | tests/compat/run.mjs drives the prototype only |
 | zinc capture [--frames --every --out --replay] | cli.ts capture | MISSING | no command; headless frames via ZINC_* env vars and goldens |
-| zinc export / deploy (dist, ssh) | cli.ts export,deploy | MISSING | next/tools/package and appimage scripts only |
+| zinc export / deploy (dist, ssh) | cli.ts export,deploy | MISSING | tools/package and appimage scripts only |
 | zinc flash --target esp32 [--port] | cli.ts flash | PASS | main.cpp:268, core firmware image |
 | zinc monitor (telemetry / serial) | cli.ts monitor | MISSING | no command and no zinc:telemetry |
 | zinc init <dir> [--template] | cli.ts init | MISSING | no command |

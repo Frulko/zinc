@@ -88,8 +88,8 @@ plugin (`zinc:svg` is not built for them yet); `zinc.json` `requires` (`display`
 
 ## Tests
 
-`next/tests/t1/rn_showcase.sh`: no class string and no kit, the react-native preset; the key screens (tabs and stack screens, light and dark)
-render to their frame hashes in `next/tests/golden/rn-showcase/hashes.txt`; the native build draws the interpreter's frame; idle screens
+`tests/t1/rn_showcase.sh`: no class string and no kit, the react-native preset; the key screens (tabs and stack screens, light and dark)
+render to their frame hashes in `tests/golden/rn-showcase/hashes.txt`; the native build draws the interpreter's frame; idle screens
 allocate nothing; and scripted sessions (`ZINC_INPUT`, `SHOWCASE_LOG=1`, lines in `session.out`): the sign-up form refuses a missing field
 and then submits to the mock server, the mock WebSocket feed connects, ticks and echoes a message, a note added on Data is there after a
 restart with the same `ZINC_STORAGE`, and the Camera screen shows the simulated preview and takes a photo. `ZN_UPDATE_GOLDEN=1` records

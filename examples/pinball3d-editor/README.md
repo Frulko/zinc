@@ -76,6 +76,6 @@ Before sharing, fill the **credits** of the table (who made which files, under w
 
 ## Tests
 
-`next/tests/t1/pinball3d_editor*.sh` replay recorded sessions (what was clicked and typed) and compare the file written
-and a few frames with `next/tests/golden/pinball3d-editor/`; `src/selftest.ts` checks the document without a window
+`tests/t1/pinball3d_editor*.sh` replay recorded sessions (what was clicked and typed) and compare the file written
+and a few frames with `tests/golden/pinball3d-editor/`; `src/selftest.ts` checks the document without a window
 (undo and redo byte for byte, every text and every help line in both languages).

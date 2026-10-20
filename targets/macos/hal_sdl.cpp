@@ -536,6 +536,14 @@ void hal_init(const HalConfig* cfg) {
   if (!gl_on) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
 #endif
+#ifdef SDL_PLATFORM_MACOS   // declared before the chain of window kinds: the window properties below read it on every platform
+  // the Metal present (ZN-764) for every window but a transparent one and a display plugin's (both drawn by SDL_Renderer); only Cocoa has
+  // Metal windows (SDL_VIDEO_DRIVER=dummy in the tests has none)
+  const char* vd = SDL_GetCurrentVideoDriver();
+  const bool mtl = vd && !strcmp(vd, "cocoa") && !hal_display && !(wcfg_set && wcfg.transparent) && !(getenv("ZINC_PRESENT") && !strcmp(getenv("ZINC_PRESENT"), "texture"));
+#else
+  const bool mtl = false;
+#endif
 #ifdef __ANDROID__
   { const char* p = getenv("ZINC_PRESENT"); anw_mode = p && !strcmp(p, "texture") ? 0 : p && !strcmp(p, "565") ? 2 : p && !strcmp(p, "shadow") ? 1 : 3; }
   if (const char* p = getenv("ZINC_PRESENT_BGRA")) anw_bgra = atoi(p) != 0;
@@ -551,14 +559,10 @@ void hal_init(const HalConfig* cfg) {
   } else
 #endif
 #ifdef SDL_PLATFORM_MACOS
-  // the Metal present (ZN-764) for every window but a transparent one and a display plugin's (both drawn by SDL_Renderer)
-  const bool mtl = !hal_display && !(wcfg_set && wcfg.transparent) && !(getenv("ZINC_PRESENT") && !strcmp(getenv("ZINC_PRESENT"), "texture"));
   if (mtl && !wcfg_set) {
     if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | SDL_WINDOW_METAL))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
     if (!(mtl_on = hal_mtl_open(win, logical_px)) && !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else
-#else
-  const bool mtl = false;
 #endif
   if (!wcfg_set) {
     if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &win, &ren))

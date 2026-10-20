@@ -1,4 +1,4 @@
-// zinc:map in the browser (docs/targets/web.md, "Plugins"): the engine of native/map.spec.ts ("MapEngine") on MapLibre GL JS (next/third_party/maplibre, BSD-3, pinned), which reads the very
+// zinc:map in the browser (docs/targets/web.md, "Plugins"): the engine of native/map.spec.ts ("MapEngine") on MapLibre GL JS (third_party/maplibre, BSD-3, pinned), which reads the very
 // style language the C++ engine implements a subset of. the export publishes the library byte for byte (plugin.json web.scripts: a minifier breaks its inline worker) and the engine loads it as a classic script the first time a style is set (Z.loadScript), so it is globalThis.maplibregl; web/index.ts takes over tile loading (the browser's fetch, not zinc:net).
 // How the spec maps: setStyle takes the style JSON (the layers; the source and the glyph server are added here); nextRequest / provide are the tile queue behind an `zinc://z/x/y` protocol
 // that MapLibre's worker asks and the program answers with the bytes of the .pbf (a binary string); draw(...) jumps the camera and copies the canvas MapLibre rendered (the previous

@@ -22,7 +22,7 @@ Two ways of running the same programs on the new engine (the prototype's numbers
 
 ## WPT URL data (the prototype's 896/896 and 278/278)
 
-The WPT `urltestdata.json` and `setters_tests.json` run through `new URL` by `next/tests/golden/host/wpt_url.ts` (T1 `wpt_url`):
+The WPT `urltestdata.json` and `setters_tests.json` run through `new URL` by `tests/golden/host/wpt_url.ts` (T1 `wpt_url`):
 
 ```
 urltestdata 896/896
@@ -61,4 +61,4 @@ The typed WPT ports of the harness (`next`) reject most `.any.js` files at compi
 | next-qjs / fail: Uncaught Error: assertion failed: got /false/, expected /true/ | 3 |
 | next-qjs / fail: Uncaught TypeError: '…' is read-only | 3 |
 
-Failures that are not compile-time rejections (status fail or timeout) are listed with their first message in [zinc-next-compat-failures.txt](zinc-next-compat-failures.txt) (677 lines). Regressions are gated in T2 (`next/tests/t2/compat.sh`, baseline `tests/compat/baseline.json`).
+Failures that are not compile-time rejections (status fail or timeout) are listed with their first message in [zinc-next-compat-failures.txt](zinc-next-compat-failures.txt) (677 lines). Regressions are gated in T2 (`tests/t2/compat.sh`, baseline `tests/compat/baseline.json`).

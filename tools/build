@@ -1,0 +1,25 @@
+#!/bin/sh
+# Build targets of this tree without overloading the machine: tools/build [target...]   (default: zinc)
+# - one job per physical core, and make starts no new job while the load average is above that count (-l), so several
+#   trees (the loop and parallel worktrees, see AGENTS.md) can build at once and share the cores instead of piling up;
+# - a new build directory is configured with ccache when it is installed, with paths made relative to the repository,
+#   so a fresh worktree reuses the objects another tree already compiled.
+# ZN_BUILD_JOBS and ZN_BUILD_LOAD override the two numbers; BUILD_DIR the directory (default build).
+here=$(cd "$(dirname "$0")" && pwd -P)   # the real path: cmake compiles with it, and ccache only strips a base directory that matches
+next=$(dirname "$here")
+dir=${BUILD_DIR:-$next/build}
+# physical cores, not threads, and no new job above that load: on the development Mac (i7-9750H, 6 cores) the limit is heat.
+# Seen with pmset -g therm, fans at full: 100% of the CPU speed at a load of 6, 53 to 68% at 7 to 8, 33% at 12, so
+# more jobs than cores do less work in total, not more
+cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+jobs=${ZN_BUILD_JOBS:-$cores}
+load=${ZN_BUILD_LOAD:-$cores}
+if command -v ccache >/dev/null 2>&1; then
+  export CCACHE_BASEDIR="$next" CCACHE_NOHASHDIR=1
+  # no precompiled header with the cache: ccache cannot store a file compiled through one (SDL3's 190 files), and a hit beats a faster miss
+  launcher="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"
+fi
+# an existing directory keeps its configuration: adding the launcher there would recompile everything once
+[ -f "$dir/CMakeCache.txt" ] || cmake -S "$next" -B "$dir" -DCMAKE_BUILD_TYPE=Release $launcher >/dev/null || exit 2
+[ $# -gt 0 ] || set -- zinc
+exec nice -n 5 cmake --build "$dir" --target "$@" -j "$jobs" -- -l "$load"   # make and ninja both take -l

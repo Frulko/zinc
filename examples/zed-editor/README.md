@@ -12,11 +12,11 @@ saves with `zinc:fs`, shows `zinc check` diagnostics and runs the project in a t
 zinc run examples/zed-editor                         # the bundled sample project (examples/zed-editor/sample)
 zinc run examples/zed-editor -- path/to/folder       # any folder
 ZINC_DEMO=finder zinc run examples/zed-editor        # a scripted scene (see below)
-zinc run examples/zed-editor/src/selftest.ts --target sim   # checks of the matching, highlighting and parsing logic
+zinc run examples/zed-editor/src/selftest.ts   # checks of the matching, highlighting and parsing logic
 ```
 
 Run it from the zinc checkout (or set `ZINC_ROOT`): diagnostics and the terminal panel call
-`node $ZINC_ROOT/compiler/bin/zinc.mjs`. Targets: macOS and Linux (SDL3 window).
+`$ZINC_ROOT/build/zinc`. Targets: macOS and Linux (SDL3 window).
 
 ## Shortcuts
 

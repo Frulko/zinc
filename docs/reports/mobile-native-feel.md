@@ -9,7 +9,7 @@ and `zinc-next-android.md` (the Nexus 7 runs). Every "today" below was read in t
 The owner is right, and the fakes fall into three kinds:
 
 1. **The app does not know it is on a phone.** `platform()` answers `linux` on Android and would answer `macos` on iOS
-   (`next/src/host/sys_host.cpp:570`, only `__APPLE__` is tested). `Platform.select` has no `ios` or `android` branch
+   (`src/host/sys_host.cpp:570`, only `__APPLE__` is tested). `Platform.select` has no `ios` or `android` branch
    (`lib/std/react-native.tsx:119`). So every per-platform rule anyone writes today is dead code on the phones.
 2. **One behaviour for every platform, and it is iOS's.** The scroll physics are iOS's (rubber band, 0.998/ms deceleration), the React
    Native `Button`, `Switch` and `ActivityIndicator` draw iOS on Android too, the `Modal` slides like iOS. An Android user feels it at the
@@ -72,7 +72,7 @@ Status: **Done**, **Partial** (what is faked), **Missing**. "Device" means the c
 | Item | Status | Today |
 |---|---|---|
 | Stack navigator | Missing | None in `lib/`; `examples/rn-showcase/src/nav.ts` hand-rolls tabs and a stack |
-| Android back | Missing | `SDL_SCANCODE_AC_BACK` is not mapped to anything; without `kiosk` SDL lets the system finish the activity, whatever screen is shown (`next/src/app/shell_sdl.cpp:137-142`) |
+| Android back | Missing | `SDL_SCANCODE_AC_BACK` is not mapped to anything; without `kiosk` SDL lets the system finish the activity, whatever screen is shown (`src/app/shell_sdl.cpp:137-142`) |
 | iOS edge swipe-back, Android predictive back | Missing | No interactive transition |
 | Screen and modal transitions | Partial | RN `Modal` slide/fade, 300 ms ease-out cubic, same on both (`react-native.tsx:426`); nuxt `Slideover`; no bottom sheet with detents |
 
@@ -82,11 +82,11 @@ Status: **Done**, **Partial** (what is faked), **Missing**. "Device" means the c
 |---|---|---|
 | Safe areas, notch, cutouts | Partial | The CSS side is done (`env(safe-area-inset-*)`, `ui.setSafeArea`, `ui.ts:1767`); nothing calls it. `SafeAreaView` is a plain `View` (`react-native.tsx:103`). SDL3 has `SDL_GetWindowSafeArea` + `SDL_EVENT_WINDOW_SAFE_AREA_CHANGED` |
 | Status and navigation bars | Missing | `StatusBar` renders nothing (`react-native.tsx:106`). Android: bars shown, or immersive with `fullscreen`/`kiosk`; no style, no colour, no edge-to-edge (Android 15 forces edge-to-edge on apps that target SDK 35) |
-| System fonts | Partial | Inter by default; an app may ship Roboto (`docs/react-native.md:29`); "San Francisco cannot be shipped" is true, but it can be *used* from the system at run time, as every iOS app does; the emoji fallback reads macOS paths only (`next/src/text/shaped_gfx.cpp:38`) |
+| System fonts | Partial | Inter by default; an app may ship Roboto (`docs/react-native.md:29`); "San Francisco cannot be shipped" is true, but it can be *used* from the system at run time, as every iOS app does; the emoji fallback reads macOS paths only (`src/text/shaped_gfx.cpp:38`) |
 | Dark mode | Partial | `ui.setScheme('auto')` follows `setSystemScheme` (`ui.ts:1757-1762`); on macOS the app wires zinc:system `onAppearance` itself; RN `Appearance` reads only `ZINC_COLOR_SCHEME` (`react-native.tsx:167`). `SDL_GetSystemTheme` and `SDL_EVENT_SYSTEM_THEME_CHANGED` are unused |
 | Accent colour | Missing | Not read (iOS tint, Android 12 dynamic colour) |
 | Haptics | Missing on phones | `navigator.vibrate` reaches only the simulated device's panel (`sys_host.cpp:234`); no impact/selection/notification feedback |
-| Orientation | Partial | `zinc.json` orientation goes to the manifest (`next/src/cli_core.cpp:1033`), rotation works as a resize on the Nexus 7; `screen.orientation.lock` acts only in the simulator |
+| Orientation | Partial | `zinc.json` orientation goes to the manifest (`src/cli_core.cpp:1033`), rotation works as a resize on the Nexus 7; `screen.orientation.lock` acts only in the simulator |
 | Touch slop, 44 pt targets | Done | 8 px slop, Qt-like arbitration, 44 px finger reach (`ui.ts:77`, `4566`) |
 | Press feedback | Partial | `Pressable` highlights at once on pointer down (`react-native.tsx:40-48`): inside a list, the row flashes before the scroll takes the press (iOS waits about 100 ms in scroll views); no Android ripple; RN `Button`, `Switch`, `ActivityIndicator` are drawn iOS-style everywhere (`react-native.tsx:51-100`) |
 
@@ -188,7 +188,7 @@ swipe-back are muscle memory). Then 8 (accessibility, a legal requirement for so
 
 - **Behaviour**: `ZINC_PLATFORM_STYLE=ios|android` on the desktop runs the other platform's behaviour; every profile gets its goldens,
   as Flutter's `debugDefaultTargetPlatformOverride` does.
-- **Input**: `ZINC_INPUT` (touch, touchup, keys, text: `next/src/host/hal_dispatch.cpp:53`) extended with `safe-area`, `theme`,
+- **Input**: `ZINC_INPUT` (touch, touchup, keys, text: `src/host/hal_dispatch.cpp:53`) extended with `safe-area`, `theme`,
   `font-scale`, `back`, `keyboard <height>`, `compose`; headless, deterministic, with a virtual clock for physics.
 - **Devices**: `devices/phone.json` exists for `zinc run --simulate` (390 x 844, no insets); add an iPhone-like and an Android-like file
   with insets, a cutout, a home indicator and their profile.
@@ -206,7 +206,7 @@ swipe-back are muscle memory). Then 8 (accessibility, a legal requirement for so
 - Android's spline fling and stretch constants were not copied here; item 6 takes them from AOSP's `OverScroller` and Flutter's
   `ClampingScrollSimulation`, with their licences.
 
-## 8. Lines added to `next/backlog/later.md`, "Cross-platform pass"
+## 8. Lines added to `backlog/later.md`, "Cross-platform pass"
 
 - Mobile feel: `platform()` answers `linux` on Android and `macos` on iOS (sys_host.cpp), `Platform.select` has no `ios`/`android` branch and `Platform.Version` is empty: every per-platform rule is dead on phones; return the real ids (docs/reports/mobile-native-feel.md item 1).
 - Mobile feel: a behaviour profile `ui.platformStyle` (ios, android, desktop) with `ZINC_PLATFORM_STYLE` to force it in tests: scroll physics, transitions, press feedback, selection controls, font, haptics, motion and shape tokens; the kits and zinc:react-native read it (item 2).

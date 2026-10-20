@@ -33,7 +33,7 @@ callbacks, and a fix: `padStart` on a string that needs no padding returned the 
 
 ## zinc:events, zinc:platform, zinc:telemetry (ZN-080)
 
-All three are written in Zinc (`next/src/frontend/modules.cpp`, built-in module sources), so they exist on every target the engine runs on.
+All three are written in Zinc (`src/frontend/modules.cpp`, built-in module sources), so they exist on every target the engine runs on.
 
 | module | what it is | per target |
 |---|---|---|

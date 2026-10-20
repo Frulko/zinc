@@ -1,8 +1,8 @@
 # 1. Getting started
 
 Your first five minutes, command for command: install, a project, a first change on screen, a first mistake and how to read it.
-The project commands and the error messages of this walk are run by `next/tests/t1/first_run.sh` on every template, and the install by
-`next/tests/t1/install_nocompiler.sh` on a machine set up with no compiler; both run without a window.
+The project commands and the error messages of this walk are run by `tests/t1/first_run.sh` on every template, and the install by
+`tests/t1/install_nocompiler.sh` on a machine set up with no compiler; both run without a window.
 
 ## Install
 
@@ -65,8 +65,8 @@ zinc update --rollback   # back to the previous version
 
 `zinc update` downloads the new release for your machine, checks its signature and its SHA-256, and puts it in place of
 `~/.zinc/engine` in one step (the old one stays in `~/.zinc/engine.prev`); if anything fails, nothing changes.
-`zinc update --channel beta` follows the beta releases (`--channel stable` goes back). Once a day at most, `zinc run` and
-`zinc dev` print one dim line when a newer zinc exists, and `zinc doctor` says whether yours is up to date; the check runs in
+`zinc update --channel beta` follows the beta releases (`--channel stable` goes back). When a newer zinc exists, every command
+prints one dim line with the command that updates yours (`zinc update`, `brew upgrade zinc`...), and `zinc doctor` says whether yours is up to date; the check runs in
 the background and never slows a command. Turn it off with `export ZINC_NO_UPDATE_CHECK=1` (it is already off in CI and
 when the output is not a terminal). Zinc Atelier has Help > Check for Updates…; the app itself is updated by downloading its
 new zip (or `install.sh --atelier` again). A zinc built from the sources updates with `git pull` and `tools/build zinc`. A zinc installed with Homebrew updates with
@@ -81,7 +81,7 @@ Nothing else: the window library (SDL3), the fonts and the other libraries are i
 
 ```sh
 git clone https://github.com/Frulko/zinc.git
-cd zinc/next
+cd zinc
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 tools/build zinc                        # 6 to 8 minutes the first time on a 2019 laptop
 sudo ln -s "$PWD/build/zinc" /usr/local/bin/zinc
@@ -237,7 +237,7 @@ and `zinc run` in a directory that is not a project says `zinc: no project here`
   emulated; its `README.md` goes on to the real ESP32. `zinc new iot` is a button and an LED on a Raspberry Pi's pins.
   [Boards](../boards.md) lists the supported boards and panels, [plugins](05-plugins.md) how to talk to your own hardware.
 - **You draw, animate, perform.** `zinc run examples/canvas/sketch` is a Canvas 2D sketch and `zinc new 3d` a three.js scene;
-  `zinc run examples/hero` shows what the UI can do. The plugins [canvas2d](../plugins/canvas2d.md), [svg](../plugins/svg.md),
+  `zinc run examples/hero` shows what the UI can do. The plugins [canvas2d](plugins/canvas2d.md), [svg](plugins/svg.md),
   [lottie](../plugins/lottie.md), [audio](../plugins/audio.md) and [video](../plugins/video.md) are one import away, and
   [UI apps](03-ui-apps.md) explains screens made of components.
 

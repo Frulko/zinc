@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+"""Zinc packaging (ZN-053): one self-contained download for this machine's OS.
+
+  tools/package [--build build] [--out dist] [--budget-only]
+  tools/package --app path/to/App.app   # bundle non-system dylibs and make App.app.zip
+
+macOS: two downloads from one staged payload (docs/guide/07-distribution.md, "Zinc itself"): the CLI, dist/zinc-<version>-macos-<arch>.tar.gz
+(bin/zinc and its window and WebGL modules, share/zinc: lib/std, lib/fonts, templates, the plugins with their native libraries built with the pinned zig: ZN-718,
+targets/capabilities.json, the runtime headers and sources for cross builds, the core firmware), and the app, dist/Zinc-Atelier-<version>-macos-<arch>.zip
+("Zinc Atelier.app": the same engine in Contents/MacOS, the same share/zinc in Contents/Resources/zinc, a launcher). Linux: dist/zinc-<version>-linux-<arch>.tar.gz
+(bin, lib, share/zinc) and, when appimagetool is installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-054).
+Then the size of each package is checked against its budget (tools/package-budget in this file); over budget exits 3.
+Signing and notarization are separate (tools/sign-macos).
+"""
+import json, os, platform, plistlib, re, shutil, subprocess, sys, tarfile, tempfile, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+NEXT = os.path.dirname(HERE)
+REPO = NEXT
+VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
+# size budgets in MB of the download (the archive); a package over its budget fails the script
+BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
+
+def arg(name, default):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
+def copy_tree(src, dst, keep=None):
+    """Copy a directory, keeping only files for which keep(relative path) is true; symlinks are not followed."""
+    for root, dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('node_modules', 'build', 'vendor')]
+        for f in files:
+            r = os.path.normpath(os.path.join(rel, f))
+            if f.startswith('.') or (keep and not keep(r)):
+                continue
+            out = os.path.join(dst, r)
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            shutil.copy2(os.path.join(root, f), out)
+
+def payload(share):
+    """share/zinc: the engine (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, templates, the plugins' Zinc sources."""
+    nx = share
+    copy_tree(os.path.join(NEXT, "include"), os.path.join(nx, "include"))
+    copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
+    mi = os.path.join(NEXT, "third_party", "mimalloc")
+    copy_tree(mi, os.path.join(nx, "third_party", "mimalloc"), lambda r: r.startswith(('src', 'include', 'LICENSE')))
+    qj = os.path.join(NEXT, "third_party", "quickjs-ng")
+    copy_tree(qj, os.path.join(nx, "third_party", "quickjs-ng"), lambda r: r in ("libunicode.c", "libunicode.h", "libunicode-table.h", "cutils.h"))   # Unicode strings of the runtime (cross builds)
+    copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
+    mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
+    copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
+    shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
+    copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
+    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx', '.json', '.png', '.txt')) and not r.startswith('atelier/build'))   # zinc.json (permissions), icon, thumbs, examples/index.txt: Atelier does not run without them
+    copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
+    copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
+    copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
+    copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
+    os.makedirs(os.path.join(share, "targets"))
+    shutil.copy2(os.path.join(REPO, "targets", "capabilities.json"), os.path.join(share, "targets", "capabilities.json"))   # zinc:platform
+    # the runtime headers: a plugin's prebuilt key covers zrt.h and hal.h, and a plugin compiled on the user's machine includes them
+    copy_tree(os.path.join(REPO, "runtime"), os.path.join(share, "runtime"), lambda r: r.endswith('.h'))
+    open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
+
+def prebuild_plugins(zinc, share, target):
+    """ZN-718: the native libraries of the plugins, built here with the pinned zig, in share/plugins/<name>/prebuilt/<target>/ (dylib or so, plugin.a, vendor.a, key),
+    so an install runs a program that imports a plugin with no compiler. A plugin that needs a system library (`pkg`) is left out: its library would not load
+    on a machine without it. Returns {name: why} for the plugins of this target left without one."""
+    without = {}
+    with tempfile.TemporaryDirectory() as tmp:   # built from a copy in a project that sets none of the plugins' options, as tools/plugin-pack does
+        shutil.copytree(os.path.join(REPO, "plugins"), os.path.join(tmp, "plugins"), ignore=shutil.ignore_patterns("prebuilt"))
+        open(os.path.join(tmp, "zinc.json"), "w").write('{ "name": "pack" }\n')
+        for name in sorted(os.listdir(os.path.join(tmp, "plugins"))):
+            d = os.path.join(tmp, "plugins", name)
+            if not os.path.exists(os.path.join(d, "plugin.json")): continue
+            m = json.load(open(os.path.join(d, "plugin.json")))
+            t = m.get("targets", {})
+            nd = os.path.join(d, "native")
+            native = m.get("kind") == "display" or (os.path.isdir(nd) and any(f.endswith(".spec.ts") for f in os.listdir(nd)))
+            if not native or target not in t: continue
+            if isinstance(t, dict) and (t[target] or {}).get("pkg"):
+                without[name] = "needs the system libraries " + " ".join(t[target]["pkg"])
+                shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True)   # its sources: compiled on first use, on a machine that has the libraries
+                continue
+            r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
+            pre = os.path.join(d, "prebuilt", target)
+            if r.returncode != 0 or not os.path.exists(os.path.join(pre, "key")):
+                without[name] = (r.stderr.strip().splitlines() or ["no library"])[-1][:200]; continue   # the last line: the error, not the first progress line
+            shutil.copytree(pre, os.path.join(share, "plugins", name, "prebuilt", target))
+    return without
+
+def run(*cmd, check=True):
+    return subprocess.run(cmd, check=check, capture_output=True, text=True)
+
+def minos(path):
+    """The macOS version a Mach-O file asks for (vtool), '' when it is none."""
+    for line in run("vtool", "-show-build", path, check=False).stdout.splitlines():
+        if line.strip().startswith("minos"): return line.split()[1]
+    return ""
+
+def lower_minos(share, floor):
+    """zig stamps the plugins' libraries with the version of the machine that built them (15.x on a current Mac), so an older Mac refuses to load them: stamp them with
+    the engine's own minimum. ponytail: the code is not recompiled; a plugin that calls a newer API fails on that call, not at load (proved on no older Mac yet)."""
+    for r, _, fs_ in os.walk(share):
+        for f in fs_:
+            p = os.path.join(r, f)
+            if not f.endswith((".dylib", ".so", ".a")) or os.path.islink(p) or f.endswith(".a"): continue
+            have = minos(p)
+            if have and [int(x) for x in have.split(".")] > [int(x) for x in floor.split(".")]:
+                sdk = next((l.split()[1] for l in run("vtool", "-show-build", p).stdout.splitlines() if l.strip().startswith("sdk")), floor)
+                if run("vtool", "-set-build-version", "macos", floor, sdk, "-replace", "-output", p, p, check=False).returncode == 0:
+                    run("codesign", "--force", "--sign", "-", p)
+                else:
+                    print("could not lower the macOS minimum of " + os.path.relpath(p, share), file=sys.stderr)   # left as built
+
+def bundle_libs_macos(binary, libdir, prefix="@executable_path/../Frameworks/"):
+    """Copy the non-system dylibs the binary needs into libdir and point the binary at them (prefix: libdir as the binary sees it)."""
+    os.makedirs(libdir, exist_ok=True)
+    pending, copied = [(binary, binary)], {}
+    while pending:
+        source, dest = pending.pop()
+        for line in run("otool", "-L", source).stdout.splitlines()[1:]:
+            path = line.strip().split(" (compatibility version", 1)[0]
+            if path.startswith(("/usr/lib/", "/System/")) or os.path.basename(path) == os.path.basename(source):
+                continue
+            original = path
+            if path.startswith("@loader_path/"):
+                original = os.path.join(os.path.dirname(source), path[len("@loader_path/"):])
+            elif path.startswith("@executable_path/"):
+                original = os.path.join(os.path.dirname(binary), path[len("@executable_path/"):])
+            elif path.startswith("@rpath/"):
+                candidates = [os.path.join(os.path.dirname(source), path[len("@rpath/"):])]
+                load = run("otool", "-l", source).stdout
+                for rpath in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", load):
+                    root = rpath.replace("@loader_path", os.path.dirname(source)).replace("@executable_path", os.path.dirname(binary))
+                    candidates.append(os.path.join(root, path[len("@rpath/"):]))
+                original = next((p for p in candidates if os.path.isfile(p)), original)
+            name = os.path.basename(original)
+            if not os.path.isfile(original):
+                raise RuntimeError("cannot bundle dependency %s of %s" % (path, source))
+            if name in copied and os.path.realpath(copied[name]) != os.path.realpath(original):
+                raise RuntimeError("two different dependencies have the name " + name)
+            if name not in copied:
+                copied[name] = original
+                target = os.path.join(libdir, name)
+                if os.path.realpath(original) != os.path.realpath(target):
+                    shutil.copy2(original, target)
+                os.chmod(target, 0o755)
+                run("install_name_tool", "-id", "@rpath/" + name, target)
+                pending.append((original, target))
+            run("install_name_tool", "-change", path, (prefix if dest == binary else "@loader_path/") + name, dest)
+    for f in os.listdir(libdir):  # arm64 refuses to load code whose signature broke: ad hoc sign (tools/sign-macos signs for distribution)
+        run("codesign", "--force", "--sign", "-", os.path.join(libdir, f))
+    run("codesign", "--force", "--sign", "-", binary)
+    if not os.listdir(libdir): os.rmdir(libdir)   # zinc links SDL3 into its window module: usually nothing to bundle
+
+def zip_dir(src, out, root):
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for r, ds, fs_ in os.walk(src, followlinks=False):
+            for n in ds + fs_:
+                p = os.path.join(r, n)
+                arc = os.path.join(root, os.path.relpath(p, src))
+                if os.path.islink(p):
+                    info = zipfile.ZipInfo(arc); info.create_system = 3; info.external_attr = (0o120755 << 16)
+                    z.writestr(info, os.readlink(p))
+                elif os.path.isfile(p):
+                    info = zipfile.ZipInfo.from_file(p, arc); info.compress_type = zipfile.ZIP_DEFLATED
+                    with open(p, "rb") as f: z.writestr(info, f.read(), zipfile.ZIP_DEFLATED, 9)
+
+LAUNCHER = """#!/bin/sh
+# Zinc Atelier: opens the app on ~/Zinc (a first project is created there).
+here="$(cd "$(dirname "$0")" && pwd)"
+proj="${ZINC_PROJECT:-$HOME/Zinc}"
+mkdir -p "$proj"
+[ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\\n' > "$proj/hello.ts"
+exec "$here/zinc" run "$here/../Resources/zinc/app/atelier/main.tsx" -- "$proj"
+"""
+
+# Linux: bin/zinc-atelier in the CLI archive; `install.sh --atelier` puts it in the applications menu (a .desktop entry)
+LAUNCHER_LINUX = LAUNCHER.replace("$here/../Resources/zinc", "$here/../share/zinc")
+
+PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Zinc Atelier</string>
+<key>CFBundleDisplayName</key><string>Zinc Atelier</string>
+<key>CFBundleIdentifier</key><string>dev.zinc.atelier</string>
+<key>CFBundleVersion</key><string>%s</string>
+<key>CFBundleShortVersionString</key><string>%s</string>
+<key>CFBundleExecutable</key><string>zinc-atelier</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+"""
+
+def engine_macos(build, bindir, libdir, prefix):
+    """zinc and its modules in bindir (WebGL ZN-330.01 and the window host ZN-592.01, loaded by zinc from its own directory), the dylibs it needs in libdir."""
+    os.makedirs(bindir, exist_ok=True)
+    binary = os.path.join(bindir, "zinc")
+    shutil.copy2(os.path.join(build, "zinc"), binary)
+    for mod in ("libzn_webgl.dylib", "libzn_window.dylib"):
+        if os.path.exists(os.path.join(build, mod)):
+            shutil.copy2(os.path.join(build, mod), os.path.join(bindir, mod))
+    bundle_libs_macos(binary, libdir, prefix)
+
+def package_macos(build, out):
+    """The CLI archive and the Atelier app from one payload: the plugins are built once, the app gets a copy of the CLI's share/zinc."""
+    arch = platform.machine()
+    stage = os.path.join(out, "stage")
+    shutil.rmtree(stage, ignore_errors=True)
+    floor = minos(os.path.join(build, "zinc")) or "12.0"   # what the engine really asks for: the plist and the plugins say the same
+    # the CLI: the layout of the Linux archive; zinc resolves its symlinks and reads <exe>/../share/zinc (tc::sourceRoot)
+    name = "zinc-%s-macos-%s" % (VERSION, arch)
+    root = os.path.join(stage, name)
+    engine_macos(build, os.path.join(root, "bin"), os.path.join(root, "lib"), "@executable_path/lib/")
+    share = os.path.join(root, "share", "zinc")
+    payload(share)
+    without = prebuild_plugins(os.path.join(build, "zinc"), share, "macos")
+    lower_minos(share, floor)
+    cli = os.path.join(out, name + ".tar.gz")
+    with tarfile.open(cli, "w:gz", compresslevel=9) as t:
+        t.add(root, arcname=name)
+    # the app: self-contained, so it opens from the Finder on a Mac that has no CLI
+    app = os.path.join(stage, "Zinc Atelier.app")
+    macos, res = os.path.join(app, "Contents", "MacOS"), os.path.join(app, "Contents", "Resources")
+    engine_macos(build, macos, os.path.join(app, "Contents", "Frameworks"), "@executable_path/../Frameworks/")
+    shutil.copytree(share, os.path.join(res, "zinc"), symlinks=True)
+    with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
+    os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
+    open(os.path.join(app, "Contents", "Info.plist"), "w").write((PLIST % (VERSION, VERSION)).replace("<string>12.0</string>", "<string>%s</string>" % floor))
+    run("codesign", "--force", "--sign", "-", "--deep", app)
+    zipped = os.path.join(out, "Zinc-Atelier-%s-macos-%s.zip" % (VERSION, arch))
+    if os.path.exists(zipped): os.remove(zipped)
+    run("ditto", "-c", "-k", "--keepParent", app, zipped)  # ditto keeps the bundle's metadata and symlinks
+    return [("macos-cli", cli), ("macos-app", zipped)], without
+
+def package_linux(build, out, arch=None):
+    """arch: a cross build from another machine (tools/build-linux): nothing of it runs here, so no ldd and no prebuilt plugin library."""
+    cross = arch is not None
+    arch = arch or platform.machine()
+    name = "zinc-%s-linux-%s" % (VERSION, arch)
+    root = os.path.join(out, "stage", name)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    os.makedirs(os.path.join(root, "bin")); os.makedirs(os.path.join(root, "lib"))
+    shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
+    if os.path.exists(os.path.join(build, "libzn_webgl.so")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
+        shutil.copy2(os.path.join(build, "libzn_webgl.so"), os.path.join(root, "bin", "libzn_webgl.so"))
+    ldd = "" if cross else run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout   # cross: SDL3 is linked in, the rest is the system's
+    for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
+        if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):
+            continue
+        shutil.copy2(m.group(2), os.path.join(root, "lib", m.group(1)))
+    if shutil.which("patchelf") and not cross:
+        run("patchelf", "--set-rpath", "$ORIGIN/lib", os.path.join(root, "bin", "zinc"))
+    payload(os.path.join(root, "share", "zinc"))
+    with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)
+    os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)
+    if cross:   # the plugins' native sources: zinc compiles them on the device at first use, with the zig it fetches there
+        without = {}
+        native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if os.path.isdir(os.path.join(REPO, "plugins", p, "native"))]
+        for p in native:
+            shutil.copytree(os.path.join(REPO, "plugins", p), os.path.join(root, "share", "zinc", "plugins", p), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt", "build", "node_modules", ".*"))
+        print("%d plugins with native code, as sources: compiled on the device at first use" % len(native))
+    else:
+        without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux")
+    archive = os.path.join(out, name + ".tar.gz")
+    with tarfile.open(archive, "w:gz", compresslevel=9) as t:
+        t.add(root, arcname=name)
+    return [("linux", archive)], without
+
+def package_windows(build, out):
+    """ZN-718: zinc-<version>-windows-<arch>.zip (bin\\zinc.exe and the DLLs built beside it, share\\zinc). Never run: the Windows host does not build yet
+    (ZN-054), and no plugin names the windows target, so it holds no plugin library. Written so the release job has its step the day the build passes."""
+    name = "zinc-%s-windows-%s" % (VERSION, platform.machine().lower().replace("amd64", "x86_64"))
+    root = os.path.join(out, "stage", name)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    os.makedirs(os.path.join(root, "bin"))
+    for f in os.listdir(build):
+        if f == "zinc.exe" or f.lower().endswith(".dll"):
+            shutil.copy2(os.path.join(build, f), os.path.join(root, "bin", f))
+    payload(os.path.join(root, "share", "zinc"))
+    without = prebuild_plugins(os.path.join(build, "zinc.exe"), os.path.join(root, "share", "zinc"), "windows")
+    archive = os.path.join(out, name + ".zip")
+    zip_dir(root, archive, name)
+    # the app: the same engine and share\zinc in a "Zinc Atelier" folder, opened by "Zinc Atelier.exe" (src/app/atelier_launcher_win.c), no console window
+    launcher = os.path.join(build, "zinc-atelier.exe")
+    if not os.path.exists(launcher): return [("windows", archive)], without   # a build without the target (cmake --build --target zinc-atelier)
+    shutil.copy2(launcher, os.path.join(root, "Zinc Atelier.exe"))
+    app = os.path.join(out, "Zinc-Atelier-%s-windows-%s.zip" % (VERSION, name.rsplit("-", 1)[1]))
+    zip_dir(root, app, "Zinc Atelier")
+    return [("windows", archive), ("windows-app", app)], without
+
+def main():
+    global VERSION
+    if "--app" in sys.argv:
+        if platform.system() != "Darwin": sys.exit("--app packages a macOS .app on macOS")
+        app = os.path.abspath(arg("--app", ""))
+        with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f: info = plistlib.load(f)
+        name = info["CFBundleExecutable"]
+        if name != os.path.basename(name): sys.exit("invalid CFBundleExecutable")
+        binary = os.path.join(app, "Contents", "MacOS", name)
+        bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
+        run("codesign", "--force", "--sign", "-", "--preserve-metadata=identifier,entitlements", app)
+        run("codesign", "--verify", "--deep", "--strict", app)
+        archive = app + ".zip"
+        run("ditto", "-c", "-k", "--keepParent", app, archive)
+        print("%s: %.1f MB" % (archive, os.path.getsize(archive) / 1e6))
+        return
+    build = os.path.abspath(arg("--build", os.path.join(NEXT, "build")))
+    out = os.path.abspath(arg("--out", os.path.join(NEXT, "dist")))
+    os.makedirs(out, exist_ok=True)
+    system = platform.system()
+    cross = arg("--linux-arch", None)   # tools/build-linux: a Linux zinc cross-built on this machine
+    if cross:
+        system = "Linux"
+        if not VERSION:   # the binary cannot run here: the version CMake compiled into it
+            for f in ("flags.make", "build.make"):
+                m = re.search(r'ZN_VERSION=\\?"([^"\\]+)', open(os.path.join(build, "CMakeFiles", "zn_tc.dir", f)).read())   # src/tc/selfupdate.cpp
+                if m: VERSION = m.group(1); break
+    if system == "Windows" and not os.path.exists(os.path.join(build, "zinc.exe")): build = os.path.join(build, "Release")   # the Visual Studio generator
+    if not os.path.exists(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc")):
+        sys.exit("no %s/zinc: build first (cmake --build build)" % build)
+    if not VERSION:
+        VERSION = run(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc"), "--version").stdout.split()[-1]
+    if system == "Darwin": archives, without = package_macos(build, out)
+    elif system == "Linux": archives, without = package_linux(build, out, cross)
+    elif system == "Windows": archives, without = package_windows(build, out)
+    else: sys.exit("no package for %s" % system)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    over = False
+    for kind, archive in archives:   # each download against its own budget
+        mb = os.path.getsize(archive) / 1e6
+        report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind], "plugins_without_prebuilt": without}
+        json.dump(report, open(os.path.join(out, "sizes-%s.json" % kind), "w"), indent=1)
+        print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
+        over = over or mb > BUDGET_MB[kind]
+    for name, why in sorted(without.items()): print("no prebuilt library for plugin %s: %s" % (name, why))
+    if over:
+        sys.exit(3)
+
+main()

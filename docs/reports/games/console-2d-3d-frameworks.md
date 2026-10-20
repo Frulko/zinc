@@ -181,7 +181,7 @@ fit 1 MiB of resident textures and about 8 MiB of RAM.
 
 ## 4. Recommendations
 
-Scores follow `next/RULES.md` §4 (1–5 each; fit ×3, performance ×3, size ×2, maintainability ×2, licence ×2,
+Scores follow `RULES.md` §4 (1–5 each; fit ×3, performance ×3, size ×2, maintainability ×2, licence ×2,
 portability ×1, effort ×1; maximum 70).
 
 ### 4.1 The 2D back end on all three consoles (zinc:gfx command lists)
@@ -323,4 +323,4 @@ Why these two:
 - Emulators: Play! <https://github.com/jpd002/Play-> (README: HLE BIOS, `--elf`, `--disc`; `Source/ui_libretro`, `tools/AutoTest`); PPSSPP <https://github.com/hrydgard/ppsspp> (v1.20.4); Vita3K <https://github.com/Vita3K/Vita3K>.
 - Hardware: <https://en.wikipedia.org/wiki/PlayStation_2_technical_specifications> (GS 4 MB, 2.352/1.2 Gpixel/s, SPU2 48 voices, 2 MB sound RAM); <https://en.wikipedia.org/wiki/PlayStation_Portable_hardware> (GE 166 MHz, 2 MiB eDRAM, 664 Mpixel/s, 33 M polygons/s); <https://en.wikipedia.org/wiki/PlayStation_Vita>; SCEE, "How far have we got" (2003, polygons per frame in shipped games) <https://retrocdn.net/images/8/81/HowFarHaveWeGot.pdf>.
 - PowerVR guidance: <https://docs.imgtec.com/starter-guides/powervr-architecture/html/topics/rules/do-not-use-discard.html>, <https://forums.imgtec.com/t/hsr-confusion/1315>.
-- Repository: `plugins/3d/native/render3d.{spec.ts,host.cpp,gl.cpp}`, `targets/ps2/hal_ps2.cpp`, `targets/capabilities.json`, `docs/targets/playstation.md`, `docs/reports/zinc-next-decisions.md` (D119, D124, D126), `next/backlog/tasks/zn-{197,468,470,471,476,477,753,754}*`.
+- Repository: `plugins/3d/native/render3d.{spec.ts,host.cpp,gl.cpp}`, `targets/ps2/hal_ps2.cpp`, `targets/capabilities.json`, `docs/targets/playstation.md`, `docs/reports/zinc-next-decisions.md` (D119, D124, D126), `backlog/tasks/zn-{197,468,470,471,476,477,753,754}*`.

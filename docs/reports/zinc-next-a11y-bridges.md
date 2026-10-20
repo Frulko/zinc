@@ -13,7 +13,7 @@ of ZN-276 (`ui.inspect()`: roles, labels, `aria-hidden`, disabled) now reaches t
 | Android | `src/app/android/java/dev/zinc/app/ZincAccessibility.java` | an `AccessibilityNodeProvider` on SDL's `SDLSurface` (`View.AccessibilityDelegate`): one virtual view per node with its parent and children, widget class per role (Button, TextView, EditText, CheckBox, Switch, ScrollView...), `contentDescription` or `text`, hint, checked, selected, enabled, visible to user, bounds on screen; ACTION_CLICK, ACTION_(CLEAR_)ACCESSIBILITY_FOCUS, ACTION_SCROLL_FORWARD/BACKWARD come back as signals; touch exploration (a finger over a node) through the surface's hover listener; one `TYPE_WINDOW_CONTENT_CHANGED` per update |
 | iOS | `src/app/ios_a11y.mm` (called from `ios_glue.mm`) | a container view over SDL's view (`hitTest` returns nil: touches go through) whose `accessibilityElements` are `UIAccessibilityElement`s in reading order; a node that takes clicks holds its descendants (their text is its label), as a `UIButton` holds its label; traits from role and flags (button, link, header, image, static text, search field, tab bar, not enabled, selected, toggle button on iOS 17); `accessibilityActivate`, `accessibilityElementDidBecomeFocused` and `accessibilityScroll:` come back as signals; `UIAccessibilityLayoutChangedNotification` when the structure changes |
 | when to send | both hosts | `a11y 1` when VoiceOver or Switch Control runs (`UIAccessibilityIsVoiceOverRunning`, `...SwitchControlRunning` and their notifications), when `AccessibilityManager.isEnabled()` (and its listener), or when a client reads the tree the host did not announce (XCUITest, Voice Control, an instrumentation's UiAutomation): Flutter's `isAccessibilityElement` trick |
-| tools | `next/tools/a11y-tree` | the tree from `inspect()`, from the log of what was sent (`ZINC_DEVICE_LOG`), from `uiautomator dump` and from XCUITest's `debugDescription`, in one form to diff; `ZINC_INSPECT=N` prints `inspect()` at frame N |
+| tools | `tools/a11y-tree` | the tree from `inspect()`, from the log of what was sent (`ZINC_DEVICE_LOG`), from `uiautomator dump` and from XCUITest's `debugDescription`, in one form to diff; `ZINC_INSPECT=N` prints `inspect()` at frame N |
 
 `inspect()` changed with it: a plain box that takes clicks (React Native's `Pressable`) is listed as `button` (it was `node` or absent), and
 open layers are listed after the tree, a modal one alone. `tests/t1/ui_a11y.sh` is unchanged.
@@ -82,7 +82,7 @@ cost the bridge avoids). Evidence below. Revisit when AccessKit gains an iOS ada
 ## Not proved, open
 
 - VoiceOver and TalkBack themselves speaking and moving (no VoiceOver on the simulator; TalkBack gestures cannot be injected from adb);
-  a device run belongs to the cross-platform pass (`next/backlog/later.md`).
+  a device run belongs to the cross-platform pass (`backlog/later.md`).
 - iOS lists off-screen nodes with an empty frame: VoiceOver reaches them through `accessibilityElementDidBecomeFocused` (which scrolls them
   in) and three-finger scrolls; whether it skips empty frames when swiping is to see on a device.
 - No macOS (NSAccessibility) or desktop bridge yet; text fields on iOS have no public "text field" trait (they read as label, value, hint).

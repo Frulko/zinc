@@ -1,5 +1,5 @@
 // GXM 3D path, first milestone (ZN-493): one draw entrypoint over the 2D replay's GXM state.
-// Compiled only with -DZN_VITA_GXP_3D=1 (next/targets/console/vita.cmake) and only when the
+// Compiled only with -DZN_VITA_GXP_3D=1 (targets/console/vita.cmake) and only when the
 // colour pair is compiled: "zn_gxp_3d.h" below is generated from the real .gxp blobs
 // (targets/vita/shaders/README.md); its absence fails the build naming the shader. The 2D
 // replay (gxm_vita.cpp) is unchanged: without the macro this file is not compiled at all.

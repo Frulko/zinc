@@ -1,0 +1,40 @@
+20 move 100 365
+21 down
+24 up
+40 move 840 652
+41 down
+44 up
+60 text l
+68 text y
+76 text o
+84 text n
+160 move 500 229
+161 down
+164 up
+200 move 100 148
+201 down
+204 up
+220 move 900 400
+221 down
+222 move 800 400
+223 move 700 400
+224 move 600 400
+225 move 500 400
+226 move 400 400
+227 up
+260 move 900 400
+261 down
+262 move 800 400
+263 move 700 400
+264 move 600 400
+265 move 500 400
+266 move 400 400
+267 up
+320 move 400 400
+321 down
+322 move 500 400
+323 move 600 400
+324 move 700 400
+325 move 800 400
+326 move 900 400
+327 up

@@ -1,4 +1,4 @@
-// Test entry (next/tests/t1/nuxt_ui.sh): the gallery, then scripted clicks and typing on every control, printing the state they drive.
+// Test entry (tests/t1/nuxt_ui.sh): the gallery, then scripted clicks and typing on every control, printing the state they drive.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
 import { quit } from 'zinc:gfx';

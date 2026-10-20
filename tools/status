@@ -1,0 +1,27 @@
+#!/bin/sh
+# Where are we? Next tasks, progress per milestone, uncommitted work, last commits. Read-only.
+cd "$(dirname "$0")/.." || exit 2
+echo "== Next tasks"; tools/next-task --list 5
+echo "== Task"; tools/next-task
+echo "== Progress"; python3 - <<'PY'
+import glob, re, collections
+names = {}
+for mp in glob.glob("backlog/milestones/*.md"):
+    mt = open(mp, encoding="utf-8").read()
+    mi = re.search(r"^id: (.*)$", mt, re.M); mn = re.search(r"^title: (.*)$", mt, re.M)
+    if mi and mn: names[mi.group(1).strip("'\" ")] = mn.group(1).strip("'\" ")
+done = collections.Counter(); total = collections.Counter(); parked = collections.Counter()
+for p in glob.glob("backlog/tasks/zn-*.md"):
+    t = open(p, encoding="utf-8").read()
+    fm = t.split("\n---\n")[0]
+    m = re.search(r"^milestone: (.*)$", fm, re.M)
+    ms = names.get(m.group(1).strip("'\" "), m.group(1).strip("'\" ")) if m else "(earlier work)"
+    st = re.search(r"^status: (.*)$", fm, re.M).group(1)
+    total[ms] += 1
+    if st == "Done": done[ms] += 1
+    if "- parked" in fm: parked[ms] += 1
+for ms in sorted(total):
+    print("  %-34s %3d/%-3d done%s" % (ms[:34], done[ms], total[ms], ("  (%d parked)" % parked[ms]) if parked[ms] else ""))
+PY
+echo "== Uncommitted"; git status --short | sed 's/^/  /'; [ -n "$(git status --short)" ] || echo "  clean"
+echo "== Last commits"; git log -5 --oneline | sed 's/^/  /'

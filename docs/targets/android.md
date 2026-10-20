@@ -37,10 +37,10 @@ Nexus 7 runs). This page is what the app does to behave like an Android app, and
 | Status bar | `StatusBar` barStyle (light or dark icons), hidden, backgroundColor (before Android 15, which draws apps edge to edge) |
 | Haptics | zinc:haptics and `Vibration`: `View.performHapticFeedback` (CONFIRM, REJECT, SEGMENT_TICK where the API has them); `vibrate` needs the VIBRATE permission, without it a haptic tick |
 
-The Java side is `next/src/app/android/java` (copied into the exported project), the JNI side `next/src/app/android_glue.cpp`.
+The Java side is `src/app/android/java` (copied into the exported project), the JNI side `src/app/android_glue.cpp`.
 
 ## Not proven on a device
 
 Written and compiled on the Mac (javac against android-36, clang with NDK r29) without a device in the loop (2026-10-16): the keyboard height,
 the input connection with Gboard, swipe typing and a Japanese IME, predictive back, the status bar, haptics and the font scale on a phone are
-lines of the cross-platform pass in `next/backlog/later.md`.
+lines of the cross-platform pass in `backlog/later.md`.

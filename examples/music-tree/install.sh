@@ -2,11 +2,11 @@
 # Installs Musique (arbre) on an HP TouchPad (webOS 3) over novacom (README.md): builds it for armv7-webos, installs it as a webOS
 # application shown in the launcher under its own id (org.zinc.music-tree, beside examples/music), with its icon, a CA bundle for HTTPS
 # (the Mac's /etc/ssl/cert.pem), the Spotify login when spotify.json is here and not yet on the tablet (--spotify replaces it), and
-# zinc-helper (next/tools/webos-helper: full speed, backlight, firewall ports, time zone). Then starts it.
-# Needs: the tablet in developer mode seen by `novacom -l`, next/tools/webos-sysroot run once.
+# zinc-helper (tools/webos-helper: full speed, backlight, firewall ports, time zone). Then starts it.
+# Needs: the tablet in developer mode seen by `novacom -l`, tools/webos-sysroot run once.
 set -e
 here=$(cd "$(dirname "$0")" && pwd -P); repo=$(cd "$here/../.." && pwd -P)
-ZINC=${ZINC:-$repo/next/build/zinc}
+ZINC=${ZINC:-$repo/build/zinc}
 # The app's id, name and version from zinc.json (app.id dev.zinc.X installs as org.zinc.X, as examples/music does)
 app() { python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["app"][sys.argv[2]])' "$here/zinc.json" "$1"; }
 appid=$(app id); version=$(app version); title=$(app name)
@@ -42,7 +42,7 @@ fi
 novacom put "file:/$APP/$BIN.new" < "$work/$BIN"
 remote "chmod 755 $APP/$BIN.new && mv -f $APP/$BIN.new $APP/$BIN && chmod 666 $APP/*.json 2>/dev/null; true"
 
-"$repo/next/tools/webos-helper"   # the root helper of zinc:webos
+"$repo/tools/webos-helper"   # the root helper of zinc:webos
 
 remote 'luna-send -n 1 palm://com.palm.applicationManager/rescan "{}" < /dev/null > /dev/null 2>&1'
 remote "luna-send -n 1 palm://com.palm.applicationManager/launch '{\"id\":\"$ID\"}' < /dev/null > /dev/null 2>&1"

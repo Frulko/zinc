@@ -1,18 +1,17 @@
 # Consoles: PSP, PS Vita, PS2 and 3DS
 
 Zinc Next runs a program on a console through a **console core**: the interpreter, the runtime, the graphics host (software raster) and a small
-HAL per console, built once with the console's SDK (`next/targets/console`). The program is the `.zbc` that `zinc pack` writes, either linked into
+HAL per console, built once with the console's SDK (`targets/console`). The program is the `.zbc` that `zinc pack` writes, either linked into
 the core or read beside it. Profiles: `--profile psp` (f32 numbers, 480x272), `vita` (960x544), `ps2` (f32, 640x448), `n3ds` (400x240 top screen).
 Decision and plan: `docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md`; tasks ZN-453 to ZN-457, ZN-753.
 
 ## Build and run
 
 ```sh
-cd next
 zinc pack --profile psp ../examples/breakout -o /tmp/b.zapp && tar -xf /tmp/b.zapp -C /tmp program.zbc resources.bin
 tools/build-console-core psp --embed /tmp/program.zbc /tmp/resources.bin [--frames 600]   # -> build/console-psp/EBOOT.PBP
 tools/console-run psp build/console-psp/EBOOT.PBP [--timeout 60] [--shot frame.png]      # prints the program's lines, exits with its status
-tools/console-demos ../examples/breakout breakout --title Breakout --id ZINC00002          # the four consoles, no frame budget, copied to ~/Documents/<console>
+tools/console-demos examples/breakout breakout --title Breakout --id ZINC00002          # the four consoles, no frame budget, copied to ~/Documents/<console>
 ```
 
 `tools/console-demos` builds what a person plays: no `--frames` (the program runs until the console quits it), one Vita title id per demo (two
@@ -99,7 +98,7 @@ consoles, and says so on its screen where a machine has none. The demos `example
 zinc:hardware (`lib/std/hardware.ts`) is a set of queries of zinc:sys `device()`: a console core's HAL answers them (`hal_device` in
 `targets/<console>/hal_*.cpp`), a simulated device answers them on a desktop: `zinc run --simulate psp|vita|ps2|n3ds <project>` opens the device's
 control panel (`devices/<console>.json`) beside the program, with its battery, network, tilt, microphone level, 3D slider and rear pad.
-zinc:audio is a plugin on a desktop; a console core links its mixer instead (`next/targets/console/audio_console.cpp`, the same native
+zinc:audio is a plugin on a desktop; a console core links its mixer instead (`targets/console/audio_console.cpp`, the same native
 module and contract), rendered on the program's thread at the end of each frame. It decodes PCM WAV and Ogg Vorbis (stb_vorbis, the
 decoder plugins/audio vendors); FLAC and MP3 play on a desktop.
 
@@ -123,7 +122,7 @@ so one launch measures both paths. Meadow Run on the owner's PS Vita: 60 fps, wo
 ## Limits
 
 - The PSP, PS2 and 3DS draw with the software raster (their GE, GS and PICA replays are later tasks); the Vita draws with its GPU (below); one thread (and the HAL's audio thread); no `zinc:fs` directories or stat (the console host
-  serves files through stdio, storage, the clock, args and env: `next/targets/console/host_console.cpp`).
+  serves files through stdio, storage, the clock, args and env: `targets/console/host_console.cpp`).
 - A program that calls `exit()` ends without `zinc:exit`: the runner reports a timeout.
 - The Vita and 3DS shots are the displayed framebuffer read back, not the emulator's window: a bug in how the emulator draws it shows only in
   its window. A window capture (`screencapture -l`) needs the Screen Recording permission for the terminal.

@@ -21,7 +21,7 @@ Evidence (music-tree has everything up to 82da1f8e and nothing after):
 
 Absent from music-tree (all post-fork): `emoji`/`￼`/`attachment` (0 hits in `src/`), `wheel`/`scrollDX` (0), `glances`/`setNotificationsShown` (0), `Login`/`sharedLoginFile`/`openUrl`/`queueSpotify`/`transfer`/`trackRadio`/`spotifyWhy` (0), `startTextInput` (0). zinc.json is identical to the fork's except `name` and `app.id`/`app.name`.
 
-music-tree is NOT in the music git history (untracked), and nothing in `next/tests` points at it (`music_notify.sh`, `music_city_standby.sh` use `examples/music`).
+music-tree is NOT in the music git history (untracked), and nothing in `tests` points at it (`music_notify.sh`, `music_city_standby.sh` use `examples/music`).
 
 ## Commits after the fork
 
@@ -59,7 +59,7 @@ Everything of the fork's main.ts is present; compared on config keys, settings r
 - Spotify Connect first, Sonos-service fallback in `playSpotifyItem` (`state.ts:714-739`) and `accountOf` serial candidates (:762): present.
 - Env hooks `ZINC_MUSIC_METEO`, `ZINC_MUSIC_RELAY`, `ZINC_MUSIC_STANDBY`: present (weather-service.ts:57, notify-service.ts:406, screen-power.ts:20).
 - No fork feature found dropped. Differences worth knowing:
-  - The project has no tests: `next/tests/t1/music_notify.sh`, `music_city_standby.sh` and `next/tests/golden/music/*` target `examples/music` only. Pixel parity with music is unchecked.
+  - The project has no tests: `tests/t1/music_notify.sh`, `music_city_standby.sh` and `tests/golden/music/*` target `examples/music` only. Pixel parity with music is unchecked.
   - Not run: no build or visual comparison was done (read-only task).
   - `config.json` of music-tree is a development copy (`sleep:120, group:"", seed:"192.168.2.134", spotifySn:0`); music's has `group RINCON_5CAAFD445D8601400, seed 192.168.2.103, spotifySn 1, sleep 0, glances:false, notify:true`. Only the `glances`/`notify` keys matter for the port (defaults true).
   - README is in French, while the repository's rule is English documents.

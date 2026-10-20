@@ -5,7 +5,7 @@ reports "unsupported" (Windows stays out of scope, RULES.md section 2). Nothing 
 
 Sources read: Tauri v2 docs (notification, capabilities), Electron docs (Notification), the muda / tray-icon / global-hotkey / window-state design as known from
 tauri-apps repositories, Qt `QSystemTrayIcon`, Flutter `tray_manager` / `window_manager` / `flutter_local_notifications`, the vendored SDL3 3.4.16 sources
-(`next/third_party/SDL3/src/{tray,dialog,video/cocoa}`), the freedesktop Notifications and StatusNotifierItem specifications, and the Zinc code listed in section 2.
+(`third_party/SDL3/src/{tray,dialog,video/cocoa}`), the freedesktop Notifications and StatusNotifierItem specifications, and the Zinc code listed in section 2.
 Items marked (verify) come from memory of those projects and are covered by a spike in section 9.
 
 ## 1. What the others do (good practices to keep)

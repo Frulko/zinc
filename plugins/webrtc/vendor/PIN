@@ -1,5 +1,5 @@
 The WebRTC stack of zinc:webrtc, compiled by the plugin build (plugin.json lists the sources) with the pinned zig, against the engine's
-mbedTLS 4.0.0 (next/third_party/mbedtls, MBEDTLS_THREADING_C, MBEDTLS_THREADING_PTHREAD and MBEDTLS_SSL_DTLS_SRTP turned on for it).
+mbedTLS 4.0.0 (third_party/mbedtls, MBEDTLS_THREADING_C, MBEDTLS_THREADING_PTHREAD and MBEDTLS_SSL_DTLS_SRTP turned on for it).
 
 libdatachannel, commit bdc5ff28e9d3b863144c94a677ecf5bf043aaf15 of paullouisageneau/libdatachannel (master, 2026-10-07: v0.24.6 and later,
 with PR #1599 "Add support for mbedTLS 4.1, use PSA Crypto API", which no release carries yet), MPL-2.0

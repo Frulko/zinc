@@ -1,7 +1,7 @@
 # The web export: options, scores, numbers, limits
 
 `zinc export --target web` and `zinc dev --target web` (owner request of 2026-10-17). The user's page is [docs/targets/web.md](../targets/web.md); this is the reasoning behind it, the measurements, and what is not done.
-Scores follow `next/RULES.md` section 4: fit x3, performance x3, size x2, maintainability x2, licence and supply risk x2, portability x1, effort x1, each 1 to 5.
+Scores follow `RULES.md` section 4: fit x3, performance x3, size x2, maintainability x2, licence and supply risk x2, portability x1, effort x1, each 1 to 5.
 
 ## What was asked, what was found
 
@@ -90,7 +90,7 @@ One more finding: `zinc:web` and `zinc:web/fetch` (lib/std) are Zinc's own polyf
 
 ## Decision 5: WebGL, shaders, layout and the plugins that wait on hardware (2026-10-17)
 
-Owner's rule: no WebAssembly unless native code is truly required; canvas and 3D go through the browser's own APIs. Scored as `next/RULES.md` section 4 (fit x3, performance x3, size x2,
+Owner's rule: no WebAssembly unless native code is truly required; canvas and 3D go through the browser's own APIs. Scored as `RULES.md` section 4 (fit x3, performance x3, size x2,
 maintainability x2, licence x2, portability x1, effort x1; each 1 to 5).
 
 **How a WebGL picture reaches the Zinc surface.** (a) a second canvas layered under or over the Zinc one: 3,5,5,2,5,3,2 = 66, it breaks paint order (an overlay cannot sit between two Zinc draws, a

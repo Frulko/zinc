@@ -379,5 +379,5 @@ The items above that were inference or not verified, as read on the Pi 3B+:
   formats, HEVC), several videos at once, 1080p, what the picture looks like beside the software path (nobody was at
   the screen with a reference).
 
-`next/tools/kmsvid.cpp` is the spike: it plays a file on a plane with FFmpeg and libdrm alone, measures it, and
+`tools/kmsvid.cpp` is the spike: it plays a file on a plane with FFmpeg and libdrm alone, measures it, and
 `--planes` lists the planes of the screen (the board has no `modetest`).

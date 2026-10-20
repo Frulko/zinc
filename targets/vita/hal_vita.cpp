@@ -1,4 +1,4 @@
-// PS Vita HAL (VitaSDK + newlib; the console core of next/targets/console, ZN-455/ZN-457): text through sceClibPrintf (Vita3K logs it) and into
+// PS Vita HAL (VitaSDK + newlib; the console core of targets/console, ZN-455/ZN-457): text through sceClibPrintf (Vita3K logs it) and into
 // ux0:data/<title id>/zinc.log (a console prints nowhere: the log is fetched over FTP), the process clock, the pad, and the frames drawn by the GPU
 // (gxm_vita.cpp: the command lists replayed with GXM at 960x544, ZN-471). ZINC_VITA_GPU=0, or a GXM that does not start, keeps the first path: the
 // shared software rasterizer copied (doubled when the surface is 480x272) into one framebuffer in CDRAM, flipped at vblank.
@@ -31,7 +31,7 @@
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends
 #endif
 #ifndef ZRT_HEAP_BYTES
-#define ZRT_HEAP_BYTES (192u << 20)   // the vita profile's heap (next/src/frontend/profile.cpp)
+#define ZRT_HEAP_BYTES (192u << 20)   // the vita profile's heap (src/frontend/profile.cpp)
 #endif
 
 extern "C" { int _newlib_heap_size_user = 224 * 1024 * 1024; }   // newlib's heap (VitaSDK's default is 128 MiB): the profile's 192 MiB and the engine

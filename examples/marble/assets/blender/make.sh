@@ -2,12 +2,12 @@
 # Regenerates the 3D art of examples/marble from Kenney's kits (CC0): fetches the three kits (pinned URLs and SHA-256) into $KITS,
 # runs build.py in Blender headless (models/high, models/low, models/models.json, preview/course.json, preview/course-blender.png),
 # then the zinc:3d viewer on both variants (preview/course-zinc-low.png, preview/course-zinc-high.png).
-#   BLENDER (default: blender on the PATH), ZINC (default: next/build/zinc of this checkout), KITS (default: /tmp/kenney-marble-kits)
+#   BLENDER (default: blender on the PATH), ZINC (default: build/zinc of this checkout), KITS (default: /tmp/kenney-marble-kits)
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ASSETS=$(dirname "$HERE")
 BLENDER=${BLENDER:-blender}
-ZINC=${ZINC:-$HERE/../../../../next/build/zinc}
+ZINC=${ZINC:-$HERE/../../../../build/zinc}
 KITS=${KITS:-/tmp/kenney-marble-kits}
 
 fetch() {   # kit, url, sha256: the zip is checked before it is unpacked; nothing in it is run

@@ -10,7 +10,7 @@ in `zinc run`, `zinc build`, `export` or `pack`.
 
 ## 1. Today's `zinc dev` loop
 
-- `dev()` in `next/src/cli_core.cpp:1976-2087`. It sets `ZINC_RUN=interp` (1977): `zinc dev` always interprets, so AOT
+- `dev()` in `src/cli_core.cpp:1976-2087`. It sets `ZINC_RUN=interp` (1977): `zinc dev` always interprets, so AOT
   is never involved. It polls the tree every 40 ms (D31, `snapshot()` 1871-1890) and waits 30 ms for the save to settle (2058).
 - On a code change it runs `zinc check --check` **in a second process** (2063-2065). On success it kills the process
   group and starts a new `zinc run` (`startProgram` 2002-2027). On failure it kills the program and runs a generated
@@ -26,7 +26,7 @@ in `zinc run`, `zinc build`, `export` or `pack`.
 - ZN-141 notes: about 55 ms from save to new process, and "not kept: module state across reloads".
   `docs/dev-mode.md` still describes the **prototype's** dlopen hot reload (`runtime/dev_host.cpp`), not Next.
 - The message "cache changed: src/pages/home.tsx" comes from the ZBC cache of interpreted runs (ZN-415,
-  `next/src/main.cpp:886`, store at 1874). It caches a whole program by its inputs, not by module.
+  `src/main.cpp:886`, store at 1874). It caches a whole program by its inputs, not by module.
 
 Measured (desktop-app template, 41 files, 924 functions, warm, this Mac): one compile takes **470 ms**: parse 112, check
 114, lower 55, optimise 102, reference counting 46, emit 43. A save today pays it twice: `zinc check`, then the child's
@@ -96,7 +96,7 @@ declaration name gives a durable key.
   Vite tree-shakes it) and any other use is `null`. That way `lib/std/solid.ts` can carry its hot code and a non-dev
   build gets none of it.
 - The Zinc side of the machinery is `lib/std/hot.ts` (`zinc:hot`), added by the loader in hot mode only. The C++ side is
-  `next/src/dev/hot.cpp`, linked into the `zinc` CLI only, never into the runtime or host libraries that AOT programs
+  `src/dev/hot.cpp`, linked into the `zinc` CLI only, never into the runtime or host libraries that AOT programs
   link. The one shared touch is a "keep the window" flag in the gfx host's finish path.
 - What a T0 test can check (`tests/t0/hot_off.sh`):
   1. a fixture with an `if (import.meta.hot) {...}` block compiles (`--emit=zbc`) to the same bytes as the fixture
@@ -299,7 +299,7 @@ criteria:
   - perf log and the QuickJS/AOT statement;
   - AC #1, #3 and the rest of #5.
 
-Lines for `next/backlog/later.md`:
+Lines for `backlog/later.md`:
 
 - ZN-742: Fast Refresh on QuickJS, through a module transform with Vite-style bindings.
 - ZN-742: Fast Refresh over `zinc dev --device`, sending the ZBC instead of `reload`.
@@ -310,7 +310,7 @@ Lines for `next/backlog/later.md`:
 
 ## 9. Built: the hot compile mode (ZN-742.01)
 
-- **The switch.** `ZINC_HOT=1` (read by `loadChecked` in `next/src/main.cpp`, part of the build-cache signature) turns on hot mode.
+- **The switch.** `ZINC_HOT=1` (read by `loadChecked` in `src/main.cpp`, part of the build-cache signature) turns on hot mode.
   Nothing sets it yet: `zinc dev` will set it on its child in ZN-742.02, together with the swap. `zinc run`, `build`, `export` and
   `pack` never set it.
 - **`import.meta.hot`.** The parser accepts it and leaves the marker `__meta_hot`. `hotMeta` in `frontend/modules.cpp` handles it
@@ -345,7 +345,7 @@ Lines for `next/backlog/later.md`:
 ## 10. Built: the swap on the interpreter (ZN-742.02)
 
 - **The channel.** `zinc dev` gives its child `ZINC_HOT=1` and `ZINC_HOT_FD` (a second socketpair beside the asset one of D97). The child
-  runs through `next/src/dev/hot.cpp` (linked into the `zinc` command line only). At the end of its first frame it says `hot ready`; a
+  runs through `src/dev/hot.cpp` (linked into the `zinc` command line only). At the end of its first frame it says `hot ready`; a
   program without a frame loop never does, and a save restarts it as before.
 - **A save.** `zinc dev` sends `reload` when only modules changed (`.ts`, `.tsx`, `.js`...); any other file (`zinc.json`, a plugin's native
   code, an image under a non-packed `assets/`) restarts with `zinc dev: restart: <file> changed (not a module)`. At the end of the next frame

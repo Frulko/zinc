@@ -14,7 +14,7 @@ Read-only audit. Question: design in Figma, Zinc plays it live (refresh while de
 - Worked example: `examples/ui/figma-storyboard/` (`design.zui.json`, generated `src/design.tsx`, hand-written `src/main.tsx`); listed OK in the examples gate (`tests/examples.lst`: `ui/figma-storyboard/src/main.tsx | OK`; ZN-151 Done, ZN-155 Done).
 - The generated code is plain `zinc:ui` + `zinc:ui/solid` with `StyleSheet.create` (design.tsx:1-10), so it runs unchanged on Zinc Next (interpreter, AOT, QuickJS).
 
-**Zinc Next entry point to the plugin tools.** `zinc ui check|code|import|pack|serve` exists in the Next CLI (next/src/cli_core.cpp:119) but only shells out to Node and `compiler/bin/zinc.mjs ui` of a checkout (cli_core.cpp:1842-1845, `nodeTool` needs Node, 1830-1832).
+**Zinc Next entry point to the plugin tools.** `zinc ui check|code|import|pack|serve` exists in the Next CLI (src/cli_core.cpp:119) but only shells out to Node and `compiler/bin/zinc.mjs ui` of a checkout (cli_core.cpp:1842-1845, `nodeTool` needs Node, 1830-1832).
 
 **Style system (target of the mapping).**
 - One flat node model for class tokens, `.css`, `style={{}}`, `StyleSheet.create`, array layers (docs/reports/ui-style-system.md:9, sec. 2.1; lib/std/ui.ts). Style reference tables generated from the property table (docs/ui.md:821-926); ZN-279 "Docs and Figma mapping generated from the property table" is Done, giving the Figma-property to token table (docs/figma-ui.md:160-186).
@@ -25,15 +25,15 @@ Read-only audit. Question: design in Figma, Zinc plays it live (refresh while de
 - JSX rules: `className`, capitalised components only (AGENTS.md). Note: the generator emits StyleSheet objects, not class strings.
 
 **Live refresh in Zinc Next.**
-- `zinc dev` Fast Refresh on macOS/Linux interpreter: the saved module is swapped into the running process, state of untouched modules kept, Solid components re-rendered in place via proxies; 60-540 ms measured; red box on compile error; Chrome DevTools inspector on 9229 (docs/dev-mode.md:1-70; cli_core.cpp:133; docs/reports/zinc-next-fast-refresh.md; ZN-141, ZN-742 Done). Code in `next/src/dev/` (hot.cpp, hot_swap.cpp, client.cpp, core.cpp).
+- `zinc dev` Fast Refresh on macOS/Linux interpreter: the saved module is swapped into the running process, state of untouched modules kept, Solid components re-rendered in place via proxies; 60-540 ms measured; red box on compile error; Chrome DevTools inspector on 9229 (docs/dev-mode.md:1-70; cli_core.cpp:133; docs/reports/zinc-next-fast-refresh.md; ZN-141, ZN-742 Done). Code in `src/dev/` (hot.cpp, hot_swap.cpp, client.cpp, core.cpp).
 - Asset hot reload (ZN-450 Done): a save under the assets dir rebuilds and swaps into the running program (`zinc:assets onReload`, cli_core.cpp:133).
 - `zinc dev --device <name>` sends what changed to a paired device; `zinc dev --lan` serves to Zinc Go on phones with QR (cli_core.cpp:133; ZN-631 is Review, ZN-516 and ZN-729 Backlog).
 - Web: `zinc dev --target web` page reload (docs/dev-mode.md table).
-- Debug: `ZN_DUMP_JSX=<name>` prints the lowered JSX of a file (next/src/frontend/modules.cpp:1830).
+- Debug: `ZN_DUMP_JSX=<name>` prints the lowered JSX of a file (src/frontend/modules.cpp:1830).
 
 ## 2. Exists but prototype-only (or Node-only)
 
-- The whole Figma pipeline lives in the prototype tree: `compiler/src/ui-*.ts`, run through `node compiler/bin/zinc.mjs ui ...` (docs/figma-ui.md:4-20, 129-135; integrations/figma/README.md:3-5). Zinc Next only delegates to it (cli_core.cpp:1842). No Next-native reader of `zinc-ui/1`, no C++ code mentions `zinc-ui` (grep of next/src: only the CLI table).
+- The whole Figma pipeline lives in the prototype tree: `compiler/src/ui-*.ts`, run through `node compiler/bin/zinc.mjs ui ...` (docs/figma-ui.md:4-20, 129-135; integrations/figma/README.md:3-5). Zinc Next only delegates to it (cli_core.cpp:1842). No Next-native reader of `zinc-ui/1`, no C++ code mentions `zinc-ui` (grep of src: only the CLI table).
 - "Preview in Zinc" builds WebAssembly with Emscripten + CMake, reloads the whole app, state lost (docs/figma-ui.md:50-51; ui-tools.ts:110 `buildWasm`). It does not use Next, `zinc dev`, or Fast Refresh. Requires `emcc`.
 - Import writes `src/design.tsx`, a hash manifest refuses overwriting hand edits (docs/figma-ui.md:143-145). Subsequent import is a file change, so a `zinc dev` watching that project would Fast Refresh it, but nobody tested or wired that path (inference from dev-mode.md; not found in any doc or test).
 - ZincStudio (`apps/studio`, Choregraphe-style flow editor, a Zinc app with `zinc:remote` robot view, apps/studio/README.md:1-40) is unrelated to Figma; it shows the pattern for streaming a running app into an editor (`zinc:remote`).

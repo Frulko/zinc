@@ -1,4 +1,4 @@
-// Sony PSP HAL (pspsdk + newlib; the console core of next/targets/console, ZN-455/ZN-457): text through stdout (PPSSPP prints it), the system clock,
+// Sony PSP HAL (pspsdk + newlib; the console core of targets/console, ZN-455/ZN-457): text through stdout (PPSSPP prints it), the system clock,
 // the pad, and the shared software rasterizer shown in one 32-bit framebuffer in VRAM (480x272, stride 512), flipped at vblank. The first, simple
 // path: the GE replay of the command lists comes later (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 2.4).
 #include "hal.h"
@@ -25,7 +25,7 @@ PSP_HEAP_SIZE_KB(-1024);               // the newlib heap takes the user memory 
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or HOME quits
 #endif
 #ifndef ZRT_HEAP_BYTES
-#define ZRT_HEAP_BYTES (16u << 20)   // the psp profile's heap (next/src/frontend/profile.cpp)
+#define ZRT_HEAP_BYTES (16u << 20)   // the psp profile's heap (src/frontend/profile.cpp)
 #endif
 
 static const int32_t kScreenW = 480, kScreenH = 272, kStride = 512;

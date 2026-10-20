@@ -1,4 +1,4 @@
-// zinc:script/fast, native side: numbers-only calls across the QuickJS boundary, with no JSON text, no Dyn value and no engine context (next/src/qjs/script_native.cpp,
+// zinc:script/fast, native side: numbers-only calls across the QuickJS boundary, with no JSON text, no Dyn value and no engine context (src/qjs/script_native.cpp,
 // module "QuickJSFast"; docs/reports/script-boundary-optimisation.md). Next only: the prototype has no such module.
 import { NativeModule, requireNative } from 'zinc:native';
 
