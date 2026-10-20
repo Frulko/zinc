@@ -84,13 +84,12 @@ async function trickle(): Promise<void> {
 
   // a channel the answerer opens
   let back: RTCDataChannel | null = null;
-  a.ondatachannel = (e: RTCDataChannelEvent) => { back = e.channel; };
-  const bBack = b.createDataChannel('back');
   let backOpen = false, backMsg = '';
+  // the handler goes on in ondatachannel: b sends as soon as its side opens, and a message before it would be lost (a slow runner, v0.4.1)
+  a.ondatachannel = (e: RTCDataChannelEvent) => { back = e.channel; e.channel.onmessage = (m: MessageEvent) => { backMsg = m.data as string; }; };
+  const bBack = b.createDataChannel('back');
   bBack.onopen = (_e: Event) => { backOpen = true; bBack.send('from b'); };
-  await until(() => back !== null && backOpen);
-  (back as RTCDataChannel).onmessage = (e: MessageEvent) => { backMsg = e.data as string; };
-  await until(() => backMsg !== '');
+  await until(() => back !== null && backOpen && backMsg !== '');
   console.log(`a got ${(back as RTCDataChannel).label} from b: ${backMsg}`);
 
   // 200 KB in one message
