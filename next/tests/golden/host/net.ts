@@ -1,7 +1,7 @@
-import { Headers, fetch, serve, stop } from 'zinc:net';
+import { Headers, Reply, Request, fetch, serve, stop } from 'zinc:net';
 // zinc:net on loopback in one process (no curl, no python): the server and the client share the event loop
 const big = 'x'.repeat(1 << 20);
-serve(18841, (req) => {
+const handler = (req: Request): Reply => {
   if (req.path === '/a.txt') return { status: 200, body: 'hello net\n', contentType: 'text/plain' };
   if (req.path === '/echo') {
     const h = new Headers();
@@ -19,10 +19,17 @@ serve(18841, (req) => {
     h.set('Location', '/a.txt');
     return { status: 302, body: '', contentType: 'text/plain', headers: h };
   }
+  if (req.path === '/same' || req.path === '/cross') {
+    const h = new Headers();
+    h.set('Location', req.path === '/same' ? '/auth' : 'http://localhost:18841/auth');
+    return { status: 302, body: '', contentType: 'text/plain', headers: h };
+  }
+  if (req.path === '/auth') return { status: 200, body: `auth=${req.headers.get('authorization')} cookie=${req.headers.get('cookie')} x=${req.headers.get('x-test')}`, contentType: 'text/plain' };
   if (req.path === '/json') return { status: 200, body: '{"a":[1,2]}', contentType: 'application/json' };
   if (req.path === '/boom') throw new Error('handler failed');
   return { status: 404, body: 'no', contentType: 'text/plain' };
-});
+};
+serve(18841, handler);
 async function main(): Promise<void> {
   const base = 'http://127.0.0.1:18841';
   const r = await fetch(base + '/a.txt');
@@ -42,6 +49,11 @@ async function main(): Promise<void> {
   console.log('chunked', ct.length, ct.slice(ct.length - 3), c.headers.get('transfer-encoding'));
   const red = await fetch(base + '/old');
   console.log('redirect', red.status, red.url, JSON.stringify(await red.text()));
+  // credentials follow a redirect on the same origin only
+  const cred = new Headers();
+  cred.set('Authorization', 'Bearer t'); cred.set('Cookie', 'c=1'); cred.set('X-Test', 'kept');
+  console.log('same', await (await fetch(base + '/same', { headers: cred })).text());
+  console.log('cross', await (await fetch(base + '/cross', { headers: cred })).text());
   console.log(JSON.stringify(await (await fetch(base + '/json')).json()));
   const boom = await fetch(base + '/boom');
   console.log(boom.status, await boom.text());

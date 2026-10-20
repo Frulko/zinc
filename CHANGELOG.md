@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example's model menu is a search: typing filters the models (case and accents aside, by name, id or provider), the arrow keys and Enter or Tab pick one, Escape closes it. opencode's models, OpenCode Go's included, come from its local server under their providers with their context window and price, their variants as the effort, and a turn's cost and tokens by model from its session; OpenCode Go's plan limits link to opencode's console, the only place it shows them.
 
 ### Fixed
+- `zinc:net`: `fetch` no longer sends the `Authorization`, `Proxy-Authorization` and `Cookie` headers on to another site when it follows a redirect; they go to the address they were given for only, as in browsers and curl.
 - `zinc:ui` (classic layout): a box that flex-shrink makes narrower than it measured, or a child wider than its column, is laid out again at the width it gets, so the texts in it wrap inside it instead of keeping the lines of the wider width and running past its edge; an item that reaches its min-width stops there and the others share the rest, as in CSS. `break-words` now also cuts a long word in a text with style runs.
 - `zinc:ui`: `rotate`, `skewX`/`skewY` and uneven `scaleX`/`scaleY` (style, transform array, `animate`) now paint, children, texts and icons included; they only moved hit-testing before, so a spinner turned with `animate(ref, 'rotate', 360)` stood still.
 - The `agents` example: the hint of a new conversation wraps instead of running past the right edge of the pane.

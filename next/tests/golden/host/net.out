@@ -5,6 +5,8 @@ false 404
 big 1048576
 chunked 1048579 end chunked
 redirect 200 http://127.0.0.1:18841/a.txt "hello net\n"
+same auth=Bearer t cookie=c=1 x=kept
+cross auth= cookie= x=kept
 {"a":[1,2]}
 500 internal error
 fetch failed: response too large

@@ -150,6 +150,21 @@ std::string headerOf(const std::string& head, const std::string& name) {   // ca
   return "";
 }
 
+// The header lines of a request without Authorization, Proxy-Authorization and Cookie.
+std::string withoutCredentials(const std::string& lines) {
+  std::string out;
+  for (size_t i = 0; i < lines.size();) {
+    size_t e = lines.find('\n', i);
+    if (e == std::string::npos) e = lines.size();
+    const std::string line = lines.substr(i, e - i);
+    std::string name = line.substr(0, line.find(':'));
+    for (char& c : name) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (name != "authorization" && name != "proxy-authorization" && name != "cookie") out += (out.empty() ? "" : "\n") + line;
+    i = e + 1;
+  }
+  return out;
+}
+
 void onComplete(Fetch* f) {
   f->msg.flush();
   int s = llhttp_get_status_code(&f->parser);
@@ -162,6 +177,8 @@ void onComplete(Fetch* f) {
     if (std::string deny = zn::host::perm::check("net", probe.host); !deny.empty()) { finish(f, false, "fetch failed: redirected, " + deny); return; }
     if (s == 303 || ((s == 301 || s == 302) && f->method == "POST")) { if (f->method != "HEAD") f->method = "GET"; f->reqBody.clear(); }
     netlog::response(f->log, s, f->reason, f->msg.head, f->msg.body);   // the redirect is an entry of its own, as in a HAR
+    // credentials are for the origin they were given to: a redirect to another scheme, host or port drops them, as browsers and curl do
+    if (probe.secure != f->secure || probe.host != f->host || probe.port != f->port) f->headers = withoutCredentials(f->headers);
     splitUrl(next, f, &why);
     logOpen(f);
     f->msg = Msg();
