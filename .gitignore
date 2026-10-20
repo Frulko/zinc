@@ -22,3 +22,13 @@ examples/hero/media/
 
 # test reports downloaded from CI runs (the artifacts stay on GitHub)
 docs/reports/ci-run-*/
+
+# the engine (was next/.gitignore)
+/build*/
+# SDL's own sources, not a build directory: the CI configure fails without them
+!/third_party/SDL3/include/build_config/
+/.logs/
+/.paused
+/build-wasm/
+/__pycache__/
+/bench/qjs/matter.mjs
