@@ -11,6 +11,28 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.4.1] - 2026-10-20
 
 ### Added
+- agents: read OpenCode Go usage with the Go key
+- update: say how to update on every command, whatever the install
+- agents: model picker search, opencode Go models and usage
+- agents: activity line, tokens, cost, context and plan limits
+- agents: markdown answers, copy, dropped files as references
+- ui: style runs inside one text
+- agents: bounded memory, Escape stop, live tools, VS Code layout
+
+### Fixed
+- music: stop adding the offset to icons now that svg follows it
+- process: stop reading a child's pipes while its output waits
+- net: drop credentials when fetch follows a redirect off-origin
+- agents: wrap the conversation to a narrow pane
+- ui: lay out shrunk flex items again at their final width
+- process: close the child's stdin in run()
+- ui: paint rotate, skew and uneven scales
+- agents: wrap the new conversation's hint inside the pane
+- process: keep the loop turning while a child floods its output
+
+## [0.4.1] - 2026-10-20
+
+### Added
 - `zinc:ui`: `setTextRuns(node, runs)` styles parts of one text (bold, italic, monospace, underlined, a colour of its own or a scheme variable through `schemeColor`): the text wraps with each part in its font and still selects and copies as one.
 
 ### Changed
@@ -326,6 +348,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
 [Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.1
 [0.4.1]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Frulko/zinc/compare/v0.3.0...v0.3.1
