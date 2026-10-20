@@ -8,8 +8,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-20
-
 ### Added
 - Install with Homebrew on macOS or Linux: `brew install frulko/zinc/zinc`; `brew upgrade zinc` installs each new release, and `zinc update` on that install says so.
 - An `agents` example: a small desktop tool that finds the Claude Code, Codex and opencode CLIs and their configuration, and chats with them in a folder, their answers streaming in; each turn picks its mode, model, effort and fast mode as the CLIs do (`zinc run examples/agents`).
@@ -23,6 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - macOS: a window uses about a third of the memory it did (Activity Monitor: about 80 MB instead of 210 for a 1180x760 window on a Retina screen, 45 MB for a small form): it shows the frame through Metal instead of OpenGL. `ZINC_RENDERER=gl` brings OpenGL back, for shaders drawn on the GPU.
 
 ### Fixed
+- Two programs started at the same time (two `zinc run`, a test beside an app) no longer fail to build or load the same plugin: the builds of a `ZINC_HOME` take turns.
 - The one-line installers (`curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh`, `install.ps1`) and `zinc update` now download from the releases that exist; they pointed to a repository that does not exist yet.
 - TLS 1.3 (https `fetch`, MQTT over TLS, `wss://`): the first bytes a server sends right behind its session tickets are no longer held back until more data arrives, and a write after a ticket no longer fails.
 - `zinc export --target android` and `--target ios`: a plugin imported from several files of a program no longer stops the native build (CMake: "another target with the same name already exists").
@@ -293,8 +292,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/Frulko/zinc/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Frulko/zinc/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/Frulko/zinc/compare/v0.2.2...v0.2.3
