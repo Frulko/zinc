@@ -97,12 +97,14 @@ export function spawn(cmd: string, args: string[], opts: SpawnOptions): Process 
   return p;
 }
 
-/** Runs a short command to completion and collects its output. Rejects only when it cannot be started. */
+/** Runs a short command to completion and collects its output; it gets no input (stdin is closed at once, so a program that
+ *  reads it to the end does not wait forever). Rejects only when it cannot be started. */
 export function run(cmd: string, args: string[], opts: SpawnOptions): Promise<Result> {
   return new Promise<Result>((resolve, reject) => {
     let out = '', err = '';
     let p: Process;
     try { p = spawn(cmd, args, opts); } catch (e) { reject(e); return; }
+    p.closeStdin();
     p.onData((s: string, stderr: boolean) => { if (stderr) err += s; else out += s; });
     p.onExit((code: i32) => { resolve(new Result(code, out, err)); });
   });

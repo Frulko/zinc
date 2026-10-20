@@ -24,7 +24,7 @@ const code = await p.exited;       // same code as a Promise
 | API | |
 |---|---|
 | `spawn(cmd, args, opts): Process` | starts `cmd` (looked up in `PATH`) with `args`; throws when it cannot be started (not found, not executable, too many processes) |
-| `run(cmd, args, opts): Promise<Result>` | spawn + collect: `{ code, stdout, stderr }`; rejects only when the program cannot be started (a non-zero exit resolves) |
+| `run(cmd, args, opts): Promise<Result>` | spawn + collect: `{ code, stdout, stderr }`; the program gets no input (stdin is closed at once); rejects only when the program cannot be started (a non-zero exit resolves) |
 | `SpawnOptions` | `cwd?: string` (default: the program's), `env?: string[]` of `KEY=VALUE` |
 | `p.onStdout(cb)` / `p.onStderr(cb)` | each complete line, without `\n` (a trailing `\r` is removed too); a last line without newline is delivered at exit |
 | `p.onData(cb(chunk, stderr))` | raw output as read from the pipes (UTF-8 sequences are never split between chunks) |

@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 - `zinc:ui`: `rotate`, `skewX`/`skewY` and uneven `scaleX`/`scaleY` (style, transform array, `animate`) now paint, children, texts and icons included; they only moved hit-testing before, so a spinner turned with `animate(ref, 'rotate', 360)` stood still.
 - The `agents` example: the hint of a new conversation wraps instead of running past the right edge of the pane.
+- `zinc:process`: `run()` closes the program's input at once, so a command that reads its stdin to the end (`cat`, `claude -p`) finishes instead of waiting forever.
 - A child process that writes without pause (a CLI streaming a large output, `yes`) no longer holds the event loop: timers, frames and keys keep running while its output is read (Escape could not stop it before).
 
 ## [0.4.0] - 2026-10-20
