@@ -2744,9 +2744,13 @@ function __frameTimers(): void {
 // ("handle", "kind" and "data" joined by U+001F); the handlers registered here (zinc:process, zinc:sys) pick the kinds they own.
 let __evHandlers: ((h: i32, kind: i32, data: string) => void)[] = [];
 function __addEvHandler(f: (h: i32, kind: i32, data: string) => void): void { __evHandlers.push(f); }
+// A turn takes at most __EV_BUDGET events (each up to one read of a pipe, 64 KiB): a child that writes without pause would otherwise keep the
+// loop here and starve the frames, the timers and the input (Escape could not stop it). The rest waits for the next turn.
+const __EV_BUDGET: i32 = 64;
 function __pollHost(): boolean {
   let any = false;
-  while (__host_evReady()) {
+  let budget: i32 = __EV_BUDGET;
+  while (budget-- > 0 && __host_evReady()) {
     const e = __host_evNext();
     if (e.length === 0) break;
     any = true;
