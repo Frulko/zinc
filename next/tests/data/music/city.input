@@ -4,18 +4,10 @@
 40 move 840 652
 41 down
 44 up
-60 move 903 574
-61 down
-64 up
-68 move 671 506
-69 down
-72 up
-76 move 903 506
-77 down
-80 up
-84 move 692 642
-85 down
-88 up
+60 text l
+68 text y
+76 text o
+84 text n
 160 move 500 229
 161 down
 164 up

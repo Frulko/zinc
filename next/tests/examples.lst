@@ -1,6 +1,7 @@
 # Examples status (tools/examples-status): path | STATUS | reason | task. OK needs nothing else; a status other than OK needs the reason and the task that will fix it.
 3d/cubes/src/main.ts | OK |  | 
 3d/model/src/main.ts | OK |  | 
+agents/src/main.tsx | OK |  | 
 boards/esp32-2432s022-hello/src/main.ts | OK |  | 
 boards/esp32-2432s022/src/main.tsx | OK |  | 
 boards/s3-matrix/dice/src/main.ts | OK |  | 
@@ -48,6 +49,7 @@ midi/src/main.ts | OK |  |
 modules-showcase/src/main.tsx | OK |  | 
 museum-table/editor/main.tsx | OK |  | 
 museum-table/src/main.ts | OK |  | 
+music-tree/src/main.ts | OK |  | 
 music/src/main.ts | OK |  | 
 native-module/src/main.ts | OK |  | 
 notify-relay/main.tsx | OK |  | 

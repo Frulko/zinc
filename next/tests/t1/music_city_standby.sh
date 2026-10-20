@@ -2,7 +2,7 @@
 # examples/music (ZN-755): the weather's city chosen in the settings, and the clock slide's StandBy schedule, on the desktop, headless.
 # A local server answers as Open-Meteo would (tests/data/music: the geocoding of "lyon", a forecast; ZINC_MUSIC_METEO points the app at it),
 # so no request leaves the machine for the weather. The script (tests/data/music/city.input) opens Réglages, "Choisir", types l-y-o-n on the
-# app's own keyboard, picks the first town, then swipes the home to the weather slide and back to the clock. Proved: one geocoding request
+# computer's keyboard (text events: a desktop shows no keyboard of its own), picks the first town, then swipes the home to the weather slide and back to the clock. Proved: one geocoding request
 # for the four keys (the 300 ms debounce), the town list (frame 150), config.json holding Lyon's place, the forecast read again for it and
 # the slide naming it (frame 310); on the clock, with ZINC_MUSIC_STANDBY=2,4,1,0 (off after 2 s, a glance of 1 s every 4 s), the screen lit
 # at frame 440, black at 460, lit again at 700 (the glance), black at 760, lit at 940 (the next glance).
