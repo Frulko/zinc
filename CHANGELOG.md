@@ -16,6 +16,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example draws answers as markdown (headings, lists, code blocks under their language, tables), lets any part of an answer be selected and copied with Cmd+C, and has a copy button on each answer and code block. Files, images and folders dropped on the window become references in the message (`[Image #1]`, `@src/app.ts`, `@src/`), typing `@` lists the folder's files, and each CLI gets them its own way (Claude Code `@path`, Codex `-i`, opencode `-f`).
 
 ### Fixed
+- The `agents` example: the hint of a new conversation wraps instead of running past the right edge of the pane.
 - A child process that writes without pause (a CLI streaming a large output, `yes`) no longer holds the event loop: timers, frames and keys keep running while its output is read (Escape could not stop it before).
 
 ## [0.4.0] - 2026-10-20

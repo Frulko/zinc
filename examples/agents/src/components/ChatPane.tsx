@@ -223,7 +223,7 @@ function ChatView(props: { chat: Chat }): i32 {
       </View>
     </View>
     <ScrollView ref={logRef} className="grow min-w-0 flex-col gap-3 px-6 py-4" onScroll={(e: ui.ResponderEvent, g: ui.GestureState) => onLogScroll(c)}>
-      {c.count === 0 && c.window().length === 0 && <Text className={`text-[13px] ${fg(FAINT)}`}>
+      {c.count === 0 && c.window().length === 0 && <Text className={`max-w-[760] text-[13px] ${fg(FAINT)}`}>
         {`Each message runs ${c.agent.binary} in this folder with the settings below and streams its answer here. The conversation resumes from one message to the next; Escape stops a turn.`}
       </Text>}
       {c.hasOlder() && <Text className={`text-[11px] ${fg(FAINT)}`}>{`${c.window()[0].seq} earlier items on disk: scroll up to read them`}</Text>}
