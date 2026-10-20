@@ -68,6 +68,17 @@ Long texts: Zinc strings are UTF-8, so indexing a non-ASCII string (`charCodeAt`
 work line by line and slice the visible rows once per frame, so scrolling a 5000-line file stays at the display rate;
 code that walks the value of a large field should do the same (`value.split('\n')`).
 
+## Styled runs inside one text
+
+`ui.setTextRuns(h, runs)` styles parts of a text node without splitting it: `runs` is `[length, style, color, ...]` over its text, in
+order; `style` or-s `ui.RUN_BOLD`, `RUN_ITALIC`, `RUN_MONO` and `RUN_UNDERLINE` (0: the text's own), `color` is `0xRRGGBB`, `-1` for
+the text's colour, or `ui.schemeColor('name')` for a `defineScheme` variable that follows the scheme. The lines wrap at spaces with each
+run measured in its own face, and a `select-text` node still selects and copies as one text (`tests/golden/ui-runs`). It is how a
+paragraph of markdown keeps its **bold**, `code` and links in one selectable text (examples/agents). Plain wrapping only: with a
+`whitespace-*`, `break-*`, `line-clamp-*`, `truncate`, `text-balance`, case transform or word-spacing class the runs are ignored, and
+a text shadow is not drawn under runs. A face is only there if the program bakes it: `RUN_MONO` needs a `font-mono` somewhere in the
+program. `setTextRuns(h, [])` removes them.
+
 ## Pointer events
 
 On any node: `onPointerDown`, `onPointerMove`, `onPointerUp`, `onDoubleClick`, `onContextMenu` (right click),

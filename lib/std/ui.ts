@@ -351,6 +351,8 @@ export class UiNode {
   fade: number = 1;                    // LayoutAnimation's create/delete opacity, times the style opacity (ZN-365)
   leaving: boolean = false;            // removed while a LayoutAnimation runs: painted where it was, fading out, then released            // what the rn layout engine was last told about this node (ZN-286)
   wk: WrapKey | null = null;          // what the text lines were computed from (wrapText)
+  runs: i32[] | null = null;          // style runs inside the text (setTextRuns): [length, style, color...]
+  lineAt: i32[] | null = null;        // with runs: where each line starts in the text
   hs: Handlers | null = null;
   ed: Edit | null = null;
   layer: boolean = false;              // ui.openLayer: laid out, painted and hit-tested apart from its parent
@@ -489,6 +491,18 @@ export function createText(s: string): i32 {
 export function setText(h: i32, s: string): void {
   const n = node(h);
   if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h) tsNode = -1; }
+}
+/** Style of a run of setTextRuns: bold, italic, monospace, underlined (an or of them; 0 the text's own). */
+export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8;
+/**
+ * Styles parts of one text node: `runs` is [length, style, color, ...] over its text, in order (style: RUN_* or-ed, color 0xRRGGBB, -1 for
+ * the text's colour, or schemeColor('name') to follow the scheme; what the runs do not cover keeps the text's style). The text still wraps at its spaces and still selects and copies as
+ * one. Plain wrapping only: with a white-space, break, line-clamp, truncate, balance, transform or word-spacing class the runs are ignored.
+ * [] removes them.
+ */
+export function setTextRuns(h: i32, runs: i32[]): void {
+  const n = node(h);
+  n.runs = runs.length >= 3 ? runs : null; n.wk = null; n.lineAt = null; layoutDirty = true; paintDirty = true;
 }
 export function insert(parent: i32, child: i32, before: i32): void {
   const p = node(parent);
@@ -1870,6 +1884,8 @@ function applyScheme(name: string): void {
 /** Switches the colour scheme ('light', 'dark', or 'auto' to follow the system's). zinc.json: "scheme". */
 export function setScheme(name: string): void { schemeMode = name; applyScheme(name === 'auto' ? systemScheme : name); }
 export function currentScheme(): string { return scheme; }
+/** A colour for setTextRuns that is scheme variable `name` (defineScheme) in whatever scheme is shown; -1 (the text's colour) when unknown. */
+export function schemeColor(name: string): i32 { const v = varNames.indexOf(name); return v < 0 ? -1 : -2 - v; }
 /** Restyles the nodes that read scheme variables, after defineScheme changed the current scheme's values (a new accent colour). */
 export function refreshScheme(): void { schemeCount = restyleMedia(16); paintDirty = true; }
 /** The nodes the last scheme switch restyled. */
@@ -2684,11 +2700,46 @@ export function setFontSans(family: string): void {
   for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
 }
 /** font-[A,B,C]: the first family of the list that has a face wins; the built-in sans is the last resort. */
-function faceOf(n: UiNode, px: i32): i32 {
-  const w = n.weight > 0 ? n.weight : n.bold ? 700 : 400;
-  if (n.family.indexOf(',') < 0) { const f = familyFace(n.family, w, n.italic, px); if (f >= 0) return f; }
-  else for (const fam of n.family.split(',')) { const f = familyFace(fam.trim(), w, n.italic, px); if (f >= 0) return f; }
-  return familyFace('sans', w, n.italic, px);
+function faceOf(n: UiNode, px: i32): i32 { return faceIn(n.family, n.weight > 0 ? n.weight : n.bold ? 700 : 400, n.italic, px); }
+function faceIn(family: string, w: i32, italic: boolean, px: i32): i32 {
+  if (family.indexOf(',') < 0) { const f = familyFace(family, w, italic, px); if (f >= 0) return f; }
+  else for (const fam of family.split(',')) { const f = familyFace(fam.trim(), w, italic, px); if (f >= 0) return f; }
+  return familyFace('sans', w, italic, px);
+}
+/** The face of a run's style in text node n (laid out: n.fontId is its own face). */
+function runFace(n: UiNode, style: i32): i32 {
+  if ((style & 7) === 0) return n.fontId;
+  const w = (style & RUN_BOLD) !== 0 ? 700 : n.weight > 0 ? n.weight : n.bold ? 700 : 400;
+  return faceIn((style & RUN_MONO) !== 0 ? 'mono' : n.family, w, (style & RUN_ITALIC) !== 0 || n.italic, n.size);
+}
+function runsOn(n: UiNode): boolean {
+  return n.runs !== null && n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance && n.transform === 0 && n.wordSp === 0;
+}
+/** The width of n.text[a, b) with its runs. */
+function runsWidth(n: UiNode, a: i32, b: i32): number {
+  const r = n.runs as i32[], tr = trackPx(n);
+  let w: number = 0, at: i32 = 0, k: i32 = 0;
+  while (at < b) {
+    const len = k < r.length ? r[k] : b - at, style = k < r.length ? r[k + 1] : 0;
+    const s0 = imax(a, at), s1 = imin(b, at + len);
+    if (s1 > s0) w += textWidth(runFace(n, style), n.text.slice(s0, s1), tr);
+    at += len; k += 3;
+  }
+  return w;
+}
+/** Greedy wrap at spaces with the runs' faces: n.lines, n.lineW and where each line starts (n.lineAt). */
+function wrapRuns(n: UiNode, avail: number): void {
+  const t = n.text, at: i32[] = [];
+  n.lines = []; n.lineW = [];
+  let ls: i32 = 0, le: i32 = 0, i: i32 = 0;   // the line so far is t[ls, le)
+  while (i <= t.length) {
+    let j = t.indexOf(' ', i);
+    if (j < 0) j = t.length;
+    if (le > ls && runsWidth(n, ls, j) > avail) { n.lines.push(t.slice(ls, le)); n.lineW.push(runsWidth(n, ls, le)); at.push(ls); ls = i; }
+    le = j; i = j + 1;
+  }
+  n.lines.push(t.slice(ls, le)); n.lineW.push(runsWidth(n, ls, le)); at.push(ls);
+  n.lineAt = at;
 }
 function fontOf(n: UiNode): i32 {
   n.fontId = faceOf(n, n.size);
@@ -2757,6 +2808,8 @@ function wrapText(n: UiNode, maxW: number): void {
   { const c = k as WrapKey; c.avail = avail; c.f = f; c.tr = tr; c.ws = n.ws; c.brk = n.brk; c.clamp = n.clamp; c.flags = flags; c.wordSp = n.wordSp; c.transform = n.transform; c.size = n.size; c.text = n.text; }
   n.lines = [];
   n.lineW = [];
+  n.lineAt = null;
+  if (runsOn(n)) { wrapRuns(n, avail); return; }
   const text = shownText(n);
   let lines: string[] = [];
   if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail, 0);
@@ -2789,6 +2842,29 @@ function wrapText(n: UiNode, maxW: number): void {
     }
   }
   for (const l of lines) { n.lines.push(l); n.lineW.push(lineWidth(n, f, l, tr)); }
+}
+/** Line i of a text node with runs: each run in its face and colour, underlined runs underlined. */
+function drawRunsLine(n: UiNode, i: i32, x: number, y: number, fg: i32, alpha: i32): void {
+  const r = n.runs as i32[], a = (n.lineAt as i32[])[i], b = a + n.lines[i].length, tr = trackPx(n), asc = fontAscent(n.fontId);
+  let cx = x, at: i32 = 0, k: i32 = 0;
+  while (at < b) {
+    const len = k < r.length ? r[k] : b - at, style = k < r.length ? r[k + 1] : 0, c = k < r.length ? r[k + 2] : -1;
+    const sv = c <= -2 ? schemeVar(varNames[-2 - c]) : -1, col = c >= 0 ? c : sv >= 0 ? sv : fg;
+    const s0 = imax(a, at), s1 = imin(b, at + len);
+    if (s1 > s0) {
+      const f = runFace(n, style), piece = n.text.slice(s0, s1), w = textWidth(f, piece, tr);
+      drawText(f, cx, y, piece, col, alpha, tr);
+      if ((style & RUN_UNDERLINE) !== 0) rrect(cx, y + asc + Math.round(n.size * 0.1), w, Math.max(1, Math.round(n.size / 14)), 0, col, alpha);
+      cx += w;
+    }
+    at += len; k += 3;
+  }
+}
+/** The width of the first c characters of line `line` of text node n. */
+function linePrefixW(n: UiNode, line: i32, c: i32): number {
+  const la = n.lineAt;
+  if (la !== null) { const a = (la as i32[])[line]; return runsWidth(n, a, a + c); }
+  return textWidth(n.fontId, n.lines[line].slice(0, c), trackPx(n));
 }
 /** One text line, with word spacing and justification (the free width of the line goes to the spaces). */
 function drawLine(n: UiNode, f: i32, tx: number, ty: number, line: string, fg: i32, alpha: i32, jx: number, kk: number): void {
@@ -3844,13 +3920,13 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
         if (tsNode === h && tsA !== tsB) {   // the selected part of this line, under the text
           const ls = tsStart(n, i), a0 = imax(imin(tsA, tsB), ls), b0 = imin(imax(tsA, tsB), ls + n.lines[i].length);
-          if (b0 > a0) { const x0 = textWidth(f, n.lines[i].slice(0, a0 - ls), trackPx(n)), x1 = textWidth(f, n.lines[i].slice(0, b0 - ls), trackPx(n)); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
+          if (b0 > a0) { const x0 = linePrefixW(n, i, a0 - ls), x1 = linePrefixW(n, i, b0 - ls); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
         }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
         const lx = kk !== 1 ? 0 : tx, ly = kk !== 1 ? 0 : ty;
         if (kk !== 1) setTransform(kk, 0, 0, kk, tx, ty);
-        if (n.tsAlpha > 0 && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
-        drawLine(n, f, lx, ly, n.lines[i], fg, tai, jx, 1);
+        if (n.tsAlpha > 0 && n.lineAt === null && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
+        if (n.lineAt !== null) drawRunsLine(n, i, lx, ly, fg, tai); else drawLine(n, f, lx, ly, n.lines[i], fg, tai, jx, 1);
         if (kk !== 1) resetTransform();
         if (n.deco !== 0) {
           const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f) * kk, lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
@@ -4942,13 +5018,13 @@ let tsNode: i32 = -1, tsA: i32 = 0, tsB: i32 = 0, tsDrag = false;
 function tsStart(n: UiNode, line: i32): i32 { let k = 0; for (let i = 0; i < line; i++) k += n.lines[i].length; return k; }
 function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
   if (n.lines.length === 0) return 0;
-  const lh = lineHeightOf(n), f = n.fontId;
+  const lh = lineHeightOf(n);
   const line = Math.max(0, Math.min(n.lines.length - 1, Math.floor((ly - n.pt) / lh)));
   const text = n.lines[line], free = n.lw - n.pl - n.pr - n.lineW[line];
   const x = lx - n.pl - (talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0);
   let col = 0, prev = 0;
   for (let c = 1; c <= text.length; c++) {
-    const w = textWidth(f, text.slice(0, c), trackPx(n));
+    const w = linePrefixW(n, line, c);
     if (w >= x) { col = x - prev < w - x ? c - 1 : c; break; }
     prev = w; col = c;
   }

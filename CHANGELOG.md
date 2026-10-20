@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- `zinc:ui`: `setTextRuns(node, runs)` styles parts of one text (bold, italic, monospace, underlined, a colour of its own or a scheme variable through `schemeColor`): the text wraps with each part in its font and still selects and copies as one.
+
 ### Changed
 - The `agents` example is laid out like VS Code (an activity bar, conversations by folder with their status, tabs, a detail panel, a status bar, light and dark), shows each tool call live as a card with its status, input and output, hangs a subagent's calls under it, and stops a turn with Escape at any time (the next message resumes the session). Its conversations are kept on disk and its memory stays flat however long they run: one turn of 20 000 tool calls and 200 MB of output keeps it under 150 MB (`next/tests/t1/agents_memory.sh`).
 

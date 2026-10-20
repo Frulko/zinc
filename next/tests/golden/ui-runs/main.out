@@ -1,0 +1,6 @@
+plain ["Run the build with","make all then read the","log"] 168
+runs ["Run the build with","make all then read","the log"] 154
+selected "Run the build with make al"
+clipboard "Run the build with make al"
+scheme colour -2 -1
+cleared ["Run the build with","make all then read the","log"]
