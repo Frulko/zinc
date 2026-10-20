@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Fixed
+- A child process that writes faster than the program reads its output (a large tool output on a slow machine) no longer piles that output up in memory: zinc stops reading the child's pipes past 4 MB waiting and the child waits until the program catches up.
+
 ## [0.4.1] - 2026-10-20
 
 ### Added

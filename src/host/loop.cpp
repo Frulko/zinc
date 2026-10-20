@@ -172,10 +172,28 @@ void onProcExit(uv_process_t* h, int64_t status, int signal) {
   uv_close(reinterpret_cast<uv_handle_t*>(h), onClose);
   maybeReport(p);
 }
+// Back-pressure: past kProcQueueCap bytes of child output waiting for the program, the pipes are no longer read until it falls to half;
+// the child then blocks on its full pipe. Without it a child that writes faster than the program reads (a 200 MB tool output on a slow
+// machine) piles up in gEvents, since every look at the queue pumps libuv again.
+constexpr size_t kProcQueueCap = 4u << 20;
+size_t gProcQueued = 0;
+bool gProcPaused = false;
+void onStreamRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf);
+void setProcReading(bool on) {
+  gProcPaused = !on;
+  for (auto& p : gProcs) {
+    if (p->outOpen) on ? uv_read_start(reinterpret_cast<uv_stream_t*>(&p->out), onAlloc, onStreamRead) : uv_read_stop(reinterpret_cast<uv_stream_t*>(&p->out));
+    if (p->errOpen) on ? uv_read_start(reinterpret_cast<uv_stream_t*>(&p->err), onAlloc, onStreamRead) : uv_read_stop(reinterpret_cast<uv_stream_t*>(&p->err));
+  }
+}
 void onStreamRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* p = static_cast<Proc*>(s->data);
   bool isOut = s == reinterpret_cast<uv_stream_t*>(&p->out);
-  if (n > 0) gEvents.push_back({p->handle, isOut ? 0 : 1, std::string(buf->base, static_cast<size_t>(n))});
+  if (n > 0) {
+    gEvents.push_back({p->handle, isOut ? 0 : 1, std::string(buf->base, static_cast<size_t>(n))});
+    gProcQueued += static_cast<size_t>(n);
+    if (gProcQueued > kProcQueueCap && !gProcPaused) setProcReading(false);
+  }
   if (buf->base) std::free(buf->base);
   if (n < 0) {
     bool& open = isOut ? p->outOpen : p->errOpen;
@@ -285,6 +303,10 @@ bool nextEvent(Event& out) {
   if (gEvents.empty()) return false;
   out = std::move(gEvents.front());
   gEvents.pop_front();
+  if (out.kind <= 1 && out.handle > 0) {
+    gProcQueued -= std::min(gProcQueued, out.data.size());
+    if (gProcPaused && gProcQueued <= kProcQueueCap / 2) setProcReading(true);
+  }
   return true;
 }
 

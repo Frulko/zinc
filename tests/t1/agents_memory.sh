@@ -20,7 +20,8 @@ OPEN_CAP=16           # items still running (the turn, its open paragraph, the c
 CHARS_CAP=1048576     # characters held by the items in memory: 512 KB for the window, as much for the next frame's
 NODES_CAP=8000        # UI nodes of the whole window
 OBJECTS_CAP=120000    # live objects of the program (about 60000 at rest)
-RSS_CAP_KB=229376     # 224 MB resident at most (about 150 MB measured; the output alone is 200 MB)
+RSS_CAP_KB=229376     # 224 MB resident at most (50 to 110 MB measured on an M-series Mac; the output alone is 200 MB; 245 MB on a CI runner
+                      # before src/host/loop.cpp stopped reading the child's pipes while 4 MB of its output waited)
 
 # the flood is read in under 10000 frames (they are slow while it lasts); the wheel then goes up 40 steps and down 30
 { printf '20 move 700 806\n21 down\n22 up\n30 text flood\n31 key Enter\n20000 move 700 400\n'
