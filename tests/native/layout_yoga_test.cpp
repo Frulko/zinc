@@ -235,8 +235,10 @@ static void cycles() {
   const std::size_t before = heapInUse();
   churn();
   const std::size_t after = heapInUse();
-  if (after != before) std::fprintf(stderr, "heap %zu -> %zu\n", before, after);
-  CHECK(after == before);
+  // ponytail: macOS's malloc statistics move by a few hundred bytes between equal runs (measured: -350 to +300); a leak of one
+  // allocation per cycle is at least 16 KB over the 1000 cycles, so 4 KB of slack still catches it
+  if (after > before + 4096) std::fprintf(stderr, "heap %zu -> %zu\n", before, after);
+  CHECK(after <= before + 4096);
 }
 
 static std::vector<std::string> wrap(const char* text, double avail, WrapStyle st = WrapStyle{0, 14}) {

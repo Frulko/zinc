@@ -15,7 +15,9 @@ id=$(cat "$tmp/app/window-number.txt" 2>/dev/null)
 [ -n "$id" ] || { echo "the window never came up"; exit 1; }
 sleep 0.3
 screencapture -x -o -l "$id" "$tmp/window.png" 2>/dev/null
-python3 - "$tmp/window.png" <<'P' || fail=1
+# without the Screen Recording permission (System Settings > Privacy & Security) macOS captures no other app's window: the pixel check is skipped, the AppKit checks still run
+[ -s "$tmp/window.png" ] || echo "WARN no capture of the window (this terminal has no Screen Recording permission): the alpha check is skipped"
+[ ! -s "$tmp/window.png" ] || python3 - "$tmp/window.png" <<'P' || fail=1
 import struct, sys, zlib
 d = open(sys.argv[1], 'rb').read()
 pos, idat, w, h, ct = 8, b'', 0, 0, 0
