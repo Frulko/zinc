@@ -8,8 +8,8 @@ animated light 3e2bc89f7d24b72b
 gestures light 1c162752f1d00244
 layout light 426a97d7498a8b10
 dialogs light 5978251765004fb1
-styles light f2f735d85b906d65
+styles light 9f5c807190d25e90
 platform light c326b4232f159e32
 home dark d077659fee8cb963
-styles dark 160cfd834d6710c4
+styles dark b9e270906f4e2165
 platform dark a538f3fe04667e25

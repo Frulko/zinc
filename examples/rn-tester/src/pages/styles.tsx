@@ -13,7 +13,7 @@ export function StylesPage() {
         <View style={[s.tile, { transform: [{ translateY: -10 }, { translateX: 6 }] }]}><Text style={s.tag}>translate</Text></View>
         <View style={[s.tile, { transform: [{ rotate: '12deg' }] }]}><Text style={s.tag}>rotate</Text></View>
       </View>
-      <Caption text="rotate and skew hit-test in their shape; they paint once the renderer takes a matrix (ZN-361.01)." />
+      <Caption text="rotate and skew paint and hit-test in their shape." />
     </Card>
     <Card title="shadow · elevation">
       <View style={s.row}>

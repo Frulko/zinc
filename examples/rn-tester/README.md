@@ -10,7 +10,7 @@ colours, run-time values) and Platform / Dimensions / PixelRatio / Appearance wi
     RN_TESTER_PAGE=flatlist RN_TESTER_SCHEME=dark zinc run examples/rn-tester
 
 Animated values drive React renders through `useAnimated(value)` of `zinc:react-native` (React Native's Animated.View does it for its style). Rotate and skew
-hit-test in their shape but paint upright until the renderer takes a matrix (ZN-361.01). The frame hashes: `tests/t1/rn_tester.sh`.
+paint and hit-test in their shape. The frame hashes: `tests/t1/rn_tester.sh`.
 
 | | | |
 |---|---|---|
