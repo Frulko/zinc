@@ -8,6 +8,7 @@
 import { createSignal, createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import { Spill, head } from './stream';
+import { Usage, usageOf } from './usage';
 
 export const K_USER = 0, K_TURN = 1, K_TEXT = 2, K_TOOL = 3, K_THINKING = 4;
 export const S_RUNNING = 0, S_DONE = 1, S_ERROR = 2, S_STOPPED = 3;
@@ -59,11 +60,18 @@ export class Item {
   /** An agent call: the calls its subagent made, and what it said it does now. */
   calls: i32 = 0;
   progress: string = '';
+  /** A turn: its tokens and cost (live while it runs; null: none reported), its agent calls and its failed tools. */
+  readonly usage: () => Usage | null;
+  readonly setUsage: (v: Usage | null) => void;
+  tools: i32 = 0;
+  agents: i32 = 0;
+  failed: i32 = 0;
 
   constructor(seq: i32, kind: i32, turn: i32) {
     this.seq = seq; this.kind = kind; this.turn = turn;
     const t = createSignal(''), d = createSignal(''), o = createSignal(''), s = createSignal<i32>(S_DONE);
-    const n = createSignal(''), op = createSignal(false);
+    const n = createSignal(''), op = createSignal(false), us = createSignal<Usage | null>(null);
+    this.usage = us[0]; this.setUsage = us[1];
     this.text = t[0]; this.setText = t[1];
     this.detail = d[0]; this.setDetail = d[1];
     this.output = o[0]; this.setOutput = o[1];
@@ -109,7 +117,8 @@ export class Item {
     return JSON.stringify({
       seq: this.seq, kind: this.kind, turn: this.turn, id: this.id, name: this.name, parent: this.parent, depth: this.depth,
       started: this.started, ended: this.ended, text: this.text(), detail: this.detail(), output: this.output(),
-      status: this.status(), note: this.note(),
+      status: this.status(), note: this.note(), tools: this.tools, agents: this.agents, failed: this.failed,
+      usage: (this.usage() === null ? new Usage() : this.usage() as Usage).json(),   // empty: none reported
       spill: sp === null ? '' : (sp as Spill).prefix, raw: sp !== null && (sp as Spill).raw,
       parts: sp === null ? 0 : (sp as Spill).parts, total: sp === null ? 0 : (sp as Spill).total,
     });
@@ -122,9 +131,16 @@ function itemOf(j: any): Item {
   it.started = j.started as number; it.ended = j.ended as number;
   it.setText('' + j.text); it.setDetail('' + j.detail); it.setOutput('' + j.output);
   it.setStatus(j.status as i32); it.setNote('' + j.note);
+  if (j.usage !== undefined) { const u = usageOf(j.usage); if (!u.empty()) it.setUsage(u); }
+  if (j.agents !== undefined) { it.tools = j.tools as i32; it.agents = j.agents as i32; it.failed = j.failed as i32; }
+  else if (it.kind === K_TURN) it.tools = parseInt(it.note()) as i32;   // kept before the counts were: `3 tools`
   if ('' + j.spill !== '') it.spill = new Spill('' + j.spill, j.raw === true, j.parts as i32, j.total as number);
   return it;
 }
+
+/** A record() line of a tool call or of a subagent's item. The fields before `kind` and `depth` are a number and short strings,
+ *  which JSON escapes: the first `"kind":` and `"depth":` of the line are the fields. */
+function foldedLine(line: string): boolean { return line.indexOf('"kind":3,') >= 0 || line.indexOf('"depth":0,') < 0; }
 
 /** A chat's items on disk: `<dir>/seg-<n>.jsonl`, and the spilled texts in `<dir>/out/`. */
 export class Transcript {
@@ -140,8 +156,9 @@ export class Transcript {
     fs.appendText(`${this.dir}/seg-${Math.floor(it.seq / SEG)}.jsonl`, it.record() + '\n');
   }
 
-  /** The finished items with lo <= seq < hi, in order. */
-  read(lo: i32, hi: i32): Item[] {
+  /** The finished items with lo <= seq < hi, in order; `folded`: without the tool calls and the subagents' items, whose lines
+   *  are then skipped unparsed. */
+  read(lo: i32, hi: i32, folded: boolean = false): Item[] {
     const found = new Map<i32, Item>();
     if (hi <= lo) return [];
     for (let s = Math.floor(lo / SEG); s <= Math.floor((hi - 1) / SEG); s++) {
@@ -150,7 +167,7 @@ export class Transcript {
       let text = '';
       try { text = fs.readText(path); } catch (e) { continue; }
       for (const line of text.split('\n')) {
-        if (line === '') continue;
+        if (line === '' || (folded && foldedLine(line))) continue;
         try {
           const j = JSON.parse(line);
           const seq = j.seq as i32;

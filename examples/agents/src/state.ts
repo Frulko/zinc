@@ -8,7 +8,8 @@ import * as proc from 'zinc:process';
 import { on } from 'zinc:system';
 import { Agent, AGENTS, ModelChoice, TurnSettings, MODE_READ } from './services/agents';
 import { ConfigFile, HOME, findBinary, versionOf, findConfig, initialFolders } from './services/discovery';
-import { Chat } from './services/chat';
+import { Chat, onLimits } from './services/chat';
+import { Limit, refreshMinutes } from './services/usage';
 import { Item } from './services/transcript';
 import { Spill } from './services/stream';
 
@@ -32,6 +33,14 @@ export class AgentInfo {
   readonly setEffort: (v: string) => void;
   readonly fast: () => boolean;
   readonly setFast: (v: boolean) => void;
+  /** The plan's usage limits as the CLI last told them (null: it does not tell them), when (epoch ms, 0 never) and whether a
+   *  check runs. */
+  readonly limits: () => Limit[] | null;
+  readonly setLimits: (v: Limit[] | null) => void;
+  readonly limitsAt: () => number;
+  readonly setLimitsAt: (v: number) => void;
+  readonly checking: () => boolean;
+  readonly setChecking: (v: boolean) => void;
 
   constructor(agent: Agent) {
     this.agent = agent;
@@ -46,6 +55,21 @@ export class AgentInfo {
     this.model = model[0]; this.setModelChoice = model[1];
     this.effort = effort[0]; this.setEffort = effort[1];
     this.fast = fast[0]; this.setFast = fast[1];
+    const l = createSignal<Limit[] | null>(null), la = createSignal<number>(0), ck = createSignal(false);
+    this.limits = l[0]; this.setLimits = l[1];
+    this.limitsAt = la[0]; this.setLimitsAt = la[1];
+    this.checking = ck[0]; this.setChecking = ck[1];
+  }
+
+  /** Asks the CLI for its plan limits (no model call: agents.ts `limits`). */
+  refreshLimits(): void {
+    if (this.binary === '' || this.checking()) return;
+    this.setChecking(true);
+    this.agent.limits(this.binary).then((l: Limit[] | null) => {
+      this.setChecking(false);
+      if (l !== null || this.limitsAt() === 0) this.setLimits(l);   // a failed check keeps what a turn reported
+      this.setLimitsAt(Date.now());
+    }).catch((e: Error) => { this.setChecking(false); this.setLimitsAt(Date.now()); });
   }
 
   /** Picks a model; an effort it does not accept falls back to its default. */
@@ -57,7 +81,10 @@ export class AgentInfo {
   /** What the next turn runs with (fast only where the model has it). */
   settings(): TurnSettings {
     const m = this.model();
-    return new TurnSettings(this.mode(), m.id, this.effort(), m.fast && this.fast());
+    const s = new TurnSettings(this.mode(), m.id, this.effort(), m.fast && this.fast());
+    s.window = m.window;
+    s.modelName = m.model;
+    return s;
   }
 }
 
@@ -145,6 +172,7 @@ function loadChats(): void {
       c.session = '' + j.session;
       c.setUpdated(j.updated as number);
       c.setOutcome(j.outcome as i32);
+      c.loadUsage(j);
       c.count = c.store.count();
       found.push(c);
       addFolderPath(c.folder);
@@ -236,6 +264,22 @@ export function runningCount(): i32 {
   return n;
 }
 
+// ---- settings ----
+
+const SETTINGS = DATA_DIR + '/settings.json';
+function readSettings(): any { try { return JSON.parse(fs.readText(SETTINGS)); } catch (e) { return JSON.parse('{}'); } }
+const refreshSig = createSignal<i32>(refreshMinutes(readSettings().limitsRefresh));
+/** Minutes between two checks of the plan limits (Settings; 5 by default, 1 to 60). */
+export const limitsRefresh = refreshSig[0];
+export function setLimitsRefresh(v: number): void {
+  refreshSig[1](refreshMinutes(v));
+  try { fs.mkdir(DATA_DIR, true); fs.writeText(SETTINGS, JSON.stringify({ limitsRefresh: limitsRefresh() }) + '\n'); } catch (e) { }
+}
+/** Checks the limits of every installed agent whose last check is older than the interval. */
+function refreshDue(): void {
+  for (const a of agents) if (a.binary !== '' && Date.now() - a.limitsAt() >= limitsRefresh() * 60000) a.refreshLimits();
+}
+
 // ---- memory ----
 
 const rssSig = createSignal<number>(0);
@@ -279,6 +323,9 @@ export function start(): void {
       if (models.length > 0) a.setModel(models[0]);
     });
   }
+  onLimits((ag: Agent, l: Limit[]) => { const i = infoOf(ag); i.setLimits(l); i.setLimitsAt(Date.now()); });
+  refreshDue();
+  setInterval(() => refreshDue(), 15000);
   loadChats();
   if (folder() !== '') openChat(chatFor(folder(), agent()));
   measure();

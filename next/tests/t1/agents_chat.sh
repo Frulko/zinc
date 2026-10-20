@@ -153,7 +153,7 @@ grep -q '^codex .*"sandbox_mode=\\"read-only\\""' "$log" || { echo "agents: code
 grep -q '^opencode .*"--agent", "plan"' "$log" || { echo "agents: opencode did not run the plan agent"; fail=1; }
 [ "$(sed -n '/^claude got SIG/p' "$log" | tr '\n' ' ')" = "claude got SIGINT claude got SIGTERM " ] || { echo "agents: Escape did not send SIGINT then SIGTERM: $(grep 'got SIG' "$log")"; fail=1; }
 grep '^claude .*"after"' "$log" | grep -q '"--resume", "s-claude"' || { echo "agents: the message after the interrupted turn did not resume s-claude"; fail=1; }
-[ "$(grep '"--json"\|"-p"\|"--format"' "$log" | grep -vc "cwd=$proj fastoff")" = 0 ] || { echo "agents: a turn ran outside the folder"; fail=1; }
+[ "$(grep '"--json"\|"-p"\|"--format"' "$log" | grep -vF '"/usage"' | grep -vc "cwd=$proj fastoff")" = 0 ]   # /usage: the limits, in the temporary folder || { echo "agents: a turn ran outside the folder"; fail=1; }
 grep -q 'zinc profile: paint p50=0.00 ' "$tmp/run.out" || { echo "agents: idle frames are painted: $(grep 'profile: paint' "$tmp/run.out")"; fail=1; }
 [ $fail -eq 0 ] && echo "agents chat: ok"
 exit $fail

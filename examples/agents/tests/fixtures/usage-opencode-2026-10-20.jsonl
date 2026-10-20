@@ -1,0 +1,1 @@
+{"type": "step_finish", "timestamp": 1792480222111, "sessionID": "redacted", "part": {"id": "redacted", "sessionID": "redacted", "messageID": "redacted", "type": "step-finish", "reason": "stop", "cost": 0, "tokens": {"input": 12249, "output": 3, "reasoning": 0, "cache": {"read": 571, "write": 0}}}}

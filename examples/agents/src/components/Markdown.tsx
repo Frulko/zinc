@@ -33,7 +33,7 @@ export function CopyButton(props: { text: () => string; label?: string }): i32 {
 }
 
 /** A small label over `anchor`, in a layer. */
-function Tip(props: { anchor: i32; text: () => string }): i32 {
+export function Tip(props: { anchor: i32; text: () => string }): i32 {
   const ref = createNodeRef();
   onMount(() => { ui.openLayer(ref.node, { priority: 300 }); ui.anchor(ref.node, props.anchor, 'top', 4); });
   return <View ref={ref} className={`px-2 py-1 rounded border ${bg(BAR)} ${bd(BORDER)}`}>

@@ -12,8 +12,9 @@ import { S_ERROR, S_STOPPED, OUTPUT_HEAD, TEXT_CAP } from '../services/transcrip
 import { LINE_CAP } from '../services/stream';
 import {
   AgentInfo, agents, agent, selectAgent, folders, folder, selectFolder, addFolder, viewFile, viewed, chats, current, openChat,
-  newChat, activity, ACT_CHATS, ACT_FOLDERS, ACT_AGENTS, schemeChoice, setSchemeChoice, now, DATA_DIR,
+  newChat, activity, ACT_CHATS, ACT_FOLDERS, ACT_AGENTS, schemeChoice, setSchemeChoice, now, DATA_DIR, limitsRefresh, setLimitsRefresh,
 } from '../state';
+import { Limit, resetsIn, REFRESH_MIN, REFRESH_MAX } from '../services/usage';
 import { SURFACE, SURFACE_HOVER, SELECTED, BORDER, TEXT, MUTED, FAINT, ERROR, WARN, ACCENT, bg, fg, bd, color, sizeLabel, ago } from '../theme';
 
 const TITLES = ['CONVERSATIONS', 'FOLDERS', 'AGENTS', 'SETTINGS'];
@@ -147,10 +148,38 @@ function AgentRow(props: { info: AgentInfo }): i32 {
       <Text className={`grow text-[13px] font-semibold ${fg(TEXT)}`}>{a.agent.name}</Text>
       <Text className={`text-[11px] ${fg(a.binary === '' ? ERROR : FAINT)}`}>{status()}</Text>
     </View>
+    {a.binary !== '' && <Limits info={a} />}
     {agent() === a && <View className="flex-col pl-3">
       {a.config.length === 0 && <Text className={`text-[12px] px-2 ${fg(FAINT)}`}>no configuration in ~</Text>}
       {a.config.map((f: ConfigFile) => <FileRow file={f} />)}
     </View>}
+  </View>;
+}
+
+/** The plan's usage windows as the CLI tells them: a bar, the share used and when it resets; « unknown » when it does not. */
+function Limits(props: { info: AgentInfo }): i32 {
+  const a = props.info;
+  const list = (): Limit[] => { const l = a.limits(); return l === null ? [] : l as Limit[]; };
+  const checked = (): string => a.checking() ? 'checking…' : a.limitsAt() === 0 ? '' : `checked ${ago(a.limitsAt(), now())}${ago(a.limitsAt(), now()) === 'now' ? '' : ' ago'}`;
+  return <View className="flex-col gap-1 pl-6 pr-2 pb-2">
+    {list().map((x: Limit) => <View className="flex-col gap-1">
+      <View className="flex-row items-center gap-2">
+        <Text className={`grow text-[11px] ${fg(MUTED)}`}>{x.name}</Text>
+        <Text className={`text-[11px] ${fg(x.used >= 90 ? ERROR : x.used >= 70 ? WARN : TEXT)}`}>{`${Math.round(x.used)}% used`}</Text>
+      </View>
+      <View className={`h-[4] rounded-full ${bg(SELECTED)}`}>
+        <View className={`h-[4] rounded-full ${bg(x.used >= 90 ? ERROR : x.used >= 70 ? WARN : ACCENT)}`} style={{ width: `${Math.max(2, Math.min(100, x.used))}%` }} />
+      </View>
+      <Text className={`text-[10px] ${fg(FAINT)}`}>{resetsIn(x.resets, now())}</Text>
+    </View>)}
+    {a.limits() === null && a.limitsAt() > 0 && <Text className={`text-[11px] ${fg(FAINT)}`}>Usage limits: unknown (the CLI does not expose them)</Text>}
+    <View className="flex-row items-center gap-1">
+      <Text className={`grow text-[10px] ${fg(FAINT)}`}>{checked()}</Text>
+      <View className={`flex-row items-center gap-1 h-[20] px-1 rounded cursor-pointer hover:${bg(SURFACE_HOVER)}`} aria-label="Refresh limits" onPress={() => a.refreshLimits()}>
+        <Icon name="refresh-cw" size={11} color={() => color(FAINT)} />
+        <Text className={`text-[10px] ${fg(MUTED)}`}>Refresh</Text>
+      </View>
+    </View>
   </View>;
 }
 
@@ -173,6 +202,13 @@ function Line(props: { text: string }): i32 {
   return <Text className={`text-[12px] px-2 py-1 ${fg(MUTED)}`}>{props.text}</Text>;
 }
 
+function Step(props: { icon: string; label: string; onPress: () => void; off: boolean }): i32 {
+  return <View className={`w-[24] h-[24] rounded items-center justify-center border ${bd(BORDER)} ${props.off ? '' : `cursor-pointer hover:${bg(SURFACE_HOVER)}`}`}
+    aria-label={props.label} onPress={() => { if (!props.off) props.onPress(); }}>
+    <Icon name={props.icon} size={12} color={() => color(props.off ? FAINT : TEXT)} />
+  </View>;
+}
+
 function Settings(): i32 {
   return <ScrollView className="grow flex-col px-2 pb-3">
     <SectionTitle text="THEME" />
@@ -181,6 +217,14 @@ function Settings(): i32 {
       <SchemeButton value="light" label="Light" icon="sun" />
       <SchemeButton value="auto" label="System" icon="monitor" />
     </View>
+    <SectionTitle text="USAGE LIMITS" />
+    <View className="flex-row items-center gap-2 px-2 py-1">
+      <Text className={`grow text-[12px] ${fg(MUTED)}`}>Check every</Text>
+      <Step icon="minus" label="Less often" onPress={() => setLimitsRefresh(limitsRefresh() - 1)} off={limitsRefresh() <= REFRESH_MIN} />
+      <Text className={`w-[44] text-center text-[12px] ${fg(TEXT)}`}>{`${limitsRefresh()} min`}</Text>
+      <Step icon="plus" label="More often" onPress={() => setLimitsRefresh(limitsRefresh() + 1)} off={limitsRefresh() >= REFRESH_MAX} />
+    </View>
+    <Line text="Each agent's plan limits, as its CLI tells them without a model call; a turn's own report updates them too. The app never reads a login file." />
     <SectionTitle text="CONVERSATIONS" />
     <Line text={`Kept in ${shortPath(DATA_DIR)}/chats`} />
     <Line text="The agent keeps the context in its own session: the app sends only the new message." />

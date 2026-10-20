@@ -7,7 +7,10 @@ stream format (the versions examples/agents/src/services/agents.ts names). Promp
   hang     starts a tool and waits: SIGINT is logged and ignored once, SIGTERM ends it (Escape's escalation)
   markdown Claude answers in markdown (heading, list, inline marks, a fenced block, a table), streamed in small pieces
   flood    $FAKE_FLOOD_EVENTS tool calls carrying $FAKE_FLOOD_MB megabytes of output in all, two of them in lines too long
-           to parse (Claude's format)"""
+           to parse (Claude's format)
+  slow     Claude runs a Bash tool for $FAKE_SLOW_S seconds (3 by default), then a Read that fails, then answers
+Every turn reports its usage as that CLI does; `claude -p /usage` and `codex app-server` answer the plan limits (no model call
+in the real CLIs either)."""
 import glob, json, os, signal, sys, time
 
 name, args = os.path.basename(sys.argv[0]), sys.argv[1:]
@@ -24,6 +27,20 @@ if name == "codex" and args[:2] == ["debug", "models"]:
         {"slug": "gpt-hidden", "display_name": "GPT-Hidden", "visibility": "hide", "service_tiers": [], "supported_reasoning_levels": []},
     ]}))
     sys.exit(0)
+if name == "claude" and args[:2] == ["-p", "/usage"]:
+    text = ("Current session: 8% used \u00b7 resets Oct 20 at 12:59pm (Europe/Paris)\n"
+            "Current week (all models): 22% used \u00b7 resets Oct 25 at 11:59am (Europe/Paris)\n")
+    print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "num_turns": 0, "total_cost_usd": 0, "result": text}))
+    sys.exit(0)
+if name == "codex" and args == ["app-server"]:
+    for line in sys.stdin:   # JSON-RPC over stdio: initialize, initialized, account/rateLimits/read
+        m = json.loads(line)
+        if m.get("id") == 1: out_ = {"id": 1, "result": {"platformOs": "fake"}}
+        elif m.get("id") == 2: out_ = {"id": 2, "result": {"rateLimits": {"primary": {"usedPercent": 41, "windowDurationMins": 300, "resetsAt": int(time.time()) + 7200},
+                                                         "secondary": {"usedPercent": 12, "windowDurationMins": 10080, "resetsAt": int(time.time()) + 4 * 86400}}}}
+        else: continue
+        print(json.dumps(out_), flush=True)
+    sys.exit(0)
 if name == "opencode" and args == ["models"]:
     print("prov/model-a\nprov/model-b")
     sys.exit(0)
@@ -32,6 +49,18 @@ prompt = args[args.index("-p") + 1] if name == "claude" else args[-1]
 def out(o): print(json.dumps(o), flush=True)
 def log(line):
     with open(os.environ["FAKE_AGENT_LOG"], "a") as f: f.write(line + "\n")
+def call(i, o, cr, cw):   # Claude's usage of one model call: at message_start, then the final output count at message_delta
+    u = {"input_tokens": i, "cache_creation_input_tokens": cw, "cache_read_input_tokens": cr, "output_tokens": 1}
+    out({"type": "stream_event", "event": {"type": "message_start", "message": {"model": "claude-test", "usage": u}}})
+    out({"type": "stream_event", "event": {"type": "message_delta", "delta": {}, "usage": dict(u, output_tokens=o)}})
+def claude_result(text):
+    out({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
+        "five_hour": {"utilization": 0.08, "resetsAt": int(time.time()) + 3 * 3600}, "seven_day": {"utilization": 0.22, "resetsAt": int(time.time()) + 5 * 86400}}}})
+    out({"type": "result", "subtype": "success", "is_error": False, "result": text, "session_id": "s-claude", "total_cost_usd": 0.042,
+         "modelUsage": {"claude-test": {"inputTokens": 1200, "outputTokens": 1500, "cacheReadInputTokens": 9000, "cacheCreationInputTokens": 2200,
+                                        "costUSD": 0.03, "contextWindow": 200000},
+                        "claude-small": {"inputTokens": 300, "outputTokens": 300, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0,
+                                         "costUSD": 0.012, "contextWindow": 200000}}})
 
 if prompt == "replay":
     here = os.path.dirname(os.path.realpath(__file__))
@@ -50,6 +79,18 @@ if prompt == "hang":
     out({"type": "system", "subtype": "init", "session_id": "s-claude"})
     out({"type": "stream_event", "event": {"type": "content_block_start", "index": 0, "content_block": {"type": "tool_use", "id": "t-hang", "name": "Bash"}}})
     while True: time.sleep(0.05)
+if name == "claude" and prompt == "slow":
+    out({"type": "system", "subtype": "init", "model": "claude-test", "session_id": "s-claude"})
+    call(1200, 40, 9000, 2200)
+    out({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "t-slow", "name": "Bash", "input": {"command": "npm test"}}]}, "parent_tool_use_id": None})
+    time.sleep(float(os.environ.get("FAKE_SLOW_S", "3")))
+    out({"type": "user", "message": {"content": [{"tool_use_id": "t-slow", "type": "tool_result", "content": "ok"}]}, "parent_tool_use_id": None})
+    out({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "t-bad", "name": "Read", "input": {"file_path": "missing.ts"}}]}, "parent_tool_use_id": None})
+    out({"type": "user", "message": {"content": [{"tool_use_id": "t-bad", "type": "tool_result", "content": "File does not exist.", "is_error": True}]}, "parent_tool_use_id": None})
+    call(10, 1460, 11200, 300)
+    out({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Tests pass."}}})
+    claude_result("Tests pass.")
+    sys.exit(0)
 if prompt == "flood":
     events, mb = int(os.environ.get("FAKE_FLOOD_EVENTS", "20000")), int(os.environ.get("FAKE_FLOOD_MB", "200"))
     big = 6 * 1024 * 1024   # two outputs of this size: longer than the app's line cap (4 MiB)
@@ -94,9 +135,9 @@ if name == "claude":
     out({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "t-sub", "name": "Glob", "input": {"pattern": "*.md"}}]}, "parent_tool_use_id": "t-agent"})
     out({"type": "user", "message": {"content": [{"tool_use_id": "t-sub", "type": "tool_result", "content": "CLAUDE.md\nAGENTS.md"}]}, "parent_tool_use_id": "t-agent"})
     out({"type": "user", "message": {"content": [{"tool_use_id": "t-agent", "type": "tool_result", "content": [{"type": "text", "text": "Two markdown files."}]}]}, "parent_tool_use_id": None})
-    out({"type": "stream_event", "event": {"type": "message_start"}})
+    call(1200, 40, 9000, 2200)
     out({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Done."}}})
-    out({"type": "result", "subtype": "success", "is_error": False, "result": "REPEATED", "session_id": "s-claude"})
+    claude_result("REPEATED")
 elif name == "codex":
     sys.stdin.read()   # the real CLI reads stdin while it is open: the app must close it
     out({"type": "thread.started", "thread_id": "t-codex"})
@@ -104,10 +145,11 @@ elif name == "codex":
     out({"type": "turn.started"})
     out({"type": "item.started", "item": {"id": "item_1", "type": "command_execution", "command": "ls"}})
     out({"type": "item.completed", "item": {"id": "item_2", "type": "agent_message", "text": "Codex says: " + prompt}})
-    out({"type": "turn.completed", "usage": {}})
+    out({"type": "turn.completed", "usage": {"input_tokens": 21320, "cached_input_tokens": 12288, "cache_write_input_tokens": 0, "output_tokens": 5}})
 elif name == "opencode":
     if prompt == "fail":
         print("boom: no provider", file=sys.stderr)
         sys.exit(3)
     out({"type": "step_start", "sessionID": "ses-open", "part": {"type": "step-start"}})
     out({"type": "text", "sessionID": "ses-open", "part": {"type": "text", "text": "opencode says: " + prompt}})
+    out({"type": "step_finish", "sessionID": "ses-open", "part": {"type": "step-finish", "cost": 0, "tokens": {"input": 12249, "output": 3, "reasoning": 0, "cache": {"read": 571, "write": 0}}}})

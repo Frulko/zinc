@@ -13,8 +13,10 @@
 //   opencode 2.0         `run --format json`   whole text parts; a tool part once it is completed
 // So Claude streams word by word, Codex and opencode paragraph by paragraph: that is the CLIs, not this tool.
 import { Attachment, A_IMAGE, A_FOLDER, imagesAsMentions } from './attach';
+import { Usage, Limit, COST_REPORTED, claudeCall, codexTurn, opencodeStep, claudeLimits, claudeUsageText, codexLimits, num, keysOf } from './usage';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
+import * as sys from 'zinc:sys';
 
 /** What a line of output means for the chat. */
 export const EV_SESSION = 0;     // text: the session id to resume with
@@ -28,6 +30,8 @@ export const EV_THINKING = 7;    // text: the model's reasoning summary
 export const EV_PROGRESS = 8;    // id, text: what a subagent is doing now
 export const EV_ERROR = 9;       // text: the turn failed, the reason
 export const EV_DONE = 10;       // the turn is over
+export const EV_USAGE = 11;      // usage: the turn's tokens and cost so far; byModel: per model, when the CLI says (Claude's result)
+export const EV_LIMITS = 12;     // limits: the plan's usage windows (Claude's rate_limit_event)
 
 export class AgentEvent {
   kind: i32;
@@ -40,6 +44,9 @@ export class AgentEvent {
   failed: boolean = false;
   /** Duration the CLI measured, -1: not given. */
   ms: number = -1;
+  usage: Usage | null = null;
+  byModel: Map<string, Usage> | null = null;
+  limits: Limit[] | null = null;
   constructor(kind: i32) { this.kind = kind; }
 }
 
@@ -57,6 +64,19 @@ function str(v: any): string { return v === undefined || v === null ? '' : '' + 
 /** Per-turn memory of a parser: Claude names a streamed block by its index, the tool by its id. */
 export class ParseState {
   blocks: Map<i32, string> = new Map<i32, string>();
+  /** The turn's usage: the model calls that ended, and the one that streams (Claude), or the steps so far (opencode). */
+  done: Usage = new Usage();
+  cur: Usage = new Usage();
+  /** The model the CLI said it runs (Claude's init). */
+  model: string = '';
+  /** The turn's usage so far, as an event. */
+  usageEvent(): AgentEvent {
+    const e = new AgentEvent(EV_USAGE);
+    const u = this.done.copy();
+    u.add(this.cur);
+    e.usage = u;
+    return e;
+  }
 }
 
 /** Tools that start a subagent: their card is an agent, the calls that name them as parent are its own. */
@@ -79,8 +99,12 @@ export class ModelChoice {
   efforts: string[];
   /** Has a fast mode (a faster tier at a higher cost). */
   fast: boolean;
+  /** Its context window in tokens, 0 unknown (Codex's catalog says it). */
+  window: number = 0;
+  /** The model it is, for the default one when the configuration names it ('' unknown): prices and usage go by it. */
+  model: string;
   constructor(id: string, label: string, efforts: string[], fast: boolean) {
-    this.id = id; this.label = label; this.efforts = efforts; this.fast = fast;
+    this.id = id; this.label = label; this.efforts = efforts; this.fast = fast; this.model = id;
   }
 }
 
@@ -90,6 +114,9 @@ export class TurnSettings {
   model: string;
   effort: string;
   fast: boolean;
+  /** The model's context window (0 unknown) and the model it is ('' unknown): for the usage, not for the CLI. */
+  window: number = 0;
+  modelName: string = '';
   constructor(mode: i32, model: string, effort: string, fast: boolean) {
     this.mode = mode; this.model = model; this.effort = effort; this.fast = fast;
   }
@@ -133,6 +160,8 @@ export abstract class Agent {
   abstract args(prompt: string, session: string, s: TurnSettings, atts: Attachment[], folder: string): string[];
   /** Environment entries of one turn (KEY=VALUE). */
   env(s: TurnSettings): string[] { return []; }
+  /** The plan's usage limits as the CLI tells them without a model call; null when it does not tell them. */
+  async limits(binary: string): Promise<Limit[] | null> { return null; }
   /** Reads one line of stdout and emits what it means (nothing for the lines it does not use). */
   abstract parse(line: string, st: ParseState, emit: Emit): void;
   /**
@@ -241,15 +270,21 @@ class ClaudeCode extends Agent {
     const parent = str(j.parent_tool_use_id);
     if (type === 'system') {
       const sub = str(j.subtype);
-      if (sub === 'init') emit(ev(EV_SESSION, '', str(j.session_id)));
+      if (sub === 'init') { st.model = str(j.model); emit(ev(EV_SESSION, '', str(j.session_id))); }
       else if (sub === 'task_progress') emit(ev(EV_PROGRESS, str(j.tool_use_id), str(j.description)));
     } else if (type === 'stream_event') {
       // the main agent's message streams; a subagent's arrives whole (below)
       if (parent !== '') return;
       const e = j.event;
       const etype = str(e.type);
-      if (etype === 'message_start') st.blocks = new Map<i32, string>();
-      else if (etype === 'content_block_start') {
+      if (etype === 'message_start') {
+        st.blocks = new Map<i32, string>();
+        st.done.add(st.cur);   // the call before ended
+        st.cur = e.message !== undefined && e.message.usage !== undefined ? claudeCall(e.message.usage) : new Usage();
+        emit(st.usageEvent());
+      } else if (etype === 'message_delta') {
+        if (e.usage !== undefined && e.usage !== null) { st.cur = claudeCall(e.usage); emit(st.usageEvent()); }
+      } else if (etype === 'content_block_start') {
         const b = e.content_block;
         if (str(b.type) === 'tool_use') {
           st.blocks.set(e.index as i32, str(b.id));
@@ -294,17 +329,72 @@ class ClaudeCode extends Agent {
         t.failed = b.is_error === true;
         emit(t);
       }
+    } else if (type === 'rate_limit_event') {
+      const e = new AgentEvent(EV_LIMITS);
+      e.limits = claudeLimits(j.rate_limit_info);
+      emit(e);
     } else if (type === 'result') {
       if (j.is_error === true) emit(ev(EV_ERROR, '', str(j.result)));
+      emit(claudeResult(j, st));
       emit(new AgentEvent(EV_DONE));
     }
   }
 
   // {"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_…","type":"tool_result","content":"…
   bigLine(head: string): string[] { return bigOf(head, 'tool_use_id', 'content'); }
+
+  /** `claude -p /usage`: the windows as the CLI prints them, without a model call (num_turns 0, no cost) nor a session kept. */
+  async limits(binary: string): Promise<Limit[] | null> {
+    const lines = await outputOf(binary, ['-p', '/usage', '--output-format', 'json', '--no-session-persistence']);
+    try {
+      const j = JSON.parse(lines.join('\n'));
+      const found = claudeUsageText(str(j.result), Date.now());
+      return found.length > 0 ? found : null;
+    } catch (e) { return null; }
+  }
+}
+
+/** Claude's `result`: the turn's usage per model (subagents included), its cost and the window of the model it ran. */
+function claudeResult(j: any, st: ParseState): AgentEvent {
+  const e = st.usageEvent();
+  const total = new Usage();
+  const by = new Map<string, Usage>();
+  const mu = j.modelUsage;
+  let window = 0;
+  if (mu !== undefined && mu !== null) {
+    for (const name of keysOf(mu)) {
+      const m = mu[name];
+      const u = new Usage();
+      u.input = num(m.inputTokens); u.output = num(m.outputTokens); u.cacheRead = num(m.cacheReadInputTokens); u.cacheWrite = num(m.cacheCreationInputTokens);
+      u.cost = num(m.costUSD); u.costKind = COST_REPORTED; u.window = num(m.contextWindow);
+      if (u.window > window && (st.model === '' || name === st.model || window === 0)) window = u.window;
+      by.set(name, u);
+      total.add(u);
+    }
+  }
+  if (by.size === 0) return e;
+  total.context = (e.usage as Usage).context;
+  total.window = window;
+  if (j.total_cost_usd !== undefined && j.total_cost_usd !== null) { total.cost = num(j.total_cost_usd); total.costKind = COST_REPORTED; }
+  e.usage = total;
+  e.byModel = by;
+  return e;
 }
 
 const CODEX_SANDBOX = ['read-only', 'workspace-write', 'danger-full-access'];
+const HOME_DIR = sys.env('HOME');
+
+/** The model `~/.codex/config.toml` names (`model = "…"` at its top level), '' when none. */
+export function codexModel(home: string): string {
+  try {
+    for (const line of fs.readText(home + '/.codex/config.toml').split('\n')) {
+      const t = line.trim();
+      if (t.startsWith('[')) break;
+      if (t.startsWith('model ') || t.startsWith('model=')) { const q = t.indexOf('"'), e = t.lastIndexOf('"'); return q >= 0 && e > q ? t.slice(q + 1, e) : ''; }
+    }
+  } catch (e) { }
+  return '';
+}
 
 class Codex extends Agent {
   constructor() {
@@ -327,10 +417,45 @@ class Codex extends Agent {
         const levels = m.supported_reasoning_levels;
         const n = levels.length as i32;
         for (let k = 0; k < n; k++) efforts.push('' + levels[k].effort);
-        models.push(new ModelChoice('' + m.slug, '' + m.display_name, efforts, (m.service_tiers.length as i32) > 0));
+        const c = new ModelChoice('' + m.slug, '' + m.display_name, efforts, (m.service_tiers.length as i32) > 0);
+        c.window = num(m.context_window);
+        models.push(c);
       }
     } catch (e) { }   // an older CLI without the catalog: the default only
+    // the default is the model config.toml names: its window and its price
+    const configured = codexModel(HOME_DIR);
+    models[0].model = configured;
+    for (const m of models) if (m.id === configured && configured !== '') models[0].window = m.window;
     return models;
+  }
+
+  /** `codex app-server`'s `account/rateLimits/read` (the CLI asks its backend with its own login; no model call). */
+  limits(binary: string): Promise<Limit[] | null> {
+    return new Promise<Limit[] | null>((resolve: (v: Limit[] | null) => void) => {
+      let done = false, buf = '';
+      let p: proc.Process;
+      const finish = (v: Limit[] | null): void => { if (done) return; done = true; try { p.kill(15); } catch (e) { } resolve(v); };
+      try { p = proc.spawn(binary, ['app-server'], { cwd: fs.tmpdir(), env: [] }); } catch (e) { resolve(null); return; }
+      p.onData((s: string, isErr: boolean) => {
+        if (isErr || done) return;
+        buf = (buf + s).slice(-262144);
+        for (;;) {
+          const nl = buf.indexOf('\n');
+          if (nl < 0) break;
+          const line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          try {
+            const j = JSON.parse(line);
+            if (j.id === 2) finish(j.result !== undefined && j.result !== null ? codexLimits(j.result) : null);
+          } catch (e) { }
+        }
+      });
+      p.onExit((code: i32) => finish(null));
+      p.write('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"zinc-agents","version":"0.2"}}}\n');
+      p.write('{"jsonrpc":"2.0","method":"initialized"}\n');
+      p.write('{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":null}\n');
+      setTimeout(() => finish(null), 20000);
+    });
   }
 
   fastByDefault(home: string): boolean {
@@ -397,7 +522,10 @@ class Codex extends Agent {
       emit(ev(EV_ERROR, '', str(j.error.message)));
       emit(new AgentEvent(EV_DONE));
     } else if (type === 'error') emit(ev(EV_ERROR, '', str(j.message)));
-    else if (type === 'turn.completed') emit(new AgentEvent(EV_DONE));
+    else if (type === 'turn.completed') {
+      if (j.usage !== undefined && j.usage !== null) { const e = new AgentEvent(EV_USAGE); e.usage = codexTurn(j.usage); emit(e); }
+      emit(new AgentEvent(EV_DONE));
+    }
   }
 
   // {"type":"item.completed","item":{"id":"item_4","type":"command_execution","command":"…","aggregated_output":"…
@@ -456,6 +584,9 @@ class OpenCode extends Agent {
         if (s.time !== undefined && s.time.end !== undefined) e.ms = (s.time.end as number) - (s.time.start as number);
         emit(e);
       }
+    } else if (type === 'step_finish') {   // one model call: its tokens and cost
+      st.done.add(opencodeStep(j.part));
+      emit(st.usageEvent());
     } else if (type === 'error') emit(ev(EV_ERROR, '', j.error.data !== undefined ? str(j.error.data.message) : str(j.error.name)));
     // opencode prints no end-of-turn line: the turn ends when the process exits
   }

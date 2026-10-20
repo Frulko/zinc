@@ -26,6 +26,13 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
 - **Agents**: each CLI found in `PATH` (or where its installer puts it: an app opened from the Finder does not get the
   shell's `PATH`), its version, and its configuration under `~` (settings, memory files, agents, commands, skills).
   Files that hold credentials (`~/.claude.json`, `auth.json`) are listed and never opened.
+- **One activity line per turn**, as in Claude Code. While the agent works, a line under the answer's header says what it
+  does, with a spinner: a verb that turns every few seconds while it thinks (« Cogitating… »), or the running tool
+  (« Reading src/app.ts… », « Running npm test… »), the seconds and the tool count. Once over it reads « Used 12 tools ·
+  3 agents · 41 s », with a red marker and « 1 failed », « interrupted » or « error » when it applies; the answer's text
+  is always shown. A click on the line unfolds the tool and subagent cards (folded by default; the choice is kept per
+  conversation); the detail panel lists them either way. Folded cards are not even read: the window holds only what is
+  shown, so a turn of 20 000 calls is a few rows.
 - **Tools, live and in detail.** Each tool call is a card: its icon and name, a one-line summary of its input (the
   command, the file, `−3 +5` for an edit), a live status (a spinner while it runs, then done, failed or interrupted) and
   its duration. Opened, it shows the input (the command, the diff, the JSON) and the start of the output, with « Show
@@ -55,9 +62,17 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
   `[Image #1]`, a file `@src/app.ts`, a folder `@src/`, relative to the conversation's folder when inside it, absolute
   otherwise (quoted when it holds a space). Typing `@` lists the folder's files that hold what follows (↑ ↓, Enter or
   Tab, a click; Escape closes it). Each CLI gets them its own way, below.
-- **Motion**: an item fades in from below, three dots pulse while the agent thinks, a spinner turns while a tool runs,
-  menus open with a short fade, hovers change colour smoothly. All are engine tweens that stop when they end: a still
-  window paints nothing.
+- **Tokens, context and cost, live.** Each answer's header shows its turn's tokens in and out (cache included), the
+  share of the model's context window the last call filled, and its cost: `↑12.4k ↓1.8k · ctx 23% · $0.042`. The status
+  bar shows the conversation's, live during a turn, and its hover splits it by model with the cache reads and writes.
+  The totals are kept with the conversation and come back after a restart.
+- **Plan limits.** The Agents panel shows each CLI's usage windows (the 5-hour session, the week, a model's own week):
+  a bar, the share used and when it resets, « unknown » when the CLI does not tell them; the status bar shows the
+  current agent's (`5h 13% · wk 24%`, each window and its reset on hover, a click checks again). They are checked at
+  start and every 5 minutes (Settings: 1 to 60), and a Claude turn's own report updates them in between.
+- **Motion**: an item fades in from below, a spinner turns while a turn or a tool runs, menus open with a short fade,
+  hovers change colour smoothly. All are engine tweens that stop when they end: a still window paints nothing. With
+  reduced motion nothing moves, and the spinners stand still beside words that say what runs.
 
 ## Long conversations: memory that never grows
 
@@ -120,6 +135,20 @@ temporary folder):
 | File | `@path` in the prompt, resolved by the CLI (`@"a b/c.ts"` too) | `@path` stays in the prompt: the model reads it with its tools | `-f <path>`, and `@path` in the prompt |
 | Folder | `@path/` in the prompt, listed by the CLI | `@path/` in the prompt: the model lists it with its tools | `@path/` in the prompt: the model lists it with its tools |
 
+## Usage, cost and limits: where the numbers come from
+
+Only from what each CLI prints or answers itself. The app never opens a login file (`~/.claude/.credentials.json`,
+`auth.json`: listed, never read), never reads the keychain, and never calls a provider's API: each CLI asks its own
+backend with its own login. No check of the limits starts a model turn. Checked on the real CLIs on 2026-10-20,
+read-only, in a temporary folder (`tests/fixtures/usage-*`, `limits-*`, ids redacted):
+
+| | Claude Code 2.1.304 | Codex 0.162.1 | opencode 2.0.32 |
+|---|---|---|---|
+| Tokens | each call: `message_start`, `message_delta`; the turn: `result.modelUsage` (subagents included) | `turn.completed.usage` once per turn (its input counts the cached part) | `step_finish` per step |
+| Cost | `total_cost_usd`, `costUSD` per model | none: ≈ from a few list prices, none for a model outside them | `cost` (0 on a plan: shown as none) |
+| Context window | `modelUsage[model].contextWindow` | `context_window` of `codex debug models` (the default is the model `config.toml` names) | none: the previous turn's, else a small table |
+| Plan limits | `claude -p /usage --output-format json --no-session-persistence` (a local command: no turn, no cost) and the stream's `rate_limit_event` | `codex app-server`, `account/rateLimits/read` over stdio (no model call) | none (`opencode stats` is local history): « unknown » |
+
 ## Layout of `src/`
 
 ```text
@@ -134,6 +163,7 @@ src/
 │   ├── stream.ts            # the bounded line reader, texts spilled to disk in parts
 │   ├── transcript.ts        # items and the transcript on disk
 │   ├── turn.ts              # the stop state machine (SIGINT, SIGTERM, SIGKILL)
+│   ├── usage.ts             # tokens, context, cost and plan limits as each CLI reports them; the activity line's texts
 │   ├── markdown.ts          # an answer's markdown as blocks, inline marks as style runs
 │   ├── attach.ts            # dropped files and images: references, the @ completion, how each CLI takes them
 │   └── chat.ts              # a conversation: one process per turn, its window of items
@@ -141,12 +171,12 @@ src/
     ├── ActivityBar.tsx      # the icons on the far left
     ├── SidePanel.tsx        # conversations by folder, folders, agents, settings
     ├── ChatPane.tsx         # tabs, the folder and agent, the items, the composer (chips, @ completion), Escape
-    ├── ItemView.tsx         # a message, an answer's header, a paragraph, a tool card
+    ├── ItemView.tsx         # a message, an answer's header and activity line, a paragraph, a tool card
     ├── Markdown.tsx         # an answer's blocks as views, the copy button and its tooltip
     ├── DetailPanel.tsx      # the turn's agents and tools, one in full
-    ├── StatusBar.tsx        # agent, model, mode, turns running, memory
+    ├── StatusBar.tsx        # agent, model, mode, turns running, tokens and cost, plan limits, memory
     ├── SettingsBar.tsx      # mode, model, effort and fast of the next turn, with their menus
-    ├── motion.tsx           # the entrance, the thinking dots, the spinner
+    ├── motion.tsx           # the entrance, the spinner
     └── FileViewer.tsx       # a configuration file, or a long text from disk, read-only
 ```
 
@@ -167,10 +197,18 @@ src/
 - A drop lands anywhere on the window, in the conversation shown. Not tried on the real CLIs: a file outside the folder
   (an absolute `@path`) in read-only mode, several images in one turn. The `@` list reads up to 5 000
   paths of the folder (no hidden folders, no `node_modules`, `build`, `dist`…) once per conversation shown.
+- Usage: Codex reports one figure per turn, so its context is the turn's whole input (a turn of several calls
+  overstates it); a model the CLI gives no window for borrows the previous turn's; the price table behind « ≈ » holds a
+  few OpenAI list prices and nothing else. Claude's `/usage` resets are read in local time, as it prints them.
+  Not tried on the real CLIs: Codex with a 5-hour window reported, a Claude plan over its limit.
+- Unfolding the cards in the middle of a long conversation reads the same stretch again: the view may move.
 - A Claude project whose path holds `-` or `.` is not offered in the folder list (Claude's folder names do not decode
   back); add it with the field.
 
 Tests: `zinc test examples/agents/tests` (the parsers against the real CLIs' streams, the stop state machine, the
-bounded reader, the markdown parser, the references and each CLI's arguments for them); `next/tests/t1/agents_chat.sh`
+bounded reader, the markdown parser, the references and each CLI's arguments for them, the usage and limits of each CLI,
+cost, context, the activity line's texts, the refresh interval); `next/tests/t1/agents_chat.sh`
 (fake CLIs that answer in each format, headless), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
-copy, selection, the `@` list) and `next/tests/t1/agents_memory.sh` (the flood).
+copy, selection, the `@` list), `next/tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
+the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval) and
+`next/tests/t1/agents_memory.sh` (the flood).

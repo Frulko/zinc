@@ -16,9 +16,11 @@ import * as proc from 'zinc:process';
 import {
   Agent, AgentEvent, ParseState, TurnSettings, MODE_LABELS, isAgentTool,
   EV_SESSION, EV_DELTA, EV_BLOCK, EV_TOOL, EV_TOOL_DELTA, EV_TOOL_INPUT, EV_TOOL_END, EV_THINKING, EV_PROGRESS, EV_ERROR, EV_DONE,
+  EV_USAGE, EV_LIMITS,
 } from './agents';
+import { Usage, Limit, usageOf, estimate, knownWindow } from './usage';
 import { LineReader, Spill, unescapeLoose, head } from './stream';
-import { Item, Transcript, K_USER, K_TURN, K_TEXT, K_TOOL, K_THINKING, S_RUNNING, S_DONE, S_ERROR, S_STOPPED, TEXT_CAP, OUTPUT_HEAD } from './transcript';
+import { Item, Transcript, K_USER, K_TURN, K_TEXT, K_TOOL, K_THINKING, S_RUNNING, S_DONE, S_ERROR, S_STOPPED, TEXT_CAP, OUTPUT_HEAD, SEG } from './transcript';
 import { summarize, detailOf, DETAIL_CAP } from './tools';
 import { TurnMachine, IDLE } from './turn';
 
@@ -60,8 +62,16 @@ class Run {
   readonly item: Item;
   readonly gen: i32;
   ended: boolean = false;
+  /** The model it runs ('' unknown) and its window (0 unknown), for the usage the CLI leaves out; the usage per model the CLI gave. */
+  model: string = '';
+  window: number = 0;
+  byModel: Map<string, Usage> | null = null;
   constructor(item: Item, gen: i32) { this.item = item; this.gen = gen; }
 }
+
+/** Who hears the plan limits a turn's stream reports (state.ts: the agent's limits). */
+const limitListeners: ((a: Agent, l: Limit[]) => void)[] = [];
+export function onLimits(f: (a: Agent, l: Limit[]) => void): void { limitListeners.push(f); }
 
 export class Chat {
   readonly id: string;
@@ -108,6 +118,20 @@ export class Chat {
   readonly setAttachments: (v: Attachment[]) => void;
   /** The last image number given in this conversation (`[Image #n]`). */
   private images: i32 = 0;
+  /** Its finished turns' tokens and cost, all together and by model (kept in meta.json). */
+  readonly total: () => Usage;
+  readonly setTotal: (v: Usage) => void;
+  /** The running turn's so far, null when none runs (or it reported none yet). */
+  readonly turnUsage: () => Usage | null;
+  readonly setTurnUsage: (v: Usage | null) => void;
+  readonly byModel: () => Map<string, Usage>;
+  readonly setByModel: (v: Map<string, Usage>) => void;
+  /** The tool call the activity line names: the latest one still running, null when none runs. */
+  readonly active: () => Item | null;
+  readonly setActive: (v: Item | null) => void;
+  /** The turns show their tool and subagent cards; folded into the activity line by default (kept in meta.json). */
+  readonly showTools: () => boolean;
+  readonly setShowToolsSig: (v: boolean) => void;
 
   private shown: boolean = false;
   /** Items made since the last frame, joining the window at the next one (Chat.flush): a flood of events costs one update per frame. */
@@ -148,10 +172,39 @@ export class Chat {
     this.turnTools = tt[0]; this.setTurnTools = tt[1];
     this.draft = dr[0]; this.setDraft = dr[1];
     this.attachments = at[0]; this.setAttachments = at[1];
+    const to = createSignal<Usage>(new Usage()), bm = createSignal<Map<string, Usage>>(new Map<string, Usage>());
+    const ac = createSignal<Item | null>(null), sh = createSignal(false);
+    this.total = to[0]; this.setTotal = to[1];
+    this.byModel = bm[0]; this.setByModel = bm[1];
+    const tu = createSignal<Usage | null>(null);
+    this.turnUsage = tu[0]; this.setTurnUsage = tu[1];
+    this.active = ac[0]; this.setActive = ac[1];
+    this.showTools = sh[0]; this.setShowToolsSig = sh[1];
     this.machine = new TurnMachine((ms: number, f: () => void) => { setTimeout(f, ms); }, (s: i32) => this.setPhase(s));
   }
 
   busy(): boolean { return this.phase() !== IDLE; }
+
+
+  /** The conversation's tokens and cost with the running turn's so far. */
+  liveTotal(): Usage {
+    const u = this.turnUsage();
+    if (u === null) return this.total();
+    const t = this.total().copy();
+    t.add(u as Usage);
+    return t;
+  }
+
+  /** Reads what meta.json kept of the usage (state.ts loadChats). */
+  loadUsage(j: any): void {
+    if (j.total !== undefined && j.total !== null) this.setTotal(usageOf(j.total));
+    if (j.byModel !== undefined && j.byModel !== null) {
+      const m = new Map<string, Usage>();
+      for (const e of j.byModel) m.set('' + e.name, usageOf(e.usage));
+      this.setByModel(m);
+    }
+    this.setShowToolsSig(j.showTools === true);
+  }
 
   /** A dropped (or picked) path joins the next message: a chip above the field, its reference at the end of the draft. */
   attach(path: string): void {
@@ -176,7 +229,8 @@ export class Chat {
     if (this.shown) return;
     this.shown = true;
     this.following = true;
-    this.setWindow(this.trimmed(this.items(Math.max(0, this.count - PAGE), this.count), true));
+    const back = this.readBack(this.count);
+    this.place(back, true, this.scanned, this.count);
     this.bump();
   }
 
@@ -187,9 +241,10 @@ export class Chat {
   flush(): void {
     if (this.pending.length > 0) {
       const next = this.pendingCut ? this.pending : [...this.window(), ...this.pending];
+      const lo = this.pendingCut ? this.pending[0].seq : this.lo;
       this.pending = [];
       this.pendingCut = false;
-      this.setWindow(this.trimmed(next, true));
+      this.place(next, true, lo, this.hi);
     }
     if (this.panelDirty) {
       this.panelDirty = false;
@@ -201,41 +256,81 @@ export class Chat {
     }
   }
 
-  hasOlder(): boolean { const w = this.window(); return w.length > 0 && w[0].seq > 0; }
-  hasNewer(): boolean {
-    const w = this.pending.length > 0 ? this.pending : this.window();
-    return w.length > 0 && w[w.length - 1].seq < this.count - 1;
-  }
+  // The window covers the seqs lo <= seq < hi and holds the items of that range the view shows: all of them, or with the tool
+  // cards folded only the messages, headers and the main agent's paragraphs (a turn of 20 000 calls is then a few rows).
+  hasOlder(): boolean { return this.lo > 0; }
+  hasNewer(): boolean { return this.hi < this.count; }
 
-  /** Reads PAGE items before the window; the window gives up its end if it is over its budget. */
+  /** Reads about PAGE shown items before the window; the window gives up its end if it is over its budget. */
   loadOlder(): void {
-    const w = this.window();
     if (!this.hasOlder()) return;
-    const lo = w[0].seq;
-    const older = this.items(Math.max(0, lo - PAGE), lo);
-    if (older.length === 0) return;
-    this.setWindow(this.trimmed([...older, ...w], false));
+    const older = this.readBack(this.lo);
+    this.place([...older, ...this.window()], false, this.scanned, this.hi);
   }
 
-  /** Reads PAGE items after the window; the view follows the conversation again once the window reaches its end. */
+  /** Reads about PAGE shown items after the window; the view follows the conversation again once the window reaches its end. */
   loadNewer(): void {
-    const w = this.window();
     if (!this.hasNewer()) return;
-    const hi = w[w.length - 1].seq + 1;
-    const to = Math.min(this.count, hi + PAGE);
-    this.setWindow(this.trimmed([...w, ...this.items(hi, to)], true));
-    if (to >= this.count) this.following = true;
+    const out: Item[] = [];
+    let hi = this.hi;
+    while (hi < this.count && out.length < PAGE) {
+      const to = Math.min(this.count, hi + this.step());
+      for (const it of this.items(hi, to)) out.push(it);
+      hi = to;
+    }
+    this.place([...this.window(), ...out], true, this.lo, hi);
+    if (this.hi >= this.count) this.following = true;
   }
 
-  /** Items lo <= seq < hi: the finished ones from disk, the open ones from memory. */
+  /** The cards are shown or folded: the same range read again (the view moves, as it does in Claude Code). */
+  setShowTools(v: boolean): void {
+    if (v === this.showTools()) return;
+    this.setShowToolsSig(v);
+    this.saveMeta();
+    if (this.shown) { this.place(this.items(this.lo, this.hi), this.following, this.lo, this.hi); this.bump(); }
+  }
+
+  /** Shown items before `hi`, about PAGE of them (fewer at the start); `scanned` is where the reading stopped. A folded stretch
+   *  of tool calls is skipped a few segments at a time, its lines read but not parsed (Transcript.read). */
+  private readBack(hi: i32): Item[] {
+    let out: Item[] = [];
+    let lo = hi;
+    while (lo > 0 && out.length < PAGE) {
+      const from = Math.max(0, lo - this.step());
+      out = [...this.items(from, lo), ...out];
+      lo = from;
+    }
+    this.scanned = lo;
+    return out;
+  }
+  private scanned: i32 = 0;
+  /** The seqs read at once: PAGE, more when the cards are folded (most items of a busy turn are then not read in full). */
+  private step(): i32 { return this.showTools() ? PAGE : 4 * SEG; }
+
+  /** `w`, trimmed to its budget, becomes the window of the seqs lo..hi (narrowed to what the trimming kept). */
+  private place(w: Item[], fromTop: boolean, lo: i32, hi: i32): void {
+    const t = this.trimmed(w, fromTop);
+    if (t.length < w.length) {
+      if (fromTop) lo = t[0].seq; else hi = t[t.length - 1].seq + 1;
+    }
+    this.lo = lo; this.hi = hi;
+    this.setWindow(t);
+  }
+  private lo: i32 = 0;
+  private hi: i32 = 0;
+
+  /** The item shows in the conversation: with the cards folded, not a tool call nor a subagent's item. */
+  private visible(it: Item): boolean { return this.showTools() || (it.kind !== K_TOOL && it.depth === 0); }
+
+  /** Items lo <= seq < hi the view shows: the finished ones from disk, the open ones from memory. */
   private items(lo: i32, hi: i32): Item[] {
     const out: Item[] = [];
-    const disk = this.store.read(lo, hi);
+    const disk = this.store.read(lo, hi, !this.showTools());
     let k = 0;
     for (let seq = lo; seq < hi; seq++) {
       const open = this.live.get(seq);
       while (k < disk.length && disk[k].seq < seq) k++;
-      if (open !== undefined) out.push(open as Item);
+      if (open !== undefined) { if (this.visible(open as Item)) out.push(open as Item); }
       else if (k < disk.length && disk[k].seq === seq) out.push(disk[k]);
     }
     return out;
@@ -301,6 +396,7 @@ export class Chat {
     this.tools = new Map<string, Item>();
     this.agentCalls = new Map<string, Item>();
     this.toolList = []; this.agentList = []; this.toolCount = 0; this.panelDirty = true;
+    this.setActive(null);
     this.header = turn;
     this.setOutcome(S_RUNNING);
     this.setUpdated(Date.now());
@@ -310,12 +406,15 @@ export class Chat {
       p = proc.spawn(binary, this.agent.args(text, this.session, settings, atts, this.folder), { cwd: this.folder, env: this.agent.env(settings) });
     } catch (e) {
       const failed = new Run(turn, -1);
+      failed.model = settings.model;
       this.run = failed;
       this.endTurn(failed, S_ERROR, `${this.agent.name} could not start: ${e.message}`);
       return true;
     }
     this.machine.start((signal: i32) => p.kill(signal));
     const run = new Run(turn, this.machine.gen);
+    run.model = settings.modelName !== '' ? settings.modelName : settings.model;
+    run.window = settings.window > 0 ? settings.window : this.total().window > 0 ? this.total().window : knownWindow(run.model !== '' ? run.model : this.agent.id);
     this.run = run;
     this.saveMeta();
     p.closeStdin();   // a CLI that reads its prompt from stdin when it is open (Codex) would wait forever
@@ -384,6 +483,7 @@ export class Chat {
       if (this.toolList.length > PANEL_TOOLS) this.toolList.shift();
       this.toolCount++;
       this.panelDirty = true;
+      this.setActive(t);
       this.countCalls(e.parent);
     } else if (k === EV_TOOL_DELTA) {
       const t = this.tools.get(e.id);
@@ -407,6 +507,18 @@ export class Chat {
     } else if (k === EV_PROGRESS) {
       const a = this.agentCalls.get(e.id);
       if (a !== undefined) { (a as Item).progress = e.text; this.countCalls(e.id); }
+    } else if (k === EV_USAGE) {
+      const u = e.usage as Usage;
+      if (u.window === 0) u.window = run.window;
+      estimate(u, run.model);
+      run.item.setUsage(u);
+      this.setTurnUsage(u);
+      if (e.byModel !== null) run.byModel = e.byModel;
+      return;   // the status bar and the header read it: nothing else moved
+    } else if (k === EV_LIMITS) {
+      const l = e.limits;
+      if (l !== null && (l as Limit[]).length > 0) for (const f of limitListeners) f(this.agent, l as Limit[]);
+      return;
     } else if (k === EV_ERROR) {
       run.item.setDetail(head(e.text, DETAIL_CAP));
     } else if (k === EV_DONE) {
@@ -439,6 +551,12 @@ export class Chat {
     it.ended = ms >= 0 ? it.started + ms : Date.now();
     it.setStatus(status);
     this.tools.delete(it.id);
+    if (status === S_ERROR) { const r = this.run; if (r !== null) (r as Run).item.failed++; }
+    if (this.active() === it) {   // the line names the latest call still running, none: the model thinks
+      let next: Item | null = null;
+      this.tools.forEach((t: Item, id: string) => { next = t; });
+      this.setActive(next);
+    }
     this.countCalls(it.parent);
     this.finish(it);
   }
@@ -476,6 +594,10 @@ export class Chat {
     const turn = run.item;
     if (error !== '') turn.setDetail(head(error, DETAIL_CAP));
     turn.ended = now;
+    turn.tools = this.toolCount;
+    turn.agents = this.agentCalls.size;
+    this.setActive(null);
+    this.addUsage(run);
     turn.setNote(toolsLabel(this.toolCount));   // what the disk keeps: the frame's flush may not have come yet
     turn.setStatus(status);
     this.finish(turn);
@@ -503,6 +625,8 @@ export class Chat {
     }
     this.live.set(it.seq, it);
     if (atEnd) {
+      this.hi = this.count;
+      if (!this.visible(it)) return it;   // a folded card: the window covers it without holding it
       this.pending.push(it);
       if (this.pending.length > WINDOW_MAX) { this.pending.shift(); this.pendingCut = true; }   // never shown: on disk once finished
     }
@@ -519,14 +643,42 @@ export class Chat {
 
   private bump(): void { this.setRevision(this.revision() + 1); }
 
+  /** The turn's usage joins the conversation's, by model too (the CLI's split when it gave one). */
+  private addUsage(run: Run): void {
+    const u = run.item.usage();
+    this.setTurnUsage(null);
+    if (u === null) return;
+    const t = this.total().copy();
+    t.add(u as Usage);
+    this.setTotal(t);
+    const m = new Map<string, Usage>();
+    this.byModel().forEach((v: Usage, k: string) => m.set(k, v));
+    const split = run.byModel !== null ? run.byModel as Map<string, Usage> : new Map<string, Usage>();
+    if (split.size === 0) split.set(run.model === '' ? 'default model' : run.model, u as Usage);
+    split.forEach((v: Usage, k: string) => {
+      const was = m.get(k);
+      const sum = was === undefined ? new Usage() : (was as Usage).copy();
+      sum.add(v);
+      m.set(k, sum);
+    });
+    this.setByModel(m);
+  }
+
   saveMeta(): void {
     if (!this.persisted) return;
     try {
       fs.mkdir(this.store.dir, true);
       fs.writeText(this.store.dir + '/meta.json', JSON.stringify({
         id: this.id, agent: this.agent.id, folder: this.folder, title: this.title(), session: this.session,
-        updated: this.updated(), outcome: this.outcome(),
+        updated: this.updated(), outcome: this.outcome(), showTools: this.showTools(), total: this.total().json(),
+        byModel: models(this.byModel()),
       }) + '\n');
     } catch (e) { }   // a full disk: the conversation goes on, it is not kept
   }
+}
+
+function models(m: Map<string, Usage>): any[] {
+  const out: any[] = [];
+  m.forEach((u: Usage, name: string) => { out.push({ name: name, usage: u.json() }); });
+  return out;
 }
