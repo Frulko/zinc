@@ -5,6 +5,7 @@ stream format (the versions examples/agents/src/services/agents.ts names). Promp
   fail     opencode fails (exit 3, a line on stderr)
   replay   prints the stream the real CLI printed (examples/agents/tests/fixtures/<cli>-*.jsonl)
   hang     starts a tool and waits: SIGINT is logged and ignored once, SIGTERM ends it (Escape's escalation)
+  markdown Claude answers in markdown (heading, list, inline marks, a fenced block, a table), streamed in small pieces
   flood    $FAKE_FLOOD_EVENTS tool calls carrying $FAKE_FLOOD_MB megabytes of output in all, two of them in lines too long
            to parse (Claude's format)"""
 import glob, json, os, signal, sys, time
@@ -67,6 +68,17 @@ if prompt == "flood":
     out({"type": "result", "subtype": "success", "is_error": False, "result": "", "session_id": "s-claude"})
     sys.exit(0)
 
+MARKDOWN = (
+    "## Build notes\n\nRun **make all** with *care*, then read `build/log.txt` and the [guide](https://example.com/guide).\n\n"
+    "- first step\n- second with `code`\n  - nested item\n1. numbered\n\n"
+    "> a quoted line\n\n```sh\nmake all\necho done\n```\n\n"
+    "| Name | Size |\n|------|-----:|\n| a.ts | 12 |\n| b.ts | 7 |\n\nThat is all.")
+if name == "claude" and "markdown" in prompt:
+    out({"type": "system", "subtype": "init", "session_id": "s-claude"})
+    for k in range(0, len(MARKDOWN), 23):
+        out({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": MARKDOWN[k:k + 23]}}})
+    out({"type": "result", "subtype": "success", "is_error": False, "result": "", "session_id": "s-claude"})
+    sys.exit(0)
 if name == "claude":
     out({"type": "system", "subtype": "init", "session_id": "s-claude"})
     for d in ["Hello", " from", " Claude: ", prompt]:

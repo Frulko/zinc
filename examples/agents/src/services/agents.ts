@@ -12,6 +12,7 @@
 //                                              mcp_tool_call, reasoning, agent_message
 //   opencode 2.0         `run --format json`   whole text parts; a tool part once it is completed
 // So Claude streams word by word, Codex and opencode paragraph by paragraph: that is the CLIs, not this tool.
+import { Attachment, A_IMAGE, A_FOLDER, imagesAsMentions } from './attach';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 
@@ -127,8 +128,9 @@ export abstract class Agent {
   abstract loadModels(binary: string): Promise<ModelChoice[]>;
   /** Whether fast mode is on in the user's configuration (`home` is the home directory). */
   abstract fastByDefault(home: string): boolean;
-  /** The arguments of one turn; `session` is '' on the first one. */
-  abstract args(prompt: string, session: string, s: TurnSettings): string[];
+  /** The arguments of one turn; `session` is '' on the first one; `atts` the files, images and folders given with it, whose
+   *  references the prompt holds (services/attach.ts); `folder` the conversation's folder. */
+  abstract args(prompt: string, session: string, s: TurnSettings, atts: Attachment[], folder: string): string[];
   /** Environment entries of one turn (KEY=VALUE). */
   env(s: TurnSettings): string[] { return []; }
   /** Reads one line of stdout and emits what it means (nothing for the lines it does not use). */
@@ -219,9 +221,9 @@ class ClaudeCode extends Agent {
     }
   }
 
-  args(prompt: string, session: string, s: TurnSettings): string[] {
+  args(prompt: string, session: string, s: TurnSettings, atts: Attachment[], folder: string): string[] {
     const permission = s.mode === MODE_READ ? 'plan' : s.mode === MODE_EDIT ? 'acceptEdits' : 'bypassPermissions';
-    const a = ['-p', positional(prompt), '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    const a = ['-p', positional(imagesAsMentions(prompt, atts, folder)), '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
       '--permission-mode', permission];
     if (s.model !== '') { a.push('--model'); a.push(s.model); }
     if (s.effort !== '') { a.push('--effort'); a.push(s.effort); }
@@ -341,7 +343,7 @@ class Codex extends Agent {
     return false;
   }
 
-  args(prompt: string, session: string, s: TurnSettings): string[] {
+  args(prompt: string, session: string, s: TurnSettings, atts: Attachment[], folder: string): string[] {
     // `-c` overrides apply to `exec resume` too, unlike exec's own flags; Codex refuses a folder outside a git
     // repository unless told
     const a = ['exec', '--json', '--skip-git-repo-check', '-c', `sandbox_mode="${CODEX_SANDBOX[s.mode]}"`,
@@ -349,7 +351,9 @@ class Codex extends Agent {
     if (s.model !== '') { a.push('-c'); a.push(`model="${s.model}"`); }
     if (s.effort !== '') { a.push('-c'); a.push(`model_reasoning_effort="${s.effort}"`); }
     if (session !== '') { a.push('resume'); a.push(session); }
-    a.push(positional(prompt));
+    for (const at of atts) if (at.kind === A_IMAGE) { a.push('-i'); a.push(at.path); }
+    a.push('--');   // -i takes several values: the prompt after the options' end
+    a.push(prompt);
     return a;
   }
 
@@ -420,12 +424,13 @@ class OpenCode extends Agent {
 
   fastByDefault(home: string): boolean { return false; }
 
-  args(prompt: string, session: string, s: TurnSettings): string[] {
+  args(prompt: string, session: string, s: TurnSettings, atts: Attachment[], folder: string): string[] {
     // the plan agent cannot edit; the build agent can, and --auto approves what is not explicitly denied
     const a = ['run', '--format', 'json', '--agent', s.mode === MODE_READ ? 'plan' : 'build'];
     if (s.mode === MODE_FULL) a.push('--auto');
     if (s.model !== '') { a.push('--model'); a.push(s.model); }
     if (session !== '') { a.push('--session'); a.push(session); }
+    for (const at of atts) if (at.kind !== A_FOLDER) { a.push('-f'); a.push(at.path); }
     a.push(positional(prompt));
     return a;
   }

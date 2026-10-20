@@ -3,15 +3,16 @@
 //
 // The list shows the conversation's window (services/chat.ts): scrolled near its top it reads older items from disk,
 // near its end newer ones; the item on screen keeps its place while the window moves.
-import { createSignal, createNodeRef } from 'zinc:ui/solid';
+import { createSignal, createNodeRef, onMount } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import { Chat } from '../services/chat';
 import { Item } from '../services/transcript';
+import { Attachment, A_IMAGE, A_FOLDER, relative, mention, typedMention, filesUnder, complete } from '../services/attach';
 import { IDLE, STOPPING } from '../services/turn';
 import { ConfigFile, shortPath, projectConfigOf } from '../services/discovery';
 import { agents, agent, selectAgent, current, openChat, closeTab, tabs, send, stopCurrent, viewed, viewedOutput, detailOpen,
-  toggleDetail, AgentInfo } from '../state';
+  toggleDetail, viewFile, viewOutput, AgentInfo } from '../state';
 import { FileRow } from './SidePanel';
 import { FileViewer, OutputViewer } from './FileViewer';
 import { SettingsBar, menuOpen, closeMenu } from './SettingsBar';
@@ -104,20 +105,92 @@ function AgentTab(props: { info: AgentInfo }): i32 {
   </View>;
 }
 
+/** The attachments of the next message, as chips: a × drops one and its reference. */
+function Chips(props: { chat: Chat }): i32 {
+  const c = props.chat;
+  return <View className="flex-row flex-wrap gap-1 px-3 pt-2">
+    {c.attachments().map((a: Attachment) =>
+      <View className={`flex-row items-center gap-1 h-[24] pl-2 pr-1 rounded-md border ${bg(SURFACE)} ${bd(BORDER)}`}>
+        <Icon name={a.kind === A_IMAGE ? 'image' : a.kind === A_FOLDER ? 'folder' : 'file'} size={12} color={() => color(MUTED)} />
+        <Text className={`max-w-[220] truncate text-[12px] ${fg(TEXT)}`}>{label(a, c.folder)}</Text>
+        <View className={`w-[18] h-[18] rounded items-center justify-center cursor-pointer hover:${bg(SURFACE_HOVER)}`} aria-label="Remove" onPress={() => c.detach(a)}>
+          <Icon name="x" size={11} color={() => color(FAINT)} />
+        </View>
+      </View>)}
+  </View>;
+}
+/** An image's number and name, a path in the folder as its reference shows it, another one by its name. */
+function label(a: Attachment, folder: string): string {
+  const name = a.path.slice(a.path.lastIndexOf('/') + 1), rel = relative(a.path, folder);
+  return a.kind === A_IMAGE ? `Image #${a.n} · ${name}` : rel === a.path ? name : rel;
+}
+
+// Escape: closes an open menu, then a viewer, else stops the running turn. The root's onKeyDown takes it before a focused field
+// (which would only drop the focus), the message field's own handler after its completion, ui.onKey when nothing has the focus.
+export function escape(e: ui.KeyEvent): void {
+  if (e.key !== 'Escape') return;
+  if (menuOpen()) closeMenu();
+  else if (viewed() !== null) viewFile(null);
+  else if (viewedOutput() !== null) viewOutput(null);
+  else if (!stopCurrent()) return;
+  e.preventDefault();
+}
+
+/** Paths shown by the `@` completion. */
+const COMPLETIONS = 8;
+/** At most this many paths of the folder are indexed for it (read once per conversation, on the first `@`). */
+const INDEX_MAX = 5000;
+
+/** The `@` completion: the folder's files that hold the word typed after `@`, over the field. */
+function Completions(props: { anchor: i32; paths: () => string[]; at: () => i32; pick: (p: string) => void }): i32 {
+  const ref = createNodeRef();
+  onMount(() => { ui.openLayer(ref.node, { priority: 200 }); ui.anchor(ref.node, props.anchor, 'top-start', 4); });
+  return <View ref={ref} className={`flex-col w-[420] py-1 rounded-md border ${bg(BAR)} ${bd(BORDER)}`}>
+    {props.paths().map((p: string, i: i32) =>
+      <View className={`flex-row items-center gap-2 h-[24] px-2 cursor-pointer ${i === props.at() ? bg(SELECTED) : ''} hover:${bg(SURFACE_HOVER)}`}
+        onPress={() => props.pick(p)}>
+        <Icon name={p.endsWith('/') ? 'folder' : 'file'} size={12} color={() => color(MUTED)} />
+        <Text className={`grow shrink min-w-0 truncate text-[12px] ${fg(TEXT)}`}>{p}</Text>
+      </View>)}
+  </View>;
+}
+
 function Composer(props: { chat: Chat }): i32 {
-  const [draft, setDraft] = createSignal('');
+  const c = props.chat;
   const installed = (): boolean => agent().binary !== '';
+  const field = createNodeRef();
+  const [at, setAt] = createSignal<i32>(0);
+  let index: string[] | null = null;
+  const matches = (): string[] => {
+    const w = typedMention(c.draft());
+    if (w === null) return [];
+    if (index === null) index = filesUnder(c.folder, INDEX_MAX);
+    return complete(index as string[], w, COMPLETIONS);
+  };
+  const pickPath = (p: string): void => {
+    const d = c.draft();
+    c.setDraft(d.slice(0, d.lastIndexOf('@')) + mention(p) + ' ');
+    setAt(0);
+  };
+  const keys = (e: ui.KeyEvent): void => {
+    const m = matches();
+    if (m.length === 0) { escape(e); return; }   // this handler hides the root's from the field
+    if (e.key === 'ArrowDown') { setAt((at() + 1) % m.length); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { setAt((at() + m.length - 1) % m.length); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { pickPath(m[Math.min(at(), m.length - 1)]); e.preventDefault(); }
+    else if (e.key === 'Escape') { c.setDraft(c.draft() + ' '); e.preventDefault(); }
+  };
   const submit = (): void => {
-    if (props.chat.busy() || !installed()) return;
-    send(draft());
-    setDraft('');
+    if (c.busy() || !installed()) return;
+    send(c.draft());
   };
   return <View className={`flex-col shrink-0 border-t ${bd(BORDER)}`}>
     <SettingsBar info={agent()} />
+    {c.attachments().length > 0 && <Chips chat={c} />}
     <View className="flex-row items-center gap-2 p-3" onSubmit={submit}>
-      <Input className={`grow h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
-        value={draft()} onInput={setDraft}
-        placeholder={installed() ? `Ask ${agent().agent.name} about ${shortPath(props.chat.folder)}` : `${agent().agent.name} is not installed`} />
+      <Input ref={field} className={`grow h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
+        value={c.draft()} onInput={(v: string) => { c.setDraft(v); setAt(0); }} onKeyDown={keys}
+        placeholder={installed() ? `Ask ${agent().agent.name} about ${shortPath(c.folder)} · @ for a file, or drop one here` : `${agent().agent.name} is not installed`} />
       {props.chat.phase() === IDLE
         ? <View className={`flex-row items-center gap-2 h-[36] px-3 rounded-md cursor-pointer transition-colors duration-150 ${bg(SELECTED)} hover:${bg(SURFACE_HOVER)}`} onPress={submit}>
             <Icon name="send" size={14} color={() => color(TEXT)} /><Text className={`text-[13px] ${fg(TEXT)}`}>Send</Text>
@@ -128,6 +201,7 @@ function Composer(props: { chat: Chat }): i32 {
             <Text className={`text-[11px] ${fg(FAINT)}`}>Esc</Text>
           </View>}
     </View>
+    {matches().length > 0 && <Completions anchor={field.node} paths={matches} at={at} pick={pickPath} />}
   </View>;
 }
 

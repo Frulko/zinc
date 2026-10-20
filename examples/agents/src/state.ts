@@ -5,6 +5,7 @@ import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
+import { on } from 'zinc:system';
 import { Agent, AGENTS, ModelChoice, TurnSettings, MODE_READ } from './services/agents';
 import { ConfigFile, HOME, findBinary, versionOf, findConfig, initialFolders } from './services/discovery';
 import { Chat } from './services/chat';
@@ -214,7 +215,9 @@ export function send(prompt: string): void {
   const a = agent();
   if (c === null || a.binary === '') return;
   const chat = c as Chat;
-  if (!chat.send(a.binary, prompt, a.settings())) return;
+  if (!chat.send(a.binary, prompt, a.settings(), chat.attachments())) return;
+  chat.setDraft('');
+  chat.setAttachments([]);
   chatList[1]([chat, ...chats().filter((x: Chat) => x !== chat)]);
 }
 
@@ -281,6 +284,12 @@ export function start(): void {
   measure();
   setInterval(() => measure(), 2000);
   setInterval(() => nowSig[1](Date.now()), 30000);
+  // a file, image or folder dropped anywhere on the window joins the next message of the current conversation
+  on('drop', (args: string[]) => {
+    const c = current();
+    if (args.length === 0 || (args.length > 1 && args[1] === 'text') || c === null) return;   // a text drop is [text, 'text']
+    (c as Chat).attach(args[0]);
+  });
   const stats = sys.env('AGENTS_STATS');
   if (stats !== '') setInterval(() => writeStats(stats), 500);
 }

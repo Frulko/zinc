@@ -42,6 +42,19 @@ bottom. Light and dark follow the system (or Settings); with reduced motion noth
   aliases, Codex's own catalog from `codex debug models`, `opencode models`), the effort the model accepts, and fast
   mode where the model has it. Each answer says what it ran with (`opus · high · fast · Edit files`). The status bar
   repeats them, with the turns running and the app's memory.
+- **Answers in markdown.** A paragraph streams in as plain text and is drawn as markdown once it ends: headings, lists
+  (nested, numbered), **bold**, *italic*, `inline code` and links in their colours, quotes, rules, fenced code blocks
+  in monospace under their language, tables. A paragraph stays one text with style runs (`ui.setTextRuns`), so
+  **any part of an answer selects with the mouse and copies with Cmd+C**, marks and all; so do the messages, the tool
+  inputs and outputs.
+- **Copy buttons.** The icon at the right of an answer's header copies the answer's markdown source (« Copy answer »,
+  then « Copied » for a moment), read back from disk for an answer longer than what memory keeps; a code block's own
+  icon copies its code.
+- **Files, images and folders as references.** Drop them on the window: each becomes a chip above the message field
+  (its × takes it away) and a reference in the message, written as Claude Code and Codex write them: an image
+  `[Image #1]`, a file `@src/app.ts`, a folder `@src/`, relative to the conversation's folder when inside it, absolute
+  otherwise (quoted when it holds a space). Typing `@` lists the folder's files that hold what follows (↑ ↓, Enter or
+  Tab, a click; Escape closes it). Each CLI gets them its own way, below.
 - **Motion**: an item fades in from below, three dots pulse while the agent thinks, a spinner turns while a tool runs,
   menus open with a short fade, hovers change colour smoothly. All are engine tweens that stop when they end: a still
   window paints nothing.
@@ -77,9 +90,9 @@ One process per turn, no SDK and no API key: the CLIs use the login they already
 
 | CLI | Command | What streams |
 |---|---|---|
-| Claude Code 2.1 | `claude -p <prompt> --output-format stream-json --verbose --include-partial-messages --permission-mode <mode> [--model m] [--effort e] [--settings '{"fastMode":true}'] [--resume <id>]` | token and tool-input deltas; a subagent's whole messages with `parent_tool_use_id` |
-| Codex 0.162 | `codex exec --json --skip-git-repo-check -c sandbox_mode=… -c service_tier=… [-c model=…] [-c model_reasoning_effort=…] [resume <id>] <prompt>` | items: `command_execution` started then completed, `file_change`, `mcp_tool_call`, `reasoning`, whole messages |
-| opencode 2.0 | `opencode run --format json --agent plan\|build [--auto] [--model provider/model] [--session <id>] <prompt>` | whole text parts; a tool part once it is done (no live status) |
+| Claude Code 2.1 | `claude -p <prompt with @references> --output-format stream-json --verbose --include-partial-messages --permission-mode <mode> [--model m] [--effort e] [--settings '{"fastMode":true}'] [--resume <id>]` | token and tool-input deltas; a subagent's whole messages with `parent_tool_use_id` |
+| Codex 0.162 | `codex exec --json --skip-git-repo-check -c sandbox_mode=… -c service_tier=… [-c model=…] [-c model_reasoning_effort=…] [resume <id>] [-i <image>…] -- <prompt>` | items: `command_execution` started then completed, `file_change`, `mcp_tool_call`, `reasoning`, whole messages |
+| opencode 2.0 | `opencode run --format json --agent plan\|build [--auto] [--model provider/model] [--session <id>] [-f <file or image>…] <prompt>` | whole text parts; a tool part once it is done (no live status) |
 
 The three formats were checked against the CLIs on 2026-10-20 (Claude Code 2.1.304, codex-cli 0.162.1, opencode
 2.0.32), each on a small prompt in a temporary folder, read-only; `tests/fixtures/` keeps what they printed and
@@ -98,11 +111,20 @@ user's own settings does not apply behind the bar's back.
 
 Every agent starts **read-only**: nothing is edited until the mode says so.
 
+References, as each CLI takes them (checked read-only on the same versions, 2026-10-20, with a small image and a file in a
+temporary folder):
+
+| | Claude Code | Codex | opencode |
+|---|---|---|---|
+| Image | `@path` in the prompt (the field's `[Image #1]` is written as its path): read without a tool call | `-i <path>` (on `exec` and on `exec resume`; `-i` takes several values, hence the `--`) | `-f <path>` |
+| File | `@path` in the prompt, resolved by the CLI (`@"a b/c.ts"` too) | `@path` stays in the prompt: the model reads it with its tools | `-f <path>`, and `@path` in the prompt |
+| Folder | `@path/` in the prompt, listed by the CLI | `@path/` in the prompt: the model lists it with its tools | `@path/` in the prompt: the model lists it with its tools |
+
 ## Layout of `src/`
 
 ```text
 src/
-├── main.tsx                 # mounts the window, Escape, the frame hook
+├── main.tsx                 # mounts the window, the frame hook
 ├── theme.ts                 # the dark and light schemes and the class helpers
 ├── state.ts                 # what was found, the conversations, what is shown; the actions the components call
 ├── services/
@@ -112,12 +134,15 @@ src/
 │   ├── stream.ts            # the bounded line reader, texts spilled to disk in parts
 │   ├── transcript.ts        # items and the transcript on disk
 │   ├── turn.ts              # the stop state machine (SIGINT, SIGTERM, SIGKILL)
+│   ├── markdown.ts          # an answer's markdown as blocks, inline marks as style runs
+│   ├── attach.ts            # dropped files and images: references, the @ completion, how each CLI takes them
 │   └── chat.ts              # a conversation: one process per turn, its window of items
 └── components/
     ├── ActivityBar.tsx      # the icons on the far left
     ├── SidePanel.tsx        # conversations by folder, folders, agents, settings
-    ├── ChatPane.tsx         # tabs, the folder and agent, the items, the composer
+    ├── ChatPane.tsx         # tabs, the folder and agent, the items, the composer (chips, @ completion), Escape
     ├── ItemView.tsx         # a message, an answer's header, a paragraph, a tool card
+    ├── Markdown.tsx         # an answer's blocks as views, the copy button and its tooltip
     ├── DetailPanel.tsx      # the turn's agents and tools, one in full
     ├── StatusBar.tsx        # agent, model, mode, turns running, memory
     ├── SettingsBar.tsx      # mode, model, effort and fast of the next turn, with their menus
@@ -134,9 +159,18 @@ src/
   that ignores it), nor were their subagents and MCP calls: their parsers follow their documented items.
 - A text is cut in characters, which are about bytes for code and logs; « Show all » on a line too long to parse shows
   it as the CLI wrote it (JSON).
+- Markdown is a line-based subset of CommonMark (no HTML, no reference links, no setext headings); links are coloured
+  and underlined but do not open. A paragraph is drawn as markdown once it ends; the head kept in memory (16 KB) is what
+  is drawn.
+- A selection stays inside one text (a paragraph, a list item, a code block): to take a whole answer, use its copy
+  button.
+- A drop lands anywhere on the window, in the conversation shown. Not tried on the real CLIs: a file outside the folder
+  (an absolute `@path`) in read-only mode, several images in one turn. The `@` list reads up to 5 000
+  paths of the folder (no hidden folders, no `node_modules`, `build`, `dist`…) once per conversation shown.
 - A Claude project whose path holds `-` or `.` is not offered in the folder list (Claude's folder names do not decode
   back); add it with the field.
 
 Tests: `zinc test examples/agents/tests` (the parsers against the real CLIs' streams, the stop state machine, the
-bounded reader); `next/tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless) and
-`next/tests/t1/agents_memory.sh` (the flood).
+bounded reader, the markdown parser, the references and each CLI's arguments for them); `next/tests/t1/agents_chat.sh`
+(fake CLIs that answer in each format, headless), `next/tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
+copy, selection, the `@` list) and `next/tests/t1/agents_memory.sh` (the flood).

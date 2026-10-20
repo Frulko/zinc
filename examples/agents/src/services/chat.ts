@@ -9,6 +9,7 @@
 //   items are read back from disk when the view scrolls up to them, and dropped again when it scrolls away;
 // - the items still open (the paragraph being written, the tools still running) are the only others in memory;
 // - a long text keeps its start in memory and the whole on disk (Item.appendText, Item.setFullOutput).
+import { Attachment, A_IMAGE, attachmentOf, token, withoutToken } from './attach';
 import { createSignal } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
@@ -100,6 +101,13 @@ export class Chat {
   /** The turn's tool calls, all of them. */
   readonly turnTools: () => i32;
   readonly setTurnTools: (v: i32) => void;
+  /** The message being written, and the files, images and folders given with it (services/attach.ts). */
+  readonly draft: () => string;
+  readonly setDraft: (v: string) => void;
+  readonly attachments: () => Attachment[];
+  readonly setAttachments: (v: Attachment[]) => void;
+  /** The last image number given in this conversation (`[Image #n]`). */
+  private images: i32 = 0;
 
   private shown: boolean = false;
   /** Items made since the last frame, joining the window at the next one (Chat.flush): a flood of events costs one update per frame. */
@@ -128,7 +136,7 @@ export class Chat {
     this.store = new Transcript(dir);
     const t = createSignal(''), u = createSignal<number>(Date.now()), ph = createSignal<i32>(IDLE), oc = createSignal<i32>(S_DONE);
     const w = createSignal<Item[]>([]), r = createSignal<i32>(0), pa = createSignal<Item[]>([]), pt = createSignal<Item[]>([]);
-    const tt = createSignal<i32>(0);
+    const tt = createSignal<i32>(0), dr = createSignal(''), at = createSignal<Attachment[]>([]);
     this.title = t[0]; this.setTitle = t[1];
     this.updated = u[0]; this.setUpdated = u[1];
     this.phase = ph[0]; this.setPhase = ph[1];
@@ -138,10 +146,28 @@ export class Chat {
     this.panelAgents = pa[0]; this.setPanelAgents = pa[1];
     this.panelTools = pt[0]; this.setPanelTools = pt[1];
     this.turnTools = tt[0]; this.setTurnTools = tt[1];
+    this.draft = dr[0]; this.setDraft = dr[1];
+    this.attachments = at[0]; this.setAttachments = at[1];
     this.machine = new TurnMachine((ms: number, f: () => void) => { setTimeout(f, ms); }, (s: i32) => this.setPhase(s));
   }
 
   busy(): boolean { return this.phase() !== IDLE; }
+
+  /** A dropped (or picked) path joins the next message: a chip above the field, its reference at the end of the draft. */
+  attach(path: string): void {
+    const a = attachmentOf(path, this.images);
+    if (this.attachments().some((x: Attachment) => x.path === a.path)) return;
+    if (a.kind === A_IMAGE) this.images = a.n;
+    this.setAttachments([...this.attachments(), a]);
+    const d = this.draft();
+    this.setDraft(`${d}${d === '' || d.endsWith(' ') || d.endsWith('\n') ? '' : ' '}${token(a, this.folder)} `);
+  }
+
+  /** A chip's ×: the attachment and its reference go. */
+  detach(a: Attachment): void {
+    this.setAttachments(this.attachments().filter((x: Attachment) => x !== a));
+    this.setDraft(withoutToken(this.draft(), token(a, this.folder)));
+  }
 
   // ---- the window ----
 
@@ -229,6 +255,24 @@ export class Chat {
     return fromTop ? w.slice(drop) : w.slice(0, w.length - drop);
   }
 
+  /** The markdown of the answer under turn header `turn`: its paragraphs (not its subagents'), each whole (read back from disk
+   *  when it outgrew memory), a blank line apart. For the copy button: it holds the whole answer only for that moment. */
+  answer(turn: Item): string {
+    const out: string[] = [];
+    for (let lo = turn.seq + 1; lo < this.count; lo += PAGE) {
+      for (const it of this.items(lo, Math.min(this.count, lo + PAGE))) {
+        if (it.turn !== turn.seq) return out.join('\n\n');
+        if (it.kind !== K_TEXT || it.depth > 0) continue;
+        const sp = it.spill;
+        if (sp === null) { out.push(it.text()); continue; }
+        const parts: string[] = [];
+        for (let k = 0; k < (sp as Spill).parts; k++) parts.push((sp as Spill).read(k));
+        out.push(parts.join(''));
+      }
+    }
+    return out.join('\n\n');
+  }
+
   /** What it holds in memory: [items in the window, open items, characters of both]. */
   held(): number[] {
     let chars = 0;
@@ -241,7 +285,7 @@ export class Chat {
   // ---- a turn ----
 
   /** Starts a turn with `binary` (the agent's CLI, found by discovery). False while a turn runs or stops. */
-  send(binary: string, prompt: string, settings: TurnSettings): boolean {
+  send(binary: string, prompt: string, settings: TurnSettings, atts: Attachment[]): boolean {
     const text = prompt.trim();
     if (text === '' || this.busy()) return false;
     this.persisted = true;
@@ -263,7 +307,7 @@ export class Chat {
 
     let p: proc.Process;
     try {
-      p = proc.spawn(binary, this.agent.args(text, this.session, settings), { cwd: this.folder, env: this.agent.env(settings) });
+      p = proc.spawn(binary, this.agent.args(text, this.session, settings, atts, this.folder), { cwd: this.folder, env: this.agent.env(settings) });
     } catch (e) {
       const failed = new Run(turn, -1);
       this.run = failed;
@@ -319,7 +363,7 @@ export class Chat {
     }
     if (k === EV_DELTA) {
       let t = this.textItem;
-      if (t === null) { t = this.add(K_TEXT, '', run.item.seq); this.textItem = t; }
+      if (t === null) { t = this.add(K_TEXT, '', run.item.seq); (t as Item).setStatus(S_RUNNING); this.textItem = t; }   // drawn as markdown once done
       (t as Item).appendText(e.text, this.store.spillPrefix((t as Item).seq, 'text'));
     } else if (k === EV_BLOCK || k === EV_THINKING) {
       if (e.parent === '') this.closeText();
@@ -417,7 +461,7 @@ export class Chat {
 
   private closeText(): void {
     const t = this.textItem;
-    if (t !== null) { this.finish(t as Item); this.textItem = null; }
+    if (t !== null) { (t as Item).setStatus(S_DONE); this.finish(t as Item); this.textItem = null; }
   }
 
   private endTurn(run: Run, status: i32, error: string): void {

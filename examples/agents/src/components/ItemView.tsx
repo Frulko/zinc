@@ -8,6 +8,8 @@ import { toolIcon } from '../services/tools';
 import { isAgentTool } from '../services/agents';
 import { Chat } from '../services/chat';
 import { pick, viewOutput } from '../state';
+import { parse } from '../services/markdown';
+import { Markdown, CopyButton } from './Markdown';
 import { enter, enterOpacity, enterY, Spinner, ThinkingDots } from './motion';
 import {
   SURFACE, SURFACE_HOVER, BORDER, TEXT, MUTED, FAINT, USER_BUBBLE, ERROR, SUCCESS, WARN, CODE, ACCENT, bg, fg, bd, color,
@@ -50,7 +52,7 @@ export function ShowAll(props: { item: Item }): i32 {
 function UserBubble(props: { item: Item }): i32 {
   return <View className="flex-row justify-end">
     <View className={`max-w-[640] px-3 py-2 rounded-lg ${bg(USER_BUBBLE)}`}>
-      <Text className={`text-[14px] whitespace-pre-wrap ${fg(TEXT)}`}>{props.item.text()}</Text>
+      <Text className={`select-text text-[14px] whitespace-pre-wrap ${fg(TEXT)}`}>{props.item.text()}</Text>
     </View>
   </View>;
 }
@@ -72,17 +74,21 @@ function TurnHeader(props: { item: Item; chat: Chat }): i32 {
       <Text className={`text-[12px] font-semibold ${fg(TEXT)}`}>{it.name}</Text>
       <Text className={`text-[11px] ${fg(FAINT)}`}>{it.text()}</Text>
       {running() && <ThinkingDots color={props.chat.agent.color} active={running} />}
-      <Text className={`text-[11px] ${fg(it.status() === S_STOPPED ? WARN : FAINT)}`}>{end()}</Text>
+      <Text className={`grow text-[11px] ${fg(it.status() === S_STOPPED ? WARN : FAINT)}`}>{end()}</Text>
+      <CopyButton text={() => props.chat.answer(it)} label="Copy answer" />
     </View>
-    {it.detail() !== '' && <Text className={`text-[12px] whitespace-pre-wrap ${fg(ERROR)}`}>{it.detail()}</Text>}
+    {it.detail() !== '' && <Text className={`select-text text-[12px] whitespace-pre-wrap ${fg(ERROR)}`}>{it.detail()}</Text>}
   </View>;
 }
 
 function Paragraph(props: { item: Item }): i32 {
   const it = props.item;
   const sub = it.depth > 0;
+  // streaming: plain text as it comes; finished: its markdown, parsed once (at most its TEXT_CAP head)
   return <View className="flex-col gap-1 max-w-[760]">
-    <Text className={`${sub ? 'text-[12px]' : 'text-[14px]'} whitespace-pre-wrap ${fg(sub ? MUTED : TEXT)}`}>{it.text()}</Text>
+    {it.status() === S_RUNNING
+      ? <Text className={`select-text ${sub ? 'text-[12px]' : 'text-[14px]'} whitespace-pre-wrap ${fg(sub ? MUTED : TEXT)}`}>{it.text()}</Text>
+      : <Markdown blocks={parse(it.text())} small={sub} />}
     <ShowAll item={it} />
   </View>;
 }
@@ -94,7 +100,7 @@ function Thinking(props: { item: Item }): i32 {
       <Icon name="brain" size={13} color={() => color(FAINT)} />
       <Text className={`grow shrink min-w-0 truncate text-[12px] ${fg(FAINT)}`}>{it.open() ? 'Thinking' : `Thinking: ${it.text()}`}</Text>
     </View>
-    {it.open() && <Text className={`text-[12px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.text()}</Text>}
+    {it.open() && <Text className={`select-text text-[12px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.text()}</Text>}
   </View>;
 }
 
@@ -102,9 +108,9 @@ function Thinking(props: { item: Item }): i32 {
 export function ToolBody(props: { item: Item }): i32 {
   const it = props.item;
   return <View className="flex-col gap-2">
-    {it.detail() !== '' && <Text className={`font-mono text-[11px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.detail()}</Text>}
+    {it.detail() !== '' && <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap ${fg(MUTED)}`}>{it.detail()}</Text>}
     {it.output() !== '' && <View className={`rounded p-2 ${bg(CODE)}`}>
-      <Text className={`font-mono text-[11px] whitespace-pre-wrap ${fg(it.status() === S_ERROR ? ERROR : TEXT)}`}>{it.output()}</Text>
+      <Text className={`select-text font-mono text-[11px] whitespace-pre-wrap ${fg(it.status() === S_ERROR ? ERROR : TEXT)}`}>{it.output()}</Text>
     </View>}
     {it.output() === '' && it.status() !== S_RUNNING && <Text className={`text-[11px] ${fg(FAINT)}`}>no output</Text>}
     <ShowAll item={it} />
