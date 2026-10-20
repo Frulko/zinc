@@ -8,11 +8,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-### Fixed
-- A child process that writes faster than the program reads its output (a large tool output on a slow machine) no longer piles that output up in memory: zinc stops reading the child's pipes past 4 MB waiting and the child waits until the program catches up.
-
-## [0.4.1] - 2026-10-20
-
 ### Added
 - `zinc:ui`: `setTextRuns(node, runs)` styles parts of one text (bold, italic, monospace, underlined, a colour of its own or a scheme variable through `schemeColor`): the text wraps with each part in its font and still selects and copies as one.
 
@@ -34,6 +29,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example shows the reason an opencode turn was refused by its provider (an OpenCode Go model the workspace's settings keep out) instead of an empty error.
 - `zinc:process`: `run()` closes the program's input at once, so a command that reads its stdin to the end (`cat`, `claude -p`) finishes instead of waiting forever.
 - A child process that writes without pause (a CLI streaming a large output, `yes`) no longer holds the event loop: timers, frames and keys keep running while its output is read (Escape could not stop it before).
+- A child process that writes faster than the program reads its output (a large tool output on a slow machine) no longer piles that output up in memory: zinc stops reading the child's pipes past 4 MB waiting and the child waits until the program catches up.
 
 ## [0.4.0] - 2026-10-20
 
@@ -326,8 +322,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.1...HEAD
-[0.4.1]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.1
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.0...HEAD
 [0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Frulko/zinc/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Frulko/zinc/compare/v0.2.3...v0.3.0
