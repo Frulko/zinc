@@ -50,7 +50,7 @@ elsewhere with `zinc build --target armhf-linux` or `zinc export --target rpi1`.
 By hand, as for Windows:
 
 ```sh
-cmake -S next -B build-linux-aarch64 -DCMAKE_TOOLCHAIN_FILE=cmake/zig-linux.cmake -DZN_LINUX_ARCH=aarch64 -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build-linux-aarch64 -DCMAKE_TOOLCHAIN_FILE=cmake/zig-linux.cmake -DZN_LINUX_ARCH=aarch64 -DCMAKE_BUILD_TYPE=Release
 BUILD_DIR=build-linux-aarch64 tools/build zinc
 ```
 

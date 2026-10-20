@@ -28,7 +28,7 @@ A program exported with `zinc export` does not carry the exports yet.
 Wine runs the cross-built console programs without a Windows machine (not a proof: its console and file system are not Windows'):
 
 ```sh
-cmake -S next -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
+cmake -S . -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
 BUILD_DIR=build-win tools/build zinc platform_test
 export WINEDEBUG=-all MVK_CONFIG_LOG_LEVEL=0 ZINC_ROOT=$PWD   # quiet Wine and MoltenVK; the engine's files
 wine build-win/platform_test.exe                                # platform: ok (windows x86_64)
@@ -49,10 +49,10 @@ The first run creates the Wine prefix (`~/.wine`) without a window. Nothing stay
 From PowerShell, in the checkout:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -DryRun   # what it would do
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1           # do it (no administrator rights)
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 -DryRun   # what it would do
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1           # do it (no administrator rights)
 # from an elevated PowerShell, once: long paths on and Defender exclusions for the checkout and ZINC_HOME
-powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -Admin -NoBuild
+powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 -Admin -NoBuild
 ```
 
 It is idempotent and prints each step. It installs with `winget` what is missing (per user when the package allows; winget asks
@@ -60,7 +60,7 @@ for elevation otherwise): **Git for Windows** (git and the bash the tests run in
 `~/bin/python3` shim for Git Bash (the tests call `python3`, which the python.org installer does not create); sets `ZINC_HOME` (default `%USERPROFILE%\.zinc`); downloads
 **zig 0.15.2** (the pin of `src/tc/tc.cpp`) into `%ZINC_HOME%\toolchains\zig-<arch>-windows-0.15.2` and checks its SHA-256;
 sets `core.autocrlf=false`, `core.symlinks=true`, `core.longpaths=true` and the commit hook on the checkout; then configures
-`next\build` with Ninja and the zig toolchain file and builds `zinc.exe`.
+`build` with Ninja and the zig toolchain file and builds `zinc.exe`.
 
 **No Visual Studio.** The pinned zig is the C and C++ compiler (mingw-w64 13 headers and import libraries, libc++ and
 winpthreads linked statically): `zinc.exe` and the programs it builds need nothing installed. If a component ever needs
@@ -75,7 +75,7 @@ winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait
 | Variable | What |
 |---|---|
 | `ZINC_HOME` | toolchains and caches (default `%USERPROFILE%\.zinc`; the setup script sets it for the user) |
-| `ZINC_ROOT` | the `next` directory of a checkout, for a `zinc.exe` built with `ZN_REPRODUCIBLE` or moved elsewhere |
+| `ZINC_ROOT` | the root of a checkout, for a `zinc.exe` built with `ZN_REPRODUCIBLE` or moved elsewhere |
 | `ZIG` | the zig the toolchain file uses (default: the newest under `%ZINC_HOME%\toolchains`) |
 | `ZINC_BACKGROUND=1` | windows open without taking the focus (`tests/run` sets it) |
 | `ZINC_HEADLESS=1`, `ZINC_RENDERER=cpu` | no window; the CPU renderer |
@@ -85,12 +85,12 @@ winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait
 
 ```sh
 # Git Bash, in the checkout (the same tools/build as on the Mac: one job per core, load-aware)
-cmake -S next -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
+cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF
 BUILD_DIR=build tools/build zinc
 build/zinc.exe --version
 ```
 
-From the Mac (cross, the same toolchain file): `cmake -S next -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF`,
+From the Mac (cross, the same toolchain file): `cmake -S . -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake -DZN_HOST_GFX=OFF`,
 then `BUILD_DIR=build-win tools/build zinc`. Add `-DZN_WIN_ARCH=aarch64` for Windows on Arm. `-DZN_HOST_GFX=OFF`
 leaves the host library out until libuv's and SDL3's Windows sources are vendored (milestones 4 and 5).
 

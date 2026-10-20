@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE);
 sys.path.insert(0, HERE)
 from cdp import Chrome
 
-FONTS = os.path.join(os.path.dirname(NEXT), "lib", "fonts")
+FONTS = os.path.join(NEXT, "lib", "fonts")
 def font(name): return base64.b64encode(open(os.path.join(FONTS, name), "rb").read()).decode()
 
 def scene(w, h):

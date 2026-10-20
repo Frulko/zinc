@@ -1,5 +1,5 @@
 # Cross-build Zinc Next for Windows with the pinned zig (docs/reports/zinc-windows-port.md):
-#   cmake -S next -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake [-DZN_WIN_ARCH=aarch64]
+#   cmake -S . -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows.cmake [-DZN_WIN_ARCH=aarch64]
 #   BUILD_DIR=build-win tools/build zinc
 # mingw-w64 (bundled with zig), libc++ and winpthreads linked statically: the .exe needs nothing installed.
 # ZIG names the zig binary; by default the newest one `zinc toolchain` installed in $ZINC_HOME (~/.zinc).

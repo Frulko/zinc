@@ -14,7 +14,7 @@ import concurrent.futures, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
-EXAMPLES = os.path.join(os.path.dirname(NEXT), "examples")
+EXAMPLES = os.path.join(NEXT, "examples")
 LIST = os.path.join(NEXT, "tests", "examples.lst")
 
 def entries():

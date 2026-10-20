@@ -221,7 +221,8 @@ if old:
                 continue
             metrics = (("median_s", "time"),) if baseline_zinc else (("median_s", "time"), ("peak_rss_mb", "peak RSS"))
             for key, label in metrics:
-                if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance):
+                # ponytail: a time within 5 ms of the reference is a hosted runner's noise (fib aot 15 -> 18 ms); a real slowdown of a short kernel is larger
+                if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance) and (key != "median_s" or v[key] - o[key] > 0.005):
                     regressions.append(f"{k} {e} {label}: {o[key]:.3f} -> {v[key]:.3f} (+{(v[key] / o[key] - 1) * 100:.0f}%)")
 
 # start-up (ZN-146): a program that prints one line, the compiled program and `zinc run`, against an empty C program, median of 200 launches

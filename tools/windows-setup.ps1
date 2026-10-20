@@ -1,5 +1,5 @@
 # Set up a Windows 10 (1903+) or 11 machine to work on Zinc Next (docs/targets/windows.md).
-#   powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 [-DryRun] [-NoBuild] [-Admin]
+#   powershell -ExecutionPolicy Bypass -File tools\windows-setup.ps1 [-DryRun] [-NoBuild] [-Admin]
 # Idempotent: each step checks first and says what it does. It needs no administrator rights; -Admin (from an elevated
 # PowerShell) also turns long paths on and adds the Defender exclusions, which are the only steps that need them.
 # Downloads are checked against the pinned SHA-256 of src/tc/tc.cpp (zig: https://ziglang.org/download/index.json).
@@ -24,7 +24,7 @@ function Act($msg, [scriptblock]$action) {
   if ($DryRun) { Write-Host "    (dry run) $msg" } else { Write-Host "    $msg"; & $action }
 }
 
-$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $arch = $env:PROCESSOR_ARCHITECTURE
 Step "Windows $([Environment]::OSVersion.Version) on $arch, repository $repo"
 if ([Environment]::OSVersion.Version.Build -lt 18362) { throw 'Windows 10 1903 (build 18362) or later is needed: the UTF-8 code page of the manifest' }
@@ -104,15 +104,15 @@ if ($Admin -and $isAdmin) {
 
 # 6. Configure and build zinc with the pinned zig (no Visual Studio)
 if ($NoBuild) { Step 'build skipped (-NoBuild)'; exit 0 }
-Step 'configure and build next\build (zinc.exe)'
-$build = Join-Path $repo 'next\build'
+Step 'configure and build build (zinc.exe)'
+$build = Join-Path $repo 'build'
 if (-not (Test-Path (Join-Path $build 'CMakeCache.txt'))) {
-  Act "cmake -S next -B next\build -G Ninja -DCMAKE_TOOLCHAIN_FILE=next\cmake\zig-windows.cmake" {
-    cmake -S (Join-Path $repo 'next') -B $build -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $repo 'next\cmake\zig-windows.cmake')" "-DZIG=$zigExe" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON
+  Act "cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake\zig-windows.cmake" {
+    cmake -S $repo -B $build -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $repo 'cmake\zig-windows.cmake')" "-DZIG=$zigExe" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON
     if ($LASTEXITCODE) { throw 'cmake configure failed' }
   }
 } else { Write-Host "    $build is configured" }
-Act 'cmake --build next\build --target zinc' {
+Act 'cmake --build build --target zinc' {
   cmake --build $build --target zinc
   if ($LASTEXITCODE) { throw 'build failed: see docs/reports/zinc-windows-port.md for the known blockers' }
 }
