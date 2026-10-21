@@ -973,3 +973,10 @@ load 28 to 34 from other sessions, so the wall times are loose and the CPU times
 
 Frame 60 is pixel-identical on the three engines. The scene makes about 28 WebGL calls a frame, so most of the CPU is the raster and the GL
 replay, not JavaScript: a heavier scene widens the gap. JSC's slower host call (131 ns against 70) costs it nothing visible here.
+
+
+JavaScriptCore's global object (2026-10-21): it was made from a JSClass named `Window`, so that the web environment could put Window.prototype under it. A
+global of a JSClass is a JSCallbackObject, and JavaScriptCore caches no lookup on it: `sample` showed `JSGlobalObject::getOwnPropertySlot` and
+`operationGetByIdGaveUp` on every `__host_loopNow` (and every `Math`, `Object`...) read. With a plain global (webenv.js gives the window its EventTarget
+methods as its own properties and answers `instanceof` itself) the host call went from 131 to 118 ns. What is left is mostly JavaScriptCore's callback
+itself (`JSLock::DropAllLocks`, `JSObjectGetPrivate`) and the clock read.

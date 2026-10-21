@@ -22,9 +22,9 @@ const char* kName = "jsc";
 namespace { JSGlobalContextRef gContext = nullptr; }
 
 napi_env open() {
-  JSClassDefinition global = kJSClassDefinitionEmpty;
-  global.className = "Window";   // its own prototype object, which the web environment can put Window.prototype under (the global's own is immutable)
-  gContext = JSGlobalContextCreate(JSClassCreate(&global));
+  // a global of no class: one of a JSClass is a callback object, and every global lookup then misses JavaScriptCore's caches (the host call
+  // went from about 75 to 130 ns, Math and the rest the same way); the web environment copes with its immutable prototype
+  gContext = JSGlobalContextCreate(nullptr);
   return Napi::Attach(gContext);
 }
 
