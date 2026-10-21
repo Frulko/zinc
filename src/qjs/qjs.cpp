@@ -374,7 +374,10 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
     if (f.empty() && n.rfind("zinc:", 0) != 0) {
       f = byTsconfig(dir, n);
       if (std::string_view cm = zn::frontend::compatModuleFile(n); f.empty() && !cm.empty() && !e->stdRoot.empty()) f = normalize(e->stdRoot + "/" + std::string(cm));
-      if (f.empty()) f = byNodeModules(dir, n);
+      if (f.empty() && !(f = byNodeModules(dir, n)).empty()) {   // its real path: a package a pnpm workspace links in two places is one module, as in Node
+        std::error_code ec;
+        if (std::filesystem::path real = std::filesystem::canonical(f, ec); !ec) f = real.string();
+      }
     }
     if (!f.empty()) r = f;
   }
