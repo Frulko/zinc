@@ -221,16 +221,18 @@ bool drain(napi_env env) {
   return true;
 }
 
-// The native modules' turn, as qjs.cpp's: their pollers, then the callbacks and completions they queued (native_js.cpp's sink runs them), then the jobs these left.
-bool nativeTurn(napi_env env) {
-  zn_native_poll(0);
-  return zn_native_drain() == 0 || drain(env);
-}
-
 bool callFn(napi_env env, napi_value f, napi_value arg) {
   napi_value r;
   if (napi_call_function(env, undefined(env), f, arg ? 1 : 0, arg ? &arg : nullptr, &r) != napi_ok && failed(env)) return false;
   return drain(env);
+}
+
+// The native modules' turn, as qjs.cpp's: their pollers, then the callbacks and completions they queued (native_js.cpp's sink runs them), then the jobs these left,
+// then the host loop's events (zinc:osc) through the prelude's __pollHost.
+bool nativeTurn(napi_env env) {
+  zn_native_poll(0);
+  if (zn_native_drain() != 0 && !drain(env)) return false;
+  return callFn(env, global(env, "__pollHost"), nullptr);
 }
 
 bool wantsFrames(napi_env env) { return isFunction(env, global(env, "__zincFrameCb")); }

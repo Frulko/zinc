@@ -392,8 +392,11 @@ inline constexpr bool isGfxTailRow(Rt r) {
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
          r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection);
 }
-// The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
-inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
+// The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
+inline constexpr bool isSysTailRow(Rt r) {
+  return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
+         (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext;
+}
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 // The host calls decode a row's arguments into arrays of this size (src/rt/rtcalls.cpp hostRt, src/qjs/qjs.cpp hostFn): no row has more parameters.

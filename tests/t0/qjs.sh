@@ -26,4 +26,15 @@ printf '{ "entry": "main.ts", "targets": { "macos": { "width": 200, "height": 10
 printf "import { clear, onFrame } from 'zinc:gfx';\nonFrame(() => { clear(0x102030); });\n" > "$tmp/sized/main.ts"
 ZINC_HEADLESS=1 ZINC_FRAMES=2 ZINC_SHOT="$tmp/sized.png" "$ZINC" run "$tmp/sized" --engine quickjs >/dev/null 2>&1
 file "$tmp/sized.png" 2>/dev/null | grep -q '200 x 100' || { echo "zinc.json's window size does not reach a quickjs run"; fail=1; }
+# zinc:osc on quickjs (examples/video/mapper): its host rows are installed and the loop's events reach its handler (a message sent to itself)
+port=$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
+cat > "$tmp/osc.js" <<EOF
+import { listen, send, close } from 'zinc:osc';
+let done = false, turns = 0;
+listen($port, (m) => { console.log('osc', m.address, m.numbers.join(','), m.strings.join(',')); close(); done = true; });
+send('127.0.0.1', $port, '/ping', [1, 2.5], ['hi']);
+const tick = () => { if (done) return; if (++turns < 2000) setTimeout(tick, 1); else console.log('no message'); };
+tick();
+EOF
+ZINC_HEADLESS=1 timeout 30 "$ZINC" run "$tmp/osc.js" --engine quickjs 2>&1 | grep -q "^osc /ping 1,2.5 hi$" || { echo "zinc:osc does not deliver a message on quickjs"; fail=1; }
 exit $fail

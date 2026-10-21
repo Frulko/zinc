@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 
 - The JavaScript engines (`--engine quickjs`, `v8`, `hermes`, `jsc`) load the display driver a project names in `zinc.json` (`"display": "gl"`): `examples/video/mapper` stopped with "symbol not found '_zgl_layers'" on all of them.
+- `zinc:osc` works on the JavaScript engines: `listen` failed with "__host_oscListen is not defined", and the messages now reach its callback.
 
 ## [0.5.0] - 2026-10-21
 

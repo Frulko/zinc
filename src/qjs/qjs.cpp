@@ -553,16 +553,21 @@ bool drain(Engine& e) {
 }
 
 // The native modules' turn: their pollers, then the callbacks and completions they queued (src/qjs/native_js.cpp's sink runs them), then the jobs these left.
-bool nativeTurn(Engine& e) {
-  zn_native_poll(0);
-  return zn_native_drain() == 0 || drain(e);
-}
-
 bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
   JSValue r = JS_Call(e.ctx, f, JS_UNDEFINED, hasArg ? 1 : 0, hasArg ? &arg : nullptr);
   if (JS_IsException(r)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return false; }
   JS_FreeValue(e.ctx, r);
   return drain(e);
+}
+
+// the native modules' pollers and what they queued, then the host loop's events (zinc:osc) through the prelude's __pollHost
+bool nativeTurn(Engine& e) {
+  zn_native_poll(0);
+  if (zn_native_drain() != 0 && !drain(e)) return false;
+  JSValue poll = global(e, "__pollHost");
+  const bool ok = callFn(e, poll, JS_UNDEFINED, false);
+  JS_FreeValue(e.ctx, poll);
+  return ok;
 }
 
 bool wantsFrames(Engine& e) { JSValue cb = global(e, "__zincFrameCb"); const bool yes = JS_IsFunction(e.ctx, cb); JS_FreeValue(e.ctx, cb); return yes; }
