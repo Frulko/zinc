@@ -43,7 +43,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Pi Image (`zinc run image/builder`): the same build from a window, with the settings of Raspberry Pi Imager, a progress bar and the build's log.
 - The Pi image's home screen: a welcome page that shows how to send an app from your computer (remote access, a pairing code), and settings for Wi-Fi with an on-screen keyboard, remote access, SSH, the Pi's name, the background and restart or shut down. It works by touch or mouse; its bottom line shows the Zinc version and, while the Pi starts, what it is doing. Programs sent with `zinc dev --device` or `zinc device run` take the screen and the player comes back when they end. `tools/pi-image player` runs it on your computer.
 - `zinc:network` plugin: the machine's interfaces and addresses, and listing, joining and forgetting Wi-Fi networks through NetworkManager (`docs/plugins/network.md`).
-- `examples/js-spline`: a scene made in Spline (spline.design) running on Spline's own runtime, with its animations and pointer events; `tools/test-lib spline-runtime-2.0.98` fetches the runtime once.
+- `examples/js-spline`: scenes made in Spline (spline.design) running on Spline's own runtime, with their animations and pointer events; `examples/js-spline/pick.sh` lets you choose one of the seven it carries, and `tools/test-lib spline-runtime-2.0.98` fetches the runtime once.
 - A web program that needs WebGL 2 says `"requires": ["gpu>=webgl2"]`: on a machine whose GPU cannot make a WebGL 2 context it now stops with the reason (`--force` runs it anyway), and any other program gets a warning with the `null` context. `ZINC_WEBGL_MAX=1` makes any machine behave like such a GPU.
 
 ### Changed

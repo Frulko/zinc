@@ -11,6 +11,8 @@ build/zinc run examples/js-spline
 
 Move the pointer around the window: the robot looks at it (Spline's *Look At* event), and the program prints what the pointer is over (`mouseHover NORMAL`) and what is clicked.
 
+Seven scenes come with it (`assets/scene.splinecode`, the robot, and `assets/scenes/`): `examples/js-spline/pick.sh` lists them and runs the one you choose, then lists them again when you close its window.
+
 Another scene: in Spline, *Export* > *Code* > *Vanilla JS* gives a URL `https://prod.spline.design/<id>/scene.splinecode`. Download that file and run
 
 ```sh
@@ -20,7 +22,7 @@ SPLINE_SCENE=path/to/scene.splinecode build/zinc run examples/js-spline
 How it fits together:
 
 - `main.js` is JavaScript, so `zinc run` takes the QuickJS engine by itself. `zinc.json` has `"web": true`: the program gets a `window`, a `document` and WebGL, as a page in a browser does. It is what Spline's own guide writes: `new Application(canvas)`, then `app.start(bytes)`.
-- `assets/scene.splinecode` is the scene, read from disk: nothing goes on the network.
+- `assets/scene.splinecode` is the scene, read from disk: nothing goes on the network. A scene saved with a fixed size (an embed) is made to fill the window, as Spline's *fullscreen* preset does.
 - The runtime lives in `~/.zinc/cache/test-libs/spline-runtime-2.0.98/`, checked against a pinned sha256. Its package declares no licence ("© Spline, Inc."), so it is taken from Spline's own release and never kept here.
 
 ## What it needs, and where it does not run
@@ -30,6 +32,6 @@ How it fits together:
 - **Text** needs a font Spline fetches from `fonts.gstatic.com`: a scene with text needs the network the first time.
 - **HTML frames** inside a scene are off (`htmlContentMode: 'none'`): there is no browser to put them in.
 
-The scene is the robot of [JackyLiu13/Qiwi](https://github.com/JackyLiu13/Qiwi) (published on prod.spline.design, no licence stated), used here as test data. Research and measurements: `docs/reports/spline-research.md`, `docs/reports/spline-scenes.md`.
+The scenes were published on prod.spline.design by their authors, with no licence stated, and are used here as test data: the robot of [JackyLiu13/Qiwi](https://github.com/JackyLiu13/Qiwi), and the others listed by id in `docs/reports/spline-scenes.md` (cubes zBBaOmVltDuUag17, bubbles 6ZQA4GzzFjXNeDE4, bubbles-2 4pfOWnUVkcuN7arI, glass-sphere F5Cd4TXjxVfRX7nX, sphere 4LyeK5Yvi3fhB2P1, moon-map OH3FelUamsexR0DI). Research and measurements: `docs/reports/spline-research.md`, `docs/reports/spline-scenes.md`.
 
 Test: `tests/run --only example_js_spline`: a scripted pointer, frame 89 against `screenshot.png`, the hover reaching the program, and the refusal on a GPU without WebGL 2.

@@ -36,6 +36,14 @@ try {
     'a navmesh, Gaussian splats or Draco meshes needs WebAssembly, which the QuickJS engine does not have: see examples/js-spline/README.md');
 }
 
+// A scene saved with a fixed size (an embed of 1200 x 1000) fills the window instead, as Spline's "fullscreen" preset does.
+// ponytail: _viewportMode and _resize are the runtime's own (2.0.98); app.setSize keeps the scene's frame and stretches an orthographic camera
+if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+  app._viewportMode = 1; app._viewportWidth = window.innerWidth; app._viewportHeight = window.innerHeight;
+  canvas.style.width = canvas.style.height = '100%';
+  app._resize();
+}
+
 // The program talks to the scene as a web page does: what the pointer is over and what was clicked, by name, on stdout.
 let hovered = '';
 app.addEventListener('mouseHover', e => { if (e.target.name !== hovered) console.log('mouseHover ' + (hovered = e.target.name)); });

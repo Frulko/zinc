@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-21 10:44'
-updated_date: '2026-10-21 11:04'
+updated_date: '2026-10-21 11:11'
 labels:
   - js
   - demo
@@ -39,4 +39,6 @@ Done 2026-10-21.
 - examples/js-spline: runtime.standalone.webgl.js of @splinetool/runtime 2.0.98 via tools/test-lib (sha256 pinned; no licence in the package), scene XbVs02IuMqdUF0Y1 (robot, JackyLiu13/Qiwi, owner: licences are not a concern while this is a test). Its MouseDown events are disabled by the author (disabled: true in the scene data), so the session proves LookAt and the hover. The scene animates in a loop: Spline renders every frame while idle (358 of 360), by design.
 - tests/t1/example_js_spline.sh passes (6 s). A physics scene is refused with the WebAssembly message (checked by hand with iEAs8HJFu91daMOq).
 - Not done: zinc check/lint fail on every js-* example (later.md); WebAssembly for QuickJS (later.md, docs/reports/quickjs-webassembly.md); the CommonJS detection in progress in the main tree will break this example (later.md).
+
+Then (owner): examples/js-spline/pick.sh lists the seven scenes of the example and runs the chosen one. Scenes saved with a fixed size (bubbles-2 1200x1000, sphere, moon-map) are switched to the runtime's fullscreen viewport mode (_viewportMode 1, _resize): app.setSize stretched the orthographic camera. The watch scene (YSTaVTAlOK8GCfs9) was left out: it needs FileReader and a playing video element.
 <!-- SECTION:NOTES:END -->
