@@ -1,0 +1,6 @@
+{
+  "name": "esp32-espnow",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 ESP-NOW", "id": "dev.zinc.esp32-espnow", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" } }
+}

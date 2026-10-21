@@ -237,7 +237,7 @@
     {"paths": ["tools/web-libs-test", "tests/fixtures/web-libs/", "tests/t1/web_libs.sh"], "tests": ["web_libs"]},
     {"paths": ["plugins/camera/web/", "plugins/microphone/web/", "plugins/webrtc/web/", "plugins/audio/web/", "plugins/svg/web/", "plugins/system/web/", "plugins/socket/web/", "tests/fixtures/web-media/", "tests/fixtures/web-audio/", "tests/fixtures/web-sqlite/", "plugins/sqlite/web/", "tests/t1/web_plugins.sh"], "tests": ["web_plugins"]},
     {"paths": ["firmware/esp32/", "tools/esp32-export-test"], "tests": ["export_esp32"]},
-    {"paths": ["firmware/esp32-mquickjs/", "third_party/mquickjs/", "src/cli_mqjs.cpp", "src/cli_mqjs.h", "tests/t0/mquickjs_esp32.sh"], "tests": ["mquickjs_esp32"]},
+    {"paths": ["firmware/esp32-mquickjs/", "third_party/mquickjs/", "third_party/esp-mdns/", "src/cli_mqjs.cpp", "src/cli_mqjs.h", "examples/esp32-", "tests/t0/mquickjs_esp32.sh"], "tests": ["mquickjs_esp32"]},
     {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
     {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
     {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},

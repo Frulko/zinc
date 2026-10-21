@@ -1,0 +1,6 @@
+{
+  "name": "esp32-ble-esp32",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 BLE", "id": "dev.zinc.esp32-ble-board", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" } }
+}

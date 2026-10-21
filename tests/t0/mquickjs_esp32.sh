@@ -27,9 +27,15 @@ grep -q "bad/main.ts:2:" "$T/log" || { echo "the Map failure does not point at m
 printf "import { onFrame, line } from 'zinc:gfx';\nonFrame(() => {\n  line(0, 0, 10, 10, 0xffffff);\n});\n" > "$T/line/main.ts"
 "$ZINC" export "$T/line/main.ts" --target esp32 --engine mquickjs -o "$T/line/out" >"$T/log" 2>&1 && { echo "a zinc:gfx call the board lacks was accepted"; fail=1; }
 grep -q "zinc:gfx line() is not on the ESP32" "$T/log" && grep -q "line/main.ts:3:" "$T/log" || { echo "the line() failure does not name it at main.ts:3"; cat "$T/log"; fail=1; }
-for d in examples/esp32-*/; do
+for j in examples/esp32-*/zinc.json examples/esp32-*/*/zinc.json; do   # the board's programs (esp32-ble/mac is the Mac's)
+  grep -q '"esp32"' "$j" 2>/dev/null || continue
+  d=$(dirname "$j")
   "$ZINC" export "$d" --target esp32 --engine mquickjs --frames 120 -o "$T/demo" >"$T/log" 2>&1 || { echo "$d does not export for mquickjs"; cat "$T/log"; fail=1; }
 done
+# a program on the radio gets the network firmware; esp32sim has no radio
+"$ZINC" export examples/esp32-wifi --target esp32 -o "$T/wifi" >/dev/null 2>&1 && cmp -s "$T/wifi/firmware.bin" $F/prebuilt/zinc-mquickjs-net-flash.bin || { echo "zinc:wifi does not take the network firmware"; fail=1; }
+"$ZINC" run examples/esp32-wifi --target esp32 --emulator >"$T/log" 2>&1 && { echo "the emulator accepted a program on the radio"; fail=1; }
+grep -q "esp32sim has no radio" "$T/log" || { echo "the emulator's refusal does not say why"; cat "$T/log"; fail=1; }
 mkdir -p "$T/pull"
 printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"
 "$ZINC" export "$T/pull/main.ts" --target esp32 --engine mquickjs -o "$T/pull/out" >"$T/log" 2>&1 && { echo "a pull-up on GPIO 35 was accepted"; fail=1; }

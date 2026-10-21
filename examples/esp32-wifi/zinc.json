@@ -1,0 +1,6 @@
+{
+  "name": "esp32-wifi",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 Wi-Fi", "id": "dev.zinc.esp32-wifi", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" } }
+}
