@@ -11,4 +11,5 @@ printf "console.log('hello from an ESP32');\nlet s = 0;\nfor (let i = 0; i < 100
 "$ZINC" run tests/golden/run/library.ts --target esp32 --qemu 2>/dev/null | diff -q - tests/golden/run/library.out >/dev/null || { echo "library.ts differs on the emulated ESP32"; fail=1; }
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.ts"
 "$ZINC" run "$tmp/boom.ts" --target esp32 --qemu >/dev/null 2>&1; [ $? -eq 101 ] || { echo "an uncaught exception does not end with 101 on the emulated ESP32"; fail=1; }
+pgrep -f "$ZINC_HOME/cache/esp32-flash.bin" >/dev/null && { echo "an emulator is still running after its zinc run ended"; pkill -f "$ZINC_HOME/cache/esp32-flash.bin"; fail=1; }
 exit $fail

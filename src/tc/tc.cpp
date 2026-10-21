@@ -706,7 +706,8 @@ bool qemuCommand(const std::string& chip, const std::string& root, std::string& 
       n += k;
     }
   }
-  cmd = quote(bin.string()) + " -nographic -machine esp32 -m 4M -drive file=" + quote(work.string()) + ",if=mtd,format=raw -global driver=timer.esp32.timg,property=wdt_disable,value=true -serial stdio -monitor none 2>/dev/null";
+  // exec: the emulator replaces the shell that spawnCommand starts, so the SIGTERM at the end of the run reaches it (sh does not pass it on)
+  cmd = "exec " + quote(bin.string()) + " -nographic -machine esp32 -m 4M -drive file=" + quote(work.string()) + ",if=mtd,format=raw -global driver=timer.esp32.timg,property=wdt_disable,value=true -serial stdio -monitor none 2>/dev/null";
   return true;
 }
 

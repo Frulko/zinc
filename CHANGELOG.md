@@ -22,6 +22,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Changed (breaking)
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
+### Fixed
+- `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
+
 ## [0.5.2] - 2026-10-22
 
 ### Fixed
