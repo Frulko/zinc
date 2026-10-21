@@ -1,6 +1,7 @@
 // Carnet on Zinc, on Carnet's own code: the documents, the commands, the Markdown and the collaboration are the packages of
 // github.com/Frulko/carnet (@nbe/core, @nbe/markdown, @nbe/collab, the labels of @nbe/dom), linked unchanged by ./link.sh; this
-// app is the view, in zinc:ui, in place of @nbe/dom's. This file mounts it, wires the vault and the rooms, and runs the frame loop.
+// app is the view, in zinc:ui, in place of @nbe/dom's, and an Obsidian-like vault of Markdown files. This file mounts it, wires
+// the vault, the index and the rooms, and runs the frame loop.
 //
 //   ./link.sh && zinc run .                       the first window serves, the next ones join it
 //   CARNET_NAME=Ada zinc run .                     your name on the others' screens
@@ -8,12 +9,15 @@ import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { LoroBlockStore, connect, createPresence, Message } from '@nbe/collab';
-import { me, Page, Peer, pages, setOutputs, setCurrentPage, currentPage, focusedBlock, pageWithId, allPages, createPage,
-  addRemotePage, deletePage, setPeerList } from './state';
-import { openVault, pageChanged, stepVault } from './services/vault';
+import { me, Page, Peer, pages, setCurrentPage, currentPage, focusedBlock, pageWithId, pageAt, createPage, addRemotePage, deletePage,
+  setPagePath, addFolder, setPeerList, onPageOpened, onPageMoved, onPageRemoved, onFolderAdded } from './state';
+import { openVault, stepVault, vaultDir, lastOpenNote } from './services/vault';
+import { openIndex } from './services/search';
 import { startSync, joinRoom, Transport, LINK_JOINED } from './services/sync';
-import { PEER_COLORS, PEER_NAMES, COLOR_PAGE, PRESENCE_REFRESH_S } from './constants';
-import { Sidebar } from './components/Sidebar';
+import { PEER_COLORS, PEER_NAMES, COLOR_PAGE, PRESENCE_REFRESH_S, CONFIG_DIR } from './constants';
+import { Sidebar, showSearch, stepSidebar } from './components/Sidebar';
+import { Prompt, openSwitcher, stepPrompt } from './components/Prompt';
+import { stepLinks } from './components/Block';
 import { SlashMenu, stepMenu } from './components/SlashMenu';
 import { applyFocus, watchFocus, focusTitle } from './components/focus';
 import { appRoot } from './components/root';
@@ -25,6 +29,7 @@ function App(): number {
     <PageView />
     <DropLine />
     <SlashMenu />
+    <Prompt />
   </View>;
 }
 
@@ -39,25 +44,30 @@ for (let i = 0; i < me.name.length; i++) tint = (tint * 31 + me.name.charCodeAt(
 me.color = PEER_COLORS[tint % PEER_COLORS.length];
 const css = (c: number): string => '#' + c.toString(16).padStart(6, '0');
 
-// ---- the list of pages, shared: a Loro map (page id -> 1, or 0 once deleted) in a room of its own
+// ---- the vault's notes and folders, shared: a Loro map in a room of its own ('n:' + note id -> its path, '' once deleted;
+// 'd:' + folder -> 1). Every window keeps its notes in step with it; the one that serves moves the files to match.
 const workspace = new LoroBlockStore();
-const index = workspace.doc.getMap('pages');
-function listPage(p: Page, live: boolean): void { if (index.get(p.id) !== (live ? 1 : 0)) { index.set(p.id, live ? 1 : 0); workspace.doc.commit(); } }
+const index = workspace.doc.getMap('vault');
+function put(key: string, value: string | number): void { if (index.get(key) !== value) { index.set(key, value); workspace.doc.commit(); } }
 function readIndex(): void {
   for (const key of index.keys()) {
-    const live = index.get(key) === 1, p = pageWithId(key);
-    if (live && p === null) addRemotePage(key);
-    else if (!live && p !== null) deletePage(p as Page);
+    const v = index.get(key);
+    if (key.startsWith('d:')) { addFolder(key.slice(2)); continue; }
+    const path = String(v), p = pageWithId(key.slice(2));
+    if (path !== '' && p === null) addRemotePage(key.slice(2), path);
+    else if (path === '' && p !== null) deletePage(p as Page);
+    else if (p !== null) setPagePath(p as Page, path);
   }
   if (currentPage() === null && pages().length > 0) setCurrentPage(pages()[0]);
 }
 workspace.doc.subscribe((e: any) => { if (e.by !== 'local') readIndex(); });
-
-// ---- every page is a room: @nbe/collab's sync on its Loro document
-setOutputs(pageChanged, (p: Page) => {
-  listPage(p, true);
-  joinRoom(`page:${p.id}`, (t: Transport) => connect(p.store, t));
-}, (p: Page) => listPage(p, false));
+onPageOpened((p: Page) => {
+  put(`n:${p.id}`, p.path());
+  joinRoom(`page:${p.id}`, (t: Transport) => connect(p.store, t));   // every note is a room: @nbe/collab's sync on its Loro document
+});
+onPageMoved((p: Page, from: string) => put(`n:${p.id}`, p.path()));
+onPageRemoved((p: Page) => put(`n:${p.id}`, ''));
+onFolderAdded((path: string) => put(`d:${path}`, 1));
 joinRoom('workspace', (t: Transport) => connect(workspace, t));
 
 // ---- presence: @nbe/collab's, in its own room; where my caret is goes out when it moves
@@ -92,21 +102,33 @@ function stepPresence(dt: number): void {
   presence.set(state);
 }
 
-ui.onKey((e: ui.KeyEvent) => { if (e.primary && e.key === 'n') { const p = createPage(); setCurrentPage(p); focusTitle(p); e.preventDefault(); } });
+// Obsidian's keys: Cmd+N a new note, Cmd+O the quick switcher, Cmd+Shift+F the search
+ui.onKey((e: ui.KeyEvent) => {
+  if (!e.primary) return;
+  if (e.key === 'n' && !e.shift) { const p = createPage(''); setCurrentPage(p); focusTitle(p); }
+  else if (e.key === 'o' && !e.shift) openSwitcher();
+  else if ((e.key === 'f' || e.key === 'F') && e.shift) showSearch();
+  else return;
+  e.preventDefault();
+});
 
 function tick(dt: number): void {
   applyFocus();
   stepMenu(appRoot.node);
+  stepPrompt();
+  stepSidebar();
+  stepLinks();
   stepPresence(dt);
-  stepVault(dt, pageWithId, false);
+  stepVault(dt);
 }
 
-// The window that serves (or works alone) reads the vault; one that joins gets the pages from it.
+// The window that serves (or works alone) reads the vault; one that joins gets the notes from it.
 startSync((mode: number) => {
   if (mode === LINK_JOINED) return;
   openVault();
-  if (allPages().length === 0) createPage();
-  setCurrentPage(allPages()[0]);
+  openIndex(`${vaultDir()}/${CONFIG_DIR}/index.sqlite`);
+  if (pages().length === 0) createPage('');
+  setCurrentPage(pageAt(lastOpenNote()) ?? pages()[0]);
 });
 watchFocus();
 watchDrags();

@@ -1,9 +1,11 @@
-// The open page: breadcrumb and the people here, then the icon, the title and the blocks in a centred column; a click below
-// the last block writes there. Dragging a block by its grip shows a line where it lands (zinc:ui/dnd's monitor) and moves it.
+// The open note: its folder and name and the people here, then the icon, the title (the file's name: renamed when the field is
+// left) and the blocks in a centred column; a click below the last block writes there; then the notes that link here (Obsidian's
+// "Linked mentions") and a status bar. Dragging a block by its grip shows a line where it lands (zinc:ui/dnd's monitor) and moves it.
 import { createMemo, createNodeRef, createSignal, onCleanup } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as dnd from 'zinc:ui/dnd';
-import { Page, Block, Peer, currentPage, peers, renamePage, cyclePageIcon, blockOf, moveNear, insertBlockAfter } from '../../state';
+import { Page, Block, Peer, currentPage, setCurrentPage, peers, cyclePageIcon, blockOf, moveNear, insertBlockAfter, titleOf, folderOf,
+  backlinksOf, pageOf } from '../../state';
 import { labels } from '../../labels';
 import { PAGE_MAX_WIDTH, HANDLE_WIDTH, T_TEXT } from '../../constants';
 import { BlockRow, rowOf } from '../../components/Block';
@@ -17,7 +19,7 @@ const [dropLine, setDropLine] = createSignal<number[]>([]);   // [x, y, width] i
 
 /** Where the dragged block would land: the edge of the row under the pointer. */
 function showDrop(d: dnd.DragInfo): void {
-  if (d.targets.length === 0 || d.targets[0].data === d.data) { setDropLine([]); return; }
+  if (d.targets.length === 0 || d.targets[0].data === d.data || blockOf(d.data) === null) { setDropLine([]); return; }
   const t = d.targets[0], h = rowOf(t.data);
   if (h < 0) return;
   const box = ui.screenBox(h), at = ui.toLocal(appRoot.node, box[0], t.edge === dnd.EDGE_TOP ? box[1] : box[1] + box[3]);
@@ -50,7 +52,8 @@ function TopBar(props: { p: Page }): i32 {
   const p = props.p;
   return <View className="flex-row items-center h-[46] px-4 gap-2">
     <PageIcon p={p} size={17} color={0x91918e} />
-    <Text className="text-[14px] text-[#37352f] grow" numberOfLines={1}>{p.title() === '' ? labels.untitled : p.title()}</Text>
+    {folderOf(p.path()) !== '' && <Text className="text-[14px] text-[#91918e]" numberOfLines={1}>{`${folderOf(p.path()).replaceAll('/', ' / ')} /`}</Text>}
+    <Text className="text-[14px] text-[#37352f] grow" numberOfLines={1}>{titleOf(p)}</Text>
     {peers().map((x: Peer) => <View className={x.page === p.id ? 'opacity-100' : 'opacity-40'}><Avatar name={x.name} color={x.color} size={24} /></View>)}
   </View>;
 }
@@ -68,12 +71,14 @@ function PageBody(props: { p: Page }): i32 {
         </View>
         <View className="flex-row pl-[52] pr-[72] pt-3 pb-2">
           <TextArea ref={p.titleRef} rows={0} className="grow border-0 p-0 rounded-none bg-transparent focus:border-[#ffffff] text-[40px] font-bold leading-[48] text-[#37352f]"
-            placeholder={labels.untitled} value={p.title()} onInput={(v: string) => renamePage(p, v.replaceAll('\n', ' '))} onKeyDown={(e: ui.KeyEvent) => onTitleKey(p, e)} />
+            placeholder={labels.untitled} value={titleOf(p)} onInput={(v: string) => { p.draft = v.replaceAll('\n', ' '); }} onKeyDown={(e: ui.KeyEvent) => onTitleKey(p, e)} />
         </View>
         {p.blocks().map((b: Block) => <BlockRow b={b} />)}
       </View>
-      <View className="w-full h-[240] cursor-text" onPointerDown={(e: ui.PointerEvent) => writeBelow(p)} />
+      <View className="w-full h-[120] cursor-text" onPointerDown={(e: ui.PointerEvent) => writeBelow(p)} />
+      <Backlinks p={p} />
     </ScrollView>
+    <StatusBar p={p} />
   </View>;
   const title = p.titleRef.node;
   onCleanup(dnd.autoScroll(scroller.node));
@@ -81,11 +86,39 @@ function PageBody(props: { p: Page }): i32 {
   return node;
 }
 
-/** The page shown, rebuilt when another page opens. */
+/** The blocks of other notes that link here, under their note's name; a click opens that note. */
+function Backlinks(props: { p: Page }): i32 {
+  const p = props.p, links = createMemo<Block[]>(() => backlinksOf(p), []);
+  return <View className={`flex-col w-full max-w-[${PAGE_MAX_WIDTH + HANDLE_WIDTH + 72}] mx-auto pl-[52] pr-[72] pb-[64]`}>
+    <View className="h-[1] bg-[#e9e9e7] mb-3" />
+    <Text className="text-[13px] font-semibold text-[#787774] pb-2">{`Linked mentions · ${links().length}`}</Text>
+    {links().map((b: Block) => <View className="flex-col rounded-md px-3 py-2 mb-1 hover:bg-[#f7f7f5] cursor-pointer"
+      onPointerDown={(e: ui.PointerEvent) => { const q = pageOf(b); if (q !== null) setCurrentPage(q); }}>
+      <Text className="text-[14px] font-medium text-[#37352f]" numberOfLines={1}>{titleOf(pageOf(b) as Page)}</Text>
+      <Text className="text-[13px] leading-[19] text-[#787774]" numberOfLines={2}>{b.text() !== '' ? b.text() : `[[${b.links()[0].target}]]`}</Text>
+    </View>)}
+    {links().length === 0 && <Text className="text-[13px] text-[#a4a29c]">No note links here. Type [[ and its name in another note.</Text>}
+  </View>;
+}
+
+/** Obsidian's status bar: the words and characters of the note, the notes that link here. */
+function StatusBar(props: { p: Page }): i32 {
+  const p = props.p;
+  const count = createMemo<number[]>(() => {
+    let words = 0, chars = 0;
+    for (const b of p.blocks()) { const t = b.text(); chars += t.length; words += t.split(/\s+/).filter((w: string) => w !== '').length; }
+    return [words, chars];
+  }, [0, 0]);
+  return <View className="flex-row justify-end h-[26] px-3 items-center">
+    <Text className="text-[12px] text-[#91918e]">{`${count()[0]} words · ${count()[1]} characters`}</Text>
+  </View>;
+}
+
+/** The note shown, rebuilt when another note opens. */
 export function PageView(): i32 {
   const shown = createMemo<Page[]>(() => { const p = currentPage(); return p === null || !(p as Page).ready() ? [] : [p as Page]; }, []);
   return <View className="grow flex-col">
     {shown().map((p: Page) => <PageBody p={p} />)}
-    {shown().length === 0 && currentPage() === null && <View className="grow items-center justify-center"><Text className="text-[15px] text-[#91918e]">No page. Make one in the sidebar.</Text></View>}
+    {shown().length === 0 && currentPage() === null && <View className="grow items-center justify-center"><Text className="text-[15px] text-[#91918e]">No note open. Cmd+O finds or makes one.</Text></View>}
   </View>;
 }

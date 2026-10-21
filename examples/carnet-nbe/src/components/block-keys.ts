@@ -3,8 +3,8 @@
 // The arrows cross block edges and "/" opens the slash menu.
 import * as ui from 'zinc:ui';
 import { matchAutoformat, applyAutoformat, applyDividerAutoformat } from '@nbe/core';
-import { Block, Page, pageOf, editText, insertBlockAfter, neighbour, duplicateBlock, toggleChecked, split, joinUp, joinDown,
-  indentBy, moveUpDown, changeType, undo } from '../state';
+import { Block, Page, Link, pageOf, editText, insertBlockAfter, neighbour, duplicateBlock, toggleChecked, split, joinUp, joinDown,
+  indentBy, moveUpDown, changeType, undo, makeLinks, openLink, commitTitle } from '../state';
 import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_CODE } from '../constants';
 import { focusBlock, focusTitle } from './focus';
 import { appRoot } from './root';
@@ -18,6 +18,8 @@ export function onBlockInput(b: Block, v: string): void {
   const h = b.ref.node, caret = h >= 0 ? ui.caretOf(h) : v.length;
   const p = pageOf(b) as Page;
   editText(b, v);
+  const linked = makeLinks(b, caret);
+  if (linked >= 0) { focusBlock(b, linked); return; }
   if (b.type() === T_TEXT) {
     const before = v.slice(0, caret);
     if (before === '---') { applyDividerAutoformat(p.editor, b.id); return; }
@@ -39,7 +41,9 @@ export function onBlockKey(b: Block, e: ui.KeyEvent): void {
   if (menuKey(e)) { e.preventDefault(); return; }
   const k = e.key, caret = ui.caretOf(h), len = ui.getValue(h).length;
   let done = true;
-  if (k === 'Enter' && e.primary && b.type() === T_TODO) toggleChecked(b);
+  const link = b.links().find((l: Link) => l.from <= caret && caret <= l.to);
+  if (k === 'Enter' && e.alt && link !== undefined) openLink(link.target, pageOf(b));   // Obsidian's "follow link under cursor"
+  else if (k === 'Enter' && e.primary && b.type() === T_TODO) toggleChecked(b);
   else if (k === 'Enter' && !e.shift && !e.primary && b.type() !== T_CODE) { if (!collapsed(h)) editText(b, ui.getValue(h).slice(0, Math.min(caret, ui.anchorOf(h))) + ui.getValue(h).slice(Math.max(caret, ui.anchorOf(h)))); split(b, Math.min(caret, ui.anchorOf(h))); }
   else if (k === 'Backspace' && caret === 0 && collapsed(h) && !e.primary && !e.alt) {
     if (!joinUp(b) && neighbour(b, -1, false) === null && b.text() === '') { const p = pageOf(b); if (p !== null) focusTitle(p as Page); }
@@ -67,10 +71,11 @@ export function onBlockKey(b: Block, e: ui.KeyEvent): void {
   if (done) e.preventDefault();
 }
 
-/** The page title: Enter and ↓ go to the first block (made when the page has none). */
+/** The note's title: Enter renames the note (as leaving the field does) and goes to the first block, ↓ too without renaming. */
 export function onTitleKey(p: Page, e: ui.KeyEvent): void {
   if (e.key !== 'Enter' && e.key !== 'ArrowDown') return;
   if (e.key === 'ArrowDown' && !atLastRow(p.titleRef.node)) return;
+  if (e.key === 'Enter') commitTitle(p);
   const first = p.items.length > 0 ? p.items[0] : insertBlockAfter(p, null, T_TEXT, '');
   if (e.key === 'Enter' && first.text() !== '') focusBlock(insertBlockAfter(p, null, T_TEXT, ''), 0);
   else focusBlock(first, 0);

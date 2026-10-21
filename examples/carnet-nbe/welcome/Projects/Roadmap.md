@@ -1,9 +1,6 @@
 ---
 icon: rocket
-order: 2
 ---
-# Roadmap
-
 ## Now
 
 - Live editing between windows and machines
@@ -15,7 +12,6 @@ order: 2
 - [ ] Databases: table, board and gallery views
 - [ ] Comments anchored to text
 
-```
-zinc run examples/carnet
-CARNET_NAME=Grace zinc run examples/carnet
-```
+Two people: run the app twice, the second window joins the first.
+
+[[Welcome to Carnet]]

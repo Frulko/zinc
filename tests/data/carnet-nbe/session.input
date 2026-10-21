@@ -1,0 +1,28 @@
+10 move 760 289
+11 down
+12 up
+14 key End
+15 key Enter
+17 text "Typed on Zinc."
+19 key Enter
+21 text "/"
+22 text "head"
+23 key Enter
+25 text "A new section"
+27 key Enter
+29 text "- "
+31 text "first point"
+33 key Enter
+35 text "second point"
+37 key Enter
+39 key Enter
+41 text "[] "
+43 text "a task"
+45 key Enter
+47 key Enter
+49 text "> "
+51 text "quoted"
+70 key n meta
+73 text "Ideas"
+75 key Enter
+78 text "Read the [[Reading list]] and [[Projects/Roadmap|the roadmap]]."

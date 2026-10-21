@@ -1,6 +1,13 @@
-600 move 760 289
-601 down
-602 up
-604 key End
-605 key Enter
-607 text "Typed by Grace in the other window."
+600 key o meta
+603 text "welcome"
+606 key Enter
+610 move 760 289
+611 down
+612 up
+614 key End
+615 key Enter
+617 text "Typed by Grace in the other window."
+640 key n meta
+643 text "From Grace"
+645 key Enter
+648 text "Made in the other window."

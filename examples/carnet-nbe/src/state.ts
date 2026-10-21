@@ -1,14 +1,16 @@
-// The workspace as the view sees it: pages and their blocks as signals, read from Carnet's own model. Each page is an
-// `Editor` of @nbe/core over a `LoroBlockStore` of @nbe/collab (one Loro document per page, as Carnet's desktop app does), and
-// every action a component calls is a command of @nbe/core; this file only flattens the block tree into rows and keeps the
-// rows' signals in step with the document after each local or remote change. No drawing and no I/O here.
+// The vault as the view sees it: its notes, their blocks and its folders as signals, read from Carnet's own model. A note is a
+// Markdown file of the vault (its path); while open it is an `Editor` of @nbe/core over a `LoroBlockStore` of @nbe/collab (one Loro
+// document per note), and every action a component calls is a command of @nbe/core. This file flattens the block tree into rows,
+// keeps the rows' signals in step with the document after each local or remote change, and tells the services (the files, the
+// shared list of notes, the index) what changed. No drawing and no I/O here.
 import { createSignal, NodeRef } from 'zinc:ui/solid';
 import {
   Editor, plainText, textCaret, splitBlock, mergeBackward, mergeForward, turnInto, indent, outdent, deleteBlocks,
-  toggleChecked as toggleTodo, duplicateBlocks, moveBlocksVertical, moveBlocks, uuidv7, docToJSON,
+  toggleChecked as toggleTodo, duplicateBlocks, moveBlocksVertical, moveBlocks, uuidv7, docToJSON, docFromJSON, documentOrder,
 } from '@nbe/core';
 import { LoroBlockStore, seedFromJSON, redrawOnRemote } from '@nbe/collab';
-import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_QUOTE, T_CALLOUT, T_CODE, T_DIVIDER, T_TOGGLE, T_OTHER, PAGE_ICONS } from './constants';
+import { slugify } from '@nbe/markdown';
+import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_QUOTE, T_CALLOUT, T_CODE, T_DIVIDER, T_TOGGLE, T_LINK, T_OTHER, PAGE_ICONS, UNTITLED } from './constants';
 
 /** One row of the page: a block of the document at its depth in the tree. */
 export class Block {
@@ -17,6 +19,7 @@ export class Block {
   text: () => string; setText: (v: string) => void;
   checked: () => boolean; setChecked: (v: boolean) => void;
   indent: () => number; setIndent: (v: number) => void;
+  links: () => Link[]; setLinks: (v: Link[]) => void;   // its [[wikilinks]] (mentions), or the note a link block points at
   ref: NodeRef = new NodeRef();   // its text field
   constructor(id: string, page: string) {
     this.id = id; this.page = page;
@@ -24,15 +27,24 @@ export class Block {
     [this.text, this.setText] = createSignal<string>('');
     [this.checked, this.setChecked] = createSignal<boolean>(false);
     [this.indent, this.setIndent] = createSignal<number>(0);
+    [this.links, this.setLinks] = createSignal<Link[]>([]);
   }
 }
 
+/** A [[wikilink]] in a block's text: where it is (UTF-16 offsets) and the note it names, as written. */
+export class Link {
+  from: number; to: number; target: string;
+  constructor(from: number, to: number, target: string) { this.from = from; this.to = to; this.target = target; }
+}
+
 export class Page {
-  id: string;                      // the page block's id, also its room and its file name
+  id: string;                      // the page block's id for this session, also its room
   store: LoroBlockStore;
   editor: Editor;
-  title: () => string; setTitle: (v: string) => void;
-  icon: () => string; setIcon: (v: string) => void;
+  path: () => string; setPath: (v: string) => void;      // in the vault: "Projects/Roadmap.md"
+  title: () => string; setTitle: (v: string) => void;    // its `title` property, when the file name cannot hold it (see titleOf)
+  icon: () => string; setIcon: (v: string) => void;      // its `icon` property: a Lucide name or an emoji, '' for none
+  draft: string | null = null;     // the title being typed: the note is renamed when the field is left (commitTitle)
   blocks: () => Block[]; setBlocks: (v: Block[]) => void;
   ready: () => boolean; setReady: (v: boolean) => void;   // its page block has arrived (a page from another window comes a moment after its name)
   items: Block[] = [];             // the rows in order (blocks() is a copy of it)
@@ -41,8 +53,9 @@ export class Page {
   constructor(id: string, store: LoroBlockStore) {
     this.id = id; this.store = store;
     this.editor = new Editor({ doc: { blocks: store, rootId: id } });
+    [this.path, this.setPath] = createSignal<string>('');
     [this.title, this.setTitle] = createSignal<string>('');
-    [this.icon, this.setIcon] = createSignal<string>('file-text');
+    [this.icon, this.setIcon] = createSignal<string>('');
     [this.blocks, this.setBlocks] = createSignal<Block[]>([]);
     [this.ready, this.setReady] = createSignal<boolean>(false);
   }
@@ -56,6 +69,12 @@ export class Peer {
 }
 
 export const [pages, setPages] = createSignal<Page[]>([]);
+/** The vault's folders ("Projects", "Projects/2026"), sorted, empty ones included. */
+export const [folders, setFolders] = createSignal<string[]>([]);
+/** The folders folded in the file explorer. */
+export const [collapsed, setCollapsed] = createSignal<string[]>([]);
+/** The vault's name, as the window that serves it calls its folder. */
+export const [vaultName, setVaultName] = createSignal<string>('');
 export const [currentPage, setCurrentPage] = createSignal<Page | null>(null);
 export const [peers, setPeers] = createSignal<Peer[]>([]);
 /** The block whose field has the focus (null: none), for placeholders and presence. */
@@ -65,12 +84,36 @@ export class Me { id = 'local'; name = 'Me'; color = 0; }
 export const me = new Me();
 
 const pageById = new Map<string, Page>();
-let changed: (p: Page) => void = () => {};
-let opened: (p: Page) => void = () => {};
-let removed: (p: Page) => void = () => {};
-/** main.ts: what to do when a page changes (save it), appears (list it, connect it to the others) and goes. */
-export function setOutputs(pageChanged: (p: Page) => void, pageOpened: (p: Page) => void, pageRemoved: (p: Page) => void): void {
-  changed = pageChanged; opened = pageOpened; removed = pageRemoved;
+// ---- who hears what: the services (the files, the shared list of notes, the index) listen to the notes
+const changedFns: Array<(p: Page) => void> = [], openedFns: Array<(p: Page) => void> = [], removedFns: Array<(p: Page) => void> = [];
+const movedFns: Array<(p: Page, from: string) => void> = [];
+/** A note's blocks or properties changed (here or in another window). */
+export function onPageChanged(f: (p: Page) => void): void { changedFns.push(f); }
+/** A note appeared (read from the vault, made here, or listed by another window). */
+export function onPageOpened(f: (p: Page) => void): void { openedFns.push(f); }
+/** A note went (deleted here or elsewhere). */
+export function onPageRemoved(f: (p: Page) => void): void { removedFns.push(f); }
+/** A note has another path (renamed or moved, here or elsewhere). */
+export function onPageMoved(f: (p: Page, from: string) => void): void { movedFns.push(f); }
+const folderFns: Array<(path: string) => void> = [];
+/** A folder appeared (made here, read from the vault, or listed by another window). */
+export function onFolderAdded(f: (path: string) => void): void { folderFns.push(f); }
+function changed(p: Page): void { for (const f of changedFns) f(p); }
+
+// ---- names and paths, as a vault has them
+/** "Projects/Roadmap.md" -> "Roadmap". */
+export function stemOf(path: string): string { const s = path.slice(path.lastIndexOf('/') + 1); return s.endsWith('.md') ? s.slice(0, -3) : s; }
+/** "Projects/Roadmap.md" -> "Projects" ('' at the vault's root). */
+export function folderOf(path: string): string { const i = path.lastIndexOf('/'); return i < 0 ? '' : path.slice(0, i); }
+export function joinPath(folder: string, name: string): string { return folder === '' ? name : `${folder}/${name}`; }
+/** What a note is called: its `title` property when it has one, its file name otherwise (Carnet's Obsidian plugin). */
+export function titleOf(p: Page): string { return p.title() !== '' ? p.title() : stemOf(p.path()); }
+/** A free path for `name` in `folder`: "Untitled.md", then "Untitled 1.md"... (`except` may keep its own). */
+export function freePath(folder: string, name: string, except: Page | null): string {
+  for (let i = 0; ; i++) {
+    const path = joinPath(folder, `${i === 0 ? name : `${name} ${i}`}.md`), lower = path.toLowerCase();
+    if (![...pageById.values()].some((p: Page) => p !== except && p.path().toLowerCase() === lower)) return path;
+  }
 }
 
 // ---- Carnet's block types as the view's kinds, and back
@@ -86,6 +129,7 @@ function kindOf(type: string, props: Record<string, unknown>): string {
     case 'callout': return T_CALLOUT;
     case 'code': return T_CODE;
     case 'divider': return T_DIVIDER;
+    case 'link_to_page': return T_LINK;
     default: return T_OTHER;
   }
 }
@@ -108,13 +152,26 @@ export function typeOf(kind: string): [string, Record<string, unknown> | undefin
 }
 
 // ---- the document to rows
-/** Reads the page again: its title and icon, and its blocks depth first (a list item's children nest under it). */
+/** The [[wikilinks]] of a block: its mention marks, or the note a link block names. */
+function linksOf(x: any): Link[] {
+  if (x.type === 'link_to_page') return [new Link(0, 0, String(x.props['target'] ?? x.props['title'] ?? ''))];
+  const out: Link[] = [];
+  let at = 0;
+  for (const run of x.text ?? []) {
+    for (const m of run.marks ?? []) if (m.type === 'mention' && m.attrs?.['target']) out.push(new Link(at, at + run.text.length, String(m.attrs['target'])));
+    at += run.text.length;
+  }
+  return out;
+}
+const sameLinks = (a: Link[], b: Link[]): boolean => a.length === b.length && a.every((l, i) => l.from === b[i].from && l.to === b[i].to && l.target === b[i].target);
+
+/** Reads the note again: its properties, and its blocks depth first (a list item's children nest under it). */
 export function rebuild(p: Page): void {
   const root = p.store.get(p.id);
   p.setReady(root !== undefined);
   if (root === undefined) { if (p.items.length > 0) { p.items = []; p.setBlocks([]); } return; }
   p.setTitle(String(root.props['title'] ?? ''));
-  p.setIcon(String(root.props['icon'] ?? 'file-text'));
+  p.setIcon(String(root.props['icon'] ?? ''));
   const list: Block[] = [];
   const walk = (id: string, depth: number): void => {
     const b = p.store.get(id);
@@ -128,6 +185,8 @@ export function rebuild(p: Page): void {
       row.setText(plainText(x.text));
       row.setChecked(x.props['checked'] === true);
       row.setIndent(depth);
+      const links = linksOf(x);
+      if (!sameLinks(links, row.links())) row.setLinks(links);
       list.push(row);
       walk(c, depth + 1);
     }
@@ -150,52 +209,158 @@ function watch(p: Page): void {
   });
 }
 
-/** A page from a document (the vault's, or a new one): seeds its Loro document. Only the window that read the file does this;
- *  the others receive the document, since two seeds of one file would be two sets of blocks to Loro. */
-export function addPage(json: any): Page {
+/** A note from a document (a file of the vault, or a new one) at `path`: seeds its Loro document. Only the window that read
+ *  the file does this; the others receive the document, since two seeds of one file would be two sets of blocks to Loro. */
+export function addPage(json: any, path: string): Page {
   const store = new LoroBlockStore();
   seedFromJSON(store, json);
-  return addStore(json.id, store);
+  return addStore(json.id, store, path);
 }
-/** A page known by its id only (another window has it): its document arrives from them. */
-export function addRemotePage(id: string): Page {
+/** A note known by its id and path only (another window has it): its document arrives from them. */
+export function addRemotePage(id: string, path: string): Page {
   const known = pageById.get(id);
-  return known !== undefined ? known : addStore(id, new LoroBlockStore());
+  return known !== undefined ? known : addStore(id, new LoroBlockStore(), path);
 }
-function addStore(id: string, store: LoroBlockStore): Page {
+function addStore(id: string, store: LoroBlockStore, path: string): Page {
   const p = new Page(id, store);
+  p.setPath(path);
   pageById.set(id, p);
   watch(p);
   rebuild(p);
-  setPages([...pageById.values()]);
-  opened(p);
+  listPages();
+  for (const f of openedFns) f(p);
   return p;
 }
+/** The notes in the order of their paths (folders first at each level, as a file explorer lists them). */
+function listPages(): void { setPages([...pageById.values()].sort((a: Page, b: Page) => a.path().localeCompare(b.path()))); }
+/** Moves or renames a note (the vault renames its file). */
+export function setPagePath(p: Page, path: string): void {
+  const from = p.path();
+  if (from === path) return;
+  p.setPath(path);
+  listPages();
+  for (const f of movedFns) f(p, from);
+}
+/** Renames or moves a note here, as Obsidian does with "update internal links": the links of other notes that named it and
+ *  would no longer find it are rewritten to its new name (path-qualified ones to its new path). */
+export function movePage(p: Page, path: string): void {
+  const from = p.path(), found: Array<[Page, Block, Link]> = [];
+  for (const q of pages()) for (const b of q.blocks()) for (const l of b.links()) if (resolveLink(l.target, q) === p) found.push([q, b, l]);
+  setPagePath(p, path);
+  for (const [q, b, l] of found) {
+    if (resolveLink(l.target, q) === p) continue;
+    const target = l.target.includes('/') ? path.slice(0, -3) : stemOf(path);
+    q.editor.dispatch((tx: any) => {
+      if (b.type() === T_LINK) { tx.op({ type: 'update_block', id: b.id, patch: { props: { target, title: target } } }); return; }
+      const shown = b.text().slice(l.from, l.to);
+      tx.op({ type: 'delete_text', id: b.id, from: l.from, to: l.to });
+      tx.op({ type: 'insert_text', id: b.id, offset: l.from, runs: [{ text: shown === l.target ? target : shown, marks: [{ type: 'mention', attrs: { target } }] }] });
+    }, { origin: 'input' });
+  }
+  if (found.length > 0) console.log(`carnet: ${from} is ${path}: ${found.length} link(s) updated`);
+}
+/** A folder appears (made here, read from the vault, or listed by another window). */
+export function addFolder(path: string): void {
+  if (path === '' || folders().includes(path)) return;
+  const parent = folderOf(path);
+  if (parent !== '') addFolder(parent);
+  setFolders([...folders(), path].sort());
+  for (const f of folderFns) f(path);
+}
+export function removeFolder(path: string): void {
+  const left = folders().filter((f: string) => f !== path && !f.startsWith(path + '/'));
+  if (left.length !== folders().length) setFolders(left);
+}
 export function pageWithId(id: string): Page | null { return pageById.get(id) ?? null; }
-export function allPages(): Page[] { return [...pageById.values()]; }
 export function pageOf(b: Block): Page | null { return pageById.get(b.page) ?? null; }
 export function blockOf(id: string): Block | null {
   for (const p of pageById.values()) { const b = p.rows.get(id); if (b !== undefined) return b; }
   return null;
 }
-/** The page as Carnet's JSON (to write it as Markdown). */
+/** A note by its path, or null. */
+export function pageAt(path: string): Page | null {
+  const lower = path.toLowerCase();
+  for (const p of pageById.values()) if (p.path().toLowerCase() === lower) return p;
+  return null;
+}
+/** The note a [[wikilink]] names, as Obsidian resolves it: a path ("Projects/Roadmap"), else a name, in the folder of the note
+ *  that links first, then anywhere in the vault. Null when no note has that name. */
+export function resolveLink(target: string, from: Page | null): Page | null {
+  const t = target.split('#')[0].split('|')[0].trim().toLowerCase().replace(/\.md$/, '');
+  if (t === '') return null;
+  let any: Page | null = null;
+  for (const p of pageById.values()) {
+    const path = p.path().toLowerCase().slice(0, -3);
+    if (path === t) return p;
+    if (stemOf(p.path()).toLowerCase() !== t) continue;
+    if (from !== null && folderOf(p.path()) === folderOf(from.path())) return p;
+    if (any === null) any = p;
+  }
+  return any;
+}
+/** Follows a [[wikilink]] as Obsidian does: opens the note it names, or makes it (in the folder the link names, else at the root). */
+export function openLink(target: string, from: Page | null): void {
+  const known = resolveLink(target, from);
+  if (known !== null) { setCurrentPage(known); return; }
+  const t = target.split('#')[0].split('|')[0].trim().replace(/\.md$/, '');
+  if (t !== '') setCurrentPage(createPage(folderOf(t), stemOf(t)));
+}
+/** The blocks of other notes that link to `p` (Obsidian's "Linked mentions"). */
+export function backlinksOf(p: Page): Block[] {
+  const out: Block[] = [];
+  // ponytail: every link of every note, each time a note or a link changes; an index by target past a few thousand notes
+  for (const q of pages()) {
+    if (q === p) continue;
+    for (const b of q.blocks()) if (b.links().some((l: Link) => resolveLink(l.target, q) === p)) out.push(b);
+  }
+  return out;
+}
+/** The note as Carnet's JSON (to write it as Markdown). */
 export function pageJSON(p: Page): any { return docToJSON(p.editor.doc); }
 
-export function createPage(): Page {
-  const icon = PAGE_ICONS[pageById.size % PAGE_ICONS.length];
-  return addPage({ id: uuidv7(), type: 'page', version: 1, props: { title: '', icon },
-    children: [{ id: uuidv7(), type: 'paragraph', version: 1, props: {}, text: [] }] });
+/** A new note in `folder` (an empty title and one empty paragraph), named `name` or "Untitled". */
+export function createPage(folder: string, name: string = UNTITLED): Page {
+  return addPage({ id: uuidv7(), type: 'page', version: 1, props: {},
+    children: [{ id: uuidv7(), type: 'paragraph', version: 1, props: {}, text: [] }] }, freePath(folder, slugify(name), null));
 }
 function setPageProps(p: Page, props: Record<string, unknown>): void {
   p.editor.dispatch((tx: any) => tx.op({ type: 'update_block', id: p.id, patch: { props } }), { origin: 'input' });
 }
-export function renamePage(p: Page, title: string): void { if (p.title() !== title) setPageProps(p, { title }); }
+/** A new title, as the Obsidian plugin commits one: the file takes the name a file system accepts (`slugify`) and the `title`
+ *  property keeps the title only when the two differ ("Réunion : 2026/07" is "Réunion 2026 07.md"). */
+export function renamePage(p: Page, title: string): void {
+  const t = title.replaceAll('\n', ' ').trim(), name = t === '' ? UNTITLED : slugify(t);
+  const keep = t !== '' && t !== name ? t : '';
+  if (keep !== p.title()) setPageProps(p, { title: keep === '' ? undefined : keep });
+  if (name !== stemOf(p.path())) movePage(p, freePath(folderOf(p.path()), name, p));
+}
+/** The typed title, if any, becomes the note's (the field was left or Enter pressed). */
+export function commitTitle(p: Page): void { const d = p.draft; p.draft = null; if (d !== null) renamePage(p, d); }
 export function cyclePageIcon(p: Page): void { setPageProps(p, { icon: PAGE_ICONS[(PAGE_ICONS.indexOf(p.icon()) + 1) % PAGE_ICONS.length] }); }
 export function deletePage(p: Page): void {
   if (!pageById.delete(p.id)) return;
-  removed(p);
-  setPages([...pageById.values()]);
-  if (currentPage() === p) setCurrentPage(pageById.size > 0 ? [...pageById.values()][0] : null);
+  for (const f of removedFns) f(p);
+  listPages();
+  if (currentPage() === p) setCurrentPage(pageById.size > 0 ? pages()[0] : null);
+}
+/** The note's blocks replaced by those of `json` (the file was changed by another program): one transaction, so the others
+ *  see the same and undo puts the note back. */
+export function replaceBlocks(p: Page, json: any): void {
+  const blocks = p.editor.doc.blocks, root = blocks.get(p.id);
+  if (root === undefined) return;
+  const fresh = docFromJSON(json);
+  const order = documentOrder(fresh).slice(1);
+  p.editor.dispatch((tx: any) => {
+    const gone = (id: string): void => { const b = blocks.get(id); if (b === undefined) return; for (const c of [...b.children]) gone(c); tx.op({ type: 'delete_block', id }); };
+    for (const c of [...root.children]) gone(c);
+    let i = 0;
+    for (const id of order) {
+      const b = fresh.blocks.get(id);
+      const top = b.parentId === fresh.rootId;
+      tx.op({ type: 'insert_block', index: top ? i++ : 0, block: { ...b, parentId: top ? p.id : b.parentId } });
+    }
+    tx.op({ type: 'update_block', id: p.id, patch: { props: { title: json.props?.['title'], icon: json.props?.['icon'] } } });
+  }, { origin: 'file' });
 }
 
 // ---- commands: the caret where the view has it, then Carnet's command, then the caret where the command left it
@@ -234,6 +399,27 @@ export function editText(b: Block, v: string): void {
     if (old.length - e > s) tx.op({ type: 'delete_text', id: b.id, from: s, to: old.length - e });
     if (v.length - e > s) tx.op({ type: 'insert_text', id: b.id, offset: s, runs: [{ text: v.slice(s, v.length - e) }] });
   }, { origin: 'input', selection: textCaret(b.id, v.length - e) });
+}
+/** Every "[[Name]]" typed or pasted in the block (not yet a link): the brackets go and the name is a link (a mention, written
+ *  back as [[Name]]; "[[Name|shown]]" shows its second half). Returns where the caret goes, or -1 when there was none. */
+export function makeLinks(b: Block, caret: number): number {
+  const v = b.text(), found: number[][] = [], re = /\[\[([^\[\]\n]+)\]\]/g;
+  for (let m = re.exec(v); m !== null; m = re.exec(v)) {
+    const from = m.index, to = from + m[0].length;
+    if (m[1].trim() !== '' && !b.links().some((l: Link) => l.from < to && from < l.to)) found.push([from, to]);
+  }
+  if (found.length === 0) return -1;
+  let at = caret;
+  (pageOf(b) as Page).editor.dispatch((tx: any) => {
+    for (let i = found.length - 1; i >= 0; i--) {   // from the end: the offsets before stay right
+      const [from, to] = found[i], raw = v.slice(from + 2, to - 2), pipe = raw.indexOf('|');
+      const target = pipe < 0 ? raw : raw.slice(0, pipe), shown = pipe < 0 ? raw : raw.slice(pipe + 1);
+      tx.op({ type: 'delete_text', id: b.id, from, to });
+      tx.op({ type: 'insert_text', id: b.id, offset: from, runs: [{ text: shown, marks: [{ type: 'mention', attrs: { target } }] }] });
+      if (caret >= to) at -= to - from - shown.length; else if (caret > from) at = from + shown.length;
+    }
+  }, { origin: 'input' });
+  return at;
 }
 export function changeType(b: Block, kind: string): void {
   const [type, props] = typeOf(kind);

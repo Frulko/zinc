@@ -1,13 +1,15 @@
 // One block: the handle (+ adds a block below, the grip drags it), the marker of its type (bullet, number, check box,
 // callout icon), its text field (the engine's textarea, as tall as its text) and the people whose caret is in it, drawn in
-// the field (their caret and selection) and named on the right.
+// the field (their caret and selection) and named on the right. A [[wikilink]] in the text is coloured and followed with
+// Cmd+click or Alt+Enter; a line that is only a link (Carnet's link_to_page) is drawn as a link to the note.
 import { createEffect, onCleanup, createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as dnd from 'zinc:ui/dnd';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
-import { Block, Page, Peer, pageOf, peersOn, focusedBlock, setFocusedBlock, toggleChecked, insertBlockAfter, listNumber } from '../state';
-import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_QUOTE, T_CALLOUT, T_CODE, T_DIVIDER, T_TOGGLE, T_OTHER, HANDLE_WIDTH, INDENT_STEP,
-  COLOR_TEXT_FAINT, COLOR_TEXT_SECONDARY, COLOR_PAGE } from '../constants';
+import { Block, Page, Peer, Link, pageOf, peersOn, focusedBlock, setFocusedBlock, toggleChecked, insertBlockAfter, listNumber, openLink,
+  resolveLink } from '../state';
+import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_QUOTE, T_CALLOUT, T_CODE, T_DIVIDER, T_TOGGLE, T_LINK, T_OTHER, HANDLE_WIDTH, INDENT_STEP,
+  COLOR_TEXT_FAINT, COLOR_TEXT_SECONDARY, COLOR_PAGE, COLOR_ACCENT, COLOR_LINK_MISSING } from '../constants';
 import { onBlockInput, onBlockKey } from './block-keys';
 import { focusBlock, registerField, unregisterField } from './focus';
 import { openMenuWhenShown } from './SlashMenu';
@@ -52,6 +54,19 @@ function placeholderOf(b: Block): string {
 }
 const BULLETS: string[] = ['•', '◦', '▪'];
 
+// Cmd+click on a link: the click puts the caret first, so the link under it is followed at the next frame
+let followAfterClick: Block | null = null;
+/** Called once per frame. */
+export function stepLinks(): void {
+  const b = followAfterClick;
+  if (b === null) return;
+  followAfterClick = null;
+  const h = (b as Block).ref.node;
+  if (h < 0) return;
+  const c = ui.caretOf(h), l = (b as Block).links().find((x: Link) => x.from <= c && c <= x.to);
+  if (l !== undefined) openLink(l.target, pageOf(b as Block));
+}
+
 function Marker(props: { b: Block }): i32 {
   const b = props.b;
   const t = (): string => b.type();
@@ -95,16 +110,42 @@ function Presence(props: { b: Block }): i32 {
   </View>;
 }
 
+/** A line that is only a link: the note's name, a click opens it (or makes it, faded while it does not exist). */
+function LinkLine(props: { b: Block }): i32 {
+  const b = props.b, target = (): string => b.links().length > 0 ? b.links()[0].target : '';
+  return <View className="grow flex-row items-center h-[24] gap-1.5 cursor-pointer" onPointerDown={(e: ui.PointerEvent) => openLink(target(), pageOf(b))}>
+    <Icon name="arrow-up-right" size={16} color={() => COLOR_ACCENT} strokeWidth={2} />
+    <Text className={`text-[16px] underline ${resolveLink(target(), pageOf(b)) !== null ? 'text-[#2383e2]' : 'text-[#8fb8e6]'}`}>{target()}</Text>
+  </View>;
+}
+
+/** The colour runs of one visual line of a block's text (from `start`): its links in the accent colour, faded when no note has that name. */
+function linkRuns(b: Block, line: string, start: i32): i32[] {
+  const out: i32[] = [], end = start + line.length;
+  let at = start;
+  for (const l of b.links()) {
+    const from = Math.max(l.from, at), to = Math.min(l.to, end);
+    if (to <= from) continue;
+    if (from > at) out.push(from - at, -1);
+    out.push(to - from, resolveLink(l.target, pageOf(b)) !== null ? COLOR_ACCENT : COLOR_LINK_MISSING);
+    at = to;
+  }
+  if (end > at) out.push(end - at, -1);
+  return out;
+}
+
 export function BlockRow(props: { b: Block }): i32 {
   const b = props.b;
   const row = createNodeRef(), grip = createNodeRef();
   const node = <View ref={row} className={`flex-row items-start group ${spaceAbove(b.type())}`} style={{ paddingLeft: b.indent() * INDENT_STEP }}>
     <Handle b={b} grip={grip} />
     {b.type() === T_DIVIDER && <View className="grow h-[24] justify-center"><View className="h-[1] bg-[#e9e9e7]" /></View>}
-    <View className={boxClass(b.type())} style={{ hidden: b.type() === T_DIVIDER ? 1 : 0 }}>
+    {b.type() === T_LINK && <LinkLine b={b} />}
+    <View className={boxClass(b.type())} style={{ hidden: b.type() === T_DIVIDER || b.type() === T_LINK ? 1 : 0 }}>
       <Marker b={b} />
       <TextArea ref={b.ref} rows={0} className={fieldClass(b)} placeholder={placeholderOf(b)} value={b.text()}
-        onInput={(v: string) => onBlockInput(b, v)} onKeyDown={(e: ui.KeyEvent) => onBlockKey(b, e)} />
+        onInput={(v: string) => onBlockInput(b, v)} onKeyDown={(e: ui.KeyEvent) => onBlockKey(b, e)}
+        onPointerDown={(e: ui.PointerEvent) => { if (e.meta || e.ctrl) followAfterClick = b; }} />
     </View>
     <Presence b={b} />
   </View>;
@@ -112,7 +153,8 @@ export function BlockRow(props: { b: Block }): i32 {
   registerField(b.ref.node, b);
   const field = b.ref.node;
   const undrag = dnd.draggable(row.node, { data: b.id, handle: grip.node });
-  const undrop = dnd.dropTarget(row.node, { data: b.id, edges: dnd.EDGES_VERTICAL });
+  const undrop = dnd.dropTarget(row.node, { data: b.id, edges: dnd.EDGES_VERTICAL, canDrop: (d: dnd.DragInfo) => !d.data.startsWith('note:') });
+  ui.setHighlightAt(field, (line: string, start: i32): i32[] => b.links().length === 0 ? [line.length, -1] : linkRuns(b, line, start));
   onCleanup(() => {
     rowNodes.delete(b.id); unregisterField(field); undrag(); undrop();
     if (b.ref.node === field) b.ref.node = -1;   // its node is freed (page closed, block deleted): no caret to ask it for

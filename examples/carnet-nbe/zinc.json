@@ -62,7 +62,13 @@
     "folder",
     "sparkles",
     "pilcrow",
-    "chevron-right"
+    "chevron-right",
+    "chevron-down",
+    "file-plus",
+    "folder-plus",
+    "search",
+    "arrow-up-right",
+    "link"
   ],
   "engine": "quickjs"
 }
