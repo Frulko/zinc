@@ -59,4 +59,7 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
 // "macos" or "linux": the plugin target of this machine.
 std::string pluginTarget();
 
+// The cargo that builds the Rust crates of plugins (plugin.json "cargo"): $CARGO, cargo on the PATH or rustup's ~/.cargo/bin/cargo; "" when none.
+std::string cargoPath();
+
 }  // namespace zn::tc

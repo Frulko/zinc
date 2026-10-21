@@ -193,7 +193,72 @@ bool run(const std::string& cmd, std::string& err, const std::string& what) {
   return true;
 }
 
+// ---- A Rust crate of the plugin (plugin.json targets.<id>.cargo: its directory, ZN loro plugin): cargo builds it as a static library for this machine's Rust
+// triple, which the plugin's shared library and the programs linking the plugin take like a system library. Its target directory is in the cache, one per
+// plugin directory and target, so cargo's own incremental build applies and two checkouts of a plugin never write over each other.
+const char* rustTriple() {
+#if defined(__APPLE__) && defined(__aarch64__)
+  return "aarch64-apple-darwin";
+#elif defined(__APPLE__)
+  return "x86_64-apple-darwin";
+#elif defined(_WIN32)
+  return "x86_64-pc-windows-gnu";   // zig links against MinGW, never MSVC
+#elif defined(__aarch64__)
+  return "aarch64-unknown-linux-gnu";
+#elif defined(__arm__)
+  return "armv7-unknown-linux-gnueabihf";
+#else
+  return "x86_64-unknown-linux-gnu";
+#endif
+}
+// $CARGO, else cargo on the PATH, else rustup's ~/.cargo/bin/cargo (not on the PATH of an app started from the Finder); "" when none
+std::string cargoCommand() {
+  if (const char* c = std::getenv("CARGO"); c && *c) return c;
+  if (haveCommand("cargo")) return "cargo";
+  const char* h = std::getenv("HOME");
+  if (h && fs::exists(std::string(h) + "/.cargo/bin/cargo")) return std::string(h) + "/.cargo/bin/cargo";
+  return "";
+}
+// the files of a crate that its build reads: everything but its target/ directory (and hidden files), directories included (their mtime moves when a file comes or goes)
+std::vector<std::string> crateFiles(const fs::path& dir) {
+  std::vector<std::string> out{dir.string()};
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(dir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    const std::string name = it->path().filename().string();
+    if (name == "target" || name[0] == '.') { if (it->is_directory(ec)) it.disable_recursion_pending(); continue; }
+    out.push_back(it->path().string());
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+bool buildCargo(const frontend::FoundPlugin& p, const std::string& crate, const std::string& target, std::string& archive, std::string& err) {
+  const std::string& name = p.manifest.name;
+  if (gCross.on) { err = "plugin '" + name + "' has Rust code (cargo), which a cross build does not compile yet: build the program on a " + gCross.name + " machine"; return false; }
+  const fs::path dir = fs::path(p.dir) / crate;
+  if (!fs::exists(dir / "Cargo.toml")) { err = "plugin '" + name + "': its cargo crate " + dir.string() + " has no Cargo.toml"; return false; }
+  const std::string cargo = cargoCommand();
+  if (cargo.empty()) {
+    err = "plugin '" + name + "' has Rust code and needs cargo, which this machine does not have: install Rust with rustup (https://rustup.rs), then run the command again";
+    return false;
+  }
+  Hash where;
+  std::error_code wec;
+  where.add(fs::weakly_canonical(fs::absolute(p.dir, wec), wec).string());   // however the plugin directory was spelled (relative from the tests, absolute from a project)
+  const std::string tdir = home() + "/cache/" + target + "/cargo/" + name + "-" + where.hex(), triple = rustTriple();
+  // --locked when the crate has its Cargo.lock: the versions it pins, never newer ones; cd: rustup reads the crate's rust-toolchain.toml from there
+  const std::string cmd = "cd " + q(dir.string()) + " && " + q(cargo) + " build --release --quiet" + (fs::exists(dir / "Cargo.lock") ? " --locked" : "") +
+                          " --target " + triple + " --target-dir " + q(tdir);
+  if (!run(cmd, err, "cargo (the Rust code of " + name + ")")) return false;
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(fs::path(tdir) / triple / "release", ec))
+    if (e.path().extension() == ".a" && e.path().filename().string().rfind("lib", 0) == 0) { archive = e.path().string(); return true; }
+  err = "plugin '" + name + "': cargo built no static library (its Cargo.toml needs [lib] crate-type = [\"staticlib\"])";
+  return false;
+}
+
 }  // namespace
+
+std::string cargoPath() { return cargoCommand(); }
 
 void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig) { gCross = Cross{name, zigTarget, zig, true}; }
 void clearCrossTarget() { gCross = Cross{}; }
@@ -454,6 +519,13 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::sort(hs.begin(), hs.end());
     for (const std::string& f : hs) h.add(sha256File(f));
   }
+  if (!ts.cargo.empty()) {   // the crate's static library, linked like a system library; its bytes in the key, so a changed crate relinks the plugin
+    std::string rust;
+    if (!buildCargo(p, ts.cargo, target, rust, err)) return false;
+    libs.push_back(q(rust));
+    out.linkArgs.push_back(q(rust));
+    h.add(sha256File(rust));
+  }
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
   h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
@@ -611,6 +683,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
     const std::string d = sp.parent_path().string();
     if (std::find(dirs.begin(), dirs.end(), d) == dirs.end()) { dirs.push_back(d); in.push_back(d); for (const auto& e : fs::directory_iterator(d, ec)) in.push_back(e.path().string()); }
   }
+  if (!ts.cargo.empty()) for (const std::string& f : crateFiles(fs::path(p.dir) / ts.cargo)) in.push_back(f);   // a Rust crate: its sources, Cargo.toml and Cargo.lock
   if (!ts.pkg.empty() && haveCommand("pkg-config")) {   // the .pc files of the packages and of everything they require
     std::string all, o;
     for (const std::string& pkg : ts.pkg) all += " " + q(pkg);

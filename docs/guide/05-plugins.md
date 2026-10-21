@@ -143,6 +143,7 @@ worked drivers; the surface size is the display size, set per target. See [docs/
 | `targets` | availability + per-target native build settings; an unlisted target is `Z5003` (sim always allowed for modules) |
 | `targets.<id>.sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries such as `plugins/script`'s QuickJS) build as their own static library with C flags |
 | `targets.<id>.pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libs, raw link flags |
+| `targets.<id>.cargo` | a Rust crate directory of the plugin (`"rust"`): cargo builds it as a static library that is linked with the plugin; needs Rust installed (rustup.rs) |
 | `targets.<id>.defines` / `flags` | compile definitions and flags |
 | `targets.<id>.vendorFlags` | flags of the vendored sources only (`.c` files, C++ under `vendor/`), such as `-frtti` for a C++ library that needs it |
 | `targets.<id>.packages` | system packages added to the SDK image (apk on rpi1, apt on linux); a derived image is built once per set |

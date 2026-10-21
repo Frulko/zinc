@@ -629,8 +629,9 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
     std::vector<std::string> problems; std::error_code ec;
     const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot, ".", problems);
     const std::string here = zn::tc::pluginTarget();
-    int total = 0, ready = 0; std::string missing;
+    int total = 0, ready = 0; std::string missing, rust;
     for (const zn::frontend::FoundPlugin& p : found) {
+      if (const auto r = p.manifest.targetSettings.find(here); r != p.manifest.targetSettings.end() && !r->second.cargo.empty()) rust += (rust.empty() ? "" : ", ") + p.manifest.name;
       bool native = p.manifest.kind == "display";
       for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || (e.path().filename().string().ends_with(".spec.ts") && e.path().filename().string()[0] != '.');
       const auto ts = p.manifest.targetSettings.find(here);
@@ -645,6 +646,10 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
       std::istringstream ms(missing); std::string name;
       while (std::getline(ms, name, ',')) { if (!name.empty() && name[0] == ' ') name.erase(0, 1); if (count < 4) { shown += (shown.empty() ? "" : ", ") + name; ++count; } else ++extra; }
       line("info", "Plugins", n + "; " + shown + (extra ? " and " + std::to_string(extra) + " more" : std::string()) + " are built the first time a program uses them"); todo.push_back("A plugin without a ready library is built the first time a program uses it (see " + P.cmd("zinc doctor --details") + " for which, and why)"); }
+    if (!rust.empty()) {   // plugins with Rust code (zinc:loro): cargo builds it the first time a program uses them
+      if (!zn::tc::cargoPath().empty()) line("ok", "Rust (cargo)", "found: builds the Rust code of " + rust);
+      else { line("info", "Rust (cargo)", "not found: " + rust + " cannot be built"); todo.push_back("To use " + rust + ", install Rust from " + P.cmd("https://rustup.rs") + " (zinc never installs it)"); }
+    }
   }
   std::printf("\n");
   if (todo.empty()) std::printf("  %s  Everything is ready. Try %s\n\n", P.ok("\xE2\x9C\x93").c_str(), P.cmd("zinc new game hello && cd hello && zinc run").c_str());
