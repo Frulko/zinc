@@ -14,4 +14,7 @@ grep -q 'write-flash 0x0 core.bin 0x300000 app.bin' "$tmp/hello/flash.sh" || { e
 python3 tools/esp32-export-test "$Q" "$tmp/hello" "$tmp/native.out" || fail=1
 python3 -c "print(\"console.log('\" + 'x' * 60000 + \"');\")" > "$tmp/big.ts"   # a 60 KB literal
 "$Z" export "$tmp/big.ts" --target esp32 -o "$tmp/big" >/dev/null 2>&1 && { echo "export_esp32: a program over the core's 48 KB was exported"; fail=1; }
+# an emulator that cannot start says why (its own first line), not "cannot write to the device" (the dead pipe of v0.5.0's Intel CI)
+printf '#!/bin/sh\necho "dyld: Library not loaded: libpixman-1.0.dylib" >&2\nexit 134\n' > "$tmp/deadq"; chmod +x "$tmp/deadq"
+printf "console.log(1);\n" > "$tmp/one.ts"; ZINC_QEMU="$tmp/deadq" "$Z" run "$tmp/one.ts" --target esp32 --qemu 2>&1 | grep -q "does not start: dyld: Library not loaded" || { echo "export_esp32: an emulator that cannot start is not reported"; fail=1; }
 exit $fail

@@ -612,6 +612,14 @@ bool qemuCommand(const std::string& chip, const std::string& root, std::string& 
     if (!missing.empty()) { err = "the emulator needs libraries this machine lacks: " + missing + " (Debian and Ubuntu: apt install libpixman-1-0 libsdl2-2.0-0 libslirp0)"; return false; }
   }
 #endif
+  {  // the run discards the emulator's errors: one that cannot start (a library it lacks, a machine it was not built for) says why, instead of a dead pipe
+    std::string said;
+    if (FILE* p = popen((quote(bin.string()) + " --version 2>&1").c_str(), "r")) {
+      char b[512];
+      while (std::fgets(b, sizeof b, p)) said += b;
+      if (pclose(p) != 0) { err = "the emulator " + bin.string() + " does not start: " + said.substr(0, said.find('\n')); return false; }
+    }
+  }
   // a copy of the flash: the emulator writes to it
   fs::path work = fs::path(home()) / "cache" / "esp32-flash.bin";
   std::error_code ec;
