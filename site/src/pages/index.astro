@@ -4,12 +4,19 @@ import { INSTALL, demos, img, cli } from '../data/site';
 const b = import.meta.env.BASE_URL;
 const feats = [
   ['🚀', 'Native, not embedded', 'Interpreted while you work, compiled to C++ when you ship: one executable, no JavaScript engine or browser inside.'],
+  ['🧠', 'Any JavaScript engine', 'Plain JavaScript and npm packages run on QuickJS (built in), JavaScriptCore, V8 or Hermes: one flag, the same program, plugins and WebGL.'],
   ['🌍', 'One program, every screen', 'A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2.'],
   ['⚡', 'Fast Refresh', 'zinc dev swaps each save into the running app: the window and the state stay, the page you were on, what you typed, the round in progress.'],
   ['🧰', 'Batteries included', 'One zinc command builds, runs, debugs, tests, packages and flashes. Cross builds need no Docker and no SDK.'],
   ['🎨', 'UI people already know', 'Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components, on a GPU renderer.'],
   ['🔌', 'Web APIs on real devices', 'fetch, WebSocket, crypto.subtle, localStorage, and the battery, sensors, vibration and notifications of the device.'],
   ['📦', '45 plugins', 'three.js, video, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, and drivers for LED matrices, e-ink and OLED screens.'],
+];
+const engines = [
+  ['QuickJS', 'built into zinc', '70 ns', '1.04 s', '~50 MB', 'smallest, every platform'],
+  ['JavaScriptCore', 'macOS', '115 ns', '0.94 s', '~140 MB', 'nothing to download on a Mac, Safari inspector'],
+  ['V8', 'pack, 14 MB', '52 ns', '0.53 s', '~80 MB', 'the fastest, Chrome DevTools'],
+  ['Hermes', 'pack, 2 MB', '50 ns', '0.89 s', '~70 MB', 'experimental; fast start from bytecode, no JIT needed'],
 ];
 const picks = ['zed-editor.png', 'museum-table-full.jpg', 'pinball3d-play.png', 'navigation.png', 'remarkable-notes.png', 'esp32-2432s022-home.png'].map((f) => demos.find((d) => d.f === f)!);
 ---
@@ -58,6 +65,17 @@ const picks = ['zed-editor.png', 'museum-table-full.jpg', 'pinball3d-play.png', 
       {picks.map((d) => <figure><img src={img(d.f)} alt={d.t} loading="lazy" /><figcaption><b>{d.t}</b>{d.d}<code>{d.cmd}</code></figcaption></figure>)}
     </div>
     <p><a href={`${b}demos/`}>All demos →</a> · <a href={`${b}uses/`}>What people can make →</a></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">JavaScript engines</span>
+    <h2 class="big">Bring your JavaScript, pick the engine.</h2>
+    <p class="lead">Typed Zinc compiles to native code. Plain JavaScript runs on the engine you choose with <code>--engine</code> or <code>"engine"</code> in zinc.json, unchanged. Every engine is bound through Node-API, so plugins, WebGL and WebAssembly are written once; the engines you do not use are downloaded, signed and checked, only when a program asks for them.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Engine</th><th>Comes from</th><th>Call into Zinc</th><th>hero, 600 frames</th><th>Memory</th><th>For</th></tr></thead>
+      <tbody>{engines.map(([e, f, c, h, m, w]) => <tr><td><b>{e}</b></td><td>{f}</td><td>{c}</td><td>{h}</td><td>{m}</td><td>{w}</td></tr>)}</tbody>
+    </table></div>
+    <p><a href={`${b}docs/guide/12-js-engines/`}>How to choose →</a></p>
   </div></section>
 
   <section class="section" style="padding-top:0"><div class="wrap">

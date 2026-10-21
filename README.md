@@ -25,6 +25,8 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
 
 - 🚀 **Native, not embedded.** Your program is interpreted while you work and compiled to C++ when you ship: one executable, no
   JavaScript engine or browser inside, a fast start on modest hardware.
+- 🧠 **Any JavaScript engine.** Plain JavaScript and npm packages run on QuickJS (built in), JavaScriptCore, V8 or Hermes: one
+  flag, the same program, plugins and WebGL. The engines you do not use are not shipped; they download, signed, the first time.
 - 🌍 **One program, every screen.** A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2.
 - ⚡ **Fast Refresh.** `zinc dev` swaps each save into the running program: the window stays and so does the state (the page you were on,
   what you typed, the game round in progress). A save shows up in a fraction of a second, and nothing of it ends up in what you ship.
@@ -43,10 +45,38 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
 One program goes down the stack, and each layer only knows the one below it:
 
 - **Core** (L3 and L2): the compiler turns your TypeScript into a typed IR and one bytecode (ZBC); the shared runtime and `include/zn` define every value and operation once, so every engine behaves the same, byte for byte.
-- **Engines** (L2): the interpreter runs while you work (`zinc run`, `zinc dev`), the AOT compiler writes C++ for a native executable (`zinc build`), QuickJS runs plain JavaScript. Pick one, the program does not change.
+- **Engines** (L2): the interpreter runs while you work (`zinc run`, `zinc dev`), the AOT compiler writes C++ for a native executable (`zinc build`), a JavaScript engine runs plain JavaScript (QuickJS built in; JavaScriptCore, V8 or Hermes on request, all bound through Node-API). Pick one, the program does not change.
 - **Host and HAL** (L1): the host gives programs a screen, sound, network, files and an inspector; a thin HAL per target (macOS, Windows, Linux, Raspberry Pi, webOS, ESP32, the web...) is all that changes from one machine to the next.
 - **Plugins** (side): a plugin is a `plugin.json`, some Zinc code and optional native code. Its Zinc side extends the standard library, its native side loads into the host; the engine itself stays small and agnostic.
 - **Toolchain** (under everything): the `zinc` CLI and a pinned `zig` build, cross-compile and package, with no Docker and no SDK to install.
+
+## 🧠 JavaScript engines
+
+Typed Zinc compiles to native code and needs no JavaScript engine. A program that wants the JavaScript ecosystem (npm packages, three.js,
+PixiJS, Phaser) runs on the engine you pick, unchanged:
+
+```sh
+zinc run main.js                         # QuickJS-ng, built into zinc
+zinc run examples/hero --engine jsc      # JavaScriptCore, the one in macOS
+zinc run examples/hero --engine v8       # V8, downloaded and checked the first time
+zinc run examples/hero --engine hermes   # Hermes, React Native's engine (experimental)
+```
+
+Every engine is bound through one interface, **Node-API**, so Zinc's host, its web environment, WebGL, WebAssembly and the plugins'
+native modules are written once for all of them. Engines other than QuickJS are modules zinc loads on demand; V8 and Hermes come as
+**engine packs** from Zinc's signed index (`zinc engine list | install | update | remove`), so zinc stays small.
+
+| | QuickJS | JavaScriptCore | V8 | Hermes |
+|---|---|---|---|---|
+| Comes from | built in | macOS | pack, 14 MB | pack, 2 MB |
+| Call into Zinc | 70 ns | 115 ns | 52 ns | 50 ns |
+| hero, CPU for 600 frames | 1.04 s | 0.94 s | 0.53 s | 0.89 s |
+| hero, memory | ~50 MB | ~140 MB | ~80 MB | ~70 MB |
+| Debugger (`--inspect`) | | Safari | Chrome DevTools | Chrome DevTools |
+| Bytecode at `zinc build` | `.qbc` | | | `.hbc` |
+
+QuickJS for the smallest footprint and every platform, V8 for speed, JavaScriptCore with nothing to download on a Mac, Hermes where a JIT is
+not allowed. V8 and Hermes packs exist for Apple silicon Macs today. The guide: [docs/guide/12-js-engines.md](docs/guide/12-js-engines.md).
 
 ## 🚀 Quick start
 

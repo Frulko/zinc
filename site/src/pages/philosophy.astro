@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 const b = import.meta.env.BASE_URL;
 const p = [
-  ['Native, not embedded', 'Your program is interpreted while you work and compiled to C++ when you ship: one executable, with no JavaScript engine or browser inside, and a fast start on modest hardware. Plain JavaScript can still run as it is on QuickJS (three.js, PixiJS, Phaser) when you want it.'],
+  ['Native, not embedded', 'Your program is interpreted while you work and compiled to C++ when you ship: one executable, with no JavaScript engine or browser inside, and a fast start on modest hardware. Plain JavaScript can still run as it is (three.js, PixiJS, Phaser) when you want it, on QuickJS or on the engine you pick: JavaScriptCore, V8 or Hermes.'],
   ['One program, every screen', 'A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2. The target is a build flag, not a rewrite. When a machine cannot do something, the build says why.'],
   ['Proven libraries, not rewrites', 'Zinc does not write its own regex engine, TLS stack, font rasterizer, SQL engine, codec or JSON parser. It vendors mature libraries with their licences and pinned versions: SDL3, QuickJS-ng, mbedTLS, HarfBuzz, SQLite, Yoga, Box2D, Jolt, three.js and others.'],
   ['UI people already know', 'Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components. The goal is to make the first screen easy, not to invent another way to write buttons.'],

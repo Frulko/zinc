@@ -28,6 +28,7 @@ zinc doctor        # checks cmake, a C++17 compiler, SDL3, docker, emscripten
 9. [Web platform APIs](09-web-apis.md) — the WinterTC minimum common Web API as globals: `fetch` / `Request` / `Response` / `Headers`, `URL`, `TextEncoder` / `TextDecoder`, events, `AbortController`, `Blob` / `FormData`, `crypto`, `WebAssembly`; deviations and WPT results.
 10. [Lint and migrate](10-lint-migrate.md) — `zinc lint`: what cannot work or weighs too much on each target (requires, plugins, UI tiers, screen, asset budgets), the matrix of `--all-targets`; `zinc migrate`: the codemods that come with a language or API change.
 11. [Bundling for QuickJS](11-quickjs-bundle.md) — `--engine quickjs` runs TS and TSX, `zinc bundle` makes one optimised JavaScript file (tree shaking, defines, minify, source map, bytecode) with the pinned esbuild, `zinc check --engine quickjs`.
+12. [JavaScript engines](12-js-engines.md) — one program on QuickJS, JavaScriptCore, V8 or Hermes (`--engine`, `"engine"` in zinc.json), all bound through Node-API; engine packs downloaded and checked on first use, which one to pick, `--inspect`, bytecode at `zinc build`.
 12. npm packages and the web — [the web target](../targets/web.md#npm-packages): `zinc add npm:<pkg>` and `zinc install` call your package manager (npm, pnpm, yarn, bun), `zinc dev --target web` pre-bundles packages like Vite, `@zinc/vite` builds a Zinc app with Vite; [the libraries run](../targets/web-libraries.md).
 
 ## The one-minute tour
