@@ -5,10 +5,11 @@ signals) and compiled natively: no browser, no JavaScript engine. Its pages are 
 opens it is another person editing the same pages live.
 
 ```sh
-zinc run examples/carnet                       # the first window serves the pages on 127.0.0.1:7311
-zinc run examples/carnet                       # a second one joins it: two people, their carets on each other's screen
-CARNET_NAME=Ada zinc run examples/carnet       # your name on the others' screens (else one is picked)
-zinc check examples/carnet
+cd examples/carnet                 # the vault and welcome/ are found from the working directory
+zinc run .                         # the first window serves the pages on 127.0.0.1:7311
+zinc run .                         # a second one joins it: two people, their carets on each other's screen
+CARNET_NAME=Ada zinc run .         # your name on the others' screens (else one is picked)
+zinc check .
 ```
 
 What it does:
