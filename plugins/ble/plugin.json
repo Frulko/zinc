@@ -1,0 +1,13 @@
+{
+  "name": "ble",
+  "kind": "module",
+  "module": "zinc:ble",
+  "entry": "index.ts",
+  "description": "Bluetooth Low Energy text links between Zinc programs over the Nordic UART Service: scan, connect, send and receive messages (CoreBluetooth central on macOS; a simulated echo peripheral with ZINC_NATIVE=sim)",
+  "native": { "impl": { "macos": "native/ble.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["CoreBluetooth", "Foundation"] },
+    "linux": {},
+    "windows": {}
+  }
+}

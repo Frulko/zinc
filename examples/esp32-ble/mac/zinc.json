@@ -1,0 +1,17 @@
+{
+  "name": "esp32-ble-mac",
+  "entry": "src/main.tsx",
+  "app": {
+    "id": "dev.zinc.esp32-ble",
+    "name": "ESP32 BLE",
+    "version": "0.1.0"
+  },
+  "requires": ["display", "pointer", "keyboard"],
+  "permissions": ["bluetooth"],
+  "permissionStrings": {
+    "bluetooth": "ESP32 BLE finds your ESP32 and talks to it over Bluetooth."
+  },
+  "targets": {
+    "macos": { "width": 420, "height": 640 }
+  }
+}

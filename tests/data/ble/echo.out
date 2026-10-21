@@ -1,0 +1,14 @@
+state '' service 6e400001-b5a3-f393-e0a9-e50e24dcca9e
+device Zinc sim zinc-sim -42
+seen 1
+open Zinc sim zinc-sim
+message 'ping'
+message 'héllo wörld, ça va très bien — 12345 ✓'
+message 'one'
+message 'two'
+close Zinc sim
+ble: Zinc sim: the link is not open
+close 'nobody' without open
+advertise: open Zinc sim central
+advertise: message 'hello'
+advertise: close Zinc sim central
