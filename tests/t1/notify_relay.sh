@@ -162,4 +162,5 @@ done
 timeout 120 "$Z" run examples/notify-relay -- --inspect 3 > "$tmp/inspect.log" 2>&1
 grep -q "^record of com.apple.MobileSMS presented 1 style 1" "$tmp/inspect.log" && grep -q "^  /req/titl string 17" "$tmp/inspect.log" || bad "--inspect: $(tail -5 "$tmp/inspect.log")"
 grep -q "Queued\|After focus\|sent when" "$tmp/inspect.log" && bad "--inspect printed a value"
+[ $fail -eq 0 ] || { echo "the relay's log:"; grep -v '^\[system\]' "$tmp/relay.log" | tail -30; }   # a failure seen only on CI (v0.5.0): what the relay said
 exit $fail
