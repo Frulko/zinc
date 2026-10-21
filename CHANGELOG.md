@@ -21,6 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc export --target web` and `zinc bundle` bundle again a package that a pnpm store or a workspace links into `node_modules` from elsewhere: its own `"imports"` (`#internal`) were not found.
 - `zinc run --target esp32 --qemu` says why the emulator cannot start (its first error, a missing library for example) instead of "cannot write to the device".
 - On an Intel Mac, `zinc run --target esp32 --qemu` downloads an emulator that runs there: the one it fetched was built for Apple Silicon ("Bad CPU type in executable").
+- A built-in method taken as a value (`const f = s.slice`, `console.log(arr.push)`) is error Z0005 with the way out (call it, or wrap it in an arrow function): it compiled to the string's or the array's length, and printing it crashed the compiler.
 
 ## [0.5.0] - 2026-10-21
 

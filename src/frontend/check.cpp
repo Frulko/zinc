@@ -2209,6 +2209,7 @@ struct Checker {
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
         const bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
+        const bool called = i == calleeNode;   // read before the object: a call inside it (a.join(', ').toUpperCase()) resets calleeNode
         if (isBuiltin(x.kids[0], "Number")) {  // the constants of Number
           static const std::pair<const char*, const char*> kConsts[] = {{"MAX_VALUE", "1.7976931348623157e308"}, {"MIN_VALUE", "5e-324"}, {"POSITIVE_INFINITY", "Infinity"}, {"NEGATIVE_INFINITY", "-Infinity"},
                                                                         {"NaN", "NaN"}, {"MAX_SAFE_INTEGER", "9007199254740991"}, {"MIN_SAFE_INTEGER", "-9007199254740991"}, {"EPSILON", "2.220446049250313e-16"}};
@@ -2279,6 +2280,10 @@ struct Checker {
         const Member* m = findMember(ot, x.text);
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
         if (!m) { if (x.text == "prototype" || x.text == "__proto__") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
+        if (m == &scratch && m->method && !called) {   // the engines call a built-in method, they have no value for it (it read as the length)
+          diag(kZUnsupported, i, "'" + std::string(x.text) + "' of '" + name(ot) + "' used as a value: call it, or wrap it in an arrow function");
+          return tError;
+        }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         TypeId mt = m->getter ? ty(m->type).elem : m->type;
         if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull}, true);  // a?.b is b, or undefined
