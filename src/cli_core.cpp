@@ -74,7 +74,7 @@ const Command kCommands[] = {
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2, psp, vita, n3ds, chip, pocketchip): numbers, heap and typing of that target\n"
    "  --har <file>            write every network request of the run (fetch, WebSocket, MQTT, TCP) as a HAR 1.2 file when the program ends\n"
    "  --simulate <device>     run as on a device of devices/ (hp-touchpad, phone...): its screen, battery, sensors and keys, set in a control panel\n"
-   "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --engine jsc | v8       the same on JavaScriptCore (the system's, on macOS) or V8 (downloaded and checked on first use: zinc engine), compiled to machine code: faster JavaScript\n  --inspect[=port]        Chrome DevTools on an --engine v8 program (port 9229, chrome://inspect lists it), Safari's Web Inspector on --engine jsc (Develop menu); --inspect-brk[=port] waits for it at the first statement\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
+   "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --engine jsc | v8       the same on JavaScriptCore (the system's, on macOS) or V8 (downloaded and checked on first use: zinc engine), compiled to machine code: faster JavaScript\n  --engine hermes         the same on Hermes (experimental: built from source by tools/hermes-pack; no inspector, no WebAssembly)\n  --inspect[=port]        Chrome DevTools on an --engine v8 program (port 9229, chrome://inspect lists it), Safari's Web Inspector on --engine jsc (Develop menu); --inspect-brk[=port] waits for it at the first statement\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "run a program under the debugger",
    "Compiles a debug build (every call keeps its frame, each statement and each local is known) and runs it in the interpreter, paused at its first statement.\n"
@@ -96,7 +96,7 @@ const Command kCommands[] = {
    "  --check          only the diagnostics: the transform errors and what QuickJS-ng lacks (Q0001: Temporal, Intl formats, WebAssembly); exit 1 when there are any\n"
    "  --watch          bundle again on each save"},
   {"check", "zinc check [entry|dir]", "type check without running", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
-  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
+  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"pack", "zinc pack [dir] [-o app.zapp]", "one runnable file per app", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
   {"assets", "zinc assets build|info [dir] [--target T] [--release]", "build the asset packs", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
@@ -330,7 +330,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) named = named || args[k] == "--engine" || args[k] == "--target";
   auto pickEngine = [&](const std::string& file, const std::string& engine) {
     const std::string ext = fs::path(file).extension().string();
-    const bool js = engine == "quickjs" || engine == "jsc" || engine == "v8";   // the JavaScript engines (ZN-773)
+    const bool js = engine == "quickjs" || engine == "jsc" || engine == "v8" || engine == "hermes";   // the JavaScript engines (ZN-773)
     if (cmd != "run" || named || engine == "zinc" || (!js && ext != ".js" && ext != ".mjs" && ext != ".qbc")) return;   // .qbc: a bundle's bytecode (zinc bundle --bytecode)
     args.insert(args.begin() + static_cast<std::ptrdiff_t>(at) + 1, {"--engine", js ? engine : "quickjs"});
   };
@@ -356,7 +356,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   std::string e = zn::frontend::entryOf(projDir, have ? &project : nullptr);
   if (e.empty()) { err = "no project here: " + projDir + " has no zinc.json \"entry\" and no src/main.ts, src/main.tsx, main.ts or main.tsx (zinc init <dir> creates one)"; return false; }
   const std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
-  if (have && !project.engine.empty() && project.engine != "quickjs" && project.engine != "jsc" && project.engine != "v8" && project.engine != "zinc") { err = projDir + "/zinc.json: \"engine\" must be \"zinc\", \"quickjs\", \"jsc\" or \"v8\", not \"" + project.engine + "\""; return false; }
+  if (have && !project.engine.empty() && project.engine != "quickjs" && project.engine != "jsc" && project.engine != "v8" && project.engine != "hermes" && project.engine != "zinc") { err = projDir + "/zinc.json: \"engine\" must be \"zinc\", \"quickjs\", \"jsc\", \"v8\" or \"hermes\", not \"" + project.engine + "\""; return false; }
   if (cmd == "run") { if (hasEntry) args[at] = projDir; else args.insert(args.begin() + at, projDir); pickEngine(e, have ? project.engine : ""); }
   else if (cmd == "build") {
     if (hasEntry) args[at] = e; else args.insert(args.begin() + at, e);
@@ -1774,7 +1774,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (target == "esp32") return exportEsp32(p, out, engineRoot);
   if (target == "android") return exportAndroid(p, out, engineRoot, has(o, "--print"), pack);
   if (target == "ios") return exportIos(p, out, engineRoot, has(o, "--print"), pack);
-  if (p.engine == "jsc" || p.engine == "v8") {   // JavaScript on an engine module (ZN-773.04): an .app of zinc, the program bundled for it and the engine's pack
+  if (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes") {   // JavaScript on an engine module (ZN-773.04): an .app of zinc, the program bundled for it and the engine's pack
     if (target != "macos") { std::fprintf(stderr, "zinc export: a project on the %s engine exports for macos only for now (its engine packs are built for macOS)\n", p.engine.c_str()); return 2; }
     const fs::path app = out / (p.name + ".app");
     if (const int rc = status(std::system((q(self()) + " build --bundle " + q(p.entry) + " -o " + q(app.string())).c_str()))) { std::fprintf(stderr, "zinc export: the .app could not be made\n"); return rc; }
@@ -3138,7 +3138,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     hotOff.clear();
     hotBuf.clear();
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
-    if (!redbox && (p.engine == "jsc" || p.engine == "v8")) cmd.insert(cmd.end(), {"--engine", p.engine});   // a file names no project: its engine on the command line
+    if (!redbox && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes")) cmd.insert(cmd.end(), {"--engine", p.engine});   // a file names no project: its engine on the command line
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
     auto childEnv = env;

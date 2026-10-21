@@ -3,12 +3,12 @@
 
   tools/engine-pack <name> [--build DIR] [--out DIR] [--library FILE] [--kind engine|module] [--version V] [--upstream U] [--entries FILE]
 
-<name>: v8, jsc, or an extension module (wasm: <build>/libzn_wasm.dylib, kind module, WAMR's version). The library is <build>/libzn_engine_<name>.dylib unless --library names another.
+<name>: v8, jsc, hermes, or an extension module (wasm: <build>/libzn_wasm.dylib, kind module, WAMR's version). The library is <build>/libzn_engine_<name>.dylib unless --library names another.
 Its @rpath dependencies (followed through its LC_RPATHs, recursively), the .dat files beside them (V8's icudtl.dat) and the LICENSE files
 of their directories and the one above go into lib/ and licenses/; the library's rpath becomes @loader_path/lib, everything is signed ad hoc.
 Writes <out>/engines/<name>/<version>/<host>.tar.xz and adds it to <out>/entries.json (or --entries: the file tools/index-repo entries wrote)
 with custom {kind, library, zn_engine_abi, napi, upstream}; tools/index-repo build signs the index from it.
---upstream: the engine's own version (v8: the SDK's directory name, from ZN_V8_DIR in <build>/CMakeCache.txt); --version: the pack's (default
+--upstream: the engine's own version (v8, hermes: the SDK's directory name, from ZN_V8_DIR or ZN_HERMES_DIR in <build>/CMakeCache.txt: a V8 version, a Hermes commit); --version: the pack's (default
 the upstream one). ponytail: macOS only (otool, install_name_tool); Linux packs (patchelf, $ORIGIN) come with the cross-platform pass.
 """
 import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile
@@ -61,9 +61,9 @@ def main(argv):
     m = re.search(r"zn_engine_%s PRIVATE NAPI_VERSION=(\d+)" % re.escape(name), open(os.path.join(REPO, "CMakeLists.txt")).read())
     napi = int(m.group(1)) if m else 8
     upstream = opt.get("--upstream")
-    if not upstream and name == "v8":   # the SDK the module was built against: tools/v8-pack's <sdk>/<version>
+    if not upstream and name in ("v8", "hermes"):   # the SDK the module was built against: tools/v8-pack's <sdk>/<version>, tools/hermes-pack's <sdk>/<commit>
         cache = open(os.path.join(build, "CMakeCache.txt")).read()
-        upstream = os.path.basename(os.path.realpath(re.search(r"^ZN_V8_DIR:PATH=(.*)$", cache, re.M).group(1)))
+        upstream = os.path.basename(os.path.realpath(re.search(r"^ZN_%s_DIR:PATH=(.*)$" % name.upper(), cache, re.M).group(1)))
     if not upstream: print("tools/engine-pack: --upstream names the engine's version", file=sys.stderr); return 2
     version = opt.get("--version") or upstream
     stage = tempfile.mkdtemp(prefix="engine-pack-")

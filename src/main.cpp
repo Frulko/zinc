@@ -1790,8 +1790,8 @@ int main(int argc, char** argv) {
   zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     const std::string engine = argv[4];
-    if (engine != "quickjs" && engine != "jsc" && engine != "v8") { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs, jsc, v8)\n", argv[4]); return 2; }
-    const char* engineName = engine == "quickjs" ? "QuickJS-ng" : engine == "jsc" ? "JavaScriptCore" : "V8";
+    if (engine != "quickjs" && engine != "jsc" && engine != "v8" && engine != "hermes") { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs, jsc, v8, hermes)\n", argv[4]); return 2; }
+    const char* engineName = engine == "quickjs" ? "QuickJS-ng" : engine == "jsc" ? "JavaScriptCore" : engine == "hermes" ? "Hermes" : "V8";
     if (const char* hotFd = std::getenv("ZINC_HOT_FD")) {   // zinc dev's child: no Fast Refresh on the JavaScript engines (docs/dev-mode.md), a save restarts it
       const std::string off = std::string("hot off the program runs on ") + engineName + ", which has no Fast Refresh\n";
       if (write(std::atoi(hotFd), off.data(), off.size()) < 0) {}
@@ -1884,7 +1884,7 @@ int main(int argc, char** argv) {
       else if (a == "--stage" && k + 1 < argc) bo.stageDir = fs::absolute(argv[++k]).lexically_normal().string();   // zinc dev --target web: the modules unbundled
       else if ((a == "--target" || a == "--engine") && k + 1 < argc) {   // the engine the bundle is for: QuickJS (a module), jsc or v8 (one script, ZN-773)
         bo.engine = argv[++k];
-        if (bo.engine != "quickjs" && bo.engine != "jsc" && bo.engine != "v8") { std::fprintf(stderr, "zinc bundle: unknown engine %s (quickjs, jsc, v8)\n", bo.engine.c_str()); return 2; }
+        if (bo.engine != "quickjs" && bo.engine != "jsc" && bo.engine != "v8" && bo.engine != "hermes") { std::fprintf(stderr, "zinc bundle: unknown engine %s (quickjs, jsc, v8, hermes)\n", bo.engine.c_str()); return 2; }
       }
       else if (a[0] != '-') target = a;
       else { std::fprintf(stderr, "zinc bundle: unknown option %s\nusage: zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]\n", a.c_str()); return 2; }
@@ -2588,7 +2588,7 @@ int main(int argc, char** argv) {
       if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), perr.c_str()); return 2; } }
       if (proj.app.id.empty()) { std::fprintf(stderr, "zinc: --bundle needs \"app\": { \"id\": ... } in zinc.json\n"); return 2; }
       gBundleSpec = bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
-      if (proj.engine == "jsc" || proj.engine == "v8") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
+      if (proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
       std::error_code mk;
       std::filesystem::create_directories(std::filesystem::path(gBundleOut) / "Contents/MacOS", mk);
       bundleExe = (std::filesystem::path(gBundleOut) / "Contents/MacOS" / gBundleSpec.exeName).string();

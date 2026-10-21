@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Hermes for `zinc run --engine hermes` (ZN-773.07): facebook/hermes (MIT) built from source at a pinned commit of its `static_h` branch, the
+one with its own Node-API (API/napi) and the Static Hermes compiler `shermes`. Laid out as an SDK directory (to build libzn_engine_hermes;
+tools/engine-pack then makes the pack users download, src/tc/engines.h):
+
+    <out>/<commit>/include/          hermes_napi.h, hermes/napi/ (the Node-API headers Hermes ships)
+    <out>/<commit>/lib/*.dylib       libhermesvm (VM + Node-API + the zinc-embed entry points), libhermesvmlean, libshermes_console
+    <out>/<commit>/bin/              shermes, hermesc, hermes
+    <out>/current -> <commit>
+
+The sources and the build stay beside it (<out>/src-<commit>, <out>/build-<commit>), out of the repository: shermes compiles against the
+build's headers and libraries (paths it was built with). Patches of tools/hermes-patches/*.patch are applied to the sources once, at the
+download (zinc-embed.patch: the embedder's entry points of src/engine/hermes.cpp, and a rejection tracker that reports at once).
+
+usage: tools/hermes-pack [--out DIR] [--commit SHA] [--jobs N]     (DIR: ~/.zinc/sdk/hermes; N: 4, the machine is shared)
+ponytail: macOS arm64 only (where the Hermes JIT exists); Linux and Windows builds are the cross-platform pass.
+"""
+import io, os, platform, shutil, subprocess, sys, tarfile, urllib.request
+
+COMMIT = "e760a68ab717963f82757983c75ec7fd63910d77"   # static_h, 2026-10-21
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def run(*cmd, **kw):
+    print("+", " ".join(cmd), flush=True)
+    subprocess.run(cmd, check=True, **kw)
+
+def main(argv):
+    out, commit, jobs = os.path.expanduser("~/.zinc/sdk/hermes"), COMMIT, "4"
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--out": out = os.path.abspath(argv[i + 1]); i += 2
+        elif argv[i] == "--commit": commit = argv[i + 1]; i += 2
+        elif argv[i] == "--jobs": jobs = argv[i + 1]; i += 2
+        else: print(__doc__); return 2
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        print("tools/hermes-pack: macOS arm64 only for now", file=sys.stderr); return 2
+    src, build, dest = (os.path.join(out, p + commit) for p in ("src-", "build-", ""))
+    if not os.path.isfile(os.path.join(src, "CMakeLists.txt")):
+        print("Hermes %s: downloading..." % commit, flush=True)
+        with urllib.request.urlopen("https://codeload.github.com/facebook/hermes/tar.gz/" + commit) as r: data = r.read()
+        tmp = src + ".tmp"
+        shutil.rmtree(tmp, ignore_errors=True)
+        with tarfile.open(fileobj=io.BytesIO(data)) as t:
+            for m in t.getmembers():   # strip the top directory hermes-<commit>/
+                m.name = m.name.split("/", 1)[1] if "/" in m.name else ""
+                if m.name and not m.name.startswith("/") and ".." not in m.name.split("/"): t.extract(m, tmp)
+        pdir = os.path.join(REPO, "tools", "hermes-patches")
+        for p in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
+            if p.endswith(".patch"): run("patch", "-p1", "-d", tmp, "-i", os.path.join(pdir, p))
+        os.rename(tmp, src)
+    gen = ["-G", "Ninja"] if shutil.which("ninja") else []
+    if not os.path.isfile(os.path.join(build, "CMakeCache.txt")):
+        run("cmake", "-S", src, "-B", build, *gen, "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_OSX_ARCHITECTURES=arm64",
+            "-DHERMES_ENABLE_NAPI=ON", "-DHERMESVM_ALLOW_JIT=1", "-DHERMES_ENABLE_TEST_SUITE=OFF", "-DHERMES_BUILD_APPLE_FRAMEWORK=OFF")
+    run("cmake", "--build", build, "-j", jobs, "--target", "shermes-dep", "hermesc", "hermes")
+    tmp = dest + ".tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    for d in ("include", "lib", "bin"): os.makedirs(os.path.join(tmp, d))
+    shutil.copytree(os.path.join(src, "include", "hermes", "napi"), os.path.join(tmp, "include", "hermes", "napi"))   # <napi/js_native_api.h> under include/hermes
+    shutil.copy(os.path.join(src, "API", "napi", "hermes_napi.h"), os.path.join(tmp, "include", "hermes_napi.h"))
+    for root, _, fs in os.walk(build):
+        for f in fs:
+            p = os.path.join(root, f)
+            if f.endswith(".dylib") and not os.path.islink(p): shutil.copy(p, os.path.join(tmp, "lib", f))
+            elif f in ("shermes", "hermesc", "hermes") and os.access(p, os.X_OK) and "/bin" in root: shutil.copy(p, os.path.join(tmp, "bin", f))
+    shutil.copy(os.path.join(src, "LICENSE"), os.path.join(tmp, "LICENSE"))
+    for f in os.listdir(os.path.join(tmp, "lib")):
+        p = os.path.join(tmp, "lib", f)
+        run("install_name_tool", "-id", "@rpath/" + f, p)
+        run("codesign", "--force", "--sign", "-", p)
+    shutil.rmtree(dest, ignore_errors=True)
+    os.rename(tmp, dest)
+    cur = os.path.join(out, "current")
+    if os.path.islink(cur) or os.path.exists(cur): os.remove(cur)
+    os.symlink(commit, cur)
+    print("Hermes %s in %s" % (commit, dest))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

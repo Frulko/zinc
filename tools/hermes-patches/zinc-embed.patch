@@ -1,0 +1,138 @@
+diff --color -ruN a/API/napi/CMakeLists.txt b/API/napi/CMakeLists.txt
+--- a/API/napi/CMakeLists.txt	2026-10-21 17:03:26
++++ b/API/napi/CMakeLists.txt	2026-10-21 17:04:05
+@@ -24,6 +24,7 @@
+   hermes_napi_typetag.cpp
+   hermes_napi_value.cpp
+   hermes_napi_wrap.cpp
++  zn_embed.cpp
+   LINK_OBJLIBS hermesVMRuntime hermesPublic
+ )
+ target_include_directories(hermesNapi_obj PUBLIC
+diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
+--- a/API/napi/zn_embed.cpp	1970-01-01 01:00:00
++++ b/API/napi/zn_embed.cpp	2026-10-21 17:04:01
+@@ -0,0 +1,100 @@
++// Zinc's entry points into Hermes (zinc's tools/hermes-patches/zinc-embed.patch): what an embedder of the Node-API needs that hermes_napi.h
++// gives only through the VM's C++ headers (a Runtime, its job queue, an optimised compile, a Static Hermes unit). Compiled into hermesNapi, so
++// libhermesvm exports them beside napi_*, and the embedder builds against the Node-API headers alone.
++#include "hermes_napi_internal.h"
++
++#include "hermes/BCGen/HBC/BCProvider.h"
++#include "hermes/BCGen/HBC/HBC.h"
++#include "hermes/Public/RuntimeConfig.h"
++#include "hermes/Support/Buffer.h"
++#include "hermes/VM/TwineChar16.h"
++#include "hermes/VM/static_h.h"
++
++#include <functional>
++#include <memory>
++
++using namespace hermes;
++using namespace hermes::vm;
++
++extern "C" {
++
++/// A Runtime (microtask queue, block scoping, async generators, the JIT when \p jit and built with it) and its Node-API environment. One per
++/// process: it lives to the exit.
++NAPI_EXTERN napi_env NAPI_CDECL zn_hermes_create(bool jit) {
++  static std::shared_ptr<Runtime> rt;
++  rt = Runtime::create(RuntimeConfig::Builder()
++                           .withMicrotaskQueue(true)
++                           .withES6BlockScoping(true)
++                           .withEnableAsyncGenerators(true)
++                           .withEnableJIT(jit)
++                           .build());
++  return hermes_napi_create_env(rt.get());
++}
++
++/// Run the jobs (promise reactions) queued so far; an exception becomes the env's pending one.
++NAPI_EXTERN napi_status NAPI_CDECL zn_hermes_drain(napi_env env) {
++  NAPI_PREAMBLE(env);
++  if (env->runtime.drainJobs() == ExecutionStatus::EXCEPTION)
++    return captureRuntimeException(env, napi_pending_exception);
++  return napi_clear_last_error(env);
++}
++
++/// hermes_run_script with a name and a choice: \p optimize compiles eagerly through the full optimisation pipeline (what hermesc -O does),
++/// otherwise lazily (each function compiled at its first call: the fast start of a big bundle).
++NAPI_EXTERN napi_status NAPI_CDECL zn_hermes_run(
++    napi_env env,
++    const char *src,
++    size_t size,
++    const char *url,
++    bool optimize,
++    napi_value *result) {
++  NAPI_PREAMBLE(env);
++  hbc::CompileFlags f;
++  f.format = Execute;
++  f.includeLibHermes = false;
++  f.enableGenerator = true;
++  f.enableES6BlockScoping = true;
++  f.enableAsyncGenerators = true;
++  f.lazy = !optimize;
++  auto bc = hbc::createBCProviderFromSrc(
++      std::make_unique<StdStringBuffer>(std::string(src, size)),
++      url ? url : "",
++      "",
++      f,
++      "global",
++      nullptr,
++      nullptr,
++      optimize ? std::function<void(Module &)>(hbc::fullOptimizationPipeline)
++               : std::function<void(Module &)>());
++  if (!bc.first) {
++    (void)env->runtime.raiseSyntaxError(TwineChar16(bc.second));
++    return captureRuntimeException(env, napi_pending_exception);
++  }
++  auto res = env->runtime.runBytecode(
++      std::move(bc.first),
++      RuntimeModuleFlags{},
++      url ? url : "",
++      Runtime::makeNullHandle<Environment>());
++  if (res == ExecutionStatus::EXCEPTION)
++    return captureRuntimeException(env, napi_pending_exception);
++  *result = env->addToCurrentScope(*res);
++  return napi_clear_last_error(env);
++}
++
++/// Run a unit compiled by shermes (-c, -export-unit=<name>: \p creator is its sh_export_<name>) in this env's Runtime: native code in place of
++/// the bundle's source, the same globals and Node-API.
++NAPI_EXTERN napi_status NAPI_CDECL zn_hermes_run_unit(
++    napi_env env,
++    SHUnit *(*creator)(void),
++    napi_value *result) {
++  NAPI_PREAMBLE(env);
++  SHLegacyValue r;
++  if (!_sh_unit_init_guarded(&env->runtime, creator, &r)) {
++    (void)env->runtime.setThrownValue(HermesValue::fromRaw(r.raw));
++    return captureRuntimeException(env, napi_pending_exception);
++  }
++  *result = env->addToCurrentScope(HermesValue::fromRaw(r.raw));
++  return napi_clear_last_error(env);
++}
++
++} // extern "C"
+diff --color -ruN a/lib/InternalJavaScript/01-Promise.js b/lib/InternalJavaScript/01-Promise.js
+--- a/lib/InternalJavaScript/01-Promise.js	2026-10-21 17:05:25
++++ b/lib/InternalJavaScript/01-Promise.js	2026-10-21 17:05:28
+@@ -776,6 +776,19 @@
+     options = options || {};
+     if (enabled) disable();
+     enabled = true;
++    if (options.onReject) {
++      // zinc (tools/hermes-patches/zinc-embed.patch): each rejection with no
++      // handler told at once, and each handler added to a rejected promise,
++      // as V8's PromiseRejectCallback; the embedder reports what is left after
++      // its microtask checkpoint, not after a timer.
++      core._B = function (promise) {
++        if (promise._y === 2) options.onHandle(promise);
++      };
++      core._C = function (promise, err) {
++        if (promise._x === 0) options.onReject(promise, err);
++      };
++      return;
++    }
+     var id = 0;
+     var displayId = 0;
+     var rejections = {};

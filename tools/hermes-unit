@@ -1,0 +1,19 @@
+#!/bin/sh
+# A program compiled ahead of time by Static Hermes for `zinc run --engine hermes` (ZN-773.07, spike). zinc bundles it for the hermes engine
+# (one script), shermes compiles the script to native code as an SHUnit, and the object is linked against the SDK's libhermesvm into a library
+# that src/engine/hermes.cpp runs in place of the bundle's source, in the same Runtime and Node-API environment:
+#   tools/hermes-unit <entry|dir> <out>  [shermes options, e.g. -typed]   ->  <out>.js (the bundle) and <out>.dylib (the unit)
+#   ZINC_HERMES_UNIT=<out>.dylib zinc run <out>.js --engine hermes
+# ZINC: the zinc to bundle with (default build/zinc); HERMES: the SDK (default ~/.zinc/sdk/hermes/current).
+# ponytail: macOS only, by hand; a `zinc build --engine hermes` step would do the same if Static Hermes is ever kept.
+[ $# -ge 2 ] || { sed -n '2,8p' "$0"; exit 2; }
+here=$(cd "$(dirname "$0")/.." && pwd)
+zinc=${ZINC:-$here/build/zinc}
+sdk=${HERMES:-$HOME/.zinc/sdk/hermes/current}
+entry=$1 out=$2
+shift 2
+"$zinc" bundle "$entry" --engine hermes -o "$out.js" || exit 1
+"$sdk/bin/shermes" -O -c -exported-unit=zinc_bundle "$@" -o "$out.o" "$out.js" || exit 1
+cc -dynamiclib -o "$out.dylib" "$out.o" -L"$sdk/lib" -lhermesvm -Wl,-rpath,"$sdk/lib" || exit 1
+rm -f "$out.o"
+echo "$out.dylib: ZINC_HERMES_UNIT=$out.dylib $zinc run $out.js --engine hermes"

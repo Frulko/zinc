@@ -873,6 +873,25 @@ if(APPLE AND ZN_TLS AND EXISTS "${ZN_V8_DIR}/include/v8.h")   # ZN_TLS: the insp
   target_link_libraries(zn_engine_v8 PRIVATE "${ZN_V8_REAL}/lib/libv8.dylib" "${ZN_V8_REAL}/lib/libv8_libplatform.dylib" "${ZN_V8_REAL}/lib/libv8_libbase.dylib" zn_codec zn_text)
   add_dependencies(zinc zn_engine_v8)
 endif()
+# Hermes as an engine module beside zinc (ZN-773.07, spike), built when an SDK directory of tools/hermes-pack is there: Hermes's own Node-API in
+# libhermesvm (napi_* exported there, so the module carries no copy), the driver and the bindings; src/engine/hermes.h gives them the named
+# napi_run_script.
+set(ZN_HERMES_DIR "$ENV{HOME}/.zinc/sdk/hermes/current" CACHE PATH "a Hermes SDK directory of tools/hermes-pack (include/, lib/)")
+if(APPLE AND EXISTS "${ZN_HERMES_DIR}/lib/libhermesvm.dylib")
+  get_filename_component(ZN_HERMES_REAL "${ZN_HERMES_DIR}" REALPATH)
+  add_library(zn_engine_hermes MODULE src/engine/driver.cpp src/engine/hermes.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp
+              src/qjs/native_js.cpp src/qjs/canvas2d.cpp src/qjs/webenv.cpp src/text/segmenter_js.cpp)
+  set_target_properties(zn_engine_hermes PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+                        CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON BUILD_RPATH "${ZN_HERMES_REAL}/lib")
+  target_compile_definitions(zn_engine_hermes PRIVATE NAPI_VERSION=8 ZN_ENGINE_MODULE)
+  target_compile_options(zn_engine_hermes PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/src/engine/hermes.h)
+  target_include_directories(zn_engine_hermes PRIVATE "${ZN_HERMES_REAL}/include/hermes" src include
+                             $<TARGET_PROPERTY:zn_qjs,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_text,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_segment,INTERFACE_INCLUDE_DIRECTORIES>
+                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_mbedtls,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_link_options(zn_engine_hermes PRIVATE "LINKER:-undefined,dynamic_lookup")
+  target_link_libraries(zn_engine_hermes PRIVATE "${ZN_HERMES_REAL}/lib/libhermesvm.dylib" zn_codec zn_text)
+  add_dependencies(zinc zn_engine_hermes)
+endif()
 add_executable(gltf_check tests/native/gltf_check.cpp)
 set_target_properties(gltf_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_include_directories(gltf_check PRIVATE third_party/cgltf)

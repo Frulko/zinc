@@ -54,7 +54,7 @@ std::string profileKey(const Profile& p) {
  * `jsc` and `v8` (ZN-773), `esp32-qemu`, `devicesim` (ZN-295). */
 struct Runner {
   std::string name;
-  bool js() const { return name == "quickjs" || name == "jsc" || name == "v8"; }
+  bool js() const { return name == "quickjs" || name == "jsc" || name == "v8" || name == "hermes"; }
   /** Why this runner cannot run the profile here, or "" when it can. */
   std::string unavailable(const Profile& p) const {
     if (name == "interp") return "";
