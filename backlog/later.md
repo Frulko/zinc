@@ -404,6 +404,14 @@ The next backlog review turns lines into tasks or deletes them.
 - agent OTA: send a "trial running" frame so `zinc device run` needs no fixed 10 min wait for an update on trial (a longer ZINC_AGENT_TRIAL_MS still ends the session early).
 - check: an unannotated field whose initializer calls a lambda (`static x = (() => { const s: string = 5; return 1 })()`) loses every error of the lambda's body: the field's type is inferred before the class exists with the diagnostics dropped, and `expr` then returns the cached call (check.cpp:621) instead of checking it again; static blocks are fixed (b0173526), the general case accepts wrong programs. Also UBSan reports in lower.cpp:1698 and tests/fuzz/fuzz_native.cpp:41 (fuzz logs of v0.4.3).
 
+- zinc:loro (owner, 2026-10-21): prebuilt loro binaries in the signed plugin index, with the Rust archive, so users without Rust can use it.
+- zinc:loro: pin Rust (`zinc toolchain rust`, a fixed rustup toolchain under ZINC_HOME, or a `rust-toolchain.toml`); today the user's cargo runs with `--locked`.
+- zinc:loro: generic instance methods in the engine (Z0005 today), so `setContainer<T>` returns `T` as in loro-crdt and Carnet's collab code needs no casts.
+- zinc:loro: in a file with Dyn, `f() === undefined` compares against the Dyn undefined (pureCallee in check.cpp); assigning to a variable first works around it.
+- zinc:loro: what Carnet's `@nbe/collab` still needs from the engine: `Uint8Array`, generators, spread.
+- zinc:loro integration (2026-10-21): the AOT prelude's precompiled header (`~/.zinc/cache/aot-obj/prelude-<hash>.pch`) is keyed without the engine headers it includes (src/frontend/ast.h): an edited header makes every `zinc build` fail with "has been modified since the precompiled header" until the .pch is deleted; key it on those files' sizes and times, or rebuild it on that error.
+- zinc:loro: event `from`/`to` frontiers, detached containers (empty until attached), `LoroMovableList`, `LoroCounter`, cursors, the undo manager, shallow snapshots, `fork`, `diff`/`applyDiff`.
+
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
 
@@ -758,3 +766,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: `zinc export` of a raw template folder should say "run `zinc new` first" instead of the reverse-DNS id error
 - ZN-?: `web_dom` prerender waits a fixed six seconds and flakes under a load of 30 ("the app drew nothing"); wait on the first frame instead
 - ZN-761: check the device record on Linux (a Raspberry Pi's device tree, a PC's DMI), Windows (no record yet: WMI or the registry) and the web (navigator.userAgentData).
+- zinc:loro: build the loro crate for linux x86_64/aarch64, rpi armv7 (`armv7-unknown-linux-gnueabihf`), android, ios and windows (`x86_64-pc-windows-gnu`) with rustup targets and zig as the linker (or cargo-zigbuild), so `zinc build --target` stops refusing plugins with Rust code.
