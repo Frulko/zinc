@@ -980,3 +980,22 @@ global of a JSClass is a JSCallbackObject, and JavaScriptCore caches no lookup o
 `operationGetByIdGaveUp` on every `__host_loopNow` (and every `Math`, `Object`...) read. With a plain global (webenv.js gives the window its EventTarget
 methods as its own properties and answers `instanceof` itself) the host call went from 131 to 118 ns. What is left is mostly JavaScriptCore's callback
 itself (`JSLock::DropAllLocks`, `JSObjectGetPrivate`) and the clock read.
+
+### examples/hero on the three engines (2026-10-21)
+
+Headless, `ZINC_DETERMINISTIC=1`, `/usr/bin/time -l` (best of two; load 20 to 37 from other sessions). Frame 30 is pixel-identical on the three. Footprint is
+macOS's `peak memory footprint` (dirty memory the process owns); RSS also counts the engine library's shared pages.
+
+| | QuickJS-ng | JSC | V8 |
+|---|---|---|---|
+| first frame, wall | 0.45 s | 0.41 s | 0.40 s |
+| 600 frames, CPU | 1.09 s | 1.03 s | 0.58 s |
+| empty program, footprint | 9 MB | 10 MB | 20 MB |
+| hero, 60 / 600 / 3000 frames, footprint | 45 / 50 / 55 MB | 112 / 137 / 163 MB | 87 / 93 / 91 MB |
+
+- The memory is a level, not a leak: it is there at 60 frames and grows slowly after, as on QuickJS.
+- On JSC it is the JIT's: `JSC_useJIT=0` gives 58 MB (CPU 1.40 s), `JSC_useDFGJIT=0` 110 MB, `JSC_useFTLJIT=0` 141 MB. The DFG off makes fib(30) 5 to 15 ms.
+  The defaults stay: the engine is chosen for its JavaScript speed. A low-memory switch (the DFG off through the JSC_ environment before the
+  first VM) is one line in src/engine/jsc.cpp if a target needs it.
+- Hero's own JavaScript is small next to its layout and raster, which run in zinc whatever the engine: JSC is no faster than QuickJS on it, V8 about
+  twice as fast.

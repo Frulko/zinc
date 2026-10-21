@@ -417,9 +417,10 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
       " --banner:js=" + quote("// zinc-bundle-entry: " + fs::path(o.entry).lexically_relative(fs::path(o.out).parent_path()).generic_string()) +   // zinc run bakes the fonts from its files
       " --define:__ZINC_ENGINE__=" + quote("\"" + o.engine + "\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +
       " --define:__ZINC_PROFILE__=" + quote("\"" + capsField(caps, "PROFILE") + "\"") + " --define:__ZINC_CAPS__=" + quote(caps) +
-      (script ? " --supported:import-meta=false" : "") +   // a script has no import.meta: esbuild leaves it empty instead of a syntax error
+      // a script has no import.meta: esbuild leaves it empty instead of a syntax error, and zinc dev's import.meta.hot is not there (no warning per use)
+      (script ? " --supported:import-meta=false --define:import.meta.hot=undefined" : "") +
       // a class esbuild renames for a clash (Blob -> _Blob) keeps its name, as the unbundled run shows it
-      (o.minify ? " --minify --keep-names" : script ? " --keep-names" : "") + (o.sourcemap ? " --sourcemap --sources-content=false" : "");
+      (o.minify ? " --minify --keep-names" : script ? " --keep-names" : "") + (o.sourcemap ? std::string(" --sourcemap") + (script ? "" : " --sources-content=false") : "");   // a script's map carries the sources: the inspectors show them
   // the content-hash cache: the same staged modules and the same command give the same bundle, so esbuild does not run again
   const std::string key = std::to_string(std::hash<std::string>{}(hashInput + cmd)), keyFile = o.work + "/last-bundle";
   std::string lastKey;
