@@ -13,10 +13,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `MARK_CARET` in `ui.setMarks` draws another person's caret in a text field, and `ui.anchorOf(h)` gives the other end of a field's selection.
 - `zinc:ui/dnd`: drag and drop between nodes (`draggable`, `dropTarget`, `monitor`, closest edge, `autoScroll`), modelled on Pragmatic drag and drop, the same with a mouse, a finger or a pen; `ui.nodeAt(x, y)` gives the node under a point.
 - `examples/carnet`: a Notion-style block editor whose pages are Markdown files in a folder; every window that opens it edits the same pages live, with the others' carets shown.
+- `zinc:loro` (also importable as `loro-crdt`): Loro CRDT documents with the loro-crdt API, maps, lists, rich text and movable trees whose snapshots and updates sync with Loro's browser, Swift and Rust clients. It needs Rust (rustup.rs) the first time a program uses it.
+- A plugin can ship Rust code: `"cargo": "<crate dir>"` in a target of `plugin.json` builds the crate with cargo and links it; `zinc doctor` says whether cargo is found.
 
 ### Fixed
 - `onCleanup` in a component rendered by a list (`{items().map(...)}`) now runs when its row goes away; it was dropped, so a row's subscriptions and handles outlived it.
 - `zinc check` reports an error inside a class's `static { }` block (a static it assigns that the class does not declare) instead of accepting it and crashing when the program is compiled.
+- A file that uses Dyn values (`JSON.parse`...) can write `T | undefined` as a type again: it failed with Z0101 "Cannot find name 'undefined'".
 
 ## [0.4.3] - 2026-10-21
 

@@ -1,0 +1,16 @@
+{
+  "name": "loro",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:loro",
+  "entry": "index.ts",
+  "modules": {
+    "loro-crdt": "index.ts"
+  },
+  "description": "Loro CRDT documents (Rust crate loro 1.16.2, MIT) with the loro-crdt API: maps, lists, rich text, movable trees, snapshots and updates that sync with Loro's browser, Swift and Rust clients, version history, presence",
+  "license": "MIT",
+  "targets": {
+    "macos": { "cargo": "rust" },
+    "linux": { "cargo": "rust", "libs": ["pthread", "dl", "m"] }
+  }
+}

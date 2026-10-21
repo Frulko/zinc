@@ -25,6 +25,7 @@ plugin (import / display)  targets                             description
   zinc:leapmotion          macos,windows                      Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator
   zinc:link                macos,linux,android,ios            Two Zinc programs find each other (DNS-SD), pair once with a 6-digit code (TLS EC J-PAKE) and talk over an encrypted channel (TLS 1.3 with the paired key): JSON and bytes, reconnecting while paired; the protocol of zinc agent
   zinc:loader              macos,linux,windows,rpi1,wasm,esp32,ps2 The screens of the loader stage (zinc.json "loading"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component
+  zinc:loro                macos,linux                        Loro CRDT documents (Rust crate loro 1.16.2, MIT) with the loro-crdt API: maps, lists, rich text, movable trees, snapshots and updates that sync with Loro's browser, Swift and Rust clients, version history, presence
   zinc:lottie              macos,linux,windows,android,ios,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,windows,rpi1           Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
   zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl

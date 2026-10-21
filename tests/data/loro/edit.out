@@ -1,0 +1,20 @@
+json {"blocks":[{"children":[{"children":[],"fractional_index":"7F80","id":"33@1","index":0,"meta":{"id":"p3"},"parent":"27@1"},{"children":[],"fractional_index":"80","id":"29@1","index":1,"meta":{"id":"p1","text":"first paragraph"},"parent":"27@1"},{"children":[],"fractional_index":"8180","id":"31@1","index":2,"meta":{"id":"p2"},"parent":"27@1"}],"fractional_index":"80","id":"27@1","index":0,"meta":{"id":"page"},"parent":null}],"meta":{"nested":{"k":"v"},"props":{"color":"blue","none":null,"ok":true,"sizes":[1,2.5]},"tags":["z","a",{"q":2}],"title":"Carnet","version":3},"text":"Hello 😀 world"}
+get Carnet 3 true true true nested,props,tags,title,version 5
+list 3 ["z","a","map"] true
+text Hello 😀 world 14 [{"attributes":{"bold":true},"insert":"Hello"},{"insert":" 😀 "},{"attributes":{"link":"https://loro.dev"},"insert":"world"}]
+tree 1 ["p3","p1","p2"] true true 0
+after ["p2"] true false true 4 true
+text [{"attributes":{"bold":true},"insert":"Hello"},{"insert":" world"}]
+events local:meta,text,blocks,meta,meta,blocks,blocks,blocks,blocks,meta,blocks local:meta,blocks,text,meta updates 2
+changes 1 2 ["0+51 seed","51+9 edit"]
+checkout true Hello 😀 world ["p1","p2","p3","page"]
+latest false Hello world true checkout:meta,blocks,text,meta
+converge true true
+merged [B] Hello from C world (b) Carnet B
+live true 2
+vv 1:60 2:12 3:8 60
+errors LoroError LoroError Hello world
+presence {"cursor":3,"name":"Alice"} alice {"alice":{"cursor":3,"name":"Alice"}} import+alice~- import+bob~- local+~-bob
+fixture snapshot {"blocks":[{"children":[],"fractional_index":"80","id":"24@7","index":0,"meta":{"id":"root"},"parent":null}],"meta":{"n":42,"title":"node fixture"},"text":"Written by loro-crdt"}
+fixture update {"blocks":[{"children":[{"children":[],"fractional_index":"80","id":"3@8","index":0,"meta":{"id":"child"},"parent":"24@7"}],"fractional_index":"80","id":"24@7","index":0,"meta":{"id":"root"},"parent":null}],"meta":{"n":43,"title":"node fixture"},"text":"» Written by loro-crdt"}
+fixture text » Written by loro-crdt [{"insert":"» Written by "},{"attributes":{"bold":true},"insert":"loro-crdt"}]
