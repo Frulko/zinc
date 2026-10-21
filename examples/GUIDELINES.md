@@ -61,7 +61,9 @@ keyboard types in text fields (`startTextInput`, Backspace held, Enter, Escape).
 ## Proof before it is done
 
 - `zinc check <demo>` passes.
-- One T1 test (`tests/t1/<demo>_*.sh`): a scripted headless session (`ZINC_INPUT`, `ZINC_SHOT_FRAMES`) with one golden per feature,
-  no network (point the services at `127.0.0.1:9` through env).
+- One T1 test (`tests/t1/<demo>.sh`): a long scripted headless session (`ZINC_INPUT`, `ZINC_SHOT_FRAMES`) with one golden per feature,
+  no network (point the services at `127.0.0.1:9` through env). It proves what only a real app shows of the engine: many frames, plugins
+  together, memory and idle. What the app itself does (its rules, its files, its editor) goes in `tests/demo/` (`tests/run --tier demo`,
+  and `--changed` when the demo changes), which the release CI does not run; an engine bug a demo finds gets its own small T0 or T1 test.
 - The idle check above: frames drawn while nothing moves.
 - A user-visible change to a demo adds a line to `CHANGELOG.md`.

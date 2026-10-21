@@ -1,4 +1,4 @@
-# The storyboard editor, one session from an empty project (tests/t1/museum_editor.sh), window 1440x900. A line is `<frame> <event>`.
+# The storyboard editor, one session from an empty project (tests/demo/museum_editor.sh), window 1440x900. A line is `<frame> <event>`.
 # Three sequences: a double click on the storyboard, the title typed in French, Tab, in English.
 5 move 200 200
 6 down

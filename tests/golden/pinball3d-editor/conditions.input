@@ -1,4 +1,4 @@
-# The table editor, conditions and actions made from choices (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# The table editor, conditions and actions made from choices (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.
 # A rule that acts when every lane light is on. Its condition is added by its kind and is whole at once: the
 # editor gives it the first group of lights of the table, the lanes. The 100 points a new rule gives become
 # another kind of action, in the list of kinds of the field; two more are added.

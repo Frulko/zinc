@@ -1,4 +1,4 @@
-# The table editor, sizes and boxes set by pointing (tests/t1/pinball3d_editor_looks.sh, ZN-649.18), window 1440x900.
+# The table editor, sizes and boxes set by pointing (tests/demo/pinball3d_editor_looks.sh, ZN-649.18), window 1440x900.
 # The first bumper is clicked: the circle of its body has a round handle, at its right. The handle is pulled from 2.6 cm to
 # 4 cm from the centre: the radius of the bumper.
 4 move 617 327

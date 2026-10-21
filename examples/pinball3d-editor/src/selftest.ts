@@ -274,7 +274,7 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
   const all = (fd: Field, at: string): boolean => false;
   check('a part of an item of a list is found from the thing that holds the list', found(schemaAt(rule), rule, 'do[1].target', fieldName, all, d.data).join(' ') === `${rule}.do[1].target`
     && found(schemaAt(rule), rule, 'do', fieldName, all, d.data).join(' ') === `${rule}.do` && found(schemaAt(rule), rule, 'do[1].target', fieldName, all).length === 0);
-  // the rules of the table as the editor says them, in both languages (tests/t1/pinball3d_editor_rules.sh reads some of these lines)
+  // the rules of the table as the editor says them, in both languages (tests/demo/pinball3d_editor_rules.sh reads some of these lines)
   const f = new Doc(sample, sample), ruleSchema = schemaAt('rules.when[0]');
   for (const lang of ['en', 'fr']) {
     setUiLang(lang);

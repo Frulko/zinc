@@ -1,4 +1,4 @@
-# The theme form of the editor (tests/t1/museum_theme.sh). The first sequence is selected: the live sample shows it. Ctrl + comma opens
+# The theme form of the editor (tests/demo/museum_theme.sh). The first sequence is selected: the live sample shows it. Ctrl + comma opens
 # the settings, then the theme.
 4 move 350 230
 5 down

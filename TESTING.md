@@ -26,6 +26,7 @@ Pushes to `develop` and `main` run nothing. A release tag (`make release`) and a
 |---|---|---|---|
 | T0 | After each change (seconds) | Golden or unit test of the stage touched only | One line per failure |
 | T1 | End of a task | The milestone demo (below) | A summary of a few lines |
+| demo | By hand, and `--changed` when a demo changes | What a demo app itself does (`tests/demo/`), beyond its one T1 session; not run by CI | Summary only |
 | T2 | End of a milestone, once | Whole corpus, interpreter vs AOT vs the frozen output of the current native toolchain (`tools/diff-matrix`, one line per program), benchmarks | Summary only; full log in `.logs/` |
 
 Runner rules (built in ZN-002):

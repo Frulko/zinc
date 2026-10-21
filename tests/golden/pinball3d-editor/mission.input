@@ -1,4 +1,4 @@
-# The table editor, a mission made of sentences (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# The table editor, a mission made of sentences (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.
 # "+mission" adds one, with a step; its name is typed. The step becomes "Hit ...": its event is chosen in the list
 # of events, and the editor gives it the first group that can be hit, the bumpers.
 4 key g meta

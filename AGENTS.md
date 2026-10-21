@@ -145,7 +145,7 @@ A release has real notes, written for the people who use Zinc, not a list of com
 
 ## Tests
 
-- `tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks). Runner: `tests/run [--tier t0|t1|t2] [--only name] [--changed | --changed-from ref]`, one line per test, details in `.logs/`.
+- `tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks), and `tests/demo` (what a demo app itself does, beyond its one T1 session: by hand and `--changed`, never on CI). Runner: `tests/run [--tier t0|t1|t2|demo] [--only name] [--changed | --changed-from ref]`, one line per test, details in `.logs/`.
 - `tests/affected.json`: which tests cover which paths (add a mapping with a new module or test). Goldens: `tests/golden/` (outputs, checker cases, frozen pixel frames of the prototype in `examples/proto` with `manifest.json`).
 - A new module ships a T0 test; a behaviour change a golden or an expectation test; a bug fix a regression test.
 

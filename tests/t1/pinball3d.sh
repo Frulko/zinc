@@ -4,7 +4,7 @@
 #   60 seconds headless on the deterministic clock and prints the event log of tests/data/pinball3d/play.log, in the landscape layout and in the
 #   portrait one (the game does not depend on the window).
 # - Three moments of it in each layout equal their pixel goldens on the software renderer (tests/golden/pinball3d): the table waiting for a
-#   player with the list of the game's tables over it (frame 12; the list itself is tests/t1/pinball3d_chooser.sh, ZN-649.17), a ball in
+#   player with the list of the game's tables over it (frame 12; the list itself is tests/demo/pinball3d_chooser.sh, ZN-649.17), a ball in
 #   play (320), the mission's light lit while a bumper fires (460). They show the look of the table (ZN-649.08):
 #   the painted playfield, the pools of light of the lit inserts (ZN-649.10: the light's colour added to the board, on the playfield and on
 #   the upper playfield, where the lit beacon light of frame 12 has its own), the modelled pieces, the cabinet, the backglass. The

@@ -187,7 +187,7 @@ zinc run examples/pinball3d/tools/table.ts -- check assets/tables/tidal-lock    
 zinc run examples/pinball3d/tools/probe.ts -- assets/tables/tidal-lock 36 70 1.37 0 -330 0 4   # a shot up the ramp at 3.3 m/s
 ```
 
-Tests: `tests/t1/pinball3d_format.sh` (the format), `pinball3d.sh` (a scripted game's event log, six pixel goldens,
+Tests: `tests/demo/pinball3d_format.sh` (the format), `pinball3d.sh` (a scripted game's event log, six pixel goldens,
 single shots), `pinball3d_second_table.sh` (Twilight Fair: its sessions replayed in the editor give its file, the same
 scripted game played on it), `pinball3d_sound.sh` (the scripted game's sound log, every sound decoded, a sound renamed in the file),
 `pinball3d_aot.sh` (the compiled game prints the same logs), `pinball3d_chooser.sh` (the list of tables: the second one

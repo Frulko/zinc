@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes session.input, the scripted session of tests/t1/museum_viewer.sh on the vase of the sample (sequence "porcelain", 1920x1080, one
+"""Writes session.input, the scripted session of tests/demo/museum_viewer.sh on the vase of the sample (sequence "porcelain", 1920x1080, one
 table unit per pixel). Run it again only to change the session; the goldens then change with it.
 
   5-29    one finger drags 257 units to the left and stops: the camera goes a quarter turn round the vase (yaw 20 to 110)

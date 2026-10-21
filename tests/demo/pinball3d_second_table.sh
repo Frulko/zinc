@@ -11,7 +11,7 @@
 #   pinball3d.sh, with the same code;
 # - single shots show what is its own: the high striker catches the ball and throws it onto the bandstand, where it rings a bell;
 # - nothing of the table is in the game's code: no name, text or file of its table.json appears in the sources.
-# To make the log again after an intended change of the table: tests/t1/pinball3d_second_table.sh --update (with ZINC set).
+# To make the log again after an intended change of the table: tests/demo/pinball3d_second_table.sh --update (with ZINC set).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"; exit 77; }
 ed=$PWD/examples/pinball3d-editor; game=$PWD/examples/pinball3d

@@ -59,7 +59,7 @@ Within a version, fields may be added only as optional ones with a default that 
 
 `serializeProject` writes one layout: two spaces, the fields in the order of this page, the top-level objects always in full, optional fields of
 media, items, links and sequences left out when they have their default, one line per item and per view, numbers as JavaScript prints them.
-A file written by it loads and saves to the same bytes (`tests/t1/museum_format.sh`), so a project under version control shows only real
+A file written by it loads and saves to the same bytes (`tests/demo/museum_format.sh`), so a project under version control shows only real
 changes.
 
 ## The project

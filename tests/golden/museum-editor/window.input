@@ -1,4 +1,4 @@
-# The preview window (tests/t1/museum_editor.sh), on the project of the table session in a folder whose photograph is a real picture.
+# The preview window (tests/demo/museum_editor.sh), on the project of the table session in a folder whose photograph is a real picture.
 # A double click opens the table of the first sequence; W opens the preview window, which shows that sequence.
 4 move 350 230
 5 down

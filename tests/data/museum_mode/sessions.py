@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the scripted sessions of tests/t1/museum_mode.sh, on the sample project of examples/museum-table (1920x1080, one table unit per
+"""Writes the scripted sessions of tests/demo/museum_mode.sh, on the sample project of examples/museum-table (1920x1080, one table unit per
 pixel, 60 frames a second). Run it again only to change a session; the goldens then change with it.
 
 sides.input, on the sequence of the vase (--sequence porcelain): a touch at each edge of the table in turn (the far side, the right, the

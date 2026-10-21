@@ -235,10 +235,10 @@ src/
 Tests: `zinc test examples/agents/tests` (the parsers against the real CLIs' streams, the stop state machine, the
 bounded reader, the markdown parser, the references and each CLI's arguments for them, the usage and limits of each CLI,
 opencode's models and a Go turn's usage, cost, context, the activity line's texts, the refresh interval, the picker's
-search and grouping); `tests/t1/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
-picker typed in and driven by keys), `tests/t1/agents_markdown.sh` (drops, chips, the markdown drawn,
-copy, selection, the `@` list), `tests/t1/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
+search and grouping); `tests/demo/agents_chat.sh` (fake CLIs that answer in each format, headless, the model
+picker typed in and driven by keys), `tests/demo/agents_markdown.sh` (drops, chips, the markdown drawn,
+copy, selection, the `@` list), `tests/demo/agents_usage.sh` (the spinners turn, or stand still with reduced motion,
 the activity line folds and unfolds, the summary, tokens and limits in the status bar, a restart, the interval),
-`tests/t1/agents_go.sh` (OpenCode Go's windows from a fake `opencode auth export` and made-up answers of the route,
+`tests/demo/agents_go.sh` (OpenCode Go's windows from a fake `opencode auth export` and made-up answers of the route,
 the toggle, each refusal, and the fake key found nowhere: data, output, scenes, a child's arguments or environment) and
 `tests/t1/agents_memory.sh` (the flood).

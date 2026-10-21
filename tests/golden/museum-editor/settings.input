@@ -1,4 +1,4 @@
-# The settings of the project (tests/t1/museum_editor.sh), on the project of the table session in a folder whose photograph is a real
+# The settings of the project (tests/demo/museum_editor.sh), on the project of the table session in a folder whose photograph is a real
 # picture. The first sequence is selected: the live sample of the settings shows it. Ctrl + comma opens the settings.
 4 move 350 230
 5 down

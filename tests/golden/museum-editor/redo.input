@@ -1,4 +1,4 @@
-# On the saved project: two new sequences, two steps back, and forth again by both keys; Save (tests/t1/museum_editor.sh).
+# On the saved project: two new sequences, two steps back, and forth again by both keys; Save (tests/demo/museum_editor.sh).
 4 key n
 5 key Escape
 6 key n

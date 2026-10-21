@@ -1,4 +1,4 @@
-# The scripted session of tests/t1/museum_panorama.sh (ZN-650.09), at 1280x720, 60 frames a second:
+# The scripted session of tests/demo/museum_panorama.sh (ZN-650.09), at 1280x720, 60 frames a second:
 # a drag to the right that the view continues, two wheel steps in, a tap on the point "steps", a tap on its card's button.
 10 move 1000 400
 11 down

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the scripted sessions of tests/t1/museum_access.sh, on the sample project of examples/museum-table (1920x1080, one table unit per
+"""Writes the scripted sessions of tests/demo/museum_access.sh, on the sample project of examples/museum-table (1920x1080, one table unit per
 pixel, 60 frames a second). Run it again only to change a session; the goldens then change with it. Where a button is at a text size and
 at a side of the table is what the player prints with --controls.
 

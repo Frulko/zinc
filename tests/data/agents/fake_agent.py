@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for the claude, codex and opencode CLIs (tests/t1/agents_chat.sh, agents_memory.sh), named by the link that
+"""A stand-in for the claude, codex and opencode CLIs (tests/demo/agents_chat.sh, agents_memory.sh), named by the link that
 starts it. It logs its arguments, folder and fast-mode switch to $FAKE_AGENT_LOG and prints an answer in that CLI's own
 stream format (the versions examples/agents/src/services/agents.ts names). Prompts with a meaning:
   fail     opencode fails (exit 3, a line on stderr)

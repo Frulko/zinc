@@ -16,7 +16,7 @@
 #                  preview.story, one frame equals its golden, and the file on disk is still table.json (a preview changes nothing);
 #                  the table's own app (examples/museum-table) then plays that file: it opens with the sequence the session made the start
 # The other sessions (the preview window, points of interest, a turned item, the settings, real pictures, French, Save as, closing) are
-# tests/t1/museum_editor_views.sh: one test lasted two minutes.
+# tests/demo/museum_editor_views.sh: one test lasted two minutes.
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
 ex=$PWD/examples/museum-table; g=$PWD/tests/golden/museum-editor

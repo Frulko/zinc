@@ -1,4 +1,4 @@
-# The table of a sequence (tests/t1/museum_editor.sh), on the project the first session saved, in a folder that holds photos/vague.jpg and
+# The table of a sequence (tests/demo/museum_editor.sh), on the project the first session saved, in a folder that holds photos/vague.jpg and
 # films/atelier.mp4. A double click on the first sequence of the storyboard opens its table.
 4 move 350 230
 5 down

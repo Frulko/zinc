@@ -1,4 +1,4 @@
-# The preview (tests/t1/museum_editor.sh), after the table session, in the same run. The sequence is renamed and not saved; P ("Play from here")
+# The preview (tests/demo/museum_editor.sh), after the table session, in the same run. The sequence is renamed and not saved; P ("Play from here")
 # plays it in the editor's window as it is now. Its button leads to the second sequence, whose button leads to the third, whose link opens the
 # first one over it with a slide; the hotspot of the card there closes it. Escape comes back to the editor.
 170 move 900 180

@@ -2,7 +2,7 @@
 // sequences they lead to. Until the sequence player (ZN-650.05) embeds PanoramaView, it shows one medium and names the sequence a link
 // would open. One finger looks around, a pinch or the wheel zooms, a tap on a point opens its card, a tap on the card's button follows it.
 //   zinc run examples/museum-table/src/pano.ts -- [medium id] [language]
-// Every look, zoom, opened point and followed link is printed on one line: the view log (tests/t1/museum_panorama.sh).
+// Every look, zoom, opened point and followed link is printed on one line: the view log (tests/demo/museum_panorama.sh).
 import { onFrame, clear, width, height, pointerDown, pointerX, pointerY, wheel, pinch, image, font, drawText, textWidth, rrect, border } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 import * as sys from 'zinc:sys';

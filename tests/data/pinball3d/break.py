@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes broken copies of a pinball table, one folder each, and the message each must give (tests/t1/pinball3d_format.sh).
+"""Writes broken copies of a pinball table, one folder each, and the message each must give (tests/demo/pinball3d_format.sh).
 usage: break.py <table.json> <out dir>      prints one line per case: <folder>\t<expected message>"""
 import copy
 import json

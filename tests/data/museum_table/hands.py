@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes hands.input, the scripted session of tests/t1/museum_table.sh: two hands on two cards of the sample's first sequence at once
+"""Writes hands.input, the scripted session of tests/demo/museum_table.sh: two hands on two cards of the sample's first sequence at once
 (1920x1080, one table unit per pixel). Run it again only to change the session; the goldens then change with it.
 
   hand 1 on the Great Wave: one finger drags (5-24), a second finger lands (25) and the pair turns and spreads while the first keeps

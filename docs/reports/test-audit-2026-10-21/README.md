@@ -61,3 +61,11 @@ Too slow for what they prove (CI seconds):
 | agents_chat, agents_go | 64, 49 | one long run, short smoke runs |
 | museum_visit, museum_viewer, pinball3d | 51, 45, 60 | one `ZINC_FRAMEHASH=all` run instead of one run per hash |
 | layout_yoga | 41 | the sanitizer rebuild belongs to a nightly |
+
+## Demo tests (owner, 2026-10-21)
+
+A demo's tests find engine bugs no small test foresaw (agents_memory found the child-pipe backlog of src/host/loop.cpp, the agents pane the
+flex-shrink layout bug that classic_shrink now guards), but most of their assertions are the app's own logic. Each demo keeps one T1 session
+(museum_visit, pinball3d, pinball3d_editor, agents_memory, music_city_standby, music_tree_sonos); the 32 others moved to `tests/demo/`
+(`tests/run --tier demo`, and `--changed` when the demo changes), which the release CI does not run: 693 s of the 6203 s. The UI kit showcases
+(rn_showcase, rn_tester, nuxt_ui), marble, and the apps of `app/` (Atelier, Zinc Go) stay in T1: they test the standard library and the products.

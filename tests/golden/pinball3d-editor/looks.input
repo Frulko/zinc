@@ -1,4 +1,4 @@
-# The table editor, looks, lights, the camera and the screen layouts set by hand (tests/t1/pinball3d_editor_looks.sh), window
+# The table editor, looks, lights, the camera and the screen layouts set by hand (tests/demo/pinball3d_editor_looks.sh), window
 # 1440x900. The folder holds one image, art/deck.png. Things are taken by their names (Cmd+G), fields by their keys (Cmd+F).
 # An upper playfield: its outline, four points, Enter.
 4 key g meta

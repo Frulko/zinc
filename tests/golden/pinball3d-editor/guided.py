@@ -2,7 +2,7 @@
 """Writes the editor sessions of the guided rules (ZN-649.14), with the typist that typed Twilight Fair
 (examples/pinball3d/tools/twilight_fair/typist.py): what a person does in the table editor, one event per line, on the
 table kept with the tests (table.json, Tidal Lock of 2026-10-10). The sessions are kept beside this script; the tests
-(tests/t1/pinball3d_editor.sh for rules.input, tests/t1/pinball3d_editor_rules.sh for the others) replay them and
+(tests/t1/pinball3d_editor.sh for rules.input, tests/demo/pinball3d_editor_rules.sh for the others) replay them and
 compare the table each saves with its golden.
 
 How a session reaches things, as every session of the editor does: a thing by its name with Cmd+G, a field of the selection
@@ -64,7 +64,7 @@ def rules():
 
 
 def conditions():
-    s = Session('The table editor, conditions and actions made from choices (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+    s = Session('The table editor, conditions and actions made from choices (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.\n'
                 'A rule that acts when every lane light is on. Its condition is added by its kind and is whole at once: the\n'
                 'editor gives it the first group of lights of the table, the lanes. The 100 points a new rule gives become\n'
                 'another kind of action, in the list of kinds of the field; two more are added.')
@@ -147,7 +147,7 @@ def cell(s, name, nth, points):
 
 
 def scores():
-    s = Session('The table editor, the scores as a grid (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+    s = Session('The table editor, the scores as a grid (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.\n'
                 'The rules themselves selected, the grid takes the place of the top view. The bumpers give 750 points for a hit\n'
                 'instead of 500: the number of the rule that scores there. The lanes have three rules for a ball that rolls over\n'
                 'them; the cell is the one without a condition.')
@@ -173,7 +173,7 @@ UP_X, UP_Y = 1190, 295
 
 
 def mission():
-    s = Session('The table editor, a mission made of sentences (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+    s = Session('The table editor, a mission made of sentences (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.\n'
                 '"+mission" adds one, with a step; its name is typed. The step becomes "Hit ...": its event is chosen in the list\n'
                 'of events, and the editor gives it the first group that can be hit, the bumpers.')
     s.goto('+mission')
@@ -204,7 +204,7 @@ def mission():
 
 
 def delete():
-    s = Session('The table editor, a deletion that takes rules with it (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+    s = Session('The table editor, a deletion that takes rules with it (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.\n'
                 'The dock is clicked on the top view, and Delete is pressed. Three rules listen to the dock and a mission waits for\n'
                 'it: the editor says which would go with it, and waits. Escape leaves everything as it is.')
     s.at(40.5, 24.5)

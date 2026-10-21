@@ -1,4 +1,4 @@
-# An item turned on the table (tests/t1/museum_editor.sh), on the project of the table session in a folder whose photograph is a real
+# An item turned on the table (tests/demo/museum_editor.sh), on the project of the table session in a folder whose photograph is a real
 # picture. A double click opens the table of the first sequence; a click selects the photograph; the round handle above it is dragged a
 # quarter of the way round to the right: the photograph is turned 45 degrees, and drawn turned with its hotspot. Save.
 4 move 350 230

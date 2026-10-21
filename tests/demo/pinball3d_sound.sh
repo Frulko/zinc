@@ -2,7 +2,7 @@
 # The sounds of the 3D pinball (ZN-649.03, examples/pinball3d/src/audio.ts): every event of an element plays the sound the table file names for it.
 # - The scripted game of tests/t1/pinball3d.sh, run with --sounds, prints the sound log of tests/data/pinball3d/sounds.log: each sound with what made
 #   it, its volume and pitch (varied from one play to the next by a generator that repeats), its place between the speakers, the rolling sound
-#   every half second and each change of music (tests/t1/pinball3d_aot.sh holds the compiled program to the same log).
+#   every half second and each change of music (tests/demo/pinball3d_aot.sh holds the compiled program to the same log).
 # - The table is complete: every element names a sound for each of its events, every event of the game has a rule that plays one (a bump
 #   of the table and a letter of the initials signed too, ZN-649.10: both are in the scripted game's log), every state
 #   has its music, every file is there, and the audio is under 1 MB.
@@ -12,7 +12,7 @@
 #   a tone the copy of the table defines.
 # - Single shots (tools/probe.ts ... sounds) for what the scripted player never reaches: the ramp, the rail, the dock, the spinner, the
 #   standups, the tilt, multiball.
-# To make the golden again after an intended change: tests/t1/pinball3d_sound.sh --update (with ZINC set).
+# To make the golden again after an intended change: tests/demo/pinball3d_sound.sh --update (with ZINC set).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"; exit 77; }
 fail=0

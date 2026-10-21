@@ -1,5 +1,5 @@
 // A point of interest stays on its direction (ZN-650.09): a dark panorama with a red square at five directions; each frame shows one view
-// of VIEWS and prints where PanoramaView.project puts the directions, and tests/t1/museum_panorama.sh finds the red squares there. The
+// of VIEWS and prints where PanoramaView.project puts the directions, and tests/demo/museum_panorama.sh finds the red squares there. The
 // last three views are those of a visitor at the right, the far and the left side of a table (ZN-650.13): the image is rolled for them,
 // and a point is still where it is projected.
 import { onFrame, clear, width, height, createImage, beginImage, endImage, rect } from 'zinc:gfx';

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Museum table, the storyboard editor (ZN-650.07), the sessions that start from the goldens of tests/t1/museum_editor.sh:
+# Museum table, the storyboard editor (ZN-650.07), the sessions that start from the goldens of tests/demo/museum_editor.sh:
 #   window.input   the preview in a second window, on that project with a real picture: it shows the sequence being edited, shows it again
 #                  after the photograph is dragged on the table, takes its own clicks (a link followed there), and comes back to the
 #                  sequence being edited after an undo: window.story, and the frames of both windows equal their goldens

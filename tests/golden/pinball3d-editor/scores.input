@@ -1,4 +1,4 @@
-# The table editor, the scores as a grid (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# The table editor, the scores as a grid (tests/demo/pinball3d_editor_rules.sh). Written by guided.py.
 # The rules themselves selected, the grid takes the place of the top view. The bumpers give 750 points for a hit
 # instead of 500: the number of the rule that scores there. The lanes have three rules for a ball that rolls over
 # them; the cell is the one without a condition.

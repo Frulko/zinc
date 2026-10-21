@@ -19,7 +19,7 @@ for p in paths:
             for t in rule["tests"]: add(t)
             if rule.get("canary"): add("canary")
     test = Path(sys.argv[1]).parent / q.removeprefix("tests/")
-    if q.startswith(("tests/t0/", "tests/t1/", "tests/t2/")) and test.is_file():
+    if q.startswith(("tests/t0/", "tests/t1/", "tests/t2/", "tests/demo/")) and test.is_file():
         add(test.stem)
         hit = True
     # Shared language/runtime changes and unmapped code must not lose coverage.

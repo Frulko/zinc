@@ -1,4 +1,4 @@
-# The editor's details (tests/t1/museum_details.sh), on a project whose first sequence holds a photograph turned by 30 degrees, the sample's
+# The editor's details (tests/demo/museum_details.sh), on a project whose first sequence holds a photograph turned by 30 degrees, the sample's
 # vase and its panorama, every text written in French and in English. Ctrl + comma opens the settings: German is added.
 8 key , meta
 14 move 262 407

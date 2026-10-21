@@ -1,4 +1,4 @@
-# Narration, sound and film (tests/t1/museum_editor_sound.sh), on the project the first session saved, in a folder that holds
+# Narration, sound and film (tests/demo/museum_editor_sound.sh), on the project the first session saved, in a folder that holds
 # audio/welcome.fr.mp3, audio/welcome.en.mp3 with their .vtt, and video/great-wave.mp4 with its picture and its .vtt in two languages.
 # A double click on the first sequence of the storyboard opens its table.
 4 move 350 230
