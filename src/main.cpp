@@ -20,6 +20,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "cli_core.h"
+#include "cli_mqjs.h"
 #include "cli_pm.h"
 #include "cli_web.h"
 #ifdef ZN_AGENT
@@ -1701,6 +1702,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/lib/std");
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "assets")) return zn::cli::assets(cl, gRoot);
+    if (zn::cli::mquickjsWanted(cl)) return zn::cli::mquickjs(cl, gRoot, qjsCacheDir());   // --target esp32 --engine mquickjs (firmware/esp32-mquickjs)
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "compat")) return zn::cli::compat(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
@@ -2528,9 +2530,9 @@ int main(int argc, char** argv) {
       std::puts(zig.c_str());
       return 0;
     }
-    if (sub == "esptool" || sub == "esbuild" || sub == "basisu" || sub == "gltfpack") {
+    if (sub == "esptool" || sub == "esbuild" || sub == "swc" || sub == "basisu" || sub == "gltfpack") {
       std::string tool, err;
-      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : sub == "gltfpack" ? zn::tc::ensureGltfpack(tool, err) : sub == "esbuild" ? zn::tc::ensureEsbuild(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : sub == "gltfpack" ? zn::tc::ensureGltfpack(tool, err) : sub == "esbuild" ? zn::tc::ensureEsbuild(tool, err) : sub == "swc" ? zn::tc::ensureSwc(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(tool.c_str());
       return 0;
     }

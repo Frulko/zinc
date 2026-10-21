@@ -46,7 +46,8 @@ it is a compile-time lowering to zinc:ui helpers (fine-grained Solid effects or 
 - (e) The Zinc parser accepts the Zinc subset only: npm packages (CommonJS, sloppy JavaScript) do not parse; scope hoisting, renaming,
   tree shaking, a minifier and source maps would be thousands of lines that esbuild already proves. Kept for what it does well: the transform.
 - (f) Fast and MIT, but transform, minify and Rolldown ship as Node addons (NAPI) only; linking the Rust crates means Cargo in our build.
-- (b) No standalone SWC binary (NAPI addons only); `spack` is deprecated; Rspack needs Node.
+- (b) No bundler: `spack` is deprecated, and the standalone `swc` binary of its GitHub releases (22 to 31 MB a platform) only transforms
+  (zinc pins it since 2026-10-21 for the ES5 lowering of `--engine mquickjs`); Rspack needs Node.
 - (c), (g) Need Node.
 
 **Decision: (a), in a pipeline whose transform stage is the engine's own**, and whose run path needs no tool at all:

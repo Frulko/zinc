@@ -414,6 +414,16 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:loro: event `from`/`to` frontiers, detached containers (empty until attached), `LoroMovableList`, `LoroCounter`, cursors, the undo manager, shallow snapshots, `fork`, `diff`/`applyDiff`.
 
 - third_party: keep the vendored copies (no submodules: patches, offline first build, worktrees), but tool them: a machine-readable third_party/vendor.json (url, version, sha256, kept files, patches) and tools/vendor check|update <lib> <version> (check on CI: each directory equals its source plus its patches). Owner, 2026-10-21.
+- mquickjs on the ESP32 (owner, 2026-10-21, firmware/esp32-mquickjs): run the bytecode from the memory-mapped flash instead of a RAM copy (relocate it once on the board to the mapped address and write it back): 11.8 KB of RAM for the breakout demo, the size of any program.
+- mquickjs on the ESP32: js/prelude.js is 3.9 KB of the demo's 11.8 KB of bytecode; keep only the polyfills a program names (filter its lines by the bundle's text) when flash or heap is short.
+- mquickjs on the ESP32: an upload over the UART into the js partition (as the Zinc core's `ZN load`), so `zinc run --engine mquickjs` needs no esptool write and no reset into the bootloader (the error mapping to the .ts is done, src/cli_mqjs.cpp).
+- mquickjs on the ESP32: numbers that are not 31-bit integers are boxed (12 bytes): the breakout demo makes ~60 KB of float garbage per few seconds; measure the GC pauses (the slowest frame) before a game with heavier math, and try Float64Array-held state.
+- mquickjs on the ESP32 (2026-10-22): `zinc run --target esp32 --engine mquickjs` on the board itself (esptool write of the js partition, then the UART) is written but not yet run: the board was unplugged after the esp32sim run; run it with the board on /dev/cu.usbserial-*.
+- mquickjs in esp32sim: no touch, its T-Display board has no CST820 (the S3 crate has one): a CST820 on I2C 0x15 for the classic ESP32 boards, as a PR upstream (mikroverk/esp32sim; outward step, the owner's), then a touch script in `--emulator` runs.
+- mquickjs in esp32sim: the ESP32-2432S022's own wiring (ST7789 on the i80 bus of I2S0) upstream, so the emulator runs the board's firmware instead of the SPI variant (`-DZN_PANEL=spi`).
+- mquickjs: `"engine": "mquickjs"` in zinc.json's esp32 target, so `zinc run --target esp32` needs no flag for such a project.
+- mquickjs on the ESP32: more of zinc:gfx on the board (line, polygon, circle, drawText with a baked font, images from the flash) before the prototype's widgets demo (examples/boards/esp32-2432s022) can be rewritten on zinc:gfx.
+- mquickjs: zinc-mqjs on Windows and in the cross builds of zinc (CMakeLists.txt builds it only natively, not on WIN32).
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).

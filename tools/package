@@ -51,6 +51,8 @@ def payload(share):
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
+    for part in ("prebuilt", "js"):   # --engine mquickjs: the firmware image and the files zinc prepares a program with (src/cli_mqjs.cpp)
+        copy_tree(os.path.join(NEXT, "firmware", "esp32-mquickjs", part), os.path.join(nx, "firmware", "esp32-mquickjs", part))
     copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx', '.json', '.png', '.txt')) and not r.startswith('atelier/build'))   # zinc.json (permissions), icon, thumbs, examples/index.txt: Atelier does not run without them
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
@@ -200,7 +202,7 @@ def engine_macos(build, bindir, libdir, prefix):
     os.makedirs(bindir, exist_ok=True)
     binary = os.path.join(bindir, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
-    for mod in ("libzn_webgl.dylib", "libzn_window.dylib", "libzn_engine_jsc.dylib"):   # libzn_engine_jsc: --engine jsc on the system's JavaScriptCore (ZN-773)
+    for mod in ("libzn_webgl.dylib", "libzn_window.dylib", "libzn_engine_jsc.dylib", "zinc-mqjs"):   # libzn_engine_jsc: --engine jsc on the system's JavaScriptCore (ZN-773); zinc-mqjs: --engine mquickjs
         if os.path.exists(os.path.join(build, mod)):
             shutil.copy2(os.path.join(build, mod), os.path.join(bindir, mod))
     bundle_libs_macos(binary, libdir, prefix)
@@ -247,6 +249,8 @@ def package_linux(build, out, arch=None):
     shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
     if os.path.exists(os.path.join(build, "libzn_webgl.so")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
         shutil.copy2(os.path.join(build, "libzn_webgl.so"), os.path.join(root, "bin", "libzn_webgl.so"))
+    if os.path.exists(os.path.join(build, "zinc-mqjs")):  # --engine mquickjs: the host mquickjs beside zinc (src/cli_mqjs.cpp)
+        shutil.copy2(os.path.join(build, "zinc-mqjs"), os.path.join(root, "bin", "zinc-mqjs"))
     ldd = "" if cross else run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout   # cross: SDL3 is linked in, the rest is the system's
     for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
         if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):

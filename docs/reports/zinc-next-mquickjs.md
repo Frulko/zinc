@@ -52,3 +52,100 @@ slots are the pressure point; a smaller core configuration is the first thing to
 ES5 downlevel step and the table generator described above.
 
 Reproduce: `git clone https://github.com/bellard/mquickjs`, `make`, then `mqjs --memory-limit 10k kernel.js` on the ES5 kernels; the flash proxy is the `zig cc` line above.
+
+## On the board (owner, 2026-10-21)
+
+The owner attached an ESP32-2432S022C and asked whether mquickjs can run there with Node tooling (esbuild and the like) preparing the
+JavaScript for the engine's limits, the program compiled ahead rather than parsed on the board. It can: `firmware/esp32-mquickjs`
+(README there) runs a touch Breakout written in modern TypeScript at 85 to 89 fps. Board: ESP32-D0WD-V3 rev 3.1 at 240 MHz, no PSRAM,
+4 MB flash; ESP-IDF 5.5.5, `-O2`; the same vendored commit 6d4d7eb (`third_party/mquickjs`).
+
+**The pipeline.** First a Node script (esbuild with SWC per file), then, at the owner's request ("on veut l'intégration dans zinc ! et
+l'aot mais avec option mquickjs"), `zinc` itself without Node (`src/cli_mqjs.cpp`, `zinc run|export|flash --target esp32 --engine
+mquickjs`): `zinc bundle`'s transform and esbuild link the program as for `--engine quickjs` (zinc:gfx is its QuickJS module, tree-shaken);
+the standalone SWC 1.16.18 binary, pinned in `src/tc` like esbuild, lowers the linked program to ES5 (preset-env targets IE 11, loose,
+iterables assumed to be arrays because mquickjs has no `Symbol.iterator`, `**` kept since mquickjs has it, the source map chained to the
+bundle's); `js/prelude.js` adds the ES2015+ library methods mquickjs lacks and an `Object.create` that takes descriptors, `js/post.js`
+replaces two SWC helpers (`_construct`: no `Reflect.construct`; `_object_spread_props`: no `getOwnPropertyDescriptors`); `zinc-mqjs` (the
+stock `mqjs.c`, built beside zinc) runs the program for 300 frames against the board's host calls (`js/sim.js`) inside twice the board's
+heap, and errors are mapped back to the TypeScript line; last, `mqjs -m32 -o` writes 32-bit bytecode (with columns, so the board's traces
+map back too). esbuild alone cannot do it (it does not lower `let`, classes or arrow functions to ES5) and TypeScript dropped its ES5
+target in 7.0, so SWC is the lowering step.
+Bytecode compiled by the stock `mqjs` runs against the board's own ROM standard library: atoms are resolved when the board relocates it,
+and the engine's atom table does not depend on what the board adds (checked: the generated `mquickjs_atom.h` is the same).
+
+The first figures are those of a small Breakout written against the firmware's own API (`screen.rect`, `requestAnimationFrame`), before
+the firmware took `zinc:gfx`'s host calls instead:
+
+| Breakout demo (145 lines of TypeScript, two modules) | |
+|---|---:|
+| ES5 bundle | 9,332 bytes |
+| bytecode (`--no-column`; columns would add 1.2 KB) | 11,800 bytes, of which the prelude 3.9 KB |
+| start: bytecode read from flash, relocated, loaded | **5.2 ms** |
+| start: the same program as ES5 source, parsed on the board (`--source`) | 88 ms |
+| frame: JavaScript (physics, ~115 draw calls through the C API) | 6.4 to 6.7 ms |
+| frame: render and send, only changed 16-row bands (3.9 of 20 per frame) | 4.2 to 4.6 ms → **85 to 89 fps** |
+| frame: render and send, the whole screen every frame | 23.3 ms → 33 fps |
+| JavaScript heap (fixed buffer) | 96 KiB; 14 to 94 KiB in use between collections, mostly boxed float64 (12 bytes each) |
+
+| Firmware | |
+|---|---:|
+| image | **319 KB** (Zinc Next core, no display: 888 KB; the prototype's AOT build of the widgets demo: 1.2 MB) |
+| mquickjs + ROM standard library + font + board code (`libmain.a`) | 109 KB code, 15 KB read-only data, 17.5 KB `.bss` (the display list) |
+| heap free at start, after the panel and touch drivers | 256 KB, largest block 124 KB; 145 KB left once the JS heap and the bytecode are allocated |
+
+**`examples/breakout`, unchanged.** Since the firmware defines the `__host_gfx*` functions zinc:gfx's QuickJS module calls and calls
+`__zincFrameCb` each frame, a Zinc program on `zinc:gfx` runs as it is. `examples/breakout` (411 lines, six modules, classes, template
+strings) is 25,764 bytes of bytecode (with columns) and loads in 9.6 ms on the board; uncapped it ran at 250 to 420 fps on its title screen
+(0.4 to 0.8 of 20 bands sent per frame), and the frame loop is now held to the panel's 60 Hz. It draws the original look: `image()` is -1
+on the board, so `skinLoaded()` is false, as on a target that bakes no images. The owner saw it on the board ("le breakout marche super").
+
+**Without the board: esp32sim** (`docs/reports/esp32sim.md`). esp32sim 0.3.0 boots the real bootloader and app of a classic ESP32 but has no
+I2S LCD (i80) mode, so the firmware has a second build with the panel on SPI as esp32sim's T-Display board wires it (`-DZN_PANEL=spi`,
+`prebuilt/zinc-mquickjs-sim-flash.bin`); `zinc run ... --emulator` runs it with the program in its flash and writes the panel's 240x320 RAM
+as a PNG. `examples/breakout` there: 62.6 fps (the 60 Hz cap), 8 emulated seconds in 1.6 s on an M1 Pro, the frame as on the board.
+Touch is not there yet: esp32sim has a CST820 model in its S3 crate only.
+
+**Lighter (2026-10-22, owner: "le build le plus light possible").** Measured on the board with `examples/breakout`, before → after:
+
+| | before | after |
+|---|---:|---:|
+| app image (`idf.py size`) | 319 KB | 268 KB |
+| merged flash image | 387 KB | 333 KB |
+| static DRAM | 30.5 KB | 27.7 KB |
+| ESP-IDF components built | 109 | 58 |
+| heap free while the program runs | 121 KB | 153 KB |
+| JavaScript per frame (title screen) | 2.0-2.7 ms | 1.6-2.3 ms |
+| render and send per frame | 1.4-1.5 ms | 1.8-2.0 ms |
+| bytecode load at boot | 10.1 ms | 4.9 ms |
+
+What does it: the bytecode runs from the memory-mapped flash (relocated once per program and firmware into a copy in the js partition,
+12 ms; a program can be 256 KB), ESP-IDF at -Os with the engine and main.c at -O2, newlib nano, no assertion texts or error names,
+`MINIMAL_BUILD`. Reading bytecode through the flash cache alone made JavaScript 2.7 times slower (5.4-7.6 ms): the interpreter's own code
+shared the 32 KB cache. Putting `JS_Call` (9 KB) in IRAM (`main/linker.lf`) and the flash at 80 MHz made it faster than the RAM copy.
+mquickjs needed one patch for flash bytecode: `JS_MakeUniqueString` wrote `is_unique` into a string of the bytecode (a computed property
+name), a LoadStoreError on flash; it now interns a RAM copy. Minifying the program (esbuild) saves 1 KB of bytecode and loses the error
+positions, `--no-column` 2.2 KB: neither is used, since bytecode no longer costs RAM. The prelude costs about 5 KB of JavaScript heap
+(9.3 KB measured on the 64-bit host).
+
+What the board shows: the vendor's ST7789 tuning sequence from the prototype's driver, MADCTL 0x08, 10 MHz on the 8-bit i80 bus
+(esp_lcd over the ESP32's I2S, which copies each band into its own DMA buffer, so the next band renders while one is sent). A band is
+re-sent only when the hash of the commands touching it changes, so a still screen costs no transfer. The CST820 touch answers at 0x15
+(the firmware found it). The owner checked the picture; the touch direction is not checked yet.
+
+What the preparation does not cover: `Map`, `Set`, `WeakMap`, `Symbol`, `Promise`/`async`, generators' iterators, `Proxy`, `Reflect`, `Date`
+objects. These fail in the check on the computer, before anything is flashed, with the TypeScript file and line (`tests/t0/mquickjs_esp32.sh`
+proves it with `Map`). Of note on the board: every number outside the 31-bit integers is a 12-byte heap value on a 32-bit CPU, so float
+math makes garbage at every operation (60 KB in one 5-second dump); the compacting GC keeps up at 85 fps here, pauses are not measured.
+
+Flashing: the firmware once (`zinc flash --target esp32 --engine mquickjs`), then each program alone (12 KB in 0.7 s at 460800 baud). Reading the flash back failed through
+the board's CH340 on macOS with esptool's stub at every baud rate (bytes lost); `esptool --no-stub read-flash` works (5 KB/s). The board's
+previous image (the prototype's widgets demo) is kept in `~/esp32-2432s022-backup/flash-2026-10-21.bin` (sha256 dc1a533b…);
+`esptool write-flash 0 <file>` restores it.
+
+**Decision, revised.** The ZN-043 conclusion holds for Zinc programs: the typed core and the AOT stay the way Zinc runs on an ESP32, and
+the AOT is the "compiled directly" path. But the revisit condition (a) is met in practice: plain JavaScript on a PSRAM-less ESP32 is
+viable with mquickjs when the preparation happens on the computer, with fast starts from flash bytecode, a small firmware and a real frame
+rate. The owner made it a `zinc` option on 2026-10-21: the AOT stays the default way Zinc runs on an ESP32 (`docs/reports/zinc-next-esp32-aot.md`
+plans it for the widgets demo), and `--engine mquickjs` runs a `zinc:gfx` program as JavaScript on the board's MicroQuickJS firmware. The
+follow-ups are lines in `backlog/later.md`.

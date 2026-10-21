@@ -82,6 +82,29 @@ constexpr Pin kEsbuildPins[] = {
     {"x86_64-windows", "win32-x64-0.28.2.tgz", "7286c3611b6f1f4c4d9ec90adcbc478407ff0d28ead96567f361d53e67613e19"},   // the binary is package/esbuild.exe
 };
 
+// SWC (owner, 2026-10-21), the ES5 lowering of --engine mquickjs: the standalone binary of each platform from the GitHub release v1.16.18
+// (2026-10-11), its SHA-256 as the release lists it (computed here for darwin-x64).
+constexpr const char* kSwcVersion = "1.16.18";
+constexpr Pin kSwcPins[] = {
+    {"aarch64-macos", "swc-darwin-arm64", "5f2451d09fb77df97f765fd4db5fd67b837caf02d157105cac268f4efe9c92db"},
+    {"x86_64-macos", "swc-darwin-x64", "76ee80d95ec84b50bed94032894507e15fe07d65414b6dfc225575130e6645c1"},
+    {"aarch64-linux", "swc-linux-arm64-gnu", "f87adfc83594620300a31ef4dfc9089fcf972f0aeb6b338af50a1d50299583a9"},
+    {"x86_64-linux", "swc-linux-x64-gnu", "38df13eb64f3867554eb6ead189042acd2cabf490ecc5e332aecdc0af7220b66"},
+    {"x86_64-windows", "swc-win32-x64-msvc.exe", "590a89b8b05fcf26bef73490e32eadbafb7c91358018764ecef9caa8ebeab0d0"},
+};
+
+// esp32sim (owner, 2026-10-21; docs/reports/esp32sim.md), the ESP32 emulator of `zinc run --target esp32 --engine mquickjs --emulator`: the
+// release v0.3.0 (2026-10-20) of each platform it publishes (no Intel Mac, no Windows), the SHA-256 of its SHA256SUMS.txt; and the mask ROMs it
+// boots, Espressif's esp-rom-elfs 20260528 (Apache-2.0), the SHA-256 of that release.
+constexpr const char* kEsp32simVersion = "0.3.0";
+constexpr Pin kEsp32simPins[] = {
+    {"aarch64-macos", "esp32sim-0.3.0-macos-arm64.tar.gz", "fe5e4d8f88ef2bf1968b3e9cae5a55dd0a86abda30fdf451da9f55b1170ac4e9"},
+    {"x86_64-linux", "esp32sim-0.3.0-linux-x86_64.tar.gz", "3c18f095fbb8d6fdf49f75bdcf8eaf26717c07c034b8e38cf16bcd6aaed793a6"},
+    {"aarch64-linux", "esp32sim-0.3.0-linux-arm64.tar.gz", "dcb84091e0527035aa09d820131cc8993f34e757ed02c5d108c49b1e72a50852"},
+};
+constexpr const char* kRomElfsVersion = "20260528";
+constexpr Pin kRomElfsPin = {"any", "esp-rom-elfs-20260528.tar.gz", "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46"};
+
 // Tools of the asset build whose projects publish no binaries: a source archive pinned by its SHA-256 and built once with the pinned zig into
 // ~/.zinc/toolchains/<name>-<host>-<version>/<name>. The pin's host is "any": the sources are the same for every machine.
 struct SourceTool {
@@ -228,6 +251,8 @@ std::vector<PinnedTool> pinnedTools() {
   add("qemu-system-xtensa", qemuVersion(hostName()), kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
   add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
+  for (const Pin& p : kSwcPins) if (hostName() == p.host) add("swc", kSwcVersion, &p, 1, "swc-", p.file);
+  add("esp32sim", kEsp32simVersion, kEsp32simPins, sizeof kEsp32simPins / sizeof *kEsp32simPins, "esp32sim-", "esp32sim");
   for (const SourceTool* t : {&basisuTool(), &gltfpackTool()})
     out.push_back(PinnedTool{t->name, t->version, t->pin.file, t->pin.sha256, toolDir(*t), fs::exists(fs::path(toolDir(*t)) / t->name)});
   return out;
@@ -380,6 +405,7 @@ static bool fetchTool(const char* what, const Pin& pin, const std::string& url, 
 #endif
   fs::path inner;
   for (auto& e : fs::directory_iterator(tmp)) inner = e.path();
+  if (fs::exists(tmp / marker)) inner = tmp;   // an archive of files rather than of one directory (esp-rom-elfs)
   if (inner.empty() || !fs::exists(inner / marker)) { err = std::string("the archive has no ") + marker; fs::remove_all(tmp, ec); return false; }
   fs::remove_all(dir, ec);
   fs::rename(inner, dir, ec);
@@ -461,6 +487,48 @@ bool ensureEsbuild(std::string& path, std::string& err) {
   const std::string file = pin->file, platform = file.substr(0, file.size() - std::strlen(kEsbuildVersion) - 5);   // darwin-x64-0.28.2.tgz -> darwin-x64
   const fs::path dir = fs::path(home()) / "toolchains" / ("esbuild-" + hostName() + "-" + kEsbuildVersion);
   return fetchTool("esbuild", *pin, "https://registry.npmjs.org/@esbuild/" + platform + "/-/" + file, dir, hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild", err);   // the tarball's one directory is package/
+}
+
+bool ensureSwc(std::string& path, std::string& err) {
+  if (const char* e = std::getenv("ZINC_SWC")) { path = e; if (fs::exists(path)) return true; err = "ZINC_SWC points to a missing file: " + path; return false; }
+  const Pin* pin = nullptr;
+  for (const Pin& p : kSwcPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned SWC for this machine (" + hostName() + "); set ZINC_SWC to an swc " + kSwcVersion + " you installed"; return false; }
+  const fs::path dir = fs::path(home()) / "toolchains" / ("swc-" + hostName() + "-" + kSwcVersion);
+  path = (dir / pin->file).string();
+  if (fs::exists(path)) return true;
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  const std::string part = path + ".part", url = std::string("https://github.com/swc-project/swc/releases/download/v") + kSwcVersion + "/" + pin->file;
+  std::fprintf(stderr, "zinc: downloading SWC %s (once, about 25 MB)...\n", kSwcVersion);
+  std::string got;
+  if (!downloadTo(url, pin->file, part, [&](const std::string& p, std::string& why) {   // a single executable: checked, then made runnable
+        got = sha256File(p);
+        if (got == pin->sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + pin->sha256;
+        return false;
+      }, err)) return false;
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  fs::permissions(part, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add, ec);
+  fs::rename(part, path, ec);
+  if (ec) { err = "cannot move SWC into place: " + ec.message(); return false; }
+  return true;
+}
+
+bool ensureEsp32sim(std::string& sim, std::string& rom, std::string& err) {
+  const Pin* pin = nullptr;
+  for (const Pin& p : kEsp32simPins) if (hostName() == p.host) pin = &p;
+  if (const char* e = std::getenv("ZINC_ESP32SIM")) sim = e;
+  else if (!pin) { err = "no pinned esp32sim for this machine (" + hostName() + "; its releases are for Apple silicon Macs and Linux); set ZINC_ESP32SIM to one you built (cargo build --release)"; return false; }
+  else {
+    const fs::path dir = fs::path(home()) / "toolchains" / ("esp32sim-" + hostName() + "-" + kEsp32simVersion);
+    if (!fetchTool("the ESP32 emulator", *pin, std::string("https://github.com/mikroverk/esp32sim/releases/download/v") + kEsp32simVersion + "/" + pin->file, dir, "esp32sim", err)) return false;
+    sim = (dir / "esp32sim").string();
+  }
+  const fs::path roms = fs::path(home()) / "toolchains" / (std::string("esp-rom-elfs-") + kRomElfsVersion);
+  if (!fetchTool("the ESP32 mask ROMs", kRomElfsPin, std::string("https://github.com/espressif/esp-rom-elfs/releases/download/") + kRomElfsVersion + "/" + kRomElfsPin.file, roms, "esp32_rev300_rom.elf", err)) return false;
+  rom = (roms / "esp32_rev300_rom.elf").string();
+  return true;
 }
 
 std::string butlerVersion() { return kButlerVersion; }
