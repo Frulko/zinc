@@ -131,6 +131,21 @@ static std::string packedTarget() {
 #endif
 }
 static zn::tc::BundleSpec gBundleSpec;
+static bool gNoEmbed = false;   // zinc build --no-embed: the baked fonts and images in a file beside the program, not inside it
+// The file of the baked fonts and images when they stay out of the program (zinc build --no-embed; a .app always, in Contents/Resources):
+// written now, its name returned for the generated main to read at start. "" when they are embedded, or on an error (said).
+static std::string writeResourcesFile(const std::string& out, const std::vector<std::uint8_t>& blob, bool& failed) {
+  namespace fs = std::filesystem;
+  if (blob.empty() || (!gNoEmbed && gBundleOut.empty())) return "";
+  const std::string name = fs::path(out).filename().string() + ".res";
+  const fs::path file = (gBundleOut.empty() ? fs::path(out).parent_path() : fs::path(gBundleOut) / "Contents/Resources") / name;
+  std::error_code ec;
+  if (file.has_parent_path()) fs::create_directories(file.parent_path(), ec);
+  std::ofstream f(file, std::ios::binary);
+  f.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
+  if (!f) { std::fprintf(stderr, "zinc: cannot write %s\n", file.string().c_str()); failed = true; return ""; }
+  return name;
+}
 
 // A plugin library ready to load: its exports registered for a load at the first call (ZN-615), else loaded now.
 static bool registerPlugin(const zn::tc::PluginLib& lib, std::string& err) {
@@ -744,7 +759,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
   bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
   std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
-  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
+  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); bool resFailed = false; const std::string resFile = run ? std::string() : writeResourcesFile(out, blob, resFailed); if (resFailed) return 1; std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() || !resFile.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1, resFile); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
     for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().string().c_str()); return 2; } } }
   std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
   if (zn::aot::usesHost(zm)) {
@@ -1533,6 +1548,12 @@ int main(int argc, char** argv) {
     for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
     --argc; --k;
     gBundleOut = "?";
+  }
+  for (int k = 1; k < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --no-embed: the fonts and images in <out>.res beside the program
+    if (std::strcmp(argv[k], "--no-embed")) continue;
+    for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
+    --argc; --k;
+    gNoEmbed = true;
   }
   if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
@@ -2336,7 +2357,10 @@ int main(int argc, char** argv) {
       }
       zn::tc::clearCrossTarget();
     }
-    { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()));
+    bool resFailed = false;
+    const std::string resFile = writeResourcesFile(argv[6], blob, resFailed);
+    if (resFailed) return 1;
+    { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() || !resFile.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), resFile);
       if (draws && !gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
       o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; } }
     if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03

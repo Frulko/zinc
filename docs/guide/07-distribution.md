@@ -186,7 +186,8 @@ manifests; `icon` is a PNG: the `.app` gets `icon.icns` (made with `sips` and `i
 ### Assets of a built program
 
 The images and fonts a program draws (`<Image src="…">`, `gfx.image`, the font sizes it uses) are baked into the executable at
-build time. The other files of `assets/` (JSON, text, sounds, models, photographs read with `imageFromBytes`) stay files, which
+build time. With `--no-embed` (`zinc build`, `zinc export`) they go to `<name>.res` beside the executable instead, which must travel
+with it; a macOS `.app` always keeps them in `Contents/Resources/<name>.res`, sealed by its signature. The other files of `assets/` (JSON, text, sounds, models, photographs read with `imageFromBytes`) stay files, which
 `zinc:assets` (`readText`, `readBytes`, `exists`) and `zinc://` pages of a webview read at run time from the first of:
 
 1. `ZINC_ASSETS`, when set (`zinc run` sets it to the project's `assets/`; set it yourself to try other files without a rebuild);

@@ -201,6 +201,7 @@
     {"paths": ["src/rt/rt.h", "src/rt/rtcalls.cpp", "src/aot/aot.cpp", "tests/data/map_rows/"], "tests": ["map_rows", "diffmatrix", "corpus"]},
     {"paths": ["runtime/gl_replay.cpp", "runtime/gfx.cpp", "runtime/raster.cpp", "targets/macos/hal_sdl.cpp", "plugins/display-gl/"], "tests": ["gpu_strokes", "gl_renderer"]},
     {"paths": ["src/aot/aot.cpp", "include/zn/host.h"], "tests": ["aot_size_inline", "host_direct"]},
+    {"paths": ["src/aot/aot.cpp", "src/tc/bundle.cpp", "tests/t1/build_no_embed.sh"], "tests": ["build_no_embed"]},
     {"paths": ["lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},

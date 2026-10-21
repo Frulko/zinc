@@ -1411,4 +1411,22 @@ extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(p
 // App updates (ZN-324.03) are the engine's (src/main.cpp defines the real one, which wins); a compiled program has none: the system plugin says "unsupported".
 extern "C" __attribute__((weak)) int zn_host_update(const char*, const char*, char*, int) { return 0; }
 
+// The baked fonts and images of a program built with zinc build --no-embed or --bundle: the file the build wrote beside the executable or in
+// the .app's Resources, found as its assets/ are (runtime/include/zrt_assets_dir.h). Its own file: no permission is asked.
+bool installResourcesFile(const char* name) {
+  std::string bases[4];
+  const int n = zrt_program_bases(false, bases);
+  for (int i = 0; i < n; i++) {
+    const std::string path = bases[i] + "/" + name;
+    std::ifstream in(path, std::ios::binary);
+    if (!in) continue;
+    const std::vector<std::uint8_t> blob{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    if (installResources(blob.data(), blob.size())) return true;
+    std::fprintf(stderr, "zinc: %s is damaged: build the program again\n", path.c_str());
+    return false;
+  }
+  std::fprintf(stderr, "zinc: %s is missing: it holds the program's fonts and images and goes beside the executable (or in the Resources of its .app)\n", name);
+  return false;
+}
+
 }  // namespace zn::host

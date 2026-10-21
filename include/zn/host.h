@@ -48,6 +48,9 @@ void startGfx();
 bool showSplash();
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
+// The same blob from the file `name` (zinc build --no-embed, a .app): beside the executable, in its bundle's Resources or one level up. False, said on
+// stderr, when it is missing or damaged.
+bool installResourcesFile(const char* name);
 void onFrameEnd(void (*fn)());   // runs `fn` on the main thread at the end of every frame, before it is painted (the WebGL module finishes its canvas reads there, ZN-411)
 // Ends the frame loop after this frame without finishing the run: the window, the surface and the resources stay for the next loop (zinc dev's
 // Fast Refresh, ZN-742: the program returns to an empty stack, its code is swapped, then its event loop starts again).

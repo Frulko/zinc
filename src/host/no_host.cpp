@@ -10,6 +10,7 @@
 namespace zn::host {
 const void* glPresentHooks() { return nullptr; }
 bool installResources(const std::uint8_t*, std::size_t) { return false; }
+bool installResourcesFile(const char*) { return false; }
 bool replayScene(const char*, const char*) { return false; }
 bool benchScene(const char*, int, int, RenderBench&) { return false; }
 int strokeCheck(int) { return -1; }

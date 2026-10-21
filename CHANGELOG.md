@@ -19,8 +19,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `--engine quickjs` runs plugins that call back or return promises (`zinc:socket` servers and WebSockets, for one); a program that waits on one (a server) keeps running, and its timers keep their real delays meanwhile.
 - `zinc:sqlite` is built with FTS5: full-text tables (`CREATE VIRTUAL TABLE ... USING fts5`), `MATCH`, ranking and `snippet()`.
 - `ui.scrollBy(h, dx, dy)` moves a scroll offset without stopping a fling in progress.
+- `zinc build --no-embed` and `zinc export --no-embed` keep the baked fonts and images out of the executable, in `<name>.res` beside it.
 
 ### Changed
+- `zinc build --bundle` (and the `.app` of `zinc export --target macos`) keeps the baked fonts and images in `Contents/Resources/<name>.res` instead of inside the executable.
 - On macOS, trackpad and Magic Mouse scrolling follows the fingers pixel for pixel, then macOS's own momentum, so a fling glides and stops as in any Mac app; fingers on the pad stop it, and a mouse wheel notch still eases (and jumps with Reduce motion).
 
 ### Fixed
