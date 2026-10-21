@@ -1,5 +1,6 @@
 #include "yyjson.h"
 #include <map>
+#include <set>
 #include "qjs/qjs.h"
 #include "zn/js_ext.h"
 #include "zn/log.h"
@@ -47,6 +48,7 @@ struct Engine {
   std::string entry;   // the program's entry file (zinc:icons/lucide reads its project)
   std::string cacheDir;   // the transformed modules by content hash ("" : none)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
+  std::set<std::string> packageFiles;   // the files node_modules resolved, by their real path: a package even when its link points outside node_modules (pnpm's store, a workspace)
   std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
   bool pluginsFound = false;
   struct Rejection { JSValue promise, reason; };
@@ -453,6 +455,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
       if (f.empty() && !(f = byNodeModules(dir, n)).empty()) {   // its real path: a package a pnpm workspace links in two places is one module, as in Node
         std::error_code ec;
         if (std::filesystem::path real = std::filesystem::canonical(f, ec); !ec) f = real.string();
+        e->packageFiles.insert(f);
       }
     }
     if (!f.empty()) r = f;
@@ -678,7 +681,7 @@ JSModuleDef* walkLoad(JSContext* ctx, const char* name, void* opaque) {
   Collected c;
   c.name = name;
   c.host = c.name == "zinc:native";
-  c.bare = (c.name.rfind("zinc:", 0) != 0 && c.name[0] != '/' && c.name[0] != '.') || c.name.find("/node_modules/") != std::string::npos;   // a package (CommonJS too): the linker reads it
+  c.bare = (c.name.rfind("zinc:", 0) != 0 && c.name[0] != '/' && c.name[0] != '.') || c.name.find("/node_modules/") != std::string::npos || w->e.packageFiles.count(c.name);   // a package (CommonJS too): the linker reads it
   std::string err;
   if (c.bare) c.js = "export {};";
   else if (!moduleText(w->e, c.name, c.js, err)) { JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }

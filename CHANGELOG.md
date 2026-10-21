@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc built from source with GCC on x86-64 Linux no longer crashes while compiling a program that uses `any` or `JSON.parse`.
 - A plugin that cannot start because a library it needs is missing (after a Homebrew upgrade, for example) now names that library and the command that puts it back, instead of printing the system loader's whole report.
 - `++` and `--` on something that is not a variable or a property (`3++`) are error Z0004, as `3 += 1` is, instead of crashing the compiler.
+- `zinc export --target web` and `zinc bundle` bundle again a package that a pnpm store or a workspace links into `node_modules` from elsewhere: its own `"imports"` (`#internal`) were not found.
 
 ## [0.5.0] - 2026-10-21
 
