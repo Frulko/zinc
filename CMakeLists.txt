@@ -780,6 +780,61 @@ if(TARGET SDL3::SDL3 AND ZN_WEBGL)
   target_link_libraries(webgl1_test PRIVATE zn_gl)
   add_dependencies(zinc zn_webgl)   # built with zinc, not linked into it
 endif()
+# WebAssembly for the QuickJS engine (ZN-773.06): WAMR's fast interpreter (third_party/wamr, no AOT, no JIT) under the WebAssembly JS API, a module
+# beside zinc (libzn_wasm, the `wasm` pack: zinc engine install wasm) that zinc opens on the first read of the global (src/main.cpp wasmGlobal).
+# Built here for the tests; zinc ships without it (tools/package does not copy it).
+option(ZN_WASM "build the WebAssembly module libzn_wasm beside zinc (the wasm pack)" ON)
+if(ZN_WASM AND (APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+  enable_language(ASM)
+  set(WAMR third_party/wamr/core)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
+    set(ZN_WAMR_TARGET AARCH64)
+    set(ZN_WAMR_INVOKE ${WAMR}/iwasm/common/arch/invokeNative_aarch64.s)
+  else()
+    set(ZN_WAMR_TARGET X86_64)
+    set(ZN_WAMR_INVOKE ${WAMR}/iwasm/common/arch/invokeNative_em64.s)
+  endif()
+  if(APPLE)
+    set(ZN_WAMR_PLATFORM darwin)
+  else()
+    set(ZN_WAMR_PLATFORM linux)
+  endif()
+  string(TOUPPER ${ZN_WAMR_PLATFORM} ZN_WAMR_PLATFORM_UPPER)
+  set(WAMR_POSIX ${WAMR}/shared/platform/common/posix)
+  set(WAMR_UTILS ${WAMR}/shared/utils)
+  set(WAMR_COMMON ${WAMR}/iwasm/common)
+  add_library(zn_wamr STATIC ${WAMR}/shared/platform/${ZN_WAMR_PLATFORM}/platform_init.c ${WAMR}/shared/platform/common/memory/mremap.c
+              ${WAMR_POSIX}/posix_blocking_op.c ${WAMR_POSIX}/posix_malloc.c ${WAMR_POSIX}/posix_memmap.c ${WAMR_POSIX}/posix_sleep.c ${WAMR_POSIX}/posix_thread.c ${WAMR_POSIX}/posix_time.c
+              ${WAMR}/shared/mem-alloc/mem_alloc.c ${WAMR}/shared/mem-alloc/ems/ems_alloc.c ${WAMR}/shared/mem-alloc/ems/ems_gc.c
+              ${WAMR}/shared/mem-alloc/ems/ems_hmu.c ${WAMR}/shared/mem-alloc/ems/ems_kfc.c
+              ${WAMR_UTILS}/bh_assert.c ${WAMR_UTILS}/bh_bitmap.c ${WAMR_UTILS}/bh_common.c ${WAMR_UTILS}/bh_hashmap.c ${WAMR_UTILS}/bh_leb128.c ${WAMR_UTILS}/bh_list.c ${WAMR_UTILS}/bh_log.c ${WAMR_UTILS}/bh_queue.c
+              ${WAMR_UTILS}/bh_vector.c ${WAMR_UTILS}/runtime_timer.c
+              ${WAMR_COMMON}/wasm_blocking_op.c ${WAMR_COMMON}/wasm_c_api.c ${WAMR_COMMON}/wasm_exec_env.c ${WAMR_COMMON}/wasm_loader_common.c ${WAMR_COMMON}/wasm_memory.c ${WAMR_COMMON}/wasm_native.c ${WAMR_COMMON}/wasm_runtime_common.c
+              ${WAMR_COMMON}/wasm_shared_memory.c ${ZN_WAMR_INVOKE}
+              ${WAMR}/iwasm/interpreter/wasm_interp_fast.c ${WAMR}/iwasm/interpreter/wasm_loader.c ${WAMR}/iwasm/interpreter/wasm_runtime.c)
+  # what WAMR's build-scripts/config_common.cmake gives for: fast interpreter, bulk memory, reference types, no AOT/JIT/WASI/threads/SIMD;
+  # PUBLIC because src/wasm reads WAMR's internal structures, which these shape. ZN_WAMR_JS_API: patches/0001.
+  target_compile_definitions(zn_wamr PUBLIC WASM_ENABLE_INTERP=1 WASM_ENABLE_FAST_INTERP=1 WASM_ENABLE_AOT=0 WASM_ENABLE_JIT=0 WASM_ENABLE_FAST_JIT=0
+                             BUILD_TARGET_${ZN_WAMR_TARGET} "BUILD_TARGET=\"${ZN_WAMR_TARGET}\"" BH_PLATFORM_${ZN_WAMR_PLATFORM_UPPER}
+                             WASM_ENABLE_MULTI_MODULE=0 WASM_ENABLE_BULK_MEMORY=1 WASM_ENABLE_SHARED_MEMORY=0 WASM_ENABLE_MINI_LOADER=0
+                             WASM_DISABLE_HW_BOUND_CHECK=1 WASM_DISABLE_STACK_HW_BOUND_CHECK=1 WASM_DISABLE_WAKEUP_BLOCKING_OP=0 WASM_ENABLE_REF_TYPES=1
+                             WASM_ENABLE_LIBC_BUILTIN=0 WASM_ENABLE_LIBC_WASI=0 WASM_ENABLE_SIMD=0 WASM_GLOBAL_HEAP_SIZE=10485760
+                             WASM_ENABLE_QUICK_AOT_ENTRY=0 WASM_ENABLE_AOT_INTRINSICS=0 WASM_ENABLE_SHRUNK_MEMORY=0 WASM_ENABLE_EXTENDED_CONST_EXPR=1
+                             WASM_HAVE_MREMAP=0 BH_MALLOC=wasm_runtime_malloc BH_FREE=wasm_runtime_free ZN_WAMR_JS_API)
+  target_include_directories(zn_wamr PUBLIC ${WAMR} ${WAMR}/iwasm/include ${WAMR}/iwasm/interpreter ${WAMR_COMMON} ${WAMR}/shared/platform/${ZN_WAMR_PLATFORM}
+                             ${WAMR}/shared/platform/include ${WAMR}/shared/mem-alloc ${WAMR_UTILS})
+  set_target_properties(zn_wamr PROPERTIES POSITION_INDEPENDENT_CODE ON C_VISIBILITY_PRESET hidden C_STANDARD 99 C_EXTENSIONS ON)
+  target_compile_options(zn_wamr PRIVATE -w)
+  add_library(zn_wasm MODULE src/wasm/wasm_js.cpp src/wasm/napi_trampoline.cpp)
+  set_target_properties(zn_wasm PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} CXX_VISIBILITY_PRESET hidden)
+  if(APPLE)
+    set_target_properties(zn_wasm PROPERTIES SUFFIX ".dylib")
+  endif()
+  target_include_directories(zn_wasm PRIVATE src include third_party/node-api/include)
+  target_compile_definitions(zn_wasm PRIVATE NAPI_VERSION=8 "NAPI_EXTERN=")   # its napi_* are its own, hidden: the trampolines into the engine's tables
+  target_link_libraries(zn_wasm PRIVATE zn_wamr)
+  add_dependencies(zinc zn_wasm)   # built with zinc for the tests, not linked into it
+endif()
 # JavaScriptCore as an engine module beside zinc (ZN-773.03, include/zn/engine.h): the system framework, JsRuntimeHost's Node-API over its C API, the
 # driver and its own copy of the Node-API bindings (napi_* hidden, so they never meet the QuickJS ones in zinc); zinc's services resolved at load.
 if(APPLE)

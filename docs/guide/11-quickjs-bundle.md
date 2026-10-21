@@ -58,7 +58,7 @@ zinc check --engine quickjs           # or: zinc bundle --check
 ```
 
 It prints the transform's errors (a JSX spelling, a syntax error, a module that does not resolve) and warns about what QuickJS-ng 0.17
-does not have, Q0001: `Temporal`, `Intl` formats (only `Intl.Segmenter` is there), `WebAssembly`, `Atomics.waitAsync`. The exit code is 1
+does not have, Q0001: `Temporal`, `Intl` formats (only `Intl.Segmenter` is there), `WebAssembly` (the `wasm` pack adds it: `zinc engine install wasm`), `Atomics.waitAsync`. The exit code is 1
 when there is anything to fix.
 
 ## What QuickJS does not do here yet

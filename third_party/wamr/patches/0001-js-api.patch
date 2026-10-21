@@ -1,0 +1,54 @@
+diff -ru a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+--- a/core/iwasm/interpreter/wasm_loader.c	2026-10-21 15:04:07
++++ b/core/iwasm/interpreter/wasm_loader.c	2026-10-21 15:04:07
+@@ -6509,7 +6509,12 @@
+         }
+     }
+ 
++#ifndef ZN_WAMR_JS_API
+     if (!module->possible_memory_grow) {
++#else /* zinc: JavaScript can grow any memory (Memory.prototype.grow), so a
++         memory keeps its pages and its maximum */
++    if (0) {
++#endif
+ #if WASM_ENABLE_SHRUNK_MEMORY != 0
+         if (aux_data_end_global && aux_heap_base_global
+             && aux_stack_top_global) {
+diff -ru a/core/iwasm/interpreter/wasm_runtime.c b/core/iwasm/interpreter/wasm_runtime.c
+--- a/core/iwasm/interpreter/wasm_runtime.c	2026-10-21 15:04:07
++++ b/core/iwasm/interpreter/wasm_runtime.c	2026-10-21 15:04:07
+@@ -1666,12 +1666,15 @@
+ 
+     /* Execute possible "__post_instantiate" function if wasm app is
+        compiled by emsdk's early version */
++#ifndef ZN_WAMR_JS_API /* zinc: under the WebAssembly JS API only the start
++                          section runs; the JavaScript calls the rest */
+     if (!is_sub_inst) {
+         post_inst_func =
+             lookup_post_instantiate_func(module_inst, "__post_instantiate");
+     }
++#endif
+ 
+-#if WASM_ENABLE_BULK_MEMORY != 0
++#if WASM_ENABLE_BULK_MEMORY != 0 && !defined(ZN_WAMR_JS_API)
+     /* Only execute the memory init function for main instance since
+        the data segments will be dropped once initialized */
+     if (!is_sub_inst
+@@ -1998,6 +2001,9 @@
+         }
+     }
+ 
++#ifndef ZN_WAMR_JS_API /* zinc: an imported table or memory is made by the
++                          instance whatever its module name; the JS API binds
++                          it to the JavaScript object */
+     for (i = 0; i < module->import_table_count; i++) {
+         WASMTableImport *table = &((module->import_tables + i)->u.table);
+ 
+@@ -2027,6 +2033,7 @@
+             return false;
+         }
+     }
++#endif /* ZN_WAMR_JS_API */
+ 
+ #if WASM_ENABLE_MULTI_MODULE != 0
+ #if WASM_ENABLE_TAGS != 0

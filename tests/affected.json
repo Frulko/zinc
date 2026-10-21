@@ -141,6 +141,7 @@
     {"paths": ["tools/install.sh", "tests/t1/install_nocompiler.sh"], "tests": ["install_nocompiler", "release_workflow"]},
     {"paths": ["src/tc/selfupdate.cpp", "src/tc/tc.cpp", "tools/install.sh", "update.pub", "tests/t1/self_update.sh"], "tests": ["self_update", "version", "package"]},
     {"paths": ["src/gl/", "src/main.cpp", "CMakeLists.txt", "include/zn/napi_table.h"], "tests": ["webgl_module", "webgl_js", "three"]},
+    {"paths": ["src/wasm/", "third_party/wamr/", "src/main.cpp", "include/zn/napi_table.h", "tests/t0/wasm_pack.sh"], "tests": ["wasm_pack"]},
     {"paths": ["plugins/loro/", "tests/data/loro/", "tests/t1/loro.sh"], "tests": ["loro"]},
     {"paths": ["src/tc/plugin_build"], "tests": ["plugin_build", "plugin_prebuilt", "plugin_key", "plugin_repro", "plugin_fetch", "plugin_tiers", "native_plugins", "native_lazy", "plugin_stamp", "loro"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},

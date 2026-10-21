@@ -88,3 +88,23 @@ struct zn_napi_table {
 // The entries in order, from the napi_* visible where it is expanded (positional: napi/inline.h may have turned a name into a macro).
 #define ZN_NAPI_TABLE_ENTRY(ret, name, params, args) name,
 #define ZN_NAPI_TABLE_INIT ZN_NAPI_FUNCTIONS(ZN_NAPI_TABLE_ENTRY)
+
+// What libzn_wasm needs beyond that (ZN-773.06): JavaScriptCore's Node-API has no detach and no BigInt, so these are a second table that only
+// the engines that have them fill (QuickJS, the one engine that gets WebAssembly from the module).
+#define ZN_NAPI_EXT_FUNCTIONS(X)                                                                                                               \
+  X(napi_status, napi_create_external_arraybuffer, (napi_env env, void* external_data, size_t byte_length, napi_finalize finalize_cb,             \
+    void* finalize_hint, napi_value* result), (env, external_data, byte_length, finalize_cb, finalize_hint, result))                          \
+  X(napi_status, napi_detach_arraybuffer, (napi_env env, napi_value arraybuffer), (env, arraybuffer))                                             \
+  X(napi_status, napi_create_bigint_int64, (napi_env env, int64_t value, napi_value* result), (env, value, result))                               \
+  X(napi_status, napi_get_value_bigint_int64, (napi_env env, napi_value value, int64_t* result, bool* lossless), (env, value, result, lossless))   \
+  X(napi_status, napi_open_handle_scope, (napi_env env, napi_handle_scope* result), (env, result))                                                 \
+  X(napi_status, napi_close_handle_scope, (napi_env env, napi_handle_scope scope), (env, scope))
+
+extern "C" {
+struct zn_napi_table_ext {
+#define ZN_NAPI_FIELD(ret, name, params, args) ret(NAPI_CDECL* name##_) params;
+  ZN_NAPI_EXT_FUNCTIONS(ZN_NAPI_FIELD)
+#undef ZN_NAPI_FIELD
+};
+}
+#define ZN_NAPI_TABLE_EXT_INIT ZN_NAPI_EXT_FUNCTIONS(ZN_NAPI_TABLE_ENTRY)

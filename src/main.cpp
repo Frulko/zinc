@@ -1428,6 +1428,55 @@ static void webglHook(napi_env env) {
   static const auto install = reinterpret_cast<zn::gl::ContextInstall>(webglOpen(&napi));
   if (install) install(env);
 }
+// WebAssembly on QuickJS (ZN-773.06): the engine has none, so the first read of the global opens libzn_wasm (the `wasm` pack, WAMR's interpreter;
+// $ZINC_WASM_LIB or beside zinc) and puts the namespace it makes in place of the getter. Without the module every read throws how to get it.
+static napi_value wasmSet(napi_env env, napi_callback_info info) {   // a program may install its own (a polyfill): it replaces the getter
+  size_t argc = 1;
+  napi_value v, global;
+  napi_get_cb_info(env, info, &argc, &v, nullptr, nullptr);
+  if (argc < 1) napi_get_undefined(env, &v);
+  napi_get_global(env, &global);
+  const napi_property_descriptor d{"WebAssembly", nullptr, nullptr, nullptr, nullptr, v, static_cast<napi_property_attributes>(napi_writable | napi_configurable), nullptr};
+  napi_define_properties(env, global, 1, &d);
+  return nullptr;
+}
+static napi_value wasmGlobal(napi_env env, napi_callback_info) {
+  static std::string path, error;
+  static void* h = [] {
+    namespace fs = std::filesystem;
+    const char* env = std::getenv("ZINC_WASM_LIB");
+#if defined(__APPLE__)
+    const char* file = "libzn_wasm.dylib";
+#else
+    const char* file = "libzn_wasm.so";
+#endif
+    path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+    void* lib = zn::plat::libOpen(path, false);
+    if (!lib) error = fs::exists(path) ? zn::plat::libError() : "not found";
+    return lib;
+  }();
+  using Install = napi_value (*)(napi_env, const zn_napi_table*, const zn_napi_table_ext*);
+  auto install = h ? reinterpret_cast<Install>(zn::plat::libSymbol(h, "zn_wasm_install")) : nullptr;
+  if (!install) {
+    const std::string msg = "WebAssembly needs the wasm pack, which is not installed: run `zinc engine install wasm` (" + path + ": " + (h ? "no zn_wasm_install" : error) + ")";
+    napi_throw_error(env, nullptr, msg.c_str());
+    return nullptr;
+  }
+  static const zn_napi_table napi = {ZN_NAPI_TABLE_INIT};
+  static const zn_napi_table_ext ext = {ZN_NAPI_TABLE_EXT_INIT};
+  napi_value ns = install(env, &napi, &ext), global;
+  if (!ns) return nullptr;
+  napi_get_global(env, &global);
+  const napi_property_descriptor d{"WebAssembly", nullptr, nullptr, nullptr, nullptr, ns, static_cast<napi_property_attributes>(napi_writable | napi_configurable), nullptr};
+  napi_define_properties(env, global, 1, &d);
+  return ns;
+}
+static void wasmHook(napi_env env) {
+  napi_value global;
+  napi_get_global(env, &global);
+  const napi_property_descriptor d{"WebAssembly", nullptr, nullptr, wasmGlobal, wasmSet, nullptr, napi_configurable, nullptr};
+  napi_define_properties(env, global, 1, &d);
+}
 // zinc:gl (ZN-562): the Rt::HostGl* rows go to libzn_webgl's zn_webgl_host, loaded at the first one, so a program that does not call them loads nothing
 static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
   static const zn::host::HostCall call = []() -> zn::host::HostCall {
@@ -1735,6 +1784,7 @@ int main(int argc, char** argv) {
 #endif
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
   zn::qjs::addContextHook(webglHook);
+  zn::qjs::addContextHook(wasmHook);   // WebAssembly, from the wasm pack on first use (ZN-773.06)
   zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     const std::string engine = argv[4];

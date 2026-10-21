@@ -1,0 +1,43 @@
+#!/bin/sh
+# The WebAssembly JavaScript API tests of web-platform-tests (wasm/jsapi) on the QuickJS engine with the wasm pack (ZN-773.06).
+#   tools/wpt-wasm <wpt> [file.any.js...]     (default: every wasm/jsapi/**/*.any.js; -v prints each failing subtest)
+# <wpt> is a checkout of wasm/jsapi and resources, kept out of the repository:
+#   git clone --depth 1 --filter=blob:none --sparse https://github.com/web-platform-tests/wpt && git -C wpt sparse-checkout set wasm/jsapi resources
+# Each test becomes one script (testharness.js, a reporter, its META scripts, the test) run by `zinc run --engine quickjs`; prints
+# "<passed>/<subtests> <file>" per file (or "error" when it printed no result in 60 s) and the sums. $ZINC: the zinc to run (default build/zinc).
+cd "$(dirname "$0")/.." || exit 2
+verbose=0
+[ "$1" = "-v" ] && { verbose=1; shift; }
+wpt=$1
+[ -f "$wpt/resources/testharness.js" ] || { echo "usage: tools/wpt-wasm [-v] <wpt checkout> [file.any.js...]" >&2; exit 2; }
+wpt=$(cd "$wpt" && pwd)
+shift
+ZINC=${ZINC:-build/zinc}
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+[ $# -gt 0 ] || set -- $(cd "$wpt" && find wasm/jsapi -name '*.any.js' | sort)
+pass=0; total=0; errors=0
+for t in "$@"; do
+  t=${t#"$wpt"/}
+  {
+    echo "globalThis.self = globalThis; delete globalThis.document;   // the web shims give a document: testharness.js would take a window"
+    cat "$wpt/resources/testharness.js"
+    echo "add_completion_callback((tests) => { let p = 0; for (const t of tests) { if (t.status === 0) p++; else if ($verbose) console.log('  FAIL ' + t.name + ': ' + t.message); } console.log('WPT ' + p + ' ' + tests.length); });"
+    sed -n 's|^// META: script=||p' "$wpt/$t" | while read -r s; do
+      case $s in /*) cat "$wpt$s" ;; *) cat "$wpt/$(dirname "$t")/$s" ;; esac
+    done
+    sed 's/\.\.\.arguments\([,)]\)/...args\1/g' "$wpt/$t"   # zinc runs strict code, where a parameter cannot be named arguments
+  } > "$tmp/t.js"
+  [ -n "$WPT_KEEP" ] && cp "$tmp/t.js" "$WPT_KEEP"   # the last script, to run it by hand
+  out=$(ZINC_HEADLESS=1 timeout 60 "$ZINC" run "$tmp/t.js" --engine quickjs 2>&1)
+  line=$(printf '%s\n' "$out" | grep '^WPT ' | tail -1)
+  [ $verbose = 1 ] && printf '%s\n' "$out" | grep '^  FAIL ' | cut -c1-240
+  if [ -n "$line" ]; then
+    set -- $line
+    echo "$2/$3 $t"
+    pass=$((pass + $2)); total=$((total + $3))
+  else
+    echo "error $t: $(printf '%s\n' "$out" | grep -v '^\s*$' | tail -1 | cut -c1-160)"
+    errors=$((errors + 1))
+  fi
+done
+echo "passed $pass of $total subtests; $errors file(s) gave no result"
