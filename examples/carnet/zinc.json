@@ -1,6 +1,7 @@
 {
   "name": "carnet",
   "entry": "src/main.tsx",
+  "text": "shaped",
   "app": {
     "name": "Carnet",
     "id": "dev.zinc.carnet",

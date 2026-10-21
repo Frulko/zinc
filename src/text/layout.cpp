@@ -153,14 +153,17 @@ void paragraph(const std::vector<Face*>& faces, std::string_view p, uint32_t bas
   std::vector<int> face(cps.size());
   std::vector<hb_script_t> script(cps.size());
   hb_script_t last = HB_SCRIPT_INVALID;
+  std::vector<char> color(faces.size());
+  for (size_t k = 0; k < faces.size(); k++) color[k] = faces[k]->isColor();
   for (size_t i = 0; i < cps.size(); i++) {
     uint32_t cp = cps[i].cp;
     int f = -1;
     bool glue = cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (i > 0 && cps[i - 1].cp == 0x200D);
     hb_script_t sc = hb_unicode_script(uf, cp);
     bool common = sc == HB_SCRIPT_COMMON || sc == HB_SCRIPT_INHERITED;   // spaces and punctuation stay in the font of the text before them
-    if (i + 1 < cps.size() && cps[i + 1].cp == 0xFE0F) for (size_t k = 0; f < 0 && k < faces.size(); k++) if (faces[k]->isColor() && faces[k]->hasEmoji(cp)) f = static_cast<int>(k);   // emoji presentation asks for a colour font
-    if (f < 0 && i > 0 && (glue || ((common || isMark(uf, cp)) && levels[cps[i].off] == levels[cps[i - 1].off])) && faces[face[i - 1]]->hasGlyph(cp)) f = face[i - 1];
+    if (i + 1 < cps.size() && cps[i + 1].cp == 0xFE0F) for (size_t k = 0; f < 0 && k < faces.size(); k++) if (color[k] && faces[k]->hasEmoji(cp)) f = static_cast<int>(k);   // emoji presentation asks for a colour font
+    // ...but not in a colour font: an emoji font's space and punctuation are as wide as its pictures
+    if (f < 0 && i > 0 && (glue || ((common || isMark(uf, cp)) && !color[face[i - 1]] && levels[cps[i].off] == levels[cps[i - 1].off])) && faces[face[i - 1]]->hasGlyph(cp)) f = face[i - 1];
     else if (f < 0 && i > 0 && glue) f = face[i - 1];
     for (size_t k = 0; f < 0 && k < faces.size(); k++) if (faces[k]->hasGlyph(cp)) f = static_cast<int>(k);
     face[i] = f < 0 ? 0 : f;
