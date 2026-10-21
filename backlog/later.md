@@ -536,6 +536,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
 - ZN-773.05: `--engine v8` on Linux x86_64 and arm64 from Homebrew's Linux bottles (`tools/v8-pack` is macOS-only: the ELF rpaths with patchelf, glibc floor), and our own V8 build where no bottle exists (Intel macOS, Windows, armhf), the gn args of docs/reports/js-engines-jsc-v8.md.
 - ZN-764: the GL window (Linux, Windows) now makes its software rows and their texture only for the splash and frees them when the replay draws: check the splash and a window resize on both, and `tools/window-memory`-like numbers (smem/Task Manager).
 
@@ -772,3 +773,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-761: check the device record on Linux (a Raspberry Pi's device tree, a PC's DMI), Windows (no record yet: WMI or the registry) and the web (navigator.userAgentData).
 - zinc:loro: build the loro crate for linux x86_64/aarch64, rpi armv7 (`armv7-unknown-linux-gnueabihf`), android, ios and windows (`x86_64-pc-windows-gnu`) with rustup targets and zig as the linker (or cargo-zigbuild), so `zinc build --target` stops refusing plugins with Rust code.
 - ZN-773: the JavaScript engines off the Mac: the Linux JSC pack over libjavascriptcoregtk-4.1 (Debian 13, Raspberry Pi OS) and whether its JIT is on for armhf, Windows and Android JSC from Bun's WebKit (non-LTO archives, Bun__* stubs), V8 for armhf cross-built from Linux x64; without them --engine jsc and v8 are macOS only (docs/reports/js-engines-jsc-v8.md §4).
+- ZN-773.04: `zinc export --dmg`, `--key` signatures and the SBOM for jsc/v8 projects (the engine-app export returns before those steps).
+- ZN-773.04: `zinc pack` and `zinc fuse` of jsc/v8 projects: a .zapp carries typed .zbc only today.
+- ZN-773.04: notarize an exported engine app signed with a Developer ID (the packs are re-signed with that identity; unproven).
+- ZN-773.04: run tests/t1/package_app.sh once index/root.json exists (tools/package copies index/ into the package then).
