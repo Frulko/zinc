@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <functional>
 #include <cstdio>
 #include <cstdlib>
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <pthread.h>
 #include <sstream>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -32,6 +34,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 #include "frontend/tsconfig.h"
 #include "qjs/strip.h"
 #include "zn/host.h"
+#include "zn/native.h"
 #include "zn/runtime.h"
 
 namespace zn::qjs {
@@ -473,6 +476,12 @@ bool drain(Engine& e) {
   }
 }
 
+// The native modules' turn: their pollers, then the callbacks and completions they queued (src/qjs/native_js.cpp's sink runs them), then the jobs these left.
+bool nativeTurn(Engine& e) {
+  zn_native_poll(0);
+  return zn_native_drain() == 0 || drain(e);
+}
+
 bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
   JSValue r = JS_Call(e.ctx, f, JS_UNDEFINED, hasArg ? 1 : 0, hasArg ? &arg : nullptr);
   if (JS_IsException(r)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return false; }
@@ -505,7 +514,7 @@ bool frameLoop(Engine& e) {
     zn::host::redraw = [] { if (std::function<bool()>* s = redrawStep) { redrawStep = nullptr; (*s)(); redrawStep = s; } };
     hostCall(zn::Rt::HostGfxPoll, &r);
     redrawStep = saved;
-    if (!ok) return false;
+    if (!ok || !nativeTurn(e)) return false;
     double dt = r.d;
     clock += dt * 1000;
     JSValue cv = JS_NewFloat64(e.ctx, clock);
@@ -538,16 +547,31 @@ bool frameLoop(Engine& e) {
 
 // no frame loop yet: timers in order, the clock jumping to each, until none is left or the program asks for frames (onFrame after an await, ZN-566)
 bool timerLoop(Engine& e) {
-  JSValue next = global(e, "__nextTimer");
+  JSValue next = global(e, "__nextTimer"), due = global(e, "__dueTimer"), clockFn = global(e, "__clock"), setClock = global(e, "__setClock");
   bool ok = true;
   while (ok && !wantsFrames(e)) {
     std::fflush(stdout);   // as in the frame loop
-    JSValue fn = JS_Call(e.ctx, next, JS_UNDEFINED, 0, nullptr);
+    if (!nativeTurn(e)) { ok = false; break; }
+    JSValue fn;
+    if (zn_native_pending() > 0) {   // a native operation is in flight (a thread, a server, a connection): the clock follows the wall clock, so its answer comes before a later timer
+      double clock = 0;
+      JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr);
+      JS_ToFloat64(e.ctx, &clock, c);
+      JS_FreeValue(e.ctx, c);
+      JSValue now = JS_NewFloat64(e.ctx, clock);
+      fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &now);
+      if (JS_IsNull(fn)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        JSValue cv = JS_NewFloat64(e.ctx, clock + 1);
+        JS_FreeValue(e.ctx, JS_Call(e.ctx, setClock, JS_UNDEFINED, 1, &cv));
+        continue;
+      }
+    } else fn = JS_Call(e.ctx, next, JS_UNDEFINED, 0, nullptr);   // nothing else can happen: the clock jumps to the next timer
     if (JS_IsNull(fn) || JS_IsException(fn)) { JS_FreeValue(e.ctx, fn); break; }
     ok = callFn(e, fn, JS_UNDEFINED, false);
     JS_FreeValue(e.ctx, fn);
   }
-  JS_FreeValue(e.ctx, next);
+  JS_FreeValue(e.ctx, next); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, clockFn); JS_FreeValue(e.ctx, setClock);
   return ok;
 }
 

@@ -1,14 +1,15 @@
 // Native modules on the QuickJS engine (ZN-583.02): `requireNative('Sqlite')` of a plugin's spec file gives an object whose functions call the
 // module's exports through the registry of include/zn/native.h, the arguments and the result converted by the export's signature letters, as
 // src/rt/rtcalls.cpp does for the typed engines. So a plugin's index.ts runs unchanged here, on the same native code.
-// ponytail: callbacks (c(...)) and promise results (P<t>) are not carried; an export that has one throws a TypeError naming it. Add them with
-// the sink of zn_native_set_sink when a plugin with callbacks must run on this engine.
+// A function passed for a callback (c(...)) gets a handle that the registry's sink calls on the engine's thread (cb_call at once, cb_post from the
+// loop's zn_native_drain, src/qjs/qjs.cpp); a promise result (P<t>) is a JS promise that the sink settles when the module completes it.
 #include "qjs/qjs.h"
 
 #include <cstring>
 #include <deque>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 extern "C" {
@@ -90,6 +91,84 @@ void writeBack(JSContext* ctx, JSValueConst target, char l, const ZnView& v) {
   }
 }
 
+// The functions the modules hold (handle -> function and its letters) and the promises they will settle.
+struct Cb { JSContext* ctx; JSValue fn; std::string params; char result; int rc; };
+struct Pending { JSContext* ctx; JSValue resolve, reject; char of; };
+std::unordered_map<std::uint64_t, Cb> gCbs;
+std::unordered_map<std::uint64_t, Pending> gPromises;
+std::uint64_t gNextCb = 1;
+std::string gCbError;
+
+// A value of the module as a JS value, by its letter.
+JSValue toJs(JSContext* ctx, char l, const ZnVal& v) {
+  switch (l) {
+    case 'd': return JS_NewFloat64(ctx, v.d);
+    case 'i': return JS_NewInt32(ctx, static_cast<std::int32_t>(v.i));
+    case 'u': return JS_NewUint32(ctx, static_cast<std::uint32_t>(v.i));
+    case 'b': return JS_NewBool(ctx, v.i != 0);
+    case 's': return JS_NewStringLen(ctx, v.s.p, v.s.n);
+    case 'n': return JS_UNDEFINED;
+    default: return typed(ctx, l, v.v);
+  }
+}
+
+void cbUnref(std::uint64_t h) {
+  auto it = gCbs.find(h);
+  if (it == gCbs.end() || --it->second.rc > 0) return;
+  JS_FreeValue(it->second.ctx, it->second.fn);
+  gCbs.erase(it);
+}
+
+std::int32_t sinkCall(void*, std::uint64_t h, const ZnVal* args, std::uint32_t n, ZnVal* ret) {
+  auto it = gCbs.find(h);
+  if (it == gCbs.end()) return -1;
+  const Cb c = it->second;   // a copy: the callback may release itself
+  JS_DupValue(c.ctx, c.fn);
+  std::vector<JSValue> a;
+  for (std::uint32_t k = 0; k < n && k < c.params.size(); ++k) a.push_back(toJs(c.ctx, c.params[k], args[k]));
+  JSValue r = JS_Call(c.ctx, c.fn, JS_UNDEFINED, static_cast<int>(a.size()), a.data());
+  for (JSValue v : a) JS_FreeValue(c.ctx, v);
+  JS_FreeValue(c.ctx, c.fn);
+  if (JS_IsException(r)) {   // its message goes to the module, as on the typed engines
+    JSValue ex = JS_GetException(c.ctx);
+    const char* m = JS_ToCString(c.ctx, ex);
+    gCbError = m ? m : "exception";
+    if (m) JS_FreeCString(c.ctx, m);
+    JS_FreeValue(c.ctx, ex);
+    return -1;
+  }
+  if (ret) {
+    static std::string keep;
+    switch (c.result) {
+      case 'd': JS_ToFloat64(c.ctx, &ret->d, r); break;
+      case 'i': case 'u': { std::int64_t i = 0; JS_ToInt64(c.ctx, &i, r); ret->i = i; break; }
+      case 'b': ret->i = JS_ToBool(c.ctx, r) > 0; break;
+      case 's': { size_t len = 0; const char* p = JS_ToCStringLen(c.ctx, &len, r); keep.assign(p ? p : "", len); if (p) JS_FreeCString(c.ctx, p); ret->s = ZnStr{keep.data(), static_cast<std::uint32_t>(keep.size())}; break; }
+      default: break;
+    }
+  }
+  JS_FreeValue(c.ctx, r);
+  return 0;
+}
+
+void settle(std::uint64_t promise, const ZnVal* v, const char* message) {
+  auto it = gPromises.find(promise);
+  if (it == gPromises.end()) return;
+  const Pending p = it->second;
+  gPromises.erase(it);
+  JSValue arg = message ? JS_NewError(p.ctx) : v ? toJs(p.ctx, p.of, *v) : JS_UNDEFINED;
+  if (message) JS_SetPropertyStr(p.ctx, arg, "message", JS_NewString(p.ctx, message));
+  JS_FreeValue(p.ctx, JS_Call(p.ctx, message ? p.reject : p.resolve, JS_UNDEFINED, 1, &arg));
+  JS_FreeValue(p.ctx, arg);
+  JS_FreeValue(p.ctx, p.resolve);
+  JS_FreeValue(p.ctx, p.reject);
+}
+void sinkResolve(void*, std::uint64_t p, const ZnVal* v) { settle(p, v, nullptr); }
+void sinkReject(void*, std::uint64_t p, const char* m) { settle(p, nullptr, m ? m : ""); }
+void sinkRelease(void*, std::uint64_t h) { cbUnref(h); }
+void sinkHold(void*, std::uint64_t h) { auto it = gCbs.find(h); if (it != gCbs.end()) ++it->second.rc; }
+const char* sinkError(void*) { return gCbError.c_str(); }
+
 JSValue call(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int magic, JSValueConst*) {
   const Bound& b = *bound()[static_cast<std::size_t>(magic)];
   const std::string& ps = b.sig.params;
@@ -97,7 +176,9 @@ JSValue call(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int mag
   std::deque<std::vector<std::uint8_t>> packed;
   std::deque<std::vector<ZnStr>> views;
   std::vector<const char*> strings;
-  auto release = [&] { for (const char* s : strings) JS_FreeCString(ctx, s); };
+  std::vector<std::uint64_t> handles;   // the callbacks of this call: its own reference ends when it returns
+  std::size_t cbi = 0;
+  auto release = [&] { for (const char* s : strings) JS_FreeCString(ctx, s); for (std::uint64_t h : handles) cbUnref(h); };
   auto text = [&](JSValueConst v, ZnStr& out) {
     size_t n = 0;
     const char* p = JS_ToCStringLen(ctx, &n, v);
@@ -117,6 +198,16 @@ JSValue call(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int mag
       case 'u': { std::uint32_t u = 0; ok = JS_ToUint32(ctx, &u, v) == 0; a.i = u; break; }
       case 'b': a.i = JS_ToBool(ctx, v) ? 1 : 0; break;
       case 's': ok = text(v, a.s); break;
+      case 'c': {
+        std::string params;
+        char result = 'n';
+        nsig::parseCallback(b.sig.cbs[cbi++], params, result);
+        if (!JS_IsFunction(ctx, v)) { release(); return JS_ThrowTypeError(ctx, "native %s.%s: argument %zu is not a function", b.module.c_str(), b.name.c_str(), k + 1); }
+        a.h = gNextCb++;
+        gCbs[a.h] = Cb{ctx, JS_DupValue(ctx, v), params, result, 1};
+        handles.push_back(a.h);
+        break;
+      }
       case 'S': {
         JSValue lv = JS_GetPropertyStr(ctx, v, "length");
         std::int32_t n = 0;
@@ -145,6 +236,14 @@ JSValue call(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int mag
   ret.u = 0;
   const std::int32_t st = zn_native_call(b.module.c_str(), b.name.c_str(), nullptr, args.data(), &ret, err, sizeof err);
   release();
+  if (b.sig.result == 'P' && st == ZN_PENDING) {
+    JSValue fns[2];
+    JSValue promise = JS_NewPromiseCapability(ctx, fns);
+    if (JS_IsException(promise)) return promise;
+    gPromises[zn_native_last_promise()] = Pending{ctx, fns[0], fns[1], b.sig.promiseOf};
+    return promise;
+  }
+  if (st == ZN_OK && b.sig.result == 'P') return JS_ThrowInternalError(ctx, "native %s.%s: an export with a promise result did not take its promise", b.module.c_str(), b.name.c_str());
   if (st != ZN_OK) return JS_ThrowInternalError(ctx, "native %s.%s: %s", b.module.c_str(), b.name.c_str(), err);
   for (std::size_t k = 0; k < ps.size() && static_cast<int>(k) < argc; ++k)
     if (std::strchr("BIUD", ps[k]) && args[k].v.p != sent[k]) writeBack(ctx, argv[k], ps[k], args[k].v);
@@ -177,8 +276,7 @@ JSValue nativeFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   auto b = std::make_unique<Bound>();
   b->module = module;
   b->name = name;
-  if (!nsig::parse(e->sig, b->sig) || b->sig.result == 'P' || b->sig.params.find('c') != std::string::npos)
-    return JS_ThrowTypeError(ctx, "native %s.%s (%s): callbacks and promises of native modules are not available on the QuickJS engine", module.c_str(), name.c_str(), e->sig);
+  if (!nsig::parse(e->sig, b->sig)) return JS_ThrowTypeError(ctx, "native %s.%s: a signature this engine cannot read (%s)", module.c_str(), name.c_str(), e->sig);
   bound().push_back(std::move(b));
   return JS_NewCFunctionData(ctx, call, static_cast<int>(bound().back()->sig.params.size()), static_cast<int>(bound().size() - 1), 0, nullptr);
 }
@@ -189,6 +287,8 @@ void installNative(JSContext* ctx) {
   JSValue g = JS_GetGlobalObject(ctx);
   JS_SetPropertyStr(ctx, g, "__nativeFn", JS_NewCFunction(ctx, nativeFn, "__nativeFn", 2));
   JS_FreeValue(ctx, g);
+  ZnSink sink{nullptr, sinkResolve, sinkReject, sinkCall, sinkRelease, sinkError, sinkHold};
+  zn_native_set_sink(&sink);
 }
 
 }  // namespace zn::qjs

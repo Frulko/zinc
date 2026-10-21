@@ -1,13 +1,14 @@
 #!/bin/sh
 # Native modules on the QuickJS engine (ZN-583.02, src/qjs/native_js.cpp): requireNative of 'zinc:native' calls the exports of a registered
 # module with the arguments and the result converted by their signature letters (scalars, a string, byte arrays in and out), so the program
-# of tests/t0/native_call.sh prints the same frozen output; an export with a callback is refused by name, a missing module names itself.
+# of tests/t0/native_call.sh prints the same frozen output; callbacks (called during the call, or posted from a thread and run by the loop) and
+# promise results print what the typed engines print (native_callbacks.ts); a missing module names itself.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$ZINC" run tests/golden/run/native_call.ts --engine quickjs 2>&1 | diff -q - tests/golden/run/native_call.out >/dev/null || { echo "qjs_native: native_call.ts differs on QuickJS"; fail=1; }
-"$ZINC" run tests/golden/run/native_callbacks.ts --engine quickjs 2>&1 | grep -q "TypeError: native Fixture.setCallback (c(is>n)>n): callbacks and promises of native modules are not available on the QuickJS engine" \
-  || { echo "qjs_native: an export with a callback is not refused by name"; fail=1; }
+"$ZINC" run tests/golden/run/native_callbacks.ts --engine quickjs 2>/dev/null | diff -q - tests/golden/run/native_callbacks.out >/dev/null \
+  || { echo "qjs_native: native_callbacks.ts differs on QuickJS (callbacks during a call and from a thread, promises settled from a thread)"; fail=1; }
 cat > "$tmp/typed.ts" <<'TS'
 import { NativeModule, requireNative } from 'zinc:native';
 interface Spec extends NativeModule { sum(b: u8[]): i32; reverse(b: u8[]): u8[]; nope(): void }

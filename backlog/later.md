@@ -285,7 +285,7 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:camera: iOS follows a portrait screen only (camera.macos.mm sets AVCaptureVideoOrientationPortrait): turn the frames with the device (videoRotationAngle on iOS 17) for apps that rotate.
 - zinc:camera: the format change in place (a parked session taken back) could also cover a switch between two cameras (swap the session's input instead of a new session); measure the switch on the owner's C920 and iPhone first.
 - webcam demo: keep the last frame on screen while a camera switches (today the preview goes dark under "Starting <camera>…"): a still() of the old camera drawn until the new one's first frame.
-- zinc bundle: native callbacks and promises on QuickJS (src/qjs/native_js.cpp refuses them: `Process.onEvent`, `System.onEvent`, `Gphoto2.detect`...), `__addEvHandler` (host events), `__host_oscClose` and `__host_glCreate`: 19 of the 25 programs of examples.lst that stop on QuickJS (docs/reports/zinc-quickjs-bundler.md section 4).
+- zinc bundle: `__addEvHandler` (host events), `__host_oscClose` and `__host_glCreate` on QuickJS (native callbacks and promises run there since 2026-10-21): the programs of examples.lst that still stop on QuickJS (docs/reports/zinc-quickjs-bundler.md section 4, to count again).
 - zinc bundle: Q0001 as a `zinc lint` rule (quickjs-api) for projects whose zinc.json says "engine": "quickjs", and oxlint's built-in rules as an optional pass on plain JavaScript files, so the editor shows them.
 - zinc bundle: follow dynamic `import()` with a literal specifier, load JSON modules (`with { type: 'json' }`), set `import.meta.resolve`; prune ~/.zinc/cache/qjs by age.
 - zinc bundle: `zinc pack` / `export` of a QuickJS project could ship the minified bundle (or its .qbc, same engine build) instead of the sources, and `zinc dev` on QuickJS could swap modules instead of restarting.
@@ -369,7 +369,6 @@ The next backlog review turns lines into tasks or deletes them.
 - music (2026-10-17): the release APK is 15.4 MB, almost all libmain.so (4.9 MB of code, 9.5 MB of embedded data in .rodata: fonts, icons, resources, Unicode tables), stored uncompressed for mmap (3.9 MB gzipped): subset the fonts to the glyphs a program uses and keep only the icons it names, to halve phone APKs.
 - music (2026-10-17): at rest on the clock slide the app uses ~8% CPU on the Nexus 7 (and SurfaceFlinger ~11%), PSS ~62 MB: draw one frame a second when only the clock changes (a program-declared frame rate or damage-driven idle).
 - ZN-756: zinc:link across networks through zinc:webrtc, following the plan in docs/plugins/link.md ("Across networks").
-- ZN-756: the QuickJS engine's timerLoop (src/qjs/qjs.cpp) jumps its virtual clock to the next timer without waiting or polling native modules, and refuses native callbacks: network plugins cannot wait for an answer on --engine quickjs outside a frame loop.
 - ZN-756: zinc:link's outgoing buffer grows without bound when a peer stops reading: a high-water mark and Channel.bufferedAmount.
 - ZN-756: the plugin cache key hashes every file beside a source, so plugins/link rebuilds (~1 s) after any change in src/host/.
 - ZN-755: zinc export --apk with a relative -o fails after gradle at the 16 KB check (checkPages in cli_core.cpp runs unzip inside the output directory with the relative APK path; the APK is built): use an absolute path; the recipe in zinc-next-android.md uses a relative -o.
@@ -490,7 +489,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-572: Phaser's canvas renderer builds an Error (stack) every frame, seen in the sample, source not found.
 - ZN-571: take the p5 and Phaser CANVAS frame times again on a quiet machine, and p5 2.3 once `tools/test-lib` has it.
 - ZN-716: one `zinc:osc`: the plugin (`zinc:osc/full`) takes over the built-in of ZN-085 (compat `send`/`listen`/`close`, `src/host/osc.cpp` and its three host rows removed); two modules for one protocol confuse a first user.
-- ZN-716: `zinc:socket` does not load on QuickJS (type stripper error at `plugins/socket/index.ts:112`), so `zinc:osc/full` does not either; OSC over TCP/SLIP.
+- ZN-716: `zinc:osc/full` (OSC over TCP/SLIP) on QuickJS, not checked since `zinc:socket` runs there (examples/carnet-nbe, 2026-10-21).
 - ZN-717: try `zinc:serial` with a real Arduino and an adapter pulled out (baud, framing, DTR reset, unplug); port names from USB product and vendor ("Arduino Uno", not a device path).
 - ZN-717: ports on the libuv loop instead of the 5 ms timer if the wake-ups show in resmon.
 - ZN-715: try `zinc:midi` with a real keyboard and with GarageBand on "Zinc keys"; wake the loop from RtMidi's callback and timestamp messages, after measuring the 2 ms timer.
