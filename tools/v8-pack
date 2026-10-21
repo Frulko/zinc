@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """V8 for `zinc run --engine v8` (ZN-773.05): the engine from Homebrew's bottles, the signed builds Homebrew's CI makes of each V8 stable for macOS
 arm64 and Linux (BSD licence, a component build against the system's libc++, no sandbox). Downloaded from ghcr.io without brew, its sha256 checked
-against the formula's, the libraries renamed to @rpath and signed ad hoc, laid out as an engine directory:
+against the formula's, the libraries renamed to @rpath and signed ad hoc, laid out as an SDK directory (to build libzn_engine_v8; tools/engine-pack then makes the pack users download, src/tc/engines.h):
 
     <out>/<version>/include/        the V8 headers (to build libzn_engine_v8)
     <out>/<version>/lib/*.dylib     libv8 and what it loads, icudtl.dat (Intl)
     <out>/current -> <version>
 
-usage: tools/v8-pack [--out DIR] [--bottle TAG]      (DIR: ~/.zinc/engines/v8; TAG: the newest macOS bottle this machine runs)
+usage: tools/v8-pack [--out DIR] [--bottle TAG]      (DIR: ~/.zinc/sdk/v8; TAG: the newest macOS bottle this machine runs)
 ponytail: macOS arm64 only; the Linux bottles' ELF rpaths, Intel macOS and Windows (no bottle: our own V8 build) are the cross-platform pass.
 """
 import hashlib, io, json, os, platform, shutil, subprocess, sys, tarfile, urllib.request
@@ -18,7 +18,7 @@ def fetch(url, headers=None):
         return r.read()
 
 def main(argv):
-    out = os.path.expanduser("~/.zinc/engines/v8")
+    out = os.path.expanduser("~/.zinc/sdk/v8")   # not ~/.zinc/engines: that is where zinc installs packs
     tag = None
     i = 0
     while i < len(argv):

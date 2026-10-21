@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""An engine pack from a build (ZN-773.04, src/tc/engines.h): the module zinc dlopens and what it loads, relocatable, as a target of the signed index.
+
+  tools/engine-pack <name> [--build DIR] [--out DIR] [--library FILE] [--kind engine|module] [--version V] [--upstream U] [--entries FILE]
+
+<name>: v8, jsc, or an extension module (wasm). The library is <build>/libzn_engine_<name>.dylib unless --library names another (a module).
+Its @rpath dependencies (followed through its LC_RPATHs, recursively), the .dat files beside them (V8's icudtl.dat) and the LICENSE files
+of their directories and the one above go into lib/ and licenses/; the library's rpath becomes @loader_path/lib, everything is signed ad hoc.
+Writes <out>/engines/<name>/<version>/<host>.tar.xz and adds it to <out>/entries.json (or --entries: the file tools/index-repo entries wrote)
+with custom {kind, library, zn_engine_abi, napi, upstream}; tools/index-repo build signs the index from it.
+--upstream: the engine's own version (v8: the SDK's directory name, from ZN_V8_DIR in <build>/CMakeCache.txt); --version: the pack's (default
+the upstream one). ponytail: macOS only (otool, install_name_tool); Linux packs (patchelf, $ORIGIN) come with the cross-platform pass.
+"""
+import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def out_of(*cmd):
+    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+
+def raw_rpaths(lib):
+    lines = out_of("otool", "-l", lib).splitlines()
+    return [lines[i + 2].split()[1] for i, l in enumerate(lines) if l.strip() == "cmd LC_RPATH"]
+
+def rpaths(lib):
+    return [p.replace("@loader_path", os.path.dirname(os.path.realpath(lib))) for p in raw_rpaths(lib)]
+
+def deps(lib, search, seen):
+    """The @rpath libraries `lib` loads, resolved through `search` (the rpaths seen on the way), recursively."""
+    search = rpaths(lib) + search
+    for l in out_of("otool", "-L", lib).splitlines()[1:]:
+        name = l.strip().split(" (")[0]
+        if not name.startswith("@rpath/"): continue
+        base = name[len("@rpath/"):]
+        if base in seen or base == os.path.basename(lib): continue
+        hit = next((os.path.join(d, base) for d in search if os.path.isfile(os.path.join(d, base))), None)
+        if not hit: sys.exit("tools/engine-pack: %s loads %s, found in none of %s" % (lib, name, search))
+        seen[base] = os.path.realpath(hit)
+        deps(hit, search, seen)
+    return seen
+
+def host():
+    arch = {"arm64": "aarch64", "aarch64": "aarch64", "x86_64": "x86_64"}.get(platform.machine(), platform.machine())
+    return arch + "-" + {"darwin": "macos", "linux": "linux"}.get(sys.platform, sys.platform)
+
+def main(argv):
+    if not argv or argv[0].startswith("-"): print(__doc__); return 2
+    name, opt = argv[0], {"--build": os.path.join(REPO, "build"), "--out": os.path.join(REPO, "dist", "engines"), "--kind": "engine"}
+    i = 1
+    while i < len(argv):
+        if argv[i] in ("--build", "--out", "--library", "--kind", "--version", "--upstream", "--entries") and i + 1 < len(argv): opt[argv[i]] = argv[i + 1]; i += 2
+        else: print(__doc__); return 2
+    if sys.platform != "darwin": print("tools/engine-pack: macOS only for now", file=sys.stderr); return 2
+    build = os.path.abspath(opt["--build"])
+    lib = os.path.abspath(opt.get("--library") or os.path.join(build, "libzn_engine_%s.dylib" % name))
+    if not os.path.isfile(lib): print("tools/engine-pack: no %s (tools/build zinc builds it)" % lib, file=sys.stderr); return 1
+    abi = int(re.search(r"#define ZN_ENGINE_ABI (\d+)", open(os.path.join(REPO, "include", "zn", "engine.h")).read()).group(1))
+    m = re.search(r"zn_engine_%s PRIVATE NAPI_VERSION=(\d+)" % re.escape(name), open(os.path.join(REPO, "CMakeLists.txt")).read())
+    napi = int(m.group(1)) if m else 8
+    upstream = opt.get("--upstream")
+    if not upstream and name == "v8":   # the SDK the module was built against: tools/v8-pack's <sdk>/<version>
+        cache = open(os.path.join(build, "CMakeCache.txt")).read()
+        upstream = os.path.basename(os.path.realpath(re.search(r"^ZN_V8_DIR:PATH=(.*)$", cache, re.M).group(1)))
+    if not upstream: print("tools/engine-pack: --upstream names the engine's version", file=sys.stderr); return 2
+    version = opt.get("--version") or upstream
+    stage = tempfile.mkdtemp(prefix="engine-pack-")
+    try:
+        found = deps(lib, [], {})
+        dirs = sorted({os.path.dirname(p) for p in found.values()})
+        os.makedirs(os.path.join(stage, "lib")); os.makedirs(os.path.join(stage, "licenses"))
+        for base, path in found.items(): shutil.copy(path, os.path.join(stage, "lib", base))
+        for d in dirs:
+            for f in os.listdir(d):
+                if f.endswith(".dat"): shutil.copy(os.path.join(d, f), os.path.join(stage, "lib", f))
+            for ld in (d, os.path.dirname(d)):
+                for f in os.listdir(ld):
+                    if f.startswith("LICENSE") and os.path.isfile(os.path.join(ld, f)): shutil.copy(os.path.join(ld, f), os.path.join(stage, "licenses", f))
+        target = os.path.join(stage, os.path.basename(lib))
+        shutil.copy(lib, target)
+        for raw in raw_rpaths(lib):   # the build machine's paths out, the pack's own lib/ in
+            subprocess.run(["install_name_tool", "-delete_rpath", raw, target], check=True, stderr=subprocess.DEVNULL)
+        if found: subprocess.run(["install_name_tool", "-add_rpath", "@loader_path/lib", target], check=True, stderr=subprocess.DEVNULL)
+        for f in [target] + [os.path.join(stage, "lib", b) for b in found]:
+            os.chmod(f, 0o755)
+            subprocess.run(["codesign", "--force", "--sign", "-", f], check=True, stderr=subprocess.DEVNULL)   # arm64 refuses code whose signature the edit broke
+        out = os.path.abspath(opt["--out"])
+        rel = "engines/%s/%s/%s.tar.xz" % (name, version, host())
+        archive = os.path.join(out, rel)
+        os.makedirs(os.path.dirname(archive), exist_ok=True)
+        def clean(ti):   # the same bytes from the same files: no owner, no time
+            ti.uid = ti.gid = 0; ti.uname = ti.gname = ""; ti.mtime = 0
+            return ti
+        with tarfile.open(archive, "w:xz", format=tarfile.USTAR_FORMAT) as t:
+            for root, ds, fs in os.walk(stage):
+                ds.sort()
+                for f in sorted(fs):
+                    p = os.path.join(root, f)
+                    t.add(p, arcname=os.path.relpath(p, stage), filter=clean)
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+    custom = {"kind": opt["--kind"], "library": os.path.basename(lib), "zn_engine_abi": abi, "napi": napi, "upstream": upstream}
+    entries_file = os.path.abspath(opt.get("--entries") or os.path.join(out, "entries.json"))
+    entries = json.load(open(entries_file)) if os.path.exists(entries_file) else {"version": 1, "expires_days": 30, "targets": {}}
+    entries["targets"][rel] = {"file": archive, "custom": custom}
+    json.dump(entries, open(entries_file, "w"), indent=2, ensure_ascii=False)
+    print("%s (%.1f MB, %d libraries): %s in %s" % (rel, os.path.getsize(archive) / 1e6, len(found) + 1, json.dumps(custom), entries_file))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -29,9 +29,9 @@ echo '{ "name": "t", "entry": "main.js", "engine": "zinc" }' > "$tmp/t/zinc.json
 echo "console.log([1, 2].length)" > "$tmp/t/main.js"
 "$ZINC" run "$tmp/t" --interp -v 2>&1 | grep -q "engine interpreter" || { echo "run_js_engine: zinc.json \"engine\": \"zinc\" did not keep the typed engines"; fail=1; }
 "$ZINC" run "$tmp/t" --engine quickjs -v 2>&1 | grep -q "engine QuickJS" || { echo "run_js_engine: --engine quickjs does not win over zinc.json"; fail=1; }
-echo '{ "name": "t", "entry": "main.js", "engine": "v8" }' > "$tmp/t/zinc.json"
+echo '{ "name": "t", "entry": "main.js", "engine": "spidermonkey" }' > "$tmp/t/zinc.json"
 "$ZINC" run "$tmp/t" > "$tmp/out" 2>&1; rc=$?
-[ $rc -eq 2 ] && grep -q '"engine" must be "quickjs" or "zinc"' "$tmp/out" || { echo "run_js_engine: an unknown engine in zinc.json is not refused ($rc): $(head -c 200 "$tmp/out")"; fail=1; }
+[ $rc -eq 2 ] && grep -q '"engine" must be "zinc", "quickjs", "jsc" or "v8"' "$tmp/out" || { echo "run_js_engine: an unknown engine in zinc.json is not refused ($rc): $(head -c 200 "$tmp/out")"; fail=1; }
 
 for e in three:800x500 pixi:800x500 p5:800x500 phaser:320x240; do   # the examples, a plain run: the first frame has the size of their zinc.json
   n=${e%%:*}; want=${e##*:}

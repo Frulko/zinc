@@ -52,6 +52,7 @@
 static bool drawsOf(const zn::zbc::Module& zm);   // below: whether a program calls zinc:gfx
 #include "frontend/profile.h"
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
+#include "tc/engines.h"
 #include "tc/plugin_build.h"
 #include "tc/policy.h"
 #include "zn/log.h"
@@ -1290,25 +1291,17 @@ static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: t
 #ifdef ZN_WINDOW_MODULE
 extern "C" int zn_window_load(void);   // src/host/window_module.cpp (ZN-592.01)
 #endif
-// The JavaScript engines beside QuickJS (ZN-773, include/zn/engine.h): a module per engine, $ZINC_ENGINE_<NAME> or beside zinc (libzn_engine_jsc on macOS:
-// the system's JavaScriptCore), that runs the program bundled into one script (zinc bundle --engine <name>).
+// The JavaScript engines beside QuickJS (ZN-773, include/zn/engine.h): a module per engine, $ZINC_ENGINE_<NAME>, beside zinc (libzn_engine_jsc on macOS:
+// the system's JavaScriptCore) or a pack of the signed index (V8, ZN-773.04), that runs the program bundled into one script (zinc bundle --engine <name>).
 static void* webglOpen(const zn_napi_table* napi);
 static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) {
   namespace fs = std::filesystem;
-  std::string upper = name;
-  for (char& ch : upper) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-  const char* env = std::getenv(("ZINC_ENGINE_" + upper).c_str());
-#if defined(__APPLE__)
-  const std::string file = "libzn_engine_" + name + ".dylib";
-#else
-  const std::string file = "libzn_engine_" + name + ".so";
-#endif
-  const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+  std::string path, err;   // the module: zinc engine's order (src/tc/engines.h), the pack downloaded from the signed index on first use
+  if (!zn::tc::engines::locate(gRoot, name, ZN_ENGINE_ABI, false, path, nullptr, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   void* h = zn::plat::libOpen(path, false);
   auto run = h ? reinterpret_cast<zn_engine_run_fn>(zn::plat::libSymbol(h, "zn_engine_run")) : nullptr;
   if (!run) {
-    std::fprintf(stderr, "zinc: the %s engine is not installed (%s): %s\n", name.c_str(), path.c_str(), h ? "no zn_engine_run" : zn::plat::libError().c_str());
-    if (name == "v8") std::fprintf(stderr, "  get V8 with tools/v8-pack, then build again (tools/build zinc): libzn_engine_v8 is built beside zinc when it is there\n");   // ponytail: until zinc engine install (ZN-773.04)
+    std::fprintf(stderr, "zinc: the %s engine cannot be loaded (%s): %s\n  zinc engine install %s puts a fresh copy in ~/.zinc/engines\n", name.c_str(), path.c_str(), h ? "no zn_engine_run" : zn::plat::libError().c_str(), name.c_str());
     return 2;
   }
   zn::qjs::BundleOptions bo;
@@ -1316,15 +1309,21 @@ static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) 
   bo.entry = fs::absolute(qo.entry).lexically_normal().string();
   bo.stdRoot = fs::path(qo.stdRoot).lexically_normal().string();
   bo.capsFile = gRoot + "/targets/capabilities.json";
+  std::error_code ec;
+  if (!fs::exists(bo.capsFile, ec)) bo.capsFile = (fs::path(bo.entry).parent_path() / "capabilities.json").string();   // an exported app carries its copy
   bo.cacheDir = qo.cacheDir;
-  bo.work = zn::tc::home() + "/cache/" + name + "/" + std::to_string(std::hash<std::string>{}(bo.entry));
-  bo.out = bo.work + "/bundle.js";
-  bo.quiet = true;
-  bo.sourcemap = true;   // the traces name the user's files (zn_engine_args::map_stack)
-  std::string err;
-  if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n  the %s engine runs the program bundled by esbuild %s (downloaded and verified once)\n", err.c_str(), name.c_str(), zn::tc::esbuildVersion().c_str()); return 2; }
-  zn::log::step("bundle", zn::log::shortPath(bo.entry));
-  if (const int rc = zn::qjs::bundle(bo)) return rc == 1 ? 101 : rc;
+  std::string first;
+  { std::ifstream in(bo.entry); std::getline(in, first); }
+  if (first.rfind("// zinc-bundle-entry: ", 0) == 0) bo.out = bo.entry;   // a script zinc bundle --engine <name> wrote (an exported app's): it runs as it is
+  else {
+    bo.work = zn::tc::home() + "/cache/" + name + "/" + std::to_string(std::hash<std::string>{}(bo.entry));
+    bo.out = bo.work + "/bundle.js";
+    bo.quiet = true;
+    bo.sourcemap = true;   // the traces name the user's files (zn_engine_args::map_stack)
+    if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n  the %s engine runs the program bundled by esbuild %s (downloaded and verified once)\n", err.c_str(), name.c_str(), zn::tc::esbuildVersion().c_str()); return 2; }
+    zn::log::step("bundle", zn::log::shortPath(bo.entry));
+    if (const int rc = zn::qjs::bundle(bo)) return rc == 1 ? 101 : rc;
+  }
   const std::string caps = zn::qjs::capsJson(bo.capsFile);
   const std::string web = zn::qjs::webMode(bo.entry), base = zn::qjs::webBase(bo.entry);
   zn_engine_args a{ZN_ENGINE_ABI, bo.out.c_str(), bo.entry.c_str(), bo.stdRoot.c_str(), caps.c_str(), web.c_str(), base.c_str(),
@@ -1337,6 +1336,59 @@ static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) 
   a.gl_present_hooks = zn::host::glPresentHooks;
 #endif
   return run(&a);
+}
+
+// zinc export of a project on the jsc or v8 engine (ZN-773.04): zinc itself is the app's executable, signed with the JIT entitlement; the program,
+// bundled for the engine, is in Contents/Resources/app (app.js, its map, `engine`), the engine's pack in Contents/Resources/engines/<name> (code and data: icudtl.dat; or its module
+// beside zinc: jsc, built with it). On launch zinc finds Resources/app/engine and runs the program (main()).
+static int buildEngineApp(const std::string& engine, const std::string& entry, const std::string& appPath, zn::tc::BundleSpec spec) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path macos = fs::path(appPath) / "Contents/MacOS", app = fs::path(appPath) / "Contents/Resources/app", exeDir = fs::path(zn::tc::executablePath()).parent_path();
+  fs::remove_all(macos, ec);
+  fs::remove_all(app, ec);
+  fs::create_directories(macos, ec);
+  fs::create_directories(app, ec);
+  zn::qjs::BundleOptions bo;
+  bo.engine = engine;
+  bo.entry = fs::absolute(entry).lexically_normal().string();
+  bo.stdRoot = fs::path(gRoot + "/lib/std").lexically_normal().string();
+  bo.capsFile = gRoot + "/targets/capabilities.json";
+  bo.work = zn::tc::home() + "/cache/" + engine + "/export-" + std::to_string(std::hash<std::string>{}(bo.entry));
+  bo.out = (app / "app.js").string();
+  bo.sourcemap = true;
+  bo.quiet = true;
+  std::string err, path;
+  if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  zn::log::step("bundle", zn::log::shortPath(bo.entry) + " for " + engine);
+  if (const int rc = zn::qjs::bundle(bo)) return rc;
+  std::ofstream(app / "engine") << engine << "\n";
+  fs::copy_file(bo.capsFile, app / "capabilities.json", fs::copy_options::overwrite_existing, ec);
+  zn::tc::engines::Pack pack;
+  if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, true, path, &pack, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  if (!pack.dir.empty()) { fs::create_directories(app.parent_path() / "engines", ec); fs::copy(pack.dir, app.parent_path() / "engines" / engine, fs::copy_options::recursive, ec); }
+  else fs::copy_file(path, macos / fs::path(path).filename(), ec);
+  if (ec) { std::fprintf(stderr, "zinc: cannot copy the %s engine into %s: %s\n", engine.c_str(), appPath.c_str(), ec.message().c_str()); return 1; }
+  zn::log::step("engine", engine + (pack.dir.empty() ? " (" + zn::log::shortPath(path) + ")" : " " + pack.version + " (pack)"));
+  for (const char* m : {"libzn_window.dylib", "libzn_webgl.dylib"})   // the modules zinc loads from beside it
+    if (fs::exists(exeDir / m, ec)) fs::copy_file(exeDir / m, macos / m, fs::copy_options::overwrite_existing, ec);
+  // the nested code signed by the bundle's identity (codesign of the .app seals it, it does not sign it); ad hoc by default
+  for (auto it = fs::recursive_directory_iterator(macos.parent_path(), ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file() || it->path().extension() != ".dylib") continue;
+    std::vector<std::string> cmd = {"codesign", "--force", "--sign", spec.identity.empty() ? "-" : spec.identity};
+    if (!spec.keychain.empty()) cmd.insert(cmd.end(), {"--keychain", spec.keychain});
+    if (spec.identity != "-" && !spec.identity.empty()) cmd.insert(cmd.end(), {"--options", "runtime", "--timestamp"});
+    cmd.push_back(it->path().string());
+    zn::plat::SpawnOptions quiet; quiet.quiet = true;
+    if (zn::plat::run(cmd, quiet) != 0) { std::fprintf(stderr, "zinc: codesign failed on %s\n", it->path().string().c_str()); return 1; }
+  }
+  // V8 and JavaScriptCore compile to machine code (allow-jit); the packs are signed ad hoc or by their maker (disable-library-validation), as
+  // targets/macos/zinc.entitlements gives zinc itself
+  for (const char* e : {"com.apple.security.cs.allow-jit", "com.apple.security.cs.disable-library-validation"})
+    if (std::find(spec.entitlements.begin(), spec.entitlements.end(), e) == spec.entitlements.end()) spec.entitlements.push_back(e);
+  if (!zn::tc::writeBundle(spec, zn::tc::executablePath(), appPath, err)) { std::fprintf(stderr, "zinc: bundle: %s\n", err.c_str()); return 1; }
+  std::fprintf(stderr, "zinc: wrote %s (the %s engine, JIT allowed; %s)\n", appPath.c_str(), engine.c_str(), spec.identity == "-" ? "ad-hoc signed" : ("signed by " + spec.identity).c_str());
+  return 0;
 }
 
 static void* webglLib(bool quiet) {
@@ -1400,6 +1452,21 @@ int main(int argc, char** argv) {
       if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
       zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gFusedArgs = {argv[0], "run", zbc, "--"};
+      for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
+      for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
+      gFusedArgv.push_back(nullptr);
+      argc = static_cast<int>(gFusedArgs.size());
+      argv = gFusedArgv.data();
+    }
+  }
+  if (!gFusedApp) {   // an exported app on a JavaScript engine (ZN-773.04, buildEngineApp): Contents/Resources/app/engine names the engine of its app.js
+    const std::filesystem::path app = (std::filesystem::path(zn::tc::executablePath()).parent_path() / "../Resources/app").lexically_normal();
+    std::ifstream ef(app / "engine");
+    std::string engine;
+    if (ef >> engine) {
+      setenv("ZINC_NO_UPDATE_CHECK", "1", 0);   // the app is not zinc: no zinc update notice, no build steps
+      setenv("ZINC_STEPS", "0", 0);
+      gFusedArgs = {argv[0], "run", (app / "app.js").string(), "--engine", engine, "--"};
       for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
       for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
       gFusedArgv.push_back(nullptr);
@@ -2453,7 +2520,6 @@ int main(int argc, char** argv) {
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
     const auto tBuild = std::chrono::steady_clock::now();
     if (zn::log::steps()) std::fprintf(stderr, "zinc build %s for %s\n", zn::log::shortPath(std::filesystem::absolute(argv[2]).string()).c_str(), zn::tc::hostName().c_str());
-    zn::log::step("engine", "Zinc, C++ AOT");
     static std::string bundleExe;
     if (gBundleOut.empty() && std::filesystem::is_directory(argv[4])) {   // a bundle of an earlier --bundle build, a folder: the linker would only say errno=21
       std::fprintf(stderr, "zinc: %s is a directory%s: remove it, or name the program with -o\n", argv[4],
@@ -2470,6 +2536,7 @@ int main(int argc, char** argv) {
       if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), perr.c_str()); return 2; } }
       if (proj.app.id.empty()) { std::fprintf(stderr, "zinc: --bundle needs \"app\": { \"id\": ... } in zinc.json\n"); return 2; }
       gBundleSpec = bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
+      if (proj.engine == "jsc" || proj.engine == "v8") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
       std::error_code mk;
       std::filesystem::create_directories(std::filesystem::path(gBundleOut) / "Contents/MacOS", mk);
       bundleExe = (std::filesystem::path(gBundleOut) / "Contents/MacOS" / gBundleSpec.exeName).string();
@@ -2479,6 +2546,7 @@ int main(int argc, char** argv) {
       return 2;
 #endif
     }
+    zn::log::step("engine", "Zinc, C++ AOT");
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     installDisplayDriver("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
@@ -2740,6 +2808,7 @@ int main(int argc, char** argv) {
     std::printf("downloaded and verified: %s\n", path.c_str());
     return 0;
   }
+  if (argc >= 2 && !std::strcmp(argv[1], "engine")) return zn::tc::engines::command(std::vector<std::string>(argv + 2, argv + argc), gRoot, ZN_ENGINE_ABI);   // engine packs (ZN-773.04)
   if (argc >= 2 && !std::strcmp(argv[1], "update")) return zn::tc::updateCommand(std::vector<std::string>(argv + 2, argv + argc));   // zinc updates itself (src/tc/selfupdate.cpp)
   if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "search")) return zn::cli::indexSearch(std::vector<std::string>(argv, argv + argc), gRoot);   // ZN-336.03
   if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets

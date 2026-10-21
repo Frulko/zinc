@@ -413,7 +413,7 @@ if(_zn_pubkey AND NOT _zn_len EQUAL 64)
 endif()
 message(STATUS "zinc ${_zn_version}, update key: ${_zn_pubkey}")
 set_source_files_properties(src/tc/selfupdate.cpp PROPERTIES COMPILE_DEFINITIONS "ZN_VERSION=\"${_zn_version}\";ZN_UPDATE_PUBKEY=\"${_zn_pubkey}\"")
-add_library(zn_tc STATIC src/tc/tc.cpp src/tc/consoles.cpp src/tc/selfupdate.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
+add_library(zn_tc STATIC src/tc/tc.cpp src/tc/consoles.cpp src/tc/selfupdate.cpp src/tc/engines.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/monocypher)
 target_sources(zn_tc PRIVATE src/tc/progress.cpp)
 target_link_libraries(zn_tc PUBLIC zn_platform zn_frontend zn_sha256 ${CMAKE_DL_LIBS})
@@ -798,10 +798,10 @@ if(APPLE)
   target_link_libraries(zn_engine_jsc PRIVATE "-framework JavaScriptCore" zn_codec zn_text)   # zinc exports no C++: the stateless code is linked in
   add_dependencies(zinc zn_engine_jsc)   # built with zinc, not linked into it
 endif()
-# V8 as an engine module beside zinc (ZN-773.05), built when an engine directory of tools/v8-pack is there (Homebrew's build of V8 stable: the
+# V8 as an engine module beside zinc (ZN-773.05), built when an SDK directory of tools/v8-pack is there (Homebrew's build of V8 stable: the
 # component libraries against the system's libc++, pointer compression on, no sandbox; the defines below are that build's and V8 refuses to start
 # with others). The module finds the libraries through its rpath.
-set(ZN_V8_DIR "$ENV{HOME}/.zinc/engines/v8/current" CACHE PATH "a V8 engine directory of tools/v8-pack (include/, lib/)")
+set(ZN_V8_DIR "$ENV{HOME}/.zinc/sdk/v8/current" CACHE PATH "a V8 SDK directory of tools/v8-pack (include/, lib/)")
 if(APPLE AND ZN_TLS AND EXISTS "${ZN_V8_DIR}/include/v8.h")   # ZN_TLS: the inspector's WebSocket handshake (src/dbg/ws.cpp)
   get_filename_component(ZN_V8_REAL "${ZN_V8_DIR}" REALPATH)
   add_library(zn_engine_v8 MODULE src/engine/driver.cpp src/engine/v8.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp

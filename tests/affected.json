@@ -215,6 +215,7 @@
     {"paths": ["docs/guide/07-distribution.md", "docs/guide/08-security.md", "tests/t1/guide_store.sh", "templates/game-2d/"], "tests": ["guide_store"]},
     {"paths": ["include/zn/native.h", "src/rt/native.cpp", "src/rt/native_lazy.h", "tools/abi-check", "tests/data/native-abi-v1.txt", "tests/native/native_test.cpp"], "tests": ["native", "native_abi_freeze", "native_call", "plugin_build", "script", "native_lazy"]},
     {"paths": ["tools/gh-org-setup", "tools/gh-org-protection.json"], "tests": ["gh_org_setup"]},
+    {"paths": ["src/tc/engines.", "tools/engine-pack", "tools/v8-pack", "tools/index-repo", "src/tc/tuf", "src/tc/bundle.cpp", "src/engine/", "include/zn/engine.h", "tests/t0/engine_pack.sh"], "tests": ["engine_pack"]},
     {"paths": ["src/tc/tuf", "tools/index-repo", "tests/data/tuf_interop.py"], "tests": ["tuf_canonical", "tuf_index", "tuf_interop", "index_search", "mirrors", "tlog", "revocation"]},
     {"paths": ["src/tc/tlog", "tools/tlog"], "tests": ["tlog", "plugin_fetch"]},
     {"paths": ["src/tc/policy"], "tests": ["policy", "trust_policy", "plugin_tiers", "mirrors"]},

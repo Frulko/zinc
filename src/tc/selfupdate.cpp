@@ -2,6 +2,7 @@
 // is replaced by the CLI archive of the release channel, verified (the manifest's Ed25519 signature, the archive's SHA-256), unpacked beside it on the
 // same filesystem and swapped in whole: the running zinc keeps its files (they move to engine.prev), the `zinc` link points at engine/bin/zinc.
 // The version and the release key are build constants (CMakeLists.txt: ZN_VERSION, ZN_UPDATE_PUBKEY from update.pub); only this file sees them.
+#include "tc/engines.h"
 #include "tc/tc.h"
 
 #include <unistd.h>
@@ -245,6 +246,7 @@ int updateCommand(const std::vector<std::string>& args) {
 void updateNotice() {
   if (checksOff() || envOn("ZINC_HEADLESS") || envOn("ZINC_DETERMINISTIC") || !::isatty(2) || (std::getenv("ZINC_STEPS") && !std::strcmp(std::getenv("ZINC_STEPS"), "0"))) return;
   ::setenv("ZINC_NO_UPDATE_CHECK", "1", 1);   // the zincs this one starts (zinc dev's runs) stay silent
+  engines::notice();   // a newer engine pack (ZN-773.04): its own daily check, with or without a release key
   if (!haveKey()) return;   // a build without a release key cannot check a release: nothing to say
   const Install in = installOf();
   const std::string url = manifestUrl(in, channelOf(in), "");

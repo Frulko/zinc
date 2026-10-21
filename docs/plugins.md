@@ -231,6 +231,13 @@ then `tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.
 zinc trusts); put the content of `keys.json` in the repository secret `ZINC_INDEX_KEYS`. Without the secret the workflow
 publishes no index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
 
+**Engine packs** (ZN-773.04, `src/tc/engines.h`) are targets of the same index: `engines/<name>/<version>/<host>.tar.xz` (the module
+`libzn_engine_<name>.dylib`, its libraries and data in `lib/`, `licenses/`), signed by the top-level role only, with `custom`
+`{kind, library, zn_engine_abi, napi, upstream}`. `zinc run --engine v8` installs the newest one whose `zn_engine_abi` is this zinc's into
+`~/.zinc/engines/<name>/<version>/`; `zinc engine list|install|update|remove` manage them. To add V8 to the index: `tools/v8-pack` (the SDK,
+into `~/.zinc/sdk/v8`), `tools/build zinc`, then `tools/engine-pack v8 --entries e/entries.json` after `tools/index-repo entries . e 1` and
+before `tools/index-repo build idx keys.json e/entries.json`.
+
 Before compiling a plugin, zinc asks the index for `binaries/<target>/<name>-<key>.tar` (`<key>` is the cache key above, so a
 plugin whose sources changed never matches an old binary). A hit is checked by the TUF client (signatures, length, SHA-256),
 unpacked into the cache, and nothing is compiled; a refused archive is reported and the plugin is built here, as on a miss.

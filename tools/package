@@ -58,6 +58,7 @@ def payload(share):
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
     os.makedirs(os.path.join(share, "targets"))
     shutil.copy2(os.path.join(REPO, "targets", "capabilities.json"), os.path.join(share, "targets", "capabilities.json"))   # zinc:platform
+    if os.path.isdir(os.path.join(REPO, "index")): copy_tree(os.path.join(REPO, "index"), os.path.join(share, "index"))   # the index's trusted root: plugins, engine packs (ZN-773.04)
     # the runtime headers: a plugin's prebuilt key covers zrt.h and hal.h, and a plugin compiled on the user's machine includes them
     copy_tree(os.path.join(REPO, "runtime"), os.path.join(share, "runtime"), lambda r: r.endswith('.h'))
     open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")

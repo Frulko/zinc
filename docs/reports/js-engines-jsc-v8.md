@@ -126,7 +126,7 @@ and revocation protection, mirrors, `ZINC_OFFLINE`).
 - A pack is a TUF target `engines/<engine>/<version>/<host>.tar.xz` holding `libzn_engine_<engine>.<dylib|so|dll>`, the licence and, for
   LGPL, the source link. Its `custom` field says `{"zn_engine_abi": 1, "napi": 10, "upstream": "15.6.75"}`.
 - First `zinc run --engine v8` (or zinc.json `"engine": "v8"`): the newest pack of the index whose `zn_engine_abi` this `zinc` speaks is
-  downloaded with the progress bar of `src/tc/progress.cpp` into `~/.zinc/engines/v8-<version>-<host>/`, hash and signature checked, then
+  downloaded into `~/.zinc/engines/<engine>/<version>/` (done in ZN-773.04: `src/tc/engines.h` has the layout), hash and signature checked, then
   `dlopen`ed (the WebGL module's loader in `src/main.cpp:1271` is the pattern; it gains the ABI check it lacks today).
 - "Latest", safely: a weekly scheduled workflow reads the upstream (V8 stable from `chromiumdash.appspot.com/fetch_releases`, JSC from Bun's
   pinned WebKit commit), builds the packs, runs the engine tests on them, and only then signs and publishes them. So the latest pack is
