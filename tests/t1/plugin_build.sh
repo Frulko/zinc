@@ -42,4 +42,21 @@ cp plugins/sqlite/native/sqlite.host.cpp "$tmp/p2/plugins/foo/native/foo.host.cp
 echo 'export default 1;' > "$tmp/p2/plugins/foo/index.ts"
 out=$("$ZINC" plugin-build foo "$tmp/p2" 2>&1)
 echo "$out" | grep -q "needs the system library 'zn-no-such-lib'.*libnosuch-dev" || { echo "a missing library is not reported with its package: $out"; fail=1; }
+# a library the built plugin links, gone since (a Homebrew upgrade): the run names it, not the loader's list of every path it tried
+if [ "$(uname)" = Darwin ]; then
+  g="$tmp/p3/plugins/gone"; mkdir -p "$g/native" "$tmp/p3/src" "$tmp/lib"
+  echo 'int gone_answer(void) { return 42; }' > "$tmp/lib/gone.c"
+  cc -dynamiclib -o "$tmp/lib/libgone.1.dylib" -install_name "$tmp/lib/libgone.1.dylib" "$tmp/lib/gone.c"
+  echo "{\"name\":\"gone\",\"kind\":\"module\",\"module\":\"zinc:gone\",\"entry\":\"index.ts\",\"targets\":{\"macos\":{\"linkFlags\":[\"$tmp/lib/libgone.1.dylib\"]}}}" > "$g/plugin.json"
+  printf "import { NativeModule, requireNative } from 'zinc:native';\nexport interface Spec extends NativeModule { answer(): i32; }\nexport default requireNative<Spec>('Gone');\n" > "$g/native/gone.spec.ts"
+  printf '#include "zinc_native_gone.h"\nextern "C" int gone_answer(void);\nstruct HostGone : NativeGone { int32_t answer() override { return gone_answer(); } };\nNativeGone* zinc_create_Gone() { static HostGone inst; inst.rc = zrt::IMMORTAL; return &inst; }\n' > "$g/native/gone.host.cpp"
+  echo "import G from './native/gone.spec'; export const answer = (): i32 => G.answer();" > "$g/index.ts"
+  echo '{ "name": "p3", "entry": "src/main.ts" }' > "$tmp/p3/zinc.json"
+  echo "import { answer } from 'zinc:gone'; console.log(answer());" > "$tmp/p3/src/main.ts"
+  "$ZINC" plugin-build gone "$tmp/p3" >/dev/null 2>&1 || { echo "the plugin that links libgone does not build"; fail=1; }
+  rm "$tmp/lib/libgone.1.dylib"
+  out=$("$ZINC" run "$tmp/p3" 2>&1)
+  echo "$out" | grep -q "a library that the gone plugin needs is missing: libgone.1.dylib" && ! echo "$out" | grep -q "Reason: tried" ||
+    { echo "a library missing at load is not named plainly: $(echo "$out" | tail -3 | head -c 600)"; fail=1; }
+fi
 exit $fail

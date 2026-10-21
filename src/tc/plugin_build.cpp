@@ -852,6 +852,34 @@ static int (*const zn_window_load)(void) = nullptr;   // no window module on Win
 extern "C" int zn_window_load(void) __attribute__((weak));
 #endif
 
+// A library the plugin's library needs is gone (a Homebrew upgrade that left FFmpeg on an older x265): its name and how to get it back, not the
+// loader's report of every path it tried (macOS: "Library not loaded: <path>\n  Referenced from: <uuid> <path>"; Linux: "<lib>: cannot open
+// shared object file"). "" when the error is another one.
+static std::string missingLibrary(const PluginLib& lib, const std::string& why) {
+  namespace fs = std::filesystem;
+  std::string path, from;
+  if (std::size_t at = why.find("Library not loaded: "); at != std::string::npos) {
+    path = why.substr(at + 20, why.find('\n', at) - at - 20);
+    if (std::size_t r = why.find("Referenced from: "); r != std::string::npos) {
+      std::string line = why.substr(r + 17, why.find('\n', r) - r - 17);
+      if (std::size_t gt = line.find("> "); gt != std::string::npos) line = line.substr(gt + 2);
+      from = line;
+    }
+  } else if (std::size_t at = why.find(": cannot open shared object file"); at != std::string::npos && why.compare(0, at, lib.shared) != 0) {
+    path = why.substr(0, at);
+  }
+  if (path.empty()) return "";
+  auto formula = [](const std::string& p) -> std::string {   // the Homebrew formula a file belongs to: .../Cellar/<it>/... or .../opt/<it>/lib/...
+    for (const char* k : {"/Cellar/", "/opt/homebrew/opt/", "/usr/local/opt/"})
+      if (std::size_t at = p.find(k); at != std::string::npos) return p.substr(at + std::strlen(k), p.find('/', at + std::strlen(k)) - at - std::strlen(k));
+    return "";
+  };
+  std::string f = formula(from);
+  if (f.empty()) f = formula(path);
+  return "a library that the " + lib.plugin + " plugin needs is missing: " + fs::path(path).filename().string() +
+         (f.empty() ? " (install it again, then run the command again)" : " (reinstall it: brew reinstall " + f + ")");
+}
+
 bool loadPlugin(const PluginLib& lib, std::string& err) {
   const bool global = lib.display;   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
   if (lib.display && zn_window_load) zn_window_load();
@@ -859,7 +887,12 @@ bool loadPlugin(const PluginLib& lib, std::string& err) {
   if (!h) {
     std::string why = zn::plat::libError();
     if (zn_window_load && why.find("'_SDL_") != std::string::npos && zn_window_load()) { h = zn::plat::libOpen(lib.shared, global); if (!h) why = zn::plat::libError(); }
-    if (!h) { err = std::string("cannot load ") + lib.shared + ": " + why; return false; }
+    if (!h) {
+      err = missingLibrary(lib, why);
+      if (err.empty()) err = std::string("cannot load ") + lib.shared + ": " + why;
+      else zn::log::write("plugin", zn::log::Debug, lib.plugin + ": " + why);   // the loader's whole report: ZINC_LOG=plugin:debug
+      return false;
+    }
   }
   if (lib.display) return true;   // its static constructor has registered it with the HAL
   using Open = const ZnModule* (*)();

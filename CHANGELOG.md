@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The JavaScript engines (`--engine quickjs`, `v8`, `hermes`, `jsc`) load the display driver a project names in `zinc.json` (`"display": "gl"`): `examples/video/mapper` stopped with "symbol not found '_zgl_layers'" on all of them.
 - `zinc:osc` works on the JavaScript engines: `listen` failed with "__host_oscListen is not defined", and the messages now reach its callback.
 - zinc builds again for 32-bit Linux (armhf for the Raspberry Pi, and i686): its WebAssembly interpreter was compiled for x86_64 whatever the target.
+- A plugin that cannot start because a library it needs is missing (after a Homebrew upgrade, for example) now names that library and the command that puts it back, instead of printing the system loader's whole report.
 
 ## [0.5.0] - 2026-10-21
 
