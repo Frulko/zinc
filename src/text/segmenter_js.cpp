@@ -2,7 +2,7 @@
 // ponytail: no dictionary word breaking (Thai, CJK words stay UAX #29 runs, ICU uses dictionaries) and no sentence granularity.
 #include <string>
 #include <vector>
-#include "quickjs.h"
+#include <napi/js_native_api.h>
 #include "text/segment.h"
 #include "zn/js_ext.h"
 
@@ -10,25 +10,33 @@ namespace zn::text {
 namespace {
 
 // __zincSegBreaks(str, kind 0|1|2) -> array of boundaries in UTF-16 units
-JSValue js_breaks(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  JSValue arr = JS_NewArray(c);
-  if (argc < 2) return arr;
+napi_value js_breaks(napi_env env, napi_callback_info info) {
+  size_t argc = 2;
+  napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+  napi_value arr;
+  napi_create_array(env, &arr);
   size_t len = 0;
-  const char* s = JS_ToCStringLen(c, &len, argv[0]);
-  if (!s) return arr;
-  int kind = 0;
-  JS_ToInt32(c, &kind, argv[1]);
+  if (argc < 2 || napi_get_value_string_utf8(env, argv[0], nullptr, 0, &len) != napi_ok) return arr;
+  std::string s(len, '\0');
+  napi_get_value_string_utf8(env, argv[0], s.data(), len + 1, &len);
+  int32_t kind = 0;
+  napi_get_value_int32(env, argv[1], &kind);
   // utf-8 boundaries, converted to UTF-16 units while walking the bytes (a 4-byte sequence is two units)
-  std::vector<uint32_t> bs = boundaries(std::string_view(s, len), kind == 1 ? Seg::Word : kind == 2 ? Seg::Line : Seg::Grapheme);
+  std::vector<uint32_t> bs = boundaries(s, kind == 1 ? Seg::Word : kind == 2 ? Seg::Line : Seg::Grapheme);
   uint32_t units = 0, at = 0, k = 0;
   for (size_t i = 0; i < len && k < bs.size();) {
     unsigned char b = (unsigned char)s[i];
     size_t n = b < 0x80 ? 1 : b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4;
     units += n == 4 ? 2 : 1;
     i += n;
-    if (i >= bs[k]) JS_SetPropertyUint32(c, arr, at++, JS_NewUint32(c, units)), ++k;
+    if (i >= bs[k]) {
+      napi_value u;
+      napi_create_uint32(env, units, &u);
+      napi_set_element(env, arr, at++, u);
+      ++k;
+    }
   }
-  JS_FreeCString(c, s);
   return arr;
 }
 
@@ -54,12 +62,13 @@ const char* kShim = R"JS(
 })(globalThis);
 )JS";
 
-void install(JSContext* c) {
-  JSValue global = JS_GetGlobalObject(c);
-  JS_SetPropertyStr(c, global, "__zincSegBreaks", JS_NewCFunction(c, js_breaks, "__zincSegBreaks", 2));
-  JSValue r = JS_Eval(c, kShim, std::char_traits<char>::length(kShim), "<intl-segmenter>", JS_EVAL_TYPE_GLOBAL);
-  JS_FreeValue(c, r);
-  JS_FreeValue(c, global);
+void install(napi_env env) {
+  napi_value global, fn, src, r;
+  napi_get_global(env, &global);
+  napi_create_function(env, "__zincSegBreaks", NAPI_AUTO_LENGTH, js_breaks, nullptr, &fn);
+  napi_set_named_property(env, global, "__zincSegBreaks", fn);
+  napi_create_string_utf8(env, kShim, NAPI_AUTO_LENGTH, &src);
+  napi_run_script(env, src, "<intl-segmenter>", &r);
 }
 
 }  // namespace

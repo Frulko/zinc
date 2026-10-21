@@ -907,3 +907,20 @@ the Zinc-side JSON of the generic path (`JSON.stringify` / `JSON.parse` on Dyn v
 ## Window memory on macOS (ZN-764, 2026-10-20)
 
 Physical footprint (Activity Monitor) 8 s after start, `tools/window-memory`, MacBook Pro arm64, macOS 15.7, 4K screens, load 15 to 19 from other sessions (memory, not time). OpenGL replay before -> software raster through Metal, two drawables: examples/agents 1180x760 211-216 -> 81/82/103 MB (three passes, the 103 first after a build); ui/forms 133 -> 45 MB; notify-relay (app.window config) 134 -> 59 MB; nuxt-ui 79 -> 75 MB; rn-showcase 96 -> 65-89 MB. `ZINC_RENDERER=gl` after freeing the splash buffers: agents 211 -> 170 MB, ui/forms 133 -> 116 MB. What remains for a 2360x1520 surface: the shared frame 13.9 MB and three CAMetalLayer drawables 41.2 MB (WindowServer holds one beyond maximumDrawableCount 2; four and 96 MB with 3). Speed on the Metal path: breakout and hero at 60 fps (present interval p50 16.7 ms), raster p50 0.5 ms (breakout) and 2.5 ms (hero, p99 22 ms under load).
+
+## Node-API on QuickJS-ng (ZN-773.01, 2026-10-21)
+
+The cost of one native call from JavaScript, `tests/bench/napi/call.cc` (the same loop around each, minimum of 9 runs of 3 million calls, the empty loop subtracted), MacBook Pro arm64, load
+15 to 120 from other sessions' builds (the minimum keeps the quiet runs; take the numbers as a ratio, not as absolutes). Direct: `JS_NewCFunctionMagic` as zinc's bindings were written.
+
+| Call | direct QuickJS | Node-API, JsRuntimeHost as vendored | + our patch | + `napi/inline.h` (the engine's own bindings) |
+|---|---|---|---|---|
+| empty | 12-13 ns | 21 ns | 15-16 ns | 15-16 ns |
+| two numbers in, one out | 21-22 ns | 65-83 ns | 28-32 ns | 26-28 ns |
+| a 11-character string in | 22 ns | 76-164 ns (and the heap grew) | 35-38 ns | 35 ns |
+
+What cost: a heap allocation per value created (`make_unique<JSValue>`), no handle scope around a callback (every value of every call kept until a scope was closed by hand: the
+growing string row), a `std::vector` per call for the arguments, `JS_ToFloat64`, `JS_DupValue` and `JS_FreeValue` called out of line for numbers. Left: the trampoline (+3 ns: the
+callback record behind `JS_GetOpaque`, the exception check) and Node-API's contract for strings (a copy into the caller's buffer). Through a real binding the difference is gone:
+Canvas 2D `beginPath` + `moveTo` through webenv.js (`tests/bench/napi/canvas2d.js`) 164-166 ns per pair on Node-API against 167 ns on the QuickJS API. The `__host_*` rows keep
+their generated direct path per engine (the hottest calls, one table: `include/zn/runtime.h`).

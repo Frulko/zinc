@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -15,9 +16,7 @@
 #include <string>
 #include <vector>
 
-extern "C" {
-#include "../../third_party/quickjs-ng/quickjs.h"
-}
+#include "qjs/napi_util.h"
 
 #include "gl/webgl_js.h"   // PresentHooks: how pixels reach a zinc:gfx image
 #include "res/codec.h"     // the PNG and JPEG encoders of toDataURL and toBlob
@@ -47,7 +46,7 @@ namespace zn::qjs {
 namespace {
 
 namespace ci = canvas_ity;
-JSClassID gClass = 0;
+using namespace zn::napi;
 // version counts what was painted: a canvas shown or used as a picture again with the same version is not read back (shown, shownAt: the
 // zinc:gfx image that holds the pixels of that version)
 struct Canvas { std::unique_ptr<ci::canvas> cv; int w = 1, h = 1; std::uint32_t version = 1, shown = 0; int shownAt = -1; };
@@ -83,23 +82,8 @@ int addFont(std::vector<uint8_t> bytes, const std::string& name) {
   return static_cast<int>(f.list.size()) - 1;
 }
 
-void finalize(JSRuntime*, JSValue v) { delete static_cast<Canvas*>(JS_GetOpaque(v, gClass)); }
-Canvas* self(JSValueConst v) { return static_cast<Canvas*>(JS_GetOpaque(v, gClass)); }
-double num(JSContext* c, JSValueConst v) { double d = 0; JS_ToFloat64(c, &d, v); return d; }
-int i32(JSContext* c, JSValueConst v) { int32_t i = 0; JS_ToInt32(c, &i, v); return i; }
-// the bytes of an ArrayBuffer or of a typed array's view
-const uint8_t* bytesOf(JSContext* c, JSValueConst v, size_t& n) {
-  if (JS_IsArrayBuffer(v)) return JS_GetArrayBuffer(c, &n, v);   // asked first: JS_GetArrayBuffer of a typed array throws, and an exception builds a stack (500 sprites a frame)
-  size_t at = 0, len = 0, per = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(c, v, &at, &len, &per);
-  if (JS_IsException(buf)) { JS_FreeValue(c, JS_GetException(c)); n = 0; return nullptr; }
-  size_t whole = 0;
-  const uint8_t* p = JS_GetArrayBuffer(c, &whole, buf);
-  JS_FreeValue(c, buf);
-  n = len;
-  return p ? p + at : nullptr;
-}
-
+void finalize(napi_env, void* data, void*) { delete static_cast<Canvas*>(data); }
+Canvas* self(napi_env c, napi_value v) { void* k = nullptr; return napi_get_value_external(c, v, &k) == napi_ok ? static_cast<Canvas*>(k) : nullptr; }
 // A canvas of w x h transparent pixels in its initial state. A size no bitmap can have (canvas_ity keeps 16 bytes a pixel) gives one pixel
 // and says so: a program goes on, as it does in a browser that refuses a huge canvas.
 void reset(Canvas* k, int w, int h) {
@@ -110,18 +94,21 @@ void reset(Canvas* k, int w, int h) {
   k->cv = std::make_unique<ci::canvas>(w, h);
   k->w = w; k->h = h; k->version++;
 }
-JSValue js_create(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  JSValue o = JS_NewObjectClass(c, static_cast<int>(gClass));
-  if (JS_IsException(o)) return o;
+napi_value js_create(napi_env c, napi_callback_info info) {
+  Args<2> A(c, info);
   auto* k = new Canvas;
-  reset(k, argc > 0 ? i32(c, argv[0]) : 0, argc > 1 ? i32(c, argv[1]) : 0);
-  JS_SetOpaque(o, k);
+  reset(k, A.argc > 0 ? i32(c, A.argv[0]) : 0, A.argc > 1 ? i32(c, A.argv[1]) : 0);
+  napi_value o;
+  if (napi_create_external(c, k, finalize, nullptr, &o) != napi_ok) { delete k; return nullptr; }
   return o;
 }
-JSValue js_resize(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 2 ? self(argv[0]) : nullptr;
+napi_value js_resize(napi_env c, napi_callback_info info) {
+  Args<3> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 2 ? self(c, argv[0]) : nullptr;
   if (k) reset(k, i32(c, argv[1]), i32(c, argv[2]));
-  return JS_UNDEFINED;
+  return nullptr;
 }
 
 // ellipse(x, y, radiusX, radiusY, rotation, start, end, counterclockwise): the arc as cubic Béziers of a quarter turn at most, joined to the
@@ -153,11 +140,14 @@ void ellipse(ci::canvas& v, const float* a) {
 enum CanvasOp { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
           MiterLimit, DashOffset, BeginPath, MoveTo, ClosePath, LineTo, QuadTo, BezierTo, ArcTo, Arc, Rect, Fill, Stroke, Clip, InPath, ClearRect, FillRect, StrokeRect,
           Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd, Blend, Conic, InStroke };
-JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
-  if (!k) return JS_UNDEFINED;
+napi_value js_op(napi_env c, napi_callback_info info) {
+  Args<10> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 1 ? self(c, argv[0]) : nullptr;
+  if (!k) return nullptr;
   float a[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  for (int i = 2; i < argc && i < 10; i++) { const double d = num(c, argv[i]); if (!std::isfinite(d)) return JS_UNDEFINED; a[i - 2] = static_cast<float>(d); }
+  for (int i = 2; i < argc && i < 10; i++) { const double d = num(c, argv[i]); if (!std::isfinite(d)) return nullptr; a[i - 2] = static_cast<float>(d); }
   ci::canvas& v = *k->cv;
   const ci::brush_type brush = a[0] != 0 ? ci::stroke_style : ci::fill_style;
   const int code = i32(c, argv[1]);
@@ -192,8 +182,8 @@ JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     case Fill: v.fill(); break;
     case Stroke: v.stroke(); break;
     case Clip: v.clip(); break;
-    case InPath: return JS_NewBool(c, v.is_point_in_path(a[0], a[1]));
-    case InStroke: return JS_NewBool(c, v.is_point_in_path(a[0], a[1], true));
+    case InPath: return boolean(c, v.is_point_in_path(a[0], a[1]));
+    case InStroke: return boolean(c, v.is_point_in_path(a[0], a[1], true));
     case ClearRect: v.clear_rectangle(a[0], a[1], a[2], a[3]); break;
     case FillRect: v.fill_rectangle(a[0], a[1], a[2], a[3]); break;
     case StrokeRect: v.stroke_rectangle(a[0], a[1], a[2], a[3]); break;
@@ -209,19 +199,22 @@ JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     case Blend: v.blend_mode = std::clamp(static_cast<int>(a[0]), 0, 15); break;   // 0: none; the order of BLEND in lib/std/webenv.js
     default: break;
   }
-  return JS_UNDEFINED;
+  return nullptr;
 }
 // dash(canvas, [lengths])
-JSValue js_dash(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
-  if (!k) return JS_UNDEFINED;
-  JSValue lv = JS_GetPropertyStr(c, argv[1], "length");
-  const int n = std::clamp(i32(c, lv), 0, 4096);
-  JS_FreeValue(c, lv);
+napi_value js_dash(napi_env c, napi_callback_info info) {
+  Args<2> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 1 ? self(c, argv[0]) : nullptr;
+  if (!k) return nullptr;
+  napi_value lv = nullptr, e = nullptr;
+  napi_get_named_property(c, argv[1], "length", &lv);
+  const int n = lv ? std::clamp(i32(c, lv), 0, 4096) : 0;
   std::vector<float> d(static_cast<size_t>(n));
-  for (int i = 0; i < n; i++) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<uint32_t>(i)); d[static_cast<size_t>(i)] = static_cast<float>(num(c, e)); JS_FreeValue(c, e); }
+  for (int i = 0; i < n; i++) { if (napi_get_element(c, argv[1], static_cast<uint32_t>(i), &e) != napi_ok) return nullptr; d[static_cast<size_t>(i)] = static_cast<float>(num(c, e)); }
   k->cv->set_line_dash(d.empty() ? nullptr : d.data(), n);
-  return JS_UNDEFINED;
+  return nullptr;
 }
 
 // ---- text. shape(text, faces, px, letterSpacing, rtl, align, baseline): one line, shaped, with where it sits around the point it is drawn at.
@@ -233,20 +226,16 @@ struct Shaped {
   float dx = 0, dy = 0;                  // from the point given to the pen's start on the alphabetic baseline
   float ascent = 0, descent = 0, emAscent = 0, emDescent = 0, hanging = 0;
 };
-bool shape(JSContext* c, JSValueConst* argv, Shaped& s) {
-  size_t n = 0;
-  const char* p = JS_ToCStringLen(c, &n, argv[0]);
-  if (!p) return false;
-  std::string text(p, n);
-  JS_FreeCString(c, p);
+bool shape(napi_env c, napi_value* argv, Shaped& s) {
+  std::string text;
+  if (!zn::napi::text(c, argv[0], text)) return false;
   for (char& ch : text) if (ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f' || ch == '\v') ch = ' ';   // the specification: every white space is a space
-  JSValue lv = JS_GetPropertyStr(c, argv[1], "length");
-  const int count = i32(c, lv);
-  JS_FreeValue(c, lv);
+  napi_value lv = nullptr, e = nullptr;
+  napi_get_named_property(c, argv[1], "length", &lv);
+  const int count = lv ? i32(c, lv) : 0;
   for (int i = 0; i < count && i < 16; i++) {
-    JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<uint32_t>(i));
+    if (napi_get_element(c, argv[1], static_cast<uint32_t>(i), &e) != napi_ok) return false;
     const int id = i32(c, e);
-    JS_FreeValue(c, e);
     if (id >= 0 && id < static_cast<int>(fonts().list.size())) s.faces.push_back(fonts().list[static_cast<size_t>(id)].face.get());
   }
   if (s.faces.empty()) return false;
@@ -277,12 +266,15 @@ bool shape(JSContext* c, JSValueConst* argv, Shaped& s) {
 }
 // text(canvas, stroke, x, y, maxWidth, text, faces, px, letterSpacing, rtl, align, baseline): fillText or strokeText. A text wider than
 // maxWidth (0: none) is condensed to it.
-JSValue js_text(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 11 ? self(argv[0]) : nullptr;
-  if (!k) return JS_UNDEFINED;
+napi_value js_text(napi_env c, napi_callback_info info) {
+  Args<12> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 11 ? self(c, argv[0]) : nullptr;
+  if (!k) return nullptr;
   const double x = num(c, argv[2]), y = num(c, argv[3]), maxWidth = num(c, argv[4]);
   Shaped s;
-  if (!std::isfinite(x) || !std::isfinite(y) || !shape(c, argv + 5, s)) return JS_UNDEFINED;
+  if (!std::isfinite(x) || !std::isfinite(y) || !shape(c, argv + 5, s)) return nullptr;
   const float squeeze = maxWidth > 0 && s.width > maxWidth ? static_cast<float>(maxWidth) / s.width : 1;
   const float ox = static_cast<float>(x) + s.dx * squeeze, oy = static_cast<float>(y) + s.dy;
   ci::canvas& v = *k->cv;
@@ -305,17 +297,20 @@ JSValue js_text(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     }
     pen += g.advance + s.spacing;
   }
-  if (JS_ToBool(c, argv[1])) v.stroke(); else v.fill();
+  if (truthy(c, argv[1])) v.stroke(); else v.fill();
   v.exchange_path();
   k->version++;
-  return JS_UNDEFINED;
+  return nullptr;
 }
 // measure(text, faces, px, letterSpacing, rtl, align, baseline): [width, the ink's left, right, ascent and descent from the point the text
 // would be drawn at (a TextMetrics' actualBoundingBox*), the font's ascent and descent, the em box's, the hanging, alphabetic and ideographic
 // baselines], undefined without a font
-JSValue js_measure(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
+napi_value js_measure(napi_env c, napi_callback_info info) {
+  Args<7> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
   Shaped s;
-  if (argc < 7 || !shape(c, argv, s)) return JS_UNDEFINED;
+  if (argc < 7 || !shape(c, argv, s)) return nullptr;
   float x0 = 0, x1 = 0, y0 = 0, y1 = 0, pen = 0;
   bool ink = false;
   zn::text::Outline o;
@@ -329,95 +324,113 @@ JSValue js_measure(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   }
   const double out[] = {s.width, -(s.dx + x0), s.dx + x1, -(s.dy + y0), s.dy + y1, s.ascent - s.dy, s.descent + s.dy, s.emAscent - s.dy, s.emDescent + s.dy,
                         s.hanging - s.dy, -s.dy, -s.descent - s.dy};
-  JSValue a = JS_NewArray(c);
-  for (uint32_t i = 0; i < std::size(out); i++) JS_SetPropertyUint32(c, a, i, JS_NewFloat64(c, out[i]));
+  napi_value a;
+  napi_create_array_with_length(c, std::size(out), &a);
+  for (uint32_t i = 0; i < std::size(out); i++) napi_set_element(c, a, i, doublev(c, out[i]));
   return a;
 }
 // font(name | bytes): the id of a face, -1 when the file is not a font the text tier opens. A name is a file of lib/fonts, opened once.
 // A FontFace takes the project's own files only: stb_truetype, which reads the outlines, is not made for hostile fonts.
-JSValue js_font(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  if (argc < 1) return JS_NewInt32(c, -1);
-  if (JS_IsString(argv[0])) {
-    const char* p = JS_ToCString(c, argv[0]);
-    const std::string name = p ? p : "";
-    if (p) JS_FreeCString(c, p);
+napi_value js_font(napi_env c, napi_callback_info info) {
+  Args<1> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  if (argc < 1) return int32v(c, -1);
+  if (isString(c, argv[0])) {
+    std::string name;
+    zn::napi::text(c, argv[0], name);
     Fonts& f = fonts();
-    for (size_t i = 0; i < f.list.size(); i++) if (f.list[i].name == name) return JS_NewInt32(c, static_cast<int>(i));
-    if (name.empty() || name.find('/') != std::string::npos || name.find('\\') != std::string::npos) return JS_NewInt32(c, -1);
+    for (size_t i = 0; i < f.list.size(); i++) if (f.list[i].name == name) return int32v(c, static_cast<int>(i));
+    if (name.empty() || name.find('/') != std::string::npos || name.find('\\') != std::string::npos) return int32v(c, -1);
     std::ifstream in(f.dir + "/" + name, std::ios::binary);
-    if (!in) return JS_NewInt32(c, -1);
-    return JS_NewInt32(c, addFont(std::vector<uint8_t>(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()), name));
+    if (!in) return int32v(c, -1);
+    return int32v(c, addFont(std::vector<uint8_t>(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()), name));
   }
   size_t n = 0;
-  const uint8_t* p = bytesOf(c, argv[0], n);
-  if (!p || n < 12) return JS_NewInt32(c, -1);
-  return JS_NewInt32(c, addFont(std::vector<uint8_t>(p, p + n), ""));
+  const uint8_t* p = zn::napi::bytesOf(c, argv[0], n);
+  if (!p || n < 12) return int32v(c, -1);
+  return int32v(c, addFont(std::vector<uint8_t>(p, p + n), ""));
 }
 
 // ---- pixels. Outside this file they are RGBA8 rows from the top with alpha not premultiplied: an ImageData, a decoded image, a texture source.
 // read(canvas, x, y, w, h): an ArrayBuffer of them (transparent outside the canvas)
-JSValue js_read(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 4 ? self(argv[0]) : nullptr;
-  if (!k) return JS_UNDEFINED;
+napi_value js_read(napi_env c, napi_callback_info info) {
+  Args<5> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 4 ? self(c, argv[0]) : nullptr;
+  if (!k) return nullptr;
   const int x = i32(c, argv[1]), y = i32(c, argv[2]), w = i32(c, argv[3]), h = i32(c, argv[4]);
-  if (w < 1 || h < 1 || static_cast<std::int64_t>(w) * h > kMaxImagePixels) return JS_ThrowRangeError(c, "getImageData: %d x %d pixels cannot be read", w, h);
+  if (w < 1 || h < 1 || static_cast<std::int64_t>(w) * h > kMaxImagePixels) return throwRange(c, "getImageData: " + std::to_string(w) + " x " + std::to_string(h) + " pixels cannot be read");
   std::vector<uint8_t> px(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
   k->cv->get_image_data(px.data(), w, h, w * 4, x, y);
-  return JS_NewArrayBufferCopy(c, px.data(), px.size());
+  return arrayBufferCopy(c, px.data(), px.size());
 }
 // write(canvas, pixels, width, height, x, y, dirtyX, dirtyY, dirtyW, dirtyH): putImageData, the dirty rectangle already inside the pixels
-JSValue js_write(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 9 ? self(argv[0]) : nullptr;
+napi_value js_write(napi_env c, napi_callback_info info) {
+  Args<10> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 9 ? self(c, argv[0]) : nullptr;
   size_t n = 0;
-  const uint8_t* p = k ? bytesOf(c, argv[1], n) : nullptr;
+  const uint8_t* p = k ? zn::napi::bytesOf(c, argv[1], n) : nullptr;
   const int w = argc > 9 ? i32(c, argv[2]) : 0, h = argc > 9 ? i32(c, argv[3]) : 0;
-  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return JS_UNDEFINED;
+  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return nullptr;
   const int x = i32(c, argv[4]), y = i32(c, argv[5]), dx = i32(c, argv[6]), dy = i32(c, argv[7]), dw = i32(c, argv[8]), dh = i32(c, argv[9]);
-  if (dx < 0 || dy < 0 || dw < 1 || dh < 1 || dx > w - dw || dy > h - dh) return JS_UNDEFINED;
+  if (dx < 0 || dy < 0 || dw < 1 || dh < 1 || dx > w - dw || dy > h - dh) return nullptr;
   k->cv->put_image_data(p + (static_cast<size_t>(dy) * static_cast<size_t>(w) + static_cast<size_t>(dx)) * 4, dw, dh, w * 4, x + dx, y + dy);
   k->version++;
-  return JS_UNDEFINED;
+  return nullptr;
 }
 // image(canvas, pixels, width, height, sx, sy, sw, sh, dx, dy, dw, dh): drawImage of the source rectangle (whole pixels, inside the
 // picture) into the destination rectangle, under the transform, the alpha, the compositing and the shadow
-JSValue js_image(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 11 ? self(argv[0]) : nullptr;
+napi_value js_image(napi_env c, napi_callback_info info) {
+  Args<12> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 11 ? self(c, argv[0]) : nullptr;
   size_t n = 0;
-  const uint8_t* p = k ? bytesOf(c, argv[1], n) : nullptr;
+  const uint8_t* p = k ? zn::napi::bytesOf(c, argv[1], n) : nullptr;
   const int w = argc > 11 ? i32(c, argv[2]) : 0, h = argc > 11 ? i32(c, argv[3]) : 0;
-  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return JS_UNDEFINED;
+  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return nullptr;
   const int sx = i32(c, argv[4]), sy = i32(c, argv[5]), sw = i32(c, argv[6]), sh = i32(c, argv[7]);
   double d[4];
-  for (int i = 0; i < 4; i++) { d[i] = num(c, argv[8 + i]); if (!std::isfinite(d[i])) return JS_UNDEFINED; }
-  if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx > w - sw || sy > h - sh) return JS_UNDEFINED;
+  for (int i = 0; i < 4; i++) { d[i] = num(c, argv[8 + i]); if (!std::isfinite(d[i])) return nullptr; }
+  if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx > w - sw || sy > h - sh) return nullptr;
   k->cv->draw_image(p + (static_cast<size_t>(sy) * static_cast<size_t>(w) + static_cast<size_t>(sx)) * 4, sw, sh, w * 4,
                     static_cast<float>(d[0]), static_cast<float>(d[1]), static_cast<float>(d[2]), static_cast<float>(d[3]));
   k->version++;
-  return JS_UNDEFINED;
+  return nullptr;
 }
 // pattern(canvas, stroke, pixels, width, height, repetition): the picture as the fill or the stroke style. repetition: 0 both ways, 1 along x,
 // 2 along y, 3 none
-JSValue js_pattern(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 5 ? self(argv[0]) : nullptr;
+napi_value js_pattern(napi_env c, napi_callback_info info) {
+  Args<6> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 5 ? self(c, argv[0]) : nullptr;
   size_t n = 0;
-  const uint8_t* p = k ? bytesOf(c, argv[2], n) : nullptr;
+  const uint8_t* p = k ? zn::napi::bytesOf(c, argv[2], n) : nullptr;
   const int w = argc > 5 ? i32(c, argv[3]) : 0, h = argc > 5 ? i32(c, argv[4]) : 0;
-  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return JS_UNDEFINED;
-  k->cv->set_pattern(JS_ToBool(c, argv[1]) ? ci::stroke_style : ci::fill_style, p, w, h, w * 4, static_cast<ci::repetition_style>(i32(c, argv[5]) & 3));
-  return JS_UNDEFINED;
+  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return nullptr;
+  k->cv->set_pattern(truthy(c, argv[1]) ? ci::stroke_style : ci::fill_style, p, w, h, w * 4, static_cast<ci::repetition_style>(i32(c, argv[5]) & 3));
+  return nullptr;
 }
 // encode(canvas, jpeg, quality, text): the canvas as a PNG file, or as a JPEG one over black (JPEG has no alpha); an ArrayBuffer, or with
 // `text` the base64 of the file (toDataURL)
-JSValue js_encode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 3 ? self(argv[0]) : nullptr;
-  if (!k) return JS_UNDEFINED;
-  const bool jpeg = JS_ToBool(c, argv[1]) != 0;
+napi_value js_encode(napi_env c, napi_callback_info info) {
+  Args<4> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 3 ? self(c, argv[0]) : nullptr;
+  if (!k) return nullptr;
+  const bool jpeg = truthy(c, argv[1]) != 0;
   std::vector<uint8_t> px(static_cast<size_t>(k->w) * static_cast<size_t>(k->h) * 4);
   k->cv->get_image_data(px.data(), k->w, k->h, k->w * 4, 0, 0);
   if (jpeg) for (size_t i = 0; i < px.size(); i += 4) for (size_t j = 0; j < 3; j++) px[i + j] = static_cast<uint8_t>((px[i + j] * px[i + 3] + 127) / 255);
   const double q = num(c, argv[2]);
   const std::vector<uint8_t> file = jpeg ? zn::res::encodeJpeg(px.data(), k->w, k->h, 4, std::isfinite(q) && q >= 0 && q <= 1 ? static_cast<int>(q * 100) : 92) : zn::res::encodePng(px.data(), k->w, k->h, 4);
-  if (!JS_ToBool(c, argv[3])) return JS_NewArrayBufferCopy(c, file.data(), file.size());
+  if (!truthy(c, argv[3])) return arrayBufferCopy(c, file.data(), file.size());
   static const char digits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string out;
   out.reserve((file.size() + 2) / 3 * 4);
@@ -427,45 +440,49 @@ JSValue js_encode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     out += i + 1 < file.size() ? digits[n >> 6 & 63] : '=';
     out += i + 2 < file.size() ? digits[n & 63] : '=';
   }
-  return JS_NewStringLen(c, out.data(), out.size());
+  return string(c, out.data(), out.size());
 }
 // stamp(canvas): a number that changes when the canvas is painted on: what JavaScript keys its copy of the pixels with
-JSValue js_stamp(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 0 ? self(argv[0]) : nullptr;
-  return JS_NewUint32(c, k ? k->version : 0);
+napi_value js_stamp(napi_env c, napi_callback_info info) {
+  Args<1> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 0 ? self(c, argv[0]) : nullptr;
+  return uint32v(c, k ? k->version : 0);
 }
 // present(canvas, image): the canvas into a zinc:gfx image, with its alpha (a transparent canvas lets through what the window drew before
 // it: the page's black, a WebGL canvas under an overlay); false without a surface to show on. A canvas nothing was painted on since it was
 // last put in that image is not read back: the image has its pixels.
-JSValue js_present(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
-  Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
+napi_value js_present(napi_env c, napi_callback_info info) {
+  Args<2> A(c, info);
+  const int argc = static_cast<int>(A.argc);
+  napi_value* argv = A.argv;
+  Canvas* k = argc > 1 ? self(c, argv[0]) : nullptr;
   const auto* hooks = static_cast<const zn::gl::PresentHooks*>(zn::host::glPresentHooks());
-  if (!k || !hooks) return JS_FALSE;
-  if (k->shown == k->version && k->shownAt == i32(c, argv[1])) return JS_TRUE;
+  if (!k || !hooks) return boolean(c, false);
+  if (k->shown == k->version && k->shownAt == i32(c, argv[1])) return boolean(c, true);
   unsigned* dst = hooks->pixels(i32(c, argv[1]), k->w, k->h);
-  if (!dst) return JS_FALSE;
+  if (!dst) return boolean(c, false);
   std::vector<uint8_t> px(static_cast<size_t>(k->w) * static_cast<size_t>(k->h) * 4);
   k->cv->get_image_data(px.data(), k->w, k->h, k->w * 4, 0, 0);
   for (size_t i = 0, count = px.size() / 4; i < count; i++) dst[i] = static_cast<unsigned>(px[i * 4 + 3]) << 24 | static_cast<unsigned>(px[i * 4]) << 16 | static_cast<unsigned>(px[i * 4 + 1]) << 8 | px[i * 4 + 2];
   zrt::raster::dyn_set_alpha(i32(c, argv[1]), true);
   hooks->done(i32(c, argv[1]));
   k->shown = k->version; k->shownAt = i32(c, argv[1]);
-  return JS_TRUE;
+  return boolean(c, true);
 }
 
 }  // namespace
 
-void installCanvas2d(JSContext* ctx, JSValueConst native, const std::string& stdRoot) {
-  JSRuntime* rt = JS_GetRuntime(ctx);
-  if (!gClass) JS_NewClassID(rt, &gClass);
-  if (!JS_IsRegisteredClass(rt, gClass)) { JSClassDef def{}; def.class_name = "Canvas2DBitmap"; def.finalizer = finalize; JS_NewClass(rt, gClass, &def); }
+void installCanvas2d(napi_env env, napi_value native, const std::string& stdRoot) {
   fonts().dir = stdRoot + "/../fonts";
-  JSValue o = JS_NewObject(ctx);
-  const struct { const char* name; JSCFunction* fn; int args; } table[] = {
-      {"create", js_create, 2}, {"resize", js_resize, 3}, {"op", js_op, 10}, {"dash", js_dash, 2}, {"text", js_text, 12}, {"measure", js_measure, 7},
-      {"font", js_font, 1}, {"read", js_read, 5}, {"write", js_write, 10}, {"image", js_image, 12}, {"present", js_present, 2}, {"stamp", js_stamp, 1}, {"encode", js_encode, 4}, {"pattern", js_pattern, 6}};
-  for (const auto& e : table) JS_SetPropertyStr(ctx, o, e.name, JS_NewCFunction(ctx, e.fn, e.name, e.args));
-  JS_SetPropertyStr(ctx, native, "c2d", o);
+  napi_value o;
+  napi_create_object(env, &o);
+  const struct { const char* name; napi_callback fn; } table[] = {
+      {"create", js_create}, {"resize", js_resize}, {"op", js_op}, {"dash", js_dash}, {"text", js_text}, {"measure", js_measure},
+      {"font", js_font}, {"read", js_read}, {"write", js_write}, {"image", js_image}, {"present", js_present}, {"stamp", js_stamp}, {"encode", js_encode}, {"pattern", js_pattern}};
+  for (const auto& e : table) method(env, o, e.name, e.fn);
+  napi_set_named_property(env, native, "c2d", o);
 }
 
 }  // namespace zn::qjs

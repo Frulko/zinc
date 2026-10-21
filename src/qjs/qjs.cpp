@@ -700,8 +700,8 @@ int run(const Options& o) {
   JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
   installHost(e.ctx);
-  installNative(e.ctx);
-  zn::qjs::runContextHooks(e.ctx);   // native classes of other modules (WebGL), ZN-203.03
+  installNative(zn::qjs::napiEnv(e.ctx));
+  zn::qjs::runContextHooks(zn::qjs::napiEnv(e.ctx));   // native classes of other modules (WebGL), ZN-203.03
   JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
   if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
   JS_FreeValue(e.ctx, pre);

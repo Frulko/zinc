@@ -817,7 +817,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   }
   bool usesScript = false;
   for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS" || nt.module == "QuickJSFast";
-  std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+  std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_napi_qjs.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
   nativeLibs += shapedLibs;
   for (const zn::tc::PluginLib& pl : gPlugins) {
     if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
@@ -1313,14 +1313,14 @@ static const zn::gl::PresentHooks* glHooks() {
   return nullptr;
 #endif
 }
-static void webglHook(JSContext* ctx) {
+static void webglHook(napi_env env) {
   static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
     const char* wanted = std::getenv("ZINC_WEBGL");
     void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
     auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
     return open ? open(glHooks()) : nullptr;
   }();
-  if (install) install(ctx);
+  if (install) install(zn::qjs::contextOf(env));   // ponytail: WebGL still binds QuickJS directly until ZN-773.02 ports it to Node-API
 }
 // zinc:gl (ZN-562): the Rt::HostGl* rows go to libzn_webgl's zn_webgl_host, loaded at the first one, so a program that does not call them loads nothing
 static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
@@ -2374,7 +2374,7 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       ok = std::system(cmd.c_str()) == 0;

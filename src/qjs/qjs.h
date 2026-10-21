@@ -6,6 +6,7 @@
 
 struct JSRuntime;
 struct JSContext;
+typedef struct napi_env__* napi_env;
 
 namespace zn::qjs {
 
@@ -58,7 +59,7 @@ std::string capsJson(const std::string& capsFile);
 std::string mapStack(const std::string& stack, const std::string& file, const std::string& mapJson);
 
 // src/qjs/native_js.cpp: the native modules of plugins (zinc:native for this engine, and the global function its requireNative calls).
-void installNative(JSContext* ctx);
+void installNative(napi_env env);
 extern const char* kNativeModule;
 
 // src/qjs/webenv.cpp: the web environment (window, document, events, storage, network: lib/std/webenv.js), installed when the program asks for it
