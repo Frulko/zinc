@@ -5,6 +5,9 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- zinc check: a project on the QuickJS engine ("engine": "quickjs") is checked by the typed checker, which does not resolve `node_modules` packages (Z0119 on every `@nbe/...` import of examples/carnet-nbe, which runs): check it as the QuickJS loader resolves it (src/qjs/qjs.cpp quickjsLint), or say the check does not apply.
+- QuickJS: a browser `WebSocket` global (binary frames as ArrayBuffer) for libraries that expect one (@nbe/collab's connectToRelay); examples/carnet-nbe/src/services/sync.ts carries the adapter over zinc:socket, the web environment could give it to every program.
+- QuickJS module loader: symlinks are not resolved to their real path, so a pnpm workspace (node_modules/@scope/pkg -> ../../packages/pkg) loads a package twice when it is reached by two paths (two module instances, two copies of its state): realpath before the module cache, as Node does.
 - ZN-764: the macOS window could show the raster with no drawable at all: two IOSurfaces as the layer's contents, drawn in turn (one window buffer less, ~14 MB at 1180x760 density 2, against the frame plus 2 drawables plus the one WindowServer holds today).
 
 - Live resize (owner, 2026-10-16): the frame drawn from the watcher resets the HAL's per-frame input (keys, clicks) that the outer poll had read before AppKit's loop began: a key pressed in the same 8 ms as the mouse-down on the edge is lost. Keep the outer poll's events for the nested frame.
@@ -412,6 +415,8 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:loro: event `from`/`to` frontiers, detached containers (empty until attached), `LoroMovableList`, `LoroCounter`, cursors, the undo manager, shallow snapshots, `fork`, `diff`/`applyDiff`.
 
 ## Demos
+- examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
+- examples/carnet-nbe: Carnet's L0 storage (.nbe/<id>.json, canonical) and L2 index (SQLite with FTS5, backlinks: packages/cli/src/index-db.ts) beside the Markdown vault, as Carnet's CLI keeps them: needs `node:fs` and `node:sqlite` on QuickJS over zinc:fs and zinc:sqlite, and FTS5 in plugins/sqlite.
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
 
 - ZN-649.14: a rule of a pinball table can listen to the plunger, so a skill shot needs no hidden sensor.

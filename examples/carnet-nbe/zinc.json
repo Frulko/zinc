@@ -1,0 +1,68 @@
+{
+  "name": "carnet-nbe",
+  "entry": "src/main.tsx",
+  "text": "shaped",
+  "app": {
+    "name": "Carnet (nbe)",
+    "id": "dev.zinc.carnet-nbe",
+    "version": "0.1.0",
+    "icon": "icon.png",
+    "orientation": "landscape"
+  },
+  "targets": {
+    "macos": {
+      "width": 1280,
+      "height": 820,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 1280,
+      "height": 820,
+      "resize": "fill"
+    },
+    "sim": {
+      "width": 1280,
+      "height": 820
+    }
+  },
+  "permissions": [
+    "fs",
+    "net"
+  ],
+  "requires": [
+    "heap>=32M",
+    "keyboard",
+    "pointer",
+    "fs",
+    "net"
+  ],
+  "icons": [
+    "type",
+    "heading-1",
+    "heading-2",
+    "heading-3",
+    "list",
+    "list-ordered",
+    "square-check",
+    "quote",
+    "lightbulb",
+    "code",
+    "minus",
+    "plus",
+    "grip-vertical",
+    "check",
+    "trash-2",
+    "file-text",
+    "notebook-pen",
+    "rocket",
+    "leaf",
+    "book-open",
+    "target",
+    "flask-conical",
+    "folder",
+    "sparkles",
+    "pilcrow",
+    "chevron-right"
+  ],
+  "engine": "quickjs"
+}

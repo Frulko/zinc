@@ -1,0 +1,69 @@
+--- a/packages/core/src/index.ts
++++ b/packages/core/src/index.ts
+@@ -31,7 +31,7 @@
+   prevWord,
+   snapGrapheme,
+ } from './grapheme';
+-export { MARKS, expandsForward, markExpansion, registerMark, type MarkExpansion, type MarkSpec } from './marks';
++export { MARKS, expandsForward, markExpansion, registerMark} from './marks';
+ export { documentOrder } from './doc';
+ export {
+   anchoredThreads,
+@@ -41,7 +41,4 @@
+   orphanThreads,
+   threadIdsIn,
+   threadsInDocumentOrder,
+-  type CommentMessage,
+-  type CommentStore,
+-  type CommentThread,
+ } from './comments';
+--- a/packages/markdown/src/frontmatter.ts
++++ b/packages/markdown/src/frontmatter.ts
+@@ -201,9 +201,9 @@
+   }
+ 
+   /** The value of a key, or `undefined` when the file does not carry it. */
+-  get<T = unknown>(key: string): T | undefined {
++  get(key: string): any {
+     const entry = this.entries.get(key);
+-    return entry === undefined ? undefined : (entry.value as T);
++    return entry === undefined ? undefined : entry.value;
+   }
+ 
+   has(key: string): boolean {
+--- a/packages/markdown/src/index.ts
++++ b/packages/markdown/src/index.ts
+@@ -17,7 +17,6 @@
+   readFrontmatter,
+   unquote,
+   writeFrontmatter,
+-  type FrontmatterSplit,
+ } from './frontmatter';
+ 
+ // ---------------------------------------------------------------------------
+--- a/packages/collab/src/index.ts
++++ b/packages/collab/src/index.ts
+@@ -1,7 +1,7 @@
+ export { LoroBlockStore, seedFromJSON } from './store';
+-export { connect, envelope, loopback, redrawOnRemote, Message, type Transport } from './sync';
+-export { connectToRelay, websocketTransport, type WebSocketTransportOptions } from './websocket';
+-export { p2pTransport, type P2POptions, type P2PState } from './webrtc';
++export { connect, envelope, loopback, redrawOnRemote, Message} from './sync';
++export { connectToRelay, websocketTransport} from './websocket';
++export { p2pTransport} from './webrtc';
+ export { LoroComments } from './comments';
+-export { LoroHistory, type Revision } from './history';
+-export { createPresence, type PeerState, type Presence, type PresenceOptions } from './presence';
++export { LoroHistory} from './history';
++export { createPresence} from './presence';
+--- a/packages/collab/src/presence.ts
++++ b/packages/collab/src/presence.ts
+@@ -74,7 +74,7 @@
+ 
+   const others = (): Record<string, PeerState> => {
+     const all = store.getAllStates() as Record<string, PeerState>;
+-    const { [opts.id]: _mine, ...rest } = all;
++    const rest = { ...all }; delete rest[opts.id];
+     return rest;
+   };
+ 

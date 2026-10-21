@@ -1,0 +1,5 @@
+vault/
+build/
+dist/
+node_modules/
+.nbe-dev/
