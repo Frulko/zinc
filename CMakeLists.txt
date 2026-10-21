@@ -883,7 +883,7 @@ if(APPLE AND EXISTS "${ZN_HERMES_DIR}/lib/libhermesvm.dylib")
               src/qjs/native_js.cpp src/qjs/canvas2d.cpp src/qjs/webenv.cpp src/text/segmenter_js.cpp)
   set_target_properties(zn_engine_hermes PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                         CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON BUILD_RPATH "${ZN_HERMES_REAL}/lib")
-  target_compile_definitions(zn_engine_hermes PRIVATE NAPI_VERSION=8 ZN_ENGINE_MODULE)
+  target_compile_definitions(zn_engine_hermes PRIVATE NAPI_VERSION=8 ZN_ENGINE_MODULE ZN_ENGINE_HERMES)
   target_compile_options(zn_engine_hermes PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/src/engine/hermes.h)
   target_include_directories(zn_engine_hermes PRIVATE "${ZN_HERMES_REAL}/include/hermes" src include
                              $<TARGET_PROPERTY:zn_qjs,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_text,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_segment,INTERFACE_INCLUDE_DIRECTORIES>

@@ -88,8 +88,16 @@ napi_value hostFn(napi_env env, napi_callback_info info) {
         bool array = false;
         if (napi_is_array(env, v, &array) == napi_ok && array) {   // a u8[] / f64[]: the engine copies it into a typed array in one call, not one call per element
           napi_value global, ctor, copy;
+#ifdef ZN_ENGINE_HERMES   // Hermes builds a typed array from an array through the iterator protocol (24 ms for 262,144 elements): new T(n).set(array) takes 1.9
+          std::uint32_t n = 0;
+          napi_value len, set, r;
+          if (napi_get_global(env, &global) == napi_ok && napi_get_named_property(env, global, bytes ? "Uint8Array" : "Float64Array", &ctor) == napi_ok &&
+              napi_get_array_length(env, v, &n) == napi_ok && napi_create_uint32(env, n, &len) == napi_ok && napi_new_instance(env, ctor, 1, &len, &copy) == napi_ok &&
+              napi_get_named_property(env, copy, "set", &set) == napi_ok && napi_call_function(env, copy, set, 1, &v, &r) == napi_ok) v = copy;
+#else
           if (napi_get_global(env, &global) == napi_ok && napi_get_named_property(env, global, bytes ? "Uint8Array" : "Float64Array", &ctor) == napi_ok &&
               napi_new_instance(env, ctor, 1, &v, &copy) == napi_ok) v = copy;
+#endif
         }
         if (napi_is_typedarray(env, v, &typed) == napi_ok && typed && napi_get_typedarray_info(env, v, &tt, &tn, &data, nullptr, nullptr) == napi_ok &&
             (bytes ? tt == napi_uint8_array || tt == napi_uint8_clamped_array : tt == napi_float64_array)) {   // an image's pixels: read in place
