@@ -413,6 +413,7 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:loro integration (2026-10-21): the AOT prelude's precompiled header (`~/.zinc/cache/aot-obj/prelude-<hash>.pch`) is keyed without the engine headers it includes (src/frontend/ast.h): an edited header makes every `zinc build` fail with "has been modified since the precompiled header" until the .pch is deleted; key it on those files' sizes and times, or rebuild it on that error.
 - zinc:loro: event `from`/`to` frontiers, detached containers (empty until attached), `LoroMovableList`, `LoroCounter`, cursors, the undo manager, shallow snapshots, `fork`, `diff`/`applyDiff`.
 
+- third_party: keep the vendored copies (no submodules: patches, offline first build, worktrees), but tool them: a machine-readable third_party/vendor.json (url, version, sha256, kept files, patches) and tools/vendor check|update <lib> <version> (check on CI: each directory equals its source plus its patches). Owner, 2026-10-21.
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
