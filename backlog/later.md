@@ -784,5 +784,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.07: Hermes's CDP inspector (API/hermes/cdp) behind src/dbg/ws.cpp, as V8's, for --engine hermes --inspect.
 - ZN-773.07: precompile .hbc at zinc build --engine hermes through hermes_run_bytecode; optimising at run time costs 1.2 s on hero's bundle.
 - ZN-773.07: the Hermes adapter keeps one handle scope open for the whole run (its Node-API roots values only inside a scope): check long programs do not grow.
+- ZN-773.08: measure hero CPU on Hermes built with and without its debugger on a quiet machine; if the debugger costs, ship two libhermesvm builds and load the debugger one only for --inspect.
+- ZN-773.08: Hermes's DevTools agent does not report which breakpoint was hit and lists possible breakpoints as empty: check Chrome DevTools' breakpoint UI on Hermes.
+- ZN-773.08: zinc export of a Hermes or V8 project should prefer the downloaded pack over the module beside a source-built zinc, whose library points at the local SDK.
+- ZN-773.04: tools/v8-pack takes Homebrew's newest V8 at each release: pin the version (and bump it on purpose) so a new V8 major cannot break the Node-API patch during a release.
 - ZN-773.06: WASI preview1 on the wasm pack, so wasm programs built for WASI run on QuickJS.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.

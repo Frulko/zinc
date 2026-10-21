@@ -112,7 +112,7 @@ Fetch indexFetch(const std::string& base) {
   };
 }
 
-std::string indexUrl() { const char* u = std::getenv("ZINC_INDEX_URL"); return u && *u ? u : "https://zinc-engine.github.io/zinc/index"; }
+std::string indexUrl() { const char* u = std::getenv("ZINC_INDEX_URL"); return u && *u ? u : "https://frulko.github.io/zinc/index"; }   // the Pages site of the repository (pages.yml publishes the index under /index)
 
 std::string logKey(const std::string& engineRoot) {
   if (const char* k = std::getenv("ZINC_TLOG_KEY")) return k;
