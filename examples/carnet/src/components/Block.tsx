@@ -5,7 +5,7 @@ import { createEffect, onCleanup, createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as dnd from 'zinc:ui/dnd';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
-import { Block, Page, Peer, pageOf, peersOn, focusedBlock, toggleChecked, insertBlockAfter, listNumber } from '../state';
+import { Block, Page, Peer, pageOf, peersOn, focusedBlock, setFocusedBlock, toggleChecked, insertBlockAfter, listNumber } from '../state';
 import { T_TEXT, T_H1, T_H2, T_H3, T_BULLET, T_NUMBER, T_TODO, T_QUOTE, T_CALLOUT, T_CODE, T_DIVIDER, HANDLE_WIDTH, INDENT_STEP,
   COLOR_TEXT_FAINT, COLOR_TEXT_SECONDARY, COLOR_PAGE } from '../constants';
 import { onBlockInput, onBlockKey } from './block-keys';
@@ -108,7 +108,11 @@ export function BlockRow(props: { b: Block }): i32 {
   const field = b.ref.node;
   const undrag = dnd.draggable(row.node, { data: b.id, handle: grip.node });
   const undrop = dnd.dropTarget(row.node, { data: b.id, edges: dnd.EDGES_VERTICAL });
-  onCleanup(() => { rowNodes.delete(b.id); unregisterField(field); undrag(); undrop(); });
+  onCleanup(() => {
+    rowNodes.delete(b.id); unregisterField(field); undrag(); undrop();
+    if (b.ref.node === field) b.ref.node = -1;   // its node is freed (page closed, block deleted): no caret to ask it for
+    if (focusedBlock() === b) setFocusedBlock(null);
+  });
   // the others' carets and selections in this block
   createEffect(() => {
     const marks: i32[] = [];

@@ -15,6 +15,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/carnet`: a Notion-style block editor whose pages are Markdown files in a folder; every window that opens it edits the same pages live, with the others' carets shown.
 
 ### Fixed
+- `onCleanup` in a component rendered by a list (`{items().map(...)}`) now runs when its row goes away; it was dropped, so a row's subscriptions and handles outlived it.
 - `zinc check` reports an error inside a class's `static { }` block (a static it assigns that the class does not declare) instead of accepting it and crashing when the program is compiled.
 
 ## [0.4.3] - 2026-10-21

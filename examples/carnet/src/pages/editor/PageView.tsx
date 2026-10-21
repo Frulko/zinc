@@ -76,7 +76,9 @@ function PageBody(props: { p: Page }): i32 {
       <View className="w-full h-[240] cursor-text" onPointerDown={(e: ui.PointerEvent) => writeBelow(p)} />
     </ScrollView>
   </View>;
+  const title = p.titleRef.node;
   onCleanup(dnd.autoScroll(scroller.node));
+  onCleanup(() => { if (p.titleRef.node === title) p.titleRef.node = -1; });   // its node is freed: no caret to ask it for
   return node;
 }
 

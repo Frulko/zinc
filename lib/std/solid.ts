@@ -142,7 +142,9 @@ export function batch(fn: () => void): void {
     }
   }
 }
-export function onCleanup(fn: () => void): void { const c = current; if (c !== null) { if (c.cleanups === NO_CLN) c.cleanups = []; c.cleanups.push(fn); } }
+/** Runs `fn` when the owner goes away or re-runs: the effect running, or the root of the list row or branch being rendered (as Solid:
+ *  a component's cleanup belongs to its owner; a row's render has no running effect). */
+export function onCleanup(fn: () => void): void { const c = owner; if (c !== null) { if (c.cleanups === NO_CLN) c.cleanups = []; c.cleanups.push(fn); } }
 export function onMount(fn: () => void): void { queueMicrotask(fn); }
 
 // ---- JSX lowering helpers (called by compiler-generated code) ----
