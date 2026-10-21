@@ -9,7 +9,7 @@ tools/test-lib spline-runtime-2.0.98     # once: downloads Spline's runtime from
 build/zinc run examples/js-spline
 ```
 
-Move the pointer around the window: the robot looks at it (Spline's *Look At* event), and the program prints what the pointer is over (`mouseHover NORMAL`) and what is clicked.
+The frames per second Spline draws are shown in the top left corner (`SPLINE_FPS=0` hides them). Move the pointer around the window: the robot looks at it (Spline's *Look At* event), and the program prints what the pointer is over (`mouseHover NORMAL`) and what is clicked.
 
 Seven scenes come with it (`assets/scene.splinecode`, the robot, and `assets/scenes/`): `examples/js-spline/pick.sh` lists them and runs the one you choose, then lists them again when you close its window.
 

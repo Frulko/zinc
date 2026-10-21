@@ -4,6 +4,9 @@
 //                                                    in this repository)
 //          zinc run examples/js-spline
 //          SPLINE_SCENE=path/to/scene.splinecode zinc run examples/js-spline     (another scene: File > Export > Code > scene.splinecode)
+//          examples/js-spline/pick.sh                                            (choose one of the scenes of assets/)
+import { showFps } from './fps.js';
+
 const home = __host_sysEnv('ZINC_HOME') || __host_sysEnv('HOME') + '/.zinc';
 const RUNTIME = home + '/cache/test-libs/spline-runtime-2.0.98/runtime.standalone.webgl.js';
 const SCENE = __host_sysEnv('SPLINE_SCENE') || 'assets/scene.splinecode';
@@ -43,6 +46,8 @@ if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) 
   canvas.style.width = canvas.style.height = '100%';
   app._resize();
 }
+
+if (__host_sysEnv('SPLINE_FPS') !== '0') showFps(canvas);   // the frames per second, top left (SPLINE_FPS=0 hides them)
 
 // The program talks to the scene as a web page does: what the pointer is over and what was clicked, by name, on stdout.
 let hovered = '';
