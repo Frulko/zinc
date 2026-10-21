@@ -60,7 +60,7 @@ build/zinc new desktop-app ../my-app && cd ../my-app
 ../build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
 ```
 
-Or, from a release, nothing to compile, with [Homebrew](https://brew.sh) on macOS or Linux (`brew upgrade zinc` installs each new release):
+Or, from a release, nothing to compile, with [Homebrew](https://brew.sh) on macOS or Linux (`brew update && brew upgrade zinc` installs each new release):
 
 ```sh
 brew install frulko/zinc/zinc

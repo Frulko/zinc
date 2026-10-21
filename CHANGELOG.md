@@ -8,8 +8,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Changed
+- On a Homebrew install, the update notice, `zinc update` and the formula's caveats say `brew update && brew upgrade zinc`: Homebrew reads its taps at most once a day on its own, so `brew upgrade zinc` alone could say there is nothing new.
+
 ### Fixed
 - `brew install` and `brew upgrade` of zinc no longer end with "Failed to fix install linkage": the plugins' libraries now leave room in their header for the path Homebrew writes into them.
+- The update notice no longer announces a version found on another channel than this install's (a `zinc update <url>`, another install sharing `~/.zinc`): a Homebrew zinc could say "zinc 99.0.0 is available".
 
 ## [0.4.2] - 2026-10-20
 

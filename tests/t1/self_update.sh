@@ -80,7 +80,12 @@ tty "$L" run "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available: run zinc update" 
 tty "$L" check "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available" || { echo "no notice on zinc check: $(tty "$L" check "$tmp/hi.ts")"; fail=1; }
 tty "$L" --version | grep -q "is available" && { echo "a notice on zinc --version"; fail=1; }
 # whatever installed it, the notice names its way: Homebrew
-tty "$H/bin/zinc" run "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available: run brew upgrade zinc" || { echo "no Homebrew notice: $(tty "$H/bin/zinc" run "$tmp/hi.ts")"; fail=1; }
+tty "$H/bin/zinc" run "$tmp/hi.ts" | grep -q "zinc 99.0.0 is available: run brew update && brew upgrade zinc" || { echo "no Homebrew notice: $(tty "$H/bin/zinc" run "$tmp/hi.ts")"; fail=1; }
+# a result read from another manifest (zinc update <url>, a test's channel sharing ~/.zinc) says nothing (v0.4.2 showed a test's 99.0.0)
+cp "$ZINC_HOME/update-check.json" "$tmp/check.json"
+printf '{"checked": %s, "latest": "98.0.0", "url": "file:///elsewhere.manifest"}\n' "$(date +%s)" > "$ZINC_HOME/update-check.json"
+tty "$L" check "$tmp/hi.ts" | grep -q "98.0.0" && { echo "a notice from another manifest's result"; fail=1; }
+cp "$tmp/check.json" "$ZINC_HOME/update-check.json"
 for quiet in "env ZINC_NO_UPDATE_CHECK=1" "env ZINC_CI=1" "env ZINC_HEADLESS=1" "env ZINC_DETERMINISTIC=1"; do
   tty $quiet "$L" run "$tmp/hi.ts" | grep -q "is available" && { echo "a notice with $quiet"; fail=1; }
 done

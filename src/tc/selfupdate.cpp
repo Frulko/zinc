@@ -49,7 +49,7 @@ struct Install {
   fs::path engine;                          // <engine>: bin/zinc is the running binary
   std::map<std::string, std::string> conf;  // the marker's lines
   std::string why;                          // not empty: this zinc does not update itself, and what to do instead
-  std::string how;                          // how this install is updated, whatever it came from: "run zinc update", "run brew upgrade zinc"...
+  std::string how;                          // how this install is updated, whatever it came from: "run zinc update", "run brew update && brew upgrade zinc"...
 };
 Install installOf() {
   Install in;
@@ -64,8 +64,8 @@ Install installOf() {
              " and put it in place of the app (the zinc CLI installed with install.sh updates itself with zinc update)";
     in.how = "download the new Zinc Atelier from " + releases();
   } else if (exe.find("/Cellar/zinc/") != std::string::npos) {   // the formula of tools/homebrew-formula: Homebrew owns the files
-    in.why = "this zinc was installed by Homebrew: update it with  brew upgrade zinc";
-    in.how = "run brew upgrade zinc";
+    in.why = "this zinc was installed by Homebrew: update it with  brew update && brew upgrade zinc (brew reads its taps once a day otherwise)";
+    in.how = "run brew update && brew upgrade zinc";
   } else if (!fs::exists(in.engine / kMarker, ec)) {
     const bool checkout = fs::exists(in.engine / ".git", ec);   // build/zinc of a clone: the engine is the checkout
     in.why = "this zinc was not installed by install.sh (it runs from " + in.engine.string() + "): update it the way it was installed (a source build: git pull, then "
@@ -98,8 +98,10 @@ std::string manifestUrl(const Install& in, const std::string& channel, const std
 }
 bool haveKey() { return !trustedUpdateKeys().empty(); }
 
-// ~/.zinc/update-check.json: when the last check ran and what it found (the daily notice reads it, zinc doctor and zinc update write it)
-struct Cache { long long checked = 0; std::string latest; };
+// ~/.zinc/update-check.json: when the last check ran, the manifest it read and what it found (the daily notice reads it, zinc doctor and
+// zinc update write it). A result read from another manifest than this install's (`zinc update <url>`, a test's channel, another install
+// sharing ~/.zinc) counts as no check: v0.4.2 told a Homebrew zinc that a test's 99.0.0 was out.
+struct Cache { long long checked = 0; std::string latest, url; };
 Cache readCache() {
   Cache c;
   std::ifstream f(home() + "/update-check.json");
@@ -107,13 +109,16 @@ Cache readCache() {
   const std::string s = ss.str();
   if (const std::size_t k = s.find("\"checked\": "); k != std::string::npos) c.checked = std::atoll(s.c_str() + k + 11);
   if (const std::size_t k = s.find("\"latest\": \""); k != std::string::npos) c.latest = s.substr(k + 11, s.find('"', k + 11) - k - 11);
+  if (const std::size_t k = s.find("\"url\": \""); k != std::string::npos) c.url = s.substr(k + 8, s.find('"', k + 8) - k - 8);
   return c;
 }
-void writeCache(const std::string& latest) {
+/** The cache, as no check at all when it comes from another manifest than `url`. */
+Cache readCache(const std::string& url) { Cache c = readCache(); if (c.url != url) c = Cache{}; return c; }
+void writeCache(const std::string& latest, const std::string& url) {
   std::error_code ec;
   fs::create_directories(home(), ec);
   const std::string to = home() + "/update-check.json", tmp = to + "." + std::to_string(::getpid());
-  { std::ofstream(tmp) << "{\"checked\": " << static_cast<long long>(std::time(nullptr)) << ", \"latest\": \"" << latest << "\"}\n"; }
+  { std::ofstream(tmp) << "{\"checked\": " << static_cast<long long>(std::time(nullptr)) << ", \"latest\": \"" << latest << "\", \"url\": \"" << url << "\"}\n"; }
   fs::rename(tmp, to, ec);
 }
 bool fetch(const std::string& url, UpdateInfo& info, std::string& err, double maxSeconds = 0) {
@@ -170,7 +175,7 @@ int install(const Install& in, const UpdateInfo& info, const std::string& channe
   fs::rename(inner, engine, ec);
   if (ec) { std::error_code e2; fs::rename(prev, engine, e2); return fail("cannot put the new engine in place: " + ec.message()); }
   fs::remove_all(stage, ec);
-  writeCache(info.version);
+  writeCache(info.version, manifestUrl(in, channel, ""));
   if (!info.notes.empty()) std::printf("What changed: %s\n", info.notes.c_str());
   std::printf("zinc %s is installed in %s (zinc %s is kept in %s: zinc update --rollback goes back to it)\n", info.version.c_str(), engine.string().c_str(), version(), prev.string().c_str());
   return 0;
@@ -188,7 +193,7 @@ int rollback(const Install& in) {
   fs::rename(prev, engine, ec);
   if (ec) { std::error_code e2; fs::rename(aside, engine, e2); std::fprintf(stderr, "zinc update --rollback: %s; nothing was changed\n", ec.message().c_str()); return 1; }
   fs::rename(aside, prev, ec);   // the two swap: --rollback again returns to the newer one
-  writeCache("");
+  writeCache("", "");
   std::printf("%s is back in %s (zinc %s is kept in %s)\n", versionIn(engine).c_str(), engine.string().c_str(), version(), prev.string().c_str());
   return 0;
 }
@@ -215,7 +220,7 @@ int updateCommand(const std::vector<std::string>& args) {
   if (channel.empty()) channel = channelOf(in);
   UpdateInfo info;
   std::string err;
-  if (notice) { if (fetch(manifestUrl(in, channel, ""), info, err, 1.5)) writeCache(info.version); return 0; }
+  if (notice) { const std::string u = manifestUrl(in, channel, ""); if (fetch(u, info, err, 1.5)) writeCache(info.version, u); return 0; }
   if (!haveKey() && !envOn("ZINC_UPDATE_ALLOW_UNSIGNED"))
     std::fprintf(stderr, "zinc update: this build has no update key (update.pub is the placeholder): signed updates cannot be checked, unsigned ones need ZINC_UPDATE_ALLOW_UNSIGNED=1\n");
   const std::string murl = manifestUrl(in, channel, url);
@@ -224,7 +229,7 @@ int updateCommand(const std::vector<std::string>& args) {
     if (!in.why.empty()) std::fprintf(stderr, "zinc update: %s\n", in.why.c_str());
     return 1;
   }
-  writeCache(info.version);
+  writeCache(info.version, murl);
   if (!newerVersion(info.version, version())) {
     std::printf("zinc %s is up to date (latest %s on %s)\n", version(), info.version.c_str(), channel.c_str());
     if (!in.why.empty()) std::printf("%s\n", in.why.c_str());   // where the next one comes from: Homebrew, the app, the sources
@@ -241,24 +246,27 @@ void updateNotice() {
   if (checksOff() || envOn("ZINC_HEADLESS") || envOn("ZINC_DETERMINISTIC") || !::isatty(2) || (std::getenv("ZINC_STEPS") && !std::strcmp(std::getenv("ZINC_STEPS"), "0"))) return;
   ::setenv("ZINC_NO_UPDATE_CHECK", "1", 1);   // the zincs this one starts (zinc dev's runs) stay silent
   if (!haveKey()) return;   // a build without a release key cannot check a release: nothing to say
-  const Cache c = readCache();
+  const Install in = installOf();
+  const std::string url = manifestUrl(in, channelOf(in), "");
+  const Cache c = readCache(url);
   if (!c.latest.empty() && newerVersion(c.latest, version())) {   // whatever installed this zinc, with the way it is updated
     const bool colour = !std::getenv("NO_COLOR");
-    std::fprintf(stderr, "%szinc %s is available: %s%s\n", colour ? "\033[2m" : "", c.latest.c_str(), installOf().how.c_str(), colour ? "\033[0m" : "");
+    std::fprintf(stderr, "%szinc %s is available: %s%s\n", colour ? "\033[2m" : "", c.latest.c_str(), in.how.c_str(), colour ? "\033[0m" : "");
   }
-  if (std::time(nullptr) - c.checked >= 86400) { writeCache(c.latest); spawnCheck(); }   // the stamp first: one check a day, whatever runs meanwhile
+  if (std::time(nullptr) - c.checked >= 86400) { writeCache(c.latest, url); spawnCheck(); }   // the stamp first: one check a day, whatever runs meanwhile
 }
 
 std::string updateStatus() {
   const Install in = installOf();
   if (!haveKey()) return "";
   if (checksOff()) return "?not checked (ZINC_NO_UPDATE_CHECK or CI)";
-  Cache c = readCache();
+  const std::string url = manifestUrl(in, channelOf(in), "");
+  Cache c = readCache(url);
   if (std::time(nullptr) - c.checked >= 86400 || c.latest.empty()) {
     UpdateInfo info;
     std::string err;
-    if (!fetch(manifestUrl(in, channelOf(in), ""), info, err, 1.5)) return "?could not check (offline?)";
-    writeCache(c.latest = info.version);
+    if (!fetch(url, info, err, 1.5)) return "?could not check (offline?)";
+    writeCache(c.latest = info.version, url);
   }
   return newerVersion(c.latest, version()) ? c.latest : "up to date";
 }

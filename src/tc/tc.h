@@ -156,7 +156,7 @@ int updateCommand(const std::vector<std::string>& args);
 // One dim line on stderr when the daily check found a newer release (every command but a few: main.cpp), with the way this install is updated
 // (install.sh, Homebrew, the app, the sources); the check itself runs in a detached child.
 void updateNotice();
-// How this install is updated: "run zinc update", "run brew upgrade zinc", "download the new Zinc Atelier from ...", "run git pull, then tools/build zinc".
+// How this install is updated: "run zinc update", "run brew update && brew upgrade zinc", "download the new Zinc Atelier from ...", "run git pull, then tools/build zinc".
 std::string updateHow();
 // For zinc doctor: "" for a build without a release key, else "up to date" / "<version> available" / "not checked: <why>".
 std::string updateStatus();

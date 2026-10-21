@@ -13,7 +13,7 @@ const code = (s: string) => s;
   <div class="wrap" style="padding-bottom:72px">
     <ol class="steps">
       <li><h3>Install</h3>
-        <p>On macOS or Linux (x86_64 or aarch64), with <a href="https://brew.sh">Homebrew</a>: the prebuilt <code>zinc</code> of the latest release, its SHA-256 checked, on your PATH. <code>brew upgrade zinc</code> installs each new release.</p>
+        <p>On macOS or Linux (x86_64 or aarch64), with <a href="https://brew.sh">Homebrew</a>: the prebuilt <code>zinc</code> of the latest release, its SHA-256 checked, on your PATH. <code>brew update &amp;&amp; brew upgrade zinc</code> installs each new release.</p>
         <div class="install"><code><i>$</i> {INSTALL}</code><button class="copy" type="button" data-copy={INSTALL}>copy</button></div>
         <p><small>On Windows, or to work on Zinc itself, build from the sources (<code>{SOURCES}</code>): CMake 3.20+ and a C++20 compiler, see the <a href={`${b}docs/guide/01-getting-started/`}>guide</a>.</small></p>
       </li>

@@ -532,7 +532,7 @@ running, notarized `.app` is not rewritten in place): it answers with the addres
 
 **The notice.** Every command (but `zinc update`, `zinc doctor`, `zinc lsp`, `zinc agent`, `zinc device` and the options such as
 `--version`) prints one dim line on stderr when a newer zinc exists, with the way this zinc is updated, whatever installed it:
-"zinc 0.2.0 is available: run zinc update" (install.sh), "...: run brew upgrade zinc" (Homebrew), "...: download the new Zinc
+"zinc 0.2.0 is available: run zinc update" (install.sh), "...: run brew update && brew upgrade zinc" (Homebrew), "...: download the new Zinc
 Atelier from ..." (the app), "...: run git pull, then tools/build zinc" (a clone). `zinc update` on a zinc it does not replace
 says the same, up to date or not. The check runs at most once a day, in a detached background process (one try,
 1.5 s at most), so no command waits for the network, and offline it says nothing; its result is kept in

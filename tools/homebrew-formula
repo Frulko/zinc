@@ -40,7 +40,7 @@ $(block linux intel x86_64)
 
   def caveats
     <<~TXT
-      Update zinc with: brew upgrade zinc   (zinc update is for the install.sh install)
+      Update zinc with: brew update && brew upgrade zinc   (zinc update is for the install.sh install)
       Zinc Atelier, the app: https://github.com/$repo/releases/latest
     TXT
   end
