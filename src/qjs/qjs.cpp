@@ -228,7 +228,14 @@ bool isCommonJs(const std::string& path, const std::string& src) {
     }
     at = e + 1;
   }
-  return src.find("module.exports") != std::string::npos || src.find("exports.") != std::string::npos;
+  auto bare = [&](std::string_view word) {   // the word itself, not a property (`instance.exports.add` of WebAssembly) nor the end of a longer name
+    for (std::size_t at = 0; (at = src.find(word, at)) != std::string::npos; at += word.size()) {
+      const char c = at ? src[at - 1] : ' ';
+      if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '$' && c != '.') return true;
+    }
+    return false;
+  };
+  return bare("module.exports") || bare("exports.");
 }
 
 // A CommonJS module run as an ES module whose default export is its module.exports, as Node imports one. The files it requires with a string
