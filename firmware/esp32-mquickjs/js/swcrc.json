@@ -1,0 +1,15 @@
+{
+  "jsc": {
+    "parser": { "syntax": "ecmascript" },
+    "loose": true,
+    "externalHelpers": false,
+    "assumptions": {
+      "iterableIsArray": true, "arrayLikeIsIterable": true, "setPublicClassFields": true, "noDocumentAll": true, "constantSuper": true,
+      "noClassCalls": true, "superIsCallableConstructor": true, "setSpreadProperties": true, "objectRestNoSymbols": true, "ignoreToPrimitiveHint": true
+    }
+  },
+  "env": { "targets": { "ie": "11" }, "exclude": ["transform-exponentiation-operator"] },
+  "isModule": false,
+  "sourceMaps": true,
+  "inputSourceMap": true
+}

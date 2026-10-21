@@ -1,0 +1,5 @@
+# The interpreter's loop runs from IRAM: the bytecode is read through the flash cache, which the loop's own code would share otherwise
+[mapping:zn_engine]
+archive: libmain.a
+entries:
+    mquickjs:JS_Call (noflash)
