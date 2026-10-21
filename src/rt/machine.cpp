@@ -244,6 +244,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   stackEnd = stack ? stack + slots : nullptr;
   if (!stack) { err = "out of memory"; return false; }
   globals.assign(m.globals.size(), 0);
+  globalRef.reserve(m.globals.size());   // exact sizes here and below: a vector filled by push_back alone ends with a power-of-two capacity
   for (const zbc::VType& gt : m.globals) globalRef.push_back(gt.cls == zbc::Cls::R);
   classes.resize(m.classes.size());
   std::map<std::pair<std::uint8_t, std::uint32_t>, const ClassRT*> arrayOf;  // (class of the element's VType, ref) -> array class
@@ -255,6 +256,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     c.name = ci.name;
     c.kind = ci.kind;
     c.nfields = static_cast<std::uint32_t>(ci.fields.size());
+    c.fieldRef.reserve(ci.fields.size());
     for (const zbc::VType& ft : ci.fields) c.fieldRef.push_back(ft.cls == zbc::Cls::R);
     c.supers = ci.supers;
     if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract) {
@@ -280,6 +282,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   }
   if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
   if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
+  strConsts.reserve(m.strings.size());
   for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; ++immortals; strConsts.push_back(so); }
   cLimit = cStackLimit();
   std::size_t depthMax = maxDepth ? maxDepth : kMaxCallDepth;

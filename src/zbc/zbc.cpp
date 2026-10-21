@@ -578,6 +578,9 @@ struct Reader {
   bool bad = false;
   explicit Reader(const std::vector<std::uint8_t>& bytes) : b(bytes) {}
   bool has(std::size_t n) { if (p > b.size() || b.size() - p < n) { bad = true; return false; } return true; }
+  // at most n entries of at least `per` bytes each: a count read from the file sizes its vector exactly (filled by push_back alone, a vector ends
+  // with a power-of-two capacity, up to twice its size: RAM a device lacks), and a corrupted count reserves no more than the rest of the file holds
+  std::size_t room(std::size_t n, std::size_t per) const { return p < b.size() ? std::min(n, (b.size() - p) / per) : 0; }
   std::uint8_t u8() { if (!has(1)) return 0; return b[p++]; }
   std::uint16_t u16() { std::uint16_t lo = u8(); return static_cast<std::uint16_t>(lo | u8() << 8); }
   std::uint32_t u32() { std::uint32_t lo = u16(); return lo | static_cast<std::uint32_t>(u16()) << 16; }
@@ -600,6 +603,7 @@ struct Reader {
     std::uint32_t n = u32();
     if (!has(static_cast<std::size_t>(n) * 4)) return false;
     v.clear();
+    v.reserve(n);
     for (std::uint32_t i = 0; i < n; ++i) v.push_back(u32());
     return !bad;
   }
@@ -730,6 +734,7 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
   out = Module{};
   std::uint32_t nc = r.u32();
   if (nc > kMaxClasses) return fail("too many classes");
+  out.classes.reserve(r.room(nc, 22));
   for (std::uint32_t i = 0; i < nc; ++i) {
     ClassInfo c;
     if (!r.str(c.name)) return fail("truncated file (class name)");
@@ -744,40 +749,49 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (!r.u32s(c.supers)) return fail("truncated file (class supertypes)");
     std::uint32_t nf = r.u32();
     if (nf > kMaxFields) return fail("too many fields");
+    c.fields.reserve(r.room(nf, 1));
     for (std::uint32_t k = 0; k < nf; ++k) { VType t; if (!r.vt(t)) return fail("invalid field type"); c.fields.push_back(t); }
     if (!r.u32s(c.selectors) || !r.u32s(c.vtable)) return fail("truncated file (class tables)");
     out.classes.push_back(std::move(c));
   }
   std::uint32_t ns = r.u32();
   if (ns > 65535) return fail("too many selectors");
+  out.selectors.reserve(r.room(ns, 6));
   for (std::uint32_t i = 0; i < ns; ++i) {
     SelInfo s;
     if (!r.str(s.name)) return fail("truncated file (selector name)");
     std::uint8_t np = r.u8();
+    s.params.reserve(np);
     for (std::uint8_t k = 0; k < np; ++k) { VType t; if (!r.vt(t)) return fail("invalid selector type"); s.params.push_back(t); }
     if (!r.vt(s.ret)) return fail("invalid selector type");
     out.selectors.push_back(std::move(s));
   }
   std::uint32_t nstr = r.u32();
   if (nstr > kMaxStrings || !r.has(static_cast<std::size_t>(nstr) * 4)) return fail("too many strings");
+  out.strings.reserve(nstr);
   for (std::uint32_t i = 0; i < nstr; ++i) { std::string t; if (!r.str(t)) return fail("truncated file (strings)"); out.strings.push_back(std::move(t)); }
   std::uint32_t ng = r.u32();
   if (!r.has(ng)) return fail("truncated file (globals)");
+  out.globals.reserve(ng);
   for (std::uint32_t i = 0; i < ng; ++i) { VType t; if (!r.vt(t)) return fail("invalid global type"); out.globals.push_back(t); }
   std::uint32_t nf = r.u32();
   if (nf > kMaxFunctions) return fail("too many functions");
+  out.functions.reserve(r.room(nf, 20));
   for (std::uint32_t i = 0; i < nf; ++i) {
     Function f;
     if (!r.str(f.name)) return fail("truncated file (function name)");
     std::uint8_t np = r.u8();
+    f.params.reserve(np);
     for (std::uint8_t k = 0; k < np; ++k) { VType t; if (!r.vt(t)) return fail(r.bad ? "truncated file (parameter type)" : "invalid parameter type"); f.params.push_back(t); }
     if (!r.vt(f.ret)) return fail(r.bad ? "truncated file (return type)" : "invalid return type");
     f.nregs = r.u16();
     std::uint32_t ncode = r.u32();
     if (ncode > kMaxCodeWords || !r.has(static_cast<std::size_t>(ncode) * 4)) return fail("truncated file (code)");
+    f.code.reserve(ncode);
     for (std::uint32_t k = 0; k < ncode; ++k) f.code.push_back(r.u32());
     std::uint32_t nk = r.u32();
     if (nk > kMaxConsts || !r.has(static_cast<std::size_t>(nk) * 9)) return fail("truncated file (constants)");
+    f.consts.reserve(nk);
     for (std::uint32_t k = 0; k < nk; ++k) {
       Const c;
       std::uint8_t cc = r.u8();
@@ -788,12 +802,14 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     }
     std::uint32_t nh = r.u32();
     if (nh > kMaxCodeWords || !r.has(static_cast<std::size_t>(nh) * 11)) return fail("truncated file (handlers)");
+    f.handlers.reserve(nh);
     for (std::uint32_t k = 0; k < nh; ++k) { Handler h; h.at = r.u32(); h.target = r.u32(); h.cls = r.u16(); h.reg = r.u8(); f.handlers.push_back(h); }
     if (r.bad) return fail("truncated file");
     out.functions.push_back(std::move(f));
   }
   std::uint32_t nn = r.u32();
   if (nn > kMaxFunctions || !r.has(static_cast<std::size_t>(nn) * 12)) return fail("truncated file (natives)");
+  out.natives.reserve(nn);
   for (std::uint32_t i = 0; i < nn; ++i) {
     Native n;
     if (!r.str(n.module) || !r.str(n.name) || !r.str(n.sig)) return fail("truncated file (natives)");

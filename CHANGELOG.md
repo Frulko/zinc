@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Changed
 - Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 1.8 MB, `examples/breakout` from 37.6 KB to 33.1 KB.
+- A program takes less memory once loaded: its tables are sized exactly instead of growing by doubling, a quarter to a third less RAM for the loaded program on the ESP32.
 
 ## [0.5.2] - 2026-10-22
 
