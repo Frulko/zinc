@@ -135,7 +135,7 @@ jobs:
           python3 tools/package --out dist   # named after the version the binary reports (the tag's on a release)
           ls dist/zinc-*-macos-*.tar.gz dist/Zinc-Atelier-*-macos-*.zip
       - name: Smoke test of the CLI archive and the app
-        run: ZINC_DIST="$PWD/dist" tests/run --only install_nocompiler
+        run: ZINC_DIST="$PWD/dist" tests/run --tier t1 --only install_nocompiler   # a T1 test: without --tier, --only looks in T0 and runs nothing
       - name: Sign and notarize (macOS release)
         if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
         env:
@@ -225,8 +225,9 @@ jobs:
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
         run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
-          brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint
-          python -m pip install --quiet pyyaml
+          brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3
+          python -m pip install --quiet pyyaml jsonschema tuf 'securesystemslib[crypto]' cryptography   # sbom (SPDX schema), tuf_interop (python-tuf)
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"   # tls and netlog need openssl 3.4+ (x509 -not_before), not the system LibreSSL
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:

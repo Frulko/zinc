@@ -5,7 +5,7 @@
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
 cd "$root" || exit 2
-tier=t0; only=; changed=; base=; shard=
+tier=; only=; changed=; base=; shard=
 while [ $# -gt 0 ]; do
   case $1 in
     --tier) tier=$2; shift 2 ;;
@@ -16,6 +16,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
+[ -n "$tier" ] || { [ -n "$only" ] && tier=t2 || tier=t0; }   # --only alone looks in every tier: a T1 test named alone runs
 case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
 export ZINC=${ZINC:-$root/build/zinc}
 [ -z "$ZINC_CI" ] || export ZN_WAIT_SCALE=${ZN_WAIT_SCALE:-4}   # a shared 3-core runner under load: tests wait four times as long for a server or an inspector
@@ -68,6 +69,7 @@ for t in $tiers; do
   done
 done
 rm -f "$log.tmp"
+if [ -n "$only" ] && [ -z "$changed$shard" ] && [ $((pass + fail + skip)) -eq 0 ]; then echo "no test named $only in $tiers" >&2; exit 2; fi
 extra=""; [ "$skip" -gt 0 ] && extra=", $skip skipped"
 echo "$pass passed, $fail failed$extra"
 if [ "$fail" -gt 0 ]; then echo "log: $log"; head -20 "$log"; exit 1; fi
