@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-21
+
 ### Added
 - `zinc run --engine jsc` (or `"engine": "jsc"` in zinc.json) runs a JavaScript program on macOS's own JavaScriptCore, compiled to machine code: about 10 times faster JavaScript than QuickJS, calls into zinc about 50 ns slower. `zinc test --runner jsc` and `zinc bundle --engine jsc` go with it. WebGL and the web environment's games (three.js, PixiJS, Phaser, p5.js) run on it.
 - `zinc run --engine v8` (or `"engine": "v8"` in zinc.json) runs a JavaScript program on V8, on Apple silicon Macs for now: compiled to machine code like JavaScriptCore, with calls into zinc faster than on QuickJS. Its engine (a 14 MB download) is fetched the first time a program asks for it. `zinc test --runner v8` and `zinc bundle --engine v8` go with it, and WebGL as on the other engines.
@@ -374,7 +376,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Frulko/zinc/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/Frulko/zinc/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
