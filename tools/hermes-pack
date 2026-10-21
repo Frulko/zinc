@@ -60,6 +60,7 @@ def main(argv):
         archive = src + ".tar.gz"
         if not os.path.isfile(archive):
             print("Hermes %s: downloading..." % commit, flush=True)
+            os.makedirs(out, exist_ok=True)
             with urllib.request.urlopen("https://codeload.github.com/facebook/hermes/tar.gz/" + commit) as r: data = r.read()
             open(archive + ".tmp", "wb").write(data)
             os.rename(archive + ".tmp", archive)
