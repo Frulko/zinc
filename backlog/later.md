@@ -539,6 +539,7 @@ The next backlog review turns lines into tasks or deletes them.
 ## Cross-platform pass
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
 - ZN-773.07: Hermes on targets with no JIT (Android without V8, consoles): measure its interpreter and Static Hermes against QuickJS there; Linux and Windows builds of tools/hermes-pack.
+- ZN-773.09: zinc export of an "engine": "quickjs" project for linux and the other non-macOS targets still builds a native program: decide whether they carry the bundle and its .qbc.
 - ZN-773.06: build and test libzn_wasm (the `wasm` pack) on Linux x86_64 and arm64 and on Windows; only macOS arm64 was built.
 - ZN-773.05: `--engine v8` on Linux x86_64 and arm64 from Homebrew's Linux bottles (`tools/v8-pack` is macOS-only: the ELF rpaths with patchelf, glibc floor), and our own V8 build where no bottle exists (Intel macOS, Windows, armhf), the gn args of docs/reports/js-engines-jsc-v8.md.
 - ZN-764: the GL window (Linux, Windows) now makes its software rows and their texture only for the splash and frees them when the replay draws: check the splash and a window resize on both, and `tools/window-memory`-like numbers (smem/Task Manager).
@@ -788,5 +789,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.08: Hermes's DevTools agent does not report which breakpoint was hit and lists possible breakpoints as empty: check Chrome DevTools' breakpoint UI on Hermes.
 - ZN-773.08: zinc export of a Hermes or V8 project should prefer the downloaded pack over the module beside a source-built zinc, whose library points at the local SDK.
 - ZN-773.04: tools/v8-pack takes Homebrew's newest V8 at each release: pin the version (and bump it on purpose) so a new V8 major cannot break the Node-API patch during a release.
+- ZN-773.09: stamp zinc's version into the .qbc: a zinc update that changes QuickJS without bumping BC_VERSION would still load an old .qbc.
+- ZN-773.09: source maps of a build hold relative paths: a moved build or app resolves ../main.js against its new place; embed the sources or absolute paths at export.
 - ZN-773.06: WASI preview1 on the wasm pack, so wasm programs built for WASI run on QuickJS.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.
