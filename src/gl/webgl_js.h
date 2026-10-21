@@ -1,8 +1,9 @@
 #pragma once
-// WebGL for the QuickJS engine (ZN-203.03): call once before running a program; every trusted JS context then has document.createElement('canvas').getContext('webgl').
-// It is built as a module beside zinc (libzn_webgl, ZN-330.01) that zinc loads with dlopen on the first QuickJS context: zinc itself carries no WebGL, glad or glslang.
-// SDL3, QuickJS and zn_qjs come from the zinc that loads it.
-struct JSContext;
+// WebGL for the JavaScript engines (ZN-203.03): call once before running a program; every trusted JS context then has document.createElement('canvas').getContext('webgl').
+// It is built as a module beside zinc (libzn_webgl, ZN-330.01) that zinc loads with dlopen on the first JS context: zinc itself carries no WebGL, glad or glslang.
+// SDL3 comes from the zinc that loads it; the engine's Node-API from the table the engine hands to zn_webgl_open (ZN-773.02, include/zn/napi_table.h).
+typedef struct napi_env__* napi_env;
+struct zn_napi_table;
 namespace zn::gl {
 // gl.zincPresent(image) writes the drawing buffer into a host image (ZN-205): `size` gives the image's size, `pixels` its 0x00RRGGBB rows top to
 // bottom after resizing it to w x h, `done` says they changed. The module reads the pixels straight into them, scaled down on the GPU (ZN-411).
@@ -14,7 +15,7 @@ struct PresentHooks {
   void (*done)(int image);
   void (*atFrameEnd)(void (*fn)());
 };
-using ContextInstall = void (*)(JSContext*);
+using ContextInstall = void (*)(napi_env);
 }
-// The module's one entry: sets the present hook and returns what installs document.createElement('canvas').getContext('webgl') in a context.
-extern "C" zn::gl::ContextInstall zn_webgl_open(const zn::gl::PresentHooks* present);
+// The module's one entry: sets the present hook and the engine's Node-API, and returns what installs document.createElement('canvas').getContext('webgl') in a context.
+extern "C" zn::gl::ContextInstall zn_webgl_open(const zn::gl::PresentHooks* present, const zn_napi_table* napi);

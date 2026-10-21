@@ -83,8 +83,9 @@ typedef struct zn_engine {
 const zn_engine* zn_engine_v1(void);                // the one symbol a pack exports
 ```
 
-One engine per process for the program. `zinc` carries a generated trampoline (`napi_X` calls `engine->napi->X`, one indirect call), so
-`libzn_webgl` and plugin modules link against `napi_*` by dynamic lookup as they link `JS_*` today, whatever engine is loaded. `zinc:script`
+One engine per process for the program. The module carries the trampoline (`napi_X` calls `table->napi_X_`, one indirect call): the engine
+hands it a `zn_napi_table` (`include/zn/napi_table.h`, filled in one line from the engine's own `napi_*`) when it opens the module, so one
+build of `libzn_webgl` (ZN-773.02) resolves no `JS_*` or `napi_*` from the program and runs on whatever engine is loaded. `zinc:script`
 keeps its own QuickJS on the direct API (D22): it is a sandbox with memory and time limits, inside whichever engine runs the program.
 
 ## 3. Modules, bytecode and the other gaps

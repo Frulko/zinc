@@ -29,6 +29,7 @@
 #include "lsp/lsp.h"
 #include "frontend/capabilities.h"
 #include "gl/webgl_js.h"
+#include "zn/napi_table.h"
 #include "zn/js_ext.h"
 #include "tc/bundle.h"
 #include "ir/ir.h"
@@ -1366,10 +1367,11 @@ static void webglHook(napi_env env) {
   static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
     const char* wanted = std::getenv("ZINC_WEBGL");
     void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
-    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
-    return open ? open(glHooks()) : nullptr;
+    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*, const zn_napi_table*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
+    static const zn_napi_table napi = {ZN_NAPI_TABLE_INIT};   // QuickJS's Node-API (zn_napi_qjs): the module calls the engine through it (ZN-773.02)
+    return open ? open(glHooks(), &napi) : nullptr;
   }();
-  if (install) install(zn::qjs::contextOf(env));   // ponytail: WebGL still binds QuickJS directly until ZN-773.02 ports it to Node-API
+  if (install) install(env);
 }
 // zinc:gl (ZN-562): the Rt::HostGl* rows go to libzn_webgl's zn_webgl_host, loaded at the first one, so a program that does not call them loads nothing
 static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
