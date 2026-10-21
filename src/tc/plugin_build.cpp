@@ -436,6 +436,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
   h.add(keyFlags); vh.add(keyFlags);
+  if (pluginTarget() == "macos") h.add("-Wl,-headerpad_max_install_names");   // a link flag: the libraries linked before it was added are not reused
   for (const std::string& f : ts.vendorFlags) vh.add(f);
   h.add(ccId); vh.add(ccId);
   h.add(gen.cppHeader); h.add(gen.thunk);
@@ -528,7 +529,9 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     for (const std::string& l : libs) linkLibs += " " + l;
     std::string undefined;
     if (pluginTarget() == "macos")
-      undefined = " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S";   // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333)
+      // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333);
+      // room in the header for a longer install name: Homebrew rewrites it to the keg's path and failed the install without it (v0.4.2)
+      undefined = " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S -Wl,-headerpad_max_install_names";
     else if (windowsHost) {   // a PE dll exports nothing on its own: all symbols, and the engine's import library to resolve zrt/hal against
       const std::string implib = zincImplib(engineRoot);
       if (implib.empty()) { err = "plugin '" + m.name + "' needs the import library of zinc (libzinc.dll.a beside the zinc that loads it, or ZINC_IMPLIB)"; return false; }

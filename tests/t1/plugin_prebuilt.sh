@@ -15,6 +15,11 @@ printf "import * as device from 'zinc:device';\nconsole.log('touch ' + device.ha
 ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/proj" --prebuild > "$tmp/out" 2>&1 || { echo "plugin_prebuilt: --prebuild failed: $(cat "$tmp/out")"; exit 1; }
 t=$(ls "$tmp/proj/plugins/device/prebuilt")
 for f in key plugin.a; do [ -s "$tmp/proj/plugins/device/prebuilt/$t/$f" ] || { echo "plugin_prebuilt: prebuilt/$t/$f is missing"; fail=1; }; done
+# Homebrew rewrites a dylib's install name to the keg's path when it installs the release: the header must have room for it (v0.4.2)
+if [ "$t" = macos ]; then
+  cp "$tmp/proj/plugins/device/prebuilt/$t/plugin.dylib" "$tmp/id.dylib"
+  install_name_tool -id /opt/homebrew/opt/zinc/libexec/share/zinc/plugins/display-scrollphat/prebuilt/macos/plugin.dylib "$tmp/id.dylib" 2>/dev/null || { echo "plugin_prebuilt: no room in plugin.dylib's header for Homebrew's install name"; fail=1; }
+fi
 out=$(ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^device prebuilt " || { echo "plugin_prebuilt: the prebuilt libraries were not used: $out"; fail=1; }
 (cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1) | grep -qx "touch true\|touch false" || { echo "plugin_prebuilt: the program does not run on the prebuilt library: $(cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1 | head -3)"; fail=1; }
