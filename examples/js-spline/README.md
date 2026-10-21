@@ -11,13 +11,16 @@ build/zinc run examples/js-spline
 
 The frames per second Spline draws are shown in the top left corner (`SPLINE_FPS=0` hides them). Move the pointer around the window: the robot looks at it (Spline's *Look At* event), and the program prints what the pointer is over (`mouseHover NORMAL`) and what is clicked.
 
-Seven scenes come with it (`assets/scene.splinecode`, the robot, and `assets/scenes/`): `examples/js-spline/pick.sh` lists them and runs the one you choose, then lists them again when you close its window.
+Ten scenes come with it (`assets/scene.splinecode`, the robot, and `assets/scenes/`): `examples/js-spline/pick.sh` lists them and runs the one you choose, then lists them again when you close its window. Type `d` there to download the showcase, 22 more public scenes listed in `showcase.txt` (about 18 MB, into `assets/showcase/`, not kept in the repository); `assets/scenes-wasm/` holds two that need WebAssembly, to show how they are refused.
 
-Another scene: in Spline, *Export* > *Code* > *Vanilla JS* gives a URL `https://prod.spline.design/<id>/scene.splinecode`. Download that file and run
+Another scene: in Spline, *Export* > *Code* > *Vanilla JS* gives a URL `https://prod.spline.design/<id>/scene.splinecode`, and *Export* > *Public URL* a page `https://my.spline.design/<name>-<id>/`. Either goes to `fetch.sh`, which puts the scene in `assets/scenes/` for `pick.sh`; or run a file directly:
 
 ```sh
+examples/js-spline/fetch.sh https://my.spline.design/<name>-<id>/ my-scene
 SPLINE_SCENE=path/to/scene.splinecode build/zinc run examples/js-spline
 ```
+
+The templates of spline.design/examples cannot be downloaded as they are (they open in Spline's editor, behind an account): remix one, export it as a public URL, and give that link to `fetch.sh`.
 
 How it fits together:
 
@@ -28,10 +31,10 @@ How it fits together:
 ## What it needs, and where it does not run
 
 - **WebGL 2.** Spline's runtime is built on three.js r185, which needs WebGL 2. `zinc.json` says so (`"requires": ["gpu>=webgl2"]`): `zinc build` and `zinc lint` refuse the GLES 2 profiles (`rpi1`, `android`, `ios-legacy`), and on a machine whose GPU makes no WebGL 2 context (neither OpenGL 3.3 nor OpenGL ES 3.0, a Raspberry Pi 3 for instance) the program stops at once and says why. `ZINC_WEBGL_MAX=1` makes any machine behave like that GPU; `--force` runs the program anyway.
-- **No WebAssembly on the QuickJS engine.** Spline loads WebAssembly modules for some features, and QuickJS has no `WebAssembly`. The scene is refused with a message when it uses physics, booleans, bevels on extrusions, subdivision (*Smooth*), a navmesh (game controls), Gaussian splats or Draco-compressed meshes. Scenes made of shapes, materials, lights, states, transitions and mouse, key and look-at events run. The engines with WebAssembly built in (V8, JavaScriptCore) lift this limit; a `WebAssembly` for QuickJS is studied in `docs/reports/quickjs-webassembly.md`.
+- **No WebAssembly on the QuickJS engine.** Spline loads WebAssembly modules for some features, and QuickJS has no `WebAssembly`. The scene is refused with a message when it uses physics, booleans, bevels on extrusions, subdivision (*Smooth*), a navmesh (game controls), Gaussian splats or Draco-compressed meshes (of 58 public scenes tried, 25 run and 33 are refused, mostly for bevels). Scenes made of shapes, materials, lights, states, transitions and mouse, key and look-at events run. The engines with WebAssembly built in (V8, JavaScriptCore) lift this limit; a `WebAssembly` for QuickJS is studied in `docs/reports/quickjs-webassembly.md`.
 - **Text** needs a font Spline fetches from `fonts.gstatic.com`: a scene with text needs the network the first time.
 - **HTML frames** inside a scene are off (`htmlContentMode: 'none'`): there is no browser to put them in.
 
-The scenes were published on prod.spline.design by their authors, with no licence stated, and are used here as test data: the robot of [JackyLiu13/Qiwi](https://github.com/JackyLiu13/Qiwi), and the others listed by id in `docs/reports/spline-scenes.md` (cubes zBBaOmVltDuUag17, bubbles 6ZQA4GzzFjXNeDE4, bubbles-2 4pfOWnUVkcuN7arI, glass-sphere F5Cd4TXjxVfRX7nX, sphere 4LyeK5Yvi3fhB2P1, moon-map OH3FelUamsexR0DI). Research and measurements: `docs/reports/spline-research.md`, `docs/reports/spline-scenes.md`.
+The scenes were published on prod.spline.design by their authors, with no licence stated, and are used here as test data: the robot of [JackyLiu13/Qiwi](https://github.com/JackyLiu13/Qiwi), and the others listed with their source in `docs/reports/spline-scenes.md` (cubes zBBaOmVltDuUag17, bubbles 6ZQA4GzzFjXNeDE4, bubbles-2 4pfOWnUVkcuN7arI, glass-sphere F5Cd4TXjxVfRX7nX, sphere 4LyeK5Yvi3fhB2P1, moon-map OH3FelUamsexR0DI; blob, galaxy, cloner-cubes and the two of `scenes-wasm` from their public URLs). Research and measurements: `docs/reports/spline-research.md`, `docs/reports/spline-scenes.md`.
 
-Test: `tests/run --only example_js_spline`: a scripted pointer, frame 89 against `screenshot.png`, the hover reaching the program, and the refusal on a GPU without WebGL 2.
+Test: `tests/run --only example_js_spline`: a scripted pointer, frame 89 against `screenshot.png`, the hover reaching the program, the blob (Spline's metaballs) against its golden frame, and the refusal on a GPU without WebGL 2.

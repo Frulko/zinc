@@ -42,6 +42,48 @@ std::string withoutComments(const std::string& src) {
   }
   return t;
 }
+// `continue` inside a `switch` (legal ESSL 3.00) made a flag and a `break`, the `continue` put after the switch: macOS's OpenGL compiles the shader and
+// fails the link with an empty log (Spline's metaball pass). The switches are taken innermost first, so the `continue` an inner one leaves is the outer's to rewrite.
+std::string continueOutOfSwitch(std::string t) {
+  const auto word = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+  const auto at = [&](const std::string& s, std::size_t p, const char* w) { const std::size_t n = std::strlen(w); return s.compare(p, n, w) == 0 && (p == 0 || !word(s[p - 1])) && (p + n >= s.size() || !word(s[p + n])); };
+  const auto match = [&](std::size_t p, char open, char close) {   // the index of the bracket that closes the one at p
+    for (int depth = 0; p < t.size(); ++p) { if (t[p] == open) ++depth; else if (t[p] == close && --depth == 0) return p; }
+    return std::string::npos;
+  };
+  std::vector<std::size_t> switches;
+  for (std::size_t p = t.find("switch"); p != std::string::npos; p = t.find("switch", p + 6)) if (at(t, p, "switch")) switches.push_back(p);
+  for (std::size_t n = switches.size(); n-- > 0;) {
+    const std::size_t s = switches[n], paren = t.find('(', s), close = paren == std::string::npos ? paren : match(paren, '(', ')');
+    const std::size_t open = close == std::string::npos ? close : t.find('{', close), end = open == std::string::npos ? open : match(open, '{', '}');
+    if (end == std::string::npos) return t;   // not well formed: the compiler says so
+    const std::string flag = "zn_swc" + std::to_string(n);
+    std::string inner = t.substr(open, end + 1 - open);
+    bool any = false;
+    for (std::size_t p = 1; p < inner.size(); ++p) {
+      if (at(inner, p, "for") || at(inner, p, "while") || at(inner, p, "do")) {   // a loop inside the switch owns its own `continue`
+        std::size_t q = inner[p] == 'd' ? p + 2 : inner.find('(', p);
+        if (inner[p] != 'd' && q != std::string::npos) { int depth = 0; for (; q < inner.size(); ++q) { if (inner[q] == '(') ++depth; else if (inner[q] == ')' && --depth == 0) break; } ++q; }
+        q = inner.find_first_not_of(" \t\r\n", q);
+        if (q == std::string::npos) break;
+        if (inner[q] == '{') { int depth = 0; for (; q < inner.size(); ++q) { if (inner[q] == '{') ++depth; else if (inner[q] == '}' && --depth == 0) break; } }
+        else q = inner.find(';', q);
+        if (q == std::string::npos) break;
+        p = q;
+        continue;
+      }
+      if (!at(inner, p, "continue")) continue;
+      const std::size_t semi = inner.find_first_not_of(" \t\r\n", p + 8);
+      if (semi == std::string::npos || inner[semi] != ';') continue;
+      const std::string repl = "{ " + flag + " = true; break; }";
+      inner.replace(p, semi + 1 - p, repl);
+      p += repl.size() - 1;
+      any = true;
+    }
+    if (any) t = t.substr(0, s) + "{ bool " + flag + " = false; " + t.substr(s, open - s) + inner + " if (" + flag + ") continue; }" + t.substr(end + 1);
+  }
+  return t;
+}
 // The validator's view of a source: comments gone (a backslash at the end of a // comment line continues the comment) and the loop steps ++i / --i written i++ / i--, the forms Appendix A names and WebGL implementations also take in the prefix form
 std::string normalizeForValidator(const std::string& src) {
   std::string t;
@@ -184,20 +226,23 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
     if (es3) {
       valSrc = normalizeForValidator(src);
       std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
+      if (body.find("switch") != std::string::npos && body.find("continue") != std::string::npos) body = continueOutOfSwitch(withoutComments(body));
       // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
       for (const char* name : {"gl_FragColor", "gl_FragData", "gl_MaxDrawBuffers"}) {   // the last: MAX_DRAW_BUFFERS is reported as 4, not what the driver has
         const std::string from = name;
         replaceIdent(body, from, from == "gl_MaxDrawBuffers" ? "4" : std::string("zn_") + (name + 3));
       }
-      if (type == GL_VERTEX_SHADER && body.find("#if") == std::string::npos) {   // (a declaration under #if may not exist: left alone) an output the shader leaves unwritten is zero in WebGL 2 (transform feedback shows it); a driver leaves it undefined
+      if (type == GL_VERTEX_SHADER) {   // an output the shader leaves unwritten is zero in WebGL 2 (transform feedback shows it); a driver leaves it undefined
         static const std::regex outDecl(R"(\bout\s+(?:lowp\s+|mediump\s+|highp\s+)?((?:u?int|float|[ui]?vec[234]|mat[234](?:x[234])?))\s+(\w+)\s*;)");
         static const std::regex mainOpen(R"(\bvoid\s+main\s*\(\s*(?:void)?\s*\)\s*\{)");
         std::smatch mm;
         if (std::regex_search(body, mm, mainOpen)) {
-          std::string init;
-          for (std::sregex_iterator it(body.begin(), body.end(), outDecl), end; it != end; ++it) {
-            const std::string t = (*it)[1];
-            init += (*it)[2].str() + " = " + t + (t[0] == 'u' && t[1] == 'i' ? "(0u)" : t[0] == 'i' || t == "int" ? "(0)" : "(0.0)") + ";";
+          std::string init = "gl_Position = vec4(0.0);";   // as ANGLE does: a vertex that returns early (Spline's marching cubes) is not left at the last position the driver had
+          if (body.find("#if") == std::string::npos) {   // (a declaration under #if may not exist: left alone)
+            for (std::sregex_iterator it(body.begin(), body.end(), outDecl), end; it != end; ++it) {
+              const std::string t = (*it)[1];
+              init += (*it)[2].str() + " = " + t + (t[0] == 'u' && t[1] == 'i' ? "(0u)" : t[0] == 'i' || t == "int" ? "(0)" : "(0.0)") + ";";
+            }
           }
           body.insert(static_cast<std::size_t>(mm.position(0) + mm.length(0)), init);
         }

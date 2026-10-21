@@ -1,0 +1,25 @@
+# Public Spline scenes that run on the QuickJS engine, for a showcase: fetch.sh downloads them into assets/showcase/ (not kept in the repository),
+# where pick.sh lists them:   SPLINE_SCENES=examples/js-spline/assets/showcase examples/js-spline/fetch.sh < examples/js-spline/showcase.txt
+# Each line: a public URL (Spline's Export > Public URL) and the name the scene gets. Published by their authors, no licence stated: test data.
+https://my.spline.design/3dmodal-wrr0krE02THIPp9muuilyXmA 3d-modal
+https://my.spline.design/3piecepreview-5bfbc1f2430a52b22f57e919d6c09af8 3-piece-preview
+https://my.spline.design/abstractgradientbackground-445fae1731f9601149d99d90cc920e46 abstract-gradient
+https://my.spline.design/animatedbackgroundgradientforweb-jvJDeBWjMvShkjPKxPRUswLq animated-gradient
+https://my.spline.design/archer3dphysics-694dabcdce5d1a89a20532889da2cc19 archer
+https://my.spline.design/art-0fe762c1edfdc78c9d476e1f67551903 art
+https://my.spline.design/cubic-0e8062b25026a5602279006498fcc74f cubic
+https://my.spline.design/dominoeffectphysicscopy-5e43606e154ab3848dbb3b6734b59f98 domino
+https://my.spline.design/glasshoveranimationcopy-r7mkvYQJL3u3040EjUxAxu6H glass-hover
+https://my.spline.design/glassmorphcursortracking-2ef6d3790000fd1a4f81c92fb3ff5bf5 glassmorph-cursor
+https://my.spline.design/interactiveblob-krP6eJx2TB3sdTc0xvLgOrQ9 interactive-blob
+https://my.spline.design/island2023-e914cc5ca4fd15d46d510bbc768562fa island
+https://my.spline.design/octopus-56e6ce8610a3259e5147b23b4c79aeb6 octopus
+https://my.spline.design/particlenebula-86230cc87752e77a51907b3f39fd4a15 particle-nebula
+https://my.spline.design/photorealearth-3cca9c2ef30e86a00e888ed9dc368ed0 earth
+https://my.spline.design/reactiveorb-Y72LpSNUnaZgtqx6g6dFc3rM reactive-orb
+https://my.spline.design/splinereactlogocopycopy-eaa074bf6b2cc82d870c96e262a625ae react-logo
+https://my.spline.design/unchained-WgbTDe9RnAlSWiXPchrvW3eg unchained
+https://my.spline.design/vaporwavebackground-1a594d9f5a7cef535082b2038569440d vaporwave
+https://my.spline.design/vggarchitecturecopy-52b372074ca8b4b760136769716a9bf7 architecture
+https://my.spline.design/voiceinteractionanimation-52f52f4e3462df85e192efc60e3c2201 voice-animation
+https://my.spline.design/worldplanet-inmHh7fVCul1jUFrNRYlotVU world-planet

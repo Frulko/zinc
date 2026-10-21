@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-21 10:44'
-updated_date: '2026-10-21 11:11'
+updated_date: '2026-10-21 11:40'
 labels:
   - js
   - demo
@@ -41,4 +41,6 @@ Done 2026-10-21.
 - Not done: zinc check/lint fail on every js-* example (later.md); WebAssembly for QuickJS (later.md, docs/reports/quickjs-webassembly.md); the CommonJS detection in progress in the main tree will break this example (later.md).
 
 Then (owner): examples/js-spline/pick.sh lists the seven scenes of the example and runs the chosen one. Scenes saved with a fixed size (bubbles-2 1200x1000, sphere, moon-map) are switched to the runtime's fullscreen viewport mode (_viewportMode 1, _resize): app.setSize stretched the orthographic camera. The watch scene (YSTaVTAlOK8GCfs9) was left out: it needs FileReader and a playing video element.
+
+Showcase (owner: download the spline.design examples, add an fps counter): the templates of spline.design/examples are editor files behind an account and cannot be downloaded; their remixes exported as public URLs can. fetch.sh takes a prod.spline.design export or a my.spline.design public URL (the page's app.start bytes). 58 public scenes tried: 25 run, 26 need WebAssembly, 7 Draco (now named as WebAssembly too). showcase.txt lists 22 of them, downloaded on demand by pick.sh (d) into assets/showcase (ignored by git); blob, galaxy and cloner-cubes ship in assets/scenes, two refused ones in assets/scenes-wasm. The fps counter (fps.js) draws with scissor and clear in Spline's context. Two engine fixes found by the metaball scenes, both in src/gl/webgl1.cpp translate(): continue inside a switch in a loop (macOS GL linked it false with an empty log; moved out with a flag, tests/golden/webgl/switch_continue.js fails on the old build), and gl_Position = vec4(0.0) at the start of every ES 3.00 vertex main (as ANGLE; Spline's marching cubes return early and drew streaks: example_js_spline checks the blob against tests/golden/js-examples/spline-blob.png). Transparent backgrounds (black here, white in Chrome) are a later.md line.
 <!-- SECTION:NOTES:END -->

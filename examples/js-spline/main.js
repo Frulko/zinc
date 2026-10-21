@@ -35,8 +35,13 @@ try {
 try {
   await app.start(bytes);
 } catch (err) {
-  stop('Spline could not start ' + SCENE + ' (' + err.message + '). A scene with physics, booleans, bevels, subdivision ("Smooth"), ' +
-    'a navmesh, Gaussian splats or Draco meshes needs WebAssembly, which the QuickJS engine does not have: see examples/js-spline/README.md');
+  // the runtime imports a module beside itself for each feature that runs on WebAssembly (Draco's decoder it fetches from wasmPath): its name says
+  // which one the scene uses
+  const WASM = { physics: 'physics', boolean: 'boolean operations', bevel: 'bevels (extruded shapes and text)', process: 'subdivision ("Smooth")',
+    navmesh: 'a navmesh (game controls)', 'hana-ui': '2D UI frames', 'gaussian-splat-compression': 'Gaussian splats', draco_decoder: 'Draco-compressed meshes' };
+  const module = (/(?:cannot load module|fetch for) .*\/([a-z_-]+)\.js/.exec(err.message) || [])[1];
+  if (WASM[module]) stop(SCENE + ' uses ' + WASM[module] + ', which Spline runs on WebAssembly, and the QuickJS engine has no WebAssembly (see examples/js-spline/README.md)');
+  stop('Spline could not start ' + SCENE + ' (' + err.message + ')');
 }
 
 // A scene saved with a fixed size (an embed of 1200 x 1000) fills the window instead, as Spline's "fullscreen" preset does.

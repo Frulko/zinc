@@ -115,7 +115,7 @@
     {"paths": ["examples/rn-port/", "tests/golden/rn-port/"], "tests": ["rn_port"]},
     {"paths": ["examples/rn-tester/", "tests/golden/rn-tester/"], "tests": ["rn_tester"]},
     {"paths": ["examples/js-three/", "tests/golden/js-examples/three.input", "third_party/three/"], "tests": ["example_js_three"]},
-    {"paths": ["examples/js-spline/", "tests/golden/js-examples/spline.input", "tests/t1/example_js_spline.sh"], "tests": ["example_js_spline"]},
+    {"paths": ["examples/js-spline/", "tests/golden/js-examples/spline.input", "tests/golden/js-examples/spline-blob.png", "tests/t1/example_js_spline.sh"], "tests": ["example_js_spline"]},
     {"paths": ["examples/js-phaser/", "tests/golden/js-examples/phaser.input", "third_party/phaser/"], "tests": ["example_js_phaser"]},
     {"paths": ["examples/js-p5/", "tests/golden/js-examples/p5.input", "tools/test-lib"], "tests": ["example_js_p5"]},
     {"paths": ["examples/js-pixi/", "tests/golden/js-examples/pixi.input", "third_party/pixi/"], "tests": ["example_js_pixi"]},

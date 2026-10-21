@@ -10,6 +10,7 @@
 #   essl1_define_in_out   `#define in attribute` / `#define out varying` in GLSL ES 1.00 (every PixiJS 8 shader), a real global `in` still refused
 #   essl1_texture_name    a variable, uniform or function named `texture` beside texture2D (Phaser 3's batch shader), and uniforms and
 #                         attributes named after words desktop GLSL keeps for itself, found and listed under the page's name
+#   switch_continue       `continue` inside a `switch` in a loop (ES 3.00): Apple's GL failed the link with an empty log (Spline's metaball pass)
 #   three/context         three.js on a WebGL 2 context the page made (tests/golden/webenv)
 # The driver may print "UNSUPPORTED (log once)" lines on stderr (Apple's GL); they are not part of a golden.
 cd "$(dirname "$0")/../.." || exit 2
@@ -19,7 +20,7 @@ page() {  # page.js [VAR=value...]
   out=$(env ZINC_HEADLESS=1 "$@" "$ZINC" run "$file" --engine quickjs 2>&1 | grep -v UNSUPPORTED)
   [ "$out" = "$(cat "${file%.js}.out")" ] || { echo "webgl_js: $file differs from ${file%.js}.out:"; echo "$out" | diff - "${file%.js}.out" | head -12; fail=1; }
 }
-for p in triangle antialias draw_caches webgl2 webgl2_tex sibling_interfaces essl1_define_in_out essl1_texture_name; do page tests/golden/webgl/$p.js; done
+for p in triangle antialias draw_caches webgl2 webgl2_tex sibling_interfaces essl1_define_in_out essl1_texture_name switch_continue; do page tests/golden/webgl/$p.js; done
 page tests/golden/webenv/three/context.js ZINC_WEB=1
 [ $fail -eq 0 ] && echo "webgl_js: ok"
 exit $fail
