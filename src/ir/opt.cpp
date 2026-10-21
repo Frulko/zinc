@@ -512,8 +512,10 @@ void divByPowerOfTwo(Module& m) {
 }
 
 // Functions no reachable code can call are dropped (ZN-431): from @main, through direct calls and through the vtables of the classes reachable
-// code constructs (closures, callbacks, promise jobs and onFrame handlers are such objects, so they stay). A class nothing constructs keeps its
-// layout and becomes abstract, without a vtable, when its vtable loses methods: nothing can call them. Function indices are renumbered in calls and vtables.
+// code constructs (closures, callbacks, promise jobs and onFrame handlers are such objects, so they stay), for the selectors reachable code
+// calls (rapid type analysis; the runtime calls `call` and `__errorString` by name, and a debug or hot build keeps every method). A selector
+// nobody calls leaves every class's list. A class nothing constructs keeps its layout and becomes abstract, without a vtable, when its vtable
+// loses methods: nothing can call them. Function indices are renumbered in calls and vtables.
 void removeUnreachable(Module& m) {
   const std::size_t nf = m.functions.size();
   if (nf <= 1) return;
@@ -523,10 +525,20 @@ void removeUnreachable(Module& m) {
   auto reach = [&](std::uint32_t fn) { if (fn < nf && !live[fn]) { live[fn] = 1; work.push_back(fn); } };
   for (std::uint32_t k = 1; k < nf; ++k) if (m.functions[k].name == kAppStepFunction || m.functions[k].name == kRedrawFunction) reach(k);   // called by name by an app shell (ZN-620), by the host (a live resize)
   for (std::uint32_t fn = 1; fn < nf; ++fn) if (m.functions[fn].entry) reach(fn);   // hot mode: what the host calls
+  std::vector<char> called(m.selectors.size(), m.debug || m.hot);
+  for (std::size_t s = 0; s < m.selectors.size(); ++s) if (m.selectors[s].name == "call" || m.selectors[s].name == "__errorString") called[s] = 1;   // Machine::callComparator, runClosure, exceptionText
+  std::vector<std::uint32_t> builtList;
   auto build = [&](std::uint32_t c) {
     if (c >= built.size() || built[c]) return;
     built[c] = 1;
-    for (std::uint32_t fn : m.classes[c].vtable) if (fn != kNoClass) reach(fn);
+    builtList.push_back(c);
+    const std::vector<std::uint32_t>& vt = m.classes[c].vtable;
+    for (std::size_t s = 0; s < vt.size() && s < called.size(); ++s) if (called[s] && vt[s] != kNoClass) reach(vt[s]);
+  };
+  auto call = [&](std::uint32_t s) {
+    if (s >= called.size() || called[s]) return;
+    called[s] = 1;
+    for (std::uint32_t c : builtList) if (s < m.classes[c].vtable.size() && m.classes[c].vtable[s] != kNoClass) reach(m.classes[c].vtable[s]);
   };
   // the classes the runtime itself instantiates (src/rt/machine.cpp: JSON.parse, any values) are built even when no code says `new`
   for (std::uint32_t c = 0; c < m.classes.size(); ++c) {
@@ -540,7 +552,12 @@ void removeUnreachable(Module& m) {
       for (const Inst& i : b.insts) {
         if (i.op == IrOp::Call) reach(i.sym);
         else if (i.op == IrOp::New) build(i.sym);
+        else if (i.op == IrOp::CallVirt) call(i.sym);
       }
+  }
+  for (Class& cl : m.classes) {
+    cl.selectors.erase(std::remove_if(cl.selectors.begin(), cl.selectors.end(), [&](std::uint32_t s) { return s < called.size() && !called[s]; }), cl.selectors.end());
+    for (std::size_t s = 0; s < cl.vtable.size() && s < called.size(); ++s) if (!called[s]) cl.vtable[s] = kNoClass;
   }
   std::vector<std::uint32_t> to(nf, kNoClass);
   std::uint32_t next = 0;

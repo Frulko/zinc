@@ -1,12 +1,9 @@
 abstract class Base {}
   method .area
-  method .double
 class A : Base {}
   vtable .area -> @A.area
-  vtable .double -> @Base.double
 class B : Base { i }
   vtable .area -> @B.area
-  vtable .double -> @Base.double
 func @main() -> void nregs=4
    0  New      r0, A
    1  Move     r1, r0
@@ -33,11 +30,6 @@ func @main() -> void nregs=4
   22  LogI     r1
   23  LogEnd   
   24  RetV     
-func @Base.double(ref Base) -> i nregs=2
-   0  CallVirt r0, .area
-   1  LoadI    r1, 2
-   2  MulI32   r0, r0, r1
-   3  Ret      r0
 func @A.area(ref A) -> i nregs=1
    0  LoadI    r0, 5
    1  Ret      r0

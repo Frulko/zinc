@@ -1,9 +1,7 @@
 class Rect { i, i }
   vtable .area -> @Rect.area
-  vtable .isSquare -> @Rect.isSquare
 class Sq : Rect { i, i }
   vtable .area -> @Sq.area
-  vtable .isSquare -> @Rect.isSquare
 builtin str
 builtin ref Rect[]
 func @main() -> void nregs=17
@@ -327,11 +325,6 @@ func @Rect.area(ref Rect) -> i nregs=2
    0  GetField r1, r0, .0
    1  GetField r0, r0, .1
    2  MulI32   r0, r1, r0
-   3  Ret      r0
-func @Rect.isSquare(ref Rect) -> i nregs=2
-   0  GetField r1, r0, .0
-   1  GetField r0, r0, .1
-   2  EqI      r0, r1, r0
    3  Ret      r0
 func @Sq.area(ref Sq) -> i nregs=2
    0  GetField r1, r0, .0

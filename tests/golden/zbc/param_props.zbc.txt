@@ -1,8 +1,5 @@
 class P { i, i, i }
-  vtable .sum -> @P.sum
 class Q : P { i, i, i, i }
-  vtable .total -> @Q.total
-  vtable .sum -> @P.sum
 func @main() -> void nregs=5
    0  New      r0, Q
    1  LoadI    r1, 10
@@ -46,22 +43,3 @@ func @main() -> void nregs=5
   39  LogI     r4
   40  LogEnd   
   41  RetV     
-func @P.sum(ref P) -> i nregs=3
-   0  GetField r1, r0, .0
-   1  GetField r2, r0, .1
-   2  AddI32   r1, r1, r2
-   3  GetField r0, r0, .2
-   4  AddI32   r0, r1, r0
-   5  Ret      r0
-func @Q.total(ref Q) -> i nregs=4
-   0  Move     r1, r0
-   1  Retain   r1
-   2  GetField r2, r1, .0
-   3  GetField r3, r1, .1
-   4  AddI32   r2, r2, r3
-   5  GetField r3, r1, .2
-   6  Release  r1
-   7  AddI32   r1, r2, r3
-   8  GetField r0, r0, .3
-   9  AddI32   r0, r1, r0
-  10  Ret      r0

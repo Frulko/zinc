@@ -1,5 +1,4 @@
 class Counter { i, i }
-  vtable .make -> @Counter.make
 class [() => i32, () => void] { ref fn () => i32, ref fn () => void }
 interface fn (i32) => (i32) => i32
   method .call
@@ -242,13 +241,6 @@ func @main() -> void nregs=12
  196  LogI     r2
  197  LogEnd   
  198  RetV     
-func @Counter.make(ref Counter) -> ref fn () => i32 nregs=2
-   0  New      r1, lambda8
-   1  SetField r1, r0, .0
-   2  Move     r0, r1
-   3  Retain   r0
-   4  Release  r1
-   5  Ret      r0
 func @lambda0(ref lambda0, i) -> ref fn (i32) => i32 nregs=4
    0  New      r2, lambda1
    1  GetField r3, r0, .0

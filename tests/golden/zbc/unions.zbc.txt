@@ -1,9 +1,7 @@
 class Item { i, ref Item }
 class Animal { i }
 class Dog : Animal { i }
-  vtable .bark -> @Dog.bark
 class Bird : Animal { i }
-  vtable .fly -> @Bird.fly
 class [i32, i32] { i, i }
 func @main() -> void nregs=11
    0  New      r0, Item
@@ -236,9 +234,3 @@ func @main() -> void nregs=11
  229  LogI     r1
  230  LogEnd   
  231  RetV     
-func @Dog.bark(ref Dog) -> i nregs=1
-   0  LoadI    r0, 1
-   1  Ret      r0
-func @Bird.fly(ref Bird) -> i nregs=1
-   0  LoadI    r0, 2
-   1  Ret      r0

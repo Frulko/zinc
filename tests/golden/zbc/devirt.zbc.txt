@@ -1,7 +1,5 @@
 class Base { i }
-  vtable .get -> @Base.get
-abstract class Unused : Base { i }
-  method .get
+class Unused : Base { i }
 func @main() -> void nregs=2
    0  New      r0, Base
    1  LoadI    r1, 1
@@ -11,6 +9,3 @@ func @main() -> void nregs=2
    5  LogI     r1
    6  LogEnd   
    7  RetV     
-func @Base.get(ref Base) -> i nregs=1
-   0  GetField r0, r0, .0
-   1  Ret      r0

@@ -1,19 +1,9 @@
 class IntBox : Box<i32> { i }
-  vtable .twice -> @IntBox.twice
-  vtable .get -> @Box<i32>.get
-  vtable .set -> @Box<i32>.set
 class Box<i32> { i }
-  vtable .get -> @Box<i32>.get
-  vtable .set -> @Box<i32>.set
 class Pair<i32, f64> { i, f64 }
-  vtable .swap -> @Pair<i32, f64>.swap
 class Pair<f64, i32> { f64, i }
-  vtable .swap -> @Pair<f64, i32>.swap
 interface Getter<i32>
-  method .get
 class Box<f64> { f64 }
-  vtable .get -> @Box<f64>.get
-  vtable .set -> @Box<f64>.set
 func @main() -> void nregs=7
    0  New      r0, Box<i32>
    1  LoadI    r1, 7
@@ -90,36 +80,3 @@ func @main() -> void nregs=7
   72  LogF64   r1
   73  LogEnd   
   74  RetV     
-func @IntBox.twice(ref IntBox) -> i nregs=2
-   0  Retain   r0
-   1  GetField r1, r0, .0
-   2  Release  r0
-   3  LoadI    r0, 2
-   4  MulI32   r0, r1, r0
-   5  Ret      r0
-func @Box<i32>.get(ref Box<i32>) -> i nregs=1
-   0  GetField r0, r0, .0
-   1  Ret      r0
-func @Box<i32>.set(ref Box<i32>, i) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  RetV     
-func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=3
-   0  New      r1, Pair<i32, f64>
-   1  GetField r2, r0, .1
-   2  GetField r0, r0, .0
-   3  SetField r1, r2, .0
-   4  SetField r1, r0, .1
-   5  Ret      r1
-func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=3
-   0  New      r1, Pair<f64, i32>
-   1  GetField r2, r0, .1
-   2  GetField r0, r0, .0
-   3  SetField r1, r2, .0
-   4  SetField r1, r0, .1
-   5  Ret      r1
-func @Box<f64>.get(ref Box<f64>) -> f64 nregs=1
-   0  GetField r0, r0, .0
-   1  Ret      r0
-func @Box<f64>.set(ref Box<f64>, f64) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  RetV     

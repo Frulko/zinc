@@ -1,8 +1,5 @@
 class Many { i, i, i, i, i, i, i, i, i, i, i, i }
-  vtable .sum -> @Many.sum
 class Sub : Many { i, i, i, i, i, i, i, i, i, i, i, i }
-  vtable .twice -> @Sub.twice
-  vtable .sum -> @Many.sum
 func @main() -> void nregs=15
    0  New      r0, Many
    1  LoadI    r1, 1
@@ -148,60 +145,3 @@ func @main() -> void nregs=15
  141  LogI     r4
  142  LogEnd   
  143  RetV     
-func @Many.sum(ref Many) -> i nregs=3
-   0  GetField r1, r0, .0
-   1  GetField r2, r0, .1
-   2  AddI32   r1, r1, r2
-   3  GetField r2, r0, .2
-   4  AddI32   r1, r1, r2
-   5  GetField r2, r0, .3
-   6  AddI32   r1, r1, r2
-   7  GetField r2, r0, .4
-   8  AddI32   r1, r1, r2
-   9  GetField r2, r0, .5
-  10  AddI32   r1, r1, r2
-  11  GetField r2, r0, .6
-  12  AddI32   r1, r1, r2
-  13  GetField r2, r0, .7
-  14  AddI32   r1, r1, r2
-  15  GetField r2, r0, .8
-  16  AddI32   r1, r1, r2
-  17  GetField r2, r0, .9
-  18  AddI32   r1, r1, r2
-  19  GetField r2, r0, .10
-  20  AddI32   r1, r1, r2
-  21  GetField r0, r0, .11
-  22  AddI32   r0, r1, r0
-  23  Ret      r0
-func @Sub.twice(ref Sub) -> i nregs=4
-   0  Move     r1, r0
-   1  Retain   r1
-   2  GetField r2, r1, .0
-   3  GetField r3, r1, .1
-   4  AddI32   r2, r2, r3
-   5  GetField r3, r1, .2
-   6  AddI32   r2, r2, r3
-   7  GetField r3, r1, .3
-   8  AddI32   r2, r2, r3
-   9  GetField r3, r1, .4
-  10  AddI32   r2, r2, r3
-  11  GetField r3, r1, .5
-  12  AddI32   r2, r2, r3
-  13  GetField r3, r1, .6
-  14  AddI32   r2, r2, r3
-  15  GetField r3, r1, .7
-  16  AddI32   r2, r2, r3
-  17  GetField r3, r1, .8
-  18  AddI32   r2, r2, r3
-  19  GetField r3, r1, .9
-  20  AddI32   r2, r2, r3
-  21  GetField r3, r1, .10
-  22  AddI32   r2, r2, r3
-  23  GetField r3, r1, .11
-  24  Release  r1
-  25  AddI32   r1, r2, r3
-  26  LoadI    r2, 2
-  27  MulI32   r1, r1, r2
-  28  GetField r0, r0, .9
-  29  AddI32   r0, r1, r0
-  30  Ret      r0
