@@ -54,9 +54,10 @@ constexpr Pin kEsptoolPins[] = {
     {"x86_64-linux", "esptool-v5.4.0-linux-amd64.tar.gz", "61648fbae20735cabb342f2fbe8fc89b3046e1ed6f9c3e09528d837dc9a9b152"},
 };
 constexpr const char* kQemuVersion = "esp_develop_9.2.2_20260417";
+std::string qemuVersion(const std::string& host) { return host == "x86_64-macos" ? "esp_develop_9.2.2_20250817" : kQemuVersion; }   // Intel Macs: see their pin
 constexpr Pin kQemuPins[] = {
     {"aarch64-macos", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-apple-darwin.tar.xz", "bb8c15810565d3df1665dc34962430885e11bc95575b228fb44698146be1e9d6"},
-    {"x86_64-macos", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-apple-darwin.tar.xz", "ae8170fe46bcdfa54a7c0d7afcdb7a066711991be680f72ff7bbc6c4ae3ad88f"},
+    {"x86_64-macos", "qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-x86_64-apple-darwin.tar.xz", "00b9dbc2124cf7633cb86f264fbc524226ad4001bce68bbdba43c9bdc4eb026e"},   // the build before: 20260417's "x86_64" archive holds an arm64 binary
     {"aarch64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-linux-gnu.tar.xz", "00de5985094c14e47d1b38464a006b8ed64fd0fa7a289c56da24f3a329f65339"},
     {"x86_64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz", "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35"},
 };
@@ -224,7 +225,7 @@ std::vector<PinnedTool> pinnedTools() {
   };
   add("zig", kVersion, kZigPins, sizeof kZigPins / sizeof *kZigPins, "zig-", "zig");
   add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
-  add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
+  add("qemu-system-xtensa", qemuVersion(hostName()), kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
   add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
   for (const SourceTool* t : {&basisuTool(), &gltfpackTool()})
@@ -596,8 +597,11 @@ bool qemuCommand(const std::string& chip, const std::string& root, std::string& 
     const Pin* pin = nullptr;
     for (const Pin& p : kQemuPins) if (hostName() == p.host) pin = &p;
     if (!pin) { err = "no pinned QEMU for this machine (" + hostName() + "); set ZINC_QEMU to qemu-system-xtensa from Espressif's build"; return false; }
-    fs::path dir = fs::path(home()) / "toolchains" / (std::string("qemu-xtensa-") + pin->host + "-" + kQemuVersion);
-    std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417");
+    const std::string version = qemuVersion(pin->host);
+    fs::path dir = fs::path(home()) / "toolchains" / (std::string("qemu-xtensa-") + pin->host + "-" + version);
+    std::string tag = version;   // esp_develop_9.2.2_20260417 is released as esp-develop-9.2.2-20260417
+    std::replace(tag.begin(), tag.end(), '_', '-');
+    std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : "https://github.com/espressif/qemu/releases/download/" + tag;
     if (!fetchTool("the emulator", *pin, base + "/" + pin->file, dir, "bin/qemu-system-xtensa", err)) return false;
     bin = dir / "bin/qemu-system-xtensa";
   }

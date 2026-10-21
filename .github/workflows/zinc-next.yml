@@ -136,7 +136,7 @@ jobs:
         if: matrix.name == 'macos-arm64'
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 glib ccache   # glib: the Intel build of the ESP32 emulator links it
       - name: ccache
         if: matrix.name != 'macos-arm64'
         uses: actions/cache@v4
