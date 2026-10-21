@@ -1279,12 +1279,12 @@ void composite(Gl* g) {
 void scheduleComposite(napi_env c, napi_value t, Gl* g) {
   if (later(c, ctxObject(c, t, g), kComposite)) g->compositeScheduled = true;
 }
-constexpr std::size_t kMaxArgs = 12;   // the most a WebGL method reads (texSubImage3D with its srcOffset)
+constexpr std::size_t kArgCap = 12;   // the most a WebGL method reads (texSubImage3D with its srcOffset)
 napi_value callThunk(napi_env c, napi_callback_info info) {
-  Args<kMaxArgs> a(c, info);
+  Args<kArgCap> a(c, info);
   const Fn& f = *static_cast<const Fn*>(a.data);
   napi_value t = a.self, *argv = a.argv;
-  const int argc = static_cast<int>(std::min(a.argc, kMaxArgs));
+  const int argc = static_cast<int>(std::min(a.argc, kArgCap));
   bool stale = false;
   Gl* g = ownerOf(c, t, &stale);
   if (!g || !(g->lost || stale) || f.fn == js_isContextLost || f.fn == js_loseContext || f.fn == js_restoreContext) {

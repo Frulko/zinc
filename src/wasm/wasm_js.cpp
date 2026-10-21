@@ -34,7 +34,7 @@ extern const zn_napi_table_ext* gNapiExt;
 
 namespace {
 constexpr uint32_t kStack = 512 * 1024;   // the wasm stack of an instance (txiki's)
-constexpr uint32_t kMaxArgs = 32;
+constexpr uint32_t kArgCap = 32;
 constexpr const char* kWasm =   // the JavaScript half: the classes of the API over the functions below
 #include "wasm_api.js.inc"
     ;
@@ -71,7 +71,7 @@ struct Fn {   // an exported function: the native function's data
   Instance* i;
   wasm_function_inst_t f;
   uint32_t pc, rc;
-  wasm_valkind_t pt[kMaxArgs], rt[kMaxArgs];
+  wasm_valkind_t pt[kArgCap], rt[kArgCap];
 };
 
 // ---- small helpers
@@ -209,8 +209,8 @@ void importTrampoline(wasm_exec_env_t exec, uint64_t* args) {
   napi_env env = i->env;
   napi_handle_scope scope;
   napi_open_handle_scope(env, &scope);
-  napi_value argv[kMaxArgs];
-  const uint32_t n = type->param_count < kMaxArgs ? type->param_count : kMaxArgs;
+  napi_value argv[kArgCap];
+  const uint32_t n = type->param_count < kArgCap ? type->param_count : kArgCap;
   for (uint32_t k = 0; k < n; k++) {
     switch (type->types[k]) {
       case VALUE_TYPE_I32: argv[k] = fromI32(env, static_cast<int32_t>(args[k])); break;
@@ -264,13 +264,13 @@ bool afterCall(napi_env env, Instance* i, bool ok, const char* trap = nullptr) {
 }
 
 napi_value callExport(napi_env env, napi_callback_info info) {
-  size_t argc = kMaxArgs;
-  napi_value argv[kMaxArgs];
+  size_t argc = kArgCap;
+  napi_value argv[kArgCap];
   void* data;
   napi_get_cb_info(env, info, &argc, argv, nullptr, &data);
   const Fn* fn = static_cast<Fn*>(data);
   Instance* i = fn->i;
-  wasm_val_t params[kMaxArgs], results[kMaxArgs];
+  wasm_val_t params[kArgCap], results[kArgCap];
   for (uint32_t k = 0; k < fn->pc; k++) {
     napi_value v = k < argc ? argv[k] : undefined(env);
     wasm_val_t& p = params[k];
@@ -467,7 +467,7 @@ napi_value jsFunc(napi_env env, napi_callback_info info) {
   auto* fn = new Fn{i, reinterpret_cast<wasm_function_inst_t>(&mi->e->functions[idx]), 0, 0, {}, {}};
   fn->pc = wasm_func_get_param_count(fn->f, i->inst);
   fn->rc = wasm_func_get_result_count(fn->f, i->inst);
-  if (fn->pc > kMaxArgs || fn->rc > kMaxArgs) { delete fn; return fail(env, c.ctx->linkError, "too many parameters or results"); }
+  if (fn->pc > kArgCap || fn->rc > kArgCap) { delete fn; return fail(env, c.ctx->linkError, "too many parameters or results"); }
   wasm_func_get_param_types(fn->f, i->inst, fn->pt);
   wasm_func_get_result_types(fn->f, i->inst, fn->rt);
   const std::string name = std::to_string(idx);

@@ -8,8 +8,8 @@ const zn_napi_table* gNapi = nullptr;   // set by zn_webgl_open (webgl_js.cpp) b
 }
 
 extern "C" {
-#define ZN_NAPI_TRAMPOLINE(ret, name, params, args) \
+#define NAPI_TRAMPOLINE(ret, name, params, args) \
   ret NAPI_CDECL name params { return zn::gl::gNapi->name##_ args; }
-ZN_NAPI_FUNCTIONS(ZN_NAPI_TRAMPOLINE)
-#undef ZN_NAPI_TRAMPOLINE
+ZN_NAPI_FUNCTIONS(NAPI_TRAMPOLINE)
+#undef NAPI_TRAMPOLINE
 }

@@ -8,12 +8,12 @@ const zn_napi_table_ext* gNapiExt = nullptr;
 }
 
 extern "C" {
-#define ZN_NAPI_TRAMPOLINE(ret, name, params, args) \
+#define NAPI_TRAMPOLINE(ret, name, params, args) \
   ret NAPI_CDECL name params { return zn::wasm::gNapi->name##_ args; }
-ZN_NAPI_FUNCTIONS(ZN_NAPI_TRAMPOLINE)
-#undef ZN_NAPI_TRAMPOLINE
-#define ZN_NAPI_TRAMPOLINE(ret, name, params, args) \
+ZN_NAPI_FUNCTIONS(NAPI_TRAMPOLINE)
+#undef NAPI_TRAMPOLINE
+#define NAPI_TRAMPOLINE(ret, name, params, args) \
   ret NAPI_CDECL name params { return zn::wasm::gNapiExt->name##_ args; }
-ZN_NAPI_EXT_FUNCTIONS(ZN_NAPI_TRAMPOLINE)
-#undef ZN_NAPI_TRAMPOLINE
+ZN_NAPI_EXT_FUNCTIONS(NAPI_TRAMPOLINE)
+#undef NAPI_TRAMPOLINE
 }
