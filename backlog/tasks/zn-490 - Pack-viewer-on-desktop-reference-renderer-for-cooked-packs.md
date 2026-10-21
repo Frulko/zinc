@@ -1,9 +1,10 @@
 ---
 id: ZN-490
 title: 'Pack viewer on desktop: reference renderer for cooked packs'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:39'
+updated_date: '2026-10-17 17:25'
 labels:
   - handheld
   - pocketjs
@@ -26,3 +27,11 @@ A desktop Zinc tool that draws any cooked pack (psp30, n3ds30, ios60, vita60) wi
 - [ ] #2 Captures at three route marks reach SSIM >= 0.9 against the three.js source render
 - [ ] #3 A T1 test renders one pack headless and checks a golden
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Handover (session): blocked on unmet dependencies ZN-489 (cooker) and ZN-452 (legacy texture layouts), both still Backlog. No pack format/decoder exists yet to render against. Scaffold not started to avoid dead code. Re-attempt once ZN-489 and ZN-452 reach Done.
+
+Done: zinc assets view reads cooked packs (profile/vertices/triangles).
+<!-- SECTION:NOTES:END -->

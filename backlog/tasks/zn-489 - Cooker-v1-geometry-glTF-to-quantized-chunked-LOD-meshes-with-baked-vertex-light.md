@@ -3,10 +3,10 @@ id: ZN-489
 title: >-
   Cooker v1 geometry: glTF to quantized, chunked, LOD meshes with baked vertex
   light
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-17 16:56'
+updated_date: '2026-10-17 17:06'
 labels:
   - handheld
   - pocketjs
@@ -34,4 +34,6 @@ zinc cook, a desktop program (Zinc code AOT-compiled plus C++ helpers): read glT
 
 <!-- SECTION:NOTES:BEGIN -->
 Partial: cook.cpp/cook.h implemented (glTF->quantized mesh, vertex light bake, LOD via meshopt, budget check, deterministic receipt). Wired into zn_assets build. Not yet: CLI  command, profile presets, test, byte-identical verification. Next: add CLI subcommand and a T0 test.
+
+Done: cook module + CLI 'zinc assets cook' + T0 test (cook.sh, byte-identical). Profile budgets enforced.
 <!-- SECTION:NOTES:END -->
