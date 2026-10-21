@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-21
+
 ### Changed
 - On a Homebrew install, the update notice, `zinc update` and the formula's caveats say `brew update && brew upgrade zinc`: Homebrew reads its taps at most once a day on its own, so `brew upgrade zinc` alone could say there is nothing new.
 
@@ -332,7 +334,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/Frulko/zinc/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/Frulko/zinc/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Frulko/zinc/compare/v0.3.0...v0.3.1
