@@ -610,6 +610,8 @@ struct Parser {
     if (isP("++") || isP("--")) {
       std::string_view op = txt(); ++i;
       std::uint32_t e = unary();
+      N k = r.ast.nodes[e].kind;
+      if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(e), "");   // `++3`: the target of an assignment, as `3 += 1`
       return mk(N::UpdatePre, st, endOf(e), op, {e});
     }
     if (isKw("typeof") || isKw("void") || isKw("delete")) {
@@ -676,6 +678,8 @@ struct Parser {
         if (!pendingTargs.empty()) { r.ast.targs[e] = std::move(pendingTargs); pendingTargs.clear(); }
       } else if ((isP("++") || isP("--")) && !newlineBefore()) {
         std::string_view op = txt(); ++i;
+        N k = r.ast.nodes[e].kind;
+        if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(e), "");   // `3++`
         e = mk(N::UpdatePost, startOf(e), prevEnd(), op, {e});
       } else if (isP("!") && !newlineBefore()) {
         ++i;
