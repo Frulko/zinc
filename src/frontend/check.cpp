@@ -4287,6 +4287,7 @@ struct Checker {
       if (mn.kind == N::Field) {
         TypeId t = tError;
         if (mn.kids[0] != kNone) t = annotation(mn.kids[0]);
+        else if ((mn.flags & frontend::kFlagSynthetic) && (mn.flags & frontend::kFlagStatic)) t = num(gNumber);   // `static { }` (the parser's call returning 0): inferring it here would check the block before the class exists and drop its errors
         else if (mn.kids[1] != kNone) {
           const Node& in = n(mn.kids[1]);
           t = in.kind == N::Number ? num(gNumber) : in.kind == N::String ? tStr : (in.kind == N::Literal && in.text != "null") ? tBool : tError;
