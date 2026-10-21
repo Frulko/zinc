@@ -537,6 +537,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
+- ZN-773.07: Hermes on targets with no JIT (Android without V8, consoles): measure its interpreter and Static Hermes against QuickJS there; Linux and Windows builds of tools/hermes-pack.
 - ZN-773.06: build and test libzn_wasm (the `wasm` pack) on Linux x86_64 and arm64 and on Windows; only macOS arm64 was built.
 - ZN-773.05: `--engine v8` on Linux x86_64 and arm64 from Homebrew's Linux bottles (`tools/v8-pack` is macOS-only: the ELF rpaths with patchelf, glibc floor), and our own V8 build where no bottle exists (Intel macOS, Windows, armhf), the gn args of docs/reports/js-engines-jsc-v8.md.
 - ZN-764: the GL window (Linux, Windows) now makes its software rows and their texture only for the splash and frees them when the replay draws: check the splash and a window resize on both, and `tools/window-memory`-like numbers (smem/Task Manager).
@@ -778,5 +779,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.04: `zinc pack` and `zinc fuse` of jsc/v8 projects: a .zapp carries typed .zbc only today.
 - ZN-773.04: notarize an exported engine app signed with a Developer ID (the packs are re-signed with that identity; unproven).
 - ZN-773.04: run tests/t1/package_app.sh once index/root.json exists (tools/package copies index/ into the package then).
+- ZN-773.07: Hermes pack: add the licences of libhermesvm's vendored parts (llvh, dtoa, zip...) to the pack before publishing one.
+- ZN-773.07: Hermes's CDP inspector (API/hermes/cdp) behind src/dbg/ws.cpp, as V8's, for --engine hermes --inspect.
+- ZN-773.07: precompile .hbc at zinc build --engine hermes through hermes_run_bytecode; optimising at run time costs 1.2 s on hero's bundle.
+- ZN-773.07: the Hermes adapter keeps one handle scope open for the whole run (its Node-API roots values only inside a scope): check long programs do not grow.
 - ZN-773.06: WASI preview1 on the wasm pack, so wasm programs built for WASI run on QuickJS.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.
