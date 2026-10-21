@@ -1429,7 +1429,7 @@ static void webglHook(napi_env env) {
   if (install) install(env);
 }
 // WebAssembly on QuickJS (ZN-773.06): the engine has none, so the first read of the global opens libzn_wasm (the `wasm` pack, WAMR's interpreter;
-// $ZINC_WASM_LIB or beside zinc) and puts the namespace it makes in place of the getter. Without the module every read throws how to get it.
+// $ZINC_WASM_LIB, beside zinc, the installed pack, else the pack downloaded now) and puts the namespace it makes in place of the getter. Without the module every read throws how to get it.
 static napi_value wasmSet(napi_env env, napi_callback_info info) {   // a program may install its own (a polyfill): it replaces the getter
   size_t argc = 1;
   napi_value v, global;
@@ -1451,8 +1451,10 @@ static napi_value wasmGlobal(napi_env env, napi_callback_info) {
     const char* file = "libzn_wasm.so";
 #endif
     path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+    std::error_code ec;
+    if (!(env && *env) && !fs::exists(path, ec) && !zn::tc::engines::locate(gRoot, "wasm", ZN_ENGINE_ABI, false, path, nullptr, error)) return static_cast<void*>(nullptr);   // the installed pack, else downloaded now
     void* lib = zn::plat::libOpen(path, false);
-    if (!lib) error = fs::exists(path) ? zn::plat::libError() : "not found";
+    if (!lib) error = fs::exists(path, ec) ? zn::plat::libError() : "not found";
     return lib;
   }();
   using Install = napi_value (*)(napi_env, const zn_napi_table*, const zn_napi_table_ext*);

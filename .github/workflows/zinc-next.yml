@@ -78,6 +78,7 @@ jobs:
         # what `zinc run --engine v8` downloads (src/tc/engines.h): the release attaches them, the pages job signs them into the index
         run: |
           tools/engine-pack v8 --out engines
+          tools/engine-pack wasm --out engines   # WebAssembly on QuickJS (ZN-773.06)
           tar cf engines-aarch64-macos.tar -C engines .   # entries.json and engines/<name>/<version>/<host>.tar.xz
       - uses: actions/upload-artifact@v4
         with:

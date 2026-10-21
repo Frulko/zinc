@@ -3,7 +3,7 @@
 
   tools/engine-pack <name> [--build DIR] [--out DIR] [--library FILE] [--kind engine|module] [--version V] [--upstream U] [--entries FILE]
 
-<name>: v8, jsc, or an extension module (wasm). The library is <build>/libzn_engine_<name>.dylib unless --library names another (a module).
+<name>: v8, jsc, or an extension module (wasm: <build>/libzn_wasm.dylib, kind module, WAMR's version). The library is <build>/libzn_engine_<name>.dylib unless --library names another.
 Its @rpath dependencies (followed through its LC_RPATHs, recursively), the .dat files beside them (V8's icudtl.dat) and the LICENSE files
 of their directories and the one above go into lib/ and licenses/; the library's rpath becomes @loader_path/lib, everything is signed ad hoc.
 Writes <out>/engines/<name>/<version>/<host>.tar.xz and adds it to <out>/entries.json (or --entries: the file tools/index-repo entries wrote)
@@ -52,6 +52,9 @@ def main(argv):
         else: print(__doc__); return 2
     if sys.platform != "darwin": print("tools/engine-pack: macOS only for now", file=sys.stderr); return 2
     build = os.path.abspath(opt["--build"])
+    if name == "wasm":   # WebAssembly on QuickJS (ZN-773.06): an extension module, WAMR's version
+        opt.setdefault("--library", os.path.join(build, "libzn_wasm.dylib")); opt["--kind"] = "module"
+        if not opt.get("--upstream"): opt["--upstream"] = ".".join(re.search(r"WAMR_VERSION_%s (\d+)" % k, open(os.path.join(REPO, "third_party", "wamr", "core", "version.h")).read()).group(1) for k in ("MAJOR", "MINOR", "PATCH"))
     lib = os.path.abspath(opt.get("--library") or os.path.join(build, "libzn_engine_%s.dylib" % name))
     if not os.path.isfile(lib): print("tools/engine-pack: no %s (tools/build zinc builds it)" % lib, file=sys.stderr); return 1
     abi = int(re.search(r"#define ZN_ENGINE_ABI (\d+)", open(os.path.join(REPO, "include", "zn", "engine.h")).read()).group(1))
