@@ -97,6 +97,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `process` | starting child processes |
 | `camera` | cameras; on macOS the camera entitlement and `NSCameraUsageDescription` |
 | `microphone` | microphones; on macOS the audio-input entitlement and `NSMicrophoneUsageDescription` |
+| `bluetooth` | Bluetooth Low Energy (`zinc:ble`); on macOS the Bluetooth entitlement and `NSBluetoothAlwaysUsageDescription`, which macOS needs before it asks the user |
 | `location` | accepted, and on macOS its entitlement and usage strings; no module of the engine checks it yet |
 | `serial` | accepted; no module of the engine checks it yet |
 | `notification`, `menu`, `tray`, `dialog`, `window`, `shortcut`, `instance`, `deep-link`, `autostart`, `dock`, `power`, `clipboard`, `opener`, `update` | the module `zinc:system/<id>` (`zinc:system/deeplink` for `deep-link`): every op of it |
@@ -124,6 +125,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `zinc:camera` (plugin), `navigator.mediaDevices` | listing and opening a webcam (`devices`, `open`, `getUserMedia`) | `camera` |
 | `zinc:webrtc` (plugin) | creating an `RTCPeerConnection` (it listens, and a peer can be any host) | `net` or `net:*` |
 | `zinc:microphone` (plugin), `navigator.mediaDevices` | listing and opening a microphone (`devices`, `open`, `getUserMedia({ audio })`) | `microphone` |
+| `zinc:ble` (plugin) | the radio (`state`, and so `scan`, `connect`): `'unauthorized'` when refused | `bluetooth` |
 | `zinc:system/<id>` | importing the module (else compile error `Z5006`), then each op (else a `SystemError` with the code `denied`) | its id |
 | `zinc:sys`, `zinc:gfx`, `zinc:ui`, `zinc:audio`, the other modules | | nothing |
 
