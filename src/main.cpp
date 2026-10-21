@@ -75,8 +75,8 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include <set>
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
+#include "res/codec.h"   // the JavaScript engines decode images through it, with or without the graphics host
 #ifdef ZN_HOST_GFX
-#include "res/codec.h"
 namespace zrt::raster { bool image_size(int32_t id, int32_t* w, int32_t* h); void dyn_resize(int32_t id, int32_t w, int32_t h); uint32_t* dyn_pixels(int32_t id); void dyn_update(int32_t id, const uint32_t* px, int32_t stride); }   // gl.zincPresent (ZN-205)
 namespace zrt::gfx { extern uint8_t* (*encode_webp_hook)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)); }
 // ZINC_SHOT=*.webp and `zinc capture --format webp`: lossless WebP (ZN-226)

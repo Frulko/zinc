@@ -537,6 +537,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-773: zinc.exe cross built headless (`-DZN_HOST_GFX=OFF`, the windows-cross job) compiles again but does not link: 14 zrt symbols undefined at `<root>` (add_poller, arena_owns, arena_take, StrBuilder, clear_timer, insp_object...), seen 2026-10-21; the job is off until ZINC_WINDOWS_JOBS is set. A macOS build with `ZN_HOST_GFX=OFF` stops on zn_window_load (plugin_build.cpp's weak reference).
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
 - ZN-773.07: Hermes on targets with no JIT (Android without V8, consoles): measure its interpreter and Static Hermes against QuickJS there; Linux and Windows builds of tools/hermes-pack.
 - ZN-773.09: zinc export of an "engine": "quickjs" project for linux and the other non-macOS targets still builds a native program: decide whether they carry the bundle and its .qbc.
