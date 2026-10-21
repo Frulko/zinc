@@ -67,6 +67,18 @@ jobs:
       - name: V8 SDK
         # ZN-773.04: Homebrew's signed V8 bottle into ~/.zinc/sdk/v8, where CMake finds it and builds libzn_engine_v8 (--engine v8)
         run: python3 tools/v8-pack
+      - name: Hermes SDK cache
+        # ZN-773.08: Hermes is built from source (tools/hermes-pack, about 10 minutes here): the SDK directory is kept, not its sources and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.zinc/sdk/hermes
+            !~/.zinc/sdk/hermes/src-*
+            !~/.zinc/sdk/hermes/build-*
+          key: hermes-sdk-${{ runner.arch }}-${{ hashFiles('tools/hermes-pack', 'tools/hermes-patches/*') }}
+      - name: Hermes SDK
+        # into ~/.zinc/sdk/hermes, where CMake finds it and builds libzn_engine_hermes (--engine hermes)
+        run: '[ -f ~/.zinc/sdk/hermes/current/lib/libhermesvm.dylib ] || python3 tools/hermes-pack --jobs 4'
       - name: Build
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
@@ -78,6 +90,7 @@ jobs:
         # what `zinc run --engine v8` downloads (src/tc/engines.h): the release attaches them, the pages job signs them into the index
         run: |
           tools/engine-pack v8 --out engines
+          tools/engine-pack hermes --out engines   # experimental (ZN-773.08)
           tools/engine-pack wasm --out engines   # WebAssembly on QuickJS (ZN-773.06)
           tar cf engines-aarch64-macos.tar -C engines .   # entries.json and engines/<name>/<version>/<host>.tar.xz
       - uses: actions/upload-artifact@v4
@@ -242,6 +255,16 @@ jobs:
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: V8 SDK
         run: python3 tools/v8-pack   # libzn_engine_v8 of the build loads libv8 from ~/.zinc/sdk/v8: the v8 tests run it
+      - name: Hermes SDK
+        # libzn_engine_hermes of the build loads libhermesvm from ~/.zinc/sdk/hermes: the build job's cache (it made or found it)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.zinc/sdk/hermes
+            !~/.zinc/sdk/hermes/src-*
+            !~/.zinc/sdk/hermes/build-*
+          key: hermes-sdk-${{ runner.arch }}-${{ hashFiles('tools/hermes-pack', 'tools/hermes-patches/*') }}
+          fail-on-cache-miss: true
       - name: Dependencies (macOS)
         run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
           brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3 pkgconf ffmpeg libgphoto2 jpeg-turbo   # ffmpeg: the real decode of video and museum_*; libgphoto2 and jpeg-turbo: camera's fake camera
@@ -705,7 +728,7 @@ jobs:
           if ls release/zinc-*-linux-*.tar.gz >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-linux-<arch>.tar.gz\`: the zinc CLI for Linux (x86_64, aarch64, armhf, i686; glibc 2.28 or later), the same layout as macOS; \`install.sh\` picks it. With \`install.sh --atelier\`, Zinc Atelier goes into the applications menu.${nl}"; fi
           if ls release/Zinc-Atelier-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`Zinc-Atelier-<version>-windows-x86_64.zip\`: the Zinc Atelier app for Windows, the engine inside; unzip it and open \"Zinc Atelier.exe\" in the folder.${nl}"; fi
           if ls release/zinc-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-windows-x86_64.zip\`: the zinc CLI for Windows 10/11 (bin\\zinc.exe, the standard library, templates); install it with \`irm https://github.com/${GH_REPO}/releases/latest/download/install.ps1 | iex\` in PowerShell. Not signed yet: SmartScreen may ask you to confirm.${nl}"; fi
-          notes="$notes- \`engines-<host>.tar\`: the engine packs \`zinc run --engine v8\` downloads from the signed index (nothing to install by hand).${nl}"
+          notes="$notes- \`engines-<host>.tar\`: the engine packs \`zinc run --engine v8\` (or \`hermes\`) downloads from the signed index (nothing to install by hand).${nl}"
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi
           if grep -L '^sig=' release/*.manifest 2>/dev/null | grep -q .; then notes="$notes${nl}The update manifests are unsigned (no ZINC_UPDATE_SEED secret): zinc update refuses them unless ZINC_UPDATE_ALLOW_UNSIGNED=1."; echo "::warning::unsigned update manifests"; fi

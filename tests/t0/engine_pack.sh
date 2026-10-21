@@ -7,7 +7,7 @@ cd "$(dirname "$0")/../.." || exit 2
 [ "$(uname)" = Darwin ] || { echo "skip: engine packs are made on macOS for now"; exit 0; }
 [ -f "$(dirname "$ZINC")/libzn_engine_jsc.dylib" ] || { echo "skip: no libzn_engine_jsc beside zinc"; exit 0; }
 ZINC=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC") exec python3 - "$PWD" <<'PY'
-import importlib.machinery, importlib.util, json, os, shutil, subprocess, sys, tempfile
+import importlib.machinery, importlib.util, json, os, shutil, subprocess, sys, tarfile, tempfile
 R = sys.argv[1]; Z = os.environ["ZINC"]; tmp = tempfile.mkdtemp(); fails = []
 loader = importlib.machinery.SourceFileLoader("index_repo", os.path.join(R, "tools", "index-repo")); spec = importlib.util.spec_from_loader("index_repo", loader)
 ir = importlib.util.module_from_spec(spec); loader.exec_module(ir)
@@ -76,6 +76,16 @@ h = fresh("abi")
 expect("wrong zn_engine_abi", False, run([zinc, "engine", "install", "jsc"], h), "ABI 999 only", "this zinc speaks ABI 2")
 expect("wrong zn_engine_abi on first use", False, run([zinc, "run", hello, "--engine", "jsc"], h), "could not be downloaded", "ABI 999 only")
 expect("no index", False, run([zinc, "run", hello, "--engine", "jsc"], fresh("offline"), "file:///nonexistent"), "could not be downloaded", "zinc engine install jsc", "ZINC_ENGINE_JSC")
+# Hermes (ZN-773.08): the pack of this build's module, with libhermesvm and the licences of what is compiled into it, downloaded on first use
+if os.path.exists(os.path.join(os.path.dirname(Z), "libzn_engine_hermes.dylib")):
+    d = os.path.join(tmp, "dist-hermes")
+    subprocess.run([os.path.join(R, "tools", "engine-pack"), "hermes", "--build", os.path.dirname(Z), "--out", d], check=True, capture_output=True)
+    e = json.load(open(os.path.join(d, "entries.json")))["targets"]
+    with tarfile.open(next(iter(e.values()))["file"]) as t: names = set(t.getnames())
+    want = {"libzn_engine_hermes.dylib", "lib/libhermesvm.dylib", "licenses/LICENSE", "licenses/LICENSE.llvh.txt", "licenses/LICENSE.dtoa.txt", "licenses/LICENSE.boost.txt"}
+    if not want <= names: fails.append("the hermes pack lacks %s" % sorted(want - names))
+    ir.build(repo, keys, {p: (open(t["file"], "rb").read(), t["custom"]) for p, t in e.items()}, version=5)
+    expect("hermes: first use downloads, checks and runs", True, run([zinc, "run", hello, "--engine", "hermes"], fresh("hermes")), "downloading", "checked: SHA-256", "hello hermes")
 shutil.rmtree(tmp, ignore_errors=True)
 for f in fails: print("engine_pack:", f)
 sys.exit(1 if fails else 0)

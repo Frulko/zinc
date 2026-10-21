@@ -1070,3 +1070,24 @@ of a 262,144-element array (one `napi_new_instance`, no per-element calls: count
 24 ms against V8's 0.24, JSC's 0.06 and QuickJS's 14. `new Uint8Array(n).set(array)` takes 1.9 ms on Hermes (0.5 on V8, 0.21 on JSC), so the
 driver copies that way on Hermes only (`ZN_ENGINE_HERMES`): image_upload_only 25.1 to 3.3 ms, image_update 26.8 to 5.4 (second run of the suite,
 same artifact).
+
+## Hermes bytecode at zinc build, and the published pack (ZN-773.08, 2026-10-21)
+
+M1 Pro, machine loaded by other builds (load 12 to 17). `examples/hero` copied as a project on `"engine": "hermes"`; `zinc build` writes
+`build/hero.js` (698 KB, its map 1.6 MB) and `build/hero.hbc` (898 KB, compiled with the full optimisation pipeline, as `hermesc -O`; 1.6 s
+for bundle and compile). Wall time of `ZINC_HEADLESS=1 ZINC_FRAMES=1 zinc run build/hero.js --engine hermes` (process start to the end of the
+first frame and the exit), 5 runs after one warm-up, the same bundle with its `.hbc` beside it (mapped, `hermes_run_bytecode`) and without
+(lazy compile of the source, the default), two rounds:
+
+| | median | min to max |
+|---|---|---|
+| bytecode | 279 / 282 ms | 273 to 290 |
+| source | 525 / 443 ms | 441 to 657 |
+
+The bytecode starts hero about 160 to 240 ms (35 to 45%) sooner: no parse and no compile at start, and code of the optimiser instead of the
+lazy compiler's. The frame is pixel-identical (frame 30, `ZINC_DETERMINISTIC`). Stack traces from bytecode name the user's files and lines as from
+source (the frames carry the bundle's file name, the driver maps them through its source map).
+
+Hermes is now built with its debugger (`HERMES_ENABLE_DEBUGGER`, for `--inspect`): hero's 600 frames took 0.94 to 1.02 s of CPU on that loaded
+machine against 0.89 s measured without it (ZN-773.07); not separated from the load, to measure again on a quiet machine. The pack
+(`tools/engine-pack hermes`: the module, libhermesvm, eight licence files) is 2.0 MB (1.8 MB before the debugger).

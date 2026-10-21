@@ -68,7 +68,33 @@ Verdict:
   measure again when an iOS or console JavaScript workload needs it.
 - Not done in the spike, for a real pack: Hermes's CDP inspector behind `src/dbg/ws.cpp`, the licences of `libhermesvm`'s vendored parts in the
   pack (`llvh`, `dtoa`, `zip`...), `.hbc` precompiled at `zinc build`
-  (`hermes_run_bytecode`), Linux and Windows builds.
+  (`hermes_run_bytecode`), Linux and Windows builds. The first three were done by ZN-773.08 (below).
+
+## The published pack, the inspector and bytecode (ZN-773.08, 2026-10-21)
+
+The verdict above changed on one point: the pack is published, still experimental. At 2.0 MB it costs the index nothing, and a published pack
+is what lets a user try Hermes, its inspector and its bytecode without building Hermes.
+
+- **Pack.** zinc-next's build job builds Hermes (`tools/hermes-pack`, its SDK kept in an `actions/cache` keyed on the pin and the patch) and makes
+  `engines/hermes/<version>/aarch64-macos.tar.xz` beside v8 and wasm; the test shards restore the same SDK. The pack's version is the date of
+  the pinned commit (`VERSION` in `tools/hermes-pack`, 2026.10.21), since a commit hash does not order. `licenses/` carries Hermes's MIT licence
+  and those of what is compiled into `libhermesvm`: llvh (LLVM, Apache-2.0 with LLVM exception), David Gay's dtoa, zip (Unlicense), asmjit
+  (zlib, the JIT), boost.context (BSL-1.0), dragonbox (Apache-2.0-LLVM or BSL-1.0) and fast_float (MIT, Apache-2.0 or BSL-1.0); the notices of
+  the header-only and single-file parts are their files' heads. `tests/t0/engine_pack.sh` makes the pack, signs it into a local index and runs
+  `--engine hermes` from a zinc that has no module beside it.
+- **Inspector.** Hermes is built with its debugger. The Runtime is now a `HermesRuntime` (JSI) whose VM runtime carries the Node-API env, so the
+  CDP agent of `API/hermes/cdp` attaches to it; `zn_cdp.cpp` in the patch gives it C entry points (start, a message, the queued work, pause).
+  `src/engine/hermes.cpp` serves it as `v8.cpp` serves V8's: target `zinc-hermes` on `src/dbg/ws.cpp`, the agent's work run at each drain and in
+  the wait of `--inspect-brk` (while JavaScript runs or is paused, Hermes's debugger runs it itself), the console through a JSI function, the
+  source map inline, the JIT off under the debugger. The target answers `Runtime.runIfWaitingForDebugger` and sends the execution context itself
+  (the agent does neither). Hermes's agent sends no `hitBreakpoints`. `tests/t1/hermes_inspect.sh`: discovery, pause at start, `debugger`,
+  evaluate on the frame, a breakpoint, a step, the console.
+- **Bytecode.** `zinc build` of a project on `"engine": "hermes"` bundles it (`build/<name>.js`) and has the module compile it
+  (`zn_engine_compile`, through the patch's `zn_hermes_compile`: no `hermesc` shipped, the compiler is the library's) to `build/<name>.hbc`;
+  `zinc run build/<name>.hbc`, and an exported app (`app.hbc`), map it and run it through `hermes_run_bytecode`. Its frames carry the
+  bundle's file name, which the driver maps through the source map: the traces name the user's files and lines as from source. Hero starts in
+  280 ms instead of 440 to 525 (`zinc-next-perf.md`). The bytecode is version-locked to the VM: it is used only when it is not older than its
+  bundle and its header has this VM's bytecode version (a pack updated since `zinc build` runs the source instead).
 
 ## 1. What Hermes and Static Hermes are today
 

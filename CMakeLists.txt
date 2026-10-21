@@ -873,13 +873,13 @@ if(APPLE AND ZN_TLS AND EXISTS "${ZN_V8_DIR}/include/v8.h")   # ZN_TLS: the insp
   target_link_libraries(zn_engine_v8 PRIVATE "${ZN_V8_REAL}/lib/libv8.dylib" "${ZN_V8_REAL}/lib/libv8_libplatform.dylib" "${ZN_V8_REAL}/lib/libv8_libbase.dylib" zn_codec zn_text)
   add_dependencies(zinc zn_engine_v8)
 endif()
-# Hermes as an engine module beside zinc (ZN-773.07, spike), built when an SDK directory of tools/hermes-pack is there: Hermes's own Node-API in
+# Hermes as an engine module beside zinc (ZN-773.07, ZN-773.08), built when an SDK directory of tools/hermes-pack is there: Hermes's own Node-API in
 # libhermesvm (napi_* exported there, so the module carries no copy), the driver and the bindings; src/engine/hermes.h gives them the named
-# napi_run_script.
+# napi_run_script. Chrome DevTools through Hermes's CDP agent behind src/dbg/ws.cpp, as V8's (ZN_TLS: its WebSocket handshake).
 set(ZN_HERMES_DIR "$ENV{HOME}/.zinc/sdk/hermes/current" CACHE PATH "a Hermes SDK directory of tools/hermes-pack (include/, lib/)")
-if(APPLE AND EXISTS "${ZN_HERMES_DIR}/lib/libhermesvm.dylib")
+if(APPLE AND ZN_TLS AND EXISTS "${ZN_HERMES_DIR}/lib/libhermesvm.dylib")
   get_filename_component(ZN_HERMES_REAL "${ZN_HERMES_DIR}" REALPATH)
-  add_library(zn_engine_hermes MODULE src/engine/driver.cpp src/engine/hermes.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp
+  add_library(zn_engine_hermes MODULE src/engine/driver.cpp src/engine/hermes.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp src/dbg/ws.cpp
               src/qjs/native_js.cpp src/qjs/canvas2d.cpp src/qjs/webenv.cpp src/text/segmenter_js.cpp)
   set_target_properties(zn_engine_hermes PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                         CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON BUILD_RPATH "${ZN_HERMES_REAL}/lib")

@@ -8,17 +8,34 @@ tools/engine-pack then makes the pack users download, src/tc/engines.h):
     <out>/<commit>/bin/              shermes, hermesc, hermes
     <out>/current -> <commit>
 
-The sources and the build stay beside it (<out>/src-<commit>, <out>/build-<commit>), out of the repository: shermes compiles against the
-build's headers and libraries (paths it was built with). Patches of tools/hermes-patches/*.patch are applied to the sources once, at the
-download (zinc-embed.patch: the embedder's entry points of src/engine/hermes.cpp, and a rejection tracker that reports at once).
+    <out>/<commit>/version           the pack's version (VERSION below)
+    <out>/<commit>/LICENSE*          Hermes's licence and those of the code compiled into libhermesvm (tools/engine-pack puts them in the pack)
+
+The sources and the build stay beside it (<out>/src-<commit>, its archive <out>/src-<commit>.tar.gz, <out>/build-<commit>), out of the
+repository: shermes compiles against the build's headers and libraries (paths it was built with). The patches of tools/hermes-patches/*.patch
+are applied to a fresh copy of the sources whenever they change (their SHA-256 is kept in <src>/.zinc-patches); zinc-embed.patch: the
+embedder's entry points of src/engine/hermes.cpp, the Chrome DevTools agent behind them, a compile to bytecode, and a rejection tracker that
+reports at once. Hermes is built with its debugger (HERMES_ENABLE_DEBUGGER: what zinc run --inspect needs).
 
 usage: tools/hermes-pack [--out DIR] [--commit SHA] [--jobs N]     (DIR: ~/.zinc/sdk/hermes; N: 4, the machine is shared)
 ponytail: macOS arm64 only (where the Hermes JIT exists); Linux and Windows builds are the cross-platform pass.
 """
-import io, os, platform, shutil, subprocess, sys, tarfile, urllib.request
+import hashlib, os, platform, shutil, subprocess, sys, tarfile, urllib.request
 
 COMMIT = "e760a68ab717963f82757983c75ec7fd63910d77"   # static_h, 2026-10-21
+VERSION = "2026.10.21"   # the pack's version (tools/engine-pack): the pinned commit's date, so a newer pin makes a newer pack
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# the third-party code linked into libhermesvm (external/: llvh, dtoa, zip, asmjit for the JIT, boost.context, the dragonbox and fast_float
+# headers), as <name>, <file in the sources>, <lines kept: the notice at the head of a source file, or all>
+LICENSES = [
+    ("LICENSE.llvh.txt", "external/llvh/LICENSE.txt", None),
+    ("LICENSE.dtoa.txt", "external/dtoa/dtoa.c", 18),
+    ("LICENSE.zip.txt", "external/zip/UNLICENSE", None),
+    ("LICENSE.asmjit.md", "external/asmjit/asmjit/LICENSE.md", None),
+    ("LICENSE.boost.txt", "external/boost/boost_1_86_0/LICENSE_1_0.txt", None),
+    ("LICENSE.dragonbox.txt", "external/dragonbox/dragonbox/dragonbox.h", 16),
+    ("LICENSE.fast_float.txt", "external/fast_float/fast_float/fast_float.h", 51),
+]
 
 def run(*cmd, **kw):
     print("+", " ".join(cmd), flush=True)
@@ -35,23 +52,31 @@ def main(argv):
     if sys.platform != "darwin" or platform.machine() != "arm64":
         print("tools/hermes-pack: macOS arm64 only for now", file=sys.stderr); return 2
     src, build, dest = (os.path.join(out, p + commit) for p in ("src-", "build-", ""))
-    if not os.path.isfile(os.path.join(src, "CMakeLists.txt")):
-        print("Hermes %s: downloading..." % commit, flush=True)
-        with urllib.request.urlopen("https://codeload.github.com/facebook/hermes/tar.gz/" + commit) as r: data = r.read()
+    pdir = os.path.join(REPO, "tools", "hermes-patches")
+    patches = [os.path.join(pdir, p) for p in sorted(os.listdir(pdir)) if p.endswith(".patch")] if os.path.isdir(pdir) else []
+    stamp = hashlib.sha256(b"".join(open(p, "rb").read() for p in patches)).hexdigest()
+    stampf = os.path.join(src, ".zinc-patches")
+    if not os.path.isfile(stampf) or open(stampf).read().strip() != stamp:
+        archive = src + ".tar.gz"
+        if not os.path.isfile(archive):
+            print("Hermes %s: downloading..." % commit, flush=True)
+            with urllib.request.urlopen("https://codeload.github.com/facebook/hermes/tar.gz/" + commit) as r: data = r.read()
+            open(archive + ".tmp", "wb").write(data)
+            os.rename(archive + ".tmp", archive)
         tmp = src + ".tmp"
         shutil.rmtree(tmp, ignore_errors=True)
-        with tarfile.open(fileobj=io.BytesIO(data)) as t:
-            for m in t.getmembers():   # strip the top directory hermes-<commit>/
+        with tarfile.open(archive) as t:
+            for m in t.getmembers():   # strip the top directory hermes-<commit>/; the files keep the archive's times, so a build redoes only what a patch touched
                 m.name = m.name.split("/", 1)[1] if "/" in m.name else ""
                 if m.name and not m.name.startswith("/") and ".." not in m.name.split("/"): t.extract(m, tmp)
-        pdir = os.path.join(REPO, "tools", "hermes-patches")
-        for p in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
-            if p.endswith(".patch"): run("patch", "-p1", "-d", tmp, "-i", os.path.join(pdir, p))
+        for p in patches: run("patch", "-p1", "-d", tmp, "-i", p)
+        open(os.path.join(tmp, ".zinc-patches"), "w").write(stamp + "\n")
+        shutil.rmtree(src, ignore_errors=True)
         os.rename(tmp, src)
     gen = ["-G", "Ninja"] if shutil.which("ninja") else []
-    if not os.path.isfile(os.path.join(build, "CMakeCache.txt")):
-        run("cmake", "-S", src, "-B", build, *gen, "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_OSX_ARCHITECTURES=arm64",
-            "-DHERMES_ENABLE_NAPI=ON", "-DHERMESVM_ALLOW_JIT=1", "-DHERMES_ENABLE_TEST_SUITE=OFF", "-DHERMES_BUILD_APPLE_FRAMEWORK=OFF")
+    if os.path.isfile(os.path.join(build, "CMakeCache.txt")): gen = []   # the generator of an existing build stays
+    run("cmake", "-S", src, "-B", build, *gen, "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DHERMES_ENABLE_NAPI=ON",
+        "-DHERMESVM_ALLOW_JIT=1", "-DHERMES_ENABLE_DEBUGGER=ON", "-DHERMES_ENABLE_TEST_SUITE=OFF", "-DHERMES_BUILD_APPLE_FRAMEWORK=OFF")
     run("cmake", "--build", build, "-j", jobs, "--target", "shermes-dep", "hermesc", "hermes")
     tmp = dest + ".tmp"
     shutil.rmtree(tmp, ignore_errors=True)
@@ -64,6 +89,11 @@ def main(argv):
             if f.endswith(".dylib") and not os.path.islink(p): shutil.copy(p, os.path.join(tmp, "lib", f))
             elif f in ("shermes", "hermesc", "hermes") and os.access(p, os.X_OK) and "/bin" in root: shutil.copy(p, os.path.join(tmp, "bin", f))
     shutil.copy(os.path.join(src, "LICENSE"), os.path.join(tmp, "LICENSE"))
+    if commit == COMMIT: open(os.path.join(tmp, "version"), "w").write(VERSION + "\n")
+    for name, path, lines in LICENSES:
+        text = open(os.path.join(src, path), encoding="utf-8").read()
+        if lines: text = "From %s of Hermes %s:\n\n%s\n" % (path, commit, "\n".join(text.splitlines()[:lines]))
+        open(os.path.join(tmp, name), "w", encoding="utf-8").write(text)
     for f in os.listdir(os.path.join(tmp, "lib")):
         p = os.path.join(tmp, "lib", f)
         run("install_name_tool", "-id", "@rpath/" + f, p)

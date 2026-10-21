@@ -151,6 +151,7 @@ void installHost(napi_env env) {
 
 // ---- errors and promises
 std::string gBundle, gMap;   // the bundle and its source map: the traces through it
+std::string gTraceName;      // traceName()
 std::string (*gMapStack)(const std::string&, const std::string&, const std::string&) = nullptr;
 
 void report(napi_env env, napi_value ex, const char* what) {
@@ -162,6 +163,8 @@ void report(napi_env env, napi_value ex, const char* what) {
   if ((t == napi_object || t == napi_function) && napi_get_named_property(env, ex, "stack", &st) == napi_ok && isString(env, st)) zn::napi::text(env, st, stack);
   bool pending = false;
   if (napi_is_exception_pending(env, &pending) == napi_ok && pending) { napi_value x; napi_get_and_clear_last_exception(env, &x); }   // a toString that threw
+  if (!gTraceName.empty())
+    for (std::size_t at = 0; (at = stack.find("(" + gTraceName + ":", at)) != std::string::npos; at += gBundle.size()) stack.replace(at + 1, gTraceName.size(), gBundle);
   if (!gMap.empty() && gMapStack) stack = gMapStack(stack, gBundle, gMap);
   if (!stack.empty() && stack.back() != '\n') stack += '\n';
   std::fflush(stdout);
@@ -402,6 +405,8 @@ void inlineSourceMap(std::string& js) {
       mbedtls_base64_encode(reinterpret_cast<unsigned char*>(b64.data()), b64.size(), &n, reinterpret_cast<const unsigned char*>(gMap.data()), gMap.size()) == 0)
     js = js.substr(0, at) + tail + "data:application/json;charset=utf-8;base64," + b64.substr(0, n) + "\n";
 }
+
+void traceName(const std::string& name) { gTraceName = name; }
 
 int run(const zn_engine_args* a) {
   if (a->abi != ZN_ENGINE_ABI) {

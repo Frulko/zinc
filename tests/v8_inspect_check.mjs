@@ -1,11 +1,12 @@
-// Chrome DevTools on --engine v8 (ZN-773.05): node tests/v8_inspect_check.mjs <zinc> <main.js>. zinc run --engine v8 --inspect-brk=0 waits for
-// a client; discovery, the program's script with its source map inline, the pause at its first statement, a `debugger` statement with its
-// frame (the function's name through the map, a local evaluated on the frame), console.log in DevTools' Console, the run to its end.
+// Chrome DevTools on --engine v8 (ZN-773.05) and hermes (ZN-773.08): node tests/v8_inspect_check.mjs <zinc> <main.js> [engine]. zinc run --engine
+// <engine> --inspect-brk=0 waits for a client; discovery, the program's script with its source map inline, the pause at its first statement, a
+// `debugger` statement with its frame (the function's name through the map, a local evaluated on the frame), a breakpoint on the next line, a
+// step over it, console.log in DevTools' Console, the run to its end.
 import { spawn } from 'node:child_process';
-const [zinc, file] = process.argv.slice(2);
+const [zinc, file, engine = 'v8'] = process.argv.slice(2);
 let failed = false;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failed = true; };
-const p = spawn(zinc, ['run', file, '--engine', 'v8', '--inspect-brk=0'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ZINC_STEPS: '0' } });
+const p = spawn(zinc, ['run', file, '--engine', engine, '--inspect-brk=0'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ZINC_STEPS: '0' } });
 let out = '', err = '';
 p.stdout.on('data', d => { out += d; });
 const exited = new Promise(ok => p.on('exit', ok));
@@ -14,7 +15,7 @@ const port = await new Promise((ok, ko) => {
   p.on('exit', () => ko(new Error('zinc ended: ' + err)));
 });
 const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-check(list[0].type === 'node' && list[0].webSocketDebuggerUrl.endsWith('/zinc-v8') && list[0].url.endsWith('main.js'), `discovery: ${list[0].webSocketDebuggerUrl} ${list[0].url}`);
+check(list[0].type === 'node' && list[0].webSocketDebuggerUrl.endsWith('/zinc-' + engine) && list[0].url.endsWith('main.js'), `discovery: ${list[0].webSocketDebuggerUrl} ${list[0].url}`);
 const ws = new WebSocket(list[0].webSocketDebuggerUrl);
 await new Promise((ok, ko) => { ws.onopen = ok; ws.onerror = ko; });
 let next = 1;
@@ -42,6 +43,19 @@ const frame = at.callFrames[0];
 check(frame.functionName === 'twice', `the debugger statement in ${frame.functionName}`);
 const y = await send('Debugger.evaluateOnCallFrame', { callFrameId: frame.callFrameId, expression: 'y + 1' });
 check(y.result?.result?.value === 43, `y + 1 on the frame: ${JSON.stringify(y.result?.result)}`);
+const line = frame.location.lineNumber;
+const bp = await send('Debugger.setBreakpoint', { location: { scriptId: frame.location.scriptId, lineNumber: line + 1 } });
+check(bp.result?.breakpointId !== undefined, `a breakpoint on the next line: ${JSON.stringify(bp.result ?? bp.error)}`);
+await send('Debugger.resume');
+const hit = await wait('Debugger.paused');
+// Hermes's agent sends no hitBreakpoints: the line is the proof there
+check(hit.callFrames[0].location.lineNumber === line + 1 && (hit.hitBreakpoints ?? [1]).length === 1, `stopped at the breakpoint, line ${hit.callFrames[0].location.lineNumber} (${hit.hitBreakpoints ?? 'no hitBreakpoints'})`);
+await send('Debugger.stepOver');
+const step = await wait('Debugger.paused');
+const to = step.callFrames[0];
+const from = hit.callFrames[0].location;   // V8 steps to the return's value on the same line first, Hermes out of the function
+check(to.functionName !== 'twice' || to.location.lineNumber > from.lineNumber || to.location.columnNumber > from.columnNumber,
+  `a step over it: ${to.functionName || '(top)'} ${to.location.lineNumber}:${to.location.columnNumber} after ${from.lineNumber}:${from.columnNumber}`);
 await send('Debugger.resume');
 const log = await wait('Runtime.consoleAPICalled');
 check(log.type === 'log' && log.args.map(a => a.value).join(' ') === 'hello 42', `console.log in DevTools: ${log.args.map(a => a.value).join(' ')}`);

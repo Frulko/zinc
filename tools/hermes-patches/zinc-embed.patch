@@ -1,6 +1,164 @@
+diff --color -ruN a/API/hermes/CMakeLists.txt b/API/hermes/CMakeLists.txt
+--- a/API/hermes/CMakeLists.txt	2026-10-21 06:04:31
++++ b/API/hermes/CMakeLists.txt	2026-10-21 17:53:06
+@@ -62,6 +62,7 @@
+ 
+ set(api_sources
+   hermes.cpp
++  zn_cdp.cpp
+   DebuggerAPI.cpp
+   AsyncDebuggerAPI.cpp
+   RuntimeTaskRunner.cpp
+diff --color -ruN a/API/hermes/zn_cdp.cpp b/API/hermes/zn_cdp.cpp
+--- a/API/hermes/zn_cdp.cpp	1970-01-01 01:00:00
++++ b/API/hermes/zn_cdp.cpp	2026-10-21 18:07:12
+@@ -0,0 +1,143 @@
++// Zinc's entry points into Hermes's runtime and its Chrome DevTools agent (zinc's tools/hermes-patches/zinc-embed.patch): the Runtime of
++// zn_hermes_create made as a HermesRuntime, so the CDP agent of API/hermes/cdp (CDPDebugAPI, CDPAgent) attaches to it, and C calls for an
++// embedder that has its own transport (zinc's src/dbg/ws.cpp) and builds against the Node-API headers alone. Built with HERMES_ENABLE_DEBUGGER;
++// without it zn_hermes_cdp_start says false.
++#include "hermes.h"
++
++#ifdef HERMES_ENABLE_DEBUGGER
++#include <hermes/cdp/CDPAgent.h>
++#include <hermes/cdp/CDPDebugAPI.h>
++#endif
++
++#include <chrono>
++#include <deque>
++#include <memory>
++#include <mutex>
++
++#define ZN_EXPORT extern "C" __attribute__((visibility("default")))
++
++using namespace facebook;
++using namespace facebook::hermes;
++
++namespace {
++HermesRuntime *gRt = nullptr;   // the process's runtime, left to the process exit as zinc leaves its engines
++#ifdef HERMES_ENABLE_DEBUGGER
++// left to the process exit with the runtime, never destroyed: their destructors at exit, after the runtime's last use, crashed
++cdp::CDPDebugAPI *gApi = nullptr;
++std::mutex gAgentMu, gTaskMu;
++auto &gAgent = *new std::unique_ptr<cdp::CDPAgent>;     // the client's; one at a time, as src/dbg/ws.cpp serves one
++auto &gTasks = *new std::deque<debugger::RuntimeTask>;  // the agent's work for the JavaScript thread, run by zn_hermes_cdp_run
++void (*gSend)(const char *, size_t) = nullptr;
++void (*gWake)() = nullptr;
++#endif
++} // namespace
++
++/// The Runtime of zn_hermes_create (zn_embed.cpp): a HermesRuntime with a microtask queue, block scoping, async generators and the JIT when
++/// \p jit (and built with it); its VM runtime, for hermes_napi_create_env.
++ZN_EXPORT void *zn_hermes_make_runtime(bool jit) {
++  gRt = makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder()
++                              .withMicrotaskQueue(true)
++                              .withES6BlockScoping(true)
++                              .withEnableAsyncGenerators(true)
++                              .withEnableJIT(jit)
++                              .build())
++            .release();
++  return gRt->getVMRuntimeUnsafe();
++}
++
++/// Starts the CDP debug API on the runtime: \p send gets each message for the client (from any thread), \p wake is called (from any thread)
++/// when work waits for zn_hermes_cdp_run on the JavaScript thread. Defines __zn_cdp_console(type, ...args), which shows a console call in
++/// DevTools' Console. False when Hermes was built without its debugger.
++ZN_EXPORT bool zn_hermes_cdp_start(void (*send)(const char *, size_t), void (*wake)()) {
++#ifdef HERMES_ENABLE_DEBUGGER
++  gSend = send;
++  gWake = wake;
++  gApi = cdp::CDPDebugAPI::create(*gRt).release();
++  auto name = jsi::PropNameID::forAscii(*gRt, "__zn_cdp_console");
++  gRt->global().setProperty(
++      *gRt,
++      name,
++      jsi::Function::createFromHostFunction(
++          *gRt,
++          name,
++          1,
++          [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *a, size_t n) {
++            const std::string t = n && a[0].isString() ? a[0].getString(rt).utf8(rt) : "log";
++            const cdp::ConsoleAPIType type = t == "error" ? cdp::ConsoleAPIType::kError
++                : t == "warn"                             ? cdp::ConsoleAPIType::kWarning
++                : t == "info"                             ? cdp::ConsoleAPIType::kInfo
++                : t == "debug"                            ? cdp::ConsoleAPIType::kDebug
++                : t == "dir"                              ? cdp::ConsoleAPIType::kDir
++                : t == "table"                            ? cdp::ConsoleAPIType::kTable
++                : t == "trace"                            ? cdp::ConsoleAPIType::kTrace
++                                                          : cdp::ConsoleAPIType::kLog;
++            std::vector<jsi::Value> args;
++            for (size_t i = 1; i < n; ++i)
++              args.emplace_back(rt, a[i]);
++            const double ms = std::chrono::duration<double, std::milli>(
++                                  std::chrono::system_clock::now().time_since_epoch())
++                                  .count();
++            gApi->addConsoleMessage({ms, type, std::move(args), gRt->getDebugger().captureStackTrace()});
++            return jsi::Value::undefined();
++          }));
++  return true;
++#else
++  (void)send;
++  (void)wake;
++  return false;
++#endif
++}
++
++/// A message of the client (from any thread): the agent is made at the first one; \p size 0 means the client went (its agent ends, a pause
++/// ends with it).
++ZN_EXPORT void zn_hermes_cdp_message(const char *json, size_t size) {
++#ifdef HERMES_ENABLE_DEBUGGER
++  std::lock_guard<std::mutex> lock(gAgentMu);
++  if (!size) {
++    gAgent.reset();
++    return;
++  }
++  if (!gAgent)
++    gAgent = cdp::CDPAgent::create(
++        1,
++        *gApi,
++        [](debugger::RuntimeTask task) {
++          {
++            std::lock_guard<std::mutex> l(gTaskMu);
++            gTasks.push_back(std::move(task));
++          }
++          gWake();
++        },
++        [](const std::string &m) { gSend(m.data(), m.size()); });
++  gAgent->handleCommand(std::string(json, size));
++#else
++  (void)json;
++  (void)size;
++#endif
++}
++
++/// The agent's work queued for the JavaScript thread, run now (on that thread). While the program runs or is paused, the debugger also runs
++/// it at its own checks; each task runs once.
++ZN_EXPORT void zn_hermes_cdp_run() {
++#ifdef HERMES_ENABLE_DEBUGGER
++  for (;;) {
++    debugger::RuntimeTask task;
++    {
++      std::lock_guard<std::mutex> l(gTaskMu);
++      if (gTasks.empty())
++        return;
++      task = std::move(gTasks.front());
++      gTasks.pop_front();
++    }
++    task(*gRt);
++  }
++#endif
++}
++
++/// Pause at the next statement the program runs, as DevTools' pause button does (--inspect-brk, on the JavaScript thread).
++ZN_EXPORT void zn_hermes_cdp_pause() {
++#ifdef HERMES_ENABLE_DEBUGGER
++  if (gApi)
++    gApi->debuggerDomainCoordinator().pause();
++#endif
++}
 diff --color -ruN a/API/napi/CMakeLists.txt b/API/napi/CMakeLists.txt
---- a/API/napi/CMakeLists.txt	2026-10-21 17:03:26
-+++ b/API/napi/CMakeLists.txt	2026-10-21 17:04:05
+--- a/API/napi/CMakeLists.txt	2026-10-21 06:04:31
++++ b/API/napi/CMakeLists.txt	2026-10-21 17:51:59
 @@ -24,6 +24,7 @@
    hermes_napi_typetag.cpp
    hermes_napi_value.cpp
@@ -11,39 +169,51 @@ diff --color -ruN a/API/napi/CMakeLists.txt b/API/napi/CMakeLists.txt
  target_include_directories(hermesNapi_obj PUBLIC
 diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
 --- a/API/napi/zn_embed.cpp	1970-01-01 01:00:00
-+++ b/API/napi/zn_embed.cpp	2026-10-21 17:04:01
-@@ -0,0 +1,100 @@
++++ b/API/napi/zn_embed.cpp	2026-10-21 17:52:37
+@@ -0,0 +1,169 @@
 +// Zinc's entry points into Hermes (zinc's tools/hermes-patches/zinc-embed.patch): what an embedder of the Node-API needs that hermes_napi.h
-+// gives only through the VM's C++ headers (a Runtime, its job queue, an optimised compile, a Static Hermes unit). Compiled into hermesNapi, so
-+// libhermesvm exports them beside napi_*, and the embedder builds against the Node-API headers alone.
++// gives only through the VM's C++ headers (a Runtime, its job queue, an optimised compile, bytecode for a file, a Static Hermes unit).
++// Compiled into hermesNapi, so libhermesvm exports them beside napi_*, and the embedder builds against the Node-API headers alone. The
++// Runtime itself and the Chrome DevTools agent are API/hermes/zn_cdp.cpp's (they need the JSI side of Hermes).
 +#include "hermes_napi_internal.h"
 +
 +#include "hermes/BCGen/HBC/BCProvider.h"
++#include "hermes/BCGen/HBC/BytecodeStream.h"
 +#include "hermes/BCGen/HBC/HBC.h"
 +#include "hermes/Public/RuntimeConfig.h"
 +#include "hermes/Support/Buffer.h"
 +#include "hermes/VM/TwineChar16.h"
 +#include "hermes/VM/static_h.h"
 +
++#include "llvh/Support/SHA1.h"
++#include "llvh/Support/raw_ostream.h"
++
++#include <cstdlib>
++#include <cstring>
 +#include <functional>
 +#include <memory>
 +
 +using namespace hermes;
 +using namespace hermes::vm;
 +
++extern "C" void *zn_hermes_make_runtime(bool jit);   // zn_cdp.cpp
++
++namespace {
++bool gDebug = false;   // zn_hermes_set_debug
++}
++
 +extern "C" {
 +
 +/// A Runtime (microtask queue, block scoping, async generators, the JIT when \p jit and built with it) and its Node-API environment. One per
-+/// process: it lives to the exit.
++/// process: it lives to the exit. The Runtime is a HermesRuntime's, so the Chrome DevTools agent of zn_cdp.cpp can attach to it.
 +NAPI_EXTERN napi_env NAPI_CDECL zn_hermes_create(bool jit) {
-+  static std::shared_ptr<Runtime> rt;
-+  rt = Runtime::create(RuntimeConfig::Builder()
-+                           .withMicrotaskQueue(true)
-+                           .withES6BlockScoping(true)
-+                           .withEnableAsyncGenerators(true)
-+                           .withEnableJIT(jit)
-+                           .build());
-+  return hermes_napi_create_env(rt.get());
++  return hermes_napi_create_env(zn_hermes_make_runtime(jit));
++}
++
++/// The scripts zn_hermes_run compiles from now on carry the full debug info (scopes and variables for a debugger) and async break checks
++/// (the debugger's requests heard while JavaScript runs).
++NAPI_EXTERN void NAPI_CDECL zn_hermes_set_debug(bool on) {
++  gDebug = on;
 +}
 +
 +/// Run the jobs (promise reactions) queued so far; an exception becomes the env's pending one.
@@ -52,6 +222,19 @@ diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
 +  if (env->runtime.drainJobs() == ExecutionStatus::EXCEPTION)
 +    return captureRuntimeException(env, napi_pending_exception);
 +  return napi_clear_last_error(env);
++}
++
++static hbc::CompileFlags flags(bool optimize) {
++  hbc::CompileFlags f;
++  f.format = Execute;
++  f.includeLibHermes = false;
++  f.enableGenerator = true;
++  f.enableES6BlockScoping = true;
++  f.enableAsyncGenerators = true;
++  f.lazy = !optimize;
++  f.debug = gDebug;
++  f.emitAsyncBreakCheck = gDebug;
++  return f;
 +}
 +
 +/// hermes_run_script with a name and a choice: \p optimize compiles eagerly through the full optimisation pipeline (what hermesc -O does),
@@ -64,18 +247,11 @@ diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
 +    bool optimize,
 +    napi_value *result) {
 +  NAPI_PREAMBLE(env);
-+  hbc::CompileFlags f;
-+  f.format = Execute;
-+  f.includeLibHermes = false;
-+  f.enableGenerator = true;
-+  f.enableES6BlockScoping = true;
-+  f.enableAsyncGenerators = true;
-+  f.lazy = !optimize;
 +  auto bc = hbc::createBCProviderFromSrc(
 +      std::make_unique<StdStringBuffer>(std::string(src, size)),
 +      url ? url : "",
 +      "",
-+      f,
++      flags(optimize),
 +      "global",
 +      nullptr,
 +      nullptr,
@@ -96,6 +272,57 @@ diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
 +  return napi_clear_last_error(env);
 +}
 +
++/// \p src compiled to a file of Hermes bytecode (what hermesc -emit-binary writes, -O with \p optimize), without a Runtime: *\p out (malloc'd,
++/// the caller frees it) runs through hermes_run_bytecode. \p url names the script in its stack traces. False with *\p error (malloc'd) when
++/// the source does not compile.
++NAPI_EXTERN bool NAPI_CDECL zn_hermes_compile(
++    const char *src,
++    size_t size,
++    const char *url,
++    bool optimize,
++    uint8_t **out,
++    size_t *outSize,
++    char **error) {
++  hbc::CompileFlags f = flags(optimize);
++  f.format = EmitBundle;
++  f.lazy = false;
++  f.debug = false;
++  f.emitAsyncBreakCheck = false;
++  auto bc = hbc::createBCProviderFromSrc(
++      std::make_unique<StdStringBuffer>(std::string(src, size)),
++      url ? url : "",
++      "",
++      f,
++      "global",
++      nullptr,
++      nullptr,
++      optimize ? std::function<void(Module &)>(hbc::fullOptimizationPipeline)
++               : std::function<void(Module &)>());
++  if (!bc.first) {
++    *error = strdup(bc.second.c_str());
++    return false;
++  }
++  std::string bytes;
++  llvh::raw_string_ostream os(bytes);
++  BytecodeGenerationOptions opts(EmitBundle);
++  opts.optimizationEnabled = optimize;
++  hbc::serializeBytecodeModule(
++      *bc.first->getBytecodeModule(),
++      llvh::SHA1::hash(llvh::makeArrayRef(
++          reinterpret_cast<const uint8_t *>(src), size)),
++      os,
++      opts);
++  os.flush();
++  *out = static_cast<uint8_t *>(malloc(bytes.size()));
++  if (!*out) {
++    *error = strdup("out of memory");
++    return false;
++  }
++  std::memcpy(*out, bytes.data(), bytes.size());
++  *outSize = bytes.size();
++  return true;
++}
++
 +/// Run a unit compiled by shermes (-c, -export-unit=<name>: \p creator is its sh_export_<name>) in this env's Runtime: native code in place of
 +/// the bundle's source, the same globals and Node-API.
 +NAPI_EXTERN napi_status NAPI_CDECL zn_hermes_run_unit(
@@ -114,8 +341,8 @@ diff --color -ruN a/API/napi/zn_embed.cpp b/API/napi/zn_embed.cpp
 +
 +} // extern "C"
 diff --color -ruN a/lib/InternalJavaScript/01-Promise.js b/lib/InternalJavaScript/01-Promise.js
---- a/lib/InternalJavaScript/01-Promise.js	2026-10-21 17:05:25
-+++ b/lib/InternalJavaScript/01-Promise.js	2026-10-21 17:05:28
+--- a/lib/InternalJavaScript/01-Promise.js	2026-10-21 06:04:31
++++ b/lib/InternalJavaScript/01-Promise.js	2026-10-21 17:51:59
 @@ -776,6 +776,19 @@
      options = options || {};
      if (enabled) disable();

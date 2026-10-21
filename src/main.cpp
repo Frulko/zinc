@@ -1338,6 +1338,46 @@ static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) 
   return run(&a);
 }
 
+// The bundle precompiled by its engine module when the module can (zn_engine_compile: Hermes's bytecode, <name>.hbc beside <name>.js, ZN-773.08),
+// which zinc run then loads instead of the source; nothing for an engine without it. `module` is the module's path (tc::engines::locate).
+static int engineCompile(const std::string& engine, const std::string& bundle, const std::string& module) {
+  void* h = zn::plat::libOpen(module, false);
+  auto compile = h ? reinterpret_cast<int (*)(const char*)>(zn::plat::libSymbol(h, "zn_engine_compile")) : nullptr;
+  if (!compile) return 0;
+  const auto t = std::chrono::steady_clock::now();
+  if (compile(bundle.c_str())) return 1;
+  zn::log::step("bytecode", engine + ", " + zn::log::shortPath(bundle), zn::log::since(t));
+  return 0;
+}
+
+// zinc build of a project on a JavaScript engine module (ZN-773.08): the program bundled for it into <out>.js (and its map), the script zinc run
+// takes as it is, and on Hermes its bytecode <out>.hbc beside it (engineCompile), which `zinc run <out>.hbc` loads instead of the source.
+static int buildEngineProgram(const std::string& engine, const std::string& entry, const std::string& out) {
+  namespace fs = std::filesystem;
+  zn::qjs::BundleOptions bo;
+  bo.engine = engine;
+  bo.entry = fs::absolute(entry).lexically_normal().string();
+  bo.stdRoot = fs::path(gRoot + "/lib/std").lexically_normal().string();
+  bo.capsFile = gRoot + "/targets/capabilities.json";
+  bo.work = zn::tc::home() + "/cache/" + engine + "/build-" + std::to_string(std::hash<std::string>{}(bo.entry));
+  bo.out = fs::absolute(out).string() + ".js";
+  bo.sourcemap = true;
+  bo.quiet = true;
+  std::string err, path;
+  if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  zn::log::step("bundle", zn::log::shortPath(bo.entry) + " for " + engine);
+  if (const int rc = zn::qjs::bundle(bo)) return rc;
+  std::string wrote = bo.out, run = bo.out + " --engine " + engine;
+  if (engine == "hermes") {   // only Hermes precompiles: the other engines' modules are not downloaded for nothing
+    if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, false, path, nullptr, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+    if (engineCompile(engine, bo.out, path)) return 1;
+    wrote += " and " + fs::absolute(out).string() + ".hbc";
+    run = fs::absolute(out).string() + ".hbc";
+  }
+  std::fprintf(stderr, "zinc: wrote %s (zinc run %s)\n", wrote.c_str(), zn::log::shortPath(run).c_str());
+  return 0;
+}
+
 // zinc export of a project on the jsc or v8 engine (ZN-773.04): zinc itself is the app's executable, signed with the JIT entitlement; the program,
 // bundled for the engine, is in Contents/Resources/app (app.js, its map, `engine`), the engine's pack in Contents/Resources/engines/<name> (code and data: icudtl.dat; or its module
 // beside zinc: jsc, built with it). On launch zinc finds Resources/app/engine and runs the program (main()).
@@ -1366,6 +1406,7 @@ static int buildEngineApp(const std::string& engine, const std::string& entry, c
   fs::copy_file(bo.capsFile, app / "capabilities.json", fs::copy_options::overwrite_existing, ec);
   zn::tc::engines::Pack pack;
   if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, true, path, &pack, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  if (engineCompile(engine, bo.out, path)) return 1;   // Hermes: app.hbc, which the app runs instead of app.js
   if (!pack.dir.empty()) { fs::create_directories(app.parent_path() / "engines", ec); fs::copy(pack.dir, app.parent_path() / "engines" / engine, fs::copy_options::recursive, ec); }
   else fs::copy_file(path, macos / fs::path(path).filename(), ec);
   if (ec) { std::fprintf(stderr, "zinc: cannot copy the %s engine into %s: %s\n", engine.c_str(), appPath.c_str(), ec.message().c_str()); return 1; }
@@ -1807,6 +1848,12 @@ int main(int argc, char** argv) {
       if (entryOfDir.empty()) { std::fprintf(stderr, "zinc: no entry in %s (zinc.json \"entry\", src/main.ts or main.ts)\n", argv[2]); return 2; }
       argv[2] = entryOfDir.data();
     }
+    static std::string bundleOfBytecode;   // <out>.hbc of zinc build: its bundle <out>.js runs, and the Hermes module loads the bytecode beside it
+    if (const std::string e = argv[2]; e.size() > 4 && e.compare(e.size() - 4, 4, ".hbc") == 0) {
+      if (engine != "hermes") { std::fprintf(stderr, "zinc: %s is Hermes bytecode: zinc run %s --engine hermes\n", argv[2], argv[2]); return 2; }
+      bundleOfBytecode = e.substr(0, e.size() - 4) + ".js";
+      argv[2] = bundleOfBytecode.data();
+    }
     qo.entry = argv[2];
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(qo.entry).string()).c_str());
     zn::log::step("engine", std::string(engineName) + " (JavaScript)");
@@ -1862,7 +1909,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName(engine == "quickjs" ? "QuickJS" : engineName);   // the perf panel (ZN-375)
 #endif
-    if (std::getenv("ZINC_INSPECT") && engine != "v8" && engine != "jsc") std::fprintf(stderr, "zinc: --inspect: an inspector attaches to --engine v8 (Chrome DevTools) or jsc (Safari) programs; zinc debug --cdp for a Zinc program\n");
+    if (std::getenv("ZINC_INSPECT") && engine == "quickjs") std::fprintf(stderr, "zinc: --inspect: an inspector attaches to --engine v8 or hermes (Chrome DevTools) or jsc (Safari) programs; zinc debug --cdp for a Zinc program\n");
     return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {
@@ -2597,6 +2644,12 @@ int main(int argc, char** argv) {
       std::fprintf(stderr, "zinc: build --bundle writes macOS bundles; the Linux AppDir is not written yet\n");
       return 2;
 #endif
+    }
+    {   // a project on a JavaScript engine module: its bundle (and Hermes's bytecode), not the AOT
+      zn::frontend::Project proj;
+      std::string perr;
+      if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+      if (proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineProgram(proj.engine, argv[2], argv[4]);
     }
     zn::log::step("engine", "Zinc, C++ AOT");
     zn::zbc::Module zm;

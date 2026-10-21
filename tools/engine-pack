@@ -9,7 +9,7 @@ of their directories and the one above go into lib/ and licenses/; the library's
 Writes <out>/engines/<name>/<version>/<host>.tar.xz and adds it to <out>/entries.json (or --entries: the file tools/index-repo entries wrote)
 with custom {kind, library, zn_engine_abi, napi, upstream}; tools/index-repo build signs the index from it.
 --upstream: the engine's own version (v8, hermes: the SDK's directory name, from ZN_V8_DIR or ZN_HERMES_DIR in <build>/CMakeCache.txt: a V8 version, a Hermes commit); --version: the pack's (default
-the upstream one). ponytail: macOS only (otool, install_name_tool); Linux packs (patchelf, $ORIGIN) come with the cross-platform pass.
+the upstream one; hermes: the SDK's `version` file, the date of the pinned commit, since a commit does not order). ponytail: macOS only (otool, install_name_tool); Linux packs (patchelf, $ORIGIN) come with the cross-platform pass.
 """
 import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile
 
@@ -63,7 +63,9 @@ def main(argv):
     upstream = opt.get("--upstream")
     if not upstream and name in ("v8", "hermes"):   # the SDK the module was built against: tools/v8-pack's <sdk>/<version>, tools/hermes-pack's <sdk>/<commit>
         cache = open(os.path.join(build, "CMakeCache.txt")).read()
-        upstream = os.path.basename(os.path.realpath(re.search(r"^ZN_%s_DIR:PATH=(.*)$" % name.upper(), cache, re.M).group(1)))
+        sdk = os.path.realpath(re.search(r"^ZN_%s_DIR:PATH=(.*)$" % name.upper(), cache, re.M).group(1))
+        upstream = os.path.basename(sdk)
+        if not opt.get("--version") and os.path.isfile(os.path.join(sdk, "version")): opt["--version"] = open(os.path.join(sdk, "version")).read().strip()
     if not upstream: print("tools/engine-pack: --upstream names the engine's version", file=sys.stderr); return 2
     version = opt.get("--version") or upstream
     stage = tempfile.mkdtemp(prefix="engine-pack-")
