@@ -1422,7 +1422,9 @@ napi_value js_readFile(napi_env c, napi_callback_info info) {
 napi_value createContext(napi_env c, int w, int h, int version = 1, napi_value attrs = nullptr) {
   auto g = std::make_unique<Gl>();
   std::string err;
-  if (version == 2) { if (!g->gl.create(Api::Gl33, w, h, err, 2) && !g->gl.create(Api::Gles3, w, h, err, 2)) return null(c); }
+  // ZINC_WEBGL_MAX=1: the GPU of an older device (GLES 2 only), which makes no WebGL 2 context, to try a program's answer to it on any machine
+  static const bool webgl1Only = [] { const char* e = std::getenv("ZINC_WEBGL_MAX"); return e && std::strcmp(e, "1") == 0; }();
+  if (version == 2) { if (webgl1Only || (!g->gl.create(Api::Gl33, w, h, err, 2) && !g->gl.create(Api::Gles3, w, h, err, 2))) return null(c); }
   else if (!g->gl.create(Api::Gl33, w, h, err) && !g->gl.create(Api::Gles2, w, h, err)) return null(c);
   g->w = w; g->h = h; g->version = version;
   bool antialias = true;   // WebGL's default

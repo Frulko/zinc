@@ -1,0 +1,1 @@
+{ "name": "js-spline", "entry": "main.js", "web": true, "requires": ["gpu>=webgl2"], "targets": { "sim": { "width": 800, "height": 500 } } }

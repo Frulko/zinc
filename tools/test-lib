@@ -9,6 +9,8 @@
 #   p5-1.11.13   p5.min.js of p5 1.11.13: lib/p5.min.js of the npm tarball p5-1.11.13.tgz (the release the p5 project publishes)
 #   gsap-3.15.0  all.js of GSAP 3.15.0: dist/all.js of the npm tarball gsap-3.15.0.tgz, GSAP with every plugin in one file (GreenSock's "no
 #                charge" licence is not an open-source one: the file is taken from GreenSock's own release, never kept in this repository)
+#   spline-runtime-2.0.98   runtime.standalone.webgl.js of @splinetool/runtime 2.0.98: Spline's runtime for the scenes made in spline.design,
+#                three.js inside, in one ES module (the package has no licence, "(c) Spline, Inc.": taken from Spline's npm release, never kept here)
 set -u
 case "${1:-}" in
   p5-1.11.13)
@@ -21,7 +23,12 @@ case "${1:-}" in
     url=https://registry.npmjs.org/gsap/-/gsap-3.15.0.tgz   # the archive's own sha256: d2e33ad202d4811e9084883f7ff9a27967ac4095caef51ca4c9d20697a253b1c
     member=package/dist/all.js
     sha=cf0a1a9dded0ac5f5caa64208af0cec045a0f2ef79e6bfd47967eaf6f707b421 ;;
-  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13, gsap-3.15.0)" >&2; exit 2 ;;
+  spline-runtime-2.0.98)
+    file=runtime.standalone.webgl.js
+    url=https://registry.npmjs.org/@splinetool/runtime/-/runtime-2.0.98.tgz   # the archive's own sha256: 263d7bceea4a658c19d4e5450a08b5fa321b0ecadbff4b2b02c655ae8b53e089
+    member=package/build/runtime.standalone.webgl.js
+    sha=acec1fc77e8936899d8d0e015ad7599529815a661179698d9f977656ac18f262 ;;
+  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13, gsap-3.15.0, spline-runtime-2.0.98)" >&2; exit 2 ;;
 esac
 sum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 dir="${ZINC_HOME:-$HOME/.zinc}/cache/test-libs/$1"

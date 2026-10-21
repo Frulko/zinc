@@ -22,6 +22,8 @@ extern "C" {
 #include "zn/js_ext.h"
 
 #ifndef ZN_ENGINE_MODULE
+#include "frontend/capabilities.h"
+#include "frontend/profile.h"
 #include "frontend/project.h"
 #endif
 #include "zn/limits.h"
@@ -236,6 +238,20 @@ bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, c
   method(env, n, "run", js_run);
   set(env, n, "base", string(env, base));
   set(env, n, "trace", boolean(env, mode == "trace"));
+#ifndef ZN_ENGINE_MODULE   // (an engine module has no frontend: there a GPU without WebGL 2 gets the warning, not the refusal)
+  // the "requires" a GPU without WebGL 2 fails and one with it meets (gpu>=webgl2, gpu>=gles3): checked when the machine makes no WebGL 2 context
+  if (std::string projectFile = zn::frontend::findProjectFile(base + "/zinc.json"), text, err; !projectFile.empty() && readText(projectFile, text)) {
+    zn::frontend::Project project;
+    if (zn::frontend::parseProject(text, project, err)) {
+      std::string need;
+      for (const std::string& r : project.requires_)
+        if (!zn::frontend::satisfied(r, {{"gpu", "webgl1"}}) && zn::frontend::satisfied(r, {{"gpu", "webgl2"}})) need = r;
+      set(env, n, "name", string(env, project.name.empty() ? std::filesystem::path(projectFile).parent_path().filename().string() : project.name));
+      set(env, n, "webgl2Need", string(env, need));
+      set(env, n, "force", boolean(env, zn::frontend::force()));
+    }
+  }
+#endif
   installCanvas2d(env, n, stdRoot);
   services(env, n);   // structuredClone and module, the engine's own
   set(env, g, "__zincWeb", n);   // the environment takes it and removes it

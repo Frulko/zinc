@@ -91,4 +91,13 @@ img.src = 'data:image/png;base64,AAAA';
 log('image', img instanceof HTMLImageElement, img.tagName, img.width, img.height, img.src.length, img.complete, document.createElement('img') instanceof Image);
 document.addEventListener('DOMContentLoaded', () => order.push('DOMContentLoaded ' + document.readyState));
 window.onload = () => order.push('load ' + document.readyState);
+new IntersectionObserver(entries => order.push('intersect ' + entries[0].isIntersecting + ' ' + entries[0].intersectionRatio + ' ' + (entries[0].target === div))).observe(div);
+// an event whose `target` the program defines itself (Spline's runtime does) keeps it through dispatch; another gets the element
+const own = new CustomEvent('own', { bubbles: true }), mine = { name: 'app' };
+Object.defineProperty(own, 'target', { writable: false, value: mine });
+div.addEventListener('own', e => log('own target', e.target === mine, e.currentTarget === div));
+div.dispatchEvent(own);
+const plain = new Event('plain');
+div.addEventListener('plain', e => log('plain target', e.target === div, Object.getOwnPropertyNames(e).includes('target')));
+div.dispatchEvent(plain);
 setTimeout(() => { for (const line of order) log(line); }, 20);   // (after the image's event, which comes a task after its bytes were read)

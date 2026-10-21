@@ -43,6 +43,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Pi Image (`zinc run image/builder`): the same build from a window, with the settings of Raspberry Pi Imager, a progress bar and the build's log.
 - The Pi image's home screen: a welcome page that shows how to send an app from your computer (remote access, a pairing code), and settings for Wi-Fi with an on-screen keyboard, remote access, SSH, the Pi's name, the background and restart or shut down. It works by touch or mouse; its bottom line shows the Zinc version and, while the Pi starts, what it is doing. Programs sent with `zinc dev --device` or `zinc device run` take the screen and the player comes back when they end. `tools/pi-image player` runs it on your computer.
 - `zinc:network` plugin: the machine's interfaces and addresses, and listing, joining and forgetting Wi-Fi networks through NetworkManager (`docs/plugins/network.md`).
+- `examples/js-spline`: a scene made in Spline (spline.design) running on Spline's own runtime, with its animations and pointer events; `tools/test-lib spline-runtime-2.0.98` fetches the runtime once.
+- A web program that needs WebGL 2 says `"requires": ["gpu>=webgl2"]`: on a machine whose GPU cannot make a WebGL 2 context it now stops with the reason (`--force` runs it anyway), and any other program gets a warning with the `null` context. `ZINC_WEBGL_MAX=1` makes any machine behave like such a GPU.
 
 ### Changed
 - LVGL runs about 1.6 times faster on the ESP32-2432S022 under `--engine mquickjs` (the widgets' Bench page: 38 fps, from 24): its hottest code runs from the internal RAM instead of the flash. A plugin lists such files under `targets.esp32.iram` in its `plugin.json`.
@@ -183,6 +185,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `--engine quickjs` loads a package that a pnpm workspace links in two places (`node_modules` symbolic links) once, by its real path; it was loaded twice, with two copies of its state.
+- The web environment has `IntersectionObserver`, and a library may define its own `target` on an event it dispatches: Spline's runtime did and failed with "'target' is read-only".
 - With `"text": "shaped"`, a space or punctuation after an emoji is as wide as in the text around it; it took the emoji font's, as wide as a picture.
 - `onCleanup` in a component rendered by a list (`{items().map(...)}`) now runs when its row goes away; it was dropped, so a row's subscriptions and handles outlived it.
 - A component's `onCleanup` that reads and sets a signal no longer makes the list it is in render again in the middle of its update (the next row was built twice and one copy freed under the program).

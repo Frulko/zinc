@@ -55,6 +55,11 @@ Where requirements are declared:
 
 - **An app, in `zinc.json`**: `"requires": ["heap>=4M", "pointer|touch"]`. `zinc build` refuses a target that does
   not meet them and says why (`hero needs heap>=4M (esp32 has heap 160K)`); `--force` builds anyway.
+  A profile says what its devices offer, not what one machine has: a program of the web environment that needs WebGL 2 says
+  `"requires": ["gpu>=webgl2"]`, which GLES 2 profiles (`rpi1`, `android`, `ios-legacy`) refuse at build time, and which is checked
+  again when it runs: on a machine whose GPU makes no WebGL 2 context (neither OpenGL 3.3 nor OpenGL ES 3.0) the program stops at its
+  first `getContext('webgl2')` and says why (`--force` lets it go on). Any other program gets a warning and the `null` a browser gives.
+  `ZINC_WEBGL_MAX=1` makes the machine behave as such a GPU, to try a program's answer to it.
 - **A plugin, in `plugin.json`**: `"requires": [...]`. Importing it on an incompatible target is an error.
 - **A module, in a leading comment**: `/** @requires heap>=192K */`. Importing it on an incompatible target prints
   a warning, e.g. the kit's `Keyboard` on a 160 KiB ESP32.
