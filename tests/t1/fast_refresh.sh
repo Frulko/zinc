@@ -73,7 +73,7 @@ echo 'setInterval(() => {}, 1000); console.log("one");' > src/main.js
 dev=$!
 waitfor "$t/q.log" "^one" 10 || { echo "the QuickJS program did not start: $(cat "$t/q.log")"; fail=1; }
 echo 'setInterval(() => {}, 1000); console.log("two");' > src/main.js
-waitfor "$t/q.log" "restart: the program runs on QuickJS, which has no Fast Refresh" 5 || { echo "no QuickJS restart line: $(cat "$t/q.log")"; fail=1; }
+waitfor "$t/q.log" "restart: the program runs on QuickJS.*, which has no Fast Refresh" 5 || { echo "no QuickJS restart line: $(cat "$t/q.log")"; fail=1; }
 waitfor "$t/q.log" "^two" 10 || { echo "the QuickJS program did not restart: $(cat "$t/q.log")"; fail=1; }
 [ $fail -eq 0 ] && echo "fast_refresh: ok (notes.tsx refreshed $ms ms after the save, home.tsx $ms2 ms)"
 exit $fail

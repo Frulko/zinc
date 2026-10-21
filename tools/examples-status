@@ -21,6 +21,7 @@ def entries():
     found = set()
     for root, dirs, files in os.walk(EXAMPLES):
         dirs[:] = [d for d in dirs if d not in ("build", "node_modules", ".git")]
+        if "link.sh" in files: dirs[:] = []; continue   # its packages are a checkout outside this repository (examples/carnet-nbe): not run here
         if "zinc.json" in files:
             try: cfg = json.load(open(os.path.join(root, "zinc.json")))
             except Exception: cfg = {}

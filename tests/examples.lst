@@ -17,6 +17,7 @@ camera/bench/src/main.ts | OK |  |
 camera/cli/src/main.ts | OK |  | 
 camera/remote/src/main.tsx | OK |  | 
 canvas/sketch/main.tsx | OK |  | 
+carnet/src/main.tsx | OK |  | 
 chataigne/src/main.tsx | OK |  | 
 flipctl/src/main.ts | OK |  | 
 gl-cube/src/main.ts | OK |  | 
