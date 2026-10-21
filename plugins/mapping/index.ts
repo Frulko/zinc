@@ -13,8 +13,16 @@ export function command(address: string, numbers: number[], strings: string[]): 
     return address === '/save' ? save(file) : load(file);
   }
   if (address === '/sync') {
-    // each /sync answers with one datagram per layer to any host: at most 10 per second (no reflection flood)
-    if (strings.length < 1 || numbers.length < 1 || Date.now() - lastSync < 100) return false;
+    // each /sync answers with one datagram per layer to any host: at most 10 per second (no reflection flood); one that comes
+    // sooner is answered when its turn comes (the last asker of the wait), not dropped: a busy app reads its datagrams in bursts
+    if (strings.length < 1 || numbers.length < 1) return false;
+    const wait = lastSync + 100 - Date.now();
+    if (wait > 0) {
+      const queued = syncHost !== '';
+      syncHost = strings[0]; syncPort = numbers[0];
+      if (!queued) setTimeout(() => { lastSync = Date.now(); const h = syncHost; syncHost = ''; sync(h, syncPort); }, wait);
+      return true;
+    }
     lastSync = Date.now();
     sync(strings[0], numbers[0]);
     return true;
@@ -23,6 +31,7 @@ export function command(address: string, numbers: number[], strings: string[]): 
 }
 
 let lastSync = -1e9;
+let syncHost = '', syncPort = 0;   // a /sync waiting for its turn ('' : none)
 /** A file name without directories ("show.json"): no separator, no "..", not hidden. */
 function plainName(f: string): boolean {
   if (f.length === 0 || f.length > 64 || f.startsWith('.')) return false;
