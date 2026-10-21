@@ -40,7 +40,4 @@ still holds `aPosition`, `aColor`, `Wvp`.
 - `color3d_v.gxp` / `color3d_f.gxp` — the compiled blobs the Vita runs.
 - `zn_gxp_3d.h` — the byte-table header generated from the two blobs.
 
-Only these three files are the pair's compiled form; the test
-`tests/t0/vita_gxp_3d.sh` checks that every blob present is a real
-GXP (`GGP\0` magic, non-empty) and, when none is checked in, exits 77 with the
-reason, never failing the build.
+Only these three files are the pair's compiled form.

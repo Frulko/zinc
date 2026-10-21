@@ -1,5 +1,5 @@
 // ZN-565: three.js draws on a WebGL 2 context the page made (`context`). It refuses one that is also `instanceof WebGLRenderingContext`
-// ("WebGL 1 is not supported"): the two interfaces are siblings. Run with ZINC_WEB=1 by tests/t1/webgl_libs.sh; the output is context.out.
+// ("WebGL 1 is not supported"): the two interfaces are siblings. Run with ZINC_WEB=1 by tests/t1/webgl_js.sh; the output is context.out.
 import * as THREE from 'three';
 const canvas = document.createElement('canvas');
 canvas.width = canvas.height = 64;

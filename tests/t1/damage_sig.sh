@@ -1,7 +1,7 @@
 #!/bin/sh
 # Compact previous frame (ZN-179): the damage rectangles computed from the 12-byte signatures of the previous frame equal those of the full diff, on pairs of real frames (hero, navigation).
 # The bulk damage of frames where most things move (ZN-402) covers those rectangles too.
-# Also the join rule of diff_rects (LVGL) leaves every frame hash unchanged: the goldens of framehash.sh and the live frame of the scene dumps.
+# Also the join rule of diff_rects (LVGL) leaves every frame hash unchanged: the live frame of the scene dumps (the goldens are framehash.sh's own test).
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
@@ -12,6 +12,5 @@ for app in examples/hero/src/main.tsx examples/maps/navigation/src/main.tsx exam
     "$ZINC" capture --scene "$t/s-$1.scn" --damage "$t/s-$2.scn" >"$t/o" || { echo "$app frames $1 -> $2: $(cat "$t/o")"; fail=1; }
   done
 done
-sh tests/t1/framehash.sh >/dev/null || { echo "framehash goldens changed"; fail=1; }
 [ $fail -eq 0 ] && echo "damage_sig: ok"
 exit $fail
