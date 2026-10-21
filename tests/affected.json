@@ -11,6 +11,7 @@
     {"paths": ["plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "docs/plugins/leapmotion.md", "docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["examples/leapmotion/", "tests/t1/leapmotion_demo.sh", "tests/golden/leapmotion/"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["examples/music/", "tests/t1/music_city_standby.sh", "tests/demo/music_notify.sh", "tests/data/music/", "tests/golden/music/"], "tests": ["music_city_standby", "music_notify"]},
+    {"paths": ["examples/carnet/", "tests/t1/carnet.sh", "tests/demo/carnet_collab.sh", "tests/data/carnet/", "tests/golden/carnet/"], "tests": ["carnet", "carnet_collab"]},
     {"paths": ["examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/data/music-tree/"], "tests": ["music_tree_sonos"]},
     {"paths": ["examples/agents/", "tests/demo/agents_chat.sh", "tests/t1/agents_memory.sh", "tests/demo/agents_markdown.sh", "tests/demo/agents_usage.sh", "tests/demo/agents_go.sh", "tests/data/agents/"], "tests": ["agents_chat", "agents_memory", "agents_markdown", "agents_usage", "agents_go"]},
     {"paths": ["lib/std/ui.ts", "tests/golden/ui-runs/", "tests/t1/ui_runs.sh"], "tests": ["ui_runs", "agents_markdown"]},

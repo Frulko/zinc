@@ -12,6 +12,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<TextArea rows={0}>` is as tall as its text and grows or shrinks as you type, like CSS `field-sizing: content`.
 - `MARK_CARET` in `ui.setMarks` draws another person's caret in a text field, and `ui.anchorOf(h)` gives the other end of a field's selection.
 - `zinc:ui/dnd`: drag and drop between nodes (`draggable`, `dropTarget`, `monitor`, closest edge, `autoScroll`), modelled on Pragmatic drag and drop, the same with a mouse, a finger or a pen; `ui.nodeAt(x, y)` gives the node under a point.
+- `examples/carnet`: a Notion-style block editor whose pages are Markdown files in a folder; every window that opens it edits the same pages live, with the others' carets shown.
 
 ### Fixed
 - `zinc check` reports an error inside a class's `static { }` block (a static it assigns that the class does not declare) instead of accepting it and crashing when the program is compiled.
