@@ -402,6 +402,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-761: deviceYearClass is missing (expo derives it from memory and CPU); add it when a program needs it.
 - 9b4290a3: e-ink displays (display-rmpp, other e-paper panels) should turn the pressed dim fade off by default (or report reduce motion), so every e-ink app avoids ghosting and a dozen partial refreshes per tap, not only the dashboard.
 - agent OTA: send a "trial running" frame so `zinc device run` needs no fixed 10 min wait for an update on trial (a longer ZINC_AGENT_TRIAL_MS still ends the session early).
+- check: an unannotated field whose initializer calls a lambda (`static x = (() => { const s: string = 5; return 1 })()`) loses every error of the lambda's body: the field's type is inferred before the class exists with the diagnostics dropped, and `expr` then returns the cached call (check.cpp:621) instead of checking it again; static blocks are fixed (b0173526), the general case accepts wrong programs. Also UBSan reports in lower.cpp:1698 and tests/fuzz/fuzz_native.cpp:41 (fuzz logs of v0.4.3).
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
