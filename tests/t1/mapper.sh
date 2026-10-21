@@ -28,5 +28,6 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do curl -s -m 1 -o 
 n=0; while [ $n -lt 600 ] && ! grep -q "OSC on udp 9000" "$tmp/app.log"; do sleep 0.1; n=$((n+1)); done   # the app compiles first (a minute on a CI runner)
 grep -q "<title>" "$tmp/page.html" 2>/dev/null || { echo "the companion does not serve the editor page"; fail=1; }
 [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/state")" = 401 ] || { echo "the API is reachable without the token"; fail=1; }
-node examples/video/mapper/companion/demo.mjs "http://127.0.0.1:$port/?token=tok" 2>&1 | grep -q "^ok:" || { echo "the scripted editor check fails against the Zinc companion"; fail=1; }
+node examples/video/mapper/companion/demo.mjs "http://127.0.0.1:$port/?token=tok" >"$tmp/demo.log" 2>&1
+grep -q "^ok:" "$tmp/demo.log" || { echo "the scripted editor check fails against the Zinc companion: $(tail -c 600 "$tmp/demo.log") / companion: $(tail -c 300 "$tmp/comp.log") / app: $(tail -c 300 "$tmp/app.log")"; fail=1; }
 exit $fail
