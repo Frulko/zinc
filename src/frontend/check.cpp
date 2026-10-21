@@ -474,6 +474,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
+        else if (x.kids.empty() && x.text == "undefined" && lookup("undefined") == kNone) r = tNull;   // a file with Dyn values keeps its `undefined` (modules.cpp): as a type it is still the null of `T | undefined`
         else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating && !libraryNode(t)) diag(kZDynInStrict, t, "`any`"); }
         else if (x.kids.empty() && x.text == "unknown" && lookup("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
@@ -545,7 +546,7 @@ struct Checker {
       case N::TypeUnion: {
         std::vector<TypeId> ms;
         bool undef = false;
-        for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) { ms.push_back(annotation(k)); undef = undef || (n(k).kind == N::TypeRef && (n(k).flags & frontend::kFlagUndefined)); }
+        for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) { ms.push_back(annotation(k)); undef = undef || (n(k).kind == N::TypeRef && ((n(k).flags & frontend::kFlagUndefined) || (n(k).text == "undefined" && n(k).kids.empty()))); }
         r = unionOf(ms, undef);
         break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
