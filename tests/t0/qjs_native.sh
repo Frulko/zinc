@@ -9,6 +9,11 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$ZINC" run tests/golden/run/native_call.ts --engine quickjs 2>&1 | diff -q - tests/golden/run/native_call.out >/dev/null || { echo "qjs_native: native_call.ts differs on QuickJS"; fail=1; }
 "$ZINC" run tests/golden/run/native_callbacks.ts --engine quickjs 2>/dev/null | diff -q - tests/golden/run/native_callbacks.out >/dev/null \
   || { echo "qjs_native: native_callbacks.ts differs on QuickJS (callbacks during a call and from a thread, promises settled from a thread)"; fail=1; }
+for e in jsc v8; do   # the engine modules bind the same native_js.cpp over their Node-API, with the same native turn in their loop (src/engine/driver.cpp)
+  [ -f "$(dirname "$ZINC")/libzn_engine_$e.dylib" ] || continue
+  "$ZINC" run tests/golden/run/native_callbacks.ts --engine $e 2>/dev/null | diff -q - tests/golden/run/native_callbacks.out >/dev/null \
+    || { echo "qjs_native: native_callbacks.ts differs on $e"; fail=1; }
+done
 cat > "$tmp/typed.ts" <<'TS'
 import { NativeModule, requireNative } from 'zinc:native';
 interface Spec extends NativeModule { sum(b: u8[]): i32; reverse(b: u8[]): u8[]; nope(): void }

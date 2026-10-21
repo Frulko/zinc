@@ -4,6 +4,7 @@
 #include "engine/driver.h"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +14,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "mbedtls/base64.h"
@@ -21,6 +23,7 @@
 #include "zn/host.h"
 #include "zn/log.h"
 #include "zn/napi_table.h"
+#include "zn/native.h"
 #include "zn/runtime.h"
 
 namespace zn::text { void installIntlSegmenter(napi_env env); }   // src/text/segmenter_js.cpp
@@ -207,6 +210,12 @@ bool drain(napi_env env) {
   return true;
 }
 
+// The native modules' turn, as qjs.cpp's: their pollers, then the callbacks and completions they queued (native_js.cpp's sink runs them), then the jobs these left.
+bool nativeTurn(napi_env env) {
+  zn_native_poll(0);
+  return zn_native_drain() == 0 || drain(env);
+}
+
 bool callFn(napi_env env, napi_value f, napi_value arg) {
   napi_value r;
   if (napi_call_function(env, undefined(env), f, arg ? 1 : 0, arg ? &arg : nullptr, &r) != napi_ok && failed(env)) return false;
@@ -243,6 +252,7 @@ bool frameLoop(napi_env env) {
     if (!ok) return false;
     napi_handle_scope scope;
     napi_open_handle_scope(env, &scope);
+    if (!nativeTurn(env)) { napi_close_handle_scope(env, scope); return ok = false; }
     napi_value setClock, due, cb, out;
     napi_get_reference_value(env, setClockRef, &setClock);
     napi_get_reference_value(env, dueRef, &due);
@@ -279,8 +289,9 @@ bool frameLoop(napi_env env) {
 
 // no frame loop yet: the timers in order, the clock jumping to each, until none is left or the program asks for frames
 bool timerLoop(napi_env env) {
-  napi_ref nextRef;
+  napi_ref nextRef, dueRef;
   napi_create_reference(env, global(env, "__nextTimer"), 1, &nextRef);
+  napi_create_reference(env, global(env, "__dueTimer"), 1, &dueRef);
   bool ok = true;
   while (ok && !wantsFrames(env)) {
     std::fflush(stdout);
@@ -288,8 +299,24 @@ bool timerLoop(napi_env env) {
     napi_open_handle_scope(env, &scope);
     napi_value next, fn;
     napi_valuetype t = napi_null;
-    napi_get_reference_value(env, nextRef, &next);
-    if (napi_call_function(env, undefined(env), next, 0, nullptr, &fn) != napi_ok) ok = !failed(env);
+    if (!nativeTurn(env)) { napi_close_handle_scope(env, scope); ok = false; break; }
+    const bool waiting = zn_native_pending() > 0;   // a native operation in flight (a thread, a server): the clock follows the wall clock, so its answer comes before a later timer
+    double clock = 0;
+    if (waiting) {
+      clock = call0(env, global(env, "__clock"));
+      napi_value now = doublev(env, clock);
+      napi_get_reference_value(env, dueRef, &next);
+      if (napi_call_function(env, undefined(env), next, 1, &now, &fn) != napi_ok) ok = !failed(env);
+      else if (napi_typeof(env, fn, &t) == napi_ok && t == napi_null) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        napi_value cv = doublev(env, clock + 1), out;
+        napi_call_function(env, undefined(env), global(env, "__setClock"), 1, &cv, &out);
+        napi_close_handle_scope(env, scope);
+        continue;
+      }
+    } else napi_get_reference_value(env, nextRef, &next);   // nothing else can happen: the clock jumps to the next timer
+    if (waiting) { if (ok && t != napi_null) ok = callFn(env, fn, nullptr); }
+    else if (napi_call_function(env, undefined(env), next, 0, nullptr, &fn) != napi_ok) ok = !failed(env);
     else if (napi_typeof(env, fn, &t) == napi_ok && t != napi_null) ok = callFn(env, fn, nullptr);
     napi_close_handle_scope(env, scope);
     if (t == napi_null) break;
