@@ -23,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `--engine quickjs` loads a package that a pnpm workspace links in two places (`node_modules` symbolic links) once, by its real path; it was loaded twice, with two copies of its state.
 - With `"text": "shaped"`, a space or punctuation after an emoji is as wide as in the text around it; it took the emoji font's, as wide as a picture.
 - `onCleanup` in a component rendered by a list (`{items().map(...)}`) now runs when its row goes away; it was dropped, so a row's subscriptions and handles outlived it.
+- A component's `onCleanup` that reads and sets a signal no longer makes the list it is in render again in the middle of its update (the next row was built twice and one copy freed under the program).
 - `zinc check` reports an error inside a class's `static { }` block (a static it assigns that the class does not declare) instead of accepting it and crashing when the program is compiled.
 - A file that uses Dyn values (`JSON.parse`...) can write `T | undefined` as a type again: it failed with Z0101 "Cannot find name 'undefined'".
 

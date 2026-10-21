@@ -45,14 +45,23 @@ function disposeOwned(c: Computation): void {
   c.owned = NO_OWN;
   for (const k of list) { k.parent = null; dispose(k); }
 }
+/** Runs a computation's cleanups untracked, as Solid does: a signal a cleanup reads does not subscribe the effect running
+ *  then (a list row's cleanup reads under the list's effect, which a set in that cleanup would run again mid-run). */
+function cleanUp(c: Computation): void {
+  if (c.cleanups.length === 0) return;
+  const prev = current;
+  current = null;
+  for (const f of c.cleanups) f();
+  current = prev;
+  c.cleanups = NO_CLN;
+}
 function dispose(c: Computation): void {
   const p = c.parent;
   if (p !== null) { const i = p.owned.indexOf(c); if (i >= 0) p.owned.splice(i, 1); c.parent = null; }
   disposeOwned(c);
   for (const s of c.sources) s.unsubscribe(c);
   c.sources = NO_SRC;
-  for (const f of c.cleanups) f();
-  c.cleanups = NO_CLN;
+  cleanUp(c);
   c.fn = NOOP;
   // leave the exit list (swap-remove): a disposed computation holds nothing, and keeping it would grow the heap by
   // every Show branch or list row ever mounted
@@ -91,8 +100,7 @@ function run(c: Computation): void {
   disposeOwned(c);
   for (const s of c.sources) s.unsubscribe(c);
   c.sources = NO_SRC;
-  for (const f of c.cleanups) f();
-  c.cleanups = NO_CLN;
+  cleanUp(c);
   const prev = current, prevOwner = owner;
   current = c; owner = c;
   c.fn();
