@@ -13,13 +13,17 @@
 #include <sstream>
 #include <vector>
 
+#ifndef ZN_ENGINE_MODULE   // the engine modules (src/engine) build the Node-API part only
 extern "C" {
 #include "../../third_party/quickjs-ng/quickjs.h"
 }
+#endif
 #include "qjs/napi_util.h"
 #include "zn/js_ext.h"
 
+#ifndef ZN_ENGINE_MODULE
 #include "frontend/project.h"
+#endif
 #include "zn/limits.h"
 #include "res/codec.h"
 #include "zn/host.h"
@@ -39,6 +43,7 @@ bool readText(const std::string& path, std::string& out) {
   return true;
 }
 
+#ifndef ZN_ENGINE_MODULE
 // ---- engine services: what only the engine itself can do, so each engine gives its own (ZN-773: here QuickJS's)
 // structuredClone(value) through QuickJS's own serializer: it keeps cycles, Map, Set, Date, RegExp, typed arrays and array buffers, and refuses a
 // function (a browser's DataCloneError)
@@ -50,6 +55,7 @@ JSValue js_structuredClone(JSContext* c, JSValueConst, int argc, JSValueConst* a
   js_free(c, buf);
   return v;
 }
+#endif
 
 // ---- files and the network, over the host's rows (so the program's permissions hold): what JavaScript cannot get through `__host_*` is bytes,
 // since a row's string result becomes a JavaScript string
@@ -169,6 +175,7 @@ napi_value js_run(napi_env c, napi_callback_info info) {
   napi_run_script(c, code, name.c_str(), &r);
   return r;
 }
+#ifndef ZN_ENGINE_MODULE
 // module(name): the namespace of a module, loaded and run now: `new URL()` cannot wait for an import. A module that imports it and leaves the
 // namespace on the global object is evaluated here; QuickJS runs a module's body at once (only its promise settles later), so one with no
 // top-level await has left it when JS_Eval returns. The import goes through the engine's own loader.
@@ -192,63 +199,69 @@ JSValue js_module(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (JS_IsUndefined(m)) return JS_ThrowInternalError(c, "module %s did not run to its end", name.c_str());
   return m;
 }
+#endif
 
 }  // namespace
 
-bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry) {
-  namespace fs = std::filesystem;
-  // the page's directory, what relative URLs resolve against: the project's (where zinc.json is, as index.html would be), else the entry's
+#ifndef ZN_ENGINE_MODULE
+std::string webMode(const std::string& entry) {
+  if (const char* v = std::getenv("ZINC_WEB"); v && *v) return std::strcmp(v, "0") ? v : "";   // ZINC_WEB=0 turns a project's "web" off, ZINC_WEB=trace names the window members a library misses
   const std::string projectFile = zn::frontend::findProjectFile(entry);
-  std::string mode;
-  if (const char* v = std::getenv("ZINC_WEB"); v && *v) mode = v;   // ZINC_WEB=0 turns a project's "web" off, ZINC_WEB=trace names the window members a library misses
-  else if (std::string text; !projectFile.empty() && readText(projectFile, text)) {
-    zn::frontend::Project project;
-    std::string err;
-    if (zn::frontend::parseProject(text, project, err) && project.web) mode = "1";
-  }
-  if (mode.empty() || mode == "0") return true;
+  std::string text;
+  zn::frontend::Project project;
+  std::string err;
+  return !projectFile.empty() && readText(projectFile, text) && zn::frontend::parseProject(text, project, err) && project.web ? "1" : "";
+}
+
+std::string webBase(const std::string& entry) {   // the page's directory, what relative URLs resolve against: the project's (where zinc.json is, as index.html would be), else the entry's
+  const std::string projectFile = zn::frontend::findProjectFile(entry);
+  return std::filesystem::path(projectFile.empty() ? entry : projectFile).parent_path().string();
+}
+#endif
+
+bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, const std::string& base, void (*services)(napi_env env, napi_value web)) {
   const std::string path = stdRoot + "/webenv.js";
   std::string js;
   if (!readText(path, js)) { std::fprintf(stderr, "zinc: the web environment is missing (%s)\n", path.c_str()); return false; }
-  const std::string base = fs::path(projectFile.empty() ? entry : projectFile).parent_path().string();
-  {   // the bindings, through Node-API (ZN-773)
-    napi_env env = napiEnv(ctx);
-    napi_value g, n;
-    napi_get_global(env, &g);
-    napi_create_object(env, &n);
-    method(env, n, "read", js_read);
-    method(env, n, "httpFetch", js_httpFetch);
-    method(env, n, "httpError", js_httpError);
-    method(env, n, "httpPoll", js_httpPoll);
-    method(env, n, "httpTake", js_httpTake);
-    method(env, n, "decode", js_decode);
-    method(env, n, "decodeImage", js_decodeImage);
-    method(env, n, "run", js_run);
-    set(env, n, "base", string(env, base));
-    set(env, n, "trace", boolean(env, mode == "trace"));
-    installCanvas2d(env, n, stdRoot);
-    set(env, g, "__zincWeb", n);   // the environment takes it and removes it
-  }
-  {   // the engine services, QuickJS's own
-    JSValue g = JS_GetGlobalObject(ctx), n = JS_GetPropertyStr(ctx, g, "__zincWeb");
-    JS_SetPropertyStr(ctx, n, "structuredClone", JS_NewCFunction(ctx, js_structuredClone, "structuredClone", 1));
-    JS_SetPropertyStr(ctx, n, "module", JS_NewCFunction(ctx, js_module, "module", 1));
-    JS_FreeValue(ctx, n);
-    JS_FreeValue(ctx, g);
-  }
-  JSValue r = JS_Eval(ctx, js.data(), js.size(), "zinc:webenv", JS_EVAL_TYPE_GLOBAL);
-  if (JS_IsException(r)) {
-    JSValue ex = JS_GetException(ctx), st = JS_GetPropertyStr(ctx, ex, "stack");
-    const char* s = JS_ToCString(ctx, ex);
-    const char* stack = JS_IsUndefined(st) ? nullptr : JS_ToCString(ctx, st);
-    std::fprintf(stderr, "zinc: the web environment failed: %s\n%s", s ? s : "exception", stack ? stack : "");
-    if (stack) JS_FreeCString(ctx, stack);
-    if (s) JS_FreeCString(ctx, s);
-    JS_FreeValue(ctx, st); JS_FreeValue(ctx, ex);
-    return false;
-  }
-  JS_FreeValue(ctx, r);
-  return true;
+  napi_value g, n, code, r;
+  napi_get_global(env, &g);
+  napi_create_object(env, &n);
+  method(env, n, "read", js_read);
+  method(env, n, "httpFetch", js_httpFetch);
+  method(env, n, "httpError", js_httpError);
+  method(env, n, "httpPoll", js_httpPoll);
+  method(env, n, "httpTake", js_httpTake);
+  method(env, n, "decode", js_decode);
+  method(env, n, "decodeImage", js_decodeImage);
+  method(env, n, "run", js_run);
+  set(env, n, "base", string(env, base));
+  set(env, n, "trace", boolean(env, mode == "trace"));
+  installCanvas2d(env, n, stdRoot);
+  services(env, n);   // structuredClone and module, the engine's own
+  set(env, g, "__zincWeb", n);   // the environment takes it and removes it
+  napi_create_string_utf8(env, js.data(), js.size(), &code);
+  if (napi_run_script(env, code, "zinc:webenv", &r) == napi_ok) return true;
+  napi_value ex, st;
+  napi_get_and_clear_last_exception(env, &ex);
+  std::string s = "exception", stack;
+  zn::napi::text(env, ex, s);
+  napi_valuetype t = napi_undefined;
+  napi_typeof(env, ex, &t);
+  if (t == napi_object && napi_get_named_property(env, ex, "stack", &st) == napi_ok && isString(env, st)) zn::napi::text(env, st, stack);
+  std::fprintf(stderr, "zinc: the web environment failed: %s\n%s", s.c_str(), stack.c_str());
+  return false;
 }
+
+#ifndef ZN_ENGINE_MODULE
+bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry) {
+  const std::string mode = webMode(entry);
+  if (mode.empty()) return true;
+  return webEnv(napiEnv(ctx), stdRoot, mode, webBase(entry), [](napi_env env, napi_value web) {   // QuickJS's serializer and module loader
+    JSContext* c = contextOf(env);
+    set(env, web, "structuredClone", zn_napi_inline::push(env, JS_NewCFunction(c, js_structuredClone, "structuredClone", 1)));
+    set(env, web, "module", zn_napi_inline::push(env, JS_NewCFunction(c, js_module, "module", 1)));
+  });
+}
+#endif
 
 }  // namespace zn::qjs

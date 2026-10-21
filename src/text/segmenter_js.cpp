@@ -62,7 +62,9 @@ const char* kShim = R"JS(
 })(globalThis);
 )JS";
 
-void install(napi_env env) {
+}  // namespace
+
+void installIntlSegmenter(napi_env env) {
   napi_value global, fn, src, r;
   napi_get_global(env, &global);
   napi_create_function(env, "__zincSegBreaks", NAPI_AUTO_LENGTH, js_breaks, nullptr, &fn);
@@ -71,8 +73,8 @@ void install(napi_env env) {
   napi_run_script(env, src, "<intl-segmenter>", &r);
 }
 
-}  // namespace
-
-void installSegmenter() { zn::qjs::addContextHook(install); }
+#ifndef ZN_ENGINE_MODULE
+void installSegmenter() { zn::qjs::addContextHook(installIntlSegmenter); }
+#endif
 
 }  // namespace zn::text

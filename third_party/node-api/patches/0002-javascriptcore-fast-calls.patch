@@ -1,0 +1,160 @@
+diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javascriptcore.cc
+--- a/src/js_native_api_javascriptcore.cc	2026-10-21 13:51:27
++++ b/src/js_native_api_javascriptcore.cc	2026-10-21 13:51:27
+@@ -442,15 +442,31 @@
+                               napi_callback cb,
+                               void* data,
+                               napi_value* result) {
++      // zinc (ZN-773): one callable class for every function, the info its private data. JsRuntimeHost linked a sentinel object under a
++      // symbol and looked it up at each call (three API calls, about 250 ns); JSObjectGetPrivate is one.
++      if (env->function_class == nullptr) {
++        JSClassDefinition definition{kJSClassDefinitionEmpty};
++        definition.className = "Function";
++        definition.attributes = kJSClassAttributeNoAutomaticPrototype;
++        definition.callAsFunction = CallAsFunction;
++        definition.finalize = Finalize;
++        env->function_class = JSClassCreate(&definition);
++        JSValueRef exception{};
++        JSValueRef ctor{JSObjectGetProperty(env->context, JSContextGetGlobalObject(env->context), JSString("Function"), &exception)};
++        CHECK_JSC(env, exception);
++        JSValueRef proto{JSObjectGetProperty(env->context, JSValueToObject(env->context, ctor, nullptr), JSString("prototype"), &exception)};
++        CHECK_JSC(env, exception);
++        env->function_prototype = JSValueToObject(env->context, proto, nullptr);
++        JSValueProtect(env->context, env->function_prototype);
++      }
+       FunctionInfo* info{new FunctionInfo(env, cb, data)};
+-      if (info == nullptr) {
+-        return napi_set_last_error(env, napi_generic_failure);
++      JSObjectRef function{JSObjectMake(env->context, env->function_class, info)};
++      JSObjectSetPrototype(env->context, function, env->function_prototype);
++      if (utf8name != nullptr) {
++        JSObjectSetProperty(env->context, function, JSString("name"), JSValueMakeString(env->context, JSString(utf8name, length)),
++                            kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontEnum, nullptr);
+       }
+ 
+-      JSObjectRef function{JSObjectMakeFunctionWithCallback(env->context, JSString(utf8name), CallAsFunction)};
+-      JSObjectRef sentinel{JSObjectMake(env->context, info->_class, info)};
+-      CHECK_NAPI(NativeInfo::Link<FunctionInfo>(env, function, sentinel));
+-
+       *result = ToNapi(function);
+       return napi_ok;
+     }
+@@ -461,16 +477,8 @@
+       , _env{env}
+       , _cb{cb}
+       , _data{data} {
+-      JSClassDefinition definition{kJSClassDefinitionEmpty};
+-      definition.className = "Native";
+-      definition.finalize = Finalize;
+-      _class = JSClassCreate(&definition);
+     }
+ 
+-    ~FunctionInfo() {
+-      JSClassRelease(_class);
+-    }
+-
+     // JSObjectCallAsFunctionCallback
+     static JSValueRef CallAsFunction(JSContextRef ctx,
+                                      JSObjectRef function,
+@@ -478,11 +486,8 @@
+                                      size_t argumentCount,
+                                      const JSValueRef arguments[],
+                                      JSValueRef* exception) {
+-      napi_env env{ToNapi(JSContextGetGlobalContext(ctx))};
+-      FunctionInfo* info = NativeInfo::Query<FunctionInfo>(env, function, exception);
+-      if (*exception) {
+-        return nullptr;
+-      }
++      FunctionInfo* info = NativeInfo::Get<FunctionInfo>(function);
++      napi_env env{info->_env};
+ 
+       // Make sure any errors encountered last time we were in N-API are gone.
+       napi_clear_last_error(env);
+@@ -502,7 +507,7 @@
+         return nullptr;
+       }
+ 
+-      return ToJSValue(result);
++      return result != nullptr ? ToJSValue(result) : env->undefined_value;   // zinc: a callback that returns nothing gives undefined (JSC reads NULL as an empty value)
+     }
+ 
+     // JSObjectFinalizeCallback
+@@ -515,7 +520,6 @@
+     napi_env _env;
+     napi_callback _cb;
+     void* _data;
+-    JSClassRef _class;
+   };
+ 
+   template<typename T, NativeType TType>
+@@ -1495,7 +1499,7 @@
+ napi_status napi_get_boolean(napi_env env, bool value, napi_value* result) {
+   CHECK_ENV(env);
+   CHECK_ARG(env, result);
+-  *result = ToNapi(JSValueMakeBoolean(env->context, value));
++  *result = ToNapi(value ? env->true_value : env->false_value);
+   return napi_ok;
+ }
+ 
+@@ -1607,14 +1611,14 @@
+ napi_status napi_get_undefined(napi_env env, napi_value* result) {
+   CHECK_ENV(env);
+   CHECK_ARG(env, result);
+-  *result = ToNapi(JSValueMakeUndefined(env->context));
++  *result = ToNapi(env->undefined_value);
+   return napi_ok;
+ }
+ 
+ napi_status napi_get_null(napi_env env, napi_value* result) {
+   CHECK_ENV(env);
+   CHECK_ARG(env, result);
+-  *result = ToNapi(JSValueMakeNull(env->context));
++  *result = ToNapi(env->null_value);
+   return napi_ok;
+ }
+ 
+@@ -1640,7 +1644,7 @@
+ 
+     if (i < *argc) {
+       for (; i < *argc; i++) {
+-        argv[i] = ToNapi(JSValueMakeUndefined(env->context));
++        argv[i] = ToNapi(env->undefined_value);
+       }
+     }
+   }
+diff --color -ru a/src/js_native_api_javascriptcore.h b/src/js_native_api_javascriptcore.h
+--- a/src/js_native_api_javascriptcore.h	2026-10-21 13:51:27
++++ b/src/js_native_api_javascriptcore.h	2026-10-21 13:51:27
+@@ -28,6 +28,12 @@
+   JSValueRef reference_info_symbol{};
+   JSValueRef wrapper_info_symbol{};
+ 
++  // zinc (ZN-773): the class of every native function (its callAsFunction reads the function's own private data) and Function.prototype, its prototype
++  JSClassRef function_class{};
++  JSObjectRef function_prototype{};
++  // and the immediates, made once: each JSValueMake* takes the VM's lock, which a native callback has dropped (about 10 ns each)
++  JSValueRef undefined_value{}, null_value{}, true_value{}, false_value{};
++
+   // Escapable scope bookkeeping: token -> whether that scope has escaped. Values
+   // are rooted by the engine rather than by a scope here, so this exists only to
+   // honour the one-escape-per-scope rule and to reject tokens that are not open.
+@@ -41,6 +47,10 @@
+   napi_env__(JSGlobalContextRef context) : context{context} {
+     napi_envs[context] = this;
+     JSGlobalContextRetain(context);
++    undefined_value = JSValueMakeUndefined(context);
++    null_value = JSValueMakeNull(context);
++    true_value = JSValueMakeBoolean(context, true);
++    false_value = JSValueMakeBoolean(context, false);
+     init_symbol(constructor_info_symbol, "BabylonNative_ConstructorInfo");
+     init_symbol(function_info_symbol, "BabylonNative_FunctionInfo");
+     init_symbol(reference_info_symbol, "BabylonNative_ReferenceInfo");
+@@ -48,6 +58,8 @@
+   }
+ 
+   ~napi_env__() {
++    if (function_prototype) JSValueUnprotect(context, function_prototype);
++    if (function_class) JSClassRelease(function_class);
+     deinit_refs();
+     deinit_symbol(wrapper_info_symbol);
+     deinit_symbol(reference_info_symbol);

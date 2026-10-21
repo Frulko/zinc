@@ -339,6 +339,19 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   std::vector<Collected> mods;
   std::string err;
   if (!collect(o.entry, o.stdRoot, o.cacheDir, mods, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+  // a script for an engine with no module loader (ZN-773): the modules webenv.js loads by name at run time are linked in, named in a registry
+  const bool script = o.engine != "quickjs";
+  std::string registry;   // the registry module's file, walked as the program's imports are (zinc:audio is a plugin, found from the program's project)
+  if (script && !webMode(o.entry).empty()) {
+    registry = fs::path(o.work).lexically_normal().string() + "/zinc-registry.js";
+    std::error_code ec;
+    fs::create_directories(o.work, ec);
+    std::vector<Collected> more;
+    if (!writeText(registry, "import * as web from 'zinc:web';\nimport * as audio from 'zinc:audio';\nglobalThis.__zincModules = { 'zinc:web': web, 'zinc:audio': audio };\n") ||
+        !collect(registry, o.stdRoot, o.cacheDir, more, err, o.entry)) { std::fprintf(stderr, "%s\n", err.empty() ? ("zinc bundle: cannot write " + registry).c_str() : err.c_str()); return 1; }
+    for (Collected& c : more)
+      if (std::none_of(mods.begin(), mods.end(), [&](const Collected& m) { return m.name == c.name; })) mods.push_back(std::move(c));
+  }
   watched.clear();
   std::map<std::string, std::size_t> at;
   for (std::size_t i = 0; i < mods.size(); ++i) { at[mods[i].name] = i; if (mods[i].name[0] == '/' && !mods[i].bare) watched.push_back(mods[i].name); }
@@ -349,7 +362,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   bool hasPackages = false;
   for (const Collected& c : mods) {
     hasPackages = hasPackages || (c.bare && !c.host);
-    if (c.bare || c.host || c.name.rfind("zinc:", 0) == 0 || c.name.rfind(libRoot + "/", 0) == 0) continue;
+    if (script || c.bare || c.host || c.name.rfind("zinc:", 0) == 0 || c.name.rfind(libRoot + "/", 0) == 0) continue;
     for (const std::string& w : quickjsLint(c.js, c.name)) { std::fprintf(stderr, "%s\n", w.c_str()); warnings++; ownWhat.insert(w.substr(w.find("warning Q0001: "))); }
   }
   if (o.check) {
@@ -367,12 +380,23 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     std::map<std::string, std::string> to;
     for (const auto& [spec, resolved] : c.deps) {
       auto it = at.find(resolved);
+      if (script && it != at.end() && mods[it->second].host) { to[spec] = stage + "/zinc-native.js"; continue; }   // a script imports nothing: zinc:native is linked in
       if (it == at.end() || mods[it->second].host || (mods[it->second].bare && spec[0] != '.' && spec[0] != '/')) continue;   // zinc:native; a package name stays for esbuild, the one resolver of every link (the loader's own guess ignored exports conditions and the browser field)
       to[spec] = stagedPath(stage, mods[it->second]);
     }
     const std::string text = relink(c.js, to);
     if (!writeText(stagedPath(stage, c), text)) { std::fprintf(stderr, "zinc bundle: cannot write %s\n", stagedPath(stage, c).c_str()); return 2; }
     hashInput += c.name + '\n' + text + '\n';
+  }
+  std::string linkEntry = stagedPath(stage, mods[0]);
+  if (script) {   // the entry of the link imports the registry first, then the program; it exports nothing, so the output is a plain script
+    const std::string first = registry.empty() ? "" : "import " + jsonString(stagedPath(stage, mods[at[registry]])) + ";\n";
+    linkEntry = stage + "/zinc-entry.js";
+    if (!writeText(stage + "/zinc-native.js", kNativeModule) || !writeText(linkEntry, first + "import " + jsonString(stagedPath(stage, mods[0])) + ";\n")) {
+      std::fprintf(stderr, "zinc bundle: cannot write %s\n", linkEntry.c_str());
+      return 2;
+    }
+    hashInput += kNativeModule + std::string("\n") + first;
   }
   // link
   const std::string caps = capsJson(o.capsFile);
@@ -387,13 +411,15 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     if (fs::is_directory(d / "node_modules", ec)) nodePath += (nodePath.empty() ? "" : sep) + (d / "node_modules").string();
     if (d == d.root_path()) break;
   }
-  std::string cmd = (nodePath.empty() ? "" : "NODE_PATH=" + quote(nodePath) + " ") + quote(o.esbuild) + " " + quote(stagedPath(stage, mods[0])) +
+  std::string cmd = (nodePath.empty() ? "" : "NODE_PATH=" + quote(nodePath) + " ") + quote(o.esbuild) + " " + quote(linkEntry) +
       " --bundle --format=esm" + (web ? webResolveFlags(o.minify) : std::string(" --platform=neutral --target=es2023 --main-fields=module,main") + " --define:process.env.NODE_ENV=" + quote(o.minify ? "\"production\"" : "\"development\"")) + " --charset=utf8 --legal-comments=none --log-level=warning --color=false"
       " --external:zinc:native --outfile=" + quote(o.out) +
       " --banner:js=" + quote("// zinc-bundle-entry: " + fs::path(o.entry).lexically_relative(fs::path(o.out).parent_path()).generic_string()) +   // zinc run bakes the fonts from its files
-      " --define:__ZINC_ENGINE__=" + quote("\"quickjs\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +
+      " --define:__ZINC_ENGINE__=" + quote("\"" + o.engine + "\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +
       " --define:__ZINC_PROFILE__=" + quote("\"" + capsField(caps, "PROFILE") + "\"") + " --define:__ZINC_CAPS__=" + quote(caps) +
-      (o.minify ? " --minify --keep-names" : "") + (o.sourcemap ? " --sourcemap --sources-content=false" : "");
+      (script ? " --supported:import-meta=false" : "") +   // a script has no import.meta: esbuild leaves it empty instead of a syntax error
+      // a class esbuild renames for a clash (Blob -> _Blob) keeps its name, as the unbundled run shows it
+      (o.minify ? " --minify --keep-names" : script ? " --keep-names" : "") + (o.sourcemap ? " --sourcemap --sources-content=false" : "");
   // the content-hash cache: the same staged modules and the same command give the same bundle, so esbuild does not run again
   const std::string key = std::to_string(std::hash<std::string>{}(hashInput + cmd)), keyFile = o.work + "/last-bundle";
   std::string lastKey;
@@ -413,6 +439,15 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     }
     std::fputs(log.c_str(), stderr);
     if (rc != 0) { std::fprintf(stderr, "zinc bundle: esbuild failed\n"); return 1; }
+    if (script) {   // the program in an async function: top-level await works in a script, and the function's promise is the program's (its rejection is the uncaught exception)
+      std::string text;
+      readText(o.out, text);
+      const std::size_t nl = text.find('\n'), map = text.rfind("//# sourceMappingURL=");
+      if (nl == std::string::npos) { std::fprintf(stderr, "zinc bundle: esbuild wrote no banner\n"); return 1; }
+      const std::size_t tail = map == std::string::npos || map < nl ? text.size() : map;
+      text = text.substr(0, nl + 1) + "(async function () { \"use strict\"; " + text.substr(nl + 1, tail - nl - 1) + "})();\n" + text.substr(tail);   // on line 2: the source map's lines hold
+      if (!writeText(o.out, text)) return 2;
+    }
     if (o.sourcemap) {   // the map's sources: the files the user wrote, relative to the bundle (esbuild names the staged copies)
       std::string map;
       if (readText(o.out + ".map", map)) {
@@ -440,7 +475,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   }
   std::string bundled;
   readText(o.out, bundled);
-  if (!web && hasPackages) {   // the packages are linked by esbuild, never walked: lint the linked text for what QuickJS-ng lacks (a package may guard its use with typeof)
+  if (!web && !script && hasPackages) {   // the packages are linked by esbuild, never walked: lint the linked text for what QuickJS-ng lacks (a package may guard its use with typeof)
     std::set<std::string> seen = ownWhat;
     for (const std::string& w : quickjsLint(bundled, o.out)) {
       const std::string what = w.substr(w.find("warning Q0001: "));
@@ -451,6 +486,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   }
   std::string line = "zinc bundle: " + zn::log::shortPath(o.out) + " " + std::to_string((bundled.size() + 512) / 1024) + " KB, " + std::to_string(mods.size()) + " modules" +
                      (cached ? " (unchanged)" : "");
+  if (o.bytecode && script) { std::fprintf(stderr, "zinc bundle: --bytecode is QuickJS's, not %s's\n", o.engine.c_str()); return 2; }
   if (o.bytecode) {   // emit: QuickJS bytecode beside it, for a start without parsing
     std::string bytes;
     const std::string qbc = (endsWith(o.out, ".js") ? o.out.substr(0, o.out.size() - 3) : o.out) + ".qbc";

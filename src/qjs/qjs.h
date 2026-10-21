@@ -27,8 +27,9 @@ int run(const Options& o);
 // the linker does. `host`: a module the host provides at run time (zinc:native), never bundled.
 struct Collected { std::string name, js; std::vector<std::pair<std::string, std::string>> deps; bool bare = false, host = false; };
 // Walks the program from `entry` with the loader `run` uses (relative files, importmap.json, zinc: modules, plugins), transforming each module;
-// static imports only. False with `err` set (a transform diagnostic, a syntax error, a missing file).
-bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err);
+// static imports only. False with `err` set (a transform diagnostic, a syntax error, a missing file). `program`: the file whose project finds the
+// plugins and the import map when `entry` is a module name (zinc:audio for a script bundle's registry); "" for `entry` itself.
+bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program = "");
 
 // The link flags a web build shares: `zinc export --target web` (zinc bundle --profile web) and the dependency pre-bundling of `zinc dev --target web`
 // (src/cli_web_deps.cpp) resolve packages the same way, esbuild's own resolver for a browser (package.json "exports" with the browser / import /
@@ -43,6 +44,7 @@ struct BundleOptions {
   std::string capsFile;              // targets/capabilities.json: the profile's row folded in as __ZINC_CAPS__
   std::string stageDir;              // zinc dev --target web: the modules unbundled into this directory with relative imports (stage.json lists them), esbuild does not run
   bool minify = false, sourcemap = false, bytecode = false, check = false, watch = false, quiet = false;
+  std::string engine = "quickjs";     // another engine (jsc, v8, ZN-773): one script with zinc:native and the registry webenv.js loads from linked in, in an async function
   bool keepPackages = false;         // with stageDir: leave the imports of node_modules packages as written, for a bundler that resolves them (the Vite plugin)
 };
 // zinc bundle: the exit code (0, 1 when the program has errors, 2 for a usage or tool problem).
@@ -65,6 +67,11 @@ extern const char* kNativeModule;
 // src/qjs/webenv.cpp: the web environment (window, document, events, storage, network: lib/std/webenv.js), installed when the program asks for it
 // (ZINC_WEB=1, or "web" in its zinc.json); nothing otherwise. False with the error printed.
 bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry);
+// The same over Node-API, for every engine: `mode` and `base` as webMode and webBase give them, `services` adds the engine's structuredClone and
+// module(name) to the bindings object. webMode: "" when the program does not ask for the environment, else "1" or "trace".
+bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, const std::string& base, void (*services)(napi_env env, struct napi_value__* web));
+std::string webMode(const std::string& entry);
+std::string webBase(const std::string& entry);
 
 extern const char* kPrelude;
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)

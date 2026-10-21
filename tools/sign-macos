@@ -26,9 +26,8 @@ ID=${ZINC_SIGN_IDENTITY:-"Developer ID Application: (dry run)"}
 PROFILE=${ZINC_NOTARY_PROFILE:-dry-run}
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 step() { echo "+ $*"; [ $dry -eq 1 ] || "$@"; }
-# zinc loads the plugin libraries a user compiles on their machine (signed ad hoc): the hardened runtime must not refuse them
-ent="$work/zinc.entitlements"
-printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>com.apple.security.cs.disable-library-validation</key><true/></dict></plist>\n' > "$ent"
+# targets/macos/zinc.entitlements: the plugin libraries a user compiles (signed ad hoc) load under the hardened runtime, and JavaScriptCore and V8 may JIT
+ent="$(cd "$(dirname "$0")/.." && pwd)/targets/macos/zinc.entitlements"
 sign() {   # sign <dir of zinc> <dir of the bundled dylibs> <share/zinc>: the plugins' libraries too (ZN-718): notarization refuses an unsigned Mach-O
   for f in "$2"/*.dylib "$1"/*.dylib "$3"/plugins/*/prebuilt/macos/*.dylib; do
     [ $dry -eq 1 ] || [ -e "$f" ] || continue   # an empty glob (no bundled dylib) stays as written

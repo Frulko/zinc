@@ -31,7 +31,7 @@ extern HostFast hostFast[kHostFastRows];
 }  // namespace zn::host
 namespace zrt { extern std::int32_t surf_w, surf_h; }   // the surface in logical pixels (runtime/zrt.cpp): AOT code reads width() / height() there, inline (ZN-399)
 namespace zn::host {
-inline HostCall hostSys = nullptr;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
+extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together
 void installSys();
@@ -40,7 +40,7 @@ void installGl();      // zinc:gl in an AOT program (ZN-562): its rows go to zn_
 const void* glPresentHooks();   // the zn::gl::PresentHooks (src/gl/webgl_js.h) that write a WebGL canvas into a zinc:gfx image (src/host/gfx_host.cpp)
 // Draws one frame of the program now, from inside Rt::HostGfxPoll (the window HAL's zrt_redraw while macOS holds the loop in a live resize): the
 // engine running the poll sets it for the call's duration (src/rt/rtcalls.cpp, src/qjs/qjs.cpp); null outside a poll, where the program is mid-frame.
-inline void (*redraw)() = nullptr;
+extern void (*redraw)();   // defined once in src/rt/rtcalls.cpp, never inline: the engine modules (ZN-773) must see zinc's own
 inline bool gfxStarted = false;  // the surface exists (the first graphics call starts it): AOT code calls startGfx before it reads surf_w / surf_h inline
 void startGfx();
 // The engine splash (ZN-446, src/host/splash.cpp): opens the window and presents the splash entry of ZINC_SPLASH (a file) or of the base packs'

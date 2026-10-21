@@ -41,6 +41,7 @@
 #include "zn/hostsys.h"
 #include "zn/platform.h"
 #include "qjs/qjs.h"
+#include "zn/engine.h"
 #ifdef ZN_HOST_LIBS
 #define HOSTLIBS + (window ? std::string(" ") + hostLibs() : std::string())   // the window library the host links (@bin@: the directory of this zinc, ZN-333)
 #else
@@ -1288,6 +1289,50 @@ static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: t
 #ifdef ZN_WINDOW_MODULE
 extern "C" int zn_window_load(void);   // src/host/window_module.cpp (ZN-592.01)
 #endif
+// The JavaScript engines beside QuickJS (ZN-773, include/zn/engine.h): a module per engine, $ZINC_ENGINE_<NAME> or beside zinc (libzn_engine_jsc on macOS:
+// the system's JavaScriptCore), that runs the program bundled into one script (zinc bundle --engine <name>).
+static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) {
+  namespace fs = std::filesystem;
+  std::string upper = name;
+  for (char& ch : upper) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  const char* env = std::getenv(("ZINC_ENGINE_" + upper).c_str());
+#if defined(__APPLE__)
+  const std::string file = "libzn_engine_" + name + ".dylib";
+#else
+  const std::string file = "libzn_engine_" + name + ".so";
+#endif
+  const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+  void* h = zn::plat::libOpen(path, false);
+  auto run = h ? reinterpret_cast<zn_engine_run_fn>(zn::plat::libSymbol(h, "zn_engine_run")) : nullptr;
+  if (!run) { std::fprintf(stderr, "zinc: the %s engine is not installed (%s): %s\n", name.c_str(), path.c_str(), h ? "no zn_engine_run" : zn::plat::libError().c_str()); return 2; }
+  zn::qjs::BundleOptions bo;
+  bo.engine = name;
+  bo.entry = fs::absolute(qo.entry).lexically_normal().string();
+  bo.stdRoot = fs::path(qo.stdRoot).lexically_normal().string();
+  bo.capsFile = gRoot + "/targets/capabilities.json";
+  bo.cacheDir = qo.cacheDir;
+  bo.work = zn::tc::home() + "/cache/" + name + "/" + std::to_string(std::hash<std::string>{}(bo.entry));
+  bo.out = bo.work + "/bundle.js";
+  bo.quiet = true;
+  bo.sourcemap = true;   // the traces name the user's files (zn_engine_args::map_stack)
+  std::string err;
+  if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n  the %s engine runs the program bundled by esbuild %s (downloaded and verified once)\n", err.c_str(), name.c_str(), zn::tc::esbuildVersion().c_str()); return 2; }
+  zn::log::step("bundle", zn::log::shortPath(bo.entry));
+  if (const int rc = zn::qjs::bundle(bo)) return rc == 1 ? 101 : rc;
+  const std::string caps = zn::qjs::capsJson(bo.capsFile);
+  const std::string web = zn::qjs::webMode(bo.entry), base = zn::qjs::webBase(bo.entry);
+  zn_engine_args a{ZN_ENGINE_ABI, bo.out.c_str(), bo.entry.c_str(), bo.stdRoot.c_str(), caps.c_str(), web.c_str(), base.c_str(),
+                   reinterpret_cast<void*>(zn::host::hostGfx), reinterpret_cast<void*>(zn::host::hostSys), reinterpret_cast<void*>(zn::host::hostLayout),
+                   &zn::host::redraw, &zn::frontend::gNativeProvider, nullptr,
+                   reinterpret_cast<void*>(static_cast<bool (*)(const uint8_t*, size_t, int&, int&, std::vector<uint8_t>&)>(zn::res::decodeRgba)),
+                   reinterpret_cast<void*>(static_cast<bool (*)(const uint8_t*, size_t, int&, int&)>(zn::res::imageSize)),
+                   reinterpret_cast<void*>(zn::qjs::mapStack)};
+#ifdef ZN_HOST_GFX
+  a.gl_present_hooks = zn::host::glPresentHooks;
+#endif
+  return run(&a);
+}
+
 static void* webglLib(bool quiet) {
   static void* h = []() -> void* {
     namespace fs = std::filesystem;
@@ -1610,10 +1655,12 @@ int main(int argc, char** argv) {
   zn::qjs::addContextHook(webglHook);
   zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
-    if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
-    if (const char* hotFd = std::getenv("ZINC_HOT_FD")) {   // zinc dev's child: no Fast Refresh on QuickJS (docs/dev-mode.md), a save restarts it
-      static const char kOff[] = "hot off the program runs on QuickJS, which has no Fast Refresh\n";
-      if (write(std::atoi(hotFd), kOff, sizeof kOff - 1) < 0) {}
+    const std::string engine = argv[4];
+    if (engine != "quickjs" && engine != "jsc" && engine != "v8") { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs, jsc, v8)\n", argv[4]); return 2; }
+    const char* engineName = engine == "quickjs" ? "QuickJS-ng" : engine == "jsc" ? "JavaScriptCore" : "V8";
+    if (const char* hotFd = std::getenv("ZINC_HOT_FD")) {   // zinc dev's child: no Fast Refresh on the JavaScript engines (docs/dev-mode.md), a save restarts it
+      const std::string off = std::string("hot off the program runs on ") + engineName + ", which has no Fast Refresh\n";
+      if (write(std::atoi(hotFd), off.data(), off.size()) < 0) {}
     }
     zn::qjs::Options qo;
     static std::string entryOfDir;   // a project directory runs its entry (zinc.json "entry", src/main.ts...), as `zinc run <dir>` does
@@ -1628,7 +1675,7 @@ int main(int argc, char** argv) {
     }
     qo.entry = argv[2];
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(qo.entry).string()).c_str());
-    zn::log::step("engine", "QuickJS-ng (JavaScript)");
+    zn::log::step("engine", std::string(engineName) + " (JavaScript)");
     const auto preparedAt = std::chrono::steady_clock::now();
     zn::log::step("prepare", "project, plugins and resources...");
     qo.stdRoot = gRoot + "/lib/std";
@@ -1677,11 +1724,11 @@ int main(int argc, char** argv) {
 #endif
     zn::log::step("prepare", "project, plugins and resources ready", zn::log::since(preparedAt));
     printPlugins();
-    zn::log::write("run", zn::log::Info, "engine QuickJS-ng");   // ZN-368
+    zn::log::write("run", zn::log::Info, std::string("engine ") + engineName);   // ZN-368
 #ifdef ZN_HOST_GFX
-    zn::host::setEngineName("QuickJS");   // the perf panel (ZN-375)
+    zn::host::setEngineName(engine == "quickjs" ? "QuickJS" : engineName);   // the perf panel (ZN-375)
 #endif
-    return zn::qjs::run(qo);
+    return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {
     // zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]; zinc check --engine quickjs [entry|dir] is its --check
@@ -1700,7 +1747,10 @@ int main(int argc, char** argv) {
       else if (a == "--watch") bo.watch = true;
       else if (a == "--keep-packages") bo.keepPackages = true;   // --stage: the imports of node_modules stay as written (a bundler resolves them)
       else if (a == "--stage" && k + 1 < argc) bo.stageDir = fs::absolute(argv[++k]).lexically_normal().string();   // zinc dev --target web: the modules unbundled
-      else if (a == "--target" && k + 1 < argc) { if (std::strcmp(argv[++k], "quickjs")) { std::fprintf(stderr, "zinc bundle: the only target is quickjs\n"); return 2; } }
+      else if ((a == "--target" || a == "--engine") && k + 1 < argc) {   // the engine the bundle is for: QuickJS (a module), jsc or v8 (one script, ZN-773)
+        bo.engine = argv[++k];
+        if (bo.engine != "quickjs" && bo.engine != "jsc" && bo.engine != "v8") { std::fprintf(stderr, "zinc bundle: unknown engine %s (quickjs, jsc, v8)\n", bo.engine.c_str()); return 2; }
+      }
       else if (a[0] != '-') target = a;
       else { std::fprintf(stderr, "zinc bundle: unknown option %s\nusage: zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]\n", a.c_str()); return 2; }
     }

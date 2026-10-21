@@ -623,13 +623,13 @@ std::string exceptionText(JSContext* ctx) {
 
 }  // namespace
 
-bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err) {
+bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program) {
   Walk w;
   w.e.stdRoot = stdRoot;
   w.e.cacheDir = cacheDir;
-  w.e.entry = entry;
+  w.e.entry = program.empty() ? entry : program;
   {   // importmap.json next to the entry, as run reads it
-    std::string text, dir = dirOf(entry);
+    std::string text, dir = dirOf(w.e.entry);
     if (readFile(dir + "/importmap.json", text)) {
       yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
       yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;

@@ -160,7 +160,6 @@ const char* kPrelude = R"JS(
 })(globalThis);
 )JS";
 
-// kWebShims (the web classes loaders expect) is in src/qjs/ext.cpp: zinc:script programs built with AOT link it without the rest of the engine.
-
+// kWebShims (the web classes loaders expect) is in src/qjs/web_shims.cpp: zinc:script programs built with AOT link it without the rest of the engine.
 
 }  // namespace zn::qjs

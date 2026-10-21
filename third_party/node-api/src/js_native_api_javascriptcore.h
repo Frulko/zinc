@@ -28,6 +28,12 @@ struct napi_env__ {
   JSValueRef reference_info_symbol{};
   JSValueRef wrapper_info_symbol{};
 
+  // zinc (ZN-773): the class of every native function (its callAsFunction reads the function's own private data) and Function.prototype, its prototype
+  JSClassRef function_class{};
+  JSObjectRef function_prototype{};
+  // and the immediates, made once: each JSValueMake* takes the VM's lock, which a native callback has dropped (about 10 ns each)
+  JSValueRef undefined_value{}, null_value{}, true_value{}, false_value{};
+
   // Escapable scope bookkeeping: token -> whether that scope has escaped. Values
   // are rooted by the engine rather than by a scope here, so this exists only to
   // honour the one-escape-per-scope rule and to reject tokens that are not open.
@@ -41,6 +47,10 @@ struct napi_env__ {
   napi_env__(JSGlobalContextRef context) : context{context} {
     napi_envs[context] = this;
     JSGlobalContextRetain(context);
+    undefined_value = JSValueMakeUndefined(context);
+    null_value = JSValueMakeNull(context);
+    true_value = JSValueMakeBoolean(context, true);
+    false_value = JSValueMakeBoolean(context, false);
     init_symbol(constructor_info_symbol, "BabylonNative_ConstructorInfo");
     init_symbol(function_info_symbol, "BabylonNative_FunctionInfo");
     init_symbol(reference_info_symbol, "BabylonNative_ReferenceInfo");
@@ -48,6 +58,8 @@ struct napi_env__ {
   }
 
   ~napi_env__() {
+    if (function_prototype) JSValueUnprotect(context, function_prototype);
+    if (function_class) JSClassRelease(function_class);
     deinit_refs();
     deinit_symbol(wrapper_info_symbol);
     deinit_symbol(reference_info_symbol);

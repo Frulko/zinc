@@ -151,7 +151,7 @@ def bundle_libs_macos(binary, libdir, prefix="@executable_path/../Frameworks/"):
             run("install_name_tool", "-change", path, (prefix if dest == binary else "@loader_path/") + name, dest)
     for f in os.listdir(libdir):  # arm64 refuses to load code whose signature broke: ad hoc sign (tools/sign-macos signs for distribution)
         run("codesign", "--force", "--sign", "-", os.path.join(libdir, f))
-    run("codesign", "--force", "--sign", "-", binary)
+    run("codesign", "--force", "--sign", "-", "--entitlements", os.path.join(REPO, "targets", "macos", "zinc.entitlements"), binary)   # the JIT of JavaScriptCore (ZN-773)
     if not os.listdir(libdir): os.rmdir(libdir)   # zinc links SDL3 into its window module: usually nothing to bundle
 
 def zip_dir(src, out, root):
@@ -199,7 +199,7 @@ def engine_macos(build, bindir, libdir, prefix):
     os.makedirs(bindir, exist_ok=True)
     binary = os.path.join(bindir, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
-    for mod in ("libzn_webgl.dylib", "libzn_window.dylib"):
+    for mod in ("libzn_webgl.dylib", "libzn_window.dylib", "libzn_engine_jsc.dylib"):   # libzn_engine_jsc: --engine jsc on the system's JavaScriptCore (ZN-773)
         if os.path.exists(os.path.join(build, mod)):
             shutil.copy2(os.path.join(build, mod), os.path.join(bindir, mod))
     bundle_libs_macos(binary, libdir, prefix)
@@ -229,7 +229,7 @@ def package_macos(build, out):
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
     os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
     open(os.path.join(app, "Contents", "Info.plist"), "w").write((PLIST % (VERSION, VERSION)).replace("<string>12.0</string>", "<string>%s</string>" % floor))
-    run("codesign", "--force", "--sign", "-", "--deep", app)
+    run("codesign", "--force", "--sign", "-", "--deep", "--preserve-metadata=entitlements", app)   # zinc inside keeps its JIT entitlement
     zipped = os.path.join(out, "Zinc-Atelier-%s-macos-%s.zip" % (VERSION, arch))
     if os.path.exists(zipped): os.remove(zipped)
     run("ditto", "-c", "-k", "--keepParent", app, zipped)  # ditto keeps the bundle's metadata and symlinks

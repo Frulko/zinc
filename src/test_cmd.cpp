@@ -50,13 +50,15 @@ std::string profileKey(const Profile& p) {
   return key;
 }
 
-/** A way to run a program (ZN-124): `interp` (the bytecode VM, the reference), `aot` (compiled to C++ and native), `quickjs`, `esp32-qemu`, `devicesim` (ZN-295). */
+/** A way to run a program (ZN-124): `interp` (the bytecode VM, the reference), `aot` (compiled to C++ and native), the JavaScript engines `quickjs`,
+ * `jsc` and `v8` (ZN-773), `esp32-qemu`, `devicesim` (ZN-295). */
 struct Runner {
   std::string name;
+  bool js() const { return name == "quickjs" || name == "jsc" || name == "v8"; }
   /** Why this runner cannot run the profile here, or "" when it can. */
   std::string unavailable(const Profile& p) const {
     if (name == "interp") return "";
-    if (name == "aot" || name == "quickjs") return p.number == Num::f64 ? "" : std::string(name) + " runs the f64 profiles only";
+    if (name == "aot" || js()) return p.number == Num::f64 ? "" : std::string(name) + " runs the f64 profiles only";
     if (name == "esp32-qemu") {
       if (std::string(p.name) != "esp32") return "esp32-qemu runs the esp32 profile only";
       return std::system("command -v qemu-system-xtensa >/dev/null 2>&1") == 0 ? "" : "qemu-system-xtensa is not installed";
@@ -68,7 +70,7 @@ struct Runner {
   std::string command(const std::string& self, const Profile& p, const std::string& file, const std::string& tmp, const std::string& errFile) const {
     std::string err = " 2>" + quote(errFile);
     if (name == "aot") return quote(self) + " build --profile " + p.name + " " + quote(file) + " -o " + quote(tmp) + " >/dev/null 2>" + quote(errFile) + " && " + quote(tmp) + err;
-    if (name == "quickjs") return quote(self) + " run " + quote(file) + " --engine quickjs" + err;
+    if (js()) return quote(self) + " run " + quote(file) + " --engine " + name + err;
     if (name == "esp32-qemu") return quote(self) + " run " + quote(file) + " --target esp32 --qemu" + err;
     return quote(self) + " run --profile " + p.name + " " + quote(file) + err;
   }
@@ -116,7 +118,7 @@ int runWithDeadline(const std::string& cmd, int ms) {
 
 int runTestCommand(const std::string& self, const Profile& p, const std::string& engineRoot, std::string dir, const std::string& runnerName) {
   Runner runner{runnerName.empty() ? "interp" : runnerName};
-  if (std::string why = runner.unavailable(p); !why.empty() && runner.name != "aot" && runner.name != "quickjs") { std::printf("skip all [%s] (%s)\n", runner.name.c_str(), why.c_str()); return runner.name == "interp" ? 2 : 0; }
+  if (std::string why = runner.unavailable(p); !why.empty() && runner.name != "aot" && !runner.js()) { std::printf("skip all [%s] (%s)\n", runner.name.c_str(), why.c_str()); return runner.name == "interp" ? 2 : 0; }
   if (dir.empty()) dir = fs::exists("zinc.json") ? "." : (fs::path(engineRoot) / "tests" / "conformance").lexically_normal().string();   // in a project: its tests
   if (!fs::is_directory(dir)) { std::fprintf(stderr, "zinc test: %s is not a directory\n", dir.c_str()); return 2; }
   Caps caps = capsFor(p, engineRoot);
@@ -203,9 +205,9 @@ int runTestCommand(const std::string& self, const Profile& p, const std::string&
       out += "[exit " + std::to_string(code) + "] " + kept;
     }
     std::string want = readFile(golden);
-    if (runner.name == "quickjs" && code != 0 && out != want) {   // plain JS has no types, JSX or zinc:* modules: a program that needs them is not for this runner
+    if (runner.js() && code != 0 && out != want) {   // plain JS has no types, JSX or zinc:* modules: a program that needs them is not for this runner
       std::size_t at = out.find("] "), nl = out.find('\n');
-      skip("quickjs cannot run it: " + out.substr(at == std::string::npos ? 0 : at + 2, (nl == std::string::npos ? out.size() : nl) - (at == std::string::npos ? 0 : at + 2)));
+      skip(runner.name + " cannot run it: " + out.substr(at == std::string::npos ? 0 : at + 2, (nl == std::string::npos ? out.size() : nl) - (at == std::string::npos ? 0 : at + 2)));
       continue;
     }
     ++ran;

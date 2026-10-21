@@ -489,7 +489,7 @@ set_target_properties(zn_napi_qjs PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIR
 target_compile_options(zn_napi_qjs PRIVATE -w -O2)
 target_compile_definitions(zn_napi_qjs PUBLIC NAPI_VERSION=8 NAPI_DISABLE_CPP_EXCEPTIONS)
 target_link_libraries(zn_napi_qjs PUBLIC zn_quickjs)
-add_library(zn_qjs_ext STATIC src/qjs/ext.cpp)   # the context hooks (WebGL for trusted programs and for zinc:script when zinc.json asks)
+add_library(zn_qjs_ext STATIC src/qjs/ext.cpp src/qjs/web_shims.cpp)   # the context hooks (WebGL for trusted programs and for zinc:script when zinc.json asks)
 target_link_libraries(zn_qjs_ext PUBLIC zn_quickjs zn_napi_qjs)
 target_include_directories(zn_qjs_ext PUBLIC include src)
 add_library(zn_script STATIC src/qjs/script_native.cpp)
@@ -527,6 +527,9 @@ if(WIN32)   # plugins as .dll: the def exports the engine's C symbols their nati
   # "Zinc Atelier.exe" of the Windows download of the app (tools/package): a GUI program that starts zinc.exe without a console window
   add_executable(zinc-atelier src/app/atelier_launcher_win.c)
   target_link_options(zinc-atelier PRIVATE -Wl,--subsystem,windows)   # zig's driver ignores -mwindows, CMake's WIN32 flag
+endif()
+if(APPLE)   # signed ad hoc with the JIT entitlement after each link (ZN-773): the system's JavaScriptCore compiles only for a process that has it
+  add_custom_command(TARGET zinc POST_BUILD COMMAND codesign --force --sign - --entitlements ${CMAKE_CURRENT_SOURCE_DIR}/targets/macos/zinc.entitlements $<TARGET_FILE:zinc> VERBATIM)
 endif()
 if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates it instantiates: exported weak definitions cost dyld a coalescing bind each
   # at every launch (629, 388 of them for one template) and the libc++ ones a patch of the shared cache; no plugin or module imports them (ZN-592.01)
@@ -774,6 +777,24 @@ if(TARGET SDL3::SDL3 AND ZN_WEBGL)
   set_target_properties(webgl1_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   target_link_libraries(webgl1_test PRIVATE zn_gl)
   add_dependencies(zinc zn_webgl)   # built with zinc, not linked into it
+endif()
+# JavaScriptCore as an engine module beside zinc (ZN-773.03, include/zn/engine.h): the system framework, JsRuntimeHost's Node-API over its C API, the
+# driver and its own copy of the Node-API bindings (napi_* hidden, so they never meet the QuickJS ones in zinc); zinc's services resolved at load.
+if(APPLE)
+  add_library(zn_engine_jsc MODULE src/engine/driver.cpp src/engine/jsc.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp
+              third_party/node-api/src/js_native_api_javascriptcore.cc third_party/node-api/src/js_native_api_shared.cc third_party/node-api/src/env_javascriptcore.cc
+              src/qjs/native_js.cpp src/qjs/canvas2d.cpp src/qjs/webenv.cpp src/text/segmenter_js.cpp)
+  set_target_properties(zn_engine_jsc PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+                        CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+  set_source_files_properties(third_party/node-api/src/js_native_api_javascriptcore.cc third_party/node-api/src/js_native_api_shared.cc third_party/node-api/src/env_javascriptcore.cc
+                              TARGET_DIRECTORY zn_engine_jsc PROPERTIES COMPILE_OPTIONS "-w")
+  target_compile_definitions(zn_engine_jsc PRIVATE NAPI_VERSION=8 NAPI_DISABLE_CPP_EXCEPTIONS "NAPI_EXTERN=" ZN_ENGINE_MODULE)
+  target_include_directories(zn_engine_jsc PRIVATE third_party/node-api/include third_party/node-api/javascriptcore src include
+                             $<TARGET_PROPERTY:zn_qjs,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_text,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_segment,INTERFACE_INCLUDE_DIRECTORIES>
+                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_link_options(zn_engine_jsc PRIVATE "LINKER:-undefined,dynamic_lookup")
+  target_link_libraries(zn_engine_jsc PRIVATE "-framework JavaScriptCore" zn_codec zn_text)   # zinc exports no C++: the stateless code is linked in
+  add_dependencies(zinc zn_engine_jsc)   # built with zinc, not linked into it
 endif()
 add_executable(gltf_check tests/native/gltf_check.cpp)
 set_target_properties(gltf_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)

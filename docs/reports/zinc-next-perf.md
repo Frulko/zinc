@@ -924,3 +924,22 @@ growing string row), a `std::vector` per call for the arguments, `JS_ToFloat64`,
 callback record behind `JS_GetOpaque`, the exception check) and Node-API's contract for strings (a copy into the caller's buffer). Through a real binding the difference is gone:
 Canvas 2D `beginPath` + `moveTo` through webenv.js (`tests/bench/napi/canvas2d.js`) 164-166 ns per pair on Node-API against 167 ns on the QuickJS API. The `__host_*` rows keep
 their generated direct path per engine (the hottest calls, one table: `include/zn/runtime.h`).
+
+## JavaScriptCore beside QuickJS-ng (ZN-773.03, 2026-10-21)
+
+`tests/bench/napi/engines.js` (`zinc run ... --engine quickjs|jsc`, three runs each, the best), MacBook Pro arm64, macOS 15.7 system JavaScriptCore, load 12 to 20 from other
+sessions. The host call is `__host_loopNow()` (about 25 ns of it is the clock read itself).
+
+| | QuickJS-ng | JSC, no JIT entitlement | JSC, `allow-jit` |
+|---|---|---|---|
+| fib(30) | 76 ms | 68 ms | 5 ms |
+| a million `{x, y}` pushed and summed | 239 ms | 101 ms | 27 ms |
+| 200k string appends, split, map, join | 23 ms | 15 ms | 4 ms |
+| one `__host_*` call | 68-85 ns | | 122 ns |
+
+- Without `com.apple.security.cs.allow-jit` the system framework runs its interpreter only (fib(35): 0.73 s against 0.05 s, the same in a ten-line C program): zinc is signed ad hoc
+  with `targets/macos/zinc.entitlements` after each link, and `tools/package` and `tools/sign-macos` sign with it.
+- The host call: JsRuntimeHost as vendored took 309 ns, three API calls per call to find the function's data behind a symbol-keyed property; one callable class whose private
+  data is the record brought it to 128 ns, the cached immediates and a row that builds no string or array storage to 122 ns. The floor is JavaScriptCore's C API itself: a
+  callback drops and takes the VM's lock again (`JSLock::DropAllLocks`), 51 ns for an empty `JSObjectMakeFunctionWithCallback` in a bare C program. Below it only the engine's
+  C++ API (Bun's way, a WebKit build of our own). A frame of 10 000 host calls pays about 0.5 ms more than on QuickJS; any JavaScript of its own is 5 to 15 times faster.
