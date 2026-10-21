@@ -30,7 +30,7 @@ if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/frames" "$golden"; cp "$tmp/story" 
 cmp -s "$tmp/frames" "$golden" || { echo "museum_visit: frames differ from the golden"; diff "$tmp/frames" "$golden" | head -8; fail=1; }
 cmp -s "$tmp/story" "$d/expected.story" || { echo "museum_visit: the story differs from expected.story"; diff "$tmp/story" "$d/expected.story" | head -8; fail=1; }
 cmp -s "$tmp/wait" "$d/wait.story" || { echo "museum_visit: the story of the wait differs from wait.story"; diff "$tmp/wait" "$d/wait.story" | head -8; fail=1; }
-play visit.input 200 "" > /dev/null
+play visit.input 200 --native > /dev/null   # the one AOT run of the museum (a headless `zinc run` interprets)
 [ -s "$tmp/hash" ] && grep -qxF "$(cat "$tmp/hash")" "$golden" || { echo "museum_visit (compiled): the frame of the overlay is $(cat "$tmp/hash"), not the interpreter's"; fail=1; }
 # what the criteria name: three links followed, the storyboard, a jump, a presentation played to its end, every sequence of the sample seen
 for line in ' link ukiyo-e -> japonisme fade' ' link japonisme -> porcelain slide' ' link porcelain -> garden slide' ' storyboard open' ' jump japonisme -> porcelain' \
