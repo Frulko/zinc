@@ -1,0 +1,6 @@
+{
+  "name": "esp32-gpio",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 GPIO", "id": "dev.zinc.esp32-gpio", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" }, "macos": {} }
+}

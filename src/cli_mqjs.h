@@ -6,11 +6,12 @@
 
 namespace zn::cli {
 
-// Whether the command line is `zinc run|export|flash ... --engine mquickjs`.
+// Whether the command line is `zinc run|export|flash ... --engine mquickjs`, or `--target esp32` for a project whose zinc.json has
+// "targets": {"esp32": {"engine": "mquickjs"}}.
 bool mquickjsWanted(const std::vector<std::string>& args);
 // zinc run <app> --target esp32 --engine mquickjs [--port P] [--run-ms N] [--frames N]: the program written to the board's js partition, then its
 // UART until the program ends, fails or N ms have passed; --emulator: the same in esp32sim, N ms of emulated time (10 s), the last frame as a
-// PNG. zinc export <app> --target esp32 --engine mquickjs [-o dir]: dist/<name>-esp32 with the firmware, the program and flash.sh. zinc flash
+// PNG; --emulator-script F: esp32sim's actions at emulated times (`1.0 gpio 35 0`, `press boot 150`, `touch X Y 1`). zinc export <app> --target esp32 --engine mquickjs [-o dir]: dist/<name>-esp32 with the firmware, the program and flash.sh. zinc flash
 // --target esp32 --engine mquickjs [--port P]: the firmware. `cacheDir`: zinc run --engine quickjs's transform cache. The exit code.
 int mquickjs(const std::vector<std::string>& args, const std::string& root, const std::string& cacheDir);
 

@@ -29,7 +29,8 @@ struct Collected { std::string name, js; std::vector<std::pair<std::string, std:
 // Walks the program from `entry` with the loader `run` uses (relative files, importmap.json, zinc: modules, plugins), transforming each module;
 // static imports only. False with `err` set (a transform diagnostic, a syntax error, a missing file). `program`: the file whose project finds the
 // plugins and the import map when `entry` is a module name (zinc:audio for a script bundle's registry); "" for `entry` itself.
-bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program = "");
+bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program = "",
+             const std::string& modules = "");   // modules: a directory whose <name>.js stands for zinc:<name>
 
 // The link flags a web build shares: `zinc export --target web` (zinc bundle --profile web) and the dependency pre-bundling of `zinc dev --target web`
 // (src/cli_web_deps.cpp) resolve packages the same way, esbuild's own resolver for a browser (package.json "exports" with the browser / import /
@@ -46,6 +47,7 @@ struct BundleOptions {
   bool minify = false, sourcemap = false, bytecode = false, check = false, watch = false, quiet = false;
   std::string engine = "quickjs";     // another engine (jsc, v8, ZN-773): one script with zinc:native and the registry webenv.js loads from linked in, in an async function; mquickjs: the module as for quickjs (src/cli_mqjs.cpp lowers it)
   bool keepPackages = false;         // with stageDir: leave the imports of node_modules packages as written, for a bundler that resolves them (the Vite plugin)
+  std::string modules;               // a directory whose <name>.js stands for zinc:<name>, before plugins and the standard modules (--engine mquickjs)
 };
 // zinc bundle: the exit code (0, 1 when the program has errors, 2 for a usage or tool problem).
 int bundle(const BundleOptions& o);

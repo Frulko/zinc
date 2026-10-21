@@ -1,10 +1,10 @@
 set(ZN ${CMAKE_CURRENT_LIST_DIR}/../../..)
 set(MQ ${ZN}/third_party/mquickjs)
 idf_component_register(
-  SRCS main.c ${MQ}/mquickjs.c ${MQ}/dtoa.c ${MQ}/libm.c ${MQ}/cutils.c
+  SRCS main.c mod_gpio.c mod_storage.c ${MQ}/mquickjs.c ${MQ}/dtoa.c ${MQ}/libm.c ${MQ}/cutils.c
   INCLUDE_DIRS . ${MQ} ${ZN}/third_party/SDL3/src/render
   LDFRAGMENTS linker.lf
-  REQUIRES esp_lcd esp_driver_i2c esp_driver_gpio esp_driver_spi esp_partition esp_timer esp_app_format esp_rom)
+  REQUIRES esp_lcd esp_driver_i2c esp_driver_gpio esp_driver_spi esp_partition esp_timer esp_app_format esp_rom nvs_flash)
 # idf.py -DZN_PANEL=spi: the emulator's build (esp32sim's T-Display board), main.c's ZN_PANEL_SPI
 if(ZN_PANEL STREQUAL "spi")
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ZN_PANEL_SPI)

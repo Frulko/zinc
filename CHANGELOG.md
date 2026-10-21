@@ -11,6 +11,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - `zinc run|export|flash --target esp32 --engine mquickjs`: a `zinc:gfx` program in TypeScript runs on an ESP32 on MicroQuickJS, compiled to bytecode on the computer and written to the board in a second (`zinc flash` writes the firmware once). `examples/breakout` runs unchanged on the ESP32-2432S022. A feature the board lacks fails before anything is sent, at your own file and line. AOT stays the default on the ESP32. The program runs from the board's flash, so it costs no RAM.
 - `zinc run ... --engine mquickjs --emulator` runs the same program in the esp32sim emulator (downloaded and checked the first time), with no board: the last frame is saved as a PNG.
+- On the ESP32 with `--engine mquickjs`: `zinc:gpio` (setup, write, read, watch: debounced edges from an interrupt) and `zinc:storage` (kept in the board's NVS), with timers, and a program that only listens keeps running. `examples/esp32-gpio` blinks an LED and reads a button.
+- `zinc run --emulator-script <file>` drives the esp32sim emulator (pins, touches, buttons at given times).
 - `zinc toolchain swc`: the pinned SWC compiler, fetched the first time `--engine mquickjs` needs it.
 
 ## [0.5.2] - 2026-10-22

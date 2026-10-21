@@ -19,8 +19,9 @@
 #include "esp_rom_crc.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
-#include "mquickjs.h"
+#include "zn.h"
 
 typedef uint8_t Uint8;
 #define SDL_COMPILE_TIME_ASSERT(name, x) _Static_assert(x, #name)
@@ -506,8 +507,173 @@ static const uint8_t *read_program(uint32_t *plen, int *pbytecode)
     return copy;
 }
 
+/* ---- what the modules share (zn.h) */
+
+JSContext *zn_ctx;
+typedef struct { uint8_t kind; int32_t a, b; char *text; uint16_t len; } Event;
+static QueueHandle_t events;
+static int events_dropped;
+
+void zn_post(int kind, int a, int b, const void *text, size_t len)
+{
+    Event e = {kind, a, b, NULL, 0};
+    if (text && (e.text = malloc(len + 1))) {
+        memcpy(e.text, text, len);
+        e.text[len] = 0;
+        e.len = len > 65535 ? 65535 : len;
+    }
+    if (xQueueSend(events, &e, 0) != pdTRUE) {
+        free(e.text);
+        events_dropped++;
+    }
+}
+
+void IRAM_ATTR zn_post_isr(int kind, int a, int b)
+{
+    Event e = {kind, a, b, NULL, 0};
+    BaseType_t woken = pdFALSE;
+    if (xQueueSendFromISR(events, &e, &woken) != pdTRUE) events_dropped++;
+    if (woken) portYIELD_FROM_ISR();
+}
+
+int zn_str(JSContext *ctx, JSValue v, char *buf, size_t size)
+{
+    JSCStringBuf tmp;
+    size_t len;
+    const char *s = JS_ToCStringLen(ctx, &len, v, &tmp);
+    if (!s) return -1;
+    if (len >= size) len = size - 1;
+    memcpy(buf, s, len);
+    buf[len] = 0;
+    return (int)len;
+}
+
+int zn_int(JSContext *ctx, int argc, JSValue *argv, int i, int *out)
+{
+    *out = 0;
+    return i < argc && JS_ToInt32Sat(ctx, out, argv[i]) ? -1 : 0;
+}
+
+int zn_pin_reserved(int pin)
+{
+#ifdef ZN_PANEL_SPI
+    static const int8_t board[] = {LCD_SCLK, LCD_MOSI, LCD_CS, LCD_DC, LCD_RST, LCD_BL, TP_SDA, TP_SCL};
+#else
+    static const int8_t board[] = {15, 13, 12, 14, 27, 25, 33, 32, LCD_WR, LCD_RD, LCD_CS, LCD_DC, LCD_BL, TP_SDA, TP_SCL};
+#endif
+    for (size_t i = 0; i < sizeof board; i++)
+        if (board[i] == pin) return 1;
+    return 0;
+}
+
+/* Calls the global function `name` with n small integers, then `text` when not NULL; its result as an integer in *result (when given).
+   0 when the function is missing, 1 when it ran, -1 on an exception (the caller shows it). */
+static int call(JSContext *ctx, const char *name, int n, const int *v, const char *text, size_t len, int *result)
+{
+    JSGCRef f_ref, s_ref;
+    JSValue *f = JS_PushGCRef(ctx, &f_ref), *s = JS_PushGCRef(ctx, &s_ref);
+    *f = JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), name);
+    *s = text ? JS_NewStringLen(ctx, text, len) : JS_UNDEFINED;
+    const int argc = n + (text != NULL), ready = JS_IsFunction(ctx, *f) && !JS_IsException(*s), full = ready && JS_StackCheck(ctx, argc + 2);
+    if (ready && !full) {
+        if (text) JS_PushArg(ctx, *s);
+        for (int i = n - 1; i >= 0; i--) JS_PushArg(ctx, JS_NewInt32(ctx, v[i])); /* small integers: no allocation */
+        JS_PushArg(ctx, *f);
+        JS_PushArg(ctx, JS_NULL);
+    }
+    JS_PopGCRef(ctx, &s_ref);
+    JS_PopGCRef(ctx, &f_ref);
+    if (!ready) return 0;
+    if (full) return -1;
+    JSValue r = JS_Call(ctx, argc);
+    if (JS_IsException(r)) return -1;
+    if (result && JS_ToInt32Sat(ctx, result, r)) return -1;
+    return 1;
+}
+
+static int deliver(JSContext *ctx, Event *e)
+{
+    const int v[3] = {e->kind, e->a, e->b};
+    const int rc = call(ctx, "__zincEvent", 3, v, e->text, e->len, NULL);
+    free(e->text);
+    return rc;
+}
+
+/* The program's loop: the events other tasks queued, the timers of js/runtime.js (__zincTurn), and a frame at most every FRAME_US when
+   zinc:gfx's onFrame set globalThis.__zincFrameCb (called with the seconds since the previous frame). It sleeps on the queue until the
+   next timer or frame; a program with none of them and nothing listening has ended. */
+static void run(JSContext *ctx)
+{
+    int64_t mark = esp_timer_get_time(), js_us = 0, last = mark, next_frame = mark;
+    int mark_frames = frames;
+    JSGCRef cb_ref, dt_ref;
+    Event e;
+    for (;;) {
+        while (xQueueReceive(events, &e, 0) == pdTRUE)
+            if (deliver(ctx, &e) < 0) { show_error(ctx, "Error"); return; }
+        int64_t f0 = esp_timer_get_time();
+        int wait = -1;
+        const int now_ms = (int)(f0 / 1000);
+        if (call(ctx, "__zincTurn", 1, &now_ms, NULL, 0, &wait) < 0) { show_error(ctx, "Error"); return; }
+        /* the frame callback and its argument in GC references: each allocation may move them, JS_StackCheck too */
+        JSValue *cb = JS_PushGCRef(ctx, &cb_ref), *dt = JS_PushGCRef(ctx, &dt_ref);
+        *cb = JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), "__zincFrameCb");
+        const int framed = JS_IsFunction(ctx, *cb), due = framed && f0 >= next_frame;
+        int full = 0;
+        if (due) {
+            *dt = JS_NewFloat64(ctx, (f0 - last) / 1e6);
+            if (!(full = JS_StackCheck(ctx, 3))) {
+                JS_PushArg(ctx, *dt);
+                JS_PushArg(ctx, *cb);
+                JS_PushArg(ctx, JS_NULL);
+            }
+        }
+        JS_PopGCRef(ctx, &dt_ref);
+        JS_PopGCRef(ctx, &cb_ref);
+        if (due) {
+            touch_poll();
+            last = f0;
+            int64_t p0 = present_us;
+            if (full || JS_IsException(JS_Call(ctx, 1))) { show_error(ctx, "Error"); return; }
+            if (keep_frame) {
+                keep_frame = 0;
+                ncmd = ntext = 0;
+                frames++;
+            } else {
+                present();
+            }
+            js_us += esp_timer_get_time() - f0 - (present_us - p0);
+            next_frame += FRAME_US; /* frames the panel would not show are not drawn */
+            if (next_frame < esp_timer_get_time()) next_frame = esp_timer_get_time();
+        }
+        if (framed) {
+            const int to_frame = (int)((next_frame - esp_timer_get_time()) / 1000);
+            if (wait < 0 || to_frame < wait) wait = to_frame > 0 ? to_frame : 0;
+        } else if (wait < 0 && !uxQueueMessagesWaiting(events)) {
+            printf("mqjs: the program ended (no frame, timer or listener left)\n");
+            return;
+        }
+        int64_t t = esp_timer_get_time();
+        if (t - mark >= 5000000) {
+            int n = frames - mark_frames;
+            const int fps10 = (int)(n * 10000000LL / (t - mark)), bands10 = n ? bands_sent * 10 / n : 0; /* integers: newlib nano */
+            printf("mqjs: %d.%d fps, js %d us, render+send %d us and %d.%d of %d bands per frame, %d commands dropped, %d events dropped, free heap %u\n",
+                   fps10 / 10, fps10 % 10, n ? (int)(js_us / n) : 0, n ? (int)(present_us / n) : 0, bands10 / 10, bands10 % 10, H / BAND,
+                   dropped, events_dropped, (unsigned)esp_get_free_heap_size());
+            if (frames < 1000) JS_DumpMemory(ctx, 0);
+            mark = t;
+            mark_frames = frames;
+            js_us = present_us = 0;
+            dropped = bands_sent = events_dropped = 0;
+        }
+        if (wait > 0 && xQueueReceive(events, &e, pdMS_TO_TICKS(wait)) == pdTRUE && deliver(ctx, &e) < 0) { show_error(ctx, "Error"); return; }
+    }
+}
+
 void app_main(void)
 {
+    events = xQueueCreate(32, sizeof(Event));
+    zn_storage_init();
     lcd_init();
     touch_init();
     printf("mqjs: free heap %u, largest block %u\n", (unsigned)esp_get_free_heap_size(),
@@ -544,56 +710,6 @@ void app_main(void)
         show_error(ctx, JS_IsException(val) ? "Syntax error" : "Error");
         return;
     }
-    /* the frame loop: zinc:gfx's onFrame sets globalThis.__zincFrameCb, called here with the seconds since the previous frame */
-    int64_t mark = esp_timer_get_time(), js_us = 0, last = mark;
-    int mark_frames = frames;
-    JSGCRef cb_ref, dt_ref;
-    for (;;) {
-        touch_poll();
-        int64_t f0 = esp_timer_get_time(), p0 = present_us;
-        /* the callback and its argument in GC references: each allocation may move them, JS_StackCheck too (as mqjs.c's timers) */
-        JSValue *cb = JS_PushGCRef(ctx, &cb_ref), *dt = JS_PushGCRef(ctx, &dt_ref);
-        *cb = JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), "__zincFrameCb");
-        *dt = JS_NewFloat64(ctx, (f0 - last) / 1e6);
-        last = f0;
-        const int ready = JS_IsFunction(ctx, *cb), full = ready && JS_StackCheck(ctx, 3);
-        if (ready && !full) {
-            JS_PushArg(ctx, *dt);
-            JS_PushArg(ctx, *cb);
-            JS_PushArg(ctx, JS_NULL);
-        }
-        JS_PopGCRef(ctx, &dt_ref);
-        JS_PopGCRef(ctx, &cb_ref);
-        if (!ready) {
-            printf("mqjs: the program ended (no zinc:gfx onFrame)\n");
-            return;
-        }
-        if (full || JS_IsException(JS_Call(ctx, 1))) {
-            show_error(ctx, "Error");
-            return;
-        }
-        if (keep_frame) {
-            keep_frame = 0;
-            ncmd = ntext = 0;
-            frames++;
-        } else {
-            present();
-        }
-        js_us += esp_timer_get_time() - f0 - (present_us - p0);
-        int64_t spare = FRAME_US - (esp_timer_get_time() - f0); /* frames the panel would not show are not drawn */
-        if (spare >= 1000) vTaskDelay(pdMS_TO_TICKS(spare / 1000));
-        int64_t t = esp_timer_get_time();
-        if (t - mark >= 5000000) {
-            int n = frames - mark_frames;
-            const int fps10 = (int)(n * 10000000LL / (t - mark)), bands10 = n ? bands_sent * 10 / n : 0; /* integers: newlib nano */
-            printf("mqjs: %d.%d fps, js %d us, render+send %d us and %d.%d of %d bands per frame, %d commands dropped, free heap %u\n",
-                   fps10 / 10, fps10 % 10, n ? (int)(js_us / n) : 0, n ? (int)(present_us / n) : 0, bands10 / 10, bands10 % 10, H / BAND,
-                   dropped, (unsigned)esp_get_free_heap_size());
-            if (frames < 1000) JS_DumpMemory(ctx, 0);
-            mark = t;
-            mark_frames = frames;
-            js_us = present_us = 0;
-            dropped = bands_sent = 0;
-        }
-    }
+    zn_ctx = ctx;
+    run(ctx);
 }

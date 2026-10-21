@@ -21,7 +21,7 @@ fi
 [ -f sdkconfig ] || idf.py set-target esp32
 gen=; command -v ninja >/dev/null || gen="Unix Makefiles"   # ESP-IDF's tools carry no ninja on every machine
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
-export MAKEFLAGS="-j$cores -l$cores"   # as tools/build: no new job while the load average is above the core count (make reads it, idf.py -G make too)
+export MAKEFLAGS="-l$cores"   # as tools/build: no new job while the load average is above the core count (idf.py gives make its -j)
 idf() { if [ -n "$gen" ]; then nice -n 5 idf.py -G "$gen" "$@"; else nice -n 5 idf.py "$@"; fi; }
 idf build
 mkdir -p prebuilt

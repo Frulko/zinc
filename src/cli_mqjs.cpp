@@ -26,6 +26,7 @@
 #include "frontend/project.h"
 #include "qjs/qjs.h"
 #include "tc/tc.h"
+#include "yyjson.h"
 #include "zn/log.h"
 
 namespace zn::cli {
@@ -95,6 +96,7 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   bo.work = p.work = zn::tc::home() + "/cache/mquickjs/" + std::to_string(std::hash<std::string>{}(bo.entry));
   bo.out = p.work + "/bundle.js";
   bo.sourcemap = bo.quiet = true;
+  bo.modules = (js / "modules").string();   // zinc:gpio, zinc:storage, zinc:wifi, zinc:ble...: the board's, on its host calls
   std::string err, swc, mqjs, log;
   if (!zn::tc::ensureEsbuild(bo.esbuild, err) || !zn::tc::ensureSwc(swc, err) || (mqjs = mqjsTool(err)).empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   zn::log::step("bundle", zn::log::shortPath(bo.entry) + " for mquickjs");
@@ -105,8 +107,9 @@ int prepare(const std::string& root, const std::string& entry, const std::string
     std::fprintf(stderr, "%szinc: SWC cannot lower the program to ES5 (above)\n", log.c_str());
     return 1;
   }
-  std::string es5, prelude, post, sim;
-  if (!readText(es5File, es5) || !readText(es5File + ".map", p.map) || !readText(js / "prelude.js", prelude) || !readText(js / "post.js", post) || !readText(js / "sim.js", sim)) {
+  std::string es5, prelude, runtime, post, sim;
+  if (!readText(es5File, es5) || !readText(es5File + ".map", p.map) || !readText(js / "prelude.js", prelude) || !readText(js / "runtime.js", runtime) ||
+      !readText(js / "post.js", post) || !readText(js / "sim.js", sim)) {
     std::fprintf(stderr, "zinc: cannot read the files of %s or SWC's output in %s\n", js.string().c_str(), p.work.c_str());
     return 2;
   }
@@ -116,10 +119,11 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   std::set<std::string> have, missing;
   for (std::size_t at = 0; (at = sim.find("function __host_", at)) != std::string::npos; at += 9) have.insert(ident(sim, at + 9));
   for (std::size_t at = 0; (at = es5.find("__host_", at)) != std::string::npos; at += 7) if (!have.count(ident(es5, at))) missing.insert(ident(es5, at));
-  std::string head = prelude;
-  for (const std::string& h : missing) {
+  std::string head = prelude + runtime;
+  for (const std::string& h : missing) {   // __host_gpioWatch: "zinc:gpio watch()"
     std::string what = h.substr(7);
-    if (what.rfind("gfx", 0) == 0 && what.size() > 3) { what = what.substr(3); what[0] = static_cast<char>(std::tolower(static_cast<unsigned char>(what[0]))); what = "zinc:gfx " + what + "()"; }
+    const std::size_t up = std::find_if(what.begin(), what.end(), [](char c) { return std::isupper(static_cast<unsigned char>(c)); }) - what.begin();
+    if (up > 0 && up < what.size()) { std::string fn = what.substr(up); fn[0] = static_cast<char>(std::tolower(static_cast<unsigned char>(fn[0]))); what = "zinc:" + what.substr(0, up) + " " + fn + "()"; }
     head += "function " + h + "() { throw new Error(\"" + what + " is not on the ESP32 under mquickjs\"); }\n";
   }
   // the helpers of post.js that SWC's output defines, written again after it (the later declaration holds)
@@ -244,7 +248,7 @@ int runOnBoard(const Program& p, std::string port, int runMs) {
 
 // The same program in esp32sim (docs/reports/esp32sim.md): the emulator's firmware and the program in its flash, `runMs` of emulated time
 // (10 s by default), the UART as on the board, and the last frame as a PNG (ZINC_SHOT, else <name>.png beside the program's files).
-int runOnEmulator(const std::string& root, const Program& p, int runMs) {
+int runOnEmulator(const std::string& root, const Program& p, int runMs, const std::string& script) {
   std::string err, sim, rom;
   const std::string image = firmwareImage(root, true, err);
   if (image.empty() || !zn::tc::ensureEsp32sim(sim, rom, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
@@ -256,7 +260,8 @@ int runOnEmulator(const std::string& root, const Program& p, int runMs) {
   const auto t = std::chrono::steady_clock::now();
   // the UART on stdout, the emulator's own report on stderr (kept in emulator.log)
   FILE* out = popen((quote(sim) + " --chip esp32 --board ttgo-tdisplay --boot rom --rom " + quote(rom) + " --flash-image " + quote(image) + " --flash-at " + kJsOffset + "=" +
-                     quote(p.img) + " --console uart0 --max-seconds " + seconds + " --no-dump --gram-png " + quote(png) + " 2>" + quote(p.work + "/emulator.log")).c_str(), "r");
+                     quote(p.img) + " --console uart0 --max-seconds " + seconds + " --no-dump --gram-png " + quote(png) +
+                     (script.empty() ? "" : " --script " + quote(script)) + " 2>" + quote(p.work + "/emulator.log")).c_str(), "r");
   if (!out) { std::fprintf(stderr, "zinc: cannot start %s\n", sim.c_str()); return 1; }
   Uart uart{p};
   char buf[4096];
@@ -302,9 +307,23 @@ int exportTo(const std::string& root, const Program& p, const fs::path& out) {
 
 bool mquickjsWanted(const std::vector<std::string>& args) {
   if (args.size() < 3 || (args[1] != "run" && args[1] != "export" && args[1] != "flash")) return false;
-  for (std::size_t k = 2; k + 1 < args.size() && args[k] != "--"; ++k)
-    if (args[k] == "--engine" && args[k + 1] == "mquickjs") return true;
-  return false;
+  bool esp32 = false;
+  std::string dir = ".";
+  for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) {
+    if (args[k] == "--engine" && k + 1 < args.size()) { if (args[k + 1] != "mquickjs") return false; return true; }
+    if (args[k] == "--target" && k + 1 < args.size()) esp32 = args[++k] == "esp32";
+    else if (args[k] == "--port" || args[k] == "-o" || args[k] == "--frames" || args[k] == "--run-ms" || args[k] == "--emulator-script") ++k;
+    else if (args[k][0] != '-') dir = args[k];
+  }
+  // a project whose zinc.json says "targets": {"esp32": {"engine": "mquickjs"}}: --target esp32 needs no --engine
+  std::string text;
+  std::error_code ec;
+  if (!esp32 || !fs::is_directory(dir, ec) || !readText(fs::path(dir) / "zinc.json", text)) return false;
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* e = doc ? yyjson_ptr_get(yyjson_doc_get_root(doc), "/targets/esp32/engine") : nullptr;
+  const bool yes = e && yyjson_is_str(e) && std::string(yyjson_get_str(e)) == "mquickjs";
+  yyjson_doc_free(doc);
+  return yes;
 }
 
 int mquickjs(const std::vector<std::string>& args, const std::string& root, const std::string& cacheDir) {
@@ -312,6 +331,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   std::string target, port, out, entry = ".";
   int frames = 300, runMs = 0;
   bool emulator = false;
+  std::string script;
   for (std::size_t k = 2; k < args.size(); ++k) {
     const std::string& a = args[k];
     const bool more = k + 1 < args.size();
@@ -322,8 +342,9 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
     else if (a == "--frames" && more) frames = std::max(1, std::atoi(args[++k].c_str()));
     else if (a == "--run-ms" && more) runMs = std::atoi(args[++k].c_str());
     else if (a == "--emulator") emulator = true;
+    else if (a == "--emulator-script" && more) { emulator = true; script = fs::absolute(args[++k]).string(); }
     else if (a[0] != '-') entry = a;
-    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export <app> --target esp32 --engine mquickjs [--port P | --emulator] [-o dir] [--frames N] [--run-ms N]\n", a.c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export <app> --target esp32 --engine mquickjs [--port P | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]\n", a.c_str()); return 2; }
   }
   if (target != "esp32") { std::fprintf(stderr, "zinc: --engine mquickjs runs on --target esp32 (the board's firmware, firmware/esp32-mquickjs)\n"); return 2; }
   if (cmd == "flash") return flashFirmware(root, port);
@@ -342,7 +363,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   if (!fs::exists(file, ec)) { std::fprintf(stderr, "zinc: no such file: %s\n", file.c_str()); return 2; }
   Program p;
   if (const int rc = prepare(root, file, cacheDir, frames, p)) return rc;
-  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs) : runOnBoard(p, port, runMs);
+  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script) : runOnBoard(p, port, runMs);
   return exportTo(root, p, out.empty() ? projectDir / "dist" / (projectDir.filename().string() + "-esp32") : fs::path(out));
 }
 

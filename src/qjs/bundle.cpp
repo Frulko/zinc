@@ -338,7 +338,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   const auto t0 = std::chrono::steady_clock::now();
   std::vector<Collected> mods;
   std::string err;
-  if (!collect(o.entry, o.stdRoot, o.cacheDir, mods, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+  if (!collect(o.entry, o.stdRoot, o.cacheDir, mods, err, "", o.modules)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
   // a script for an engine with no module loader (ZN-773): the modules webenv.js loads by name at run time are linked in, named in a registry
   const bool script = o.engine != "quickjs" && o.engine != "mquickjs";   // mquickjs (src/cli_mqjs.cpp): the module, lowered to an ES5 script after the link
   std::string registry;   // the registry module's file, walked as the program's imports are (zinc:audio is a plugin, found from the program's project)

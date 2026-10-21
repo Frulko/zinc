@@ -2,7 +2,8 @@
 # --target esp32 --engine mquickjs (src/cli_mqjs.cpp, firmware/esp32-mquickjs): the board's ROM table builds and names the zinc:gfx host calls
 # js/sim.js stands in for on the computer; examples/breakout, unchanged, is checked under mquickjs and exported as the firmware and the 32-bit
 # bytecode image; a program using what mquickjs lacks (Map) or a zinc:gfx call the board does not have (line) fails before anything is sent,
-# with its own file and line. No board, no ESP-IDF; esbuild and SWC must already be in ZINC_HOME (never downloaded here).
+# with its own file and line; every examples/esp32-* demo is checked and exported, and a pull-up asked of an input-only pin (35) is refused
+# with the reason. No board, no ESP-IDF; esbuild and SWC must already be in ZINC_HOME (never downloaded here).
 cd "$(dirname "$0")/../.." || exit 2
 F=firmware/esp32-mquickjs
 command -v cc >/dev/null || { echo "needs cc"; exit 77; }
@@ -26,4 +27,11 @@ grep -q "bad/main.ts:2:" "$T/log" || { echo "the Map failure does not point at m
 printf "import { onFrame, line } from 'zinc:gfx';\nonFrame(() => {\n  line(0, 0, 10, 10, 0xffffff);\n});\n" > "$T/line/main.ts"
 "$ZINC" export "$T/line/main.ts" --target esp32 --engine mquickjs -o "$T/line/out" >"$T/log" 2>&1 && { echo "a zinc:gfx call the board lacks was accepted"; fail=1; }
 grep -q "zinc:gfx line() is not on the ESP32" "$T/log" && grep -q "line/main.ts:3:" "$T/log" || { echo "the line() failure does not name it at main.ts:3"; cat "$T/log"; fail=1; }
+for d in examples/esp32-*/; do
+  "$ZINC" export "$d" --target esp32 --engine mquickjs --frames 120 -o "$T/demo" >"$T/log" 2>&1 || { echo "$d does not export for mquickjs"; cat "$T/log"; fail=1; }
+done
+mkdir -p "$T/pull"
+printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"
+"$ZINC" export "$T/pull/main.ts" --target esp32 --engine mquickjs -o "$T/pull/out" >"$T/log" 2>&1 && { echo "a pull-up on GPIO 35 was accepted"; fail=1; }
+grep -q "pin 35 has no internal pull resistor" "$T/log" || { echo "the pull failure does not say why"; cat "$T/log"; fail=1; }
 exit $fail

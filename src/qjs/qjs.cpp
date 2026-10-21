@@ -50,6 +50,7 @@ struct Engine {
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
   std::set<std::string> packageFiles;   // the files node_modules resolved, by their real path: a package even when its link points outside node_modules (pnpm's store, a workspace)
   std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
+  std::string modules;   // a directory whose <name>.js stands for zinc:<name> (the ESP32's modules under --engine mquickjs, src/cli_mqjs.cpp)
   bool pluginsFound = false;
   struct Rejection { JSValue promise, reason; };
   std::vector<Rejection> rejected;   // promises rejected with no handler yet: reported once the jobs have drained, when nobody caught them (ZN-566)
@@ -448,7 +449,9 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
     r = normalize(dir + "/" + n);
     if (std::string f = probe(r); !f.empty()) r = f;
   } else if (e && r == n && !pathAbs(n)) {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
-    std::string f = pluginEntry(*e, n);
+    std::string f = e->modules.empty() || n.rfind("zinc:", 0) != 0 ? "" : e->modules + "/" + n.substr(5) + ".js";
+    if (!f.empty() && !std::filesystem::exists(f)) f.clear();
+    if (f.empty()) f = pluginEntry(*e, n);
     if (f.empty() && n.rfind("zinc:", 0) != 0) {
       f = byTsconfig(dir, n);
       if (std::string_view cm = zn::frontend::compatModuleFile(n); f.empty() && !cm.empty() && !e->stdRoot.empty()) f = normalize(e->stdRoot + "/" + std::string(cm));
@@ -711,8 +714,9 @@ std::string exceptionText(JSContext* ctx) {
 
 }  // namespace
 
-bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program) {
+bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program, const std::string& modules) {
   Walk w;
+  w.e.modules = modules;
   w.e.stdRoot = stdRoot;
   w.e.cacheDir = cacheDir;
   w.e.entry = program.empty() ? entry : program;
