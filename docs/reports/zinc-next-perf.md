@@ -960,3 +960,16 @@ Node-API with `0003-v8-15.patch`, load 15 to 23 from other sessions (the best of
   the driver's `hostFn`, the rest JsRuntimeHost's wrapper and the result number. The rows' parameter count, return letter and table are now worked out once by `installHost`
   (two `strchr` per call before): 56 to 50 ns on V8, the same row on JavaScriptCore.
 - `examples/js-gsap` and `examples/js-anatomy` frame 30: pixel-identical to QuickJS.
+
+### three.js on the three engines (ZN-773.03, 2026-10-21)
+
+`examples/js-three`, headless, `ZINC_DETERMINISTIC=1 ZINC_FRAMES=2000`, `/usr/bin/time` (best of two), WebGL from libzn_webgl through each engine's Node-API (ZN-773.02);
+load 28 to 34 from other sessions, so the wall times are loose and the CPU times the better guide.
+
+| | QuickJS-ng | JSC | V8 |
+|---|---|---|---|
+| CPU (user + sys) | 2.86 s | 2.36 s | 1.72 s |
+| wall | 5.66 s | 4.19 s | 3.45 s |
+
+Frame 60 is pixel-identical on the three engines. The scene makes about 28 WebGL calls a frame, so most of the CPU is the raster and the GL
+replay, not JavaScript: a heavier scene widens the gap. JSC's slower host call (131 ns against 70) costs it nothing visible here.

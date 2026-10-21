@@ -1,7 +1,7 @@
 #!/bin/sh
 # The JavaScriptCore engine (ZN-773.03): the QuickJS goldens give the same output on `--engine jsc` (modules, promises, virtual timers, Node style
 # console.log, stripped TypeScript); an uncaught exception, a rejected top-level await and an unhandled rejection end with 101; a zinc:gfx program
-# draws its frames; zinc.json "engine": "jsc" picks it. macOS only (the system's JavaScriptCore): skipped elsewhere until the Linux pack (ZN-773.04).
+# draws its frames; zinc.json "engine": "jsc" picks it; WebGL clears and reads back. macOS only (the system's JavaScriptCore): skipped elsewhere until the Linux pack (ZN-773.04).
 # tests/t0/v8.sh runs the same checks on V8 (`jsc.sh v8`).
 e=${1:-jsc}
 cd "$(dirname "$0")/../.." || exit 2
@@ -28,4 +28,9 @@ printf '{ "entry": "main.ts", "engine": "%s", "targets": { "macos": { "width": 2
 printf "import { clear, onFrame } from 'zinc:gfx';\nlet n = 0;\nonFrame(() => { clear(0x102030); n++; if (n === 3) console.log('frames', n, __ZINC_ENGINE__); });\n" > "$tmp/game/main.ts"
 out=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_SHOT="$tmp/game.png" "$ZINC" run "$tmp/game" 2>&1)
 [ "$out" = "frames 3 $e" ] && file "$tmp/game.png" 2>/dev/null | grep -q '200 x 100' || { echo "a zinc:gfx project with \"engine\": \"$e\" does not draw its frames: $out"; fail=1; }
+if [ -f "$(dirname "$ZINC")/libzn_webgl.dylib" ]; then   # WebGL from libzn_webgl through this engine's Node-API (ZN-773.02)
+  printf "const c = document.createElement('canvas'); c.width = 4; c.height = 4;\nconst gl = c.getContext('webgl');\ngl.clearColor(1, 0.5, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);\nconst px = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);\nconsole.log(gl instanceof WebGLRenderingContext, Array.from(px).join());\n" > "$tmp/gl.js"
+  out=$(ZINC_WEB=1 ZINC_HEADLESS=1 "$ZINC" run "$tmp/gl.js" --engine $e 2>&1)
+  [ "$out" = "true 255,128,0,255" ] || { echo "WebGL does not clear and read back on $e: $out"; fail=1; }
+fi
 exit $fail

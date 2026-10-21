@@ -1292,6 +1292,7 @@ extern "C" int zn_window_load(void);   // src/host/window_module.cpp (ZN-592.01)
 #endif
 // The JavaScript engines beside QuickJS (ZN-773, include/zn/engine.h): a module per engine, $ZINC_ENGINE_<NAME> or beside zinc (libzn_engine_jsc on macOS:
 // the system's JavaScriptCore), that runs the program bundled into one script (zinc bundle --engine <name>).
+static void* webglOpen(const zn_napi_table* napi);
 static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) {
   namespace fs = std::filesystem;
   std::string upper = name;
@@ -1331,7 +1332,7 @@ static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) 
                    &zn::host::redraw, &zn::frontend::gNativeProvider, nullptr,
                    reinterpret_cast<void*>(static_cast<bool (*)(const uint8_t*, size_t, int&, int&, std::vector<uint8_t>&)>(zn::res::decodeRgba)),
                    reinterpret_cast<void*>(static_cast<bool (*)(const uint8_t*, size_t, int&, int&)>(zn::res::imageSize)),
-                   reinterpret_cast<void*>(zn::qjs::mapStack)};
+                   reinterpret_cast<void*>(zn::qjs::mapStack), webglOpen};
 #ifdef ZN_HOST_GFX
   a.gl_present_hooks = zn::host::glPresentHooks;
 #endif
@@ -1363,14 +1364,16 @@ static const zn::gl::PresentHooks* glHooks() {
   return nullptr;
 #endif
 }
+// libzn_webgl opened with an engine's Node-API: QuickJS's here, the engine module's own for jsc and v8 (zn_engine_args::webgl_open)
+static void* webglOpen(const zn_napi_table* napi) {
+  const char* wanted = std::getenv("ZINC_WEBGL");
+  void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
+  auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*, const zn_napi_table*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
+  return open ? reinterpret_cast<void*>(open(glHooks(), napi)) : nullptr;
+}
 static void webglHook(napi_env env) {
-  static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
-    const char* wanted = std::getenv("ZINC_WEBGL");
-    void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
-    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*, const zn_napi_table*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
-    static const zn_napi_table napi = {ZN_NAPI_TABLE_INIT};   // QuickJS's Node-API (zn_napi_qjs): the module calls the engine through it (ZN-773.02)
-    return open ? open(glHooks(), &napi) : nullptr;
-  }();
+  static const zn_napi_table napi = {ZN_NAPI_TABLE_INIT};   // QuickJS's Node-API (zn_napi_qjs): the module calls the engine through it (ZN-773.02)
+  static const auto install = reinterpret_cast<zn::gl::ContextInstall>(webglOpen(&napi));
   if (install) install(env);
 }
 // zinc:gl (ZN-562): the Rt::HostGl* rows go to libzn_webgl's zn_webgl_host, loaded at the first one, so a program that does not call them loads nothing

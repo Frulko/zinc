@@ -667,6 +667,8 @@ namespace {
     }
 
     static napi_status Unwrap(napi_env env, napi_value object, WrapperInfo** result) {
+      // zinc: anything but an object is napi_object_expected, as in Node (a null JSObjectRef crashed JSObjectHasPropertyForKey)
+      RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, ToJSValue(object)), napi_object_expected);
       CHECK_NAPI(NativeInfo::Query<WrapperInfo>(env, ToJSObject(env, object), result));
       return napi_ok;
     }

@@ -1,6 +1,6 @@
 diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javascriptcore.cc
---- a/src/js_native_api_javascriptcore.cc	2026-10-21 13:51:27
-+++ b/src/js_native_api_javascriptcore.cc	2026-10-21 13:51:27
+--- a/src/js_native_api_javascriptcore.cc	2026-10-21 14:25:52
++++ b/src/js_native_api_javascriptcore.cc	2026-10-21 14:25:52
 @@ -442,15 +442,31 @@
                                napi_callback cb,
                                void* data,
@@ -87,7 +87,16 @@ diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javas
    };
  
    template<typename T, NativeType TType>
-@@ -1495,7 +1499,7 @@
+@@ -663,6 +667,8 @@
+     }
+ 
+     static napi_status Unwrap(napi_env env, napi_value object, WrapperInfo** result) {
++      // zinc: anything but an object is napi_object_expected, as in Node (a null JSObjectRef crashed JSObjectHasPropertyForKey)
++      RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, ToJSValue(object)), napi_object_expected);
+       CHECK_NAPI(NativeInfo::Query<WrapperInfo>(env, ToJSObject(env, object), result));
+       return napi_ok;
+     }
+@@ -1495,7 +1501,7 @@
  napi_status napi_get_boolean(napi_env env, bool value, napi_value* result) {
    CHECK_ENV(env);
    CHECK_ARG(env, result);
@@ -96,7 +105,7 @@ diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javas
    return napi_ok;
  }
  
-@@ -1607,14 +1611,14 @@
+@@ -1607,14 +1613,14 @@
  napi_status napi_get_undefined(napi_env env, napi_value* result) {
    CHECK_ENV(env);
    CHECK_ARG(env, result);
@@ -113,7 +122,7 @@ diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javas
    return napi_ok;
  }
  
-@@ -1640,7 +1644,7 @@
+@@ -1640,7 +1646,7 @@
  
      if (i < *argc) {
        for (; i < *argc; i++) {
@@ -123,8 +132,8 @@ diff --color -ru a/src/js_native_api_javascriptcore.cc b/src/js_native_api_javas
      }
    }
 diff --color -ru a/src/js_native_api_javascriptcore.h b/src/js_native_api_javascriptcore.h
---- a/src/js_native_api_javascriptcore.h	2026-10-21 13:51:27
-+++ b/src/js_native_api_javascriptcore.h	2026-10-21 13:51:27
+--- a/src/js_native_api_javascriptcore.h	2026-10-21 14:25:52
++++ b/src/js_native_api_javascriptcore.h	2026-10-21 14:25:52
 @@ -28,6 +28,12 @@
    JSValueRef reference_info_symbol{};
    JSValueRef wrapper_info_symbol{};

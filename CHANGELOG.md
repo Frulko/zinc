@@ -9,8 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
-- `zinc run --engine jsc` (or `"engine": "jsc"` in zinc.json) runs a JavaScript program on macOS's own JavaScriptCore, compiled to machine code: about 10 times faster JavaScript than QuickJS, calls into zinc about 50 ns slower. `zinc test --runner jsc` and `zinc bundle --engine jsc` go with it. WebGL is not there yet.
-- `zinc run --engine v8` (or `"engine": "v8"` in zinc.json) runs a JavaScript program on V8, on Apple silicon Macs for now: compiled to machine code like JavaScriptCore, with calls into zinc faster than on QuickJS. Its engine (75 MB) is fetched once by `tools/v8-pack`. `zinc test --runner v8` and `zinc bundle --engine v8` go with it. WebGL is not there yet.
+- `zinc run --engine jsc` (or `"engine": "jsc"` in zinc.json) runs a JavaScript program on macOS's own JavaScriptCore, compiled to machine code: about 10 times faster JavaScript than QuickJS, calls into zinc about 50 ns slower. `zinc test --runner jsc` and `zinc bundle --engine jsc` go with it. WebGL and the web environment's games (three.js, PixiJS, Phaser, p5.js) run on it.
+- `zinc run --engine v8` (or `"engine": "v8"` in zinc.json) runs a JavaScript program on V8, on Apple silicon Macs for now: compiled to machine code like JavaScriptCore, with calls into zinc faster than on QuickJS. Its engine (75 MB) is fetched once by `tools/v8-pack`. `zinc test --runner v8` and `zinc bundle --engine v8` go with it, and WebGL as on the other engines.
 - `zinc run --engine v8 --inspect` opens the program to Chrome DevTools (chrome://inspect, port 9229): breakpoints in your own source files, stepping, the console. `--inspect-brk` waits at the first line. `zinc dev` does it by itself for a project with `"engine": "v8"`.
 - `<TextArea rows={0}>` is as tall as its text and grows or shrinks as you type, like CSS `field-sizing: content`.
 - `MARK_CARET` in `ui.setMarks` draws another person's caret in a text field, and `ui.anchorOf(h)` gives the other end of a field's selection.

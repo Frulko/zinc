@@ -19,6 +19,7 @@
 #include "qjs/qjs.h"
 #include "zn/host.h"
 #include "zn/log.h"
+#include "zn/napi_table.h"
 #include "zn/runtime.h"
 
 namespace zn::text { void installIntlSegmenter(napi_env env); }   // src/text/segmenter_js.cpp
@@ -353,6 +354,10 @@ int run(const zn_engine_args* a) {
   installHost(env);
   zn::qjs::installNative(env);
   zn::text::installIntlSegmenter(env);
+  if (a->webgl_open) {   // WebGL from libzn_webgl, calling this engine's Node-API (ZN-773.02); before the prelude, as on QuickJS
+    static const zn_napi_table napi = {ZN_NAPI_TABLE_INIT};
+    if (auto install = reinterpret_cast<void (*)(napi_env)>(a->webgl_open(&napi))) install(env);
+  }
   const std::string defs = std::string("globalThis.__ZINC_ENGINE__ = '") + kName + "'; globalThis.__ZINC_CAPS__ = " + a->caps +
                            "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;";
   if (!eval(env, kGlobals, "<globals>") || !eval(env, zn::qjs::kPrelude, "<prelude>") || !eval(env, zn::qjs::kWebShims, "<web-shims>") || !eval(env, defs, "<defines>")) return 101;

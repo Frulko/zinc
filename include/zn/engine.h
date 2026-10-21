@@ -4,7 +4,7 @@
 // zinc bundles the program into one script (zinc bundle's script mode) and hands it to the module's one entry point. zinc exports no C++ (the
 // coalescing cost of ZN-592.01), so the module links the stateless code it needs (codecs, text) and gets zinc's live state here: the host tables,
 // the redraw hook, the native registry. ZN_ENGINE_ABI changes when this struct changes: a pack built for another value is refused.
-#define ZN_ENGINE_ABI 1
+#define ZN_ENGINE_ABI 2
 
 extern "C" {
 struct zn_engine_args {
@@ -24,6 +24,9 @@ struct zn_engine_args {
   void* decode_rgba;     // zn::res::decodeRgba and imageSize: zinc's decoders (stb_image, libwebp), not linked twice
   void* image_size;
   void* map_stack;       // zn::qjs::mapStack: a stack trace through the bundle's source map, back to the files the user wrote
+  // WebGL (ZN-773.02): libzn_webgl opened by zinc with the engine's Node-API table (include/zn/napi_table.h); what it returns installs
+  // document.createElement('canvas').getContext('webgl') in a context, a void (*)(napi_env), or nullptr without the module
+  void* (*webgl_open)(const struct zn_napi_table* napi);
 };
 typedef int (*zn_engine_run_fn)(const zn_engine_args*);   // the exported `zn_engine_run`: the process exit code
 }
