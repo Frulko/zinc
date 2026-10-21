@@ -98,6 +98,9 @@ export function onPageMoved(f: (p: Page, from: string) => void): void { movedFns
 const folderFns: Array<(path: string) => void> = [];
 /** A folder appeared (made here, read from the vault, or listed by another window). */
 export function onFolderAdded(f: (path: string) => void): void { folderFns.push(f); }
+const folderGoneFns: Array<(path: string) => void> = [];
+/** A folder went (deleted outside, the vault closed, or another window said so). */
+export function onFolderRemoved(f: (path: string) => void): void { folderGoneFns.push(f); }
 function changed(p: Page): void { for (const f of changedFns) f(p); }
 
 // ---- names and paths, as a vault has them
@@ -268,8 +271,10 @@ export function addFolder(path: string): void {
   for (const f of folderFns) f(path);
 }
 export function removeFolder(path: string): void {
-  const left = folders().filter((f: string) => f !== path && !f.startsWith(path + '/'));
-  if (left.length !== folders().length) setFolders(left);
+  const gone = folders().filter((f: string) => f === path || f.startsWith(path + '/'));
+  if (gone.length === 0) return;
+  setFolders(folders().filter((f: string) => !gone.includes(f)));
+  for (const g of gone) for (const f of folderGoneFns) f(g);
 }
 export function pageWithId(id: string): Page | null { return pageById.get(id) ?? null; }
 export function pageOf(b: Block): Page | null { return pageById.get(b.page) ?? null; }

@@ -14,8 +14,9 @@ onPageChanged((p: Page) => dirty.add(p));
 onPageMoved((p: Page, from: string) => dirty.add(p));
 onPageRemoved((p: Page) => { dirty.delete(p); gone.add(p.id); });
 
-/** Where the index lives: a file of the vault, or ':memory:' (the default). Called before the first search. */
+/** Where the index lives: a file of the vault, or ':memory:' (the default). Called when a vault opens. */
 export function openIndex(file: string): void {
+  if (db !== null) (db as Database).close();   // another vault: its own index
   try { db = new Database(file); } catch (e) { console.log(`carnet: no index at ${file}: ${e}`); db = new Database(':memory:'); }
   const d = db as Database;
   d.exec('CREATE VIRTUAL TABLE IF NOT EXISTS notes USING fts5(id UNINDEXED, path UNINDEXED, title, body)');

@@ -36,6 +36,7 @@ export const SAVE_DELAY_S: number = 0.8;     // a note is written this long afte
 export const WATCH_S: number = 1;            // the vault is looked at this often for changes made by other programs
 export const UNTITLED = 'Untitled';          // a new note's name, as Obsidian names one
 export const CONFIG_DIR = '.carnet';         // the vault's own files (Obsidian's .obsidian/): the open note, the search index
+export const RECENT_VAULTS: i32 = 10;       // the vault switcher remembers this many folders
 export const TRASH_DIR = '.trash';           // where a deleted note goes (Obsidian's "Move to Obsidian trash")
 // page icons are Lucide names (zinc:icons), listed in zinc.json since they are chosen at run time
 export const PAGE_ICONS: string[] = ['file-text', 'notebook-pen', 'lightbulb', 'rocket', 'leaf', 'book-open', 'target', 'flask-conical', 'folder', 'sparkles'];

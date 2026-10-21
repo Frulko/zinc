@@ -5,16 +5,16 @@
 //
 //   ./link.sh && zinc run .                       the first window serves, the next ones join it
 //   CARNET_NAME=Ada zinc run .                     your name on the others' screens
-import { render } from 'zinc:ui/solid';
+import { render, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { LoroBlockStore, connect, createPresence, Message } from '@nbe/collab';
 import { me, Page, Peer, pages, setCurrentPage, currentPage, focusedBlock, pageWithId, pageAt, createPage, addRemotePage, deletePage,
-  setPagePath, addFolder, setPeerList, onPageOpened, onPageMoved, onPageRemoved, onFolderAdded } from './state';
-import { openVault, stepVault, vaultDir, lastOpenNote } from './services/vault';
-import { openIndex } from './services/search';
+  setPagePath, addFolder, removeFolder, setPeerList, onPageOpened, onPageMoved, onPageRemoved, onFolderAdded, onFolderRemoved, vaultName,
+  setVaultName } from './state';
+import { useVault, startVault, stepVault } from './services/vault';
 import { startSync, joinRoom, Transport, LINK_JOINED } from './services/sync';
-import { PEER_COLORS, PEER_NAMES, COLOR_PAGE, PRESENCE_REFRESH_S, CONFIG_DIR } from './constants';
+import { PEER_COLORS, PEER_NAMES, COLOR_PAGE, PRESENCE_REFRESH_S } from './constants';
 import { Sidebar, showSearch, stepSidebar } from './components/Sidebar';
 import { Prompt, openSwitcher, stepPrompt } from './components/Prompt';
 import { stepLinks } from './components/Block';
@@ -45,14 +45,16 @@ me.color = PEER_COLORS[tint % PEER_COLORS.length];
 const css = (c: number): string => '#' + c.toString(16).padStart(6, '0');
 
 // ---- the vault's notes and folders, shared: a Loro map in a room of its own ('n:' + note id -> its path, '' once deleted;
-// 'd:' + folder -> 1). Every window keeps its notes in step with it; the one that serves moves the files to match.
+// 'd:' + folder -> 1, 0 once gone; 'name' -> the vault's name). Every window keeps its notes in step with it; the one that serves
+// moves the files to match.
 const workspace = new LoroBlockStore();
 const index = workspace.doc.getMap('vault');
 function put(key: string, value: string | number): void { if (index.get(key) !== value) { index.set(key, value); workspace.doc.commit(); } }
 function readIndex(): void {
   for (const key of index.keys()) {
     const v = index.get(key);
-    if (key.startsWith('d:')) { addFolder(key.slice(2)); continue; }
+    if (key === 'name') { setVaultName(String(v)); continue; }
+    if (key.startsWith('d:')) { if (v === 1) addFolder(key.slice(2)); else removeFolder(key.slice(2)); continue; }
     const path = String(v), p = pageWithId(key.slice(2));
     if (path !== '' && p === null) addRemotePage(key.slice(2), path);
     else if (path === '' && p !== null) deletePage(p as Page);
@@ -68,6 +70,8 @@ onPageOpened((p: Page) => {
 onPageMoved((p: Page, from: string) => put(`n:${p.id}`, p.path()));
 onPageRemoved((p: Page) => put(`n:${p.id}`, ''));
 onFolderAdded((path: string) => put(`d:${path}`, 1));
+onFolderRemoved((path: string) => put(`d:${path}`, 0));
+createEffect(() => { if (vaultName() !== '') put('name', vaultName()); });
 joinRoom('workspace', (t: Transport) => connect(workspace, t));
 
 // ---- presence: @nbe/collab's, in its own room; where my caret is goes out when it moves
@@ -125,10 +129,7 @@ function tick(dt: number): void {
 // The window that serves (or works alone) reads the vault; one that joins gets the notes from it.
 startSync((mode: number) => {
   if (mode === LINK_JOINED) return;
-  openVault();
-  openIndex(`${vaultDir()}/${CONFIG_DIR}/index.sqlite`);
-  if (pages().length === 0) createPage('');
-  setCurrentPage(pageAt(lastOpenNote()) ?? pages()[0]);
+  useVault(startVault(), false);
 });
 watchFocus();
 watchDrags();

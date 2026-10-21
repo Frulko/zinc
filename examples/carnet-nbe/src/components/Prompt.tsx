@@ -1,11 +1,16 @@
 // A prompt over the app, as Obsidian's: a field and the choices it filters (↑↓ choose, Enter picks, Escape or a click outside
 // closes). The quick switcher (Cmd+O) is one: the notes whose name has the letters typed, in order, and Enter on a name no note
-// has makes that note. The name of a new folder is asked with one too.
+// has makes that note. The vault switcher is another (Obsidian's "Open another vault"): the folders opened before and "Open folder
+// as vault...", the system's folder picker. The name of a new folder is asked with one too.
 import { createSignal, createMemo, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
+import * as fs from 'zinc:fs';
 import { Icon } from 'zinc:icons';
+import * as dialog from 'zinc:system/dialog';
 import { slugify } from '@nbe/markdown';
-import { Page, pages, titleOf, folderOf, setCurrentPage, openLink, addFolder } from '../state';
+import { useVault, recentVaults, vaultDir } from '../services/vault';
+import { linkMode, linkAddress, LINK_JOINED } from '../services/sync';
+import { Page, pages, titleOf, folderOf, stemOf, setCurrentPage, openLink, addFolder } from '../state';
 import { COLOR_TEXT_SECONDARY } from '../constants';
 
 class Choice {
@@ -50,6 +55,23 @@ export function openSwitcher(): void {
     found.sort((a: [number, Page], b: [number, Page]) => a[0] - b[0]);
     const out = found.slice(0, 12).map((x: [number, Page]) => new Choice(titleOf(x[1]), folderOf(x[1].path()), 'file-text', () => setCurrentPage(x[1])));
     if (t !== '' && !pages().some((p: Page) => titleOf(p).toLowerCase() === t)) out.push(new Choice(q.trim(), 'Enter to create', 'plus', () => openLink(q.trim(), null)));
+    return out;
+  });
+}
+async function pickVault(): Promise<void> {
+  const o = new dialog.OpenOptions();
+  o.title = 'Open folder as vault'; o.directory = true;
+  const picked = await dialog.open(o);
+  if (picked !== null && picked.length > 0) useVault(picked[0], true);
+}
+/** The vault switcher: the folders opened before, another folder. A window that joined has the vault of the one it joined. */
+export function openVaultSwitcher(): void {
+  openPrompt('Open a vault...', (q: string): Choice[] => {
+    if (linkMode() === LINK_JOINED) return [new Choice(`The vault served by ${linkAddress()}`, 'the window that serves chooses it', 'folder', () => {})];
+    const t = q.trim().toLowerCase(), here = vaultDir() !== '' ? fs.realpath(vaultDir()) : '';
+    const out = recentVaults().filter((v: string) => score(v.toLowerCase(), t) >= 0)
+      .map((v: string) => new Choice(stemOf(v), v === here ? 'open' : v, 'folder', () => { if (v !== here) useVault(v, true); }));
+    out.push(new Choice('Open folder as vault...', 'a folder of Markdown files, or an empty one', 'folder-open', () => { pickVault(); }));
     return out;
   });
 }

@@ -43,7 +43,10 @@ patch -d .nbe-dev -p1 < nbe-syntax.patch
 
 ## The vault
 
-The vault is a folder, `vault/` beside the app (`CARNET_VAULT` moves it), seeded from `welcome/` the first time:
+The vault is a folder. A click on its name at the bottom of the sidebar opens the vault switcher, as Obsidian's: the folders
+opened before, and "Open folder as vault..." (the system's folder picker), any folder of Markdown files or an empty one. The last
+one chosen opens at the next start, remembered in the app's data folder (`vaults.json`, as Obsidian's `obsidian.json`).
+`CARNET_VAULT` names one for a run; with neither, it is `vault/` beside the app, seeded from `welcome/` the first time.
 
 - **A note is a `.md` file.** Its name is the note's title. Renaming the title renames the file when the field is left or Enter is
   pressed. A title a file name cannot hold ("Meeting: 2026/07") is kept in the front matter's `title`. The front matter is kept as
@@ -60,7 +63,7 @@ The vault is a folder, `vault/` beside the app (`CARNET_VAULT` moves it), seeded
 - **`.carnet/` is the app's own folder**, like Obsidian's `.obsidian/`. `workspace.json` holds the open note and the folded
   folders. `index.sqlite` is the search index (SQLite FTS5, `zinc:sqlite`), which other programs can query too.
 - **Only the window that serves the vault writes it.** Each note is written atomically 0.8 s after its last change, whoever made
-  it. A window that joins has the notes in memory and no files of its own.
+  it. A window that joins has the notes in memory and no files of its own; it follows the vault the serving window switches to.
 
 | Key | What it does |
 |---|---|
@@ -71,7 +74,7 @@ The vault is a folder, `vault/` beside the app (`CARNET_VAULT` moves it), seeded
 | Variable | Default | What it does |
 |---|---|---|
 | `CARNET_NAME` | a random name | your name |
-| `CARNET_VAULT` | `vault` | the vault's folder |
+| `CARNET_VAULT` | the last one chosen, else `vault` | the vault's folder for this run |
 | `CARNET_PORT` | `7311` | the relay's port |
 | `CARNET_LISTEN` | `127.0.0.1` | where the relay listens (`0.0.0.0` for other machines) |
 | `CARNET_JOIN` | `ws://127.0.0.1:<port>` | the relay to join when this one cannot serve |

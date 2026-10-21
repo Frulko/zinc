@@ -27,7 +27,9 @@
   },
   "permissions": [
     "fs",
-    "net"
+    "net",
+    "dialog",
+    "window"
   ],
   "requires": [
     "heap>=32M",
@@ -68,7 +70,9 @@
     "folder-plus",
     "search",
     "arrow-up-right",
-    "link"
+    "link",
+    "folder-open",
+    "chevrons-up-down"
   ],
   "engine": "quickjs"
 }

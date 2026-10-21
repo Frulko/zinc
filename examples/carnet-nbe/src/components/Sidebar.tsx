@@ -1,7 +1,7 @@
 // The left pane, as Obsidian's: two tabs. Files: the vault's folders and notes (folders first, a click on a folder folds it, a
 // click on a note opens it, the bin on hover moves it to the trash, a note dragged onto a folder moves there), new note and new
 // folder. Search (Cmd+Shift+F): the notes with the words typed (services/search.ts) and the words around them. At the bottom,
-// the vault's name and the collaboration.
+// the vault's name (a click opens the vault switcher) and the collaboration.
 import { createSignal, createMemo, createNodeRef, onCleanup } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as dnd from 'zinc:ui/dnd';
@@ -13,7 +13,7 @@ import { linkMode, linkAddress, LINK_HOST, LINK_JOINED } from '../services/sync'
 import { SIDEBAR_WIDTH, COLOR_TEXT_SECONDARY, COLOR_LIVE, COLOR_OFFLINE } from '../constants';
 import { focusTitle } from './focus';
 import { PageIcon } from './PageIcon';
-import { openNewFolder } from './Prompt';
+import { openNewFolder, openVaultSwitcher } from './Prompt';
 
 export function Avatar(props: { name: string; color: i32; size: i32 }): i32 {
   return <View className={`w-[${props.size}] h-[${props.size}] rounded-full items-center justify-center`} bg={props.color}>
@@ -149,9 +149,10 @@ export function Sidebar(): i32 {
     {tab() === 0 && <Files />}
     {tab() === 1 && <Search />}
     <View className="flex-col gap-1.5 px-3.5 py-3 border-t border-[#ededeb]">
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row items-center gap-2 -mx-1.5 px-1.5 h-[28] rounded-md hover:bg-[#ebebea] cursor-pointer" onPointerDown={(e: ui.PointerEvent) => openVaultSwitcher()}>
         <Avatar name={me.name} color={me.color} size={20} />
         <Text className="text-[13px] font-semibold text-[#37352f] grow" numberOfLines={1}>{vaultName() !== '' ? vaultName() : `${me.name}'s Carnet`}</Text>
+        <Icon name="chevrons-up-down" size={14} color={() => COLOR_TEXT_SECONDARY} strokeWidth={2} />
       </View>
       <View className="flex-row items-center gap-2">
         <View className="w-[8] h-[8] rounded-full" bg={linkMode() === 0 ? COLOR_OFFLINE : COLOR_LIVE} />
