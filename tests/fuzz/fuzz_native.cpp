@@ -38,7 +38,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
   for (std::size_t i = 0; i < parsed.params.size(); ++i) {
     ZnVal v; std::memset(&v, 0, sizeof v);
     char l = parsed.params[i];
-    if (l == 's') { v.s.p = pool.c_str() + (at % rest.size() % 8); v.s.n = static_cast<uint32_t>(std::strlen(v.s.p)); }
+    if (l == 's') { v.s.p = pool.c_str() + (rest.empty() ? 0 : at % rest.size() % 8); v.s.n = static_cast<uint32_t>(std::strlen(v.s.p)); }
     else if (l == 'B' || l == 'I' || l == 'U' || l == 'D' || l == 'S') { v.v.p = pool.data(); v.v.n = 0; }
     else if (at + 8 <= pool.size()) std::memcpy(&v.u, pool.data() + at, 8);
     at += 8;
