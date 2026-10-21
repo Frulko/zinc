@@ -1904,7 +1904,8 @@ struct Lowering::FnLower {
         const RtInfo& ri = rtInfo(id);
         std::vector<ValueId> vs;
         for (unsigned k = 0; k < rtParamCount(ri); ++k) vs.push_back(rtParam(ri, k) == 's' ? exprTo(x.kids[k + 1], m.strT()) : expr(x.kids[k + 1]));
-        return emit(IrOp::Rt, tv(vs[1]), std::move(vs), 0, 0, static_cast<std::uint32_t>(id));
+        TypeId t = tv(vs[1]);   // before the move: GCC on x86-64 builds the by-value argument first, and vs is empty by then
+        return emit(IrOp::Rt, t, std::move(vs), 0, 0, static_cast<std::uint32_t>(id));
       }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__host_", 0) == 0) {  // a function of the host (runtime.h, owner "host")
         for (const RtInfo& r : kRtInfo) {
