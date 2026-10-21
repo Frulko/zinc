@@ -77,6 +77,25 @@ napi_value hostFn(napi_env env, napi_callback_info info) {
       }
       case 'D': case 'B': {
         std::vector<std::uint64_t>& arr = (heavy ? *heavy : heavy.emplace()).arrays[k];
+        const bool bytes = zn::rtParam(ri, k) == 'B';
+        bool typed = false;
+        napi_typedarray_type tt;
+        std::size_t tn = 0;
+        void* data = nullptr;
+        bool array = false;
+        if (napi_is_array(env, v, &array) == napi_ok && array) {   // a u8[] / f64[]: the engine copies it into a typed array in one call, not one call per element
+          napi_value global, ctor, copy;
+          if (napi_get_global(env, &global) == napi_ok && napi_get_named_property(env, global, bytes ? "Uint8Array" : "Float64Array", &ctor) == napi_ok &&
+              napi_new_instance(env, ctor, 1, &v, &copy) == napi_ok) v = copy;
+        }
+        if (napi_is_typedarray(env, v, &typed) == napi_ok && typed && napi_get_typedarray_info(env, v, &tt, &tn, &data, nullptr, nullptr) == napi_ok &&
+            (bytes ? tt == napi_uint8_array || tt == napi_uint8_clamped_array : tt == napi_float64_array)) {   // an image's pixels: read in place
+          arr.resize(tn);
+          if (bytes) for (std::size_t i = 0; i < tn; ++i) arr[i] = static_cast<const std::uint8_t*>(data)[i];
+          else if (tn) std::memcpy(arr.data(), data, tn * 8);
+          h.p = arr.data(); h.n = static_cast<std::uint32_t>(tn);
+          break;
+        }
         napi_value len;
         const std::int32_t n = napi_get_named_property(env, v, "length", &len) == napi_ok ? i32(env, len) : 0;
         arr.assign(static_cast<std::size_t>(n < 0 ? 0 : n), 0);

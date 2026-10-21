@@ -999,3 +999,19 @@ macOS's `peak memory footprint` (dirty memory the process owns); RSS also counts
   first VM) is one line in src/engine/jsc.cpp if a target needs it.
 - Hero's own JavaScript is small next to its layout and raster, which run in zinc whatever the engine: JSC is no faster than QuickJS on it, V8 about
   twice as fast.
+## The render suite on the four engines (ZN-773, 2026-10-21)
+
+`tools/zbench run mac --engine quickjs|jsc|v8` (new option: `zinc run` of the suite on that engine) beside the AOT build, M1 Pro, software raster, load average 30 to 80 from other sessions (every scene flagged noisy: compare the CPU work `w`, p50 ms, not the intervals). Artifacts `docs/reports/bench/zbench-render-mac-MacBookPro18_3-2026-10-21-{aot,quickjs,jsc,v8,img-*}.json`.
+
+| scene | AOT | QuickJS | JSC | V8 |
+|---|---|---|---|---|
+| fill, text, clip, poly, scroll (raster-bound) | 0.4 to 1.8 | 0.5 to 2.0 | 0.4 to 1.6 | 0.4 to 1.5 |
+| gradients | 9.0 | 8.3 | 7.1 | 7.2 |
+| quads_10k | 1.32 | 2.72 | 4.72 | 1.84 |
+| image_fill_only (JS loop over 256 KB) | 0.75 | 11.9 | 1.33 | 0.26 |
+| image_upload_only, before / after the fix below | 0.72 | 3.1 | 27.5 / 2.0 | 10.6 / 1.8 |
+| image_update, before / after | 1.29 | 15.4 | 27.9 / 2.4 | 11.4 / 4.1 |
+| ui_scroll_fling / ui_scroll_wheel | 0.58 / 0.61 | 3.60 / 3.65 | 1.23 / 1.25 | 0.65 / 0.69 |
+| ui_anim_transform / ui_anim_layout / ui_list_update | 0.60 / 0.24 / 0.50 | 1.48 / 0.67 / 2.35 | 0.64 / 0.31 / 0.75 | 0.57 / 0.32 / 0.57 |
+
+V8 matches the AOT build on the UI scenes; JSC is within 1.1 to 2x; QuickJS 2.5 to 6x. The fix: an array argument of a host row (`u8[]`, `f64[]`: updateImage's pixels) was read with one `napi_get_element` per element (262,144 calls a frame); the driver now has the engine copy it into a Uint8Array/Float64Array in one `napi_new_instance` and reads its bytes in place (src/engine/driver.cpp). JSC's quads_10k (4.7 against V8's 1.8) is the next thing to look at: 10,000 host calls a frame at JSC's ~118 ns each.

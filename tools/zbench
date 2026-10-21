@@ -3,10 +3,13 @@
 
 usage:
   tools/zbench run  DEVICE [--suite render|media|boundary] [--scene id,id] [--runs 3] [--frames 240] [--skip 30] [--mode uncapped|paced|both] [--backend auto,cpu,gl,glfinish]
-                    [--size 1024x768] [--no-build] [--app-id ID]
+                    [--size 1024x768] [--no-build] [--app-id ID] [--engine quickjs|jsc|v8]
   tools/zbench show FILE [FILE ...]          one table: a column per file, a row per scene, ratios to the first file
   tools/zbench gate BASE.json NEW.json [--tolerance 0.15]    exit 3 when a scene got slower than the noise allows, 4 on a rendering problem
   tools/zbench list                          the scenes of the render suite
+
+--engine (mac): the suite through `zinc run --engine X` (plain JavaScript on QuickJS-ng, JavaScriptCore or V8, the program bundled once) instead of the app built by
+`zinc build` (the typed engine compiled ahead of time); the artifact's config and file name say which.
 
 DEVICE: mac | android | webos | ios   (one device on adb / novacom / usb; ios needs --app-id, see below)
 
@@ -160,6 +163,14 @@ class Mac(Device):
                 "gpu": gpu, "thermal": g("pmset -g therm | tr '\\n' ' '"), "power": g("pmset -g batt | head -1"), "load": g("uptime").split("load averages:")[-1].strip()}
     def prepare(self, suite, args):
         self.exe = "/tmp/zbench_%s" % suite["name"]
+        self.cmd = [self.exe]
+        self.size = args["size"]
+        if args["engine"]:   # the JavaScript engines run the project itself; one short run bundles it (cached), so no launch pays esbuild
+            self.exe = None
+            self.cmd = [ZINC, "run", suite["project"], "--engine", args["engine"]]
+            r = sh(self.cmd, timeout=600, env=dict(os.environ, ZINC_STEPS="0", ZINC_HEADLESS="1", ZINC_FRAMES="1", ZB_SCENE=suite["scenes"][0]))
+            if r.returncode: sys.exit("zbench: %s does not run the suite:\n%s" % (args["engine"], (r.stdout + r.stderr)[-1500:]))
+            return
         if not args["no_build"]:
             r = sh([ZINC, "build", suite["project"], "-o", self.exe], timeout=1800, env=dict(os.environ, ZINC_STEPS="0", ZINC_BACKGROUND="1"))
             if r.returncode: sys.exit("zbench: build failed:\n" + (r.stdout + r.stderr)[-1500:])
@@ -174,18 +185,18 @@ class Mac(Device):
         if "ZB_OUT" in env:
             try: os.remove(env["ZB_OUT"])
             except OSError: pass
-            p = subprocess.Popen([self.exe], env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            p = subprocess.Popen(self.cmd, env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             txt = self.wait_report(env, timeout, alive=lambda: p.poll() is None)
             try: os.killpg(p.pid, signal.SIGKILL)
             except OSError: pass
             return txt
-        p = subprocess.Popen([self.exe], env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+        p = subprocess.Popen(self.cmd, env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
         try: out = p.communicate(timeout=timeout)[0]
         except subprocess.TimeoutExpired:
             os.killpg(p.pid, signal.SIGKILL); out = p.communicate()[0] or ""; out += "\nZB_TIMEOUT"
         return out
     def cleanup(self):
-        try: os.remove(self.exe)
+        try: self.exe and os.remove(self.exe)
         except OSError: pass
 
 
@@ -478,6 +489,7 @@ def cmd_run(a):
         extra["ZB_VIDEO"] = "/tmp/zbench_video.mp4"
         r = sh(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30", "-t", "12", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", extra["ZB_VIDEO"]])
         if r.returncode: sys.exit("zbench: ffmpeg is needed to make the test clip: " + r.stderr[-300:])
+    if a["engine"] and a["device_name"] != "mac": sys.exit("zbench: --engine runs on mac only for now")
     dev = device_of(a["device_name"], a)
     say("preparing %s (one app for %d scenes)" % (dev.label, len(scenes)))
     dev.prepare(suite, a)
@@ -485,7 +497,7 @@ def cmd_run(a):
     pace = ["uncapped", "paced"] if a["mode"] == "both" else [a["mode"]]
     backends = ("pi720,pi1080,pi720up" if dev.label == "pi" and a["backend"] == "auto" else a["backend"]).split(",")
     modes = [m if b == "auto" else "%s/%s" % (m, b) for m in pace for b in backends]
-    config = {"set": extra, "frames": a["frames"], "skip": a["skip"], "runs": a["runs"], "modes": modes, "size": a["size"] if dev.label == "mac" else "native"}
+    config = {"engine": a["engine"] or "aot", "set": extra, "frames": a["frames"], "skip": a["skip"], "runs": a["runs"], "modes": modes, "size": a["size"] if dev.label == "mac" else "native"}
     results = {m: {s: [] for s in scenes} for m in modes}
     renv = {"auto": {}, "cpu": {"ZINC_RENDERER": "cpu"}, "gl": {"ZINC_RENDERER": "gl"}, "glfinish": {"ZINC_RENDERER": "gl", "ZINC_GL_TIMER": "finish"}, "gl_nooccl": {"ZINC_RENDERER": "gl", "ZINC_GL_OCCLUDE": "0"},
             "pi720": {"ZB_PIVAR": "pi720", "ZINC_RENDERER": "gl"}, "pi1080": {"ZB_PIVAR": "pi1080", "ZINC_RENDERER": "gl"}, "pi720up": {"ZB_PIVAR": "pi720up", "ZINC_RENDERER": "gl"}}
@@ -541,7 +553,7 @@ def cmd_run(a):
         doc["modes"][m] = {"scenes": sc, "problems": problems(sc, config), "raw": results[m]}
     label = re.sub(r"[^A-Za-z0-9._-]+", "_", "%s-%s" % (dev.label, (env_before.get("model") or env_before.get("device_name") or "").strip()))
     os.makedirs(OUT, exist_ok=True)
-    path = os.path.join(OUT, "zbench-%s-%s-%s%s.json" % (suite_name, label, datetime.date.today().isoformat(), "-" + a["tag"] if a["tag"] else ""))   # --tag: an experiment keeps its own artifact
+    path = os.path.join(OUT, "zbench-%s-%s-%s%s.json" % (suite_name, label, datetime.date.today().isoformat(), "-" + (a["tag"] or a["engine"]) if a["tag"] or a["engine"] else ""))   # --tag: an experiment keeps its own artifact
     json.dump(doc, open(path, "w"), indent=1)
     say("wrote", path)
     show([path])
@@ -603,14 +615,14 @@ def cmd_gate(a):
 
 
 def parse_args(argv):
-    a = {"suite": "render", "scene": "", "runs": 3, "frames": 240, "skip": 30, "mode": "uncapped", "backend": "auto", "size": "1024x768", "no_build": False, "one_by_one": False, "set": "", "tag": "", "host": "", "app_id": "", "tolerance": 0.15, "files": [], "device_name": ""}
+    a = {"suite": "render", "scene": "", "runs": 3, "frames": 240, "skip": 30, "mode": "uncapped", "backend": "auto", "size": "1024x768", "no_build": False, "one_by_one": False, "set": "", "tag": "", "host": "", "app_id": "", "tolerance": 0.15, "files": [], "device_name": "", "engine": ""}
     cmd = argv[0] if argv else "-h"
     rest = argv[1:]
     if cmd == "run" and rest and not rest[0].startswith("--"): a["device_name"] = rest.pop(0)
     i = 0
     while i < len(rest):
         x = rest[i]
-        if x in ("--suite", "--scene", "--mode", "--backend", "--size", "--app-id", "--host", "--set", "--tag"): a[x[2:].replace("-", "_")] = rest[i + 1]; i += 2
+        if x in ("--suite", "--scene", "--mode", "--backend", "--size", "--app-id", "--host", "--set", "--tag", "--engine"): a[x[2:].replace("-", "_")] = rest[i + 1]; i += 2
         elif x in ("--runs", "--frames", "--skip"): a[x[2:]] = int(rest[i + 1]); i += 2
         elif x == "--tolerance": a["tolerance"] = float(rest[i + 1]); i += 2
         elif x == "--no-build": a["no_build"] = True; i += 1

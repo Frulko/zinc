@@ -1,0 +1,1135 @@
+{
+ "schema": "zbench/1",
+ "suite": "render",
+ "date": "2026-10-21T15:35:23",
+ "tool": {
+  "rev": "faddd6f4",
+  "dirty": true
+ },
+ "device": {
+  "id": "mac",
+  "before": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "102.45 81.88 61.52"
+  },
+  "after": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "100.21 84.21 63.54"
+  }
+ },
+ "config": {
+  "engine": "quickjs",
+  "set": {},
+  "frames": 240,
+  "skip": 30,
+  "runs": 3,
+  "modes": [
+   "uncapped"
+  ],
+  "size": "1024x768"
+ },
+ "modes": {
+  "uncapped": {
+   "scenes": {
+    "image_update": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 14948,
+     "work_p99_us": 27069,
+     "interval_p50_us": 16598,
+     "interval_p99_us": 30298,
+     "raster_p50_us": 633,
+     "present_p50_us": 224,
+     "frames": 239,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 49,
+     "late_interval_gt_25": 9,
+     "fps": 60.2,
+     "spread": 0.0068,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "a6a17d846c7a5fc3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "renderer": "cpu"
+     }
+    },
+    "image_fill_only": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 11711,
+     "work_p99_us": 29233,
+     "interval_p50_us": 16676,
+     "interval_p99_us": 31608,
+     "raster_p50_us": 124,
+     "present_p50_us": 4139,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 13,
+     "late_interval_gt_25": 12,
+     "fps": 60.0,
+     "spread": 0.0089,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "0cfd888a7c9d0383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "renderer": "cpu"
+     }
+    },
+    "image_upload_only": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 3245,
+     "work_p99_us": 25770,
+     "interval_p50_us": 16694,
+     "interval_p99_us": 45336,
+     "raster_p50_us": 800,
+     "present_p50_us": 12480,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 5,
+     "late_interval_gt_25": 15,
+     "fps": 59.9,
+     "spread": 0.0047,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "a6a17d846c7a5fc3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "renderer": "cpu"
+     }
+    }
+   },
+   "problems": [
+    {
+     "scene": "image_fill_only",
+     "kind": "stutter",
+     "detail": "12 frames longer than 25 ms while paced"
+    },
+    {
+     "scene": "image_upload_only",
+     "kind": "stutter",
+     "detail": "15 frames longer than 25 ms while paced"
+    }
+   ],
+   "raw": {
+    "image_update": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 14191,
+         "p99": 25123,
+         "max": 47750,
+         "mean": 15188
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 30,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 633,
+         "p99": 2034,
+         "max": 5594,
+         "mean": 768
+        },
+        "present": {
+         "p50": 224,
+         "p99": 6492,
+         "max": 23613,
+         "mean": 987
+        },
+        "work": {
+         "p50": 14948,
+         "p99": 27681,
+         "max": 48647,
+         "mean": 15958
+        },
+        "interval": {
+         "p50": 16593,
+         "p99": 30298,
+         "max": 49409,
+         "mean": 17536
+        }
+       },
+       "late": {
+        "work_gt_8_3": 239,
+        "work_gt_16_7": 49,
+        "work_gt_33_3": 2,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 110,
+        "interval_gt_25": 9,
+        "interval_gt_33_3": 3,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 13901,
+         "p99": 26115,
+         "max": 29787,
+         "mean": 14535
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 16,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 599,
+         "p99": 2394,
+         "max": 4824,
+         "mean": 721
+        },
+        "present": {
+         "p50": 404,
+         "p99": 8835,
+         "max": 17019,
+         "mean": 1574
+        },
+        "work": {
+         "p50": 14515,
+         "p99": 27069,
+         "max": 32183,
+         "mean": 15258
+        },
+        "interval": {
+         "p50": 16598,
+         "p99": 28419,
+         "max": 34129,
+         "mean": 17322
+        }
+       },
+       "late": {
+        "work_gt_8_3": 239,
+        "work_gt_16_7": 27,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 111,
+        "interval_gt_25": 9,
+        "interval_gt_33_3": 1,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 14264,
+         "p99": 23568,
+         "max": 35009,
+         "mean": 15159
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 27,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 754,
+         "p99": 2238,
+         "max": 2711,
+         "mean": 876
+        },
+        "present": {
+         "p50": 222,
+         "p99": 11811,
+         "max": 17034,
+         "mean": 1145
+        },
+        "work": {
+         "p50": 15116,
+         "p99": 25072,
+         "max": 35818,
+         "mean": 16037
+        },
+        "interval": {
+         "p50": 16706,
+         "p99": 32623,
+         "max": 39095,
+         "mean": 17766
+        }
+       },
+       "late": {
+        "work_gt_8_3": 239,
+        "work_gt_16_7": 53,
+        "work_gt_33_3": 1,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 121,
+        "interval_gt_25": 12,
+        "interval_gt_33_3": 2,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "image_fill_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 11578,
+         "p99": 29026,
+         "max": 76398,
+         "mean": 12712
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 11,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 124,
+         "p99": 385,
+         "max": 1049,
+         "mean": 146
+        },
+        "present": {
+         "p50": 4139,
+         "p99": 14207,
+         "max": 17747,
+         "mean": 3967
+        },
+        "work": {
+         "p50": 11711,
+         "p99": 29233,
+         "max": 76587,
+         "mean": 12859
+        },
+        "interval": {
+         "p50": 16644,
+         "p99": 31423,
+         "max": 82899,
+         "mean": 17463
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 13,
+        "work_gt_33_3": 2,
+        "work_gt_50": 1,
+        "interval_gt_16_7": 116,
+        "interval_gt_25": 12,
+        "interval_gt_33_3": 2,
+        "interval_gt_50": 1,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 11478,
+         "p99": 20572,
+         "max": 51466,
+         "mean": 12191
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 23,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 122,
+         "p99": 443,
+         "max": 2948,
+         "mean": 150
+        },
+        "present": {
+         "p50": 4486,
+         "p99": 10804,
+         "max": 25155,
+         "mean": 4306
+        },
+        "work": {
+         "p50": 11596,
+         "p99": 20994,
+         "max": 51656,
+         "mean": 12343
+        },
+        "interval": {
+         "p50": 16676,
+         "p99": 31608,
+         "max": 53789,
+         "mean": 17169
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 8,
+        "work_gt_33_3": 2,
+        "work_gt_50": 1,
+        "interval_gt_16_7": 122,
+        "interval_gt_25": 6,
+        "interval_gt_33_3": 3,
+        "interval_gt_50": 1,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 11970,
+         "p99": 107960,
+         "max": 246380,
+         "mean": 16625
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 9,
+         "max": 36,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 144,
+         "p99": 4084,
+         "max": 9324,
+         "mean": 346
+        },
+        "present": {
+         "p50": 3872,
+         "p99": 15174,
+         "max": 25824,
+         "mean": 3854
+        },
+        "work": {
+         "p50": 12109,
+         "p99": 108692,
+         "max": 247521,
+         "mean": 16974
+        },
+        "interval": {
+         "p50": 16793,
+         "p99": 109707,
+         "max": 260404,
+         "mean": 21515
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 34,
+        "work_gt_33_3": 11,
+        "work_gt_50": 5,
+        "interval_gt_16_7": 146,
+        "interval_gt_25": 26,
+        "interval_gt_33_3": 14,
+        "interval_gt_50": 5,
+        "interval_gt_100": 4
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "image_upload_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 2320,
+         "p99": 4193,
+         "max": 5390,
+         "mean": 2441
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 3,
+         "max": 27,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 579,
+         "p99": 1447,
+         "max": 3428,
+         "mean": 680
+        },
+        "present": {
+         "p50": 13266,
+         "p99": 22230,
+         "max": 29441,
+         "mean": 13238
+        },
+        "work": {
+         "p50": 2919,
+         "p99": 5517,
+         "max": 8819,
+         "mean": 3123
+        },
+        "interval": {
+         "p50": 16694,
+         "p99": 25502,
+         "max": 34622,
+         "mean": 16890
+        }
+       },
+       "late": {
+        "work_gt_8_3": 1,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 126,
+        "interval_gt_25": 4,
+        "interval_gt_33_3": 1,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 2674,
+         "p99": 17942,
+         "max": 52797,
+         "mean": 3663
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 263,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 803,
+         "p99": 7043,
+         "max": 12183,
+         "mean": 1306
+        },
+        "present": {
+         "p50": 12415,
+         "p99": 33101,
+         "max": 106763,
+         "mean": 12222
+        },
+        "work": {
+         "p50": 3533,
+         "p99": 25770,
+         "max": 59832,
+         "mean": 4972
+        },
+        "interval": {
+         "p50": 16760,
+         "p99": 45336,
+         "max": 116101,
+         "mean": 18295
+        }
+       },
+       "late": {
+        "work_gt_8_3": 18,
+        "work_gt_16_7": 5,
+        "work_gt_33_3": 2,
+        "work_gt_50": 1,
+        "interval_gt_16_7": 131,
+        "interval_gt_25": 15,
+        "interval_gt_33_3": 8,
+        "interval_gt_50": 3,
+        "interval_gt_100": 1
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 2429,
+         "p99": 18632,
+         "max": 129431,
+         "mean": 4310
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 208,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 800,
+         "p99": 12881,
+         "max": 32238,
+         "mean": 1588
+        },
+        "present": {
+         "p50": 12480,
+         "p99": 27346,
+         "max": 93820,
+         "mean": 12198
+        },
+        "work": {
+         "p50": 3245,
+         "p99": 38581,
+         "max": 138578,
+         "mean": 5902
+        },
+        "interval": {
+         "p50": 16681,
+         "p99": 106864,
+         "max": 189946,
+         "mean": 19950
+        }
+       },
+       "late": {
+        "work_gt_8_3": 25,
+        "work_gt_16_7": 10,
+        "work_gt_33_3": 5,
+        "work_gt_50": 2,
+        "interval_gt_16_7": 123,
+        "interval_gt_25": 16,
+        "interval_gt_33_3": 11,
+        "interval_gt_50": 6,
+        "interval_gt_100": 5
+       },
+       "info": {
+        "renderer": "cpu"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ]
+   }
+  }
+ }
+}
