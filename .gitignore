@@ -4,6 +4,7 @@ build/
 dist/
 .DS_Store
 .claude/
+.opencode/
 zinc.storage
 *.swp
 *.swo
