@@ -11,7 +11,7 @@ Every package is MIT/X11 or similarly permissive (copyright files under usr/shar
 run time, never linked statically). armv7 builds use the armhf sysroot (same libraries; armv7-linux is a link to it).
 ZINC_SYSROOT_MIRROR replaces the snapshot's address (a directory with the same pool/ paths).
 """
-import argparse, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile, urllib.request
+import argparse, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile, time, urllib.error, urllib.request
 
 SNAPSHOT = "20261001T000000Z"
 SUITE = "bookworm"
@@ -36,8 +36,13 @@ def base():
 
 
 def fetch(url):
-    with urllib.request.urlopen(url, timeout=120) as r:
-        return r.read()
+    for attempt in range(5):   # snapshot.debian.org answers 503 now and then ("All backends failed or unhealthy"): try again, then give up
+        try:
+            with urllib.request.urlopen(url, timeout=120) as r:
+                return r.read()
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 4 or (isinstance(e, urllib.error.HTTPError) and e.code < 500): raise
+            time.sleep(10 * (attempt + 1))
 
 
 def write_lock():
