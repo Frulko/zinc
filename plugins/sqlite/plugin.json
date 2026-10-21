@@ -4,16 +4,16 @@
   "deterministic": true,
   "module": "zinc:sqlite",
   "entry": "index.ts",
-  "description": "SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions",
+  "description": "SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions, FTS5 full-text search",
   "requires": ["fs", "heap>=4M"],
   "targets": {
-    "macos": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] },
-    "linux": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] },
-    "windows": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] },
-    "android": {"sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"]},
-    "ios": {"sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"]},
-    "rpi1": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] },
-    "rmpp": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] }
+    "macos": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"] },
+    "linux": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"] },
+    "windows": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"] },
+    "android": {"sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"]},
+    "ios": {"sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"]},
+    "rpi1": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"] },
+    "rmpp": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0", "SQLITE_ENABLE_FTS5"] }
   },
   "web": {
       "native": "Sqlite",
@@ -41,7 +41,8 @@
               "-DSQLITE_OMIT_PROGRESS_CALLBACK",
               "-DSQLITE_OMIT_AUTHORIZATION",
               "-DSQLITE_OMIT_TRACE",
-              "-DSQLITE_DQS=0"
+              "-DSQLITE_DQS=0",
+              "-DSQLITE_ENABLE_FTS5"
           ],
           "exports": [
               "malloc",
