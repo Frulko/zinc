@@ -1015,3 +1015,58 @@ macOS's `peak memory footprint` (dirty memory the process owns); RSS also counts
 | ui_anim_transform / ui_anim_layout / ui_list_update | 0.60 / 0.24 / 0.50 | 1.48 / 0.67 / 2.35 | 0.64 / 0.31 / 0.75 | 0.57 / 0.32 / 0.57 |
 
 V8 matches the AOT build on the UI scenes; JSC is within 1.1 to 2x; QuickJS 2.5 to 6x. The fix: an array argument of a host row (`u8[]`, `f64[]`: updateImage's pixels) was read with one `napi_get_element` per element (262,144 calls a frame); the driver now has the engine copy it into a Uint8Array/Float64Array in one `napi_new_instance` and reads its bytes in place (src/engine/driver.cpp). JSC's quads_10k (4.7 against V8's 1.8) is the next thing to look at: 10,000 host calls a frame at JSC's ~118 ns each.
+
+## Hermes and Static Hermes beside the three engines (ZN-773.07, 2026-10-21)
+
+Hermes built from source by `tools/hermes-pack` (facebook/hermes `static_h` at `e760a68a`, Release, arm64 baseline JIT allowed, its own Node-API in
+`libhermesvm`), `--engine hermes` (src/engine/hermes.cpp). M1 Pro, load average 11 to 18 from other sessions (best of 2 or 3 runs; the JIT numbers
+swing). Hermes compiles the bundle lazily and unoptimised by default; `ZINC_HERMES_OPT=1` compiles it eagerly through the full optimiser,
+`ZINC_HERMES_JIT=0` turns the JIT off; Static Hermes is the bundle compiled by `shermes -O` to native code (`tools/hermes-unit`) and run by the
+same module in the same Runtime and Node-API environment (`ZINC_HERMES_UNIT`).
+
+`tests/bench/napi/engines.js`:
+
+| | QuickJS-ng | JSC | V8 | Hermes | Hermes, no JIT | Hermes `-O` | Static Hermes | Static Hermes `-typed` |
+|---|---|---|---|---|---|---|---|---|
+| fib(30) | 75 ms | 5 ms | 8 ms | 32 ms | 83 ms | 19 ms | 21 ms | 19 ms |
+| a million `{x, y}` pushed and summed | 228 ms | 30 ms | 38 ms | 133 ms | 132 ms | 93 ms | 75 ms | 59 ms |
+| 200k string appends, split, map, join | 24 ms | 5 ms | 3 ms | 33 ms | 18 ms | 19 ms | 17 ms | 34 ms |
+| one `__host_loopNow()` call | 70 ns | 115 ns | 52 ns | 50 ns | 49 ns | 47 ns | 48 ns | 48 ns |
+
+Standalone (`shermes -O -o fib fib.js`, no zinc): fib(30) 20 ms untyped, 15 ms with Flow types and `-typed`; the `hermes` CLI 50 ms
+interpreted, 19 ms with `-Xjit=force`. `-typed` on untyped JavaScript changes little (it only types what is annotated).
+
+`examples/hero`, headless, `ZINC_DETERMINISTIC=1`, `/usr/bin/time -l`; frame 30 pixel-identical on Hermes, Static Hermes and QuickJS:
+
+| | QuickJS-ng | JSC | V8 | Hermes | Hermes `-O` | Static Hermes |
+|---|---|---|---|---|---|---|
+| 60 / 600 / 3000 frames, CPU | 0.47 / 1.04 / 3.47 s | 0.52 / 0.94 / 2.39 s | 0.39 / 0.53 / 0.99 s | 0.46 / 0.89 / 2.72 s | 1.61 / 1.99 / 3.48 s | 0.28 / 0.67 / 2.31 s |
+| 60 / 600 / 3000 frames, footprint | 48 / 51 / 47 MB | 114 / 148 / 139 MB | 73 / 77 / 86 MB | 67 / 73 / 74 MB | 111 / 100 / 109 MB | 51 / 53 / 58 MB |
+| empty program: start (wall) / footprint | 10-20 ms / 5.7 MB | 20-30 ms / 9.9 MB | 30-40 ms / 20 MB | 20-30 ms / 8.5 MB | | |
+
+- Static Hermes is the fastest start (no parse, no compile: 0.28 s CPU for 60 frames against 0.46 for Hermes's bytecode) and QuickJS's footprint,
+  with 1.5x QuickJS's speed over a long run; V8 stays 2.3x faster than it on hero. `-O` at run time costs 1.2 s of optimiser on hero's 681 KB
+  bundle: worth it only ahead of time (hermesc, or shermes).
+- The price of Static Hermes: `shermes` takes 34 s of CPU on hero's bundle and makes 4.9 MB of code from 681 KB of JavaScript (the module, 1.9 MB,
+  and `libhermesvm`, 5.0 MB, come on top); the unit still runs on Hermes's VM (its GC, its objects, its Promise polyfill).
+- Sizes: `libhermesvm` 5.0 MB (`libhermesvmlean`, without the compiler, 3.0 MB), the pack of `tools/engine-pack hermes` 1.8 MB compressed; V8's
+  libraries are 74 MB.
+
+`tools/zbench run mac --engine hermes` (artifact `docs/reports/bench/zbench-render-mac-MacBookPro18_3-2026-10-21-hermes.json`), CPU work p50 in ms, beside the
+section above:
+
+| scene | AOT | QuickJS | JSC | V8 | Hermes |
+|---|---|---|---|---|---|
+| fill, text, clip, poly, scroll (raster-bound) | 0.4 to 1.8 | 0.5 to 2.0 | 0.4 to 1.6 | 0.4 to 1.5 | 0.5 to 2.0 |
+| gradients | 9.0 | 8.3 | 7.1 | 7.2 | 6.3 |
+| quads_10k | 1.32 | 2.72 | 4.72 | 1.84 | 2.56 |
+| image_fill_only | 0.75 | 11.9 | 1.33 | 0.26 | 3.33 |
+| image_upload_only / image_update, before / after the copy below | 0.72 / 1.29 | 3.1 / 15.4 | 2.0 / 2.4 | 1.8 / 4.1 | 25.1 / 26.8, 3.3 / 5.4 |
+| ui_scroll_fling / ui_scroll_wheel | 0.58 / 0.61 | 3.60 / 3.65 | 1.23 / 1.25 | 0.65 / 0.69 | 3.24 / 3.37 |
+| ui_anim_transform / ui_anim_layout / ui_list_update | 0.60 / 0.24 / 0.50 | 1.48 / 0.67 / 2.35 | 0.64 / 0.31 / 0.75 | 0.57 / 0.32 / 0.57 | 1.56 / 0.76 / 2.22 |
+
+Hermes's UI scenes are QuickJS's, its quads (the host call) between QuickJS and V8. The image rows were the driver's `new Uint8Array(array)`
+of a 262,144-element array (one `napi_new_instance`, no per-element calls: counted with lldb), which Hermes does through the iterator protocol:
+24 ms against V8's 0.24, JSC's 0.06 and QuickJS's 14. `new Uint8Array(n).set(array)` takes 1.9 ms on Hermes (0.5 on V8, 0.21 on JSC), so the
+driver copies that way on Hermes only (`ZN_ENGINE_HERMES`): image_upload_only 25.1 to 3.3 ms, image_update 26.8 to 5.4 (second run of the suite,
+same artifact).

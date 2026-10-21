@@ -23,6 +23,53 @@ the numbers for Hermes below are the project's or third parties', not measured h
 - Recommendation: do not make Hermes a supported engine now; run a **half-day spike** behind the existing engine interface (reversible, §4 of
   `RULES.md`), keep the decision on measured numbers; never use `shermes` as a compiler for Zinc code.
 
+## Measured verdict (ZN-773.07 spike, 2026-10-21)
+
+The spike was done; the numbers are in `docs/reports/zinc-next-perf.md`, "Hermes and Static Hermes beside the three engines".
+
+What was built: `tools/hermes-pack` builds `static_h` at `e760a68a` from source into `~/.zinc/sdk/hermes/<commit>` (about 3 minutes at `-j4` on the
+M1 Pro); `tools/hermes-patches/zinc-embed.patch` adds four C entry points to `libhermesvm` (a Runtime with its microtask queue and its Node-API env,
+the job drain, an optimised or lazy compile with a name, and the run of a Static Hermes unit) and makes the Promise polyfill's rejection tracker
+report at once instead of after a 2 s timer; `src/engine/hermes.cpp` (about 100 lines) is the adapter; `tools/engine-pack hermes` makes a 1.8 MB
+pack; `tools/hermes-unit` compiles a program's bundle with `shermes` into a library the same module runs in place of the source.
+
+What runs: `tests/t0/jsc.sh hermes` (all checks: goldens, exceptions, top-level await, unhandled rejections, zinc:gfx frames, WebGL),
+`tests/golden/run/native_callbacks.ts`, `examples/hero`, `js-three` (WebGL), `js-pixi`, `js-phaser`, `js-p5`, `js-gsap`, `js-anatomy`: frame 30 or
+60 pixel-identical to QuickJS on every one. Hero also runs as Static Hermes native code, pixel-identical. Two fixes were needed: the adapter keeps
+a handle scope open for the whole run (Hermes's env marks no slot without one: hero crashed in the first young collection), and `webenv.js`'s
+`import()` for module scripts goes through `new Function` (Hermes has no `import()` syntax and compiles functions lazily, so the whole
+`runScript` failed to parse at its first call). Module scripts, WebAssembly and an inspector stay absent on Hermes.
+
+What it measured (M1 Pro, loaded machine):
+
+| | QuickJS-ng | JSC | V8 | Hermes | Static Hermes |
+|---|---|---|---|---|---|
+| host call | 70 ns | 115 ns | 52 ns | **50 ns** | 48 ns |
+| fib(30) | 75 ms | 5 ms | 8 ms | 32 ms (19 with `-O`, 83 without JIT) | 21 ms |
+| hero, 600 frames CPU | 1.04 s | 0.94 s | 0.53 s | 0.89 s | 0.67 s |
+| hero footprint | 50 MB | 140-160 MB | 77-86 MB | 67-74 MB | 51-58 MB |
+| empty program | 5.7 MB, 10-20 ms | 9.9 MB, 20-30 ms | 20 MB, 30-40 ms | 8.5 MB, 20-30 ms | |
+| UI scenes of zbench | 1.5 to 3.7 ms | 0.6 to 1.3 | 0.6 to 0.7 | 0.8 to 3.2 | |
+| zbench image_update (256 KB array to a host row) | 15.4 ms | 2.4 | 4.1 | 5.4 (26.8 before `new T(n).set(a)`) | |
+| download | built in | none (system) | 74 MB of libraries | 1.8 MB pack | + the program's code (4.9 MB for hero) |
+
+Verdict:
+
+- **Hermes as an engine: keep, experimental, not published.** It is the cheapest engine to carry (upstream Node-API, a 100-line adapter, a 1.8 MB
+  pack, MIT) and the fastest host call of the four; it beats QuickJS by 1.1 to 2.3x on JavaScript with about 20 MB more memory, and never comes
+  near V8 or JSC on the desktop (2 to 6x slower on fib and allocation, QuickJS's speed on the UI scenes). On a Mac it brings nothing V8 or JSC
+  do not do better, so no pack goes into the signed index now; `--engine hermes` stays for source builds (`tools/hermes-pack`, then build).
+  It becomes worth publishing for a target where no JIT is allowed and no JSC exists (Android without V8, consoles), where its interpreter
+  (fib 83 ms, objects 1.7x QuickJS's speed) and its start-up are the alternatives to QuickJS: that is the cross-platform pass.
+- **Static Hermes: keep the tool, not a product feature.** Compiled ahead of time, hero starts 40% faster than on Hermes's bytecode, runs 1.3x
+  faster and uses QuickJS's memory, and it is the only way here to native JavaScript where a JIT is forbidden (iOS, consoles). But the code
+  grows 7x, a compile takes half a minute, untyped code gains little over Hermes's own JIT (21 ms against 19 ms on fib), and typed mode needs
+  Flow types Zinc does not have. Zinc's own AOT stays the path for typed programs (it ties V8 on UI scenes); `tools/hermes-unit` is kept to
+  measure again when an iOS or console JavaScript workload needs it.
+- Not done in the spike, for a real pack: Hermes's CDP inspector behind `src/dbg/ws.cpp`, the licences of `libhermesvm`'s vendored parts in the
+  pack (`llvh`, `dtoa`, `zip`...), `.hbc` precompiled at `zinc build`
+  (`hermes_run_bytecode`), Linux and Windows builds.
+
 ## 1. What Hermes and Static Hermes are today
 
 | Fact | Value | Source |

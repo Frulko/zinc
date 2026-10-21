@@ -3,12 +3,12 @@
 
 usage:
   tools/zbench run  DEVICE [--suite render|media|boundary] [--scene id,id] [--runs 3] [--frames 240] [--skip 30] [--mode uncapped|paced|both] [--backend auto,cpu,gl,glfinish]
-                    [--size 1024x768] [--no-build] [--app-id ID] [--engine quickjs|jsc|v8]
+                    [--size 1024x768] [--no-build] [--app-id ID] [--engine quickjs|jsc|v8|hermes]
   tools/zbench show FILE [FILE ...]          one table: a column per file, a row per scene, ratios to the first file
   tools/zbench gate BASE.json NEW.json [--tolerance 0.15]    exit 3 when a scene got slower than the noise allows, 4 on a rendering problem
   tools/zbench list                          the scenes of the render suite
 
---engine (mac): the suite through `zinc run --engine X` (plain JavaScript on QuickJS-ng, JavaScriptCore or V8, the program bundled once) instead of the app built by
+--engine (mac): the suite through `zinc run --engine X` (plain JavaScript on QuickJS-ng, JavaScriptCore, V8 or Hermes, the program bundled once) instead of the app built by
 `zinc build` (the typed engine compiled ahead of time); the artifact's config and file name say which.
 
 DEVICE: mac | android | webos | ios   (one device on adb / novacom / usb; ios needs --app-id, see below)
