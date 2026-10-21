@@ -1873,6 +1873,7 @@ int main(int argc, char** argv) {
     qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
+    installDisplayDriver("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
 #ifdef ZN_HOST_GFX
     if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
       std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();

@@ -15,6 +15,9 @@ import re, sys
 m = re.search(r"over \d+: ([\d.]+)%", sys.argv[1])
 if not m or float(m.group(1)) > 1.0: print("mapper: the GL frame differs from the prototype's: " + sys.argv[1]); sys.exit(1)
 PY
+# a JavaScript engine loads the project's display driver too (zinc.json "display": "gl", which zinc:mapping draws through), with no ZINC_DISPLAY
+# (a deterministic run keeps the host window unless ZINC_DISPLAY asks: this one is not)
+ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_FRAMES=30 timeout 120 "$ZINC" run examples/video/mapper --engine quickjs >"$tmp/qjs.log" 2>&1 && grep -q "OSC on udp 9000, 3 layers" "$tmp/qjs.log" || { echo "mapper on quickjs: $(tail -c 300 "$tmp/qjs.log")"; fail=1; }
 command -v node >/dev/null || { echo "no node: the companion check is skipped"; exit $fail; }
 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=1200 "$ZINC" run examples/video/mapper/src/main.ts >"$tmp/app.log" 2>&1 & app=$!
 port=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
