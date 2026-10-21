@@ -943,3 +943,20 @@ sessions. The host call is `__host_loopNow()` (about 25 ns of it is the clock re
   data is the record brought it to 128 ns, the cached immediates and a row that builds no string or array storage to 122 ns. The floor is JavaScriptCore's C API itself: a
   callback drops and takes the VM's lock again (`JSLock::DropAllLocks`), 51 ns for an empty `JSObjectMakeFunctionWithCallback` in a bare C program. Below it only the engine's
   C++ API (Bun's way, a WebKit build of our own). A frame of 10 000 host calls pays about 0.5 ms more than on QuickJS; any JavaScript of its own is 5 to 15 times faster.
+
+## V8 beside QuickJS-ng and JavaScriptCore (ZN-773.05, 2026-10-21)
+
+The same bench on `--engine v8`: V8 15.6.75.19 from Homebrew's `arm64_sequoia` bottle (`tools/v8-pack`; component build, no sandbox, pointer compression), JsRuntimeHost's V8
+Node-API with `0003-v8-15.patch`, load 15 to 23 from other sessions (the best of two runs; the JIT numbers swing by 2 to 3 times under that load).
+
+| | QuickJS-ng | JSC | V8 |
+|---|---|---|---|
+| fib(30) | 76 ms | 5 ms | 8 ms |
+| a million `{x, y}` pushed and summed | 254 ms | 29 ms | 43 ms |
+| 200k string appends, split, map, join | 24 ms | 16 ms | 3 ms |
+| one `__host_loopNow()` call | 70 ns | 131 ns | 50 ns |
+
+- V8's callbacks are cheap (an empty one, 5.2 ns in a bare embedder): of the 50 ns, a third is the clock read (`mach_continuous_time`, `sample` over a hot loop), a quarter
+  the driver's `hostFn`, the rest JsRuntimeHost's wrapper and the result number. The rows' parameter count, return letter and table are now worked out once by `installHost`
+  (two `strchr` per call before): 56 to 50 ns on V8, the same row on JavaScriptCore.
+- `examples/js-gsap` and `examples/js-anatomy` frame 30: pixel-identical to QuickJS.

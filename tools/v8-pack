@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""V8 for `zinc run --engine v8` (ZN-773.05): the engine from Homebrew's bottles, the signed builds Homebrew's CI makes of each V8 stable for macOS
+arm64 and Linux (BSD licence, a component build against the system's libc++, no sandbox). Downloaded from ghcr.io without brew, its sha256 checked
+against the formula's, the libraries renamed to @rpath and signed ad hoc, laid out as an engine directory:
+
+    <out>/<version>/include/        the V8 headers (to build libzn_engine_v8)
+    <out>/<version>/lib/*.dylib     libv8 and what it loads, icudtl.dat (Intl)
+    <out>/current -> <version>
+
+usage: tools/v8-pack [--out DIR] [--bottle TAG]      (DIR: ~/.zinc/engines/v8; TAG: the newest macOS bottle this machine runs)
+ponytail: macOS arm64 only; the Linux bottles' ELF rpaths, Intel macOS and Windows (no bottle: our own V8 build) are the cross-platform pass.
+"""
+import hashlib, io, json, os, platform, shutil, subprocess, sys, tarfile, urllib.request
+
+def fetch(url, headers=None):
+    req = urllib.request.Request(url, headers=headers or {})
+    with urllib.request.urlopen(req) as r:
+        return r.read()
+
+def main(argv):
+    out = os.path.expanduser("~/.zinc/engines/v8")
+    tag = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--out": out = os.path.abspath(argv[i + 1]); i += 2
+        elif argv[i] == "--bottle": tag = argv[i + 1]; i += 2
+        else: print(__doc__); return 2
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        print("tools/v8-pack: macOS arm64 only for now (no Homebrew bottle of V8 for Intel macOS; Linux comes with the cross-platform pass)", file=sys.stderr)
+        return 2
+    formula = json.loads(fetch("https://formulae.brew.sh/api/formula/v8.json"))
+    version = formula["versions"]["stable"]
+    files = formula["bottle"]["stable"]["files"]
+    if tag is None:   # the bottles are per macOS release: the newest one not newer than this machine
+        major = int(platform.mac_ver()[0].split(".")[0])
+        names = {26: "arm64_tahoe", 15: "arm64_sequoia", 14: "arm64_sonoma", 13: "arm64_ventura"}
+        tag = next((names[m] for m in sorted(names, reverse=True) if m <= major and names[m] in files), None)
+        if tag is None: print("tools/v8-pack: no V8 bottle for macOS %d (%s)" % (major, ", ".join(files)), file=sys.stderr); return 1
+    bottle = files[tag]
+    dest = os.path.join(out, version)
+    if os.path.exists(os.path.join(dest, "lib", "libv8.dylib")):
+        print("V8 %s already in %s" % (version, dest))
+    else:
+        print("V8 %s, bottle %s: downloading..." % (version, tag))
+        data = fetch(bottle["url"], {"Authorization": "Bearer QQ=="})   # ghcr.io's anonymous token, as brew sends it
+        if hashlib.sha256(data).hexdigest() != bottle["sha256"]:
+            print("tools/v8-pack: the bottle's sha256 is not the formula's", file=sys.stderr); return 1
+        tmp = dest + ".tmp"
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(os.path.join(tmp, "lib"))
+        prefix = "v8/%s/" % version
+        with tarfile.open(fileobj=io.BytesIO(data)) as t:
+            for m in t.getmembers():
+                if not m.name.startswith(prefix) or not m.isfile(): continue
+                rel = m.name[len(prefix):]
+                if rel.startswith("libexec/include/"): target = os.path.join(tmp, rel[len("libexec/"):])   # include/ is a link to it
+                elif rel.startswith("libexec/") and (rel.endswith(".dylib") or rel.endswith("icudtl.dat")): target = os.path.join(tmp, "lib", os.path.basename(rel))
+                elif rel.startswith("LICENSE"): target = os.path.join(tmp, rel)
+                else: continue
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with open(target, "wb") as f: f.write(t.extractfile(m).read())
+        for name in os.listdir(os.path.join(tmp, "lib")):   # the bottle names each library by its Homebrew prefix; they load each other through @rpath
+            if not name.endswith(".dylib"): continue
+            p = os.path.join(tmp, "lib", name)
+            os.chmod(p, 0o755)
+            subprocess.run(["install_name_tool", "-id", "@rpath/" + name, p], check=True, stderr=subprocess.DEVNULL)
+            subprocess.run(["codesign", "--force", "--sign", "-", p], check=True, stderr=subprocess.DEVNULL)   # arm64 refuses code whose signature the rename broke
+        shutil.rmtree(dest, ignore_errors=True)
+        os.rename(tmp, dest)
+        print("V8 %s in %s" % (version, dest))
+    cur = os.path.join(out, "current")
+    if os.path.islink(cur) or os.path.exists(cur): os.remove(cur)
+    os.symlink(version, cur)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

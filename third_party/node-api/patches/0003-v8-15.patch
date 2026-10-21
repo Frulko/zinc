@@ -1,0 +1,169 @@
+diff --color -ru a/src/js_native_api_v8.cc b/src/js_native_api_v8.cc
+--- a/src/js_native_api_v8.cc	2026-10-21 14:08:17
++++ b/src/js_native_api_v8.cc	2026-10-21 14:08:17
+@@ -360,7 +360,7 @@
+   
+   // [BABYLON-NATIVE-ADDITION]: Increase perf by using internal field instead of private property
+   Reference* reference =
+-      static_cast<v8impl::Reference*>(obj->GetAlignedPointerFromInternalField(0));
++      static_cast<v8impl::Reference*>(obj->GetAlignedPointerFromInternalField(0, v8::kEmbedderDataTypeTagDefault));
+ 
+   if (result) {
+     *result = reference->Data();
+@@ -368,7 +368,7 @@
+ 
+   if (action == RemoveWrap) {
+     // [BABYLON-NATIVE-ADDITION]: Increase perf by using internal field instead of private property
+-    obj->SetAlignedPointerInInternalField(0, nullptr);
++    obj->SetAlignedPointerInInternalField(0, nullptr, v8::kEmbedderDataTypeTagDefault);
+     if (reference->ownership() == Ownership::kUserland) {
+       // When the wrap is been removed, the finalizer should be reset.
+       reference->ResetFinalizer();
+@@ -400,7 +400,7 @@
+     bundle->cb_data = data;
+     bundle->env = env;
+ 
+-    v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
++    v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle, v8::kExternalPointerTypeTagDefault);
+     Reference::New(
+         env, cbdata, 0, Ownership::kRuntime, Delete, bundle, nullptr);
+     return cbdata;
+@@ -447,7 +447,7 @@
+             JsValueFromV8LocalValue(cbinfo.This()), args_length, nullptr),
+         _cbinfo(cbinfo) {
+     _bundle = reinterpret_cast<CallbackBundle*>(
+-        cbinfo.Data().As<v8::External>()->Value());
++        cbinfo.Data().As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
+     _data = _bundle->cb_data;
+   }
+ 
+@@ -595,7 +595,7 @@
+   }
+ 
+   // [BABYLON-NATIVE-ADDITION]: Increase perf by using internal field instead of private property
+-  obj->SetAlignedPointerInInternalField(0, reference);
++  obj->SetAlignedPointerInInternalField(0, reference, v8::kEmbedderDataTypeTagDefault);
+ 
+   return GET_RETURN_STATUS(env);
+ }
+@@ -2366,12 +2366,10 @@
+     CHECK_ARG(env, result);
+     *result = val.As<v8::String>()->Length();
+   } else if (bufsize != 0) {
+-    int copied =
+-        val.As<v8::String>()->WriteOneByte(env->isolate,
+-                                           reinterpret_cast<uint8_t*>(buf),
+-                                           0,
+-                                           bufsize - 1,
+-                                           v8::String::NO_NULL_TERMINATION);
++    v8::Local<v8::String> str = val.As<v8::String>();
++    size_t copied = std::min<size_t>(str->Length(), bufsize - 1);
++    str->WriteOneByteV2(env->isolate, 0, static_cast<uint32_t>(copied),
++                        reinterpret_cast<uint8_t*>(buf));
+ 
+     buf[copied] = '\0';
+     if (result != nullptr) {
+@@ -2402,14 +2400,13 @@
+ 
+   if (!buf) {
+     CHECK_ARG(env, result);
+-    *result = val.As<v8::String>()->Utf8Length(env->isolate);
++    *result = val.As<v8::String>()->Utf8LengthV2(env->isolate);
+   } else if (bufsize != 0) {
+-    int copied = val.As<v8::String>()->WriteUtf8(
++    size_t copied = val.As<v8::String>()->WriteUtf8V2(
+         env->isolate,
+         buf,
+         bufsize - 1,
+-        nullptr,
+-        v8::String::REPLACE_INVALID_UTF8 | v8::String::NO_NULL_TERMINATION);
++        v8::String::WriteFlags::kReplaceInvalidUtf8);
+ 
+     buf[copied] = '\0';
+     if (result != nullptr) {
+@@ -2446,11 +2443,10 @@
+     // V8 assumes UTF-16 length is the same as the number of characters.
+     *result = val.As<v8::String>()->Length();
+   } else if (bufsize != 0) {
+-    int copied = val.As<v8::String>()->Write(env->isolate,
+-                                             reinterpret_cast<uint16_t*>(buf),
+-                                             0,
+-                                             bufsize - 1,
+-                                             v8::String::NO_NULL_TERMINATION);
++    v8::Local<v8::String> str = val.As<v8::String>();
++    size_t copied = std::min<size_t>(str->Length(), bufsize - 1);
++    str->WriteV2(env->isolate, 0, static_cast<uint32_t>(copied),
++                 reinterpret_cast<uint16_t*>(buf));
+ 
+     buf[copied] = '\0';
+     if (result != nullptr) {
+@@ -2531,7 +2527,7 @@
+ 
+   v8::Isolate* isolate = env->isolate;
+ 
+-  v8::Local<v8::Value> external_value = v8::External::New(isolate, data);
++  v8::Local<v8::Value> external_value = v8::External::New(isolate, data, v8::kExternalPointerTypeTagDefault);
+ 
+   if (finalize_cb) {
+     // The Reference object will delete itself after invoking the finalizer
+@@ -2633,7 +2629,7 @@
+   RETURN_STATUS_IF_FALSE(env, val->IsExternal(), napi_invalid_arg);
+ 
+   v8::Local<v8::External> external_value = val.As<v8::External>();
+-  *result = external_value->Value();
++  *result = external_value->Value(v8::kExternalPointerTypeTagDefault);
+ 
+   return napi_clear_last_error(env);
+ }
+diff --color -ru a/src/js_native_api_v8.h b/src/js_native_api_v8.h
+--- a/src/js_native_api_v8.h	2026-10-21 14:08:17
++++ b/src/js_native_api_v8.h	2026-10-21 14:08:17
+@@ -98,7 +98,7 @@
+ struct napi_env__ {
+   explicit napi_env__(v8::Local<v8::Context> context,
+                       int32_t module_api_version)
+-      : isolate(context->GetIsolate()),
++      : isolate(v8::Isolate::GetCurrent()),   // zinc: V8 15 dropped Context::GetIsolate; the context is entered
+         context_persistent(isolate, context),
+         module_api_version(module_api_version) {
+     napi_clear_last_error(this);
+diff --color -ru a/src/js_native_api_v8_internals.h b/src/js_native_api_v8_internals.h
+--- a/src/js_native_api_v8_internals.h	2026-10-21 14:08:17
++++ b/src/js_native_api_v8_internals.h	2026-10-21 14:08:17
+@@ -24,10 +24,8 @@
+ #ifndef V8_31BIT_SMIS_ON_64BIT_ARCH
+ #define V8_31BIT_SMIS_ON_64BIT_ARCH 1
+ #endif
+-#if !defined(ANDROID) && !defined(V8_ENABLE_SANDBOX)
+-#define V8_ENABLE_SANDBOX 1
++// zinc: no V8_ENABLE_SANDBOX forced here either (see napi/env.h): with it, the isolate's root offsets were not libv8's and every boolean broke
+ #endif
+-#endif
+ 
+ #include <v8.h>
+ #include <cassert>
+@@ -78,5 +76,10 @@
+ // [BABYLON-NATIVE-ADDITION]: Increase perf by using internal field instead of private property
+ //#define NAPI_PRIVATE_KEY(context)                                      \
+ //  (v8::Private::New(context->GetIsolate()))
++// zinc: the type tags of napi_type_tag_object, one key per isolate
++#define NAPI_PRIVATE_KEY(context)                                        \
++  (v8::Private::ForApi(v8::Isolate::GetCurrent(),                        \
++                       v8::String::NewFromUtf8Literal(                   \
++                           v8::Isolate::GetCurrent(), "napi.typetag")))
+ 
+ #endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_
+diff --color -ru a/v8/napi/env.h b/v8/napi/env.h
+--- a/v8/napi/env.h	2026-10-21 14:08:17
++++ b/v8/napi/env.h	2026-10-21 14:08:17
+@@ -11,9 +11,7 @@
+ #ifndef V8_31BIT_SMIS_ON_64BIT_ARCH
+ #define V8_31BIT_SMIS_ON_64BIT_ARCH 1
+ #endif
+-#if !defined(ANDROID) && !defined(V8_ENABLE_SANDBOX)
+-#define V8_ENABLE_SANDBOX 1
+-#endif
++// zinc: no V8_ENABLE_SANDBOX forced here; the build of V8 says (Homebrew's: off, as for any V8 built against the system's libc++), CMakeLists.txt defines it
+ #endif
+ 
+ #ifdef __clang__

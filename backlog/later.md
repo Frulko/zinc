@@ -536,6 +536,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-773.05: `--engine v8` on Linux x86_64 and arm64 from Homebrew's Linux bottles (`tools/v8-pack` is macOS-only: the ELF rpaths with patchelf, glibc floor), and our own V8 build where no bottle exists (Intel macOS, Windows, armhf), the gn args of docs/reports/js-engines-jsc-v8.md.
 - ZN-764: the GL window (Linux, Windows) now makes its software rows and their texture only for the splash and frees them when the replay draws: check the splash and a window resize on both, and `tools/window-memory`-like numbers (smem/Task Manager).
 
 - Linux cross builds (owner, 2026-10-17): on the Pi 3B+ rig (`docs/reports/raspberry-pi.md`), the archives of `tools/build-linux`: aarch64 on the 64-bit Raspberry Pi OS and armhf on a 32-bit one (Bullseye, glibc 2.31, and the 64-bit kernel that 32-bit Pi OS boots on a Pi 4): `zinc --version`, `zinc run examples/hero` in a window under the desktop (X11) and on the console (KMS/DRM, `video`, `input`, `tty` groups), the GPU (`ZINC_GL_STATS=1` names V3D or VC4, not llvmpipe), touch, and the first plugin compile on the device (the zig download, zinc:sqlite).

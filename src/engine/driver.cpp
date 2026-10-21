@@ -36,12 +36,17 @@ napi_value global(napi_env env, const char* name) {
 bool isFunction(napi_env env, napi_value v) { napi_valuetype t; return v && napi_typeof(env, v, &t) == napi_ok && t == napi_function; }
 
 // ---- the host calls, one function per `host.*` row as in qjs.cpp: the row's index is the function's data
+// A host row as hostFn reads it, worked out once by installHost: the signature's parameter count and return letter, and the table that serves it
+struct Row { zn::Rt id; unsigned np; char ret; zn::host::HostCall* call; };
+Row gRows[static_cast<unsigned>(zn::Rt::Count)];
+
 napi_value hostFn(napi_env env, napi_callback_info info) {
   void* data = nullptr;
   napi_get_cb_info(env, info, nullptr, nullptr, nullptr, &data);
-  const auto id = static_cast<zn::Rt>(reinterpret_cast<std::uintptr_t>(data));
+  const Row& row = *static_cast<const Row*>(data);
+  const zn::Rt id = row.id;
   const zn::RtInfo& ri = zn::rtInfo(id);
-  const unsigned np = zn::rtParamCount(ri);
+  const unsigned np = row.np;
   napi_value argv[zn::kMaxHostParams];
   std::size_t argc = np;   // in: the row's parameters (the missing ones undefined); out: how many the call passed
   if (np) napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
@@ -52,7 +57,7 @@ napi_value hostFn(napi_env env, napi_callback_info info) {
     std::fwrite(s.data(), 1, s.size(), id == zn::Rt::HostSysWrite ? stdout : stderr);
     return nullptr;
   }
-  zn::host::HostCall call = zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx;
+  const zn::host::HostCall call = *row.call;
   if (!call) { napi_throw_error(env, nullptr, (std::string(ri.name) + " is not available in this build").c_str()); return nullptr; }
   HostArg args[zn::kMaxHostParams], res;
   struct Heavy { std::array<std::string, zn::kMaxHostParams> strings; std::array<std::vector<std::uint64_t>, zn::kMaxHostParams> arrays; };
@@ -88,7 +93,7 @@ napi_value hostFn(napi_env env, napi_callback_info info) {
     }
   }
   call(static_cast<int>(id), args, &res);
-  switch (zn::rtRet(ri)) {
+  switch (row.ret) {
     case 'd': return doublev(env, res.d);
     case 'i': return int32v(env, static_cast<std::int32_t>(res.i));
     case 'b': return boolean(env, res.i != 0);
@@ -105,7 +110,9 @@ void installHost(napi_env env) {
     if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !loop && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i)) && !zn::isSysTailRow(static_cast<zn::Rt>(i))) continue;   // as qjs.cpp's installHost
     const std::string name = std::string("__host_") + zn::rtMember(zn::kRtInfo[i]);
     napi_value f;
-    napi_create_function(env, name.c_str(), name.size(), hostFn, reinterpret_cast<void*>(static_cast<std::uintptr_t>(i)), &f);
+    const auto id = static_cast<zn::Rt>(i);
+    gRows[i] = {id, zn::rtParamCount(zn::kRtInfo[i]), zn::rtRet(zn::kRtInfo[i]), zn::isLayoutRow(id) ? &zn::host::hostLayout : zn::isSysRow(id) ? &zn::host::hostSys : &zn::host::hostGfx};
+    napi_create_function(env, name.c_str(), name.size(), hostFn, &gRows[i], &f);
     napi_set_named_property(env, g, name.c_str(), f);
   }
 }

@@ -1304,7 +1304,11 @@ static int runEngineModule(const std::string& name, const zn::qjs::Options& qo) 
   const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
   void* h = zn::plat::libOpen(path, false);
   auto run = h ? reinterpret_cast<zn_engine_run_fn>(zn::plat::libSymbol(h, "zn_engine_run")) : nullptr;
-  if (!run) { std::fprintf(stderr, "zinc: the %s engine is not installed (%s): %s\n", name.c_str(), path.c_str(), h ? "no zn_engine_run" : zn::plat::libError().c_str()); return 2; }
+  if (!run) {
+    std::fprintf(stderr, "zinc: the %s engine is not installed (%s): %s\n", name.c_str(), path.c_str(), h ? "no zn_engine_run" : zn::plat::libError().c_str());
+    if (name == "v8") std::fprintf(stderr, "  get V8 with tools/v8-pack, then build again (tools/build zinc): libzn_engine_v8 is built beside zinc when it is there\n");   // ponytail: until zinc engine install (ZN-773.04)
+    return 2;
+  }
   zn::qjs::BundleOptions bo;
   bo.engine = name;
   bo.entry = fs::absolute(qo.entry).lexically_normal().string();
