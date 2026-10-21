@@ -15,6 +15,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc run --emulator-script <file>` drives the esp32sim emulator (pins, touches, buttons at given times).
 - `zinc toolchain swc`: the pinned SWC compiler, fetched the first time `--engine mquickjs` needs it.
 
+### Changed
+- Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 1.8 MB, `examples/breakout` from 37.6 KB to 33.1 KB.
+
 ## [0.5.2] - 2026-10-22
 
 ### Fixed

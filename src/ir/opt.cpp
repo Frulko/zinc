@@ -513,7 +513,7 @@ void divByPowerOfTwo(Module& m) {
 
 // Functions no reachable code can call are dropped (ZN-431): from @main, through direct calls and through the vtables of the classes reachable
 // code constructs (closures, callbacks, promise jobs and onFrame handlers are such objects, so they stay). A class nothing constructs keeps its
-// layout and becomes abstract when its vtable loses methods: nothing can call them. Function indices are renumbered in calls and vtables.
+// layout and becomes abstract, without a vtable, when its vtable loses methods: nothing can call them. Function indices are renumbered in calls and vtables.
 void removeUnreachable(Module& m) {
   const std::size_t nf = m.functions.size();
   if (nf <= 1) return;
@@ -554,7 +554,7 @@ void removeUnreachable(Module& m) {
       if (fn < nf && to[fn] != kNoClass) fn = to[fn];
       else { fn = kNoClass; lost = true; }
     }
-    if (lost && !built[c] && !cl.isInterface) cl.isAbstract = true;
+    if (lost && !built[c] && !cl.isInterface) { cl.isAbstract = true; cl.vtable.clear(); }   // nothing reads an abstract class's vtable (rc, the verifiers, Machine::load)
   }
   std::vector<Function> kept;
   kept.reserve(next);
