@@ -22,11 +22,17 @@ await osc([
   ['/layer/1/edge', 0, 0.25, 0, 0, 2.2],                      // right edge blend
   ['/layer/2/rotation', 20], ['/layer/2/scale', 1.3], ['/layer/2/blend', 'add'],
 ]);
-await new Promise(r => setTimeout(r, 150));
-const after = await state();
-assert.deepEqual(after.layers[0].corners.slice(0, 2), [0.02, 0.02]);
-assert.deepEqual(after.layers[0].mesh.slice(0, 2), [3, 3]);
-assert.equal(after.layers[1]['mask/1'][1], 1);
-assert.equal(after.layers[2].blend[0], 'add');
-assert.equal(after.selected, 0);
+let after;
+for (let t = 0; ; t += 150) {   // the app applies the messages at its next frames: a loaded machine takes longer than 150 ms
+  await new Promise(r => setTimeout(r, 150));
+  after = await state();
+  try {
+    assert.deepEqual(after.layers[0].corners.slice(0, 2), [0.02, 0.02]);
+    assert.deepEqual(after.layers[0].mesh.slice(0, 2), [3, 3]);
+    assert.equal(after.layers[1]['mask/1'][1], 1);
+    assert.equal(after.layers[2].blend[0], 'add');
+    assert.equal(after.selected, 0);
+    break;
+  } catch (e) { if (t > 5000) throw e; }
+}
 console.log(`ok: ${after.layers.length} layers, warp/mask/colour/blend changes applied`);
