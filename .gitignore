@@ -32,3 +32,4 @@ docs/reports/ci-run-*/
 /build-wasm/
 __pycache__/
 /bench/qjs/matter.mjs
+/keys.json   # the index keys (tools/index-repo keys): a secret, kept outside the repository
