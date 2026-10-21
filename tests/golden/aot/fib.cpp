@@ -84,7 +84,7 @@ ZFN int f1(Machine& m, Slot* r) {
 }
 
 static const char kModule[] = 
-  "\12ZBC2\7'\0*\2\0\0\0\4\0\0\0main\0\0\1\0\1\0\0\0\1\27\0\42\3\0\0\0fib\1\1\1\4\0\1\0\0\0\1/\0";
+  "\12ZBC2\10'\0*\2\0\0\0\4\0\0\0main\0\0\1\0\1\0\0\0\1\27\0\42\3\0\0\0fib\1\1\1\4\0\1\0\0\0\1/\0";
 static const unsigned kModuleSize = 52;
 
 static int (*const kNatives[])(Machine&, Slot*) = {f0, f1};

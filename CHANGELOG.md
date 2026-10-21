@@ -16,8 +16,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc toolchain swc`: the pinned SWC compiler, fetched the first time `--engine mquickjs` needs it.
 
 ### Changed
-- Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 1.8 MB, `examples/breakout` from 37.6 KB to 33.1 KB.
-- A program takes less memory once loaded: its tables are sized exactly instead of growing by doubling, a quarter to a third less RAM for the loaded program on the ESP32.
+- Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 780 KB, `examples/breakout` from 37.6 KB to 27.6 KB.
+- A program takes less memory once loaded: with `examples/breakout` loaded, the ESP32 core has 202 KB of its heap free instead of 158 KB.
+
+### Changed (breaking)
+- Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
 ## [0.5.2] - 2026-10-22
 

@@ -152,7 +152,9 @@ struct FnEmitter {
   std::string fromWin(unsigned A, unsigned n) { std::string s; if (locals) for (unsigned k = A; k < A + n; ++k) s += "r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "]; "; return s; }
   static unsigned rtArity(unsigned id) { return rtParamCount(rtInfo(static_cast<zn::Rt>(id))); }
   unsigned virtArity(unsigned sel, unsigned A) {   // the argument registers of a virtual call: the parameters of an implementation of the selector, else the rest of the frame
-    for (const zbc::ClassInfo& c : m.classes) if (sel < c.vtable.size() && c.vtable[sel] < m.functions.size()) return std::max<unsigned>(1, static_cast<unsigned>(m.functions[c.vtable[sel]].params.size()));
+    for (const zbc::ClassInfo& c : m.classes)
+      for (std::size_t k = 0; k < c.vtable.size() && k < c.selectors.size(); ++k)
+        if (c.selectors[k] == sel && c.vtable[k] < m.functions.size()) return std::max<unsigned>(1, static_cast<unsigned>(m.functions[c.vtable[k]].params.size()));
     return f.nregs > A ? f.nregs - A : 1;
   }
   std::string unwindDepth() { return ""; }

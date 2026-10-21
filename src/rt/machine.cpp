@@ -261,9 +261,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     c.supers = ci.supers;
     if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract) {
       c.vtable.assign(m.selectors.size(), nullptr);
-      for (std::uint32_t sel : ci.selectors) {
-        c.vtable[sel] = &funcs[ci.vtable[sel]];
-      }
+      for (std::size_t k = 0; k < ci.selectors.size(); ++k) c.vtable[ci.selectors[k]] = &funcs[ci.vtable[k]];   // the module's table is sparse
     }
     if (ci.kind == zbc::CKind::String) strClass = &c;
     if (ci.kind == zbc::CKind::Array) arrayOf[arrKey(ci.elem)] = &c;

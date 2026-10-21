@@ -147,8 +147,7 @@ int main() {
     ClassInfo a; a.name = "A"; a.fields = {VType{Cls::I, 0}, VType{Cls::D, 0}};
     ClassInfo b; b.name = "B"; b.parent = 0; b.supers = {0, 2}; b.fields = {VType{Cls::I, 0}, VType{Cls::D, 0}, VType{Cls::I, 0}};
     ClassInfo i; i.name = "I"; i.isInterface = true; i.selectors = {0};
-    b.selectors = {0}; b.vtable = {1};
-    a.vtable = {kNoClass};  // A exposes no selector; its vtable has one empty slot
+    b.selectors = {0}; b.vtable = {1};  // A exposes no selector, so its vtable is empty
     m.classes = {a, b, i};
     m.classes[0].supers = {};
     m.selectors.push_back(SelInfo{"f", {}, VType{Cls::I, 0}});

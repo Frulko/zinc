@@ -930,7 +930,8 @@ EmitResult emit(const ir::Module& m) {
     for (std::uint32_t o = static_cast<std::uint32_t>(ci), k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k)
       for (std::uint32_t i : m.classes[o].implements) if (std::find(info.supers.begin(), info.supers.end(), i) == info.supers.end()) info.supers.push_back(i);
     info.selectors = c.selectors;
-    info.vtable = c.vtable;
+    if (!c.isInterface && !c.isAbstract)   // the IR's vtable is by selector id, the module's by the class's own selector list
+      for (std::uint32_t sel : c.selectors) info.vtable.push_back(sel < c.vtable.size() ? c.vtable[sel] : ir::kNoClass);
     r.module.classes[ci] = std::move(info);
   }
   r.module.functions.resize(m.functions.size());

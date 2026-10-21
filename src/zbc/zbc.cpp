@@ -117,9 +117,9 @@ std::string verifyTables(const Module& m) {
     }
     for (std::uint32_t s : c.selectors) if (s >= m.selectors.size()) return who + "unknown selector";
     if (c.isInterface || c.isAbstract) continue;
-    if (c.vtable.size() != m.selectors.size()) return who + "vtable has the wrong size";
-    for (std::uint32_t sel : c.selectors) {
-      std::uint32_t fn = c.vtable[sel];
+    if (c.vtable.size() != c.selectors.size()) return who + "vtable has the wrong size";
+    for (std::size_t k = 0; k < c.selectors.size(); ++k) {
+      const std::uint32_t sel = c.selectors[k], fn = c.vtable[k];
       const SelInfo& si = m.selectors[sel];
       if (fn == kNoCls || fn >= m.functions.size()) return who + "no implementation of ." + si.name;
       const Function& f = m.functions[fn];
@@ -559,7 +559,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 7;  // 7: the profile name and heap budget after the natives; 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
+constexpr std::uint32_t kVersion = 8;  // 8: sparse vtables, one entry per selector of the class (7 had one per selector of the program); 7: the profile name and heap budget after the natives; 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
 
 struct Writer {
   std::vector<std::uint8_t> b;
@@ -599,12 +599,12 @@ struct Reader {
     t.ref = t.cls == Cls::R ? u16() : 0;
     return !bad;
   }
-  bool u32s(std::vector<std::uint32_t>& v) {
-    std::uint32_t n = u32();
-    if (!has(static_cast<std::size_t>(n) * 4)) return false;
+  bool u32s(std::vector<std::uint32_t>& v) { return u32n(v, u32()); }
+  bool u32n(std::vector<std::uint32_t>& v, std::size_t n) {
+    if (room(n, 4) != n) { bad = true; return false; }   // not n * 4: it wraps on a 32-bit device
     v.clear();
     v.reserve(n);
-    for (std::uint32_t i = 0; i < n; ++i) v.push_back(u32());
+    for (std::size_t i = 0; i < n; ++i) v.push_back(u32());
     return !bad;
   }
 };
@@ -687,7 +687,7 @@ std::vector<std::uint8_t> encode(const Module& m) {
     w.u32(static_cast<std::uint32_t>(c.fields.size()));
     for (VType t : c.fields) w.vt(t);
     w.u32s(c.selectors);
-    w.u32s(c.vtable);
+    if (!c.isInterface && !c.isAbstract) for (std::size_t k = 0; k < c.selectors.size(); ++k) w.u32(k < c.vtable.size() ? c.vtable[k] : kNoCls);   // no count: one per selector
   }
   w.u32(static_cast<std::uint32_t>(m.selectors.size()));
   for (const SelInfo& s : m.selectors) {
@@ -751,7 +751,7 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (nf > kMaxFields) return fail("too many fields");
     c.fields.reserve(r.room(nf, 1));
     for (std::uint32_t k = 0; k < nf; ++k) { VType t; if (!r.vt(t)) return fail("invalid field type"); c.fields.push_back(t); }
-    if (!r.u32s(c.selectors) || !r.u32s(c.vtable)) return fail("truncated file (class tables)");
+    if (!r.u32s(c.selectors) || (!c.isInterface && !c.isAbstract && !r.u32n(c.vtable, c.selectors.size()))) return fail("truncated file (class tables)");
     out.classes.push_back(std::move(c));
   }
   std::uint32_t ns = r.u32();
@@ -836,10 +836,11 @@ std::string disassemble(const Module& m) {
       out += c.fields.empty() ? "}" : " }";
     }
     out += "\n";
-    for (std::uint32_t sel : c.selectors) {
+    for (std::size_t k = 0; k < c.selectors.size(); ++k) {
+      const std::uint32_t sel = c.selectors[k];
       if (sel >= m.selectors.size()) continue;
       if (c.isInterface || c.isAbstract) { out += "  method ." + m.selectors[sel].name + "\n"; continue; }
-      if (sel < c.vtable.size() && c.vtable[sel] != kNoCls && c.vtable[sel] < m.functions.size()) out += "  vtable ." + m.selectors[sel].name + " -> @" + m.functions[c.vtable[sel]].name + "\n";
+      if (k < c.vtable.size() && c.vtable[k] != kNoCls && c.vtable[k] < m.functions.size()) out += "  vtable ." + m.selectors[sel].name + " -> @" + m.functions[c.vtable[k]].name + "\n";
     }
   }
   for (std::size_t g = 0; g < m.globals.size(); ++g) out += "global g" + std::to_string(g) + ": " + vtName(m, m.globals[g]) + "\n";

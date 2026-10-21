@@ -204,7 +204,14 @@ bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& a, std:
     std::string zn, cmd;
     in >> zn >> cmd;
     if (zn != "ZN") continue;
-    if (cmd == "err") { std::getline(in, err); if (!err.empty() && err[0] == ' ') err.erase(0, 1); err = "the device refused the module: " + err; return false; }
+    if (cmd == "err") {
+      std::getline(in, err);
+      if (!err.empty() && err[0] == ' ') err.erase(0, 1);
+      // a core flashed by an older zinc reads an older ZBC: its own "update zinc" would be the wrong advice
+      if (err.find("is newer than the supported version") != std::string::npos) err = "the core firmware on the device is older than this zinc and cannot read its programs (" + err.substr(0, err.find(": update zinc")) + "): write the new one with `zinc flash --target esp32`";
+      else err = "the device refused the module: " + err;
+      return false;
+    }
     if (cmd == "out") {
       std::size_t n = 0;
       in >> n;

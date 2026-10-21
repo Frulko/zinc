@@ -46,13 +46,13 @@ inst      = [ "%" N ":" type "=" ] op operands
   `ir-v1-fib.ir`) and `tests/t0/irformat.sh` checks each is read or refused as written here. Adding op names, builtins or runtime rows at the end of their tables does not change
   the version; removing or renaming one does.
 
-## ZBC binary, version 7
+## ZBC binary, version 8
 
 Little endian. `"ZBC2"` (magic), `u32 version`, then the tables, each a `u32` count and the entries:
 
 | Table | Entry |
 |---|---|
-| classes | `str name`, `u32 parent` (0xFFFFFFFF none), `u8 flags` (1 interface, 2 abstract), `u8 kind` (0 object, 1 string, 2 array, 3 Map, 4 Set), for a builtin kind `vtype elem, vtype key`, `u32s supers`, `u32 nfields` + `vtype` each, `u32s selectors`, `u32s vtable` |
+| classes | `str name`, `u32 parent` (0xFFFFFFFF none), `u8 flags` (1 interface, 2 abstract), `u8 kind` (0 object, 1 string, 2 array, 3 Map, 4 Set), for a builtin kind `vtype elem, vtype key`, `u32s supers`, `u32 nfields` + `vtype` each, `u32s selectors`, then for a class that is neither an interface nor abstract, its vtable: one `u32` function index per selector of `selectors`, in the same order |
 | selectors | `str name`, `u8 nparams`, `vtype` each, `vtype ret` |
 | strings | `str` |
 | globals | `vtype` |
@@ -67,7 +67,7 @@ Instruction words are one 32-bit word each (`include/zn/bytecode.h`); the opcode
 ### Version rules
 
 - The version rises with any change to the layout above, to an opcode's meaning or number, or to the order of the runtime table (a call is encoded by its row number: new rows go at the very end, after the host rows, so no known id moves; a file that uses a row an older core lacks needs the newer core: `arrSortAsc` and `arrSortDesc` are such rows, which the optimizer writes for `sort((a, b) => a - b)` on an f64[]).
-- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 7: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
+- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 8: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
 - No migration: a ZBC file is a build product (the device core and `zinc run` are always built from the same release as the files they load). The firmware image and the host tools are released together;
-  `tests/compat/fib-v6.zbc` is the version 6 reference file (6 added the fixed-point ops MulFx12.., ZN-121); `tests/compat/fib-v5.zbc` (no fixed-point ops) and `tests/compat/fib-v4.zbc` (no natives table) must be refused as older. `tests/t0/irformat.sh` checks both and that other versions are refused with these messages.
+  `tests/compat/fib-v8.zbc` is the version 8 reference file (8 writes only the vtable entries of the selectors a class lists, where 7 wrote one per selector of the program); `fib-v7.zbc` (dense vtables), `fib-v6.zbc` (no profile), `fib-v5.zbc` (no fixed-point ops) and `fib-v4.zbc` (no natives table) must be refused as older. `tests/t0/irformat.sh` checks them and that other versions are refused with these messages. A board's core firmware reads only its own version too: after a version change, `zinc flash --target esp32` writes the new core.
 - A truncated or corrupted file is rejected by `decode` and `verify` (`zinc zbc --check`), never trusted.
