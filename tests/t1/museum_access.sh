@@ -53,8 +53,6 @@ after=$(tail -1 "$tmp/frames" | cut -d' ' -f2-)
 session object "--sequence porcelain" 100 170 450
 session reach "--sequence garden" 120 480 500
 session voice "" 100 500 1200
-: > "$tmp/frames"; play "$d/sizes.input" 110 "" ""
-[ -s "$tmp/frames" ] && grep -qxF "$(cat "$tmp/frames")" "$g/sizes.txt" || { echo "museum_access (compiled): frame 110 of sizes is $(cat "$tmp/frames"), not the interpreter's"; fail=1; }
 
 # the layout: every control within reach, nothing cut, at four sides and three sizes
 reach=$(sed -n 's/.*"reach": \([0-9]*\).*/\1/p' assets/project.json)

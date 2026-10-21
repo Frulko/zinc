@@ -1,6 +1,6 @@
 #!/bin/sh
 # Museum table, the table mode (ZN-650.06): one or two visitors around a table, a kiosk nobody attends. Scripted sessions
-# (tests/data/museum_mode/sessions.py), on the interpreter and compiled:
+# (tests/data/museum_mode/sessions.py), on the interpreter:
 #   sides.input  a touch at each edge in turn turns the texts, the buttons and the 3D object to that side (story: side top, right, left,
 #                bottom), and a touch on a point of the vase opens its panel turned to that side: four frames (golden/museum-mode/sides.txt)
 #   two.input    two visitors on opposite sides take turns: each opens a print in full, turned to the side they touched from, each follows
@@ -24,7 +24,7 @@ same() {  # what, file, golden
   cmp -s "$2" "$3" || { echo "museum_mode ($name): $1 differs from $3"; diff "$2" "$3" | head -8; fail=1; }
 }
 mkdir -p "$g"
-for mode in "--interp" ""; do
+for mode in "--interp"; do   # headless, `zinc run` interprets: the AOT program is museum_visit's and the T2 *_aot tests'
   name=${mode:-compiled}
   : > "$tmp/sides"; : > "$tmp/two"
   for n in 100 240 380 520; do play sides.input $n "$mode" "--sequence porcelain" > "$tmp/sides.story"; cat "$tmp/hash" >> "$tmp/sides"; done

@@ -4,6 +4,7 @@
 # emulated ESP32, downloading its tools on the way; the app (macOS) must open. Needs the network the first time (zig, QEMU: about 100 MB).
 # ZINC_DIST names a directory that already holds the archives (tools/package --out <dir>); without it they are built here.
 cd "$(dirname "$0")/../.." || exit 2
+[ -n "$ZINC_DIST" ] || [ -z "$ZINC_CI" ] || { echo "skipped: on CI the package job runs this test on the archive it built (ZINC_DIST)"; exit 77; }
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 dist=${ZINC_DIST:-$tmp/dist}

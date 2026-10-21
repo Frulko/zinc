@@ -18,11 +18,7 @@ A task ends with the tests that cover **what it touched**, not with the corpus. 
 
 ## CI scope
 
-Every code push and pull request builds macOS and both Linux architectures and runs affected tests, normally T0/T1. Explicitly mapped T2 cases and edited T2 test scripts also run individually; this does not select the full corpus. The complete example sweep (`examples_all`) belongs to T2. Windows remains experimental. Documentation-only changes skip builds. New pushes cancel superseded runs for the same branch.
-
-The historical-reference benchmark gate runs for engine, runtime, library, plugin, target, benchmark or workflow changes, with the existing 15% regression limit. Fixture-only changes avoid a benchmark build. Reproducible builds run for build/package/plugin-tooling changes. Packages are produced for distribution-tooling changes and full runs.
-
-Nightly runs (03:00 UTC), manual workflow dispatches and `v*` release tags run the complete T2 suite, benchmarks, reproducibility and packages. Pinned toolchain downloads and pnpm packages are cached; compiled binaries are rebuilt. A local fix needs its regression test and affected tests, without repeating the corpus after every edit.
+Pushes to `develop` and `main` run nothing. A release tag (`make release`) and a manual run (`gh workflow run zinc-next --ref develop`) run the whole tier T2 on macOS in six shards, the package job (which runs `install_nocompiler` and `package` on the archive it built: the shards skip them), the fuzz job, the benchmark gate and the reproducible build. A test that needs what a hosted runner has not (a real GPU, a display, a debugger, a timing, an emulator) exits 77 under `ZINC_CI` with the reason; a test never passes on CI without proving what it says (`docs/reports/test-audit-2026-10-21/`).
 
 ## Test tiers
 
@@ -37,7 +33,7 @@ Runner rules (built in ZN-002):
 - One line per program: `PASS name` or `FAIL name`. Details (diff, stack, sanitizer report) go to `.logs/<run>.log`;
   print the path and the first 20 lines of a failure only.
 - Exit code is non-zero if anything fails; no other output on success except the totals.
-- `--only <name>` runs one program; `--tier t0|t1|t2` selects the scope.
+- `--only <name>` runs one program, from any tier (a name that matches nothing is an error); `--tier t0|t1|t2` selects the scope.
 - Cross-target runs (Docker, QEMU, PCSX-Redux) are T2 and M6 only, never part of T0 or T1.
 
 ## Demos (one per milestone)

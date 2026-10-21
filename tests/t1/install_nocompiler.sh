@@ -13,6 +13,7 @@
 # ZINC_DIST names a directory that already holds the archive (tools/package --out <dir>); without it the archive is built here, which takes minutes
 # when the plugins' libraries are not in the cache yet.
 cd "$(dirname "$0")/../.." || exit 2
+[ -n "$ZINC_DIST" ] || [ -z "$ZINC_CI" ] || { echo "skipped: on CI the package job runs this test on the archive it built (ZINC_DIST)"; exit 77; }
 next=$PWD
 fail=0
 tmp=$(mktemp -d); trap 'kill $dev 2>/dev/null; rm -rf "$tmp"' EXIT

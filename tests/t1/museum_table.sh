@@ -1,7 +1,7 @@
 #!/bin/sh
 # Museum table, the light table (ZN-650.03): a scripted session of two hands on two cards at once (tests/data/museum_table/hands.py: drag, a
 # second finger lands, turn and zoom, a finger lifts in the middle, release with a glide; then a tap on a folded corner, a double tap and a
-# tap) gives, on the interpreter and compiled, the same frames (tests/golden/museum-table/frames.txt: two hands in mid-gesture, a card
+# tap) gives, on the interpreter, the same frames (tests/golden/museum-table/frames.txt: two hands in mid-gesture, a card
 # turned over, the full view, at rest) and the same log of card poses (tests/data/museum_table/expected.log). The log must also be continuous:
 # from one frame to the next no card moves more than the fingers did, in particular on the frames where a finger lands or lifts.
 # The window's GL renderer, when there is one, must draw the table like the software raster (tolerance of TESTING.md; in a window that
@@ -15,7 +15,7 @@ session() {  # frames, then extra arguments of zinc run: the log on stdout, the 
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$d/hands.input" ZINC_FRAMES=$1 ZINC_FRAMEHASH=last "$ZINC" run $2 . -- --log 2>"$tmp/err"
   sed -n 's/^zinc: framehash //p' "$tmp/err" > "$tmp/hash"
 }
-for mode in "--interp" ""; do
+for mode in "--interp"; do   # headless, `zinc run` interprets: the AOT program is museum_visit's and the T2 *_aot tests'
   name=${mode:-compiled}
   : > "$tmp/frames"
   for n in 40 108 130 160; do session $n "$mode" > "$tmp/log"; cat "$tmp/hash" >> "$tmp/frames"; done

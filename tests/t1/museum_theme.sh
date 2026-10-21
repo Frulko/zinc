@@ -1,7 +1,6 @@
 #!/bin/sh
 # Museum table, the theme's fonts and logo (ZN-650.14): a project whose theme names two font files and a logo of its folder
-# (tests/data/museum_theme/project.json) shows them on the table: the frame is the golden (tests/golden/museum-table/theme.png), interpreted,
-# and compiled it is the same frame. Each of the three counts: the frame changes when the text font, the title font or the logo is taken
+# (tests/data/museum_theme/project.json) shows them on the table: the frame is the golden (tests/golden/museum-table/theme.png). Each of the three counts: the frame changes when the text font, the title font or the logo is taken
 # out of the theme. A font file that is not there leaves the table in its own fonts, without a fault.
 cd "$(dirname "$0")/../.." || exit 2
 d=$PWD/tests/data/museum_theme; golden=$PWD/tests/golden/museum-table/theme.png; editor=$PWD/tests/golden/museum-table/theme-editor.png; tools=$PWD/tools
@@ -20,8 +19,6 @@ table "$d/project.json" --interp > "$tmp/story"
 themed=$(cat "$tmp/hash")
 grep -q 'fault' "$tmp/story" "$tmp/err" && { echo "museum_theme: the themed table has a fault: $(grep -h fault "$tmp/story" "$tmp/err" | head -2)"; fail=1; }
 "$tools/pngdiff" "$tmp/shot.png" "$golden" > "$tmp/diff" 2>&1 || { echo "museum_theme: the frame differs from the golden: $(head -1 "$tmp/diff")"; fail=1; }
-table "$d/project.json" "" > /dev/null
-[ -n "$themed" ] && [ "$(cat "$tmp/hash")" = "$themed" ] || { echo "museum_theme: compiled, another frame ($(cat "$tmp/hash"), interpreted $themed)"; fail=1; }
 
 for part in '"font": "fonts\/PublicSans-Medium.ttf", ' '"titleFont": "fonts\/JetBrainsMono-Regular.ttf", ' ', "logo": "logo.png"'; do
   sed "s/$part//" "$d/project.json" > "$tmp/less.json"

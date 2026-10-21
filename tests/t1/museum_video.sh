@@ -28,8 +28,6 @@ play 150 --interp > /dev/null; play 300 --interp > /dev/null
 same "the frames of the film playing and paused" "$tmp/frames" "$g/frames.txt"
 play 620 --interp > "$tmp/story"
 same "the story of the film" "$tmp/story" "$d/film.story"
-: > "$tmp/frames"; play 300 "" > /dev/null
-[ -s "$tmp/frames" ] && grep -qxF "$(cat "$tmp/frames")" "$g/frames.txt" || { echo "museum_video (compiled): the paused frame is $(cat "$tmp/frames"), not the interpreter's"; fail=1; }
 # what the criteria name: it plays, its subtitles follow the language, a touch pauses it, leaving the sequence stops it
 for line in '0 film wave-film play' ' subtitle L’écume se termine en griffes.' ' language en' ' subtitle The foam ends in claws.' ' film wave-film pause' \
   ' link wave -> ukiyo-e none' ' film wave-film stop'; do

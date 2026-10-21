@@ -1,7 +1,7 @@
 #!/bin/sh
 # Museum table, the 3D object viewer (ZN-650.04): a scripted session on the vase of the sample (tests/data/museum_viewer/session.py: one
 # finger turns it a quarter turn, two fingers bring it closer and move it, a tap on a point of interest opens its description and glides to
-# its view, a tap on a button glides back to the start, another changes the lighting) gives, on the interpreter and compiled, the frames of
+# its view, a tap on a button glides back to the start, another changes the lighting) gives, on the interpreter, the frames of
 # tests/golden/museum-viewer/frames.txt (software renderer: zoomed and moved, a point open, raking light at the start view) and the view
 # log of tests/data/museum_viewer/expected.log. The GPU renderer of zinc:3d draws the frame with the open point within tolerance. With
 # --pins a red ball sits on every point of interest of the object itself: at four views each one that faces the camera is drawn within
@@ -13,7 +13,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cd examples/museum-table || exit 2
 fail=0
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT="$d/session.input"
-for mode in "--interp" ""; do
+for mode in "--interp"; do   # headless, `zinc run` interprets: the AOT program is museum_visit's and the T2 *_aot tests'
   name=${mode:-compiled}
   : > "$tmp/frames"
   for n in 75 130 205; do

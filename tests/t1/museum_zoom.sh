@@ -4,7 +4,7 @@
 # card (30-90), then on the notice (100-160), which zooms each from 1 to 3 (1920x1080, one table unit per pixel). Every frame of the two
 # zooms draws the same lines of text (tools/scene-texts over the frames' scene dumps): the texts of a card are cut once at the designed
 # size and the card is drawn through one matrix, so no word changes line while it grows. Before, each frame set them again in the font
-# of its size and the breaks moved at the second frame of each zoom. The compiled program ends on the frame of the interpreter.
+# of its size and the breaks moved at the second frame of each zoom.
 cd "$(dirname "$0")/../.." || exit 2
 tools=$PWD/tools
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -29,7 +29,5 @@ for first in 31 101; do   # the frames of each zoom, from the one where the card
   while [ $f -le $((first + 60)) ]; do dumps="$dumps $tmp/s-$f.zscn"; f=$((f + 1)); done
   python3 "$tools/scene-texts" --same $dumps || { echo "museum_zoom: the lines of a card changed while it was zoomed"; fail=1; }
 done
-session "$ZINC" run . > /dev/null
-[ -s "$tmp/interp" ] && cmp -s "$tmp/hash" "$tmp/interp" || { echo "museum_zoom: the compiled program ends on another frame: $(cat "$tmp/hash") / $(cat "$tmp/interp")"; fail=1; }
 [ $fail = 0 ] && echo "museum_zoom: ok"
 exit $fail

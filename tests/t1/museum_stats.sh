@@ -59,9 +59,7 @@ done
 # the staff's touches were not a visit, and the file of the day is what the summary showed: the same counts before and after it
 cmp -s "$tmp/seen/1970-01-01.csv" "$day" || { echo "museum_stats: the staff's gesture changed the statistics"; fail=1; }
 
-play 5960 "" "$tmp/compiled" > /dev/null
-cmp -s "$tmp/compiled/1970-01-01.csv" "$g/day.csv" || { echo "museum_stats (compiled): the statistics differ"; diff "$tmp/compiled/1970-01-01.csv" "$g/day.csv" | head -6; fail=1; }
 play 300 --interp "" > /dev/null
-[ "$(find . "$tmp" -name '1970-01-01.csv' | wc -l | tr -d ' ')" = 3 ] || { echo "museum_stats: a table without --statistics wrote a file"; fail=1; }
+[ "$(find . "$tmp" -name '1970-01-01.csv' | wc -l | tr -d ' ')" = 2 ] || { echo "museum_stats: a table without --statistics wrote a file"; fail=1; }
 [ $fail = 0 ] && echo "museum_stats: ok"
 exit $fail

@@ -135,7 +135,9 @@ jobs:
           python3 tools/package --out dist   # named after the version the binary reports (the tag's on a release)
           ls dist/zinc-*-macos-*.tar.gz dist/Zinc-Atelier-*-macos-*.zip
       - name: Smoke test of the CLI archive and the app
-        run: ZINC_DIST="$PWD/dist" tests/run --tier t1 --only install_nocompiler   # a T1 test: without --tier, --only looks in T0 and runs nothing
+        run: |   # the tests shards skip these two on CI: they would build the same archive again
+          ZINC_DIST="$PWD/dist" tests/run --only install_nocompiler
+          ZINC_DIST="$PWD/dist" tests/run --only package
       - name: Sign and notarize (macOS release)
         if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
         env:
