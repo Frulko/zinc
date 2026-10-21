@@ -3,6 +3,7 @@
 # source includes (compiler_depend.make of every target) is tracked by git, so no .gitignore rule (build*/ once hid SDL3's build_config) can leave it
 # out of a clone. Reads the build directory of this checkout (ZINC_BUILD, default build); skipped (77) when it has not been built.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: a CI checkout is a fresh clone, whose build already proves every input is tracked"; exit 77; }
 b=${ZINC_BUILD:-build}
 [ -f "$b/CMakeFiles/Makefile.cmake" ] || { echo "build_inputs_tracked: no configured $b"; exit 77; }
 root=$(git rev-parse --show-toplevel) || exit 2

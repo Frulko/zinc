@@ -4,6 +4,6 @@
 cd "$(dirname "$0")/../.." || exit 2
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [ -x "$CHROME" ] || CHROME=$(command -v google-chrome chromium chromium-browser 2>/dev/null | head -1)
-[ -n "$CHROME" ] && [ -x "$CHROME" ] || { echo "wasm_browser: no Chrome, skipped"; exit 0; }
+[ -n "$CHROME" ] && [ -x "$CHROME" ] || { echo "wasm_browser: no Chrome, skipped"; exit 77; }
 tools/build-wasm >/dev/null 2>&1 || { echo "tools/build-wasm failed"; exit 1; }
 exec python3 tools/wasm-browser-test "$CHROME"

@@ -2,7 +2,7 @@
 # The interpreter as a WASI module (ZN-135): tools/build-wasm builds vm.wasm with the pinned zig (no emscripten); the 18 M3 programs (corpus/M3-set.txt) run on it under Node's WASI
 # (wasmtime when installed) and print what `zinc run` prints in a deterministic run, with the same exit code.
 cd "$(dirname "$0")/../.." || exit 2
-command -v node >/dev/null || { echo "wasm: no node, skipped"; exit 0; }
+command -v node >/dev/null || { echo "wasm: no node, skipped"; exit 77; }
 tools/build-wasm >/dev/null 2>&1 || { echo "tools/build-wasm failed"; tools/build-wasm 2>&1 | tail -5; exit 1; }
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0

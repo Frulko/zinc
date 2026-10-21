@@ -225,7 +225,7 @@ jobs:
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
         run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
-          brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3
+          brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3 pkgconf ffmpeg libgphoto2 jpeg-turbo   # ffmpeg: the real decode of video and museum_*; libgphoto2 and jpeg-turbo: camera's fake camera
           python -m pip install --quiet pyyaml jsonschema tuf 'securesystemslib[crypto]' cryptography   # sbom (SPDX schema), tuf_interop (python-tuf)
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"   # tls and netlog need openssl 3.4+ (x509 -not_before), not the system LibreSSL
       - name: Cache pinned toolchains
