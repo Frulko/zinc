@@ -119,7 +119,10 @@ function tick(): void {
   const safety = (focusTicks % 5 === 0);
   // Research (wechat-priority-notifier, AgentMonitors): no push API exists for other apps' notifications, and file watching
   // on TCC-protected paths is fragile (WAL writes often do not fire VNODE events). Short polling is the field consensus.
-  for (const n of capture.poll()) {
+  const news = capture.poll();
+  if (news.length > 0) console.log('news ' + news.length);   // counts only: the relay never logs a notification's text
+  if (wasProblem !== capture.problem) console.log('capture: ' + (capture.problem === '' ? 'ok' : capture.problem));
+  for (const n of news) {
     try { handle(n); } catch (e) { console.log('cannot relay a notification of ' + n.app + ': ' + (e as Error).message); dirty = true; }   // one bad record never stops the others
   }
   if (dirty) { save(); changed(); }
