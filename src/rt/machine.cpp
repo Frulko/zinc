@@ -259,7 +259,8 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     c.fieldRef.reserve(ci.fields.size());
     for (const zbc::VType& ft : ci.fields) c.fieldRef.push_back(ft.cls == zbc::Cls::R);
     c.supers = ci.supers;
-    if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract) {
+    // a class without methods gets no table: a verified CallVirt names a selector its receiver's class lists (230 of the widgets demo's 560 classes)
+    if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract && !ci.selectors.empty()) {
       c.vtable.assign(m.selectors.size(), nullptr);
       for (std::size_t k = 0; k < ci.selectors.size(); ++k) c.vtable[ci.selectors[k]] = &funcs[ci.vtable[k]];   // the module's table is sparse
     }

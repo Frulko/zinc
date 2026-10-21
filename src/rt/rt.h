@@ -89,7 +89,7 @@ struct ClassRT {
   zbc::CKind kind = zbc::CKind::Object;
   std::uint32_t nfields = 0;
   std::vector<std::uint32_t> supers;
-  std::vector<const Func*> vtable;  // by selector id; empty for interfaces, abstract classes and builtin classes
+  std::vector<const Func*> vtable;  // by selector id; empty for interfaces, abstract and builtin classes, and classes without methods
   KeyKind elemKind = KeyKind::Int;  // array and Set elements, Map values
   KeyKind keyKind = KeyKind::Int;   // Map keys, Set elements
   std::vector<std::uint8_t> fieldRef;    // per field: holds a reference (released when the object dies, and when overwritten)
