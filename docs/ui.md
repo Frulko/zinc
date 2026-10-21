@@ -23,7 +23,7 @@ const [name, setName] = createSignal('');
 | `placeholder` | shown while empty |
 | `password` / `type="password"` | bullets; copy and cut are disabled |
 | `readOnly` | selectable and copyable, not editable |
-| `rows` | textarea height in lines when no height class is set (default 4) |
+| `rows` | textarea height in lines when no height class is set (default 4); `rows={0}`: as tall as its content, like CSS `field-sizing: content` (a block editor's paragraphs: the field grows and shrinks as the text wraps, before the frame is painted) |
 | `wrap={false}` | textarea: no line wrapping, horizontal scroll |
 | `lineNumbers` | textarea: line number gutter; with `lineNumbers` or `font-mono` the textarea is a code editor: Tab inserts 2 spaces, Enter keeps the indentation |
 | `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers, `//` comments and `/* */` comments within a line |
@@ -43,7 +43,7 @@ edges (the OS supplies the momentum), mouse notches ease 60 px each; at an edge 
 scroll container.
 
 Host ABI: `ui.createNode(ui.INPUT | ui.TEXTAREA)`, `setValue`, `getValue`, `setPlaceholder`, `onText(h, change, f)`,
-`setHighlight`, `select(h, a, b)`, `caretOf`, `selectedText`, `focusNode(h)`, `focused()`; flags through
+`setHighlight`, `select(h, a, b)`, `caretOf`, `anchorOf`, `selectedText`, `focusNode(h)`, `focused()`; flags through
 `setNumber(h, 'password' | 'readOnly' | 'lineNumbers' | 'wrap' | 'rows', v)`.
 
 ### Code editor extensions
@@ -52,7 +52,7 @@ For editors built on a textarea (`examples/zed-editor`), on the node handle (`re
 
 | function | |
 | --- | --- |
-| `setMarks(h, marks)` | decorations, flat `[start, end, color, kind]` per mark (UTF-16 offsets): `MARK_LINE` the background of every row of a line (and a brighter line number), `MARK_FILL` / `MARK_STRONG` a translucent / stronger range fill, `MARK_BOX` a 1 px box (matching brackets), `MARK_SQUIGGLE` a wavy underline (diagnostics), `MARK_GUTTER` a dot in the line number gutter. Drawn under the text; each call replaces the marks |
+| `setMarks(h, marks)` | decorations, flat `[start, end, color, kind]` per mark (UTF-16 offsets): `MARK_LINE` the background of every row of a line (and a brighter line number), `MARK_FILL` / `MARK_STRONG` a translucent / stronger range fill, `MARK_BOX` a 1 px box (matching brackets), `MARK_SQUIGGLE` a wavy underline (diagnostics), `MARK_GUTTER` a dot in the line number gutter, `MARK_CARET` a 2 px caret at `start` (another person's caret in a collaborative editor; `end` is ignored). Drawn under the text; each call replaces the marks |
 | `setEditColors(h, colors)` | `[lineNumber, activeLineNumber, gutterLine, selection, caret, indentGuide]`; `-1` keeps the default, `-2` draws none. Indent guides (every 2 columns of leading spaces, blank lines take the smaller indentation around them) are drawn when `indentGuide` is a colour |
 | `setHighlightAt(h, f)` | like `highlight`, with the offset of the row in the value: `f(line, start)`. Highlighters that keep a state per line (block comments, template strings) look it up; takes precedence over `highlight` |
 | `editView(h)` | `[scrollX, scrollY, contentHeight, viewportHeight, lineHeight, rows, gutter, contentWidth]` |
@@ -137,6 +137,35 @@ moves and gives vertical ones to the list, and a button inside a draggable card 
 Multitouch: the first finger is the pointer (taps, scrolling, drags); the SDL HAL reports the other fingers of touch
 screens (`zinc:gfx` touches), and `ui.touchAt(id, x, y, phase)` (0 down, 1 move, 2 up) scripts fingers in tests.
 `zinc:gestures` stays the tool for canvases and games that read the raw input themselves.
+
+## Drag and drop (`zinc:ui/dnd`)
+
+Moving things between places (reordering blocks, cards between columns, files onto a folder), after Atlassian's
+[Pragmatic drag and drop](https://github.com/atlassian/pragmatic-drag-and-drop): the same three pieces, on nodes instead of
+DOM elements and on the `onDrag` gesture instead of the browser's HTML5 drag and drop, so a mouse, a finger and a pen
+drag the same way on every target.
+
+```tsx
+import * as dnd from 'zinc:ui/dnd';
+const off = dnd.draggable(row, { data: block.id, handle: grip });                    // what can be dragged
+dnd.dropTarget(row, { data: block.id, edges: dnd.EDGES_VERTICAL,                      // where it can land
+  canDrop: (d: dnd.DragInfo) => d.data !== block.id });
+dnd.monitor({ onDrag: (d: dnd.DragInfo) => showLine(d.targets), onDrop: (d: dnd.DragInfo) => move(d.data, d.targets) });
+dnd.autoScroll(list);                                                                 // scrolls near its top and bottom
+```
+
+- `draggable(node, { data, handle, threshold, canDrag, onDragStart, onDrag, onDrop })`: a press on `handle` (default the
+  node) that moves `threshold` px (default 3) starts a drag carrying `data`.
+- `dropTarget(node, { data, edges, canDrop, onDragEnter, onDragLeave, onDrag, onDrop })`: the targets under the pointer are
+  the node there (`ui.nodeAt`, through clips and scroll offsets) and its ancestors that are targets and accept the drag,
+  innermost first. `edges` (`EDGE_TOP`, `EDGE_BOTTOM`, `EDGE_LEFT`, `EDGE_RIGHT`, `EDGES_VERTICAL`, `EDGES_HORIZONTAL`)
+  gives each record its closest edge (Pragmatic's hitbox `closest-edge`).
+- `monitor({ onDragStart, onDrag, onDropTargetChange, onDrop })` sees every drag. A cancelled drag is a drop on nothing
+  (`targets` empty).
+- `DragInfo`: `source`, `data`, `x` / `y` (surface px), `dx` / `dy`, `targets` and `previous` (`DropRecord`: `node`,
+  `data`, `edge`), `self` in a target's own callbacks. Each function returns the one that undoes it.
+- The preview is the app's (a translucent copy, a line where it lands): nothing is drawn by the module. The test is
+  `tests/t0/ui_dnd.sh`.
 
 ## Focus scopes and keymaps
 

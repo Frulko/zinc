@@ -95,7 +95,8 @@ export class Edit {
   caret: i32 = 0; anchor: i32 = 0;
   placeholder: string = '';
   password: boolean = false; readOnly: boolean = false; lineNumbers: boolean = false; wrap: boolean = true;
-  rows: i32 = 4;                        // visible lines of a textarea without a height
+  rows: i32 = 4;                        // visible lines of a textarea without a height; 0: as many as its content (field-sizing: content)
+  fit: i32 = 1;                         // rows = 0: the visual rows of the value at the laid out width (settleFields)
   compA: i32 = -1; compB: i32 = -1;     // the IME's composing run [compA, compB) in value (composeText), -1 none
   traits: string = '';                  // keyboard traits for the OS (setInputTraits: cap, autocorrect, return, autofill)
   sx: number = 0; sy: number = 0;       // scroll of the text inside the field
@@ -826,6 +827,8 @@ export function onText(h: i32, change: boolean, f: (v: string) => void): void { 
 export function setHighlight(h: i32, f: (line: string) => i32[]): void { editOf(h).highlight = f; paintDirty = true; }
 /** Caret position and selected text of a field (tests, tools). */
 export function caretOf(h: i32): i32 { return editOf(h).caret; }
+/** The other end of the selection (the caret when nothing is selected): with caretOf, a selection to show to someone else. */
+export function anchorOf(h: i32): i32 { return editOf(h).anchor; }
 export function selectedText(h: i32): string { const e = editOf(h); return e.value.slice(imin(e.caret, e.anchor), imax(e.caret, e.anchor)); }
 /** Selects [a, b) of a field (caret at b). */
 export function select(h: i32, a: i32, b: i32): void { const e = editOf(h); e.anchor = clampI(a, 0, e.value.length); e.caret = clampI(b, 0, e.value.length); e.reveal = true; paintDirty = true; }
@@ -840,6 +843,7 @@ export function setNumber(h: i32, key: string, v: number): void {
   const i = n.styleKeys.indexOf(key);
   const id = i >= 0 ? n.styleIds[i] : propId(key);
   if (i >= 0) { if (n.styleVals[i] === v) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); n.styleIds.push(id); }
+  if (id === P_ROWS && v === 0 && autoFields.indexOf(h) < 0) autoFields.push(h);   // grows with its content (settleFields)
   applyProp(n, id, key, v);
 }
 /** Numeric style properties by id (ZN-250): a key is looked up once, when a Style or a setNumber meets it; applying a style compares integers. Aliases share an id; 0 is a key the table does not know (interaction keys). */
@@ -2960,7 +2964,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     const e = n.ed as Edit;
     fontOf(n);
     n.lw = (n.fullW ? 0 : 200) + n.pl + n.pr;
-    n.lh = (e.multi ? e.rows : 1) * lineHeightOf(n) + n.pt + n.pb;
+    n.lh = (e.multi ? (e.rows > 0 ? e.rows : e.fit) : 1) * lineHeightOf(n) + n.pt + n.pb;
   } else if (n.tag === IMAGE && n.img >= 0) {
     // intrinsic size, aspect ratio kept when one side is set; w-full / h-full fill (0 basis, then grow/stretch)
     const iw = imageWidth(n.img), ih = imageHeight(n.img);
@@ -3359,7 +3363,7 @@ function rnSync(n: UiNode): void {
   } else if (n.ed !== null) {
     fontOf(n);
     const e = n.ed as Edit;
-    LY.field(h, e.multi ? e.rows : 1, lineHeightOf(n), n.fullW);   // (the engine ignores an unchanged field)
+    LY.field(h, e.multi ? (e.rows > 0 ? e.rows : e.fit) : 1, lineHeightOf(n), n.fullW);   // (the engine ignores an unchanged field)
     r.leaf = 3;
   } else if (n.tag === IMAGE && n.img >= 0) {
     LY.image(h, imageWidth(n.img), imageHeight(n.img));
@@ -3435,6 +3439,21 @@ export function layout(): void {
   hoverDirty = true;
   if (cqAny && !inSettle) settleContainers();
   if (virtList.length > 0 && !inVirt) { inVirt = true; settleVirtuals(); if (layoutDirty) layout(); inVirt = false; }
+  if (autoFields.length > 0 && !inFields) { inFields = true; settleFields(); if (layoutDirty) layout(); inFields = false; }   // a new width wraps them again
+}
+// textareas with rows={0} are as tall as their content, as CSS `field-sizing: content` (a block editor's paragraphs): after an edit or a
+// layout, their visual rows at the laid out width; a different count lays out again before the frame is painted
+const autoFields: i32[] = [];
+let inFields = false;
+function settleFields(): void {
+  for (let i = autoFields.length - 1; i >= 0; i--) {
+    const h = autoFields[i], n = nodes[h], e = n.ed;
+    if (!n.alive || e === null || !e.multi || e.rows !== 0) { autoFields.splice(i, 1); continue; }
+    if (n.lw <= 0) continue;
+    ensureRows(n, e);
+    const fit = imax(1, e.rs.length);
+    if (fit !== e.fit) { e.fit = fit; e.sy = 0; layoutDirty = true; }
+  }
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
@@ -4298,6 +4317,10 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       const ma = mk[i], mb = mk[i + 1], kind = mk[i + 3];
       if (ma > b || mb < a || kind === MARK_SQUIGGLE || kind === MARK_GUTTER) continue;
       if (kind === MARK_LINE) { rrect(x + cl * k, ry, cw * k, lh * k, 0, mk[i + 2], ai); continue; }
+      if (kind === MARK_CARET) {   // another person's caret (collaborative editing): on the row that holds the offset, the first of two at a wrap
+        if (ma >= a && (ma < b || r + 1 >= e.rs.length || e.rs[r + 1] !== ma)) rrect(rx + xrOf(n, chunk, e, c0, r, ma) * k - k, ry, 2 * k, lh * k, 0, mk[i + 2], ai);
+        continue;
+      }
       const x0 = xrOf(n, chunk, e, c0, r, imax(ma, a)), x1 = xrOf(n, chunk, e, c0, r, imin(mb, b));
       if (x1 <= x0) continue;
       if (kind === MARK_BOX) border(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 2 * k, k, mk[i + 2], ai);
@@ -4594,7 +4617,7 @@ export function tsHighlight(line: string): i32[] {
 // ---------------------------------------------------------------- code editor extensions (examples/zed-editor)
 /** Mark kinds of setMarks: a translucent range fill, the background of every row of a line (also brightens its line
  *  number), a 1px box, a wavy underline, a stronger fill, a dot in the line number gutter. */
-export const MARK_FILL: i32 = 0, MARK_LINE: i32 = 1, MARK_BOX: i32 = 2, MARK_SQUIGGLE: i32 = 3, MARK_STRONG: i32 = 4, MARK_GUTTER: i32 = 5;
+export const MARK_FILL: i32 = 0, MARK_LINE: i32 = 1, MARK_BOX: i32 = 2, MARK_SQUIGGLE: i32 = 3, MARK_STRONG: i32 = 4, MARK_GUTTER: i32 = 5, MARK_CARET: i32 = 6;
 /** Decorations of a textarea, flat [start, end, color, kind] per mark (UTF-16 offsets): current line, search
  *  matches, matching brackets, diagnostics. Drawn under the text (squiggles over it); replaces the previous marks. */
 export function setMarks(h: i32, marks: i32[]): void { editOf(h).marks = marks; paintDirty = true; }
@@ -5662,6 +5685,7 @@ export function frame(dt: number, background: i32): void {
   if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
   if (prof) profMark(PROF_INPUT);
   for (const h of virtuals()) syncVirtual(h, node(h));
+  if (autoFields.length > 0) settleFields();
   if (layoutDirty) layout();
   // while the on-screen keyboard is up, a new layout (the room made for it: KeyboardAvoidingView, pb-[env(keyboard-inset)]) reveals the focused field again
   if (focus >= 0 && kbInset > 0 && layoutRuns !== revealRuns) { revealRuns = layoutRuns; revealFocus(focus); }
@@ -5940,6 +5964,8 @@ export function click(h: i32): void { activate(h); }
 export function parentOf(h: i32): i32 { return node(h).parent; }
 /** Node that a pointer press at (x, y) would hit, through scroll offsets and clips (-1: none). */
 export function hitAt(x: number, y: number): i32 { if (layoutDirty) layout(); return hit(x, y, HIT_CLICK); }
+/** The topmost node at (x, y) whatever its handlers, through scroll offsets and clips; hidden and `pointer-events-none` subtrees are skipped (-1: none). Drop targets (zinc:ui/dnd) walk up from it. */
+export function nodeAt(x: number, y: number): i32 { if (layoutDirty) layout(); return hitExact(x, y, HIT_NODE); }
 export function find(text: string): i32 {
   for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].text === text) {
     let p = nodes[i].parent;
