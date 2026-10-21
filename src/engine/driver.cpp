@@ -372,6 +372,7 @@ int run(const zn_engine_args* a) {
     gMapStack = reinterpret_cast<decltype(gMapStack)>(a->map_stack);
   }
   zn::log::step("run", std::string(kName) + ", executing JavaScript");
+  beforeEntry(env, a, js);
   napi_value res;
   int rc = 0;
   if (!eval(env, js, a->bundle, &res)) rc = 101;

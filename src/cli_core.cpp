@@ -73,7 +73,7 @@ const Command kCommands[] = {
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2, psp, vita, n3ds, chip, pocketchip): numbers, heap and typing of that target\n"
    "  --har <file>            write every network request of the run (fetch, WebSocket, MQTT, TCP) as a HAR 1.2 file when the program ends\n"
    "  --simulate <device>     run as on a device of devices/ (hp-touchpad, phone...): its screen, battery, sensors and keys, set in a control panel\n"
-   "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --engine jsc | v8       the same on JavaScriptCore (the system's, on macOS) or V8 (tools/v8-pack), compiled to machine code: faster JavaScript\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
+   "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --engine jsc | v8       the same on JavaScriptCore (the system's, on macOS) or V8 (tools/v8-pack), compiled to machine code: faster JavaScript\n  --inspect[=port]        Chrome DevTools on an --engine v8 program (port 9229, chrome://inspect lists it); --inspect-brk[=port] waits for it at the first statement\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "run a program under the debugger",
    "Compiles a debug build (every call keeps its frame, each statement and each local is known) and runs it in the interpreter, paused at its first statement.\n"
@@ -131,7 +131,7 @@ const Command kCommands[] = {
   {"lint", "zinc lint [--target <profile> | --all-targets] [--json] [--rules] [path]", "check a program for its targets before a compile", "Rules on the engine's own lexer and loader (zinc lint --rules lists them): the source rules (class in JSX, lowercase tags: the zinc migrate codemod that fixes them), and per target what cannot work or weighs too much there: zinc.json requires, plugins whose plugin.json requires or targets exclude it, @requires modules, styles its UI tier simplifies, fixed sizes beyond its screen, assets against its flash, ram and gpu budgets. The targets in force: --target, else the targets of zinc.json, else this machine; --all-targets adds every profile of targets/capabilities.json and prints the matrix (ok, warns, refuses and why). --json for editors and CI. Exit 1 only for an error on the source or on a target in force (docs/guide/10-lint-migrate.md)."},
   {"migrate", "zinc migrate [--list] [--dry-run | --apply] [<codemod>...] [paths]", "rewrite a project for a language or API change", "Runs the codemods (all, or those named; --list prints them with the engine change that needs them) over the .tsx, .jsx and .md files (their ts/tsx/js/jsx fences) of the paths (default: the current directory). --dry-run (the default) prints the diff, --apply writes the files. A codemod rewrites code tokens only: strings, comments and JSX text are left as they are; a second run changes nothing. A diagnostic that has a codemod names it (zinc explain Z0006)."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--target web [--render canvas|dom] [--port n]] [--device name] [--lan [--port n]] [--no-devtools] [-- args]", "run, watch, swap each save in (Fast Refresh)", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way. --lan serves the project to Zinc Go on phones and tablets instead of opening a window (as `expo start` serves Expo Go): it prints a QR code and a zinc://host:port/code link (port 8090 or the next free one; the code keeps other people on the network out), compiles the project for each phone's profile and sends it, swaps each save into the running program in the same way, and prints the program's console here. Open the link on the Android emulator with adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>, on the iOS simulator with xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:<port>/<code>."},
+  {"dev", "zinc dev [entry|dir] [--target web [--render canvas|dom] [--port n]] [--device name] [--lan [--port n]] [--no-devtools] [-- args]", "run, watch, swap each save in (Fast Refresh)", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT); a project with \"engine\": \"v8\" gets V8's own inspector there instead (Sources, breakpoints, Console on its JavaScript). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way. --lan serves the project to Zinc Go on phones and tablets instead of opening a window (as `expo start` serves Expo Go): it prints a QR code and a zinc://host:port/code link (port 8090 or the next free one; the code keeps other people on the network out), compiles the project for each phone's profile and sends it, swaps each save into the running program in the same way, and prints the program's console here. Open the link on the Android emulator with adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>, on the iOS simulator with xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:<port>/<code>."},
   {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
@@ -693,7 +693,7 @@ Opts parseOpts(const std::vector<std::string>& args, const std::vector<std::stri
 }
 bool has(const Opts& o, const std::string& f) { for (const std::string& x : o.flags) if (x == f) return true; return false; }
 
-struct ProjectInfo { std::string dir, entry, name, version; };
+struct ProjectInfo { std::string dir, entry, name, version, engine; };
 bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
   std::error_code ec;
   std::string a = arg.empty() ? "." : arg;
@@ -710,6 +710,7 @@ bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
   p.dir = dir;
   p.name = have && !proj.name.empty() ? proj.name : fs::path(p.entry).stem().string();
   p.version = have && !proj.app.version.empty() ? proj.app.version : "0.1.0";
+  p.engine = have ? proj.engine : "";
   return true;
 }
 
@@ -3095,8 +3096,10 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
 #endif
   }
   // the inspector: the same program with `import 'zinc:devtools'` in front; on a device it is reached through zinc device forward
-  const std::string runEntry = !remote && !noTools ? inspectEntry(p.dir, p.entry) : p.entry;
-  const bool tools = runEntry != p.entry;
+  // an "engine": "v8" project gets V8's own inspector instead (Chrome DevTools on its JavaScript, zinc run --inspect: ZN-773.05)
+  const bool v8Tools = !remote && !noTools && p.engine == "v8";
+  const std::string runEntry = !remote && !noTools && !v8Tools ? inspectEntry(p.dir, p.entry) : p.entry;
+  const bool tools = runEntry != p.entry || v8Tools;
   std::signal(SIGINT, onSignal);
   std::signal(SIGTERM, onSignal);
 #ifdef SIGPIPE
@@ -3104,6 +3107,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
 #endif
   const std::string exe = self();
   std::vector<std::pair<std::string, std::string>> env = {{"ZINC_SHOT_DIR", (fs::path(p.dir) / "build" / "shots").string()}, {"ZINC_DEV", "1"}};
+  if (v8Tools) env.push_back({"ZINC_INSPECT", devtoolsPort(p.entry).empty() ? "9229" : devtoolsPort(p.entry)});
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   zn::plat::Pid child = 0;
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
@@ -3119,6 +3123,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     hotOff.clear();
     hotBuf.clear();
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
+    if (!redbox && (p.engine == "jsc" || p.engine == "v8")) cmd.insert(cmd.end(), {"--engine", p.engine});   // a file names no project: its engine on the command line
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
     auto childEnv = env;

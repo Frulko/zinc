@@ -438,6 +438,7 @@ target_link_libraries(zn_prof PUBLIC zn_platform zn_vm)
 add_library(zn_dbg STATIC src/dbg/dbg.cpp src/dbg/eval.cpp src/dbg/dap.cpp src/dbg/cdp.cpp)   # zinc debug (ZN-371.01), --dap (ZN-371.02), --cdp (ZN-371.04)
 target_link_libraries(zn_dbg PUBLIC zn_platform zn_vm)
 if(ZN_TLS)   # the CDP server's WebSocket handshake takes SHA-1 and base64 from mbedTLS
+  target_sources(zn_dbg PRIVATE src/dbg/ws.cpp)
   target_compile_definitions(zn_dbg PRIVATE ZN_DBG_CDP=1)
   target_link_libraries(zn_dbg PRIVATE zn_mbedtls)
 endif()
@@ -800,10 +801,10 @@ endif()
 # component libraries against the system's libc++, pointer compression on, no sandbox; the defines below are that build's and V8 refuses to start
 # with others). The module finds the libraries through its rpath.
 set(ZN_V8_DIR "$ENV{HOME}/.zinc/engines/v8/current" CACHE PATH "a V8 engine directory of tools/v8-pack (include/, lib/)")
-if(APPLE AND EXISTS "${ZN_V8_DIR}/include/v8.h")
+if(APPLE AND ZN_TLS AND EXISTS "${ZN_V8_DIR}/include/v8.h")   # ZN_TLS: the inspector's WebSocket handshake (src/dbg/ws.cpp)
   get_filename_component(ZN_V8_REAL "${ZN_V8_DIR}" REALPATH)
   add_library(zn_engine_v8 MODULE src/engine/driver.cpp src/engine/v8.cpp src/engine/zinc.cpp src/qjs/prelude.cpp src/qjs/web_shims.cpp src/text/segment.cpp
-              third_party/node-api/src/js_native_api_v8.cc third_party/node-api/src/env_v8.cc
+              third_party/node-api/src/js_native_api_v8.cc third_party/node-api/src/env_v8.cc src/dbg/ws.cpp
               src/qjs/native_js.cpp src/qjs/canvas2d.cpp src/qjs/webenv.cpp src/text/segmenter_js.cpp)
   set_target_properties(zn_engine_v8 PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                         CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON BUILD_RPATH "${ZN_V8_REAL}/lib")
@@ -811,7 +812,7 @@ if(APPLE AND EXISTS "${ZN_V8_DIR}/include/v8.h")
   target_compile_definitions(zn_engine_v8 PRIVATE NAPI_VERSION=8 NAPI_DISABLE_CPP_EXCEPTIONS "NAPI_EXTERN=" ZN_ENGINE_MODULE V8_COMPRESS_POINTERS V8_31BIT_SMIS_ON_64BIT_ARCH V8_CPPGC_MICROTASK_QUEUE)
   target_include_directories(zn_engine_v8 PRIVATE third_party/node-api/include third_party/node-api/v8 "${ZN_V8_REAL}/include" src include
                              $<TARGET_PROPERTY:zn_qjs,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_text,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_segment,INTERFACE_INCLUDE_DIRECTORIES>
-                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES>)
+                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_mbedtls,INTERFACE_INCLUDE_DIRECTORIES>)
   target_link_options(zn_engine_v8 PRIVATE "LINKER:-undefined,dynamic_lookup")
   target_link_libraries(zn_engine_v8 PRIVATE "${ZN_V8_REAL}/lib/libv8.dylib" "${ZN_V8_REAL}/lib/libv8_libplatform.dylib" "${ZN_V8_REAL}/lib/libv8_libbase.dylib" zn_codec zn_text)
   add_dependencies(zinc zn_engine_v8)

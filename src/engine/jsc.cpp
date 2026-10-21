@@ -27,6 +27,7 @@ void onRejection(napi_env, napi_value fn) {
 }
 
 void drainJobs(napi_env) {}   // JavaScriptCore runs the microtasks when the outermost call into it returns
+void beforeEntry(napi_env, const zn_engine_args*, std::string&) {}   // ponytail: no inspector (Safari's Web Inspector needs the private remote inspection API)
 
 }  // namespace zn::engine
 

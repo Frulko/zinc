@@ -205,7 +205,7 @@
     {"paths": ["lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["third_party/node-api/", "src/qjs/napi_util.h", "src/qjs/ext.cpp", "tests/native/napi_test.cpp", "tests/t0/napi.sh"], "tests": ["napi", "qjs_native", "segment", "webenv_canvas2d", "webenv_image", "script", "jsc", "v8"]},
-    {"paths": ["src/engine/", "include/zn/engine.h", "tests/t0/jsc.sh", "tests/t0/v8.sh", "targets/macos/zinc.entitlements"], "tests": ["jsc", "v8"]},
+    {"paths": ["src/engine/", "include/zn/engine.h", "tests/t0/jsc.sh", "tests/t0/v8.sh", "targets/macos/zinc.entitlements", "tests/v8_inspect_check.mjs", "tests/t1/v8_inspect.sh", "tests/data/v8_inspect/", "src/dbg/ws.cpp", "src/dbg/ws.h"], "tests": ["jsc", "v8", "v8_inspect"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
     {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},

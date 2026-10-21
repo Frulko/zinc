@@ -1469,6 +1469,12 @@ int main(int argc, char** argv) {
   }
   for (int k = 1; k < argc && std::strcmp(argv[k], "--"); ++k)   // `zinc run --interp` interprets, `--native` compiles even a test run (ZN-398)
     if (!std::strcmp(argv[k], "--interp") || !std::strcmp(argv[k], "--native")) { setenv("ZINC_RUN", argv[k] + 2, 1); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+    else if (!std::strncmp(argv[k], "--inspect", 9)) {   // --inspect[-brk][=port]: Chrome DevTools on an --engine v8 program (ZN-773.05), as node's
+      const char* eq = std::strchr(argv[k], '=');
+      setenv("ZINC_INSPECT", (std::string(eq ? eq + 1 : "9229") + (std::strncmp(argv[k], "--inspect-brk", 13) ? "" : ",brk")).c_str(), 1);
+      for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
+      --argc; --k;
+    }
   // `zinc run <file> --target sim` (or this machine's own target): the prototype's "here"; its simulator is the sim profile (ZN-155)
   if (argc >= 4 && !std::strcmp(argv[1], "run"))
     for (int k = 2; k + 1 < argc && std::strcmp(argv[k], "--"); ++k) {
@@ -1732,6 +1738,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName(engine == "quickjs" ? "QuickJS" : engineName);   // the perf panel (ZN-375)
 #endif
+    if (std::getenv("ZINC_INSPECT") && engine != "v8") std::fprintf(stderr, "zinc: --inspect: Chrome DevTools attaches to --engine v8 programs (zinc debug --cdp for a Zinc program)\n");
     return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {
