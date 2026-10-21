@@ -64,6 +64,9 @@ jobs:
           path: ${{ runner.temp }}/ccache
           key: ccache-arm64-${{ github.sha }}
           restore-keys: ccache-arm64-
+      - name: V8 SDK
+        # ZN-773.04: Homebrew's signed V8 bottle into ~/.zinc/sdk/v8, where CMake finds it and builds libzn_engine_v8 (--engine v8)
+        run: python3 tools/v8-pack
       - name: Build
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
@@ -71,6 +74,17 @@ jobs:
         run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is update.pub
           ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
+      - name: Engine packs
+        # what `zinc run --engine v8` downloads (src/tc/engines.h): the release attaches them, the pages job signs them into the index
+        run: |
+          tools/engine-pack v8 --out engines
+          tar cf engines-aarch64-macos.tar -C engines .   # entries.json and engines/<name>/<version>/<host>.tar.xz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engines-macos-arm64
+          path: engines-aarch64-macos.tar
+          compression-level: 0
+          retention-days: 3
       - name: Keep the build tree, objects included (12 tests run cmake --build on it)
         run: tar czf build.tgz build
       - uses: actions/upload-artifact@v4
@@ -225,6 +239,8 @@ jobs:
           path: .
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
+      - name: V8 SDK
+        run: python3 tools/v8-pack   # libzn_engine_v8 of the build loads libv8 from ~/.zinc/sdk/v8: the v8 tests run it
       - name: Dependencies (macOS)
         run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
           brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3 pkgconf ffmpeg libgphoto2 jpeg-turbo   # ffmpeg: the real decode of video and museum_*; libgphoto2 and jpeg-turbo: camera's fake camera
@@ -656,6 +672,12 @@ jobs:
           pattern: linux-*
           path: release
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        # the engine packs of the build (engines-<host>.tar: engines/<name>/<version>/<host>.tar.xz and entries.json); the pages job signs them into the index
+        with:
+          pattern: engines-*
+          path: release
+          merge-multiple: true
       - name: plugins.lock (ZN-335)
         run: tools/plugin-split --lock release/plugins.lock
       - name: Installer and checksums
@@ -682,12 +704,13 @@ jobs:
           if ls release/zinc-*-linux-*.tar.gz >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-linux-<arch>.tar.gz\`: the zinc CLI for Linux (x86_64, aarch64, armhf, i686; glibc 2.28 or later), the same layout as macOS; \`install.sh\` picks it. With \`install.sh --atelier\`, Zinc Atelier goes into the applications menu.${nl}"; fi
           if ls release/Zinc-Atelier-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`Zinc-Atelier-<version>-windows-x86_64.zip\`: the Zinc Atelier app for Windows, the engine inside; unzip it and open \"Zinc Atelier.exe\" in the folder.${nl}"; fi
           if ls release/zinc-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-windows-x86_64.zip\`: the zinc CLI for Windows 10/11 (bin\\zinc.exe, the standard library, templates); install it with \`irm https://github.com/${GH_REPO}/releases/latest/download/install.ps1 | iex\` in PowerShell. Not signed yet: SmartScreen may ask you to confirm.${nl}"; fi
+          notes="$notes- \`engines-<host>.tar\`: the engine packs \`zinc run --engine v8\` downloads from the signed index (nothing to install by hand).${nl}"
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi
           if grep -L '^sig=' release/*.manifest 2>/dev/null | grep -q .; then notes="$notes${nl}The update manifests are unsigned (no ZINC_UPDATE_SEED secret): zinc update refuses them unless ZINC_UPDATE_ALLOW_UNSIGNED=1."; echo "::warning::unsigned update manifests"; fi
           files=(release/zinc-* release/install.sh release/SHA256SUMS)
           [ ! -f release/install.ps1 ] || files+=(release/install.ps1)   # the CLI archives and the manifests, not the size reports
-          for f in release/Zinc-Atelier-* release/plugins.lock; do if [ -f "$f" ]; then files+=("$f"); fi; done
+          for f in release/Zinc-Atelier-* release/plugins.lock release/engines-*.tar; do if [ -f "$f" ]; then files+=("$f"); fi; done
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac   # v1.3.0-beta.1: not the latest release, the beta channel only
           gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" "${pre[@]}" "${files[@]}"
           if [ ${#pre[@]} -gt 0 ]; then   # the beta manifests go on the latest release, where zinc update --channel beta reads them
@@ -745,6 +768,7 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/pages.yml
+    secrets: inherit   # ZINC_INDEX_KEYS: the index of plugins, templates and engine packs
   reproducible:
     # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
     name: reproducible

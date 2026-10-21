@@ -1,7 +1,10 @@
 name: Pages
 
-on:   # called by zinc-next on a release (one pipeline per release, owner 2026-10-20); a manual run deploys the site alone
+on:   # called by zinc-next on a release (one pipeline per release, owner 2026-10-20); a manual run deploys the site and the index again
   workflow_call:
+    secrets:
+      ZINC_INDEX_KEYS:
+        required: false
   workflow_dispatch:
 
 permissions:
@@ -31,6 +34,34 @@ jobs:
         working-directory: site
       - run: pnpm build
         working-directory: site
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Index (plugins, templates, engine packs)
+        # the signed TUF index under /index (D41, docs/plugins.md "Plugin index"): the plugins and templates of this checkout and the engine packs the
+        # latest release carries (engines-<host>.tar, built by zinc-next's build job). Its version is the time: every publish is newer than the last
+        env:
+          ZINC_INDEX_KEYS: ${{ secrets.ZINC_INDEX_KEYS }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -n "$ZINC_INDEX_KEYS" ] || { echo "::warning::no ZINC_INDEX_KEYS secret: the site goes without an index (zinc plugins search, zinc run --engine v8 cannot download)"; exit 0; }
+          [ -f index/root.json ] || { echo "::error::ZINC_INDEX_KEYS is set but index/root.json, the root zinc trusts, is not committed"; exit 1; }
+          python -m pip install --quiet cryptography
+          printf '%s' "$ZINC_INDEX_KEYS" > "$RUNNER_TEMP/keys.json"
+          python tools/index-repo entries . "$RUNNER_TEMP/e" "$(date +%s)"
+          mkdir -p "$RUNNER_TEMP/packs"
+          gh release download --pattern 'engines-*.tar' --dir "$RUNNER_TEMP/packs" || echo "::warning::no engine packs on the latest release"
+          for t in "$RUNNER_TEMP"/packs/*.tar; do [ -f "$t" ] || continue; mkdir "${t%.tar}" && tar xf "$t" -C "${t%.tar}"; done
+          python - "$RUNNER_TEMP/e/entries.json" "$RUNNER_TEMP"/packs/*/entries.json <<'PY'
+          import json, os, sys
+          out = json.load(open(sys.argv[1]))
+          for f in filter(os.path.exists, sys.argv[2:]):   # each pack's entry; its file is where the tar put it, beside that entries.json
+              for rel, t in json.load(open(f))["targets"].items():
+                  out["targets"][rel] = {"file": os.path.join(os.path.dirname(f), rel), "custom": t["custom"]}
+                  print("engine pack", rel, t["custom"])
+          json.dump(out, open(sys.argv[1], "w"), indent=2)
+          PY
+          python tools/index-repo build site/dist/index "$RUNNER_TEMP/keys.json" "$RUNNER_TEMP/e/entries.json" index/root.json
+          rm "$RUNNER_TEMP/keys.json"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist

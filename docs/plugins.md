@@ -220,16 +220,17 @@ split commit and its source tree id, so `zinc add <repository>@<commit>` gets ex
 ## Plugin index
 
 `zinc plugins search [word]` lists the plugins and templates of the signed index, published on the Pages site under
-`/index` by the `Site` workflow (on every change to `plugins/` or `templates/`, and daily). The index is a TUF repository
+`/index` by the `Pages` workflow (`.github/workflows/pages.yml`: with each release, or run by hand). The index is a TUF repository
 (decision D41): `root.json`, `targets.json` (one descriptor per plugin and template: name, description, targets, source),
 `snapshot.json` and `timestamp.json`, all Ed25519-signed; `zinc` checks them with its TUF client (`src/tc/tuf.cpp`) into
 `~/.zinc/index` and refuses an expired, rolled-back, below-threshold or tampered index. `ZINC_INDEX_URL` points it elsewhere
 (a mirror, `file://`), `ZINC_INDEX_ROOT` at another trusted root.
 
 The owner's steps, once: `tools/index-repo keys keys.json` (keep the file secret); `tools/index-repo entries . e 1`
-then `tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.json` as `next/index/root.json` (the root
+then `tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.json` as `index/root.json` (the root
 zinc trusts); put the content of `keys.json` in the repository secret `ZINC_INDEX_KEYS`. Without the secret the workflow
-publishes no index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
+publishes no index. The engine packs come from the release: zinc-next's build job makes them (`tools/v8-pack`, `tools/engine-pack`),
+the release carries them as `engines-<host>.tar`, and the `Pages` workflow signs those of the latest release into the index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
 
 **Engine packs** (ZN-773.04, `src/tc/engines.h`) are targets of the same index: `engines/<name>/<version>/<host>.tar.xz` (the module
 `libzn_engine_<name>.dylib`, its libraries and data in `lib/`, `licenses/`), signed by the top-level role only, with `custom`
