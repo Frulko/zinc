@@ -86,6 +86,26 @@ static const JSPropDef js_global_object[] = {
     JS_CFUNC_DEF("__host_storageSet", 2, js_storage_set),
     JS_CFUNC_DEF("__host_storageRemove", 1, js_storage_remove),
     JS_CFUNC_DEF("__host_storageKeys", 0, js_storage_keys),
+#ifdef ZN_NET /* the network image: main/CMakeLists.txt runs this program with -DZN_NET for it */
+    JS_CFUNC_DEF("__host_wifiStart", 2, js_wifi_start), /* main/mod_wifi.c */
+    JS_CFUNC_DEF("__host_wifiConnect", 2, js_wifi_connect),
+    JS_CFUNC_DEF("__host_wifiForget", 0, js_wifi_forget),
+    JS_CFUNC_DEF("__host_wifiStop", 0, js_wifi_stop),
+    JS_CFUNC_DEF("__host_wifiInfo", 0, js_wifi_info),
+    JS_CFUNC_DEF("__host_wifiScan", 0, js_wifi_scan),
+    JS_CFUNC_DEF("__host_wifiClock", 0, js_wifi_clock),
+    JS_CFUNC_DEF("__host_espnowStart", 1, js_espnow_start), /* main/mod_espnow.c */
+    JS_CFUNC_DEF("__host_espnowSend", 2, js_espnow_send),
+    JS_CFUNC_DEF("__host_espnowAddress", 0, js_espnow_address),
+    JS_CFUNC_DEF("__host_espnowStop", 0, js_espnow_stop),
+    JS_CFUNC_DEF("__host_bleState", 0, js_ble_state), /* main/mod_ble.c */
+    JS_CFUNC_DEF("__host_bleAdvertise", 1, js_ble_advertise),
+    JS_CFUNC_DEF("__host_bleScan", 1, js_ble_scan),
+    JS_CFUNC_DEF("__host_bleStopScan", 0, js_ble_stop_scan),
+    JS_CFUNC_DEF("__host_bleSend", 2, js_ble_send),
+    JS_CFUNC_DEF("__host_bleClose", 1, js_ble_close),
+    JS_CFUNC_DEF("__host_bleStop", 0, js_ble_stop),
+#endif
     JS_PROP_END,
 };
 

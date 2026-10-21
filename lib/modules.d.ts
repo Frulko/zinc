@@ -194,6 +194,47 @@ declare module 'zinc:gpio' {
   export function simulate(pin: u8, value: u8): void;
 }
 
+declare module 'zinc:wifi' {
+  /** state: 'off' | 'connecting' | 'connected' | 'setup' (the setup portal is open); name: the board on the network (`name`.local);
+   *  portal: the setup portal's network; message: why the last join failed ('' otherwise). */
+  export interface WifiInfo { state: string; ssid: string; ip: string; rssi: i32; name: string; portal: string; message: string }
+  export interface Network { ssid: string; rssi: i32; secure: boolean }
+  /** portal: the setup portal's network name (default the board's, zinc-xxxx); timezone: a POSIX TZ for clock(), such as
+   *  'CET-1CEST,M3.5.0,M10.5.0/3' (default UTC). */
+  export interface WifiOptions { portal?: string; timezone?: string }
+  /** ESP32 (--engine mquickjs). Joins the saved network; with none saved, or when it cannot be joined, opens the setup portal: an open
+   *  network a phone joins, whose page saves the network picked and joins it (WiFiManager's way). onChange runs at each change. Once
+   *  connected, `zinc run <app> --host <name>.local` sends programs over Wi-Fi. */
+  export function start(onChange?: (info: WifiInfo) => void, options?: WifiOptions): void;
+  /** Saves a network and joins it, with no portal. */
+  export function connect(ssid: string, password: string): void;
+  /** Forgets the saved network: the next start() opens the portal. */
+  export function forget(): void;
+  export function stop(): void;
+  export function info(): WifiInfo;
+  /** The networks in range. */
+  export function scan(cb: (networks: Network[]) => void): void;
+  /** The local time, 'YYYY-MM-DD HH:MM:SS', once the network set the clock (SNTP); '' before. Date.now() is the real time from then on. */
+  export function clock(): string;
+}
+
+declare module 'zinc:espnow' {
+  /** from: the sender's address 'aa:bb:cc:dd:ee:ff'; rssi in dBm. */
+  export interface Packet { from: string; data: string; rssi: i32 }
+  export interface EspNowOptions { channel?: i32 }
+  /** Every board in range. */
+  export const BROADCAST: string;
+  /** ESP32 (--engine mquickjs). Starts ESP-NOW: packets between boards with no access point, on the network's channel when the board is
+   *  connected (zinc:wifi), else on `channel` (default 1): every board must use the same. */
+  export function start(onReceive: (p: Packet) => void, options?: EspNowOptions): void;
+  /** Up to 250 bytes of UTF-8 to a board's address or to BROADCAST; onSent says whether the board's radio acknowledged it (true for
+   *  BROADCAST once sent). */
+  export function send(to: string, data: string, onSent?: (ok: boolean) => void): void;
+  /** This board's address, which the others send to. */
+  export function address(): string;
+  export function stop(): void;
+}
+
 declare module 'zinc:events' {
   /** Typed event channel; emit() is safe from native threads (NAT-06). */
   export class Emitter<T> {

@@ -10,14 +10,16 @@ zinc (on the computer, src/cli_mqjs.cpp)                                        
   main.ts ── zinc bundle ── SWC (ES5) ── + js/prelude.js ── zinc-mqjs: 300 frames ── -m32 ── app.img ─┐
              (the transform,                                 against js/sim.js     (bytecode)        │
               zinc:gfx, esbuild)                                                                     ▼
-                                     firmware (flashed once): mquickjs + panel + touch ◀── js partition (0x110000)
+                                     firmware (written by zinc when needed): mquickjs + panel + touch + modules ◀── js partition (0x320000)
 ```
 
 ## Use
 
 ```sh
-zinc flash --target esp32 --engine mquickjs                           # once: the firmware (prebuilt/zinc-mquickjs-flash.bin)
 zinc run examples/breakout --target esp32 --engine mquickjs            # each change: prepare, write the program (a few KB), show the UART
+zinc run examples/esp32-wifi --target esp32                            # zinc.json's "targets": {"esp32": {"engine": "mquickjs"}} picks the engine
+zinc run examples/esp32-wifi --target esp32 --host zinc-e3d8.local     # the same over Wi-Fi, once the board is on a network
+zinc flash --target esp32 --engine mquickjs [--net]                    # a firmware by hand (zinc run writes the one a program needs by itself)
 zinc run examples/breakout --target esp32 --engine mquickjs --emulator # the same in esp32sim, no board: 10 s emulated, the last frame as a PNG
 zinc export examples/breakout --target esp32 --engine mquickjs         # dist/breakout-esp32: firmware.bin, app.img, flash.sh
 ```
@@ -33,7 +35,46 @@ domain, printable ASCII), `keep`, `onFrame` (60 Hz at most, the panel's rate), `
 `touchX`, `touchY` (the finger), `isDown` and `wasPressed` (false: no buttons), `image` (-1: no images, so a program falls back as on a target
 that bakes none). `js/sim.js` lists them for the check and `main/zn_stdlib.c` defines them; they must agree (`tests/t0/mquickjs_esp32.sh`).
 Another `zinc:gfx` call throws when it is called, naming itself, and the check on the computer catches it before anything is sent.
-`print`, `console.log`, `performance.now()` and `Date.now()` (milliseconds since boot; no clock, so `new Date()` throws) are there too.
+`print`, `console.log`, `performance.now()`, `setTimeout`/`setInterval` (`js/runtime.js`) and `Date.now()` (milliseconds since boot, or the
+real time once `zinc:wifi` has set the clock; `new Date()` throws) are there too.
+
+## The board's modules
+
+`zinc:<name>` resolves to `js/modules/<name>.js` under mquickjs, before plugins and built-ins: each module is a few lines of JavaScript on the
+host calls of a `main/mod_*.c`. Events from interrupts, Wi-Fi or Bluetooth are queued and delivered between frames on the JavaScript task
+(`js/runtime.js`, `zn_post` in `main/main.c`); a program that only listens keeps running.
+
+| Module | What | C side |
+|---|---|---|
+| `zinc:gpio` | `setup`, `write`, `read`, `watch` (edges from an interrupt, debounced there); the board's own pins are refused | `mod_gpio.c` |
+| `zinc:storage` | `get`, `set`, `remove`, `keys`, kept in NVS (keys of 15 bytes, values of 1,900) | `mod_storage.c` |
+| `zinc:wifi` | `start` (the saved network, else the setup portal, WiFiManager's way), `connect`, `forget`, `scan`, `info`, `clock` (SNTP) | `mod_wifi.c` |
+| `zinc:espnow` | `start`, `send` (250 bytes, to an address or `BROADCAST`, acknowledged), `address`: boards with no access point | `mod_espnow.c` |
+| `zinc:ble` | the API of `plugins/ble` (the Mac's side): `advertise` the Nordic UART Service, links that send and receive text, `scan` | `mod_ble.c` |
+
+Wi-Fi and BLE do not fit together beside the JavaScript heap: the first one a program uses keeps the radio until the board restarts, and the
+other throws, saying so. Measured with the 96 KiB heap allocated (2026-10-22): 44 KB of heap free with the setup portal open, 62 KB with
+ESP-NOW, 38 KB with BLE advertising.
+
+## Two firmwares
+
+zinc writes the one a program needs, by itself, when the board runs another (it reads the first line the firmware prints, `mqjs: firmware
+<name> <sha>`): `prebuilt/zinc-mquickjs-flash.bin`, the smallest (app 300 KB, 143 KB of heap free while breakout runs), for programs that
+use the screen, the pins and the storage; `prebuilt/zinc-mquickjs-net-flash.bin` (app 1 MB, `-DZN_NET=1` and `sdkconfig.net`) when the
+program imports `zinc:wifi`, `zinc:espnow` or `zinc:ble`. The network firmware runs every program; esp32sim has no radio, so a program on
+the radio runs on the board only.
+
+## Updates over Wi-Fi
+
+Once a board running the network firmware is on a network, it serves `zinc run --host` (`main/mod_update.c`): `GET /info` (its name,
+firmware, slot, free heap, the program's state), and with the token it printed on its UART (`mqjs: update token ...`, which zinc keeps in
+`~/.zinc/esp32/<name>` with the board's address) `POST /js` (a program), `POST /ota` (a firmware into the other slot; the bootloader goes back
+to the previous one when the new one does not start) and `GET /log` (the console). zinc brings the firmware up to date first, then sends the
+program and shows its console. A board that knows a network joins it at each start, whatever the program, unless the program uses BLE or
+ESP-NOW on its own channel: a fixed program can always come back over Wi-Fi. Measured from a tablet on the setup portal's network: a 20 KB
+program in under a second, the 1 MB firmware in 5.8 s.
+
+Partitions (`partitions.csv`): nvs, phy_init, otadata, `ota_0` and `ota_1` (1.5 MB each), `js` (512 KB at 0x320000).
 
 ## What the preparation covers
 
@@ -51,7 +92,7 @@ Another `zinc:gfx` call throws when it is called, naming itself, and the check o
 
 ## The firmware
 
-`tools/build-esp32-core mquickjs` builds it with ESP-IDF 5.5 and writes both images of `prebuilt/`: the board's, and the emulator's
+`tools/build-esp32-core mquickjs` builds it with ESP-IDF 5.5 and writes the three images of `prebuilt/`: the board's two, and the emulator's
 (`-DZN_PANEL=spi`: the panel on SPI, as esp32sim's T-Display board wires it, `docs/reports/esp32sim.md`). Commit them after changing
 `main/` or `third_party/mquickjs`.
 

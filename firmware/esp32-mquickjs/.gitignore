@@ -1,3 +1,6 @@
 sdkconfig
 sdkconfig.old
 build-sim/
+build-net/
+sdkconfig.net.old
+dependencies.lock

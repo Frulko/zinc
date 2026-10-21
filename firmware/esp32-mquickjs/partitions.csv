@@ -1,7 +1,11 @@
 # Name,   Type, SubType, Offset,   Size
 nvs,      data, nvs,     0x9000,   0x6000
 phy_init, data, phy,     0xf000,   0x1000
-factory,  app,  factory, 0x10000,  0x100000
+otadata,  data, ota,     0x10000,  0x2000
+# two slots for the firmware: zinc flash writes ota_0 over USB, an update over Wi-Fi the other one (main/mod_update.c), the bootloader
+# going back to the previous one when the new firmware does not start
+ota_0,    app,  ota_0,   0x20000,  0x180000
+ota_1,    app,  ota_1,   0x1a0000, 0x180000
 # the program zinc writes: "ZNJS", its length (little endian), then mquickjs bytecode or JavaScript source; the firmware relocates
 # bytecode once into a copy after it and runs that copy in place (main/main.c), so a program is at most half of it
-js,       0x40, 0x00,    0x110000, 0x80000
+js,       0x40, 0x00,    0x320000, 0x80000

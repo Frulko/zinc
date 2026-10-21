@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -15,11 +16,13 @@
 #include "esp_lcd_io_i80.h"
 #include "esp_lcd_io_spi.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_rom_crc.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "zn.h"
 
@@ -271,9 +274,38 @@ static void touch_poll(void)
 static char *capture; /* when set, JS_PrintValueF output is appended here too (the error screen) */
 static size_t ncapture;
 
-static void log_write(void *opaque, const void *buf, size_t len)
+#ifdef ZN_NET
+/* the console's last bytes, for GET /log of the update server (mod_update.c) */
+static char ring[ZN_LOG_SIZE];
+static size_t ring_end;
+static portMUX_TYPE ring_lock = portMUX_INITIALIZER_UNLOCKED;
+
+static void out(const void *buf, size_t len)
 {
     fwrite(buf, 1, len, stdout);
+    taskENTER_CRITICAL(&ring_lock);
+    for (size_t i = 0; i < len; i++) ring[ring_end++ % ZN_LOG_SIZE] = ((const char *)buf)[i];
+    taskEXIT_CRITICAL(&ring_lock);
+}
+
+size_t zn_log_read(size_t from, char *dst, size_t *end)
+{
+    taskENTER_CRITICAL(&ring_lock);
+    *end = ring_end;
+    if (from > ring_end) from = 0; /* the board restarted since */
+    if (ring_end - from > ZN_LOG_SIZE) from = ring_end - ZN_LOG_SIZE;
+    const size_t n = ring_end - from;
+    for (size_t i = 0; i < n; i++) dst[i] = ring[(from + i) % ZN_LOG_SIZE];
+    taskEXIT_CRITICAL(&ring_lock);
+    return n;
+}
+#else
+static void out(const void *buf, size_t len) { fwrite(buf, 1, len, stdout); }
+#endif
+
+static void log_write(void *opaque, const void *buf, size_t len)
+{
+    out(buf, len);
     if (capture && ncapture + len < 1024) {
         memcpy(capture + ncapture, buf, len);
         ncapture += len;
@@ -283,17 +315,17 @@ static void log_write(void *opaque, const void *buf, size_t len)
 JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 {
     for (int i = 0; i < argc; i++) {
-        if (i) putchar(' ');
+        if (i) out(" ", 1);
         if (JS_IsString(ctx, argv[i])) {
             JSCStringBuf buf;
             size_t len;
             const char *s = JS_ToCStringLen(ctx, &len, argv[i], &buf);
-            fwrite(s, 1, len, stdout);
+            out(s, len);
         } else {
-            JS_PrintValueF(ctx, argv[i], JS_DUMP_LONG);
+            JS_PrintValueF(ctx, argv[i], JS_DUMP_LONG); /* through log_write */
         }
     }
-    putchar('\n');
+    out("\n", 1);
     return JS_UNDEFINED;
 }
 
@@ -310,8 +342,13 @@ JSValue js_date_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue
     return JS_ThrowTypeError(ctx, "the board has no clock: use Date.now() or performance.now()");
 }
 
-/* milliseconds since boot: no real-time clock on the board */
-JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv) { return JS_NewInt32(ctx, now_ms()); }
+/* the time once the network set the clock (zinc:wifi, SNTP), else the milliseconds since boot: the board has no clock of its own */
+JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec > 1700000000 ? JS_NewFloat64(ctx, tv.tv_sec * 1000.0 + tv.tv_usec / 1000) : JS_NewInt32(ctx, now_ms());
+}
 JSValue js_performance_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv) { return JS_NewInt32(ctx, now_ms()); }
 
 /* ---- the zinc:gfx host calls (lib/gfx.d.ts): the functions `__host_gfx*` that zinc:gfx's QuickJS module calls, those the board has */
@@ -417,6 +454,7 @@ JSValue js_gfx_touch_count(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 /* The exception on the UART and on the screen, white on dark red, wrapped at 30 columns; the program stops there. */
 static void show_error(JSContext *ctx, const char *what)
 {
+    zn_program_state = 2;
     static char msg[1024];
     capture = msg;
     ncapture = 0;
@@ -510,6 +548,10 @@ static const uint8_t *read_program(uint32_t *plen, int *pbytecode)
 /* ---- what the modules share (zn.h) */
 
 JSContext *zn_ctx;
+volatile int zn_program_state = 3;
+static volatile int pause_asked;
+static SemaphoreHandle_t paused;
+static const char *pause_what;
 typedef struct { uint8_t kind; int32_t a, b; char *text; uint16_t len; } Event;
 static QueueHandle_t events;
 static int events_dropped;
@@ -593,10 +635,32 @@ static int call(JSContext *ctx, const char *name, int n, const int *v, const cha
 
 static int deliver(JSContext *ctx, Event *e)
 {
+    if (!e->kind) return 1; /* a wake-up (zn_pause) */
     const int v[3] = {e->kind, e->a, e->b};
     const int rc = call(ctx, "__zincEvent", 3, v, e->text, e->len, NULL);
     free(e->text);
     return rc;
+}
+
+static void message(const char *line1, const char *line2)
+{
+    ncmd = ntext = 0;
+    background = 0;
+    text(line1, strlen(line1), 8, 8, 0xffffff, 2);
+    if (line2) text(line2, strlen(line2), 8, 40, 0xa0a0a0, 1);
+    present();
+}
+
+void zn_pause(const char *what)
+{
+    pause_what = what;
+    if (zn_program_state == 0) { /* JavaScript runs: it stops at the top of its loop */
+        pause_asked = 1;
+        zn_post(0, 0, 0, NULL, 0); /* wakes it when it sleeps */
+        if (xSemaphoreTake(paused, pdMS_TO_TICKS(3000)) == pdTRUE) return;
+    }
+    pause_asked = 1;
+    message(what, "the board restarts after");
 }
 
 /* The program's loop: the events other tasks queued, the timers of js/runtime.js (__zincTurn), and a frame at most every FRAME_US when
@@ -609,6 +673,11 @@ static void run(JSContext *ctx)
     JSGCRef cb_ref, dt_ref;
     Event e;
     for (;;) {
+        if (pause_asked) { /* the update server writes the flash (zn_pause): the board restarts after */
+            message(pause_what, "the board restarts after");
+            xSemaphoreGive(paused);
+            vTaskSuspend(NULL);
+        }
         while (xQueueReceive(events, &e, 0) == pdTRUE)
             if (deliver(ctx, &e) < 0) { show_error(ctx, "Error"); return; }
         int64_t f0 = esp_timer_get_time();
@@ -651,6 +720,7 @@ static void run(JSContext *ctx)
             if (wait < 0 || to_frame < wait) wait = to_frame > 0 ? to_frame : 0;
         } else if (wait < 0 && !uxQueueMessagesWaiting(events)) {
             printf("mqjs: the program ended (no frame, timer or listener left)\n");
+            zn_program_state = 1;
             return;
         }
         int64_t t = esp_timer_get_time();
@@ -672,7 +742,12 @@ static void run(JSContext *ctx)
 
 void app_main(void)
 {
+    const esp_app_desc_t *desc = esp_app_get_description(); /* zinc reads this line: the firmware the board runs */
+    printf("mqjs: firmware %s %02x%02x%02x%02x\n", desc->project_name, desc->app_elf_sha256[0], desc->app_elf_sha256[1], desc->app_elf_sha256[2],
+           desc->app_elf_sha256[3]);
+    esp_ota_mark_app_valid_cancel_rollback(); /* it started: the bootloader keeps it (an update over Wi-Fi it would undo otherwise) */
     events = xQueueCreate(32, sizeof(Event));
+    paused = xSemaphoreCreateBinary();
     zn_storage_init();
     lcd_init();
     touch_init();
@@ -688,6 +763,9 @@ void app_main(void)
         text("  --engine mquickjs", 19, 4, 52, 0xa0a0a0, 1);
         present();
         printf("mqjs: no program in the js partition (zinc run <app> --target esp32 --engine mquickjs writes one)\n");
+#ifdef ZN_NET
+        zn_wifi_auto();
+#endif
         return;
     }
     void *mem = heap_caps_malloc(JS_HEAP, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -708,8 +786,15 @@ void app_main(void)
            (int)(esp_timer_get_time() - t0), (unsigned)esp_get_free_heap_size());
     if (JS_IsException(val) || JS_IsException(JS_Run(ctx, val))) {
         show_error(ctx, JS_IsException(val) ? "Syntax error" : "Error");
+#ifdef ZN_NET
+        zn_wifi_auto(); /* a fixed program can still come over Wi-Fi */
+#endif
         return;
     }
     zn_ctx = ctx;
+    zn_program_state = 0;
+#ifdef ZN_NET
+    zn_wifi_auto(); /* the update server, on the network the board knows, unless the program took the radio */
+#endif
     run(ctx);
 }

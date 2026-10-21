@@ -3,8 +3,9 @@
 # Needs git, python3 and network the first time: ESP-IDF 5.5.5 and its toolchain are installed into ~/.zinc (about 1.5 GB). Users do not run this:
 # `zinc flash --target esp32` and `zinc run --target esp32 --qemu` use the image that is committed. Run it after changing src/dev, src/rt, src/vm,
 # src/zbc or the firmware, and commit the new image.
-# tools/build-esp32-core mquickjs: the same for the MicroQuickJS firmware of --engine mquickjs (firmware/esp32-mquickjs, its image
-# prebuilt/zinc-mquickjs-flash.bin); run it after changing that firmware or third_party/mquickjs.
+# tools/build-esp32-core mquickjs: the same for the MicroQuickJS firmware of --engine mquickjs (firmware/esp32-mquickjs): its three images,
+# prebuilt/zinc-mquickjs-flash.bin (the smallest), zinc-mquickjs-net-flash.bin (Wi-Fi, ESP-NOW, BLE, the update server) and
+# zinc-mquickjs-sim-flash.bin (the emulator's); run it after changing that firmware or third_party/mquickjs.
 set -e
 case "$1" in
   mquickjs) dir=esp32-mquickjs image=zinc-mquickjs-flash.bin ;;
@@ -27,7 +28,12 @@ idf build
 mkdir -p prebuilt
 (cd build && esptool.py --chip esp32 merge_bin -o "../prebuilt/$image" @flash_args)   # offset 0, the used part only
 echo "image: $(wc -c < "prebuilt/$image") bytes, sha256 $(shasum -a 256 "prebuilt/$image" | cut -d' ' -f1)"
-if [ "$1" = mquickjs ]; then   # the emulator's build, its panel on SPI (esp32sim's T-Display board): zinc run --emulator
+if [ "$1" = mquickjs ]; then
+  # the network image, for a program that imports zinc:wifi, zinc:espnow or zinc:ble (its own sdkconfig: Bluetooth changes the memory map)
+  idf -B build-net -DZN_NET=1 -DSDKCONFIG=build-net/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.net" build
+  (cd build-net && esptool.py --chip esp32 merge_bin -o ../prebuilt/zinc-mquickjs-net-flash.bin @flash_args)
+  echo "network image: $(wc -c < prebuilt/zinc-mquickjs-net-flash.bin) bytes"
+  # the emulator's build, its panel on SPI (esp32sim's T-Display board): zinc run --emulator
   idf -B build-sim -DZN_PANEL=spi build
   (cd build-sim && esptool.py --chip esp32 merge_bin -o ../prebuilt/zinc-mquickjs-sim-flash.bin @flash_args)
   echo "emulator image: $(wc -c < prebuilt/zinc-mquickjs-sim-flash.bin) bytes"

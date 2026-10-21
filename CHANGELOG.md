@@ -14,10 +14,16 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On the ESP32 with `--engine mquickjs`: `zinc:gpio` (setup, write, read, watch: debounced edges from an interrupt) and `zinc:storage` (kept in the board's NVS), with timers, and a program that only listens keeps running. `examples/esp32-gpio` blinks an LED and reads a button.
 - `zinc run --emulator-script <file>` drives the esp32sim emulator (pins, touches, buttons at given times).
 - `zinc toolchain swc`: the pinned SWC compiler, fetched the first time `--engine mquickjs` needs it.
+- `zinc:ble`: Bluetooth Low Energy on the Mac (scan, connect, send and receive text over the Nordic UART Service, or advertise it), and the same API on the ESP32 with `--engine mquickjs`. `examples/esp32-ble` is a Mac app and a board that talk; `ZINC_NATIVE=sim` gives a simulated device.
+- On the ESP32 with `--engine mquickjs`: `zinc:wifi` joins the saved network at each start, or opens a setup network with a captive page where a phone picks the network (as WiFiManager does), and sets the clock (`Date.now()` is then the real time); the board answers at `<name>.local`. `examples/esp32-wifi`.
+- On the ESP32 with `--engine mquickjs`: `zinc:espnow` sends packets between boards with no access point. `examples/esp32-espnow`.
+- `zinc run --target esp32 --host <name>.local` (or `--host last`) sends the program to a board over Wi-Fi, updates its firmware first when needed, and shows its console; a firmware that does not start is rolled back by the board.
+- A program that uses `zinc:wifi`, `zinc:espnow` or `zinc:ble` gets the network firmware, which zinc writes to the board by itself; `zinc flash --target esp32 --engine mquickjs --net` writes it by hand.
 
 ### Changed
 - Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 690 KB, `examples/breakout` from 37.6 KB to 24.6 KB.
 - A program takes less memory once loaded: with `examples/breakout` loaded, the ESP32 core has 210 KB of its heap free instead of 158 KB.
+- `zinc run --target esp32 --engine mquickjs` writes the MicroQuickJS firmware by itself when the board runs another one or an older one: no `zinc flash` first. Its flash now holds two firmware slots for updates over Wi-Fi, and programs moved, so the first run after this update rewrites the firmware.
 
 ### Changed (breaking)
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.

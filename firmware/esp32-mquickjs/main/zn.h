@@ -28,6 +28,28 @@ int zn_int(JSContext *ctx, int argc, JSValue *argv, int i, int *out);
 int zn_pin_reserved(int pin);
 void zn_storage_init(void);
 
+/* The program: 0 running, 1 ended, 2 failed, 3 none in the js partition (the update server reports it). zn_pause, from another task,
+   stops the JavaScript task where it waits and shows `what` on the screen: for the flash to be written, before a restart. */
+extern volatile int zn_program_state;
+void zn_pause(const char *what);
+#ifdef ZN_NET
+/* The console's last ZN_LOG_SIZE bytes (print, console.log, errors), counted from the start: zn_log_read copies those from `from` on
+   into out (ZN_LOG_SIZE bytes) and gives the count where they end. */
+#define ZN_LOG_SIZE 4096
+size_t zn_log_read(size_t from, char *out, size_t *end);
+
+#include "esp_http_server.h"
+/* the network image's parts (mod_wifi.c, mod_update.c): the radio's owner, Wi-Fi up once, the board's name, the update server */
+int zn_radio(JSContext *ctx, int ble);
+int zn_wifi_init(JSContext *ctx);
+void zn_wifi_up(void);
+void zn_wifi_auto(void);
+const char *zn_board_name(void);
+void zn_update_register(httpd_handle_t http);
+void zn_update_announce(void);
+esp_err_t zn_update_page(httpd_req_t *req);
+#endif
+
 /* the host calls of the modules, named in zn_stdlib.c's ROM table */
 ZN_FN(js_gpio_setup);
 ZN_FN(js_gpio_write);
@@ -37,3 +59,23 @@ ZN_FN(js_storage_get);
 ZN_FN(js_storage_set);
 ZN_FN(js_storage_remove);
 ZN_FN(js_storage_keys);
+#ifdef ZN_NET
+ZN_FN(js_wifi_start);
+ZN_FN(js_wifi_connect);
+ZN_FN(js_wifi_forget);
+ZN_FN(js_wifi_stop);
+ZN_FN(js_wifi_info);
+ZN_FN(js_wifi_scan);
+ZN_FN(js_wifi_clock);
+ZN_FN(js_espnow_start);
+ZN_FN(js_espnow_send);
+ZN_FN(js_espnow_address);
+ZN_FN(js_espnow_stop);
+ZN_FN(js_ble_state);
+ZN_FN(js_ble_advertise);
+ZN_FN(js_ble_scan);
+ZN_FN(js_ble_stop_scan);
+ZN_FN(js_ble_send);
+ZN_FN(js_ble_close);
+ZN_FN(js_ble_stop);
+#endif

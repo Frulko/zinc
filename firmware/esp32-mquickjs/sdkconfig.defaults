@@ -16,3 +16,5 @@ CONFIG_LOG_DEFAULT_LEVEL_WARN=y
 CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y
 # the program's bytecode is read from the flash (main/main.c): 80 MHz, as the WROOM-32 module is rated
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+# a firmware sent over Wi-Fi (main/mod_update.c) runs once on trial: the bootloader goes back to the previous one when it does not start
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

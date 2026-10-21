@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -36,8 +37,9 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr int kHeap = 96 * 1024;               // main/main.c JS_HEAP
-constexpr const char* kJsOffset = "0x110000";  // partitions.csv: the js partition, 512 KB
-constexpr std::size_t kJsSize = 0x80000;
+constexpr const char* kJsOffset = "0x320000";  // partitions.csv: the js partition, 512 KB
+constexpr std::size_t kJsSize = 0x80000;         // a program is half of it at most: the firmware relocates bytecode into the other half
+constexpr std::size_t kAppOffset = 0x20000;      // partitions.csv: ota_0, where a merged image's firmware starts
 
 std::string quote(const std::string& s) { std::string r = "'"; for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; }
 bool readText(const fs::path& p, std::string& out) { std::ifstream in(p, std::ios::binary); if (!in) return false; std::stringstream ss; ss << in.rdbuf(); out = ss.str(); return true; }
@@ -69,6 +71,7 @@ std::string mqjsTool(std::string& err) {
 
 struct Program {
   std::string work, name, map, img;   // the scratch directory, the program's file name there (<name>.js), its source map, the image for the board
+  bool net = false;                   // it calls zinc:wifi, zinc:espnow or zinc:ble: the network image (main/CMakeLists.txt ZN_NET)
   // the positions of <name>.js in `text` (the traces of the check and of the board), back to the user's files
   std::string mapped(std::string text) const {
     const std::string file = name + ".js:", abs = work + "/" + file;
@@ -151,7 +154,8 @@ int prepare(const std::string& root, const std::string& entry, const std::string
     std::fprintf(stderr, "%szinc: mquickjs cannot compile %s\n", log.c_str(), zn::log::shortPath(bo.entry).c_str());
     return 1;
   }
-  if (bin.size() + 8 > kJsSize) { std::fprintf(stderr, "zinc: the program is %zu bytes of bytecode; the board's js partition holds %zu\n", bin.size(), kJsSize - 8); return 1; }
+  if (bin.size() + 8 > kJsSize / 2) { std::fprintf(stderr, "zinc: the program is %zu bytes of bytecode; the board runs %zu at most\n", bin.size(), kJsSize / 2 - 8); return 1; }
+  p.net = es5.find("__host_wifi") != std::string::npos || es5.find("__host_espnow") != std::string::npos || es5.find("__host_ble") != std::string::npos;
   std::string image = "ZNJS";
   for (int k = 0; k < 4; ++k) image += static_cast<char>((bin.size() >> (8 * k)) & 0xff);
   p.img = p.work + "/" + p.name + ".img";
@@ -160,14 +164,29 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   return 0;
 }
 
-// the board's firmware, or the emulator's (its panel on SPI: esp32sim's T-Display board)
-std::string firmwareImage(const std::string& root, bool emulator, std::string& err) {
-  const fs::path f = fs::path(root) / "firmware/esp32-mquickjs/prebuilt" / (emulator ? "zinc-mquickjs-sim-flash.bin" : "zinc-mquickjs-flash.bin");
+// the board's firmware (the network image for a program that uses the radio), or the emulator's (its panel on SPI: esp32sim's T-Display board)
+std::string firmwareImage(const std::string& root, bool emulator, bool net, std::string& err) {
+  const fs::path f = fs::path(root) / "firmware/esp32-mquickjs/prebuilt" /
+                     (emulator ? "zinc-mquickjs-sim-flash.bin" : net ? "zinc-mquickjs-net-flash.bin" : "zinc-mquickjs-flash.bin");
   std::error_code ec;
   if (fs::exists(f, ec)) return f.string();
   err = "the firmware image is missing: " + f.string() + " (tools/build-esp32-core mquickjs builds it)";
   return "";
 }
+
+// What the firmware of a merged image prints first ("mqjs: firmware <name> <sha>", main/main.c): its esp_app_desc_t, 32 bytes into the app
+std::string imageId(const std::string& image) {
+  std::string bin;
+  if (!readText(image, bin) || bin.size() < kAppOffset + 0x20 + 148) return "";
+  const char* d = bin.data() + kAppOffset + 0x20;
+  char sha[9];
+  std::snprintf(sha, sizeof sha, "%02x%02x%02x%02x", static_cast<unsigned char>(d[144]), static_cast<unsigned char>(d[145]),
+                static_cast<unsigned char>(d[146]), static_cast<unsigned char>(d[147]));
+  return std::string(d + 48, strnlen(d + 48, 32)) + " " + sha;
+}
+
+// The boards seen on Wi-Fi (the network image prints its update token and its address on the UART): ZINC_HOME/esp32/<name>, "token ip"
+fs::path boardFile(const std::string& name) { return fs::path(zn::tc::home()) / "esp32" / name; }
 
 // The firmware's UART, line by line: its own lines (mqjs: ...) on stderr, the program's print and console.log on stdout, the positions mapped
 // to the user's files; the ROM's boot log before the firmware starts is not shown. `rc` becomes 0 when the program ends, 1 when it fails (the
@@ -178,7 +197,21 @@ struct Uart {
   bool firmware = false;
   int rc = -1;
   clock::time_point failed = clock::time_point::max();
+  std::string id, token;   // the firmware's "<name> <sha>"; the update token of the network image
+  explicit Uart(const Program& q) : p(q) {}
   void take(const std::string& l) {
+    if (l.rfind("mqjs: firmware ", 0) == 0) id = l.substr(15);
+    else if (l.rfind("mqjs: update token ", 0) == 0) token = l.substr(19);
+    else if (l.rfind("mqjs: wifi connected to ", 0) == 0 && !token.empty()) {   // "... as zinc-ab12.local (192.168.1.20)"
+      const std::size_t as = l.find(" as "), dot = l.find(".local (", as), end = l.find(')', dot);
+      std::error_code ec;
+      if (as != std::string::npos && dot != std::string::npos && end != std::string::npos) {
+        const std::string name = l.substr(as + 4, dot - as - 4);
+        fs::create_directories(boardFile(name).parent_path(), ec);
+        writeText(boardFile(name), token + " " + l.substr(dot + 8, end - dot - 8) + "\n");
+        writeText(boardFile("last"), name + "\n");
+      }
+    }
     if (l.rfind("mqjs: ", 0) == 0) {
       firmware = true;
       std::fprintf(stderr, "%s\n", p.mapped(l).c_str());
@@ -191,19 +224,24 @@ struct Uart {
   }
 };
 
-int flashFirmware(const std::string& root, std::string port) {
-  std::string err, tool;
-  const std::string image = firmwareImage(root, false, err);
+int flashFirmware(const std::string& root, std::string port, bool net) {
+  std::string err, tool, log;
+  const std::string image = firmwareImage(root, false, net, err);
   if (image.empty() || !zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   if (port.empty()) port = zn::dev::findSerialPort();
   if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
-  std::fprintf(stderr, "zinc: flashing the mquickjs firmware to %s\n", port.c_str());
-  return std::system((quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(image)).c_str()) == 0 ? 0 : 1;
+  const auto t = std::chrono::steady_clock::now();
+  if (capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(image), log) != 0) {
+    std::fprintf(stderr, "%szinc: esptool cannot write the firmware to %s (above)\n", log.c_str(), port.c_str());
+    return 1;
+  }
+  zn::log::step("firmware", fs::path(image).filename().string() + " to " + port, zn::log::since(t));
+  return 0;
 }
 
 // The program into the js partition (a second for a few KB), then the board's UART: the firmware's lines (mqjs: ...) on stderr, the program's
 // print and console.log on stdout, until it ends (0), fails (1) or `runMs` have passed (0). The boot log of the ROM before the firmware is not shown.
-int runOnBoard(const Program& p, std::string port, int runMs) {
+int runOnBoard(const std::string& root, const Program& p, std::string port, int runMs) {
   using clock = std::chrono::steady_clock;
   std::string err, tool, log;
   if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
@@ -215,6 +253,10 @@ int runOnBoard(const Program& p, std::string port, int runMs) {
     return 1;
   }
   zn::log::step("flash", "the program to " + port + " at " + kJsOffset, zn::log::since(t));
+  // the firmware the program needs: the network image for the radio, else either (the network image runs every program)
+  const std::string small = imageId(firmwareImage(root, false, false, err)), net = imageId(firmwareImage(root, false, true, err));
+  bool reflashed = false;
+again:
   zn::dev::Link link;
   if (!zn::dev::openSerial(port, 115200, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   // esptool's reset ran the program before the port was open: reset again, now that its first lines are read (the USB-serial chip's RTS
@@ -225,7 +267,7 @@ int runOnBoard(const Program& p, std::string port, int runMs) {
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ioctl(link.in, TIOCMBIC, &rts);
   const auto start = clock::now();
-  Uart uart{p};
+  Uart uart(p);
   std::string line;
   for (char buf[512]; uart.rc < 0;) {
     const ssize_t n = ::read(link.in, buf, sizeof buf);
@@ -236,8 +278,19 @@ int runOnBoard(const Program& p, std::string port, int runMs) {
     if (n <= 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
     const auto now = clock::now();
     const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-    if (!uart.firmware && ms > 5000) {
-      std::fprintf(stderr, "zinc: the board does not answer as the mquickjs firmware does; zinc flash --target esp32 --engine mquickjs puts it on the board (once)\n");
+    // another firmware (or an older build of this one, or another program on the board): the right one is written once, then the board starts again
+    const bool other = (uart.firmware && uart.id.empty()) || (!uart.firmware && ms > 4000) ||
+                       (!uart.id.empty() && uart.id != net && (p.net || uart.id != small));
+    if (other && !reflashed) {
+      zn::dev::closeLink(link);
+      std::fprintf(stderr, "zinc: the board runs %s; it gets %s (once)\n", uart.id.empty() ? "another firmware" : ("the firmware " + uart.id).c_str(),
+                   p.net ? "the network firmware" : "the mquickjs firmware");
+      if (flashFirmware(root, port, p.net)) return 1;
+      reflashed = true;
+      goto again;
+    }
+    if (other) {
+      std::fprintf(stderr, "zinc: the board does not answer as the mquickjs firmware does, even after it was written (%s)\n", uart.id.c_str());
       uart.rc = 1;
     } else if (uart.failed != clock::time_point::max() && now - uart.failed > std::chrono::milliseconds(500)) uart.rc = 1;
     else if (runMs > 0 && ms > runMs) uart.rc = 0;
@@ -250,7 +303,11 @@ int runOnBoard(const Program& p, std::string port, int runMs) {
 // (10 s by default), the UART as on the board, and the last frame as a PNG (ZINC_SHOT, else <name>.png beside the program's files).
 int runOnEmulator(const std::string& root, const Program& p, int runMs, const std::string& script) {
   std::string err, sim, rom;
-  const std::string image = firmwareImage(root, true, err);
+  if (p.net) {
+    std::fprintf(stderr, "zinc: esp32sim has no radio: a program with zinc:wifi, zinc:espnow or zinc:ble runs on the board (or its check alone: zinc export)\n");
+    return 2;
+  }
+  const std::string image = firmwareImage(root, true, false, err);
   if (image.empty() || !zn::tc::ensureEsp32sim(sim, rom, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const char* shot = std::getenv("ZINC_SHOT");
   const std::string png = shot && *shot ? fs::absolute(shot).string() : p.work + "/" + p.name + ".png";
@@ -263,7 +320,7 @@ int runOnEmulator(const std::string& root, const Program& p, int runMs, const st
                      quote(p.img) + " --console uart0 --max-seconds " + seconds + " --no-dump --gram-png " + quote(png) +
                      (script.empty() ? "" : " --script " + quote(script)) + " 2>" + quote(p.work + "/emulator.log")).c_str(), "r");
   if (!out) { std::fprintf(stderr, "zinc: cannot start %s\n", sim.c_str()); return 1; }
-  Uart uart{p};
+  Uart uart(p);
   char buf[4096];
   while (std::fgets(buf, sizeof buf, out)) {
     std::string l = buf;
@@ -282,9 +339,90 @@ int runOnEmulator(const std::string& root, const Program& p, int runMs, const st
   return uart.failed != Uart::clock::time_point::max() ? 1 : 0;
 }
 
+// The same over Wi-Fi, to a board running the network image (main/mod_update.c): its firmware brought up to date first (POST /ota, the
+// app of the merged image), then the program (POST /js); the board restarts and its console comes from GET /log until the program ends,
+// fails or `runMs` have passed. `host` is a board's name (zinc-ab12, zinc-ab12.local), an address, or "" for the last board seen over USB.
+int runOverWifi(const std::string& root, const Program& p, std::string host, int runMs) {
+  using clock = std::chrono::steady_clock;
+  std::string text, err, name = host;
+  if (name.empty() && readText(boardFile("last"), text)) name = host = text.substr(0, text.find('\n'));
+  if (name.size() > 6 && name.compare(name.size() - 6, 6, ".local") == 0) name.resize(name.size() - 6);
+  std::istringstream rec(readText(boardFile(name), text) ? text : "");
+  std::string token, ip;
+  rec >> token >> ip;
+  if (host.empty() || token.empty()) {
+    std::fprintf(stderr, "zinc: no board known on Wi-Fi%s: run a program with zinc:wifi on it over USB once (zinc reads its update token and its "
+                 "address from the UART), then --host <name>.local\n", host.empty() ? "" : (" as " + host).c_str());
+    return 1;
+  }
+  if (host == name) host = ip;   // a bare name: the address it had
+  const std::string base = "http://" + host, auth = " -H " + quote("X-Zinc-Token: " + token);
+  auto info = [&](std::string& sha) {
+    std::string out;
+    sha.clear();
+    if (capture("curl -s -m 3 " + quote(base + "/info"), out) != 0) return false;
+    yyjson_doc* doc = yyjson_read(out.data(), out.size(), 0);
+    yyjson_val* v = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "sha") : nullptr;
+    if (v && yyjson_is_str(v)) sha = yyjson_get_str(v);
+    yyjson_doc_free(doc);
+    return !sha.empty();
+  };
+  auto post = [&](const std::string& path, const std::string& file, std::string& out) {
+    return capture("curl -s -f -m 120 -X POST" + auth + " -H 'Content-Type: application/octet-stream' --data-binary @" + quote(file) + " " + quote(base + path), out) == 0;
+  };
+  auto wait = [&](const std::string& want) {   // the board back after its restart, running `want` ("" for any)
+    std::string sha;
+    for (int i = 0; i < 60; i++) {
+      if (info(sha) && (want.empty() || sha == want)) return true;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    return false;
+  };
+  std::string sha, out;
+  const auto t = clock::now();
+  if (!info(sha)) { std::fprintf(stderr, "zinc: no board answers at %s (on the same network? its screen or UART says its address)\n", base.c_str()); return 1; }
+  const std::string image = firmwareImage(root, false, true, err), id = imageId(image);
+  if (image.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+  const std::string want = id.substr(id.find(' ') + 1);
+  if (sha != want) {   // the network firmware of this zinc: its app, out of the merged image
+    std::string bin;
+    readText(image, bin);
+    const std::string app = p.work + "/firmware-app.bin";
+    writeText(app, bin.substr(kAppOffset));
+    if (!post("/ota", app, out) || !wait(want)) { std::fprintf(stderr, "%s\nzinc: the firmware update over Wi-Fi failed; the board keeps its own (zinc run over USB writes it)\n", out.c_str()); return 1; }
+    zn::log::step("firmware", "updated over Wi-Fi to " + id, zn::log::since(t));
+  }
+  const auto t1 = clock::now();
+  if (!post("/js", p.img, out)) { std::fprintf(stderr, "%s\nzinc: the board refused the program (the token? zinc run over USB reads it again)\n", out.c_str()); return 1; }
+  zn::log::step("send", "the program to " + base, zn::log::since(t1));
+  if (!wait("")) { std::fprintf(stderr, "zinc: the board did not come back on the network after its restart\n"); return 1; }
+  const auto start = clock::now();
+  std::size_t from = 0;
+  std::string pending;
+  for (;;) {
+    std::string body;
+    const std::string hdr = p.work + "/log.hdr";
+    if (capture("curl -s -m 3 -D " + quote(hdr) + auth + " " + quote(base + "/log?from=" + std::to_string(from)), body) == 0) {
+      std::string h, state;
+      readText(hdr, h);
+      for (std::istringstream in(h); std::getline(in, text);) {
+        if (text.rfind("X-Zinc-Log-End: ", 0) == 0) from = std::strtoul(text.c_str() + 16, nullptr, 10);
+        if (text.rfind("X-Zinc-State: ", 0) == 0) state = text.substr(14, text.find_first_of("\r\n", 14) - 14);
+      }
+      pending += body;
+      for (std::size_t nl; (nl = pending.find('\n')) != std::string::npos; pending.erase(0, nl + 1)) std::printf("%s\n", p.mapped(pending.substr(0, nl)).c_str());
+      std::fflush(stdout);
+      if (state == "ended") return 0;
+      if (state == "failed") return 1;
+    }
+    if (runMs > 0 && clock::now() - start > std::chrono::milliseconds(runMs)) return 0;
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  }
+}
+
 int exportTo(const std::string& root, const Program& p, const fs::path& out) {
   std::string err;
-  const std::string image = firmwareImage(root, false, err);
+  const std::string image = firmwareImage(root, false, p.net, err);
   if (image.empty()) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
   std::error_code ec;
   fs::create_directories(out, ec);
@@ -312,7 +450,7 @@ bool mquickjsWanted(const std::vector<std::string>& args) {
   for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) {
     if (args[k] == "--engine" && k + 1 < args.size()) { if (args[k + 1] != "mquickjs") return false; return true; }
     if (args[k] == "--target" && k + 1 < args.size()) esp32 = args[++k] == "esp32";
-    else if (args[k] == "--port" || args[k] == "-o" || args[k] == "--frames" || args[k] == "--run-ms" || args[k] == "--emulator-script") ++k;
+    else if (args[k] == "--port" || args[k] == "-o" || args[k] == "--frames" || args[k] == "--run-ms" || args[k] == "--emulator-script" || args[k] == "--host") ++k;
     else if (args[k][0] != '-') dir = args[k];
   }
   // a project whose zinc.json says "targets": {"esp32": {"engine": "mquickjs"}}: --target esp32 needs no --engine
@@ -330,8 +468,8 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   const std::string& cmd = args[1];
   std::string target, port, out, entry = ".";
   int frames = 300, runMs = 0;
-  bool emulator = false;
-  std::string script;
+  bool emulator = false, net = false, wifi = false;
+  std::string script, host;
   for (std::size_t k = 2; k < args.size(); ++k) {
     const std::string& a = args[k];
     const bool more = k + 1 < args.size();
@@ -342,12 +480,14 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
     else if (a == "--frames" && more) frames = std::max(1, std::atoi(args[++k].c_str()));
     else if (a == "--run-ms" && more) runMs = std::atoi(args[++k].c_str());
     else if (a == "--emulator") emulator = true;
+    else if (a == "--net") net = true;
+    else if (a == "--host" && more) { wifi = true; host = args[++k] == "last" ? "" : args[k]; }
     else if (a == "--emulator-script" && more) { emulator = true; script = fs::absolute(args[++k]).string(); }
     else if (a[0] != '-') entry = a;
-    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export <app> --target esp32 --engine mquickjs [--port P | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]\n", a.c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
   }
   if (target != "esp32") { std::fprintf(stderr, "zinc: --engine mquickjs runs on --target esp32 (the board's firmware, firmware/esp32-mquickjs)\n"); return 2; }
-  if (cmd == "flash") return flashFirmware(root, port);
+  if (cmd == "flash") return flashFirmware(root, port, net);
   // the entry: a file, or a project's (zinc.json "entry", else src/main.ts...)
   std::error_code ec;
   std::string file = entry;
@@ -363,7 +503,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   if (!fs::exists(file, ec)) { std::fprintf(stderr, "zinc: no such file: %s\n", file.c_str()); return 2; }
   Program p;
   if (const int rc = prepare(root, file, cacheDir, frames, p)) return rc;
-  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script) : runOnBoard(p, port, runMs);
+  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script) : wifi ? runOverWifi(root, p, host, runMs) : runOnBoard(root, p, port, runMs);
   return exportTo(root, p, out.empty() ? projectDir / "dist" / (projectDir.filename().string() + "-esp32") : fs::path(out));
 }
 

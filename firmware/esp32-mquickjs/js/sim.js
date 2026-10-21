@@ -46,6 +46,39 @@ function __host_storageGet(k) { __simStr("zinc:storage get", k); return __simSto
 function __host_storageSet(k, v) { __simStr("zinc:storage set", k); __simStr("zinc:storage set", v); if (k.length > 15) throw new RangeError("zinc:storage: a key is 1 to 15 bytes on the ESP32 (NVS)"); __simStore[k] = v; }
 function __host_storageRemove(k) { __simStr("zinc:storage remove", k); delete __simStore[k]; }
 function __host_storageKeys() { return Object.keys(__simStore).join("\n"); }
+// zinc:wifi (main/mod_wifi.c): joins a "sim" network 10 turns after start
+var __simWifi = { state: "off", at: -1 }, __simScan = -1;
+function __host_wifiStart(portal, tz) { __simStr("zinc:wifi start", portal); __simStr("zinc:wifi start", tz); if (__simWifi.state !== "connected") { __simWifi.state = "connecting"; __simWifi.at = __simTurn + 10; } __zincEvent(2, 1, 0, ""); }
+function __host_wifiConnect(ssid, pass) { __simStr("zinc:wifi connect", ssid); __simStr("zinc:wifi connect", pass); __host_wifiStart("", ""); }
+function __host_wifiForget() {}
+function __host_wifiStop() { __simWifi.state = "off"; __simWifi.at = -1; }
+function __host_wifiInfo() { var on = __simWifi.state === "connected"; return [__simWifi.state, on ? "sim" : "", on ? "192.168.4.2" : "", on ? -50 : 0, "zinc-0000", "zinc-0000", ""].join("\t"); }
+function __host_wifiScan() { __simScan = __simTurn + 5; }
+function __host_wifiClock() { return __simWifi.state === "connected" ? "2026-10-22 12:00:00" : ""; }
+// zinc:espnow (main/mod_espnow.c): what is sent comes back from a board "02:00:00:00:00:01"
+var __simNow = null, __simSends = [], __simSendId = 0;
+function __host_espnowStart(ch) { __simNum("zinc:espnow start", [ch], 1); __simNow = true; }
+function __host_espnowSend(to, data) { if (!__simNow) throw new Error("zinc:espnow send: call start() first"); __simStr("zinc:espnow send", to); __simStr("zinc:espnow send", data); if (data.length > 250) throw new RangeError("zinc:espnow send: 250 bytes at most in a packet"); __simSends.push([++__simSendId, data]); return __simSendId; }
+function __host_espnowAddress() { return "02:00:00:00:00:00"; }
+function __host_espnowStop() { __simNow = null; }
+// zinc:ble (main/mod_ble.c): a central "02:00:00:00:00:02" connects 10 turns after advertise and echoes each message
+var __simBle = { adv: -1, link: false, echo: [] };
+function __host_bleState() { return ""; }
+function __host_bleAdvertise(name) { __simStr("zinc:ble advertise", name); __simBle.adv = __simTurn + 10; }
+function __host_bleScan(s) { __simNum("zinc:ble scan", [s], 1); }
+function __host_bleStopScan() {}
+function __host_bleSend(h, text) { __simStr("zinc:ble send", text); if (!__simBle.link) throw new Error("ble: the link is not open"); __simBle.echo.push(text.slice(0, -1)); }
+function __host_bleClose(h) { __simBle.link = false; }
+function __host_bleStop() { __simBle.adv = -1; __simBle.link = false; }
+function __simRadios() {
+  if (__simWifi.at === __simTurn) { __simWifi.state = "connected"; __zincEvent(2, 2, 0, ""); }
+  if (__simScan === __simTurn) __zincEvent(2, 100, 2, "sim\t-50\t1\tcafe\t-70\t0");
+  var sent = __simSends, echo = __simBle.echo, i;   // this turn's: a program that answers each one answers next turn
+  __simSends = []; __simBle.echo = [];
+  for (i = 0; i < sent.length; i++) { __zincEvent(4, 1, sent[i][0], ""); __zincEvent(4, 0, -40, "02:00:00:00:00:01" + sent[i][1]); }
+  if (__simBle.adv === __simTurn) { __simBle.link = true; __zincEvent(3, 1, 0, "02:00:00:00:00:02"); __zincEvent(3, 3, 0, "hello from the Mac"); }
+  for (i = 0; i < echo.length && __simBle.link; i++) __zincEvent(3, 3, 0, echo[i]);
+}
 // the loop of main/main.c, on simulated time
 function __simLoop() {   // after the program has run: it set its timers, listeners and frame callback
   if (__simTurn++ >= FRAMES) return;
@@ -54,6 +87,7 @@ function __simLoop() {   // after the program has run: it set its timers, listen
   __simX = Math.abs((__simTurn * 4) % 480 - 240);
   __simY = 280;
   if (__simTurn % 30 === 0) for (var i = 0; i < __simWatched.length; i++) __zincEvent(1, __simWatched[i] | (__simTurn % 60 < 30 ? 1 : 0) << 8, now);
+  __simRadios();
   var wait = __zincTurn(now);
   if (typeof globalThis.__zincFrameCb === "function") globalThis.__zincFrameCb(1 / 60);
   else if (wait < 0) return;   // the program ended

@@ -1,10 +1,21 @@
 set(ZN ${CMAKE_CURRENT_LIST_DIR}/../../..)
 set(MQ ${ZN}/third_party/mquickjs)
+idf_build_get_property(ZN_NET ZN_NET)
+set(SRCS main.c mod_gpio.c mod_storage.c ${MQ}/mquickjs.c ${MQ}/dtoa.c ${MQ}/libm.c ${MQ}/cutils.c)
+set(REQS esp_lcd esp_driver_i2c esp_driver_gpio esp_driver_spi esp_partition esp_timer esp_app_format esp_rom nvs_flash app_update)
+if(ZN_NET)   # the network image (../CMakeLists.txt)
+  list(APPEND SRCS mod_wifi.c mod_update.c mod_espnow.c mod_ble.c)
+  list(APPEND REQS esp_wifi esp_netif esp_event esp_http_server bt dns_server esp-mdns lwip)
+endif()
 idf_component_register(
-  SRCS main.c mod_gpio.c mod_storage.c ${MQ}/mquickjs.c ${MQ}/dtoa.c ${MQ}/libm.c ${MQ}/cutils.c
+  SRCS ${SRCS}
   INCLUDE_DIRS . ${MQ} ${ZN}/third_party/SDL3/src/render
   LDFRAGMENTS linker.lf
-  REQUIRES esp_lcd esp_driver_i2c esp_driver_gpio esp_driver_spi esp_partition esp_timer esp_app_format esp_rom nvs_flash)
+  REQUIRES ${REQS})
+if(ZN_NET)
+  target_compile_definitions(${COMPONENT_LIB} PRIVATE ZN_NET)
+  set(NET_FLAG -DZN_NET)
+endif()
 # idf.py -DZN_PANEL=spi: the emulator's build (esp32sim's T-Display board), main.c's ZN_PANEL_SPI
 if(ZN_PANEL STREQUAL "spi")
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ZN_PANEL_SPI)
@@ -13,7 +24,7 @@ endif()
 set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 add_custom_command(OUTPUT ${GEN}/zn_stdlib.h ${GEN}/mquickjs_atom.h
   COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}
-  COMMAND cc -O2 -w -I${MQ} -o ${GEN}/zn_stdlib ${CMAKE_CURRENT_LIST_DIR}/zn_stdlib.c ${MQ}/mquickjs_build.c -lm
+  COMMAND cc -O2 -w ${NET_FLAG} -I${MQ} -o ${GEN}/zn_stdlib ${CMAKE_CURRENT_LIST_DIR}/zn_stdlib.c ${MQ}/mquickjs_build.c -lm
   COMMAND ${GEN}/zn_stdlib -m32 > ${GEN}/zn_stdlib.h
   COMMAND ${GEN}/zn_stdlib -m32 -a > ${GEN}/mquickjs_atom.h
   DEPENDS ${CMAKE_CURRENT_LIST_DIR}/zn_stdlib.c ${MQ}/mqjs_stdlib.c ${MQ}/mquickjs_build.c ${MQ}/mquickjs_build.h)
