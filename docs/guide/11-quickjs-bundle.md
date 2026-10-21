@@ -24,7 +24,7 @@ written as ES modules.
 ```sh
 zinc bundle                           # the project here -> dist/main.js
 zinc bundle examples/hero -o hero.js --minify --sourcemap --bytecode
-zinc run hero.js                      # or hero.qbc: QuickJS bytecode, no parsing at start
+zinc run hero.js                      # runs hero.qbc beside it: QuickJS bytecode, no parsing at start
 zinc bundle --watch                   # again at each save
 ```
 
@@ -44,7 +44,8 @@ and of the plugins stay an import the host answers (`zinc:native`); everything e
 
 - `--minify` shrinks the file about 2x (names, whitespace and syntax; function names are kept, some libraries read them).
 - `--sourcemap` writes `<out>.map`; `zinc run` maps the traces of a bundle (and of its `.qbc`) back to your files.
-- `--bytecode` writes `<out>.qbc` beside the bundle. It only runs on the same build of the engine (QuickJS checks its version).
+- `--bytecode` writes `<out>.qbc` beside the bundle; `zinc run <out>.js` or `<out>.qbc` loads it instead of the source. When it is older than the bundle, or another build of the engine wrote it (QuickJS checks its version and a checksum), the bundle runs instead, with no error.
+- `zinc build` of a project with `"engine": "quickjs"` writes the same: `build/<name>.js`, its map and `build/<name>.qbc` (`zinc run build/<name>.qbc`); `zinc export --target macos` makes an .app that starts from `app.qbc`.
 - The bundle's first line names its entry: `zinc run` bakes the fonts and images from those files, as it would unbundled.
 
 esbuild is not in the `zinc` binary: the first `zinc bundle` downloads the pinned version (about 4 MB) into `~/.zinc/toolchains` and checks

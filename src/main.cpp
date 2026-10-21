@@ -1350,8 +1350,9 @@ static int engineCompile(const std::string& engine, const std::string& bundle, c
   return 0;
 }
 
-// zinc build of a project on a JavaScript engine module (ZN-773.08): the program bundled for it into <out>.js (and its map), the script zinc run
-// takes as it is, and on Hermes its bytecode <out>.hbc beside it (engineCompile), which `zinc run <out>.hbc` loads instead of the source.
+// zinc build of a project on a JavaScript engine (ZN-773.08, .09): the program bundled for it into <out>.js (and its map), the script zinc run
+// takes as it is, and its bytecode beside it, which `zinc run <out>.hbc|.qbc` loads instead of the source: Hermes's <out>.hbc (engineCompile),
+// QuickJS's <out>.qbc (the writer of zinc bundle --bytecode).
 static int buildEngineProgram(const std::string& engine, const std::string& entry, const std::string& out) {
   namespace fs = std::filesystem;
   zn::qjs::BundleOptions bo;
@@ -1362,12 +1363,17 @@ static int buildEngineProgram(const std::string& engine, const std::string& entr
   bo.work = zn::tc::home() + "/cache/" + engine + "/build-" + std::to_string(std::hash<std::string>{}(bo.entry));
   bo.out = fs::absolute(out).string() + ".js";
   bo.sourcemap = true;
+  bo.bytecode = engine == "quickjs";
   bo.quiet = true;
   std::string err, path;
   if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   zn::log::step("bundle", zn::log::shortPath(bo.entry) + " for " + engine);
   if (const int rc = zn::qjs::bundle(bo)) return rc;
   std::string wrote = bo.out, run = bo.out + " --engine " + engine;
+  if (bo.bytecode) {
+    wrote += " and " + fs::absolute(out).string() + ".qbc";
+    run = fs::absolute(out).string() + ".qbc";
+  }
   if (engine == "hermes") {   // only Hermes precompiles: the other engines' modules are not downloaded for nothing
     if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, false, path, nullptr, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
     if (engineCompile(engine, bo.out, path)) return 1;
@@ -1378,7 +1384,7 @@ static int buildEngineProgram(const std::string& engine, const std::string& entr
   return 0;
 }
 
-// zinc export of a project on the jsc or v8 engine (ZN-773.04): zinc itself is the app's executable, signed with the JIT entitlement; the program,
+// zinc export of a project on a JavaScript engine (ZN-773.04; quickjs ZN-773.09, app.qbc beside app.js): zinc itself is the app's executable, signed with the JIT entitlement; the program,
 // bundled for the engine, is in Contents/Resources/app (app.js, its map, `engine`), the engine's pack in Contents/Resources/engines/<name> (code and data: icudtl.dat; or its module
 // beside zinc: jsc, built with it). On launch zinc finds Resources/app/engine and runs the program (main()).
 static int buildEngineApp(const std::string& engine, const std::string& entry, const std::string& appPath, zn::tc::BundleSpec spec) {
@@ -1397,6 +1403,7 @@ static int buildEngineApp(const std::string& engine, const std::string& entry, c
   bo.work = zn::tc::home() + "/cache/" + engine + "/export-" + std::to_string(std::hash<std::string>{}(bo.entry));
   bo.out = (app / "app.js").string();
   bo.sourcemap = true;
+  bo.bytecode = engine == "quickjs";   // app.qbc, which the app runs instead of app.js
   bo.quiet = true;
   std::string err, path;
   if (!zn::tc::ensureEsbuild(bo.esbuild, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
@@ -1404,13 +1411,16 @@ static int buildEngineApp(const std::string& engine, const std::string& entry, c
   if (const int rc = zn::qjs::bundle(bo)) return rc;
   std::ofstream(app / "engine") << engine << "\n";
   fs::copy_file(bo.capsFile, app / "capabilities.json", fs::copy_options::overwrite_existing, ec);
-  zn::tc::engines::Pack pack;
-  if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, true, path, &pack, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
-  if (engineCompile(engine, bo.out, path)) return 1;   // Hermes: app.hbc, which the app runs instead of app.js
-  if (!pack.dir.empty()) { fs::create_directories(app.parent_path() / "engines", ec); fs::copy(pack.dir, app.parent_path() / "engines" / engine, fs::copy_options::recursive, ec); }
-  else fs::copy_file(path, macos / fs::path(path).filename(), ec);
-  if (ec) { std::fprintf(stderr, "zinc: cannot copy the %s engine into %s: %s\n", engine.c_str(), appPath.c_str(), ec.message().c_str()); return 1; }
-  zn::log::step("engine", engine + (pack.dir.empty() ? " (" + zn::log::shortPath(path) + ")" : " " + pack.version + " (pack)"));
+  const bool jit = engine != "quickjs";   // QuickJS is zinc's own: no engine module to carry, no JIT
+  if (jit) {
+    zn::tc::engines::Pack pack;
+    if (!zn::tc::engines::locate(gRoot, engine, ZN_ENGINE_ABI, true, path, &pack, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+    if (engineCompile(engine, bo.out, path)) return 1;   // Hermes: app.hbc, which the app runs instead of app.js
+    if (!pack.dir.empty()) { fs::create_directories(app.parent_path() / "engines", ec); fs::copy(pack.dir, app.parent_path() / "engines" / engine, fs::copy_options::recursive, ec); }
+    else fs::copy_file(path, macos / fs::path(path).filename(), ec);
+    if (ec) { std::fprintf(stderr, "zinc: cannot copy the %s engine into %s: %s\n", engine.c_str(), appPath.c_str(), ec.message().c_str()); return 1; }
+    zn::log::step("engine", engine + (pack.dir.empty() ? " (" + zn::log::shortPath(path) + ")" : " " + pack.version + " (pack)"));
+  }
   for (const char* m : {"libzn_window.dylib", "libzn_webgl.dylib"})   // the modules zinc loads from beside it
     if (fs::exists(exeDir / m, ec)) fs::copy_file(exeDir / m, macos / m, fs::copy_options::overwrite_existing, ec);
   // the nested code signed by the bundle's identity (codesign of the .app seals it, it does not sign it); ad hoc by default
@@ -1426,9 +1436,9 @@ static int buildEngineApp(const std::string& engine, const std::string& entry, c
   // V8 and JavaScriptCore compile to machine code (allow-jit); the packs are signed ad hoc or by their maker (disable-library-validation), as
   // targets/macos/zinc.entitlements gives zinc itself
   for (const char* e : {"com.apple.security.cs.allow-jit", "com.apple.security.cs.disable-library-validation"})
-    if (std::find(spec.entitlements.begin(), spec.entitlements.end(), e) == spec.entitlements.end()) spec.entitlements.push_back(e);
+    if ((jit || std::strcmp(e, "com.apple.security.cs.allow-jit")) && std::find(spec.entitlements.begin(), spec.entitlements.end(), e) == spec.entitlements.end()) spec.entitlements.push_back(e);
   if (!zn::tc::writeBundle(spec, zn::tc::executablePath(), appPath, err)) { std::fprintf(stderr, "zinc: bundle: %s\n", err.c_str()); return 1; }
-  std::fprintf(stderr, "zinc: wrote %s (the %s engine, JIT allowed; %s)\n", appPath.c_str(), engine.c_str(), spec.identity == "-" ? "ad-hoc signed" : ("signed by " + spec.identity).c_str());
+  std::fprintf(stderr, "zinc: wrote %s (the %s engine%s; %s)\n", appPath.c_str(), engine.c_str(), jit ? ", JIT allowed" : "", spec.identity == "-" ? "ad-hoc signed" : ("signed by " + spec.identity).c_str());
   return 0;
 }
 
@@ -2635,7 +2645,7 @@ int main(int argc, char** argv) {
       if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), perr.c_str()); return 2; } }
       if (proj.app.id.empty()) { std::fprintf(stderr, "zinc: --bundle needs \"app\": { \"id\": ... } in zinc.json\n"); return 2; }
       gBundleSpec = bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
-      if (proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
+      if (proj.engine == "quickjs" || proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
       std::error_code mk;
       std::filesystem::create_directories(std::filesystem::path(gBundleOut) / "Contents/MacOS", mk);
       bundleExe = (std::filesystem::path(gBundleOut) / "Contents/MacOS" / gBundleSpec.exeName).string();
@@ -2649,7 +2659,7 @@ int main(int argc, char** argv) {
       zn::frontend::Project proj;
       std::string perr;
       if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
-      if (proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineProgram(proj.engine, argv[2], argv[4]);
+      if (proj.engine == "quickjs" || proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineProgram(proj.engine, argv[2], argv[4]);
     }
     zn::log::step("engine", "Zinc, C++ AOT");
     zn::zbc::Module zm;

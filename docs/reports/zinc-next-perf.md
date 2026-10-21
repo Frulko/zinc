@@ -1091,3 +1091,19 @@ source (the frames carry the bundle's file name, the driver maps them through it
 Hermes is now built with its debugger (`HERMES_ENABLE_DEBUGGER`, for `--inspect`): hero's 600 frames took 0.94 to 1.02 s of CPU on that loaded
 machine against 0.89 s measured without it (ZN-773.07); not separated from the load, to measure again on a quiet machine. The pack
 (`tools/engine-pack hermes`: the module, libhermesvm, eight licence files) is 2.0 MB (1.8 MB before the debugger).
+
+## QuickJS bytecode at zinc build (ZN-773.09, 2026-10-21)
+
+M1 Pro, machine loaded by other builds (load 7 to 10). `examples/hero` copied as a project on `"engine": "quickjs"`; `zinc build` writes
+`build/hero.js` (657 KB, its map 570 KB) and `build/hero.qbc` (605 KB, `JS_WriteObject` of the bundle's module, sources stripped, lines kept).
+Wall time of `ZINC_HEADLESS=1 ZINC_FRAMES=1 zinc run build/hero.js` (process start to the end of the first frame and the exit), 5 runs after one
+warm-up, the same bundle with its `.qbc` beside it (`JS_ReadObject`) and without (parse and compile of the source), two rounds:
+
+| | median | min to max |
+|---|---|---|
+| bytecode | 360 / 368 ms | 351 to 440 |
+| source | 412 / 415 ms | 389 to 430 |
+
+The bytecode starts hero about 50 ms (12%) sooner: QuickJS's parse and compile of 657 KB, the rest of the start (plugins, fonts, the first
+layout and frame) is the same on both. Less than Hermes's gain (ZN-773.08: 160 to 240 ms), whose lazy compile is slower and whose bytecode is
+also optimised. The frame is identical (frame 30, `ZINC_DETERMINISTIC`).
