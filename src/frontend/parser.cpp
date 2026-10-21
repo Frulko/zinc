@@ -16,11 +16,13 @@ struct Parser {
   ParseResult r;
 
   // ---- tokens
-  bool inAsync = false, inGenerator = false;  // `await` and `yield` are operators only inside such functions
+  bool inAsync = false, inGenerator = false;  // `await` and `yield` are operators only inside such functions (and `await` at the top of a module)
+  int fnDepth = 0;
   template <class F> std::uint32_t withFn(bool async, bool gen, F&& body) {
     bool sa = inAsync, sg = inGenerator;
     inAsync = async; inGenerator = gen;
-    struct Restore { Parser& p; bool a, g; ~Restore() { p.inAsync = a; p.inGenerator = g; } } restore{*this, sa, sg};
+    ++fnDepth;
+    struct Restore { Parser& p; bool a, g; ~Restore() { p.inAsync = a; p.inGenerator = g; --p.fnDepth; } } restore{*this, sa, sg};
     return body();
   }
   const Token& cur() const { return t[i]; }
@@ -114,7 +116,12 @@ struct Parser {
     std::vector<std::uint32_t> props;
     while (!isP("}")) {
       std::uint32_t ps = cur().start;
-      if (isP("...")) unsupported("object rest patterns");
+      if (isP("...")) {   // `{ a, ...rest }`: the checker reports it (not typed yet)
+        ++i;
+        std::uint32_t t = bindingTarget();
+        props.push_back(mk(N::Spread, ps, prevEnd(), {}, {t}));
+        break;
+      }
       if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword) unexpected();
       std::string_view key = txt();
       std::uint32_t target;
@@ -138,7 +145,7 @@ struct Parser {
         if (kk == N::Array) toAssignPattern(k);
         else if (kk == N::Spread) { toAssignPattern(r.ast.nodes[k].kids[0]); }
         else if (kk == N::Assign && r.ast.nodes[k].text == "=") toAssignPattern(r.ast.nodes[k].kids[0]);  // `[a = 1] = xs`: a target with its default
-        else if (kk != N::Ident && kk != N::Member && kk != N::Index) fail(kZBadAssignTarget, r.ast.nodes[k].start, "");
+        else if (kk != N::Ident && kk != N::Member && kk != N::Index && kk != N::Empty) fail(kZBadAssignTarget, r.ast.nodes[k].start, "");
       }
     } else if (nd.kind != N::Ident && nd.kind != N::Member && nd.kind != N::Index) fail(kZBadAssignTarget, nd.start, "");
   }
@@ -155,8 +162,8 @@ struct Parser {
       std::uint32_t pat = bindingTarget();
       std::uint32_t ty2 = kNone;
       if (eatP(":")) ty2 = type();
-      if (isP("=")) unsupported("default values for destructured parameters");
-      return mk(N::Param, st, prevEnd(), {}, {ty2, kNone, pat});
+      std::uint32_t def = eatP("=") ? assignment() : kNone;   // `{ a }: T = {...}`: the checker reports it (not lowered yet)
+      return mk(N::Param, st, prevEnd(), {}, {ty2, def, pat});
     }
     if (cur().kind != Tok::Ident && !(inType && cur().kind == Tok::Keyword && isKw("this"))) unexpected();
     std::string_view name = txt();
@@ -194,58 +201,273 @@ struct Parser {
     return ps;
   }
 
+  // TypeScript's type grammar, whole: what the checker does not type yet is a TypeOther node it reports, so that the QuickJS engine can erase
+  // any type a library writes (`T & U`, `T extends U ? A : B`, `{ [K in keyof T]: V }`, `T['k']`, `[a: A, ...B]`, `` `#${string}` ``)
+  std::uint32_t other(std::uint32_t st, const char* what, std::vector<std::uint32_t> kids = {}) { return mk(N::TypeOther, st, prevEnd(), what, std::move(kids)); }
+  bool noConditional = false;  // in the `extends` clause of a conditional type, `extends` is not another conditional (TypeScript's rule)
+
   std::uint32_t type() {
     std::uint32_t st = cur().start;
+    if (isId("asserts") && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword) && !newlineAt(1)) {   // `asserts x` and `asserts x is T`: a function that returns or throws
+      i += 2;
+      if (isId("is")) { ++i; type(); }
+      return mk(N::TypeRef, st, prevEnd(), "void", {});
+    }
     if ((cur().kind == Tok::Ident || isKw("this")) && isId("is", 1) && !newlineAt(1)) {  // a type predicate `x is T` is a boolean (its narrowing is not tracked)
       i += 2;
       type();
       return mk(N::TypeRef, st, prevEnd(), "boolean", {});
     }
+    if (isP("<")) {   // `<T>(x: T) => T`: a generic function type
+      typeParams();
+      if (!isP("(")) unexpected();
+      std::uint32_t f = typePrimary();
+      return other(st, "generic function", {f});
+    }
+    if (isKw("new") || (isId("abstract") && at(1).kind == Tok::Keyword && txt(at(1)) == "new")) {   // `new (x: X) => T`: a constructor type
+      if (isId("abstract")) ++i;
+      ++i;
+      if (isP("<")) typeParams();
+      auto ps = params(true);
+      expectP("=>");
+      std::uint32_t ret = type();
+      std::vector<std::uint32_t> kids{ret};
+      kids.insert(kids.end(), ps.begin(), ps.end());
+      return other(st, "constructor", std::move(kids));
+    }
+    std::uint32_t u = unionType();
+    if (!noConditional && isKw("extends") && !newlineBefore()) {   // `T extends U ? A : B`
+      ++i;
+      bool saved = noConditional;
+      noConditional = true;
+      std::uint32_t ext = unionType();
+      noConditional = saved;
+      expectP("?");
+      std::uint32_t yes = type();
+      expectP(":");
+      std::uint32_t no = type();
+      return other(st, "conditional", {u, ext, yes, no});
+    }
+    return u;
+  }
+
+  std::uint32_t unionType() {
+    std::uint32_t st = cur().start;
     eatP("|");
-    std::uint32_t first = typePostfix();
+    std::uint32_t first = intersectionType();
     if (!isP("|")) return first;
     std::vector<std::uint32_t> ms{first};
-    while (eatP("|")) ms.push_back(typePostfix());
+    while (eatP("|")) ms.push_back(intersectionType());
     return mk(N::TypeUnion, st, prevEnd(), {}, std::move(ms));
+  }
+
+  std::uint32_t intersectionType() {
+    std::uint32_t st = cur().start;
+    eatP("&");
+    std::uint32_t first = typeOperator();
+    if (!isP("&")) return first;
+    std::vector<std::uint32_t> ms{first};
+    while (eatP("&")) ms.push_back(typeOperator());
+    return other(st, "intersection", std::move(ms));
+  }
+
+  std::uint32_t typeOperator() {
+    std::uint32_t st = cur().start;
+    const bool operand = at(1).kind != Tok::Punct || isP("(", 1) || isP("{", 1) || isP("[", 1) || isP("-", 1);
+    if (isId("keyof") && operand) {  // `keyof T`: string literal types are plain strings, so it is a string
+      ++i;
+      typeOperator();
+      return mk(N::TypeRef, st, prevEnd(), "string", {});
+    }
+    if (isId("readonly") && operand) {   // `readonly T[]`, `readonly [A, B]`: the same type here (ZN-155), its span from `readonly` (a stripper erases it all)
+      ++i;
+      std::uint32_t ty = typeOperator();
+      r.ast.nodes[ty].start = st;
+      return ty;
+    }
+    if (isId("unique") && isId("symbol", 1)) { i += 2; return other(st, "unique symbol"); }
+    if (isId("infer") && at(1).kind == Tok::Ident) {   // `infer U` (and `infer U extends C`) in a conditional type
+      i += 2;
+      std::vector<std::uint32_t> kids;
+      if (isKw("extends") && noConditional) { ++i; kids.push_back(unionType()); }
+      return other(st, "infer", std::move(kids));
+    }
+    return typePostfix();
   }
 
   std::uint32_t typePostfix() {
     std::uint32_t st = cur().start;
-    if (isId("readonly") && (at(1).kind == Tok::Ident || isP("[", 1) || isP("(", 1))) ++i;   // `readonly T[]`, `readonly [A, B]`: the same type here (ZN-155)
     std::uint32_t ty = typePrimary();
-    while (isP("[") && isP("]", 1)) { i += 2; ty = mk(N::TypeArray, st, prevEnd(), {}, {ty}); }
-    return ty;
+    for (;;) {
+      if (isP("[") && isP("]", 1)) { i += 2; ty = mk(N::TypeArray, st, prevEnd(), {}, {ty}); continue; }
+      if (isP("[") && !newlineBefore()) {   // `T['type']`, `T[number]`, `T[keyof T]`: an indexed access type
+        ++i;
+        std::uint32_t ix = type();
+        expectP("]");
+        ty = other(st, "indexed access", {ty, ix});
+        continue;
+      }
+      return ty;
+    }
+  }
+
+  // `(x: X): R` after a member's name or a `new`: a function type (`what`: the signature it stands for, a TypeOther around it)
+  std::uint32_t signature(std::uint32_t fs, const char* what) {
+    std::vector<std::uint32_t> tps;
+    if (isP("<")) tps = typeParams();
+    std::uint32_t ps0 = cur().start;
+    auto ps = params(true);
+    std::uint32_t ret = eatP(":") ? type() : mk(N::TypeRef, prevEnd(), prevEnd(), "void", {});
+    std::vector<std::uint32_t> kids{ret};
+    kids.insert(kids.end(), ps.begin(), ps.end());
+    std::uint32_t f = mk(N::TypeFunc, ps0, prevEnd(), {}, std::move(kids));
+    if (what) f = other(fs, what, {f});
+    else if (!tps.empty()) f = other(ps0, "generic function", {f});
+    return f;
+  }
+  // A call signature `(x): R`, a construct signature `new (x): R` or an index signature `[key: K]: V` of an object type or an interface:
+  // a Field with no name whose type is a TypeOther; kNone when the member is not one of them
+  std::uint32_t unnamedMember() {
+    std::uint32_t fs = cur().start, f = kNone;
+    if (isP("(") || isP("<")) f = signature(fs, "call signature");
+    else if (isKw("new") && (isP("(", 1) || isP("<", 1))) { ++i; f = signature(fs, "construct signature"); }
+    else if (isP("[") && at(1).kind == Tok::Ident && isP(":", 2)) {
+      i += 3;
+      std::uint32_t kt = type();
+      expectP("]");
+      eatP("?");
+      expectP(":");
+      std::uint32_t vt = type();
+      f = other(fs, "index signature", {kt, vt});
+    } else return kNone;
+    return mk(N::Field, fs, prevEnd(), {}, {f, kNone});
+  }
+
+  // `{ ... }` of an object type: properties, methods, call and construct signatures, index signatures; or a mapped type `{ [K in T]: V }`
+  std::uint32_t objectType() {
+    std::uint32_t st = cur().start;
+    ++i;  // {
+    {
+      std::size_t k = 0;
+      if (isP("+") || isP("-")) ++k;
+      if (isId("readonly", k)) ++k;
+      if (isP("[", k) && at(k + 1).kind == Tok::Ident && at(k + 2).kind == Tok::Keyword && txt(at(k + 2)) == "in") {
+        i += k + 2;
+        ++i;  // in
+        std::vector<std::uint32_t> kids{type()};
+        if (isId("as")) { ++i; kids.push_back(type()); }
+        expectP("]");
+        if (isP("+") || isP("-")) ++i;
+        eatP("?");
+        if (eatP(":")) kids.push_back(type());
+        eatP(";") || eatP(",");
+        expectP("}");
+        return other(st, "mapped", std::move(kids));
+      }
+    }
+    std::vector<std::uint32_t> fields;
+    while (!isP("}")) {
+      if (eof()) unexpected();
+      if (eatP(";") || eatP(",")) continue;
+      std::uint32_t fs = cur().start;
+      if (std::uint32_t f = unnamedMember(); f != kNone) { fields.push_back(f); continue; }
+      std::uint32_t fl = isId("readonly") && !isP(":", 1) && !isP("?", 1) && !isP("(", 1) ? (++i, kFlagReadonly) : 0;
+      if (std::uint32_t f = unnamedMember(); f != kNone) { fields.push_back(f); continue; }   // `readonly [key: string]: V`
+      if ((isId("get") || isId("set")) && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword || at(1).kind == Tok::String) && isP("(", 2)) ++i;   // `get x(): T`: read like a property
+      std::string_view fname;
+      memberName(fname);
+      bool opt = eatP("?");
+      std::uint32_t ft = kNone;
+      if (isP("(") || isP("<")) ft = signature(fs, nullptr);   // `name(x: X): R`: a property holding a function
+      else { expectP(":"); ft = type(); }
+      if (opt) {
+        std::uint32_t nul = mk(N::TypeRef, startOf(ft), endOf(ft), "null", {});
+        r.ast.nodes[nul].flags |= kFlagUndefined;  // `b?: U` is `U | undefined`
+        ft = mk(N::TypeUnion, startOf(ft), endOf(ft), {}, {ft, nul});
+        fl |= kFlagOptional;
+      }
+      std::uint32_t fid = mk(N::Field, fs, prevEnd(), fname, {ft, kNone});
+      r.ast.nodes[fid].flags = fl;
+      fields.push_back(fid);
+    }
+    expectP("}");
+    return mk(N::TypeObject, st, prevEnd(), {}, std::move(fields));
+  }
+
+  // `[A, B]`, `[x: A, y?: B]`, `[A, ...B[]]`: the labels go, an optional element is `T | undefined`, a rest element is not typed yet
+  std::uint32_t tupleType() {
+    std::uint32_t st = cur().start;
+    ++i;  // [
+    std::vector<std::uint32_t> es;
+    while (!isP("]")) {
+      std::uint32_t es0 = cur().start;
+      bool rest = eatP("...");
+      bool opt = false;
+      if (at(0).kind == Tok::Ident && (isP(":", 1) || (isP("?", 1) && isP(":", 2)))) { ++i; opt = eatP("?"); ++i; }   // a label
+      std::uint32_t e = type();
+      opt = eatP("?") || opt;
+      if (rest) e = other(es0, "rest element", {e});
+      else if (opt) {
+        std::uint32_t nul = mk(N::TypeRef, startOf(e), endOf(e), "null", {});
+        r.ast.nodes[nul].flags |= kFlagUndefined;
+        e = mk(N::TypeUnion, es0, prevEnd(), {}, {e, nul});
+      }
+      es.push_back(e);
+      if (!eatP(",")) break;
+    }
+    expectP("]");
+    return mk(N::TypeTuple, st, prevEnd(), {}, std::move(es));
   }
 
   std::uint32_t typePrimary() {
     std::uint32_t st = cur().start;
     Tok k = cur().kind;
-    if (isKw("typeof") && at(1).kind == Tok::Ident) {   // `typeof x`: the type of the value x (ZN-155)
+    if (isKw("typeof") && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword)) {   // `typeof x`, `typeof a.b`: the type of the value (ZN-155)
       ++i;
       std::uint32_t ns = cur().start;
       ++i;
+      while (isP(".") && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword)) i += 2;
       std::uint32_t id = mk(N::TypeRef, st, prevEnd(), s.substr(ns, prevEnd() - ns), {});
       r.ast.nodes[id].flags |= kFlagTypeQuery;
+      if (isP("<") && !newlineBefore()) { typeArgs(); return other(st, "instantiation expression", {id}); }
       return id;
     }
-    if (isId("keyof") && (at(1).kind == Tok::Ident || isP("(", 1) || isP("{", 1))) {  // `keyof T`: string literal types are plain strings, so it is a string
+    if (isKw("import") && isP("(", 1)) {   // `import('./m').T`
+      i += 2;
+      if (cur().kind != Tok::String) unexpected();
       ++i;
-      typePostfix();
-      return mk(N::TypeRef, st, prevEnd(), "string", {});
+      expectP(")");
+      while (isP(".") && at(1).kind == Tok::Ident) i += 2;
+      if (isP("<")) typeArgs();
+      return other(st, "import");
     }
     if (k == Tok::Ident || isKw("void") || isKw("null") || isKw("this")) {
       ++i;
       while (isP(".") && at(1).kind == Tok::Ident) i += 2;
       std::string_view name = s.substr(st, prevEnd() - st);
       std::vector<std::uint32_t> args;
-      if (isP("<")) {
+      if (isP("<") && !newlineBefore()) {
         ++i;
         while (!isP(">")) { args.push_back(type()); if (!eatP(",")) break; }
         expectP(">");
       }
       return mk(N::TypeRef, st, prevEnd(), name, std::move(args));
     }
-    if (k == Tok::Number || k == Tok::String || isKw("true") || isKw("false")) { ++i; return mk(N::TypeLit, st, prevEnd(), s.substr(st, prevEnd() - st)); }
+    if (k == Tok::Number || k == Tok::BigInt || k == Tok::String || isKw("true") || isKw("false")) { ++i; return mk(N::TypeLit, st, prevEnd(), s.substr(st, prevEnd() - st)); }
+    if (isP("-") && (at(1).kind == Tok::Number || at(1).kind == Tok::BigInt)) { i += 2; return mk(N::TypeLit, st, prevEnd(), s.substr(st, prevEnd() - st)); }   // `-1`
+    if (k == Tok::TemplateNoSub || k == Tok::TemplateHead) {   // `` `#${string}` ``: a string here (literal types are plain strings)
+      ++i;
+      if (k == Tok::TemplateHead) {
+        for (;;) {
+          type();
+          if (cur().kind == Tok::TemplateMiddle) { ++i; continue; }
+          if (cur().kind != Tok::TemplateTail) unexpected();
+          ++i;
+          break;
+        }
+      }
+      return mk(N::TypeRef, st, prevEnd(), "string", {});
+    }
     if (isP("(")) {
       std::size_t close = matchingParen(0);
       // `(() => T) =>`: a parenthesized type before an arrow is not a parameter list (parameters never start with `(`)
@@ -259,45 +481,15 @@ struct Parser {
         return mk(N::TypeFunc, st, prevEnd(), {}, std::move(kids));
       }
       ++i;
+      bool saved = noConditional;
+      noConditional = false;
       std::uint32_t inner = type();
+      noConditional = saved;
       expectP(")");
       return inner;
     }
-    if (isP("[")) {
-      ++i;
-      std::vector<std::uint32_t> es;
-      while (!isP("]")) { es.push_back(type()); if (!eatP(",")) break; }
-      expectP("]");
-      return mk(N::TypeTuple, st, prevEnd(), {}, std::move(es));
-    }
-    if (isP("{")) {  // an object type: { a: A; b?: B }
-      ++i;
-      std::vector<std::uint32_t> fields;
-      while (!isP("}")) {
-        if (eof()) unexpected();
-        if (eatP(";") || eatP(",")) continue;
-        std::uint32_t fs = cur().start;
-        std::uint32_t fl = isId("readonly") && !isP(":", 1) && !isP("?", 1) ? (++i, kFlagReadonly) : 0;
-        std::string_view fname;
-        memberName(fname);
-        if (isP("(") || isP("<")) unsupported("methods in object types");
-        bool opt = eatP("?");
-        std::uint32_t ft = kNone;
-        expectP(":");
-        ft = type();
-        if (opt) {
-          std::uint32_t nul = mk(N::TypeRef, startOf(ft), endOf(ft), "null", {});
-          r.ast.nodes[nul].flags |= kFlagUndefined;  // `b?: U` is `U | undefined`
-          ft = mk(N::TypeUnion, startOf(ft), endOf(ft), {}, {ft, nul});
-          fl |= kFlagOptional;
-        }
-        std::uint32_t fid = mk(N::Field, fs, prevEnd(), fname, {ft, kNone});
-        r.ast.nodes[fid].flags = fl;
-        fields.push_back(fid);
-      }
-      expectP("}");
-      return mk(N::TypeObject, st, prevEnd(), {}, std::move(fields));
-    }
+    if (isP("[")) return tupleType();
+    if (isP("{")) return objectType();
     unexpected();
   }
 
@@ -402,10 +594,13 @@ struct Parser {
 
   std::uint32_t unary() {
     std::uint32_t st = cur().start;
-    if (inAsync && isId("await")) {
+    const bool moduleAwait = !inAsync && fnDepth == 0 && isId("await") && (at(1).kind != Tok::Punct || isP("(", 1) || isP("[", 1) || isP("!", 1) || isP("-", 1));
+    if ((inAsync && isId("await")) || moduleAwait) {
       ++i;
       std::uint32_t e = unary();
-      return mk(N::Await, st, endOf(e), {}, {e});
+      std::uint32_t aw = mk(N::Await, st, endOf(e), {}, {e});
+      if (moduleAwait) r.ast.nodes[aw].flags |= kFlagModuleLevel;   // the QuickJS engine runs it; the typed engines report it (desugar.cpp)
+      return aw;
     }
     if (cur().kind == Tok::Punct && (isP("!") || isP("~") || isP("+") || isP("-"))) {
       std::string_view op = txt(); ++i;
@@ -582,6 +777,18 @@ struct Parser {
     r.ast.nodes[id].flags |= (async ? kFlagAsync : 0) | (gen ? kFlagGenerator : 0);
     return id;
   }
+  // At `<`: `<T>(x: T): T => x`, an arrow function with type parameters (the checker reports them); kNone, nothing read, when it is not one
+  std::uint32_t genericArrow(bool async, std::uint32_t st) {
+    if (!(at(1).kind == Tok::Ident || (at(1).kind == Tok::Keyword && txt(at(1)) == "const"))) return kNone;
+    std::size_t save = i, diagCount = r.diags.size();
+    std::vector<std::uint32_t> tps;
+    bool ok = false;
+    try { tps = typeParams(); ok = isP("(") && arrowAhead(); } catch (const Stop&) { r.diags.resize(diagCount); }
+    if (!ok) { i = save; return kNone; }
+    std::uint32_t fn = arrowFunction(async, st);
+    r.ast.tparams[fn] = std::move(tps);
+    return fn;
+  }
   std::uint32_t arrowFunction(bool async = false, std::uint32_t st0 = kNone) {
     std::uint32_t st = st0 != kNone ? st0 : cur().start;
     auto ps = params(false);
@@ -609,6 +816,7 @@ struct Parser {
             return functionExpr(st, true);
           }
           if (isP("(", 1)) { ++i; if (arrowAhead()) return arrowFunction(true, st); --i; }
+          else if (isP("<", 1)) { ++i; if (std::uint32_t g = genericArrow(true, st); g != kNone) return g; --i; }   // async <T>(x: T) => ...
           else if (at(1).kind == Tok::Ident && isP("=>", 2)) {  // async x => ...
             i += 2;
             std::string_view pname = txt(t[i - 1]);
@@ -663,6 +871,7 @@ struct Parser {
         if (isKw("class")) unsupported("class expressions");
         unexpected();
       case Tok::Punct:
+        if (isP("<")) { if (std::uint32_t g = genericArrow(false, st); g != kNone) return g; }
         if (isP("(")) {
           if (arrowAhead()) return arrowFunction();
           ++i;
@@ -674,7 +883,7 @@ struct Parser {
           ++i;
           std::vector<std::uint32_t> es;
           while (!isP("]")) {
-            if (isP(",")) fail(kZHoleyArray, cur().start, "");
+            if (isP(",")) { es.push_back(mk(N::Empty, cur().start, cur().start)); ++i; continue; }   // a hole: the checker reports it, unless the array is an assignment pattern
             if (isP("...")) {
               std::uint32_t ss = cur().start; ++i;
               std::uint32_t e = assignment();
@@ -736,6 +945,7 @@ struct Parser {
     std::vector<std::uint32_t> ps;
     while (!isP(">")) {
       std::uint32_t st = cur().start;
+      while ((isKw("const") || isKw("in") || isId("out")) && at(1).kind == Tok::Ident) ++i;   // `<const T>`, `<in out T>`: variance and const modifiers
       if (cur().kind != Tok::Ident) unexpected();
       std::string_view name = txt(); ++i;
       std::uint32_t cons = kNone;
@@ -827,9 +1037,9 @@ struct Parser {
     if (assigns.empty()) return;
     auto& stmts = r.ast.nodes[body].kids;
     std::size_t at = 0;
-    if (!stmts.empty()) {
-      const Node& first = r.ast.nodes[stmts[0]];
-      if (first.kind == N::ExprStmt && r.ast.nodes[first.kids[0]].kind == N::Call && r.ast.nodes[r.ast.nodes[first.kids[0]].kids[0]].kind == N::Super) at = 1;
+    for (std::size_t k = 0; k < stmts.size(); ++k) {   // after the `super(...)` statement, wherever it is (code may come before it)
+      const Node& st = r.ast.nodes[stmts[k]];
+      if (st.kind == N::ExprStmt && r.ast.nodes[st.kids[0]].kind == N::Call && r.ast.nodes[r.ast.nodes[st.kids[0]].kids[0]].kind == N::Super) { at = k + 1; break; }
     }
     stmts.insert(stmts.begin() + static_cast<std::ptrdiff_t>(at), assigns.begin(), assigns.end());
   }
@@ -838,7 +1048,7 @@ struct Parser {
     if (isId("set") || isId("async") || isId("declare") || isP("[")) {
       if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("setters, async and computed member names");
     }
-    if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::PrivateName) unexpected();
+    if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::Number && cur().kind != Tok::PrivateName) unexpected();
     name = txt();
     ++i;
   }
@@ -900,7 +1110,7 @@ struct Parser {
       }
       if (isP("(") || isP("<")) {
         std::vector<std::uint32_t> mtps;
-        if (isP("<")) { if (!(fl & kFlagStatic)) unsupported("generic methods (only static ones)"); mtps = typeParams(); }
+        if (isP("<")) mtps = typeParams();   // an instance method's: the checker reports them (only static ones are typed)
         auto ps = params(false);
         if ((fl & kFlagGetter) && !ps.empty()) unsupported("getters with parameters");
         std::uint32_t ret = kNone;
@@ -951,12 +1161,16 @@ struct Parser {
       if (eof()) unexpected();
       if (eatP(";") || eatP(",")) continue;
       std::uint32_t ms = cur().start;
+      if (std::uint32_t f = unnamedMember(); f != kNone) { kids.push_back(f); continue; }   // the checker reports them
       std::uint32_t fl = modifiers();
+      if (std::uint32_t f = unnamedMember(); f != kNone) { kids.push_back(f); continue; }   // `readonly [key: string]: V`
+      if ((isId("get") || isId("set")) && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword || at(1).kind == Tok::String) && isP("(", 2)) ++i;   // `get x(): T`
       std::string_view mname;
       memberName(mname);
       bool optional = !isP("(") && eatP("?");  // `name?: T` is a property of type `T | null` that object literals may leave out
       if (isP("(") || isP("<")) {
-        if (isP("<")) unsupported("generic methods");
+        std::vector<std::uint32_t> mtps;
+        if (isP("<")) mtps = typeParams();   // the checker reports generic methods of an interface
         auto ps = params(false);
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
@@ -965,6 +1179,7 @@ struct Parser {
         mk_.insert(mk_.end(), ps.begin(), ps.end());
         std::uint32_t id = mk(N::Method, ms, prevEnd(), mname, std::move(mk_));
         r.ast.nodes[id].flags = fl;
+        if (!mtps.empty()) r.ast.tparams[id] = std::move(mtps);
         kids.push_back(id);
       } else {
         std::uint32_t ty = kNone;
@@ -1073,10 +1288,11 @@ struct Parser {
         if (!eatP(",")) break;
         continue;
       }
-      if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
+      if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::Number) unexpected();
       std::uint32_t ps = cur().start, pe = cur().end;
       std::string_view key = txt();
       bool str = cur().kind == Tok::String;
+      if (cur().kind == Tok::Number && !isP(":", 1)) unexpected();   // `{ 1: 'a' }`: a number key holds a value
       if (str) key = key.substr(1, key.size() - 2);
       ++i;
       std::uint32_t value;
@@ -1127,9 +1343,10 @@ struct Parser {
     expectP("{");
     std::vector<std::uint32_t> ms;
     while (!isP("}")) {
-      if (cur().kind != Tok::Ident) unexpected();
+      if (cur().kind != Tok::Ident && cur().kind != Tok::String) unexpected();
       std::uint32_t s0 = cur().start;
       std::string_view mn = txt();
+      if (cur().kind == Tok::String) mn = mn.substr(1, mn.size() - 2);   // `'≤' = '≤'`: a member named by a string
       ++i;
       std::uint32_t init = eatP("=") ? assignment() : kNone;
       ms.push_back(mk(N::EnumMember, s0, prevEnd(), mn, {init}));
@@ -1149,7 +1366,7 @@ struct Parser {
   std::uint32_t importDecl() {
     std::uint32_t st = cur().start;
     ++i;
-    if (isId("type") && isP("{", 1)) ++i;
+    if (isId("type") && (isP("{", 1) || isP("*", 1) || (at(1).kind == Tok::Ident && !isId("from", 1)))) ++i;   // `import type ...`: types import like values
     if (cur().kind == Tok::String) { std::string_view src = sourceString(); semi(); return mk(N::Import, st, prevEnd(), src); }
     if (isP("*")) {  // `import * as ns from './x'`: one spec named "*"; the loader rewrites `ns.name` into a named import
       std::uint32_t s0 = cur().start;
@@ -1218,6 +1435,8 @@ struct Parser {
       r.ast.nodes[ex].flags = kFlagDefault;
       return ex;
     }
+    const bool typeOnly = isId("type") && (isP("{", 1) || isP("*", 1));   // `export type { A } from './a'`: re-exports types only
+    if (typeOnly) ++i;
     if (isP("*")) {
       ++i;
       if (isId("as")) unsupported("namespace re-exports");
@@ -1245,7 +1464,9 @@ struct Parser {
       std::string_view src;
       if (isId("from")) { ++i; src = sourceString(); }
       semi();
-      return mk(N::ExportList, st, prevEnd(), src, std::move(specs));
+      std::uint32_t el = mk(N::ExportList, st, prevEnd(), src, std::move(specs));
+      if (typeOnly) r.ast.nodes[el].flags |= kFlagTypeOnly;
+      return el;
     }
     std::uint32_t d = statement();
     N dk = r.ast.nodes[d].kind;
@@ -1393,7 +1614,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull", "Regex", "Labeled"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull", "Regex", "Labeled", "TypeOther"};
   return names[static_cast<int>(k)];
 }
 

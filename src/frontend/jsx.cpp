@@ -418,6 +418,8 @@ struct Lowering {
   bool jsxStart(std::size_t i) const {
     if (!isP(i, "<") || i + 1 >= t.size()) return false;
     if (i > 0 && endsExpr(i - 1)) return false;
+    // `<T,>(x: T) => x` and `<T extends U>(x: T) => x` are the type parameters of an arrow function, as TypeScript reads a .tsx file
+    if (t[i + 1].kind == Tok::Ident && i + 3 < t.size() && (isP(i + 2, ",") || (tx(i + 2) == "extends" && !isP(i + 3, "=") && !isP(i + 3, ">") && !isP(i + 3, "/")))) return false;
     return t[i + 1].kind == Tok::Ident || isP(i + 1, ">");
   }
   // index of the `}` / `)` / `]` closing the bracket at `i`

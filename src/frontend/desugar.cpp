@@ -472,6 +472,7 @@ struct Desugar {
     }
     for (Id i = 0; i < count; ++i) {
       N k = n(i).kind;
+      if (k == N::Await && (n(i).flags & kFlagModuleLevel)) { unsupported(i, "top-level await (put the code in an async function and call it)"); continue; }
       if (k == N::Function) function(i);
       else if ((k == N::Method || k == N::FuncExpr) && (n(i).flags & kFlagAsync) && !(n(i).flags & kFlagGenerator)) function(i);
       else if (k == N::Method && (n(i).flags & kFlagGenerator) && !(n(i).flags & kFlagAsync)) function(i);  // `*name()`: the generator rewrite of a function; `this` is captured by the arrows it makes  // the same body rewrite (async methods, arrows and function expressions); `this` is captured by the arrow it makes

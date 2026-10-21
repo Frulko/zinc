@@ -95,6 +95,8 @@ enum class N : std::uint8_t {
   NonNull,        // [expression]   (`e!`: the non-null type of e, a null reference traps)
   Regex,          // /source/flags (text includes the slashes and the flags): the checker turns it into a call of the prelude's __reLit
   Labeled,        // text=label  [statement]   (`outer: for (...)`; a Break or Continue carries the label it jumps to as its text)
+  TypeOther,      // text=what it is ("intersection", "conditional", "mapped", "indexed access"...)  [component types]: TypeScript type syntax the
+                  // checker does not type yet; it parses so that the QuickJS engine erases it, and the checker reports it (kZUnsupported)
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.
@@ -109,7 +111,9 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagUndefined = 32768,  // a Literal null or TypeRef null written as `undefined` (a file without Dyn values: same representation, printed as undefined)
                                kFlagTypeQuery = 65536,  // a TypeRef written `typeof x`: the type of the value x
                                kFlagRest = 131072,  // a Param written `...name`: the remaining arguments as an array
-                               kFlagSetter = 262144;  // a Prop of an object literal written `set name(v) { ... }` (kFlagGetter: `get name() { ... }`)
+                               kFlagSetter = 262144,  // a Prop of an object literal written `set name(v) { ... }` (kFlagGetter: `get name() { ... }`)
+                               kFlagTypeOnly = 524288,  // an ExportList written `export type { ... }`: no value to export at run time
+                               kFlagModuleLevel = 1048576;  // an Await outside any function (top-level await of a module)
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;

@@ -113,11 +113,10 @@ struct Stripper {
     if (text.empty() || ctor.kids[1] == kNone) return;
     const Node& body = n(ctor.kids[1]);
     std::uint32_t at = body.start + 1;
-    for (std::uint32_t k : body.kids) {
+    for (std::uint32_t k : body.kids) {   // after the `super(...)` statement, wherever it is in the body (code may come before it, as in TypeScript)
       const Node& st = n(k);
       if (st.flags & kFlagSynthetic) continue;
-      if (st.kind == N::ExprStmt && !st.kids.empty() && n(st.kids[0]).kind == N::Call && n(n(st.kids[0]).kids[0]).kind == N::Super) at = st.end;
-      break;
+      if (st.kind == N::ExprStmt && !st.kids.empty() && n(st.kids[0]).kind == N::Call && n(n(st.kids[0]).kids[0]).kind == N::Super) { at = st.end; break; }
     }
     edits.push_back({at, at, text});
   }
@@ -154,7 +153,8 @@ struct Stripper {
     return v;
   }
 
-  // `import X, { a, b as c } from './m'` (also `import type`): rewritten with the specifiers read as values; none left, `import './m'`
+  // `import X, { a, b as c } from './m'` (also `import type`): rewritten with the specifiers read as values; none left, nothing, as TypeScript
+  // elides it (a module imported for its types is not evaluated: Athena Crisis's `import type Unit` would close an import cycle)
   void importDecl(const Node& x, const std::unordered_set<std::string_view>& values) {
     if (x.kids.empty()) return;
     std::string def, ns, named;
@@ -169,7 +169,8 @@ struct Stripper {
     std::string r = def;
     if (!ns.empty()) r += (r.empty() ? "" : ", ") + ("* as " + ns);
     else if (!named.empty()) r += (r.empty() ? "" : ", ") + ("{ " + named + " }");
-    edits.push_back({x.start, x.end, "import " + (r.empty() ? "" : r + " from ") + std::string(x.text) + ";"});
+    if (r.empty()) blank(x.start, x.end);
+    else edits.push_back({x.start, x.end, "import " + r + " from " + std::string(x.text) + ";"});
   }
 
   void run() {
@@ -206,6 +207,7 @@ struct Stripper {
         }
         case N::Interface: case N::TypeAlias: blank(x.start, x.end); break;
         case N::Import: importDecl(x, values); break;
+        case N::ExportList: if (x.flags & kFlagTypeOnly) blank(x.start, x.end); break;   // `export type { A } from './a'`
         case N::Export:
           decorators(x.start);
           if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) {

@@ -211,6 +211,74 @@ std::string gfxSource() {
          "export function windowOpen(id) { return __host_gfxWindowOpen(id) !== 0; }\n" + api;
 }
 
+std::string probe(const std::string& path);
+std::string byNodeModules(const std::string& dir, const std::string& spec);
+
+// A CommonJS file (`module.exports = ...`, `require('./x')`): a .cjs, or a .js with no line that starts with import or export
+bool isCommonJs(const std::string& path, const std::string& src) {
+  if (endsWith(path, ".cjs")) return true;
+  if (!endsWith(path, ".js")) return false;
+  for (std::size_t at = 0; at < src.size();) {
+    std::size_t b = src.find_first_not_of(" \t\r", at), e = src.find('\n', at);
+    if (e == std::string::npos) e = src.size();
+    if (b < e) {
+      std::string_view line(src.data() + b, e - b);
+      for (std::string_view kw : {"import", "export"})
+        if (line.substr(0, kw.size()) == kw && line.size() > kw.size() && std::string_view(" {*'\"").find(line[kw.size()]) != std::string_view::npos) return false;
+    }
+    at = e + 1;
+  }
+  return src.find("module.exports") != std::string::npos || src.find("exports.") != std::string::npos;
+}
+
+// A CommonJS module run as an ES module whose default export is its module.exports, as Node imports one. The files it requires with a string
+// (`require('./distance.js')`, a CommonJS package) are found before it runs and wrapped beside it, as a bundler does; any other require throws.
+// ponytail: no named exports (Node finds some with cjs-module-lexer); `import { x } from 'cjs-package'` fails to link, `import p from` works
+void commonJsModule(const std::string& path, const std::string& src, std::string& js) {
+  std::map<std::string, int> index;
+  std::vector<std::string> parts;
+  std::function<int(const std::string&, const std::string&)> add = [&](const std::string& file, const std::string& text) {
+    if (auto it = index.find(file); it != index.end()) return it->second;
+    const int id = static_cast<int>(parts.size());
+    index[file] = id;
+    parts.emplace_back();
+    std::string deps;
+    for (std::size_t at = 0; (at = text.find("require(", at)) != std::string::npos;) {
+      at += 8;
+      if (at - 8 > 0 && (std::isalnum(static_cast<unsigned char>(text[at - 9])) || text[at - 9] == '_' || text[at - 9] == '.' || text[at - 9] == '$')) continue;
+      std::size_t q = text.find_first_not_of(" \t", at);
+      if (q == std::string::npos || (text[q] != '\'' && text[q] != '"')) continue;
+      const std::size_t close = text.find(text[q], q + 1);
+      if (close == std::string::npos) break;
+      const std::string spec = text.substr(q + 1, close - q - 1);
+      std::string found = spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0 ? probe(normalize(dirOf(file) + "/" + spec)) : byNodeModules(dirOf(file), spec);
+      std::string dep;
+      if (found.empty() || !readFile(found, dep)) continue;
+      int d = -1;
+      if (endsWith(found, ".json")) { d = static_cast<int>(parts.size()); index[found] = d; parts.push_back("__cjs[" + std::to_string(d) + "] = [function (module) { module.exports = " + dep + "; }, {}];\n"); }
+      else if (isCommonJs(found, dep)) d = add(found, dep);
+      if (d >= 0) deps += (deps.empty() ? "" : ", ") + std::string("\"") + spec + "\": " + std::to_string(d);
+    }
+    parts[static_cast<std::size_t>(id)] = "__cjs[" + std::to_string(id) + "] = [function (module, exports, require) {\n" + text + "\n}, {" + deps + "}];\n";
+    return id;
+  };
+  add(path, src);
+  js = "const __cjs = [], __cjsCache = [];\n";
+  for (const std::string& p : parts) js += p;
+  js += "function __cjsLoad(i) {\n"
+        "  if (__cjsCache[i]) return __cjsCache[i].exports;\n"
+        "  const m = { exports: {} };\n"
+        "  __cjsCache[i] = m;\n"
+        "  const deps = __cjs[i][1];\n"
+        "  __cjs[i][0].call(m.exports, m, m.exports, (id) => {\n"
+        "    if (!(id in deps)) throw new Error(\"Cannot find module '\" + id + \"': a CommonJS module run by zinc can require its own files and CommonJS packages\");\n"
+        "    return __cjsLoad(deps[id]);\n"
+        "  });\n"
+        "  return m.exports;\n"
+        "}\n"
+        "export default __cjsLoad(0);\n";
+}
+
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
   std::string src, path = name;
   if (name == "zinc:native") { js = kNativeModule; return true; }   // plain JavaScript: nothing to strip
@@ -231,6 +299,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (std::getenv("ZN_QJS_DEBUG")) std::fprintf(stderr, "qjs: module failli: name=<%s> path=<%s>\n", name.c_str(), path.c_str());
     err = "cannot load module " + name; return false;
   }
+  if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) { commonJsModule(path, src, js); return true; }
   const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
   // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and

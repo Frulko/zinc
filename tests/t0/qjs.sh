@@ -1,12 +1,20 @@
 #!/bin/sh
-# QuickJS engine (ZN-051): plain JavaScript (modules, promises, virtual timers, Node style console.log) and TypeScript stripped by blanking
-# (tests/golden/qjs), an uncaught exception ends with exit code 101, an unknown engine is refused.
+# QuickJS engine (ZN-051): plain JavaScript (modules, promises, virtual timers, Node style console.log), TypeScript stripped by blanking
+# (tests/golden/qjs; ts_syntax.ts: the type syntax libraries write, top-level await, CommonJS files), an uncaught exception ends with exit code 101, an unknown engine is refused.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
-for t in plain.js strip.ts; do
+for t in plain.js strip.ts ts_syntax.ts; do
   "$ZINC" run tests/golden/qjs/$t --engine quickjs 2>&1 | diff -q - tests/golden/qjs/${t%.*}.out >/dev/null || { echo "$t on quickjs differs from tests/golden/qjs/${t%.*}.out"; fail=1; }
 done
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+# the same TypeScript on the typed engines: what they do not type yet is Z0005 with its name, never a syntax error (Z0001, Z0002)
+cp tests/golden/qjs/shapes.ts "$tmp/"
+sed -e '/await/d' -e '/cjs/d' -e 's/, value + 1//' tests/golden/qjs/ts_syntax.ts > "$tmp/typed.ts"
+"$ZINC" check "$tmp/typed.ts" > "$tmp/typed.out" 2>&1
+! grep -q "Z000[12]" "$tmp/typed.out" || { echo "TypeScript type syntax is a syntax error on the typed engines"; fail=1; }
+for w in "intersection types" "indexed access types" "generic arrow functions" "object rest patterns" "index signature types"; do
+  grep -q "Z0005: Syntax not supported yet: $w" "$tmp/typed.out" || { echo "the typed engines do not report '$w'"; fail=1; }
+done
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.js"
 "$ZINC" run "$tmp/boom.js" --engine quickjs >/dev/null 2>&1; [ $? -eq 101 ] || { echo "an uncaught exception does not end with 101 on quickjs"; fail=1; }
 "$ZINC" run "$tmp/boom.js" --engine nope >/dev/null 2>&1; [ $? -eq 2 ] || { echo "an unknown engine is not refused"; fail=1; }

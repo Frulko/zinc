@@ -28,6 +28,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/carnet-nbe`: Carnet on its own packages (`@nbe/core`, `@nbe/markdown`, `@nbe/collab`), imported unchanged on `--engine quickjs`, with a view in `zinc:ui`; its notes are an Obsidian-style vault of Markdown files (folders, `[[links]]` and linked mentions, Cmd+O quick switcher, full-text search, changes made by other programs followed, a vault switcher that opens any folder), and two windows edit them live.
 - `--engine quickjs` runs plugins that call back or return promises (`zinc:socket` servers and WebSockets, for one); a program that waits on one (a server) keeps running, and its timers keep their real delays meanwhile.
 - `zinc:sqlite` is built with FTS5: full-text tables (`CREATE VIRTUAL TABLE ... USING fts5`), `MATCH`, ranking and `snippet()`.
+- `--engine quickjs` runs TypeScript libraries as they are written: intersection, conditional, mapped, indexed access and template literal types, `keyof typeof`, labelled tuples, generic arrow functions, `import type X from`, `export type { … } from`, object rest patterns, top-level `await`, and CommonJS files and packages (`import x from` gives their `module.exports`). The engine of Athena Crisis and the kirari highlighter run unchanged.
+- The typed engines report the TypeScript they do not compile yet as Z0005 with its name ("intersection types", "generic arrow functions"...) instead of a syntax error.
 - `ui.scrollBy(h, dx, dy)` moves a scroll offset without stopping a fling in progress.
 - `zinc build --no-embed` and `zinc export --no-embed` keep the baked fonts and images out of the executable, in `<name>.res` beside it.
 
@@ -44,6 +46,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A file that uses Dyn values (`JSON.parse`...) can write `T | undefined` as a type again: it failed with Z0101 "Cannot find name 'undefined'".
 - Magic Mouse scrolling on macOS had no momentum at all; it now glides like the trackpad.
 - `examples/agents`: scrolling up through a long conversation no longer stops dead each time older messages load.
+- `--engine quickjs`: an import used only for types no longer runs its module (it could close an import cycle and stop a program with "is not initialized"), and constructor parameter properties are set after `super(...)` when code comes before it.
 
 ## [0.4.3] - 2026-10-21
 

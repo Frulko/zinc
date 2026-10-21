@@ -550,6 +550,7 @@ struct Checker {
         r = unionOf(ms, undef);
         break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
+      case N::TypeOther: diag(kZUnsupported, t, std::string(x.text) + " types"); break;   // parsed (the QuickJS engine erases it), not typed yet
       default: diag(kZUnsupported, t, "this type syntax"); break;
     }
     out.nodeType[t] = r;
@@ -1945,6 +1946,7 @@ struct Checker {
         return nn;
       }
       case N::Array: {
+        for (std::uint32_t e : x.kids) if (n(e).kind == N::Empty) { diag(kZHoleyArray, e, ""); return tError; }   // `[1, , 2]` (an assignment pattern may skip elements)
         if (expected != kNoType && ty(expected).k == TK::Union) {  // `T[] | null`: the literal is the array
           TypeId only = kNoType;
           int arrays = 0;
@@ -2541,6 +2543,11 @@ struct Checker {
     if (ty(va).k != TK::Object || isTupleType(va)) { diag(kZNotIndexable, pat, "'" + name(vt) + "' cannot be destructured as an object"); declareErrorTargets(pat, isDecl, isConst); return; }
     for (std::uint32_t pp : std::vector<std::uint32_t>(p.kids)) {
       const Node& pn = n(pp);
+      if (pn.kind == N::Spread) {
+        diag(kZUnsupported, pp, "object rest patterns");
+        if (n(pn.kids[0]).kind == N::Ident && isDecl) out.nodeSym[pn.kids[0]] = declare(SymKind::Var, n(pn.kids[0]).text, tError, pn.kids[0], isConst, pn.kids[0]);
+        continue;
+      }
       const Member* m = findMember(va, pn.text);
       TypeId et = tError;
       if (!m || m->method) diag(kZNoSuchProperty, pp, "'" + std::string(pn.text) + "' on '" + name(va) + "'");
@@ -3053,7 +3060,8 @@ struct Checker {
     push();
     for (std::size_t k = 0; k < params.size(); ++k) {
       const Node& p = n(params[k]);
-      if (p.kids[1] != kNone) require(expr(p.kids[1], ft.params[k]), ft.params[k], p.kids[1]);
+      if (p.kids.size() > 2 && p.kids[2] != kNone && p.kids[1] != kNone) diag(kZUnsupported, p.kids[1], "default values for destructured parameters");
+      else if (p.kids[1] != kNone) require(expr(p.kids[1], ft.params[k]), ft.params[k], p.kids[1]);
       if (p.kids.size() > 2 && p.kids[2] != kNone) bindPattern(p.kids[2], ft.params[k], true, false);
       else out.nodeSym[params[k]] = declare(SymKind::Param, p.text, ft.params[k], params[k], false, params[k]);
     }
@@ -3323,6 +3331,7 @@ struct Checker {
   }
   bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
+    if (a.tparams.count(i)) { diag(kZUnsupported, i, "generic arrow functions"); return tError; }
     Type et;
     if (expected != kNoType && ty(expected).k == TK::Union) {  // `(() => void) | null` (an optional callback): the function type is what the lambda is checked against
       TypeId only = kNoType;
@@ -3429,6 +3438,7 @@ struct Checker {
     push();
     for (std::size_t k = 0; k < np; ++k) {
       std::uint32_t p = x.kids[2 + k];
+      if (n(p).kids.size() > 2 && n(p).kids[2] != kNone && n(p).kids[1] != kNone) diag(kZUnsupported, n(p).kids[1], "default values for destructured parameters");
       if (n(p).kids.size() > 2 && n(p).kids[2] != kNone) bindPattern(n(p).kids[2], ps[k], true, false);
       else out.nodeSym[p] = declare(SymKind::Param, n(p).text, ps[k], p, false, p);
     }
@@ -4268,11 +4278,14 @@ struct Checker {
     }
     for (std::uint32_t m : mems) {
       const Node& mn = n(m);
-      if (a.tparams.count(m)) continue;  // a static generic method: a generic function of its own
+      if (a.tparams.count(m)) {  // a static generic method: a generic function of its own (an instance one is reported where they are collected)
+        if (n(cls).kind == N::Interface) diag(kZUnsupported, m, "generic methods in interfaces");
+        continue;
+      }
       std::uint32_t fl = mn.flags;
       bool isCtor = mn.kind == N::Method && mn.text == "constructor";
       bool dup = false;
-      if (!isCtor) for (const Member& e : out.objs[objIdx].members) if (e.owner == objIdx && e.name == mn.text && e.isStatic == ((fl & frontend::kFlagStatic) != 0)) dup = true;
+      if (!isCtor && !mn.text.empty()) for (const Member& e : out.objs[objIdx].members) if (e.owner == objIdx && e.name == mn.text && e.isStatic == ((fl & frontend::kFlagStatic) != 0)) dup = true;   // a signature has no name (its type reports it)
       if (dup || (isCtor && ctorNode != kNone)) { diag(kZDuplicateDeclaration, m, "'" + std::string(mn.text) + "'"); continue; }
       if (isIface && isCtor) { diag(kZUnsupported, m, "constructors in interfaces"); continue; }
       if ((fl & frontend::kFlagAbstract) && !isIface && !(out.objs[objIdx].isAbstract)) diag(kZAbstractViolation, m, "abstract member '" + std::string(mn.text) + "' in a concrete class");
@@ -4477,6 +4490,7 @@ struct Checker {
         std::uint32_t mi = n(s).kids[k];
         auto tp = a.tparams.find(mi);
         if (n(mi).kind != N::Method || tp == a.tparams.end()) continue;
+        if (!(n(mi).flags & frontend::kFlagStatic)) { diag(kZUnsupported, mi, "generic methods (only static ones)"); continue; }
         std::string_view full = keep(std::string(n(s).text) + "." + std::string(n(mi).text));
         std::uint32_t gs = declare(SymKind::GenericFunc, full, kNoType, mi, true, mi);
         out.nodeSym[mi] = gs;
