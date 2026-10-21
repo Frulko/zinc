@@ -793,7 +793,7 @@ if(APPLE)
   target_compile_definitions(zn_engine_jsc PRIVATE NAPI_VERSION=8 NAPI_DISABLE_CPP_EXCEPTIONS "NAPI_EXTERN=" ZN_ENGINE_MODULE)
   target_include_directories(zn_engine_jsc PRIVATE third_party/node-api/include third_party/node-api/javascriptcore src include
                              $<TARGET_PROPERTY:zn_qjs,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_text,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_segment,INTERFACE_INCLUDE_DIRECTORIES>
-                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES>)
+                             $<TARGET_PROPERTY:zn_frontend,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:zn_mbedtls,INTERFACE_INCLUDE_DIRECTORIES>)   # base64 of the inline source map: zinc's exported mbedTLS
   target_link_options(zn_engine_jsc PRIVATE "LINKER:-undefined,dynamic_lookup")
   target_link_libraries(zn_engine_jsc PRIVATE "-framework JavaScriptCore" zn_codec zn_text)   # zinc exports no C++: the stateless code is linked in
   add_dependencies(zinc zn_engine_jsc)   # built with zinc, not linked into it

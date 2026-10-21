@@ -15,7 +15,8 @@ napi_env open();                      // a context and its Node-API environment
 // fn(promise, reason) for each promise still rejected with no handler once the microtasks have run
 void onRejection(napi_env env, napi_value fn);
 void drainJobs(napi_env env);         // runs the microtasks (JavaScriptCore runs them when the outermost call returns)
-void beforeEntry(napi_env env, const zn_engine_args* a, std::string& js);   // the bundle about to run (V8: the inspector)
+void beforeEntry(napi_env env, const zn_engine_args* a, std::string& js);   // the bundle about to run (the inspectors)
+void inlineSourceMap(std::string& js);   // driver.cpp: the bundle's map as a data: URL, for an inspector that fetches no file:// map
 
 int run(const zn_engine_args* a);     // the driver, the module's zn_engine_run
 void takeZinc(const zn_engine_args* a);   // zinc.cpp: zinc's state into the module's variables

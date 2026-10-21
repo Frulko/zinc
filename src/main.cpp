@@ -1743,7 +1743,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName(engine == "quickjs" ? "QuickJS" : engineName);   // the perf panel (ZN-375)
 #endif
-    if (std::getenv("ZINC_INSPECT") && engine != "v8") std::fprintf(stderr, "zinc: --inspect: Chrome DevTools attaches to --engine v8 programs (zinc debug --cdp for a Zinc program)\n");
+    if (std::getenv("ZINC_INSPECT") && engine != "v8" && engine != "jsc") std::fprintf(stderr, "zinc: --inspect: an inspector attaches to --engine v8 (Chrome DevTools) or jsc (Safari) programs; zinc debug --cdp for a Zinc program\n");
     return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {

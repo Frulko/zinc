@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "mbedtls/base64.h"
 #include "qjs/napi_util.h"
 #include "qjs/qjs.h"
 #include "zn/host.h"
@@ -337,6 +338,16 @@ void services(napi_env env, napi_value web) {
 }
 
 }  // namespace
+
+void inlineSourceMap(std::string& js) {
+  const std::string tail = "//# sourceMappingURL=";
+  const std::size_t at = js.rfind(tail);
+  std::string b64(4 * ((gMap.size() + 2) / 3) + 1, '\0');
+  std::size_t n = 0;
+  if (at != std::string::npos && !gMap.empty() &&
+      mbedtls_base64_encode(reinterpret_cast<unsigned char*>(b64.data()), b64.size(), &n, reinterpret_cast<const unsigned char*>(gMap.data()), gMap.size()) == 0)
+    js = js.substr(0, at) + tail + "data:application/json;charset=utf-8;base64," + b64.substr(0, n) + "\n";
+}
 
 int run(const zn_engine_args* a) {
   if (a->abi != ZN_ENGINE_ABI) {

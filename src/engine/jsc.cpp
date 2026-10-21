@@ -2,6 +2,12 @@
 // JsRuntimeHost's Node-API over its C API (third_party/node-api); the driver (driver.cpp) does the rest. Built as libzn_engine_jsc beside zinc.
 #include <JavaScriptCore/JavaScript.h>
 #include <napi/env.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
 
 #include "engine/driver.h"
 
@@ -27,7 +33,24 @@ void onRejection(napi_env, napi_value fn) {
 }
 
 void drainJobs(napi_env) {}   // JavaScriptCore runs the microtasks when the outermost call into it returns
-void beforeEntry(napi_env, const zn_engine_args*, std::string&) {}   // ponytail: no inspector (Safari's Web Inspector needs the private remote inspection API)
+// `zinc run --engine jsc --inspect[-brk]` (ZINC_INSPECT): Safari's Web Inspector on the context, through the public JSGlobalContextSetInspectable
+// (macOS 13.3). Safari lists it under Develop > this Mac by the program's name; the inspector speaks to JavaScriptCore itself, no port of ours.
+void beforeEntry(napi_env, const zn_engine_args* a, std::string& js) {
+  const char* e = std::getenv("ZINC_INSPECT");
+  if (!e || !*e) return;
+  const std::string name = "zinc: " + std::filesystem::path(a->entry).filename().string();
+  JSStringRef n = JSStringCreateWithUTF8CString(name.c_str());
+  JSGlobalContextSetName(gContext, n);
+  JSStringRelease(n);
+  JSGlobalContextSetInspectable(gContext, true);
+  inlineSourceMap(js);
+  std::fprintf(stderr, "zinc: Safari's Web Inspector: Develop > this Mac > \"%s\" (Safari > Settings > Advanced > Show features for web developers)\n", name.c_str());
+  if (std::strstr(e, "brk")) {   // no public call says when the inspector is attached: Enter says it, then the program stops at its first line
+    std::fprintf(stderr, "zinc: open the inspector, then press Enter\n");
+    if (isatty(STDIN_FILENO)) for (int c = std::getchar(); c != '\n' && c != EOF; c = std::getchar()) {}
+    js = "debugger; " + js;   // on the banner's line: the source map's lines stay where they are
+  }
+}
 
 }  // namespace zn::engine
 

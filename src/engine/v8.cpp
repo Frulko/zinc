@@ -7,11 +7,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
-#include <fstream>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -21,7 +19,6 @@
 
 #include "dbg/ws.h"
 #include "engine/driver.h"
-#include "mbedtls/base64.h"
 
 namespace zn::engine {
 
@@ -140,17 +137,7 @@ void beforeEntry(napi_env, const zn_engine_args* a, std::string& js) {
     (void)ctx->Global()->Set(ctx, v8::String::NewFromUtf8Literal(gIsolate, "__v8console"), gV8Console.Get(gIsolate));
   }
   runScript("(function (v, c) { delete globalThis.__v8console; for (const k of ['log', 'info', 'warn', 'error', 'debug', 'dir', 'table', 'trace']) { const z = c[k]; if (typeof z === 'function' && typeof v[k] === 'function') c[k] = function (...a) { v[k](...a); return z.apply(this, a); }; } })(globalThis.__v8console, console)");
-  // the source map inline: DevTools reads no file:// map of a node target by itself
-  const std::string tail = "//# sourceMappingURL=";
-  const std::size_t mapAt = js.rfind(tail);
-  std::ifstream in(std::string(a->bundle) + ".map", std::ios::binary);
-  std::stringstream ms;
-  ms << in.rdbuf();
-  const std::string map = ms.str();
-  std::string b64(4 * ((map.size() + 2) / 3) + 1, '\0');
-  std::size_t n = 0;
-  if (mapAt != std::string::npos && !map.empty() && mbedtls_base64_encode(reinterpret_cast<unsigned char*>(b64.data()), b64.size(), &n, reinterpret_cast<const unsigned char*>(map.data()), map.size()) == 0)
-    js = js.substr(0, mapAt) + tail + "data:application/json;charset=utf-8;base64," + b64.substr(0, n) + "\n";
+  inlineSourceMap(js);   // DevTools reads no file:// map of a node target by itself
   if (std::strstr(e, "brk")) {   // --inspect-brk: wait for DevTools, then stop at the program's first statement
     std::fprintf(stderr, "zinc: waiting for the debugger\n");
     gWaiting = true;
