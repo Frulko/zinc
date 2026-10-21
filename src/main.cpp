@@ -1643,7 +1643,8 @@ int main(int argc, char** argv) {
   }
   for (int k = 1; k < argc && std::strcmp(argv[k], "--"); ++k)   // `zinc run --interp` interprets, `--native` compiles even a test run (ZN-398)
     if (!std::strcmp(argv[k], "--interp") || !std::strcmp(argv[k], "--native")) { setenv("ZINC_RUN", argv[k] + 2, 1); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
-    else if (!std::strncmp(argv[k], "--inspect", 9)) {   // --inspect[-brk][=port]: Chrome DevTools on an --engine v8 program (ZN-773.05), as node's
+    else if (!std::strcmp(argv[1], "run") && !std::strncmp(argv[k], "--inspect", 9)) {   // --inspect[-brk][=port]: Chrome DevTools on an --engine v8 program (ZN-773.05), as node's;
+      // a run only: pack, export and device deploy read their own --inspect (the inspector in front of the program)
       const char* eq = std::strchr(argv[k], '=');
       setenv("ZINC_INSPECT", (std::string(eq ? eq + 1 : "9229") + (std::strncmp(argv[k], "--inspect-brk", 13) ? "" : ",brk")).c_str(), 1);
       for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
