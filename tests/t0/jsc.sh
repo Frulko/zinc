@@ -7,8 +7,8 @@ e=${1:-jsc}
 cd "$(dirname "$0")/../.." || exit 2
 [ "$e" != jsc ] || [ "$(uname)" = Darwin ] || { echo "skip: JavaScriptCore is the system framework on macOS only"; exit 0; }
 fail=0
-for t in plain.js strip.ts; do
-  "$ZINC" run tests/golden/qjs/$t --engine $e 2>&1 | diff - tests/golden/qjs/${t%.*}.out >/dev/null || { echo "$t on $e differs from tests/golden/qjs/${t%.*}.out"; fail=1; }
+for t in plain.js strip.ts; do   # the program's output only: on a fresh ZINC_HOME, stderr also says that esbuild is downloaded (once)
+  "$ZINC" run tests/golden/qjs/$t --engine $e 2>/dev/null | diff - tests/golden/qjs/${t%.*}.out || { echo "$t on $e differs from tests/golden/qjs/${t%.*}.out"; fail=1; }
 done
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.js"
