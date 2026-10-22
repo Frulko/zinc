@@ -8,8 +8,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-10-22
-
 ### Added
 - `zinc run|export|flash --target esp32 --engine mquickjs`: a `zinc:gfx` program in TypeScript runs on an ESP32 on MicroQuickJS, compiled to bytecode on the computer and written to the board in a second (`zinc flash` writes the firmware once). `examples/breakout` runs unchanged on the ESP32-2432S022. A feature the board lacks fails before anything is sent, at your own file and line. AOT stays the default on the ESP32. The program runs from the board's flash, so it costs no RAM.
 - `zinc run ... --engine mquickjs --emulator` runs the same program in the esp32sim emulator (built from its sources with Rust's cargo the first time), with no board: the last frame is saved as a PNG.
@@ -432,8 +430,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.6.0...HEAD
-[0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.5.2...HEAD
 [0.5.2]: https://github.com/Frulko/zinc/compare/v0.5.1...v0.5.2
 [0.5.0]: https://github.com/Frulko/zinc/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/Frulko/zinc/compare/v0.4.2...v0.4.3
