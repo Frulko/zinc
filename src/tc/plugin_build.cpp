@@ -530,6 +530,13 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     h.add(sha256File(rust));
   }
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
+  {   // a vendored library's configuration beside plugin.json (zinc:lvgl's lv_conf.h), which its sources include
+    std::vector<std::string> conf;
+    std::error_code e2;
+    for (const auto& f : fs::directory_iterator(p.dir, e2)) if (f.is_regular_file() && f.path().extension() == ".h") conf.push_back(f.path().string());
+    std::sort(conf.begin(), conf.end());
+    for (const std::string& f : conf) vh.add(sha256File(f));
+  }
   h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
   const std::string keyHex = h.hex();

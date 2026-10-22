@@ -257,6 +257,8 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     contents += n.header;
     files.push_back(n.impl);
     files.insert(files.end(), n.sources.begin(), n.sources.end());
+    for (const auto& e : fs::directory_iterator(n.dir, ec))   // a library's configuration beside plugin.json (zinc:lvgl's lv_conf.h)
+      if (e.is_regular_file() && e.path().extension() == ".h") files.push_back(e.path().string());
     for (const std::string& d : n.defines) key += " -D" + d;
     for (const std::string& r : n.idf) key += " " + r;
     for (const auto& [pkg, ver] : n.registry) key += " " + pkg + "@" + ver;
