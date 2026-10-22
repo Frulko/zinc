@@ -495,6 +495,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.11: English fallback pages shown under `/fr/` (and the other languages) link to English routes, so the reader leaves the language after one click: rewrite their links per language.
 - ZN-774.11: the other site pages (philosophy, cli, demos, uses, about) and the demo captions of `site/src/data/site.ts` are English only.
 - ZN-774.11: on a shallow clone the "English changed" notice is skipped silently (the `source` commit is missing): the Pages workflow needs `fetch-depth: 0`.
+- ZN-774.15: at 1280x800 Atelier's start view shows the 9 Drawing examples and puts the Scene, Canvas and Interface ones below the fold; a style card could also select its group.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
