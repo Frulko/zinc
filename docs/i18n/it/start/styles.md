@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: 6feb1df07edd49722e71a16656309caa55687473
 ---
 # Quattro modi di scrivere un programma
 
@@ -16,6 +16,10 @@ in tutti e quattro.
 | Adatto a | giochi, animazioni, arte, un primo programma | app e giochi su tablet vecchi, oggetti che tocchi e trascini | codice canvas del web, disegni vettoriali, grafici | app, moduli, liste, impostazioni, strumenti |
 | Come iniziare | `zinc new game` | `zinc new stage` | `zinc new canvas` | `zinc new desktop-app` |
 | Lezioni | [da 1 a 6](../learn/README.md#the-lessons) | [da 13 a 16](../learn/13-a-stage-and-a-sprite.md) | [da 17 a 20](../learn/17-paths-and-fills.md) | [da 7 a 12](../learn/07-components.md) |
+
+Dove scegliere: `zinc new` da solo ti chiede cosa vuoi fare e poi, per un gioco o un disegno (Disegno, Scena, Canvas) e per un'app
+con finestre (Interfaccia, Scena), come vuoi scriverlo. In Zinc Atelier, **Nuovo sketch**, in cima alla vista iniziale, propone i
+quattro stili, ognuno un piccolo programma da cui partire, e gli esempi sotto sono raggruppati per stile.
 
 ## Lo stesso programma, quattro volte
 
