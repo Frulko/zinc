@@ -22,6 +22,7 @@ int zn_backlight(int level);
 int zn_touch(void);
 float zn_touch_map(int i);
 int zn_set_touch_map(const float m[6]);
+int zn_calibrate_touch(void);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 #endif
 
@@ -80,6 +81,16 @@ int32_t zn_device_setTouchMap(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *r
     return ret_int(ret, zn_set_touch_map(m));
 #else
     (void)args;
+    return ret_int(ret, 0);
+#endif
+}
+
+int32_t zn_device_calibrateTouch(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self, (void)cx, (void)args;
+#ifdef ESP_PLATFORM
+    return ret_int(ret, zn_calibrate_touch()); /* it restarts the board: returns only without a touch controller */
+#else
     return ret_int(ret, 0);
 #endif
 }

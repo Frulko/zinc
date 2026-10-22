@@ -216,7 +216,8 @@ every tap: 8 crosses tapped 5 times, 24 px off on average and 4 px at the centre
 firmware puts the touch through an affine map (a scale, a shear, a turn or a mirror, an offset) kept on the board (NVS,
 `zinc.sys`): **keep a finger on the screen while the board starts**, then tap the five crosses it shows; it keeps the map
 that fits them best (8 px off on average then, a finger's precision), or the old one when the taps fit no map. A program
-reads and sets the map with `device.touchMap()` and `device.setTouchMap()`; `examples/touch-check` measures a screen over
+asks for the crosses with `device.calibrateTouch()` (the board restarts into them, then runs the program again: the System
+page of `examples/esp32-widgets` has a Calibrate button), reads and sets the map with `device.touchMap()` and `device.setTouchMap()`; `examples/touch-check` measures a screen over
 several rounds, shows its distortion and the confidence in the map, and applies it. The map is in the panel's portrait
 pixels: `lv.rotate()` turns the touch after it.
 
@@ -248,6 +249,7 @@ device.flashSize();              // bytes; -1 on hosts
 device.idfVersion(); device.firmware();   // "v5.5.5", "zinc-mquickjs 1a2b3c4d"; '' on hosts
 device.touchMap();               // [a, b, c, d, e, f]: x = a rx + b ry + c, y = d rx + e ry + f from the controller's pixels
 device.setTouchMap(m);           // kept on the board; false where the system owns the touch (the computer) or for a map it cannot use
+device.calibrateTouch();         // restarts the board into the five crosses, then the program; false on the computer and without touch
 ```
 
 In the AOT firmware the backlight goes through the display driver (`zinc_display_backlight`, weakly linked), so the

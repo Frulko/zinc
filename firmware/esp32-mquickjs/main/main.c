@@ -412,6 +412,28 @@ int zn_set_touch_map(const float m[6])
     return 1;
 }
 
+int zn_calibrate_touch(void)
+{
+    nvs_handle_t h;
+    if (!tp || nvs_open("zinc.sys", NVS_READWRITE, &h) != ESP_OK) return 0;
+    nvs_set_u8(h, "cal", 1);
+    nvs_commit(h);
+    nvs_close(h);
+    printf("mqjs: the program asked for the touch calibration: restarting into it\n");
+    esp_restart();
+}
+
+/* the calibration a program asked for before it restarted the board (zn_calibrate_touch), taken once */
+static int calibration_asked(void)
+{
+    nvs_handle_t h;
+    uint8_t v = 0;
+    if (nvs_open("zinc.sys", NVS_READWRITE, &h) != ESP_OK) return 0;
+    if (nvs_get_u8(h, "cal", &v) == ESP_OK) nvs_erase_key(h, "cal"), nvs_commit(h);
+    nvs_close(h);
+    return v;
+}
+
 void zn_frame_stats(int *us, int *cmds)
 {
     *us = frame_us;
@@ -1113,7 +1135,7 @@ void app_main(void)
     lcd_init();
     touch_init();
     int tap_x, tap_y;
-    if (touch_raw(&tap_x, &tap_y) == 1) touch_calibrate(); /* a finger on the screen as the board starts */
+    if (calibration_asked() || touch_raw(&tap_x, &tap_y) == 1) touch_calibrate(); /* asked by the program, or a finger on the screen as the board starts */
     printf("mqjs: free heap %u, largest block %u\n", (unsigned)esp_get_free_heap_size(),
            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     uint32_t len = 0;

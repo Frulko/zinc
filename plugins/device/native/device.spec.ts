@@ -12,6 +12,8 @@ export interface Spec extends NativeModule {
   touchMap(i: i32): f64;
   /** Sets the touch's map and keeps it on the board; false where the system owns the touch (hosts). */
   setTouchMap(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64): boolean;
+  /** Restarts the board into its touch calibration (the crosses to tap), then the program again; false where there is none (hosts, no touch). */
+  calibrateTouch(): boolean;
   /** Free bytes of the chip's own heap (internal RAM on ESP32, outside the Zinc heap); -1 on hosts. */
   heapFree(): i32;
   /** Lowest heapFree() since boot; -1 on hosts. */

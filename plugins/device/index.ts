@@ -38,6 +38,9 @@ export function touchMap(): number[] {
 /** Sets the touch's map and keeps it on the board, for the next programs too; false where the system owns the touch (the computer), and for
  *  a map the touch could not use (not finite, or a scale outside 0.5 to 2: one that squeezes or blows up the screen). */
 export function setTouchMap(m: number[]): boolean { return D.setTouchMap(m[0], m[1], m[2], m[3], m[4], m[5]); }
+/** Restarts the board into its touch calibration, the five crosses a finger held at start shows, then the program again with the new map,
+ *  kept for every program. Does not return on the board; false where there is none (the computer, a board without touch). */
+export function calibrateTouch(): boolean { return D.calibrateTouch(); }
 
 export class Memory {
   zincUsed: i32 = 0;      // Zinc heap (TLSF) bytes in use; under mquickjs, the JavaScript heap's (-1: unknown)

@@ -46,6 +46,8 @@ int zn_touch(void);
    cannot use (not finite, a scale outside 0.5 to 2). */
 float zn_touch_map(int i);
 int zn_set_touch_map(const float m[6]);
+/* Restarts the board into touch_calibrate (NVS zinc.sys "cal", taken at start); returns 0 only without a touch controller. */
+int zn_calibrate_touch(void);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 /* The mquickjs heap of the native call in progress: bytes in use and its size, as JS_DumpMemory's "heap size=used/size" (main/zn_native.c,
    so zinc-mqjs answers it too on the computer). */
