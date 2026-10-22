@@ -50,7 +50,9 @@ ESP-IDF or plain C works as is. The plugins' C is compiled with `-O2`, while the
 
 A native module that draws the screen itself (`zinc:lvgl`) takes the panel through `main/zn.h`. `zn_panel_buffer(bytes)` returns a
 buffer the panel's bus can read (240 x 32 pixels at most). `zn_panel_flush(x0, y0, x1, y1, pixels)` sends an area of RGB565 pixels, high
-byte first; it waits for the previous area's transfer, so the module renders the next area while the bus sends this one. From the first
+byte first; it waits for the previous area's transfer, so the module renders the next area while the bus sends this one.
+`zn_panel_copies()` is 1 when the pixels are copied by the time `zn_panel_flush` returns (the 2432S022's 8-bit bus, whose driver
+reformats them): the next area can go into the same buffer, and one is enough. From the first
 area on, the program's `zinc:gfx` display list is no longer shown; an error takes the panel back to show its message.
 `zn_panel_rotate(quarter)` turns the panel a quarter (0 as started, 1 to 3 clockwise) with the controller's MADCTL: the areas sent after
 it are in the turned frame (320 x 240 for 1 and 3), no pixel is moved by hand; the touch stays in the portrait pixels, and an error turns

@@ -1144,6 +1144,10 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | the Bench's program outside LVGL's render, 64 objects (its loop and `pos`) | about 10 ms a frame |
 | the same 64 objects moved by LVGL (`lv.animate` on X and Y, forever) instead of `lv.pos` every frame (Rects / Alpha / Text / Mix), and the free heap | 34/27/29/30 fps against 33/26/29/29; LVGL 28.5 to 32.9 ms (the moves' style refresh is now inside it); 37.9 KB free against 51.8 KB (128 animations, about 110 B each) |
 | Home / Music with the join | 60 fps, LVGL 1.8 to 2.8 ms (5,300 to 6,100 px) / 60 fps, 2.1 ms (9,000 px) |
+| esp32-widgets on the board (i80 bus at 10 MHz), Bench, 24 objects: fps, LVGL a frame (slowest), px a frame | 23 to 25 fps, 31.5 to 35 ms (37.6 to 51.8 ms), 24,000 to 26,500 px (esp32sim: 60 fps, 7.3 ms) |
+| the same, each area sent in transfers of one DMA descriptor (1,023 px, 0x2C then 0x3C), against whole areas on descriptors of 4,092 bytes | 20 to 22 fps, LVGL 37 to 39.6 ms / 24 to 25 fps, 31.5 to 32.9 ms |
+| the board's pages, one tour: Lottie (64 x 64) / Music / Input / Info | 58 to 60 fps, LVGL 13 to 15 ms / 58 fps, 8.2 ms / 60 fps, 0.5 ms / 59 fps, 6.5 ms |
+| free heap on the board at start / after the program loads / on Bench (lowest of the tour), HEAD 93af7fe3 against one LVGL buffer and one band where the i80 driver copies | 196.5 / 98.2 / 17.9 KB against 208.3 / 109.9 / 43.8 KB (24.3 KB, Lottie after Bench) |
 
 ## PERF-16 follow-up: zinc dev and the first start of a zinc:ui program (ZN-774.16, 2026-10-22)
 

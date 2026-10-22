@@ -1,7 +1,8 @@
 /* zinc:lvgl on the native ABI (include/zn/native.h, the export table of zinc_native_lvgl_abi.h that zinc generates from lvgl.spec.ts): LVGL 9
    (vendor/lvgl, configured by lv_conf.h) behind handles. C with no runtime type, so the same file is the plugin's library on the computer and
-   goes into the ESP32's mquickjs firmware. There LVGL renders 32 rows at a time into two DMA buffers of the firmware and sends each to the
-   panel while it renders the next (zn_panel_flush, firmware/esp32-mquickjs/main/main.c); on the computer it renders into an RGBA copy of the
+   goes into the ESP32's mquickjs firmware. There LVGL renders 32 rows at a time into a DMA buffer of the firmware and sends each to the
+   panel while it renders the next (zn_panel_flush, firmware/esp32-mquickjs/main/main.c; two buffers when the bus reads them, one when the
+   firmware copies them: zn_panel_copies); on the computer it renders into an RGBA copy of the
    display that frame() hands to TypeScript. The objects, their styles and layout live in LVGL's memory, not in JavaScript's: a program keeps
    only the handles. Events are queued (listen, nextEvent) rather than called back, as mquickjs carries no callbacks. */
 #include <stdlib.h>
@@ -11,10 +12,13 @@
 #include "vendor/lvgl/lvgl.h"
 
 #ifdef ESP_PLATFORM
+#include <stdio.h>
+#include "esp_heap_caps.h"
 #include "esp_system.h"
 /* the firmware's panel (main.c): a buffer the bus can read, and an area sent to the panel (pixels in its byte order) */
 void *zn_panel_buffer(size_t bytes);
 void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels);
+int zn_panel_copies(void);
 void zn_panel_rotate(int quarter);
 #endif
 
@@ -162,12 +166,14 @@ int32_t zn_lvgl_start(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     height = (int)args[1].i;
     const uint32_t bytes = (uint32_t)(width * BAND * 2);
 #ifdef ESP_PLATFORM
-    void *a = zn_panel_buffer(bytes), *b = zn_panel_buffer(bytes);
+    const int one = zn_panel_copies(); /* the board's bus copies an area before the next renders: 15 KB more for the program */
+    void *a = zn_panel_buffer(bytes), *b = one ? NULL : zn_panel_buffer(bytes);
 #else
+    const int one = 0;
     void *a = malloc(bytes), *b = malloc(bytes);
     rgba = calloc((size_t)width * height, 4);
 #endif
-    if (!a || !b) { host->set_error(cx, "zinc:lvgl: no memory for the draw buffers"); return ZN_ERROR; }
+    if (!a || (!b && !one)) { host->set_error(cx, "zinc:lvgl: no memory for the draw buffers"); return ZN_ERROR; }
     lv_init();
     display = lv_display_create(width, height);
     lv_display_set_buffers(display, a, b, bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
@@ -718,8 +724,20 @@ int32_t zn_lvgl_lottie(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     if (!parent) return ZN_ERROR;
     const int32_t w = (int32_t)args[2].i, h = (int32_t)args[3].i;
     if (w < 1 || h < 1 || w > 1024 || h > 1024) { host->set_error(cx, "zinc:lvgl: lottie() takes a width and a height of 1 to 1024 pixels"); return ZN_ERROR; }
-    void *buf = lv_malloc(lv_draw_buf_width_to_stride(w, LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED) * h + LV_DRAW_BUF_ALIGN);
-    if (!buf) { host->set_error(cx, "zinc:lvgl: no memory left for the animation's buffer (4 bytes a pixel): make it smaller"); return ZN_ERROR; }
+    const size_t bytes = lv_draw_buf_width_to_stride(w, LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED) * h + LV_DRAW_BUF_ALIGN;
+    void *buf = lv_malloc(bytes);
+    if (!buf) {
+#ifdef ESP_PLATFORM /* in one piece: the heap may have more in all, in smaller blocks */
+        char m[256];
+        snprintf(m, sizeof m, "zinc:lvgl: no memory left for the animation's buffer: %u bytes asked (4 a pixel), the largest free block is %u of %u free: "
+                 "make it smaller, or show it before the pages that cut the heap into small blocks", (unsigned)bytes,
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)esp_get_free_heap_size());
+        host->set_error(cx, m);
+#else
+        host->set_error(cx, "zinc:lvgl: no memory left for the animation's buffer (4 bytes a pixel): make it smaller");
+#endif
+        return ZN_ERROR;
+    }
     lv_obj_t *o = lv_lottie_create(parent);
     if (!(ret->i = adopt(cx, o))) { lv_free(buf); return ZN_ERROR; }
     lv_obj_add_event_cb(o, on_delete, LV_EVENT_DELETE, buf);

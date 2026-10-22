@@ -60,7 +60,7 @@ typedef struct {
 static Cmd cmds[MAX_CMDS];
 static char text_pool[TEXT_POOL];
 static int ncmd, ntext, dropped;
-static uint16_t background, *band, *bands[2]; /* the band being rendered, one of two: the bus may still read the other */
+static uint16_t background, *band, *bands[2]; /* the band being rendered, one of two: the SPI bus may still read the other (one is both on i80) */
 static esp_lcd_panel_io_handle_t io;
 static i2c_master_dev_handle_t tp;
 static int touch_down, touch_x, touch_y;
@@ -143,7 +143,8 @@ static void lcd_init(void)
     for (size_t i = 0; i < sizeof seq; i += 2 + seq[i + 1]) lcd_cmd(seq[i], seq[i + 1] ? &seq[i + 2] : NULL, seq[i + 1]);
     static const uint8_t caset[4] = {0, 0, (W - 1) >> 8, (W - 1) & 0xff};
     lcd_cmd(0x2A, caset, 4);
-    for (int i = 0; i < 2; i++) bands[i] = heap_caps_malloc(W * BAND * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    bands[0] = bands[1] = heap_caps_malloc(W * BAND * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (!zn_panel_copies()) bands[1] = heap_caps_malloc(W * BAND * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     /* the backlight: LEDC PWM, 5 kHz and 8 bits as plugins/display-st7789 drives it (inaudible, no visible flicker), a plain pin when LEDC
        is not there; dark until the first frame, which hides the power-on RAM noise */
     const ledc_timer_config_t lt = {.speed_mode = LEDC_LOW_SPEED_MODE, .duty_resolution = LEDC_TIMER_8_BIT, .timer_num = LEDC_TIMER_0, .freq_hz = 5000,
@@ -281,6 +282,17 @@ static void present(void)
 }
 
 /* ---- the panel for a plugin's native code that draws itself (zinc:lvgl, zn.h) */
+
+/* the i80 driver of the ESP32 copies what it sends into a buffer of its own (twice as large: two bytes in each 32-bit word of the I2S
+   FIFO), so the caller's buffer is free again when zn_panel_flush returns */
+int zn_panel_copies(void)
+{
+#ifdef ZN_PANEL_SPI
+    return 0;
+#else
+    return 1;
+#endif
+}
 
 void *zn_panel_buffer(size_t bytes)
 {

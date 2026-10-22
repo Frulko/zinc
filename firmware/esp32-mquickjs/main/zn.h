@@ -29,6 +29,9 @@ int zn_int(JSContext *ctx, int argc, JSValue *argv, int i, int *out);
    for the previous area's transfer). From the first area on, the program's zinc:gfx display list is not shown; an error takes the panel back. */
 void *zn_panel_buffer(size_t bytes);
 void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels);
+/* 1 when zn_panel_flush has copied the pixels by the time it returns (the board's 8-bit i80 bus: its driver reformats them), so the next
+   area can be rendered into the same buffer and one is enough; 0 when the bus still reads them (SPI, the emulator's board): two. */
+int zn_panel_copies(void);
 /* A quarter turn of the panel (0 as started, 1 to 3 clockwise; MADCTL): the areas sent after it are in the turned frame (320 x 240 for 1
    and 3), the touch stays in the panel's portrait pixels. An error turns it back. */
 void zn_panel_rotate(int quarter);

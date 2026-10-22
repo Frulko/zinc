@@ -39,6 +39,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:network` plugin: the machine's interfaces and addresses, and listing, joining and forgetting Wi-Fi networks through NetworkManager (`docs/plugins/network.md`).
 
 ### Changed
+- A program on the ESP32-2432S022 under `--engine mquickjs` has about 26 KB more memory once LVGL draws: the board's panel bus copies each area, so LVGL renders into one buffer and the firmware keeps one band. A Lottie animation now fits after the widgets' benchmark page.
 - A program that styles only with style objects, never with `className`, no longer carries the class parser: about a tenth less code to compile and interpret, and a native app about 145 KB smaller (a React Native program too, sticky section headers included).
 - `zinc dev --device` runs on a device whose Zinc is another release of the same series (0.6.x on both), with a note. Another series is refused with the ways out: `zinc device <name> update`, or `--force` to try anyway (the program may crash). It works with devices that run 0.6.2.
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.
