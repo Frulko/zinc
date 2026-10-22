@@ -473,6 +473,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.12: `zinc:ui` has no `.d.ts` (`lib/ui.d.ts` is a placeholder), so editors show beginners no `PointerEvent`, `KeyEvent` or event attributes: generate it from `lib/std/ui.ts`.
 - ZN-774.12: `app.window` in `zinc.json` should not need `app.id`: a first project wants a window size, not a bundle id.
 - ZN-774.12: a `Button` with no `bg-*` class is a dark box on a light page: let its default follow the page, or say so in `docs/ui-kit.md`.
+- ZN-774.02: translate the long `zinc help <command>` details; only the summaries and the examples are in the catalogs.
+- ZN-774.03: `zinc check --engine quickjs` and the mquickjs check could print the same ok line as the typed check.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -597,6 +599,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-774.01: merge the CoreFoundation language lookup of `src/i18n` and `systemLocale()` of `src/host/sys_host.cpp` into `src/platform`, and add Windows `GetUserPreferredUILanguages` there.
+- ZN-774.02: `zinc new`'s question on Windows: a console raw mode for the arrow keys (it shows numbers there now).
+- ZN-774.02: run `install.sh`, `install.ps1` and the Homebrew install end to end and read their last lines (`zinc --next-steps`).
 - ZN-773: zinc.exe cross built headless (`-DZN_HOST_GFX=OFF`, the windows-cross job) compiles again but does not link: 14 zrt symbols undefined at `<root>` (add_poller, arena_owns, arena_take, StrBuilder, clear_timer, insp_object...), seen 2026-10-21; the job is off until ZINC_WINDOWS_JOBS is set. A macOS build with `ZN_HOST_GFX=OFF` stops on zn_window_load (plugin_build.cpp's weak reference).
 - Module resolution: run `tests/t0/module_resolution.sh` on Linux (it needs zinc-mqjs, esbuild and SWC there).
 - zinc:lvgl on the ESP32-2432S022: the Bench page at 24 and 64 objects (the console line of "Run"), then `JOIN_SLACK` at 2,048 and 8,192 px: it was tuned in esp32sim, which does not time the panel's transfers, and a joined area sends more pixels on the 10 MHz bus.
