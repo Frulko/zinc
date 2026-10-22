@@ -539,9 +539,11 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   }
   h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
+  const std::string vendorHex = vh.hex();
+  h.add(vendorHex);   // the library links the vendored archive: a new archive (its sources, defines, configuration header) relinks it
   const std::string keyHex = h.hex();
   std::string dir = cache + "/" + m.name + "-" + keyHex;
-  std::string vdir = cache + "/" + m.name + "-vendor-" + vh.hex();
+  std::string vdir = cache + "/" + m.name + "-vendor-" + vendorHex;
   bool dyn = true;
   const bool windowsHost = pluginTarget() == "windows";
   std::string ext = pluginTarget() == "macos" ? ".dylib" : windowsHost ? ".dll" : ".so";
@@ -683,6 +685,8 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   if (target == "windows") { const std::string im = zincImplib(engineRoot); if (!im.empty()) in.push_back(im); }
   std::vector<std::string> dirs;
   std::error_code ec;
+  in.push_back(p.dir);   // the configuration headers beside plugin.json (zinc:lvgl's lv_conf.h), which the vendored sources include; one added
+  for (const auto& e : fs::directory_iterator(p.dir, ec)) if (e.is_regular_file() && e.path().extension() == ".h") in.push_back(e.path().string());
   if (m.kind != "display") {
     const fs::path nativeDir = fs::path(p.dir) / "native";
     for (const auto& e : fs::directory_iterator(nativeDir, ec)) in.push_back(e.path().string());   // the spec, every implementation, the headers beside them

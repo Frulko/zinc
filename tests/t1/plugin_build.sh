@@ -22,6 +22,14 @@ secs=$(( $(date +%s) - start ))
 echo "$out" | grep -q "^sqlite built " && [ "$secs" -lt 5 ] || { echo "an edit does not rebuild the plugin in under 5 s ($secs s): $out"; fail=1; }
 [ "$(ls -d "$ZINC_HOME"/cache/*/plugins/sqlite-vendor-* | wc -l | tr -d ' ')" = "$vend" ] || { echo "an edit of the plugin rebuilt its vendored library"; fail=1; }
 [ "$(ls -d "$ZINC_HOME"/cache/*/plugins/* | wc -l | tr -d ' ')" = "$((vend + 2))" ] || { echo "the edit built more than one new plugin directory (the unedited copy shares the engine's entry: keys do not depend on paths, ZN-332)"; fail=1; }
+# a configuration header beside plugin.json (zinc:lvgl's lv_conf.h) rebuilds the vendored archive and relinks the library with it, which is
+# not served from the cache with the old archive inside (qrcode: a small vendored C file)
+cp -R plugins/qrcode "$tmp/proj/plugins/qrcode"
+"$ZINC" plugin-build qrcode "$tmp/proj" >/dev/null 2>&1 || { echo "the qrcode copy does not build"; fail=1; }
+echo '/* a setting */' > "$tmp/proj/plugins/qrcode/zn_conf.h"
+out=$("$ZINC" plugin-build qrcode "$tmp/proj" 2>&1)
+echo "$out" | grep -q "^qrcode built " || { echo "a new configuration header does not relink the plugin: $out"; fail=1; }
+[ "$(ls -d "$ZINC_HOME"/cache/*/plugins/qrcode-vendor-* | wc -l | tr -d ' ')" = 2 ] || { echo "a new configuration header does not rebuild the vendored library"; fail=1; }
 # the interpreter loads it with dlopen, an AOT program links the archives and needs no dlopen
 cat > "$tmp/t.ts" <<'TS'
 import { Database } from 'zinc:sqlite';
