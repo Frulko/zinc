@@ -511,6 +511,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.18: process/shell's proto frame shows the process id, so it moves on every run (161 to 256 px): mask it in the compare.
 - ZN-774.18: examples/carnet-nbe does not pass `zinc check` without its external `@nbe/core` modules.
 - ZN-774.18: notify_relay failed once while other jobs ran (its test tablet stopped answering) and passed alone.
+- ZN-774.18: `zIndex: -1` (and `-z-1`) goes behind its parent's fill on the web DOM (CSS stacking) but stays above it natively; dom.js should make such a parent a stacking context so the two match.
+- ZN-774.18: the class `text-transparent` writes colour -1, which zinc:ui reads as inherited, so the text stays visible while `color: 'transparent'` hides it; the class should hide it too.
+- ZN-774.18: `textShadowRadius` is accepted but drawn sharp, as the `text-shadow-*` classes are; a blurred text shadow in the raster and GL would match React Native and CSS.
+- ZN-774.18: a dotted or dashed text decoration is one rounded rect per dot; a pattern command if long dotted texts show up in a profile.
+- ZN-774.18: `animate()` and `getNumber()` do not know the new keys (zIndex, textShadow*, shadow alpha, decoration colour and style): propValue has no case for them.
+- ZN-774.18: UiNode grew by two i32 (shadow alpha, decoration colour); the cold text record above would take them with the other text-only fields.
+- ZN-774.18: a frame sweep must compare runs from roots of the same shape: a ZINC_ROOT holding build/ moves pocket-hero's spinner at frame 30 (292 px) against one without.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
