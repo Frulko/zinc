@@ -36,8 +36,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
-- Under `--engine quickjs` and `--engine mquickjs`, a relative import picks the platform's file (`x.macos.ts`, `x.esp32.ts`) as the interpreter does, and `zinc:platform`'s `TARGET` is `esp32` on the board.
-- Every engine now takes the same file for an import as the interpreter: under QuickJS, mquickjs, JSC, V8, Hermes, `zinc bundle` and the web target, platform files also apply to index files, to `./x.js` naming `x.ts` and to `tsconfig.json` `paths`, `x.ts` comes before `x.native.tsx`, and `zinc:hardware` loads.
+- Every engine now takes the same file for an import as the interpreter: under QuickJS, mquickjs, JSC, V8, Hermes, `zinc bundle` and the web target, an import picks the platform's file (`x.macos.ts`, `x.esp32.ts`), also for index files, `./x.js` naming `x.ts` and `tsconfig.json` `paths`; `x.ts` comes before `x.native.tsx`, and `zinc:hardware` loads. `zinc:platform`'s `TARGET` is `esp32` on the board.
 - A plugin whose vendored C includes a configuration header beside `plugin.json` (such as `lv_conf.h`) is rebuilt when that header changes, on the computer and in the ESP32 firmware.
 - A plugin's native code on the computer gets the real time from the engine's clock (`now_ms` returned 0).
 - A local variable or parameter named like a Web global (`screen`, `document`, `navigator`...) no longer pulls `zinc:web` into the program, which made a program fail under `--engine mquickjs`.

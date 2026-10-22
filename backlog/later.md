@@ -454,6 +454,10 @@ The next backlog review turns lines into tasks or deletes them.
 - Native ABI: `zn_native_poll(0)` gives the modules' `poll` a zero time on every engine; pass `now_ms()` and drop the argument.
 - Native ABI: `now_ms` of a plugin on the computer is the system's clock, not the deterministic run's virtual one (ZnSink.now is there for an engine to give its own).
 - Web globals: the scan that appends `import { screen } from 'zinc:web'` is blind to scopes (a file that declares `screen` anywhere gets no import); a scoped walk would be exact.
+- Module resolution: the tsconfig lookup from an absolute path with no `tsconfig.json` above falls back to the working directory's; it should stop at the root (shared by every engine since the common resolver).
+- Module resolution: a tsconfig `paths` entry wins over a plugin for the same specifier, which on the web profile would hide the plugin's "web" entry (the examples map `three` to `plugins/three/index.ts`); drop those entries or let plugins win.
+- Module resolution: platform suffixes apply to `.ts`/`.tsx` only; Metro also takes `x.native.js`, which React Native packages in `node_modules` use.
+- Module resolution: `tests/t0/module_resolution.sh` runs the interpreter and the JS engines, not AOT (the same loader, about 3 s a platform).
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
@@ -578,6 +582,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 - ZN-773: zinc.exe cross built headless (`-DZN_HOST_GFX=OFF`, the windows-cross job) compiles again but does not link: 14 zrt symbols undefined at `<root>` (add_poller, arena_owns, arena_take, StrBuilder, clear_timer, insp_object...), seen 2026-10-21; the job is off until ZINC_WINDOWS_JOBS is set. A macOS build with `ZN_HOST_GFX=OFF` stops on zn_window_load (plugin_build.cpp's weak reference).
+- Module resolution: run `tests/t0/module_resolution.sh` on Linux (it needs zinc-mqjs, esbuild and SWC there).
 - zinc:lvgl on the ESP32-2432S022: measure the Input page's scroll (fps and LVGL ms from the UART line every 5 s), then the panel at LCD_HZ 20 MHz (the i80 send of a full page is 12 ms at 10 MHz), `LV_ATTRIBUTE_FAST_MEM` in IRAM, and flash QIO; keep what the board holds.
 - zinc:ble on Linux (BlueZ over D-Bus) and Windows (WinRT); today `state()` is 'unsupported' there.
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
