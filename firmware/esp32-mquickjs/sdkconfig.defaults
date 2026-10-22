@@ -18,3 +18,6 @@ CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 # a firmware sent over Wi-Fi (main/mod_update.c) runs once on trial: the bootloader goes back to the previous one when it does not start
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# a crash leaves ESP-IDF's core dump in its partition: the next start tells where it was (main/main.c, last_stop)
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y

@@ -5107,7 +5107,12 @@ static JSValue __js_poll_interrupt(JSContext *ctx)
 {
     ctx->interrupt_counter = JS_INTERRUPT_COUNTER_INIT;
     if (ctx->interrupt_handler && ctx->interrupt_handler(ctx, ctx->opaque)) {
+        /* zinc patch (third_party/README.md): the backtrace names the opcode before CUR_PC, and a poll comes after a jump: CUR_PC + 1
+           for the throw, so that the stuck loop's own line is named */
+        JSValue pc = ctx->fp[FRAME_OFFSET_CUR_PC];
+        ctx->fp[FRAME_OFFSET_CUR_PC] = JS_NewShortInt(JS_VALUE_GET_INT(pc) + 1);
         JS_ThrowInternalError(ctx, "interrupted");
+        ctx->fp[FRAME_OFFSET_CUR_PC] = pc;
         ctx->current_exception_is_uncatchable = TRUE;
         return JS_EXCEPTION;
     }

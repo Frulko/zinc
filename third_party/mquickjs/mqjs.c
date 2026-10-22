@@ -190,6 +190,17 @@ static JSValue js_clearTimeout(JSContext *ctx, JSValue *this_val, int argc, JSVa
     return JS_UNDEFINED;
 }
 
+/* zinc patch (third_party/README.md): a script (not the REPL) that keeps the engine 10 s in one turn, a loop that never ends, is
+   stopped where it is with its stack, as the ESP32 firmware does (firmware/esp32-mquickjs/main/main.c, stuck_check) */
+static int64_t zn_turn_ms;
+static int zn_stuck(JSContext *ctx, void *opaque)
+{
+    if (get_time_ms() - zn_turn_ms <= 10000)
+        return 0;
+    fprintf(stderr, "the program kept the engine 10 s without coming back to its loop (a loop that never ends?)\n");
+    return 1;
+}
+
 static void run_timers(JSContext *ctx)
 {
     int64_t min_delay, delay, cur_time;
@@ -218,6 +229,7 @@ static void run_timers(JSContext *ctx)
                     JS_DeleteGCRef(ctx, &th->func);
                     th->allocated = FALSE;
                     
+                    zn_turn_ms = get_time_ms(); /* zinc patch */
                     ret = JS_Call(ctx, 0);
                     if (JS_IsException(ret)) {
                     fail:
@@ -750,6 +762,8 @@ int main(int argc, const char **argv)
         mem_buf = malloc(mem_size);
         ctx = JS_NewContext(mem_buf, mem_size, &js_stdlib);
         JS_SetLogFunc(ctx, js_log_func);
+        JS_SetInterruptHandler(ctx, zn_stuck); /* zinc patch */
+        zn_turn_ms = get_time_ms();
         {
             struct timeval tv;
             gettimeofday(&tv, NULL);

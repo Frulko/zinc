@@ -406,6 +406,24 @@ std::string imageId(const std::string& image) {
 // The boards seen on Wi-Fi (the network image prints its update token and its address on the UART): ZINC_HOME/esp32/<name>, "token ip"
 fs::path boardFile(const std::string& name) { return fs::path(zn::tc::home()) / "esp32" / name; }
 
+// A crash the firmware told at its next start (main/main.c last_stop: "... (firmware 1a2b3c4d), backtrace 0x400d1234 ..."): its addresses
+// named from the ELF of that firmware, when zinc built it here (a plugin's native code: ZINC_HOME/esp32/firmware/<key>/build), as
+// idf.py monitor does with addr2line.
+void nameCrash(const std::string& l) {
+  const std::size_t at = l.find("(firmware ");
+  if (at == std::string::npos || l.find("backtrace") == std::string::npos) return;
+  const std::string sha = l.substr(at + 10, 8);
+  std::error_code ec;
+  std::string elf, tool, addrs, out;
+  for (const auto& e : fs::directory_iterator(fs::path(zn::tc::home()) / "esp32/firmware", ec))
+    if (fs::exists(e.path() / "build/zinc-mquickjs.elf", ec) && zn::tc::sha256File((e.path() / "build/zinc-mquickjs.elf").string()).rfind(sha, 0) == 0) elf = (e.path() / "build/zinc-mquickjs.elf").string();
+  for (const auto& e : fs::directory_iterator(fs::path(zn::tc::home()) / "esp-tools/tools/xtensa-esp-elf", ec))
+    if (fs::exists(e.path() / "xtensa-esp-elf/bin/xtensa-esp32-elf-addr2line", ec)) tool = (e.path() / "xtensa-esp-elf/bin/xtensa-esp32-elf-addr2line").string();
+  if (elf.empty() || tool.empty()) return;
+  for (std::size_t a = l.find("0x", l.find("backtrace")); a != std::string::npos; a = l.find("0x", a + 2)) addrs += " " + l.substr(a, 10);   // the first is the crash's
+  if (capture(quote(tool) + " -pfiaC -e " + quote(elf) + addrs, out) == 0) std::fprintf(stderr, "%s", out.c_str());
+}
+
 // The firmware's UART, line by line: its own lines (mqjs: ...) on stderr, the program's print and console.log on stdout, the positions mapped
 // to the user's files; the ROM's boot log before the firmware starts is not shown. `rc` becomes 0 when the program ends, 1 when it fails (the
 // rest of an error follows its first line within a moment: `failed` is when it began).
@@ -414,11 +432,12 @@ struct Uart {
   const Program& p;
   bool firmware = false;
   int rc = -1;
+  int boots = 0;   // the firmware's starts seen: a crash told after the first one happened during this run
   clock::time_point failed = clock::time_point::max();
   std::string id, token;   // the firmware's "<name> <sha>"; the update token of the network image
   explicit Uart(const Program& q) : p(q) {}
   void take(const std::string& l) {
-    if (l.rfind("mqjs: firmware ", 0) == 0) id = l.substr(15);
+    if (l.rfind("mqjs: firmware ", 0) == 0) id = l.substr(15), boots++;
     else if (l.rfind("mqjs: update token ", 0) == 0) token = l.substr(19);
     else if (l.rfind("mqjs: wifi connected to ", 0) == 0 && !token.empty()) {   // "... as zinc-ab12.local (192.168.1.20)"
       const std::size_t as = l.find(" as "), dot = l.find(".local (", as), end = l.find(')', dot);
@@ -434,6 +453,10 @@ struct Uart {
       firmware = true;
       std::fprintf(stderr, "%s\n", p.mapped(l).c_str());
       if (l.find("the program ended") != std::string::npos) rc = 0;
+      else if (l.rfind("mqjs: this program's last stop", 0) == 0 && l.find("the board restarted after") != std::string::npos) {
+        nameCrash(l);
+        if (boots > 1) failed = clock::now();
+      } else if (l.rfind("mqjs: safe mode", 0) == 0) failed = clock::now();
       // a failure; "no touch controller" is not one: a board without touch (the S022N) and the emulator go on
       else if (l.rfind("mqjs: Error", 0) == 0 || l.rfind("mqjs: Syntax error", 0) == 0 || (l.rfind("mqjs: no ", 0) == 0 && l.rfind("mqjs: no touch", 0) != 0)) failed = clock::now();
     } else if (firmware) {
@@ -460,7 +483,8 @@ int flashFirmware(const std::string& root, std::string port, bool net, const Pro
 
 // The program into the js partition (a second for a few KB), then the board's UART: the firmware's lines (mqjs: ...) on stderr, the program's
 // print and console.log on stdout, until it ends (0), fails (1) or `runMs` have passed (0). The boot log of the ROM before the firmware is not shown.
-int runOnBoard(const std::string& root, const Program& p, std::string port, int runMs) {
+// `attach`: nothing written and no reset, the UART of the board as it runs (what a board without a screen tells, its last stop at its next start).
+int runOnBoard(const std::string& root, const Program& p, std::string port, int runMs, bool attach) {
   using clock = std::chrono::steady_clock;
   std::string err, tool, log;
   if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
@@ -469,14 +493,14 @@ int runOnBoard(const std::string& root, const Program& p, std::string port, int 
   // the firmware the program needs: the network image for the radio, else either (the network image runs every program)
   // with native modules, only the image built for them; built before the program is written, or the board's older firmware runs the
   // new program (a ReferenceError on its screen) for the minutes the build takes
-  const std::string small = imageId(imageFor(root, p, false, p.net, err)), net = p.natives.empty() ? imageId(firmwareImage(root, false, true, err)) : small;
-  if (small.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+  const std::string small = attach ? "" : imageId(imageFor(root, p, false, p.net, err)), net = attach || !p.natives.empty() ? small : imageId(firmwareImage(root, false, true, err));
+  if (small.empty() && !attach) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const auto t = clock::now();
-  if (capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash " + kJsOffset + " " + quote(p.img), log) != 0) {
+  if (!attach && capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash " + kJsOffset + " " + quote(p.img), log) != 0) {
     std::fprintf(stderr, "%szinc: esptool cannot write the program to %s (above)\n", log.c_str(), port.c_str());
     return 1;
   }
-  zn::log::step("flash", "the program to " + port + " at " + kJsOffset, zn::log::since(t));
+  if (!attach) zn::log::step("flash", "the program to " + port + " at " + kJsOffset, zn::log::since(t));
   bool reflashed = false;
 again:
   zn::dev::Link link;
@@ -485,13 +509,16 @@ again:
   // drives EN and DTR drives GPIO0, as esptool's "hard reset": EN low with GPIO0 high, then EN high)
 #ifndef _WIN32   // openSerial has no Windows port yet (dev/client.cpp): it failed above
   int dtr = TIOCM_DTR, rts = TIOCM_RTS;
-  ioctl(link.in, TIOCMBIC, &dtr);
-  ioctl(link.in, TIOCMBIS, &rts);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  ioctl(link.in, TIOCMBIC, &rts);
+  if (!attach) {
+    ioctl(link.in, TIOCMBIC, &dtr);
+    ioctl(link.in, TIOCMBIS, &rts);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    ioctl(link.in, TIOCMBIC, &rts);
+  }
 #endif
   const auto start = clock::now();
   Uart uart(p);
+  if (attach) uart.firmware = true, uart.boots = 1;   // it already runs: its lines from the first, and a crash from now on fails
   std::string line;
   for (char buf[512]; uart.rc < 0;) {
     const ssize_t n = ::read(link.in, buf, sizeof buf);
@@ -503,8 +530,8 @@ again:
     const auto now = clock::now();
     const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
     // another firmware (or an older build of this one, or another program on the board): the right one is written once, then the board starts again
-    const bool other = (uart.firmware && uart.id.empty()) || (!uart.firmware && ms > 4000) ||
-                       (!uart.id.empty() && uart.id != net && (p.net || uart.id != small));
+    const bool other = !attach && ((uart.firmware && uart.id.empty()) || (!uart.firmware && ms > 4000) ||
+                                   (!uart.id.empty() && uart.id != net && (p.net || uart.id != small)));
     if (other && !reflashed) {
       zn::dev::closeLink(link);
       std::fprintf(stderr, "zinc: the board runs %s; it gets %s (once)\n", uart.id.empty() ? "another firmware" : ("the firmware " + uart.id).c_str(),
@@ -516,8 +543,8 @@ again:
     if (other) {
       std::fprintf(stderr, "zinc: the board does not answer as the mquickjs firmware does, even after it was written (%s)\n", uart.id.c_str());
       uart.rc = 1;
-    } else if (uart.failed != clock::time_point::max() && now - uart.failed > std::chrono::milliseconds(500)) uart.rc = 1;
-    else if (runMs > 0 && ms > runMs) uart.rc = 0;
+    } else if (!attach && uart.failed != clock::time_point::max() && now - uart.failed > std::chrono::milliseconds(500)) uart.rc = 1;
+    else if (runMs > 0 && ms > runMs) uart.rc = uart.failed != clock::time_point::max();   // attached, it watched what followed a failure
   }
   zn::dev::closeLink(link);
   return uart.rc;
@@ -808,7 +835,8 @@ int runOnEmulator(const std::string& root, const Program& p, int runMs, const st
 // The same over Wi-Fi, to a board running the network image (main/mod_update.c): its firmware brought up to date first (POST /ota, the
 // app of the merged image), then the program (POST /js); the board restarts and its console comes from GET /log until the program ends,
 // fails or `runMs` have passed. `host` is a board's name (zinc-ab12, zinc-ab12.local), an address, or "" for the last board seen over USB.
-int runOverWifi(const std::string& root, const Program& p, std::string host, int runMs) {
+// `attach`: nothing sent, the console of the board as it runs.
+int runOverWifi(const std::string& root, const Program& p, std::string host, int runMs, bool attach) {
   using clock = std::chrono::steady_clock;
   std::string text, err, name = host;
   if (name.empty() && readText(boardFile("last"), text)) name = host = text.substr(0, text.find('\n'));
@@ -847,21 +875,23 @@ int runOverWifi(const std::string& root, const Program& p, std::string host, int
   std::string sha, out;
   const auto t = clock::now();
   if (!info(sha)) { std::fprintf(stderr, "zinc: no board answers at %s (on the same network? its screen or UART says its address)\n", base.c_str()); return 1; }
-  const std::string image = imageFor(root, p, false, true, err), id = imageId(image);
-  if (image.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-  const std::string want = id.substr(id.find(' ') + 1);
-  if (sha != want) {   // the network firmware of this zinc: its app, out of the merged image
-    std::string bin;
-    readText(image, bin);
-    const std::string app = p.work + "/firmware-app.bin";
-    writeText(app, bin.substr(kAppOffset));
-    if (!post("/ota", app, out) || !wait(want)) { std::fprintf(stderr, "%s\nzinc: the firmware update over Wi-Fi failed; the board keeps its own (zinc run over USB writes it)\n", out.c_str()); return 1; }
-    zn::log::step("firmware", "updated over Wi-Fi to " + id, zn::log::since(t));
+  if (!attach) {
+    const std::string image = imageFor(root, p, false, true, err), id = imageId(image);
+    if (image.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    const std::string want = id.substr(id.find(' ') + 1);
+    if (sha != want) {   // the network firmware of this zinc: its app, out of the merged image
+      std::string bin;
+      readText(image, bin);
+      const std::string app = p.work + "/firmware-app.bin";
+      writeText(app, bin.substr(kAppOffset));
+      if (!post("/ota", app, out) || !wait(want)) { std::fprintf(stderr, "%s\nzinc: the firmware update over Wi-Fi failed; the board keeps its own (zinc run over USB writes it)\n", out.c_str()); return 1; }
+      zn::log::step("firmware", "updated over Wi-Fi to " + id, zn::log::since(t));
+    }
+    const auto t1 = clock::now();
+    if (!post("/js", p.img, out)) { std::fprintf(stderr, "%s\nzinc: the board refused the program (the token? zinc run over USB reads it again)\n", out.c_str()); return 1; }
+    zn::log::step("send", "the program to " + base, zn::log::since(t1));
+    if (!wait("")) { std::fprintf(stderr, "zinc: the board did not come back on the network after its restart\n"); return 1; }
   }
-  const auto t1 = clock::now();
-  if (!post("/js", p.img, out)) { std::fprintf(stderr, "%s\nzinc: the board refused the program (the token? zinc run over USB reads it again)\n", out.c_str()); return 1; }
-  zn::log::step("send", "the program to " + base, zn::log::since(t1));
-  if (!wait("")) { std::fprintf(stderr, "zinc: the board did not come back on the network after its restart\n"); return 1; }
   const auto start = clock::now();
   std::size_t from = 0;
   std::string pending;
@@ -876,7 +906,10 @@ int runOverWifi(const std::string& root, const Program& p, std::string host, int
         if (text.rfind("X-Zinc-State: ", 0) == 0) state = text.substr(14, text.find_first_of("\r\n", 14) - 14);
       }
       pending += body;
-      for (std::size_t nl; (nl = pending.find('\n')) != std::string::npos; pending.erase(0, nl + 1)) std::printf("%s\n", p.mapped(pending.substr(0, nl)).c_str());
+      for (std::size_t nl; (nl = pending.find('\n')) != std::string::npos; pending.erase(0, nl + 1)) {
+        std::printf("%s\n", p.mapped(pending.substr(0, nl)).c_str());
+        if (pending.rfind("mqjs: this program's last stop", 0) == 0) std::fflush(stdout), nameCrash(pending.substr(0, nl));
+      }
       std::fflush(stdout);
       if (state == "ended") return 0;
       if (state == "failed") return 1;
@@ -934,7 +967,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   const std::string& cmd = args[1];
   std::string target, port, out, entry = ".";
   int frames = 300, runMs = 0;
-  bool emulator = false, live = false, net = false, wifi = false;
+  bool emulator = false, live = false, net = false, wifi = false, attach = false;
   std::string script, host;
   for (std::size_t k = 2; k < args.size(); ++k) {
     const std::string& a = args[k];
@@ -948,10 +981,11 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
     else if (a == "--emulator") emulator = true;
     else if (a == "--live") emulator = live = true;
     else if (a == "--net") net = true;
+    else if (a == "--attach") attach = true;
     else if (a == "--host" && more) { wifi = true; host = args[++k] == "last" ? "" : args[k]; }
     else if (a == "--emulator-script" && more) { emulator = true; script = fs::absolute(args[++k]).string(); }
     else if (a[0] != '-') entry = a;
-    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export|check <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--live] [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export|check <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--live] [--emulator-script F]] [--attach] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
   }
   if (target != "esp32") { std::fprintf(stderr, "zinc: --engine mquickjs runs on --target esp32 (the board's firmware, firmware/esp32-mquickjs)\n"); return 2; }
   if (cmd == "flash") return flashFirmware(root, port, net);
@@ -971,7 +1005,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   Program p;
   if (const int rc = prepare(root, file, cacheDir, frames, p)) return rc;
   if (cmd == "check") return 0;   // checked under mquickjs and compiled; nothing built for or written to a board
-  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script, live, projectDir.filename().string()) : wifi ? runOverWifi(root, p, host, runMs) : runOnBoard(root, p, port, runMs);
+  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script, live, projectDir.filename().string()) : wifi ? runOverWifi(root, p, host, runMs, attach) : runOnBoard(root, p, port, runMs, attach);
   return exportTo(root, p, out.empty() ? projectDir / "dist" / (projectDir.filename().string() + "-esp32") : fs::path(out));
 }
 

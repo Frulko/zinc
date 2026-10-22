@@ -3,6 +3,7 @@
    computer, run from the mapped flash (no RAM for the program), or JavaScript source, parsed here. Drawing is a display list: a frame records commands, then renders them BAND rows at a
    time and sends each band while the next one renders, so there is no frame buffer in RAM (240x320x2 would be 150 KiB) and no tearing
    between commands. */
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +14,8 @@
 #include "driver/ledc.h"
 #include "driver/spi_master.h"
 #include "esp_app_desc.h"
+#include "esp_attr.h"
+#include "esp_core_dump.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_io_i80.h"
 #include "esp_lcd_io_spi.h"
@@ -21,6 +24,7 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_rom_crc.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "nvs.h"
@@ -717,6 +721,35 @@ static void touch_calibrate(void)
 
 /* ---- the program */
 
+/* Why the program stopped last time, for a board without a screen or with nobody watching it: its exception, or the crash that
+   restarted the board (from ESP-IDF's core dump), kept in the NVS with the program's CRC and told at each start until another
+   program runs (last_stop). */
+typedef struct { uint32_t crc; char text[1020]; } Stop;
+static uint32_t prog_crc;
+static RTC_NOINIT_ATTR uint32_t crash_magic, crashes; /* restarts by a crash in a row: the RTC memory keeps them across a panic */
+
+static void stop_keep(const char *what, const char *text, size_t len) /* "<what>: <text>", or the text alone */
+{
+    Stop stop = {prog_crc};
+    const size_t k = what ? snprintf(stop.text, sizeof stop.text, "%s: ", what) : 0;
+    if (len > sizeof stop.text - 1 - k) len = sizeof stop.text - 1 - k;
+    memcpy(stop.text + k, text, len);
+    stop.text[k + len] = 0;
+    nvs_handle_t h;
+    if (nvs_open("zinc.sys", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "stop", &stop, sizeof stop.crc + k + len + 1);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+/* A program that keeps the board for STUCK_US without coming back to the loop (a loop that never ends) is stopped by mquickjs where
+   it is, with its stack: js_since is when the board last called into JavaScript. */
+#define STUCK_US 10000000
+static int64_t js_since;
+static int stuck;
+static int stuck_check(JSContext *ctx, void *opaque) { return stuck = esp_timer_get_time() - js_since > STUCK_US; }
+
 /* The exception on the UART and on the screen, white on dark red, wrapped at 30 columns; the program stops there. */
 static void show_error(JSContext *ctx, const char *what)
 {
@@ -726,10 +759,12 @@ static void show_error(JSContext *ctx, const char *what)
     static char msg[1024];
     capture = msg;
     ncapture = 0;
-    printf("mqjs: %s: ", what);
+    if (stuck) what = "Stuck for 10 s", printf("mqjs: Error: the program kept the board %d s without coming back to its loop (a loop that never ends?): ", STUCK_US / 1000000);
+    else printf("mqjs: %s: ", what);
     JS_PrintValueF(ctx, JS_GetException(ctx), JS_DUMP_LONG);
     printf("\n");
     capture = NULL;
+    stop_keep(what, msg, ncapture);
     ncmd = ntext = 0;
     background = rgb565(0x5a0e0e);
     text(what, strlen(what), 8, 8, 0xffd0d0, 2);
@@ -788,6 +823,7 @@ static const uint8_t *read_program(uint32_t *plen, int *pbytecode)
     if (memcmp(map, "ZNJS", 4) || len > p->size - 8) return NULL;
     const uint8_t *src = map + 8;
     *plen = len;
+    prog_crc = esp_rom_crc32_le(0, src, len);
     if (!(*pbytecode = JS_IsBytecode(src, len))) {
         uint8_t *buf = malloc(len + 1);
         if (!buf) printf("mqjs: no room for the program's %u bytes of source\n", (unsigned)len);
@@ -803,7 +839,7 @@ static const uint8_t *read_program(uint32_t *plen, int *pbytecode)
     const uint8_t *copy = map + at + sizeof(CopyHead);
     uint32_t key;
     memcpy(&key, esp_app_get_description()->app_elf_sha256, 4);
-    const CopyHead want = {{'Z', 'N', 'J', 'R'}, len, esp_rom_crc32_le(0, src, len), key ^ (uint32_t)(uintptr_t)copy};
+    const CopyHead want = {{'Z', 'N', 'J', 'R'}, len, prog_crc, key ^ (uint32_t)(uintptr_t)copy};
     if (memcmp(map + at, &want, sizeof want)) {
         int64_t t0 = esp_timer_get_time();
         if (!relocate(p, at, span, src, len, (uintptr_t)copy) || esp_partition_write(p, at, &want, sizeof want) != ESP_OK) return NULL;
@@ -886,6 +922,7 @@ static int call(JSContext *ctx, const char *name, int n, const int *v, const cha
     *s = text ? JS_NewStringLen(ctx, text, len) : JS_UNDEFINED;
     const int argc = n + (text != NULL), ready = JS_IsFunction(ctx, *f) && !JS_IsException(*s), full = ready && JS_StackCheck(ctx, argc + 2);
     if (ready && !full) {
+        js_since = esp_timer_get_time();
         if (text) JS_PushArg(ctx, *s);
         for (int i = n - 1; i >= 0; i--) JS_PushArg(ctx, JS_NewInt32(ctx, v[i])); /* small integers: no allocation */
         JS_PushArg(ctx, *f);
@@ -977,6 +1014,7 @@ static void run(JSContext *ctx)
             touch_poll();
             last = f0;
             int64_t p0 = present_us;
+            js_since = esp_timer_get_time();
             if (full || JS_IsException(JS_Call(ctx, 1))) { show_error(ctx, "Error"); return; }
             if (keep_frame) {
                 keep_frame = 0;
@@ -1007,6 +1045,7 @@ static void run(JSContext *ctx)
                    bands10 % 10, H / BAND, dropped, events_dropped, (unsigned)esp_get_free_heap_size(),
                    (unsigned)uxTaskGetStackHighWaterMark(NULL)); /* bytes on the ESP32's FreeRTOS: a native plugin's depth (ThorVG) */
             if (frames < 1000) JS_DumpMemory(ctx, 0);
+            if (t > 30000000) crashes = 0; /* it ran: the crashes before were not in a row */
             mark = t;
             mark_frames = frames;
             js_us = present_us = 0;
@@ -1014,6 +1053,52 @@ static void run(JSContext *ctx)
         }
         if (wait > 0 && xQueueReceive(events, &e, pdMS_TO_TICKS(wait)) == pdTRUE && deliver(ctx, &e) < 0) { show_error(ctx, "Error"); return; }
     }
+}
+
+/* At start, once the program is read: the crash that restarted the board becomes the program's last stop, which is told (on the UART
+   and in GET /log); 1 after three crashes in a row, each within 30 s of its start: the safe mode, where the program does not run and
+   a new one can come (zinc run over USB, or Wi-Fi). Pressing RST or a power cycle tries the program again. */
+static int last_stop(void)
+{
+    const esp_reset_reason_t r = esp_reset_reason();
+    const char *why = r == ESP_RST_PANIC                          ? "a crash"
+                      : r == ESP_RST_INT_WDT || r == ESP_RST_WDT  ? "the interrupt watchdog"
+                      : r == ESP_RST_TASK_WDT                     ? "the task watchdog"
+                      : r == ESP_RST_BROWNOUT                     ? "a drop of its supply voltage (brownout)"
+                                                                  : NULL;
+    if (crash_magic != 0x5a4e4352) crash_magic = 0x5a4e4352, crashes = 0;
+    crashes = why && r != ESP_RST_BROWNOUT ? crashes + 1 : 0; /* a weak supply is not the program's */
+    char t[256];
+    Stop stop = {0};
+    if (why) {
+        int k = snprintf(t, sizeof t, "the board restarted after %s", why);
+        esp_core_dump_summary_t sum;
+        if (esp_core_dump_image_check() == ESP_OK && esp_core_dump_get_summary(&sum) == ESP_OK) {
+            k += snprintf(t + k, sizeof t - k, " in task %s at 0x%08" PRIx32 " (firmware %.8s), backtrace", sum.exc_task, sum.exc_pc,
+                          (const char *)sum.app_elf_sha256);
+            for (uint32_t i = 0; i < sum.exc_bt_info.depth && k < (int)sizeof t - 12; i++) k += snprintf(t + k, sizeof t - k, " 0x%08" PRIx32, sum.exc_bt_info.bt[i]);
+        }
+        esp_core_dump_image_erase();
+        stop_keep(NULL, t, k < (int)sizeof t ? k : sizeof t - 1);
+    }
+    nvs_handle_t h;
+    size_t n = sizeof stop;
+    if (nvs_open("zinc.sys", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "stop", &stop, &n) != ESP_OK) stop.crc = 0;
+        nvs_close(h);
+    }
+    if (stop.crc == prog_crc && stop.text[0]) {
+        static const char head[] = "mqjs: this program's last stop (kept until another one runs): ";
+        out(head, sizeof head - 1);
+        out(stop.text, strlen(stop.text));
+        out("\n", 1);
+    }
+    if (crashes < 3) return 0;
+    snprintf(t, sizeof t, "mqjs: safe mode: the program restarted the board %u times in a row, it does not run until a new one is sent\n", (unsigned)crashes);
+    out(t, strlen(t));
+    zn_program_state = 2; /* GET /log says it failed */
+    message("Safe mode", "crashed 3 times: send a fix");
+    return 1;
 }
 
 void app_main(void)
@@ -1046,6 +1131,12 @@ void app_main(void)
 #endif
         return;
     }
+    if (last_stop()) {
+#ifdef ZN_NET
+        zn_wifi_auto();
+#endif
+        return;
+    }
     void *mem = heap_caps_malloc(JS_HEAP, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!mem) {
         printf("mqjs: no %d bytes for the JavaScript heap\n", JS_HEAP);
@@ -1053,6 +1144,8 @@ void app_main(void)
     }
     JSContext *ctx = JS_NewContext(mem, JS_HEAP, &js_stdlib);
     JS_SetLogFunc(ctx, log_write);
+    JS_SetInterruptHandler(ctx, stuck_check);
+    js_since = esp_timer_get_time(); /* the program's load and first run */
     JSValue val;
     if (bytecode) {
         val = JS_LoadBytecode(ctx, prog);

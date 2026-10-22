@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- An ESP32 under `--engine mquickjs` tells why its program stopped, screen or not: the exception, a loop that never ends (stopped after 10 s, with its line) or a crash of the C (from ESP-IDF's core dump, the functions named by `zinc run`). The board keeps it and tells it again at each start until another program runs; three crashes in a row put it in safe mode, where a new program can still come.
+- `zinc run <app> --target esp32 --engine mquickjs --attach` reads a board that already runs, over USB or Wi-Fi, without writing or restarting it.
 - The ESP32-2432S022 calibrates its touch under `--engine mquickjs`: keep a finger on the screen while the board starts and tap the five crosses it shows. The board keeps the correction (up to 45 px towards the edges on this panel) for every program; `zinc:device` reads and sets it with `touchMap()` and `setTouchMap()`, which also turn or mirror the touch.
 - `examples/touch-check` measures how precise a touch screen is over several rounds of crosses, shows its distortion, fits the map that corrects it with a confidence that rises as the rounds agree, and applies it on the board. `zinc:lvgl` gives the pointer in the display's pixels with `pointerX()`, `pointerY()` and `pointerDown()`.
 - The website offers English, French, Spanish, Italian and German navigation, getting started pages and guides, with a language switcher.
@@ -55,6 +57,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- `zinc run` and `zinc check` with `--engine mquickjs` no longer hang on a program with a loop that never ends: the check stops it after 10 s and names its line.
 - `zinc run --target esp32` builds the firmware a program's plugins need before it writes the program, so the board no longer shows a ReferenceError ("not in this firmware") during the build.
 - An animated screen on the ESP32-2432S022 under `--engine mquickjs` no longer freezes after a few seconds: ESP-IDF's driver for its 8-bit panel bus could cut a transfer in the middle of a 32-bit word, and the DMA then stopped for good.
 - GitHub releases display the changelog from the tagged commit, including when checkout loses the tag annotation. Failed or unwatched releases keep their notes in `Unreleased`; reruns restore the complete release notes and only archive published entries, leaving newer edits pending.

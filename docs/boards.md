@@ -220,6 +220,22 @@ reads and sets the map with `device.touchMap()` and `device.setTouchMap()`; `exa
 several rounds, shows its distortion and the confidence in the map, and applies it. The map is in the panel's portrait
 pixels: `lv.rotate()` turns the touch after it.
 
+**When the program stops (`--engine mquickjs`), screen or not.** The firmware tells why on its UART (and in `GET /log` of the
+network image), where `zinc run` shows it with the user's files and lines, and keeps it on the board (NVS, with the program's CRC)
+until another program runs: each start prints `mqjs: this program's last stop (kept until another one runs): ...`.
+- An exception stops the program where it was, with its stack.
+- A program that keeps the board 10 s without coming back to its loop (a loop that never ends) is stopped the same way, where it
+  is: `Error: the program kept the board 10 s without coming back to its loop`.
+- A crash of the C (a plugin's native code, the firmware) restarts the board and leaves ESP-IDF's core dump in its partition: the next
+  start tells the task, the address and the backtrace, and `zinc run` names the functions and lines from the firmware it built
+  (`addr2line`, as `idf.py monitor` does). A watchdog or a drop of the supply voltage (brownout) is told the same way.
+- Three crashes in a row, each within 30 s of the start, put the board in safe mode: the program does not run (`Safe mode` on the
+  screen, `mqjs: safe mode` on the UART) until a new one is sent; RST or a power cycle tries it again.
+
+`zinc run <app> --target esp32 --engine mquickjs --attach` reads a board that already runs, over USB (`--port`) or Wi-Fi (`--host`),
+without writing or restarting it, until `--run-ms` or Ctrl-C; it ends with 1 when it saw a failure. Over Wi-Fi it starts with the
+console the board kept (`GET /log`).
+
 ### zinc:device (`plugins/device`)
 
 ```ts
