@@ -9,7 +9,7 @@ The words and the register (vous, tú, tu, du) are fixed in `i18n/glossary.md`: 
 
 The onboarding set, in every language:
 
-- `docs/start/choose.md`, `docs/start/styles.md`, `docs/reference/syntax.md`, `docs/guide/01-getting-started.md`
+- `docs/start/choose.md`, `docs/start/styles.md`, `docs/start/beyond.md`, `docs/reference/syntax.md`, `docs/guide/01-getting-started.md`
 - `docs/learn/README.md` and the lessons `docs/learn/NN-*.md`
 - the site's home page and get-started page, and its menu and notices (`site/src/i18n/<lang>.json`)
 - one `README.<lang>.md` beside the `README.md` of each template of `templates/` (`zinc new` copies the one for the language)

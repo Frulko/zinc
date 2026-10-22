@@ -18,7 +18,7 @@ root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 if args[:1] == ["--repo"]: root, args = os.path.abspath(args[1]), args[2:]
 docs = os.path.join(root, "docs")
 # The onboarding set (ZN-774.11, ZN-774.12): translated in every language.
-SET = ["start/choose.md", "start/styles.md", "reference/syntax.md", "guide/01-getting-started.md", "learn/README.md"]
+SET = ["start/choose.md", "start/styles.md", "start/beyond.md", "reference/syntax.md", "guide/01-getting-started.md", "learn/README.md"]
 if os.path.isdir(os.path.join(docs, "learn")):
     SET += sorted(f"learn/{f}" for f in os.listdir(os.path.join(docs, "learn")) if re.match(r"\d\d-.*\.md$", f))
 

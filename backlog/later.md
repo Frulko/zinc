@@ -531,6 +531,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.18: `sheetNumber` reads any `@` key holding a colon as a colour (`@prop:hex`), so a backgroundImage `url(data:…)` or `url(https://…)` would be misread; match the colour form exactly.
 - ZN-774.18: a hand-built `new ui.Style(['@font-mono'], …)` silently does nothing in a program without classes (the `@` keys are compiler output); a debug-build check would say so.
 - ZN-774.18: step 7 of docs/reports/ui-primitives-like-react-native.md (the field editor behind `_field` and `ui.createField`, about 5,700 instructions) only helps programs with no field (boards, displays), by about as much as step 6; do it when a board program's size matters.
+- ZN-774.19: a lazy Canvas holding a stage (`style={{ lazy: 1 }}`) is not repainted when the scene changes; `Stage.drawIn` asking zinc:ui for a repaint when the scene is dirty would let an idle scene inside an interface cost nothing on old tablets (today the Canvas paints every frame).
+- ZN-774.19: an AS3-style `DisplayObject.localToGlobal` would let interface elements follow a sprite nested anywhere in a scene, not only a direct child of a stage at the window's corner.
+- ZN-774.19: run the seven samples of docs/start/beyond.md on `--native` and on the web target (DOM render); only the interpreter and QuickJS were checked.
+- ZN-774.19: `Stage.drawIn` sets the drawing position absolutely, so a scene in a Canvas under a rotated parent draws upright; a scroll box inside the box clips its zones to its own rectangle only.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
