@@ -218,9 +218,12 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   std::string natives;
   if (findNatives(root, bo.entry, es5, p, natives)) return 1;
   // the check: the host mquickjs runs it for `frames` frames against the board's host calls, in twice the board's heap (the computer's values
-  // are 8 bytes, the board's 4); from its directory, so that the traces name <name>.js as the board's do
+  // are 8 bytes, the board's 4) plus the program's bytecode, which it compiles into that heap where the board runs it from the flash; from
+  // its directory, so that the traces name <name>.js as the board's do
+  std::string bc64;
+  if (capture("cd " + quote(p.work) + " && " + quote(mqjs) + " -o " + quote(p.name + ".bc64") + " " + quote(p.name + ".js"), log) != 0 || !readText(p.work + "/" + p.name + ".bc64", bc64)) bc64.clear();   // a syntax error: the check says it
   if ((p.natives.empty() || !natives.empty()) &&
-      capture("cd " + quote(p.work) + " && ZINC_MQJS_NATIVE=" + quote(natives) + " " + quote(mqjs) + " --memory-limit " + std::to_string(2 * kHeap) + " -I sim.js " + quote(p.name + ".js"), log) != 0) {
+      capture("cd " + quote(p.work) + " && ZINC_MQJS_NATIVE=" + quote(natives) + " " + quote(mqjs) + " --memory-limit " + std::to_string(2 * kHeap + bc64.size()) + " -I sim.js " + quote(p.name + ".js"), log) != 0) {
     std::fprintf(stderr, "%szinc: %s fails under mquickjs on the computer (above); nothing was sent to the board\n", p.mapped(log).c_str(), zn::log::shortPath(bo.entry).c_str());
     return 1;
   }
