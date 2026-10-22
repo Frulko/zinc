@@ -229,6 +229,10 @@ and `zinc run` in a directory that is not a project says `zinc: no project here`
 
 ## Where to go next
 
+`zinc tour` walks this page again in your terminal, in eight steps that each check themselves: a project, a run, a change, a
+mistake and `zinc explain`, Fast Refresh with `zinc dev`, a kind of program, the docs, Zinc Atelier. It keeps your place
+(`zinc tour --list`, `zinc tour 5`, `zinc tour --reset`), in your language. Then [the lessons](../learn/README.md) go on.
+
 - **You teach.** [The language](02-language.md) is TypeScript with the rules listed there, and each error code explains itself
   (`zinc explain`). `zinc new game-2d` is a complete small game to read and change in class; `zinc run examples/breakout` is
   another. `zinc test` runs the `*.test.ts` files of a project ([testing](06-testing.md)). The programs run the same on the

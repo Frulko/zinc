@@ -28,6 +28,10 @@ int unknownCommand(const std::string& name);
 
 /** `zinc init <dir> [--template game|cli|server|iot|remarkable]`: a project that `zinc run` runs. */
 int init(const std::vector<std::string>& args, const std::string& engineRoot);
+/** A page of the documentation site ("learn/" gives https://frulko.github.io/zinc/docs/learn/): every link the command line prints. */
+std::string docs(const char* page);
+/** `zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]`: the guided first walk (src/cli_tour.cpp). */
+int tour(const std::vector<std::string>& args);
 
 /** Your settings ($ZINC_HOME/config.json, shared with Zinc Atelier): one string value, "" when it is not set; saving keeps the keys
  *  this zinc does not know, and an empty value removes the key. */
