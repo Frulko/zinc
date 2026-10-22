@@ -2,9 +2,11 @@
 # The style keys of what was class-only (ZN-774.18, docs/ui.md "Object styles and StyleSheet"): tests/golden/style-keys/objects.tsx gives zIndex, fontStyle,
 # textTransform, textDecorationLine/Color/Style, textShadowColor/Offset/Radius, fontWeight 100 to 900, the alpha and transparent of color, borderColor and
 # shadowColor, shadowLevel, pointerEvents and cursor as style objects (static, and decided at run time), classes.tsx the same cells through classes:
-# both render the recorded frame and print the same hit under a pointerEvents none overlay and the same cursor.
+# both render the recorded frame and print the same hit under a pointerEvents none overlay and the same cursor. Step 4: outlineWidth/Color/Offset/Style,
+# placeholderTextColor, selectionColor and cursorColor on a field Tab reached (outlineStyle 'none': no keyboard ring), showsVertical/HorizontalScrollIndicator
+# on scrolled views (classes.tsx: the ScrollView props), transitionProperty/Duration/TimingFunction/Delay half way at frame 8 (the change comes at frame 2).
 cd "$(dirname "$0")/../.." || exit 2
-export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=640x330 ZINC_SCALE=1 ZINC_FRAMEHASH=last
+export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=8 ZINC_SIZE=640x330 ZINC_SCALE=1 ZINC_FRAMEHASH=last
 d=tests/golden/style-keys
 want=$(cat $d/frame.hash)
 fail=0

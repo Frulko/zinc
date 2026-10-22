@@ -32,7 +32,7 @@ const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPoin
 // attributes of a real element. Other targets ignore them. htmlFor is written `for` in HTML.
 const std::set<std::string> kWebAttrs = {"as", "href", "target", "rel", "download", "name", "htmlFor", "autoComplete", "required", "pattern", "minLength", "maxLength", "min", "max", "step",
                                          "enterKeyHint", "title", "alt", "lang", "dir", "method", "action", "autoCapitalize", "spellCheck", "autoCorrect", "multiple", "accept", "form", "autoFocus"};
-const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled"};
+const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled", "showsVerticalScrollIndicator", "showsHorizontalScrollIndicator"};
 const std::map<std::string, int> kInputModes = {{"text", 0}, {"numeric", 1}, {"decimal", 2}, {"tel", 3}, {"email", 4}, {"url", 5}, {"search", 6}};
 const std::map<std::string, int> kDragAxes = {{"x", 1}, {"y", 2}, {"both", 3}};
 
@@ -88,7 +88,7 @@ bool validClass(const std::string& c) {
   if (std::string l = ltrOf(c); !l.empty()) return validClass(l);
   if (c.rfind("rtl:", 0) == 0 || c.rfind("ltr:", 0) == 0) return validClass(c.substr(4));
   static const std::set<std::string> fixed = {"bg-none", "flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
-      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "flex-wrap-reverse", "box-border", "box-content", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "peer", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
+      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "outline-solid", "outline-dashed", "outline-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "flex-wrap-reverse", "box-border", "box-content", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "peer", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "transition-opacity", "transition-shadow", "transition-transform", "transition-none", "ease-linear", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\[env\([a-z-]+\)\]|\d+/\d+|px))";
@@ -120,8 +120,8 @@ bool validClass(const std::string& c) {
       std::regex(R"(^line-clamp-[1-9]\d*$)"),
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^(duration|delay)-\d+$)")};
-  static const std::regex variant(R"(^(focus|focus-visible|selection|disabled|group-hover|group-focus|group-active|peer-hover|peer-focus|peer-active|aria-(?:checked|selected|expanded|pressed|disabled|busy|current|invalid|required|readonly)|data-\[[a-z][a-z0-9-]*=[A-Za-z0-9_-]+\]|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
-  static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline|tint)-" + color + "$");
+  static const std::regex variant(R"(^(focus|focus-visible|selection|placeholder|disabled|group-hover|group-focus|group-active|peer-hover|peer-focus|peer-active|aria-(?:checked|selected|expanded|pressed|disabled|busy|current|invalid|required|readonly)|data-\[[a-z][a-z0-9-]*=[A-Za-z0-9_-]+\]|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline|tint|caret)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
   if (std::regex_match(c, m, variant)) {
@@ -158,7 +158,9 @@ const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "rowGap",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
     "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY",
     "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "tintColor",
-    "zIndex", "shadowLevel", "textShadowColor", "textDecorationColor"};   // the keys of what was class-only (ZN-774.18): z-10, shadow-md, text-shadow-red-500
+    "zIndex", "shadowLevel", "textShadowColor", "textDecorationColor",   // the keys of what was class-only (ZN-774.18): z-10, shadow-md, text-shadow-red-500
+    "outlineWidth", "outlineColor", "outlineOffset", "placeholderTextColor", "selectionColor", "cursorColor", "showsVerticalScrollIndicator", "showsHorizontalScrollIndicator",
+    "transitionDuration", "transitionDelay"};   // and outline-2, placeholder:text-*, selection:bg-*, caret-*, duration-*, delay-* (ms)
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}, {"column-reverse", 2}, {"row-reverse", 3}}}, {"borderStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}, {"wrap-reverse", 2}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -171,6 +173,8 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"fontStyle", {{"normal", 0}, {"italic", 1}}}, {"textTransform", {{"none", 0}, {"uppercase", 1}, {"lowercase", 2}, {"capitalize", 3}}},
     {"textDecorationLine", {{"none", 0}, {"underline", 1}, {"line-through", 2}, {"underline line-through", 3}, {"overline", 4}}},
     {"textDecorationStyle", {{"solid", 0}, {"double", 1}, {"dotted", 2}, {"dashed", 3}}}, {"pointerEvents", {{"auto", 0}, {"none", 1}}},
+    {"outlineStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}, {"none", 3}}},
+    {"transitionTimingFunction", {{"linear", 0}, {"ease", 8}, {"ease-in", 5}, {"ease-out", 6}, {"ease-in-out", 7}}},   // ui.ts ease(): the ease-* classes' curves, and CSS's ease
     {"cursor", {{"default", 0}, {"auto", 0}, {"text", 1}, {"pointer", 2}, {"move", 3}, {"ew-resize", 4}, {"col-resize", 4}, {"ns-resize", 5}, {"row-resize", 5}, {"crosshair", 6}, {"grab", 7}, {"grabbing", 8}, {"not-allowed", 9}}},   // ui.ts CURSOR_OF
     {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}},
     {"objectFit", {{"fill", 0}, {"contain", 1}, {"cover", 2}, {"none", 3}, {"scale-down", 4}}},   // React Native's resizeMode is objectFit (ZN-262): center scales down, repeat tiles
@@ -198,8 +202,41 @@ std::string lowerCase(std::string s) { for (char& c : s) c = static_cast<char>(s
 std::string colorAlphaKey(const std::string& key) {
   return key == "color" ? "colorAlpha" : key == "borderColor" ? "borderAlpha" : key == "shadowColor" ? "shadowAlpha" : key == "textShadowColor" ? "textShadowAlpha" : "";
 }
+// transitionProperty: names (CSS or React Native spelling; a comma list, or an array the lowering joins) onto zinc:ui's transition groups (ui.ts TR_*):
+// colours 1, opacity 2, shadow 4, transform 8, the other lengths 16 (what transition-all adds). A name transitions its whole group, as the classes do.
+int transitionMask(const std::string& list) {
+  static const std::regex lengths(R"(^(width|height|(min|max)(Width|Height)|padding\w*|margin\w*|gap|rowGap|columnGap|border\w*(Width|Radius)|top|left|right|bottom|fontSize|letterSpacing)$)");
+  int mask = 0;
+  std::string word;
+  auto flush = [&] {
+    if (word.empty()) return;
+    const std::string n = styleName(word);
+    word.clear();
+    if (n == "all") mask |= 31;
+    else if (n == "none") {}
+    else if (n == "opacity") mask |= 2;
+    else if (n == "boxShadow" || n == "elevation" || n.rfind("shadow", 0) == 0) mask |= 4;
+    else if (n == "transform" || n.rfind("translate", 0) == 0 || n.rfind("scale", 0) == 0 || n.rfind("rotate", 0) == 0 || n.rfind("skew", 0) == 0) mask |= 8;
+    else if (n == "color" || (n.size() > 5 && n.compare(n.size() - 5, 5, "Color") == 0)) mask |= 1;
+    else if (std::regex_match(n, lengths)) mask |= 16;
+    else throw std::runtime_error("transitionProperty: '" + n + "' does not transition (all, none, opacity, transform, the colours, the shadow, sizes, spacing, radii, border widths, insets, fontSize, letterSpacing)");
+  };
+  for (char c : list) { if (c == ',' || std::isspace(static_cast<unsigned char>(c))) flush(); else word += c; }
+  flush();
+  return mask;
+}
 std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
   name = styleName(name);
+  if (name == "transitionProperty") {
+    if (value.isNum) throw std::runtime_error("transitionProperty takes a name ('opacity', 'backgroundColor', 'all'...) or an array of names");
+    return {{name, static_cast<double>(transitionMask(value.str))}};
+  }
+  if ((name == "transitionDuration" || name == "transitionDelay") && !value.isNum) {   // '200ms', '0.2s' (a number is milliseconds)
+    static const std::regex time(R"(^\s*(\d*\.?\d+)\s*(ms|s)\s*$)");
+    std::smatch tm;
+    if (!std::regex_match(value.str, tm, time)) throw std::runtime_error(name + " takes milliseconds: a number, '200ms' or '0.2s'");
+    return {{name, std::stod(tm[1].str()) * (tm[2] == "s" ? 1000 : 1)}};
+  }
   if (name == "border") {
     if (!value.isNum && value.str == "none") return {{"borderWidth", 0}};
     std::smatch m;
@@ -836,6 +873,15 @@ struct Lowering {
         }
         continue;
       }
+      if (styleName(key) == "transitionProperty" && vb < ve && isP(vb, "[") && isP(ve - 1, "]")) {   // ['opacity', 'transform'] (Reanimated's): one mask
+        std::string names;
+        for (std::size_t q = vb + 1; q + 1 < ve; ++q) {
+          if (t[q].kind == Tok::String) names += tx(q).substr(1, tx(q).size() - 2) + ",";
+          else if (!isP(q, ",")) fail(q, "transitionProperty takes a name or an array of names");
+        }
+        try { keys.push_back(quote("transitionProperty")); values.push_back(jsNumber(transitionMask(names))); } catch (const std::runtime_error& e) { fail(vb, e.what()); }
+        continue;
+      }
       if (styleName(key) == "transform" && vb < ve && isP(vb, "[") && isP(ve - 1, "]")) {   // React Native's [{ rotate: '45deg' }, { scale: 1.2 }...] (ZN-361)
         const char* use = "transform takes [{ translateX | translateY | scale | scaleX | scaleY | rotate | skewX | skewY: value }, ...]";
         std::vector<std::pair<std::size_t, std::size_t>> entries;
@@ -871,6 +917,7 @@ struct Lowering {
       if (ve == vb + 1 && (t[vb].kind == Tok::String || t[vb].kind == Tok::TemplateNoSub)) { literal = true; lv.str = tx(vb).substr(1, tx(vb).size() - 2); }
       else if (ve == vb + 1 && t[vb].kind == Tok::Number) { literal = true; lv.isNum = true; lv.num = std::strtod(tx(vb).c_str(), nullptr); if (tx(vb).size() > 1 && (tx(vb)[1] == 'x' || tx(vb)[1] == 'X')) lv.num = static_cast<double>(std::strtoull(tx(vb).c_str() + 2, nullptr, 16)); }
       else if (ve == vb + 2 && isP(vb, "-") && t[vb + 1].kind == Tok::Number) { literal = true; lv.isNum = true; lv.num = -std::strtod(tx(vb + 1).c_str(), nullptr); }
+      else if (ve == vb + 1 && (tx(vb) == "true" || tx(vb) == "false")) { literal = true; lv.isNum = true; lv.num = tx(vb) == "true" ? 1 : 0; }   // showsVerticalScrollIndicator: false
       try {
         if (literal) {
           std::string sk = styleName(key);
@@ -915,6 +962,7 @@ struct Lowering {
             dk = styleName(key) + "Percent";
             raw = "(" + pm[1].str() + ") / 100";
           }
+          if (sk == "showsVerticalScrollIndicator" || sk == "showsHorizontalScrollIndicator") raw = "((" + raw + ") ? 1 : 0)";   // a boolean decided at run time
           for (const std::string& k : numericStyleKeys(dk)) {
             keys.push_back(quote(k)); values.push_back("(" + raw + ")");
             if (k == "backgroundColor") { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }

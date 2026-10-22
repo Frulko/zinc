@@ -62,7 +62,7 @@ export function makeDomHost(env) {
     '.zi:disabled{opacity:.6}',
     '.z:focus-visible{outline:2px solid #facc15;outline-offset:2px}',
     '.z:focus:not(:focus-visible){outline:none}',
-    '.zn-ring-none:focus-visible{outline:none}',
+    '.zn-ring-none:focus-visible,.zi:not(.zb).zn-ring-none:focus-visible{outline:none}',   // outline-none, outlineStyle 'none': no keyboard ring (a bordered field keeps its focus border)
     '.zv{display:block;flex:0 0 auto;height:0;width:1px}',
     'dialog.zd{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit;overflow:visible}',
     'dialog.zd::backdrop{background:var(--zn-backdrop,transparent)}',
@@ -300,7 +300,7 @@ export function makeDomHost(env) {
     }
     const sh = shadowCss(n);
     if (sh) d('box-shadow', sh);
-    if (n.rg.outW > 0) { d('outline', px(n.rg.outW) + ' solid ' + (n.rg.outC >= 0 ? hex6(n.rg.outC) : '#000')); d('outline-offset', px(n.rg.outO)); }
+    if (n.rg.outW > 0 && n.rg.outStyle !== 3) { d('outline', px(n.rg.outW) + ' ' + ['solid', 'dashed', 'dotted'][n.rg.outStyle] + ' ' + (n.rg.outC >= 0 ? hex6(n.rg.outC) : '#000')); d('outline-offset', px(n.rg.outO)); }
     if (n.rg.outNone) d('outline', 'none');
     const op = n.opacity * (n.fade === undefined ? 1 : n.fade);
     if (op < 1) d('opacity', String(r3(op)));
@@ -322,13 +322,14 @@ export function makeDomHost(env) {
       const s = n.sn;
       if (s.snap) d('scroll-snap-type', (s.snap === 3 ? 'both' : s.snap === 1 ? 'y' : 'x') + (s.snapProx ? ' proximity' : ' mandatory'));
       if (s.spt || s.spb || s.spl || s.spr) d('scroll-padding', px(s.spt) + ' ' + px(s.spr) + ' ' + px(s.spb) + ' ' + px(s.spl));
+      if (s.noBars && (n.scroll & ~s.noBars & 3) === 0) d('scrollbar-width', 'none');   // ponytail: CSS hides both bars or none; one axis of a two-axis scroller keeps its bar
     } else if (n.overflow) d('overflow', 'hidden');
     if (par !== null && par.sn.snap && n.sn.snapAlign) d('scroll-snap-align', ['', 'start', 'center', 'end'][n.sn.snapAlign]);
     // zinc:ui hits only nodes that take events: a plain box over others (an overlay root, a decoration) lets the pointer through. CSS would stop it at every box.
     if (n.noPointer) d('pointer-events', 'none');
     if (n.selectable) { d('user-select', 'text'); d('-webkit-user-select', 'text'); }
     if (n.cursor >= 0) d('cursor', ['default', 'text', 'pointer', 'move', 'ew-resize', 'ns-resize', 'crosshair', 'grab', 'grabbing', 'not-allowed'][n.cursor] || 'default');
-    if (n.it.transMs > 0) d('transition', 'all ' + n.it.transMs + 'ms ' + ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'ease', 'ease-in', 'ease-out', 'ease-in-out'][n.it.transEase] || 'ease');
+    if (n.it.transMs > 0) d('transition', 'all ' + n.it.transMs + 'ms ' + ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'ease'][n.it.transEase] || 'ease');
     // --- text
     if (n.fg >= 0) d('color', color(n.fg, n.fgAlpha));
     if (text || field) {
@@ -353,6 +354,7 @@ export function makeDomHost(env) {
       if (n.balance) d('text-wrap', 'balance');
       if (n.tsAlpha > 0) d('text-shadow', px(n.tsX) + ' ' + px(n.tsY) + ' 0 ' + color(n.tsColor >= 0 ? n.tsColor : 0, n.tsAlpha));
       if (n.vshift) d('top', px(n.vshift * n.size));
+      if (field && n.ed.caretC >= 0) d('caret-color', hex6(n.ed.caretC));   // cursorColor, caret-*
       if (text && n.clamp > 0 && n.clamp !== 1) { d('display', '-webkit-box'); d('-webkit-box-orient', 'vertical'); d('-webkit-line-clamp', String(n.clamp)); d('overflow', 'hidden'); }
       else if (text && n.ellipsis) { d('overflow', 'hidden'); d('text-overflow', 'ellipsis'); d('white-space', 'nowrap'); }
     }
@@ -410,6 +412,8 @@ export function makeDomHost(env) {
       if (rg.fRingW >= 0) out.push(stateCls(sel, 'box-shadow', '0 0 0 ' + px(rg.fRingO + rg.fRingW) + ' ' + (rg.fRingC >= 0 ? hex6(rg.fRingC) : rg.ringC >= 0 ? hex6(rg.ringC) : '#3b82f6')));
       if (rg.fOutW >= 0) out.push(stateCls(sel, 'outline', px(rg.fOutW) + ' solid ' + (rg.fOutC >= 0 ? hex6(rg.fOutC) : '#000')));
     }
+    if (n.selBg >= 0) out.push(stateCls('X::selection', 'background-color', color(n.selBg, 110)));   // selectionColor, selection:bg-* (drawn at alpha 110 natively)
+    if (n.ed !== null && n.ed.phC >= 0) out.push(stateCls('X::placeholder', 'color', hex6(n.ed.phC)));   // placeholderTextColor, placeholder:text-*
   }
 
   // ---------------------------------------------------------------- the elements
@@ -474,7 +478,7 @@ export function makeDomHost(env) {
     build(n, par, h, row);
     let same = cnt === st.n;
     for (let i = 0; same && i < cnt; i++) same = K[i] === st.K[i] && V[i] === st.V[i];
-    const it = n.it, states = n.ov !== null || it.hoverBg >= 0 || it.hoverFg >= 0 || it.hoverBorder >= 0 || it.focusBg >= 0 || it.focusFg >= 0 || it.focusBorder >= 0 || it.activeBg >= 0 || it.activeFg >= 0 || it.withinBg >= 0 || it.withinFg >= 0 || it.withinBorder >= 0 || n.rg.fRingW >= 0 || n.rg.fOutW >= 0;
+    const it = n.it, states = n.ov !== null || it.hoverBg >= 0 || it.hoverFg >= 0 || it.hoverBorder >= 0 || it.focusBg >= 0 || it.focusFg >= 0 || it.focusBorder >= 0 || it.activeBg >= 0 || it.activeFg >= 0 || it.withinBg >= 0 || it.withinFg >= 0 || it.withinBorder >= 0 || n.rg.fRingW >= 0 || n.rg.fOutW >= 0 || n.selBg >= 0 || (n.ed !== null && n.ed.phC >= 0);
     if (!same || states || st.states) {
       const dyn = st.dyn, list = [];
       if (!same && st.n >= 0) for (let i = 0; i < cnt; i++) { const j = st.K.indexOf(K[i]); if (j >= 0 && st.V[j] !== V[i]) dyn.add(K[i]); }

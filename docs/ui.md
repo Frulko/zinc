@@ -14,12 +14,13 @@ The host elements draw nothing a program did not ask for, as React Native's do; 
 | `View` | nothing; a border width with no colour is grey-200 `#e5e7eb` |
 | `Text` | 16 px Inter (14 px under the react-native preset); black on a light window and white on a dark one (the brightness of `render`'s background, white before the first frame), always black under the react-native preset |
 | `Button` | nothing: a box that takes the focus, Enter and Space, and centres its content |
-| `Input`, `TextArea` | their text, caret, placeholder (`#64748b`) and selection only, in the colour and size of the text around them; no fill, border, radius or padding |
-| `Image`, `Canvas`, `ScrollView` | the picture; a scroll view shows its bars while it scrolls |
+| `Input`, `TextArea` | their text, caret, placeholder (`#64748b`, `placeholderTextColor`) and selection (`selectionColor`) only, in the colour and size of the text around them (the caret: `cursorColor`); no fill, border, radius or padding |
+| `Image`, `Canvas`, `ScrollView` | the picture; a scroll view shows its bars while it scrolls (`showsVerticalScrollIndicator={false}`, `showsHorizontalScrollIndicator={false}` hide them) |
 
 Kept on purpose: an element with `onClick` dims while pressed (`pressFeedback={0}` or `ui.setPressFeedback(false)` turn it off, see
 "Pressed feedback"); the keyboard focus ring, a 2 px `#facc15` ring around what the keyboard focused (on a field too when it has no
-border); a field with a border gets a 2 px `#3b82f6` border while focused (`focus:border-<color>` recolours it).
+border; `outline-none` or the style `outlineStyle: 'none'` (or `outlineWidth: 0`) removes it); a field with a border gets a 2 px `#3b82f6` border while
+focused (`focus:border-<color>` recolours it).
 
 Before 0.7 a Button was a slate box (`bg-slate-700 px-2 py-1`) and a field a dark slate panel with light text. `zinc migrate
 ui-explicit-looks --apply` writes that look into the classes of a program that relied on it (`docs/guide/10-lint-migrate.md`).
@@ -813,6 +814,18 @@ Supported properties:
   `borderLeftColor`: like React Native, a side colour needs a border width), `opacity`, `translateX/Y`, `scale`, and React Native's shadow: `shadowColor`, `shadowOffset: { width, height }`,
   `shadowOpacity` (no shadow while it is 0, React Native's default), `shadowRadius`, and `elevation` (one black shadow: offset e/2, blur 0.8e, opacity
   0.12 + 0.012e up to 0.4). `shadowLevel` (0 to 5) is the look of `shadow-none`, `shadow-sm`, `shadow`, `shadow-md`, `shadow-lg`, `shadow-xl`.
+- The outline, outside the border: `outlineWidth`, `outlineColor`, `outlineOffset`, `outlineStyle` (`solid`, `dashed`, `dotted`, `none`), as `outline-2
+  outline-red-500 outline-offset-2 outline-dashed`. It replaces the keyboard focus ring; `outlineStyle: 'none'` or `outlineWidth: 0` removes that ring, as
+  `outline-none` and `outline-0`.
+- Fields and scrolling: `placeholderTextColor` (as `placeholder:text-red-500`), `selectionColor` (as `selection:bg-green-500`, drawn translucent over the
+  text; on a selectable Text too), `cursorColor` (the caret, as `caret-red-500`); `showsVerticalScrollIndicator` and `showsHorizontalScrollIndicator`
+  (`false` hides that scroll bar; no class, and React Native's ScrollView props of the same names do the same). The web page keeps a bar unless every axis
+  of the scroll view hides it (CSS `scrollbar-width` takes both or none).
+- Motion: `transitionProperty` (`'all'`, `'none'`, a name or an array of names: `'backgroundColor'`, `['transform', 'opacity']`), `transitionDuration` and
+  `transitionDelay` (milliseconds, or `'200ms'`, `'0.2s'`), `transitionTimingFunction` (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`; the last three
+  are the curves of the `ease-*` classes), into the `InterX` fields that `transition-colors duration-200 ease-linear delay-20` write. A name transitions its group, as the
+  classes do: the colours, opacity, the shadow, the transform, or the other lengths (sizes, spacing, radii, border widths, insets, `fontSize`,
+  `letterSpacing`: what `transition-all` adds). Without `transitionDuration` nothing moves (CSS's 0 s), where the `transition-*` classes take 150 ms.
 - Layering and the pointer: `zIndex` (any integer, as `z-10`, `-z-1`), `pointerEvents` (`auto`, `none`: the node and its subtree take no pointer, as
   `pointer-events-none`; `box-none` and `box-only` are refused), `cursor` (`default`, `auto`, `text`, `pointer`, `move`, `ew-resize`/`col-resize`,
   `ns-resize`/`row-resize`, `crosshair`, `grab`, `grabbing`, `not-allowed`, as the `cursor-*` classes).
@@ -840,9 +853,11 @@ still follow the target's `number` range; choose conditional named styles for po
 Dynamic values inside an inline object are numeric Zinc expressions, or (ZN-362) a conditional between literals for a key that takes strings:
 `fontWeight: on() ? 'bold' : 'normal'`, `display: open ? 'flex' : 'none'`, `backgroundColor: on() ? '#0f766e' : 'white'`, nested conditionals too. The keys
 that take such a conditional: the enum keys (`flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `position`, `display`,
-`overflow`, `fontWeight`, `fontStyle`, `textTransform`, `textDecorationLine`, `textDecorationStyle`, `pointerEvents`, `cursor`, `textAlign`), the colour keys
-(`backgroundColor`/`bg`, `color`, `borderColor`, `shadowColor`, `textShadowColor`, `textDecorationColor`: each literal becomes its number, its alpha too);
-both branches must set the same properties. `fontWeight` also takes a number (100 to 900; 0 and 1 are normal and bold, as before). A string decided elsewhere (a variable,
+`overflow`, `fontWeight`, `fontStyle`, `textTransform`, `textDecorationLine`, `textDecorationStyle`, `pointerEvents`, `cursor`, `textAlign`, `outlineStyle`,
+`transitionProperty`, `transitionTimingFunction`), the colour keys (`backgroundColor`/`bg`, `color`, `borderColor`, `shadowColor`, `textShadowColor`,
+`textDecorationColor`, `outlineColor`, `placeholderTextColor`, `selectionColor`, `cursorColor`: each literal becomes its number, its alpha too);
+both branches must set the same properties. `fontWeight` also takes a number (100 to 900; 0 and 1 are normal and bold, as before), the scroll indicator keys a
+boolean (`showsVerticalScrollIndicator: !busy()`). A string decided elsewhere (a variable,
 a call) is a build error. For other changes, select named
 styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`, `false`, `undefined` branches are
 empty styles. Object spreads, nested style arrays, `calc`, grid, arbitrary CSS
@@ -1020,6 +1035,19 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 125 | `pointerEvents` |  |
 | 126 | `cursor` |  |
 | 127 | `shadowAlpha` |  |
+| 128 | `outlineWidth` |  |
+| 129 | `outlineColor` |  |
+| 130 | `outlineOffset` |  |
+| 131 | `outlineStyle` |  |
+| 132 | `placeholderTextColor` |  |
+| 133 | `selectionColor` |  |
+| 134 | `cursorColor` |  |
+| 135 | `showsVerticalScrollIndicator` |  |
+| 136 | `showsHorizontalScrollIndicator` |  |
+| 137 | `transitionProperty` |  |
+| 138 | `transitionDuration` |  |
+| 139 | `transitionTimingFunction` |  |
+| 140 | `transitionDelay` |  |
 
 ### Accepted class tokens (generated)
 

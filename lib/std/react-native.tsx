@@ -332,6 +332,7 @@ export type TextInputProps = {
   keyboardType?: string; secureTextEntry?: boolean; multiline?: boolean; editable?: boolean; maxLength?: number; autoFocus?: boolean;
   autoCapitalize?: string; autoCorrect?: boolean; returnKeyType?: string; textContentType?: string; autoComplete?: string;
   name?: string; required?: boolean; pattern?: string; minLength?: number; enterKeyHint?: string;   // the page's form attributes (web target); ignored elsewhere
+  placeholderTextColor?: string; selectionColor?: string; cursorColor?: string;
   style?: ui.Style; testID?: string; accessibilityLabel?: string;
 };
 /** The keyboard traits a phone's OS gets for the field (zinc:ui setInputTraits): capitalisation, autocorrect, the return key, the autofill hint. */
@@ -350,7 +351,11 @@ export function TextInput(p: TextInputProps): i32 {
   const started = useRef<boolean>(false);
   const kt = p.keyboardType ?? 'default';
   const mode = kt === 'numeric' ? 1 : Math.max(0, INPUT_MODES.indexOf(kt));
-  const flags = new ui.Style(['password', 'readOnly', 'inputMode'], [p.secureTextEntry === true ? 1 : 0, p.editable === false ? 1 : 0, mode]);
+  const fk: string[] = ['password', 'readOnly', 'inputMode'], fv: number[] = [p.secureTextEntry === true ? 1 : 0, p.editable === false ? 1 : 0, mode];
+  if (p.placeholderTextColor !== undefined) { fk.push('placeholderTextColor'); fv.push(processColor(p.placeholderTextColor)); }   // the style keys of the same names
+  if (p.selectionColor !== undefined) { fk.push('selectionColor'); fv.push(processColor(p.selectionColor)); }
+  if (p.cursorColor !== undefined) { fk.push('cursorColor'); fv.push(processColor(p.cursorColor)); }
+  const flags = new ui.Style(fk, fv);
   const text = p.value ?? p.defaultValue ?? '';
   const typed = (s: string): void => {
     let v = s;
