@@ -2,5 +2,5 @@
   "name": "esp32-widgets",
   "entry": "src/main.ts",
   "app": { "name": "ESP32 Widgets", "id": "dev.zinc.esp32-widgets", "version": "1.0.0" },
-  "targets": { "esp32": { "engine": "mquickjs" }, "macos": { "width": 240, "height": 320 } }
+  "targets": { "esp32": { "engine": "mquickjs" }, "macos": { "width": 320, "height": 320 } }
 }

@@ -11,8 +11,8 @@ let syncLabel: i32 = 0;
 let syncBar: i32 = 0;
 let keypad: i32 = 0;
 let pinStatus: i32 = 0;
-const dots: i32[] = [];
-const radios: i32[] = [];
+let dots: i32[] = [];
+let radios: i32[] = [];
 let clock: number = 0;
 
 function showTaps(): void { lv.setText(tapsLabel, state.taps + ' taps'); }
@@ -44,6 +44,7 @@ function switchRow(parent: i32, name: string, on: boolean): void {
 }
 
 export function buildControls(page: i32): void {
+  dots = []; radios = [];
   // buttons
   const buttons = card(page);
   const head = row(buttons);

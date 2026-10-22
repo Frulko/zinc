@@ -1,8 +1,9 @@
-// The app frame: a slim title bar (the page's title, the uptime, the frame rate), one container per page (built once, shown or hidden), and
-// the bottom navigation bar.
+// The app frame: a slim title bar (the page's title, the uptime, the frame rate), one container per page (its objects built when it is
+// shown, deleted when it is left), and the bottom navigation bar.
 import * as lv from 'zinc:lvgl';
-import { COLOR_ACCENT, COLOR_BACKGROUND, COLOR_BORDER, COLOR_CARD, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT, GAP, NAV_H, PAGE_H,
-         SCREEN_W, SYMBOL_CHARGE, SYMBOL_HOME, SYMBOL_LIST, SYMBOL_AUDIO, SYMBOL_SETTINGS, TITLE_H } from '../constants';
+import { COLOR_ACCENT, COLOR_BACKGROUND, COLOR_BORDER, COLOR_CARD, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT, GAP, NAV_H,
+         PAGE_BENCH, PAGE_INFO, PAGE_INPUT, PAGE_LOTTIE, SYMBOL_AUDIO, SYMBOL_CHARGE, SYMBOL_HOME, SYMBOL_IMAGE, SYMBOL_LIST,
+         SYMBOL_SETTINGS, TITLE_H } from '../constants';
 import { badge, text } from './ui';
 
 export class PageInfo {
@@ -13,12 +14,14 @@ export const PAGES: PageInfo[] = [
   new PageInfo('Dashboard', 'Home', SYMBOL_HOME),
   new PageInfo('Controls', 'Input', SYMBOL_LIST),
   new PageInfo('Now playing', 'Music', SYMBOL_AUDIO),
+  new PageInfo('Lottie', 'Lottie', SYMBOL_IMAGE),
   new PageInfo('Benchmark', 'Bench', SYMBOL_CHARGE),
   new PageInfo('System', 'Info', SYMBOL_SETTINGS),
 ];
-const NAV_ITEM: i32 = SCREEN_W / 5;
 
+/** The shell of the display's current size (lv.width(), lv.height()): built again when it turns. */
 export class Shell {
+  navItem: i32 = 0;
   title: i32 = 0;
   uptime: i32 = 0;
   fps: i32 = 0;
@@ -32,7 +35,7 @@ export class Shell {
 /** A page's container: a column under the title bar, scrollable or not. */
 function pageBox(screen: i32, scrolls: boolean): i32 {
   const p = lv.obj(screen);
-  lv.size(p, SCREEN_W, PAGE_H);
+  lv.size(p, lv.width(), lv.height() - TITLE_H - NAV_H);
   lv.pos(p, 0, TITLE_H);
   lv.style(p, lv.BG_OPA, 0, 0);
   lv.style(p, lv.BORDER_WIDTH, 0, 0);
@@ -50,10 +53,12 @@ export function buildShell(): Shell {
   const screen = lv.screen();
   lv.bg(screen, COLOR_BACKGROUND, 0);
   lv.flag(screen, lv.FLAG_SCROLLABLE, false);
-  for (let i = 0; i < PAGES.length; i++) s.pages.push(pageBox(screen, i === 1 || i === 4));
+  const landscape = lv.width() > lv.height();   // the pages are taller than the screen: every one scrolls
+  for (let i = 0; i < PAGES.length; i++) s.pages.push(pageBox(screen, landscape || i === PAGE_INPUT || i === PAGE_LOTTIE || i === PAGE_BENCH || i === PAGE_INFO));
+  s.navItem = Math.floor(lv.width() / PAGES.length);
 
   const bar = lv.obj(screen);
-  lv.size(bar, SCREEN_W, TITLE_H);
+  lv.size(bar, lv.width(), TITLE_H);
   lv.pos(bar, 0, 0);
   lv.bg(bar, COLOR_CARD, 0);
   lv.radius(bar, 0, 0);
@@ -73,7 +78,7 @@ export function buildShell(): Shell {
   s.fps = badge(bar, '-- fps', COLOR_MUTED, COLOR_TEXT);
 
   const nav = lv.obj(screen);
-  lv.size(nav, SCREEN_W, NAV_H);
+  lv.size(nav, lv.width(), NAV_H);
   lv.align(nav, lv.ALIGN_BOTTOM_MID, 0, 0);
   lv.bg(nav, COLOR_CARD, 0);
   lv.radius(nav, 0, 0);
@@ -84,8 +89,8 @@ export function buildShell(): Shell {
   lv.flag(nav, lv.FLAG_SCROLLABLE, false);
   for (let i = 0; i < PAGES.length; i++) {
     const item = lv.obj(nav);
-    lv.size(item, NAV_ITEM, NAV_H);
-    lv.pos(item, i * NAV_ITEM, 0);
+    lv.size(item, s.navItem, NAV_H);
+    lv.pos(item, i * s.navItem, 0);
     lv.style(item, lv.BG_OPA, 0, 0);
     lv.style(item, lv.BORDER_WIDTH, 0, 0);
     lv.radius(item, 0, 0);
@@ -116,6 +121,6 @@ export function showPage(s: Shell, from: i32, i: i32): void {
   lv.hidden(s.pages[i], false);
   lv.textColor(s.icons[i], COLOR_ACCENT, 0);
   lv.textColor(s.labels[i], COLOR_ACCENT, 0);
-  lv.pos(s.indicator, i * NAV_ITEM + (NAV_ITEM - 24) / 2, 0);
+  lv.pos(s.indicator, i * s.navItem + (s.navItem - 24) / 2, 0);
   lv.setText(s.title, PAGES[i].title);
 }

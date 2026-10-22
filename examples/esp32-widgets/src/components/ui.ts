@@ -26,6 +26,7 @@ export function row(parent: i32): i32 {
   lv.gap(r, 6, 6);
   lv.flex(r, lv.FLEX_ROW, lv.FLEX_SPACE_BETWEEN, lv.FLEX_CENTER);
   lv.flag(r, lv.FLAG_SCROLLABLE, false);
+  lv.flag(r, lv.FLAG_OVERFLOW_VISIBLE, true);   // a button grows a little when pressed (the theme): not cut at the row's edge
   return r;
 }
 
