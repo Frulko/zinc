@@ -9,7 +9,7 @@
 //   lv.run(null);
 import { onFrame, pointerDown, pointerX, pointerY } from 'zinc:gfx';
 import L from './native/lvgl.spec';
-import { present, showDisplay } from './display';
+import { originX, originY, present, showDisplay } from './display';
 
 function k(name: string): i32 { return L.constant(name); }
 
@@ -39,6 +39,8 @@ export const FLAG_SCROLLABLE: i32 = k('OBJ_FLAG_SCROLLABLE');
 export const FLAG_SCROLL_ELASTIC: i32 = k('OBJ_FLAG_SCROLL_ELASTIC');
 export const FLAG_SCROLL_MOMENTUM: i32 = k('OBJ_FLAG_SCROLL_MOMENTUM');
 export const FLAG_EVENT_BUBBLE: i32 = k('OBJ_FLAG_EVENT_BUBBLE');
+/** Children may draw outside the object: a button that grows when pressed is not cut by its row. */
+export const FLAG_OVERFLOW_VISIBLE: i32 = k('OBJ_FLAG_OVERFLOW_VISIBLE');
 export const ALIGN_TOP_LEFT: i32 = k('ALIGN_TOP_LEFT');
 export const ALIGN_TOP_MID: i32 = k('ALIGN_TOP_MID');
 export const ALIGN_TOP_RIGHT: i32 = k('ALIGN_TOP_RIGHT');
@@ -99,8 +101,19 @@ export function start(w: i32, h: i32, dark: boolean, primary: i32): void {
   showDisplay(w, h);
 }
 export function screen(): i32 { return L.screen(); }
+/** Turns the display a quarter (0 as started, 1 to 3 clockwise) and lays the screens out again at the turned size: build what depends on
+ *  the size again after it. On the board the panel turns, and the touch with it; on the computer the window shows the picture upright. */
+export function rotate(quarter: i32): void {
+  L.rotate(quarter);
+  showDisplay(L.displayWidth(), L.displayHeight());
+}
+/** The display's width and height, turned (rotate). */
+export function width(): i32 { return L.displayWidth(); }
+export function height(): i32 { return L.displayHeight(); }
 /** LVGL's percentage of the parent, for sizes and positions. */
 export function pct(v: i32): i32 { return L.pct(v); }
+/** Since the last call: [turns, µs in LVGL, µs of the slowest turn, areas sent, pixels sent, board's free heap, its lowest (-1 on the
+ *  computer), LVGL pool in use, pool size, pool peak] (bytes). */
 export function stats(): i32[] { return L.stats(); }
 
 // ---- objects
@@ -155,6 +168,13 @@ export function chart(parent: i32, type: i32, points: i32, min: i32, max: i32): 
 }
 export function chartSeries(chart: i32, rgb: i32): i32 { return L.chartSeries(chart, rgb); }
 export function chartPush(chart: i32, series: i32, value: i32): void { L.chartPush(chart, series, value); }
+/** Sets point `index` of a series in place (a chart whose points are not pushed: a spectrum's bars). */
+export function chartSet(chart: i32, series: i32, index: i32, value: i32): void { L.chartSet(chart, series, index, value); }
+/** A Lottie animation of w x h pixels, playing in a loop (LVGL draws a frame only while it is visible). The JSON is a LottieFiles export,
+ *  copied: a string constant of the program. The buffer takes w * h * 4 bytes of LVGL's memory; on a board without PSRAM keep it small. */
+export function lottie(parent: i32, json: string, w: i32, h: i32): i32 { return L.lottie(parent, json, w, h); }
+export function lottiePlay(anim: i32, on: boolean): void { L.lottiePlay(anim, on); }
+export function lottieRestart(anim: i32): void { L.lottieRestart(anim); }
 export function spinner(parent: i32): i32 { return L.create('spinner', parent); }
 /** A matrix of buttons: rows by "\n", keys by "|" ("1|2|3\n4|5|6"). */
 export function buttonMatrix(parent: i32, keys: string): i32 {
@@ -173,8 +193,10 @@ export function roller(parent: i32, rows: string): i32 {
 export function child(o: i32, index: i32): i32 { return L.child(o, index); }
 /** The label of a button made by button(). */
 export function buttonLabel(b: i32): i32 { return L.child(b, 0); }
-export function remove(o: i32): void { L.remove(o); }
-export function clean(o: i32): void { L.clean(o); }
+/** Deletes the object and its children, and their handlers: the page a program left gives its memory back. */
+export function remove(o: i32): void { L.remove(o); forget(); }
+/** Deletes the object's children and their handlers. */
+export function clean(o: i32): void { L.clean(o); forget(); }
 
 // ---- layout and style
 export function size(o: i32, w: i32, h: i32): void { L.setSize(o, w, h); }
@@ -231,10 +253,22 @@ export function on(o: i32, code: i32, fn: () => void): void {
   handlerFn.push(fn);
 }
 
+/** Drops the handlers of deleted objects, before a new object can take one of their handles. */
+function forget(): void {
+  let k = 0;
+  for (let i = 0; i < handlerObj.length; i++) {
+    if (!L.exists(handlerObj[i])) continue;
+    handlerObj[k] = handlerObj[i]; handlerCode[k] = handlerCode[i]; handlerFn[k] = handlerFn[i]; k++;
+  }
+  handlerObj.length = k; handlerCode.length = k; handlerFn.length = k;
+}
+
 function dispatch(): void {
   for (let e = L.nextEvent(); e >= 0; e = L.nextEvent()) {
     const o = (e / 256) | 0, code = e % 256;
-    for (let i = 0; i < handlerObj.length; i++) if (handlerObj[i] === o && handlerCode[i] === code) handlerFn[i]();
+    const fns: (() => void)[] = [];   // taken first: a handler may delete objects and add handlers (a page built in their place)
+    for (let i = 0; i < handlerObj.length; i++) if (handlerObj[i] === o && handlerCode[i] === code) fns.push(handlerFn[i]);
+    for (let i = 0; i < fns.length; i++) fns[i]();
   }
 }
 
@@ -246,7 +280,7 @@ export function run(each: ((dt: number) => void) | null): void {
     clockRest += dt * 1000;
     const ms = Math.floor(clockRest);
     clockRest -= ms;
-    L.step(ms, pointerX() | 0, pointerY() | 0, pointerDown());
+    L.step(ms, (pointerX() | 0) - originX(), (pointerY() | 0) - originY(), pointerDown());
     dispatch();
     present();
   });

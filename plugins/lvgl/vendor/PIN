@@ -3,6 +3,7 @@ licence: MIT (lvgl/LICENCE.txt)
 kept, unmodified, by vendor/update.sh from a checkout of the tag:
   every header (lvgl.h includes the headers of every optional part; LV_USE_* in ../lv_conf.h turns them off)
   the C of the core, the display and input, the software renderer (RGB565), the flex layout, the widgets, the image decoder of
-  C arrays, the default theme, the C library adapters, and the Montserrat fonts 12, 14, 20 and 28 (Font Awesome symbols included)
-left out: the GPU and vector renderers, the drivers, the third-party libraries (thorvg, freetype, lodepng...), the other fonts and
+  C arrays, the default theme, the C library adapters and LVGL's own allocator (TLSF: the computer's pool), ThorVG 0.15 (src/libs/thorvg,
+  MIT, its LICENSE.txt: the Lottie animations), and the Montserrat fonts 12, 14, 20 and 28 (Font Awesome symbols included)
+left out: the GPU and vector renderers, the drivers, the other third-party libraries (freetype, lodepng...), the other fonts and
   themes, the demos, examples, docs and tests

@@ -14,7 +14,8 @@ export interface Spec extends NativeModule {
    *  where LVGL sends its pixels to the panel itself. */
   frame(): u8[];
   /** What the turns cost since the last call: [turns, microseconds in LVGL, microseconds of the slowest turn, areas sent, pixels sent],
-   *  then the ESP32's free heap and its lowest since the start in bytes (-1 on the computer). */
+   *  then the ESP32's free heap and its lowest since the start in bytes (-1 on the computer), then LVGL's pool: bytes in use, its size, the
+   *  most ever in use. */
   stats(): i32[];
   /** The value of an LVGL constant by its name (`bg_color`, `hidden`, `checked`, `indicator`, `clicked`, `center`, `column`...); -1 if unknown. */
   constant(name: string): i32;
@@ -28,6 +29,8 @@ export interface Spec extends NativeModule {
   /** The object's child at `index` (0 the first, -1 the last), 0 when there is none. */
   child(obj: i32, index: i32): i32;
   /** Deletes the object and its children. */
+  /** Whether the handle names a live object (a deleted object's handle is free until a new object takes it). */
+  exists(obj: i32): boolean;
   remove(obj: i32): void;
   /** Deletes the object's children. */
   clean(obj: i32): void;
@@ -69,6 +72,21 @@ export interface Spec extends NativeModule {
   chartSeries(obj: i32, rgb: i32): i32;
   /** Shifts the series by one value. */
   chartPush(obj: i32, series: i32, value: i32): void;
+  /** Sets the series' point `index` (0 the first shown) in place: a bar of a spectrum. */
+  chartSet(obj: i32, series: i32, index: i32, value: i32): void;
+
+  /** Turns the display a quarter (0 as started, 1 to 3 clockwise). */
+  rotate(quarter: i32): void;
+  /** The display's size, turned. */
+  displayWidth(): i32;
+  displayHeight(): i32;
+
+  /** A Lottie animation (LottieFiles' JSON) of w x h pixels, playing in a loop: ThorVG draws it into a buffer of 4 bytes a pixel. */
+  lottie(parent: i32, json: string, w: i32, h: i32): i32;
+  /** Plays or pauses the animation where it is. */
+  lottiePlay(obj: i32, on: boolean): void;
+  /** Goes back to the animation's first frame. */
+  lottieRestart(obj: i32): void;
 
   /** Queues the object's events of `code` for nextEvent(). */
   listen(obj: i32, code: i32): void;

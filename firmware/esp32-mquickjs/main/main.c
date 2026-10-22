@@ -299,10 +299,22 @@ void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels)
     }
 }
 
-/* the display list on the panel again (an error, a message): the whole width, every band */
+/* a quarter turn of the panel for the plugin that draws on it (zn.h): MADCTL exchanges and mirrors the address counters, so the areas it
+   sends are in the turned frame and no pixel is moved by hand; BGR as lcd_init sets it */
+static uint8_t madctl = 0x08;
+
+void zn_panel_rotate(int quarter)
+{
+    static const uint8_t turns[4] = {0x08, 0x68, 0xC8, 0xA8}; /* as started; MV|MX; MX|MY; MV|MY */
+    madctl = turns[quarter & 3];
+    lcd_cmd(0x36, &madctl, 1);
+}
+
+/* the display list on the panel again (an error, a message): upright, the whole width, every band */
 static void panel_release(void)
 {
     static const uint8_t caset[4] = {0, 0, (W - 1) >> 8, (W - 1) & 0xff};
+    if (madctl != 0x08) zn_panel_rotate(0);
     if (!panel_owned) return;
     panel_owned = 0;
     redraw_all = 1;
@@ -815,9 +827,10 @@ static void run(JSContext *ctx)
         if (t - mark >= 5000000) {
             int n = frames - mark_frames;
             const int fps10 = (int)(n * 10000000LL / (t - mark)), bands10 = n ? bands_sent * 10 / n : 0; /* integers: newlib nano */
-            printf("mqjs: %d.%d fps, js %d us, render+send %d us and %d.%d of %d bands per frame, %d commands dropped, %d events dropped, free heap %u\n",
-                   fps10 / 10, fps10 % 10, n ? (int)(js_us / n) : 0, n ? (int)(present_us / n) : 0, bands10 / 10, bands10 % 10, H / BAND,
-                   dropped, events_dropped, (unsigned)esp_get_free_heap_size());
+            printf("mqjs: %d.%d fps, js %d us, render+send %d us and %d.%d of %d bands per frame, %d commands dropped, %d events dropped, free heap %u, "
+                   "stack never used %u\n", fps10 / 10, fps10 % 10, n ? (int)(js_us / n) : 0, n ? (int)(present_us / n) : 0, bands10 / 10,
+                   bands10 % 10, H / BAND, dropped, events_dropped, (unsigned)esp_get_free_heap_size(),
+                   (unsigned)uxTaskGetStackHighWaterMark(NULL)); /* bytes on the ESP32's FreeRTOS: a native plugin's depth (ThorVG) */
             if (frames < 1000) JS_DumpMemory(ctx, 0);
             mark = t;
             mark_frames = frames;

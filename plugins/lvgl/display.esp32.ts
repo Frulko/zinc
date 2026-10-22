@@ -3,5 +3,7 @@
 import { keep } from 'zinc:gfx';
 
 export function showDisplay(w: i32, h: i32): void {}
+export function originX(): i32 { return 0; }
+export function originY(): i32 { return 0; }
 
 export function present(): void { keep(); }

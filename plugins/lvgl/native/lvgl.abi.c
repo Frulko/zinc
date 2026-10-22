@@ -15,6 +15,7 @@
 /* the firmware's panel (main.c): a buffer the bus can read, and an area sent to the panel (pixels in its byte order) */
 void *zn_panel_buffer(size_t bytes);
 void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels);
+void zn_panel_rotate(int quarter);
 #endif
 
 enum { BAND = 32, MAX_OBJS = 512, MAX_SERIES = 16, QUEUE = 32 };
@@ -22,12 +23,13 @@ enum { BAND = 32, MAX_OBJS = 512, MAX_SERIES = 16, QUEUE = 32 };
 static const ZnHostApi *host;
 static lv_display_t *display;
 static lv_indev_t *pointer;
-static int pointer_x, pointer_y, pointer_down, width, height;
+static int pointer_x, pointer_y, pointer_down, width, height; /* the panel's size, as started (portrait on the board) */
+static int quarter;                                            /* the display's quarter turn (rotate) */
 static lv_obj_t *objs[MAX_OBJS]; /* handle - 1 */
 static int next_free;
 static int queue[QUEUE], queue_head, queue_count;
 static lv_chart_series_t *series[MAX_SERIES];
-static int nseries;
+static lv_obj_t *series_chart[MAX_SERIES]; /* a slot is free again when its chart is deleted (LVGL frees the series with it) */
 static uint8_t *rgba; /* the computer's copy of the display */
 static int changed;
 static struct { int turns, us, slowest, areas, pixels; } stats;
@@ -43,7 +45,7 @@ static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *pixels)
 #else
     const uint16_t *src = (const uint16_t *)pixels;
     for (int y = 0; y < h; y++) {
-        uint8_t *dst = rgba + ((size_t)(a->y1 + y) * width + a->x1) * 4;
+        uint8_t *dst = rgba + ((size_t)(a->y1 + y) * lv_display_get_horizontal_resolution(d) + a->x1) * 4;
         for (int x = 0; x < w; x++, src++, dst += 4) {
             const uint16_t c = *src;
             dst[0] = (uint8_t)((c >> 11) * 255 / 31);
@@ -74,13 +76,24 @@ static void on_delete(lv_event_t *e)
 {
     lv_obj_t *o = (lv_obj_t *)lv_event_get_current_target(e);
     const int h = handle_of(o);
-    if (h > 0 && h <= MAX_OBJS && objs[h - 1] == o) objs[h - 1] = NULL;
-    void *owned = lv_event_get_user_data(e); /* a button matrix's map */
-    if (owned) free(owned);
+    if (h > 0 && h <= MAX_OBJS && objs[h - 1] == o) {
+        objs[h - 1] = NULL;
+        for (int k = 0; k < queue_count; k++) /* its queued events go nowhere: the handle may name a new object by then */
+            if (queue[(queue_head + k) % QUEUE] / 256 == h) queue[(queue_head + k) % QUEUE] = 0;
+    }
+    for (int k = 0; k < MAX_SERIES; k++)
+        if (series_chart[k] == o) series_chart[k] = NULL, series[k] = NULL;
+    void *owned = lv_event_get_user_data(e); /* a button matrix's map, a Lottie animation's buffer */
+    if (owned) lv_free(owned);
 }
 
 static int adopt(ZnCtx *cx, lv_obj_t *o)
 {
+#ifdef ESP_PLATFORM
+    if (!o) { host->set_error(cx, "zinc:lvgl: the board's heap is full: fewer objects at once (build a page when it is shown, delete it when it is left)"); return 0; }
+#else
+    if (!o) { host->set_error(cx, "zinc:lvgl: LVGL's memory pool is full, as the board's heap would be (lv_conf.h): fewer objects at once (build a page when it is shown, delete it when it is left)"); return 0; }
+#endif
     for (int k = 0; k < MAX_OBJS; k++) {
         const int i = (next_free + k) % MAX_OBJS;
         if (objs[i]) continue;
@@ -145,8 +158,15 @@ int32_t zn_lvgl_step(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     if (!display) { host->set_error(cx, "zinc:lvgl: start() first"); return ZN_ERROR; }
     const double t0 = host->now_ms();
     lv_tick_inc((uint32_t)args[0].i); /* the frame's time: virtual in a deterministic run, so are LVGL's animations */
-    pointer_x = (int)args[1].i;
+#ifdef ESP_PLATFORM
+    /* the touch is in the panel's portrait pixels; LVGL's turn with the panel (zn_panel_rotate's MADCTL: 1 MV|MX, 2 MX|MY, 3 MV|MY) */
+    const int px = (int)args[1].i, py = (int)args[2].i;
+    pointer_x = quarter == 1 ? py : quarter == 2 ? width - 1 - px : quarter == 3 ? height - 1 - py : px;
+    pointer_y = quarter == 1 ? width - 1 - px : quarter == 2 ? height - 1 - py : quarter == 3 ? px : py;
+#else
+    pointer_x = (int)args[1].i; /* the computer shows the picture upright: its pointer is LVGL's */
     pointer_y = (int)args[2].i;
+#endif
     pointer_down = args[3].i != 0;
     lv_indev_read(pointer);
     const uint32_t next = lv_timer_handler();
@@ -155,6 +175,42 @@ int32_t zn_lvgl_step(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     stats.us += us;
     if (us > stats.slowest) stats.slowest = us;
     ret->i = next == LV_NO_TIMER_READY ? 1000 : (int)next;
+    return ZN_OK;
+}
+
+/* A quarter turn of the display (0 as started, 1 to 3 clockwise): LVGL lays the screens out again at the turned size. The board turns its
+   panel (the controller's MADCTL: no pixel is moved by hand) and the touch with it; the computer's picture takes the turned size. */
+int32_t zn_lvgl_rotate(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self;
+    (void)ret;
+    if (!display) { host->set_error(cx, "zinc:lvgl: start() first"); return ZN_ERROR; }
+    const int q = (int)(args[0].i & 3);
+    if (q == quarter) return ZN_OK;
+#ifdef ESP_PLATFORM
+    zn_panel_rotate(q);
+#endif
+    quarter = q;
+    lv_display_set_resolution(display, q & 1 ? height : width, q & 1 ? width : height);
+    lv_obj_invalidate(lv_screen_active());
+    return ZN_OK;
+}
+
+int32_t zn_lvgl_displayWidth(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self;
+    (void)cx;
+    (void)args;
+    ret->i = display ? lv_display_get_horizontal_resolution(display) : 0;
+    return ZN_OK;
+}
+
+int32_t zn_lvgl_displayHeight(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self;
+    (void)cx;
+    (void)args;
+    ret->i = display ? lv_display_get_vertical_resolution(display) : 0;
     return ZN_OK;
 }
 
@@ -179,7 +235,7 @@ int32_t zn_lvgl_stats(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
 {
     (void)self;
     (void)args;
-    int32_t *out = host->ret_buf(cx, 7 * sizeof(int32_t));
+    int32_t *out = host->ret_buf(cx, 10 * sizeof(int32_t));
     if (!out) { host->set_error(cx, "zinc:lvgl: out of memory"); return ZN_ERROR; }
     out[0] = stats.turns;
     out[1] = stats.us;
@@ -192,9 +248,14 @@ int32_t zn_lvgl_stats(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
 #else
     out[5] = out[6] = -1;
 #endif
+    lv_mem_monitor_t m;
+    lv_mem_monitor(&m);
+    out[7] = (int32_t)(m.total_size - m.free_size);
+    out[8] = (int32_t)m.total_size;
+    out[9] = (int32_t)m.max_used;
     memset(&stats, 0, sizeof stats);
     ret->v.p = out;
-    ret->v.n = 7;
+    ret->v.n = 10;
     return ZN_OK;
 }
 
@@ -213,6 +274,7 @@ static const struct { const char *name; int32_t value; } constants[] = {
     C(OBJ_FLAG_HIDDEN), C(OBJ_FLAG_CLICKABLE), C(OBJ_FLAG_CHECKABLE), C(OBJ_FLAG_SCROLLABLE), C(OBJ_FLAG_SCROLL_ELASTIC),
     C(OBJ_FLAG_SCROLL_MOMENTUM), C(OBJ_FLAG_SCROLL_ONE), C(OBJ_FLAG_SCROLL_CHAIN_HOR), C(OBJ_FLAG_SCROLL_CHAIN_VER),
     C(OBJ_FLAG_SCROLL_ON_FOCUS), C(OBJ_FLAG_SNAPPABLE), C(OBJ_FLAG_EVENT_BUBBLE), C(OBJ_FLAG_CLICK_FOCUSABLE),
+    C(OBJ_FLAG_OVERFLOW_VISIBLE),
     C(STATE_DEFAULT), C(STATE_CHECKED), C(STATE_FOCUSED), C(STATE_PRESSED), C(STATE_DISABLED),
     C(PART_MAIN), C(PART_SCROLLBAR), C(PART_INDICATOR), C(PART_KNOB), C(PART_SELECTED), C(PART_ITEMS),
     C(EVENT_CLICKED), C(EVENT_SHORT_CLICKED), C(EVENT_LONG_PRESSED), C(EVENT_PRESSED), C(EVENT_RELEASED), C(EVENT_VALUE_CHANGED),
@@ -286,6 +348,13 @@ int32_t zn_lvgl_child(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     return !c || ret->i ? ZN_OK : ZN_ERROR;
 }
 
+int32_t zn_lvgl_exists(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self;
+    (void)cx;
+    ret->i = args[0].i >= 1 && args[0].i <= MAX_OBJS && objs[args[0].i - 1];
+    return ZN_OK;
+}
 int32_t zn_lvgl_remove(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret) { THE_OBJ(0); (void)ret; lv_obj_delete(o); return ZN_OK; }
 int32_t zn_lvgl_clean(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret) { THE_OBJ(0); (void)ret; lv_obj_clean(o); return ZN_OK; }
 
@@ -445,7 +514,7 @@ int32_t zn_lvgl_setOptions(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     /* LVGL keeps the map's pointers: one block with the array and the texts, freed with the object (on_delete) */
     size_t n = 1, len = strlen(s);
     for (const char *p = s; *p; p++) n += *p == '|' || *p == '\n' ? (*p == '\n' ? 2 : 1) : 0;
-    char **map = malloc((n + 1) * sizeof(char *) + 2 * len + n + 2);
+    char **map = lv_malloc((n + 1) * sizeof(char *) + 2 * len + n + 2); /* LVGL's memory: the computer's pool counts it, as the board's heap does */
     if (!map) { host->set_error(cx, "zinc:lvgl: out of memory"); return ZN_ERROR; }
     char *text = (char *)(map + n + 1);
     size_t k = 0;
@@ -514,9 +583,12 @@ int32_t zn_lvgl_chartSeries(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret
 {
     THE_OBJ(0);
     if (!lv_obj_check_type(o, &lv_chart_class)) { host->set_error(cx, "zinc:lvgl: not a chart"); return ZN_ERROR; }
-    if (nseries == MAX_SERIES) { host->set_error(cx, "zinc:lvgl: 16 chart series at most"); return ZN_ERROR; }
-    series[nseries] = lv_chart_add_series(o, lv_color_hex((uint32_t)args[1].i), LV_CHART_AXIS_PRIMARY_Y);
-    ret->i = nseries++;
+    int k = 0;
+    while (k < MAX_SERIES && series_chart[k]) k++;
+    if (k == MAX_SERIES) { host->set_error(cx, "zinc:lvgl: 16 chart series at once at most"); return ZN_ERROR; }
+    if (!(series[k] = lv_chart_add_series(o, lv_color_hex((uint32_t)args[1].i), LV_CHART_AXIS_PRIMARY_Y))) { host->set_error(cx, "zinc:lvgl: out of memory"); return ZN_ERROR; }
+    series_chart[k] = o;
+    ret->i = k;
     return ZN_OK;
 }
 
@@ -525,8 +597,74 @@ int32_t zn_lvgl_chartPush(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     THE_OBJ(0);
     (void)ret;
     const int64_t s = args[1].i;
-    if (s < 0 || s >= nseries) { host->set_error(cx, "zinc:lvgl: no such chart series"); return ZN_ERROR; }
+    if (s < 0 || s >= MAX_SERIES || series_chart[s] != o) { host->set_error(cx, "zinc:lvgl: no such chart series"); return ZN_ERROR; }
     lv_chart_set_next_value(o, series[s], (int32_t)args[2].i);
+    return ZN_OK;
+}
+
+int32_t zn_lvgl_chartSet(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    THE_OBJ(0);
+    (void)ret;
+    const int64_t s = args[1].i;
+    if (s < 0 || s >= MAX_SERIES || series_chart[s] != o) { host->set_error(cx, "zinc:lvgl: no such chart series"); return ZN_ERROR; }
+    if (args[2].i < 0 || args[2].i >= (int64_t)lv_chart_get_point_count(o)) { host->set_error(cx, "zinc:lvgl: no such chart point"); return ZN_ERROR; }
+    lv_chart_set_series_value_by_id(o, series[s], (uint32_t)args[2].i, (int32_t)args[3].i);
+    lv_chart_refresh(o);
+    return ZN_OK;
+}
+
+/* ---- Lottie: an animation of LottieFiles' JSON (ThorVG reads and copies it) drawn by ThorVG into a buffer of w x h pixels, 4 bytes each, in
+   LVGL's memory and freed with the object (on_delete). LVGL plays it in a loop and draws a frame only while the object is visible. */
+int32_t zn_lvgl_lottie(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    lv_obj_t *parent = get(cx, args[0].i);
+    (void)self;
+    if (!parent) return ZN_ERROR;
+    const int32_t w = (int32_t)args[2].i, h = (int32_t)args[3].i;
+    if (w < 1 || h < 1 || w > 1024 || h > 1024) { host->set_error(cx, "zinc:lvgl: lottie() takes a width and a height of 1 to 1024 pixels"); return ZN_ERROR; }
+    void *buf = lv_malloc(lv_draw_buf_width_to_stride(w, LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED) * h + LV_DRAW_BUF_ALIGN);
+    if (!buf) { host->set_error(cx, "zinc:lvgl: no memory left for the animation's buffer (4 bytes a pixel): make it smaller"); return ZN_ERROR; }
+    lv_obj_t *o = lv_lottie_create(parent);
+    if (!(ret->i = adopt(cx, o))) { lv_free(buf); return ZN_ERROR; }
+    lv_obj_add_event_cb(o, on_delete, LV_EVENT_DELETE, buf);
+    lv_lottie_set_buffer(o, w, h, buf);
+    lv_lottie_set_src_data(o, args[1].s.p, args[1].s.n);
+    if (lv_lottie_get_anim(o)->end_value <= 0) {
+        lv_obj_delete(o);
+        host->set_error(cx, "zinc:lvgl: lottie(): ThorVG could not read the animation (a Lottie JSON, as LottieFiles exports it)");
+        return ZN_ERROR;
+    }
+    return ZN_OK;
+}
+
+extern const lv_obj_class_t lv_lottie_class; /* lv_lottie.c defines it; no header of LVGL 9.6 declares it */
+
+static lv_obj_t *the_lottie(ZnCtx *cx, int64_t h)
+{
+    lv_obj_t *o = get(cx, h);
+    if (o && !lv_obj_check_type(o, &lv_lottie_class)) { host->set_error(cx, "zinc:lvgl: not a Lottie animation"); return NULL; }
+    return o;
+}
+
+int32_t zn_lvgl_lottiePlay(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    lv_obj_t *o = the_lottie(cx, args[0].i);
+    (void)self;
+    (void)ret;
+    if (!o) return ZN_ERROR;
+    if (args[1].i) lv_anim_resume(lv_lottie_get_anim(o));
+    else lv_anim_pause(lv_lottie_get_anim(o));
+    return ZN_OK;
+}
+
+int32_t zn_lvgl_lottieRestart(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    lv_obj_t *o = the_lottie(cx, args[0].i);
+    (void)self;
+    (void)ret;
+    if (!o) return ZN_ERROR;
+    lv_lottie_get_anim(o)->act_time = 0; /* the first frame at the next turn */
     return ZN_OK;
 }
 

@@ -52,6 +52,9 @@ A native module that draws the screen itself (`zinc:lvgl`) takes the panel throu
 buffer the panel's bus can read (240 x 32 pixels at most). `zn_panel_flush(x0, y0, x1, y1, pixels)` sends an area of RGB565 pixels, high
 byte first; it waits for the previous area's transfer, so the module renders the next area while the bus sends this one. From the first
 area on, the program's `zinc:gfx` display list is no longer shown; an error takes the panel back to show its message.
+`zn_panel_rotate(quarter)` turns the panel a quarter (0 as started, 1 to 3 clockwise) with the controller's MADCTL: the areas sent after
+it are in the turned frame (320 x 240 for 1 and 3), no pixel is moved by hand; the touch stays in the portrait pixels, and an error turns
+the panel back.
 
 The board's other figures come through `main/zn.h` too (`zinc:device`, `plugins/device/native/device.abi.c`): `zn_backlight(level)`
 sets the backlight's LEDC PWM, 0 to 255, kept until the first frame lights the panel; `zn_touch()` says whether the touch controller

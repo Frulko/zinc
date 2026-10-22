@@ -19,7 +19,7 @@ lv.run((dt: number) => {
   if (frame === 30) { const s = lv.stats(); console.log('taps ' + taps + ', redrawn ' + (s[3] > 0) + ', timed ' + (s[1] > 0)); }
 });
 TS
-printf "8 move 120 160\n10 down\n12 up\n" > "$T/input"
+printf "8 move 160 160\n10 down\n12 up\n" > "$T/input"   # the button, the display's centre (120, 160); the display is centred in the window (320 x 240)
 run() { ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=31 ZINC_INPUT="$T/input" ZINC_SHOT="$T/$1.png" "$ZINC" run "$T/main.ts" 2>&1; }
 run a > "$T/a.log" || { echo "lvgl: the program failed"; tail -20 "$T/a.log"; fail=1; }
 grep -q "^taps 1, redrawn true, timed true$" "$T/a.log" || { echo "lvgl: expected 'taps 1, redrawn true, timed true':"; grep -v "^  " "$T/a.log" | tail -5; fail=1; }
