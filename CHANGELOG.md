@@ -28,6 +28,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".
 - `zinc:canvas` draws where it should under `zinc:gfx`'s `setTransform`: inside a `zinc:stage` sprite or a turned `zinc:ui` parent, its shapes, gradients and images were drawn at the wrong place and cut away.
 
+### Changed (breaking)
+- `<Button>`, `<Input>` and `<TextArea>` draw nothing you did not ask for, as React Native's: a Button is a focusable box that centres its content (no slate fill, no padding), a field shows its text, caret and placeholder in the colour and size of the text around it (no dark fill, border, radius or padding). Text with no colour is black on a light window and white on a dark one. To keep the old look, run `zinc migrate ui-explicit-looks --apply` in your project.
+- zinc:react-native's `TextInput` has no dark fill any more: give it a `backgroundColor` if you want one.
+
 ### Changed
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.
 - A misspelt command suggests the closest one (`zinc hlep`: did you mean `zinc help`?).

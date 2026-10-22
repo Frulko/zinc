@@ -57,7 +57,8 @@ export function makeDomHost(env) {
     '.zvl{overflow-anchor:none}',   // a virtual list swaps rows and spacers as it scrolls: the browser's scroll anchoring would move scrollTop under the person on a slow frame
     '.zi{font:inherit;color:inherit;background:transparent;appearance:none;-webkit-appearance:none;outline:none;resize:none;margin:0;text-align:start;flex-shrink:0}',
     '.zi::placeholder{color:#64748b;opacity:1}',
-    '.zi:focus{outline:2px solid #3b82f6;outline-offset:-1px}',
+    '.zi.zb:focus{outline:2px solid #3b82f6;outline-offset:-1px}',   // the focus border of a field that has a border; one with none shows the keyboard ring
+    '.zi:not(.zb):focus-visible{outline:2px solid #facc15;outline-offset:2px}',
     '.zi:disabled{opacity:.6}',
     '.z:focus-visible{outline:2px solid #facc15;outline-offset:2px}',
     '.z:focus:not(:focus-visible){outline:none}',
@@ -487,7 +488,7 @@ export function makeDomHost(env) {
       st.list = list;
     }
     const list = st.list || [];
-    const base = tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? 'zr zi' : 'zr') : n.tag === TEXT ? 'zt' : 'z';
+    const base = tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? (n.borderW !== 0 ? 'zr zi zb' : 'zr zi') : 'zr') : n.tag === TEXT ? 'zt' : 'z';
     let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (n.virt !== null ? ' zvl' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.onClick !== null && !(n.hs !== null && n.hs.noPress) ? ' zpf' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
     if (list.length) c += ' ' + list.join(' ');
     if (c !== st.cls) { st.cls = c; el.className = c; changed++; }
@@ -797,9 +798,10 @@ export function makeDomHost(env) {
     if (sch !== lastScheme) { lastScheme = sch; document.documentElement.style.colorScheme = sch === 'dark' ? 'dark' : 'light'; }
     const dir = ui.direction();
     if (dir !== lastDir) { lastDir = dir; root.dir = dir; }
-    if (!defaultFg) { defaultFg = true; root.style.color = hex6(ui.domDefaultFg()); }
+    const fg = ui.domDefaultFg();   // the colour of text no node gives one follows the window's background (black on light, white on dark)
+    if (fg !== defaultFg) { defaultFg = fg; root.style.color = hex6(fg); }
   }
-  let defaultFg = false;
+  let defaultFg = -1;
   const liveScrollers = new Set();
   // ---------------------------------------------------------------- events: the page's, handed to the nodes' handlers
   const modsOf = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);

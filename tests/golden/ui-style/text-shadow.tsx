@@ -13,7 +13,7 @@ text('text-lg text-white text-shadow-md', 'Shadow on dark');
 text('text-lg text-slate-900 text-shadow-red-500', 'Red shadow');
 text('text-lg text-slate-900 text-shadow-lg', 'Large shadow');
 const field = ui.createNode(ui.INPUT);
-ui.setClass(field, 'w-40 h-8 px-2 border rounded selection:bg-red-500');
+ui.setClass(field, 'bg-slate-800 border-slate-600 text-[14px] py-1.5 text-slate-100 w-40 h-8 px-2 border rounded selection:bg-red-500');   // the field look before 0.7, asked for
 ui.setValue(field, 'select me please');
 ui.insert(root, field, -1);
 ui.focusNode(field);

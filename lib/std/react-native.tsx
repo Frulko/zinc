@@ -351,7 +351,6 @@ export function TextInput(p: TextInputProps): i32 {
   const kt = p.keyboardType ?? 'default';
   const mode = kt === 'numeric' ? 1 : Math.max(0, INPUT_MODES.indexOf(kt));
   const flags = new ui.Style(['password', 'readOnly', 'inputMode'], [p.secureTextEntry === true ? 1 : 0, p.editable === false ? 1 : 0, mode]);
-  const bare = new ui.Style(['borderWidth', 'color'], [0, 0x000000]);   // React Native's TextInput: no border of its own (zinc:ui's field has one), black text whatever the theme
   const text = p.value ?? p.defaultValue ?? '';
   const typed = (s: string): void => {
     let v = s;
@@ -367,9 +366,9 @@ export function TextInput(p: TextInputProps): i32 {
     if (p.autoFocus === true) ui.focusNode(field.current);
   }, null);
   if (p.multiline === true)
-    return <TextArea ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''}
+    return <TextArea ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''}
       name={p.name ?? ''} required={p.required === true} minLength={p.minLength ?? 0} />;
-  return <Input ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''}
+  return <Input ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''}
     name={p.name ?? ''} required={p.required === true} pattern={p.pattern ?? ''} minLength={p.minLength ?? 0} enterKeyHint={p.enterKeyHint ?? ''} />;
 }
 export type FormProps = { onSubmit?: () => void; name?: string; style?: ui.Style; children?: () => i32 };

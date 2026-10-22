@@ -136,6 +136,7 @@
     {"paths": ["runtime/include/zrt_assets_dir.h"], "tests": ["aot_assets", "assets_groups"]},
     {"paths": ["plugins/webview/", "tests/t1/webview.sh"], "tests": ["webview", "webview_hybrid", "native_gen", "plugin_manifest"]},
     {"paths": ["lib/std/ui.ts", "lib/std/react-native.tsx", "tests/golden/ui-native-view/", "tests/t0/ui_native_view.sh"], "tests": ["ui_native_view"]},
+    {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "tools/scene-texts", "tests/golden/ui-neutral/", "tests/t1/ui_neutral.sh"], "tests": ["ui_neutral"]},
     {"paths": ["lib/std/ui.ts", "src/host/hal_dispatch.cpp", "src/host/sys_host.cpp", "tools/a11y-tree", "tests/golden/ui-a11y-bridge/", "tests/t0/ui_a11y_bridge.sh"], "tests": ["ui_a11y_bridge", "ui_a11y"]},
     {"paths": ["examples/webview/hybrid/", "tests/t1/webview_hybrid.sh"], "tests": ["webview_hybrid"]},
     {"paths": ["src/tc/progress.cpp", "include/zn/log.h", "tests/t0/build_progress.sh"], "tests": ["build_progress", "steps", "verbose_log", "plugin_fallback"]},

@@ -5,7 +5,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/p.ts" <<'P'
 import * as ui from 'zinc:ui';
 const root = ui.createNode(ui.VIEW), ta = ui.createNode(ui.TEXTAREA), below = ui.createNode(ui.VIEW);
-ui.setClass(root, 'flex-col w-full'); ui.setClass(ta, 'w-[200] p-0 border-0'); ui.setClass(below, 'h-[10]');
+ui.setClass(root, 'flex-col w-full'); ui.setClass(ta, 'w-[200] p-0 border-0 text-[14px]'); ui.setClass(below, 'h-[10]');
 ui.setNumber(ta, 'rows', 0);
 ui.insert(root, ta, -1); ui.insert(root, below, -1);
 let f = 0;

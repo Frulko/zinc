@@ -4,6 +4,26 @@ Desktop-grade input for `zinc:ui` (Solid, React/Inferno and the host ABI): text 
 events with capture, hover, cursors, keyboard shortcuts and zoomable views. Example: `zinc run examples/ui/forms`
 (form, code editor, draggable cards on a pannable / zoomable canvas).
 
+## What the primitives draw
+
+The host elements draw nothing a program did not ask for, as React Native's do; the look comes from `className`, `style` or a kit
+(`zinc:ui/kit`, `zinc:ui/nuxt`).
+
+| element | without a class or a style |
+| --- | --- |
+| `View` | nothing; a border width with no colour is grey-200 `#e5e7eb` |
+| `Text` | 16 px Inter (14 px under the react-native preset); black on a light window and white on a dark one (the brightness of `render`'s background, white before the first frame), always black under the react-native preset |
+| `Button` | nothing: a box that takes the focus, Enter and Space, and centres its content |
+| `Input`, `TextArea` | their text, caret, placeholder (`#64748b`) and selection only, in the colour and size of the text around them; no fill, border, radius or padding |
+| `Image`, `Canvas`, `ScrollView` | the picture; a scroll view shows its bars while it scrolls |
+
+Kept on purpose: an element with `onClick` dims while pressed (`pressFeedback={0}` or `ui.setPressFeedback(false)` turn it off, see
+"Pressed feedback"); the keyboard focus ring, a 2 px `#facc15` ring around what the keyboard focused (on a field too when it has no
+border); a field with a border gets a 2 px `#3b82f6` border while focused (`focus:border-<color>` recolours it).
+
+Before 0.7 a Button was a slate box (`bg-slate-700 px-2 py-1`) and a field a dark slate panel with light text. `zinc migrate
+ui-explicit-looks --apply` writes that look into the classes of a program that relied on it (`docs/guide/10-lint-migrate.md`).
+
 ## Text fields
 
 ```tsx
@@ -29,8 +49,8 @@ const [name, setName] = createSignal('');
 | `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers, `//` comments and `/* */` comments within a line |
 
 Default size: 200 px wide (stretch, `grow`, `w-*` size it), one line (or `rows` lines) high; styled by classes like any
-node (`bg-*`, `text-*`, `border-*`, `rounded-*`, `p-*`, `font-mono`, `text-sm`...). The focused field gets a blue
-border, or `focus:border-<color>`.
+node (`bg-*`, `text-*`, `border-*`, `rounded-*`, `p-*`, `font-mono`, `text-sm`...); with none it draws only its text, caret
+and placeholder ("What the primitives draw"). A field with a border gets a blue border while focused, or `focus:border-<color>`.
 
 Editing: click places the caret (Shift+click extends), double click selects a word, triple click a line, drag
 selects (the text scrolls past the edges); arrows, Alt/Ctrl+arrows by word, Cmd+arrows / Home / End by line,

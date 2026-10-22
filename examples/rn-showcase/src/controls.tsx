@@ -161,7 +161,7 @@ export function DateField(p: { label: string; value: Day | null; onChange: (d: D
 
 const s = StyleSheet.create({
   label: { fontSize: T_SMALL, fontWeight: '600' },
-  input: { height: 46, borderRadius: R_CONTROL, borderWidth: 1, paddingHorizontal: SP * 3, fontSize: T_BODY },
+  input: { height: 46, borderRadius: R_CONTROL, borderWidth: 1, paddingHorizontal: SP * 3, paddingVertical: 6, fontSize: T_BODY },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   err: { flexDirection: 'row', alignItems: 'center', gap: SP },
   body: { fontSize: T_BODY },

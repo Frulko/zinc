@@ -81,5 +81,5 @@ const s = StyleSheet.create({
   buttonText: { color: '#ffffff', fontSize: 17, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   label: { fontSize: 17 },
-  field: { height: 40, borderRadius: 8, paddingHorizontal: 12, fontSize: 17 },
+  field: { height: 40, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, fontSize: 17 },
 });

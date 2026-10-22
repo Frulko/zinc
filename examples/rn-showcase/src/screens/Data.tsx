@@ -71,7 +71,7 @@ export function DataScreen() {
 
 const st = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: SP * 2, height: 46, paddingLeft: SP * 3, paddingRight: 4, borderRadius: R_CONTROL, borderWidth: 1 },
-  input: { flex: 1, height: 40, fontSize: T_BODY, borderWidth: 0 },
+  input: { flex: 1, height: 40, fontSize: T_BODY, borderWidth: 0, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6 },
   add: { height: 36, paddingHorizontal: SP * 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', alignItems: 'center', gap: SP * 3, height: 48, marginHorizontal: SP * 4, marginBottom: SP * 2, paddingHorizontal: SP * 3, borderRadius: 12, borderWidth: 1 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

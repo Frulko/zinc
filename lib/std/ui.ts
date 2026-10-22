@@ -21,6 +21,7 @@ import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of the web target (ui-dom.browser.ts); on every other target DOM is false
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
+const BORDER_GREY: i32 = 0xe5e7eb;   // a border width with no colour: Tailwind's grey-200
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
 export const INPUT: i32 = 7, TEXTAREA: i32 = 8;
@@ -343,7 +344,7 @@ export class UiNode {
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
-  borderW: number = 0; borderColor: i32 = 0xe5e7eb; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
+  borderW: number = 0; borderColor: i32 = BORDER_GREY; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
    // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
   shX: number = 0; shY: number = 0; shBlur: number = 0; shColor: i32 = 0; shOpacity: number = 0;   // React Native's shadow (ZN-360): drawn when shOpacity > 0
@@ -492,13 +493,13 @@ let clock: number = 0;   // engine time in ms
 let surfW: i32 = -1, surfH: i32 = -1;
 
 function node(h: i32): UiNode { return nodes[h]; }
+// What a primitive is before any class or style (docs/ui.md, "What the primitives draw"; D163): it draws nothing it was not asked for, as React
+// Native's. A Button is a focusable box that centres its content; a field shows its text, caret and placeholder in the colour and size it inherits.
+// resetStyle writes the same values back without building a node.
 function defaults(n: UiNode): void {
-  if (n.tag === BUTTON) { n.bg = 0x334155; n.pt = 4; n.pb = 4; n.pl = 8; n.pr = 8; n.align = 1; n.justify = 1; n.focusable = true; }
+  if (n.tag === BUTTON) { n.align = 1; n.justify = 1; n.focusable = true; }
   if (n.tag === SCROLL) { n.scroll = 1; n.overflow = true; }
-  if (n.tag === INPUT || n.tag === TEXTAREA) {
-    n.bg = 0x1e293b; n.fg = 0xf1f5f9; n.borderW = 1; n.borderColor = 0x475569; n.radius = 6; n.size = 14;
-    n.pt = 6; n.pb = 6; n.pl = 8; n.pr = 8; n.focusable = true; n.overflow = true;
-  }
+  if (n.tag === INPUT || n.tag === TEXTAREA) { n.focusable = true; n.overflow = true; }
 }
 
 export function createNode(tag: i32): i32 {
@@ -2584,19 +2585,17 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
 }
 function resetStyle(n: UiNode): void {
   n.media = 0; n.container = false; n.ov = null;
-  const fresh = new UiNode(n.tag);
-  defaults(fresh);
-  n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false;
-  n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
+  const button = n.tag === BUTTON;   // the defaults() of each tag, as constants
+  n.row = false; n.wrap = false; n.justify = button ? 1 : 0; n.align = button ? 1 : 3; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false;
+  n.pt = 0; n.pr = 0; n.pb = 0; n.pl = 0; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
-  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
-  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
+  n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
+  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_GREY; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
-  if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
   const n = node(h);
@@ -2708,7 +2707,14 @@ export function textFont(h: i32): i32 { if (layoutDirty) layout(); return node(h
 export function textFg(h: i32): i32 {
   let q = h;
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
-  return q >= 0 ? nodes[q].fg : RN_STYLE ? 0x000000 : 0xffffff;   // React Native's text is black by default (ZN-367.01)
+  return q >= 0 ? nodes[q].fg : defaultFg();
+}
+/** The colour of text no node gives one: black under the react-native preset (ZN-367.01), else black on a light window and white on a dark
+ *  one or before the first frame (the brightness of render's background, YIQ). */
+function defaultFg(): i32 {
+  if (RN_STYLE) return 0x000000;
+  if (frameBg < 0) return 0xffffff;
+  return ((frameBg >> 16) & 255) * 299 + ((frameBg >> 8) & 255) * 587 + (frameBg & 255) * 114 >= 128000 ? 0x000000 : 0xffffff;
 }
 /** Text inherits size and weight from its parent text node. */
 function inheritText(n: UiNode): void {
@@ -4017,7 +4023,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       if (b > 0) rrect(x, y + hh - b, w, b, 0, bc, bai);
       if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, bai);
       if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, bai);
-    } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, bai);
+    } else if (bw > 0) border(x, y, w, hh, r, (focused && n.ed !== null ? Math.max(bw, 2) : bw) * kk, bc, bai);
     let rw = n.rg.ringW, rc = n.rg.ringC, ro = n.rg.ringO, ow = n.rg.outW, oc = n.rg.outC, oo = n.rg.outO;
     if (focused && n.rg.fRingW + n.rg.fOutW > -2 && (!n.rg.fVisible || keyboardFocus || n.ed !== null)) {
       if (n.rg.fRingW >= 0) { rw = n.rg.fRingW; ro = n.rg.fRingO; } if (n.rg.fRingC !== -1) rc = n.rg.fRingC;
@@ -4026,7 +4032,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     if (ow > 0) border(x - (oo + ow) * kk, y - (oo + ow) * kk, w + 2 * (oo + ow) * kk, hh + 2 * (oo + ow) * kk, r + (oo + ow) * kk, ow * kk, oc >= 0 ? oc : 0x000000, ai);
     if (rw > 0) border(x - (ro + rw) * kk, y - (ro + rw) * kk, w + 2 * (ro + rw) * kk, hh + 2 * (ro + rw) * kk, r + (ro + rw) * kk, rw * kk, rc >= 0 ? rc : 0x3b82f6, ai);
     // the default focus ring is for the keyboard, as :focus-visible in a browser: a node a finger or a mouse pressed has the focus without it
-    if (focused && keyboardFocus && rw + ow === 0 && !n.rg.outNone && n.it.focusBg < 0 && n.it.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
+    if (focused && keyboardFocus && rw + ow === 0 && !n.rg.outNone && n.it.focusBg < 0 && n.it.focusBorder < 0 && (n.ed === null || bw === 0) && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
     if (n.tag === IMAGE && n.img >= 0) paintImage(n, x, y, w, hh, r, kk, ai);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
@@ -4288,6 +4294,7 @@ function revealCaret(n: UiNode, e: Edit): void {
 }
 function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, ai: i32): void {
   ensureRows(n, e);
+  const fg = textFg(h);
   if (e.reveal) { revealCaret(n, e); e.reveal = false; e.ay = null; }
   const lh = lineHeightOf(n), f = fontAtScale(n, k), g = e.gutter, s = shown(e);
   const cl = n.pl + g, cw = n.lw - n.pl - n.pr - g, ch = n.lh - n.pt - n.pb, top = editTop(n, e);
@@ -4314,7 +4321,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
         if (mk[i + 3] === MARK_LINE && mk[i] <= e.re[r] && mk[i + 1] >= e.rs[r]) active = true;
         if (mk[i + 3] === MARK_GUTTER && mk[i] >= e.rs[r] && mk[i] <= e.re[r]) rrect(x + (n.pl / 2 - 3) * k, ry + (lh / 2 - 3) * k, 6 * k, 6 * k, 3 * k, mk[i + 2], ai);
       }
-      drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, ry + base * k, num, active ? editColor(e, 1, n.fg) : editColor(e, 0, GUTTER_NUM), ai, 0);
+      drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, ry + base * k, num, active ? editColor(e, 1, fg) : editColor(e, 0, GUTTER_NUM), ai, 0);
     }
     unclip();
     const gl = editColor(e, 2, GUTTER_LINE);
@@ -4355,7 +4362,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
     }
     if (e.compA >= 0 && e.compA <= b && e.compB >= a) {   // the IME's composing run: underlined, as every platform draws it
       const x0 = xrOf(n, chunk, e, c0, r, imax(e.compA, a)), x1 = xrOf(n, chunk, e, c0, r, imin(e.compB, b));
-      if (x1 > x0) rrect(rx + x0 * k, ry + (lh - 3) * k, (x1 - x0) * k, Math.max(1, Math.round(k * 1.5)), 0, n.fg, ai);
+      if (x1 > x0) rrect(rx + x0 * k, ry + (lh - 3) * k, (x1 - x0) * k, Math.max(1, Math.round(k * 1.5)), 0, fg, ai);
     }
     if (line.length === 0) continue;
     // squiggles (diagnostics) under the glyphs' baseline
@@ -4367,22 +4374,22 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       if (pts.length >= 4) stroke(pts, k, mk[i + 2], ai, false);
     }
     const hl = e.highlight, hla = e.highlightAt;
-    if ((hl === null && hla === null) || e.password) { drawText(f, rx, ry + base * k, line, n.fg, ai, 0); continue; }
+    if ((hl === null && hla === null) || e.password) { drawText(f, rx, ry + base * k, line, fg, ai, 0); continue; }
     let runs: i32[] = [];
     if (hla !== null) runs = hla(line, a); else if (hl !== null) runs = hl(line);
     let pos: i32 = 0, px: number = 0;
     for (let i = 0; i + 1 < runs.length && pos < line.length; i += 2) {
       const seg = line.slice(pos, pos + runs[i]);
-      if (seg.length > 0) drawText(f, rx + px * k, ry + base * k, seg, runs[i + 1] < 0 ? n.fg : runs[i + 1], ai, 0);
+      if (seg.length > 0) drawText(f, rx + px * k, ry + base * k, seg, runs[i + 1] < 0 ? fg : runs[i + 1], ai, 0);
       px += textWidth(n.fontId, seg, 0);
       pos += runs[i];
     }
-    if (pos < line.length) drawText(f, rx + px * k, ry + base * k, line.slice(pos), n.fg, ai, 0);
+    if (pos < line.length) drawText(f, rx + px * k, ry + base * k, line.slice(pos), fg, ai, 0);
   }
   if (e.value.length === 0 && e.placeholder.length > 0) drawText(f, x + cl * k, y + (top + base) * k, e.placeholder, 0x64748b, ai, 0);
   if (focused && !e.readOnly && (Math.floor((clock - e.blinkAt) / 530) % 2) === 0) {
     const r = rowOf(e, e.caret);
-    rrect(x + (cl + xIn(n, e, r, e.caret) - e.sx) * k - 0.5, y + (top + r * lh - e.sy) * k, 1.5, lh * k, 0, editColor(e, 4, n.fg), ai);
+    rrect(x + (cl + xIn(n, e, r, e.caret) - e.sx) * k - 0.5, y + (top + r * lh - e.sy) * k, 1.5, lh * k, 0, editColor(e, 4, fg), ai);
   }
   unclip();
 }
@@ -5300,7 +5307,7 @@ function paintTouchSelection(): void {
     const r = rowOf(e, e.caret), line = sub(shown(e), e.rs[r], e.re[r]), z = 1.25;
     const lx = caretX - (n.pl + e.gutter + xIn(n, e, r, e.caret) - e.sx) * boxK;   // where the line starts on the surface
     setTransform(z, 0, 0, z, caretX - (caretX - lx) * z, my + 4);
-    drawText(n.fontId, 0, Math.round((lineHeightOf(n) - n.size * 1.21) / 2), line, n.fg, 255, 0);
+    drawText(n.fontId, 0, Math.round((lineHeightOf(n) - n.size * 1.21) / 2), line, textFg(touchSel), 255, 0);
     resetTransform();
     rrect(mx + mw / 2 - 1, my + 4, 2, mh - 8, 0, tint, 255);
     unclip();
@@ -6897,7 +6904,7 @@ export function domRelayout(): void { layoutDirty = true; }
 /** The attribute conditions ("aria-checked=true") the variants of this program use: slot i is the paint state 10 + i of a node's overlay. */
 export function domAttrSlots(): string[] { return attrSlots; }
 /** The colour text has when no ancestor sets one (white; black with the React Native preset). */
-export function domDefaultFg(): i32 { return RN_STYLE ? 0x000000 : 0xffffff; }
+export function domDefaultFg(): i32 { return defaultFg(); }
 /** A press landed on node t (-1: nothing of the tree): the popovers and dialogs that asked (onOutsidePointer) hear it when it is outside them. */
 export function domOutside(t: i32, gx: number, gy: number, button: i32): void {
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
