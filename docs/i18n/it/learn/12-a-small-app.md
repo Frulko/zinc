@@ -153,7 +153,7 @@ suoni, e come costruire un'interfaccia che segue il suo stato. Da qui puoi conti
   lezioni hanno usato, e il resto.
 - [App con interfaccia](../guide/03-ui-apps.md) e [zinc:ui in profondità](../ui.md): scorrimento, campi di testo, animazioni, livelli,
   finestre.
-- [Oltre i componenti](../start/beyond.md): grafici che disegni tu, stili come oggetti, componenti tuoi,
+- [Oltre i componenti](../start/beyond.md): grafici che disegni tu, stili come oggetti, i tuoi componenti,
   animazioni e transizioni, e una scena mescolata a un'interfaccia.
 - `zinc new desktop-app` crea un'app più grande con pagine, un menu e impostazioni; `zinc new game-2d` un piccolo gioco completo.
   Leggi il loro codice: ora ne conosci ogni parte.

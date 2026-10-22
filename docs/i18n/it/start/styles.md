@@ -349,7 +349,7 @@ scelta per un desktop, un Raspberry Pi 4 o un telefono degli ultimi cinque anni;
   i loro clic.
 
 Tutti e due sono spiegati, con il codice, in [Oltre i componenti](beyond.md), che mostra anche grafici che disegni tu, stili come
-oggetti, componenti tuoi, animazioni e transizioni.
+oggetti, i tuoi componenti, animazioni e transizioni.
 
 Non sei sicuro? Comincia con lo stile a disegno e [le lezioni](../learn/README.md): ogni altro stile usa quello che insegnano. Per scegliere che
 tipo di programma fare (un gioco, un'app, un server, una scheda), vedi [Scegli il tuo tipo di programma](choose.md).

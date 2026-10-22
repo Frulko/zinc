@@ -14,7 +14,7 @@ presume che tu conosca le lezioni sull'interfaccia ([da 7 a 11](../learn/07-comp
 1. [Disegnalo tu](#draw-it-yourself): un `Canvas` e `zinc:gfx`.
 2. [Disegnalo con il canvas del web](#draw-it-with-the-webs-canvas): un `Canvas` e `zinc:canvas`.
 3. [Stili come oggetti](#styles-as-objects): `style` invece di `className`.
-4. [Componenti tuoi](#components-of-your-own): props, figli e uno stato proprio.
+4. [I tuoi componenti](#components-of-your-own): props, figli e uno stato proprio.
 5. [Animazioni e transizioni](#animations-and-transitions): cose che si muovono da sole.
 6. [Una scena dentro un'interfaccia](#a-scene-inside-an-interface): sprite in un riquadro dell'interfaccia.
 7. [Un'interfaccia dentro una scena](#an-interface-inside-a-scene): pulsanti su un oggetto della scena.
@@ -244,7 +244,7 @@ battery 40%
 
 **Prova tu:** aggiungi un terzo pulsante che svuota subito la batteria. Rendi la barra arancione tra il 20% e il 50%.
 
-## Componenti tuoi
+## I tuoi componenti
 
 **Cosa vedrai:** due schede di ricette. Ogni ingrediente ha un numero, un meno e un più.
 
