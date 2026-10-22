@@ -59,6 +59,7 @@ constexpr int kHeap = 96 * 1024;               // main/main.c JS_HEAP
 constexpr const char* kJsOffset = "0x320000";  // partitions.csv: the js partition, 512 KB
 constexpr std::size_t kJsSize = 0x80000;         // a program is half of it at most: the firmware relocates bytecode into the other half
 constexpr std::size_t kAppOffset = 0x20000;      // partitions.csv: ota_0, where a merged image's firmware starts
+constexpr std::size_t kNvsOffset = 0x9000, kNvsEnd = 0x10000;   // partitions.csv: nvs and phy_init, the board's own data
 
 std::string quote(const std::string& s) { std::string r = "'"; for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; }
 bool readText(const fs::path& p, std::string& out) { std::ifstream in(p, std::ios::binary); if (!in) return false; std::stringstream ss; ss << in.rdbuf(); out = ss.str(); return true; }
@@ -473,7 +474,23 @@ int flashFirmware(const std::string& root, std::string port, bool net, const Pro
   if (port.empty()) port = zn::dev::findSerialPort();
   if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
   const auto t = std::chrono::steady_clock::now();
-  if (capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(image), log) != 0) {
+  // the image around the NVS, which merge_bin fills with 0xFF: the board keeps its touch map, Wi-Fi networks, update token and
+  // zinc:storage from one firmware to the next
+  std::string bin;
+  const std::string head = zn::tc::home() + "/esp32/firmware-head.bin", tail = zn::tc::home() + "/esp32/firmware-tail.bin";
+  std::error_code ec;
+  fs::create_directories(zn::tc::home() + "/esp32", ec);
+  if (!readText(image, bin) || bin.size() <= kNvsEnd || !writeText(head, bin.substr(0, kNvsOffset)) || !writeText(tail, bin.substr(kNvsEnd))) {
+    std::fprintf(stderr, "zinc: cannot split the firmware image %s for the board\n", image.c_str());
+    return 1;
+  }
+  // esptool's own lines are kept for an error: 6 s to reach the chip, then about 47 KB a second (1.2 MB in 30.5 s, 450 KB in 17 s), the panel blank
+  zn::log::step("firmware", "writing " + fs::path(image).filename().string() + " (" + std::to_string(bin.size() / 1024) + " KB) to " + port + ": about " +
+                                std::to_string(6 + bin.size() / 47000) + " s, the screen stays white until the board starts");
+  const int rc = capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(head) + " " + std::to_string(kNvsEnd) + " " + quote(tail), log);
+  fs::remove(head, ec);
+  fs::remove(tail, ec);
+  if (rc != 0) {
     std::fprintf(stderr, "%szinc: esptool cannot write the firmware to %s (above)\n", log.c_str(), port.c_str());
     return 1;
   }
