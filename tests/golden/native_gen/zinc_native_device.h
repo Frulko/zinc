@@ -14,6 +14,9 @@ struct NativeDevice : zrt::Object {
   virtual int32_t drawCmds() = 0;
   virtual int32_t cpuMhz() = 0;
   virtual zrt::String chip() = 0;
+  virtual int32_t flashSize() = 0;
+  virtual zrt::String idfVersion() = 0;
+  virtual zrt::String firmware() = 0;
 };
 NativeDevice* zinc_create_Device();
 static NativeDevice* zn_Device;
