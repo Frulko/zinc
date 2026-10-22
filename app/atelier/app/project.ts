@@ -8,7 +8,8 @@ import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { sketchDir, sketchName, mainFile, buffers, edited, save, openFile, say } from './workspace';
 import { check, libraries, loadLibraries, Library } from './tools';
-import { Project, Target, readProject, jsonGet, jsonSet, jsonList, projectFiles, importsOf, permissionText } from '../model';
+import { Project, Target, readProject, jsonGet, jsonSet, jsonList, projectFiles, importsOf, permissionWords } from '../model';
+import { t, tn } from './text';
 
 export const [projectOpen, setProjectOpen] = createSignal<boolean>(false);
 /** What zinc.json says; null: a plain sketch (no zinc.json, or one that is not a JSON object). */
@@ -45,6 +46,12 @@ export function sizeHere(): Target | null {
 }
 /** The plugins the code imports: the imported modules that `zinc plugins` lists. */
 export function plugins(): string[] { return imports().filter((m: string) => libraries().some((l: Library) => l.name === m)); }
+/** One line on what a permission of zinc.json allows, in the language of the interface; '' for an id the engine does not know. */
+export function permissionText(id: string): string {
+  const w = permissionWords(id);
+  if (w.length === 0) return '';
+  return w[0] === 'atelier.permission.only' ? t(w[0], ['what', t(w[2]), 'detail', w[4]]) : t(w[0], w.slice(1));
+}
 
 function bytes(n: number): string { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MiB' : n >= 1024 ? Math.round(n / 1024) + ' KiB' : n + ' bytes'; }
 function measure(dir: string, depth: i32, sum: number[]): void {
@@ -67,7 +74,7 @@ export function openProject(): void {
   setImports(mods);
   const p = project(), folder = p !== null && (p as Project).assets !== '' ? (p as Project).assets : 'assets';
   const sum: number[] = [0, 0];
-  try { measure(dir + '/' + folder, 0, sum); setAssetsText(`${folder}/, ${sum[1]} file${sum[1] === 1 ? '' : 's'}, ${bytes(sum[0])}`); } catch (e) { setAssetsText('no assets folder'); }
+  try { measure(dir + '/' + folder, 0, sum); setAssetsText(tn('atelier.project.assets', sum[1], ['folder', folder + '/', 'size', bytes(sum[0])])); } catch (e) { setAssetsText(t('atelier.project.no_assets')); }
   loadLibraries();
   setProjectOpen(true);
   if (echo) console.log('[project] ' + projectText());
@@ -86,14 +93,14 @@ export function projectText(): string {
 function write(path: string[], value: string): boolean {
   const before = text(), after = jsonSet(before, path, value);
   if (after === before) return false;
-  if (readProject(after) === null) { say('zinc.json is left as it is: it is not a JSON object'); return false; }
+  if (readProject(after) === null) { say(t('atelier.project.not_object')); return false; }
   let tab = false;
   for (const b of buffers()) {
     if (b.path !== file()) continue;
-    if (b.modified()) { say('Save zinc.json first: its tab has changes'); return false; }
+    if (b.modified()) { say(t('atelier.project.save_first')); return false; }
     edited(b, after); tab = save(b);
   }
-  if (!tab) { try { fs.writeText(file(), after); } catch (e) { say('Cannot write zinc.json'); return false; } }
+  if (!tab) { try { fs.writeText(file(), after); } catch (e) { say(t('atelier.project.cannot_write')); return false; } }
   loadProject();
   if (echo) console.log('[project] ' + projectText());
   check();
@@ -103,7 +110,7 @@ export function setName(v: string): void {
   const name = v.trim();
   if (name === '' || project() === null) return;
   // written where it is read: `app.name` when the project has one, else the `name` beside it
-  if (write(jsonGet(text(), ['app', 'name']) !== '' ? ['app', 'name'] : ['name'], JSON.stringify(name))) say(`Named ${name}`);
+  if (write(jsonGet(text(), ['app', 'name']) !== '' ? ['app', 'name'] : ['name'], JSON.stringify(name))) say(t('atelier.project.named', ['name', name]));
 }
 /** The engine refuses an `app` object without an id: a project that has none gets `com.example.<its name>` with its first `app` key. */
 function appId(): string {
@@ -114,33 +121,33 @@ function appId(): string {
 export function setVersion(v: string): void {
   const version = v.trim();
   if (version === '' || project() === null) return;
-  for (let i = 0; i < version.length; i++) { const c = version.charCodeAt(i); if (!((c >= 48 && c <= 57) || c === 46 || c === 45 || (c >= 97 && c <= 122))) { say('A version is digits and dots: 1.2.0'); return; } }
+  for (let i = 0; i < version.length; i++) { const c = version.charCodeAt(i); if (!((c >= 48 && c <= 57) || c === 46 || c === 45 || (c >= 97 && c <= 122))) { say(t('atelier.project.bad_version')); return; } }
   const fresh = jsonGet(text(), ['app', 'id']) === '';
   if (fresh) write(['app', 'id'], JSON.stringify(appId()));
-  if (write(['app', 'version'], JSON.stringify(version))) say(fresh ? `Version ${version}; the app's id is ${appId()} until zinc.json says another` : `Version ${version}`);
+  if (write(['app', 'version'], JSON.stringify(version))) say(fresh ? t('atelier.project.version_id', ['version', version, 'id', appId()]) : t('atelier.project.version', ['version', version]));
 }
 /** The size of the window on this machine: `targets.<macos|linux>`. */
 export function setSize(width: string, height: string): void {
   const w: i32 = parseInt(width), h: i32 = parseInt(height);
-  if (project() === null || isNaN(w) || isNaN(h) || w < 64 || h < 64 || w > 16384 || h > 16384) { say('A window is at least 64 x 64'); return; }
+  if (project() === null || isNaN(w) || isNaN(h) || w < 64 || h < 64 || w > 16384 || h > 16384) { say(t('atelier.project.small_window')); return; }
   const a = write(['targets', HERE, 'width'], `${w}`), b = write(['targets', HERE, 'height'], `${h}`);
-  if (a || b) say(`Window ${w} x ${h} on ${HERE}`);
+  if (a || b) say(t('atelier.project.window', ['width', `${w}`, 'height', `${h}`, 'target', HERE]));
 }
 /** Adds the permission, or removes it when the project has it. */
 export function togglePermission(id: string): void {
   const p = project(), want = id.trim();
   if (p === null || want === '') return;
-  if (permissionText(want) === '') { say(`${want} is not a permission (fs, net, process, camera, menu, tray, dialog, notification…)`); return; }
+  if (permissionText(want) === '') { say(t('atelier.project.bad_permission', ['name', want])); return; }
   const list = (p as Project).permissions.filter((x: string) => x !== want), had = list.length < (p as Project).permissions.length;
   if (!had) list.push(want);
-  if (write(['permissions'], jsonList(list))) say(had ? `Removed the permission ${want}` : `Allowed ${want}: ${permissionText(want)}`);
+  if (write(['permissions'], jsonList(list))) say(had ? t('atelier.project.removed', ['name', want]) : t('atelier.project.allowed', ['name', want, 'what', permissionText(want)]));
 }
 /** A plain sketch becomes a project: a zinc.json with its name and its entry. */
 export function makeProject(): void {
   const dir = sketchDir(), main = mainFile(dir);
   if (dir === '' || main === '' || fs.exists(file())) return;
-  try { fs.writeText(file(), `{\n  "name": ${JSON.stringify(sketchName())},\n  "app": { "id": ${JSON.stringify(appId())}, "version": "0.1.0" },\n  "entry": ${JSON.stringify(main)}\n}\n`); } catch (e) { say('Cannot write zinc.json'); return; }
-  say('This sketch is now a project: zinc.json holds its name, its id, its version and its entry');
+  try { fs.writeText(file(), `{\n  "name": ${JSON.stringify(sketchName())},\n  "app": { "id": ${JSON.stringify(appId())}, "version": "0.1.0" },\n  "entry": ${JSON.stringify(main)}\n}\n`); } catch (e) { say(t('atelier.project.cannot_write')); return; }
+  say(t('atelier.project.made'));
   openProject();
 }
 export function openJson(): void { if (fs.exists(file())) { openFile(file()); setProjectOpen(false); } }
@@ -148,6 +155,6 @@ export function openJson(): void { if (fs.exists(file())) { openFile(file()); se
 export function showFolder(): void {
   const dir = sketchDir();
   if (dir === '') return;
-  if (sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { say(`The folder: ${dir}`); return; }
-  try { proc.spawn('/usr/bin/env', [HERE === 'macos' ? 'open' : 'xdg-open', dir], {}); } catch (e) { say(`The folder: ${dir}`); }
+  if (sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { say(t('atelier.project.folder', ['path', dir])); return; }
+  try { proc.spawn('/usr/bin/env', [HERE === 'macos' ? 'open' : 'xdg-open', dir], {}); } catch (e) { say(t('atelier.project.folder', ['path', dir])); }
 }

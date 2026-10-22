@@ -11,15 +11,19 @@ import { setClipboardText } from 'zinc:gfx';
 import { Spring } from './motion';
 import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, say, APP_HOME } from './workspace';
 import { parseDiagnostics, Diag, stepOf } from '../model';
+import { t, tn, lang } from './text';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
 /** The variables of a scripted or captured run of Atelier itself that its children must not inherit (they would write the same files). */
 const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SIZE', 'ZINC_SYSTEM_SCRIPT', 'ZINC_SYSTEM_LOG', 'ZINC_ATELIER_SCRIPT',
   'ZINC_RUN'];   // nor the engine Atelier itself was started on (`zinc run --interp`, `zinc dev`): the sketch runs on the one its menu names
 export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
+/** The commands whose output the user reads in Atelier's language (D159); the others' output is parsed, so they speak English. */
+const SPOKEN: string[] = ['run', 'dev', 'check', 'explain', 'new', 'export'];
 export function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
+  a.push('ZINC_LANG=' + (SPOKEN.indexOf(args[0]) >= 0 ? lang() : 'en'));
   a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args[0] === 'export' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
   a.push(ZINC);
   return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd });
@@ -95,7 +99,7 @@ function add(l: Line, over: boolean = false): void {
 export function clearConsole(): void { buf = []; setLines([]); }
 export function consoleText(): string { return buf.map((l: Line) => l.text).join('\n'); }
 /** The whole console on the clipboard (the Copy control of the console, Tools > Copy the Console). */
-export function copyConsole(): void { if (buf.length === 0) return; setClipboardText(consoleText()); say(`Copied the console: ${buf.length} line${buf.length > 1 ? 's' : ''}`); }
+export function copyConsole(): void { if (buf.length === 0) return; setClipboardText(consoleText()); say(tn('atelier.console.copied', buf.length)); }
 
 /** Opens the file a console line names, at its line and column. `go` is set by the editor (it owns the caret). */
 let go: (b: Buffer, line: i32, col: i32) => void = (b: Buffer, line: i32, col: i32) => {};
@@ -115,13 +119,19 @@ export const [stage, setStage] = createSignal<string>('');
 /** Whole seconds since the program started. */
 export const [seconds, setSeconds] = createSignal<i32>(0);
 export const [debugging, setDebugging] = createSignal<boolean>(false);
-/** The status line: what happened last. kind 0 quiet, 1 good, 2 bad. */
-export const [status, setStatusText] = createSignal<string>('Ready');
+/** The status line: what happened last, kept as its key, its count ('' for none) and its params, so that it follows the language.
+ *  kind 0 quiet, 1 good, 2 bad. */
+const [said, setSaid] = createSignal<string[]>(['atelier.run.ready', '']);
 export const [statusKind, setStatusKind] = createSignal<i32>(0);
-function setStatus(s: string, kind: i32): void { setStatusText(s); setStatusKind(kind); if (echo) console.log('[status] ' + s); }
+export function status(): string { const s = said(); return s[1] !== '' ? tn(s[0], parseFloat(s[1]), s.slice(2)) : t(s[0], s.slice(2)); }
+function setStatus(key: string, kind: i32, params: string[] = [], count: number = -1): void {
+  setSaid([key, count >= 0 ? `${count}` : ''].concat(params)); setStatusKind(kind);
+  if (echo) console.log('[status] ' + status());
+}
 
-/** How the sketch runs: the choices of the run control's menu and their `zinc run` arguments. */
-export const ENGINES: string[] = ['Native', 'Interpreter', 'QuickJS', 'ESP32 emulator'];
+/** How the sketch runs: the choices of the run control's menu (their names are atelier.engine.<id>) and their `zinc run` arguments. */
+export const ENGINE_IDS: string[] = ['native', 'interpreter', 'quickjs', 'esp32'];
+export function engineName(i: i32): string { return t('atelier.engine.' + ENGINE_IDS[i]); }
 const ENGINE_ARGS: string[][] = [[], ['--interp'], ['--engine', 'quickjs'], ['--target', 'esp32', '--qemu']];
 export const [engine, setEngine] = createSignal<i32>(0);
 /** The paired device Run sends the sketch to (its name); '': this machine, as `engine` says. */
@@ -135,7 +145,7 @@ let remote = '', app = '', ended: i32 = -1, refused = '';
 
 function nowRunning(): void {
   setPhase(RUNNING); startedAt = sys.clock(); setSeconds(0);
-  setStatus((debugging() ? 'Debugging' : 'Running') + (remote !== '' ? ' on ' + remote : ''), 1);
+  setStatus(remote !== '' ? (debugging() ? 'atelier.run.debugging_on' : 'atelier.run.running_on') : debugging() ? 'atelier.run.debugging' : 'atelier.run.running', 1, ['device', remote]);
 }
 /** A line of `zinc device <name> deploy` that is about the device, not from the program: true when it is dealt with. */
 function deviceLine(text: string): boolean {
@@ -170,7 +180,7 @@ function onLine(text: string, stderr: boolean): void {
     if (name === 'run' || name === 'dev') nowRunning();
     else if (phase() === BUILDING && name !== 'zinc') setStage(name);
     // the transfer to a device, live: "Sending to spark: 45%, 16 MiB of 35 MiB, 2.1 MiB/s"
-    if (name === 'send' && remote !== '' && phase() === BUILDING) setStatus(`Sending to ${remote}: ${step[1]}`, 0);
+    if (name === 'send' && remote !== '' && phase() === BUILDING) setStatus('atelier.device.sending', 0, ['device', remote, 'progress', step[1]]);
     // a step said again is one line that updates: the progress of a transfer or of the native builds, "compile ..." then its result
     const last = buf.length > 0 ? buf[buf.length - 1] : null;
     over = last !== null && (last as Line).kind === K_STAGE && stepOf((last as Line).text).length > 0 && stepOf((last as Line).text)[0] === name;
@@ -185,14 +195,14 @@ function onLine(text: string, stderr: boolean): void {
 export function run(debug: boolean = false): void {
   if (child !== null) { again = debug ? 1 : 0; stop(); return; }
   const dir = sketchDir(), main = mainFile(dir);
-  if (dir === '' || main === '') { setStatus('Nothing to run: this sketch has no code file', 2); return; }
+  if (dir === '' || main === '') { setStatus('atelier.run.nothing', 2); return; }
   saveAll();
   clearConsole();
   remote = device(); app = ''; ended = -1; refused = '';
   const args: string[] = remote !== '' ? ['device', remote, 'deploy', '.', '--name', sketchName()].concat(debug ? ['--inspect'] : []) : [debug ? 'dev' : 'run', main].concat(debug ? [] : ENGINE_ARGS[engine()]);
   add(new Line('$ zinc ' + args.join(' '), K_CMD));
   stopped = false;
-  setDebugging(debug); setPhase(BUILDING); setStage('starting'); setStatus('Building', 0);
+  setDebugging(debug); setPhase(BUILDING); setStage('starting'); setStatus('atelier.run.building', 0);
   try {
     const p = zinc(args, dir);
     child = p;
@@ -204,33 +214,41 @@ export function run(debug: boolean = false): void {
       const lost = app !== '' && ended < 0 && !stopped;   // the follower ended before the program did: the device went away
       if (ended >= 0) code = ended;
       setPhase(IDLE); setStage(''); setDebugging(false); closeInspector();
-      if (stopped) setStatus('Stopped', 0);
-      else if (lost) { setStatus(`Lost ${remote}: the sketch may still run there`, 2); showConsole(true); }
-      else if (code === 0) setStatus('Finished', 1);
-      else { setStatus(ran ? `Exited with code ${code}` : refused !== '' ? `${remote}: ${refused}` : 'Build failed', 2); showConsole(true); }
-      add(new Line(stopped ? 'stopped' : `exit ${code}`, K_END));
+      if (stopped) setStatus('atelier.run.stopped', 0);
+      else if (lost) { setStatus('atelier.device.lost', 2, ['device', remote]); showConsole(true); }
+      else if (code === 0) setStatus('atelier.run.finished', 1);
+      else {
+        if (ran) setStatus('atelier.run.exited', 2, ['code', `${code}`]);
+        else if (refused !== '') setStatus('atelier.device.refused', 2, ['device', remote, 'reason', refused]);
+        else setStatus('atelier.run.build_failed', 2);
+        showConsole(true);
+      }
+      add(new Line(stopped ? t('atelier.console.stopped') : `exit ${code}`, K_END));
       const next = again;
       again = -1;
       if (next >= 0) run(next === 1);
     });
-  } catch (e) {
-    child = null; setPhase(IDLE);
-    setStatus('Cannot start zinc', 2);
-    add(new Line(`${ZINC}: ${(e as Error).message}`, K_ERR));
-    showConsole(true);
-  }
+  } catch (e) { cannotStart(e as Error); }
+}
+/** zinc did not start: where Atelier looked and what to do, on the status line and in the console. */
+function cannotStart(e: Error): void {
+  child = null; setPhase(IDLE);
+  setStatus('atelier.run.no_zinc', 2, ['path', ZINC]);
+  add(new Line(`${ZINC}: ${e.message}`, K_ERR));
+  add(new Line(t('atelier.run.no_zinc_fix', ['path', ZINC]), K_STAGE));
+  showConsole(true);
 }
 /** Build App: the app for this machine (`zinc export`: the program, its bundle on a Mac, in dist/), the steps of the build in the console
  *  and where the app is on the status line. */
 export function build(): void {
-  if (child !== null) { say('Stop the sketch first: one build at a time'); return; }
+  if (child !== null) { say(t('atelier.build.busy')); return; }
   const dir = sketchDir();
-  if (dir === '' || mainFile(dir) === '') { setStatus('Nothing to build: this sketch has no code file', 2); return; }
+  if (dir === '' || mainFile(dir) === '') { setStatus('atelier.build.nothing', 2); return; }
   saveAll();
   clearConsole();
   remote = ''; app = ''; ended = -1; refused = ''; stopped = false;
   add(new Line('$ zinc export .', K_CMD));
-  setDebugging(false); setPhase(BUILDING); setStage('starting'); setStatus('Building the app', 0);
+  setDebugging(false); setPhase(BUILDING); setStage('starting'); setStatus('atelier.build.building', 0);
   let made = '';
   try {
     const p = zinc(['export', '.'], dir);
@@ -241,17 +259,12 @@ export function build(): void {
     p.onExit((code: i32) => {
       child = null;
       setPhase(IDLE); setStage('');
-      if (stopped) setStatus('Stopped', 0);
-      else if (code === 0) setStatus(`Built ${made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made}`, 1);
-      else { setStatus('Build failed', 2); showConsole(true); }
-      add(new Line(stopped ? 'stopped' : `exit ${code}`, K_END));
+      if (stopped) setStatus('atelier.run.stopped', 0);
+      else if (code === 0) setStatus('atelier.build.built', 1, ['path', made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made]);
+      else { setStatus('atelier.run.build_failed', 2); showConsole(true); }
+      add(new Line(stopped ? t('atelier.console.stopped') : `exit ${code}`, K_END));
     });
-  } catch (e) {
-    child = null; setPhase(IDLE);
-    setStatus('Cannot start zinc', 2);
-    add(new Line(`${ZINC}: ${(e as Error).message}`, K_ERR));
-    showConsole(true);
-  }
+  } catch (e) { cannotStart(e as Error); }
 }
 // ---- Debug: the sketch runs under `zinc dev` (it restarts at every save, a compile error stays on its screen) and, when it
 // has an interface, the Zinc Inspector (the app beside this one) opens on its DevTools port: elements, styles, console, frames.
@@ -261,11 +274,11 @@ let inspector: proc.Process | null = null;
 export function openInspector(): void {
   if (inspectorPort() === 0 || inspector !== null) return;
   const app = APP_HOME + '/../inspector/main.tsx';
-  if (APP_HOME === '' || !fs.exists(app)) { add(new Line(`inspector: chrome://inspect, Discover network targets: localhost:${inspectorPort()}`, K_STAGE)); return; }
+  if (APP_HOME === '' || !fs.exists(app)) { add(new Line(t('atelier.inspector.by_hand', ['port', `${inspectorPort()}`]), K_STAGE)); return; }
   try {
     const p = zinc(['run', app, '--', `${inspectorPort()}`], '');
     inspector = p;
-    add(new Line(`inspector: opened on port ${inspectorPort()}`, K_STAGE));
+    add(new Line(t('atelier.inspector.opened', ['port', `${inspectorPort()}`]), K_STAGE));
     p.onStdout((l: string) => { add(new Line('inspector: ' + l, K_STAGE)); });
     p.onExit((code: i32) => { if (inspector === p) inspector = null; });
   } catch (e) { inspector = null; }
@@ -274,8 +287,8 @@ export function openInspector(): void {
  *  opens it by itself, here or on the device. */
 export function inspect(): void {
   if (inspectorPort() > 0) { openInspector(); return; }
-  if (child !== null && debugging()) { say('No inspector yet: it opens when the sketch shows an interface (zinc:ui)'); return; }
-  say(child !== null ? 'Starting the sketch again in debug: the inspector opens with it' : 'Starting the sketch in debug: the inspector opens with it');
+  if (child !== null && debugging()) { say(t('atelier.inspector.not_yet')); return; }
+  say(t(child !== null ? 'atelier.inspector.restart' : 'atelier.inspector.start'));
   run(true);
 }
 /** The inspector of the sketch running on a device, on a port of this machine: `zinc device <name> inspect <app>` forwards it until the run ends. */
@@ -362,10 +375,10 @@ export function check(): void {
       if (all.length === 0) {
         // what the engine refuses in zinc.json itself: "zinc: <path>/zinc.json: line 4: app.id is required (...)"
         const at = out.indexOf('zinc.json: line ');
-        if (at >= 0) { const end = out.indexOf('\n', at); setStatus(out.slice(at, end < 0 ? out.length : end), 2); }
-        else if (statusKind() === 2) setStatus('No problems', 1);
+        if (at >= 0) { const end = out.indexOf('\n', at); setStatus('atelier.status.said', 2, ['text', out.slice(at, end < 0 ? out.length : end)]); }
+        else if (statusKind() === 2) setStatus('atelier.check.none', 1);
       }
-      else setStatus(`${all.length} problem${all.length > 1 ? 's' : ''}: ${all[0].file}:${all[0].line} ${all[0].message}`, 2);
+      else setStatus('atelier.check.problems', 2, ['place', `${all[0].file}:${all[0].line}`, 'message', all[0].message], all.length);
     });
   } catch (e) { checks--; }
 }
@@ -374,10 +387,10 @@ export function check(): void {
 export function problems(): void {
   if (phase() !== IDLE) return;
   const dir = sketchDir();
-  let n: i32 = 0, first = '';
-  for (const b of buffers()) for (const d of b.diagnostics()) if (n++ === 0) first = `${b.path.startsWith(dir + '/') ? b.path.slice(dir.length + 1) : b.name}:${d.line + 1} ${d.message}`;
-  const s = n === 0 ? 'No problems' : `${n} problem${n > 1 ? 's' : ''}: ${first}`;
-  if (s !== status() && (n > 0 || statusKind() === 2)) setStatus(s, n > 0 ? 2 : 1);
+  let n: i32 = 0, place = '', message = '';
+  for (const b of buffers()) for (const d of b.diagnostics()) if (n++ === 0) { place = `${b.path.startsWith(dir + '/') ? b.path.slice(dir.length + 1) : b.name}:${d.line + 1}`; message = d.message; }
+  const s = n === 0 ? t('atelier.check.none') : tn('atelier.check.problems', n, ['place', place, 'message', message]);
+  if (s !== status() && (n > 0 || statusKind() === 2)) { if (n === 0) setStatus('atelier.check.none', 1); else setStatus('atelier.check.problems', 2, ['place', place, 'message', message], n); }
 }
 
 // ---------------------------------------------------------------- libraries
@@ -409,7 +422,7 @@ export function loadLibraries(): void {
       }
       setLibraries(list);
     });
-  } catch (e) { say('Cannot list the libraries'); }
+  } catch (e) { say(t('atelier.library.cannot_list')); }
 }
 /** The import line of a library: `import * as audio from 'zinc:audio';` */
 export function importLine(name: string): string {
@@ -427,16 +440,16 @@ export function updates(install: boolean): void {
   try {
     const p = zinc(install ? ['update'] : ['update', '--check'], '');
     checks++;
-    setStatus(install ? 'Installing the update…' : 'Checking for updates…', 0);
+    setStatus(install ? 'atelier.update.installing' : 'atelier.update.checking', 0);
     p.onData((chunk: string, stderr: boolean) => { out += chunk; });
     p.onExit((code: i32) => {
       checks--;
       const ls = out.trim().split('\n');
       const last = ls[ls.length - 1];
       setUpdateReady(!install && code === 10);
-      if (code === 10) setStatus(ls[0] + ': Help > Install the Update', 0);
-      else if (code === 0) setStatus(install ? last + '; restart Atelier to use it' : ls[0], 1);
-      else setStatus('Update: ' + last, 2);
+      if (code === 10) setStatus('atelier.update.ready', 0, ['text', ls[0]]);
+      else if (code === 0) setStatus(install ? 'atelier.update.installed' : 'atelier.status.said', 1, ['text', install ? last : ls[0]]);
+      else setStatus('atelier.update.failed', 2, ['text', last]);
     });
-  } catch (e) { setStatus('Cannot run zinc update', 2); }
+  } catch (e) { setStatus('atelier.update.cannot', 2); }
 }

@@ -9,6 +9,7 @@ import { focusLater, sketchDir, sketchFiles, buffers, openFile } from '../app/wo
 import { libraries } from '../app/tools';
 import { fuzzy, segments, Fuzzy } from '../app/fuzzy';
 import { noteKey } from '../app/cursors';
+import { t as tr } from '../app/text';
 import { Kbd } from './Controls';
 
 class Item {
@@ -44,12 +45,12 @@ const items = createMemo<Item[]>(() => {
   } else if (mode === PAL_FILES) {
     // every source file of the sketch, in its folders too: the way to the files that have no tab yet
     const dir = sketchDir();
-    if (q === '') out.push(new Item('New File…', 'add a file to the sketch', '⌘T', '', () => { command('add-file'); }));
+    if (q === '') out.push(new Item(tr('atelier.palette.new_file'), tr('atelier.palette.new_file_detail'), '⌘T', '', () => { command('add-file'); }));
     for (const f of sketchFiles(dir)) {
       let open = false;
       for (const b of buffers()) if (b.path === dir + '/' + f) open = true;
       const slash = f.lastIndexOf('/');
-      const it = new Item(f, open ? 'open' : '', '', '', () => { openFile(dir + '/' + f); });
+      const it = new Item(f, open ? tr('atelier.palette.open') : '', '', '', () => { openFile(dir + '/' + f); });
       if (q !== '') {
         const m = fuzzy(q, f, slash + 1);
         if (m === null) continue;
@@ -59,9 +60,9 @@ const items = createMemo<Item[]>(() => {
     }
   } else {
     for (const c of COMMANDS) {
-      const it = new Item(c.name, c.menu, keysText(c.keys), '', c.run);
+      const it = new Item(c.name(), tr('atelier.menu.' + c.menu), keysText(c.keys), '', c.run);
       if (q !== '') {
-        const m = fuzzy(q, c.name, 0);
+        const m = fuzzy(q, it.label, 0);
         if (m === null) continue;
         it.score = (m as Fuzzy).score; it.labelHits = (m as Fuzzy).hits;
       }
@@ -133,7 +134,7 @@ export function Palette(): i32 {
       onPointerDown={() => {}}>
       <View className={`flex-row items-center h-[46] px-4 border-b ${bd(theme().borderSoft)}`}>
         <Input ref={inputRef} className={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
-          placeholder={paletteMode() === PAL_LIBRARIES ? 'Add a library to the sketch…' : paletteMode() === PAL_FILES ? 'Open a file of the sketch…' : 'Do something…'}
+          placeholder={tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : 'atelier.palette.commands')}
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
           onKeyDown={paletteKey} />
       </View>
@@ -141,7 +142,7 @@ export function Palette(): i32 {
         {items().map((it: Item) => <Row it={it} />)}
       </ScrollView>
       {items().length === 0 && <View className="h-[40] px-4 justify-center">
-        <Text className={`text-[13px] ${fg(theme().faint)}`}>No matches</Text>
+        <Text className={`text-[13px] ${fg(theme().faint)}`}>{tr('atelier.palette.no_matches')}</Text>
       </View>}
     </View>
   </View>;

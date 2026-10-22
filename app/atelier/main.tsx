@@ -20,7 +20,7 @@ import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
-import { COMMANDS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
+import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
 import { check, stepTools, setJump, stopAll, consoleText, status } from './app/tools';
 import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
@@ -33,6 +33,7 @@ import { Palette } from './components/Palette';
 import { DevicesPanel } from './components/Devices';
 import { ProjectCard } from './components/Project';
 import { projectOpen, setProjectOpen, projectText, togglePermission } from './app/project';
+import { t, LANGUAGES, languageName, lang, setLanguage, setOnLanguage } from './app/text';
 
 function App(): i32 {
   return <View className={`flex-col h-full ${bg(theme().chrome)}`}>
@@ -53,27 +54,40 @@ function App(): i32 {
 // elsewhere the same shortcuts are handled below and the palette lists everything.
 /** True when a real menu bar takes the shortcuts (not the recording simulator of headless and deterministic runs, which says it has every feature). */
 const menuBar: boolean = menu.native && sys.platform() === 'macos' && sys.env('ZINC_HEADLESS') === '' && sys.env('ZINC_DETERMINISTIC') === '';
-function installMenu(): void {
-  const bar: menu.Item[] = [menu.role('appMenu')];
-  for (const name of ['File', 'Edit', 'Sketch', 'Tools', 'Help']) {
+/** The menu bar in the language of the interface: built again when it changes (Tools > Language). */
+/** A standard item of the system (Quit, Minimize...) named in the language of the interface, not the system's English. */
+function roleItem(role: string, key: string): menu.Item { const i = menu.role(role); i.label = t('atelier.menu.' + key, ['app', 'Zinc Atelier']); return i; }
+function buildMenu(): void {
+  const bar: menu.Item[] = [menu.submenu('Zinc Atelier', [roleItem('about', 'about'), menu.separator(), roleItem('services', 'services'), menu.separator(),
+    roleItem('hide', 'hide'), roleItem('hideOthers', 'hide_others'), roleItem('unhide', 'show_all'), menu.separator(), roleItem('quit', 'quit')])];
+  for (const name of MENUS) {
     const items: menu.Item[] = [];
     for (const c of COMMANDS) {
       if (c.menu !== name) continue;
       if (c.sep) items.push(menu.separator());
-      items.push(menu.item(c.id, c.name, c.keys));
-      if (c.id === 'examples') items.push(menu.submenu('Open Example', EXAMPLES.map((e: Example) => menu.item('example:' + e.dir, e.title))));
+      items.push(menu.item(c.id, c.name(), c.keys));
+      if (c.id === 'examples') items.push(menu.submenu(t('atelier.menu.open_example'), EXAMPLES.map((e: Example) => menu.item('example:' + e.dir, e.name()))));
       if (c.id === 'redo') {
         items.push(menu.separator());
-        items.push(menu.item('cut', 'Cut', 'CmdOrCtrl+X')); items.push(menu.item('copy', 'Copy', 'CmdOrCtrl+C'));
-        items.push(menu.item('paste', 'Paste', 'CmdOrCtrl+V')); items.push(menu.item('select-all', 'Select All', 'CmdOrCtrl+A'));
+        const edits: string[] = ['cut', 'X', 'copy', 'C', 'paste', 'V', 'select-all', 'A'];
+        for (let k = 0; k < edits.length; k += 2) items.push(menu.item(edits[k], t('atelier.cmd.' + edits[k]), 'CmdOrCtrl+' + edits[k + 1]));
+      }
+      if (c.id === 'theme') {
+        const langs = LANGUAGES.map((code: string) => { const it = menu.item('lang:' + code, languageName(code)); it.type = 'radio'; it.checked = code === lang(); return it; });
+        items.push(menu.submenu(t('atelier.menu.language'), langs));
       }
     }
-    bar.push(menu.submenu(name, items));
+    bar.push(menu.submenu(t('atelier.menu.' + name), items));
   }
-  bar.push(menu.role('windowMenu'));
+  bar.push(menu.submenu(t('atelier.menu.window'), [roleItem('minimize', 'minimize'), roleItem('zoom', 'zoom'), menu.separator(), roleItem('front', 'front')]));
   menu.setApp(bar);
+}
+function installMenu(): void {
+  buildMenu();
+  setOnLanguage(buildMenu);
   for (const c of COMMANDS) menu.onClick(c.id, (source: string) => c.run());
   for (const e of EXAMPLES) menu.onClick('example:' + e.dir, (source: string) => { openExample(e.dir); });
+  for (const code of LANGUAGES) menu.onClick('lang:' + code, (source: string) => setLanguage(code));
   // the field handles these keys itself: the item's click is replayed as the key when it was made with the mouse
   menu.onClick('cut', (source: string) => menuKey('x', ui.META));
   menu.onClick('copy', (source: string) => menuKey('c', ui.META));
@@ -140,6 +154,7 @@ function stepScript(): void {
     const id = scriptDo[i];
     if (id === 'quit') { leave(); quit(); }
     else if (id.startsWith('example:')) openExample(id.slice(8));
+    else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
     else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the project card: allows it, or removes it

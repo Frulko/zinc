@@ -12,6 +12,7 @@ import * as proc from 'zinc:process';
 import { Buffer, Diagnostic, buffers, active, sketchDir, say } from './workspace';
 import { spawnZinc, problems } from './tools';
 import { T_COMMENT, T_STRING } from './syntax';
+import { t } from './text';
 import { Reader, frame, uriOf, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, problemsOf, Problem, placeOf, isIdent, wordStart, specStart, callStart } from './rpc';
 
 const sync: boolean = sys.env('ZINC_ATELIER_SYNC') !== '';   // tests: a frame waits for the server's answers
@@ -56,7 +57,7 @@ function start(): void {
       if (child !== p) return;   // ended by stop()
       child = null; waiting = 0;
       closePopup(); setSig(null); setHover([]);
-      if (!restarted) { restarted = true; start(); } else say('The language server stopped: no completion until the sketch is opened again');
+      if (!restarted) { restarted = true; start(); } else say(t('atelier.lsp.stopped'));
     });
     request('initialize', `{"processId":null,"rootUri":${q(uriOf(dir))},"capabilities":{}}`);
     notify('initialized', '{}');
@@ -282,13 +283,13 @@ export function definition(b: Buffer, off: i32): void {
   defId = request('textDocument/definition', at(b, off));
 }
 function goPlace(p: string[]): void {
-  if (p.length === 0) { say('No definition found'); if (echo) console.log('[lsp] no definition'); return; }
+  if (p.length === 0) { say(t('atelier.lsp.no_definition')); if (echo) console.log('[lsp] no definition'); return; }
   let path = p[0];
   for (const b of buffers()) if (b.path === path || sameFile(b.path, path)) path = b.path;
   if (echo) console.log(`[lsp] definition ${path.slice(path.lastIndexOf('/') + 1)}:${p[1]}:${p[2]}`);
   let real = dir;
   try { real = fs.realpath(dir); } catch (e) { }
   if (path.startsWith(dir + '/') || path.startsWith(real + '/')) go(path, parseInt(p[1]), parseInt(p[2]));
-  else say(`Declared in ${path.slice(path.lastIndexOf('/') + 1)}, outside the sketch`);   // the standard library is not opened for editing
+  else say(t('atelier.lsp.outside', ['name', path.slice(path.lastIndexOf('/') + 1)]));   // the standard library is not opened for editing
 }
 function sameFile(a: string, b: string): boolean { try { return fs.realpath(a) === fs.realpath(b); } catch (e) { return false; } }

@@ -11,9 +11,10 @@ import { theme, bg, fg, bd } from '../app/theme';
 import { sketchName, mainFile, sketchDir } from '../app/workspace';
 import { build } from '../app/tools';
 import { setStartOpen } from '../app/commands';
-import { project, projectOpen, setProjectOpen, iconPath, sizeHere, plugins, assetsText, HERE, setName, setVersion, setSize, togglePermission, makeProject, openJson, showFolder } from '../app/project';
-import { Project, Target, permissionText } from '../model';
+import { project, projectOpen, setProjectOpen, iconPath, sizeHere, plugins, assetsText, HERE, setName, setVersion, setSize, togglePermission, makeProject, openJson, showFolder, permissionText } from '../app/project';
+import { Project, Target } from '../model';
 import { Glyph, IconButton } from './Controls';
+import { t as tr } from '../app/text';
 import { I_CLOSE, I_GRID } from './icons';
 
 const FIELD = (): string => `h-[28] text-[13px] px-2.5 rounded-lg border-0 ${bg(theme().chrome)} ${fg(theme().text)} focus:${bd(theme().chrome)}`;
@@ -45,7 +46,7 @@ function Field(props: { value: () => string; width: string; hint: string; commit
 function Fact(props: { label: string; value: () => string }): i32 {
   return <View className="flex-row items-start min-h-[24] px-2.5 py-[3]">
     <Text className={LABEL()}>{props.label}</Text>
-    <Text className={`grow shrink text-[12px] ${fg(theme().text)}`}>{props.value() === '' ? 'none' : props.value()}</Text>
+    <Text className={`grow shrink text-[12px] ${fg(theme().text)}`}>{props.value() === '' ? tr('atelier.project.none') : props.value()}</Text>
   </View>;
 }
 function Action(props: { label: string; primary?: boolean; onPress: () => void }): i32 {
@@ -65,7 +66,7 @@ function Permission(props: { id: string }): i32 {
 const [wanted, setWanted] = createSignal<string>('');
 const addRef = createNodeRef();
 function others(p: Project): string {
-  return p.targets.filter((t: Target) => t.name !== HERE).map((t: Target) => `${t.name} ${t.width > 0 ? `${t.width} × ${t.height}` : 'no size'}${t.display !== '' ? ' ' + t.display : ''}`).join(', ');
+  return p.targets.filter((t: Target) => t.name !== HERE).map((t: Target) => `${t.name} ${t.width > 0 ? `${t.width} × ${t.height}` : tr('atelier.project.no_size')}${t.display !== '' ? ' ' + t.display : ''}`).join(', ');
 }
 function ProjectBody(): i32 {
   const p = (): Project => project() as Project;
@@ -77,29 +78,29 @@ function ProjectBody(): i32 {
       <ProjectIcon size={40} />
       <View className="flex-col grow shrink gap-1">
         <View className="flex-row items-center gap-1.5">
-          <Field width="grow" hint="Name" value={() => p().name} commit={setName} />
-          <Field width="w-[84]" hint="Version" value={() => p().version} commit={setVersion} />
+          <Field width="grow" hint={tr('atelier.project.name')} value={() => p().name} commit={setName} />
+          <Field width="w-[84]" hint={tr('atelier.project.version_hint')} value={() => p().version} commit={setVersion} />
         </View>
-        <Text className={`px-0.5 text-[11px] font-mono ${fg(theme().faint)}`}>{p().id !== '' ? p().id : 'no app id (zinc.json: app.id)'}</Text>
+        <Text className={`px-0.5 text-[11px] font-mono ${fg(theme().faint)}`}>{p().id !== '' ? p().id : tr('atelier.project.no_id')}</Text>
       </View>
     </View>
     <View className={`flex-col py-1 border-t ${bd(theme().borderSoft)}`}>
-      <Fact label="Entry" value={() => p().entry !== '' ? p().entry : mainFile(sketchDir())} />
+      <Fact label={tr('atelier.project.entry')} value={() => p().entry !== '' ? p().entry : mainFile(sketchDir())} />
       <View className="flex-row items-center h-[32] px-2.5">
-        <Text className={LABEL()}>{`Window, ${HERE}`}</Text>
-        <Field width="w-[64]" hint="width" value={w} commit={(v: string) => { setW(v); if (h() !== '') setSize(v, h()); }} />
+        <Text className={LABEL()}>{tr('atelier.project.window_here', ['target', HERE])}</Text>
+        <Field width="w-[64]" hint={tr('atelier.project.width')} value={w} commit={(v: string) => { setW(v); if (h() !== '') setSize(v, h()); }} />
         <Text className={`px-1.5 text-[12px] ${fg(theme().faint)}`}>×</Text>
-        <Field width="w-[64]" hint="height" value={h} commit={(v: string) => { setH(v); if (w() !== '') setSize(w(), v); }} />
+        <Field width="w-[64]" hint={tr('atelier.project.height')} value={h} commit={(v: string) => { setH(v); if (w() !== '') setSize(w(), v); }} />
       </View>
-      <Fact label="Other targets" value={() => others(p())} />
-      <Fact label="Requires" value={() => p().requires.join(', ')} />
-      <Fact label="Plugins" value={() => plugins().join(', ')} />
-      <Fact label="Assets" value={() => assetsText()} />
+      <Fact label={tr('atelier.project.targets')} value={() => others(p())} />
+      <Fact label={tr('atelier.project.requires')} value={() => p().requires.join(', ')} />
+      <Fact label={tr('atelier.project.plugins')} value={() => plugins().join(', ')} />
+      <Fact label={tr('atelier.project.assets_label')} value={() => assetsText()} />
     </View>
     <View className={`flex-col pt-1.5 border-t ${bd(theme().borderSoft)}`}>
       <View className="flex-row items-center h-[30] pl-2.5 gap-2">
-        <Text className={`grow text-[12px] font-semibold ${fg(theme().text)}`}>Permissions</Text>
-        <Input ref={addRef} className={`w-[168] ${FIELD()}`} placeholder="Allow: fs:read:data, net…" value={wanted()} onInput={(v: string) => setWanted(v)}
+        <Text className={`grow text-[12px] font-semibold ${fg(theme().text)}`}>{tr('atelier.project.permissions')}</Text>
+        <Input ref={addRef} className={`w-[168] ${FIELD()}`} placeholder={tr('atelier.project.allow')} value={wanted()} onInput={(v: string) => setWanted(v)}
           onKeyDown={(e: ui.KeyEvent) => {
             if (e.key === 'Enter') { togglePermission(wanted()); setWanted(''); ui.setValue(addRef.node, ''); } else if (e.key === 'Escape') setProjectOpen(false); else return;
             e.preventDefault();
@@ -107,28 +108,28 @@ function ProjectBody(): i32 {
       </View>
       {p().permissions.map((id: string) => <Permission id={id} />)}
       <View className="px-2.5 py-1" style={{ hidden: p().permissions.length > 0 ? 1 : 0 }}>
-        <Text className={`text-[12px] ${fg(theme().muted)}`}>{p().declared ? 'None: the app reads no file, opens no connection and starts no program.' : 'Not declared: files, network and processes are not checked. Allowing one thing starts the checks.'}</Text>
+        <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr(p().declared ? 'atelier.project.no_permission' : 'atelier.project.undeclared')}</Text>
       </View>
     </View>
     <View className={`flex-row items-center pt-2 mt-1.5 px-1 gap-1.5 border-t ${bd(theme().borderSoft)}`}>
-      <Action label="Build App" primary onPress={() => { setProjectOpen(false); build(); }} />
-      <Action label="Open zinc.json" onPress={() => openJson()} />
-      <Action label="Show Folder" onPress={() => showFolder()} />
+      <Action label={tr('atelier.cmd.build')} primary onPress={() => { setProjectOpen(false); build(); }} />
+      <Action label={tr('atelier.project.open_json')} onPress={() => openJson()} />
+      <Action label={tr('atelier.project.show_folder')} onPress={() => showFolder()} />
     </View>
   </View>;
 }
 function SketchBody(): i32 {
   return <View className="flex-col">
     <View className="flex-col px-2.5 pb-2 gap-1">
-      <Text className={`text-[13px] ${fg(theme().text)}`}>A sketch: a folder of code, run as it is.</Text>
-      <Text className={`text-[12px] ${fg(theme().muted)}`}>A project adds a zinc.json: the app's name and version, its window, what it may do, its targets. It is what Build App and a device need to make an app of it.</Text>
+      <Text className={`text-[13px] ${fg(theme().text)}`}>{tr('atelier.project.sketch_is')}</Text>
+      <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.project.project_is')}</Text>
     </View>
     <View className={`flex-col py-1 border-t ${bd(theme().borderSoft)}`}>
-      <Fact label="Entry" value={() => mainFile(sketchDir())} />
+      <Fact label={tr('atelier.project.entry')} value={() => mainFile(sketchDir())} />
     </View>
     <View className={`flex-row items-center pt-2 mt-0.5 px-1 gap-1.5 border-t ${bd(theme().borderSoft)}`}>
-      <Action label="Make it a Project" primary onPress={() => makeProject()} />
-      <Action label="Show Folder" onPress={() => showFolder()} />
+      <Action label={tr('atelier.project.make')} primary onPress={() => makeProject()} />
+      <Action label={tr('atelier.project.show_folder')} onPress={() => showFolder()} />
     </View>
   </View>;
 }
@@ -138,9 +139,9 @@ export function ProjectCard(): i32 {
     <View className="absolute inset-0" onPointerDown={() => setProjectOpen(false)} />
     <View className={`absolute top-[50] right-[92] w-[420] flex-col p-2 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`} onPointerDown={() => {}}>
       <View className="flex-row items-center h-[30] pl-2.5 pb-1 gap-2">
-        <Text className={`grow text-[13px] font-semibold ${fg(theme().text)}`}>{project() === null ? sketchName() : 'Project'}</Text>
+        <Text className={`grow text-[13px] font-semibold ${fg(theme().text)}`}>{project() === null ? sketchName() : tr('atelier.project.title')}</Text>
         <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => { setProjectOpen(false); setStartOpen(true); }}>
-          <Text className={`text-[12px] ${fg(theme().muted)}`}>Sketchbook…</Text>
+          <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.project.sketchbook')}</Text>
         </View>
         <IconButton kind={I_CLOSE} size={12} onPress={() => setProjectOpen(false)} />
       </View>

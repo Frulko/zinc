@@ -1,0 +1,8 @@
+{
+  "demo.saved": "{name} enregistré",
+  "demo.files_one": "{count} fichier",
+  "demo.files_many": "{count} de fichiers",
+  "demo.files_other": "{count} fichiers",
+  "demo.order": "{count} choses pour {name}",
+  "demo.braces": "Écrivez {{name}} pour {name}"
+}

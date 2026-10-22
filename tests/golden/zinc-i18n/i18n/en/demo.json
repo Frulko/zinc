@@ -1,0 +1,8 @@
+{
+  "demo.saved": "Saved {name}",
+  "demo.files_one": "{count} file",
+  "demo.files_other": "{count} files",
+  "demo.only_english": "Only in English",
+  "demo.order": "{name} has {count} things",
+  "demo.braces": "Write {{name}} for {name}"
+}

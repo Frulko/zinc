@@ -12,6 +12,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc speaks English, French, Spanish, Italian and German: `--lang fr` on any command or `ZINC_LANG=fr` for one, `zinc config set lang fr` to keep it; otherwise it follows the language of your system. The first messages are translated (an unknown command, a usage error, `zinc new`); error codes, commands and options stay as they are.
 - `zinc new` with no argument asks what you want to make (the arrow keys and Enter, or a number) and the name of the folder; in a script it prints its usage and writes nothing. It ends with the next steps: `zinc dev`, the file to change, the lessons and the guide.
 - The first `zinc` typed at a terminal says hello, lets you choose your language and shows three steps to start. `zinc version` prints the version.
+- Zinc Atelier speaks English, French, Spanish, Italian and German: it follows `ZINC_LANG`, then the `lang` saved in `~/.zinc/config.json`, then the system language, and Tools > Language switches it at once and remembers the choice.
+- `zinc:i18n` loads a program's texts from `i18n/<lang>/<area>.json`, with `{name}` placeholders, plural forms and English as the fallback.
 
 ### Changed
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.

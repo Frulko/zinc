@@ -16,6 +16,7 @@ import { isIdent, wordStart } from '../app/rpc';
 import { Popup, Signature, Hover, stepAssist } from './Assist';
 import { revealActiveTab } from './Header';
 import { Glyph, Kbd } from './Controls';
+import { t as tr } from '../app/text';
 import { I_SEARCH, I_CLOSE } from './icons';
 
 const FONT_PX: i32 = 14, PAD_LEFT: i32 = 14, PAD_TOP: i32 = 10;
@@ -154,14 +155,14 @@ function Step(p: { label: string; by: i32 }): i32 {
 function FindBar(): i32 {
   const count = (): string => {
     const n = matches().length;
-    return query() === '' ? '' : n === 0 ? 'No results' : `${current() + 1} of ${n}`;
+    return query() === '' ? '' : n === 0 ? tr('atelier.find.none') : tr('atelier.find.count', ['index', `${current() + 1}`, 'count', `${n}`]);
   };
   return <View className={`flex-row items-center overflow-hidden px-3 gap-2 border-b ${bd(theme().borderSoft)}`}
     style={{ height: findT.get() * 46, hidden: findOpen() ? 0 : 1 }}>
     <View className={`flex-row items-center h-[30] w-[320] pl-2.5 pr-1 gap-1.5 rounded-full ${bg(theme().chrome)}`}>
       <Glyph kind={I_SEARCH} size={14} color={() => theme().faint} />
       <Input ref={findRef} className={`grow h-[26] text-[13px] p-0 pl-1 rounded-none border-0 bg-transparent ${fg(theme().text)} focus:${bd(theme().chrome)}`}
-        placeholder="Find in this file" value={query()} onInput={(v: string) => { setQuery(v); findFromCaret(); }} onKeyDown={findKey} />
+        placeholder={tr('atelier.find.placeholder')} value={query()} onInput={(v: string) => { setQuery(v); findFromCaret(); }} onKeyDown={findKey} />
     </View>
     <Text className={`text-[12px] w-[80] ${fg(matches().length === 0 && query() !== '' ? theme().error : theme().muted)}`}>{count()}</Text>
     <Step label="↑" by={-1} />
@@ -183,10 +184,10 @@ function Hint(props: { label: string; keys: string }): i32 {
 function EmptyPane(): i32 {
   return <View className={`absolute inset-0 items-center justify-center ${bg(theme().bg)}`} style={{ hidden: buffers().length === 0 ? 0 : 1 }}>
     <View className="flex-col items-center gap-0.5">
-      <Text className={`text-[15px] font-semibold pb-3 ${fg(theme().text)}`}>No file open</Text>
-      <Hint label="Add a file" keys="⌘T" />
-      <Hint label="Examples" keys="⌘⇧O" />
-      <Hint label="Everything else" keys="⌘⇧P" />
+      <Text className={`text-[15px] font-semibold pb-3 ${fg(theme().text)}`}>{tr('atelier.editor.no_file')}</Text>
+      <Hint label={tr('atelier.editor.add_file')} keys="⌘T" />
+      <Hint label={tr('atelier.editor.examples')} keys="⌘⇧O" />
+      <Hint label={tr('atelier.editor.everything')} keys="⌘⇧P" />
     </View>
   </View>;
 }

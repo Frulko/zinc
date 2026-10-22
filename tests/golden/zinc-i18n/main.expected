@@ -1,0 +1,25 @@
+language it-IT
+languages en fr
+normalize 'fr_FR.UTF-8' 'fr-FR'
+normalize 'fr-ca' 'fr-CA'
+normalize 'de' 'de'
+normalize 'C' ''
+normalize 'POSIX' ''
+normalize 'pt_br' 'pt-BR'
+normalize 'en_US.UTF-8@euro' 'en-US'
+normalize '' ''
+plural en other one other other other other
+plural de other one other other other other
+plural fr one one one other other many
+plural es other one other other other many
+plural it other one other other other many
+fr-CA reads fr: main.ts enregistré | 0 fichier | 1.5 fichier | 2 fichiers | 1000000 de fichiers
+fr order: 3 choses pour Ada | Écrivez {name} pour x
+fr falls back: Only in English | demo.nowhere | has true false
+en: 0 files | 1 file | 1.5 files | Saved {name}
+it has no file: en Saved a.ts
+no file at all: nothing.key | nothing.key
+saved es
+save true {"welcomed":true,"lang":"de"}
+save over a broken file false not json
+save without a file true {"lang":"it"}

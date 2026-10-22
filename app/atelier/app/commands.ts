@@ -10,25 +10,30 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { openProject } from './project';
-import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC, updates, updateReady } from './tools';
+import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady } from './tools';
 import { openDevices } from './devices';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
+import { t } from './text';
 
 export class Command {
-  id: string; menu: string; name: string; keys: string; run: () => void;
+  id: string; menu: string; keys: string; run: () => void;
   /** 'separator' before this item in its menu. */
   sep: boolean = false;
-  constructor(menu: string, id: string, name: string, keys: string, run: () => void) { this.menu = menu; this.id = id; this.name = name; this.keys = keys; this.run = run; }
+  constructor(menu: string, id: string, keys: string, run: () => void) { this.menu = menu; this.id = id; this.keys = keys; this.run = run; }
+  /** Its name in menus and the palette, in the language of the interface (atelier.cmd.<id>). */
+  name(): string { return t('atelier.cmd.' + this.id); }
 }
+/** The menus of the desktop menu, in their order; their titles are atelier.menu.<id>. */
+export const MENUS: string[] = ['file', 'edit', 'sketch', 'tools', 'help'];
 export const COMMANDS: Command[] = [];
-function add(menu: string, id: string, name: string, keys: string, run: () => void, sep: boolean = false): void {
-  const c = new Command(menu, id, name, keys, run);
+function add(menu: string, id: string, keys: string, run: () => void, sep: boolean = false): void {
+  const c = new Command(menu, id, keys, run);
   c.sep = sep;
   COMMANDS.push(c);
 }
 function withBuffer(f: (b: Buffer) => void): () => void {
-  return () => { const b = active(); if (b !== null) f(b as Buffer); else say('No open file'); };
+  return () => { const b = active(); if (b !== null) f(b as Buffer); else say(t('atelier.file.none_open')); };
 }
 /** Runs a command by id (a menu click, a scripted session). */
 export function command(id: string): boolean {
@@ -65,7 +70,7 @@ export function commandOf(e: ui.KeyEvent): Command | null {
 export const [promptLabel, setPromptLabel] = createSignal<string>('');
 export const [promptValue, setPromptValue] = createSignal<string>('');
 let promptThen: (v: string) => void = (v: string) => {};
-/** Asks for one line of text ('Name of the new file'); `then` gets it when it is confirmed and not empty. */
+/** Asks for one line of text (the name of a new file); `then` gets it when it is confirmed and not empty. */
 export function ask(label: string, value: string, then: (v: string) => void): void {
   promptThen = then;
   setPromptValue(value);
@@ -102,77 +107,77 @@ export const [startOpen, setStartOpen] = createSignal<boolean>(false);
 /** Adds a library to the sketch: its import line at the top of the main file (the plugins `zinc plugins` lists come with zinc). */
 export function addLibrary(name: string): void {
   const dir = sketchDir(), main = mainFile(dir);
-  if (main === '') { say('The sketch has no code file'); return; }
+  if (main === '') { say(t('atelier.sketch.no_code')); return; }
   const b = openFile(dir + '/' + main);
   if (b === null) return;
   const line = importLine(name), buf = b as Buffer;
-  if (buf.text().indexOf(`'${name}'`) >= 0) { say(`${name} is already imported`); return; }
+  if (buf.text().indexOf(`'${name}'`) >= 0) { say(t('atelier.library.already', ['name', name])); return; }
   // after the leading comment lines, with the other imports
   const lines = buf.text().split('\n');
   let at: i32 = 0;
   while (at < lines.length && lines[at].startsWith('//')) at++;
   setText(buf, lines.slice(0, at).concat([line]).concat(lines.slice(at)).join('\n'));
-  say(`Added ${name}`);
+  say(t('atelier.library.added', ['name', name]));
 }
 
 // ---------------------------------------------------------------- the table
-add('File', 'new', 'New Sketch', 'CmdOrCtrl+N', () => { setStartOpen(false); newSketch(); });
+add('file', 'new', 'CmdOrCtrl+N', () => { setStartOpen(false); newSketch(); });
 /** Open Sketch…: the system's own folder dialog in a real window; the one-line prompt where there is none (a scripted or headless run, a desktop without dialogs). */
 function chooseSketch(): void {
   const from = sketchDir() === '' ? sketchbook() : sketchDir();
-  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { ask('Open the sketch folder', from, (v: string) => { if (openSketch(v)) setStartOpen(false); }); return; }
+  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { ask(t('atelier.sketch.open_prompt'), from, (v: string) => { if (openSketch(v)) setStartOpen(false); }); return; }
   const o = new dialog.OpenOptions();
-  o.title = 'Open a sketch folder'; o.directory = true; o.defaultPath = from;
+  o.title = t('atelier.sketch.open_title'); o.directory = true; o.defaultPath = from;
   const abort = sys.env('ZINC_ATELIER_DIALOG_MS');   // a test: the dialog closes by itself after that long
   if (abort !== '') o.abortMs = parseInt(abort);
   dialog.open(o).then((paths: string[] | null) => { if (paths !== null && paths.length > 0 && openSketch(paths[0])) setStartOpen(false); });
 }
-add('File', 'open', 'Open Sketch…', 'CmdOrCtrl+O', () => chooseSketch());
-add('File', 'examples', 'Examples…', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
-add('File', 'open-file', 'Open File…', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
-add('File', 'save', 'Save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say('Saved'); check(); }, true);
-add('File', 'close', 'Close Tab', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
+add('file', 'open', 'CmdOrCtrl+O', () => chooseSketch());
+add('file', 'examples', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
+add('file', 'open-file', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
+add('file', 'save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say(t('atelier.file.saved_all')); check(); }, true);
+add('file', 'close', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
 
 // undo and redo go to the focused field as their key (the editor's history, or the field's own in the find bar); see menuKey
-add('Edit', 'undo', 'Undo', 'CmdOrCtrl+Z', () => menuKey('z', ui.META));
-add('Edit', 'redo', 'Redo', 'CmdOrCtrl+Shift+Z', () => menuKey('z', ui.META | ui.SHIFT));
-add('Edit', 'find', 'Find…', 'CmdOrCtrl+F', () => openFind(), true);
-add('Edit', 'comment', 'Toggle Comment', 'CmdOrCtrl+Slash', () => { editCommand('comment'); }, true);
-add('Edit', 'indent', 'Indent', '', () => { editCommand('indent'); });
-add('Edit', 'outdent', 'Unindent', '', () => { editCommand('outdent'); });
-add('Edit', 'line-up', 'Move Line Up', 'Alt+Up', () => { editCommand('line-up'); }, true);
-add('Edit', 'line-down', 'Move Line Down', 'Alt+Down', () => { editCommand('line-down'); });
-add('Edit', 'line-duplicate', 'Duplicate Line', 'CmdOrCtrl+Shift+D', () => { editCommand('line-duplicate'); });
-add('Edit', 'line-delete', 'Delete Line', 'CmdOrCtrl+Shift+K', () => { editCommand('line-delete'); });
-add('Edit', 'select-next', 'Select Next Occurrence', 'CmdOrCtrl+D', () => { editCommand('select-next'); }, true);
-add('Edit', 'cursor-above', 'Add Cursor Above', 'CmdOrCtrl+Alt+Up', () => { editCommand('cursor-above'); });
-add('Edit', 'cursor-below', 'Add Cursor Below', 'CmdOrCtrl+Alt+Down', () => { editCommand('cursor-below'); });
-add('Edit', 'suggest', 'Suggest', 'Ctrl+Space', withBuffer((b: Buffer) => suggest(b)), true);
-add('Edit', 'definition', 'Go to Definition', 'F12', () => goDefinition());
+add('edit', 'undo', 'CmdOrCtrl+Z', () => menuKey('z', ui.META));
+add('edit', 'redo', 'CmdOrCtrl+Shift+Z', () => menuKey('z', ui.META | ui.SHIFT));
+add('edit', 'find', 'CmdOrCtrl+F', () => openFind(), true);
+add('edit', 'comment', 'CmdOrCtrl+Slash', () => { editCommand('comment'); }, true);
+add('edit', 'indent', '', () => { editCommand('indent'); });
+add('edit', 'outdent', '', () => { editCommand('outdent'); });
+add('edit', 'line-up', 'Alt+Up', () => { editCommand('line-up'); }, true);
+add('edit', 'line-down', 'Alt+Down', () => { editCommand('line-down'); });
+add('edit', 'line-duplicate', 'CmdOrCtrl+Shift+D', () => { editCommand('line-duplicate'); });
+add('edit', 'line-delete', 'CmdOrCtrl+Shift+K', () => { editCommand('line-delete'); });
+add('edit', 'select-next', 'CmdOrCtrl+D', () => { editCommand('select-next'); }, true);
+add('edit', 'cursor-above', 'CmdOrCtrl+Alt+Up', () => { editCommand('cursor-above'); });
+add('edit', 'cursor-below', 'CmdOrCtrl+Alt+Down', () => { editCommand('cursor-below'); });
+add('edit', 'suggest', 'Ctrl+Space', withBuffer((b: Buffer) => suggest(b)), true);
+add('edit', 'definition', 'F12', () => goDefinition());
 
-add('Sketch', 'run', 'Run', 'CmdOrCtrl+R', () => run(false));
-add('Sketch', 'stop', 'Stop', 'CmdOrCtrl+Period', () => stop());
-add('Sketch', 'debug', 'Debug', 'CmdOrCtrl+Shift+R', () => run(true));
-for (let i = 0; i < ENGINES.length; i++) add('Sketch', 'engine-' + ENGINES[i].split(' ')[0].toLowerCase(), 'Run on: ' + ENGINES[i], '', () => { setEngine(i); setDevice(''); say('Runs on: ' + ENGINES[i]); }, i === 0);
-add('Sketch', 'devices', 'Run on a Device…', '', () => openDevices());
-add('Sketch', 'project', 'Project…', '', () => openProject(), true);
-add('Sketch', 'build', 'Build App', '', () => build());
-add('Sketch', 'add-file', 'Add File…', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask('Name of the new file', '', (v: string) => newFile(v)); }, true);
-add('Sketch', 'rename-file', 'Rename File…', '', withBuffer((b: Buffer) => ask('New name of ' + b.name, baseName(b.path), (v: string) => renameFile(b, v))));
-add('Sketch', 'delete-file', 'Delete File', '', withBuffer((b: Buffer) => ask(`Type "delete" to remove ${b.name} from the sketch`, '', (v: string) => { if (v === 'delete') deleteFile(b); })));
-add('Sketch', 'add-library', 'Add Library…', 'CmdOrCtrl+Shift+L', () => openPalette(PAL_LIBRARIES), true);
+add('sketch', 'run', 'CmdOrCtrl+R', () => run(false));
+add('sketch', 'stop', 'CmdOrCtrl+Period', () => stop());
+add('sketch', 'debug', 'CmdOrCtrl+Shift+R', () => run(true));
+for (let i = 0; i < ENGINE_IDS.length; i++) add('sketch', 'engine-' + ENGINE_IDS[i], '', () => { setEngine(i); setDevice(''); say(t('atelier.engine.chosen', ['engine', engineName(i)])); }, i === 0);
+add('sketch', 'devices', '', () => openDevices());
+add('sketch', 'project', '', () => openProject(), true);
+add('sketch', 'build', '', () => build());
+add('sketch', 'add-file', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask(t('atelier.file.new_prompt'), '', (v: string) => newFile(v)); }, true);
+add('sketch', 'rename-file', '', withBuffer((b: Buffer) => ask(t('atelier.file.rename_prompt', ['name', b.name]), baseName(b.path), (v: string) => renameFile(b, v))));
+add('sketch', 'delete-file', '', withBuffer((b: Buffer) => ask(t('atelier.file.delete_prompt', ['name', b.name, 'word', t('atelier.file.delete_word')]), '', (v: string) => { if (v === t('atelier.file.delete_word')) deleteFile(b); })));
+add('sketch', 'add-library', 'CmdOrCtrl+Shift+L', () => openPalette(PAL_LIBRARIES), true);
 
-add('Tools', 'palette', 'Command Palette…', 'CmdOrCtrl+Shift+P', () => openPalette(PAL_COMMANDS));
-add('Tools', 'console', 'Show or Hide the Console', 'CmdOrCtrl+J', () => showConsole(!consoleOpen()));
-add('Tools', 'clear', 'Clear the Console', '', () => clearConsole());
-add('Tools', 'copy-console', 'Copy the Console', '', () => copyConsole());
-add('Tools', 'check', 'Check the Sketch', '', () => { saveAll(); check(); });
-add('Tools', 'inspector', 'Open the Inspector', '', () => inspect());
-add('Tools', 'theme', 'Light or Dark', '', () => toggleTheme(), true);
-add('Tools', 'next-tab', 'Next Tab', 'CmdOrCtrl+Shift+BracketRight', () => cycle(1), true);
-add('Tools', 'prev-tab', 'Previous Tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));
+add('tools', 'palette', 'CmdOrCtrl+Shift+P', () => openPalette(PAL_COMMANDS));
+add('tools', 'console', 'CmdOrCtrl+J', () => showConsole(!consoleOpen()));
+add('tools', 'clear', '', () => clearConsole());
+add('tools', 'copy-console', '', () => copyConsole());
+add('tools', 'check', '', () => { saveAll(); check(); });
+add('tools', 'inspector', '', () => inspect());
+add('tools', 'theme', '', () => toggleTheme(), true);
+add('tools', 'next-tab', 'CmdOrCtrl+Shift+BracketRight', () => cycle(1), true);
+add('tools', 'prev-tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));
 
-add('Help', 'help-keys', 'Keyboard Shortcuts', '', () => openPalette(PAL_COMMANDS));
-add('Help', 'help-about', 'About Zinc Atelier', '', () => say('Zinc Atelier, running on ' + ZINC));
-add('Help', 'update-check', 'Check for Updates…', '', () => updates(false), true);
-add('Help', 'update-install', 'Install the Update', '', () => updates(updateReady()));   // checks first when no update was found yet
+add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS));
+add('help', 'help-about', '', () => say(t('atelier.about', ['path', ZINC])));
+add('help', 'update-check', '', () => updates(false), true);
+add('help', 'update-install', '', () => updates(updateReady()));   // checks first when no update was found yet

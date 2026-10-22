@@ -10,11 +10,12 @@ import { active, activate, buffers, Buffer, closeBuffer, sketchName, sketchDir }
 import { project, projectOpen, setProjectOpen, openProject, iconPath } from '../app/project';
 import { Project } from '../model';
 import { ProjectIcon } from './Project';
-import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINES, engine, setEngine, device, setDevice } from '../app/tools';
+import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINE_IDS, engineName, engine, setEngine, device, setDevice } from '../app/tools';
 import { devices, isPaired, choose, openDevices } from '../app/devices';
 import { Device } from '../model';
 import { command, startOpen, setStartOpen, openPalette, PAL_COMMANDS } from '../app/commands';
 import { Glyph, IconButton } from './Controls';
+import { t } from '../app/text';
 import { I_PLAY, I_STOP, I_CLOSE, I_BUG, I_PLUS, I_DOWN, I_SUN, I_MOON, I_COMMAND, I_GRID, I_CHECK } from './icons';
 
 // ---- run control
@@ -30,13 +31,13 @@ function Pulse(): i32 {
 }
 function RunControl(): i32 {
   const idle = (): boolean => phase() === IDLE;
-  const label = (): string => phase() === BUILDING ? (stage() === '' ? 'Building' : `Building · ${stage()}`) : debugging() ? 'Debugging' : 'Running';
+  const label = (): string => phase() === BUILDING ? (stage() === '' ? t('atelier.header.building') : t('atelier.header.building_step', ['step', stage()])) : t(debugging() ? 'atelier.header.debugging' : 'atelier.header.running');
   return <View className="flex-row items-center gap-1">
     {idle()
       ? <View className={`flex-row items-center h-[34] pl-3 pr-4 gap-1.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`}
           onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) run(false); }}>
           <Glyph kind={I_PLAY} size={15} color={() => theme().onAccent} back={() => theme().accent} />
-          <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>Run</Text>
+          <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>{t('atelier.header.run')}</Text>
         </View>
       : <View className={`flex-row items-center h-[34] pl-3.5 pr-1 gap-2 rounded-full border ${bg(theme().bg)} ${bd(theme().border)}`}>
           <Pulse />
@@ -110,9 +111,9 @@ export function EngineMenu(): i32 {
   return <View className="absolute inset-0" style={{ hidden: engineOpen() ? 0 : 1 }}>
     <View className="absolute inset-0" onPointerDown={() => setEngineOpen(false)} />
     <View className={`absolute top-[50] right-[92] w-[190] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
-      {ENGINES.map((name: string, i: i32) => <View className={CHOICE()}
+      {ENGINE_IDS.map((id: string, i: i32) => <View className={CHOICE()}
         onPointerDown={(e: ui.PointerEvent) => { setEngine(i); setDevice(''); setEngineOpen(false); }}>
-        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{name}</Text>
+        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{engineName(i)}</Text>
         {engine() === i && device() === '' && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
       <View className={`h-px my-1 ${bg(theme().borderSoft)}`} />
@@ -122,7 +123,7 @@ export function EngineMenu(): i32 {
         {device() === d.name && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
       <View className={CHOICE()} onPointerDown={(e: ui.PointerEvent) => { setEngineOpen(false); openDevices(); }}>
-        <Text className={`grow text-[13px] ${fg(theme().text)}`}>Devices…</Text>
+        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{t('atelier.header.devices')}</Text>
       </View>
     </View>
   </View>;
@@ -144,7 +145,7 @@ export function Header(): i32 {
       {appVersion() !== '' && <Text className={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
     </View>
     <View className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
-      <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : ENGINES[engine()]}</Text>
+      <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : engineName(engine())}</Text>
       <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
     </View>
     <View className="flex-row items-center">

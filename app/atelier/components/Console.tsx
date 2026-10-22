@@ -12,6 +12,7 @@ import { promptLabel, promptValue, setPromptValue, answer } from '../app/command
 import { jumpTo } from '../app/cursors';
 import { caretInfo } from './Editor';
 import { Glyph, IconButton, Kbd } from './Controls';
+import { t as tr, tn } from '../app/text';
 import { I_DOWN, I_UP, I_DOT } from './icons';
 
 const logRef = createNodeRef(), promptRef = createNodeRef();
@@ -52,7 +53,7 @@ function linkClick(): void {
 function Log(): i32 {
   const node = <TextArea ref={logRef} readOnly
     className={`absolute inset-0 font-mono text-[12px] leading-[19] rounded-none border-0 px-3.5 py-2.5 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
-    placeholder="Nothing yet. Run the sketch: its build and what it prints arrive here."
+    placeholder={tr('atelier.console.empty')}
     value={lines().map((l: Line) => l.text).join('\n')} onPointerUp={(e: ui.PointerEvent) => linkClick()} />;
   ui.setHighlightAt(node, (row: string, start: i32) => rowColors(row, start));
   createEffect(() => { const t = theme(); ui.setEditColors(node, [-1, -1, -2, t.selection, t.caret, -1]); });
@@ -99,7 +100,7 @@ function promptKey(e: ui.KeyEvent): void {
 function StatusLine(): i32 {
   const asking = (): boolean => promptLabel() !== '';
   const text = (): string => lineMessage() !== '' ? lineMessage() : notice() !== '' ? notice() : status();
-  const place = (): string => { const c = caretInfo(); return c[3] > 1 ? `${c[3]} cursors` : c[2] > 0 ? `${c[2]} selected` : `Ln ${c[0]}, Col ${c[1]}`; };
+  const place = (): string => { const c = caretInfo(); return c[3] > 1 ? tn('atelier.console.cursors', c[3]) : c[2] > 0 ? tn('atelier.console.selected', c[2]) : tr('atelier.console.caret', ['line', `${c[0]}`, 'col', `${c[1]}`]); };
   return <View className="flex-row items-center h-[38] pl-3.5 pr-1.5 gap-2.5">
     <View className="flex-row items-center grow shrink gap-2.5" style={{ hidden: asking() ? 1 : 0 }}>
       <Glyph kind={I_DOT} size={14} color={dotColor} back={() => theme().bg} />
@@ -113,15 +114,15 @@ function StatusLine(): i32 {
     </View>
     {problems()[0] > 0 && !asking() && <View className={`flex-row items-center h-[24] px-2.5 gap-1.5 rounded-full cursor-pointer ${bg(theme().errorSoft)}`}
       onPointerDown={(e: ui.PointerEvent) => { const p = problems(), b = active(); if (b !== null) jumpTo(b as Buffer, p[1], p[2]); }}>
-      <Text className={`text-[12px] font-medium ${fg(theme().error)}`}>{`${problems()[0]} problem${problems()[0] > 1 ? 's' : ''}`}</Text>
+      <Text className={`text-[12px] font-medium ${fg(theme().error)}`}>{tn('atelier.console.problems', problems()[0])}</Text>
     </View>}
     {inspectorPort() > 0 && !asking() && <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer ${bg(theme().accentSoft)}`}
       onPointerDown={(e: ui.PointerEvent) => openInspector()}>
-      <Text className={`text-[12px] font-medium ${fg(theme().accent)}`}>{`Inspector · port ${inspectorPort()}`}</Text>
+      <Text className={`text-[12px] font-medium ${fg(theme().accent)}`}>{tr('atelier.console.inspector', ['port', `${inspectorPort()}`])}</Text>
     </View>}
     {consoleOpen() && lines().length > 0 && !asking() && <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer hover:${bg(theme().hover)}`}
       onPointerDown={(e: ui.PointerEvent) => copyConsole()}>
-      <Text className={`text-[12px] font-medium ${fg(theme().muted)}`}>Copy</Text>
+      <Text className={`text-[12px] font-medium ${fg(theme().muted)}`}>{tr('atelier.console.copy')}</Text>
     </View>}
     {active() !== null && <Text className={`text-[12px] ${fg(theme().faint)}`}>{place()}</Text>}
     {consoleOpen() ? <IconButton kind={I_DOWN} size={14} onPress={() => showConsole(false)} /> : <IconButton kind={I_UP} size={14} onPress={() => showConsole(true)} />}

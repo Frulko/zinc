@@ -17,5 +17,5 @@ true true true false
 0 1280 true
   "permissions": ["menu"], /   "app": { "id": "dev.zinc.hero", "version": "1.2.0", "icon": "icon.png", "name": "Hero" },
 "{ \"name\": \"a\", \"app\": { \"version\": \"0.2.0\" } }" "{ \"name\": \"a\" }" "{\n  \"name\": \"a\",\n  \"permissions\": []\n}\n"
-an icon in the tray / reading the files under data / connections to api.example.com / more windows, and their place kept (state only) / []
+atelier.permission.tray / atelier.permission.fs_read_under path data / atelier.permission.net_host host api.example.com / atelier.permission.only id atelier.permission.window detail state / []
 zinc:ui,zinc:gfx,three

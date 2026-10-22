@@ -9,12 +9,16 @@ import { theme, bg, fg, bd } from '../app/theme';
 import { newSketch, openCopy, sketchbook, say, APP_HOME } from '../app/workspace';
 import { startOpen, setStartOpen } from '../app/commands';
 import { Glyph } from './Controls';
+import { t, has } from '../app/text';
 import { I_PLUS } from './icons';
 
 export class Example {
   dir: string; title: string; text: string;
   image: i32 = -2;   // -2 not loaded yet, -1 no picture
   constructor(dir: string, title: string, text: string) { this.dir = dir; this.title = title; this.text = text; }
+  /** Its title and its line in the language of the interface (atelier.example.<folder>.title, .text); index.txt's English otherwise. */
+  name(): string { const k = `atelier.example.${this.dir}.title`; return has(k) ? t(k) : this.title; }
+  line(): string { const k = `atelier.example.${this.dir}.text`; return has(k) ? t(k) : this.text; }
 }
 function load(): Example[] {
   const out: Example[] = [];
@@ -31,7 +35,7 @@ export const EXAMPLES: Example[] = load();
 /** Opens a copy of an example by its folder name; false when there is none. */
 export function openExample(dir: string): boolean {
   for (const e of EXAMPLES) if (e.dir === dir) { if (openCopy(`${APP_HOME}/examples/${e.dir}`)) setStartOpen(false); return true; }
-  say(`No example named ${dir}`);
+  say(t('atelier.example.none', ['name', dir]));
   return false;
 }
 
@@ -54,8 +58,8 @@ function Card(props: { e: Example }): i32 {
       border(x, y, w, h, r, w / 208, theme().borderSoft, 255);
     }} />
     <View className="flex-col px-1.5 gap-0.5">
-      <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>{e.title}</Text>
-      <Text className={`text-[12px] ${fg(theme().muted)}`}>{e.text}</Text>
+      <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>{e.name()}</Text>
+      <Text className={`text-[12px] ${fg(theme().muted)}`}>{e.line()}</Text>
     </View>
   </View>;
 }
@@ -63,16 +67,16 @@ function Card(props: { e: Example }): i32 {
 export function StartView(): i32 {
   return <View className={`absolute inset-0 ${bg(theme().chrome)}`} style={{ hidden: startOpen() ? 0 : 1 }}>
     <ScrollView className="grow flex-col px-[44] pt-[28] pb-[40]">
-      <Text className={`text-[26px] font-bold ${fg(theme().text)}`}>Start a sketch</Text>
-      <Text className={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{`An example opens as a copy in ${tilde(sketchbook())}: change anything.`}</Text>
+      <Text className={`text-[26px] font-bold ${fg(theme().text)}`}>{t('atelier.start.title')}</Text>
+      <Text className={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{t('atelier.start.copies', ['path', tilde(sketchbook())])}</Text>
       <View className="flex-row flex-wrap gap-4">
         <View className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) { setStartOpen(false); newSketch(); } }}>
           <View className={`w-full h-[130] rounded-[10] items-center justify-center ${bg(theme().accentSoft)}`}>
             <Glyph kind={I_PLUS} size={30} color={() => theme().accent} back={() => theme().accentSoft} />
           </View>
           <View className="flex-col px-1.5 gap-0.5">
-            <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>Empty sketch</Text>
-            <Text className={`text-[12px] ${fg(theme().muted)}`}>A few lines to begin from.</Text>
+            <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>{t('atelier.start.empty')}</Text>
+            <Text className={`text-[12px] ${fg(theme().muted)}`}>{t('atelier.start.empty_text')}</Text>
           </View>
         </View>
         {EXAMPLES.map((e: Example) => <Card e={e} />)}

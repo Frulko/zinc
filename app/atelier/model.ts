@@ -273,19 +273,20 @@ export function readProject(text: string): Project | null {
 /** A list of texts as zinc.json writes one on a line: `["menu", "tray"]`. */
 export function jsonList(items: string[]): string { return '[' + items.map((s: string) => JSON.stringify(s)).join(', ') + ']'; }
 
-const ALLOWS: string[] = ['notification', 'notifications', 'menu', 'the menu bar and the context menus', 'tray', 'an icon in the tray', 'dialog', 'file and message dialogs',
-  'window', 'more windows, and their place kept', 'shortcut', 'keyboard shortcuts of the whole desktop', 'instance', 'one running instance', 'deep-link', 'links that open the app',
-  'autostart', 'starting with the session', 'dock', 'the dock icon and its badge', 'power', 'sleep and power events', 'clipboard', 'images and files on the clipboard',
-  'opener', 'opening files and links with other apps', 'update', 'updating itself from its channel', 'process', 'starting other programs', 'camera', 'the cameras',
-  'microphone', 'the microphone', 'location', 'where the machine is', 'serial', 'the serial ports'];
-/** One line on what a permission of zinc.json allows (docs/guide/08-security.md); '' for an id the engine does not know. */
-export function permissionText(id: string): string {
-  const c = id.indexOf(':'), f = c < 0 ? id : id.slice(0, c), rest = c < 0 ? '' : id.slice(c + 1);
-  if (f === 'fs') return rest === '' ? 'every file, reading and writing' : rest === 'read' ? 'every file, reading only' : rest === 'write' ? 'every file, writing only'
-    : rest.startsWith('read:') ? 'reading the files under ' + rest.slice(5) : rest.startsWith('write:') ? 'writing the files under ' + rest.slice(6) : '';
-  if (f === 'net') return rest === '' || rest === '*' ? 'every host, and listening' : rest.startsWith('unix:') ? 'the Unix socket ' + rest.slice(5) : 'connections to ' + rest;
-  for (let i = 0; i + 1 < ALLOWS.length; i += 2) if (ALLOWS[i] === f) return ALLOWS[i + 1] + (rest === '' ? '' : ' (' + rest + ' only)');
-  return '';
+/** The permissions of zinc.json that allow one thing each (docs/guide/08-security.md); what each allows is atelier.permission.<id>. */
+const ALLOWS: string[] = ['notification', 'notifications', 'menu', 'tray', 'dialog', 'window', 'shortcut', 'instance', 'deep-link', 'autostart', 'dock', 'power',
+  'clipboard', 'opener', 'update', 'process', 'camera', 'microphone', 'location', 'serial'];
+/** What a permission of zinc.json allows, as the key of its sentence in atelier.json and that sentence's params: ['atelier.permission.fs_read_under',
+ *  'path', 'data']. A permission narrowed by what follows its colon (`window:state`) is atelier.permission.only around its own. [] for an id the engine
+ *  does not know. */
+export function permissionWords(id: string): string[] {
+  const c = id.indexOf(':'), f = c < 0 ? id : id.slice(0, c), rest = c < 0 ? '' : id.slice(c + 1), k = 'atelier.permission.';
+  if (f === 'fs') return rest === '' ? [k + 'fs'] : rest === 'read' ? [k + 'fs_read'] : rest === 'write' ? [k + 'fs_write']
+    : rest.startsWith('read:') ? [k + 'fs_read_under', 'path', rest.slice(5)] : rest.startsWith('write:') ? [k + 'fs_write_under', 'path', rest.slice(6)] : [];
+  if (f === 'net') return rest === '' || rest === '*' ? [k + 'net'] : rest.startsWith('unix:') ? [k + 'net_unix', 'path', rest.slice(5)] : [k + 'net_host', 'host', rest];
+  if (ALLOWS.indexOf(f) < 0) return [];
+  const own = k + (f === 'notifications' ? 'notification' : f);
+  return rest === '' ? [own] : [k + 'only', 'id', own, 'detail', rest];
 }
 /** The modules a source text imports that are not its own files: `zinc:ui`, `three`. */
 export function importsOf(source: string): string[] {

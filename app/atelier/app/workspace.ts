@@ -8,6 +8,7 @@ import * as sys from 'zinc:sys';
 import { Doc } from './document';
 import { langOf } from './syntax';
 import { History } from './edit';
+import { t } from './text';
 
 export class Diagnostic {
   line: i32; col: i32; severity: i32; message: string;   // 0-based line / column; severity 1 error, 2 warning
@@ -44,7 +45,7 @@ export class Buffer {
 
 export const [buffers, setBuffers] = createSignal<Buffer[]>([]);
 export const [active, setActiveSignal] = createSignal<Buffer | null>(null);
-/** Short message on the status line ('Saved main.tsx'), cleared after a few seconds by the frame loop. */
+/** Short message on the status line (a file saved), cleared after a few seconds by the frame loop. */
 export const [notice, setNotice] = createSignal<string>('');
 let noticeAge: number = 0;
 export function say(s: string): void { setNotice(s); noticeAge = 0; }
@@ -80,7 +81,7 @@ function isDir(path: string): boolean { return fs.exists(path + '/.'); }
 export function openFile(path: string, focus: boolean = true): Buffer | null {
   for (const b of buffers()) if (b.path === path) { activate(b, focus); return b; }
   let text = '';
-  try { text = fs.readText(path); } catch (e) { say(`Cannot open ${baseName(path)}`); return null; }
+  try { text = fs.readText(path); } catch (e) { say(t('atelier.file.cannot_open', ['name', baseName(path)])); return null; }
   const b = new Buffer(path, tabName(path), text);
   setBuffers(buffers().concat([b]));
   activate(b, focus);
@@ -103,10 +104,10 @@ export function closeBuffer(b: Buffer): void {
 }
 
 export function save(b: Buffer): boolean {
-  const t = b.text();
-  try { fs.writeText(b.path, b.crlf ? t.replaceAll('\n', '\r\n') : t); } catch (e) { say(`Cannot save ${b.name}`); return false; }
-  b.setSaved(t);
-  say(`Saved ${b.name}`);
+  const text = b.text();
+  try { fs.writeText(b.path, b.crlf ? text.replaceAll('\n', '\r\n') : text); } catch (e) { say(t('atelier.file.cannot_save', ['name', b.name])); return false; }
+  b.setSaved(text);
+  say(t('atelier.file.saved', ['name', b.name]));
   onSaved(b);
   return true;
 }
@@ -137,7 +138,7 @@ export const APP_HOME: string = appHome();
 
 // ---------------------------------------------------------------- the sketch
 export const [sketchDir, setSketchDir] = createSignal<string>('');
-export function sketchName(): string { return sketchDir() === '' ? 'No sketch' : baseName(sketchDir()); }
+export function sketchName(): string { return sketchDir() === '' ? t('atelier.sketch.none') : baseName(sketchDir()); }
 
 /** Where new sketches and copies of examples go: $ZINC_ATELIER_HOME, else ~/Documents/Zinc. */
 export function sketchbook(): string {
@@ -197,7 +198,7 @@ const OPEN_ALL: i32 = 8;   // a sketch with more code files opens its main file 
 /** Opens a sketch folder: its code files become the tabs, the main file first and active. */
 export function openSketch(dir: string): boolean {
   const d = dir.length > 1 && dir.endsWith('/') ? dir.slice(0, dir.length - 1) : dir;
-  if (!isDir(d)) { say(`No such sketch: ${d}`); return false; }
+  if (!isDir(d)) { say(t('atelier.sketch.not_found', ['path', d])); return false; }
   saveAll();
   setBuffers([]); setActiveSignal(null);
   setSketchDir(d);
@@ -230,7 +231,8 @@ function freeName(base: string): string {
   while (fs.exists(`${root}/${base}_${n}`)) n++;
   return `${base}_${n}`;
 }
-const STARTER = `// A new sketch. Run it with the button above (⌘R).
+/** A new sketch's main.ts: a circle that breathes, under a comment in the language of the interface. */
+const STARTER = (): string => t('atelier.sketch.starter').split('\n').map((l: string) => '// ' + l).join('\n') + `
 import { onFrame, clear, rrect, width, height } from 'zinc:gfx';
 
 let t = 0;
@@ -244,7 +246,7 @@ onFrame((dt: number) => {
 /** Creates an empty sketch in the sketchbook and opens it. */
 export function newSketch(): void {
   const dir = sketchbook() + '/' + freeName('sketch');
-  try { fs.mkdir(dir, true); fs.writeText(dir + '/main.ts', STARTER); } catch (e) { say('Cannot create a sketch in ' + sketchbook()); return; }
+  try { fs.mkdir(dir, true); fs.writeText(dir + '/main.ts', STARTER()); } catch (e) { say(t('atelier.sketch.cannot_create', ['path', sketchbook()])); return; }
   openSketch(dir);
 }
 function copyDir(from: string, to: string): void {
@@ -257,7 +259,7 @@ function copyDir(from: string, to: string): void {
 /** Opens a copy of an example (a folder) in the sketchbook: the example itself is never edited. */
 export function openCopy(from: string): boolean {
   const dir = sketchbook() + '/' + freeName(baseName(from));
-  try { copyDir(from, dir); } catch (e) { say('Cannot copy the example to ' + sketchbook()); return false; }
+  try { copyDir(from, dir); } catch (e) { say(t('atelier.sketch.cannot_copy', ['path', sketchbook()])); return false; }
   return openSketch(dir);
 }
 
@@ -271,29 +273,29 @@ export function fileName(typed: string): string {
 /** Adds a file to the sketch and opens its tab. */
 export function newFile(typed: string): void {
   const n = fileName(typed), path = sketchDir() + '/' + n;
-  if (n === '') { say('A file needs a name'); return; }
-  if (fs.exists(path)) { say(`${n} already exists`); openFile(path); return; }
-  try { fs.writeText(path, ''); } catch (e) { say(`Cannot create ${n}`); return; }
+  if (n === '') { say(t('atelier.file.needs_name')); return; }
+  if (fs.exists(path)) { say(t('atelier.file.exists', ['name', n])); openFile(path); return; }
+  try { fs.writeText(path, ''); } catch (e) { say(t('atelier.file.cannot_create', ['name', n])); return; }
   openFile(path);
 }
 /** Renames the file of a tab (saved first). */
 export function renameFile(b: Buffer, typed: string): void {
   const n = fileName(typed), dir = b.path.slice(0, b.path.lastIndexOf('/')), path = dir + '/' + n;
   if (n === '' || n === baseName(b.path)) return;
-  if (fs.exists(path)) { say(`${n} already exists`); return; }
+  if (fs.exists(path)) { say(t('atelier.file.exists', ['name', n])); return; }
   if (b.modified() && !save(b)) return;
-  try { fs.rename(b.path, path); } catch (e) { say(`Cannot rename ${b.name}`); return; }
+  try { fs.rename(b.path, path); } catch (e) { say(t('atelier.file.cannot_rename', ['name', b.name])); return; }
   const text = b.text(), list = buffers().slice(), i = list.indexOf(b);
   const nb = new Buffer(path, tabName(path), text);   // a new buffer: the language follows the extension
   list[i] = nb;
   setBuffers(list);
   activate(nb);
-  say(`Renamed to ${n}`);
+  say(t('atelier.file.renamed', ['name', n]));
 }
 /** Removes the file of a tab from the sketch. */
 export function deleteFile(b: Buffer): void {
-  if (!fs.remove(b.path)) { say(`Cannot delete ${b.name}`); return; }
+  if (!fs.remove(b.path)) { say(t('atelier.file.cannot_delete', ['name', b.name])); return; }
   b.setSaved(b.text());
   closeBuffer(b);
-  say(`Deleted ${b.name}`);
+  say(t('atelier.file.deleted', ['name', b.name]));
 }

@@ -1,5 +1,5 @@
 import * as fs from 'zinc:fs';
-import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf, readProject, jsonSet, jsonGet, jsonList, permissionText, importsOf, Project, Target } from '../../../app/atelier/model';
+import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf, readProject, jsonSet, jsonGet, jsonList, permissionWords, importsOf, Project, Target } from '../../../app/atelier/model';
 const d = parseDiagnostics("/a/b.ts:1:14: error Z0103: Type is not assignable: 'string' to 'i32'\nnoise\n");
 console.log(d.length, d[0].file, d[0].line, d[0].col, d[0].code, d[0].message);
 const h = hottest("main;a;b 3\nmain;a 1\nmain;c;b 4\n", 5);
@@ -34,5 +34,5 @@ const sized = jsonSet(hero, ['targets', 'macos', 'width'], '1280');
 console.log(sized.length - hero.length, jsonGet(sized, ['targets', 'macos', 'width']), sized.replace('1280', '1100') === hero);
 console.log(jsonSet(hero, ['permissions'], jsonList(['menu'])).split('\n')[4], '/', jsonSet(hero, ['app', 'name'], '"Hero"').split('\n')[2]);
 console.log(JSON.stringify(jsonSet('{ "name": "a" }', ['app', 'version'], '"0.2.0"')), JSON.stringify(jsonSet('{}', ['name'], '"a"')), JSON.stringify(jsonSet('{\n  "name": "a"\n}\n', ['permissions'], '[]')));
-console.log(permissionText('tray'), '/', permissionText('fs:read:data'), '/', permissionText('net:api.example.com'), '/', permissionText('window:state'), '/', '[' + permissionText('teleport') + ']');
+console.log(permissionWords('tray').join(' '), '/', permissionWords('fs:read:data').join(' '), '/', permissionWords('net:api.example.com').join(' '), '/', permissionWords('window:state').join(' '), '/', '[' + permissionWords('teleport').join(' ') + ']');
 console.log(importsOf("import * as ui from 'zinc:ui';\nimport { a } from './a';\nimport 'three';\nimport { b } from \"zinc:gfx\";\n").join(','));
