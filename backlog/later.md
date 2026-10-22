@@ -468,6 +468,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774: dead links left in `docs/studio.md` (apps/studio), `docs/engines.md` (runtime/include/zinc_abi.h, compiler/src/abi.ts, zinc_vm.h), `docs/pinball-make-a-table.md` (examples/pinball3d/tools/), and the docker and "sim oracle" mentions of `docs/boards.md` (82, 238, 319) not checked.
 - ZN-774: `docs/guide/07-distribution.md` and `08-security.md` not checked against `zinc help export` since the onboarding audit.
 - ZN-774: templates `solid-app`, `react-app`, `kit-app`, `rn-app` and `js` would remove the "none yet" rows of `docs/start/choose.md`.
+- ZN-774.12: `stroke()` draws a larger start cap on some lines (640x400, `stroke([380,100,460,160,540,120], 12, 0x5746e0, 255, false)` against the same line at y 250); a drawing app shows it at once.
+- ZN-774.12: `lib/gfx.d.ts` types the `onResize` callback with `number`, the implementation (`kGfxModule`) with `i32`: align the declaration.
+- ZN-774.12: `zinc:ui` has no `.d.ts` (`lib/ui.d.ts` is a placeholder), so editors show beginners no `PointerEvent`, `KeyEvent` or event attributes: generate it from `lib/std/ui.ts`.
+- ZN-774.12: `app.window` in `zinc.json` should not need `app.id`: a first project wants a window size, not a bundle id.
+- ZN-774.12: a `Button` with no `bg-*` class is a dark box on a light page: let its default follow the page, or say so in `docs/ui-kit.md`.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
