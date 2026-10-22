@@ -36,11 +36,26 @@ function rehypeDocLinks() {
   };
 }
 
+// Astro looks for a markdown image next to the file; a translation keeps the English file's image path (img/x.png) and the images live
+// next to the English file, so the translated file's images are pointed at the copied assets before Astro looks (docs/i18n/README.md).
+function remarkI18nImages() {
+  return (tree, file) => {
+    if (!file.path.startsWith(I18N + path.sep)) return;
+    const parts = path.relative(I18N, file.path).split(path.sep).slice(1);
+    const dir = path.dirname(path.join(DOCS, ...parts));
+    const walk = (n) => {
+      if (n.type === 'image' && !/^(https?:|data:|\/)/.test(n.url)) n.url = `${BASE}/docs-assets/${path.relative(DOCS, path.resolve(dir, n.url)).split(path.sep).join('/')}`;
+      n.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
 export default defineConfig({
   // Routes: English has no prefix, the others /zinc/fr/... (src/pages/[lang]/, src/i18n/, docs/i18n/README.md).
   i18n: { defaultLocale: 'en', locales: ['en', 'fr', 'es', 'it', 'de'], routing: { prefixDefaultLocale: false } },
   site: 'https://frulko.github.io',
   base: BASE,
   trailingSlash: 'always',
-  markdown: { rehypePlugins: [rehypeDocLinks], shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false } },
+  markdown: { remarkPlugins: [remarkI18nImages], rehypePlugins: [rehypeDocLinks], shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false } },
 });

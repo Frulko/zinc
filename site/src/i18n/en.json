@@ -14,7 +14,6 @@
   "docs.group.learn": "Learn", "docs.group.start": "Start", "docs.group.guides": "Guides", "docs.group.targets": "Guides: targets",
   "docs.group.reference": "Reference", "docs.group.plugins": "Reference: plugins", "docs.group.concepts": "Concepts",
   "copy": "copy", "copied": "copied",
-  "home.title": "Zinc",
   "home.eyebrow": "TypeScript in, native out",
   "home.h1a": "Write it once. Run it natively ", "home.h1b": "everywhere.",
   "home.lead": "Desktop and mobile apps the way Electron makes them, without shipping a browser. UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX, from a Mac to an ESP32.",
