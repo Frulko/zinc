@@ -1124,3 +1124,6 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | firmware update over Wi-Fi (POST /ota, 1 MB app, from a tablet on the setup network) | 5.8 s |
 | a native plugin built into the firmware (zinc:qrcode, Nayuki's C): image growth / first ESP-IDF build (ccache warm for the IDF) | +10.7 KB / 98 s |
 | zinc:qrcode on the board: a 43-byte URL, 33 × 33 modules, `MEDIUM` | 32 ms to encode; 59 fps while shown, render+send 107 µs |
+| Arduino's core as a component (examples/esp32-arduino: Preferences, ESP, millis, setup/loop): app / the core's archive / static DRAM | 324 KB (minimal 300 KB) / 2.1 KB / 33.1 KB |
+| examples/esp32-arduino on the board: free heap with the JS heap allocated, frame rate | 145 KB, 59.7 fps (js 388 µs) |
+| firmware with Arduino's core: first build (33 registry packages, ccache warm for the IDF) / a change of the sketch, rebuilt in place | 211.6 s / 26 s (make; idf.py's reconfigure alone was another 27 s) |
