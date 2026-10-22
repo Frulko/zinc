@@ -112,9 +112,11 @@ start at once. Close the window to stop the program.
 | --- | --- |
 | `game` | a window, the arrow keys and a square: the smallest game loop (`zinc:gfx`) |
 | `game-2d` | a 2D game to grow from: title, play and game-over scenes, keyboard, gamepad and pointer, SVG sprites, a saved best score |
+| `canvas` | a drawing with the web's canvas calls (`zinc:canvas`): a gradient sky, a turning star, bubbles where you click |
 | `3d` | a three.js scene: lights, a floor, a spinning ring; drag to orbit, wheel to zoom |
 | `desktop-app` | a desktop app: sidebar, Home / Notes / Settings pages, an app menu, dark mode, saved settings |
 | `dashboard` | stat cards, a line and a bar chart, alerts, fed by a data source you replace with yours |
+| `stage` | a scene of objects you tap and drag (`zinc:stage`, AS3 style), light on old tablets |
 | `cli` | a command-line program: its arguments and the platform |
 | `server` | an HTTP server on port 3000 with a telemetry counter (stop it with Ctrl-C) |
 | `service` | an HTTP JSON API with tests and a systemd unit for a Linux box or a Raspberry Pi |

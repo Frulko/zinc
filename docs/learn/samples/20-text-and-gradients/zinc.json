@@ -1,0 +1,5 @@
+{
+  "name": "text-and-gradients",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.gradients", "window": { "width": 640, "height": 400 } }
+}

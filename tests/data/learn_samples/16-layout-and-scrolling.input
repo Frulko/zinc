@@ -1,0 +1,12 @@
+3 move 200 270
+4 down
+5 up
+8 wheel 0 -3
+12 move 200 300
+13 down
+15 move 200 250
+17 move 200 200
+25 up
+28 move 200 270
+29 down
+30 up

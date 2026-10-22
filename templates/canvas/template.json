@@ -1,0 +1,8 @@
+{
+  "name": "canvas",
+  "description": "A sketch on the web's Canvas API (zinc:canvas) drawn by zinc:gfx's frame loop: a gradient sky, a turning star, text, bubbles where you click.",
+  "tags": ["canvas", "gfx", "2d"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

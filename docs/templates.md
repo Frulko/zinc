@@ -40,8 +40,10 @@ compares the graphical ones with a recorded frame.
 |---|---|---|
 | game | a window, the arrow keys and a square (zinc:gfx) | macos, linux, rpi |
 | game-2d | a 2D game to grow from: title / play / game-over scenes, keyboard, gamepad and pointer input, SVG sprites, a saved best score (zinc:gfx, zinc:storage); sound waits for zinc:audio (ZN-390) | macos, linux, rpi |
+| canvas | a sketch on the web's Canvas API (zinc:canvas) in zinc:gfx's frame loop, no JSX: a gradient sky, a turning star, text, bubbles where you click | macos, linux, rpi |
 | desktop-app | a desktop app shell on zinc:ui/nuxt: sidebar and router (Home, Notes, Settings), the application menu and a tray icon (zinc:system/menu, zinc:system/tray), dark mode and settings saved with zinc:storage | macos, linux |
 | dashboard | a live dashboard on zinc:ui/nuxt: stat cards, a line and a bar chart drawn in a Canvas, alerts, pause; fed by a mock source behind a `Source` interface | macos, linux, rpi |
+| stage | a scene of objects as ActionScript 3 and Haxe write it (zinc:stage): a laid-out title bar, colour buttons you tap, a sticker you drag; nothing drawn while nothing changes | macos, linux, rpi |
 | 3d | a three.js scene (lights, floor, a spinning ring, orbiting satellites) with OrbitControls; motion as plain functions, tested | macos, linux, rpi |
 | service | an HTTP JSON API (items, health) with tests without the network and over HTTP, and a hardened systemd unit `deploy/{{id}}.service` (zinc:net) | linux, rpi, macos |
 | iot-board | an ESP32-S3 device: a QMI8658 motion sensor and a 128x64 SSD1306 OLED (a bubble level, shake to calibrate), its `board.json` and a `zinc sim` scenario; the sensor is emulated on the desktop | esp32, macos, sim, rpi1 |

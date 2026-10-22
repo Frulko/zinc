@@ -43,7 +43,7 @@ mistake. Not sure which kind of program to write? [Choose your kind of program](
 ## The one-minute tour
 
 ```sh
-zinc new game myapp                  # or cli | server | service | iot | iot-board | game-2d | 3d | desktop-app | dashboard | eink | remarkable
+zinc new game myapp                  # or cli | server | service | iot | iot-board | game-2d | canvas | 3d | desktop-app | dashboard | stage | eink | remarkable
 cd myapp
 zinc run                             # compiled to native on first run, cached after; --interp starts at once
 zinc dev                             # hot reload on save, red box on a compile error, UI inspector on :9229

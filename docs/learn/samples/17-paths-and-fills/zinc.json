@@ -1,0 +1,5 @@
+{
+  "name": "paths-and-fills",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.paths", "window": { "width": 640, "height": 400 } }
+}

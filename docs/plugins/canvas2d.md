@@ -29,7 +29,33 @@ function Clock(x: i32, y: i32, w: i32, h: i32): void {
 render(() => <Canvas className="grow" onDraw={Clock}></Canvas>, 0x0f172a, null);
 ```
 
-Outside `zinc:ui`, call `ctx.begin(0, 0, width(), height())` / `ctx.end()` inside `onFrame`.
+Outside `zinc:ui`, the whole window is the canvas: call `ctx.begin(0, 0, width(), height())` / `ctx.end()` inside `onFrame`, with
+no JSX (the `canvas` template of `zinc new`, the lessons from [17. Paths and fills](../learn/17-paths-and-fills.md)):
+
+```ts
+import { onFrame, width, height } from 'zinc:gfx';
+import { CanvasRenderingContext2D } from 'zinc:canvas';
+
+const ctx = new CanvasRenderingContext2D();
+let angle = 0;
+onFrame((dt: number) => {
+  angle += dt;
+  ctx.begin(0, 0, width(), height());
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, width(), height());
+  ctx.save();
+  ctx.translate(width() / 2, height() / 2);
+  ctx.rotate(angle);
+  ctx.fillStyle = 'tomato';
+  ctx.fillRect(-40, -40, 80, 80);
+  ctx.restore();
+  ctx.end();
+});
+```
+
+Under `zinc:gfx`'s `setTransform` (a [`zinc:stage`](../reference/stage.md) node's `onDraw`, a turned `zinc:ui` parent), `begin(0, 0, w, h)`
+draws in the moved coordinates: the matrix moves the fills, gradients, images, text and the clip together. Curves are flattened at the
+context's own scale, so a large `setTransform` scale shows their segments; scale with `ctx.scale` instead.
 
 Example: `examples/canvas/sketch` — the w3schools analog clock (radial-gradient rim, rotated numbers, round-capped
 hands) ported almost line for line, fireworks with radial alpha glows and fading trails in an offscreen `Canvas`,

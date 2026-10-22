@@ -1,0 +1,5 @@
+{
+  "name": "bounce-drawing",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.styles.drawing", "window": { "width": 640, "height": 400 } }
+}

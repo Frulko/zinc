@@ -1,0 +1,5 @@
+{
+  "name": "bounce-interface",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.styles.interface", "window": { "width": 640, "height": 400 } }
+}

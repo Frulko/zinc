@@ -1,0 +1,5 @@
+{
+  "name": "taps-and-drags",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.taps", "window": { "width": 640, "height": 400 } }
+}

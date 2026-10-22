@@ -1,0 +1,7 @@
+{
+  "name": "{{name}}",
+  "app": { "id": "com.example.{{id}}", "window": { "width": 640, "height": 400 } },
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {}
+}

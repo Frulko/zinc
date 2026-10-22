@@ -1,0 +1,8 @@
+{
+  "name": "stage",
+  "description": "A scene of objects as ActionScript 3 and Haxe write it (zinc:stage): a column and a row laid out, colour buttons you tap, a sticker you drag; nothing is drawn while nothing changes.",
+  "tags": ["stage", "gfx", "2d", "ui"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

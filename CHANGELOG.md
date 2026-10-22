@@ -19,9 +19,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Atelier's first launch asks for the language, then a short tour shows the start view, the code, Run, the console, a mistake and its fix, completion, the palette, where the sketch runs and the templates; Skip (or Escape) ends it, Help > Tour of Atelier replays it.
 - `zinc:stage`: build a program as a scene of objects, as in ActionScript 3 or Haxe/OpenFL (`Stage`, `Sprite`, `addChild`, `onAddedToStage`, `onUpdate`, `onDraw`, `numChildren`, `mouseX`...), with a light row/column layout, tap and drag zones and scroll boxes; `stage.frame(dt)` draws only when something changed, which keeps old tablets fast. See `docs/reference/stage.md`.
 - `zinc tour`: a guided first walk in your terminal, in eight steps that check themselves (make a project, run it, change a line, read a mistake with `zinc explain`, Fast Refresh with `zinc dev`, a kind of program, the docs, Zinc Atelier). It keeps your place: `zinc tour --list`, `zinc tour 5`, `zinc tour --reset`.
+- Two templates for `zinc new`: `canvas` (a sketch drawn with the web's Canvas API, full window, no JSX) and `stage` (a scene of objects you tap and drag, light on old tablets). A new page, *Four ways to write a program*, puts the drawing, scene, Canvas and interface styles side by side with the same small program in each, and the lessons gain a scene track and a Canvas track.
 
 ### Fixed
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".
+- `zinc:canvas` draws where it should under `zinc:gfx`'s `setTransform`: inside a `zinc:stage` sprite or a turned `zinc:ui` parent, its shapes, gradients and images were drawn at the wrong place and cut away.
 
 ### Changed
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.

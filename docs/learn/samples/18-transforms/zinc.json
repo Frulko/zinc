@@ -1,0 +1,5 @@
+{
+  "name": "transforms",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.transforms", "window": { "width": 640, "height": 400 } }
+}

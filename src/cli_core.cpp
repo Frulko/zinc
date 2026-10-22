@@ -258,8 +258,9 @@ std::vector<TemplateInfo> listTemplates(const std::string& engineRoot) {
 // The kinds of program, in the order zinc new offers them, each with its group and its one line; a template not named here comes last, under More
 struct Kind { const char* tmpl; const char* group; const char* blurb; };
 const Kind kKinds[] = {
-  {"game", "cli.group.games", "cli.template.game"}, {"game-2d", "cli.group.games", "cli.template.game-2d"},
+  {"game", "cli.group.games", "cli.template.game"}, {"game-2d", "cli.group.games", "cli.template.game-2d"}, {"canvas", "cli.group.games", "cli.template.canvas"},
   {"desktop-app", "cli.group.apps", "cli.template.desktop-app"}, {"dashboard", "cli.group.apps", "cli.template.dashboard"},
+  {"stage", "cli.group.apps", "cli.template.stage"},
   {"3d", "cli.group.3d", "cli.template.3d"},
   {"cli", "cli.group.tools", "cli.template.cli"}, {"server", "cli.group.tools", "cli.template.server"}, {"service", "cli.group.tools", "cli.template.service"},
   {"iot-board", "cli.group.boards", "cli.template.iot-board"}, {"iot", "cli.group.boards", "cli.template.iot"},

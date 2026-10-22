@@ -6,13 +6,15 @@ same commands (`zinc new`, `zinc run`, `zinc dev`).
 
 New to programming? Start with [the lesson track](../learn/README.md), then come back here. Already comfortable? Run
 `zinc new <template> my-project` with a template from the table, then `zinc run`. [Getting started](../guide/01-getting-started.md)
-walks through the first five minutes.
+walks through the first five minutes. Drawing, a scene, the web's canvas or an interface:
+[Four ways to write a program](styles.md) shows the same small program in each way to put things on screen.
 
 ## The short answer
 
 | If you want to make... | Pick |
 | --- | --- |
 | a game, or anything you draw yourself | drawing and games |
+| a drawing with the web's canvas calls (paths, gradients) | drawing and games, with `zinc:canvas` |
 | a window with buttons, lists and text fields | an app with screens (Solid style) |
 | a ready-made, good-looking app | ready components (Nuxt UI or shadcn style) |
 | an app you already wrote with React Native | React Native code |
@@ -30,9 +32,11 @@ walks through the first five minutes.
 
 - **You write:** a function called every frame that draws rectangles, text and images, and reads the keyboard, mouse or gamepad
   (`zinc:gfx`: `onFrame`, `rect`, `drawText`).
-- **Template:** `game` (a square you move with the arrow keys), `game-2d` (a small game with scenes, sprites and a saved score).
+- **Template:** `game` (a square you move with the arrow keys), `game-2d` (a small game with scenes, sprites and a saved score),
+  `canvas` (the same drawing with the web's `CanvasRenderingContext2D`, from `zinc:canvas`: paths, gradients, text).
 - **Example:** `examples/breakout`, `examples/platformer`.
 - **Read next:** [Getting started](../guide/01-getting-started.md), then [UI apps](../guide/03-ui-apps.md#fonts-assets-and-images) for fonts and assets.
+  The lessons: [part 1](../learn/README.md) for `zinc:gfx`, [part 4](../learn/17-paths-and-fills.md) for `zinc:canvas`.
 
 ### An app with screens, Solid style
 
@@ -103,10 +107,12 @@ walks through the first five minutes.
 
 ### Old tablets and phones
 
-- **You write:** a tree of display objects on `zinc:gfx`, which keeps each frame cheap on a 2011 tablet.
-- **Template:** none.
+- **You write:** a tree of display objects (`zinc:stage`, as ActionScript 3 and Haxe write it), which keeps each frame cheap on a
+  2011 tablet.
+- **Template:** `stage` (a title, colour buttons and a sticker you drag).
 - **Example:** `examples/music-tree`.
-- **Read next:** `examples/GUIDELINES.md` in the repository.
+- **Read next:** [the scene lessons](../learn/13-a-stage-and-a-sprite.md), [the zinc:stage reference](../reference/stage.md),
+  `examples/GUIDELINES.md` in the repository.
 
 ## Which kinds have no template yet
 

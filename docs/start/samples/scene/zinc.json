@@ -1,0 +1,5 @@
+{
+  "name": "bounce-scene",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.styles.scene", "window": { "width": 640, "height": 400 } }
+}

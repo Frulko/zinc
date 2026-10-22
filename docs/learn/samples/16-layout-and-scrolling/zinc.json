@@ -1,0 +1,5 @@
+{
+  "name": "layout-and-scrolling",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.layout", "window": { "width": 640, "height": 400 } }
+}

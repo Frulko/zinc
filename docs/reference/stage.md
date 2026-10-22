@@ -5,6 +5,7 @@ has a position in its parent, children, and methods Zinc calls when it joins the
 draw with [`zinc:gfx`](gfx.md) in their own coordinates, and a light row/column layout can place them. Nothing is drawn while nothing
 changed, so a frame costs only what it draws: it is the model of the demos for old devices (`examples/music-tree`, the HP TouchPad,
 the Nexus 7; [`examples/GUIDELINES.md`](../../examples/GUIDELINES.md)). The source is [`lib/std/stage.ts`](../../lib/std/stage.ts).
+New to it? [The scene lessons](../learn/13-a-stage-and-a-sprite.md) teach it in four steps, and `zinc new stage` starts a project.
 
 ```ts
 import { onFrame, rrect } from 'zinc:gfx';

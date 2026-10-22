@@ -103,6 +103,7 @@ mkdir "$tmp/empty" && (cd "$tmp/empty" && "$Z" new </dev/null >"$tmp/new.out" 2>
 [ $rc -eq 2 ] && grep -q '^usage: zinc new' "$tmp/new.out" && [ -z "$(ls -A "$tmp/empty")" ] || { echo "zinc new without a terminal: exit $rc, $(ls -A "$tmp/empty" | head -3)"; fail=1; }
 (cd "$tmp/empty" && CI=1 "$Z" new >/dev/null 2>&1 </dev/null); [ $? -eq 2 ] || { echo "zinc new under CI does not exit 2"; fail=1; }
 "$Z" new --list | grep -q '^Games$' && "$Z" new --list | grep -q '^  desktop-app  ' && ! "$Z" new --list | grep -q 'from the index' || { echo "zinc new --list is not grouped by what it makes"; fail=1; }
+"$Z" new --list | grep -q '^  canvas  ' && "$Z" new --list | grep -q '^  stage  ' || { echo "zinc new --list does not show the canvas and stage styles"; fail=1; }
 out=$("$Z" new cli "$tmp/next")
 for want in "Created $tmp/next (cli)." "zinc dev" "src/main.ts" "https://frulko.github.io/zinc/docs/learn/" "zinc tour"; do
   case "$out" in *"$want"*) ;; *) echo "zinc new does not end with the next steps ($want): $out"; fail=1 ;; esac
@@ -142,12 +143,12 @@ sys.stdout.write(out.decode("utf-8", "replace"))
 sys.exit(os.waitstatus_to_exitcode(status))
 PY
 mkdir "$tmp/wiz"
-python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\x1b[B\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
 rc=$?
-[ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down, down, Enter, my-app) did not make the third template, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
+[ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down three times, Enter, my-app) did not make the fourth template, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
 grep -q 'Created my-app (desktop-app)' "$tmp/wiz.out" || { echo "the question does not end with the next steps: $(tail -5 "$tmp/wiz.out")"; fail=1; }
-TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>6\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
-[ -f "$tmp/wiz/my-cli/zinc.json" ] || { echo "the numbered question (TERM=dumb, 6, Enter) did not make my-cli: $(tail -5 "$tmp/wiz2.out")"; fail=1; }
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>8\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
+[ -f "$tmp/wiz/my-cli/zinc.json" ] || { echo "the numbered question (TERM=dumb, 8, Enter) did not make my-cli: $(tail -5 "$tmp/wiz2.out")"; fail=1; }
 # the welcome: once, at a terminal; its language saved beside the keys of others
 mkdir -p "$tmp/home" && printf '{"atelier.theme": "dark"}\n' > "$tmp/home/config.json"
 python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type 1 to 5=>2\r" -- "$Z" > "$tmp/welcome.out" 2>&1; rc=$?
