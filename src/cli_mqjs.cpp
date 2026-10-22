@@ -85,6 +85,42 @@ int capture(const std::string& cmd, std::string& out) {
 #endif
 }
 
+// esptool's write-flash with how far it is: a terminal sees the percentage rewritten in place, a log a line every quarter. `sizes` are the bytes of
+// each region the command writes, in order (esptool counts each from 0 to 100 %); its output is kept in `out` for an error.
+int writeFlash(const std::string& cmd, std::string& out, const char* stage, const std::vector<std::size_t>& sizes) {
+  out.clear();
+  FILE* p = popen((cmd + " 2>&1").c_str(), "r");
+  if (!p) return -1;
+  const bool tty = isatty(2) && zn::log::steps();
+  std::size_t total = 0, before = 0, region = 0;
+  for (std::size_t n : sizes) total += n;
+  int shown = -1;
+  std::string line;
+  for (int c; (c = std::fgetc(p)) != EOF;) {
+    out += static_cast<char>(c);
+    if (c != '\n' && c != '\r') { line += static_cast<char>(c); continue; }
+    const auto b = line.find("] ");   // esptool 5: "Writing at 0x00010000 [=====>      ]  23.4% 98304/388096 bytes..."
+    if (line.rfind("Writing at ", 0) == 0 && b != std::string::npos && region < sizes.size() && total > 0) {
+      const double pct = std::atof(line.c_str() + b + 2);
+      const int all = static_cast<int>((before + sizes[region] * pct / 100) * 100 / total);
+      if (pct >= 100) before += sizes[region++];
+      if (all != shown && (tty || all / 25 != shown / 25)) {
+        if (tty) std::fprintf(stderr, "\r\033[2K  %-10s %d %%", stage, all), std::fflush(stderr);
+        else zn::log::step(stage, std::to_string(all) + " %");
+        shown = all;
+      }
+    }
+    line.clear();
+  }
+  if (tty && shown >= 0) std::fprintf(stderr, "\r\033[2K");
+  const int rc = pclose(p);
+#ifdef _WIN32
+  return rc;
+#else
+  return WIFEXITED(rc) ? WEXITSTATUS(rc) : 1;
+#endif
+}
+
 std::string mqjsTool(std::string& err) {
   if (const char* e = std::getenv("ZINC_MQJS")) return e;
   const fs::path p = fs::path(zn::tc::executablePath()).parent_path() / "zinc-mqjs";
@@ -487,7 +523,8 @@ int flashFirmware(const std::string& root, std::string port, bool net, const Pro
   // esptool's own lines are kept for an error: 6 s to reach the chip, then about 47 KB a second (1.2 MB in 30.5 s, 450 KB in 17 s), the panel blank
   zn::log::step("firmware", "writing " + fs::path(image).filename().string() + " (" + std::to_string(bin.size() / 1024) + " KB) to " + port + ": about " +
                                 std::to_string(6 + bin.size() / 47000) + " s, the screen stays white until the board starts");
-  const int rc = capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(head) + " " + std::to_string(kNvsEnd) + " " + quote(tail), log);
+  const int rc = writeFlash(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash 0x0 " + quote(head) + " " + std::to_string(kNvsEnd) + " " + quote(tail), log,
+                            "firmware", {kNvsOffset, bin.size() - kNvsEnd});
   fs::remove(head, ec);
   fs::remove(tail, ec);
   if (rc != 0) {
@@ -513,7 +550,7 @@ int runOnBoard(const std::string& root, const Program& p, std::string port, int 
   const std::string small = attach ? "" : imageId(imageFor(root, p, false, p.net, err)), net = attach || !p.natives.empty() ? small : imageId(firmwareImage(root, false, true, err));
   if (small.empty() && !attach) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const auto t = clock::now();
-  if (!attach && capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash " + kJsOffset + " " + quote(p.img), log) != 0) {
+  if (!attach && writeFlash(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash " + kJsOffset + " " + quote(p.img), log, "flash", {1}) != 0) {
     std::fprintf(stderr, "%szinc: esptool cannot write the program to %s (above)\n", log.c_str(), port.c_str());
     return 1;
   }

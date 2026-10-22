@@ -49,6 +49,13 @@ printf "function f(): number { const screen = 2; return screen; }\nconsole.log('
 "$ZINC" export examples/esp32-espnow --target esp32 -o "$T/wifi" >/dev/null 2>&1 && cmp -s "$T/wifi/firmware.bin" $F/prebuilt/zinc-mquickjs-net-flash.bin || { echo "zinc:espnow does not take the network firmware"; fail=1; }
 "$ZINC" run examples/esp32-espnow --target esp32 --emulator >"$T/log" 2>&1 && { echo "the emulator accepted a program on the radio"; fail=1; }
 grep -q "esp32sim has no radio" "$T/log" || { echo "the emulator's refusal does not say why"; cat "$T/log"; fail=1; }
+# zinc flash with a stand-in for esptool (its lines as esptool 5 prints them in a pipe): the image goes around the NVS, so the board keeps its
+# touch map and Wi-Fi networks, and the write says how far it is, both regions in one percentage
+printf '#!/bin/sh\necho "$*" > "%s/fake.args"\nfor r in 1 2; do for p in 0.0 50.0 100.0; do printf "\\rWriting at 0x00010000 [==>   ] %%5s%%%% 1/2 bytes... \\n" $p; done; done\n' "$T" > "$T/esptool"
+chmod +x "$T/esptool"
+ZINC_STEPS=1 ZINC_ESPTOOL="$T/esptool" "$ZINC" flash --target esp32 --engine mquickjs --port /dev/null >"$T/log" 2>&1 || { echo "zinc flash failed with the stand-in esptool"; cat "$T/log"; fail=1; }
+grep -q "write-flash 0x0 .*firmware-head.bin 65536 .*firmware-tail.bin" "$T/fake.args" || { echo "the firmware is not written around the NVS: $(cat "$T/fake.args")"; fail=1; }
+grep -q "firmware   54 %" "$T/log" && grep -q "firmware   100 %" "$T/log" || { echo "the firmware write does not say how far it is"; cat "$T/log"; fail=1; }
 mkdir -p "$T/pull"
 printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"
 "$ZINC" export "$T/pull/main.ts" --target esp32 --engine mquickjs -o "$T/pull/out" >"$T/log" 2>&1 && { echo "a pull-up on GPIO 35 was accepted"; fail=1; }
