@@ -223,7 +223,7 @@
   "atelier.run.exited": "Exited with code {code}",
   "atelier.run.build_failed": "Build failed",
   "atelier.run.no_zinc": "Cannot start zinc: install Zinc Atelier again (it looked at {path})",
-  "atelier.run.no_zinc_fix": "Atelier looked for zinc at {path}. Install Zinc again, or start Atelier with `zinc run app/atelier` so that it uses that zinc.",
+  "atelier.run.no_zinc_fix": "Atelier did not find zinc ({path}). Install Zinc again, or start Atelier with `zinc run app/atelier` so that it uses that zinc.",
 
   "atelier.build.busy": "Stop the sketch first: one build at a time",
   "atelier.build.nothing": "Nothing to build: this sketch has no code file",
