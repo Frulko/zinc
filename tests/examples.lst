@@ -19,6 +19,11 @@ camera/remote/src/main.tsx | OK |  |
 canvas/sketch/main.tsx | OK |  | 
 carnet/src/main.tsx | OK |  | 
 chataigne/src/main.tsx | OK |  | 
+esp32-arduino/src/main.ts | OK |  | 
+esp32-ble/mac/src/main.tsx | OK |  | 
+esp32-gpio/src/main.ts | OK |  | 
+esp32-qrcode/src/main.ts | OK |  | 
+esp32-widgets/src/main.ts | OK |  | 
 flipctl/src/main.ts | OK |  | 
 gl-cube/src/main.ts | OK |  | 
 hardware-n3ds/src/main.ts | OK |  | 

@@ -25,6 +25,8 @@ def entries():
         if "zinc.json" in files:
             try: cfg = json.load(open(os.path.join(root, "zinc.json")))
             except Exception: cfg = {}
+            t = cfg.get("targets")
+            if isinstance(t, dict) and t and not set(t) & {"macos", "linux", "windows"}: continue   # a board's program only (esp32-wifi): tests/t0/mquickjs_esp32.sh checks it
             e = cfg.get("entry") or cfg.get("main")
             cands = ([e] if e else []) + ["src/main.ts", "src/main.tsx", "main.ts", "main.tsx"]
             for c in cands:
