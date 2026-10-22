@@ -23,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On the ESP32 under `--engine mquickjs`, a plugin's native code can be C++ on Arduino's core (`native/<x>.abi.cpp`, `espressif/arduino-esp32` in its `idfComponents`): an Arduino sketch's `setup()` and `loop()` run beside the TypeScript program, and a change of the sketch rebuilds the firmware in under half a minute. `examples/esp32-arduino`.
 - `zinc:qrcode`: QR codes from text (`encode`, `runs`, `wifiText`), on every engine and on the ESP32. `examples/esp32-qrcode` shows one on the board.
 - `zinc check <app> --target esp32 --engine mquickjs` checks and compiles a program for the board without writing anything to it.
+- A plugin's native code on the ESP32 can draw the screen itself, sending areas of pixels to the panel (`zn_panel_buffer`, `zn_panel_flush` in the firmware's `zn.h`). Plugins' C is now compiled for speed (`-O2`). See docs/plugins/native-esp32.md.
 
 ### Changed
 - Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 690 KB, `examples/breakout` from 37.6 KB to 24.6 KB.

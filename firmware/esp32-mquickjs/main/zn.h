@@ -24,6 +24,12 @@ int zn_str(JSContext *ctx, JSValue v, char *buf, size_t size);
 /* Integer argument `i` (0 when missing); -1 with an exception pending, else 0. */
 int zn_int(JSContext *ctx, int argc, JSValue *argv, int i, int *out);
 
+/* The panel for a plugin's native code that draws itself (zinc:lvgl): a buffer the panel's bus can read (240 x 32 pixels at most, NULL
+   above), and an area [x0, x1) x [y0, y1) of RGB565 pixels, high byte first, sent while the caller renders the next one (the call waits
+   for the previous area's transfer). From the first area on, the program's zinc:gfx display list is not shown; an error takes the panel back. */
+void *zn_panel_buffer(size_t bytes);
+void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels);
+
 /* The modules' parts the core calls: the GPIO pins the board's own peripherals use (refused to programs), NVS opened once. */
 int zn_pin_reserved(int pin);
 void zn_storage_init(void);

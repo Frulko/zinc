@@ -241,6 +241,8 @@ std::string firmwareImage(const std::string& root, bool emulator, bool net, std:
 // and settings they need); the files' contents (the firmware's sources, the modules') decide whether the image there is still right, and a
 // change rebuilds it in the same directory, only what changed. The program's own changes never rebuild it. A few minutes the first time;
 // "" with `err` when the build fails.
+// the plugins' C: no warnings (vendored code), and -O2 where the rest of the firmware is -Os: LVGL's renderer and a codec are the hot loops
+constexpr const char* kPluginFlags = "-w -O2";
 std::string nativeFirmware(const std::string& root, const Program& p, bool emulator, bool net, std::string& err) {
   const fs::path fw = fs::path(root) / "firmware/esp32-mquickjs";
   std::error_code ec;
@@ -265,6 +267,7 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     for (const std::string& c : n.sdkconfig) key += " " + c;
   }
   std::sort(files.begin(), files.end());
+  contents += std::string(kPluginFlags) + "\n";
   for (const std::string& f : files) contents += f + " " + zn::tc::sha256File(f) + "\n";
   const fs::path dir = fs::path(zn::tc::home()) / "esp32/firmware" / zn::tc::sha256Hex(key).substr(0, 16);
   const std::string image = (dir / "flash.bin").string(), built = zn::tc::sha256Hex(contents);
@@ -295,7 +298,7 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
   writeText(comp / "CMakeLists.txt", "# written by zinc (src/cli_mqjs.cpp): the native code of the plugins a program imports\n"
                                      "idf_component_register(SRCS zn_native_modules.c" + srcs + "\n  INCLUDE_DIRS" + incs + (reqs.empty() ? "" : "\n  REQUIRES" + reqs) + ")\n" +
                                      (defs.empty() ? "" : "target_compile_definitions(${COMPONENT_LIB} PRIVATE" + defs + ")\n") +
-                                     "target_compile_options(${COMPONENT_LIB} PRIVATE -w)\n");
+                                     "target_compile_options(${COMPONENT_LIB} PRIVATE " + kPluginFlags + ")\n");
   fs::remove(comp / "idf_component.yml", ec);
   if (!deps.empty()) writeText(comp / "idf_component.yml", "dependencies:\n" + deps);
   writeText(dir / "sdkconfig.plugins", settings);   // after the firmware's own defaults, so a plugin's setting wins

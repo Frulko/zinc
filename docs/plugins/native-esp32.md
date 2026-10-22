@@ -44,7 +44,12 @@ It includes `zinc_native_qrcode_abi.h` (generated) and its library's headers fro
 The plugin's ESP32 settings: `sources` (C or C++ files, compiled with the firmware), `defines`, `idf` (ESP-IDF components the code
 `REQUIRES`: `esp_driver_i2c`, `esp_adc`...), `idfComponents` (packages of the ESP Component Registry, written into the generated
 component's `idf_component.yml`) and `sdkconfig` (settings such as `CONFIG_X=y`, added after the firmware's defaults). A library on
-ESP-IDF or plain C works as is.
+ESP-IDF or plain C works as is. The plugins' C is compiled with `-O2`, while the rest of the firmware is compiled with `-Os`.
+
+A native module that draws the screen itself (`zinc:lvgl`) takes the panel through `main/zn.h`. `zn_panel_buffer(bytes)` returns a
+buffer the panel's bus can read (240 x 32 pixels at most). `zn_panel_flush(x0, y0, x1, y1, pixels)` sends an area of RGB565 pixels, high
+byte first; it waits for the previous area's transfer, so the module renders the next area while the bus sends this one. From the first
+area on, the program's `zinc:gfx` display list is no longer shown; an error takes the panel back to show its message.
 
 ## Arduino
 

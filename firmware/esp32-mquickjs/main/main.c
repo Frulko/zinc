@@ -42,6 +42,7 @@ enum { LCD_WR = 4, LCD_RD = 2, LCD_CS = 17, LCD_DC = 16, LCD_BL = 0 };
 #endif
 enum { TP_SDA = 21, TP_SCL = 22, TP_ADDR = 0x15 };
 enum { W = 240, H = 320, BAND = 16, LCD_HZ = 10000000, FRAME_US = 16667 }; /* the panel refreshes at 60 Hz */
+enum { PANEL_ROWS = 32 }; /* the largest area a plugin sends at once (zn_panel_buffer) */
 #define JS_HEAP (96 * 1024) /* keep equal to kHeap in src/cli_mqjs.cpp */
 #define MAX_CMDS 768
 #define TEXT_POOL 4096
@@ -63,6 +64,7 @@ static i2c_master_dev_handle_t tp;
 static int touch_down, touch_x, touch_y;
 static int frames;
 static int64_t present_us;
+static int panel_owned, redraw_all; /* a plugin draws on the panel (zn_panel_flush); every band at the next present() */
 
 static uint16_t rgb565(uint32_t c)
 {
@@ -93,7 +95,7 @@ static void lcd_init(void)
     gpio_set_level(LCD_RST, 1);
     spi_bus_config_t bc = {
         .sclk_io_num = LCD_SCLK, .mosi_io_num = LCD_MOSI, .miso_io_num = -1, .quadwp_io_num = -1, .quadhd_io_num = -1,
-        .max_transfer_sz = W * BAND * 2,
+        .max_transfer_sz = W * PANEL_ROWS * 2,
     };
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &bc, SPI_DMA_CH_AUTO));
     esp_lcd_panel_io_spi_config_t ic = {
@@ -106,7 +108,7 @@ static void lcd_init(void)
     gpio_set_level(LCD_RD, 1); /* never read */
     esp_lcd_i80_bus_config_t bc = {
         .dc_gpio_num = LCD_DC, .wr_gpio_num = LCD_WR, .clk_src = LCD_CLK_SRC_DEFAULT,
-        .bus_width = 8, .max_transfer_bytes = W * BAND * 2, .dma_burst_size = 64,
+        .bus_width = 8, .max_transfer_bytes = W * PANEL_ROWS * 2, .dma_burst_size = 64,
     };
     for (int i = 0; i < 8; i++) bc.data_gpio_nums[i] = LCD_DATA[i];
     esp_lcd_i80_bus_handle_t bus;
@@ -210,6 +212,11 @@ static void present(void)
 {
     static uint32_t shown[H / BAND];
     static int which;
+    if (panel_owned) { /* a plugin draws on the panel itself: the display list is not shown */
+        ncmd = ntext = 0;
+        frames++;
+        return;
+    }
     int64_t t0 = esp_timer_get_time();
     for (int y0 = 0; y0 < H; y0 += BAND) {
         uint32_t h = mix(2166136261u, background);
@@ -222,7 +229,7 @@ static void present(void)
             if (c->op == OP_TEXT)
                 for (int k = 0; k < c->len; k++) h = mix(h, (uint8_t)text_pool[c->text + k]);
         }
-        if (frames && shown[y0 / BAND] == h) continue;
+        if (frames && !redraw_all && shown[y0 / BAND] == h) continue;
         shown[y0 / BAND] = h;
         bands_sent++;
         band = bands[which ^= 1];
@@ -234,8 +241,39 @@ static void present(void)
         esp_lcd_panel_io_tx_color(io, 0x2C, band, W * BAND * 2); /* queued: the bus reads it while the next band renders into the other */
     }
     ncmd = ntext = 0;
+    redraw_all = 0;
     if (!frames++) gpio_set_level(LCD_BL, 1);
     present_us += esp_timer_get_time() - t0;
+}
+
+/* ---- the panel for a plugin's native code that draws itself (zinc:lvgl, zn.h) */
+
+void *zn_panel_buffer(size_t bytes)
+{
+    return bytes <= W * PANEL_ROWS * 2 ? heap_caps_malloc(bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL) : NULL;
+}
+
+void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels)
+{
+    const uint8_t caset[4] = {x0 >> 8, x0 & 0xff, (x1 - 1) >> 8, (x1 - 1) & 0xff};
+    const uint8_t raset[4] = {y0 >> 8, y0 & 0xff, (y1 - 1) >> 8, (y1 - 1) & 0xff};
+    lcd_cmd(0x2A, caset, 4); /* waits for the previous area's transfer, which ran while the caller rendered this one */
+    lcd_cmd(0x2B, raset, 4);
+    esp_lcd_panel_io_tx_color(io, 0x2C, pixels, (size_t)(x1 - x0) * (y1 - y0) * 2);
+    if (!panel_owned) {
+        panel_owned = 1;
+        gpio_set_level(LCD_BL, 1);
+    }
+}
+
+/* the display list on the panel again (an error, a message): the whole width, every band */
+static void panel_release(void)
+{
+    static const uint8_t caset[4] = {0, 0, (W - 1) >> 8, (W - 1) & 0xff};
+    if (!panel_owned) return;
+    panel_owned = 0;
+    redraw_all = 1;
+    lcd_cmd(0x2A, caset, 4);
 }
 
 /* ---- touch: CST820 on I2C, 0x02 finger count, 0x03..0x06 X high/low, Y high/low (12 bits) */
@@ -455,6 +493,7 @@ JSValue js_gfx_touch_count(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 static void show_error(JSContext *ctx, const char *what)
 {
     zn_program_state = 2;
+    panel_release();
     static char msg[1024];
     capture = msg;
     ncapture = 0;
@@ -644,6 +683,7 @@ static int deliver(JSContext *ctx, Event *e)
 
 static void message(const char *line1, const char *line2)
 {
+    panel_release();
     ncmd = ntext = 0;
     background = 0;
     text(line1, strlen(line1), 8, 8, 0xffffff, 2);
