@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 20. Texte et dégradés
 
@@ -155,5 +155,7 @@ Vous savez dessiner avec le canvas du web : tracés, remplissages et contours, t
 - `zinc new canvas` crée un croquis à faire grandir : un ciel en dégradé, une étoile qui tourne, des bulles là où vous cliquez.
 - [`examples/canvas/sketch`](../../examples/canvas/sketch/main.tsx) dans le dépôt : une horloge, un feu d'artifice et des formes
   dessinées dans des canvas au milieu d'une interface.
+- [Le dessiner avec le canvas du web](../start/beyond.md#draw-it-with-the-webs-canvas) : un graphique tracé avec ces appels dans une
+  boîte d'une interface, à côté de ses boutons.
 - [Quatre façons d'écrire un programme](../start/styles.md) : comment le canvas se mêle aux autres styles. [Retour au début du
   parcours](README.md).

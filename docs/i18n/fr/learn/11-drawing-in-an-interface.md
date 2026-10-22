@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 11. Un dessin dans une interface
 
@@ -112,6 +112,9 @@ changement au Canvas.)
   gardez le centre dans deux variables. `e.x`, `e.y` sont à l'intérieur du Canvas : ajoutez donc `x`, `y` quand vous
   dessinez.
 - Dessinez plutôt un histogramme : un `rect` par valeur d'une liste, aussi haut que la valeur.
+
+[Au-delà des composants](../start/beyond.md) va plus loin avec un Canvas : un diagramme en barres avec `zinc:gfx`, le même diagramme en
+courbe douce avec le canvas du web, et une scène entière de sprites dans une interface.
 
 ## Suite
 

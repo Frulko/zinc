@@ -1,5 +1,5 @@
 ---
-source: f8a06617acd391e8d497619fb57f189897406d5e
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 10. Les styles
 
@@ -123,7 +123,7 @@ Un mot avec un préfixe ne s'applique que dans un état : `hover:bg-slate-50` qu
 - Arrondissez complètement les cartes avec `rounded-3xl`, ou rendez-les carrées avec `rounded-none`.
 - Écrivez un style que `className` ne sait pas dire, sous forme d'objet : `style={{ opacity: 0.8 }}` (la leçon 8
   utilisait `style={{ width: ... }}`). [zinc:ui en détail](../ui.md#object-styles-and-stylesheet) liste les clés de
-  style.
+  style, et [Les styles en objets](../start/beyond.md#styles-as-objects) écrit un écran entier avec eux, comme le fait React Native.
 
 ## La suite
 

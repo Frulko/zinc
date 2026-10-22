@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 16. La mise en page et une boîte de défilement
 
@@ -183,4 +183,6 @@ glissements, une mise en page et une liste qui défile. C'est suffisant pour la 
 - `zinc new stage` crée une petite application à faire grandir : un titre, des boutons de couleur et un autocollant à faire glisser.
 - [`examples/music-tree`](../../examples/music-tree/src/main.ts) dans le dépôt : un lecteur de musique entier écrit ainsi, rapide
   sur une tablette de 2011.
+- [Une scène dans une interface](../start/beyond.md#a-scene-inside-an-interface), et une interface dans une scène : des sprites à côté
+  de boutons, des boutons sur un sprite.
 - [Quatre façons d'écrire un programme](../start/styles.md), ou la partie 4 : [17. Tracés et remplissages](17-paths-and-fills.md), le canvas du web.

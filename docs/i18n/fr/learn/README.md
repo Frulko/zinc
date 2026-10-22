@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # Apprendre Zinc : d'une forme à une application
 
@@ -95,7 +95,8 @@ et 4 partent chacune de la partie 1 ; après la partie 1, prenez donc celle qui 
 | Changements | vous dessinez la nouvelle image | vous changez une valeur, l'écran suit | vous déplacez un objet, la scène dessine | vous dessinez la nouvelle image |
 
 Elles se combinent : la leçon 11 dessine avec `zinc:gfx` dans une interface. [Quatre façons d'écrire un programme](../start/styles.md) montre le même
-petit programme écrit dans chacune, côte à côte, et comment elles s'associent.
+petit programme écrit dans chacune, côte à côte, et comment elles s'associent. [Au-delà des composants](../start/beyond.md) met une scène dans une interface et une interface dans une scène,
+et va plus loin que les éléments prêts à l'emploi : graphiques, styles en objets, vos propres composants, animations.
 
 ## Les mots que vous rencontrerez
 
@@ -121,6 +122,7 @@ petit programme écrit dans chacune, côte à côte, et comment elles s'associen
 - [Référence de zinc:stage](../reference/stage.md) : toutes les classes et fonctions de la partie 3.
 - [zinc:canvas](../plugins/canvas2d.md) : toutes les fonctions de la partie 4, et les quelques différences avec le web.
 - [Applications d'interface](../guide/03-ui-apps.md) et [zinc:ui en détail](../ui.md) : défilement, champs de texte, animations, calques.
+- [Au-delà des composants](../start/beyond.md) : que faire quand les éléments prêts à l'emploi ne suffisent pas.
 - [Le kit d'interface](../ui-kit.md) : des boutons, boîtes de dialogue, menus et onglets prêts à l'emploi.
 - [Le son](../plugins/audio.md) : toutes les fonctions de `zinc:audio`.
 - Les exemples de Zinc Atelier (*Fichier > Exemples…*) et `zinc new game-2d`, un petit jeu complet à lire et à modifier ;

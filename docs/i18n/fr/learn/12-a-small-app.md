@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 12. Une petite application complète
 
@@ -154,6 +154,8 @@ comment dessiner et jouer du son, et comment construire une interface qui suit s
   que ces leçons ont utilisé, et le reste.
 - [Applications d'interface](../guide/03-ui-apps.md) et [zinc:ui en détail](../ui.md) : défilement, champs de texte,
   animations, calques, fenêtres.
+- [Au-delà des composants](../start/beyond.md) : des graphiques que vous dessinez vous-même, des styles en objets, vos propres
+  composants, des animations et des transitions, et une scène mêlée à une interface.
 - `zinc new desktop-app` crée une application plus grande avec des pages, un menu et des réglages ; `zinc new game-2d` un petit
   jeu complet. Lisez leur code : vous en connaissez maintenant chaque partie.
 - [Retour au début du parcours](README.md).

@@ -1,5 +1,5 @@
 ---
-source: 6feb1df07edd49722e71a16656309caa55687473
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # Quatre façons d'écrire un programme
 
@@ -342,8 +342,15 @@ bon choix pour un ordinateur, un Raspberry Pi 4 ou un téléphone des cinq derni
   donne sa boîte au contexte, et ce que vous dessinez après `ctx.end()` passe par-dessus.
 - **Dessin et Canvas dans une scène.** Le `onDraw` d'un sprite dessine avec `zinc:gfx` dans ses propres coordonnées ; un contexte de canvas y fonctionne aussi :
   `ctx.begin(0, 0, w, h)` dessine dans les coordonnées du sprite et bouge avec lui.
-- **Une scène occupe toute la fenêtre**, tout comme le `render` d'une interface : un programme choisit l'un des deux pour son écran. Le dessin et le Canvas
-  se placent dans l'un comme dans l'autre.
+- **Une scène dans une interface.** `<Canvas onDraw={(x, y, w, h) => stage.drawIn(x, y, w, h)} />` dessine une scène dans une boîte de
+  l'interface, et `stage.update(dt)` dans le troisième argument de `render` la fait bouger et lui transmet les touchers. Un toucher sur
+  un sprite va au sprite, un clic sur un bouton va au bouton.
+- **Une interface dans une scène.** Un Canvas qui remplit la fenêtre dessine la scène, et des éléments de l'interface sont placés par-dessus
+  un sprite (`absolute`, au `x` et au `y` du sprite) ; le sprite enregistre une zone de toucher en dessous, pour que la scène derrière ne
+  prenne pas leurs clics.
+
+Les deux sont détaillés, avec le code, dans [Au-delà des composants](beyond.md), qui montre aussi des graphiques que vous dessinez vous-même,
+des styles en objets, vos propres composants, des animations et des transitions.
 
 Vous hésitez ? Commencez par le style dessin et [les leçons](../learn/README.md) : tous les autres styles utilisent ce qu'elles enseignent. Pour choisir quel
 type de programme faire (un jeu, une application, un serveur, une carte), voir [Choisir son type de programme](choose.md).
