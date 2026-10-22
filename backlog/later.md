@@ -463,7 +463,6 @@ The next backlog review turns lines into tasks or deletes them.
 - Module resolution: a tsconfig `paths` entry wins over a plugin for the same specifier, which on the web profile would hide the plugin's "web" entry (the examples map `three` to `plugins/three/index.ts`); drop those entries or let plugins win.
 - Module resolution: platform suffixes apply to `.ts`/`.tsx` only; Metro also takes `x.native.js`, which React Native packages in `node_modules` use.
 - Module resolution: `tests/t0/module_resolution.sh` runs the interpreter and the JS engines, not AOT (the same loader, about 3 s a platform).
-- ZN-774: `docs/diagnostics.md` is generated and its Z0007 fix line puts `<view>` and `<scroll>` outside code, so the site renders them as HTML tags: quote them in `include/zn/diagnostics.h`.
 - ZN-774: the README summaries "36 modules" and "9 display drivers" disagree with the 49 module and 9 display plugins of `plugins/`; change them with the parser in `site/src/data/site.ts`.
 - ZN-774: dead links left in `docs/studio.md` (apps/studio), `docs/engines.md` (runtime/include/zinc_abi.h, compiler/src/abi.ts, zinc_vm.h), `docs/pinball-make-a-table.md` (examples/pinball3d/tools/), and the docker and "sim oracle" mentions of `docs/boards.md` (82, 238, 319) not checked.
 - ZN-774: `docs/guide/07-distribution.md` and `08-security.md` not checked against `zinc help export` since the onboarding audit.
@@ -484,6 +483,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.08: a "Take the tour" link on the start view if Help > Tour proves hard to find.
 - ZN-774.13: QuickJS under `ZINC_DETERMINISTIC` is not frame-deterministic for music-tree's gsap carousel (two runs of the same code differ at frames 70-149), so a per-frame hash cannot prove a QuickJS run.
 - ZN-774.13: `VBox`, `HBox`, `Spacer` and a scroll-container node in `zinc:stage` (music-tree's own are mixed with its colours and fonts), and nested scroll boxes (one level today).
+- ZN-774.04: translate more diagnostic details, the less frequent ones on demand; print paths in diagnostic lines relative to the current folder (the tour already shortens them).
+- ZN-774.16: separate compilation of lib/std (a linkable ZBC per module, or the checked and lowered std kept between compiles), so the first run of a zinc:ui program and each Fast Refresh stop paying about 330 ms for lib/std (a 7-line zinc:ui program compiles in 337 ms); needs generics instantiated per module, inlining after the link and one string and class table built at the link.
+- ZN-774.16: a windowed `zinc run` whose native build fails (a Mac without the Command Line Tools) compiles and tries the C++ build at every run before interpreting: remember the failure beside the run cache and start from the cached ZBC.
+- ZN-774.14: `zinc:canvas` smooths curves at its own scale, not the `zinc:gfx` transform's, so a canvas inside a scaled-up stage node shows facets; its images under a rotated transform are moved and scaled but not rotated.
+- ZN-774.14: when a native plugin fails to compile, auto mode falls back to the simulation with only a warning (a broken canvas2d.host.cpp went unnoticed until ZINC_NATIVE=real): a test or `zinc doctor` should report it.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -608,6 +612,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-774.05: `zinc tour` on Windows (`cmd` needs `cd /d` and double quotes, a console reader in place of `poll`) and on Linux (the Atelier launcher path, `xdg-open`), tested on those machines.
 - ZN-774.13: music-tree on the HP TouchPad and the Nexus 7 with `zinc:stage` (taps, drags, scrolling, idle frames, frame cost with `tools/zbench`).
 - ZN-774.01: merge the CoreFoundation language lookup of `src/i18n` and `systemLocale()` of `src/host/sys_host.cpp` into `src/platform`, and add Windows `GetUserPreferredUILanguages` there.
 - ZN-774.02: `zinc new`'s question on Windows: a console raw mode for the arrow keys (it shows numbers there now).

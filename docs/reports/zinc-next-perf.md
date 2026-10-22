@@ -1144,3 +1144,16 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | the Bench's program outside LVGL's render, 64 objects (its loop and `pos`) | about 10 ms a frame |
 | the same 64 objects moved by LVGL (`lv.animate` on X and Y, forever) instead of `lv.pos` every frame (Rects / Alpha / Text / Mix), and the free heap | 34/27/29/30 fps against 33/26/29/29; LVGL 28.5 to 32.9 ms (the moves' style refresh is now inside it); 37.9 KB free against 51.8 KB (128 animations, about 110 B each) |
 | Home / Music with the join | 60 fps, LVGL 1.8 to 2.8 ms (5,300 to 6,100 px) / 60 fps, 2.1 ms (9,000 px) |
+
+## PERF-16 follow-up: zinc dev and the first start of a zinc:ui program (ZN-774.16, 2026-10-22)
+
+M1 Pro, headless, 120 frames, `/usr/bin/time -l`, best of three, **load 6 to 7 from other sessions: indicative**. "First" is a fresh `ZINC_HOME`. `ZINC_DETERMINISTIC=1` turns the cache off by design (tests/run sets it), so it is not set here.
+
+| Run | First | Second |
+|---|---|---|
+| docs/learn/samples/01 (zinc:gfx) | 0.04 s, 16 MB, 458 M instr | 0.00 s, 6.5 MB, 49 M instr |
+| docs/learn/samples/12 (zinc:ui) | 0.35 s, 62 MB, 3.86 G instr | 0.01 s, 9.2 MB, 155 M instr |
+| `zinc dev` child of sample 12 with the inspector | 0.58 s, 92 MB, 6.16 G instr (every start, before) | 0.02 s, 13 MB, 221 M instr (cached, after) |
+| sample 12 built native (`--native`, cached build) | | 0.02 s, 4.2 MB, 94 M instr |
+
+What remains: the first run of any zinc:ui program and every Fast Refresh compile lib/std again, about 330 ms here (a 7-line zinc:ui program: 337 ms; a drawing-only one: 13 functions, 70 KB). The class parser is 16% and the text-field editor 13% of the code a primitives-only program compiles (docs/reports/ui-primitives-like-react-native.md).
