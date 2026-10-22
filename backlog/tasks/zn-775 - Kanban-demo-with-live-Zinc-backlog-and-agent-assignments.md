@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex-kanban'
 created_date: '2026-10-22 18:34'
-updated_date: '2026-10-22 19:42'
+updated_date: '2026-10-22 19:52'
 labels:
   - ui
   - demo
@@ -54,4 +54,8 @@ Edit/comment actions persist title and description or append a named Markdown co
 Validation: tests/run --only kanban, kanban_logic, markdown, affected_paths and ci_plan all pass; zinc check passes for Kanban and Agents. Kanban T1 includes mouse/touch/keyboard, deep-scroll geometry, Markdown detail/editor feature goldens, 300 idle frames, and matching interpreter/AOT/QuickJS first-board hashes (763dad18a1e3cfed). Feature captures reviewed. Full real backlog snapshot (975 tasks) captured. Figures logged in zinc-next-perf.md. No full Agents conversation suite, cross-target/device or screen-reader run; public behavior of its promoted Markdown implementation is unchanged. Concurrent edits within the final CLI call follow Backlog.md last-writer semantics (no atomic compare-and-swap); the preflight rejects already-stale drafts.
 
 usage: n/a for Codex. Unrelated examples/fatty and tests/data/fatty left untouched.
+
+Owner follow-up: entering edit mode must show the existing Markdown content and put keyboard focus directly in its editor. Add a UI regression that inspects the field before the test helper types.
+
+Editor focus correction complete. The previous UI test masked the defect by focusing each field itself; a regression with nonempty Markdown first failed on the old focused field, then passed after deferring editor focus until its conditional mount and opening pointer press complete. Actual fields retain title/body, direct typing works without clicking, reopening retains draft and focus. zinc check examples/kanban, tests/run --only kanban_logic and tests/run --only kanban pass. Only golden frame 225 changes (focused border/caret), reviewed visually; all other scripted frame hashes match. No engine or persistence behavior changed. Editing remains title/description only; other detail sections remain read-only. No cross-target/device or screen-reader check. Unrelated fatty files untouched; usage n/a for Codex.
 <!-- SECTION:NOTES:END -->

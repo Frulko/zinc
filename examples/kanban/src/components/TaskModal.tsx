@@ -1,4 +1,4 @@
-import { createNodeRef } from 'zinc:ui/solid';
+import { createEffect, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { setClipboardText } from 'zinc:gfx';
 import { Markdown } from '../../../../lib/std/markdown-view';
@@ -15,7 +15,7 @@ function Section(props: { title: string; body: string }): i32 {
 }
 function dependencies(): string[] { const d = detail(); return d !== null ? d.dependencies : []; }
 export function TaskModal(): i32 {
-  const screen = createNodeRef(), panel = createNodeRef();
+  const screen = createNodeRef(), panel = createNodeRef(), editor = createNodeRef();
   const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={selectedId() === '' ? 1 : 0} role="dialog" aria-label="Détail de la tâche">
     <View ref={panel} className="w-[1120] max-w-[96vw] h-[88vh] flex-col rounded-[8] overflow-hidden bg-[#ffffff] border border-[#dce1e7] shadow-lg">
       <View className="flex-row h-[44] shrink-0 items-center gap-2 px-4 border-b border-[#e5e8ed] bg-[#f8f9fb]">
@@ -35,7 +35,7 @@ export function TaskModal(): i32 {
             <Text className="text-[11px] text-[#8a96a5]">TITRE</Text>
             <Input value={editTitle()} onInput={setEditTitle} aria-label="Titre de la tâche" disabled={saving()} className="h-[38] px-2 text-[16px] font-semibold border border-[#dce1e7] rounded-[5] bg-[#ffffff] text-[#364353]" />
             <Text className="text-[11px] text-[#8a96a5]">DESCRIPTION · MARKDOWN</Text>
-            <TextArea value={editDescription()} onInput={setEditDescription} aria-label="Description Markdown" disabled={saving()} rows={0} className="grow min-h-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+            <TextArea ref={editor} value={editDescription()} onInput={setEditDescription} aria-label="Description Markdown" disabled={saving()} rows={0} className="grow min-h-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
             <Text className="text-[11px] text-[#8a96a5]">{writable() ? 'Enregistrer écrit le titre et la description dans Backlog.md.' : 'Instantané en lecture seule · brouillon conservé dans cette session.'}</Text>
           </View>}
           {!editing() && <ScrollView className="grow min-h-0 flex-col p-6 gap-5">
@@ -80,5 +80,12 @@ export function TaskModal(): i32 {
   ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: 0x101720, backdropAlpha: 110, motion: 'scale' });
   ui.focusScope(screen.node, { trap: true, restore: true, autoFocus: true }); ui.onDismiss(screen.node, closeTask);
   ui.onOutsidePointer(panel.node, (e: ui.PointerEvent) => closeTask());
+  createEffect(() => {
+    const id = selectedId(), active = editing();
+    if (id !== '' && active) queueMicrotask(() => {
+      // Wait for the conditional field to mount and the opening pointer press to finish.
+      if (selectedId() === id && editing()) ui.focusNode(editor.node);
+    });
+  });
   return node;
 }

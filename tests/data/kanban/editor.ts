@@ -28,17 +28,27 @@ function tick(): void {
   if (step === 0 && tasks().length > 0) { openTask('ZN-001'); step++; }
   else if (step === 1 && detail() !== null) { comments = detail()!.comments.length; click('Modifier'); step++; }
   else if (step === 2 && editing()) {
+    const editor = find(ui.inspectRoot(), 'Description Markdown', true);
+    assert.ok(editor >= 0, 'Markdown editor exists');
+    assert.equal(ui.getValue(editor), '# Existing description\n\nOriginal **Markdown** content to edit.', 'existing content is already in the editor');
+    assert.equal(ui.getValue(find(ui.inspectRoot(), 'Titre de la tâche', true)), detail()!.title);
+    assert.equal(ui.focusedField(), editor, 'Modify puts keyboard focus directly in the Markdown editor');
+    ui.insertText('Inserted without clicking a field. ');
+    assert.ok(editDescription().includes('Inserted without clicking a field. '));
     type('Titre de la tâche', 'Title edited in the UI'); type('Description Markdown', '# UI heading\n\n**Strong** text and `code`.');
     assert.equal(editTitle(), 'Title edited in the UI'); closeTask(); openTask('ZN-001'); step++;
   } else if (step === 3 && editing() && detail() !== null) {
     assert.equal(editTitle(), 'Title edited in the UI'); assert.ok(editDescription().includes('**Strong**'));
+    const editor = find(ui.inspectRoot(), 'Description Markdown', true);
+    assert.equal(ui.getValue(editor), editDescription(), 'reopening restores the draft in the actual editor');
+    assert.equal(ui.focusedField(), editor, 'reopening an unfinished edit focuses its editor');
     click('Enregistrer'); step++;
   } else if (step === 4 && !saving() && !editing() && detail() !== null && detail()!.title === 'Title edited in the UI') {
     assert.ok(detail()!.description.includes('**Strong**')); type('Nouveau commentaire', 'A **comment** from the real UI.'); click('Commenter'); step++;
   } else if (step === 5 && !saving() && detail() !== null && detail()!.comments.length === comments + 1) {
     assert.equal(detail()!.comments[comments].body, 'A **comment** from the real UI.');
     assert.ok(find(ui.inspectRoot(), 'UI heading', false) >= 0, 'Markdown heading is rendered');
-    console.log('kanban editor: actual fields/buttons, retained draft, saved title/Markdown, rendered heading and posted comment ok');
+    console.log('kanban editor: prefilled/focused editor, direct typing, restored draft/focus, saved title/Markdown, rendered heading and posted comment ok');
     ui.removeStepper(tick); stopBacklog(); quit();
   }
 }
