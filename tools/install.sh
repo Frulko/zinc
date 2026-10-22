@@ -98,7 +98,7 @@ elif [ "$atelier" != 0 ]; then
 fi
 
 case ":$PATH:" in
-  *":$bindir:"*) echo "next: zinc new game my-game && cd my-game && zinc run" ;;
+  *":$bindir:"*) ;;
   *)
     add="export PATH=\"$bindir:\$PATH\""
     case "${SHELL:-}" in */zsh) profile=$HOME/.zprofile ;; *) profile=$HOME/.profile ;; esac
@@ -108,5 +108,8 @@ case ":$PATH:" in
       grep -qsF "$add" "$profile" || printf '\n# zinc\n%s\n' "$add" >> "$profile"
       echo "$bindir was added to your PATH in $profile"
     fi
-    echo "next, in a new terminal: zinc new game my-game && cd my-game && zinc run" ;;
+    echo "open a new terminal first, then:" ;;
 esac
+echo
+# the three steps to start, in the person's language: the text of the first-run welcome (zinc --next-steps), which the Homebrew caveats repeat
+"$bin" --next-steps 2>/dev/null || echo "next: zinc new, then zinc dev in the new project's folder"

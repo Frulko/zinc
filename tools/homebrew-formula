@@ -39,7 +39,16 @@ $(block linux intel x86_64)
   end
 
   def caveats
+    # the end of install.sh and install.ps1 (zinc --next-steps in English; tests/t1/first_run.sh keeps the two equal)
     <<~TXT
+      Three steps to start:
+        1. zinc new   make a project (it asks what to make)
+        2. zinc dev   in the project's folder: runs it, every save shows at once
+        3. zinc tour  a guided first walk
+      Learn to draw and react to the keyboard and mouse: https://frulko.github.io/zinc/docs/learn/
+      The guide: https://frulko.github.io/zinc/docs/guide/01-getting-started/
+      Is this machine ready? zinc doctor tells you.
+
       Update zinc with: brew update && brew upgrade zinc   (zinc update is for the install.sh install)
       Zinc Atelier, the app: https://github.com/$repo/releases/latest
     TXT

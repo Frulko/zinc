@@ -8,7 +8,8 @@ Every area file found under any language (cli, diag, atelier...) is compared wit
   - the same {placeholders} (a literal brace is {{), and the error codes (Z0103), the `backticked text`, the commands
     (zinc new) and the flags (--lang) of the English text, unchanged;
   - no leading or trailing space English has not;
-and every id the sources use is in English: tr("...") and trn("...") in src/, t('atelier...') in app/atelier.
+and every id the sources use is in English: tr("...") and trn("...") in src/ and the ids its tables hold ("cli.cmd.run"),
+t('atelier...') in app/atelier.
 Prints one line per problem; exit 1 when there is an error, 0 otherwise (warnings included)."""
 import json, os, re, sys, unicodedata
 
@@ -110,11 +111,14 @@ def ids(directory, pattern, exts):
     return found
 
 plural_bases = {PLURAL.match(k).group(1) for k in english if PLURAL.match(k)}
-for path, i, call in ids("src", r'\btrn?\(\s*"([a-z]+\.[A-Za-z0-9_.]+)"', (".cpp", ".h")):
+for path, i, call in ids("src", r'\btrn?\(\s*"([a-z]+\.[A-Za-z0-9_.-]+)"', (".cpp", ".h")):
     ok = i in plural_bases if call.startswith("trn") else i in english
     if not ok: errors.append(f"{path}: {call.split('(')[0]}(\"{i}\") is not in i18n/en/{i.split('.')[0]}.json" + (" as a plural message" if call.startswith("trn") else ""))
+# ids kept in tables (a command's summary, the kinds of zinc new): any literal "<area>.<group>.<name>" of an area the binary carries
+for path, i, call in ids("src", r'"((?:%s)\.[a-z0-9_-]+\.[A-Za-z0-9_.-]+)"' % "|".join(a for a in areas if a != "atelier"), (".cpp", ".h")):
+    if i not in english and i not in plural_bases: errors.append(f"{path}: \"{i}\" is not in i18n/en/{i.split('.')[0]}.json")
 if os.path.isdir(os.path.join(root, "app", "atelier")):
-    for path, i, call in ids(os.path.join("app", "atelier"), r"\bt\(\s*['\"](atelier\.[A-Za-z0-9_.]+)['\"]", (".ts", ".tsx")):
+    for path, i, call in ids(os.path.join("app", "atelier"), r"\bt\(\s*['\"](atelier\.[A-Za-z0-9_.-]+)['\"]", (".ts", ".tsx")):
         if i not in english and i not in plural_bases: errors.append(f"{path}: t('{i}') is not in i18n/en/atelier.json")
 
 for w in warnings: print("warning: " + w)

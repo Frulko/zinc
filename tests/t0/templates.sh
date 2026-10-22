@@ -1,5 +1,5 @@
 #!/bin/sh
-# Project templates (ZN-315): templates/<name>/ with template.json; `zinc new --list` prints each with its description and targets, `zinc new <t> <dir>`
+# Project templates (ZN-315): templates/<name>/ with template.json; `zinc new --list` prints each with one line, by what it makes (ZN-774.02), `zinc new <t> <dir>`
 # copies the template's files (not template.json) with {{name}} and {{id}} filled, writes tsconfig.json, and the project passes `zinc check` and
 # `zinc test`; an unknown template (exit 2) and a non-empty directory (exit 1) are refused with the list of templates; `zinc init --template` is an alias.
 cd "$(dirname "$0")/../.." || exit 2
@@ -10,7 +10,7 @@ fail=0
 list=$("$Z" new --list)
 for d in "$tpl"/*/; do
   t=$(basename "$d")
-  echo "$list" | grep -q "^  $t .*(.*)$" || { echo "zinc new --list misses $t: $list"; fail=1; }
+  echo "$list" | grep -q "^  $t  *[a-z0-9]" || { echo "zinc new --list misses $t: $list"; fail=1; }
   p="$tmp/My $t"
   "$Z" new "$t" "$p" >/dev/null || { echo "zinc new $t failed"; fail=1; continue; }
   (cd "$d" && find . -type f ! -name template.json | sed 's/{{id}}/my-'"$t"'/g; s/{{name}}/My '"$t"'/g' | sort) > "$tmp/want"

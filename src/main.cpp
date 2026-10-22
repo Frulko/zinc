@@ -1687,7 +1687,7 @@ int main(int argc, char** argv) {
   {   // one dim line when a newer zinc exists, on every command but those that say it themselves (update, doctor), speak a protocol (lsp, agent,
       // device) or answer a script (--version, --root...)
     const char* c = argc >= 2 ? argv[1] : "";
-    if (c[0] != '-' && std::strcmp(c, "update") && std::strcmp(c, "doctor") && std::strcmp(c, "lsp") && std::strcmp(c, "agent") && std::strcmp(c, "device"))
+    if (c[0] != '-' && std::strcmp(c, "update") && std::strcmp(c, "doctor") && std::strcmp(c, "lsp") && std::strcmp(c, "agent") && std::strcmp(c, "device") && std::strcmp(c, "version"))
       zn::tc::updateNotice();
   }
   {   // help, init and the bare project commands (ZN-138)
@@ -1799,7 +1799,8 @@ int main(int argc, char** argv) {
     gNoEmbed = true;
   }
   if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
-  if (argc == 2 && !std::strcmp(argv[1], "--version")) {
+  if (argc == 2 && !std::strcmp(argv[1], "--next-steps")) { zn::cli::nextSteps(); return 0; }   // the end of install.sh and install.ps1, in the person's language
+  if (argc == 2 && (!std::strcmp(argv[1], "--version") || !std::strcmp(argv[1], "version"))) {
     std::printf("zinc-next %s\n", kVersionText);
     return 0;
   }
@@ -3055,6 +3056,10 @@ int main(int argc, char** argv) {
     std::fputs(out.c_str(), stdout);
     return 0;
   }
-  if (argc < 2) { zn::cli::help({argv[0], "help"}); return 2; }   // a bare `zinc`: the commands
+  if (argc < 2) {   // a bare `zinc`: the welcome the first time a person types it, then the commands
+    if (zn::cli::welcome(kVersionText)) return 0;
+    zn::cli::help({argv[0], "help"});
+    return 2;
+  }
   return zn::cli::unknownCommand(argv[1]);
 }

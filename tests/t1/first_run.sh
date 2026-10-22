@@ -6,7 +6,10 @@
 # - six beginner mistakes each print the file, the line and what to do next: tests/golden/first-run/<mistake>.txt, the project directory
 #   written <project> (FIRST_RUN_UPDATE=1 rewrites them);
 # - the guide quotes the first line of each message;
-# - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands.
+# - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands, grouped (Start here, Build and ship);
+# - zinc new with no argument: the usage and nothing written without a terminal; through a pty, the question (arrows) and the name;
+#   the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
+# - install.sh and install.ps1 end with zinc --next-steps, which the Homebrew caveats repeat word for word.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 gold="$PWD/tests/golden/first-run"
@@ -75,8 +78,84 @@ cp "$tmp/main.ts" "$g/src/main.ts"
 mistake missing-file "$g" run src/mian.ts
 
 # lost at the first command: the list of commands, the closest command
-"$Z" 2>/dev/null | grep -q '^  new  *create a project from a template' || { echo "a bare zinc does not list the commands"; fail=1; }
+"$Z" 2>/dev/null </dev/null | grep -q '^  new  *make a project (it asks what to make)' || { echo "a bare zinc does not list the commands"; fail=1; }
+"$Z" help | grep -q '^Start here' && "$Z" help | grep -q '^Build and ship' && ! "$Z" help | grep -q '^  lsp ' || { echo "zinc help is not grouped"; fail=1; }
+"$Z" help --all | grep -q '^  lsp  *language server' || { echo "zinc help --all does not list every command"; fail=1; }
+for c in new run dev check doctor explain build; do
+  [ "$("$Z" help $c | sed -n 3p)" = "Examples:" ] && [ "$("$Z" help $c | sed -n 4,5p | grep -c "^  zinc $c")" = 2 ] || { echo "zinc help $c does not start with the usage and two examples"; fail=1; }
+done
+[ "$("$Z" hlep 2>&1)" = "zinc: unknown command 'hlep': did you mean 'zinc help'? (zinc help lists the commands)" ] || { echo "zinc hlep: $("$Z" hlep 2>&1)"; fail=1; }
+"$Z" version | grep -q '^zinc-next ' || { echo "zinc version does not print the version"; fail=1; }
 "$Z" --help | grep -q '^  run  *run a program or project' || { echo "zinc --help does not list the commands"; fail=1; }
 [ "$("$Z" rnu 2>&1)" = "zinc: unknown command 'rnu': did you mean 'zinc run'? (zinc help lists the commands)" ] || { echo "zinc rnu: $("$Z" rnu 2>&1)"; fail=1; }
+
+# zinc new with no argument: a script gets the usage, exit 2, and nothing is written
+mkdir "$tmp/empty" && (cd "$tmp/empty" && "$Z" new </dev/null >"$tmp/new.out" 2>&1); rc=$?
+[ $rc -eq 2 ] && grep -q '^usage: zinc new' "$tmp/new.out" && [ -z "$(ls -A "$tmp/empty")" ] || { echo "zinc new without a terminal: exit $rc, $(ls -A "$tmp/empty" | head -3)"; fail=1; }
+(cd "$tmp/empty" && CI=1 "$Z" new >/dev/null 2>&1 </dev/null); [ $? -eq 2 ] || { echo "zinc new under CI does not exit 2"; fail=1; }
+"$Z" new --list | grep -q '^Games$' && "$Z" new --list | grep -q '^  desktop-app  ' && ! "$Z" new --list | grep -q 'from the index' || { echo "zinc new --list is not grouped by what it makes"; fail=1; }
+out=$("$Z" new cli "$tmp/next")
+for want in "Created $tmp/next (cli)." "zinc dev" "src/main.ts" "https://frulko.github.io/zinc/docs/learn/" "zinc tour"; do
+  case "$out" in *"$want"*) ;; *) echo "zinc new does not end with the next steps ($want): $out"; fail=1 ;; esac
+done
+for r in templates/*/README.md; do sed -n 3p "$r" | grep -q '^## Next steps$' && grep -q 'zinc dev' "$r" || { echo "$r does not start with the next steps"; fail=1; }; done
+
+# through a terminal: the question of zinc new, then the first-run welcome. terminal.py <cwd> <home> <keys...> -- argv: each key waits for
+# its text (before '=>') then types the rest; prints what the terminal showed, exits with the program's code
+cat > "$tmp/terminal.py" <<'PY'
+import os, pty, select, sys, time
+cwd, home = sys.argv[1], sys.argv[2]
+sep = sys.argv.index("--")
+keys, argv = sys.argv[3:sep], sys.argv[sep + 1:]
+env = {k: v for k, v in os.environ.items() if k not in ("CI", "ZINC_LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES")}
+env.update(ZINC_HOME=home, TERM="xterm-256color", LANG="C")
+pid, fd = pty.fork()
+if pid == 0:
+    os.chdir(cwd); os.execve(argv[0], argv, env)
+out = b""
+def pump(until, limit):
+    global out
+    end = time.time() + limit
+    while time.time() < end and (until is None or until not in out):
+        if select.select([fd], [], [], 0.1)[0]:
+            try: chunk = os.read(fd, 4096)
+            except OSError: return False
+            if not chunk: return False
+            out += chunk
+    return True
+for k in keys:
+    wait, send = k.split("=>", 1)
+    pump(wait.encode(), 20)
+    os.write(fd, send.encode().decode("unicode_escape").encode("latin-1"))
+pump(None, 20 if keys else 5)
+_, status = os.waitpid(pid, 0)
+sys.stdout.write(out.decode("utf-8", "replace"))
+sys.exit(os.waitstatus_to_exitcode(status))
+PY
+mkdir "$tmp/wiz"
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
+rc=$?
+[ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down, down, Enter, my-app) did not make the third template, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
+grep -q 'Created my-app (desktop-app)' "$tmp/wiz.out" || { echo "the question does not end with the next steps: $(tail -5 "$tmp/wiz.out")"; fail=1; }
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>6\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
+[ -f "$tmp/wiz/my-cli/zinc.json" ] || { echo "the numbered question (TERM=dumb, 6, Enter) did not make my-cli: $(tail -5 "$tmp/wiz2.out")"; fail=1; }
+# the welcome: once, at a terminal; its language saved beside the keys of others
+mkdir -p "$tmp/home" && printf '{"atelier.theme": "dark"}\n' > "$tmp/home/config.json"
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type 1 to 5=>2\r" -- "$Z" > "$tmp/welcome.out" 2>&1; rc=$?
+[ $rc -eq 0 ] && grep -q 'Welcome to Zinc' "$tmp/welcome.out" && grep -q 'Trois étapes pour commencer' "$tmp/welcome.out" && grep -q 'docs/learn/' "$tmp/welcome.out" \
+  || { echo "the first bare zinc does not greet and switch to French: exit $rc, $(tail -8 "$tmp/welcome.out")"; fail=1; }
+grep -q '"lang": "fr"' "$tmp/home/config.json" && grep -q '"welcomed"' "$tmp/home/config.json" && grep -q '"atelier.theme": "dark"' "$tmp/home/config.json" || { echo "the welcome did not save the language beside the other keys: $(cat "$tmp/home/config.json")"; fail=1; }
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" -- "$Z" > "$tmp/again.out" 2>&1
+grep -q 'Pour commencer' "$tmp/again.out" && ! grep -q 'Welcome\|Bienvenue' "$tmp/again.out" || { echo "the second bare zinc greets again or forgot the language: $(head -5 "$tmp/again.out")"; fail=1; }
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home2" -- /usr/bin/env CI=1 "$Z" > "$tmp/ci.out" 2>&1
+! grep -q 'Welcome' "$tmp/ci.out" && [ ! -e "$tmp/home2/config.json" ] || { echo "the welcome shows under CI"; fail=1; }
+ZINC_HOME="$tmp/home3" "$Z" </dev/null >/dev/null 2>&1; [ ! -e "$tmp/home3/config.json" ] || { echo "the welcome runs without a terminal"; fail=1; }
+
+# the end of the installers: zinc --next-steps, the same lines in the Homebrew caveats
+grep -q -- '--next-steps' tools/install.sh && grep -q -- '--next-steps' tools/install.ps1 || { echo "install.sh or install.ps1 does not end with zinc --next-steps"; fail=1; }
+printf '%064d  zinc-9.9.9-macos-arm64.tar.gz\n' 0 > "$tmp/sums"
+tools/homebrew-formula 9.9.9 "$tmp/sums" | sed -n '/<<~TXT/,/^ *TXT$/p' | sed 's/^ *//; s/  */ /g' > "$tmp/caveats"
+ZINC_LANG=en "$Z" --next-steps | sed 's/^ *//; s/  */ /g' | while IFS= read -r l; do grep -qxF "$l" "$tmp/caveats" || echo "the Homebrew caveats lack: $l"; done > "$tmp/missing"
+[ -s "$tmp/missing" ] && { cat "$tmp/missing"; fail=1; }
 [ $fail -eq 0 ] && echo "first run: ok"
 exit $fail

@@ -23,6 +23,8 @@
 #ifndef _WIN32   // serial ports (zinc monitor --port) and the dev and hot sockets of zinc dev: POSIX only for now (docs/reports/zinc-windows-port.md)
 #include <sys/wait.h>
 #include <termios.h>
+#include <poll.h>        // zinc new: Esc alone or the start of an arrow key
+#include <sys/ioctl.h>   // the width of the terminal
 #include <arpa/inet.h>   // zinc dev --lan (ZN-631)
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -65,9 +67,9 @@ namespace fs = std::filesystem;
 namespace zn::cli {
 namespace {
 
-struct Command { const char* name; const char* usage; const char* summary; const char* detail; };
+struct Command { const char* name; const char* usage; const char* summary; const char* detail; };   // summary: its id in i18n/<lang>/cli.json
 const Command kCommands[] = {
-  {"run", "zinc run [entry|dir] [--interp|--native] [--profile P] [--har file] [--target esp32 ...] [-- args]", "run a program or project",
+  {"run", "zinc run [entry|dir] [--interp|--native] [--profile P] [--har file] [--target esp32 ...] [-- args]", "cli.cmd.run",
    "Compiles the entry (a .ts/.tsx/.js file, or a project directory: zinc.json \"entry\", else src/main.ts[x]) and runs it. With no entry it runs the project of the working directory.\n"
    "A program that draws is compiled to native code, as zinc build does, and the executable is cached (~/.zinc/cache/run): the first run of a version compiles, the next ones start at once.\n"
    "  --interp                interpret instead (starts at once; zinc dev and the test runs, ZINC_HEADLESS / ZINC_DETERMINISTIC, interpret too)\n"
@@ -77,7 +79,7 @@ const Command kCommands[] = {
    "  --simulate <device>     run as on a device of devices/ (hp-touchpad, phone...): its screen, battery, sensors and keys, set in a control panel\n"
    "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --engine jsc | v8       the same on JavaScriptCore (the system's, on macOS) or V8 (downloaded and checked on first use: zinc engine), compiled to machine code: faster JavaScript\n  --engine hermes         the same on Hermes (experimental; downloaded and checked on first use: zinc engine; no WebAssembly); zinc build of a project on it precompiles <name>.hbc, run with zinc run build/<name>.hbc\n  --inspect[=port]        Chrome DevTools on an --engine v8 or hermes program (port 9229, chrome://inspect lists it), Safari's Web Inspector on --engine jsc (Develop menu); --inspect-brk[=port] waits for it at the first statement\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --target esp32 --engine mquickjs [--port P | --emulator [--live]] [--run-ms N]   a zinc:gfx program as JavaScript on the board's MicroQuickJS firmware (zinc flash --target esp32 --engine mquickjs puts it there once): checked on the computer, sent as bytecode, its UART shown; --emulator runs it in esp32sim (built from its sources by cargo on first use) and writes the last frame to ZINC_SHOT or a PNG it names; --live shows it in a window, in real time, the mouse as the touch screen\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
-  {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "run a program under the debugger",
+  {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "cli.cmd.debug",
    "Compiles a debug build (every call keeps its frame, each statement and each local is known) and runs it in the interpreter, paused at its first statement.\n"
    "Commands on standard input: b [file:]line [if cond] (break at the first line with code there), log [file:]line message {expr}, d n (delete), c (continue),\n"
    "n (next: over calls), s (step into), o (step out), bt (the stack with lines), locals [frame], closure [frame], globals, p expr, watch expr,\n"
@@ -86,9 +88,9 @@ const Command kCommands[] = {
    "--dap: the Debug Adapter Protocol on standard input and output, the program named by the launch request (VS Code: lib/editor/vscode-zinc-debug).\n"
    "--cdp[=port]: Chrome DevTools' Sources panel on 127.0.0.1:port (9222, in chrome://inspect's default list); the program starts paused when DevTools attaches.\n"
    "A compiled program debugs in lldb: zinc build --debug."},
-  {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle] [--no-embed] [--debug]", "compile to a native program",
+  {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle] [--no-embed] [--debug]", "cli.cmd.build",
    "Compiles to C++ and builds an executable (out defaults to build/<project name>). --debug: a debug build for lldb (-g -O0, #line to the .ts lines, locals under their names, functions named after the Zinc ones). --target aarch64-linux|armhf-linux|armv7-linux|x86_64-linux|aarch64-macos|x86_64-macos cross builds with the pinned zig (no Docker); --target x86_64-windows builds a console program (-o name.exe; no window or plugin yet); --bundle makes a macOS .app, with the baked fonts and images in Contents/Resources/<name>.res instead of inside the executable. --no-embed: the same for a plain program, <out>.res beside it (it must stay there: the program reads it at start). A project on a JavaScript engine (zinc.json \"engine\": quickjs, jsc, v8 or hermes) is bundled instead: <out>.js, its map, and on QuickJS <out>.qbc, on Hermes <out>.hbc, its bytecode, which zinc run <out>.qbc|.hbc loads without parsing (the source runs when the bytecode is older or from another engine build)."},
-  {"bundle", "zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]", "one JavaScript file for QuickJS",
+  {"bundle", "zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]", "cli.cmd.bundle",
    "Bundles a program for the QuickJS engine (the role esbuild, Vite or Rollup play for the web): its TypeScript, TSX and JavaScript, the zinc: modules it imports, its plugins and its packages (tsconfig.json paths, node_modules, importmap.json) become one optimised ES module that `zinc run <out.js>` runs on QuickJS. The JSX is lowered as the typed engine does (className and capitalised components, Z0006 and Z0007), the types are stripped, the engine's native modules stay imports the host answers (zinc:native), and __ZINC_ENGINE__, __ZINC_TARGET__, __ZINC_PROFILE__, __ZINC_CAPS__ and process.env.NODE_ENV are folded in. The linking, tree shaking and minifying are esbuild's: the pinned esbuild is downloaded and verified once into ~/.zinc/toolchains (ZINC_ESBUILD names your own). `zinc run --engine quickjs` needs none of it: it runs the same transformed modules without linking them.\n"
    "  -o <file>        the bundle (default: dist/<entry>.js in the project)\n"
    "  --minify         whitespace, syntax and identifiers (the source map keeps the traces readable)\n"
@@ -96,52 +98,83 @@ const Command kCommands[] = {
    "  --bytecode       also <out>.qbc, QuickJS bytecode: zinc run app.qbc starts without parsing (same QuickJS build only)\n"
    "  --check          only the diagnostics: the transform errors and what QuickJS-ng lacks (Q0001: Temporal, Intl formats, WebAssembly); exit 1 when there are any\n"
    "  --watch          bundle again on each save"},
-  {"check", "zinc check [entry|dir]", "type check without running", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
-  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
-  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
-  {"pack", "zinc pack [dir] [-o app.zapp]", "one runnable file per app", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
-  {"assets", "zinc assets build|info [dir] [--target T] [--release]", "build the asset packs", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
-  {"fuse", "zinc fuse app.zapp [-o app]", "one executable per app", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
-  {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "publish an app update, to itch.io or a download page", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
-  {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "update an app from its channel", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
-  {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
-  {"doctor", "zinc doctor [--details]", "check the machine", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
-  {"config", "zinc config [get <key> | set <key> <value> | unset <key>]", "your settings, such as the language", "Your settings, in $ZINC_HOME/config.json (~/.zinc/config.json), which Zinc Atelier reads and writes too.\n  lang  the language of the messages: en, fr, es, it or de. Unset, ZINC_LANG and then the system's language decide; --lang on any command wins for that command.\nzinc config prints them all, zinc config get lang prints one (exit 1 when it is not set), zinc config set lang fr saves one, zinc config unset lang removes it."},
-  {"toolchain", "zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar]|path|esptool|esbuild|swc|basisu|gltfpack|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc (with a console target: its SDK, pinned the same way); esbuild: the linker of zinc bundle; swc: the lowering to ES5 of --engine mquickjs; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
-  {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
-  {"flash", "zinc flash --target esp32 [--engine mquickjs] [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool. --engine mquickjs: the MicroQuickJS firmware instead, for zinc run --target esp32 --engine mquickjs."},
-  {"engine", "zinc engine list [--available] | install <name>[@version] | update [name] | remove <name>[@version]", "the JavaScript engine packs", "The engines beside the built-in QuickJS that are not shipped with zinc (V8) come as packs from the signed plugin index: the first zinc run --engine v8 downloads the newest pack made for this zinc (its engine ABI), checks its length, SHA-256 and signatures, and installs it in ~/.zinc/engines/<name>/<version>. list: the packs installed and the engines built beside zinc (JavaScriptCore on macOS); --available: what the index offers for this machine. install: a pack now, the newest or the version named (a prefix: v8@15.6). update: the newest pack of each installed engine (the older ones are removed); zinc run says once a day when one is newer. remove: a pack. ZINC_ENGINE_V8=<path of libzn_engine_v8> runs your own build instead. zinc export copies the pack an app uses into it."},
-  {"update", "zinc update [--check] [--rollback] [--channel stable|beta] [manifest-url]", "update zinc itself", "Reads the signed manifest of this machine's CLI archive on the channel (default: the latest release, https://github.com/Frulko/zinc/releases/latest/download/zinc-<os>-<arch>[-beta].manifest; ZINC_UPDATE_REPO=<owner/repo>, ZINC_UPDATE_URL or the argument choose another), and when it is newer downloads the archive, checks its SHA-256 and the manifest's Ed25519 signature, unpacks it beside the engine and swaps the directories: the old engine is kept as <engine>.prev. --check only says (exit 10 when an update exists). --rollback swaps the previous engine back. --channel beta follows the betas from now on. Only a zinc installed by install.sh updates itself; a source build, a package manager or the Atelier app say how to update them. A manifest with signature=none (a release made without the signing key) is refused unless ZINC_UPDATE_ALLOW_UNSIGNED=1. zinc run and zinc dev print one line when a newer zinc exists, checked once a day in the background (ZINC_NO_UPDATE_CHECK=1 turns it off; never in CI, headless or without a terminal)."},
-  {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "the plugin table, the index", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
-  {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
-  {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--no-embed] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--release] [--abis list] | --ipa [--simulator]] [--dry-run]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh (--engine mquickjs: firmware.bin, app.img and flash.sh of the MicroQuickJS firmware); android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs), --apk --release the release APK (not debuggable, signed with the upload key when one is named, else with the debug keystore for an install with adb); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --no-embed leaves the baked fonts and images out of the executable, in <name>.res beside it (the .app always keeps them in its Resources). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them. A project on \"engine\": \"jsc\", \"v8\" or \"hermes\" exports for macos only (on \"quickjs\", the macos export is the same .app with app.js and its bytecode app.qbc, no engine pack): <name>.app holds zinc (signed with the JIT entitlement), the program bundled for the engine and the engine's pack (zinc engine), and run.sh starts it."},
-  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
-  {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
-  {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "build a plugin's native part", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
-  {"update-pubkey", "zinc update-pubkey <seed-hex>", "the public key of a signing seed", "Prints the hex Ed25519 public key of a seed of zinc update-keygen: what update.pub holds for the release key."},
-  {"update-keygen", "zinc update-keygen", "make a signing key pair", "Prints seed=<64 hex digits>, the Ed25519 secret that signs (zinc sign, zinc publish --key, zinc export --key: keep it secret, for example as a CI secret), and public=<64 hex digits>, the key that checks (plugin.json publisher.publicKey, zinc.json update.publicKey, zinc add --key, zinc verify --key)."},
-  {"compat", "zinc compat [--suite wpt,test262,node,quickjs] [--engines next,next-qjs,...] [--filter text] [--check]", "standards conformance", "Runs the pinned external suites (WPT, test262, quickjs-ng's tests, a Node API set) through this zinc (engines next and next-qjs by default) and the reference engines found, and writes docs/reports/zinc-next-compat.md: the harness of the checkout, tests/compat/run.mjs (needs Node)."},
-  {"verify", "zinc verify <file> [--key <public-hex>]", "check a signed artifact", "Checks <file>.sig (zinc sign, zinc export --key) against the key, by default zinc.json update.publicKey of the project above the file; exit 1 when the file or the signature changed."},
-  {"remove", "zinc remove <plugin> [dir]", "remove a plugin", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
-  {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
-  {"install", "zinc install [--offline] [--frozen] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.lock into plugins/<name> again (a zinc.json dependency not locked yet is added; --frozen refuses when zinc.json and zinc.lock disagree): git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
-  {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
-  {"agent", "zinc agent [--port n] [--bind address] [--name name] [--no-shell] [--no-mdns] | zinc agent pair|clients|forget <client> | zinc agent install|uninstall [--print]", "the daemon that makes this machine a device",
+  {"check", "zinc check [entry|dir]", "cli.cmd.check", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
+  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "cli.cmd.test", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
+  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new | zinc new --list", "cli.cmd.new", "With no argument at a terminal it asks what to make (the arrows and Enter, or a number) and the name of the new folder; in a script, a pipe or CI it prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
+  {"pack", "zinc pack [dir] [-o app.zapp]", "cli.cmd.pack", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
+  {"assets", "zinc assets build|info [dir] [--target T] [--release]", "cli.cmd.assets", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
+  {"fuse", "zinc fuse app.zapp [-o app]", "cli.cmd.fuse", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
+  {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "cli.cmd.publish", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
+  {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "cli.cmd.update-app", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
+  {"init", "zinc init <dir> [--template name]", "cli.cmd.init", "zinc new with the template given by --template (default game)."},
+  {"doctor", "zinc doctor [--details]", "cli.cmd.doctor", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
+  {"config", "zinc config [get <key> | set <key> <value> | unset <key>]", "cli.cmd.config", "Your settings, in $ZINC_HOME/config.json (~/.zinc/config.json), which Zinc Atelier reads and writes too.\n  lang  the language of the messages: en, fr, es, it or de. Unset, ZINC_LANG and then the system's language decide; --lang on any command wins for that command.\nzinc config prints them all, zinc config get lang prints one (exit 1 when it is not set), zinc config set lang fr saves one, zinc config unset lang removes it."},
+  {"toolchain", "zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar]|path|esptool|esbuild|swc|basisu|gltfpack|targets|sha256 <file>", "cli.cmd.toolchain", "install: download and verify zig into ~/.zinc (with a console target: its SDK, pinned the same way); esbuild: the linker of zinc bundle; swc: the lowering to ES5 of --engine mquickjs; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
+  {"explain", "zinc explain <code>", "cli.cmd.explain", "Prints the text of a diagnostic code such as Z0101."},
+  {"flash", "zinc flash --target esp32 [--engine mquickjs] [--port P]", "cli.cmd.flash", "Uses the pinned esptool. --engine mquickjs: the MicroQuickJS firmware instead, for zinc run --target esp32 --engine mquickjs."},
+  {"engine", "zinc engine list [--available] | install <name>[@version] | update [name] | remove <name>[@version]", "cli.cmd.engine", "The engines beside the built-in QuickJS that are not shipped with zinc (V8) come as packs from the signed plugin index: the first zinc run --engine v8 downloads the newest pack made for this zinc (its engine ABI), checks its length, SHA-256 and signatures, and installs it in ~/.zinc/engines/<name>/<version>. list: the packs installed and the engines built beside zinc (JavaScriptCore on macOS); --available: what the index offers for this machine. install: a pack now, the newest or the version named (a prefix: v8@15.6). update: the newest pack of each installed engine (the older ones are removed); zinc run says once a day when one is newer. remove: a pack. ZINC_ENGINE_V8=<path of libzn_engine_v8> runs your own build instead. zinc export copies the pack an app uses into it."},
+  {"update", "zinc update [--check] [--rollback] [--channel stable|beta] [manifest-url]", "cli.cmd.update", "Reads the signed manifest of this machine's CLI archive on the channel (default: the latest release, https://github.com/Frulko/zinc/releases/latest/download/zinc-<os>-<arch>[-beta].manifest; ZINC_UPDATE_REPO=<owner/repo>, ZINC_UPDATE_URL or the argument choose another), and when it is newer downloads the archive, checks its SHA-256 and the manifest's Ed25519 signature, unpacks it beside the engine and swaps the directories: the old engine is kept as <engine>.prev. --check only says (exit 10 when an update exists). --rollback swaps the previous engine back. --channel beta follows the betas from now on. Only a zinc installed by install.sh updates itself; a source build, a package manager or the Atelier app say how to update them. A manifest with signature=none (a release made without the signing key) is refused unless ZINC_UPDATE_ALLOW_UNSIGNED=1. zinc run and zinc dev print one line when a newer zinc exists, checked once a day in the background (ZINC_NO_UPDATE_CHECK=1 turns it off; never in CI, headless or without a terminal)."},
+  {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "cli.cmd.plugins", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
+  {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "cli.cmd.capture", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
+  {"bench", "zinc bench [entry|dir] [--frames n]", "cli.cmd.bench", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--no-embed] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--release] [--abis list] | --ipa [--simulator]] [--dry-run]", "cli.cmd.export", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh (--engine mquickjs: firmware.bin, app.img and flash.sh of the MicroQuickJS firmware); android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs), --apk --release the release APK (not debuggable, signed with the upload key when one is named, else with the debug keystore for an install with adb); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --no-embed leaves the baked fonts and images out of the executable, in <name>.res beside it (the .app always keeps them in its Resources). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them. A project on \"engine\": \"jsc\", \"v8\" or \"hermes\" exports for macos only (on \"quickjs\", the macos export is the same .app with app.js and its bytecode app.qbc, no engine pack): <name>.app holds zinc (signed with the JIT entitlement), the program bundled for the engine and the engine's pack (zinc engine), and run.sh starts it."},
+  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "cli.cmd.add", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
+  {"sign", "zinc sign <file> <seed-hex>", "cli.cmd.sign", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
+  {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "cli.cmd.plugin-build", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
+  {"update-pubkey", "zinc update-pubkey <seed-hex>", "cli.cmd.update-pubkey", "Prints the hex Ed25519 public key of a seed of zinc update-keygen: what update.pub holds for the release key."},
+  {"update-keygen", "zinc update-keygen", "cli.cmd.update-keygen", "Prints seed=<64 hex digits>, the Ed25519 secret that signs (zinc sign, zinc publish --key, zinc export --key: keep it secret, for example as a CI secret), and public=<64 hex digits>, the key that checks (plugin.json publisher.publicKey, zinc.json update.publicKey, zinc add --key, zinc verify --key)."},
+  {"compat", "zinc compat [--suite wpt,test262,node,quickjs] [--engines next,next-qjs,...] [--filter text] [--check]", "cli.cmd.compat", "Runs the pinned external suites (WPT, test262, quickjs-ng's tests, a Node API set) through this zinc (engines next and next-qjs by default) and the reference engines found, and writes docs/reports/zinc-next-compat.md: the harness of the checkout, tests/compat/run.mjs (needs Node)."},
+  {"verify", "zinc verify <file> [--key <public-hex>]", "cli.cmd.verify", "Checks <file>.sig (zinc sign, zinc export --key) against the key, by default zinc.json update.publicKey of the project above the file; exit 1 when the file or the signature changed."},
+  {"remove", "zinc remove <plugin> [dir]", "cli.cmd.remove", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
+  {"trust", "zinc trust <plugin> [dir]", "cli.cmd.trust", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
+  {"install", "zinc install [--offline] [--frozen] [dir]", "cli.cmd.install", "Fetches every plugin of zinc.lock into plugins/<name> again (a zinc.json dependency not locked yet is added; --frozen refuses when zinc.json and zinc.lock disagree): git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
+  {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "cli.cmd.deploy", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
+  {"agent", "zinc agent [--port n] [--bind address] [--name name] [--no-shell] [--no-mdns] | zinc agent pair|clients|forget <client> | zinc agent install|uninstall [--print]", "cli.cmd.agent",
    "Runs without a UI on a Linux or macOS machine (port 7733) and announces it on the local network (mDNS, _zinc._tcp). A workstation pairs once with the code the agent shows (zinc agent pair gives a new one: 6 digits, 5 minutes, three tries, one workstation) and gets a key of its own; every session after that is TLS with that key. A paired workstation has a shell as the agent's user (--no-shell turns it off), so the agent refuses to run as root. Its files are in ~/.zinc/agent: apps, logs, the paired workstations (zinc agent clients, zinc agent forget). zinc agent install makes it start with the machine (a launchd agent at login on macOS, a systemd user unit with lingering at boot on Linux; --print shows the file and the commands and touches nothing), zinc agent uninstall removes that. docs/reports/zinc-next-agent.md."},
-  {"device", "zinc device list | pair <name|host[:port]> [code] | unpair <device> | [<device>] info|shell|push|pull|deploy|install|run|stop|uninstall|apps|logs|update|forward|reverse|inspect|shot|monitor|top", "a paired device: what adb does, over the network",
+  {"device", "zinc device list | pair <name|host[:port]> [code] | unpair <device> | [<device>] info|shell|push|pull|deploy|install|run|stop|uninstall|apps|logs|update|forward|reverse|inspect|shot|monitor|top", "cli.cmd.device",
    "list: the agents of the network and the paired devices. pair: with the code the device shows. info [--json]: the kind of machine, system, CPU, memory, load, temperature, disk, engine, apps. shell [-t] [command]: a command with its exit status, or a terminal on the device. push <local> [remote], pull <remote> [local]: a file or a tree. deploy [dir] [--env K=V] [--no-logs] [--inspect] [--pack | --target <t>] [-- args]: the project built for the device, installed, started and its log followed; the transfer says its progress (percent, size, speed) as step lines; --inspect builds it with the inspector in front, as zinc dev does on this machine (zinc device inspect then opens it). What is built follows from what info says the device is: a .zapp (zinc pack) for a machine of this one's system and architecture, else the export of zinc export for its target (rpi for a Raspberry Pi on a 64-bit system, rpi2 and rpi1 on a 32-bit one, linux, x86_64-linux), cross built here and left in dist/; one line says which and why, and a device zinc export has no target for is refused. --pack and --target <t> decide instead. install <app.zapp|export-dir> [--name n], run <app> [-f] [--env K=V] [-- args], stop, uninstall, apps, logs <app> [-f]. An app whose zinc.json has update.publicKey is replaced only by a .zapp signed with that key (zinc sign writes the .sig that install sends) and of a higher version; started and gone at once with an error, the update is rolled back to the version it replaced. update <app> [--url u]: the device fetches the app from its channel (what zinc publish wrote, as zinc update-app checks it); update alone: the engine, as zinc update. forward <local-port|0> <device-port>: a port of the device on this machine (the inspector of an app running there); reverse <device-port|0> <local-port>: a port of this machine on the device, on its own address (a server an app there calls). inspect <app> [--port n]: the app's inspector on a port of this machine, with the address for Chrome DevTools (Zinc Inspector lists the apps of paired devices by itself; a program has an inspector with import 'zinc:devtools'); shot <app> [file.png]: the frame it shows; monitor <app>: its zinc:telemetry lines as zinc monitor prints them; top [-n count] [--json]: the machine's load, memory and temperature and each app's CPU and memory, every second. <device> may be left out when one device is paired; the keys are in ~/.zinc/devices.json."},
-  {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
-  {"lint", "zinc lint [--target <profile> | --all-targets] [--json] [--rules] [path]", "check a program for its targets before a compile", "Rules on the engine's own lexer and loader (zinc lint --rules lists them): the source rules (class in JSX, lowercase tags: the zinc migrate codemod that fixes them), and per target what cannot work or weighs too much there: zinc.json requires, plugins whose plugin.json requires or targets exclude it, @requires modules, styles its UI tier simplifies, fixed sizes beyond its screen, assets against its flash, ram and gpu budgets. The targets in force: --target, else the targets of zinc.json, else this machine; --all-targets adds every profile of targets/capabilities.json and prints the matrix (ok, warns, refuses and why). --json for editors and CI. Exit 1 only for an error on the source or on a target in force (docs/guide/10-lint-migrate.md)."},
-  {"migrate", "zinc migrate [--list] [--dry-run | --apply] [<codemod>...] [paths]", "rewrite a project for a language or API change", "Runs the codemods (all, or those named; --list prints them with the engine change that needs them) over the .tsx, .jsx and .md files (their ts/tsx/js/jsx fences) of the paths (default: the current directory). --dry-run (the default) prints the diff, --apply writes the files. A codemod rewrites code tokens only: strings, comments and JSX text are left as they are; a second run changes nothing. A diagnostic that has a codemod names it (zinc explain Z0006)."},
-  {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--target web [--render canvas|dom] [--port n]] [--device name] [--lan [--port n]] [--no-devtools] [-- args]", "run, watch, swap each save in (Fast Refresh)", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT); a project with \"engine\": \"v8\" or \"hermes\" gets its engine's own inspector there instead (Sources, breakpoints, Console on its JavaScript). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way. --lan serves the project to Zinc Go on phones and tablets instead of opening a window (as `expo start` serves Expo Go): it prints a QR code and a zinc://host:port/code link (port 8090 or the next free one; the code keeps other people on the network out), compiles the project for each phone's profile and sends it, swaps each save into the running program in the same way, and prints the program's console here. Open the link on the Android emulator with adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>, on the iOS simulator with xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:<port>/<code>."},
-  {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
-  {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
-  {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
+  {"tsconfig", "zinc tsconfig [dir]", "cli.cmd.tsconfig", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
+  {"lint", "zinc lint [--target <profile> | --all-targets] [--json] [--rules] [path]", "cli.cmd.lint", "Rules on the engine's own lexer and loader (zinc lint --rules lists them): the source rules (class in JSX, lowercase tags: the zinc migrate codemod that fixes them), and per target what cannot work or weighs too much there: zinc.json requires, plugins whose plugin.json requires or targets exclude it, @requires modules, styles its UI tier simplifies, fixed sizes beyond its screen, assets against its flash, ram and gpu budgets. The targets in force: --target, else the targets of zinc.json, else this machine; --all-targets adds every profile of targets/capabilities.json and prints the matrix (ok, warns, refuses and why). --json for editors and CI. Exit 1 only for an error on the source or on a target in force (docs/guide/10-lint-migrate.md)."},
+  {"migrate", "zinc migrate [--list] [--dry-run | --apply] [<codemod>...] [paths]", "cli.cmd.migrate", "Runs the codemods (all, or those named; --list prints them with the engine change that needs them) over the .tsx, .jsx and .md files (their ts/tsx/js/jsx fences) of the paths (default: the current directory). --dry-run (the default) prints the diff, --apply writes the files. A codemod rewrites code tokens only: strings, comments and JSX text are left as they are; a second run changes nothing. A diagnostic that has a codemod names it (zinc explain Z0006)."},
+  {"infer", "zinc infer <entry|dir>", "cli.cmd.infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
+  {"dev", "zinc dev [entry|dir] [--target web [--render canvas|dom] [--port n]] [--device name] [--lan [--port n]] [--no-devtools] [-- args]", "cli.cmd.dev", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT); a project with \"engine\": \"v8\" or \"hermes\" gets its engine's own inspector there instead (Sources, breakpoints, Console on its JavaScript). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way. --lan serves the project to Zinc Go on phones and tablets instead of opening a window (as `expo start` serves Expo Go): it prints a QR code and a zinc://host:port/code link (port 8090 or the next free one; the code keeps other people on the network out), compiles the project for each phone's profile and sends it, swaps each save into the running program in the same way, and prints the program's console here. Open the link on the Android emulator with adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>, on the iOS simulator with xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:<port>/<code>."},
+  {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "cli.cmd.monitor", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
+  {"lsp", "zinc lsp", "cli.cmd.lsp", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
+  {"version", "zinc version", "cli.cmd.version", "Prints the version of this zinc (also zinc --version)."},
+  {"help", "zinc help [command]", "cli.cmd.help", "zinc help lists the commands; zinc help <command> describes one."},
 };
 
 const Command* findCommand(const std::string& n) { for (const Command& c : kCommands) if (n == c.name) return &c; return nullptr; }
+// What `zinc help` shows first: the commands of a first day, then those that make something to give away; `zinc help --all` has the rest
+const char* const kStartHere[] = {"new", "run", "dev", "check", "doctor", "explain"};
+const char* const kShip[] = {"build", "pack", "export", "publish"};
+// Two examples at the top of `zinc help <command>` for the commands of a first day
+struct Example { const char* command; const char* line; const char* id; };
+const Example kExamples[] = {
+  {"new", "zinc new", "cli.example.new.ask"}, {"new", "zinc new game my-game", "cli.example.new.game"},
+  {"run", "zinc run", "cli.example.run.project"}, {"run", "zinc run hello.ts", "cli.example.run.file"},
+  {"dev", "zinc dev", "cli.example.dev.project"}, {"dev", "zinc dev --lan", "cli.example.dev.lan"},
+  {"check", "zinc check", "cli.example.check.project"}, {"check", "zinc check src/main.ts", "cli.example.check.file"},
+  {"doctor", "zinc doctor", "cli.example.doctor.short"}, {"doctor", "zinc doctor --details", "cli.example.doctor.details"},
+  {"explain", "zinc explain Z0103", "cli.example.explain.code"}, {"explain", "zinc explain --codes", "cli.example.explain.codes"},
+  {"build", "zinc build", "cli.example.build.project"}, {"build", "zinc build --target aarch64-linux", "cli.example.build.target"},
+};
+// The documentation site: every link the command line prints starts here
+constexpr const char* kDocs = "https://frulko.github.io/zinc/docs/";
+std::string docs(const char* page) { return std::string(kDocs) + page; }
+
+struct Paint {   // colours only for a person at a terminal (NO_COLOR off, ZINC_COLOR=always forces)
+  bool on;
+  Paint() { const char* f = std::getenv("ZINC_COLOR"); on = (f && !std::strcmp(f, "always")) || (!std::getenv("NO_COLOR") && isatty(1)); }
+  std::string c(const char* code, const std::string& s) const { return on ? std::string("\033[") + code + "m" + s + "\033[0m" : s; }
+  std::string ok(const std::string& s) const { return c("32", s); }
+  std::string warn(const std::string& s) const { return c("33", s); }
+  std::string bad(const std::string& s) const { return c("31", s); }
+  std::string dim(const std::string& s) const { return c("2", s); }
+  std::string bold(const std::string& s) const { return c("1", s); }
+  std::string cmd(const std::string& s) const { return c("36", s); }
+};
+std::string pad(const std::string& s, std::size_t n) { return s.size() >= n ? s : s + std::string(n - s.size(), ' '); }
 
 // ---- templates (ZN-315): templates/<name>/ beside lib/, any files, described by template.json
 struct TemplateInfo { std::string name, description, entry; std::vector<std::string> tags, targets, plugins; fs::path dir; };   // plugins: what zinc new adds (ZN-349)
@@ -219,11 +252,37 @@ std::vector<TemplateInfo> listTemplates(const std::string& engineRoot) {
   std::sort(out.begin(), out.end(), [](const TemplateInfo& x, const TemplateInfo& y) { return x.name < y.name; });
   return out;
 }
+// The kinds of program, in the order zinc new offers them, each with its group and its one line; a template not named here comes last, under More
+struct Kind { const char* tmpl; const char* group; const char* blurb; };
+const Kind kKinds[] = {
+  {"game", "cli.group.games", "cli.template.game"}, {"game-2d", "cli.group.games", "cli.template.game-2d"},
+  {"desktop-app", "cli.group.apps", "cli.template.desktop-app"}, {"dashboard", "cli.group.apps", "cli.template.dashboard"},
+  {"3d", "cli.group.3d", "cli.template.3d"},
+  {"cli", "cli.group.tools", "cli.template.cli"}, {"server", "cli.group.tools", "cli.template.server"}, {"service", "cli.group.tools", "cli.template.service"},
+  {"iot-board", "cli.group.boards", "cli.template.iot-board"}, {"iot", "cli.group.boards", "cli.template.iot"},
+  {"eink", "cli.group.boards", "cli.template.eink"}, {"remarkable", "cli.group.boards", "cli.template.remarkable"},
+  {"plugin", "cli.group.more", "cli.template.plugin"},
+};
+const Kind* kindOf(const std::string& name) { for (const Kind& k : kKinds) if (name == k.tmpl) return &k; return nullptr; }
+std::vector<const TemplateInfo*> byKind(const std::vector<TemplateInfo>& all) {
+  std::vector<const TemplateInfo*> out;
+  for (const Kind& k : kKinds) for (const TemplateInfo& t : all) if (t.name == k.tmpl) out.push_back(&t);
+  for (const TemplateInfo& t : all) if (!kindOf(t.name)) out.push_back(&t);
+  return out;
+}
+std::string blurb(const TemplateInfo& t) {
+  if (const Kind* k = kindOf(t.name)) return zn::i18n::tr(k->blurb);
+  return t.description.substr(0, t.description.find(". "));   // a template of someone else: its own words, first sentence
+}
+// The templates by what they make, one line each
 void printTemplates(std::FILE* to, const std::vector<TemplateInfo>& ts) {
-  for (const TemplateInfo& t : ts) {
-    std::string targets;
-    for (const std::string& x : t.targets) targets += (targets.empty() ? "" : ", ") + x;
-    std::fprintf(to, "  %-12s %s (%s)\n", t.name.c_str(), t.description.c_str(), targets.c_str());
+  std::string group;
+  for (const TemplateInfo* t : byKind(ts)) {
+    const Kind* k = kindOf(t->name);
+    const std::string g = zn::i18n::tr(k ? k->group : "cli.group.more");
+    if (g != group) std::fprintf(to, "%s%s\n", group.empty() ? "" : "\n", g.c_str());
+    group = g;
+    std::fprintf(to, "  %-12s %s\n", t->name.c_str(), blurb(*t).c_str());
   }
 }
 // {{name}} and {{id}} in a text file; in a JSON file the values are escaped as JSON string contents. A file with a NUL byte is copied as it is.
@@ -375,30 +434,197 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
 int unknownCommand(const std::string& name) {
   using zn::i18n::tr;
   if (const Command* c = findCommand(name)) { std::fprintf(stderr, "%s\n%s\n", tr("cli.usage", {{"usage", c->usage}}).c_str(), tr("cli.usage.more", {{"command", c->name}}).c_str()); return 2; }
-  std::vector<std::string> names;
-  for (const Command& c : kCommands) names.push_back(c.name);
+  // the closest by edit distance; on a tie the commands of a first day win (hlep is two edits from help and from lsp)
+  std::vector<std::string> names(std::begin(kStartHere), std::end(kStartHere));
+  names.insert(names.end(), std::begin(kShip), std::end(kShip));
+  names.push_back("help");
+  for (const Command& c : kCommands) if (std::find(names.begin(), names.end(), c.name) == names.end()) names.push_back(c.name);
   std::string guess = zn::frontend::nearest(name, names);   // not `near`: windows.h defines it away
   std::fprintf(stderr, "%s\n", (guess.empty() ? tr("cli.unknown.command", {{"name", name}}) : tr("cli.unknown.guess", {{"name", name}, {"guess", "zinc " + guess}})).c_str());
   return 2;
 }
 
 int help(const std::vector<std::string>& args) {
-  std::string topic = args.size() >= 3 ? args[2] : "";
-  if (topic.empty()) {
-    std::puts("zinc: typed TypeScript for apps, games, services and boards\n\nusage: zinc <command> [options]\n");
-    for (const Command& c : kCommands) std::printf("  %-10s %s\n", c.name, c.summary);
-    std::puts("\nzinc help <command> describes one. In a project directory `zinc run`, `zinc build` and `zinc check` need no argument.\nOther commands for engine work: lex, parse, ir, zbc, bake, profile, mem, device-sim, --version, --emit=cpp|zbc.");
-    std::puts("\nWith any command: -v (or --verbose) prints the build phases with their durations, the plugins' cache decisions and the engine at run; -vv more;\n--log-format json one JSON object per line. ZINC_LOG=<module>=<level>,... chooses (modules build, plugin, run, ui; levels info, debug, trace),\ne.g. ZINC_LOG=ui=debug for the layout passes.\nBuild and run show their engine and steps (compile, resources, native build, run) with durations and the plugins the program imports\n(zinc: plugins: a, b), including redirected stderr. Native builds show completed units and elapsed time.\n-q (or ZINC_STEPS=0) hides progress.\n--background (or ZINC_BACKGROUND=1) opens windows without taking the focus: for scripts, tests and agents.\n--lang en|fr|es|it|de (or ZINC_LANG) chooses the language of the messages; zinc config set lang fr keeps it.");
+  using zn::i18n::tr;
+  const Paint P;
+  const std::string topic = args.size() >= 3 ? args[2] : "";
+  auto row = [&](const Command& c) { std::printf("  %s %s\n", P.cmd(pad(c.name, 10)).c_str(), tr(c.summary).c_str()); };
+  if (topic.empty()) {   // the commands of a first day, then those that ship
+    std::printf("%s\n\n%s\n", P.bold(tr("cli.help.title")).c_str(), tr("cli.usage", {{"usage", "zinc <command> [options]"}}).c_str());
+    std::printf("\n%s\n", P.bold(tr("cli.help.start")).c_str());
+    for (const char* n : kStartHere) row(*findCommand(n));
+    std::printf("\n%s\n", P.bold(tr("cli.help.ship")).c_str());
+    for (const char* n : kShip) row(*findCommand(n));
+    std::printf("\n%s\n\n%s\n%s\n", tr("cli.help.more").c_str(), tr("cli.next.learn", {{"url", docs("learn/")}}).c_str(), tr("cli.next.guide", {{"url", docs("guide/01-getting-started/")}}).c_str());
+    return 0;
+  }
+  if (topic == "--all") {
+    std::printf("%s\n\n%s\n\n", P.bold(tr("cli.help.title")).c_str(), tr("cli.usage", {{"usage", "zinc <command> [options]"}}).c_str());
+    for (const Command& c : kCommands) row(c);
+    std::printf("\n%s\n%s\n%s\n%s\n", tr("cli.help.project").c_str(), tr("cli.help.options").c_str(), tr("cli.help.log").c_str(), tr("cli.help.engine").c_str());
     return 0;
   }
   const Command* c = findCommand(topic);
-  if (!c) { std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.help.none", {{"name", topic}}).c_str()); return 2; }
-  std::printf("usage: %s\n\n%s\n", c->usage, c->detail);
+  if (!c) { std::fprintf(stderr, "%s\n", tr("cli.help.none", {{"name", topic}}).c_str()); return 2; }
+  std::printf("%s\n\n", tr("cli.usage", {{"usage", c->usage}}).c_str());
+  bool examples = false;
+  std::size_t width = 0;
+  for (const Example& e : kExamples) if (topic == e.command) width = std::max(width, std::strlen(e.line) + 2);
+  for (const Example& e : kExamples) {
+    if (topic != e.command) continue;
+    if (!examples) std::printf("%s\n", tr("cli.help.examples").c_str());
+    examples = true;
+    std::printf("  %s %s\n", P.cmd(pad(e.line, width)).c_str(), tr(e.id).c_str());
+  }
+  std::printf("%s%s\n", examples ? "\n" : "", c->detail);
   return 0;
 }
 
+namespace {
+// A choice with the arrow keys: the terminal in raw mode, no echo, and Ctrl+C read as a key so that the terminal is always put back
+#ifndef _WIN32
+struct RawTerminal {
+  termios old{};
+  bool on = false;
+  RawTerminal() {
+    const char* term = std::getenv("TERM");
+    if ((term && !std::strcmp(term, "dumb")) || tcgetattr(0, &old) != 0) return;
+    termios t = old;
+    t.c_lflag &= ~static_cast<tcflag_t>(ICANON | ECHO | ISIG);
+    t.c_cc[VMIN] = 1;
+    t.c_cc[VTIME] = 0;
+    on = tcsetattr(0, TCSANOW, &t) == 0;
+  }
+  ~RawTerminal() { if (on) tcsetattr(0, TCSANOW, &old); }
+};
+int columns() { winsize w{}; return ioctl(1, TIOCGWINSZ, &w) == 0 && w.ws_col > 20 ? w.ws_col : 80; }
+#endif
+// `s` cut to `n` characters (UTF-8 code points): a row of the choice must stay on one line for the redraw
+std::string fit(const std::string& s, int n) {
+  int k = 0;
+  for (std::size_t i = 0; i < s.size(); ++i) if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80 && ++k > n) return s.substr(0, i);
+  return s;
+}
+// One line typed by the person, without its end; false at the end of the input
+bool askLine(const std::string& prompt, std::string& line) {
+  std::printf("%s", prompt.c_str());
+  std::fflush(stdout);
+  char b[512];
+  if (!std::fgets(b, sizeof b, stdin)) { std::printf("\n"); return false; }
+  line = b;
+  while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' ')) line.pop_back();
+  while (!line.empty() && line.front() == ' ') line.erase(0, 1);
+  return true;
+}
+// One of `rows`, chosen with the arrow keys (or j and k) and Enter; -1 when the person leaves (Ctrl+C, Esc, q). Without a raw mode
+// (TERM=dumb, Windows) the rows are numbered and a number is typed.
+int choose(const std::vector<std::string>& rows, const Paint& P) {
+  using zn::i18n::tr;
+#ifndef _WIN32
+  RawTerminal raw;
+  if (raw.on) {
+    std::printf("%s\n", P.dim(tr("cli.new.keys")).c_str());
+    const int width = columns() - 1;
+    int at = 0;
+    const int n = static_cast<int>(rows.size());
+    for (bool first = true;; first = false) {
+      if (!first) std::printf("\033[%dA", n);
+      for (int i = 0; i < n; ++i) {
+        const std::string line = fit((i == at ? "> " : "  ") + rows[i], width);
+        std::printf("\r\033[2K%s\n", i == at ? P.cmd(line).c_str() : line.c_str());
+      }
+      std::fflush(stdout);
+      unsigned char c = 0;
+      if (read(0, &c, 1) != 1) return -1;
+      if (c == '\r' || c == '\n') return at;
+      if (c == 3 || c == 'q') return -1;
+      if (c == 'k') at = (at + n - 1) % n;
+      else if (c == 'j') at = (at + 1) % n;
+      else if (c == 27) {   // Esc alone leaves; Esc [ A and Esc O A (and B) are the arrows
+        pollfd pf{0, POLLIN, 0};
+        unsigned char seq[2];
+        if (poll(&pf, 1, 50) <= 0 || read(0, seq, 2) != 2) return -1;
+        if (seq[1] == 'A') at = (at + n - 1) % n;
+        if (seq[1] == 'B') at = (at + 1) % n;
+      }
+    }
+  }
+#endif
+  for (std::size_t i = 0; i < rows.size(); ++i) std::printf("  %2zu. %s\n", i + 1, rows[i].c_str());
+  for (std::string line;;) {
+    if (!askLine(tr("cli.new.number", {{"max", std::to_string(rows.size())}}) + " ", line)) return -1;
+    if (line.empty()) return 0;
+    const int k = std::atoi(line.c_str());
+    if (k >= 1 && k <= static_cast<int>(rows.size())) return k - 1;
+  }
+}
+// zinc new alone at a terminal: what to make (unless --template said it), then the name of the new folder
+bool newWizard(const std::vector<TemplateInfo>& all, bool kindGiven, std::string& tmpl, std::string& dir) {
+  using zn::i18n::tr;
+  const Paint P;
+  if (!kindGiven) {
+    const std::vector<const TemplateInfo*> order = byKind(all);
+    std::vector<std::string> rows;
+    for (const TemplateInfo* t : order) rows.push_back(pad(t->name, 12) + " " + blurb(*t));
+    std::printf("%s\n", P.bold("? " + tr("cli.new.ask_kind")).c_str());
+    const int k = choose(rows, P);
+    if (k < 0) return false;
+    tmpl = order[static_cast<std::size_t>(k)]->name;
+  }
+  for (std::string name;;) {
+    const std::string fallback = "my-" + tmpl;
+    if (!askLine(P.bold("? " + tr("cli.new.ask_name")) + " " + P.dim("(" + fallback + ")") + " ", name)) return false;
+    if (name.empty()) name = fallback;
+    std::error_code ec;
+    if (fs::exists(name, ec) && !fs::is_empty(name, ec)) { std::printf("%s\n", tr("cli.new.taken", {{"dir", name}}).c_str()); continue; }
+    dir = name;
+    return true;
+  }
+}
+}  // namespace
+
+void nextSteps() {
+  using zn::i18n::tr;
+  const Paint P;
+  std::printf("%s\n", P.bold(tr("cli.start.title")).c_str());
+  std::printf("  1. %s %s\n", P.cmd(pad("zinc new", 10)).c_str(), tr("cli.start.new").c_str());
+  std::printf("  2. %s %s\n", P.cmd(pad("zinc dev", 10)).c_str(), tr("cli.start.dev").c_str());
+  std::printf("  3. %s %s\n", P.cmd(pad("zinc tour", 10)).c_str(), tr("cli.start.tour").c_str());
+  std::printf("%s\n%s\n%s\n", tr("cli.next.learn", {{"url", docs("learn/")}}).c_str(), tr("cli.next.guide", {{"url", docs("guide/01-getting-started/")}}).c_str(), tr("cli.start.doctor").c_str());
+}
+
+bool welcome(const std::string& version) {
+  using zn::i18n::tr;
+  const char* ci = std::getenv("CI");
+  if (!isatty(0) || !isatty(1) || (ci && *ci) || !setting("welcomed").empty()) return false;
+  const Paint P;
+  static const char* const names[] = {"English", "Fran\xC3\xA7" "ais", "Espa\xC3\xB1" "ol", "Italiano", "Deutsch"};
+  int pick = 0;
+  for (int i = 0; i < 5; ++i) if (zn::i18n::language() == zn::i18n::kLanguages[i]) pick = i;
+  std::printf("\n%s\n\n%s\n ", P.bold(tr("cli.welcome.title", {{"version", version}})).c_str(), tr("cli.welcome.lang").c_str());
+  for (int i = 0; i < 5; ++i) std::printf("  %s %s", P.cmd(std::to_string(i + 1)).c_str(), names[i]);
+  std::printf("\n");
+  for (std::string line;;) {
+    if (!askLine(tr("cli.welcome.choose", {{"default", names[pick]}}) + " ", line)) break;   // no answer: the language found
+    if (line.empty()) break;
+    const int k = std::atoi(line.c_str());
+    if (k >= 1 && k <= 5) { pick = k - 1; break; }
+    const std::string m = zn::i18n::match(line);
+    bool found = false;
+    for (int i = 0; i < 5; ++i) if (m == zn::i18n::kLanguages[i]) { pick = i; found = true; }
+    if (found) break;
+  }
+  zn::i18n::use(zn::i18n::kLanguages[pick]);
+  saveSetting("lang", zn::i18n::kLanguages[pick]);
+  saveSetting("welcomed", version);
+  std::printf("\n");
+  nextSteps();
+  std::printf("\n%s\n\n", P.dim(tr("cli.welcome.after")).c_str());
+  return true;
+}
+
 static std::string templateFromIndex(const std::string& name, const std::string& engineRoot, std::string& spec, std::string& path, std::string& tier);
-static void printIndexTemplates(const std::string& engineRoot);
+static void printIndexTemplates(const std::string& engineRoot, const std::vector<TemplateInfo>& local);
 static std::string policyRefusal(const std::string& tier);
 // tsc's and the editor's platform files: this machine's, as `zinc run` takes them ("moduleSuffixes": [".macos", ".native", ""]; docs/react-native.md)
 static std::string moduleSuffixesJson() {
@@ -421,7 +647,19 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     else { std::fprintf(stderr, "%s\n%s\n", tr("cli.option.unknown", {{"command", cmd}, {"option", args[i]}}).c_str(), tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   }
   const std::vector<TemplateInfo> all = listTemplates(engineRoot);
-  if (list) { printTemplates(stdout, all); printIndexTemplates(engineRoot); return 0; }
+  if (list) {
+    printTemplates(stdout, all);
+    std::printf("\n%s\n%s\n", tr("cli.new.list_how").c_str(), tr("cli.new.list_choose", {{"url", docs("start/choose/")}}).c_str());
+    printIndexTemplates(engineRoot, all);
+    return 0;
+  }
+  if (pos.empty()) {   // zinc new alone: a person at a terminal is asked; a script, a pipe or CI gets the usage and nothing is written
+    const char* ci = std::getenv("CI");
+    if (!isatty(0) || !isatty(1) || (ci && *ci)) { std::fprintf(stderr, "%s\n%s\n", tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str(), tr("cli.usage.more", {{"command", cmd}}).c_str()); return 2; }
+    std::string dir;
+    if (!newWizard(all, named, tmpl, dir)) return 130;
+    pos.push_back(dir);
+  }
   if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "%s\n", tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   if (pos.size() == 2) tmpl = pos[0];
   const std::string dir = pos.empty() ? "." : pos.back();
@@ -494,7 +732,13 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   if (!ok) { std::fprintf(stderr, "%s\n", tr("cli.new.write", {{"command", cmd}, {"dir", dir}}).c_str()); return 1; }
   for (const std::string& plugin : t->plugins)   // the plugins the template needs, pinned in the new zinc.lock (ZN-349)
     if (addPlugin({"zinc", "add", plugin, fs::absolute(dir).string()}, engineRoot) != 0) { std::fprintf(stderr, "%s\n", tr("cli.new.plugin", {{"command", cmd}, {"plugin", plugin}}).c_str()); return 1; }
-  std::printf("%s\n", tr("cli.new.created", {{"dir", dir}, {"template", tmpl}}).c_str());
+  // what to do now: run it with every save shown, the file to change, where to learn
+  const Paint P;
+  std::printf("%s\n\n%s\n", P.ok(tr("cli.new.done", {{"dir", dir}, {"template", tmpl}})).c_str(), P.bold(tr("cli.next.title")).c_str());
+  if (dir != ".") std::printf("  %s\n", P.cmd("cd " + dir).c_str());
+  std::printf("  %s %s\n", P.cmd(pad("zinc dev", 10)).c_str(), tr("cli.next.dev").c_str());
+  if (!t->entry.empty()) std::printf("  %s\n", tr("cli.next.edit", {{"file", t->entry}}).c_str());
+  std::printf("\n%s\n%s\n%s\n", tr("cli.next.learn", {{"url", docs("learn/")}}).c_str(), tr("cli.next.guide", {{"url", docs("guide/01-getting-started/")}}).c_str(), tr("cli.next.tour").c_str());
   return 0;
 }
 
@@ -570,19 +814,6 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
 }
 }  // namespace
 
-namespace {
-struct Paint {   // colours only for a person at a terminal (NO_COLOR off, ZINC_COLOR=always forces)
-  bool on;
-  Paint() { const char* f = std::getenv("ZINC_COLOR"); on = (f && !std::strcmp(f, "always")) || (!std::getenv("NO_COLOR") && isatty(1)); }
-  std::string c(const char* code, const std::string& s) const { return on ? std::string("\033[") + code + "m" + s + "\033[0m" : s; }
-  std::string ok(const std::string& s) const { return c("32", s); }
-  std::string warn(const std::string& s) const { return c("33", s); }
-  std::string bad(const std::string& s) const { return c("31", s); }
-  std::string dim(const std::string& s) const { return c("2", s); }
-  std::string bold(const std::string& s) const { return c("1", s); }
-  std::string cmd(const std::string& s) const { return c("36", s); }
-};
-}  // namespace
 
 std::string settingsFile() { return zn::tc::home() + "/config.json"; }
 
@@ -2184,7 +2415,7 @@ static std::string policyRefusal(const std::string& tier) {
 }
 
 // The index's templates the policy accepts, after the engine's own (zinc new --list).
-static void printIndexTemplates(const std::string& engineRoot) {
+static void printIndexTemplates(const std::string& engineRoot, const std::vector<TemplateInfo>& local) {
   std::unique_ptr<zn::tc::tuf::Client> index;
   std::string err;
   std::vector<zn::tc::tuf::Target> all;
@@ -2204,7 +2435,7 @@ static void printIndexTemplates(const std::string& engineRoot) {
       if (yyjson_is_str(yyjson_obj_get(r, "description"))) desc = yyjson_get_str(yyjson_obj_get(r, "description"));
       yyjson_doc_free(d);
     }
-    if (name.empty()) continue;
+    if (name.empty() || std::any_of(local.begin(), local.end(), [&](const TemplateInfo& l) { return l.name == name; })) continue;   // the engine's own: listed above
     if (!header) { std::printf("\nfrom the index:\n"); header = true; }
     std::printf("  %-14s %-9s %s%s\n", name.c_str(), tier.c_str(), t.role == "targets" ? "" : ("(" + t.role + ") ").c_str(), desc.c_str());
   }

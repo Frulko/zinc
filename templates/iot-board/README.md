@@ -1,5 +1,13 @@
 # {{name}}
 
+## Next steps
+
+- `zinc dev`: runs it; every save shows at once.
+- Change `src/main.ts` and save.
+- Learn to draw and react to the keyboard and mouse: https://frulko.github.io/zinc/docs/learn/
+- The guide: https://frulko.github.io/zinc/docs/guide/01-getting-started/
+- `zinc tour`: a guided first walk.
+
 A device made from the `iot-board` template: an ESP32-S3, a QMI8658 motion sensor and a 128x64 SSD1306 OLED, showing a bubble level and the
 sensor's temperature. Shake it to set the current position as level.
 

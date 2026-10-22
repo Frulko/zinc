@@ -18,6 +18,11 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err);
 
 /** `zinc help [command]`, `zinc --help`, `zinc <command> --help`: the text on stdout, exit code 0; an unknown command: stderr, 2. */
 int help(const std::vector<std::string>& args);
+/** The first bare `zinc` of a person at a terminal (stdin and stdout, no CI): a greeting, the choice of the five languages, saved in
+ *  config.json with the version that welcomed, then the three steps to start. False, with nothing printed, in every other case. */
+bool welcome(const std::string& version);
+/** The three steps to start and the links to learn (the welcome, and `zinc --next-steps` for install.sh and install.ps1). */
+void nextSteps();
 /** A command that does not exist, or arguments no command takes: the closest command and `zinc help` on stderr; returns 2. */
 int unknownCommand(const std::string& name);
 

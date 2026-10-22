@@ -1,5 +1,13 @@
 # {{name}}
 
+## Next steps
+
+- `zinc dev`: runs it; every save shows at once.
+- Change `src/main.ts` and save.
+- Learn to draw and react to the keyboard and mouse: https://frulko.github.io/zinc/docs/learn/
+- The guide: https://frulko.github.io/zinc/docs/guide/01-getting-started/
+- `zinc tour`: a guided first walk.
+
 A 3D scene made from the `3d` template: three.js code as on the web, drawn by Zinc's renderer (no browser, no DOM).
 
 ```sh

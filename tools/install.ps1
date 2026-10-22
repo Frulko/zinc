@@ -62,8 +62,10 @@ try {
   elseif ($env:ZINC_NO_MODIFY_PATH -eq '1') { Write-Host "zinc install: add $bin to your PATH to run zinc from anywhere" }
   else {
     [Environment]::SetEnvironmentVariable('Path', ($(if ($userPath) { "$userPath;" } else { '' }) + $bin), 'User')
-    Write-Host "zinc install: added $bin to your user PATH; open a new terminal, then run: zinc doctor"
+    Write-Host "zinc install: added $bin to your user PATH; open a new terminal first, then:"
   }
+  Write-Host ''
+  & $exe --next-steps   # the three steps to start, in the person's language (the first-run welcome's text; install.sh and the Homebrew caveats say the same)
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
