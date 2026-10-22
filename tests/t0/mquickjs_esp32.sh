@@ -60,4 +60,10 @@ mkdir -p "$T/pull"
 printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"
 "$ZINC" export "$T/pull/main.ts" --target esp32 --engine mquickjs -o "$T/pull/out" >"$T/log" 2>&1 && { echo "a pull-up on GPIO 35 was accepted"; fail=1; }
 grep -q "pin 35 has no internal pull resistor" "$T/log" || { echo "the pull failure does not say why"; cat "$T/log"; fail=1; }
+# the BOOT button is pin 0, an input (GPIO0 also drives the backlight): read and watched, never an output
+printf "import { setup, read, watch } from 'zinc:gpio';\nsetup(0, 'in');\nwatch(0, 'falling', 30, (e) => console.log('BOOT ' + e.value));\nconsole.log('boot ' + read(0));\n" > "$T/pull/boot.ts"
+"$ZINC" check "$T/pull/boot.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 || { echo "the BOOT button is refused as an input"; cat "$T/log"; fail=1; }
+printf "import { setup } from 'zinc:gpio';\nsetup(0, 'out');\n" > "$T/pull/bootout.ts"
+"$ZINC" check "$T/pull/bootout.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 && { echo "pin 0 was accepted as an output"; fail=1; }
+grep -q "pin 0 is the BOOT button" "$T/log" || { echo "the output on pin 0 is not refused with the reason"; cat "$T/log"; fail=1; }
 exit $fail

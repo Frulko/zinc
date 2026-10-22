@@ -7,7 +7,10 @@
 
 static int64_t last_us[GPIO_NUM_MAX];
 static uint16_t debounce_ms[GPIO_NUM_MAX];
-static uint8_t edge_of[GPIO_NUM_MAX], level_of[GPIO_NUM_MAX];
+static uint8_t edge_of[GPIO_NUM_MAX], level_of[GPIO_NUM_MAX], board_watched;
+
+/* GPIO0 where it also gates the backlight (the 2432S022): the BOOT button, an input main.c reads (zn_boot_level, zn_gpio_board_edge) */
+static int boot_button(int pin) { return pin == 0 && zn_pin_reserved(0); }
 
 static int usable(JSContext *ctx, int pin, int output)
 {
@@ -15,7 +18,11 @@ static int usable(JSContext *ctx, int pin, int output)
         JS_ThrowRangeError(ctx, "zinc:gpio: no pin %d on the ESP32 (6 to 11 are the flash's)", pin);
         return 0;
     }
-    if (zn_pin_reserved(pin)) {
+    if (boot_button(pin) && output) {
+        JS_ThrowRangeError(ctx, "zinc:gpio: pin 0 is the BOOT button on this board (it also drives the backlight): an input only");
+        return 0;
+    }
+    if (zn_pin_reserved(pin) && !boot_button(pin)) {
         JS_ThrowRangeError(ctx, "zinc:gpio: pin %d is the board's (panel, backlight or touch)", pin);
         return 0;
     }
@@ -32,6 +39,7 @@ ZN_FN(js_gpio_setup)
     int pin, out, pull;
     if (zn_int(ctx, argc, argv, 0, &pin) || zn_int(ctx, argc, argv, 1, &out) || zn_int(ctx, argc, argv, 2, &pull)) return JS_EXCEPTION;
     if (!usable(ctx, pin, out)) return JS_EXCEPTION;
+    if (boot_button(pin)) return pull ? JS_ThrowRangeError(ctx, "zinc:gpio setup: the BOOT button has its own pull-up: use \"none\"") : JS_UNDEFINED;
     if (pull && pin >= 34) return JS_ThrowRangeError(ctx, "zinc:gpio setup: pin %d has no internal pull resistor (34 to 39): wire one and use \"none\"", pin);
     gpio_reset_pin(pin);
     gpio_set_direction(pin, out ? GPIO_MODE_INPUT_OUTPUT : GPIO_MODE_INPUT);
@@ -53,7 +61,7 @@ ZN_FN(js_gpio_read)
     int pin;
     if (zn_int(ctx, argc, argv, 0, &pin)) return JS_EXCEPTION;
     if (!usable(ctx, pin, 0)) return JS_EXCEPTION;
-    return JS_NewInt32(ctx, gpio_get_level(pin));
+    return JS_NewInt32(ctx, boot_button(pin) ? zn_boot_level() : gpio_get_level(pin));
 }
 
 static void IRAM_ATTR edge_isr(void *arg)
@@ -74,13 +82,29 @@ ZN_FN(js_gpio_watch)
     int pin, edge, ms;
     if (zn_int(ctx, argc, argv, 0, &pin) || zn_int(ctx, argc, argv, 1, &edge) || zn_int(ctx, argc, argv, 2, &ms)) return JS_EXCEPTION;
     if (!usable(ctx, pin, 0)) return JS_EXCEPTION;
-    if (!service && gpio_install_isr_service(0) == ESP_OK) service = 1;
     edge_of[pin] = edge;
     debounce_ms[pin] = ms < 0 ? 0 : ms > 60000 ? 60000 : ms;
+    if (boot_button(pin)) {
+        level_of[pin] = zn_boot_level();
+        board_watched = 1;
+        return JS_UNDEFINED;
+    }
+    if (!service && gpio_install_isr_service(0) == ESP_OK) service = 1;
     level_of[pin] = gpio_get_level(pin);
     gpio_set_intr_type(pin, GPIO_INTR_ANYEDGE);
     gpio_isr_handler_remove(pin);
     if (gpio_isr_handler_add(pin, edge_isr, (void *)(intptr_t)pin) != ESP_OK) return JS_ThrowInternalError(ctx, "zinc:gpio watch: no interrupt for pin %d", pin);
     gpio_intr_enable(pin);
     return JS_UNDEFINED;
+}
+
+/* a change of a pin main.c reads for the board (the BOOT button), from its timer: debounced and posted as an edge is */
+void zn_gpio_board_edge(int pin, int v)
+{
+    const int64_t t = esp_timer_get_time();
+    if (!board_watched || v == level_of[pin] || t - last_us[pin] < debounce_ms[pin] * 1000LL) return;
+    level_of[pin] = v;
+    last_us[pin] = t;
+    if ((edge_of[pin] == 0 && !v) || (edge_of[pin] == 1 && v)) return;
+    zn_post(ZN_EV_GPIO, pin | v << 8, (int)(t / 1000), NULL, 0);
 }

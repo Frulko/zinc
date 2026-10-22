@@ -1,4 +1,4 @@
-// System: the auto tour, the screen's turn, the touch calibration and the backlight, then live figures refreshed twice a second: the memory (LVGL's, the JavaScript heap, the board's
+// System: the auto tour, the screen's turn, the touch calibration, turning off and the backlight, then live figures refreshed twice a second: the memory (LVGL's, the JavaScript heap, the board's
 // heap), what a frame costs and what the board's panel bus would need for it, and the hardware as zinc:device reads it. The page scrolls.
 // On the computer LVGL draws from a pool of the board's size and there is no heap to report; on the board LVGL takes the heap. The
 // figures that only the board has (CPU, flash, firmware) say "on the board" on the computer.
@@ -47,6 +47,10 @@ export function buildSystem(page: i32): void {
     const calibrate = kitButton(touchRow, 'Calibrate', COLOR_MUTED, false);
     lv.on(calibrate, lv.EVENT_CLICKED, () => { if (!device.calibrateTouch()) lv.setText(lv.child(calibrate, 0), 'On the board'); });
   }
+  const powerRow = buttonRow(display);   // off until RST or the battery's button; holding BOOT 3 s does the same
+  text(powerRow, 'Power', 14, COLOR_TEXT);
+  const off = kitButton(powerRow, 'Turn off', COLOR_MUTED, false);
+  lv.on(off, lv.EVENT_CLICKED, () => { if (!device.powerOff()) lv.setText(lv.child(off, 0), 'On the board'); });
   const lightRow = row(display);
   text(lightRow, 'Backlight', 14, COLOR_TEXT);
   light = text(lightRow, '', 12, COLOR_MUTED_TEXT);

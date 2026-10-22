@@ -23,6 +23,7 @@ int zn_touch(void);
 float zn_touch_map(int i);
 int zn_set_touch_map(const float m[6]);
 int zn_calibrate_touch(void);
+void zn_power_off(void);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 #endif
 
@@ -93,6 +94,15 @@ int32_t zn_device_calibrateTouch(void *self, ZnCtx *cx, const ZnVal *args, ZnVal
 #else
     return ret_int(ret, 0);
 #endif
+}
+
+int32_t zn_device_powerOff(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self, (void)cx, (void)args;
+#ifdef ESP_PLATFORM
+    zn_power_off(); /* does not return */
+#endif
+    return ret_int(ret, 0);
 }
 
 int32_t zn_device_heapFree(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)

@@ -145,6 +145,8 @@ a TF slot, a CH340C USB-UART with auto-reset, and a LiPo charger. Demo: `example
 | audio | GPIO26 (DAC2) → SC8002B amplifier, JST 1.25 speaker socket | schematic (unused by the demo) |
 | TF card | CS GPIO5, MOSI GPIO23, CLK GPIO18, MISO GPIO19 | schematic (unused) |
 | USB | CH340C, DTR/RTS auto-reset into the bootloader | schematic |
+| battery | JST 1.25 socket → an IP5306-class charger and 5 V booster (its KEY on button SW1, its LEDs not wired), then two AMS1117-3.3; **the battery's voltage reaches no ESP32 pin**: a program cannot read its level (GPIO34 to 39 are not connected) | schematic MCU sheet (`docs/reports/hardware/esp32-2432s022-power.md`) |
+| buttons | RST (EN), BOOT (GPIO0, 10 kΩ pull-up, the backlight's gate too), SW1 (the charger's KEY: turns the booster on, two presses off) | schematic |
 
 Sources: `2.2inch_ESP32-2432S022/` vendor package: `1-Demo/Demo_Arduino/1_1_Factory_samples` (LovyanGFX config,
 `CST820.cpp`), `3_1-TFT-LVGL-Benchmark`, `lv_conf.h`, `5-Schematic/ESP32-2432022-{LCM,MCU}-V1.0.png`,
@@ -271,6 +273,14 @@ zinc monitor --port /dev/cu.usbserial-110                      # figures every 5
 
 The CH340's DTR/RTS reset the chip into the bootloader by themselves; if not, hold BOOT, tap RST, release BOOT. BOOT
 is GPIO0, the backlight pin: pressing it at run time darkens the screen, which is expected.
+
+**Buttons and off (`--engine mquickjs`).** The firmware reads BOOT while GPIO0 drives the backlight (weakly, so a press shorts a
+few mA; it reads the pad back over a PWM period every 20 ms; with the backlight at 0 it cannot). `zinc:gpio` takes it as pin 0, an
+input: `read(0)` is 0 while it is held, `watch(0, 'falling', 30, cb)` gets the presses. Held 3 s, BOOT turns the board off, as
+`device.powerOff()` does: the backlight, the panel (ST7789 sleep) and the touch asleep, the chip in deep sleep with no wake-up.
+RST turns it on again and the program starts from the beginning. On a battery the charger cuts its output once the board draws
+little (about 45 mA, after about 30 s): the board is then really off, and SW1 turns it on. BOOT cannot wake the chip itself:
+GPIO0 is held low through the sleep to keep the backlight dark.
 
 QEMU (`zinc run … --target esp32`) has no I2S LCD mode: the i80 bus setup would wait forever for the peripheral.
 Add `"targets": { "esp32": { "display": { "debug": 3 } } }` to the project for QEMU runs (no bus I/O, no touch, the

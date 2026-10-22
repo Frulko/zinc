@@ -48,6 +48,12 @@ float zn_touch_map(int i);
 int zn_set_touch_map(const float m[6]);
 /* Restarts the board into touch_calibrate (NVS zinc.sys "cal", taken at start); returns 0 only without a touch controller. */
 int zn_calibrate_touch(void);
+/* Turns the board off (deep sleep, the backlight, the panel and the touch asleep) until RST or the battery's power button: does not return. */
+void zn_power_off(void);
+/* The BOOT button (GPIO0) on a board whose backlight it also gates (the 2432S022): its level, 1 released and 0 pressed, read by main.c, which
+   hands each change to zinc:gpio (zn_gpio_board_edge, mod_gpio.c: posted when pin 0 is watched). */
+int zn_boot_level(void);
+void zn_gpio_board_edge(int pin, int level);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 /* The mquickjs heap of the native call in progress: bytes in use and its size, as JS_DumpMemory's "heap size=used/size" (main/zn_native.c,
    so zinc-mqjs answers it too on the computer). */

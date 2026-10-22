@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- On the ESP32-2432S022 under `--engine mquickjs`, the BOOT button is pin 0 of `zinc:gpio` (read and watch it), and holding it 3 s turns the board off, as `device.powerOff()` does; RST, or the battery's button, turns it on again. The widgets' System page has a Turn off button.
 - `<ScrollView stickToBottom>` follows its end as the content grows while it shows it (a chat, a log), and stays put once the user scrolls up. `examples/esp32-ble/mac` uses it for its messages.
 - An ESP32 under `--engine mquickjs` tells why its program stopped, screen or not: the exception, a loop that never ends (stopped after 10 s, with its line) or a crash of the C (from ESP-IDF's core dump, the functions named by `zinc run`). The board keeps it and tells it again at each start until another program runs; three crashes in a row put it in safe mode, where a new program can still come.
 - `zinc run <app> --target esp32 --engine mquickjs --attach` reads a board that already runs, over USB or Wi-Fi, without writing or restarting it.

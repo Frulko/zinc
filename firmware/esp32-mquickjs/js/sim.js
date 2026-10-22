@@ -12,7 +12,7 @@ function __simStr(name, s) { if (typeof s !== "string") throw new TypeError(name
 function __simPin(name, pin) {
   __simNum(name, [pin], 1);
   if (pin < 0 || pin > 39 || (pin >= 6 && pin <= 11) || (pin >= 28 && pin <= 31) || pin === 20 || pin === 24) throw new RangeError("zinc:gpio: no pin " + pin + " on the ESP32 (6 to 11 are the flash's)");
-  if ([15, 13, 12, 14, 27, 25, 33, 32, 4, 2, 17, 16, 0, 21, 22].indexOf(pin) >= 0) throw new RangeError("zinc:gpio: pin " + pin + " is the board's (panel, backlight or touch)");
+  if ([15, 13, 12, 14, 27, 25, 33, 32, 4, 2, 17, 16, 21, 22].indexOf(pin) >= 0) throw new RangeError("zinc:gpio: pin " + pin + " is the board's (panel, backlight or touch)");
 }
 // zinc:gfx (main/main.c)
 function __host_gfxWidth() { return 240; }
@@ -35,10 +35,12 @@ function __host_gfxTouchY(i) { return __simY; }
 // zinc:gpio (main/mod_gpio.c)
 function __host_gpioSetup(pin, mode, pull) {
   __simPin("zinc:gpio setup", pin);
+  if (pin === 0 && mode === 1) throw new RangeError("zinc:gpio: pin 0 is the BOOT button on this board (it also drives the backlight): an input only");
+  if (pin === 0 && pull) throw new RangeError("zinc:gpio setup: the BOOT button has its own pull-up: use \"none\"");
   if (mode === 1 && pin >= 34) throw new RangeError("zinc:gpio: pin " + pin + " is an input only (34 to 39)");
   if (pull && pin >= 34) throw new RangeError("zinc:gpio setup: pin " + pin + " has no internal pull resistor (34 to 39): wire one and use \"none\"");
 }
-function __host_gpioWrite(pin, v) { __simPin("zinc:gpio write", pin); }
+function __host_gpioWrite(pin, v) { __simPin("zinc:gpio write", pin); if (pin === 0) throw new RangeError("zinc:gpio: pin 0 is the BOOT button on this board (it also drives the backlight): an input only"); }
 function __host_gpioRead(pin) { __simPin("zinc:gpio read", pin); return __simTurn % 60 < 30 ? 1 : 0; }
 function __host_gpioWatch(pin, edge, ms) { __simPin("zinc:gpio watch", pin); __simNum("zinc:gpio watch", [edge, ms], 2); __simWatched.push(pin); }
 // zinc:storage (main/mod_storage.c)

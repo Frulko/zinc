@@ -41,6 +41,10 @@ export function setTouchMap(m: number[]): boolean { return D.setTouchMap(m[0], m
 /** Restarts the board into its touch calibration, the five crosses a finger held at start shows, then the program again with the new map,
  *  kept for every program. Does not return on the board; false where there is none (the computer, a board without touch). */
 export function calibrateTouch(): boolean { return D.calibrateTouch(); }
+/** Turns the board off: the screen, the touch and the chip asleep until RST, or the battery's power button (the charger cuts its output
+ *  then). The program starts from the beginning when it comes back. Holding BOOT 3 s does the same on the ESP32-2432S022. Does not
+ *  return on the board; false where it cannot (the computer). */
+export function powerOff(): boolean { return D.powerOff(); }
 
 export class Memory {
   zincUsed: i32 = 0;      // Zinc heap (TLSF) bytes in use; under mquickjs, the JavaScript heap's (-1: unknown)

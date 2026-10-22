@@ -14,6 +14,8 @@ export interface Spec extends NativeModule {
   setTouchMap(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64): boolean;
   /** Restarts the board into its touch calibration (the crosses to tap), then the program again; false where there is none (hosts, no touch). */
   calibrateTouch(): boolean;
+  /** Turns the board off (deep sleep, screen and touch asleep) until its reset or the battery's power button; false where it cannot (hosts). */
+  powerOff(): boolean;
   /** Free bytes of the chip's own heap (internal RAM on ESP32, outside the Zinc heap); -1 on hosts. */
   heapFree(): i32;
   /** Lowest heapFree() since boot; -1 on hosts. */

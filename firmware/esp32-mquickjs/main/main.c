@@ -12,6 +12,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
+#include "driver/rtc_io.h"
 #include "driver/spi_master.h"
 #include "esp_app_desc.h"
 #include "esp_attr.h"
@@ -24,6 +25,7 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_rom_crc.h"
+#include "esp_sleep.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -160,6 +162,12 @@ static void lcd_init(void)
         gpio_set_direction(LCD_BL, GPIO_MODE_OUTPUT);
         gpio_set_level(LCD_BL, 0);
     }
+#ifndef ZN_PANEL_SPI
+    /* GPIO0 is also the BOOT button, a switch to ground: the pin drives the MOSFET's gate weakly, so a press shorts a few mA, and reads
+       its pad back (boot_down) */
+    gpio_set_drive_capability(LCD_BL, GPIO_DRIVE_CAP_0);
+    gpio_input_enable(LCD_BL);
+#endif
 }
 
 /* the backlight at bl_level from the first frame on (present, zn_panel_flush) */
@@ -992,6 +1000,63 @@ void zn_pause(const char *what)
     message(what, "the board restarts after");
 }
 
+/* ---- off: the backlight, the panel and the touch asleep, then the chip in deep sleep with no wake-up. RST turns it on again, and on a
+   battery the charger's own button: its booster cuts its output below about 45 mA after half a minute (IP5306), so the board is then
+   really off. The program starts from the beginning. */
+void zn_power_off(void)
+{
+    printf("mqjs: off; RST, or the battery's power button, turns the board on again\n");
+    fflush(stdout); /* deep sleep waits for the UART's FIFO, not for stdout */
+    if (bl_pwm) ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+    rtc_gpio_init(LCD_BL); /* the gate held low through the sleep: its pull-up would light the backlight half way */
+    rtc_gpio_set_direction(LCD_BL, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_set_level(LCD_BL, 0);
+    rtc_gpio_hold_en(LCD_BL);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+    lcd_cmd(0x28, NULL, 0); /* display off, sleep in */
+    lcd_cmd(0x10, NULL, 0);
+    static const uint8_t touch_sleep[2] = {0xA5, 0x03}; /* the CST8xx's deep sleep; its reset is the board's EN */
+    if (tp) i2c_master_transmit(tp, touch_sleep, 2, 20);
+    esp_deep_sleep_start();
+}
+
+#ifndef ZN_PANEL_SPI
+/* ---- BOOT (GPIO0), which also gates the backlight here: pressed, the pad reads low while LEDC drives it high. Dark, nothing can be read.
+   Read every 20 ms over one 5 kHz PWM period (a released button reads high in its lit part: up to 0.2 ms of the timer task), two equal
+   reads in a row make a change; zinc:gpio's pin 0 gets it (mod_gpio.c), and 3 s held turns the board off. */
+static volatile int boot_level = 1, off_asked;
+
+static int boot_down(void)
+{
+    if (!bl_lit || bl_level == 0) return 0;
+    if (!bl_pwm || bl_level == 255) return !gpio_get_level(LCD_BL);
+    for (const int64_t end = esp_timer_get_time() + 210; esp_timer_get_time() < end;)
+        if (gpio_get_level(LCD_BL)) return 0;
+    return 1;
+}
+
+static void boot_tick(void *arg)
+{
+    static int last = 1, held_ms;
+    const int v = !boot_down();
+    if (v == last && v != boot_level) {
+        boot_level = v;
+        zn_gpio_board_edge(0, v);
+    }
+    last = v;
+    held_ms = boot_level ? 0 : held_ms + 20;
+    if (held_ms == 3000) {
+        if (zn_program_state != 0) zn_power_off(); /* nothing draws: off from here */
+        off_asked = 1;                              /* the program's loop turns it off between two turns */
+        zn_post(0, 0, 0, NULL, 0);
+    }
+}
+
+int zn_boot_level(void) { return boot_level; }
+#else
+int zn_boot_level(void) { return 1; } /* the emulator's board: GPIO0 is a pin of zinc:gpio like the others */
+#endif
+
 /* The program's loop: the events other tasks queued, the timers of js/runtime.js (__zincTurn), and a frame at most every FRAME_US when
    zinc:gfx's onFrame set globalThis.__zincFrameCb (called with the seconds since the previous frame). It sleeps on the queue until the
    next timer or frame; a program with none of them and nothing listening has ended. */
@@ -1002,6 +1067,9 @@ static void run(JSContext *ctx)
     JSGCRef cb_ref, dt_ref;
     Event e;
     for (;;) {
+#ifndef ZN_PANEL_SPI
+        if (off_asked) zn_power_off();
+#endif
         if (pause_asked) { /* the update server writes the flash (zn_pause): the board restarts after */
             message(pause_what, "the board restarts after");
             xSemaphoreGive(paused);
@@ -1134,6 +1202,11 @@ void app_main(void)
     zn_storage_init();
     lcd_init();
     touch_init();
+#ifndef ZN_PANEL_SPI
+    const esp_timer_create_args_t boot_timer = {.callback = boot_tick, .name = "boot"};
+    esp_timer_handle_t boot_h;
+    if (esp_timer_create(&boot_timer, &boot_h) == ESP_OK) esp_timer_start_periodic(boot_h, 20000);
+#endif
     int tap_x, tap_y;
     if (calibration_asked() || touch_raw(&tap_x, &tap_y) == 1) touch_calibrate(); /* asked by the program, or a finger on the screen as the board starts */
     printf("mqjs: free heap %u, largest block %u\n", (unsigned)esp_get_free_heap_size(),
