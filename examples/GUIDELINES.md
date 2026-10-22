@@ -8,7 +8,9 @@ The bar every demo of `examples/` meets, new or changed. The reference is `examp
 - **A display tree on `zinc:gfx`** (music-tree's `core/display.ts`) for old devices (HP TouchPad, Nexus 7, Pi 3) where a frame must cost
   only what it draws. It is the middle ground: AS3-style objects (`addChild`, local coordinates, `onAddedToStage`/`onRemovedFromStage`,
   `onUpdate`, `onMeasure`, `onDraw`) and a minimal row/column layout, no CSS, no reconciler.
-- Never a third model: no ad-hoc immediate-mode `main.ts` of 1,500 lines, no new layout engine. Copy `core/` from the reference; when a
+- **`zinc:lvgl` (LVGL 9 in C)** for a microcontroller without PSRAM (the ESP32 boards under `--engine mquickjs`): LVGL holds the widgets,
+  the layout and the drawing, the program sets values and reads events (`examples/esp32-widgets`, decision D156).
+- Never another model: no ad-hoc immediate-mode `main.ts` of 1,500 lines, no new layout engine. Copy `core/` from the reference; when a
   second demo uses it, promote it to one shared module instead of keeping copies.
 
 ## Layout of a project
