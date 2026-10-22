@@ -1132,3 +1132,10 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | examples/esp32-widgets in esp32sim, Home page (emulated time; the emulator does not time the panel's transfers): fps, LVGL a frame (slowest), JS a frame, free heap | 60 fps, 0.5 ms (8.5 ms), 0.7 to 1.0 ms, 65 KB |
 | esp32sim, Input page scrolled by lv.scrollTo (about 57,500 px redrawn a frame): LVGL a frame, plugins' C at -Os → -O2 | 11.8 → 9.0 ms (slowest 13 → 11.1 ms) |
 | the same full-page redraw sent on the board's i80 bus at 10 MHz (computed, 2 bytes a pixel; not measured, the board was away) | about 12 ms a frame |
+| zinc:lvgl with ThorVG (Lottie, LVGL's vector graphics): the emulator's firmware app, against 595,648 B without | 1,061,728 B (0x180000 partition: 32% free) |
+| esp32-widgets, one page built at a time, in esp32sim (portrait, 28 KB main stack): free heap after load, then on Input / Music / Lottie (lowest) / Home | 133.5 KB, then 71.8 / 82.5 / 35.3 (34.4) / 79.9 KB; six pages built at once: 0 KB, "LVGL's memory pool is full" |
+| esp32sim: the main task's stack with zinc:lvgl, deepest (ThorVG) / never used of 28 KB | 21.1 KB / 7.4 KB (the default 8 KB overflowed and corrupted the heap) |
+| esp32sim, Lottie page (64 x 64 ARGB8888, 16 KB buffer): fps, LVGL a frame | 60 fps, 5 ms |
+| esp32sim, Bench page (16 rounded squares, 76,800 px a frame): fps, LVGL a frame | 42 to 44.5 fps, 17.7 ms |
+| the computer's LVGL pool (96 KB, standing for the board's 138 KB), in use on Home / Music / Input / Bench / Lottie | 32.4 / 28.5 / 44 / 68 / 71.1 KB (most 71.9) |
+| the widgets tour's bytecode with the six pages and Lottie's JSON | 85,920 B |
