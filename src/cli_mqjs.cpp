@@ -47,7 +47,12 @@ constexpr std::size_t kAppOffset = 0x20000;      // partitions.csv: ota_0, where
 
 std::string quote(const std::string& s) { std::string r = "'"; for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; }
 bool readText(const fs::path& p, std::string& out) { std::ifstream in(p, std::ios::binary); if (!in) return false; std::stringstream ss; ss << in.rdbuf(); out = ss.str(); return true; }
-bool writeText(const fs::path& p, const std::string& text) { std::ofstream o(p, std::ios::binary); return static_cast<bool>(o << text); }
+bool writeText(const fs::path& p, const std::string& text) {   // a file that holds it already keeps its time (ESP-IDF configures nothing again)
+  std::string old;
+  if (readText(p, old) && old == text) return true;
+  std::ofstream o(p, std::ios::binary);
+  return static_cast<bool>(o << text);
+}
 
 // a shell command's exit code, its stdout and stderr in `out`
 int capture(const std::string& cmd, std::string& out) {
@@ -232,20 +237,24 @@ std::string firmwareImage(const std::string& root, bool emulator, bool net, std:
 }
 
 // The firmware with the native modules of `p` (main/zn_native.c), built with ESP-IDF 5.5.5 (installed into ZINC_HOME the first time, as
-// tools/build-esp32-core does) into ZINC_HOME/esp32/firmware/<key>: the key covers the firmware's sources, the kind of image and the modules'
-// files, so the program's own changes never rebuild it. A few minutes the first time; "" with `err` when the build fails.
+// tools/build-esp32-core does) in ZINC_HOME/esp32/firmware/<key>. The key is the configuration (the kind of image, the modules, the packages
+// and settings they need); the files' contents (the firmware's sources, the modules') decide whether the image there is still right, and a
+// change rebuilds it in the same directory, only what changed. The program's own changes never rebuild it. A few minutes the first time;
+// "" with `err` when the build fails.
 std::string nativeFirmware(const std::string& root, const Program& p, bool emulator, bool net, std::string& err) {
   const fs::path fw = fs::path(root) / "firmware/esp32-mquickjs";
   std::error_code ec;
   if (!fs::exists(fw / "main/zn_native.c", ec)) { err = "a plugin's native code needs the firmware's sources, which this zinc does not have (" + fw.string() + ")"; return ""; }
-  std::string key = std::string(emulator ? "sim" : "board") + (net ? " net" : "") + "\n";
+  std::string key = fw.string() + (emulator ? " sim" : " board") + (net ? " net" : "") + "\n", contents;
   std::vector<std::string> files;
   for (const char* d : {"main", "components"})
     for (const auto& e : fs::recursive_directory_iterator(fw / d, ec)) if (e.is_regular_file()) files.push_back(e.path().string());
-  for (const char* f : {"CMakeLists.txt", "sdkconfig.defaults", "sdkconfig.net", "partitions.csv"}) files.push_back((fw / f).string());
+  for (const char* f : {"CMakeLists.txt", "partitions.csv"}) files.push_back((fw / f).string());
+  for (const char* f : {"sdkconfig.defaults", "sdkconfig.net"}) key += zn::tc::sha256File((fw / f).string()) + "\n";   // read only into a new sdkconfig
   for (const auto& e : fs::directory_iterator(fs::path(root) / "third_party/mquickjs", ec)) if (e.is_regular_file()) files.push_back(e.path().string());
   for (const Native& n : p.natives) {
-    key += n.module + " " + n.header;
+    key += n.module + " " + n.impl;
+    contents += n.header;
     files.push_back(n.impl);
     files.insert(files.end(), n.sources.begin(), n.sources.end());
     for (const std::string& d : n.defines) key += " -D" + d;
@@ -254,10 +263,12 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     for (const std::string& c : n.sdkconfig) key += " " + c;
   }
   std::sort(files.begin(), files.end());
-  for (const std::string& f : files) key += f.substr(root.size()) + " " + zn::tc::sha256File(f) + "\n";
+  for (const std::string& f : files) contents += f + " " + zn::tc::sha256File(f) + "\n";
   const fs::path dir = fs::path(zn::tc::home()) / "esp32/firmware" / zn::tc::sha256Hex(key).substr(0, 16);
-  const std::string image = (dir / "flash.bin").string();
-  if (fs::exists(image, ec)) return image;
+  const std::string image = (dir / "flash.bin").string(), built = zn::tc::sha256Hex(contents);
+  std::string last;
+  if (fs::exists(image, ec) && readText(dir / "flash.key", last) && last == built) return image;
+  fs::remove(image, ec);
   // the component main/CMakeLists.txt requires: the modules' sources, headers and defines, the ESP-IDF components and the registry packages
   // (idf_component.yml: plugin.json "idfComponents", Arduino's core as a component for example) they need, their zn_module_<Name>
   const fs::path comp = dir / "zn_plugins";
@@ -286,6 +297,13 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
   fs::remove(comp / "idf_component.yml", ec);
   if (!deps.empty()) writeText(comp / "idf_component.yml", "dependencies:\n" + deps);
   writeText(dir / "sdkconfig.plugins", settings);   // after the firmware's own defaults, so a plugin's setting wins
+  // the project, in the cache: ESP-IDF downloads the registry's packages into its directory (managed_components), never into zinc's own
+  const fs::path project = dir / "project";
+  fs::create_directories(project, ec);
+  std::string partitions;
+  if (!readText(fw / "partitions.csv", partitions) || !writeText(project / "partitions.csv", partitions)) { err = "cannot write the firmware's project in " + project.string(); return ""; }
+  writeText(project / "CMakeLists.txt", "# written by zinc (src/cli_mqjs.cpp): the firmware of " + fw.string() + ", built here\ncmake_minimum_required(VERSION 3.16)\n"
+                                        "include(\"" + (fw / "CMakeLists.txt").string() + "\")\nproject(${ZN_PROJECT})\n");
   // ESP-IDF, as tools/build-esp32-core installs it (about 1.5 GB, once)
   const std::string idf = zn::tc::home() + "/esp-idf", tools = zn::tc::home() + "/esp-tools", log = (dir / "build.log").string();
   std::string out;
@@ -301,12 +319,16 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
   const unsigned cores = std::max(1u, std::thread::hardware_concurrency() / 2);
   const auto t = std::chrono::steady_clock::now();
   zn::log::step("firmware", "building the firmware with " + std::to_string(p.natives.size()) + " native module(s) (ESP-IDF; minutes the first time, then cached)");
-  const std::string cmd = "export IDF_TOOLS_PATH=" + quote(tools) + " && . " + quote(idf + "/export.sh") + " >/dev/null && cd " + quote(fw.string()) +
-                          " && { command -v ccache >/dev/null && export IDF_CCACHE_ENABLE=1; gen=Ninja; command -v ninja >/dev/null || gen='Unix Makefiles'; MAKEFLAGS=-l" + std::to_string(cores) +
+  const std::string cmd = "export IDF_TOOLS_PATH=" + quote(tools) + " && . " + quote(idf + "/export.sh") + " >/dev/null && cd " + quote(project.string()) +
+                          // configured already: the build system alone, which configures again only when a CMakeLists.txt changed (idf.py with -D
+                          // always does, and the registry's packages are solved again: half a minute)
+                          " && export MAKEFLAGS=-l" + std::to_string(cores) + " && if [ -f " + quote((dir / "build/CMakeCache.txt").string()) + " ]; then nice -n 5 cmake --build " +
+                          quote((dir / "build").string()) + " -j " + std::to_string(2 * cores) + "; else" +
+                          " { command -v ccache >/dev/null && export IDF_CCACHE_ENABLE=1; gen=Ninja; command -v ninja >/dev/null || gen='Unix Makefiles';" +
                           " nice -n 5 idf.py -G \"$gen\" -B " + quote((dir / "build").string()) + " -DIDF_TARGET=esp32 -DSDKCONFIG=" + quote((dir / "sdkconfig").string()) +
                           " -DDEPENDENCIES_LOCK=" + quote((dir / "dependencies.lock").string()) + " -DZN_NATIVE_DIR=" + quote(dir.string()) +
-                          " -DSDKCONFIG_DEFAULTS=" + quote(std::string("sdkconfig.defaults;") + (net ? "sdkconfig.net;" : "") + (dir / "sdkconfig.plugins").string()) +
-                          (net ? " -DZN_NET=1" : "") + (emulator ? " -DZN_PANEL=spi" : "") + " build; }" +
+                          " -DSDKCONFIG_DEFAULTS=" + quote((fw / "sdkconfig.defaults").string() + ";" + (net ? (fw / "sdkconfig.net").string() + ";" : "") + (dir / "sdkconfig.plugins").string()) +
+                          (net ? " -DZN_NET=1" : "") + (emulator ? " -DZN_PANEL=spi" : "") + " build; }; fi" +
                           " && cd " + quote((dir / "build").string()) + " && esptool.py --chip esp32 merge_bin -o ../flash.bin @flash_args";
   if (capture("( " + cmd + " ) >" + quote(log) + " 2>&1", out) != 0 || !fs::exists(image, ec)) {
     std::string text;
@@ -314,6 +336,7 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     err = text.substr(text.size() > 3000 ? text.size() - 3000 : 0) + "\nthe firmware with the native modules did not build (above; the whole log: " + log + ")";
     return "";
   }
+  writeText(dir / "flash.key", built);
   zn::log::step("firmware", "built with the native modules: " + dir.string(), zn::log::since(t));
   return image;
 }

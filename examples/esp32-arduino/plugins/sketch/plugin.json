@@ -1,0 +1,15 @@
+{
+  "name": "sketch",
+  "kind": "module",
+  "module": "zinc:sketch",
+  "entry": "index.ts",
+  "description": "esp32-arduino's sketch: C++ on Arduino's core (arduino-esp32 as an ESP-IDF component) behind Zinc's native ABI; setup() and loop() run in the mquickjs firmware",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "esp32": {
+      "idfComponents": { "espressif/arduino-esp32": "^3.3.0" },
+      "sdkconfig": ["CONFIG_AUTOSTART_ARDUINO=n"]
+    }
+  }
+}

@@ -8,10 +8,15 @@ if(ZN_NATIVE_DIR)   # the plugins' native modules a program imports, the compone
   idf_build_set_property(ZN_NATIVE_DIR ${ZN_NATIVE_DIR})
   list(APPEND EXTRA_COMPONENT_DIRS ${ZN_NATIVE_DIR}/zn_plugins)
 endif()
+set(ZN_PROJECT zinc-mquickjs)
 if(ZN_NET)
   idf_build_set_property(ZN_NET 1)   # main/CMakeLists.txt reads it, also while the requirements are expanded (cache variables are not there)
   list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/../../third_party/esp-mdns)
-  project(zinc-mquickjs-net)
-else()
-  project(zinc-mquickjs)
+  set(ZN_PROJECT zinc-mquickjs-net)
+endif()
+if(CMAKE_CURRENT_LIST_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(${ZN_PROJECT})
+else()   # included by the project zinc writes for a program's native modules in its cache (src/cli_mqjs.cpp): it calls project() there,
+  # so that the packages of the registry go to its managed_components, not into this directory
+  list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/main ${CMAKE_CURRENT_LIST_DIR}/components)
 endif()

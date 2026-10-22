@@ -61,7 +61,7 @@ and real plugins like `plugins/gphoto2` / `plugins/lottie`. Files (relative to t
 | `<name>.host.cpp` | implementation for `macos`/`linux` (the fallback) |
 | `<name>.<target>.cpp` | target-specific implementation (`.rpi1.cpp`, `.esp32.cpp`, …) |
 | `<name>.sim.ts` | Zinc implementation for the sim oracle (same observable behaviour) |
-| `<name>.abi.c` | instead of `.host.cpp`: C on the native ABI (`include/zn/native.h`, `zinc native-gen --c` writes its table), no runtime types; the same file runs on the computer and in the ESP32's mquickjs firmware ([native code on the ESP32](../plugins/native-esp32.md)) |
+| `<name>.abi.c` / `.abi.cpp` | instead of `.host.cpp`: C (or C++, for an Arduino library) on the native ABI (`include/zn/native.h`, `zinc native-gen --c` writes its table), no runtime types; the same file runs on the computer and in the ESP32's mquickjs firmware ([native code on the ESP32](../plugins/native-esp32.md)) |
 
 ```ts
 // native/sensor.spec.ts

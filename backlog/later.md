@@ -427,7 +427,8 @@ The next backlog review turns lines into tasks or deletes them.
 - mquickjs on the ESP32: ESP-NOW between two boards (only the sending side was proven, with one board): delivery, the RSSI, the echo of examples/esp32-espnow.
 - mquickjs on the ESP32: zinc:ble's `connect()` (the central role) on the board; it throws today (NimBLE's central role is off in sdkconfig.net to save RAM).
 - mquickjs on the ESP32: the native bridge (main/zn_native.c) carries no callbacks, promises or resources: cb_post into the event queue (ZN_EV_NATIVE) and resource handles, so a sensor plugin can report by itself.
-- mquickjs on the ESP32: a plugin whose native code is an Arduino library needs arduino-esp32 as a registry component (`"idfComponents": {"espressif/arduino-esp32": "^3.3.12"}` reaches the generated component's idf_component.yml): build one, measure its flash and RAM, and set the sdkconfig it needs (autostart off).
+- mquickjs on the ESP32: install ninja with ESP-IDF (`idf_tools.py install ninja`, "on_request" in its tools.json): the firmware with native modules builds with make, 26 s for a change of one file of the sketch.
+- mquickjs on the ESP32: ~/.zinc/esp32/firmware keeps one build directory per configuration (100 to 400 MB each) and never removes one; evict the least recently used past a size, and say how much `zinc doctor` sees there.
 - mquickjs on the ESP32: zinc as an ESP-IDF component for one's own C++ program (main.c split into a library: zinc_init, zinc_run, the event queue), and as an Arduino/PlatformIO library with the ROM tables generated ahead (docs/reports/esp32-native-modules.md §3).
 - mquickjs on the ESP32: two zinc processes building the same native firmware at once write the same ~/.zinc/esp32/firmware/<key>; a lock as plugin_build's.
 - mquickjs on the ESP32: render+send is 0.4 ms slower per frame with -Os for the rest of the image; measure whether -O2 on the raster alone gets it back.

@@ -20,6 +20,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc run --target esp32 --host <name>.local` (or `--host last`) sends the program to a board over Wi-Fi, updates its firmware first when needed, and shows its console; a firmware that does not start is rolled back by the board.
 - A program that uses `zinc:wifi`, `zinc:espnow` or `zinc:ble` gets the network firmware, which zinc writes to the board by itself; `zinc flash --target esp32 --engine mquickjs --net` writes it by hand.
 - A plugin can bring a C library to TypeScript on the ESP32 under `--engine mquickjs`: its native code written in C on Zinc's native ABI (`native/<x>.abi.c`) is built into the board's firmware by zinc, with ESP-IDF installed the first time, and the same file is the plugin's library on the computer. See docs/plugins/native-esp32.md.
+- On the ESP32 under `--engine mquickjs`, a plugin's native code can be C++ on Arduino's core (`native/<x>.abi.cpp`, `espressif/arduino-esp32` in its `idfComponents`): an Arduino sketch's `setup()` and `loop()` run beside the TypeScript program, and a change of the sketch rebuilds the firmware in under half a minute. `examples/esp32-arduino`.
 - `zinc:qrcode`: QR codes from text (`encode`, `runs`, `wifiText`), on every engine and on the ESP32. `examples/esp32-qrcode` shows one on the board.
 - `zinc check <app> --target esp32 --engine mquickjs` checks and compiles a program for the board without writing anything to it.
 

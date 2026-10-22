@@ -1,0 +1,6 @@
+{
+  "name": "esp32-arduino",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 Arduino sketch", "id": "dev.zinc.esp32-arduino", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" }, "macos": { "width": 240, "height": 320 } }
+}
