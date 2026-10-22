@@ -21,9 +21,9 @@ def write_png(path, w, h, rgb):
     open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 def zinc_frame(scene):
-    t0 = time.time(); before = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    t0 = time.monotonic(); before = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
     r = subprocess.run([ZINC, "run", os.path.join(T, "run-%s.mjs" % scene), "--engine", "quickjs"], env=dict(os.environ, ZINC_HEADLESS="1"), capture_output=True, text=True, timeout=300)
-    STATS[scene] = {"seconds": time.time() - t0, "rss_mb": max(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss, before) / (1024 * 1024 if sys.platform == "darwin" else 1024), "calls": next((l[6:] for l in r.stdout.splitlines() if l.startswith("CALLS ")), "?")}
+    STATS[scene] = {"seconds": time.monotonic() - t0, "rss_mb": max(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss, before) / (1024 * 1024 if sys.platform == "darwin" else 1024), "calls": next((l[6:] for l in r.stdout.splitlines() if l.startswith("CALLS ")), "?")}
     line = next((l for l in r.stdout.splitlines() if l.startswith("RGBA ")), None)
     if not line: raise RuntimeError("%s: no frame: %s" % (scene, (r.stderr or r.stdout).strip()[:400]))
     raw = bytes.fromhex(line[5:]); rgb = bytearray()

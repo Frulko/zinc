@@ -38,8 +38,8 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
     c.call("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": 1, "mobile": False})
     if opt["--init"]: c.call("Page.addScriptToEvaluateOnNewDocument", {"source": opt["--init"]})
     c.open(url)
-    t0 = time.time()
-    while time.time() - t0 < float(opt["--wait"]):
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < float(opt["--wait"]):
         c._recv(-1, 0.2)
     def click(x, y):
         c.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
@@ -56,20 +56,20 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
         if kind == "xy": x, y = (float(v) for v in p.split(","))
         else:
             find = "(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p)
-            t0 = time.time()
-            while not (r := c.eval(find)) and time.time() - t0 < POLL: c._recv(-1, 0.2)
+            t0 = time.monotonic()
+            while not (r := c.eval(find)) and time.monotonic() - t0 < POLL: c._recv(-1, 0.2)
             if not r: sys.exit("no element with the text %s; console: %s; page: %r" % (p, [m[:200] for m in c.console][-6:], (c.eval("document.body.innerText") or "")[:200]))
             x, y = r
         click(x, y)
-        t0 = time.time()
-        while time.time() - t0 < float(opt["--after"]): c._recv(-1, 0.2)
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < float(opt["--after"]): c._recv(-1, 0.2)
     if opt["--frame-pause"]:   # stop the page's frame loop after N frames so a screenshot shows a known frame
         c.eval("(() => { const f = window.requestAnimationFrame.bind(window); const n = %s; const t = () => { if ((globalThis.__zincFrames || 0) >= n) { window.requestAnimationFrame = () => 0; } }; window.requestAnimationFrame = (cb) => f((x) => { cb(x); t(); }); })()" % int(opt["--frame-pause"]))
-        t0 = time.time()
-        while time.time() - t0 < 1.0: c._recv(-1, 0.2)
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 1.0: c._recv(-1, 0.2)
     if opt["--expect-text"]:
-        t0 = time.time()
-        while opt["--expect-text"] not in (c.eval("document.body.innerText") or "") and time.time() - t0 < POLL: c._recv(-1, 0.2)
+        t0 = time.monotonic()
+        while opt["--expect-text"] not in (c.eval("document.body.innerText") or "") and time.monotonic() - t0 < POLL: c._recv(-1, 0.2)
     if opt["--eval"]: out["eval"] = c.eval(opt["--eval"])
     out["text"] = (c.eval("document.body.innerText") or "")[:2000]
     shot = c.call("Page.captureScreenshot", {"format": "png"})

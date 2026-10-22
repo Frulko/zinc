@@ -43,8 +43,8 @@ else:
     os.symlink(os.path.join(cache, "node_modules"), os.path.join(proj, "node_modules"))
 
 def libs(c):
-    end = time.time() + 40
-    while time.time() < end:
+    end = time.monotonic() + 40
+    while time.monotonic() < end:
         try: v = c.eval("globalThis.__libs", 10)
         except Exception: v = None
         if v: return json.loads(v)
@@ -69,8 +69,8 @@ s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.clos
 log = []
 dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
 threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
-t0 = time.time()
-while time.time() - t0 < 90 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 90 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
 with Chrome(args) as c:
     c.open("http://127.0.0.1:%d/" % port)
     dev_ = libs(c)

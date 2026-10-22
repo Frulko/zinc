@@ -39,8 +39,8 @@ class Chrome:
         os.write(self.w_in, json.dumps(m).encode() + b"\0"); return self.id
 
     def _recv(self, until_id, timeout):
-        end = time.time() + timeout
-        while time.time() < end:
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
             while b"\0" in self.buf:
                 raw, self.buf = self.buf.split(b"\0", 1); m = json.loads(raw)
                 if m.get("method") == "Runtime.consoleAPICalled": self.console.append(" ".join(str(a.get("value", a.get("description", ""))) for a in m["params"]["args"]))

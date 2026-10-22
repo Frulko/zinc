@@ -43,12 +43,12 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
     c.call("Emulation.setDeviceMetricsOverride", {"width": W, "height": H, "deviceScaleFactor": 1, "mobile": False})
     c.open("http://127.0.0.1:%d/" % srv.server_address[1])
     def pump(s):
-        t0 = time.time()
-        while time.time() - t0 < s: c._recv(-1, 0.1)
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < s: c._recv(-1, 0.1)
     def ev(js): return c.eval(js)
     def until(js, s):   # poll a condition up to s seconds x ZN_WAIT_SCALE; returns its last value
-        t0 = time.time()
-        while not (v := ev(js)) and time.time() - t0 < s * SCALE: pump(0.1)
+        t0 = time.monotonic()
+        while not (v := ev(js)) and time.monotonic() - t0 < s * SCALE: pump(0.1)
         return v
     def key(k, text=None, code=None, vk=None, mods=0):
         p = {"type": "keyDown", "key": k, "modifiers": mods}
@@ -181,8 +181,8 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         row5000 = "(() => { const e = [...document.querySelectorAll('li')].find(e => e.textContent.includes('Row number 5000')); const l = %s.getBoundingClientRect(); return e ? Math.round(e.getBoundingClientRect().top - l.top) : null; })()" % lst
         # the rows are built a frame or more after the scroll: wait for row 5000, then until its place holds for 0.3 s
         until(row5000 + " !== null", 5)
-        t0, last = time.time(), None
-        while time.time() - t0 < 5 * SCALE:
+        t0, last = time.monotonic(), None
+        while time.monotonic() - t0 < 5 * SCALE:
             pump(0.3)
             p = ev(row5000)
             if p is not None and p == last: break

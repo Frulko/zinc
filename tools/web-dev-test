@@ -31,13 +31,13 @@ import threading
 def pump():
     for line in dev.stderr: log.append(line.rstrip())
 threading.Thread(target=pump, daemon=True).start()
-t0 = time.time()
-while time.time() - t0 < 40 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 40 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
 if not any("http://127.0.0.1:%d" % port in l for l in log): fail("the dev server did not start")
 
 def wait_for(c, js, timeout=15):
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
         try:
             v = c.eval(js, 10)
         except Exception:

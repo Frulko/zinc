@@ -37,8 +37,8 @@ def fail(why):
     print(json.dumps({"steps": steps, "devlog": log[-12:]})); cleanup(); sys.exit(1)
 
 def wait_for(c, js, timeout=20):
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
         try: v = c.eval(js, 10)
         except Exception: v = None
         if v: return v
@@ -78,8 +78,8 @@ for k, v in want.items():
 s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
 dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
 threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
-t0 = time.time()
-while time.time() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
 if not any("http://127.0.0.1:%d" % port in l for l in log): fail("the dev server did not start")
 prebundles = lambda: sum("pre-bundled" in l for l in log)
 with Chrome(["--window-size=800,500"]) as c:

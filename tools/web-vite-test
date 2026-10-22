@@ -50,8 +50,8 @@ os.rmdir(os.path.join(proj, "pkgs"))
 vite = [shutil.which("node"), os.path.join(cache, "node_modules", "vite", "bin", "vite.js")]
 
 def wait_for(c, js, timeout=20):
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
         try: v = c.eval(js, 10)
         except Exception: v = None
         if v: return v
@@ -95,8 +95,8 @@ srv.shutdown(); srv = None
 s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
 dev = subprocess.Popen(vite + ["--port", str(port), "--strictPort", "--host", "127.0.0.1"], cwd=proj, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stdout], daemon=True).start()
-t0 = time.time()
-while time.time() - t0 < 60 and not any("127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 60 and not any("127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
 if not any("127.0.0.1:%d" % port in l for l in log): fail("the Vite dev server did not start")
 with Chrome(["--window-size=800,500"]) as c:
     c.open("http://127.0.0.1:%d/" % port)

@@ -44,8 +44,8 @@ def run(zinc, project, o):
             dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--render", o["render"], "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
             cleanup.append(lambda: (dev.terminate(), dev.wait(5)))
             threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
-            t0 = time.time()
-            while time.time() - t0 < 90 and not any("127.0.0.1:%d" % port in l for l in log): time.sleep(0.2)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 90 and not any("127.0.0.1:%d" % port in l for l in log): time.sleep(0.2)
             if not any("127.0.0.1:%d" % port in l for l in log): return {"fatal": "dev server did not start", "devlog": log[-8:]}
             url = "http://127.0.0.1:%d/" % port
         else:
@@ -62,8 +62,8 @@ def run(zinc, project, o):
         args = ["--window-size=%d,%d" % (w, h), "--force-device-scale-factor=%g" % dpr, "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--enable-unsafe-swiftshader", "--disable-background-timer-throttling"]
         with Chrome(args, headless=not o["headful"]) as c:
             def pump(t):
-                end = time.time() + t
-                while time.time() < end: c._recv(-1, 0.05)
+                end = time.monotonic() + t
+                while time.monotonic() < end: c._recv(-1, 0.05)
             def shot():
                 d = c.call("Page.captureScreenshot", {"format": "png"}).get("data", ""); return hashlib.md5(d.encode()).hexdigest(), d
             def mouse(ty, x, y):

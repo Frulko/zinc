@@ -15,8 +15,8 @@ try:
     time.sleep(0.5)
     with Chrome(["--window-size=1024,768"], chrome) as c:
         c.open("http://127.0.0.1:%d/index.html?frames=%d" % (port, max(frames, 1)))
-        deadline, png = time.time() + 60, None
-        while time.time() < deadline:
+        deadline, png = time.monotonic() + 60, None
+        while time.monotonic() < deadline:
             time.sleep(0.5)
             if key and c.eval("document.title") == "running": c.eval("dispatchEvent(new KeyboardEvent('keydown', {key: %r}))" % key); key = None
             v = c.eval("document.title + '|' + (document.getElementById('png') ? document.getElementById('png').textContent : '')") or ""

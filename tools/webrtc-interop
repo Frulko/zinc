@@ -73,15 +73,15 @@ def main():
     open(page, "w").write("<!doctype html><title>zinc:webrtc interop</title>")
     with Chrome(["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"]) as c:
         c.open("file://" + page)
-        end = time.time() + 10
-        while time.time() < end and c.eval("document.readyState") != "complete": time.sleep(0.1)
+        end = time.monotonic() + 10
+        while time.monotonic() < end and c.eval("document.readyState") != "complete": time.sleep(0.1)
         c.eval(PAGE)
         if "--verbose" in sys.argv: env["ZINC_WEBRTC_LOG"] = "1"
         z = subprocess.Popen([zinc, "run", os.path.join(HERE, "tests", "data", "webrtc_interop.ts")], env=env, stdout=subprocess.PIPE, stderr=open(os.path.join(d, "zinc.err"), "w"), text=True)
         try:
             def wait_file(name, secs):
-                end = time.time() + secs
-                while time.time() < end and not os.path.exists(os.path.join(d, name)): time.sleep(0.05)
+                end = time.monotonic() + secs
+                while time.monotonic() < end and not os.path.exists(os.path.join(d, name)): time.sleep(0.05)
                 return os.path.exists(os.path.join(d, name))
             if role == "offer":
                 if not wait_file("offer.json", 60): print("no offer from Zinc"); return False
@@ -97,8 +97,8 @@ def main():
                 time.sleep(0.1)
                 c.eval("window.answer(%s)" % json.dumps(open(os.path.join(d, "answer.json")).read()))
             r = {}
-            end = time.time() + 30
-            while time.time() < end:
+            end = time.monotonic() + 30
+            while time.monotonic() < end:
                 r = json.loads(c.eval("window.report()") or "{}")
                 if r.get("video", 0) >= 30 and r.get("audioPackets", 0) >= 50 and 400 < r.get("peakHz", 0) < 560 and os.path.exists(os.path.join(d, "zinc.done")): break
                 time.sleep(0.25)

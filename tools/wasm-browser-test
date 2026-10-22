@@ -29,8 +29,8 @@ import time
 png = None
 with Chrome(["--window-size=480,320"], chrome) as c:
     c.open(url)
-    deadline = time.time() + 60
-    while time.time() < deadline:
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
         time.sleep(0.5)
         v = c.eval("document.title + '|' + (document.getElementById('png') ? document.getElementById('png').textContent : '')") or ""
         if v.startswith("done|") and len(v) > 10: png = v[5:]; break

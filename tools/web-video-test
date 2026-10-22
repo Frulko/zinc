@@ -26,12 +26,12 @@ with Chrome(["--window-size=900,600", "--enable-unsafe-swiftshader", "--autoplay
     c.call("Emulation.setDeviceMetricsOverride", {"width": 900, "height": 600, "deviceScaleFactor": 1, "mobile": False})
     c.open("http://127.0.0.1:%d/" % srv.server_address[1])
     def pump(s):
-        t0 = time.time()
-        while time.time() - t0 < s: c._recv(-1, 0.1)
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < s: c._recv(-1, 0.1)
     def ev(js): return c.eval(js)
     def until(js, s):   # poll a condition up to s seconds x ZN_WAIT_SCALE; returns its last value
-        t0 = time.time()
-        while not (v := ev(js)) and time.time() - t0 < s * SCALE: pump(0.1)
+        t0 = time.monotonic()
+        while not (v := ev(js)) and time.monotonic() - t0 < s * SCALE: pump(0.1)
         return v
     def click_text(t):
         r = ev("(() => { const e = [...document.querySelectorAll('button')].find(b => b.textContent === %s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()" % json.dumps(t))

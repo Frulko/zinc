@@ -12,8 +12,8 @@ img = os.path.join(tempfile.mkdtemp(), "flash.bin"); open(img, "wb").write(flash
 p = subprocess.Popen([qemu, "-nographic", "-machine", "esp32", "-m", "4M", "-drive", "file=%s,if=mtd,format=raw" % img, "-global", "driver=timer.esp32.timg,property=wdt_disable,value=true",
                       "-serial", "stdio", "-monitor", "none"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 os.set_blocking(p.stdout.fileno(), False)
-buf, deadline, done = b"", time.time() + 60, None
-while time.time() < deadline and not done:
+buf, deadline, done = b"", time.monotonic() + 60, None
+while time.monotonic() < deadline and not done:
     time.sleep(0.2)
     buf += p.stdout.read() or b""
     done = re.search(rb"\x1eZN done (-?\d+) ", buf)

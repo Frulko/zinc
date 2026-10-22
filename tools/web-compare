@@ -42,8 +42,8 @@ def serve(d):
     return s
 
 def pump(c, secs):
-    t0 = time.time()
-    while time.time() - t0 < secs: c._recv(-1, 0.1)
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < secs: c._recv(-1, 0.1)
 
 def shot(c):
     return Image.open(io.BytesIO(base64.b64decode(c.call("Page.captureScreenshot", {"format": "png"}).get("data", "")))).convert("RGB")
