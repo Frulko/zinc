@@ -4,6 +4,9 @@
 # prints, and the lesson's page holds the sample's code word for word, so the page and the project cannot drift apart.
 # The styles page (docs/start/styles.md, ZN-774.14): the same program written in the four styles (drawing, scene, Canvas, interface) gets the
 # same clicks (tests/data/learn_samples/styles.input) and prints the same lines, and the page holds the four versions.
+# The page Beyond the components (docs/start/beyond.md, ZN-774.19): each of its samples (a Canvas with zinc:gfx and with zinc:canvas, style
+# objects, components of your own, animations, a scene inside an interface and an interface inside a scene) gets its clicks
+# (tests/data/learn_samples/<sample>.input), prints its lines, and the page holds its code.
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
@@ -88,7 +91,42 @@ for s in drawing scene canvas interface; do
   run "docs/start/samples/$s" docs/start/styles.md 90 "$PWD/tests/data/learn_samples/styles.input" 'hit: score 1, the ball is blue
 hit: score 2, the ball is gold'
 done
-[ "$(ls -d docs/start/samples/*/ | wc -l | tr -d ' ')" = 4 ] || { echo "learn_samples: a sample of docs/start/samples is not checked here"; fail=1; }
 
-[ $fail = 0 ] && echo "learn_samples: ok ($n lessons, 4 styles)"
+beyond() {   # beyond <sample> <frames> <expected output>: a sample of docs/start/beyond.md
+  b=$((b + 1))
+  run "docs/start/samples/$1" docs/start/beyond.md "$2" "$PWD/tests/data/learn_samples/$1.input" "$3"
+}
+b=0
+beyond chart-gfx 14 '4 days, 4 mm today
+5 days, 7 mm today'
+beyond chart-canvas 14 '4 days, 4 mm today
+5 days, 7 mm today'
+beyond style-objects 18 'battery 40%
+battery 20%
+battery 40%'
+beyond own-components 24 'pancakes: 3 eggs
+pancakes: 4 eggs
+pancakes: 0 cups of milk
+lemonade: 2 lemons'
+beyond animation 150 'the light is on
+ring!
+the bell is still again'
+# a click on the button beside the Canvas adds a fish, clicks on fish feed them (Stage.drawIn, Stage.update)
+beyond scene-in-interface 22 '1 fish in the tank
+2 fish in the tank
+3 fish in the tank
+fed the pink fish, it is 70 pixels long
+fed the gold fish, it is 70 pixels long'
+# a tap pops a balloon, the sign is dragged by its bar, and its button, over a balloon, adds one and pops none
+beyond interface-in-scene 36 'a new balloon, 1 in the sky
+a new balloon, 2 in the sky
+a new balloon, 3 in the sky
+a new balloon, 4 in the sky
+a new balloon, 5 in the sky
+pop! 4 balloons left
+a new balloon, 5 in the sky'
+
+[ "$(ls -d docs/start/samples/*/ | wc -l | tr -d ' ')" = $((4 + b)) ] || { echo "learn_samples: a sample of docs/start/samples is not checked here"; fail=1; }
+
+[ $fail = 0 ] && echo "learn_samples: ok ($n lessons, 4 styles, $b samples of the page Beyond the components)"
 exit $fail

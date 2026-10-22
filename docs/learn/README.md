@@ -92,7 +92,9 @@ and 4 each start from part 1, so after part 1 take the one you like.
 | Changes | you draw the new picture | you change a value, the screen follows | you move an object, the stage draws | you draw the new picture |
 
 They mix: lesson 11 draws with `zinc:gfx` inside an interface. [Four ways to write a program](../start/styles.md) shows the same
-small program written in each, side by side, and how they go together.
+small program written in each, side by side, and how they go together. [Beyond the components](../start/beyond.md) puts a scene
+inside an interface and an interface inside a scene, and goes past the ready-made elements: charts, styles as objects, components of
+your own, animations.
 
 ## Words you will meet
 
@@ -119,6 +121,7 @@ small program written in each, side by side, and how they go together.
 - [zinc:canvas](../plugins/canvas2d.md): every function of part 4, and the few differences from the web.
 - [UI apps](../guide/03-ui-apps.md) and [zinc:ui in depth](../ui.md): scrolling, text fields, animations, layers.
 - [The UI kit](../ui-kit.md): ready-made buttons, dialogs, menus and tabs.
+- [Beyond the components](../start/beyond.md): what to do when the ready-made elements are not enough.
 - [Sound](../plugins/audio.md): every function of `zinc:audio`.
 - The examples of Zinc Atelier (*File > Examples…*) and `zinc new game-2d`, a small complete game to read and change;
   `zinc new stage` and `zinc new canvas` start a project in the style of part 3 or part 4.

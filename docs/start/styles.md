@@ -338,8 +338,15 @@ choice for a desktop, a Raspberry Pi 4 or a phone of the last five years; on an 
   gives the context its box, and what you draw after `ctx.end()` goes on top.
 - **Drawing and Canvas inside a scene.** A sprite's `onDraw` draws with `zinc:gfx` in its own coordinates; a canvas context works there
   too: `ctx.begin(0, 0, w, h)` draws in the sprite's coordinates and moves with it.
-- **A stage is the whole window**, and so is an interface's `render`: a program picks one of the two for its screen. Drawing and Canvas
-  go inside either.
+- **A scene inside an interface.** `<Canvas onDraw={(x, y, w, h) => stage.drawIn(x, y, w, h)} />` draws a stage in a box of the
+  interface, and `stage.update(dt)` in the third argument of `render` moves it and gives it its taps. A tap on a sprite goes to the
+  sprite, a click on a button to the button.
+- **An interface inside a scene.** A Canvas that fills the window draws the scene, and elements of the interface are placed over a
+  sprite (`absolute`, at the sprite's `x` and `y`); the sprite registers a tap zone under them, so the scene behind does not take
+  their clicks.
+
+Both are worked through, with the code, in [Beyond the components](beyond.md), which also shows charts you draw yourself, styles as
+objects, components of your own, animations and transitions.
 
 Not sure? Start with the drawing style and [the lessons](../learn/README.md): every other style uses what it teaches. To choose what
 kind of program to make (a game, an app, a server, a board), see [Choose your kind of program](choose.md).

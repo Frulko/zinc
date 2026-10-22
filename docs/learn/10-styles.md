@@ -116,7 +116,8 @@ A word with a prefix applies only in a state: `hover:bg-slate-50` while the poin
 - Put the cards one under the other: change `flex-row` to `flex-col`.
 - Round the cards completely with `rounded-3xl`, or square them with `rounded-none`.
 - Write a style that `className` cannot say, as an object: `style={{ opacity: 0.8 }}` (lesson 8 used
-  `style={{ width: ... }}`). [zinc:ui in depth](../ui.md#object-styles-and-stylesheet) lists the style keys.
+  `style={{ width: ... }}`). [zinc:ui in depth](../ui.md#object-styles-and-stylesheet) lists the style keys, and
+  [Styles as objects](../start/beyond.md#styles-as-objects) writes a whole screen with them, as React Native does.
 
 ## Next
 

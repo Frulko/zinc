@@ -175,4 +175,6 @@ That is enough for most apps on an old tablet.
 - `zinc new stage` makes a small app to grow from: a title, colour buttons and a sticker you drag.
 - [`examples/music-tree`](../../examples/music-tree/src/main.ts) in the repository: a whole music player written this way, fast on
   a 2011 tablet.
+- [A scene inside an interface](../start/beyond.md#a-scene-inside-an-interface), and an interface inside a scene: sprites beside
+  buttons, buttons on a sprite.
 - [Four ways to write a program](../start/styles.md), or part 4: [17. Paths and fills](17-paths-and-fills.md), the canvas of the web.

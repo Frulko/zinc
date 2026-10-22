@@ -1,0 +1,5 @@
+{
+  "name": "chart-canvas",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.start.chart-canvas", "window": { "width": 640, "height": 400 } }
+}

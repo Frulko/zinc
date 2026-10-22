@@ -108,6 +108,9 @@ too.)
   centre in two variables. `e.x`, `e.y` are inside the Canvas, so add `x`, `y` when you draw.
 - Draw a bar chart instead: one `rect` per value of a list, as tall as the value.
 
+[Beyond the components](../start/beyond.md) goes further with a Canvas: a bar chart with `zinc:gfx`, the same chart as a smooth
+curve with the web's canvas, and a whole scene of sprites inside an interface.
+
 ## Next
 
 [12. A small complete app](12-a-small-app.md): everything together.

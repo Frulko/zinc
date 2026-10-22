@@ -1,0 +1,5 @@
+{
+  "name": "animation",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.start.animation", "window": { "width": 640, "height": 400 } }
+}

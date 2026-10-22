@@ -150,6 +150,8 @@ sound, and how to build an interface that follows its state. From here:
   lessons used, and the rest.
 - [UI apps](../guide/03-ui-apps.md) and [zinc:ui in depth](../ui.md): scrolling, text fields, animations, layers,
   windows.
+- [Beyond the components](../start/beyond.md): charts you draw yourself, styles as objects, components of your own,
+  animations and transitions, and a scene mixed with an interface.
 - `zinc new desktop-app` makes a bigger app with pages, a menu and settings; `zinc new game-2d` a small complete game.
   Read their code: you now know every part of it.
 - [Back to the start of the track](README.md).

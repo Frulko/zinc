@@ -1,0 +1,5 @@
+{
+  "name": "interface-in-scene",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.start.interface-in-scene", "window": { "width": 640, "height": 400 } }
+}

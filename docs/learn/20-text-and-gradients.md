@@ -147,5 +147,7 @@ You can draw with the canvas of the web: paths, fills and outlines, transforms, 
 - `zinc new canvas` makes a sketch to grow from: a gradient sky, a turning star, bubbles where you click.
 - [`examples/canvas/sketch`](../../examples/canvas/sketch/main.tsx) in the repository: a clock, fireworks and shapes drawn in
   canvases inside an interface.
+- [Draw it with the web's canvas](../start/beyond.md#draw-it-with-the-webs-canvas): a chart drawn with these calls in a box of an
+  interface, beside its buttons.
 - [Four ways to write a program](../start/styles.md): how the canvas mixes with the other styles. [Back to the start of the
   track](README.md).

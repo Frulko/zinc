@@ -1,0 +1,5 @@
+{
+  "name": "style-objects",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.start.style-objects", "window": { "width": 640, "height": 400 } }
+}

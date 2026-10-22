@@ -1,0 +1,5 @@
+{
+  "name": "chart-gfx",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.start.chart-gfx", "window": { "width": 640, "height": 400 } }
+}
