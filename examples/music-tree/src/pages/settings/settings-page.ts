@@ -22,7 +22,7 @@ import {
   PAGE_SETTINGS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
+import { DisplayObject } from 'zinc:stage';
 import { drawPageHeader } from '../../components/primitives';
 import {
   CardBox,

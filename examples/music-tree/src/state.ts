@@ -24,7 +24,7 @@ import {
   REMOTE_UDP_PORT,
   SIDEBAR_WIDTH_DEFAULT,
 } from './constants';
-import { ScrollBox, uiState } from './core/input';
+import { ScrollBox, uiState } from 'zinc:stage';
 import { ScreenPowerManager } from './core/screen-power';
 import { AppConfig, loadAppConfig, saveAppConfig } from './services/config';
 import {

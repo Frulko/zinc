@@ -11,7 +11,7 @@ import { Login, sharedLoginFile } from 'zinc:spotify';
 import { openUrl } from 'zinc:system/opener';
 import { exists } from 'zinc:fs';
 import { platform } from 'zinc:sys';
-import { uiState } from '../core/input';
+import { uiState } from 'zinc:stage';
 import { SPOTIFY_CLIENT_ID } from '../spotify-client';
 import {
   appState,

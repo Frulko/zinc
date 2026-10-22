@@ -20,8 +20,7 @@ import {
   PAGE_PADDING,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import { registerTapZone, isZonePressed } from '../../core/input';
+import { DisplayObject, registerTapZone, isZonePressed } from 'zinc:stage';
 import {
   drawCardShadow,
   drawCenteredText,

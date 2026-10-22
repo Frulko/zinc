@@ -4,7 +4,7 @@
 
 import { rrect, shadow, stroke } from 'zinc:gfx';
 import { COLOR_TEXT_SECONDARY } from '../constants';
-import { registerDragZone, isZonePressed, isLocalRectVisible, uiState } from '../core/input';
+import { registerDragZone, isZonePressed, isLocalRectVisible, uiState } from 'zinc:stage';
 
 /**
  * Draws a horizontal slider whose value is between `0` and `1`.

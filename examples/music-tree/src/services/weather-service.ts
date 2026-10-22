@@ -8,7 +8,7 @@
 
 import { env } from 'zinc:sys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { uiState } from '../core/input';
+import { uiState } from 'zinc:stage';
 
 /**
  * Complete weather data for the chosen city.

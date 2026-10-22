@@ -5,13 +5,14 @@ The bar every demo of `examples/` meets, new or changed. The reference is `examp
 ## Choose the UI model
 
 - **`zinc:ui` (JSX, Yoga)** for a demo that runs on a desktop, a Pi 4 or a phone of the last five years.
-- **A display tree on `zinc:gfx`** (music-tree's `core/display.ts`) for old devices (HP TouchPad, Nexus 7, Pi 3) where a frame must cost
-  only what it draws. It is the middle ground: AS3-style objects (`addChild`, local coordinates, `onAddedToStage`/`onRemovedFromStage`,
-  `onUpdate`, `onMeasure`, `onDraw`) and a minimal row/column layout, no CSS, no reconciler.
+- **A display tree on `zinc:gfx`**: `zinc:stage` ([reference](../docs/reference/stage.md), promoted from music-tree), for old devices
+  (HP TouchPad, Nexus 7, Pi 3) where a frame must cost only what it draws. It is the middle ground: AS3-style objects (`addChild`, local
+  coordinates, `onAddedToStage`/`onRemovedFromStage`, `onUpdate`, `onMeasure`, `onDraw`) and a minimal row/column layout, no CSS, no
+  reconciler.
 - **`zinc:lvgl` (LVGL 9 in C)** for a microcontroller without PSRAM (the ESP32 boards under `--engine mquickjs`): LVGL holds the widgets,
   the layout and the drawing, the program sets values and reads events (`examples/esp32-widgets`, decision D156).
-- Never another model: no ad-hoc immediate-mode `main.ts` of 1,500 lines, no new layout engine. Copy `core/` from the reference; when a
-  second demo uses it, promote it to one shared module instead of keeping copies.
+- Never another model: no ad-hoc immediate-mode `main.ts` of 1,500 lines, no new layout engine, no copy of the tree: import `zinc:stage`.
+  A piece of `core/` that a second demo needs is promoted to a shared module, not copied.
 
 ## Layout of a project
 
@@ -21,7 +22,7 @@ src/
 ├── constants.ts     # colours, sizes, ports, ids, limits: every literal used twice
 ├── fonts.ts         # named fonts
 ├── state.ts         # the app's state and its actions (what a page calls); no drawing, no side effect at import
-├── core/            # display tree, input (touch zones, scroll), pictures cache, screen power
+├── core/            # what the app adds to zinc:stage: pictures cache, screen power
 ├── services/        # one file per outside thing: config, network APIs, sockets, files
 ├── components/      # reusable nodes (buttons, slider, keyboard, sidebar, overlays)
 └── pages/<page>/    # one node per page or slide
@@ -40,7 +41,8 @@ src/
 - **Build the tree once.** `onMeasure` updates values in place (text, visibility, sizes); it never calls `addChild`/`removeChild`.
   A list whose shape changes is rebuilt only when its signature changes (ids joined), or uses a pool of rows.
 - **No allocation in `onDraw`/`onUpdate`/layout**: no `new`, array or closure literals, string concatenation per row. Touch zones are
-  reused, not recreated. Do not claim "zero allocation" in the README without checking it.
+  reused, not recreated (`zinc:stage` keeps them from frame to frame; a pointer router of the app's own copies the zone it pressed with
+  `copyFrom`). Do not claim "zero allocation" in the README without checking it.
 - **Offscreen drawing at identity**: `resetTransform()` before `beginImage`, restore after.
 - **Touch zones are clipped** to the scroll viewport that holds them; a zone under a header takes no tap.
 - **Spinners and animations only when visible**; an animation that ends stops the redraws.

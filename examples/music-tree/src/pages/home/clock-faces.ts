@@ -30,7 +30,7 @@ import {
   RING_COLORS,
 } from '../../constants';
 import { FONT_ODOMETER_DIGIT, Fonts } from '../../fonts';
-import { uiState } from '../../core/input';
+import { uiState } from 'zinc:stage';
 import { drawCenteredText } from '../../components/primitives';
 
 /**

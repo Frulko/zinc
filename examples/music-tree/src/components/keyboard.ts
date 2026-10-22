@@ -14,8 +14,7 @@ import {
   KEYBOARD_HEIGHT,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { registerTapZone, isZonePressed } from '../core/input';
+import { DisplayObject, registerTapZone, isZonePressed } from 'zinc:stage';
 import { drawCenteredText, drawGlyph } from './primitives';
 import { appState, handleTypedKeyboardKey } from '../state';
 

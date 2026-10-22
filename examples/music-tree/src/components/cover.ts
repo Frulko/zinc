@@ -12,7 +12,7 @@ import {
   COVER_TINT_COLORS,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { registerTapZone, isZonePressed } from '../core/input';
+import { registerTapZone, isZonePressed } from 'zinc:stage';
 import { getPicture, getPictureFadeAlpha, drawPictureContained, isPictureOnItsWay } from '../core/pictures';
 import { drawCenteredText, drawGlyph, drawLabel } from './primitives';
 import { drawActivitySpinner } from './slider';

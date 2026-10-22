@@ -12,7 +12,7 @@
 
 import { System, Group, serviceId, accountOf, playSpotify as playSpotifyOnSonos, queueSpotify } from 'zinc:sonos';
 import { Item, Playback } from 'zinc:spotify';
-import { uiState } from '../core/input';
+import { uiState } from 'zinc:stage';
 import { saveAppConfig } from './config';
 import {
   appState,

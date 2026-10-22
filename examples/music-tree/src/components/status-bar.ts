@@ -22,8 +22,7 @@ import {
   WEEKDAYS_SHORT,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { registerTapZone, uiState } from '../core/input';
+import { DisplayObject, registerTapZone, uiState } from 'zinc:stage';
 import {
   drawGlyph,
   drawLabel,

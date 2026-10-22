@@ -13,7 +13,7 @@ import {
   RING_COLORS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
+import { DisplayObject } from 'zinc:stage';
 import { drawCenteredText, drawLabel } from '../../components/primitives';
 import { drawSlider } from '../../components/slider';
 import { drawRingArc } from './clock-faces';

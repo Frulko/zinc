@@ -7,7 +7,9 @@ zinc run examples/music-tree             # on the Mac (1024x768)
 zinc check examples/music-tree           # strict type check by the Zinc compiler
 ```
 
-## The display tree (`core/display.ts` and `components/layout-nodes.ts`)
+## The display tree (`zinc:stage` and `components/layout-nodes.ts`)
+
+The tree and its input are the standard module `zinc:stage` ([reference](../../docs/reference/stage.md)), promoted from this demo's `core/`.
 
 1. **Object-oriented hierarchy (`DisplayObject` and `Stage`)**:
    - Every page, slide, bar or card is a `DisplayObject` assembled with `addChild(child)` and `removeChild(child)`.
@@ -33,8 +35,6 @@ src/
 ├── state.ts                         # The app's central state (ApplicationState) and its actions
 ├── spotify-client.ts                # Spotify app id built into the build (empty in the repository)
 ├── core/
-│   ├── display.ts                   # DisplayObject, Stage and the light Flexbox layout (row/column)
-│   ├── input.ts                     # Touch zones (TouchZone), drag and inertial scrolling (ScrollBox)
 │   ├── pictures.ts                  # LRU picture cache, progressive decoding (1 picture per frame) and blurred background
 │   └── screen-power.ts              # Sleep, webOS backlight, StandBy glance and fade to black
 ├── services/

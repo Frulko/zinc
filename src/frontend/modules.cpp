@@ -1473,7 +1473,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
-    {"zinc:path", "path.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:system", "system/index.ts", {}},
+    {"zinc:path", "path.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
     {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},

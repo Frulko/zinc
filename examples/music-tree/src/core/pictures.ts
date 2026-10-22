@@ -30,7 +30,7 @@ import {
   MAX_PICTURE_DIMENSION,
   PICTURE_FADE_DURATION_MS,
 } from '../constants';
-import { uiState } from './input';
+import { uiState } from 'zinc:stage';
 
 /** Maps each URL to its GPU picture id (`-1` on a load error). */
 const cachedPicturesByUrl = new Map<string, i32>();

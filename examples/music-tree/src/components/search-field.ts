@@ -11,7 +11,7 @@ import {
   COLOR_TEXT_TERTIARY,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { registerTapZone } from '../core/input';
+import { registerTapZone } from 'zinc:stage';
 import { drawGlyph, drawLabel } from './primitives';
 import { drawIconButton } from './buttons';
 

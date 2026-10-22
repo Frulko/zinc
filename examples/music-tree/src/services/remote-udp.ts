@@ -8,7 +8,7 @@
 import { udp } from 'zinc:socket';
 import { utf8Decode } from 'zinc:sys';
 import { REMOTE_UDP_PORT } from '../constants';
-import { uiState } from '../core/input';
+import { uiState } from 'zinc:stage';
 import {
   appState,
   togglePlayPause,

@@ -11,7 +11,7 @@ import {
   COLOR_TEXT_SECONDARY,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { registerTapZone, isZonePressed } from '../core/input';
+import { registerTapZone, isZonePressed } from 'zinc:stage';
 import { drawGlyph, drawCenteredText } from './primitives';
 
 /**

@@ -93,6 +93,7 @@ They mix: lesson 11 draws with `zinc:gfx` inside an interface.
 
 - [zinc:gfx reference](../reference/gfx.md): every drawing and input function, grouped.
 - [zinc:ui events](../reference/ui-events.md): every event of the interface, what it gives you, when it fires.
+- [zinc:stage reference](../reference/stage.md): a scene of objects as ActionScript 3 and Haxe write it, light enough for old tablets.
 - [UI apps](../guide/03-ui-apps.md) and [zinc:ui in depth](../ui.md): scrolling, text fields, animations, layers.
 - [The UI kit](../ui-kit.md): ready-made buttons, dialogs, menus and tabs.
 - [Sound](../plugins/audio.md): every function of `zinc:audio`.

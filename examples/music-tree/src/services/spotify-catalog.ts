@@ -10,7 +10,7 @@
 
 import { Item, Found } from 'zinc:spotify';
 import { SPOTIFY_PAGE_SIZE } from '../constants';
-import { uiState } from '../core/input';
+import { uiState } from 'zinc:stage';
 import { appState, explainSpotifyError } from '../state';
 
 /** The library's lists: playlists, albums, liked songs, recent plays. */

@@ -18,8 +18,15 @@ import {
   PAGE_SPOTIFY,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import { ScrollBox, beginScrollBox, endScrollBox, isZonePressed, registerTapZone, uiState } from '../../core/input';
+import {
+  DisplayObject,
+  ScrollBox,
+  beginScrollBox,
+  endScrollBox,
+  isZonePressed,
+  registerTapZone,
+  uiState,
+} from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,

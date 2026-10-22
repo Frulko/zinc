@@ -18,8 +18,7 @@ import {
   PAGE_ROOMS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import { isZonePressed, registerTapZone } from '../../core/input';
+import { DisplayObject, isZonePressed, registerTapZone } from 'zinc:stage';
 import { drawGlyph } from '../../components/primitives';
 import {
   CardBox,

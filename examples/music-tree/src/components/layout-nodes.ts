@@ -20,8 +20,7 @@ import {
   COLOR_TEXT_PRIMARY,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { ScrollBox, beginScrollBox, endScrollBox, uiState } from '../core/input';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, uiState } from 'zinc:stage';
 import { drawGlyph, drawLabel, drawSeparatorLine } from './primitives';
 import { drawIconButton, drawPillButton, drawSegmentedControl } from './buttons';
 import { drawSearchField } from './search-field';

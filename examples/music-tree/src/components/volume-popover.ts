@@ -14,8 +14,7 @@ import {
   COLOR_TEXT_SECONDARY,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { registerTapZone } from '../core/input';
+import { DisplayObject, registerTapZone } from 'zinc:stage';
 import {
   CardBox,
   HBox,

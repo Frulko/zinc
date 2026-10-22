@@ -38,6 +38,9 @@
       "zinc:signals": [
         "../../lib/std/signals.ts"
       ],
+      "zinc:stage": [
+        "../../lib/std/stage.ts"
+      ],
       "zinc:__layout": [
         "../../lib/compat/proto-layout.ts"
       ],

@@ -8,7 +8,7 @@ import {
   WEEKDAYS_CAPITALIZED,
 } from '../../constants';
 import { FONT_WEATHER_TEMP, Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
+import { DisplayObject } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,

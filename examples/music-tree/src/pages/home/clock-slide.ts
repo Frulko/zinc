@@ -25,8 +25,7 @@ import {
   WEEKDAYS_LONG,
 } from '../../constants';
 import { FONT_CLOCK_HUGE, Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import { registerTapZone, isZonePressed, uiState } from '../../core/input';
+import { DisplayObject, registerTapZone, isZonePressed, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
   drawLabel,

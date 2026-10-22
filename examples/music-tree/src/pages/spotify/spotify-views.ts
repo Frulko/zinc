@@ -25,8 +25,7 @@ import {
   COLOR_TEXT_TERTIARY,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import { endScrollBox, isZonePressed, registerTapZone, uiState } from '../../core/input';
+import { DisplayObject, endScrollBox, isZonePressed, registerTapZone, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
   drawLabel,

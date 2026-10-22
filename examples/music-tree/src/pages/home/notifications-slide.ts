@@ -18,13 +18,7 @@ import {
   COLOR_TEXT_TERTIARY,
 } from '../../constants';
 import { FONT_PAIRING_CODE, Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import {
-  beginScrollBox,
-  endScrollBox,
-  registerDragZone,
-  uiState,
-} from '../../core/input';
+import { DisplayObject, beginScrollBox, endScrollBox, registerDragZone, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,

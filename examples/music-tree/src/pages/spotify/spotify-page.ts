@@ -17,7 +17,7 @@ import {
   PAGE_PADDING,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
+import { DisplayObject } from 'zinc:stage';
 import { VirtualKeyboardNode } from '../../components/keyboard';
 import {
   CardBox,

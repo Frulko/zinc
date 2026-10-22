@@ -23,7 +23,7 @@ import {
   FONT_STANDBY_NAME,
   Fonts,
 } from '../fonts';
-import { uiState, ScrollBox } from '../core/input';
+import { uiState, ScrollBox } from 'zinc:stage';
 import { getPicture } from '../core/pictures';
 import { drawCenteredText, drawGlyph } from '../components/primitives';
 import { countEmojiPlaceholders, stripEmojiPlaceholders } from '../components/emoji-text';

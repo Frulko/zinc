@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Atelier's start view says what Zinc is, links to the lessons, groups the examples by level (a 3D example is new) and offers templates: File > New Project from Template… makes a project of `zinc new` without a terminal.
 - Atelier's Help menu opens the lessons (Learn), the getting started guide, the kinds of programs, the syntax, the examples and the error codes; a click on an error code in the console shows what it means; the header buttons and the engines say what they do.
 - Atelier's first launch asks for the language, then a short tour shows the start view, the code, Run, the console, a mistake and its fix, completion, the palette, where the sketch runs and the templates; Skip (or Escape) ends it, Help > Tour of Atelier replays it.
+- `zinc:stage`: build a program as a scene of objects, as in ActionScript 3 or Haxe/OpenFL (`Stage`, `Sprite`, `addChild`, `onAddedToStage`, `onUpdate`, `onDraw`, `numChildren`, `mouseX`...), with a light row/column layout, tap and drag zones and scroll boxes; `stage.frame(dt)` draws only when something changed, which keeps old tablets fast. See `docs/reference/stage.md`.
 
 ### Fixed
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".

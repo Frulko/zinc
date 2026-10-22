@@ -14,13 +14,7 @@ import {
   PAGE_SETTINGS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import {
-  beginScrollBox,
-  endScrollBox,
-  isZonePressed,
-  registerTapZone,
-} from '../../core/input';
+import { DisplayObject, beginScrollBox, endScrollBox, isZonePressed, registerTapZone } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,

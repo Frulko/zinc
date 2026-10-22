@@ -19,13 +19,7 @@ import {
   PAGE_RADIOS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from '../../core/display';
-import {
-  ScrollBox,
-  beginScrollBox,
-  endScrollBox,
-  registerTapZone,
-} from '../../core/input';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, registerTapZone } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,

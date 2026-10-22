@@ -1,0 +1,26 @@
+added column
+added header
+added body
+added a
+added b
+added footer
+layout header 10 10 180 20 | body 10 35 180 35 | a 10 48 30 10 | b 44 43 146 20 | footer 10 75 180 15
+hit a body b footer none
+as3 3 footer 1 true false true true
+mouse 5 2
+pressed a
+tap a
+moved pressed=''
+drag footer 10 5 0
+drag footer 20 7 1
+drag footer 20 7 2
+removed a
+removed b
+removed body
+added body
+added a
+added b
+order header body footer
+scroll row none none
+scrolled 30
+draws 2 2 2

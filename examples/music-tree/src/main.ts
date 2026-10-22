@@ -69,8 +69,9 @@ import {
   SLIDE_WEATHER,
   STATUS_BAR_HEIGHT,
 } from './constants';
-import { DisplayObject, Stage } from './core/display';
 import {
+  DisplayObject,
+  Stage,
   ScrollBox,
   TouchZone,
   clearTouchZones,
@@ -79,7 +80,7 @@ import {
   scrollBoxUnderPointerByWheel,
   takeTouchZones,
   uiState,
-} from './core/input';
+} from 'zinc:stage';
 import {
   decodeNextPicture,
   getPictureDecodeStats,
@@ -274,8 +275,11 @@ let previousPointerX = 0;
 let previousPointerY = 0;
 let initialScrollOffsetY = 0;
 
+// The zone pressed, copied at the press: the drawn frames reuse their zones (zinc:stage), the gesture keeps its own
 let activeDragZone: TouchZone | null = null;
 let activeTapZone: TouchZone | null = null;
+const pressedDragZone = new TouchZone();
+const pressedTapZone = new TouchZone();
 let activeScrollingBox: ScrollBox | null = null;
 
 let isCarouselSwipeAllowed = false;
@@ -418,7 +422,7 @@ function processUserInput(deltaSeconds: number): void {
       const hitInteractiveZone = findTopmostZoneAt(currentX, currentY, true);
       activeDragZone =
         hitInteractiveZone !== null && (hitInteractiveZone as TouchZone).onDragCallback !== null
-          ? hitInteractiveZone
+          ? pressedDragZone.copyFrom(hitInteractiveZone as TouchZone)
           : null;
 
       isCarouselSwipeAllowed =
@@ -436,7 +440,10 @@ function processUserInput(deltaSeconds: number): void {
       clockFaceSwipeInitialY = appState.animatedClockFaceY;
       clockFaceSwipeVelocity = 0;
 
-      activeTapZone = activeDragZone === null ? hitInteractiveZone : null;
+      activeTapZone =
+        activeDragZone === null && hitInteractiveZone !== null
+          ? pressedTapZone.copyFrom(hitInteractiveZone as TouchZone)
+          : null;
       uiState.pressedZoneId =
         hitInteractiveZone !== null ? (hitInteractiveZone as TouchZone).id : '';
 
@@ -449,12 +456,7 @@ function processUserInput(deltaSeconds: number): void {
       }
 
       if (activeDragZone !== null) {
-        const dragCallback = (activeDragZone as TouchZone).onDragCallback as (
-          x: number,
-          y: number,
-          phase: i32
-        ) => void;
-        dragCallback(currentX, currentY, 0);
+        (activeDragZone as TouchZone).drag(currentX, currentY, 0);
       }
     }
     uiState.dirty = true;
@@ -469,22 +471,12 @@ function processUserInput(deltaSeconds: number): void {
         currentY - pointerDownStartY
       )
     ) {
-      const dragCallback = (activeDragZone as TouchZone).onDragCallback as (
-        x: number,
-        y: number,
-        phase: i32
-      ) => void;
-      dragCallback(currentX, currentY, 3);
+      (activeDragZone as TouchZone).drag(currentX, currentY, 3);
       activeDragZone = null;
     }
 
     if (activeDragZone !== null) {
-      const dragCallback = (activeDragZone as TouchZone).onDragCallback as (
-        x: number,
-        y: number,
-        phase: i32
-      ) => void;
-      dragCallback(currentX, currentY, 1);
+      (activeDragZone as TouchZone).drag(currentX, currentY, 1);
       uiState.dirty = true;
     } else {
       const deltaFromStartX = currentX - pointerDownStartX;
@@ -602,12 +594,7 @@ function processUserInput(deltaSeconds: number): void {
       isDraggingClockFaceVertically = false;
       saveCarouselAndClockPreferences();
     } else if (activeDragZone !== null) {
-      const dragCallback = (activeDragZone as TouchZone).onDragCallback as (
-        x: number,
-        y: number,
-        phase: i32
-      ) => void;
-      dragCallback(currentX, currentY, 2);
+      (activeDragZone as TouchZone).drag(currentX, currentY, 2);
     } else if (
       !hasPointerMovedBeyondThreshold &&
       activeTapZone !== null &&

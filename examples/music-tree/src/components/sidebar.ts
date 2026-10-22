@@ -19,8 +19,7 @@ import {
   PAGE_NOW_PLAYING,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { registerTapZone, isZonePressed, uiState } from '../core/input';
+import { DisplayObject, registerTapZone, isZonePressed, uiState } from 'zinc:stage';
 import { drawGlyph, drawLabel, drawTransportIcon } from './primitives';
 import { drawCoverArt } from './cover';
 import {

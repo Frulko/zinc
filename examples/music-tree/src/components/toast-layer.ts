@@ -5,8 +5,7 @@
 import { rrect, textWidth } from 'zinc:gfx';
 import { COLOR_FILL, COLOR_TEXT_PRIMARY } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject } from '../core/display';
-import { uiState } from '../core/input';
+import { DisplayObject, uiState } from 'zinc:stage';
 import { drawCardShadow, drawLabel } from './primitives';
 import { appState } from '../state';
 

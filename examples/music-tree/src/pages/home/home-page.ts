@@ -16,7 +16,7 @@
 import { rrect, gradient } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
 import { SLIDE_COUNT, STATUS_BAR_HEIGHT } from '../../constants';
-import { DisplayObject } from '../../core/display';
+import { DisplayObject } from 'zinc:stage';
 import { drawBlurredBackdrop } from '../../core/pictures';
 import { appState, getGroupArtworkUrl } from '../../state';
 import { PlayerSlideNode } from './player-slide';
