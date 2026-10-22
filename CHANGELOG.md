@@ -16,6 +16,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Changed
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.
 - A misspelt command suggests the closest one (`zinc hlep`: did you mean `zinc help`?).
+- `zinc doctor` starts by saying whether this machine is ready, and exits 1 when it is not. The console SDK, iPhone 4S and Rust rows moved to `zinc doctor --details`, and plugins without a ready library now say they are built the first time a program uses them.
+- `zinc run` says when it builds a plugin for the first time (once, 5 to 20 s). `zinc check` prints `ok` and what it checked. `zinc dev` starts by naming the file to change and saying that Ctrl+C stops.
 
 ## [0.6.2] - 2026-10-22
 

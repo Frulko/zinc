@@ -423,6 +423,11 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
   return diags.empty();
 }
 
+// One of the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files.
+static bool engineFile(const std::string& p) {
+  return p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos || p.find("/plugins/") != std::string::npos;
+}
+
 // Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
 static bool gDeviceCore = false;  // the program goes to a device core (ESP32): the optimizer only writes runtime calls that every core release has
 static std::vector<std::string> gSources;  // the texts of the files of the last program compiled: they decide which fonts and images are baked
@@ -495,7 +500,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     gSources.push_back(f.text);
     const std::string& p = f.path;
     if (!p.empty() && p[0] != '<' && p.rfind("zinc:", 0) != 0) gSourcePaths.push_back(p);   // the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files
-    gSourceIsLib.push_back(p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos || p.find("/plugins/") != std::string::npos);
+    gSourceIsLib.push_back(engineFile(p));
   }
   std::vector<zn::frontend::Diag> diags;
   {
@@ -2831,6 +2836,11 @@ int main(int argc, char** argv) {
     zn::frontend::Checked checked;
     if (!loadChecked(argv[3], prog, checked)) return 1;
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
+    else {   // say what was checked (ZN-774.03): the entry and the files of the program it imports
+      int files = 0;
+      for (const auto& f : prog.files) files += !engineFile(f.path);
+      std::printf("%s\n", zn::i18n::trn("cli.check.ok", files, {{"entry", zn::log::shortPath(std::filesystem::absolute(argv[3]).string())}}).c_str());
+    }
     return 0;
   }
   if (argc == 2 && !std::strcmp(argv[1], "update-keygen")) {   // zinc update-keygen: a new Ed25519 key pair for signing releases (seed secret, public key for ~/.zinc/update-keys or the build)

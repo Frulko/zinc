@@ -1,5 +1,6 @@
 ﻿#include "tc/plugin_build.h"
 #include "tc/policy.h"
+#include "i18n/i18n.h"
 #include "zn/log.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
@@ -557,7 +558,10 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
                             " -ffile-prefix-map=" + q(root) + "=zinc -ffile-prefix-map=" + q(home() + "/toolchains") + "=toolchains";
   fs::create_directories(dir, ec);
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) fetchPrebuilt(m.name, keyHex, gCross.on ? gCross.name : target, engineRoot, dir, vdir, out);   // ZN-337: a published binary first
+  bool told = false;   // ZN-774.03: a first build takes 5 to 20 s; the person is told before it starts, once, which plugin and that it is once
+  auto tell = [&] { if (!told) log::step("plugin", i18n::tr("cli.run.plugin_build", {{"plugin", m.name}})); told = true; };
   if (!vendored.empty() && !fs::exists(out.vendor)) {   // the vendored C libraries: compiled once for these defines
+    tell();
     fs::create_directories(vdir, ec);
     std::string objs;
     int k = 0;
@@ -584,6 +588,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     }
   } else { fs::remove(out.shared, ec); }
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) {
+    tell();
     std::string gdir = dir + "/gen";
     fs::create_directories(gdir, ec);
     std::string lower = gen.name;

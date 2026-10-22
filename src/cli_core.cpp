@@ -802,6 +802,10 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
       std::printf("\nplugin libraries for %s%s: %d prebuilt%s%s%s\n", target.c_str(), target == here ? " (this machine)" : " (by the manifests)", have, target == here ? "" : " in a release",
                   without.empty() ? "" : ", none for:", without.c_str());
     }
+    std::string rust;   // plugins with Rust code (zinc:loro): cargo builds it the first time a program uses them; zinc never installs it
+    for (const zn::frontend::FoundPlugin& p : found)
+      if (const auto r = p.manifest.targetSettings.find(here); r != p.manifest.targetSettings.end() && !r->second.cargo.empty()) rust += (rust.empty() ? "" : ", ") + p.manifest.name;
+    if (!rust.empty()) std::printf("\nRust (cargo), for the Rust code of %s: %s\n", rust.c_str(), zn::tc::cargoPath().empty() ? "not found: install it from https://rustup.rs to use them (zinc never installs it)" : ("found: " + zn::tc::cargoPath()).c_str());
     std::printf("\nplugin libraries for windows: none, no plugin names the windows target yet\n");
     std::printf("a plugin without a prebuilt library is compiled on first use with the pinned zig (macOS: its frameworks need the Xcode command line tools)\n");
   }
@@ -867,35 +871,36 @@ int config(const std::vector<std::string>& args) {
 
 int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version) {
   if (details) return doctorDetails(engineRoot, rendererLines, version);
+  using zn::i18n::tr;
+  using zn::i18n::trn;
   const Paint P;
-  std::vector<std::string> todo;   // what the person can do, in the order of the lines above
-  auto line = [&](const char* mark, const std::string& what, const std::string& note) {
-    const std::string m = std::string(mark) == "ok" ? P.ok("[\xE2\x9C\x93]") : std::string(mark) == "warn" ? P.warn("[!]") : std::string(mark) == "bad" ? P.bad("[\xE2\x9C\x97]") : P.dim("[\xE2\x80\xA2]");
-    std::printf(" %s %s%s\n", m.c_str(), P.bold(what).c_str(), note.empty() ? "" : ("  " + P.dim(note)).c_str());
-  };
-  std::string profile = "this machine", tier, gpu, renderer;
+  struct Row { std::string mark, what, note; };
+  std::vector<Row> rows;                // printed under the verdict, which needs them all first (ZN-774.03)
+  std::vector<std::string> todo;        // what the person can do, in the order of the rows
+  auto line = [&](const char* mark, const std::string& what, const std::string& note) { rows.push_back({mark, what, note}); };
+  std::string profile = tr("cli.doctor.this_machine"), tier, gpu, renderer;
   { std::istringstream is(rendererLines); std::string l; while (std::getline(is, l)) {
       if (l.rfind("profile ", 0) == 0) profile = l.substr(8); else if (l.rfind("tier ", 0) == 0) tier = l.substr(5);
       else if (l.rfind("gpu ", 0) == 0) gpu = l.substr(4); else if (l.rfind("renderer ", 0) == 0) renderer = l.substr(9); } }
-  std::printf("\n  %s  %s\n  %s\n\n", P.bold("Zinc doctor").c_str(), P.dim("v" + version + " on " + profile).c_str(), P.dim("a quick look at this machine, so your first program runs").c_str());
-  line("ok", "Zinc " + version, engineRoot);
-  if (const std::string up = zn::tc::updateStatus(); up == "up to date") line("ok", "Zinc is up to date", "");
-  else if (!up.empty() && up[0] == '?') line("info", "Updates", up.substr(1));
-  else if (!up.empty()) { line("warn", "Zinc " + up + " is available", "this is " + version); const std::string how = zn::tc::updateHow();
-    todo.push_back(how == "run zinc update" ? "To update zinc, run  " + P.cmd("zinc update") + "  (" + P.cmd("zinc update --rollback") + " goes back)" : "To update zinc, " + how); }
-  line("ok", "Window and graphics", "built in: nothing to install" + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
-  const std::vector<zn::tc::PinnedTool> tools = zn::tc::pinnedTools();
-  for (const zn::tc::PinnedTool& t : tools) {
-    if (t.name == "zig") line(t.present ? "ok" : "info", "Native builds (" + t.name + " " + t.version + ")", t.present ? "ready" : "downloaded the first time you build natively (checked against its hash)");
-    if (t.name == "esbuild") line(t.present ? "ok" : "info", "QuickJS bundles (" + t.name + " " + t.version + ")", t.present ? "ready: zinc bundle" : "downloaded the first time you run zinc bundle (checked against its hash); zinc run --engine quickjs needs nothing");
+  std::error_code ec;
+  if (fs::exists(fs::path(engineRoot) / "lib" / "std", ec)) line("ok", "Zinc " + version, engineRoot);
+  else line("bad", "Zinc " + version, tr("cli.doctor.engine_missing", {{"dir", engineRoot}}));   // nothing runs without the standard library
+  if (const std::string up = zn::tc::updateStatus(); up == "up to date") line("ok", tr("cli.doctor.up_to_date"), "");
+  else if (!up.empty() && up[0] == '?') line("info", tr("cli.doctor.updates"), up.substr(1));
+  else if (!up.empty()) { line("warn", tr("cli.doctor.update", {{"version", up}}), tr("cli.doctor.update_this", {{"version", version}})); const std::string how = zn::tc::updateHow();
+    todo.push_back(how == "run zinc update" ? tr("cli.doctor.todo.update", {{"command", P.cmd("zinc update")}, {"rollback", P.cmd("zinc update --rollback")}}) : tr("cli.doctor.todo.update_how", {{"how", how}})); }
+  line("ok", tr("cli.doctor.window"), tr("cli.doctor.window.note") + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
+  for (const zn::tc::PinnedTool& t : zn::tc::pinnedTools()) {
+    if (t.name == "zig") line(t.present ? "ok" : "info", tr("cli.doctor.zig", {{"tool", t.name + " " + t.version}}), tr(t.present ? "cli.doctor.tool_ready" : "cli.doctor.zig.later"));
+    if (t.name == "esbuild") line(t.present ? "ok" : "info", tr("cli.doctor.esbuild", {{"tool", t.name + " " + t.version}}), tr(t.present ? "cli.doctor.esbuild.ready" : "cli.doctor.esbuild.later"));
   }
   {   // the engine packs (ZN-773.04): downloaded on first use, so none installed is information
     const std::string packs = zn::tc::engines::summary();
-    line(packs.empty() ? "info" : "ok", "JavaScript engines", packs.empty() ? "QuickJS built in; V8 is downloaded the first time you run --engine v8 (signed index; zinc engine list)" : "QuickJS built in; packs: " + packs + " (zinc engine update)");
+    line(packs.empty() ? "info" : "ok", tr("cli.doctor.engines"), packs.empty() ? tr("cli.doctor.engines.none") : tr("cli.doctor.engines.packs", {{"packs", packs}}));
   }
 #if defined(__APPLE__)
-  if (zn::tc::xcodeToolsInstalled()) line("ok", "Xcode command line tools", "installed: native apps and every plugin can be built");
-  else { line("warn", "Xcode command line tools", "not installed (only `zinc build` and some plugins need them)"); todo.push_back("To build native apps, run  " + P.cmd("xcode-select --install") + "  (a system window installs them; `zinc run`, `zinc dev` and `zinc fuse` work without)"); }
+  if (zn::tc::xcodeToolsInstalled()) line("ok", tr("cli.doctor.xcode"), tr("cli.doctor.xcode.ok"));
+  else { line("warn", tr("cli.doctor.xcode"), tr("cli.doctor.xcode.missing")); todo.push_back(tr("cli.doctor.todo.xcode", {{"command", P.cmd("xcode-select --install")}})); }
 #endif
   {   // npm packages (zinc add npm:..., the web target's node_modules): the managers this machine has, Node being only what they run on
     std::string have, none;
@@ -905,55 +910,43 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
       else if (!found.empty()) have += (have.empty() ? "" : ", ") + name + " " + found.substr(0, found.find(' '));
       else none += (none.empty() ? "" : ", ") + name;
     }
-    line(have.empty() ? "info" : "ok", "npm packages", (have.empty() ? std::string("no package manager found") : have) + (node ? "; Node found" : "; Node not found (npm, pnpm and yarn need it, to install packages)") + (none.empty() ? "" : " (not found: " + none + "; zinc never installs one)"));
+    line(have.empty() ? "info" : "ok", tr("cli.doctor.npm"), (have.empty() ? tr("cli.doctor.npm.none") : have) + "; " + tr(node ? "cli.doctor.npm.node" : "cli.doctor.npm.no_node") + (none.empty() ? "" : " (" + tr("cli.doctor.npm.missing", {{"list", none}}) + ")"));
   }
-  {   // the console SDKs (ZN-456): only a core rebuild or an AOT build needs them, so a missing one is information, never a warning
-    std::string ready, iosWhy;
-    for (const zn::tc::ConsoleSdk& s : zn::tc::consoleSdks()) {
-      std::string where, why;
-      if (zn::tc::consoleSdkPresent(s, where, why)) ready += (ready.empty() ? "" : ", ") + std::string(s.target);
-      else if (!std::strcmp(s.target, "ios-legacy")) iosWhy = why;
-    }
-    line("info", "Console SDKs", ready.empty() ? "none installed (zinc toolchain install psp|vita|ps2|n3ds)" : "ready: " + ready);
-    if (!iosWhy.empty()) line("info", "iPhone 4S (ios-legacy)", iosWhy);
-  }
-  {   // the plugins with native code that this machine has a prebuilt library for
-    std::vector<std::string> problems; std::error_code ec;
+  {   // the plugins with native code: a missing prebuilt library is built on first use, which is information, not a failure (the console SDKs,
+      // the iPhone 4S SDK and cargo are rows of --details: a beginner never needs them)
+    std::vector<std::string> problems;
     const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot, ".", problems);
     const std::string here = zn::tc::pluginTarget();
-    int total = 0, ready = 0; std::string missing, rust;
+    int total = 0, ready = 0;
     for (const zn::frontend::FoundPlugin& p : found) {
-      if (const auto r = p.manifest.targetSettings.find(here); r != p.manifest.targetSettings.end() && !r->second.cargo.empty()) rust += (rust.empty() ? "" : ", ") + p.manifest.name;
       bool native = p.manifest.kind == "display";
       for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || (e.path().filename().string().ends_with(".spec.ts") && e.path().filename().string()[0] != '.');
-      const auto ts = p.manifest.targetSettings.find(here);
-      if (!native || ts == p.manifest.targetSettings.end()) continue;
+      if (!native || p.manifest.targetSettings.find(here) == p.manifest.targetSettings.end()) continue;
       ++total;
-      if (fs::exists(fs::path(p.dir) / "prebuilt" / here, ec)) ++ready; else missing += (missing.empty() ? "" : ", ") + p.manifest.name;
+      if (fs::exists(fs::path(p.dir) / "prebuilt" / here, ec)) ++ready;
     }
-    const std::string n = std::to_string(ready) + " of " + std::to_string(total) + " plugins with native code are ready";
-    if (total == 0 || ready == total) line("ok", "Plugins", total == 0 ? "no native plugin here" : n);
-    else {
-      std::string shown; int count = 0, extra = 0;
-      std::istringstream ms(missing); std::string name;
-      while (std::getline(ms, name, ',')) { if (!name.empty() && name[0] == ' ') name.erase(0, 1); if (count < 4) { shown += (shown.empty() ? "" : ", ") + name; ++count; } else ++extra; }
-      line("info", "Plugins", n + "; " + shown + (extra ? " and " + std::to_string(extra) + " more" : std::string()) + " are built the first time a program uses them"); todo.push_back("A plugin without a ready library is built the first time a program uses it (see " + P.cmd("zinc doctor --details") + " for which, and why)"); }
-    if (!rust.empty()) {   // plugins with Rust code (zinc:loro): cargo builds it the first time a program uses them
-      if (!zn::tc::cargoPath().empty()) line("ok", "Rust (cargo)", "found: builds the Rust code of " + rust);
-      else { line("info", "Rust (cargo)", "not found: " + rust + " cannot be built"); todo.push_back("To use " + rust + ", install Rust from " + P.cmd("https://rustup.rs") + " (zinc never installs it)"); }
-    }
+    if (total == 0) line("ok", tr("cli.doctor.plugins"), tr("cli.doctor.plugins.none"));
+    else if (ready == total) line("ok", tr("cli.doctor.plugins"), trn("cli.doctor.plugins.all", total));
+    else line("info", tr("cli.doctor.plugins"), ready == 0 ? tr("cli.doctor.plugins.first_use") : trn("cli.doctor.plugins.some", ready));
+  }
+  bool bad = false;
+  for (const Row& r : rows) bad = bad || r.mark == "bad";
+  std::printf("\n  %s  %s\n  %s\n\n", P.bold("Zinc doctor").c_str(), P.dim(tr("cli.doctor.on", {{"version", version}, {"profile", profile}})).c_str(), P.dim(tr("cli.doctor.intro")).c_str());
+  std::printf("  %s %s\n\n", bad ? P.bad("\xE2\x9C\x97").c_str() : P.ok("\xE2\x9C\x93").c_str(), P.bold(tr(bad ? "cli.doctor.not_ready" : "cli.doctor.ready")).c_str());
+  for (const Row& r : rows) {
+    const std::string m = r.mark == "ok" ? P.ok("[\xE2\x9C\x93]") : r.mark == "warn" ? P.warn("[!]") : r.mark == "bad" ? P.bad("[\xE2\x9C\x97]") : P.dim("[\xE2\x80\xA2]");
+    std::printf(" %s %s%s\n", m.c_str(), P.bold(r.what).c_str(), r.note.empty() ? "" : ("  " + P.dim(r.note)).c_str());
   }
   std::printf("\n");
-  if (todo.empty()) std::printf("  %s  Everything is ready. Try %s\n\n", P.ok("\xE2\x9C\x93").c_str(), P.cmd("zinc new game hello && cd hello && zinc run").c_str());
-  else {
-    std::printf("  %s\n", P.bold("Worth doing:").c_str());
+  if (!todo.empty()) {
+    std::printf("  %s\n", P.bold(tr("cli.doctor.worth")).c_str());
     for (const std::string& t : todo) std::printf("   \xE2\x80\xA2 %s\n", t.c_str());
-    std::printf("\n  %s %s\n\n", P.dim("Nothing blocks you: start with").c_str(), P.cmd("zinc new game hello && cd hello && zinc run").c_str());
+    std::printf("\n");
   }
-  std::printf("  %s\n\n", P.dim("The full report, with every hash and every plugin: zinc doctor --details").c_str());
-  return 0;
+  if (!bad) std::printf("  %s  %s\n\n", P.dim(tr("cli.doctor.start")).c_str(), P.cmd("zinc new game hello && cd hello && zinc dev").c_str());
+  std::printf("  %s\n\n", P.dim(tr("cli.doctor.more", {{"command", "zinc doctor --details"}})).c_str());
+  return bad ? 1 : 0;
 }
-
 
 // ---- commands that run the engine itself (ZN-140)
 namespace {
@@ -3455,7 +3448,8 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
       const std::string port = devtoolsPort(p.dir);
-      std::fprintf(stderr, "zinc dev: v%d started%s (%ld ms after the save)%s\n", version, tools ? (" with the inspector on port " + (port.empty() ? "9229" : port)).c_str() : "", sinceSave, "");
+      const std::string after = version == 1 ? "" : " (" + std::to_string(sinceSave) + " ms after the save)";   // the first start follows no save
+      std::fprintf(stderr, "zinc dev: v%d started%s%s\n", version, tools ? (" with the inspector on port " + (port.empty() ? "9229" : port)).c_str() : "", after.c_str());
     }
     std::fflush(stderr);
   };
@@ -3465,7 +3459,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   auto startRemote = [&](Clock::time_point t0) {
     std::string out;
     boxed = false;
-    if (remote->start(p.dir, {rest.begin() + (rest.empty() ? 0 : 1), rest.end()}, false, out)) { std::fprintf(stderr, "zinc dev: v%d started on the device (%ld ms after the save)\n", ++version, msSince(t0)); return; }
+    if (remote->start(p.dir, {rest.begin() + (rest.empty() ? 0 : 1), rest.end()}, false, out)) { ++version; std::fprintf(stderr, "zinc dev: v%d started on the device%s\n", version, version == 1 ? "" : (" (" + std::to_string(msSince(t0)) + " ms after the save)").c_str()); return; }
     if (!remote->poll()) return;   // the device is gone: the loop below says so
     std::vector<std::string> lines;
     std::istringstream is(out);
@@ -3479,6 +3473,11 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   };
   Stamps seen = snapshot(p.dir);
   if (remote) startRemote(Clock::now()); else startProgram(0, false, {});
+  {   // what to do now, once (ZN-774.03): the file to change, that a save shows it, how to stop
+    const std::string rel = fs::path(p.entry).lexically_relative(p.dir).generic_string();
+    std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.dev.hint", {{"file", rel.empty() || rel.rfind("..", 0) == 0 ? p.entry : rel}}).c_str());
+    std::fflush(stderr);
+  }
   while (!gStop) {
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
     if (remote && !remote->poll()) { std::fprintf(stderr, "zinc dev: the session with the device ended\n"); return 1; }

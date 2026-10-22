@@ -427,7 +427,7 @@ set_source_files_properties(src/tc/selfupdate.cpp PROPERTIES COMPILE_DEFINITIONS
 add_library(zn_tc STATIC src/tc/tc.cpp src/tc/consoles.cpp src/tc/selfupdate.cpp src/tc/engines.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/monocypher)
 target_sources(zn_tc PRIVATE src/tc/progress.cpp)
-target_link_libraries(zn_tc PUBLIC zn_platform zn_frontend zn_sha256 ${CMAKE_DL_LIBS})
+target_link_libraries(zn_tc PUBLIC zn_platform zn_frontend zn_sha256 zn_i18n ${CMAKE_DL_LIBS})
 if(APPLE)
   # src/tc/bundle.cpp opens CoreFoundation at its call (not linked: ~400 framework initializers at each launch, ZN-592.01)
 endif()

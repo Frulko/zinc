@@ -22,7 +22,11 @@ p="$ws/plugin"
 mkdir -p "$ws/zinc/build" && ln -s "$Z" "$ws/zinc/build/zinc" && ln -s "$PWD/tools" "$ws/zinc/tools"
 "$Z" new plugin "$tmp/hello-zinc" >/dev/null && mv "$tmp/hello-zinc" "$p" || { echo "plugin_starter: zinc new plugin failed"; exit 1; }
 grep -q "requireNative<Spec>('hello_zinc')" "$p/native/hello-zinc.spec.ts" && grep -q "Nativehello_zinc\* zinc_create_hello_zinc()" "$p/native/hello-zinc.host.cpp" || { echo "plugin_starter: the native names are not filled"; fail=1; }
-[ "$(cd "$p" && "$Z" run 2>&1 | tail -1)" = 'checksum of "zinc": -1256488513' ] || { echo "plugin_starter: the example does not run on the plugin: $(cd "$p" && "$Z" run 2>&1 | tail -3)"; fail=1; }
+# the first run builds the plugin and says so before (ZN-774.03); the second says nothing
+first=$(cd "$p" && ZINC_STEPS=1 "$Z" run 2>&1)
+echo "$first" | grep -qx 'checksum of "zinc": -1256488513' || { echo "plugin_starter: the example does not run on the plugin: $(echo "$first" | tail -3)"; fail=1; }
+echo "$first" | grep -qx "  plugin     building the plugin hello-zinc, once (5 to 20 s); the next runs start at once" || { echo "plugin_starter: the first build does not say it happens once: $(echo "$first" | head -6)"; fail=1; }
+(cd "$p" && ZINC_STEPS=1 "$Z" run 2>&1) | grep -q "building the plugin" && { echo "plugin_starter: the second run says it builds again"; fail=1; }
 (cd "$p" && ZINC_NATIVE=sim "$Z" test 2>&1 | tail -1 | grep -q ' 0 failure') || { echo "plugin_starter: the tests fail on the sim"; fail=1; }
 git -C "$p" init -q && git -C "$p" add -A && git -C "$p" commit -qm "a plugin" || exit 1
 

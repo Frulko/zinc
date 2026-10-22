@@ -9,7 +9,8 @@
 # - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands, grouped (Start here, Build and ship);
 # - zinc new with no argument: the usage and nothing written without a terminal; through a pty, the question (arrows) and the name;
 #   the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
-# - install.sh and install.ps1 end with zinc --next-steps, which the Homebrew caveats repeat word for word.
+# - install.sh and install.ps1 end with zinc --next-steps, which the Homebrew caveats repeat word for word;
+# - zinc check says what it checked; zinc dev's first start says which file to change, that a save shows it, and that Ctrl+C stops (ZN-774.03).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 gold="$PWD/tests/golden/first-run"
@@ -32,6 +33,14 @@ done
 
 # a first change: another text in src/main.ts, another frame
 g="$tmp/game"
+out=$(cd "$g" && "$Z" check 2>&1)
+echo "$out" | grep -Eqx 'ok: src/main.ts (checked \(types and imports\)|and its imports checked \([0-9]+ files\)), no errors' || { echo "zinc check does not say what it checked: $out"; fail=1; }
+(cd "$g" && ZINC_FRAMES=2 exec "$Z" dev --no-devtools > "$tmp/dev.log" 2>&1) &
+dev=$!
+n=0; while [ $n -lt 200 ] && ! grep -q "Ctrl+C" "$tmp/dev.log"; do sleep 0.05; n=$((n + 1)); done
+kill $dev 2>/dev/null; wait $dev 2>/dev/null
+grep -qx "zinc dev: change src/main.ts and save: the program updates at once. Ctrl+C stops." "$tmp/dev.log" && ! grep -q "after the save" "$tmp/dev.log" \
+  || { echo "zinc dev does not start with what to do: $(head -5 "$tmp/dev.log")"; fail=1; }
 cp "$g/src/main.ts" "$tmp/main.ts"
 frame() { (cd "$g" && ZINC_FRAMES=2 ZINC_FRAMEHASH=last "$Z" run 2>&1 | grep framehash | awk '{print $5}'); }
 before=$(frame)
