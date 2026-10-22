@@ -1,0 +1,5 @@
+{
+  "name": "sound",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.sound", "window": { "width": 640, "height": 400 } }
+}

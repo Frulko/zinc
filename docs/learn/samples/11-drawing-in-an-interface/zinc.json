@@ -1,0 +1,5 @@
+{
+  "name": "drawing-in-an-interface",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.learn.canvas", "window": { "width": 640, "height": 400 } }
+}

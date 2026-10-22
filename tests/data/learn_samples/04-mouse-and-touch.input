@@ -1,0 +1,14 @@
+2 move 80 120
+3 down
+5 move 160 150
+7 move 260 230
+9 move 340 180
+11 up
+13 wheel 0 3
+15 move 380 100
+16 down
+18 move 460 160
+20 move 540 120
+22 up
+24 touch 1 470 300
+24 touch 2 560 320

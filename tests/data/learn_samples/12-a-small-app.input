@@ -1,0 +1,15 @@
+3 move 280 102
+4 down
+5 up
+7 text Milk
+9 key Enter
+12 text "Green tea"
+14 move 494 102
+15 down
+16 up
+19 move 320 160
+20 down
+21 up
+24 move 470 394
+25 down
+26 up

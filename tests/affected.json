@@ -282,6 +282,7 @@
     {"paths": ["runtime/ttf.cpp", "runtime/gfx.cpp", "runtime/raster.cpp", "src/res/res.cpp", "src/host/gfx_host.cpp", "src/host/layout_host.cpp", "tests/t1/fonts_runtime.sh", "tests/data/fonts_runtime/", "tests/data/fonts_typed/"], "tests": ["fonts_runtime", "scale_push"]},
     {"paths": ["runtime/gfx.cpp", "runtime/include/hal.h", "targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/window_module.cpp", "src/frontend/modules.cpp", "lib/std/ui.ts", "lib/std/solid.ts", "tests/t1/windows.sh", "tests/data/windows/", "tests/data/ui_windows/"], "tests": ["windows"]},
     {"paths": ["targets/macos/hal_sdl.cpp", "targets/macos/hal_cocoa.mm", "runtime/zrt.cpp", "runtime/include/hal_window.h", "src/rt/rtcalls.cpp", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "src/main.cpp", "tests/t1/window_live_resize.sh", "tests/golden/macos/live-resize/"], "tests": ["window_live_resize", "window_resize"]},
-    {"paths": ["targets/wasm/", "tools/wasm-export-test", "tests/t1/image_rect_wasm.sh"], "tests": ["image_rect_wasm"]}
+    {"paths": ["targets/wasm/", "tools/wasm-export-test", "tests/t1/image_rect_wasm.sh"], "tests": ["image_rect_wasm"]},
+    {"paths": ["docs/learn/", "tests/t1/learn_samples.sh", "tests/data/learn_samples/"], "tests": ["learn_samples"]}
   ]
 }

@@ -1,0 +1,5 @@
+{
+  "name": "styles",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.learn.styles", "window": { "width": 640, "height": 400 } }
+}

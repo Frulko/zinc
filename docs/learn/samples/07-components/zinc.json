@@ -1,0 +1,6 @@
+{
+  "name": "components",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "app": { "id": "com.example.learn.components", "window": { "width": 640, "height": 400 } }
+}

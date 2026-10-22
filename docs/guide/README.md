@@ -1,5 +1,7 @@
 # Zinc developer guide
 
+New to Zinc? [Learn Zinc](../learn/README.md): twelve short lessons, from a shape on screen to keys, mouse, touch, drawing, sound and a complete interface.
+
 A task-oriented guide to building, shipping and hardening apps with Zinc: a strict, typed subset of TypeScript that runs
 in an interpreter, compiles ahead of time to native C++, or runs on QuickJS and the other JavaScript engines
 ([chapter 12](12-js-engines.md)). Typed Zinc needs no JavaScript engine on the device. For the project overview and the

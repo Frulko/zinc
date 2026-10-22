@@ -1,0 +1,5 @@
+{
+  "name": "state",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.learn.state", "window": { "width": 640, "height": 400 } }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "mouse-and-touch",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.pointer", "window": { "width": 640, "height": 400 } }
+}

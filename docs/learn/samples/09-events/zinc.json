@@ -1,0 +1,5 @@
+{
+  "name": "events",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.learn.events", "window": { "width": 640, "height": 400 } }
+}

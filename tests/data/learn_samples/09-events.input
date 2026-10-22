@@ -1,0 +1,10 @@
+2 move 200 80
+3 down
+5 move 300 150
+7 move 400 200
+9 up
+11 key ArrowLeft
+12 key ArrowUp
+14 move 319 328
+15 down
+16 up

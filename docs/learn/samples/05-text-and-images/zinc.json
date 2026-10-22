@@ -1,0 +1,6 @@
+{
+  "name": "text-and-images",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "app": { "id": "com.example.learn.text", "window": { "width": 640, "height": 400 } }
+}

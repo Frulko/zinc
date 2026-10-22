@@ -1,0 +1,5 @@
+{
+  "name": "shopping-list",
+  "entry": "src/main.tsx",
+  "app": { "id": "com.example.learn.shopping", "window": { "width": 640, "height": 480 } }
+}
