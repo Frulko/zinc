@@ -192,12 +192,13 @@ const char* plural(const std::string& lang, double n) {
   return i == 1 && integral ? "one" : "other";                                        // en, de
 }
 
-std::string tr(const char* id, std::initializer_list<Arg> args) {
-  const std::string lang = language();
+std::string message(const std::string& lang, const char* id, const std::vector<Arg>& args) {
   const std::string* t = lang == "en" ? nullptr : find(lang, id);
   if (!t) t = find("en", id);
-  return t ? fill(*t, std::vector<Arg>(args)) : std::string(id);
+  return t ? fill(*t, args) : std::string(id);
 }
+
+std::string tr(const char* id, std::initializer_list<Arg> args) { return message(language(), id, std::vector<Arg>(args)); }
 
 std::string trn(const char* id, double count, std::initializer_list<Arg> args) {
   std::vector<Arg> all(args);

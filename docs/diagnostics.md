@@ -57,7 +57,7 @@ function* g() { }
 
 JSX is the language React defines: `class` is a keyword of JavaScript and TypeScript, so the attribute that carries the style classes, and the prop of a component that takes them, are named `className`.
 
-Fix: Rename the attribute to className (<View className="p-4">) and declare the prop of your components as className; `zinc migrate jsx-classname --apply` rewrites a whole project.
+Fix: Rename the attribute to className (`<View className="p-4">`) and declare the prop of your components as className; `zinc migrate jsx-classname --apply` rewrites a whole project.
 
 ```ts
 function App(): i32 {
@@ -67,9 +67,9 @@ function App(): i32 {
 
 ## Z0007: JSX components start with a capital letter
 
-As in React and React Native, a JSX tag names a component and components start with a capital letter: <View>, <Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea> or one of yours. A lowercase tag is not a component of Zinc.
+As in React and React Native, a JSX tag names a component and components start with a capital letter: `<View>`, `<Text>`, `<Button>`, `<Image>`, `<ScrollView>`, `<Canvas>`, `<Input>`, `<TextArea>` or one of yours. A lowercase tag is not a component of Zinc.
 
-Fix: Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>; `zinc migrate jsx-capitalised-tags --apply` rewrites a whole project.
+Fix: Write the capitalised component the message names: `<view>` is `<View>`, `<scroll>` is `<ScrollView>`; `zinc migrate jsx-capitalised-tags --apply` rewrites a whole project.
 
 ```ts
 function App(): i32 {
@@ -100,7 +100,7 @@ let a = 2;
 
 ## Z0103: Type is not assignable
 
-The value's type cannot be used where another type is expected. Machine numeric kinds (i32, f64, ...) are distinct: only lossless widening is implicit, and conditions must be boolean.
+The value's type cannot be used where another type is expected. Machine numeric kinds (i32, f64, ...) are distinct: only lossless widening is implicit, and conditions must be boolean. `number` is f64 (f32 or fixed point on some boards, see --profile); messages say number.
 
 Fix: Convert explicitly or change the declared type.
 
@@ -405,7 +405,7 @@ import 'zinc:ffi';
 
 ## Z5006: A system module needs a permission
 
-The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the permission "<feature>" (or "<feature>:<operation>"); a project without "permissions" can use none. The host features (net, fs, process, serial, camera, microphone, location) are checked at run time by their modules once zinc.json has "permissions": zinc:camera's devices() and open() fail naming "camera" in an exported app.
+The modules `zinc:system/<feature>` (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the permission `"<feature>"` (or `"<feature>:<operation>"`); a project without "permissions" can use none. The host features (net, fs, process, serial, camera, microphone, location) are checked at run time by their modules once zinc.json has "permissions": zinc:camera's devices() and open() fail naming "camera" in an exported app.
 
 Fix: Add the id to "permissions" in zinc.json.
 
@@ -428,7 +428,7 @@ const n = requireNative<Spec>('Fixture');
 
 ## Z5011: The native module is not linked into this engine
 
-requireNative<Spec>('Name') needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the export and signature the Spec describes.
+`requireNative<Spec>('Name')` needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the export and signature the Spec describes.
 
 Fix: Link the module, add a stand-in, or fix the Spec to match the module.
 

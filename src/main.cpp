@@ -419,7 +419,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
     diags = checked.diags;
   }
   for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
-  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
+  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags, zn::log::shortPath(prog.files[diags[0].file < prog.files.size() ? diags[0].file : 0].path)).c_str());
   return diags.empty();
 }
 
@@ -547,7 +547,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     }
   }
   for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
-  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
+  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags, zn::log::shortPath(prog.files[diags[0].file < prog.files.size() ? diags[0].file : 0].path)).c_str());
   return 1;
 }
 
@@ -1715,7 +1715,7 @@ int main(int argc, char** argv) {
 #endif
       return zn::cli::dev(cl, remote.start ? &remote : nullptr);
     }
-    if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/lib/std");
+    if (argc >= 2 && !std::strcmp(argv[1], "lsp")) { zn::i18n::use("en"); return zn::lsp::serve(gRoot + "/lib/std"); }   // a protocol: English, the editor translates (D159)
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "assets")) return zn::cli::assets(cl, gRoot);
     if (zn::cli::mquickjsWanted(cl)) return zn::cli::mquickjs(cl, gRoot, qjsCacheDir());   // --target esp32 --engine mquickjs (firmware/esp32-mquickjs)
@@ -1735,7 +1735,7 @@ int main(int argc, char** argv) {
     if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "lint")) return zn::lint::lint(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "lint")) { zn::i18n::use("en"); return zn::lint::lint(cl, gRoot); }   // its rules and --json are English (D160)
     if (argc >= 2 && !std::strcmp(argv[1], "migrate")) return zn::lint::migrate(cl);
     // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them
     gHint = argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "build") || (!std::strcmp(argv[1], "check") && (argc == 2 || argv[2][0] != '-')));
@@ -2812,6 +2812,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file>: the diagnostics as LSP-shaped JSON on stdout (what the prototype prints), exit 1 when there are errors
+    zn::i18n::use("en");   // what tools read stays English (D159)
     zn::frontend::Program prog = zn::frontend::loadProgram(argv[3], readFile, gStrict, gRoot + "/lib/std");
     std::vector<zn::frontend::Diag> diags = prog.diags;
     if (diags.empty()) { zn::frontend::Checked checked = zn::frontend::check(prog.ast); diags = checked.diags; }
@@ -3056,13 +3057,16 @@ int main(int argc, char** argv) {
     for (const auto& d : low.diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
     return 1;
   }
-  if (argc == 3 && !std::strcmp(argv[1], "explain")) {  // zinc explain Z0001|--markdown|--codes
+  if (argc == 2 && !std::strcmp(argv[1], "explain")) { std::fputs(zn::frontend::list().c_str(), stdout); return 0; }   // the codes and their titles
+  if (argc == 3 && !std::strcmp(argv[1], "explain")) {  // zinc explain Z0001|z0001|1|--markdown|--codes|--catalog
+    const std::string code = zn::frontend::normalizeCode(argv[2]);
     std::string out = !std::strcmp(argv[2], "--markdown") ? zn::frontend::markdown()
                     : !std::strcmp(argv[2], "--codes")    ? zn::frontend::codes()
-                                                          : zn::frontend::explain(argv[2]);
-    if (out.empty()) out = zn::cli::webExplain(argv[2]);   // W0601 to W0604: the web export's warnings
-    if (out.empty()) out = zn::cli::pmExplain(argv[2]);    // P0001, P0002: the package manager of npm packages
-    if (out.empty()) { std::fprintf(stderr, "unknown diagnostic code: %s\n", argv[2]); return 1; }
+                    : !std::strcmp(argv[2], "--catalog")  ? zn::frontend::catalog()   // the English of i18n/en/diag.json (tests/t0/diagnostics.sh)
+                                                          : zn::frontend::explain(code);
+    if (out.empty()) out = zn::cli::webExplain(code);   // W0601 to W0604: the web export's warnings
+    if (out.empty()) out = zn::cli::pmExplain(code);    // P0001, P0002: the package manager of npm packages
+    if (out.empty()) { std::fprintf(stderr, "%s\n", zn::i18n::tr("diag.unknownCode", {{"code", argv[2]}}).c_str()); return 1; }
     std::fputs(out.c_str(), stdout);
     return 0;
   }

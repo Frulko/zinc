@@ -188,11 +188,11 @@ zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an ex
 **A type error** (`let score: number = "ten";`):
 
 ```
-my-game/src/main.ts:13:21: error Z0103: Type is not assignable: 'string' to 'f64'
+my-game/src/main.ts:13:21: error Z0103: Type is not assignable: 'string' to 'number'
 zinc: 1 error. Convert explicitly or change the declared type. `zinc explain Z0103` shows an example.
 ```
 
-`f64` is the name Zinc gives to `number` on a desktop (a 64-bit floating-point number). Here: write `10`, or declare
+The message says `number`, as the program does (on a desktop it is a 64-bit floating-point number, `f64`; `zinc explain Z0103` says more). Here: write `10`, or declare
 `let score: string`.
 
 **A `zinc:` module that does not exist** (`'zinc:stoarge'`):

@@ -5,6 +5,7 @@
 #pragma once
 #include <initializer_list>
 #include <string>
+#include <vector>
 
 namespace zn::i18n {
 
@@ -34,5 +35,8 @@ std::string tr(const char* id, std::initializer_list<Arg> args = {});
 /** A message about a number: `id`_one, _many or _other by the plural category of `count` (many falls back to other, then to `id`),
  *  {count} filled with it. */
 std::string trn(const char* id, double count, std::initializer_list<Arg> args = {});
+/** The message `id` in `lang` (English when that language lacks it): a diagnostic keeps its English text, made with it, for the tools
+ *  that read it, and is printed in the person's language. */
+std::string message(const std::string& lang, const char* id, const std::vector<Arg>& args);
 
 }  // namespace zn::i18n

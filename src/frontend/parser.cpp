@@ -47,7 +47,8 @@ struct Parser {
   }
   [[noreturn]] void unexpected() {
     if (cur().kind == Tok::Error) fail(kZBadLiteral, cur().start, "");
-    fail(kZUnexpectedToken, cur().start, eof() ? "end of input" : "'" + std::string(txt()) + "'");
+    if (eof()) { r.diags.push_back({kZUnexpectedToken, cur().start, i18n::message("en", "diag.detail.endOfInput", {}), 0, "diag.detail.endOfInput"}); throw Stop{}; }
+    fail(kZUnexpectedToken, cur().start, "'" + std::string(txt()) + "'");
   }
   [[noreturn]] void unsupported(const char* what) { fail(kZUnsupported, cur().start, what); }
 

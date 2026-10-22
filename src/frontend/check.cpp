@@ -43,6 +43,18 @@ bool numFromName(std::string_view s, Num& out) {
   return false;
 }
 
+// A message says `number` where the program wrote number, not the machine kind it means on this profile (f64 on most; ZN-774.04):
+// `zinc explain Z0103` says what number is. Whole words only, so i32 or a name that holds the letters stays as it is
+std::string spoken(std::string s) {
+  const std::string_view k = numName(gNumber);
+  auto id = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
+  for (std::size_t p = s.find(k); p != std::string::npos; p = s.find(k, p)) {
+    if ((p == 0 || !id(s[p - 1])) && (p + k.size() == s.size() || !id(s[p + k.size()]))) { s.replace(p, k.size(), "number"); p += 6; }
+    else p += k.size();
+  }
+  return s;
+}
+
 struct Checker {
   Ast& a;
   Checked out;
@@ -105,9 +117,13 @@ struct Checker {
   }
 
   // ---- diagnostics
-  void diag(const char* code, std::uint32_t node, std::string detail = "") {
+  void diag(const char* code, std::uint32_t node, std::string detail = "") { diag(code, node, nullptr, {}, std::move(detail)); }
+  // a detail a beginner meets often: the message `key` of i18n/<lang>/diag.json, its English text kept for the tools (D159)
+  void diag(const char* code, std::uint32_t node, const char* key, std::vector<i18n::Arg> args, std::string detail = "") {
     for (const Diag& d : out.diags) if (d.code == code && d.pos == a.nodes[node].start && d.file == a.nodes[node].file) return;   // one error per cause
-    out.diags.push_back({code, a.nodes[node].start, std::move(detail), a.nodes[node].file});
+    for (i18n::Arg& x : args) x.value = spoken(std::move(x.value));
+    if (key) detail = i18n::message("en", key, args);
+    out.diags.push_back({code, a.nodes[node].start, spoken(std::move(detail)), a.nodes[node].file, key, std::move(args)});
   }
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
 
@@ -295,7 +311,7 @@ struct Checker {
     if (arrayConversion(from, to, node)) return true;
     if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 1 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
       const ObjInfo& po = out.objs[ty(to).obj];
-      if (po.typeArgs.size() != 1) { diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'"); return false; }
+      if (po.typeArgs.size() != 1) { diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}}); return false; }
       TypeId elemT = po.typeArgs[0];
       std::string X = inspectAliasName(to), T = inspectAliasName(elemT);
       std::uint32_t sym = helper("neverPromise," + std::to_string(to), "function $F(p: NeverPromise): " + X + " {\n  const r = __newPromise<" + T + ">();\n  p.handled = true;\n  const e = p.error;\n  if (e !== null) r.rejectWith(e);\n  return r;\n}\n", {from, to, elemT}, node);
@@ -335,7 +351,7 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
-    diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'");
+    diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}});
     return false;
   }
   static const Member* findMember(const ObjInfo& o, const std::string& nm) {
@@ -502,7 +518,7 @@ struct Checker {
             if (inst != kNone) r = out.syms[inst].type;
             else if (args.size() != generics[s].tp.size()) diag(kZCannotInfer, t, "'" + std::string(x.text) + "' needs " + std::to_string(generics[s].tp.size()) + " type argument(s)");
           } else if (!x.kids.empty()) diag(kZNotAssignable, t, "'" + std::string(x.text) + "' is not generic");
-          else diag(kZCannotFindName, t, "'" + std::string(x.text) + "' is not a type");
+          else diag(kZCannotFindName, t, "diag.detail.notAType", {{"name", std::string(x.text)}});
         }
         break;
       }
@@ -722,7 +738,7 @@ struct Checker {
       }
       out.nodeSym[re] = rs;
       out.nodeType[re] = out.syms[rs].type;
-      if (usedBeforeDeclaration(rs, re)) diag(kZCannotFindName, re, "class '" + std::string(rn.text) + "' used before its declaration");
+      if (usedBeforeDeclaration(rs, re)) diag(kZCannotFindName, re, "diag.detail.beforeDeclaration", {{"name", std::string(rn.text)}});
       if (isDyn(lt)) {  // a Dyn holds a typed object as a view: the view knows the classes it answers to
         TypeId ct = out.syms[rs].type;
         if (!rawDyn() && !isDynFamily(ct) && replaceWith(i, "__dynIsTag(__H0, " + std::to_string(ct) + ")", {{le}})) return expr0(i, kNoType);
@@ -778,10 +794,10 @@ struct Checker {
     bool eqOp = op == "==" || op == "!=" || op == "===" || op == "!==";
     if (!eqOp) { l = appOrDiag(l, le); r = appOrDiag(r, re); }
     if (bad(l) || bad(r)) return (op == "&&" || op == "||" || op == "==" || op == "!=" || op == "===" || op == "!==" || op == "<" || op == ">" || op == "<=" || op == ">=") ? tBool : tError;
-    auto fail = [&]() { diag(kZBadOperand, i, "'" + op + "' on '" + name(l) + "' and '" + name(r) + "'"); return tError; };
+    auto fail = [&]() { diag(kZBadOperand, i, "diag.detail.operands", {{"op", op}, {"left", name(l)}, {"right", name(r)}}); return tError; };
     if ((op == "&&" || op == "||") && (n(le).kind == N::String || n(le).kind == N::Number || n(le).kind == N::Template)) { diag(kZBadOperand, le, "the left operand of '" + op + "' is a literal, always truthy or always falsy"); return tError; }
     if ((op == "&&" || op == "||") && l != tBool && (l == tStr || isNum(l))) return require(r, l, re) ? l : tError;  // `a || b` yields a value: the first truthy operand
-    if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "'" + name(l == tBool ? r : l) + "' to 'boolean'"), tBool);
+    if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "diag.detail.assign", {{"from", name(l == tBool ? r : l)}, {"to", "boolean"}}), tBool);
     if ((op == "===" || op == "!==" || op == "==" || op == "!=") && l == tNull && r == tNull && pureCallee(le) && replaceWith(i, (op == "===" || op == "==") ? "true" : "false", {})) return expr0(i, expected0);  // null against null (a position of type never)
     if (op == "==" || op == "!=" || op == "===" || op == "!==") return comparable(l, r) ? tBool : (fail(), tBool);
     if (op == "<" || op == ">" || op == "<=" || op == ">=") return ((isNum(l) && isNum(r)) || (l == tStr && r == tStr)) ? tBool : (fail(), tBool);
@@ -1117,7 +1133,7 @@ struct Checker {
     bool isSet = ty(mt).k == TK::Set;  // Set.forEach passes the element as value and as key
     TypeId K = isSet ? ty(mt).elem : ty(mt).params[0], V = ty(mt).elem;
     if (hasParam(mt)) return tError;  // a generic template's own check (see arrayHof)
-    if (kids.size() != 2) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(kids.size() - 1)); for (std::size_t k = 1; k < kids.size(); ++k) expr(kids[k]); return tError; }
+    if (kids.size() != 2) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "1"}, {"got", std::to_string(kids.size() - 1)}}); for (std::size_t k = 1; k < kids.size(); ++k) expr(kids[k]); return tError; }
     padCallbacks = false;
     TypeId lt = expr(kids[1], func({V, K}, tVoid, 1));
     padCallbacks = true;
@@ -1144,7 +1160,7 @@ struct Checker {
     std::vector<std::uint32_t> args(kids.begin() + 1, kids.end());
     std::string m(method);
     if (m == "join") {  // elements other than strings are converted like template literals
-      if (args.size() > 1) { diag(kZWrongArgCount, i, "expected 0-1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (args.size() > 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "0-1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       if (args.empty()) { std::uint32_t sep = newNode(N::String, "\",\"", {}, i); out.nodeType[sep] = tStr; args.push_back(sep); }
       else if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
       std::string key = "join," + std::to_string(at);
@@ -1160,7 +1176,7 @@ struct Checker {
       std::vector<TypeId> aliases{at, E};
       TypeId i32 = num(Num::i32), result;
       std::size_t lo = m == "shift" ? 0 : 1, hi = m == "shift" ? 0 : m == "unshift" ? 1 : 2;
-      if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "expected " + std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "") + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "")}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       if (m == "shift") {
         TK ek = isDyn(E) ? TK::Any : ty(E).k;
         bool refLike = E == tStr || ek == TK::Array || ek == TK::Map || ek == TK::Set || ek == TK::Object || ek == TK::Func;
@@ -1177,7 +1193,7 @@ struct Checker {
         sig = "(a: " + A + ", x: " + Es + "): i32";
         body = "  a.push(x);\n  for (let k: i32 = a.length - 1; k > 0; k--) a[k] = a[k - 1];\n  a[0] = x;\n  return a.length;\n";
       } else {
-        for (std::size_t k = 0; k < args.size(); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "'" + name(t) + "' to 'number'"); }
+        for (std::size_t k = 0; k < args.size(); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}}); }
         if (args.size() < 2) { std::uint32_t id = newNode(N::Number, "2147483647", {}, i); out.nodeType[id] = i32; args.push_back(id); }
         result = at;
         sig = "(a: " + A + ", start: i32, count: i32): " + A;
@@ -1194,9 +1210,9 @@ struct Checker {
       return result;
     }
     if (m == "at") {  // a negative index counts from the end; out of range is undefined, so like 'find' the result is only usable in '??' and console.log
-      if (args.size() != 1) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (args.size() != 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       TypeId it = expr(args[0]);
-      if (!bad(it) && !isNum(it)) { diag(kZNotAssignable, args[0], "'" + name(it) + "' to 'number'"); return tError; }
+      if (!bad(it) && !isNum(it)) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(it)}, {"to", "number"}}); return tError; }
       bool prim = ty(E).k == TK::Num || E == tBool || E == tStr;
       std::string sig, body;
       TypeId result;
@@ -1225,7 +1241,7 @@ struct Checker {
     bool search = m == "indexOf" || m == "lastIndexOf" || m == "includes" || m == "fill";
     bool fold = m == "reduce" || m == "reduceRight";
     std::size_t lo = fold ? 2 : 1, hi = fold ? 2 : m == "fill" ? 3 : search ? 2 : 1;
-    if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "expected " + std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "") + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+    if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "")}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
     std::string A = inspectAliasName(at);
     TypeId i32 = num(Num::i32);
     TypeId result = tError;
@@ -1253,7 +1269,7 @@ struct Checker {
     };
     auto indexArg = [&](std::size_t k) {
       TypeId t = expr(args[k]);
-      if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "'" + name(t) + "' to 'number'");
+      if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}});
     };
     bool floatElem = ty(E).k == TK::Num && (ty(E).num == Num::f64 || ty(E).num == Num::f32);
     if (search) {
@@ -1288,7 +1304,7 @@ struct Checker {
       if (bad(ut)) { expr(args[0]); return tError; }
       TypeId lt = callback(ut, {ut, E, i32});
       if (bad(lt)) return tError;
-      if (!assignable(ty(lt).elem, ut, kNone)) { diag(kZNotAssignable, args[0], "'" + name(ty(lt).elem) + "' to '" + name(ut) + "'"); return tError; }
+      if (!assignable(ty(lt).elem, ut, kNone)) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(ty(lt).elem)}, {"to", name(ut)}}); return tError; }
       aliases.push_back(ut);
       std::string U = inspectAliasName(ut);
       std::string call = arity == 2 ? "f(acc, a[k])" : "f(acc, a[k], k)";
@@ -1307,7 +1323,7 @@ struct Checker {
       TypeId lt = callback(boolRet ? tBool : kNoType, {E, i32});
       if (bad(lt)) return tError;
       TypeId U = ty(lt).elem;
-      if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "'" + name(U) + "' to 'boolean'"); return tError; }
+      if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(U)}, {"to", "boolean"}}); return tError; }
       std::string F = inspectAliasName(lt);
       std::string call = arity == 1 ? "f(a[k])" : "f(a[k], k)";
       std::string fwd = "for (let k: i32 = 0; k < a.length; k++)", bwd = "for (let k: i32 = a.length - 1; k >= 0; k--)";
@@ -1400,6 +1416,10 @@ struct Checker {
     if (name == "arguments") diag(kZArgumentsForbidden, at, "");
     else if (name == "eval") diag(kZEvalForbidden, at, "");
     else if (name == "globalThis") diag(kZGlobalThisForbidden, at, "");
+    // what a web developer types first: no browser runs the program, so say what to use instead (ZN-774.04)
+    else if (name == "window" || name == "alert" || name == "confirm" || name == "prompt" || name == "HTMLElement" || name == "HTMLCanvasElement")
+      diag(kZCannotFindName, at, "diag.detail.noDom", {{"name", std::string(name)}});
+    else if (name == "localStorage" || name == "sessionStorage") diag(kZCannotFindName, at, "diag.detail.noStorage", {{"name", std::string(name)}});
     else diag(kZCannotFindName, at, "'" + std::string(name) + "'");
   }
   bool replaceWith(std::uint32_t i, const std::string& text, const std::vector<std::vector<std::uint32_t>>& holes) {
@@ -1453,7 +1473,7 @@ struct Checker {
       }
     }
     if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
-      if (args.size() > 1) { diag(kZWrongArgCount, i, "expected 0-1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (args.size() > 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "0-1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       std::string nm(cn.text);
       if (args.empty()) return rewrite(nm == "String" ? "''" : nm == "Number" ? "0" : "false", {});
       TypeId at = expr(args[0]);
@@ -1706,7 +1726,7 @@ struct Checker {
       const ObjInfo& oi = out.objs[ty(result).obj];
       if (oi.isInterface || oi.isRecord) { diag(kZNotCallable, callee, "an interface cannot be instantiated"); for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
       if (oi.isAbstract) diag(kZAbstractViolation, callee, "cannot instantiate abstract class '" + oi.name + "'");
-      if (usedBeforeDeclaration(s, callee)) diag(kZCannotFindName, callee, "class '" + oi.name + "' used before its declaration");
+      if (usedBeforeDeclaration(s, callee)) diag(kZCannotFindName, callee, "diag.detail.beforeDeclaration", {{"name", oi.name}});
       if (!ctorAccessible(oi, ty(result).obj)) diag(kZNotAccessible, callee, "the constructor of '" + oi.name + "'");
       ft = oi.ctor;
       if (ft == kNoType) ft = func({}, tVoid, 0);
@@ -1786,7 +1806,7 @@ struct Checker {
     if (f.rest && !packed) packRest(i, f.params.size() - 1, 1);
     std::size_t argc = x.kids.size() - 1;
     if (argc < f.minArgs || (!f.variadic && argc > f.params.size())) {
-      diag(kZWrongArgCount, i, "expected " + std::to_string(f.minArgs) + (f.minArgs == f.params.size() ? "" : "-" + std::to_string(f.params.size())) + ", got " + std::to_string(argc));
+      diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(f.minArgs) + (f.minArgs == f.params.size() ? "" : "-" + std::to_string(f.params.size()))}, {"got", std::to_string(argc)}});
     }
     for (std::size_t k = 0; k < argc; ++k) {
       std::uint32_t arg = x.kids[k + 1];
@@ -1992,7 +2012,7 @@ struct Checker {
         TypeId el = (expected != kNoType && ty(expected).k == TK::Array) ? ty(expected).elem : isDyn(expected) ? tDyn : kNoType;  // [1, 'a'] where an any is expected: any elements
         if (el == kNoType && spreadHint.first == i) el = spreadHint.second;
         if (x.kids.empty()) {
-          if (el == kNoType) { diag(kZCannotInfer, i, "empty array literal"); return tError; }
+          if (el == kNoType) { diag(kZCannotInfer, i, "diag.detail.emptyArray", {}); return tError; }
           return arrayOf(el);
         }
         TypeId first = kNoType;
@@ -2004,7 +2024,7 @@ struct Checker {
           if (el != kNoType) require(t, el, e);
           else if (t == tNull) sawNull = true;
           else if (first == kNoType) first = t;
-          else if (!assignable(t, first, e)) { diag(kZNotAssignable, e, "'" + name(t) + "' to '" + name(first) + "'"); }
+          else if (!assignable(t, first, e)) { diag(kZNotAssignable, e, "diag.detail.assign", {{"from", name(t)}, {"to", name(first)}}); }
         }
         if (el != kNoType) return arrayOf(el);
         if (first == kNoType) { diag(kZCannotInfer, i, "array of only null"); return tError; }
@@ -2025,7 +2045,7 @@ struct Checker {
         if (op == "!" && !bad(t)) t = truthiness(x.kids[0], t);  // `!p` on a nullable: not present (or falsy)
         if (op != "typeof" && op != "void" && op != "delete") t = appOrDiag(t, x.kids[0]);
         if (bad(t)) return op == "!" ? tBool : tError;
-        if (op == "!") { if (t != tBool) diag(kZNotAssignable, x.kids[0], "'" + name(t) + "' to 'boolean'"); return tBool; }
+        if (op == "!") { if (t != tBool) diag(kZNotAssignable, x.kids[0], "diag.detail.assign", {{"from", name(t)}, {"to", "boolean"}}); return tBool; }
         if (op == "typeof") {
           if (rawDyn()) return tStr;
           std::string lit;
@@ -2051,7 +2071,7 @@ struct Checker {
           std::string conv = t == tStr ? "__toNumber(__H0)" : "(__H0 ? 1 : 0)";
           if (replaceWith(i, op == "-" ? "-" + conv : conv, {{x.kids[0]}})) return expr0(i, expected);
         }
-        if (!isNum(t)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(t) + "'"); return tError; }
+        if (!isNum(t)) { diag(kZBadOperand, i, "diag.detail.on", {{"name", op}, {"type", name(t)}}); return tError; }
         return op == "~" ? num(Num::i32) : t;
       }
       case N::UpdatePre: case N::UpdatePost: {
@@ -2065,7 +2085,7 @@ struct Checker {
         if (n(x.kids[0]).kind == N::Ident && out.nodeSym[x.kids[0]] != kNone && trackable(out.nodeSym[x.kids[0]])) out.syms[out.nodeSym[x.kids[0]]].reassigned = true;
         TypeId t = appOrDiag(t0, x.kids[0]);
         if (bad(t)) return tError;
-        if (!isNum(t)) { diag(kZBadOperand, i, "'" + std::string(x.text) + "' on '" + name(t) + "'"); return tError; }
+        if (!isNum(t)) { diag(kZBadOperand, i, "diag.detail.on", {{"name", std::string(x.text)}, {"type", name(t)}}); return tError; }
         lvalue(x.kids[0]);
         return t0;
       }
@@ -2169,14 +2189,14 @@ struct Checker {
           return tt;
         }
         if (bop == "+" && tt == tStr && stringifiable(vt)) return tt;
-        if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(tt) + "' and '" + name(vt) + "'"); return tt; }
+        if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "diag.detail.operands", {{"op", op}, {"left", name(tt)}, {"right", name(vt)}}); return tt; }
         Num r = (bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>") ? Num::i32 : bop == ">>>" ? Num::u32 : arith(bop, target, ty(tt).num, value, ty(vt).num);
-        if (!widens(r, ty(tt).num) && (isFx(r) || isFx(ty(tt).num))) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
+        if (!widens(r, ty(tt).num) && (isFx(r) || isFx(ty(tt).num))) diag(kZNotAssignable, i, "diag.detail.assign", {{"from", numName(r)}, {"to", name(tt)}});
         return tt;
       }
       case N::Cond: {
         TypeId c = truthiness(x.kids[0], expr(x.kids[0]));
-        if (!bad(c) && c != tBool) diag(kZNotAssignable, x.kids[0], "'" + name(c) + "' to 'boolean'");
+        if (!bad(c) && c != tBool) diag(kZNotAssignable, x.kids[0], "diag.detail.assign", {{"from", name(c)}, {"to", "boolean"}});
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft); factsOf(x.kids[0], false, ff);
         std::size_t mark = narrowing.size();
@@ -2237,7 +2257,7 @@ struct Checker {
           std::uint32_t cs = lookup(on.text);
           if (cs != kNone && out.syms[cs].kind == SymKind::Class && !out.objs[ty(out.syms[cs].type).obj].isInterface) {
             out.nodeSym[x.kids[0]] = cs;
-            if (usedBeforeDeclaration(cs, x.kids[0])) diag(kZCannotFindName, x.kids[0], "class '" + std::string(on.text) + "' used before its declaration");
+            if (usedBeforeDeclaration(cs, x.kids[0])) diag(kZCannotFindName, x.kids[0], "diag.detail.beforeDeclaration", {{"name", std::string(on.text)}});
             const Member* m = lookupMember(ty(out.syms[cs].type).obj, x.text, true);
             if (!m) { if (x.text == "prototype") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
             if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
@@ -2275,11 +2295,11 @@ struct Checker {
         ot = appOrDiag(ot, x.kids[0]);
         if (bad(ot)) return tError;
         if (on.kind == N::This && ctorStmts && !pendingExempt && std::find(ctorPending.begin(), ctorPending.end(), std::string(x.text)) != ctorPending.end())
-          diag(kZUninitializedField, i, "'" + std::string(x.text) + "' is read before it is assigned");
+          diag(kZUninitializedField, i, "diag.detail.readBeforeAssigned", {{"name", std::string(x.text)}});
         Member scratch;
         const Member* m = findMember(ot, x.text);
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
-        if (!m) { if (x.text == "prototype" || x.text == "__proto__") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
+        if (!m) { if (x.text == "prototype" || x.text == "__proto__") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, on.kind == N::Ident && on.text == "document" && name(ot) == "Document" ? "diag.detail.noDomMember" : "diag.detail.on", {{"name", std::string(x.text)}, {"type", name(ot)}}); return tError; }
         if (m == &scratch && m->method && !called) {   // the engines call a built-in method, they have no value for it (it read as the length)
           diag(kZUnsupported, i, "'" + std::string(x.text) + "' of '" + name(ot) + "' used as a value: call it, or wrap it in an arrow function");
           return tError;
@@ -2311,7 +2331,7 @@ struct Checker {
         }
         if (ot == tStr && isNum(it) && replaceWith(i, "__H0.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);   // 'abc'[1]: a one-character string ('' past the end) (ZN-155)
         if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
-        if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "'" + name(it) + "' to 'number'"); return tError; }
+        if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "diag.detail.assign", {{"from", name(it)}, {"to", "number"}}); return tError; }
         if (ty(ty(ot).elem).k == TK::Union && !pendingExempt) {
           std::uint32_t ps = pathSymFor2(i, ty(ot).elem);
           if (ps != kNone) return currentType(ps);  // `a[i]` tested a moment ago
@@ -2468,7 +2488,7 @@ struct Checker {
   }
   TypeId condition(std::uint32_t e) {
     TypeId t = truthiness(e, expr(e));
-    if (!bad(t) && t != tBool) diag(kZNotAssignable, e, "'" + name(t) + "' to 'boolean'");
+    if (!bad(t) && t != tBool) diag(kZNotAssignable, e, "diag.detail.assign", {{"from", name(t)}, {"to", "boolean"}});
     return t;
   }
 
@@ -2555,7 +2575,7 @@ struct Checker {
       }
       const Member* m = findMember(va, pn.text);
       TypeId et = tError;
-      if (!m || m->method) diag(kZNoSuchProperty, pp, "'" + std::string(pn.text) + "' on '" + name(va) + "'");
+      if (!m || m->method) diag(kZNoSuchProperty, pp, "diag.detail.on", {{"name", std::string(pn.text)}, {"type", name(va)}});
       else { if (!accessible(*m)) diag(kZNotAccessible, pp, "'" + std::string(pn.text) + "'"); et = m->type; }
       out.nodeType[pp] = et;
       if (pn.kids.size() > 1 && pn.kids[1] != kNone) {   // {z = 5}: used when the property is undefined (not null, as in JavaScript); the target then has its type without it (ZN-155)
@@ -2693,7 +2713,7 @@ struct Checker {
         TypeId t = expr(x.kids[0]);
         std::uint32_t eo = errorObj();
         if (eo == kNoObj) { diag(kZCannotFindName, s, "'Error'"); break; }
-        if (!bad(t) && (ty(t).k != TK::Object || !isSubclass(ty(t).obj, eo))) diag(kZNotAssignable, x.kids[0], "'" + name(t) + "' to 'Error'");
+        if (!bad(t) && (ty(t).k != TK::Object || !isSubclass(ty(t).obj, eo))) diag(kZNotAssignable, x.kids[0], "diag.detail.assign", {{"from", name(t)}, {"to", "Error"}});
         break;
       }
       case N::Try: {
@@ -2843,7 +2863,7 @@ struct Checker {
           else require(rt, inferredRet, x.kids[0]);
           break;
         }
-        if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any) diag(kZNotAssignable, s, "'void' to '" + name(curRet) + "'"); break; }
+        if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any) diag(kZNotAssignable, s, "diag.detail.assign", {{"from", "void"}, {"to", name(curRet)}}); break; }
         TypeId t = expr(x.kids[0], curRet);
         require(t, curRet, x.kids[0]);
         break;
@@ -2864,7 +2884,7 @@ struct Checker {
           else if (x.kind == N::Continue && !l->second) diag(kZNotAllowedHere, s, "'continue' to label '" + std::string(x.text) + "', which is not a loop");
           break;
         }
-        if (loops == 0 && (x.kind == N::Continue || switches == 0)) diag(kZNotAllowedHere, s, x.kind == N::Break ? "'break' outside a loop or switch" : "'continue' outside a loop");
+        if (loops == 0 && (x.kind == N::Continue || switches == 0)) diag(kZNotAllowedHere, s, x.kind == N::Break ? "diag.detail.breakOutside" : "diag.detail.continueOutside", {});
         break;
       case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: break;  // hoisted by stmtList
       case N::Switch: {
@@ -2964,7 +2984,7 @@ struct Checker {
       const Node& pn = n(p);
       params.push_back(p);
       TypeId t = tError;
-      if (pn.kids[0] == kNone) diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "'");
+      if (pn.kids[0] == kNone) diag(kZCannotInfer, p, "diag.detail.param", {{"name", std::string(pn.text)}});
       else t = annotation(pn.kids[0]);
       if (pn.flags & kFlagRest) t = restParam(p, t, k + 1 == f.kids.size(), rest);
       out.nodeType[p] = t;
@@ -2975,8 +2995,8 @@ struct Checker {
     TypeId ret = tVoid;
     if (!isCtor) {
       if (f.kids[0] != kNone) ret = annotation(f.kids[0]);
-      else if (f.kids[1] == kNone) { diag(kZCannotInfer, fid, "return type of '" + std::string(f.text) + "'"); ret = tError; }
-      else if (hasValueReturn(a, f.kids[1])) { if (inferReturns) sigNeedsInfer = true; else { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; } }
+      else if (f.kids[1] == kNone) { diag(kZCannotInfer, fid, "diag.detail.returnType", {{"name", std::string(f.text)}}); ret = tError; }
+      else if (hasValueReturn(a, f.kids[1])) { if (inferReturns) sigNeedsInfer = true; else { diag(kZCannotInfer, f.kids[1], "diag.detail.returnType", {{"name", std::string(f.text)}}); ret = tError; } }
     }
     return func(std::move(ps), ret, minArgs, false, rest);
   }
@@ -3357,7 +3377,7 @@ struct Checker {
         bool nullDefault = n(d).kind == N::Literal && n(d).text == "null";  // `x?: T`: the parser already made it `T | null`
         if (!nullDefault) {
           std::uint32_t ann = n(p).kids[0];
-          if (ann == kNone) { diag(kZCannotInfer, p, "parameter '" + std::string(n(p).text) + "' of a function expression"); continue; }
+          if (ann == kNone) { diag(kZCannotInfer, p, "diag.detail.fnExprParam", {{"name", std::string(n(p).text)}}); continue; }
           std::uint32_t nul = newNode(N::TypeRef, "null", {}, p);
           a.nodes[p].kids[0] = newNode(N::TypeUnion, {}, {ann, nul}, p);
           std::string nm(n(p).text);
@@ -3400,7 +3420,7 @@ struct Checker {
       if (pn.kids[1] != kNone) diag(kZUnsupported, p, "default values for lambda parameters");
       else if (pn.kids[0] != kNone) t = annotation(pn.kids[0]);
       else if (haveExpected && k < et.params.size()) t = et.params[k];
-      else diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "' of a function expression");
+      else diag(kZCannotInfer, p, "diag.detail.fnExprParam", {{"name", std::string(pn.text)}});
       out.nodeType[p] = t;
       ps.push_back(t);
     }
@@ -3619,7 +3639,7 @@ struct Checker {
         for (std::size_t k = 2; k < fe.kids.size(); ++k) {
           const Node& pa = n(fe.kids[k]);
           if (pa.kids.size() > 2 && pa.kids[2] != kNone) { diag(kZUnsupported, fe.kids[k], "a destructured parameter of a method of an object literal"); return tError; }
-          if (pa.kids[0] == kNone) { diag(kZCannotInfer, fe.kids[k], "parameter '" + std::string(pa.text) + "'"); return tError; }
+          if (pa.kids[0] == kNone) { diag(kZCannotInfer, fe.kids[k], "diag.detail.param", {{"name", std::string(pa.text)}}); return tError; }
           sig += std::string(k > 2 ? ", " : "") + ((pa.flags & kFlagRest) ? "..." : "") + std::string(pa.text) + ": " + hole(pa.kids[0]);
           if (pa.kids[1] != kNone) sig += " = " + hole(pa.kids[1]);
         }
@@ -3850,7 +3870,7 @@ struct Checker {
 
   // `app`, reporting an operation on an unconstrained type parameter.
   TypeId appOrDiag(TypeId t, std::uint32_t node) {
-    if (ty(t).k == TK::Union) { diag(kZBadOperand, node, "'" + name(t) + "' must be narrowed first" + (hasNull(t) ? " (it may be null)" : "")); return tError; }
+    if (ty(t).k == TK::Union) { diag(kZBadOperand, node, hasNull(t) ? "diag.detail.narrowNull" : "diag.detail.narrow", {{"type", name(t)}}); return tError; }
     if (ty(t).k != TK::Param) return t;
     TypeId r = app(t);
     if (bad(r)) diag(kZBadOperand, node, "type parameter '" + name(t) + "' has no constraint that allows this");
@@ -4001,7 +4021,7 @@ struct Checker {
       std::uint32_t po = out.objs[oi].parent;
       if (po != kNoObj && out.objs[po].genericSym == kNoObj) {
         std::uint32_t ps = lookup(n(cn.kids[0]).text);
-        if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).file == cn.file && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
+        if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).file == cn.file && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "diag.detail.beforeDeclaration", {{"name", out.objs[po].name}});
       }
     }
     if (cn.kind == N::Interface && cn.kids[0] != kNone && !out.objs[oi].isRecord)
@@ -4665,7 +4685,7 @@ struct Checker {
           std::vector<std::string> names;
           for (const auto& ex : exportsOf[im.from]) names.emplace_back(ex.first);
           std::string near = nearest(im.name, names);
-          diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' is not exported by '" + a.modules[im.from].path + "'" + (near.empty() ? "" : " (did you mean '" + near + "'?)"));
+          diag(kZCannotFindName, im.node, near.empty() ? "diag.detail.notExported" : "diag.detail.notExportedNear", {{"name", std::string(im.name)}, {"module", a.modules[im.from].path}, {"guess", near}});
           continue;
         }
         if (scopes.back()->count(im.local)) { diag(kZDuplicateDeclaration, im.node, "'" + std::string(im.local) + "'"); continue; }

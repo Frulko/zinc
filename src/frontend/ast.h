@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include "i18n/i18n.h"
 #include "zn/diagnostics.h"
 
 namespace zn::frontend {
@@ -172,8 +173,10 @@ std::uint32_t loweredOffset(const std::vector<SrcPiece>& map, std::uint32_t src)
 struct Diag {
   const char* code;     // registry code (zn/diagnostics.h)
   std::uint32_t pos;    // byte offset in `file`
-  std::string detail;   // what was found or expected, appended to the registry title
+  std::string detail;   // what was found or expected, appended to the registry title; English, the text tools read
   std::uint32_t file = 0;
+  const char* key = nullptr;      // a detail a beginner meets often (D159): its message in i18n/<lang>/diag.json, printed in the person's language
+  std::vector<i18n::Arg> args{};  // the values of its {placeholders}
 };
 
 using zn::kZBadAssignTarget;

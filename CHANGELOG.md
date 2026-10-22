@@ -27,6 +27,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A misspelt command suggests the closest one (`zinc hlep`: did you mean `zinc help`?).
 - `zinc doctor` starts by saying whether this machine is ready, and exits 1 when it is not. The console SDK, iPhone 4S and Rust rows moved to `zinc doctor --details`, and plugins without a ready library now say they are built the first time a program uses them.
 - `zinc run` says when it builds a plugin for the first time (once, 5 to 20 s). `zinc check` prints `ok` and what it checked. `zinc dev` starts by naming the file to change and saying that Ctrl+C stops.
+- Error messages speak your language: the title of every error code, the common details, the closing hint and `zinc explain` (`zinc explain --markdown --lang fr` writes the list). The start of the line, `file:line:col: error Z0103:`, stays as it is for the tools that read it, and `zinc check --json`, `zinc lint` and `zinc lsp` stay English.
+- Errors say `number` where your program says `number`, not `f64`. `document`, `window`, `alert` and `localStorage` say that Zinc has no browser and what to use; `import ... from 'fs'` or `'react'` names the Zinc module (`zinc:fs`, `zinc:ui/react`), another package names `zinc add npm:<package>`; an untyped parameter or `var` in a `.ts` file says that `zinc run file.js` runs plain JavaScript.
+- `zinc explain` with no code lists the codes, and takes `z0103` or `103` as well as `Z0103`.
 
 ## [0.6.2] - 2026-10-22
 

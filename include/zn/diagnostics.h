@@ -1,6 +1,7 @@
 #pragma once
 // The diagnostics registry: the only place a diagnostic code, title, explanation, fix or example is written.
-// Messages, `zinc explain` and docs/diagnostics.md are all generated from this table.
+// Messages, `zinc explain` and docs/diagnostics.md are all generated from this table. Its English title, why and fix are repeated in
+// i18n/en/diag.json for the translators (`zinc explain --catalog` prints them; tests/t0/diagnostics.sh keeps the two the same, D159).
 // Every code needs a fixture (tests/golden/*/errors/<name>.ts + .expect); tests/t0/diagnostics.sh enforces it.
 #include <string_view>
 
@@ -24,13 +25,13 @@
   X(JsxClass, "Z0006", "`class` in JSX: write `className`",                                                            \
     "JSX is the language React defines: `class` is a keyword of JavaScript and TypeScript, so the attribute that "     \
     "carries the style classes, and the prop of a component that takes them, are named `className`.",                 \
-    "Rename the attribute to className (<View className=\"p-4\">) and declare the prop of your components as className; " \
+    "Rename the attribute to className (`<View className=\"p-4\">`) and declare the prop of your components as className; " \
     "`zinc migrate jsx-classname --apply` rewrites a whole project.", \
     "function App(): i32 {\n  return <View class=\"p-4\" />;\n}")                                                     \
   X(JsxLowercaseTag, "Z0007", "JSX components start with a capital letter",                                          \
-    "As in React and React Native, a JSX tag names a component and components start with a capital letter: <View>, "   \
-    "<Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea> or one of yours. A lowercase tag is not "  \
-    "a component of Zinc.", "Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>; " \
+    "As in React and React Native, a JSX tag names a component and components start with a capital letter: `<View>`, " \
+    "`<Text>`, `<Button>`, `<Image>`, `<ScrollView>`, `<Canvas>`, `<Input>`, `<TextArea>` or one of yours. A lowercase " \
+    "tag is not a component of Zinc.", "Write the capitalised component the message names: `<view>` is `<View>`, `<scroll>` is `<ScrollView>`; " \
     "`zinc migrate jsx-capitalised-tags --apply` rewrites a whole project.", \
     "function App(): i32 {\n  return <view />;\n}")                                                                    \
   X(CannotFindName, "Z0101", "Cannot find name",                                                                      \
@@ -40,7 +41,8 @@
     "A name can be declared only once per scope.", "Rename one of the declarations.", "let a = 1;\nlet a = 2;")        \
   X(NotAssignable, "Z0103", "Type is not assignable",                                                                  \
     "The value's type cannot be used where another type is expected. Machine numeric kinds (i32, f64, ...) are "      \
-    "distinct: only lossless widening is implicit, and conditions must be boolean.",                                  \
+    "distinct: only lossless widening is implicit, and conditions must be boolean. `number` is f64 (f32 or fixed "    \
+    "point on some boards, see --profile); messages say number.",                                                       \
     "Convert explicitly or change the declared type.", "let a: i32 = \"x\";")                                          \
   X(WrongArgCount, "Z0104", "Wrong number of arguments",                                                               \
     "A call must pass every required parameter and no more than the function declares.",                              \
@@ -129,8 +131,8 @@
     "Build for a target that has them, or pass --force to build anyway.",                                                                  \
     "// zinc-profile: rmpp\nimport 'zinc:ffi';")                                                                                          \
   X(SystemPermission, "Z5006", "A system module needs a permission",                                                       \
-    "The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the "  \
-    "permission \"<feature>\" (or \"<feature>:<operation>\"); a project without \"permissions\" can use none. "  \
+    "The modules `zinc:system/<feature>` (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the "  \
+    "permission `\"<feature>\"` (or `\"<feature>:<operation>\"`); a project without \"permissions\" can use none. "  \
     "The host features (net, fs, process, serial, camera, microphone, location) are checked at run time by their modules once zinc.json has \"permissions\": zinc:camera's devices() and open() fail naming \"camera\" in an exported app.", "Add the id to \"permissions\" in zinc.json.",     \
     "import { isSupported } from 'zinc:system/tray';\nconsole.log(isSupported());")                                                                 \
   X(NativeTypeNotExpressible, "Z5010", "A native member uses a type the native ABI cannot carry yet",                      \
@@ -138,7 +140,7 @@
     "Callbacks, promises, resources and other number kinds are not expressible yet.", "Change the member to use one of those types.",        \
     "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(m: Map<string, i32>): void }\nconst n = requireNative<Spec>('Fixture');") \
   X(NativeNotLinked, "Z5011", "The native module is not linked into this engine",                                      \
-    "requireNative<Spec>('Name') needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the "  \
+    "`requireNative<Spec>('Name')` needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the "  \
     "export and signature the Spec describes.", "Link the module, add a stand-in, or fix the Spec to match the module.",                      \
     "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(): void }\nconst n = requireNative<Spec>('Nowhere');") \
   X(FixedUnrepresentable, "Z4001", "The value cannot be represented in fixed point",                                      \

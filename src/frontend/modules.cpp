@@ -1523,6 +1523,10 @@ struct Loader {
   void diag(const char* code, std::uint32_t file, std::uint32_t node, std::string detail) {
     prog.diags.push_back({code, node == kNone ? 0 : prog.ast.nodes[node].start, std::move(detail), file});
   }
+  // a detail a beginner meets often: the message `key` of i18n/<lang>/diag.json, its English text kept for the tools (D159)
+  void diag(const char* code, std::uint32_t file, std::uint32_t node, const char* key, std::vector<i18n::Arg> args) {
+    prog.diags.push_back({code, node == kNone ? 0 : prog.ast.nodes[node].start, i18n::message("en", key, args), file, key, std::move(args)});
+  }
 
   // The module index for an import of `spec` (with quotes) from file `fromFile`, loading it first; kNone on error.
   std::uint32_t resolve(std::uint32_t fromFile, std::uint32_t node, std::string_view quoted) {
@@ -1570,9 +1574,7 @@ struct Loader {
         names.insert(names.end(), stdNames.begin(), stdNames.end());
         for (const auto& kv : plugins) if (kv.first.rfind("zinc:", 0) == 0) names.push_back(kv.first.substr(5));
         std::string near = nearest(spec.substr(5), names);
-        diag(kZModuleNotFound, fromFile, node, "'" + spec + "' " + (!near.empty() ? "(did you mean 'zinc:" + near + "'?)"
-          : "is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search " + spec.substr(5) +
-            "` looks in the index, `zinc add <name>` installs one)"));
+        diag(kZModuleNotFound, fromFile, node, !near.empty() ? "diag.detail.moduleNear" : "diag.detail.noPlugin", {{"spec", spec}, {"guess", "zinc:" + near}, {"name", spec.substr(5)}});
       }
       return kNone;
     }
@@ -1580,7 +1582,16 @@ struct Loader {
       const ModuleResolver::Bare b = res.bare(spec, prog.files[fromFile].path, false);
       bool cycle;
       if (!b.file.empty()) { const std::uint32_t m = loadFound(b.file, cycle); if (!cycle) return m; diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
-      diag(kZModuleNotFound, fromFile, node, "'" + spec + "' " + (!b.tried.empty() ? "(tsconfig.json paths '" + b.paths + "' -> " + b.tried + ": no such file)" : "(no tsconfig.json paths entry maps it)"));
+      if (!b.tried.empty()) { diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (tsconfig.json paths '" + b.paths + "' -> " + b.tried + ": no such file)"); return kNone; }
+      // what to write instead (ZN-774.04): a module of Node has its Zinc module, React is zinc:ui/react, an npm package is installed
+      static const std::pair<std::string_view, const char*> kNodeModules[] = {{"fs", "zinc:fs"}, {"fs/promises", "zinc:fs"}, {"path", "zinc:path"},
+          {"os", "zinc:os"}, {"http", "zinc:net"}, {"https", "zinc:net"}, {"net", "zinc:net"}, {"events", "zinc:events"}, {"child_process", "zinc:process"}, {"assert", "zinc:assert"}};
+      const std::string_view bare = std::string_view(spec).substr(spec.rfind("node:", 0) == 0 ? 5 : 0);
+      for (const auto& [nodeName, zincName] : kNodeModules)
+        if (bare == nodeName) { diag(kZModuleNotFound, fromFile, node, "diag.detail.nodeModule", {{"spec", spec}, {"module", zincName}}); return kNone; }
+      if (bare == "react" || bare == "react-dom" || bare == "react-native") { diag(kZModuleNotFound, fromFile, node, "diag.detail.react", {{"spec", spec}}); return kNone; }
+      const std::size_t cut = spec.find('/', spec[0] == '@' ? spec.find('/') + 1 : 0);   // the package of 'lodash/fp' and of '@scope/pkg/x'
+      diag(kZModuleNotFound, fromFile, node, "diag.detail.npm", {{"spec", spec}, {"package", spec.substr(0, cut)}});
       return kNone;
     }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
@@ -1629,7 +1640,7 @@ struct Loader {
       return m;
     }
     std::string near = nearestFile(base, false);
-    diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no file " + base + ".ts or .tsx" + (near.empty() ? "" : "; did you mean '" + spec.substr(0, spec.rfind('/') + 1) + near + "'?") + ")");
+    diag(kZModuleNotFound, fromFile, node, near.empty() ? "diag.detail.noFile" : "diag.detail.noFileNear", {{"spec", spec}, {"file", base}, {"guess", spec.substr(0, spec.rfind('/') + 1) + near}});
     return kNone;
   }
 
@@ -3173,7 +3184,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     std::string near = nearestFile(entry, true);
     std::size_t sl = entry.rfind('/');
     p.files.push_back({entry, "", {}, {}});
-    p.diags.push_back({kZModuleNotFound, 0, "no file " + entry + (near.empty() ? "" : " (did you mean " + entry.substr(0, sl == std::string::npos ? 0 : sl + 1) + near + "?)"), 0});
+    const char* key = near.empty() ? "diag.detail.noEntry" : "diag.detail.noEntryNear";
+    std::vector<i18n::Arg> args = {{"file", entry}, {"guess", entry.substr(0, sl == std::string::npos ? 0 : sl + 1) + near}};
+    p.diags.push_back({kZModuleNotFound, 0, i18n::message("en", key, args), 0, key, args});
     return p;
   }
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;

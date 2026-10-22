@@ -15,3 +15,8 @@ Decision D159, research `docs/reports/onboarding-i18n-research.md`, shared terms
 - **Check**: `tools/i18n-check` (T0 `tests/t0/i18n.sh`): same messages, placeholders, codes, commands and flags in every language, plurals,
   NFC, and every `tr("...")` of `src/` and `t('atelier...')` of `app/atelier` present in English.
 - Adding a language: a directory `i18n/<tag>/` with every area file, its plural rule in `plural()`, its tag in `kLanguages`.
+- **Diagnostics** (ZN-774.04): the registry `include/zn/diagnostics.h` stays the English source; `i18n/en/diag.json` repeats its title, why
+  and fix (`zinc explain --catalog` prints them, `tests/t0/diagnostics.sh` keeps the two the same) and the other languages translate them.
+  The frequent details are keys `diag.detail.*`: a `Diag` keeps its English text (`detail`, what tools read) and its `key` and `args`, which
+  `format()` prints in the person's language. The start of a line, `file:line:col: error Z0103: `, stays English in every language on
+  purpose (Zinc Atelier and scripts parse it); `zinc lsp`, `zinc lint` and `zinc check --json` run in English. The other details stay English.

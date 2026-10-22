@@ -70,7 +70,7 @@ run ZINC_SHOT="$tmp/shot.png" "$Z" run >"$tmp/out" 2>"$tmp/err"
 cp src/main.ts "$tmp/main.ts"
 echo 'const lives: number = "three";' >> src/main.ts
 run "$Z" run >"$tmp/out" 2>&1
-[ $? -eq 1 ] && grep -q "src/main.ts:[0-9]*:[0-9]*: error Z0103: Type is not assignable: 'string' to 'f64'" "$tmp/out" || { echo "no type error with file and line: $(head -c 400 "$tmp/out")"; fail=1; }
+[ $? -eq 1 ] && grep -q "src/main.ts:[0-9]*:[0-9]*: error Z0103: Type is not assignable: 'string' to 'number'" "$tmp/out" || { echo "no type error with file and line: $(head -c 400 "$tmp/out")"; fail=1; }
 cp "$tmp/main.ts" src/main.ts
 clean "$Z" lint >"$tmp/out" 2>&1 || { echo "zinc lint fails from the install: $(head -c 400 "$tmp/out")"; fail=1; }
 

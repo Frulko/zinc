@@ -59,7 +59,15 @@ struct Elem {
   std::size_t begin = 0, end = 0;  // token range
 };
 
-struct Failure { std::uint32_t pos; std::string msg; const char* code = "Z0005"; };
+struct Failure {
+  std::uint32_t pos; std::string msg; const char* code = "Z0005";
+  const char* key = nullptr; std::vector<i18n::Arg> args{};   // a frequent mistake (D159): msg is the English of key, printed in the person's language
+};
+// The failure of a frequent mistake: its message `key` of i18n/<lang>/diag.json (which says "JSX: " itself) and the English for the tools.
+[[noreturn]] void failKey(std::uint32_t pos, const char* code, const char* key, std::vector<i18n::Arg> args) {
+  std::string en = i18n::message("en", key, args);
+  throw Failure{pos, std::move(en), code, key, std::move(args)};
+}
 
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
 bool validClass(const std::string& c);
@@ -450,8 +458,7 @@ struct Lowering {
           for (auto& [low, cap] : kLowerTags) names.push_back(low);
           if (std::string near = nearest(e->tag, names); !near.empty()) want = kLowerTags.at(near);
         }
-        throw Failure{t[i].start, want.empty() ? "<" + e->tag + "> is not a component: components start with a capital letter (<View>, <Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea>, or one of yours)"
-                                               : "<" + e->tag + "> is not a component: write <" + want + ">", "Z0007"};
+        failKey(t[i].start, "Z0007", want.empty() ? "diag.detail.jsxCapital" : "diag.detail.jsxWrite", {{"tag", e->tag}, {"want", want}});
       }
       ++i;
       for (;;) {
@@ -467,7 +474,7 @@ struct Lowering {
         if (t[i].kind != Tok::Ident) fail(i, "unexpected token in a JSX tag");
         Attr a;
         a.name = tx(i); a.tok = i;
-        if (a.name == "class") throw Failure{t[i].start, "write className, not class, on <" + e->tag + ">", "Z0006"};
+        if (a.name == "class") failKey(t[i].start, "Z0006", "diag.detail.jsxClassName", {{"tag", e->tag}});
         ++i;
         if (isP(i, "=")) {
           ++i;
@@ -481,14 +488,17 @@ struct Lowering {
     for (;;) {
       // a tag left open (ZN-711): the error is at the tag that opened it, with the closing tag to write
       const std::string open = "<" + e->tag + ">", close = "</" + e->tag + ">";
-      auto unclosed = [&](const std::string& found) { throw Failure{t[e->begin].start, open + " is not closed" + found + ": add " + close + (e->frag ? "" : ", or end the tag with />"), "Z0002"}; };
-      if (i >= t.size()) unclosed("");
+      auto unclosed = [&](std::uint32_t line, const std::string& other) {   // line: where another tag closes instead, 0 when none does
+        if (e->frag) throw Failure{t[e->begin].start, open + " is not closed" + (line ? " (line " + std::to_string(line) + " closes " + other + " instead)" : "") + ": add " + close, "Z0002"};
+        failKey(t[e->begin].start, "Z0002", line ? "diag.detail.jsxClosedBy" : "diag.detail.jsxNotClosed", {{"open", open}, {"close", close}, {"line", std::to_string(line)}, {"other", other}});
+      };
+      if (i >= t.size()) unclosed(0, "");
       if (t[i].kind == Tok::JsxText) { Child c; c.kind = 0; c.text = tx(i); c.tok = i; e->kids.push_back(std::move(c)); ++i; }
       else if (isP(i, "{")) { std::size_t m = match(i); Child c; c.kind = 1; c.eb = i + 1; c.ee = m; c.tok = i; e->kids.push_back(std::move(c)); i = m + 1; }
       else if (isP(i, "</")) {
         ++i;
         if (!e->frag) {  // the closing tag's name
-          if (i < t.size() && tx(i) != e->tag) unclosed(" (line " + std::to_string(lineCol(s, t[i].start).line) + " closes " + (isP(i, ">") ? "a fragment, </>" : "</" + tx(i) + ">") + " instead)");
+          if (i < t.size() && tx(i) != e->tag) unclosed(lineCol(s, t[i].start).line, isP(i, ">") ? "a fragment, </>" : "</" + tx(i) + ">");
           ++i;
         }
         if (!isP(i, ">")) fail(i, "malformed closing JSX tag");
@@ -496,7 +506,7 @@ struct Lowering {
         e->end = i;
         return e;
       } else if (isP(i, "<")) { Child c; c.kind = 2; c.tok = i; c.el = parseElem(i); i = c.el->end; e->kids.push_back(std::move(c)); }
-      else unclosed("");   // a token no child starts with: the element ran past its end
+      else unclosed(0, "");   // a token no child starts with: the element ran past its end
     }
   }
 
@@ -1420,7 +1430,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {
-    diags.push_back({f.code, f.pos, "JSX: " + f.msg, file});
+    diags.push_back({f.code, f.pos, f.key ? f.msg : "JSX: " + f.msg, file, f.key, f.args});
     return std::string(src);
   }
 }
