@@ -535,6 +535,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.19: an AS3-style `DisplayObject.localToGlobal` would let interface elements follow a sprite nested anywhere in a scene, not only a direct child of a stage at the window's corner.
 - ZN-774.19: run the seven samples of docs/start/beyond.md on `--native` and on the web target (DOM render); only the interpreter and QuickJS were checked.
 - ZN-774.19: `Stage.drawIn` sets the drawing position absolutely, so a scene in a Canvas under a rotated parent draws upright; a scroll box inside the box clips its zones to its own rectangle only.
+- ZN-774.11: in-page anchors of the translated docs stay English (`#draw-it-yourself`, `README.md#the-lessons`) because the check wants the same link targets, but the translated headings make other ids, so those links lead nowhere; an explicit id on each translated heading (`<a id="draw-it-yourself"></a>`, checked by tools/i18n-docs-check) fixes them in every language.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
