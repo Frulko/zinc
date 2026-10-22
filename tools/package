@@ -19,7 +19,10 @@ NEXT = os.path.dirname(HERE)
 REPO = NEXT
 VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
 # size budgets in MB of the download (the archive); a package over its budget fails the script
-BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
+BUDGET_MB = {"macos-cli": 40, "macos-app": 40, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB; 2026-10-22: 35 to 40 on macOS, every plugin prebuilt (webrtc +4 MB)
+# the plugins a package ships without a library on purpose; any other one left without (but for a system library) fails a macOS package, as zinc:link did in 0.6.0
+NO_PREBUILT = {"script": "built into the engine (src/qjs/script_native.cpp)",
+               "imu-qmi8658": "its spec returns an f32, which the C ABI cannot carry; on a computer imu.sim.ts stands in for a sensor it has not"}
 
 def arg(name, default):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
@@ -83,8 +86,12 @@ def prebuild_plugins(zinc, share, target):
             nd = os.path.join(d, "native")
             native = m.get("kind") == "display" or (os.path.isdir(nd) and any(f.endswith(".spec.ts") for f in os.listdir(nd)))
             if not native or target not in t: continue
-            if isinstance(t, dict) and (t[target] or {}).get("pkg"):
-                without[name] = "needs the system libraries " + " ".join(t[target]["pkg"])
+            if name in NO_PREBUILT: without[name] = NO_PREBUILT[name]; continue
+            ts = (t[target] or {}) if isinstance(t, dict) else {}
+            if m.get("kind") == "display" and not ts.get("sources"): continue   # a board's driver with no code here (display-st7789 on macOS: the normal window)
+            pkg = [p for p in ts.get("pkg", []) if not (target == "macos" and p == "sdl3")]   # macOS: the engine's own SDL, as src/tc/plugin_build.cpp does
+            if pkg:
+                without[name] = "needs the system libraries " + " ".join(pkg)
                 shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True)   # its sources: compiled on first use, on a machine that has the libraries
                 continue
             r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
@@ -343,7 +350,10 @@ def main():
         print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
         over = over or mb > BUDGET_MB[kind]
     for name, why in sorted(without.items()): print("no prebuilt library for plugin %s: %s" % (name, why))
+    missing = sorted(n for n, why in without.items() if n not in NO_PREBUILT and not why.startswith("needs the system libraries "))
     if over:
         sys.exit(3)
+    if missing and system == "Darwin":   # ponytail: macOS only; Windows still misses seven (ble, camera, devtools, process, serial, socket, svg)
+        sys.exit("plugins without their library: %s (an install cannot run a program that imports them)" % ", ".join(missing))
 
 main()

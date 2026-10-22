@@ -15,7 +15,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
 
 ### Fixed
-- The installed packages ship the native library of `zinc:link`: a program that imports it (`examples/music-tree`) no longer stops with Z5011 "no native source" on an installed Zinc.
+- The macOS packages ship the native libraries of `zinc:link`, `zinc:webrtc` and `zinc:webview`: a program that imports them (`examples/music-tree`) no longer stops with Z5011 "no native source" on an installed Zinc.
 
 ## [0.6.0] - 2026-10-22
 
