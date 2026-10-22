@@ -12,9 +12,10 @@ namespace zn::lint {
 /** One place a codemod or a source rule found: bytes [start, end) of the text, what to write there (empty: no automatic fix), and why. */
 struct Site { std::uint32_t start, end; std::string replacement, message; };
 
-/** A codemod: `id` (what zinc migrate and the engine's diagnostics name), `since` (the engine change that needs it), the diagnostic it fixes,
- *  and `scan`, the sites of one source (.tsx or .jsx code). */
-struct Codemod { const char* id; const char* since; const char* code; const char* summary; std::vector<Site> (*scan)(std::string_view src); };
+/** A codemod: `id` (what zinc migrate and the engine's diagnostics name), `since` (the engine change that needs it), the diagnostic it fixes
+ *  ("-": none), `scan`, the sites of one source (.tsx or .jsx code), and `byName`: it runs only when named (a change of look, not of the
+ *  language: a program written after the change must not get the old look by running every codemod). */
+struct Codemod { const char* id; const char* since; const char* code; const char* summary; std::vector<Site> (*scan)(std::string_view src); bool byName; };
 const std::vector<Codemod>& codemods();
 
 /** `src` with the replacement of every site that has one (sites in any order, overlapping ones after the first skipped). */

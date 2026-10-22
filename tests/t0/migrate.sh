@@ -28,4 +28,17 @@ for f in class_attr class_prop lowercase_tag lowercase_html; do
   "$ZINC" check --check "$tmp/$f.tsx" >/dev/null 2>&1 || { echo "migrated $f.tsx does not check: $("$ZINC" check --check "$tmp/$f.tsx" 2>&1 | head -1)"; fail=1; }
 done
 "$ZINC" migrate --bogus 2>/dev/null; [ $? = 2 ] || { echo "an unknown option is not exit 2"; fail=1; }
+# ui-explicit-looks (D163): only when named; the old look of host Button, Input and TextArea family by family in front of the program's own
+# classes (literals, ternaries, concatenations, templates, the file's constants), a kit's Button untouched, the unreadable ones named
+l="$tmp/looks"; mkdir "$l"
+cp $g/looks-before.tsx "$l/a.tsx"; cp $g/looks-before.md "$l/a.md"
+"$ZINC" migrate --list | grep -q "^ui-explicit-looks " || { echo "--list has no ui-explicit-looks"; fail=1; }
+"$ZINC" migrate --apply "$l" >/dev/null 2>&1
+cmp -s "$l/a.tsx" $g/looks-before.tsx || { echo "ui-explicit-looks ran without being named"; fail=1; }
+"$ZINC" migrate ui-explicit-looks --apply "$l" >/dev/null 2>"$tmp/err"
+cmp -s "$l/a.tsx" $g/looks-after.tsx || { echo "a.tsx differs from looks-after.tsx:"; diff "$l/a.tsx" $g/looks-after.tsx; fail=1; }
+cmp -s "$l/a.md" $g/looks-after.md || { echo "a.md differs from looks-after.md:"; diff "$l/a.md" $g/looks-after.md; fail=1; }
+grep -q "a.tsx:23:6: <Input> takes a className zinc migrate cannot read" "$tmp/err" && grep -q "a.tsx:24:6: <Button> takes a className" "$tmp/err" || { echo "the unreadable classNames are not named: $(cat "$tmp/err")"; fail=1; }
+"$ZINC" migrate ui-explicit-looks --apply "$l" 2>&1 | grep -q "nothing to rewrite" || { echo "ui-explicit-looks rewrote again"; fail=1; }
+"$ZINC" check --check "$l/a.tsx" >/dev/null 2>&1 || { echo "the migrated looks do not check: $("$ZINC" check --check "$l/a.tsx" 2>&1 | head -1)"; fail=1; }
 exit $fail

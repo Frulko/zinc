@@ -57,7 +57,7 @@ const renaming = (): boolean => compact() && editing() >= 0;
 function TitleEditor(props: { task: Task }): i32 {
   const t = props.task;
   onMount(() => ui.focusNode(titleInput.node));
-  return <Input ref={titleInput} className={`grow h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
+  return <Input ref={titleInput} className={`border text-[14px] px-2 py-1.5 grow h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
     value={edited()} onInput={(v: string) => setEdited(v)}
     onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { keep(t); e.preventDefault(); } else if (e.key === 'Escape') { setEditing(-1); editorHadFocus = false; e.preventDefault(); } }} />;
 }
@@ -94,7 +94,7 @@ export function Tasks(): i32 {
     </Show>
     <Show when={!renaming()}><Progress value={() => progress.get()} /></Show>
     <Show when={!renaming()}><View className="flex-row gap-2" style={{ opacity: enter.at(0.08), translateY: (1 - enter.at(0.08)) * 12 }}>
-      <Input ref={taskInput} className={`grow h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
+      <Input ref={taskInput} className={`border text-[14px] px-2 py-1.5 grow h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
         placeholder="What needs doing? (Enter to add)" value={draft()} onInput={(v: string) => setDraft(v)}
         onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { submit(); syncProgress(); e.preventDefault(); } }} />
       <Button label={TAGS[tag()]} variant="outline" onClick={() => setTag((tag() + 1) % TAGS.length)} />

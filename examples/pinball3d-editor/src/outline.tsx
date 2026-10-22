@@ -26,7 +26,7 @@ function toggle(list: string): void { setUnfolded(isOpen(list) ? unfolded().repl
 function Line(p: { path: string; label: () => string; inset: boolean; dot: () => string }): i32 {
   // a thing is also shown as chosen while something inside it is (a rule of the rules, a step of a mission)
   const on = (): boolean => selected() === p.path || (p.path !== '' && (selected().startsWith(`${p.path}.`) || selected().startsWith(`${p.path}[`)));
-  return <Button className={`flex-row items-center justify-start gap-2 h-6 pr-2 rounded cursor-pointer ${p.inset ? 'pl-7' : 'pl-2'} ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => select(p.path)}>
+  return <Button className={`py-1 flex-row items-center justify-start gap-2 h-6 pr-2 rounded cursor-pointer ${p.inset ? 'pl-7' : 'pl-2'} ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => select(p.path)}>
     <Show when={p.dot().length === 7}><View className="w-[9] h-[9] rounded-full border border-zinc-600" style={{ bg: p.dot().length === 7 ? rgb(p.dot()) : 0 }} /></Show>
     <Text className={`truncate text-xs ${on() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 170 }}>{p.label()}</Text>
   </Button>;
@@ -43,13 +43,13 @@ function Group(p: { list: string; add: boolean }): i32 {
   };
   const colour = (i: string): string => { const c: any = doc().get(`${list}[${i}].color`); return typeof c === 'string' ? `${c}` : ''; };
   return <View className="flex-col">
-    <Button className="flex-row items-center justify-start gap-1 h-6 px-1 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => toggle(list)}>
+    <Button className="py-1 flex-row items-center justify-start gap-1 h-6 px-1 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => toggle(list)}>
       <Show when={isOpen(list)}><Ico name="chevron-down" size={12} color={MUTED} /></Show>
       <Show when={!isOpen(list)}><Ico name="chevron-right" size={12} color={MUTED} /></Show>
       <Text className={`grow truncate text-xs ${count() === 0 ? 'text-zinc-500' : 'text-zinc-200'}`} style={{ maxWidth: 160 }}>{listName(list, false)}</Text>
       <Text className="text-[11px] text-zinc-500">{`${count()}`}</Text>
       <Show when={p.add}>
-        <Button className="w-[18] h-[18] ml-1 items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700" tabIndex={-1} onClick={() => { addTo(list); }}>
+        <Button className="px-2 py-1 w-[18] h-[18] ml-1 items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700" tabIndex={-1} onClick={() => { addTo(list); }}>
           <Ico name="plus" size={11} color={MUTED} />
         </Button>
       </Show>
@@ -78,13 +78,13 @@ function Files(): i32 {
     <View className="flex-row items-center gap-1 px-2 h-6">
       <Heading label={t(L.FILES)} />
       <View className="grow" />
-      <Button className={small} tabIndex={-1} onClick={() => { importFrom('', ''); }}><Ico name="plus" size={11} color={MUTED} /></Button>
-      <Button className={small} tabIndex={-1} onClick={refreshFiles}><Ico name="refresh-cw" size={11} color={MUTED} /></Button>
+      <Button className={'px-2 py-1 ' + small} tabIndex={-1} onClick={() => { importFrom('', ''); }}><Ico name="plus" size={11} color={MUTED} /></Button>
+      <Button className={'px-2 py-1 ' + small} tabIndex={-1} onClick={refreshFiles}><Ico name="refresh-cw" size={11} color={MUTED} /></Button>
     </View>
     <Show when={folder() === ''}><Text className="px-2 text-[11px] text-zinc-500" style={{ width: 212 }}>{t(L.FILES_NEED_FOLDER)}</Text></Show>
     <Show when={folder() !== ''}>
       <View className="flex-col">
-        <Button className="flex-row items-center justify-start gap-1 h-6 px-1 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => toggle(key)}>
+        <Button className="py-1 flex-row items-center justify-start gap-1 h-6 px-1 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => toggle(key)}>
           <Show when={isOpen(key)}><Ico name="chevron-down" size={12} color={MUTED} /></Show>
           <Show when={!isOpen(key)}><Ico name="chevron-right" size={12} color={MUTED} /></Show>
           <Text className="grow truncate text-xs text-zinc-200" style={{ maxWidth: 120 }}>{folder().slice(folder().lastIndexOf('/') + 1)}</Text>
@@ -93,7 +93,7 @@ function Files(): i32 {
         </Button>
         <Show when={isOpen(key)}>
           <View className="flex-col">
-            <For each={folderFiles()}>{(name: string, i: i32) => <Button className="flex-row items-center justify-start gap-2 h-6 pl-7 pr-2 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => { showFile(name); }}>
+            <For each={folderFiles()}>{(name: string, i: i32) => <Button className="py-1 flex-row items-center justify-start gap-2 h-6 pl-7 pr-2 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => { showFile(name); }}>
               <Text className="grow truncate text-xs text-zinc-200" style={{ maxWidth: unusedFiles().indexOf(name) >= 0 ? 118 : 170 }}>{name}</Text>
               <Show when={unusedFiles().indexOf(name) >= 0}><Text className="text-[10px] text-amber-300">{t(L.UNUSED)}</Text></Show>
             </Button>}</For>
@@ -110,7 +110,7 @@ export function Outline(): i32 {
   return <View className="w-[236] shrink-0 flex-col bg-zinc-900 border-r border-zinc-800">
     <View className="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
       <Ico name="search" size={13} color={MUTED} />
-      <Input ref={goer} style={{ width: 184 }} className="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.GO_TO, chord('G'))}
+      <Input ref={goer} style={{ width: 184 }} className="py-1.5 h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.GO_TO, chord('G'))}
         onChange={(v: string) => { if (showFile(v.trim()) || goTo(v)) ui.setValue(goer.node, ''); }} />
     </View>
     <ScrollView className="grow basis-0 min-h-0 flex-col pt-3">

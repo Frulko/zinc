@@ -21,20 +21,20 @@ function App(): i32 {
   return <View className="flex-col h-full p-2 gap-2">
     <View className="flex-row gap-2">
       <View className="w-[80px] h-[30px] overflow-hidden bg-slate-700 p-1">
-        <Button ref={trigger} className="w-[60px] h-5" onClick={() => setMenuOpen(!menuOpen())}><Text>Menu</Text></Button>
+        <Button ref={trigger} className="bg-slate-700 px-2 py-1 w-[60px] h-5" onClick={() => setMenuOpen(!menuOpen())}><Text>Menu</Text></Button>
         <View ref={menu} className="flex-col w-[100px] bg-slate-800 p-1 gap-1" hidden={menuOpen() ? 0 : 1}>
-          <Button className="h-5" onClick={() => log('one')}><Text>One</Text></Button>
-          <Button ref={two} className="h-5" onClick={() => { log('two'); setMenuOpen(false); }}><Text>Two</Text></Button>
+          <Button className="bg-slate-700 px-2 py-1 h-5" onClick={() => log('one')}><Text>One</Text></Button>
+          <Button ref={two} className="bg-slate-700 px-2 py-1 h-5" onClick={() => { log('two'); setMenuOpen(false); }}><Text>Two</Text></Button>
         </View>
       </View>
-      <Button ref={plain} className="w-[60px] h-5" onClick={() => log('plain')}><Text>Plain</Text></Button>
+      <Button ref={plain} className="bg-slate-700 px-2 py-1 w-[60px] h-5" onClick={() => log('plain')}><Text>Plain</Text></Button>
     </View>
     <View className="grow" />
-    <Button ref={low} className="w-[60px] h-5" onClick={() => setModalOpen(true)}><Text>Low</Text></Button>
+    <Button ref={low} className="bg-slate-700 px-2 py-1 w-[60px] h-5" onClick={() => setModalOpen(true)}><Text>Low</Text></Button>
     <View ref={tip} className="w-[120px] h-[40px] bg-amber-500" />
     <View ref={point} className="w-[90px] h-[30px] bg-emerald-500" />
     <View ref={modal} className="w-[160px] h-[80px] bg-slate-600 items-center justify-center" hidden={modalOpen() ? 0 : 1}>
-      <Button ref={modalBtn} className="w-[60px] h-5" onClick={() => setModalOpen(false)}><Text>Close</Text></Button>
+      <Button ref={modalBtn} className="bg-slate-700 px-2 py-1 w-[60px] h-5" onClick={() => setModalOpen(false)}><Text>Close</Text></Button>
     </View>
   </View>;
 }

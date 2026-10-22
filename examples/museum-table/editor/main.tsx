@@ -96,7 +96,7 @@ const [problemsOpen, setProblemsOpen] = createSignal<boolean>(true);
 function Problems(): i32 {
   const errors = (): i32 => problems().filter((p: Problem) => p.level === 'error').length;
   return <View className="flex-col shrink-0 bg-zinc-900 border-t border-zinc-800">
-    <Button className="flex-row items-center justify-start gap-2 h-8 px-3 cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setProblemsOpen(!problemsOpen())}>
+    <Button className="py-1 flex-row items-center justify-start gap-2 h-8 px-3 cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setProblemsOpen(!problemsOpen())}>
       <Ico name="circle-alert" size={14} color={MUTED} />
       <Text className="text-xs font-bold text-zinc-200">{t(L.PROBLEMS)}</Text>
       <Text className={`text-xs ${problems().length === 0 ? 'text-zinc-500' : errors() > 0 ? 'text-red-400' : 'text-orange-300'}`}>
@@ -107,7 +107,7 @@ function Problems(): i32 {
     </Button>
     <Show when={problemsOpen() && problems().length > 0}>
       <ScrollView className="flex-col px-2 pb-2" style={{ maxHeight: 112 }}>
-        <For each={problems()}>{(p: Problem, i: i32) => <Button className="flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => goTo(p)}>
+        <For each={problems()}>{(p: Problem, i: i32) => <Button className="py-1 flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => goTo(p)}>
           <Ico name={p.level === 'error' ? 'circle-alert' : 'triangle-alert'} size={13} color={p.level === 'error' ? DANGER : WARN} />
           <Text className="truncate text-xs text-zinc-300" style={{ maxWidth: 900 }}>{problemText(p)}</Text>
         </Button>}</For>
@@ -120,7 +120,7 @@ function StatusBar(): i32 {
   return <View className="flex-row items-center gap-3 h-8 px-3 shrink-0 bg-zinc-950 border-t border-zinc-800">
     <Text className="grow truncate text-[11px] text-zinc-400">{status()}</Text>
     <Text className="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</Text>
-    <Button className={`flex-row items-center h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
+    <Button className={`py-1 flex-row items-center h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
       <Text className={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</Text>
     </Button>
     <Text className="text-[11px] text-zinc-500">{t(L.INTERFACE)}</Text>
@@ -139,13 +139,13 @@ function Modal(p: { children: () => i32 }): i32 {
 /** A button of a question. `look`: 'plain', 'primary' or 'danger'. */
 function Choice(p: { label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300' : p.look === 'danger' ? 'bg-red-500 hover:bg-red-400' : 'bg-zinc-900 border border-zinc-700 hover:bg-zinc-800';
-  return <Button className={`flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
+  return <Button className={`py-1 flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
     <Text className={`text-sm font-bold ${p.look === 'plain' ? 'text-zinc-100' : 'text-zinc-900'}`}>{p.label}</Text>
   </Button>;
 }
 /** A sequence to choose in a list. */
 function SequenceRow(p: { of: Sequence; onPick: () => void }): i32 {
-  return <Button className="flex-row items-center justify-start gap-2 h-8 px-3 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-amber-400" onClick={p.onPick}>
+  return <Button className="py-1 flex-row items-center justify-start gap-2 h-8 px-3 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-amber-400" onClick={p.onPick}>
     <Ico name="arrow-right" size={13} color={ACCENT} />
     <Text className="truncate text-sm text-zinc-100" style={{ maxWidth: 330 }}>{say(p.of)}</Text>
   </Button>;
@@ -236,7 +236,7 @@ function Picking(): i32 {
     <View className="relative mt-2 rounded-md bg-zinc-950 border border-zinc-800" style={{ width: MAP_W, height: MAP_H }}>
       <For each={project().sequences}>{(s: Sequence, i: i32) => {
         const here = s === pickFrom();
-        return <Button className={`absolute flex-row items-center justify-center px-1 rounded border ${here ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-700 border-zinc-500 hover:border-amber-400 hover:bg-zinc-600 cursor-pointer'}`}
+        return <Button className={`py-1 absolute flex-row items-center justify-center px-1 rounded border ${here ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-700 border-zinc-500 hover:border-amber-400 hover:bg-zinc-600 cursor-pointer'}`}
           style={{ left: 8 + (s.storyX - box()[0]) / box()[2] * (MAP_W - 16 - NODE_W), top: 8 + (s.storyY - box()[1]) / box()[3] * (MAP_H - 16 - NODE_H), width: NODE_W, height: NODE_H }}
           onClick={() => { if (!here) answerPick(s); }}>
           <Text className={`truncate text-[9px] ${here ? 'text-zinc-500' : 'text-zinc-100'}`} style={{ maxWidth: NODE_W - 8 }}>{say(s)}</Text>
@@ -253,7 +253,7 @@ const FIELD = 'h-8 px-2 rounded-md bg-zinc-950 border border-zinc-700 text-sm te
 function Asked(p: { label: string; value: () => string; onInput: (v: string) => void }): i32 {
   return <View className="flex-col gap-1">
     <Text className="text-[11px] text-zinc-400">{p.label}</Text>
-    <Input className={`w-full ${FIELD}`} placeholder={t(L.REQUIRED)} value={p.value()} onInput={p.onInput} />
+    <Input className={`py-1.5 w-full ${FIELD}`} placeholder={t(L.REQUIRED)} value={p.value()} onInput={p.onInput} />
   </View>;
 }
 /** "photos/great-wave.jpg" gives "Great wave": the title a file is offered with. */
@@ -282,7 +282,7 @@ function AddingFile(): i32 {
         <Text className="text-lg font-bold text-zinc-100">{t(L.CHOOSE_FILE)}</Text>
         <Show when={files.length === 0}><Text className="text-sm text-zinc-400">{f(L.NO_NEW_FILE, folder())}</Text></Show>
         <ScrollView className="flex-col gap-1" style={{ maxHeight: 300 }}>
-          {files.map((name: string, i: i32) => <Button className="flex-row items-center justify-start gap-2 h-8 px-3 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-amber-400"
+          {files.map((name: string, i: i32) => <Button className="py-1 flex-row items-center justify-start gap-2 h-8 px-3 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-amber-400"
             onClick={() => { setTitle(titleFromFile(name)); setFile(name); }}>
             <Text className="truncate text-sm text-zinc-100" style={{ maxWidth: 280 }}>{name}</Text>
             <View className="grow" />

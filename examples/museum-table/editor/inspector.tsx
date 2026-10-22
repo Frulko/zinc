@@ -32,7 +32,7 @@ function Written(): i32 {
 function LinkList(p: { onPick: (l: Link) => void }): i32 {
   const links = (): Link[] => { const s = selected(); project(); return s === null ? [] : s.links; };
   return <View className="flex-col gap-1">
-    <For each={links()}>{(l: Link, i: i32) => <Button className="flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600"
+    <For each={links()}>{(l: Link, i: i32) => <Button className="py-1 flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600"
       onClick={() => p.onPick(l)}>
       <Ico name={(project(), l.on.length > 0) ? 'mouse-pointer-click' : 'arrow-right'} size={13} color={MUTED} />
       <Text className="truncate text-xs text-zinc-100" style={{ width: 138 }}>{project().say(l.label, lang())}</Text>
@@ -387,7 +387,7 @@ function TablePanel(): i32 {
       <Heading label={t(L.NARRATION)} />
       <Text className="text-xs text-zinc-500" style={{ width: 400 }}>{t(sounds().length === 0 ? L.NO_SOUND_YET : L.NARRATION_WHAT)}</Text>
       <View className="flex-col gap-1">
-        <For each={sounds()}>{(x: Media, i: i32) => <Button className={`flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer border ${said(x) ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+        <For each={sounds()}>{(x: Media, i: i32) => <Button className={`py-1 flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer border ${said(x) ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
           onClick={() => narrate(x)}>
           <Ico name="volume-2" size={13} color={said(x) ? ACCENT : MUTED} />
           <Text className="truncate text-xs text-zinc-100" style={{ width: 280 }}>{(project(), project().say(x.title, lang()))}</Text>
@@ -439,7 +439,7 @@ function PointsPanel(): i32 {
       <Heading label={t(L.POINTS)} />
       <Show when={points().length === 0}><Text className="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.NO_POINT_YET)}</Text></Show>
       <View className="flex-col gap-1">
-        <For each={points()}>{(q: Point, i: i32) => <Button className="flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600"
+        <For each={points()}>{(q: Point, i: i32) => <Button className="py-1 flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600"
           onClick={() => pickPoint(q)}>
           <View className="w-[18] h-[18] items-center justify-center rounded-full bg-zinc-800 border border-zinc-500"><Text className="text-[10px] font-bold text-zinc-100">{`${points().indexOf(q) + 1}`}</Text></View>
           <Text className="truncate text-xs text-zinc-100" style={{ width: 210 }}>{(project(), project().say(q.title, lang()))}</Text>

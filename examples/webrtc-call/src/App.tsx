@@ -83,7 +83,7 @@ function Tab(p: { id: Mode; label: string }) {
 function Field(p: { label: string; value: string; onInput: (v: string) => void }) {
   return <View className="gap-1">
     <Text className="text-xs text-zinc-500 dark:text-zinc-400">{p.label}</Text>
-    <Input className="h-9 px-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-white"
+    <Input className="py-1.5 h-9 px-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-white"
       value={p.value} onInput={p.onInput} />
   </View>;
 }

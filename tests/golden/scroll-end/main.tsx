@@ -27,7 +27,7 @@ function App(): i32 {
           </ScrollView>
           <View className="flex-row flex-wrap gap-[10] mb-[14]">
             {tiles.map((i: i32) => <View className="w-[90] h-[60] bg-sky-500" />)}
-            <Button ref={last} className="w-[90] h-[60] bg-zinc-800">end</Button>
+            <Button ref={last} className="px-2 py-1 w-[90] h-[60] bg-zinc-800">end</Button>
           </View>
         </View>
       </ScrollView>

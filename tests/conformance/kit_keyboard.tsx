@@ -15,8 +15,8 @@ const field = createNodeRef(), pinField = createNodeRef();
 function App(): i32 {
   return <View className="flex-col h-full">
     <View className="flex-row gap-2 p-2">
-      <Input ref={field} className="grow" value={text()} onInput={(v: string) => setText(v)} />
-      <Input ref={pinField} className="w-[80]" inputMode="numeric" value={digits()} onInput={(v: string) => setDigits(v)} />
+      <Input ref={field} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 grow" value={text()} onInput={(v: string) => setText(v)} />
+      <Input ref={pinField} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-[80]" inputMode="numeric" value={digits()} onInput={(v: string) => setDigits(v)} />
     </View>
     <View className="grow" />
     <Keyboard layouts={['fr', 'en']} keyHeight={30} gap={3} />

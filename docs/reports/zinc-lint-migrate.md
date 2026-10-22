@@ -80,6 +80,10 @@ hygiene rules (pin oxlint behind `--js`).
 - `zinc migrate [--list] [--dry-run|--apply] [<codemod>...] [paths]`: the codemod table (`id`, `since`, the code it fixes, `scan`).
   `jsx-classname` (Z0006: the attribute, and the prop of components: `class?:` keys, `props.class`, `{ class: c }`) and
   `jsx-capitalised-tags` (Z0007: the tags of `jsxLowercaseTags()`, the table the error uses; an unknown lowercase tag is named for a person).
+  `ui-explicit-looks` (D163, ZN-774.18; run only when named, `byName`): the old default look of the host Button, Input and TextArea
+  (`jsxHostTag`, the compiler's own rule, with `jsxImports`) put in front of a className, family by family; the className expression is
+  read without running it (literals, `?:` as the intersection of its branches, `+` and whole-class template interpolations as the union,
+  the file's `const` strings), and one it cannot read is named for a person.
   A dry run (the default) prints a unified diff; a second run changes nothing. The two errors name their codemod in their fix line.
 - `zinc lint [--target <profile>|--all-targets] [--json] [--rules] [path]`: 13 rules (`zinc lint --rules`), source rules on every
   .tsx/.jsx file of the path and target rules on the program loaded with each profile: `compile`, `plugin-requires` (Z5005),

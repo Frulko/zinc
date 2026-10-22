@@ -62,12 +62,12 @@ function App(): i32 {
   return <View className="flex-col h-full bg-slate-950">
     <View className="flex-row items-center gap-2 px-3 h-12 bg-slate-900">
       <For each={CMDS}>{(c: Cmd, _i: i32) =>
-        <Button className="px-3 h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { start(c); }}>
+        <Button className="py-1 px-3 h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { start(c); }}>
           <Text className="text-sm text-white">{c.label}</Text>
         </Button>}
       </For>
       <View className="grow"></View>
-      <Button className={running() ? 'px-3 h-8 rounded bg-red-600 active:bg-red-400' : 'px-3 h-8 rounded bg-slate-800'}
+      <Button className={running() ? 'py-1 px-3 h-8 rounded bg-red-600 active:bg-red-400' : 'py-1 px-3 h-8 rounded bg-slate-800'}
         onClick={() => { if (current !== null) current.kill(); }}>
         <Text className="text-sm">Kill</Text>
       </Button>

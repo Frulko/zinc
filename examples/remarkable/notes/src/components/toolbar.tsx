@@ -24,7 +24,7 @@ function ToolButton(props: ToolButtonProps): i32 {
 /** A round colour swatch; the selected one gets a thick black ring. */
 function Swatch(props: { color: i32; label: string }): i32 {
   return <View className="flex-col items-center gap-1"><Button
-    className={color() === props.color ? 'w-[72px] h-[72px] rounded-full border-8 border-black' : 'w-[72px] h-[72px] rounded-full border-2 border-gray-300'}
+    className={color() === props.color ? 'bg-slate-700 px-2 py-1 w-[72px] h-[72px] rounded-full border-8 border-black' : 'bg-slate-700 px-2 py-1 w-[72px] h-[72px] rounded-full border-2 border-gray-300'}
     style={{ backgroundColor: props.color }}
     onClick={() => pickColor(props.color)} />
     <Text className="text-[20px] text-black">{props.label}</Text>

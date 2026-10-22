@@ -5,10 +5,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <cstring>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <set>
 #include <sstream>
 
@@ -21,11 +24,14 @@ namespace fe = zn::frontend;
 namespace zn::lint {
 namespace {
 
-// What the walk reports: a tag name (opening or closing), an attribute name with its value's token range, a token of plain code.
+// What the walk reports: a tag name (opening or closing), an attribute name with its value's token range, a token of plain code, and an
+// opening tag once its attributes are read (`spread`: it has a {...props}).
+struct AttrAt { std::size_t name, valueBegin, valueEnd; };
 struct Visitor {
   std::function<void(std::size_t tok, bool closing)> tag;
   std::function<void(std::size_t tok, const std::string& tag, std::size_t valueBegin, std::size_t valueEnd)> attr;
   std::function<void(std::size_t tok)> code;
+  std::function<void(std::size_t tagTok, const std::vector<AttrAt>& attrs, bool spread)> open;
 };
 
 struct Walk {
@@ -66,13 +72,17 @@ struct Walk {
     std::size_t j = i + 1;
     std::string tag;
     if (!isP(j, ">")) {
+      const std::size_t tagTok = j;
+      std::vector<AttrAt> attrs;
+      bool spread = false;
       tag = tx(j);
       if (v.tag) v.tag(j, false);
       for (++j;;) {
         if (eof(j)) return j;
+        if ((isP(j, "/>") || isP(j, ">")) && v.open) v.open(tagTok, attrs, spread);
         if (isP(j, "/>")) return j + 1;
         if (isP(j, ">")) break;
-        if (isP(j, "{")) { j = braces(j); continue; }   // {...spread}
+        if (isP(j, "{")) { spread = true; j = braces(j); continue; }   // {...spread}
         if (t[j].kind == fe::Tok::Ident) {
           std::size_t name = j++, vb = j, ve = j;
           if (isP(j, "=")) {
@@ -81,6 +91,7 @@ struct Walk {
             j = isP(j, "{") ? braces(j) : j + 1;
             ve = j;
           }
+          attrs.push_back({name, vb, ve});
           if (v.attr) v.attr(name, tag, vb, ve);
           continue;
         }
@@ -143,6 +154,304 @@ std::vector<Site> scanTags(std::string_view src) {
   return out;
 }
 
+// ui-explicit-looks (D163, ZN-774.18). Until 0.7 the host Button drew a slate fill and padding, and Input and TextArea a dark slate field;
+// the primitives now draw nothing a program did not ask for. The codemod writes the old look into a static className, family by family, in
+// front of the program's own classes, so the program's classes still win as they did over the defaults. A family the program already sets
+// on every side is left out; a variant (hover:, md:, dark:...) never sets the base look, so it does not count.
+struct Families { bool fill = false, lightFill = false, textColor = false, textSize = false, borderW = false, borderC = false, radius = false; unsigned pad = 0; };   // pad: bits 1 top, 2 right, 4 bottom, 8 left; lightFill: a fill known to be light
+
+bool starts(const std::string& s, const char* p) { return s.rfind(p, 0) == 0; }
+// The same reading as applyToken in lib/std/ui.ts: an arbitrary value is a colour when it starts so, else a length.
+bool colourValue(const std::string& v) { return starts(v, "[#") || starts(v, "[rgb") || starts(v, "[hsl") || starts(v, "[var("); }
+bool lengthValue(const std::string& v) { return (!v.empty() && v.find_first_not_of("0123456789.") == std::string::npos) || (starts(v, "[") && !colourValue(v)); }
+// A fill colour known to be light: white, a palette shade up to 300, or an arbitrary #rgb / #rrggbb of YIQ brightness 128 or more (an opacity
+// suffix /50 is dropped). A theme token or a variable is not known.
+bool lightColour(std::string v) {
+  if (const auto slash = v.find('/'); slash != std::string::npos && v.find('[') == std::string::npos) v.erase(slash);
+  if (v == "white") return true;
+  if (starts(v, "[#") && v.back() == ']') {
+    std::string h = v.substr(2, v.size() - 3);
+    if (h.size() == 3) h = {h[0], h[0], h[1], h[1], h[2], h[2]};
+    if (h.size() != 6 || h.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos) return false;
+    const long c = std::strtol(h.c_str(), nullptr, 16);
+    return ((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114 >= 128000;
+  }
+  const auto dash = v.rfind('-');
+  if (dash == std::string::npos || dash + 1 >= v.size() || v.find_first_not_of("0123456789", dash + 1) != std::string::npos) return false;
+  return std::atoi(v.c_str() + dash + 1) <= 300;
+}
+// A side or corner of `rounded-` (t, tl, b-lg...) or a side of `border-` (t, x-2, s...): it does not set every side.
+bool sideKey(const std::string& v, const char* sides) {
+  if (v.empty() || !std::strchr(sides, v[0])) return false;
+  return v.size() == 1 || v[1] == '-';
+}
+
+void classify(const std::string& body, Families& f) {
+  std::istringstream in(body);
+  for (std::string tok; in >> tok;) {
+    int depth = 0;
+    bool variant = false;
+    for (char c : tok) { depth += c == '[' ? 1 : c == ']' ? -1 : 0; if (c == ':' && depth == 0) variant = true; }
+    if (variant || tok.find('\x01') != std::string::npos) continue;   // \x01: a template's interpolation, the class is not whole
+    if (!tok.empty() && tok.front() == '!') tok.erase(0, 1);
+    if (!tok.empty() && tok.back() == '!') tok.pop_back();
+    static const std::pair<const char*, unsigned> kPad[] = {{"p-", 15}, {"px-", 10}, {"py-", 5}, {"pt-", 1}, {"pr-", 2}, {"pb-", 4}, {"pl-", 8}};
+    for (auto [p, bits] : kPad) if (starts(tok, p)) f.pad |= bits;
+    if (starts(tok, "bg-")) {
+      static const char* kNotFill[] = {"none", "gradient-", "linear", "radial", "conic", "[url(", "auto", "cover", "contain", "size-", "position-", "repeat", "no-repeat", "clip-", "origin-", "blend-", "fixed", "local", "scroll"};
+      const std::string v = tok.substr(3);
+      bool fill = v.find("gradient(") == std::string::npos && v.find_first_not_of("topbmlefrighcn-") != std::string::npos;   // bg-top, bg-left-bottom, bg-center: a position
+      for (const char* p : kNotFill) if (starts(v, p)) fill = false;
+      f.fill = f.fill || fill;
+      f.lightFill = f.lightFill || (fill && lightColour(v));
+    } else if (starts(tok, "text-")) {
+      static const std::set<std::string> kSizes = {"xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl"};
+      static const std::set<std::string> kOther = {"left", "right", "center", "justify", "start", "end", "wrap", "nowrap", "ellipsis", "clip", "balance", "pretty", "current", "inherit"};
+      const std::string v = tok.substr(5);
+      if (kSizes.count(v) || (starts(v, "[") && !colourValue(v))) f.textSize = true;
+      else if (!kOther.count(v) && !starts(v, "shadow") && !starts(v, "opacity")) f.textColor = true;
+    } else if (tok == "border") f.borderW = true;
+    else if (starts(tok, "border-")) {
+      static const std::set<std::string> kStyle = {"solid", "dashed", "dotted", "double", "none", "hidden", "collapse", "separate"};
+      const std::string v = tok.substr(7);
+      if (lengthValue(v)) f.borderW = true;
+      else if (!sideKey(v, "trblxyse") && !kStyle.count(v) && !starts(v, "spacing")) f.borderC = true;
+    } else if (tok == "rounded") f.radius = true;
+    else if (starts(tok, "rounded-")) {
+      const std::string v = tok.substr(8);
+      const bool corner = v.size() >= 2 && std::strchr("tbse", v[0]) && std::strchr("lrse", v[1]) && (v.size() == 2 || v[2] == '-');   // tl, br-lg, ss
+      if (!corner && !sideKey(v, "tblrse")) f.radius = true;
+    }
+  }
+}
+
+Families unite(Families a, const Families& b) {
+  a.fill |= b.fill; a.lightFill |= b.lightFill; a.textColor |= b.textColor; a.textSize |= b.textSize; a.borderW |= b.borderW; a.borderC |= b.borderC; a.radius |= b.radius; a.pad |= b.pad;
+  return a;
+}
+Families meet(Families a, const Families& b) {
+  a.fill &= b.fill; a.lightFill &= b.lightFill; a.textColor &= b.textColor; a.textSize &= b.textSize; a.borderW &= b.borderW; a.borderC &= b.borderC; a.radius &= b.radius; a.pad &= b.pad;
+  return a;
+}
+
+// The old look's classes a host Button or field lacks, given the families its classes always set.
+std::string looksMissing(bool button, const Families& f) {
+  std::string add;
+  auto put = [&](bool has, const char* c) { if (!has) add += (add.empty() ? "" : " ") + std::string(c); };
+  if (button) { put(f.fill, "bg-slate-700"); put((f.pad & 10) == 10, "px-2"); put((f.pad & 5) == 5, "py-1"); return add; }
+  put(f.fill, "bg-slate-800"); put(f.borderW, "border"); put(f.borderC, "border-slate-600"); put(f.radius, "rounded-md"); put(f.textSize, "text-[14px]");
+  put((f.pad & 10) == 10, "px-2"); put((f.pad & 5) == 5, "py-1.5");
+  put(f.textColor || f.lightFill, "text-slate-100");   // a field with a light fill never wanted the light text (lesson 12's white on white)
+  return add;
+}
+
+// A className expression read without running it: string literals, templates (their fixed parts), `a + b`, `c ? a : b`, parentheses and
+// the constants of the file (`const FIELD = '...'`). The classes it always sets are the union over `+` and the intersection over `?:`;
+// the old look goes in front of every string the expression can produce, so the program's own classes still come after it.
+struct ClassExpr {
+  std::string_view s;
+  const std::vector<fe::Token>& t;
+  bool button;
+  std::vector<Site>& out;
+
+  std::string tx(std::size_t i) const { return std::string(s.substr(t[i].start, t[i].end - t[i].start)); }
+  bool isP(std::size_t i, const char* p) const { return i < t.size() && t[i].kind == fe::Tok::Punct && tx(i) == p; }
+  int step(std::size_t i) const {   // brackets and template interpolations open and close a level
+    if (t[i].kind == fe::Tok::TemplateHead) return 1;
+    if (t[i].kind == fe::Tok::TemplateTail) return -1;
+    if (t[i].kind != fe::Tok::Punct) return 0;
+    const std::string x = tx(i);
+    return x == "(" || x == "[" || x == "{" ? 1 : x == ")" || x == "]" || x == "}" ? -1 : 0;
+  }
+  std::size_t close(std::size_t b, std::size_t e) const {   // the token that brings the level opened at b back to 0
+    int d = 0;
+    for (std::size_t i = b; i < e; ++i) { d += step(i); if (d == 0) return i; }
+    return e;
+  }
+  std::vector<std::size_t> top(std::size_t b, std::size_t e) const {   // the punctuators outside any bracket
+    std::vector<std::size_t> o;
+    int d = 0;
+    for (std::size_t i = b; i < e; ++i) {
+      const int st = step(i);
+      if (d == 0 && st == 0 && t[i].kind == fe::Tok::Punct) o.push_back(i);
+      d += st;
+    }
+    return o;
+  }
+  void unwrap(std::size_t& b, std::size_t& e) const { while (e > b + 1 && isP(b, "(") && close(b, e) == e - 1) { ++b; --e; } }
+  // The text of a literal: a string, or a template whose interpolations are \x01 (a class that touches one is not read). `parts` gets the
+  // interpolations that stand as whole classes (`a ${x} b`), which may be read in turn.
+  bool literal(std::size_t b, std::size_t e, std::string& body, std::vector<std::pair<std::size_t, std::size_t>>& parts) const {
+    parts.clear();
+    if (e == b + 1 && (t[b].kind == fe::Tok::String || t[b].kind == fe::Tok::TemplateNoSub)) { body = tx(b).substr(1, t[b].end - t[b].start - 2); return true; }
+    if (b >= e || t[b].kind != fe::Tok::TemplateHead || close(b, e) != e - 1) return false;
+    body.clear();
+    int d = 0;
+    std::size_t from = 0;
+    bool whole = false;
+    auto space = [](char c) { return c == '`' || c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+    for (std::size_t i = b; i < e; ++i) {
+      const int st = step(i);
+      if ((d == 0 && st > 0) || (d == 1 && (t[i].kind == fe::Tok::TemplateMiddle || st < 0))) {
+        const std::string x = tx(i);   // `abc${, }abc${, }abc`
+        if (d > 0) { body += '\x01'; if (whole && space(x[1])) parts.push_back({from, i}); }
+        body += x.substr(1, x.size() - (st < 0 ? 1 : 2) - 1);
+        from = i + 1;
+        whole = st >= 0 && space(x[x.size() - 3]);
+      }
+      d += st;
+    }
+    return true;
+  }
+  // The families of a literal and of its whole-class interpolations that can be read.
+  bool readLiteral(std::size_t b, std::size_t e, Families& f, int depth) const {
+    std::string body;
+    std::vector<std::pair<std::size_t, std::size_t>> parts;
+    if (!literal(b, e, body, parts)) return false;
+    classify(body, f);
+    for (auto [x, y] : parts) { Families g; if (known(x, y, g, depth + 1)) f = unite(f, g); }
+    return true;
+  }
+  bool ternary(std::size_t b, std::size_t e, std::size_t& q, std::size_t& c) const {
+    const std::vector<std::size_t> tp = top(b, e);
+    int n = 0;
+    q = e;
+    for (std::size_t k : tp) {
+      const std::string x = tx(k);
+      if (x == "?") { if (n++ == 0) q = k; }
+      else if (x == ":" && n > 0 && --n == 0) { c = k; return true; }
+    }
+    return false;
+  }
+  bool chain(std::size_t b, std::size_t e, std::vector<std::pair<std::size_t, std::size_t>>& ops) const {   // a + b + c
+    const std::vector<std::size_t> tp = top(b, e);
+    if (tp.empty()) return false;
+    for (std::size_t k : tp) if (tx(k) != "+") return false;
+    std::size_t a = b;
+    for (std::size_t k : tp) { ops.push_back({a, k}); a = k + 1; }
+    ops.push_back({a, e});
+    return true;
+  }
+  // `const NAME = <init>` (or let), once in the file: the initializer's tokens, up to a `;`, a `,` or the end of the line.
+  bool constant(const std::string& name, std::size_t& ib, std::size_t& ie) const {
+    int found = 0;
+    for (std::size_t i = 0; i + 2 < t.size(); ++i) {
+      if (t[i].kind != fe::Tok::Keyword || (tx(i) != "const" && tx(i) != "let") || t[i + 1].kind != fe::Tok::Ident || tx(i + 1) != name) continue;
+      std::size_t j = i + 2;
+      if (isP(j, ":") && j + 1 < t.size() && t[j + 1].kind == fe::Tok::Ident) j += 2;   // const NAME: string = ...
+      if (!isP(j, "=")) continue;
+      std::size_t k = ++j;
+      int d = 0;
+      for (; k < t.size() && t[k].kind != fe::Tok::Eof; ++k) {
+        const int st = step(k);
+        if (d + st < 0) break;
+        if (d == 0 && (isP(k, ";") || isP(k, ","))) break;
+        const bool newline = k > j && s.substr(t[k - 1].end, t[k].start - t[k - 1].end).find('\n') != std::string_view::npos;
+        if (d == 0 && newline && !isP(k - 1, "+") && !isP(k - 1, "?") && !isP(k - 1, ":") && !isP(k, "+") && !isP(k, "?") && !isP(k, ":")) break;
+        d += st;
+      }
+      ib = j; ie = k;
+      ++found;
+    }
+    return found == 1 && ib < ie;
+  }
+  bool known(std::size_t b, std::size_t e, Families& f, int depth) const {   // the families every string of [b, e) sets; false: unknown
+    unwrap(b, e);
+    std::size_t q, c, ib, ie;
+    std::vector<std::pair<std::size_t, std::size_t>> ops;
+    if (depth > 6 || b >= e) return false;
+    if (readLiteral(b, e, f, depth)) return true;
+    if (ternary(b, e, q, c)) {
+      Families x, y;
+      if (!known(q + 1, c, x, depth + 1) || !known(c + 1, e, y, depth + 1)) return false;
+      f = unite(f, meet(x, y));
+      return true;
+    }
+    if (chain(b, e, ops)) {   // an unknown part adds classes nobody can read, but the known parts still set theirs
+      bool any = false;
+      for (auto [x, y] : ops) { Families g; if (known(x, y, g, depth + 1)) { f = unite(f, g); any = true; } }
+      return any;
+    }
+    if (e == b + 1 && t[b].kind == fe::Tok::Ident && constant(tx(b), ib, ie)) return known(ib, ie, f, depth + 1);
+    return false;
+  }
+  // Puts the missing look in front of every string [b, e) can produce, knowing that `in` is set by the rest; false when it cannot.
+  bool fix(std::size_t b, std::size_t e, const Families& in, int depth) {
+    unwrap(b, e);
+    std::string body;
+    std::size_t q, c;
+    std::vector<std::pair<std::size_t, std::size_t>> ops, parts;
+    if (depth > 6 || b >= e) return false;
+    if (literal(b, e, body, parts)) {
+      Families f = in;
+      readLiteral(b, e, f, depth);
+      const std::string add = looksMissing(button, f);
+      if (!add.empty()) out.push_back({t[b].start + 1, t[b].start + 1, body.find_first_not_of(" \t\r\n") == std::string::npos ? add : add + " ", "default look"});
+      return true;
+    }
+    if (ternary(b, e, q, c)) return fix(q + 1, c, in, depth + 1) && fix(c + 1, e, in, depth + 1);
+    if (chain(b, e, ops)) {
+      Families rest = in;
+      for (std::size_t k = 1; k < ops.size(); ++k) known(ops[k].first, ops[k].second, rest, depth + 1);
+      return fix(ops[0].first, ops[0].second, rest, depth + 1);
+    }
+    Families f = in;
+    if (e == b + 1 && t[b].kind == fe::Tok::Ident && known(b, e, f, depth + 1)) {   // a constant: the look goes in front of it, here
+      const std::string add = looksMissing(button, f);
+      if (!add.empty()) out.push_back({t[b].start, t[b].start, "'" + add + " ' + ", "default look"});
+      return true;
+    }
+    return false;
+  }
+};
+
+std::vector<Site> scanLooks(std::string_view src) {
+  std::vector<Site> out;
+  std::vector<fe::Token> t = fe::lex(src, true);
+  if (!fe::check(src, t).empty()) return {};
+  const std::map<std::string, std::string> imports = fe::jsxImports(src, t);
+  auto text = [&](std::size_t i) { return std::string(src.substr(t[i].start, t[i].end - t[i].start)); };
+  Visitor v;
+  v.open = [&](std::size_t tagTok, const std::vector<AttrAt>& attrs, bool spread) {
+    const std::string tag = text(tagTok);
+    const bool button = tag == "Button";
+    if ((!button && tag != "Input" && tag != "TextArea") || !fe::jsxHostTag(tag, imports)) return;
+    Families f;
+    const AttrAt* cls = nullptr;
+    for (const AttrAt& a : attrs) {
+      const std::string name = text(a.name);
+      if (name == "className") cls = &a;
+      else if (name == "bg") {   // the numeric props <Button bg={0x...} color={0x...}>
+        f.fill = true;
+        if (a.valueEnd == a.valueBegin + 3 && text(a.valueBegin) == "{" && t[a.valueBegin + 1].kind == fe::Tok::Number) {
+          const long c = std::strtol(text(a.valueBegin + 1).c_str(), nullptr, 0);
+          f.lightFill = ((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114 >= 128000;
+        }
+      }
+      else if (name == "color") f.textColor = true;
+    }
+    std::vector<Site> sites;
+    ClassExpr x{src, t, button, sites};
+    bool ok = !spread || cls;
+    if (ok && cls) {
+      std::size_t b = cls->valueBegin, e = cls->valueEnd;
+      if (e > b + 1 && x.isP(b, "{") && x.isP(e - 1, "}")) { ++b; --e; }
+      ok = x.fix(b, e, f, 0);
+    } else if (ok) {
+      const std::string add = looksMissing(button, f);
+      if (!add.empty()) sites.push_back({t[tagTok].end, t[tagTok].end, " className=\"" + add + "\"", "default look"});
+    }
+    if (!ok) {
+      out.push_back({t[tagTok].start, t[tagTok].end, "", "<" + tag + "> takes a className zinc migrate cannot read: if it relied on the default look, add the classes of it it lacks: " + looksMissing(button, Families{})});
+      return;
+    }
+    out.insert(out.end(), sites.begin(), sites.end());
+  };
+  Walk w{src, t, v};
+  w.code(0, t.size());
+  return out;
+}
+
 bool ends(const std::string& s, const char* suffix) { std::size_t n = std::char_traits<char>::length(suffix); return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0; }
 
 std::string readAll(const fs::path& p) { std::ifstream in(p, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }
@@ -184,8 +493,9 @@ std::string diff(const std::string& path, const std::string& a, const std::strin
 
 const std::vector<Codemod>& codemods() {
   static const std::vector<Codemod> all = {
-      {"jsx-classname", "0.0.1 (2026-10-16)", "Z0006", "`class` in JSX becomes `className`: the attribute, and the prop of components (declarations, `props.class`, keys, destructuring)", scanClassName},
-      {"jsx-capitalised-tags", "0.0.1 (2026-10-16)", "Z0007", "lowercase JSX tags become the components: <view> <View>, <scroll> <ScrollView>, <textarea> <TextArea>, <div> <View>, <span> and <p> <Text>, <img> <Image>", scanTags},
+      {"jsx-classname", "0.0.1 (2026-10-16)", "Z0006", "`class` in JSX becomes `className`: the attribute, and the prop of components (declarations, `props.class`, keys, destructuring)", scanClassName, false},
+      {"jsx-capitalised-tags", "0.0.1 (2026-10-16)", "Z0007", "lowercase JSX tags become the components: <view> <View>, <scroll> <ScrollView>, <textarea> <TextArea>, <div> <View>, <span> and <p> <Text>, <img> <Image>", scanTags, false},
+      {"ui-explicit-looks", "0.7.0 (2026-10-22)", "-", "the default look of a host Button (slate fill, padding) and of Input and TextArea (dark slate field) written out as classes, for a program that relied on it; run only when named", scanLooks, true},
   };
   return all;
 }
@@ -286,7 +596,7 @@ int migrate(const std::vector<std::string>& args) {
     for (const Codemod& c : codemods()) std::printf("%-22s %-20s fixes %s  %s\n", c.id, c.since, c.code, c.summary);
     return 0;
   }
-  if (chosen.empty()) for (const Codemod& c : codemods()) chosen.push_back(&c);
+  if (chosen.empty()) for (const Codemod& c : codemods()) if (!c.byName) chosen.push_back(&c);
   if (roots.empty()) roots.push_back(".");
   std::vector<fs::path> all;
   for (const fs::path& r : roots) files(r, all);

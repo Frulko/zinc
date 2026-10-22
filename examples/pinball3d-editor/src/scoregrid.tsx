@@ -38,7 +38,7 @@ function Cell(p: { name: string; event: string; sent: boolean }): i32 {
   if (!p.sent) return <View className="shrink-0" style={{ width: COL }} />;
   const points = (): number => scoreOf(doc().data, p.name, p.event);
   return <View className="shrink-0" style={{ width: COL }}>
-    <Input className="h-6 px-1 rounded bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" style={{ width: COL - 6 }} value={points() === 0 ? '' : `${points()}`}
+    <Input className="py-1.5 h-6 px-1 rounded bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" style={{ width: COL - 6 }} value={points() === 0 ? '' : `${points()}`}
       onChange={(v: string) => { const n = v.trim() === '' ? 0 : typed(v); if (isNumber(n)) setScore(p.name, p.event, n); else refresh(); }} />
   </View>;
 }
@@ -60,7 +60,7 @@ export function ScoreGrid(): i32 {
     <View className="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800">
       <View className="flex-row items-center gap-2 shrink-0" style={{ width: NAME + KIND }}>
         <Ico name="search" size={13} color={MUTED} />
-        <Input ref={finder} style={{ width: NAME + KIND - 34 }} className="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_SCORE, chord('K'))}
+        <Input ref={finder} style={{ width: NAME + KIND - 34 }} className="py-1.5 h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_SCORE, chord('K'))}
           value={wanted()} onInput={(v: string) => setWanted(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') setWanted(''); }} />
       </View>
       {EVENTS.map((e: string, k: i32) => <Text className="shrink-0 truncate text-[10px] font-bold text-zinc-400" style={{ width: COL }}>{(phrase(`event.${e}`) === '' ? e : phrase(`event.${e}`)).toUpperCase()}</Text>)}

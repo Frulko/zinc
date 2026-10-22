@@ -11,9 +11,9 @@ function Form(): i32 {
   const a = useRef<i32>(-1), b = useRef<i32>(-1), c = useRef<i32>(-1);
   refs = [a, b, c];
   return <View className="flex-col p-2 gap-2">
-    <Input ref={a} value={name} onChange={(v: string) => setName(v.toUpperCase())} placeholder="Name" />
-    <Input ref={b} type="password" value={pin} onChange={(v: string) => setPin(v)} />
-    <Input ref={c} value="read only" readOnly={true} />
+    <Input className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100" ref={a} value={name} onChange={(v: string) => setName(v.toUpperCase())} placeholder="Name" />
+    <Input className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100" ref={b} type="password" value={pin} onChange={(v: string) => setPin(v)} />
+    <Input className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100" ref={c} value="read only" readOnly={true} />
     <Text onPointerEnter={(e: ui.PointerEvent) => { hovered++; }}>{name} / {pin.length}</Text>
   </View>;
 }

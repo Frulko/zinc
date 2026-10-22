@@ -116,7 +116,7 @@ const hits = createMemo<Hit[]>(() => tab() === 1 ? search(query()) : [], []);
 function Search(): i32 {
   return <View className="grow flex-col">
     <View className="mx-3 mb-2 rounded-md border border-[#e3e3e1] bg-[#ffffff] px-2 py-1.5">
-      <TextArea ref={searchField} rows={0} className="border-0 p-0 rounded-none bg-transparent text-[14px] text-[#37352f] focus:border-[#ffffff]"
+      <TextArea ref={searchField} rows={0} className="border-slate-600 border-0 p-0 rounded-none bg-transparent text-[14px] text-[#37352f] focus:border-[#ffffff]"
         placeholder="Search the vault..." value={query()} onInput={(v: string) => setQuery(v.replaceAll('\n', ' '))} />
     </View>
     <ScrollView className="grow flex-col">

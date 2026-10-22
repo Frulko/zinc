@@ -43,7 +43,7 @@ export function ChatCard(): i32 {
         </View>
       </ScrollView>
       <View className="flex-row gap-2">
-        <Input className={`grow h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
+        <Input className={`py-1.5 grow h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
           placeholder="Message (try: go, blackout)" value={draft()} onInput={(v: string) => setDraft(v)}
           onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { submit(); e.preventDefault(); } }} />
         <Button label="Send" onClick={submit} />

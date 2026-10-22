@@ -38,7 +38,7 @@ export function ProjectIcon(props: { size: i32 }): i32 {
 
 /** A field that changes zinc.json when it is left or Enter is pressed. */
 function Field(props: { value: () => string; width: string; hint: string; commit: (v: string) => void }): i32 {
-  const node = <Input className={`${props.width} ${FIELD()}`} placeholder={props.hint} value={props.value()}
+  const node = <Input className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 ${props.width} ${FIELD()}`} placeholder={props.hint} value={props.value()}
     onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') { setProjectOpen(false); e.preventDefault(); } }} />;
   ui.onText(node, true, (v: string) => { if (v !== props.value()) props.commit(v); });
   return node;
@@ -100,7 +100,7 @@ function ProjectBody(): i32 {
     <View className={`flex-col pt-1.5 border-t ${bd(theme().borderSoft)}`}>
       <View className="flex-row items-center h-[30] pl-2.5 gap-2">
         <Text className={`grow text-[12px] font-semibold ${fg(theme().text)}`}>{tr('atelier.project.permissions')}</Text>
-        <Input ref={addRef} className={`w-[168] ${FIELD()}`} placeholder={tr('atelier.project.allow')} value={wanted()} onInput={(v: string) => setWanted(v)}
+        <Input ref={addRef} className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-[168] ${FIELD()}`} placeholder={tr('atelier.project.allow')} value={wanted()} onInput={(v: string) => setWanted(v)}
           onKeyDown={(e: ui.KeyEvent) => {
             if (e.key === 'Enter') { togglePermission(wanted()); setWanted(''); ui.setValue(addRef.node, ''); } else if (e.key === 'Escape') setProjectOpen(false); else return;
             e.preventDefault();

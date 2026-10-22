@@ -36,7 +36,7 @@ function Anim(): i32 {
 
 function InputScreen(): i32 {
   return <View className="flex-col gap-3 p-6 h-full bg-white">
-    <Input ref={inputRef} className="h-10 rounded-lg border-slate-300" placeholder="type here" value={text()} onInput={(v: string) => setText(v)} />
+    <Input ref={inputRef} className="bg-slate-800 border text-[14px] px-2 py-1.5 text-slate-100 h-10 rounded-lg border-slate-300" placeholder="type here" value={text()} onInput={(v: string) => setText(v)} />
     <Text className="text-base text-slate-700">{`${text().length} chars`}</Text>
   </View>;
 }

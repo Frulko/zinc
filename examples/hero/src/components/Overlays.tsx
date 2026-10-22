@@ -102,7 +102,7 @@ function PaletteBody(): i32 {
     <View className={`flex-col w-[560] rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
       style={{ opacity: paletteT.get(), translateY: (1 - paletteT.get()) * -12 }} onClick={() => {}}>
       <View className={`flex-row items-center px-4 h-14 border-b border-${theme().border}`}>
-        <Input ref={paletteInput} className={`grow text-base bg-transparent border-0 text-${theme().foreground}`} placeholder="Type a command or search…"
+        <Input ref={paletteInput} className={`border-slate-600 rounded-md px-2 py-1.5 grow text-base bg-transparent border-0 text-${theme().foreground}`} placeholder="Type a command or search…"
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); }} onKeyDown={paletteKey} />
         <Kbd label="Esc" />
       </View>

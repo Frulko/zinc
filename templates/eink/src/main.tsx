@@ -16,14 +16,14 @@ let savedVersion = ink.version;
 function changed(): void { saveTodo(todo); setVersion(version() + 1); }
 
 function renderTab(name: string): i32 {
-  return <Button className={`grow h-[88px] items-center justify-center ${page() === name ? 'bg-black' : 'bg-white'} focus:outline-none`} onClick={() => setPage(name)}>
+  return <Button className={`px-2 py-1 grow h-[88px] items-center justify-center ${page() === name ? 'bg-black' : 'bg-white'} focus:outline-none`} onClick={() => setPage(name)}>
     <Text className={`text-[34px] font-bold ${page() === name ? 'text-white' : 'text-black'}`}>{name}</Text>
   </Button>;
 }
 
 function renderItem(i: i32): i32 {
   const t = todo.items[i];
-  return <Button className="flex-row items-center gap-6 px-8 h-[96px] border-b-2 border-black bg-white focus:bg-white" onClick={() => { todo.toggle(i); changed(); }}>
+  return <Button className="py-1 flex-row items-center gap-6 px-8 h-[96px] border-b-2 border-black bg-white focus:bg-white" onClick={() => { todo.toggle(i); changed(); }}>
     <View className={`w-[44px] h-[44px] border-[4px] border-black rounded-[6px] items-center justify-center ${t.done ? 'bg-black' : 'bg-white'}`}>
       <Text className="text-[30px] font-bold text-white">{t.done ? '✓' : ''}</Text>
     </View>

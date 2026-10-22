@@ -18,9 +18,9 @@ function App(): i32 {
   return <View className="flex-col p-4 gap-2 bg-slate-900">
     <Text className="text-xl">Counter</Text>
     <View className="flex-row gap-2 items-center">
-      <Button onClick={() => setCount(count() - 1)}><Text>-</Text></Button>
+      <Button className="bg-slate-700 px-2 py-1" onClick={() => setCount(count() - 1)}><Text>-</Text></Button>
       <Text>count {count()} doubled {doubled()}</Text>
-      <Button onClick={() => setCount(count() + 1)}><Text>+</Text></Button>
+      <Button className="bg-slate-700 px-2 py-1" onClick={() => setCount(count() + 1)}><Text>+</Text></Button>
     </View>
     <Show when={count() > 1} fallback={<Text>small</Text>}>
       <Text className="text-green-500">big!</Text>

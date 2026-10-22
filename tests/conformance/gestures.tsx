@@ -29,7 +29,7 @@ function Rows(): i32 {
     <View ref={tap} className="h-5 bg-emerald-500"
       onTap={(e: ui.PointerEvent) => log(`tap ${r(e.x)},${r(e.y)}`)}
       onLongPress={(e: ui.PointerEvent) => log(`long press ${r(e.x)},${r(e.y)}`)} />
-    <Button ref={btn} className="h-5" onClick={() => log('click')}><Text>Button</Text></Button>
+    <Button ref={btn} className="bg-slate-700 px-2 py-1 h-5" onClick={() => log('click')}><Text>Button</Text></Button>
     <View className="h-[600px] bg-slate-700" />
   </View>;
 }

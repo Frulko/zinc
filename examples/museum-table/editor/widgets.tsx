@@ -133,7 +133,7 @@ export function IcoAt(p: { name: string; size: () => number; color: i32 }): i32 
 export function Tool(p: { icon: string; label: string; look: string; off: () => boolean; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700'
     : p.look === 'on' ? 'bg-zinc-700 border border-amber-400 hover:bg-zinc-600' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
-  return <Button className={`flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
+  return <Button className={`bg-slate-700 py-1 flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
     <Ico name={p.icon} size={15} color={p.look === 'primary' ? DARK : INK} />
     {p.label.length > 0 ? <Text className={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text> : <View />}
   </Button>;
@@ -141,7 +141,7 @@ export function Tool(p: { icon: string; label: string; look: string; off: () => 
 /** A button of a panel, as wide as its row. `look`: 'plain', 'primary' or 'danger'. */
 export function Action(p: { icon: string; label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'danger' ? 'bg-zinc-900 border-red-900 hover:bg-red-950' : p.look === 'primary' ? 'bg-amber-400 border-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800';
-  return <Button className={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
+  return <Button className={`bg-slate-700 py-1 grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
     <Ico name={p.icon} size={14} color={p.look === 'danger' ? DANGER : p.look === 'primary' ? DARK : INK} />
     <Text className={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text>
   </Button>;
@@ -149,7 +149,7 @@ export function Action(p: { icon: string; label: string; look: string; onClick: 
 /** One of a few choices, all visible. */
 export function Segmented(p: { options: string[]; labels: string[]; value: () => string; onPick: (v: string) => void }): i32 {
   return <View className="flex-row gap-[2] p-[2] rounded-md bg-zinc-950 border border-zinc-800">
-    {p.options.map((o: string, i: i32) => <Button className={`grow flex-row items-center justify-center h-7 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
+    {p.options.map((o: string, i: i32) => <Button className={`py-1 grow flex-row items-center justify-center h-7 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
       <Text className={`text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-400'}`}>{p.labels[i]}</Text>
     </Button>)}
   </View>;
@@ -159,7 +159,7 @@ const FIELD = 'rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-1
 export function LangField(p: { language: string; value: () => string; placeholder: string; field: NodeRef; onInput: (v: string) => void; onDone: () => void }): i32 {
   return <View className="flex-row items-center gap-2">
     <View className="w-[30] h-8 items-center justify-center rounded-md bg-zinc-800"><Text className="text-[11px] font-bold text-zinc-300">{p.language.toUpperCase()}</Text></View>
-    <Input ref={p.field} className={`grow h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
+    <Input ref={p.field} className={`py-1.5 grow h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
   </View>;
 }
 /** A text in every language of the project, side by side: one column per language, so that a translation is written next to its original.
@@ -172,7 +172,7 @@ export function LangColumns(p: { rows: i32; width: () => number; first: NodeRef 
       return <View className="flex-col gap-1" style={{ width: p.width() }}>
         <Text className="text-[10px] font-bold text-zinc-500">{language.toUpperCase()}</Text>
         {p.rows === 1
-          ? <Input ref={field} className={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
+          ? <Input ref={field} className={`py-1.5 w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
           : <TextArea ref={field} className={`w-full p-2 ${FIELD}`} rows={p.rows} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />}
       </View>;
     }}</For>
@@ -182,14 +182,14 @@ export function LangColumns(p: { rows: i32; width: () => number; first: NodeRef 
 export function PlainField(p: { label: string; value: () => string; placeholder: string; onInput: (v: string) => void; onDone: () => void }): i32 {
   return <View className="flex-col gap-1">
     <Text className="text-[11px] text-zinc-400">{p.label}</Text>
-    <Input className={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
+    <Input className={`py-1.5 w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
   </View>;
 }
 /** An exact number: taken when the field is left or Enter is pressed; what is not a number is put back. */
 export function NumberField(p: { label: string; value: () => number; onCommit: (v: number) => void; onDone: () => void }): i32 {
   return <View className="flex-row items-center gap-2">
     <Text className="text-[11px] font-bold text-zinc-400">{p.label}</Text>
-    <Input className={`h-8 px-2 ${FIELD}`} style={{ width: 76 }} value={`${p.value()}`}
+    <Input className={`py-1.5 h-8 px-2 ${FIELD}`} style={{ width: 76 }} value={`${p.value()}`}
       onChange={(v: string) => { const n = parseFloat(v.replaceAll(',', '.')); if (n - n === 0) p.onCommit(n); p.onDone(); }} />
   </View>;
 }
@@ -216,7 +216,7 @@ export function ColourField(p: { label: string; hint: string; value: () => i32; 
       <Text className="truncate text-xs font-bold text-zinc-100">{p.label}</Text>
       <Text className="truncate text-[11px] text-zinc-500">{p.hint}</Text>
     </View>
-    <Input className={`h-8 px-2 font-mono ${FIELD}`} style={{ width: 96 }} value={hexOf(p.value())}
+    <Input className={`py-1.5 h-8 px-2 font-mono ${FIELD}`} style={{ width: 96 }} value={hexOf(p.value())}
       onChange={(v: string) => { const c = colourOf(v); if (c >= 0) p.onCommit(c); p.onDone(); }} />
   </View>;
 }

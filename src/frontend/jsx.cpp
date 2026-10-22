@@ -922,12 +922,7 @@ struct Lowering {
     }
     const std::string& tag = e.tag;
     bool upper = std::isupper(static_cast<unsigned char>(tag[0]));
-    if (upper) {
-      auto it = imported.find(tag);
-      bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||   // the kits' Button, Input... are components
-                        (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
-      if (!(kTags.count(tag) && hostImport)) return component(e, out);
-    }
+    if (upper && !jsxHostTag(tag, imported)) return component(e, out);
     auto tagIt = kTags.find(tag);
     if (tagIt == kTags.end()) fail(e.begin + 1, "unknown host component <" + tag + "> (View, Text, Button, Image, ScrollView, Canvas, Input, TextArea)");
     int tagNo = tagIt->second;
@@ -1171,6 +1166,37 @@ struct Lowering {
 
 // A lowercase tag is refused (Z0007, owner 2026-10-16): the component to write instead, for the old host tags and the HTML ones people reach for.
 // zinc migrate jsx-capitalised-tags rewrites exactly these (src/lint).
+std::map<std::string, std::string> jsxImports(std::string_view s, const std::vector<Token>& t, bool* react) {
+  std::map<std::string, std::string> imported;
+  auto tx = [&](std::size_t i) { return std::string(s.substr(t[i].start, t[i].end - t[i].start)); };
+  auto isK = [&](std::size_t i, const char* w) { return i < t.size() && t[i].kind == Tok::Keyword && tx(i) == w; };
+  auto isId = [&](std::size_t i, const char* w) { return i < t.size() && t[i].kind == Tok::Ident && tx(i) == w; };
+  for (std::size_t i = 0; i < t.size(); ++i) {
+    if (!isK(i, "import")) continue;
+    std::size_t k = i + 1;
+    std::vector<std::string> names;
+    while (k < t.size() && !isK(k, "from") && !isId(k, "from") && t[k].kind != Tok::String) {
+      if (t[k].kind == Tok::Ident) { names.push_back(tx(k)); if (isK(k + 1, "as") || isId(k + 1, "as")) { names.pop_back(); k += 2; if (k < t.size() && t[k].kind == Tok::Ident) names.push_back(tx(k)); } }
+      ++k;
+    }
+    if (k < t.size() && t[k].kind != Tok::String) ++k;
+    if (k < t.size() && t[k].kind == Tok::String) {
+      std::string spec = tx(k);
+      spec = spec.substr(1, spec.size() - 2);
+      for (auto& n : names) imported[n] = spec;
+      if (react && (spec == "zinc:ui/react" || spec == "react" || spec == "inferno")) *react = true;
+    }
+  }
+  return imported;
+}
+
+bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported) {
+  if (!kTags.count(tag)) return false;
+  auto it = imported.find(tag);
+  return it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||   // the kits' Button, Input... are components
+         (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
+}
+
 const std::map<std::string, std::string>& jsxLowercaseTags() {
   static const std::map<std::string, std::string> tags = {{"view", "View"}, {"text", "Text"}, {"button", "Button"}, {"image", "Image"}, {"scroll", "ScrollView"},
                                                           {"canvas", "Canvas"}, {"input", "Input"}, {"textarea", "TextArea"}, {"div", "View"}, {"span", "Text"},
@@ -1381,22 +1407,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   if (classTags) L.classTags = *classTags;
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
-    for (std::size_t i = 0; i < L.t.size(); ++i) {
-      if (!L.isK(i, "import")) continue;
-      std::size_t k = i + 1;
-      std::vector<std::string> names;
-      while (k < L.t.size() && !L.isK(k, "from") && !(L.t[k].kind == Tok::Ident && L.tx(k) == "from") && L.t[k].kind != Tok::String) {
-        if (L.t[k].kind == Tok::Ident) { names.push_back(L.tx(k)); if (L.isK(k + 1, "as") || (L.t[k + 1].kind == Tok::Ident && L.tx(k + 1) == "as")) { names.pop_back(); k += 2; if (L.t[k].kind == Tok::Ident) names.push_back(L.tx(k)); } }
-        ++k;
-      }
-      if (k < L.t.size() && L.t[k].kind != Tok::String) ++k;
-      if (k < L.t.size() && L.t[k].kind == Tok::String) {
-        std::string spec = L.tx(k);
-        spec = spec.substr(1, spec.size() - 2);
-        for (auto& n : names) L.imported[n] = spec;
-        if (spec == "zinc:ui/react" || spec == "react" || spec == "inferno") L.react = true;
-      }
-    }
+    L.imported = jsxImports(src, L.t, &L.react);
     std::size_t pr = src.find("@jsxHelpers");
     L.lib = L.react ? "zinc:ui/react" : "zinc:ui/solid";
     if (pr != std::string_view::npos) {

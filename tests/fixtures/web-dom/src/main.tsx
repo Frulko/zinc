@@ -28,10 +28,10 @@ function App(): i32 {
         <View as="section" aria-label="Sign in" className="flex-col gap-2">
           <Text as="h2" className="text-lg font-semibold text-slate-900">Sign in</Text>
           <Form name="login" className="w-80" onSubmit={() => setSent(`sent ${name()}|${email()}|${pw().length}`)}>
-            <Input name="name" autoComplete="name" required placeholder="Name" aria-label="Name" className={FIELD} value={name()} onInput={(v: string) => { setName(v); setTyped(typed() + 1); }} />
-            <Input name="email" type="email" autoComplete="email" required placeholder="Email" aria-label="Email" className={FIELD} value={email()} onInput={(v: string) => setEmail(v)} />
-            <Input name="password" type="password" autoComplete="current-password" minLength={3} placeholder="Password" aria-label="Password" className={FIELD} value={pw()} onInput={(v: string) => setPw(v)} />
-            <TextArea name="notes" rows={2} placeholder="Notes" aria-label="Notes" className={FIELD} />
+            <Input name="name" autoComplete="name" required placeholder="Name" aria-label="Name" className={'border text-[14px] px-2 py-1.5 ' + FIELD} value={name()} onInput={(v: string) => { setName(v); setTyped(typed() + 1); }} />
+            <Input name="email" type="email" autoComplete="email" required placeholder="Email" aria-label="Email" className={'border text-[14px] px-2 py-1.5 ' + FIELD} value={email()} onInput={(v: string) => setEmail(v)} />
+            <Input name="password" type="password" autoComplete="current-password" minLength={3} placeholder="Password" aria-label="Password" className={'border text-[14px] px-2 py-1.5 ' + FIELD} value={pw()} onInput={(v: string) => setPw(v)} />
+            <TextArea name="notes" rows={2} placeholder="Notes" aria-label="Notes" className={'border text-[14px] px-2 py-1.5 ' + FIELD} />
             <Button label="Send" type="submit" />
           </Form>
           <Text className="text-sm text-slate-600">{sent()}</Text>

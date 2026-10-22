@@ -121,15 +121,15 @@ function App(): i32 {
     <View className="w-[300] flex-col gap-3 p-4 bg-slate-900">
       <Text className="text-lg font-bold text-white">Box properties</Text>
       <Field label="Name">
-        <Input ref={nameRef} className="w-full focus:border-sky-400" placeholder="Select a box" value={selected() !== null ? (selected() as GNode).name() : ''}
+        <Input ref={nameRef} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-full focus:border-sky-400" placeholder="Select a box" value={selected() !== null ? (selected() as GNode).name() : ''}
           onInput={(v: string) => { const s = selected(); if (s !== null) s.setName(v); }}
           onChange={(v: string) => setStatus(`Renamed to "${v}"`)} />
       </Field>
       <Field label="Robot PIN">
-        <Input className="w-full" password placeholder="4 digits" value={pin()} onInput={(v: string) => setPin(v)} />
+        <Input className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-full" password placeholder="4 digits" value={pin()} onInput={(v: string) => setPin(v)} />
       </Field>
       <Field label="Notes">
-        <TextArea className="w-full text-sm" rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
+        <TextArea className="bg-slate-800 border border-slate-600 rounded-md px-2 py-1.5 text-slate-100 w-full text-sm" rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
       </Field>
       <View className="flex-row gap-2">
         <Button className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 rounded-md px-3 py-1 cursor-pointer" onClick={() => setStatus('Saved')}><Text className="text-sm text-white">Save</Text></Button>
@@ -140,7 +140,7 @@ function App(): i32 {
     <View className="grow flex-col">
       <View className="h-[200] flex-col p-3 gap-1 bg-slate-900 border-slate-800">
         <Text className="text-xs text-slate-400">onStart.ts</Text>
-        <TextArea ref={scriptRef} className="grow w-full font-mono text-sm bg-slate-950" lineNumbers wrap={false} value={script()}
+        <TextArea ref={scriptRef} className="border border-slate-600 rounded-md px-2 py-1.5 text-slate-100 grow w-full font-mono text-sm bg-slate-950" lineNumbers wrap={false} value={script()}
           onInput={(v: string) => setScript(v)} highlight={(l: string) => ui.tsHighlight(l)} />
       </View>
       <View ref={canvasRef} className="grow overflow-hidden bg-slate-950 cursor-move"

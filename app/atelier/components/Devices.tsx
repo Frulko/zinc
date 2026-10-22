@@ -94,8 +94,8 @@ export function DevicesPanel(): i32 {
         <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.device.how_2')}</Text>
       </View>}
       <View className="flex-row items-center pt-1.5 px-1 gap-1.5">
-        <Input ref={whoRef} className={`grow ${FIELD()}`} placeholder={tr('atelier.device.who')} value={who()} onInput={(v: string) => setWho(v)} onKeyDown={formKey} />
-        <Input ref={codeRef} className={`w-[96] ${FIELD()}`} placeholder={tr('atelier.device.code')} value={code()} onInput={(v: string) => setCode(v)} onKeyDown={formKey} />
+        <Input ref={whoRef} className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 grow ${FIELD()}`} placeholder={tr('atelier.device.who')} value={who()} onInput={(v: string) => setWho(v)} onKeyDown={formKey} />
+        <Input ref={codeRef} className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-[96] ${FIELD()}`} placeholder={tr('atelier.device.code')} value={code()} onInput={(v: string) => setCode(v)} onKeyDown={formKey} />
         <View className={`flex-row items-center h-[30] px-3.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`} style={{ opacity: pairing() ? 0.5 : 1 }}
           onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pair(); }}>
           <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>{tr('atelier.device.pair')}</Text>

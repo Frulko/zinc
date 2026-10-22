@@ -40,7 +40,7 @@ export function TemperatureCard(props: TemperatureCardProps): i32 {
       <Text style={[{ "fontSize": 32, "color": "#2563eb" }]}>
         {'' + (props.temperature !== undefined ? props.temperature() : 21)}
       </Text>
-      <Button style={[__shared.action]} onClick={() => { if (props.targetChanged !== undefined) props.targetChanged(22); }}>
+      <Button className="bg-slate-700 px-2 py-1" style={[__shared.action]} onClick={() => { if (props.targetChanged !== undefined) props.targetChanged(22); }}>
         {"Set to 22"}
       </Button>
     </View>
@@ -58,7 +58,7 @@ export function ThermostatApp(props: ThermostatAppProps): i32 {
     <Show when={screen() === "home"}>
       <View style={[__shared.screen]}>
         <TemperatureCard temperature={() => (props.temperature !== undefined ? props.temperature() : 21)} targetChanged={(value: number) => { if (props.targetChanged !== undefined) props.targetChanged(value); }} />
-        <Button style={[__shared.action]} onClick={() => { if (screen() !== "details") { history.push(screen()); setScreen("details"); } }}>
+        <Button className="bg-slate-700 px-2 py-1" style={[__shared.action]} onClick={() => { if (screen() !== "details") { history.push(screen()); setScreen("details"); } }}>
           {"Details"}
         </Button>
       </View>
@@ -68,7 +68,7 @@ export function ThermostatApp(props: ThermostatAppProps): i32 {
         <Text style={[__shared.title]}>
           {"Connected component"}
         </Text>
-        <Button style={[__shared.action]} onClick={() => { if (history.length > 0) setScreen(history.pop()); }}>
+        <Button className="bg-slate-700 px-2 py-1" style={[__shared.action]} onClick={() => { if (history.length > 0) setScreen(history.pop()); }}>
           {"Back"}
         </Button>
       </View>

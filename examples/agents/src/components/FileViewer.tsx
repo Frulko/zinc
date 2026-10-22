@@ -34,7 +34,7 @@ export function FileViewer(props: { file: ConfigFile }): i32 {
       <Text className={`grow shrink min-w-0 truncate text-[12px] ${fg(FAINT)}`}>{props.file.path}</Text>
       <ViewerButton label="Back to the chat" onPress={() => viewFile(null)} />
     </View>
-    <TextArea readOnly wrap={false} className={`grow font-mono text-[12px] p-3 ${bg(BACKGROUND)} ${fg(TEXT)}`} value={contentOf(props.file)} />
+    <TextArea readOnly wrap={false} className={`border border-slate-600 rounded-md grow font-mono text-[12px] p-3 ${bg(BACKGROUND)} ${fg(TEXT)}`} value={contentOf(props.file)} />
   </View>;
 }
 
@@ -53,6 +53,6 @@ export function OutputViewer(): i32 {
       {page() < s.parts - 1 && <ViewerButton label="Next" onPress={() => setPage(page() + 1)} />}
       <ViewerButton label="Back to the chat" onPress={() => viewOutput(null)} />
     </View>
-    <TextArea readOnly wrap={false} className={`grow font-mono text-[12px] p-3 ${bg(BACKGROUND)} ${fg(TEXT)}`} value={partOf(s, page())} />
+    <TextArea readOnly wrap={false} className={`border border-slate-600 rounded-md grow font-mono text-[12px] p-3 ${bg(BACKGROUND)} ${fg(TEXT)}`} value={partOf(s, page())} />
   </View>;
 }

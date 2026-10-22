@@ -342,7 +342,7 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
   let zone = '', x0: number = 0, a0: number = 0, u0: number = 0;
   const half = (v: number): number => Math.round(v * 2) / 2;
   return <View className="flex-row items-center gap-2 h-7">
-    <Button className={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.chosen() ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} style={{ width: NAME_W }} onClick={p.onPick}>
+    <Button className={`py-1 flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.chosen() ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} style={{ width: NAME_W }} onClick={p.onPick}>
       <Ico name={p.icon} size={12} color={p.colour} />
       <Text className="truncate text-[11px] text-zinc-200" style={{ width: NAME_W - 40 }}>{p.label()}</Text>
     </Button>

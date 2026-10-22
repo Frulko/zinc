@@ -36,7 +36,7 @@ function lineStart(s: string, n: i32): i32 {
 }
 
 function Editor(): i32 {
-  const ed = <TextArea className="grow font-mono text-sm rounded-none border-0 pl-[14] pt-[10] bg-zinc-950 text-zinc-100 focus:border-zinc-950"
+  const ed = <TextArea className="border-slate-600 px-2 py-1.5 grow font-mono text-sm rounded-none border-0 pl-[14] pt-[10] bg-zinc-950 text-zinc-100 focus:border-zinc-950"
     lineNumbers wrap={false} value={code()} onInput={edited} highlight={(line: string) => ui.tsHighlight(line)} />;
   ui.setEditColors(ed, [0x52525b, 0xd4d4d8, -2, 0x3730a3, 0xa5b4fc, 0x27272a]);
   // the failing line: red background, a dot in the gutter, a squiggle under the code

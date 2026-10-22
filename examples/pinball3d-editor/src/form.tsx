@@ -118,7 +118,7 @@ function Row(p: { src: Source; field: Field; path: string; children: () => i32 }
   return <View className="flex-row items-center gap-2 px-4 hover:bg-zinc-800" style={{ minHeight: 32 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
     <Text className={`w-[112] shrink-0 truncate text-xs ${advanced() ? 'font-mono text-zinc-300' : 'text-zinc-400'}`}>{label(p.field)}</Text>
     <View className="grow basis-0 min-w-0 flex-row items-center gap-[6]">{p.children()}</View>
-    <Button className={`w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700 ${changed() ? '' : 'opacity-0'}`} tabIndex={-1}
+    <Button className={`px-2 py-1 w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700 ${changed() ? '' : 'opacity-0'}`} tabIndex={-1}
       onClick={() => { if (changed()) p.src.set(p.path, p.field.def); }}>
       <Ico name="rotate-ccw" size={11} color={MUTED} />
     </Button>
@@ -129,7 +129,7 @@ function TupleBoxes(p: { src: Source; field: Field; path: string }): i32 {
   const cells: i32[] = [];
   for (let i = 0; i < p.field.cols; i++) cells.push(i);
   return <View className="flex-row items-center gap-1">
-    {cells.map((i: i32, k: i32) => <Input className={FIELD} style={{ width: p.field.cols > 3 ? 38 : p.field.cols > 2 ? 46 : 56 }} value={shown(p.src.get(`${p.path}[${i}]`))}
+    {cells.map((i: i32, k: i32) => <Input className={'py-1.5 ' + FIELD} style={{ width: p.field.cols > 3 ? 38 : p.field.cols > 2 ? 46 : 56 }} value={shown(p.src.get(`${p.path}[${i}]`))}
       onChange={(v: string) => {
         const n = typed(v), row: any = p.src.get(p.path), next: number[] = [];
         if (!isNumber(n)) { refresh(); return; }
@@ -189,8 +189,8 @@ function ColorField(p: { src: Source; path: string }): i32 {
   };
   createEffect(() => { text(); hue(); open(); ui.repaint(); });
   const node = <View className="flex-row items-center gap-2">
-    <Button ref={swatch} className="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} tabIndex={-1} onClick={toggle} />
-    <Input className={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
+    <Button ref={swatch} className="bg-slate-700 px-2 py-1 w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} tabIndex={-1} onClick={toggle} />
+    <Input className={`py-1.5 font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
     <View ref={pop} hidden={1} className="flex-col gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: W + 18 }}>
       <View className="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
         onPointerDown={(e: ui.PointerEvent) => { grab = 1; src.seal(); shadeAt(e); }} onPointerMove={(e: ui.PointerEvent) => { if (grab === 1) shadeAt(e); }} onPointerUp={(e: ui.PointerEvent) => { grab = 0; src.seal(); }}>
@@ -213,7 +213,7 @@ function ColorField(p: { src: Source; path: string }): i32 {
       </View>
       <Heading label={t(L.COLOURS_IN_USE)} />
       <View className="flex-row flex-wrap gap-1" style={{ width: W }}>
-        <For each={src.colors().slice(0, 40)}>{(c: string, i: i32) => <Button className="w-[18] h-[18] rounded border border-zinc-700 cursor-pointer" style={{ bg: rgb(c) }} tabIndex={-1}
+        <For each={src.colors().slice(0, 40)}>{(c: string, i: i32) => <Button className="bg-slate-700 px-2 py-1 w-[18] h-[18] rounded border border-zinc-700 cursor-pointer" style={{ bg: rgb(c) }} tabIndex={-1}
           onClick={() => { src.seal(); src.set(path, c); setHue(hsvOf(c)[0]); }} />}</For>
       </View>
     </View>
@@ -246,7 +246,7 @@ function FileField(p: { src: Source; field: Field; path: string }): i32 {
           note={(v: string) => real(v) ? src.fileNote(v) : ''} search={true} width={300} look="field" title="" onPick={(v: string) => { if (v === IMPORT) src.importFor(path, kind); else src.set(path, v); }} />
       </View>
       <Show when={kind === 'sound'}>
-        <Button className={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
+        <Button className={`px-2 py-1 w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
           <Ico name="play" size={12} color={ACCENT} />
         </Button>
       </Show>
@@ -288,7 +288,7 @@ function Part(p: { src: Source; schema: Schema; item: string; slot: string; said
   const aims = p.slot === 'target' || p.slot === vs.target, ways = p.slot === 'way' || p.slot === vs.way;
   if (!aims && !ways) {
     const at = `${item}.${p.slot}`;
-    return <Input className={FIELD} style={{ width: p.inline ? 62 : 84 }} value={shown(src.get(at))} onChange={(x: string) => { const n = typed(x); if (isNumber(n)) src.set(at, n); else refresh(); }} />;
+    return <Input className={'py-1.5 ' + FIELD} style={{ width: p.inline ? 62 : 84 }} value={shown(src.get(at))} onChange={(x: string) => { const n = typed(x); if (isNumber(n)) src.set(at, n); else refresh(); }} />;
   }
   const path = `${item}.${aims ? vs.target : vs.way}`;
   const text = (): string => { const x: any = src.get(path); return typeof x === 'string' ? `${x}` : ''; };
@@ -303,13 +303,13 @@ function Part(p: { src: Source; schema: Schema; item: string; slot: string; said
         const options = (): string[] => kindOf.ways, label = (x: string): string => wordSaid(s.name, word, x);
         return p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <View style={{ width: WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></View>;
       }
-      if (kindOf.names === '' && kindOf.words.length === 0) return <Input className={FIELD} style={{ width: p.inline ? 168 : WIDE }} value={text()} onChange={(x: string) => { src.set(path, x); }} />;
+      if (kindOf.names === '' && kindOf.words.length === 0) return <Input className={'py-1.5 ' + FIELD} style={{ width: p.inline ? 168 : WIDE }} value={text()} onChange={(x: string) => { src.set(path, x); }} />;
       const options = (): string[] => kindOf.words.concat(kindOf.among !== '' ? src.among(kindOf.among) : kindOf.names === '' ? [] : src.names(kindOf.names));
       const label = (x: string): string => kindOf.words.indexOf(x) >= 0 ? wordSaid(s.name, word, x) : x;
       const heard = kindOf.names === 'sounds';
       return <View className="flex-row items-center gap-1">
         {p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <View style={{ width: heard ? WIDE - 30 : WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></View>}
-        {heard ? <Button className="w-[24] h-[24] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700" tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+        {heard ? <Button className="px-2 py-1 w-[24] h-[24] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700" tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
           <Ico name="play" size={11} color={ACCENT} />
         </Button> : <View />}
       </View>;
@@ -348,7 +348,7 @@ function Sentence(p: { src: Source; schema: Schema; item: string; width: number 
 /** A list of objects that are of a kind (the conditions and the actions of a rule): each as its sentence, with the ways to make it
  *  another kind, to move it and to take it away; the button at the top adds one, of the kind chosen in its list. */
 function Guided(p: { src: Source; field: Field; path: string }): i32 {
-  const src = p.src, of = p.field.of as Schema, vs = of.variants as Variants, small = 'w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700';
+  const src = p.src, of = p.field.of as Schema, vs = of.variants as Variants, small = 'px-2 py-1 w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700';
   const count = (): i32 => { const v: any = src.get(p.path); return v === undefined ? 0 : v.length; };
   const places = (): string[] => { const out: string[] = []; for (let i = 0; i < count(); i++) out.push(`${i}`); return out; };
   const kinds = (): string[] => vs.all.map((v: Variant) => v.word), kindSays = (w: string): string => kindSaid(of.name, w);
@@ -395,7 +395,7 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
   const count = (): string => { const v: any = src.get(path); return v === undefined ? '0' : `${v.length}`; };
   if (fd.kind === Kind.Num || fd.kind === Kind.Int) return <View className="flex-row items-center gap-[6]">
-    <Input className={FIELD} style={{ width: 84 }} value={shown(src.get(path))} onChange={(v: string) => { const n = typed(v); if (isNumber(n)) src.set(path, n); else refresh(); }} />
+    <Input className={'py-1.5 ' + FIELD} style={{ width: 84 }} value={shown(src.get(path))} onChange={(v: string) => { const n = typed(v); if (isNumber(n)) src.set(path, n); else refresh(); }} />
     <Unit of={fd} />
   </View>;
   if (fd.kind === Kind.Bool) return <Switch value={() => src.get(path) === true} yes={t(L.YES)} no={t(L.NO)} onPick={(v: boolean) => { src.set(path, v); }} />;
@@ -410,7 +410,7 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
     // the name of a sound: it can be heard
     return <View className="flex-row items-center gap-1" style={{ width: WIDE }}>
       <View style={{ width: WIDE - 30 }}><Names src={src} field={fd} path={path} /></View>
-      <Button className={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+      <Button className={`px-2 py-1 w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
         <Ico name="play" size={12} color={ACCENT} />
       </Button>
     </View>;
@@ -424,7 +424,7 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
     return <TextArea className="p-2 rounded-md bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: WIDE }} rows={4} placeholder={t(L.ONE_PER_LINE)} value={lines()}
       onChange={(v: string) => { src.set(path, v.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)); }} />;
   }
-  return <Input className={FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
+  return <Input className={'py-1.5 ' + FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
 }
 /** A list of objects inside a form (the rules, the steps of a mission, the actions of a rule): a line per item, which says what the
  *  item is and opens its own form, and a way to add one. */
@@ -450,7 +450,7 @@ function Items(p: { src: Source; field: Field; path: string }): i32 {
           <Ico name="chevron-right" size={12} color={MUTED} />
         </Button>;
       }}</For>
-      <Button className="flex-row items-center justify-center gap-[6] h-7 px-2 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800" onClick={() => p.src.add(p.path)}>
+      <Button className="py-1 flex-row items-center justify-center gap-[6] h-7 px-2 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800" onClick={() => p.src.add(p.path)}>
         <Ico name="plus" size={12} color={MUTED} />
         <Text className="text-xs font-bold text-zinc-300">{t(L.ADD)}</Text>
       </Button>
@@ -552,7 +552,7 @@ export function findField(): void { if (finder.node >= 0) { ui.focusNode(finder.
 function Finder(): i32 {
   return <View className="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
     <Ico name="search" size={13} color={MUTED} />
-    <Input ref={finder} style={{ width: 288 }} className="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_FIELD, chord('F'))} value={wanted()}
+    <Input ref={finder} style={{ width: 288 }} className="py-1.5 h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_FIELD, chord('F'))} value={wanted()}
       onInput={(v: string) => setWanted(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') setWanted(''); }} />
   </View>;
 }
@@ -638,7 +638,7 @@ function Panel(p: { path: string }): i32 {
       <View className="flex-col">
         <Show when={above.length > 0}>
           <View className="flex-row items-center gap-1 px-3 pt-3">
-            {above.map((up: string, i: i32) => <Button className="flex-row items-center gap-1 h-6 px-1 rounded cursor-pointer bg-transparent hover:bg-zinc-800" onClick={() => select(up)}>
+            {above.map((up: string, i: i32) => <Button className="py-1 flex-row items-center gap-1 h-6 px-1 rounded cursor-pointer bg-transparent hover:bg-zinc-800" onClick={() => select(up)}>
               <Text className="truncate text-[11px] text-zinc-400" style={{ maxWidth: 120 }}>{steps(up).length === 1 ? listName(up, false) : doc().nameOf(up)}</Text>
               <Ico name="chevron-right" size={11} color={MUTED} />
             </Button>)}

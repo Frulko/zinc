@@ -70,7 +70,7 @@ export function explainFirst(): void { for (const l of lines()) if (l.c1 > l.c0)
  *  onto as many rows as it needs. */
 function Log(): i32 {
   const node = <TextArea ref={logRef} readOnly
-    className={`absolute inset-0 font-mono text-[12px] leading-[19] rounded-none border-0 px-3.5 py-2.5 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
+    className={`border-slate-600 absolute inset-0 font-mono text-[12px] leading-[19] rounded-none border-0 px-3.5 py-2.5 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
     placeholder={tr('atelier.console.empty')}
     value={lines().map((l: Line) => l.text).join('\n')} onPointerUp={(e: ui.PointerEvent) => linkClick()} />;
   ui.setHighlightAt(node, (row: string, start: i32) => rowColors(row, start));
@@ -126,7 +126,7 @@ function StatusLine(): i32 {
     </View>
     <View className="flex-row items-center grow shrink gap-2.5" style={{ hidden: asking() ? 0 : 1 }}>
       <Text className={`text-[13px] font-medium ${fg(theme().text)}`}>{promptLabel()}</Text>
-      <Input ref={promptRef} className={`w-[300] h-[28] text-[13px] px-3 rounded-full border-0 ${bg(theme().chrome)} ${fg(theme().text)} focus:${bd(theme().chrome)}`}
+      <Input ref={promptRef} className={`border-slate-600 py-1.5 w-[300] h-[28] text-[13px] px-3 rounded-full border-0 ${bg(theme().chrome)} ${fg(theme().text)} focus:${bd(theme().chrome)}`}
         value={promptValue()} onInput={(v: string) => setPromptValue(v)} onKeyDown={promptKey} />
       <Kbd keys="↵" /><Kbd keys="esc" />
     </View>

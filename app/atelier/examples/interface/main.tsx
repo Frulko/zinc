@@ -13,10 +13,10 @@ function App(): i32 {
   return <View className="flex-col w-full h-full items-center justify-center gap-6 bg-[#f3f1ec]">
     <Text className="text-6xl font-bold text-[#1d1b18]">{`${count()}`}</Text>
     <View className="flex-row gap-3">
-      <Button className="h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
+      <Button className="py-1 h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
         <Text className="text-base font-medium text-[#1d1b18]">Less</Text>
       </Button>
-      <Button className="h-11 px-5 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
+      <Button className="py-1 h-11 px-5 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
         <Text className="text-base font-medium text-white">More</Text>
       </Button>
     </View>

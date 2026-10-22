@@ -7,7 +7,7 @@ const [value, setValue] = createSignal<string>('');
 function App(): i32 {
   return <View className="flex-col gap-3 p-6 h-full">
     <Text className="text-sm text-slate-600">Type here</Text>
-    <Input className="w-72 h-10 px-2 rounded-md border border-slate-300 bg-white text-base text-slate-900" value={value()} onInput={(v: string) => { setValue(v); console.log(`typed ${v.length} characters`); }} />
+    <Input className="py-1.5 w-72 h-10 px-2 rounded-md border border-slate-300 bg-white text-base text-slate-900" value={value()} onInput={(v: string) => { setValue(v); console.log(`typed ${v.length} characters`); }} />
   </View>;
 }
 render(App, 0xffffff, null);

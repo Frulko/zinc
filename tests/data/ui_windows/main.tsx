@@ -8,7 +8,7 @@ const [pings, setPings] = createSignal<i32>(0);
 function Editor(): i32 {
   return <View className="flex-col gap-4 p-6 h-full">
     <Text className="text-xl text-white">Editor</Text>
-    <Button className="w-40 h-12 items-center justify-center rounded-lg bg-sky-600 hover:bg-sky-500" onClick={() => { setTiles(tiles() + 1); console.log(`editor: ${tiles()} tiles`); }}>
+    <Button className="px-2 py-1 w-40 h-12 items-center justify-center rounded-lg bg-sky-600 hover:bg-sky-500" onClick={() => { setTiles(tiles() + 1); console.log(`editor: ${tiles()} tiles`); }}>
       <Text className="text-white">Add a tile</Text>
     </Button>
     <Text className="text-sm text-slate-300">{`pings from the preview: ${pings()}`}</Text>
@@ -22,7 +22,7 @@ function Preview(): i32 {
       <View className={tiles() >= 2 ? 'w-10 h-10 rounded-md bg-emerald-500' : 'hidden'} />
       <View className={tiles() >= 3 ? 'w-10 h-10 rounded-md bg-emerald-500' : 'hidden'} />
     </View>
-    <Button className="w-28 h-10 items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-400" onClick={() => { setPings(pings() + 1); console.log(`preview: ${pings()} pings`); }}>
+    <Button className="px-2 py-1 w-28 h-10 items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-400" onClick={() => { setPings(pings() + 1); console.log(`preview: ${pings()} pings`); }}>
       <Text className="text-slate-900">Ping</Text>
     </Button>
   </View>;

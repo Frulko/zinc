@@ -70,7 +70,7 @@ function StatusBar(): i32 {
     <Show when={failed()}><Ico name="circle-alert" size={13} color={0xf87171} /></Show>
     <Text className={`grow basis-0 truncate text-[11px] ${failed() ? 'text-red-300' : 'text-zinc-400'}`}>{status()}</Text>
     <Text className="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</Text>
-    <Button className={`flex-row items-center gap-1 h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
+    <Button className={`py-1 flex-row items-center gap-1 h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
       <Text className={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</Text>
       <Text className="text-[10px] text-zinc-400">{advanced() ? chord('E') : ''}</Text>
     </Button>
@@ -82,7 +82,7 @@ function StatusBar(): i32 {
 /** A button of a question. `look`: 'plain' or 'primary'. */
 function Choice(p: { label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border border-zinc-700 hover:bg-zinc-800';
-  return <Button className={`flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
+  return <Button className={`py-1 flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
     <Text className={`text-sm font-bold ${p.look === 'plain' ? 'text-zinc-100' : 'text-zinc-900'}`}>{p.label}</Text>
   </Button>;
 }

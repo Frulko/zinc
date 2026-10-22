@@ -187,6 +187,7 @@ struct Linter {
     for (const fs::path& f : files) {
       const std::string text = readAll(f), name = f.lexically_normal().string();
       for (const Codemod& cm : codemods())
+        if (!cm.byName)   // a codemod run by name changes a look, not the language: nothing to report
         for (const Site& s : scanFile(cm, name, text))
           if (s.start == 0 || text[s.start - 1] != '/')   // a closing tag is the same element
             addAt(name, text, s.start, cm.id == std::string("jsx-classname") ? "jsx-classname" : "jsx-capitalised-tag", s.message, "");

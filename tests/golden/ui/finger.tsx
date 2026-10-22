@@ -15,7 +15,7 @@ function App(): i32 {
     <ScrollView className="h-full">
       <View className="flex-col gap-4 p-4">
         <View className="w-5 h-5 border" onClick={() => console.log('check')} />
-        <Input ref={field} className="h-10 w-60 border rounded" placeholder="name" />
+        <Input ref={field} className="bg-slate-800 border-slate-600 text-[14px] px-2 py-1.5 text-slate-100 h-10 w-60 border rounded" placeholder="name" />
         {['1', '2', '3', '4', '5', '6', '7', '8'].map((t: string) => <View className="h-16 border"><Text className="text-base">{t}</Text></View>)}
       </View>
     </ScrollView>

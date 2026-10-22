@@ -72,7 +72,7 @@ function ModelPicker(props: { models: ModelChoice[]; selected: ModelChoice; onPi
     style={{ opacity: enterOpacity(), translateY: enterY(6) }}>
     <View className={`flex-row items-center gap-2 h-[${FIELD_H}] px-2 border-b ${bd(BORDER)}`}>
       <Icon name="search" size={13} color={() => color(FAINT)} />
-      <Input ref={field} className={`grow h-[26] text-[12px] bg-transparent border-0 px-1 ${fg(TEXT)}`} value={query()}
+      <Input ref={field} className={`border-slate-600 rounded-md py-1.5 grow h-[26] text-[12px] bg-transparent border-0 px-1 ${fg(TEXT)}`} value={query()}
         onInput={(v: string) => { setQuery(v); setAt(step(shown(), -1, 1)); ui.scrollTo(list.node, 0, 0); }} onKeyDown={keys}
         placeholder="Search models" aria-label="Search models" />
     </View>

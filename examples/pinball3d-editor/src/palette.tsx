@@ -35,7 +35,7 @@ function Mini(p: { at: i32 }): i32 {
 }
 function Entry(p: { at: i32 }): i32 {
   const e = ENTRIES[p.at], on = (): boolean => tool() === e;
-  return <Button className={`flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`}
+  return <Button className={`py-1 flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`}
     onClick={() => { if (e === LANE) addLane(); else pickTool(on() ? null : e); }}>
     <Mini at={p.at} />
     <Text className={`grow truncate text-xs ${on() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 96 }}>{advanced() ? `+${e.key}` : entryName(e)}</Text>

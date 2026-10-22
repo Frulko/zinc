@@ -7,7 +7,7 @@ import { clipboardText } from 'zinc:gfx';
 
 function App(): i32 {
   return <View className="flex-1 bg-white p-4 pt-24">
-    <Input className="w-full" value="hello wide world" />
+    <Input className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-full" value="hello wide world" />
   </View>;
 }
 

@@ -63,7 +63,15 @@ zinc migrate jsx-classname src/      # one codemod, one directory (or a file)
 |---|---|---|
 | `jsx-classname` | Z0006 | `class=` on JSX elements, and the prop of components: `class?: string`, `props.class`, `{ class: c }` |
 | `jsx-capitalised-tags` | Z0007 | `<view>` `<View>`, `<text>` `<Text>`, `<button>` `<Button>`, `<image>` and `<img>` `<Image>`, `<scroll>` `<ScrollView>`, `<canvas>`, `<input>`, `<textarea>` `<TextArea>`, `<div>` `<View>`, `<span>` and `<p>` `<Text>` |
+| `ui-explicit-looks` | (run by name) | the look `<Button>`, `<Input>` and `<TextArea>` drew by default before 0.7, written as classes: `bg-slate-700 px-2 py-1` on a Button, `bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100` on a field, only the families its own classes leave out |
 
 A codemod reads the code as the engine does: strings, comments and the text of JSX elements are left alone, and so is Markdown prose
 (only `tsx`, `jsx`, `ts` and `js` fences of `.md` files are rewritten). A second run changes nothing. A lowercase tag with no component
 to map to (`<frobnicate>`) is printed for you to rename.
+
+`ui-explicit-looks` changes a look, not the language, so `zinc migrate` runs it only when you name it (`zinc migrate ui-explicit-looks --apply`) and `zinc lint` does not report it.
+It puts the old look in front of your own classes, so they still win: `<Button className="bg-blue-600 px-4">` becomes
+`<Button className="py-1 bg-blue-600 px-4">`, and a field with a light fill of its own (`bg-white`, a shade up to 300, a light `bg-[#...]`) does not get the light text. It reads string literals,
+`cond ? 'a' : 'b'`, `'a ' + b`, template literals and the constants of the file; a className it cannot read (a function call, an import)
+is printed with the classes to add by hand where the old look is wanted. A kit's `Button` (`zinc:ui/kit`, `zinc:ui/nuxt`) has its own look
+and is left alone.

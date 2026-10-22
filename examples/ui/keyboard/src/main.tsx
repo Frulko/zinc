@@ -25,7 +25,7 @@ function Field(props: { label: string; children: () => i32 }): i32 {
     {props.children()}
   </View>;
 }
-const fieldClass = (): string => `h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`;
+const fieldClass = (): string => `border text-[14px] px-2 py-1.5 h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`;
 
 function App(): i32 {
   return <View className={`flex-col h-full bg-${theme().background}`}>
@@ -46,7 +46,7 @@ function App(): i32 {
               <Field label="PIN"><Input ref={pinRef} className={fieldClass()} inputMode="numeric" password placeholder="••••" value={pin()} onInput={(v: string) => setPin(v)} /></Field>
             </View>
             <Field label="Notes (multiline: Enter is a new line)">
-              <TextArea className={`rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3} value={note()} onInput={(v: string) => setNote(v)} />
+              <TextArea className={`border text-[14px] px-2 py-1.5 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3} value={note()} onInput={(v: string) => setNote(v)} />
             </Field>
           </CardContent>
         </Card>

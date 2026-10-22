@@ -45,7 +45,7 @@ function Composer(): i32 {
   const submit = (): void => { send(draft().trim()); setDraft(''); };
   const ready = (): boolean => phase() === 'connected';
   return <View className="flex-row items-center gap-2 p-3 border-t border-[#e2e8f0] bg-[#ffffff]" onSubmit={submit}>
-    <Input className="grow min-w-0 h-[36] px-3 rounded-md border border-[#cbd5e1] text-[14px] bg-[#ffffff] text-[#0f172a]"
+    <Input className="py-1.5 grow min-w-0 h-[36] px-3 rounded-md border border-[#cbd5e1] text-[14px] bg-[#ffffff] text-[#0f172a]"
       value={draft()} onInput={(v: string) => setDraft(v)} placeholder={ready() ? 'A message for the ESP32' : 'Connect first'} />
     <View className={`h-[36] px-4 justify-center rounded-md cursor-pointer ${ready() && draft() !== '' ? 'bg-[#2563eb]' : 'bg-[#cbd5e1]'}`} onPress={submit}>
       <Text className="text-[14px] text-[#ffffff]">Send</Text>

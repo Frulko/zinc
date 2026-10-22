@@ -9,7 +9,7 @@ import { host, setHost, sendPort, setSendPort, listenPort, changeListenPort, sim
 function Field(props: { label: string; value: () => string; onCommit: (v: string) => void; className?: string }): i32 {
   return <View className={`flex-col gap-1 ${props.className ?? ''}`}>
     <Text className={captionText()}>{props.label}</Text>
-    <Input className={`w-full h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
+    <Input className={`py-1.5 w-full h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
       value={props.value()} onChange={props.onCommit} />
   </View>;
 }

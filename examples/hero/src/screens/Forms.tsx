@@ -17,7 +17,7 @@ const [volume, setVolume] = createSignal<number>(40);
 const [plan, setPlan] = createSignal<i32>(0);
 const PLANS: string[] = ['Free', 'Pro', 'Team'];
 
-const fieldClass = (): string => `h-11 w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`;
+const fieldClass = (): string => `border text-[14px] px-2 py-1.5 h-11 w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`;
 
 function Field(props: { label: string; hint: string; children: () => i32 }): i32 {
   return <View className="flex-col gap-1 grow w-[240]">
@@ -79,7 +79,7 @@ export function Forms(): i32 {
             <Text className={`text-sm font-semibold w-[36] text-${theme().foreground}`}>{`${Math.round(volume())}`}</Text>
           </View>
           <Field label="Notes" hint="multiline: Enter is a new line">
-            <TextArea className={`w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3}
+            <TextArea className={`border text-[14px] px-2 py-1.5 w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3}
               value={notes()} onInput={(v: string) => setNotes(v)} />
           </Field>
         </CardContent>

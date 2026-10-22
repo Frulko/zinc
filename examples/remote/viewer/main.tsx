@@ -58,7 +58,7 @@ function App(): i32 {
       <For each={apps()}>{(a: remote.App, i: i32) => AppRow(a, i)}</For>
       <Show when={apps().length === 0}><Text className="text-xs text-slate-500">none yet</Text></Show>
       <View className="grow"></View>
-      <Button className="h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { open('127.0.0.1', 7700, 'localhost:7700'); }}>
+      <Button className="px-2 py-1 h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { open('127.0.0.1', 7700, 'localhost:7700'); }}>
         <Text className="text-sm">localhost:7700</Text>
       </Button>
     </View>

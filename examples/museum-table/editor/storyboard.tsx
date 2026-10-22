@@ -257,7 +257,7 @@ function Handle(l: Link): i32 {
   const chosen = (): boolean => selectedLink() === l;
   const open = (): boolean => chosen() || hovered() === l || (selectedLink() === null && selected() !== null && selected() === sourceOf(l));
   return <View className="absolute items-center justify-center" style={{ left: handleAt(l)[0] - 90, top: handleAt(l)[1] - 11, width: 180, height: 22 }}>
-    <Button className={`flex-row items-center justify-center gap-1 rounded-full border cursor-pointer ${open() ? 'h-[22] px-2' : zoomStep() > 1 ? 'w-[14] h-[14] p-0' : 'w-[10] h-[10] p-0'} ${chosen() ? 'bg-amber-400 border-amber-300' : 'bg-zinc-800 border-zinc-500 hover:border-zinc-300'}`}
+    <Button className={`py-1 flex-row items-center justify-center gap-1 rounded-full border cursor-pointer ${open() ? 'h-[22] px-2' : zoomStep() > 1 ? 'w-[14] h-[14] p-0' : 'w-[10] h-[10] p-0'} ${chosen() ? 'bg-amber-400 border-amber-300' : 'bg-zinc-800 border-zinc-500 hover:border-zinc-300'}`}
       onClick={() => { const a = sourceOf(l); if (a !== null) select(a, l); }}
       onPointerEnter={(e: ui.PointerEvent) => setHovered(l)} onPointerLeave={(e: ui.PointerEvent) => { if (hovered() === l) setHovered(null); }}>
       <Show when={open() && !chosen() && (project(), l.overlay)}><Ico name="layers" size={11} color={MUTED} /></Show>
@@ -290,7 +290,7 @@ function Empty(): i32 {
       <Text className="text-xl font-bold text-zinc-100">{t(L.EMPTY_TITLE)}</Text>
       <Text className="text-sm text-center text-zinc-400">{t(L.EMPTY_WHAT)}</Text>
       <Text className="text-sm text-center text-zinc-400">{t(L.EMPTY_HOW)}</Text>
-      <Button className="flex-row items-center gap-2 h-9 px-4 mt-2 rounded-md cursor-pointer bg-amber-400 hover:bg-amber-300" onClick={() => addSequenceInView()}>
+      <Button className="py-1 flex-row items-center gap-2 h-9 px-4 mt-2 rounded-md cursor-pointer bg-amber-400 hover:bg-amber-300" onClick={() => addSequenceInView()}>
         <Ico name="plus" size={15} color={DARK} />
         <Text className="text-sm font-bold text-zinc-900">{t(L.NEW_SEQUENCE)}</Text>
       </Button>

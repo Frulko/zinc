@@ -31,7 +31,7 @@ export function Ico(p: { name: string; size: number; color: i32 }): i32 {
  *  or 'quiet'; `keys`: its shortcut, shown in the advanced mode ('' for none). */
 export function Tool(p: { icon: string; label: string; look: string; keys: () => string; off: () => boolean; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
-  return <Button className={`flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
+  return <Button className={`bg-slate-700 py-1 flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
     <Ico name={p.icon} size={15} color={p.look === 'primary' ? DARK : INK} />
     {p.label.length > 0 ? <Text className={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text> : <View />}
     <Text className="text-[10px] text-zinc-500">{p.keys()}</Text>
@@ -40,7 +40,7 @@ export function Tool(p: { icon: string; label: string; look: string; keys: () =>
 /** A button of a panel, as wide as its row. `look`: 'plain', 'primary' or 'danger'. */
 export function Action(p: { icon: string; label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'danger' ? 'bg-zinc-900 border-red-900 hover:bg-red-950' : p.look === 'primary' ? 'bg-amber-400 border-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800';
-  return <Button className={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
+  return <Button className={`bg-slate-700 py-1 grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
     <Ico name={p.icon} size={14} color={p.look === 'danger' ? DANGER : p.look === 'primary' ? DARK : INK} />
     <Text className={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text>
   </Button>;
@@ -48,7 +48,7 @@ export function Action(p: { icon: string; label: string; look: string; onClick: 
 /** One of a few choices, all visible. */
 export function Segmented(p: { options: string[]; labels: string[]; value: () => string; onPick: (v: string) => void }): i32 {
   return <View className="flex-row gap-[2] p-[2] rounded-md bg-zinc-950 border border-zinc-800">
-    {p.options.map((o: string, i: i32) => <Button className={`grow flex-row items-center justify-center h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
+    {p.options.map((o: string, i: i32) => <Button className={`py-1 grow flex-row items-center justify-center h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
       <Text className={`text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-400'}`}>{p.labels[i]}</Text>
     </Button>)}
   </View>;
@@ -104,15 +104,15 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     return want === '' ? p.options() : p.options().filter((o: string) => o.toLowerCase().indexOf(want) >= 0 || p.label(o).toLowerCase().indexOf(want) >= 0);
   };
   // what opens the list: the field of a form, a word of a sentence, or a button with an icon (`look` is then the icon's name)
-  const Face = (): i32 => p.look === 'field' ? <Button ref={field} className="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
+  const Face = (): i32 => p.look === 'field' ? <Button ref={field} className="py-1 w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
       <Text className="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</Text>
       <Ico name="chevron-down" size={12} color={MUTED} />
     </Button>
-    : p.look === 'word' ? <Button ref={field} className="flex-row items-center gap-1 h-6 px-[6] rounded cursor-pointer bg-zinc-800 border border-zinc-600 hover:border-amber-400" onClick={toggle}>
+    : p.look === 'word' ? <Button ref={field} className="py-1 flex-row items-center gap-1 h-6 px-[6] rounded cursor-pointer bg-zinc-800 border border-zinc-600 hover:border-amber-400" onClick={toggle}>
       <Text className="truncate text-xs font-bold text-amber-200" style={{ maxWidth: 168 }}>{p.label(p.value())}</Text>
       <Ico name="chevron-down" size={10} color={ACCENT} />
     </Button>
-    : <Button ref={field} className={`flex-row items-center justify-center gap-[6] rounded-md cursor-pointer ${p.title === '' ? 'w-[20] h-[20] bg-transparent hover:bg-zinc-700' : 'h-7 px-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800'}`} tabIndex={-1} onClick={toggle}>
+    : <Button ref={field} className={`px-2 py-1 flex-row items-center justify-center gap-[6] rounded-md cursor-pointer ${p.title === '' ? 'w-[20] h-[20] bg-transparent hover:bg-zinc-700' : 'h-7 px-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800'}`} tabIndex={-1} onClick={toggle}>
       <Ico name={p.look} size={p.title === '' ? 11 : 12} color={MUTED} />
       {p.title === '' ? <View /> : <Text className="text-xs font-bold text-zinc-300">{p.title}</Text>}
     </Button>;
@@ -120,7 +120,7 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     {Face()}
     <View ref={list} hidden={1} className="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
       <Show when={long()}>
-        <Input ref={search} className="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
+        <Input ref={search} className="py-1.5 h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
           onInput={(v: string) => setTyped(v)} onKeyDown={(e: ui.KeyEvent) => {
             // Enter takes the first line left; leaving the box (a click on a line) takes nothing by itself
             if (e.key !== 'Enter') return;
@@ -131,7 +131,7 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
       </Show>
       <ScrollView className="flex-col" style={{ maxHeight: 264 }}>
         <For each={shown()}>{(o: string, i: i32) => <Button
-          className={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
+          className={`py-1 flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
           <Show when={p.picture(o) >= 0}>
             <Canvas className="shrink-0" style={{ width: 20, height: 20, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(p.picture(o), x, y, w, h)} />
           </Show>
@@ -150,7 +150,7 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
 }
 /** Yes or no. */
 export function Switch(p: { value: () => boolean; yes: string; no: string; onPick: (v: boolean) => void }): i32 {
-  return <Button className="flex-row items-center justify-start gap-2 h-7 px-0 cursor-pointer bg-transparent" onClick={() => p.onPick(!p.value())}>
+  return <Button className="py-1 flex-row items-center justify-start gap-2 h-7 px-0 cursor-pointer bg-transparent" onClick={() => p.onPick(!p.value())}>
     <View className={`w-[30] h-[16] rounded-full flex-row items-center px-[2] ${p.value() ? 'bg-amber-400 justify-end' : 'bg-zinc-700 justify-start'}`}>
       <View className={`w-[12] h-[12] rounded-full ${p.value() ? 'bg-zinc-900' : 'bg-zinc-300'}`} />
     </View>

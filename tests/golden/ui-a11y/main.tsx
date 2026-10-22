@@ -5,11 +5,11 @@ import { quit } from 'zinc:gfx';
 function Form(): i32 {
   return <View role="form" aria-label="Sign in" className="flex-col gap-2 p-2 w-full">
     <Text className="text-lg">Welcome back</Text>
-    <Input aria-label="Email" placeholder="you@example.com" value="a@b.c" className="h-8 border" />
-    <Button role="button" aria-label="Submit" className="h-8 bg-indigo-600" onClick={() => {}}><Text>Go</Text></Button>
+    <Input aria-label="Email" placeholder="you@example.com" value="a@b.c" className="bg-slate-800 border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 h-8 border" />
+    <Button role="button" aria-label="Submit" className="px-2 py-1 h-8 bg-indigo-600" onClick={() => {}}><Text>Go</Text></Button>
     <View aria-hidden className="h-4"><Text>decor</Text></View>
     <Text className="sr-only">Required fields are marked</Text>
-    <Button disabled className="h-8"><Text>Cancel</Text></Button>
+    <Button disabled className="bg-slate-700 px-2 py-1 h-8"><Text>Cancel</Text></Button>
   </View>;
 }
 function formPad(): number {

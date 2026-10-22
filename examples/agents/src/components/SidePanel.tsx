@@ -96,7 +96,7 @@ function Conversations(): i32 {
     <View className="flex-row items-center gap-2 px-2 pb-2">
       <View className={`grow flex-row items-center gap-2 h-[28] px-2 rounded border ${bg(SURFACE)} ${bd(BORDER)}`}>
         <Icon name="search" size={13} color={() => color(FAINT)} />
-        <Input className={`grow h-[26] text-[12px] bg-transparent border-0 p-0 ${fg(TEXT)}`} value={query()} onInput={setQuery} placeholder="Search conversations" />
+        <Input className={`border-slate-600 rounded-md grow h-[26] text-[12px] bg-transparent border-0 p-0 ${fg(TEXT)}`} value={query()} onInput={setQuery} placeholder="Search conversations" />
       </View>
       <View className={`w-[28] h-[28] rounded items-center justify-center cursor-pointer border ${bd(BORDER)} hover:${bg(SURFACE_HOVER)}`}
         onPress={() => { if (folder() !== '') newChat(folder(), agent()); }}>
@@ -128,7 +128,7 @@ function AddFolder(): i32 {
     if (addFolder(typed())) { setTyped(''); setWrong(false); } else setWrong(true);
   };
   return <View className="px-1 mb-1" onSubmit={submit}>
-    <Input className={`w-full h-[28] px-2 rounded text-[12px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(wrong() ? ERROR : BORDER)}`}
+    <Input className={`py-1.5 w-full h-[28] px-2 rounded text-[12px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(wrong() ? ERROR : BORDER)}`}
       value={typed()} onInput={(v: string) => { setTyped(v); setWrong(false); }} placeholder="Add a folder: ~/path/to/project" />
   </View>;
 }

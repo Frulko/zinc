@@ -68,7 +68,7 @@ function PageBody(props: { p: Page }): i32 {
           </View>
         </View>
         <View className="flex-row pl-[52] pr-[72] pt-3 pb-2">
-          <TextArea ref={p.titleRef} rows={0} className="grow border-0 p-0 rounded-none bg-transparent focus:border-[#ffffff] text-[40px] font-bold leading-[48] text-[#37352f]"
+          <TextArea ref={p.titleRef} rows={0} className="border-slate-600 grow border-0 p-0 rounded-none bg-transparent focus:border-[#ffffff] text-[40px] font-bold leading-[48] text-[#37352f]"
             placeholder="Untitled" value={p.title()} onInput={(v: string) => renamePage(p, v.replaceAll('\n', ' '))} onKeyDown={(e: ui.KeyEvent) => onTitleKey(p, e)} />
         </View>
         {p.blocks().map((b: Block) => <BlockRow b={b} />)}

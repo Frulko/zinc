@@ -18,20 +18,20 @@ const log = (s: string): void => { console.log(s); };
 function App(): i32 {
   return <View className="flex-col gap-1 p-1 h-full">
   <View ref={toolbar} className="flex-row gap-1 focus-within:bg-sky-900">
-    <Button ref={a} className="w-10 h-5" onClick={() => log('A')}><Text>A</Text></Button>
-    <Button ref={b} className="w-10 h-5" onClick={() => setOpen(true)}><Text>Open</Text></Button>
-    <Button ref={c} className="w-10 h-5" tabIndex={1} onClick={() => log('C')}><Text>C</Text></Button>
-    <Button ref={off} className="w-10 h-5" disabled={dimmed()} onClick={() => log('disabled clicked')}><Text>Off</Text></Button>
+    <Button ref={a} className="bg-slate-700 px-2 py-1 w-10 h-5" onClick={() => log('A')}><Text>A</Text></Button>
+    <Button ref={b} className="bg-slate-700 px-2 py-1 w-10 h-5" onClick={() => setOpen(true)}><Text>Open</Text></Button>
+    <Button ref={c} className="bg-slate-700 px-2 py-1 w-10 h-5" tabIndex={1} onClick={() => log('C')}><Text>C</Text></Button>
+    <Button ref={off} className="bg-slate-700 px-2 py-1 w-10 h-5" disabled={dimmed()} onClick={() => log('disabled clicked')}><Text>Off</Text></Button>
   </View>
-  <Input ref={field} className="w-24" value="" />
+  <Input ref={field} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-24" value="" />
   <View ref={editor} className="flex-col gap-1" keyContext="Editor">
-    <Button ref={inEditor} className="w-10 h-5"><Text>E</Text></Button>
-    <View ref={pane} keyContext="Pane"><Button ref={inPane} className="w-10 h-5"><Text>P</Text></Button></View>
+    <Button ref={inEditor} className="bg-slate-700 px-2 py-1 w-10 h-5"><Text>E</Text></Button>
+    <View ref={pane} keyContext="Pane"><Button ref={inPane} className="bg-slate-700 px-2 py-1 w-10 h-5"><Text>P</Text></Button></View>
   </View>
   <View ref={dialog} className="flex-col gap-1 p-1 bg-slate-700" hidden={open() ? 0 : 1}>
-    <Input ref={note} className="w-24" value="" />
-    <Button ref={ok} className="w-10 h-5" onClick={() => { log('ok'); setOpen(false); }}><Text>OK</Text></Button>
-    <Button ref={cancel} className="w-10 h-5" onClick={() => setOpen(false)}><Text>Cancel</Text></Button>
+    <Input ref={note} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-24" value="" />
+    <Button ref={ok} className="bg-slate-700 px-2 py-1 w-10 h-5" onClick={() => { log('ok'); setOpen(false); }}><Text>OK</Text></Button>
+    <Button ref={cancel} className="bg-slate-700 px-2 py-1 w-10 h-5" onClick={() => setOpen(false)}><Text>Cancel</Text></Button>
   </View>
   </View>;
 }

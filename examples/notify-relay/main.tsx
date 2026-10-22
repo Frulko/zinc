@@ -225,7 +225,7 @@ function Sites(): i32 {
   return <View className="flex-col grow gap-2">
     <Text className="text-sm text-slate-600">Les sites des notifications web (Chrome, Safari, Firefox, Edge…). Bloquer un site bloque aussi ses sous-domaines.</Text>
     <View className="flex-row items-center gap-2">
-      <Input className="grow h-8 rounded-md border border-slate-300 bg-white text-sm px-2" placeholder="exemple.fr" value={site()} onInput={(v: string) => setSite(v)} />
+      <Input className="py-1.5 grow h-8 rounded-md border border-slate-300 bg-white text-sm px-2" placeholder="exemple.fr" value={site()} onInput={(v: string) => setSite(v)} />
       <Act label="Bloquer ce site" onPress={add} />
     </View>
     {note() !== '' ? <Text className="text-xs text-rose-600">{note()}</Text> : <View />}
@@ -306,9 +306,9 @@ function Tablet(): i32 {
       <Text className={`text-sm ${sel(q) ? 'text-white' : 'text-slate-900'}`}>{q.name + (q.pairing ? ' · affiche un code' : '')}</Text>
     </Button>)}
     <Text className="text-xs text-slate-500">Pas de tablette dans la liste (un réseau qui bloque la découverte) ? Tapez l'adresse que la tablette affiche :</Text>
-    <Input className="h-8 rounded-md border border-slate-300 bg-white text-sm px-2" placeholder="192.168.1.20:7744" value={address()} onInput={(v: string) => setAddress(v)} />
+    <Input className="py-1.5 h-8 rounded-md border border-slate-300 bg-white text-sm px-2" placeholder="192.168.1.20:7744" value={address()} onInput={(v: string) => setAddress(v)} />
     <View className="flex-row items-center gap-2">
-      <Input className="w-32 h-8 rounded-md border border-slate-300 bg-white text-lg px-2 font-mono" placeholder="000000" value={code()} onInput={(v: string) => setCode(v)} onChange={(v: string) => { pairNow(); }} />
+      <Input className="py-1.5 w-32 h-8 rounded-md border border-slate-300 bg-white text-lg px-2 font-mono" placeholder="000000" value={code()} onInput={(v: string) => setCode(v)} onChange={(v: string) => { pairNow(); }} />
       <Act main={true} label="Appairer" onPress={() => { pairNow(); }} />
     </View>
     {note() !== '' ? <Text className="text-xs text-slate-700">{note()}</Text> : <View />}

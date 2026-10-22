@@ -163,7 +163,7 @@ function PeerCard(p: Peer): i32 {
         </View>
       </ScrollView>
       <View className="flex-row gap-2">
-        <Input className={`grow h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} placeholder="Message" value={draft()}
+        <Input className={`py-1.5 grow h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} placeholder="Message" value={draft()}
           onInput={(v: string) => setDraft(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') send(); }} />
         <Button label="Send" onClick={send} />
       </View>
@@ -185,12 +185,12 @@ function PasteCard(): i32 {
         <Button label="Accept answer" variant="secondary" onClick={() => { acceptAnswer(); }} />
       </View>
       <Text className={`text-xs text-${theme().mutedForeground}`}>To copy (already in the clipboard):</Text>
-      <TextArea className={`grow w-full font-mono text-xs rounded-md border border-${theme().border} bg-${theme().muted} text-${theme().foreground}`} value={localText()} onInput={(v: string) => setLocalText(v)} />
+      <TextArea className={`px-2 py-1.5 grow w-full font-mono text-xs rounded-md border border-${theme().border} bg-${theme().muted} text-${theme().foreground}`} value={localText()} onInput={(v: string) => setLocalText(v)} />
       <View className="flex-row items-center gap-2">
         <Text className={`grow text-xs text-${theme().mutedForeground}`}>Pasted from the other side:</Text>
         <Button label="Paste" size="sm" variant="ghost" onClick={() => setRemoteText(clipboardText())} />
       </View>
-      <TextArea className={`grow w-full font-mono text-xs rounded-md border border-${theme().border} bg-${theme().card} text-${theme().foreground}`} value={remoteText()} onInput={(v: string) => setRemoteText(v)} />
+      <TextArea className={`px-2 py-1.5 grow w-full font-mono text-xs rounded-md border border-${theme().border} bg-${theme().card} text-${theme().foreground}`} value={remoteText()} onInput={(v: string) => setRemoteText(v)} />
     </CardContent>
   </Card>;
 }
@@ -199,9 +199,9 @@ function RoomCard(): i32 {
     <CardHeader title="Room" description="Both peers join the same room of the signalling server (signal-server.ts), on this machine or the LAN." />
     <CardContent className="flex-col gap-2">
       <Text className={`text-xs text-${theme().mutedForeground}`}>Server</Text>
-      <Input className={`h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} value={server()} onInput={(v: string) => setServer(v)} />
+      <Input className={`py-1.5 h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} value={server()} onInput={(v: string) => setServer(v)} />
       <Text className={`text-xs text-${theme().mutedForeground}`}>Room name</Text>
-      <Input className={`h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} value={room()} onInput={(v: string) => setRoom(v)} />
+      <Input className={`py-1.5 h-9 px-2 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground}`} value={room()} onInput={(v: string) => setRoom(v)} />
       <View className="flex-row gap-2">
         <Button label="Join" onClick={joinRoom} />
         <Button label="Leave" variant="outline" onClick={hangUp} />

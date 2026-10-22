@@ -24,7 +24,7 @@ function editorKey(e: ui.KeyEvent): void {
 function BufferEditor(props: { b: Buffer }): i32 {
   const b = props.b;
   const node = <TextArea ref={b.ref}
-    className={`absolute inset-0 font-mono ${FONT_CLASSES[fontIndex()]} rounded-none border-0 pl-[16] pr-[8] pt-[6] pb-0 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
+    className={`border-slate-600 text-[14px] absolute inset-0 font-mono ${FONT_CLASSES[fontIndex()]} rounded-none border-0 pl-[16] pr-[8] pt-[6] pb-0 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
     style={{ hidden: active() === b ? 0 : 1 }}
     lineNumbers wrap={softWrap()} value={b.text()} onInput={(v: string) => edited(b, v)} onKeyDown={editorKey} />;
   ui.setHighlightAt(node, (line: string, start: i32) => b.doc.rowColors(line, start, theme()));
@@ -197,7 +197,7 @@ function FindBar(): i32 {
     style={{ height: findT.get() * 38, hidden: findOpen() ? 0 : 1 }}>
     <View className={`flex-row items-center h-[26] w-[320] pl-2 pr-1 gap-1.5 rounded-md border ${bg(theme().bg)} ${bd(theme().border)}`}>
       <Glyph kind={I_SEARCH} size={14} color={() => theme().faint} />
-      <Input ref={findRef} className={`grow h-[24] text-[13px] p-0 pl-1 rounded-none border-0 bg-transparent ${fg(theme().text)} focus:${bd(theme().bg)}`}
+      <Input ref={findRef} className={`border-slate-600 grow h-[24] text-[13px] p-0 pl-1 rounded-none border-0 bg-transparent ${fg(theme().text)} focus:${bd(theme().bg)}`}
         placeholder="Search…" value={query()} onInput={(v: string) => { setQuery(v); findFromCaret(); }} onKeyDown={findKey} />
     </View>
     <Text className={`text-[12px] w-[80] ${fg(matches().length === 0 && query() !== '' ? theme().error : theme().muted)}`}>{count()}</Text>

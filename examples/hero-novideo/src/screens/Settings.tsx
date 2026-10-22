@@ -103,7 +103,7 @@ export function Settings(): i32 {
           <CardHeader title="Profile" description="Shown in the sidebar and on Home" />
           <CardContent>
             <Row title="Display name" hint="Initials are computed as you type">
-              <Input className={`w-[260] h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
+              <Input className={`border text-[14px] px-2 py-1.5 w-[260] h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
                 value={name()} placeholder="Your name" onInput={(v: string) => setName(v)} />
             </Row>
           </CardContent>

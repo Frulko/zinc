@@ -25,7 +25,7 @@ export function TimerPanel(): i32 {
 /** A task row: a big checkbox (filled black when done) and the text, dark grey once done. */
 function TaskRow(props: { text: string; index: i32 }): i32 {
   const done = (): boolean => tasksDone()[props.index];
-  return <Button className="flex-row items-center justify-start gap-6 py-3 bg-white focus:bg-white" onClick={() => toggleTask(props.index)}>
+  return <Button className="px-2 flex-row items-center justify-start gap-6 py-3 bg-white focus:bg-white" onClick={() => toggleTask(props.index)}>
     <View className={done() ? 'w-[56px] h-[56px] rounded-md bg-black' : 'w-[56px] h-[56px] rounded-md border-4 border-black'} />
     <Text className={done() ? 'text-[40px] text-gray-600' : 'text-[40px] text-black'}>{props.text}</Text>
   </Button>;
@@ -43,7 +43,7 @@ function HabitRow(props: { name: string; habit: i32 }): i32 {
   return <View className="flex-row items-center gap-4">
     <Text className="w-[160px] text-[36px] text-black">{props.name}</Text>
     {DAYS.map((_label: string, day: i32) =>
-      <Button className={on(day) ? 'w-[80px] h-[80px] rounded-lg bg-black focus:bg-black' : 'w-[80px] h-[80px] rounded-lg border-2 border-black bg-white focus:bg-white'}
+      <Button className={on(day) ? 'px-2 py-1 w-[80px] h-[80px] rounded-lg bg-black focus:bg-black' : 'px-2 py-1 w-[80px] h-[80px] rounded-lg border-2 border-black bg-white focus:bg-white'}
         onClick={() => toggleHabit(props.habit, day)} />)}
   </View>;
 }

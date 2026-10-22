@@ -4,12 +4,12 @@ import { render, createNodeRef } from 'zinc:ui/solid';
 import { Keyboard } from 'zinc:ui/kit';
 import { height } from 'zinc:gfx';
 const lastRef = createNodeRef(), listRef = createNodeRef();
-function Field(props: { n: i32 }): i32 { return <Input className="h-10 border px-2 bg-white shrink-0" value={`field ${props.n}`} />; }
+function Field(props: { n: i32 }): i32 { return <Input className="border-slate-600 rounded-md text-[14px] py-1.5 h-10 border px-2 bg-white shrink-0" value={`field ${props.n}`} />; }
 function App(): i32 {
   return <View className="flex-col w-full h-full bg-slate-100">
     <ScrollView className="grow flex-col gap-2 p-2 pb-[env(keyboard-inset)]" ref={listRef}>
       <Field n={1} /><Field n={2} /><Field n={3} /><Field n={4} /><Field n={5} /><Field n={6} /><Field n={7} /><Field n={8} />
-      <Input className="h-10 border px-2 bg-white shrink-0" value="last field" ref={lastRef} />
+      <Input className="border-slate-600 rounded-md text-[14px] py-1.5 h-10 border px-2 bg-white shrink-0" value="last field" ref={lastRef} />
     </ScrollView>
     <View className="absolute bottom-0 left-0 right-0"><Keyboard layouts={['en']} /></View>
   </View>;

@@ -6,7 +6,7 @@ function App(): i32 {
       <Image src="rocket.svg" className="w-24 h-24" />
       <Text className="text-2xl font-bold text-[#1d1b18]">Rocket club</Text>
       <Text className="text-base text-center text-[#625d55]">We build small rockets on Saturdays. Everyone is welcome.</Text>
-      <Button className="h-11 px-6 rounded-full bg-[#5746e0]" onClick={() => console.log('Welcome aboard!')}>
+      <Button className="py-1 h-11 px-6 rounded-full bg-[#5746e0]" onClick={() => console.log('Welcome aboard!')}>
         <Text className="text-base font-medium text-white">Join</Text>
       </Button>
     </View>

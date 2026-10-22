@@ -54,7 +54,7 @@ function App(): i32 {
       <View className="absolute w-6 h-6 rounded-full bg-[#f27aa6]" style={{ left: dotX() - 12, top: dotY() - 12 }} />
     </View>
     <Text className="text-base text-[#625d55]">{news()}</Text>
-    <Button className="h-10 px-5 rounded-full bg-[#5746e0]" onClick={reset}>
+    <Button className="py-1 h-10 px-5 rounded-full bg-[#5746e0]" onClick={reset}>
       <Text className="text-base text-white">Reset</Text>
     </Button>
   </View>;

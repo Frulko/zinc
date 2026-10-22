@@ -73,25 +73,25 @@ function ProjectForm(): i32 {
           <Text className="grow text-sm text-zinc-100">{L.languageName(language)}</Text>
           <Show when={project().languages[0] === language}><Text className="text-[11px] text-zinc-500">{t(L.DEFAULT_LANGUAGE)}</Text></Show>
           <Show when={project().languages[0] !== language}>
-            <Button className="flex-row items-center h-[26] px-2 rounded cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => makeDefaultLanguage(language)}>
+            <Button className="py-1 flex-row items-center h-[26] px-2 rounded cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => makeDefaultLanguage(language)}>
               <Text className="text-[11px] text-zinc-300">{t(L.MAKE_DEFAULT)}</Text>
             </Button>
           </Show>
           <Show when={project().languages[0] !== language}>
-            <Button className="flex-row items-center justify-center w-[26] h-[26] rounded cursor-pointer bg-zinc-950 hover:bg-red-950" onClick={() => removeLanguageCommand(language)}><Ico name="x" size={13} color={MUTED} /></Button>
+            <Button className="px-2 py-1 flex-row items-center justify-center w-[26] h-[26] rounded cursor-pointer bg-zinc-950 hover:bg-red-950" onClick={() => removeLanguageCommand(language)}><Ico name="x" size={13} color={MUTED} /></Button>
           </Show>
         </View>}</For>
       </View>
       <Text className="text-[11px] text-zinc-400 mt-2">{t(L.ADD_LANGUAGE)}</Text>
       <View className="flex-row flex-wrap gap-2">
-        <For each={offered()}>{(language: string, i: i32) => <Button className="flex-row items-center gap-[6] h-8 px-3 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800"
+        <For each={offered()}>{(language: string, i: i32) => <Button className="py-1 flex-row items-center gap-[6] h-8 px-3 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800"
           onClick={() => { addLanguage(language); }}>
           <Ico name="plus" size={13} color={ACCENT} />
           <Text className="text-xs font-bold text-zinc-100">{L.languageName(language)}</Text>
         </Button>}</For>
       </View>
       <View className="flex-row items-center gap-2">
-        <Input className="grow h-8 px-2 rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:border-amber-400" placeholder={t(L.LANGUAGE_CODE)} value={code()} onInput={setCode} />
+        <Input className="py-1.5 grow h-8 px-2 rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:border-amber-400" placeholder={t(L.LANGUAGE_CODE)} value={code()} onInput={setCode} />
         <View className="w-[110] flex-row"><Action icon="plus" label={t(L.ADD)} look="plain" onClick={() => { if (addLanguage(code())) setCode(''); }} /></View>
       </View>
     </Group>
@@ -107,7 +107,7 @@ function OneOf(p: { label: string; options: string[]; none: string; value: () =>
   return <View className="flex-col gap-1">
     <Text className="text-[11px] text-zinc-400">{p.label}</Text>
     <ScrollView className="flex-row flex-wrap gap-1" style={{ maxHeight: 104 }}>
-      {p.options.map((name: string, i: i32) => <Button className={`flex-row items-center h-7 px-2 rounded-md cursor-pointer border ${p.value() === name ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+      {p.options.map((name: string, i: i32) => <Button className={`py-1 flex-row items-center h-7 px-2 rounded-md cursor-pointer border ${p.value() === name ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
         onClick={() => p.onPick(name)}>
         <Text className="truncate text-xs text-zinc-100" style={{ maxWidth: 200 }}>{name.length > 0 ? name : p.none}</Text>
       </Button>)}
@@ -204,7 +204,7 @@ function Steps(): i32 {
       <Text className="w-[18] text-[11px] font-bold text-zinc-500">{`${i + 1}`}</Text>
       <Text className="grow truncate text-sm text-zinc-100">{i < path().length ? say(project().sequence(path()[i])) : ''}</Text>
       <Show when={path().length > 1}>
-        <Button className="flex-row items-center justify-center w-[26] h-[26] rounded cursor-pointer bg-zinc-950 hover:bg-red-950" onClick={() => removeStep(i)}><Ico name="x" size={13} color={MUTED} /></Button>
+        <Button className="px-2 py-1 flex-row items-center justify-center w-[26] h-[26] rounded cursor-pointer bg-zinc-950 hover:bg-red-950" onClick={() => removeStep(i)}><Ico name="x" size={13} color={MUTED} /></Button>
       </Show>
     </View>}</For>
   </View>;
@@ -232,7 +232,7 @@ function ToursForm(): i32 {
     <Group title={t(L.TOURS)} what={t(L.TOURS_WHAT)}>
       <Show when={project().presentations.length === 0}><Text className="text-xs text-zinc-500">{t(L.NO_TOUR_YET)}</Text></Show>
       <View className="flex-col gap-1">
-        <For each={project().presentations}>{(r: Presentation, i: i32) => <Button className={`flex-row items-center justify-start gap-2 h-9 px-2 rounded-md cursor-pointer border ${tour() === r ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+        <For each={project().presentations}>{(r: Presentation, i: i32) => <Button className={`py-1 flex-row items-center justify-start gap-2 h-9 px-2 rounded-md cursor-pointer border ${tour() === r ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
           onClick={() => setTour(r)}>
           <Ico name="route" size={14} color={ACCENT} />
           <Text className="grow truncate text-sm text-zinc-100" style={{ width: 280 }}>{(project(), project().say(r.title, lang()))}</Text>
@@ -271,7 +271,7 @@ export function Settings(): i32 {
     </View>
     <View className="grow basis-0 min-h-0 flex-row">
       <View className="w-[200] shrink-0 flex-col gap-1 p-3 bg-zinc-900 border-r border-zinc-800">
-        {SECTIONS.map((section: string, i: i32) => <Button className={`flex-row items-center justify-start gap-2 h-9 px-2 rounded-md cursor-pointer border ${settings() === section ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-900 border-zinc-900 hover:bg-zinc-800'}`}
+        {SECTIONS.map((section: string, i: i32) => <Button className={`py-1 flex-row items-center justify-start gap-2 h-9 px-2 rounded-md cursor-pointer border ${settings() === section ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-900 border-zinc-900 hover:bg-zinc-800'}`}
           onClick={() => openSettings(section)}>
           <Ico name={SECTION_ICON[i]} size={15} color={MUTED} />
           <Text className="text-xs font-bold text-zinc-100">{t(L.SECTION_NAMES[i])}</Text>

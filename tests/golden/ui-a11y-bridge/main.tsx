@@ -15,12 +15,12 @@ ui.setRole(dialog, 'dialog'); ui.setLabel(dialog, 'Saved');
 function App(): i32 {
   return <View role="form" aria-label="Notes" className="flex-col gap-1 p-2 w-full h-full">
     <Text className="text-lg">Today</Text>
-    <Input aria-label="Title" value="Groceries" className="h-6 border" />
-    <Input placeholder="Search" className="h-6 border" />
-    <Button aria-label={`Add (${count()})`} className="h-6" onClick={() => setCount(count() + 1)}><Text>Add</Text></Button>
+    <Input aria-label="Title" value="Groceries" className="bg-slate-800 border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 h-6 border" />
+    <Input placeholder="Search" className="bg-slate-800 border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 h-6 border" />
+    <Button aria-label={`Add (${count()})`} className="bg-slate-700 px-2 py-1 h-6" onClick={() => setCount(count() + 1)}><Text>Add</Text></Button>
     <View role="checkbox" aria-label="Done" aria-checked={count() > 0} className="h-4" />
     <View aria-hidden className="h-4"><Text>decor</Text></View>
-    <Button disabled className="h-6"><Text>Delete</Text></Button>
+    <Button disabled className="bg-slate-700 px-2 py-1 h-6"><Text>Delete</Text></Button>
     <ScrollView ref={scroller} className="h-[60px]">
       <Text className="h-[30px]">Milk</Text>
       <Text className="h-[30px]">Bread</Text>

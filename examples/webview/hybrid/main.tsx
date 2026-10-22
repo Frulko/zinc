@@ -61,18 +61,18 @@ function open(name: string): void {
 function Sidebar(): i32 {
   return <View className="flex-col w-64 p-3 gap-2 bg-slate-900">
     <Text className="text-xs text-slate-500 tracking-wider">NATIVE (zinc:ui)</Text>
-    <Button className="h-9 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
+    <Button className="px-2 py-1 h-9 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
       <Text className="text-sm">Ping the page</Text>
     </Button>
     <View className="flex-row gap-2">
-      <Button className="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { web.navigate('zinc://index.html'); }}><Text className="text-sm">Reload</Text></Button>
-      <Button className="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { if (visible()) web.hide(); else web.show(); setVisible(!visible()); }}>
+      <Button className="px-2 py-1 grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { web.navigate('zinc://index.html'); }}><Text className="text-sm">Reload</Text></Button>
+      <Button className="px-2 py-1 grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { if (visible()) web.hide(); else web.show(); setVisible(!visible()); }}>
         <Text className="text-sm">{visible() ? 'Hide web' : 'Show web'}</Text>
       </Button>
     </View>
     <Text className="text-xs text-slate-500 tracking-wider">FILES IN {DIR}</Text>
     <For each={files()}>{(f: string, _i: i32) =>
-      <Button className={f === selected() ? 'h-7 px-2 rounded bg-amber-600 items-start' : 'h-7 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
+      <Button className={f === selected() ? 'py-1 h-7 px-2 rounded bg-amber-600 items-start' : 'py-1 h-7 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
         <Text className="text-sm">{f}</Text>
       </Button>}
     </For>
@@ -94,7 +94,7 @@ function Phone(): i32 {
   return <View className="flex-col h-full bg-slate-950">
     <View className="flex-row items-center gap-2 px-3 pb-2 pt-[env(safe-area-inset-top)] bg-slate-900">
       <Text className="grow text-sm text-slate-300">Zinc + web</Text>
-      <Button className="h-9 px-3 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
+      <Button className="py-1 h-9 px-3 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
         <Text className="text-sm">Ping the page</Text>
       </Button>
     </View>
@@ -108,7 +108,7 @@ function Phone(): i32 {
       <View className="flex-col gap-2 p-3">
         <Text className="text-xs text-slate-500 tracking-wider">FILES</Text>
         <For each={files()}>{(f: string, _i: i32) =>
-          <Button className={f === selected() ? 'h-9 px-2 rounded bg-amber-600 items-start' : 'h-9 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
+          <Button className={f === selected() ? 'py-1 h-9 px-2 rounded bg-amber-600 items-start' : 'py-1 h-9 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
             <Text className="text-sm">{f}</Text>
           </Button>}
         </For>

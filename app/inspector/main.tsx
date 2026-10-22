@@ -275,7 +275,7 @@ async function screen(on: boolean): Promise<void> {   // the screencast: frames 
 
 // ---- the views
 function Btn(p: { label: string; onClick: () => void }): i32 {
-  return <Button className="flex-row items-center justify-center h-7 px-3 rounded-md bg-slate-900" onClick={p.onClick}>
+  return <Button className="py-1 flex-row items-center justify-center h-7 px-3 rounded-md bg-slate-900" onClick={p.onClick}>
     <Text className="text-xs font-medium text-white">{p.label}</Text>
   </Button>;
 }
@@ -289,7 +289,7 @@ function TargetRow(p: { t: Target }): i32 {
 }
 
 function TreeRow(p: { r: Row }): i32 {
-  return <Button className={'flex-row items-center justify-start h-6 rounded ' + (selected() === p.r.nodeId ? 'bg-sky-100' : 'bg-white')} style={{ paddingLeft: 8 + p.r.depth * 14 }} onClick={() => { select(p.r.nodeId); }}>
+  return <Button className={'px-2 py-1 flex-row items-center justify-start h-6 rounded ' + (selected() === p.r.nodeId ? 'bg-sky-100' : 'bg-white')} style={{ paddingLeft: 8 + p.r.depth * 14 }} onClick={() => { select(p.r.nodeId); }}>
     <Text className={'text-xs font-mono ' + (p.r.label.startsWith('<') ? 'text-purple-800' : 'text-slate-700')}>{p.r.label}</Text>
   </Button>;
 }
@@ -308,7 +308,7 @@ function ScreenView(): i32 {   // the last frame, fitted into the view with its 
 function Styles(): i32 {
   return <View className="flex-col gap-1 p-2 border-b">
     <Text className="text-xs font-medium text-slate-600">element.style</Text>
-    <Input className="h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
+    <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
     <Btn label="Apply" onClick={() => { applyStyle(draft()); }} />
     <View className="flex-col">{rules().map((l: string) => <Text className="text-xs font-mono text-slate-700">{l}</Text>)}</View>
   </View>;
@@ -325,7 +325,7 @@ async function pick(r: Req): Promise<void> {   // a request's response body
 function SourceLine(p: { n: i32; text: string }): i32 {
   const here = (): boolean => paused() && frames().length > 0 && frames()[frameIx()].line === p.n && frames()[frameIx()].script === script();
   const bp = (): boolean => bps().some((b: Bp) => b.line === p.n);
-  return <Button className={'flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
+  return <Button className={'px-2 py-1 flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
     <Text className={'w-5 text-xs ' + (bp() ? 'text-red-600' : 'text-white')}>●</Text>
     <Text className="w-8 text-xs font-mono text-slate-400">{'' + p.n}</Text>
     <Text className="text-xs font-mono text-slate-800">{p.text}</Text>
@@ -341,10 +341,10 @@ function SourcesView(): i32 {
       <Btn label="Into" onClick={() => { command('Debugger.stepInto'); }} />
       <Btn label="Out" onClick={() => { command('Debugger.stepOut'); }} />
       <Btn label="Pause" onClick={() => { command('Debugger.pause'); }} />
-      <Input className="w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
+      <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
       <Text className="text-xs text-slate-500">{ended() ? 'ended' : paused() ? 'paused' : waiting() ? 'waiting' : 'running'}</Text>
     </View>
-    <View className="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
+    <View className="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'py-1 h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
     <ScrollView className="flex-1">
       <View className="flex-col">{source().map((t: string, i: i32) => <SourceLine n={i + 1} text={t} />)}</View>
     </ScrollView>
@@ -354,14 +354,14 @@ function SourcesView(): i32 {
 function DebugPane(): i32 {   // the right column of a debugger target: the stack, the scopes, the watches
   return <View className="flex-col gap-1 p-2">
     <Text className="text-xs font-medium text-slate-600">Call stack</Text>
-    {frames().map((f: Frame, i: i32) => <Button className={'flex-row justify-start h-6 px-1 rounded ' + (frameIx() === i ? 'bg-sky-100' : 'bg-white')} onClick={() => { showFrame(i); }}>
+    {frames().map((f: Frame, i: i32) => <Button className={'py-1 flex-row justify-start h-6 px-1 rounded ' + (frameIx() === i ? 'bg-sky-100' : 'bg-white')} onClick={() => { showFrame(i); }}>
       <Text className="text-xs font-mono text-slate-800">{f.name + ' ' + nameOf(f.script) + ':' + f.line}</Text></Button>)}
     <Text className="text-xs font-medium text-slate-600">Scope</Text>
-    {scope().map((s: ScopeLine, i: i32) => <Button className="flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
+    {scope().map((s: ScopeLine, i: i32) => <Button className="px-2 py-1 flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
       <Text className={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '▾ ' : '▸ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
     <Text className="text-xs font-medium text-slate-600">Watch</Text>
     {watches().map((w: string, i: i32) => <Text className="text-xs font-mono text-slate-800">{w + ' = ' + (i < watchVals().length ? watchVals()[i] : '')}</Text>)}
-    <Input className="h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />
+    <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />
     <Btn label="Add watch" onClick={() => { const l = watches().slice(0); l.push(watchDraft()); setWatches(l); setWatchDraft(''); evalWatches(); }} />
   </View>;
 }
@@ -380,7 +380,7 @@ function phaseColor(name: string): string {
 }
 function slowest(): number { let m = 1; for (const f of traced()) if (f.dur > m) m = f.dur; return m; }
 function FrameRow(p: { f: TraceFrame; i: i32 }): i32 {   // a frame of the timeline: its length, then its phases to scale (the slowest frame is 400 px)
-  return <Button className={'flex-row items-center justify-start h-5 px-1 ' + (frameAt() === p.i ? 'bg-sky-100' : 'bg-white')} onClick={() => { setFrameAt(p.i); }}>
+  return <Button className={'py-1 flex-row items-center justify-start h-5 px-1 ' + (frameAt() === p.i ? 'bg-sky-100' : 'bg-white')} onClick={() => { setFrameAt(p.i); }}>
     <Text className="w-20 text-xs font-mono text-slate-500">{msText(p.f.dur)}</Text>
     <View className="flex-row h-3">{p.f.durs.map((d: number, k: i32) => <View className={'h-3 ' + phaseColor(p.f.phases[k])} style={{ width: Math.max(1, Math.round(d * 400 / slowest())) }} />)}</View>
   </Button>;
@@ -411,7 +411,7 @@ function frameLines(): string[] {   // the picked frame, phase by phase
 }
 
 function NetRow(p: { r: Req }): i32 {
-  return <Button className={'flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
+  return <Button className={'py-1 flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
     <Text className={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
   </Button>;
 }
@@ -428,7 +428,7 @@ function NetworkView(): i32 {
 }
 
 function Tab(p: { id: string; label: string }): i32 {
-  return <Button className={'flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
+  return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
     <Text className="text-xs font-medium text-slate-900">{p.label}</Text>
   </Button>;
 }

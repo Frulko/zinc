@@ -188,7 +188,7 @@ function Composer(props: { chat: Chat }): i32 {
     <SettingsBar info={agent()} />
     {c.attachments().length > 0 && <Chips chat={c} />}
     <View className="flex-row items-center gap-2 p-3" onSubmit={submit}>
-      <Input ref={field} className={`grow shrink min-w-0 h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
+      <Input ref={field} className={`py-1.5 grow shrink min-w-0 h-[36] px-3 rounded-md text-[14px] border ${bg(SURFACE)} ${fg(TEXT)} ${bd(BORDER)}`}
         value={c.draft()} onInput={(v: string) => { c.setDraft(v); setAt(0); }} onKeyDown={keys}
         placeholder={installed() ? `Ask ${agent().agent.name} about ${shortPath(c.folder)} · @ for a file, or drop one here` : `${agent().agent.name} is not installed`} />
       {props.chat.phase() === IDLE

@@ -136,7 +136,7 @@ export function Palette(): i32 {
       style={{ opacity: t(), scale: 0.96 + 0.04 * t(), translateX: (1 - (0.96 + 0.04 * t())) * 310, translateY: (1 - t()) * -8 }}
       onPointerDown={() => {}}>
       <View className={`flex-row items-center h-[46] px-4 border-b ${bd(theme().borderSoft)}`}>
-        <Input ref={inputRef} className={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
+        <Input ref={inputRef} className={`border-slate-600 grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
           placeholder={tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : paletteMode() === PAL_TEMPLATES ? 'atelier.palette.templates' : 'atelier.palette.commands')}
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
           onKeyDown={paletteKey} />

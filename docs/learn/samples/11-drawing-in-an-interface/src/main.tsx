@@ -28,10 +28,10 @@ function App(): i32 {
     <View className="w-[200px] p-6 gap-4 bg-white">
       <Text className="text-2xl font-bold text-[#1d1b18]">Flower</Text>
       <Text className="text-base text-[#625d55]">{`${petals()} petals`}</Text>
-      <Button className="h-10 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
+      <Button className="px-2 py-1 h-10 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
         <Text className="text-base text-[#1d1b18]">Fewer</Text>
       </Button>
-      <Button className="h-10 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
+      <Button className="px-2 py-1 h-10 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
         <Text className="text-base text-white">More</Text>
       </Button>
     </View>

@@ -108,7 +108,7 @@ export function Prompt(): i32 {
   return <View className="absolute left-0 top-0 w-full h-full items-center bg-[#00000033]" style={{ hidden: shown() ? 0 : 1 }}
     onPointerDown={(e: ui.PointerEvent) => { const b = ui.screenBox(card.node); if (e.gx < b[0] || e.gy < b[1] || e.gx > b[0] + b[2] || e.gy > b[1] + b[3]) close(); }}>
     <View ref={card} keepFocus className="flex-col w-[560] mt-[90] rounded-xl border border-[#e9e9e7] bg-[#ffffff] shadow-xl p-1.5">
-      <TextArea ref={field} rows={0} className="border-0 rounded-none bg-transparent px-3 py-2.5 text-[16px] text-[#37352f] focus:border-[#ffffff]"
+      <TextArea ref={field} rows={0} className="border-slate-600 border-0 rounded-none bg-transparent px-3 py-2.5 text-[16px] text-[#37352f] focus:border-[#ffffff]"
         placeholder={hint()} onInput={(v: string) => { setQuery(v.replaceAll('\n', '')); setCursor(0); }} onKeyDown={key} />
       <View className="h-[1] bg-[#e9e9e7] mb-1" style={{ hidden: choices().length === 0 ? 1 : 0 }} />
       <ScrollView className="flex-col" style={{ height: Math.min(MAX_ROWS, choices().length) * ROW_HEIGHT }}>

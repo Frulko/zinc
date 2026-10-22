@@ -7,7 +7,7 @@ const inputRef = createNodeRef(), barRef = createNodeRef();
 function App(): i32 {
   return <View className="flex-col w-full h-full bg-white">
     <View className="grow p-2 pb-[env(keyboard-inset)] bg-slate-100" ref={barRef}>
-      <Input className="h-8 border px-2 bg-white" value="" ref={inputRef} />
+      <Input className="border-slate-600 rounded-md text-[14px] py-1.5 h-8 border px-2 bg-white" value="" ref={inputRef} />
     </View>
     <View className="absolute bottom-0 left-0 right-0"><Keyboard layouts={['en']} /></View>
   </View>;

@@ -521,12 +521,12 @@ export function TopView(): i32 {
         <Heading label={t(L.TOP_VIEW)} />
         <View className="grow" />
         <Show when={levels().length > 1}>
-          <Button className={`flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer ${level() < 0 ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-zinc-700'}`} onClick={nextLevel}>
+          <Button className={`py-1 flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer ${level() < 0 ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-zinc-700'}`} onClick={nextLevel}>
             <Text className="text-[11px] text-zinc-500">{t(L.LEVEL)}</Text>
             <Text className="text-xs font-bold text-zinc-200">{level() < 0 ? t(L.ALL_LEVELS) : `${level()} cm`}</Text>
           </Button>
         </Show>
-        <Button className="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
+        <Button className="py-1 flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
           <Text className="text-[11px] text-zinc-500">{t(L.SNAP)}</Text>
           <Text className="text-xs font-bold text-zinc-200">{gridName(grid())}</Text>
         </Button>

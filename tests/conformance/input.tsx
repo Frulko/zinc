@@ -16,9 +16,9 @@ ui.onKey((e: ui.KeyEvent) => { if (e.primary && e.key === 's') { saved++; e.prev
 
 const root = ui.createNode(ui.VIEW);
 ui.insert(root, <View className="flex-col p-2 gap-2 h-full">
-  <Input ref={nameRef} className="w-full focus:border-amber-400" placeholder="Name" value={name()}
+  <Input ref={nameRef} className="bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-full focus:border-amber-400" placeholder="Name" value={name()}
     onInput={(v: string) => setName(v)} onChange={(v: string) => { changes++; console.log('change', v); }} />
-  <TextArea ref={codeRef} className="font-mono text-sm" lineNumbers rows={3} value={code()} onInput={(v: string) => setCode(v)} highlight={(l: string) => ui.tsHighlight(l)} />
+  <TextArea ref={codeRef} className="bg-slate-800 border border-slate-600 rounded-md px-2 py-1.5 text-slate-100 font-mono text-sm" lineNumbers rows={3} value={code()} onInput={(v: string) => setCode(v)} highlight={(l: string) => ui.tsHighlight(l)} />
   <View className="grow bg-slate-800 overflow-hidden" onWheel={(e: ui.PointerEvent) => { setZoom(zoom() * (e.wheel > 0 ? 2 : 0.5)); }}>
     <View ref={worldRef} className="absolute left-0 top-0 w-[400] h-[400]" style={{ scale: zoom() }}>
       <View ref={cardRef} className="absolute top-[10] w-[40] h-[20] bg-sky-500 cursor-grab hover:bg-sky-400" style={{ left: x() }}
