@@ -99,9 +99,13 @@ int writeFlash(const std::string& cmd, std::string& out, const char* stage, cons
   for (int c; (c = std::fgetc(p)) != EOF;) {
     out += static_cast<char>(c);
     if (c != '\n' && c != '\r') { line += static_cast<char>(c); continue; }
-    const auto b = line.find("] ");   // esptool 5: "Writing at 0x00010000 [=====>      ]  23.4% 98304/388096 bytes..."
-    if (line.rfind("Writing at ", 0) == 0 && b != std::string::npos && region < sizes.size() && total > 0) {
-      const double pct = std::atof(line.c_str() + b + 2);
+    // the number before the first %: "Writing at 0x00010000 ━━━━━━╸         23.4% 98.3 KB/388.1 KB [3s]" (esptool 5.4), "... [====>   ]  23.4% 98304/388096
+    // bytes..." (5.1), "Writing at 0x00010000... (23 %)" (4)
+    std::size_t q = line.find('%');
+    if (line.find("Writing at ") != std::string::npos && q != std::string::npos && region < sizes.size() && total > 0) {
+      while (q > 0 && line[q - 1] == ' ') q--;
+      while (q > 0 && (std::isdigit(static_cast<unsigned char>(line[q - 1])) || line[q - 1] == '.')) q--;
+      const double pct = std::atof(line.c_str() + q);
       const int all = static_cast<int>((before + sizes[region] * pct / 100) * 100 / total);
       if (pct >= 100) before += sizes[region++];
       if (all != shown && (tty || all / 25 != shown / 25)) {
