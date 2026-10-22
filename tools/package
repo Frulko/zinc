@@ -73,6 +73,7 @@ def prebuild_plugins(zinc, share, target):
     without = {}
     with tempfile.TemporaryDirectory() as tmp:   # built from a copy in a project that sets none of the plugins' options, as tools/plugin-pack does
         shutil.copytree(os.path.join(REPO, "plugins"), os.path.join(tmp, "plugins"), ignore=shutil.ignore_patterns("prebuilt"))
+        for part in ("src", "third_party"): os.symlink(os.path.join(REPO, part), os.path.join(tmp, part))   # zinc:link and zinc:webrtc name ../../src and ../../third_party
         open(os.path.join(tmp, "zinc.json"), "w").write('{ "name": "pack" }\n')
         for name in sorted(os.listdir(os.path.join(tmp, "plugins"))):
             d = os.path.join(tmp, "plugins", name)
