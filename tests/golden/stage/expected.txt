@@ -24,3 +24,6 @@ order header body footer
 scroll row none none
 scrolled 30
 draws 2 2 2
+box a 110 98 30 10 | body none none
+box mouse 10 2
+after after

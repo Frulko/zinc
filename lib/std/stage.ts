@@ -141,6 +141,21 @@ let scrollClipLeft = 0;
 let scrollClipTop = 0;
 let scrollClipRight = 0;
 let scrollClipBottom = 0;
+// The window box a stage is drawn in by Stage.drawIn (a zinc:ui Canvas): its zones are cut to it too, outside a scroll box as after one.
+let isBoxClipOpen = false;
+let boxClipLeft = 0;
+let boxClipTop = 0;
+let boxClipRight = 0;
+let boxClipBottom = 0;
+
+/** The window rectangle the zones registered from now on are cut to (`isOpen` false: none). */
+function cutZonesTo(isOpen: boolean, left: number, top: number, right: number, bottom: number): void {
+  isScrollClipOpen = isOpen;
+  scrollClipLeft = left;
+  scrollClipTop = top;
+  scrollClipRight = right;
+  scrollClipBottom = bottom;
+}
 
 /** False when the local rectangle lies wholly outside the scroll box being drawn (always true outside one): skip drawing it. */
 export function isLocalRectVisible(x: number, y: number, width: number, height: number): boolean {
@@ -259,18 +274,14 @@ export function beginScrollBox(scrollBox: ScrollBox, x: number, y: number, width
   activeZoneCount++;   // the viewport itself is never cut
   scrollBox.viewportHeight = height;
   clip(x, y, width, height);
-  // ponytail: one level, a scroll box inside another would need a stack of rectangles
-  isScrollClipOpen = true;
-  scrollClipLeft = zone.x;
-  scrollClipTop = zone.y;
-  scrollClipRight = zone.x + width;
-  scrollClipBottom = zone.y + height;
+  // ponytail: one level, a scroll box inside another would need a stack of rectangles (and inside drawIn's box it is cut to its own only)
+  cutZonesTo(true, zone.x, zone.y, zone.x + width, zone.y + height);
 }
 
 /** Closes the scroll box opened by beginScrollBox. */
 export function endScrollBox(): void {
   unclip();
-  isScrollClipOpen = false;
+  cutZonesTo(isBoxClipOpen, boxClipLeft, boxClipTop, boxClipRight, boxClipBottom);
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------------------
@@ -734,6 +745,24 @@ export class Stage extends DisplayObject {
    * drawing only when something changed (else the previous picture is kept). Call it from zinc:gfx's onFrame.
    */
   frame(deltaSeconds: number): void {
+    this.update(deltaSeconds);
+    if (uiState.animating) uiState.dirty = true;
+    if (!uiState.dirty) {
+      keep();
+      return;
+    }
+    uiState.dirty = false;
+    uiState.animating = false;
+    clearTouchZones();
+    clear(this.color);
+    this.renderStage(width(), height());
+  }
+
+  /**
+   * The first half of a frame, without the drawing: the pointer and the wheel routed to the zones, onUpdate, the flings. `frame` calls
+   * it; a scene inside a zinc:ui interface calls it from render's frame function, and draws with drawIn.
+   */
+  update(deltaSeconds: number): void {
     const x = pointerX();
     const y = pointerY();
     const isDown = pointerDown();
@@ -745,15 +774,31 @@ export class Stage extends DisplayObject {
       const scrollBox = activeZones[index].scrollBox;
       if (scrollBox !== null && !(isDown && scrollBox === heldScrollBox) && (scrollBox as ScrollBox).stepInertia(deltaSeconds)) uiState.dirty = true;
     }
-    if (uiState.animating) uiState.dirty = true;
-    if (!uiState.dirty) {
-      keep();
-      return;
-    }
+  }
+
+  /**
+   * Lays out and draws the scene now in the window box (x, y, w, h), cut to it, its zones too: a scene inside a zinc:ui interface,
+   * `<Canvas onDraw={(x, y, w, h) => stage.drawIn(x, y, w, h)} />`. The box's background is the Canvas's own (stage.color is not
+   * painted), and it draws on every frame the Canvas does.
+   */
+  drawIn(x: number, y: number, w: number, h: number): void {
     uiState.dirty = false;
     uiState.animating = false;
     clearTouchZones();
-    clear(this.color);
-    this.renderStage(width(), height());
+    this.x = x;   // the stage's corner is the box's: mouseX and the zones count from it
+    this.y = y;
+    this.width = w;
+    this.height = h;
+    clip(x, y, w, h);
+    isBoxClipOpen = true;
+    boxClipLeft = x;
+    boxClipTop = y;
+    boxClipRight = x + w;
+    boxClipBottom = y + h;
+    cutZonesTo(true, x, y, x + w, y + h);
+    this.layoutAndRender(w, h, 0, 0);
+    isBoxClipOpen = false;
+    cutZonesTo(false, 0, 0, 0, 0);
+    unclip();
   }
 }

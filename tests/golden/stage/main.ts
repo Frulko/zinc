@@ -1,5 +1,6 @@
 // zinc:stage (ZN-774.13, lib/std/stage.ts): a small tree's layout, the lifecycle order, the AS3 names, the hit test, the pointer
-// routed to tap, drag and scroll zones, and the frames Stage.frame draws (none while nothing changed). Run by tests/t0/stage.sh.
+// routed to tap, drag and scroll zones, the frames Stage.frame draws (none while nothing changed), and Stage.drawIn's box (ZN-774.19).
+// Run by tests/t0/stage.sh.
 import { onFrame } from 'zinc:gfx';
 import {
   Stage, Sprite, DisplayObject, ScrollBox, TouchZone, uiState, registerTapZone, registerDragZone, findTopmostZoneAt, routePointer,
@@ -120,5 +121,14 @@ onFrame((dt: number) => {
     console.log(`scrolled ${box.scrollY}`);
   }
   // frame 2 draws what the pointer changed; frames 3 and 4 have nothing to draw
-  if (frameCount === 4) console.log(`draws ${column.draws} ${a.draws} ${footer.draws}`);
+  if (frameCount === 4) {
+    console.log(`draws ${column.draws} ${a.draws} ${footer.draws}`);
+    // drawIn (a scene inside a zinc:ui Canvas): the stage's corner is the box's, its zones are cut to the box, and the cut ends with it
+    stage.drawIn(100, 50, 60, 40);
+    console.log(`box ${at(a)} | ${hit(120, 87)} ${hit(170, 87)} ${hit(115, 100)}`);
+    routePointer(120, 100, false, 0.016);
+    console.log(`box mouse ${a.mouseX} ${a.mouseY}`);
+    registerTapZone('after', 0, 0, 10, 10, () => {});
+    console.log(`after ${hit(5, 5)}`);
+  }
 });

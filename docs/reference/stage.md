@@ -112,7 +112,27 @@ The root of the scene, a `DisplayObject` that is always on stage.
 |---|---|
 | `color: u32` | The colour `frame` clears the window to (0x000000 by default). |
 | `frame(dt)` | One whole frame (above); call it from `onFrame`. |
+| `update(dt)` | The first half of `frame`: the pointer and the wheel routed to the zones, `onUpdate`, the flings; nothing drawn. |
+| `drawIn(x, y, w, h)` | Lays out and draws the scene now in that box of the window, cut to it, its zones too: a scene inside an interface (below). |
 | `renderStage(width, height)` | Lays out and draws the scene now, at that size: for a program that drives its own frame (music-tree). |
+
+### A scene inside an interface
+
+A `zinc:ui` `<Canvas>` can hold a scene: the interface calls `update` on every frame and the Canvas draws the stage in its box.
+
+```tsx
+const stage = new Stage();
+// ... stage.addChild(...)
+<Canvas className="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => stage.drawIn(x, y, w, h)} />
+render(App, 0xffffff, (dt: number) => stage.update(dt));
+```
+
+The stage's corner is the box's (`stage.x`, `stage.y`), so `mouseX` and the zones count from it; `stage.width` and `stage.height` are
+the box's size once it has been drawn (0 before). What lies outside the box is cut away, the zones too, so a press on a button of the
+interface beside the Canvas never taps a sprite. The box's background is the Canvas's (`className="bg-..."`; `stage.color` is not
+painted), and the scene is drawn on every frame the Canvas is. The other way round, an interface inside a scene, is a `<Canvas>` that
+fills the window with the scene and `zinc:ui` elements placed over it where a sprite is; that sprite registers a tap zone over its box
+so the scene under it does not take the interface's clicks. Both are worked through in [Beyond the components](../start/beyond.md).
 
 ## The frame state: `uiState`
 

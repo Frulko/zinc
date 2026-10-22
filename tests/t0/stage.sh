@@ -2,8 +2,9 @@
 # zinc:stage (ZN-774.13, lib/std/stage.ts, docs/reference/stage.md): the display tree of examples/music-tree as a standard module.
 # tests/golden/stage/main.ts lays out a small tree (a column, a row with a flex child), checks the order of onAddedToStage and
 # onRemovedFromStage, the AS3 names (numChildren, getChildAt, contains, stage, mouseX), the hit test, a tap, a press that moves
-# (no tap), a drag in local coordinates, a scroll box that cuts its zones and scrolls, and that Stage.frame draws nothing while
-# nothing changed. The interpreter's output is the golden; QuickJS runs the same program and must print the same.
+# (no tap), a drag in local coordinates, a scroll box that cuts its zones and scrolls, that Stage.frame draws nothing while
+# nothing changed, and that Stage.drawIn (a scene inside a zinc:ui Canvas, ZN-774.19) puts the stage at its box and cuts the zones
+# to it. The interpreter's output is the golden; QuickJS runs the same program and must print the same.
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 dir=tests/golden/stage
