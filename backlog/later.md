@@ -518,6 +518,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.18: `animate()` and `getNumber()` do not know the new keys (zIndex, textShadow*, shadow alpha, decoration colour and style): propValue has no case for them.
 - ZN-774.18: UiNode grew by two i32 (shadow alpha, decoration colour); the cold text record above would take them with the other text-only fields.
 - ZN-774.18: a frame sweep must compare runs from roots of the same shape: a ZINC_ROOT holding build/ moves pocket-hero's spinner at frame 30 (292 px) against one without.
+- ZN-774.18: on the web page a transition ignores the delay and the property list (always `all`, classes and style keys alike) and may run on top of zinc:ui's own frame-by-frame transition; decide which one runs on the web so the timing matches the desktop.
+- ZN-774.18: on the web, hiding one scroll bar of a view that scrolls both ways keeps both (`scrollbar-width` is both or none); a `::-webkit-scrollbar` rule per axis would match the native renderers.
+- ZN-774.18: `animate()` and `getNumber()` do not read back the step-4 keys either (outline, field colours, transitions), so a program cannot animate an outline or caret colour.
+- ZN-774.18: dashed and dotted outlines are not checked on the GL renderer; one frame of tests/golden/style-keys there would prove them.
+- ZN-774.18: `caret-*` applies only to the field itself, while CSS's caret-color is inherited, so `<View className="caret-red-500"><Input/></View>` colours no caret.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
