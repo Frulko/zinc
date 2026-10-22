@@ -32,6 +32,8 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 extern char** environ;
+#else
+static int setenv(const char* name, const char* value, int) { return _putenv_s(name, value); }   // the CRT's, as host/posix_shims.h gives it
 #endif
 #ifdef ZN_HOST_GFX
 #include "hal.h"   // the engine's window, for --emulator --live
@@ -471,11 +473,13 @@ again:
   if (!zn::dev::openSerial(port, 115200, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   // esptool's reset ran the program before the port was open: reset again, now that its first lines are read (the USB-serial chip's RTS
   // drives EN and DTR drives GPIO0, as esptool's "hard reset": EN low with GPIO0 high, then EN high)
+#ifndef _WIN32   // openSerial has no Windows port yet (dev/client.cpp): it failed above
   int dtr = TIOCM_DTR, rts = TIOCM_RTS;
   ioctl(link.in, TIOCMBIC, &dtr);
   ioctl(link.in, TIOCMBIS, &rts);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ioctl(link.in, TIOCMBIC, &rts);
+#endif
   const auto start = clock::now();
   Uart uart(p);
   std::string line;
