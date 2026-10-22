@@ -146,9 +146,9 @@ git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push th
 ok "pushed $tag"
 [ -n "$watch" ] || { echo "  watch it: gh run watch -R $repo"; exit 0; }
 printf '  waiting for the workflow'
-id=; i=0
+id=; i=0   # this commit's run: a tag released again keeps the failed run of its first push
 while [ -z "$id" ] && [ $i -lt 30 ]; do
-  id=$(gh run list --repo "$repo" --workflow zinc-next --branch "$tag" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null); [ -n "$id" ] || { printf '.'; sleep 2; i=$((i + 1)); }
+  id=$(gh run list --repo "$repo" --workflow zinc-next --branch "$tag" --commit "$sha" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null); [ -n "$id" ] || { printf '.'; sleep 2; i=$((i + 1)); }
 done; echo
 [ -n "$id" ] || { warn "no run found yet: gh run list -R $repo"; exit 0; }
 printf '  %s%s%s\n\n' "$c" "https://github.com/$repo/actions/runs/$id" "$z"
