@@ -457,7 +457,7 @@ The next backlog review turns lines into tasks or deletes them.
 - esp32sim: model the 2432S022's real 8-bit i80 panel upstream (option a in `docs/reports/esp32sim.md`); the emulator runs the SPI build of the firmware.
 - zinc:device (plugins/device) has no native ABI code, so a program on it does not run under `--engine mquickjs`; port it as zinc:qrcode was.
 - Native ABI: `zn_native_poll(0)` gives the modules' `poll` a zero time on every engine; pass `now_ms()` and drop the argument.
-- Native ABI: `now_ms` of a plugin on the computer is the system's clock, not the deterministic run's virtual one (ZnSink.now is there for an engine to give its own).
+- Native ABI: `now_ms` of a plugin on the computer is the system's clock, not the deterministic run's virtual one (ZnSink is frozen at v1: an engine's own clock needs a ZnHostApi field, which carries its size).
 - Web globals: the scan that appends `import { screen } from 'zinc:web'` is blind to scopes (a file that declares `screen` anywhere gets no import); a scoped walk would be exact.
 - Module resolution: the tsconfig lookup from an absolute path with no `tsconfig.json` above falls back to the working directory's; it should stop at the root (shared by every engine since the common resolver).
 - Module resolution: a tsconfig `paths` entry wins over a plugin for the same specifier, which on the web profile would hide the plugin's "web" entry (the examples map `three` to `plugins/three/index.ts`); drop those entries or let plugins win.
