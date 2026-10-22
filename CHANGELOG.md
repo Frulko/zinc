@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `examples/fatty` ports the complete 2013 Flash/Starling game to TypeScript on Zinc/QuickJS, keeping its package structure, comments, original graphics, animations, bitmap font and music; the Top 5 is saved locally.
 - `examples/kanban` is a native project board over the Zinc backlog: drag and reorder cards, search and filter tasks, open their details, and watch declared agent assignments change live. Demo moves stay local and never edit the backlog.
 - Zinc speaks English, French, Spanish, Italian and German: `--lang fr` on any command or `ZINC_LANG=fr` for one, `zinc config set lang fr` to keep it; otherwise it follows the language of your system. The first messages are translated (an unknown command, a usage error, `zinc new`); error codes, commands and options stay as they are.
 - `zinc new` with no argument asks what you want to make (the arrow keys and Enter, or a number) and the name of the folder; in a script it prints its usage and writes nothing. It ends with the next steps: `zinc dev`, the file to change, the lessons and the guide.

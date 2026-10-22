@@ -1,0 +1,32 @@
+# Original menu → tutorial → skip to game. Three clicks on the first rotating target.
+40 move 510 335
+42 down
+42 up
+90 move 780 590
+91 down
+92 up
+205 move 650 442
+206 down
+207 up
+209 down
+210 up
+212 down
+213 up
+# Let the 60-second game and end countdown finish; enter a name and save the local score.
+# Keyboard input at several simulation ticks per frame, and at zero ticks.
+770 text "GuillaZ"
+772 key Backspace
+810 text "ume"
+812 move 710 390
+813 down
+814 up
+# Original Home button, then Top 5; return from that screen to the tutorial.
+840 move 470 525
+841 down
+842 up
+880 move 650 335
+881 down
+882 up
+920 move 590 525
+921 down
+922 up

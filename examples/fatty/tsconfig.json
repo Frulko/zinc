@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noLib": true,
+    "types": [],
+    "useUnknownInCatchVariables": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "paths": {
+      "zinc:stage": [
+        "../../lib/std/stage.ts"
+      ],
+      "zinc:audio": [
+        "../../plugins/audio/index.ts"
+      ],
+      "zinc:system": [
+        "../../plugins/system/index.ts"
+      ],
+      "zinc:system/*": [
+        "../../plugins/system/*.ts"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "zinc-ts-plugin"
+      }
+    ],
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false
+  },
+  "files": [
+    "../../lib/zinc.d.ts",
+    "../../lib/gfx.d.ts",
+    "../../lib/modules.d.ts",
+    "../../lib/ui.d.ts",
+    "../../lib/editor/jsx.d.ts"
+  ],
+  "include": [
+    "src/**/*",
+    "*.ts",
+    "*.tsx"
+  ]
+}

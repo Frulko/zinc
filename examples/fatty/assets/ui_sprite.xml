@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with TexturePacker http://texturepacker.com-->
+<!-- $TexturePacker:SmartUpdate:8fda9d801a416be8e7065c62b1ad6617$ -->
+<TextureAtlas imagePath="ui_sprite.png">
+    <SubTexture name="auteurs" x="770" y="1005" width="383" height="14"/>
+    <SubTexture name="biere-3" x="1832" y="346" width="83" height="76"/>
+    <SubTexture name="big-biere" x="770" y="772" width="326" height="231"/>
+    <SubTexture name="boulon-3" x="1419" y="902" width="86" height="84"/>
+    <SubTexture name="boulon" x="1854" y="429" width="79" height="71"/>
+    <SubTexture name="boulon_2" x="1331" y="902" width="86" height="84"/>
+    <SubTexture name="btn top5" x="1028" y="2" width="63" height="63"/>
+    <SubTexture name="btn-home" x="1935" y="429" width="74" height="73"/>
+    <SubTexture name="btn-pause" x="1028" y="231" width="87" height="87"/>
+    <SubTexture name="btn-return" x="1588" y="488" width="73" height="73"/>
+    <SubTexture name="btn_jouer" x="1832" y="155" width="189" height="189" frameX="-1" frameY="-1" frameWidth="191" frameHeight="191"/>
+    <SubTexture name="btn_son1" x="1098" y="181" width="48" height="48"/>
+    <SubTexture name="btn_son2" x="1098" y="67" width="52" height="51"/>
+    <SubTexture name="fon-top5" x="1028" y="404" width="299" height="332"/>
+    <SubTexture name="fond-btn-accueil" x="466" y="772" width="302" height="236"/>
+    <SubTexture name="fond-explications" x="1155" y="2" width="675" height="400"/>
+    <SubTexture name="fond-menu-game" x="1331" y="404" width="234" height="496"/>
+    <SubTexture name="fond_vide" x="2" y="2" width="1024" height="768"/>
+    <SubTexture name="game-over" x="2" y="772" width="462" height="247"/>
+    <SubTexture name="go" x="1832" y="2" width="210" height="151"/>
+    <SubTexture name="gros" x="1098" y="738" width="231" height="231"/>
+    <SubTexture name="hotdog" x="1028" y="320" width="86" height="81"/>
+    <SubTexture name="maki" x="1507" y="902" width="79" height="83"/>
+    <SubTexture name="pas-vie" x="1098" y="2" width="52" height="63"/>
+    <SubTexture name="pomme" x="1917" y="346" width="80" height="81"/>
+    <SubTexture name="titre" x="1588" y="424" width="264" height="62"/>
+    <SubTexture name="top5" x="466" y="1010" width="39" height="12"/>
+    <SubTexture name="vie" x="1098" y="120" width="51" height="59"/>
+</TextureAtlas>

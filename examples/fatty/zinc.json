@@ -1,0 +1,33 @@
+{
+  "name": "fatty",
+  "entry": "src/main.ts",
+  "engine": "quickjs",
+  "app": {
+    "name": "Fatty",
+    "id": "dev.zinc.fatty",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "window": {
+      "width": 1024,
+      "height": 768
+    }
+  },
+  "assets": "assets",
+  "targets": {
+    "macos": {
+      "width": 1024,
+      "height": 768
+    }
+  },
+  "permissions": [
+    "opener",
+    "menu"
+  ],
+  "scopes": {
+    "opener": {
+      "allow": [
+        "http://www.haute-savoie.cci.fr/*"
+      ]
+    }
+  }
+}

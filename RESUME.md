@@ -2,13 +2,13 @@
 
 Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
-## 2026-10-22: Kanban editor focus corrected (ZN-775)
+## 2026-10-22: faithful Fatty AS3 port (ZN-776)
 
-- Modify now focuses the prefilled Markdown description immediately after its conditional field mounts and the opening pointer press finishes. Reopening a retained edit restores its draft and keyboard focus; typing in another field does not rerun autofocus.
-- Regression first failed on the old implementation's focused field. The test now starts with a nonempty Markdown description, inspects real title/body fields before typing, types without clicking, closes/reopens the draft and verifies focus/content, then saves and comments through the CLI in a temporary backlog.
-- Proof: Kanban type check, kanban_logic and T1 kanban passed (scripted interactions, scroll/drag regression, idle and native/QuickJS smoke). Editor feature capture reviewed, only frame 225 changes (focused outline/caret). Other feature hashes unchanged.
-- Run: `ZINC_BACKGROUND=1 build/zinc run examples/kanban`; restart an older running instance. Title/description remain the editable fields; plan, notes, criteria and summary stay read-only. No engine changes or dependencies. No cross-target/device or screen-reader run, nothing pushed.
-- Unrelated fatty demo/test work left untouched. Usage: n/a for Codex.
+- `examples/fatty` ports the complete `Desktop/Fatty/Projet Flash` game: 27 original source files, the `fatOutFood` tree and authored comments, unchanged PNG/XML/bitmap font/MP3 assets. Compared all versions; Unknown version matches, Gobelins.zip only changes initial speed, New Folder is incomplete. Original sources and hashes are kept in tests/data/fatty/as3 and source-manifest.json.
+- Uses Zinc/QuickJS and a game-specific adapter over zinc:stage/gfx/audio. No engine changes or new dependencies. Original 1024×768 composition, fixed 60-Hz rules, all screens and cross-screen page lookup retained. Legacy PHP scores become a local persistent Top 5. The old web download/preloader timeline is not replayed.
+- Proof: TypeScript and bundle checks; fatty T1 (full 60-second simulation, real rotating target hit, six reviewed feature captures, end countdown, name entry with zero/multiple ticks, save, navigation, 300 idle frames); fatty_logic (1/2/3-hit and friend rules, bubbling, lives, detached timers, score getter, sorted/persistent Top 5, invalid data, byte/comment fidelity, reproducible atlas metrics). Both passed. T1 accelerates only simulation between rendered frames in its test copy to stay below a minute.
+- Run: `build/zinc run examples/fatty` (`ZINC_BACKGROUND=1` for an agent). README explains the few changes. Native/AOT and cross-platform runs are not supported/claimed; checked on the development Mac headless. `zinc check` still chooses the native subset checker: use the TS check and `zinc bundle --check` as documented. Nothing pushed. Usage: n/a for Codex.
+- Previous Kanban editor autofocus work was completed independently and left untouched.
 
 ## Earlier known limits (unrelated, not re-investigated)
 
