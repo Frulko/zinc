@@ -241,6 +241,7 @@
     {"paths": ["firmware/esp32/", "tools/esp32-export-test"], "tests": ["export_esp32"]},
     {"paths": ["plugins/lvgl/", "tests/t1/lvgl.sh", "src/rt/native.cpp"], "tests": ["lvgl"]},
     {"paths": ["firmware/esp32-mquickjs/", "third_party/mquickjs/", "third_party/esp-mdns/", "plugins/qrcode/", "plugins/lvgl/", "plugins/device/", "src/cli_mqjs.cpp", "src/cli_mqjs.h", "examples/esp32-", "tests/t0/mquickjs_esp32.sh"], "tests": ["mquickjs_esp32"]},
+    {"paths": ["tools/esp32sim/", "src/cli_mqjs.cpp", "firmware/esp32-mquickjs/main/", "plugins/lvgl/", "examples/esp32-widgets/", "tests/t1/esp32sim_touch.sh"], "tests": ["esp32sim_touch"]},
     {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
     {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
     {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},

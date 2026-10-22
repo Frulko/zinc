@@ -6,6 +6,7 @@
 #include "cli_mqjs.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
@@ -14,14 +15,26 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <thread>
 
 #include <unistd.h>
 #ifndef _WIN32
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <signal.h>
+#include <spawn.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
+extern char** environ;
+#endif
+#ifdef ZN_HOST_GFX
+#include "hal.h"   // the engine's window, for --emulator --live
 #endif
 
 #include "dev/client.h"
@@ -496,45 +509,287 @@ again:
   return uart.rc;
 }
 
-// The same program in esp32sim (docs/reports/esp32sim.md): the emulator's firmware and the program in its flash, `runMs` of emulated time
-// (10 s by default), the UART as on the board, and the last frame as a PNG (ZINC_SHOT, else <name>.png beside the program's files).
-int runOnEmulator(const std::string& root, const Program& p, int runMs, const std::string& script) {
+#ifdef _WIN32
+// ponytail: esp32sim is started and stopped with POSIX calls (posix_spawn, kill, a socket); a Windows port is part of the cross-platform pass
+int runOnEmulator(const std::string&, const Program&, int, const std::string&, bool, const std::string&) {
+  std::fprintf(stderr, "zinc: the ESP32 emulator (--emulator) runs on macOS and Linux for now\n");
+  return 2;
+}
+#else
+// `argv` with its stdout on a pipe (`out`, the read end) and its stderr into the file `errFile`: its pid, -1 when it cannot start
+pid_t spawnPiped(const std::vector<std::string>& argv, const std::string& errFile, int& out) {
+  int fds[2];
+  if (::pipe(fds) != 0) return -1;
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
+  posix_spawn_file_actions_addclose(&fa, fds[0]);
+  posix_spawn_file_actions_addclose(&fa, fds[1]);
+  posix_spawn_file_actions_addopen(&fa, 2, errFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  std::vector<char*> args;
+  for (const std::string& a : argv) args.push_back(const_cast<char*>(a.c_str()));
+  args.push_back(nullptr);
+  pid_t pid = -1;
+  if (posix_spawnp(&pid, args[0], &fa, nullptr, args.data(), environ) != 0) pid = -1;
+  posix_spawn_file_actions_destroy(&fa);
+  ::close(fds[1]);
+  if (pid < 0) ::close(fds[0]);
+  else out = fds[0];
+  return pid;
+}
+
+// ---- --emulator --live: esp32sim's board UI (its --web: a WebSocket on 127.0.0.1, the protocol of its own web page) carries the panel's
+// frames out, [1, width, height (u16 LE), RGB565 LE pixels], and the touches in, {"t":"touch","x":X,"y":Y,"down":1|0}; its "stat" messages
+// say how far the emulated clock is.
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0   // macOS: SO_NOSIGPIPE on the socket instead
+#endif
+struct Live {
+  std::mutex mu;
+  std::vector<uint16_t> px;   // the last frame received
+  int w = 0, h = 0;
+  uint64_t frames = 0;        // frames received
+  double emulated = 0, speed = 0;   // the emulated seconds and the speed against real time, from the last "stat"
+};
+
+bool recvAll(int fd, void* to, std::size_t n) {
+  for (char* b = static_cast<char*>(to); n > 0;) {
+    const ssize_t k = ::recv(fd, b, n, 0);
+    if (k <= 0) return false;
+    b += k;
+    n -= static_cast<std::size_t>(k);
+  }
+  return true;
+}
+
+// a WebSocket to esp32sim's board UI on `port`: the socket once the server answered 101, else -1
+int wsConnect(int port) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in a{};
+  a.sin_family = AF_INET;
+  a.sin_port = htons(static_cast<uint16_t>(port));
+  a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  const std::string req = "GET / HTTP/1.1\r\nHost: 127.0.0.1:" + std::to_string(port) + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                          "Sec-WebSocket-Key: emluYyBlc3AzMnNpbSBsaXZl\r\nSec-WebSocket-Version: 13\r\n\r\n";
+  if (fd < 0 || ::connect(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::send(fd, req.data(), req.size(), MSG_NOSIGNAL) != static_cast<ssize_t>(req.size())) {
+    if (fd >= 0) ::close(fd);
+    return -1;
+  }
+  std::string head;   // byte by byte: the first frame may follow the answer at once
+  for (char c; head.size() < 4096 && (head.size() < 4 || head.compare(head.size() - 4, 4, "\r\n\r\n") != 0) && recvAll(fd, &c, 1);) head += c;
+  if (head.compare(0, 12, "HTTP/1.1 101") != 0) { ::close(fd); return -1; }
+  const int one = 1;
+  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+#ifdef SO_NOSIGPIPE
+  setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
+#endif
+  return fd;
+}
+
+// one short text message (under 126 bytes) to the server, masked as a client's must be (RFC 6455 5.3)
+void wsSend(int fd, const std::string& text) {
+  static const char mask[4] = {0x5a, 0x69, 0x6e, 0x63};
+  std::string f = {'\x81', static_cast<char>(0x80 | text.size())};
+  f.append(mask, 4);
+  for (std::size_t i = 0; i < text.size(); ++i) f += static_cast<char>(text[i] ^ mask[i & 3]);
+  ::send(fd, f.data(), f.size(), MSG_NOSIGNAL);
+}
+
+// the server's messages into `live` until it closes
+void wsRead(int fd, Live& live) {
+  std::vector<unsigned char> d;
+  for (unsigned char h[2]; recvAll(fd, h, 2);) {
+    uint64_t n = h[1] & 0x7f;
+    unsigned char e[8];
+    if (n == 126) { if (!recvAll(fd, e, 2)) return; n = static_cast<uint64_t>(e[0]) << 8 | e[1]; }
+    else if (n == 127) { if (!recvAll(fd, e, 8)) return; n = 0; for (unsigned char b : e) n = n << 8 | b; }
+    if (n > (8u << 20)) return;
+    d.resize(n);
+    if (n > 0 && !recvAll(fd, d.data(), n)) return;
+    const int op = h[0] & 0x0f;
+    if (op == 8) return;
+    if (op == 2 && n >= 5 && d[0] == 1) {
+      const int w = d[1] | d[2] << 8, rows = d[3] | d[4] << 8;
+      if (n < 5 + 2ull * w * rows) continue;
+      std::lock_guard<std::mutex> g(live.mu);
+      live.px.resize(static_cast<std::size_t>(w) * rows);
+      for (std::size_t i = 0; i < live.px.size(); ++i) live.px[i] = static_cast<uint16_t>(d[5 + 2 * i] | d[6 + 2 * i] << 8);
+      live.w = w;
+      live.h = rows;
+      ++live.frames;
+    } else if (op == 1) {
+      const std::string s(d.begin(), d.end());
+      const std::size_t t = s.find("\"time\":"), v = s.find("\"speed\":");
+      if (s.find("\"t\":\"stat\"") == std::string::npos || t == std::string::npos) continue;
+      std::lock_guard<std::mutex> g(live.mu);
+      live.emulated = std::atof(s.c_str() + t + 7);
+      if (v != std::string::npos) live.speed = std::atof(s.c_str() + v + 8);   // null until it is measured: 0
+    }
+  }
+}
+
+#ifdef ZN_HOST_GFX
+// what hal_present draws: the panel's pixels (0x00RRGGBB, w x h), scaled to the frame's physical pw x ph, nearest
+struct Shown { const uint32_t* px = nullptr; int w = 0, h = 0, pw = 0, ph = 0; } gShown;
+void shownRows(uint32_t* rows, int32_t y0, int32_t y1) {
+  for (int32_t y = y0; y < y1; ++y) {
+    const uint32_t* s = gShown.px + static_cast<std::size_t>(y * gShown.h / gShown.ph) * gShown.w;
+    uint32_t* d = rows + static_cast<std::size_t>(y - y0) * gShown.pw;
+    for (int x = 0; x < gShown.pw; ++x) d[x] = s[x * gShown.w / gShown.pw];
+  }
+}
+
+// The panel in the engine's own window (the HAL every zinc:gfx program draws through: ZINC_BACKGROUND, HiDPI, closing), each frame as it
+// comes, and the mouse (or the first finger) as the CST820's finger. Until the window closes (true) or `ended` (the emulator stopped).
+bool liveWindow(const std::string& title, int fd, Live& live, const std::atomic<bool>& ended, uint64_t& shown) {
+  HalConfig cfg{240, 320, title.c_str(), 1};
+  hal_init(&cfg);
+  std::vector<uint32_t> rgb(240 * 320, 0);
+  int w = 240, h = 320, lastX = -1, lastY = -1;
+  uint64_t seen = 0;
+  bool down = false, closed = false, fresh = true;   // a black panel at once: the window shows before the first frame
+  HalInput in{};
+  while (!ended) {
+    hal_poll_input(&in);
+    if (in.quit) { closed = true; break; }
+    int lw = w, lh = h;
+    hal_surface_size(&lw, &lh);
+    const bool finger = in.ntouch > 0, d = finger || in.pdown != 0;
+    const int x = std::clamp(static_cast<int>((finger ? in.touch[0].x : in.px) * w / std::max(lw, 1)), 0, w - 1);
+    const int y = std::clamp(static_cast<int>((finger ? in.touch[0].y : in.py) * h / std::max(lh, 1)), 0, h - 1);
+    if (d != down || (d && (x != lastX || y != lastY))) {
+      wsSend(fd, "{\"t\":\"touch\",\"x\":" + std::to_string(x) + ",\"y\":" + std::to_string(y) + ",\"down\":" + (d ? "1" : "0") + "}");
+      down = d;
+      lastX = x;
+      lastY = y;
+    }
+    {
+      std::lock_guard<std::mutex> g(live.mu);
+      if (live.frames != seen && live.w > 0) {
+        seen = live.frames;
+        w = live.w;
+        h = live.h;
+        rgb.resize(live.px.size());
+        for (std::size_t i = 0; i < rgb.size(); ++i) {   // RGB565 to 0x00RRGGBB, the low bits filled from the high ones
+          const uint32_t v = live.px[i], r = v >> 11 & 31, gr = v >> 5 & 63, b = v & 31;
+          rgb[i] = (r << 3 | r >> 2) << 16 | (gr << 2 | gr >> 4) << 8 | (b << 3 | b >> 2);
+        }
+        fresh = true;
+      }
+    }
+    if (!fresh) { std::this_thread::sleep_for(std::chrono::milliseconds(8)); continue; }
+    fresh = false;
+    const int k = std::max(1, static_cast<int>(hal_pixel_scale()));
+    gShown = Shown{rgb.data(), w, h, lw * k, lh * k};
+    HalFrame f{};
+    f.w = gShown.pw;
+    f.h = gShown.ph;
+    f.x1 = f.w;
+    f.y1 = f.h;
+    f.render = shownRows;
+    hal_present(&f);
+    ++shown;
+  }
+  hal_shutdown();
+  return closed;
+}
+#endif
+
+// The same program in esp32sim (docs/reports/esp32sim.md), on its ESP32-2432S022C stand-in (the panel on SPI, the CST820 touch): the
+// emulator's firmware and the program in its flash, the UART as on the board. `runMs` of emulated time (10 s by default) and the last frame as
+// a PNG (ZINC_SHOT, else <name>.png beside the program's files); or `live`: a window shows the panel, paced to real time, the mouse touches
+// it, until the window closes (or `runMs`).
+int runOnEmulator(const std::string& root, const Program& p, int runMs, const std::string& script, bool live, const std::string& title) {
   std::string err, sim, rom;
   if (p.net) {
     std::fprintf(stderr, "zinc: esp32sim has no radio: a program with zinc:wifi, zinc:espnow or zinc:ble runs on the board (or its check alone: zinc export)\n");
     return 2;
   }
+#ifndef ZN_HOST_GFX
+  if (live) { std::fprintf(stderr, "zinc: this zinc has no window (built without the graphics host): --live cannot show the emulator\n"); return 2; }
+#endif
   const std::string image = imageFor(root, p, true, false, err);
-  if (image.empty() || !zn::tc::ensureEsp32sim(sim, rom, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+  if (image.empty() || !zn::tc::ensureEsp32sim(root, sim, rom, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const char* shot = std::getenv("ZINC_SHOT");
-  const std::string png = shot && *shot ? fs::absolute(shot).string() : p.work + "/" + p.name + ".png";
-  const int ms = runMs > 0 ? runMs : 10000;
-  char seconds[32];
-  std::snprintf(seconds, sizeof seconds, "%.3f", ms / 1000.0);
+  const std::string png = shot && *shot ? fs::absolute(shot).string() : p.work + "/" + p.name + ".png", log = p.work + "/emulator.log";
+  const int ms = runMs > 0 ? runMs : live ? 0 : 10000;
+  std::vector<std::string> argv = {sim, "--chip", "esp32", "--board", "esp32-2432s022-spi", "--boot", "rom", "--rom", rom, "--flash-image", image,
+                                   "--flash-at", std::string(kJsOffset) + "=" + p.img, "--console", "uart0", "--no-dump"};
+  if (ms > 0) {
+    char seconds[32];
+    std::snprintf(seconds, sizeof seconds, "%.3f", ms / 1000.0);
+    argv.insert(argv.end(), {"--max-seconds", seconds});
+  }
+  if (live) argv.insert(argv.end(), {"--web", "0"});   // its board UI on a free port; it paces the run to real time
+  else argv.insert(argv.end(), {"--gram-png", png});
+  if (!script.empty()) argv.insert(argv.end(), {"--script", script});
   const auto t = std::chrono::steady_clock::now();
   // the UART on stdout, the emulator's own report on stderr (kept in emulator.log)
-  FILE* out = popen((quote(sim) + " --chip esp32 --board ttgo-tdisplay --boot rom --rom " + quote(rom) + " --flash-image " + quote(image) + " --flash-at " + kJsOffset + "=" +
-                     quote(p.img) + " --console uart0 --max-seconds " + seconds + " --no-dump --gram-png " + quote(png) +
-                     (script.empty() ? "" : " --script " + quote(script)) + " 2>" + quote(p.work + "/emulator.log")).c_str(), "r");
-  if (!out) { std::fprintf(stderr, "zinc: cannot start %s\n", sim.c_str()); return 1; }
+  int uartFd = -1;
+  const pid_t pid = spawnPiped(argv, log, uartFd);
+  if (pid < 0) { std::fprintf(stderr, "zinc: cannot start %s\n", sim.c_str()); return 1; }
+  FILE* out = fdopen(uartFd, "r");
   Uart uart(p);
-  char buf[4096];
-  while (std::fgets(buf, sizeof buf, out)) {
-    std::string l = buf;
-    while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
-    uart.take(l);
+  std::atomic<bool> ended{false};
+  auto readUart = [&] {
+    char buf[4096];
+    while (std::fgets(buf, sizeof buf, out)) {
+      std::string l = buf;
+      while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+      uart.take(l);
+    }
+    ended = true;
+  };
+  bool closed = false;
+  if (!live) readUart();
+#ifdef ZN_HOST_GFX
+  else {
+    std::thread reader(readUart);
+    int port = 0;
+    for (int i = 0; i < 500 && !port && !ended; ++i) {   // esp32sim names its port before the first instruction
+      std::string text;
+      const std::size_t at = readText(log, text) ? text.find("board UI: http://127.0.0.1:") : std::string::npos;
+      if (at != std::string::npos) port = std::atoi(text.c_str() + at + 27);
+      else std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    const int fd = port > 0 ? wsConnect(port) : -1;
+    Live view;
+    uint64_t shown = 0;
+    if (fd >= 0) {
+      std::thread ws(wsRead, fd, std::ref(view));
+      closed = liveWindow(title + " (ESP32 emulator)", fd, view, ended, shown);
+      ::kill(pid, SIGTERM);
+      ::shutdown(fd, SHUT_RDWR);
+      ws.join();
+      ::close(fd);
+    } else {
+      ::kill(pid, SIGTERM);
+      std::fprintf(stderr, "zinc: the emulator's board UI did not answer (%s)\n", log.c_str());
+    }
+    reader.join();
+    const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
+    char line[160];
+    std::snprintf(line, sizeof line, "%.1f s of an ESP32 in esp32sim in %.1f s, %llu frames shown (%.1f a second)", view.emulated, wall,
+                  static_cast<unsigned long long>(shown), shown / std::max(wall, 0.001));
+    zn::log::step("emulator", line);
   }
-  const int rc = pclose(out);
-  if (!uart.firmware) {
-    std::string log;
-    readText(p.work + "/emulator.log", log);
-    std::fprintf(stderr, "%szinc: the firmware did not start in the emulator (%s, exit %d)\n", log.c_str(), sim.c_str(), rc);
+#endif
+  std::fclose(out);
+  int status = 0;
+  ::waitpid(pid, &status, 0);
+  if (!uart.firmware && !closed) {
+    std::string text;
+    readText(log, text);
+    std::fprintf(stderr, "%szinc: the firmware did not start in the emulator (%s, exit %d)\n", text.c_str(), sim.c_str(), WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status));
     return 1;
   }
-  zn::log::step("emulator", std::to_string(ms) + " ms of an ESP32 in esp32sim", zn::log::since(t));
-  zn::log::step("frame", zn::log::shortPath(png));
+  if (!live) {
+    zn::log::step("emulator", std::to_string(ms) + " ms of an ESP32 in esp32sim", zn::log::since(t));
+    zn::log::step("frame", zn::log::shortPath(png));
+  }
   return uart.failed != Uart::clock::time_point::max() ? 1 : 0;
 }
+#endif
 
 // The same over Wi-Fi, to a board running the network image (main/mod_update.c): its firmware brought up to date first (POST /ota, the
 // app of the merged image), then the program (POST /js); the board restarts and its console comes from GET /log until the program ends,
@@ -665,7 +920,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   const std::string& cmd = args[1];
   std::string target, port, out, entry = ".";
   int frames = 300, runMs = 0;
-  bool emulator = false, net = false, wifi = false;
+  bool emulator = false, live = false, net = false, wifi = false;
   std::string script, host;
   for (std::size_t k = 2; k < args.size(); ++k) {
     const std::string& a = args[k];
@@ -677,11 +932,12 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
     else if (a == "--frames" && more) frames = std::max(1, std::atoi(args[++k].c_str()));
     else if (a == "--run-ms" && more) runMs = std::atoi(args[++k].c_str());
     else if (a == "--emulator") emulator = true;
+    else if (a == "--live") emulator = live = true;
     else if (a == "--net") net = true;
     else if (a == "--host" && more) { wifi = true; host = args[++k] == "last" ? "" : args[k]; }
     else if (a == "--emulator-script" && more) { emulator = true; script = fs::absolute(args[++k]).string(); }
     else if (a[0] != '-') entry = a;
-    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export|check <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export|check <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--live] [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
   }
   if (target != "esp32") { std::fprintf(stderr, "zinc: --engine mquickjs runs on --target esp32 (the board's firmware, firmware/esp32-mquickjs)\n"); return 2; }
   if (cmd == "flash") return flashFirmware(root, port, net);
@@ -701,7 +957,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   Program p;
   if (const int rc = prepare(root, file, cacheDir, frames, p)) return rc;
   if (cmd == "check") return 0;   // checked under mquickjs and compiled; nothing built for or written to a board
-  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script) : wifi ? runOverWifi(root, p, host, runMs) : runOnBoard(root, p, port, runMs);
+  if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script, live, projectDir.filename().string()) : wifi ? runOverWifi(root, p, host, runMs) : runOnBoard(root, p, port, runMs);
   return exportTo(root, p, out.empty() ? projectDir / "dist" / (projectDir.filename().string() + "-esp32") : fs::path(out));
 }
 

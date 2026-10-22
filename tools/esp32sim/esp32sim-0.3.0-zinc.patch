@@ -1,0 +1,406 @@
+diff --git a/cli/src/lib.rs b/cli/src/lib.rs
+index 3069395b..790ab33f 100644
+--- a/cli/src/lib.rs
++++ b/cli/src/lib.rs
+@@ -333,7 +333,7 @@ fn setup_esp32(o: &Opts) -> esp32::Machine {
+     m.bus.set_flash_size(o.flash_mb.unwrap_or(4) << 20);
+     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
+     let board = if o.board == "atech14" { "none" } else { &o.board };
+-    m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay)")));
++    m.bus.board = esp32::board::make_board(board).unwrap_or_else(|| usage_error(&format!("unknown classic ESP32 board '{board}' (none, bare, esp32dev, ttgo-tdisplay, esp32-2432s022-spi)")));
+     m.bus.attach_board_devices();
+     if let Some(spec) = &o.wifi {
+         let (cfg, nat) = wifi_config(spec, o.net == "nat" || o.net == "user", m.bus.debug.has("net"));
+@@ -487,7 +487,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
+     if let Some(port) = o.web_port {
+         let dir = o.web_dir.clone().unwrap_or_else(|| { let exe = std::env::current_exe().unwrap(); let mut d = exe.parent().unwrap().to_path_buf(); for _ in 0..3 { if d.join("web").exists() { break; } d = d.parent().unwrap().to_path_buf(); } d.join("web").to_string_lossy().to_string() });
+         let w = esp_soc::web::WebServer::start(port, dir.clone()).expect("web server");
+-        eprintln!("[emu] board UI: http://127.0.0.1:{}/  (serving {})", port, dir);
++        eprintln!("[emu] board UI: http://127.0.0.1:{}/  (serving {})", w.port, dir);   // the bound port: --web 0 takes a free one
+         m.web = Some(w); m.rt.enabled = true;
+     }
+     if let Some(path) = &o.cam_stream {
+diff --git a/docs/boards.md b/docs/boards.md
+index 110448cf..5cc4e571 100644
+--- a/docs/boards.md
++++ b/docs/boards.md
+@@ -128,6 +128,17 @@ The energy-scan firmware and the run recipe: `examples/waveshare-c6-lcd147/`, [e
+ 
+ Selected with `--chip esp32 --board ttgo-tdisplay` (alias `tdisplay`); [esp32.md](esp32.md#the-board---board-ttgo-tdisplay).
+ 
++## `esp32-2432s022-spi` — the ESP32-2432S022C, its panel on SPI (classic ESP32)
++
++A stand-in for the ESP32-2432S022C (2.2" ST7789 240×320, CST820 touch) for firmware built with an SPI panel back end:
++the board drives its panel over an 8-bit i80 bus (I2S0 in LCD mode), which is not modelled.
++
++| Device | Bus | Model |
++| --- | --- | --- |
++| ST7789 240×320 panel | the T-Display's SPI wiring above | `DcsPanel::st7789()`; the glass is the whole GRAM |
++| CST820 touch | I2C0 at 0x15, SDA 21 / SCL 22 | `Cst820`: 0x02 finger count, 0x03..0x06 X and Y; `touch X Y 1\|0` in a script, the board UI's pointer |
++| Backlight, buttons | as the T-Display | |
++
+ ## `none` — bare module
+ 
+ No devices; console only. For stock ESP-IDF projects (`examples/hello_world`).
+diff --git a/esp-periph/src/i2c.rs b/esp-periph/src/i2c.rs
+index c498c906..25d7d382 100644
+--- a/esp-periph/src/i2c.rs
++++ b/esp-periph/src/i2c.rs
+@@ -300,6 +300,81 @@ impl I2cDevice for Reg8Device {
+     fn read(&mut self) -> u8 { let v = self.regs[self.ptr as usize]; self.ptr = self.ptr.wrapping_add(1); v }
+ }
+ 
++/// Touch state shared between a board (UI) and its touch controller.
++#[derive(Default, Debug, Clone, Copy)]
++pub struct TouchState { pub down: bool, pub x: u16, pub y: u16, pub seen: bool, pub release_pending: bool }
++impl TouchState {
++    pub fn update(&mut self, x: u16, y: u16, down: bool) {
++        self.x = x; self.y = y;
++        if down { self.down = true; self.seen = false; self.release_pending = false; }
++        else if self.seen { self.down = false; }
++        else { self.release_pending = true; }
++    }
++    /// Keep even a short tap readable until the guest has observed the press once.
++    pub fn observe(&mut self) {
++        if self.release_pending && self.seen { self.down = false; self.release_pending = false; }
++        if self.down { self.seen = true; }
++    }
++}
++
++/// Hynitron CST820 touch controller (the Waveshare Touch AMOLED 1.8 V2, the ESP32-2432S022C).
++/// The register report matches the CST816S-compatible driver used by its board support package.
++/// `pins`: the (SDA, SCL) it hangs on, where the controller routes them (classic ESP32); None: any.
++pub struct Cst820 { ptr: u8, first: bool, touch: std::sync::Arc<std::sync::Mutex<TouchState>>, pub reads: u64, pub pins: Option<(u8, u8)> }
++impl Cst820 {
++    pub fn new(touch: std::sync::Arc<std::sync::Mutex<TouchState>>) -> Self { Cst820 { ptr: 0, first: true, touch, reads: 0, pins: None } }
++    fn reg(&self, addr: u8) -> u8 {
++        let mut touch = self.touch.lock().expect("CST820 touch state mutex poisoned");
++        if addr == 0x02 { touch.observe(); }
++        let touch = *touch;
++        match addr {
++            0x01 => 0,
++            0x02 => u8::from(touch.down),
++            0x03 => ((touch.x >> 8) as u8) & 0x0f,
++            0x04 => touch.x as u8,
++            0x05 => ((touch.y >> 8) as u8) & 0x0f,
++            0x06 => touch.y as u8,
++            0xa7 => 0xb7,
++            0xa8 => 0x41,
++            0xa9 => 0x02,
++            _ => 0,
++        }
++    }
++}
++impl I2cDevice for Cst820 {
++    fn pins(&self) -> Option<(u8, u8)> { self.pins }
++    fn start(&mut self, read: bool) -> bool { if !read { self.first = true; } true }
++    fn write(&mut self, byte: u8) -> bool {
++        if self.first { self.ptr = byte; self.first = false; } else { self.ptr = self.ptr.wrapping_add(1); }
++        true
++    }
++    fn read(&mut self) -> u8 { let value = self.reg(self.ptr); self.ptr = self.ptr.wrapping_add(1); self.reads += 1; value }
++}
++
++#[cfg(test)]
++mod touch_tests {
++    use super::*;
++
++    fn read_registers(device: &mut Cst820, first: u8, count: usize) -> Vec<u8> {
++        assert!(device.start(false));
++        assert!(device.write(first));
++        assert!(device.start(true));
++        (0..count).map(|_| device.read()).collect()
++    }
++
++    #[test]
++    fn cst820_reports_board_identity() {
++        let mut device = Cst820::new(Default::default());
++        assert_eq!(read_registers(&mut device, 0xa7, 3), [0xb7, 0x41, 0x02]);
++    }
++
++    #[test]
++    fn cst820_reports_touch_coordinates() {
++        let touch = std::sync::Arc::new(std::sync::Mutex::new(TouchState { down: true, x: 0x167, y: 0x1bf, ..Default::default() }));
++        let mut device = Cst820::new(touch);
++        assert_eq!(read_registers(&mut device, 0x02, 5), [1, 0x01, 0x67, 0x01, 0xbf]);
++    }
++}
+ 
+ #[cfg(test)]
+ mod classic_tests {
+diff --git a/esp32/src/board/mod.rs b/esp32/src/board/mod.rs
+index 34eb6f71..2ecd68aa 100644
+--- a/esp32/src/board/mod.rs
++++ b/esp32/src/board/mod.rs
+@@ -1,6 +1,7 @@
+ //! Boards wired for the classic ESP32, independent of S3 pin assignments.
+ //!
+ //! - `TtgoTDisplay` — the LilyGO TTGO T-Display: an ST7789 135×240 on VSPI, two buttons
++//! - `TtgoTDisplay::esp32_2432s022_spi` (`esp32-2432s022-spi`) — the ESP32-2432S022C's 240×320 ST7789 and CST820 touch, the panel on the T-Display's SPI pins
+ //! - `NoBoard` — a bare module (`none`, `bare`, `esp32dev`): nothing on the pins, console only
+ //! - `esp32dev-loopback` — the SPI loopback fixture in `crate::spi`
+ pub mod tdisplay;
+@@ -11,6 +12,7 @@ pub fn make_board(name: &str) -> Option<esp_soc::Board> {
+     match name {
+         "none" | "bare" | "esp32dev" => Some(Box::new(esp_soc::NoBoard)),
+         "ttgo-tdisplay" | "tdisplay" => Some(Box::new(TtgoTDisplay::new())),
++        "esp32-2432s022-spi" => Some(Box::new(TtgoTDisplay::esp32_2432s022_spi())),
+         _ => crate::spi::make_board(name),
+     }
+ }
+@@ -19,7 +21,7 @@ pub fn make_board(name: &str) -> Option<esp_soc::Board> {
+ mod tests {
+     #[test]
+     fn classic_boards_reject_s3_names() {
+-        for name in ["none", "bare", "esp32dev", "ttgo-tdisplay", "tdisplay"] { assert!(super::make_board(name).is_some()); }
++        for name in ["none", "bare", "esp32dev", "ttgo-tdisplay", "tdisplay", "esp32-2432s022-spi"] { assert!(super::make_board(name).is_some()); }
+         for name in ["waveshare-amoled18-v2", "waveshare-lcd4b", "atech14", "waveshare-c6-lcd147"] { assert!(super::make_board(name).is_none()); }
+     }
+ }
+diff --git a/esp32/src/board/tdisplay.rs b/esp32/src/board/tdisplay.rs
+index 6f111053..0b3c0252 100644
+--- a/esp32/src/board/tdisplay.rs
++++ b/esp32/src/board/tdisplay.rs
+@@ -6,14 +6,22 @@
+ //! GPIO 0 (BOOT); battery divider on GPIO 34 (ADC1 channel 6) with its enable on GPIO 14; I2C
+ //! header SDA 21 / SCL 22 with nothing attached.
+ //!
++//! `esp32-2432s022-spi` is the same wiring as a stand-in for the ESP32-2432S022C (2.2" ST7789
++//! 240×320 and a CST820 touch controller): its whole 240×320 RAM is the glass, and the CST820
++//! answers at 0x15 on I2C0, SDA 21 / SCL 22, as on that board. Only the panel's bus differs: the
++//! board drives it over an 8-bit i80 bus (I2S0 in LCD mode, not modelled), the stand-in over the
++//! T-Display's SPI pins, for firmware built with an SPI panel back end.
++//!
+ //! The panel is selected by its pins, not by the SPI host: MicroPython's `SPI(2)` is VSPI
+ //! (classic SPI3) and Arduino's TFT_eSPI uses the same VSPI, but either can be routed through
+ //! the GPIO matrix from HSPI (SPI2) as well. The bus hands the board the routes of each
+ //! transaction (`SpiPins`); bytes whose SCLK/MOSI are on GPIO 18/19 while CS is low reach the
+ //! controller, everything else is counted and dropped.
++use esp_periph::i2c::{Cst820, I2cDevice, TouchState};
+ use esp_soc::board::SpiPins;
+ use esp_soc::devices::DcsPanel;
+ use esp_soc::BoardModel;
++use std::sync::{Arc, Mutex};
+ 
+ pub const PIN_LCD_SCLK: u8 = 18;
+ pub const PIN_LCD_MOSI: u8 = 19;
+@@ -25,6 +33,9 @@ pub const PIN_BTN_LEFT: u8 = 0;
+ pub const PIN_BTN_RIGHT: u8 = 35;
+ pub const PIN_ADC_EN: u8 = 14;
+ pub const PIN_BAT_ADC: u8 = 34;
++pub const PIN_TP_SDA: u8 = 21;
++pub const PIN_TP_SCL: u8 = 22;
++pub const TP_ADDR: u8 = 0x15;
+ 
+ /// The 1.14" glass shows 135 of the ST7789's 240 RAM columns and 240 of its 320 rows: RAM
+ /// columns 52..186 and rows 40..279. Derived from how the drivers address it: st7789py's
+@@ -43,13 +54,22 @@ pub const LCD_ROW_OFFSET: usize = 40;
+ /// MADCTL's BGR bit is set, as on the C6 module (st7789py sets BGR by default, TFT_eSPI's
+ /// T-Display setup too). INVON is not applied: on this IPS module it compensates the panel's
+ /// polarity. Asleep or off, the glass is black.
+-pub fn lcd_visible(p: &DcsPanel) -> Vec<u16> {
+-    let mut out = Vec::with_capacity(LCD_VISIBLE_COLS * LCD_VISIBLE_ROWS);
++pub fn lcd_visible(p: &DcsPanel) -> Vec<u16> { glass_pixels(p, TDISPLAY_GLASS) }
++
++/// A glass as (columns, rows, first RAM column, first RAM row).
++pub type Glass = (usize, usize, usize, usize);
++pub const TDISPLAY_GLASS: Glass = (LCD_VISIBLE_COLS, LCD_VISIBLE_ROWS, LCD_COL_OFFSET, LCD_ROW_OFFSET);
++/// The ESP32-2432S022C's 2.2" glass: the ST7789's whole RAM.
++pub const S022_GLASS: Glass = (240, 320, 0, 0);
++
++/// What a glass shows, with the colour order and blanking of `lcd_visible`.
++pub fn glass_pixels(p: &DcsPanel, (cols, rows, col_off, row_off): Glass) -> Vec<u16> {
++    let mut out = Vec::with_capacity(cols * rows);
+     let exchange = p.madctl & 0x08 == 0;
+     let blank = !p.on || p.sleeping;
+-    for y in 0..LCD_VISIBLE_ROWS {
+-        let row = (LCD_ROW_OFFSET + y) * p.cols + LCD_COL_OFFSET;
+-        for x in 0..LCD_VISIBLE_COLS {
++    for y in 0..rows {
++        let row = (row_off + y) * p.cols + col_off;
++        for x in 0..cols {
+             let mut px = p.gram[row + x];
+             if exchange { px = (px & 0x07e0) | ((px & 0xf800) >> 11) | ((px & 0x001f) << 11); }
+             if blank { px = 0; }
+@@ -59,7 +79,7 @@ pub fn lcd_visible(p: &DcsPanel) -> Vec<u16> {
+     out
+ }
+ 
+-/// The LilyGO TTGO T-Display.
++/// The LilyGO TTGO T-Display (and, with `touch`, the `esp32-2432s022-spi` stand-in).
+ pub struct TtgoTDisplay {
+     /// the ST7789V; `lcd_visible` is what the glass shows
+     pub panel: DcsPanel,
+@@ -70,12 +90,19 @@ pub struct TtgoTDisplay {
+     pub gpio_events: u64,
+     /// SPI bytes delivered to the controller / dropped (CS high, or not on GPIO 18/19)
+     pub spi_bytes: u64, pub spi_dropped: u64,
++    /// the part of the panel's RAM the glass shows
++    pub glass: Glass,
++    /// the CST820's finger on the stand-in; None on the T-Display, whose I2C header is empty
++    pub touch: Option<Arc<Mutex<TouchState>>>,
+ }
+ impl Default for TtgoTDisplay { fn default() -> Self { Self::new() } }
+ impl TtgoTDisplay {
+     pub fn new() -> Self {
+-        TtgoTDisplay { panel: DcsPanel::st7789(), cs_high: true, backlight: false, adc_enable: false, gpio_events: 0, spi_bytes: 0, spi_dropped: 0 }
++        TtgoTDisplay { panel: DcsPanel::st7789(), cs_high: true, backlight: false, adc_enable: false, gpio_events: 0, spi_bytes: 0, spi_dropped: 0,
++                       glass: TDISPLAY_GLASS, touch: None }
+     }
++    /// The ESP32-2432S022C stand-in: the whole RAM on the glass and a CST820 on the I2C header.
++    pub fn esp32_2432s022_spi() -> Self { TtgoTDisplay { glass: S022_GLASS, touch: Some(Default::default()), ..Self::new() } }
+     /// Whether a transaction with these routes is on the panel's wires. Routes the bus could
+     /// not decode (no SCLK or MOSI pin known) are taken as the panel's: the module has one SPI
+     /// device, and a transaction nobody else can receive is its.
+@@ -85,7 +112,7 @@ impl TtgoTDisplay {
+     }
+ }
+ impl BoardModel for TtgoTDisplay {
+-    fn name(&self) -> &'static str { "ttgo-tdisplay" }
++    fn name(&self) -> &'static str { if self.touch.is_some() { "esp32-2432s022-spi" } else { "ttgo-tdisplay" } }
+     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
+         for &(pin, level) in changes {
+             self.gpio_events += 1;
+@@ -110,12 +137,21 @@ impl BoardModel for TtgoTDisplay {
+         vec![0xff; rx_len]   // no MISO on the module
+     }
+     fn gpio_events(&self) -> u64 { self.gpio_events }
++    fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn I2cDevice>)> {
++        let Some(touch) = &self.touch else { return Vec::new() };
++        let mut cst = Cst820::new(touch.clone());
++        cst.pins = Some((PIN_TP_SDA, PIN_TP_SCL));
++        vec![(0, TP_ADDR, Box::new(cst))]
++    }
++    fn touch(&mut self, x: u16, y: u16, down: bool) {
++        if let Some(t) = &self.touch { t.lock().expect("touch state mutex poisoned").update(x, y, down); }
++    }
+     fn input_levels(&self) -> Vec<(u8, bool)> { vec![(PIN_BTN_LEFT, true), (PIN_BTN_RIGHT, true)] }
+     fn named_pin(&self, name: &str) -> Option<u8> {
+         match name { "boot" | "btn1" | "left" => Some(PIN_BTN_LEFT), "btn2" | "right" => Some(PIN_BTN_RIGHT), _ => None }
+     }
+     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
+-        Some((LCD_VISIBLE_COLS as u32, LCD_VISIBLE_ROWS as u32, lcd_visible(&self.panel), self.panel.pixels_written))
++        Some((self.glass.0 as u32, self.glass.1 as u32, glass_pixels(&self.panel, self.glass), self.panel.pixels_written))
+     }
+     fn display_version(&self) -> u64 { self.panel.pixels_written }
+     fn display_frames(&self) -> u64 { self.panel.frames }
+@@ -255,6 +291,28 @@ mod tests {
+         assert!(b.report().starts_with("[emu] tdisplay: 0 RAMWR"));
+     }
+ 
++    /// The ESP32-2432S022C stand-in: the whole 240x320 RAM is the glass, and a finger reaches the
++    /// CST820 at 0x15 on SDA 21 / SCL 22 (registers 0x02..0x06: count, X high/low, Y high/low).
++    #[test]
++    fn s022_stand_in_shows_the_whole_ram_and_reports_touches() {
++        let mut b = TtgoTDisplay::esp32_2432s022_spi();
++        bring_up(&mut b, 0x08);
++        window(&mut b, 239, 239, 319, 319);
++        cmd(&mut b, 0x2c, &[0xf8, 0x00]);
++        let (w, h, px, _) = b.display().unwrap();
++        assert_eq!((w, h, px[319 * 240 + 239], b.name()), (240, 320, 0xf800, "esp32-2432s022-spi"));
++        let mut devices = b.i2c_devices();
++        let (bus, addr, cst) = &mut devices[0];
++        assert_eq!((*bus, *addr, cst.pins()), (0, 0x15, Some((21, 22))));
++        let read = |d: &mut Box<dyn I2cDevice>| { d.start(false); d.write(0x02); d.start(true); (0..5).map(|_| d.read()).collect::<Vec<u8>>() };
++        assert_eq!(read(cst), [0, 0, 0, 0, 0]);
++        b.touch(72, 298, true);
++        b.touch(72, 298, false);
++        assert_eq!(read(cst), [1, 0, 72, 1, 42], "a tap is held until the firmware has read it once");
++        assert_eq!(read(cst)[0], 0);
++        assert!(TtgoTDisplay::new().i2c_devices().is_empty(), "the T-Display's I2C header is empty");
++    }
++
+     /// The whole path through the classic SoC bus: the firmware's GPIO-matrix routes (VSPICLK_out
+     /// 63 on GPIO 18, VSPID_out 65 on GPIO 19, as the IDF driver routes a non-IO_MUX pin set),
+     /// CS/DC/RST as plain GPIO outputs, and SPI3 CPU transfers out of W0.
+diff --git a/esp32s3/src/i2c.rs b/esp32s3/src/i2c.rs
+index 7e4c7afb..62009856 100644
+--- a/esp32s3/src/i2c.rs
++++ b/esp32s3/src/i2c.rs
+@@ -101,23 +101,6 @@ impl I2cDevice for Tca9554 {
+     fn read(&mut self) -> u8 { if self.ptr == 0 { self.input_port() } else { self.regs[self.ptr as usize] } }
+ }
+ 
+-/// Touch state shared between a board (UI) and its touch controller.
+-#[derive(Default, Debug, Clone, Copy)]
+-pub struct TouchState { pub down: bool, pub x: u16, pub y: u16, pub seen: bool, pub release_pending: bool }
+-impl TouchState {
+-    pub fn update(&mut self, x: u16, y: u16, down: bool) {
+-        self.x = x; self.y = y;
+-        if down { self.down = true; self.seen = false; self.release_pending = false; }
+-        else if self.seen { self.down = false; }
+-        else { self.release_pending = true; }
+-    }
+-    /// Keep even a short tap readable until the guest has observed the press once.
+-    fn observe(&mut self) {
+-        if self.release_pending && self.seen { self.down = false; self.release_pending = false; }
+-        if self.down { self.seen = true; }
+-    }
+-}
+-
+ /// Goodix GT911 capacitive touch controller: 16-bit register addresses; product ID at 0x8140,
+ /// config at 0x8047.., status + up to 5 points at 0x814E...
+ pub struct Gt911 { addr: u16, phase: u8, touch: std::sync::Arc<std::sync::Mutex<TouchState>>, pub reads: u64, w: u16, h: u16 }
+@@ -144,62 +127,10 @@ impl I2cDevice for Gt911 {
+     fn read(&mut self) -> u8 { let v = self.reg(self.addr); self.addr = self.addr.wrapping_add(1); self.reads += 1; v }
+ }
+ 
+-/// Hynitron CST820 touch controller used on the Waveshare Touch AMOLED 1.8 V2.
+-/// The register report matches the CST816S-compatible driver used by its board support package.
+-pub struct Cst820 { ptr: u8, first: bool, touch: std::sync::Arc<std::sync::Mutex<TouchState>>, pub reads: u64 }
+-impl Cst820 {
+-    pub fn new(touch: std::sync::Arc<std::sync::Mutex<TouchState>>) -> Self { Cst820 { ptr: 0, first: true, touch, reads: 0 } }
+-    fn reg(&self, addr: u8) -> u8 {
+-        let mut touch = self.touch.lock().expect("CST820 touch state mutex poisoned");
+-        if addr == 0x02 { touch.observe(); }
+-        let touch = *touch;
+-        match addr {
+-            0x01 => 0,
+-            0x02 => u8::from(touch.down),
+-            0x03 => ((touch.x >> 8) as u8) & 0x0f,
+-            0x04 => touch.x as u8,
+-            0x05 => ((touch.y >> 8) as u8) & 0x0f,
+-            0x06 => touch.y as u8,
+-            0xa7 => 0xb7,
+-            0xa8 => 0x41,
+-            0xa9 => 0x02,
+-            _ => 0,
+-        }
+-    }
+-}
+-impl I2cDevice for Cst820 {
+-    fn start(&mut self, read: bool) -> bool { if !read { self.first = true; } true }
+-    fn write(&mut self, byte: u8) -> bool {
+-        if self.first { self.ptr = byte; self.first = false; } else { self.ptr = self.ptr.wrapping_add(1); }
+-        true
+-    }
+-    fn read(&mut self) -> u8 { let value = self.reg(self.ptr); self.ptr = self.ptr.wrapping_add(1); self.reads += 1; value }
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+-    fn read_registers(device: &mut Cst820, first: u8, count: usize) -> Vec<u8> {
+-        assert!(device.start(false));
+-        assert!(device.write(first));
+-        assert!(device.start(true));
+-        (0..count).map(|_| device.read()).collect()
+-    }
+-
+-    #[test]
+-    fn cst820_reports_board_identity() {
+-        let mut device = Cst820::new(Default::default());
+-        assert_eq!(read_registers(&mut device, 0xa7, 3), [0xb7, 0x41, 0x02]);
+-    }
+-
+-    #[test]
+-    fn cst820_reports_touch_coordinates() {
+-        let touch = std::sync::Arc::new(std::sync::Mutex::new(TouchState { down: true, x: 0x167, y: 0x1bf, ..Default::default() }));
+-        let mut device = Cst820::new(touch);
+-        assert_eq!(read_registers(&mut device, 0x02, 5), [1, 0x01, 0x67, 0x01, 0xbf]);
+-    }
+-
+     #[test]
+     fn tca9554_register_stub_keeps_written_outputs() {
+         let mut device = Tca9554::register_ram_stub();

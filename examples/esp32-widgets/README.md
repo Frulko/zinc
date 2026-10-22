@@ -13,9 +13,9 @@ above a navigation bar.
 | Info | the auto tour, a button that turns the screen to landscape and back (the pages lay out again at the new size), the backlight, LVGL's memory, the JavaScript heap, the board's heap, a frame's cost, the chip, CPU, flash, firmware and ESP-IDF (`zinc:device`); the page scrolls |
 
 ```sh
-zinc run examples/esp32-widgets --target esp32              # on the board (mquickjs, from zinc.json)
-zinc run examples/esp32-widgets --target esp32 --emulator   # in esp32sim, no board (no touch: the first page)
-zinc run examples/esp32-widgets                             # on the Mac
+zinc run examples/esp32-widgets --target esp32                     # on the board (mquickjs, from zinc.json)
+zinc run examples/esp32-widgets --target esp32 --emulator --live   # in esp32sim, no board: its window, the mouse is the finger
+zinc run examples/esp32-widgets                                    # on the Mac
 ```
 
 The program only builds the objects and sets values; LVGL lays them out, scrolls, animates and redraws what changed, in C, in 32-row areas

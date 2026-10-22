@@ -1,5 +1,6 @@
 ﻿#include "monocypher-ed25519.h"
 #include "tc/tc.h"
+#include "tc/plugin_build.h"
 #include "tc/policy.h"
 #include "platform/platform.h"
 
@@ -94,14 +95,12 @@ constexpr Pin kSwcPins[] = {
 };
 
 // esp32sim (owner, 2026-10-21; docs/reports/esp32sim.md), the ESP32 emulator of `zinc run --target esp32 --engine mquickjs --emulator`: the
-// release v0.3.0 (2026-10-20) of each platform it publishes (no Intel Mac, no Windows), the SHA-256 of its SHA256SUMS.txt; and the mask ROMs it
-// boots, Espressif's esp-rom-elfs 20260528 (Apache-2.0), the SHA-256 of that release.
+// sources of its tag v0.3.0 (2026-10-20), the SHA-256 of GitHub's archive, with zinc's patch (tools/esp32sim/: the ESP32-2432S022C's 240x320
+// glass and CST820 touch), built once with the user's cargo as zinc:loro's crate is (D155); and the mask ROMs it boots, Espressif's
+// esp-rom-elfs 20260528 (Apache-2.0), the SHA-256 of that release.
 constexpr const char* kEsp32simVersion = "0.3.0";
-constexpr Pin kEsp32simPins[] = {
-    {"aarch64-macos", "esp32sim-0.3.0-macos-arm64.tar.gz", "fe5e4d8f88ef2bf1968b3e9cae5a55dd0a86abda30fdf451da9f55b1170ac4e9"},
-    {"x86_64-linux", "esp32sim-0.3.0-linux-x86_64.tar.gz", "3c18f095fbb8d6fdf49f75bdcf8eaf26717c07c034b8e38cf16bcd6aaed793a6"},
-    {"aarch64-linux", "esp32sim-0.3.0-linux-arm64.tar.gz", "dcb84091e0527035aa09d820131cc8993f34e757ed02c5d108c49b1e72a50852"},
-};
+constexpr Pin kEsp32simSource = {"any", "esp32sim-0.3.0.tar.gz", "9cadce5da80d81509f52e5575b7079ec9e9b6e1bbedeff2d8fbc87bc2d533313"};
+fs::path esp32simDir() { return fs::path(home()) / "toolchains" / (std::string("esp32sim-") + hostName() + "-" + kEsp32simVersion + "-zinc"); }
 constexpr const char* kRomElfsVersion = "20260528";
 constexpr Pin kRomElfsPin = {"any", "esp-rom-elfs-20260528.tar.gz", "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46"};
 
@@ -252,7 +251,8 @@ std::vector<PinnedTool> pinnedTools() {
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
   add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
   for (const Pin& p : kSwcPins) if (hostName() == p.host) add("swc", kSwcVersion, &p, 1, "swc-", p.file);
-  add("esp32sim", kEsp32simVersion, kEsp32simPins, sizeof kEsp32simPins / sizeof *kEsp32simPins, "esp32sim-", "esp32sim");
+  out.push_back(PinnedTool{"esp32sim", std::string(kEsp32simVersion) + " (built by cargo)", kEsp32simSource.file, kEsp32simSource.sha256, esp32simDir().string(),
+                           fs::exists(esp32simDir() / "esp32sim")});
   for (const SourceTool* t : {&basisuTool(), &gltfpackTool()})
     out.push_back(PinnedTool{t->name, t->version, t->pin.file, t->pin.sha256, toolDir(*t), fs::exists(fs::path(toolDir(*t)) / t->name)});
   return out;
@@ -515,15 +515,44 @@ bool ensureSwc(std::string& path, std::string& err) {
   return true;
 }
 
-bool ensureEsp32sim(std::string& sim, std::string& rom, std::string& err) {
-  const Pin* pin = nullptr;
-  for (const Pin& p : kEsp32simPins) if (hostName() == p.host) pin = &p;
+// esp32sim: built here the first time, and again when the patch changes (its SHA-256 is kept beside the binary)
+bool ensureEsp32sim(const std::string& root, std::string& sim, std::string& rom, std::string& err) {
   if (const char* e = std::getenv("ZINC_ESP32SIM")) sim = e;
-  else if (!pin) { err = "no pinned esp32sim for this machine (" + hostName() + "; its releases are for Apple silicon Macs and Linux); set ZINC_ESP32SIM to one you built (cargo build --release)"; return false; }
   else {
-    const fs::path dir = fs::path(home()) / "toolchains" / ("esp32sim-" + hostName() + "-" + kEsp32simVersion);
-    if (!fetchTool("the ESP32 emulator", *pin, std::string("https://github.com/mikroverk/esp32sim/releases/download/v") + kEsp32simVersion + "/" + pin->file, dir, "esp32sim", err)) return false;
+    const fs::path dir = esp32simDir(), patch = fs::path(root) / "tools/esp32sim/esp32sim-0.3.0-zinc.patch", src = dir / "src";
+    const std::string want = sha256File(patch.string());
+    std::string have;
+    std::ifstream(dir / "PATCH") >> have;
     sim = (dir / "esp32sim").string();
+    if (want.empty()) { err = "zinc's patch of the ESP32 emulator is missing: " + patch.string(); return false; }
+    if (have != want || !fs::exists(sim)) {
+      const std::string cargo = cargoPath();
+      if (cargo.empty()) {
+        err = "the ESP32 emulator (esp32sim) is built from its sources by Rust's cargo, which this machine does not have: install Rust with rustup "
+              "(https://rustup.rs), then run the command again (or set ZINC_ESP32SIM to an esp32sim built as tools/esp32sim/README.md says)";
+        return false;
+      }
+      std::error_code ec;
+      fs::remove_all(dir, ec);
+      if (!fetchTool("the ESP32 emulator's sources", kEsp32simSource, std::string("https://github.com/mikroverk/esp32sim/archive/refs/tags/v") + kEsp32simVersion + ".tar.gz",
+                     src, "Cargo.toml", err)) return false;
+      std::fprintf(stderr, "zinc: building the ESP32 emulator, esp32sim %s with zinc's patch (once: a minute or a few; log in %s)\n", kEsp32simVersion, (dir / "build.log").string().c_str());
+      // its own release profile (fat LTO, the binary of its releases): the emulator is the hot loop of every --emulator run
+      if (!run("cd " + quote(src.string()) + " && patch -s -p1 < " + quote(patch.string()) + " && nice -n 5 " + quote(cargo) + " build --release --locked --offline -p esp32sim --bin esp32sim --target-dir " +
+               quote((dir / "target").string()) + " >" + quote((dir / "build.log").string()) + " 2>&1", err, "building esp32sim")) {
+        std::string log;
+        std::ifstream in(dir / "build.log");
+        std::getline(in, log, '\0');
+        err = log.substr(log.size() > 2000 ? log.size() - 2000 : 0) + "\nesp32sim did not build (above; the whole log: " + (dir / "build.log").string() + ")";
+        return false;
+      }
+      fs::rename(dir / "target/release/esp32sim", sim, ec);
+      if (!ec) fs::copy_file(src / "LICENSE", dir / "LICENSE", fs::copy_options::overwrite_existing, ec);
+      if (ec) { err = "cannot move esp32sim into place: " + ec.message(); return false; }
+      fs::remove_all(dir / "target", ec);   // its objects, about 1 GB
+      fs::remove_all(src, ec);
+      std::ofstream(dir / "PATCH") << want << "\n";
+    }
   }
   const fs::path roms = fs::path(home()) / "toolchains" / (std::string("esp-rom-elfs-") + kRomElfsVersion);
   if (!fetchTool("the ESP32 mask ROMs", kRomElfsPin, std::string("https://github.com/espressif/esp-rom-elfs/releases/download/") + kRomElfsVersion + "/" + kRomElfsPin.file, roms, "esp32_rev300_rom.elf", err)) return false;

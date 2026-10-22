@@ -104,7 +104,13 @@ on the board, so `skinLoaded()` is false, as on a target that bakes no images. T
 I2S LCD (i80) mode, so the firmware has a second build with the panel on SPI as esp32sim's T-Display board wires it (`-DZN_PANEL=spi`,
 `prebuilt/zinc-mquickjs-sim-flash.bin`); `zinc run ... --emulator` runs it with the program in its flash and writes the panel's 240x320 RAM
 as a PNG. `examples/breakout` there: 62.6 fps (the 60 Hz cap), 8 emulated seconds in 1.6 s on an M1 Pro, the frame as on the board.
-Touch is not there yet: esp32sim has a CST820 model in its S3 crate only.
+Touch and a live view (2026-10-22): zinc builds esp32sim from its v0.3.0 sources with a patch (`tools/esp32sim/`) that adds the board
+`esp32-2432s022-spi`, the T-Display's wiring with the 2432S022's 240x320 glass and its CST820 at 0x15 on I2C0 (SDA 21, SCL 22), so the
+firmware's touch probe finds it; an `--emulator-script` line `3.0 touch 72 298 1` taps the screen. `--emulator --live` shows the panel in
+the engine's window, paced to real time, the mouse as the finger (esp32sim's `--web` socket carries frames out and touches in).
+`examples/esp32-widgets`: a scripted tap on Input turns the page, 6 emulated seconds in 3.5 s. Live, 11.0 emulated seconds in 11.3 s;
+the window shows 26 to 35 frames a second of `examples/breakout` (esp32sim sends a frame when the panel changed, 50 a second at most) and
+4 to 6 of the widgets' quiet pages (`tests/t1/esp32sim_touch.sh`).
 
 **Lighter (2026-10-22, owner: "le build le plus light possible").** Measured on the board with `examples/breakout`, before → after:
 

@@ -451,6 +451,10 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:lvgl: report LVGL 9.6's two header gaps upstream (blend to A8 calls `argb8888_image_blend` with only ARGB8888_PREMULTIPLIED on; `lv_lottie_class` is declared by no header) and drop the workarounds in `lv_conf.h` and `lvgl.abi.c` when a release fixes them.
 - zinc:lvgl: ThorVG's objects come from `new` (the C++ heap), its arrays from `lv_malloc`: on the computer the pool misses the first, so a Lottie-heavy screen can pass on the Mac and not fit the board; route ThorVG's `new` through `lv_malloc` or count it.
 - mquickjs check: run the program from its 64-bit bytecode (outside the heap, as the board runs it from flash) rather than adding its size to the heap limit; `sim.js` must then be compiled into the same bytecode (a bytecode cannot load after RAM atoms exist).
+- esp32sim: open the upstream PR for the 2432S022 board, the CST820 move and the `--web 0` port line (text in `tools/esp32sim/README.md`; the owner's step), then pin the release that has them and drop the patch.
+- `--emulator --live`: map keys to the board's buttons (BOOT, GPIO 0/35) through esp32sim's board-page messages; today only the mouse goes in.
+- `--emulator --live`: check that an occluded Metal window updates when it comes back into view (a capture from behind sometimes shows the first, black frame), and consider opening the window at the first non-black frame.
+- esp32sim: model the 2432S022's real 8-bit i80 panel upstream (option a in `docs/reports/esp32sim.md`); the emulator runs the SPI build of the firmware.
 - zinc:device (plugins/device) has no native ABI code, so a program on it does not run under `--engine mquickjs`; port it as zinc:qrcode was.
 - Native ABI: `zn_native_poll(0)` gives the modules' `poll` a zero time on every engine; pass `now_ms()` and drop the argument.
 - Native ABI: `now_ms` of a plugin on the computer is the system's clock, not the deterministic run's virtual one (ZnSink.now is there for an engine to give its own).
@@ -585,6 +589,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773: zinc.exe cross built headless (`-DZN_HOST_GFX=OFF`, the windows-cross job) compiles again but does not link: 14 zrt symbols undefined at `<root>` (add_poller, arena_owns, arena_take, StrBuilder, clear_timer, insp_object...), seen 2026-10-21; the job is off until ZINC_WINDOWS_JOBS is set. A macOS build with `ZN_HOST_GFX=OFF` stops on zn_window_load (plugin_build.cpp's weak reference).
 - Module resolution: run `tests/t0/module_resolution.sh` on Linux (it needs zinc-mqjs, esbuild and SWC there).
 - zinc:lvgl on the ESP32-2432S022: the Lottie page (ThorVG at 64 x 64): fps, LVGL ms and the lowest free heap from the UART line; whether 80 or 96 px fits.
+- `--emulator` and `--live` on Linux (never run) and Windows (refused today: starting and stopping esp32sim and its socket are POSIX-only).
 - zinc:lvgl on the ESP32-2432S022: measure the Input page's scroll (fps and LVGL ms from the UART line every 5 s), then the panel at LCD_HZ 20 MHz (the i80 send of a full page is 12 ms at 10 MHz), `LV_ATTRIBUTE_FAST_MEM` in IRAM, and flash QIO; keep what the board holds.
 - zinc:ble on Linux (BlueZ over D-Bus) and Windows (WinRT); today `state()` is 'unsupported' there.
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.

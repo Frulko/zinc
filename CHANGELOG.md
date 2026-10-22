@@ -10,9 +10,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - `zinc run|export|flash --target esp32 --engine mquickjs`: a `zinc:gfx` program in TypeScript runs on an ESP32 on MicroQuickJS, compiled to bytecode on the computer and written to the board in a second (`zinc flash` writes the firmware once). `examples/breakout` runs unchanged on the ESP32-2432S022. A feature the board lacks fails before anything is sent, at your own file and line. AOT stays the default on the ESP32. The program runs from the board's flash, so it costs no RAM.
-- `zinc run ... --engine mquickjs --emulator` runs the same program in the esp32sim emulator (downloaded and checked the first time), with no board: the last frame is saved as a PNG.
+- `zinc run ... --engine mquickjs --emulator` runs the same program in the esp32sim emulator (built from its sources with Rust's cargo the first time), with no board: the last frame is saved as a PNG.
+- `zinc run <app> --target esp32 --emulator --live` shows the emulated board's screen in a window, in real time, with the mouse as its touch screen; the UART still prints in the terminal, and closing the window (or Ctrl-C) stops it.
 - On the ESP32 with `--engine mquickjs`: `zinc:gpio` (setup, write, read, watch: debounced edges from an interrupt) and `zinc:storage` (kept in the board's NVS), with timers, and a program that only listens keeps running. `examples/esp32-gpio` blinks an LED and reads a button.
-- `zinc run --emulator-script <file>` drives the esp32sim emulator (pins, touches, buttons at given times).
+- `zinc run --emulator-script <file>` drives the esp32sim emulator (pins, touches, buttons at given times); a `touch X Y 1|0` line taps the ESP32-2432S022's touch screen.
 - `zinc toolchain swc`: the pinned SWC compiler, fetched the first time `--engine mquickjs` needs it.
 - `zinc:ble`: Bluetooth Low Energy on the Mac (scan, connect, send and receive text over the Nordic UART Service, or advertise it), and the same API on the ESP32 with `--engine mquickjs`. `examples/esp32-ble` is a Mac app and a board that talk; `ZINC_NATIVE=sim` gives a simulated device.
 - On the ESP32 with `--engine mquickjs`: `zinc:wifi` joins the saved network at each start, or opens a setup network with a captive page where a phone picks the network (as WiFiManager does), and sets the clock (`Date.now()` is then the real time); the board answers at `<name>.local`. `examples/esp32-wifi`.

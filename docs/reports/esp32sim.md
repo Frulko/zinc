@@ -153,3 +153,24 @@ documented in `docs/cli.md:31`. Not run.
 3. Add `Cst820` to the T-Display board; script a touch; then pin the tool in `src/tc/tc.cpp` and wire
    `zinc run --target esp32 --engine mquickjs` to it.
 4. Put a line in `backlog/later.md`: upstream the 2432S022 i80 model (option a) once step 3 works.
+
+## Where it stands (2026-10-22)
+
+Steps 2 and 3 are done. The firmware's SPI build runs in esp32sim (`zinc run ... --emulator`). The CST820 is in esp32sim through
+zinc's patch, `tools/esp32sim/esp32sim-0.3.0-zinc.patch`:
+
+- `Cst820` moves to `esp-periph`, so the classic boards can use it too.
+- A new board, `esp32-2432s022-spi`: the T-Display's wiring with the 2432S022's whole 240x320 glass and the touch at 0x15 on SDA 21 /
+  SCL 22.
+- `--web 0` now prints the port it bound.
+
+zinc builds the patched esp32sim from the tag's sources with the user's cargo, once, as D155 does for Loro. The release binaries
+are no longer used, since they lack the board.
+
+`--emulator --live` shows the panel in the engine's window, the mouse acting as the touch screen. It goes through esp32sim's own
+board-UI WebSocket, so the protocol needed no change.
+
+Proof: `tests/t1/esp32sim_touch.sh`.
+
+The upstream pull request (the board and the CST820 move) is described in `tools/esp32sim/README.md`; opening it is the owner's
+step. Option (a), the i80 model, is still for later.

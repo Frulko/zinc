@@ -69,8 +69,9 @@ std::string esbuildVersion();
 // into ~/.zinc/toolchains/swc-<host>-<version>, its SHA-256 checked.
 bool ensureSwc(std::string& path, std::string& err);
 // esp32sim, the ESP32 emulator of --engine mquickjs --emulator (docs/reports/esp32sim.md), and the mask ROM it boots (esp32_rev300_rom.elf):
-// ZINC_ESP32SIM or the pinned release of this platform, and the pinned esp-rom-elfs, fetched once into ~/.zinc/toolchains, SHA-256 checked.
-bool ensureEsp32sim(std::string& sim, std::string& rom, std::string& err);
+// ZINC_ESP32SIM, or its pinned sources with <root>/tools/esp32sim's patch built once by the user's cargo into ~/.zinc/toolchains; and the pinned
+// esp-rom-elfs, fetched once, SHA-256 checked.
+bool ensureEsp32sim(const std::string& root, std::string& sim, std::string& rom, std::string& err);
 // basis_universal's basisu (ZN-439), the GPU texture encoder of the asset build: ZINC_BASISU, or the pinned source archive (SHA-256 checked before it
 // is unpacked) built once with the pinned zig into ~/.zinc/toolchains/basisu-<host>-<version>/basisu. basisuPath() is where it is (or will be).
 bool ensureBasisu(std::string& path, std::string& err);
