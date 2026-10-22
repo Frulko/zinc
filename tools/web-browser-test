@@ -58,7 +58,7 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
             find = "(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p)
             t0 = time.time()
             while not (r := c.eval(find)) and time.time() - t0 < POLL: c._recv(-1, 0.2)
-            if not r: sys.exit("no element with the text " + p)
+            if not r: sys.exit("no element with the text %s; console: %s; page: %r" % (p, [m[:200] for m in c.console][-6:], (c.eval("document.body.innerText") or "")[:200]))
             x, y = r
         click(x, y)
         t0 = time.time()

@@ -14,7 +14,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 "$Z" export tests/fixtures/web-hw --target web -o "$tmp/hw" >"$tmp/hw.log" 2>&1 || { echo "web_hw: the export failed: $(cut -c1-400 "$tmp/hw.log")"; exit 1; }
 for w in "webserial (plugin serial)" "webmidi (plugin midi)" "webusb (plugin gphoto2)"; do grep -q "W0601: $w" "$tmp/hw.log" || { echo "web_hw: no W0601 for $w"; fail=1; }; done
-python3 -I tools/web-browser-test "$tmp/hw" --wait 2 --after 6 --size 900x500 --init "$(cat tests/fixtures/web-hw/mocks.js)" --click-text Run --eval 'JSON.stringify({codes: __usb.sent, set: __usb.setValue, sent: __midi.sent})' >"$tmp/hw.out" 2>&1 || { echo "web_hw: the page did not run: $(cut -c1-400 "$tmp/hw.out")"; exit 1; }
+python3 -I tools/web-browser-test "$tmp/hw" --wait 2 --after 6 --size 900x500 --init "$(cat tests/fixtures/web-hw/mocks.js)" --click-text Run --eval 'JSON.stringify({codes: __usb.sent, set: __usb.setValue, sent: __midi.sent})' >"$tmp/hw.out" 2>&1 || { echo "web_hw: the page did not run: $(cut -c1-1200 "$tmp/hw.out")"; exit 1; }
 python3 -I - "$tmp/hw.out" <<'EOF' || fail=1
 import json, sys
 o = json.loads(open(sys.argv[1]).read().splitlines()[-1])
