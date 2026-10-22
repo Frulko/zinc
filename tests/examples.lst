@@ -87,6 +87,7 @@ text/src/main-react.tsx | OK |  |
 text/src/main-solid.tsx | OK |  | 
 three/cubes/main.ts | OK |  | 
 three/gltf-viewer/main.tsx | OK |  | 
+touch-check/src/main.ts | OK |  | 
 ui/figma-storyboard/src/main.tsx | OK |  | 
 ui/forms/main.tsx | OK |  | 
 ui/gl-check/src/main.ts | OK |  | 

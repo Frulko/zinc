@@ -55,7 +55,8 @@ lv.run((dt: number) => { /* the program's frame, before LVGL's */ });
   selector)` for colours. `bg`, `textColor`, `pad`, `gap`, `radius`, `border` and `font(o, px)` are shortcuts; the fonts are Montserrat
   12, 14, 20 and 28. A selector is a part (`PART_INDICATOR`...) or'ed with a state (`STATE_CHECKED`...).
 - **Values and events.** `setText`, `setValue`, `value`, `checked`, `selected`, `buttonText`, `scrollTo`, `scrollY`.
-  `on(o, EVENT_*, fn)`: the events wait in a queue the frame reads, so no C calls into JavaScript.
+  `on(o, EVENT_*, fn)`: the events wait in a queue the frame reads, so no C calls into JavaScript. `pointerX()`, `pointerY()` and
+  `pointerDown()` give the pointer as LVGL gets it, in the display's pixels (`examples/touch-check` measures a touch screen with them).
 - **Figures.** `stats()`: since the last call, the turns, LVGL's microseconds (total and slowest), the areas and pixels sent; then the
   free heap and its lowest point (the board's; -1 on the computer) and LVGL's pool in use, its size and its peak (the computer's; 0 on
   the board, where LVGL takes the heap).

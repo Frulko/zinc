@@ -7,7 +7,7 @@
 //   const s = lv.slider(lv.screen(), 0, 100, 40);
 //   lv.on(s, lv.EVENT_VALUE_CHANGED, () => console.log('value ' + lv.value(s)));
 //   lv.run(null);
-import { onFrame, pointerDown, pointerX, pointerY } from 'zinc:gfx';
+import { onFrame, pointerDown as gfxPointerDown, pointerX as gfxPointerX, pointerY as gfxPointerY } from 'zinc:gfx';
 import L from './native/lvgl.spec';
 import { originX, originY, present, showDisplay } from './display';
 
@@ -305,6 +305,12 @@ function dispatch(): void {
   }
 }
 
+/** The pointer in the display's pixels, as LVGL gets it: the finger on the board (its portrait pixels), the mouse on the computer (the
+ *  window's, less where the display is drawn). */
+export function pointerX(): i32 { return (gfxPointerX() | 0) - originX(); }
+export function pointerY(): i32 { return (gfxPointerY() | 0) - originY(); }
+export function pointerDown(): boolean { return gfxPointerDown(); }
+
 /** The frame loop: `each` (or null) with the seconds since the last frame, then LVGL's turn with the pointer, the events, the display. */
 let clockRest: number = 0;   // the part of a millisecond LVGL's clock has not been given yet
 export function run(each: ((dt: number) => void) | null): void {
@@ -313,7 +319,7 @@ export function run(each: ((dt: number) => void) | null): void {
     clockRest += dt * 1000;
     const ms = Math.floor(clockRest);
     clockRest -= ms;
-    L.step(ms, (pointerX() | 0) - originX(), (pointerY() | 0) - originY(), pointerDown());
+    L.step(ms, pointerX(), pointerY(), gfxPointerDown());
     dispatch();
     present();
   });

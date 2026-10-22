@@ -1,0 +1,6 @@
+{
+  "name": "touch-check",
+  "entry": "src/main.ts",
+  "app": { "name": "Touch Check", "id": "dev.zinc.touch-check", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" }, "macos": { "width": 240, "height": 320 } }
+}
