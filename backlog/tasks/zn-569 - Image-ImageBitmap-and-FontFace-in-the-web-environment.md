@@ -1,11 +1,10 @@
 ---
 id: ZN-569
 title: 'Image, ImageBitmap and FontFace in the web environment'
-status: In Progress
-assignee:
-  - '@parallel'
+status: Backlog
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 01:45'
+updated_date: '2026-10-22 18:57'
 labels:
   - games
   - js
@@ -104,4 +103,6 @@ FOLLOW-UP TASKS (not created; for the coordinator to file):
 (c) "WebGL binding: upload a DOM source without the intermediate copy" (S). Criteria: texImage2D of a 4096 x 4096 RGBA image as decoded under 15 ms (today 26 to 29 ms).
 (e) "Web environment: Worker, and createImageBitmap with it" (M; the report's G24 moved forward, or its first slice). A Worker with its own global scope, postMessage with structured clone and transferables, module and Blob URL scripts; createImageBitmap and ImageBitmap restored from commit f08d712f in the same change. Criteria: an unmodified `await Assets.load(url)` works in PixiJS 7.4.3 and 8.22.0 with createImageBitmap present (webenv_pixi's picture pages then say "from ImageBitmap"); the bitmap lines of f08d712f's image.js and image_gl.js pass again; three.js's GLTFLoader takes ImageBitmapLoader. Until then the truck of criterion 1 can only load through TextureLoader.
 (d) "Web environment: createImageBitmap resizeWidth / resizeHeight" (S, after (e)), on a proven resampler to vendor (stb_image_resize2.h, public domain or MIT, from the project whose stb_image, stb_image_write and stb_truetype are in third_party/stb; it is not there today). Criteria: a bitmap of the asked size, compared with headless Chrome at SSIM 0.98.
+
+2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
 <!-- SECTION:NOTES:END -->

@@ -3,11 +3,10 @@ id: ZN-568
 title: >-
   Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR,
   storage)
-status: In Progress
-assignee:
-  - '@parallel'
+status: Backlog
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 22:43'
+updated_date: '2026-10-22 18:57'
 labels:
   - games
   - js
@@ -95,4 +94,6 @@ Libraries again at load 4.4: three.js r186 import 66 to 77 ms, the first WebGL 2
 DECISIONS taken in this task, for the coordinator to file: (1) the environment is a thin one of our own (scores above); (2) its JavaScript is one file in lib/std read at run time, as the other standard modules, not a string in the binary: hackable, packaged with lib/std, no byte in zinc; a built app that wants it in a zinc:script context would embed it then; (3) the frame loop starts at the first requestAnimationFrame or the first canvas put in the document, so a program that only computes still ends; (4) a deterministic run reads the virtual clock through performance.now; (5) an error in a listener or a frame callback is the window's error event and the program goes on, as in a browser; (6) until ZN-570 and ZN-569 a 2D context draws nothing and an image gets its error event, each with one notice on stderr, rather than an exception or a wait for ever; (7) the MIT libraries of the tests (PixiJS, three.js) are vendored as test data in third_party; p5.js, LGPL-2.1, is not in the repository: a pinned download into a cache (tools/test-lib), the test skipped when it is not to be had; (8) the root-relative file URL that does not exist is looked for under the project ("/assets/a.png").
 
 FOLLOW-UP TASKS (not created): (a) 'Web environment: engine key and zinc:script' (S): zinc.json "engine": "quickjs" runs a .js entry without --engine; new Script({web: true}); criteria: zinc run <dir> with the two keys boots the p5 page; a script context with web: true has window and document. (b) 'Web environment: DOMParser on a vendored XML parser' (S): @xmldom/xmldom 0.9.12 (MIT) loaded at the first DOMParser; criteria: a BMFont XML and an SVG parse, XMLHttpRequest responseType document. (c) 'QuickJS engine: import.meta.url' (S): criteria: new URL('./a.png', import.meta.url).href names the file beside the module. (d) 'Web environment: window focus and visibility, fingers as pointers, modifier keys' (S, needs host rows for the window's focus and for a modifier's own key event). (e) 'Web environment: boot tests of Phaser 3.90, p5 2.3, Babylon 9.30, LittleJS, Kaplay' (M, after ZN-565, ZN-569, ZN-573): one T1 test each, as webenv_p5. (f) 'Web environment completeness' (S): the localStorage property form, FormData, a binary request body over http, matchMedia that answers orientation, pointer and resolution, canvas.toDataURL through the host's PNG encoder. (g) 'Date in a web program' (S, decision first): Date.now is the engine's virtual clock from 0, so new Date() is 1970 in a library; a real run with the environment should read the wall clock.
+
+2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
 <!-- SECTION:NOTES:END -->
