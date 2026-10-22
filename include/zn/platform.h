@@ -23,8 +23,10 @@ inline const char* builtPlatform() {
   return "linux";   // ponytail: a webOS build says linux at run time (its files are chosen at compile time); a define of the armv7-webos target would name it
 #endif
 }
+// esp32: the board of --engine mquickjs (src/cli_mqjs.cpp), whose TARGET and x.esp32.ts files a program is built with on the computer
 inline bool knownPlatform(const char* p) {
-  return p && (!strcmp(p, "android") || !strcmp(p, "ios") || !strcmp(p, "macos") || !strcmp(p, "linux") || !strcmp(p, "windows") || !strcmp(p, "webos"));
+  return p && (!strcmp(p, "android") || !strcmp(p, "ios") || !strcmp(p, "macos") || !strcmp(p, "linux") || !strcmp(p, "windows") || !strcmp(p, "webos") ||
+               !strcmp(p, "esp32"));
 }
 // ZINC_PLATFORM when it names one of them, else the platform this binary was built for
 inline const char* runPlatform() { const char* p = getenv("ZINC_PLATFORM"); return knownPlatform(p) ? p : builtPlatform(); }

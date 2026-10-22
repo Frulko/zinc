@@ -418,7 +418,8 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
       " --define:__ZINC_ENGINE__=" + quote("\"" + o.engine + "\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +
       " --define:__ZINC_PROFILE__=" + quote("\"" + capsField(caps, "PROFILE") + "\"") + " --define:__ZINC_CAPS__=" + quote(caps) +
       // a script has no import.meta: esbuild leaves it empty instead of a syntax error, and zinc dev's import.meta.hot is not there (no warning per use)
-      (script ? " --supported:import-meta=false --define:import.meta.hot=undefined" : "") +
+      // mquickjs: the module becomes an ES5 script (src/cli_mqjs.cpp), and the board has no hot mode
+      (script ? " --supported:import-meta=false --define:import.meta.hot=undefined" : o.engine == "mquickjs" ? " --define:import.meta.hot=undefined" : "") +
       // a class esbuild renames for a clash (Blob -> _Blob) keeps its name, as the unbundled run shows it
       (o.minify ? " --minify --keep-names" : script ? " --keep-names" : "") + (o.sourcemap ? std::string(" --sourcemap") + (script ? "" : " --sources-content=false") : "");   // a script's map carries the sources: the inspectors show them
   // the content-hash cache: the same staged modules and the same command give the same bundle, so esbuild does not run again

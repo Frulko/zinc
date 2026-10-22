@@ -447,7 +447,15 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
   if (e) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
   if (r == n && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
     r = normalize(dir + "/" + n);
-    if (std::string f = probe(r); !f.empty()) r = f;
+    std::string f;
+    // the platform's file first, in Metro's order as the frontend's loader (x.esp32.ts, x.native.ts, then x.ts); a platform file that
+    // imports its own stem gets the generic one
+    for (const std::string& sfx : zn::frontend::platformSuffixes()) {
+      for (const char* ext : {".ts", ".tsx"}) if (std::string c = r + sfx + ext; !sfx.empty() && c != base && isFile(c)) { f = c; break; }
+      if (!f.empty() || sfx.empty()) break;
+    }
+    if (f.empty()) f = probe(r);
+    if (!f.empty()) r = f;
   } else if (e && r == n && !pathAbs(n)) {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
     std::string f = e->modules.empty() || n.rfind("zinc:", 0) != 0 ? "" : e->modules + "/" + n.substr(5) + ".js";
     if (!f.empty() && !std::filesystem::exists(f)) f.clear();
