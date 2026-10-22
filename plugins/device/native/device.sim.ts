@@ -10,4 +10,7 @@ export default {
   drawCmds(): number { return 0; },
   cpuMhz(): number { return 0; },
   chip(): string { return 'sim'; },
+  flashSize(): number { return -1; },
+  idfVersion(): string { return ''; },
+  firmware(): string { return ''; },
 };

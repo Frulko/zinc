@@ -215,14 +215,21 @@ by itself.
 
 ```ts
 import * as device from 'zinc:device';
-device.setBacklight(0.6);        // 0..1, perceptual (PWM duty = level²); remembered only in the emulator
+device.setBacklight(0.6);        // 0..1, perceptual (PWM duty = level²); remembered only on the computer
 device.hasBacklight(); device.hasTouch();
 device.memory();                 // { zincUsed, zincSize, chipFree, chipMinFree } in bytes (-1: unknown on hosts)
 device.frameMs(); device.drawCmds(); device.chip(); device.cpuMhz();
+device.flashSize();              // bytes; -1 on hosts
+device.idfVersion(); device.firmware();   // "v5.5.5", "zinc-mquickjs 1a2b3c4d"; '' on hosts
 ```
 
-The backlight goes through the display driver (`zinc_display_backlight`, weakly linked), so the module works with or
-without it. `chipFree` is the ESP32's byte-addressable internal RAM outside the Zinc heap.
+In the AOT firmware the backlight goes through the display driver (`zinc_display_backlight`, weakly linked), so the
+module works with or without it, and `chipFree` is the ESP32's byte-addressable internal RAM outside the Zinc heap.
+Under `--engine mquickjs` (`native/device.abi.c`) the firmware answers (`main/zn.h`): LEDC PWM on its backlight pin
+(GPIO 0, GPIO 4 in the emulator), dark until the first frame; `hasTouch()` is its CST820 probe at start; `zincUsed` and
+`zincSize` are the mquickjs heap (96 KB); `chipFree` is `esp_get_free_heap_size()`, the figure the firmware prints; a frame's
+time runs from the frame callback to the end of the transfer, and `drawCmds()` counts its `zinc:gfx` commands. In the
+check on the computer (`zinc check --target esp32 --engine mquickjs`) the heap is the check's, the frame figures are -1.
 
 ### Build, flash, QEMU
 

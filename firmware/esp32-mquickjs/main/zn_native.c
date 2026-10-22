@@ -34,6 +34,16 @@ static int failed;
 static void *arena[2 * MAX_ARGS + 2]; /* what a call allocates (copied arguments, its result), freed when it returns */
 static int used;
 
+static JSContext *calling; /* the context of the native call in progress, which zn_js_heap measures */
+
+/* main/zn.h: the mquickjs heap, for zinc:device's memory(); here so that zinc-mqjs answers it too (a plugin's library finds it in the
+   executable) */
+void zn_js_heap(size_t *used, size_t *size)
+{
+    *used = *size = 0;
+    if (calling) JS_GetHeapUsage(calling, used, size);
+}
+
 static void *take(size_t n)
 {
     if (used == (int)(sizeof arena / sizeof arena[0])) return NULL;
@@ -275,6 +285,7 @@ JSValue js_native_call(JSContext *ctx, JSValue *this_val, int argc, JSValue *arg
         }
     }
     failed = 0;
+    calling = ctx;
     const int32_t st = x->fn(modules[mi].self, NULL, args, &ret);
     if (st != ZN_OK) {
         drop();

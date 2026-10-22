@@ -496,6 +496,7 @@ if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
   target_compile_options(zinc-mqjs PRIVATE -w -O2)
   set_source_files_properties(${ZN_MQ}/mqjs.c PROPERTIES COMPILE_OPTIONS "-include;${ZN_MQ_GEN}/zinc_mqjs_native.h")   # the table names them
   target_link_libraries(zinc-mqjs PRIVATE m ${CMAKE_DL_LIBS})
+  set_target_properties(zinc-mqjs PROPERTIES ENABLE_EXPORTS ON)   # a plugin's library it loads finds zn_js_heap there (main/zn_native.c)
 endif()
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
 add_library(zn_yaml STATIC third_party/libyaml/api.c third_party/libyaml/loader.c third_party/libyaml/parser.c third_party/libyaml/reader.c third_party/libyaml/scanner.c)   # libyaml 0.2.5 (read side only): scenario files (ZN-295)

@@ -30,6 +30,16 @@ int zn_int(JSContext *ctx, int argc, JSValue *argv, int i, int *out);
 void *zn_panel_buffer(size_t bytes);
 void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels);
 
+/* The board for a plugin's native code (zinc:device): the backlight's PWM level 0..255, kept until the first frame lights the panel (1 when
+   LEDC drives it, 0 for a plain on/off pin); whether the touch controller answered at start; the last frame's time in microseconds (the
+   frame callback, the rendering and the transfer) and its zinc:gfx commands. main.c answers them. */
+int zn_backlight(int level);
+int zn_touch(void);
+void zn_frame_stats(int *frame_us, int *draw_cmds);
+/* The mquickjs heap of the native call in progress: bytes in use and its size, as JS_DumpMemory's "heap size=used/size" (main/zn_native.c,
+   so zinc-mqjs answers it too on the computer). */
+void zn_js_heap(size_t *used, size_t *size);
+
 /* The modules' parts the core calls: the GPIO pins the board's own peripherals use (refused to programs), NVS opened once. */
 int zn_pin_reserved(int pin);
 void zn_storage_init(void);

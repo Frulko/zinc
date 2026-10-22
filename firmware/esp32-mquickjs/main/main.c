@@ -10,6 +10,7 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "driver/ledc.h"
 #include "driver/spi_master.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -65,6 +66,7 @@ static int touch_down, touch_x, touch_y;
 static int frames;
 static int64_t present_us;
 static int panel_owned, redraw_all; /* a plugin draws on the panel (zn_panel_flush); every band at the next present() */
+static int frame_us = -1, frame_cmds = -1; /* the last frame's time and zinc:gfx commands (zinc:device, zn_frame_stats) */
 
 static uint16_t rgb565(uint32_t c)
 {
@@ -87,6 +89,8 @@ static Cmd *push(int op)
 /* ---- the panel */
 
 static void lcd_cmd(int c, const uint8_t *p, int n) { esp_lcd_panel_io_tx_param(io, c, p, n); }
+
+static int bl_pwm, bl_lit, bl_level = 255; /* LEDC drives the backlight; it is lit (the first frame is on the panel); its level, 0..255 */
 
 static void lcd_init(void)
 {
@@ -139,8 +143,35 @@ static void lcd_init(void)
     static const uint8_t caset[4] = {0, 0, (W - 1) >> 8, (W - 1) & 0xff};
     lcd_cmd(0x2A, caset, 4);
     for (int i = 0; i < 2; i++) bands[i] = heap_caps_malloc(W * BAND * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    gpio_set_direction(LCD_BL, GPIO_MODE_OUTPUT);
-    gpio_set_level(LCD_BL, 0); /* on after the first frame, which hides the power-on RAM noise */
+    /* the backlight: LEDC PWM, 5 kHz and 8 bits as plugins/display-st7789 drives it (inaudible, no visible flicker), a plain pin when LEDC
+       is not there; dark until the first frame, which hides the power-on RAM noise */
+    const ledc_timer_config_t lt = {.speed_mode = LEDC_LOW_SPEED_MODE, .duty_resolution = LEDC_TIMER_8_BIT, .timer_num = LEDC_TIMER_0, .freq_hz = 5000,
+                                    .clk_cfg = LEDC_AUTO_CLK};
+    const ledc_channel_config_t lc = {.gpio_num = LCD_BL, .speed_mode = LEDC_LOW_SPEED_MODE, .channel = LEDC_CHANNEL_0, .timer_sel = LEDC_TIMER_0, .duty = 0};
+    bl_pwm = ledc_timer_config(&lt) == ESP_OK && ledc_channel_config(&lc) == ESP_OK;
+    if (!bl_pwm) {
+        gpio_set_direction(LCD_BL, GPIO_MODE_OUTPUT);
+        gpio_set_level(LCD_BL, 0);
+    }
+}
+
+/* the backlight at bl_level from the first frame on (present, zn_panel_flush) */
+static void backlight_show(void)
+{
+    bl_lit = 1;
+    if (!bl_pwm) {
+        gpio_set_level(LCD_BL, bl_level > 0);
+        return;
+    }
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bl_level == 255 ? 256 : bl_level); /* 256: always on */
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
+int zn_backlight(int level)
+{
+    bl_level = level < 0 ? 0 : level > 255 ? 255 : level;
+    if (bl_lit) backlight_show();
+    return bl_pwm;
 }
 
 static void fill_row(uint16_t *row, int x0, int x1, uint16_t color)
@@ -212,6 +243,7 @@ static void present(void)
 {
     static uint32_t shown[H / BAND];
     static int which;
+    frame_cmds = ncmd;
     if (panel_owned) { /* a plugin draws on the panel itself: the display list is not shown */
         ncmd = ntext = 0;
         frames++;
@@ -242,7 +274,8 @@ static void present(void)
     }
     ncmd = ntext = 0;
     redraw_all = 0;
-    if (!frames++) gpio_set_level(LCD_BL, 1);
+    frames++;
+    if (!bl_lit) backlight_show();
     present_us += esp_timer_get_time() - t0;
 }
 
@@ -262,7 +295,7 @@ void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels)
     esp_lcd_panel_io_tx_color(io, 0x2C, pixels, (size_t)(x1 - x0) * (y1 - y0) * 2);
     if (!panel_owned) {
         panel_owned = 1;
-        gpio_set_level(LCD_BL, 1);
+        if (!bl_lit) backlight_show();
     }
 }
 
@@ -292,6 +325,14 @@ static void touch_init(void)
         printf("mqjs: no touch controller at 0x%02x\n", TP_ADDR);
         tp = NULL;
     }
+}
+
+int zn_touch(void) { return tp != NULL; }
+
+void zn_frame_stats(int *us, int *cmds)
+{
+    *us = frame_us;
+    *cmds = frame_cmds;
 }
 
 static void touch_poll(void)
@@ -494,6 +535,7 @@ static void show_error(JSContext *ctx, const char *what)
 {
     zn_program_state = 2;
     panel_release();
+    zn_backlight(255); /* a program that dimmed the panel does not hide its error */
     static char msg[1024];
     capture = msg;
     ncapture = 0;
@@ -684,6 +726,7 @@ static int deliver(JSContext *ctx, Event *e)
 static void message(const char *line1, const char *line2)
 {
     panel_release();
+    zn_backlight(255);
     ncmd = ntext = 0;
     background = 0;
     text(line1, strlen(line1), 8, 8, 0xffffff, 2);
@@ -743,6 +786,7 @@ static void run(JSContext *ctx)
         JS_PopGCRef(ctx, &dt_ref);
         JS_PopGCRef(ctx, &cb_ref);
         if (due) {
+            const int64_t t_frame = esp_timer_get_time();
             touch_poll();
             last = f0;
             int64_t p0 = present_us;
@@ -754,6 +798,7 @@ static void run(JSContext *ctx)
             } else {
                 present();
             }
+            frame_us = (int)(esp_timer_get_time() - t_frame);
             js_us += esp_timer_get_time() - f0 - (present_us - p0);
             next_frame += FRAME_US; /* frames the panel would not show are not drawn */
             if (next_frame < esp_timer_get_time()) next_frame = esp_timer_get_time();

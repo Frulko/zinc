@@ -132,8 +132,22 @@ int findNatives(const std::string& root, const std::string& entry, const std::st
     Native n{name, fp->dir, impl, gen.cHeader, {}, ts->second.defines, ts->second.idf, ts->second.sdkconfig, ts->second.idfComponents};
     for (const std::string& src : ts->second.sources) n.sources.push_back((fs::path(fp->dir) / src).lexically_normal().string());
     p.natives.push_back(n);
+    // the check runs the firmware's C: where the computer's library is another implementation (the manifest's, <x>.<target>.cpp or
+    // <x>.host.cpp come first there; zinc:device's is on zinc's runtime, which zinc-mqjs has not), the ABI file is built as a target of
+    // its own, "mquickjs", with the computer's settings and its own cache
+    zn::frontend::FoundPlugin check = *fp;
+    std::string target = zn::tc::pluginTarget();
+    const auto computer = check.manifest.targetSettings.find(target);
+    if (computer != check.manifest.targetSettings.end() &&
+        (check.manifest.nativeImpl.count(target) || fs::exists(nd / (base + "." + target + ".cpp")) || fs::exists(nd / (base + ".host.cpp")))) {
+      const zn::frontend::PluginTarget settings = computer->second;
+      target = "mquickjs";
+      check.manifest.targets.push_back(target);
+      check.manifest.targetSettings[target] = settings;
+      check.manifest.nativeImpl[target] = fs::path(impl).lexically_relative(fp->dir).string();
+    }
     zn::tc::PluginLib lib;
-    if (run && zn::tc::buildPlugin(*fp, root, projectDir, zn::tc::pluginTarget(), lib, err) && !lib.shared.empty()) env += lib.shared + "=" + name + ";";
+    if (run && zn::tc::buildPlugin(check, root, projectDir, target, lib, err) && !lib.shared.empty()) env += lib.shared + "=" + name + ";";
     else if (run) {
       std::fprintf(stderr, "zinc: plugin '%s' has no library for this computer (%s): the program is compiled for the board without being run here first\n", fp->manifest.name.c_str(), err.c_str());
       run = false;

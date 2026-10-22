@@ -2,9 +2,13 @@
 // heap figures, chip info.
 #include "zinc_native_device.h"
 #include <stdio.h>
+#include <string.h>
 #include "esp_heap_caps.h"
 #include "esp_chip_info.h"
 #include "esp_private/esp_clk.h"
+#include "esp_app_desc.h"
+#include "esp_flash.h"
+#include "esp_idf_version.h"
 
 extern "C" __attribute__((weak)) void zinc_display_backlight(int32_t level);
 extern "C" __attribute__((weak)) int32_t zinc_display_touch(void);
@@ -30,6 +34,17 @@ struct EspDevice : NativeDevice {
     char b[48];
     int n = snprintf(b, sizeof b, "%s rev %d.%d, %d core%s", c.model == CHIP_ESP32S3 ? "ESP32-S3" : "ESP32",
                      c.revision / 100, c.revision % 100, c.cores, c.cores > 1 ? "s" : "");
+    return zrt::String::from(b, (uint32_t)(n < (int)sizeof b ? n : (int)sizeof b - 1));
+  }
+  int32_t flashSize() override {
+    uint32_t size = 0;
+    return esp_flash_get_size(nullptr, &size) == ESP_OK ? (int32_t)size : -1;
+  }
+  zrt::String idfVersion() override { const char* v = esp_get_idf_version(); return zrt::String::from(v, (uint32_t)strlen(v)); }
+  zrt::String firmware() override {   // as the mquickjs firmware prints it: the project's name and the first bytes of the ELF's SHA-256
+    const esp_app_desc_t* d = esp_app_get_description();
+    char b[48];
+    int n = snprintf(b, sizeof b, "%s %02x%02x%02x%02x", d->project_name, d->app_elf_sha256[0], d->app_elf_sha256[1], d->app_elf_sha256[2], d->app_elf_sha256[3]);
     return zrt::String::from(b, (uint32_t)(n < (int)sizeof b ? n : (int)sizeof b - 1));
   }
 };

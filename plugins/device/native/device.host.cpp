@@ -16,6 +16,9 @@ struct HostDevice : NativeDevice {
 #else
   zrt::String chip() override { return zrt::String::from("Linux emulator", 14); }
 #endif
+  int32_t flashSize() override { return -1; }
+  zrt::String idfVersion() override { return zrt::String::from("", 0); }
+  zrt::String firmware() override { return zrt::String::from("", 0); }
 };
 
 NativeDevice* zinc_create_Device() {

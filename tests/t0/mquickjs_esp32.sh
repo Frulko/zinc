@@ -36,6 +36,11 @@ done
 mkdir -p "$T/qr"
 printf "import { encode } from 'zinc:qrcode';\nconst q = encode('HELLO', 0, 1);\nif (q.size !== 21 || !q.module(0, 0) || q.module(7, 0)) throw new Error('qr ' + q.size);\nconsole.log('qr ok');\n" > "$T/qr/main.ts"
 "$ZINC" check "$T/qr/main.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 || { echo "a program on a plugin's native module does not check"; cat "$T/log"; fail=1; }
+# zinc:device has device.host.cpp for zinc's engines and device.abi.c for mquickjs: the check builds and runs the ABI file, whose heap
+# figures come from zinc-mqjs (zn_js_heap)
+mkdir -p "$T/dev"
+printf "import * as d from 'zinc:device';\nconst m = d.memory();\nd.setBacklight(0.5);\nconst s = (m.zincUsed > 0 && m.zincSize > m.zincUsed) + ' ' + m.chipFree + ' ' + m.chipMinFree + ' ' + d.hasBacklight() + ' ' + d.backlight() + ' ' + d.hasTouch() + ' ' +\n  d.frameMs() + ' ' + d.drawCmds() + ' ' + d.cpuMhz() + ' ' + d.flashSize() + ' [' + d.idfVersion() + d.firmware() + '] ' + d.chip();\nif (s !== 'true -1 -1 false 0.5 true -1 -1 0 -1 [] mquickjs on the computer') throw new Error('device: ' + s);\n" > "$T/dev/main.ts"
+"$ZINC" check "$T/dev/main.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 && grep -q "checked for" "$T/log" || { echo "a zinc:device program does not run its check under mquickjs"; cat "$T/log"; fail=1; }
 # a local name that is also a Web global (screen) is the program's own: zinc:web, which needs what mquickjs lacks, is not linked in
 mkdir -p "$T/local"
 printf "function f(): number { const screen = 2; return screen; }\nconsole.log('local ' + f());\n" > "$T/local/main.ts"

@@ -39,7 +39,9 @@ It includes `zinc_native_qrcode_abi.h` (generated) and its library's headers fro
   program alone goes to the board in a second. `zinc:native` there is `js/modules/native.js`
   and `main/zn_native.c`, which convert the arguments and results by the export's signature.
 - **The check** before anything is sent runs the program under mquickjs on the computer with the same C: `zinc-mqjs` loads the plugin's
-  library built for the computer. `zinc check <app> --target esp32 --engine mquickjs` runs it alone.
+  library built for the computer. `zinc check <app> --target esp32 --engine mquickjs` runs it alone. A plugin that also has another
+  implementation for zinc's own engines (`<x>.host.cpp` on zinc's runtime: `zinc:device`) keeps it for them, and the check builds the ABI
+  file apart for itself (`~/.zinc/cache/mquickjs/plugins`).
 
 The plugin's ESP32 settings: `sources` (C or C++ files, compiled with the firmware), `defines`, `idf` (ESP-IDF components the code
 `REQUIRES`: `esp_driver_i2c`, `esp_adc`...), `idfComponents` (packages of the ESP Component Registry, written into the generated
@@ -50,6 +52,11 @@ A native module that draws the screen itself (`zinc:lvgl`) takes the panel throu
 buffer the panel's bus can read (240 x 32 pixels at most). `zn_panel_flush(x0, y0, x1, y1, pixels)` sends an area of RGB565 pixels, high
 byte first; it waits for the previous area's transfer, so the module renders the next area while the bus sends this one. From the first
 area on, the program's `zinc:gfx` display list is no longer shown; an error takes the panel back to show its message.
+
+The board's other figures come through `main/zn.h` too (`zinc:device`, `plugins/device/native/device.abi.c`): `zn_backlight(level)`
+sets the backlight's LEDC PWM, 0 to 255, kept until the first frame lights the panel; `zn_touch()` says whether the touch controller
+answered at start; `zn_frame_stats(&us, &cmds)` gives the last frame's time and `zinc:gfx` commands; `zn_js_heap(&used, &size)` the
+mquickjs heap, answered by `main/zn_native.c`, so the check on the computer has it as well (declare it weak to load anywhere else).
 
 ## Arduino
 

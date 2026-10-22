@@ -384,5 +384,7 @@ void JS_DumpValueF(JSContext *ctx, const char *str,
 void JS_DumpValue(JSContext *ctx, const char *str,
                   JSValue val);
 void JS_DumpMemory(JSContext *ctx, JS_BOOL is_long);
+/* zinc patch: bytes of the heap in use (JS_DumpMemory's "heap size=used/size") and its size */
+void JS_GetHeapUsage(JSContext *ctx, size_t *used, size_t *size);
 
 #endif /* MQUICKJS_H */

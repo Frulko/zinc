@@ -25,6 +25,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc check <app> --target esp32 --engine mquickjs` checks and compiles a program for the board without writing anything to it.
 - A plugin's native code on the ESP32 can draw the screen itself, sending areas of pixels to the panel (`zn_panel_buffer`, `zn_panel_flush` in the firmware's `zn.h`). Plugins' C is now compiled for speed (`-O2`). See docs/plugins/native-esp32.md.
 - `zinc:lvgl`: LVGL 9 widgets (buttons, sliders, switches, charts, keypads...), flex layout and smooth scrolling from TypeScript, the light interface for an ESP32 under `--engine mquickjs`. LVGL draws only what changed, straight to the panel. The same program runs on the computer. `examples/esp32-widgets` is a five-page tour in 60 KB of bytecode. See docs/plugins/lvgl.md.
+- `zinc:device` works on the ESP32 under `--engine mquickjs`: the backlight's brightness (PWM), the JavaScript heap and the chip's free memory, the chip, its clock and flash size, the ESP-IDF version, the firmware's build, whether touch answered, and the last frame's time and draw commands. New everywhere: `flashSize()`, `idfVersion()`, `firmware()`.
 
 ### Changed
 - Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 690 KB, `examples/breakout` from 37.6 KB to 24.6 KB.

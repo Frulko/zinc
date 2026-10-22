@@ -7179,6 +7179,13 @@ static __maybe_unused void JS_DumpUniqueStrings(JSContext *ctx)
 }
 #endif
 
+/* zinc patch (third_party/README.md): the heap in use and its size, the last line of JS_DumpMemory without walking the heap */
+void JS_GetHeapUsage(JSContext *ctx, size_t *used, size_t *size)
+{
+    *used = ctx->heap_free - ctx->heap_base;
+    *size = ctx->stack_top - ctx->heap_base;
+}
+
 void JS_DumpValueF(JSContext *ctx, const char *str,
                    JSValue val, int flags)
 {

@@ -3,10 +3,10 @@
   "kind": "module",
   "module": "zinc:device",
   "entry": "index.ts",
-  "description": "Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics",
+  "description": "Device services for board demos: backlight level (PWM), chip, flash, firmware and heap figures, frame statistics; on the computer, in the AOT firmware and under mquickjs on the ESP32 (native/device.abi.c)",
   "options": {},
   "targets": {
-    "esp32": { "idf": ["esp_hw_support"] },
+    "esp32": { "idf": ["esp_hw_support", "spi_flash", "esp_app_format"] },
     "macos": {},
     "linux": {},
     "windows": {}

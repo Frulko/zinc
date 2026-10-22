@@ -3,10 +3,12 @@
 //   import * as device from 'zinc:device';
 //   device.setBacklight(0.6);          // 0..1, perceptual (the PWM duty follows level²)
 //   device.memory();                   // { zincUsed, zincSize, chipFree, chipMinFree } in bytes (-1: unknown)
-//   device.frameMs(); device.drawCmds(); device.chip(); device.cpuMhz();
+//   device.frameMs(); device.drawCmds(); device.chip(); device.cpuMhz(); device.flashSize(); device.idfVersion(); device.firmware();
 //
-// The backlight goes through the display driver (plugins/display-st7789: LEDC PWM on its `bl` pin). Where there is
-// none (the macOS emulator, sim) the level is only remembered: backlight() returns it and hasBacklight() is false.
+// The backlight is LEDC PWM on the panel's backlight pin: the display driver's (plugins/display-st7789, `bl`) in the AOT firmware, the
+// firmware's own under --engine mquickjs (GPIO 0 on the ESP32-2432S022). Where there is none (the computer, sim) the level is only
+// remembered: backlight() returns it and hasBacklight() is false. Under mquickjs (native/device.abi.c) the "Zinc heap" of memory() is the
+// JavaScript heap of mquickjs (96 KB on the board).
 import D from './native/device.spec';
 
 let level: number = 1;
@@ -26,9 +28,9 @@ export function hasBacklight(): boolean { return driven; }
 export function hasTouch(): boolean { return D.hasTouch(); }
 
 export class Memory {
-  zincUsed: i32 = 0;      // Zinc heap (TLSF) bytes in use
-  zincSize: i32 = 0;      // Zinc heap size
-  chipFree: i32 = -1;     // ESP32 internal RAM free outside the Zinc heap (-1 on hosts)
+  zincUsed: i32 = 0;      // Zinc heap (TLSF) bytes in use; under mquickjs, the JavaScript heap's (-1: unknown)
+  zincSize: i32 = 0;      // its size
+  chipFree: i32 = -1;     // ESP32 RAM free outside it (-1 on hosts)
   chipMinFree: i32 = -1;  // lowest chipFree since boot
 }
 export function memory(): Memory {
@@ -39,10 +41,17 @@ export function memory(): Memory {
 }
 /** Zinc heap bytes in use now (cheap: no allocation, fine to sample every frame). */
 export function zincHeapUsed(): i32 { return D.zincHeapUsed(); }
-/** Duration of the last frame in milliseconds (program, rasterization and transfer to the panel). */
-export function frameMs(): number { return D.frameUs() / 1000; }
-/** Draw commands of the last painted frame (the esp32 build holds 256 per frame). */
+/** Duration of the last frame in milliseconds (program, rasterization and transfer to the panel); -1 when unknown (the mquickjs check on the computer). */
+export function frameMs(): number { const us = D.frameUs(); return us < 0 ? -1 : us / 1000; }
+/** Draw commands of the last painted frame (zinc:gfx's; the AOT esp32 build holds 256 per frame, the mquickjs one 768); -1 when unknown. */
 export function drawCmds(): i32 { return D.drawCmds(); }
+/** The chip: "ESP32 rev 3.0, 2 cores" (model, revision, cores); a name of the computer elsewhere. */
 export function chip(): string { return D.chip(); }
 /** CPU clock in MHz, 0 when unknown (emulators). */
 export function cpuMhz(): i32 { return D.cpuMhz(); }
+/** Size of the flash chip in bytes, -1 when unknown (hosts). */
+export function flashSize(): i32 { return D.flashSize(); }
+/** The ESP-IDF version the firmware was built with ("v5.5.5"), '' on hosts. */
+export function idfVersion(): string { return D.idfVersion(); }
+/** The firmware: its name and build as it prints them at start ("zinc-mquickjs 1a2b3c4d"), '' on hosts. */
+export function firmware(): string { return D.firmware(); }
