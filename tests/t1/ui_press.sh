@@ -1,5 +1,5 @@
 #!/bin/sh
-# The default pressed feedback (tests/golden/ui-press, scripted mouse, keyboard and finger): a Pressable dims while held and comes back after the
+# The default pressed feedback (tests/golden/ui-press, scripted mouse, keyboard and finger): a View with onClick dims while held and comes back after the
 # release, dragging off lifts the dim and presses nothing, a disabled one does not respond, Enter dims the focused one, activeOpacity and an
 # active:opacity-70 class replace the default, ui.setPressFeedback(false) turns it off. The pixels of the held frame show the dim painted.
 cd "$(dirname "$0")/../.." || exit 2

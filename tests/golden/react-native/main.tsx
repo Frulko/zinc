@@ -1,5 +1,5 @@
 // zinc:react-native, first slice (ZN-367.01): a screen written with React Native's names. Scripted presses check Pressable (onPressIn/Out, onPress,
-// onLongPress, disabled), TouchableOpacity's activeOpacity and TouchableHighlight's underlay while pressed, a controlled Switch, ActivityIndicator,
+// onLongPress, disabled, no dim of its own, `style` and `children` as functions of { pressed } (ZN-774.18), a border with no colour black), TouchableOpacity's activeOpacity and TouchableHighlight's underlay while pressed, a controlled Switch, ActivityIndicator,
 // SafeAreaView, StatusBar, and the APIs Platform, Dimensions (+ change), useWindowDimensions, PixelRatio, Appearance / useColorScheme.
 import { useState } from 'zinc:ui/react';
 import { render } from 'zinc:ui/react';
@@ -36,9 +36,12 @@ function App(): i32 {
       <ActivityIndicator animating={false} />
       <Text>{`${win.width}x${win.height} ${scheme}`}</Text>
     </View>
+    <Pressable style={({ pressed }) => [s.button, { backgroundColor: pressed ? '#ff5a36' : '#0f766e', borderWidth: 2 }]} onPress={() => log.push('function press')}>
+      {({ pressed }) => <Text style={s.label}>{pressed ? 'Pressed' : 'Function'}</Text>}
+    </Pressable>
   </SafeAreaView>;
 }
-let f = 0;
+let f = 0, fnY = 0;
 function hex(v: i32): string { let o = ''; for (let k = 20; k >= 0; k -= 4) o += '0123456789abcdef'.charAt((v >> k) & 15); return o; }
 const at = (y: number, down: boolean): void => ui.pointerAt(100, y, down);
 const opacityAt = (y: number): string => { const h = ui.hitAt(100, y); const n = ui.inspectNode(h); return n === null ? '?' : n.opacity.toFixed(2); };
@@ -50,6 +53,7 @@ render(App, 0xf4f1ec, (dt: number) => {
   f++;
   if (f === 2) { console.log(`window ${Dimensions.get('window').width}x${Dimensions.get('window').height} status ${statusBarProps().barStyle ?? ''}`); at(38, true); }
   if (f === 3) { at(38, false); console.log(`tap: ${log.join(' ')}`); log.length = 0; at(38, true); }
+  if (f === 39) console.log(`held, no dim: ${ui.pressDim(ui.hitAt(100, 38)).toFixed(2)}`);
   if (f === 40) { at(38, false); console.log(`long: ${log.join(' ')}`); log.length = 0; at(94, true); }
   if (f === 41) { at(94, false); console.log(`disabled: [${log.join(' ')}]`); at(150, true); }
   if (f === 42) { console.log(`opacity while pressed ${opacityAt(150)}`); at(150, false); }
@@ -60,5 +64,7 @@ render(App, 0xf4f1ec, (dt: number) => {
   if (f === 47) { ui.pointerAt(40, 300, false); }
   if (f === 48) { ui.pointerAt(40, 300, true); }
   if (f === 49) { ui.pointerAt(40, 300, false); Appearance.setColorScheme('dark'); }
-  if (f === 51) { console.log(`after: ${log.join(' ')} presses ${pressCount} rendered ${seen}`); sub.remove(); quit(); }
+  if (f === 51) { console.log(`after: ${log.join(' ')} presses ${pressCount} rendered ${seen}`); log.length = 0; sub.remove(); fnY = ui.screenBox(ui.find('Function'))[1] + 5; at(fnY, true); }
+  if (f === 52) { const h = ui.hitAt(100, fnY); console.log(`function held: ${bgAt(fnY)} '${ui.find('Pressed') >= 0 ? 'Pressed' : '?'}' dim ${ui.pressDim(h).toFixed(2)}`); at(fnY, false); }
+  if (f === 53) { const n = ui.inspectNode(ui.hitAt(100, fnY)); console.log(`function after: ${bgAt(fnY)} '${ui.find('Function') >= 0 ? 'Function' : '?'}' border ${n === null ? '?' : hex(n.borderColor)} ${log.join(' ')}`); quit(); }
 });

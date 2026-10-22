@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc:react-native, first slice (ZN-367.01): tests/golden/react-native, a React model screen with React Native's names in the rn layout mode. Scripted
-# presses check Pressable (in, out, press, long press, disabled), TouchableOpacity's activeOpacity and TouchableHighlight's underlay while pressed, a controlled
+# presses check Pressable (in, out, press, long press, disabled, no dim, style and children as functions of { pressed }), TouchableOpacity's activeOpacity and TouchableHighlight's underlay while pressed, a controlled
 # Switch, TouchableWithoutFeedback, and Platform, Dimensions, PixelRatio, StatusBar, processColor; the screen (spinner, switch, black default text) renders to
 # its frame hash.
 cd "$(dirname "$0")/../.." || exit 2

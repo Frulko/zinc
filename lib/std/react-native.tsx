@@ -33,13 +33,17 @@ export function processColor(c: string): i32 {
 }
 
 // ---------------------------------------------------------------- Pressable and the Touchable family
+/** What Pressable's `style` and `children` functions receive. */
+export type PressableStateCallbackType = { pressed: boolean };
 export type PressableProps = {
   onPress?: () => void; onLongPress?: () => void; onPressIn?: () => void; onPressOut?: () => void;
   disabled?: boolean; style?: ui.Style; testID?: string; accessibilityLabel?: string; children?: () => i32;
+  // `style={({ pressed }) => ...}` and a function child `{({ pressed }) => <...>}`: the JSX lowering passes an inline arrow as these two
+  styleFn?: (s: PressableStateCallbackType) => ui.Style; childrenFn?: (s: PressableStateCallbackType) => i32;
   activeOpacity?: number; underlayColor?: string;   // TouchableOpacity, TouchableHighlight (one props type: no intersection types here)
 };
 /** The press machinery the Touchables share: pressed while the pointer is down on it, onPress on a click, onLongPress after 500 ms (no onPress then).
- *  Without a pressed style of its own it dims while pressed (zinc:ui's default pressed feedback); with one, or `feedback` false, only that shows. */
+ *  With `feedback` and no pressed style of its own it dims while pressed (zinc:ui's default pressed feedback, Button's); a pressed style replaces it. */
 // disabled: the engine neither presses nor focuses it. Both keys are always written: a key a style drops keeps its last value.
 const FEEDBACK = new ui.Style(['pressFeedback'], [1]), NO_FEEDBACK = new ui.Style(['pressFeedback'], [0]);
 const ENABLED = new ui.Style(['disabled'], [0]), DISABLED = new ui.Style(['disabled'], [1]);
@@ -50,10 +54,15 @@ function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boole
   const long = (e: ui.PointerEvent): void => { const f = p.onLongPress; if (!off && f !== undefined) f(); };
   const down = (e: ui.PointerEvent): void => { if (off) return; setPressed(true); const f = p.onPressIn; if (f !== undefined) f(); };
   const up = (e: ui.PointerEvent): void => { if (!pressed) return; setPressed(false); const f = p.onPressOut; if (f !== undefined) f(); };
-  return <View style={[p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
-    onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderChildren(p.children)}</View>;
+  const sf = p.styleFn, st: PressableStateCallbackType = { pressed: pressed };
+  return <View style={[sf !== undefined ? sf(st) : p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
+    onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderPressable(p, st)}</View>;
 }
-export function Pressable(p: PressableProps): i32 { return Press(p, null); }
+function renderPressable(p: PressableProps, st: PressableStateCallbackType): i32 { const cf = p.childrenFn; return cf !== undefined ? cf(st) : renderChildren(p.children); }
+/** No feedback of its own, as React Native's: a program shows the pressed state through `style` or `children` given as functions of `{ pressed }`. */
+export function Pressable(p: PressableProps): i32 { return Press(p, null, false); }
+/** Button's pressable: zinc:ui's dim while pressed. */
+function Dimmed(p: PressableProps): i32 { return Press(p, null); }
 /** React Native's Button, as its Button.js draws it per platform (zinc:ui/platform's look): iOS a tinted title (18 px; `color` tints it), Android a
  *  raised filled rectangle with an upper-case white title (`color` fills it, #2196f3 by default), macOS a push button (a white bezel, 13 px). It dims
  *  while pressed; disabled greys it. The neutral look keeps iOS's. */
@@ -61,19 +70,19 @@ export function Button(p: { title: string; onPress?: () => void; color?: string;
   const L = P.look(), off = p.disabled ?? false, given = p.color !== undefined ? processColor(p.color as string) : -1;
   if (L.name === 'android') {
     const bg = off ? 0xdfdfdf : given >= 0 ? given : 0x2196f3;
-    return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'elevation', 'alignItems'], [bg, 2, off ? 0 : 4, 1])}>
+    return <Dimmed onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'elevation', 'alignItems'], [bg, 2, off ? 0 : 4, 1])}>
       <Text style={{ fontSize: 14, fontWeight: '500', padding: 8, color: off ? 0xa1a1a1 : 0xffffff }}>{p.title.toUpperCase()}</Text>
-    </Pressable>;
+    </Dimmed>;
   }
   if (L.name === 'macos') {
-    return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'borderWidth', 'borderColor', 'height', 'paddingLeft', 'paddingRight', 'alignItems', 'justifyContent', 'shadowColor', 'shadowOpacity', 'shadowRadius', 'shadowOffsetY'],
+    return <Dimmed onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'borderWidth', 'borderColor', 'height', 'paddingLeft', 'paddingRight', 'alignItems', 'justifyContent', 'shadowColor', 'shadowOpacity', 'shadowRadius', 'shadowOffsetY'],
       [P.color(L.raised), 6, 1, P.color(L.border), 22, 12, 12, 1, 1, 0x000000, 0.1, 1, 1])}>
       <Text style={{ fontSize: 13, color: off ? 0xa0a0a0 : given >= 0 ? given : P.color(L.label) }}>{p.title}</Text>
-    </Pressable>;
+    </Dimmed>;
   }
-  return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['paddingTop', 'paddingBottom', 'alignItems'], [8, 8, 1])}>
+  return <Dimmed onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['paddingTop', 'paddingBottom', 'alignItems'], [8, 8, 1])}>
     <Text style={{ fontSize: 18, color: off ? 0x999999 : (given < 0 ? P.tint() : given) }}>{p.title}</Text>
-  </Pressable>;
+  </Dimmed>;
 }
 export function TouchableWithoutFeedback(p: PressableProps): i32 { return Press(p, null, false); }
 /** Dims to activeOpacity (0.2) while pressed. */

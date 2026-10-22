@@ -42,18 +42,18 @@ function Home() {
     {message !== '' && <View style={[s.card, { backgroundColor: WARN_SOFT, borderColor: WARN_SOFT }]}>
       <View style={s.row}><Icon name="circle-alert" size={18} color={() => WARN} /><Text style={[s.text, { color: WARN, flex: 1 }]}>{message}</Text></View>
     </View>}
-    <Pressable style={s.primary} onPress={() => setScanning(true)} accessibilityLabel="Scan QR code">
+    <Pressable style={({ pressed }) => [s.primary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => setScanning(true)} accessibilityLabel="Scan QR code">
       <Icon name="camera" size={20} color={() => 0xFFFFFF} /><Text style={s.primaryText}>Scan QR code</Text>
     </Pressable>
     <View style={s.card}>
       <Text style={s.label}>Or type the link</Text>
       <TextInput style={s.input} value={typed} onChangeText={setTyped} placeholder="zinc://192.168.1.10:8090/code" autoCapitalize="none"
         keyboardType="url" onSubmitEditing={() => open(linkOf(typed))} accessibilityLabel="Link" />
-      <Pressable style={s.secondary} onPress={() => open(linkOf(typed))} accessibilityLabel="Open link">
+      <Pressable style={({ pressed }) => [s.secondary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(linkOf(typed))} accessibilityLabel="Open link">
         <Icon name="link" size={18} color={() => INK} /><Text style={s.secondaryText}>Open</Text>
       </Pressable>
     </View>
-    {last !== '' && <Pressable style={s.secondary} onPress={() => open(last)} accessibilityLabel="Open again">
+    {last !== '' && <Pressable style={({ pressed }) => [s.secondary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(last)} accessibilityLabel="Open again">
       <Icon name="refresh-cw" size={18} color={() => INK} /><Text style={s.secondaryText}>{`Open again: ${last.split('/')[2]}`}</Text>
     </Pressable>}
     <Text style={s.foot}>{`In a project: shake the ${Platform.OS === 'ios' ? 'phone' : 'device'}, press with three fingers or the Menu key for the dev menu (reload, back home).`}</Text>

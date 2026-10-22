@@ -1,10 +1,11 @@
-// The default pressed feedback (tests/t1/ui_press.sh, driven by the ZINC_INPUT script beside this file): a Pressable dims while the mouse or a finger
-// is down on it and comes back after the release; dragged off it, the dim lifts and no press fires; a disabled one neither dims nor fires; Enter on the
-// focused one dims it a moment; TouchableOpacity's activeOpacity and an active:opacity-70 class replace the default dim instead of adding to it.
+// The default pressed feedback (tests/t1/ui_press.sh, driven by the ZINC_INPUT script beside this file): a View with onClick dims while the mouse or a
+// finger is down on it and comes back after the release; dragged off it, the dim lifts and no press fires; a disabled one neither dims nor fires; Enter
+// on the focused one dims it a moment; TouchableOpacity's activeOpacity and an active:opacity-70 class replace the default dim instead of adding to it.
+// (zinc:react-native's Pressable shows no dim, as React Native's: tests/golden/react-native.)
 import { useState } from 'zinc:ui/react';
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet } from 'zinc:react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'zinc:react-native';
 import { quit } from 'zinc:gfx';
 
 let presses = '';
@@ -16,9 +17,9 @@ const s = StyleSheet.create({
 });
 function App() {
   return <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
-    <Pressable style={s.a} onPress={() => { presses += 'A'; }}><Text>A</Text></Pressable>
+    <View style={s.a} onClick={() => { presses += 'A'; }}><Text>A</Text></View>
     <TouchableOpacity style={s.b} activeOpacity={0.5} onPress={() => { presses += 'B'; }}><Text>B</Text></TouchableOpacity>
-    <Pressable style={s.c} disabled={true} onPress={() => { presses += 'C'; }}><Text>C</Text></Pressable>
+    <View style={s.c} disabled={true} onClick={() => { presses += 'C'; }}><Text>C</Text></View>
     <View style={s.d} className="active:opacity-70" onClick={() => { presses += 'D'; }}><Text>D</Text></View>
   </View>;
 }

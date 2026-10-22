@@ -11,7 +11,7 @@ The host elements draw nothing a program did not ask for, as React Native's do; 
 
 | element | without a class or a style |
 | --- | --- |
-| `View` | nothing; a border width with no colour is grey-200 `#e5e7eb` |
+| `View` | nothing; a border width with no colour is grey-200 `#e5e7eb` (black under the react-native preset or the `rn` layout, as React Native's) |
 | `Text` | 16 px Inter (14 px under the react-native preset); black on a light window and white on a dark one (the brightness of `render`'s background, white before the first frame), always black under the react-native preset |
 | `Button` | nothing: a box that takes the focus, Enter and Space, and centres its content |
 | `Input`, `TextArea` | their text, caret, placeholder (`#64748b`, `placeholderTextColor`) and selection (`selectionColor`) only, in the colour and size of the text around them (the caret: `cursorColor`); no fill, border, radius or padding |
@@ -274,10 +274,11 @@ A program can use at most 20 distinct attribute conditions; the golden is `tests
 
 What a mouse, a finger or the keyboard (Space, Enter) presses dims while it is held, as React Native's TouchableOpacity does: the opacity
 goes to 0.6 in 80 ms and back in 150 ms after the release, at least 100 ms for a quick tap (120 ms for a key), without a relayout. Every node with
-`onClick` (a button, a Pressable, a link-like text, a list row, a tab, a chip) gets it, through every kit. Dragging off the node lifts the dim (the
+`onClick` (a button, a link-like text, a list row, a tab, a chip) gets it, through every kit; zinc:react-native's Pressable shows none, as React
+Native's (its `style` and `children` take `{ pressed }`). Dragging off the node lifts the dim (the
 release there presses nothing), a scroll that starts on it cancels it, and a disabled node is never pressed. The focus ring is separate.
 Not dimmed: a node with an `active:opacity-*` class (its own pressed opacity; `active:` colours add to the dim), a node with `pressFeedback={0}`
-(a style key too: TouchableOpacity, TouchableHighlight and TouchableWithoutFeedback use it), a node that holds other pressables (a panel that
+(a style key too: Pressable, TouchableOpacity, TouchableHighlight and TouchableWithoutFeedback use it), a node that holds other pressables (a panel that
 swallows clicks) and a full-screen catcher (a backdrop). `ui.setPressFeedback(false)` turns it off for the whole app; `ui.pressDim(h)` tells
 the factor applied now (tests: `tests/golden/ui-press`).
 

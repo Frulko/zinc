@@ -25,12 +25,12 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 
 | Component | Status | Notes |
 |---|---|---|
-| View | supported | host element; style, onPress (zinc:ui's), `{...panResponder.panHandlers}` |
+| View | supported | host element; style, onPress (zinc:ui's: it dims while pressed), `{...panResponder.panHandlers}`; a border with no `borderColor` is black, as React Native's |
 | Text | supported | host element; `numberOfLines` (ellipsis); black by default, 14 px under the preset (16 px without it); the face is Inter, or the app's own: an `assets/Roboto*.ttf` (Apache-2.0) and `ui.setFontSans('Roboto')` come closer to Android's, San Francisco cannot be shipped |
 | Image | partial | host element with `src`; `resizeMode` (attribute or style: cover, contain, stretch, center, repeat) and `tintColor` (a multiply: exact on white and grey pixels); `source={{ uri }}` and `ImageBackground` missing (a View takes `backgroundImage: 'url(..)'`) |
 | ScrollView | partial | host element; `onScroll` with `nativeEvent.contentOffset`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`; `contentContainerStyle`, `horizontal`, `refreshControl` missing |
-| Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; dims to 0.6 while pressed (zinc:ui's pressed feedback; React Native shows nothing); `style` as a function of `{ pressed }` and `hitSlop` missing |
-| TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity, underlayColor (replaces the background); their own feedback replaces the default dim, TouchableWithoutFeedback shows none |
+| Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; no feedback of its own, as React Native's: `style` and `children` may be functions of `{ pressed }`, written inline (`style={({ pressed }) => [s.button, pressed && s.down]}`, `{({ pressed }) => <Text>{pressed ? 'Pressed' : 'Press me'}</Text>}`); `hitSlop` missing |
+| TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity (0.2), underlayColor (replaces the background); TouchableWithoutFeedback shows nothing |
 | Button | supported | title, onPress, color, disabled; drawn as React Native's Button.js draws it on the platform (iOS a tinted title, Android a raised #2196f3 rectangle with an upper-case title, macOS a push button; docs/ui.md "Platform look") |
 | Switch | supported | value, onValueChange, trackColor, thumbColor, ios_backgroundColor, disabled; the platform's switch (iOS 51 x 31 green, Material 3 52 x 32 with an outline and a growing thumb, macOS 38 x 22 on the accent), a light haptic on iOS |
 | ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped; 12 bars on iOS and macOS, Material's turning arc on Android |

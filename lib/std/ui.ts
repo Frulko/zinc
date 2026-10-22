@@ -21,7 +21,7 @@ import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of the web target (ui-dom.browser.ts); on every other target DOM is false
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
-const BORDER_GREY: i32 = 0xe5e7eb;   // a border width with no colour: Tailwind's grey-200
+const BORDER_DEFAULT: i32 = UI_PRESET === 'react-native' || UI_LAYOUT === 'rn' ? 0x000000 : 0xe5e7eb;   // a border width with no colour: Tailwind's grey-200; black with React Native's style defaults (RN_STYLE below), as React Native draws it
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
 export const INPUT: i32 = 7, TEXTAREA: i32 = 8;
@@ -347,7 +347,7 @@ export class UiNode {
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
-  borderW: number = 0; borderColor: i32 = BORDER_GREY; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
+  borderW: number = 0; borderColor: i32 = BORDER_DEFAULT; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
    // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
   shX: number = 0; shY: number = 0; shBlur: number = 0; shColor: i32 = 0; shOpacity: number = 0; shAlpha: i32 = 255;   // React Native's shadow (ZN-360): drawn when shOpacity > 0; shAlpha: shadowColor's alpha
@@ -2675,7 +2675,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
-  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_GREY; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }

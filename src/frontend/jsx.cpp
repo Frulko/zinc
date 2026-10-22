@@ -741,6 +741,15 @@ struct Lowering {
     return false;
   }
   bool hasJsx(std::size_t a, std::size_t b) const { for (std::size_t i = a; i < b; ++i) if (jsxStart(i)) return true; return false; }
+  // [a, b) is an arrow function (`x => ...`, `({ pressed }) => ...`, `(s: T): R => ...`): the index of its `=>`, else 0
+  std::size_t arrowAt(std::size_t a, std::size_t b) const {
+    strip(a, b);
+    if (a + 1 < b && t[a].kind == Tok::Ident && isP(a + 1, "=>")) return a + 1;
+    if (!isP(a, "(")) return 0;
+    std::size_t q = match(a) + 1;
+    if (isP(q, ":")) while (q < b && !isP(q, "=>")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; }   // past a return type
+    return q < b && isP(q, "=>") ? q : 0;
+  }
 
   // an arrow function over [a, b) that returns JSX
   bool returnsJsx(std::size_t a, std::size_t b) {
@@ -1182,6 +1191,13 @@ struct Lowering {
       const Attr* lastDyn = nullptr;
       for (auto& p : attrs) {
         if (p.first == "key") continue;
+        if (rn && p.first == "style" && p.second->kind == 2 && arrowAt(p.second->eb, p.second->ee)) {   // Pressable's style={({ pressed }) => [...]}
+          std::size_t a = p.second->eb, b = p.second->ee;
+          strip(a, b);
+          std::size_t q = arrowAt(a, b);
+          props.push_back("styleFn: " + (isP(q + 1, "{") ? rw(a, b) : rw(a, q + 1) + " _flat(" + styleLayers(q + 1, b) + ")"));   // a block body returns a Style itself
+          continue;
+        }
         std::string val = rn && p.second->kind == 2 && styleProp(p.first) ? "_flat(" + styleLayers(p.second->eb, p.second->ee) + ")" : valueOf(*p.second);
         if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(p.first + ": " + val); lastDyn = p.second; }
         else props.push_back(p.first + ": " + val);
@@ -1192,7 +1208,8 @@ struct Lowering {
         std::size_t open = callParen(k->eb, k->ee);
         return open && nodeCall(calleeText(k->eb, open));
       };
-      if (kids.size() > 1 || (kids.size() == 1 && (kids[0]->kind == 0 || !nodeValued(kids[0])))) {
+      if (rn && kids.size() == 1 && kids[0]->kind == 1 && arrowAt(kids[0]->eb, kids[0]->ee)) props.push_back("childrenFn: " + rw(kids[0]->eb, kids[0]->ee));   // Pressable's {({ pressed }) => <...>}
+      else if (kids.size() > 1 || (kids.size() == 1 && (kids[0]->kind == 0 || !nodeValued(kids[0])))) {
         std::vector<std::string> lines;
         std::string f = "__n" + std::to_string(counter++);
         lines.push_back("const " + f + ": i32 = _el(6);");

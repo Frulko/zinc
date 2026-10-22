@@ -45,7 +45,7 @@ function renderMain(id: string, open: (id: string) => void): i32 {
 function Home(p: { open: (id: string) => void }) {
   const c = usePalette();
   return <FlatList data={PAGES} keyExtractor={(e: Entry) => e.id}
-    renderItem={(x: ListRenderItemInfo<Entry>) => <Pressable style={[s.row, { backgroundColor: c.card }]} onPress={() => p.open(x.item.id)}>
+    renderItem={(x: ListRenderItemInfo<Entry>) => <Pressable style={({ pressed }) => [s.row, { backgroundColor: pressed ? c.line : c.card }]} onPress={() => p.open(x.item.id)}>
       <Text style={[s.rowTitle, { color: c.ink }]}>{x.item.title}</Text>
       <Text style={[s.rowAbout, { color: c.muted }]} numberOfLines={1}>{x.item.about}</Text>
     </Pressable>}
@@ -58,7 +58,7 @@ export default function App() {
   const entry = PAGES.find((e: Entry) => e.id === page);
   return <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: 44 }}>
     <View style={[s.bar, { borderColor: c.line }]}>
-      {entry !== undefined && <Pressable style={s.back} onPress={() => setPage('')}><Text style={{ color: c.accent, fontSize: 17 }}>‹ RNTester</Text></Pressable>}
+      {entry !== undefined && <Pressable style={({ pressed }) => [s.back, { opacity: pressed ? 0.6 : 1 }]} onPress={() => setPage('')}><Text style={{ color: c.accent, fontSize: 17 }}>‹ RNTester</Text></Pressable>}
       <Text style={[s.title, { color: c.ink }]}>{entry !== undefined ? (entry as Entry).title : 'RNTester'}</Text>
     </View>
     {renderMain(entry !== undefined ? page : '', setPage)}

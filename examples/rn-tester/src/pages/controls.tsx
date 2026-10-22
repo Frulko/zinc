@@ -11,9 +11,9 @@ export function PressablePage() {
   const [last, setLast] = useState('none');
   return <Page>
     <Card title="Pressable">
-      <Pressable style={[s.button, { backgroundColor: c.accent }]} onPress={() => { setPresses(presses + 1); setLast('press'); }}
+      <Pressable style={({ pressed }) => [s.button, { backgroundColor: c.accent, opacity: pressed ? 0.6 : 1 }]} onPress={() => { setPresses(presses + 1); setLast('press'); }}
         onLongPress={() => { setLongs(longs + 1); setLast('long press'); }}>
-        <Text style={s.buttonText}>Press or hold me</Text>
+        {({ pressed }) => <Text style={s.buttonText}>{pressed ? 'Pressed' : 'Press or hold me'}</Text>}
       </Pressable>
       <Caption text={`${presses} presses, ${longs} long presses, last: ${last}`} />
       <Pressable style={[s.button, { backgroundColor: c.line }]} disabled={true} onPress={() => setLast('disabled')}>

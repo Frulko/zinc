@@ -27,7 +27,7 @@ export function Section(p: { title: string; note?: string; children?: () => i32 
 /** A row of a grouped list: an icon tile, a title and a subtitle, something on the right, a chevron when it opens something. */
 export function Row(p: { icon: string; tint: number; title: string; sub?: string; right?: string; onPress?: () => void; label?: string }) {
   const c = theme();
-  return <Pressable style={s.row} onPress={p.onPress} accessibilityLabel={p.label ?? p.title}>
+  return <Pressable style={({ pressed }) => [s.row, { opacity: pressed ? 0.6 : 1 }]} onPress={p.onPress} accessibilityLabel={p.label ?? p.title}>
     <View style={[s.tile, { backgroundColor: p.tint }]}><Icon name={p.icon} size={18} color={() => 0xFFFFFF} /></View>
     <View style={{ flex: 1, gap: 2 }}>
       <Text style={[s.body, { color: c.ink }]} numberOfLines={1}>{p.title}</Text>
@@ -45,7 +45,7 @@ export function ActionButton(p: { title: string; kind?: string; icon?: string; o
   const kind = p.kind ?? 'primary', off = p.disabled === true || p.busy === true;
   const bg = kind === 'primary' ? c.accent : kind === 'danger' ? c.danger : kind === 'ghost' ? c.surface : c.raised;
   const fg = kind === 'primary' ? c.accentInk : kind === 'danger' ? 0xFFFFFF : kind === 'ghost' ? c.accent : c.ink;
-  return <Pressable style={[s.button, { backgroundColor: bg, opacity: off ? 0.5 : 1, borderColor: kind === 'ghost' ? c.line : bg }]} disabled={off}
+  return <Pressable style={({ pressed }) => [s.button, { backgroundColor: bg, opacity: off ? 0.5 : pressed ? 0.6 : 1, borderColor: kind === 'ghost' ? c.line : bg }]} disabled={off}
     onPress={p.onPress} accessibilityLabel={p.label ?? p.title}>
     {p.icon !== undefined && <Icon name={p.icon as string} size={18} color={() => fg} />}
     <Text style={[s.buttonText, { color: fg }]}>{p.busy === true ? tr('Sending…') : p.title}</Text>
