@@ -29,7 +29,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:device` works on the ESP32 under `--engine mquickjs`: the backlight's brightness (PWM), the JavaScript heap and the chip's free memory, the chip, its clock and flash size, the ESP-IDF version, the firmware's build, whether touch answered, and the last frame's time and draw commands. New everywhere: `flashSize()`, `idfVersion()`, `firmware()`.
 
 ### Changed
-- Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 690 KB, `examples/breakout` from 37.6 KB to 24.6 KB.
+- Compiled programs are smaller on every target (the methods no code calls and the dispatch tables of classes without methods are left out): `examples/breakout` goes from 37.6 KB to 24.6 KB of bytecode, a large interface tour from 2.4 MB to 690 KB.
 - A program takes less memory once loaded: with `examples/breakout` loaded, the ESP32 core has 210 KB of its heap free instead of 158 KB.
 - `zinc run --target esp32 --engine mquickjs` writes the MicroQuickJS firmware by itself when the board runs another one or an older one: no `zinc flash` first. Its flash now holds two firmware slots for updates over Wi-Fi, and programs moved, so the first run after this update rewrites the firmware.
 
@@ -37,8 +37,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
 ### Fixed
-- The mquickjs check of `zinc run --target esp32` and `zinc check --target esp32` no longer stops a large program with "out of memory" on the computer when it fits the board: the program's bytecode no longer counts against its JavaScript heap, as on the board, where it stays in flash.
-- `zinc run --target esp32 --engine mquickjs` no longer stops with an error on a board without a touch controller (the ESP32-2432S022N) or in the emulator (`--emulator`), where it exited with status 1 after a run that went well.
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
 - Every engine now takes the same file for an import as the interpreter: under QuickJS, mquickjs, JSC, V8, Hermes, `zinc bundle` and the web target, an import picks the platform's file (`x.macos.ts`, `x.esp32.ts`), also for index files, `./x.js` naming `x.ts` and `tsconfig.json` `paths`; `x.ts` comes before `x.native.tsx`, and `zinc:hardware` loads. `zinc:platform`'s `TARGET` is `esp32` on the board.
 - A plugin whose vendored C includes a configuration header beside `plugin.json` (such as `lv_conf.h`) is rebuilt when that header changes, on the computer and in the ESP32 firmware.
