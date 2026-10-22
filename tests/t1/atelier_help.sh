@@ -1,6 +1,6 @@
 #!/bin/sh
 # Zinc Atelier tells a newcomer where they are (ZN-774.07), on three short headless sessions:
-#   start      the start view says what Zinc is and points to the lessons, offers templates, and groups the examples by level, 3D among
+#   start      the start view says what Zinc is and points to the lessons, offers templates, and groups the examples by style, 3D among
 #              them (the texts of its frame, from a scene dump); the pointer resting on the palette button shows its hint
 #   help       Help has Learn first, then the guide, the kinds of programs, the syntax, the examples and the error codes (the menu bar
 #              the recording simulator logs); Learn opens the lessons in the browser (its opener.open)
@@ -24,8 +24,8 @@ printf '2 move 1224 27\n' > "$tmp/start.input"
 run start ZINC_INPUT="$tmp/start.input" ZINC_FRAMES=44 ZINC_SHOT="$tmp/start.png" ZINC_SHOT_FRAMES=39 ZINC_SCENE_DUMP="$tmp/scene"
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/start-39.png" "$ATELIER_KEEP"
 python3 tools/scene-texts "$tmp/scene-39" > "$tmp/texts"
-for want in 'Zinc is TypeScript for making things' 'Open the lessons' 'Small game' 'All templates' 'First steps' 'Mouse, keys and sound' \
-    'Interfaces, text and 3D' 'A cube and a ring that turn.' 'A button and its number.' 'Every command, by its name'; do
+for want in 'Zinc is TypeScript for making things' 'Open the lessons' 'Small game' 'All templates' 'New sketch: how do you want to write it?' \
+    'Drawing' 'Interface' 'A cube and a ring that turn.' 'A button and its number.' 'Every command, by its name'; do
   grep -q "$want" "$tmp/texts" || { echo "atelier help: the start view does not show \"$want\""; fail=1; }
 done
 python3 - "$tmp/start.system" <<'EOF' || fail=1

@@ -14,6 +14,10 @@ all four.
 | Start with | `zinc new game` | `zinc new stage` | `zinc new canvas` | `zinc new desktop-app` |
 | Lessons | [1 to 6](../learn/README.md#the-lessons) | [13 to 16](../learn/13-a-stage-and-a-sprite.md) | [17 to 20](../learn/17-paths-and-fills.md) | [7 to 12](../learn/07-components.md) |
 
+Where to choose: `zinc new` alone asks what you want to make, then, for a game or a drawing (Drawing, Scene, Canvas) and for an
+app with windows (Interface, Scene), how you want to write it. In Zinc Atelier, **New sketch** at the top of the start view offers
+the four styles, each a small program to begin from, and the examples below are grouped by style.
+
 ## The same program, four times
 
 A ball bounces around the window. A click (or a tap) on the ball changes its colour and adds a point to the score at the top left.

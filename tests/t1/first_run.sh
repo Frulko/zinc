@@ -8,7 +8,7 @@
 # - the guide quotes the first line of each message;
 # - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands, grouped (Start here, Build and ship);
 # - zinc new with no argument: the usage and nothing written without a terminal; through a pty, the question (arrows) and the name;
-#   the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
+#   for a kind written in several styles, how to write it, each style its template (ZN-774.15); the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
 # - install.sh and install.ps1 end with zinc --next-steps, which the Homebrew caveats repeat word for word;
 # - zinc check says what it checked; zinc dev's first start says which file to change, that a save shows it, and that Ctrl+C stops (ZN-774.03).
 cd "$(dirname "$0")/../.." || exit 2
@@ -143,12 +143,19 @@ sys.stdout.write(out.decode("utf-8", "replace"))
 sys.exit(os.waitstatus_to_exitcode(status))
 PY
 mkdir "$tmp/wiz"
-python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\x1b[B\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\r" "How do you want to write it?=>\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
 rc=$?
-[ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down three times, Enter, my-app) did not make the fourth template, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
+[ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down twice, Enter, Enter, my-app) did not make the third kind in its first style, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
 grep -q 'Created my-app (desktop-app)' "$tmp/wiz.out" || { echo "the question does not end with the next steps: $(tail -5 "$tmp/wiz.out")"; fail=1; }
-TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>8\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
-[ -f "$tmp/wiz/my-cli/zinc.json" ] || { echo "the numbered question (TERM=dumb, 8, Enter) did not make my-cli: $(tail -5 "$tmp/wiz2.out")"; fail=1; }
+# the styles are asked after the kind, not offered as kinds: an app with windows is an interface or a scene
+grep -q 'Interface: describe the screen once in JSX' "$tmp/wiz.out" && grep -q 'Scene: objects that draw themselves' "$tmp/wiz.out" && ! grep -q 'Canvas: ' "$tmp/wiz.out" \
+  && ! grep -q 'a scene of objects you tap and drag' "$tmp/wiz.out" && ! grep -q "a drawing on the web's Canvas API" "$tmp/wiz.out" \
+  || { echo "an app with windows is not asked Interface or Scene, or the styles are kinds too: $(tail -12 "$tmp/wiz.out")"; fail=1; }
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>1\r" "How do you want to write it?=>2\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
+[ -f "$tmp/wiz/my-stage/zinc.json" ] && grep -q "from 'zinc:stage'" "$tmp/wiz/my-stage/src/main.ts" && grep -q '^   1\. Drawing: ' "$tmp/wiz2.out" && grep -q '^   3\. Canvas: ' "$tmp/wiz2.out" \
+  || { echo "the numbered question (TERM=dumb: 1, a game; 2, Scene; Enter) did not make my-stage from the three styles of a game: $(tail -8 "$tmp/wiz2.out")"; fail=1; }
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>6\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz3.out" 2>&1
+[ -f "$tmp/wiz/my-cli/zinc.json" ] && ! grep -q 'How do you want to write it' "$tmp/wiz3.out" || { echo "the numbered question (TERM=dumb, 6, Enter) did not make my-cli without a style question: $(tail -5 "$tmp/wiz3.out")"; fail=1; }
 # the welcome: once, at a terminal; its language saved beside the keys of others
 mkdir -p "$tmp/home" && printf '{"atelier.theme": "dark"}\n' > "$tmp/home/config.json"
 python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type 1 to 5=>2\r" -- "$Z" > "$tmp/welcome.out" 2>&1; rc=$?

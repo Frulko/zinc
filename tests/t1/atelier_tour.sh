@@ -60,7 +60,7 @@ for s in steps:
     if not b or b[2] <= 0 or b[3] <= 0 or b[0] < 0 or b[1] < 0 or b[0] + b[2] > 1280 or b[1] + b[3] > 800:
         print('atelier tour: the %s step points at no part of the window: %s' % (s[0], s[1:])); bad += 1
 def texts(frame): return subprocess.run(['python3', 'tools/scene-texts', '%s/scene-%d' % (tmp, frame)], capture_output=True, text=True).stdout
-for frame, want in ((2, 'Choisissez votre langue'), (5, 'Te damos la bienvenida a Zinc Atelier'), (18, 'Un error y su arreglo'), (27, 'Crea una app de verdad')):
+for frame, want in ((2, 'Choisissez votre langue'), (5, 'Te damos la bienvenida a Zinc Atelier'), (18, 'Un error y su arreglo'), (27, 'Empieza el tuyo')):
     if want not in texts(frame): print('atelier tour: frame %d does not show "%s"' % (frame, want)); bad += 1
 sys.exit(1 if bad else 0)
 EOF

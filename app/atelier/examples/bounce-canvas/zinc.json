@@ -1,0 +1,5 @@
+{
+  "name": "bounce-canvas",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.styles.canvas", "window": { "width": 640, "height": 400 } }
+}

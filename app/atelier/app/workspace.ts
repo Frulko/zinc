@@ -231,22 +231,17 @@ export function freeName(base: string): string {
   while (fs.exists(`${root}/${base}_${n}`)) n++;
   return `${base}_${n}`;
 }
-/** A new sketch's main.ts: a circle that breathes, under a comment in the language of the interface. */
-const STARTER = (): string => t('atelier.sketch.starter').split('\n').map((l: string) => '// ' + l).join('\n') + `
-import { onFrame, clear, rrect, width, height } from 'zinc:gfx';
-
-let t = 0;
-onFrame((dt: number) => {
-  t += dt;
-  clear(0x1c1b20);
-  const r = 40 + 10 * Math.sin(t * 2);
-  rrect(width() / 2 - r, height() / 2 - r, r * 2, r * 2, r, 0x9388ff, 255);
-});
-`;
-/** Creates an empty sketch in the sketchbook and opens it. */
-export function newSketch(): void {
-  const dir = sketchbook() + '/' + freeName('sketch');
-  try { fs.mkdir(dir, true); fs.writeText(dir + '/main.ts', STARTER()); } catch (e) { say(t('atelier.sketch.cannot_create', ['path', sketchbook()])); return; }
+/** The four ways to write a sketch (D161, docs/start/styles.md): drawing (zinc:gfx), scene (zinc:stage), Canvas (zinc:canvas), interface (zinc:ui). */
+export const STYLES: string[] = ['drawing', 'scene', 'canvas', 'interface'];
+/** Creates a new sketch in the sketchbook, written in `style`, and opens it: starters/<style>.ts (.tsx for the interface) beside this
+ *  app, under a comment in the language of the interface (atelier.sketch.starter.<style>). */
+export function newSketch(style: string = 'drawing'): void {
+  const ext = style === 'interface' ? '.tsx' : '.ts', dir = sketchbook() + '/' + freeName('sketch');
+  try {
+    const code = fs.readText(`${APP_HOME}/starters/${style}${ext}`);
+    fs.mkdir(dir, true);
+    fs.writeText(dir + '/main' + ext, t('atelier.sketch.starter.' + style).split('\n').map((l: string) => '// ' + l).join('\n') + '\n' + code);
+  } catch (e) { say(t('atelier.sketch.cannot_create', ['path', sketchbook()])); return; }
   openSketch(dir);
 }
 function copyDir(from: string, to: string): void {

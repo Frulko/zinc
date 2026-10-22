@@ -100,7 +100,7 @@ const Command kCommands[] = {
    "  --watch          bundle again on each save"},
   {"check", "zinc check [entry|dir]", "cli.cmd.check", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "cli.cmd.test", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
-  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new | zinc new --list", "cli.cmd.new", "With no argument at a terminal it asks what to make (the arrows and Enter, or a number) and the name of the new folder; in a script, a pipe or CI it prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
+  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new | zinc new --list", "cli.cmd.new", "With no argument at a terminal it asks what to make (the arrows and Enter, or a number), how to write it when that kind has several styles (a game: Drawing, Scene or Canvas; an app with windows: Interface or Scene), and the name of the new folder; in a script, a pipe or CI it prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README: its README.<lang>.md in the language in force when it has one) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"tour", "zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]", "cli.cmd.tour", "A guided first walk in eight steps, in a real project: make it (the zinc new question), run it, change a line, make a mistake and read it with zinc explain, Fast Refresh with zinc dev, choose a kind of program, find the docs, open Zinc Atelier. Each step says what to do and checks by itself that it is done. Progress is kept in $ZINC_HOME/tour.json (~/.zinc/tour.json): zinc tour goes on where you stopped, zinc tour <step> goes to a step, --list shows the steps done, --reset starts again (the project stays). Without a terminal or under CI it asks nothing and prints the steps. --auto does every step itself (the edits too) without a question or a window, up to --until, in --dir (default: zinc-tour in the current directory); exit 1 at the first step that fails."},
   {"pack", "zinc pack [dir] [-o app.zapp]","cli.cmd.pack", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
   {"assets", "zinc assets build|info [dir] [--target T] [--release]", "cli.cmd.assets", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
@@ -268,6 +268,18 @@ const Kind kKinds[] = {
   {"plugin", "cli.group.more", "cli.template.plugin"},
 };
 const Kind* kindOf(const std::string& name) { for (const Kind& k : kKinds) if (name == k.tmpl) return &k; return nullptr; }
+// The styles of writing a program (D161, docs/start/styles.md): a kind of program written in several gets a second question, one line per
+// style, each making its own template; a template that is only a style of another kind is offered by that question alone
+struct Style { const char* kind; const char* tmpl; const char* line; };
+const Style kStyles[] = {
+  {"game", "game", "cli.style.drawing"}, {"game", "stage", "cli.style.scene"}, {"game", "canvas", "cli.style.canvas"},
+  {"desktop-app", "desktop-app", "cli.style.interface"}, {"desktop-app", "stage", "cli.style.scene"},
+};
+bool onlyAStyle(const std::string& name) {
+  bool style = false;
+  for (const Style& s : kStyles) { if (name == s.kind) return false; style = style || name == s.tmpl; }
+  return style;
+}
 std::vector<const TemplateInfo*> byKind(const std::vector<TemplateInfo>& all) {
   std::vector<const TemplateInfo*> out;
   for (const Kind& k : kKinds) for (const TemplateInfo& t : all) if (t.name == k.tmpl) out.push_back(&t);
@@ -562,18 +574,29 @@ int choose(const std::vector<std::string>& rows, const Paint& P) {
     if (k >= 1 && k <= static_cast<int>(rows.size())) return k - 1;
   }
 }
-// zinc new alone at a terminal: what to make (unless --template said it), then the name of the new folder
+// zinc new alone at a terminal: what to make (unless --template said it) and, for a kind with several styles, how to write it; then the
+// name of the new folder
 bool newWizard(const std::vector<TemplateInfo>& all, bool kindGiven, std::string& tmpl, std::string& dir) {
   using zn::i18n::tr;
   const Paint P;
   if (!kindGiven) {
-    const std::vector<const TemplateInfo*> order = byKind(all);
+    std::vector<const TemplateInfo*> order;
     std::vector<std::string> rows;
-    for (const TemplateInfo* t : order) rows.push_back(pad(t->name, 12) + " " + blurb(*t));
+    for (const TemplateInfo* t : byKind(all))
+      if (!onlyAStyle(t->name)) { order.push_back(t); rows.push_back(pad(t->name, 12) + " " + blurb(*t)); }
     std::printf("%s\n", P.bold("? " + tr("cli.new.ask_kind")).c_str());
     const int k = choose(rows, P);
     if (k < 0) return false;
     tmpl = order[static_cast<std::size_t>(k)]->name;
+    std::vector<const Style*> styles;
+    std::vector<std::string> lines;
+    for (const Style& s : kStyles) if (tmpl == s.kind) { styles.push_back(&s); lines.push_back(tr(s.line)); }
+    if (styles.size() > 1) {
+      std::printf("%s\n", P.bold("? " + tr("cli.new.ask_style")).c_str());
+      const int s = choose(lines, P);
+      if (s < 0) return false;
+      tmpl = styles[static_cast<std::size_t>(s)]->tmpl;
+    }
   }
   for (std::string name;;) {
     const std::string fallback = "my-" + tmpl;
@@ -711,10 +734,18 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   }
   fs::path root(dir);
   bool ok = true;
+  // the README in the person's language (README.fr.md) becomes README.md when the template has one; the other languages' stay behind
+  const std::string readme = "README." + zn::i18n::language() + ".md";
+  const bool translated = fs::is_regular_file(t->dir / readme, ec);
   for (auto it = fs::recursive_directory_iterator(t->dir, ec); ok && it != fs::recursive_directory_iterator(); it.increment(ec)) {
     if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
     if (it->is_symlink() || !it->is_regular_file() || it->path().filename() == "template.json") continue;
-    const fs::path rel = fs::relative(it->path(), t->dir);
+    fs::path rel = fs::relative(it->path(), t->dir);
+    const std::string r = rel.string();
+    if (r == "README.md" ? translated : r.rfind("README.", 0) == 0 && r.size() > 3 && r.compare(r.size() - 3, 3, ".md") == 0) {
+      if (r != readme) continue;
+      rel = "README.md";
+    }
     std::ifstream f(it->path(), std::ios::binary);
     std::stringstream ss; ss << f.rdbuf();
     ok = writeFile(root / fillVariables(rel.string(), vars, false), fillVariables(ss.str(), vars, rel.extension() == ".json"));   // names too: deploy/{{id}}.service

@@ -12,7 +12,7 @@ import { setStartOpen, openDocs } from '../app/commands';
 import { setText } from '../app/cursors';
 import { t, LANGUAGES, languageName, lang, setLanguage } from '../app/text';
 import { runRef, engineRef, paletteRef } from './Header';
-import { examplesRef, helloRef, templatesRef, openExample } from './Start';
+import { examplesRef, helloRef, stylesRef, templatesRef, openExample } from './Start';
 import { editorRef } from './Editor';
 import { consoleRef } from './Console';
 import { Glyph } from './Controls';
@@ -55,7 +55,7 @@ function targets(id: string): i32[] {
   if (id === 'error') return [editorRef.node, consoleRef.node];
   if (id === 'palette') return [paletteRef.node];
   if (id === 'devices') return [engineRef.node];
-  if (id === 'templates') return [templatesRef.node];
+  if (id === 'templates') return [stylesRef.node, templatesRef.node];   // where a new sketch's style and a template are chosen
   return [];
 }
 /** The box around a step's parts: [x, y, w, h], empty when it has none. */
@@ -67,7 +67,9 @@ export function stepBox(id: string): number[] {
     if (b[2] <= 0 || b[3] <= 0) continue;
     x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[0] + b[2]); y1 = Math.max(y1, b[1] + b[3]);
   }
-  return x1 > x0 ? [x0, y0, x1 - x0, y1 - y0] : [];
+  const W = size()[0], H = size()[1];
+  if (H > 0) { x1 = Math.min(x1, W - PAD); y1 = Math.min(y1, H - PAD); }   // a part that goes on below the window (the examples): what is seen of it
+  return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : [];
 }
 
 // ---- where things are drawn, measured once per frame

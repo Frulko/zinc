@@ -8,7 +8,7 @@
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
 // that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
-// makes a project from a template, `<frame> explain` clicks the first error code of the console, `<frame> tour:next|back|skip|fix` press
+// makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> explain` clicks the first error code of the console, `<frame> tour:next|back|skip|fix` press
 // that button of the tour's card, `<frame> tour:lang:<code>` a language of its first card and `<frame> tour:step` prints the step and its box;
 // ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
@@ -21,7 +21,7 @@ import * as menu from 'zinc:system/menu';
 import { quit, clipboardText } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
-import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
+import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
 import { check, stepTools, setJump, stopAll, consoleText, status, newProject } from './app/tools';
@@ -163,6 +163,7 @@ function stepScript(): void {
     if (id === 'quit') { leave(); quit(); }
     else if (id.startsWith('example:')) openExample(id.slice(8));
     else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
+    else if (id.startsWith('new:')) { setStartOpen(false); newSketch(id.slice(4)); }   // a card of New sketch
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
     else if (id === 'tour:next') nextStep();

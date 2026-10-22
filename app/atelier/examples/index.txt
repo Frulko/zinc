@@ -1,9 +1,13 @@
-hello|Hello|Print a line, draw a word.|first
-shapes|Shapes|Rectangles, lines and colour.|first
-animation|Animation|Move a little every frame.|first
-pointer|Pointer|Follow the mouse or a finger.|input
-keys|Keys|Arrow keys and key names.|input
-sound|Sound|Play notes with the pointer.|input
-interface|Interface|A button and its number.|apps
-text|Text|Fonts, sizes and measuring.|apps
-3d|3D|A cube and a ring that turn.|apps
+hello|Hello|Print a line, draw a word.|drawing
+shapes|Shapes|Rectangles, lines and colour.|drawing
+animation|Animation|Move a little every frame.|drawing
+bounce-drawing|Bouncing ball|Click it: the program measures the distance to its centre.|drawing
+pointer|Pointer|Follow the mouse or a finger.|drawing
+keys|Keys|Arrow keys and key names.|drawing
+sound|Sound|Play notes with the pointer.|drawing
+text|Text|Fonts, sizes and measuring.|drawing
+3d|3D|A cube and a ring that turn.|drawing
+bounce-scene|Bouncing ball|Click it: the ball says where it takes a tap.|scene
+bounce-canvas|Bouncing ball|Click it: the canvas says if the point is in its path.|canvas
+interface|Interface|A button and its number.|interface
+bounce-interface|Bouncing ball|Click it: its box calls onClick.|interface
