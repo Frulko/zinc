@@ -482,6 +482,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.08: check Atelier's tour in a real window (card placement, the run step with a real sketch window).
 - ZN-774.08: in the tour's error step the status shows "main.ts saved" before the problem; a quiet save would show the problem at once.
 - ZN-774.08: a "Take the tour" link on the start view if Help > Tour proves hard to find.
+- ZN-774.13: QuickJS under `ZINC_DETERMINISTIC` is not frame-deterministic for music-tree's gsap carousel (two runs of the same code differ at frames 70-149), so a per-frame hash cannot prove a QuickJS run.
+- ZN-774.13: `VBox`, `HBox`, `Spacer` and a scroll-container node in `zinc:stage` (music-tree's own are mixed with its colours and fonts), and nested scroll boxes (one level today).
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -606,6 +608,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-774.13: music-tree on the HP TouchPad and the Nexus 7 with `zinc:stage` (taps, drags, scrolling, idle frames, frame cost with `tools/zbench`).
 - ZN-774.01: merge the CoreFoundation language lookup of `src/i18n` and `systemLocale()` of `src/host/sys_host.cpp` into `src/platform`, and add Windows `GetUserPreferredUILanguages` there.
 - ZN-774.02: `zinc new`'s question on Windows: a console raw mode for the arrow keys (it shows numbers there now).
 - ZN-774.02: run `install.sh`, `install.ps1` and the Homebrew install end to end and read their last lines (`zinc --next-steps`).
