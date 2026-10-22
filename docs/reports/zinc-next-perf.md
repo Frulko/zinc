@@ -1107,3 +1107,20 @@ warm-up, the same bundle with its `.qbc` beside it (`JS_ReadObject`) and without
 The bytecode starts hero about 50 ms (12%) sooner: QuickJS's parse and compile of 657 KB, the rest of the start (plugins, fonts, the first
 layout and frame) is the same on both. Less than Hermes's gain (ZN-773.08: 160 to 240 ms), whose lazy compile is slower and whose bytecode is
 also optimised. The frame is identical (frame 30, `ZINC_DETERMINISTIC`).
+
+## The ESP32 under mquickjs and the light mode (2026-10-22)
+
+ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on the board unless said. The Mac was building other trees.
+
+| what | number |
+|---|---|
+| ZBC module size, esp32 profile (light mode: sparse vtables, dead selectors dropped): hello / breakout / the widgets demo | 125 → 121 B / 37,550 → 24,562 B / 2,415,900 → 686,695 B |
+| AOT core in QEMU, breakout loaded: free heap, decoded module | 157,852 → 210,420 B, 116,780 → 64,136 B |
+| `zinc zbc --check` of the widgets demo on the host, peak footprint | 8.9 → 4.8 MB |
+| mquickjs firmware, minimal image (screen, pins, storage): app / merged image | 300 KB / 431 KB |
+| mquickjs firmware, network image (Wi-Fi, ESP-NOW, BLE, updates): app / merged image | 1,038 KB / 1,169 KB |
+| free heap before the 96 KiB JS heap: minimal / network image | 241 to 246 KB / 155 KB |
+| free heap with the JS heap allocated: gpio demo (minimal) / setup portal open / ESP-NOW / BLE advertising | 143 KB / 44 KB / 62 KB / 38 KB (22 KB before the NimBLE cuts of sdkconfig.net) |
+| firmware update over Wi-Fi (POST /ota, 1 MB app, from a tablet on the setup network) | 5.8 s |
+| a native plugin built into the firmware (zinc:qrcode, Nayuki's C): image growth / first ESP-IDF build (ccache warm for the IDF) | +10.7 KB / 98 s |
+| zinc:qrcode on the board: a 43-byte URL, 33 × 33 modules, `MEDIUM` | 32 ms to encode; 59 fps while shown, render+send 107 µs |

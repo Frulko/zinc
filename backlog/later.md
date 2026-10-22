@@ -418,12 +418,33 @@ The next backlog review turns lines into tasks or deletes them.
 - mquickjs on the ESP32: js/prelude.js is 3.9 KB of the demo's 11.8 KB of bytecode; keep only the polyfills a program names (filter its lines by the bundle's text) when flash or heap is short.
 - mquickjs on the ESP32: an upload over the UART into the js partition (as the Zinc core's `ZN load`), so `zinc run --engine mquickjs` needs no esptool write and no reset into the bootloader (the error mapping to the .ts is done, src/cli_mqjs.cpp).
 - mquickjs on the ESP32: numbers that are not 31-bit integers are boxed (12 bytes): the breakout demo makes ~60 KB of float garbage per few seconds; measure the GC pauses (the slowest frame) before a game with heavier math, and try Float64Array-held state.
-- mquickjs on the ESP32 (2026-10-22): `zinc run --target esp32 --engine mquickjs` on the board itself (esptool write of the js partition, then the UART) is written but not yet run: the board was unplugged after the esp32sim run; run it with the board on /dev/cu.usbserial-*.
 - mquickjs in esp32sim: no touch, its T-Display board has no CST820 (the S3 crate has one): a CST820 on I2C 0x15 for the classic ESP32 boards, as a PR upstream (mikroverk/esp32sim; outward step, the owner's), then a touch script in `--emulator` runs.
 - mquickjs in esp32sim: the ESP32-2432S022's own wiring (ST7789 on the i80 bus of I2S0) upstream, so the emulator runs the board's firmware instead of the SPI variant (`-DZN_PANEL=spi`).
-- mquickjs: `"engine": "mquickjs"` in zinc.json's esp32 target, so `zinc run --target esp32` needs no flag for such a project.
 - mquickjs on the ESP32: more of zinc:gfx on the board (line, polygon, circle, drawText with a baked font, images from the flash) before the prototype's widgets demo (examples/boards/esp32-2432s022) can be rewritten on zinc:gfx.
 - mquickjs: zinc-mqjs on Windows and in the cross builds of zinc (CMakeLists.txt builds it only natively, not on WIN32).
+- mquickjs on the ESP32 (owner, 2026-10-22): the station join, SNTP, mDNS and `zinc run --host zinc-e3d8.local` end to end with a real network (the setup portal, its page, /info, /log, POST /js and POST /ota were proven over the board's own access point); and /info's `slot` after an update over Wi-Fi, to see the board run from ota_1.
+- mquickjs on the ESP32: zinc:ble between the Mac app (examples/esp32-ble/mac, from iTerm2 or Ghostty) and the board, on the real radio (owner): connect time, negotiated MTU, messages per second, a 64 KiB echo; log the numbers in zinc-next-perf.md.
+- mquickjs on the ESP32: ESP-NOW between two boards (only the sending side was proven, with one board): delivery, the RSSI, the echo of examples/esp32-espnow.
+- mquickjs on the ESP32: zinc:ble's `connect()` (the central role) on the board; it throws today (NimBLE's central role is off in sdkconfig.net to save RAM).
+- mquickjs on the ESP32: the native bridge (main/zn_native.c) carries no callbacks, promises or resources: cb_post into the event queue (ZN_EV_NATIVE) and resource handles, so a sensor plugin can report by itself.
+- mquickjs on the ESP32: a plugin whose native code is an Arduino library needs arduino-esp32 as a registry component (`"idfComponents": {"espressif/arduino-esp32": "^3.3.12"}` reaches the generated component's idf_component.yml): build one, measure its flash and RAM, and set the sdkconfig it needs (autostart off).
+- mquickjs on the ESP32: zinc as an ESP-IDF component for one's own C++ program (main.c split into a library: zinc_init, zinc_run, the event queue), and as an Arduino/PlatformIO library with the ROM tables generated ahead (docs/reports/esp32-native-modules.md §3).
+- mquickjs on the ESP32: two zinc processes building the same native firmware at once write the same ~/.zinc/esp32/firmware/<key>; a lock as plugin_build's.
+- mquickjs on the ESP32: render+send is 0.4 ms slower per frame with -Os for the rest of the image; measure whether -O2 on the raster alone gets it back.
+- mquickjs on the ESP32: the phy_init partition's RF calibration warning at each boot of the network firmware (CONFIG_ESP_PHY_INIT_DATA_IN_PARTITION or the calibration kept in NVS).
+- mquickjs on the ESP32: the USB serial port vanished twice (ENXIO, the device node recreated) while a tablet on the same hub switched networks; zinc could reopen the port once before failing.
+- mquickjs: report the upstream patches (none to the engine so far; the table additions are ours) and the esp32sim CST820 touch PR (outward steps, the owner's).
+- ESP32 light (owner 2026-10-22): the rest of item 4. Replace the dense dispatch tables (about 550 KB on the widgets demo, 32-bit) with a row-displacement table, and benchmark `CallVirt` with `zbench --suite boundary`.
+- ESP32 light: item 12. Renumber the selectors and drop the 413 − 107 unused ones; item 6 leaves them in the table.
+- ESP32 light: classes that nothing constructs could become abstract (devirt's `Unused`, 9 of breakout's 20 concrete classes); this needs the Error classes as roots first.
+- ESP32 light: report the core's low-water heap (`esp_get_minimum_free_heap_size`) in the `done` line, so the peak during a run can be measured.
+- ESP32 light: `zinc run --qemu` copies its flash to the shared `~/.zinc/cache/esp32-flash.bin`, so two sessions running QEMU overwrite each other's image; use a per-run file.
+- ESP32 light: `site/public/play/*/app.zbc` and `vm.wasm` are still ZBC 7 (consistent with each other); rebuild both together at the next site publish.
+- ESP32 light: `tools/diff-matrix` should set `ZINC_STEPS=0` itself.
+- zinc:ble: give `onClose` a reason (timeout, refused, not a Zinc device) on both engines; today a failed connect is silent about why.
+- zinc:ble: `CBPeripheralManager` so a Mac can `advertise()`, for Mac-to-Mac links.
+- zinc:ble: the QuickJS module loader could use `x.sim.ts` under `ZINC_NATIVE=sim`; that would remove the second simulated radio in `ble.macos.mm`.
+- zinc:ble: `zinc run` from Terminal.app cannot get Bluetooth access (Terminal lacks the usage key); a small signed helper app or a LaunchAgent could make zinc its own responsible process.
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
@@ -548,6 +569,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 - ZN-773: zinc.exe cross built headless (`-DZN_HOST_GFX=OFF`, the windows-cross job) compiles again but does not link: 14 zrt symbols undefined at `<root>` (add_poller, arena_owns, arena_take, StrBuilder, clear_timer, insp_object...), seen 2026-10-21; the job is off until ZINC_WINDOWS_JOBS is set. A macOS build with `ZN_HOST_GFX=OFF` stops on zn_window_load (plugin_build.cpp's weak reference).
+- zinc:ble on Linux (BlueZ over D-Bus) and Windows (WinRT); today `state()` is 'unsupported' there.
 - ZN-773.04: Linux engine packs in `tools/engine-pack` (patchelf, `$ORIGIN` rpaths) and `zinc export` of jsc/v8 projects on Linux.
 - ZN-773.07: Hermes on targets with no JIT (Android without V8, consoles): measure its interpreter and Static Hermes against QuickJS there; Linux and Windows builds of tools/hermes-pack.
 - ZN-773.09: zinc export of an "engine": "quickjs" project for linux and the other non-macOS targets still builds a native program: decide whether they carry the bundle and its .qbc.
