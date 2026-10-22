@@ -59,6 +59,9 @@ zinc dev: restart: src/state.ts:13 `setColorMode(...)` runs at the top level, an
 - **AOT and QuickJS.** `zinc dev` always interprets, so there is no compiled program to swap; `zinc build` and `zinc run` of a compiled
   program are not affected. A program on QuickJS (a `.js` entry, `zinc.json` `"engine": "quickjs"`) restarts on every save:
   `zinc dev: restart: the program runs on QuickJS, which has no Fast Refresh`. `zinc dev --device` restarts the program on the device.
+- **Starting again.** A program that has not changed since `zinc dev` last started it starts from the bytecode compiled then
+  (`~/.zinc/cache/zbc`, as `zinc run` does): a `zinc:ui` app with the inspector starts in 0.02 s instead of 0.6 s. Any change to its
+  files, `lib/std`, a plugin, `zinc.json`, a `tsconfig.json` or the engine compiles it again; `ZINC_NO_CACHE=1` always compiles.
 
 Measured on the development Mac (Intel, 6 cores), save to the first frame of the new code: 60-126 ms for a two-file `zinc:gfx`
 program, about 100 ms for the game template, 300-400 ms for a small Solid program, 540 ms for a page of the desktop-app template

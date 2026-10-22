@@ -170,7 +170,7 @@
     {"paths": ["src/dev/hot.cpp", "src/dev/hot.h", "src/cli_core.cpp", "src/host/gfx_host.cpp", "lib/std/hot.ts", "tests/t1/hot_swap.sh"], "tests": ["hot_swap", "dev_mode"]},
     {"paths": ["src/dev/hot.cpp", "src/frontend/jsx.cpp", "src/frontend/modules.cpp", "lib/std/solid.ts", "lib/std/hot.ts", "templates/desktop-app/", "tests/t1/fast_refresh.sh"], "tests": ["fast_refresh"]},
     {"paths": ["src/dev/hot.cpp", "templates/game-2d/"], "tests": ["asset_reload"]},
-    {"paths": ["src/dev/hot_swap.cpp", "src/dev/hot.h"], "tests": ["hot_swap", "fast_refresh", "zinc_go"]},
+    {"paths": ["src/dev/hot_swap.cpp", "src/dev/hot.h"], "tests": ["hot_swap", "fast_refresh", "zinc_go", "zbc_cache"]},
     {"paths": ["src/app/player.cpp", "src/app/app.cpp", "src/app/app_core.h", "lib/std/react.ts", "tests/t1/zinc_go.sh"], "tests": ["zinc_go", "app_library"]},
     {"paths": ["examples/zinc-go/", "plugins/camera/", "tests/t1/zinc_go_home.sh"], "tests": ["zinc_go_home"]},
     {"paths": ["third_party/qrcodegen/", "plugins/camera/vendor/quirc/", "plugins/camera/native/camera.host.cpp", "tests/native/qr_test.cpp", "tests/t0/qr_code.sh"], "tests": ["qr_code"]},

@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Error messages speak your language: the title of every error code, the common details, the closing hint and `zinc explain` (`zinc explain --markdown --lang fr` writes the list). The start of the line, `file:line:col: error Z0103:`, stays as it is for the tools that read it, and `zinc check --json`, `zinc lint` and `zinc lsp` stay English.
 - Errors say `number` where your program says `number`, not `f64`. `document`, `window`, `alert` and `localStorage` say that Zinc has no browser and what to use; `import ... from 'fs'` or `'react'` names the Zinc module (`zinc:fs`, `zinc:ui/react`), another package names `zinc add npm:<package>`; an untyped parameter or `var` in a `.ts` file says that `zinc run file.js` runs plain JavaScript.
 - `zinc explain` with no code lists the codes, and takes `z0103` or `103` as well as `Z0103`.
+- `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ## [0.6.2] - 2026-10-22
 

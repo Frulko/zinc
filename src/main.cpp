@@ -499,7 +499,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   for (const auto& f : prog.files) {
     gSources.push_back(f.text);
     const std::string& p = f.path;
-    if (!p.empty() && p[0] != '<' && p.rfind("zinc:", 0) != 0) gSourcePaths.push_back(p);   // the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files
+    if (!p.empty() && p[0] != '<' && p.rfind("zinc:", 0) != 0) gSourcePaths.push_back(std::filesystem::absolute(p).string());   // files on disk; absolute: a run moves into its project before it writes the cache
     gSourceIsLib.push_back(engineFile(p));
   }
   std::vector<zn::frontend::Diag> diags;
@@ -969,9 +969,20 @@ static std::string signature(const std::string& entry, const std::vector<fs::pat
     if (const char* e = std::getenv(v)) s += std::string(" ") + v + "=" + e;
   return s;
 }
-/** After a compile: what it read, for the next run's check. */
-static void write(const fs::path& file, const std::string& signature, const std::string& entry) {
-  std::set<std::string> in(gSourcePaths.begin(), gSourcePaths.end());
+/** After a compile: what it read, for the next run's check; `own`: the cache's files written beside `file`, so a damaged one is a miss. */
+static void write(const fs::path& file, const std::string& signature, const std::string& entry, const std::vector<fs::path>& own = {}) {
+  std::set<std::string> in;
+  for (const fs::path& f : own) in.insert(f.string());
+  for (const std::string& p : gSourcePaths) {
+    const fs::path f = p;
+    in.insert(p);
+    in.insert(f.parent_path().string());   // a file added beside it can change how an import resolves (main.macos.ts, util/index.ts)
+    for (fs::path d = f.parent_path(); !d.empty(); d = d.parent_path()) {   // the tsconfig.json paths and package.json exports above it
+      in.insert((d / "tsconfig.json").string());
+      in.insert((d / "package.json").string());
+      if (d == d.root_path()) break;
+    }
+  }
   if (std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) in.insert(pf);
   auto tree = [&](const fs::path& d) {   // a directory with everything under it: an added or removed file changes a directory's time
     std::error_code ec;
@@ -1018,52 +1029,89 @@ static bool drawsOf(const zn::zbc::Module& zm) {
   return false;
 }
 
+/** Whether this machine can build a compiled run (ZN-398): the engine's libraries and a C++ compiler (one shell, once). */
+static bool canBuildNative() {
+  static const bool can = [] {
+    const std::string exe = zn::tc::executablePath();
+    std::error_code ec;
+    if (exe.empty() || !std::filesystem::exists(std::filesystem::path(exe).parent_path() / "libzn_host_gfx.a", ec)) return false;
+    return std::getenv("CXX") || std::system("command -v c++ >/dev/null 2>&1") == 0;
+  }();
+  return can;
+}
+
 // The program of an interpreted run, cached (ZN-415): `zinc dev`, --interp, --profile and headless runs start from the ZBC compiled last time when none of
 // its inputs changed, decoded and verified in a few milliseconds instead of parsed, checked, lowered, optimised and emitted again (1.3 s for examples/hero).
 // ~/.zinc/cache/zbc/<entry and profile>: program.zbc, modules (the native modules the compile loaded, loaded again), resources.bin (the baked fonts and
 // images of a program that draws) and inputs. Not for test runs (ZINC_DETERMINISTIC: their goldens are the compiler's output), nor with ZINC_NO_CACHE.
+// zinc dev's child (hot mode, ZN-774.16) keeps its whole unit instead (dev/hot.h: the ZBC, the stable keys and modules a Fast Refresh compares, the
+// baked resources) in program.zbc, under a key of its own. The program is cached whole, not per module: the checker instantiates generics where
+// they are used, the optimiser inlines and devirtualises across modules and drops what nothing reaches, and the ZBC has one table of strings,
+// classes and selectors, so lib/std compiles to no ZBC of its own a program could link.
 namespace zbccache {
 namespace fs = std::filesystem;
 static std::vector<std::uint8_t> gResources;   // the baked fonts and images of the cached program
 static constexpr std::size_t kKeep = 64;      // programs kept; the least recently run go first
-static std::string key(const std::string& entry) { return entry + " profile=" + (gProfile ? gProfile->name : "host") + (gStrict ? " strict" : ""); }
+static std::string key(const std::string& entry) {   // the engine files too: another root (ZINC_ROOT) reads another lib/std
+  return entry + " profile=" + (gProfile ? gProfile->name : "host") + (gStrict ? " strict" : "") + (hotMode() ? " hot" : "") + " root=" + gRoot;
+}
 static fs::path dirOf(const std::string& entry) { return fs::path(zn::tc::home()) / "cache" / "zbc" / zn::tc::sha256Hex(key(entry)).substr(0, 16); }
 static std::string signature(const std::string& entry) { return "zbc " + inputs::signature(key(entry), {}); }
 static bool wanted() { return !std::getenv("ZINC_NO_CACHE") && !std::getenv("ZINC_DETERMINISTIC"); }
-/** The cached program of `entry` when nothing it was compiled from changed, its native modules loaded. */
-static bool load(const std::string& entry, zn::zbc::Module& zm) {
+static bool readAll(const fs::path& f, std::vector<std::uint8_t>& out) {
+  std::ifstream in(f, std::ios::binary);
+  out.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  return !out.empty();
+}
+/** The cached program of `entry` when nothing it was compiled from changed, its native modules loaded; `hot`: zinc dev's child, its unit too.
+    A program that draws is a miss for a `compiledRun` this machine can build (it builds its executable from a compile). A damaged entry is a miss. */
+static bool load(const std::string& entry, zn::zbc::Module& zm, bool compiledRun, zn::dev::hot::Unit* hot) {
   if (!wanted()) return false;
   const fs::path dir = dirOf(entry);
   if (!inputs::fresh(dir / "inputs", signature(entry))) return false;
-  std::ifstream in(dir / "program.zbc", std::ios::binary);
-  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::vector<std::uint8_t> bytes;
   std::string err;
-  if (bytes.empty() || !zn::zbc::decode(bytes, zm, err) || !zn::zbc::verify(zm).empty()) return false;
+  zn::dev::hot::Unit unit;   // given to `hot` only when the whole entry loaded: a miss compiles into an empty one
+  const bool whole = readAll(dir / "program.zbc", bytes) &&
+                     (hot ? zn::dev::hot::load(bytes.data(), bytes.size(), unit, err) : zn::zbc::decode(bytes, zm, err) && zn::zbc::verify(zm).empty());
+  if (!whole) { zn::log::step("cache", "damaged cached program; compiling"); return false; }
+  if (hot) {
+    zm = std::move(unit.zbc);   // runHot hands it back to the unit
+    gResources = std::move(unit.resources);
+  } else readAll(dir / "resources.bin", gResources);
+  if (drawsOf(zm) && (gResources.empty() || (compiledRun && canBuildNative()))) return false;
   installNativeProvider(entry.c_str());
   std::ifstream mods(dir / "modules");
   for (std::string m; std::getline(mods, m);) if (!m.empty() && !zn::frontend::gNativeProvider(m, err)) return false;
   loadPlugins(dir / "plugins");
-  std::ifstream res(dir / "resources.bin", std::ios::binary);
-  gResources.assign(std::istreambuf_iterator<char>(res), std::istreambuf_iterator<char>());
+  if (hot) *hot = std::move(unit);
   std::error_code ec;
   fs::last_write_time(dir, fs::file_time_type::clock::now(), ec);   // recently run: kept when the cache is trimmed
   zn::log::write("build", zn::log::Info, "cached program, no compile (" + dir.string() + ")");
   zn::log::step("cache", "cached bytecode, no compile");
   return true;
 }
-/** After the compile of an interpreted run: the program, what it loaded and baked, and what it read. */
-static void store(const std::string& entry, const zn::zbc::Module& zm, const std::vector<std::uint8_t>& resources) {
+/** After the compile of an interpreted run: the program (with `hot`, zinc dev's unit), what it loaded and baked, and what it read. */
+static void store(const std::string& entry, const zn::zbc::Module& zm, const std::vector<std::uint8_t>& resources, const zn::dev::hot::Unit* hot) {
   if (!wanted()) return;
   const fs::path dir = dirOf(entry);
   std::error_code ec;
   fs::create_directories(dir, ec);
   fs::remove(dir / "inputs", ec);   // stale until the rest is written
-  const std::vector<std::uint8_t> bytes = zn::zbc::encode(zm);
+  std::vector<std::uint8_t> bytes;
+  if (hot) {   // as runHot completes it
+    zn::dev::hot::Unit u = *hot;
+    u.zbc = zm;
+    zn::dev::hot::finish(u);
+    u.resources = resources;
+    bytes = zn::dev::hot::save(u);
+  } else bytes = zn::zbc::encode(zm);
   std::ofstream(dir / "program.zbc", std::ios::binary).write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   { std::ofstream mods(dir / "modules"); for (const zn::tc::PluginLib& lib : gPlugins) if (!lib.module.empty()) mods << lib.module << "\n"; }
   savePlugins(dir / "plugins");
-  std::ofstream(dir / "resources.bin", std::ios::binary).write(reinterpret_cast<const char*>(resources.data()), static_cast<std::streamsize>(resources.size()));
-  inputs::write(dir / "inputs", signature(entry), entry);
+  if (hot) fs::remove(dir / "resources.bin", ec);
+  else std::ofstream(dir / "resources.bin", std::ios::binary).write(reinterpret_cast<const char*>(resources.data()), static_cast<std::streamsize>(resources.size()));
+  inputs::write(dir / "inputs", signature(entry), entry, {dir / "program.zbc", dir / "resources.bin", dir / "modules"});
   std::vector<std::pair<fs::file_time_type, fs::path>> all;
   for (const auto& e : fs::directory_iterator(dir.parent_path(), ec)) all.push_back({fs::last_write_time(e.path(), ec), e.path()});
   if (all.size() <= kKeep) return;
@@ -1133,10 +1181,8 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
   namespace fs = std::filesystem;
   if (!runcache::wanted()) return -1;
   if (!drawsOf(zm)) return -1;   // timers, files and processes alone stay interpreted (D43)
+  if (!canBuildNative()) return -1;
   const std::string exe = zn::tc::executablePath();
-  const fs::path libs = fs::path(exe).parent_path();
-  const char* cxx = std::getenv("CXX");
-  if (exe.empty() || !fs::exists(libs / "libzn_host_gfx.a") || (!cxx && std::system("command -v c++ >/dev/null 2>&1") != 0)) return -1;
   const fs::path dir = runcache::dirOf(entry), app = dir / "app", keyFile = dir / "key";
   std::error_code ec;
   fs::create_directories(dir, ec);
@@ -1618,7 +1664,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
 #endif
-  gRoot = zn::tc::sourceRoot(ZN_SOURCE_DIR);
+  gRoot = std::filesystem::absolute(zn::tc::sourceRoot(ZN_SOURCE_DIR)).string();   // absolute: a run moves into its project (ZINC_ROOT=. stays this one)
   zn::i18n::configure(gRoot + "/i18n", zn::cli::settingsFile());   // nothing is read before the first message
   if (std::getenv("ZINC_DEVAPP_SELFTEST") && std::getenv("ZINC_DEVAPP")) std::fprintf(stderr, "devapp: %s (bundle id of this process: %s)\n", std::getenv("ZINC_DEVAPP"), zn::tc::runningBundleId().c_str());   // ZN-234 selftest
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
@@ -2265,11 +2311,11 @@ int main(int argc, char** argv) {
       }
     } else {
       const std::string entry = std::filesystem::absolute(path).string();
-      bool interpreted = true;   // a program that runs compiled (runCompiled) needs this compile's sources and inputs: no cached ZBC for it
+      bool compiledRun = false;   // a program that runs compiled (runCompiled) needs this compile's sources and inputs: no cached ZBC for it
 #ifdef ZN_HOST_GFX
-      interpreted = !runcache::wanted();
+      compiledRun = runcache::wanted();
 #endif
-      if (!gDebug && !hotRun && zbccache::load(entry, zm) && (interpreted || !drawsOf(zm))) fromCache = true;   // a hot run needs the keys of a compile
+      if (!gDebug && zbccache::load(entry, zm, compiledRun, hotUnit.get())) fromCache = true;
       else {
         gHotUnit = hotUnit.get();
         const int rc = compileToZbc(hotRun ? entry.c_str() : path.c_str(), zm);   // a hot run compiles the same absolute path each time: its keys name the files
@@ -2312,7 +2358,7 @@ int main(int argc, char** argv) {
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
-    if (compiled && !gDebug) zbccache::store(absPath, zm, blob);   // the next interpreted run of an unchanged program starts from here (ZN-415)
+    if (compiled && !gDebug) zbccache::store(absPath, zm, blob, hotUnit.get());   // the next interpreted run of an unchanged program starts from here (ZN-415)
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368

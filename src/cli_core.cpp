@@ -3115,7 +3115,8 @@ std::string inspectEntry(const std::string& dir, const std::string& entry) {
   const fs::path devDir = fs::path(dir) / "build" / ".zinc-dev";
   std::error_code ec;
   fs::create_directories(devDir, ec);
-  writeFile(devDir / "main.ts", "import 'zinc:devtools';\nimport " + jsonString(fs::relative(entry, devDir, ec).string()) + ";\n");
+  const std::string text = "import 'zinc:devtools';\nimport " + jsonString(fs::relative(entry, devDir, ec).string()) + ";\n";
+  if (readAll(devDir / "main.ts") != text) writeFile(devDir / "main.ts", text);   // rewritten, it would stale the cached program (ZN-774.16)
   return (devDir / "main.ts").string();
 }
 
