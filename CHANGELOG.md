@@ -8,8 +8,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-## [0.5.1] - 2026-10-22
-
 ### Fixed
 
 - The JavaScript engines (`--engine quickjs`, `v8`, `hermes`, `jsc`) load the display driver a project names in `zinc.json` (`"display": "gl"`): `examples/video/mapper` stopped with "symbol not found '_zgl_layers'" on all of them.
@@ -25,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On an Intel Mac, `zinc run --target esp32 --qemu` downloads an emulator that runs there: the one it fetched was built for Apple Silicon ("Bad CPU type in executable").
 - A built-in method taken as a value (`const f = s.slice`, `console.log(arr.push)`) is error Z0005 with the way out (call it, or wrap it in an arrow function): it compiled to the string's or the array's length, and printing it crashed the compiler.
 - `zinc:mapping` answers every `/sync`: one sent within 100 ms of the last was dropped, so the mapper's web editor got "no answer" on every other quick refresh. It is now answered when its turn comes (still at most 10 replies a second).
+- The notification relay (`examples/notify-relay`) keeps relaying after the Mac's clock goes back (set by hand, or corrected by the network): until the clock caught up, every new notification was taken for an old one and dropped.
 
 ## [0.5.0] - 2026-10-21
 
@@ -394,8 +393,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.5.1...HEAD
-[0.5.1]: https://github.com/Frulko/zinc/compare/v0.5.0...v0.5.1
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/Frulko/zinc/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/Frulko/zinc/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Frulko/zinc/compare/v0.4.0...v0.4.2

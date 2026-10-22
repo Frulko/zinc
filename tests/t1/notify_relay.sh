@@ -109,6 +109,9 @@ focus_on ''
 until_grep "^focus off" "$tmp/relay.log" 100 || bad "the end of the Focus was not seen"
 add com.apple.mail "After focus" "" "relayed again" 1
 until_grep "| After focus |" "$tmp/tablet1.log" || bad "nothing after the Focus"
+# the clock went back (set by hand, corrected by the network): a new record dated before the newest one seen is news all the same
+add com.apple.iCal "Clock back" "" "dated ten minutes ago" 1 600
+until_grep "| Clock back |" "$tmp/tablet1.log" || bad "a record dated before the newest one was not relayed"
 
 # the menu's direct test (SIGUSR2), acknowledged by the tablet
 kill -USR2 "$app"

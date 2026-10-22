@@ -7,8 +7,10 @@ import * as mac from 'zinc:notifymac';
 import { base64Decode } from 'zinc:web';
 import { Notif, fromRecord, isImage } from './model';
 
-const SINCE: string = 'SELECT r.uuid, a.identifier, r.data, r.delivered_date, r.presented FROM record r JOIN app a ON a.app_id = r.app_id ' +
-  'WHERE r.delivered_date IS NOT NULL AND r.delivered_date >= ? ORDER BY r.delivered_date';
+// A record is news when it was delivered since the newest one seen, or when it is newer in the table: the clock may go back (set by hand,
+// corrected by the network), and every record after that would carry a date older than the newest seen.
+const SINCE: string = 'SELECT r.rec_id, r.uuid, a.identifier, r.data, r.delivered_date, r.presented FROM record r JOIN app a ON a.app_id = r.app_id ' +
+  'WHERE r.delivered_date IS NOT NULL AND (r.delivered_date >= ? OR r.rec_id > ?) ORDER BY r.delivered_date';
 
 function hex(b: u8[]): string {
   const d = '0123456789abcdef';
@@ -24,6 +26,7 @@ export class Capture {
   private db: sqlite.Database | null = null;
   private query: sqlite.Statement | null = null;
   private since: number = -1;          // the delivered_date of the newest record seen (Core Foundation time)
+  private lastRec: number = 0;         // the highest rec_id seen
   private seen: string[] = [];         // uuids of the records at `since` and just before: a record is relayed once
   constructor(path: string) { this.path = path; }
 
@@ -36,13 +39,14 @@ export class Capture {
     try {
       const db = new sqlite.Database(this.path, { readOnly: true, create: false });
       if (this.since < 0) {   // the first time: what is already there is history, not news
-        const st = db.prepare('SELECT max(delivered_date) AS d FROM record');
+        const st = db.prepare('SELECT max(delivered_date) AS d, max(rec_id) AS n FROM record');
         const r = st.get();
         st.finalize();
         this.since = r === null ? 0 : r.number('d');
+        this.lastRec = r === null ? 0 : r.number('n');
       }
       const q = db.prepare(SINCE);
-      if (this.seen.length === 0) for (const r of q.all([this.since])) this.seen.push(hex(r.bytes('uuid')));   // the newest of the history too
+      if (this.seen.length === 0) for (const r of q.all([this.since, this.lastRec])) this.seen.push(hex(r.bytes('uuid')));   // the newest of the history too
       this.query = q;
       this.db = db;
       this.problem = '';
@@ -60,7 +64,7 @@ export class Capture {
     const db = this.db as sqlite.Database;
     let rows: sqlite.Row[] = [];
     try {
-      rows = (this.query as sqlite.Statement).all([this.since]);
+      rows = (this.query as sqlite.Statement).all([this.since, this.lastRec]);
     } catch (err) {   // the file was replaced or the permission withdrawn: open it again next time
       this.problem = (err as Error).message;
       (this.query as sqlite.Statement).finalize();
@@ -71,6 +75,7 @@ export class Capture {
     }
     for (const r of rows) {
       const id = hex(r.bytes('uuid'));
+      if (r.number('rec_id') > this.lastRec) this.lastRec = r.number('rec_id');
       if (this.seen.indexOf(id) >= 0) continue;
       const at = r.number('delivered_date');
       if (at > this.since) this.since = at;
