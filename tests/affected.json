@@ -99,6 +99,7 @@
     {"paths": ["tests/golden/ui-modal-motion/", "lib/std/nuxt/overlays.tsx"], "tests": ["ui_modal_motion", "nuxt_ui"]},
     {"paths": ["tests/golden/ui-press/"], "tests": ["ui_press"]},
     {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/", "tests/golden/rtl/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "react_native_imports", "rtl", "jsx_style"]},
+    {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "src/res/res.cpp", "targets/web/dom.js", "tests/golden/style-keys/", "tests/t1/style_keys.sh"], "tests": ["style_keys"]},
     {"paths": ["examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
     {"paths": ["lib/std/platform/", "lib/std/kit/", "lib/std/nuxt/controls.tsx", "lib/std/react-native.tsx", "examples/ui/kit-gallery/", "examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native"]},
     {"paths": ["examples/webcam/", "tests/golden/webcam-demo/", "plugins/camera/"], "tests": ["webcam_demo"]},

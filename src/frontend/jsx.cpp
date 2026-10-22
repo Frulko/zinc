@@ -157,7 +157,8 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "rowGap", "columnGap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
     "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY",
-    "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "tintColor"};
+    "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "tintColor",
+    "zIndex", "shadowLevel", "textShadowColor", "textDecorationColor"};   // the keys of what was class-only (ZN-774.18): z-10, shadow-md, text-shadow-red-500
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}, {"column-reverse", 2}, {"row-reverse", 3}}}, {"borderStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}, {"wrap-reverse", 2}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -166,7 +167,11 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"alignContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"space-between", 4}, {"space-around", 5}, {"space-evenly", 6}}},
     {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}, {"contents", 2}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
-    {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
+    {"fontWeight", {{"normal", 400}, {"bold", 700}, {"100", 100}, {"200", 200}, {"300", 300}, {"400", 400}, {"500", 500}, {"600", 600}, {"700", 700}, {"800", 800}, {"900", 900}}},   // font-thin..font-black
+    {"fontStyle", {{"normal", 0}, {"italic", 1}}}, {"textTransform", {{"none", 0}, {"uppercase", 1}, {"lowercase", 2}, {"capitalize", 3}}},
+    {"textDecorationLine", {{"none", 0}, {"underline", 1}, {"line-through", 2}, {"underline line-through", 3}, {"overline", 4}}},
+    {"textDecorationStyle", {{"solid", 0}, {"double", 1}, {"dotted", 2}, {"dashed", 3}}}, {"pointerEvents", {{"auto", 0}, {"none", 1}}},
+    {"cursor", {{"default", 0}, {"auto", 0}, {"text", 1}, {"pointer", 2}, {"move", 3}, {"ew-resize", 4}, {"col-resize", 4}, {"ns-resize", 5}, {"row-resize", 5}, {"crosshair", 6}, {"grab", 7}, {"grabbing", 8}, {"not-allowed", 9}}},   // ui.ts CURSOR_OF
     {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}},
     {"objectFit", {{"fill", 0}, {"contain", 1}, {"cover", 2}, {"none", 3}, {"scale-down", 4}}},   // React Native's resizeMode is objectFit (ZN-262): center scales down, repeat tiles
     {"resizeMode", {{"stretch", 0}, {"contain", 1}, {"cover", 2}, {"center", 4}, {"repeat", 5}}}};
@@ -189,6 +194,10 @@ std::vector<std::string> numericStyleKeys(const std::string& raw) {
 }
 std::string trim(const std::string& s);
 std::string lowerCase(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
+// The key a colour's alpha goes to (ui.ts writes the colour opaque, then the alpha); empty for a colour without one. backgroundColor has its own rule.
+std::string colorAlphaKey(const std::string& key) {
+  return key == "color" ? "colorAlpha" : key == "borderColor" ? "borderAlpha" : key == "shadowColor" ? "shadowAlpha" : key == "textShadowColor" ? "textShadowAlpha" : "";
+}
 std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
   name = styleName(name);
   if (name == "border") {
@@ -268,9 +277,12 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
   }
   const std::string& sv = value.str;
   if (colorKey) {
+    const std::string alphaKey = colorAlphaKey(keys[0]);
     if (sv == "transparent") {
-      if (keys[0] != "backgroundColor") throw std::runtime_error("transparent " + name + " is unsupported");
-      return {{"backgroundColor", -1}, {"backgroundAlpha", 0}};
+      if (keys[0] == "backgroundColor") return {{"backgroundColor", -1}, {"backgroundAlpha", 0}};
+      if (keys[0] == "borderColor") return {{"borderColor", -1}};   // border-transparent's
+      if (alphaKey.empty()) throw std::runtime_error("transparent " + name + " is unsupported");
+      return {{keys[0], 0}, {alphaKey, 0}};
     }
     std::string text = sv;
     static const std::regex rgb(R"(^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$)");
@@ -290,9 +302,10 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     static const std::regex shortHex(R"(^[\da-fA-F]{3,4}$)"), longHex(R"(^[\da-fA-F]{6}([\da-fA-F]{2})?$)");
     if (std::regex_match(hex, shortHex)) { std::string w; for (char c : hex) { w += c; w += c; } hex = w; }
     if (!std::regex_match(hex, longHex)) throw std::runtime_error("unsupported color '" + sv + "' (use a name or #RGB/#RRGGBB/#RRGGBBAA)");
-    if (hex.size() == 8 && keys[0] != "backgroundColor") throw std::runtime_error("alpha is only supported on backgroundColor");
+    if (hex.size() == 8 && keys[0] != "backgroundColor" && alphaKey.empty()) throw std::runtime_error("alpha is only supported on backgroundColor, color, borderColor, shadowColor and textShadowColor");
     std::vector<StyleOp> ops{{keys[0], static_cast<double>(std::stol(hex.substr(0, 6), nullptr, 16))}};
     if (keys[0] == "backgroundColor") ops.push_back({"backgroundAlpha", hex.size() == 8 ? static_cast<double>(std::stol(hex.substr(6), nullptr, 16)) : 255.0});
+    else if (hex.size() == 8) ops.push_back({alphaKey, static_cast<double>(std::stol(hex.substr(6), nullptr, 16))});   // the alpha follows its colour (which sets it opaque)
     return ops;
   }
   if ((name == "width" || name == "height") && sv == "auto") return {{name, -1}};
@@ -791,6 +804,7 @@ struct Lowering {
     else return {};
     std::vector<std::pair<std::string, std::string>> out;
     try { for (const StyleOp& op : styleEntry(key, lv)) out.push_back({op.key, jsNumber(op.value)}); } catch (const std::runtime_error& e) { fail(a, e.what()); }
+    if (out.size() == 1 && !colorAlphaKey(out[0].first).empty()) out.push_back({colorAlphaKey(out[0].first), "255"});   // '#fff8' and 'red' set the same keys
     return out;
   }
   std::string styleObject(std::size_t a, std::size_t b) {
@@ -806,16 +820,18 @@ struct Lowering {
       if (t[x].kind == Tok::String) key = key.substr(1, key.size() - 2);
       std::size_t vb = x + 1, ve = y;
       if (isP(x + 1, ":")) vb = x + 2; else { vb = x; ve = x + 1; }  // shorthand `{ gap }`
-      if (styleName(key) == "shadowOffset" && vb < ve && isP(vb, "{") && isP(ve - 1, "}")) {   // React Native's { width, height } (ZN-360)
+      if (styleName(key) == "textShadowRadius") continue;   // accepted: the text shadow is drawn sharp, as the text-shadow-* classes (docs/ui.md)
+      const std::string off = styleName(key) == "textShadowOffset" ? "textShadowOffset" : "shadowOffset";
+      if (styleName(key) == off && vb < ve && isP(vb, "{") && isP(ve - 1, "}")) {   // React Native's { width, height } (ZN-360)
         std::vector<std::pair<std::size_t, std::size_t>> parts;
         std::size_t from2 = vb + 1;
         scan(vb + 1, ve - 1, [&](std::size_t q, const std::string& tk) { if (tk == ",") { parts.push_back({from2, q}); from2 = q + 1; } });
         if (from2 < ve - 1) parts.push_back({from2, ve - 1});
         for (auto [p0, p1] : parts) {
-          if (p1 < p0 + 3 || !isP(p0 + 1, ":")) fail(p0, "shadowOffset takes { width: number, height: number }");
+          if (p1 < p0 + 3 || !isP(p0 + 1, ":")) fail(p0, off + " takes { width: number, height: number }");
           const std::string side = tx(p0);
-          if (side != "width" && side != "height") fail(p0, "shadowOffset takes { width: number, height: number }");
-          keys.push_back(quote(side == "width" ? "shadowOffsetX" : "shadowOffsetY"));
+          if (side != "width" && side != "height") fail(p0, off + " takes { width: number, height: number }");
+          keys.push_back(quote(off + (side == "width" ? "X" : "Y")));
           values.push_back("(" + rw(p0 + 2, p1) + ")");
         }
         continue;
@@ -869,7 +885,7 @@ struct Lowering {
           const bool stringKey = kStyleEnums.count(sk) || sk == "background" || sk == "border";
           if (stringKey || (!kStyleAliases.count(sk) && !kStyleNumeric.count(sk) && sk != "width" && sk != "height")) {   // an enum or string key: a conditional between literals lowers to numbers (ZN-362)
             auto choice = literalChoice(key, vb, ve);
-            if (choice.empty() && sk == "fontWeight") choice.push_back({"fontWeight", "((" + rw(vb, ve) + ") >= 600 ? 1 : 0)"});   // a number: 600 and up is bold
+            if (choice.empty() && sk == "fontWeight") choice.push_back({"fontWeight", "(" + rw(vb, ve) + ")"});   // a number: 100 to 900
             if (choice.empty()) fail(vb, "'" + sk + "' takes a literal or a conditional between literals (c ? 'a' : 'b'); a string decided elsewhere cannot be lowered");
             for (auto& [k, v] : choice) { keys.push_back(quote(k)); values.push_back(v); }
             continue;

@@ -347,7 +347,7 @@ export class UiNode {
   borderW: number = 0; borderColor: i32 = BORDER_GREY; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
    // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
-  shX: number = 0; shY: number = 0; shBlur: number = 0; shColor: i32 = 0; shOpacity: number = 0;   // React Native's shadow (ZN-360): drawn when shOpacity > 0
+  shX: number = 0; shY: number = 0; shBlur: number = 0; shColor: i32 = 0; shOpacity: number = 0; shAlpha: i32 = 255;   // React Native's shadow (ZN-360): drawn when shOpacity > 0; shAlpha: shadowColor's alpha
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
     // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
@@ -355,7 +355,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
+  size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; decoC: i32 = -1; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline; the style << 3) and colour (-1: the text's), word spacing px, sub/super shift (em)
    tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -957,6 +957,21 @@ const P_COLOR_ALPHA: i32 = 111;
 const P_BORDER_ALPHA: i32 = 112;
 const P_OBJECT_FIT: i32 = 113;   // ImgX.fit and .tint (ZN-262)
 const P_TINT_COLOR: i32 = 114;
+// The keys of what was class-only (ZN-774.18): each writes the field its class writes (z-10, italic, uppercase, underline, text-shadow-*, pointer-events-none,
+// cursor-*); the decoration's colour and style, the text shadow's and the box shadow's alpha have fields of their own. Paint only, but for the text ones.
+const P_Z_INDEX: i32 = 115;
+const P_FONT_STYLE: i32 = 116;
+const P_TEXT_TRANSFORM: i32 = 117;
+const P_TEXT_DECORATION_LINE: i32 = 118;
+const P_TEXT_DECORATION_STYLE: i32 = 119;
+const P_TEXT_DECORATION_COLOR: i32 = 120;
+const P_TEXT_SHADOW_COLOR: i32 = 121;
+const P_TEXT_SHADOW_ALPHA: i32 = 122;
+const P_TEXT_SHADOW_X: i32 = 123;
+const P_TEXT_SHADOW_Y: i32 = 124;
+const P_POINTER_EVENTS: i32 = 125;
+const P_CURSOR: i32 = 126;
+const P_SHADOW_ALPHA: i32 = 127;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -1033,6 +1048,10 @@ function propInit(): void {
   PROP.set('borderTopColor', P_BORDER_TOP_COLOR); PROP.set('borderRightColor', P_BORDER_RIGHT_COLOR); PROP.set('borderBottomColor', P_BORDER_BOTTOM_COLOR); PROP.set('borderLeftColor', P_BORDER_LEFT_COLOR);
   PROP.set('shadowLevel', P_SHADOW_LEVEL); PROP.set('colorAlpha', P_COLOR_ALPHA); PROP.set('borderAlpha', P_BORDER_ALPHA);
   PROP.set('objectFit', P_OBJECT_FIT); PROP.set('tintColor', P_TINT_COLOR);
+  PROP.set('zIndex', P_Z_INDEX); PROP.set('fontStyle', P_FONT_STYLE); PROP.set('textTransform', P_TEXT_TRANSFORM);
+  PROP.set('textDecorationLine', P_TEXT_DECORATION_LINE); PROP.set('textDecorationStyle', P_TEXT_DECORATION_STYLE); PROP.set('textDecorationColor', P_TEXT_DECORATION_COLOR);
+  PROP.set('textShadowColor', P_TEXT_SHADOW_COLOR); PROP.set('textShadowAlpha', P_TEXT_SHADOW_ALPHA); PROP.set('textShadowOffsetX', P_TEXT_SHADOW_X); PROP.set('textShadowOffsetY', P_TEXT_SHADOW_Y);
+  PROP.set('pointerEvents', P_POINTER_EVENTS); PROP.set('cursor', P_CURSOR); PROP.set('shadowAlpha', P_SHADOW_ALPHA);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -1055,6 +1074,22 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   if (id === P_SHADOW_LEVEL) { n.shadowLevel = iv < 0 ? 0 : iv > 5 ? 5 : iv; paintDirty = true; return; }
   if (id === P_OBJECT_FIT) { n.ownIm().fit = iv; paintDirty = true; return; }
   if (id === P_TINT_COLOR) { n.ownIm().tint = iv; paintDirty = true; return; }
+  if (id >= P_Z_INDEX && id <= P_SHADOW_ALPHA) {   // the keys of what was class-only (ZN-774.18): the fields their classes write
+    if (id === P_FONT_STYLE) { n.italic = iv !== 0; layoutDirty = true; return; }   // the face changes: measured again
+    if (id === P_TEXT_TRANSFORM) { n.transform = iv; layoutDirty = true; return; }
+    if (id === P_Z_INDEX) n.z = iv;
+    else if (id === P_TEXT_DECORATION_LINE) n.deco = (n.deco & ~7) | iv;   // the lines in bits 1 underline, 2 line-through, 4 overline
+    else if (id === P_TEXT_DECORATION_STYLE) n.deco = (n.deco & 7) | (iv << 3);   // the style above them: 0 solid, 1 double, 2 dotted, 3 dashed
+    else if (id === P_TEXT_DECORATION_COLOR) n.decoC = iv;
+    else if (id === P_TEXT_SHADOW_COLOR) { n.tsColor = iv; n.tsAlpha = 255; }   // a colour is a shadow, opaque until its alpha follows
+    else if (id === P_TEXT_SHADOW_ALPHA) n.tsAlpha = iv;
+    else if (id === P_TEXT_SHADOW_X) n.tsX = iv; else if (id === P_TEXT_SHADOW_Y) n.tsY = iv;
+    else if (id === P_POINTER_EVENTS) n.noPointer = iv !== 0;
+    else if (id === P_CURSOR) n.cursor = iv;
+    else n.shAlpha = iv;
+    paintDirty = true;
+    return;
+  }
   if (id === P_OPACITY) { n.opacity = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_X || id === P_TRANSLATE_X) { n.tx = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_Y || id === P_TRANSLATE_Y) { n.ty = v; paintDirty = true; return; }
@@ -1094,7 +1129,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
     if (id === P_ROWS) { e.rows = iv; layoutDirty = true; return; }
   }
   if (id >= P_SHADOW_COLOR && id <= P_ELEVATION) {   // React Native's shadow keys (ZN-360): paint only
-    if (id === P_SHADOW_COLOR) n.shColor = iv; else if (id === P_SHADOW_X) n.shX = v; else if (id === P_SHADOW_Y) n.shY = v;
+    if (id === P_SHADOW_COLOR) { n.shColor = iv; n.shAlpha = 255; } else if (id === P_SHADOW_X) n.shX = v; else if (id === P_SHADOW_Y) n.shY = v;
     else if (id === P_SHADOW_OPACITY) n.shOpacity = v; else if (id === P_SHADOW_RADIUS) n.shBlur = v;
     else {   // elevation: one shadow along a curve close to Material's (offset e/2, blur 0.8e, opacity 0.12 + 0.012e up to 0.4), black
       n.shColor = 0; n.shX = 0; n.shY = v * 0.5; n.shBlur = v * 0.8; n.shOpacity = v > 0 ? Math.min(0.4, 0.12 + 0.012 * v) : 0;
@@ -1114,7 +1149,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_POSITION) { n.abs = iv === 1; n.stat = iv === 2; }   // 0 relative, 1 absolute, 2 static
   else if (id === P_BOX_SIZING) n.contentBox = iv !== 0;
   else if (id === P_OVERFLOW) { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
-  else if (id === P_FONT_WEIGHT) n.bold = iv !== 0;
+  else if (id === P_FONT_WEIGHT) { n.weight = iv >= 100 ? (iv >= 900 ? 900 : Math.round(iv / 100) * 100) : iv !== 0 ? 700 : 400; n.bold = n.weight >= 600; }   // 100..900 as font-thin..font-black; 0 and 1 (normal, bold) as before
   else if (id === P_TEXT_ALIGN) n.talign = iv;
   else if (id === P_LINE_HEIGHT) n.leading = iv;
   else if (id === P_LETTER_SPACING) { n.letterSpace = v; n.tracking = v / (n.size > 0 ? n.size : 16); }
@@ -1206,7 +1241,7 @@ function propValue(n: UiNode, id: i32): number {
   if (id === P_ALIGN_ITEMS) return n.align;
   if (id === P_POSITION) return n.abs ? 1 : n.stat ? 2 : 0;
   if (id === P_OVERFLOW) return n.scroll === 3 ? 2 : n.overflow ? 1 : 0;
-  if (id === P_FONT_WEIGHT) return n.bold ? 1 : 0;
+  if (id === P_FONT_WEIGHT) return n.weight > 0 ? n.weight : n.bold ? 700 : 400;
   if (id === P_TEXT_ALIGN) return n.talign;
   if (id === P_LINE_HEIGHT) return n.leading;
   if (id === P_LETTER_SPACING) return n.letterSpace;
@@ -2590,9 +2625,9 @@ function resetStyle(n: UiNode): void {
   n.pt = 0; n.pr = 0; n.pb = 0; n.pl = 0; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
-  n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
+  n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_GREY; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
@@ -2610,8 +2645,8 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
   const colon = key.indexOf(':');
   if (key.startsWith('@') && colon > 0) {
     const c = parseHex(key.slice(colon + 1)), prop = key.slice(1, colon);
-    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else if (prop === 'shadowColor') n.shColor = c;
-    else if (prop === 'borderColor') n.borderColor = c; else applyProp(n, propId(prop), prop, c);   // the side colours
+    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') { n.fg = c; n.fgAlpha = 255; } else if (prop === 'shadowColor') { n.shColor = c; n.shAlpha = 255; }
+    else if (prop === 'borderColor') { n.borderColor = c; n.borderAlpha = 255; } else applyProp(n, propId(prop), prop, c);   // the side colours; an alpha (colorAlpha...) follows its colour
     paintDirty = true; return;
   }
   applyToken(n, key.slice(1), '');
@@ -2721,7 +2756,7 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.decoC = t.decoC; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
@@ -3998,7 +4033,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.tag !== FRAGMENT) {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
     if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
-    if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * 255 * a));
+    if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * n.shAlpha * a));
     const gr = n.grad > 0 || n.gx.kind > 0, two = gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0;   // two: the prototype's two-stop gradient
     if (!two) {
       const bg = !gr || gradOpen(n) ? effectiveBg(h, n) : -1;   // under a gradient only where it lets it through
@@ -4063,11 +4098,12 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         if (n.tsAlpha > 0 && n.lineAt === null && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
         if (n.lineAt !== null) drawRunsLine(n, i, lx, ly, fg, tai); else drawLine(n, f, lx, ly, n.lines[i], fg, tai, jx, 1);
         if (kk !== 1) unsetTf();
-        if (n.deco !== 0) {
+        if ((n.deco & 7) !== 0) {
           const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f) * kk, lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
-          if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
-          if ((n.deco & 2) !== 0) rrect(tx, ty + asc - Math.round(n.size * 0.3) * kk, lw, th, 0, fg, tai);
-          if ((n.deco & 4) !== 0) rrect(tx, ty, lw, th, 0, fg, tai);
+          const dc = n.decoC >= 0 ? n.decoC : fg, ds = n.deco >> 3;
+          if ((n.deco & 1) !== 0) decoLine(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, ds, dc, tai);
+          if ((n.deco & 2) !== 0) decoLine(tx, ty + asc - Math.round(n.size * 0.3) * kk, lw, th, ds, dc, tai);
+          if ((n.deco & 4) !== 0) decoLine(tx, ty, lw, th, ds, dc, tai);
         }
       }
     }
@@ -4093,6 +4129,12 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
   if (tfSaved !== null) popTf(tfSaved);
+}
+/** One text decoration line, CSS's text-decoration-style: 0 solid, 1 double (two lines a thickness apart), 2 dotted (squares), 3 dashed (3 on, 2 off). */
+function decoLine(x: number, y: number, w: number, th: number, style: i32, c: i32, a: i32): void {
+  if (style === 0 || style === 1) { rrect(x, y, w, th, 0, c, a); if (style === 1) rrect(x, y + 2 * th, w, th, 0, c, a); return; }
+  const on = style === 2 ? th : 3 * th, step = style === 2 ? 2 * th : 5 * th;
+  for (let d: number = 0; d < w; d += step) rrect(x + d, y, Math.min(on, w - d), th, 0, c, a);   // ponytail: one rect per dot, w / 2th commands a line; a pattern command if long dotted texts show up
 }
 // ---- extended borders (ZN-257): dashed and dotted lines, a colour per side, a radius per corner; the plain border keeps its old drawing (border() and rrect() bands)
 function pt(o: number[], x: number, y: number): void { o.push(x); o.push(y); }

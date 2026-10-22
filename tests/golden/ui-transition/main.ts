@@ -69,7 +69,7 @@ function tween(key: string, from: number, to: number, early: number, half: numbe
   ui.destroy(h);
 }
 for (const k of NUMERIC) tween(k, 10, 30, 18, 20);
-for (const k of KEYWORD) tween(k, 0, 1, 0, 1);
+for (const k of KEYWORD) if (k === 'fontWeight') tween(k, 400, 700, 400, 700); else tween(k, 0, 1, 0, 1);   // a weight reads back as 100..900 (ZN-774.18)
 for (const k of COLOUR) tween(k, 0x000000, 0xffffff, 0x666666, 0x808080);
 console.log('animate:', NUMERIC.length, 'numeric,', KEYWORD.length, 'keyword,', COLOUR.length, 'colour keys', bad === '' ? 'ok' : 'wrong:' + bad);
 

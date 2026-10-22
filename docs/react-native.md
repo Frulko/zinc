@@ -106,6 +106,7 @@ React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset
 alignItems / Self / Content (baseline: Yoga, flex-end in classic), position (relative by default, static, absolute) and insets (percent too in rn: padding, margin, insets, gaps, min / max), width / height (numbers, `'50%'`, `` `${n}%` ``), min / max sizes,
 aspectRatio, margin / padding (sides, horizontal / vertical, margins `'auto'`), gap, rowGap, columnGap, display, overflow, opacity, backgroundColor, color, border widths (they take layout space in the rn engine, paint only in classic: ZN-388), boxSizing, colours (sides),
 radii (corners), borderStyle, backgroundImage (`url(..)` or a gradient) with backgroundSize / Position / Repeat, resizeMode, objectFit, objectPosition, tintColor, shadowColor / Offset / Opacity / Radius, elevation, the transform array (translate, scale, scaleX / Y, rotate, skew: rotate
-and skew paint and hit-test in their shape), fontSize, fontWeight, lineHeight, letterSpacing, textAlign, numberOfLines. Values chosen at run time:
-numbers, and conditionals between literals for the keys that take strings (`fontWeight: on ? 'bold' : 'normal'`). Missing: fontStyle italic as a key,
-textDecorationLine, textTransform, direction, zIndex as an object key, backfaceVisibility (docs/ui.md lists the keys).
+and skew paint and hit-test in their shape), zIndex, pointerEvents (auto, none), cursor, fontSize, fontWeight (100 to 900), fontStyle, lineHeight, letterSpacing, textAlign,
+textTransform, textDecorationLine / Color / Style, textShadowColor / Offset / Radius (drawn without blur), numberOfLines; colours with an alpha on color, borderColor and
+shadowColor too. Values chosen at run time: numbers, and conditionals between literals for the keys that take strings (`fontWeight: on ? 'bold' : 'normal'`).
+Missing: direction, backfaceVisibility, pointerEvents box-none and box-only (docs/ui.md lists the keys).

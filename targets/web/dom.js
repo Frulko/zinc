@@ -105,6 +105,7 @@ export function makeDomHost(env) {
   const px = (v) => r3(v) + 'px';
   const color = (c, a = 255) => {
     if (c === -3) return 'currentcolor';
+    if (c === -1) return 'transparent';   // border-transparent, borderColor: 'transparent': the native renderers draw nothing
     if (a >= 255) return hex6(c);
     return 'rgba(' + (c >>> 16 & 255) + ',' + (c >>> 8 & 255) + ',' + (c & 255) + ',' + r3(Math.max(0, a) / 255) + ')';
   };
@@ -170,7 +171,7 @@ export function makeDomHost(env) {
     const rg = n.rg;
     if (rg.ringW > 0) out.push('0 0 0 ' + px(rg.ringO + rg.ringW) + ' ' + (rg.ringC >= 0 ? hex6(rg.ringC) : '#3b82f6'));
     if (n.shadowLevel > 0) { const L = n.shadowLevel; out.push('0 ' + px([0, 1, 1, 4, 10, 20][L]) + ' ' + px([0, 2, 3, 6, 15, 25][L]) + ' rgba(0,0,0,' + [0, 0.2, 0.3, 0.4, 0.45, 0.5][L] + ')'); }
-    if (n.shOpacity > 0) out.push(px(n.shX) + ' ' + px(n.shY) + ' ' + px(n.shBlur) + ' ' + color(n.shColor, Math.round(Math.min(1, n.shOpacity) * 255)));
+    if (n.shOpacity > 0) out.push(px(n.shX) + ' ' + px(n.shY) + ' ' + px(n.shBlur) + ' ' + color(n.shColor, Math.round(Math.min(1, n.shOpacity) * n.shAlpha)));
     return out.join(',');
   }
   /** The declarations of node n (parent par) into K/V. */
@@ -342,7 +343,11 @@ export function makeDomHost(env) {
       if (n.wordSp) d('word-spacing', px(n.wordSp));
       if (n.talign) d('text-align', ['start', 'center', 'end', 'justify'][n.talign]);
       if (n.transform) d('text-transform', ['none', 'uppercase', 'lowercase', 'capitalize'][n.transform]);
-      if (n.deco) d('text-decoration', ((n.deco & 1 ? 'underline ' : '') + (n.deco & 2 ? 'line-through ' : '') + (n.deco & 4 ? 'overline' : '')).trim());
+      if (n.deco & 7) {
+        d('text-decoration', ((n.deco & 1 ? 'underline ' : '') + (n.deco & 2 ? 'line-through ' : '') + (n.deco & 4 ? 'overline' : '')).trim());
+        if (n.deco >> 3) d('text-decoration-style', ['solid', 'double', 'dotted', 'dashed'][n.deco >> 3]);
+        if (n.decoC >= 0) d('text-decoration-color', color(n.decoC, 255));
+      }
       if (n.ws === 1) d('white-space', 'nowrap'); else if (n.ws === 2) d('white-space', 'pre'); else if (n.ws === 3) d('white-space', 'pre-wrap');
       if (n.brk === 1) d('overflow-wrap', 'anywhere'); else if (n.brk === 2) d('word-break', 'break-all');
       if (n.balance) d('text-wrap', 'balance');

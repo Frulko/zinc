@@ -812,26 +812,37 @@ Supported properties:
   `borderTopRightRadius`, `borderBottomRightRadius`, `borderBottomLeftRadius`) and side colours (`borderTopColor`, `borderRightColor`, `borderBottomColor`,
   `borderLeftColor`: like React Native, a side colour needs a border width), `opacity`, `translateX/Y`, `scale`, and React Native's shadow: `shadowColor`, `shadowOffset: { width, height }`,
   `shadowOpacity` (no shadow while it is 0, React Native's default), `shadowRadius`, and `elevation` (one black shadow: offset e/2, blur 0.8e, opacity
-  0.12 + 0.012e up to 0.4).
+  0.12 + 0.012e up to 0.4). `shadowLevel` (0 to 5) is the look of `shadow-none`, `shadow-sm`, `shadow`, `shadow-md`, `shadow-lg`, `shadow-xl`.
+- Layering and the pointer: `zIndex` (any integer, as `z-10`, `-z-1`), `pointerEvents` (`auto`, `none`: the node and its subtree take no pointer, as
+  `pointer-events-none`; `box-none` and `box-only` are refused), `cursor` (`default`, `auto`, `text`, `pointer`, `move`, `ew-resize`/`col-resize`,
+  `ns-resize`/`row-resize`, `crosshair`, `grab`, `grabbing`, `not-allowed`, as the `cursor-*` classes).
 - React Native's `transform: [{ rotate: '45deg' }, { scale: 1.2 }, ...]` with `translateX/Y`, `scale`, `scaleX/Y`, `rotate`/`rotateZ` (`deg`, `rad`,
   `turn`, or a number of degrees), `skewX/Y`; static or dynamic values. It applies around the centre in one fixed order (translate, rotate, scale, skew; a
   repeated entry keeps the last value) and 3D entries are refused. Hits and paint follow the transformed shape: the node and its subtree, texts and
   icons included, are drawn through the renderer's matrix (an `animate(ref, 'rotate', 360, …)` spins it); a clip under a turn is the bounding box of
   the turned rectangle. Canvas and 3D plugins that record their own commands draw upright inside a turned parent.
-- Text: `fontSize`, `fontFamily`, `fontWeight`, `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
+- Text: `fontSize`, `fontFamily`, `fontWeight` (`normal`, `bold`, `100` to `900` as `font-thin` to `font-black`: the nearest face the family has),
+  `fontStyle` (`normal`, `italic`), `textTransform` (`none`, `uppercase`, `lowercase`, `capitalize`), `textDecorationLine` (`none`, `underline`,
+  `line-through`, `underline line-through`, `overline`), `textDecorationColor` (the text's colour by default), `textDecorationStyle` (`solid`, `double`,
+  `dotted`, `dashed`; the classes have no equivalent), `textShadowColor` (a shadow, opaque unless the colour has an alpha), `textShadowOffset: { width, height }`,
+  `textShadowRadius` (accepted; the shadow is drawn sharp, as the `text-shadow-*` classes draw it), `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
+  Each key writes the field its class writes (`italic`, `uppercase`, `underline`, `text-shadow-md text-shadow-red-500`...): the same pixels on the native
+  renderers (`tests/golden/style-keys`), the same CSS in the web page's DOM.
 - Existing numeric aliases remain: `bg`, `radius`, `x/y`, `hidden`, `lazy` (canvas).
 
 CamelCase and quoted CSS kebab-case keys work. Numbers are logical pixels except unitless properties. `rem`/`em`
 currently mean 16 logical pixels, not inherited CSS font sizes. Colors accept the named subset in the compiler,
-`#RGB`, `#RRGGBB`, `rgb(...)`; background colors additionally accept alpha hex and `rgba(...)`. Static 24-bit colors
+`#RGB`, `#RRGGBB`, `rgb(...)`; `backgroundColor`, `color`, `borderColor`, `shadowColor` and `textShadowColor` also take an alpha (`#RRGGBBAA`,
+`rgba(...)`, `transparent`: what `text-white/50` or `border-transparent` give; a shadow colour's alpha multiplies `shadowOpacity`, as in React Native). Static 24-bit colors
 are encoded separately from floating/fixed-point values, preserving them on PS1 profiles. Dynamic numeric colors
 still follow the target's `number` range; choose conditional named styles for portable color changes.
 
 Dynamic values inside an inline object are numeric Zinc expressions, or (ZN-362) a conditional between literals for a key that takes strings:
 `fontWeight: on() ? 'bold' : 'normal'`, `display: open ? 'flex' : 'none'`, `backgroundColor: on() ? '#0f766e' : 'white'`, nested conditionals too. The keys
 that take such a conditional: the enum keys (`flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `position`, `display`,
-`overflow`, `fontWeight`, `textAlign`), the colour keys (`backgroundColor`/`bg`, `color`, `borderColor`, `shadowColor`: each literal becomes its number);
-both branches must set the same properties. `fontWeight` also takes a number (600 and up is bold). A string decided elsewhere (a variable,
+`overflow`, `fontWeight`, `fontStyle`, `textTransform`, `textDecorationLine`, `textDecorationStyle`, `pointerEvents`, `cursor`, `textAlign`), the colour keys
+(`backgroundColor`/`bg`, `color`, `borderColor`, `shadowColor`, `textShadowColor`, `textDecorationColor`: each literal becomes its number, its alpha too);
+both branches must set the same properties. `fontWeight` also takes a number (100 to 900; 0 and 1 are normal and bold, as before). A string decided elsewhere (a variable,
 a call) is a build error. For other changes, select named
 styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`, `false`, `undefined` branches are
 empty styles. Object spreads, nested style arrays, `calc`, grid, arbitrary CSS
@@ -996,6 +1007,19 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 112 | `borderAlpha` |  |
 | 113 | `objectFit` |  |
 | 114 | `tintColor` |  |
+| 115 | `zIndex` |  |
+| 116 | `fontStyle` |  |
+| 117 | `textTransform` |  |
+| 118 | `textDecorationLine` |  |
+| 119 | `textDecorationStyle` |  |
+| 120 | `textDecorationColor` |  |
+| 121 | `textShadowColor` |  |
+| 122 | `textShadowAlpha` |  |
+| 123 | `textShadowOffsetX` |  |
+| 124 | `textShadowOffsetY` |  |
+| 125 | `pointerEvents` |  |
+| 126 | `cursor` |  |
+| 127 | `shadowAlpha` |  |
 
 ### Accepted class tokens (generated)
 
