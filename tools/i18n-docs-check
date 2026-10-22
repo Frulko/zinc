@@ -4,8 +4,8 @@
 A translated file mirrors the English path (docs/learn/01-x.md -> docs/i18n/fr/learn/01-x.md) and starts with a frontmatter
 `source: <git sha>`, the commit of the English file the translator read. The check reports:
   error    the English file does not exist, `source` is missing or not a commit of this repository, the fenced code blocks differ
-           from the English file's (code is never translated), the link and image targets differ (they stay those of the English
-           file), site/src/i18n/<lang>.json has a key English does not have;
+           from those of the English file at `source` (code is never translated), the link and image targets differ from them (they
+           stay those of the English file), site/src/i18n/<lang>.json has a key English does not have;
   warning  stale: the English file differs between `source` and HEAD (translate the change, then --stamp the file);
   info     missing: pages of the onboarding set not translated yet, site strings missing in a language.
 Exit 1 on an error. --list LANG prints the files of the onboarding set LANG still lacks. --stamp FILE sets `source` to the last
@@ -80,7 +80,9 @@ for lang in LANGS:
         src = source_of(front)
         if not src: say("error", f"{name}: no `source: <sha>` line in the frontmatter (run tools/i18n-docs-check --stamp {name})"); continue
         if git("cat-file", "-e", src + "^{commit}").returncode: say("error", f"{name}: source {src} is not a commit of this repository"); continue
-        _, enbody = split(open(en, encoding="utf8").read())
+        # the code and the links are compared with the English the translator read (at `source`): a later English change is stale, not an error
+        read = git("show", f"{src}:docs/{rel}")
+        _, enbody = split(read.stdout if read.returncode == 0 else open(en, encoding="utf8").read())
         if fences(body) != fences(enbody): say("error", f"{name}: the fenced code blocks differ from docs/{rel} (code is never translated)")
         if links(body) != links(enbody): say("error", f"{name}: the link and image targets differ from docs/{rel} (they stay those of the English file)")
         if git("diff", "--quiet", src, "HEAD", "--", "docs/" + rel).returncode: say("warning", f"{name}: stale, docs/{rel} changed since {src[:10]}")

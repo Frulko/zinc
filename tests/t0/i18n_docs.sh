@@ -1,6 +1,7 @@
 #!/bin/sh
 # The translated docs (D159, tools/i18n-docs-check): the real tree passes, and a scratch repo shows what the check catches:
-# a translated code block, a changed link, a bad source (errors), a stale page (warning only), missing pages (info).
+# a translated code block, a changed link, a bad source (errors), a stale page (warning only, also when the English page gained a link
+# and a code block since the translation), missing pages (info).
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -13,7 +14,7 @@ tools/i18n-docs-check --repo "$R" --stamp "$R/docs/i18n/fr/learn/01-a.md" >/dev/
 run() { python3 tools/i18n-docs-check --repo "$R" >"$tmp/out" 2>&1; echo $?; }
 [ "$(run)" = 0 ] || { echo "a good translation fails: $(cat "$tmp/out")"; fail=1; }
 grep -q '^info: fr: 5 of 6' "$tmp/out" || { echo "the missing pages are not reported: $(cat "$tmp/out")"; fail=1; }
-printf '\nMore.\n' >>"$R/docs/learn/01-a.md"; git -C "$R" -c user.name=t -c user.email=t@t commit -qam two
+printf '\nMore [y](d.md).\n\n```sh\nzinc dev\n```\n' >>"$R/docs/learn/01-a.md"; git -C "$R" -c user.name=t -c user.email=t@t commit -qam two
 [ "$(run)" = 0 ] && grep -q '^warning: .*stale' "$tmp/out" || { echo "stale is not a warning: $(cat "$tmp/out")"; fail=1; }
 sed -i.bak 's/zinc run/zinc lancer/' "$R/docs/i18n/fr/learn/01-a.md"
 [ "$(run)" = 1 ] && grep -q 'code blocks differ' "$tmp/out" || { echo "a translated code block passes"; fail=1; }
