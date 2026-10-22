@@ -488,6 +488,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.16: a windowed `zinc run` whose native build fails (a Mac without the Command Line Tools) compiles and tries the C++ build at every run before interpreting: remember the failure beside the run cache and start from the cached ZBC.
 - ZN-774.14: `zinc:canvas` smooths curves at its own scale, not the `zinc:gfx` transform's, so a canvas inside a scaled-up stage node shows facets; its images under a rotated transform are moved and scaled but not rotated.
 - ZN-774.14: when a native plugin fails to compile, auto mode falls back to the simulation with only a warning (a broken canvas2d.host.cpp went unnoticed until ZINC_NATIVE=real): a test or `zinc doctor` should report it.
+- ZN-774.18: zinc:ui/kit has no Input or Textarea; kit apps style host fields by hand (shadcn's Input: h-9, rounded-md, border, px-3, text-sm).
+- ZN-774.18: docs/ui.md:817-818 contradicts the transform-array support described above it.
+- ZN-774.18: UiNode carries about 30 text-only fields on every node (1,376 B each); a cold text record like `BorderX` would shrink View, Button and Image nodes.
+- ZN-774.18: the Solid model has no unstyled Switch, Modal or ActivityIndicator (React Native's core has them; zinc:react-native gives them only in the React model).
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

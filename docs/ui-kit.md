@@ -60,21 +60,21 @@ Conventions, identical in both UI models:
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `Button` | `label?`, `variant?` (`default` `secondary` `outline` `ghost` `destructive`), `size?` (`sm` `default` `lg` `icon`), `onClick?`, `class?`, children | children follow the label (an icon glyph, a `Kbd`) |
-| `Card` | `class?`, children | rounded-xl surface with a border and `shadow-sm`; spaces its sections |
+| `Button` | `label?`, `variant?` (`default` `secondary` `outline` `ghost` `destructive`), `size?` (`sm` `default` `lg` `icon`), `onClick?`, `className?`, children | children follow the label (an icon glyph, a `Kbd`) |
+| `Card` | `className?`, children | rounded-xl surface with a border and `shadow-sm`; spaces its sections |
 | `CardHeader` | `title?`, `description?`, children | |
 | `CardTitle`, `CardDescription` | `text` | when composing a header by hand |
-| `CardContent`, `CardFooter` | `class?`, children | column / row, padded like the header |
-| `Badge` | `label`, `variant?` (`default` `secondary` `outline` `destructive` `success` `warning` `accent`), `class?` | |
-| `Separator` | `vertical?`, `class?` | one-pixel hairline |
-| `Stat` | `label`, `value: () => string`, `unit?`, `hint?`, `class?`, children | metric tile; children sit on the label row (a `Badge`) |
-| `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `class?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
+| `CardContent`, `CardFooter` | `className?`, children | column / row, padded like the header |
+| `Badge` | `label`, `variant?` (`default` `secondary` `outline` `destructive` `success` `warning` `accent`), `className?` | |
+| `Separator` | `vertical?`, `className?` | one-pixel hairline |
+| `Stat` | `label`, `value: () => string`, `unit?`, `hint?`, `className?`, children | metric tile; children sit on the label row (a `Badge`) |
+| `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `className?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
-| `Progress` | `value: () => number` (0–100), `accent?`, `class?` | |
-| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `class?` | tap the rail or drag sideways to set the value (never at the press: a swipe over it scrolls); keeps horizontal drags inside scroll views (`grab="keep-x"`) |
+| `Progress` | `value: () => number` (0–100), `accent?`, `className?` | |
+| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `className?` | tap the rail or drag sideways to set the value (never at the press: a swipe over it scrolls); keeps horizontal drags inside scroll views (`grab="keep-x"`) |
 | `Avatar` | `name`, `size?` (`sm` `default` `lg`) | initials of the first two words |
-| `Alert` | `title`, `description?`, `variant?` (`default` `destructive` `success`), `icon?`, `class?` | |
-| `List` | `class?`, children | bordered panel of rows |
+| `Alert` | `title`, `description?`, `variant?` (`default` `destructive` `success`), `icon?`, `className?` | |
+| `List` | `className?`, children | bordered panel of rows |
 | `ListItem` | `title`, `description?`, `trailing?`, `selected?: () => boolean`, `onClick?`, `leading?: () => node`, children | rows with `onClick` are focusable and highlight when pressed |
 | `Kbd` | `label` | key or shortcut hint |
 
@@ -95,10 +95,10 @@ toast('Saved', 'All changes are on disk.');
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `class?`, children | shows while the pointer rests on the children |
-| `Popover` | `label` (the trigger button), `variant?`, `placement?` (`bottom-start`), `class?` (the panel), children | focus moves into the panel and comes back when it closes |
-| `DropdownMenu` | `label`, `items: MenuItem[]` (`label`, `action?`, `onSelect?`, `disabled?`), `variant?`, `placement?`, `class?` | opens focused on its first item; arrows move (trapped), Enter picks; actions show their shortcut (`keyLabel`) |
-| `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `class?`, children, `footer?` | modal, dims the page (the dim fades, the panel fades and grows from 96%, both ways), traps the focus, focuses its first control, gives the focus back |
+| `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `className?`, children | shows while the pointer rests on the children |
+| `Popover` | `label` (the trigger button), `variant?`, `placement?` (`bottom-start`), `className?` (the panel), children | focus moves into the panel and comes back when it closes |
+| `DropdownMenu` | `label`, `items: MenuItem[]` (`label`, `action?`, `onSelect?`, `disabled?`), `variant?`, `placement?`, `className?` | opens focused on its first item; arrows move (trapped), Enter picks; actions show their shortcut (`keyLabel`) |
+| `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `className?`, children, `footer?` | modal, dims the page (the dim fades, the panel fades and grows from 96%, both ways), traps the focus, focuses its first control, gives the focus back |
 | `toast(title, description?, ms?)` | | a stack in the bottom-right corner, 4 s by default; no component to mount |
 
 Tooltip, Popover and DropdownMenu keep their open state in the engine (the panel's `hidden`), so they work the same in
