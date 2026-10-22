@@ -16,6 +16,7 @@ export { StyleSheet, PanResponder, LayoutAnimation } from 'zinc:ui';
 export const View: i32 = ui.VIEW, Text: i32 = ui.TEXT, Image: i32 = ui.IMAGE, ScrollView: i32 = ui.SCROLL;
 
 const NONE = new ui.Style([], []);
+const STICKY = new ui.Style(['position', 'top', 'zIndex'], [3, 0, 10]);   // sticky top-0 z-10 as style keys: no class parser in a React Native program (ZN-774.18)
 function renderChildren(c: (() => i32) | undefined): i32 { return c !== undefined ? c() : ui.createNode(ui.FRAGMENT); }
 
 /** '#rgb', '#rrggbb', '#rrggbbaa' (alpha dropped) and a few names as 0xRRGGBB; -1 when unknown. ponytail: the CSS names zinc:ui knows at build time are
@@ -548,7 +549,7 @@ export function SectionList<T>(p: SectionListProps<T>): i32 {
     const hd = p.renderSectionHeader;
     if (hd !== undefined) {
       const h = hd({ section: sec });
-      if (sticky) { const wrap = ui.createNode(ui.VIEW); ui.setClass(wrap, 'sticky top-0 z-10'); ui.insert(wrap, h, -1); ui.insert(part, wrap, -1); } else ui.insert(part, h, -1);
+      if (sticky) { const wrap = ui.createNode(ui.VIEW); ui.setStyles(wrap, [STICKY]); ui.insert(wrap, h, -1); ui.insert(part, wrap, -1); } else ui.insert(part, h, -1);
     }
     for (let i = 0; i < sec.data.length; i++) {
       ui.insert(part, p.renderItem({ item: sec.data[i], index: i, section: sec }), -1);

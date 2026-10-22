@@ -136,6 +136,9 @@ export class Style {
     this.ids = ids;
   }
 }
+/** A Style with class tokens among its keys ('@font-mono', '@bg-[url(a.png)]'): the compiler emits it for such a style object, and it brings the class
+ *  parser in (ZN-774.18). A function, not a subclass: arrays are invariant, so a subclass array would not be a Style[]. */
+export function styleC(keys: string[], values: number[]): Style { useClasses(); return new Style(keys, values); }
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
   /** React Native's thinnest line: 0.4 rounded to the nearest device pixel, else one device pixel (0.5 at pixel scale 2, 1 at scale 1; ZN-385). */
@@ -1186,7 +1189,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_ROW_GAP) n.gapY = iv; else if (id === P_COLUMN_GAP) n.gapX = iv; else if (id === P_MARGIN_AUTO) n.mAuto = iv;   // ponytail: replaces the auto sides of the classes (ml-auto); merge per side if apps mix them
   else if (id === P_JUSTIFY_CONTENT) n.justify = iv;
   else if (id === P_ALIGN_ITEMS) n.align = iv;
-  else if (id === P_POSITION) { n.abs = iv === 1; n.stat = iv === 2; }   // 0 relative, 1 absolute, 2 static
+  else if (id === P_POSITION) { n.abs = iv === 1; n.stat = iv === 2; n.sticky = iv === 3; }   // 0 relative, 1 absolute, 2 static, 3 sticky
   else if (id === P_BOX_SIZING) n.contentBox = iv !== 0;
   else if (id === P_OVERFLOW) { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
   else if (id === P_FONT_WEIGHT) { n.weight = iv >= 100 ? (iv >= 900 ? 900 : Math.round(iv / 100) * 100) : iv !== 0 ? 700 : 400; n.bold = n.weight >= 600; }   // 100..900 as font-thin..font-black; 0 and 1 (normal, bold) as before
@@ -1279,7 +1282,7 @@ function propValue(n: UiNode, id: i32): number {
   if (id === P_FLEX_WRAP) return n.wrap ? (n.wrapRev ? 2 : 1) : 0;
   if (id === P_JUSTIFY_CONTENT) return n.justify;
   if (id === P_ALIGN_ITEMS) return n.align;
-  if (id === P_POSITION) return n.abs ? 1 : n.stat ? 2 : 0;
+  if (id === P_POSITION) return n.abs ? 1 : n.stat ? 2 : n.sticky ? 3 : 0;
   if (id === P_OVERFLOW) return n.scroll === 3 ? 2 : n.overflow ? 1 : 0;
   if (id === P_FONT_WEIGHT) return n.weight > 0 ? n.weight : n.bold ? 700 : 400;
   if (id === P_TEXT_ALIGN) return n.talign;
@@ -1848,7 +1851,7 @@ let rootFont: number = 16;
 export function setRootFontSize(px: number): void {
   if (px === rootFont || !(px > 0)) return;
   rootFont = px;
-  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) rebuildStyle(nodes[i]);
 }
 export function setRole(h: i32, role: string): void { node(h).role = role; }
 export function setLabel(h: i32, label: string): void { node(h).label = label; }
@@ -1979,7 +1982,7 @@ function envValue(name: string): number {
 }
 function restyleMedia(mask: i32): i32 {
   let k = 0;
-  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && (nodes[i].media & mask) !== 0) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); k++; }
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && (nodes[i].media & mask) !== 0) { rebuildStyle(nodes[i]); k++; }
   return k;
 }
 // Colour schemes (ZN-271): `bg-[var(--card)]` and `dark:` classes follow the scheme; switching restyles the flagged nodes only, no component re-renders.
@@ -2126,7 +2129,7 @@ function settleContainers(): void {
       const m = nodes[i];
       if (!m.alive || (m.media & 4) === 0) continue;
       const c = containerOf(i), w = c >= 0 ? nodes[c].lw : 0;
-      if (w !== m.cqW) { const cl = m.cls; m.cls = '\u0000'; setClass(i, cl); changed = true; }
+      if (w !== m.cqW) { rebuildStyle(m); changed = true; }
     }
     if (!changed) break;
     layout(); settlePasses++;
@@ -2682,9 +2685,17 @@ function resetStyle(n: UiNode): void {
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
 }
+// The class parser (applyToken and the token helpers, a sixth of a style-only program) is called only through this variable, which setClass and
+// styleC install: a program that gives no class compiles without it (ZN-774.18). The restyles of every node (scheme, media, root font) call
+// rebuildStyle, not setClass, for that reason.
+let classToken: (n: UiNode, tok: string, variant: string) => boolean = noClassToken;
+let classesOn = false;
+function noClassToken(n: UiNode, tok: string, variant: string): boolean { return false; }
+function useClasses(): void { if (!classesOn) { classesOn = true; classToken = applyToken; } }
 export function setClass(h: i32, cls: string): void {
   const n = node(h);
   if (n.cls === cls) return;
+  useClasses();
   n.cls = cls;
   rebuildStyle(n);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;  // the font may have changed
@@ -2699,7 +2710,7 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
     else if (prop === 'borderColor') { n.borderColor = c; n.borderAlpha = 255; } else applyProp(n, propId(prop), prop, c);   // the side colours; an alpha (colorAlpha...) follows its colour
     paintDirty = true; return;
   }
-  applyToken(n, key.slice(1), '');
+  classToken(n, key.slice(1), '');   // '@font-mono', '@bg-[...]': styleC installed the parser
 }
 function rebuildStyle(n: UiNode): void {
   const mask: i32 = transitional(n) ? n.it.trMask : 0, was = inStyle;
@@ -2707,7 +2718,7 @@ function rebuildStyle(n: UiNode): void {
   inStyle = true;
   resetStyle(n);
   envUsed = false; varUsed = false;
-  for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
+  for (const c of n.cls.split(' ')) if (c.length > 0) classToken(n, c, '');
   if (envUsed) n.media = n.media | 8;
   if (varUsed) n.media = n.media | 16;
   for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
@@ -2836,7 +2847,7 @@ let fontSans: string = '';
 export function setFontSans(family: string): void {
   if (family === fontSans) return;
   fontSans = family;
-  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) rebuildStyle(nodes[i]);
 }
 /** font-[A,B,C]: the first family of the list that has a face wins; the built-in sans is the last resort. */
 function faceOf(n: UiNode, px: i32): i32 { return faceIn(n.family, n.weight > 0 ? n.weight : n.bold ? 700 : 400, n.italic, px); }
@@ -5848,7 +5859,7 @@ export function frame(dt: number, background: i32): void {
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
     surfW = width(); surfH = height(); layoutDirty = true; paintDirty = true;
-    if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+    if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) rebuildStyle(nodes[i]);
   }
   if (layoutDirty || extLayout) layout();
   if (prof) profMark(PROF_LAYOUT);

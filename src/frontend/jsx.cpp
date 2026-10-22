@@ -167,7 +167,7 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
     {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
     {"alignContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"space-between", 4}, {"space-around", 5}, {"space-evenly", 6}}},
-    {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}, {"contents", 2}}},
+    {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}, {"sticky", 3}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}, {"contents", 2}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
     {"fontWeight", {{"normal", 400}, {"bold", 700}, {"100", 100}, {"200", 200}, {"300", 300}, {"400", 400}, {"500", 500}, {"600", 600}, {"700", 700}, {"800", 800}, {"900", 900}}},   // font-thin..font-black
     {"fontStyle", {{"normal", 0}, {"italic", 1}}}, {"textTransform", {{"none", 0}, {"uppercase", 1}, {"lowercase", 2}, {"capitalize", 3}}},
@@ -855,6 +855,7 @@ struct Lowering {
   }
   std::string styleObject(std::size_t a, std::size_t b) {
     std::vector<std::string> keys, values, resources;
+    bool tokens = false;   // a class token ('@font-mono', '@bg-[...]'): ui.styleC(), which brings the class parser into the program (ZN-774.18)
     std::size_t from = a;
     std::vector<std::pair<std::size_t, std::size_t>> props;
     scan(a, b, [&](std::size_t i, const std::string& x) { if (x == ",") { props.push_back({from, i}); from = i + 1; } });
@@ -934,7 +935,7 @@ struct Lowering {
             if (sk == "fontSize" && op.key == "fontSize") resources.push_back("font-size: " + std::to_string(static_cast<long>(std::lround(op.value))) + "px");
             bool color = op.key == "color" || (op.key.size() > 5 && op.key.compare(op.key.size() - 5, 5, "Color") == 0);   // backgroundColor, borderTopColor...
             if (color) { char hx[24]; long long cv = static_cast<long long>(op.value); std::snprintf(hx, sizeof hx, "%llx", static_cast<unsigned long long>(cv < 0 ? -cv : cv)); keys.push_back(quote("@" + op.key + ":" + (cv < 0 ? "-" : "") + std::string(hx))); values.push_back("0"); }
-            else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); }
+            else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); tokens = tokens || op.key[0] == '@'; }
           }
         } else {
           std::string sk = styleName(key);
@@ -943,7 +944,7 @@ struct Lowering {
             auto choice = literalChoice(key, vb, ve);
             if (choice.empty() && sk == "fontWeight") choice.push_back({"fontWeight", "(" + rw(vb, ve) + ")"});   // a number: 100 to 900
             if (choice.empty()) fail(vb, "'" + sk + "' takes a literal or a conditional between literals (c ? 'a' : 'b'); a string decided elsewhere cannot be lowered");
-            for (auto& [k, v] : choice) { keys.push_back(quote(k)); values.push_back(v); }
+            for (auto& [k, v] : choice) { keys.push_back(quote(k)); values.push_back(v); tokens = tokens || k[0] == '@'; }
             continue;
           }
           const std::string ck = kStyleAliases.count(sk) && kStyleAliases.at(sk).size() == 1 ? kStyleAliases.at(sk)[0] : sk;   // bg is backgroundColor
@@ -983,7 +984,7 @@ struct Lowering {
     for (std::size_t k = 0; k < keys.size(); ++k) { ks += (k ? ", " : "") + keys[k]; vs += (k ? ", " : "") + values[k]; }
     std::string rs;
     for (std::size_t k = 0; k < resources.size(); ++k) rs += (k ? "; " : "") + resources[k];
-    return "new __ZStyle([" + ks + "], [" + vs + "])" + (rs.empty() ? "" : " /* " + rs + " */");
+    return std::string(tokens ? "__ZStyleC([" : "new __ZStyle([") + ks + "], [" + vs + "])" + (rs.empty() ? "" : " /* " + rs + " */");
   }
 
   std::string element(const Elem& e, std::vector<std::string>& out) {
@@ -1423,7 +1424,8 @@ std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std
     out += std::string(src.substr(pos));
     std::string hoisted;
     for (const std::string& st : L.staticStyles) hoisted += st + " ";
-    return "import { Style as __ZStyle } from 'zinc:ui'; " + hoisted + out;
+    const bool tokens = (hoisted + out).find("__ZStyleC([") != std::string::npos;
+    return std::string(tokens ? "import { Style as __ZStyle, styleC as __ZStyleC } from 'zinc:ui'; " : "import { Style as __ZStyle } from 'zinc:ui'; ") + hoisted + out;
   } catch (const Failure& f) {
     diags.push_back({"Z0005", f.pos, "StyleSheet: " + f.msg, file});
     return std::string(src);
@@ -1520,6 +1522,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
     if (out.find("_hotC(") != std::string::npos) helpers += ", _hotC";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
+    if (out.find("__ZStyleC([") != std::string::npos && out.find("styleC as __ZStyleC") == std::string::npos) styleImport += "import { styleC as __ZStyleC } from 'zinc:ui'; ";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {
     diags.push_back({f.code, f.pos, f.key ? f.msg : "JSX: " + f.msg, file, f.key, f.args});

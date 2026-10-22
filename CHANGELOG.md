@@ -26,6 +26,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc migrate ui-explicit-looks --apply` writes the look `<Button>`, `<Input>` and `<TextArea>` draw today into your classes (`bg-slate-700 px-2 py-1` on a Button, the dark slate field on Input and TextArea), only where your classes leave it out, and names the classNames it cannot read; `zinc migrate` with no name does not run it.
 - Style objects take what only classes could give, as in React Native: `zIndex`, `fontStyle`, `textTransform`, `textDecorationLine`/`Color`/`Style`, `textShadowColor`/`Offset`/`Radius`, `fontWeight` from `100` to `900`, `pointerEvents`, `cursor`, `shadowLevel`, and an alpha or `transparent` on `color`, `borderColor` and `shadowColor` (`'#0f172a80'`, `'rgba(0,0,0,0.5)'`).
 - Style objects also take the focus ring, the field colours, the scroll bars and transitions: `outlineWidth`/`Color`/`Offset`/`Style` (`outlineStyle: 'none'` removes the keyboard focus ring), `placeholderTextColor`, `selectionColor`, `cursorColor`, `showsVerticalScrollIndicator`/`showsHorizontalScrollIndicator` (also as ScrollView props), and `transitionProperty`/`Duration`/`TimingFunction`/`Delay`. New classes to match: `outline-dashed`, `outline-dotted`, `outline-solid`, `placeholder:text-*`, `caret-*`; zinc:react-native's TextInput takes `placeholderTextColor`, `selectionColor` and `cursorColor`.
+- Style objects take `position: 'sticky'`, as the `sticky` class.
+
+### Changed
+- A program that styles only with style objects, never with `className`, no longer carries the class parser: about a tenth less code to compile and interpret, and a native app about 145 KB smaller (a React Native program too, sticky section headers included).
 
 ### Fixed
 - Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
