@@ -36,6 +36,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
 - Under `--engine quickjs` and `--engine mquickjs`, a relative import picks the platform's file (`x.macos.ts`, `x.esp32.ts`) as the interpreter does, and `zinc:platform`'s `TARGET` is `esp32` on the board.
 - A plugin whose vendored C includes a configuration header beside `plugin.json` (such as `lv_conf.h`) is rebuilt when that header changes, on the computer and in the ESP32 firmware.
+- A plugin's native code on the computer gets the real time from the engine's clock (`now_ms` returned 0).
 
 ## [0.5.2] - 2026-10-22
 

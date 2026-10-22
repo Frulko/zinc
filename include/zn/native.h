@@ -125,6 +125,7 @@ typedef struct ZnSink {
   void (*release)(void* user, uint64_t cb);                                                 /* the last native reference to a callback ended */
   const char* (*error)(void* user);                                                         /* the message of the last failed call */
   void (*hold)(void* user, uint64_t cb);                                                    /* a native module took its first reference to a callback (cb_retain) */
+  double (*now)(void* user);                                                                /* the engine's clock in ms (ZnHostApi.now_ms); null: the system's monotonic clock */
 } ZnSink;
 void zn_native_set_sink(const ZnSink* sink);
 /* The program ended: every callback a module still held is released (the modules stay registered; a module that keeps a handle across runs must ask for a new one). */

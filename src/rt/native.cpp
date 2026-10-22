@@ -4,6 +4,7 @@
 #include "native_lazy.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <deque>
@@ -183,7 +184,7 @@ void apiPromiseReject(std::uint64_t promise, const char* message) {
 }
 void apiLoopRef() { ++gPending; }
 void apiLoopUnref() { --gPending; }
-double apiNow() { return 0; }
+double apiNow() { return gSink.now ? gSink.now(gSink.user) : std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 const char* apiCbError() { return gSink.error ? gSink.error(gSink.user) : ""; }
 
 ZnHostApi gApi = {sizeof(ZnHostApi), apiSetError, apiRetStr, apiRetBuf, apiResNew, apiResGet, apiResRetain, apiResRelease, apiCbRetain, apiCbRelease, apiCbCall, apiCbPost,
