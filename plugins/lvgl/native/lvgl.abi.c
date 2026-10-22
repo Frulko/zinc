@@ -120,6 +120,37 @@ static lv_obj_t *get(ZnCtx *cx, int64_t h)
     if (!o) return ZN_ERROR;                \
     (void)self
 
+/* LVGL keeps the areas changed in a frame apart unless joining two draws no more pixels. On a board each area costs more than its pixels: a
+   pass over the objects and a panel window. So an area joins the frame's area it costs at most JOIN_SLACK more pixels to draw with; each
+   joined area grows to the union, and LVGL then drops the areas it covers. 64 moving objects in esp32sim: about 20% more pixels, 30% less
+   LVGL time. */
+enum { CLUSTERS = 16, JOIN_SLACK = 4096 };
+static lv_area_t clusters[CLUSTERS];
+static int nclusters; /* this frame's, emptied after each lv_timer_handler() */
+static bool rendering; /* an area invalidated while LVGL draws (a label measured as it is drawn) is left as it is: widened, LVGL would draw it
+                          in the same pass, and what that draws could widen another */
+
+static int32_t area_size(const lv_area_t *a) { return (a->x2 - a->x1 + 1) * (a->y2 - a->y1 + 1); }
+
+static void on_invalidate(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_INVALIDATE_AREA) {
+        rendering = lv_event_get_code(e) == LV_EVENT_RENDER_START;
+        return;
+    }
+    if (rendering) return;
+    lv_area_t *a = lv_event_get_param(e);
+    for (int i = 0; i < nclusters; i++) {
+        const lv_area_t *c = &clusters[i];
+        const lv_area_t u = {LV_MIN(c->x1, a->x1), LV_MIN(c->y1, a->y1), LV_MAX(c->x2, a->x2), LV_MAX(c->y2, a->y2)};
+        if (area_size(&u) > area_size(c) + area_size(a) + JOIN_SLACK) continue;
+        clusters[i] = u;
+        *a = u; /* the event lets a display widen the area LVGL saves */
+        return;
+    }
+    if (nclusters < CLUSTERS) clusters[nclusters++] = *a;
+}
+
 /* ---- the module */
 
 int32_t zn_lvgl_start(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
@@ -141,6 +172,9 @@ int32_t zn_lvgl_start(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     display = lv_display_create(width, height);
     lv_display_set_buffers(display, a, b, bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, flush);
+    lv_display_add_event_cb(display, on_invalidate, LV_EVENT_INVALIDATE_AREA, NULL);
+    lv_display_add_event_cb(display, on_invalidate, LV_EVENT_RENDER_START, NULL);
+    lv_display_add_event_cb(display, on_invalidate, LV_EVENT_RENDER_READY, NULL);
     const lv_color_t primary = lv_color_hex((uint32_t)args[3].i);
     lv_display_set_theme(display, lv_theme_default_init(display, primary, primary, args[2].i != 0, LV_FONT_DEFAULT));
     pointer = lv_indev_create();
@@ -170,6 +204,7 @@ int32_t zn_lvgl_step(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     pointer_down = args[3].i != 0;
     lv_indev_read(pointer);
     const uint32_t next = lv_timer_handler();
+    nclusters = 0;
     const int us = (int)((host->now_ms() - t0) * 1000);
     stats.turns++;
     stats.us += us;

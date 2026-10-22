@@ -32,8 +32,9 @@ lv.run((dt: number) => { /* the program's frame, before LVGL's */ });
 - **Lottie.** `lottie(parent, json, w, h)` plays a LottieFiles JSON in a loop, drawn by ThorVG (the copy LVGL carries) into a buffer of
   `w * h * 4` bytes of LVGL's memory; `lottiePlay(anim, on)` pauses and resumes it, `lottieRestart(anim)` goes back to its first frame.
   LVGL draws a frame only while the animation is visible. On a board without PSRAM keep it small: 64 x 64 is 16 KB.
-- **Layout.** `size`, `pos`, `align`, `flex(o, flow, main, cross)`, `grow`, `pct(v)`, `SIZE_CONTENT`. `FLAG_OVERFLOW_VISIBLE` on a row
-  lets a pressed button, which the theme grows a little, draw past the row's edge.
+- **Layout.** `size`, `pos`, `align`, `flex(o, flow, main, cross)`, `grow`, `pct(v)`, `SIZE_CONTENT`. The theme grows a pressed button
+  by 3 px, and LVGL redraws a child only inside its parent's box (with `FLAG_OVERFLOW_VISIBLE` too): a row of buttons keeps 3 px of
+  padding around them, or the grown edge is cut off.
 - **Turning the display.** `rotate(quarter)` (0 as started, 1 to 3 clockwise) and LVGL lays the screens out again at the turned size;
   `width()` and `height()` give it, so a program builds what depends on the size again. On the board the panel turns (MADCTL) and the
   touch with it; on the computer the picture is centred in the window, upright (a square window holds both).
@@ -58,6 +59,13 @@ real limit. On the computer (the window and the mquickjs check of `--target esp3
 budget in 64-bit objects (96 KB for the board's 138 KB), so a screen that would not fit the board does not fit the computer either, and
 `create` says "LVGL's memory pool is full" instead of the board crashing later. The firmware's main task gets a 28 KB stack when
 `zinc:lvgl` is in it (`sdkconfig` in `plugin.json`): ThorVG goes 21 KB deep to draw a Lottie animation, where 8 KB is the default.
+
+**Speed.** On a board an area costs more than its pixels (a pass over the objects, a panel window). LVGL keeps 128 changed areas a frame
+apart (`LV_INV_BUF_SIZE`; past them it redraws the whole screen, and an object that moves makes two), and the plugin joins an area to a
+nearby one of the same frame when that draws at most 4,096 more pixels (`JOIN_SLACK` in `lvgl.abi.c`). The benchmark of esp32-widgets
+in esp32sim, 24 objects: 76,800 pixels a frame and 37 to 41 fps before, 22,000 and 60 fps now. Under mquickjs a program's numbers are
+cheapest as integers: on the 32-bit ESP32 any other number is allocated in the JavaScript heap, and its FPU computes no doubles (a
+position kept in fixed point and shifted, `(x * w) >> 12`, rather than `Math.round(x * w)`).
 
 **Example.** `examples/esp32-widgets`: six pages (dashboard, controls, player, Lottie, benchmark, system). **Test.**
 `tests/t0/mquickjs_esp32.sh` checks it under mquickjs with LVGL's C built for the computer.

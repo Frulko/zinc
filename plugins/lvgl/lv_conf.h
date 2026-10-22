@@ -22,6 +22,9 @@
 #define LV_USE_STDLIB_SPRINTF LV_STDLIB_CLIB
 #define LV_USE_OS LV_OS_NONE
 #define LV_DEF_REFR_PERIOD 1 /* every turn: zinc's frame loop paces the redraws (60 Hz) */
+/* the areas changed in a frame that LVGL keeps apart (default 32): past them it redraws the whole screen, and every object that moves
+   adds two (where it was, where it is), so 16 moving objects sent 76,800 pixels a frame; 17 bytes each */
+#define LV_INV_BUF_SIZE 128
 #define LV_DPI_DEF 160        /* a 2.2" 240x320 panel: the default theme's paddings come out small enough */
 
 /* the software renderer, for RGB565 (the panel's), the A8 masks and fonts, and ARGB8888 premultiplied: the buffer ThorVG draws a Lottie
