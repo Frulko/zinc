@@ -2,7 +2,7 @@
 // row of bands that stay in place: each one jumps with the music and falls back slowly, louder on the bass side, and settles when paused.
 import * as lv from 'zinc:lvgl';
 import { COLOR_ACCENT, COLOR_MUTED_TEXT, COLOR_TEXT, SYMBOL_AUDIO, SYMBOL_NEXT, SYMBOL_PAUSE, SYMBOL_PLAY, SYMBOL_PREV } from '../constants';
-import { row, text } from '../components/ui';
+import { buttonRow, row, text } from '../components/ui';
 import { BARS, TRACKS, clockText, seek, skip, state, togglePlay } from '../state';
 
 const IDLE: i32 = 6;   // a band's height at rest (2 px), so the analyser stays visible when paused
@@ -96,7 +96,7 @@ export function buildMusic(page: i32): void {
   elapsed = text(times, '', 12, COLOR_MUTED_TEXT);
   remaining = text(times, '', 12, COLOR_MUTED_TEXT);
 
-  const transport = row(page);
+  const transport = buttonRow(page);
   lv.flex(transport, lv.FLEX_ROW, lv.FLEX_CENTER, lv.FLEX_CENTER);
   lv.gap(transport, 24, 24);
   const prev = roundButton(transport, SYMBOL_PREV, 40, -1);

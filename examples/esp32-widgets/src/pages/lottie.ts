@@ -2,7 +2,7 @@
 // of LOTTIE_SIZE x LOTTIE_SIZE pixels, 4 bytes each, every frame it changes. Pause it, play it again, and see what it costs a frame.
 import * as lv from 'zinc:lvgl';
 import { COLOR_ACCENT, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT, LOTTIE_SIZE, SYMBOL_PAUSE, SYMBOL_PLAY } from '../constants';
-import { caption, card, infoRow, kitButton, row, text } from '../components/ui';
+import { buttonRow, caption, card, infoRow, kitButton, text } from '../components/ui';
 import { APPROVE } from '../lottie';
 import { state } from '../state';
 
@@ -23,7 +23,7 @@ export function buildLottie(page: i32): void {
   text(stage, 'Success', 14, COLOR_TEXT);
   text(stage, 'LottieFiles JSON, drawn by ThorVG', 12, COLOR_MUTED_TEXT);
 
-  const controls = row(page);
+  const controls = buttonRow(page);
   lv.flex(controls, lv.FLEX_ROW, lv.FLEX_CENTER, lv.FLEX_CENTER);
   lv.gap(controls, 12, 12);
   const play = lv.button(controls, SYMBOL_PAUSE);

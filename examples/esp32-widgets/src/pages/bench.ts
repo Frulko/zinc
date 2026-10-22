@@ -3,15 +3,15 @@
 // the averages. Under it, what LVGL spends and sends a frame, and what the board's panel bus would need for it. The page scrolls.
 import * as lv from 'zinc:lvgl';
 import { COLOR_ACCENT, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT } from '../constants';
-import { caption, card, infoRow, row, text } from '../components/ui';
+import { buttonRow, caption, card, infoRow, text } from '../components/ui';
 import { BENCH_MAX, SCENES, boardFps, busMs, startRun, state } from '../state';
 
-const ARENA_H: i32 = 150;
+const ARENA_H: i32 = 136;   // the card fits a portrait page whole, Run included
 const COLORS: i32[] = [0x6366f1, 0xec4899, 0xf59e0b, 0x10b981, 0x0ea5e9, 0xef4444, 0x8b5cf6, 0x14b8a6];
 let boxes: i32[] = [];
 let picks: i32[] = [];
 let arena: i32 = 0;
-let arenaW: number = 0;
+let arenaW: i32 = 0;
 let fpsLabel: i32 = 0;
 let countLabel: i32 = 0;
 let result: i32 = 0;
@@ -46,7 +46,7 @@ function showScene(): void {
 
 function showRun(): void {
   if (state.running >= 0) lv.setText(result, 'Measuring ' + SCENES[state.running] + '...');
-  else if (state.results[0] < 0) lv.setText(result, 'Run: 3 s a scene, the average fps');
+  else if (state.results[0] < 0) lv.setText(result, 'Each scene for 3 s, its average fps');
   else {
     let s = '';
     for (let i = 0; i < SCENES.length; i++) s += (i > 0 ? '  ' : '') + SCENES[i] + ' ' + state.results[i];
@@ -86,7 +86,7 @@ export function buildBench(page: i32): void {
   fpsLabel = text(pill, '-- fps', 20, COLOR_TEXT);
 
   // the scene picker: four buttons, the chosen one checked
-  const scenes = row(top);
+  const scenes = buttonRow(top);
   lv.gap(scenes, 4, 4);
   for (let i = 0; i < SCENES.length; i++) {
     const b = lv.button(scenes, SCENES[i]);
@@ -102,23 +102,23 @@ export function buildBench(page: i32): void {
     lv.on(b, lv.EVENT_CLICKED, () => { if (state.running < 0) state.scene = scene; });
     picks.push(b);
   }
-  const objects = row(top);
+  const objects = buttonRow(top);
   text(objects, 'Objects', 12, COLOR_MUTED_TEXT);
   const slider = lv.slider(objects, 1, BENCH_MAX / 4, state.count / 4);   // steps of four
   lv.size(slider, 0, 6);
   lv.grow(slider, 1);
   countLabel = text(objects, '' + state.count, 12, COLOR_TEXT);
   lv.on(slider, lv.EVENT_VALUE_CHANGED, () => { state.count = lv.value(slider) * 4; lv.setText(countLabel, '' + state.count); });
-  const run = row(top);
-  const go = lv.button(run, 'Run');
-  lv.size(go, 56, 28);
+  const go = lv.button(objects, 'Run');
+  lv.size(go, 52, 28);
   lv.style(go, lv.SHADOW_WIDTH, 0, 0);
+  lv.font(lv.buttonLabel(go), 12);
   lv.on(go, lv.EVENT_CLICKED, () => { if (state.running < 0) startRun(); });
-  result = text(run, '', 12, COLOR_MUTED_TEXT);
-  lv.size(result, 0, lv.SIZE_CONTENT);
-  lv.grow(result, 1);
 
   const figures = card(page);
+  caption(figures, 'RUN');
+  result = text(figures, '', 12, COLOR_TEXT);
+  lv.size(result, lv.pct(100), lv.SIZE_CONTENT);
   caption(figures, 'A FRAME');
   lvglRow = infoRow(figures, 'LVGL', '');
   slowestRow = infoRow(figures, 'Slowest', '');
@@ -133,9 +133,10 @@ export function buildBench(page: i32): void {
 export function updateBench(dt: number): void {
   if (state.scene !== shownScene || state.count !== shownCount) showScene();
   if (state.running !== shownRun) showRun();
+  const w = arenaW - 24, h = ARENA_H - 24, xs = state.xs, ys = state.ys;
   for (let i = 0; i < state.count; i++) {
-    const half = state.scene === 3 ? (i % 3 === 0 ? 11 : i % 3 === 1 ? 14 : 17) : state.scene === 0 ? 11 : state.scene === 1 ? 14 : 17;
-    lv.pos(boxes[i], Math.round(12 + state.xs[i] * (arenaW - 24) - half), Math.round(12 + state.ys[i] * (ARENA_H - 24) - half));
+    const kind = state.scene === 3 ? i % 3 : state.scene, half = kind === 0 ? 11 : kind === 1 ? 14 : 17;
+    lv.pos(boxes[i], 12 + ((xs[i] * w) >> 12) - half, 12 + ((ys[i] * h) >> 12) - half);   // >> 12: a BENCH_UNIT
   }
   clock += dt;
   if (clock < 0.5) return;

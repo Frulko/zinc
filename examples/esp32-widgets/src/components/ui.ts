@@ -26,7 +26,14 @@ export function row(parent: i32): i32 {
   lv.gap(r, 6, 6);
   lv.flex(r, lv.FLEX_ROW, lv.FLEX_SPACE_BETWEEN, lv.FLEX_CENTER);
   lv.flag(r, lv.FLAG_SCROLLABLE, false);
-  lv.flag(r, lv.FLAG_OVERFLOW_VISIBLE, true);   // a button grows a little when pressed (the theme): not cut at the row's edge
+  return r;
+}
+
+/** A row of buttons. LVGL's theme grows a pressed button by 3 px, and LVGL redraws a child only inside its parent's box (FLAG_OVERFLOW_VISIBLE
+ *  or not), so the row keeps that room around them: without it the grown edge is cut off. */
+export function buttonRow(parent: i32): i32 {
+  const r = row(parent);
+  lv.pad(r, 3);
   return r;
 }
 

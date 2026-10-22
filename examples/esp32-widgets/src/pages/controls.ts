@@ -2,7 +2,7 @@
 // buttons, a spinner with a progress bar, and a PIN keypad (an LVGL button matrix: one object for twelve keys).
 import * as lv from 'zinc:lvgl';
 import { COLOR_ACCENT, COLOR_DANGER, COLOR_GOOD, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT, PIN_CODE } from '../constants';
-import { badge, card, caption, kitButton, row, text } from '../components/ui';
+import { buttonRow, badge, card, caption, kitButton, row, text } from '../components/ui';
 import { pressKey, state } from '../state';
 
 const QUALITY: string[] = ['Low', 'Mid', 'High'];
@@ -51,7 +51,7 @@ export function buildControls(page: i32): void {
   caption(head, 'BUTTONS');
   tapsLabel = badge(head, '', 0x1e3a8a, 0xbfdbfe);
   showTaps();
-  const actions = row(buttons);
+  const actions = buttonRow(buttons);
   const tap = kitButton(actions, 'Tap me', COLOR_ACCENT, false);
   lv.grow(tap, 1);
   const reset = kitButton(actions, 'Reset', 0, true);

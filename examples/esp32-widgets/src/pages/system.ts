@@ -5,7 +5,7 @@
 import * as lv from 'zinc:lvgl';
 import * as device from 'zinc:device';
 import { COLOR_GOOD, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT, SCREEN_H, SCREEN_W, SYMBOL_REFRESH } from '../constants';
-import { caption, card, infoRow, kitButton, row, text } from '../components/ui';
+import { buttonRow, caption, card, infoRow, kitButton, row, text } from '../components/ui';
 import { boardFps, busMs, clockText, state } from '../state';
 
 let poolBar: i32 = 0;
@@ -37,7 +37,7 @@ export function buildSystem(page: i32): void {
   const tour = lv.toggle(tourRow, state.tour);
   lv.size(tour, 40, 22);
   lv.on(tour, lv.EVENT_VALUE_CHANGED, () => { state.tour = lv.checked(tour); state.tourClock = 0; });
-  const turnRow = row(display);
+  const turnRow = buttonRow(display);
   text(turnRow, 'Screen', 14, COLOR_TEXT);
   const turn = kitButton(turnRow, SYMBOL_REFRESH + (state.turn === 0 ? '  Landscape' : '  Portrait'), COLOR_MUTED, false);
   lv.on(turn, lv.EVENT_CLICKED, () => { state.turn = 1 - state.turn; });   // the frame turns the display and builds the screen again

@@ -1,6 +1,6 @@
 // The tour's state, no drawing: the page shown, the clock, the simulated sensors, the music player, the benchmark and LVGL's figures. The
 // pages read it and call its actions; LVGL keeps what is on the screen.
-import { FRAME_MS, PAGE_BENCH, PANEL_BYTES_PER_MS, PIN_CODE } from './constants';
+import { FRAME_MS, PAGE_BENCH, PAGE_MUSIC, PANEL_BYTES_PER_MS, PIN_CODE } from './constants';
 
 export class Track {
   title: string; artist: string; seconds: i32; from: i32; to: i32;
@@ -31,6 +31,7 @@ export class Tween {
 
 export const BARS: i32 = 28;          // the player's spectrum
 export const BENCH_MAX: i32 = 64;      // the benchmark's objects
+export const BENCH_UNIT: i32 = 4096;   // the arena's side in the benchmark's positions
 export const SCENES: string[] = ['Rects', 'Alpha', 'Text', 'Mix'];
 const SAMPLES_PER_SECOND: number = 6;   // the throughput chart's samples, drawn as a line that moves every frame between two
 export const HISTORY: i32 = 120;         // the throughput line's points, 30 a second: the last 4 s, kept while the page is not built
@@ -65,13 +66,14 @@ export class AppState {
   position: number = 72;
   energy: Tween = new Tween(1);   // how lively the spectrum is: 1 playing, 0 paused
   spectrum: number[] = [];        // 0..1 a bar, bass on the left
-  // the benchmark: positions 0..1 of the arena, so they fit any size
+  // the benchmark: positions 0..BENCH_UNIT of the arena, so they fit any size, and speeds in units a second; integers, which mquickjs
+  // computes without the board's software doubles and keeps without allocating
   scene: i32 = 0;
   count: i32 = 24;
-  xs: number[] = [];
-  ys: number[] = [];
-  vx: number[] = [];
-  vy: number[] = [];
+  xs: i32[] = [];
+  ys: i32[] = [];
+  vx: i32[] = [];
+  vy: i32[] = [];
   running: i32 = -1;              // the scene a run measures, -1 when none
   runClock: number = 0;
   runFrames: i32 = 0;
@@ -101,9 +103,9 @@ export function rand(): number {
 for (let i = 0; i < BARS; i++) state.spectrum.push(0);
 for (let i = 0; i < HISTORY; i++) state.history.push(state.sample);
 for (let i = 0; i < BENCH_MAX; i++) {
-  state.xs.push(rand()); state.ys.push(rand());
-  const a = rand() * 6.2832, s = 0.25 + rand() * 0.35;
-  state.vx.push(Math.cos(a) * s); state.vy.push(Math.sin(a) * s);
+  state.xs.push(Math.floor(rand() * BENCH_UNIT)); state.ys.push(Math.floor(rand() * BENCH_UNIT));
+  const a = rand() * 6.2832, s = (0.25 + rand() * 0.35) * BENCH_UNIT;
+  state.vx.push(Math.round(Math.cos(a) * s)); state.vy.push(Math.round(Math.sin(a) * s));
 }
 
 function nextSample(): number {
@@ -138,8 +140,9 @@ function stepMusic(dt: number): void {
     state.position += dt;
     if (state.position >= TRACKS[state.track].seconds) skip(1);
   }
-  // each band follows a travelling wave and a kick on the beat, louder on the bass side; it jumps up and falls back slowly, as a meter does
   beat = (beat + dt * 2) % 1;   // 120 beats a minute
+  if (state.page !== PAGE_MUSIC) return;   // the spectrum is only seen there
+  // each band follows a travelling wave and a kick on the beat, louder on the bass side; it jumps up and falls back slowly, as a meter does
   const e = state.energy.value, t = state.uptime, kick = Math.max(0, 1 - beat * 4);
   for (let i = 0; i < BARS; i++) {
     const band = i / BARS;
@@ -151,10 +154,13 @@ function stepMusic(dt: number): void {
 }
 
 function stepBench(dt: number): void {
-  for (let i = 0; i < BENCH_MAX; i++) {
-    state.xs[i] += state.vx[i] * dt; state.ys[i] += state.vy[i] * dt;
-    if (state.xs[i] < 0) { state.xs[i] = -state.xs[i]; state.vx[i] = -state.vx[i]; } else if (state.xs[i] > 1) { state.xs[i] = 2 - state.xs[i]; state.vx[i] = -state.vx[i]; }
-    if (state.ys[i] < 0) { state.ys[i] = -state.ys[i]; state.vy[i] = -state.vy[i]; } else if (state.ys[i] > 1) { state.ys[i] = 2 - state.ys[i]; state.vy[i] = -state.vy[i]; }
+  const ms = Math.round(dt * 1000);
+  const xs = state.xs, ys = state.ys, vx = state.vx, vy = state.vy;
+  for (let i = 0; i < state.count; i++) {   // the hidden ones wait where they are
+    let x = xs[i] + ((vx[i] * ms) >> 10), y = ys[i] + ((vy[i] * ms) >> 10);   // a second of 1024 ms: a shift, not a division
+    if (x < 0) { x = -x; vx[i] = -vx[i]; } else if (x > BENCH_UNIT) { x = 2 * BENCH_UNIT - x; vx[i] = -vx[i]; }
+    if (y < 0) { y = -y; vy[i] = -vy[i]; } else if (y > BENCH_UNIT) { y = 2 * BENCH_UNIT - y; vy[i] = -vy[i]; }
+    xs[i] = x; ys[i] = y;
   }
   if (state.running < 0) return;
   state.runClock += dt; state.runFrames++;
@@ -162,7 +168,10 @@ function stepBench(dt: number): void {
   state.results[state.running] = Math.round(state.runFrames / state.runClock);
   state.runClock = 0; state.runFrames = 0;
   state.running = state.running + 1 < SCENES.length ? state.running + 1 : -1;
-  if (state.running >= 0) state.scene = state.running;
+  if (state.running >= 0) { state.scene = state.running; return; }
+  let s = 'widgets: bench of ' + state.count + ' objects,';   // the results in the console too: the board's UART keeps them
+  for (let i = 0; i < SCENES.length; i++) s += ' ' + SCENES[i] + ' ' + state.results[i];
+  console.log(s + ' fps');
 }
 
 /** The clock, the sensors, the player and the benchmark, every frame. */
