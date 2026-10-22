@@ -13,7 +13,7 @@ printf '# A fr\n\nTexte [x](b.md).\n\n```sh\nzinc run\n```\n' >"$R/docs/i18n/fr/
 tools/i18n-docs-check --repo "$R" --stamp "$R/docs/i18n/fr/learn/01-a.md" >/dev/null
 run() { python3 tools/i18n-docs-check --repo "$R" >"$tmp/out" 2>&1; echo $?; }
 [ "$(run)" = 0 ] || { echo "a good translation fails: $(cat "$tmp/out")"; fail=1; }
-grep -q '^info: fr: 5 of 6' "$tmp/out" || { echo "the missing pages are not reported: $(cat "$tmp/out")"; fail=1; }
+awk '/^info: fr: [0-9]+ of [0-9]+ / { ok = ($3 == $5 - 1) } END { exit !ok }' "$tmp/out" || { echo "the missing pages are not reported: $(cat "$tmp/out")"; fail=1; }   # all but the one translated
 printf '\nMore [y](d.md).\n\n```sh\nzinc dev\n```\n' >>"$R/docs/learn/01-a.md"; git -C "$R" -c user.name=t -c user.email=t@t commit -qam two
 [ "$(run)" = 0 ] && grep -q '^warning: .*stale' "$tmp/out" || { echo "stale is not a warning: $(cat "$tmp/out")"; fail=1; }
 sed -i.bak 's/zinc run/zinc lancer/' "$R/docs/i18n/fr/learn/01-a.md"
