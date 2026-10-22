@@ -32,3 +32,5 @@ module names (`zinc:gfx`), error codes (`Z0103`), anything between backticks, Fa
 | docs | documentation | documentación | documentazione | Dokumentation |
 | settings | réglages | ajustes | impostazioni | Einstellungen |
 | language | langue | idioma | lingua | Sprache |
+| stage (the root of a scene) | scène | escenario | palco | Bühne |
+| the four styles: Drawing, Scene, Canvas, Interface | Dessin, Scène, Canvas, Interface | Dibujo, Escena, Canvas, Interfaz | Disegno, Scena, Canvas, Interfaccia | Zeichnen, Szene, Canvas, Oberfläche |
