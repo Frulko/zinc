@@ -36,6 +36,10 @@ done
 mkdir -p "$T/qr"
 printf "import { encode } from 'zinc:qrcode';\nconst q = encode('HELLO', 0, 1);\nif (q.size !== 21 || !q.module(0, 0) || q.module(7, 0)) throw new Error('qr ' + q.size);\nconsole.log('qr ok');\n" > "$T/qr/main.ts"
 "$ZINC" check "$T/qr/main.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 || { echo "a program on a plugin's native module does not check"; cat "$T/log"; fail=1; }
+# a local name that is also a Web global (screen) is the program's own: zinc:web, which needs what mquickjs lacks, is not linked in
+mkdir -p "$T/local"
+printf "function f(): number { const screen = 2; return screen; }\nconsole.log('local ' + f());\n" > "$T/local/main.ts"
+"$ZINC" check "$T/local/main.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 || { echo "a local named screen pulled zinc:web in"; cat "$T/log"; fail=1; }
 # a program on the radio gets the network firmware; esp32sim has no radio
 "$ZINC" export examples/esp32-espnow --target esp32 -o "$T/wifi" >/dev/null 2>&1 && cmp -s "$T/wifi/firmware.bin" $F/prebuilt/zinc-mquickjs-net-flash.bin || { echo "zinc:espnow does not take the network firmware"; fail=1; }
 "$ZINC" run examples/esp32-espnow --target esp32 --emulator >"$T/log" 2>&1 && { echo "the emulator accepted a program on the radio"; fail=1; }

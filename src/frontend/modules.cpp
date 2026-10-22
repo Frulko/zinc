@@ -1403,10 +1403,15 @@ std::string webGlobalImports(const Ast& A) {
     if (x->kind == N::Export && !x->kids.empty()) x = &A.nodes[x->kids[0]];
     switch (x->kind) {
       case N::Import: for (std::uint32_t sp : x->kids) { if (!A.nodes[sp].kids.empty()) declared.insert(A.nodes[A.nodes[sp].kids[0]].text); } break;
-      case N::VarDecl: for (std::uint32_t d : x->kids) { if (!A.nodes[d].text.empty()) declared.insert(A.nodes[d].text); else { std::vector<std::string_view> names; collectBound(A, A.nodes[d].kids.size() > 2 ? A.nodes[d].kids[2] : kNone, names); for (auto nm : names) declared.insert(nm); } } break;
-      case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: declared.insert(x->text); break;
+      case N::Interface: case N::TypeAlias: case N::Enum: declared.insert(x->text); break;
       default: break;
     }
+  }
+  // variables, parameters, functions and classes at any depth: a local `const screen` is not the Web's. Blind to scopes, so a file that
+  // declares the name anywhere gets no import for it
+  for (const Node& n : A.nodes) {
+    if ((n.kind == N::Declarator || n.kind == N::Param) && n.text.empty()) { std::vector<std::string_view> names; collectBound(A, n.kids.size() > 2 ? n.kids[2] : kNone, names); declared.insert(names.begin(), names.end()); }
+    else if (n.kind == N::Declarator || n.kind == N::Param || n.kind == N::Function || n.kind == N::Class) declared.insert(n.text);
   }
   std::map<std::string, std::set<std::string>> used;   // module -> names
   for (const Node& n : A.nodes) {

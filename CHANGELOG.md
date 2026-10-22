@@ -37,6 +37,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Under `--engine quickjs` and `--engine mquickjs`, a relative import picks the platform's file (`x.macos.ts`, `x.esp32.ts`) as the interpreter does, and `zinc:platform`'s `TARGET` is `esp32` on the board.
 - A plugin whose vendored C includes a configuration header beside `plugin.json` (such as `lv_conf.h`) is rebuilt when that header changes, on the computer and in the ESP32 firmware.
 - A plugin's native code on the computer gets the real time from the engine's clock (`now_ms` returned 0).
+- A local variable or parameter named like a Web global (`screen`, `document`, `navigator`...) no longer pulls `zinc:web` into the program, which made a program fail under `--engine mquickjs`.
 
 ## [0.5.2] - 2026-10-22
 
