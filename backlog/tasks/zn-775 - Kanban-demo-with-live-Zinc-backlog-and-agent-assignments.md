@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex-kanban'
 created_date: '2026-10-22 18:34'
-updated_date: '2026-10-22 19:52'
+updated_date: '2026-10-22 20:16'
 labels:
   - ui
   - demo
@@ -58,4 +58,8 @@ usage: n/a for Codex. Unrelated examples/fatty and tests/data/fatty left untouch
 Owner follow-up: entering edit mode must show the existing Markdown content and put keyboard focus directly in its editor. Add a UI regression that inspects the field before the test helper types.
 
 Editor focus correction complete. The previous UI test masked the defect by focusing each field itself; a regression with nonempty Markdown first failed on the old focused field, then passed after deferring editor focus until its conditional mount and opening pointer press complete. Actual fields retain title/body, direct typing works without clicking, reopening retains draft and focus. zinc check examples/kanban, tests/run --only kanban_logic and tests/run --only kanban pass. Only golden frame 225 changes (focused border/caret), reviewed visually; all other scripted frame hashes match. No engine or persistence behavior changed. Editing remains title/description only; other detail sections remain read-only. No cross-target/device or screen-reader check. Unrelated fatty files untouched; usage n/a for Codex.
+
+Owner screenshots show the actual edit defect on ZN-774.18: no description, but criteria and notes exist. Prior focus-only correction did not fulfill editing the visible content. Reopen to offer all displayed task content as prefilled editable sections and test the no-description case through persisted UI changes.
+
+Actual screenshot defect corrected: Modify now preloads title, description, criteria, plan, notes and result into a scrolling form. Empty descriptions occupy a small field and focus starts in the first populated section. Criteria text/check states/add/remove are editable. Full deep-copied drafts survive close/reopen without changing source. Save updates only changed fields and uses incremental remove/add/check in one CLI write for criteria; stale protection covers all editable sections, and empty titles/criteria are rejected. Clearing plan/notes/result is verified through CLI; the guarded empty-description path still works alongside other changed sections. Regression starts with an absent description and populated criteria/notes, tests actual field contents/focus/continued typing, edits/checks/adds/removes criteria, restores all draft sections and verifies saved fields/comments. Tests kanban_logic and kanban plus zinc check examples/kanban pass. Only golden frame 225 changes; captures reviewed. Read-only copy of actual ZN-774.18 visually checked at /tmp/kanban-774-18-proof/editor-10.png and editor-20.png; its source was never edited. No engine/dependency changes, cross-target/device or screen-reader checks, nothing pushed; usage n/a for Codex.
 <!-- SECTION:NOTES:END -->

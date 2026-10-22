@@ -1,5 +1,5 @@
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
-import { Task, Detail, assignment, activityState } from './models';
+import { Task, Detail, Criterion, copyDetail, assignment, activityState } from './models';
 import { STATUSES, ACTIVITY_LIMIT } from './constants';
 import { startBacklog, loadDetail, cancelDetail, editTask, commentTask } from './services/backlog';
 
@@ -20,14 +20,13 @@ export const [draggedId, setDraggedId] = createSignal<string>('');
 export const [dropId, setDropId] = createSignal<string>('');
 export const [activityOpen, setActivityOpen] = createSignal<boolean>(false);
 export const [editing, setEditing] = createSignal<boolean>(false);
-export const [editTitle, setEditTitle] = createSignal<string>('');
-export const [editDescription, setEditDescription] = createSignal<string>('');
+export const [editDraft, setEditDraft] = createSignal<Detail>(new Detail());
 export const [commentDraft, setCommentDraft] = createSignal<string>('');
 export const [saving, setSaving] = createSignal<boolean>(false);
 export const [writeError, setWriteError] = createSignal<string>('');
 
 class Draft {
-  title = ''; description = ''; comment = ''; editing = false; base: Detail | null = null;
+  content: Detail = new Detail(); comment = ''; editing = false; base: Detail | null = null;
 }
 const drafts = new Map<string, Draft>();
 let editBase: Detail | null = null;
@@ -59,15 +58,14 @@ function fetchDetail(id: string): void {
 function rememberDraft(): void {
   if (selectedId() === '') return;
   if (!editing() && commentDraft() === '') { drafts.delete(selectedId()); return; }
-  const d = new Draft(); d.title = editTitle(); d.description = editDescription(); d.comment = commentDraft(); d.editing = editing(); d.base = editBase;
+  const d = new Draft(); d.content = editDraft(); d.comment = commentDraft(); d.editing = editing(); d.base = editBase;
   drafts.set(selectedId(), d);
 }
 export function openTask(id: string): void {
   if (saving()) return;
   rememberDraft();
   const d = drafts.get(id);
-  batch(() => { setEditing(d !== undefined && d.editing); setEditTitle(d !== undefined ? d.title : '');
-    setEditDescription(d !== undefined ? d.description : ''); setCommentDraft(d !== undefined ? d.comment : ''); setWriteError(''); });
+  batch(() => { setEditing(d !== undefined && d.editing); setEditDraft(d !== undefined ? d.content : new Detail()); setCommentDraft(d !== undefined ? d.comment : ''); setWriteError(''); });
   editBase = d !== undefined ? d.base : null;
   setSelectedId(id); fetchDetail(id);
 }
@@ -77,13 +75,29 @@ export function closeTask(): void {
 }
 export function beginEdit(): void {
   const d = detail(); if (d === null || saving()) return;
-  editBase = d; setEditTitle(d.title !== '' ? d.title : selected()?.title ?? ''); setEditDescription(d.description); setEditing(true); setWriteError('');
+  editBase = d; const draft = copyDetail(d); draft.title = d.title !== '' ? d.title : selected()?.title ?? '';
+  batch(() => { setEditDraft(draft); setEditing(true); setWriteError(''); });
 }
+export function setEditField(field: string, value: string): void {
+  const d = copyDetail(editDraft());
+  if (field === 'title') d.title = value;
+  else if (field === 'description') d.description = value;
+  else if (field === 'plan') d.plan = value;
+  else if (field === 'notes') d.notes = value;
+  else if (field === 'summary') d.summary = value;
+  else throw new Error('Unknown task field: ' + field);
+  setEditDraft(d);
+}
+export function updateCriterion(index: i32, text: string, checked: boolean): void {
+  const d = copyDetail(editDraft()); d.criteria[index].text = text; d.criteria[index].checked = checked; setEditDraft(d);
+}
+export function addCriterion(): void { const d = copyDetail(editDraft()); d.criteria.push(new Criterion()); setEditDraft(d); }
+export function removeCriterion(index: i32): void { const d = copyDetail(editDraft()); d.criteria.splice(index, 1); setEditDraft(d); }
 export function cancelEdit(): void { if (!saving()) { setEditing(false); setWriteError(''); } }
 export async function saveEdits(): Promise<void> {
   if (saving() || editBase === null) return;
   setSaving(true); setWriteError('');
-  try { await editTask(editBase as Detail, editTitle(), editDescription()); setEditing(false); fetchDetail(selectedId()); setNotice('Modifications enregistrées dans Backlog.md.'); }
+  try { await editTask(editBase as Detail, editDraft()); setEditing(false); fetchDetail(selectedId()); setNotice('Modifications enregistrées dans Backlog.md.'); }
   catch (e) { setWriteError('' + e); }
   setSaving(false);
 }

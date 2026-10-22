@@ -27,6 +27,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Style objects take what only classes could give, as in React Native: `zIndex`, `fontStyle`, `textTransform`, `textDecorationLine`/`Color`/`Style`, `textShadowColor`/`Offset`/`Radius`, `fontWeight` from `100` to `900`, `pointerEvents`, `cursor`, `shadowLevel`, and an alpha or `transparent` on `color`, `borderColor` and `shadowColor` (`'#0f172a80'`, `'rgba(0,0,0,0.5)'`).
 
 ### Fixed
+- Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
 - Kanban’s Modify action places the cursor directly in the prefilled Markdown editor, including when reopening an unfinished draft.
 - Kanban cards stay visible while scrolling through long columns, and dragged cards keep the pointer's original grip with an insertion marker. The compact task window renders Markdown and lets you save the title, description and comments to Backlog.md while retaining unfinished drafts.
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".

@@ -1,7 +1,7 @@
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
-import { Task, Detail, decodeTasks, decodeDetail } from '../models';
+import { Task, Detail, copyDetail, decodeTasks, decodeDetail } from '../models';
 import { SNAPSHOT_LIMIT } from '../constants';
 
 let root = '', binary = '';
@@ -69,12 +69,12 @@ export function cancelDetail(): void {
 }
 export function writable(): boolean { return snapshotFile === '' && root !== '' && binary !== ''; }
 
-async function clearDescription(base: Detail, title: string): Promise<void> {
+async function clearDescription(expected: Detail): Promise<void> {
   // Backlog.md ignores an empty --description: clear only its marked body, keeping all other fields.
-  const r = await proc.run(binary, ['task', 'view', base.id, '--json'], { cwd: root });
+  const r = await proc.run(binary, ['task', 'view', expected.id, '--json'], { cwd: root });
   if (r.code !== 0) throw new Error(r.stderr || 'Impossible de relire la tâche.');
   const current = decodeDetail(r.stdout);
-  if (current.title !== title || current.description !== base.description) throw new Error('La tâche a changé pendant l’enregistrement. Votre brouillon est conservé.');
+  if (contentKey(current) !== contentKey(expected)) throw new Error('La tâche a changé pendant l’enregistrement. Votre brouillon est conservé.');
   if (current.description === '') return;
   const path = fs.realpath(root + '/' + current.path);
   if (!path.startsWith(root + '/')) throw new Error('Le fichier de tâche est en dehors du projet.');
@@ -90,20 +90,40 @@ async function clearDescription(base: Detail, title: string): Promise<void> {
   } finally { fs.remove(dir, true); }
 }
 
-/** Only requested fields are changed; Backlog.md preserves the rest of the task and appends comments. */
-export async function editTask(base: Detail, title: string, description: string): Promise<void> {
+function contentKey(d: Detail): string { return JSON.stringify([d.title, d.description, d.plan, d.notes, d.summary]) + JSON.stringify(d.criteria); }
+
+/** Only changed content fields are written; metadata and appended comments stay with Backlog.md. */
+export async function editTask(base: Detail, draft: Detail): Promise<void> {
   if (!writable()) throw new Error('Cet instantané est en lecture seule. Connectez le backlog pour modifier une tâche.');
-  if (title.trim() === '') throw new Error('Le titre ne peut pas être vide.');
+  const next = copyDetail(draft); next.id = base.id;
+  next.title = next.title.trim(); next.description = next.description.trim(); next.plan = next.plan.trim(); next.notes = next.notes.trim(); next.summary = next.summary.trim();
+  if (next.title === '') throw new Error('Le titre ne peut pas être vide.');
+  for (const c of next.criteria) { c.text = c.text.trim(); if (c.text === '') throw new Error('Un critère ne peut pas être vide. Supprimez-le ou complétez-le.'); }
   const current = await proc.run(binary, ['task', 'view', base.id, '--json'], { cwd: root });
   if (current.code !== 0) throw new Error(current.stderr || 'Impossible de relire la tâche.');
   const actual = decodeDetail(current.stdout);
-  if (actual.title !== base.title || actual.description !== base.description) throw new Error('La tâche a été modifiée ailleurs. Rechargez le détail avant d’enregistrer. Votre brouillon est conservé.');
-  const args = ['task', 'edit', base.id, '--title', title.trim()];
-  if (description.trim() !== '') { args.push('--description'); args.push(description); }
-  args.push('--plain');
-  const result = await proc.run(binary, args, { cwd: root });
-  if (result.code !== 0) throw new Error(result.stderr || 'Échec de l’enregistrement.');
-  if (description.trim() === '') await clearDescription(base, title.trim());
+  if (contentKey(actual) !== contentKey(base)) throw new Error('La tâche a été modifiée ailleurs. Rechargez le détail avant d’enregistrer. Votre brouillon est conservé.');
+  const args = ['task', 'edit', base.id];
+  if (next.title !== base.title) { args.push('--title'); args.push(next.title); }
+  if (next.description !== base.description && next.description !== '') { args.push('--description'); args.push(next.description); }
+  if (next.plan !== base.plan) { args.push('--plan'); args.push(next.plan); }
+  if (next.notes !== base.notes) { args.push('--notes'); args.push(next.notes); }
+  if (next.summary !== base.summary) { if (next.summary === '') args.push('--clear-final-summary'); else { args.push('--final-summary'); args.push(next.summary); } }
+  if (JSON.stringify(next.criteria) !== JSON.stringify(base.criteria)) {
+    // Incremental operations allow text replacements and checked states in the same CLI write.
+    for (let i = base.criteria.length; i > 0; i--) { args.push('--remove-ac'); args.push('' + i); }
+    for (const c of next.criteria) { args.push('--ac'); args.push(c.text); }
+    for (let i = 0; i < next.criteria.length; i++) if (next.criteria[i].checked) { args.push('--check-ac'); args.push('' + (i + 1)); }
+  }
+  if (args.length > 3) {
+    args.push('--plain');
+    const result = await proc.run(binary, args, { cwd: root });
+    if (result.code !== 0) throw new Error(result.stderr || 'Échec de l’enregistrement.');
+  }
+  if (next.description === '' && base.description !== '') {
+    next.description = base.description;
+    await clearDescription(next);
+  }
 }
 export async function commentTask(id: string, body: string): Promise<void> {
   if (!writable()) throw new Error('Cet instantané est en lecture seule.');

@@ -19,6 +19,13 @@ export class Detail {
 export class Comment {
   body: string = ''; author: string = ''; created: string = '';
 }
+export function copyDetail(d: Detail): Detail {
+  const n = new Detail();
+  n.id = d.id; n.title = d.title; n.description = d.description; n.plan = d.plan; n.notes = d.notes; n.summary = d.summary;
+  n.path = d.path; n.dependencies = d.dependencies; n.comments = d.comments;
+  n.criteria = d.criteria.map((c: Criterion) => { const ac = new Criterion(); ac.text = c.text; ac.checked = c.checked; return ac; });
+  return n;
+}
 export function text(v: any): string { return typeof v === 'string' ? v as string : ''; }
 function number(v: any): number { return typeof v === 'number' && Number.isFinite(v as number) ? v as number : 0; }
 export function strings(v: any): string[] {

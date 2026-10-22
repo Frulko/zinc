@@ -2,13 +2,13 @@
 
 Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
-## 2026-10-22: faithful Fatty AS3 port (ZN-776)
+## 2026-10-22: Kanban edits the displayed content (ZN-775)
 
-- `examples/fatty` ports the complete `Desktop/Fatty/Projet Flash` game: 27 original source files, the `fatOutFood` tree and authored comments, unchanged PNG/XML/bitmap font/MP3 assets. Compared all versions; Unknown version matches, Gobelins.zip only changes initial speed, New Folder is incomplete. Original sources and hashes are kept in tests/data/fatty/as3 and source-manifest.json.
-- Uses Zinc/QuickJS and a game-specific adapter over zinc:stage/gfx/audio. No engine changes or new dependencies. Original 1024×768 composition, fixed 60-Hz rules, all screens and cross-screen page lookup retained. Legacy PHP scores become a local persistent Top 5. The old web download/preloader timeline is not replayed.
-- Proof: TypeScript and bundle checks; fatty T1 (full 60-second simulation, real rotating target hit, six reviewed feature captures, end countdown, name entry with zero/multiple ticks, save, navigation, 300 idle frames); fatty_logic (1/2/3-hit and friend rules, bubbling, lives, detached timers, score getter, sorted/persistent Top 5, invalid data, byte/comment fidelity, reproducible atlas metrics). Both passed. T1 accelerates only simulation between rendered frames in its test copy to stay below a minute.
-- Run: `build/zinc run examples/fatty` (`ZINC_BACKGROUND=1` for an agent). README explains the few changes. Native/AOT and cross-platform runs are not supported/claimed; checked on the development Mac headless. `zinc check` still chooses the native subset checker: use the TS check and `zinc bundle --check` as documented. Nothing pushed. Usage: n/a for Codex.
-- Previous Kanban editor autofocus work was completed independently and left untouched.
+- Owner screenshots of ZN-774.18 identified the real problem: its description is absent, while criteria and implementation notes contain the visible content. The prior focus-only fix was insufficient.
+- Modify now uses a scrolling form with prefilled title, description, criteria, plan, notes and result. Empty Markdown fields stay small, long fields have internal scroll limits. Focus starts in the first populated section. Criteria support editing, check/uncheck, addition and removal. Numeric row keys keep text fields/caret alive while draft objects change.
+- A deep copy separates all draft sections/criteria from source data and survives close/reopen. Save writes only changed fields through Backlog.md. Incremental remove/add/check operations update criterion text and checked states in one CLI write. Stale comparison covers every editable section; empty titles/criteria are rejected. Comments and metadata are preserved. Description clearing retains its guarded atomic replacement; plan/notes/result clearing uses CLI support.
+- Proof: `build/zinc check examples/kanban`, `tests/run --only kanban_logic` and `tests/run --only kanban` passed. The UI regression starts with no description and populated criteria/notes/plan/result, checks actual prefilled fields, focus and continued typing, edits/checks/adds/removes criteria, restores the full draft and verifies all sections through CLI rereads. Persistence checks cover empty sections/criteria, stale notes/criteria, comments and assignees. Only editor golden frame 225 changes; reviewed visually. T1 idle, drag/scroll and native/QuickJS smokes pass.
+- Exact screenshot task ZN-774.18 captured from a read-only snapshot without changing its source: `/tmp/kanban-774-18-proof/editor-10.png` (criteria), `editor-20.png` (notes). Run `ZINC_BACKGROUND=1 build/zinc run examples/kanban`; restart an older instance. No engine changes, new dependencies, cross-target/device or screen-reader checks, and nothing pushed. Usage: n/a for Codex.
 
 ## Earlier known limits (unrelated, not re-investigated)
 

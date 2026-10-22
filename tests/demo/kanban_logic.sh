@@ -37,8 +37,8 @@ A watch fixture for the Kanban integration test.
 EOF
 KANBAN_REPO="$tmp" timeout 20 "$Z" run tests/data/kanban/watch.ts
 KANBAN_REPO="$tmp" KANBAN_AUTHOR='Kanban Test' timeout 20 "$Z" run tests/data/kanban/write.ts
-(cd "$tmp" && backlog task edit ZN-001 --description '# Existing description
-
-Original **Markdown** content to edit.' --plain >/dev/null)
+(cd "$tmp" && backlog task edit ZN-001 --title "zinc:ui as light and free as React Native's primitives" \
+  --ac 'First original criterion' --ac 'Second original criterion' --ac 'Third original criterion' --check-ac 1 \
+  --plan 'Original implementation plan.' --notes 'Original implementation notes, with **Markdown**.' --final-summary 'Original result.' --plain >/dev/null)
 KANBAN_REPO="$tmp" KANBAN_AUTHOR='Kanban Test' ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20000 ZINC_SIZE=1560x940 \
   timeout 30 "$Z" run tests/data/kanban/editor.ts

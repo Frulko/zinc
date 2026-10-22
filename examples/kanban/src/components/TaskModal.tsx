@@ -5,7 +5,7 @@ import { Markdown } from '../../../../lib/std/markdown-view';
 import { parse as parseMarkdown } from '../../../../lib/std/markdown';
 import { Icon } from 'zinc:icons';
 import { selected, selectedId, detail, detailError, closeTask, moveTask, declaredState, openTask,
-  editing, beginEdit, cancelEdit, editTitle, setEditTitle, editDescription, setEditDescription, commentDraft, setCommentDraft, saveEdits, postComment, saving, writeError } from '../state';
+  editing, beginEdit, cancelEdit, editDraft, setEditField, updateCriterion, addCriterion, removeCriterion, commentDraft, setCommentDraft, saveEdits, postComment, saving, writeError } from '../state';
 import { assignment, Criterion, Comment } from '../models';
 import { STATUSES, COLUMN_NAMES } from '../constants';
 import { writable } from '../services/backlog';
@@ -15,7 +15,7 @@ function Section(props: { title: string; body: string }): i32 {
 }
 function dependencies(): string[] { const d = detail(); return d !== null ? d.dependencies : []; }
 export function TaskModal(): i32 {
-  const screen = createNodeRef(), panel = createNodeRef(), editor = createNodeRef();
+  const screen = createNodeRef(), panel = createNodeRef(), editor = createNodeRef(), firstCriterion = createNodeRef(), otherCriterion = createNodeRef(), planEditor = createNodeRef(), notesEditor = createNodeRef(), summaryEditor = createNodeRef();
   const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={selectedId() === '' ? 1 : 0} role="dialog" aria-label="Détail de la tâche">
     <View ref={panel} className="w-[1120] max-w-[96vw] h-[88vh] flex-col rounded-[8] overflow-hidden bg-[#ffffff] border border-[#dce1e7] shadow-lg">
       <View className="flex-row h-[44] shrink-0 items-center gap-2 px-4 border-b border-[#e5e8ed] bg-[#f8f9fb]">
@@ -31,13 +31,26 @@ export function TaskModal(): i32 {
       {writeError() !== '' && <View className="px-5 py-2 bg-[#fff0e7]"><Text className="text-[12px] text-[#a25e3c]">{writeError()}</Text></View>}
       <View className="flex-row grow min-h-0">
         <View className="flex-col grow basis-0 min-w-0">
-          {editing() && <View className="flex-col grow min-h-0 p-5 gap-3">
+          {editing() && <ScrollView className="grow min-h-0 flex-col p-5 gap-3">
             <Text className="text-[11px] text-[#8a96a5]">TITRE</Text>
-            <Input value={editTitle()} onInput={setEditTitle} aria-label="Titre de la tâche" disabled={saving()} className="h-[38] px-2 text-[16px] font-semibold border border-[#dce1e7] rounded-[5] bg-[#ffffff] text-[#364353]" />
+            <Input value={editDraft().title} onInput={(v: string) => setEditField('title', v)} aria-label="Titre de la tâche" disabled={saving()} className="h-[38] shrink-0 px-2 text-[16px] font-semibold border border-[#dce1e7] rounded-[5] bg-[#ffffff] text-[#364353]" />
             <Text className="text-[11px] text-[#8a96a5]">DESCRIPTION · MARKDOWN</Text>
-            <TextArea ref={editor} value={editDescription()} onInput={setEditDescription} aria-label="Description Markdown" disabled={saving()} rows={0} className="grow min-h-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
-            <Text className="text-[11px] text-[#8a96a5]">{writable() ? 'Enregistrer écrit le titre et la description dans Backlog.md.' : 'Instantané en lecture seule · brouillon conservé dans cette session.'}</Text>
-          </View>}
+            <TextArea ref={editor} value={editDraft().description} onInput={(v: string) => setEditField('description', v)} aria-label="Description Markdown" placeholder="Ajouter une description…" disabled={saving()} rows={0} className="min-h-[64] max-h-[300] shrink-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+            <Text className="text-[11px] text-[#8a96a5]">CRITÈRES D’ACCEPTATION</Text>
+            {editDraft().criteria.map((c: Criterion, i: i32) => i).map((i: i32) => <View className="flex-row shrink-0 items-start gap-2">
+              <Button onClick={() => updateCriterion(i, editDraft().criteria[i].text, !editDraft().criteria[i].checked)} role="checkbox" aria-checked={String(editDraft().criteria[i].checked)} aria-label={'Cocher le critère ' + (i + 1)} disabled={saving()} className="w-[36] h-[36] shrink-0 items-center justify-center bg-transparent"><Icon name={editDraft().criteria[i].checked ? 'square-check' : 'square'} size={16} color={() => editDraft().criteria[i].checked ? 0x648e72 : 0xb0bac6} /></Button>
+              <TextArea ref={i === 0 ? firstCriterion : otherCriterion} value={editDraft().criteria[i].text} onInput={(v: string) => updateCriterion(i, v, editDraft().criteria[i].checked)} aria-label={'Critère ' + (i + 1)} disabled={saving()} rows={0} className="grow basis-0 min-w-0 min-h-[44] max-h-[200] px-2 py-2 text-[13px] leading-[20] border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+              <Button onClick={() => removeCriterion(i)} aria-label={'Supprimer le critère ' + (i + 1)} disabled={saving()} className="w-[36] h-[36] shrink-0 bg-transparent"><Icon name="x" size={14} color={() => 0x8a96a5} /></Button>
+            </View>)}
+            <Button onClick={addCriterion} disabled={saving()} className="h-[32] shrink-0 px-2 bg-transparent hover:bg-[#e9edf2]"><Text className="text-[12px] text-[#527eaa]">Ajouter un critère</Text></Button>
+            <Text className="text-[11px] text-[#8a96a5]">PLAN · MARKDOWN</Text>
+            <TextArea ref={planEditor} value={editDraft().plan} onInput={(v: string) => setEditField('plan', v)} aria-label="Plan Markdown" placeholder="Ajouter un plan…" disabled={saving()} rows={0} className="min-h-[64] max-h-[300] shrink-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+            <Text className="text-[11px] text-[#8a96a5]">NOTES D’IMPLÉMENTATION · MARKDOWN</Text>
+            <TextArea ref={notesEditor} value={editDraft().notes} onInput={(v: string) => setEditField('notes', v)} aria-label="Notes Markdown" placeholder="Ajouter des notes…" disabled={saving()} rows={0} className="min-h-[64] max-h-[300] shrink-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+            <Text className="text-[11px] text-[#8a96a5]">RÉSULTAT · MARKDOWN</Text>
+            <TextArea ref={summaryEditor} value={editDraft().summary} onInput={(v: string) => setEditField('summary', v)} aria-label="Résultat Markdown" placeholder="Ajouter un résultat…" disabled={saving()} rows={0} className="min-h-[64] max-h-[300] shrink-0 px-3 py-2 text-[13px] leading-[20] font-mono border border-[#dce1e7] rounded-[5] bg-[#fafbfc] text-[#46566a]" />
+            <Text className="text-[11px] text-[#8a96a5]">{writable() ? 'Enregistrer écrit ces sections dans Backlog.md.' : 'Instantané en lecture seule · brouillon conservé dans cette session.'}</Text>
+          </ScrollView>}
           {!editing() && <ScrollView className="grow min-h-0 flex-col p-6 gap-5">
             <Text className="text-[21px] font-semibold leading-[28] text-[#354253]">{selected()?.title ?? ''}</Text>
             {detail() === null && <Text className="text-[13px] text-[#8a96a5]">{detailError() !== '' ? detailError() : 'Chargement…'}</Text>}
@@ -84,7 +97,9 @@ export function TaskModal(): i32 {
     const id = selectedId(), active = editing();
     if (id !== '' && active) queueMicrotask(() => {
       // Wait for the conditional field to mount and the opening pointer press to finish.
-      if (selectedId() === id && editing()) ui.focusNode(editor.node);
+      if (selectedId() !== id || !editing()) return;
+      const d = editDraft();
+      ui.focusNode(d.description !== '' ? editor.node : d.criteria.length > 0 ? firstCriterion.node : d.plan !== '' ? planEditor.node : d.notes !== '' ? notesEditor.node : d.summary !== '' ? summaryEditor.node : editor.node);
     });
   });
   return node;
