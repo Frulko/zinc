@@ -393,7 +393,8 @@ struct Uart {
       firmware = true;
       std::fprintf(stderr, "%s\n", p.mapped(l).c_str());
       if (l.find("the program ended") != std::string::npos) rc = 0;
-      else if (l.rfind("mqjs: Error", 0) == 0 || l.rfind("mqjs: Syntax error", 0) == 0 || l.rfind("mqjs: no ", 0) == 0) failed = clock::now();
+      // a failure; "no touch controller" is not one: a board without touch (the S022N) and the emulator go on
+      else if (l.rfind("mqjs: Error", 0) == 0 || l.rfind("mqjs: Syntax error", 0) == 0 || (l.rfind("mqjs: no ", 0) == 0 && l.rfind("mqjs: no touch", 0) != 0)) failed = clock::now();
     } else if (firmware) {
       std::printf("%s\n", p.mapped(l).c_str());
       std::fflush(stdout);
