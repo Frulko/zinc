@@ -28,15 +28,18 @@ export interface Spec extends NativeModule {
   create(kind: string, parent: i32): i32;
   /** The object's child at `index` (0 the first, -1 the last), 0 when there is none. */
   child(obj: i32, index: i32): i32;
-  /** Deletes the object and its children. */
   /** Whether the handle names a live object (a deleted object's handle is free until a new object takes it). */
   exists(obj: i32): boolean;
+  /** Deletes the object and its children. */
   remove(obj: i32): void;
   /** Deletes the object's children. */
   clean(obj: i32): void;
 
   setSize(obj: i32, w: i32, h: i32): void;
   setPos(obj: i32, x: i32, y: i32): void;
+  /** The position in the parent, laid out now (an animated object's, a flex child's). */
+  x(obj: i32): i32;
+  y(obj: i32): i32;
   align(obj: i32, align: i32, x: i32, y: i32): void;
   /** Flex layout of the children: flow, then the alignment on the main axis, across, and of the tracks. */
   flex(obj: i32, flow: i32, main: i32, cross: i32, track: i32): void;
@@ -50,6 +53,13 @@ export interface Spec extends NativeModule {
   flag(obj: i32, flag: i32, on: boolean): void;
   state(obj: i32, state: i32, on: boolean): void;
   hasState(obj: i32, state: i32): boolean;
+  /** LVGL animates a style property of the main part (STYLE_X, STYLE_Y, WIDTH, HEIGHT, TRANSLATE_X/Y, OPA, BG_OPA, RADIUS,
+   *  TRANSFORM_ROTATION, TRANSFORM_SCALE_X/Y) from `from` to `to` in `ms`, after `delay` ms (negative: begun that far in), on a path
+   *  (ANIM_PATH_x), played `repeat` more times (-1 forever), each play coming back to `from` in `back` ms when it is not 0. It replaces the
+   *  property's running animation; deleting the object ends its animations. */
+  animate(obj: i32, prop: i32, from: i32, to: i32, ms: i32, delay: i32, path: i32, repeat: i32, back: i32): void;
+  /** Ends the animation of a property where it is (-1: all of the object's). */
+  stopAnimation(obj: i32, prop: i32): void;
 
   /** The text of a label or a check box. */
   setText(obj: i32, text: string): void;

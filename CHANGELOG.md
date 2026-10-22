@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- `zinc:lvgl`: `animate()` hands a property of an object (position, size, opacity, radius, rotation, scale) to LVGL, which moves it in C at every turn, with an easing, a delay, repeats and a way back: the program no longer moves objects every frame. `stopAnimation()` stops one, and `posX()`, `posY()` say where an object is. The Bench page of `examples/esp32-widgets` can hand its objects to LVGL.
+
 ### Changed
 - A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
 

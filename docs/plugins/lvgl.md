@@ -35,6 +35,17 @@ lv.run((dt: number) => { /* the program's frame, before LVGL's */ });
 - **Layout.** `size`, `pos`, `align`, `flex(o, flow, main, cross)`, `grow`, `pct(v)`, `SIZE_CONTENT`. The theme grows a pressed button
   by 3 px, and LVGL redraws a child only inside its parent's box (with `FLAG_OVERFLOW_VISIBLE` too): a row of buttons keeps 3 px of
   padding around them, or the grown edge is cut off.
+- **Animations.** `animate(o, prop, from, to, ms, path, delay, repeat, back)` hands a property to LVGL, which moves it in C at every
+  turn: the program sets it once instead of every frame. The properties are `X`, `Y`, `WIDTH`, `HEIGHT`, `TRANSLATE_X`, `TRANSLATE_Y`,
+  `OPA`, `BG_OPA`, `RADIUS`, `ROTATION` (tenths of a degree) and `SCALE_X`, `SCALE_Y` (256 is the object's size). The paths are
+  `EASE_IN_OUT` (the default), `LINEAR`, `EASE_IN`, `EASE_OUT`, `OVERSHOOT`, `BOUNCE` and `STEP`. A negative `delay` starts the
+  animation that far in, so objects move out of step. `repeat` is the number of extra plays (`FOREVER`), and `back` is the time each play
+  takes to come back to `from`. A new animation of a property replaces the running one. `stopAnimation(o, prop)` stops it where it is
+  (without `prop`, all of the object's), and deleting the object ends them. `posX(o)` and `posY(o)` give where an object is now.
+  ```ts
+  lv.animate(card, lv.Y, 320, 40, 400, lv.OVERSHOOT);                            // slides in
+  lv.animate(dot, lv.OPA, 255, 60, 600, lv.EASE_IN_OUT, 0, lv.FOREVER, 600);   // pulses
+  ```
 - **Turning the display.** `rotate(quarter)` (0 as started, 1 to 3 clockwise) and LVGL lays the screens out again at the turned size;
   `width()` and `height()` give it, so a program builds what depends on the size again. On the board the panel turns (MADCTL) and the
   touch with it; on the computer the picture is centred in the window, upright (a square window holds both).
@@ -65,7 +76,9 @@ apart (`LV_INV_BUF_SIZE`; past them it redraws the whole screen, and an object t
 nearby one of the same frame when that draws at most 4,096 more pixels (`JOIN_SLACK` in `lvgl.abi.c`). The benchmark of esp32-widgets
 in esp32sim, 24 objects: 76,800 pixels a frame and 37 to 41 fps before, 22,000 and 60 fps now. Under mquickjs a program's numbers are
 cheapest as integers: on the 32-bit ESP32 any other number is allocated in the JavaScript heap, and its FPU computes no doubles (a
-position kept in fixed point and shifted, `(x * w) >> 12`, rather than `Math.round(x * w)`).
+position kept in fixed point and shifted, `(x * w) >> 12`, rather than `Math.round(x * w)`). An object moved costs the same whether the program or an
+animation moves it: LVGL refreshes its style either way (and measures a label's text again), so in the benchmark 64 objects run at the
+same rate both ways. An animation is for a few objects at a time: each takes about 110 bytes of the heap while it runs.
 
 **Example.** `examples/esp32-widgets`: six pages (dashboard, controls, player, Lottie, benchmark, system). **Test.**
 `tests/t0/mquickjs_esp32.sh` checks it under mquickjs with LVGL's C built for the computer.

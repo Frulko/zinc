@@ -298,7 +298,8 @@ int32_t zn_lvgl_stats(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
 #define C(n) {#n, LV_##n}
 static const struct { const char *name; int32_t value; } constants[] = {
     C(STYLE_WIDTH), C(STYLE_HEIGHT), C(STYLE_MIN_WIDTH), C(STYLE_MAX_WIDTH), C(STYLE_MIN_HEIGHT), C(STYLE_MAX_HEIGHT), C(STYLE_LENGTH),
-    C(STYLE_TRANSLATE_X), C(STYLE_TRANSLATE_Y), C(STYLE_RADIUS), C(STYLE_CLIP_CORNER), C(STYLE_OPA), C(STYLE_ANIM_DURATION),
+    C(STYLE_X), C(STYLE_Y), C(STYLE_TRANSLATE_X), C(STYLE_TRANSLATE_Y), C(STYLE_TRANSFORM_ROTATION), C(STYLE_TRANSFORM_SCALE_X),
+    C(STYLE_TRANSFORM_SCALE_Y), C(STYLE_RADIUS), C(STYLE_CLIP_CORNER), C(STYLE_OPA), C(STYLE_ANIM_DURATION),
     C(STYLE_PAD_TOP), C(STYLE_PAD_BOTTOM), C(STYLE_PAD_LEFT), C(STYLE_PAD_RIGHT), C(STYLE_PAD_ROW), C(STYLE_PAD_COLUMN),
     C(STYLE_BG_COLOR), C(STYLE_BG_OPA), C(STYLE_BG_GRAD_COLOR), C(STYLE_BG_GRAD_DIR),
     C(STYLE_BORDER_COLOR), C(STYLE_BORDER_WIDTH), C(STYLE_BORDER_OPA), C(STYLE_BORDER_SIDE),
@@ -323,6 +324,8 @@ static const struct { const char *name; int32_t value; } constants[] = {
     C(GRAD_DIR_NONE), C(GRAD_DIR_VER), C(GRAD_DIR_HOR),
     C(BORDER_SIDE_NONE), C(BORDER_SIDE_BOTTOM), C(BORDER_SIDE_TOP), C(BORDER_SIDE_FULL),
     C(CHART_TYPE_LINE), C(CHART_TYPE_BAR), C(SIZE_CONTENT), C(OPA_TRANSP), C(OPA_COVER),
+    {"ANIM_PATH_LINEAR", 0}, {"ANIM_PATH_EASE_IN", 1}, {"ANIM_PATH_EASE_OUT", 2}, {"ANIM_PATH_EASE_IN_OUT", 3}, /* paths[] of animate */
+    {"ANIM_PATH_OVERSHOOT", 4}, {"ANIM_PATH_BOUNCE", 5}, {"ANIM_PATH_STEP", 6},
 };
 
 int32_t zn_lvgl_constant(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
@@ -409,6 +412,10 @@ int32_t zn_lvgl_setPos(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     return ZN_OK;
 }
 
+/* laid out first: LVGL's animations set their values after the turn's layout, which would show them a turn late (nothing to do when clean) */
+int32_t zn_lvgl_x(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret) { THE_OBJ(0); lv_obj_update_layout(o); ret->i = lv_obj_get_x(o); return ZN_OK; }
+int32_t zn_lvgl_y(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret) { THE_OBJ(0); lv_obj_update_layout(o); ret->i = lv_obj_get_y(o); return ZN_OK; }
+
 int32_t zn_lvgl_align(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
 {
     THE_OBJ(0);
@@ -440,6 +447,59 @@ int32_t zn_lvgl_style(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     (void)ret;
     lv_style_value_t v = {.num = (int32_t)args[2].i};
     lv_obj_set_local_style_prop(o, (lv_style_prop_t)args[1].i, v, (lv_style_selector_t)args[3].i);
+    return ZN_OK;
+}
+
+/* LVGL's animations of a number style property of the main part: one setter per property, as LVGL replaces a running animation of the same
+   object and setter (custom setters are never replaced) and stopAnimation() deletes by setter */
+#define SETTER(p) static void set_##p(void *o, int32_t v) { lv_obj_set_local_style_prop(o, LV_STYLE_##p, (lv_style_value_t){.num = v}, 0); }
+SETTER(X) SETTER(Y) SETTER(WIDTH) SETTER(HEIGHT) SETTER(TRANSLATE_X) SETTER(TRANSLATE_Y) SETTER(OPA) SETTER(BG_OPA) SETTER(RADIUS)
+SETTER(TRANSFORM_ROTATION) SETTER(TRANSFORM_SCALE_X) SETTER(TRANSFORM_SCALE_Y)
+#define S(p) {LV_STYLE_##p, set_##p}
+static const struct { lv_style_prop_t prop; lv_anim_exec_xcb_t set; } setters[] = {
+    S(X), S(Y), S(WIDTH), S(HEIGHT), S(TRANSLATE_X), S(TRANSLATE_Y), S(OPA), S(BG_OPA), S(RADIUS), S(TRANSFORM_ROTATION),
+    S(TRANSFORM_SCALE_X), S(TRANSFORM_SCALE_Y),
+};
+static const lv_anim_path_cb_t paths[] = {lv_anim_path_linear, lv_anim_path_ease_in, lv_anim_path_ease_out, lv_anim_path_ease_in_out,
+                                          lv_anim_path_overshoot, lv_anim_path_bounce, lv_anim_path_step}; /* constants ANIM_PATH_x */
+
+static lv_anim_exec_xcb_t setter_of(ZnCtx *cx, int64_t prop)
+{
+    for (size_t i = 0; i < sizeof setters / sizeof setters[0]; i++)
+        if (setters[i].prop == prop) return setters[i].set;
+    host->set_error(cx, "zinc:lvgl: this property is not animated (X, Y, WIDTH, HEIGHT, TRANSLATE_X, TRANSLATE_Y, OPA, BG_OPA, RADIUS, ROTATION, SCALE_X, SCALE_Y)");
+    return NULL;
+}
+
+int32_t zn_lvgl_animate(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    THE_OBJ(0);
+    (void)ret;
+    const lv_anim_exec_xcb_t set = setter_of(cx, args[1].i);
+    if (!set) return ZN_ERROR;
+    const int64_t ms = args[4].i, delay = args[5].i, path = args[6].i, repeat = args[7].i, back = args[8].i;
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, o);
+    lv_anim_set_exec_cb(&a, set);
+    lv_anim_set_values(&a, (int32_t)args[2].i, (int32_t)args[3].i);
+    lv_anim_set_duration(&a, ms > 0 ? (uint32_t)ms : 1);
+    lv_anim_set_delay(&a, delay > 0 ? (uint32_t)delay : 0);
+    lv_anim_set_path_cb(&a, path >= 0 && path < (int64_t)(sizeof paths / sizeof paths[0]) ? paths[path] : lv_anim_path_ease_in_out);
+    lv_anim_set_repeat_count(&a, repeat < 0 ? LV_ANIM_REPEAT_INFINITE : (uint32_t)repeat + 1);
+    lv_anim_set_reverse_duration(&a, back > 0 ? (uint32_t)back : 0);
+    lv_anim_t *started = lv_anim_start(&a);
+    if (started && delay < 0) started->act_time = (int32_t)(-delay < ms ? -delay : ms); /* begun that far in: objects out of step */
+    return ZN_OK;
+}
+
+int32_t zn_lvgl_stopAnimation(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    THE_OBJ(0);
+    (void)ret;
+    lv_anim_exec_xcb_t set = NULL; /* -1: all of them */
+    if (args[1].i >= 0 && !(set = setter_of(cx, args[1].i))) return ZN_ERROR;
+    lv_anim_delete(o, set);
     return ZN_OK;
 }
 

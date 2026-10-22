@@ -1,10 +1,11 @@
 // Benchmark, in the spirit of lv_demo_benchmark (and of the zinc:ui tour's page): objects bouncing in an arena, drawn four ways (opaque
 // rounded squares, translucent circles, text, a mix), with the live frame rate on top. "Run" measures each scene for three seconds and keeps
-// the averages. Under it, what LVGL spends and sends a frame, and what the board's panel bus would need for it. The page scrolls.
+// the averages. Under it, what LVGL spends and sends a frame, and what the board's panel bus would need for it, and a switch that hands the
+// moves to LVGL's animations (lv.animate) instead of the program's frame. The page scrolls.
 import * as lv from 'zinc:lvgl';
 import { COLOR_ACCENT, COLOR_MUTED, COLOR_MUTED_TEXT, COLOR_TEXT } from '../constants';
-import { buttonRow, caption, card, infoRow, text } from '../components/ui';
-import { BENCH_MAX, SCENES, boardFps, busMs, startRun, state } from '../state';
+import { buttonRow, caption, card, infoRow, row, text } from '../components/ui';
+import { BENCH_MAX, BENCH_UNIT, SCENES, boardFps, busMs, startRun, state } from '../state';
 
 const ARENA_H: i32 = 136;   // the card fits a portrait page whole, Run included
 const COLORS: i32[] = [0x6366f1, 0xec4899, 0xf59e0b, 0x10b981, 0x0ea5e9, 0xef4444, 0x8b5cf6, 0x14b8a6];
@@ -22,10 +23,32 @@ let busRow: i32 = 0;
 let boardRow: i32 = 0;
 let shownScene: i32 = -1;
 let shownCount: i32 = -1;
+let shownAnimated: boolean = false;
 let shownRun: i32 = -2;
 let clock: number = 0;
 
 function ms(v: number): string { return Math.round(v * 10) / 10 + ' ms'; }
+
+function half(i: i32): i32 {
+  const kind = state.scene === 3 ? i % 3 : state.scene;
+  return kind === 0 ? 11 : kind === 1 ? 14 : 17;
+}
+
+/** Hands the visible objects' moves to LVGL: each axis goes from wall to wall and back, forever, at the object's speed, begun where the
+ *  object is (a negative delay), so they keep bouncing out of step. */
+function animateBoxes(): void {
+  const w = arenaW - 24, h = ARENA_H - 24;
+  for (let i = 0; i < BENCH_MAX; i++) {
+    const b = boxes[i];
+    if (i >= state.count) { lv.stopAnimation(b); continue; }
+    const c = 12 - half(i);
+    const tx = crossMs(state.vx[i]), ty = crossMs(state.vy[i]);
+    lv.animate(b, lv.X, c, c + w, tx, lv.LINEAR, -((state.xs[i] * tx) >> 12), lv.FOREVER, tx);   // >> 12: a BENCH_UNIT
+    lv.animate(b, lv.Y, c, c + h, ty, lv.LINEAR, -((state.ys[i] * ty) >> 12), lv.FOREVER, ty);
+  }
+}
+/** The milliseconds to cross the arena at a speed in units a second. */
+function crossMs(v: i32): i32 { return Math.max(600, Math.min(6000, Math.round(BENCH_UNIT * 1000 / Math.max(1, Math.abs(v))))); }
 
 /** The objects' look for the scene: kind 0 square, 1 translucent circle, 2 text. */
 function showScene(): void {
@@ -40,8 +63,11 @@ function showScene(): void {
     lv.style(b, lv.BG_OPA, kind === 0 ? 255 : kind === 1 ? 140 : 0, 0);
   }
   for (let i = 0; i < picks.length; i++) lv.state(picks[i], lv.STATE_CHECKED, i === state.scene);
+  if (state.animated) animateBoxes();
+  else if (shownAnimated) for (let i = 0; i < BENCH_MAX; i++) lv.stopAnimation(boxes[i]);
   shownScene = state.scene;
   shownCount = state.count;
+  shownAnimated = state.animated;
 }
 
 function showRun(): void {
@@ -56,7 +82,7 @@ function showRun(): void {
 }
 
 export function buildBench(page: i32): void {
-  boxes = []; picks = []; clock = 0.5;
+  boxes = []; picks = []; clock = 0.5; shownAnimated = false;
   const top = card(page);
   arena = lv.obj(top);
   arenaW = lv.width() - 2 * 8 - 2 * 10 - 2;   // the page's padding, the card's padding and its border
@@ -125,18 +151,23 @@ export function buildBench(page: i32): void {
   pixelsRow = infoRow(figures, 'Pixels sent', '');
   busRow = infoRow(figures, 'Panel bus (10 MHz)', '');
   boardRow = infoRow(figures, 'Board, estimated', '');
+  const moves = row(figures);
+  text(moves, 'LVGL animates them', 12, COLOR_MUTED_TEXT);
+  const animated = lv.toggle(moves, state.animated);
+  lv.size(animated, 40, 22);
+  lv.on(animated, lv.EVENT_VALUE_CHANGED, () => { state.animated = lv.checked(animated); });
   showScene();
   showRun();
 }
 
 /** Moves the objects; the page is shown. */
 export function updateBench(dt: number): void {
-  if (state.scene !== shownScene || state.count !== shownCount) showScene();
+  if (state.scene !== shownScene || state.count !== shownCount || state.animated !== shownAnimated) showScene();
   if (state.running !== shownRun) showRun();
   const w = arenaW - 24, h = ARENA_H - 24, xs = state.xs, ys = state.ys;
-  for (let i = 0; i < state.count; i++) {
-    const kind = state.scene === 3 ? i % 3 : state.scene, half = kind === 0 ? 11 : kind === 1 ? 14 : 17;
-    lv.pos(boxes[i], 12 + ((xs[i] * w) >> 12) - half, 12 + ((ys[i] * h) >> 12) - half);   // >> 12: a BENCH_UNIT
+  for (let i = 0; !state.animated && i < state.count; i++) {
+    const r = half(i);
+    lv.pos(boxes[i], 12 + ((xs[i] * w) >> 12) - r, 12 + ((ys[i] * h) >> 12) - r);   // >> 12: a BENCH_UNIT
   }
   clock += dt;
   if (clock < 0.5) return;

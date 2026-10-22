@@ -9,7 +9,7 @@ above a navigation bar.
 | Input | buttons, sliders, switches, check boxes, radio buttons, a spinner and a bar, a PIN keypad (code 2432); the page scrolls |
 | Music | a player: cover, a spectrum analyser (bands that jump on the beat and fall back slowly, louder on the bass side), seek slider, transport buttons |
 | Lottie | a LottieFiles animation drawn by ThorVG (64 x 64, 16 KB), play, pause, replay, and what it costs a frame |
-| Bench | objects bouncing in four scenes (rounded squares, translucent circles, text, a mix), 4 to 64 of them, "Run" measures each scene for 3 s and prints the results on the console; LVGL's time, the pixels sent, the panel bus's time and the board's estimated frame rate; the page scrolls |
+| Bench | objects bouncing in four scenes (rounded squares, translucent circles, text, a mix), 4 to 64 of them, "Run" measures each scene for 3 s and prints the results on the console; a switch hands the moves to LVGL's animations (`lv.animate`) instead of the program's frame; LVGL's time, the pixels sent, the panel bus's time and the board's estimated frame rate; the page scrolls |
 | Info | the auto tour, a button that turns the screen to landscape and back (the pages lay out again at the new size), the backlight, LVGL's memory, the JavaScript heap, the board's heap, a frame's cost, the chip, CPU, flash, firmware and ESP-IDF (`zinc:device`); the page scrolls |
 
 ```sh

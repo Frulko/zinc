@@ -74,6 +74,7 @@ export class AppState {
   ys: i32[] = [];
   vx: i32[] = [];
   vy: i32[] = [];
+  animated: boolean = false;      // LVGL moves them (lv.animate), not the program every frame
   running: i32 = -1;              // the scene a run measures, -1 when none
   runClock: number = 0;
   runFrames: i32 = 0;
@@ -156,7 +157,7 @@ function stepMusic(dt: number): void {
 function stepBench(dt: number): void {
   const ms = Math.round(dt * 1000);
   const xs = state.xs, ys = state.ys, vx = state.vx, vy = state.vy;
-  for (let i = 0; i < state.count; i++) {   // the hidden ones wait where they are
+  for (let i = 0; !state.animated && i < state.count; i++) {   // the hidden ones wait where they are
     let x = xs[i] + ((vx[i] * ms) >> 10), y = ys[i] + ((vy[i] * ms) >> 10);   // a second of 1024 ms: a shift, not a division
     if (x < 0) { x = -x; vx[i] = -vx[i]; } else if (x > BENCH_UNIT) { x = 2 * BENCH_UNIT - x; vx[i] = -vx[i]; }
     if (y < 0) { y = -y; vy[i] = -vy[i]; } else if (y > BENCH_UNIT) { y = 2 * BENCH_UNIT - y; vy[i] = -vy[i]; }
@@ -169,7 +170,7 @@ function stepBench(dt: number): void {
   state.runClock = 0; state.runFrames = 0;
   state.running = state.running + 1 < SCENES.length ? state.running + 1 : -1;
   if (state.running >= 0) { state.scene = state.running; return; }
-  let s = 'widgets: bench of ' + state.count + ' objects,';   // the results in the console too: the board's UART keeps them
+  let s = 'widgets: bench of ' + state.count + ' objects' + (state.animated ? ' moved by LVGL,' : ',');   // the results in the console too: the board's UART keeps them
   for (let i = 0; i < SCENES.length; i++) s += ' ' + SCENES[i] + ' ' + state.results[i];
   console.log(s + ' fps');
 }

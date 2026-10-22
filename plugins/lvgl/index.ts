@@ -68,6 +68,15 @@ export const GRAD_VER: i32 = k('GRAD_DIR_VER');
 export const BORDER_BOTTOM: i32 = k('BORDER_SIDE_BOTTOM');
 export const BORDER_TOP: i32 = k('BORDER_SIDE_TOP');
 // style properties
+export const X: i32 = k('STYLE_X');
+export const Y: i32 = k('STYLE_Y');
+export const TRANSLATE_X: i32 = k('STYLE_TRANSLATE_X');
+export const TRANSLATE_Y: i32 = k('STYLE_TRANSLATE_Y');
+/** In tenths of a degree. */
+export const ROTATION: i32 = k('STYLE_TRANSFORM_ROTATION');
+/** 256 is the object's own size. */
+export const SCALE_X: i32 = k('STYLE_TRANSFORM_SCALE_X');
+export const SCALE_Y: i32 = k('STYLE_TRANSFORM_SCALE_Y');
 export const WIDTH: i32 = k('STYLE_WIDTH');
 export const HEIGHT: i32 = k('STYLE_HEIGHT');
 export const RADIUS: i32 = k('STYLE_RADIUS');
@@ -94,6 +103,15 @@ export const LINE_WIDTH: i32 = k('STYLE_LINE_WIDTH');
 export const LINE_COLOR: i32 = k('STYLE_LINE_COLOR');
 export const LENGTH: i32 = k('STYLE_LENGTH');
 export const ANIM_DURATION: i32 = k('STYLE_ANIM_DURATION');
+// the paths of animate()
+export const LINEAR: i32 = k('ANIM_PATH_LINEAR');
+export const EASE_IN: i32 = k('ANIM_PATH_EASE_IN');
+export const EASE_OUT: i32 = k('ANIM_PATH_EASE_OUT');
+export const EASE_IN_OUT: i32 = k('ANIM_PATH_EASE_IN_OUT');
+export const OVERSHOOT: i32 = k('ANIM_PATH_OVERSHOOT');
+export const BOUNCE: i32 = k('ANIM_PATH_BOUNCE');
+export const STEP: i32 = k('ANIM_PATH_STEP');
+export const FOREVER: i32 = -1;
 
 /** Starts LVGL on a w x h display with its default theme (dark or light) and accent colour. */
 export function start(w: i32, h: i32, dark: boolean, primary: i32): void {
@@ -201,6 +219,9 @@ export function clean(o: i32): void { L.clean(o); forget(); }
 // ---- layout and style
 export function size(o: i32, w: i32, h: i32): void { L.setSize(o, w, h); }
 export function pos(o: i32, x: i32, y: i32): void { L.setPos(o, x, y); }
+/** The position in the parent, laid out now (an animated object's, a flex child's). */
+export function posX(o: i32): i32 { return L.x(o); }
+export function posY(o: i32): i32 { return L.y(o); }
 export function align(o: i32, where: i32, x: i32, y: i32): void { L.align(o, where, x, y); }
 export function flex(o: i32, flow: i32, main: i32, cross: i32): void { L.flex(o, flow, main, cross, cross); }
 export function grow(o: i32, g: i32): void { L.flexGrow(o, g); }
@@ -228,6 +249,18 @@ export function flag(o: i32, f: i32, on: boolean): void { L.flag(o, f, on); }
 export function hidden(o: i32, on: boolean): void { L.flag(o, FLAG_HIDDEN, on); }
 export function state(o: i32, s: i32, on: boolean): void { L.state(o, s, on); }
 export function hasState(o: i32, s: i32): boolean { return L.hasState(o, s); }
+
+// ---- animations: LVGL runs them in C at every turn, so the program sets one once instead of moving the object every frame
+/** Animates a property of the object (X, Y, WIDTH, HEIGHT, TRANSLATE_X, TRANSLATE_Y, OPA, BG_OPA, RADIUS, ROTATION, SCALE_X, SCALE_Y)
+ *  from `from` to `to` in `ms`, on a path (EASE_IN_OUT, LINEAR, EASE_OUT, OVERSHOOT, BOUNCE...), after `delay` ms (negative: begun that
+ *  far in, so objects move out of step), played `repeat` more times (FOREVER), each play coming back to `from` in `back` ms when it is
+ *  not 0. A new animation of the same property replaces the running one; deleting the object ends its animations. */
+export function animate(o: i32, prop: i32, from: i32, to: i32, ms: i32, path: i32 = EASE_IN_OUT, delay: i32 = 0, repeat: i32 = 0,
+                        back: i32 = 0): void {
+  L.animate(o, prop, from, to, ms, delay, path, repeat, back);
+}
+/** Stops the animation of a property where it is; without a property, all of the object's. */
+export function stopAnimation(o: i32, prop: i32 = -1): void { L.stopAnimation(o, prop); }
 
 // ---- values
 export function setText(o: i32, text: string): void { L.setText(o, text); }
