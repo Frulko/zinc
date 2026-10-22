@@ -457,16 +457,17 @@ int runOnBoard(const std::string& root, const Program& p, std::string port, int 
   if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   if (port.empty()) port = zn::dev::findSerialPort();
   if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
+  // the firmware the program needs: the network image for the radio, else either (the network image runs every program)
+  // with native modules, only the image built for them; built before the program is written, or the board's older firmware runs the
+  // new program (a ReferenceError on its screen) for the minutes the build takes
+  const std::string small = imageId(imageFor(root, p, false, p.net, err)), net = p.natives.empty() ? imageId(firmwareImage(root, false, true, err)) : small;
+  if (small.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const auto t = clock::now();
   if (capture(quote(tool) + " --chip esp32 -p " + quote(port) + " -b 460800 write-flash " + kJsOffset + " " + quote(p.img), log) != 0) {
     std::fprintf(stderr, "%szinc: esptool cannot write the program to %s (above)\n", log.c_str(), port.c_str());
     return 1;
   }
   zn::log::step("flash", "the program to " + port + " at " + kJsOffset, zn::log::since(t));
-  // the firmware the program needs: the network image for the radio, else either (the network image runs every program)
-  // with native modules, only the image built for them
-  const std::string small = imageId(imageFor(root, p, false, p.net, err)), net = p.natives.empty() ? imageId(firmwareImage(root, false, true, err)) : small;
-  if (small.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   bool reflashed = false;
 again:
   zn::dev::Link link;

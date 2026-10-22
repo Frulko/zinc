@@ -51,6 +51,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- `zinc run --target esp32` builds the firmware a program's plugins need before it writes the program, so the board no longer shows a ReferenceError ("not in this firmware") during the build.
 - GitHub releases display the changelog from the tagged commit, including when checkout loses the tag annotation. Failed or unwatched releases keep their notes in `Unreleased`; reruns restore the complete release notes and only archive published entries, leaving newer edits pending.
 - Nuxt UI select menus float above cards and neighbouring fields instead of being clipped by their container. Escape and clicks outside close the list.
 - Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
