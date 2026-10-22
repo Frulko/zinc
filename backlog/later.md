@@ -527,6 +527,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.18: Pressable takes `style` and `children` functions only as inline arrows; `style={fn}` fails to type-check with an error naming `styleFn`, a name the user never wrote: a union prop type, or a clear error.
 - ZN-774.18: a keyboard press (Enter, Space) fires Pressable's onPress but does not set `pressed`, so keyboard users see no pressed style (React Native Web sets it, and adds hovered and focused).
 - ZN-774.18: Pressable still lacks hitSlop, pressRetentionOffset, delayLongPress and android_ripple; ported screens that use them lose those behaviours.
+- ZN-774.18: SafeAreaView (lib/std/react-native.tsx) pads itself through `pt-[env(safe-area-inset-*)]` classes, so a React Native program that uses it (zinc-go, rn-showcase) still compiles in the class parser, about 11 % of its code; padding from the safe-area signal as style keys removes it.
+- ZN-774.18: `sheetNumber` reads any `@` key holding a colon as a colour (`@prop:hex`), so a backgroundImage `url(data:…)` or `url(https://…)` would be misread; match the colour form exactly.
+- ZN-774.18: a hand-built `new ui.Style(['@font-mono'], …)` silently does nothing in a program without classes (the `@` keys are compiler output); a debug-build check would say so.
+- ZN-774.18: step 7 of docs/reports/ui-primitives-like-react-native.md (the field editor behind `_field` and `ui.createField`, about 5,700 instructions) only helps programs with no field (boards, displays), by about as much as step 6; do it when a board program's size matters.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.

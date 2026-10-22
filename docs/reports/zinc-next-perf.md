@@ -1165,3 +1165,21 @@ Development Mac, existing `build/zinc`, interpreter, headless deterministic 1560
 ## Kanban scroll and editor regression (ZN-775 follow-up, 2026-10-22)
 
 The compact UI uses 144 px rows. The geometry regression builds 200 tasks, scrolls to row 40, then the last row, then back, checks the requested card intersects the viewport and fewer than 20 row hosts remain mounted, and checks the ghost retains its exact original pointer grip. Without the row host correction it fails on row 40. Headless deterministic 1560x940, nine-task fixture, 300 idle frames: paint p50/p99 **0.00/0.00 ms**, maximum 0.77 ms; layout maximum 3.65 ms. This is an idle regression check, not a comparative benchmark. Interpreter, AOT and QuickJS first-board smoke hash: `763dad18a1e3cfed`. No physical-device or cross-target performance claim.
+
+## The class parser only where classes are used (ZN-774.18 step 6, 2026-10-22)
+
+`bench/ui-primitives/measure.sh` (ZBC listing instructions, `func @` count, `--emit=zbc-bin` and `--emit=cpp` bytes, `ZINC_DETERMINISTIC=1`), develop
+02bb67ca against the step-6 commit. styleonly gives every look as a style object, prims-rn is the React Native model, lesson 12 uses classes.
+Executables from `zinc build <dir> -o <exe>`, same runtime libraries.
+
+| Program | Instructions | Functions | ZBC bytes | AOT C++ bytes | Executable bytes |
+|---|---|---|---|---|---|
+| styleonly | 60,194 → 53,445 (−11.2 %) | 282 → 244 | 354,823 → 307,736 (−13.3 %) | 3,161,082 → 2,697,608 (−14.7 %) | 4,675,296 → 4,526,608 (−145 KB) |
+| prims-rn | 66,320 → 59,519 (−10.3 %) | 373 → 336 | 407,710 → 360,524 (−11.6 %) | 3,545,455 → 3,081,742 (−13.1 %) | 5,353,568 → 5,204,880 (−145 KB) |
+| lesson 12 (classes) | 62,354 → 62,387 (+33, the hook) | 298 | 365,079 → 365,709 | 3,236,953 → 3,238,850 | |
+| lesson 1 (zinc:gfx) | 1,227, unchanged | 13 | 10,710 | 70,258 | |
+
+The 38 functions gone from styleonly are `applyToken`, the token helpers, the colour and gradient parsers and the palette map. Not measured:
+the interpreter start and `zinc build` seconds (load 15 to 26 all evening); `TIMES=1 bench/ui-primitives/measure.sh` on a quiet machine, with
+02bb67ca's binary for the before. The field editor (step 7 of the report) is about 5,700 instructions, 10.6 % of what styleonly keeps, but every
+program with a field needs it; deferred to backlog/later.md.

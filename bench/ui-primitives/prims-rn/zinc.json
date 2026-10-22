@@ -1,0 +1,1 @@
+{ "name": "prims-rn", "entry": "src/main.tsx", "ui": { "preset": "react-native" }, "app": { "id": "com.example.primsrn", "window": { "width": 400, "height": 300 } } }

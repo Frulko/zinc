@@ -1,0 +1,1 @@
+{ "name": "styleonly", "entry": "src/main.tsx", "app": { "id": "com.example.styleonly", "window": { "width": 400, "height": 300 } } }
