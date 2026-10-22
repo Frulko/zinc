@@ -41,6 +41,11 @@ void zn_panel_rotate(int quarter);
    frame callback, the rendering and the transfer) and its zinc:gfx commands. main.c answers them. */
 int zn_backlight(int level);
 int zn_touch(void);
+/* The touch's map from the CST820's pixels to the panel's portrait pixels: x = m[0] rx + m[1] ry + m[2], y = m[3] rx + m[4] ry + m[5]
+   (coefficient i of it); the setter applies it from the next touch and keeps it in NVS (zinc.sys, "touch"), or returns 0 for a map the touch
+   cannot use (not finite, a scale outside 0.5 to 2). */
+float zn_touch_map(int i);
+int zn_set_touch_map(const float m[6]);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 /* The mquickjs heap of the native call in progress: bytes in use and its size, as JS_DumpMemory's "heap size=used/size" (main/zn_native.c,
    so zinc-mqjs answers it too on the computer). */

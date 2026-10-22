@@ -2,6 +2,8 @@
 export default {
   setBacklight(_level: number): boolean { return false; },
   hasTouch(): boolean { return true; },
+  touchMap(i: number): number { return i === 0 || i === 4 ? 1 : 0; },
+  setTouchMap(_a: number, _b: number, _c: number, _d: number, _e: number, _f: number): boolean { return false; },
   heapFree(): number { return -1; },
   heapMinFree(): number { return -1; },
   zincHeapUsed(): number { return 0; },

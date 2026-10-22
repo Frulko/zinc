@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- The ESP32-2432S022 calibrates its touch under `--engine mquickjs`: keep a finger on the screen while the board starts and tap the five crosses it shows. The board keeps the correction (up to 45 px towards the edges on this panel) for every program; `zinc:device` reads and sets it with `touchMap()` and `setTouchMap()`, which also turn or mirror the touch.
 - The website offers English, French, Spanish, Italian and German navigation, getting started pages and guides, with a language switcher.
 - Zinc Pi Image can save named presets of all image settings and restore them from a list. The latest edits return when the app reopens; save failures are shown instead of being silently ignored.
 - The Pi player's Updates menu checks for releases for its architecture, installs a chosen newer or older engine after verifying its signature and rebuilding the same player bundle on the Pi, and restores the previous engine and player if startup fails. An icon appears when an update is available; the saved previous version can also be restored from the menu.

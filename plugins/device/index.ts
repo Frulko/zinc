@@ -27,6 +27,18 @@ export function hasBacklight(): boolean { return driven; }
 /** True when the screen reports touches (always on hosts: the mouse). The ESP32-2432S022N variant has none. */
 export function hasTouch(): boolean { return D.hasTouch(); }
 
+/** The touch's map from the controller's pixels to the screen's, x = m[0] rx + m[1] ry + m[2], y = m[3] rx + m[4] ry + m[5]: a calibration,
+ *  and a turn or a mirror as well (a panel mounted another way). The board's starts as the one its calibration kept (a finger on the
+ *  screen as it starts, docs/boards.md); the identity where the system owns the touch (the computer). */
+export function touchMap(): number[] {
+  const m: number[] = [];
+  for (let i = 0; i < 6; i++) m.push(D.touchMap(i));
+  return m;
+}
+/** Sets the touch's map and keeps it on the board, for the next programs too; false where the system owns the touch (the computer), and for
+ *  a map the touch could not use (not finite, or a scale outside 0.5 to 2: one that squeezes or blows up the screen). */
+export function setTouchMap(m: number[]): boolean { return D.setTouchMap(m[0], m[1], m[2], m[3], m[4], m[5]); }
+
 export class Memory {
   zincUsed: i32 = 0;      // Zinc heap (TLSF) bytes in use; under mquickjs, the JavaScript heap's (-1: unknown)
   zincSize: i32 = 0;      // its size

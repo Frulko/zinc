@@ -211,6 +211,15 @@ point, so `zinc:ui` sees a mouse-like pointer (tap, drag, inertial scroll, slide
 fix a mirrored or rotated touch layer. Without an answering controller (the N variant, QEMU) the demo tours its pages
 by itself.
 
+**Touch calibration (`--engine mquickjs`).** This board's CST820 is off by up to 45 px towards the edges, the same way at
+every tap: 8 crosses tapped 5 times, 24 px off on average and 4 px at the centre (2026-10-22, `examples/touch-check`). The
+firmware puts the touch through an affine map (a scale, a shear, a turn or a mirror, an offset) kept on the board (NVS,
+`zinc.sys`): **keep a finger on the screen while the board starts**, then tap the five crosses it shows; it keeps the map
+that fits them best (8 px off on average then, a finger's precision), or the old one when the taps fit no map. A program
+reads and sets the map with `device.touchMap()` and `device.setTouchMap()`; `examples/touch-check` measures a screen over
+several rounds, shows its distortion and the confidence in the map, and applies it. The map is in the panel's portrait
+pixels: `lv.rotate()` turns the touch after it.
+
 ### zinc:device (`plugins/device`)
 
 ```ts
@@ -221,6 +230,8 @@ device.memory();                 // { zincUsed, zincSize, chipFree, chipMinFree 
 device.frameMs(); device.drawCmds(); device.chip(); device.cpuMhz();
 device.flashSize();              // bytes; -1 on hosts
 device.idfVersion(); device.firmware();   // "v5.5.5", "zinc-mquickjs 1a2b3c4d"; '' on hosts
+device.touchMap();               // [a, b, c, d, e, f]: x = a rx + b ry + c, y = d rx + e ry + f from the controller's pixels
+device.setTouchMap(m);           // kept on the board; false where the system owns the touch (the computer) or for a map it cannot use
 ```
 
 In the AOT firmware the backlight goes through the display driver (`zinc_display_backlight`, weakly linked), so the

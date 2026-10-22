@@ -4,6 +4,8 @@
 struct HostDevice : NativeDevice {
   bool setBacklight(int32_t) override { return false; }
   bool hasTouch() override { return true; }
+  double touchMap(int32_t i) override { return i == 0 || i == 4 ? 1 : 0; }   // the system calibrates its touch screens
+  bool setTouchMap(double, double, double, double, double, double) override { return false; }
   int32_t heapFree() override { return -1; }
   int32_t heapMinFree() override { return -1; }
   int32_t zincHeapUsed() override { return (int32_t)zrt::heap_used(); }

@@ -20,6 +20,9 @@ struct EspDevice : NativeDevice {
     return true;
   }
   bool hasTouch() override { return zinc_display_touch && zinc_display_touch(); }
+  // ponytail: the AOT firmware's touch has no map yet (the mquickjs firmware's has, main.c touch_poll)
+  double touchMap(int32_t i) override { return i == 0 || i == 4 ? 1 : 0; }
+  bool setTouchMap(double, double, double, double, double, double) override { return false; }
   // byte-addressable internal RAM (the 32-bit-only IRAM left over is not usable as heap for most data)
   int32_t heapFree() override { return (int32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }
   int32_t heapMinFree() override { return (int32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }

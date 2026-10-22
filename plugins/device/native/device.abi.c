@@ -20,6 +20,8 @@ __attribute__((weak)) void zn_js_heap(size_t *used, size_t *size);
 /* the firmware's (main/zn.h) */
 int zn_backlight(int level);
 int zn_touch(void);
+float zn_touch_map(int i);
+int zn_set_touch_map(const float m[6]);
 void zn_frame_stats(int *frame_us, int *draw_cmds);
 #endif
 
@@ -55,6 +57,30 @@ int32_t zn_device_hasTouch(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
     return ret_int(ret, zn_touch());
 #else
     return ret_int(ret, 1); /* the mouse stands in */
+#endif
+}
+
+int32_t zn_device_touchMap(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self, (void)cx;
+    const int i = (int)args[0].i;
+#ifdef ESP_PLATFORM
+    ret->d = i >= 0 && i < 6 ? zn_touch_map(i) : 0;
+#else
+    ret->d = i == 0 || i == 4; /* the mouse: the identity */
+#endif
+    return ZN_OK;
+}
+
+int32_t zn_device_setTouchMap(void *self, ZnCtx *cx, const ZnVal *args, ZnVal *ret)
+{
+    (void)self, (void)cx;
+#ifdef ESP_PLATFORM
+    const float m[6] = {(float)args[0].d, (float)args[1].d, (float)args[2].d, (float)args[3].d, (float)args[4].d, (float)args[5].d};
+    return ret_int(ret, zn_set_touch_map(m));
+#else
+    (void)args;
+    return ret_int(ret, 0);
 #endif
 }
 

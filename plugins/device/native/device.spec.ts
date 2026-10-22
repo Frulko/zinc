@@ -7,6 +7,11 @@ export interface Spec extends NativeModule {
   setBacklight(level: i32): boolean;
   /** True when the screen has a touch controller that answered (hosts: the mouse stands in, true). */
   hasTouch(): boolean;
+  /** Coefficient `i` (0..5) of the touch's map from the controller's pixels to the screen's: x = m0 rx + m1 ry + m2, y = m3 rx + m4 ry + m5;
+   *  the identity where the system owns the touch (hosts). */
+  touchMap(i: i32): f64;
+  /** Sets the touch's map and keeps it on the board; false where the system owns the touch (hosts). */
+  setTouchMap(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64): boolean;
   /** Free bytes of the chip's own heap (internal RAM on ESP32, outside the Zinc heap); -1 on hosts. */
   heapFree(): i32;
   /** Lowest heapFree() since boot; -1 on hosts. */

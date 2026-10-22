@@ -23,6 +23,7 @@
 #include "esp_rom_crc.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "nvs.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -350,7 +351,22 @@ static void panel_release(void)
     lcd_cmd(0x2A, caset, 4);
 }
 
-/* ---- touch: CST820 on I2C, 0x02 finger count, 0x03..0x06 X high/low, Y high/low (12 bits) */
+/* ---- touch: CST820 on I2C, 0x02 finger count, 0x03..0x06 X high/low, Y high/low (12 bits). The 2432S022's is off by up to 45 px towards
+   the edges, the same way at every tap (8 crosses tapped 5 times on 2026-10-22: 24 px on average, 4 px at the centre), so its pixels go
+   through the affine map that fits five tapped crosses best: x = cal[0] rx + cal[1] ry + cal[2], y = cal[3] rx + cal[4] ry + cal[5] (8 px
+   on average then, a finger's precision), kept in NVS (zinc.sys, "touch"). A finger on the screen while the board starts asks for them
+   again (touch_calibrate). */
+static float cal[6] = {1, 0, 0, 0, 1, 0};
+
+/* a map the touch can use: finite, its offsets within a few screens, its scale near 1 (a turn or a mirror keeps it at 1); one that squeezes
+   the screen into a corner or blows it up would leave the touch unusable until the next calibration */
+static int map_ok(const float m[6])
+{
+    for (int i = 0; i < 6; i++)
+        if (!isfinite(m[i])) return 0;
+    const float area = fabsf(m[0] * m[4] - m[1] * m[3]);
+    return area >= 0.5f && area <= 2 && fabsf(m[2]) <= 2000 && fabsf(m[5]) <= 2000;
+}
 
 static void touch_init(void)
 {
@@ -366,9 +382,31 @@ static void touch_init(void)
         printf("mqjs: no touch controller at 0x%02x\n", TP_ADDR);
         tp = NULL;
     }
+    nvs_handle_t h;
+    float c[6];
+    size_t n = sizeof c;
+    if (nvs_open("zinc.sys", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "touch", c, &n) == ESP_OK && n == sizeof c && map_ok(c)) memcpy(cal, c, sizeof c);
+        nvs_close(h);
+    }
 }
 
 int zn_touch(void) { return tp != NULL; }
+
+float zn_touch_map(int i) { return cal[i]; }
+
+int zn_set_touch_map(const float m[6])
+{
+    if (!map_ok(m)) return 0;
+    memcpy(cal, m, sizeof cal);
+    nvs_handle_t h;
+    if (nvs_open("zinc.sys", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "touch", cal, sizeof cal);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    return 1;
+}
 
 void zn_frame_stats(int *us, int *cmds)
 {
@@ -376,16 +414,27 @@ void zn_frame_stats(int *us, int *cmds)
     *cmds = frame_cmds;
 }
 
-static void touch_poll(void)
+/* 1 with the controller's pixels when a finger is down, 0 when none, -1 when it does not answer */
+static int touch_raw(int *x, int *y)
 {
     static const uint8_t reg = 0x02;
     uint8_t b[5];
-    if (!tp || i2c_master_transmit_receive(tp, &reg, 1, b, sizeof b, 10) != ESP_OK) return;
-    touch_down = (b[0] & 0x0F) != 0;
+    if (!tp || i2c_master_transmit_receive(tp, &reg, 1, b, sizeof b, 10) != ESP_OK) return -1;
+    *x = (b[1] & 0x0F) << 8 | b[2];
+    *y = (b[3] & 0x0F) << 8 | b[4];
+    return (b[0] & 0x0F) != 0;
+}
+
+static void touch_poll(void)
+{
+    int x, y;
+    const int down = touch_raw(&x, &y);
+    if (down < 0) return;
+    touch_down = down;
     if (touch_down) { /* kept after release, so a lift lands where the finger left */
-        int x = (b[1] & 0x0F) << 8 | b[2], y = (b[3] & 0x0F) << 8 | b[4];
-        touch_x = x < W ? x : W - 1;
-        touch_y = y < H ? y : H - 1;
+        const float cx = cal[0] * x + cal[1] * y + cal[2], cy = cal[3] * x + cal[4] * y + cal[5];
+        touch_x = cx < 0 ? 0 : cx > W - 1 ? W - 1 : (int)(cx + 0.5f);
+        touch_y = cy < 0 ? 0 : cy > H - 1 ? H - 1 : (int)(cy + 0.5f);
     }
 }
 
@@ -568,6 +617,103 @@ JSValue js_gfx_pointer_x(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 JSValue js_gfx_pointer_y(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv) { return JS_NewInt32(ctx, touch_y); }
 JSValue js_gfx_pointer_down(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv) { return JS_NewBool(touch_down); }
 JSValue js_gfx_touch_count(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv) { return JS_NewInt32(ctx, touch_down); }
+
+/* ---- touch calibration (the map of touch_poll) */
+
+/* a tap once the finger is off the screen: where it lifted, in the controller's pixels */
+static void touch_tap(int *x, int *y)
+{
+    int rx, ry, down = 0;
+    while (touch_raw(&rx, &ry) == 1) vTaskDelay(pdMS_TO_TICKS(10));
+    for (;;) {
+        const int d = touch_raw(&rx, &ry);
+        if (d == 1) down = 1, *x = rx, *y = ry;
+        else if (d == 0 && down) return;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+/* v with `digits` (1 to 3) decimals: the firmware's printf is newlib's nano one, which has no %f */
+static const char *decimals(float v, int digits, char b[16])
+{
+    const int k = digits == 1 ? 10 : digits == 2 ? 100 : 1000, n = (int)lrintf(fabsf(v) * k);
+    snprintf(b, 16, "%s%d.%0*d", v < 0 ? "-" : "", n / k, digits, n % k);
+    return b;
+}
+
+static double det3(const double m[3][3])
+{
+    return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+           m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+}
+
+static const int16_t CAL_X[5] = {20, 220, 220, 20, 120}, CAL_Y[5] = {20, 20, 300, 300, 160}; /* the crosses: the corners 20 px in, the centre */
+
+static void calibration_screen(const char *line, int cross)
+{
+    background = 0;
+    ncmd = ntext = 0;
+    text("Touch calibration", 17, 52, 96, 0xffffff, 1);
+    text(line, strlen(line), (W - 8 * (int)strlen(line)) / 2, 112, 0xa0a0a0, 1);
+    Cmd *c;
+    if (cross >= 0 && (c = push(OP_RECT))) *c = (Cmd){OP_RECT, 0, rgb565(0xffffff), CAL_X[cross] - 10, CAL_Y[cross], CAL_X[cross] + 11, CAL_Y[cross] + 1, 0, 0};
+    if (cross >= 0 && (c = push(OP_RECT))) *c = (Cmd){OP_RECT, 0, rgb565(0xffffff), CAL_X[cross], CAL_Y[cross] - 10, CAL_X[cross] + 1, CAL_Y[cross] + 11, 0, 0};
+    present();
+}
+
+/* Five crosses tapped, and the least-squares affine map from where they were tapped to where they are */
+static void touch_calibrate(void)
+{
+    double m[3][3] = {{0}}, bx[3] = {0}, by[3] = {0};
+    int rx[5], ry[5];
+    printf("mqjs: touch calibration: tap the five crosses\n");
+    for (int i = 0; i < 5; i++) {
+        calibration_screen("tap the centre of the cross", i);
+        int x = 0, y = 0;
+        touch_tap(&x, &y);
+        rx[i] = x, ry[i] = y;
+        printf("mqjs: touch calibration: cross %d at %d,%d tapped at %d,%d\n", i + 1, CAL_X[i], CAL_Y[i], x, y);
+        const double r[3] = {x, y, 1};
+        for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 3; k++) m[j][k] += r[j] * r[k];
+            bx[j] += r[j] * CAL_X[i];
+            by[j] += r[j] * CAL_Y[i];
+        }
+    }
+    const double d = det3(m);
+    float c[6];
+    for (int k = 0; k < 3 && d != 0; k++) { /* Cramer's rule: column k replaced by the right-hand side */
+        double mx[3][3], my[3][3];
+        memcpy(mx, m, sizeof m);
+        memcpy(my, m, sizeof m);
+        for (int j = 0; j < 3; j++) mx[j][k] = bx[j], my[j][k] = by[j];
+        c[k] = (float)(det3(mx) / d);
+        c[3 + k] = (float)(det3(my) / d);
+    }
+    /* any turn or mirror of the panel is a map too; a slip or a missed cross leaves taps the map cannot fit, or squeezes the screen: the
+       old map stays */
+    float left = 0;
+    for (int i = 0; i < 5 && d != 0; i++) {
+        const float ex = c[0] * rx[i] + c[1] * ry[i] + c[2] - CAL_X[i], ey = c[3] * rx[i] + c[4] * ry[i] + c[5] - CAL_Y[i];
+        left += sqrtf(ex * ex + ey * ey) / 5;
+    }
+    const float area = fabsf(c[0] * c[4] - c[1] * c[3]);
+    if (d == 0 || left > 12 || !map_ok(c)) {
+        char b0[16], b1[16];
+        printf("mqjs: touch calibration: the taps do not fit a map (%s px off, scale %s); the touch keeps its map\n", decimals(left, 1, b0),
+               decimals(area, 2, b1));
+        calibration_screen("missed: kept as it was", -1);
+        vTaskDelay(pdMS_TO_TICKS(1500));
+        return;
+    }
+    zn_set_touch_map(c);
+    char b[7][16];
+    printf("mqjs: touch calibrated: x = %s rx + %s ry + %s, y = %s rx + %s ry + %s, %s px off after it\n", decimals(c[0], 3, b[0]),
+           decimals(c[1], 3, b[1]), decimals(c[2], 1, b[2]), decimals(c[3], 3, b[3]), decimals(c[4], 3, b[4]), decimals(c[5], 1, b[5]),
+           decimals(left, 1, b[6]));
+    calibration_screen("done", -1);
+    vTaskDelay(pdMS_TO_TICKS(800));
+}
 
 /* ---- the program */
 
@@ -881,6 +1027,8 @@ void app_main(void)
     zn_storage_init();
     lcd_init();
     touch_init();
+    int tap_x, tap_y;
+    if (touch_raw(&tap_x, &tap_y) == 1) touch_calibrate(); /* a finger on the screen as the board starts */
     printf("mqjs: free heap %u, largest block %u\n", (unsigned)esp_get_free_heap_size(),
            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     uint32_t len = 0;
