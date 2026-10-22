@@ -9,8 +9,7 @@ second, serves the values as JSON over HTTP, publishes to MQTT when configured, 
 `zinc:telemetry`. Run it:
 
 ```sh
-zinc run examples/service/sensor-hub                 # sim (Node)
-zinc run examples/service/sensor-hub --target macos  # native
+zinc run examples/service/sensor-hub                 # compiled to native on first run, then cached
 curl localhost:3000/readings                         # {"seq":…,"tempC":…,"humidity":…}
 ```
 
@@ -60,7 +59,7 @@ telemetry.expose('tempC', () => latest);           // sampled at 10 Hz into stat
 ```
 
 ```sh
-ZINC_TELEMETRY=udp://127.0.0.1:9999 zinc run examples/service/sensor-hub --target macos &
+ZINC_TELEMETRY=udp://127.0.0.1:9999 zinc run examples/service/sensor-hub &
 zinc monitor          # fps/metrics/exposed vars, live
 ```
 
@@ -121,7 +120,7 @@ at once.
 
 ## Running as a systemd service
 
-`zinc export --target linux` (or `rpi1`) produces `dist/<name>-<target>/` with the executable, a `run.sh`, a
+`zinc export --target linux` (or `rpi`, `rpi1`, `rpi2`; cross built with the pinned zig, no Docker) produces `dist/<name>-<target>/` with the executable, a `run.sh`, a
 `<name>.service` unit (`Restart=on-failure`, `RestartSec=2`) and a `deploy.sh` that installs it root-owned in
 `/opt/<name>`, installs the unit and starts it. The unit runs the program unprivileged (`DynamicUser=yes`, no
 capabilities, read-only system, private /tmp): its working directory and `zinc:storage` file are in
@@ -160,11 +159,12 @@ The same source builds as firmware — `net` (fetch), `mqtt`, `osc`, `telemetry`
 `gpio` (`driver/gpio`) all have ESP32 backends. Swap the fake `sample()` for a real GPIO/I2C read or a native module.
 WiFi credentials go in `zinc.json` `targets.esp32.wifi` (`{ssid, password}`); note that `esp_wifi` station bring-up
 is not implemented yet and there is no HTTP *server* on ESP32 (fetch/MQTT/OSC clients only) — see
-[ADR 0011](../decisions/0011-target-modules.md) for exactly what is wired and what is a stub.
+`zinc plugins` and `docs/targets/capabilities.md` for exactly what each target offers.
 
 ```sh
-zinc build examples/service/sensor-hub --target esp32     # ESP-IDF firmware (built in docker)
-zinc export --target esp32 examples/service/sensor-hub    # + flash.sh (esptool)
+zinc run examples/service/sensor-hub --target esp32       # on the board or `--qemu`
+zinc export --target esp32 examples/service/sensor-hub    # core.bin, app.bin and flash.sh
+zinc flash --target esp32                                 # the core firmware, once (pinned esptool)
 ```
 
 ## Signals between objects (zinc:signals)

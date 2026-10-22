@@ -228,8 +228,7 @@ has not yet been implemented. The embedding API below executes real VM bytecode 
 
 ### Embedding a compiled application
 
-[`runtime/include/zinc_vm.h`](../../runtime/include/zinc_vm.h) exposes a C API implemented by
-[`runtime/vm/embedded.cpp`](../../runtime/vm/embedded.cpp). It uses the same loader, verifier, collector,
+The embedding C API (`zinc_vm.h`, `embedded.cpp`) is the prototype's and is not in this tree. It used the same loader, verifier, collector,
 interpreter and AArch64 JIT as the CLI, with no compiler subprocess at execution time.
 
 1. Compile on the development host: `zinc build file.ts --engine zinc-vm` produces `app.zbc` in the

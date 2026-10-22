@@ -237,7 +237,7 @@ and `zinc run` in a directory that is not a project says `zinc: no project here`
   emulated; its `README.md` goes on to the real ESP32. `zinc new iot` is a button and an LED on a Raspberry Pi's pins.
   [Boards](../boards.md) lists the supported boards and panels, [plugins](05-plugins.md) how to talk to your own hardware.
 - **You draw, animate, perform.** `zinc run examples/canvas/sketch` is a Canvas 2D sketch and `zinc new 3d` a three.js scene;
-  `zinc run examples/hero` shows what the UI can do. The plugins [canvas2d](plugins/canvas2d.md), [svg](plugins/svg.md),
+  `zinc run examples/hero` shows what the UI can do. The plugins [canvas2d](../plugins/canvas2d.md), [svg](../plugins/svg.md),
   [lottie](../plugins/lottie.md), [audio](../plugins/audio.md) and [video](../plugins/video.md) are one import away, and
   [UI apps](03-ui-apps.md) explains screens made of components.
 
@@ -284,30 +284,31 @@ The rest of this page is reference.
 
 ## Targets and profiles
 
-A **target** is what you build for; a **profile** is the number representation, resolution and heap budget applied.
-`--target` picks the backend, `--profile` lets you emulate another target's numeric/size constraints on your host —
-`zinc run app --profile ps1` runs on macOS but with Q20.12 fixed point, 320×240 and a 256 KiB heap, so you can debug
-fixed-point behaviour without the console.
+A **target** is what you build for: `zinc build --target T` cross builds an executable with the pinned zig (no Docker, no SDK to
+install) and `zinc export --target T` packages it. A **profile** is the number representation, resolution and heap budget a
+program is checked and run under: `zinc run app --profile ps1` runs on your computer but with Q20.12 fixed point, 320x240 and a
+256 KiB heap, so you can debug fixed-point behaviour without the console. The two are separate: a profile is never a build target.
 
-| target | output | screen |
-| --- | --- | --- |
-| `macos` | native executable | SDL3 window |
-| `linux` | executable (docker `zinc/sdk-linux`) | fbdev / GL plugins |
-| `rpi1` | ARMv6 hard-float (docker, QEMU for tests) | fbdev, GL, SSD1306, WS2812 |
-| `rmpp` | static aarch64 | reMarkable Paper Pro e-ink |
-| `esp32` | ESP-IDF firmware (Espressif QEMU for tests) | WS2812, SSD1306, ST7789 |
-| `wasm` | emscripten page (`zinc run` serves it) | canvas |
-| `ps2` / `ps1` | EE ELF / PS-EXE + CD image | gsKit / GPU bands |
-| `sim` | Node.js | headless — the oracle every target is compared against |
+| `zinc build --target` | output |
+| --- | --- |
+| `aarch64-linux`, `armhf-linux`, `armv7-linux`, `x86_64-linux` | a Linux executable (Raspberry Pi and other boards, servers) |
+| `aarch64-macos`, `x86_64-macos` | a macOS executable |
+| `x86_64-windows` | a console program (`-o name.exe`; no window or plugin yet) |
+| `esp32` | firmware for the ESP32 (`zinc run --target esp32`, `zinc flash`) |
 
-Defaults per profile (number kind, resolution, typing, heap): `macos`/`linux`/`sim` f64, gradual, 512 MiB; `wasm` f64,
-64 MiB; `rpi1` f64, 1280×720, 64 MiB; `esp32` f32, strict, 160 KiB; `ps1` fx12 (no FPU), strict, 256 KiB. Override any
-of these in `zinc.json` `targets.<id>`.
+`zinc export --target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios` writes `dist/<name>-<target>/`
+(`zinc help export` lists what each one holds); `wasm` and `web` make a static site.
+
+Profiles (`zinc run --profile`): `macos`, `linux`, `wasm`, `rpi1`, `rmpp`, `esp32`, `ps1`, `ps2`, `psp`, `vita`, `n3ds`, `chip`,
+`pocketchip`, and `sim`, a profile like `macos` with a 320x240 screen and fake hardware (it is not a Node target any more). Defaults per profile (number
+kind, resolution, typing, heap): `macos`/`linux`/`sim` f64, gradual, 512 MiB; `wasm` f64, 64 MiB; `rpi1` f64, 1280×720, 64 MiB;
+`esp32` f32, strict, 160 KiB; `ps1` fx12 (no FPU), strict, 256 KiB. Override any of these in `zinc.json` `targets.<id>`.
+Only macOS is built and tested on every change today; the other targets are listed in [the capabilities table](../targets/capabilities.md).
 
 ## Running
 
 ```sh
-zinc run [entry|dir] [--interp|--native] [--profile P] [-- args]   # compile and run
+zinc run [entry|dir] [--interp|--native] [--engine E] [--profile P] [--simulate D] [-- args]   # compile and run (E: quickjs, jsc, v8, hermes; D: a device of devices/)
 zinc check [entry|dir]                                              # the errors, without running
 zinc test                                                           # every *.test.ts of the project
 zinc build [entry|dir] [-o out] [--target T]                        # an executable in build/

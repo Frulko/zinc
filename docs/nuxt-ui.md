@@ -40,7 +40,7 @@ physics, transitions, haptics), the platform's switch shape (iOS, Material 3, ma
 ## Components
 
 The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`, `icon`, `trailing-icon` as `trailingIcon`, `loading`, `disabled`,
-`ui` overrides as `class` props); the slots become function props (`leading`, `trailing`, `default` as `children`).
+`ui` overrides as `className` props); the slots become function props (`leading`, `trailing`, `default` as `children`).
 
 | Nuxt UI | Variants and sizes | Task | Notes |
 |---|---|---|---|

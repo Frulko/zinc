@@ -9,7 +9,7 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 
 - **module**: imported like any module (`import { play } from 'zinc:video'`). The plugin's `index.ts` is Zinc code
   compiled with the program; native code goes through the native module mechanism (`native/<name>.spec.ts`,
-  `native/<name>.<target>.cpp` or `.host.cpp`, `native/<name>.sim.ts`, see ADR 0010).
+  `native/<name>.<target>.cpp` or `.host.cpp`, `native/<name>.sim.ts`, a Zinc stand-in for where no native code runs).
 - **display**: a screen/input driver chosen in `zinc.json` (`"display": "ws2812"` or
   `"display": { "driver": "ws2812", "width": 32 }`, also per target under `targets.<id>.display`). It registers a
   `HalDisplay` from a static constructor (`runtime/include/hal.h`); the runtime then sends it frames (the shared
@@ -27,7 +27,7 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
   "options": { "loop": true },
   "targets": {
     "macos": { "pkg": ["libavformat", "libavcodec"], "frameworks": ["VideoToolbox"], "sources": ["src/player.cpp"] },
-    "rpi1":  { "pkg": ["libavformat", "libavcodec"], "packages": ["ffmpeg-dev"], "sources": ["src/player.cpp"] },
+    "rpi1":  { "pkg": ["libavformat", "libavcodec"], "sources": ["src/player.cpp"] },
     "esp32": { "idf": ["esp_driver_rmt"], "idfComponents": { "espressif/led_strip": "^3.0.0" } }
   }
 }
@@ -36,16 +36,14 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 | field | meaning |
 |---|---|
 | `modules` | extra import specifiers mapped to files of the plugin (`"three/addons/controls/OrbitControls.js": "addons/OrbitControls.ts"`) |
-| `targets` | availability: using the plugin on an unlisted target is error Z5003 (sim is always allowed for modules) |
+| `targets` | availability: using the plugin on an unlisted target is an error |
 | `sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries) go into a separate static library built with C flags and the manifest's `flags` but a `-std=` (Box2D's `-I` and `-ffp-contract=off`), warnings off, and so do C++ files under `vendor/` (a vendored C++ library such as Jolt), built with the plugin's C++ flags and defines: that library is compiled once and an edit of the plugin does not rebuild it |
 | `pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libraries, raw link flags |
 | `cargo` | a Rust crate of the plugin (its directory, with `Cargo.toml` and a committed `Cargo.lock`): `cargo build --release --locked` builds it for this machine's Rust triple into `~/.zinc/cache/<target>/cargo/` and its static library is linked like `sources`; needs cargo (rustup.rs), not cross builds yet (`plugins/loro`) |
 | `defines` / `flags` | compile definitions and flags for the program sources |
 | `vendorFlags` | flags for the vendored sources only (`.c` files and C++ under `vendor/`): a library that needs RTTI or exceptions (`-frtti`, `-fexceptions`, libdatachannel in `zinc:webrtc`) gets them without the plugin's own code, which is built against the engine's runtime without RTTI |
-| `packages` | system packages added to the target's SDK image (apk for rpi1, apt for linux); a derived image is built once per package set |
 | `idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry dependencies (under mquickjs, a component zinc writes for the firmware: [native code on the ESP32](plugins/native-esp32.md)) |
 | `sdkconfig` | under `targets.esp32`: firmware settings the native code needs (`"CONFIG_AUTOSTART_ARDUINO=n"`), added after the firmware's own defaults when zinc builds it with the plugin |
-| `nodeFlags` | under `targets.sim`: flags for the node process that runs the sim program (`zinc:script` asks for `--experimental-vm-modules`) |
 | `requires` | top level: capabilities the target must offer (`["heap>=4M"]`, [capabilities](targets/capabilities.md)); an incompatible target is error Z5005 |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options); C++ sees them as `ZP_<PLUGIN>_<KEY>` defines, plus `ZP_<PLUGIN>=1` |
 

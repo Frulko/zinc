@@ -35,7 +35,7 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
 - 🔌 **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle`, `localStorage`, and the battery, sensors, vibration, orientation and
   notifications of the device the program runs on.
-- 📦 **52 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
+- 📦 **58 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
   e-ink and OLED screens.
 
 ## 🏗️ Architecture

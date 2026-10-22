@@ -1,8 +1,9 @@
 # Execution engines (experimental)
 
 The intended product is the **same application** running in native Zinc, Zinc VM, or QuickJS, with the same
-native services, UI renderer, assets, input, headless replay and benchmark protocol. The current implementation
-is an initial executable slice, **not that complete product**.
+native services, UI renderer, assets, input, headless replay and benchmark protocol. Today the interpreter, the AOT build and the QuickJS engine
+run the same programs (`zinc test --runner` compares them), and V8, JavaScriptCore and Hermes run plain JavaScript: see
+[JavaScript engines](guide/12-js-engines.md). The rest of this page is the original plan.
 
 Zinc Next: `zinc run --engine quickjs` runs TS, TSX and JS programs (the whole UI stack included) through the transform stage of the
 QuickJS bundler, and `zinc bundle` makes one optimised file of them: [guide/11-quickjs-bundle.md](guide/11-quickjs-bundle.md),

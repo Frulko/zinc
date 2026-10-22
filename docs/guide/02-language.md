@@ -1,7 +1,8 @@
 # 2. The language
 
-Zinc compiles a **strict subset of TypeScript** to C++17. If it typechecks under Zinc's rules, it runs identically on
-every target and on the sim oracle. This chapter is what you can write, what is rejected, and why.
+Zinc is a **strict subset of TypeScript**. If it type checks under Zinc's rules, the interpreter, the AOT build (C++) and
+the QuickJS engine give the same output (`zinc test --runner` compares them). This chapter is what you can write, what is
+rejected, and why; [the syntax cheat sheet](../reference/syntax.md) is the one-page version.
 
 ## What is supported
 
@@ -10,8 +11,8 @@ every target and on the sim oracle. This chapter is what you can write, what is 
 - Destructuring (with defaults and `...rest`), rest parameters, spread (in array/object literals and calls), `?.`, `??`, `??=`, `using` / `Symbol.dispose`.
 - Object literals with getters, setters and methods that use `this`; tagged templates and `String.raw`.
 - Enums (numeric only), closures, `for`/`for-of`/`for-in`/`while`, labeled statements with `break label` / `continue label`.
-- `try` / `catch` (the binding is optional) / `finally` and `throw` — implemented as status returns, not C++ exceptions (ADR 0006).
-- `async` / `await`, `Promise`, microtasks, and generators — stackless frames (ADR 0007).
+- `try` / `catch` (the binding is optional) / `finally` and `throw`.
+- `async` / `await`, `Promise`, microtasks, and generators — stackless frames.
 - Machine number types (`i8`…`u64`, `f32`, `f64`, `fx12`, `fx16`), strings (UTF-8 storage, UTF-16 indices),
   arrays, `Map` / `Set` (insertion-ordered), `JSON.stringify`/`parse`, `console.*` with levels.
 
@@ -29,27 +30,37 @@ console.log(sum, pts.map(p => `${p.x},${p.y}`).join(' '));
 
 ## What is rejected, and why
 
-Forbidden constructs are compile errors with a `Z` code (`zinc check` lists them; `--json` gives LSP diagnostics).
-The categories:
+Forbidden constructs are compile errors with a `Z` code: `zinc check` lists them, `zinc explain Z1001` says why and what to
+write instead (`--json` gives LSP diagnostics). The main ones:
 
-| codes | area | examples |
+| code | rejected | write instead |
 | --- | --- | --- |
-| `Z1xxx` | forbidden JS | `var` (Z1001), `arguments` (Z1002), `eval` (Z1003), `with` (Z1005), `delete` on a typed field (Z1007), regex (Z1008), dynamic `import()` (Z1009), prototype mutation (Z1010), holey arrays (Z1011), `globalThis` (Z1015), `in` (Z9026 — use `Map.has`) |
-| `Z1006/Z1016` | typing profile | `any` in the strict profile (Z1006); an `unknown` used without narrowing (Z1016) |
-| `Z4001` | numbers | using `f32`/`f64` where the target has no FPU, or under `--no-float` |
-| `Z5xxx` | modules | bad native spec (Z5001), no implementation for a target (Z5002), module/plugin not available on this target (Z5003) |
-| `Z6xxx` | UI/JSX | JSX lowering errors |
-| `Z9xxx` | not supported (yet) | `finally` in async (Z9034), `await` in a loop condition (ADR 0007), calling through a `Dyn` (Z9042) |
+| Z1001 | `var` | `let` or `const` |
+| Z1002 | `arguments` | explicit or rest parameters |
+| Z1003 | `eval` | `JSON.parse`, or call a function |
+| Z1005 | `with` | name the object: `o.x` |
+| Z1007 | `delete` on a typed field | a `Map`, or set the field to `null` |
+| Z1009 | dynamic `import()` | a static `import` at the top of the file |
+| Z1010 | prototype mutation | declare the method in the class |
+| Z1011 | arrays with holes | write the value, `null` or `undefined` |
+| Z1015 | `globalThis` | import what you need |
+| Z9026 | `in` on a typed value | `Map.has(key)` or compare the field |
+| Z1006 | `any` in a strict profile | give the value a type (see "Dyn" below) |
+| Z4001 | a value with no fixed-point form (under `--profile ps1`) | give `Math.min`/`Math.max` an argument |
+| Z0006, Z0007 | `class=` and lowercase tags in JSX | `className`, `<View>` (see [UI apps](03-ui-apps.md)) |
+| Z0119 | an import that is not a file or an engine or plugin module | fix the path, or `zinc plugins` / `zinc add` |
 
-The rules exist so the backend stays a thin, predictable AST→C++ translation with no runtime metaprogramming: no
-`eval`, no prototype surgery, no reflection, no regex engine, no holes to represent. `Z9xxx` codes are honest "not
-implemented yet" markers rather than design bans — check the message.
+Regular expressions work (libregexp of QuickJS-ng; indices are UTF-16 code units), and so do `finally` in async functions and
+`await` in a loop condition. `docs/diagnostics.md` lists every code, generated from the engine. Rules in this table change
+with the engine: when in doubt, `zinc check` is the judge.
+
+The rules exist so the engine stays predictable: no `eval`, no prototype surgery, no reflection, no holes to represent.
 
 ## Numbers and profiles
 
 `number` is `f64` by default. The machine types are real: `i32` arithmetic wraps (two's complement), `u8` is a byte,
 and loop counters are inferred to `i32` where safe. Fixed-point targets (`ps1`: Q20.12, no FPU) compute `fx12`/`fx16`
-bit-identically with the sim oracle — the same program prints the same bytes. Emulate a profile on your host to test:
+the same way on every engine: the same program prints the same bytes. Emulate a profile on your host to test:
 
 ```sh
 zinc run app --profile ps1      # Q20.12 fixed point, 320x240, 256 KiB heap, on macOS
@@ -58,16 +69,16 @@ zinc build app --no-float       # reject floating point (Z4001 on any f32/f64 si
 
 ## Memory model
 
-Objects are **reference counted** via RAII smart pointers (ADR 0001): a 32-bit count, immortal at saturation, freed
+Objects are **reference counted** via RAII smart pointers (decision 0001, `docs/decisions/`): a 32-bit count, immortal at saturation, freed
 deterministically when the last reference drops. String literals are constant-initialized and immortal. This is
 correct and simple but keeps more inc/dec than a borrow-checked design would, and **reference cycles leak** until you
 break them with a weak reference:
 
 ```ts
 class Node {
-  parent: Node | undefined;
+  parent: Node | undefined = undefined;
   children: Node[] = [];
-  @weak accessor owner: Node | undefined;   // does not keep the target alive (MEM-13)
+  @weak accessor owner: Node | undefined = undefined;   // does not keep the target alive
 }
 ```
 
@@ -85,14 +96,12 @@ Beyond RC:
 `throw` and `try`/`catch`/`finally` work with JavaScript semantics for the covered cases, compiled to status returns
 checked after each call that may throw (whole-program analysis) — zero cost where nothing throws. You may only throw
 `Error` (or a subclass). Runtime faults — array bounds, null through `Dyn`, division traps — **panic** with the text
-JS prints for the matching `TypeError`/`RangeError`. `finally` is not yet supported inside async functions/generators
-(Z9034).
+JS prints for the matching `TypeError`/`RangeError`. `finally` works in async functions and generators too.
 
 ## async / await and generators
 
 Each async function or generator becomes a heap frame with a `switch (state)` resumed through the microtask queue,
-reproducing Node's ordering. The constraint (ADR 0007): `await` must appear as a statement, initializer, assignment or
-`return` — not in a loop condition or a short-circuit branch. The compiler tells you when a site isn't allowed.
+reproducing Node's ordering. If an `await` site is not allowed the compiler says so.
 
 ```ts
 import { fetch } from 'zinc:net';
@@ -105,11 +114,11 @@ async function load(url: string): Promise<i32> {
 
 ## Dyn: gradual vs strict
 
-In the **gradual** profile (`macos`/`linux`/`sim`/`wasm`/`rpi1`/`rmpp`) `any` and `unknown` are a single NaN-boxed
-`Dyn` value (ADR 0014): `JSON.parse` without a type returns a `Dyn` tree, property/index access and operators follow
+In the **gradual** profile (`macos`/`linux`/`wasm`/`rpi1`/`rmpp`) `any` and `unknown` are a single NaN-boxed
+`Dyn` value: `JSON.parse` without a type returns a `Dyn` tree, property/index access and operators follow
 ECMAScript, and conversions out of `Dyn` are **checked** (memory safety depends on it — a bad cast panics like a bounds
 error). In the **strict** profile (`esp32`/`ps1` default) `any` is `Z1006` and an `unknown` must be narrowed
-(`typeof`/`instanceof`/`Array.isArray`) before use (`Z1016`). You can force strictness anywhere with `--no-dyn`, which
+(`typeof`/`instanceof`/`Array.isArray`) before use. The strict profile is a line `// zinc-profile: strict` at the top of the entry file, or `--strict`. You can force strictness anywhere with `--no-dyn`, which
 turns every remaining `Dyn` site into an error.
 
 ```ts
@@ -117,8 +126,8 @@ const data = JSON.parse('{"n":42,"items":[1,2,3]}');   // Dyn (gradual profile)
 if (typeof data.n === 'number') console.log(data.n);   // narrowed → native i32/f64
 ```
 
-Calling a function through a `Dyn` is rejected (Z9042): narrow first. Typed arrays other than `any[]`, functions, maps
-and sets can't become `Dyn` (Z9040/Z9041) because a checked copy would break aliasing.
+Calling a function through a `Dyn` is rejected (Z0105, "Expression is not callable: 'any'"): narrow first. Typed arrays other
+than `any[]`, functions, maps and sets can't become `Dyn`, because a checked copy would break aliasing.
 
 ### `zinc infer`
 
@@ -131,5 +140,4 @@ zinc infer src/app.ts            # prints a diff of proposed annotations
 zinc infer src/app.ts --write    # applies them
 ```
 
-See [reports/STATUS.md](../reports/STATUS.md) for the current edges (chained `?.`, some `await` positions, `word` Dyn
-representation, function specialisation — all listed honestly there). Next: [UI apps](03-ui-apps.md).
+Next: [UI apps](03-ui-apps.md).

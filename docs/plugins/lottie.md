@@ -26,7 +26,7 @@ gfx.onFrame((dt) => { p.update(dt); gfx.clear(0); p.draw(0, 0, 200, 200); });
   `shown()`; fields `frame`, `speed` (negative plays backwards), `loop`, `playing`, `alpha`, `subframe`
   (default false: whole frames at the file's rate, see performance), `from`/`to`.
   `cache(w, h, bg, maxBytes)` switches to render-to-image mode (below).
-- `<Lottie>` props: `src`, `loop`, `autoplay`, `speed`, `class`, `subframe`, `cacheBg` (render-to-image mode on
+- `<Lottie>` props: `src`, `loop`, `autoplay`, `speed`, `className`, `subframe`, `cacheBg` (render-to-image mode on
   that background colour), `player` (callback receiving the `Player`, for play/pause from the app).
 
 Examples: `examples/ui/lottie-gallery` (12 animations in a grid with a fps readout, click a card to pause it),

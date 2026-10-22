@@ -1,3 +1,5 @@
+> **Historical.** This is the first generation of Zinc, a Node prototype removed from the repository (it stays under the tag `prototype-final`). Its commands (`--target sim`, `pnpm`, `node compiler/bin/zinc.mjs`) no longer exist; for Zinc today read the [guide](guide/01-getting-started.md).
+
 # The Zinc prototype
 
 The first generation of Zinc (Node + TypeScript compiler to C++17), kept as the specification Zinc Next must match: when a

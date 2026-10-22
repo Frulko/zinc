@@ -51,7 +51,7 @@ Conventions, identical in both UI models:
   component subscribes to them (only the affected node updates); under React write `value={() => temp}`, the
   accessor is read on every render. A plain prop that reads a signal (`title={page()}`) also follows it under Solid:
   the component is mounted again when the value changes (an accessor updates in place instead).
-- **`children` adds custom content** (several children are passed as one fragment), and `class` adds layout
+- **`children` adds custom content** (several children are passed as one fragment), and `className` adds layout
   classes to the component's outer node (`grow`, `w-80`, `w-full`).
 - An explicit import wins over the host tag of the same name: `import { Button } from 'zinc:ui/kit'` makes
   `<Button>` the kit button in that file.
@@ -124,7 +124,7 @@ locks capitals, the language key cycles `layouts`, ⌄ closes it.
 | `mode` | `auto` (default) or `always` |
 | `onKey` | every key: a character, `Backspace`, `Enter`, `Shift`, `Layout:<id>`, `Hide` (works without a focused field, e.g. a custom display) |
 | `keyHeight`, `gap` | sizes (default 44 / 6 px) |
-| `class`, `keyClass`, `specialKeyClass`, `accentClass` | restyle the panel, letter keys, special keys and the accent popup |
+| `className`, `keyClass`, `specialKeyClass`, `accentClass` | restyle the panel, letter keys, special keys and the accent popup |
 | `preview` | key bubble (default true) |
 
 Engine hooks for your own keyboards: `ui.insertText(s)`, `ui.sendKey(key, mods)`, `ui.focusedField()`,

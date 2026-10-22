@@ -1,8 +1,8 @@
 # 3. UI apps
 
-Zinc's UI is declarative JSX (`.tsx`) over a flexbox layout engine and a software rasterizer — no HTML/CSS engine, no
-browser. The UI runtime is written in Zinc ([`lib/std/ui.ts`](../../lib/std/ui.ts), `solid.ts`, `react.ts`) and
-compiled into your program (ADR 0008). Two reactive models ship: **Solid** (fine-grained signals) and **React**
+Zinc's UI is declarative JSX (`.tsx`) over a flexbox layout engine and a GPU renderer with a software fallback: no
+HTML/CSS engine, no browser. The UI runtime is written in Zinc ([`lib/std/ui.ts`](../../lib/std/ui.ts), `solid.ts`,
+`react.ts`) and compiled into your program. Two reactive models ship: **Solid** (fine-grained signals) and **React**
 (hooks, reconciled re-renders); both draw the same host tree.
 
 The complete counter app (build it with `zinc run docs/guide/samples/hello-ui`):
@@ -26,15 +26,15 @@ render(App, 0x0f172a, null);   // component, background color, optional per-fram
 
 ## Host tags
 
-`view` (flex container), `text`, `button`, `image`, `scroll`, `canvas`, `input`, `textarea`, plus PascalCase aliases
-(`View`, `Text`, `Button`, `Image`, `ScrollView`, `Canvas`, `Input`, `TextArea`) for PocketJS compatibility. Text lives
-only inside `text`. A `canvas` gives you an immediate-mode `zinc:gfx` draw area:
+`View` (flex container), `Text`, `Button`, `Image`, `ScrollView`, `Canvas`, `Input` and `TextArea`, always capitalised
+as in React Native: a lowercase tag (`<view>`) is refused with error Z0007 that names the capitalised component. Text
+lives only inside `Text`. A `Canvas` gives you an immediate-mode `zinc:gfx` draw area:
 
 ```tsx
 <Canvas className="grow" onDraw={(x, y, w, h) => { rect(x, y, w, h, 0x0b1220); /* zinc:gfx calls */ }} />
 ```
 
-Attributes: `class` (Tailwind-like tokens), `style={{ opacity, translateX, translateY, scale, rotate }}` for
+Attributes: `className` (Tailwind-like tokens; `class` is refused, Z0006), `style={{ opacity, translateX, translateY, scale, rotate }}` for
 per-node transforms, `bg={0xRRGGBB}` for a dynamic background color, `onClick`, `onDraw`, `ref`.
 
 ## Solid vs React

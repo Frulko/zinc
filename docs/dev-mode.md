@@ -150,7 +150,7 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   height, min/max sizes, border-radius, border-width, font-size (lengths in px), background-color, color, border-color (`#rgb`,
   `#rrggbb`, `rgb()`) and opacity; other properties stay in the text, marked as not applied. Every edit sends the session's patch to the
   console, one line per edited node in the form its source uses: a node with style sheets or numbers gets the keys to add to its style
-  object (`style, add { paddingLeft: 20, backgroundColor: "#10b981" }`), another node its new class string (`class="p-2 rounded
+  object (`style, add { paddingLeft: 20, backgroundColor: "#10b981" }`), another node its new class string (`className="p-2 rounded
   pl-[20px] bg-[#000000]"`: a class that sets only edited properties is replaced, one that sets more stays and the new class after it
   wins). The edits last until the node goes away; nothing is written to the source;
 - **Overlay.highlightNode** draws a blue box over the node in the app (through scroll offsets and transforms);

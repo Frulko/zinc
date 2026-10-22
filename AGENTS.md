@@ -20,7 +20,7 @@ Binding rules: `RULES.md` (never stop, simulators for hardware, proven libraries
 | `tools/`, `tests/`, `backlog/` | Tools, tests (`tests/run`, tiers t0/t1/t2, goldens, `tests/conformance` and `tests/bench/kernels` of the frozen corpus), the backlog |
 | `corpus/`, `bench/`, `firmware/esp32`, `app/` | The frozen corpus outputs, benchmarks, the ESP32 core firmware, the apps (`app/atelier`, `app/inspector`, `app/devicesim`) |
 | `lib/` | The standard library written in Zinc/TS (`lib/std`, the UI kits `lib/std/kit`, `lib/std/nuxt`, `zinc.d.ts`) |
-| `plugins/` | 33 plugins (`plugin.json` + Zinc code + native code): system, video, sqlite, three, 3d, canvas2d, lottie, svg, socket, process, displays, webview... |
+| `plugins/` | 58 plugins (`plugin.json` + Zinc code + native code): system, video, sqlite, three, 3d, canvas2d, lottie, svg, socket, process, displays, webview... |
 | `examples/` | The demos that must run unchanged (hero, breakout, nuxt-ui, rn-showcase, rn-port, three, maps, video, zed-editor...) |
 | `templates/` | Project templates used by `zinc new` |
 | `targets/` | The HALs per platform (`macos`, `common`, `null`, `windows`, consoles), `console/`, `web/`, `wasm/`, and `capabilities.json` (what each profile offers) |

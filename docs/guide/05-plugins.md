@@ -47,12 +47,13 @@ zinc run docs/guide/samples/greet-app         # Hello, Zinc! / HELLO, WORLD!
 ```
 
 `targets` lists availability only — an empty object per target is enough for pure Zinc. Using a plugin on an unlisted
-target is error `Z5003`. Look at `plugins/gestures` and `plugins/pixelfont` for real pure-Zinc plugins.
+target is an error (`zinc plugins` shows which targets each plugin supports). Look at `plugins/gestures` and `plugins/pixelfont` for real pure-Zinc plugins.
 
-## Kind 2 — native plugin (spec + C++ per target + sim)
+## Kind 2 — native plugin (spec + C++ per target + a Zinc stand-in)
 
-When a plugin needs C or hardware, it uses the native-module mechanism (ADR 0010). A typed **spec** generates the C++
-interface; you implement it per target and, for the oracle, in Zinc for `sim`. This mirrors `examples/native-module`
+When a plugin needs C or hardware, it uses the native-module mechanism. A typed **spec** generates the C++
+interface; you implement it per target and, where no native code can run, as a stand-in written in Zinc. The quickest
+way to start is `zinc new plugin my-plugin` (see "Publishing" below): it ships all these files. This mirrors `examples/native-module`
 and real plugins like `plugins/gphoto2` / `plugins/lottie`. Files (relative to the plugin, under `native/`):
 
 | file | role |
@@ -60,7 +61,7 @@ and real plugins like `plugins/gphoto2` / `plugins/lottie`. Files (relative to t
 | `<name>.spec.ts` | `export default requireNative<Spec>('Name')`; the `Spec` interface is the API |
 | `<name>.host.cpp` | implementation for `macos`/`linux` (the fallback) |
 | `<name>.<target>.cpp` | target-specific implementation (`.rpi1.cpp`, `.esp32.cpp`, …) |
-| `<name>.sim.ts` | Zinc implementation for the sim oracle (same observable behaviour) |
+| `<name>.sim.ts` | the same behaviour in Zinc: the stand-in used where the native part does not run, and in deterministic runs (`ZINC_NATIVE=real\|sim\|auto` picks) |
 | `<name>.abi.c` / `.abi.cpp` | instead of `.host.cpp`: C (or C++, for an Arduino library) on the native ABI (`include/zn/native.h`, `zinc native-gen --c` writes its table), no runtime types; the same file runs on the computer and in the ESP32's mquickjs firmware ([native code on the ESP32](../plugins/native-esp32.md)) |
 
 ```ts
@@ -87,7 +88,7 @@ NativeSensor* zinc_create_Sensor() { static HostSensor s; s.rc = zrt::IMMORTAL; 
 ```
 
 ```ts
-// native/sensor.sim.ts — same behaviour, so sim output matches native byte-for-byte
+// native/sensor.sim.ts — same behaviour, so the stand-in gives the native output
 let t = 21.5;
 export default { temperature(): number { t += 0.25; return t; }, serial(): string { return 'HOST-0001'; }, setLed(_on: boolean): void {} };
 ```
@@ -98,7 +99,7 @@ is the reference pattern (one worker owns the camera, results come back on the l
 if a target has no implementation.
 
 The plugin's native build settings go in `plugin.json` `targets.<id>` (see the reference below): `sources`, `pkg`,
-`frameworks`, `libs`, `defines`, `packages` (SDK-image system packages), `idf`/`idfComponents` (ESP-IDF).
+`frameworks`, `libs`, `defines`, `idf`/`idfComponents` (ESP-IDF).
 
 ## Kind 3 — UI component plugin
 
@@ -108,8 +109,8 @@ same. Pattern:
 
 ```tsx
 // in the plugin's index.ts
-import { createNode /* … lib/std/ui helpers … */ } from 'zinc:ui';
-export function Badge(props: { label: string }): i32 { /* build and return a node */ }
+import { createNode /* … lib/std/ui.ts helpers … */ } from 'zinc:ui';
+export function Badge(props: { label: string, className?: string }): i32 { /* build and return a node */ }
 ```
 
 ```tsx
@@ -141,15 +142,13 @@ worked drivers; the surface size is the display size, set per target. See [docs/
 | `kind` | `module` (default) or `display` |
 | `module` | import specifier for a module plugin (e.g. `zinc:greet`) |
 | `entry` | Zinc entry, default `index.ts` |
-| `targets` | availability + per-target native build settings; an unlisted target is `Z5003` (sim always allowed for modules) |
+| `targets` | availability + per-target native build settings; an unlisted target is an error |
 | `targets.<id>.sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries such as `plugins/script`'s QuickJS) build as their own static library with C flags |
 | `targets.<id>.pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libs, raw link flags |
 | `targets.<id>.cargo` | a Rust crate directory of the plugin (`"rust"`): cargo builds it as a static library that is linked with the plugin; needs Rust installed (rustup.rs) |
 | `targets.<id>.defines` / `flags` | compile definitions and flags |
 | `targets.<id>.vendorFlags` | flags of the vendored sources only (`.c` files, C++ under `vendor/`), such as `-frtti` for a C++ library that needs it |
-| `targets.<id>.packages` | system packages added to the SDK image (apk on rpi1, apt on linux); a derived image is built once per set |
 | `targets.<id>.idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry deps |
-| `targets.sim.nodeFlags` | flags for the node process running the sim program |
 | `requires` | capabilities the target must offer, e.g. `["heap>=4M"]` ([capabilities](../targets/capabilities.md)) |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options) |
 
@@ -164,18 +163,18 @@ worked drivers; the surface size is the display size, set per target. See [docs/
 Native code reads options as `ZP_<PLUGIN>_<KEY>` compile defines (plus `ZP_<PLUGIN>=1`) — e.g. `ZP_GREET_EXCITED`.
 This is a native-side mechanism; a pure-Zinc plugin exposes configuration through its own exported functions instead.
 
-## Packages and ESP-IDF components
+## System libraries and ESP-IDF components
 
-Cross builds run inside a pinned SDK image. A plugin that needs a system library lists it in `packages` (installed into
-a derived image, built once per package set) and links it via `pkg`. On ESP32, `idf` adds `REQUIRES` and
-`idfComponents` pulls Component Registry dependencies — see `plugins/lottie` and `plugins/video`.
+A plugin that needs a system library links it with `pkg` (pkg-config), `libs` or `frameworks` under `targets.<id>`; cross
+builds use the pinned zig, there is no SDK image to extend. On ESP32, `idf` adds `REQUIRES` and `idfComponents` pulls
+Component Registry dependencies; see `plugins/lottie` and `plugins/video`.
 
 ## Testing a plugin
 
-Because the plugin ships a `sim` implementation, `zinc test` (chapter 6) checks it against native output byte-for-byte.
-Write a small program that exercises the plugin under `tests/conformance/` (or your own app's tests) and let the oracle
-catch drift. Native-only paths that can't run under sim (real hardware) are verified with `debug` CRC logs in QEMU —
-see how the display drivers do it in [docs/plugins/displays.md](../plugins/displays.md).
+`zinc test` runs the `tests/*.test.ts` of the plugin on its native part; `ZINC_NATIVE=sim zinc test` runs the same tests on
+the Zinc stand-in, and both must pass (the template's README shows it). Native paths that need hardware are checked on the
+board or the simulated device (`zinc run --simulate <device>`); see how the display drivers do it in
+[docs/plugins/displays.md](../plugins/displays.md).
 
 ## Publishing / sharing
 
