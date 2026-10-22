@@ -331,6 +331,7 @@ export class UiNode {
   scroll: i32 = 0;
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
+  stick: boolean = false; endY: number = 0;   // stickToBottom: follows the end while it shows it; endY is the end the last layout saw
   // scroll physics (ScrollAxis, stepScroll), created on the first user scroll; `live` while a gesture or an
   // animation drives the offset (overscroll allowed; clampScroll leaves it alone)
   ax: ScrollAxis | null = null; ay: ScrollAxis | null = null; live: boolean = false;
@@ -4319,6 +4320,8 @@ function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number):
 function clampScroll(n: UiNode): void {
   if (n.live || DOM) return;   // rubber band in progress: stepScroll brings it back; in the page the browser knows the limits (its scroller holds the content as it is, not as the layout under it computed it)
   const maxY = Math.max(0, n.contentH - n.lh), maxX = Math.max(0, n.contentW - n.lw);
+  if (n.stick && n.sy >= n.endY - 1) n.sy = maxY;   // it showed the end: it keeps showing it as the content grows (a chat, a log); scrolled up, it stays put
+  n.endY = maxY;
   if (n.sy > maxY) { n.sy = maxY; n.vy = 0; }
   if (n.sy < 0) { n.sy = 0; n.vy = 0; }
   if (n.sx > maxX) { n.sx = maxX; n.vx = 0; }
@@ -6255,6 +6258,7 @@ function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
   if (key === 'disabled') { hsOf(n).disabled = iv !== 0; paintDirty = true; return true; }
   if (key === 'ariaHidden') { n.ariaHidden = iv !== 0; return true; }
   if (key === 'pressFeedback') { hsOf(n).noPress = iv === 0; return true; }
+  if (key === 'stickToBottom') { n.stick = iv !== 0; layoutDirty = true; return true; }
   return false;
 }
 /** The node or an ancestor has `disabled`: no pointer events, no activation, no focus. */

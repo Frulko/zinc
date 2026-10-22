@@ -433,6 +433,9 @@ On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the deskt
 
 `tests/t1/scroll_platform.sh` runs one script of fingers under each platform and keeps every frame's offset and stretch.
 
+`<ScrollView stickToBottom>` follows its end (a chat, a log): while it shows the end, it keeps showing it as the content grows or the view is resized;
+once the user scrolls up it stays where it is, and it follows again when brought back to the end (`ui.scrollTo(h, 0, 1e9)` from code).
+
 Input: the SDL HAL resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms:
 Chromium / Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). On macOS the main
 window's precise scrolls (trackpad, Magic Mouse) come from their NSEvents (`targets/macos/hal_cocoa.mm`) with the gesture

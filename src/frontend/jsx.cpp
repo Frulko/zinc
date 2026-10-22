@@ -32,7 +32,8 @@ const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPoin
 // attributes of a real element. Other targets ignore them. htmlFor is written `for` in HTML.
 const std::set<std::string> kWebAttrs = {"as", "href", "target", "rel", "download", "name", "htmlFor", "autoComplete", "required", "pattern", "minLength", "maxLength", "min", "max", "step",
                                          "enterKeyHint", "title", "alt", "lang", "dir", "method", "action", "autoCapitalize", "spellCheck", "autoCorrect", "multiple", "accept", "form", "autoFocus"};
-const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled", "showsVerticalScrollIndicator", "showsHorizontalScrollIndicator"};
+const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled", "showsVerticalScrollIndicator", "showsHorizontalScrollIndicator",
+                                          "stickToBottom"};
 const std::map<std::string, int> kInputModes = {{"text", 0}, {"numeric", 1}, {"decimal", 2}, {"tel", 3}, {"email", 4}, {"url", 5}, {"search", 6}};
 const std::map<std::string, int> kDragAxes = {{"x", 1}, {"y", 2}, {"both", 3}};
 

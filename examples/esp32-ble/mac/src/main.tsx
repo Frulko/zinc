@@ -60,7 +60,7 @@ function App(): i32 {
     {devices().length > 0 && <View className="flex-row flex-wrap gap-2 px-4 pt-3">
       <For each={devices()}>{(d: Device) => <Text className="text-[12px] text-[#475569]">{`${d.name !== '' ? d.name : d.id} (${d.rssi} dBm)`}</Text>}</For>
     </View>}
-    <ScrollView className="grow min-h-0 flex-col gap-2 px-4 py-3">
+    <ScrollView stickToBottom className="grow min-h-0 flex-col gap-2 px-4 py-3">
       <For each={lines()}>{(l: Line) => <Bubble line={l} />}</For>
     </ScrollView>
     <Composer />
