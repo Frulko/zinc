@@ -523,6 +523,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.18: `animate()` and `getNumber()` do not read back the step-4 keys either (outline, field colours, transitions), so a program cannot animate an outline or caret colour.
 - ZN-774.18: dashed and dotted outlines are not checked on the GL renderer; one frame of tests/golden/style-keys there would prove them.
 - ZN-774.18: `caret-*` applies only to the field itself, while CSS's caret-color is inherited, so `<View className="caret-red-500"><Input/></View>` colours no caret.
+- ZN-774.18: zinc:react-native's Button keeps zinc:ui's 0.6 pressed dim; React Native's Button uses TouchableOpacity (0.2) on iOS and a ripple on Android: give each platform look its own feedback so Button matches the platform it draws.
+- ZN-774.18: Pressable takes `style` and `children` functions only as inline arrows; `style={fn}` fails to type-check with an error naming `styleFn`, a name the user never wrote: a union prop type, or a clear error.
+- ZN-774.18: a keyboard press (Enter, Space) fires Pressable's onPress but does not set `pressed`, so keyboard users see no pressed style (React Native Web sets it, and adds hovered and focused).
+- ZN-774.18: Pressable still lacks hitSlop, pressRetentionOffset, delayLongPress and android_ripple; ported screens that use them lose those behaviours.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
