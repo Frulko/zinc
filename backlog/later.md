@@ -475,6 +475,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.12: a `Button` with no `bg-*` class is a dark box on a light page: let its default follow the page, or say so in `docs/ui-kit.md`.
 - ZN-774.02: translate the long `zinc help <command>` details; only the summaries and the examples are in the catalogs.
 - ZN-774.03: `zinc check --engine quickjs` and the mquickjs check could print the same ok line as the typed check.
+- ZN-774.06: Atelier should read a `--json` form of the CLI's output (diagnostics, steps, the plugins table) instead of parsing text, now that the CLI translates its messages.
+- ZN-774.06: the examples hello, text and interface could take their words from `zinc:i18n`, so their thumbnails match the language.
+- ZN-774.07: an offline copy of the lessons and the reference inside Atelier: its Help items need a network today.
+- ZN-774.07: Atelier's opener permission names https://frulko.github.io/zinc/*: update `app/atelier/zinc.json` if the docs move.
+- ZN-774.08: check Atelier's tour in a real window (card placement, the run step with a real sketch window).
+- ZN-774.08: in the tour's error step the status shows "main.ts saved" before the problem; a quiet save would show the problem at once.
+- ZN-774.08: a "Take the tour" link on the start view if Help > Tour proves hard to find.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
