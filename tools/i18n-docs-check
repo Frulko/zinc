@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""tools/i18n-docs-check [--repo dir] [--list LANG] [--stamp FILE...]: the translated docs of docs/i18n/<lang>/ (D159, docs/i18n/README.md).
+
+A translated file mirrors the English path (docs/learn/01-x.md -> docs/i18n/fr/learn/01-x.md) and starts with a frontmatter
+`source: <git sha>`, the commit of the English file the translator read. The check reports:
+  error    the English file does not exist, `source` is missing or not a commit of this repository, the fenced code blocks differ
+           from the English file's (code is never translated), the link and image targets differ (they stay those of the English
+           file), site/src/i18n/<lang>.json has a key English does not have;
+  warning  stale: the English file differs between `source` and HEAD (translate the change, then --stamp the file);
+  info     missing: pages of the onboarding set not translated yet, site strings missing in a language.
+Exit 1 on an error. --list LANG prints the files of the onboarding set LANG still lacks. --stamp FILE sets `source` to the last
+commit of the English file (run it after you translated or updated the file, with the English file as committed)."""
+import json, os, re, subprocess, sys
+
+LANGS = ["fr", "es", "it", "de"]
+args = sys.argv[1:]
+root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+if args[:1] == ["--repo"]: root, args = os.path.abspath(args[1]), args[2:]
+docs = os.path.join(root, "docs")
+# The onboarding set (ZN-774.11, ZN-774.12): translated in every language.
+SET = ["start/choose.md", "start/styles.md", "reference/syntax.md", "guide/01-getting-started.md", "learn/README.md"]
+if os.path.isdir(os.path.join(docs, "learn")):
+    SET += sorted(f"learn/{f}" for f in os.listdir(os.path.join(docs, "learn")) if re.match(r"\d\d-.*\.md$", f))
+
+def git(*a):
+    return subprocess.run(["git", "-C", root, *a], capture_output=True, text=True)
+
+def split(text):
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    return (m.group(1), text[m.end():]) if m else ("", text)
+
+def source_of(front):
+    m = re.search(r"^source:\s*([0-9a-f]+)\s*$", front, re.M)
+    return m.group(1) if m else None
+
+def fences(body):
+    out, cur, mark = [], None, None
+    for line in body.split("\n"):
+        m = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if cur is None and m: cur, mark = [], m.group(1)
+        elif cur is not None and m and line.strip() == mark: out.append("\n".join(cur)); cur = None
+        elif cur is not None: cur.append(line)
+    return out
+
+def links(body):
+    body = re.sub(r"(?s)(`{3,}|~{3,}).*?\1", "", body)
+    t = [m.split("#")[0] for m in re.findall(r"\]\(([^)\s]+)", body)]
+    return sorted(x for x in t if x)   # a bare #anchor follows the translated heading: not compared
+
+def last_commit(rel):
+    return git("log", "-1", "--format=%H", "--", "docs/" + rel).stdout.strip()
+
+def translated(lang):
+    base = os.path.join(docs, "i18n", lang)
+    return sorted(os.path.relpath(os.path.join(d, f), base) for d, _, fs in os.walk(base) for f in fs if f.endswith(".md")) if os.path.isdir(base) else []
+
+if args[:1] == ["--list"]:
+    have = set(translated(args[1])); print("\n".join(f"docs/i18n/{args[1]}/{f}" for f in SET if f not in have)); sys.exit(0)
+if args[:1] == ["--stamp"]:
+    for p in args[1:]:
+        p = os.path.abspath(p); rel = os.path.relpath(p, os.path.join(docs, "i18n")).split(os.sep, 1)[1]
+        sha = last_commit(rel); front, body = split(open(p, encoding="utf8").read())
+        front = "\n".join(l for l in front.split("\n") if l and not l.startswith("source:"))
+        open(p, "w", encoding="utf8").write("---\n" + (front + "\n" if front else "") + f"source: {sha}\n---\n" + body)
+        print(f"{os.path.relpath(p, root)}: source {sha[:10]}")
+    sys.exit(0)
+
+err = 0
+def say(level, msg):
+    global err
+    err += level == "error"
+    print(f"{level}: {msg}")
+
+for lang in LANGS:
+    for rel in translated(lang):
+        name = f"docs/i18n/{lang}/{rel}"
+        en = os.path.join(docs, rel)
+        if not os.path.exists(en): say("error", f"{name}: no English file docs/{rel}"); continue
+        front, body = split(open(os.path.join(docs, "i18n", lang, rel), encoding="utf8").read())
+        src = source_of(front)
+        if not src: say("error", f"{name}: no `source: <sha>` line in the frontmatter (run tools/i18n-docs-check --stamp {name})"); continue
+        if git("cat-file", "-e", src + "^{commit}").returncode: say("error", f"{name}: source {src} is not a commit of this repository"); continue
+        _, enbody = split(open(en, encoding="utf8").read())
+        if fences(body) != fences(enbody): say("error", f"{name}: the fenced code blocks differ from docs/{rel} (code is never translated)")
+        if links(body) != links(enbody): say("error", f"{name}: the link and image targets differ from docs/{rel} (they stay those of the English file)")
+        if git("diff", "--quiet", src, "HEAD", "--", "docs/" + rel).returncode: say("warning", f"{name}: stale, docs/{rel} changed since {src[:10]}")
+    miss = [f for f in SET if f not in set(translated(lang))]
+    if miss: say("info", f"{lang}: {len(miss)} of {len(SET)} pages of the onboarding set not translated")
+    site = os.path.join(root, "site", "src", "i18n")
+    if os.path.exists(os.path.join(site, "en.json")):
+        en = json.load(open(os.path.join(site, "en.json"), encoding="utf8"))
+        tr = json.load(open(os.path.join(site, f"{lang}.json"), encoding="utf8")) if os.path.exists(os.path.join(site, f"{lang}.json")) else {}
+        for k in sorted(set(tr) - set(en)): say("error", f"site/src/i18n/{lang}.json: {k}: not in en.json")
+        if set(en) - set(tr): say("info", f"{lang}: {len(set(en) - set(tr))} of {len(en)} site strings not translated (English shown)")
+sys.exit(1 if err else 0)

@@ -1,0 +1,54 @@
+---
+// The get-started page in any language (pages/get-started.astro and pages/[lang]/get-started.astro): texts from src/i18n/<lang>.json.
+import Base from '../layouts/Base.astro';
+import { INSTALL, SOURCES, targets } from '../data/site';
+import { strings, route } from '../i18n';
+const { lang = 'en' } = Astro.props;
+const b = import.meta.env.BASE_URL;
+const s = strings(lang);
+const sub = (x: string) => x.replaceAll('{base}', route(b, lang, '')).replaceAll('{sources}', SOURCES);
+---
+<Base title={s['start.title']} description={s['start.description']} lang={lang}>
+  <div class="wrap page-head">
+    <span class="eyebrow">{s['start.eyebrow']}</span>
+    <h1>{s['start.h1']}</h1>
+    <p class="lead">{s['start.lead']}</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <ol class="steps">
+      <li><h3>{s['start.install.h']}</h3>
+        <p set:html={s['start.install.p']}></p>
+        <div class="install"><code><i>$</i> {INSTALL}</code><button class="copy" type="button" data-copy={INSTALL}>{s.copy}</button></div>
+        <p><small set:html={sub(s['start.install.src'])}></small></p>
+      </li>
+      <li><h3>{s['start.doctor.h']}</h3>
+        <pre><code>zinc doctor</code></pre>
+        <p>{s['start.doctor.p']}</p>
+      </li>
+      <li><h3>{s['start.new.h']}</h3>
+        <pre><code>zinc new desktop-app my-app
+cd my-app</code></pre>
+        <p set:html={s['start.new.p']}></p>
+      </li>
+      <li><h3>{s['start.run.h']}</h3>
+        <pre><code>zinc run</code></pre>
+        <p>{s['start.run.p']}</p>
+      </li>
+      <li><h3>{s['start.dev.h']}</h3>
+        <pre><code>zinc dev</code></pre>
+        <p set:html={s['start.dev.p']}></p>
+      </li>
+      <li><h3>{s['start.build.h']}</h3>
+        <pre><code>zinc build                          # this machine
+zinc build --target aarch64-linux   # a Raspberry Pi 64-bit</code></pre>
+        <div class="table-wrap"><table><thead><tr><th>{s['start.build.cols'][0]}</th><th>{s['start.build.cols'][1]}</th></tr></thead>
+          <tbody>{targets.map(([t], i) => <tr><td><code>{t}</code></td><td>{s['start.targets'][i]}</td></tr>)}</tbody></table></div>
+      </li>
+      <li><h3>{s['start.flash.h']}</h3>
+        <pre><code>zinc flash --target esp32</code></pre>
+        <p set:html={s['start.flash.p']}></p>
+      </li>
+    </ol>
+    <p><a class="btn primary" href={`${b}cli/`}>{s['start.cta.cli']}</a> <a class="btn" href={route(b, lang, 'docs/guide/readme/')}>{s['start.cta.guide']}</a></p>
+  </div>
+</Base>

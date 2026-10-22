@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "assets": "mkdir -p public/docs-assets/targets && cp -R ../docs/img public/docs-assets/ && cp -R ../docs/targets/img public/docs-assets/targets/",
+    "assets": "mkdir -p public/docs-assets/targets public/docs-assets/learn public/docs-assets/start && cp -R ../docs/learn/img public/docs-assets/learn/ && cp -R ../docs/start/img public/docs-assets/start/ && cp -R ../docs/img public/docs-assets/ && cp -R ../docs/targets/img public/docs-assets/targets/",
     "predev": "pnpm assets",
     "prebuild": "pnpm assets",
     "dev": "astro dev",

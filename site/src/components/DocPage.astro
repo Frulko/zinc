@@ -1,0 +1,69 @@
+---
+// A docs page in any language. `d` is the English entry; `tr` the translated entry of `lang` when there is one (else the English page is
+// shown with a notice). The sidebar lists the English pages in the language's routes, with the translated titles when they exist.
+import { getCollection, render } from 'astro:content';
+import { execFileSync } from 'node:child_process';
+import Base from '../layouts/Base.astro';
+import { slugOf } from '../../docs-map.mjs';
+import { strings, route } from '../i18n';
+
+const { d, tr, lang = 'en' } = Astro.props;
+const shown = tr ?? d;
+const { Content } = await render(shown);
+const s = strings(lang);
+const b = import.meta.env.BASE_URL;
+const all = await getCollection('docs');
+const ids = all.map((x) => x.id);
+const trs = lang === 'en' ? [] : (await getCollection('docsI18n')).filter((x) => x.id.startsWith(`${lang}/`));
+const h1 = new Map(trs.map((x) => [x.id.slice(lang.length + 1).toLowerCase(), /^# (.+)$/m.exec(x.body ?? '')?.[1]]));
+const slug = (id: string) => slugOf(`${id}.md`);
+const fix: Record<string, string> = {
+  Ui: 'UI', 'Ui kit': 'UI kit', 'Ui apps': 'UI apps', '3d': '3D', Canvas2d: 'Canvas 2D', Gl: 'GL', Perf: 'Performance', Svg: 'SVG', Gphoto2: 'gphoto2', Ps1: 'PS1',
+  Zapp: '.zapp files', 'Nuxt ui': 'Nuxt UI', 'React native': 'React Native',
+  'Diagnostics vs tsc': 'Diagnostics versus tsc', 'Ir format': 'IR and ZBC formats', Zpk: 'ZPK packs', 'Figma ui': 'Figma to Zinc UI', 'Dev mode': 'Dev mode',
+};
+const nice = (id: string) => {
+  if (h1.get(id)) return h1.get(id)!;
+  if (/\/readme$/.test(id)) return s['docs.overview'];
+  const n = id.split('/').pop()!.replace(/^\d+-/, '').replace(/-/g, ' ');
+  const t = n.charAt(0).toUpperCase() + n.slice(1);
+  if (t === 'Choose') return s['docs.title.choose'];
+  if (t === 'Syntax') return s['docs.title.syntax'];
+  return fix[t] ?? t.replace(/\b(fbdev|gl)\b/i, (m) => m.toUpperCase()).replace(/^Display /, 'Display: ');
+};
+// README first, then by file name.
+const dir = (p: string) => ids.filter((x) => x.startsWith(`${p}/`)).sort((x, y) => (/\/readme$/.test(x) ? -1 : /\/readme$/.test(y) ? 1 : x.localeCompare(y)));
+const only = (list: string[]) => list.filter((x) => ids.includes(x));
+// Learn, Start, Guides, Reference, Concepts. Reports and decisions are not published: they stay on GitHub.
+const groups: [string, string[]][] = [
+  ['learn', dir('learn')],
+  ['start', only(['start/choose', ...dir('start').filter((x) => x !== 'start/choose')])],
+  ['guides', [...dir('guide'), ...only(['ui-kit', 'nuxt-ui', 'react-native', 'templates', 'boards', 'dev-mode', 'desktop-integration', 'zapp', 'studio', 'figma-ui'])]],
+  ['targets', dir('targets')],
+  ['reference', [...only(['reference/syntax', 'diagnostics']), ...dir('reference').filter((x) => x !== 'reference/syntax'), ...only(['ui', 'plugins', 'zpk', 'licenses'])]],
+  ['plugins', dir('plugins')],
+  ['concepts', only(['engines', 'diagnostics-vs-tsc', 'ir-format'])],
+].map(([g, l]) => [g, [...new Set(l as string[])]] as [string, string[]]).filter(([, l]) => l.length > 0);
+
+// A translation records the commit of the English file it came from (frontmatter `source`); stale = the English file differs now.
+// An unknown commit (a shallow clone) is not reported here: tools/i18n-docs-check is the gate.
+let stale = false;
+if (tr && tr.data.source) {
+  try { execFileSync('git', ['diff', '--quiet', String(tr.data.source), 'HEAD', '--', `docs/${d.filePath?.replace(/^.*docs\//, '')}`], { cwd: '..', stdio: 'ignore' }); }
+  catch (e: any) { stale = e.status === 1; }
+}
+const enHref = `${b}docs/${slug(d.id)}/`;
+---
+<Base title={nice(d.id)} lang={lang}>
+  <div class="wrap docs">
+    <aside class="side">
+      {groups.map(([g, list]) => <><h4>{s['docs.group.' + g]}</h4>{list.map((id) => <a href={route(b, lang, `docs/${slug(id)}/`)} class={id === d.id ? 'on' : ''}>{nice(id)}</a>)}</>)}
+    </aside>
+    <article class="prose">
+      {lang !== 'en' && !tr && <p class="notice" role="note">{s['docs.untranslated']}</p>}
+      {stale && <p class="notice" role="note">{s['docs.stale']} <a href={enHref} hreflang="en">{s['docs.stale.link']}</a></p>}
+      <Content />
+      <p style="margin-top:56px;font-size:.9rem"><a href={`https://github.com/Frulko/zinc/edit/main/docs/${shown.filePath?.replace(/^.*docs\//, '')}`}>{s['docs.edit']}</a></p>
+    </article>
+  </div>
+</Base>

@@ -1,0 +1,7 @@
+---
+import Home from '../../components/Home.astro';
+import { others } from '../../i18n';
+export const getStaticPaths = () => others.map((lang) => ({ params: { lang } }));
+const { lang } = Astro.params;
+---
+<Home lang={lang} />

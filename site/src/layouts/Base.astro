@@ -1,29 +1,31 @@
 ---
 import '../styles/global.css';
 import { getCollection } from 'astro:content';
-const {
-  title,
-  description = 'Zinc: write TypeScript once, run it natively from a Mac to a Raspberry Pi or an ESP32. An Electron alternative with no browser inside.',
-} = Astro.props;
+import { strings, route, names, langs, others } from '../i18n';
+const { title, description, lang = 'en' } = Astro.props;
+const s = strings(lang);
 const b = import.meta.env.BASE_URL;
 const path = Astro.url.pathname;
-const full = title === 'Zinc' ? 'Zinc: TypeScript to native apps, Electron alternative, for desktop, Raspberry Pi and ESP32' : `${title} · Zinc`;
+// The page without the base and the language prefix ("docs/learn/"), to build the same page in another language.
+const rest = path.slice(b.length).replace(new RegExp(`^(${others.join('|')})(/|$)`), '');
+const full = title === 'Zinc' ? s['site.title'] : `${title} · Zinc`;
+const desc = description ?? s['site.description'];
 const og = `${Astro.site}${b.slice(1)}docs-assets/img/hero.png`;
 // Docs opens on the lesson track (Learn, first in the docs navigation), else on Start.
 const hasLearn = (await getCollection('docs')).some((x) => x.id === 'learn/readme');
-const links = [['Philosophy', 'philosophy/'], ['Uses', 'uses/'], ['Get started', 'get-started/'], ['CLI', 'cli/'], ['Demos', 'demos/'], ['Embedded', 'embedded/'], ['Plugins', 'plugins/'], ['Docs', hasLearn ? 'docs/learn/' : 'docs/start/choose/'], ['About', 'about/']];
+const links = [['philosophy', 'philosophy/'], ['uses', 'uses/'], ['start', 'get-started/'], ['cli', 'cli/'], ['demos', 'demos/'], ['embedded', 'embedded/'], ['plugins', 'plugins/'], ['docs', hasLearn ? 'docs/learn/' : 'docs/start/choose/'], ['about', 'about/']];
 ---
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang={lang} data-theme="dark">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{full}</title>
-  <meta name="description" content={description} />
+  <meta name="description" content={desc} />
   <meta property="og:type" content="website" /><meta property="og:site_name" content="Zinc" />
-  <meta property="og:title" content={full} /><meta property="og:description" content={description} />
+  <meta property="og:title" content={full} /><meta property="og:description" content={desc} />
   <meta property="og:image" content={og} /><meta property="og:url" content={Astro.url.href} />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content={full} /><meta name="twitter:description" content={description} /><meta name="twitter:image" content={og} />
+  <meta name="twitter:title" content={full} /><meta name="twitter:description" content={desc} /><meta name="twitter:image" content={og} />
   <link rel="icon" href={`${b}favicon.svg`} type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -34,19 +36,20 @@ const links = [['Philosophy', 'philosophy/'], ['Uses', 'uses/'], ['Get started',
 </head>
 <body>
   <header class="nav"><div class="wrap">
-    <a class="brand" href={b}>zinc<b>.</b></a>
-    <nav aria-label="Main">
-      {links.map(([n, h]) => <a href={`${b}${h}`} class={path.startsWith(`${b}${h.split('/')[0]}/`) ? 'on' : ''}>{n}</a>)}
-      <button class="theme" id="theme" aria-label="Toggle light and dark theme" type="button">◐</button>
+    <a class="brand" href={route(b, lang, '')}>zinc<b>.</b></a>
+    <nav aria-label={s['nav.main']}>
+      {links.map(([n, h]) => <a href={route(b, lang, h)} class={rest.startsWith(h.split('/')[0] + '/') ? 'on' : ''}>{s['nav.' + n]}</a>)}
+      <span class="langs" aria-label={s['nav.language']}>{langs.map((l) => <a href={route(b, l, rest)} hreflang={l} lang={l} class={l === lang ? 'on' : ''} title={names[l]}>{l.toUpperCase()}</a>)}</span>
+      <button class="theme" id="theme" aria-label={s['nav.theme']} type="button">◐</button>
       <a class="btn primary" href="https://github.com/Frulko/zinc">GitHub ↗</a>
     </nav>
   </div></header>
   <main><slot /></main>
   <footer><div class="wrap">
-    <div><b>zinc.</b> One program, every screen. <a href={`${b}about/`}>About and AI note</a></div>
-    <div><a href="https://github.com/Frulko/zinc">GitHub</a><a href={`${b}docs/licenses/`}>Licenses</a><a href="https://github.com/Frulko/zinc/blob/main/docs/prototype.md">The prototype</a></div>
+    <div><b>zinc.</b> {s['footer.tagline']} <a href={`${b}about/`}>{s['footer.about']}</a></div>
+    <div><a href="https://github.com/Frulko/zinc">GitHub</a><a href={route(b, lang, 'docs/licenses/')}>{s['footer.licenses']}</a><a href="https://github.com/Frulko/zinc/blob/main/docs/prototype.md">{s['footer.prototype']}</a></div>
   </div></footer>
-  <script is:inline>
+  <script is:inline define:vars={{ copy: s.copy, copied: s.copied }}>
     document.getElementById('theme').onclick = function () {
       var n = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       document.documentElement.dataset.theme = n;
@@ -55,7 +58,7 @@ const links = [['Philosophy', 'philosophy/'], ['Uses', 'uses/'], ['Get started',
     document.querySelectorAll('[data-copy]').forEach(function (btn) {
       btn.onclick = function () {
         navigator.clipboard.writeText(btn.dataset.copy).then(function () {
-          btn.textContent = 'copied'; setTimeout(function () { btn.textContent = 'copy'; }, 1500);
+          btn.textContent = copied; setTimeout(function () { btn.textContent = copy; }, 1500);
         });
       };
     });

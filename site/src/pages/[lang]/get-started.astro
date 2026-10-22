@@ -1,0 +1,7 @@
+---
+import Start from '../../components/Start.astro';
+import { others } from '../../i18n';
+export const getStaticPaths = () => others.map((lang) => ({ params: { lang } }));
+const { lang } = Astro.params;
+---
+<Start lang={lang} />

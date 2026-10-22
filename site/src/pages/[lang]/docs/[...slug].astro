@@ -1,0 +1,17 @@
+---
+import { getCollection } from 'astro:content';
+import DocPage from '../../../components/DocPage.astro';
+import { others } from '../../../i18n';
+
+// Every English doc exists in every language: the translated entry when docs/i18n/<lang>/ has one, else the English page with a notice.
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  const trs = await getCollection('docsI18n');
+  return others.flatMap((lang) => docs.map((d) => ({
+    params: { lang, slug: d.id.toLowerCase().replace(/^learn\/readme$/, 'learn') },
+    props: { d, lang, tr: trs.find((x) => x.id.toLowerCase() === `${lang}/${d.id.toLowerCase()}`) },
+  })));
+}
+const { d, lang, tr } = Astro.props;
+---
+<DocPage d={d} tr={tr} lang={lang} />

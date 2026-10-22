@@ -1,0 +1,86 @@
+---
+// The home page in any language (pages/index.astro and pages/[lang]/index.astro): texts from src/i18n/<lang>.json.
+import Base from '../layouts/Base.astro';
+import { INSTALL, demos, img, cli } from '../data/site';
+import { strings, route } from '../i18n';
+const { lang = 'en' } = Astro.props;
+const b = import.meta.env.BASE_URL;
+const s = strings(lang);
+const L = (rest: string) => route(b, lang, rest);
+const picks = ['zed-editor.png', 'museum-table-full.jpg', 'pinball3d-play.png', 'navigation.png', 'remarkable-notes.png', 'esp32-2432s022-home.png'].map((f) => demos.find((d) => d.f === f)!);
+---
+<Base title="Zinc" lang={lang}>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">{s['home.eyebrow']}</span>
+    <h1>{s['home.h1a']}<span class="hl">{s['home.h1b']}</span></h1>
+    <p class="lead">{s['home.lead']}</p>
+    <div class="cta">
+      <div class="install"><code><i>$</i> {INSTALL}</code><button class="copy" type="button" data-copy={INSTALL}>{s.copy}</button></div>
+    </div>
+    <div class="cta" style="margin-top:0">
+      <a class="btn primary" href={L('get-started/')}>{s['home.cta.start']}</a>
+      <a class="btn" href={`${b}demos/`}>{s['home.cta.demos']}</a>
+      <span style="color:var(--muted);font-size:.9rem" set:html={s['home.brew']}></span>
+    </div>
+    <div class="split" style="margin-top:48px">
+      <div class="term" aria-label={s['home.term']}>
+        <div class="bar"><i></i><i></i><i></i></div>
+        <pre><code><span class="l" style="animation-delay:.2s"><span class="p">$</span> zinc new desktop-app my-app && cd my-app</span>
+<span class="l d" style="animation-delay:.9s">created my-app (desktop-app); next: cd my-app && zinc run</span>
+<span class="l" style="animation-delay:1.6s"><span class="p">$</span> zinc dev</span>
+<span class="l d" style="animation-delay:2.2s">zinc dev: v1 refreshed src/pages/home.tsx (560 ms after the save)</span>
+<span class="l" style="animation-delay:3s"><span class="p">$</span> zinc build --target aarch64-linux</span>
+<span class="l" style="animation-delay:3.8s"><span class="p">$</span> zinc flash --target esp32</span>
+<span class="l o" style="animation-delay:4.4s">same source, another screen</span></code></pre>
+      </div>
+      <img class="shot" src={img('hero.png')} alt={s['home.heroalt']} width="1200" height="800" />
+    </div>
+  </div></section>
+
+  <section class="section"><div class="wrap">
+    <span class="eyebrow">{s['home.why']}</span>
+    <h2 class="big">{s['home.why.h']}</h2>
+    <div class="grid">
+      {s['home.feats'].map(([i, t, d]: string[]) => <div class="card"><span class="ico">{i}</span><h3>{t}</h3><p>{d}</p></div>)}
+    </div>
+    <p><a href={`${b}philosophy/`}>{s['home.philosophy']}</a></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">{s['home.every']}</span>
+    <h2 class="big">{s['home.every.h']}</h2>
+    <p class="lead" set:html={s['home.every.lead']}></p>
+    <div class="gallery">
+      {picks.map((d) => <figure><img src={img(d.f)} alt={d.t} loading="lazy" /><figcaption><b>{d.t}</b>{d.d}<code>{d.cmd}</code></figcaption></figure>)}
+    </div>
+    <p><a href={`${b}demos/`}>{s['home.demos']}</a> · <a href={`${b}uses/`}>{s['home.uses']}</a></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">{s['home.eng']}</span>
+    <h2 class="big">{s['home.eng.h']}</h2>
+    <p class="lead" set:html={s['home.eng.lead']}></p>
+    <div class="table-wrap"><table>
+      <thead><tr>{s['home.eng.cols'].map((c: string) => <th>{c}</th>)}</tr></thead>
+      <tbody>{s['home.engines'].map(([e, f, c, h, m, w]: string[]) => <tr><td><b>{e}</b></td><td>{f}</td><td>{c}</td><td>{h}</td><td>{m}</td><td>{w}</td></tr>)}</tbody>
+    </table></div>
+    <p><a href={L('docs/guide/12-js-engines/')}>{s['home.eng.how']}</a></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">{s['home.cli']}</span>
+    <h2 class="big">{s['home.cli.h']}</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>{s['home.cli.cols'][0]}</th><th>{s['home.cli.cols'][1]}</th></tr></thead>
+      <tbody>{s['home.cli.rows'].map((w: string, i: number) => <tr><td>{w}</td><td><code>{cli[i][1]}</code></td></tr>)}</tbody>
+    </table></div>
+    <p><a href={`${b}cli/`}>{s['home.cli.full']}</a></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <div class="card" style="padding:32px">
+      <h3>{s['home.note.h']}</h3>
+      <p set:html={s['home.note'].replaceAll('{base}', b)}></p>
+    </div>
+  </div></section>
+</Base>

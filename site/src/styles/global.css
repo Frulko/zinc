@@ -41,6 +41,8 @@ h2.big { font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 8px 0 12px; }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 10px; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-family: var(--sans); font-size: 1rem; }
 .btn:hover { text-decoration: none; border-color: var(--muted); }
 .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); } .btn.primary:hover { filter: brightness(1.08); }
+.nav .langs { display: inline-flex; gap: 2px 8px; } .nav nav .langs a { font-size: .8rem; font-weight: 600; } .nav nav .langs a.on { color: var(--ink); text-decoration: underline; }
+.notice { border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px; padding: 10px 14px; margin: 0 0 24px; font-size: .95rem; color: var(--muted); }
 .nav nav a.btn { padding: 6px 12px; font-size: .9rem; color: var(--ink); }
 .nav nav a.btn.primary { color: var(--on-accent); }
 .theme { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 1rem; }
