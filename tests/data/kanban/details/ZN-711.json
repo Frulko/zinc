@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-711",
+    "description": "Owner request (2026-10-11): Zinc is for education, makers, artists and DIY, and nobody outside the project has walked its first run. Walk it as a newcomer on the development Mac: install, `zinc doctor`, `zinc new` with each template, `zinc run`, a first change, a first mistake, `zinc dev`. Fix on the way what takes less than an hour; the rest is lines for `backlog/later.md`.\n\nSecond lane of the parallel agents, after the pinball and the museum (owner's order, `backlog/priority.json`).",
+    "dependencies": [],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "a scripted test creates a project from every template of templates/ in an empty directory, runs it headless for a few frames and passes; a template that fails is fixed",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "six beginner mistakes (a misspelt import, a type error, an unknown zinc: module, a plugin that is not installed, a JSX tag left open, a missing file) each print the file, the line and what to do next; the messages are goldens",
+        "checked": true
+      },
+      {
+        "index": 3,
+        "text": "docs/guide/01-getting-started.md follows the tested path command for command, from the install to a changed line seen on screen, and says what a teacher, a maker and an artist can open next",
+        "checked": true
+      },
+      {
+        "index": 4,
+        "text": "what the walk found and did not fix is given as lines for backlog/later.md",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-711.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}

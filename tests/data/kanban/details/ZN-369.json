@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-369",
+    "description": "The inspector (plugins/devtools, Chrome DevTools) shows the tree, the computed styles and edits `class`. Add the Styles panel's editing: CSS.getMatchedStylesForNode with the node's style objects and classes as rules, CSS.setStyleTexts and the box-model editor for padding, margin, gap, sizes, radius, colours, font size; changes apply live and are collected as a patch (the style object or class string to paste back), shown in the console.",
+    "dependencies": [],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "editing padding in the box model of DevTools changes the app's frame (scripted CDP test with scripts/cdp-check.mjs)",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "the patch printed for a session lists each node's changed properties in the source form (object or class)",
+        "checked": true
+      },
+      {
+        "index": 3,
+        "text": "works for components styled with classes and with StyleSheet objects",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-369.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}

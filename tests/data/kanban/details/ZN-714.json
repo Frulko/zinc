@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-714",
+    "description": null,
+    "dependencies": [],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "zinc build --target windows-x86_64 of a console program links with the pinned zig; what does not compile is listed by module",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "a CI job on a Windows runner builds zinc natively or runs the cross-built program and its T0 tests; the workflow file is committed, pushing it is the owner's step",
+        "checked": false
+      },
+      {
+        "index": 3,
+        "text": "the list of what a window, a file dialog and an installer need on Windows is written as lines for backlog/later.md",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-714.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}

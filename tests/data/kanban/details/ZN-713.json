@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-713",
+    "description": null,
+    "dependencies": [],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "the same small app (a window, a list, a text field, an image) exists for Zinc, Electron and Tauri in a bench directory, with the script that builds and measures them",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "size on disk of the shipped app, time from launch to first frame and resident memory after 10 s are measured on the development Mac, alone on the machine, five runs each, and logged in docs/reports/zinc-next-perf.md",
+        "checked": false
+      },
+      {
+        "index": 3,
+        "text": "where Zinc is not clearly ahead, the cause is named and given as lines for backlog/later.md",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-713.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}

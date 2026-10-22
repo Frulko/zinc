@@ -1,0 +1,50 @@
+# Cross-column drag, then the real task detail.
+5 move 330 350
+6 down
+8 move 355 350
+10 move 610 510
+12 up
+20 move 880 350
+21 down
+22 up
+# Move from the modal, then restore focus and reorder within Ready.
+45 move 675 343
+46 down
+47 up
+49 key Escape
+55 move 610 510
+56 down
+58 move 620 500
+60 move 610 300
+62 up
+# Keyboard alternative: shift-right moves the focused card one column.
+70 move 610 350
+71 down
+72 up
+76 key Escape
+80 key ArrowRight shift
+# Search across assignees; only the named fixture remains.
+85 key k meta
+87 text "codex/test-fixture"
+# Clear search, filter a milestone, and reset local moves.
+115 key a meta
+116 key Backspace
+120 move 75 423
+121 down
+122 up
+130 move 75 383
+131 down
+132 up
+135 move 1470 187
+136 down
+137 up
+# Journal opens and closes with Escape.
+145 move 1370 187
+146 down
+147 up
+154 key Escape
+# A finger can also drag a card into another list.
+164 touch 1 330 350
+166 touch 1 355 350
+168 touch 1 610 510
+170 touchup 1

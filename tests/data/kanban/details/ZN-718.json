@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-718",
+    "description": null,
+    "dependencies": [],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "one command or one archive installs a self-contained zinc on macOS with no compiler, CMake or Xcode on the machine; zinc new, run and dev work from it (proved in a directory with a PATH that holds no compiler)",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "a program that imports plugins runs from that install without building them: each plugin is fetched prebuilt for the host from the signed index, and zinc doctor says which plugins have no prebuilt for which platform",
+        "checked": false
+      },
+      {
+        "index": 3,
+        "text": "the release job builds the engine archive and the plugin prebuilts for macOS, Linux and Windows targets with the pinned zig; publishing is the owner's step and its exact command is in the task notes",
+        "checked": false
+      },
+      {
+        "index": 4,
+        "text": "docs/guide/01-getting-started.md starts with the download, not with a source build",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-718.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}

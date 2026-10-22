@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["examples/kanban/", "tests/data/kanban/", "tests/golden/kanban/", "tests/t1/kanban.sh", "tests/demo/kanban_logic.sh"], "tests": ["kanban", "kanban_logic"]},
     {"paths": ["plugins/gsap/", "tests/t1/gsap.sh", "tests/golden/gsap/", "docs/plugins/gsap.md"], "tests": ["gsap"]},
     {"paths": ["runtime/raster.cpp", "runtime/gl_replay.cpp", "runtime/zrt_raster.h", "tests/t0/ignorable_glyphs.sh"], "tests": ["ignorable_glyphs"]},
     {"paths": ["examples/js-gsap/", "tests/t1/example_js_gsap.sh", "tools/test-lib"], "tests": ["example_js_gsap"]},

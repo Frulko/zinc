@@ -1157,3 +1157,7 @@ M1 Pro, headless, 120 frames, `/usr/bin/time -l`, best of three, **load 6 to 7 f
 | sample 12 built native (`--native`, cached build) | | 0.02 s, 4.2 MB, 94 M instr |
 
 What remains: the first run of any zinc:ui program and every Fast Refresh compile lib/std again, about 330 ms here (a 7-line zinc:ui program: 337 ms; a drawing-only one: 13 functions, 70 KB). The class parser is 16% and the text-field editor 13% of the code a primitives-only program compiles (docs/reports/ui-primitives-like-react-native.md).
+
+## Kanban idle smoke (ZN-775, 2026-10-22)
+
+Development Mac, existing `build/zinc`, interpreter, headless deterministic 1560x940, nine-task offline fixture. `KANBAN_SNAPSHOT=$PWD/tests/data/kanban/snapshot.json ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=1560x940 ZINC_FRAMES=300 ZINC_PROFILE=1 build/zinc run examples/kanban`: paint p50/p99 **0.00/0.00 ms**, maximum 0.30 ms, layout maximum 4.77 ms. This proves idle painting stops after setup; it is not a comparative benchmark or a physical-device measurement. The T1 test checks the idle paint percentiles. The three engines' short first-board smoke produces the same frame hash `e9f2d59eb4057bfa`. The live read of all 975 local tasks was also captured; no frame-time claim is made for that run.

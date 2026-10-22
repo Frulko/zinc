@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-list",
+  "tasks": [
+    {
+      "id": "ZN-713",
+      "title": "Numbers against Electron and Tauri: size, start time, memory of the same small app",
+      "status": "Backlog",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "perf",
+        "size-M"
+      ],
+      "milestone": "m-21",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 2,
+      "acceptanceCriteriaCount": 3,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 100,
+      "createdAt": "2026-10-11T16:08:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-761",
+      "title": "Device information: device type, model, maker and system details on every platform",
+      "status": "Backlog",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "mobile",
+        "platform",
+        "size-M"
+      ],
+      "milestone": "m-26",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 2,
+      "acceptanceCriteriaCount": 5,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 200,
+      "createdAt": "2026-10-18T10:55:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-369",
+      "title": "Inspector: edit spacing, sizes and colours live from the Styles panel",
+      "status": "Ready",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [],
+      "reporter": null,
+      "labels": [
+        "devtools",
+        "ui",
+        "size-M"
+      ],
+      "milestone": "m-17",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 3,
+      "acceptanceCriteriaCount": 3,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 300,
+      "createdAt": "2026-10-08T15:16:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": false
+    },
+    {
+      "id": "ZN-650.07",
+      "title": "Museum table: the storyboard editor",
+      "status": "In Progress",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@codex/test-fixture"
+      ],
+      "reporter": null,
+      "labels": [
+        "demo",
+        "editor",
+        "ui",
+        "size-L"
+      ],
+      "milestone": "m-27",
+      "parentTaskId": "ZN-650",
+      "acceptanceCriteriaCompleted": 3,
+      "acceptanceCriteriaCount": 3,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 400,
+      "createdAt": "2026-10-10T17:52:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-568",
+      "title": "Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR, storage)",
+      "status": "In Progress",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "games",
+        "js",
+        "size-L"
+      ],
+      "milestone": "m-22",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 0,
+      "acceptanceCriteriaCount": 4,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 500,
+      "createdAt": "2026-10-09T08:11:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-714",
+      "title": "Windows, first step: a cross build of zinc with the pinned zig and a Windows CI job",
+      "status": "Review",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "windows",
+        "size-L"
+      ],
+      "milestone": "m-12",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 2,
+      "acceptanceCriteriaCount": 3,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 600,
+      "createdAt": "2026-10-11T16:08:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-718",
+      "title": "Nothing to compile for a beginner: a prebuilt engine to download, prebuilt plugins for every platform",
+      "status": "Review",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "packaging",
+        "size-L"
+      ],
+      "milestone": "m-19",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 2,
+      "acceptanceCriteriaCount": 4,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 700,
+      "createdAt": "2026-10-11T16:10:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": true
+    },
+    {
+      "id": "ZN-711",
+      "title": "First five minutes: install, zinc new, run and a first error, walked as a beginner",
+      "status": "Done",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "cli",
+        "docs",
+        "size-M"
+      ],
+      "milestone": "m-13",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 4,
+      "acceptanceCriteriaCount": 4,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 800,
+      "createdAt": "2026-10-11T11:38:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": false
+    },
+    {
+      "id": "ZN-712",
+      "title": "Examples that show the JavaScript libraries: three.js, Phaser, PixiJS, p5.js",
+      "status": "Done",
+      "type": null,
+      "priority": null,
+      "project": null,
+      "assignees": [
+        "@parallel"
+      ],
+      "reporter": null,
+      "labels": [
+        "js",
+        "demo",
+        "size-M"
+      ],
+      "milestone": "m-8",
+      "parentTaskId": null,
+      "acceptanceCriteriaCompleted": 5,
+      "acceptanceCriteriaCount": 5,
+      "references": [],
+      "modifiedFiles": [],
+      "ordinal": 900,
+      "createdAt": "2026-10-11T11:38:00Z",
+      "updatedAt": "2026-10-22T10:00:00Z",
+      "dueDate": null,
+      "isReady": false
+    }
+  ]
+}

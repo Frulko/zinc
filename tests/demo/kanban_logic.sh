@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/../.."
+Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
+export KANBAN_TEST_DATA="$(pwd)/tests/data/kanban"
+"$Z" run tests/data/kanban/unit.ts
+command -v backlog >/dev/null || { echo 'kanban: backlog CLI needed for the live integration check'; exit 77; }
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/backlog/tasks"
+cat > "$tmp/backlog.config.yml" <<'EOF'
+project_name: "Kanban Watch Test"
+default_status: "Backlog"
+statuses: ["Backlog", "Ready", "In Progress", "Review", "Done"]
+task_prefix: "zn"
+backlog_directory: "backlog"
+filesystem_only: true
+remote_operations: false
+auto_commit: false
+EOF
+cat > "$tmp/backlog/tasks/zn-001 - Watch.md" <<'EOF'
+---
+id: ZN-001
+title: Watch fixture
+status: Backlog
+assignee: []
+created_date: '2026-10-22 10:00'
+labels: []
+dependencies: []
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+A watch fixture for the Kanban integration test.
+<!-- SECTION:DESCRIPTION:END -->
+EOF
+KANBAN_REPO="$tmp" timeout 20 "$Z" run tests/data/kanban/watch.ts

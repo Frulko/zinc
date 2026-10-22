@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "task-view",
+  "task": {
+    "id": "ZN-650.07",
+    "description": "Authoring in the manner of Klynt, so that a museum makes its own installation without editing a file: a storyboard where sequences are created, named and linked by drawing connections; a sequence editor to import media from a folder, place and size them, set their timing, write captions and descriptions per language, and add hotspots; points of interest placed on a 3D model by touching it; preview from any sequence; save, load and duplicate projects; undo and redo. (Owner request, 2026-10-10: a demo app useful for mediation in museums: an interactive presentation on a touch table, photo gestures, 3D models, descriptions, presentations, in the manner of Klynt.)",
+    "dependencies": [
+      "ZN-650.05"
+    ],
+    "acceptanceCriteria": [
+      {
+        "index": 1,
+        "text": "a scripted session builds a three-sequence project from an empty one (media, texts in two languages, links, a point of interest), saves it, and the file equals a golden",
+        "checked": true
+      },
+      {
+        "index": 2,
+        "text": "the saved project plays in the player",
+        "checked": true
+      },
+      {
+        "index": 3,
+        "text": "undo and redo restore the exact file bytes across 50 mixed operations",
+        "checked": true
+      }
+    ],
+    "path": "backlog/tasks/ZN-650.07.md",
+    "implementationPlan": "",
+    "implementationNotes": "",
+    "finalSummary": ""
+  }
+}
