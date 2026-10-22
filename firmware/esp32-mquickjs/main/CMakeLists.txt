@@ -32,6 +32,8 @@ endif()
 # idf.py -DZN_PANEL=spi: the emulator's build (esp32sim's T-Display board), main.c's ZN_PANEL_SPI
 if(ZN_PANEL STREQUAL "spi")
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ZN_PANEL_SPI)
+else()   # the i80 driver's DMA descriptors in whole words (main.c, __wrap_gdma_link_mount_buffers)
+  target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=gdma_link_mount_buffers")
 endif()
 # The ROM standard library and the engine's atom table, written by a host program (zn_stdlib.c, built with the computer's cc) for 32-bit words
 set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)

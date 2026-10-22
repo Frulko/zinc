@@ -17,6 +17,7 @@
 #include "esp_lcd_io_i80.h"
 #include "esp_lcd_io_spi.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_private/gdma_link.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_rom_crc.h"
@@ -285,6 +286,22 @@ void *zn_panel_buffer(size_t bytes)
 {
     return bytes <= W * PANEL_ROWS * 2 ? heap_caps_malloc(bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL) : NULL;
 }
+
+#ifndef ZN_PANEL_SPI
+/* The i80 driver of the ESP32 (esp_lcd_panel_io_i2s.c) mounts its transfers on DMA descriptors of 4095 bytes, while the I2S FIFO takes
+   32-bit words: a word cut between two descriptors stops the DMA now and then, the transfer never ends, and the next command waits for it
+   forever (the board froze after 89 to 173 frames of the widgets' Bench, 2026-10-22: I2S0 without out_eof, its DMA on the last
+   descriptor, the FIFO empty). Linked with --wrap (CMakeLists.txt), its mounts take 4-byte alignment: descriptors of 4092 bytes. */
+esp_err_t __real_gdma_link_mount_buffers(gdma_link_list_handle_t list, int start, const gdma_buffer_mount_config_t *cfg, size_t n, int *end);
+esp_err_t IRAM_ATTR __wrap_gdma_link_mount_buffers(gdma_link_list_handle_t list, int start, const gdma_buffer_mount_config_t *cfg, size_t n,
+                                                   int *end)
+{
+    if (n != 1 || cfg->buffer_alignment >= 4 || ((uintptr_t)cfg->buffer & 3)) return __real_gdma_link_mount_buffers(list, start, cfg, n, end);
+    gdma_buffer_mount_config_t c = *cfg;
+    c.buffer_alignment = 4;
+    return __real_gdma_link_mount_buffers(list, start, &c, 1, end);
+}
+#endif
 
 void zn_panel_flush(int x0, int y0, int x1, int y1, const void *pixels)
 {

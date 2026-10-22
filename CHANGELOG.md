@@ -52,6 +52,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc run --target esp32` builds the firmware a program's plugins need before it writes the program, so the board no longer shows a ReferenceError ("not in this firmware") during the build.
+- An animated screen on the ESP32-2432S022 under `--engine mquickjs` no longer freezes after a few seconds: ESP-IDF's driver for its 8-bit panel bus could cut a transfer in the middle of a 32-bit word, and the DMA then stopped for good.
 - GitHub releases display the changelog from the tagged commit, including when checkout loses the tag annotation. Failed or unwatched releases keep their notes in `Unreleased`; reruns restore the complete release notes and only archive published entries, leaving newer edits pending.
 - Nuxt UI select menus float above cards and neighbouring fields instead of being clipped by their container. Escape and clicks outside close the list.
 - Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
