@@ -32,6 +32,7 @@
     "path": "backlog/tasks/ZN-568.md",
     "implementationPlan": "",
     "implementationNotes": "",
-    "finalSummary": ""
+    "finalSummary": "",
+    "title": "Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR, storage)"
   }
 }

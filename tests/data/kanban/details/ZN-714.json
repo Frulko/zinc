@@ -25,6 +25,7 @@
     "path": "backlog/tasks/ZN-714.md",
     "implementationPlan": "",
     "implementationNotes": "",
-    "finalSummary": ""
+    "finalSummary": "",
+    "title": "Windows, first step: a cross build of zinc with the pinned zig and a Windows CI job"
   }
 }

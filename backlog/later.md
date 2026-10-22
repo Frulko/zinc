@@ -5,6 +5,7 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-775: support component/fragment roots directly in VirtualList; virtual positioning needs a host box (Kanban uses a View row), whereas layout flattens JSX fragments and drops their position.
 - zinc check: a project on the QuickJS engine ("engine": "quickjs") is checked by the typed checker, which does not resolve `node_modules` packages (Z0119 on every `@nbe/...` import of examples/carnet-nbe, which runs): check it as the QuickJS loader resolves it (src/qjs/qjs.cpp quickjsLint), or say the check does not apply.
 - QuickJS: a browser `WebSocket` global (binary frames as ArrayBuffer) for libraries that expect one (@nbe/collab's connectToRelay); examples/carnet-nbe/src/services/sync.ts carries the adapter over zinc:socket, the web environment could give it to every program.
 - ZN-764: the macOS window could show the raster with no drawable at all: two IOSurfaces as the layer's contents, drawn in turn (one window buffer less, ~14 MB at 1180x760 density 2, against the frame plus 2 drawables plus the one WindowServer holds today).

@@ -1161,3 +1161,7 @@ What remains: the first run of any zinc:ui program and every Fast Refresh compil
 ## Kanban idle smoke (ZN-775, 2026-10-22)
 
 Development Mac, existing `build/zinc`, interpreter, headless deterministic 1560x940, nine-task offline fixture. `KANBAN_SNAPSHOT=$PWD/tests/data/kanban/snapshot.json ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=1560x940 ZINC_FRAMES=300 ZINC_PROFILE=1 build/zinc run examples/kanban`: paint p50/p99 **0.00/0.00 ms**, maximum 0.30 ms, layout maximum 4.77 ms. This proves idle painting stops after setup; it is not a comparative benchmark or a physical-device measurement. The T1 test checks the idle paint percentiles. The three engines' short first-board smoke produces the same frame hash `e9f2d59eb4057bfa`. The live read of all 975 local tasks was also captured; no frame-time claim is made for that run.
+
+## Kanban scroll and editor regression (ZN-775 follow-up, 2026-10-22)
+
+The compact UI uses 144 px rows. The geometry regression builds 200 tasks, scrolls to row 40, then the last row, then back, checks the requested card intersects the viewport and fewer than 20 row hosts remain mounted, and checks the ghost retains its exact original pointer grip. Without the row host correction it fails on row 40. Headless deterministic 1560x940, nine-task fixture, 300 idle frames: paint p50/p99 **0.00/0.00 ms**, maximum 0.77 ms; layout maximum 3.65 ms. This is an idle regression check, not a comparative benchmark. Interpreter, AOT and QuickJS first-board smoke hash: `763dad18a1e3cfed`. No physical-device or cross-target performance claim.

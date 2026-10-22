@@ -25,6 +25,7 @@
     "path": "backlog/tasks/ZN-713.md",
     "implementationPlan": "",
     "implementationNotes": "",
-    "finalSummary": ""
+    "finalSummary": "",
+    "title": "Numbers against Electron and Tauri: size, start time, memory of the same small app"
   }
 }

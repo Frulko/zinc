@@ -1,6 +1,6 @@
 # Zinc Project Room
 
-A native Trello-style Kanban board over **all local Zinc backlog tasks**, including completed tasks and subtasks. Five columns follow the project's statuses. Cards show labels, criteria progress and declared assignees; a modal reads the description, criteria, dependencies, parent, plan and implementation notes from Backlog.md.
+A native Trello-style Kanban board over **all local Zinc backlog tasks**, including completed tasks and subtasks. Five columns follow the project's statuses. Cards show labels, criteria progress and declared assignees; a spacious task window renders the description, criteria, notes and comments as selectable Markdown and shows dependencies, parent and assignment metadata from Backlog.md.
 
 ## Run
 
@@ -14,11 +14,19 @@ ZINC_BACKGROUND=1 build/zinc run examples/kanban
 
 ## Interact
 
-- Drag a card to another column or above/below another card to reorder it. A preview follows the pointer; the destination is highlighted. Touch uses the same drag path.
+- Drag a card to another column or above/below another card to reorder it. The full card follows the original grip point; an insertion line shows the exact destination. Touch uses the same drag path.
 - Click a card, or focus it with Tab and press Enter, to read its detail. Escape, the close button or a click outside closes the modal and restores focus.
 - Shift+Left/Right moves a focused card between columns. Shift+Up/Down reorders it inside its filtered column. The modal's status buttons provide another keyboard and pointer alternative.
 - Search by ID, title, label, milestone or assignee. Cmd/Ctrl+K focuses search. The sidebar filters open tasks, declared work in progress, assignments and milestones. All filters combine.
-- **Moves are local to this session.** The footer and modal say so. Reset restores source order and statuses. Closing the app discards moves. It never edits task files or executes backlog mutations.
+- **Moves are local to this session.** The footer and modal say so. Reset restores source order and statuses. Closing the app discards moves. Dragging never edits task files. Explicit Save and Comment actions do write through Backlog.md.
+
+## Edit and comment
+
+The task window uses almost the full window height, with a compact action bar, a scrolling Markdown document, a metadata sidebar and a pinned comment composer. The Markdown renderer/parser is shared with `examples/agents`: selectable rich text, headings, lists, quotes, fenced code with copy, tables and inline styles.
+
+**Modifier** opens title/description fields. **Enregistrer** saves those fields through the Backlog.md CLI; **Commenter** appends a Markdown comment. The author is `KANBAN_AUTHOR`, otherwise the operating-system user name. No shell command is assembled from text. Clearing a description uses its existing Backlog.md section markers and an atomic file replacement, because this CLI version ignores an empty `--description`; other fields and file permissions are preserved. Empty titles and reserved comment separators are rejected. A preflight comparison rejects a stale title/description; Backlog.md has no atomic compare-and-swap, so simultaneous changes during the final command still follow its normal last-writer behavior.
+
+Closing/reopening a task retains an unfinished edit or comment in this session. Watcher refreshes preserve drafts, and errors keep them editable. Cancel explicitly discards the current edit. Offline snapshots stay read-only; connect the actual backlog to save. Drag/status changes remain a separate, clearly labelled local board preview.
 
 ## Watch agents take tasks
 
@@ -43,7 +51,7 @@ The test fixture uses nine real task titles, descriptions and criteria. Statuses
 
 ## Source and checks
 
-`src/main.tsx` mounts the app and shortcuts; `constants.ts` holds shared values; `models.ts` validates the CLI JSON; `state.ts` owns filtering, local moves and source reconciliation; `services/backlog.ts` owns processes/files; `components/` owns cards, sidebar and modal layers; `pages/board/` owns virtual columns and drag routing. The UI uses `zinc:ui`/Solid, the existing `zinc:ui/dnd`, kit dialogs and Lucide icons. No engine changes or new dependencies.
+`src/main.tsx` mounts the app and shortcuts; `constants.ts` holds shared values; `models.ts` validates the CLI JSON; `state.ts` owns filtering, local moves and source reconciliation; `services/backlog.ts` owns processes/files; `components/` owns cards, sidebar and modal layers; `pages/board/` owns virtual columns and drag routing. The UI uses `zinc:ui`/Solid, the existing `zinc:ui/dnd`, kit dialogs and Lucide icons. The shared Markdown files live in `lib/std/markdown*`; Agents reexports the same implementation. No engine changes or new dependencies.
 
 ```sh
 build/zinc check examples/kanban
@@ -51,4 +59,4 @@ tests/run --only kanban
 tests/run --only kanban_logic
 ```
 
-The T1 session checks mouse/touch dragging, reordering, keyboard movement, task details, search, milestone filtering, reset and modal dismissal against feature goldens; AOT and QuickJS get one short frame-hash smoke check. A separate 300-frame idle run checks paint p99. The demo test checks state rules and an actual CLI watcher against a temporary backlog, including a named external assignment and detail read. No full-platform, screen-reader or physical touch-device claim is made.
+The T1 session checks mouse/touch dragging, reordering, keyboard movement, task details, search, milestone filtering, reset and modal dismissal against feature goldens; AOT and QuickJS get one short frame-hash smoke check. A regression scrolls a 200-card column to the middle, bottom and back, checks real card geometry and a bounded row count, then asserts the exact drag grip. A separate 300-frame idle run checks paint p99. The demo test checks state rules and an actual CLI watcher against a temporary backlog, including a named external assignment, title/description saves, appended comments, stale-edit rejection and actual UI fields/buttons. It also verifies retained drafts and rendered Markdown. No full-platform, screen-reader or physical touch-device claim is made.

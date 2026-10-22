@@ -1,24 +1,24 @@
 # Cross-column drag, then the real task detail.
-5 move 330 350
+5 move 300 150
 6 down
-8 move 355 350
-10 move 610 510
+8 move 325 150
+10 move 580 300
 12 up
-20 move 880 350
+20 move 850 150
 21 down
 22 up
 # Move from the modal, then restore focus and reorder within Ready.
-45 move 675 343
+45 move 1215 285
 46 down
 47 up
 49 key Escape
-55 move 610 510
+55 move 580 300
 56 down
-58 move 620 500
-60 move 610 300
+58 move 590 290
+60 move 580 112
 62 up
 # Keyboard alternative: shift-right moves the focused card one column.
-70 move 610 350
+70 move 580 150
 71 down
 72 up
 76 key Escape
@@ -29,22 +29,31 @@
 # Clear search, filter a milestone, and reset local moves.
 115 key a meta
 116 key Backspace
-120 move 75 423
+120 move 75 334
 121 down
 122 up
-130 move 75 383
+130 move 75 296
 131 down
 132 up
-135 move 1470 187
+135 move 1450 24
 136 down
 137 up
 # Journal opens and closes with Escape.
-145 move 1370 187
+145 move 1370 24
 146 down
 147 up
 154 key Escape
 # A finger can also drag a card into another list.
-164 touch 1 330 350
-166 touch 1 355 350
-168 touch 1 610 510
+164 touch 1 300 150
+166 touch 1 325 150
+168 touch 1 580 300
 170 touchup 1
+
+# The compact detail exposes the Markdown editor.
+190 move 850 150
+191 down
+192 up
+210 move 1198 77
+211 down
+212 up
+230 key Escape

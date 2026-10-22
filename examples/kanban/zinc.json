@@ -9,10 +9,30 @@
     "orientation": "landscape"
   },
   "targets": {
-    "macos": { "width": 1560, "height": 940, "resize": "fill" }
+    "macos": {
+      "width": 1560,
+      "height": 940,
+      "resize": "fill"
+    }
   },
-  "permissions": ["fs", "process"],
-  "requires": ["keyboard", "pointer", "fs"],
-  "icons": ["square-check", "square"],
+  "permissions": [
+    "fs",
+    "process"
+  ],
+  "requires": [
+    "keyboard",
+    "pointer",
+    "fs"
+  ],
+  "icons": [
+    "square-check",
+    "square",
+    "refresh-cw",
+    "x",
+    "copy",
+    "pencil",
+    "send",
+    "check"
+  ],
   "scheme": "light"
 }

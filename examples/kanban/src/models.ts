@@ -11,9 +11,13 @@ export class Criterion {
   text: string = ''; checked: boolean = false;
 }
 export class Detail {
-  id: string = ''; description: string = ''; notes: string = ''; plan: string = '';
+  id: string = ''; title: string = ''; description: string = ''; notes: string = ''; plan: string = '';
   summary: string = ''; path: string = ''; dependencies: string[] = [];
   criteria: Criterion[] = [];
+  comments: Comment[] = [];
+}
+export class Comment {
+  body: string = ''; author: string = ''; created: string = '';
 }
 export function text(v: any): string { return typeof v === 'string' ? v as string : ''; }
 function number(v: any): number { return typeof v === 'number' && Number.isFinite(v as number) ? v as number : 0; }
@@ -44,10 +48,14 @@ export function decodeDetail(raw: string): Detail {
   const j = JSON.parse(raw);
   if (j.schemaVersion !== 1 || j.kind !== 'task-view' || j.task === null || j.task === undefined) throw new Error('Détail Backlog.md incompatible.');
   const v = j.task, d = new Detail();
-  d.id = text(v.id); d.description = text(v.description); d.notes = text(v.implementationNotes);
+  d.id = text(v.id); d.title = text(v.title); d.description = text(v.description); d.notes = text(v.implementationNotes);
   d.plan = text(v.implementationPlan); d.summary = text(v.finalSummary); d.path = text(v.path); d.dependencies = strings(v.dependencies);
   if (Array.isArray(v.acceptanceCriteria)) for (const c of v.acceptanceCriteria) {
     const ac = new Criterion(); ac.text = text(c.text); ac.checked = c.checked === true; d.criteria.push(ac);
+  }
+  if (Array.isArray(v.comments)) for (const c of v.comments) {
+    const comment = new Comment(); comment.body = text(c.body); comment.author = text(c.author); comment.created = text(c.createdAt);
+    d.comments.push(comment);
   }
   return d;
 }

@@ -1,7 +1,7 @@
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import { Task, Detail, assignment, activityState } from './models';
 import { STATUSES, ACTIVITY_LIMIT } from './constants';
-import { startBacklog, loadDetail, cancelDetail } from './services/backlog';
+import { startBacklog, loadDetail, cancelDetail, editTask, commentTask } from './services/backlog';
 
 export const [tasks, setTasks] = createSignal<Task[]>([]);
 export const [sourceTasks, setSourceTasks] = createSignal<Task[]>([]);
@@ -19,6 +19,18 @@ export const [notice, setNotice] = createSignal<string>('Glissez une carte, ou o
 export const [draggedId, setDraggedId] = createSignal<string>('');
 export const [dropId, setDropId] = createSignal<string>('');
 export const [activityOpen, setActivityOpen] = createSignal<boolean>(false);
+export const [editing, setEditing] = createSignal<boolean>(false);
+export const [editTitle, setEditTitle] = createSignal<string>('');
+export const [editDescription, setEditDescription] = createSignal<string>('');
+export const [commentDraft, setCommentDraft] = createSignal<string>('');
+export const [saving, setSaving] = createSignal<boolean>(false);
+export const [writeError, setWriteError] = createSignal<string>('');
+
+class Draft {
+  title = ''; description = ''; comment = ''; editing = false; base: Detail | null = null;
+}
+const drafts = new Map<string, Draft>();
+let editBase: Detail | null = null;
 
 const overrides = new Map<string, string>();
 export const selected = createMemo<Task | null>(() => tasks().find((t: Task) => t.id === selectedId()) ?? null, null);
@@ -44,8 +56,44 @@ function fetchDetail(id: string): void {
   setDetail(null); setDetailError('');
   loadDetail(id, (d: Detail | null, error: string) => { if (selectedId() === id) { setDetail(d); setDetailError(error); } });
 }
-export function openTask(id: string): void { setSelectedId(id); fetchDetail(id); }
-export function closeTask(): void { setSelectedId(''); setDetail(null); cancelDetail(); }
+function rememberDraft(): void {
+  if (selectedId() === '') return;
+  if (!editing() && commentDraft() === '') { drafts.delete(selectedId()); return; }
+  const d = new Draft(); d.title = editTitle(); d.description = editDescription(); d.comment = commentDraft(); d.editing = editing(); d.base = editBase;
+  drafts.set(selectedId(), d);
+}
+export function openTask(id: string): void {
+  if (saving()) return;
+  rememberDraft();
+  const d = drafts.get(id);
+  batch(() => { setEditing(d !== undefined && d.editing); setEditTitle(d !== undefined ? d.title : '');
+    setEditDescription(d !== undefined ? d.description : ''); setCommentDraft(d !== undefined ? d.comment : ''); setWriteError(''); });
+  editBase = d !== undefined ? d.base : null;
+  setSelectedId(id); fetchDetail(id);
+}
+export function closeTask(): void {
+  if (saving()) return;
+  rememberDraft(); setSelectedId(''); setDetail(null); cancelDetail();
+}
+export function beginEdit(): void {
+  const d = detail(); if (d === null || saving()) return;
+  editBase = d; setEditTitle(d.title !== '' ? d.title : selected()?.title ?? ''); setEditDescription(d.description); setEditing(true); setWriteError('');
+}
+export function cancelEdit(): void { if (!saving()) { setEditing(false); setWriteError(''); } }
+export async function saveEdits(): Promise<void> {
+  if (saving() || editBase === null) return;
+  setSaving(true); setWriteError('');
+  try { await editTask(editBase as Detail, editTitle(), editDescription()); setEditing(false); fetchDetail(selectedId()); setNotice('Modifications enregistrées dans Backlog.md.'); }
+  catch (e) { setWriteError('' + e); }
+  setSaving(false);
+}
+export async function postComment(): Promise<void> {
+  if (saving() || commentDraft().trim() === '') return;
+  setSaving(true); setWriteError('');
+  try { await commentTask(selectedId(), commentDraft()); setCommentDraft(''); fetchDetail(selectedId()); setNotice('Commentaire enregistré dans Backlog.md.'); }
+  catch (e) { setWriteError('' + e); }
+  setSaving(false);
+}
 
 export function acceptSnapshot(next: Task[]): void {
   const previous = new Map<string, Task>();

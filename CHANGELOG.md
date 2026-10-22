@@ -25,6 +25,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc migrate ui-explicit-looks --apply` writes the look `<Button>`, `<Input>` and `<TextArea>` draw today into your classes (`bg-slate-700 px-2 py-1` on a Button, the dark slate field on Input and TextArea), only where your classes leave it out, and names the classNames it cannot read; `zinc migrate` with no name does not run it.
 
 ### Fixed
+- Kanban cards stay visible while scrolling through long columns, and dragged cards keep the pointer's original grip with an insertion marker. The compact task window renders Markdown and lets you save the title, description and comments to Backlog.md while retaining unfinished drafts.
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".
 - `zinc:canvas` draws where it should under `zinc:gfx`'s `setTransform`: inside a `zinc:stage` sprite or a turned `zinc:ui` parent, its shapes, gradients and images were drawn at the wrong place and cut away.
 

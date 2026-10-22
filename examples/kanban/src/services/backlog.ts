@@ -67,6 +67,53 @@ export function cancelDetail(): void {
   if (detailProcess !== null) (detailProcess as proc.Process).kill();
   detailProcess = null;
 }
+export function writable(): boolean { return snapshotFile === '' && root !== '' && binary !== ''; }
+
+async function clearDescription(base: Detail, title: string): Promise<void> {
+  // Backlog.md ignores an empty --description: clear only its marked body, keeping all other fields.
+  const r = await proc.run(binary, ['task', 'view', base.id, '--json'], { cwd: root });
+  if (r.code !== 0) throw new Error(r.stderr || 'Impossible de relire la tâche.');
+  const current = decodeDetail(r.stdout);
+  if (current.title !== title || current.description !== base.description) throw new Error('La tâche a changé pendant l’enregistrement. Votre brouillon est conservé.');
+  if (current.description === '') return;
+  const path = fs.realpath(root + '/' + current.path);
+  if (!path.startsWith(root + '/')) throw new Error('Le fichier de tâche est en dehors du projet.');
+  const raw = fs.readText(path), begin = '<!-- SECTION:DESCRIPTION:BEGIN -->', end = '<!-- SECTION:DESCRIPTION:END -->';
+  const from = raw.indexOf(begin), to = raw.indexOf(end, from + begin.length);
+  if (from < 0 || to < 0) throw new Error('La description ne possède pas les marqueurs Backlog.md ; elle reste intacte.');
+  const dir = fs.mkdtemp(path.slice(0, path.lastIndexOf('/')) + '/.kanban-');
+  try {
+    const temp = dir + '/task'; fs.writeText(temp, raw.slice(0, from + begin.length) + '\n' + raw.slice(to));
+    fs.chmod(temp, fs.stat(path).mode & 511);
+    if (fs.readText(path) !== raw) throw new Error('Le fichier a changé pendant l’enregistrement. Réessayez après relecture.');
+    fs.rename(temp, path);
+  } finally { fs.remove(dir, true); }
+}
+
+/** Only requested fields are changed; Backlog.md preserves the rest of the task and appends comments. */
+export async function editTask(base: Detail, title: string, description: string): Promise<void> {
+  if (!writable()) throw new Error('Cet instantané est en lecture seule. Connectez le backlog pour modifier une tâche.');
+  if (title.trim() === '') throw new Error('Le titre ne peut pas être vide.');
+  const current = await proc.run(binary, ['task', 'view', base.id, '--json'], { cwd: root });
+  if (current.code !== 0) throw new Error(current.stderr || 'Impossible de relire la tâche.');
+  const actual = decodeDetail(current.stdout);
+  if (actual.title !== base.title || actual.description !== base.description) throw new Error('La tâche a été modifiée ailleurs. Rechargez le détail avant d’enregistrer. Votre brouillon est conservé.');
+  const args = ['task', 'edit', base.id, '--title', title.trim()];
+  if (description.trim() !== '') { args.push('--description'); args.push(description); }
+  args.push('--plain');
+  const result = await proc.run(binary, args, { cwd: root });
+  if (result.code !== 0) throw new Error(result.stderr || 'Échec de l’enregistrement.');
+  if (description.trim() === '') await clearDescription(base, title.trim());
+}
+export async function commentTask(id: string, body: string): Promise<void> {
+  if (!writable()) throw new Error('Cet instantané est en lecture seule.');
+  if (body.trim() === '') throw new Error('Écrivez un commentaire.');
+  const normalized = body.replaceAll('\r\n', '\n');
+  if (normalized.split('\n').some((line: string) => line.trim() === '---')) throw new Error('Une ligne contenant uniquement --- est réservée par Backlog.md.');
+  const author = sys.env('KANBAN_AUTHOR') || sys.env('USER') || 'Kanban';
+  const result = await proc.run(binary, ['task', 'edit', id, '--comment', normalized, '--comment-author', author, '--plain'], { cwd: root });
+  if (result.code !== 0) throw new Error(result.stderr || 'Échec de l’ajout du commentaire.');
+}
 export function loadDetail(id: string, receive: (d: Detail | null, error: string) => void): void {
   cancelDetail();
   const request = detailRequest;

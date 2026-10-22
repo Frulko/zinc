@@ -35,6 +35,7 @@
     "path": "backlog/tasks/ZN-761.md",
     "implementationPlan": "",
     "implementationNotes": "",
-    "finalSummary": ""
+    "finalSummary": "",
+    "title": "Device information: device type, model, maker and system details on every platform"
   }
 }
