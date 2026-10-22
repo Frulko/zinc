@@ -19,6 +19,7 @@ if [ ! -d "$IDF" ]; then
   (cd "$IDF" && ./install.sh esp32)
 fi
 . "$IDF/export.sh" >/dev/null
+[ sdkconfig -nt sdkconfig.defaults ] || rm -f sdkconfig   # ESP-IDF reads the defaults only into a new sdkconfig: a setting added there needs one
 [ -f sdkconfig ] || idf.py set-target esp32
 gen=; command -v ninja >/dev/null || gen="Unix Makefiles"   # ESP-IDF's tools carry no ninja on every machine
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
@@ -30,6 +31,7 @@ mkdir -p prebuilt
 echo "image: $(wc -c < "prebuilt/$image") bytes, sha256 $(shasum -a 256 "prebuilt/$image" | cut -d' ' -f1)"
 if [ "$1" = mquickjs ]; then
   # the network image, for a program that imports zinc:wifi, zinc:espnow or zinc:ble (its own sdkconfig: Bluetooth changes the memory map)
+  { [ build-net/sdkconfig -nt sdkconfig.defaults ] && [ build-net/sdkconfig -nt sdkconfig.net ]; } || rm -f build-net/sdkconfig
   idf -B build-net -DZN_NET=1 -DSDKCONFIG=build-net/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.net" build
   (cd build-net && esptool.py --chip esp32 merge_bin -o ../prebuilt/zinc-mquickjs-net-flash.bin @flash_args)
   echo "network image: $(wc -c < prebuilt/zinc-mquickjs-net-flash.bin) bytes"
