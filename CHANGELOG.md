@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Fixed
+- `zinc:icons` draws its icons on an installed Zinc: the packages lacked the Lucide icon data, so every `icon()` was `null` and every `<Icon>` empty. When that data is missing, the compiler now says so.
+
 ## [0.6.1] - 2026-10-22
 
 ### Added

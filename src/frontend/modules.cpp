@@ -1062,6 +1062,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
   std::ifstream in(nodesFile);
   std::stringstream ss; ss << in.rdbuf();
   const std::string data = ss.str();
+  if (data.empty() && (all || !names.empty())) std::fprintf(stderr, "zinc: warning: no Lucide icons: %s is missing (reinstall zinc)\n", nodesFile.c_str());
   std::string body, list;
   int count = 0;
   if (yyjson_doc* d = yyjson_read(data.c_str(), data.size(), 0)) {

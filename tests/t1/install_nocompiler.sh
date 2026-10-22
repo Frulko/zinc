@@ -56,6 +56,10 @@ mkdir -p "$tmp/elsewhere/x" "$tmp/elsewhere/links" "$tmp/elsewhere/home" && tar 
 printf 'console.log("hello", 6 * 7);\n' > "$tmp/elsewhere/hello.ts"
 out=$(env -i HOME="$tmp/elsewhere/home" PATH=/usr/bin:/bin ZINC_STEPS=0 "$tmp/elsewhere/links/zinc" run "$tmp/elsewhere/hello.ts" 2>&1)
 [ "$out" = "hello 42" ] || { echo "the CLI archive unpacked elsewhere does not run from a symlink: $(printf '%s' "$out" | head -c 300)"; fail=1; }
+# zinc:icons: the Lucide data travels with the archive (0.6.1 lacked it: every icon was null)
+mkdir "$tmp/elsewhere/icons" && printf 'import { icon, iconNames } from "zinc:icons";\nconsole.log(iconNames().join(","), icon("heart") !== null);\n' > "$tmp/elsewhere/icons/main.ts"
+out=$(env -i HOME="$tmp/elsewhere/home" PATH=/usr/bin:/bin ZINC_STEPS=0 ZINC_HEADLESS=1 "$tmp/elsewhere/links/zinc" run "$tmp/elsewhere/icons/main.ts" 2>&1)
+[ "$out" = "heart true" ] || { echo "zinc:icons has no icons from the archive: $(printf '%s' "$out" | head -c 300)"; fail=1; }
 
 run() { clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 "$@"; }
 cd "$tmp/work" || exit 2

@@ -52,6 +52,7 @@ def payload(share):
     copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
     mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
+    copy_tree(os.path.join(NEXT, "third_party", "lucide"), os.path.join(nx, "third_party", "lucide"), lambda r: r in ("icon-nodes.json", "LICENSE"))   # zinc:icons reads it (src/frontend/modules.cpp)
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
     for part in ("prebuilt", "js"):   # --engine mquickjs: the firmware image and the files zinc prepares a program with (src/cli_mqjs.cpp)
