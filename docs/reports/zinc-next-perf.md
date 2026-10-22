@@ -1139,3 +1139,7 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | esp32sim, Bench page (16 rounded squares, 76,800 px a frame): fps, LVGL a frame | 42 to 44.5 fps, 17.7 ms |
 | the computer's LVGL pool (96 KB, standing for the board's 138 KB), in use on Home / Music / Input / Bench / Lottie | 32.4 / 28.5 / 44 / 68 / 71.1 KB (most 71.9) |
 | the widgets tour's bytecode with the six pages and Lottie's JSON | 85,920 B |
+| esp32-widgets Bench in esp32sim, 24 objects, "Run" (Rects / Alpha / Text / Mix): before / no stepping of what is not shown (the spectrum off the Music page, hidden objects) / + 128 changed areas (LV_INV_BUF_SIZE, 32 by default) | 41/36/37/37 → 47/41/43/43 → 60/58/58/58 fps; 76,800 → 15,000 to 17,000 px a frame, LVGL 18 to 20 → 11 to 14 ms |
+| the same, + near areas joined (JOIN_SLACK 4,096 px) and integer positions: 24 objects / 64 objects | 60/60/60/60 fps, LVGL 8.7 ms, 22,000 to 25,000 px / 33/27/29/29 fps (25/22/22/23 without the join), LVGL 23.5 ms (33.7 without) |
+| the Bench's program outside LVGL's render, 64 objects (its loop and `pos`) | about 10 ms a frame |
+| Home / Music with the join | 60 fps, LVGL 1.8 to 2.8 ms (5,300 to 6,100 px) / 60 fps, 2.1 ms (9,000 px) |
