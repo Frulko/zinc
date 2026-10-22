@@ -31,36 +31,6 @@
 namespace zn::frontend {
 namespace {
 
-std::string dirOf(const std::string& p) {
-  std::size_t s = p.find_last_of("/\\");
-  return s == std::string::npos ? "" : p.substr(0, s);
-}
-
-// "a/b/../c/./d" -> "a/c/d"; backslashes become forward slashes first, a Windows drive ("C:") counts as a root
-std::string normalize(const std::string& p) {
-  std::string plain;
-  plain.reserve(p.size());
-  for (char c : p) plain += c == '\\' ? '/' : c;
-  const bool winDrive = plain.size() > 1 && (plain[0] >= 'a' && plain[0] <= 'z' || plain[0] >= 'A' && plain[0] <= 'Z') && plain[1] == ':';
-  std::vector<std::string> parts;
-  std::size_t i = winDrive ? 2 : 0;
-  bool abs = !plain.empty() && plain[0] == '/';
-  while (i <= plain.size()) {
-    std::size_t j = plain.find('/', i);
-    if (j == std::string::npos) j = plain.size();
-    std::string seg = plain.substr(i, j - i);
-    if (!seg.empty() && seg != "/") {
-      if (seg == "..") { if (!parts.empty() && parts.back() != "..") parts.pop_back(); else if (!abs && !winDrive) parts.push_back(seg); }
-      else if (seg != ".") parts.push_back(seg);
-    }
-    i = j + 1;
-  }
-  // the drive stays in place and takes a forward slash like every join after it (Windows accepts '/')
-  std::string r = winDrive ? plain.substr(0, 2) : abs ? "/" : "";
-  for (std::size_t k = 0; k < parts.size(); ++k) r += (r.empty() || r.back() == '/' ? "" : "/") + parts[k];
-  return r;
-}
-
 // The host's modules ('zinc:gfx'), written in Zinc over the __host_* functions of the runtime table (zn/runtime.h, owner "host").
 // A first subset of lib/gfx.d.ts: frames, clear, rect, rrect, fonts and text. `onFrame` hands the callback to the frame loop,
 // which runs in place of the timer loop once the program's own statements are done (see kAsyncPrelude).
@@ -1144,7 +1114,6 @@ std::vector<std::string> suffixesOfPlatform() {
   out.push_back("");
   return out;
 }
-bool gFollowSuffixes = false;   // zinc lsp: followModuleSuffixes
 std::string platformModuleSource(const std::string& capsFile) {
   std::string target = platformName(), text;
   // `--profile esp32` on the host: the profile's name, heap, numbers and capability row, as the prototype's platformModule gives them (budgets
@@ -1494,6 +1463,22 @@ std::uint32_t hotMeta(Ast& A, std::uint32_t from, std::uint32_t file, const std:
   return used;
 }
 
+// The standard modules written in Zinc: their files under lib/std, and the web target's own versions (docs/targets/web.md: the page has these APIs).
+struct StdModule { std::string_view spec, file, browser; };
+constexpr StdModule kStdModules[] = {
+    {"zinc:ui", "ui.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
+    {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
+    {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
+    {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
+    {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}},
+    {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
+    {"zinc:path", "path.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:system", "system/index.ts", {}},
+    {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
+    {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
+    {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},
+    {"zinc:system/dock", "system/dock.ts", {}}, {"zinc:system/power", "system/power.ts", {}}, {"zinc:system/clipboard", "system/clipboard.ts", {}},
+    {"zinc:system/opener", "system/opener.ts", {}}, {"zinc:system/share", "system/share.ts", {}}, {"zinc:system/update", "system/update.ts", {}}};
+
 struct Loader {
   Program& prog;
   const ReadFile& read;
@@ -1504,138 +1489,34 @@ struct Loader {
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
   bool hot = false;                            // hot mode (zinc dev's Fast Refresh, ZN-742)
   std::uint32_t hotModule = kNone;             // then zinc:hot, loaded before every other module
-  std::map<std::string, std::string> plugins;  // 'zinc:lottie' -> plugins/lottie/index.ts (read from plugin.json files)
-  std::set<std::string> pluginDirsRead;
-  std::map<std::string, std::pair<std::string, std::vector<std::string>>> pluginNeeds;   // entry path -> (plugin name, plugin.json "requires")
+  ModuleResolver res;                          // the files of imports, as every engine finds them (frontend/resolve.h)
+  std::string pending;                         // the text of the last file res.exists read: the file it resolved, loaded with no second read
   // Z5005: a plugin whose `requires` the profile in force does not meet is refused (a warning under --force).
   bool pluginUsable(const std::string& entry, std::uint32_t fromFile, std::uint32_t node) {
-    auto it = pluginNeeds.find(entry);
+    const auto* need = res.needs(entry);
     const Profile* pr = currentProfile();
-    if (it == pluginNeeds.end() || it->second.second.empty() || !pr || stdRoot.empty()) return true;
+    if (!need || need->second.empty() || !pr || stdRoot.empty()) return true;
     Caps caps = capsFromFile(*pr, (std::filesystem::path(stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string());
-    std::string why = explain(it->second.second, caps, pr->name);
+    std::string why = explain(need->second, caps, pr->name);
     if (why.empty()) return true;
-    std::string msg = "plugin " + it->second.first + " requires " + why;
+    std::string msg = "plugin " + need->first + " requires " + why;
     if (force()) { std::fprintf(stderr, "zinc: warning: %s; building anyway (--force)\n", msg.c_str()); return true; }
     diag(kZPluginRequires, fromFile, node, msg + " (plugin.json \"requires\"; --force builds anyway)");
     return false;
   }
-  // Reads the plugin.json files of `<root>/*/`: the engine's plugins/ next to lib/, and the plugins/ directory of the project that imports
-  // (every directory above the importing file may hold one, like the old compiler's project plugins).
-  void readPluginsIn(const std::string& dirIn) {
-    namespace fs = std::filesystem;
-    const std::string dir = fs::path(dirIn).lexically_normal().string();   // "next/plugins" and "plugins" are one directory, so one module identity
-    if (!pluginDirsRead.insert(dir).second) return;
-    std::error_code ec;
-    for (const auto& e : fs::directory_iterator(dir, ec)) {
-      std::string text;
-      std::string manifest = (e.path() / "plugin.json").string();
-      if (!read(manifest, text)) continue;
-      PluginManifest pm;
-      std::string err;
-      std::vector<std::string> warnings;
-      if (!parsePluginManifest(text, pm, err, warnings)) { std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), err.c_str()); continue; }
-      for (const std::string& w : warnings) std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), w.c_str());
-      std::string mod = pm.module, entry = pm.entry;
-      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) { plugins[mod] = (e.path() / entry).lexically_normal().string(); pluginNeeds[plugins[mod]] = {pm.name, pm.requires_}; }
-      if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).lexically_normal().string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
-    }
+  Loader(Program& p, const ReadFile& r, const std::string& sr) : prog(p), read(r), stdRoot(sr) {
+    res.read = r;
+    res.stdRoot = sr;
+    res.exists = [this](const std::string& c) { return done.count(c) || visiting.count(c) || read(c, pending); };
+    // a platform file being loaded is passed over, not only the importer: Screen.native.tsx may import './Screen' and wrap it, with no cycle
+    res.passOver = [this](const std::string& c, const std::string&) { return visiting.count(c) > 0; };
   }
-  // The "pluginDirs" of a zinc.json on the way up, read before that project's plugins/ so they shadow it, as in the prototype's discover (ZN-354).
-  void readPluginDirsOf(const std::filesystem::path& dir) {
-    const std::string file = (dir / "zinc.json").string();
-    std::string text;
-    if (!pluginDirsRead.insert(file).second || !read(file, text)) return;
-    yyjson_doc* d = yyjson_read(text.c_str(), text.size(), 0);
-    yyjson_val* dirs = d ? yyjson_obj_get(yyjson_doc_get_root(d), "pluginDirs") : nullptr;
-    size_t i, n;
-    yyjson_val* v;
-    if (yyjson_is_arr(dirs)) yyjson_arr_foreach(dirs, i, n, v) if (yyjson_is_str(v)) readPluginsIn((dir / yyjson_get_str(v)).string());
-    yyjson_doc_free(d);
-  }
-  void readPlugins(const std::string& fromFile) {
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    for (fs::path d = fs::absolute(fromFile, ec).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) { readPluginDirsOf(d); readPluginsIn((d / "plugins").string()); }   // absolute: `zinc run main.ts` has no parent to walk
-    if (!stdRoot.empty()) readPluginsIn((fs::path(stdRoot).parent_path().parent_path() / "plugins").string());
-  }
-
-  Loader(Program& p, const ReadFile& r) : prog(p), read(r) {}
-
-  // ---- tsconfig.json paths: `inferno`, `@pocketjs/framework/solid`, `three` and the like
-  struct TsEntry { bool found = false; std::string dir; TsConfig cfg; };
-  std::map<std::string, TsEntry> tsconfigs;  // by directory searched from
-  const TsEntry& tsconfigFor(const std::string& dir) {
-    auto it = tsconfigs.find(dir);
-    if (it != tsconfigs.end()) return it->second;
-    TsEntry e;
-    for (std::string d = dir;;) {
-      std::string text;
-      if (read(d.empty() ? "tsconfig.json" : d + "/tsconfig.json", text)) {
-        std::string err;
-        if (parseTsConfig(text, e.cfg, err)) { e.found = true; e.dir = d; }
-        else std::fprintf(stderr, "zinc: %s/tsconfig.json: %s\n", d.c_str(), err.c_str());
-        break;
-      }
-      std::size_t slash = d.find_last_of('/');
-      if (d.empty() || slash == std::string::npos) { if (!d.empty()) { d.clear(); continue; } break; }
-      d = d.substr(0, slash);
-    }
-    return tsconfigs[dir] = std::move(e);
-  }
-  // The platform's suffixes for the files of `dir`: platformSuffixes(), or under zinc lsp the moduleSuffixes of its tsconfig.json
-  std::vector<std::string> suffixesFor(const std::string& dir) {
-    if (gFollowSuffixes) { const TsEntry& ts = tsconfigFor(dir); if (!ts.cfg.moduleSuffixes.empty()) return ts.cfg.moduleSuffixes; }
-    return suffixesOfPlatform();
-  }
-  // Loads the file a path candidate names: as written, else <stem><suffix>.ts, .tsx, /index.ts, /index.tsx for each of the platform's suffixes
-  // (Screen.android.tsx, Screen.native.tsx, Screen.tsx: Metro's order and TypeScript's moduleSuffixes, the extension outside the suffix), else
-  // .js, .mjs, or the .ts/.tsx of an import written x.js. kNone with `found` false when no such file, with `cycle` when the file is being
-  // loaded; a platform file being loaded is passed over, so Screen.native.tsx may import './Screen' and wrap it.
-  std::uint32_t loadCandidate(const std::string& base, bool& found, bool& cycle) {
-    found = true;
+  // The module of a file the resolver found: loaded once; kNone with `cycle` while it is being loaded.
+  std::uint32_t loadFound(const std::string& f, bool& cycle) {
     cycle = false;
-    std::string text;
-    auto exact = [&](const std::string& cand, std::uint32_t& m) {
-      if (done.count(cand)) { m = done[cand]; return true; }
-      if (visiting.count(cand)) { cycle = true; m = kNone; return true; }
-      if (read(cand, text)) { m = load(cand, std::move(text)); return true; }
-      return false;
-    };
-    const std::vector<std::string> sfx = suffixesFor(dirOf(base));
-    auto suffixed = [&](const std::string& stem, const char* ext, std::uint32_t& m) {
-      for (const std::string& s : sfx) if ((s.empty() || !visiting.count(stem + s + ext)) && exact(stem + s + ext, m)) return true;
-      return false;
-    };
-    std::string stem = base;
-    for (const char* js : {".js", ".mjs"}) if (stem.size() > std::strlen(js) && stem.compare(stem.size() - std::strlen(js), std::strlen(js), js) == 0) { stem.resize(stem.size() - std::strlen(js)); break; }
-    std::uint32_t m = kNone;
-    if (exact(base, m) || suffixed(base, ".ts", m) || suffixed(base, ".tsx", m) || suffixed(base + "/index", ".ts", m) || suffixed(base + "/index", ".tsx", m) ||
-        exact(base + ".js", m) || exact(base + ".mjs", m) || suffixed(stem, ".ts", m) || suffixed(stem, ".tsx", m)) return m;
-    found = false;
-    return kNone;
-  }
-  // True when a `paths` entry matches `spec` (the module, or kNone after a diagnostic, goes to `result`).
-  bool resolveByPaths(std::uint32_t fromFile, std::uint32_t node, const std::string& spec, std::uint32_t& result) {
-    std::string fromDir = dirOf(prog.files[fromFile].path);
-    const TsEntry& ts = tsconfigFor(fromDir);
-    if (!ts.found) return false;
-    std::string matched;
-    std::vector<std::string> targets = mapSpecifier(ts.cfg, spec, matched);
-    if (targets.empty()) return false;
-    std::string root = ts.dir;
-    if (!ts.cfg.baseUrl.empty()) root = normalize(root + (root.empty() ? "" : "/") + ts.cfg.baseUrl);
-    std::string tried;
-    for (const std::string& t : targets) {
-      std::string path = normalize(root + (root.empty() ? "" : "/") + t);
-      bool found, cycle;
-      std::uint32_t m = loadCandidate(path, found, cycle);
-      if (found) { result = m; return true; }
-      tried += (tried.empty() ? "" : ", ") + path;
-    }
-    diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (tsconfig.json paths '" + matched + "' -> " + tried + ": no such file)");
-    result = kNone;
-    return true;
+    if (done.count(f)) return done[f];
+    if (visiting.count(f)) { cycle = true; return kNone; }
+    return load(f, std::move(pending));
   }
 
   void diag(const char* code, std::uint32_t file, std::uint32_t node, std::string detail) {
@@ -1654,25 +1535,20 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, generatedModuleSource(spec));
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/dom", "ui-dom.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:ui/dnd", "dnd.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
-                                                              {"zinc:signals", "signals.ts"}, {"zinc:haptics", "haptics.ts"}, {"zinc:device-info", "device-info.ts"}, {"zinc:hardware", "hardware.ts"}, {"zinc:ui/navigation", "navigation.tsx"}, {"zinc:ui/platform", "platform/index.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
-                                                              {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
-                                                              {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
-                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/share", "system/share.ts"}, {"zinc:system/update", "system/update.ts"}};
       if (spec == "zinc:system/permissions" || spec == "zinc:system/app") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
         if (done.count(path)) return done[path];
         return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../third_party/lucide/icon-nodes.json"));
       }
-      auto hit = kStd.find(spec);
-      if (std::string feature = systemFeatureOf(spec); !feature.empty() && hit != kStd.end()) {   // a system module needs its permission in zinc.json (deny by default)
+      const std::string_view stdFile = stdModuleFile(spec);
+      if (std::string feature = systemFeatureOf(spec); !feature.empty() && !stdFile.empty()) {   // a system module needs its permission in zinc.json (deny by default)
         const std::vector<std::string>* granted = systemPermissions();
         bool ok = false;
         if (granted) for (const std::string& g : *granted) ok = ok || g == feature || g.rfind(feature + ":", 0) == 0;
         if (!ok) { diag(kZSystemPermission, fromFile, node, "'" + spec + "' needs the permission \"" + feature + "\": add it to \"permissions\" in zinc.json"); return kNone; }
       }
-      readPlugins(prog.files[fromFile].path);
+      const std::map<std::string, std::string>& plugins = res.plugins(prog.files[fromFile].path);
       auto pl = plugins.find(spec);
       if (pl != plugins.end()) {  // a plugin: its module source is Zinc, its native part comes from the sim file of its spec (see below)
         if (done.count(pl->second)) return done[pl->second];
@@ -1680,15 +1556,17 @@ struct Loader {
         std::string text;
         if (read(pl->second, text)) return load(pl->second, std::move(text));
       }
-      if (hit != kStd.end() && !stdRoot.empty()) {
-        std::string path = stdRoot + "/" + hit->second, text;
+      if (!stdFile.empty() && !stdRoot.empty()) {
+        std::string path = stdRoot + "/" + std::string(stdFile), text;
         if (done.count(path)) return done[path];
         if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
         if (read(path, text)) return load(path, std::move(text));
       }
       {   // what to do next (ZN-711): the closest module, or how to look for a plugin and install it
         std::vector<std::string> names = {"events", "gpio", "osc", "mqtt", "gfx", "sys", "fs", "storage", "assets", "os", "net", "native", "telemetry", "platform"};   // hostModuleSource and the two above
-        for (const auto& kv : kStd) if (kv.first.rfind("zinc:", 0) == 0) names.push_back(kv.first.substr(5));
+        std::set<std::string> stdNames;
+        for (const StdModule& m : kStdModules) stdNames.insert(std::string(m.spec.substr(5)));
+        names.insert(names.end(), stdNames.begin(), stdNames.end());
         for (const auto& kv : plugins) if (kv.first.rfind("zinc:", 0) == 0) names.push_back(kv.first.substr(5));
         std::string near = nearest(spec.substr(5), names);
         diag(kZModuleNotFound, fromFile, node, "'" + spec + "' " + (!near.empty() ? "(did you mean 'zinc:" + near + "'?)"
@@ -1697,24 +1575,11 @@ struct Loader {
       }
       return kNone;
     }
-    if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {  // a bare specifier: the `paths` of the nearest tsconfig.json
-      std::uint32_t viaPaths = kNone;
-      if (resolveByPaths(fromFile, node, spec, viaPaths)) return viaPaths;
-      readPlugins(prog.files[fromFile].path);
-      auto pl = plugins.find(spec);   // a plugin that provides a bare specifier (`three`, `three/addons/loaders/GLTFLoader.js`)
-      if (pl != plugins.end()) {
-        if (done.count(pl->second)) return done[pl->second];
-        std::string ptext;
-        if (read(pl->second, ptext)) return load(pl->second, std::move(ptext));
-      }
-      // the compat packages the prototype maps on its own, for a project without a tsconfig.json paths entry (react and solid-js stay errors without one, tests/t0/modules.sh)
-      if (std::string_view cm = compatModuleFile(spec); !cm.empty() && !stdRoot.empty()) {
-        std::string path = normalize(stdRoot + "/" + std::string(cm)), ctext;
-        if (done.count(path)) return done[path];
-        if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
-        if (read(path, ctext)) return load(path, std::move(ctext));
-      }
-      diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no tsconfig.json paths entry maps it)");
+    if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {  // a bare specifier: tsconfig.json paths, a plugin, a compat package (frontend/resolve.h)
+      const ModuleResolver::Bare b = res.bare(spec, prog.files[fromFile].path, false);
+      bool cycle;
+      if (!b.file.empty()) { const std::uint32_t m = loadFound(b.file, cycle); if (!cycle) return m; diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
+      diag(kZModuleNotFound, fromFile, node, "'" + spec + "' " + (!b.tried.empty() ? "(tsconfig.json paths '" + b.paths + "' -> " + b.tried + ": no such file)" : "(no tsconfig.json paths entry maps it)"));
       return kNone;
     }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
@@ -1756,10 +1621,12 @@ struct Loader {
       }
     }
     // platform-specific files (docs/react-native.md): './Screen' is Screen.android.tsx, else Screen.native.tsx, else Screen.tsx for an Android build
-    bool found, cycle;
-    const std::uint32_t m = loadCandidate(base, found, cycle);
-    if (cycle) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
-    if (found) return m;
+    if (const std::string f = res.file(base, prog.files[fromFile].path); !f.empty()) {
+      bool cycle;
+      const std::uint32_t m = loadFound(f, cycle);
+      if (cycle) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
+      return m;
+    }
     std::string near = nearestFile(base, false);
     diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no file " + base + ".ts or .tsx" + (near.empty() ? "" : "; did you mean '" + spec.substr(0, spec.rfind('/') + 1) + near + "'?") + ")");
     return kNone;
@@ -3292,7 +3159,6 @@ bool needsTdz(const Ast& A) {
 }  // namespace
 
 std::vector<std::string> platformSuffixes() { return suffixesOfPlatform(); }
-void followModuleSuffixes(bool on) { gFollowSuffixes = on; }
 
 bool libraryModule(const std::string& p) {
   return p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos ||
@@ -3318,8 +3184,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
       if (const Profile* pr = findProfile(text.substr(b, e - b))) { applyProfile(*pr); if (pr->strict) p.ast.strict = true; }
     }
   }
-  Loader L(p, read);
-  L.stdRoot = stdRoot;
+  Loader L(p, read, stdRoot);
   L.hot = hot;
   L.load(entry, std::move(text));
   p.ast.hotModule = L.hotModule;
@@ -3440,12 +3305,14 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
   };
   for (const std::string& c : classes(text)) tags.insert(c);
   static const std::regex imp("import\\s+([^;'\"]*?)\\s+from\\s+['\"](\\.[^'\"]*)['\"]");
+  std::string other;
+  ModuleResolver res;   // the file the import loads, as the engines find it
+  res.read = read;
+  res.exists = [&](const std::string& c) { return read(c, other); };
   for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
-    std::string names = (*it)[1], spec = (*it)[2], other;
+    std::string names = (*it)[1], spec = (*it)[2];
     const std::string dir = dirOf(path);
-    const std::string base = normalize(dir + (dir.empty() ? "" : "/") + spec);
-    for (const char* ext : {".tsx", ".ts", "/index.tsx", "/index.ts"}) if (read(base + ext, other)) break; else other.clear();
-    if (other.empty()) continue;
+    if (res.file(normalize(dir + (dir.empty() ? "" : "/") + spec), path).empty()) continue;
     const std::set<std::string> declared = classes(other);
     // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
     std::string cleaned;
@@ -3488,35 +3355,9 @@ std::string_view compatModuleFile(std::string_view spec) {
 }
 
 std::string_view stdModuleFile(std::string_view spec) {
-  if (spec == "zinc:ui") return "ui.ts";
-  if (spec == "zinc:gl") return "gl.ts";
-  const Profile* browser = currentProfile();   // the web target (docs/targets/web.md): the page has these APIs, so zinc:web re-exports its own
+  const Profile* browser = currentProfile();   // the web target: the page has these APIs, so zinc:web re-exports its own
   const bool onWeb = browser && std::string_view(browser->name) == "web";
-  if (spec == "zinc:web") return onWeb ? "web.browser.ts" : "web.ts";
-  if (spec == "zinc:web/fetch") return onWeb ? "fetch.browser.ts" : "fetch.ts";
-  if (spec == "zinc:subtle") return onWeb ? "subtle.browser.ts" : "subtle.ts";
-  if (spec == "zinc:ui/dom") return onWeb ? "ui-dom.browser.ts" : "ui-dom.ts";   // the semantic DOM host of the web target (--render dom)
-  if (spec == "zinc:ui/solid") return "solid.ts";
-  if (spec == "zinc:ui/react") return "react.ts";
-  if (spec == "zinc:ui/kit") return "kit/index.ts";
-  if (spec == "zinc:icons") return "icons.tsx";
-  if (spec == "zinc:ui/animated") return "animated.ts";
-  if (spec == "zinc:ui/dnd") return "dnd.ts";
-  if (spec == "zinc:react-native") return "react-native.tsx";
-  if (spec == "zinc:react-native/linking") return "react-native-linking.ts";
-  if (spec == "zinc:ui/nuxt") return "nuxt/index.ts";
-  if (spec == "zinc:ui/platform") return "platform/index.ts";
-  if (spec == "zinc:ui/navigation") return "navigation.tsx";
-  if (spec == "zinc:haptics") return "haptics.ts";
-  if (spec == "zinc:device-info") return "device-info.ts";
-  if (spec == "zinc:signals") return "signals.ts";
-  if (spec == "zinc:path") return "path.ts";
-  if (spec == "zinc:assert") return "assert.ts";
-  if (spec == "zinc:hot") return "hot.ts";
-  if (spec == "zinc:system") return "system/index.ts";
-  static const char* const kSystem[] = {"system/notification.ts", "system/menu.ts", "system/tray.ts", "system/dialog.ts", "system/window.ts", "system/shortcut.ts", "system/instance.ts",
-                                        "system/deeplink.ts", "system/autostart.ts", "system/dock.ts", "system/power.ts", "system/clipboard.ts", "system/opener.ts", "system/share.ts", "system/update.ts"};
-  for (const char* f : kSystem) { const std::string_view v(f); if (spec.size() == 5 + v.size() - 3 && spec.substr(5) == v.substr(0, v.size() - 3)) return v; }   // zinc:system/menu -> system/menu.ts
+  for (const StdModule& m : kStdModules) if (m.spec == spec) return onWeb && !m.browser.empty() ? m.browser : m.file;
   return "";
 }
 

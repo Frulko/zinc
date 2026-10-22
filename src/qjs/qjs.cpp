@@ -49,9 +49,8 @@ struct Engine {
   std::string cacheDir;   // the transformed modules by content hash ("" : none)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
   std::set<std::string> packageFiles;   // the files node_modules resolved, by their real path: a package even when its link points outside node_modules (pnpm's store, a workspace)
-  std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
+  zn::frontend::ModuleResolver res;   // how a specifier becomes a file, as for every engine (frontend/resolve.h)
   std::string modules;   // a directory whose <name>.js stands for zinc:<name> (the ESP32's modules under --engine mquickjs, src/cli_mqjs.cpp)
-  bool pluginsFound = false;
   struct Rejection { JSValue promise, reason; };
   std::vector<Rejection> rejected;   // promises rejected with no handler yet: reported once the jobs have drained, when nobody caught them (ZN-566)
   void* entryPromise = nullptr;      // the entry module's own promise: its rejection is the program's uncaught exception
@@ -67,7 +66,8 @@ bool readFile(const std::string& path, std::string& out) {
 }
 bool endsWith(const std::string& s, const char* suffix) { std::size_t n = std::strlen(suffix); return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0; }
 
-std::string dirOf(const std::string& p) { auto k = p.find_last_of('/'); return k == std::string::npos ? "" : p.substr(0, k); }
+using zn::frontend::dirOf;
+using zn::frontend::normalize;
 // An absolute path for the resolver's tests: a POSIX '/accessories start' or a Windows drive letter ('C:' — the paths
 // arrive as they came: backslashes from std::filesystem, forward slashes from the usual joins)
 static bool pathAbs(const std::string& p) {
@@ -76,26 +76,6 @@ static bool pathAbs(const std::string& p) {
   if (p.size() > 1 && (p[0] >= 'a' && p[0] <= 'z' || p[0] >= 'A' && p[0] <= 'Z') && p[1] == ':') return true;
   return false;
 }
-std::string normalize(const std::string& p) {
-  // both separators split; backslashes become forward slashes (the output is a plain join, Windows accepts '/') and a
-  // Windows drive's "C:" survives as the root (".." cannot cross it)
-  std::string plain;
-  plain.reserve(p.size());
-  for (char c : p) plain += c == '\\' ? '/' : c;
-  const bool winDrive = plain.size() > 1 && (plain[0] >= 'a' && plain[0] <= 'z' || plain[0] >= 'A' && plain[0] <= 'Z') && plain[1] == ':';
-  bool abs = !plain.empty() && plain[0] == '/';
-  std::vector<std::string> parts;
-  std::stringstream ss(plain);
-  std::string seg;
-  while (std::getline(ss, seg, '/')) {
-    if (seg.empty() || seg == ".") continue;
-    if (seg == ".." && !parts.empty() && parts.back() != "..") parts.pop_back(); else parts.push_back(seg);
-  }
-  std::string r = winDrive ? plain.substr(0, 2) + "/" : abs ? "/" : "";
-  for (std::size_t i = winDrive ? 1 : 0; i < parts.size(); ++i) r += (i ? "/" : "") + parts[i];
-  return r;
-}
-
 // ---- the host calls, generated from the runtime table: one JS function per `host.*` row, its arguments decoded by the row's letters
 using zn::host::HostArg;
 
@@ -214,9 +194,6 @@ std::string gfxSource() {
          "export function windowOpen(id) { return __host_gfxWindowOpen(id) !== 0; }\n" + api;
 }
 
-std::string probe(const std::string& path);
-std::string byNodeModules(const std::string& dir, const std::string& spec);
-
 // A CommonJS file (`module.exports = ...`, `require('./x')`): a .cjs, or a .js with no line that starts with import or export
 bool isCommonJs(const std::string& path, const std::string& src) {
   if (endsWith(path, ".cjs")) return true;
@@ -244,7 +221,7 @@ bool isCommonJs(const std::string& path, const std::string& src) {
 // A CommonJS module run as an ES module whose default export is its module.exports, as Node imports one. The files it requires with a string
 // (`require('./distance.js')`, a CommonJS package) are found before it runs and wrapped beside it, as a bundler does; any other require throws.
 // ponytail: no named exports (Node finds some with cjs-module-lexer); `import { x } from 'cjs-package'` fails to link, `import p from` works
-void commonJsModule(const std::string& path, const std::string& src, std::string& js) {
+void commonJsModule(zn::frontend::ModuleResolver& res, const std::string& path, const std::string& src, std::string& js) {
   std::map<std::string, int> index;
   std::vector<std::string> parts;
   std::function<int(const std::string&, const std::string&)> add = [&](const std::string& file, const std::string& text) {
@@ -261,7 +238,7 @@ void commonJsModule(const std::string& path, const std::string& src, std::string
       const std::size_t close = text.find(text[q], q + 1);
       if (close == std::string::npos) break;
       const std::string spec = text.substr(q + 1, close - q - 1);
-      std::string found = spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0 ? probe(normalize(dirOf(file) + "/" + spec)) : byNodeModules(dirOf(file), spec);
+      std::string found = spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0 ? res.file(normalize(dirOf(file) + "/" + spec), file) : res.package(dirOf(file), spec);
       std::string dep;
       if (found.empty() || !readFile(found, dep)) continue;
       int d = -1;
@@ -309,7 +286,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (std::getenv("ZN_QJS_DEBUG")) std::fprintf(stderr, "qjs: module failli: name=<%s> path=<%s>\n", name.c_str(), path.c_str());
     err = "cannot load module " + name; return false;
   }
-  if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) { commonJsModule(path, src, js); return true; }
+  if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) { commonJsModule(e.res, path, src, js); return true; }
   const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
   // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
@@ -335,141 +312,33 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   return true;
 }
 
-// The entry file of the plugin that provides a module ('zinc:physics3d' -> plugins/physics3d/index.ts), "" when none does: the engine's plugins,
-// the project's, then its pluginDirs, as for the typed engines. A plugin's files are then ordinary modules; its native code comes through zinc:native.
-std::string pluginEntry(Engine& e, const std::string& name) {
-  if (e.stdRoot.empty() || name == "zinc:native" || zn::frontend::builtinModuleSource(name)) return "";   // a plugin wins over lib/std, as in the typed loader (zinc:system/*)
-  if (!e.pluginsFound) {
-    e.pluginsFound = true;
-    std::vector<std::string> problems;
-    const std::string pf = zn::frontend::findProjectFile(e.entry);
-    e.plugins = zn::frontend::discoverPlugins(e.stdRoot + "/../..", pf.empty() ? dirOf(e.entry) : dirOf(pf), problems);
-  }
-  for (const zn::frontend::FoundPlugin& p : e.plugins) if (p.manifest.kind == "module" && p.manifest.module == name) return normalize(p.dir + "/" + p.manifest.entry);
-  for (const zn::frontend::FoundPlugin& p : e.plugins)   // `modules` of plugin.json: the other specifiers it answers (three/addons/..., zinc:3d/gltf)
-    if (p.manifest.kind == "module") if (auto it = p.manifest.aliases.find(name); it != p.manifest.aliases.end()) return normalize(p.dir + "/" + it->second);
-  return "";
-}
-
-bool isFile(const std::string& p) { std::error_code ec; return std::filesystem::is_regular_file(p, ec); }
-
-// The file a path names, as written or with the extensions the typed loader tries; "" when none is there.
-std::string probe(const std::string& path) {
-  std::string stem = path;
-  for (const char* js : {".js", ".mjs"}) if (endsWith(stem, js)) { stem.resize(stem.size() - std::strlen(js)); break; }
-  for (const std::string& c : {path, path + ".ts", path + ".tsx", path + ".js", path + ".mjs", path + "/index.ts", path + "/index.tsx", path + "/index.js", stem + ".ts", stem + ".tsx"})
-    if (isFile(c)) return c;
-  return "";
-}
-
-// `paths` of the nearest tsconfig.json above `dir` (`three`, `inferno`, `@pocketjs/framework/solid`...), as the typed loader maps them
-std::string byTsconfig(const std::string& dir, const std::string& spec) {
-  for (std::string d = dir; !d.empty(); d = dirOf(d)) {
-    std::string text;
-    if (!readFile(d + "/tsconfig.json", text)) continue;
-    zn::frontend::TsConfig cfg;
-    std::string err, matched;
-    if (!zn::frontend::parseTsConfig(text, cfg, err)) return "";
-    const std::string root = cfg.baseUrl.empty() ? d : normalize(d + "/" + cfg.baseUrl);
-    for (const std::string& t : zn::frontend::mapSpecifier(cfg, spec, matched)) if (std::string f = probe(normalize(root + "/" + t)); !f.empty()) return f;
-    return "";
-  }
-  return "";
-}
-
-// A package of node_modules above `dir`, as Node and the bundlers find it: `pkg/sub/path` as a file, else package.json "exports" (".": a string or
-// the "import" / "module" / "default" condition), "module", "main", index.js. A CommonJS package is found but only the linker (zinc bundle) runs it.
-std::string byNodeModules(const std::string& dir, const std::string& spec) {
-  const std::size_t cut = spec[0] == '@' ? spec.find('/', spec.find('/') + 1) : spec.find('/');
-  const std::string pkg = spec.substr(0, cut), sub = cut == std::string::npos ? "" : spec.substr(cut + 1);
-  for (std::string d = dir; !d.empty(); d = dirOf(d)) {
-    const std::string root = d + "/node_modules/" + pkg;
-    std::error_code ec;
-    if (!std::filesystem::is_directory(root, ec)) continue;
-    if (!sub.empty()) {   // pkg/sub/path: package.json "exports" ("./sub/path", or a "./*" pattern) first, else the file
-      std::string text0;
-      if (readFile(root + "/package.json", text0)) {
-        yyjson_doc* doc = yyjson_read(text0.data(), text0.size(), 0);
-        yyjson_val* ex = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "exports") : nullptr;
-        yyjson_val* hit = yyjson_is_obj(ex) ? yyjson_obj_get(ex, ("./" + sub).c_str()) : nullptr;
-        std::string rep;
-        size_t i, n; yyjson_val *k, *v;
-        if (!hit && yyjson_is_obj(ex)) yyjson_obj_foreach(ex, i, n, k, v) {
-          const std::string key = yyjson_get_str(k);
-          const std::size_t star = key.find('*');
-          const std::string want = "./" + sub;
-          if (star == std::string::npos || want.size() < key.size() - 1 || want.compare(0, star, key, 0, star) != 0 || want.compare(want.size() - (key.size() - star - 1), std::string::npos, key, star + 1, std::string::npos) != 0) continue;
-          hit = v;
-          rep = want.substr(star, want.size() - (key.size() - 1));
-          break;
-        }
-        for (int depth = 0; depth < 4 && yyjson_is_obj(hit); ++depth) {
-          yyjson_val* c = nullptr;
-          for (const char* kk : {"import", "module", "default"}) if ((c = yyjson_obj_get(hit, kk))) break;
-          hit = c;
-        }
-        std::string target = yyjson_is_str(hit) ? yyjson_get_str(hit) : "";
-        yyjson_doc_free(doc);
-        for (std::size_t at; !rep.empty() && (at = target.find('*')) != std::string::npos;) target.replace(at, 1, rep);
-        if (!target.empty()) if (std::string f = probe(normalize(root + "/" + target)); !f.empty()) return f;
-      }
-      return probe(root + "/" + sub);
-    }
-    std::string text, main;
-    if (readFile(root + "/package.json", text)) {
-      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
-      yyjson_val* j = doc ? yyjson_doc_get_root(doc) : nullptr;
-      yyjson_val* ex = j ? yyjson_obj_get(j, "exports") : nullptr;
-      if (yyjson_is_obj(ex) && yyjson_obj_get(ex, ".")) ex = yyjson_obj_get(ex, ".");
-      for (int depth = 0; depth < 3 && yyjson_is_obj(ex); ++depth) {   // nested conditions: {"import": {"default": "./x.mjs"}}
-        yyjson_val* c = nullptr;
-        for (const char* k : {"import", "module", "default"}) if ((c = yyjson_obj_get(ex, k))) break;
-        ex = c;
-      }
-      if (yyjson_is_str(ex)) main = yyjson_get_str(ex);
-      for (const char* k : {"module", "main"}) if (main.empty() && j && yyjson_is_str(yyjson_obj_get(j, k))) main = yyjson_get_str(yyjson_obj_get(j, k));
-      yyjson_doc_free(doc);
-    }
-    return probe(normalize(root + "/" + (main.empty() ? "index.js" : main)));
-  }
-  return "";
-}
-
+// QuickJS's module-name normalizer: importmap.json beside the entry (as a browser's import map), the board's modules (zinc:<name> under
+// --engine mquickjs), then the resolver every engine shares (frontend/resolve.h). A zinc: name it leaves as it is is a host or standard module (moduleText).
 char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
-  std::string n = name;
-  std::string r = n;
-  auto* e = static_cast<Engine*>(opaque);
-  std::string dir = dirOf(base);
-  if (e && std::string_view(base).rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
+  Engine& e = *static_cast<Engine*>(opaque);
+  const std::string n = name;
+  std::string r = n, from = base;
+  if (from.rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
     std::string_view f = zn::frontend::stdModuleFile(base);
-    if (!f.empty() && !e->stdRoot.empty()) dir = dirOf(e->stdRoot + "/" + std::string(f));
+    if (!f.empty() && !e.stdRoot.empty()) from = e.stdRoot + "/" + std::string(f);
   }
-  if (e) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
-  if (r == n && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
-    r = normalize(dir + "/" + n);
-    std::string f;
-    // the platform's file first, in Metro's order as the frontend's loader (x.esp32.ts, x.native.ts, then x.ts); a platform file that
-    // imports its own stem gets the generic one
-    for (const std::string& sfx : zn::frontend::platformSuffixes()) {
-      for (const char* ext : {".ts", ".tsx"}) if (std::string c = r + sfx + ext; !sfx.empty() && c != base && isFile(c)) { f = c; break; }
-      if (!f.empty() || sfx.empty()) break;
+  if (auto it = e.imports.find(n); it != e.imports.end()) r = it->second;
+  else if (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0) {
+    r = normalize(dirOf(from) + "/" + n);
+    if (std::string f = e.res.file(r, from); !f.empty()) r = f;
+  } else if (n.rfind("zinc:", 0) == 0) {   // a plugin wins over lib/std, as in the typed loader (zinc:system/*); never over a host module
+    std::error_code ec;
+    if (!e.modules.empty() && std::filesystem::exists(e.modules + "/" + n.substr(5) + ".js", ec)) r = e.modules + "/" + n.substr(5) + ".js";
+    else if (n != "zinc:native" && !zn::frontend::builtinModuleSource(n) && !e.stdRoot.empty()) {
+      e.res.plugins(e.entry);   // the program's project first: a script bundle's registry is not in it
+      const std::map<std::string, std::string>& pl = e.res.plugins(from);
+      if (auto it = pl.find(n); it != pl.end()) r = it->second;
     }
-    if (f.empty()) f = probe(r);
-    if (!f.empty()) r = f;
-  } else if (e && r == n && !pathAbs(n)) {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
-    std::string f = e->modules.empty() || n.rfind("zinc:", 0) != 0 ? "" : e->modules + "/" + n.substr(5) + ".js";
-    if (!f.empty() && !std::filesystem::exists(f)) f.clear();
-    if (f.empty()) f = pluginEntry(*e, n);
-    if (f.empty() && n.rfind("zinc:", 0) != 0) {
-      f = byTsconfig(dir, n);
-      if (std::string_view cm = zn::frontend::compatModuleFile(n); f.empty() && !cm.empty() && !e->stdRoot.empty()) f = normalize(e->stdRoot + "/" + std::string(cm));
-      if (f.empty() && !(f = byNodeModules(dir, n)).empty()) {   // its real path: a package a pnpm workspace links in two places is one module, as in Node
-        std::error_code ec;
-        if (std::filesystem::path real = std::filesystem::canonical(f, ec); !ec) f = real.string();
-        e->packageFiles.insert(f);
-      }
-    }
-    if (!f.empty()) r = f;
+  } else if (!pathAbs(n)) {   // a bare specifier: tsconfig.json paths, a plugin, a compat package, node_modules
+    e.res.plugins(e.entry);
+    const zn::frontend::ModuleResolver::Bare b = e.res.bare(n, from, true);
+    if (!b.file.empty()) r = b.file;
+    if (b.package) e.packageFiles.insert(b.file);
   }
   char* out = static_cast<char*>(js_malloc(ctx, r.size() + 1));
   std::memcpy(out, r.c_str(), r.size() + 1);
@@ -725,7 +594,7 @@ std::string exceptionText(JSContext* ctx) {
 bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err, const std::string& program, const std::string& modules) {
   Walk w;
   w.e.modules = modules;
-  w.e.stdRoot = stdRoot;
+  w.e.stdRoot = w.e.res.stdRoot = stdRoot;
   w.e.cacheDir = cacheDir;
   w.e.entry = program.empty() ? entry : program;
   {   // importmap.json next to the entry, as run reads it
@@ -787,7 +656,7 @@ int run(const Options& o) {
   const auto startedAt = std::chrono::steady_clock::now();
   zn::log::step("context", "initialise QuickJS and host services...");
   Engine e;
-  e.stdRoot = o.stdRoot;
+  e.stdRoot = e.res.stdRoot = o.stdRoot;
   e.cacheDir = o.cacheDir;
   zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
   e.rt = JS_NewRuntime();

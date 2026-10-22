@@ -281,12 +281,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;
-    const std::set<std::string> classTags = jsxClassTags(file, text, [](const std::string& p, std::string& out) {   // components written as classes (Inferno, React)
-      std::ifstream in(p, std::ios::binary);
-      if (!in) return false;
-      std::stringstream ss; ss << in.rdbuf(); out = ss.str();
-      return true;
-    });
+    const std::set<std::string> classTags = jsxClassTags(file, text, ModuleResolver().read);   // components written as classes (Inferno, React), read from the files
     // zinc dev --target web (ZINC_WEB_HOT=1): a project component gets its Fast Refresh proxy, as in the typed engine's hot mode
     const char* hotWeb = std::getenv("ZINC_WEB_HOT");
     const bool hot = hotWeb && hotWeb[0] == '1' && file.rfind("zinc:", 0) != 0 && file.find("/lib/std/") == std::string::npos;

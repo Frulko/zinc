@@ -86,6 +86,8 @@ the other platforms' files are not compiled in.
 The suffix sits before the extension and each extension is tried in turn (`.ts` before `.tsx`), the rule of Metro and of TypeScript's
 `moduleSuffixes`; index files (`./screens` is `screens/index.android.tsx`) and `tsconfig.json` `paths` follow it too. `ZINC_PLATFORM=android|ios|webos|...`
 picks a platform's files on the desktop. A platform file can wrap the plain one: `Screen.native.tsx` may import `./Screen`, which then is `Screen.tsx`.
+Every engine resolves imports the same way (one resolver, `src/frontend/resolve.h`): the interpreter and AOT, `--engine quickjs`, jsc, v8,
+hermes, `zinc bundle`, the web target and mquickjs on the ESP32 take the same files, `./util.js` naming `util.ts` included.
 
 ```text
 src/Screen.tsx          export const Screen = () => <Text>web</Text>;
