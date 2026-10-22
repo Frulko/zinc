@@ -506,6 +506,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   h.add(keyFlags); vh.add(keyFlags);
   if (pluginTarget() == "macos") h.add("-Wl,-headerpad_max_install_names");   // a link flag: the libraries linked before it was added are not reused
   for (const std::string& f : ts.vendorFlags) vh.add(f);
+  vh.add("-g0");   // the vendored libraries carry no debug information: zig's clang writes it by default, and it was 70 to 85% of their archives
   h.add(ccId); vh.add(ccId);
   h.add(gen.cppHeader); h.add(abi ? gen.cHeader : gen.thunk);
   h.add(display ? "display" : "module");
@@ -563,7 +564,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     for (const std::string& s : vendored) {
       std::string o = vdir + "/v" + std::to_string(k++) + ".o";
       const bool isC = endsWith(s, ".c");   // a vendored C++ library takes the plugin's C++ flags (its -I among them), not the engine's include paths
-      std::string cflagsC = isC ? cc + " -O2 -fPIC -w" : cxx + " " + flags;
+      std::string cflagsC = (isC ? cc + " -O2 -fPIC -w" : cxx + " " + flags) + " -g0";
       if (isC) for (const std::string& f : ts.flags) if (f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);   // ZN-583.01: Box2D's include/ and -ffp-contract=off
       for (const std::string& f : ts.vendorFlags) if (!isC || f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);

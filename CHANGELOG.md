@@ -30,6 +30,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Changed
 - Compiled programs are smaller on every target (the methods no code calls and the dispatch tables of classes without methods are left out): `examples/breakout` goes from 37.6 KB to 24.6 KB of bytecode, a large interface tour from 2.4 MB to 690 KB.
+- Plugins that bundle a C library (sqlite, lvgl, audio, physics3d...) are much smaller to download and on disk: their compiled libraries no longer carry debug information. They are compiled again once.
 - A program takes less memory once loaded: with `examples/breakout` loaded, the ESP32 core has 210 KB of its heap free instead of 158 KB.
 - `zinc run --target esp32 --engine mquickjs` writes the MicroQuickJS firmware by itself when the board runs another one or an older one: no `zinc flash` first. Its flash now holds two firmware slots for updates over Wi-Fi, and programs moved, so the first run after this update rewrites the firmware.
 
