@@ -502,6 +502,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774: a short looping capture per lesson made by `zinc capture` in the site build, so it never goes stale; a narrated first-hour video is the owner's call.
 - ZN-774: a first-steps checklist on Atelier's start view (VS Code walkthroughs), only if people still get lost after ZN-774.23 and ZN-774.24.
 - ZN-774: a translation guide and a missing-strings report per language before a sixth language is added (Astro).
+- ZN-774.18: a text size a program never names in its source falls back to the nearest baked face (a field drawn at 16 px in a 14 px line, selection boxes off the letters): bake on demand or warn.
+- ZN-774.18: the codemod adds `py-1` to a Button whose class fixes its height, where it changes nothing (0 px in the five lessons without it); skip it there so migrated code stays readable.
+- ZN-774.18: a second run of `zinc migrate ui-explicit-looks` adds back classes removed by hand where a className sets the fill or text colour through `${bg()}`/`${fg()}`, though the guide says a second run changes nothing.
+- ZN-774.18: fields with `border-0` (Atelier, nuxt inputs) lost an invisible 2 px focus border: check the keyboard focus still shows there.
+- ZN-774.18: examples/kanban (ZN-775) came after the codemod run: `zinc migrate ui-explicit-looks --apply examples/kanban` adds `py-1.5` to its search field (its buttons have fixed heights).
+- ZN-774.18: process/shell's proto frame shows the process id, so it moves on every run (161 to 256 px): mask it in the compare.
+- ZN-774.18: examples/carnet-nbe does not pass `zinc check` without its external `@nbe/core` modules.
+- ZN-774.18: notify_relay failed once while other jobs ran (its test tablet stopped answering) and passed alone.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
