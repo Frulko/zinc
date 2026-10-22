@@ -1127,3 +1127,8 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | Arduino's core as a component (examples/esp32-arduino: Preferences, ESP, millis, setup/loop): app / the core's archive / static DRAM | 324 KB (minimal 300 KB) / 2.1 KB / 33.1 KB |
 | examples/esp32-arduino on the board: free heap with the JS heap allocated, frame rate | 145 KB, 59.7 fps (js 388 µs) |
 | firmware with Arduino's core: first build (33 registry packages, ccache warm for the IDF) / a change of the sketch, rebuilt in place | 211.6 s / 26 s (make; idf.py's reconfigure alone was another 27 s) |
+| zinc:lvgl in the emulator's firmware (LVGL 9.6, plugins' C at -O2): app / merged image | 581 KB (minimal image 300 KB) / 709 KB |
+| examples/esp32-widgets under mquickjs (zinc:lvgl): bytecode, against the zinc:gfx tour's 690 KB | 60 KB |
+| examples/esp32-widgets in esp32sim, Home page (emulated time; the emulator does not time the panel's transfers): fps, LVGL a frame (slowest), JS a frame, free heap | 60 fps, 0.5 ms (8.5 ms), 0.7 to 1.0 ms, 65 KB |
+| esp32sim, Input page scrolled by lv.scrollTo (about 57,500 px redrawn a frame): LVGL a frame, plugins' C at -Os → -O2 | 11.8 → 9.0 ms (slowest 13 → 11.1 ms) |
+| the same full-page redraw sent on the board's i80 bus at 10 MHz (computed, 2 bytes a pixel; not measured, the board was away) | about 12 ms a frame |
