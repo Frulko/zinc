@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # Zinc lernen: von einer Form zu einer App
 
@@ -95,7 +95,9 @@ und 4 beginnen jeweils bei Teil 1, also nimm nach Teil 1 den, der dir gefällt.
 | Änderungen | du zeichnest das neue Bild | du änderst einen Wert, der Bildschirm folgt | du bewegst ein Objekt, die Bühne zeichnet | du zeichnest das neue Bild |
 
 Sie lassen sich mischen: Lektion 11 zeichnet mit `zinc:gfx` in einer Oberfläche. [Vier Wege, ein Programm zu schreiben](../start/styles.md) zeigt dasselbe
-kleine Programm in jedem Stil nebeneinander und wie sie zusammenpassen.
+kleine Programm in jedem Stil nebeneinander und wie sie zusammenpassen. [Jenseits der Komponenten](../start/beyond.md) setzt eine Szene in
+eine Oberfläche und eine Oberfläche in eine Szene und geht über die fertigen Elemente hinaus: Diagramme, Styles als Objekte, eigene
+Komponenten, Animationen.
 
 ## Wörter, denen du begegnest
 
@@ -122,6 +124,7 @@ kleine Programm in jedem Stil nebeneinander und wie sie zusammenpassen.
 - [zinc:canvas](../plugins/canvas2d.md): jede Funktion aus Teil 4 und die wenigen Unterschiede zum Web.
 - [UI-Apps](../guide/03-ui-apps.md) und [zinc:ui im Detail](../ui.md): Scrollen, Textfelder, Animationen, Ebenen.
 - [Das UI-Kit](../ui-kit.md): fertige Buttons, Dialoge, Menüs und Tabs.
+- [Jenseits der Komponenten](../start/beyond.md): was du tust, wenn die fertigen Elemente nicht reichen.
 - [Sound](../plugins/audio.md): jede Funktion von `zinc:audio`.
 - Die Beispiele von Zinc Atelier (*Datei > Beispiele…*) und `zinc new game-2d`, ein kleines fertiges Spiel zum Lesen und Ändern;
   `zinc new stage` und `zinc new canvas` starten ein Projekt im Stil von Teil 3 oder Teil 4.

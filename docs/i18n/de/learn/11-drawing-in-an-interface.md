@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 11. Eine Zeichnung in einer Oberfläche
 
@@ -110,6 +110,9 @@ warten.)
 - Klicke auf das Canvas, um die Blume zu bewegen: Gib ihm `onPointerDown={(e: ui.PointerEvent) => ...}` (Lektion 9) und halte die
   Mitte in zwei Variablen. `e.x`, `e.y` gelten innerhalb des Canvas, addiere also `x`, `y`, wenn du zeichnest.
 - Zeichne stattdessen ein Balkendiagramm: ein `rect` pro Wert einer Liste, so hoch wie der Wert.
+
+[Jenseits der Komponenten](../start/beyond.md) geht mit einem Canvas weiter: ein Balkendiagramm mit `zinc:gfx`, dasselbe Diagramm als weiche
+Kurve mit dem Canvas des Webs und eine ganze Szene aus Sprites in einer Oberfläche.
 
 ## Weiter
 

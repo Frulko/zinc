@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 16. Das Layout und eine Scroll-Box
 
@@ -178,4 +178,6 @@ Das reicht für die meisten Apps auf einem alten Tablet.
 - `zinc new stage` macht eine kleine App zum Weiterbauen: ein Titel, farbige Buttons und ein Sticker, den du ziehst.
 - [`examples/music-tree`](../../examples/music-tree/src/main.ts) im Repository: ein ganzer Musikplayer, auf diese Weise geschrieben, schnell auf
   einem Tablet von 2011.
+- [Eine Szene in einer Oberfläche](../start/beyond.md#a-scene-inside-an-interface) und eine Oberfläche in einer Szene: Sprites neben
+  Buttons, Buttons auf einem Sprite.
 - [Vier Wege, ein Programm zu schreiben](../start/styles.md) oder Teil 4: [17. Pfade und Füllungen](17-paths-and-fills.md), das Canvas des Webs.

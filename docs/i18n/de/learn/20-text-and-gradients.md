@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 20. Text und Farbverläufe
 
@@ -150,5 +150,7 @@ Du kannst mit dem Canvas des Webs zeichnen: Pfade, Füllungen und Umrisse, Trans
 - `zinc new canvas` macht eine Skizze zum Weiterbauen: ein Himmel mit Farbverlauf, ein drehender Stern, Blasen dort, wo du klickst.
 - [`examples/canvas/sketch`](../../examples/canvas/sketch/main.tsx) im Repository: eine Uhr, ein Feuerwerk und Formen, gezeichnet in Canvases
   innerhalb einer Oberfläche.
+- [Zeichne es mit dem Canvas des Webs](../start/beyond.md#draw-it-with-the-webs-canvas): ein Diagramm, mit diesen Aufrufen gezeichnet, in einer
+  Box einer Oberfläche, neben seinen Buttons.
 - [Vier Wege, ein Programm zu schreiben](../start/styles.md): wie sich das Canvas mit den anderen Stilen mischt. [Zurück zum Anfang des
   Lernpfads](README.md).

@@ -1,5 +1,5 @@
 ---
-source: 6feb1df07edd49722e71a16656309caa55687473
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # Vier Wege, ein Programm zu schreiben
 
@@ -341,8 +341,15 @@ richtige Wahl für einen Desktop, einen Raspberry Pi 4 oder ein Handy der letzte
   gibt dem Kontext seine Box, und was du nach `ctx.end()` zeichnest, kommt obendrauf.
 - **Zeichnen und Canvas in einer Szene.** Das `onDraw` eines Sprites zeichnet mit `zinc:gfx` in seinen eigenen Koordinaten; ein Canvas-Kontext funktioniert dort
   auch: `ctx.begin(0, 0, w, h)` zeichnet in den Koordinaten des Sprites und bewegt sich mit ihm.
-- **Eine Bühne ist das ganze Fenster**, und das `render` einer Oberfläche ebenso: Ein Programm wählt eins von beiden für seinen Bildschirm. Zeichnen und Canvas
-  passen in beide.
+- **Eine Szene in einer Oberfläche.** `<Canvas onDraw={(x, y, w, h) => stage.drawIn(x, y, w, h)} />` zeichnet eine Bühne in eine Box der
+  Oberfläche, und `stage.update(dt)` im dritten Argument von `render` bewegt sie und gibt ihr ihre Taps. Ein Tap auf einen Sprite geht an den
+  Sprite, ein Klick auf einen Button an den Button.
+- **Eine Oberfläche in einer Szene.** Ein Canvas, der das Fenster füllt, zeichnet die Szene, und Elemente der Oberfläche liegen über einem Sprite
+  (`absolute`, bei `x` und `y` des Sprites); der Sprite meldet darunter eine Tap-Zone an, damit die Szene dahinter ihre Klicks nicht
+  bekommt.
+
+Beides ist mit Code durchgearbeitet in [Jenseits der Komponenten](beyond.md); dort siehst du auch Diagramme, die du selbst zeichnest, Styles als
+Objekte, eigene Komponenten, Animationen und Übergänge.
 
 Unsicher? Beginne mit dem Zeichenstil und [den Lektionen](../learn/README.md): Jeder andere Stil nutzt, was sie lehren. Um zu wählen, welche
 Art von Programm du machen willst (ein Spiel, eine App, ein Server, ein Board), lies [Wähle deine Programmart](choose.md).

@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 12. Eine kleine fertige App
 
@@ -153,6 +153,8 @@ Sound spielst und wie du eine Oberfläche baust, die ihrem Zustand folgt. Von hi
   Lektionen benutzt haben, und den Rest.
 - [UI-Apps](../guide/03-ui-apps.md) und [zinc:ui im Detail](../ui.md): Scrollen, Textfelder, Animationen, Ebenen,
   Fenster.
+- [Jenseits der Komponenten](../start/beyond.md): Diagramme, die du selbst zeichnest, Styles als Objekte, eigene Komponenten,
+  Animationen und Übergänge und eine Szene, gemischt mit einer Oberfläche.
 - `zinc new desktop-app` macht eine größere App mit Seiten, einem Menü und Einstellungen; `zinc new game-2d` ein kleines fertiges Spiel.
   Lies ihren Code: Du kennst jetzt jeden Teil davon.
 - [Zurück zum Anfang des Lernpfads](README.md).

@@ -1,5 +1,5 @@
 ---
-source: f8a06617acd391e8d497619fb57f189897406d5e
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 10. Styles
 
@@ -119,7 +119,8 @@ Ein Wort mit einem Präfix gilt nur in einem Zustand: `hover:bg-slate-50`, solan
 - Setze die Karten untereinander: Ändere `flex-row` in `flex-col`.
 - Runde die Karten ganz ab mit `rounded-3xl` oder mach sie eckig mit `rounded-none`.
 - Schreibe einen Style, den `className` nicht ausdrücken kann, als Objekt: `style={{ opacity: 0.8 }}` (Lektion 8 benutzte
-  `style={{ width: ... }}`). [zinc:ui im Detail](../ui.md#object-styles-and-stylesheet) listet die Style-Schlüssel auf.
+  `style={{ width: ... }}`). [zinc:ui im Detail](../ui.md#object-styles-and-stylesheet) listet die Style-Schlüssel auf, und
+  [Styles als Objekte](../start/beyond.md#styles-as-objects) schreibt einen ganzen Bildschirm damit, wie React Native es tut.
 
 ## Weiter
 
