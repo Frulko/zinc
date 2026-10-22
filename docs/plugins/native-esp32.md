@@ -86,6 +86,6 @@ JavaScript task, so it returns quickly. `examples/esp32-arduino` is the worked e
 ## What is carried
 
 Arguments and results: `string`, `i32`, `u32`, `boolean`, `f64`, `f32`, handles (`h`), and the arrays `u8[]`, `i32[]`, `f64[]`, `string[]`
-(an array result is a JavaScript array). Eight arguments at most. Callbacks, promises and resources are not carried under mquickjs yet: a
+(an array result is a JavaScript array). Twelve arguments at most. Callbacks, promises and resources are not carried under mquickjs yet: a
 module that uses them is refused when the program opens it, with the export's name. JavaScript runs on one task: a native function must
 not block for long, and must never call back from an interrupt or another task.

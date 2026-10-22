@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Changed
+- A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

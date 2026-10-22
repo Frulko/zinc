@@ -20,7 +20,7 @@ extern const ZnModule *(*const zn_native_modules[])(void); /* zn_native_modules.
 #endif
 
 #define MAX_MODULES 8
-#define MAX_ARGS 8
+#define MAX_ARGS 12 /* an animation of zinc:lvgl takes 9 */
 
 typedef struct {
     const ZnModule *m;
