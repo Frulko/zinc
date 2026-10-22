@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 11. Un disegno dentro un'interfaccia
 
@@ -110,6 +110,9 @@ a un Canvas.)
 - Clicca sul Canvas per spostare il fiore: dagli `onPointerDown={(e: ui.PointerEvent) => ...}` (lezione 9) e tieni il
   centro in due variabili. `e.x`, `e.y` sono dentro il Canvas, quindi aggiungi `x`, `y` quando disegni.
 - Disegna invece un grafico a barre: un `rect` per ogni valore di una lista, alto quanto il valore.
+
+[Oltre i componenti](../start/beyond.md) va più lontano con un Canvas: un grafico a barre con `zinc:gfx`, lo stesso grafico come
+curva morbida con il canvas del web, e un'intera scena di sprite dentro un'interfaccia.
 
 ## Avanti
 

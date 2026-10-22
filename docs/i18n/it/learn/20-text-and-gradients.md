@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 20. Testo e gradienti
 
@@ -154,5 +154,7 @@ Sai disegnare con il canvas del web: tracciati, riempimenti e contorni, trasform
 - `zinc new canvas` crea uno sketch da cui partire: un cielo a gradiente, una stella che gira, bolle dove clicchi.
 - [`examples/canvas/sketch`](../../examples/canvas/sketch/main.tsx) nel repository: un orologio, fuochi d'artificio e forme
   disegnate in canvas dentro un'interfaccia.
+- [Disegnalo con il canvas del web](../start/beyond.md#draw-it-with-the-webs-canvas): un grafico disegnato con queste chiamate in un riquadro di
+  un'interfaccia, accanto ai suoi pulsanti.
 - [Quattro modi di scrivere un programma](../start/styles.md): come il canvas si mescola con gli altri stili. [Torna all'inizio del
   percorso](README.md).

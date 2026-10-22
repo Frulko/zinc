@@ -1,5 +1,5 @@
 ---
-source: f8a06617acd391e8d497619fb57f189897406d5e
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 10. Stili
 
@@ -119,7 +119,8 @@ Una parola con un prefisso vale solo in uno stato: `hover:bg-slate-50` mentre il
 - Metti le schede una sotto l'altra: cambia `flex-row` in `flex-col`.
 - Arrotonda completamente le schede con `rounded-3xl`, o rendile squadrate con `rounded-none`.
 - Scrivi uno stile che `className` non può dire, come oggetto: `style={{ opacity: 0.8 }}` (la lezione 8 usava
-  `style={{ width: ... }}`). [zinc:ui in profondità](../ui.md#object-styles-and-stylesheet) elenca le chiavi di stile.
+  `style={{ width: ... }}`). [zinc:ui in profondità](../ui.md#object-styles-and-stylesheet) elenca le chiavi di stile, e
+  [Stili come oggetti](../start/beyond.md#styles-as-objects) scrive con essi un'intera schermata, come fa React Native.
 
 ## Avanti
 

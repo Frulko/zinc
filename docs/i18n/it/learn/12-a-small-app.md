@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 12. Una piccola app completa
 
@@ -153,6 +153,8 @@ suoni, e come costruire un'interfaccia che segue il suo stato. Da qui puoi conti
   lezioni hanno usato, e il resto.
 - [App con interfaccia](../guide/03-ui-apps.md) e [zinc:ui in profondità](../ui.md): scorrimento, campi di testo, animazioni, livelli,
   finestre.
+- [Oltre i componenti](../start/beyond.md): grafici che disegni tu, stili come oggetti, componenti tuoi,
+  animazioni e transizioni, e una scena mescolata a un'interfaccia.
 - `zinc new desktop-app` crea un'app più grande con pagine, un menu e impostazioni; `zinc new game-2d` un piccolo gioco completo.
   Leggi il loro codice: ora ne conosci ogni parte.
 - [Torna all'inizio del percorso](README.md).
