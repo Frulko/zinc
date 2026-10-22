@@ -1,0 +1,233 @@
+---
+import Base from '../layouts/Base.astro';
+import { img } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const doc = (p: string) => `${b}docs/${p}/`;
+const shot = (f: string) => img(`esp32/${f}`);
+
+const pages = [
+  ['home.png', 'Home', 'An arc gauge eased to each new reading, three readings, a throughput line that moves every frame.'],
+  ['input.png', 'Input', 'Buttons, sliders, switches, check boxes, a spinner and a PIN keypad. The page scrolls with inertia.'],
+  ['music.png', 'Music', 'A player: cover, a spectrum analyser that jumps on the beat, seek slider, transport buttons.'],
+  ['lottie.png', 'Lottie', 'A LottieFiles animation drawn by ThorVG into a 64 x 64 buffer, with what it costs a frame.'],
+  ['bench.png', 'Bench', 'Objects bouncing in four scenes, 4 to 64 of them; "Run" measures each scene and prints the result on the UART.'],
+  ['info.png', 'Info', 'The backlight, LVGL\'s memory, the JavaScript heap, the chip, its flash, the firmware and ESP-IDF.'],
+];
+
+const flow = [
+  ['Write it on the computer', 'zinc run examples/esp32-widgets', 'A window on your computer. LVGL gets a memory pool the size of the board\'s heap, so a screen too big for the board fails here too, with the same message.'],
+  ['Check it for the board', 'zinc check examples/esp32-widgets --target esp32 --engine mquickjs', 'Compiles the program for MicroQuickJS and runs it for 300 frames on the computer, inside the board\'s heap and with LVGL\'s C. A feature the board does not have fails here, at your file and line, before anything is sent.'],
+  ['Try it without a board', 'zinc run examples/esp32-widgets --target esp32 --emulator --live', 'esp32sim runs the real firmware, the same bytes the board gets, in a window. The mouse is the finger, and the UART prints in your terminal. zinc builds the emulator from its sources the first time.'],
+  ['Send it to the board', 'zinc run examples/esp32-widgets --target esp32', 'Over USB. zinc writes the firmware the program needs once, then only the program: a few dozen KB of bytecode, in about a second. The console comes back to your terminal, and an error points at your TypeScript line, not at the bundle.'],
+  ['Or over Wi-Fi', 'zinc run examples/esp32-wifi --target esp32 --host zinc-e3d8.local', 'Once a board running the network firmware is on your network: a 20 KB program in under a second, a 1 MB firmware in 5.8 s. A firmware that does not start is rolled back by the board.'],
+  ['Ship it', 'zinc export examples/breakout --target esp32 --engine mquickjs', 'dist/breakout-esp32 gets firmware.bin, the program\'s image (app.img) and a flash.sh, for people who do not have Zinc.'],
+];
+
+const modules = [
+  ['zinc:lvgl', 'LVGL 9 widgets, flex layout, scrolling, Lottie, animations, a display that turns'],
+  ['zinc:gfx', 'the 2D API of the desktop: rectangles, rounded rectangles, text, touch. examples/breakout runs unchanged'],
+  ['zinc:gpio', 'pins, and debounced edges from an interrupt'],
+  ['zinc:storage', 'keys and values kept in the board\'s flash (NVS)'],
+  ['zinc:wifi', 'the saved network, or a setup page a phone opens (WiFiManager\'s way), and the clock'],
+  ['zinc:espnow', 'packets between boards, with no access point'],
+  ['zinc:ble', 'Bluetooth Low Energy; the same API talks to the board from a Mac app'],
+  ['zinc:device', 'backlight, heap, chip, flash size, firmware, the last frame\'s time'],
+  ['zinc:qrcode', 'QR codes from text, the same on every engine'],
+];
+
+const board = [
+  ['examples/breakout on the board: the firmware\'s app', '268 KB (319 KB before it was built for size)'],
+  ['its heap free while it runs', '153 KB (121 KB before)'],
+  ['JavaScript a frame / drawing and sending a frame', '1.6 to 2.3 ms / 1.8 ms'],
+  ['a 20 KB program over Wi-Fi / the 1 MB network firmware', 'under a second / 5.8 s'],
+  ['a plugin with C (Nayuki\'s QR code generator): first firmware build, then a program change', '98 s, then nothing to rebuild'],
+  ['an Arduino sketch inside a plugin, changed', 'firmware rebuilt in under 30 s'],
+];
+
+const sim = [
+  ['Home', '60 fps', '1.8 to 2.8 ms', '5,300 to 6,100'],
+  ['Music (28 bars every frame)', '60 fps', '2.1 ms', '9,000'],
+  ['Lottie, 64 x 64', '60 fps', '5 ms', 'the animation\'s box'],
+  ['Input, a whole page scrolled', '-', '9.0 ms', '57,500'],
+  ['Bench, 24 objects', '60 fps (37 to 41 before)', '8.7 ms (18 to 20 before)', '22,000 (76,800 before)'],
+  ['Bench, 64 objects', '27 to 33 fps (22 to 25 before)', '23.5 ms (33.7 before)', '25,000 to 28,000'],
+];
+
+const work = [
+  ['LVGL draws what changed, in 32-row bands', 'Two DMA buffers: LVGL renders a band while the panel receives the previous one. An unchanged screen sends nothing.'],
+  ['128 changed areas a frame, not 32', 'Past its limit LVGL redraws the whole screen, and a moving object makes two areas: 16 moving objects sent 76,800 pixels a frame.'],
+  ['Near areas joined', 'An area joins a nearby one when that draws at most 4,096 more pixels: each area costs a pass over the objects and a panel window.'],
+  ['Integers in the program', 'On the 32-bit ESP32, mquickjs keeps any number that is not a small integer in the heap, and the FPU computes no doubles. Positions in fixed point, shifted, cost nothing.'],
+  ['Pages built when shown', 'A page is deleted when it is left, so only the page on the screen takes memory. Six pages at once do not fit; one at a time leaves 35 to 83 KB free.'],
+  ['Built for size, hot loop in IRAM', 'ESP-IDF at -Os, the engine and LVGL at -O2, only the components the firmware needs, and the interpreter\'s loop in IRAM so the flash cache keeps the bytecode.'],
+];
+---
+<Base title="Embedded" description="Zinc on the ESP32: TypeScript and LVGL on a microcontroller without PSRAM, written on the computer, tried in an emulator, sent to the board in a second. MicroQuickJS, the workflow and the numbers.">
+  <section class="hero emb-hero"><div class="wrap split">
+    <div>
+      <span class="eyebrow">Embedded · ESP32</span>
+      <h1>TypeScript on a microcontroller, from your desk.</h1>
+      <p class="lead">A Zinc program runs on an ESP32 with 520 KB of RAM and no PSRAM: the ESP32-2432S022, a 2.2-inch touch board. You write it and run it on your computer, try it in an emulator of the board, and send it over USB or Wi-Fi in about a second. The interface is LVGL, in C, driven from TypeScript.</p>
+      <div class="cta">
+        <a class="btn primary" href="#workflow">The workflow</a>
+        <a class="btn" href="#lvgl">The interface</a>
+        <a class="btn" href="#numbers">The numbers</a>
+      </div>
+    </div>
+    <div class="devices">
+      <figure class="device"><img src={shot('home.png')} alt="The widgets tour's dashboard on the ESP32, in the esp32sim emulator" width="240" height="320" /><figcaption>esp32sim: the board's firmware</figcaption></figure>
+      <figure class="device desk"><img src={shot('mac-home.png')} alt="The same program in a window on a Mac" width="320" height="320" /><figcaption>the same program on a Mac</figcaption></figure>
+    </div>
+  </div></section>
+
+  <section class="section" id="workflow"><div class="wrap">
+    <span class="eyebrow">The workflow</span>
+    <h2 class="big">From your desk to the board, one command at a time.</h2>
+    <p class="lead">No ESP-IDF to set up, no serial monitor to open, no board to start with. zinc fetches its pinned tools (esptool, SWC, ESP-IDF when a plugin brings C) the first time it needs them, and the same program runs at every step.</p>
+    <ol class="steps">
+      {flow.map(([t, c, d]) => <li><h3>{t}</h3><pre><code>{c}</code></pre><p>{d}</p></li>)}
+    </ol>
+    <div class="term" aria-label="A run in the emulator">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <pre><code><span class="p">$</span> zinc run examples/esp32-widgets --target esp32 --emulator --run-ms 4500
+<span class="d">  bundle     examples/esp32-widgets/src/main.ts for mquickjs
+  plugin     lvgl: cached native library
+  plugin     device: cached native library
+  bytecode   89612 bytes, checked for 300 frames under mquickjs 1.1 s</span>
+mqjs: firmware zinc-mquickjs 839f67c0
+mqjs: free heap 231576, largest block 118784
+mqjs: the program was relocated into the flash in 38 ms (once per program and firmware)
+mqjs: bytecode of 89612 bytes loaded in 42016 us, free heap 133220
+<span class="o">esp32-widgets ready</span>
+<span class="d">  emulator   4500 ms of an ESP32 in esp32sim              6.0 s</span></code></pre>
+    </div>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">The engine on the board</span>
+    <h2 class="big">MicroQuickJS: JavaScript in 96 KB of heap.</h2>
+    <div class="split">
+      <div>
+        <p class="lead"><a href="https://github.com/bellard/mquickjs">MicroQuickJS</a> is Fabrice Bellard's JavaScript engine for microcontrollers: about 100 KB of code, values in 32 bits, a small fixed heap, a compacting garbage collector. Zinc's firmware runs it with a 96 KB heap beside the screen, the touch and the modules.</p>
+        <p>It speaks ES5, so zinc prepares the program on the computer. It bundles your TypeScript and the modules you import. SWC lowers it to ES5: <code>let</code> and <code>const</code>, arrow functions, classes, template strings, destructuring, spread, default parameters, <code>?.</code> and <code>??</code>. A prelude adds the library functions that are missing. zinc then runs the result for 300 frames inside twice the board's heap, and compiles it to 32-bit bytecode.</p>
+        <p>The bytecode goes to its own flash partition, and the firmware stays where it is. The board runs it straight from the memory-mapped flash, so a program of up to 256 KB costs no RAM. This is why a change reaches the board in a second: only the program moves.</p>
+        <p><small>Not covered, and refused by the check with your file and line: <code>Map</code>, <code>Set</code>, <code>Symbol</code>, <code>Promise</code> and <code>async</code>, generators, <code>Proxy</code>, <code>Date</code> objects. MicroQuickJS is about as fast as QuickJS and 4 to 7 times slower than Zinc's own interpreter (measured on a computer). On the board the program sets values and LVGL does the work in C.</small></p>
+      </div>
+      <div class="pipe" aria-label="How a program reaches the board">
+        <div class="stage"><b>main.ts</b><span>your TypeScript</span></div>
+        <div class="stage"><b>zinc bundle</b><span>your files and the zinc:* modules, one program</span></div>
+        <div class="stage"><b>SWC → ES5</b><span>+ js/prelude.js, what mquickjs lacks</span></div>
+        <div class="stage"><b>zinc-mqjs check</b><span>300 frames on the computer, the board's heap, LVGL's C</span></div>
+        <div class="stage"><b>bytecode, 32-bit</b><span>the widgets tour: 89.6 KB, loaded in 42 ms</span></div>
+        <div class="stage hot"><b>the board</b><span>the js partition, run from flash; the firmware is written only when it changes</span></div>
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Module</th><th>On the board</th></tr></thead>
+      <tbody>{modules.map(([m, d]) => <tr><td><code>{m}</code></td><td>{d}</td></tr>)}</tbody>
+    </table></div>
+    <p>A plugin brings its own C: its native code is written once on Zinc's native ABI (<code>native/x.abi.c</code>). The same file is the plugin's library on the computer and part of the board's firmware, which zinc builds with ESP-IDF and caches. It can even be C++ on Arduino's core, with an Arduino sketch's <code>setup()</code> and <code>loop()</code> running beside the TypeScript program. <a href={doc('plugins/native-esp32')}>Native code on the ESP32 →</a></p>
+  </div></section>
+
+  <section class="section" id="lvgl" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">The interface</span>
+    <h2 class="big">LVGL, driven from TypeScript.</h2>
+    <p class="lead"><code>zinc:lvgl</code> brings <a href="https://lvgl.io">LVGL</a> 9.6, the embedded UI library, to TypeScript. Widgets, flex layout, scrolling with inertia, themes, animations and drawing all stay in C. The program holds handles (plain integers), sets values and reads events.</p>
+    <div class="split">
+      <pre><code>{`import * as lv from 'zinc:lvgl';
+
+lv.start(240, 320, true, 0x3b82f6);  // dark, accent
+const page = lv.screen();
+lv.flex(page, lv.FLEX_COLUMN, lv.FLEX_START, lv.FLEX_CENTER);
+
+const volume = lv.slider(page, 0, 100, 60);
+const play = lv.button(page, 'Play');
+lv.on(volume, lv.EVENT_VALUE_CHANGED,
+  () => console.log('volume ' + lv.value(volume)));
+lv.on(play, lv.EVENT_CLICKED,
+  () => lv.setText(lv.buttonLabel(play), 'Pause'));
+
+// slides into place, moved by LVGL in C
+lv.animate(play, lv.TRANSLATE_Y, 80, 0, 400, lv.OVERSHOOT);
+
+lv.run((dt: number) => { /* your frame, before LVGL's */ });`}</code></pre>
+      <div>
+        <ul class="facts">
+          <li><b>Only what changed is drawn.</b> LVGL renders 32-row bands in RGB565 and sends them to the panel itself, while it renders the next one.</li>
+          <li><b>Outside the JavaScript heap.</b> Objects, styles and layout live in LVGL's memory. The six-page tour is 90 KB of bytecode, Lottie's JSON included.</li>
+          <li><b>Events are queued, not called back.</b> C never calls into JavaScript in the middle of a draw; the frame reads the queue after LVGL's turn.</li>
+          <li><b>The board's limits on your computer.</b> LVGL draws from a pool of the board's size, so "LVGL's memory pool is full" shows up at your desk, not after flashing.</li>
+          <li><b>Lottie and vectors.</b> ThorVG, which LVGL carries, plays LottieFiles animations. 64 x 64 takes a 16 KB buffer.</li>
+          <li><b>A display that turns.</b> <code>rotate()</code> turns the panel and the touch with it, and LVGL lays the screen out again at the new size.</li>
+          <li><b>Animations in C.</b> <code>animate()</code> eases a position, a size, an opacity, a rotation or a scale, with delays, repeats and a way back.</li>
+        </ul>
+        <p><a href={doc('plugins/lvgl')}>The zinc:lvgl reference →</a></p>
+      </div>
+    </div>
+    <h3 style="margin-top:40px">The widgets tour, in the emulator</h3>
+    <p style="color:var(--muted)"><code>examples/esp32-widgets</code>: six pages under a title bar with the frame rate. Each page is built when it is shown and deleted when it is left. Captured from esp32sim, which runs the board's firmware.</p>
+    <div class="screens">
+      {pages.map(([f, t, d]) => <figure class="device"><img src={shot(f)} alt={`The ${t} page of the widgets tour`} width="240" height="320" loading="lazy" /><figcaption><b>{t}</b>{d}</figcaption></figure>)}
+      <figure class="device wide"><img src={shot('landscape.png')} alt="The widgets tour turned to landscape" width="320" height="240" loading="lazy" /><figcaption><b>Landscape</b>One tap on Info turns the panel; the pages lay out again at 320 x 240.</figcaption></figure>
+      <figure class="device"><img src={shot('breakout.png')} alt="Breakout running on the ESP32 under MicroQuickJS" width="240" height="320" loading="lazy" /><figcaption><b>zinc:gfx too</b><code>examples/breakout</code>, the desktop game, unchanged on the board.</figcaption></figure>
+    </div>
+  </div></section>
+
+  <section class="section" id="numbers" style="padding-top:0"><div class="wrap">
+    <span class="eyebrow">Performance</span>
+    <h2 class="big">The numbers, and where they come from.</h2>
+    <p class="lead">Two kinds of figures. Some were measured on the board. The LVGL ones come from esp32sim: it emulates the chip and counts its time, but not the time the panel's bus takes. A full-screen redraw on the board's 8-bit, 10 MHz bus is 15 ms of transfer, so those frame rates are what LVGL can render, not yet what the board shows.</p>
+
+    <h3>Measured with the ESP32-2432S022</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>What</th><th>Measured</th></tr></thead>
+      <tbody>{board.map(([w, m]) => <tr><td>{w}</td><td>{m}</td></tr>)}</tbody>
+    </table></div>
+
+    <h3>LVGL in esp32sim, per frame</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Page</th><th>Frame rate</th><th>LVGL's time</th><th>Pixels sent</th></tr></thead>
+      <tbody>{sim.map(([p, f, t, px]) => <tr><td>{p}</td><td>{f}</td><td>{t}</td><td>{px}</td></tr>)}</tbody>
+    </table></div>
+    <p style="color:var(--muted)">Heap free after the program loads: 133.5 KB. With a page shown: Home 79.9 KB, Music 82.5 KB, Input 71.8 KB, Lottie 35.3 KB. The firmware with LVGL and ThorVG: 1.06 MB of its 1.5 MB slot.</p>
+
+    <h3>What made it fast</h3>
+    <div class="grid">
+      {work.map(([t, d]) => <div class="card"><h3>{t}</h3><p>{d}</p></div>)}
+    </div>
+    <p style="margin-top:24px"><small>Every number is logged with its date and method in <a href="https://github.com/Frulko/zinc/blob/main/docs/reports/zinc-next-perf.md">docs/reports/zinc-next-perf.md</a>.</small></p>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap">
+    <div class="card" style="padding:32px">
+      <h3>Try it</h3>
+      <p>No board needed: <code>zinc run examples/esp32-widgets --target esp32 --emulator --live</code>. The other ESP32 examples: <code>esp32-gpio</code>, <code>esp32-wifi</code>, <code>esp32-espnow</code>, <code>esp32-ble</code> (a Mac app and a board that talk), <code>esp32-qrcode</code>, <code>esp32-arduino</code>. The radio examples need the board: the emulator has no radio. See <a href={doc('plugins/lvgl')}>zinc:lvgl</a>, <a href={doc('plugins/native-esp32')}>native code on the ESP32</a> and <a href={doc('boards')}>the boards</a>.</p>
+    </div>
+  </div></section>
+</Base>
+
+<style>
+  .emb-hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); max-width: none; }
+  @media (min-width: 861px) { .emb-hero .split { grid-template-columns: 1.1fr 1fr; } }
+  .devices .device img { width: 200px; }
+  .devices .device.desk img { width: 220px; }
+  .devices { display: flex; gap: 18px; justify-content: center; align-items: flex-end; flex-wrap: wrap; }
+  .device { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .device img { display: block; width: 240px; height: auto; border-radius: 6px; border: 12px solid #050605; border-bottom-width: 22px; box-shadow: var(--shadow), 0 0 0 1px var(--line); background: #000; }
+  .device.desk img { width: 260px; border: 1px solid var(--line); border-radius: 10px; }
+  .device.wide img { width: 320px; }
+  .device figcaption { font-size: .88rem; color: var(--muted); max-width: 240px; text-align: center; }
+  .device figcaption b { display: block; color: var(--ink); }
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(266px, 100%), 1fr)); gap: 28px 18px; margin-top: 24px; justify-items: center; }
+  .screens .wide { grid-column: span 2; }
+  @media (max-width: 640px) { .screens .wide { grid-column: auto; } .device.wide img { width: 100%; } .device img { max-width: 100%; } }
+  .pipe { display: flex; flex-direction: column; gap: 0; }
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 22px; }
+  .stage:not(:last-child)::after { content: '↓'; position: absolute; left: 50%; bottom: -21px; transform: translateX(-50%); color: var(--accent-text); font: 600 14px var(--mono); }
+  .stage b { display: block; font: 600 .92rem var(--mono); }
+  .stage span { color: var(--muted); font-size: .9rem; }
+  .stage.hot { background: var(--accent-soft); border-color: var(--accent-text); }
+  .facts { padding-left: 1.1em; margin: 0; } .facts li { margin-bottom: 10px; color: var(--muted); } .facts b { color: var(--ink); }
+  h3 { margin-top: 36px; }
+  .card h3 { margin-top: 0; }
+</style>
