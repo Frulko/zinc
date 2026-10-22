@@ -680,6 +680,9 @@ static void run(JSContext *ctx)
         }
         while (xQueueReceive(events, &e, 0) == pdTRUE)
             if (deliver(ctx, &e) < 0) { show_error(ctx, "Error"); return; }
+#ifdef ZN_NATIVE
+        zn_native_poll((uint64_t)(esp_timer_get_time() / 1000));
+#endif
         int64_t f0 = esp_timer_get_time();
         int wait = -1;
         const int now_ms = (int)(f0 / 1000);

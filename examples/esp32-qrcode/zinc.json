@@ -1,0 +1,6 @@
+{
+  "name": "esp32-qrcode",
+  "entry": "src/main.ts",
+  "app": { "name": "ESP32 QR code", "id": "dev.zinc.esp32-qrcode", "version": "1.0.0" },
+  "targets": { "esp32": { "engine": "mquickjs" }, "macos": { "width": 240, "height": 320 } }
+}

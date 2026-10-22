@@ -470,7 +470,19 @@ endif()
 if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
   set(ZN_MQ ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mquickjs)
   set(ZN_MQ_GEN ${CMAKE_CURRENT_BINARY_DIR}/mquickjs)
-  add_executable(zn_mqjs_stdlib ${ZN_MQ}/mqjs_stdlib.c ${ZN_MQ}/mquickjs_build.c)
+  # its table is upstream's with the two host calls of zinc:native (firmware/esp32-mquickjs/main/zn_native.c), so that the check runs a plugin's
+  # native module, loaded from the plugin's library for this computer (ZINC_MQJS_NATIVE), as the firmware runs it
+  file(READ ${ZN_MQ}/mqjs_stdlib.c ZN_MQ_TABLE)
+  set(ZN_MQ_LAST "    JS_CFUNC_DEF(\"clearTimeout\", 1, js_clearTimeout),\n")
+  string(REPLACE "${ZN_MQ_LAST}" "${ZN_MQ_LAST}    JS_CFUNC_DEF(\"__host_nativeOpen\", 1, js_native_open),\n    JS_CFUNC_DEF(\"__host_nativeCall\", 10, js_native_call),\n" ZN_MQ_ZINC "${ZN_MQ_TABLE}")
+  if(ZN_MQ_ZINC STREQUAL ZN_MQ_TABLE)
+    message(FATAL_ERROR "third_party/mquickjs/mqjs_stdlib.c changed: its line for clearTimeout, after which zinc-mqjs adds zinc:native's host calls, is not there")
+  endif()
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ZN_MQ}/mqjs_stdlib.c)
+  file(CONFIGURE OUTPUT ${ZN_MQ_GEN}/zinc_mqjs_stdlib.c CONTENT "${ZN_MQ_ZINC}" @ONLY)   # written when it changes only (the file has no @)
+  file(CONFIGURE OUTPUT ${ZN_MQ_GEN}/zinc_mqjs_native.h CONTENT "#include <stddef.h>\n#include <stdint.h>\n#include \"mquickjs.h\"\nJSValue js_native_open(JSContext *, JSValue *, int, JSValue *);\nJSValue js_native_call(JSContext *, JSValue *, int, JSValue *);\n" @ONLY)
+  add_executable(zn_mqjs_stdlib ${ZN_MQ_GEN}/zinc_mqjs_stdlib.c ${ZN_MQ}/mquickjs_build.c)
+  target_include_directories(zn_mqjs_stdlib PRIVATE ${ZN_MQ})
   target_compile_options(zn_mqjs_stdlib PRIVATE -w)
   add_custom_command(OUTPUT ${ZN_MQ_GEN}/mqjs_stdlib.h ${ZN_MQ_GEN}/mquickjs_atom.h
     COMMAND ${CMAKE_COMMAND} -E make_directory ${ZN_MQ_GEN}
@@ -478,11 +490,12 @@ if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
     COMMAND zn_mqjs_stdlib -a > ${ZN_MQ_GEN}/mquickjs_atom.h
     DEPENDS zn_mqjs_stdlib)
   add_executable(zinc-mqjs ${ZN_MQ}/mqjs.c ${ZN_MQ}/readline.c ${ZN_MQ}/readline_tty.c ${ZN_MQ}/mquickjs.c ${ZN_MQ}/dtoa.c ${ZN_MQ}/libm.c ${ZN_MQ}/cutils.c
-                 ${ZN_MQ_GEN}/mqjs_stdlib.h ${ZN_MQ_GEN}/mquickjs_atom.h)
-  target_include_directories(zinc-mqjs PRIVATE ${ZN_MQ_GEN} ${ZN_MQ})
-  target_compile_definitions(zinc-mqjs PRIVATE _GNU_SOURCE)
+                 firmware/esp32-mquickjs/main/zn_native.c ${ZN_MQ_GEN}/mqjs_stdlib.h ${ZN_MQ_GEN}/mquickjs_atom.h)
+  target_include_directories(zinc-mqjs PRIVATE ${ZN_MQ_GEN} ${ZN_MQ} include)
+  target_compile_definitions(zinc-mqjs PRIVATE _GNU_SOURCE ZN_NATIVE_DLOPEN)
   target_compile_options(zinc-mqjs PRIVATE -w -O2)
-  target_link_libraries(zinc-mqjs PRIVATE m)
+  set_source_files_properties(${ZN_MQ}/mqjs.c PROPERTIES COMPILE_OPTIONS "-include;${ZN_MQ_GEN}/zinc_mqjs_native.h")   # the table names them
+  target_link_libraries(zinc-mqjs PRIVATE m ${CMAKE_DL_LIBS})
 endif()
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
 add_library(zn_yaml STATIC third_party/libyaml/api.c third_party/libyaml/loader.c third_party/libyaml/parser.c third_party/libyaml/reader.c third_party/libyaml/scanner.c)   # libyaml 0.2.5 (read side only): scenario files (ZN-295)

@@ -79,3 +79,9 @@ ZN_FN(js_ble_send);
 ZN_FN(js_ble_close);
 ZN_FN(js_ble_stop);
 #endif
+#ifdef ZN_NATIVE
+/* main/zn_native.c: the plugins' native modules (zinc:native), and their poll once per turn of the loop */
+ZN_FN(js_native_open);
+ZN_FN(js_native_call);
+void zn_native_poll(uint64_t now_ms);
+#endif

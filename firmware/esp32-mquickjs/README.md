@@ -56,7 +56,13 @@ Wi-Fi and BLE do not fit together beside the JavaScript heap: the first one a pr
 other throws, saying so. Measured with the 96 KiB heap allocated (2026-10-22): 44 KB of heap free with the setup portal open, 62 KB with
 ESP-NOW, 38 KB with BLE advertising.
 
-## Two firmwares
+## Native code from plugins
+
+A plugin whose native side is C on Zinc's native ABI (`native/<x>.abi.c`, [docs/plugins/native-esp32.md](../../docs/plugins/native-esp32.md))
+works here too: zinc builds the firmware with the native modules a program opens (`-DZN_NATIVE_DIR`, `main/zn_native.c`, ESP-IDF in
+`~/.zinc/esp-idf`), keeps it in `~/.zinc/esp32/firmware/<key>` and writes it to the board when the board runs another. `plugins/qrcode`
+(Nayuki's QR Code generator) adds 10.7 KB to the image; the first build took 98 s, and the next program changes rebuild nothing.
+
 
 zinc writes the one a program needs, by itself, when the board runs another (it reads the first line the firmware prints, `mqjs: firmware
 <name> <sha>`): `prebuilt/zinc-mquickjs-flash.bin`, the smallest (app 300 KB, 143 KB of heap free while breakout runs), for programs that

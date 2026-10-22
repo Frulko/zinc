@@ -19,6 +19,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On the ESP32 with `--engine mquickjs`: `zinc:espnow` sends packets between boards with no access point. `examples/esp32-espnow`.
 - `zinc run --target esp32 --host <name>.local` (or `--host last`) sends the program to a board over Wi-Fi, updates its firmware first when needed, and shows its console; a firmware that does not start is rolled back by the board.
 - A program that uses `zinc:wifi`, `zinc:espnow` or `zinc:ble` gets the network firmware, which zinc writes to the board by itself; `zinc flash --target esp32 --engine mquickjs --net` writes it by hand.
+- A plugin can bring a C library to TypeScript on the ESP32 under `--engine mquickjs`: its native code written in C on Zinc's native ABI (`native/<x>.abi.c`) is built into the board's firmware by zinc, with ESP-IDF installed the first time, and the same file is the plugin's library on the computer. See docs/plugins/native-esp32.md.
+- `zinc:qrcode`: QR codes from text (`encode`, `runs`, `wifiText`), on every engine and on the ESP32. `examples/esp32-qrcode` shows one on the board.
+- `zinc check <app> --target esp32 --engine mquickjs` checks and compiles a program for the board without writing anything to it.
 
 ### Changed
 - Compiled programs are smaller on every target: the bytecode of the ESP32-2432S022 widgets demo goes from 2.4 MB to 690 KB, `examples/breakout` from 37.6 KB to 24.6 KB.

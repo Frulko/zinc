@@ -158,6 +158,7 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
           else if (key == "cargo" && yyjson_is_str(tv)) pt.cargo = yyjson_get_str(tv);
           else if (key == "packages") pt.packages = strings(tv);
           else if (key == "idf") pt.idf = strings(tv);
+          else if (key == "sdkconfig") pt.sdkconfig = strings(tv);
           else if (key == "nodeFlags") pt.nodeFlags = strings(tv);
           else if (key == "idfComponents" && yyjson_is_obj(tv)) { size_t a, b; yyjson_val *ck, *cv; yyjson_obj_foreach(tv, a, b, ck, cv) if (yyjson_is_str(cv)) pt.idfComponents[yyjson_get_str(ck)] = yyjson_get_str(cv); }
           else if (key == "gradle" || key == "manifest" || key == "minSdk" || key == "plist" || key == "entitlements" || key == "privacy" || key == "lifecycle" || key == "class") {

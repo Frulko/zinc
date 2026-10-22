@@ -13,6 +13,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -24,8 +25,11 @@
 #endif
 
 #include "dev/client.h"
+#include "frontend/native_gen.h"
+#include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "qjs/qjs.h"
+#include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "yyjson.h"
 #include "zn/log.h"
@@ -69,9 +73,13 @@ std::string mqjsTool(std::string& err) {
   return "";
 }
 
+// A plugin's native module the program opens (requireNative): C on the native ABI (native/<x>.abi.c), built into the firmware
+struct Native { std::string module, dir, impl, header; std::vector<std::string> sources, defines, idf, sdkconfig; std::map<std::string, std::string> registry; };
+
 struct Program {
   std::string work, name, map, img;   // the scratch directory, the program's file name there (<name>.js), its source map, the image for the board
   bool net = false;                   // it calls zinc:wifi, zinc:espnow or zinc:ble: the network image (main/CMakeLists.txt ZN_NET)
+  std::vector<Native> natives;        // the firmware is then built for it (nativeFirmware)
   // the positions of <name>.js in `text` (the traces of the check and of the board), back to the user's files
   std::string mapped(std::string text) const {
     const std::string file = name + ".js:", abs = work + "/" + file;
@@ -83,6 +91,52 @@ struct Program {
     return zn::qjs::mapStack(text, work + "/" + name + ".js", map);
   }
 };
+
+// The plugins' native modules the program opens, requireNative("Qrcode") of their spec: each one's C on the native ABI goes into the firmware
+// (nativeFirmware), and the check loads the plugin's library for this computer (main/zn_native.c, ZINC_MQJS_NATIVE), so it runs the same C.
+// `env` gets "<library>=<Module>;..." for the check, "" when a plugin has no library for this computer (the program is then not run). 0, or 1.
+int findNatives(const std::string& root, const std::string& entry, const std::string& es5, Program& p, std::string& env) {
+  std::vector<std::string> names;
+  for (std::size_t at = 0; (at = es5.find("requireNative(", at)) != std::string::npos; at += 14) {
+    const char q = at + 14 < es5.size() ? es5[at + 14] : 0;
+    const std::size_t end = q == '"' || q == '\'' ? es5.find(q, at + 15) : std::string::npos;
+    if (end != std::string::npos && std::find(names.begin(), names.end(), es5.substr(at + 15, end - at - 15)) == names.end()) names.push_back(es5.substr(at + 15, end - at - 15));
+  }
+  if (names.empty()) return 0;
+  std::vector<std::string> problems;
+  const std::string pf = zn::frontend::findProjectFile(entry), projectDir = pf.empty() ? fs::path(entry).parent_path().string() : fs::path(pf).parent_path().string();
+  const std::vector<zn::frontend::FoundPlugin> plugins = zn::frontend::discoverPlugins(root, projectDir, problems);
+  bool run = true;
+  for (const std::string& name : names) {
+    const zn::frontend::FoundPlugin* fp = zn::tc::pluginForModule(plugins, name);
+    if (!fp) { std::fprintf(stderr, "zinc: requireNative('%s'): no plugin of this project or of zinc has this native module\n", name.c_str()); return 1; }
+    const fs::path nd = fs::path(fp->dir) / "native";
+    std::string spec, text, err;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(nd, ec)) if (e.path().filename().string().size() > 8 && e.path().string().ends_with(".spec.ts")) spec = e.path().string();
+    zn::frontend::NativeGen gen;
+    if (spec.empty() || !readText(spec, text) || !zn::frontend::generateNative(spec, text, gen, err)) { std::fprintf(stderr, "zinc: plugin '%s': its native spec: %s\n", fp->manifest.name.c_str(), err.c_str()); return 1; }
+    const std::string base = fs::path(spec).filename().string().substr(0, fs::path(spec).filename().string().size() - 8);
+    const std::string impl = (nd / (base + (fs::exists(nd / (base + ".abi.cpp")) ? ".abi.cpp" : ".abi.c"))).string();   // C, or C++ for a C++ library (Arduino's)
+    const auto ts = fp->manifest.targetSettings.find("esp32");
+    if (!fs::exists(impl) || gen.cHeader.empty()) {
+      std::fprintf(stderr, "zinc: plugin '%s' has no native code for the ESP32 under mquickjs: it needs its code on Zinc's native ABI, native/%s.abi.c or .abi.cpp (docs/plugins/native-esp32.md)\n", fp->manifest.name.c_str(), base.c_str());
+      return 1;
+    }
+    if (ts == fp->manifest.targetSettings.end()) { std::fprintf(stderr, "zinc: plugin '%s' does not list the esp32 target in its plugin.json\n", fp->manifest.name.c_str()); return 1; }
+    Native n{name, fp->dir, impl, gen.cHeader, {}, ts->second.defines, ts->second.idf, ts->second.sdkconfig, ts->second.idfComponents};
+    for (const std::string& src : ts->second.sources) n.sources.push_back((fs::path(fp->dir) / src).lexically_normal().string());
+    p.natives.push_back(n);
+    zn::tc::PluginLib lib;
+    if (run && zn::tc::buildPlugin(*fp, root, projectDir, zn::tc::pluginTarget(), lib, err) && !lib.shared.empty()) env += lib.shared + "=" + name + ";";
+    else if (run) {
+      std::fprintf(stderr, "zinc: plugin '%s' has no library for this computer (%s): the program is compiled for the board without being run here first\n", fp->manifest.name.c_str(), err.c_str());
+      run = false;
+    }
+  }
+  if (!run) env.clear();
+  return 0;
+}
 
 // 0, 1 when the program has errors, 2 for a tool problem
 int prepare(const std::string& root, const std::string& entry, const std::string& cacheDir, int frames, Program& p) {
@@ -119,7 +173,7 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   for (std::size_t at; (at = es5.find("//# sourceMappingURL=")) != std::string::npos;) es5.erase(at, es5.find('\n', at) == std::string::npos ? std::string::npos : es5.find('\n', at) - at);
   // the host calls the board does not have (sim.js lists those it has): each one throws when it is called, naming what is missing
   auto ident = [](const std::string& s, std::size_t at) { std::size_t e = at; while (e < s.size() && (std::isalnum(static_cast<unsigned char>(s[e])) || s[e] == '_')) e++; return s.substr(at, e - at); };
-  std::set<std::string> have, missing;
+  std::set<std::string> have{"__host_nativeOpen", "__host_nativeCall"}, missing;   // zinc:native's are zinc-mqjs's own, as the firmware's (main/zn_native.c)
   for (std::size_t at = 0; (at = sim.find("function __host_", at)) != std::string::npos; at += 9) have.insert(ident(sim, at + 9));
   for (std::size_t at = 0; (at = es5.find("__host_", at)) != std::string::npos; at += 7) if (!have.count(ident(es5, at))) missing.insert(ident(es5, at));
   std::string head = prelude + runtime;
@@ -142,9 +196,12 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   if (mappings != std::string::npos) p.map.insert(mappings + 12, std::string(std::count(head.begin(), head.end(), '\n'), ';'));
   p.name = fs::path(bo.entry).stem().string();
   if (!writeText(p.work + "/" + p.name + ".js", head + es5 + "\n" + tail) || !writeText(p.work + "/sim.js", "var FRAMES = " + std::to_string(frames) + ";\n" + sim)) return 2;
+  std::string natives;
+  if (findNatives(root, bo.entry, es5, p, natives)) return 1;
   // the check: the host mquickjs runs it for `frames` frames against the board's host calls, in twice the board's heap (the computer's values
   // are 8 bytes, the board's 4); from its directory, so that the traces name <name>.js as the board's do
-  if (capture("cd " + quote(p.work) + " && " + quote(mqjs) + " --memory-limit " + std::to_string(2 * kHeap) + " -I sim.js " + quote(p.name + ".js"), log) != 0) {
+  if ((p.natives.empty() || !natives.empty()) &&
+      capture("cd " + quote(p.work) + " && ZINC_MQJS_NATIVE=" + quote(natives) + " " + quote(mqjs) + " --memory-limit " + std::to_string(2 * kHeap) + " -I sim.js " + quote(p.name + ".js"), log) != 0) {
     std::fprintf(stderr, "%szinc: %s fails under mquickjs on the computer (above); nothing was sent to the board\n", p.mapped(log).c_str(), zn::log::shortPath(bo.entry).c_str());
     return 1;
   }
@@ -160,7 +217,7 @@ int prepare(const std::string& root, const std::string& entry, const std::string
   for (int k = 0; k < 4; ++k) image += static_cast<char>((bin.size() >> (8 * k)) & 0xff);
   p.img = p.work + "/" + p.name + ".img";
   if (!writeText(p.img, image + bin)) return 2;
-  zn::log::step("bytecode", std::to_string(bin.size()) + " bytes, checked for " + std::to_string(frames) + " frames under mquickjs", zn::log::since(t0));
+  zn::log::step("bytecode", std::to_string(bin.size()) + " bytes, " + (p.natives.empty() || !natives.empty() ? "checked for " + std::to_string(frames) + " frames under mquickjs" : std::string("not run here")), zn::log::since(t0));
   return 0;
 }
 
@@ -172,6 +229,98 @@ std::string firmwareImage(const std::string& root, bool emulator, bool net, std:
   if (fs::exists(f, ec)) return f.string();
   err = "the firmware image is missing: " + f.string() + " (tools/build-esp32-core mquickjs builds it)";
   return "";
+}
+
+// The firmware with the native modules of `p` (main/zn_native.c), built with ESP-IDF 5.5.5 (installed into ZINC_HOME the first time, as
+// tools/build-esp32-core does) into ZINC_HOME/esp32/firmware/<key>: the key covers the firmware's sources, the kind of image and the modules'
+// files, so the program's own changes never rebuild it. A few minutes the first time; "" with `err` when the build fails.
+std::string nativeFirmware(const std::string& root, const Program& p, bool emulator, bool net, std::string& err) {
+  const fs::path fw = fs::path(root) / "firmware/esp32-mquickjs";
+  std::error_code ec;
+  if (!fs::exists(fw / "main/zn_native.c", ec)) { err = "a plugin's native code needs the firmware's sources, which this zinc does not have (" + fw.string() + ")"; return ""; }
+  std::string key = std::string(emulator ? "sim" : "board") + (net ? " net" : "") + "\n";
+  std::vector<std::string> files;
+  for (const char* d : {"main", "components"})
+    for (const auto& e : fs::recursive_directory_iterator(fw / d, ec)) if (e.is_regular_file()) files.push_back(e.path().string());
+  for (const char* f : {"CMakeLists.txt", "sdkconfig.defaults", "sdkconfig.net", "partitions.csv"}) files.push_back((fw / f).string());
+  for (const auto& e : fs::directory_iterator(fs::path(root) / "third_party/mquickjs", ec)) if (e.is_regular_file()) files.push_back(e.path().string());
+  for (const Native& n : p.natives) {
+    key += n.module + " " + n.header;
+    files.push_back(n.impl);
+    files.insert(files.end(), n.sources.begin(), n.sources.end());
+    for (const std::string& d : n.defines) key += " -D" + d;
+    for (const std::string& r : n.idf) key += " " + r;
+    for (const auto& [pkg, ver] : n.registry) key += " " + pkg + "@" + ver;
+    for (const std::string& c : n.sdkconfig) key += " " + c;
+  }
+  std::sort(files.begin(), files.end());
+  for (const std::string& f : files) key += f.substr(root.size()) + " " + zn::tc::sha256File(f) + "\n";
+  const fs::path dir = fs::path(zn::tc::home()) / "esp32/firmware" / zn::tc::sha256Hex(key).substr(0, 16);
+  const std::string image = (dir / "flash.bin").string();
+  if (fs::exists(image, ec)) return image;
+  // the component main/CMakeLists.txt requires: the modules' sources, headers and defines, the ESP-IDF components and the registry packages
+  // (idf_component.yml: plugin.json "idfComponents", Arduino's core as a component for example) they need, their zn_module_<Name>
+  const fs::path comp = dir / "zn_plugins";
+  fs::create_directories(comp, ec);
+  std::string srcs, incs = " \"" + (fs::path(root) / "include").string() + "\" \"" + comp.string() + "\"", defs, reqs, deps, list, decls, settings;
+  for (const Native& n : p.natives) {
+    std::string lower = n.module;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    writeText(comp / ("zinc_native_" + lower + "_abi.h"), n.header);
+    srcs += " \"" + n.impl + "\"";
+    for (const std::string& src : n.sources) srcs += " \"" + src + "\"";
+    incs += " \"" + n.dir + "\" \"" + n.dir + "/native\"";
+    for (const std::string& d : n.defines) defs += " \"" + d + "\"";
+    for (const std::string& r : n.idf) reqs += " " + r;
+    for (const auto& [pkg, ver] : n.registry) deps += "  " + pkg + ": \"" + ver + "\"\n";
+    for (const std::string& c : n.sdkconfig) settings += c + "\n";
+    decls += "const ZnModule *zn_module_" + n.module + "(void);\n";
+    list += "zn_module_" + n.module + ", ";
+  }
+  writeText(comp / "zn_native_modules.c", "/* written by zinc (src/cli_mqjs.cpp): the native modules main/zn_native.c opens */\n#include \"zn/native.h\"\n" + decls +
+                                              "const ZnModule *(*const zn_native_modules[])(void) = {" + list + "0};\n");
+  writeText(comp / "CMakeLists.txt", "# written by zinc (src/cli_mqjs.cpp): the native code of the plugins a program imports\n"
+                                     "idf_component_register(SRCS zn_native_modules.c" + srcs + "\n  INCLUDE_DIRS" + incs + (reqs.empty() ? "" : "\n  REQUIRES" + reqs) + ")\n" +
+                                     (defs.empty() ? "" : "target_compile_definitions(${COMPONENT_LIB} PRIVATE" + defs + ")\n") +
+                                     "target_compile_options(${COMPONENT_LIB} PRIVATE -w)\n");
+  fs::remove(comp / "idf_component.yml", ec);
+  if (!deps.empty()) writeText(comp / "idf_component.yml", "dependencies:\n" + deps);
+  writeText(dir / "sdkconfig.plugins", settings);   // after the firmware's own defaults, so a plugin's setting wins
+  // ESP-IDF, as tools/build-esp32-core installs it (about 1.5 GB, once)
+  const std::string idf = zn::tc::home() + "/esp-idf", tools = zn::tc::home() + "/esp-tools", log = (dir / "build.log").string();
+  std::string out;
+  if (!fs::exists(idf + "/export.sh", ec)) {
+    if (zn::tc::offline()) { err = "a plugin's native code needs ESP-IDF, which is not installed and cannot be while offline (ZINC_OFFLINE)"; return ""; }
+    zn::log::step("esp-idf", "installing ESP-IDF 5.5.5 into " + idf + " (once: about 1.5 GB and several minutes)");
+    if (capture("git clone --depth 1 -b v5.5.5 --recurse-submodules --shallow-submodules -j8 https://github.com/espressif/esp-idf " + quote(idf) + " && cd " + quote(idf) +
+                " && IDF_TOOLS_PATH=" + quote(tools) + " ./install.sh esp32", out) != 0) {
+      err = "ESP-IDF could not be installed into " + idf + ":\n" + out.substr(out.size() > 2000 ? out.size() - 2000 : 0);
+      return "";
+    }
+  }
+  const unsigned cores = std::max(1u, std::thread::hardware_concurrency() / 2);
+  const auto t = std::chrono::steady_clock::now();
+  zn::log::step("firmware", "building the firmware with " + std::to_string(p.natives.size()) + " native module(s) (ESP-IDF; minutes the first time, then cached)");
+  const std::string cmd = "export IDF_TOOLS_PATH=" + quote(tools) + " && . " + quote(idf + "/export.sh") + " >/dev/null && cd " + quote(fw.string()) +
+                          " && { command -v ccache >/dev/null && export IDF_CCACHE_ENABLE=1; gen=Ninja; command -v ninja >/dev/null || gen='Unix Makefiles'; MAKEFLAGS=-l" + std::to_string(cores) +
+                          " nice -n 5 idf.py -G \"$gen\" -B " + quote((dir / "build").string()) + " -DIDF_TARGET=esp32 -DSDKCONFIG=" + quote((dir / "sdkconfig").string()) +
+                          " -DDEPENDENCIES_LOCK=" + quote((dir / "dependencies.lock").string()) + " -DZN_NATIVE_DIR=" + quote(dir.string()) +
+                          " -DSDKCONFIG_DEFAULTS=" + quote(std::string("sdkconfig.defaults;") + (net ? "sdkconfig.net;" : "") + (dir / "sdkconfig.plugins").string()) +
+                          (net ? " -DZN_NET=1" : "") + (emulator ? " -DZN_PANEL=spi" : "") + " build; }" +
+                          " && cd " + quote((dir / "build").string()) + " && esptool.py --chip esp32 merge_bin -o ../flash.bin @flash_args";
+  if (capture("( " + cmd + " ) >" + quote(log) + " 2>&1", out) != 0 || !fs::exists(image, ec)) {
+    std::string text;
+    readText(log, text);
+    err = text.substr(text.size() > 3000 ? text.size() - 3000 : 0) + "\nthe firmware with the native modules did not build (above; the whole log: " + log + ")";
+    return "";
+  }
+  zn::log::step("firmware", "built with the native modules: " + dir.string(), zn::log::since(t));
+  return image;
+}
+
+// The image a program runs on: the prebuilt one, or the one built with its plugins' native modules
+std::string imageFor(const std::string& root, const Program& p, bool emulator, bool net, std::string& err) {
+  return p.natives.empty() ? firmwareImage(root, emulator, net, err) : nativeFirmware(root, p, emulator, net, err);
 }
 
 // What the firmware of a merged image prints first ("mqjs: firmware <name> <sha>", main/main.c): its esp_app_desc_t, 32 bytes into the app
@@ -224,9 +373,9 @@ struct Uart {
   }
 };
 
-int flashFirmware(const std::string& root, std::string port, bool net) {
+int flashFirmware(const std::string& root, std::string port, bool net, const Program* p = nullptr) {
   std::string err, tool, log;
-  const std::string image = firmwareImage(root, false, net, err);
+  const std::string image = p ? imageFor(root, *p, false, net, err) : firmwareImage(root, false, net, err);
   if (image.empty() || !zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   if (port.empty()) port = zn::dev::findSerialPort();
   if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
@@ -254,7 +403,9 @@ int runOnBoard(const std::string& root, const Program& p, std::string port, int 
   }
   zn::log::step("flash", "the program to " + port + " at " + kJsOffset, zn::log::since(t));
   // the firmware the program needs: the network image for the radio, else either (the network image runs every program)
-  const std::string small = imageId(firmwareImage(root, false, false, err)), net = imageId(firmwareImage(root, false, true, err));
+  // with native modules, only the image built for them
+  const std::string small = imageId(imageFor(root, p, false, p.net, err)), net = p.natives.empty() ? imageId(firmwareImage(root, false, true, err)) : small;
+  if (small.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   bool reflashed = false;
 again:
   zn::dev::Link link;
@@ -285,7 +436,7 @@ again:
       zn::dev::closeLink(link);
       std::fprintf(stderr, "zinc: the board runs %s; it gets %s (once)\n", uart.id.empty() ? "another firmware" : ("the firmware " + uart.id).c_str(),
                    p.net ? "the network firmware" : "the mquickjs firmware");
-      if (flashFirmware(root, port, p.net)) return 1;
+      if (flashFirmware(root, port, p.net, &p)) return 1;
       reflashed = true;
       goto again;
     }
@@ -307,7 +458,7 @@ int runOnEmulator(const std::string& root, const Program& p, int runMs, const st
     std::fprintf(stderr, "zinc: esp32sim has no radio: a program with zinc:wifi, zinc:espnow or zinc:ble runs on the board (or its check alone: zinc export)\n");
     return 2;
   }
-  const std::string image = firmwareImage(root, true, false, err);
+  const std::string image = imageFor(root, p, true, false, err);
   if (image.empty() || !zn::tc::ensureEsp32sim(sim, rom, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const char* shot = std::getenv("ZINC_SHOT");
   const std::string png = shot && *shot ? fs::absolute(shot).string() : p.work + "/" + p.name + ".png";
@@ -381,7 +532,7 @@ int runOverWifi(const std::string& root, const Program& p, std::string host, int
   std::string sha, out;
   const auto t = clock::now();
   if (!info(sha)) { std::fprintf(stderr, "zinc: no board answers at %s (on the same network? its screen or UART says its address)\n", base.c_str()); return 1; }
-  const std::string image = firmwareImage(root, false, true, err), id = imageId(image);
+  const std::string image = imageFor(root, p, false, true, err), id = imageId(image);
   if (image.empty()) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   const std::string want = id.substr(id.find(' ') + 1);
   if (sha != want) {   // the network firmware of this zinc: its app, out of the merged image
@@ -422,7 +573,7 @@ int runOverWifi(const std::string& root, const Program& p, std::string host, int
 
 int exportTo(const std::string& root, const Program& p, const fs::path& out) {
   std::string err;
-  const std::string image = firmwareImage(root, false, p.net, err);
+  const std::string image = imageFor(root, p, false, p.net, err);
   if (image.empty()) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
   std::error_code ec;
   fs::create_directories(out, ec);
@@ -444,7 +595,7 @@ int exportTo(const std::string& root, const Program& p, const fs::path& out) {
 }  // namespace
 
 bool mquickjsWanted(const std::vector<std::string>& args) {
-  if (args.size() < 3 || (args[1] != "run" && args[1] != "export" && args[1] != "flash")) return false;
+  if (args.size() < 3 || (args[1] != "run" && args[1] != "export" && args[1] != "flash" && args[1] != "check")) return false;
   bool esp32 = false;
   std::string dir = ".";
   for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) {
@@ -484,7 +635,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
     else if (a == "--host" && more) { wifi = true; host = args[++k] == "last" ? "" : args[k]; }
     else if (a == "--emulator-script" && more) { emulator = true; script = fs::absolute(args[++k]).string(); }
     else if (a[0] != '-') entry = a;
-    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc: unknown option %s\nusage: zinc run|export|check <app> --target esp32 --engine mquickjs [--port P | --host <board>.local | --emulator [--emulator-script F]] [-o dir] [--frames N] [--run-ms N]; zinc flash --target esp32 --engine mquickjs [--net]\n", a.c_str()); return 2; }
   }
   if (target != "esp32") { std::fprintf(stderr, "zinc: --engine mquickjs runs on --target esp32 (the board's firmware, firmware/esp32-mquickjs)\n"); return 2; }
   if (cmd == "flash") return flashFirmware(root, port, net);
@@ -503,6 +654,7 @@ int mquickjs(const std::vector<std::string>& args, const std::string& root, cons
   if (!fs::exists(file, ec)) { std::fprintf(stderr, "zinc: no such file: %s\n", file.c_str()); return 2; }
   Program p;
   if (const int rc = prepare(root, file, cacheDir, frames, p)) return rc;
+  if (cmd == "check") return 0;   // checked under mquickjs and compiled; nothing built for or written to a board
   if (cmd == "run") return emulator ? runOnEmulator(root, p, runMs, script) : wifi ? runOverWifi(root, p, host, runMs) : runOnBoard(root, p, port, runMs);
   return exportTo(root, p, out.empty() ? projectDir / "dist" / (projectDir.filename().string() + "-esp32") : fs::path(out));
 }

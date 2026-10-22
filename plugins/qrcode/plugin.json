@@ -1,0 +1,13 @@
+{
+  "name": "qrcode",
+  "kind": "module",
+  "module": "zinc:qrcode",
+  "entry": "index.ts",
+  "description": "QR codes from text (Nayuki's QR Code generator in C, on the native ABI: the same C file on the computer and in the ESP32's mquickjs firmware)",
+  "targets": {
+    "macos": { "sources": ["vendor/qrcodegen.c"] },
+    "linux": { "sources": ["vendor/qrcodegen.c"] },
+    "windows": { "sources": ["vendor/qrcodegen.c"] },
+    "esp32": { "sources": ["vendor/qrcodegen.c"] }
+  }
+}

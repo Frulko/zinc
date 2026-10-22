@@ -106,6 +106,10 @@ static const JSPropDef js_global_object[] = {
     JS_CFUNC_DEF("__host_bleClose", 1, js_ble_close),
     JS_CFUNC_DEF("__host_bleStop", 0, js_ble_stop),
 #endif
+#ifdef ZN_NATIVE /* the native modules of the plugins a program imports, which zinc builds into the firmware: main/zn_native.c */
+    JS_CFUNC_DEF("__host_nativeOpen", 1, js_native_open),
+    JS_CFUNC_DEF("__host_nativeCall", 10, js_native_call),
+#endif
     JS_PROP_END,
 };
 

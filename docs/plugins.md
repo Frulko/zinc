@@ -43,7 +43,8 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 | `defines` / `flags` | compile definitions and flags for the program sources |
 | `vendorFlags` | flags for the vendored sources only (`.c` files and C++ under `vendor/`): a library that needs RTTI or exceptions (`-frtti`, `-fexceptions`, libdatachannel in `zinc:webrtc`) gets them without the plugin's own code, which is built against the engine's runtime without RTTI |
 | `packages` | system packages added to the target's SDK image (apk for rpi1, apt for linux); a derived image is built once per package set |
-| `idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry dependencies |
+| `idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry dependencies (under mquickjs, a component zinc writes for the firmware: [native code on the ESP32](plugins/native-esp32.md)) |
+| `sdkconfig` | under `targets.esp32`: firmware settings the native code needs (`"CONFIG_AUTOSTART_ARDUINO=n"`), added after the firmware's own defaults when zinc builds it with the plugin |
 | `nodeFlags` | under `targets.sim`: flags for the node process that runs the sim program (`zinc:script` asks for `--experimental-vm-modules`) |
 | `requires` | top level: capabilities the target must offer (`["heap>=4M"]`, [capabilities](targets/capabilities.md)); an incompatible target is error Z5005 |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options); C++ sees them as `ZP_<PLUGIN>_<KEY>` defines, plus `ZP_<PLUGIN>=1` |

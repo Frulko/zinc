@@ -37,6 +37,7 @@ plugin (import / display)  targets                             description
   zinc:physics3d           macos,linux,windows                3D rigid bodies on Jolt Physics 5.6.0 (MIT): worlds stepped at a fixed rate, shapes, continuous collision, hinge and slider constraints, contact events, ray and shape casts
   zinc:pixelfont           macos,linux,windows,rpi1,esp32,wasm,ps2 5x7 and 3x5 bitmap fonts for LED matrices and tiny screens
   zinc:process             macos,linux,windows,rpi1           Child processes: spawn with args/cwd/env, streamed stdout/stderr, stdin, kill, exit code (posix_spawn)
+  zinc:qrcode              macos,linux,windows,esp32          QR codes from text (Nayuki's QR Code generator in C, on the native ABI: the same C file on the computer and in the ESP32's mquickjs firmware)
   zinc:remarkable          rmpp,macos,linux                   reMarkable status toolbar: local clock, battery and app-owned exit; desktop preview supported
   zinc:remote              macos,linux,rpi1                   Viewer for display-remote apps: live screen as a runtime image, input forwarding, LAN discovery
   zinc:script              macos,linux,rpi1,rmpp,sim          Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises

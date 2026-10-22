@@ -2,8 +2,8 @@
 # --target esp32 --engine mquickjs (src/cli_mqjs.cpp, firmware/esp32-mquickjs): the board's ROM table builds and names the zinc:gfx host calls
 # js/sim.js stands in for on the computer; examples/breakout, unchanged, is checked under mquickjs and exported as the firmware and the 32-bit
 # bytecode image; a program using what mquickjs lacks (Map) or a zinc:gfx call the board does not have (line) fails before anything is sent,
-# with its own file and line; every examples/esp32-* demo is checked and exported, and a pull-up asked of an input-only pin (35) is refused
-# with the reason. No board, no ESP-IDF; esbuild and SWC must already be in ZINC_HOME (never downloaded here).
+# with its own file and line; every examples/esp32-* demo is checked (zinc check), a plugin's native module runs its C in the check, and a
+# pull-up asked of an input-only pin (35) is refused with the reason. No board, no ESP-IDF; esbuild and SWC must already be in ZINC_HOME (never downloaded here).
 cd "$(dirname "$0")/../.." || exit 2
 F=firmware/esp32-mquickjs
 command -v cc >/dev/null || { echo "needs cc"; exit 77; }
@@ -12,7 +12,7 @@ ZINC_OFFLINE=1 "$ZINC" toolchain esbuild >/dev/null 2>&1 && ZINC_OFFLINE=1 "$ZIN
 T=$(mktemp -d) && trap 'rm -rf "$T"' EXIT
 fail=0
 cc -w -I third_party/mquickjs -o "$T/stdlib" $F/main/zn_stdlib.c third_party/mquickjs/mquickjs_build.c -lm && "$T/stdlib" -m32 > "$T/table.h" || { echo "zn_stdlib.c does not build the board's table"; fail=1; }
-grep -o '"__host_[A-Za-z]*"' $F/main/zn_stdlib.c | tr -d '"' | sort > "$T/board"
+grep -o '"__host_[A-Za-z]*"' $F/main/zn_stdlib.c | tr -d '"' | grep -v '^__host_native' | sort > "$T/board"   # zinc:native's are zinc-mqjs's own
 grep -o '^function __host_[A-Za-z]*' $F/js/sim.js | sed 's/^function //' | sort > "$T/sim"
 diff "$T/board" "$T/sim" >/dev/null || { echo "main/zn_stdlib.c and js/sim.js name different host calls:"; diff "$T/board" "$T/sim"; fail=1; }
 
@@ -30,11 +30,15 @@ grep -q "zinc:gfx line() is not on the ESP32" "$T/log" && grep -q "line/main.ts:
 for j in examples/esp32-*/zinc.json examples/esp32-*/*/zinc.json; do   # the board's programs (esp32-ble/mac is the Mac's)
   grep -q '"esp32"' "$j" 2>/dev/null || continue
   d=$(dirname "$j")
-  "$ZINC" export "$d" --target esp32 --engine mquickjs --frames 120 -o "$T/demo" >"$T/log" 2>&1 || { echo "$d does not export for mquickjs"; cat "$T/log"; fail=1; }
+  "$ZINC" check "$d" --target esp32 --engine mquickjs --frames 120 >"$T/log" 2>&1 || { echo "$d does not check for mquickjs"; cat "$T/log"; fail=1; }
 done
+# a plugin's native module (plugins/qrcode, C on the native ABI): the check runs its C, built for this computer (main/zn_native.c in zinc-mqjs)
+mkdir -p "$T/qr"
+printf "import { encode } from 'zinc:qrcode';\nconst q = encode('HELLO', 0, 1);\nif (q.size !== 21 || !q.module(0, 0) || q.module(7, 0)) throw new Error('qr ' + q.size);\nconsole.log('qr ok');\n" > "$T/qr/main.ts"
+"$ZINC" check "$T/qr/main.ts" --target esp32 --engine mquickjs >"$T/log" 2>&1 || { echo "a program on a plugin's native module does not check"; cat "$T/log"; fail=1; }
 # a program on the radio gets the network firmware; esp32sim has no radio
-"$ZINC" export examples/esp32-wifi --target esp32 -o "$T/wifi" >/dev/null 2>&1 && cmp -s "$T/wifi/firmware.bin" $F/prebuilt/zinc-mquickjs-net-flash.bin || { echo "zinc:wifi does not take the network firmware"; fail=1; }
-"$ZINC" run examples/esp32-wifi --target esp32 --emulator >"$T/log" 2>&1 && { echo "the emulator accepted a program on the radio"; fail=1; }
+"$ZINC" export examples/esp32-espnow --target esp32 -o "$T/wifi" >/dev/null 2>&1 && cmp -s "$T/wifi/firmware.bin" $F/prebuilt/zinc-mquickjs-net-flash.bin || { echo "zinc:espnow does not take the network firmware"; fail=1; }
+"$ZINC" run examples/esp32-espnow --target esp32 --emulator >"$T/log" 2>&1 && { echo "the emulator accepted a program on the radio"; fail=1; }
 grep -q "esp32sim has no radio" "$T/log" || { echo "the emulator's refusal does not say why"; cat "$T/log"; fail=1; }
 mkdir -p "$T/pull"
 printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"

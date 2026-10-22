@@ -1,0 +1,6 @@
+QR Code generator library (C) 1.8.0 (tag v1.8.0 of nayuki/QR-Code-generator), https://github.com/nayuki/QR-Code-generator/archive/refs/tags/v1.8.0.tar.gz
+archive sha256 2ec0a4d33d6f521c942eeaf473d42d5fe139abcfa57d2beffe10c5cf7d34ae60
+kept, unmodified (the same files as third_party/qrcodegen):
+  qrcodegen.c   sha256 300eff07ee25baaa7578f20284411638154716379437391e7e689c0e6ce81403  (c/qrcodegen.c)
+  qrcodegen.h   sha256 e82df4bff37d18b5863b9e7486fe6bda1b6cda8c3b9ecebfec473907265cb589  (c/qrcodegen.h)
+  LICENSE       sha256 692e693cdb12410d01c79abaeda0210145839ba1f3cd5a4c01511b9a8eaa09d9  (MIT, from the notice of the files' header)
