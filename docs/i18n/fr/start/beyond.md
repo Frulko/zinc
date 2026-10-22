@@ -329,7 +329,7 @@ lemonade: 2 lemons
 
 ## Animations et transitions
 
-**Ce que vous allez voir :** un interrupteur qui allume la lumière, et la page vire au jaune chaud. Une cloche se balance quand vous la sonnez.
+**Ce que vous allez voir :** un interrupteur qui allume la lumière, et la page vire au jaune chaud. Une cloche se balance quand vous la faites sonner.
 
 ![Sur une page jaune pâle, un interrupteur vert allumé et un bouton rond doré « Ring » incliné sur le côté](img/animation.png)
 
@@ -616,7 +616,7 @@ a new balloon, 5 in the sky
   fait rien. Elle recouvre les ballons derrière, donc un clic sur le bouton ne crève jamais un ballon en plus.
 - Les ballons sont les enfants d'un sprite à part, `sky`, ajouté avant l'enseigne : ils montent derrière elle.
 
-**À essayer :** mettez sur l'enseigne un deuxième bouton qui crève tous les ballons. Faites pendre l'enseigne à un ballon et montez avec lui.
+**À essayer :** mettez sur l'enseigne un deuxième bouton qui crève tous les ballons. Accrochez l'enseigne à un ballon pour qu'elle monte avec lui.
 
 ## Où aller ensuite
 
