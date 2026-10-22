@@ -496,6 +496,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.11: the other site pages (philosophy, cli, demos, uses, about) and the demo captions of `site/src/data/site.ts` are English only.
 - ZN-774.11: on a shallow clone the "English changed" notice is skipped silently (the `source` commit is missing): the Pages workflow needs `fetch-depth: 0`.
 - ZN-774.15: at 1280x800 Atelier's start view shows the 9 Drawing examples and puts the Scene, Canvas and Interface ones below the fold; a style card could also select its group.
+- ZN-774: a step and variable view in Atelier with live editing of numbers and colours by dragging in the code (Thonny, Swift Playgrounds; docs/reports/onboarding-benchmark.md): large, the most useful tool for teaching after the lessons with checks.
+- ZN-774: one real app grown across the lessons, the changed lines highlighted at each step, its final source in examples/ (Next.js Learn, Expo tutorial).
+- ZN-774: printable cards for classrooms, one page per style, made from the lessons (Scratch Coding Cards).
+- ZN-774: a short looping capture per lesson made by `zinc capture` in the site build, so it never goes stale; a narrated first-hour video is the owner's call.
+- ZN-774: a first-steps checklist on Atelier's start view (VS Code walkthroughs), only if people still get lost after ZN-774.23 and ZN-774.24.
+- ZN-774: a translation guide and a missing-strings report per language before a sixth language is added (Astro).
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
