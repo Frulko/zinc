@@ -1,0 +1,3 @@
+// Written by CMakeLists.txt from i18n/en/*.json (D159): English, the source language of the tooling, compiled into zinc.
+{"cli", R"ZNI18N(@ZN_I18N_EN_cli@)ZNI18N"},
+{"diag", R"ZNI18N(@ZN_I18N_EN_diag@)ZNI18N"},

@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""tools/i18n-check [repo]: the message catalogs of i18n/<lang>/<area>.json (D159, docs/reports/onboarding-i18n-research.md section 5.5).
+
+Every area file found under any language (cli, diag, atelier...) is compared with English's:
+  - valid UTF-8 JSON, one flat object of non-empty NFC strings, every key starting with its area ("cli.");
+  - the same messages as English; a message with a number (key_one, key_other...) has at least `one` and `other`
+    (`many` missing in fr, es, it is a warning: it only matters from a million);
+  - the same {placeholders} (a literal brace is {{), and the error codes (Z0103), the `backticked text`, the commands
+    (zinc new) and the flags (--lang) of the English text, unchanged;
+  - no leading or trailing space English has not;
+and every id the sources use is in English: tr("...") and trn("...") in src/, t('atelier...') in app/atelier.
+Prints one line per problem; exit 1 when there is an error, 0 otherwise (warnings included)."""
+import json, os, re, sys, unicodedata
+
+root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+base = os.path.join(root, "i18n")
+errors, warnings = [], []
+PLURAL = re.compile(r"^(.*)_(zero|one|two|few|many|other)$")
+PROTECTED = re.compile(r"Z\d{4}|`[^`]+`|\bzinc [a-z][a-z0-9-]*|(?<![\w-])--[a-z][a-z0-9-]*")
+MANY = {"fr", "es", "it"}   # CLDR: these have a `many` category (exact millions)
+
+def placeholders(text):
+    names, i = [], 0
+    while i < len(text):
+        if text.startswith("{{", i): i += 2; continue
+        m = re.match(r"\{([A-Za-z0-9_]+)\}", text[i:])
+        if m: names.append(m.group(1)); i += m.end(); continue
+        i += 1
+    return sorted(names)
+
+def load(lang, area):
+    path = os.path.join(base, lang, area + ".json")
+    rel = os.path.relpath(path, root)
+    if not os.path.exists(path): errors.append(f"{rel}: missing (English has {area}.json)"); return {}
+    def pairs(items):
+        seen = {}
+        for k, v in items:
+            if k in seen: errors.append(f"{rel}: key {k} twice")
+            seen[k] = v
+        return seen
+    try:
+        data = json.loads(open(path, encoding="utf-8").read(), object_pairs_hook=pairs)
+    except (ValueError, UnicodeDecodeError) as e:
+        errors.append(f"{rel}: not valid UTF-8 JSON: {e}"); return {}
+    if not isinstance(data, dict): errors.append(f"{rel}: not a JSON object"); return {}
+    out = {}
+    for k, v in data.items():
+        if not isinstance(v, str): errors.append(f"{rel}: {k}: not a string"); continue
+        if not k.startswith(area + "."): errors.append(f"{rel}: {k}: the keys of {area}.json start with '{area}.'")
+        if not v.strip(): errors.append(f"{rel}: {k}: empty")
+        if unicodedata.normalize("NFC", v) != v: errors.append(f"{rel}: {k}: not in NFC")
+        out[k] = v
+    return out
+
+def messages(cat):   # base id -> {form: text}; a plain message has the form None
+    m = {}
+    for k, v in cat.items():
+        p = PLURAL.match(k)
+        b, form = (p.group(1), p.group(2)) if p else (k, None)
+        m.setdefault(b, {})[form] = v
+    return m
+
+if not os.path.isdir(os.path.join(base, "en")): sys.exit(f"i18n-check: no {os.path.relpath(base, root)}/en")
+langs = sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)) and re.fullmatch(r"[a-z]{2,3}(-[A-Za-z0-9]+)?", d))
+areas = sorted({f[:-5] for l in langs for f in os.listdir(os.path.join(base, l)) if f.endswith(".json")})
+english = {}
+for area in areas:
+    en = load("en", area)
+    english.update(en)
+    em = messages(en)
+    for b, forms in em.items():
+        if None in forms and len(forms) > 1: errors.append(f"i18n/en/{area}.json: {b} is both a plain message and a plural one")
+        if None not in forms and not {"one", "other"} <= set(forms): errors.append(f"i18n/en/{area}.json: {b}: a plural message needs _one and _other")
+    for lang in langs:
+        if lang == "en": continue
+        rel = f"i18n/{lang}/{area}.json"
+        tm = messages(load(lang, area))
+        for b in sorted(set(tm) - set(em)): errors.append(f"{rel}: {b}: not in English")
+        for b, eforms in sorted(em.items()):
+            forms = tm.get(b)
+            if forms is None: errors.append(f"{rel}: {b}: missing"); continue
+            if None in eforms:
+                if set(forms) != {None}: errors.append(f"{rel}: {b}: a plain message in English, plural here"); continue
+            else:
+                if None in forms: errors.append(f"{rel}: {b}: a plural message in English (_one, _other)"); continue
+                for need in ("one", "other"):
+                    if need not in forms: errors.append(f"{rel}: {b}_{need}: missing")
+                if lang in MANY and "many" not in forms: warnings.append(f"{rel}: {b}_many: missing (counts of a million and more say _other)")
+            union = sorted(set(sum((placeholders(t) for t in eforms.values()), [])))
+            for form, text in forms.items():
+                key = b if form is None else f"{b}_{form}"
+                etext = eforms.get(form, eforms.get("other", next(iter(eforms.values()))))
+                want = placeholders(etext)
+                got = placeholders(text)
+                if form in (None, "other") and sorted(set(got)) != sorted(set(want)): errors.append(f"{rel}: {key}: placeholders {sorted(set(got))}, English has {sorted(set(want))}")
+                elif not set(got) <= set(union): errors.append(f"{rel}: {key}: placeholders {sorted(set(got) - set(union))} English never has")
+                for tok in PROTECTED.findall(etext):
+                    if tok not in text: errors.append(f"{rel}: {key}: '{tok}' of the English text is not there unchanged")
+                if (text != text.lstrip()) != (etext != etext.lstrip()) or (text != text.rstrip()) != (etext != etext.rstrip()):
+                    errors.append(f"{rel}: {key}: leading or trailing space unlike English")
+
+def ids(directory, pattern, exts):
+    found = []
+    for dp, dirs, files in os.walk(os.path.join(root, directory)):
+        dirs[:] = [d for d in dirs if d not in ("node_modules", "build") and not d.startswith(".")]
+        for f in files:
+            if f.endswith(exts):
+                text = open(os.path.join(dp, f), encoding="utf-8", errors="replace").read()
+                found += [(os.path.relpath(os.path.join(dp, f), root), m.group(1), m.group(0)) for m in re.finditer(pattern, text)]
+    return found
+
+plural_bases = {PLURAL.match(k).group(1) for k in english if PLURAL.match(k)}
+for path, i, call in ids("src", r'\btrn?\(\s*"([a-z]+\.[A-Za-z0-9_.]+)"', (".cpp", ".h")):
+    ok = i in plural_bases if call.startswith("trn") else i in english
+    if not ok: errors.append(f"{path}: {call.split('(')[0]}(\"{i}\") is not in i18n/en/{i.split('.')[0]}.json" + (" as a plural message" if call.startswith("trn") else ""))
+if os.path.isdir(os.path.join(root, "app", "atelier")):
+    for path, i, call in ids(os.path.join("app", "atelier"), r"\bt\(\s*['\"](atelier\.[A-Za-z0-9_.]+)['\"]", (".ts", ".tsx")):
+        if i not in english and i not in plural_bases: errors.append(f"{path}: t('{i}') is not in i18n/en/atelier.json")
+
+for w in warnings: print("warning: " + w)
+for e in errors: print("error: " + e)
+print(f"i18n-check: {len(langs)} languages, {len(areas)} areas, {len(english)} English messages: {len(errors)} errors, {len(warnings)} warnings")
+sys.exit(1 if errors else 0)

@@ -1,6 +1,7 @@
 #include "cli_web.h"
 #include "cli_core.h"
 #include "cli_pm.h"
+#include "i18n/i18n.h"
 
 #include <cstdio>
 #include <cstring>
@@ -105,6 +106,7 @@ const Command kCommands[] = {
   {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "update an app from its channel", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
   {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
   {"doctor", "zinc doctor [--details]", "check the machine", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
+  {"config", "zinc config [get <key> | set <key> <value> | unset <key>]", "your settings, such as the language", "Your settings, in $ZINC_HOME/config.json (~/.zinc/config.json), which Zinc Atelier reads and writes too.\n  lang  the language of the messages: en, fr, es, it or de. Unset, ZINC_LANG and then the system's language decide; --lang on any command wins for that command.\nzinc config prints them all, zinc config get lang prints one (exit 1 when it is not set), zinc config set lang fr saves one, zinc config unset lang removes it."},
   {"toolchain", "zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar]|path|esptool|esbuild|swc|basisu|gltfpack|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc (with a console target: its SDK, pinned the same way); esbuild: the linker of zinc bundle; swc: the lowering to ES5 of --engine mquickjs; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
   {"flash", "zinc flash --target esp32 [--engine mquickjs] [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool. --engine mquickjs: the MicroQuickJS firmware instead, for zinc run --target esp32 --engine mquickjs."},
@@ -371,11 +373,12 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
 }
 
 int unknownCommand(const std::string& name) {
-  if (const Command* c = findCommand(name)) { std::fprintf(stderr, "usage: %s\n(zinc help %s says more)\n", c->usage, c->name); return 2; }
+  using zn::i18n::tr;
+  if (const Command* c = findCommand(name)) { std::fprintf(stderr, "%s\n%s\n", tr("cli.usage", {{"usage", c->usage}}).c_str(), tr("cli.usage.more", {{"command", c->name}}).c_str()); return 2; }
   std::vector<std::string> names;
   for (const Command& c : kCommands) names.push_back(c.name);
   std::string guess = zn::frontend::nearest(name, names);   // not `near`: windows.h defines it away
-  std::fprintf(stderr, "zinc: unknown command '%s'%s (zinc help lists the commands)\n", name.c_str(), guess.empty() ? "" : (": did you mean 'zinc " + guess + "'?").c_str());
+  std::fprintf(stderr, "%s\n", (guess.empty() ? tr("cli.unknown.command", {{"name", name}}) : tr("cli.unknown.guess", {{"name", name}, {"guess", "zinc " + guess}})).c_str());
   return 2;
 }
 
@@ -385,11 +388,11 @@ int help(const std::vector<std::string>& args) {
     std::puts("zinc: typed TypeScript for apps, games, services and boards\n\nusage: zinc <command> [options]\n");
     for (const Command& c : kCommands) std::printf("  %-10s %s\n", c.name, c.summary);
     std::puts("\nzinc help <command> describes one. In a project directory `zinc run`, `zinc build` and `zinc check` need no argument.\nOther commands for engine work: lex, parse, ir, zbc, bake, profile, mem, device-sim, --version, --emit=cpp|zbc.");
-    std::puts("\nWith any command: -v (or --verbose) prints the build phases with their durations, the plugins' cache decisions and the engine at run; -vv more;\n--log-format json one JSON object per line. ZINC_LOG=<module>=<level>,... chooses (modules build, plugin, run, ui; levels info, debug, trace),\ne.g. ZINC_LOG=ui=debug for the layout passes.\nBuild and run show their engine and steps (compile, resources, native build, run) with durations and the plugins the program imports\n(zinc: plugins: a, b), including redirected stderr. Native builds show completed units and elapsed time.\n-q (or ZINC_STEPS=0) hides progress.\n--background (or ZINC_BACKGROUND=1) opens windows without taking the focus: for scripts, tests and agents.");
+    std::puts("\nWith any command: -v (or --verbose) prints the build phases with their durations, the plugins' cache decisions and the engine at run; -vv more;\n--log-format json one JSON object per line. ZINC_LOG=<module>=<level>,... chooses (modules build, plugin, run, ui; levels info, debug, trace),\ne.g. ZINC_LOG=ui=debug for the layout passes.\nBuild and run show their engine and steps (compile, resources, native build, run) with durations and the plugins the program imports\n(zinc: plugins: a, b), including redirected stderr. Native builds show completed units and elapsed time.\n-q (or ZINC_STEPS=0) hides progress.\n--background (or ZINC_BACKGROUND=1) opens windows without taking the focus: for scripts, tests and agents.\n--lang en|fr|es|it|de (or ZINC_LANG) chooses the language of the messages; zinc config set lang fr keeps it.");
     return 0;
   }
   const Command* c = findCommand(topic);
-  if (!c) { std::fprintf(stderr, "zinc: no help for '%s' (zinc help lists the commands)\n", topic.c_str()); return 2; }
+  if (!c) { std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.help.none", {{"name", topic}}).c_str()); return 2; }
   std::printf("usage: %s\n\n%s\n", c->usage, c->detail);
   return 0;
 }
@@ -405,6 +408,7 @@ static std::string moduleSuffixesJson() {
 }
 
 int init(const std::vector<std::string>& args, const std::string& engineRoot) {
+  using zn::i18n::tr;
   const std::string cmd = args.size() > 1 ? args[1] : "new";   // `zinc init <dir> --template t` is `zinc new [t] <dir>`
   std::string tmpl = "game";
   std::vector<std::string> pos;
@@ -414,11 +418,11 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     else if (args[i].rfind("--template=", 0) == 0) { tmpl = args[i].substr(11); named = true; }
     else if (args[i] == "--list") list = true;
     else if (args[i].rfind("-", 0) != 0) pos.push_back(args[i]);
-    else { std::fprintf(stderr, "zinc %s: unknown option %s\nusage: %s\n", cmd.c_str(), args[i].c_str(), findCommand(cmd.c_str())->usage); return 2; }
+    else { std::fprintf(stderr, "%s\n%s\n", tr("cli.option.unknown", {{"command", cmd}, {"option", args[i]}}).c_str(), tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   }
   const std::vector<TemplateInfo> all = listTemplates(engineRoot);
   if (list) { printTemplates(stdout, all); printIndexTemplates(engineRoot); return 0; }
-  if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "usage: %s\n", findCommand(cmd.c_str())->usage); return 2; }
+  if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "%s\n", tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   if (pos.size() == 2) tmpl = pos[0];
   const std::string dir = pos.empty() ? "." : pos.back();
   const TemplateInfo* t = nullptr;
@@ -431,9 +435,9 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     if (templateFromIndex(tmpl, engineRoot, spec, subdir, tier).empty()) { tmpl = spec; external = true; }
   }
   if (const std::string why = policyRefusal(tier); !why.empty()) { std::fprintf(stderr, "zinc %s: template %s: %s\n", cmd.c_str(), tmpl.c_str(), why.c_str()); return 1; }
-  if (!t && !external) { std::fprintf(stderr, "zinc %s: unknown template '%s'; choose one of (or a directory or git URL):\n", cmd.c_str(), tmpl.c_str()); printTemplates(stderr, all); return 2; }
+  if (!t && !external) { std::fprintf(stderr, "%s\n", tr("cli.new.template", {{"command", cmd}, {"template", tmpl}}).c_str()); printTemplates(stderr, all); return 2; }
   if (fs::exists(dir, ec) && !fs::is_empty(dir, ec)) {
-    std::fprintf(stderr, "zinc %s: %s is not empty; give a new or empty directory (zinc new [template] <dir>), templates:\n", cmd.c_str(), dir.c_str());
+    std::fprintf(stderr, "%s\n", tr("cli.new.not_empty", {{"command", cmd}, {"dir", dir}}).c_str());
     printTemplates(stderr, all);
     return 1;
   }
@@ -487,10 +491,10 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     const std::string rec = "\n  \"template\": { \"source\": " + jsonString(source) + (commit.empty() ? "" : ", \"commit\": " + jsonString(commit)) + " },";
     if (brace != std::string::npos) ok = writeFile(root / "zinc.json", z.substr(0, brace + 1) + rec + z.substr(brace + 1));
   }
-  if (!ok) { std::fprintf(stderr, "zinc %s: cannot write into %s\n", cmd.c_str(), dir.c_str()); return 1; }
+  if (!ok) { std::fprintf(stderr, "%s\n", tr("cli.new.write", {{"command", cmd}, {"dir", dir}}).c_str()); return 1; }
   for (const std::string& plugin : t->plugins)   // the plugins the template needs, pinned in the new zinc.lock (ZN-349)
-    if (addPlugin({"zinc", "add", plugin, fs::absolute(dir).string()}, engineRoot) != 0) { std::fprintf(stderr, "zinc %s: the template's plugin %s could not be added\n", cmd.c_str(), plugin.c_str()); return 1; }
-  std::printf("created %s (%s); next: cd %s && zinc run\n", dir.c_str(), tmpl.c_str(), dir.c_str());
+    if (addPlugin({"zinc", "add", plugin, fs::absolute(dir).string()}, engineRoot) != 0) { std::fprintf(stderr, "%s\n", tr("cli.new.plugin", {{"command", cmd}, {"plugin", plugin}}).c_str()); return 1; }
+  std::printf("%s\n", tr("cli.new.created", {{"dir", dir}, {"template", tmpl}}).c_str());
   return 0;
 }
 
@@ -579,6 +583,56 @@ struct Paint {   // colours only for a person at a terminal (NO_COLOR off, ZINC_
   std::string cmd(const std::string& s) const { return c("36", s); }
 };
 }  // namespace
+
+std::string settingsFile() { return zn::tc::home() + "/config.json"; }
+
+std::string setting(const std::string& key) {
+  std::string v;
+  if (yyjson_doc* doc = yyjson_read_file(settingsFile().c_str(), 0, nullptr, nullptr)) {
+    if (const char* s = yyjson_get_str(yyjson_obj_get(yyjson_doc_get_root(doc), key.c_str()))) v = s;
+    yyjson_doc_free(doc);
+  }
+  return v;
+}
+
+bool saveSetting(const std::string& key, const std::string& value) {
+  // the keys this zinc does not know (Zinc Atelier's own, a newer zinc's) are kept as they are
+  yyjson_doc* old = yyjson_read_file(settingsFile().c_str(), 0, nullptr, nullptr);
+  yyjson_mut_doc* doc = old && yyjson_is_obj(yyjson_doc_get_root(old)) ? yyjson_doc_mut_copy(old, nullptr) : yyjson_mut_doc_new(nullptr);
+  yyjson_doc_free(old);
+  yyjson_mut_val* root = yyjson_mut_doc_get_root(doc);
+  if (!root) { root = yyjson_mut_obj(doc); yyjson_mut_doc_set_root(doc, root); }
+  yyjson_mut_obj_remove_str(root, key.c_str());
+  if (!value.empty()) yyjson_mut_obj_add_strcpy(doc, root, key.c_str(), value.c_str());
+  std::error_code ec;
+  fs::create_directories(zn::tc::home(), ec);
+  const bool ok = yyjson_mut_write_file(settingsFile().c_str(), doc, YYJSON_WRITE_PRETTY_TWO_SPACES | YYJSON_WRITE_NEWLINE_AT_END, nullptr, nullptr);
+  yyjson_mut_doc_free(doc);
+  return ok;
+}
+
+int config(const std::vector<std::string>& args) {
+  using zn::i18n::tr;
+  const std::string op = args.size() > 2 ? args[2] : "";
+  const std::string key = args.size() > 3 ? args[3] : "";
+  const std::size_t want = op == "set" ? 5 : op == "get" || op == "unset" ? 4 : 2;
+  if (args.size() != want || (!op.empty() && op != "get" && op != "set" && op != "unset")) { std::fprintf(stderr, "%s\n", tr("cli.usage", {{"usage", findCommand("config")->usage}}).c_str()); return 2; }
+  if (op.empty()) {   // every setting, one per line
+    if (yyjson_doc* doc = yyjson_read_file(settingsFile().c_str(), 0, nullptr, nullptr)) {
+      std::size_t i, n; yyjson_val *k, *v;
+      yyjson_obj_foreach(yyjson_doc_get_root(doc), i, n, k, v) if (yyjson_is_str(v)) std::printf("%s=%s\n", yyjson_get_str(k), yyjson_get_str(v));
+      yyjson_doc_free(doc);
+    }
+    return 0;
+  }
+  if (key != "lang") { std::fprintf(stderr, "%s\n", tr("cli.config.key", {{"key", key}}).c_str()); return 2; }
+  if (op == "get") { const std::string v = setting(key); if (v.empty()) return 1; std::printf("%s\n", v.c_str()); return 0; }
+  const std::string lang = op == "set" ? zn::i18n::match(args[4]) : "";
+  if (op == "set" && lang.empty()) { std::fprintf(stderr, "%s\n", tr("cli.config.lang", {{"lang", args[4]}}).c_str()); return 2; }
+  if (!saveSetting(key, lang)) { std::fprintf(stderr, "%s\n", tr("cli.config.write", {{"file", settingsFile()}}).c_str()); return 1; }
+  if (op == "set") { zn::i18n::use(lang); std::printf("%s\n", tr("cli.config.saved").c_str()); }
+  return 0;
+}
 
 int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version) {
   if (details) return doctorDetails(engineRoot, rendererLines, version);

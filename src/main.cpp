@@ -23,6 +23,7 @@
 #include "cli_mqjs.h"
 #include "cli_pm.h"
 #include "cli_web.h"
+#include "i18n/i18n.h"
 #ifdef ZN_AGENT
 #include "agent/agent.h"
 #endif
@@ -1596,6 +1597,13 @@ int main(int argc, char** argv) {
     else if (!std::strcmp(argv[k], "--background")) { setenv("ZINC_BACKGROUND", "1", 1); drop = 1; }   // windows open without taking the focus (docs/guide/01-getting-started.md, AGENTS.md)
     else if (!std::strcmp(argv[k], "-q") || !std::strcmp(argv[k], "--quiet")) { setenv("ZINC_STEPS", "0", 1); drop = 1; }   // no step lines
     else if (!std::strcmp(argv[k], "--log-format") && k + 1 < argc) { setenv("ZINC_LOG_FORMAT", argv[k + 1], 1); drop = 2; }
+    else if (!std::strcmp(argv[k], "--lang") || !std::strncmp(argv[k], "--lang=", 7)) {   // the language of the messages (D159), through ZINC_LANG so that the zincs it starts speak it too
+      const char* tag = argv[k][6] == '=' ? argv[k] + 7 : k + 1 < argc ? argv[k + 1] : "";
+      const std::string lang = zn::i18n::match(tag);
+      if (lang.empty()) { std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.lang.bad", {{"lang", tag}}).c_str()); return 2; }
+      setenv("ZINC_LANG", lang.c_str(), 1);
+      drop = argv[k][6] == '=' ? 1 : 2;
+    }
     if (!drop) continue;
     for (int j = k; j + drop <= argc; ++j) argv[j] = argv[j + drop];
     argc -= drop;
@@ -1606,6 +1614,7 @@ int main(int argc, char** argv) {
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
 #endif
   gRoot = zn::tc::sourceRoot(ZN_SOURCE_DIR);
+  zn::i18n::configure(gRoot + "/i18n", zn::cli::settingsFile());   // nothing is read before the first message
   if (std::getenv("ZINC_DEVAPP_SELFTEST") && std::getenv("ZINC_DEVAPP")) std::fprintf(stderr, "devapp: %s (bundle id of this process: %s)\n", std::getenv("ZINC_DEVAPP"), zn::tc::runningBundleId().c_str());   // ZN-234 selftest
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
@@ -1691,6 +1700,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "config")) return zn::cli::config(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && (!std::strcmp(argv[2], "--scene") || !std::strcmp(argv[2], "--stroke-check")))) return zn::cli::capture(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) {

@@ -1,0 +1,18 @@
+{
+  "cli.unknown.command": "zinc: comando sconosciuto '{name}' (zinc help elenca i comandi)",
+  "cli.unknown.guess": "zinc: comando sconosciuto '{name}': intendevi '{guess}'? (zinc help elenca i comandi)",
+  "cli.usage": "uso: {usage}",
+  "cli.usage.more": "(zinc help {command} spiega di più)",
+  "cli.option.unknown": "zinc {command}: opzione sconosciuta {option}",
+  "cli.help.none": "zinc: nessun aiuto per '{name}' (zinc help elenca i comandi)",
+  "cli.lang.bad": "zinc: --lang accetta en, fr, es, it o de, non '{lang}'",
+  "cli.config.key": "zinc config: impostazione sconosciuta '{key}' (le impostazioni: lang)",
+  "cli.config.lang": "zinc config: lang accetta en, fr, es, it o de, non '{lang}'",
+  "cli.config.write": "zinc config: impossibile scrivere {file}",
+  "cli.config.saved": "D'ora in poi Zinc ti parla in italiano.",
+  "cli.new.template": "zinc {command}: modello sconosciuto '{template}'; scegline uno di questi (o una cartella o un URL git):",
+  "cli.new.not_empty": "zinc {command}: {dir} non è vuota; indica una cartella nuova o vuota (zinc new [modello] <cartella>). I modelli:",
+  "cli.new.write": "zinc {command}: impossibile scrivere in {dir}",
+  "cli.new.plugin": "zinc {command}: impossibile aggiungere il plugin {plugin} del modello",
+  "cli.new.created": "{dir} creato ({template}); poi: cd {dir} && zinc run"
+}

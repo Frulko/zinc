@@ -63,6 +63,8 @@
     {"paths": ["tools/windows-cross", "tests/t2/cross_windows.sh", "src/tc/tc.cpp"], "tests": ["cross_windows", "release_workflow"]},
     {"paths": ["tools/build-linux", "tools/linux-sysroot", "cmake/zig-linux.cmake"], "tests": ["tc", "release_workflow"]},
     {"paths": ["tests/t1/first_run.sh", "tests/golden/first-run/", "templates/", "src/frontend/diagnostics", "include/zn/diagnostics.h", "docs/guide/01-getting-started.md"], "tests": ["first_run"]},
+    {"paths": ["i18n/", "src/i18n/", "tools/i18n-check", "tests/unit/i18n_test.cpp", "tests/t0/i18n.sh", "app/atelier/"], "tests": ["i18n"]},
+    {"paths": ["i18n/", "src/cli_core.cpp", "src/main.cpp"], "tests": ["i18n", "first_run", "cli_core"]},
     {"paths": [".github/workflows/zinc-next.yml"], "tests": ["ci_plan", "release_workflow"]},
     {"paths": ["tests/golden/examples/proto/manifest.json", "tests/t1/camera_pixels.sh"], "tests": ["camera_pixels"]},
     {"paths": ["tools/ci-plan", "tests/data/ci_plan.py", "tests/t0/ci_plan.sh", "tests/affected.py", "tests/affected.json"], "tests": ["ci_plan"]},

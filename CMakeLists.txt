@@ -109,6 +109,17 @@ if(WIN32)
   target_link_libraries(zn_platform PUBLIC ws2_32 psapi)
 endif()
 
+# The languages of the tooling (D159, src/i18n/i18n.h): English, the source, is compiled in from i18n/en/*.json (a change reconfigures);
+# the other languages are read from i18n/ beside the engine at run time
+foreach(_area cli diag)
+  file(READ ${CMAKE_CURRENT_SOURCE_DIR}/i18n/en/${_area}.json ZN_I18N_EN_${_area})
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/i18n/en/${_area}.json)
+endforeach()
+configure_file(src/i18n/en.inc.in ${CMAKE_CURRENT_BINARY_DIR}/gen/i18n/en.inc @ONLY)
+add_library(zn_i18n STATIC src/i18n/i18n.cpp)
+target_include_directories(zn_i18n PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gen/i18n)
+target_link_libraries(zn_i18n PRIVATE zn_yyjson ${CMAKE_DL_LIBS})
+
 add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/resolve.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp src/frontend/capabilities.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 target_link_libraries(zn_frontend PUBLIC zn_yyjson zn_native)
@@ -574,7 +585,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_lint zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen)
+target_link_libraries(zinc PRIVATE zn_lint zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen zn_i18n)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()
@@ -632,6 +643,9 @@ endif()
 
 add_executable(platform_test tests/unit/platform_test.cpp)   # tests/t0/platform.sh
 target_link_libraries(platform_test PRIVATE zn_platform)
+
+add_executable(i18n_test tests/unit/i18n_test.cpp)   # tests/t0/i18n.sh
+target_link_libraries(i18n_test PRIVATE zn_i18n)
 
 add_executable(ir_test tests/unit/ir_test.cpp)
 target_link_libraries(ir_test PRIVATE zn_ir)

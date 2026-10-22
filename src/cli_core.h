@@ -24,6 +24,14 @@ int unknownCommand(const std::string& name);
 /** `zinc init <dir> [--template game|cli|server|iot|remarkable]`: a project that `zinc run` runs. */
 int init(const std::vector<std::string>& args, const std::string& engineRoot);
 
+/** Your settings ($ZINC_HOME/config.json, shared with Zinc Atelier): one string value, "" when it is not set; saving keeps the keys
+ *  this zinc does not know, and an empty value removes the key. */
+std::string settingsFile();
+std::string setting(const std::string& key);
+bool saveSetting(const std::string& key, const std::string& value);
+/** `zinc config [get <key> | set <key> <value> | unset <key>]`: the settings a person changes by hand (lang). */
+int config(const std::vector<std::string>& args);
+
 /** `zinc doctor`: the engine, this machine's renderer, the pinned tools it downloads on first use, the host tools and the plugins. `renderer` is the lines main() already prints. */
 // `details`: the full report (every pinned tool with its hash, every plugin without a prebuilt library: tests and scripts read it); else the short, coloured check-up.
 int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version);

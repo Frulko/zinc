@@ -1,0 +1,18 @@
+{
+  "cli.unknown.command": "zinc: unbekannter Befehl '{name}' (zinc help zeigt die Befehle)",
+  "cli.unknown.guess": "zinc: unbekannter Befehl '{name}': meintest du '{guess}'? (zinc help zeigt die Befehle)",
+  "cli.usage": "Aufruf: {usage}",
+  "cli.usage.more": "(zinc help {command} erklärt mehr)",
+  "cli.option.unknown": "zinc {command}: unbekannte Option {option}",
+  "cli.help.none": "zinc: keine Hilfe zu '{name}' (zinc help zeigt die Befehle)",
+  "cli.lang.bad": "zinc: --lang nimmt en, fr, es, it oder de, nicht '{lang}'",
+  "cli.config.key": "zinc config: unbekannte Einstellung '{key}' (die Einstellungen: lang)",
+  "cli.config.lang": "zinc config: lang nimmt en, fr, es, it oder de, nicht '{lang}'",
+  "cli.config.write": "zinc config: {file} kann nicht geschrieben werden",
+  "cli.config.saved": "Ab jetzt spricht Zinc Deutsch mit dir.",
+  "cli.new.template": "zinc {command}: unbekannte Vorlage '{template}'; wähle eine von diesen (oder einen Ordner oder eine Git-URL):",
+  "cli.new.not_empty": "zinc {command}: {dir} ist nicht leer; gib einen neuen oder leeren Ordner an (zinc new [Vorlage] <Ordner>). Die Vorlagen:",
+  "cli.new.write": "zinc {command}: in {dir} kann nicht geschrieben werden",
+  "cli.new.plugin": "zinc {command}: das Plugin {plugin} der Vorlage konnte nicht hinzugefügt werden",
+  "cli.new.created": "{dir} erstellt ({template}); weiter: cd {dir} && zinc run"
+}

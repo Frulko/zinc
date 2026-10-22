@@ -1,0 +1,18 @@
+{
+  "cli.unknown.command": "zinc: unknown command '{name}' (zinc help lists the commands)",
+  "cli.unknown.guess": "zinc: unknown command '{name}': did you mean '{guess}'? (zinc help lists the commands)",
+  "cli.usage": "usage: {usage}",
+  "cli.usage.more": "(zinc help {command} says more)",
+  "cli.option.unknown": "zinc {command}: unknown option {option}",
+  "cli.help.none": "zinc: no help for '{name}' (zinc help lists the commands)",
+  "cli.lang.bad": "zinc: --lang takes en, fr, es, it or de, not '{lang}'",
+  "cli.config.key": "zinc config: unknown setting '{key}' (the settings: lang)",
+  "cli.config.lang": "zinc config: lang takes en, fr, es, it or de, not '{lang}'",
+  "cli.config.write": "zinc config: cannot write {file}",
+  "cli.config.saved": "From now on, Zinc speaks English.",
+  "cli.new.template": "zinc {command}: unknown template '{template}'; choose one of these (or a directory or a git URL):",
+  "cli.new.not_empty": "zinc {command}: {dir} is not empty; give a new or empty directory (zinc new [template] <dir>). The templates:",
+  "cli.new.write": "zinc {command}: cannot write into {dir}",
+  "cli.new.plugin": "zinc {command}: the template's plugin {plugin} could not be added",
+  "cli.new.created": "created {dir} ({template}); next: cd {dir} && zinc run"
+}

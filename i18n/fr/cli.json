@@ -1,0 +1,18 @@
+{
+  "cli.unknown.command": "zinc : commande inconnue '{name}' (zinc help liste les commandes)",
+  "cli.unknown.guess": "zinc : commande inconnue '{name}' : vouliez-vous dire '{guess}' ? (zinc help liste les commandes)",
+  "cli.usage": "usage : {usage}",
+  "cli.usage.more": "(zinc help {command} en dit plus)",
+  "cli.option.unknown": "zinc {command} : option inconnue {option}",
+  "cli.help.none": "zinc : pas d'aide pour '{name}' (zinc help liste les commandes)",
+  "cli.lang.bad": "zinc : --lang accepte en, fr, es, it ou de, pas '{lang}'",
+  "cli.config.key": "zinc config : réglage inconnu '{key}' (les réglages : lang)",
+  "cli.config.lang": "zinc config : lang accepte en, fr, es, it ou de, pas '{lang}'",
+  "cli.config.write": "zinc config : impossible d'écrire {file}",
+  "cli.config.saved": "Désormais, Zinc vous parle en français.",
+  "cli.new.template": "zinc {command} : modèle inconnu '{template}' ; choisissez l'un de ceux-ci (ou un dossier, ou une URL git) :",
+  "cli.new.not_empty": "zinc {command} : {dir} n'est pas vide ; donnez un dossier nouveau ou vide (zinc new [modèle] <dossier>). Les modèles :",
+  "cli.new.write": "zinc {command} : impossible d'écrire dans {dir}",
+  "cli.new.plugin": "zinc {command} : le plugin {plugin} du modèle n'a pas pu être ajouté",
+  "cli.new.created": "{dir} créé ({template}) ; ensuite : cd {dir} && zinc run"
+}
