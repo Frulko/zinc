@@ -775,6 +775,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: zinc:sprite, zinc:link and zinc:udp should answer "unavailable" quietly on the web instead of apps logging console.error (music)
 - ZN-?: `zinc export` of a raw template folder should say "run `zinc new` first" instead of the reverse-DNS id error
 - ZN-?: `web_dom` prerender waits a fixed six seconds and flakes under a load of 30 ("the app drew nothing"); wait on the first frame instead
+- ZN-?: `web_hw` flaked once on CI (v0.5.1 run 39693755408): the page never showed its Run button within 40 s, twice in a row on that runner, then passed on a rerun; the failure now prints the page and its console
+- ZN-?: `notify_relay` flaked on CI (the relay stopped reading records partway, v0.5.1); its log now says what each poll reads: find the cause from the next failure
 - ZN-761: check the device record on Linux (a Raspberry Pi's device tree, a PC's DMI), Windows (no record yet: WMI or the registry) and the web (navigator.userAgentData).
 - zinc:loro: build the loro crate for linux x86_64/aarch64, rpi armv7 (`armv7-unknown-linux-gnueabihf`), android, ios and windows (`x86_64-pc-windows-gnu`) with rustup targets and zig as the linker (or cargo-zigbuild), so `zinc build --target` stops refusing plugins with Rust code.
 - ZN-773: the JavaScript engines off the Mac: the Linux JSC pack over libjavascriptcoregtk-4.1 (Debian 13, Raspberry Pi OS) and whether its JIT is on for armhf, Windows and Android JSC from Bun's WebKit (non-LTO archives, Bun__* stubs), V8 for armhf cross-built from Linux x64; without them --engine jsc and v8 are macOS only (docs/reports/js-engines-jsc-v8.md §4).
