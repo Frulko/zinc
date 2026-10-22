@@ -10,6 +10,8 @@
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+mkdir -p "$tmp/home"
+for d in toolchains cache index sysroots; do [ -e "${ZINC_HOME:-$HOME/.zinc}/$d" ] && ln -s "${ZINC_HOME:-$HOME/.zinc}/$d" "$tmp/home/$d"; done   # its own config.json, the same toolchains and caches
 run() {   # run <name> [VAR=value...]: one session of Atelier on $tmp/<name>.session, its output in $tmp/<name>.out
   name=$1; shift
   env "$@" ZINC_LANG=en ZINC_HOME="$tmp/home" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG="$tmp/$name.system" \

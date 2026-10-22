@@ -8,6 +8,7 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/home"; printf '{"welcomed":true}\n' > "$tmp/home/config.json"
+for d in toolchains cache index sysroots; do [ -e "${ZINC_HOME:-$HOME/.zinc}/$d" ] && ln -s "${ZINC_HOME:-$HOME/.zinc}/$d" "$tmp/home/$d"; done   # its own config.json, the same toolchains and caches
 printf '4 lang:en\n7 lang:fr\n10 lang:es\n13 lang:it\n16 quit\n' > "$tmp/session"
 ZINC_LANG=de ZINC_HOME="$tmp/home" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_SYSTEM_LOG="$tmp/system" ZINC_ATELIER_SCRIPT="$tmp/session" \
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=16 ZINC_SCALE=1 ZINC_SHOT_FRAMES=3,6,9,12,15 ZINC_SCENE_DUMP="$tmp/scene" ZINC_SHOT="$tmp/start.png" \

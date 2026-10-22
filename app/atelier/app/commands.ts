@@ -13,6 +13,7 @@ import { toggleTheme } from './theme';
 import { openProject } from './project';
 import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady } from './tools';
 import { openDevices } from './devices';
+import { startTour } from './tour';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
 import { t } from './text';
@@ -192,6 +193,7 @@ export function openDocs(page: string): void { const url = DOCS + page; say(t('a
 const PAGES: string[] = ['help-learn', 'docs/learn/', 'help-start', 'docs/guide/01-getting-started/', 'help-kinds', 'docs/start/choose/',
   'help-syntax', 'docs/reference/syntax/', 'help-examples', 'demos/', 'help-errors', 'docs/diagnostics/'];
 for (let i = 0; i < PAGES.length; i += 2) { const page = PAGES[i + 1]; add('help', PAGES[i], '', () => openDocs(page), i === 10); }
+add('help', 'help-tour', '', () => startTour(false));
 add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS), true);
 add('help', 'help-about', '', () => say(t('atelier.about', ['path', ZINC])));
 add('help', 'update-check', '', () => updates(false), true);

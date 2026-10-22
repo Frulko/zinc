@@ -2,7 +2,7 @@
 // and scroll). `stepEditor` runs every frame: it follows the caret and the scroll of the active editor and rebuilds its
 // decorations (current line, matching brackets, search matches, diagnostics, the other selections) when one changed.
 // The cursors beside the field's own caret are drawn on a canvas over it.
-import { createSignal, createEffect, For } from 'zinc:ui/solid';
+import { createSignal, createEffect, createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rrect, font, textWidth, clip, unclip } from 'zinc:gfx';
 import { theme, bg, fg, bd, Theme } from '../app/theme';
@@ -192,8 +192,10 @@ function EmptyPane(): i32 {
   </View>;
 }
 
+/** The editor card (the tour points at it). */
+export const editorRef = createNodeRef();
 export function EditorCard(): i32 {
-  return <View className={`grow flex-col overflow-hidden rounded-[14] border ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
+  return <View ref={editorRef} className={`grow flex-col overflow-hidden rounded-[14] border ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
     <FindBar />
     <View className="grow my-[6]">
       <For each={buffers()}>{(b: Buffer, i: i32) => <BufferEditor b={b} />}</For>

@@ -32,7 +32,7 @@ function Pulse(): i32 {
 function RunControl(): i32 {
   const idle = (): boolean => phase() === IDLE;
   const label = (): string => phase() === BUILDING ? (stage() === '' ? t('atelier.header.building') : t('atelier.header.building_step', ['step', stage()])) : t(debugging() ? 'atelier.header.debugging' : 'atelier.header.running');
-  return <View className="flex-row items-center gap-1">
+  return <View ref={runRef} className="flex-row items-center gap-1">
     {idle()
       ? <View className={`flex-row items-center h-[34] pl-3 pr-4 gap-1.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`}
           onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) run(false); }}>
@@ -131,7 +131,9 @@ export function EngineMenu(): i32 {
     </View>
   </View>;
 }
-const PILL = 'flex-row items-center h-[30] px-2.5 gap-1.5 rounded-full cursor-pointer';// the sketch pill: a project (a folder with a zinc.json) shows the app's name, its version and its icon; a plain sketch its folder's name
+const PILL = 'flex-row items-center h-[30] px-2.5 gap-1.5 rounded-full cursor-pointer';
+/** The run control, the engine pill and the palette button (the tour points at them). */
+export const runRef = createNodeRef(), engineRef = createNodeRef(), paletteRef = createNodeRef();// the sketch pill: a project (a folder with a zinc.json) shows the app's name, its version and its icon; a plain sketch its folder's name
 function appName(): string { const p = project(); return p !== null && (p as Project).name !== '' ? (p as Project).name : sketchName(); }
 function appVersion(): string { const p = project(); return p === null ? '' : (p as Project).version; }
 
@@ -149,13 +151,13 @@ export function Header(): i32 {
       </View>
     </Tip>
     <Tip label={() => t('atelier.tip.engine')}>
-      <View className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
+      <View ref={engineRef} className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
         <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : engineName(engine())}</Text>
         <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
       </View>
     </Tip>
     <View className="flex-row items-center">
-      <IconButton kind={I_COMMAND} size={15} onPress={() => openPalette(PAL_COMMANDS)} tip={() => t('atelier.tip.palette')} />
+      <View ref={paletteRef} className="flex-row"><IconButton kind={I_COMMAND} size={15} onPress={() => openPalette(PAL_COMMANDS)} tip={() => t('atelier.tip.palette')} /></View>
       {theme().dark ? <IconButton kind={I_SUN} size={15} onPress={() => toggleTheme()} tip={() => t('atelier.tip.theme')} /> : <IconButton kind={I_MOON} size={15} onPress={() => toggleTheme()} tip={() => t('atelier.tip.theme')} />}
     </View>
   </View>;

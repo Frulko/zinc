@@ -206,10 +206,14 @@ function onLine(text: string, stderr: boolean): void {
 /** Saves the sketch, then builds and runs it (`debug`: under `zinc dev`, with the inspector). A program still running is stopped first.
  *  With a device chosen the sketch goes there under its folder's name; `debug` builds it with the inspector in front, as `zinc dev` does
  *  here (`deploy --inspect`), and brings that inspector to this machine when the sketch says it listens. */
+let runs: i32 = 0;
+/** How many runs started since Atelier did (the tour waits for one). */
+export function runCount(): i32 { return runs; }
 export function run(debug: boolean = false): void {
   if (child !== null) { again = debug ? 1 : 0; stop(); return; }
   const dir = sketchDir(), main = mainFile(dir);
   if (dir === '' || main === '') { setStatus('atelier.run.nothing', 2); return; }
+  runs++;
   saveAll();
   clearConsole();
   remote = device(); app = ''; ended = -1; refused = '';

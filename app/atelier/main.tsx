@@ -8,7 +8,9 @@
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
 // that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
-// makes a project from a template, `<frame> explain` clicks the first error code of the console, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// makes a project from a template, `<frame> explain` clicks the first error code of the console, `<frame> tour:next|back|skip|fix` press
+// that button of the tour's card, `<frame> tour:lang:<code>` a language of its first card and `<frame> tour:step` prints the step and its box;
+// ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -31,6 +33,8 @@ import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
+import { Tour, stepTour, tourLine, fixCode } from './components/Tour';
+import { tourOn, tourWanted, startTour, nextStep, backStep, endTour } from './app/tour';
 import { DevicesPanel } from './components/Devices';
 import { ProjectCard } from './components/Project';
 import { projectOpen, setProjectOpen, projectText, togglePermission } from './app/project';
@@ -48,6 +52,7 @@ function App(): i32 {
     <DevicesPanel />
     <ProjectCard />
     <Palette />
+    <Tour />
   </View>;
 }
 
@@ -101,7 +106,8 @@ function installMenu(): void {
 ui.onKey((e: ui.KeyEvent) => {
   noteKey(e);
   if (e.key === 'Escape') {
-    if (engineOpen()) setEngineOpen(false);
+    if (tourOn()) endTour(true);
+    else if (engineOpen()) setEngineOpen(false);
     else if (paletteMode() !== PAL_CLOSED) closePalette();
     else if (devicesOpen()) closeDevices();
     else if (projectOpen()) setProjectOpen(false);
@@ -136,6 +142,7 @@ let opened = false;
 if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0]);
 if (!opened) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
 if (opened) check(); else setStartOpen(true);
+if (!opened && tourWanted()) startTour(true);   // a first launch: the language, then the tour
 refresh('', '0');   // the paired devices, for the menu of the run control: read from a file, no network
 
 // ---- scripted sessions
@@ -158,6 +165,12 @@ function stepScript(): void {
     else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
+    else if (id === 'tour:next') nextStep();
+    else if (id === 'tour:back') backStep();
+    else if (id === 'tour:skip') endTour(true);
+    else if (id === 'tour:fix') fixCode();
+    else if (id === 'tour:step') console.log(tourLine());
+    else if (id.startsWith('tour:lang:')) setLanguage(id.slice(10));   // a language of the tour's first card
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
     else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the project card: allows it, or removes it
@@ -182,4 +195,5 @@ render(App, 0xf3f1ec, (dt: number) => {
   stepTools();
   stepConsole();
   stepMenuKeys();
+  stepTour();
 });

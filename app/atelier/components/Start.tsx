@@ -2,6 +2,7 @@
 // level, one card each with a picture of what it draws. A card opens a copy in the sketchbook, so the examples themselves stay
 // as they are. The examples are folders of examples/ beside this app, listed in examples/index.txt (`folder|Title|one line|level`,
 // the levels of LEVELS); their pictures are thumbs/<folder>.png.
+import { createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
@@ -55,9 +56,12 @@ function picture(e: Example): i32 {
 /** A path with the home folder as ~. */
 function tilde(p: string): string { const h = sys.env('HOME'); return h !== '' && p.startsWith(h + '/') ? '~' + p.slice(h.length) : p; }
 const CARD = 'flex-col w-[224] p-2 pb-3 gap-2.5 rounded-[16] border cursor-pointer';
+/** The first examples, the Hello card and the templates (the tour points at them). */
+export const examplesRef = createNodeRef(), helloRef = createNodeRef(), templatesRef = createNodeRef();
+const noRef = createNodeRef();
 function Card(props: { e: Example }): i32 {
   const e = props.e;
-  return <View className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
+  return <View ref={e.dir === 'hello' ? helloRef : noRef} className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
     <Canvas className="w-full h-[130]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const img = picture(e), r = 10 * w / 208;
       if (img >= 0) drawImage(img, x, y, w, h, 255, r); else rrect(x, y, w, h, r, theme().chrome, 255);
@@ -98,14 +102,14 @@ export function StartView(): i32 {
           onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openDocs('docs/learn/'); }}>{t('atelier.start.learn_link')}</Text>
       </View>
       <Text className={`text-[13px] pt-2 ${fg(theme().muted)}`}>{t('atelier.start.copies', ['path', tilde(sketchbook())])}</Text>
-      <View className="flex-row flex-wrap items-center gap-2 pt-4">
+      <View ref={templatesRef} className="flex-row flex-wrap items-center gap-2 pt-4">
         <Text className={`text-[14px] pr-1 ${fg(theme().text)}`}>{t('atelier.start.templates')}</Text>
         {TEMPLATES.map((name: string) => <Chip label={() => t('atelier.template.' + name)} onPress={() => fromTemplate(name)} />)}
         <Chip label={() => t('atelier.start.all_templates')} onPress={() => { setStartOpen(false); openPalette(PAL_TEMPLATES); }} />
       </View>
       {LEVELS.map((level: string, i: i32) => <View className="flex-col">
         <Text className={`text-[15px] font-semibold pt-7 pb-3 ${fg(theme().text)}`}>{t('atelier.start.level.' + level)}</Text>
-        <View className="flex-row flex-wrap gap-4">
+        <View ref={i === 0 ? examplesRef : noRef} className="flex-row flex-wrap gap-4">
           {i === 0 && <NewCard />}
           {EXAMPLES.filter((e: Example) => e.level === level).map((e: Example) => <Card e={e} />)}
         </View>
