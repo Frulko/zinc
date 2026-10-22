@@ -62,7 +62,7 @@ function App(): i32 {
     <View className="w-[420px] gap-3">
       <Text className="text-3xl font-bold text-slate-900">Shopping list</Text>
       <View className="flex-row gap-2" onSubmit={add}>
-        <Input className="grow h-11 px-3 rounded-lg bg-white border border-slate-300" placeholder="Something to buy"
+        <Input className="text-[14px] py-1.5 grow h-11 px-3 rounded-lg bg-white border border-slate-300" placeholder="Something to buy"
           value={draft()} onInput={(v: string) => setDraft(v)} />
         <Button className="h-11 px-5 rounded-lg bg-indigo-600" onClick={add}>
           <Text className="text-base text-white">Add</Text>

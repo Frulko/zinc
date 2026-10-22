@@ -24,10 +24,10 @@ function App(): i32 {
     </View>
     <Text className="text-lg text-[#625d55]">{message()}</Text>
     <View className="flex-row gap-3">
-      <Button className="py-1 h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => drink(-1)}>
+      <Button className="h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => drink(-1)}>
         <Text className="text-base text-[#1d1b18]">One less</Text>
       </Button>
-      <Button className="py-1 h-11 px-5 rounded-full bg-[#2563c9]" onClick={() => drink(1)}>
+      <Button className="h-11 px-5 rounded-full bg-[#2563c9]" onClick={() => drink(1)}>
         <Text className="text-base text-white">I drank one</Text>
       </Button>
     </View>
