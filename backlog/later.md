@@ -541,6 +541,9 @@ The next backlog review turns lines into tasks or deletes them.
 - pi-image: display-fbdev text from a physical keyboard and a drawn mouse cursor: the Pi image's player navigates with the keys but types only on its on-screen keyboard, and HDMI with a mouse shows no pointer.
 - pi-image: the engine says READY=1 to systemd after its first frame (sd_notify), instead of zinc-session's 2 s guess, so the units that wait for the session start as soon as the screen shows.
 
+- ESP-IDF's i80 driver on the classic ESP32 mounts its colour transfers on DMA descriptors of 4,095 bytes (esp_lcd_panel_io_i2s.c, `buffer_alignment = 1` in its ISR, still so on master): the DMA stopped now and then and froze the 2432S022. Report it upstream with the I2S0 registers of the freeze (the owner's step), and drop `__wrap_gdma_link_mount_buffers` (firmware/esp32-mquickjs/main/main.c) once a fixed release is pinned.
+- Touch on the 2432S022: what the affine map leaves (about +12 px in y near (120, 60), the same at every round of examples/touch-check) needs offsets per region of the screen, interpolated, on top of the map; touch-check measures it.
+- zinc:lvgl without mquickjs, on an AOT ESP32 firmware (owner 2026-10-22: keep both paths): docs/reports/esp32-aot-lvgl.md lists the eight pieces; the AOT ESP32 target itself does not exist yet (docs/reports/zinc-next-esp32-aot.md).
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
