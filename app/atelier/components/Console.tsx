@@ -7,7 +7,7 @@ import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
-import { lines, Line, K_OUT, K_ERR, jump, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
+import { lines, Line, K_OUT, K_ERR, jump, explain, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
 import { promptLabel, promptValue, setPromptValue, answer } from '../app/commands';
 import { jumpTo } from '../app/cursors';
 import { caretInfo } from './Editor';
@@ -28,25 +28,43 @@ function lineAt(off: i32): i32[] {
   }
   return [-1, 0];
 }
-/** The colours of one displayed row (a long line wraps into several): the colour of its line's kind, and the place a line names
- *  (`main.ts:12:5`) as a link. Runs of [length, colour]. */
+/** The links of a line, in order: the place it names (`main.ts:12:5`) and its error code (`Z0103`), as [start, end] pairs. */
+function links(l: Line): i32[] {
+  const place: i32[] = l.line > 0 && l.p1 > l.p0 ? [l.p0, l.p1] : [], code: i32[] = l.c1 > l.c0 ? [l.c0, l.c1] : [];
+  return code.length > 0 && place.length > 0 && code[0] < place[0] ? code.concat(place) : place.concat(code);
+}
+/** The colours of one displayed row (a long line wraps into several): the colour of its line's kind, and its links in the accent
+ *  colour. Runs of [length, colour]. */
 function rowColors(row: string, start: i32): i32[] {
   const at = lineAt(start), t = theme();
   if (at[0] < 0) return [];
-  const l = lines()[at[0]];
+  const l = lines()[at[0]], ls = links(l), off = start - at[1];
   const c: i32 = l.kind === K_ERR ? t.error : l.kind === K_OUT ? t.text : t.faint;
-  const a = Math.max(0, l.p0 - (start - at[1])), b = Math.min(row.length, l.p1 - (start - at[1]));
-  return l.line > 0 && b > a ? [a, c, b - a, t.accent, row.length - b, c] : [row.length, c];
+  const runs: i32[] = [];
+  let pos = 0;
+  for (let i = 0; i < ls.length; i += 2) {
+    const a = Math.max(pos, ls[i] - off), b = Math.min(row.length, ls[i + 1] - off);
+    if (b <= a) continue;
+    if (a > pos) { runs.push(a - pos); runs.push(c); }
+    runs.push(b - a); runs.push(t.accent);
+    pos = b;
+  }
+  if (pos < row.length) { runs.push(row.length - pos); runs.push(c); }
+  return runs;
 }
-/** A click on the place a line names opens the file there; a press that selected something is a selection. */
+/** A click on the place a line names opens the file there, on an error code shows what it means; a press that selected something
+ *  is a selection. */
 function linkClick(): void {
   const h = logRef.node;
   if (h < 0 || ui.selectedText(h) !== '') return;
   const off = ui.caretOf(h), at = lineAt(off);
   if (at[0] < 0) return;
-  const l = lines()[at[0]];
-  if (l.line > 0 && off - at[1] >= l.p0 && off - at[1] < l.p1) jump(l);
+  const l = lines()[at[0]], x = off - at[1];
+  if (l.line > 0 && x >= l.p0 && x < l.p1) jump(l);
+  else if (l.c1 > l.c0 && x >= l.c0 && x < l.c1) explain(l.text.slice(l.c0, l.c1));
 }
+/** Explains the first error code the console shows (scripted sessions: what a click on it does). */
+export function explainFirst(): void { for (const l of lines()) if (l.c1 > l.c0) { explain(l.text.slice(l.c0, l.c1)); return; } }
 /** The lines of the console as one read-only text field, so that they can be taken elsewhere: the pointer selects (drag, double click
  *  a word, triple click a line, Shift+click), ⌘C copies, ⌘A selects it all once it has the focus. A line longer than the card wraps
  *  onto as many rows as it needs. */

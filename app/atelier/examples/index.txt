@@ -1,8 +1,9 @@
-hello|Hello|Print a line, draw a word.
-shapes|Shapes|Rectangles, lines and colour.
-animation|Animation|Move a little every frame.
-pointer|Pointer|Follow the mouse or a finger.
-keys|Keys|Arrow keys and key names.
-text|Text|Fonts, sizes and measuring.
-interface|Interface|A button and its number.
-sound|Sound|Play notes with the pointer.
+hello|Hello|Print a line, draw a word.|first
+shapes|Shapes|Rectangles, lines and colour.|first
+animation|Animation|Move a little every frame.|first
+pointer|Pointer|Follow the mouse or a finger.|input
+keys|Keys|Arrow keys and key names.|input
+sound|Sound|Play notes with the pointer.|input
+interface|Interface|A button and its number.|apps
+text|Text|Fonts, sizes and measuring.|apps
+3d|3D|A cube and a ring that turn.|apps

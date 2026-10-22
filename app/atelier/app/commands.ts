@@ -4,13 +4,14 @@ import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
+import * as opener from 'zinc:system/opener';
 import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, openSketch, newFile, renameFile, deleteFile,
-  sketchDir, sketchbook, mainFile, openFile, baseName } from './workspace';
+  sketchDir, sketchbook, mainFile, openFile, baseName, freeName } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { openProject } from './project';
-import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady } from './tools';
+import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady } from './tools';
 import { openDevices } from './devices';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
@@ -85,12 +86,13 @@ export function answer(ok: boolean): void {
 }
 
 // ---------------------------------------------------------------- palette: commands, examples, libraries
-export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1, PAL_FILES: i32 = 2;
+export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1, PAL_FILES: i32 = 2, PAL_TEMPLATES: i32 = 3;
 export const [paletteMode, setPaletteMode] = createSignal<i32>(PAL_CLOSED);
 /** 0 closed → 1 open: fade and scale. */
 export const paletteT = new Tween(0);
 export function openPalette(mode: i32): void {
   if (mode === PAL_LIBRARIES) loadLibraries();
+  if (mode === PAL_TEMPLATES) loadTemplates();
   setPaletteMode(mode);
   paletteT.to(1, 0.16, easeOut);
 }
@@ -99,6 +101,12 @@ export function closePalette(): void {
   paletteT.to(0, 0.12, easeInOut, () => setPaletteMode(PAL_CLOSED));
   const b = active();
   if (b !== null) activate(b as Buffer);
+}
+
+/** A project from a template of `zinc new`: asks its name (the template's, free in the sketchbook), then makes it and opens it. */
+export function fromTemplate(template: string): void {
+  setStartOpen(false);
+  ask(t('atelier.template.name_prompt', ['template', template]), freeName(template), (v: string) => newProject(template, v));
 }
 
 /** The start view (examples and a new sketch) over the editor. */
@@ -132,6 +140,7 @@ function chooseSketch(): void {
   if (abort !== '') o.abortMs = parseInt(abort);
   dialog.open(o).then((paths: string[] | null) => { if (paths !== null && paths.length > 0 && openSketch(paths[0])) setStartOpen(false); });
 }
+add('file', 'new-project', 'CmdOrCtrl+Shift+N', () => openPalette(PAL_TEMPLATES));
 add('file', 'open', 'CmdOrCtrl+O', () => chooseSketch());
 add('file', 'examples', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
 add('file', 'open-file', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
@@ -177,7 +186,13 @@ add('tools', 'theme', '', () => toggleTheme(), true);
 add('tools', 'next-tab', 'CmdOrCtrl+Shift+BracketRight', () => cycle(1), true);
 add('tools', 'prev-tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));
 
-add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS));
+// the documentation on the web site, opened in the browser (zinc.json allows these pages only: scopes.opener)
+export const DOCS = 'https://frulko.github.io/zinc/';
+export function openDocs(page: string): void { const url = DOCS + page; say(t('atelier.help.opening', ['url', url])); opener.openUrl(url); }
+const PAGES: string[] = ['help-learn', 'docs/learn/', 'help-start', 'docs/guide/01-getting-started/', 'help-kinds', 'docs/start/choose/',
+  'help-syntax', 'docs/reference/syntax/', 'help-examples', 'demos/', 'help-errors', 'docs/diagnostics/'];
+for (let i = 0; i < PAGES.length; i += 2) { const page = PAGES[i + 1]; add('help', PAGES[i], '', () => openDocs(page), i === 10); }
+add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS), true);
 add('help', 'help-about', '', () => say(t('atelier.about', ['path', ZINC])));
 add('help', 'update-check', '', () => updates(false), true);
 add('help', 'update-install', '', () => updates(updateReady()));   // checks first when no update was found yet

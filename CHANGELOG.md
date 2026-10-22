@@ -14,6 +14,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The first `zinc` typed at a terminal says hello, lets you choose your language and shows three steps to start. `zinc version` prints the version.
 - Zinc Atelier speaks English, French, Spanish, Italian and German: it follows `ZINC_LANG`, then the `lang` saved in `~/.zinc/config.json`, then the system language, and Tools > Language switches it at once and remembers the choice.
 - `zinc:i18n` loads a program's texts from `i18n/<lang>/<area>.json`, with `{name}` placeholders, plural forms and English as the fallback.
+- Atelier's start view says what Zinc is, links to the lessons, groups the examples by level (a 3D example is new) and offers templates: File > New Project from Template… makes a project of `zinc new` without a terminal.
+- Atelier's Help menu opens the lessons (Learn), the getting started guide, the kinds of programs, the syntax, the examples and the error codes; a click on an error code in the console shows what it means; the header buttons and the engines say what they do.
+
+### Fixed
+- When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".
 
 ### Changed
 - `zinc` and `zinc help` show the commands to start with and the commands to ship; `zinc help --all` lists every command, and `zinc help <command>` gives two examples. `zinc new --list` sorts the templates by what they make, one line each.

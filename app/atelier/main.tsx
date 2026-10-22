@@ -7,7 +7,8 @@
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
-// that device, `<frame> clipboard` prints what the clipboard holds, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
+// makes a project from a template, `<frame> explain` clicks the first error code of the console, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -21,13 +22,13 @@ import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
-import { check, stepTools, setJump, stopAll, consoleText, status } from './app/tools';
+import { check, stepTools, setJump, stopAll, consoleText, status, newProject } from './app/tools';
 import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
 import { stepLsp, setGo, stopLsp } from './app/lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
 import { EditorCard, stepEditor } from './components/Editor';
-import { ConsoleCard, stepConsole } from './components/Console';
+import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
 import { DevicesPanel } from './components/Devices';
@@ -155,6 +156,8 @@ function stepScript(): void {
     if (id === 'quit') { leave(); quit(); }
     else if (id.startsWith('example:')) openExample(id.slice(8));
     else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
+    else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
+    else if (id === 'explain') explainFirst();   // a click on the first error code of the console
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
     else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the project card: allows it, or removes it

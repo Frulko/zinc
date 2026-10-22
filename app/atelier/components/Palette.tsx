@@ -4,9 +4,9 @@
 import { createSignal, createMemo, createNodeRef, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
-import { COMMANDS, command, paletteMode, paletteT, closePalette, PAL_CLOSED, PAL_LIBRARIES, PAL_FILES, keysText, addLibrary } from '../app/commands';
+import { COMMANDS, command, paletteMode, paletteT, closePalette, PAL_CLOSED, PAL_LIBRARIES, PAL_FILES, PAL_TEMPLATES, keysText, addLibrary, fromTemplate } from '../app/commands';
 import { focusLater, sketchDir, sketchFiles, buffers, openFile } from '../app/workspace';
-import { libraries } from '../app/tools';
+import { libraries, templates, Library, Template } from '../app/tools';
 import { fuzzy, segments, Fuzzy } from '../app/fuzzy';
 import { noteKey } from '../app/cursors';
 import { t as tr } from '../app/text';
@@ -32,11 +32,14 @@ const items = createMemo<Item[]>(() => {
   const mode = paletteMode(), q = query().trim();
   if (mode === PAL_CLOSED) return [];
   const out: Item[] = [];
-  if (mode === PAL_LIBRARIES) {
-    for (const l of libraries()) {
-      const it = new Item(l.name, l.text.length > 84 ? l.text.slice(0, 82) + '…' : l.text, '', '', () => addLibrary(l.name));
+  if (mode === PAL_LIBRARIES || mode === PAL_TEMPLATES) {
+    // the plugins a sketch can import, or the templates of `zinc new`: a name and what it is
+    const list = mode === PAL_LIBRARIES ? libraries().map((l: Library): string[] => [l.name, l.text]) : templates().map((m: Template): string[] => [m.name, m.text]);
+    for (const l of list) {
+      const name = l[0];
+      const it = new Item(name, l[1].length > 84 ? l[1].slice(0, 82) + '…' : l[1], '', '', () => { if (mode === PAL_LIBRARIES) addLibrary(name); else fromTemplate(name); });
       if (q !== '') {
-        const m = fuzzy(q, l.name, 0);
+        const m = fuzzy(q, name, 0);
         if (m === null) continue;
         it.score = (m as Fuzzy).score; it.labelHits = (m as Fuzzy).hits;
       }
@@ -134,7 +137,7 @@ export function Palette(): i32 {
       onPointerDown={() => {}}>
       <View className={`flex-row items-center h-[46] px-4 border-b ${bd(theme().borderSoft)}`}>
         <Input ref={inputRef} className={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
-          placeholder={tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : 'atelier.palette.commands')}
+          placeholder={tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : paletteMode() === PAL_TEMPLATES ? 'atelier.palette.templates' : 'atelier.palette.commands')}
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
           onKeyDown={paletteKey} />
       </View>

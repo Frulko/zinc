@@ -2,7 +2,8 @@
   "name": "Zinc Atelier",
   "app": { "id": "dev.zinc.atelier", "name": "Zinc Atelier", "version": "0.2.0", "icon": "icon.png" },
   "entry": "main.tsx",
-  "permissions": ["menu", "dialog", "fs", "process"],
+  "permissions": ["menu", "dialog", "fs", "process", "opener"],
+  "scopes": { "opener": { "allow": ["https://frulko.github.io/zinc/*"] } },
   "targets": {
     "macos": { "width": 1280, "height": 800, "resize": "fill" },
     "linux": { "width": 1280, "height": 800, "resize": "fill" },

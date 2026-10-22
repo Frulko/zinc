@@ -224,7 +224,7 @@ export function lastSketch(): string {
 }
 
 /** A folder name that is free in the sketchbook: `base`, else base_2, base_3... */
-function freeName(base: string): string {
+export function freeName(base: string): string {
   const root = sketchbook();
   if (!fs.exists(root + '/' + base)) return base;
   let n: i32 = 2;

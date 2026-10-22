@@ -9,7 +9,7 @@ import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import { setClipboardText } from 'zinc:gfx';
 import { Spring } from './motion';
-import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, say, APP_HOME } from './workspace';
+import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, openSketch, sketchbook, say, APP_HOME } from './workspace';
 import { parseDiagnostics, Diag, stepOf } from '../model';
 import { t, tn, lang } from './text';
 
@@ -39,6 +39,7 @@ export class Line {
   file: string = ''; line: i32 = 0; col: i32 = 0;   // 1-based, 0: no place
   p0: i32 = 0; p1: i32 = 0;                         // where the place is written in `text`: the link of the line
   code: string = ''; message: string = '';          // of a diagnostic (`error Z0103: message`): shown as a card
+  c0: i32 = 0; c1: i32 = 0;                         // where an error code is written in `text` (`Z0103`): a click explains it
   constructor(text: string, kind: i32) { this.text = text; this.kind = kind; }
 }
 const MAX_LINES: i32 = 600;
@@ -72,9 +73,22 @@ function place(s: string): i32[] {
   }
   return [];
 }
-/** A console line from what a child printed: stage lines of the build, diagnostics, places. */
+function isWord(c: i32): boolean { return isDigit(c) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95; }
+/** Finds an error code (`Z0103`, a Z and four digits standing alone) in a line: [its start, its end], or [] when it has none. */
+export function codeAt(s: string): i32[] {
+  for (let k = s.indexOf('Z'); k >= 0; k = s.indexOf('Z', k + 1)) {
+    if (k + 5 > s.length || (k > 0 && isWord(s.charCodeAt(k - 1))) || (k + 5 < s.length && isWord(s.charCodeAt(k + 5)))) continue;
+    let n = 0;
+    while (n < 4 && isDigit(s.charCodeAt(k + 1 + n))) n++;
+    if (n === 4) return [k, k + 5];
+  }
+  return [];
+}
+/** A console line from what a child printed: stage lines of the build, diagnostics, places, error codes. */
 export function classify(text: string, stderr: boolean): Line {
   const l = new Line(text, stderr ? K_ERR : K_OUT);
+  const c = codeAt(text);
+  if (c.length > 0) { l.c0 = c[0]; l.c1 = c[1]; }
   // the steps a command prints ("  compile    4 files, 34 functions   44 ms"), its notes and its progress among them: never errors,
   // though they arrive on the standard error
   if (stepOf(text).length > 0) l.kind = K_STAGE;
@@ -210,6 +224,7 @@ export function run(debug: boolean = false): void {
     p.onStderr((l: string) => onLine(l, true));
     p.onExit((code: i32) => {
       child = null;
+      if ((code === 126 || code === 127) && phase() === BUILDING && stage() === 'starting') { setStage(''); setDebugging(false); cannotStart(''); return; }   // env found no zinc to start
       const ran = phase() === RUNNING;
       const lost = app !== '' && ended < 0 && !stopped;   // the follower ended before the program did: the device went away
       if (ended >= 0) code = ended;
@@ -228,13 +243,13 @@ export function run(debug: boolean = false): void {
       again = -1;
       if (next >= 0) run(next === 1);
     });
-  } catch (e) { cannotStart(e as Error); }
+  } catch (e) { cannotStart((e as Error).message); }
 }
 /** zinc did not start: where Atelier looked and what to do, on the status line and in the console. */
-function cannotStart(e: Error): void {
+function cannotStart(why: string): void {
   child = null; setPhase(IDLE);
   setStatus('atelier.run.no_zinc', 2, ['path', ZINC]);
-  add(new Line(`${ZINC}: ${e.message}`, K_ERR));
+  if (why !== '') add(new Line(`${ZINC}: ${why}`, K_ERR));
   add(new Line(t('atelier.run.no_zinc_fix', ['path', ZINC]), K_STAGE));
   showConsole(true);
 }
@@ -258,13 +273,14 @@ export function build(): void {
     p.onStderr((l: string) => { const c = classify(l, true), s = stepOf(l); if (s.length > 0) setStage(s[0]); add(c, s.length > 0 && buf.length > 0 && stepOf(buf[buf.length - 1].text).length > 0 && stepOf(buf[buf.length - 1].text)[0] === s[0]); if (c.kind === K_ERR) showConsole(true); });
     p.onExit((code: i32) => {
       child = null;
+      if ((code === 126 || code === 127) && stage() === 'starting') { setStage(''); cannotStart(''); return; }
       setPhase(IDLE); setStage('');
       if (stopped) setStatus('atelier.run.stopped', 0);
       else if (code === 0) setStatus('atelier.build.built', 1, ['path', made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made]);
       else { setStatus('atelier.run.build_failed', 2); showConsole(true); }
       add(new Line(stopped ? t('atelier.console.stopped') : `exit ${code}`, K_END));
     });
-  } catch (e) { cannotStart(e as Error); }
+  } catch (e) { cannotStart((e as Error).message); }
 }
 // ---- Debug: the sketch runs under `zinc dev` (it restarts at every save, a compile error stays on its screen) and, when it
 // has an interface, the Zinc Inspector (the app beside this one) opens on its DevTools port: elements, styles, console, frames.
@@ -365,6 +381,7 @@ export function check(): void {
     p.onExit((code: i32) => {
       checks--;
       if (gen !== checkGen) return;   // a newer check is running
+      if (code === 126 || code === 127) { if (phase() === IDLE) setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); return; }   // no zinc to start
       const all: Diag[] = parseDiagnostics(out);
       for (const b of buffers()) {
         const mine: Diagnostic[] = [];
@@ -391,6 +408,66 @@ export function problems(): void {
   for (const b of buffers()) for (const d of b.diagnostics()) if (n++ === 0) { place = `${b.path.startsWith(dir + '/') ? b.path.slice(dir.length + 1) : b.name}:${d.line + 1}`; message = d.message; }
   const s = n === 0 ? t('atelier.check.none') : tn('atelier.check.problems', n, ['place', place, 'message', message]);
   if (s !== status() && (n > 0 || statusKind() === 2)) { if (n === 0) setStatus('atelier.check.none', 1); else setStatus('atelier.check.problems', 2, ['place', place, 'message', message], n); }
+}
+
+// ---------------------------------------------------------------- error codes and templates
+/** What an error code means, with an example and the fix (`zinc explain Z0103`), printed in the console: a click on a code does it. */
+export function explain(code: string): void {
+  add(new Line('$ zinc explain ' + code, K_CMD));
+  showConsole(true);
+  try {
+    const p = zinc(['explain', code], '');
+    checks++;
+    p.onStdout((l: string) => add(new Line(l, K_OUT)));
+    p.onStderr((l: string) => add(new Line(l, K_ERR)));
+    p.onExit((c: i32) => { checks--; });
+  } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
+}
+
+export class Template {
+  name: string; text: string;
+  constructor(name: string, text: string) { this.name = name; this.text = text; }
+}
+export const [templates, setTemplates] = createSignal<Template[]>([]);
+/** The project templates that come with zinc (`zinc new --list`, its first table: `  name   what it makes (targets)`). */
+export function loadTemplates(): void {
+  if (templates().length > 0) return;
+  let out = '';
+  try {
+    const p = zinc(['new', '--list'], '');
+    checks++;
+    p.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
+    p.onExit((code: i32) => {
+      checks--;
+      const list: Template[] = [];
+      for (const l of out.split('\n')) {
+        if (!l.startsWith('  ')) { if (list.length > 0) break; continue; }   // the index's table comes after a blank line
+        const s = l.trim(), sp = s.indexOf(' ');
+        if (sp > 0) list.push(new Template(s.slice(0, sp), s.slice(sp).trim()));
+      }
+      setTemplates(list);
+    });
+  } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
+}
+/** A new project from a template, in the sketchbook under the name given (`zinc new <template> <folder>`), then opened. */
+export function newProject(template: string, typed: string): void {
+  const name = typed.trim().split('/').join('').split(' ').join('-');
+  if (name === '' || name.startsWith('.')) return;
+  const dir = sketchbook() + '/' + name;
+  if (fs.exists(dir)) { say(t('atelier.template.exists', ['name', name])); return; }
+  fs.mkdir(sketchbook(), true);
+  add(new Line(`$ zinc new ${template} ${name}`, K_CMD));
+  try {
+    const p = zinc(['new', template, dir], sketchbook());
+    checks++;
+    p.onStdout((l: string) => add(new Line(l, K_STAGE)));
+    p.onStderr((l: string) => add(classify(l, true)));
+    p.onExit((code: i32) => {
+      checks--;
+      if (code === 0 && openSketch(dir)) { setStatus('atelier.template.created', 1, ['name', name, 'template', template]); check(); }
+      else { setStatus('atelier.template.failed', 2, ['template', template]); showConsole(true); }
+    });
+  } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
 }
 
 // ---------------------------------------------------------------- libraries

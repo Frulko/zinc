@@ -14,7 +14,7 @@ import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINE_IDS
 import { devices, isPaired, choose, openDevices } from '../app/devices';
 import { Device } from '../model';
 import { command, startOpen, setStartOpen, openPalette, PAL_COMMANDS } from '../app/commands';
-import { Glyph, IconButton } from './Controls';
+import { Glyph, IconButton, Tip } from './Controls';
 import { t } from '../app/text';
 import { I_PLAY, I_STOP, I_CLOSE, I_BUG, I_PLUS, I_DOWN, I_SUN, I_MOON, I_COMMAND, I_GRID, I_CHECK } from './icons';
 
@@ -48,7 +48,7 @@ function RunControl(): i32 {
             <Glyph kind={I_STOP} size={14} color={() => theme().error} back={() => theme().surface} />
           </View>
         </View>}
-    {idle() && <IconButton kind={I_BUG} onPress={() => run(true)} />}
+    {idle() && <IconButton kind={I_BUG} onPress={() => run(true)} tip={() => t('atelier.tip.debug')} />}
   </View>;
 }
 
@@ -98,7 +98,7 @@ function Tabs(): i32 {
       }}>
       <For each={buffers()}>{(b: Buffer, i: i32) => <Tab b={b} />}</For>
     </View>
-    <IconButton kind={I_PLUS} size={14} onPress={() => command('open-file')} />
+    <IconButton kind={I_PLUS} size={14} onPress={() => command('open-file')} tip={() => t('atelier.tip.open_file')} />
   </View>;
 }
 
@@ -110,10 +110,13 @@ const CHOICE = (): string => `flex-row items-center h-[30] px-2.5 gap-2 rounded-
 export function EngineMenu(): i32 {
   return <View className="absolute inset-0" style={{ hidden: engineOpen() ? 0 : 1 }}>
     <View className="absolute inset-0" onPointerDown={() => setEngineOpen(false)} />
-    <View className={`absolute top-[50] right-[92] w-[190] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
-      {ENGINE_IDS.map((id: string, i: i32) => <View className={CHOICE()}
+    <View className={`absolute top-[50] right-[92] w-[270] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
+      {ENGINE_IDS.map((id: string, i: i32) => <View className={`flex-row items-center py-1.5 px-2.5 gap-2 rounded-lg cursor-pointer hover:${bg(theme().hover)}`}
         onPointerDown={(e: ui.PointerEvent) => { setEngine(i); setDevice(''); setEngineOpen(false); }}>
-        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{engineName(i)}</Text>
+        <View className="grow flex-col gap-0.5">
+          <Text className={`text-[13px] ${fg(theme().text)}`}>{engineName(i)}</Text>
+          <Text className={`text-[11px] ${fg(theme().muted)}`}>{t('atelier.engine.' + id + '_text')}</Text>
+        </View>
         {engine() === i && device() === '' && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
       <View className={`h-px my-1 ${bg(theme().borderSoft)}`} />
@@ -128,8 +131,7 @@ export function EngineMenu(): i32 {
     </View>
   </View>;
 }
-const PILL = 'flex-row items-center h-[30] px-2.5 gap-1.5 rounded-full cursor-pointer';
-// the sketch pill: a project (a folder with a zinc.json) shows the app's name, its version and its icon; a plain sketch its folder's name
+const PILL = 'flex-row items-center h-[30] px-2.5 gap-1.5 rounded-full cursor-pointer';// the sketch pill: a project (a folder with a zinc.json) shows the app's name, its version and its icon; a plain sketch its folder's name
 function appName(): string { const p = project(); return p !== null && (p as Project).name !== '' ? (p as Project).name : sketchName(); }
 function appVersion(): string { const p = project(); return p === null ? '' : (p as Project).version; }
 
@@ -138,19 +140,23 @@ export function Header(): i32 {
     <RunControl />
     <View className={`w-px h-[18] ${bg(theme().border)}`} />
     <Tabs />
-    <View className={`${PILL} ${startOpen() || projectOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
-      onPointerDown={(e: ui.PointerEvent) => { if (sketchDir() === '') setStartOpen(!startOpen()); else if (projectOpen()) setProjectOpen(false); else openProject(); }}>
-      {iconPath() !== '' ? <ProjectIcon size={18} /> : <Glyph kind={I_GRID} size={14} color={() => theme().muted} />}
-      <Text className={`text-[13px] font-medium ${fg(theme().text)}`}>{appName()}</Text>
-      {appVersion() !== '' && <Text className={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
-    </View>
-    <View className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
-      <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : engineName(engine())}</Text>
-      <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
-    </View>
+    <Tip label={() => t(sketchDir() === '' ? 'atelier.tip.examples' : 'atelier.tip.sketch')}>
+      <View className={`${PILL} ${startOpen() || projectOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
+        onPointerDown={(e: ui.PointerEvent) => { if (sketchDir() === '') setStartOpen(!startOpen()); else if (projectOpen()) setProjectOpen(false); else openProject(); }}>
+        {iconPath() !== '' ? <ProjectIcon size={18} /> : <Glyph kind={I_GRID} size={14} color={() => theme().muted} />}
+        <Text className={`text-[13px] font-medium ${fg(theme().text)}`}>{appName()}</Text>
+        {appVersion() !== '' && <Text className={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
+      </View>
+    </Tip>
+    <Tip label={() => t('atelier.tip.engine')}>
+      <View className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
+        <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : engineName(engine())}</Text>
+        <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
+      </View>
+    </Tip>
     <View className="flex-row items-center">
-      <IconButton kind={I_COMMAND} size={15} onPress={() => openPalette(PAL_COMMANDS)} />
-      {theme().dark ? <IconButton kind={I_SUN} size={15} onPress={() => toggleTheme()} /> : <IconButton kind={I_MOON} size={15} onPress={() => toggleTheme()} />}
+      <IconButton kind={I_COMMAND} size={15} onPress={() => openPalette(PAL_COMMANDS)} tip={() => t('atelier.tip.palette')} />
+      {theme().dark ? <IconButton kind={I_SUN} size={15} onPress={() => toggleTheme()} tip={() => t('atelier.tip.theme')} /> : <IconButton kind={I_MOON} size={15} onPress={() => toggleTheme()} tip={() => t('atelier.tip.theme')} />}
     </View>
   </View>;
 }
