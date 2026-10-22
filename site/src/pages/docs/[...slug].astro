@@ -1,31 +1,48 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import { slugOf } from '../../../docs-map.mjs';
 
+// An entry id is the lower-cased path ("guide/02-language"); learn/README is the index of /docs/learn/.
 export async function getStaticPaths() {
   const docs = await getCollection('docs');
-  return docs.map((d) => ({ params: { slug: d.id }, props: { d } }));
+  return docs.map((d) => ({ params: { slug: d.id.toLowerCase().replace(/^learn\/readme$/, 'learn') }, props: { d } }));
 }
+const slug = (id: string) => slugOf(`${id}.md`);
 const { d } = Astro.props;
 const { Content } = await render(d);
 const b = import.meta.env.BASE_URL;
 const all = await getCollection('docs');
-const title = d.id.split('/').pop()!.replace(/^\d+-/, '').replace(/-/g, ' ');
-const fix: Record<string, string> = { Ui: 'UI', 'Ui kit': 'UI kit', 'Ui apps': 'UI apps', '3d': '3D', Canvas2d: 'Canvas 2D', Gl: 'GL', Perf: 'Performance', Svg: 'SVG', Gphoto2: 'gphoto2', Ps1: 'PS1' };
-const nice = (id: string) => { const n = id.split('/').pop()!.replace(/^\d+-/, '').replace(/-/g, ' '); const t = n.charAt(0).toUpperCase() + n.slice(1); return fix[t] ?? t.replace(/\b(fbdev|gl)\b/i, (m) => m.toUpperCase()).replace(/^Display /, 'Display: '); };
+const ids = all.map((x) => x.id);
+const fix: Record<string, string> = {
+  Ui: 'UI', 'Ui kit': 'UI kit', 'Ui apps': 'UI apps', '3d': '3D', Canvas2d: 'Canvas 2D', Gl: 'GL', Perf: 'Performance', Svg: 'SVG', Gphoto2: 'gphoto2', Ps1: 'PS1',
+  Choose: 'Choose your kind of program', Syntax: 'Syntax cheat sheet', 'Nuxt ui': 'Nuxt UI', 'React native': 'React Native', Zapp: '.zapp files',
+  'Diagnostics vs tsc': 'Diagnostics versus tsc', 'Ir format': 'IR and ZBC formats', Zpk: 'ZPK packs', 'Figma ui': 'Figma to Zinc UI', 'Dev mode': 'Dev mode',
+};
+const nice = (id: string) => {
+  if (/\/readme$/.test(id)) return 'Overview';
+  const n = id.split('/').pop()!.replace(/^\d+-/, '').replace(/-/g, ' ');
+  const t = n.charAt(0).toUpperCase() + n.slice(1);
+  return fix[t] ?? t.replace(/\b(fbdev|gl)\b/i, (m) => m.toUpperCase()).replace(/^Display /, 'Display: ');
+};
+// README first, then by file name.
+const dir = (p: string) => ids.filter((x) => x.startsWith(`${p}/`)).sort((x, y) => (/\/readme$/.test(x) ? -1 : /\/readme$/.test(y) ? 1 : x.localeCompare(y)));
+const only = (list: string[]) => list.filter((x) => ids.includes(x));
+// Learn, Start, Guides, Reference, Concepts. Reports and decisions are not published: they stay on GitHub.
 const groups: [string, string[]][] = [
-  ['Guide', all.filter((x) => x.id.startsWith('guide/')).map((x) => x.id).sort()],
-  ['Reference', ['ui', 'ui-kit', 'plugins', 'boards', 'studio', 'dev-mode']],
-  ['Plugins', all.filter((x) => x.id.startsWith('plugins/')).map((x) => x.id).sort()],
-  ['Targets', all.filter((x) => x.id.startsWith('targets/')).map((x) => x.id).sort()],
-  ['Reports', [...all.filter((x) => x.id.startsWith('reports/')).map((x) => x.id).sort(), 'licenses']],
-  ['Decisions', all.filter((x) => x.id.startsWith('decisions/')).map((x) => x.id).sort()],
-];
+  ['Learn', dir('learn')],
+  ['Start', only(['start/choose', ...dir('start').filter((x) => x !== 'start/choose')])],
+  ['Guides', [...dir('guide'), ...only(['ui-kit', 'nuxt-ui', 'react-native', 'templates', 'boards', 'dev-mode', 'desktop-integration', 'zapp', 'studio', 'figma-ui'])]],
+  ['Guides: targets', dir('targets')],
+  ['Reference', [...only(['reference/syntax', 'diagnostics']), ...dir('reference').filter((x) => x !== 'reference/syntax'), ...only(['ui', 'plugins', 'zpk', 'licenses'])]],
+  ['Reference: plugins', dir('plugins')],
+  ['Concepts', only(['engines', 'diagnostics-vs-tsc', 'ir-format'])],
+].map(([g, l]) => [g, [...new Set(l as string[])]] as [string, string[]]).filter(([, l]) => l.length > 0);
 ---
 <Base title={nice(d.id)}>
   <div class="wrap docs">
     <aside class="side">
-      {groups.map(([g, ids]) => <><h4>{g}</h4>{ids.map((id) => <a href={`${b}docs/${id}/`} class={id === d.id ? 'on' : ''}>{id === 'guide/readme' ? 'Overview' : nice(id)}</a>)}</>)}
+      {groups.map(([g, list]) => <><h4>{g}</h4>{list.map((id) => <a href={`${b}docs/${slug(id)}/`} class={id === d.id ? 'on' : ''}>{nice(id)}</a>)}</>)}
     </aside>
     <article class="prose"><Content />
       <p style="margin-top:56px;font-size:.9rem"><a href={`https://github.com/Frulko/zinc/edit/main/docs/${d.filePath?.replace(/^.*docs\//, '')}`}>Edit this page on GitHub ↗</a></p>

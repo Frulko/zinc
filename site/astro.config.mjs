@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import path from 'node:path';
+import { isPublished, slugOf } from './docs-map.mjs';
 
 const REPO = 'https://github.com/Frulko/zinc/blob/main/';
 const DOCS = path.resolve('../docs');
@@ -20,7 +21,7 @@ function rehypeDocLinks() {
           const inDocs = abs.startsWith(DOCS + path.sep);
           const rel = path.relative(inDocs ? DOCS : path.resolve('..'), abs);
           if (attr === 'src') n.properties.src = `${BASE}/docs-assets/${rel}`;
-          else if (inDocs && p.endsWith('.md')) n.properties.href = `${BASE}/docs/${rel.slice(0, -3).toLowerCase()}/${hash && '#' + hash}`;
+          else if (inDocs && p.endsWith('.md') && isPublished(rel.split(path.sep).join('/'))) n.properties.href = `${BASE}/docs/${slugOf(rel.split(path.sep).join('/'))}/${hash && '#' + hash}`;
           else n.properties.href = REPO + rel + (hash && '#' + hash);
         }
       }
