@@ -463,6 +463,12 @@ The next backlog review turns lines into tasks or deletes them.
 - Module resolution: a tsconfig `paths` entry wins over a plugin for the same specifier, which on the web profile would hide the plugin's "web" entry (the examples map `three` to `plugins/three/index.ts`); drop those entries or let plugins win.
 - Module resolution: platform suffixes apply to `.ts`/`.tsx` only; Metro also takes `x.native.js`, which React Native packages in `node_modules` use.
 - Module resolution: `tests/t0/module_resolution.sh` runs the interpreter and the JS engines, not AOT (the same loader, about 3 s a platform).
+- ZN-774: `docs/diagnostics.md` is generated and its Z0007 fix line puts `<view>` and `<scroll>` outside code, so the site renders them as HTML tags: quote them in `include/zn/diagnostics.h`.
+- ZN-774: the README summaries "36 modules" and "9 display drivers" disagree with the 49 module and 9 display plugins of `plugins/`; change them with the parser in `site/src/data/site.ts`.
+- ZN-774: dead links left in `docs/studio.md` (apps/studio), `docs/engines.md` (runtime/include/zinc_abi.h, compiler/src/abi.ts, zinc_vm.h), `docs/pinball-make-a-table.md` (examples/pinball3d/tools/), and the docker and "sim oracle" mentions of `docs/boards.md` (82, 238, 319) not checked.
+- ZN-774: `docs/guide/07-distribution.md` and `08-security.md` not checked against `zinc help export` since the onboarding audit.
+- ZN-774: templates `solid-app`, `react-app`, `kit-app`, `rn-app` and `js` would remove the "none yet" rows of `docs/start/choose.md`.
+
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
