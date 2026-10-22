@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # Aprende Zinc: de una forma a una aplicación
 
@@ -95,7 +95,8 @@ y 4 empiezan todas desde la parte 1, así que después de la parte 1 elige la qu
 | Cambios | dibujas la imagen nueva | cambias un valor, la pantalla lo sigue | mueves un objeto, el escenario dibuja | dibujas la imagen nueva |
 
 Se pueden mezclar: la lección 11 dibuja con `zinc:gfx` dentro de una interfaz. [Cuatro formas de escribir un programa](../start/styles.md) muestra el mismo
-programa pequeño escrito de cada forma, lado a lado, y cómo se combinan.
+programa pequeño escrito de cada forma, lado a lado, y cómo se combinan. [Más allá de los componentes](../start/beyond.md) pone una escena dentro de una interfaz y una interfaz dentro de una
+escena, y va más allá de los elementos ya hechos: gráficos, estilos como objetos, componentes propios, animaciones.
 
 ## Palabras que encontrarás
 
@@ -122,6 +123,7 @@ programa pequeño escrito de cada forma, lado a lado, y cómo se combinan.
 - [zinc:canvas](../plugins/canvas2d.md): cada función de la parte 4, y las pocas diferencias con la web.
 - [Aplicaciones de interfaz](../guide/03-ui-apps.md) y [zinc:ui a fondo](../ui.md): desplazamiento, campos de texto, animaciones, capas.
 - [El kit de interfaz](../ui-kit.md): botones, diálogos, menús y pestañas listos para usar.
+- [Más allá de los componentes](../start/beyond.md): qué hacer cuando los elementos ya hechos no bastan.
 - [Sonido](../plugins/audio.md): cada función de `zinc:audio`.
 - Los ejemplos de Zinc Atelier (*Archivo > Ejemplos…*) y `zinc new game-2d`, un pequeño juego completo para leer y cambiar;
   `zinc new stage` y `zinc new canvas` inician un proyecto al estilo de la parte 3 o de la parte 4.

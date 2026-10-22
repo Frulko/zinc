@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 20. Texto y degradados
 
@@ -153,5 +153,7 @@ Ya sabes dibujar con el canvas de la web: trazados, rellenos y contornos, transf
 - `zinc new canvas` crea un boceto para hacer crecer: un cielo con degradado, una estrella que gira, burbujas donde haces clic.
 - [`examples/canvas/sketch`](../../examples/canvas/sketch/main.tsx) en el repositorio: un reloj, fuegos artificiales y formas
   dibujadas en canvas dentro de una interfaz.
+- [Dibújalo con el canvas de la web](../start/beyond.md#draw-it-with-the-webs-canvas): un gráfico dibujado con estas llamadas en una caja de una
+  interfaz, junto a sus botones.
 - [Cuatro maneras de escribir un programa](../start/styles.md): cómo se mezcla el canvas con los otros estilos. [Volver al
   inicio del recorrido](README.md).

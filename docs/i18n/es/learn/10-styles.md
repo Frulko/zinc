@@ -1,5 +1,5 @@
 ---
-source: f8a06617acd391e8d497619fb57f189897406d5e
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 10. Estilos
 
@@ -119,7 +119,8 @@ Una palabra con prefijo se aplica solo en un estado: `hover:bg-slate-50` mientra
 - Pon las tarjetas una debajo de otra: cambia `flex-row` por `flex-col`.
 - Redondea las tarjetas del todo con `rounded-3xl`, o hazlas cuadradas con `rounded-none`.
 - Escribe un estilo que `className` no pueda decir, como un objeto: `style={{ opacity: 0.8 }}` (la lección 8 usó
-  `style={{ width: ... }}`). [zinc:ui a fondo](../ui.md#object-styles-and-stylesheet) enumera las claves de estilo.
+  `style={{ width: ... }}`). [zinc:ui a fondo](../ui.md#object-styles-and-stylesheet) enumera las claves de estilo, y
+  [Estilos como objetos](../start/beyond.md#styles-as-objects) escribe una pantalla entera con ellos, como hace React Native.
 
 ## Siguiente
 

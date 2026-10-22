@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 16. El diseño y una caja con desplazamiento
 
@@ -181,4 +181,6 @@ lista que se desplaza. Con eso basta para la mayoría de las aplicaciones en una
 - `zinc new stage` crea una pequeña aplicación para hacer crecer: un título, botones de colores y una pegatina que arrastras.
 - [`examples/music-tree`](../../examples/music-tree/src/main.ts) en el repositorio: un reproductor de música entero escrito así,
   rápido en una tableta de 2011.
+- [Una escena dentro de una interfaz](../start/beyond.md#a-scene-inside-an-interface), y una interfaz dentro de una escena: sprites junto a
+  botones, botones sobre un sprite.
 - [Cuatro maneras de escribir un programa](../start/styles.md), o la parte 4: [17. Trazados y rellenos](17-paths-and-fills.md), el canvas de la web.

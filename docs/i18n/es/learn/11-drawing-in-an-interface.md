@@ -1,5 +1,5 @@
 ---
-source: 24c9dcf2422fedfc783f1401835b3320a8c61697
+source: a89b891f8d70d530101975a391dffc953c46bfdf
 ---
 # 11. Un dibujo dentro de una interfaz
 
@@ -112,6 +112,9 @@ Canvas también espere a un cambio.)
 - Pulsa en el Canvas para mover la flor: dale `onPointerDown={(e: ui.PointerEvent) => ...}` (lección 9) y guarda el
   centro en dos variables. `e.x`, `e.y` están dentro del Canvas, así que suma `x`, `y` al dibujar.
 - Dibuja un gráfico de barras en su lugar: un `rect` por cada valor de una lista, tan alto como el valor.
+
+[Más allá de los componentes](../start/beyond.md) va más lejos con un Canvas: un gráfico de barras con `zinc:gfx`, el mismo gráfico como una
+curva suave con el canvas de la web, y una escena entera de sprites dentro de una interfaz.
 
 ## Siguiente
 
