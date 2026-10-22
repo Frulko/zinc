@@ -48,3 +48,5 @@ add_dependencies(${COMPONENT_LIB} zn_stdlib_h)
 target_include_directories(${COMPONENT_LIB} PRIVATE ${GEN})
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error -O2)   # the engine and the raster for speed; the rest of the image is -Os
 set_source_files_properties(${MQ}/mquickjs.c ${MQ}/dtoa.c ${MQ}/libm.c ${MQ}/cutils.c PROPERTIES COMPILE_OPTIONS "-w")   # upstream sources
+idf_component_get_property(zn_lcd_lib esp_lcd COMPONENT_LIB)   # the i80 driver reformats each colour in a loop, a tenth of a busy frame
+target_compile_options(${zn_lcd_lib} PRIVATE -O2)

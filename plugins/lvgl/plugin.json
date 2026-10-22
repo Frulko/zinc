@@ -804,6 +804,21 @@
       ],
       "sdkconfig": [
         "CONFIG_ESP_MAIN_TASK_STACK_SIZE=28672"
+      ],
+      "iram": [
+        "vendor/lvgl/src/core/lv_obj_event.c",
+        "vendor/lvgl/src/core/lv_obj_scroll.c",
+        "vendor/lvgl/src/core/lv_obj_style.c",
+        "vendor/lvgl/src/core/lv_refr.c",
+        "vendor/lvgl/src/draw/lv_draw.c",
+        "vendor/lvgl/src/draw/lv_draw_rect.c",
+        "vendor/lvgl/src/draw/sw/blend/lv_draw_sw_blend.c",
+        "vendor/lvgl/src/draw/sw/lv_draw_sw_fill.c",
+        "vendor/lvgl/src/misc/lv_area.c",
+        "vendor/lvgl/src/misc/lv_array.c",
+        "vendor/lvgl/src/misc/lv_event.c",
+        "vendor/lvgl/src/misc/lv_style.c",
+        "vendor/lvgl/src/widgets/label/lv_label.c"
       ]
     }
   }

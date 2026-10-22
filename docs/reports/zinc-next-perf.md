@@ -1148,6 +1148,9 @@ ESP32-2432S022C (classic ESP32, 240 MHz, no PSRAM), ESP-IDF 5.5.5, measured on t
 | the same, each area sent in transfers of one DMA descriptor (1,023 px, 0x2C then 0x3C), against whole areas on descriptors of 4,092 bytes | 20 to 22 fps, LVGL 37 to 39.6 ms / 24 to 25 fps, 31.5 to 32.9 ms |
 | the board's pages, one tour: Lottie (64 x 64) / Music / Input / Info | 58 to 60 fps, LVGL 13 to 15 ms / 58 fps, 8.2 ms / 60 fps, 0.5 ms / 59 fps, 6.5 ms |
 | free heap on the board at start / after the program loads / on Bench (lowest of the tour), HEAD 93af7fe3 against one LVGL buffer and one band where the i80 driver copies | 196.5 / 98.2 / 17.9 KB against 208.3 / 109.9 / 43.8 KB (24.3 KB, Lottie after Bench) |
+| where the Bench's time goes on the board (CPU0 sampled at each 1 kHz tick, 4,000 samples): the i80 driver's colour copy / LVGL's events / mquickjs's property reads and calls / LVGL's style lookups / pixel blending | 12.4 / 6.7 / 8.3 / 3.6 / about 5%: the flash cache, not the pixels (the board runs 4.5 times slower than esp32sim) |
+| the Bench on the board, zinc:lvgl's 13 hottest files in the internal RAM (plugin.json "iram": styles, events, areas, arrays, draw, rect, blend, fill, refresh, label, scroll; 37 KB of the 128 KB) / and the i80 driver at -O2 | 33.6 to 36 fps, LVGL 20.2 to 22.2 ms / 38.5 to 40 fps, LVGL 17.9 to 19 ms (from 23 to 25 fps, 31.5 to 35 ms); free heap unchanged (44.7 KB on Bench) |
+| internal RAM for code (IRAM) of the firmware: no LVGL / with zinc:lvgl's list / the network image | 58.1 / 95.2 / 58.3 KB of 128 KB |
 
 ## PERF-16 follow-up: zinc dev and the first start of a zinc:ui program (ZN-774.16, 2026-10-22)
 

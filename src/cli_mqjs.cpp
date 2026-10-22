@@ -94,7 +94,7 @@ std::string mqjsTool(std::string& err) {
 }
 
 // A plugin's native module the program opens (requireNative): C on the native ABI (native/<x>.abi.c), built into the firmware
-struct Native { std::string module, dir, impl, header; std::vector<std::string> sources, defines, idf, sdkconfig; std::map<std::string, std::string> registry; };
+struct Native { std::string module, dir, impl, header; std::vector<std::string> sources, defines, idf, sdkconfig; std::map<std::string, std::string> registry; std::vector<std::string> iram; };
 
 struct Program {
   std::string work, name, map, img;   // the scratch directory, the program's file name there (<name>.js), its source map, the image for the board
@@ -146,6 +146,10 @@ int findNatives(const std::string& root, const std::string& entry, const std::st
     if (ts == fp->manifest.targetSettings.end()) { std::fprintf(stderr, "zinc: plugin '%s' does not list the esp32 target in its plugin.json\n", fp->manifest.name.c_str()); return 1; }
     Native n{name, fp->dir, impl, gen.cHeader, {}, ts->second.defines, ts->second.idf, ts->second.sdkconfig, ts->second.idfComponents};
     for (const std::string& src : ts->second.sources) n.sources.push_back((fs::path(fp->dir) / src).lexically_normal().string());
+    for (const std::string& src : ts->second.iram) {   // ldgen names an object by its file name without the extension
+      if (std::find(ts->second.sources.begin(), ts->second.sources.end(), src) == ts->second.sources.end()) { std::fprintf(stderr, "zinc: plugin '%s': \"iram\" names %s, which is not one of its esp32 sources\n", fp->manifest.name.c_str(), src.c_str()); return 1; }
+      n.iram.push_back(fs::path(src).stem().string());
+    }
     p.natives.push_back(n);
     // the check runs the firmware's C: where the computer's library is another implementation (the manifest's, <x>.<target>.cpp or
     // <x>.host.cpp come first there; zinc:device's is on zinc's runtime, which zinc-mqjs has not), the ABI file is built as a target of
@@ -297,6 +301,7 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     for (const std::string& r : n.idf) key += " " + r;
     for (const auto& [pkg, ver] : n.registry) key += " " + pkg + "@" + ver;
     for (const std::string& c : n.sdkconfig) key += " " + c;
+    for (const std::string& o : n.iram) key += " iram:" + o;
   }
   std::sort(files.begin(), files.end());
   contents += std::string(kPluginFlags) + "\n";
@@ -310,7 +315,7 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
   // (idf_component.yml: plugin.json "idfComponents", Arduino's core as a component for example) they need, their zn_module_<Name>
   const fs::path comp = dir / "zn_plugins";
   fs::create_directories(comp, ec);
-  std::string srcs, incs = " \"" + (fs::path(root) / "include").string() + "\" \"" + comp.string() + "\"", defs, reqs, deps, list, decls, settings;
+  std::string srcs, incs = " \"" + (fs::path(root) / "include").string() + "\" \"" + comp.string() + "\"", defs, reqs, deps, list, decls, settings, iram;
   for (const Native& n : p.natives) {
     std::string lower = n.module;
     for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -322,13 +327,17 @@ std::string nativeFirmware(const std::string& root, const Program& p, bool emula
     for (const std::string& r : n.idf) reqs += " " + r;
     for (const auto& [pkg, ver] : n.registry) deps += "  " + pkg + ": \"" + ver + "\"\n";
     for (const std::string& c : n.sdkconfig) settings += c + "\n";
+    for (const std::string& o : n.iram) iram += "    " + o + " (noflash)\n";
     decls += "const ZnModule *zn_module_" + n.module + "(void);\n";
     list += "zn_module_" + n.module + ", ";
   }
   writeText(comp / "zn_native_modules.c", "/* written by zinc (src/cli_mqjs.cpp): the native modules main/zn_native.c opens */\n#include \"zn/native.h\"\n" + decls +
                                               "const ZnModule *(*const zn_native_modules[])(void) = {" + list + "0};\n");
+  // plugin.json "iram": the hot code of a library (zinc:lvgl's styles, events and fills) out of the flash cache, which the core waits on
+  if (!iram.empty()) writeText(comp / "zn_plugins.lf", "# written by zinc (src/cli_mqjs.cpp): the plugins' code that runs from the internal RAM\n[mapping:zn_plugins]\narchive: libzn_plugins.a\nentries:\n" + iram);
   writeText(comp / "CMakeLists.txt", "# written by zinc (src/cli_mqjs.cpp): the native code of the plugins a program imports\n"
-                                     "idf_component_register(SRCS zn_native_modules.c" + srcs + "\n  INCLUDE_DIRS" + incs + (reqs.empty() ? "" : "\n  REQUIRES" + reqs) + ")\n" +
+                                     "idf_component_register(SRCS zn_native_modules.c" + srcs + "\n  INCLUDE_DIRS" + incs + (reqs.empty() ? "" : "\n  REQUIRES" + reqs) +
+                                     (iram.empty() ? "" : "\n  LDFRAGMENTS zn_plugins.lf") + ")\n" +
                                      (defs.empty() ? "" : "target_compile_definitions(${COMPONENT_LIB} PRIVATE" + defs + ")\n") +
                                      "target_compile_options(${COMPONENT_LIB} PRIVATE " + kPluginFlags + ")\n");
   fs::remove(comp / "idf_component.yml", ec);

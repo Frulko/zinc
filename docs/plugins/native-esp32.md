@@ -45,8 +45,14 @@ It includes `zinc_native_qrcode_abi.h` (generated) and its library's headers fro
 
 The plugin's ESP32 settings: `sources` (C or C++ files, compiled with the firmware), `defines`, `idf` (ESP-IDF components the code
 `REQUIRES`: `esp_driver_i2c`, `esp_adc`...), `idfComponents` (packages of the ESP Component Registry, written into the generated
-component's `idf_component.yml`) and `sdkconfig` (settings such as `CONFIG_X=y`, added after the firmware's defaults). A library on
-ESP-IDF or plain C works as is. The plugins' C is compiled with `-O2`, while the rest of the firmware is compiled with `-Os`.
+component's `idf_component.yml`), `sdkconfig` (settings such as `CONFIG_X=y`, added after the firmware's defaults) and `iram` (files
+of `sources` whose code runs from the internal RAM). A library on ESP-IDF or plain C works as is. The plugins' C is compiled with `-O2`,
+while the rest of the firmware is compiled with `-Os`.
+
+The firmware runs its code from the flash through a cache of 32 KB, and a miss stalls the core while the flash is read. A library that
+calls across a large body of code each frame misses often: zinc:lvgl's styles, events, areas and fills, listed in its `iram`, make its
+Bench page about 1.4 times faster on the 2432S022 (`docs/reports/zinc-next-perf.md`). The internal RAM for code is small (about 128 KB,
+of which the firmware already uses 58 KB and zinc:lvgl's list 37 KB), so list the few files a profile shows hot, not the library.
 
 A native module that draws the screen itself (`zinc:lvgl`) takes the panel through `main/zn.h`. `zn_panel_buffer(bytes)` returns a
 buffer the panel's bus can read (240 x 32 pixels at most). `zn_panel_flush(x0, y0, x1, y1, pixels)` sends an area of RGB565 pixels, high
