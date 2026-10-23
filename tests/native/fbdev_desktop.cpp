@@ -1,0 +1,121 @@
+// The real framebuffer driver on native files: 1080p, USB event queues, hotplug and cursor damage without a Pi.
+#include "fbdev.cpp"
+#include <assert.h>
+#include <fstream>
+HalDisplay* hal_display;
+static int default_escapes, app_escapes;
+extern "C" void hal_escape() { default_escapes++; }
+extern "C" void hal_escape_by_app(int32_t) { app_escapes++; }
+namespace zrt { bool display_driver = true; namespace gfx {
+#include "gfx_display_actions.h"
+} }
+static int renders;
+static void paint(uint32_t* rows, int32_t a, int32_t b) {
+  renders++;
+  for (int y = a; y < b; y++) for (int x = 0; x < W; x++) rows[(y - a) * W + x] = 0x345678;
+}
+static void event(std::ofstream& stream, int type, int code, int value) {
+  input_event e = {}; e.type = type; e.code = code; e.value = value;
+  stream.write((const char*)&e, sizeof e);
+}
+static uint32_t modifiers;
+static int updates;
+static int update(void*, uint32_t code, int down) { updates++; if (code == 42 + 8) modifiers = down ? HAL_MOD_SHIFT : 0; return 0; }
+static int active(void*, const char* name, int) { return !strcmp(name, "Shift") && modifiers; }
+static uint32_t symbol(void*, uint32_t code) { return code == KEY_A + 8 ? modifiers ? 'A' : 'a' : code == KEY_E + 8 ? 0xe9 : 0xff08; }
+static uint32_t layout(void*, uint32_t) { return 0; }
+static int symbols(void*, uint32_t code, uint32_t, uint32_t, const uint32_t** out) {
+  static uint32_t s; s = code == KEY_A + 8 ? 'a' : code == KEY_E + 8 ? 'e' : 0xff08; *out = &s; return 1;
+}
+static int text(void*, uint32_t code, char* out, size_t) {
+  const char* value = code == KEY_A + 8 ? modifiers ? "A" : "a" : code == KEY_E + 8 ? "é" : "";
+  strcpy(out, value); return (int)strlen(value);
+}
+static void keyboard_fixture() {
+  keyboard::shutdown();
+  keyboard::state = keyboard::map = (void*)1;
+  keyboard::state_update_key = update; keyboard::state_mod_name_is_active = active;
+  keyboard::state_key_get_one_sym = symbol; keyboard::state_key_get_utf8 = text;
+  keyboard::keymap_key_get_syms_by_level = symbols; keyboard::state_key_get_layout = layout;
+}
+static uint32_t pixel(int x, int y) {
+  const uint8_t* p = fbmem + (size_t)y * pitch + x * bpp / 8;
+  return bpp == 32 ? (*(uint32_t*)p & 0xffffff) : bpp == 24 ? p[2] << 16 | p[1] << 8 | p[0] : *(uint16_t*)p;
+}
+int main(int argc, char** argv) {
+  assert(argc == 2);
+  setenv("ZINC_RENDER_THREADS", "1", 1);
+  setenv("XKB_DEFAULT_LAYOUT", "fr", 1);
+  setenv("LC_ALL", "C.UTF-8", 1);
+  const std::string root = argv[1];
+  const std::string fb = root + "/framebuffer", input = root + "/input";
+  sim_fb = fb.c_str(); sim_input = input.c_str();
+  for (int depth : {16, 24, 32}) {
+    setenv("ZINC_FBDEV_SIM_FORMAT", ("1920x1080x" + std::to_string(depth)).c_str(), 1);
+    int32_t w = 320, h = 240; fb_native(&w, &h);
+    assert(w == 1920 && h == 1080);
+    HalConfig config{w, h, "fixture", 1}; assert(fb_init(&config));
+    assert(!xmap && dx == 0 && dy == 0 && W == fw && H == fh);
+    if (depth == 32 && keyboard::state) {
+      HalInput keys{};
+      for (int code : {KEY_Q, 3, 26, KEY_E}) { keyboard::event(&keys, code, 1, true); keyboard::event(&keys, code, 0, true); }
+      assert(std::string(keys.text, keys.ntext) == "aéê");
+      puts("real libxkbcommon: AZERTY, UTF-8 and dead-key composition ok");
+    } else if (depth == 32) puts("real libxkbcommon unavailable: layout/composition needs the Linux pass");
+    HalFrame frame{w, h, 0, 0, w, h, paint}; fb_present(&frame);
+    const int count = renders;
+    const uint32_t background = pixel(100, 100);
+    px = 100; py = 100; cursor_visible = true;
+    frame.x1 = frame.y1 = 0; fb_present(&frame);
+    assert(pixel(100, 100) == 0 && pixel(102, 104) == (depth == 16 ? 0xffff : 0xffffff));
+    assert(surf[100 * W + 100] == 0x345678);
+    px = 200; py = 200; fb_present(&frame);
+    assert(pixel(100, 100) == background && pixel(200, 200) == 0 && renders == count);
+    cursor_visible = false; fb_present(&frame);
+    assert(pixel(200, 200) == background && renders == count);
+    fb_shutdown();
+  }
+  // No event device at startup; it appears after the window is running.
+  setenv("ZINC_FBDEV_SIM_FORMAT", "800x480x16", 1);
+  HalConfig config{800, 480, "input", 1}; assert(fb_init(&config)); assert(ndev == 0);
+  keyboard_fixture();
+  {
+    std::ofstream file(input, std::ios::binary);
+    event(file, EV_KEY, 42, 1); event(file, EV_KEY, KEY_A, 1); event(file, EV_KEY, KEY_A, 2);
+    event(file, EV_KEY, KEY_A, 0); event(file, EV_KEY, 42, 0); event(file, EV_KEY, KEY_E, 1);
+    event(file, EV_REL, REL_X, 10); event(file, EV_REL, REL_Y, -10);
+    event(file, EV_KEY, BTN_RIGHT, 1); event(file, EV_KEY, BTN_RIGHT, 0);
+    event(file, EV_REL, REL_HWHEEL, 2); event(file, EV_REL, REL_WHEEL, -1);
+    event(file, EV_SYN, SYN_REPORT, 0);
+    event(file, EV_KEY, KEY_ESC, 1); event(file, EV_SYN, SYN_REPORT, 0);
+  }
+  HalInput in{}; last_scan = 0; fb_poll(&in);
+  assert(ndev == 1 && in.px == 410 && in.py == 230 && cursor_visible);
+  assert(in.nbtn == 2 && in.btn[0].button == 2 && in.btn[0].down && !in.btn[1].down);
+  assert(!in.pbuttons && in.wheel_x == 2 && in.wheel == -1);
+  assert(in.ntext == 4 && std::string(in.text, in.ntext) == "AAé");
+  bool down = false, repeat = false, up = false;
+  for (int i = 0; i < in.nkeys; i++) if (in.keys[i].key == 'a') {
+    assert(in.keys[i].mods == HAL_MOD_SHIFT);
+    down |= in.keys[i].kind == HAL_KEY_DOWN; repeat |= in.keys[i].kind == HAL_KEY_REPEAT; up |= in.keys[i].kind == HAL_KEY_UP;
+  }
+  assert(down && repeat && up && updates == 5 && !in.mods);
+  assert(keyboard::named(0xff51) == HAL_KEY_ARROW_LEFT && keyboard::named(0xffff) == HAL_KEY_DELETE);
+  zrt::gfx::escapeByApp(true); in = {}; fb_poll(&in); assert(!in.quit);
+  zrt::gfx::escapeDefault(); in = {}; fb_poll(&in); assert(in.quit);
+  assert(!default_escapes && !app_escapes);
+  zrt::display_driver = false;
+  zrt::gfx::escapeByApp(false); zrt::gfx::escapeDefault();
+  assert(default_escapes == 1 && app_escapes == 1);
+  zrt::display_driver = true;
+  // Queue limits and UTF-8 text are bounded even if a device floods keys.
+  in = {}; for (int i = 0; i < 200; i++) keyboard::event(&in, KEY_E, 2, false);
+  assert(in.nkeys == HAL_MAX_KEYS && in.ntext <= HAL_TEXT_BYTES);
+  keyboard::state = keyboard::map = nullptr;
+  // A removed device releases held game keys instead of leaving the app stuck moving.
+  int pipefd[2]; assert(pipe(pipefd) == 0); close(pipefd[1]);
+  close(devs[0].fd); devs[0].fd = pipefd[0]; sim_fb = nullptr;
+  in = {}; fb_poll(&in); assert(ndev == 0 && !in.buttons && !in.mods);
+  sim_fb = fb.c_str(); fb_shutdown();
+  puts("fbdev desktop: native 1080p, input, hotplug, cursor and Escape ok");
+}

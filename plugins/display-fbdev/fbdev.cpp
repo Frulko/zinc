@@ -7,6 +7,10 @@
 #include <algorithm>
 #include <atomic>
 #include <vector>
+#include <string>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
@@ -48,6 +52,10 @@ static volatile sig_atomic_t sig_quit;
 // ZINC_RENDER_THREADS: rasterizer and converter threads (1 = the old single-thread path). Leaked on purpose: the workers
 // wait on its condition variable until the process ends, and destroying it at exit would hang (glibc waits for waiters).
 static zbands::Pool& pool = *new zbands::Pool;
+static bool cursor_visible;
+static float px, py;
+static uint32_t cursor_pixel(int x, int y, uint32_t background);
+static bool cursor_row(int y);
 static bool stats, crc_on, fuse;     // ZINC_FBDEV_STATS / _CRC / _FUSE (see fb_present)
 static double skip_s;                // ZINC_FBDEV_SKIP_S: seconds after the first frame left out of the stats
 
@@ -79,19 +87,25 @@ static void conv_row(const uint32_t* s, uint8_t* row, int x0, int n) {
 /** Framebuffer row y from the surface row `src`, columns x0..x1 (framebuffer coordinates); xm maps them when scaled. */
 static void put_row(int y, int x0, int x1, const uint32_t* src, const int* xm) {
   uint8_t* row = fbmem + (size_t)y * pitch;
-  if (!xm) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
+  if (!xm && !cursor_row(y)) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
   static thread_local std::vector<uint32_t> tmp;   // scaled: gather the columns, then convert them in one go
   if ((int)tmp.size() < x1 - x0) tmp.resize(x1 - x0);
-  for (int x = x0; x < x1; x++) tmp[x - x0] = src[xm[x - dx]];
+  const int sy = xm ? ymap[y - dy] : y;
+  for (int x = x0; x < x1; x++) { const int sx = xm ? xm[x - dx] : x - dx; tmp[x - x0] = cursor_pixel(sx, sy, src[sx]); }
   conv_row(tmp.data(), row, x0, x1 - x0);
 }
 
+#include "keyboard.h"
+
 // ---------------------------------------------------------------- input (evdev)
-struct Dev { int fd; int32_t minx, maxx, miny, maxy; bool abs, mt; };
-static Dev devs[16];
+struct Dev { int fd; int32_t minx, maxx, miny, maxy; bool abs, mt; dev_t device; ino_t inode; bool keys[KEY_MAX + 1]; };
+static Dev devs[64];
+static uint8_t key_holds[KEY_MAX + 1];
+static bool app_escape;
+static uint32_t mouse_buttons;
+static uint64_t last_scan;
 static int ndev;
 static uint32_t held;
-static float px, py;
 // A press and its release can both arrive between two polls (a quick tap on a screen drawn 20 times a second): the press is then shown
 // for one poll and released at the next, instead of never being seen.
 struct Latch {
@@ -101,7 +115,7 @@ struct Latch {
 };
 static Latch mouse_btn, touch_btn;
 static bool quit_key;
-static float wheel;
+static float wheel, wheel_x;
 static int slot;
 static struct { int id; float x, y; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
 
@@ -113,16 +127,22 @@ static const char* sim_input = getenv("ZINC_FBDEV_SIM_INPUT");
 static bool bit(const unsigned long* b, int n) { return b[n / (8 * sizeof(long))] >> (n % (8 * sizeof(long))) & 1; }
 static void open_inputs() {
   if (sim_fb) {   // the scripted screen: no ioctl on a plain file
-    if (sim_input) { int f = open(sim_input, O_RDONLY | O_CLOEXEC); if (f >= 0) devs[ndev++] = Dev{f, 0, fw - 1, 0, fh - 1, true, true}; }
-    for (auto& s : slots) s.id = -1;
-    px = W / 2.0f; py = H / 2.0f;
+    if (sim_input && !ndev) { int f = open(sim_input, O_RDONLY | O_CLOEXEC); if (f >= 0) devs[ndev++] = Dev{f, 0, fw - 1, 0, fh - 1, true, true}; }
     return;
   }
-  for (int i = 0; i < 32 && ndev < 16; i++) {
-    char path[32];
-    snprintf(path, sizeof path, "/dev/input/event%d", i);
-    int f = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  DIR* directory = opendir("/dev/input");
+  if (!directory) return;
+  while (dirent* entry = readdir(directory)) {
+    if (ndev == 64) break;
+    if (strncmp(entry->d_name, "event", 5)) continue;
+    std::string path = std::string("/dev/input/") + entry->d_name;
+    int f = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (f < 0) continue;
+    struct stat info;
+    if (fstat(f, &info)) { close(f); continue; }
+    bool known = false;
+    for (int i = 0; i < ndev; i++) if (devs[i].device == info.st_rdev && devs[i].inode == info.st_ino) known = true;
+    if (known) { close(f); continue; }
     unsigned long ev[1] = {0}, keys[KEY_MAX / (8 * sizeof(long)) + 1] = {0}, abs[ABS_MAX / (8 * sizeof(long)) + 1] = {0};
     ioctl(f, EVIOCGBIT(0, sizeof ev), ev);
     ioctl(f, EVIOCGBIT(EV_KEY, sizeof keys), keys);
@@ -131,17 +151,17 @@ static void open_inputs() {
     if (bit(ev, EV_ABS)) {
       d.mt = bit(abs, ABS_MT_POSITION_X);
       input_absinfo ax, ay;
-      if (ioctl(f, EVIOCGABS(d.mt ? ABS_MT_POSITION_X : ABS_X), &ax) == 0 && ioctl(f, EVIOCGABS(d.mt ? ABS_MT_POSITION_Y : ABS_Y), &ay) == 0 && ax.maximum > ax.minimum) {
+      if (ioctl(f, EVIOCGABS(d.mt ? ABS_MT_POSITION_X : ABS_X), &ax) == 0 && ioctl(f, EVIOCGABS(d.mt ? ABS_MT_POSITION_Y : ABS_Y), &ay) == 0 && ax.maximum > ax.minimum && ay.maximum > ay.minimum) {
         d.abs = true; d.minx = ax.minimum; d.maxx = ax.maximum; d.miny = ay.minimum; d.maxy = ay.maximum;
       }
     }
     if (!bit(ev, EV_KEY) && !bit(ev, EV_REL) && !d.abs) { close(f); continue; }
     // keyboards are grabbed so keystrokes do not also reach the console behind the video
     if (ZP_DISPLAY_FBDEV_GRAB && bit(keys, KEY_ESC)) ioctl(f, EVIOCGRAB, 1);
+    d.device = info.st_rdev; d.inode = info.st_ino;
     devs[ndev++] = d;
   }
-  for (auto& s : slots) s.id = -1;
-  px = W / 2.0f; py = H / 2.0f;
+  closedir(directory);
 }
 static uint32_t button_of(int code) {
   switch (code) {
@@ -165,9 +185,9 @@ static void to_surface(const Dev& d, int32_t vx, int32_t vy, float* sx, float* s
   float fx = (vx - d.minx) * (float)fw / (d.maxx - d.minx + 1), fy = (vy - d.miny) * (float)fh / (d.maxy - d.miny + 1);
   *sx = (fx - dx) * W / dw; *sy = (fy - dy) * H / dh;
 }
-static void read_dev(Dev& d) {
+static bool read_dev(Dev& d, HalInput* in) {
   input_event e[64];
-  ssize_t n;
+  ssize_t n = -1;
   bool frameDone = false;
   // a script: one frame of events (up to SYN_REPORT) per poll; a device: everything it has sent, so the pointer never lags behind the finger
   while (!(sim_fb && frameDone) && (n = read(d.fd, e, sim_fb ? sizeof(input_event) : sizeof e)) > 0) {
@@ -175,18 +195,31 @@ static void read_dev(Dev& d) {
       const input_event& v = e[i];
       if (v.type == EV_SYN && v.code == SYN_REPORT) frameDone = true;
       if (v.type == EV_KEY) {
-        if (v.code == KEY_ESC && v.value == 1) quit_key = true;
-        else if (v.code == BTN_LEFT) mouse_btn.set(v.value != 0);
-        else if (v.code == BTN_TOUCH) touch_btn.set(v.value != 0);
-        else if (uint32_t b = button_of(v.code)) { if (v.value) held |= b; else held &= ~b; }
+        if (v.code < BTN_LEFT && v.code <= KEY_MAX) {
+          bool update = false;
+          if (v.value == 1 && !d.keys[v.code]) { d.keys[v.code] = true; update = key_holds[v.code]++ == 0; }
+          if (!v.value && d.keys[v.code]) { d.keys[v.code] = false; update = --key_holds[v.code] == 0; }
+          keyboard::event(in, v.code, v.value, update);
+          if (v.code == KEY_ESC && v.value == 1 && !app_escape) quit_key = true;
+        } else if (v.code >= BTN_LEFT && v.code <= BTN_MIDDLE) {
+          const int index = v.code - BTN_LEFT;
+          const uint32_t mask = 1u << index;
+          if (v.value) mouse_buttons |= mask; else mouse_buttons &= ~mask;
+          if (v.code == BTN_LEFT) mouse_btn.set(v.value != 0);
+          cursor_visible = true;
+          if (in->nbtn < HAL_MAX_BUTTON_EVENTS) in->btn[in->nbtn++] = {px, py, index == 1 ? 2 : index == 2 ? 1 : 0, v.value != 0};
+        } else if (v.code == BTN_TOUCH) { touch_btn.set(v.value != 0); cursor_visible = false; }
       } else if (v.type == EV_REL) {
+        cursor_visible = true;
         if (v.code == REL_X) px += v.value;
         else if (v.code == REL_Y) py += v.value;
         else if (v.code == REL_WHEEL) wheel += v.value;
+        else if (v.code == REL_HWHEEL) wheel_x += v.value;
         px = px < 0 ? 0 : px > W - 1 ? W - 1 : px; py = py < 0 ? 0 : py > H - 1 ? H - 1 : py;
       } else if (v.type == EV_ABS && d.abs) {
+        cursor_visible = false;
         static int32_t ax, ay;
-        if (v.code == ABS_MT_SLOT) slot = v.value < HAL_MAX_TOUCH ? v.value : HAL_MAX_TOUCH - 1;
+        if (v.code == ABS_MT_SLOT) slot = std::max(0, std::min((int)v.value, HAL_MAX_TOUCH - 1));
         else if (v.code == ABS_MT_TRACKING_ID) {
           auto& s = slots[slot];
           if (v.value >= 0) { s.id = v.value; s.fresh = true; s.gone = false; } else if (s.fresh) s.gone = true; else s.id = -1;
@@ -198,6 +231,37 @@ static void read_dev(Dev& d) {
       }
     }
   }
+  return sim_fb || n < 0 && (errno == EAGAIN || errno == EINTR);
+}
+
+// The same outlined arrow as display-gl, converted with damaged rows; no extra raster pass when the app keeps its frame.
+static const char* arrow[] = {
+  "X          ", "XX         ", "X.X        ", "X..X       ", "X...X      ", "X....X     ", "X.....X    ", "X......X   ", "X.......X  ", "X........X ",
+  "X.....XXXXX", "X..X..X    ", "X.X X..X   ", "XX  X..X   ", "X    X..X  ", "     X..X  ", "      XX   "};
+static int cursor_scale() { return W >= 1280 ? 2 : 1; }
+static bool cursor_row(int y) {
+  const int sy = ymap ? ymap[y - dy] : y;
+  return cursor_visible && sy >= (int)py && sy < (int)py + 17 * cursor_scale();
+}
+static uint32_t cursor_pixel(int x, int y, uint32_t background) {
+  if (!cursor_visible) return background;
+  const int scale = cursor_scale(), cx = x - (int)px, cy = y - (int)py;
+  if (cx < 0 || cy < 0 || cx >= 11 * scale || cy >= 17 * scale) return background;
+  const char c = arrow[cy / scale][cx / scale];
+  return c == 'X' ? 0 : c == '.' ? 0xFFFFFF : background;
+}
+static HalRect previous_cursor;
+static HalFrame cursor_damage(const HalFrame* frame) {
+  HalFrame output = *frame;
+  const HalRect current = cursor_visible ? HalRect{(int)px, (int)py, std::min(W, (int)px + 11 * cursor_scale()), std::min(H, (int)py + 17 * cursor_scale())} : HalRect{};
+  if (memcmp(&current, &previous_cursor, sizeof current)) {
+    for (HalRect r : {previous_cursor, current}) if (r.x1 > r.x0 && r.y1 > r.y0) {
+      if (output.x1 <= output.x0 || output.y1 <= output.y0) { output.x0 = r.x0; output.y0 = r.y0; output.x1 = r.x1; output.y1 = r.y1; }
+      else { output.x0 = std::min(output.x0, r.x0); output.y0 = std::min(output.y0, r.y0); output.x1 = std::max(output.x1, r.x1); output.y1 = std::max(output.y1, r.y1); }
+    }
+  }
+  previous_cursor = current;
+  return output;
 }
 
 // ---------------------------------------------------------------- hardware layers on KMS planes (ZN-731)
@@ -518,7 +582,12 @@ static int fb_init(const HalConfig* cfg) {
   if (tty < 0 && !sim_fb) tty = open("/dev/tty0", O_WRONLY | O_CLOEXEC);
   if (tty >= 0 && ioctl(tty, KDSETMODE, KD_GRAPHICS) < 0) { close(tty); tty = -1; }
   signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
-  if (ZP_DISPLAY_FBDEV_INPUT) open_inputs();
+  for (auto& s : slots) s.id = -1;
+  px = W / 2.0f; py = H / 2.0f;
+  if (ZP_DISPLAY_FBDEV_INPUT) {
+    if (!keyboard::init() && !sim_fb) fprintf(stderr, "fbdev: install libxkbcommon0 and xkb-data for keyboard text input\n");
+    open_inputs(); last_scan = now_us();
+  }
   fmt = FMT_GENERIC;
   if (bpp == 16 && rl == 5 && gl == 6 && bl == 5 && ro == 11 && go == 5 && bo == 0) fmt = FMT_565;
   else if (bpp == 32 && rl == 8 && gl == 8 && bl == 8 && ro == 16 && go == 8 && bo == 0) fmt = FMT_8888;
@@ -625,6 +694,12 @@ static void planes_present(const HalFrame* f, bool has) {
     for (int k = 0; k < nlay; k++)
       for (int y = r[k].y0; y < r[k].y1 && r[k].x0 < r[k].x1; y++)
         punch(surf + (size_t)y * W + r[k].x0, y >= c0 && y < c1 ? over + (size_t)y * W + r[k].x0 : nullptr, (uint32_t*)(b.map + (size_t)y * b.pitch) + r[k].x0, r[k].x1 - r[k].x0);
+    // punch() restores transparency over video; the pointer stays opaque above those holes.
+    if (cursor_visible) for (int y = std::max(a.y0, (int)py); y < std::min(a.y1, (int)py + 17 * cursor_scale()); y++)
+      for (int x = std::max(a.x0, (int)px); x < std::min(a.x1, (int)px + 11 * cursor_scale()); x++) {
+        const uint32_t color = cursor_pixel(x, y, HAL_LAYER_HOLE);
+        if (color != HAL_LAYER_HOLE) ((uint32_t*)(b.map + (size_t)y * b.pitch))[x] = color | 0xFF000000u;
+      }
     fbmem = fb0.mem; pitch = fb0.pitch; bpp = fb0.bpp; fmt = fb0.fmt; amask = fb0.amask;
   }
   const int e = commit(turn ? back : back ^ 1, DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK);
@@ -644,6 +719,10 @@ static void planes_present(const HalFrame* f, bool has) {
 
 static void fb_present(const HalFrame* f) {
   bool has = f->y1 > f->y0 && f->x1 > f->x0;
+  const bool overlay = cursor_visible || previous_cursor.x1 > previous_cursor.x0;
+  HalFrame output = cursor_damage(f);
+  const bool convert = output.y1 > output.y0 && output.x1 > output.x0;
+  const bool fused = fuse && !overlay;
   uint64_t t0 = now_us();
   static uint64_t started;
   if (!started) started = t0;
@@ -658,7 +737,7 @@ static void fb_present(const HalFrame* f) {
   planes = kms::fd >= 0;
   if (has && !planes) kms::direct++;
 #endif
-  Job job{f, fuse && !planes ? 3 : 1};
+  Job job{f, fused && !planes ? 3 : 1};
   if (has) pool.run(f->y0, f->y1, BAND_ROWS, band, &job);
   uint64_t t1 = now_us();
 #ifdef ZP_FBDEV_KMS
@@ -676,9 +755,9 @@ static void fb_present(const HalFrame* f) {
   }
   uint64_t t2 = now_us();
 #ifdef ZP_FBDEV_KMS
-  if (planes) planes_present(f, has);
+  if (planes) planes_present(&output, convert);
 #endif
-  if (has && !fuse && !planes) { job.phase = 2; pool.run(f->y0, f->y1, BAND_ROWS, band, &job); }
+  if (convert && !fused && !planes) { job.f = &output; job.phase = 2; pool.run(output.y0, output.y1, BAND_ROWS, band, &job); }
   uint64_t t3 = now_us();
   last_us_end = t3;
   if (count && samples.size() < 100000) samples.push_back({(t1 - t0) / 1e3f, (t2 - t1) / 1e3f, (t3 - t2) / 1e3f, (t3 - t0) / 1e3f, cpu_render / 1e3f, cpu_convert / 1e3f, has ? f->y1 - f->y0 : 0});
@@ -688,7 +767,23 @@ static void fb_poll(HalInput* in) {
   // the null HAL counts a frame budget (60 by default) for headless tests; on a real screen only ZINC_FRAMES does
   static bool budget = getenv("ZINC_FRAMES") != nullptr;
   if (!budget) in->quit = 0;
-  for (int i = 0; i < ndev; i++) read_dev(devs[i]);
+  const uint64_t now = now_us();
+  if (ZP_DISPLAY_FBDEV_INPUT && now - last_scan >= 1000000) {
+    if (!sim_fb && keyboard::refresh()) for (int k = 0; k <= KEY_MAX; k++) if (key_holds[k]) keyboard::state_update_key(keyboard::state, k + 8, 1);
+    open_inputs(); last_scan = now;
+  }
+  for (int i = 0; i < ndev;) {
+    if (read_dev(devs[i], in)) { i++; continue; }
+    for (int k = 0; k <= KEY_MAX; k++) if (devs[i].keys[k] && key_holds[k]) keyboard::event(in, k, 0, --key_holds[k] == 0);
+    close(devs[i].fd); devs[i] = devs[--ndev];
+    mouse_buttons = 0; mouse_btn = {}; touch_btn = {};
+    for (auto& s : slots) s.id = -1;
+  }
+  held = 0;
+  for (int k = 0; k <= KEY_MAX; k++) if (key_holds[k]) held |= button_of(k);
+  in->mods = keyboard::mods();
+  in->pbuttons = mouse_buttons;
+  in->wheel_x += wheel_x; wheel_x = 0;
   in->buttons |= held;
   in->ntouch = 0;
   for (auto& s : slots) {
@@ -735,9 +830,22 @@ static void fb_shutdown() {
   if (tty >= 0) { ioctl(tty, KDSETMODE, KD_TEXT); close(tty); tty = -1; }
   for (int i = 0; i < ndev; i++) close(devs[i].fd);
   ndev = 0;
+  memset(key_holds, 0, sizeof key_holds);
+  keyboard::shutdown();
+  previous_cursor = {};
+  cursor_visible = app_escape = quit_key = false; mouse_buttons = held = 0;
+  mouse_btn = {}; touch_btn = {};
+  if (surf) free(surf); surf = nullptr;
+  free(xmap); free(ymap); xmap = ymap = nullptr;
   if (fd >= 0) close(fd);
   fd = -1;
 }
 
-static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr, fb_native};   // layers: set by fb_init when the screen has the planes
+static const char* fb_device(const char* query, const char* value) {
+  if (!strcmp(query, "display.escapeByApp")) app_escape = value && *value == '1';
+  else if (!strcmp(query, "display.escape")) quit_key = true;
+  else return nullptr;
+  return "";
+}
+static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr, fb_native, fb_device};   // layers: set by fb_init when the screen has the planes
 static int registered = (hal_display = &fbdev, 0);

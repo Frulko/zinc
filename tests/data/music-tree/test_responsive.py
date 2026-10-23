@@ -39,16 +39,21 @@ with tempfile.TemporaryDirectory(prefix='zinc-music-layout-') as tmp:
         shot = app / (name + '.png')
         events = app / 'input'
         events.write_text(keys)
-        env = dict(os.environ, HOME=str(app), ZINC_HEADLESS='1', ZINC_BACKGROUND='1', ZINC_DETERMINISTIC='1', ZINC_FRAMES='60' if mode == 'search' else '20',
+        env = dict(os.environ, HOME=str(app), TZ='UTC', ZINC_HEADLESS='1', ZINC_BACKGROUND='1', ZINC_DETERMINISTIC='1', ZINC_FRAMES='60' if mode == 'search' else '20',
                    ZINC_SIZE=f'{w}x{h}', ZINC_SCALE='1', ZINC_STORAGE=str(app / ('storage-' + name)), ZINC_INPUT=str(events),
                    ZINC_SHOT=str(shot), ZINC_SHOT_FRAMES='40' if mode == 'search' else '18' if mode == 'pairing' else '2', MUSIC_TEST_VIEW=mode, ZINC_MUSIC_RELAY='' if mode in ('notifications', 'notifications-empty', 'pairing') else '/dev/null', ZINC_MUSIC_METEO='http://127.0.0.1:9')
-        r = subprocess.run([zinc, 'run', str(app)], cwd=app, env=env, text=True, capture_output=True, timeout=35)
+        r = subprocess.run([zinc, 'run', str(app)], cwd=app, env=env, text=True, capture_output=True, timeout=35 * int(os.environ.get('ZN_WAIT_SCALE', '1')))
         assert r.returncode == 0 and r.stdout.count('bounds OK') == 2 and want in r.stdout, (name,r.stdout,r.stderr)
         actual = app / (name + ('-40.png' if mode == 'search' else '-18.png' if mode == 'pairing' else '-2.png'))
         assert struct.unpack('>II', actual.read_bytes()[16:24]) == (w,h), name
         if name == 'landscape':
             golden = root / 'tests/golden/music-tree/responsive-player.png'
-            assert subprocess.run([str(root / 'tools/pngdiff'), str(actual), str(golden)], capture_output=True).returncode == 0, 'responsive player golden changed'
+            comparison = subprocess.run([str(root / 'tools/pngdiff'), str(actual), str(golden)], capture_output=True, text=True)
+            if comparison.returncode:
+                evidence = root / '.logs/music-tree-responsive'
+                evidence.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(actual, evidence / 'actual.png')
+                raise AssertionError('responsive player golden changed; actual retained at ' + str(evidence / 'actual.png') + '\n' + comparison.stdout + comparison.stderr)
         if os.environ.get('KEEP'):
             dest = Path(os.environ['KEEP']); dest.mkdir(parents=True, exist_ok=True)
             (dest / (name + '.png')).write_bytes(actual.read_bytes())

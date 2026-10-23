@@ -7,7 +7,7 @@ export class Profile {
   name: string = 'zinc-pios';
   board: string = 'all';
   display: string = 'auto';
-  hostname: string = 'zinc';
+  hostname: string = '';
   userName: string = '';
   password: string = '';
   /** One public key per line. */

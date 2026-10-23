@@ -677,6 +677,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-789: On a real Pi, install a newly signed engine/player/system update after the one-time updater-helper bootstrap; verify official 800×480 and HDMI 1920×1080 pixel-for-pixel output, USB keyboard AZERTY/dead keys and mouse/cursor hotplug, exclusive dev handoff, rollback and interrupted recovery, plus unique first-boot names across two flashes with reboot/explicit-Imager-name persistence. Native Mac fixtures do not prove KMS planes, real libxkbcommon or board boot.
 - ZN-787: Build/install glass-icon-reveal on Android and run on a physical Android and Pi with the GL display; verify GPU compilation, spectral corners, touch/keyboard, rotation, idle and device performance (Mac captures do not prove GLES drivers or hardware).
 
 - ZN-785: dispatch the dedicated Pi image workflow against a newly published signed ARM64 engine, flash the artifact with Etcher/Imager, apply a saved profile and verify physical first boot/login/network/display. Image checks are userspace/content checks, not physical boot proof.

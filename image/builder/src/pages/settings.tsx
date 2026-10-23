@@ -39,7 +39,7 @@ function BoardSection(): i32 {
 function GeneralSection(): i32 {
   return <Section title="Make it yours" icon="sliders-horizontal" number="02" hint="Give your image a name and set its region.">
     <TextField label="Image name" hint="The file in dist/" value={() => profile().name} onChange={(v: string) => editProfile((p: Profile) => { p.name = v; })} />
-    <TextField label="Hostname" hint="The Pi answers at <name>.local" value={() => profile().hostname} onChange={(v: string) => editProfile((p: Profile) => { p.hostname = v; })} />
+    <TextField label="Hostname" hint="Empty: a unique xxxx-xxxxxx-xxxxx name at first boot" value={() => profile().hostname} onChange={(v: string) => editProfile((p: Profile) => { p.hostname = v; })} />
     <TextField label="Time zone" hint="Europe/Paris, America/New_York..." value={() => profile().timezone} onChange={(v: string) => editProfile((p: Profile) => { p.timezone = v; })} placeholder="Raspberry Pi OS's default" />
     <TextField label="Keyboard" hint="fr, gb, us, de..." value={() => profile().keyboard} onChange={(v: string) => editProfile((p: Profile) => { p.keyboard = v; })} placeholder="Raspberry Pi OS's default" />
   </Section>;

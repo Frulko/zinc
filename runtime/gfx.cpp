@@ -2002,8 +2002,14 @@ void setClipboardText(const String& s) { hal_clipboard_set(s.ptr(), s.bytes()); 
 void setCursor(int32_t c) { hal_set_cursor(c); }
 // Escape: the HAL leaves fullscreen or quits on it, unless the app takes the key (zinc:ui does, and falls back to
 // escapeDefault() when nothing handled it)
-void escapeByApp(bool on) { hal_escape_by_app(on ? 1 : 0); }
-void escapeDefault() { hal_escape(); }
+void escapeByApp(bool on) {
+  if (display_driver && hal_display->device && hal_display->device("display.escapeByApp", on ? "1" : "0")) return;
+  hal_escape_by_app(on ? 1 : 0);
+}
+void escapeDefault() {
+  if (display_driver && hal_display->device && hal_display->device("display.escape", "")) return;
+  hal_escape();
+}
 }
 }  // namespace zrt
 // Weak defaults for HALs without desktop input: no IME, a process-local clipboard, no cursor shapes.

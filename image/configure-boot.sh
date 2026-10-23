@@ -5,6 +5,9 @@ P=${1:?profile.json required}
 FW=${2:?boot directory required}
 q() { jq -r "$1" "$P"; }
 NAME=$(q .name)
+hostname=$(q '.hostname // ""')
+[[ -z $hostname || $hostname =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || { echo 'Invalid hostname.' >&2; exit 1; }
+if [ -z "$hostname" ]; then touch "$FW/zinc-auto-name"; else rm -f "$FW/zinc-auto-name"; fi
 user=$(q .user.name)
 if [ -n "$user" ]; then
   [[ $user =~ ^[a-z][a-z0-9-]{0,31}$ ]] && [ "$user" != root ] && [ "$user" != zinc ] || { echo 'Invalid login user.' >&2; exit 1; }
@@ -19,7 +22,7 @@ HASH=
 {
   echo '#cloud-config'
   jq --arg hash "$HASH" '
-    {hostname: .hostname, manage_etc_hosts: true}
+    (if (.hostname // "") == "" then {preserve_hostname: true} else {hostname: .hostname, manage_etc_hosts: true} end)
     + (if .timezone != "" then {timezone: .timezone} else {} end)
     + (if .keyboard != "" then {keyboard: {model: "pc105", layout: .keyboard}} else {} end)
     + (if .user.name != "" then {

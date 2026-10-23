@@ -59,8 +59,9 @@ engine. `image/README.md`, "Engine updates on the Pi", describes verification, a
 NetworkManager lets `zinc` do them through a polkit rule. The rest goes through `zinc-admin`, which `zinc` may run as root
 through sudo for its fixed verbs (status, wifi-country, ssh, agent, hostname, pair, reboot, poweroff). The image runs the player
 once at build time, so the first boot starts it from cached bytecode, with the screen's driver compiled. The session shows it
-through `/dev/fb0` (`display-fbdev`, the driver the Pi was proven on), scaled to the screen: touch and a mouse work, a physical
-keyboard only navigates (the on-screen keyboard types) and the mouse has no visible cursor yet. A program sent with
+through `/dev/fb0` (`display-fbdev`) at its native resolution. Touch, mouse buttons/wheels and physical keyboard navigation/text use
+evdev; libxkbcommon applies the system keyboard layout and dead keys. USB devices can be connected after startup. An outlined
+mouse cursor also moves over an idle frame and hides on touch. A program sent with
 `zinc dev --device` takes the screen: `zinc-session` closes the player while the program has it open.
 
 Proof: `tests/t1/pi_image_player.sh`, `tests/t1/pi_image_updates.sh` (the actual bundle, against pretend helpers),

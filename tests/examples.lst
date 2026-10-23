@@ -2,6 +2,7 @@
 3d/cubes/src/main.ts | OK |  | 
 3d/model/src/main.ts | OK |  | 
 agents/src/main.tsx | OK |  | 
+glass-icon-reveal/src/main.ts | OK |  |
 boards/esp32-2432s022-hello/src/main.ts | OK |  | 
 boards/esp32-2432s022/src/main.tsx | OK |  | 
 boards/s3-matrix/dice/src/main.ts | OK |  | 

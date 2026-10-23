@@ -10,7 +10,7 @@
     "palette", "cpu", "power", "triangle-alert", "circle-check", "download"
   ],
   "targets": {
-    "linux": { "width": 800, "height": 480, "resize": "fill", "fullscreen": true },
+    "linux": { "resize": "fill", "fullscreen": true },
     "macos": { "width": 800, "height": 480, "resize": "fill" }
   }
 }

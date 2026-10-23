@@ -64,17 +64,25 @@ def payload(share):
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
     copy_tree(os.path.join(REPO, "i18n"), os.path.join(share, "i18n"), lambda r: r.endswith(".json"))   # the CLI and Atelier messages in fr, es, it, de, read by zinc:i18n too (D159; English is in the binary): install.sh and Homebrew unpack this archive
     # Signed Pi updates carry the display session and agent unit with their engine.
-    for source, name in (("usr/lib/zinc/zinc-session", "zinc-session"), ("etc/systemd/system/zinc-agent.service", "zinc-agent.service")):
+    for source, name in (("usr/lib/zinc/zinc-session", "zinc-session"), ("etc/systemd/system/zinc-agent.service", "zinc-agent.service"),
+                         ("usr/lib/zinc/zinc-admin", "zinc-admin"), ("etc/systemd/system/zinc-shell.service", "zinc-shell.service")):
         destination = os.path.join(share, "image", name)
         os.makedirs(os.path.dirname(destination), exist_ok=True)
         shutil.copy2(os.path.join(REPO, "image", "files", source), destination)
+    with tempfile.TemporaryDirectory() as source:
+        copy_tree(os.path.join(REPO, "image", "player"), source, lambda r: not r.startswith(('dist/', 'build/', 'dev/')))
+        copy_tree(os.path.join(REPO, "plugins", "network"), os.path.join(source, "plugins", "network"))
+        with tarfile.open(os.path.join(share, "image", "player-source.tar.gz"), "w:gz") as bundle:
+            for name in sorted(os.listdir(source)):
+                bundle.add(os.path.join(source, name), arcname=name)
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
     os.makedirs(os.path.join(share, "targets"))
     shutil.copy2(os.path.join(REPO, "targets", "capabilities.json"), os.path.join(share, "targets", "capabilities.json"))   # zinc:platform
     if os.path.isdir(os.path.join(REPO, "index")): copy_tree(os.path.join(REPO, "index"), os.path.join(share, "index"))   # the index's trusted root: plugins, engine packs (ZN-773.04)
     # the runtime headers: a plugin's prebuilt key covers zrt.h and hal.h, and a plugin compiled on the user's machine includes them
     copy_tree(os.path.join(REPO, "runtime"), os.path.join(share, "runtime"), lambda r: r.endswith('.h'))
-    open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
+    with open(os.path.join(share, "VERSION"), "w") as stamp:
+        stamp.write(VERSION + "\n")
 
 def prebuild_plugins(zinc, share, target):
     """ZN-718: the native libraries of the plugins, built here with the pinned zig, in share/plugins/<name>/prebuilt/<target>/ (dylib or so, plugin.a, vendor.a, key),

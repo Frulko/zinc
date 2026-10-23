@@ -14,6 +14,7 @@ Before=shutdown.target
 User=zinc
 RuntimeDirectory=zinc
 Environment=ZINC_RUN=/run/zinc SDL_VIDEO_DRIVER=kmsdrm
+ExecStartPre=+/usr/lib/zinc/zinc-admin identity
 # the screen's framebuffer appears when vc4 loads, writable for the video group once udev has seen it
 ExecStartPre=/bin/sh -c 'for i in $(seq 250); do [ -w /dev/fb0 ] && exit 0; sleep 0.02; done'
 ExecStart=/usr/lib/zinc/zinc-session

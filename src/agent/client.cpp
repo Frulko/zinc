@@ -362,7 +362,7 @@ int logs(Device& d, const std::string& name, bool follow, long long pid = 0) {
   interrupted = 0;
   const auto previous = session ? ::signal(SIGINT, +[](int) { interrupted = 1; }) : SIG_DFL;
   bool open = true;
-  while (open && !interrupted) {
+  while (!interrupted) {
     while (next(*c, type, payload)) {
       if (type == kExit || (type == kOut && !writeAll(STDOUT_FILENO, payload.data(), payload.size()))) { open = false; break; }
     }

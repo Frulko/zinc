@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Fresh Pi images generate a unique `xxxx-xxxxxx-xxxxx` network name at first boot when Hostname is empty. It survives reboots; reflashing generates another name. Explicit profile/Imager names remain supported.
 - `zinc:ui/kit` exports a reusable `Spinner` activity ring driven by the engine, with reduced-motion support.
 - `examples/glass-icon-reveal` adapts Zanwei Guo's glass reveal to a native Zinc scene with GPU refraction, light/dark looks and touch, mouse and keyboard playback controls, using the shared Mac, Android and Pi shader API.
 - A dedicated manual Pi image workflow produces a checked `.img.xz` for Etcher or Raspberry Pi Imager from a verified signed ARM64 engine release. `tools/pi-image configure <boot-dir> [profile.json]` applies saved login, Wi-Fi and SSH settings to a freshly flashed card without rebuilding it.
@@ -20,7 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/touch-check` measures how precise a touch screen is over several rounds of crosses, shows its distortion, fits the map that corrects it with a confidence that rises as the rounds agree, and applies it on the board. `zinc:lvgl` gives the pointer in the display's pixels with `pointerX()`, `pointerY()` and `pointerDown()`.
 - The website offers English, French, Spanish, Italian and German navigation, getting started pages and guides, with a language switcher.
 - Zinc Pi Image can save named presets of all image settings and restore them from a list. The latest edits return when the app reopens; save failures are shown instead of being silently ignored.
-- The Pi player's Updates menu checks for releases for its architecture, installs a chosen newer or older engine after verifying its signature and rebuilding the same player bundle on the Pi, and restores the previous engine and player if startup fails. An icon appears when an update is available; the saved previous version can also be restored from the menu.
+- The Pi player's Updates menu checks for releases for its architecture, installs a chosen newer or older engine after verifying its signature and rebuilding the matching player bundle on the Pi, and restores the previous engine and player if startup fails. An icon appears when an update is available; the saved previous version can also be restored from the menu.
 - The Pi player's Wi-Fi settings can restart the network services after confirmation and scan again, without rebooting the Pi.
 - `examples/fatty` ports the complete 2013 Flash/Starling game to TypeScript on Zinc/QuickJS, keeping its package structure, comments, original graphics, animations, bitmap font and music; the Top 5 is saved locally.
 - `examples/kanban` is a native project board over the Zinc backlog: drag and reorder cards, search and filter tasks, open their details, and watch declared agent assignments change live. Demo moves stay local and never edit the backlog.
@@ -65,10 +66,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- The Pi player uses the screen's native resolution, including 1080p. Framebuffer input now sends keyboard/text events with the configured layout, handles USB devices connected after boot, and shows a mouse cursor even while the app keeps an idle frame.
+- Signed Pi updates carry the matching player sources, administration helper and session service as well as the engine; existing cards can receive these fixes without reflashing after a one-time updater-helper upgrade. Failed activation and rollback restore the previous player and system files together.
+- `zinc device logs` drains output received just before a connection closes instead of occasionally dropping its final lines.
 - Zinc Pi Image clears a previous settings-save error after saving succeeds again.
 - Pi images apply the configured login password even when Raspberry Pi OS has already renamed the account. Failed first-boot setup now keeps cloud-init, the initramfs and the settings available for recovery instead of deleting them.
 - Music Tree uses the Pi screen’s native resolution and adapts its player, navigation, grids, settings and overlays to compact landscape or portrait screens; short views scroll so controls remain reachable. Clock, weather and room-volume views also fit narrow screens.
-- Pi engine updates also install the matching display session and agent service from the signed package, restoring both on rollback or interrupted activation. Existing images need the new updater helper once; reflashing is not required.
 - Pi development apps take turns on the display: the player yields before launch and returns after exit, and starting another app replaces the previous one. `device deploy` with logs stops its app on Ctrl-C; `--no-logs` leaves it running. Requires the updated agent and image session files.
 - `zinc device deploy` sends Raspberry Pi projects to their installed engine by default, preserving QuickJS and avoiding a cross build and repeated engine transfer. `--target rpi` still makes a native export; preparation reports its complete duration. Missing native plugins may need a first build on the Pi.
 - `tools/examples-status` respects the project's entry and engine from `zinc.json`; QuickJS projects such as Fatty are no longer checked as standalone typed programs.

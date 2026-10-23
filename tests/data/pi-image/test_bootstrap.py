@@ -5,11 +5,72 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class Bootstrap(unittest.TestCase):
+    def test_auto_name_boot_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            profile = json.loads((ROOT / 'image/profile.json').read_text())
+            config = root / 'profile.json'
+            config.write_text(json.dumps(profile))
+            command = ['bash', str(ROOT / 'image/configure-boot.sh'), str(config), tmp]
+            subprocess.run(command, check=True, capture_output=True)
+            cloud = json.loads((root / 'user-data').read_text().split('\n', 1)[1])
+            self.assertEqual(cloud, {'preserve_hostname': True})
+            self.assertTrue((root / 'zinc-auto-name').exists())
+            profile['hostname'] = 'studio'
+            config.write_text(json.dumps(profile))
+            subprocess.run(command, check=True, capture_output=True)
+            self.assertFalse((root / 'zinc-auto-name').exists())
+            self.assertEqual(json.loads((root / 'user-data').read_text().split('\n', 1)[1])['hostname'], 'studio')
+
+    def test_identity_is_per_flash_and_keeps_existing_cards_and_custom_names(self):
+        source = (ROOT / 'image/files/usr/lib/zinc/zinc-admin').read_text().split("<<'PY_IDENTITY'\n", 1)[1].split('\nPY_IDENTITY', 1)[0]
+        names = []
+        for flash in range(2):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / 'boot/firmware').mkdir(parents=True)
+                (root / 'etc').mkdir()
+                (root / 'etc/hostname').write_text('old\n')
+                (root / 'etc/hosts').write_text('127.0.0.1 localhost\n127.0.1.1 old\n')
+                script = source
+                for path in ('/boot/firmware', '/etc/zinc', '/etc/hostname', '/etc/hosts'):
+                    script = script.replace(path, str(root) + path)
+                def boot():
+                    with patch('subprocess.run') as hostname:
+                        try:
+                            exec(compile(script, 'zinc-admin identity', 'exec'), {})
+                        except SystemExit as result:
+                            self.assertEqual(result.code, 0)
+                    return hostname
+                saved = root / 'etc/zinc/device-name'
+                boot().assert_not_called()  # Updating an existing card changes no identity.
+                self.assertFalse(saved.exists())
+                marker = root / 'boot/firmware/zinc-auto-name'
+                marker.touch()
+                boot()
+                name = saved.read_text().strip()
+                names.append(name)
+                self.assertRegex(name, r'^[a-f0-9]{4}-[a-f0-9]{6}-[a-f0-9]{5}$')
+                self.assertEqual((root / 'etc/hostname').read_text().strip(), name)
+                boot().assert_called_once_with(['/bin/hostname', name], check=True)
+                self.assertEqual(saved.read_text().strip(), name)
+                self.assertEqual((root / 'etc/hosts').read_text().count('127.0.1.1'), 1)
+                saved.unlink()
+                marker.touch()
+                (root / 'boot/firmware/user-data').write_text('#cloud-config\nhostname: custom-imager\n')
+                import types
+                with patch.dict('sys.modules', {'yaml': types.SimpleNamespace(safe_load=lambda text: {'hostname': 'custom-imager'})}):
+                    boot().assert_called_once_with(['/bin/hostname', 'custom-imager'], check=True)
+                self.assertEqual(saved.read_text().strip(), 'custom-imager')
+                self.assertFalse(marker.exists())
+        self.assertNotEqual(names[0], names[1])
+
     def test_generated_credentials(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)

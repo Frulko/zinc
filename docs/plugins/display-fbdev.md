@@ -59,13 +59,19 @@ All `/dev/input/event*` devices are opened (option `input`, default true):
 
 | device | maps to |
 |---|---|
-| keyboard | arrows/WASD → Up/Down/Left/Right, Space/Z → A, X → B, C → X, V → Y, Q → L, E → R, Enter → Start, Tab → Select, Esc → quit (same as the SDL HAL) |
-| mouse | relative motion → pointer (clamped to the surface), left button → `pointerDown`, wheel → `gfx.wheel()` |
+| keyboard | desktop key down/up/repeat, modifiers and UTF-8 text; the existing arrows/WASD/game-button mappings remain. Esc quits unless the app handles it through `escapeByApp(true)` |
+| mouse | relative motion → pointer (clamped to the surface), visible outlined cursor, left/middle/right button events, vertical/horizontal wheel |
 | touchscreen (multitouch protocol B) | slots → `gfx.touchCount/touchX/touchY/touchId`; the first touch also drives the pointer |
 | touchscreen / tablet (single touch) | `ABS_X/Y` + `BTN_TOUCH` → pointer |
 
 Touch coordinates are mapped from the device range to the framebuffer, then through the letterbox to the surface.
 Keyboards are grabbed (`EVIOCGRAB`, option `grab`) so keystrokes do not reach the shell on the console behind.
+New devices are discovered once a second; removing a device releases its held keys. Keyboard layouts, modifiers and compose/dead
+keys use the system's `libxkbcommon.so.0` and `xkb-data`, read from `/etc/default/keyboard` (reloaded when first-boot setup changes it)
+or `XKB_DEFAULT_*`. Missing keyboard data/library is reported at startup. The cursor reuses display-gl's outlined arrow, doubles in
+size on a surface at least 1280 pixels wide, and hides on touch. It changes only output damage, so an idle app need not redraw to move it.
+All cursor shapes currently use that arrow. The existing optional `HalDisplay.device` hook carries internal `display.escapeByApp`
+and `display.escape` actions, keeping the display ABI unchanged.
 
 The null HAL (docker builds use it under the display driver) quits after 60 frames for headless tests; the driver
 cancels that unless `ZINC_FRAMES` is set, so a program runs until Esc or a signal.

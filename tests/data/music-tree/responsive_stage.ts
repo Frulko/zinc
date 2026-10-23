@@ -24,6 +24,12 @@ import { SidebarNode } from '@APP@/src/components/sidebar';
 import { StatusBarNode } from '@APP@/src/components/status-bar';
 import { getCurrentWeatherForecast } from '@APP@/src/services/weather-service';
 
+class FixtureStatusBar extends StatusBarNode {
+  override onUpdate(delta: number): void {}
+}
+appState.batteryLevelPercent = 100;
+appState.isBatteryCharging = true;
+
 class FixtureSpotify extends Spotify {
   override async find(query: string): Promise<Found> {
     const found = new Found();
@@ -133,7 +139,7 @@ class FixtureStage extends Stage {
   readonly sidebar = new SidebarNode();
   readonly context = new ContextSheetNode();
   readonly volume = new VolumePopoverNode();
-  readonly status = new StatusBarNode();
+  readonly status = new FixtureStatusBar();
   readonly views: DisplayObject[] = [this.player, this.radios, this.spotify, this.rooms, this.settings];
   constructor() {
     super();

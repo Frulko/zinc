@@ -41,6 +41,9 @@ struct input_absinfo { int32_t value, minimum, maximum, fuzz, flat, resolution; 
 #define KEY_RIGHT 106
 #define KEY_DOWN 108
 #define BTN_LEFT 0x110
+#define BTN_RIGHT 0x111
+#define BTN_MIDDLE 0x112
+#define REL_HWHEEL 0x06
 #define BTN_TOUCH 0x14a
 #define EVIOCGBIT(ev, len) (0x80000000u | ((unsigned)(len) << 16) | ('E' << 8) | (0x20 + (ev)))
 #define EVIOCGABS(abs) (0x80000000u | (sizeof(input_absinfo) << 16) | ('E' << 8) | (0x40 + (abs)))

@@ -49,7 +49,8 @@ class Pipeline(unittest.TestCase):
             (root / 'update.pub').write_text(public[-32:].hex())
             package = io.BytesIO()
             with tarfile.open(fileobj=package, mode='w:gz') as tar:
-                for name in ('bin/zinc', 'share/zinc/image/zinc-session', 'share/zinc/image/zinc-agent.service'):
+                for name in ('bin/zinc', 'share/zinc/image/zinc-session', 'share/zinc/image/zinc-agent.service',
+                             'share/zinc/image/zinc-admin', 'share/zinc/image/zinc-shell.service', 'share/zinc/image/player-source.tar.gz'):
                     member = tarfile.TarInfo('zinc-0.7.0/' + name)
                     member.size = 1
                     tar.addfile(member, io.BytesIO(b'x'))

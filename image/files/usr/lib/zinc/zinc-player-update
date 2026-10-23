@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Prepare a signed engine and repack the unchanged player before switching both."""
+"""Prepare a signed engine, player and system payload before switching them together."""
 import fcntl
 import hashlib
 import json
@@ -19,7 +19,9 @@ REPO = 'Frulko/zinc'
 RELEASES = 'https://github.com/' + REPO + '/releases/download/'
 ENV = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': '/root', 'ZINC_NO_UPDATE_CHECK': '1'}
 SYSTEM_FILES = {'zinc-session': ('usr/lib/zinc/zinc-session', 0o755),
-                'zinc-agent.service': ('etc/systemd/system/zinc-agent.service', 0o644)}
+                'zinc-agent.service': ('etc/systemd/system/zinc-agent.service', 0o644),
+                'zinc-admin': ('usr/lib/zinc/zinc-admin', 0o755),
+                'zinc-shell.service': ('etc/systemd/system/zinc-shell.service', 0o644)}
 
 
 def version(value):
@@ -187,8 +189,7 @@ class Updater:
         stamp = generation / 'engine/share/zinc/VERSION'
         if self.run([str(engine), '--version']) != 'zinc-next ' + requested or not stamp.is_file() or stamp.read_text().strip() != requested:
             raise ValueError('This engine does not start or reports another version.')
-        # The root-owned source bundle stays unchanged when the engine changes.
-        extract(self.root / 'player-source.tar.gz', generation / 'source')
+        extract(self.player_source(generation), generation / 'source')
         self.report('preparing', 'Building the player for Zinc ' + requested + '…')
         with tempfile.TemporaryDirectory(prefix='zinc-player-') as temp:
             work = Path(temp)
@@ -203,10 +204,20 @@ class Updater:
                 if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                     raise ValueError('The player build produced no ordinary bundle.')
                 shutil.copyfileobj(source, out)
-            self.run(user_env + ['ZINC_FRAMES=2', 'ZINC_SHOT=' + str(work / 'frame.png'), str(engine), 'run', str(generation / 'player.zapp')])
+            # ZINC_DISPLAY explicitly loads fbdev even headless: probe a file, never the active player's real screen/input.
+            self.run(user_env + ['ZINC_FRAMES=2', 'ZINC_FBDEV_SIM=' + str(work / 'framebuffer'), 'ZINC_FBDEV_SIM_FORMAT=800x480x32',
+                                 'ZINC_SHOT=' + str(work / 'frame.png'), str(engine), 'run', str(generation / 'player.zapp')])
             if not (work / 'frame.png').is_file():
                 raise ValueError('The rebuilt player did not draw its test frame.')
         shutil.rmtree(generation / 'source')
+
+    def player_source(self, generation):
+        source = generation / 'engine/share/zinc/image/player-source.tar.gz'
+        if source.exists() or source.is_symlink():
+            if source.is_symlink() or not source.is_file():
+                raise ValueError('The release has an invalid Pi player source bundle.')
+            return source
+        return self.root / 'player-source.tar.gz'  # Releases predating the signed player payload.
 
     def link(self, name, target):
         temp = self.root / ('.' + name + '-next')
@@ -218,6 +229,16 @@ class Updater:
     def snapshot_system(self, generation):
         directory = generation / 'system'
         if directory.exists():
+            # An older updater snapshotted only the session and agent unit.
+            for name, (relative, mode) in SYSTEM_FILES.items():
+                if not (directory / name).exists():
+                    target = directory / name
+                    temporary = directory / ('.' + name + '-next')
+                    shutil.copyfile(self.system_root / relative, temporary)
+                    temporary.chmod(mode)
+                    self.sync_file(temporary)
+                    os.replace(temporary, target)
+            self.sync_directory(directory)
             return
         temporary = generation / '.system-next'
         if temporary.exists():
@@ -239,6 +260,14 @@ class Updater:
     def prepare_system(self, generation):
         self.snapshot_system(self.root / 'current')
         baseline = self.root / 'system-baseline'
+        if baseline.exists():
+            for name in SYSTEM_FILES:
+                if not (baseline / name).exists():
+                    temporary = baseline / ('.' + name + '-next')
+                    shutil.copyfile(self.root / 'current/system' / name, temporary)
+                    self.sync_file(temporary)
+                    os.replace(temporary, baseline / name)
+            self.sync_directory(baseline)
         if not baseline.exists():
             temporary = self.root / '.system-baseline-next'
             if temporary.exists():
@@ -251,20 +280,33 @@ class Updater:
             self.sync_directory(self.root)
         payload = generation / 'engine/share/zinc/image'
         if payload.exists():
-            for name in SYSTEM_FILES:
+            for name in ('zinc-session', 'zinc-agent.service'):
                 if not (payload / name).is_file() or (payload / name).is_symlink():
                     raise ValueError('The release has an incomplete Pi system payload.')
             self.run(['/bin/bash', '-n', str(payload / 'zinc-session')])
+            if (payload / 'player-source.tar.gz').exists():
+                for name in SYSTEM_FILES:
+                    if not (payload / name).is_file() or (payload / name).is_symlink():
+                        raise ValueError('The release has an incomplete Pi system payload.')
         else:
             # This tiny snapshot survives pruning old engine generations.
             payload = baseline
-        shutil.copytree(payload, generation / 'system')
+        directory = generation / 'system'
+        directory.mkdir()
+        for name in SYSTEM_FILES:
+            source = payload / name
+            if source.is_symlink():
+                raise ValueError('The release has an invalid Pi system payload.')
+            shutil.copyfile(source if source.is_file() else baseline / name, directory / name)
+        self.run(['/bin/bash', '-n', str(directory / 'zinc-admin')])
 
     def apply_system(self, generation):
         directory = generation / 'system'
         if not directory.exists():
             return  # An interrupted transaction written by an older updater has no system snapshot.
         for name, (relative, mode) in SYSTEM_FILES.items():
+            if name in ('zinc-admin', 'zinc-shell.service') and not (directory / name).exists():
+                continue  # Recovery of a journal made before these optional files were supported.
             target = self.system_root / relative
             temporary = target.with_name(target.name + '.zinc-next')
             temporary.unlink(missing_ok=True)

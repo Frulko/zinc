@@ -14,6 +14,7 @@
 #   reboot | poweroff
 set -u
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
 die() { echo "$*" >&2; exit 1; }
 verb=${1:-}
 case $verb in
@@ -22,6 +23,52 @@ case $verb in
 esac
 
 case $verb in
+  identity)
+    /usr/bin/python3 -I - <<'PY_IDENTITY'
+from pathlib import Path
+import os
+import re
+import secrets
+import subprocess
+
+marker = Path('/boot/firmware/zinc-auto-name')
+saved = Path('/etc/zinc/device-name')
+data = Path('/boot/firmware/user-data')
+custom = {}
+if data.exists():
+    import yaml  # Installed with cloud-init; Imager can replace our JSON with YAML.
+    custom = yaml.safe_load(data.read_text()) or {}
+if custom.get('hostname'):
+    name = custom['hostname']
+elif saved.exists():
+    name = saved.read_text().strip()
+elif marker.exists():
+    token = secrets.token_hex(8)[:15]
+    name = token[:4] + '-' + token[4:10] + '-' + token[10:]
+else:
+    raise SystemExit(0)  # An update does not rename an already provisioned card.
+if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', name):
+    raise ValueError('Invalid saved device name')
+saved.parent.mkdir(parents=True, exist_ok=True)
+temporary = saved.with_suffix('.tmp')
+with temporary.open('w') as stream:
+    stream.write(name + '\n')
+    stream.flush()
+    os.fsync(stream.fileno())
+os.replace(temporary, saved)
+directory = os.open(saved.parent, os.O_RDONLY)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+Path('/etc/hostname').write_text(name + '\n')
+hosts = Path('/etc/hosts')
+lines = [line for line in hosts.read_text().splitlines() if not re.match(r'^127\.0\.1\.1\s', line)]
+hosts.write_text('\n'.join(lines) + '\n127.0.1.1\t' + name + '\n')
+subprocess.run(['/bin/hostname', name], check=True)
+marker.unlink(missing_ok=True)
+PY_IDENTITY
+    ;;
   status)
     echo "hostname=$(hostname)"
     echo "model=$(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
@@ -70,7 +117,10 @@ case $verb in
     [[ $name =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || die "A name has small letters, digits and hyphens (not at its ends)."
     hostnamectl set-hostname "$name"
     sed -i "s/^127\.0\.1\.1\s.*/127.0.1.1\t$name/" /etc/hosts
+    printf '%s\n' "$name" >/etc/zinc/device-name.tmp && mv -f /etc/zinc/device-name.tmp /etc/zinc/device-name
+    rm -f /boot/firmware/zinc-auto-name
     systemctl try-restart avahi-daemon.service
+    systemctl try-restart zinc-agent.service
     ;;
   pair)
     zinc agent pair

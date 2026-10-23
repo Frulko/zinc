@@ -26,7 +26,8 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
 |---|---|
 | `name` | the file names in `dist/` |
 | `board`, `display` | an entry of `image/catalog.json`: the Imager devices, the `config.txt` lines (the 7" panel's overlay...) |
-| `hostname`, `timezone`, `keyboard` | applied by cloud-init on the first boot |
+| `hostname` | empty (default): a unique `xxxx-xxxxxx-xxxxx` name at first boot; otherwise your explicit network name |
+| `timezone`, `keyboard` | applied by cloud-init on the first boot |
 | `user` (`name`, `password`, `sshKeys`), `ssh` | the login user; SSH on (`ssh` file on the boot partition) |
 | `wifi` (`ssid`, `password`, `country`) | the first network; the country is required with it |
 | `libraries`, `packages` | catalog groups (FFmpeg, gphoto2, GStreamer, libcamera, libuv, compilers) and more Debian packages |
@@ -60,6 +61,7 @@ Checks include the first-boot regression, cloud-config schema, filesystem/unit/l
 
 ## What runs on the Pi
 
+- Before starting the screen, `zinc-admin identity` generates a random name when the boot partition carries `zinc-auto-name`. It stores it in root-owned `/etc/zinc/device-name`, sets the hostname and hosts entry, and consumes the marker. A normal reboot keeps it; a fresh flash has no saved name and generates another. Explicit profile or Imager hostnames take precedence. The agent advertises the current hostname while keeping its internal id and paired computers. Updating an already provisioned card does not generate a new identity.
 - `zinc-shell.service` runs `zinc-session` as the `zinc` user on tty1, right after the root file system, `/dev` and udev. The
   session runs the app (`/var/lib/zinc/app`) and stays: a crash writes `/run/zinc/crash.txt` (exit status and last lines) and
   starts the player (`/usr/lib/zinc/player`), which shows it and can start the app again; with no app, the player shows.
@@ -82,9 +84,9 @@ Checks include the first-boot regression, cloud-config schema, filesystem/unit/l
 
 ## Engine updates on the Pi
 
-The player runs as `/usr/lib/zinc/current/player.zapp`. Its code is kept separately in the root-owned
-`/usr/lib/zinc/player-source.tar.gz`: changing Zinc rebuilds the runnable bundle from the **same sources**, without changing the
-player or the installed app. The Updates page checks published stable releases for the installed Debian architecture (`dpkg`,
+The player runs as `/usr/lib/zinc/current/player.zapp`. New signed engine packages include their matching
+`share/zinc/image/player-source.tar.gz`: changing Zinc rebuilds that version of the player on the Pi. Older releases without this
+payload use the factory's root-owned `/usr/lib/zinc/player-source.tar.gz`. The installed app stays separate. The Updates page checks published stable releases for the installed Debian architecture (`dpkg`,
 so a 32-bit system under a 64-bit kernel selects `armhf`). A download icon opens it when a newer version exists. Checking is automatic
 once a day while connected, retried after five minutes on failure, or manual with **Check again**. The list covers the latest 100
 published releases that provide both the engine archive and its manifest for this architecture.
@@ -92,7 +94,7 @@ published releases that provide both the engine archive and its manifest for thi
 Select a newer or older version, press **Install**, then confirm. A root systemd job verifies the manifest with the image's
 `/etc/zinc/update.pub` using Zinc's existing Ed25519 verifier, checks the archive's SHA-256/version/architecture, and extracts it
 without accepting archive links or special files. Unsigned releases are refused. At least 2 GB of free storage is required.
-The candidate engine packs the unchanged player sources and draws a test frame as the `zinc` user. Downloads or builds that fail
+The candidate engine packs its player sources and draws a test frame as the `zinc` user against a virtual framebuffer file, leaving the active display/input alone. Downloads or builds that fail
 leave the active version untouched; an old engine unable to compile this player cannot be installed.
 
 Only then does the job restart the session and remote apps, activate the prepared engine/player pair through one atomic `current`
@@ -100,7 +102,7 @@ link, and wait up to 30 seconds for the player's first frame. If startup fails, 
 restores an interrupted switch at the next boot, before the session starts. **Restore** selects the
 previous local pair without downloading or rebuilding it. Config, applications and agent pairing stay outside these generations;
 an older engine may refuse applications made for a newer one. Detailed service errors are in `journalctl -u 'zinc-update@*'`.
-The update helper and its trusted key belong to the image; the engine menu does not upgrade Raspberry Pi OS or the player sources.
+The update helper and its trusted key belong to the image; this menu updates the engine, player and listed Zinc system files, not Raspberry Pi OS/kernel firmware or Debian packages.
 
 **Restart network** in Wi-Fi resets failed NetworkManager/wpa_supplicant units and restarts them, then scans again. It asks for a
 second press because remote connections can drop. This is recovery from a service failure, not proof that the known first-boot
@@ -122,7 +124,7 @@ first-frame readiness). `tools/pi-image check` proves what can be proven without
 
 ## Updating an existing card
 
-Reflashing is not required. The updated `zinc-player-update` installs the display session script and agent service unit from the **signed engine archive**, together with the engine/player generation. It snapshots the previous system files, reloads systemd while both services are stopped, and restores those files on a failed start, rollback or interrupted activation. Applications, preferences and pairing are retained. Old releases without a system payload use the initial session snapshot (kept separately from pruned engine versions).
+Reflashing is not required. The updated `zinc-player-update` installs the matching player sources, display session, agent service, `zinc-admin` and `zinc-shell.service` from the **signed engine archive**, together with the engine/player generation. It snapshots the previous system files, reloads systemd while both services are stopped, and restores those files on a failed start, rollback or interrupted activation. Applications, preferences and pairing are retained. Old releases without a system payload use the initial session snapshot (kept separately from pruned engine versions); older two-file payloads retain the missing optional files from that snapshot.
 
 An image containing the earlier updater needs a one-time helper upgrade with a sudo-capable Pi account. Copy this checkout's helper to that account, then install it as root:
 
@@ -132,6 +134,8 @@ ssh -t ADMIN@192.168.2.31 'sudo install -o root -g root -m 755 /tmp/zinc-player-
 ```
 
 `ADMIN` is the administration account created by Raspberry Pi Imager; the restricted `zinc` agent account cannot install arbitrary root helpers. Once a signed release containing these fixes is published, select it in the player's Updates menu. Upgrading only the workstation does not change the running Pi. No new image or signed release was built/published during the native fixture checks.
+
+The player now omits a fixed Linux width/height, so the framebuffer's mode becomes its rendering resolution: 800×480 on the official display, 1920×1080 on a framebuffer running in Full HD. This does not force a new HDMI mode or change the kernel's display selection. USB keyboard text/layouts use `libxkbcommon0` and `xkb-data`, already dependencies of the image; mouse movement shows an outlined cursor, touch hides it, and new event devices are discovered once a second. Physical display/input and update recovery checks remain necessary before release approval (see `docs/reports/zinc-next-pi-070.md`).
 
 
 ## Login setup failures

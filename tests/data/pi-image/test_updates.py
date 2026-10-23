@@ -5,6 +5,7 @@ import importlib.machinery
 import io
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tarfile
@@ -75,12 +76,67 @@ class UpdatesTest(unittest.TestCase):
         loader.exec_module(package)
         share = self.root / 'share'
         # Exercise real payload metadata without copying the unchanged engine/source trees.
+        copy = package.copy_tree
         def directory(src, dst, keep=None):
-            Path(dst).mkdir(parents=True, exist_ok=True)
+            if src in (str(Path(package.REPO) / 'image/player'), str(Path(package.REPO) / 'plugins/network')):
+                copy(src, dst, keep)
+            else:
+                Path(dst).mkdir(parents=True, exist_ok=True)
         with patch.object(package, 'copy_tree', directory):
             package.payload(str(share))
         for name, (relative, _) in update.SYSTEM_FILES.items():
             self.assertEqual((share / 'image' / name).read_bytes(), (Path('image/files') / relative).read_bytes())
+        with tarfile.open(share / 'image/player-source.tar.gz') as source:
+            self.assertEqual(json.load(source.extractfile('zinc.json'))['targets']['linux'], {'resize': 'fill', 'fullscreen': True})
+            self.assertIn('plugins/network/index.ts', source.getnames())
+            self.assertFalse(any(name.startswith(('dev/', 'dist/', '.zinc/')) for name in source.getnames()))
+
+    def test_player_sources_follow_the_signed_engine_and_legacy_fallback(self):
+        worker = LocalUpdater(self.root, self.root / 'state')
+        generation = self.root / 'versions/new'
+        (self.root / 'player-source.tar.gz').write_bytes(b'factory')
+        self.assertEqual(worker.player_source(generation), self.root / 'player-source.tar.gz')
+        source = generation / 'engine/share/zinc/image/player-source.tar.gz'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b'new signed player')
+        self.assertEqual(worker.player_source(generation).read_bytes(), b'new signed player')
+        source.unlink()
+        source.symlink_to(self.root / 'player-source.tar.gz')
+        with self.assertRaisesRegex(ValueError, 'invalid'):
+            worker.player_source(generation)
+
+    def test_prepare_builds_signed_sources_and_probes_a_virtual_display(self):
+        generation = self.root / 'versions/new'
+        generation.mkdir(parents=True)
+        worker = LocalUpdater(self.root, self.root / 'state')
+        extracted = []
+        def extract(archive, destination, strip_root=False):
+            destination.mkdir(parents=True)
+            extracted.append(Path(archive))
+            if strip_root:
+                (destination / 'share/zinc/image').mkdir(parents=True)
+                (destination / 'share/zinc/VERSION').write_text('0.7.1')
+                (destination / 'share/zinc/image/player-source.tar.gz').write_bytes(b'signed player')
+        calls = []
+        def run(args, **kwargs):
+            calls.append(args)
+            if args[-1] == '--version':
+                return 'zinc-next 0.7.1'
+            if 'pack' in args:
+                Path(args[-1]).write_bytes(b'new player bundle')
+            if 'ZINC_FRAMES=2' in args:
+                self.assertIn('ZINC_FBDEV_SIM_FORMAT=800x480x32', args)
+                display = next(arg.split('=', 1)[1] for arg in args if arg.startswith('ZINC_FBDEV_SIM='))
+                shot = next(arg.split('=', 1)[1] for arg in args if arg.startswith('ZINC_SHOT='))
+                self.assertEqual(Path(display).parent, Path(shot).parent)
+                Path(shot).write_bytes(b'frame')
+            return ''
+        with patch.object(worker, 'download', return_value=self.root / 'signed-engine.tar.gz'), patch.object(update, 'extract', extract), patch.object(worker, 'run', run):
+            worker.prepare('0.7.1', generation)
+        self.assertEqual(extracted[-1], generation / 'engine/share/zinc/image/player-source.tar.gz')
+        self.assertEqual((generation / 'player.zapp').read_bytes(), b'new player bundle')
+        self.assertTrue(any('ZINC_FRAMES=2' in args for args in calls))
+        self.assertFalse((generation / 'source').exists())
 
     def test_userspace_architecture_and_catalog(self):
         self.assertEqual(update.architecture('armhf'), 'armhf')
@@ -243,6 +299,39 @@ class UpdatesTest(unittest.TestCase):
         legacy.mkdir()
         worker.prepare_system(legacy)
         self.assertEqual((legacy / 'system/zinc-session').read_text(), 'factory zinc-session')
+        # Previously published two-file payloads remain installable and preserve missing optional files.
+        (payload / 'zinc-agent.service').write_text('old agent')
+        worker.prepare_system(broken)
+        self.assertEqual((broken / 'system/zinc-admin').read_text(), 'factory zinc-admin')
+        (payload / 'player-source.tar.gz').write_bytes(b'new format')
+        shutil.rmtree(broken / 'system')
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            worker.prepare_system(broken)
+
+    def test_old_system_snapshot_is_extended_before_activation(self):
+        generation = self.root / 'current'
+        directory = generation / 'system'
+        directory.mkdir(parents=True)
+        system = self.root / 'system'
+        for name, (relative, _) in update.SYSTEM_FILES.items():
+            file = system / relative
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text('installed ' + name)
+        (directory / 'zinc-session').write_text('saved older session')
+        worker = LocalUpdater(self.root, self.root / 'state', system_root=system)
+        copy = update.shutil.copyfile
+        def interrupted(source, destination):
+            if str(destination).endswith('.zinc-admin-next'):
+                Path(destination).write_text('partial')
+                raise OSError('power cut during snapshot migration')
+            return copy(source, destination)
+        with patch.object(update.shutil, 'copyfile', interrupted):
+            with self.assertRaisesRegex(OSError, 'power cut'):
+                worker.snapshot_system(generation)
+        self.assertFalse((directory / 'zinc-admin').exists())
+        worker.snapshot_system(generation)
+        self.assertEqual((directory / 'zinc-session').read_text(), 'saved older session')
+        self.assertEqual((directory / 'zinc-admin').read_text(), 'installed zinc-admin')
 
     def test_lock_rejects_a_second_worker(self):
         path = self.root / 'lock'

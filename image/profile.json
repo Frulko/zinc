@@ -10,7 +10,7 @@
   },
   "board": "all",
   "display": "auto",
-  "hostname": "zinc",
+  "hostname": "",
   "user": { "name": "", "password": "", "sshKeys": [] },
   "ssh": false,
   "wifi": { "ssid": "", "password": "", "country": "" },

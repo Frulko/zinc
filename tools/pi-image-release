@@ -41,9 +41,10 @@ def prepare(version, output, cache):
         archive = worker.download(version, Path(tmp))
         with tarfile.open(archive) as package:
             names = {member.name.split('/', 1)[-1] for member in package.getmembers() if member.isfile()}
-        required = {'share/zinc/image/zinc-session', 'share/zinc/image/zinc-agent.service'}
+        required = {'share/zinc/image/' + name for name in
+                    ('zinc-session', 'zinc-agent.service', 'zinc-admin', 'zinc-shell.service', 'player-source.tar.gz')}
         if not required.issubset(names):
-            raise ValueError('This engine predates the Pi display handoff package; publish a release containing the fixes first.')
+            raise ValueError('This engine predates the complete Pi player/system package; publish a release containing the fixes first.')
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         destination = cache / archive.name
         shutil.move(str(archive), destination)
