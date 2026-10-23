@@ -39,6 +39,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Kanban cards stay visible while scrolling through long columns, and dragged cards keep the pointer's original grip with an insertion marker. The compact task window renders Markdown and lets you save the title, description and comments to Backlog.md while retaining unfinished drafts.
 - When Atelier cannot find zinc, the status line says so and how to fix it, instead of "Build failed".
 - `zinc:canvas` draws where it should under `zinc:gfx`'s `setTransform`: inside a `zinc:stage` sprite or a turned `zinc:ui` parent, its shapes, gradients and images were drawn at the wrong place and cut away.
+- A native plugin whose library could not be prebuilt for a package keeps its sources there, so Zinc compiles it on first use: in 0.6.2 the Linux packages carried `display-fbdev` and `display-gl` without them, and a program asking for them failed with `CacheCheckFailed`.
 
 ### Changed (breaking)
 - `<Button>`, `<Input>` and `<TextArea>` draw nothing you did not ask for, as React Native's: a Button is a focusable box that centres its content (no slate fill, no padding), a field shows its text, caret and placeholder in the colour and size of the text around it (no dark fill, border, radius or padding). Text with no colour is black on a light window and white on a dark one. To keep the old look, run `zinc migrate ui-explicit-looks --apply` in your project.
