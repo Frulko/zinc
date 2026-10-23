@@ -18,7 +18,8 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
 int device(const std::vector<std::string>& args, const std::string& self);
 
 /** `zinc dev --device <d>` (ZN-729.03, dev.cpp): takes the option out of `args` and opens a dev session with that device, as the hooks
- *  zn::cli::dev runs the program through. `remote` stays empty without the option; false, with the reason said, when the device refuses. */
-bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, zn::cli::DevRemote& remote);
+ *  zn::cli::dev runs the program through. `remote` stays empty without the option; false, with the reason said, when the device refuses.
+ *  A device of another series of zinc than `engine` is refused unless `force` (--force). */
+bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, bool force, zn::cli::DevRemote& remote);
 
 }  // namespace zn::agent

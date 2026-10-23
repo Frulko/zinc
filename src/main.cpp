@@ -1758,7 +1758,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) {
       zn::cli::DevRemote remote;   // filled by zinc dev --device <d> (ZN-729.03): the program runs on a paired device
 #ifdef ZN_AGENT
-      if (!zn::agent::devRemote(cl, zn::tc::executablePath(), kVersionText, remote)) return 1;
+      if (!zn::agent::devRemote(cl, zn::tc::executablePath(), kVersionText, zn::frontend::force(), remote)) return 1;
 #endif
       return zn::cli::dev(cl, remote.start ? &remote : nullptr);
     }

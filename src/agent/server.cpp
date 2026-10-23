@@ -701,6 +701,7 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
   s.home = zn::tc::home() + "/agent";
   s.self = self;
   s.engine = engine;
+  if (const char* e = std::getenv("ZINC_AGENT_ENGINE"); e && *e) s.engine = e;   // a test switch (tests/t1/agent_dev_versions.sh): an agent of another version
   std::error_code ec;
   fs::create_directories(s.home + "/apps", ec);
   ::chmod(s.home.c_str(), 0700);

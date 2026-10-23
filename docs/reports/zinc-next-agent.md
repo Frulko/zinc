@@ -237,8 +237,12 @@ poll); `src/agent/dev.cpp` fills them with one session of the agent, and holds t
 
 Inside the session the client sends `{"start": true, "files": bool, "remove": [names], "args": [...]}`, followed when `files` is set
 by entries as for `push`; the agent answers `{"ok": true, "pid", "files", "bytes"}` or an error, and the session goes on either way.
-The request carries the workstation's engine version and the agent refuses another one than its own: the bytecode is compiled on the
-workstation.
+The bytecode is compiled on the workstation, so the versions matter (2026-10-23, `tests/t1/agent_dev_versions.sh`): the workstation
+asks the device's version first (`info`). The same version, or another release of the same series (0.6.x, a note says so), runs: a
+patch reads the same bytecode, and a format that changed is refused by the device's loader with its reason (`ZBC version n is newer
+than...`). Another series is refused with the two ways out, `zinc device <name> update` and `--force`, which tries anyway at the risk
+of a crash. When it goes on, the request carries the device's version, which the agent compares with its own: agents of 0.6.2 and
+before refuse any other, so a newer workstation still works with them. `ZINC_AGENT_ENGINE` makes an agent say another version (tests).
 
 Measured on the loopback interface (2026-10-12, the M1 Pro, other trees building, load average 7 to 10, so an upper bound): the new
 version's first line is read back on the workstation 211 to 250 ms after the save of a source file (six runs of the test; the figure

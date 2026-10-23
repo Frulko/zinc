@@ -18,6 +18,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
@@ -130,8 +131,10 @@ bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const st
 }  // namespace
 
 void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine) {
-  if (req.str("engine") != engine) {   // the program is compiled on the workstation: its bytecode is this engine's or it does not run
-    refuse(c, "this device runs zinc " + engine + " and the workstation zinc " + req.str("engine") + ": zinc dev --device needs the same version on both");
+  // the program is compiled on the workstation, which decides whether its bytecode runs here (devRemote: one series, or --force) and then
+  // sends this engine's version; a workstation before that sends its own
+  if (req.str("engine") != engine) {
+    refuse(c, "this device runs zinc " + engine + " and the workstation zinc " + req.str("engine") + ": update zinc on the workstation, or the device's (zinc device update)");
     return;
   }
   static std::atomic<int> sessions{0};
@@ -278,7 +281,10 @@ struct Session {
 
 }  // namespace
 
-bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, zn::cli::DevRemote& remote) {
+// "0.6" of "0.6.2+52.g6feb1df0": the series whose engines run one another's bytecode.
+static std::string series(const std::string& v) { return v.substr(0, v.find('.', v.find('.') + 1)); }
+
+bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, bool force, zn::cli::DevRemote& remote) {
   std::string device;
   for (std::size_t i = 0; i < args.size() && args[i] != "--"; ++i) {
     if (args[i] != "--device") continue;
@@ -291,7 +297,24 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   ::signal(SIGPIPE, SIG_IGN);
   const auto s = std::make_shared<Session>();
   std::string answer, tmp = (fs::temp_directory_path() / "zinc-dev-XXXXXX").string();
-  s->c = deviceSession(device, Obj().str("op", "dev").str("engine", engine).done(), answer, s->device);
+  // The program compiled here runs on an engine of the same series (0.6.x): a newer patch reads the same bytecode, and a format that
+  // changed is refused by the device's loader with its reason. Another series runs with --force only, at the risk of a crash.
+  if (!deviceSession(device, Obj().str("op", "info").done(), answer, s->device)) return false;
+  const std::string there = Doc(answer).str("engine");
+  if (there != engine) {
+    if (!force && series(there) != series(engine)) {
+      const std::string update = "zinc device " + s->device + " update", retry = "zinc dev --device " + s->device + " --force";
+      const int w = static_cast<int>(std::max(update.size(), retry.size()));
+      std::fprintf(stderr, "zinc dev: %s runs zinc %s and this computer zinc %s: a program compiled here may not run there.\n"
+                           "  %-*s  puts this computer's zinc on the device\n  %-*s  tries anyway (the program may crash)\n",
+                   s->device.c_str(), there.c_str(), engine.c_str(), w, update.c_str(), w, retry.c_str());
+      return false;
+    }
+    std::fprintf(stderr, "zinc dev: %s runs zinc %s and this computer zinc %s: %s (zinc device %s update aligns them)\n", s->device.c_str(),
+                 there.c_str(), engine.c_str(), force && series(there) != series(engine) ? "trying anyway (--force)" : "one series, running anyway",
+                 s->device.c_str());
+  }
+  s->c = deviceSession(device, Obj().str("op", "dev").str("engine", there).done(), answer, s->device);
   if (!s->c) return false;
   if (!::mkdtemp(tmp.data())) { std::fprintf(stderr, "zinc dev: cannot make %s: %s\n", tmp.c_str(), std::strerror(errno)); return false; }
   s->self = self;

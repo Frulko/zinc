@@ -36,6 +36,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Changed
 - A program that styles only with style objects, never with `className`, no longer carries the class parser: about a tenth less code to compile and interpret, and a native app about 145 KB smaller (a React Native program too, sticky section headers included).
+- `zinc dev --device` runs on a device whose Zinc is another release of the same series (0.6.x on both), with a note. Another series is refused with the ways out: `zinc device <name> update`, or `--force` to try anyway (the program may crash). It works with devices that run 0.6.2.
 
 ### Fixed
 - Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
