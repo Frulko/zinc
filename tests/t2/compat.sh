@@ -4,5 +4,9 @@
 cd "$(dirname "$0")/../.." || exit 2
 command -v node >/dev/null || { echo "compat: node is needed for the harness"; exit 1; }
 out=$(node tests/compat/run.mjs --engines next,next-qjs --jobs 8 --check --zinc-next "$ZINC" 2>&1) ; rc=$?
-echo "$out" | grep -E 'REGRESSION|compat check' | head -20
+if [ "$rc" -ne 0 ]; then
+  printf '%s\n' "$out"
+else
+  printf '%s\n' "$out" | grep -E 'REGRESSION|compat check' | head -20
+fi
 exit $rc

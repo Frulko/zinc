@@ -33,3 +33,16 @@ No frozen corpus, golden output or existing conformance source was rewritten. Ad
 The owner pushed `e1161467` and dispatched [run 39952451514](https://github.com/Frulko/zinc/actions/runs/39952451514). It completed successfully: **520 passed, zero failed, 30 skipped**; `notify_relay` passed in 33 seconds. All six test shards, packaging, reproducibility, fuzz and benchmark jobs succeeded. Release, Pages and plugin publication jobs were skipped.
 
 ZN-781 is complete on this evidence. The original notification stall is still unexplained; keep the first-failure diagnostics if it recurs. Later Pi display/deployment work is not part of this successful run and requires its own checks.
+
+
+## Release-tag recurrence (ZN-786)
+
+The subsequent [v0.6.3 tag run 39958820169](https://github.com/Frulko/zinc/actions/runs/39958820169), at the same e1161467 commit, failed `notify_relay` and `compat`. The release gate correctly stopped publication. Build, package/cross, reproducibility, benchmark and fuzz jobs succeeded. Evidence downloaded to `/tmp/zinc-ci-39958820169-report` was reviewed independently.
+
+The initial compat failure had no diagnostic because its wrapper discarded everything except regression-summary lines. Its immediate traced rerun passed 2,749 cases on both engines with zero regressions. A first-use source-fetch failure is plausible, but its original error is lost. The wrapper now preserves complete output and the original exit code on failure; a stub-command native test covers startup failure, actual regression and successful-summary output.
+
+The relay's initial and traced runs both stopped waiting for `mute sent`. Pairing and hello succeeded; the database held ten distinct UUIDs. Four or five notifications were delivered, then no second `news` batch was logged. This does not establish that WhatsApp image rendering was reached. A proposed TLS ticket-spin explanation was rejected as unproven: the link server has no ticket callback, and mbedTLS therefore skips ticket generation. No TLS or relay behavior was changed on that hypothesis.
+
+A fresh native `notify_relay` run passed. Failure diagnostics now take bounded native stack samples of the fixture relay and receiver before terminating them. A native stub test confirms only valid fixture PIDs are sampled and failure status stays nonzero. No real notification or owner's relay process was sampled or stopped.
+
+The new hosted run is still needed to establish the blocking call. ZN-786 remains In Progress; the relay acceptance criterion is not checked. Release dry-run validates signing prerequisites and proposes v0.7.0 with the pending changelog. No push, dispatch or publication has been performed for these diagnostics.

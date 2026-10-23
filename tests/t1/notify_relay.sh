@@ -25,6 +25,17 @@ bad() {
   for log in "$tmp/relay.log" "$tmp"/tablet*.log; do
     [ ! -f "$log" ] || { echo "$(basename "$log"):"; tail -40 "$log"; }
   done
+  # A live stall needs a native stack before cleanup kills the fixture processes.
+  if command -v sample >/dev/null; then
+    for process in "$app" "$tpid"; do
+      case $process in ''|*[!0-9]*) continue ;; esac
+      [ "$process" -gt 1 ] || continue
+      if timeout 6 sample "$process" 1 10 -file "$tmp/stack-$process.txt" >/dev/null 2>&1; then
+        echo "fixture process $process:"
+        cat "$tmp/stack-$process.txt"
+      fi
+    done
+  fi
   exit 1
 }
 trap 'kill $rpid $tpid 2>/dev/null; [ -n "$app" ] && kill $app 2>/dev/null; wait 2>/dev/null; rm -rf "$tmp"' EXIT

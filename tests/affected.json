@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["tests/t2/compat.sh", "tests/t1/notify_relay.sh", "tests/data/release_gate_diagnostics.py", "tests/t0/release_gate_diagnostics.sh"], "tests": ["release_gate_diagnostics"]},
     {"paths": [".github/workflows/pi-image.yml", "tools/pi-image-release", "tools/pi-image", "image/configure-boot.sh", "tests/data/pi-image/test_pipeline.py", "tests/t0/pi_image_pipeline.sh"], "tests": ["pi_image_pipeline", "pi_image_bootstrap"]},
     {"paths": ["image/build.sh", "image/files/usr/lib/zinc/zinc-firstboot", "image/files/etc/systemd/system/zinc-firstboot.service", "tests/data/pi-image/test_bootstrap.py", "tests/t0/pi_image_bootstrap.sh"], "tests": ["pi_image_bootstrap"]},
     {"paths": ["examples/fatty/", "tests/data/fatty/", "tests/golden/fatty/", "tests/t1/fatty.sh", "tests/demo/fatty_logic.sh"], "tests": ["fatty", "fatty_logic"]},

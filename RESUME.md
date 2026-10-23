@@ -4,6 +4,8 @@ Binding rules: RULES.md, ARCHITECTURE.md, TESTING.md.
 
 ## 2026-10-23
 
+- ZN-786 In Progress: discovered later v0.6.3 tag run 39958820169 at e1161467 failed notify_relay and compat; publication stopped. Compat traced rerun passed 2,749 cases ×2 engines; initial error was filtered away. Wrapper now retains failed output. Relay stalled after four/five notifications and before a second news batch in both hosted traces; native repro passed. Bounded fixture-only native stack diagnostics added with passing stub regression. No speculative TLS fix; no proven relay root cause yet. Need owner-authorized push/manual CI for hosted evidence; no new publication. Dry-run proposes v0.7.0, signing secret/public key and Linux jobs enabled.
+
 - CI at e1161467 is confirmed green by owner-dispatched run 39952451514: 520 passed, 0 failed, 30 skipped. All package/test/fuzz/benchmark/repro jobs succeeded; publication skipped. This does not cover newer local commits.
 - ZN-782 committed e16cfb84: exclusive Pi app/player screen handoff; PID-bound Ctrl-C cleanup; Pi source deploy reuses installed engine and honors QuickJS, while explicit native exports remain. Updater installs signed session/agent payload and restores system snapshots on rollback. Native build/agent/update/fbdev fixtures passed; no physical validation. Typed source mode trades AOT throughput for iteration; cold plugins may build once.
 - ZN-783 committed 02367f89: Music Tree native Linux resolution, compact/portrait layouts, scrolling and adaptive grids/sheets/settings/StandBy. zinc check, 28 layout combinations, 19 real-node captures/input/bounds cases (43 s), fake-house Sonos regression (4 s), ci_plan passed. Report: docs/reports/zinc-next-music-responsive.md.
