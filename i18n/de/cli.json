@@ -60,6 +60,7 @@
   "cli.cmd.monitor": "Telemetrie lesen",
   "cli.cmd.lsp": "Sprachserver",
   "cli.cmd.help": "dieser Text",
+  "cli.cmd.mem": "Speicherverbrauch und nicht freigegebene Objekte anzeigen",
   "cli.cmd.version": "die Version von zinc ausgeben",
   "cli.new.ask_kind": "Was möchtest du machen?",
   "cli.new.ask_style": "Wie möchtest du es schreiben?",

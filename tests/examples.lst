@@ -24,6 +24,7 @@ esp32-ble/mac/src/main.tsx | OK |  |
 esp32-gpio/src/main.ts | OK |  | 
 esp32-qrcode/src/main.ts | OK |  | 
 esp32-widgets/src/main.ts | OK |  | 
+fatty/src/main.ts | OK |  |
 flipctl/src/main.ts | OK |  | 
 gl-cube/src/main.ts | OK |  | 
 hardware-n3ds/src/main.ts | OK |  | 
@@ -42,6 +43,7 @@ js-p5/main.js | OK |  |
 js-phaser/main.js | OK |  | 
 js-pixi/main.js | OK |  | 
 js-three/main.js | OK |  | 
+kanban/src/main.tsx | OK |  |
 lang/src/main.ts | OK |  | 
 leapmotion/src/main.ts | OK |  | 
 led/falling-cubes/src/main.ts | OK |  | 

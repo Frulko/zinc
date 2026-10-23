@@ -8,6 +8,8 @@ done
 for g in tests/golden/lexer/*.tok; do
   n=$(basename "$g" .tok)
   src=$(ls tests/conformance/"$n" tests/bench/kernels/"$n" 2>/dev/null | head -1)
+  # Preserve the prototype's lexical input when the running UI fixture gains explicit styles.
+  [ ! -f "tests/data/lexer/$n" ] || src="tests/data/lexer/$n"
   "$ZINC" lex --dump "$src" | diff -q - "$g" >/dev/null || { echo "golden differs: $n"; fail=1; }
 done
 exit $fail

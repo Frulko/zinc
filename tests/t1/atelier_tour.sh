@@ -13,7 +13,7 @@ for d in toolchains cache index sysroots; do [ -e "${ZINC_HOME:-$HOME/.zinc}/$d"
 run() {   # run <name> [VAR=value...]: one session on $tmp/<name>.session (and .input), its output in $tmp/<name>.out
   name=$1; shift
   touch "$tmp/$name.input"
-  env -u ZINC_LANG "$@" ZINC_HOME="$tmp/home" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_TOUR=1 ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null \
+  env -u ZINC_LANG -u LANGUAGE -u LC_ALL -u LC_MESSAGES "$@" ZINC_HOME="$tmp/home" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_TOUR=1 ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null \
     ZINC_ATELIER_SCRIPT="$tmp/$name.session" ZINC_INPUT="$tmp/$name.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 "$ZINC" run app/atelier >"$tmp/$name.out" 2>"$tmp/$name.err" \
     || { echo "atelier tour: the $name session failed: $(tail -c 300 "$tmp/$name.err")"; fail=1; }
 }

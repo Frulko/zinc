@@ -4,6 +4,7 @@
 # languages (--lang, ZINC_LANG, the settings file, LANG), English when a catalog is missing, and zinc config set lang keeping the other keys.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
+unset LANGUAGE LC_ALL LC_MESSAGES
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
 tools/i18n-check >"$tmp/check" 2>&1 || { echo "i18n-check fails on i18n/: $(grep -v '^warning' "$tmp/check" | head -5)"; fail=1; }
@@ -41,6 +42,8 @@ out=$(ZINC_LANG=en "$ZINC" --lang de rnu 2>&1); case "$out" in *"unbekannter Bef
 out=$("$ZINC" --lang=es rnu 2>&1); case "$out" in *"comando desconocido"*) ;; *) echo "--lang=es: $out"; fail=1 ;; esac
 "$ZINC" --lang pt rnu >/dev/null 2>&1; [ $? -eq 2 ] || { echo "--lang pt is not refused"; fail=1; }
 out=$(env -u ZINC_LANG LANG=fr_CA.UTF-8 "$ZINC" rnu 2>&1); case "$out" in *"commande inconnue"*) ;; *) echo "LANG=fr_CA is not French: $out"; fail=1 ;; esac
+out=$(env -u ZINC_LANG LC_ALL=C LANG=fr_CA.UTF-8 "$ZINC" rnu 2>&1); case "$out" in *"unknown command"*) ;; *) echo "LC_ALL=C does not win over LANG: $out"; fail=1 ;; esac
+out=$(env -u ZINC_LANG LC_MESSAGES=de_DE.UTF-8 LANG=fr_CA.UTF-8 "$ZINC" rnu 2>&1); case "$out" in *"unbekannter Befehl"*) ;; *) echo "LC_MESSAGES does not win over LANG: $out"; fail=1 ;; esac
 out=$(ZINC_LANG=fr ZINC_I18N_DIR="$tmp/none" "$ZINC" rnu 2>&1); case "$out" in "zinc: unknown command 'rnu'"*) ;; *) echo "no French catalog: not English: $out"; fail=1 ;; esac
 out=$(ZINC_LANG=it "$ZINC" new cli "$tmp/app" 2>&1); case "$out" in *"creato (cli)"*) ;; *) echo "it: zinc new says: $out"; fail=1 ;; esac
 

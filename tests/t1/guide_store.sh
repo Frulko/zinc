@@ -72,9 +72,9 @@ grep -q '^my-game 0.1.0 is up to date' "$tmp/log" || { echo "guide_store: zinc u
 python3 - "$Z" $pages <<'PY' || fail=1
 import re, subprocess, sys
 z, pages = sys.argv[1], sys.argv[2:]
-top = subprocess.run([z, 'help'], capture_output=True, text=True).stdout
+top = subprocess.run([z, 'help', '--all'], capture_output=True, text=True, check=True).stdout
 cmds = set(re.findall(r'^  ([a-z][a-z-]*) ', top, re.M))
-cmds |= set(re.findall(r'engine work: ([^.]*)', top)[0].replace(',', ' ').split())
+assert cmds, 'zinc help --all lists no commands'
 helps = {}
 def help_of(c):
     if c not in helps: helps[c] = subprocess.run([z, 'help', c], capture_output=True, text=True).stdout

@@ -16,8 +16,17 @@ for t in plutil sqlite3 xxd sips; do command -v $t >/dev/null || { echo "needs $
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d)
 export LINK_SERVICE="zn-relay-$$"
-fail=0
-bad() { echo "FAIL: $*"; fail=1; }
+# Stop at the first broken phase; later waits only repeat the same capture failure.
+bad() {
+  echo "FAIL: $*"
+  if [ -f "$tmp/db" ]; then
+    sqlite3 -header "$tmp/db" 'SELECT count(*) AS records, count(DISTINCT hex(uuid)) AS uuids, max(rec_id) AS newest_record FROM record;'
+  fi
+  for log in "$tmp/relay.log" "$tmp"/tablet*.log; do
+    [ ! -f "$log" ] || { echo "$(basename "$log"):"; tail -40 "$log"; }
+  done
+  exit 1
+}
 trap 'kill $rpid $tpid 2>/dev/null; [ -n "$app" ] && kill $app 2>/dev/null; wait 2>/dev/null; rm -rf "$tmp"' EXIT
 until_grep() { n=0; while [ $n -lt ${3:-300} ] && ! grep -q "$1" "$2" 2>/dev/null; do sleep 0.1; n=$((n+1)); done; grep -q "$1" "$2" 2>/dev/null; }
 
@@ -63,7 +72,7 @@ code=$(sed -n 's/^ready port [0-9]* code \([0-9]*\).*/\1/p' "$tmp/tablet1.log")
 # the settings of a person who blocked an app in advance and a site, passed the optional steps, and chose per-mode Focus policies
 mkdir -p "$tmp/settings"
 printf '{"v":1,"paused":false,"welcomed":true,"skipped":["contacts","notify"],"focus":"relay","focusModes":[{"id":"com.apple.focus.work","policy":"follow"},{"id":"com.apple.sleep.sleep-mode","policy":"hold"}],"apps":[{"id":"com.example.blocked","name":"Blocked App","allowed":false,"count":0,"last":0}],"domains":[{"domain":"ads.example.com","allowed":false,"count":0,"last":0}]}' > "$tmp/settings/settings.json"
-export RELAY_DB="$db" RELAY_DIR="$tmp/settings" RELAY_FOCUS_DIR="$tmp/focus"
+export RELAY_DB="$db" RELAY_DIR="$tmp/settings" RELAY_FOCUS_DIR="$tmp/focus" RELAY_MESSAGES_DB="$tmp/no-messages.db"
 RELAY_CODE=$code LINK_STORE="$tmp/relay.keys" ZINC_REALTIME=1 "$Z" run examples/notify-relay > "$tmp/relay.log" 2>&1 & rpid=$!
 until_grep "^ready pid" "$tmp/relay.log" 600 || { echo "the relay did not start: $(tail -20 "$tmp/relay.log")"; exit 1; }
 app=$(sed -n 's/^ready pid \([0-9]*\).*/\1/p' "$tmp/relay.log")
@@ -165,5 +174,4 @@ done
 timeout 120 "$Z" run examples/notify-relay -- --inspect 3 > "$tmp/inspect.log" 2>&1
 grep -q "^record of com.apple.MobileSMS presented 1 style 1" "$tmp/inspect.log" && grep -q "^  /req/titl string 17" "$tmp/inspect.log" || bad "--inspect: $(tail -5 "$tmp/inspect.log")"
 grep -q "Queued\|After focus\|sent when" "$tmp/inspect.log" && bad "--inspect printed a value"
-[ $fail -eq 0 ] || { echo "the relay's log:"; grep -v '^\[system\]' "$tmp/relay.log" | tail -30; }   # a failure seen only on CI (v0.5.0): what the relay said
-exit $fail
+exit 0

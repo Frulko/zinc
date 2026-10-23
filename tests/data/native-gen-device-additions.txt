@@ -1,0 +1,4 @@
+  virtual double touchMap(int32_t i) = 0;
+  virtual bool setTouchMap(double a, double b, double c, double d, double e, double f) = 0;
+  virtual bool calibrateTouch() = 0;
+  virtual bool powerOff() = 0;

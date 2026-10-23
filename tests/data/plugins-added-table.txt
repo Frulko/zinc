@@ -1,0 +1,1 @@
+  zinc:network             linux,macos,windows,rpi1           Network connections: the interfaces, their state and addresses, the Wi-Fi networks around; join and forget one (NetworkManager through nmcli on Linux, addresses only elsewhere)

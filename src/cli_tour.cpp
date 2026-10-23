@@ -169,10 +169,11 @@ Result until(Tour& t, const fs::path& watch, const std::function<void()>& edit, 
     }
     return Result::Failed;
   }
+  long long size = -1, mtime = -1, s = 0, m = 0;
+  // A save during check() must differ from the stamp we watched before it.
+  zn::plat::fileStamp(watch.string(), size, mtime);
   if (check()) return Result::Done;
   say(tr("cli.tour.waiting"));
-  long long size = -1, mtime = -1, s = 0, m = 0;
-  zn::plat::fileStamp(watch.string(), size, mtime);
   for (;;) {
     bool enter = false;
     if (lineWaiting(300)) {

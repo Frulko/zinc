@@ -61,6 +61,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- `tools/examples-status` respects the project's entry and engine from `zinc.json`; QuickJS projects such as Fatty are no longer checked as standalone typed programs.
+- `zinc help --all` lists `mem`, and `zinc help mem` documents the memory report and `--check-leaks` again.
+- `zinc tour` notices a save made while it checks the previous edit, instead of waiting for another save or Enter before continuing.
 - An ESP32 under `--engine mquickjs` keeps its touch calibration, Wi-Fi networks and `zinc:storage` data when `zinc run` writes another firmware (going from one demo to another): the firmware is written around them. `zinc run` and `zinc flash` also say how long a firmware takes to write, the screen staying white meanwhile, and show its percentage as it goes (the program's too).
 - `zinc run` and `zinc check` with `--engine mquickjs` no longer hang on a program with a loop that never ends: the check stops it after 10 s and names its line.
 - `zinc run --target esp32` builds the firmware a program's plugins need before it writes the program, so the board no longer shows a ReferenceError ("not in this firmware") during the build.

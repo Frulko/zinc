@@ -6,7 +6,16 @@ fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 while read -r hdr spec; do
   "$ZINC" native-gen "$spec" "$tmp" >/dev/null 2>"$tmp/err" || { echo "native-gen fails on $spec: $(head -c 200 "$tmp/err")"; fail=1; continue; }
-  diff -wB "$tmp/$hdr" "tests/golden/native_gen/$hdr" >/dev/null || { echo "$hdr differs from the prototype's header"; fail=1; }
+  compare="$tmp/$hdr"
+  if [ "$hdr" = zinc_native_device.h ]; then
+    # Assert the new API before comparing the unchanged declarations with the frozen header.
+    while IFS= read -r declaration; do
+      [ "$(grep -Fxc "$declaration" "$tmp/$hdr")" = 1 ] || { echo "missing or changed device API: $declaration"; fail=1; }
+    done < tests/data/native-gen-device-additions.txt
+    compare="$tmp/device-baseline.h"
+    grep -Fvx -f tests/data/native-gen-device-additions.txt "$tmp/$hdr" > "$compare"
+  fi
+  diff -wB "$compare" "tests/golden/native_gen/$hdr" >/dev/null || { echo "$hdr differs from the prototype's header"; fail=1; }
 done < tests/golden/native_gen/specs.lst
 host=examples/native-module/native/sensor.host.cpp
 "${CXX:-c++}" -std=c++20 -fsyntax-only -w -I "$tmp" -I runtime -I runtime/include "$host" || { echo "sensor.host.cpp does not compile against the generated header"; fail=1; }

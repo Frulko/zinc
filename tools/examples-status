@@ -17,6 +17,11 @@ NEXT = os.path.dirname(HERE)
 EXAMPLES = os.path.join(NEXT, "examples")
 LIST = os.path.join(NEXT, "tests", "examples.lst")
 
+def project_entry(root, cfg):
+    selected = cfg.get("entry") or cfg.get("main")
+    candidates = ([selected] if selected else []) + ["src/main.ts", "src/main.tsx", "main.ts", "main.tsx"]
+    return next((os.path.normpath(os.path.join(root, c)) for c in candidates if os.path.isfile(os.path.join(root, c))), None)
+
 def entries():
     found = set()
     for root, dirs, files in os.walk(EXAMPLES):
@@ -27,10 +32,8 @@ def entries():
             except Exception: cfg = {}
             t = cfg.get("targets")
             if isinstance(t, dict) and t and not set(t) & {"macos", "linux", "windows"}: continue   # a board's program only (esp32-wifi): tests/t0/mquickjs_esp32.sh checks it
-            e = cfg.get("entry") or cfg.get("main")
-            cands = ([e] if e else []) + ["src/main.ts", "src/main.tsx", "main.ts", "main.tsx"]
-            for c in cands:
-                if os.path.isfile(os.path.join(root, c)): found.add(os.path.relpath(os.path.join(root, c), EXAMPLES)); break
+            path = project_entry(root, cfg)
+            if path: found.add(os.path.relpath(path, EXAMPLES))
         elif os.path.basename(root) == "src" and any(f in files for f in ("main.ts", "main.tsx")) and not os.path.isfile(os.path.join(os.path.dirname(root), "zinc.json")):
             found.add(os.path.relpath(os.path.join(root, "main.ts" if "main.ts" in files else "main.tsx"), EXAMPLES))
     return found
@@ -52,9 +55,19 @@ def run_one(zinc, entry, frames, timeout):
     env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FAKE_CAMERA="1", ZINC_FRAMES=str(frames), PORT="0")   # The milestone uses camera fixtures even when a USB camera is connected; PORT=0 avoids a shared daemon port.
     daemon = entry.startswith("service/")   # a service runs until it is stopped: alive at the end of a short run is OK
     if daemon: timeout = min(timeout, 6)
-    path = os.path.join(EXAMPLES, entry)
+    path = os.path.normpath(os.path.join(EXAMPLES, entry))
+    root = os.path.dirname(path)
+    while root.startswith(EXAMPLES + os.sep):
+        manifest = os.path.join(root, "zinc.json")
+        if os.path.isfile(manifest):
+            try:
+                with open(manifest) as f: cfg = json.load(f)
+            except (OSError, ValueError): break   # let zinc report an unreadable manifest for this entry
+            if isinstance(cfg, dict) and project_entry(root, cfg) == path: path = root
+            break
+        root = os.path.dirname(root)
     try:
-        engine = ["--engine", "quickjs"] if entry.endswith(".js") else []   # a plain JavaScript example (examples/js-*, ZN-712) runs on QuickJS
+        engine = ["--engine", "quickjs"] if path.endswith(".js") else []   # a project chooses its own engine; standalone JavaScript uses QuickJS
         r = subprocess.run([zinc, "run", path] + engine, cwd=NEXT, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         if daemon: return entry, "OK", ""
