@@ -17,9 +17,13 @@ import {
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   PAGE_NOW_PLAYING,
+  PAGE_RADIOS,
+  PAGE_SPOTIFY,
+  PAGE_ROOMS,
+  PAGE_SETTINGS,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject, registerTapZone, isZonePressed, uiState } from 'zinc:stage';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, registerTapZone, isZonePressed, uiState } from 'zinc:stage';
 import { drawGlyph, drawLabel, drawTransportIcon } from './primitives';
 import { drawCoverArt } from './cover';
 import {
@@ -46,6 +50,12 @@ const NAVIGATION_ICONS: string[] = [
   'settings',
 ];
 
+const compactScroll = new ScrollBox();
+const NAVIGATION_ACTIONS: (() => void)[] = [
+  () => navigateToPage(PAGE_NOW_PLAYING), () => navigateToPage(PAGE_RADIOS), () => navigateToPage(PAGE_SPOTIFY),
+  () => navigateToPage(PAGE_ROOMS), () => navigateToPage(PAGE_SETTINGS),
+];
+
 /**
  * Draws the sidebar over a height `viewHeight`.
  */
@@ -60,6 +70,23 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
     rect(0, 0, sidebarWidth, viewHeight, COLOR_BACKGROUND);
   }
   rect(sidebarWidth - 1, 0, 1, viewHeight, isOverPlayerBackdrop ? 0x000000 : 0x1f1f21);
+
+  if (sidebarWidth < 120) {
+    const gap = 54;
+    compactScroll.contentHeight = 24 + gap * NAVIGATION_TITLES.length;
+    compactScroll.viewportHeight = viewHeight;
+    compactScroll.clamp();
+    beginScrollBox(compactScroll, 0, 0, sidebarWidth, viewHeight);
+    for (let index = 0; index < NAVIGATION_TITLES.length; index++) {
+      const y = 12 + index * gap - compactScroll.scrollY;
+      const selected = appState.currentPage === index;
+      if (selected) rrect(8, y, sidebarWidth - 16, 46, 10, COLOR_FILL, 255);
+      drawGlyph(NAVIGATION_ICONS[index], (sidebarWidth - 22) / 2, y + 12, 22, selected ? COLOR_ACCENT : COLOR_TEXT_SECONDARY);
+      registerTapZone('nav/' + index, 8, y, sidebarWidth - 16, 46, NAVIGATION_ACTIONS[index]);
+    }
+    endScrollBox();
+    return;
+  }
 
   drawText(Fonts.title, 26, 34, 'Musique', COLOR_TEXT_PRIMARY, 255, 0);
 
@@ -199,6 +226,10 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
 export class SidebarNode extends DisplayObject {
   constructor() {
     super('Sidebar');
+  }
+
+  override onUpdate(deltaSeconds: number): void {
+    if (compactScroll.stepInertia(deltaSeconds)) uiState.dirty = true;
   }
 
   override onDraw(stageWidth: number, stageHeight: number): void {

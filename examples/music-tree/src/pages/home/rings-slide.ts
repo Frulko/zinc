@@ -13,19 +13,23 @@ import {
   RING_COLORS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject } from 'zinc:stage';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, uiState } from 'zinc:stage';
 import { drawCenteredText, drawLabel } from '../../components/primitives';
 import { drawSlider } from '../../components/slider';
 import { drawRingArc } from './clock-faces';
 import { appState, setSpeakerRoomVolume } from '../../state';
 
 export class VolumesRingsSlideNode extends DisplayObject {
+  private readonly scroll = new ScrollBox();
   constructor() {
     super('VolumesRingsSlide');
   }
 
+  override onUpdate(deltaSeconds: number): void {
+    if (this.scroll.stepInertia(deltaSeconds)) uiState.dirty = true;
+  }
+
   override onDraw(viewWidth: number, viewHeight: number): void {
-    drawText(Fonts.hero, 64, 18, 'Volumes', COLOR_TEXT_PRIMARY, 255, 0);
 
     const visibleSpeakers: Speaker[] = [];
     if (appState.sonosSystem !== null) {
@@ -52,11 +56,19 @@ export class VolumesRingsSlideNode extends DisplayObject {
       return;
     }
 
-    const outerRadius = Math.min(250, viewHeight * 0.36);
-    const centerX = 72 + outerRadius;
-    const centerY = viewHeight / 2 + 24;
-    const ringGap = 8;
-    const ringThickness = Math.min(48, (outerRadius - 56) / speakerCount - ringGap);
+    const compact = viewWidth < 900 || viewHeight < 600;
+    const stacked = viewWidth < 650;
+    const outerRadius = stacked ? Math.min(130, viewWidth * 0.3) : Math.min(250, viewHeight * 0.36, compact ? viewWidth * 0.24 : 250);
+    const centerX = stacked ? viewWidth / 2 : (compact ? 32 : 72) + outerRadius;
+    const layoutHeight = stacked ? Math.max(viewHeight, 72 + outerRadius * 2 + 32 + speakerCount * 100 + 24) : viewHeight;
+    this.scroll.contentHeight = layoutHeight;
+    this.scroll.viewportHeight = viewHeight;
+    this.scroll.clamp();
+    beginScrollBox(this.scroll, 0, 0, viewWidth, viewHeight);
+    const centerY = (stacked ? 72 + outerRadius : viewHeight / 2 + 24) - this.scroll.scrollY;
+    drawText(Fonts.hero, compact ? 24 : 64, 18 - this.scroll.scrollY, 'Volumes', COLOR_TEXT_PRIMARY, 255, 0);
+    const ringGap = compact ? 4 : 8;
+    const ringThickness = Math.max(3, Math.min(48, (outerRadius - (compact ? 24 : 56)) / speakerCount - ringGap));
 
     for (let index = 0; index < speakerCount; index++) {
       const speaker = visibleSpeakers[index];
@@ -77,10 +89,10 @@ export class VolumesRingsSlideNode extends DisplayObject {
       }
     }
 
-    const listStartX = centerX + outerRadius + 64;
-    const listWidth = viewWidth - listStartX - 56;
-    const rowHeight = Math.min(118, (viewHeight - 130) / speakerCount);
-    let currentRowY = centerY - (rowHeight * speakerCount) / 2;
+    const listStartX = stacked ? 24 : centerX + outerRadius + (compact ? 32 : 64);
+    const listWidth = viewWidth - listStartX - (compact ? 24 : 56);
+    const rowHeight = stacked ? 100 : Math.min(118, (viewHeight - 130) / speakerCount);
+    let currentRowY = stacked ? centerY + outerRadius + 32 : centerY - (rowHeight * speakerCount) / 2;
 
     for (let index = 0; index < speakerCount; index++) {
       const speaker = visibleSpeakers[index];
@@ -120,5 +132,6 @@ export class VolumesRingsSlideNode extends DisplayObject {
       );
       currentRowY += rowHeight;
     }
+    endScrollBox();
   }
 }

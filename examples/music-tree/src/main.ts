@@ -87,6 +87,7 @@ import {
   prefetchPicture,
   tickPicturesClock,
 } from './core/pictures';
+import { isCompactScreen } from './core/responsive';
 import { RadioStation } from './services/radios-service';
 import { startRemoteUdpListener } from './services/remote-udp';
 import {
@@ -221,7 +222,7 @@ stage.addChild(notificationOverlayNode);
 function sidebarWidthForCurrentPage(): number {
   return appState.currentPage === PAGE_NOW_PLAYING && appState.config.fullScreenPlayer
     ? 0
-    : SIDEBAR_WIDTH_DEFAULT;
+    : isCompactScreen(width(), height()) ? 64 : SIDEBAR_WIDTH_DEFAULT;
 }
 
 function sizeLayersAndMountCurrentPage(screenWidth: number, screenHeight: number): void {
@@ -535,7 +536,7 @@ function processUserInput(deltaSeconds: number): void {
         uiState.dirty = true;
       }
 
-      if (hasPointerMovedBeyondThreshold && activeScrollingBox !== null) {
+      if (hasPointerMovedBeyondThreshold && activeScrollingBox !== null && !isDraggingCarouselHorizontally && !isDraggingClockFaceVertically) {
         const scrollBox = activeScrollingBox as ScrollBox;
         scrollBox.scrollY = initialScrollOffsetY - deltaFromStartY;
         scrollBox.clamp();
@@ -784,9 +785,21 @@ function logFramePerformanceIfEnabled(deltaSeconds: number, drawDurationMs: numb
   }
 }
 
+let lastScreenWidth = 0;
+let lastScreenHeight = 0;
+
 onFrame((deltaSeconds: number) => {
   const screenWidth = width();
   const screenHeight = height();
+  if (screenWidth !== lastScreenWidth || screenHeight !== lastScreenHeight) {
+    lastScreenWidth = screenWidth;
+    lastScreenHeight = screenHeight;
+    if (warmRenderOffscreenImage >= 0) {
+      destroyImage(warmRenderOffscreenImage);
+      warmRenderOffscreenImage = -1;
+    }
+    uiState.dirty = true;
+  }
 
   appState.elapsedAppClockSeconds += deltaSeconds;
   tickPicturesClock();

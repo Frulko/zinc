@@ -12,7 +12,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { registerTapZone, isZonePressed } from 'zinc:stage';
-import { drawGlyph, drawCenteredText } from './primitives';
+import { drawGlyph, drawCenteredText, fitTextToWidth } from './primitives';
 
 /**
  * Draws a round button holding a Lucide icon centred at `(centerX, centerY)`.
@@ -60,12 +60,14 @@ export function drawPillButton(
   backgroundColor: u32,
   onTap: () => void,
   iconName: string = '',
-  height: number = 40
+  height: number = 40,
+  maxWidth: number = 0
 ): number {
   const fontId = Fonts.smallBold;
   const horizontalPadding = 18;
   const iconAdvance = iconName !== '' ? 22 : 0;
-  const buttonWidth = textWidth(fontId, label, 0) + horizontalPadding * 2 + iconAdvance;
+  const shown = maxWidth > 0 ? fitTextToWidth(fontId, label, maxWidth - horizontalPadding * 2 - iconAdvance) : label;
+  const buttonWidth = textWidth(fontId, shown, 0) + horizontalPadding * 2 + iconAdvance;
 
   rrect(x, y, buttonWidth, height, height / 2, backgroundColor, isZonePressed(zoneId) ? 170 : 255);
   if (iconName !== '') {
@@ -75,7 +77,7 @@ export function drawPillButton(
     fontId,
     x + horizontalPadding + iconAdvance,
     y + (height - fontAscent(fontId)) / 2 - 1,
-    label,
+    shown,
     foregroundColor,
     255,
     0
@@ -126,7 +128,7 @@ export function drawSegmentedControl(
       fontId,
       cursorX + segmentWidth / 2,
       y + 2 + (innerHeight - fontAscent(fontId)) / 2 - 1,
-      segmentLabels[index],
+      fitTextToWidth(fontId, segmentLabels[index], segmentWidth - 12),
       index === selectedIndex ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY
     );
 

@@ -24,7 +24,7 @@ import {
   SLIDE_PLAYER,
   WEEKDAYS_LONG,
 } from '../../constants';
-import { FONT_CLOCK_HUGE, Fonts } from '../../fonts';
+import { FONT_CLOCK_HUGE, FONT_CLOCK_COMPACT, FONT_CLOCK_SMALL, Fonts } from '../../fonts';
 import { DisplayObject, registerTapZone, isZonePressed, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
@@ -183,9 +183,11 @@ class SingleClockFaceNode extends DisplayObject {
 
   private drawAnalog(viewWidth: number, viewHeight: number): void {
     const nowDate = new Date();
-    const watchRadius = Math.min(250, viewHeight * 0.34);
-    const watchCenterX = 72 + watchRadius;
-    const watchCenterY = viewHeight / 2;
+    const stacked = viewWidth < 700;
+    const compact = viewWidth < 900 || viewHeight < 600;
+    const watchRadius = stacked ? Math.max(30, Math.min(viewWidth * 0.26, (viewHeight - 250) / 2)) : Math.min(250, viewHeight * 0.34, compact ? viewWidth * 0.24 : 250);
+    const watchCenterX = stacked ? viewWidth / 2 : (compact ? 32 : 72) + watchRadius;
+    const watchCenterY = stacked ? 40 + watchRadius : viewHeight / 2;
 
     drawAnalogWatchFace(
       watchCenterX,
@@ -196,10 +198,15 @@ class SingleClockFaceNode extends DisplayObject {
       nowDate.getSeconds()
     );
 
-    const rightColumnX = watchCenterX + watchRadius + 72;
-    const rightColumnWidth = viewWidth - rightColumnX - 56;
-    drawDateBlock(rightColumnX, watchCenterY - 120, rightColumnWidth);
-    drawCompactNowPlayingCard(rightColumnX, watchCenterY + 40, rightColumnWidth);
+    if (stacked) {
+      drawCenteredText(Fonts.smallBold, viewWidth / 2, 12, `${WEEKDAYS_LONG[nowDate.getDay()]} ${nowDate.getDate()} ${MONTHS_LONG[nowDate.getMonth()]}`, COLOR_ACCENT);
+      drawCompactNowPlayingCard(20, viewHeight - 180, viewWidth - 40);
+    } else {
+      const rightColumnX = watchCenterX + watchRadius + (compact ? 32 : 72);
+      const rightColumnWidth = viewWidth - rightColumnX - (compact ? 24 : 56);
+      drawDateBlock(rightColumnX, watchCenterY - 120, rightColumnWidth);
+      drawCompactNowPlayingCard(rightColumnX, watchCenterY + 40, rightColumnWidth);
+    }
   }
 
   private drawDigital(viewWidth: number, viewHeight: number): void {
@@ -211,14 +218,16 @@ class SingleClockFaceNode extends DisplayObject {
     }`.toUpperCase();
 
     drawCenteredText(Fonts.smallBold, viewWidth / 2, viewHeight * 0.16, fullDateLine, COLOR_ACCENT);
+    const clockFont = viewWidth < 400 ? FONT_CLOCK_SMALL : viewWidth < 700 || viewHeight < 600 ? FONT_CLOCK_COMPACT : FONT_CLOCK_HUGE;
     drawTabularText(
-      FONT_CLOCK_HUGE,
-      (viewWidth - measureTabularWidth(FONT_CLOCK_HUGE, timeString)) / 2,
+      clockFont,
+      (viewWidth - measureTabularWidth(clockFont, timeString)) / 2,
       viewHeight * 0.2,
       timeString,
       COLOR_TEXT_PRIMARY
     );
-    drawCompactNowPlayingCard((viewWidth - 480) / 2, viewHeight - 150, 480);
+    const cardWidth = Math.min(480, viewWidth - 40);
+    drawCompactNowPlayingCard((viewWidth - cardWidth) / 2, viewHeight - (cardWidth < 440 ? 180 : 150), cardWidth);
   }
 
   private drawRings(viewWidth: number, viewHeight: number): void {
@@ -227,10 +236,12 @@ class SingleClockFaceNode extends DisplayObject {
     const minutes = nowDate.getMinutes();
     const seconds = nowDate.getSeconds();
 
-    const outerRadius = Math.min(250, viewHeight * 0.34);
-    const centerX = 72 + outerRadius;
-    const centerY = viewHeight / 2;
-    const ringThickness = 46;
+    const stacked = viewWidth < 700;
+    const compact = viewWidth < 900 || viewHeight < 600;
+    const outerRadius = stacked ? Math.max(30, Math.min(viewWidth * 0.26, (viewHeight - 250) / 2)) : Math.min(250, viewHeight * 0.34, compact ? viewWidth * 0.24 : 250);
+    const centerX = stacked ? viewWidth / 2 : (compact ? 32 : 72) + outerRadius;
+    const centerY = stacked ? 40 + outerRadius : viewHeight / 2;
+    const ringThickness = compact ? Math.min(46, outerRadius / 6) : 46;
     const ringGap = 8;
 
     const ringFractions = [
@@ -262,10 +273,15 @@ class SingleClockFaceNode extends DisplayObject {
       COLOR_TEXT_PRIMARY
     );
 
-    const rightColumnX = centerX + outerRadius + 72;
-    const rightColumnWidth = viewWidth - rightColumnX - 56;
-    drawDateBlock(rightColumnX, centerY - 120, rightColumnWidth);
-    drawCompactNowPlayingCard(rightColumnX, centerY + 40, rightColumnWidth);
+    if (stacked) {
+      drawCenteredText(Fonts.smallBold, viewWidth / 2, 12, `${WEEKDAYS_LONG[nowDate.getDay()]} ${nowDate.getDate()} ${MONTHS_LONG[nowDate.getMonth()]}`, COLOR_ACCENT);
+      drawCompactNowPlayingCard(20, viewHeight - 180, viewWidth - 40);
+    } else {
+      const rightColumnX = centerX + outerRadius + (compact ? 32 : 72);
+      const rightColumnWidth = viewWidth - rightColumnX - (compact ? 24 : 56);
+      drawDateBlock(rightColumnX, centerY - 120, rightColumnWidth);
+      drawCompactNowPlayingCard(rightColumnX, centerY + 40, rightColumnWidth);
+    }
   }
 
   private drawLava(viewWidth: number, viewHeight: number): void {
@@ -284,14 +300,16 @@ class SingleClockFaceNode extends DisplayObject {
       MONTHS_LONG[nowDate.getMonth()]
     }`.toUpperCase();
     drawCenteredText(Fonts.smallBold, viewWidth / 2, viewHeight * 0.16, fullDateLine, COLOR_TEXT_PRIMARY, 200);
+    const clockFont = viewWidth < 400 ? FONT_CLOCK_SMALL : viewWidth < 700 || viewHeight < 600 ? FONT_CLOCK_COMPACT : FONT_CLOCK_HUGE;
     drawTabularText(
-      FONT_CLOCK_HUGE,
-      (viewWidth - measureTabularWidth(FONT_CLOCK_HUGE, timeString)) / 2,
+      clockFont,
+      (viewWidth - measureTabularWidth(clockFont, timeString)) / 2,
       viewHeight * 0.2,
       timeString,
       COLOR_TEXT_PRIMARY
     );
-    drawCompactNowPlayingCard((viewWidth - 480) / 2, viewHeight - 150, 480);
+    const cardWidth = Math.min(480, viewWidth - 40);
+    drawCompactNowPlayingCard((viewWidth - cardWidth) / 2, viewHeight - (cardWidth < 440 ? 180 : 150), cardWidth);
 
     if (appState.elapsedAppClockSeconds - this.lastSeenLavaTimestamp > 0.5) {
       if (lavaHintTimeline !== null) {
@@ -326,8 +344,14 @@ class SingleClockFaceNode extends DisplayObject {
       MONTHS_LONG[nowDate.getMonth()]
     }`.toUpperCase();
     drawCenteredText(Fonts.smallBold, viewWidth / 2, viewHeight * 0.12, fullDateLine, COLOR_ACCENT);
-    drawOdometerDigits(viewWidth / 2, viewHeight * 0.42, nowDate.getHours(), nowDate.getMinutes());
-    drawCompactNowPlayingCard((viewWidth - 480) / 2, viewHeight - 150, 480);
+    const scale = Math.max(0.1, Math.min(1, (viewWidth - 40) / 808, (viewHeight - 220) / 250));
+    const worldX = uiState.offsetX;
+    const worldY = uiState.offsetY;
+    setTransform(scale, 0, 0, scale, worldX + viewWidth / 2, worldY + viewHeight * 0.42);
+    drawOdometerDigits(0, 0, nowDate.getHours(), nowDate.getMinutes());
+    setTransform(1, 0, 0, 1, worldX, worldY);
+    const cardWidth = Math.min(480, viewWidth - 40);
+    drawCompactNowPlayingCard((viewWidth - cardWidth) / 2, viewHeight - (cardWidth < 440 ? 180 : 150), cardWidth);
   }
 }
 

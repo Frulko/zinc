@@ -20,7 +20,8 @@ import {
   PAGE_PADDING,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject, registerTapZone, isZonePressed } from 'zinc:stage';
+import { PlayerLayout } from '../../core/responsive';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, uiState, registerTapZone, isZonePressed } from 'zinc:stage';
 import {
   drawCardShadow,
   drawCenteredText,
@@ -138,24 +139,42 @@ function drawHandoffCard(x: number, y: number, width: number, group: Group): voi
  * Display-tree node for the first slide of the home page (Player + sidebar).
  */
 export class PlayerSlideNode extends DisplayObject {
+  private readonly layout = new PlayerLayout();
+  private readonly scroll = new ScrollBox();
   constructor() {
     super('PlayerSlide');
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
+    this.layout.update(viewWidth, viewHeight, appState.sidebarWidth, playsElsewhere());
+    this.scroll.contentHeight = this.layout.contentHeight;
+    this.scroll.viewportHeight = viewHeight;
+    this.scroll.clamp();
+    const scrolling = this.layout.contentHeight > viewHeight;
+    if (scrolling) beginScrollBox(this.scroll, appState.sidebarWidth, 0, viewWidth - appState.sidebarWidth, viewHeight);
     this.drawNowPlayingContent(viewWidth, viewHeight);
+    if (scrolling) endScrollBox();
     drawSidebarContent(viewWidth, viewHeight);
+  }
+
+  override onUpdate(deltaSeconds: number): void {
+    if (this.scroll.stepInertia(deltaSeconds)) uiState.dirty = true;
   }
 
   private drawNowPlayingContent(viewWidth: number, viewHeight: number): void {
     const isFullScreen = appState.sidebarWidth === 0;
-    const contentStartX = isFullScreen ? 64 : appState.sidebarWidth + PAGE_PADDING;
+    const layout = this.layout;
+    const offsetY = this.scroll.scrollY;
+    const contentStartX = layout.left;
+    const coverX = layout.coverX;
+    const coverSize = layout.coverSize;
+    const coverTopY = layout.coverY - offsetY;
 
     drawIconButton(
       'now/side',
       isFullScreen ? 'panel-left-open' : 'panel-left-close',
       contentStartX + 14,
-      34,
+      34 - offsetY,
       22,
       COLOR_TEXT_PRIMARY,
       () => {
@@ -179,21 +198,23 @@ export class PlayerSlideNode extends DisplayObject {
     const roomPillWidth = drawPillButton(
       'now/room',
       contentStartX + 50,
-      14,
+      14 - offsetY,
       group.name(),
       COLOR_TEXT_PRIMARY,
       COLOR_FILL,
       () => {
         appState.isContextSheetOpen = true;
       },
-      'speaker'
+      'speaker',
+      40,
+      viewWidth - contentStartX - 50 - layout.padding
     );
     const sourceBadgeText = getTrackSourceLabel(group);
-    if (sourceBadgeText !== '') {
+    if (sourceBadgeText !== '' && contentStartX + 50 + roomPillWidth + 16 + textWidth(Fonts.tinyBold, sourceBadgeText, 0) < viewWidth - layout.padding) {
       drawText(
         Fonts.tinyBold,
         contentStartX + 50 + roomPillWidth + 16,
-        28,
+        28 - offsetY,
         sourceBadgeText,
         track.source === 'spotify' ? COLOR_GREEN : COLOR_ACCENT,
         255,
@@ -202,17 +223,15 @@ export class PlayerSlideNode extends DisplayObject {
     }
 
     // Album cover on the left
-    const coverSize = isFullScreen ? 430 : 340;
-    const coverTopY = isFullScreen ? 86 : 96;
-    drawCardShadow(contentStartX, coverTopY, coverSize, coverSize, 14);
+    drawCardShadow(coverX, coverTopY, coverSize, coverSize, 14);
 
     const connectSong = getConnectSongOfGroup(group);
     const isNothingPlaying = track.title === '' && track.station === '' && connectSong === null;
     if (isNothingPlaying) {
-      rrect(contentStartX, coverTopY, coverSize, coverSize, 14, COLOR_CARD_ELEVATED, 255);
+      rrect(coverX, coverTopY, coverSize, coverSize, 14, COLOR_CARD_ELEVATED, 255);
       drawGlyph(
         'music',
-        contentStartX + coverSize / 2 - 48,
+        coverX + coverSize / 2 - 48,
         coverTopY + coverSize / 2 - 48,
         96,
         COLOR_TEXT_TERTIARY
@@ -221,7 +240,7 @@ export class PlayerSlideNode extends DisplayObject {
       drawCoverArt(
         artworkUrl,
         track.title !== '' ? track.title : track.station,
-        contentStartX,
+        coverX,
         coverTopY,
         coverSize,
         14,
@@ -230,9 +249,9 @@ export class PlayerSlideNode extends DisplayObject {
     }
 
     // Title, artist, album and controls on the right
-    const rightColumnX = contentStartX + coverSize + (isFullScreen ? 64 : 44);
-    const rightColumnWidth = viewWidth - rightColumnX - (isFullScreen ? 64 : PAGE_PADDING);
-    let currentTextY = coverTopY + 6;
+    const rightColumnX = layout.textX;
+    const rightColumnWidth = layout.textWidth;
+    let currentTextY = layout.textY - offsetY;
 
     const mainTitle =
       connectSong !== null && (track.title === '' || track.title === 'Spotify')
@@ -244,14 +263,14 @@ export class PlayerSlideNode extends DisplayObject {
       : track.station;
     currentTextY +=
       drawWrappedText(
-        isFullScreen ? Fonts.hero : Fonts.title,
+        isFullScreen && !layout.compact ? Fonts.hero : Fonts.title,
         rightColumnX,
         currentTextY,
         mainTitle,
         COLOR_TEXT_PRIMARY,
         rightColumnWidth,
-        3,
-        isFullScreen ? 42 : 36
+        layout.compact ? 2 : 3,
+        layout.compact ? 30 : isFullScreen ? 42 : 36
       ) + 6;
 
     const artistSubtitle =
@@ -287,7 +306,7 @@ export class PlayerSlideNode extends DisplayObject {
     }
 
     // Progress bar or EN DIRECT badge
-    const progressY = coverTopY + coverSize * 0.58;
+    const progressY = layout.progressY - offsetY;
     if (track.duration > 0) {
       const currentPosition = getInterpolatedTrackPositionSeconds();
       drawSlider(
@@ -335,19 +354,20 @@ export class PlayerSlideNode extends DisplayObject {
     }
 
     // Transport buttons (Previous, Play/Pause, Next)
-    const transportCenterY = coverTopY + coverSize * 0.79;
+    const transportCenterY = layout.transportY - offsetY;
     const transportCenterX = rightColumnX + rightColumnWidth / 2;
+    const transportSpacing = Math.min(96, (rightColumnWidth - 68) / 2);
 
     drawTransportIcon(
       'prev',
-      transportCenterX - 96,
+      transportCenterX - transportSpacing,
       transportCenterY,
       34,
       group.can('Previous') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
     );
     registerTapZone(
       'now/prev',
-      transportCenterX - 130,
+      transportCenterX - transportSpacing - 34,
       transportCenterY - 34,
       68,
       68,
@@ -374,14 +394,14 @@ export class PlayerSlideNode extends DisplayObject {
 
     drawTransportIcon(
       'next',
-      transportCenterX + 96,
+      transportCenterX + transportSpacing,
       transportCenterY,
       34,
       group.can('Next') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
     );
     registerTapZone(
       'now/next',
-      transportCenterX + 62,
+      transportCenterX + transportSpacing - 34,
       transportCenterY - 34,
       68,
       68,
@@ -389,7 +409,7 @@ export class PlayerSlideNode extends DisplayObject {
     );
 
     // Shuffle, Repeat and Like (Spotify or Sonos queue)
-    const modeRowY = coverTopY + coverSize - 4;
+    const modeRowY = layout.modeY - offsetY;
     if (
       track.source === 'spotify' &&
       appState.spotifyClient.ready() &&
@@ -401,7 +421,7 @@ export class PlayerSlideNode extends DisplayObject {
       drawIconButton(
         'now/shuffle',
         'shuffle',
-        transportCenterX - 96,
+        transportCenterX - transportSpacing,
         modeRowY,
         24,
         isShuffleOn ? COLOR_ACCENT : COLOR_TEXT_SECONDARY,
@@ -433,7 +453,7 @@ export class PlayerSlideNode extends DisplayObject {
       drawIconButton(
         'now/like',
         'heart',
-        transportCenterX + 96,
+        transportCenterX + transportSpacing,
         modeRowY,
         24,
         appState.isCurrentTrackLiked ? COLOR_ACCENT : COLOR_TEXT_SECONDARY,
@@ -500,14 +520,14 @@ export class PlayerSlideNode extends DisplayObject {
     }
 
     // Group volume slider
-    const volumeBarY = coverTopY + coverSize + 50;
-    drawGroupVolumeBar(contentStartX, volumeBarY, viewWidth - contentStartX - PAGE_PADDING, group);
+    const volumeBarY = layout.volumeY - offsetY;
+    drawGroupVolumeBar(contentStartX, volumeBarY, viewWidth - contentStartX - (layout.compact ? layout.padding : PAGE_PADDING), group);
     if (playsElsewhere()) {
-      drawHandoffCard(contentStartX, volumeBarY + 46, viewWidth - contentStartX - PAGE_PADDING, group);
+      drawHandoffCard(contentStartX, volumeBarY + 46, viewWidth - contentStartX - (layout.compact ? layout.padding : PAGE_PADDING), group);
     }
 
     // Shortcuts to the other speaker groups at the bottom of the screen
-    if (appState.sonosSystem !== null && (appState.sonosSystem as System).groups.length > 1) {
+    if (!layout.compact && viewHeight - 108 > volumeBarY + (playsElsewhere() ? 138 : 44) && appState.sonosSystem !== null && (appState.sonosSystem as System).groups.length > 1) {
       const system = appState.sonosSystem as System;
       drawText(Fonts.tinyBold, contentStartX, viewHeight - 108, 'ENCEINTES', COLOR_TEXT_SECONDARY, 255, 0);
       let pillCursorX = contentStartX;

@@ -7,6 +7,20 @@ zinc run examples/music-tree             # on the Mac (1024x768)
 zinc check examples/music-tree           # strict type check by the Zinc compiler
 ```
 
+## Screen sizes
+
+Linux uses the display's native dimensions; the Pi framebuffer is no longer forced to show a scaled 1024×768 surface. The Mac still starts at 1024×768 and may be resized. Try representative layouts locally:
+
+```sh
+ZINC_SIZE=800x480 zinc run examples/music-tree
+ZINC_SIZE=480x800 zinc run examples/music-tree
+zinc device deploy examples/music-tree
+```
+
+Compact screens get an icon rail, fitted artwork and transport controls. Narrow content stacks the cover above the metadata; short screens scroll rather than crop controls. The radio/Spotify grids adjust their column counts, settings stack their controls, and room/volume sheets fit the viewport with scrolling for long lists. Weather/rings stack in portrait and clock faces fit their available space. Touch zones follow the same geometry and clipping. Resize invalidates the current layout and warm-up image; an idle layout does not request frames.
+
+`tests/run --only music_layout` checks layout bounds and control ordering. `music_tree_responsive` runs the real nodes against inert fixture speakers at 800×480, 480×800, 320×480 and 1280×720, checks visible touch bounds, Play/scroll/close actions and a new deterministic player golden. It also renders room, radio, settings and StandBy views in portrait, Spotify artist/album/search content, and compact notifications/pairing. `music_tree_sonos` retains the full fake-house service and idle regression. These are native/headless checks; physical Pi touch, rotation, DRM and frame time remain part of the target pass.
+
 ## The display tree (`zinc:stage` and `components/layout-nodes.ts`)
 
 The tree and its input are the standard module `zinc:stage` ([reference](../../docs/reference/stage.md)), promoted from this demo's `core/`.
@@ -35,6 +49,7 @@ src/
 ├── state.ts                         # The app's central state (ApplicationState) and its actions
 ├── spotify-client.ts                # Spotify app id built into the build (empty in the repository)
 ├── core/
+│   ├── responsive.ts                # Native/compact player geometry and adaptive media columns
 │   ├── pictures.ts                  # LRU picture cache, progressive decoding (1 picture per frame) and blurred background
 │   └── screen-power.ts              # Sleep, webOS backlight, StandBy glance and fade to black
 ├── services/

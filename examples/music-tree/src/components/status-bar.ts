@@ -152,7 +152,7 @@ export class StatusBarNode extends DisplayObject {
 
     drawTabularText(Fonts.smallBold, 20, textTopY, timeText, COLOR_TEXT_PRIMARY);
     const dateText = `${WEEKDAYS_SHORT[clockParts[2]]} ${clockParts[3]} ${MONTHS_SHORT[clockParts[4]]}`;
-    drawText(
+    if (screenWidth >= 600) drawText(
       Fonts.small,
       28 + measureTabularWidth(Fonts.smallBold, timeText),
       textTopY,
@@ -162,11 +162,14 @@ export class StatusBarNode extends DisplayObject {
       0
     );
 
+    const availableRightX = drawBatteryStatusIndicator(screenWidth - 20, textTopY);
+
     // Carousel page indicators in the centre of the bar
     if (appState.currentPage === PAGE_NOW_PLAYING) {
       for (let slideIndex: i32 = 0; slideIndex < SLIDE_COUNT; slideIndex++) {
         const activeProximity = Math.max(0, 1 - Math.abs(appState.animatedSlideX - slideIndex));
-        const dotX = screenWidth / 2 + (slideIndex - (SLIDE_COUNT - 1) / 2) * 18 - 4;
+        const dotsCenter = screenWidth < 700 ? (74 + availableRightX - 30) / 2 : screenWidth / 2;
+        const dotX = dotsCenter + (slideIndex - (SLIDE_COUNT - 1) / 2) * 18 - 4;
         const dotY = STATUS_BAR_HEIGHT / 2 - 4;
         rrect(
           dotX,
@@ -180,12 +183,19 @@ export class StatusBarNode extends DisplayObject {
       }
     }
 
-    const availableRightX = drawBatteryStatusIndicator(screenWidth - 20, textTopY);
     if (appState.activeGroup === null) return;
+    if (screenWidth < 700) {
+      drawGlyph('speaker', availableRightX - 16, (STATUS_BAR_HEIGHT - 16) / 2, 16, COLOR_TEXT_SECONDARY);
+      registerTapZone('status/group', availableRightX - 24, 0, 32, STATUS_BAR_HEIGHT, () => {
+        appState.isContextSheetOpen = true;
+        uiState.dirty = true;
+      });
+      return;
+    }
 
     const activeGroup = appState.activeGroup as Group;
     const groupName = activeGroup.name();
-    const nameWidth = Math.min(360, textWidth(Fonts.small, groupName, 0));
+    const nameWidth = Math.max(0, Math.min(360, Math.max(0, availableRightX - screenWidth / 2 - 86), textWidth(Fonts.small, groupName, 0)));
     const nameX = availableRightX - nameWidth;
 
     drawLabel(Fonts.small, nameX, textTopY, groupName, COLOR_TEXT_SECONDARY, nameWidth);

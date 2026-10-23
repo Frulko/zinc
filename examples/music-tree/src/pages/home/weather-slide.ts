@@ -8,7 +8,7 @@ import {
   WEEKDAYS_CAPITALIZED,
 } from '../../constants';
 import { FONT_WEATHER_TEMP, Fonts } from '../../fonts';
-import { DisplayObject } from 'zinc:stage';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,
@@ -46,8 +46,13 @@ function drawVerticallyCenteredText(
  * Display-tree node for the carousel's Weather slide.
  */
 export class WeatherSlideNode extends DisplayObject {
+  private readonly scroll = new ScrollBox();
   constructor() {
     super('WeatherSlide');
+  }
+
+  override onUpdate(deltaSeconds: number): void {
+    if (this.scroll.stepInertia(deltaSeconds)) uiState.dirty = true;
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
@@ -70,13 +75,20 @@ export class WeatherSlideNode extends DisplayObject {
       return;
     }
 
-    const halfCardWidth = (viewWidth - OUTER_MARGIN * 2 - CARD_GAP) / 2;
-    const topRowY = 8;
+    const stacked = viewWidth < 700;
+    const halfCardWidth = stacked ? viewWidth - OUTER_MARGIN * 2 : (viewWidth - OUTER_MARGIN * 2 - CARD_GAP) / 2;
     const topCardHeight =
       CARD_INNER_PADDING +
       forecast.dailyLowTemps.length * DAILY_ROW_HEIGHT +
       CARD_INNER_PADDING -
       8;
+
+    const layoutHeight = Math.max(viewHeight, 8 + topCardHeight * (stacked ? 2 : 1) + CARD_GAP * (stacked ? 2 : 1) + 220 + OUTER_MARGIN);
+    this.scroll.contentHeight = layoutHeight;
+    this.scroll.viewportHeight = viewHeight;
+    this.scroll.clamp();
+    beginScrollBox(this.scroll, 0, 0, viewWidth, viewHeight);
+    const topRowY = 8 - this.scroll.scrollY;
 
     // ---- Left card: Current conditions ----
     const leftCardX = OUTER_MARGIN;
@@ -139,8 +151,9 @@ export class WeatherSlideNode extends DisplayObject {
     );
 
     // ---- Right card: 7-day forecast ----
-    const rightCardX = OUTER_MARGIN + halfCardWidth + CARD_GAP;
-    drawTranslucentWeatherCard(rightCardX, topRowY, halfCardWidth, topCardHeight);
+    const rightCardX = stacked ? OUTER_MARGIN : OUTER_MARGIN + halfCardWidth + CARD_GAP;
+    const rightCardY = topRowY + (stacked ? topCardHeight + CARD_GAP : 0);
+    drawTranslucentWeatherCard(rightCardX, rightCardY, halfCardWidth, topCardHeight);
 
     let weekMinTemp = 1e9;
     let weekMaxTemp = -1e9;
@@ -156,7 +169,7 @@ export class WeatherSlideNode extends DisplayObject {
 
     for (let dayIndex = 0; dayIndex < forecast.dailyLowTemps.length; dayIndex++) {
       const rowCenterY =
-        topRowY + CARD_INNER_PADDING - 4 + dayIndex * DAILY_ROW_HEIGHT + DAILY_ROW_HEIGHT / 2;
+        rightCardY + CARD_INNER_PADDING - 4 + dayIndex * DAILY_ROW_HEIGHT + DAILY_ROW_HEIGHT / 2;
       if (dayIndex > 0) {
         rrect(
           rightCardX + CARD_INNER_PADDING,
@@ -220,8 +233,8 @@ export class WeatherSlideNode extends DisplayObject {
     }
 
     // ---- Bottom card: Temperature curve and rain over 24 hours ----
-    const bottomCardY = topRowY + topCardHeight + CARD_GAP;
-    const bottomCardHeight = viewHeight - bottomCardY - OUTER_MARGIN + 8;
+    const bottomCardY = rightCardY + topCardHeight + CARD_GAP;
+    const bottomCardHeight = layoutHeight - (bottomCardY + this.scroll.scrollY) - OUTER_MARGIN + 8;
     drawTranslucentWeatherCard(
       OUTER_MARGIN,
       bottomCardY,
@@ -306,5 +319,6 @@ export class WeatherSlideNode extends DisplayObject {
         220
       );
     }
+    endScrollBox();
   }
 }

@@ -5,7 +5,7 @@
 // application, swipe left to delete, tap to open on
 // the Mac) or the 3-step pairing assistant if no Mac is linked yet.
 
-import { rrect, textWidth, fontAscent } from 'zinc:gfx';
+import { rrect, textWidth, fontAscent, setTransform } from 'zinc:gfx';
 import * as link from 'zinc:link';
 import {
   COLOR_ACCENT,
@@ -18,11 +18,12 @@ import {
   COLOR_TEXT_TERTIARY,
 } from '../../constants';
 import { FONT_PAIRING_CODE, Fonts } from '../../fonts';
-import { DisplayObject, beginScrollBox, endScrollBox, registerDragZone, uiState } from 'zinc:stage';
+import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, registerDragZone, uiState } from 'zinc:stage';
 import {
   drawCenteredText,
   drawGlyph,
   drawLabel,
+  drawWrappedText,
   drawSeparatorLine,
 } from '../../components/primitives';
 import { drawPillButton } from '../../components/buttons';
@@ -69,8 +70,13 @@ import {
 } from '../../services/notify-service';
 
 export class NotificationsSlideNode extends DisplayObject {
+  private readonly pairingScroll = new ScrollBox();
   constructor() {
     super('NotificationsSlide');
+  }
+
+  override onUpdate(deltaSeconds: number): void {
+    if (this.pairingScroll.stepInertia(deltaSeconds)) uiState.dirty = true;
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
@@ -79,18 +85,32 @@ export class NotificationsSlideNode extends DisplayObject {
       isAddingAnotherMac ||
       pairingWizardStep === 3
     ) {
-      this.drawPairingAssistant(viewWidth, viewHeight);
+      const layoutHeight = Math.max(viewHeight, viewWidth < 700 ? 760 : 640);
+      this.pairingScroll.contentHeight = layoutHeight;
+      this.pairingScroll.viewportHeight = viewHeight;
+      this.pairingScroll.clamp();
+      beginScrollBox(this.pairingScroll, 0, 0, viewWidth, viewHeight);
+      const worldX = uiState.offsetX;
+      const worldY = uiState.offsetY;
+      uiState.offsetY -= this.pairingScroll.scrollY;
+      setTransform(1, 0, 0, 1, worldX, uiState.offsetY);
+      this.drawPairingAssistant(viewWidth, layoutHeight);
+      uiState.offsetY = worldY;
+      setTransform(1, 0, 0, 1, worldX, worldY);
+      endScrollBox();
       return;
     }
 
-    const contentStartX = 64;
-    const contentWidth = viewWidth - 128;
-    drawLabel(Fonts.hero, contentStartX, 18, 'Notifications', COLOR_TEXT_PRIMARY);
+    const contentStartX = viewWidth < 700 ? 24 : 64;
+    const contentWidth = viewWidth - contentStartX * 2;
+    const compact = viewWidth < 700;
+    const statusY = compact ? 118 : 70;
+    drawLabel(compact ? Fonts.heading : Fonts.hero, contentStartX, 18, 'Notifications', COLOR_TEXT_PRIMARY, contentWidth);
 
     const isRelayConnected = TEST_RELAY_FEED_FILE !== '' || openChannelsCount > 0;
     rrect(
       contentStartX + 2,
-      74,
+      statusY + 4,
       10,
       10,
       5,
@@ -104,55 +124,62 @@ export class NotificationsSlideNode extends DisplayObject {
     drawLabel(
       Fonts.small,
       contentStartX + 20,
-      70,
+      statusY,
       connectionStatusText,
       COLOR_TEXT_SECONDARY,
-      contentWidth / 2
+      compact ? contentWidth - 20 : contentWidth / 2
     );
 
+    const buttonY = compact ? 64 : 18;
+    const buttonMaxWidth = compact ? (contentWidth - 12) / 2 : 0;
     let buttonCursorX = contentStartX + contentWidth;
     if (storedNotifications.length > 0) {
-      buttonCursorX -= textWidth(Fonts.smallBold, 'Tout effacer', 0) + 36 + 22;
+      buttonCursorX -= compact ? buttonMaxWidth : textWidth(Fonts.smallBold, 'Tout effacer', 0) + 36 + 22;
       drawPillButton(
         'notif/clear',
         buttonCursorX,
-        18,
+        buttonY,
         'Tout effacer',
         COLOR_TEXT_PRIMARY,
         COLOR_FILL,
         clearAllNotifications,
-        'x'
+        'x',
+        40,
+        buttonMaxWidth
       );
     }
     if (TEST_RELAY_FEED_FILE === '') {
-      buttonCursorX -= textWidth(Fonts.smallBold, 'Ajouter un Mac', 0) + 36 + 22 + 12;
+      buttonCursorX -= (compact ? buttonMaxWidth : textWidth(Fonts.smallBold, 'Ajouter un Mac', 0) + 36 + 22) + 12;
       drawPillButton(
         'notif/add',
         buttonCursorX,
-        18,
+        buttonY,
         'Ajouter un Mac',
         COLOR_TEXT_PRIMARY,
         COLOR_FILL,
         () => {
           setPairingUiState(true, 1, showManualIpInstructions, pairingPinCode);
         },
-        'laptop'
+        'laptop',
+        40,
+        buttonMaxWidth
       );
     }
 
     if (storedNotifications.length === 0) {
-      drawGlyph('bell', viewWidth / 2 - 40, viewHeight / 2 - 110, 80, COLOR_TEXT_TERTIARY);
+      const centerY = compact ? (statusY + 34 + viewHeight) / 2 : viewHeight / 2;
+      drawGlyph('bell', viewWidth / 2 - 40, centerY - 110, 80, COLOR_TEXT_TERTIARY);
       drawCenteredText(
         Fonts.heading,
         viewWidth / 2,
-        viewHeight / 2 - 10,
+        centerY - 10,
         'Aucune notification',
         COLOR_TEXT_PRIMARY
       );
       drawCenteredText(
         Fonts.small,
         viewWidth / 2,
-        viewHeight / 2 + 26,
+        centerY + 26,
         "Celles du Mac s'afficheront ici.",
         COLOR_TEXT_SECONDARY
       );
@@ -173,7 +200,7 @@ export class NotificationsSlideNode extends DisplayObject {
       }
     }
 
-    const scrollTopY = 104;
+    const scrollTopY = statusY + 34;
     const itemRowHeight = 92;
     const groupHeaderHeight = 46;
 
@@ -380,14 +407,15 @@ export class NotificationsSlideNode extends DisplayObject {
   }
 
   private drawPairingAssistant(viewWidth: number, viewHeight: number): void {
-    const contentStartX = 64;
-    const contentWidth = viewWidth - 128;
+    const contentStartX = viewWidth < 700 ? 24 : 64;
+    const contentWidth = viewWidth - contentStartX * 2;
     drawLabel(
-      Fonts.hero,
+      viewWidth < 420 ? Fonts.heading : Fonts.hero,
       contentStartX,
       18,
       isAddingAnotherMac ? 'Ajouter un Mac' : 'Notifications du Mac',
-      COLOR_TEXT_PRIMARY
+      COLOR_TEXT_PRIMARY,
+      contentWidth - (isAddingAnotherMac ? 144 : 0)
     );
 
     if (isAddingAnotherMac) {
@@ -406,7 +434,7 @@ export class NotificationsSlideNode extends DisplayObject {
 
     const stepTitles: string[] = ['Installer', 'Appairer', 'Terminé'];
     for (let stepIndex = 0; stepIndex < 3; stepIndex++) {
-      const stepX = contentStartX + stepIndex * 200;
+      const stepX = contentStartX + stepIndex * (viewWidth < 700 ? contentWidth / 3 : 200);
       const isCurrentStep = pairingWizardStep === stepIndex + 1;
       const isCompletedStep = pairingWizardStep > stepIndex + 1;
 
@@ -436,7 +464,7 @@ export class NotificationsSlideNode extends DisplayObject {
         84,
         stepTitles[stepIndex],
         isCurrentStep ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY,
-        140
+        viewWidth < 700 ? contentWidth / 3 - 38 : 140
       );
     }
 
@@ -444,8 +472,8 @@ export class NotificationsSlideNode extends DisplayObject {
     const cardHeight = viewHeight - cardTopY - 30;
     rrect(contentStartX, cardTopY, contentWidth, cardHeight, 20, COLOR_CARD, 255);
 
-    const innerX = contentStartX + 40;
-    const innerWidth = contentWidth - 80;
+    const innerX = contentStartX + (viewWidth < 700 ? 20 : 40);
+    const innerWidth = contentWidth - (viewWidth < 700 ? 40 : 80);
 
     if (pairingWizardStep === 1) {
       drawGlyph('laptop', innerX, cardTopY + 40, 56, COLOR_ACCENT);
@@ -463,21 +491,16 @@ export class NotificationsSlideNode extends DisplayObject {
         'Sur le Mac : zinc run examples/notify-relay, puis ouvre ses réglages.',
         'La tablette et le Mac doivent être sur le même Wi-Fi.',
       ];
+      let instructionY = cardTopY + 130;
       for (let lineIndex = 0; lineIndex < instructionLines.length; lineIndex++) {
-        drawLabel(
-          Fonts.body,
-          innerX,
-          cardTopY + 130 + lineIndex * 34,
-          instructionLines[lineIndex],
-          lineIndex < 2 ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY,
-          innerWidth
-        );
+        instructionY += drawWrappedText(Fonts.body, innerX, instructionY, instructionLines[lineIndex],
+          lineIndex < 2 ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY, innerWidth, 4, 26) + 8;
       }
       drawPillButton(
         'pair/next',
         innerX,
         cardTopY + cardHeight - 80,
-        'Zinc Relay est ouvert, continuer',
+        viewWidth < 700 ? 'Continuer' : 'Zinc Relay est ouvert, continuer',
         0x000000,
         0xffffff,
         () => {
@@ -520,7 +543,7 @@ export class NotificationsSlideNode extends DisplayObject {
           'refresh-cw'
         );
       } else {
-        drawLabel(FONT_PAIRING_CODE, innerX, cardTopY + 84, formattedPin, COLOR_TEXT_PRIMARY, innerWidth);
+        drawLabel(innerWidth < 400 ? Fonts.hero : FONT_PAIRING_CODE, innerX, cardTopY + 84, formattedPin, COLOR_TEXT_PRIMARY, innerWidth);
         drawActivitySpinner(innerX + 14, cardTopY + 236, 12);
         const waitingMessage =
           failedPairingAttempts > 0

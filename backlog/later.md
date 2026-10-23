@@ -677,6 +677,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-783: on the Pi 3 B+ native 800×480 and rotated portrait, check Music Tree touch/scroll, screen resize/rotation, long real metadata and authenticated Spotify content; measure frame time against the previous layout. Native headless fixtures prove geometry/input only.
+
 - ZN-782: on the Pi 3 B+, prove DRM/VT/input handoff between player, boot app, deploy and live dev; upgrade the existing updater helper, install a signed engine/system payload, and verify first-frame rollback plus recovery across a real power cut. Measure first/warm plugin preparation, source transfer and interpreted versus native frame time; Mac tests use fixtures only.
 
 - ZN-778: check private preset files and atomic replacement on Linux, and shared Nuxt select layers on the web DOM host; the builder/session and overflow pointer regressions ran on the Mac interpreter.

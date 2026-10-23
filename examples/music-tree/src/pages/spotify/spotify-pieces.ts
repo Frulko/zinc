@@ -39,12 +39,12 @@ import { drawIconButton } from '../../components/buttons';
 import { drawActivitySpinner } from '../../components/slider';
 import { drawCoverArt } from '../../components/cover';
 import { getTouchKeyboardHeight } from '../../components/keyboard';
+import { mediaColumns } from '../../core/responsive';
 import { appState } from '../../state';
 import { spotifyCatalog } from '../../services/spotify-catalog';
 import { playSpotifyItem, playSpotifyRadio, queueOnSpeakers } from '../../services/spotify-on-sonos';
 
 export const ROW_HEIGHT = 64;
-export const GRID_COLUMN_COUNT: i32 = 4;
 export const GRID_GAP_X = 24;
 /** Where a view's content starts under the page's header. */
 export const CONTENT_TOP_Y = 100;
@@ -133,16 +133,17 @@ export function drawNextPageSpinner(key: string, left: number, y: number, width:
 }
 
 export function drawTileGrid(items: Item[], zonePrefix: string, left: number, topY: number, width: number, bottomY: number, viewWidth: number, key: string): void {
-  const tileSize = (width - GRID_GAP_X * (GRID_COLUMN_COUNT - 1)) / GRID_COLUMN_COUNT;
+  const columns = mediaColumns(width);
+  const tileSize = (width - GRID_GAP_X * (columns - 1)) / columns;
   const rowHeight = tileSize + 62;
   const scrollBox = beginViewScroll(topY, bottomY, viewWidth);
   for (let index = 0; index < items.length; index++) {
-    const tileY = topY + 4 + Math.floor(index / GRID_COLUMN_COUNT) * rowHeight - scrollBox.scrollY;
+    const tileY = topY + 4 + Math.floor(index / columns) * rowHeight - scrollBox.scrollY;
     if (tileY < bottomY && tileY + rowHeight > topY) {
-      drawTile(items[index], `${zonePrefix}/${index}`, left + (index % GRID_COLUMN_COUNT) * (tileSize + GRID_GAP_X), tileY, tileSize);
+      drawTile(items[index], `${zonePrefix}/${index}`, left + (index % columns) * (tileSize + GRID_GAP_X), tileY, tileSize);
     }
   }
-  const listHeight = Math.ceil(items.length / GRID_COLUMN_COUNT) * rowHeight + 24;
+  const listHeight = Math.ceil(items.length / columns) * rowHeight + 24;
   const isEndNear = scrollBox.scrollY + scrollBox.viewportHeight > listHeight - 600;
   const bottomOfList = drawNextPageSpinner(key, left, topY + listHeight - scrollBox.scrollY, width, isEndNear);
   if (items.length === 0) drawCenteredText(Fonts.label, left + width / 2, topY + 60, 'Rien ici pour le moment', COLOR_TEXT_SECONDARY);

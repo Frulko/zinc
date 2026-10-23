@@ -13,11 +13,11 @@ import {
   COLOR_FILL,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
-  GRID_COLUMNS,
   GRID_GAP,
   PAGE_PADDING,
   PAGE_RADIOS,
 } from '../../constants';
+import { mediaColumns } from '../../core/responsive';
 import { Fonts } from '../../fonts';
 import { DisplayObject, ScrollBox, beginScrollBox, endScrollBox, registerTapZone } from 'zinc:stage';
 import {
@@ -119,9 +119,15 @@ export class RadiosPageNode extends DisplayObject {
       ? 0xffffff
       : COLOR_FILL;
 
+    const compact = pageWidth - sidebarWidth < 650;
+    this.headerBar.direction = compact ? 'column' : 'row';
+    this.headerBar.height = compact ? (this.editButtonNode.visible ? 148 : 94) : 44;
+    this.headerBar.alignItems = compact ? 'start' : 'center';
+    this.tabsSegmentedNode.maxWidth = pageWidth - sidebarWidth - PAGE_PADDING * 2;
     this.tabsSegmentedNode.selectedIndex = appState.activeRadioTab;
 
     this.searchFieldNode.visible = appState.activeRadioTab === 2;
+    this.searchFieldNode.y = this.headerBar.y + this.headerBar.height + 26;
     this.searchFieldNode.x = sidebarWidth + PAGE_PADDING;
     this.searchFieldNode.width = pageWidth - sidebarWidth - PAGE_PADDING * 2;
     this.searchFieldNode.currentText = appState.searchQuery;
@@ -135,13 +141,14 @@ export class RadiosPageNode extends DisplayObject {
     const sidebarWidth = appState.sidebarWidth;
     const contentBottomY =
       viewHeight - getTouchKeyboardHeight();
+    const contentTopY = this.headerBar.y + this.headerBar.height + 26;
     const radiosScrollBox = appState.pageScrollBoxes[PAGE_RADIOS];
 
     if (appState.activeRadioTab === 0) {
       this.drawStationGrid(
         appState.myStations,
         'mine',
-        100,
+        contentTopY,
         contentBottomY,
         viewWidth,
         radiosScrollBox,
@@ -172,7 +179,7 @@ export class RadiosPageNode extends DisplayObject {
         this.drawStationGrid(
           appState.popularStations,
           'pop',
-          100,
+          contentTopY,
           contentBottomY,
           viewWidth,
           radiosScrollBox,
@@ -204,7 +211,7 @@ export class RadiosPageNode extends DisplayObject {
         this.drawStationGrid(
           appState.searchedStations,
           'found',
-          166,
+          contentTopY + 66,
           contentBottomY,
           viewWidth,
           radiosScrollBox,
@@ -228,7 +235,8 @@ export class RadiosPageNode extends DisplayObject {
     const sidebarWidth = appState.sidebarWidth;
     const contentStartX = sidebarWidth + PAGE_PADDING;
     const contentWidth = viewWidth - sidebarWidth - PAGE_PADDING * 2;
-    const tileSize = (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+    const columns = mediaColumns(contentWidth);
+    const tileSize = (contentWidth - GRID_GAP * (columns - 1)) / columns;
     const rowHeight = tileSize + 62;
 
     beginScrollBox(
@@ -239,7 +247,7 @@ export class RadiosPageNode extends DisplayObject {
       bottomY - topY
     );
     scrollBox.contentHeight =
-      Math.ceil(stationsList.length / GRID_COLUMNS) * rowHeight + 24;
+      Math.ceil(stationsList.length / columns) * rowHeight + 24;
 
     if (stationsList.length === 0) {
       drawCenteredText(
@@ -253,8 +261,8 @@ export class RadiosPageNode extends DisplayObject {
 
     for (let index = 0; index < stationsList.length; index++) {
       const station = stationsList[index];
-      const columnIndex = index % GRID_COLUMNS;
-      const rowIndex = Math.floor(index / GRID_COLUMNS);
+      const columnIndex = index % columns;
+      const rowIndex = Math.floor(index / columns);
       const tileX = contentStartX + columnIndex * (tileSize + GRID_GAP);
       const tileY = topY + 8 + rowIndex * rowHeight - scrollBox.scrollY;
 

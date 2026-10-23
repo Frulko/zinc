@@ -253,6 +253,8 @@ export class SegmentedControlNode extends DisplayObject {
   zoneIdPrefix: string;
   segmentLabels: string[];
   selectedIndex: i32 = 0;
+  maxWidth: number = 0;
+  private measuredSegmentWidth: number = 0;
   fixedSegmentWidth: number = 0;
   onSelectSegment: (index: i32) => void;
 
@@ -279,7 +281,12 @@ export class SegmentedControlNode extends DisplayObject {
           : textWidth(Fonts.smallBold, this.segmentLabels[index], 0) + 32;
       totalInnerWidth += itemWidth;
     }
+    this.measuredSegmentWidth = this.fixedSegmentWidth;
     this.width = totalInnerWidth + 4;
+    if (this.maxWidth > 0 && this.width > this.maxWidth) {
+      this.measuredSegmentWidth = Math.max(1, (this.maxWidth - 4) / this.segmentLabels.length);
+      this.width = this.maxWidth;
+    }
     this.height = 40;
   }
 
@@ -291,7 +298,7 @@ export class SegmentedControlNode extends DisplayObject {
       this.segmentLabels,
       this.selectedIndex,
       this.onSelectSegment,
-      this.fixedSegmentWidth
+      this.measuredSegmentWidth
     );
   }
 }
@@ -379,6 +386,13 @@ export class PageHeaderBarNode extends HBox {
 
     this.addChild(this.titleLabel);
     this.addChild(this.spacer);
+  }
+
+  override onMeasure(): void {
+    const compact = this.direction === 'row' && this.width > 0 && this.width < 500;
+    this.titleLabel.flex = compact ? 1 : 0;
+    this.titleLabel.fontId = compact ? Fonts.heading : Fonts.hero;
+    this.spacer.visible = this.direction === 'row' && !compact;
   }
 }
 

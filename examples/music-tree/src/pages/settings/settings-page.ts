@@ -67,6 +67,10 @@ const SLEEP_DELAY_LABELS: string[] = [
 ];
 
 /** Creates a small section title in grey capitals (e.g. 'ÉCRAN', 'MÉTÉO'). */
+const COMPACT_SLEEP_LABELS: string[] = ['30 s', '1 m', '2 m', '5 m', '10 m', 'Jam.'];
+const COMPACT_PERCENT_LABELS: string[] = ['Pourcentage', 'Sans'];
+const PERCENT_LABELS: string[] = ['Avec le pourcentage', 'Sans'];
+
 function createSectionHeader(title: string): HBox {
   const row = new HBox(0, `SectionHeader_${title}`);
   row.height = 16;
@@ -85,6 +89,10 @@ export class SettingsPageNode extends DisplayObject {
   private readonly notificationsIconNode: IconNode;
   private readonly notificationsLabel: LabelNode;
   private readonly notificationsSegmented: SegmentedControlNode;
+  private readonly batteryCard: CardBox;
+  private readonly notificationsCard: CardBox;
+  private readonly glancesRow: HBox;
+  private readonly glancesLabel: LabelNode;
   private readonly batteryIconNode: IconNode;
   private readonly batteryVisibilitySegmented: SegmentedControlNode;
   private readonly batteryPercentSegmented: SegmentedControlNode;
@@ -139,9 +147,9 @@ export class SettingsPageNode extends DisplayObject {
     );
     screenCard.addChild(this.sleepSegmentedControl);
     screenCard.addChild(new SeparatorNode());
-    const glancesRow = new HBox(14, 'GlancesRow');
-    const glancesLabel = new LabelNode(Fonts.label, "Réveil automatique sur l'horloge", COLOR_TEXT_PRIMARY, 22);
-    glancesLabel.flex = 1;
+    this.glancesRow = new HBox(14, 'GlancesRow');
+    this.glancesLabel = new LabelNode(Fonts.label, "Réveil automatique sur l'horloge", COLOR_TEXT_PRIMARY, 22);
+    this.glancesLabel.flex = 1;
     this.glancesSegmented = new SegmentedControlNode(
       'set/glances',
       ['Activé', 'Désactivé'],
@@ -151,9 +159,9 @@ export class SettingsPageNode extends DisplayObject {
         saveAppConfig(appState.config);
       }
     );
-    glancesRow.addChild(glancesLabel);
-    glancesRow.addChild(this.glancesSegmented);
-    screenCard.addChild(glancesRow);
+    this.glancesRow.addChild(this.glancesLabel);
+    this.glancesRow.addChild(this.glancesSegmented);
+    screenCard.addChild(this.glancesRow);
     screenCard.autoHeight = true;
     screenSection.addChild(screenCard);
     this.scrollContainer.contentBox.addChild(screenSection);
@@ -161,9 +169,9 @@ export class SettingsPageNode extends DisplayObject {
     // ---- MAC NOTIFICATIONS section ----
     const notificationsSection = new VBox(8, 'NotificationsSection');
     notificationsSection.addChild(createSectionHeader('NOTIFICATIONS DU MAC'));
-    const notificationsCard = new CardBox('row', 64, 'NotificationsCard');
-    notificationsCard.setPaddingSymmetric(20, 0);
-    notificationsCard.gap = 14;
+    this.notificationsCard = new CardBox('row', 64, 'NotificationsCard');
+    this.notificationsCard.setPaddingSymmetric(20, 0);
+    this.notificationsCard.gap = 14;
     this.notificationsIconNode = new IconNode('bell', 24, COLOR_TEXT_SECONDARY);
     this.notificationsLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
     this.notificationsLabel.flex = 1;
@@ -176,19 +184,19 @@ export class SettingsPageNode extends DisplayObject {
         saveAppConfig(appState.config);
       }
     );
-    notificationsCard.addChild(this.notificationsIconNode);
-    notificationsCard.addChild(this.notificationsLabel);
-    notificationsCard.addChild(this.notificationsSegmented);
-    notificationsSection.addChild(notificationsCard);
+    this.notificationsCard.addChild(this.notificationsIconNode);
+    this.notificationsCard.addChild(this.notificationsLabel);
+    this.notificationsCard.addChild(this.notificationsSegmented);
+    notificationsSection.addChild(this.notificationsCard);
     this.scrollContainer.contentBox.addChild(notificationsSection);
 
     // ---- 2. BATTERY section ----
     const batterySection = new VBox(8, 'BatterySection');
     batterySection.addChild(createSectionHeader('BATTERIE'));
 
-    const batteryCard = new CardBox('row', 64, 'BatteryCard');
-    batteryCard.setPaddingSymmetric(20, 0);
-    batteryCard.gap = 16;
+    this.batteryCard = new CardBox('row', 64, 'BatteryCard');
+    this.batteryCard.setPaddingSymmetric(20, 0);
+    this.batteryCard.gap = 16;
     this.batteryIconNode = new IconNode('battery', 24, COLOR_TEXT_SECONDARY);
     this.batteryVisibilitySegmented = new SegmentedControlNode(
       'set/bat',
@@ -200,16 +208,16 @@ export class SettingsPageNode extends DisplayObject {
     );
     this.batteryPercentSegmented = new SegmentedControlNode(
       'set/batpct',
-      ['Avec le pourcentage', 'Sans'],
+      PERCENT_LABELS,
       (chosenIndex: i32) => {
         appState.config.showBatteryPercentage = chosenIndex === 0;
         saveAppConfig(appState.config);
       }
     );
-    batteryCard.addChild(this.batteryIconNode);
-    batteryCard.addChild(this.batteryVisibilitySegmented);
-    batteryCard.addChild(this.batteryPercentSegmented);
-    batterySection.addChild(batteryCard);
+    this.batteryCard.addChild(this.batteryIconNode);
+    this.batteryCard.addChild(this.batteryVisibilitySegmented);
+    this.batteryCard.addChild(this.batteryPercentSegmented);
+    batterySection.addChild(this.batteryCard);
     this.scrollContainer.contentBox.addChild(batterySection);
 
     // ---- 3. WEATHER section ----
@@ -347,6 +355,30 @@ export class SettingsPageNode extends DisplayObject {
     this.scrollContainer.height = pageHeight - 96;
 
     const cardWidth = pageWidth - sidebarWidth - PAGE_PADDING * 2;
+
+    const compact = cardWidth < 600;
+    this.sleepSegmentedControl.segmentLabels = compact ? COMPACT_SLEEP_LABELS : SLEEP_DELAY_LABELS;
+    this.batteryCard.direction = compact ? 'column' : 'row';
+    this.batteryCard.autoHeight = compact;
+    this.batteryCard.height = compact ? 0 : 64;
+    this.batteryCard.alignItems = compact ? 'start' : 'center';
+    this.batteryCard.setPaddingSymmetric(20, compact ? 16 : 0);
+    this.batteryVisibilitySegmented.maxWidth = cardWidth - 40;
+    this.batteryPercentSegmented.maxWidth = cardWidth - 40;
+    this.batteryPercentSegmented.segmentLabels = compact ? COMPACT_PERCENT_LABELS : PERCENT_LABELS;
+    this.notificationsCard.direction = compact ? 'column' : 'row';
+    this.notificationsCard.autoHeight = compact;
+    this.notificationsCard.height = compact ? 0 : 64;
+    this.notificationsCard.alignItems = compact ? 'start' : 'center';
+    this.notificationsCard.setPaddingSymmetric(20, compact ? 16 : 0);
+    this.notificationsLabel.flex = compact ? 0 : 1;
+    this.notificationsLabel.fixedWidth = compact ? cardWidth - 40 : 0;
+    this.notificationsSegmented.maxWidth = cardWidth - 40;
+    this.glancesRow.direction = compact ? 'column' : 'row';
+    this.glancesRow.alignItems = compact ? 'start' : 'center';
+    this.glancesLabel.flex = compact ? 0 : 1;
+    this.glancesLabel.fixedWidth = compact ? cardWidth - 40 : 0;
+    this.glancesSegmented.maxWidth = cardWidth - 40;
 
     // 1. Screen off delay
     let selectedSleepIndex: i32 = 2;

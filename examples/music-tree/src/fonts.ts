@@ -21,6 +21,8 @@ const FONT_KEYBOARD_KEY: i32 = font('sans', 24);
 
 // Large fonts for the StandBy clock, the weather and the notifications
 export const FONT_CLOCK_HUGE: i32 = font('sans-bold', 250);
+export const FONT_CLOCK_COMPACT: i32 = font('sans-bold', 120);
+export const FONT_CLOCK_SMALL: i32 = font('sans-bold', 80);
 export const FONT_ODOMETER_DIGIT: i32 = font('sans-bold', 170);
 export const FONT_WEATHER_TEMP: i32 = font('sans', 120);
 export const FONT_PAIRING_CODE: i32 = font('sans-bold', 96);

@@ -27,7 +27,7 @@ import { Fonts } from '../fonts';
  * Cuts the string `text` with `…` if it exceeds `maxWidth` pixels.
  * Uses a fast binary search.
  */
-function fitTextToWidth(fontId: i32, text: string, maxWidth: number): string {
+export function fitTextToWidth(fontId: i32, text: string, maxWidth: number): string {
   if (textWidth(fontId, text, 0) <= maxWidth) return text;
   let lowIndex: i32 = 0;
   let highIndex: i32 = text.length as i32;

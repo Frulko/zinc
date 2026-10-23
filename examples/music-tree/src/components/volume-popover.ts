@@ -14,9 +14,10 @@ import {
   COLOR_TEXT_SECONDARY,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject, registerTapZone } from 'zinc:stage';
+import { DisplayObject, ScrollBox, uiState, registerTapZone } from 'zinc:stage';
 import {
   CardBox,
+  ScrollContainerNode,
   HBox,
   LabelNode,
   SliderNode,
@@ -72,6 +73,8 @@ class VolumePopoverRowNode extends VBox {
 
 export class VolumePopoverNode extends DisplayObject {
   readonly cardBox: CardBox;
+  private readonly scroll = new ScrollBox();
+  private readonly viewport = new ScrollContainerNode(this.scroll, 0, 'VolumeViewport');
   private rowNodes: VolumePopoverRowNode[] = [];
 
   constructor() {
@@ -84,11 +87,13 @@ export class VolumePopoverNode extends DisplayObject {
     this.cardBox.backgroundAlpha = 250;
     this.cardBox.setPaddingSymmetric(22, 18);
     this.cardBox.gap = 12;
-    this.addChild(this.cardBox);
+    this.viewport.contentBox.addChild(this.cardBox);
+    this.addChild(this.viewport);
   }
 
   override onMeasure(): void {
     const isVisible = appState.isVolumePopoverOpen && appState.activeGroup !== null;
+    this.viewport.visible = isVisible;
     this.cardBox.visible = isVisible;
     if (!isVisible) return;
 
@@ -135,8 +140,18 @@ export class VolumePopoverNode extends DisplayObject {
     }
 
     const estimatedCardHeight = 26 + totalRowsCount * 64;
-    this.cardBox.x = appState.volumeBarScreenX;
-    this.cardBox.y = appState.volumeBarScreenY - 30 - estimatedCardHeight;
+    this.cardBox.width = Math.min(460, this.width - 24);
+    this.viewport.width = this.cardBox.width;
+    this.viewport.height = Math.min(estimatedCardHeight, this.height - 24);
+    this.viewport.x = Math.max(12, Math.min(appState.volumeBarScreenX, this.width - this.viewport.width - 12));
+    this.viewport.y = Math.max(12, Math.min(appState.volumeBarScreenY - 30 - estimatedCardHeight, this.height - this.viewport.height - 12));
+    this.scroll.viewportHeight = this.viewport.height;
+    this.scroll.contentHeight = estimatedCardHeight;
+    this.scroll.clamp();
+  }
+
+  override onUpdate(deltaSeconds: number): void {
+    if (appState.isVolumePopoverOpen && this.scroll.stepInertia(deltaSeconds)) uiState.dirty = true;
   }
 
   override onDraw(stageWidth: number, stageHeight: number): void {
@@ -148,10 +163,10 @@ export class VolumePopoverNode extends DisplayObject {
 
     // Drop shadow under the CardBox and a touch zone to keep the popover open
     shadow(
-      this.cardBox.x,
-      this.cardBox.y + 10,
+      this.viewport.x,
+      this.viewport.y + 10,
       this.cardBox.width,
-      this.cardBox.height,
+      this.viewport.height,
       18,
       30,
       0x000000,
@@ -159,10 +174,10 @@ export class VolumePopoverNode extends DisplayObject {
     );
     registerTapZone(
       'vol/card',
-      this.cardBox.x,
-      this.cardBox.y,
+      this.viewport.x,
+      this.viewport.y,
       this.cardBox.width,
-      this.cardBox.height,
+      this.viewport.height,
       () => {
         appState.volumePopoverRemainingSeconds = 4;
       }

@@ -46,13 +46,12 @@ export const COVER_TINT_COLORS: u32[] = [
 ];
 
 // ----------------------------------------------------------------------------
-// Layout dimensions (in logical pixels, target screen 1024x768)
+// Defaults for wide layouts (logical pixels); core/responsive.ts adapts compact screens
 // ----------------------------------------------------------------------------
 export const STATUS_BAR_HEIGHT = 30;
 export const SIDEBAR_WIDTH_DEFAULT = 240;
 export const PAGE_PADDING = 36;
 export const KEYBOARD_HEIGHT = 300;
-export const GRID_COLUMNS: i32 = 4;
 export const GRID_GAP = 24;
 
 // ----------------------------------------------------------------------------

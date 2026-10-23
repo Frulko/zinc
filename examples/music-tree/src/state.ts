@@ -89,7 +89,7 @@ class ApplicationState {
   /** Active page in the sidebar (`PAGE_NOW_PLAYING`, `PAGE_RADIOS`, etc.). */
   currentPage: i32 = PAGE_NOW_PLAYING;
 
-  /** Current width of the sidebar (0 in full-screen player mode, 240 otherwise). */
+  /** Current navigation width: 0 in full-screen player mode, 64 on compact screens, 240 otherwise. */
   sidebarWidth: number = SIDEBAR_WIDTH_DEFAULT;
 
   // ---- Home page carousel (5 slides) ----

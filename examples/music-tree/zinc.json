@@ -5,18 +5,14 @@
     "name": "Musique (arbre)",
     "id": "dev.zinc.music-tree",
     "version": "1.1.0",
-    "icon": "icon-512.png",
-    "orientation": "landscape"
+    "icon": "icon-512.png"
   },
   "targets": {
     "macos": {
       "width": 1024,
       "height": 768
     },
-    "linux": {
-      "width": 1024,
-      "height": 768
-    },
+    "linux": {},
     "sim": {
       "width": 1024,
       "height": 768

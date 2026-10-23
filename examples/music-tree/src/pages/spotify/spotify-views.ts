@@ -36,12 +36,12 @@ import { drawActivitySpinner } from '../../components/slider';
 import { drawCoverArt } from '../../components/cover';
 import { getTouchKeyboardHeight } from '../../components/keyboard';
 import { PillButtonNode, SearchFieldNode, SegmentedControlNode } from '../../components/layout-nodes';
+import { mediaColumns } from '../../core/responsive';
 import { appState } from '../../state';
 import { spotifyCatalog, LIBRARY_KEYS } from '../../services/spotify-catalog';
 import { playSpotifyItem, playSpotifyRadio } from '../../services/spotify-on-sonos';
 import {
   CONTENT_TOP_Y,
-  GRID_COLUMN_COUNT,
   GRID_GAP_X,
   ROW_HEIGHT,
   artistOf,
@@ -187,15 +187,17 @@ class LibraryViewNode extends SpotifyViewNode {
     const left = contentLeftX();
     this.tabsNode.x = left;
     this.tabsNode.y = CONTENT_TOP_Y;
+    const width = contentWidthOf(this.width > 0 ? this.width : 1024);
+    this.tabsNode.maxWidth = width < 660 ? width : width - 170;
     this.tabsNode.selectedIndex = appState.activeSpotifyTab;
     this.searchButton.x = left + contentWidthOf(this.width > 0 ? this.width : 1024) - 150;
-    this.searchButton.y = CONTENT_TOP_Y;
+    this.searchButton.y = CONTENT_TOP_Y + (width < 660 ? 50 : 0);
   }
 
   override onDraw(viewWidth: number, viewHeight: number): void {
     const left = contentLeftX();
     const width = contentWidthOf(viewWidth);
-    const listTopY = CONTENT_TOP_Y + 60;
+    const listTopY = CONTENT_TOP_Y + (width < 660 ? 110 : 60);
     const bottomY = viewHeight - getTouchKeyboardHeight();
     const key = LIBRARY_KEYS[appState.activeSpotifyTab];
     const items = spotifyCatalog.list(key);
@@ -254,6 +256,7 @@ class SearchViewNode extends SpotifyViewNode {
     this.searchFieldNode.isTypingActive = appState.isKeyboardVisible;
     this.kindsNode.x = left;
     this.kindsNode.y = CONTENT_TOP_Y + 66;
+    this.kindsNode.maxWidth = this.searchFieldNode.width;
     this.kindsNode.selectedIndex = this.kindTab;
   }
 
@@ -296,7 +299,8 @@ class SearchViewNode extends SpotifyViewNode {
     }
     if (best === null && found.tracks.length > 0) best = found.tracks[0];
     if (best === null && found.albums.length > 0) best = found.albums[0];
-    const bestWidth = 290;
+    const stacked = width < 620;
+    const bestWidth = Math.min(290, width);
     const bestHeight = 4 * ROW_HEIGHT;
     if (best !== null) {
       const bestItem = best as Item;
@@ -316,7 +320,8 @@ class SearchViewNode extends SpotifyViewNode {
       registerTapZone('sp/best', left, y + 36, bestWidth, bestHeight - 36, () => touchSpotifyItem(bestItem));
       drawPlayButton('sp/best/play', left + bestWidth - 64, y + 56, bestItem);
     }
-    const songsX = best !== null ? left + bestWidth + 24 : left;
+    if (stacked && best !== null) y += bestHeight + 28;
+    const songsX = best !== null && !stacked ? left + bestWidth + 24 : left;
     const songsWidth = left + width - songsX;
     drawText(Fonts.heading, songsX, y, 'Titres', COLOR_TEXT_PRIMARY, 255, 0);
     const songCount = Math.min(4, found.tracks.length) as i32;
@@ -345,18 +350,19 @@ class SearchViewNode extends SpotifyViewNode {
   ): number {
     if (items.length === 0) return y;
     const gap = 18;
-    const tileSize = (width - gap * (SHELF_TILE_COUNT - 1)) / SHELF_TILE_COUNT;
+    const columns = mediaColumns(width, SHELF_TILE_COUNT);
+    const tileSize = (width - gap * (columns - 1)) / columns;
     const shelfHeight = 40 + tileSize + 58;
     if (y > bottomY || y + shelfHeight < topY) return y + shelfHeight; // scrolled out: nothing drawn
     drawText(Fonts.heading, left, y, title, COLOR_TEXT_PRIMARY, 255, 0);
-    const moreLabel = 'Tout afficher';
+    const moreLabel = width < 360 ? 'Voir' : 'Tout afficher';
     const moreWidth = textWidth(Fonts.smallBold, moreLabel, 0);
     drawText(Fonts.smallBold, left + width - moreWidth, y + 6, moreLabel, COLOR_TEXT_SECONDARY, 255, 0);
     registerTapZone(zonePrefix + '/all', left + width - moreWidth - 10, y - 4, moreWidth + 20, 36, () => {
       this.kindTab = kindTab;
       spotifyScrollBox().scrollY = 0;
     });
-    const tileCount = Math.min(SHELF_TILE_COUNT, items.length) as i32;
+    const tileCount = Math.min(columns, items.length) as i32;
     for (let index: i32 = 0; index < tileCount; index++) {
       drawTile(items[index], `${zonePrefix}/${index}`, left + index * (tileSize + gap), y + 40, tileSize);
     }
@@ -391,12 +397,18 @@ class ArtistViewNode extends SpotifyViewNode {
     const artist = heads.length > 0 ? heads[0] : this.artist;
     const scrollBox = beginViewScroll(topY, bottomY, viewWidth);
     let y = topY + 4 - scrollBox.scrollY;
+    const compact = width < 620;
+    const detailsX = compact ? left : left + 176;
+    const detailsWidth = compact ? width : width - 176;
     drawCoverArt(artist.art, artist.name, left, y, 150, 75);
-    drawLabel(Fonts.hero, left + 176, y + 34, artist.name, COLOR_TEXT_PRIMARY, width - 176);
-    drawText(Fonts.small, left + 176, y + 78, 'Artiste', COLOR_TEXT_SECONDARY, 255, 0);
-    const playWidth = drawPillButton('sp/a/play', left + 176, y + 106, 'Lire', 0x000000, COLOR_GREEN, () => playSpotifyItem(artist), 'audio-lines');
-    drawPillButton('sp/a/radio', left + 176 + playWidth + 12, y + 106, "Radio de l'artiste", COLOR_TEXT_PRIMARY, COLOR_FILL, () => playSpotifyRadio(artist), 'radio');
-    y += 180;
+    const detailsY = y + (compact ? 166 : 34);
+    drawLabel(compact ? Fonts.heading : Fonts.hero, detailsX, detailsY, artist.name, COLOR_TEXT_PRIMARY, detailsWidth);
+    drawText(Fonts.small, detailsX, detailsY + 44, 'Artiste', COLOR_TEXT_SECONDARY, 255, 0);
+    const actionsY = detailsY + 72;
+    const playWidth = drawPillButton('sp/a/play', detailsX, actionsY, 'Lire', 0x000000, COLOR_GREEN, () => playSpotifyItem(artist), 'audio-lines', 40, detailsWidth);
+    const stackActions = compact && width < 360;
+    drawPillButton('sp/a/radio', stackActions ? left : detailsX + playWidth + 12, actionsY + (stackActions ? 50 : 0), "Radio de l'artiste", COLOR_TEXT_PRIMARY, COLOR_FILL, () => playSpotifyRadio(artist), 'radio', 40, stackActions ? width : detailsWidth - playWidth - 12);
+    y = compact ? actionsY + (stackActions ? 114 : 64) : y + 180;
 
     const songsKey = 'songs/' + artist.name;
     const songs = spotifyCatalog.list(songsKey);
@@ -418,14 +430,15 @@ class ArtistViewNode extends SpotifyViewNode {
     drawText(Fonts.heading, left, y, 'Albums et singles', COLOR_TEXT_PRIMARY, 255, 0);
     y += 40;
     if (drawListStatus(albumsKey, left, y - 30, width)) {
-      const tileSize = (width - GRID_GAP_X * (GRID_COLUMN_COUNT - 1)) / GRID_COLUMN_COUNT;
+      const columns = mediaColumns(width);
+      const tileSize = (width - GRID_GAP_X * (columns - 1)) / columns;
       for (let index = 0; index < albums.length; index++) {
-        const tileY = y + Math.floor(index / GRID_COLUMN_COUNT) * (tileSize + 62);
+        const tileY = y + Math.floor(index / columns) * (tileSize + 62);
         if (tileY < bottomY && tileY + tileSize + 62 > topY) {
-          drawTile(albums[index], 'sp/aa/' + index, left + (index % GRID_COLUMN_COUNT) * (tileSize + GRID_GAP_X), tileY, tileSize);
+          drawTile(albums[index], 'sp/aa/' + index, left + (index % columns) * (tileSize + GRID_GAP_X), tileY, tileSize);
         }
       }
-      y += Math.ceil(albums.length / GRID_COLUMN_COUNT) * (tileSize + 62);
+      y += Math.ceil(albums.length / columns) * (tileSize + 62);
       y = drawNextPageSpinner(albumsKey, left, y, width, y < bottomY + 200);
     }
     scrollBox.contentHeight = y + scrollBox.scrollY - topY + 24;
@@ -462,20 +475,24 @@ class CollectionViewNode extends SpotifyViewNode {
     const songCount = all.length > 1 ? all.length - 1 : 0;
     const scrollBox = beginViewScroll(topY, bottomY, viewWidth);
     let y = topY + 4 - scrollBox.scrollY;
+    const compact = width < 540;
+    const detailsX = compact ? left : left + 196;
+    const detailsWidth = compact ? width : width - 196;
+    const detailsY = y + (compact ? 186 : 20);
     drawCoverArt(head.art, head.name, left, y, 170, 10);
-    drawText(Fonts.tinyBold, left + 196, y + 20, this.kind === 'album' ? 'ALBUM' : 'PLAYLIST', COLOR_TEXT_SECONDARY, 255, 0);
-    drawWrappedText(Fonts.hero, left + 196, y + 40, head.name, COLOR_TEXT_PRIMARY, width - 196, 2, 40);
+    drawText(Fonts.tinyBold, detailsX, detailsY, this.kind === 'album' ? 'ALBUM' : 'PLAYLIST', COLOR_TEXT_SECONDARY, 255, 0);
+    drawWrappedText(compact ? Fonts.heading : Fonts.hero, detailsX, detailsY + 20, head.name, COLOR_TEXT_PRIMARY, detailsWidth, 2, 40);
     let byLine = head.subtitle;
     if (head.year !== '') byLine += ' · ' + head.year;
     if (songCount > 0) byLine += ` · ${songCount}${spotifyCatalog.hasMore(this.key) ? '+' : ''} titres`;
-    drawLabel(Fonts.small, left + 196, y + 124, byLine, COLOR_TEXT_SECONDARY, width - 196);
+    drawLabel(Fonts.small, detailsX, detailsY + 104, byLine, COLOR_TEXT_SECONDARY, detailsWidth);
     if (this.kind === 'album' && head.artistId !== '') {
-      registerTapZone('sp/c/artist', left + 196, y + 118, Math.min(width - 196, textWidth(Fonts.small, head.subtitle, 0) + 10), 28, () =>
+      registerTapZone('sp/c/artist', detailsX, detailsY + 98, Math.min(detailsWidth, textWidth(Fonts.small, head.subtitle, 0) + 10), 28, () =>
         spotifyBrowser.open('artist', artistOf(head))
       );
     }
-    drawPillButton('sp/c/play', left + 196, y + 150, 'Lire', 0x000000, COLOR_GREEN, () => playSpotifyItem(head), 'audio-lines');
-    y += 196;
+    drawPillButton('sp/c/play', detailsX, detailsY + 130, 'Lire', 0x000000, COLOR_GREEN, () => playSpotifyItem(head), 'audio-lines', 40, detailsWidth);
+    y = compact ? detailsY + 196 : y + 196;
     if (!drawListStatus(this.key, left, y, width)) {
       endScrollBox();
       return;
