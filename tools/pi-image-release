@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Pin a public image profile to a verified ARM64 engine release; never execute the download."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import runpy
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+update = runpy.run_path(str(ROOT / 'image/files/usr/lib/zinc/zinc-player-update'))
+
+
+class ImageRelease(update['Updater']):
+    def arch(self):
+        return 'aarch64'
+
+    def verify(self, signed, key):
+        if not re.fullmatch('[0-9a-fA-F]{64}', key):
+            raise ValueError('The repository update key is invalid.')
+        # SubjectPublicKeyInfo for Ed25519: the fixed ASN.1 header followed by the raw public key.
+        public = signed.with_suffix('.der')
+        public.write_bytes(bytes.fromhex('302a300506032b6570032100' + key))
+        signature = signed.with_suffix('.bin')
+        signature.write_bytes(bytes.fromhex(signed.with_suffix('.sig').read_text().strip()))
+        subprocess.run(['openssl', 'pkeyutl', '-verify', '-pubin', '-keyform', 'DER', '-inkey', str(public),
+                        '-rawin', '-in', str(signed), '-sigfile', str(signature)],
+                       check=True, capture_output=True, timeout=15)
+
+
+def prepare(version, output, cache):
+    update['version'](version)
+    cache.mkdir(parents=True, exist_ok=True)
+    worker = ImageRelease(key=ROOT / 'update.pub')
+    with tempfile.TemporaryDirectory(prefix='zinc-image-release-') as tmp:
+        archive = worker.download(version, Path(tmp))
+        with tarfile.open(archive) as package:
+            names = {member.name.split('/', 1)[-1] for member in package.getmembers() if member.isfile()}
+        required = {'share/zinc/image/zinc-session', 'share/zinc/image/zinc-agent.service'}
+        if not required.issubset(names):
+            raise ValueError('This engine predates the Pi display handoff package; publish a release containing the fixes first.')
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        destination = cache / archive.name
+        shutil.move(str(archive), destination)
+    profile = {'name': 'zinc-pios-' + version, 'zinc': {
+        'url': update['RELEASES'] + 'v' + version + '/' + destination.name, 'sha256': digest}}
+    output.write_text(json.dumps(profile, indent=2) + '\n')
+    return profile
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        sys.exit('Usage: tools/pi-image-release X.Y.Z profile.json')
+    try:
+        home = Path(os.environ.get('ZINC_HOME', str(Path.home() / '.zinc')))
+        prepare(sys.argv[1], Path(sys.argv[2]), home / 'cache/pi-image')
+    except Exception as error:
+        sys.exit('pi-image-release: ' + str(error))

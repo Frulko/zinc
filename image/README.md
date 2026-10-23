@@ -34,6 +34,30 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
 | `agent`, `bluetooth`, `debug` | the Zinc agent on, Bluetooth on, boot messages on screen |
 | `base`, `zinc` | the Raspberry Pi OS image and the Zinc release (URL and SHA-256), pinned in `image/profile.json` |
 
+## Downloadable CI images
+
+The dedicated **Pi image** workflow (`.github/workflows/pi-image.yml`) builds on a native ARM64 Linux runner, independently of the engine's release/test pipeline. It runs only when dispatched, has read-only repository permissions and uploads an Actions artifact for 14 days; it does not publish a release or website.
+
+Choose an exact published stable engine with a signed `zinc-linux-aarch64.manifest` and the Pi display-handoff payload. The workflow verifies its Ed25519 signature using the repository key and host OpenSSL before executing any downloaded engine. It also checks the version, archive name and SHA-256, then records the image checkout commit separately from the engine version. Missing/unsigned assets and old packages such as 0.6.2 are rejected rather than silently producing an outdated image.
+
+After the workflow is present on the repository's default branch (the next release brings it there), dispatch it with your published version:
+
+```sh
+gh workflow run pi-image.yml --ref develop -f engine_version=X.Y.Z
+```
+
+Download `zinc-pi-image-X.Y.Z` from the successful run and extract the artifact ZIP. Flash its `.img.xz` using Etcher or Raspberry Pi Imager. The artifact includes the Imager JSON, package list, SHA256SUMS, profile, provenance and offline player capture. The image is built and checked before the download artifact is uploaded. `image/DOWNLOAD.md` is included as its README.
+
+Use Imager's customization for login/Wi-Fi/SSH. For Etcher, keep the card on your computer after flashing and apply the image builder's saved profile before its first boot:
+
+```sh
+tools/pi-image configure /Volumes/bootfs ~/.zinc/pi-image/profile.json
+```
+
+Adjust the mounted path. This reuses the build's first-boot writer and never rebuilds the image. It refuses a boot partition whose first-boot input has already been consumed; it is not a recovery command for the currently running Pi. Eject the card and start the Pi. Public artifacts deliberately contain no shared administrator password or personal network configuration.
+
+Checks include the first-boot regression, cloud-config schema, filesystem/unit/library checks and an offline headless player inside the image. This is not a hardware boot test: Pi 3 B+ first boot, SSH login, Wi-Fi, display/input handoff and power-loss recovery still need board verification. Future system firmware updates are scoped in `docs/reports/zinc-next-pi-image-pipeline.md`.
+
 ## What runs on the Pi
 
 - `zinc-shell.service` runs `zinc-session` as the `zinc` user on tty1, right after the root file system, `/dev` and udev. The

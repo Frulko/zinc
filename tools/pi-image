@@ -5,6 +5,7 @@
 #   tools/pi-image build [profile.json]     dist/<name>.img.xz, dist/<name>.json (the Imager entry), .packages.txt
 #   tools/pi-image check <image.img.xz>     checks a built image from the inside (boot files, units, Zinc runs there)
 #   tools/pi-image profile [profile.json]   the profile a build would use, secrets hidden
+#   tools/pi-image configure <boot-dir> [profile.json]  apply it after Etcher, before the first boot
 #   tools/pi-image catalog                  the boards, displays and libraries a profile can name
 #   tools/pi-image player [--crash]         the image's player on this computer, against a pretend Pi (image/player/dev)
 #
@@ -26,6 +27,21 @@ merged() {
 case $cmd in
   profile) merged | jq '(.user.password, .wifi.password) |= (if . == "" then . else "(hidden)" end)' ;;
   catalog) jq 'map_values(map({(.key): .label}) | add)' "$ROOT/image/catalog.json" ;;
+  configure)
+    boot=$profile
+    [ -f "$boot/config.txt" ] && [ -f "$boot/cmdline.txt" ] && [ -f "$boot/user-data" ] || {
+      echo '::error choose the boot partition of a freshly flashed Zinc image, before its first boot' >&2; exit 1;
+    }
+    profile=${3:-}
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    umask 077
+    merged >"$tmp/profile.json"
+    bash "$ROOT/image/configure-boot.sh" "$tmp/profile.json" "$boot"
+    # An explicit reconfiguration without Wi-Fi must discard the previous credentials.
+    if [ -z "$(jq -r .wifi.ssid "$tmp/profile.json")" ]; then rm -f "$boot/network-config"; fi
+    echo '::done First-boot settings written. Eject the card, then start the Pi.'
+    ;;
   player)
     # the settings work against a pretend Pi (image/player/dev: zinc-admin, and an nmcli on the PATH for zinc:network);
     # its state and the player's preferences stay in the cache

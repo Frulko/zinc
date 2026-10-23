@@ -1,0 +1,66 @@
+name: Pi image
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine_version:
+        description: 'Published signed ARM64 engine version (X.Y.Z, with Pi handoff fixes)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pi-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    env:
+      ZINC_HOME: ${{ github.workspace }}/.pi-image-cache
+      ENGINE_VERSION: ${{ inputs.engine_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Native image tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq openssl xz-utils
+          docker info
+      - name: First-boot and image preparation regressions
+        run: |
+          tests/run --only pi_image_bootstrap
+          tests/run --only pi_image_pipeline
+      - name: Verify and pin the engine release
+        run: python3 tools/pi-image-release "$ENGINE_VERSION" "$RUNNER_TEMP/pi-profile.json"
+      - name: Build the public image
+        run: tools/pi-image build "$RUNNER_TEMP/pi-profile.json"
+      - name: Check image contents and offline player
+        run: |
+          image=$(jq -r .name "$RUNNER_TEMP/pi-profile.json")
+          tools/pi-image check "dist/$image.img.xz"
+      - name: Download metadata
+        run: |
+          image=$(jq -r .name "$RUNNER_TEMP/pi-profile.json")
+          cp image/DOWNLOAD.md dist/README.md
+          cp "$RUNNER_TEMP/pi-profile.json" dist/profile.json
+          jq -n --arg commit "$GITHUB_SHA" --arg engine "$ENGINE_VERSION" --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{image_commit:$commit,engine_version:$engine,workflow:$run,checks:"contents and offline headless player; physical first boot unverified"}' > dist/provenance.json
+          (cd dist && sha256sum "$image.img.xz" "$image.json" "$image.packages.txt" profile.json provenance.json > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zinc-pi-image-${{ inputs.engine_version }}
+          path: |
+            dist/*.img.xz
+            dist/*.json
+            dist/*.packages.txt
+            dist/SHA256SUMS
+            dist/README.md
+            dist/player.png
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

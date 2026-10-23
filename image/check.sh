@@ -31,6 +31,7 @@ check "cmdline.txt: one line" test "$(wc -l <"$FW/cmdline.txt")" -eq 1
 check "meta-data: a new instance" grep -q '^instance_id: ' "$FW/meta-data"
 check "user-data: cloud-config" sh -c "head -n 1 '$FW/user-data' | grep -qx '#cloud-config'"
 check "user-data: JSON after its first line" sh -c "tail -n +2 '$FW/user-data' | jq -e .hostname"
+check "user-data: cloud-init schema" chroot "$R" cloud-init schema --config-file /boot/firmware/user-data
 # without a Wi-Fi network in the profile, network-config is Raspberry Pi OS's own (for Imager to fill)
 ssid=$(jq -r '.wifi.ssid // ""' "$R/etc/zinc/image.json" 2>/dev/null)
 # shellcheck disable=SC2016 # $ssid is jq's variable
@@ -46,7 +47,8 @@ done
 check "the units read clean (systemd-analyze verify)" chroot "$R" systemd-analyze verify --man=no \
   /etc/systemd/system/zinc-shell.service /etc/systemd/system/zinc-firstboot.service /etc/systemd/system/zinc-agent.service /etc/systemd/system/zinc-report.service \
   /etc/systemd/system/zinc-update-recover.service /etc/systemd/system/zinc-update@0.7.0.service
-check "the agent's programs draw through the screen's driver" grep -qx 'Environment=ZINC_DISPLAY=fbdev' "$R/etc/systemd/system/zinc-agent.service"
+check "the agent's programs draw through the screen's driver" grep -q 'ZINC_DISPLAY=fbdev' "$R/etc/systemd/system/zinc-agent.service"
+check "the agent coordinates the display session" grep -q 'ZINC_AGENT_SCREEN=/run/zinc' "$R/etc/systemd/system/zinc-agent.service"
 check "getty@tty1 off by its drop-in, not masked (Pi OS's user rename starts it)" sh -c "[ ! -L '$R/etc/systemd/system/getty@tty1.service' ] && grep -qx 'ConditionPathExists=!/usr/lib/zinc/zinc-session' '$R/etc/systemd/system/getty@tty1.service.d/zinc.conf'"
 for u in userconfig.service systemd-firstboot.service NetworkManager-wait-online.service apt-daily.timer; do
   check "$u masked" sh -c "[ \"\$(readlink '$R/etc/systemd/system/$u')\" = /dev/null ]"
@@ -65,7 +67,11 @@ check "the image's profile, without secrets" sh -c "jq -e '.user.password == \"\
 
 echo "-- Zinc on the image's own userland"
 check "zinc starts" chroot "$R" /usr/bin/zinc --version
-check "every library zinc needs is there" sh -c "! chroot '$R' ldd /usr/lib/zinc/engine/bin/zinc | grep -q 'not found'"
+if libraries=$(chroot "$R" ldd /usr/lib/zinc/engine/bin/zinc 2>&1) && ! grep -q 'not found' <<<"$libraries"; then
+  pass "every library zinc needs is there"
+else
+  miss "the engine's libraries could not be resolved"
+fi
 check "the session script reads clean" chroot "$R" bash -n /usr/lib/zinc/zinc-session
 check "zinc-admin reads clean" chroot "$R" bash -n /usr/lib/zinc/zinc-admin
 check "sudo lets the zinc user run zinc-admin, and only it" sh -c "chroot '$R' visudo -cq -f /etc/sudoers.d/zinc && \

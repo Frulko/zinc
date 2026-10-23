@@ -11,17 +11,15 @@ ROOT = Path(__file__).resolve().parents[3]
 
 class Bootstrap(unittest.TestCase):
     def test_generated_credentials(self):
-        source = (ROOT / 'image/build.sh').read_text()
-        writer = source.split('HASH=\n', 1)[1].split('if [ -n "$(q .wifi.ssid)" ]; then', 1)[0]
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             profile = directory / 'profile.json'
             cases = [('spark', 'test-password', []), ('spark', '', ['ssh-ed25519 fixture']), ('', '', [])]
             for name, password, keys in cases:
                 profile.write_text(json.dumps(dict(hostname='fixture', timezone='', keyboard='',
+                                                  name='fixture', ssh=bool(name), agent=False, debug=False, wifi=dict(ssid='', password='', country=''),
                                                   user=dict(name=name, password=password, sshKeys=keys))))
-                script = 'P=$1; FW=$2; HASH=; q() { jq -r "$1" "$P"; };\n' + writer
-                subprocess.run(['bash', '-eu', '-c', script, '_', str(profile), tmp], check=True, capture_output=True)
+                subprocess.run(['bash', str(ROOT / 'image/configure-boot.sh'), str(profile), tmp], check=True, capture_output=True)
                 data = (directory / 'user-data').read_text()
                 self.assertTrue(data.startswith('#cloud-config\n'))
                 config = json.loads(data.split('\n', 1)[1])

@@ -677,6 +677,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-785: dispatch the dedicated Pi image workflow against a newly published signed ARM64 engine, flash the artifact with Etcher/Imager, apply a saved profile and verify physical first boot/login/network/display. Image checks are userspace/content checks, not physical boot proof.
+
 - ZN-784: flash a newly built Pi image and verify SSH with a profile login after Raspberry Pi OS account rename; inject a cloud-init failure and confirm settings/initramfs survive, then retry successfully. Mac tests execute the cloud-config writer and cleanup policy against temporary files.
 
 - ZN-783: on the Pi 3 B+ native 800×480 and rotated portrait, check Music Tree touch/scroll, screen resize/rotation, long real metadata and authenticated Spotify content; measure frame time against the previous layout. Native headless fixtures prove geometry/input only.
@@ -957,3 +959,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.
 - pi-image: on a real Pi 3 B+, what stops the first boot before multi-user.target (2026-10-23: cloud-final and zinc-firstboot ran only on the second boot; QEMU's first boot passes): flash `dist/zinc-pios-debug.img.xz`, read `zinc-report-previous.txt` on the boot partition after the reboot, and the player's bottom line while it starts.
 - pi-image: the screen handover to a program of `zinc dev --device` on vc4 (the player killed, /dev/fb0 showing the program's frame): proven on QEMU without KMS planes only.
+
+- ZN-785: evaluate a separately flashed A/B Pi OS image with RAUC, persistent app/settings storage, signed boot+rootfs bundles and tryboot health confirmation on Pi 3 B+; prove power-cut rollback before offering whole-system updates. Current engine generations do not update the OS.

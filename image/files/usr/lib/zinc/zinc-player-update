@@ -94,6 +94,9 @@ class Updater:
     def arch(self):
         return architecture(self.run(['dpkg', '--print-architecture']))
 
+    def verify(self, signed, key):
+        self.run([self.verifier, 'verify', str(signed), '--key', key])
+
     def installed(self, link='current'):
         path = self.root / link / 'engine/share/zinc/VERSION'
         return path.read_text().strip() if path.exists() else ''
@@ -158,7 +161,7 @@ class Updater:
         signed.write_bytes(body)
         signed.with_suffix('.sig').write_text(fields[b'sig'] + '\n')
         key = self.key.read_text().strip()
-        self.run([self.verifier, 'verify', str(signed), '--key', key])
+        self.verify(signed, key)
         filename = 'zinc-' + requested + '-linux-' + arch + '.tar.gz'
         if fields.get(b'version') != requested or fields.get(b'url') not in (filename, base + filename):
             raise ValueError('The signed download does not match the chosen version and architecture.')

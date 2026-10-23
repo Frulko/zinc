@@ -120,31 +120,7 @@ step "Writing the first-boot settings"
 # Raspberry Pi OS applies these with cloud-init on the first boot, as it does for Raspberry Pi Imager (which may
 # rewrite them when it flashes); zinc-firstboot deletes them afterwards. JSON is YAML, so jq writes them.
 FW=$R/boot/firmware
-HASH=
-[ -z "$(q .user.password)" ] || HASH=$(openssl passwd -6 -stdin <<<"$(q .user.password)")
-{
-  echo '#cloud-config'
-  jq --arg hash "$HASH" '
-    {hostname: .hostname, manage_etc_hosts: true}
-    + (if .timezone != "" then {timezone: .timezone} else {} end)
-    + (if .keyboard != "" then {keyboard: {model: "pc105", layout: .keyboard}} else {} end)
-    + (if .user.name != "" then {
-        users: [{name: .user.name, shell: "/bin/bash", sudo: "ALL=(ALL) NOPASSWD:ALL",
-                 groups: "users,adm,dialout,audio,netdev,video,plugdev,input,gpio,spi,i2c,render,sudo",
-                 lock_passwd: ($hash == "")}
-                + (if $hash != "" then {hashed_passwd: $hash} else {} end)
-                + (if (.user.sshKeys | length) > 0 then {ssh_authorized_keys: .user.sshKeys} else {} end)],
-        ssh_pwauth: ($hash != "")} else {} end)' "$P"
-} >"$FW/user-data"
-if [ -n "$(q .wifi.ssid)" ]; then
-  jq '{network: {version: 2, wifis: {wlan0: {dhcp4: true, optional: true, "regulatory-domain": .wifi.country,
-        "access-points": {(.wifi.ssid): (if .wifi.password != "" then {password: .wifi.password} else {} end)}}}}}' \
-    "$P" >"$FW/network-config"
-fi
-printf 'dsmode: local\ninstance_id: %s-%s\n' "$NAME" "$(date +%s)" >"$FW/meta-data"
-[ "$(q .ssh)" != true ] || touch "$FW/ssh"
-[ "$(q .agent)" != true ] || touch "$FW/zinc-agent"
-[ "$(q .debug)" != true ] || touch "$FW/zinc-report"
+bash /src/image/configure-boot.sh "$P" "$FW"
 
 step "Cleaning up"
 chroot "$R" dpkg-query -W -f='${Package} ${Version}\n' >"/dist/$NAME.packages.txt"
@@ -152,9 +128,10 @@ chroot "$R" apt-get clean
 rm -rf "$R/var/lib/apt/lists/"* "$R/usr/sbin/policy-rc.d" "$R/etc/resolv.conf"
 mv "$R/etc/resolv.conf.zinc" "$R/etc/resolv.conf" 2>/dev/null || true
 fstrim "$R" >/dev/null 2>&1 || true # freed blocks read back as zeros: a smaller .xz
+umount -R "$R"
+e2fsck -fy "$RLOOP" >/dev/null 2>&1 || [ "$?" -eq 1 ]
 cleanup
 trap - EXIT
-e2fsck -fy "$RLOOP" >/dev/null 2>&1 || true
 
 step "Compressing"
 OUT=/dist/$NAME.img.xz
