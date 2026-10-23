@@ -4,6 +4,8 @@ Binding rules: RULES.md, ARCHITECTURE.md, TESTING.md.
 
 ## 2026-10-23
 
+- ZN-787: native `examples/glass-icon-reveal`, adapted from Zanwei Guo with upstream README/repo links, pinned commit and MIT notice; visible author credit. Shared gfx shader + stage, analytic Z, clear/dark, scrubbing, keyboard and idle. Mac checker, interpreter/AOT/QuickJS, mouse/touch checks, preview goldens and 300 idle frames pass; real GPU captures in both themes at 900x720, 360x640, 800x480 pass, including default AOT run with manifest-selected GL. README has Android/Pi commands; no APK/cross build, device run or push. Hardware proof is in backlog/later.md. Usage: n/a for Codex.
+
 - ZN-786 Done on revised owner scope: notify_relay integration now explicitly SKIPs under ZINC_CI (exit 77), preserving local integration and CI unit/capture checks. Owner requested disabling the unreliable gate; the underlying hosted stall remains unresolved. Native scenario passed even with the failing run's exact binary. notify_capture covers SQLite/WAL/plist batches, equal dates, identity image and clock correction. Compat retains complete failed output/status; fixture-only stack diagnostics retain sampling errors. release_gate_diagnostics covers the CI skip. Local targeted checks first, CI later: no push/dispatch/publication. Previous unchanged Pi/UI tests not rerun. Dry-run proposes v0.7.0, signing prerequisites and Linux jobs enabled.
 
 - CI at e1161467 is confirmed green by owner-dispatched run 39952451514: 520 passed, 0 failed, 30 skipped. All package/test/fuzz/benchmark/repro jobs succeeded; publication skipped. This does not cover newer local commits.

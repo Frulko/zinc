@@ -677,6 +677,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-787: Build/install glass-icon-reveal on Android and run on a physical Android and Pi with the GL display; verify GPU compilation, spectral corners, touch/keyboard, rotation, idle and device performance (Mac captures do not prove GLES drivers or hardware).
+
 - ZN-785: dispatch the dedicated Pi image workflow against a newly published signed ARM64 engine, flash the artifact with Etcher/Imager, apply a saved profile and verify physical first boot/login/network/display. Image checks are userspace/content checks, not physical boot proof.
 
 - ZN-784: flash a newly built Pi image and verify SSH with a profile login after Raspberry Pi OS account rename; inject a cloud-init failure and confirm settings/initramfs survive, then retry successfully. Mac tests execute the cloud-config writer and cleanup policy against temporary files.

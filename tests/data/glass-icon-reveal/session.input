@@ -1,0 +1,22 @@
+# Pause inside the glass phase; dark theme, pointer scrub, touch replay.
+40 key Space
+45 key d
+50 move 300 260
+51 down
+53 move 500 260
+54 up
+60 move 150 650
+61 down
+62 up
+100 touch 1 300 260
+101 touchup 1
+# Pause, then switch theme with a button while the animation is idle.
+105 move 450 650
+106 down
+107 up
+110 move 740 650
+111 down
+112 up
+140 key ArrowLeft
+145 key ArrowRight
+150 key r

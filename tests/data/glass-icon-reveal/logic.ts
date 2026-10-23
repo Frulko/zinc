@@ -1,0 +1,28 @@
+import * as assert from 'zinc:assert';
+import { RevealState, DURATION, spring, smooth } from '../../../examples/glass-icon-reveal/src/state';
+
+const state = new RevealState();
+state.step(0.5);
+assert.equal(state.time, 0.5);
+state.seek(-10);
+assert.equal(state.time, 0);
+assert.equal(state.playing, false);
+state.step(1);
+assert.equal(state.time, 0);
+state.seek(20);
+assert.equal(state.time, DURATION);
+state.toggle();
+assert.equal(state.time, 0);
+assert.equal(state.playing, true);
+state.step(DURATION + 10);
+assert.equal(state.time, DURATION);
+assert.equal(state.playing, false);
+state.theme();
+assert.equal(state.dark, true);
+assert.equal(spring(-1, 0.34), 0);
+assert.ok(spring(0.1, 0.34) < spring(0.2, 0.34));
+assert.ok(spring(3, 0.34) > 0.999);
+assert.equal(smooth(0, 1, -1), 0);
+assert.equal(smooth(0, 1, 0.5), 0.5);
+assert.equal(smooth(0, 1, 2), 1);
+console.log('glass reveal: timeline, clamps, pause, replay and springs ok');

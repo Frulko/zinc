@@ -1,0 +1,34 @@
+{
+  "name": "glass-icon-reveal",
+  "entry": "src/main.ts",
+  "app": {
+    "name": "Glass / Zinc",
+    "id": "dev.zinc.glass-icon-reveal",
+    "version": "1.0.0",
+    "icon": "assets/icon.svg",
+    "orientation": "any"
+  },
+  "assets": "assets",
+  "permissions": [],
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "targets": {
+    "macos": {
+      "width": 900,
+      "height": 720,
+      "display": { "driver": "gl", "renderer": "gl" }
+    },
+    "linux": {
+      "display": { "driver": "gl", "renderer": "gl" }
+    },
+    "android": {
+      "kiosk": true
+    },
+    "sim": {
+      "width": 900,
+      "height": 720
+    }
+  }
+}
