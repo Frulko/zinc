@@ -1,0 +1,5 @@
+// The zinc user (the player and the apps it starts, through zinc:network) manages the network: the Wi-Fi radio, scans,
+// joining a network, the saved connections. Nobody else gains anything (image/README.md).
+polkit.addRule(function (action, subject) {
+  if (subject.user === "zinc" && action.id.indexOf("org.freedesktop.NetworkManager.") === 0) return polkit.Result.YES;
+});

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Writes what this boot did to zinc-report.txt on the boot partition, which any computer reads: the session's log, what
+# the boot waits on, the failed units, the screens the kernel found, the network, the boot's timing. zinc-report.service
+# runs it when a file named zinc-report is on the boot partition (a profile with "debug": true puts it there): 45 s, 2 and
+# 5 min after the session started, each report over the last, so a slow first boot shows where it went.
+FW=/boot/firmware
+report() {
+  {
+    echo "== $(tr -d '\0' </proc/device-tree/model 2>/dev/null), $(uname -r), up $(cut -d' ' -f1 /proc/uptime) s"
+    echo "== state: $(systemctl is-system-running)"
+    echo "== jobs the boot waits on"; systemctl list-jobs --no-pager
+    echo "== failed units"; systemctl --failed --no-legend --no-pager
+    echo "== cloud-init"; cloud-init status --long 2>&1 | head -n 20
+    echo "== zinc-shell"; systemctl status zinc-shell --no-pager -l 2>&1 | head -n 20
+    journalctl -b -u zinc-shell -u zinc-firstboot --no-pager 2>&1 | tail -n 200
+    echo "== crash.txt"; cat /run/zinc/crash.txt 2>&1
+    echo "== D-Bus and NetworkManager"; systemctl status dbus.socket dbus.service NetworkManager.service --no-pager -l 2>&1 | head -n 40
+    echo "== screens"; ls -l /dev/dri /dev/fb0
+    for s in /sys/class/drm/card*-*/status; do echo "$s: $(cat "$s") $(head -n 1 "${s%status}modes" 2>/dev/null)"; done
+    echo "== kernel"; dmesg | grep -i -E 'vc4|v3d|drm|dsi|panel|backlight|hdmi|edt|ft5|brcmfmac' | tail -n 60
+    echo "== warnings of the boot"; journalctl -b -p warning --no-pager 2>&1 | tail -n 80
+    echo "== network"; ip -br addr
+    echo "== boot time"; systemd-analyze 2>&1; systemd-analyze blame --no-pager 2>&1 | head -n 15
+    echo "== config.txt"; cat $FW/config.txt; echo "== cmdline.txt"; cat $FW/cmdline.txt
+  } >$FW/zinc-report.txt 2>&1
+  sync
+}
+# the report of the boot before stays beside it: a boot that went wrong is often followed by a reboot
+[ ! -e $FW/zinc-report.txt ] || mv -f $FW/zinc-report.txt $FW/zinc-report-previous.txt
+for wait in 45 75 180; do
+  sleep $wait
+  report
+done

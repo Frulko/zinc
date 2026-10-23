@@ -1,0 +1,13 @@
+#!/bin/sh
+# Stands for tools/pi-image in the builder's test: records how it was called and prints a short build, or a failed one
+# with FAKE_PI_IMAGE_FAIL=1, in the lines the builder reads.
+echo "$@" >"$FAKE_PI_IMAGE_ARGS"
+echo "::step 1/? Preparing the build container"
+echo "::step 2/4 Checking the profile"
+if [ "${FAKE_PI_IMAGE_FAIL:-0}" = 1 ]; then
+  echo "::error wifi.country is needed with a Wi-Fi network" >&2
+  exit 1
+fi
+echo "a line of the build's own output"
+echo "::step 4/4 Compressing"
+echo "::done /dist/demo.img.xz"

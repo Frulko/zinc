@@ -1,0 +1,12 @@
+{
+  "name": "pi-image-builder",
+  "app": { "id": "dev.zinc.pi-image-builder", "name": "Zinc Pi Image", "version": "0.1.0", "icon": "icon.png", "orientation": "landscape" },
+  "entry": "src/main.tsx",
+  "requires": ["keyboard", "pointer", "fs"],
+  "permissions": ["fs", "process", "opener", "dialog"],
+  "icons": ["hammer", "square", "folder-open", "key-round", "loader-circle", "external-link", "chevron-down", "check"],
+  "targets": {
+    "macos": { "width": 1180, "height": 780, "resize": "fill" },
+    "linux": { "width": 1180, "height": 780, "resize": "fill" }
+  }
+}

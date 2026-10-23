@@ -1,0 +1,14 @@
+# Maintained by Zinc. Once, at the end of the first boot: later boots go without the initramfs and cloud-init.
+[Unit]
+Description=Zinc: end the first boot
+After=cloud-final.service zinc-shell.service
+ConditionPathExists=!/var/lib/zinc/firstboot.done
+RequiresMountsFor=/boot/firmware
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/zinc/zinc-firstboot
+
+[Install]
+# not multi-user.target: cloud-final.service runs after it, so waiting for cloud-final from there is a cycle
+WantedBy=cloud-final.service

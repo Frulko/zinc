@@ -1,0 +1,49 @@
+#!/bin/bash
+# A zinc-admin that plays a Raspberry Pi, for the player on a computer (tools/pi-image player) and its test
+# (tests/t1/pi_image_player.sh). It answers the verbs of image/files/usr/lib/zinc/zinc-admin with made-up values and
+# keeps what they change in $ZINC_FAKE_PI (<name>.value files, shared with dev/bin/nmcli, which plays the network); the
+# agent's pairing goes to $ZINC_PLAYER_AGENT_DIR as the real agent writes it. Each call is logged to $ZINC_FAKE_PI/calls.log.
+set -u
+state=${ZINC_FAKE_PI:?ZINC_FAKE_PI names the directory of the pretend Pi}
+agent_dir=${ZINC_PLAYER_AGENT_DIR:-$state/agent}
+mkdir -p "$state" "$agent_dir"
+echo "zinc-admin $*" >>"$state/calls.log"
+value() { cat "$state/$1.value" 2>/dev/null || echo "$2"; }
+die() { echo "$*" >&2; exit 1; }
+open_pairing() { printf '{"code":"%s","until":%d}\n' "$1" $(($(date +%s) + 300)) >"$agent_dir/pairing.json"; }
+
+case ${1:-} in
+  status)
+    cat <<EOS
+hostname=$(value hostname zinc)
+model=Raspberry Pi 4 Model B Rev 1.5
+os=Debian GNU/Linux 13 (trixie)
+kernel=6.12.47+rpt-rpi-v8
+uptime=42
+temperature=47
+memory=3104 3796
+disk=24576 29696
+ssh=$(value ssh off)
+agent=$(value agent off)
+country=$(value country FR)
+boot=$(value boot running)
+activity=$(value activity '')
+EOS
+    ;;
+  wifi-country)
+    [[ ${2:-} =~ ^[A-Z]{2}$ ]] || die "A country is two capital letters (FR, US, GB...)."
+    echo "$2" >"$state/country.value"
+    ;;
+  ssh) echo "${2:-}" >"$state/ssh.value" ;;
+  agent)
+    echo "${2:-}" >"$state/agent.value"
+    if [ "${2:-}" = on ]; then open_pairing 482913; else rm -f "$agent_dir/pairing.json"; fi
+    ;;
+  hostname)
+    [[ ${2:-} =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || die "A name has small letters, digits and hyphens (not at its ends)."
+    echo "$2" >"$state/hostname.value"
+    ;;
+  pair) open_pairing 731205 ;;
+  reboot | poweroff) ;;
+  *) die "zinc-admin: unknown verb \"${1:-}\"" ;;
+esac

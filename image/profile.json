@@ -1,0 +1,26 @@
+{
+  "name": "zinc-pios",
+  "base": {
+    "url": "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-10-06/2026-10-06-raspios-trixie-arm64-lite.img.xz",
+    "sha256": "483db18a48da399b5b7022ffae9a07bc6d99daab30e593aedac09b69ff422843"
+  },
+  "zinc": {
+    "url": "https://github.com/Frulko/zinc/releases/download/v0.6.2/zinc-0.6.2-linux-aarch64.tar.gz",
+    "sha256": "498df42b4e4ff24327602d59145df9f4b442b0237a3ffa27dd519f2c1bebe0bb"
+  },
+  "board": "all",
+  "display": "auto",
+  "hostname": "zinc",
+  "user": { "name": "", "password": "", "sshKeys": [] },
+  "ssh": false,
+  "wifi": { "ssid": "", "password": "", "country": "" },
+  "timezone": "",
+  "keyboard": "",
+  "bluetooth": false,
+  "agent": false,
+  "debug": false,
+  "libraries": [],
+  "packages": [],
+  "app": "",
+  "growMiB": 1536
+}

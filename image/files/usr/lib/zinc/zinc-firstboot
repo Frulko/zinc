@@ -1,0 +1,13 @@
+#!/bin/sh
+# Ends the first boot (zinc-firstboot.service). The initramfs grew the card and cloud-init applied the settings of
+# tools/pi-image or Raspberry Pi Imager; from now on the Pi boots without either.
+set -e
+FW=/boot/firmware
+sed -i 's/^auto_initramfs=.*/auto_initramfs=0/' $FW/config.txt
+rm -f $FW/initramfs8 $FW/initramfs_2712
+sed -i 's/^update_initramfs=.*/update_initramfs=no/' /etc/initramfs-tools/update-initramfs.conf
+sed -i 's/ ds=nocloud[^ ]*//; s/ resize\b//' $FW/cmdline.txt
+touch /etc/cloud/cloud-init.disabled
+# they held a Wi-Fi key and a password hash, and are applied
+rm -f $FW/user-data $FW/network-config
+touch /var/lib/zinc/firstboot.done

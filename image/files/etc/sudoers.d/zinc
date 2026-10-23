@@ -1,0 +1,2 @@
+# The player (user zinc) changes the system through zinc-admin alone, which checks its arguments (image/README.md).
+zinc ALL=(root) NOPASSWD: /usr/lib/zinc/zinc-admin

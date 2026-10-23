@@ -1,0 +1,8 @@
+app=/var/lib/zinc/app
+status=1
+time=2026-10-22 20:40:00
+
+error ZN2304: cannot find name "setup"
+  --> src/main.tsx:12:3
+TypeError: undefined is not a function
+    at main (src/main.tsx:40)

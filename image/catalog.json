@@ -1,0 +1,24 @@
+{
+  "boards": [
+    {"key": "all", "label": "Every 64-bit Pi", "imager": ["pi3-64bit", "pi4-64bit", "pi5-64bit"], "config": []},
+    {"key": "pi3", "label": "Raspberry Pi 3 / 3B+", "imager": ["pi3-64bit"], "config": []},
+    {"key": "zero2w", "label": "Raspberry Pi Zero 2 W", "imager": ["pi3-64bit"], "config": []},
+    {"key": "pi4", "label": "Raspberry Pi 4 / 400", "imager": ["pi4-64bit"], "config": []},
+    {"key": "pi5", "label": "Raspberry Pi 5 / 500", "imager": ["pi5-64bit"], "config": []}
+  ],
+  "displays": [
+    {"key": "auto", "label": "Detected at boot", "config": ["display_auto_detect=1"]},
+    {"key": "hdmi", "label": "HDMI only", "config": ["display_auto_detect=0"]},
+    {"key": "dsi-7inch", "label": "Official 7\" Touch Display", "config": ["display_auto_detect=0", "dtoverlay=vc4-kms-dsi-7inch"]},
+    {"key": "dsi-touch2", "label": "Touch Display 2 (7\")", "config": ["display_auto_detect=0", "dtoverlay=vc4-kms-dsi-ili9881-7inch"]}
+  ],
+  "libraries": [
+    {"key": "ffmpeg", "label": "FFmpeg (zinc:video, audio and video files)", "apt": ["libavcodec61", "libavformat61", "libavutil59", "libswscale8", "libswresample5"]},
+    {"key": "gphoto2", "label": "gphoto2 (cameras over USB, zinc:gphoto2)", "apt": ["libgphoto2-6t64", "libturbojpeg0", "gphoto2"]},
+    {"key": "gstreamer", "label": "GStreamer (media pipelines)", "apt": ["libgstreamer1.0-0", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good", "gstreamer1.0-tools"]},
+    {"key": "libcamera", "label": "libcamera and rpicam-apps (Pi camera modules)", "apt": ["rpicam-apps-lite"]},
+    {"key": "libuv", "label": "libuv", "apt": ["libuv1t64"]},
+    {"key": "sqlite", "label": "SQLite tools", "apt": ["sqlite3"]},
+    {"key": "build", "label": "Compilers (build plugins on the Pi)", "apt": ["build-essential", "pkg-config", "git"]}
+  ]
+}

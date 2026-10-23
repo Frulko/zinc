@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Builds a Zinc image for the Raspberry Pi: Raspberry Pi OS Lite opened in a container and changed by image/ (fast
+# boot straight into a Zinc app; docs/reports/pi-os/00-synthesis.md says why), ready for Raspberry Pi Imager.
+#
+#   tools/pi-image build [profile.json]     dist/<name>.img.xz, dist/<name>.json (the Imager entry), .packages.txt
+#   tools/pi-image check <image.img.xz>     checks a built image from the inside (boot files, units, Zinc runs there)
+#   tools/pi-image profile [profile.json]   the profile a build would use, secrets hidden
+#   tools/pi-image catalog                  the boards, displays and libraries a profile can name
+#   tools/pi-image player [--crash]         the image's player on this computer, against a pretend Pi (image/player/dev)
+#
+# A profile is a JSON object laid over image/profile.json (the defaults): board, display, hostname, user, ssh, wifi,
+# libraries, packages, app (a Zinc project or .zapp, started at boot)... Needs Docker (Docker Desktop, OrbStack).
+# Lines that start with "::" are for the apps that follow a build: "::step n/total label", "::error text", "::done file".
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+CACHE=${ZINC_HOME:-$HOME/.zinc}/cache/pi-image
+cmd=${1:-help}
+profile=${2:-}
+
+merged() {
+  if [ -z "$profile" ]; then cat "$ROOT/image/profile.json"; return; fi
+  [ -f "$profile" ] || { echo "::error no profile at $profile" >&2; exit 1; }
+  jq -s '.[0] * .[1]' "$ROOT/image/profile.json" "$profile"
+}
+
+case $cmd in
+  profile) merged | jq '(.user.password, .wifi.password) |= (if . == "" then . else "(hidden)" end)' ;;
+  catalog) jq 'map_values(map({(.key): .label}) | add)' "$ROOT/image/catalog.json" ;;
+  player)
+    # the settings work against a pretend Pi (image/player/dev: zinc-admin, and an nmcli on the PATH for zinc:network);
+    # its state and the player's preferences stay in the cache
+    zinc=${ZINC:-zinc}
+    demo=$CACHE/player
+    mkdir -p "$demo/run" "$demo/app"
+    if [ "$profile" = --crash ]; then cp "$ROOT/image/player/dev/crash.txt" "$demo/run/crash.txt"; else rm -f "$demo/run/crash.txt"; fi
+    PATH="$ROOT/image/player/dev/bin:$PATH" ZINC_ADMIN="$ROOT/image/player/dev/zinc-admin" ZINC_FAKE_PI="$demo/pi" ZINC_PLAYER_AGENT_DIR="$demo/pi/agent" \
+      ZINC_PLAYER_CONFIG="$demo/player.json" ZINC_RUN="$demo/run" ZINC_APP="$demo/app" ZINC_VERSION="$("$zinc" --version)" \
+      exec "$zinc" run "$ROOT/image/player"
+    ;;
+  build)
+    echo "::step 1/? Preparing the build container"
+    command -v docker >/dev/null || { echo "::error Docker is not installed (Docker Desktop or OrbStack)" >&2; exit 1; }
+    docker info >/dev/null 2>&1 || { echo "::error Docker is not running: start Docker Desktop or OrbStack" >&2; exit 1; }
+    mkdir -p "$CACHE" "$ROOT/dist"
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    merged >"$tmp/profile.json"
+    # a copy: bash reads a script as it runs it, so an edit of image/ during a build would derail it; -L brings the
+    # plugins the player links to from plugins/ (zinc:network)
+    cp -RL "$ROOT/image" "$tmp/image"
+    # ponytail: the 0.6.2 release ships display-fbdev, the screen's driver, without its source (tools/package left out a plugin
+    # whose prebuild failed); the image takes it from the pinned release's tag until a release carries it
+    tag=$(jq -r .zinc.url "$tmp/profile.json" | grep -o '/v[0-9][^/]*/' | tr -d /)
+    mkdir -p "$tmp/image/engine-overlay/share/zinc/plugins/display-fbdev"
+    git -C "$ROOT" show "$tag:plugins/display-fbdev/fbdev.cpp" >"$tmp/image/engine-overlay/share/zinc/plugins/display-fbdev/fbdev.cpp" ||
+      { echo "::error no tag $tag here for display-fbdev's source (git fetch --tags)" >&2; exit 1; }
+    app=$(jq -r .app "$tmp/profile.json")
+    appmount=()
+    if [ -n "$app" ]; then
+      # relative to the profile's directory, as a path written in it reads
+      [[ $app = /* ]] || app=$(cd "$(dirname "${profile:-.}")" && pwd)/$app
+      [ -e "$app" ] || { echo "::error the app $app does not exist" >&2; exit 1; }
+      appmount=(-v "$app:/src/app:ro")
+    fi
+    docker build -q -t zinc-pi-image "$tmp/image" >/dev/null
+    # --privileged: the image's partitions are mounted through loop devices; the name lets `docker stop
+    # zinc-pi-image-build` stop a build (the container cleans up), and keeps two builds from running at once
+    docker run --rm --privileged --name zinc-pi-image-build -v "$tmp/image:/src/image:ro" -v "$tmp/profile.json:/src/profile.json:ro" \
+      -v "$CACHE:/cache" -v "$ROOT/dist:/dist" ${appmount[@]+"${appmount[@]}"} zinc-pi-image bash /src/image/build.sh ||
+      { s=$?; echo "::error the build failed (exit $s): the lines above say where" >&2; exit $s; }
+    ;;
+  check)
+    [ -f "$profile" ] || { echo "::error no image at '$profile': tools/pi-image check dist/<name>.img.xz" >&2; exit 1; }
+    image=$(cd "$(dirname "$profile")" && pwd)/$(basename "$profile")
+    docker build -q -t zinc-pi-image "$ROOT/image" >/dev/null
+    # no network: the player must start as on a first boot, before the network is up
+    docker run --rm --privileged --network none -v "$ROOT/image:/src/image:ro" -v "$image:/src/image.img.xz:ro" -v "$(dirname "$image"):/out" \
+      zinc-pi-image bash /src/image/check.sh
+    ;;
+  *) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; [ "$cmd" = help ] ;;
+esac

@@ -1,0 +1,80 @@
+#!/bin/bash
+# zinc-admin: what the player (image/player) reads of the system and changes in it, as one command with fixed verbs.
+# The reading verbs run as the caller (the zinc user); the others run as root through sudo, which /etc/sudoers.d/zinc
+# allows for this file alone, without a password. Every argument is checked here before it reaches a system tool.
+# The network itself (interfaces, addresses, the Wi-Fi networks, joining one) is zinc:network's (plugins/network), which
+# drives NetworkManager as the zinc user (/etc/polkit-1/rules.d/50-zinc-network.rules allows it).
+#   status                 key=value lines: hostname, model, os, kernel, uptime (minutes), temperature (degrees C),
+#                          memory and disk (available and total MiB), ssh and agent (on/off), country (Wi-Fi)
+#   wifi-country <CC>      the Wi-Fi country (two capital letters)
+#   ssh on|off             SSH now and at boot
+#   agent on|off           the Zinc agent now and at boot
+#   hostname <name>        the name on the network (<name>.local)
+#   pair                   a new pairing code of the Zinc agent (the player reads it from the agent's pairing.json)
+#   reboot | poweroff
+set -u
+die() { echo "$*" >&2; exit 1; }
+verb=${1:-}
+case $verb in
+  status | pair) ;;
+  *) [ "$(id -u)" = 0 ] || exec sudo -n "$0" "$@" ;;
+esac
+
+case $verb in
+  status)
+    echo "hostname=$(hostname)"
+    echo "model=$(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
+    # shellcheck source=/dev/null
+    os=$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-}")
+    echo "os=$os"
+    echo "kernel=$(uname -r)"
+    read -r up _ </proc/uptime
+    echo "uptime=$((${up%.*} / 60))"
+    if t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); then echo "temperature=$(((t + 500) / 1000))"; fi
+    awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } END { printf "memory=%d %d\n", a / 1024, t / 1024 }' /proc/meminfo
+    df -Pk / | awk 'NR == 2 { printf "disk=%d %d\n", $4 / 1024, $2 / 1024 }'
+    echo "ssh=$(systemctl is-active -q ssh.service && echo on || echo off)"
+    echo "agent=$(systemctl is-active -q zinc-agent.service && echo on || echo off)"
+    country=$(iw reg get 2>/dev/null | awk '/^country/ { sub(":", "", $2); print $2; exit }')
+    [ "$country" = 00 ] && country=
+    echo "country=$country"
+    # the boot: "starting" with the job systemd runs (the home page says it), then "running" or "degraded"
+    boot=$(systemctl is-system-running 2>/dev/null)
+    echo "boot=$boot"
+    if [ "$boot" = starting ] || [ "$boot" = initializing ]; then
+      unit=$(systemctl list-jobs --no-legend --no-pager 2>/dev/null | awk '$4 == "running" { print $2; exit }')
+      [ -z "$unit" ] || echo "activity=$(systemctl show -p Description --value "$unit")"
+    fi
+    ;;
+  wifi-country)
+    [[ ${2:-} =~ ^[A-Z]{2}$ ]] || die "A country is two capital letters (FR, US, GB...)."
+    raspi-config nonint do_wifi_country "$2"
+    ;;
+  ssh)
+    case ${2:-} in
+      on) systemctl enable --now ssh.service ;;
+      off) systemctl disable --now ssh.service ;;
+      *) die "ssh on or ssh off" ;;
+    esac
+    ;;
+  agent)
+    case ${2:-} in
+      on) install -o zinc -g zinc -m 644 /dev/null /var/lib/zinc/agent.enabled && systemctl start zinc-agent.service ;;
+      off) rm -f /var/lib/zinc/agent.enabled /boot/firmware/zinc-agent && systemctl stop zinc-agent.service ;;
+      *) die "agent on or agent off" ;;
+    esac
+    ;;
+  hostname)
+    name=${2:-}
+    [[ $name =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || die "A name has small letters, digits and hyphens (not at its ends)."
+    hostnamectl set-hostname "$name"
+    sed -i "s/^127\.0\.1\.1\s.*/127.0.1.1\t$name/" /etc/hosts
+    systemctl try-restart avahi-daemon.service
+    ;;
+  pair)
+    zinc agent pair
+    ;;
+  reboot) systemctl reboot ;;
+  poweroff) systemctl poweroff ;;
+  *) die "zinc-admin: unknown verb \"$verb\"" ;;
+esac

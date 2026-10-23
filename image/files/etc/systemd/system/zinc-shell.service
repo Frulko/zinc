@@ -1,0 +1,35 @@
+# Maintained by Zinc. The session (the app, or the player) starts among the first units of the boot: it needs the
+# root file system, /dev and a GPU, nothing else. The units that wait for it (10-zinc-defer.conf) start after it.
+[Unit]
+Description=Zinc session (the app, or the player)
+DefaultDependencies=no
+After=systemd-remount-fs.service systemd-tmpfiles-setup-dev.service systemd-udevd.service systemd-modules-load.service
+# no Conflicts=getty@tty1: Pi OS's user rename starts getty@tty1, which would stop the session (its drop-in keeps it off)
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+User=zinc
+RuntimeDirectory=zinc
+Environment=ZINC_RUN=/run/zinc SDL_VIDEO_DRIVER=kmsdrm
+# the screen's framebuffer appears when vc4 loads, writable for the video group once udev has seen it
+ExecStartPre=/bin/sh -c 'for i in $(seq 250); do [ -w /dev/fb0 ] && exit 0; sleep 0.02; done'
+ExecStart=/usr/lib/zinc/zinc-session
+# ready when zinc-session says so (systemd-notify, 2 s after it starts), not by an ExecStartPost: every command of
+# the unit takes tty1, and TTYVHangup hangs it up as each starts, which killed the session with SIGHUP
+Type=notify
+NotifyAccess=all
+TimeoutStartSec=30
+Nice=-10
+Restart=always
+RestartSec=1
+StandardInput=tty-force
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

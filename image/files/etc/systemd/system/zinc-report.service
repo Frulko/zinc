@@ -1,0 +1,14 @@
+# Maintained by Zinc. A report of the boot on the boot partition (zinc-report.txt), asked by a file named zinc-report there.
+# Outside the boot's order (DefaultDependencies=no), so it is written even when the boot is stuck before basic.target.
+[Unit]
+Description=Zinc boot report on the boot partition
+DefaultDependencies=no
+ConditionPathExists=/boot/firmware/zinc-report
+After=zinc-shell.service
+
+[Service]
+Type=exec
+ExecStart=/usr/lib/zinc/zinc-report
+
+[Install]
+WantedBy=multi-user.target

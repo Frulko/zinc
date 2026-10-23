@@ -1,0 +1,68 @@
+#!/bin/bash
+# The Zinc session (zinc-shell.service). It runs the app and stays: when the app crashes, the player shows its exit
+# status and its last output; when the app quits, or there is none, the player shows. The player exits 10 to start
+# the app again.
+# ponytail: a bash loop; a native `zinc player` replaces it once the engine supervises apps itself (and sends READY=1)
+set -u
+APP=${ZINC_APP:-/var/lib/zinc/app}
+RUN=${ZINC_RUN:-/run/zinc}
+PLAYER=/usr/lib/zinc/player
+export ZINC_APP=$APP ZINC_RUN=$RUN
+ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
+export ZINC_VERSION
+# the screen through /dev/fb0 (plugins/display-fbdev, compiled into the image): the driver the Pi was proven on. The
+# SDL window asks for OpenGL 3.2, which the Pi's GPUs do not offer (vc4: 2.1, v3d: 3.1), and its fallback draws nothing.
+# ponytail: every app on fbdev; a profile key for display-gl when an app needs the GPU
+export ZINC_DISPLAY=${ZINC_DISPLAY:-fbdev}
+
+# ponytail: ready 2 s after the start stands for "the first frame is on screen", which the engine will tell itself (READY=1)
+(sleep 2; systemd-notify --ready) &
+
+# True while a program the agent started (zinc dev --device, zinc device run) has the screen open: the agent's processes stay in
+# its unit's cgroup. Builtins only, as it runs twice a second.
+agent_has_screen() {
+  local pids=() p f s
+  read -r -d '' -a pids 2>/dev/null </sys/fs/cgroup/system.slice/zinc-agent.service/cgroup.procs
+  for p in "${pids[@]}"; do
+    for f in /proc/"$p"/fd/*; do
+      for s in /dev/fb0 /dev/dri/card*; do [ "$f" -ef "$s" ] && return 0; done
+    done
+  done 2>/dev/null
+  return 1
+}
+
+launch=1
+while :; do
+  if [ "$launch" = 1 ] && [ -e "$APP" ]; then
+    rm -f "$RUN/crash.txt"
+    zinc run "$APP" 2>&1 | tee "$RUN/app.log"
+    status=${PIPESTATUS[0]}
+    if [ "$status" -ne 0 ]; then
+      { echo "app=$APP"; echo "status=$status"; echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo; tail -n 80 "$RUN/app.log"; } >"$RUN/crash.txt"
+    fi
+  fi
+  # the player holds the screen's plane and its touches: it gives them up to a program of the agent, and shows again 2 s after the
+  # last one ended (zinc dev starts the next version within a second of a save). Killed, not asked: on its way out display-fbdev
+  # copies its last frame into /dev/fb0, over the program's first frame, and the program then redraws only what changes; killed,
+  # its plane goes and /dev/fb0 shows the program's frame.
+  # ponytail: an installed app that runs keeps the screen; the agent's program then draws behind it. display-fbdev should take the
+  # plane back when its holder leaves (then a plain kill does)
+  zinc run "$PLAYER" 0<&0 &
+  player=$!
+  while kill -0 "$player" 2>/dev/null; do
+    if agent_has_screen; then kill -KILL "$player"; break; fi
+    sleep 0.5
+  done
+  wait "$player"
+  status=$?
+  if agent_has_screen; then
+    while agent_has_screen || { sleep 2; agent_has_screen; }; do sleep 0.5; done
+    launch=0
+    continue
+  fi
+  case $status in
+    10) launch=1 ;;
+    0) launch=0 ;;
+    *) launch=0; sleep 1 ;; # the player itself failed: show it again, without spinning
+  esac
+done
