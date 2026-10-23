@@ -47,6 +47,11 @@ class Diagnostics(unittest.TestCase):
             result = subprocess.run(['sh', '-c', script, '_', tmp, '0', 'invalid'], env=env, text=True, capture_output=True)
             self.assertEqual(result.returncode, 1)
             self.assertFalse(calls.exists())
+            sample.write_text('#!/bin/sh\necho "fixture sampling denied" >&2\nexit 1\n')
+            result = subprocess.run(['sh', '-c', script, '_', tmp, '111111', ''], env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('cannot sample fixture process 111111:', result.stdout)
+            self.assertIn('fixture sampling denied', result.stdout)
 
 
 if __name__ == '__main__':

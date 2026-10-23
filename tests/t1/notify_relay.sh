@@ -30,9 +30,12 @@ bad() {
     for process in "$app" "$tpid"; do
       case $process in ''|*[!0-9]*) continue ;; esac
       [ "$process" -gt 1 ] || continue
-      if timeout 6 sample "$process" 1 10 -file "$tmp/stack-$process.txt" >/dev/null 2>&1; then
+      if timeout 6 sample "$process" 1 10 -file "$tmp/stack-$process.txt" >"$tmp/sample-$process.log" 2>&1; then
         echo "fixture process $process:"
         cat "$tmp/stack-$process.txt"
+      else
+        echo "cannot sample fixture process $process:"
+        cat "$tmp/sample-$process.log"
       fi
     done
   fi

@@ -45,4 +45,8 @@ The relay's initial and traced runs both stopped waiting for `mute sent`. Pairin
 
 A fresh native `notify_relay` run passed. Failure diagnostics now take bounded native stack samples of the fixture relay and receiver before terminating them. A native stub test confirms only valid fixture PIDs are sampled and failure status stays nonzero. No real notification or owner's relay process was sampled or stopped.
 
-The new hosted run is still needed to establish the blocking call. ZN-786 remains In Progress; the relay acceptance criterion is not checked. Release dry-run validates signing prerequisites and proposes v0.7.0 with the pending changelog. No push, dispatch or publication has been performed for these diagnostics.
+The exact ARM64 macOS artifact from the failing tag run also passes the complete relay scenario locally (`ZINC_ROOT` points at this checkout). A new `notify_capture` native regression isolates real SQLite/WAL and binary-plist polling across batches: history skipped, equal-date additions delivered once, identity image retained and a clock correction accepted. It passes without tray, discovery, transport or the real notification database. This narrows the investigation but does not establish the hosted stall's cause.
+
+Failure sampling now retains refusal/error output as well as successful stacks; the diagnostic regression covers both. The mapping check (`ci_plan`) passes. Earlier Pi/bootstrap/updater, deployment and Music Tree checks were not repeated because their code did not change.
+
+The owner requests targeted local checks before any further CI. No push, dispatch or publication has been performed. ZN-786 remains In Progress; the relay acceptance criterion is not checked. A later hosted failure with the new diagnostics may establish the blocking call. Release dry-run validates signing prerequisites and proposes v0.7.0 with the pending changelog; image construction and physical first boot remain separate required checks.
