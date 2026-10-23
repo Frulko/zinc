@@ -5,9 +5,9 @@
 #
 #   tools/release [--bump patch|minor|major|X.Y.Z] [--yes] [--dry-run] [--no-watch]
 #   tools/release --undo vX.Y.Z      delete a tag (local and remote) and its release, after a question
-# The version is the tag. CHANGELOG.md (the Unreleased section, or a draft from the commits) becomes the section of the version, in a commit the tag points at, and the tag message: the
-# workflow publishes it as the release notes.
+# The tag snapshots Unreleased; the workflow publishes those notes and only then archives them on develop.
 set -u
+notes_tool=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/release-notes
 # the repository is the one of the current directory (never the one the script sits in: a test or a copy must not touch it)
 top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "tools/release: run it inside a git repository" >&2; exit 2; }
 cd "$top" || exit 2
@@ -52,7 +52,7 @@ fail=0
 branch=${RELEASE_BRANCH:-develop}
 cur=$(git rev-parse --abbrev-ref HEAD)
 if [ "$cur" = "$branch" ]; then ok "on $branch"; else bad "on $cur: a release is made from $branch (git switch $branch)"; fail=1; fi
-if [ -z "$(git status --porcelain --untracked-files=no)" ]; then ok "working tree clean"; else warn "uncommitted changes in the working tree: they are not in the release (a tag is a commit)"; fi
+if [ -z "$(git status --porcelain --untracked-files=no)" ]; then ok "working tree clean"; else bad "commit or stash tracked changes before releasing"; fail=1; fi
 git fetch --quiet origin "$branch" main --tags 2>/dev/null || warn "could not reach origin: the checks below use what is already fetched"
 ahead=$(git rev-list --count "origin/$branch..HEAD" 2>/dev/null || echo 0); behind=$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
 if [ "$behind" != 0 ]; then bad "$behind commit(s) on origin/$branch are not here: git pull"; fail=1
@@ -67,7 +67,10 @@ sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD)
 last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo)
 range=${last:+$last..}HEAD
 n=$(git rev-list --count "$range")
-[ "$n" != 0 ] || die "no commit since ${last:-the start}: nothing to release"
+if [ "$n" = 0 ]; then
+  python3 "$notes_tool" body CHANGELOG.md Unreleased >/dev/null 2>&1 || die "no commit or pending notes since ${last:-the start}: nothing to release"
+  warn "no new commit; the notes from the previous attempt are still pending"
+fi
 ver=${last#v}; ver=${ver:-0.0.0}
 maj=${ver%%.*}; rest=${ver#*.}; min=${rest%%.*}; pat=${rest#*.}; pat=${pat%%[!0-9]*}
 subjects=$(git log --format='%s' "$range")
@@ -88,7 +91,6 @@ tag="v$new"
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "the tag $tag already exists"
 
 notes=$(mktemp); body=$(mktemp); trap 'rm -f "$notes" "$body"' EXIT
-today=$(date +%Y-%m-%d)
 hasfile=; [ -f CHANGELOG.md ] && hasfile=1
 # the Unreleased section of CHANGELOG.md (everything between its heading and the next version heading), or a draft from the commits when it is empty
 unreleased() { awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} /^\[Unreleased\]:/{f=0} f' CHANGELOG.md; }
@@ -119,23 +121,10 @@ fi
 { printf 'Zinc %s\n\n' "$new"; cat "$body"; } > "$notes"
 if [ -n "$dry" ]; then echo "  dry run: would tag $tag on $short and push (the workflow then builds and publishes)"; exit 0; fi
 ask "  Tag $tag on $short and push it? The release is public." n || { echo "cancelled: nothing was tagged"; exit 0; }
-if [ -n "$hasfile" ]; then   # the file gets its version section and a fresh Unreleased, in a commit the tag points at
-  python3 - "$new" "$today" "${last:-}" "$body" "https://github.com/$repo" <<'PY' || die "could not write CHANGELOG.md"
-import re, sys
-new, today, last, bodyfile, base = sys.argv[1:6]
-body = open(bodyfile).read().strip('\n')
-text = open('CHANGELOG.md').read()
-m = re.search(r'^## \[Unreleased\][^\n]*\n', text, re.M)
-if not m: sys.exit("no '## [Unreleased]' heading")
-nxt = re.search(r'^(## \[|\[Unreleased\]:)', text[m.end():], re.M)
-end = m.end() + (nxt.start() if nxt else len(text) - m.end())
-text = text[:m.start()] + '## [Unreleased]\n\n## [%s] - %s\n\n%s\n\n' % (new, today, body) + text[end:]
-prev = last or ''
-links = '[Unreleased]: %s/compare/v%s...HEAD\n[%s]: %s\n' % (base, new, new, ('%s/compare/%s...v%s' % (base, prev, new)) if prev else ('%s/releases/tag/v%s' % (base, new)))
-text = re.sub(r'^\[Unreleased\]:[^\n]*\n', links, text, flags=re.M) if re.search(r'^\[Unreleased\]:', text, re.M) else text.rstrip('\n') + '\n\n' + links
-open('CHANGELOG.md', 'w').write(text)
-PY
-  git add CHANGELOG.md && git commit -q -m "docs(changelog): $new" || die "could not commit CHANGELOG.md"
+# Keep the reviewed snapshot pending until CI has actually published the release.
+python3 "$notes_tool" prepare "$body" || die "could not prepare CHANGELOG.md"
+if ! git diff --quiet -- CHANGELOG.md || ! git ls-files --error-unmatch CHANGELOG.md >/dev/null 2>&1; then
+  git add CHANGELOG.md && git commit -q -m "docs(changelog): prepare $new" || die "could not commit CHANGELOG.md"
   sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD); ahead=$((ahead + 1))
 fi
 git tag -a "$tag" -F "$notes" "$sha" || die "could not tag"
@@ -144,7 +133,7 @@ git push origin "$sha:refs/heads/main" || { git tag -d "$tag" >/dev/null; die "c
 git fetch --quiet . "$sha:refs/heads/main" 2>/dev/null || true   # the local main follows (a fast-forward; never the branch you are on)
 git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push the tag (removed here)"; }
 ok "pushed $tag"
-[ -n "$watch" ] || { echo "  watch it: gh run watch -R $repo"; exit 0; }
+[ -n "$watch" ] || { echo "  notes stay in Unreleased until publication; watch it: gh run watch -R $repo"; exit 0; }
 printf '  waiting for the workflow'
 id=; i=0   # this commit's run: a tag released again keeps the failed run of its first push
 while [ -z "$id" ] && [ $i -lt 30 ]; do
@@ -153,7 +142,11 @@ done; echo
 [ -n "$id" ] || { warn "no run found yet: gh run list -R $repo"; exit 0; }
 printf '  %s%s%s\n\n' "$c" "https://github.com/$repo/actions/runs/$id" "$z"
 gh run watch "$id" --repo "$repo" --interval 20 --exit-status >/dev/null 2>&1 && res=success || res=failed
-if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+if [ "$(gh release view "$tag" --repo "$repo" --json isDraft,publishedAt -q 'select(.isDraft == false and .publishedAt != null) | .publishedAt' 2>/dev/null)" != "" ]; then
+  # CI may have archived the notes on develop while we watched. Never overwrite local edits.
+  if [ "$res" = success ] && [ "$(git rev-parse --abbrev-ref HEAD)" = "$branch" ] && [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+    git fetch --quiet origin "$branch" && git merge --ff-only --quiet "origin/$branch" || warn "fetch the changelog archive from origin/$branch"
+  fi
   ok "release $tag is published: https://github.com/$repo/releases/tag/$tag"
   gh release view "$tag" --repo "$repo" --json assets -q '.assets[].name' | sed 's/^/        /'
   printf '\n  Try it:  %scurl -fsSL https://github.com/%s/releases/latest/download/install.sh | ZINC_REPO=%s sh%s\n\n' "$c" "$repo" "$repo" "$z"

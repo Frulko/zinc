@@ -79,6 +79,7 @@
     {"paths": ["i18n/", "src/cli_core.cpp", "src/main.cpp"], "tests": ["i18n", "first_run", "cli_core", "doctor_friendly"]},
     {"paths": ["src/cli_tour.cpp", "src/cli_core.cpp", "i18n/en/cli.json", "templates/game/", "tests/t1/tour.sh"], "tests": ["tour"]},
     {"paths": ["i18n/", "src/tc/plugin_build.cpp"], "tests": ["plugin_starter"]},
+    {"paths": ["tools/release", "tools/release-notes", "tools/release-archive"], "tests": ["release_tool", "release_workflow"]},
     {"paths": [".github/workflows/zinc-next.yml"], "tests": ["ci_plan", "release_workflow"]},
     {"paths": ["tests/golden/examples/proto/manifest.json", "tests/t1/camera_pixels.sh"], "tests": ["camera_pixels"]},
     {"paths": ["tools/ci-plan", "tests/data/ci_plan.py", "tests/t0/ci_plan.sh", "tests/affected.py", "tests/affected.json"], "tests": ["ci_plan"]},

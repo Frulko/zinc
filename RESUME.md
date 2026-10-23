@@ -2,6 +2,13 @@
 
 Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
+## 2026-10-23: Release changelog publication and retries (ZN-779)
+
+- Owner asked whether changes were committed and notes complete, and why GitHub releases lose notes. Pi changes remain committed as 6642076f and 5e3bbf58. GitHub v0.6.2 really shows `docs(changelog): 0.6.2`; its checkout log proves actions/checkout peeled the annotated tag and the old workflow read the commit subject instead of the annotation.
+- Release notes now come from the tagged CHANGELOG snapshot (historical version section or new Unreleased), with a notes file. Existing releases are uploaded/edited on rerun. `tools/release` retains reviewed notes in Unreleased through failed/unwatched attempts, permits retries with pending notes and no new commit, and refuses tracked uncommitted changes.
+- After confirmed non-draft publication, CI archives the snapshot on develop, removes only matching published entries, preserves concurrent additions/edits, and retries a raced push. Reruns do not consume new notes again. Watched successful releases safely fast-forward a clean local develop. No C++ build needed.
+- Changelog: all existing pending entries retained, duplicate Added/Changed headings merged, missing website language switch/translated pages noted, release fix documented. Proof: release_tool, release_workflow (including actionlint), ci_plan all PASS; isolated local origins and fake gh. No actual push, tag or publication. Existing public release bodies unchanged; an old tag rerun uses its old workflow, so the fix applies to new tags containing it. Real CI execution and Pi hardware checks remain unproven. Usage: n/a for Codex.
+
 ## 2026-10-23: Pi image builder presets and select overlays (ZN-778)
 
 - Builder saves/loads named complete profile snapshots from private `presets.json` beside the autosaved profile. Latest edits and preset list return after reopening; unknown base/engine keys and credentials survive. Duplicate names are refused. Save dialog supports Enter, Escape and Cancel.

@@ -9,6 +9,7 @@ Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 WF=.github/workflows/zinc-next.yml
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+export GH_REPO=owner/zinc RUNNER_TEMP="$tmp" GH_LOG="$tmp/gh.args"
 if command -v actionlint >/dev/null; then actionlint "$WF" || fail=1; fi
 python3 - "$WF" "$tmp" <<'PY' || exit 1
 import sys, yaml
@@ -26,6 +27,9 @@ assert "install_nocompiler" in steps["Smoke test of the CLI archive and the app"
 open(sys.argv[2] + "/manifest.sh", "w").write(steps["Update manifests (release)"]["run"].replace("${{ matrix.name }}", "macos-arm64"))
 open(sys.argv[2] + "/release.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Release"][0]["run"])
 open(sys.argv[2] + "/sums.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Installer and checksums"][0]["run"])
+release_steps = [s.get('name') for s in rel['steps']]
+assert release_steps.index('Release') < release_steps.index('Archive published changelog')
+assert next(s for s in rel['steps'] if s.get('name') == 'Archive published changelog')['run'] == 'bash tools/release-archive'
 names = [m["name"] for m in wf["jobs"]["package"]["strategy"]["matrix"]["include"]]
 assert {"macos-arm64", "macos-x86_64"} <= set(names), "a Mac has no package job: %s" % names   # Linux and Windows are off for now (owner, 2026-10-15)
 # ZN-714: console programs cross-built for Windows on Linux, run on a Windows runner; both call the script a person can run (tools/windows-cross)
@@ -61,12 +65,27 @@ mkdir -p "$tmp/job2/dist" "$tmp/job2/build" && cp "$tmp/job/dist/$cli" "$tmp/job
 u="file://$tmp/job2/dist/zinc-macos-arm64.manifest"
 ZINC_HOME="$tmp/home" ZINC_UPDATE_PUBKEY="$pub" "$Z" update --check "$u" 2>&1 | grep -q "unsigned (signature=none" || { echo "release_workflow: an unsigned manifest is not refused"; fail=1; }
 ZINC_HOME="$tmp/home" ZINC_UPDATE_ALLOW_UNSIGNED=1 "$Z" update --check "$u" >/dev/null 2>&1; [ $? -eq 10 ] || { echo "release_workflow: ZINC_UPDATE_ALLOW_UNSIGNED=1 does not accept the unsigned manifest"; fail=1; }
-printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/gh.args"\n' "$tmp" > "$tmp/bin/gh"; chmod +x "$tmp/bin/gh"
+cat > "$tmp/bin/gh" <<'GH'
+#!/bin/sh
+printf '%s\n' "$@" >> "$GH_LOG"
+case "$*" in
+  "release view"*) [ "${TEST_RELEASE_EXISTS:-}" = yes ]; exit $? ;;
+  "release create"*) [ "${TEST_FAIL_CREATE:-}" != yes ] || exit 1 ;;
+esac
+while [ $# -gt 0 ]; do
+  if [ "$1" = --notes-file ]; then cat "$2" >> "$GH_LOG"; fi
+  shift
+done
+GH
+chmod +x "$tmp/bin/gh"
 mkdir -p "$tmp/r1/release" && cp "$tmp/job/dist/$cli" "$tmp/job/dist/$app" "$tmp/job/dist/sizes-macos-cli.json" "$tmp/job2/dist/"*.manifest "$tmp/r1/release/"
 linux=zinc-9.1.0-linux-x86_64.tar.gz wapp=Zinc-Atelier-9.1.0-windows-x86_64.zip   # the Linux CLI (linux-cross) and the Windows app (package-windows)
 echo "linux" > "$tmp/r1/release/$linux"; echo "wapp" > "$tmp/r1/release/$wapp"
 # ZN-718: the installer and the checksums it reads are release assets; one line per download, the CLI and the app
-mkdir -p "$tmp/r1/tools" && cp tools/install.sh tools/install.ps1 "$tmp/r1/tools/"
+mkdir -p "$tmp/r1/tools" && cp tools/install.sh tools/install.ps1 tools/release-notes "$tmp/r1/tools/"
+printf '# Changelog\n\n## [Unreleased]\n\n### Fixed\n- Real release notes, preserved across retries.\n\n## [9.0.0] - 2026-01-01\n\n- Previous release.\n' > "$tmp/r1/CHANGELOG.md"
+# checkout can leave a lightweight tag: the notes must not become the commit subject.
+git -C "$tmp/r1" init -q && git -C "$tmp/r1" add CHANGELOG.md && git -C "$tmp/r1" -c user.name=test -c user.email=t@t commit -q -m 'docs(changelog): 9.1.0' && git -C "$tmp/r1" tag v9.1.0
 (cd "$tmp/r1" && bash -e "$tmp/sums.sh") || { echo "release_workflow: the checksums step failed"; fail=1; }
 [ "$(cat "$tmp/r1/release/SHA256SUMS")" = "$(cd "$tmp/r1/release" && shasum -a 256 "$linux" "$cli" "$app" "$wapp")" ] || { echo "release_workflow: SHA256SUMS: $(cat "$tmp/r1/release/SHA256SUMS")"; fail=1; }
 (cd "$tmp/r1" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the release step failed"; fail=1; }
@@ -77,10 +96,27 @@ grep -q "the zinc CLI for Linux" "$tmp/gh.args" && grep -q "the Zinc Atelier app
 grep -q "sizes-" "$tmp/gh.args" && { echo "release_workflow: the size reports are attached"; fail=1; }
 grep -q "the zinc CLI" "$tmp/gh.args" && grep -q "the Zinc Atelier app" "$tmp/gh.args" || { echo "release_workflow: the notes do not say what each file is"; fail=1; }
 grep -q "not signed" "$tmp/gh.args" && grep -q "manifests are unsigned" "$tmp/gh.args" || { echo "release_workflow: the notes do not say unsigned downloads / manifests: $(cat "$tmp/gh.args")"; fail=1; }
+grep -q 'Real release notes, preserved across retries.' "$tmp/gh.args" && ! grep -q 'docs(changelog)' "$tmp/gh.args" || { echo "release_workflow: lightweight tag lost real notes"; fail=1; }
+# Rerun an existing publication: upload/replace assets and edit its complete notes.
+: > "$tmp/gh.args"
+(cd "$tmp/r1" && PATH="$tmp/bin:$PATH" TEST_RELEASE_EXISTS=yes GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: rerun failed"; fail=1; }
+grep -qx upload "$tmp/gh.args" && grep -qx -- --clobber "$tmp/gh.args" && grep -qx edit "$tmp/gh.args" && ! grep -qx create "$tmp/gh.args" && grep -q 'Real release notes, preserved across retries.' "$tmp/gh.args" || { echo "release_workflow: rerun did not update assets and notes"; fail=1; }
+: > "$tmp/gh.args"
+(cd "$tmp/r1" && PATH="$tmp/bin:$PATH" TEST_FAIL_CREATE=yes GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) && { echo "release_workflow: publication failure ignored"; fail=1; }
+grep -q '^## \[Unreleased\]' "$tmp/r1/CHANGELOG.md" && grep -q 'Real release notes' "$tmp/r1/CHANGELOG.md" || { echo "release_workflow: publication failure consumed notes"; fail=1; }
 mkdir -p "$tmp/r2/release" && cp "$tmp/job/dist/"* "$tmp/r2/release/" && touch "$tmp/r2/release/.signed"
+mkdir -p "$tmp/r2/tools" && cp tools/release-notes "$tmp/r2/tools/"
+printf '# Changelog\n\n## [Unreleased]\n\n### Added\n- A future note.\n\n## [9.1.0] - 2026-01-01\n\n### Fixed\n- Historical release note.\n' > "$tmp/r2/CHANGELOG.md"
+: > "$tmp/gh.args"
 (cd "$tmp/r2" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the signed release step failed"; fail=1; }
 grep -q "not signed\|unsigned" "$tmp/gh.args" && { echo "release_workflow: a signed release with manifests says otherwise"; fail=1; }
 grep -q "^release/zinc-macos-arm64.manifest$" "$tmp/gh.args" && grep -q "^release/zinc-macos-arm64-beta.manifest$" "$tmp/gh.args" && ! grep -q "\.signed" "$tmp/gh.args" || { echo "release_workflow: the manifest is not attached, or the marker is: $(cat "$tmp/gh.args")"; fail=1; }
+grep -q 'Historical release note' "$tmp/gh.args" && ! grep -q 'A future note' "$tmp/gh.args" || { echo "release_workflow: historical release used future notes"; fail=1; }
+# Missing notes fail before creating a release instead of publishing a downloads-only body.
+printf '# Changelog\n\n## [Unreleased]\n\n' > "$tmp/r2/CHANGELOG.md"
+: > "$tmp/gh.args"
+(cd "$tmp/r2" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null 2>&1) && { echo "release_workflow: empty notes accepted"; fail=1; }
+[ ! -s "$tmp/gh.args" ] || { echo "release_workflow: contacted releases with empty notes"; fail=1; }
 # ZN-714: the half of tools/windows-cross that runs on Windows, here on stand-in programs: one prints its frozen output, the other does not
 mkdir -p "$tmp/wc" && printf '#!/bin/sh\nprintf "a\\r\\nb\\r\\n"\n' > "$tmp/wc/good.exe" && printf 'a\nb\n' > "$tmp/wc/good.out" && chmod +x "$tmp/wc/good.exe"
 [ "$(tools/windows-cross check "$tmp/wc")" = "PASS good" ] || { echo "release_workflow: windows-cross check does not pass a program that prints its output"; fail=1; }

@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Read an immutable release snapshot; archive it only after publication."""
+import collections
+import datetime
+import pathlib
+import re
+import sys
+
+
+def section(text, name):
+    match = re.search(r'^## \[' + re.escape(name) + r'\][^\n]*\n', text, re.M)
+    if not match:
+        raise ValueError('missing changelog section: ' + name)
+    end = re.search(r'^(?:## \[|\[[^\n]+\]:)', text[match.end():], re.M)
+    return match.start(), match.end(), match.end() + (end.start() if end else len(text) - match.end())
+
+
+def body(text, version):
+    try:
+        _, start, end = section(text, version)
+    except ValueError:
+        _, start, end = section(text, 'Unreleased')
+    result = text[start:end].strip()
+    if not re.search(r'^- ', result, re.M):
+        raise ValueError('release changelog has no entries')
+    return result
+
+
+def entries(text):
+    groups = {}
+    heading = ''
+    for block in re.split(r'(?=^### |^- )', text.strip(), flags=re.M):
+        block = block.strip()
+        if block.startswith('### '):
+            heading, _, block = block.partition('\n')
+        if block.strip():
+            groups.setdefault(heading, []).append(block.strip())
+    return groups
+
+
+def render(groups):
+    return '\n\n'.join((heading + '\n' if heading else '') + '\n'.join(items)
+                       for heading, items in groups.items() if items)
+
+
+def archive(text, snapshot, version, base, date):
+    published = body(snapshot, version)
+    try:
+        section(text, version)
+    except ValueError:
+        pass
+    else:
+        if body(text, version) != published:
+            raise ValueError('version already archived with different notes: ' + version)
+        return text
+    begin, start, end = section(text, 'Unreleased')
+    pending = entries(text[start:end])
+    for heading, items in entries(published).items():
+        remove = collections.Counter(items)
+        kept = []
+        for item in pending.get(heading, []):
+            if remove[item]:
+                remove[item] -= 1
+            else:
+                kept.append(item)
+        pending[heading] = kept
+    previous = re.search(r'^## \[([^\]]+)\]', text[end:], re.M)
+    rest = text[end:]
+    text = (text[:begin] + '## [Unreleased]\n\n' +
+            (render(pending) + '\n\n' if render(pending) else '') +
+            f'## [{version}] - {date}\n\n{published}\n\n' + rest)
+    link = f'[Unreleased]: {base}/compare/v{version}...HEAD'
+    target = (f'{base}/compare/v{previous[1]}...v{version}' if previous else
+              f'{base}/releases/tag/v{version}')
+    if re.search(r'^\[Unreleased\]:', text, re.M):
+        text = re.sub(r'^\[Unreleased\]:[^\n]*', link, text, flags=re.M)
+    else:
+        text = text.rstrip() + '\n\n' + link + '\n'
+    return text.rstrip() + f'\n[{version}]: {target}\n'
+
+
+def main():
+    command, *args = sys.argv[1:]
+    changelog = pathlib.Path('CHANGELOG.md')
+    if command == 'body':
+        snapshot, version = args
+        print(body(pathlib.Path(snapshot).read_text(), version.removeprefix('v')))
+    elif command == 'prepare':
+        notes, = args
+        text = changelog.read_text() if changelog.exists() else '# Changelog\n\n## [Unreleased]\n\n'
+        _, start, end = section(text, 'Unreleased')
+        reviewed = pathlib.Path(notes).read_text().strip()
+        if not re.search(r'^- ', reviewed, re.M):
+            raise ValueError('release changelog has no entries')
+        changelog.write_text(text[:start] + '\n' + reviewed + '\n\n' + text[end:])
+    elif command == 'archive':
+        snapshot, version, base, date = args
+        datetime.date.fromisoformat(date)
+        text = changelog.read_text()
+        result = archive(text, pathlib.Path(snapshot).read_text(), version.removeprefix('v'), base, date)
+        if result != text:
+            changelog.write_text(result)
+    else:
+        raise ValueError('expected body, prepare or archive')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        sys.exit('release-notes: ' + str(error))

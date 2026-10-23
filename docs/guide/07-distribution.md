@@ -470,8 +470,15 @@ address, which the job uploads to the latest release, where `zinc update --chann
 `make release` (`tools/release`) is the one command that publishes a version. It runs from `develop`, where the work happens, and checks the repository (on `develop`, clean tree, in
 step with origin, `main` behind `develop`, `gh` signed in, the `ZINC_UPDATE_SEED` secret, `update.pub`), proposes the next version from the commits since the last tag, shows the notes, and asks.
 The notes are the `## [Unreleased]` section of `CHANGELOG.md` (written as the work goes, see AGENTS.md); when it is empty the tool drafts one from the `feat`, `fix` and
-`perf` commits and offers to open it in `$EDITOR`. On a yes it moves the section under the new version in a `docs(changelog)` commit, tags that commit with the notes as the
-tag message, fast-forwards `main` to it, pushes `develop`, `main` and the tag, and watches the tag's workflow: the CI (the whole test tier, the packages), which publishes the downloads, the signed manifests and the notes. `make release BUMP=minor` (or `patch`, `major`, `X.Y.Z`),
+`perf` commits and offers to open it in `$EDITOR`. On a yes it saves the reviewed notes in `Unreleased` (a `docs(changelog)` commit if they changed), tags that snapshot,
+fast-forwards `main` to it, pushes `develop`, `main` and the tag, and watches the tag's workflow: the CI (the whole test tier, the packages), which publishes the downloads, the signed manifests and the notes.
+The workflow reads `CHANGELOG.md` from the tagged commit, so it works even when checkout has peeled the tag annotation; older tags with a version section use that section.
+Only after GitHub confirms publication does CI archive the snapshot under the version on `develop`. Notes added or edited while CI ran stay in `Unreleased`.
+Whether watched or started with `NO_WATCH=1`, notes stay pending until publication; a failed build or upload never consumes them. Rerunning the release job replaces the assets and full notes of an existing release;
+archiving is idempotent. If the archive push fails, rerun that job. A new release attempt also includes the pending notes, even without another code commit.
+After a successful watched run, the tool fast-forwards the local `develop` to the archive commit when the tree is clean; otherwise pull it later.
+
+`make release BUMP=minor` (or `patch`, `major`, `X.Y.Z`),
 `YES=1` for no questions, `make release-dry` to see the version and the notes, `make release-undo TAG=vX.Y.Z` to take a version back.
 
 The owner's steps, once (Settings > Secrets and variables > Actions):

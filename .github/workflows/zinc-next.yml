@@ -720,8 +720,8 @@ jobs:
         run: |
           ls -la release
           nl=$'\n'
-          # the changelog `make release` wrote as the tag message (its first line is the title)
-          changelog=$(git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents)' | sed '1{/^Zinc /d;}' | sed '1{/^$/d;}')
+          # checkout may peel an annotated tag; the tagged changelog is the immutable snapshot.
+          changelog=$(python3 tools/release-notes body CHANGELOG.md "$GITHUB_REF_NAME")
           notes="Zinc ${GITHUB_REF_NAME}${nl}${nl}${changelog:+$changelog$nl$nl}## Downloads${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
@@ -736,10 +736,21 @@ jobs:
           [ ! -f release/install.ps1 ] || files+=(release/install.ps1)   # the CLI archives and the manifests, not the size reports
           for f in release/Zinc-Atelier-* release/plugins.lock release/engines-*.tar; do if [ -f "$f" ]; then files+=("$f"); fi; done
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac   # v1.3.0-beta.1: not the latest release, the beta channel only
-          gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" "${pre[@]}" "${files[@]}"
+          printf '%s\n' "$notes" > "$RUNNER_TEMP/release-notes.md"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes-file "$RUNNER_TEMP/release-notes.md" --draft=false --prerelease="$([ ${#pre[@]} -gt 0 ] && echo true || echo false)"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "Zinc ${GITHUB_REF_NAME}" --notes-file "$RUNNER_TEMP/release-notes.md" "${pre[@]}" "${files[@]}"
+          fi
           if [ ${#pre[@]} -gt 0 ]; then   # the beta manifests go on the latest release, where zinc update --channel beta reads them
             latest=$(gh release view --json tagName -q .tagName) && gh release upload "$latest" release/*-beta.manifest --clobber
           fi
+      - name: Archive published changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash tools/release-archive
       - name: Homebrew tap
         # brew install frulko/zinc/zinc: the formula of this release (tools/homebrew-formula) pushed to <owner>/homebrew-zinc with its deploy key; stable tags only
         if: ${{ !contains(github.ref_name, '-') }}
