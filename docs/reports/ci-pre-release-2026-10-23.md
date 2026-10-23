@@ -50,3 +50,7 @@ The exact ARM64 macOS artifact from the failing tag run also passes the complete
 Failure sampling now retains refusal/error output as well as successful stacks; the diagnostic regression covers both. The mapping check (`ci_plan`) passes. Earlier Pi/bootstrap/updater, deployment and Music Tree checks were not repeated because their code did not change.
 
 The owner requests targeted local checks before any further CI. No push, dispatch or publication has been performed. ZN-786 remains In Progress; the relay acceptance criterion is not checked. A later hosted failure with the new diagnostics may establish the blocking call. Release dry-run validates signing prerequisites and proposes v0.7.0 with the pending changelog; image construction and physical first boot remain separate required checks.
+
+## Owner-directed CI exception
+
+The owner subsequently requested disabling the relay gate. `notify_relay` now exits 77 with an explicit unresolved-stall reason whenever `ZINC_CI` is set, so it is reported as SKIP rather than PASS and cannot block publication. Local integration runs remain available; `notify_relay_unit` and `notify_capture` remain enabled. A targeted native regression verifies the early CI skip without launching either fixture process. ZN-786 is closed on this revised scope, not on a claim that the underlying stall was fixed. No workflow was dispatched.

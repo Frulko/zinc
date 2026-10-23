@@ -9,6 +9,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class Diagnostics(unittest.TestCase):
+    def test_relay_is_explicitly_skipped_in_ci(self):
+        env = dict(os.environ, ZINC_CI='1', ZINC='/nonexistent/fixture-zinc')
+        result = subprocess.run(['sh', str(ROOT / 'tests/t1/notify_relay.sh')], env=env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 77)
+        self.assertIn('disabled in CI by owner', result.stdout)
+        self.assertIn('intermittent stall remains unresolved', result.stdout)
+
     def test_compat_preserves_startup_failure_and_success_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

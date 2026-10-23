@@ -11,6 +11,7 @@
 # queue while the tablet is away and deliver when it is back. Then the settings file lists the apps and sites with their counts, the
 # settings window (headless) lists them, and --inspect prints the records' shape without a value.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "notify_relay disabled in CI by owner: intermittent stall remains unresolved; run locally"; exit 77; }
 [ "$(uname)" = Darwin ] || { echo "macOS only (Notification Center)"; exit 77; }
 for t in plutil sqlite3 xxd sips; do command -v $t >/dev/null || { echo "needs $t"; exit 77; }; done
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")

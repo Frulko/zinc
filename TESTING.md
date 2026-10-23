@@ -20,6 +20,8 @@ A task ends with the tests that cover **what it touched**, not with the corpus. 
 
 Pushes to `develop` and `main` run nothing. A release tag (`make release`) and a manual run (`gh workflow run zinc-next --ref develop`) run the whole tier T2 on macOS in six shards, the package job (which runs `install_nocompiler` and `package` on the archive it built: the shards skip them), the fuzz job, the benchmark gate and the reproducible build. A test that needs what a hosted runner has not (a real GPU, a display, a debugger, a timing, an emulator) exits 77 under `ZINC_CI` with the reason; a test never passes on CI without proving what it says (`docs/reports/test-audit-2026-10-21/`).
 
+Owner exception (2026-10-23): `notify_relay` exits 77 under `ZINC_CI` because its intermittent hosted stall remains unresolved. It stays runnable locally with `tests/run --only notify_relay` and `ZINC_CI` unset. The `notify_relay_unit` and `notify_capture` checks remain enabled in CI; this exception does not disable the relay app.
+
 ## Test tiers
 
 | Tier | When | Scope | Output that reaches the session |
