@@ -2,6 +2,7 @@
 import { Show } from 'zinc:ui/solid';
 import { Button as ActionButton } from 'zinc:ui/nuxt';
 import { Icon } from 'zinc:icons';
+import { Spinner } from 'zinc:ui/kit';
 import { ProgressBar } from '../components/progress-bar';
 import { LogView } from '../components/log-view';
 import { shownPath } from '../services/paths';
@@ -38,7 +39,11 @@ export function BuildPage(): i32 {
     <Show when={status() !== 'idle'}><SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} /></Show>
     <View className="flex-col gap-3">
       <View className="flex-row items-center gap-2">
-        <Button aria-label="Build the image" disabled={status() === 'running'} onClick={startBuild} className={`grow flex-row items-center justify-center gap-2 h-10 rounded-[6px] bg-[#b7d995] hover:bg-[#c7e5a8] ${status() === 'running' ? 'opacity-70' : ''}`}><Icon name={status() === 'running' ? 'loader-circle' : 'hammer'} size={17} color={() => 0x203c29} /><Text className="text-sm font-semibold text-[#203c29]">{status() === 'running' ? 'Building…' : 'Build the image'}</Text></Button>
+        <Button aria-label="Build the image" disabled={status() === 'running'} onClick={startBuild} className={`grow flex-row items-center justify-center gap-2 h-10 rounded-[6px] bg-[#b7d995] hover:bg-[#c7e5a8] ${status() === 'running' ? 'opacity-70' : ''}`}>
+          <Show when={status() === 'running'}><Spinner size={17} color={() => 0x203c29} active={() => status() === 'running'} /></Show>
+          <Show when={status() !== 'running'}><Icon name="hammer" size={17} color={() => 0x203c29} /></Show>
+          <Text className="text-sm font-semibold text-[#203c29]">{status() === 'running' ? 'Building…' : 'Build the image'}</Text>
+        </Button>
         <Show when={status() === 'running'}><ActionButton label="Stop" icon="square" color="neutral" variant="outline" onClick={stopBuild} /></Show>
       </View>
       <Show when={status() !== 'idle'}>

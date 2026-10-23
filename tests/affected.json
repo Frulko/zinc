@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["lib/std/kit/spinner.tsx", "image/builder/src/components/progress-bar.tsx", "tests/data/pi-image/builder-motion.tsx", "tests/t0/pi_builder_motion.sh"], "tests": ["pi_builder_motion"]},
     {"paths": ["examples/glass-icon-reveal/", "tests/data/glass-icon-reveal/", "tests/golden/glass-icon-reveal/", "tests/t1/glass_icon_reveal.sh", "tests/demo/glass_icon_reveal_gpu.sh"], "tests": ["glass_icon_reveal"]},
     {"paths": ["tests/t2/compat.sh", "tests/t1/notify_relay.sh", "tests/data/release_gate_diagnostics.py", "tests/t0/release_gate_diagnostics.sh"], "tests": ["release_gate_diagnostics"]},
     {"paths": [".github/workflows/pi-image.yml", "tools/pi-image-release", "tools/pi-image", "image/configure-boot.sh", "tests/data/pi-image/test_pipeline.py", "tests/t0/pi_image_pipeline.sh"], "tests": ["pi_image_pipeline", "pi_image_bootstrap"]},

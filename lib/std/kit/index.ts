@@ -16,6 +16,7 @@ export { KeyboardLayout, registerLayout, layoutOf, layoutIds } from './keyboard-
 export { Avatar, initials } from './avatar';
 export { Alert } from './alert';
 export { Progress } from './progress';
+export { Spinner } from './spinner';
 export { Slider } from './slider';
 export { Switch } from './switch';
 export { Tabs } from './tabs';

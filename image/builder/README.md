@@ -30,6 +30,10 @@ The output follows new lines while its bottom is visible. Scroll up to read earl
 returns to the bottom and resumes following. Up to 400 lines are shown. Steps and errors stand out; the current step, percentage and
 finished image actions stay above the output. **Show file** reveals the image; **Open Imager** launches Raspberry Pi Imager or its download page.
 
+During a build, a rotating activity ring remains visible even when an individual step takes time. The progress bar eases between
+reported steps over 280 ms; it never advances without a new step. The activity ring is removed on completion/failure, and reduced
+motion keeps it still and applies progress updates immediately.
+
 ## Layout of `src/`
 
 ```text
@@ -44,5 +48,6 @@ src/
 
 Proof: `tests/t1/pi_image_builder.sh` (a scripted session against a fake `tools/pi-image`), `tests/t0/pi_image_presets.sh`
 (private snapshots, unknown keys and failed writes), `tests/t1/pi_image_builder_log.sh` (follow, reading older lines and pointer resume),
+`tests/t0/pi_builder_motion.sh` (rotation, step easing, completion/failure cleanup and reduced motion),
 `tests/t1/pi_image_builder_presets.sh` (real dropdown pointer hits beyond
 the card, preset save/load, errors and a cold app restart), and `tests/t1/nuxt_ui.sh` for the shared select component.

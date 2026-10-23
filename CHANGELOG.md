@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui/kit` exports a reusable `Spinner` activity ring driven by the engine, with reduced-motion support.
 - `examples/glass-icon-reveal` adapts Zanwei Guo's glass reveal to a native Zinc scene with GPU refraction, light/dark looks and touch, mouse and keyboard playback controls, using the shared Mac, Android and Pi shader API.
 - A dedicated manual Pi image workflow produces a checked `.img.xz` for Etcher or Raspberry Pi Imager from a verified signed ARM64 engine release. `tools/pi-image configure <boot-dir> [profile.json]` applies saved login, Wi-Fi and SSH settings to a freshly flashed card without rebuilding it.
 - On the ESP32-2432S022 under `--engine mquickjs`, the BOOT button is pin 0 of `zinc:gpio` (read and watch it), and holding it 3 s turns the board off, as `device.powerOff()` does; RST, or the battery's button, turns it on again. The widgets' System page has a Turn off button.
@@ -49,7 +50,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A web program that needs WebGL 2 says `"requires": ["gpu>=webgl2"]`: on a machine whose GPU cannot make a WebGL 2 context it now stops with the reason (`--force` runs it anyway), and any other program gets a warning with the `null` context. `ZINC_WEBGL_MAX=1` makes any machine behave like such a GPU.
 
 ### Changed
-- Zinc Pi Image has an illustrated settings workspace with desktop checkboxes and a clearer build panel with hardware summary, step progress and image actions. Build output follows new lines, pauses when you scroll up, and resumes with **Latest output**.
+- Zinc Pi Image has an illustrated settings workspace with desktop checkboxes and a clearer build panel with hardware summary, animated loading and step progress, and image actions. Build output follows new lines, pauses when you scroll up, and resumes with **Latest output**.
 - LVGL runs about 1.6 times faster on the ESP32-2432S022 under `--engine mquickjs` (the widgets' Bench page: 38 fps, from 24): its hottest code runs from the internal RAM instead of the flash. A plugin lists such files under `targets.esp32.iram` in its `plugin.json`.
 - A program on the ESP32-2432S022 under `--engine mquickjs` has about 26 KB more memory once LVGL draws: the board's panel bus copies each area, so LVGL renders into one buffer and the firmware keeps one band. A Lottie animation now fits after the widgets' benchmark page.
 - A program that styles only with style objects, never with `className`, no longer carries the class parser: about a tenth less code to compile and interpret, and a native app about 145 KB smaller (a React Native program too, sticky section headers included).
