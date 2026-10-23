@@ -35,7 +35,7 @@ done
 for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk; do
   p=$(PATH=/usr/bin:/bin command -v "$t") && ln -s "$p" "$tmp/bin/$t"
 done
-clean() { env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" PATH="$tmp/shims:$tmp/bin:/bin" "$@"; }
+clean() { env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" ZINC_LANG=en PATH="$tmp/shims:$tmp/bin:/bin" "$@"; }
 
 # a wrong checksum: nothing installed
 mkdir "$tmp/bad" && cp "$tmp/release/"* "$tmp/bad/" && sed 's/^..../0000/' "$tmp/release/SHA256SUMS" > "$tmp/bad/SHA256SUMS"
@@ -63,7 +63,7 @@ out=$(env -i HOME="$tmp/elsewhere/home" PATH=/usr/bin:/bin ZINC_STEPS=0 ZINC_HEA
 
 run() { clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 "$@"; }
 cd "$tmp/work" || exit 2
-[ "$(clean "$Z" new game my-game 2>&1)" = "created my-game (game); next: cd my-game && zinc run" ] || { echo "zinc new game fails from the install"; fail=1; }
+clean "$Z" new game my-game >"$tmp/new.log" 2>&1 && [ -s my-game/zinc.json ] && [ -s my-game/src/main.ts ] || { echo "zinc new game fails from the install: $(head -c 400 "$tmp/new.log")"; fail=1; }
 cd my-game || exit 2
 run ZINC_SHOT="$tmp/shot.png" "$Z" run >"$tmp/out" 2>"$tmp/err"
 [ $? -eq 0 ] && [ -s "$tmp/shot.png" ] && [ ! -s "$tmp/err" ] || { echo "zinc run of the game template: $(head -c 400 "$tmp/err")"; fail=1; }
@@ -76,7 +76,7 @@ clean "$Z" lint >"$tmp/out" 2>&1 || { echo "zinc lint fails from the install: $(
 
 # zinc dev: the program starts, an edit reloads it
 waitfor() { n=0; while [ $n -lt $(( $3 * 20 * ${ZN_WAIT_SCALE:-1} )) ]; do grep -Eq "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
-env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" PATH="$tmp/shims:$tmp/bin:/bin" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 \
+env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" ZINC_LANG=en PATH="$tmp/shims:$tmp/bin:/bin" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 \
   "$Z" dev >"$tmp/dev.log" 2>&1 &   # not through clean(): $! must be zinc itself (env execs it), or the kill below leaves zinc dev running
 dev=$!
 waitfor "$tmp/dev.log" "v1 started" 10 || { echo "zinc dev does not start: $(head -c 400 "$tmp/dev.log")"; fail=1; }

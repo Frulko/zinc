@@ -5,6 +5,8 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+
+- ZN-780: explicitly initialise `Native::iram` in `src/cli_mqjs.cpp` to remove the pre-existing clang `-Wmissing-field-initializers` warning seen while rebuilding for the install smoke test; the following loop already fills the vector.
 - ZN-775: support component/fragment roots directly in VirtualList; virtual positioning needs a host box (Kanban uses a View row), whereas layout flattens JSX fragments and drops their position.
 - zinc check: a project on the QuickJS engine ("engine": "quickjs") is checked by the typed checker, which does not resolve `node_modules` packages (Z0119 on every `@nbe/...` import of examples/carnet-nbe, which runs): check it as the QuickJS loader resolves it (src/qjs/qjs.cpp quickjsLint), or say the check does not apply.
 - QuickJS: a browser `WebSocket` global (binary frames as ArrayBuffer) for libraries that expect one (@nbe/collab's connectToRelay); examples/carnet-nbe/src/services/sync.ts carries the adapter over zinc:socket, the web environment could give it to every program.

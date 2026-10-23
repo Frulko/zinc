@@ -2,6 +2,13 @@
 
 Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
+## 2026-10-23: First pre-release CI failure, package smoke (ZN-780)
+
+- Owner reported run 39939275942 / job 120368231565 (`package-macos-arm64`, commit b7b1a3e4). Build and Package passed; install_nocompiler failed only on its exact pre-onboarding success text for `zinc new game my-game`.
+- The smoke test now checks command success and generated zinc.json/src/main.ts, prints captured diagnostics on failure and pins English inside its clean environments. Existing execution, dev reload, plugin, doctor, Atelier and no-compiler checks remain strict. Test-only fix; no changelog line.
+- Proof: rebuilt current native zinc via tools/build zinc (initial local binary was stale and warned about esp32.iram), packaged into /tmp/zinc-ci-install.ICztah/current (CLI 34.0 MB, app 35.2 MB, within budgets), then ZINC_DIST=/tmp/zinc-ci-install.ICztah/current tests/run --only install_nocompiler: PASS, 1 passed / 0 failed. Shell syntax and diff check passed. Pre-existing Native::iram missing-initialiser warning noted in backlog/later.md; no engine source edited.
+- No cross-target build, full suite, push, workflow dispatch or publication. The current GitHub run remains on b7b1a3e4; after pushing this commit start a new dispatch, not a rerun of the old SHA. Usage: n/a for Codex.
+
 ## 2026-10-23: Release changelog publication and retries (ZN-779)
 
 - Owner asked whether changes were committed and notes complete, and why GitHub releases lose notes. Pi changes remain committed as 6642076f and 5e3bbf58. GitHub v0.6.2 really shows `docs(changelog): 0.6.2`; its checkout log proves actions/checkout peeled the annotated tag and the old workflow read the commit subject instead of the annotation.
