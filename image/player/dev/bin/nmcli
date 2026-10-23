@@ -1,0 +1,50 @@
+#!/bin/bash
+# An nmcli that plays NetworkManager on a pretend Raspberry Pi, for zinc:network (plugins/network) on a computer: the
+# player run by tools/pi-image player, and the tests (tests/t1/pi_image_player.sh, tests/t0/network_plugin.sh). It
+# answers the calls zinc:network makes; the network joined is kept in $ZINC_FAKE_PI/wifi.value. Four networks are around:
+# "Atelier" takes the password "correct horse", "Cafe libre" is open. Each call is logged to $ZINC_FAKE_PI/calls.log.
+set -u
+state=${ZINC_FAKE_PI:?ZINC_FAKE_PI names the directory of the pretend Pi}
+mkdir -p "$state"
+echo "nmcli $*" >>"$state/calls.log"
+wifi=$(cat "$state/wifi.value" 2>/dev/null)
+networks=('82:WPA2:Atelier' '64:WPA2:Maison' '40::Cafe libre' '30:WPA2 WPA3:Voisin 5G' '20:WPA2:Atelier')
+
+case "$*" in
+  "-t -e no -f GENERAL.DEVICE,GENERAL.TYPE,GENERAL.STATE,IP4.ADDRESS device show")
+    printf 'GENERAL.DEVICE:eth0\nGENERAL.TYPE:ethernet\nGENERAL.STATE:100 (connected)\nIP4.ADDRESS[1]:192.168.2.40/24\n\n'
+    if [ -n "$wifi" ]; then
+      printf 'GENERAL.DEVICE:wlan0\nGENERAL.TYPE:wifi\nGENERAL.STATE:100 (connected)\nIP4.ADDRESS[1]:192.168.2.41/24\n\n'
+    else
+      printf 'GENERAL.DEVICE:wlan0\nGENERAL.TYPE:wifi\nGENERAL.STATE:30 (disconnected)\n\n'
+    fi
+    printf 'GENERAL.DEVICE:lo\nGENERAL.TYPE:loopback\nGENERAL.STATE:100 (connected (externally))\nIP4.ADDRESS[1]:127.0.0.1/8\n'
+    ;;
+  "-t -e no -f ACTIVE,SSID device wifi list --rescan no")
+    for line in "${networks[@]}"; do [ "${line##*:}" = "$wifi" ] && echo "yes:${line##*:}" || echo "no:${line##*:}"; done
+    ;;
+  "-t -e no -f IN-USE,SIGNAL,SECURITY,SSID device wifi list --rescan "*)
+    for line in "${networks[@]}"; do [ "${line##*:}" = "$wifi" ] && echo "*:$line" || echo " :$line"; done
+    ;;
+  "radio wifi on") ;;
+  "--wait 45 device wifi connect "*)
+    ssid=$6 password=${8:-}
+    case $ssid in
+      'Cafe libre') ;;
+      Atelier) [ "$password" = 'correct horse' ] || { echo "Error: Connection activation failed: Secrets were required, but not provided." >&2; exit 4; } ;;
+      *) echo "Error: No network with SSID '$ssid' found." >&2; exit 10 ;;
+    esac
+    echo "$ssid" >"$state/wifi.value"
+    echo "Device 'wlan0' successfully activated with 'f0e1d2c3-0000-4000-8000-000000000001'."
+    ;;
+  "-t -f UUID,TYPE connection show")
+    echo "a1b2c3d4-0000-4000-8000-000000000000:802-3-ethernet"
+    if [ -n "$wifi" ]; then echo "f0e1d2c3-0000-4000-8000-000000000001:802-11-wireless"; fi
+    ;;
+  "-g 802-11-wireless.ssid connection show f0e1d2c3-0000-4000-8000-000000000001") echo "$wifi" ;;
+  "connection delete f0e1d2c3-0000-4000-8000-000000000001")
+    rm -f "$state/wifi.value"
+    echo "Connection '$wifi' (f0e1d2c3-0000-4000-8000-000000000001) successfully deleted."
+    ;;
+  *) echo "Error: the pretend nmcli does not know \"$*\"." >&2; exit 2 ;;
+esac

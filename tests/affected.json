@@ -17,6 +17,7 @@
     {"paths": ["examples/carnet/", "tests/t1/carnet.sh", "tests/demo/carnet_collab.sh", "tests/data/carnet/", "tests/golden/carnet/"], "tests": ["carnet", "carnet_collab"]},
     {"paths": ["examples/carnet-nbe/", "tests/t1/carnet_nbe.sh", "tests/demo/carnet_nbe_collab.sh", "tests/data/carnet-nbe/", "tests/data/carnet/session.input", "tests/golden/carnet-nbe/"], "tests": ["carnet_nbe", "carnet_nbe_collab"]},
     {"paths": ["examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/data/music-tree/"], "tests": ["music_tree_sonos"]},
+    {"paths": ["plugins/network/", "image/player/dev/bin/nmcli", "tests/t0/network_plugin.sh", "docs/plugins/network.md"], "tests": ["network_plugin"]},
     {"paths": ["lib/std/stage.ts", "tests/t0/stage.sh", "tests/golden/stage/"], "tests": ["stage", "music_tree_sonos"]},
     {"paths": ["examples/agents/", "tests/demo/agents_chat.sh", "tests/t1/agents_memory.sh", "tests/demo/agents_markdown.sh", "tests/demo/agents_usage.sh", "tests/demo/agents_go.sh", "tests/data/agents/"], "tests": ["agents_chat", "agents_memory", "agents_markdown", "agents_usage", "agents_go"]},
     {"paths": ["lib/std/ui.ts", "tests/golden/ui-runs/", "tests/t1/ui_runs.sh"], "tests": ["ui_runs", "agents_markdown"]},

@@ -1,0 +1,14 @@
+{
+  "name": "network",
+  "kind": "module",
+  "module": "zinc:network",
+  "entry": "index.ts",
+  "description": "Network connections: the interfaces, their state and addresses, the Wi-Fi networks around; join and forget one (NetworkManager through nmcli on Linux, addresses only elsewhere)",
+  "requires": ["process"],
+  "targets": {
+    "linux": {},
+    "macos": {},
+    "windows": {},
+    "rpi1": {}
+  }
+}
