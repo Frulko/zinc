@@ -28,12 +28,8 @@ No frozen corpus, golden output or existing conformance source was rewritten. Ad
 - A forced failure of the actual notification harness verified exit status 1, database-count and log diagnostics, and no continuation into later assertions.
 - Shell/Python/JSON checks passed; the lexical snapshot matches the tag byte for byte. No cross builds or full T2 repeat.
 
-## Remaining CI confirmation
+## Hosted confirmation
 
-The old workflow run remains attached to `b7b1a3e4`. After the owner pushes the fixes, start a new manual run:
+The owner pushed `e1161467` and dispatched [run 39952451514](https://github.com/Frulko/zinc/actions/runs/39952451514). It completed successfully: **520 passed, zero failed, 30 skipped**; `notify_relay` passed in 33 seconds. All six test shards, packaging, reproducibility, fuzz and benchmark jobs succeeded. Release, Pages and plugin publication jobs were skipped.
 
-```sh
-git push && gh workflow run zinc-next --ref develop
-```
-
-This dispatch publishes no release or site. A hosted rerun is still required to establish whether the notification-capture stall persists; the improved first-failure evidence is intended to diagnose it if it does. No push, dispatch or publication was performed during this fix.
+ZN-781 is complete on this evidence. The original notification stall is still unexplained; keep the first-failure diagnostics if it recurs. Later Pi display/deployment work is not part of this successful run and requires its own checks.
