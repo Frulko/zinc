@@ -536,6 +536,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.19: run the seven samples of docs/start/beyond.md on `--native` and on the web target (DOM render); only the interpreter and QuickJS were checked.
 - ZN-774.19: `Stage.drawIn` sets the drawing position absolutely, so a scene in a Canvas under a rotated parent draws upright; a scroll box inside the box clips its zones to its own rectangle only.
 - ZN-774.11: in-page anchors of the translated docs stay English (`#draw-it-yourself`, `README.md#the-lessons`) because the check wants the same link targets, but the translated headings make other ids, so those links lead nowhere; an explicit id on each translated heading (`<a id="draw-it-yourself"></a>`, checked by tools/i18n-docs-check) fixes them in every language.
+- pi-image: the Linux SDL window should try GLES 2 when OpenGL 3.2 core fails (a Pi offers GL 2.1/GLES 2 on vc4, 3.1 on v3d) and its fallback must not panic (`Parameter 'props' is invalid`, hal_sdl.cpp; `No available video device` for a program the agent starts): today the image sends every app to display-fbdev.
+- pi-image: display-fbdev should take the KMS plane back, and redraw whole, when the program that held it leaves: the image's session kills its player to hand the screen to a program of `zinc dev --device` (a plain exit copies the player's last frame into /dev/fb0, over the program's).
+- pi-image: display-fbdev text from a physical keyboard and a drawn mouse cursor: the Pi image's player navigates with the keys but types only on its on-screen keyboard, and HDMI with a mouse shows no pointer.
+- pi-image: the engine says READY=1 to systemd after its first frame (sd_notify), instead of zinc-session's 2 s guess, so the units that wait for the session start as soon as the screen shows.
 
 ## Demos
 - ZN-775: optional coordinator heartbeats (worker/session identity, task, last-seen time) and worktree aggregation would distinguish running agents from declared Backlog.md assignments in examples/kanban.
@@ -930,3 +934,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.09: source maps of a build hold relative paths: a moved build or app resolves ../main.js against its new place; embed the sources or absolute paths at export.
 - ZN-773.06: WASI preview1 on the wasm pack, so wasm programs built for WASI run on QuickJS.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.
+- pi-image: on a real Pi 3 B+, what stops the first boot before multi-user.target (2026-10-23: cloud-final and zinc-firstboot ran only on the second boot; QEMU's first boot passes): flash `dist/zinc-pios-debug.img.xz`, read `zinc-report-previous.txt` on the boot partition after the reboot, and the player's bottom line while it starts.
+- pi-image: the screen handover to a program of `zinc dev --device` on vc4 (the player killed, /dev/fb0 showing the program's frame): proven on QEMU without KMS planes only.
