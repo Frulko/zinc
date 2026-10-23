@@ -677,6 +677,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-784: flash a newly built Pi image and verify SSH with a profile login after Raspberry Pi OS account rename; inject a cloud-init failure and confirm settings/initramfs survive, then retry successfully. Mac tests execute the cloud-config writer and cleanup policy against temporary files.
+
 - ZN-783: on the Pi 3 B+ native 800×480 and rotated portrait, check Music Tree touch/scroll, screen resize/rotation, long real metadata and authenticated Spotify content; measure frame time against the previous layout. Native headless fixtures prove geometry/input only.
 
 - ZN-782: on the Pi 3 B+, prove DRM/VT/input handoff between player, boot app, deploy and live dev; upgrade the existing updater helper, install a signed engine/system payload, and verify first-frame rollback plus recovery across a real power cut. Measure first/warm plugin preparation, source transfer and interpreted versus native frame time; Mac tests use fixtures only.

@@ -44,7 +44,7 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
   the wait for the network, apt's and man-db's timers are masked; getty on tty1 is kept off by a drop-in, since Pi OS's user
   rename starts it.
 - The first boot is Raspberry Pi OS's: the initramfs grows the card and cloud-init applies the settings. `zinc-firstboot` then
-  turns both off (no initramfs, cloud-init disabled) and deletes the settings, which held the Wi-Fi key and the password hash.
+  turns both off (no initramfs, cloud-init disabled) and deletes the settings, which held the Wi-Fi key and the password hash, only after cloud-init reports success. A failed or degraded setup preserves them for diagnosis and retry.
 - A file named `zinc-agent` on the boot partition turns the agent on (it is consumed), like `ssh` turns SSH on. A program it
   starts (`zinc dev --device`, `zinc device run`) gets an exclusive display lease: the session stops its player or boot app
   and acknowledges that the display is free before the remote process may execute. A new app replaces the previous remote app;
@@ -108,3 +108,12 @@ ssh -t ADMIN@192.168.2.31 'sudo install -o root -g root -m 755 /tmp/zinc-player-
 ```
 
 `ADMIN` is the administration account created by Raspberry Pi Imager; the restricted `zinc` agent account cannot install arbitrary root helpers. Once a signed release containing these fixes is published, select it in the player's Updates menu. Upgrading only the workstation does not change the running Pi. No new image or signed release was built/published during the native fixture checks.
+
+
+## Login setup failures
+
+The login password is written as cloud-init's `hashed_passwd`, which applies to an existing account too: Raspberry Pi OS may rename its initial account before the users module runs. The older `passwd` field could be ignored in that case. The password and Wi-Fi credentials are never included in public image profiles or download artifacts.
+
+`After=cloud-final.service` is ordering, not a success condition. `zinc-firstboot` checks `cloud-init status --wait` before removing the initramfs, disabling cloud-init or deleting its inputs. Failed/degraded setup leaves these in place. This prevents an error from being recorded as a completed first boot; it does not automatically repair the underlying failure.
+
+These fixes affect newly built images. They cannot reset an already provisioned card whose old cleanup deleted the settings. The paired `zinc` agent is not an administrator and has no password-reset command. Such a card needs owner-controlled console/offline recovery, or a fresh flash with corrected setup. A `userconf.txt` file alone does not recover it because Zinc masks `userconfig.service`.

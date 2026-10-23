@@ -3,6 +3,11 @@
 # tools/pi-image or Raspberry Pi Imager; from now on the Pi boots without either.
 set -e
 FW=/boot/firmware
+# Ordering after cloud-final does not mean it succeeded. Keep failed setup retryable.
+if ! cloud-init status --wait; then
+  echo 'Zinc: first-boot setup failed; settings and cloud-init are kept for recovery.' >&2
+  exit 1
+fi
 sed -i 's/^auto_initramfs=.*/auto_initramfs=0/' $FW/config.txt
 rm -f $FW/initramfs8 $FW/initramfs_2712
 sed -i 's/^update_initramfs=.*/update_initramfs=no/' /etc/initramfs-tools/update-initramfs.conf

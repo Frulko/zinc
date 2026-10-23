@@ -61,6 +61,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- Pi images apply the configured login password even when Raspberry Pi OS has already renamed the account. Failed first-boot setup now keeps cloud-init, the initramfs and the settings available for recovery instead of deleting them.
 - Music Tree uses the Pi screen’s native resolution and adapts its player, navigation, grids, settings and overlays to compact landscape or portrait screens; short views scroll so controls remain reachable. Clock, weather and room-volume views also fit narrow screens.
 - Pi engine updates also install the matching display session and agent service from the signed package, restoring both on rollback or interrupted activation. Existing images need the new updater helper once; reflashing is not required.
 - Pi development apps take turns on the display: the player yields before launch and returns after exit, and starting another app replaces the previous one. `device deploy` with logs stops its app on Ctrl-C; `--no-logs` leaves it running. Requires the updated agent and image session files.

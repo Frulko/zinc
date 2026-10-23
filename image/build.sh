@@ -132,7 +132,7 @@ HASH=
         users: [{name: .user.name, shell: "/bin/bash", sudo: "ALL=(ALL) NOPASSWD:ALL",
                  groups: "users,adm,dialout,audio,netdev,video,plugdev,input,gpio,spi,i2c,render,sudo",
                  lock_passwd: ($hash == "")}
-                + (if $hash != "" then {passwd: $hash} else {} end)
+                + (if $hash != "" then {hashed_passwd: $hash} else {} end)
                 + (if (.user.sshKeys | length) > 0 then {ssh_authorized_keys: .user.sshKeys} else {} end)],
         ssh_pwauth: ($hash != "")} else {} end)' "$P"
 } >"$FW/user-data"
