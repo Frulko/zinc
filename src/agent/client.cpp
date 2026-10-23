@@ -3,6 +3,7 @@
 #include "agent.h"
 
 #include "../tc/tc.h"
+#include "../frontend/project.h"
 #include "wire.h"
 #include "yyjson.h"
 #include "zn/log.h"
@@ -350,15 +351,31 @@ int install(Device& d, const std::string& path, std::string& name) {
   return 0;
 }
 
-int logs(Device& d, const std::string& name, bool follow) {
+int logs(Device& d, const std::string& name, bool follow, long long pid = 0) {
+  const bool session = pid > 0;
   std::string answer;
-  std::unique_ptr<Chan> c = request(d, Obj().str("op", "logs").str("name", name).flag("follow", follow).done(), answer);
+  std::unique_ptr<Chan> c = request(d, Obj().str("op", "logs").str("name", name).flag("follow", follow).flag("untilExit", session).num("pid", pid).done(), answer);
   if (!c) return 1;
   char type;
   std::string payload;
-  while (recv(*c, type, payload)) {
-    if (type == kExit) return 0;
-    if (type == kOut && !writeAll(STDOUT_FILENO, payload.data(), payload.size())) return 0;   // the reader of our output left
+  static volatile sig_atomic_t interrupted = 0;
+  interrupted = 0;
+  const auto previous = session ? ::signal(SIGINT, +[](int) { interrupted = 1; }) : SIG_DFL;
+  bool open = true;
+  while (open && !interrupted) {
+    while (next(*c, type, payload)) {
+      if (type == kExit || (type == kOut && !writeAll(STDOUT_FILENO, payload.data(), payload.size()))) { open = false; break; }
+    }
+    if (!open) break;
+    pollfd p{c->fd, POLLIN, 0};
+    if (::poll(&p, 1, 200) > 0) open = fill(*c);
+  }
+  if (session) ::signal(SIGINT, previous);
+  c.reset();
+  if (session && interrupted) {
+    if (!request(d, Obj().str("op", "stop").str("name", name).num("pid", pid).done(), answer)) return 1;
+    std::fprintf(stderr, "stopped %s on %s\n", name.c_str(), d.name.c_str());
+    return 130;
   }
   return 0;
 }
@@ -377,7 +394,7 @@ int run(Device& d, const std::string& name, const Launch& l) {
   if (!request(d, Obj().str("op", "run").str("name", name).raw("args", array(args)).raw("env", env.done()).done(), answer, true, 600000)) return 1;
   const Doc a(answer);
   std::fprintf(stderr, "started %s on %s (pid %lld)\n", name.c_str(), d.name.c_str(), a.num("pid"));
-  return l.follow ? logs(d, name, true) : 0;
+  return l.follow ? logs(d, name, true, a.num("pid")) : 0;
 }
 
 // Takes --env, -f and what follows -- out of `args`; the rest stays.
@@ -449,12 +466,65 @@ bool namesLinuxDisplay(const std::string& dir) {
   return j.has("board") || j.has("display") || yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(j.v, "targets"), "linux"), "display") != nullptr;
 }
 
+// Development projects use the installed engine; neither a toolchain nor a second engine travels over the network.
+bool sourceProject(const std::string& path, const std::string& stage, std::string& name, std::string& err) {
+  std::error_code ec;
+  const fs::path root = fs::canonical(path, ec);
+  if (ec) { err = "cannot read project: " + ec.message(); return false; }
+  std::string text;
+  zn::frontend::Project project;
+  const bool have = readFile((root / "zinc.json").string(), text);
+  if (have && !zn::frontend::parseProject(text, project, err)) return false;
+  const std::string entry = zn::frontend::entryOf(root.string(), have ? &project : nullptr);
+  if (entry.empty() || !fs::is_regular_file(entry, ec)) { err = "no project entry in " + path; return false; }
+  if (name.empty()) name = have && !project.name.empty() ? project.name : root.filename().string();
+  const Doc manifest(text);
+  std::vector<std::string> roots = {"src", "assets", "plugins", "node_modules", "zinc.json", "zinc.lock", "tsconfig.json", "package.json"};
+  roots.push_back(fs::path(entry).lexically_relative(root).generic_string());
+  for (const auto& file : fs::directory_iterator(root, ec)) {
+    const std::string ext = file.path().extension().string();
+    if (file.path().filename().string()[0] != '.' && (ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".mjs")) roots.push_back(file.path().filename().string());
+  }
+  const Val assets{yyjson_obj_get(manifest.v, "assets")};
+  if (!manifest.str("assets").empty()) roots.push_back(manifest.str("assets"));
+  else if (!assets.str("dir").empty()) roots.push_back(assets.str("dir"));
+  const std::string icon = Val{yyjson_obj_get(manifest.v, "app")}.str("icon");
+  if (!icon.empty()) roots.push_back(icon);
+  const fs::path to = fs::path(stage) / "project";
+  fs::create_directories(to, ec);
+  const auto copy = [&](const fs::path& file) {
+    const fs::path rel = file.lexically_relative(root);
+    if (!safeRel(rel.generic_string()) || fs::is_symlink(file, ec)) { err = "source deployment refuses links or paths outside the project: " + rel.string(); return false; }
+    if (!fs::is_regular_file(file, ec)) return true;
+    fs::create_directories((to / rel).parent_path(), ec);
+    if (!ec) fs::copy_file(file, to / rel, fs::copy_options::overwrite_existing, ec);
+    if (ec) { err = "cannot copy " + rel.string() + ": " + ec.message(); return false; }
+    return true;
+  };
+  for (const std::string& rel : roots) {
+    if (!safeRel(rel)) { err = "source deployment requires project-relative paths: " + rel; return false; }
+    const fs::path from = root / rel;
+    if (!fs::exists(from, ec)) continue;
+    if (!safeRel(fs::weakly_canonical(from, ec).lexically_relative(root).generic_string())) { err = "source path escapes the project: " + rel; return false; }
+    if (fs::is_symlink(from, ec)) { err = "source deployment refuses links: " + rel; return false; }
+    if (!fs::is_directory(from, ec)) { if (!copy(from)) return false; continue; }
+    for (auto it = fs::recursive_directory_iterator(from, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      const std::string base = it->path().filename().string();
+      if (base[0] == '.' || base == "dist" || base == "build") { it.disable_recursion_pending(); continue; }
+      if (!copy(it->path())) return false;
+      if (ec) break;
+    }
+    if (ec) { err = "cannot read sources: " + ec.message(); return false; }
+  }
+  if (!writePrivate(stage + "/run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")/project\" || exit 1\nexec \"${ZINC_ENGINE:-zinc}\" run . --interp -- \"$@\"\n")) { err = "cannot write project launcher"; return false; }
+  return true;
+}
+
 // The project of `dir` installed and started on the device, its log followed: the loop of `zinc run`, on another machine. What is sent
-// follows from what the device is: a .zapp (the program for the device's engine, the plugins' libraries of this machine) to a machine of
-// this one's system and architecture, else the export for the device's target, which `zinc export` cross builds.
+// follows from what the device is: sources for a Pi's installed engine, a .zapp for this system/architecture, else a native export.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true, pack = false, inspect = false;
+  bool follow = true, pack = false, inspect = false, source = false;
   std::string name, path = ".", target;
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
@@ -477,15 +547,23 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       ::uname(&u);
       const std::string os = a.str("os"), arch = a.str("arch"), kind = a.str("kind");
       why = d.name + " is " + os + " " + arch + (kind.empty() ? "" : " (" + kind + ")");
-      pack = os == kThisOs && cpuName(arch) == cpuName(u.machine);
+      source = !inspect && os == "linux" && kind.find("Raspberry Pi") != std::string::npos;
+      pack = !source && os == kThisOs && cpuName(arch) == cpuName(u.machine);
       if (pack) why += ", as this machine";
-      else if ((target = exportTarget(os, arch, kind)).empty())
+      else if (!source && (target = exportTarget(os, arch, kind)).empty())
         return fail(why + ": zinc export has no target for it (--target <t> names one; --pack sends a .zapp, which its engine runs without native plugins)");
     }
     // what is sent and why is a note, said as a step of the command (quiet under -q; Atelier shows it as one, not as an error)
     std::vector<std::string> more;
     if (inspect) more.push_back("--inspect");   // the program with the inspector in front, as zinc dev starts it
-    if (pack) {   // one file to send, checked on arrival
+    zn::log::Phase prepared("device", "prepare project", "prepare", source ? "project sources" : pack ? "app bundle" : "native export (cross compilation included)");
+    if (source) {
+      zn::log::step("device", why + ": sending the project for its installed engine (no cross compilation)");
+      std::string scratch = (fs::temp_directory_path(ec) / "zinc-deploy-XXXXXX").string(), err;
+      if (!::mkdtemp(scratch.data())) return fail("cannot create source staging directory");
+      made = scratch;
+      if (!sourceProject(path, made, name, err)) { fs::remove_all(made, ec); return fail(err); }
+    } else if (pack) {   // one file to send, checked on arrival
       zn::log::step("device", why + ": packing a .zapp");
       made = (fs::temp_directory_path(ec) / ("zinc-deploy-" + std::to_string(::getpid()) + ".zapp")).string();
       std::vector<std::string> cmd = {self, "pack", path, "-o", made};
@@ -512,6 +590,7 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
   } else if (inspect) return fail("--inspect is for a project: a .zapp or an export is sent as it was built (zinc pack --inspect, zinc export --inspect)");
   const int rc = install(d, made.empty() ? path : made, name);
   if (pack && !made.empty()) fs::remove(made, ec);   // the export stays in dist/, as after zinc export
+  if (source && !made.empty()) fs::remove_all(made, ec);
   if (rc != 0) return rc;
   l.follow = follow;
   return run(d, name, l);

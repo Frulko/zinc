@@ -41,16 +41,27 @@ out=$(dev same deploy "$tmp/cli" --no-logs 2>&1) || bad "deploy to the same mach
 echo "$out" | grep -q "^  device  *same is macos .*, as this machine: packing a \.zapp$" || bad "the same machine: no line for the .zapp: $out"
 dev same apps | grep -q "^cli .*zapp" || bad "the same machine did not get a .zapp: $(dev same apps)"
 
-# a Raspberry Pi: the export for rpi, on its framebuffer when the project names no display (the export itself stops: no project there)
-mkdir -p "$tmp/empty" "$tmp/named"
-printf '{"name":"named","targets":{"linux":{"display":"gl"}}}\n' > "$tmp/named/zinc.json"
-out=$(dev pi deploy "$tmp/empty" --no-logs 2>&1) && bad "a directory that is no project was deployed: $out"
-echo "$out" | grep -q "^  device  *pi is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi, shown on its framebuffer (ZINC_DISPLAY=fbdev" || bad "the Pi: no line for the rpi export on the framebuffer: $out"
-out=$(dev pi deploy "$tmp/named" --no-logs 2>&1)
-echo "$out" | grep -q "^  device  *pi is linux aarch64 (.*): exporting for rpi$" || bad "the Pi, a project with its display: $out"
-out=$(ZINC_DISPLAY=gl dev pi deploy "$tmp/empty" --no-logs 2>&1)
-echo "$out" | grep -q ": exporting for rpi$" || bad "the Pi, ZINC_DISPLAY given: $out"
-[ -z "$(dev pi apps)" ] || bad "the Pi got an app: $(dev pi apps)"
+# A Pi receives sources for its existing engine, including a QuickJS cycle, without a cross build.
+mkdir -p "$tmp/pi-project/src" "$tmp/pi-project/assets" "$tmp/pi-project/dist"
+printf '{"name":"pi-project","entry":"src/main.ts","engine":"quickjs"}\n' > "$tmp/pi-project/zinc.json"
+printf "import { value } from './cycle'; export function answer(): number { return 42; } console.log('cycle ' + value());\n" > "$tmp/pi-project/src/main.ts"
+printf "import { answer } from './main'; export function value(): number { return answer(); }\n" > "$tmp/pi-project/src/cycle.ts"
+printf 'asset-data' > "$tmp/pi-project/assets/note.txt"
+printf 'private' > "$tmp/pi-project/.env"
+printf 'private-settings' > "$tmp/pi-project/config.json"
+printf 'old-native-engine' > "$tmp/pi-project/dist/engine"
+out=$(dev pi deploy "$tmp/pi-project" --no-logs 2>&1) || bad "Pi source deploy: $out"
+echo "$out" | grep -q 'installed engine (no cross compilation)' || bad "Pi still builds an engine: $out"
+ended_log pi pi-project
+grep -q '^cycle 42' "$tmp/log" || bad "Pi ignored QuickJS: $(cat "$tmp/log")"
+project="$tmp/dev-pi/agent/apps/pi-project/project"
+[ "$(cat "$project/assets/note.txt")" = asset-data ] || bad 'source deploy lost assets'
+[ ! -e "$project/.env" ] && [ ! -e "$project/config.json" ] && [ ! -e "$project/dist" ] || bad 'source deploy copied private settings or build output'
+out=$(dev pi deploy "$tmp/pi-project" --target rpi --no-logs 2>&1) && bad 'QuickJS silently used the typed native exporter'
+echo "$out" | grep -q 'native export on the quickjs engine supports macos only' || bad "QuickJS export diagnostic: $out"
+ln -s "$tmp/pi-project/.env" "$tmp/pi-project/src/leak.ts"
+out=$(dev pi deploy "$tmp/pi-project" --no-logs 2>&1) && bad 'a source symlink was accepted'
+echo "$out" | grep -q 'refuses links' || bad "symlink diagnostic: $out"
 
 # a machine zinc export has no target for: refused, by its name
 out=$(dev odd deploy "$tmp/cli" --no-logs 2>&1) && bad "a riscv64 device was deployed to: $out"

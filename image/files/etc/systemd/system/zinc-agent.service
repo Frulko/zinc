@@ -9,7 +9,7 @@ ConditionPathExists=|/boot/firmware/zinc-agent
 [Service]
 User=zinc
 # the programs it starts inherit its environment: the screen through /dev/fb0, as the session's (zinc-session gives it up to them)
-Environment=ZINC_DISPLAY=fbdev
+Environment=ZINC_DISPLAY=fbdev ZINC_AGENT_SCREEN=/run/zinc
 ExecStartPre=+/bin/sh -c 'if [ -e /boot/firmware/zinc-agent ]; then rm -f /boot/firmware/zinc-agent; touch /var/lib/zinc/agent.enabled; fi'
 ExecStart=/usr/bin/zinc agent
 KillMode=process

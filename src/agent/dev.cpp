@@ -53,7 +53,7 @@ void track(pid_t pid, bool on) {
   if (on) live().pids.insert(pid); else live().pids.erase(pid);
 }
 
-void stop(Program& p) {
+void stop(Program& p, std::mutex& displayMu) {
   if (p.pid > 0) {
     ::kill(p.pid, SIGTERM);    // itself too: a program started a moment ago has no group yet
     ::kill(-p.pid, SIGTERM);
@@ -65,6 +65,8 @@ void stop(Program& p) {
       ::usleep(5000);
     }
     track(p.pid, false);
+    std::lock_guard<std::mutex> display(displayMu);
+    releaseScreen(p.pid);
   }
   if (p.out >= 0) ::close(p.out);
   if (p.dev >= 0) ::close(p.dev);
@@ -72,7 +74,7 @@ void stop(Program& p) {
 }
 
 // `zinc run program.zbc` in `dir`, in a session of its own: its output in a pipe, its dev socket as descriptor 3.
-bool launch(Program& p, const std::string& self, const std::string& dir, const std::vector<std::string>& args, std::string& err) {
+bool launch(Program& p, const std::string& self, const std::string& dir, const std::vector<std::string>& args, std::string& err, std::mutex& displayMu) {
   int out[2] = {-1, -1}, sv[2] = {-1, -1};
   const int null = ::open("/dev/null", O_RDONLY);
   if (null < 0 || ::pipe(out) != 0 || ::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
@@ -85,9 +87,14 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   argv.insert(argv.end(), args.begin(), args.end());
   std::vector<std::string> env = environment({{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "0"}});   // its output is the program's own
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
+  int gate[2];
+  if (::pipe(gate) != 0) { err = "cannot create display gate"; for (const int fd : {null, out[0], out[1], sv[0], sv[1]}) ::close(fd); return false; }
+  std::lock_guard<std::mutex> display(displayMu);
   const pid_t pid = ::fork();
   if (pid == 0) {
     ::setsid();
+    ::close(gate[1]);
+    if (!awaitScreen(gate[0])) ::_exit(125);
     ::dup2(null, 0);
     ::dup2(out[1], 1);
     ::dup2(out[1], 2);
@@ -95,7 +102,9 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
     execChild(dir.c_str(), argvp.data(), envp.data(), 4);
   }
   for (const int fd : {null, out[1], sv[1]}) ::close(fd);
-  if (pid < 0) { err = std::string("cannot start it: ") + std::strerror(errno); ::close(out[0]); ::close(sv[0]); return false; }
+  ::close(gate[0]);
+  if (pid < 0) { ::close(gate[1]); err = std::string("cannot start it: ") + std::strerror(errno); ::close(out[0]); ::close(sv[0]); return false; }
+  if (!handoffScreen(pid, gate[1], err)) { ::waitpid(pid, nullptr, 0); ::close(out[0]); ::close(sv[0]); return false; }
   const timeval wait{2, 0};   // as zinc dev does on this machine: a version that stopped reading costs a save 2 s
   const int room = 4 << 20;   // an atlas page in one write
   ::setsockopt(sv[0], SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);
@@ -117,20 +126,20 @@ bool feed(int fd, std::string_view bytes) {
 
 // A start: the version that runs is stopped first (its packs are mapped: its files cannot change under it), then the files change, then
 // the new version starts. False once the workstation is gone.
-bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const std::string& self) {
-  stop(p);
+bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const std::string& self, std::mutex& displayMu) {
+  stop(p, displayMu);
   std::error_code ec;
   for (const std::string& name : m.strs("remove")) if (safeRel(name)) fs::remove(dir + "/" + name, ec);
   std::uint64_t files = 0, bytes = 0;
   std::string err;
   if (m.flag("files") && !recvTree(c, dir, files, bytes, err)) return refuse(c, err);
-  if (!launch(p, self, dir, m.strs("args"), err)) return refuse(c, err);
+  if (!launch(p, self, dir, m.strs("args"), err, displayMu)) return refuse(c, err);
   return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
 }
 
 }  // namespace
 
-void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine) {
+void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine, std::mutex& displayMu) {
   // the program is compiled on the workstation, which decides whether its bytecode runs here (devRemote: one series, or --force) and then
   // sends this engine's version; a workstation before that sends its own
   if (req.str("engine") != engine) {
@@ -148,7 +157,14 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
   // ponytail: one thread relays both ways with blocking sends; a program that prints megabytes while megabytes of assets arrive could
   // stall the session against the workstation's own send. Give the output its own thread if that ever shows.
   Program p;
+  long ownerPid = 0;
   for (bool open = true; open;) {
+    const char* display = std::getenv("ZINC_AGENT_SCREEN");
+    std::string owner;
+    if (display && *display && ownerPid > 0 && readFile(std::string(display) + "/device-screen", owner) && std::atol(owner.c_str()) != ownerPid) {
+      send(c, kErr, "zinc dev: another app replaced this display session\n");
+      break;
+    }
     char type = 0;
     std::string payload;
     bool bad = false;
@@ -157,7 +173,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
         if (p.dev >= 0 && !feed(p.dev, payload)) { ::close(p.dev); p.dev = -1; }   // it stopped reading: its next start brings the files
       } else if (type == kJson) {
         const Doc m(payload);
-        if (m.flag("start")) open = restart(c, p, m, dir, self);
+        if (m.flag("start")) { open = restart(c, p, m, dir, self, displayMu); if (open) ownerPid = p.pid; }
       }
     }
     if (bad || !open) break;
@@ -173,13 +189,14 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
     int status = 0;
     if (p.pid > 0 && p.out < 0 && ::waitpid(p.pid, &status, WNOHANG) == p.pid) {   // ended by itself, all of its output sent
       track(p.pid, false);
+      { std::lock_guard<std::mutex> display(displayMu); releaseScreen(p.pid); }
       p.pid = 0;
-      stop(p);
+      stop(p, displayMu);
       open = open && send(c, kExit, std::to_string(exitCode(status)));
     }
     if (n > 0 && fds[0].revents && !fill(c)) open = false;   // the workstation left
   }
-  stop(p);
+  stop(p, displayMu);
   fs::remove_all(dir, ec);
 }
 
@@ -243,7 +260,8 @@ struct Session {
     std::map<std::string, std::string> files, now;
     if (!pack(self, dir, zapp, out)) return false;
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
-    for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files")) now[name] = sha;
+    for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
+      if (name.rfind("native/", 0) != 0) now[name] = sha;   // The device loads its own plugins; these libraries are for the workstation's architecture.
     std::error_code ec;
     fs::remove_all(stage, ec);
     fs::create_directories(stage, ec);

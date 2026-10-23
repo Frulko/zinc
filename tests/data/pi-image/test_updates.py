@@ -50,6 +50,10 @@ class TransactionUpdater(update.Updater):
         (generation / 'engine/share/zinc').mkdir(parents=True)
         (generation / 'engine/share/zinc/VERSION').write_text(requested)
         (generation / 'player.zapp').write_text('player built by ' + requested)
+        payload = generation / 'engine/share/zinc/image'
+        payload.mkdir()
+        (payload / 'zinc-session').write_text('#!/bin/bash\n# session ' + requested + '\n')
+        (payload / 'zinc-agent.service').write_text('# agent ' + requested + '\n')
         if self.fail_prepare:
             raise ValueError('compile failed')
 
@@ -63,6 +67,20 @@ class UpdatesTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+
+    def test_signed_package_carries_the_exact_system_files(self):
+        loader = importlib.machinery.SourceFileLoader('zinc_package', 'tools/package')
+        package = types.ModuleType(loader.name)
+        package.__file__ = 'tools/package'
+        loader.exec_module(package)
+        share = self.root / 'share'
+        # Exercise real payload metadata without copying the unchanged engine/source trees.
+        def directory(src, dst, keep=None):
+            Path(dst).mkdir(parents=True, exist_ok=True)
+        with patch.object(package, 'copy_tree', directory):
+            package.payload(str(share))
+        for name, (relative, _) in update.SYSTEM_FILES.items():
+            self.assertEqual((share / 'image' / name).read_bytes(), (Path('image/files') / relative).read_bytes())
 
     def test_userspace_architecture_and_catalog(self):
         self.assertEqual(update.architecture('armhf'), 'armhf')
@@ -134,7 +152,12 @@ class UpdatesTest(unittest.TestCase):
         (factory / 'engine/share/zinc/VERSION').write_text('0.6.2')
         (factory / 'player.zapp').write_text('factory player')
         (root / 'current').symlink_to('versions/factory')
-        worker = TransactionUpdater(root, state)
+        system = self.root / 'system'
+        for name, (relative, _) in update.SYSTEM_FILES.items():
+            target = system / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('factory ' + name)
+        worker = TransactionUpdater(root, state, system_root=system)
         worker.calls = []
         # The disk threshold is checked too, without depending on the developer's free space.
         with patch.object(update.shutil, 'disk_usage', return_value=types.SimpleNamespace(free=4 * 1024**3)):
@@ -145,20 +168,37 @@ class UpdatesTest(unittest.TestCase):
             self.assertFalse((root / 'previous').exists())
             self.assertEqual(len(list((root / 'versions').iterdir())), 1)
             worker.fail_prepare = False
+            replace = update.os.replace
+            failed = []
+            def fail_second_system_file(source, destination):
+                if str(destination) == str(system / 'etc/systemd/system/zinc-agent.service') and not failed:
+                    failed.append(True)
+                    raise OSError('interrupted system file replacement')
+                return replace(source, destination)
+            with patch.object(update.os, 'replace', fail_second_system_file):
+                with self.assertRaisesRegex(OSError, 'interrupted system'):
+                    worker.install('0.7.0')
+            self.assertEqual(worker.installed(), '0.6.2')
+            for name, (relative, _) in update.SYSTEM_FILES.items():
+                self.assertEqual((system / relative).read_text(), 'factory ' + name)
             worker.fail_ready = True
             with self.assertRaisesRegex(ValueError, 'first frame'):
                 worker.install('0.7.0')
             self.assertEqual(worker.installed(), '0.6.2')
             self.assertFalse((state / 'activating').exists())
+            self.assertEqual((system / 'usr/lib/zinc/zinc-session').read_text(), 'factory zinc-session')
             self.assertFalse((state / 'pending.json').exists())
             worker.fail_ready = False
             worker.install('0.7.0')
             self.assertEqual(worker.installed(), '0.7.0')
             self.assertEqual(worker.installed('previous'), '0.6.2')
             self.assertEqual((root / 'current/player.zapp').read_text(), 'player built by 0.7.0')
+            self.assertIn('session 0.7.0', (system / 'usr/lib/zinc/zinc-session').read_text())
+            self.assertIn('agent 0.7.0', (system / 'etc/systemd/system/zinc-agent.service').read_text())
             worker.rollback()
             self.assertEqual(worker.installed(), '0.6.2')
             self.assertEqual((root / 'current/player.zapp').read_text(), 'factory player')
+            self.assertEqual((system / 'usr/lib/zinc/zinc-session').read_text(), 'factory zinc-session')
             worker.install('0.5.2')
             self.assertEqual(worker.installed(), '0.5.2')
             self.assertEqual(worker.installed('previous'), '0.6.2')
@@ -169,14 +209,40 @@ class UpdatesTest(unittest.TestCase):
             (state / 'pending.json').write_text(json.dumps(saved))
             (state / 'activating').touch()
             worker.link('current', saved['previous'])
+            worker.apply_system(root / saved['previous'])
             worker.recover()
             self.assertEqual(worker.installed(), '0.5.2')
             self.assertEqual(worker.installed('previous'), '0.6.2')
+            self.assertIn('session 0.5.2', (system / 'usr/lib/zinc/zinc-session').read_text())
             self.assertFalse((state / 'pending.json').exists())
             self.assertFalse((state / 'activating').exists())
+            self.assertIn(['systemctl', 'daemon-reload'], worker.calls)
         with patch.object(update.shutil, 'disk_usage', return_value=types.SimpleNamespace(free=1024)):
             with self.assertRaisesRegex(ValueError, '2 GB'):
                 worker.install('0.7.0')
+
+    def test_incomplete_system_payload_and_legacy_fallback(self):
+        root, system = self.root / 'zinc', self.root / 'system'
+        factory = root / 'versions/factory'
+        factory.mkdir(parents=True)
+        (root / 'current').symlink_to('versions/factory')
+        for name, (relative, _) in update.SYSTEM_FILES.items():
+            target = system / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('factory ' + name)
+        worker = TransactionUpdater(root, self.root / 'state', system_root=system)
+        worker.calls = []
+        broken = root / 'versions/broken'
+        payload = broken / 'engine/share/zinc/image'
+        payload.mkdir(parents=True)
+        (payload / 'zinc-session').write_text('new session')
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            worker.prepare_system(broken)
+        self.assertEqual((system / 'usr/lib/zinc/zinc-session').read_text(), 'factory zinc-session')
+        legacy = root / 'versions/legacy'
+        legacy.mkdir()
+        worker.prepare_system(legacy)
+        self.assertEqual((legacy / 'system/zinc-session').read_text(), 'factory zinc-session')
 
     def test_lock_rejects_a_second_worker(self):
         path = self.root / 'lock'

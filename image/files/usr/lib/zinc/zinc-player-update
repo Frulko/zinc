@@ -18,6 +18,8 @@ import urllib.request
 REPO = 'Frulko/zinc'
 RELEASES = 'https://github.com/' + REPO + '/releases/download/'
 ENV = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': '/root', 'ZINC_NO_UPDATE_CHECK': '1'}
+SYSTEM_FILES = {'zinc-session': ('usr/lib/zinc/zinc-session', 0o755),
+                'zinc-agent.service': ('etc/systemd/system/zinc-agent.service', 0o644)}
 
 
 def version(value):
@@ -81,9 +83,10 @@ def release_versions(releases, arch):
 
 class Updater:
     def __init__(self, root=Path('/usr/lib/zinc'), state=Path('/var/lib/zinc-update'),
-                 key=Path('/etc/zinc/update.pub'), verifier='/usr/bin/zinc'):
+                 key=Path('/etc/zinc/update.pub'), verifier='/usr/bin/zinc', system_root=Path('/')):
         self.root, self.state = root, state
         self.key, self.verifier = key, verifier
+        self.system_root = system_root
 
     def run(self, args, **kwargs):
         return subprocess.run(args, check=True, text=True, capture_output=True, env=ENV, timeout=900, **kwargs).stdout.strip()
@@ -209,8 +212,70 @@ class Updater:
         os.replace(temp, self.root / name)
         self.sync_directory(self.root)
 
+    def snapshot_system(self, generation):
+        directory = generation / 'system'
+        if directory.exists():
+            return
+        temporary = generation / '.system-next'
+        if temporary.exists():
+            shutil.rmtree(temporary)
+        temporary.mkdir()
+        try:
+            for name, (relative, mode) in SYSTEM_FILES.items():
+                target = temporary / name
+                shutil.copyfile(self.system_root / relative, target)
+                target.chmod(mode)
+                self.sync_file(target)
+            self.sync_directory(temporary)
+            os.replace(temporary, directory)
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
+        self.sync_directory(generation.resolve())
+
+    def prepare_system(self, generation):
+        self.snapshot_system(self.root / 'current')
+        baseline = self.root / 'system-baseline'
+        if not baseline.exists():
+            temporary = self.root / '.system-baseline-next'
+            if temporary.exists():
+                shutil.rmtree(temporary)
+            shutil.copytree(self.root / 'current/system', temporary)
+            for name in SYSTEM_FILES:
+                self.sync_file(temporary / name)
+            self.sync_directory(temporary)
+            os.replace(temporary, baseline)
+            self.sync_directory(self.root)
+        payload = generation / 'engine/share/zinc/image'
+        if payload.exists():
+            for name in SYSTEM_FILES:
+                if not (payload / name).is_file() or (payload / name).is_symlink():
+                    raise ValueError('The release has an incomplete Pi system payload.')
+            self.run(['/bin/bash', '-n', str(payload / 'zinc-session')])
+        else:
+            # This tiny snapshot survives pruning old engine generations.
+            payload = baseline
+        shutil.copytree(payload, generation / 'system')
+
+    def apply_system(self, generation):
+        directory = generation / 'system'
+        if not directory.exists():
+            return  # An interrupted transaction written by an older updater has no system snapshot.
+        for name, (relative, mode) in SYSTEM_FILES.items():
+            target = self.system_root / relative
+            temporary = target.with_name(target.name + '.zinc-next')
+            temporary.unlink(missing_ok=True)
+            with (directory / name).open('rb') as source, temporary.open('xb') as out:
+                shutil.copyfileobj(source, out)
+            temporary.chmod(mode)
+            self.sync_file(temporary)
+            os.replace(temporary, target)
+            self.sync_directory(target.parent)
+        self.run(['systemctl', 'daemon-reload'])
+
     def activate(self, target):
         old = os.readlink(self.root / 'current')
+        self.snapshot_system(self.root / 'current')
         saved = {'current': old, 'previous': os.readlink(self.root / 'previous') if (self.root / 'previous').is_symlink() else None}
         agent_on = subprocess.run(['systemctl', 'is-active', '--quiet', 'zinc-agent.service'], env=ENV).returncode == 0
         self.report('activating', 'Starting the player with the chosen engine…')
@@ -225,6 +290,7 @@ class Updater:
                 self.run(['systemctl', 'kill', '--kill-whom=all', '--signal=SIGTERM', 'zinc-agent.service'])
             self.run(['systemctl', 'stop', 'zinc-shell.service', 'zinc-agent.service'])
             self.link('current', target)
+            self.apply_system(self.root / target)
             self.run(['systemctl', 'start', 'zinc-shell.service'])
             self.wait_ready()
             if agent_on:
@@ -256,6 +322,7 @@ class Updater:
 
     def restore_links(self, saved):
         self.link('current', saved['current'])
+        self.apply_system(self.root / saved['current'])
         if saved['previous'] is None:
             (self.root / 'previous').unlink(missing_ok=True)
         else:
@@ -291,6 +358,7 @@ class Updater:
         generation.chmod(0o755)
         try:
             self.prepare(requested, generation)
+            self.prepare_system(generation)
             for directory, _, files in os.walk(generation, topdown=False):
                 for filename in files:
                     self.sync_file(Path(directory) / filename)

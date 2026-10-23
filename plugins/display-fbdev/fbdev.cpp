@@ -514,6 +514,8 @@ static int fb_init(const HalConfig* cfg) {
   for (int y = 0; y < fh; y++) memset(fbmem + (size_t)y * pitch, 0, (size_t)fw * (bpp / 8));
   // console in graphics mode: no text cursor or kernel messages over the picture (needs a VT; ignored otherwise)
   tty = sim_fb ? -1 : open("/dev/tty0", O_RDWR | O_CLOEXEC);
+  // The tty group can write the VT without reading it (a detached agent has no controlling terminal).
+  if (tty < 0 && !sim_fb) tty = open("/dev/tty0", O_WRONLY | O_CLOEXEC);
   if (tty >= 0 && ioctl(tty, KDSETMODE, KD_GRAPHICS) < 0) { close(tty); tty = -1; }
   signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
   if (ZP_DISPLAY_FBDEV_INPUT) open_inputs();

@@ -6,7 +6,7 @@
 set -u
 APP=${ZINC_APP:-/var/lib/zinc/app}
 RUN=${ZINC_RUN:-/run/zinc}
-PLAYER=/usr/lib/zinc/current/player.zapp
+PLAYER=${ZINC_PLAYER:-/usr/lib/zinc/current/player.zapp}
 export ZINC_APP=$APP ZINC_RUN=$RUN
 # the screen through /dev/fb0 (plugins/display-fbdev, compiled into the image): the driver the Pi was proven on. The
 # SDL window asks for OpenGL 3.2, which the Pi's GPUs do not offer (vc4: 2.1, v3d: 3.1), and its fallback draws nothing.
@@ -16,55 +16,89 @@ export ZINC_DISPLAY=${ZINC_DISPLAY:-fbdev}
 # ponytail: ready 2 s after the start stands for "the first frame is on screen", which the engine will tell itself (READY=1)
 (sleep 2; systemd-notify --ready) &
 
-# True while a program the agent started (zinc dev --device, zinc device run) has the screen open: the agent's processes stay in
-# its unit's cgroup. Builtins only, as it runs twice a second.
-agent_has_screen() {
-  local pids=() p f s
-  read -r -d '' -a pids 2>/dev/null </sys/fs/cgroup/system.slice/zinc-agent.service/cgroup.procs
-  for p in "${pids[@]}"; do
+# Every app has its own group, including children spawned by zinc run.
+foreground=0
+stop_foreground() {
+  [ "$foreground" -gt 1 ] || return 0
+  kill -TERM -- "-$foreground" 2>/dev/null || :
+  for ((n=0; n<20; n++)); do
+    kill -0 -- "-$foreground" 2>/dev/null || break
+    sleep 0.05
+  done
+  kill -KILL -- "-$foreground" 2>/dev/null || :
+  wait "$foreground" 2>/dev/null || :
+  foreground=0
+}
+trap 'stop_foreground; exit 0' TERM INT HUP
+
+screen_owner() {
+  local owner=''
+  read -r owner 2>/dev/null <"$RUN/device-screen" || return 1
+  [[ "$owner" =~ ^[0-9]+$ ]] && [ "$owner" -gt 1 ] && kill -0 "$owner" 2>/dev/null || return 1
+  printf '%s' "$owner"
+}
+
+# Older engine releases have no lease protocol; preserve their display handoff on downgrade.
+legacy_has_screen() {
+  local p f screen
+  while read -r p; do
     for f in /proc/"$p"/fd/*; do
-      for s in /dev/fb0 /dev/dri/card*; do [ "$f" -ef "$s" ] && return 0; done
+      for screen in /dev/fb0 /dev/dri/card*; do [ "$f" -ef "$screen" ] && return 0; done
     done
-  done 2>/dev/null
+  done 2>/dev/null </sys/fs/cgroup/system.slice/zinc-agent.service/cgroup.procs
   return 1
+}
+
+# The agent's child cannot execute until this acknowledgement: DRM and input are free first.
+yield_screen() {
+  local owner
+  if ! owner=$(screen_owner); then
+    legacy_has_screen || return 1
+    stop_foreground
+    while legacy_has_screen; do sleep 0.1; done
+    return 0
+  fi
+  stop_foreground
+  while owner=$(screen_owner); do
+    printf '%s\n' "$owner" >"$RUN/screen-ready.tmp"
+    mv "$RUN/screen-ready.tmp" "$RUN/screen-ready"
+    sleep 0.1
+  done
+  sleep 0.5
+  return 0
 }
 
 launch=1
 [ ! -e /var/lib/zinc-update/activating ] || launch=0
 while :; do
+  if yield_screen; then launch=0; continue; fi
   ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
   export ZINC_VERSION
+  is_app=0
   if [ "$launch" = 1 ] && [ -e "$APP" ]; then
+    is_app=1
     rm -f "$RUN/crash.txt"
-    zinc run "$APP" 2>&1 | tee "$RUN/app.log"
-    status=${PIPESTATUS[0]}
-    if [ "$status" -ne 0 ]; then
-      { echo "app=$APP"; echo "status=$status"; echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo; tail -n 80 "$RUN/app.log"; } >"$RUN/crash.txt"
-    fi
+    setsid /bin/bash -c 'zinc run "$1" 2>&1 | tee "$2"; exit ${PIPESTATUS[0]}' _ "$APP" "$RUN/app.log" &
+  else
+    rm -f "$RUN/player-ready"
+    ZINC_PLAYER_READY_FILE="$RUN/player-ready" setsid zinc run "$PLAYER" 0<&0 &
   fi
-  # the player holds the screen's plane and its touches: it gives them up to a program of the agent, and shows again 2 s after the
-  # last one ended (zinc dev starts the next version within a second of a save). Killed, not asked: on its way out display-fbdev
-  # copies its last frame into /dev/fb0, over the program's first frame, and the program then redraws only what changes; killed,
-  # its plane goes and /dev/fb0 shows the program's frame.
-  # ponytail: an installed app that runs keeps the screen; the agent's program then draws behind it. display-fbdev should take the
-  # plane back when its holder leaves (then a plain kill does)
-  rm -f "$RUN/player-ready"
-  ZINC_PLAYER_READY_FILE="$RUN/player-ready" zinc run "$PLAYER" 0<&0 &
-  player=$!
-  while kill -0 "$player" 2>/dev/null; do
-    if agent_has_screen; then kill -KILL "$player"; break; fi
-    sleep 0.5
+  foreground=$!
+  yielded=0
+  while kill -0 "$foreground" 2>/dev/null; do
+    if yield_screen; then yielded=1; break; fi
+    sleep 0.1
   done
-  wait "$player"
+  if [ "$yielded" = 1 ]; then launch=0; continue; fi
+  wait "$foreground"
   status=$?
-  if agent_has_screen; then
-    while agent_has_screen || { sleep 2; agent_has_screen; }; do sleep 0.5; done
-    launch=0
-    continue
+  foreground=0
+  if [ "$is_app" = 1 ] && [ "$status" -ne 0 ]; then
+    { echo "app=$APP"; echo "status=$status"; echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo; tail -n 80 "$RUN/app.log"; } >"$RUN/crash.txt"
   fi
   case $status in
     10) launch=1 ;;
     0) launch=0 ;;
-    *) launch=0; sleep 1 ;; # the player itself failed: show it again, without spinning
+    *) launch=0; sleep 1 ;;
   esac
 done

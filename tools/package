@@ -63,6 +63,11 @@ def payload(share):
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
     copy_tree(os.path.join(REPO, "i18n"), os.path.join(share, "i18n"), lambda r: r.endswith(".json"))   # the CLI and Atelier messages in fr, es, it, de, read by zinc:i18n too (D159; English is in the binary): install.sh and Homebrew unpack this archive
+    # Signed Pi updates carry the display session and agent unit with their engine.
+    for source, name in (("usr/lib/zinc/zinc-session", "zinc-session"), ("etc/systemd/system/zinc-agent.service", "zinc-agent.service")):
+        destination = os.path.join(share, "image", name)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        shutil.copy2(os.path.join(REPO, "image", "files", source), destination)
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
     os.makedirs(os.path.join(share, "targets"))
     shutil.copy2(os.path.join(REPO, "targets", "capabilities.json"), os.path.join(share, "targets", "capabilities.json"))   # zinc:platform
@@ -361,4 +366,5 @@ def main():
     if missing and system == "Darwin":   # ponytail: macOS only; Windows still misses seven (ble, camera, devtools, process, serial, socket, svg)
         sys.exit("plugins without their library: %s (an install cannot run a program that imports them)" % ", ".join(missing))
 
-main()
+if __name__ == '__main__':
+    main()

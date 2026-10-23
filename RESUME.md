@@ -1,25 +1,12 @@
 # Zinc Next: resume
 
-Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
+Binding rules: RULES.md, ARCHITECTURE.md, TESTING.md.
 
-## 2026-10-23: Pre-release CI failures (ZN-781, Review)
+## 2026-10-23
 
-- Owner asked to fix all failures of run 39939275942 (b7b1a3e4): 511 passes, nine failures, 30 skips, plus both Mac packaging jobs. Full evidence and changes: `docs/reports/ci-pre-release-2026-10-23.md`.
-- Eight failing checks have concrete fixes: isolate locale overrides in i18n/Atelier tour tests; fix the real tour save/check race; fix guide help parsing and restore mem help; keep frozen lexer input separate from the styled UI execution fixture; assert device API/network table additions separately against unchanged baselines; honor project entry/engine in examples-status and register Fatty/Kanban as OK.
-- All nine originally failing tests PASS locally: i18n, atelier_tour, tour, guide_store, lexer, native_gen, plugin_manifest, examples_all (complete inventory), notify_relay. Also PASS examples_status, cli_core and ci_plan; native zinc rebuilt, hostile locale environment tested, syntax/JSON checks and frozen-source identity verified. No historical golden/conformance/corpus file edited.
-- notify_relay also passed unchanged with the exact native binary from CI's build-macos-arm64 artifact. Its archived capture stall is NOT declared fixed. The harness now isolates the Messages DB, stops at the first failure and prints fixture DB counts plus relay/tablet logs (forced failure path tested), replacing minutes of cascading failures. ZN-781 stays in Review for a fresh hosted run; no speculative product patch or test skip.
-- No push, workflow dispatch, publication, full T2 repeat or cross build. An owner-started ESP32 board process was observed and left untouched. Research agents were read-only; no real notification/tablet/app was touched. Usage: n/a for Codex.
-
-## Earlier commits in this session
-
-- `276fdb10` (ZN-780): installed-game creation smoke checks the project instead of the old one-line CLI message; English pinned inside clean environments. Rebuilt native package and install_nocompiler PASS without a compiler. Package check artifacts: `/tmp/zinc-ci-install.ICztah/current`.
-- `682c43c6` (ZN-779): release notes read the tagged CHANGELOG, survive failed/unwatched attempts, and archive only after confirmed publication while retaining new entries. Repeated publication upload/edits existing releases. release_tool, release_workflow/actionlint, ci_plan PASS. Existing public release bodies remain unchanged; old tags keep their old workflow.
-- `5e3bbf58` (ZN-778): Pi image builder named presets, atomic autosave/errors, shared Select anchored layers. pi_image_presets, pi_image_builder_presets, pi_image_builder, nuxt_ui and checker PASS.
-- `6642076f` (ZN-777): Pi player architecture-aware signed engine install/downgrade, same source bundle repacked on Pi, startup rollback/journal recovery, update menu/icon and confirmed network restart. pi_image_update, pi_image_updates, pi_image_player, network_plugin and checker PASS. D164 and image/README.md explain it.
-- ESP32 changes, JSC/V8 and Spline are present in develop; CHANGELOG contains their entries (older JSC/V8 announcements remain in historical sections).
-
-## Known limits and next step
-
-- Owner next: `git push && gh workflow run zinc-next --ref develop`. Rerunning the old run keeps b7b1a3e4; a new dispatch tests the pushed fixes and publishes neither site nor release. The hosted notification-capture result is still needed before claiming that CI failure resolved.
-- Pi image not rebuilt here. Pi 3 B+ first boot and real network availability, systemd/sudo/DRM/power-cut rollback remain unverified; old images need rebuilding/provisioning for the updater/menu. See `backlog/later.md`, Cross-platform pass.
-- Pre-existing Native::iram initializer warning recorded in backlog/later.md; unrelated diagnostics/netlog/Windows pixel/agent_ota limits not reopened. Leave the owner's music app/tablet and board process alone.
+- CI fixes ZN-780/781 are confirmed by owner-dispatched run 39952451514 at e1161467: 520 passed, 0 failed, 30 skipped; notify_relay PASS33s. All package/test/fuzz/benchmark/repro jobs successful; publication jobs skipped. Commit 8cb40a2b records that confirmation. The original relay stall remains unexplained; diagnostics retained.
+- ZN-782 complete on native fixtures: State-owned display coordination before exec, one Pi remote app at a time, player/boot-app handoff and return, PID-bound Ctrl-C/session cleanup. Pi deploy sends source projects to the installed engine (QuickJS honored), explicit native exports remain available and report full build duration. Remote dev sends no workstation-native libraries.
+- Pi updater now installs session/agent files from signed engine packages and restores their snapshots with engine/player rollback and recovery. Existing cards need the updated helper once through an administrator, then a signed release with the new engine. See image/README.md for exact commands. No Pi operation/image/cross build, push or publication performed.
+- Verified native build, agent_screen, agent_deploy, agent_dev, agent_apps, pi_image_update, cli_core, ci_plan, native fbdev stub model and syntax/JSON checks. Screen/VT/network/power-cut and throughput still need the physical Pi; backlog/later.md records them. Sources expose code on paired device; typed source mode trades AOT throughput for iteration; cold plugins can compile once on Pi.
+- Next: ZN-783 (owner): adapt music-tree to native/compact/portrait screen sizes. Task reserved in Backlog; no UI changes yet. User's actual Pi/music app/tablet/ESP32 process have not been touched.
+- Earlier commits: 276fdb10 compiler-free install smoke; 682c43c6 release-note lifecycle; 5e3bbf58 image-builder presets/autosave/select layers; 6642076f architecture-aware signed Pi engine/player updates. ESP32, JSC/V8 and Spline integrations remain in develop and the changelog. Usage: n/a for Codex.

@@ -615,7 +615,7 @@ if(TARGET zn_host_gfx)
   # the POSIX pass yet (a serial server, termios, a pty): its commands say it (docs/targets/windows.md).
   if(NOT WIN32)
     target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
-    target_sources(zinc PRIVATE src/agent/dev.cpp)   # zinc dev --device (ZN-729.03)
+    target_sources(zinc PRIVATE src/agent/dev.cpp src/agent/screen.cpp)   # zinc dev --device (ZN-729.03)
     target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
     target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"
     target_compile_definitions(zinc PRIVATE ZN_AGENT)

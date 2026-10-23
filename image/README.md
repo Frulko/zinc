@@ -46,8 +46,9 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
 - The first boot is Raspberry Pi OS's: the initramfs grows the card and cloud-init applies the settings. `zinc-firstboot` then
   turns both off (no initramfs, cloud-init disabled) and deletes the settings, which held the Wi-Fi key and the password hash.
 - A file named `zinc-agent` on the boot partition turns the agent on (it is consumed), like `ssh` turns SSH on. A program it
-  starts (`zinc dev --device`, `zinc device run`) draws through `/dev/fb0` too: while one has the screen open, `zinc-session`
-  closes the player, and shows it again 2 s after the last one ended.
+  starts (`zinc dev --device`, `zinc device run`) gets an exclusive display lease: the session stops its player or boot app
+  and acknowledges that the display is free before the remote process may execute. A new app replaces the previous remote app;
+  the player returns after exit. The agent unit opts into this policy with `ZINC_AGENT_SCREEN=/run/zinc`.
 - `"debug": true` puts a file named `zinc-report` on the boot partition: each boot then writes `zinc-report.txt` there (the
   session's log, the jobs the boot waits on, cloud-init, the screens, the network, the timing; 45 s, 2 and 5 min after the
   session started), and keeps the boot before as `zinc-report-previous.txt`.
@@ -94,3 +95,16 @@ problem is fixed. The real Pi 3 B+ first boot and vc4 display handover remain li
 Not proven yet (needs a Pi): the boot time, the vc4 handover to the session, the session's DRM access as `zinc`, Wi-Fi brought up by
 NetworkManager after the deferral, the player's settings and update/recovery on the real system (sudo, polkit, nmcli, systemd,
 first-frame readiness). `tools/pi-image check` proves what can be proven without one, in the image's own userland.
+
+## Updating an existing card
+
+Reflashing is not required. The updated `zinc-player-update` installs the display session script and agent service unit from the **signed engine archive**, together with the engine/player generation. It snapshots the previous system files, reloads systemd while both services are stopped, and restores those files on a failed start, rollback or interrupted activation. Applications, preferences and pairing are retained. Old releases without a system payload use the initial session snapshot (kept separately from pruned engine versions).
+
+An image containing the earlier updater needs a one-time helper upgrade with a sudo-capable Pi account. Copy this checkout's helper to that account, then install it as root:
+
+```sh
+scp image/files/usr/lib/zinc/zinc-player-update ADMIN@192.168.2.31:/tmp/zinc-player-update
+ssh -t ADMIN@192.168.2.31 'sudo install -o root -g root -m 755 /tmp/zinc-player-update /usr/lib/zinc/zinc-player-update'
+```
+
+`ADMIN` is the administration account created by Raspberry Pi Imager; the restricted `zinc` agent account cannot install arbitrary root helpers. Once a signed release containing these fixes is published, select it in the player's Updates menu. Upgrading only the workstation does not change the running Pi. No new image or signed release was built/published during the native fixture checks.

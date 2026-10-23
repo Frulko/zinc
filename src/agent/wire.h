@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -17,6 +18,11 @@ struct yyjson_val;
 namespace zn::tls { struct Conn; }
 
 namespace zn::agent {
+
+// Hold the agent state's display mutex across fork/handoff; the child waits on a pipe before exec.
+bool awaitScreen(int fd);
+bool handoffScreen(long pid, int fd, std::string& err);
+void releaseScreen(long pid);
 
 inline constexpr int kPort = 7733;
 inline constexpr const char* kService = "_zinc._tcp.local.";
@@ -172,7 +178,7 @@ int exitCode(int status);
 
 /** The agent's side of a dev session: the files the workstation sends, the program restarted at each `start`, its output sent back, the
  *  bytes of `I` frames written to its dev socket (asset reload, src/host/assets_host.h), until the workstation leaves. */
-void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine);
+void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine, std::mutex& displayMu);
 
 // ---- the inspector, the frame, the telemetry and the load of an app (inspect.cpp, ZN-729.05) ----
 

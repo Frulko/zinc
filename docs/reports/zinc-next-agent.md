@@ -24,7 +24,7 @@ zinc device info                         # kind of machine, system, CPU, memory,
 zinc device shell                        # a terminal on the device; zinc device shell uname -a: one command, its exit status
 zinc device push build/ data             # a file or a tree to the device (paths from its home directory); pull the other way
 zinc device deploy                       # this project built for the device (a .zapp, or the export for its target: below), installed,
-                                         # started there, its log followed (Ctrl-C leaves it running); --pack, --target rpi decide
+                                         # started there, its log followed (Ctrl-C stops it); --no-logs leaves it running; --pack, --target rpi decide
 zinc dev --device spark                  # the dev loop with the program there: a save restarts it, an asset is swapped in, an error is a red box
 zinc device run hero -f | stop hero | logs hero -f | apps | uninstall hero | install app.zapp
 zinc device forward 9229 9229            # a port of the device on this machine: chrome://inspect sees the app running there
@@ -33,6 +33,15 @@ zinc device inspect hero | shot hero | monitor hero | top    # its inspector her
 ```
 
 `<device>` goes after `device` when several are paired (`zinc device spark info`); its name or the start of its id.
+
+Pi development deployments send project sources and assets to the installed engine by default: no host cross compilation or second engine transfer. The project keeps its `engine` setting (including QuickJS cycles); typed programs run with `--interp`, so this mode favors iteration over AOT throughput. Missing native plugins may still compile once on the Pi. `--target rpi` opts into the native export; `--pack` retains its existing archive behavior. `--inspect` currently uses the existing native export path. The preparation step includes the complete native/cross build time, even on failure.
+
+Source deployment includes `src/`, the entry and root TS/JS modules, declared assets/icon, `plugins/`, `node_modules/` and the project/package/TypeScript manifests. Hidden files, build outputs and root user settings are excluded; links and paths outside the project are refused. Keep code dependencies within the project and use the explicit native export for other layouts. Sources are visible on the paired device.
+
+The Pi agent unit sets `ZINC_AGENT_SCREEN=/run/zinc`. Both installed and live-dev launches wait behind a pipe until `zinc-session` acknowledges the child PID in `screen-ready`. The session first stops and waits for its entire display process group, including a boot app. The agent stops earlier remote apps before publishing a new lease; a lost/missing acknowledgement cancels execution. A replaced live-dev session closes. The player returns after the last app ends. `device deploy`/`run -f` stop their app on Ctrl-C (and on log-session disconnect with the updated agent); standalone `device logs -f` only detaches, and `--no-logs` deliberately persists. Session cleanup is tied to the launched PID so an older follower cannot stop its replacement.
+
+This requires the updated engine **and** image session/agent-unit files, not merely a new local CLI. The Pi updater now installs those two files from the verified release alongside its engine/player generation and restores them on rollback or interrupted activation; existing images need the new updater helper once (see `image/README.md`). No board result is claimed by the Mac fixture tests.
+
 
 ## What a paired workstation can do
 
@@ -105,7 +114,7 @@ place in a terminal, a line every half second on a pipe (`ZINC_PROGRESS_MS` sets
 `install` and `push` print the same `send` lines:
 
 ```
-  device     spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi
+  device     spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): sending the project for its installed engine (no cross compilation)
   device     mini is macos x86_64 (Macmini8,1), as this machine: packing a .zapp
   send       45%  16 MiB of 35 MiB  2.1 MiB/s
   send       100%  35 MiB of 35 MiB  2.2 MiB/s                    16.1 s
@@ -118,10 +127,10 @@ never names `zinc:ui` has nothing to inspect and is built as it is. `zinc device
 | `os` | `arch` | `kind` | Sent |
 |---|---|---|---|
 | the workstation's | the workstation's (`arm64` and `aarch64` are one) | | the `.zapp` of `zinc pack` |
-| `linux` | `aarch64` | holds `Raspberry Pi` | the export for `rpi` |
+| `linux` | any supported architecture | holds `Raspberry Pi` | project sources for the installed engine (except `--inspect`) |
 | `linux` | `aarch64` | anything else | the export for `linux` |
-| `linux` | `armv7l`, `armv8l` | | the export for `rpi2` (`--target chip` or `pocketchip` for those boards) |
-| `linux` | `armv6l` | | the export for `rpi1` |
+| `linux` | `armv7l`, `armv8l` | other boards | the export for `rpi2` (`--target chip` or `pocketchip` for those boards) |
+| `linux` | `armv6l` | other boards | the export for `rpi1` |
 | `linux` | `x86_64` | | the export for `x86_64-linux` |
 | anything else (a Mac of the other architecture, `riscv64`...) | | | refused: `<name> is <os> <arch>: zinc export has no target for it` |
 
@@ -251,11 +260,9 @@ includes up to 40 ms before `zinc dev` sees the save, the 30 ms it lets a save s
 
 Limits (each a `ponytail:` comment or a choice in the code):
 
-- The pack is made for the workstation: its asset packs are those of the workstation's target and the native libraries of its plugins are
-  built for the workstation's machine. A device of another kind runs programs without native plugins, and needs the engine built for
-  it (ZN-729.07); `zinc device deploy` has no such limit since ZN-729.08 (it sends the export for the device's target).
+- Asset packs still use the workstation's target. Workstation-native libraries are omitted from the dev transfer; the device loads its own compatible installed/cached plugins. Cross-target plugin and asset compatibility still needs its target pass. Pi `device deploy` instead sends sources to the installed engine by default; `--target` explicitly selects a native export.
 - No inspector is added to a UI program (`zinc dev` on one machine imports `zinc:devtools`): import it and use `zinc device forward`.
-- A deployed app of the same project keeps running beside the dev session: `zinc device stop <app>` first on a device with one screen.
+- On the managed Pi image, a dev session replaces the deployed app and owns its exclusive display lease; a replacement app ends that dev session. Other agents keep their existing multi-app behavior unless configured with `ZINC_AGENT_SCREEN`.
 - The first start sends every member; the device's directory does not outlive the session.
 - One thread of the agent relays both ways: megabytes of output while megabytes of assets arrive could stall a session.
 - A program whose child keeps its output open after it ended is not reported as ended until the child closes it.
@@ -366,3 +373,11 @@ info, shell, push and pull, an export installed and started); `zinc agent instal
 
 Open: the start of the service at login run for real (ZN-729.04, in review), and
 everything on Linux, a Raspberry Pi and a second machine (the cross-platform pass in `backlog/later.md`).
+
+### Pi field report, 2026-10-23 (ZN-782)
+
+The owner observed Hero, Music Tree, the player and boot console pixels on one screen. `startApp` previously stopped only another instance of the same app; following logs with Ctrl-C left it running. The session's cgroup/fd scan reacted only after a new program had opened DRM, too late for that program to choose the available plane; the boot app was not preempted. Independent read-only research confirmed those paths and the unrelated typed-only Linux exporter used for Fatty despite its QuickJS setting. The fixes use the existing agent/export-directory protocol and installed engine; no new archive format or native-library trust bypass was added.
+
+Owner logs show 69 MiB transferred for both Hero (46.2 s) and Music Tree (33.8 s), in addition to an unreported, longer cross build. Static checkout source/asset sizes are 674,772 bytes for Hero, 444,511 for Music Tree and 7,556,025 for Fatty; these are **input sizes, not measured Pi deployment times**. The new preparation phase spans the entire native export when explicitly requested. Typed source mode trades AOT throughput for iteration; compatible prebuilt/cached native plugins are reused by the installed engine, and missing ones still build once on the device.
+
+Validation on the Mac: agent_screen covers boot-app preemption, ordered acknowledgement, player return, replacement/concurrent launches, a replaced live-dev session, PID-bound log followers, Ctrl-C and missing acknowledgement. agent_deploy runs a QuickJS circular-import project through a simulated Pi's installed native engine, checks assets/private-file exclusion, rejects links, and diagnoses unsupported QuickJS native export without starting a cross build. Existing agent_dev and agent_apps pass. pi_image_update proves package payload bytes, signed download boundaries, system-file activation/downgrade/rollback, failure after the first system replacement and interrupted-activation recovery; the actual fbdev driver passes its native simulated framebuffer test. cli_core and ci_plan pass. No real Pi/ARM build, service restart, framebuffer or power-cut result is claimed.

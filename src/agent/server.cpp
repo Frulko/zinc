@@ -62,6 +62,7 @@ struct State {
   int port = kPort;
   bool shell = true;
   std::mutex mu;       // clients.json
+  std::mutex displayMu; // ordered display handoffs across app and live-dev launches
   std::mutex pairMu;   // one pairing attempt at a time, so the tries are counted
   std::string pairCode;
   int pairTries = 0;
@@ -325,7 +326,7 @@ bool stopApp(const State& s, const std::string& name) {
 
 // Starts an installed app in a session of its own, its output appended to its log: it outlives this agent, and a new agent finds it by its
 // pid file. ponytail: the pid alone names it; a recycled pid would be taken for the app (add the start time if that ever bites).
-pid_t startApp(const State& s, const std::string& name, const std::vector<std::string>& args, const std::vector<std::pair<std::string, std::string>>& extraEnv, std::string& err) {
+pid_t startApp(State& s, const std::string& name, const std::vector<std::string>& args, const std::vector<std::pair<std::string, std::string>>& extraEnv, std::string& err) {
   const std::string dir = s.home + "/apps/" + name;
   std::error_code ec;
   std::vector<std::string> argv;
@@ -346,12 +347,18 @@ pid_t startApp(const State& s, const std::string& name, const std::vector<std::s
   const int null = ::open("/dev/null", O_RDONLY);
   if (log < 0 || null < 0) { err = std::string("cannot open the log: ") + std::strerror(errno); if (log >= 0) ::close(log); if (null >= 0) ::close(null); return 0; }
   Env withInspector = extraEnv;
+  withInspector.emplace_back("ZINC_ENGINE", s.self);
   const int inspector = inspectorPort(withInspector);   // every app gets a port for its inspector, and `apps` says which (ZN-729.05)
   std::vector<std::string> env = environment(withInspector);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
+  int gate[2];
+  if (::pipe(gate) != 0) { ::close(log); ::close(null); err = "cannot create display gate"; return 0; }
+  std::lock_guard<std::mutex> display(s.displayMu);
   const pid_t pid = ::fork();
   if (pid == 0) {
     ::setsid();
+    ::close(gate[1]);
+    if (!awaitScreen(gate[0])) ::_exit(125);
     ::dup2(null, 0);
     ::dup2(log, 1);
     ::dup2(log, 2);
@@ -359,14 +366,18 @@ pid_t startApp(const State& s, const std::string& name, const std::vector<std::s
   }
   ::close(log);
   ::close(null);
-  if (pid < 0) { err = std::string("cannot start it: ") + std::strerror(errno); return 0; }
+  ::close(gate[0]);
+  if (pid < 0) { ::close(gate[1]); err = std::string("cannot start it: ") + std::strerror(errno); return 0; }
+  if (!handoffScreen(pid, gate[1], err)) { ::waitpid(pid, nullptr, 0); return 0; }
   const std::string pidFile = s.home + "/run/" + name + ".pid", logFile = s.home + "/logs/" + name + ".log";
   writePrivate(pidFile, std::to_string(pid) + "\n" + std::to_string(inspector) + "\n");
-  std::thread([pid, pidFile, logFile] {   // its end goes in its log, and its pid file with it
+  std::thread([pid, pidFile, logFile, &s] {   // its end goes in its log, and its pid file with it
     int status = 0;
     while (::waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     if (std::FILE* f = std::fopen(logFile.c_str(), "a")) { std::fprintf(f, "[exited %d]\n", exitCode(status)); std::fclose(f); }
     if (std::atol(firstLine(pidFile).c_str()) == pid) ::unlink(pidFile.c_str());
+    std::lock_guard<std::mutex> display(s.displayMu);
+    releaseScreen(pid);
   }).detach();
   return pid;
 }
@@ -547,10 +558,12 @@ void opLogs(State& s, Chan& c, const Val& req) {
     const ssize_t n = ::pread(fd, buf, sizeof buf, at);
     if (n > 0) { at += n; ok = send(c, kOut, std::string_view(buf, static_cast<size_t>(n))); continue; }
     if (!follow) break;
+    if (req.flag("untilExit") && runningPid(s, name) != req.num("pid")) break;
     pollfd p{c.fd, POLLIN, 0};
     if (::poll(&p, 1, 200) > 0 && !fill(c)) ok = false;   // the workstation left
   }
   ::close(fd);
+  if (req.flag("untilExit") && !ok && runningPid(s, name) == req.num("pid")) stopApp(s, name);
   if (ok) send(c, kExit, "0");
 }
 
@@ -636,7 +649,7 @@ void handleSession(State& s, int fd) {
   else if (op == "pull") opPull(c, req);
   else if (op == "install") opInstall(s, c, req);
   else if (op == "logs") opLogs(s, c, req);
-  else if (op == "dev") opDev(c, req, s.home, s.self, s.engine);
+  else if (op == "dev") opDev(c, req, s.home, s.self, s.engine, s.displayMu);
   else if (op == "connect") opConnect(c, req);
   else if (op == "listen") opListen(s, c, req);
   else if (op == "accepted") opAccepted(s, c, req);
@@ -651,7 +664,8 @@ void handleSession(State& s, int fd) {
       if (pid > 0 && otaRolledBack(s.home, name, pid, back)) { startApp(s, name, req.strs("args"), req.pairs("env"), err); refuse(c, back); }   // an update that exited at once
       else if (pid > 0) send(c, kJson, Obj().flag("ok", true).num("pid", pid).done()); else refuse(c, err);
     } else if (op == "stop") {
-      send(c, kJson, Obj().flag("ok", true).flag("stopped", stopApp(s, name)).done());
+      const bool mine = req.num("pid") == 0 || req.num("pid") == runningPid(s, name);
+      send(c, kJson, Obj().flag("ok", true).flag("stopped", mine && stopApp(s, name)).done());
     } else if (!fs::exists(s.home + "/apps/" + name, ec)) {
       refuse(c, "no app named " + name + " on this device");
     } else {
