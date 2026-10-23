@@ -2,10 +2,9 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
-import { theme, hex, setColorMode } from 'zinc:ui/nuxt';
+import { setColorMode } from 'zinc:ui/nuxt';
 import { quit } from 'zinc:gfx';
-import { SettingsPage } from '../../../image/builder/src/pages/settings';
-import { BuildPage } from '../../../image/builder/src/pages/build';
+import { Workspace } from '../../../image/builder/src/pages/workspace';
 import { profile, editProfile, presetError, saveError, presetDialogOpen, startBuild, status, errorMessage, presetNames } from '../../../image/builder/src/state';
 
 function expect(value: boolean, message: string): void { if (!value) throw new Error(message); }
@@ -28,15 +27,10 @@ function nameField(): i32 {
   }
   return -1;
 }
-function App(): i32 {
-  return <View className={`w-full h-full flex-row bg-${hex(theme().bg)}`}>
-    <SettingsPage /><View className={`w-[1px] h-full bg-${hex(theme().border)}`} /><BuildPage />
-  </View>;
-}
-setColorMode('dark');
+setColorMode('light');
 const path = sys.env('ZINC_PI_IMAGE_PROFILE');
 let f = 0;
-render(App, 0x000000, (dt: number) => {
+render(Workspace, 0xf5f6f0, (dt: number) => {
   f++;
   if (sys.env('PI_TEST_REOPEN') === '1') {
     if (f === 3) {

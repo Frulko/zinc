@@ -1,9 +1,11 @@
 // What goes in the image, in the order Raspberry Pi Imager asks it: the board and its screen, the name, the user and
 // SSH, Wi-Fi, the region, then what Zinc adds (libraries, the app, the agent). Every change is saved at once.
 import { createSignal, For } from 'zinc:ui/solid';
-import { theme, hex, Card, Input, Textarea, Select, Checkbox, Switch, Button } from 'zinc:ui/nuxt';
+import { theme, hex, Input, Textarea, Select, Checkbox, Switch, Button } from 'zinc:ui/nuxt';
 import { Field } from '../components/field';
 import { Presets } from '../components/presets';
+import { Section } from '../components/section';
+import { Hardware } from '../components/hardware';
 import { Choice, labelOf, keyOf } from '../services/catalog';
 import { Profile } from '../services/profile';
 import { catalog, profile, editProfile, toggleLibrary, chooseApp, useMySshKey, notice } from '../state';
@@ -20,7 +22,7 @@ function TextField(p: { label: string; hint?: string; value: () => string; onCha
 }
 
 function BoardSection(): i32 {
-  return <Card title="Board">
+  return <Section title="Your hardware" icon="cpu" number="01" hint="Choose the board and the screen it will use.">
     <Field label="Raspberry Pi" hint="Which models the image is for">
       <Select items={labelsOf(catalog.boards)} modelValue={() => labelOf(catalog.boards, profile().board)}
         onUpdate={(label: string) => editProfile((p: Profile) => { p.board = keyOf(catalog.boards, label); })}
@@ -31,20 +33,20 @@ function BoardSection(): i32 {
         onUpdate={(label: string) => editProfile((p: Profile) => { p.display = keyOf(catalog.displays, label); })}
         open={displayListOpen} onOpen={setDisplayListOpen} className="w-full" />
     </Field>
-  </Card>;
+  </Section>;
 }
 
 function GeneralSection(): i32 {
-  return <Card title="General">
+  return <Section title="Make it yours" icon="sliders-horizontal" number="02" hint="Give your image a name and set its region.">
     <TextField label="Image name" hint="The file in dist/" value={() => profile().name} onChange={(v: string) => editProfile((p: Profile) => { p.name = v; })} />
     <TextField label="Hostname" hint="The Pi answers at <name>.local" value={() => profile().hostname} onChange={(v: string) => editProfile((p: Profile) => { p.hostname = v; })} />
     <TextField label="Time zone" hint="Europe/Paris, America/New_York..." value={() => profile().timezone} onChange={(v: string) => editProfile((p: Profile) => { p.timezone = v; })} placeholder="Raspberry Pi OS's default" />
     <TextField label="Keyboard" hint="fr, gb, us, de..." value={() => profile().keyboard} onChange={(v: string) => editProfile((p: Profile) => { p.keyboard = v; })} placeholder="Raspberry Pi OS's default" />
-  </Card>;
+  </Section>;
 }
 
 function UserSection(): i32 {
-  return <Card title="User and SSH">
+  return <Section title="User and SSH" icon="key-round" number="03" hint="Your administrator account and remote access.">
     <TextField label="User" hint="To log in; none for a screen only" value={() => profile().userName} onChange={(v: string) => editProfile((p: Profile) => { p.userName = v; })} placeholder="no user" />
     <TextField label="Password" value={() => profile().password} onChange={(v: string) => editProfile((p: Profile) => { p.password = v; })} secret={true} />
     <Field label="SSH" hint="Log in from a computer">
@@ -59,19 +61,19 @@ function UserSection(): i32 {
         </View>
       </View>
     </Field>
-  </Card>;
+  </Section>;
 }
 
 function WifiSection(): i32 {
-  return <Card title="Wi-Fi">
+  return <Section title="Wi-Fi" icon="wifi" number="04" hint="Ready to connect from the very first boot.">
     <TextField label="Network" value={() => profile().wifiName} onChange={(v: string) => editProfile((p: Profile) => { p.wifiName = v; })} placeholder="none (Ethernet, or set it on the Pi)" />
     <TextField label="Password" value={() => profile().wifiPassword} onChange={(v: string) => editProfile((p: Profile) => { p.wifiPassword = v; })} secret={true} />
     <TextField label="Country" hint="Two letters; Wi-Fi stays off without it" value={() => profile().wifiCountry} onChange={(v: string) => editProfile((p: Profile) => { p.wifiCountry = v; })} placeholder="FR" />
-  </Card>;
+  </Section>;
 }
 
 function ZincSection(): i32 {
-  return <Card title="Zinc">
+  return <Section title="Apps and extras" icon="blocks" number="05" hint="Start with the player, or bring your own project.">
     <Field label="App" hint="A Zinc project started at boot; the player shows without one">
       <View className="flex-row gap-2">
         <Input className="grow" modelValue={() => profile().app} onUpdate={(v: string) => editProfile((p: Profile) => { p.app = v; })} placeholder="the player alone" />
@@ -92,12 +94,16 @@ function ZincSection(): i32 {
         <Switch modelValue={() => profile().debugConsole} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.debugConsole = on; })} label="Boot messages on screen (debugging)" />
       </View>
     </Field>
-  </Card>;
+  </Section>;
 }
 
 export function SettingsPage(): i32 {
-  return <ScrollView className="grow basis-0">
-    <View className="flex-col gap-4 p-4">
+  return <ScrollView className="grow basis-0 min-w-0" aria-label="Image settings">
+    <View className="flex-col gap-4 p-7 max-[1000px]:p-4">
+      <View className="flex-row items-center rounded-[20px] bg-[#e9efdf] px-5 py-3 gap-2">
+        <View className="grow min-w-0 gap-2"><Text className="font-mono text-[10px] text-[#72835e]">FROM AN IDEA TO AN SD CARD</Text><Text className="text-[26px] font-semibold text-[#2c4631]">Make a Pi your own.</Text><Text className="text-sm text-[#627354]">Set it up once. Flash it. Make something.</Text></View>
+        <Hardware />
+      </View>
       <Presets />
       <BoardSection />
       <GeneralSection />

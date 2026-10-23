@@ -21,7 +21,7 @@
     {"paths": ["examples/music/", "tests/t1/music_city_standby.sh", "tests/demo/music_notify.sh", "tests/data/music/", "tests/golden/music/"], "tests": ["music_city_standby", "music_notify"]},
     {"paths": ["examples/carnet/", "tests/t1/carnet.sh", "tests/demo/carnet_collab.sh", "tests/data/carnet/", "tests/golden/carnet/"], "tests": ["carnet", "carnet_collab"]},
     {"paths": ["examples/carnet-nbe/", "tests/t1/carnet_nbe.sh", "tests/demo/carnet_nbe_collab.sh", "tests/data/carnet-nbe/", "tests/data/carnet/session.input", "tests/golden/carnet-nbe/"], "tests": ["carnet_nbe", "carnet_nbe_collab"]},
-    {"paths": ["image/builder/", "image/catalog.json", "tests/t1/pi_image_builder.sh", "tests/data/pi-image/", "tests/golden/pi-image-builder/"], "tests": ["pi_image_builder", "pi_image_builder_presets", "pi_image_presets"]},
+    {"paths": ["image/builder/", "image/catalog.json", "tests/t1/pi_image_builder.sh", "tests/t1/pi_image_builder_log.sh", "tests/data/pi-image/", "tests/golden/pi-image-builder/"], "tests": ["pi_image_builder", "pi_image_builder_presets", "pi_image_presets", "pi_image_builder_log"]},
     {"paths": ["lib/std/nuxt/controls.tsx", "tests/t0/pi_image_presets.sh", "tests/t1/pi_image_builder_presets.sh"], "tests": ["pi_image_builder_presets", "pi_image_presets"]},
     {"paths": ["image/files/", "image/build.sh", "image/scripts/", "image/check.sh", "tools/pi-image", "tests/data/pi-image/test_updates.py", "tests/t0/pi_image_update.sh", "tools/package"], "tests": ["pi_image_update", "pi_image_updates"]},
     {"paths": ["image/player/", "plugins/network/", "tests/t1/pi_image_player.sh", "tests/t1/pi_image_updates.sh", "tests/golden/pi-image-player/", "tests/golden/pi-image-updates/"], "tests": ["pi_image_player", "pi_image_updates"]},
