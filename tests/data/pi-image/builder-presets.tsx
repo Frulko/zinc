@@ -30,6 +30,7 @@ function nameField(): i32 {
 setColorMode('light');
 const path = sys.env('ZINC_PI_IMAGE_PROFILE');
 let f = 0;
+let bluetoothBefore = false;
 render(Workspace, 0xf5f6f0, (dt: number) => {
   f++;
   if (sys.env('PI_TEST_REOPEN') === '1') {
@@ -70,5 +71,22 @@ render(Workspace, 0xf5f6f0, (dt: number) => {
     expect(status() !== 'running' && errorMessage() !== '', 'an unsaved profile started a build');
   }
   if (f === 69) { fs.remove(path, true); fs.rename(path + '.backup', path); editProfile((p) => { p.hostname = 'recovered'; }); }
-  if (f === 70) { expect(saveError() === '', 'save did not recover'); console.log('ok: dropdown layers, dismissal, named presets, autosave and visible save errors'); quit(); }
+  if (f === 70) {
+    expect(saveError() === '' && errorMessage() === '', 'save failure did not clear after recovery');
+    bluetoothBefore = profile().bluetooth;
+    for (let h = 0; h < 5000; h++) {
+      const n = ui.inspectNode(h);
+      if (n !== null) {
+        expect(n.role !== 'switch', 'builder still uses mobile-style switches');
+        if (n.label === 'Image settings') ui.scrollTo(h, 0, 100000);
+      }
+    }
+  }
+  if (f === 73) pointer('Bluetooth');
+  if (f === 75) {
+    expect(profile().bluetooth !== bluetoothBefore, 'desktop checkbox did not toggle');
+    const saved: any = JSON.parse(fs.readText(path));
+    expect((saved.bluetooth as boolean) === profile().bluetooth, 'checkbox change was not saved');
+  }
+  if (f === 78) { console.log('ok: dropdown layers, dismissal, named presets, autosave, visible save errors and desktop checkboxes'); quit(); }
 });

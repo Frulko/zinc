@@ -10,7 +10,7 @@ const [listOpen, setListOpen] = createSignal<boolean>(false);
 
 export function Presets(): i32 {
   return <View className="flex-col gap-2">
-    <View className="flex-col gap-2 rounded-[14px] bg-[#eef1e8] p-4">
+    <View className="flex-col gap-2 rounded-[8px] bg-[#eef1e8] p-4">
       <View className="flex-row items-center gap-2"><Icon name="bookmark" size={15} color={() => 0x6b7c5e} /><Text className="text-xs font-semibold text-[#53634b]">Your presets</Text></View>
       <View className="flex-row items-center gap-2">
         <Select items={presetNames()} modelValue={selectedPreset} onUpdate={loadPreset} placeholder="Last settings"

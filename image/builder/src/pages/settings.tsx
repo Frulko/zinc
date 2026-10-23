@@ -1,7 +1,7 @@
 // What goes in the image, in the order Raspberry Pi Imager asks it: the board and its screen, the name, the user and
 // SSH, Wi-Fi, the region, then what Zinc adds (libraries, the app, the agent). Every change is saved at once.
 import { createSignal, For } from 'zinc:ui/solid';
-import { theme, hex, Input, Textarea, Select, Checkbox, Switch, Button } from 'zinc:ui/nuxt';
+import { theme, hex, Input, Textarea, Select, Checkbox, Button } from 'zinc:ui/nuxt';
 import { Field } from '../components/field';
 import { Presets } from '../components/presets';
 import { Section } from '../components/section';
@@ -50,7 +50,7 @@ function UserSection(): i32 {
     <TextField label="User" hint="To log in; none for a screen only" value={() => profile().userName} onChange={(v: string) => editProfile((p: Profile) => { p.userName = v; })} placeholder="no user" />
     <TextField label="Password" value={() => profile().password} onChange={(v: string) => editProfile((p: Profile) => { p.password = v; })} secret={true} />
     <Field label="SSH" hint="Log in from a computer">
-      <Switch modelValue={() => profile().ssh} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.ssh = on; })} label="Turn SSH on" />
+      <Checkbox modelValue={() => profile().ssh} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.ssh = on; })} label="Turn SSH on" />
     </Field>
     <Field label="Public keys" hint="One per line: log in without the password">
       <View className="flex-col gap-2">
@@ -89,9 +89,9 @@ function ZincSection(): i32 {
     <TextField label="More packages" hint="Debian package names, separated by spaces" value={() => profile().packages} onChange={(v: string) => editProfile((p: Profile) => { p.packages = v; })} placeholder="htop i2c-tools" />
     <Field label="Options">
       <View className="flex-col gap-2">
-        <Switch modelValue={() => profile().agent} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.agent = on; })} label="Zinc agent (zinc device push, run, logs)" />
-        <Switch modelValue={() => profile().bluetooth} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.bluetooth = on; })} label="Bluetooth" />
-        <Switch modelValue={() => profile().debugConsole} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.debugConsole = on; })} label="Boot messages on screen (debugging)" />
+        <Checkbox modelValue={() => profile().agent} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.agent = on; })} label="Zinc agent (zinc device push, run, logs)" />
+        <Checkbox modelValue={() => profile().bluetooth} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.bluetooth = on; })} label="Bluetooth" />
+        <Checkbox modelValue={() => profile().debugConsole} onUpdate={(on: boolean) => editProfile((p: Profile) => { p.debugConsole = on; })} label="Boot messages on screen (debugging)" />
       </View>
     </Field>
   </Section>;
@@ -100,7 +100,7 @@ function ZincSection(): i32 {
 export function SettingsPage(): i32 {
   return <ScrollView className="grow basis-0 min-w-0" aria-label="Image settings">
     <View className="flex-col gap-4 p-7 max-[1000px]:p-4">
-      <View className="flex-row items-center rounded-[20px] bg-[#e9efdf] px-5 py-3 gap-2">
+      <View className="flex-row items-center rounded-[12px] bg-[#e9efdf] px-5 py-3 gap-2">
         <View className="grow min-w-0 gap-2"><Text className="font-mono text-[10px] text-[#72835e]">FROM AN IDEA TO AN SD CARD</Text><Text className="text-[26px] font-semibold text-[#2c4631]">Make a Pi your own.</Text><Text className="text-sm text-[#627354]">Set it up once. Flash it. Make something.</Text></View>
         <Hardware />
       </View>

@@ -40,7 +40,12 @@ export function editProfile(change: (p: Profile) => void): void {
 }
 
 function persistProfile(): boolean {
-  try { saveProfile(profileFile(), currentProfile); setSaveError(''); return true; }
+  try {
+    saveProfile(profileFile(), currentProfile);
+    if (saveError() !== '' && errorMessage() === saveError()) setErrorMessage('');
+    setSaveError('');
+    return true;
+  }
   catch (e) { setSaveError('Could not save settings: ' + (e as Error).message); return false; }
 }
 

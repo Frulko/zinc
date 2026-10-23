@@ -29,7 +29,7 @@ export function BuildPage(): i32 {
       <Text className="text-[28px] font-semibold text-[#f0f4e9]">{status() === 'done' ? 'Ready for your Pi.' : status() === 'running' ? 'Making your image.' : status() === 'failed' ? 'A little snag.' : 'Ready when you are.'}</Text>
       <Text className="text-sm text-[#afbfaa]">{statusText()}</Text>
     </View>
-    <Show when={status() === 'idle'}><View className="flex-col gap-3 p-4 rounded-[14px] bg-[#2b4435] border border-[#3c5340]">
+    <Show when={status() === 'idle'}><View className="flex-col gap-3 p-4 rounded-[8px] bg-[#2b4435] border border-[#3c5340]">
       <SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} />
       <SummaryRow icon="monitor" text={labelOf(catalog.displays, profile().display)} />
       <SummaryRow icon="wifi" text={profile().wifiName === '' ? 'Ethernet · configure Wi-Fi later' : profile().wifiName} />
@@ -38,7 +38,7 @@ export function BuildPage(): i32 {
     <Show when={status() !== 'idle'}><SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} /></Show>
     <View className="flex-col gap-3">
       <View className="flex-row items-center gap-2">
-        <Button aria-label="Build the image" disabled={status() === 'running'} onClick={startBuild} className={`grow flex-row items-center justify-center gap-2 h-10 rounded-[10px] bg-[#b7d995] hover:bg-[#c7e5a8] ${status() === 'running' ? 'opacity-70' : ''}`}><Icon name={status() === 'running' ? 'loader-circle' : 'hammer'} size={17} color={() => 0x203c29} /><Text className="text-sm font-semibold text-[#203c29]">{status() === 'running' ? 'Building…' : 'Build the image'}</Text></Button>
+        <Button aria-label="Build the image" disabled={status() === 'running'} onClick={startBuild} className={`grow flex-row items-center justify-center gap-2 h-10 rounded-[6px] bg-[#b7d995] hover:bg-[#c7e5a8] ${status() === 'running' ? 'opacity-70' : ''}`}><Icon name={status() === 'running' ? 'loader-circle' : 'hammer'} size={17} color={() => 0x203c29} /><Text className="text-sm font-semibold text-[#203c29]">{status() === 'running' ? 'Building…' : 'Build the image'}</Text></Button>
         <Show when={status() === 'running'}><ActionButton label="Stop" icon="square" color="neutral" variant="outline" onClick={stopBuild} /></Show>
       </View>
       <Show when={status() !== 'idle'}>
@@ -49,7 +49,7 @@ export function BuildPage(): i32 {
       </Show>
       <Show when={errorMessage() !== ''}><Text className="text-sm text-[#ffb7a8]">{errorMessage()}</Text></Show>
       <Show when={imagePath() !== ''}>
-        <View className="flex-col gap-3 p-3 rounded-[12px] bg-[#2c4838] border border-[#59734b]">
+        <View className="flex-col gap-3 p-3 rounded-[8px] bg-[#2c4838] border border-[#59734b]">
           <View className="flex-row gap-2 items-center"><Icon name="circle-check" size={17} color={() => 0xb7d995} /><Text className="font-mono text-xs text-[#e5efd8]">{shownPath(imagePath())}</Text></View>
           <View className="flex-row gap-2">
             <ActionButton label="Show file" icon="folder-open" color="neutral" variant="outline" size="sm" onClick={revealImage} />

@@ -14,7 +14,7 @@ function colorOf(line: string): string {
 
 export function LogView(p: LogViewProps): i32 {
   const area = createNodeRef();
-  return <View className="flex-col grow basis-0 min-h-[120px] rounded-[14px] overflow-hidden bg-[#17291f] border border-[#3b5040]">
+  return <View className="flex-col grow basis-0 min-h-[120px] rounded-[8px] overflow-hidden bg-[#17291f] border border-[#3b5040]">
     <View className="flex-row items-center shrink-0 h-10 px-3 gap-2 border-b border-[#304535]">
       <Icon name="terminal" size={14} color={() => 0x879e7e} /><Text className="font-mono text-[10px] text-[#a7bc99]">BUILD OUTPUT</Text>
       <View className="grow" />

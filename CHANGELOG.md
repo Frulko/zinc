@@ -49,7 +49,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A web program that needs WebGL 2 says `"requires": ["gpu>=webgl2"]`: on a machine whose GPU cannot make a WebGL 2 context it now stops with the reason (`--force` runs it anyway), and any other program gets a warning with the `null` context. `ZINC_WEBGL_MAX=1` makes any machine behave like such a GPU.
 
 ### Changed
-- Zinc Pi Image has an illustrated settings workspace and a clearer build panel with hardware summary, step progress and image actions. Build output follows new lines, pauses when you scroll up, and resumes with **Latest output**.
+- Zinc Pi Image has an illustrated settings workspace with desktop checkboxes and a clearer build panel with hardware summary, step progress and image actions. Build output follows new lines, pauses when you scroll up, and resumes with **Latest output**.
 - LVGL runs about 1.6 times faster on the ESP32-2432S022 under `--engine mquickjs` (the widgets' Bench page: 38 fps, from 24): its hottest code runs from the internal RAM instead of the flash. A plugin lists such files under `targets.esp32.iram` in its `plugin.json`.
 - A program on the ESP32-2432S022 under `--engine mquickjs` has about 26 KB more memory once LVGL draws: the board's panel bus copies each area, so LVGL renders into one buffer and the firmware keeps one band. A Lottie animation now fits after the widgets' benchmark page.
 - A program that styles only with style objects, never with `className`, no longer carries the class parser: about a tenth less code to compile and interpret, and a native app about 145 KB smaller (a React Native program too, sticky section headers included).
@@ -64,6 +64,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- Zinc Pi Image clears a previous settings-save error after saving succeeds again.
 - Pi images apply the configured login password even when Raspberry Pi OS has already renamed the account. Failed first-boot setup now keeps cloud-init, the initramfs and the settings available for recovery instead of deleting them.
 - Music Tree uses the Pi screen’s native resolution and adapts its player, navigation, grids, settings and overlays to compact landscape or portrait screens; short views scroll so controls remain reachable. Clock, weather and room-volume views also fit narrow screens.
 - Pi engine updates also install the matching display session and agent service from the signed package, restoring both on rollback or interrupted activation. Existing images need the new updater helper once; reflashing is not required.

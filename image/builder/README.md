@@ -3,7 +3,8 @@
 A window for `tools/pi-image`: the settings of Raspberry Pi Imager (board, screen, user, SSH, Wi-Fi, region) and what Zinc adds
 (libraries, the app to start, the agent) on the left; the build, its progress and its log on the right. The light workspace groups
 settings into numbered sections, with a vector hardware illustration and Lucide icons. The green build panel summarizes the board,
-screen, network and login without displaying passwords. Narrower windows stack each field's label above its control.
+screen, network and login without displaying passwords. Compact corners and flat checkboxes keep the controls suited to a desktop
+tool, without mobile-style switches or thumb shadows. Narrower windows stack each field's label above its control.
 
 ```sh
 zinc run image/builder
@@ -16,7 +17,8 @@ the build until the profile can be saved.
 
 **Save as…** stores a named snapshot of all current settings in `presets.json` beside the profile (also readable by its owner
 only). This includes Wi-Fi/login passwords, SSH keys, the app and any pinned base/engine settings. Selecting a saved preset restores
-the whole snapshot and makes it the automatically saved last settings. Names must be nonempty and unique; an existing preset is
+the whole snapshot and makes it the automatically saved last settings. A successful save clears a previous save-related build error.
+Names must be nonempty and unique; an existing preset is
 never overwritten. The name dialog supports Enter, Escape and Cancel. Select lists float above cards and neighbouring fields,
 and close on selection, Escape or a press outside.
 
