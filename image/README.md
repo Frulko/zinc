@@ -55,6 +55,32 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
   `50-zinc-network.rules`, lets `zinc` drive it), the rest through `/usr/lib/zinc/zinc-admin`, which `zinc` may run as root
   through sudo (`/etc/sudoers.d/zinc`) for its fixed verbs: Wi-Fi country, SSH, the agent and its pairing, hostname, reboot, poweroff.
 
+## Engine updates on the Pi
+
+The player runs as `/usr/lib/zinc/current/player.zapp`. Its code is kept separately in the root-owned
+`/usr/lib/zinc/player-source.tar.gz`: changing Zinc rebuilds the runnable bundle from the **same sources**, without changing the
+player or the installed app. The Updates page checks published stable releases for the installed Debian architecture (`dpkg`,
+so a 32-bit system under a 64-bit kernel selects `armhf`). A download icon opens it when a newer version exists. Checking is automatic
+once a day while connected, retried after five minutes on failure, or manual with **Check again**. The list covers the latest 100
+published releases that provide both the engine archive and its manifest for this architecture.
+
+Select a newer or older version, press **Install**, then confirm. A root systemd job verifies the manifest with the image's
+`/etc/zinc/update.pub` using Zinc's existing Ed25519 verifier, checks the archive's SHA-256/version/architecture, and extracts it
+without accepting archive links or special files. Unsigned releases are refused. At least 2 GB of free storage is required.
+The candidate engine packs the unchanged player sources and draws a test frame as the `zinc` user. Downloads or builds that fail
+leave the active version untouched; an old engine unable to compile this player cannot be installed.
+
+Only then does the job restart the session and remote apps, activate the prepared engine/player pair through one atomic `current`
+link, and wait up to 30 seconds for the player's first frame. If startup fails, it restores the old pair. A flushed journal also
+restores an interrupted switch at the next boot, before the session starts. **Restore** selects the
+previous local pair without downloading or rebuilding it. Config, applications and agent pairing stay outside these generations;
+an older engine may refuse applications made for a newer one. Detailed service errors are in `journalctl -u 'zinc-update@*'`.
+The update helper and its trusted key belong to the image; the engine menu does not upgrade Raspberry Pi OS or the player sources.
+
+**Restart network** in Wi-Fi resets failed NetworkManager/wpa_supplicant units and restarts them, then scans again. It asks for a
+second press because remote connections can drop. This is recovery from a service failure, not proof that the known first-boot
+problem is fixed. The real Pi 3 B+ first boot and vc4 display handover remain listed in `backlog/later.md`.
+
 ## Layout
 
 | Path | What it holds |
@@ -66,4 +92,5 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
 | `player/`, `builder/` | the two Zinc apps (their READMEs) |
 
 Not proven yet (needs a Pi): the boot time, the vc4 handover to the session, the session's DRM access as `zinc`, Wi-Fi brought up by
-NetworkManager after the deferral, the player's settings on the real system (sudo, polkit, nmcli). `tools/pi-image check` proves what can be proven without one, in the image's own userland.
+NetworkManager after the deferral, the player's settings and update/recovery on the real system (sudo, polkit, nmcli, systemd,
+first-frame readiness). `tools/pi-image check` proves what can be proven without one, in the image's own userland.

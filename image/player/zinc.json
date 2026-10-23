@@ -7,7 +7,7 @@
   "icons": [
     "settings", "wifi", "wifi-off", "wifi-high", "wifi-low", "wifi-zero", "ethernet-port", "lock", "chevron-left",
     "refresh-cw", "play", "rotate-ccw", "house", "delete", "arrow-big-up", "keyboard-off", "eye", "eye-off", "laptop",
-    "palette", "cpu", "power", "triangle-alert", "circle-check"
+    "palette", "cpu", "power", "triangle-alert", "circle-check", "download"
   ],
   "targets": {
     "linux": { "width": 800, "height": 480, "resize": "fill", "fullscreen": true },

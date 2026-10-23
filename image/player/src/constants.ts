@@ -38,6 +38,7 @@ export const SECTION_WIFI = 'wifi';
 export const SECTION_REMOTE = 'remote';
 export const SECTION_PREFERENCES = 'preferences';
 export const SECTION_SYSTEM = 'system';
+export const SECTION_UPDATES = 'updates';
 
 export const KEYBOARD_QWERTY = 'qwerty';
 export const KEYBOARD_AZERTY = 'azerty';

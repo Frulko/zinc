@@ -1,0 +1,354 @@
+#!/usr/bin/python3 -I
+"""Prepare a signed engine and repack the unchanged player before switching both."""
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.request
+
+REPO = 'Frulko/zinc'
+RELEASES = 'https://github.com/' + REPO + '/releases/download/'
+ENV = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': '/root', 'ZINC_NO_UPDATE_CHECK': '1'}
+
+
+def version(value):
+    if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', value):
+        raise ValueError('Choose a published stable version (for example 0.7.0).')
+    return tuple(map(int, value.split('.')))
+
+
+def architecture(dpkg):
+    # A 32-bit userspace can run under an aarch64 kernel: uname alone is wrong.
+    names = {'arm64': 'aarch64', 'armhf': 'armhf', 'amd64': 'x86_64', 'i386': 'i686'}
+    if dpkg not in names:
+        raise ValueError('No Zinc download for this system architecture: ' + dpkg)
+    return names[dpkg]
+
+
+def extract(archive, destination, strip_root=False):
+    """Only ordinary files/directories, in a fresh directory; never follow archive links."""
+    with tarfile.open(archive, 'r:*') as tar:
+        members = tar.getmembers()
+        if sum(member.size for member in members) > 2 * 1024 * 1024 * 1024:
+            raise ValueError('The unpacked download is too large.')
+        roots = set()
+        for member in members:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                raise ValueError('Unsafe file in the download: ' + member.name)
+            if path.parts:
+                roots.add(path.parts[0])
+        if strip_root and len(roots) != 1:
+            raise ValueError('The engine archive must contain one directory.')
+        for member in members:
+            parts = PurePosixPath(member.name).parts[1 if strip_root else 0:]
+            if not parts:
+                continue
+            target = destination.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if member.isdir():
+                target.mkdir(exist_ok=True)
+            else:
+                with tar.extractfile(member) as source, target.open('xb') as out:
+                    shutil.copyfileobj(source, out)
+                target.chmod(0o755 if member.mode & 0o111 else 0o644)
+
+
+def release_versions(releases, arch):
+    found = set()
+    for release in releases:
+        tag = release.get('tag_name', '')
+        if release.get('draft') or release.get('prerelease') or not tag.startswith('v'):
+            continue
+        try:
+            version(tag[1:])
+        except ValueError:
+            continue
+        assets = {asset.get('name') for asset in release.get('assets', [])}
+        if {'zinc-linux-' + arch + '.manifest', 'zinc-' + tag[1:] + '-linux-' + arch + '.tar.gz'} <= assets:
+            found.add(tag[1:])
+    return sorted(found, key=version, reverse=True)
+
+
+class Updater:
+    def __init__(self, root=Path('/usr/lib/zinc'), state=Path('/var/lib/zinc-update'),
+                 key=Path('/etc/zinc/update.pub'), verifier='/usr/bin/zinc'):
+        self.root, self.state = root, state
+        self.key, self.verifier = key, verifier
+
+    def run(self, args, **kwargs):
+        return subprocess.run(args, check=True, text=True, capture_output=True, env=ENV, timeout=900, **kwargs).stdout.strip()
+
+    def arch(self):
+        return architecture(self.run(['dpkg', '--print-architecture']))
+
+    def installed(self, link='current'):
+        path = self.root / link / 'engine/share/zinc/VERSION'
+        return path.read_text().strip() if path.exists() else ''
+
+    def status(self):
+        result = {'phase': 'idle', 'message': ''}
+        try:
+            result.update(json.loads((self.state / 'status.json').read_text()))
+        except (FileNotFoundError, ValueError):
+            pass
+        result.update(current=self.installed(), previous=self.installed('previous'), architecture=self.arch())
+        unit = result.get('unit', '')
+        if result['phase'] in ('preparing', 'activating') and re.fullmatch(r'zinc-update@(rollback|[0-9]+\.[0-9]+\.[0-9]+)\.service', unit):
+            active = self.run(['systemctl', 'show', '-p', 'ActiveState', '--value', unit]) in ('active', 'activating', 'reloading')
+            if not active:
+                result.update(phase='error', message='The update was interrupted. The active version is shown above; you can try again.')
+        return result
+
+    def report(self, phase, message):
+        self.state.mkdir(mode=0o755, parents=True, exist_ok=True)
+        temp = self.state / 'status.tmp'
+        temp.write_text(json.dumps({'phase': phase, 'message': message, 'unit': getattr(self, 'unit', '')}) + '\n')
+        temp.chmod(0o644)
+        os.replace(temp, self.state / 'status.json')
+
+    def fetch(self, url, destination, limit):
+        request = urllib.request.Request(url, headers={'User-Agent': 'Zinc-Pi-Player', 'Accept': 'application/vnd.github+json'})
+        with urllib.request.urlopen(request, timeout=30) as response, destination.open('wb') as out:
+            size = 0
+            while chunk := response.read(1024 * 1024):
+                size += len(chunk)
+                if size > limit:
+                    raise ValueError('The download is larger than expected.')
+                out.write(chunk)
+
+    def catalog(self):
+        arch = self.arch()
+        with tempfile.TemporaryDirectory(prefix='zinc-releases-') as temp:
+            path = Path(temp) / 'releases.json'
+            self.fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=100', path, 8 * 1024 * 1024)
+            versions = release_versions(json.loads(path.read_text()), arch)
+        return dict(self.status(), versions=versions, latest=versions[0] if versions else '')
+
+    def download(self, requested, directory):
+        version(requested)
+        arch = self.arch()
+        base = RELEASES + 'v' + requested + '/'
+        manifest = directory / 'release.manifest'
+        self.fetch(base + 'zinc-linux-' + arch + '.manifest', manifest, 64 * 1024)
+        fields, body = {}, b''
+        for line in manifest.read_bytes().splitlines(keepends=True):
+            if b'=' in line and not line.startswith(b'#'):
+                key, value = line.rstrip(b'\r\n').split(b'=', 1)
+                if key in fields:
+                    raise ValueError('Duplicate field in the release manifest.')
+                fields[key] = value.decode('utf-8')
+            if not line.startswith(b'sig='):
+                body += line
+        if not re.fullmatch('[0-9a-fA-F]{128}', fields.get(b'sig', '')):
+            raise ValueError('This release has no valid signature; nothing was installed.')
+        signed = directory / 'signed'
+        signed.write_bytes(body)
+        signed.with_suffix('.sig').write_text(fields[b'sig'] + '\n')
+        key = self.key.read_text().strip()
+        self.run([self.verifier, 'verify', str(signed), '--key', key])
+        filename = 'zinc-' + requested + '-linux-' + arch + '.tar.gz'
+        if fields.get(b'version') != requested or fields.get(b'url') not in (filename, base + filename):
+            raise ValueError('The signed download does not match the chosen version and architecture.')
+        checksum = fields.get(b'sha256', '')
+        if not re.fullmatch('[0-9a-f]{64}', checksum):
+            raise ValueError('The release has no valid SHA-256.')
+        archive = directory / filename
+        self.fetch(base + filename, archive, 256 * 1024 * 1024)
+        digest = hashlib.sha256()
+        with archive.open('rb') as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+        if digest.hexdigest() != checksum:
+            raise ValueError('The download checksum does not match; nothing was installed.')
+        return archive
+
+    def prepare(self, requested, generation):
+        self.report('preparing', 'Downloading and checking Zinc ' + requested + '…')
+        with tempfile.TemporaryDirectory(dir=self.root, prefix='.download-') as temp:
+            archive = self.download(requested, Path(temp))
+            extract(archive, generation / 'engine', strip_root=True)
+        engine = generation / 'engine/bin/zinc'
+        stamp = generation / 'engine/share/zinc/VERSION'
+        if self.run([str(engine), '--version']) != 'zinc-next ' + requested or not stamp.is_file() or stamp.read_text().strip() != requested:
+            raise ValueError('This engine does not start or reports another version.')
+        # The root-owned source bundle stays unchanged when the engine changes.
+        extract(self.root / 'player-source.tar.gz', generation / 'source')
+        self.report('preparing', 'Building the player for Zinc ' + requested + '…')
+        with tempfile.TemporaryDirectory(prefix='zinc-player-') as temp:
+            work = Path(temp)
+            self.run(['chown', 'zinc:zinc', str(work)])
+            user_env = ['runuser', '-u', 'zinc', '--', 'env', '-i', 'PATH=' + ENV['PATH'], 'HOME=/var/lib/zinc',
+                        'ZINC_HOME=/var/lib/zinc/.zinc', 'ZINC_NO_UPDATE_CHECK=1', 'ZINC_HEADLESS=1', 'ZINC_DISPLAY=fbdev',
+                        'ZINC_PLAYER_UPDATE_CHECK=0', 'ZINC_ADMIN=/usr/bin/false']
+            self.run(user_env + [str(engine), 'pack', str(generation / 'source'), '-o', str(work / 'player.zapp')])
+            # zinc owns the output directory: never let root follow a link it could replace.
+            fd = os.open(work / 'player.zapp', os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, 'rb') as source, (generation / 'player.zapp').open('xb') as out:
+                if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                    raise ValueError('The player build produced no ordinary bundle.')
+                shutil.copyfileobj(source, out)
+            self.run(user_env + ['ZINC_FRAMES=2', 'ZINC_SHOT=' + str(work / 'frame.png'), str(engine), 'run', str(generation / 'player.zapp')])
+            if not (work / 'frame.png').is_file():
+                raise ValueError('The rebuilt player did not draw its test frame.')
+        shutil.rmtree(generation / 'source')
+
+    def link(self, name, target):
+        temp = self.root / ('.' + name + '-next')
+        temp.unlink(missing_ok=True)
+        temp.symlink_to(target)
+        os.replace(temp, self.root / name)
+        self.sync_directory(self.root)
+
+    def activate(self, target):
+        old = os.readlink(self.root / 'current')
+        saved = {'current': old, 'previous': os.readlink(self.root / 'previous') if (self.root / 'previous').is_symlink() else None}
+        agent_on = subprocess.run(['systemctl', 'is-active', '--quiet', 'zinc-agent.service'], env=ENV).returncode == 0
+        self.report('activating', 'Starting the player with the chosen engine…')
+        pending = self.state / 'pending.tmp'
+        pending.write_text(json.dumps(saved) + '\n')
+        self.sync_file(pending)
+        os.replace(pending, self.state / 'pending.json')
+        self.sync_directory(self.state)
+        (self.state / 'activating').touch()
+        try:
+            if agent_on:
+                self.run(['systemctl', 'kill', '--kill-whom=all', '--signal=SIGTERM', 'zinc-agent.service'])
+            self.run(['systemctl', 'stop', 'zinc-shell.service', 'zinc-agent.service'])
+            self.link('current', target)
+            self.run(['systemctl', 'start', 'zinc-shell.service'])
+            self.wait_ready()
+            if agent_on:
+                self.run(['systemctl', 'start', 'zinc-agent.service'])
+            self.link('previous', old)
+        except Exception:
+            try:
+                self.run(['systemctl', 'stop', 'zinc-shell.service', 'zinc-agent.service'])
+            except subprocess.CalledProcessError:
+                pass
+            self.restore_links(saved)
+            self.run(['systemctl', 'start', 'zinc-shell.service'])
+            if agent_on:
+                self.run(['systemctl', 'start', 'zinc-agent.service'])
+            self.clear_pending()
+            raise
+        self.clear_pending()
+
+    def sync_file(self, path):
+        with path.open('rb') as stream:
+            os.fsync(stream.fileno())
+
+    def sync_directory(self, path):
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    def restore_links(self, saved):
+        self.link('current', saved['current'])
+        if saved['previous'] is None:
+            (self.root / 'previous').unlink(missing_ok=True)
+        else:
+            self.link('previous', saved['previous'])
+
+    def clear_pending(self):
+        self.sync_directory(self.root)
+        (self.state / 'pending.json').unlink(missing_ok=True)
+        (self.state / 'activating').unlink(missing_ok=True)
+        self.sync_directory(self.state)
+
+    def recover(self):
+        pending = self.state / 'pending.json'
+        if pending.exists():
+            self.restore_links(json.loads(pending.read_text()))
+            self.report('error', 'An interrupted update was rolled back. You can try again.')
+        self.clear_pending()
+
+    def wait_ready(self):
+        until = time.monotonic() + 30
+        while not Path('/run/zinc/player-ready').exists():
+            if time.monotonic() > until:
+                raise ValueError('The player did not start; the previous version was restored.')
+            time.sleep(0.2)
+
+    def install(self, requested):
+        version(requested)
+        if shutil.disk_usage(self.root).free < 2 * 1024 * 1024 * 1024:
+            raise ValueError('Free at least 2 GB of storage before installing another engine.')
+        generations = self.root / 'versions'
+        generations.mkdir(exist_ok=True)
+        generation = Path(tempfile.mkdtemp(prefix=requested + '-', dir=generations))
+        generation.chmod(0o755)
+        try:
+            self.prepare(requested, generation)
+            for directory, _, files in os.walk(generation, topdown=False):
+                for filename in files:
+                    self.sync_file(Path(directory) / filename)
+                self.sync_directory(Path(directory))
+            self.sync_directory(generations)
+            self.activate(str(generation.relative_to(self.root)))
+        except Exception:
+            if (self.root / 'current').resolve() != generation.resolve():
+                shutil.rmtree(generation)
+            raise
+        self.report('done', 'Zinc ' + requested + ' is installed. The previous version is kept.')
+        # Keep active and previous only; never touch apps, preferences or pairing.
+        keep = {(self.root / name).resolve() for name in ('current', 'previous')}
+        for path in generations.iterdir():
+            if path.is_dir() and path.resolve() not in keep:
+                shutil.rmtree(path)
+
+    def rollback(self):
+        if not (self.root / 'previous/player.zapp').is_file():
+            raise ValueError('No previous engine and player are saved yet.')
+        self.activate(os.readlink(self.root / 'previous'))
+        self.report('done', 'The previous engine and player are back.')
+
+
+def main():
+    updater = Updater()
+    command = sys.argv[1] if len(sys.argv) > 1 else ''
+    if command == 'job':
+        command = 'rollback' if sys.argv[2] == 'rollback' else 'install'
+        updater.unit = 'zinc-update@' + sys.argv[2] + '.service'
+    if command == 'status':
+        print(json.dumps(updater.status()))
+    elif command == 'catalog':
+        print(json.dumps(updater.catalog()))
+    elif command in ('install', 'rollback', 'recover'):
+        if os.geteuid() != 0:
+            raise ValueError('Installation runs through zinc-admin on the Pi.')
+        updater.state.mkdir(mode=0o755, parents=True, exist_ok=True)
+        with (updater.state / 'lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                if command == 'recover':
+                    updater.recover()
+                elif command == 'install':
+                    updater.install(sys.argv[2])
+                else:
+                    updater.rollback()
+            except Exception as error:
+                detail = error.stderr if isinstance(error, subprocess.CalledProcessError) else str(error)
+                updater.report('error', ' '.join((detail or str(error)).split())[-300:])
+                raise
+    else:
+        raise ValueError('Use status, catalog, install <version>, rollback or recover.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

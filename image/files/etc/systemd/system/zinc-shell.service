@@ -4,6 +4,8 @@
 Description=Zinc session (the app, or the player)
 DefaultDependencies=no
 After=systemd-remount-fs.service systemd-tmpfiles-setup-dev.service systemd-udevd.service systemd-modules-load.service
+Requires=zinc-update-recover.service
+After=zinc-update-recover.service
 # no Conflicts=getty@tty1: Pi OS's user rename starts getty@tty1, which would stop the session (its drop-in keeps it off)
 Conflicts=shutdown.target
 Before=shutdown.target

@@ -87,12 +87,16 @@ chmod 755 "$R/usr/sbin/policy-rc.d"
 
 step "Installing Zinc and the player"
 cp -r --preserve=mode,timestamps /src/image/files/. "$R/"
-mkdir -p "$R/usr/lib/zinc/engine" "$R/var/lib/zinc" "$R/etc/zinc"
+mkdir -p "$R/usr/lib/zinc/versions/factory/engine" "$R/var/lib/zinc" "$R/etc/zinc"
+ln -s versions/factory "$R/usr/lib/zinc/current"
+ln -s current/engine "$R/usr/lib/zinc/engine"
 tar xzf "$ZINC" -C "$R/usr/lib/zinc/engine" --strip-components=1 --no-same-owner
 # the sources the release lacks (tools/pi-image puts them in engine-overlay), never over a file it has
 [ ! -d /src/image/engine-overlay ] || cp -rn /src/image/engine-overlay/. "$R/usr/lib/zinc/engine/"
 ln -sf /usr/lib/zinc/engine/bin/zinc "$R/usr/bin/zinc"
 cp -r /src/image/player "$R/usr/lib/zinc/player"
+tar -czf "$R/usr/lib/zinc/player-source.tar.gz" --exclude=./dev --exclude=./.zinc --exclude=./build -C /src/image/player .
+install -m 644 /src/image/update.pub "$R/etc/zinc/update.pub"
 if [ -d /src/app ] || [ -f /src/app ]; then cp -r /src/app "$R/var/lib/zinc/app"; fi
 # the profile the image was made from, without its secrets
 jq '.user.password = "" | .wifi.password = ""' "$P" >"$R/etc/zinc/image.json"

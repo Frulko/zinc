@@ -13,10 +13,11 @@
 #   pair                   a new pairing code of the Zinc agent (the player reads it from the agent's pairing.json)
 #   reboot | poweroff
 set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 die() { echo "$*" >&2; exit 1; }
 verb=${1:-}
 case $verb in
-  status | pair) ;;
+  status | pair | update-status | update-check) ;;
   *) [ "$(id -u)" = 0 ] || exec sudo -n "$0" "$@" ;;
 esac
 
@@ -73,6 +74,22 @@ case $verb in
     ;;
   pair)
     zinc agent pair
+    ;;
+  update-status | update-check)
+    action=status
+    [ "$verb" != update-check ] || action=catalog
+    exec /usr/bin/python3 -I /usr/lib/zinc/zinc-player-update "$action"
+    ;;
+  network-restart)
+    systemctl reset-failed NetworkManager.service wpa_supplicant.service
+    systemctl restart wpa_supplicant.service NetworkManager.service
+    ;;
+  update-install)
+    [[ ${2:-} =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || die "Choose a stable version (X.Y.Z)."
+    systemctl start --no-block "zinc-update@$2.service"
+    ;;
+  update-rollback)
+    systemctl start --no-block zinc-update@rollback.service
     ;;
   reboot) systemctl reboot ;;
   poweroff) systemctl poweroff ;;

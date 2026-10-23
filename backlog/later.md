@@ -665,6 +665,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+
+- ZN-777: rebuild the Pi image, verify a clean first boot/network availability and the new network-service restart button on the real Pi 3 B+, then test signed engine upgrade/downgrade, fbdev first-frame rollback and power loss during activation. Mac tests cover the bundle/UI and transaction logic; they do not prove sudo/systemd/DRM or the existing first-boot issue.
 - ZN-774.05: `zinc tour` on Windows (`cmd` needs `cd /d` and double quotes, a console reader in place of `poll`) and on Linux (the Atelier launcher path, `xdg-open`), tested on those machines.
 - ZN-774.13: music-tree on the HP TouchPad and the Nexus 7 with `zinc:stage` (taps, drags, scrolling, idle frames, frame cost with `tools/zbench`).
 - ZN-774.01: merge the CoreFoundation language lookup of `src/i18n` and `systemLocale()` of `src/host/sys_host.cpp` into `src/platform`, and add Windows `GetUserPreferredUILanguages` there.

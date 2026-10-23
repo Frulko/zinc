@@ -48,6 +48,7 @@ case $cmd in
     # a copy: bash reads a script as it runs it, so an edit of image/ during a build would derail it; -L brings the
     # plugins the player links to from plugins/ (zinc:network)
     cp -RL "$ROOT/image" "$tmp/image"
+    cp "$ROOT/update.pub" "$tmp/image/update.pub"
     # ponytail: the 0.6.2 release ships display-fbdev, the screen's driver, without its source (tools/package left out a plugin
     # whose prebuild failed); the image takes it from the pinned release's tag until a release carries it
     tag=$(jq -r .zinc.url "$tmp/profile.json" | grep -o '/v[0-9][^/]*/' | tr -d /)

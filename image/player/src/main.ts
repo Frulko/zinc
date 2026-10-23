@@ -36,6 +36,7 @@ import {
   width,
 } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
+import * as fs from 'zinc:fs';
 import { PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
 import { DisplayObject, Stage } from './core/display';
 import {
@@ -68,6 +69,7 @@ const WHEEL_STEP_PIXELS = 48;
 const TAP_SLOP_PIXELS = 10;
 const isFrameTraceOn = sys.env('ZINC_PLAYER_TRACE_FRAMES') === '1';
 const pollMilliseconds = parseInt(sys.env('ZINC_PLAYER_POLL_MS') === '' ? '0' : sys.env('ZINC_PLAYER_POLL_MS')) as i32;
+let readyWritten: boolean = false;
 
 // ----------------------------------------------------------------------------
 // The tree, built once
@@ -263,5 +265,9 @@ onFrame((deltaSeconds: number) => {
   uiState.dirty = false;
   clearTouchZones();
   stage.renderStage(screenWidth, screenHeight);
+  if (!readyWritten && sys.env('ZINC_PLAYER_READY_FILE') !== '') {
+    readyWritten = true;
+    try { fs.writeText(sys.env('ZINC_PLAYER_READY_FILE'), 'ready\n'); } catch (e) { /* the updater times out if readiness cannot be reported */ }
+  }
   if (isFrameTraceOn) console.log('drawn ' + frame());
 });

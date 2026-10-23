@@ -61,7 +61,7 @@ export class SystemSectionNode extends DisplayObject {
   /** Restart and Shut down, right-aligned at `rightX`; the one pressed asks again. */
   private drawPowerButtons(rightX: number, y: number): void {
     const pending = appState.pendingPowerAction;
-    const isEnabled = appState.busyAction === '';
+    const isEnabled = appState.busyAction === '' && !appState.updates.isBusy();
     if (pending !== '') {
       const confirmLabel = pending === 'reboot' ? 'Restart now' : 'Shut down now';
       const confirmWidth = measureButton(confirmLabel, 'power');

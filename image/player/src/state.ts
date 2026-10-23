@@ -30,6 +30,7 @@ import { CrashReport, deleteCrashReport, readCrashReport } from './services/cras
 import { PairingState, readPairingState } from './services/pairing';
 import { AdminResult, SystemStatus, parseStatus, runAdmin, statusFromOs } from './services/system';
 import { PlayerConfig, loadConfig, saveConfig } from './services/config';
+import { UpdateStatus } from './services/updates';
 
 function fromEnv(name: string, fallback: string): string {
   return sys.env(name) === '' ? fallback : sys.env(name);
@@ -89,9 +90,78 @@ class AppState {
   clockText: string = '';
   /** Seconds since the last touch, click or key (main.ts counts them). */
   inputIdleSeconds: number = 0;
+  updates: UpdateStatus = new UpdateStatus();
 }
 
 export const appState = new AppState();
+let nextUpdateCheck: number = 0;
+let readingUpdateStatus: boolean = false;
+
+export function refreshUpdates(): void {
+  if (readingUpdateStatus) return;
+  readingUpdateStatus = true;
+  runAdmin(adminPath, ['update-status'], '').then((result: AdminResult) => {
+    readingUpdateStatus = false;
+    if (result.code === 0) {
+      const before = appState.updates.signature();
+      try { appState.updates.read(result.output, false); } catch (e) {
+        appState.updates.error = 'Could not read the update status.';
+        uiState.dirty = true;
+      }
+      if (before !== appState.updates.signature()) uiState.dirty = true;
+    }
+  });
+}
+
+export function checkUpdates(): void {
+  const updates = appState.updates;
+  if (updates.checking || updates.isBusy()) return;
+  updates.checking = true;
+  updates.error = '';
+  nextUpdateCheck = Date.now() + 300000;
+  uiState.dirty = true;
+  runAdmin(adminPath, ['update-check'], '').then((result: AdminResult) => {
+    updates.checking = false;
+    if (result.code !== 0) updates.error = result.message();
+    else {
+      try {
+        updates.read(result.output, true);
+        nextUpdateCheck = Date.now() + 86400000;
+      } catch (e) { updates.error = 'Could not read the available versions.'; }
+    }
+    uiState.dirty = true;
+  });
+}
+
+export function selectUpdateVersion(value: string): void {
+  appState.updates.selected = value;
+  appState.updates.pending = '';
+  uiState.dirty = true;
+}
+
+export function askUpdate(value: string): void {
+  appState.updates.pending = value;
+  uiState.dirty = true;
+}
+
+export function installUpdate(): void {
+  const updates = appState.updates;
+  if (updates.isBusy() || updates.pending === '') return;
+  const value = updates.pending;
+  updates.pending = '';
+  updates.phase = 'queued';
+  updates.message = 'Preparing the chosen engine and player…';
+  updates.error = '';
+  uiState.dirty = true;
+  runAdmin(adminPath, value === 'rollback' ? ['update-rollback'] : ['update-install', value], '').then((result: AdminResult) => {
+    if (result.code !== 0) {
+      updates.phase = 'error';
+      updates.error = result.message();
+    }
+    uiState.dirty = true;
+    setTimeout(refreshUpdates, 1000);
+  });
+}
 
 // ----------------------------------------------------------------------------
 // Reading the machine
@@ -109,6 +179,7 @@ function readPairing(): PairingState {
 
 /** Reads the machine again; the screen is redrawn only when what the page shows changed. */
 export function refreshSystem(): void {
+  refreshUpdates();
   const installed = fs.exists(appPath);
   if (installed !== appState.isAppInstalled) {
     appState.isAppInstalled = installed;
@@ -125,6 +196,7 @@ export function refreshSystem(): void {
   network.readStatus().then((status: network.NetworkStatus) => {
     if (status.signature() !== appState.network.signature()) uiState.dirty = true;
     appState.network = status;
+    if (status.isConnected() && Date.now() >= nextUpdateCheck && sys.env('ZINC_PLAYER_UPDATE_CHECK') !== '0') checkUpdates();
   });
 }
 
@@ -208,7 +280,7 @@ export function dismissCrash(): void {
 
 /** Runs a zinc-admin verb for the button `action`; `done` gets the result, then the machine is read again. */
 function runAction(action: string, args: string[], input: string, done: (result: AdminResult) => void): void {
-  if (appState.busyAction !== '') return;
+  if (appState.busyAction !== '' || appState.updates.isBusy()) return;
   appState.busyAction = action;
   setMessage('', false);
   runAdmin(adminPath, args, input).then((result: AdminResult) => {
@@ -236,6 +308,16 @@ export function setAgentEnabled(isOn: boolean): void {
 export function setSshEnabled(isOn: boolean): void {
   runAction('ssh', ['ssh', isOn ? 'on' : 'off'], '', (result: AdminResult) => {
     reportFailure(result);
+  });
+}
+
+export function restartNetwork(): void {
+  appState.pendingPowerAction = '';
+  runAction('network', ['network-restart'], '', (result: AdminResult) => {
+    if (reportFailure(result)) return;
+    setMessage('Network service restarted. Checking connections…', false);
+    scanWifi(true);
+    setTimeout(refreshSystem, 2000);
   });
 }
 

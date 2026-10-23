@@ -7,6 +7,7 @@ set -euo pipefail
 id zinc >/dev/null 2>&1 || useradd --system --home-dir /var/lib/zinc --shell /usr/sbin/nologin zinc
 usermod -aG video,render,input,tty,audio,plugdev,dialout,gpio,i2c,spi zinc
 chown -R zinc:zinc /var/lib/zinc
+install -d -o root -g root -m 755 /var/lib/zinc-update
 # the player changes the system through zinc-admin alone (sudo), and the network through NetworkManager (polkit)
 chmod 0440 /etc/sudoers.d/zinc
 visudo -cq -f /etc/sudoers.d/zinc
@@ -32,12 +33,19 @@ printf '[Service]\nExecStartPre=-/sbin/modprobe brcmfmac\n' >>/etc/systemd/syste
 
 systemctl enable zinc-shell.service zinc-firstboot.service zinc-agent.service zinc-report.service
 
+# A runnable bundle for this engine; the source bundle is kept unchanged for later engine switches.
+runuser -u zinc -- env HOME=/var/lib/zinc ZINC_NO_UPDATE_CHECK=1 ZINC_DISPLAY=fbdev \
+  /usr/bin/zinc pack /usr/lib/zinc/player -o /var/lib/zinc/player.zapp
+install -m 644 /var/lib/zinc/player.zapp /usr/lib/zinc/current/player.zapp
+rm /var/lib/zinc/player.zapp
+rm -rf /usr/lib/zinc/player
+
 # Run once now, as the session's user: the first boot starts the player (and the app) from the bytecode cached in
 # /var/lib/zinc/.zinc, with their native plugins compiled (the Linux release ships none: zinc builds them at first use,
 # with a toolchain it downloads, and the first boot has no network yet), the screen's driver among them (display-fbdev,
 # which zinc-session asks for). The toolchain itself goes (367 MB); zinc
 # downloads it again when a later app needs another plugin.
-for project in /usr/lib/zinc/player /var/lib/zinc/app; do
+for project in /usr/lib/zinc/current/player.zapp /var/lib/zinc/app; do
   [ -e "$project" ] || continue
   runuser -u zinc -- env HOME=/var/lib/zinc ZINC_HEADLESS=1 ZINC_DISPLAY=fbdev ZINC_FRAMES=1 timeout 300 /usr/bin/zinc run "$project" >/dev/null 2>&1 ||
     echo "warning: $project did not run here; the session shows its errors at boot"

@@ -44,7 +44,8 @@ for u in zinc-shell zinc-agent zinc-report; do
   check "$u.service enabled" test -L "$R/etc/systemd/system/multi-user.target.wants/$u.service"
 done
 check "the units read clean (systemd-analyze verify)" chroot "$R" systemd-analyze verify --man=no \
-  /etc/systemd/system/zinc-shell.service /etc/systemd/system/zinc-firstboot.service /etc/systemd/system/zinc-agent.service /etc/systemd/system/zinc-report.service
+  /etc/systemd/system/zinc-shell.service /etc/systemd/system/zinc-firstboot.service /etc/systemd/system/zinc-agent.service /etc/systemd/system/zinc-report.service \
+  /etc/systemd/system/zinc-update-recover.service /etc/systemd/system/zinc-update@0.7.0.service
 check "the agent's programs draw through the screen's driver" grep -qx 'Environment=ZINC_DISPLAY=fbdev' "$R/etc/systemd/system/zinc-agent.service"
 check "getty@tty1 off by its drop-in, not masked (Pi OS's user rename starts it)" sh -c "[ ! -L '$R/etc/systemd/system/getty@tty1.service' ] && grep -qx 'ConditionPathExists=!/usr/lib/zinc/zinc-session' '$R/etc/systemd/system/getty@tty1.service.d/zinc.conf'"
 for u in userconfig.service systemd-firstboot.service NetworkManager-wait-online.service apt-daily.timer; do
@@ -56,7 +57,10 @@ done
 check "Wi-Fi's driver off the boot path" grep -qx 'blacklist brcmfmac' "$R/etc/modprobe.d/zinc-defer.conf"
 check "Mesa's display drivers" test -e "$R/usr/lib/aarch64-linux-gnu/dri/vc4_dri.so" -o -e "$R/usr/lib/aarch64-linux-gnu/dri/libdril_dri.so"
 check "no toolchain left in the image" test ! -e "$R/var/lib/zinc/.zinc/toolchains"
-check "the player's bytecode cached for the first boot" sh -c "ls '$R'/var/lib/zinc/.zinc/cache/zbc/*/program.zbc"
+check "the runnable player bundle" test -s "$R/usr/lib/zinc/current/player.zapp"
+check "the player sources kept for engine changes" test -s "$R/usr/lib/zinc/player-source.tar.gz"
+check "the release verification key" grep -Ex '[0-9a-f]{64}' "$R/etc/zinc/update.pub"
+check "the update helper loads on the image" chroot "$R" /usr/bin/python3 -I -c "import runpy; runpy.run_path('/usr/lib/zinc/zinc-player-update', run_name='check')"
 check "the image's profile, without secrets" sh -c "jq -e '.user.password == \"\" and .wifi.password == \"\"' '$R/etc/zinc/image.json'"
 
 echo "-- Zinc on the image's own userland"
@@ -68,10 +72,10 @@ check "sudo lets the zinc user run zinc-admin, and only it" sh -c "chroot '$R' v
   [ \"\$(stat -c %a '$R/etc/sudoers.d/zinc')\" = 440 ] && grep -qx 'zinc ALL=(root) NOPASSWD: /usr/lib/zinc/zinc-admin' '$R/etc/sudoers.d/zinc'"
 check "zinc-admin status answers the zinc user" sh -c "chroot '$R' runuser -u zinc -- /usr/lib/zinc/zinc-admin status | grep -q '^model='"
 check "polkit lets the zinc user manage the network" grep -q 'subject.user === "zinc"' "$R/etc/polkit-1/rules.d/50-zinc-network.rules"
-check "zinc:network ships with the player" test -f "$R/usr/lib/zinc/player/plugins/network/index.ts"
+check "zinc:network ships in the source bundle" sh -c "tar tzf '$R/usr/lib/zinc/player-source.tar.gz' | grep -qx './plugins/network/index.ts'"
 # frames enough for zinc-admin's answer: the frame shows what the first boot shows
 if chroot "$R" runuser -u zinc -- env HOME=/var/lib/zinc ZINC_RUN=/tmp ZINC_HEADLESS=1 ZINC_DISPLAY=fbdev ZINC_FRAMES=400 ZINC_PLAYER_POLL_MS=5 \
-  ZINC_SHOT=/tmp/player.png ZINC_SHOT_FRAMES=399 /usr/bin/zinc run /usr/lib/zinc/player >/tmp/player.log 2>&1 && [ -s "$R/tmp/player-399.png" ]; then
+  ZINC_PLAYER_UPDATE_CHECK=0 ZINC_SHOT=/tmp/player.png ZINC_SHOT_FRAMES=399 /usr/bin/zinc run /usr/lib/zinc/current/player.zapp >/tmp/player.log 2>&1 && [ -s "$R/tmp/player-399.png" ]; then
   pass "the player draws a frame as the zinc user, with no network"
   cp "$R/tmp/player-399.png" /out/player.png
 else

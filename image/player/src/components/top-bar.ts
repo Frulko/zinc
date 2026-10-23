@@ -14,6 +14,7 @@ import {
   PAGE_PADDING,
   PAGE_SETTINGS,
   SECTION_WIFI,
+  SECTION_UPDATES,
 } from '../constants';
 import { Fonts } from '../fonts';
 import { DisplayObject } from '../core/display';
@@ -34,6 +35,7 @@ export class TopBarNode extends DisplayObject {
 
   override onDraw(barWidth: number, barHeight: number): void {
     const textY = (barHeight - 22) / 2;
+    const updateAvailable = appState.updates.hasUpdate();
     if (appState.page === PAGE_SETTINGS) {
       rect(0, 0, barWidth, barHeight, COLOR_SIDEBAR);
       rect(0, barHeight - 1, barWidth, 1, COLOR_SEPARATOR);
@@ -41,6 +43,8 @@ export class TopBarNode extends DisplayObject {
       drawLabel(Fonts.heading, PAGE_PADDING + 26, textY, 'Settings', COLOR_TEXT_PRIMARY);
       drawLabel(Fonts.label, barWidth - PAGE_PADDING - textWidth(Fonts.label, appState.clockText, 0), textY + 2,
         appState.clockText, COLOR_TEXT_SECONDARY);
+      if (updateAvailable) drawIconButton('top/update', 'download', barWidth - PAGE_PADDING - 90, barHeight / 2, 22,
+        COLOR_TEXT_PRIMARY, () => openSettings(SECTION_UPDATES), 40);
       return;
     }
     const name = appState.status.hostname;
@@ -49,5 +53,7 @@ export class TopBarNode extends DisplayObject {
     const settingsCenterX = barWidth - PAGE_PADDING - 6;
     drawIconButton('top/settings', 'settings', settingsCenterX, barHeight / 2, 24, COLOR_WHITE, () => openSettings(SECTION_WIFI), 40);
     drawGlyph(connectionIconName(), settingsCenterX - 56, barHeight / 2 - 11, 22, COLOR_WHITE, 220);
+    if (updateAvailable) drawIconButton('top/update', 'download', settingsCenterX - 96, barHeight / 2, 22,
+      COLOR_WHITE, () => openSettings(SECTION_UPDATES), 40);
   }
 }

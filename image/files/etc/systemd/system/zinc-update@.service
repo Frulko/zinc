@@ -1,0 +1,10 @@
+[Unit]
+Description=Prepare and activate Zinc %i
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/lib/zinc/zinc-player-update job %i
+TimeoutStartSec=20min
+UMask=0022
+PrivateTmp=true

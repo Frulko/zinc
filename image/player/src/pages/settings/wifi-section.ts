@@ -9,7 +9,7 @@ import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
 import { ScrollBox, beginScrollBox, endScrollBox, isLocalRectVisible } from '../../core/input';
 import { NOT_MANAGED, WifiNetwork } from 'zinc:network';
-import { appState, editWifiCountry, forgetNetwork, joinNetwork, scanWifi } from '../../state';
+import { appState, askPowerAction, cancelPowerAction, editWifiCountry, forgetNetwork, joinNetwork, restartNetwork, scanWifi } from '../../state';
 import { BUTTON_SECONDARY, drawButton, measureButton } from '../../components/buttons';
 import { drawGlyph, drawLabel } from '../../components/primitives';
 import { drawMessage, drawSectionHeading, drawSettingRow } from '../../components/rows';
@@ -45,7 +45,18 @@ export class WifiSectionNode extends DisplayObject {
     const scanWidth = measureButton('Scanning…', 'refresh-cw');
     drawButton('wifi/scan', x + width - scanWidth, cursorY - 6, scanWidth, appState.isScanning ? 'Scanning…' : 'Scan', 'refresh-cw',
       BUTTON_SECONDARY, () => scanWifi(true), !isBusy);
+    const restarting = appState.pendingPowerAction === 'network';
+    const restartLabel = restarting ? 'Restart now?' : 'Restart network';
+    const restartWidth = measureButton(restartLabel, 'rotate-ccw');
+    drawButton('wifi/restart', x + width - scanWidth - restartWidth - 10, cursorY - 6, restartWidth, restartLabel, 'rotate-ccw',
+      BUTTON_SECONDARY, restarting ? restartNetwork : () => askPowerAction('network'), appState.busyAction === '' && !appState.updates.isBusy());
     cursorY += 60;
+    if (restarting) {
+      const cancelWidth = measureButton('Cancel', '');
+      drawLabel(Fonts.small, x, cursorY - 8, 'This can disconnect remote sessions.', COLOR_TEXT_SECONDARY, width - cancelWidth - 12);
+      drawButton('wifi/restart-cancel', x + width - cancelWidth, cursorY - 18, cancelWidth, 'Cancel', '', BUTTON_SECONDARY, cancelPowerAction);
+      cursorY += 34;
+    }
 
     const status = appState.status;
     const wifiNetwork = appState.network.wifiNetwork;

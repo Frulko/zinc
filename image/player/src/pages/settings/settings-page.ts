@@ -17,6 +17,7 @@ import {
   SECTION_REMOTE,
   SECTION_SYSTEM,
   SECTION_WIFI,
+  SECTION_UPDATES,
   SIDEBAR_WIDTH,
   TOP_BAR_HEIGHT,
 } from '../../constants';
@@ -29,15 +30,16 @@ import { WifiSectionNode } from './wifi-section';
 import { RemoteSectionNode } from './remote-section';
 import { PreferencesSectionNode } from './preferences-section';
 import { SystemSectionNode } from './system-section';
+import { UpdatesSectionNode } from './updates-section';
 
 const SIDEBAR_ITEM_HEIGHT = 48;
-const SECTION_IDS: string[] = [SECTION_WIFI, SECTION_REMOTE, SECTION_PREFERENCES, SECTION_SYSTEM];
-const SECTION_TITLES: string[] = ['Wi-Fi', 'Remote access', 'Preferences', 'System'];
-const SECTION_ICONS: string[] = ['wifi', 'laptop', 'palette', 'cpu'];
+const SECTION_IDS: string[] = [SECTION_WIFI, SECTION_REMOTE, SECTION_PREFERENCES, SECTION_SYSTEM, SECTION_UPDATES];
+const SECTION_TITLES: string[] = ['Wi-Fi', 'Remote access', 'Preferences', 'System', 'Updates'];
+const SECTION_ICONS: string[] = ['wifi', 'laptop', 'palette', 'cpu', 'download'];
 
 export class SettingsPageNode extends DisplayObject {
   private content: DisplayObject = new DisplayObject('SettingsContent');
-  private sections: DisplayObject[] = [new WifiSectionNode(), new RemoteSectionNode(), new PreferencesSectionNode(), new SystemSectionNode()];
+  private sections: DisplayObject[] = [new WifiSectionNode(), new RemoteSectionNode(), new PreferencesSectionNode(), new SystemSectionNode(), new UpdatesSectionNode()];
   private mountedSection: string = '';
 
   constructor() {

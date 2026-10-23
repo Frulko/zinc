@@ -9,6 +9,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- The Pi player's Updates menu checks for releases for its architecture, installs a chosen newer or older engine after verifying its signature and rebuilding the same player bundle on the Pi, and restores the previous engine and player if startup fails. An icon appears when an update is available; the saved previous version can also be restored from the menu.
+- The Pi player's Wi-Fi settings can restart the network services after confirmation and scan again, without rebooting the Pi.
+
+### Added
 - `examples/fatty` ports the complete 2013 Flash/Starling game to TypeScript on Zinc/QuickJS, keeping its package structure, comments, original graphics, animations, bitmap font and music; the Top 5 is saved locally.
 - `examples/kanban` is a native project board over the Zinc backlog: drag and reorder cards, search and filter tasks, open their details, and watch declared agent assignments change live. Demo moves stay local and never edit the backlog.
 - Zinc speaks English, French, Spanish, Italian and German: `--lang fr` on any command or `ZINC_LANG=fr` for one, `zinc config set lang fr` to keep it; otherwise it follows the language of your system. The first messages are translated (an unknown command, a usage error, `zinc new`); error codes, commands and options stay as they are.

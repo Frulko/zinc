@@ -44,6 +44,37 @@ EOS
     echo "$2" >"$state/hostname.value"
     ;;
   pair) open_pairing 731205 ;;
+  network-restart)
+    [ "$(value network-fail off)" != on ] || die "NetworkManager could not start. Check its system log."
+    echo running >"$state/network.value"
+    ;;
+  update-status | update-check)
+    # Opt in to available versions so ordinary player goldens keep their home screen.
+    current=$(value engine "${ZINC_VERSION:-0.6.2}")
+    current=${current##* }
+    latest=$current
+    versions="[]"
+    if [ "${ZINC_FAKE_UPDATES:-0}" = 1 ]; then latest=0.7.0; versions='["0.7.0","0.6.2","0.5.2"]'; fi
+    [ "${1:-}" != update-check ] || [ "$(value update-offline off)" != on ] || die "Cannot check versions while offline. Try again when connected."
+    printf '{"current":"%s","previous":"%s","architecture":"aarch64","phase":"%s","message":"%s","latest":"%s","versions":%s}\n' \
+      "$current" "$(value previous '')" "$(value update-phase idle)" "$(value update-message '')" "$latest" "$versions"
+    ;;
+  update-install)
+    [[ ${2:-} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Choose a stable version."
+    [ "$(value update-fail off)" != on ] || die "The player could not be rebuilt; nothing was changed."
+    value engine "${ZINC_VERSION:-0.6.2}" >"$state/previous.value"
+    echo "$2" >"$state/engine.value"
+    echo done >"$state/update-phase.value"
+    echo 'The engine and player are ready.' >"$state/update-message.value"
+    ;;
+  update-rollback)
+    old=$(value previous '')
+    [ -n "$old" ] || die "No previous version is saved yet."
+    value engine 0.6.2 >"$state/previous.value"
+    echo "$old" >"$state/engine.value"
+    echo done >"$state/update-phase.value"
+    echo 'The previous engine and player are back.' >"$state/update-message.value"
+    ;;
   reboot | poweroff) ;;
   *) die "zinc-admin: unknown verb \"${1:-}\"" ;;
 esac

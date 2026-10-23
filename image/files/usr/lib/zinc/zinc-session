@@ -6,10 +6,8 @@
 set -u
 APP=${ZINC_APP:-/var/lib/zinc/app}
 RUN=${ZINC_RUN:-/run/zinc}
-PLAYER=/usr/lib/zinc/player
+PLAYER=/usr/lib/zinc/current/player.zapp
 export ZINC_APP=$APP ZINC_RUN=$RUN
-ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
-export ZINC_VERSION
 # the screen through /dev/fb0 (plugins/display-fbdev, compiled into the image): the driver the Pi was proven on. The
 # SDL window asks for OpenGL 3.2, which the Pi's GPUs do not offer (vc4: 2.1, v3d: 3.1), and its fallback draws nothing.
 # ponytail: every app on fbdev; a profile key for display-gl when an app needs the GPU
@@ -32,7 +30,10 @@ agent_has_screen() {
 }
 
 launch=1
+[ ! -e /var/lib/zinc-update/activating ] || launch=0
 while :; do
+  ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
+  export ZINC_VERSION
   if [ "$launch" = 1 ] && [ -e "$APP" ]; then
     rm -f "$RUN/crash.txt"
     zinc run "$APP" 2>&1 | tee "$RUN/app.log"
@@ -47,7 +48,8 @@ while :; do
   # its plane goes and /dev/fb0 shows the program's frame.
   # ponytail: an installed app that runs keeps the screen; the agent's program then draws behind it. display-fbdev should take the
   # plane back when its holder leaves (then a plain kill does)
-  zinc run "$PLAYER" 0<&0 &
+  rm -f "$RUN/player-ready"
+  ZINC_PLAYER_READY_FILE="$RUN/player-ready" zinc run "$PLAYER" 0<&0 &
   player=$!
   while kill -0 "$player" 2>/dev/null; do
     if agent_has_screen; then kill -KILL "$player"; break; fi
