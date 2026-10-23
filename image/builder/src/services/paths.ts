@@ -19,6 +19,12 @@ export function profileFile(): string {
   return fromEnv('ZINC_PI_IMAGE_PROFILE', home + '/pi-image/profile.json');
 }
 
+export function presetsFile(): string {
+  const path = profileFile();
+  const slash = path.lastIndexOf('/');
+  return (slash < 0 ? '.' : path.slice(0, slash)) + '/presets.json';
+}
+
 /** A path as a person reads it: relative to the repository when it is inside. */
 export function shownPath(path: string): string {
   const root = repositoryRoot() + '/';

@@ -3,6 +3,7 @@
 import { createSignal, For } from 'zinc:ui/solid';
 import { theme, hex, Card, Input, Textarea, Select, Checkbox, Switch, Button } from 'zinc:ui/nuxt';
 import { Field } from '../components/field';
+import { Presets } from '../components/presets';
 import { Choice, labelOf, keyOf } from '../services/catalog';
 import { Profile } from '../services/profile';
 import { catalog, profile, editProfile, toggleLibrary, chooseApp, useMySshKey, notice } from '../state';
@@ -97,6 +98,7 @@ function ZincSection(): i32 {
 export function SettingsPage(): i32 {
   return <ScrollView className="grow basis-0">
     <View className="flex-col gap-4 p-4">
+      <Presets />
       <BoardSection />
       <GeneralSection />
       <UserSection />

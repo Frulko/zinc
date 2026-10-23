@@ -2,6 +2,13 @@
 
 Overwritten at the end of the session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
+## 2026-10-23: Pi image builder presets and select overlays (ZN-778)
+
+- Builder saves/loads named complete profile snapshots from private `presets.json` beside the autosaved profile. Latest edits and preset list return after reopening; unknown base/engine keys and credentials survive. Duplicate names are refused. Save dialog supports Enter, Escape and Cancel.
+- Autosave now uses a private temporary directory, mode 0600 and atomic replacement; failed/corrupt reads and writes are visible. A profile that could not be saved never starts a build.
+- Shared Nuxt Select uses the existing anchored layer/focus/dismiss APIs, so lists escape Card clipping and receive pointer hits above later fields. Escape/outside presses close them. No core engine change or rebuild.
+- Proof: `build/zinc check image/builder`, `pi_image_presets`, `pi_image_builder_presets`, `pi_image_builder`, `nuxt_ui`; reviewed select/modal and updated builder goldens. Docker and cross-platform runs not done; nothing pushed. Usage: n/a for Codex.
+
 ## 2026-10-23: Pi player updates and network recovery (ZN-777)
 
 - Owner requested a Pi update menu, available-version icon, architecture-aware upgrades/downgrades, then chose an independent player bundle. `player-source.tar.gz` stays unchanged; each chosen engine repacks it to `player.zapp` on the Pi. D164 and `image/README.md` describe the design.

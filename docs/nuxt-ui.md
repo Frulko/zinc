@@ -50,7 +50,7 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 | Card (done) | outline, soft, subtle, solid; header, body, footer | ZN-357.02 | |
 | Input (done) | outline, soft, subtle, ghost, none; xs..xl; leading / trailing icon | ZN-357.02 | 16 px text below 768 px (Nuxt UI's responsive size) |
 | Textarea (done) | as Input; `rows`, `autoresize`, `maxrows` | ZN-357.02 | autoresize from the field's line count |
-| Select (trigger and inline list done; a layer later) | as Input; items, placeholder | ZN-357.02 (field), ZN-357.03 (popup) | the popup on zinc:ui's anchored floats (flip and margin); typeahead |
+| Select (done) | as Input; items, placeholder; anchored floating list, Escape and outside dismissal | ZN-357.02 (field), ZN-357.03 (popup), ZN-778 (clipping fix) | typeahead |
 | Checkbox (done) | xs..xl; indeterminate; label, description | ZN-357.02 | |
 | Switch (done) | xs..xl (md 36 x 20, thumb 16); loading | ZN-357.02 | thumb animation 200 ms |
 | RadioGroup (done) | list, card, table variants; xs..xl; orientation | ZN-357.02 | arrow keys move the choice |

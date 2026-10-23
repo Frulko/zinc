@@ -4,6 +4,7 @@
 // zinc:ui/kit: under Solid the classes follow theme() and the accessors; under React a render reads them. Controlled values are an accessor
 // (`modelValue`) and `onUpdate`, Vue's v-model. Icons are Lucide names (zinc:icons): name the ones a program uses in zinc.json "icons".
 import * as ui from 'zinc:ui';
+import { createNodeRef } from 'zinc:ui/solid';
 import { theme, hex, mix, rounded } from './theme';
 import { buttonSize, buttonIconSize, buttonVariant, contentColor, badgeSize, badgeIconSize, badgeVariant, avatarBox, inputSize, inputHeight, inputVariant,
   choiceText, checkboxBox, switchThumb, radioDot, checkedFill, choiceCard, rgb } from './variants';
@@ -114,27 +115,35 @@ export function Textarea(p: TextareaProps): i32 {
 }
 
 export type SelectProps = { items: string[]; modelValue?: () => string; onUpdate?: (v: string) => void; placeholder?: string; color?: string; variant?: string; size?: string; open?: () => boolean; onOpen?: (open: boolean) => void; className?: string };
-/** Nuxt UI's USelect: Input's trigger with a chevron; the list opens under it (ZN-357.03 moves it to a floating layer). `open` / `onOpen` let the caller hold
+/** Nuxt UI's USelect: Input's trigger with a chevron and an anchored floating list. `open` / `onOpen` let the caller hold
  *  the open state (pass both for the list to open). */
 export function Select(p: SelectProps): i32 {
   const color = p.color ?? 'primary', variant = p.variant ?? 'outline', size = p.size ?? 'md';
   const value = (): string => p.modelValue !== undefined ? (p.modelValue as () => string)() : '';
   const isOpen = (): boolean => p.open !== undefined && (p.open as () => boolean)();
-  const setOpen = (v: boolean): void => { const f = p.onOpen; if (f !== undefined) f(v); };
-  return <View className={`relative w-full ${p.className ?? ''}`}>
-    <View className={`flex-row items-center w-full h-[${inputHeight(size)}px] ${inputSize(size)} ${inputVariant(theme(), color, variant, isOpen())}`} onClick={() => setOpen(!isOpen())} role="combobox">
+  const trigger = createNodeRef(), menu = createNodeRef();
+  const setOpen = (v: boolean): void => {
+    if (v && trigger.node >= 0 && menu.node >= 0) ui.setNumber(menu.node, 'width', Math.max(128, ui.screenBox(trigger.node)[2]));
+    const f = p.onOpen; if (f !== undefined) f(v);
+  };
+  const node = <View className={`relative w-full ${p.className ?? ''}`}>
+    <View ref={trigger} className={`flex-row items-center w-full h-[${inputHeight(size)}px] ${inputSize(size)} ${inputVariant(theme(), color, variant, isOpen())}`} onClick={() => setOpen(!isOpen())} role="combobox" aria-expanded={isOpen()}>
       <Text className={`grow truncate text-${hex(value() === '' ? theme().textDimmed : theme().textHighlighted)}`}>{value() === '' ? (p.placeholder ?? '') : value()}</Text>
       <Icon name="chevron-down" size={buttonIconSize(size)} color={() => rgb(theme().textDimmed)} />
     </View>
-    <Show when={isOpen()}>
-      <View className={`absolute left-0 right-0 top-[${inputHeight(size) + 8}px] z-50 flex-col p-1 shadow-lg ${rounded('md')} bg-${hex(theme().bg)} border border-${hex(theme().border)}`}>
-        <For each={p.items}>{(it: string, i: i32) => <View className={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} hover:bg-${hex(mix(theme().bgElevated, 50, theme().bg))}`} onClick={() => { const f = p.onUpdate; if (f !== undefined) f(it); setOpen(false); }}>
+      <View ref={menu} hidden={isOpen() ? 0 : 1} className={`min-w-[128px] flex-col p-1 shadow-lg ${rounded('md')} bg-${hex(theme().bg)} border border-${hex(theme().border)}`} role="listbox">
+        <For each={p.items}>{(it: string, i: i32) => <View className={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} hover:bg-${hex(mix(theme().bgElevated, 50, theme().bg))}`} role="option" aria-selected={it === value()} onClick={() => { const f = p.onUpdate; if (f !== undefined) f(it); setOpen(false); }}>
           <Text className={`grow text-sm text-${hex(theme().text)}`}>{it}</Text>
           <Show when={it === value()}><Icon name="check" size={16} color={() => rgb(theme().textDimmed)} /></Show>
         </View>}</For>
       </View>
-    </Show>
   </View>;
+  ui.openLayer(menu.node, { priority: 100 });
+  ui.anchor(menu.node, trigger.node, 'bottom-start', 8);
+  ui.focusScope(menu.node, { trap: false, restore: true, autoFocus: true });
+  ui.onDismiss(menu.node, () => setOpen(false));
+  ui.onOutsidePointer(menu.node, (e: ui.PointerEvent) => setOpen(false), trigger.node);
+  return node;
 }
 
 export type CheckboxProps = { modelValue?: () => boolean; onUpdate?: (v: boolean) => void; label?: string; description?: string; color?: string; size?: string; variant?: string; disabled?: boolean; required?: boolean; className?: string };

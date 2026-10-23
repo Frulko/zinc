@@ -44,6 +44,7 @@ export function decodeProfile(text: string): Profile {
   const profile = new Profile();
   if (text.trim() === '') return profile;
   const o: any = JSON.parse(text);
+  if (o === null || typeof o !== 'object' || Array.isArray(o)) throw new Error('The profile must be a JSON object.');
   const user: any = objectOf(o, 'user');
   const wifi: any = objectOf(o, 'wifi');
   profile.name = stringOf(o, 'name', profile.name);
@@ -71,6 +72,7 @@ export function decodeProfile(text: string): Profile {
 /** The profile written over `previousText` (the file as it was): its other keys stay. */
 export function encodeProfile(profile: Profile, previousText: string): string {
   const o: any = previousText.trim() === '' ? JSON.parse('{}') : JSON.parse(previousText);
+  if (o === null || typeof o !== 'object' || Array.isArray(o)) throw new Error('The profile must be a JSON object.');
   const user: any = objectOf(o, 'user');
   const wifi: any = objectOf(o, 'wifi');
   o.name = profile.name;
@@ -97,14 +99,25 @@ export function encodeProfile(profile: Profile, previousText: string): string {
   return JSON.stringify(o) + '\n';
 }
 
-function readOrEmpty(path: string): string {
-  try { return fs.readText(path); } catch (e) { return ''; }
+export function readProfileText(path: string): string {
+  return fs.exists(path) ? fs.readText(path) : '';
 }
 
-export function loadProfile(path: string): Profile { return decodeProfile(readOrEmpty(path)); }
+export function loadProfile(path: string): Profile { return decodeProfile(readProfileText(path)); }
 
-export function saveProfile(path: string, profile: Profile): void {
-  fs.mkdir(path.slice(0, path.lastIndexOf('/')), true);
-  fs.writeText(path, encodeProfile(profile, readOrEmpty(path)));
-  fs.chmod(path, 0o600);
+/** Write beside the destination, inside a private directory, then replace the complete file. */
+export function savePrivateText(path: string, text: string): void {
+  const slash = path.lastIndexOf('/');
+  const directory = slash < 0 ? '.' : slash === 0 ? '/' : path.slice(0, slash);
+  fs.mkdir(directory, true);
+  const temp = fs.mkdtemp(directory + '/.pi-profile-');
+  try {
+    fs.writeText(temp + '/profile', text);
+    fs.chmod(temp + '/profile', 0o600);
+    fs.rename(temp + '/profile', path);
+  } finally { fs.remove(temp, true); }
+}
+
+export function saveProfile(path: string, profile: Profile, previousText: string | null = null): void {
+  savePrivateText(path, encodeProfile(profile, previousText === null ? readProfileText(path) : previousText));
 }

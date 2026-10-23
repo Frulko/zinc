@@ -6,14 +6,27 @@ import * as os from 'zinc:os';
 import * as dialog from 'zinc:system/dialog';
 import * as opener from 'zinc:system/opener';
 import { LOG_LINES_KEPT, SSH_PUBLIC_KEYS, RASPBERRY_PI_IMAGER, BuildStatus } from './constants';
-import { Profile, loadProfile, saveProfile } from './services/profile';
+import { Profile, decodeProfile, encodeProfile, loadProfile, readProfileText, saveProfile } from './services/profile';
+import { Preset, addPreset, loadPresets } from './services/presets';
 import { Catalog, loadCatalog } from './services/catalog';
 import { BuildRun, BuildListener } from './services/build';
-import { repositoryRoot, buildTool, catalogFile, profileFile, hostPath } from './services/paths';
+import { repositoryRoot, buildTool, catalogFile, profileFile, presetsFile, hostPath } from './services/paths';
 
 export const catalog: Catalog = loadCatalog(catalogFile());
 
-const currentProfile: Profile = loadProfile(profileFile());
+export const [saveError, setSaveError] = createSignal<string>('');
+export const [presetError, setPresetError] = createSignal<string>('');
+export const [presetNames, setPresetNames] = createSignal<string[]>([]);
+export const [selectedPreset, setSelectedPreset] = createSignal<string>('');
+export const [presetDialogOpen, setPresetDialogOpen] = createSignal<boolean>(false);
+export const [presetName, setPresetName] = createSignal<string>('');
+let currentProfile: Profile = new Profile();
+try { currentProfile = loadProfile(profileFile()); } catch (e) { setSaveError('Could not load settings: ' + (e as Error).message); }
+let presets: Preset[] = [];
+try {
+  presets = loadPresets(presetsFile());
+  setPresetNames(presets.map((p: Preset) => p.name));
+} catch (e) { setPresetError('Could not load presets: ' + (e as Error).message); }
 const [profileRevision, setProfileRevision] = createSignal<i32>(0);
 
 /** The profile; reading it subscribes to its changes. */
@@ -21,8 +34,50 @@ export function profile(): Profile { profileRevision(); return currentProfile; }
 
 export function editProfile(change: (p: Profile) => void): void {
   change(currentProfile);
-  saveProfile(profileFile(), currentProfile);
+  persistProfile();
+  setSelectedPreset('');
   setProfileRevision(profileRevision() + 1);
+}
+
+function persistProfile(): boolean {
+  try { saveProfile(profileFile(), currentProfile); setSaveError(''); return true; }
+  catch (e) { setSaveError('Could not save settings: ' + (e as Error).message); return false; }
+}
+
+export function loadPreset(name: string): void {
+  for (const preset of presets) if (preset.name === name) {
+    try {
+      const restored = decodeProfile(preset.text);
+      saveProfile(profileFile(), restored, preset.text);
+      currentProfile = restored;
+      setSelectedPreset(name);
+      setSaveError('');
+      setPresetError('');
+      setProfileRevision(profileRevision() + 1);
+    } catch (e) { setPresetError('Could not load preset: ' + (e as Error).message); }
+    return;
+  }
+}
+
+export function openPresetDialog(): void {
+  setPresetName('');
+  setPresetError('');
+  setPresetDialogOpen(true);
+}
+
+export function closePresetDialog(): void {
+  setPresetDialogOpen(false);
+  setPresetError('');
+}
+
+export function savePreset(): void {
+  try {
+    presets = addPreset(presetsFile(), presetName(), encodeProfile(currentProfile, readProfileText(profileFile())));
+    setPresetNames(presets.map((p: Preset) => p.name));
+    setSelectedPreset(presetName().trim());
+    setPresetDialogOpen(false);
+    setPresetError('');
+  } catch (e) { setPresetError((e as Error).message); }
 }
 
 export function toggleLibrary(key: string, on: boolean): void {
@@ -68,7 +123,7 @@ class StateListener implements BuildListener {
 
 export function startBuild(): void {
   if (running !== null) return;
-  saveProfile(profileFile(), currentProfile);
+  if (!persistProfile()) { setErrorMessage(saveError()); return; }
   setLogLines([]); setErrorMessage(''); setImagePath(''); setStepIndex(0); setStepTotal(0); setStepLabel('');
   try {
     running = new BuildRun(buildTool(), profileFile(), repositoryRoot(), new StateListener());

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Zinc Pi Image can save named presets of all image settings and restore them from a list. The latest edits return when the app reopens; save failures are shown instead of being silently ignored.
 - The Pi player's Updates menu checks for releases for its architecture, installs a chosen newer or older engine after verifying its signature and rebuilding the same player bundle on the Pi, and restores the previous engine and player if startup fails. An icon appears when an update is available; the saved previous version can also be restored from the menu.
 - The Pi player's Wi-Fi settings can restart the network services after confirmation and scan again, without rebooting the Pi.
 
@@ -43,6 +44,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev --device` runs on a device whose Zinc is another release of the same series (0.6.x on both), with a note. Another series is refused with the ways out: `zinc device <name> update`, or `--force` to try anyway (the program may crash). It works with devices that run 0.6.2.
 
 ### Fixed
+- Nuxt UI select menus float above cards and neighbouring fields instead of being clipped by their container. Escape and clicks outside close the list.
 - Kanban’s Modify action includes the existing criteria, plan, notes and result, even when a task has no description. Edit or clear these sections, edit/check/add/remove criteria, and save them back to their original Backlog.md fields.
 - Kanban’s Modify action places the cursor directly in the prefilled Markdown editor, including when reopening an unfinished draft.
 - Kanban cards stay visible while scrolling through long columns, and dragged cards keep the pointer's original grip with an insertion marker. The compact task window renders Markdown and lets you save the title, description and comments to Backlog.md while retaining unfinished drafts.

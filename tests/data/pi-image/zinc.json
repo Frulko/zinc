@@ -1,0 +1,7 @@
+{
+  "name": "pi-image-tests",
+  "entry": "builder-presets.tsx",
+  "permissions": ["fs", "process", "opener", "dialog"],
+  "icons": ["hammer", "square", "folder-open", "key-round", "loader-circle", "external-link", "chevron-down", "check", "save", "x"],
+  "targets": {"macos": {"width": 1180, "height": 780}, "linux": {"width": 1180, "height": 780}}
+}
