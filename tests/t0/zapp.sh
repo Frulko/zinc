@@ -15,6 +15,10 @@ cmp -s "$tmp/a.zapp" "$tmp/b.zapp" || { echo "two packs of the same project diff
 frame() { ZINC_SIZE=640x400 ZINC_FRAMES=8 ZINC_FRAMEHASH=last "$Z" run "$1" 2>&1 | grep framehash; }
 [ "$(cd "$tmp/game" && frame .)" = "$(frame "$tmp/a.zapp")" ] || { echo "the packed game draws another frame: $(frame "$tmp/a.zapp")"; fail=1; }
 "$Z" pack "$tmp/cli" -o "$tmp/cli.zapp" >/dev/null || { echo "zinc pack cli failed"; fail=1; }
+# an asset that links to a file outside the project (hero's city.bin) is packed under its own name, not the link's target
+"$Z" new cli "$tmp/linked" >/dev/null && mkdir -p "$tmp/shared" "$tmp/linked/assets" && echo data > "$tmp/shared/city.bin" && ln -s ../../shared/city.bin "$tmp/linked/assets/city.bin"
+"$Z" pack "$tmp/linked" -o "$tmp/linked.zapp" >/dev/null && "$Z" run "$tmp/linked.zapp" >/dev/null 2>&1 && tar tf "$tmp/linked.zapp" | grep -qx 'assets/city.bin' ||
+  { echo "a linked asset is not packed as assets/city.bin: $(tar tf "$tmp/linked.zapp" | tr '\n' ' ')"; fail=1; }
 [ "$(cd "$tmp/cli" && "$Z" run . 2>&1)" = "$("$Z" run "$tmp/cli.zapp" 2>&1)" ] || { echo "the packed cli prints otherwise: $("$Z" run "$tmp/cli.zapp" 2>&1 | head -2)"; fail=1; }
 python3 - "$tmp" <<'PY' || exit 2
 import io, sys, tarfile

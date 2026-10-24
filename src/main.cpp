@@ -2089,7 +2089,8 @@ int main(int argc, char** argv) {
     const fs::path assets = fs::path(projDir) / "assets";
     if (fs::is_directory(assets, ec))
       for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
-        const std::string rel = fs::relative(it->path(), projDir).generic_string();
+        // lexically: fs::relative follows a link (hero's assets/city.bin is examples/maps/navigation's) and names a file outside the archive
+        const std::string rel = it->path().lexically_relative(projDir).generic_string();
         if (!it->is_regular_file() || rel.find("/.") != std::string::npos) continue;   // hidden files (.gitkeep, .DS_Store) stay out
         std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
         files[rel] = as.str();
