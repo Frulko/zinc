@@ -2093,12 +2093,13 @@ int main(int argc, char** argv) {
     const bool jsEntry = entry.size() > 3 && (entry.compare(entry.size() - 3, 3, ".js") == 0 || (entry.size() > 4 && entry.compare(entry.size() - 4, 4, ".mjs") == 0));
     const std::string engine = have && !project.engine.empty() ? project.engine : jsEntry ? "quickjs" : "";   // a .js entry runs on QuickJS (ZN-719)
     if (!engine.empty() && engine != "zinc") {   // a project on a JavaScript engine: its sources, run there as `zinc run <dir> --engine` runs them
-      // ponytail: the whole project but build/, node_modules/ and hidden files; a bundle (zinc bundle) when a project needs its npm packages
+      // the whole project but build/ and hidden files; node_modules/ through its links (a linked workspace, examples/carnet-nbe).
+      // ponytail: all of node_modules, dev packages too; a bundle (zinc bundle) when a large one weighs on the package
       std::map<std::string, std::string> files;
       std::error_code ec;
-      for (auto it = fs::recursive_directory_iterator(projDir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      for (auto it = fs::recursive_directory_iterator(projDir, fs::directory_options::follow_directory_symlink, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
         const std::string rel = it->path().lexically_relative(projDir).generic_string(), top = rel.substr(0, rel.find('/'));
-        if (top == "build" || top == "node_modules" || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
+        if (top == "build" || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
         if (!it->is_regular_file() || it->path().extension() == ".zapp") continue;
         std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
         files[rel] = b.str();
