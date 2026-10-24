@@ -147,6 +147,17 @@ void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float
   v[3] = V{x1, y0, u1, v0, r, g, b, a}; v[4] = V{x0, y1, u0, v1, r, g, b, a}; v[5] = V{x1, y1, u1, v1, r, g, b, a};
   nv += 6;
 }
+void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, const uint32_t rgb[4], float a) {
+  const uint32_t first = nv;
+  draw_quad(tex, linear, x0, y0, x1, y1, u0, v0, u1, v1, rgb[0], a);
+  if (nv == first) return;
+  static const int corner[6] = {0, 2, 1, 1, 2, 3};   // the vertices' corners: x0 y0, x0 y1, x1 y0, x1 y0, x0 y1, x1 y1
+  for (int i = 0; i < 6; i++) {
+    V& v = pool[first + i];
+    const uint32_t c = rgb[corner[i]];
+    v.r = (float)(c >> 16 & 255) / 255; v.g = (float)(c >> 8 & 255) / 255; v.b = (float)(c & 255) / 255;
+  }
+}
 }  // namespace zn::ff
 
 extern "C" {

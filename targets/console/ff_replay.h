@@ -3,8 +3,9 @@
 // The backend uploads textures and draws quads; it is one file per console (targets/psp/gu_psp.cpp, targets/n3ds/c3d_n3ds.cpp) that defines
 // the functions below. What the replay draws: CLEAR, RECTs of one colour, IMAGEs (atlas boxes, flips, tint, alpha, nearest or linear), TEXT of
 // the glyph tables, rectangular CLIPs, and the single-colour shapes the software raster would draw (rounded RECTs, BORDERs, SHADOWs, filled
-// POLYs): the raster draws each once into a coverage bitmap, kept in the shape atlas and drawn as coverage times the colour. A frame with
-// anything else (gradients, rounded clips, turned matrices, lines, images with a radius or a blend mode) is not drawable: the HAL rasterizes
+// POLYs), vertical and horizontal gradients included: the raster draws each once into a coverage bitmap, kept in the shape atlas and drawn as
+// coverage times the colour (a gradient: the quads' corner colours). A frame with anything else (radial gradients and paints, rounded clips,
+// turned matrices, lines, images with a radius or a blend mode) is not drawable: the HAL rasterizes
 // it in software and shows it as one texture.
 #pragma once
 #include <stdint.h>
@@ -21,6 +22,8 @@ uint8_t* atlas_memory(int i);                                   // its bytes
 void atlas_written(int i, int32_t x, int32_t y, int32_t w, int32_t h);   // texels were written there (cache writeback, retiling)
 bool quads_pending();   // quads of the frame are queued: the shape atlas cannot be emptied under them
 void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a);
+// The same with a colour per corner (x0 y0, x1 y0, x0 y1, x1 y1), blended across the quad: the linear gradients.
+void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, const uint32_t rgb[4], float a);
 
 // The replay's part.
 bool drawable(const HalCmdList* const* lists, int32_t n);       // every command is one the replay draws (images are uploaded on the way)

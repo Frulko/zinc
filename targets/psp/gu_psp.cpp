@@ -39,7 +39,7 @@ uint32_t __attribute__((aligned(16))) clut[256];   // T8 coverage -> white at th
 uint32_t* softRows;         // the software frame, 0x00RRGGBB
 bool softValid;
 const Tex* cur;             // the state of the run: its texture (null: colour) and filter
-bool curLinear, curSet;
+bool curLinear, curSet, curTris;   // curTris: the run is triangles (quads with a colour per corner), else sprites
 
 int32_t pow2(int32_t v) { int32_t p = 8; while (p < v) p <<= 1; return p; }
 void writeback(const void* p, size_t n) { sceKernelDcacheWritebackRange(p, (unsigned)n); }
@@ -55,12 +55,14 @@ bool alloc(Tex& e, int32_t w, int32_t h, int32_t bpp, int32_t psm) {
 void flush() {
   if (nv == runFirst) return;
   writeback(pool + runFirst, (nv - runFirst) * sizeof(V));
-  sceGuDrawArray(GU_SPRITES, kVertex, (int)(nv - runFirst), nullptr, pool + runFirst);
+  sceGuDrawArray(curTris ? GU_TRIANGLES : GU_SPRITES, kVertex, (int)(nv - runFirst), nullptr, pool + runFirst);
   runFirst = nv;
 }
-void state(const Tex* t, bool linear) {
-  if (curSet && t == cur && (!t || linear == curLinear)) return;
+void state(const Tex* t, bool linear, bool tris = false) {
+  if (curSet && t == cur && (!t || linear == curLinear) && tris == curTris) return;
   flush();
+  curTris = tris;
+  if (curSet && t == cur && (!t || linear == curLinear)) return;
   curSet = true; cur = t; curLinear = linear;
   if (!t) { sceGuDisable(GU_TEXTURE_2D); return; }
   sceGuEnable(GU_TEXTURE_2D);
@@ -110,6 +112,18 @@ void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float
   const float sw = t ? (float)t->w : 0, sh = t ? (float)t->h : 0;
   pool[nv++] = V{u0 * sw, v0 * sh, color, x0, y0, 0};
   pool[nv++] = V{u1 * sw, v1 * sh, color, x1, y1, 0};
+}
+void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, const uint32_t rgb[4], float a) {
+  if (nv + 6 > (uint32_t)kMaxQuads * 2) { overflow = true; return; }
+  const Tex* t = static_cast<const Tex*>(tex);
+  state(t, linear, true);   // a sprite has one colour: two triangles blend the corners'
+  const uint32_t ai = (uint32_t)(a * 255 + 0.5f), al = (ai > 255 ? 255 : ai) << 24;
+  uint32_t c[4];
+  for (int i = 0; i < 4; i++) c[i] = al | (rgb[i] & 0xFF) << 16 | (rgb[i] & 0xFF00) | (rgb[i] >> 16 & 0xFF);
+  const float sw = t ? (float)t->w : 0, sh = t ? (float)t->h : 0;
+  const V tl{u0 * sw, v0 * sh, c[0], x0, y0, 0}, tr{u1 * sw, v0 * sh, c[1], x1, y0, 0}, bl{u0 * sw, v1 * sh, c[2], x0, y1, 0}, br{u1 * sw, v1 * sh, c[3], x1, y1, 0};
+  pool[nv++] = tl; pool[nv++] = bl; pool[nv++] = tr;
+  pool[nv++] = tr; pool[nv++] = bl; pool[nv++] = br;
 }
 }  // namespace zn::ff
 

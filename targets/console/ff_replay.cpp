@@ -57,13 +57,27 @@ float K = 1, OX = 0, OY = 0;
 struct Clip { float x0, y0, x1, y1; };
 Clip clip;
 
+const Cmd* G;   // the linear gradient (grad 1 vertical, 2 horizontal) of the command being drawn: its quads get a colour per corner
+uint32_t gradAt(float x, float y) {   // raster.cpp color_at for grad 1 and 2
+  float t = G->grad == 1 ? (y - G->y) / (G->h > 0 ? G->h : 1) : (x - G->x) / (G->w > 0 ? G->w : 1);
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  uint32_t out = 0;
+  for (int k = 0; k < 24; k += 8) {
+    const float a = (float)(G->c1 >> k & 255), b = (float)(G->c2 >> k & 255);
+    out |= (uint32_t)(a + (b - a) * t + 0.5f) << k;
+  }
+  return out;
+}
 void quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a) {
   if (x0 < clip.x0) { u0 += (u1 - u0) * (clip.x0 - x0) / (x1 - x0); x0 = clip.x0; }
   if (x1 > clip.x1) { u1 -= (u1 - u0) * (x1 - clip.x1) / (x1 - x0); x1 = clip.x1; }
   if (y0 < clip.y0) { v0 += (v1 - v0) * (clip.y0 - y0) / (y1 - y0); y0 = clip.y0; }
   if (y1 > clip.y1) { v1 -= (v1 - v0) * (y1 - clip.y1) / (y1 - y0); y1 = clip.y1; }
   if (x0 >= x1 || y0 >= y1 || a <= 0) return;
-  draw_quad(tex, linear, OX + K * x0, OY + K * y0, OX + K * x1, OY + K * y1, u0, v0, u1, v1, rgb, a);
+  if (G) {
+    const uint32_t c[4] = {gradAt(x0, y0), gradAt(x1, y0), gradAt(x0, y1), gradAt(x1, y1)};
+    draw_quad4(tex, linear, OX + K * x0, OY + K * y0, OX + K * x1, OY + K * y1, u0, v0, u1, v1, c, a);
+  } else draw_quad(tex, linear, OX + K * x0, OY + K * y0, OX + K * x1, OY + K * y1, u0, v0, u1, v1, rgb, a);
 }
 float fl(float v) { const float i = (float)(int32_t)v; return i > v ? i - 1 : i; }
 float ce(float v) { const float i = (float)(int32_t)v; return i < v ? i + 1 : i; }
@@ -133,9 +147,8 @@ bool shapesFull;
 
 bool isShape(const Cmd& c) {
   switch (c.kind) {
-    case RECT: return c.r > 0 && !c.grad;
-    case BORDER: case SHADOW: return !c.grad;
-    case POLY: return !c.grad;
+    case RECT: return c.r > 0 && c.grad <= 2;
+    case BORDER: case SHADOW: case POLY: return c.grad <= 2;   // one colour, or a linear gradient (the quads' corner colours)
     default: return false;
   }
 }
@@ -180,7 +193,7 @@ const Shape* shape(const Cmd& c, const float* pts) {
   if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return nullptr;
   // in white on black into a buffer as wide as the box's right edge; a box is moved by whole pixels to the buffer's origin
   Cmd t = c;
-  t.c1 = t.c2 = 0xFFFFFF; t.alpha = 255;
+  t.c1 = t.c2 = 0xFFFFFF; t.alpha = 255; t.grad = 0;
   const int32_t dx = c.kind == POLY ? 0 : -bx, dy = c.kind == POLY ? 0 : -by;
   t.x += (float)dx; t.y += (float)dy;
   const int32_t x0 = bx + dx, y0 = by + dy, bw = x0 + w;
@@ -237,11 +250,13 @@ void drawShape(const Cmd& c, const float* pts) {
   Span xs[3], ys[3];
   const int nx = spans(w, s->lx, s->mx, xs), ny = spans(h, s->ly, s->my, ys);
   const float a = (float)c.alpha / 255;
+  G = c.grad ? &c : nullptr;
   for (int j = 0; j < ny; j++)
     for (int i = 0; i < nx; i++)
       quad(atlas(1), false, (float)(bx + xs[i].p0), (float)(by + ys[j].p0), (float)(bx + xs[i].p1), (float)(by + ys[j].p1),
            (float)(s->ax + xs[i].t0) / kAtlasW, (float)(s->ay + ys[j].t0) / kAtlasH, (float)(s->ax + xs[i].t1) / kAtlasW,
            (float)(s->ay + ys[j].t1) / kAtlasH, c.c1, a);
+  G = nullptr;
 }
 }  // namespace
 
@@ -271,7 +286,7 @@ bool drawable(const HalCmdList* const* l, int32_t n) {
         if (isShape(m)) { ok = shape(m, l[k]->pts) != nullptr || (!shapesFull && refuse(m)); continue; }
         switch (m.kind) {
           case CLEAR: case UNCLIP: break;
-          case RECT: if (m.grad) ok = refuse(m); break;
+          case RECT: if (m.grad > 2) ok = refuse(m); break;   // radial and paint records: the software raster
           case CLIP: if (m.r > 0) ok = refuse(m); break;
           case TEXT: { const Font* f = font_at(m.res); if (f && f->count == 0 && m.res < font_count) ok = refuse(m); break; }   // an outline font the tables cannot read
           case IMAGE:
@@ -301,7 +316,11 @@ void replay(const HalCmdList* l, int32_t w, int32_t h, float k, float ox, float 
       case CLEAR: quad(nullptr, false, clip.x0, clip.y0, clip.x1, clip.y1, 0, 0, 0, 0, c.c1, 1); break;
       case RECT:
         if (c.r > 0) drawShape(c, l->pts);
-        else quad(nullptr, false, fl(c.x), fl(c.y), ce(c.x + c.w), ce(c.y + c.h), 0, 0, 0, 0, c.c1, (float)c.alpha / 255);
+        else {
+          G = c.grad ? &c : nullptr;
+          quad(nullptr, false, fl(c.x), fl(c.y), ce(c.x + c.w), ce(c.y + c.h), 0, 0, 0, 0, c.c1, (float)c.alpha / 255);
+          G = nullptr;
+        }
         break;
       case BORDER: case SHADOW: case POLY: drawShape(c, l->pts); break;
       case TEXT: text(c, l->text + c.off); break;
