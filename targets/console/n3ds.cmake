@@ -4,3 +4,12 @@ target_link_libraries(zinc-core PRIVATE ctru)
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=262144 ZN_CONSOLE_MAX_DEPTH=1000)   # 2 MiB of registers, 1000 calls deep
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp PROPERTIES COMPILE_DEFINITIONS "ZN_CONSOLE_AUDIO_RATE=22050;ZN_CONSOLE_AUDIO_NAME=\"ndsp\"")
 ctr_create_3dsx(zinc-core)
+# the GPU path (ZN-469): the command lists replayed on the PICA200 with citro3d (targets/console/ff_replay.cpp, the replay shared with the PSP),
+# its vertex shader assembled by picasso and linked in
+if(ZN_CONSOLE_GFX)
+  ctr_add_shader_library(ff_shader ${ZN_TARGETS}/n3ds/ff.v.pica)
+  dkp_add_embedded_binary_library(ff_shader_bin ff_shader)
+  target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/c3d_n3ds.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp)
+  set_source_files_properties(${ZN_TARGETS}/n3ds/c3d_n3ds.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp PROPERTIES COMPILE_OPTIONS "-w;-fpermissive" INCLUDE_DIRECTORIES "${ZN_RUNTIME}")
+  target_link_libraries(zinc-core PRIVATE ff_shader_bin citro3d ctru)
+endif()

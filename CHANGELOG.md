@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 - PSP: the console core draws zinc:gfx frames on the GE (rectangles, images, sprites and text); a frame with rounded corners, gradients, shadows or paths is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
+- Nintendo 3DS: the console core draws zinc:gfx frames on the PICA200 through citro3d, the same way as the PSP; stereoscopic 3D and the bottom screen stay in software. `ZINC_N3DS_GPU=0` keeps the software path.
 
 ## [0.7.6] - 2026-10-24
 

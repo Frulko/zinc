@@ -7,7 +7,8 @@
 # and the emulator's own picture of the screen (PPSSPP's screenshot, PCSX2's save state; Vita3K and Azahar have no screenshot to call: the
 # framebuffer the display scans out), the hello's blue on most of it and its yellow square; the text program on the graphics core keeps its
 # line on the screen (the text screen) instead of a black screen or an app that closes; breakout's pad session built into the core ends on the
-# interpreter's frame (tests/golden/breakout/pad.hashes) and prints its frame times.
+# interpreter's frame (tests/golden/breakout/pad.hashes) and prints its frame times; on the PSP and the 3DS the GPU replay's title screen is the
+# software raster's. ZINC_CONSOLES="psp n3ds" tests only those consoles.
 [ -z "$ZINC_CI" ] || { echo "skipped: windowed emulators and their screenshots need a desktop session (the console targets come with the cross-platform pass)"; exit 77; }
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
@@ -31,7 +32,7 @@ for y in range(abs(h)):
     ka+=near(p,a); kb+=near(p,b)
 print(ka*1000//(w*abs(h)), kb)" "$tmp/shot.bmp" "$2" "$3"
 }
-for c in psp vita ps2 n3ds; do
+for c in ${ZINC_CONSOLES:-psp vita ps2 n3ds}; do
   out=$(tools/build-console-core "$c" --pure --embed "$tmp/hello.zbc" -B "build/console-test-$c" 2>&1) || { echo "console emulators: skip $c (no core: $(echo "$out" | tail -1))"; continue; }
   bin=$(echo "$out" | tail -1)
   got=$(tools/console-run "$c" "$bin" --timeout 60 2>&1); rc=$?
@@ -41,7 +42,7 @@ for c in psp vita ps2 n3ds; do
 done
 [ $ran -gt 0 ] || { echo "console emulators: no console could run"; exit 77; }
 # the emulators' own pictures: the graphical hello, then the text program on the graphics core (the text screen)
-for c in psp vita ps2 n3ds; do
+for c in ${ZINC_CONSOLES:-psp vita ps2 n3ds}; do
   "$Z" pack --profile "$c" targets/console/hello -o "$tmp/hello-$c.zapp" >/dev/null 2>&1 && mkdir -p "$tmp/$c" && tar -xf "$tmp/hello-$c.zapp" -C "$tmp/$c" program.zbc resources.bin ||
     { echo "console emulators: zinc pack targets/console/hello for $c failed"; fail=1; continue; }
   out=$(tools/build-console-core "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" --frames 120 -B "build/console-test-$c-gfx" 2>&1) || { echo "console emulators: skip the $c picture (no core: $(echo "$out" | tail -1))"; continue; }
@@ -67,8 +68,16 @@ for c in psp vita ps2 n3ds; do
   want=$(awk -v c="$c" '$1 == c { print ($4 != "" ? $4 : $3) }' tests/golden/breakout/pad.hashes)
   echo "$got" | grep -q "^zinc: framehash [0-9]* [0-9x]* $want$" || { echo "console emulators: $c: breakout's pad session does not end on the golden frame $want: $(echo "$got" | grep 'framehash\|error\|panic')"; fail=1; }
   echo "console emulators: $c breakout $(echo "$got" | sed -n 's/^zinc profile: \(frames=.*work.*\)$/\1/p')"
+  # the GPU replay of the PSP and the 3DS (ZN-468, ZN-469) against their software raster: breakout's title screen (sprites, text) within 8 levels
+  case $c in psp) gpu=ZINC_PSP_GPU ;; n3ds) gpu=ZINC_N3DS_GPU ;; *) continue ;; esac
+  for v in 1 0; do
+    out=$(tools/build-console-core "$c" --embed "$tmp/b-$c/program.zbc" "$tmp/b-$c/resources.bin" --frames 120 --size "$size" --env "$gpu=$v" -B "build/console-test-$c-gpu$v" 2>&1) &&
+      tools/console-run "$c" "$(echo "$out" | tail -1)" --timeout 90 --shot "$tmp/$c-gpu$v.png" >/dev/null 2>&1
+  done
+  d=$(tools/pngdiff "$tmp/$c-gpu1.png" "$tmp/$c-gpu0.png" --tol 8 2>&1) || { echo "console emulators: $c: the GPU replay of breakout is not the software raster's frame: $d"; fail=1; }
 done
 # a hung program on the PSP: stopped at the timeout, with a clear message
+case " ${ZINC_CONSOLES:-psp} " in *" psp "*) ;; *) [ $fail -eq 0 ] && echo "console emulators: ok ($ran consoles)"; exit $fail ;; esac
 if out=$(tools/build-console-core psp --pure --embed "$tmp/hang.zbc" -B build/console-test-psp-hang 2>&1); then
   got=$(tools/console-run psp "$(echo "$out" | tail -1)" --timeout 5 2>&1); rc=$?
   [ $rc -eq 124 ] && echo "$got" | grep -q "did not finish in 5 s" || { echo "console emulators: a hung program exits $rc: $got"; fail=1; }

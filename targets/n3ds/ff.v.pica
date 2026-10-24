@@ -1,0 +1,22 @@
+; The 3DS replay's vertex shader (c3d_n3ds.cpp, ZN-469): a position in screen pixels through the projection, the texture coordinate and the
+; colour passed on. TEV stage 0 does the rest (colour, texture times colour, or the glyph atlas's coverage times colour).
+.fvec projection[4]
+.constf zw(0.0, 0.0, 0.5, 1.0)
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+.alias inpos v0
+.alias intex v1
+.alias inclr v2
+
+.proc main
+  mov r0.xy, inpos
+  mov r0.zw, zw
+  dp4 outpos.x, projection[0], r0
+  dp4 outpos.y, projection[1], r0
+  dp4 outpos.z, projection[2], r0
+  dp4 outpos.w, projection[3], r0
+  mov outtc0, intex
+  mov outclr, inclr
+  end
+.end

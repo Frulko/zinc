@@ -1,7 +1,7 @@
 // Nintendo 3DS HAL (devkitARM + libctru; the console core of targets/console, ZN-457): text through svcOutputDebugString (Azahar logs it as
-// Debug.Emulated), the system tick as the clock, the pad, and the shared software rasterizer shown on the top screen (400x240, RGBA8; the 3DS
-// framebuffer is rotated: columns of 240 pixels, bottom to top), swapped at vblank. The PICA200 replay comes later
-// (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 4.4).
+// Debug.Emulated), the system tick as the clock, the pad, and the frames on the top screen (400x240, RGBA8; the 3DS framebuffer is rotated:
+// columns of 240 pixels, bottom to top): replayed on the PICA200 (c3d_n3ds.cpp, ZN-469) or, in stereo and with ZINC_N3DS_GPU=0, the shared
+// software rasterizer, swapped at vblank.
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
@@ -26,6 +26,12 @@ static bool gfxOn = false;
 static int32_t stale[2][2] = {{0, 0}, {0, 0}};   // per framebuffer, the rows [first, end) it has not got yet
 static int back = 0;                              // the framebuffer drawn this frame
 static const uint32_t* shown = nullptr;           // the framebuffer on the screen since the last swap
+static bool gpuOn = false;                        // the PICA200 draws the mono frames
+static bool rowsStale = true;                     // `rows` misses frames the GPU drew: the next software frame renders every row
+extern "C" __attribute__((weak)) bool zn_c3d_init(int32_t w, int32_t h);   // c3d_n3ds.cpp
+extern "C" __attribute__((weak)) bool zn_c3d_present(const HalFrame* f);
+extern "C" __attribute__((weak)) void zn_c3d_wait(void);
+static bool bottomNew = false;                    // the bottom screen got a frame since the last swap
 // Stereoscopic 3D (ZN-759, zinc:hardware setStereo / stereoEye): while the program asks for it and the 3D slider is up, the frames alternate between
 // the left and the right eye; a left frame goes to GFX_LEFT with no swap, the right one to GFX_RIGHT, then both are shown at the vblank.
 static bool stereoAsked = false, stereoOn = false;
@@ -229,6 +235,7 @@ void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
   for (int32_t x = 0; x < 320 && x < pw; x++)
     for (int32_t y = 0; y < 240 && y < ph; y++) { const uint32_t c = px[(size_t)y * pw + x]; fb[x * 240 + (239 - y)] = (c & 0xFFFFFF) << 8 | 0xFF; }
   bottomShown = true;
+  bottomNew = true;
   bottomFb = fb;
 }
 void hal_win_current(int32_t) {}
@@ -249,6 +256,8 @@ void hal_init(const HalConfig* cfg) {
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
   memset(rows, 0, (size_t)W * H * 4);
   gfxOn = true;
+  const char* g = getenv("ZINC_N3DS_GPU");
+  gpuOn = !(g && *g == '0') && zn_c3d_init && zn_c3d_init(W, H);
 }
 void hal_shutdown(void) { if (gfxOn) gfxExit(); }
 void* hal_alloc(size_t n) { return malloc(n); }
@@ -273,6 +282,11 @@ void hal_frame_end(void) {
   // stereo: the left eye's frame waits for the right one; both buffers of the eye get every row (the frames alternate)
   const bool want = stereoAsked && slider() > 0;
   if (want != stereoOn) { stereoOn = want; gfxSet3D(want); eye = 0; stale[0][0] = stale[1][0] = 0; stale[0][1] = stale[1][1] = H; }
+  if (gpuOn && !stereoOn) {   // citro3d transferred and swaps the top screen; the bottom one is the CPU's
+    if (bottomNew) { gfxFlushBuffers(); gfxScreenSwapBuffers(GFX_BOTTOM, false); bottomNew = false; }
+    return;
+  }
+  bottomNew = false;
   if (stereoOn) {
     u32* fb = (u32*)gfxGetFramebuffer(GFX_TOP, eye ? GFX_RIGHT : GFX_LEFT, nullptr, nullptr);
     for (int32_t x = 0; x < W; x++)
@@ -330,6 +344,7 @@ void hal_poll_input(HalInput* in) {
   lastPad = g; lastButtons = in->buttons;
   const int32_t frame = frames++;
   const bool budgetOver = ZINC_FRAMES && frame >= ZINC_FRAMES;
+  if (budgetOver && frame == ZINC_FRAMES && gpuOn && !stereoOn) zn_c3d_wait();   // the GPU's last frame is on the screen
   if (budgetOver && frame == ZINC_FRAMES && shown) {   // the last frame of a budget as sdmc:/zinc-shot.ppm (the emulator tests), read back from
     ppm("sdmc:/zinc-shot.ppm", shown, W, H, kScreenH);   // the framebuffer the screen shows (rotated, RGBA8), not from the HAL's own frame
     if (bottomFb) ppm("sdmc:/zinc-shot-bottom.ppm", bottomFb, 320, 240, 240); else remove("sdmc:/zinc-shot-bottom.ppm");   // and the bottom screen
@@ -338,7 +353,18 @@ void hal_poll_input(HalInput* in) {
   in->quit = !aptMainLoop() || budgetOver;
 }
 void hal_present(const HalFrame* f) {
+  if (gpuOn && !stereoOn) {
+    u32* target = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, nullptr, nullptr);   // the buffer citro3d's display transfer writes
+    if (zn_c3d_present(f)) { shown = target; rowsStale = true; }
+    return;
+  }
   if (!rows || f->y1 <= f->y0) return;
+  if (rowsStale) {   // back from the GPU: every row, into both buffers
+    f->render(rows, 0, H);
+    rowsStale = false;
+    for (auto& r : stale) { r[0] = 0; r[1] = H; }
+    return;
+  }
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
   for (auto& r : stale) { if (f->y0 < r[0]) r[0] = f->y0; if (f->y1 > r[1]) r[1] = f->y1; }   // both buffers miss these rows
 }
