@@ -3,7 +3,7 @@
 # /src/profile.json (the profile merged over image/profile.json), /src/app (the app, when the profile names one),
 # /cache (downloads, the image being built) and /dist (what the build makes).
 # Lines that start with "::" are for the tools and apps that follow a build: "::step n/total label", "::error text",
-# "::done file".
+# "::done file", and "::progress percent text" every few seconds during a long command (percent -1: not known).
 set -euo pipefail
 export LC_ALL=C
 P=/src/profile.json
@@ -15,6 +15,27 @@ SCRIPTS=(/src/image/scripts/*.sh)
 TOTAL=$((10 + ${#SCRIPTS[@]}))
 n=1 # step 1 is tools/pi-image's
 step() { n=$((n + 1)); echo "::step $n/$TOTAL $*"; }
+mib() { echo $(($1 / 1048576)); }
+# follow pid label total [file]: waits for the process, printing how far it is every 3 s: the size of file when given,
+# otherwise how much of its standard input it has read; total in bytes, 0 when not known. Returns the process's status.
+follow() {
+  local pid=$1 label=$2 total=$3 file=${4:-} start=$SECONDS got pct text left
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 3
+    if [ -n "$file" ]; then got=$(stat -c %s "$file" 2>/dev/null) || continue
+    else got=$(sed -n 's/^pos:[[:space:]]*//p' "/proc/$pid/fdinfo/0" 2>/dev/null) || continue; fi
+    [ -n "$got" ] || continue
+    if [ "$total" -gt 0 ]; then
+      pct=$((got * 100 / total)); text="$label · $pct% · $(mib "$got") of $(mib "$total") MiB"
+      if [ "$got" -gt 0 ] && [ "$pct" -lt 100 ]; then
+        left=$(((SECONDS - start) * (total - got) / got))
+        if [ "$left" -lt 60 ]; then text="$text · less than a minute left"; else text="$text · about $((left / 60 + 1)) min left"; fi
+      fi
+    else pct=-1; text="$label · $(mib "$got") MiB"; fi
+    echo "::progress $pct $text" >&2
+  done
+  wait "$pid"
+}
 
 step "Checking the profile"
 NAME=$(q .name)
@@ -44,7 +65,10 @@ fetch() { # url sha256 -> the file in /cache, downloaded once and checked every 
   local f
   f=/cache/$(basename "$1")
   if ! echo "$2  $f" | sha256sum -c --status 2>/dev/null; then
-    curl -fsSL --retry 3 -o "$f.part" "$1" || fail "cannot download $1"
+    local size
+    size=$(curl -fsIL "$1" 2>/dev/null | tr -d '\r' | sed -n 's/^content-length: *//Ip' | tail -1)
+    curl -fsSL --retry 3 -o "$f.part" "$1" &
+    follow $! "Downloading $(basename "$1")" "${size:-0}" "$f.part" || fail "cannot download $1"
     mv "$f.part" "$f"
     echo "$2  $f" | sha256sum -c --status || fail "$1: its SHA-256 is not the one in the profile"
   fi
@@ -55,7 +79,8 @@ ZINC=$(fetch "$(q .zinc.url)" "$(q .zinc.sha256)")
 
 step "Unpacking Raspberry Pi OS"
 IMG=/cache/$NAME.img
-xz -dc "$BASE" >"$IMG"
+xz -dc <"$BASE" >"$IMG" &
+follow $! "Unpacking" "$(stat -c %s "$BASE")"
 
 step "Growing the root partition by $(q .growMiB) MiB"
 truncate -s +"$(q .growMiB)"M "$IMG"
@@ -136,8 +161,11 @@ trap - EXIT
 step "Compressing"
 OUT=/dist/$NAME.img.xz
 IMG_SIZE=$(stat -c %s "$IMG")
-IMG_SHA=$(sha256sum "$IMG" | cut -d' ' -f1)
-xz -T0 -6 -c "$IMG" >"$OUT.part"
+sha256sum <"$IMG" >/cache/img.sha256 &
+follow $! "Checking the image" "$IMG_SIZE"
+IMG_SHA=$(cut -d' ' -f1 /cache/img.sha256) && rm /cache/img.sha256
+xz -T0 -6 -c <"$IMG" >"$OUT.part" &
+follow $! "Compressing" "$IMG_SIZE"
 mv "$OUT.part" "$OUT"
 rm -f "$IMG"
 

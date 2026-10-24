@@ -3,6 +3,7 @@
 /** tools/pi-image prints these at the start of a line for the apps that follow a build. */
 export const PROTOCOL_STEP = '::step ';
 export const PROTOCOL_ERROR = '::error ';
+export const PROTOCOL_PROGRESS = '::progress ';
 export const PROTOCOL_DONE = '::done ';
 
 /** The container a build runs in (tools/pi-image names it): `docker stop` on it stops the build cleanly. */

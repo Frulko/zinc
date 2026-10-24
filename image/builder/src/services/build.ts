@@ -1,11 +1,14 @@
 // One build: tools/pi-image run with the saved profile, its output read line by line. The lines it prints for apps
-// ("::step 3/12 label", "::error text", "::done /dist/file") become calls of the listener; every line goes to the log.
+// ("::step 3/12 label", "::progress 42 text", "::error text", "::done /dist/file") become calls of the listener; every
+// line but the progress ones goes to the log.
 import * as proc from 'zinc:process';
 import * as sys from 'zinc:sys';
-import { PROTOCOL_STEP, PROTOCOL_ERROR, PROTOCOL_DONE, BUILD_CONTAINER, EXTRA_PATH } from '../constants';
+import { PROTOCOL_STEP, PROTOCOL_PROGRESS, PROTOCOL_ERROR, PROTOCOL_DONE, BUILD_CONTAINER, EXTRA_PATH } from '../constants';
 
 export interface BuildListener {
   onStep(index: i32, total: i32, label: string): void;
+  /** How far the current step's long command is: percent, or -1 when not known, and a line that says it. */
+  onProgress(percent: i32, text: string): void;
   onError(message: string): void;
   onDone(imagePath: string): void;
   onLine(line: string): void;
@@ -33,6 +36,11 @@ export function dispatchLine(line: string, listener: BuildListener): void {
   if (line.startsWith(PROTOCOL_STEP)) {
     const step = parseStep(line.slice(PROTOCOL_STEP.length));
     listener.onStep(step.index, step.total, step.label);
+  } else if (line.startsWith(PROTOCOL_PROGRESS)) {
+    const rest = line.slice(PROTOCOL_PROGRESS.length);
+    const space = rest.indexOf(' ');
+    listener.onProgress(parseInt(space < 0 ? rest : rest.slice(0, space)) as i32, space < 0 ? '' : rest.slice(space + 1));
+    return;
   } else if (line.startsWith(PROTOCOL_ERROR)) {
     listener.onError(line.slice(PROTOCOL_ERROR.length));
   } else if (line.startsWith(PROTOCOL_DONE)) {

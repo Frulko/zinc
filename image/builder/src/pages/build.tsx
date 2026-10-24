@@ -7,7 +7,7 @@ import { ProgressBar } from '../components/progress-bar';
 import { LogView } from '../components/log-view';
 import { shownPath } from '../services/paths';
 import { labelOf } from '../services/catalog';
-import { catalog, profile, status, stepIndex, stepTotal, stepLabel, errorMessage, imagePath, logLines, startBuild, stopBuild, revealImage, openImager } from '../state';
+import { catalog, profile, status, stepIndex, stepTotal, stepLabel, stepProgress, stepDetail, errorMessage, imagePath, logLines, startBuild, stopBuild, revealImage, openImager } from '../state';
 
 function statusText(): string {
   if (status() === 'running') return stepLabel() === '' ? 'Starting the build…' : stepLabel();
@@ -17,7 +17,13 @@ function statusText(): string {
 }
 
 function barColor(): string { return status() === 'failed' ? '#dc6658' : '#a6ca7f'; }
-function percent(): i32 { return stepTotal() <= 0 ? 0 : Math.round(100 * Math.min(stepIndex(), stepTotal()) / stepTotal()) as i32; }
+/** Hundredths of a step: the current step's own progress, while a long command reports it, fills its share of the bar. */
+function stepsDone(): i32 {
+  const p = stepProgress();
+  return status() === 'running' && p >= 0 ? (stepIndex() - 1) * 100 + Math.min(p, 100) as i32 : stepIndex() * 100;
+}
+function stepsTotal(): i32 { return stepTotal() * 100; }
+function percent(): i32 { return stepTotal() <= 0 ? 0 : Math.round(100 * Math.min(stepsDone(), stepsTotal()) / stepsTotal()) as i32; }
 
 function SummaryRow(p: { icon: string; text: string }): i32 {
   return <View className="flex-row items-center gap-2.5"><Icon name={p.icon} size={14} color={() => 0x9dad99} /><Text className="text-xs text-[#d5ddcd]">{p.text}</Text></View>;
@@ -48,8 +54,9 @@ export function BuildPage(): i32 {
       </View>
       <Show when={status() !== 'idle'}>
         <View className="flex-col gap-2">
-          <ProgressBar done={stepIndex} total={stepTotal} color={barColor} />
+          <ProgressBar done={stepsDone} total={stepsTotal} color={barColor} />
           <View className="flex-row items-center h-5 shrink-0"><Text className="text-xs text-[#afbfaa]">{stepTotal() > 0 ? `Step ${stepIndex()} of ${stepTotal()}` : 'Preparing the build'}</Text><View className="grow" /><Text className="font-mono text-xs text-[#d4e4c7]">{stepTotal() > 0 ? percent() + '%' : '…'}</Text></View>
+          <Show when={status() === 'running' && stepDetail() !== ''}><Text className="font-mono text-[11px] text-[#c3d3b8]">{stepDetail()}</Text></Show>
         </View>
       </Show>
       <Show when={errorMessage() !== ''}><Text className="text-sm text-[#ffb7a8]">{errorMessage()}</Text></Show>

@@ -4,7 +4,7 @@ import { render } from 'zinc:ui/solid';
 import { setColorMode } from 'zinc:ui/nuxt';
 import { quit, capture, height, width } from 'zinc:gfx';
 import { Workspace } from '../../../image/builder/src/pages/workspace';
-import { status, profile, imagePath, errorMessage } from '../../../image/builder/src/state';
+import { status, profile, imagePath, errorMessage, stepProgress, stepDetail, logLines } from '../../../image/builder/src/state';
 
 function expect(value: boolean, message: string): void { if (!value) throw new Error(message); }
 function settings(): i32 {
@@ -57,6 +57,8 @@ render(Workspace, 0xf5f6f0, (dt: number) => {
         expect(ui.find('Step 4 of 4') >= 0, 'step count missing');
         const count = ui.screenBox(ui.find('Step 4 of 4'));
         expect(count[3] > 0, 'step count is not visible');
+        expect(stepProgress() === 42 && stepDetail().startsWith('Compressing · 42%'), 'progress line not read');
+        expect(logLines().every((l: string) => !l.startsWith('::progress')), 'progress line in the log');
       }
       const log = ui.find('Latest output');
       expect(log >= 0 && ui.screenBox(log)[1] + ui.screenBox(log)[3] <= height(), 'log controls outside the window');
