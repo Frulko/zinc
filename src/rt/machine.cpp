@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "zn/ops.h"
+#include "zn/shortest.h"
 
 namespace zn::rt {
 
@@ -54,12 +55,7 @@ std::string numberToString(double v) {
   v = std::fabs(v);
   if (v < 9007199254740992.0 && v == std::floor(v)) return sign + std::to_string(static_cast<std::uint64_t>(v));  // an integer: its digits
   char buf[48];
-#if !defined(_GLIBCXX_RELEASE) || defined(__cpp_lib_to_chars)   // libc++ has it without the macro; libstdc++ says when it lacks it
-  auto tc = std::to_chars(buf, buf + sizeof buf - 1, v, std::chars_format::scientific);  // the shortest digits that round-trip (the standard library's Ryu)
-  *tc.ptr = 0;
-#else   // a C++ library without the floating to_chars (ps2dev's): the fewest correctly rounded digits that read back the same value
-  for (int p = 0; p < 17; ++p) { std::snprintf(buf, sizeof buf, "%.*e", p, v); if (std::strtod(buf, nullptr) == v) break; }
-#endif
+  *zn::shortestDouble(buf, buf + sizeof buf - 1, v, true) = 0;   // the shortest digits that round-trip
   std::string s = buf;  // d.ddde[+-]XX
   std::size_t e = s.find('e');
   int exp10 = std::atoi(s.c_str() + e + 1);

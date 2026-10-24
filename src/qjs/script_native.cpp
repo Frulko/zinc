@@ -24,6 +24,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 }
 
 #include "zn/native.h"
+#include "zn/shortest.h"
 namespace zn::qjs { extern const char* kWebShims; }   // src/qjs/prelude.cpp
 
 namespace {
@@ -83,8 +84,8 @@ void appendNumber(std::string& out, double x) {
   char b[40];
   if (!std::isfinite(x)) { out += "null"; return; }
   if (x == std::floor(x) && std::fabs(x) < 1e15) { auto r = std::to_chars(b, b + sizeof b, static_cast<long long>(x)); out.append(b, static_cast<size_t>(r.ptr - b)); return; }   // -0 prints 0, as JSON.stringify does
-  auto r = std::to_chars(b, b + sizeof b, x);   // the shortest text that reads back as the same double
-  out.append(b, static_cast<size_t>(r.ptr - b));
+  const char* end = zn::shortestDouble(b, b + sizeof b, x, false);   // the shortest text that reads back as the same double
+  out.append(b, static_cast<size_t>(end - b));
 }
 // false when the bytes hold an encoded lone surrogate (JSON.stringify escapes those; the generic path does it)
 bool appendJsonString(std::string& out, const char* s, size_t n) {

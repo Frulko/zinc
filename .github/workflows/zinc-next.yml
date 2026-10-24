@@ -106,7 +106,7 @@ jobs:
           CCACHE_MAXSIZE: 600M
         run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is update.pub
           ver=(); if [ -n "$TAG" ]; then ver=(-DZN_VERSION="${TAG#v}"); fi
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Engine packs
         # what `zinc run --engine v8` downloads (src/tc/engines.h): the release attaches them, the pages job signs them into the index
         run: |
@@ -169,7 +169,7 @@ jobs:
           CCACHE_MAXSIZE: 600M
         run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is update.pub
           ver=(); if [ -n "$TAG" ]; then ver=(-DZN_VERSION="${TAG#v}"); fi
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:
@@ -664,7 +664,7 @@ jobs:
       - name: Dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev
       - name: Build zinc
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 && cmake --build build --target zinc -j4
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 && cmake --build build --target zinc -j4
       - name: Cross build the console programs
         env:
           ZINC_HOME: ${{ runner.temp }}/zinc-home
@@ -957,7 +957,7 @@ jobs:
       - name: Build twice
         run: |
           for d in one second/copy; do
-            cmake -S "$d" -B "$d/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DZN_REPRODUCIBLE=ON && cmake --build "$d/build" -j4 --target zinc
+            cmake -S "$d" -B "$d/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DZN_REPRODUCIBLE=ON && cmake --build "$d/build" -j4 --target zinc
             sleep 2
           done
       - name: Compare zinc and libzn_webgl
@@ -986,7 +986,7 @@ jobs:
         with: { fetch-depth: 0 }
       - run: brew install cmake
       - name: Build
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 && cmake --build build --target zinc -j3
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 && cmake --build build --target zinc -j3
       - name: Build the measured reference revision
         run: |
           reference="$RUNNER_TEMP/zinc-benchmark-reference"

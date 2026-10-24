@@ -11,6 +11,7 @@
 
 #include "frontend/profile.h"
 #include "yyjson.h"
+#include "zn/shortest.h"
 
 namespace zn::frontend {
 namespace {
@@ -45,7 +46,7 @@ std::string cppToken(yyjson_val* v) {
   }
   if (yyjson_is_bool(v)) return yyjson_get_bool(v) ? "1" : "0";
   if (yyjson_is_int(v)) return yyjson_is_uint(v) ? std::to_string(yyjson_get_uint(v)) : std::to_string(yyjson_get_sint(v));
-  if (yyjson_is_real(v)) { char b[40]; auto r = std::to_chars(b, b + sizeof b, yyjson_get_real(v)); return std::string(b, r.ptr); }
+  if (yyjson_is_real(v)) { char b[40]; return std::string(b, zn::shortestDouble(b, b + sizeof b, yyjson_get_real(v), false)); }
   if (yyjson_is_arr(v)) { std::string s; size_t i, n; yyjson_val* e; yyjson_arr_foreach(v, i, n, e) s += (i ? "," : "") + cppToken(e); return s; }
   return "";
 }

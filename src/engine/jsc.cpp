@@ -42,7 +42,7 @@ void beforeEntry(napi_env, const zn_engine_args* a, std::string& js) {
   JSStringRef n = JSStringCreateWithUTF8CString(name.c_str());
   JSGlobalContextSetName(gContext, n);
   JSStringRelease(n);
-  JSGlobalContextSetInspectable(gContext, true);
+  if (__builtin_available(macOS 13.3, iOS 16.4, *)) JSGlobalContextSetInspectable(gContext, true);   // before 13.3 a context is inspectable without asking
   inlineSourceMap(js);
   std::fprintf(stderr, "zinc: Safari's Web Inspector: Develop > this Mac > \"%s\" (Safari > Settings > Advanced > Show features for web developers)\n", name.c_str());
   if (std::strstr(e, "brk")) {   // no public call says when the inspector is attached: Enter says it, then the program stops at its first line

@@ -19,6 +19,7 @@
 #include <set>
 
 #include "frontend/lexer.h"
+#include "zn/shortest.h"
 
 namespace zn::frontend {
 namespace {
@@ -821,8 +822,7 @@ struct Lowering {
   // the JavaScript text of a number (shortest form that reads back)
   static std::string jsNumber(double v) {
     char buf[40];
-    auto r = std::to_chars(buf, buf + sizeof buf, v);
-    return std::string(buf, r.ptr);
+    return std::string(buf, zn::shortestDouble(buf, buf + sizeof buf, v, false));
   }
   // A value of a string-valued key decided at run time (ZN-362): `cond ? 'bold' : 'normal'`, nested, between literals. Each literal goes through styleEntry
   // like a static value, so the branches become numbers on the same keys; a colour becomes its 0xRRGGBB number. Empty when [a, b) is not such a tree.
