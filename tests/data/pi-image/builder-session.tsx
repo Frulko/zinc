@@ -57,6 +57,7 @@ render(Workspace, 0xf5f6f0, (dt: number) => {
         expect(ui.find('Step 4 of 4') >= 0, 'step count missing');
         const count = ui.screenBox(ui.find('Step 4 of 4'));
         expect(count[3] > 0, 'step count is not visible');
+        expect(ui.find('Zinc 9.9.9 · engine and player') >= 0, 'engine version not shown');
         expect(stepProgress() === 42 && stepDetail().startsWith('Compressing · 42%'), 'progress line not read');
         expect(logLines().every((l: string) => !l.startsWith('::progress')), 'progress line in the log');
       }

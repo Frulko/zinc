@@ -2,7 +2,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 root=$(pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-printf '{"base":{"url":"pinned"},"hostname":"zinc","wifi":{"password":"secret"}}\n' >"$tmp/profile.json"
+printf '{"base":{"url":"pinned"},"zinc":{"url":"https://example.invalid/download/v9.9.9/zinc.tar.gz"},"hostname":"zinc","wifi":{"password":"secret"}}\n' >"$tmp/profile.json"
 run() {
   env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=80 ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES=4,28,68,76 \
     ZINC_PI_IMAGE_ROOT="$root" ZINC_PI_IMAGE_PROFILE="$tmp/profile.json" PI_TEST_REOPEN="$1" \

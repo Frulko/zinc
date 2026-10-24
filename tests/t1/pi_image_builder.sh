@@ -14,7 +14,7 @@ run() { # name, failure flag
     { echo "pi-image builder: run $1 failed: $(tail -8 "$tmp/$1.out")"; exit 1; }
   grep -q '^builder session:' "$tmp/$1.out" || { echo "builder session ended before verification"; exit 1; }
 }
-printf '{"base":{"url":"https://example.invalid/kept.img.xz","sha256":"00"},"name":"demo","hostname":"zinc","libraries":["ffmpeg"]}\n' > "$tmp/profile.json"
+printf '{"base":{"url":"https://example.invalid/kept.img.xz","sha256":"00"},"zinc":{"url":"https://example.invalid/download/v9.9.9/zinc.tar.gz","sha256":"00"},"name":"demo","hostname":"zinc","libraries":["ffmpeg"]}\n' > "$tmp/profile.json"
 run ok 0
 [ "$(cat "$tmp/args" 2>/dev/null)" = "build $tmp/profile.json" ] || { echo "build did not receive the saved profile"; exit 1; }
 jq -e '.hostname == "zinc-lab" and .base.url == "https://example.invalid/kept.img.xz" and .libraries == ["ffmpeg"]' "$tmp/profile.json" >/dev/null ||

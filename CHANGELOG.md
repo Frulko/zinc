@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - The Pi image builder shows how far the long steps are (download, unpacking, checksum, compression): percent, MiB done and the time left, under the step and in the progress bar.
+- The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
 - The Pi image is built with the latest Zinc release (0.7.4) instead of 0.6.2, and each release now updates it.

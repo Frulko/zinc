@@ -99,6 +99,22 @@ export function encodeProfile(profile: Profile, previousText: string): string {
   return JSON.stringify(o) + '\n';
 }
 
+function engineUrl(text: string): string {
+  if (text.trim() === '') return '';
+  const o: any = JSON.parse(text);
+  return o === null || typeof o !== 'object' ? '' : stringOf(objectOf(o, 'zinc'), 'url', '');
+}
+
+/** The Zinc release an image carries (its engine and its player): the version in the download URL of the profile's
+ *  engine, or of image/profile.json's when the profile names none; '' when the URL is not a release. */
+export function engineVersion(profileText: string, defaultText: string): string {
+  const url = engineUrl(profileText) !== '' ? engineUrl(profileText) : engineUrl(defaultText);
+  const at = url.indexOf('/download/v');
+  if (at < 0) return '';
+  const rest = url.slice(at + '/download/v'.length);
+  return rest.indexOf('/') < 0 ? '' : rest.slice(0, rest.indexOf('/'));
+}
+
 export function readProfileText(path: string): string {
   return fs.exists(path) ? fs.readText(path) : '';
 }

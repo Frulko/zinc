@@ -6,11 +6,11 @@ import * as os from 'zinc:os';
 import * as dialog from 'zinc:system/dialog';
 import * as opener from 'zinc:system/opener';
 import { LOG_LINES_KEPT, SSH_PUBLIC_KEYS, RASPBERRY_PI_IMAGER, BuildStatus } from './constants';
-import { Profile, decodeProfile, encodeProfile, loadProfile, readProfileText, saveProfile } from './services/profile';
+import { Profile, decodeProfile, encodeProfile, loadProfile, readProfileText, saveProfile, engineVersion } from './services/profile';
 import { Preset, addPreset, loadPresets } from './services/presets';
 import { Catalog, loadCatalog } from './services/catalog';
 import { BuildRun, BuildListener } from './services/build';
-import { repositoryRoot, buildTool, catalogFile, profileFile, presetsFile, hostPath } from './services/paths';
+import { repositoryRoot, buildTool, catalogFile, defaultProfileFile, profileFile, presetsFile, hostPath } from './services/paths';
 
 export const catalog: Catalog = loadCatalog(catalogFile());
 
@@ -99,6 +99,12 @@ export const [stepTotal, setStepTotal] = createSignal<i32>(0);
 export const [stepLabel, setStepLabel] = createSignal<string>('');
 export const [stepProgress, setStepProgress] = createSignal<i32>(-1);
 export const [stepDetail, setStepDetail] = createSignal<string>('');
+/** The Zinc version the next image will carry, read again before each build. */
+export const [imageEngine, setImageEngine] = createSignal<string>('');
+function readImageEngine(): void {
+  try { setImageEngine(engineVersion(readProfileText(profileFile()), readProfileText(defaultProfileFile()))); } catch (e) { setImageEngine(''); }
+}
+readImageEngine();
 export const [errorMessage, setErrorMessage] = createSignal<string>('');
 export const [imagePath, setImagePath] = createSignal<string>('');
 export const [logLines, setLogLines] = createSignal<string[]>([]);
@@ -133,6 +139,7 @@ class StateListener implements BuildListener {
 export function startBuild(): void {
   if (running !== null) return;
   if (!persistProfile()) { setErrorMessage(saveError()); return; }
+  readImageEngine();
   setLogLines([]); setErrorMessage(''); setImagePath(''); setStepIndex(0); setStepTotal(0); setStepLabel(''); setStepProgress(-1); setStepDetail('');
   try {
     running = new BuildRun(buildTool(), profileFile(), repositoryRoot(), new StateListener());

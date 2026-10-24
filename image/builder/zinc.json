@@ -4,7 +4,7 @@
   "entry": "src/main.tsx",
   "requires": ["keyboard", "pointer", "fs"],
   "permissions": ["fs", "process", "opener", "dialog"],
-  "icons": ["hammer", "square", "folder-open", "key-round", "loader-circle", "external-link", "chevron-down", "check", "save", "x", "layers", "hard-drive", "cpu", "monitor", "wifi", "user-round", "sliders-horizontal", "blocks", "bookmark", "circle-check", "terminal", "arrow-down"],
+  "icons": ["hammer", "square", "folder-open", "key-round", "loader-circle", "external-link", "chevron-down", "check", "save", "x", "layers", "hard-drive", "cpu", "monitor", "wifi", "user-round", "sliders-horizontal", "blocks", "bookmark", "circle-check", "package", "terminal", "arrow-down"],
   "targets": {
     "macos": { "width": 1180, "height": 780, "resize": "fill" },
     "linux": { "width": 1180, "height": 780, "resize": "fill" }

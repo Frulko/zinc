@@ -60,7 +60,8 @@ if [ -n "$USER_NAME" ] && [ -z "$(q .user.password)" ] && [ "$(q '.user.sshKeys 
   fail "user '$USER_NAME' needs a password or an SSH key"
 fi
 
-step "Downloading Raspberry Pi OS and Zinc"
+ZINC_VERSION=$(q .zinc.url | sed -n 's|.*/download/v\([^/]*\)/.*|\1|p')
+step "Downloading Raspberry Pi OS and Zinc ${ZINC_VERSION:-(version not known)}"
 fetch() { # url sha256 -> the file in /cache, downloaded once and checked every time
   local f
   f=/cache/$(basename "$1")

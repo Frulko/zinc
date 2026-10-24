@@ -11,6 +11,7 @@ export function repositoryRoot(): string { return fs.realpath(fromEnv('ZINC_PI_I
 
 export function buildTool(): string { return fromEnv('ZINC_PI_IMAGE_TOOL', repositoryRoot() + '/tools/pi-image'); }
 
+export function defaultProfileFile(): string { return repositoryRoot() + '/image/profile.json'; }
 export function catalogFile(): string { return repositoryRoot() + '/image/catalog.json'; }
 
 /** Beside the downloads of tools/pi-image, outside the repository: it holds a password and a Wi-Fi key. */

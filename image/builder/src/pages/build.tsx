@@ -7,7 +7,7 @@ import { ProgressBar } from '../components/progress-bar';
 import { LogView } from '../components/log-view';
 import { shownPath } from '../services/paths';
 import { labelOf } from '../services/catalog';
-import { catalog, profile, status, stepIndex, stepTotal, stepLabel, stepProgress, stepDetail, errorMessage, imagePath, logLines, startBuild, stopBuild, revealImage, openImager } from '../state';
+import { catalog, profile, status, stepIndex, stepTotal, stepLabel, stepProgress, stepDetail, imageEngine, errorMessage, imagePath, logLines, startBuild, stopBuild, revealImage, openImager } from '../state';
 
 function statusText(): string {
   if (status() === 'running') return stepLabel() === '' ? 'Starting the build…' : stepLabel();
@@ -16,6 +16,7 @@ function statusText(): string {
   return 'A few minutes to build. A whole world to make.';
 }
 
+function engineText(): string { return imageEngine() === '' ? 'Zinc engine and player · version not known' : `Zinc ${imageEngine()} · engine and player`; }
 function barColor(): string { return status() === 'failed' ? '#dc6658' : '#a6ca7f'; }
 /** Hundredths of a step: the current step's own progress, while a long command reports it, fills its share of the bar. */
 function stepsDone(): i32 {
@@ -37,12 +38,13 @@ export function BuildPage(): i32 {
       <Text className="text-sm text-[#afbfaa]">{statusText()}</Text>
     </View>
     <Show when={status() === 'idle'}><View className="flex-col gap-3 p-4 rounded-[8px] bg-[#2b4435] border border-[#3c5340]">
+      <SummaryRow icon="package" text={engineText()} />
       <SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} />
       <SummaryRow icon="monitor" text={labelOf(catalog.displays, profile().display)} />
       <SummaryRow icon="wifi" text={profile().wifiName === '' ? 'Ethernet · configure Wi-Fi later' : profile().wifiName} />
       <SummaryRow icon="user-round" text={profile().userName === '' ? 'Player only · no administrator account' : profile().userName + (profile().ssh ? ' · SSH enabled' : ' · SSH off')} />
     </View></Show>
-    <Show when={status() !== 'idle'}><SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} /></Show>
+    <Show when={status() !== 'idle'}><SummaryRow icon="package" text={engineText()} /><SummaryRow icon="cpu" text={labelOf(catalog.boards, profile().board)} /></Show>
     <View className="flex-col gap-3">
       <View className="flex-row items-center gap-2">
         <Button aria-label="Build the image" disabled={status() === 'running'} onClick={startBuild} className={`grow flex-row items-center justify-center gap-2 h-10 rounded-[6px] bg-[#b7d995] hover:bg-[#c7e5a8] ${status() === 'running' ? 'opacity-70' : ''}`}>
