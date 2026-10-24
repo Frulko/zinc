@@ -1,7 +1,11 @@
 // The fixed-function replay (ff_replay.h): the platform-free half of targets/vita/gxm_vita.cpp's replay, for the PSP and the 3DS.
 #include "ff_replay.h"
 
+#include <stdio.h>
 #include <string.h>
+
+#include <map>
+#include <vector>
 
 #include "zrt_raster.h"
 
@@ -22,11 +26,11 @@ const GSlot* glyph(int32_t font, uint32_t cp, const Glyph& g, const uint8_t* bit
     if (s.font) continue;
     if (gcount >= 3072) return nullptr;
     const int w = g.w + 1, gh = g.h + 1;   // a texel of space between glyphs
-    if (gx + w > kGlyphW) { gx = 0; gy += growH; growH = 0; }
-    if (gy + gh > kGlyphH || w > kGlyphW) return nullptr;
-    uint8_t* mem = glyph_memory();
-    for (int y = 0; y < g.h; y++) memcpy(mem + (size_t)(gy + y) * kGlyphW + gx, bitmap + g.off + (size_t)y * g.w, g.w);
-    glyphs_written(gx, gy, g.w, g.h);
+    if (gx + w > kAtlasW) { gx = 0; gy += growH; growH = 0; }
+    if (gy + gh > kAtlasH || w > kAtlasW) return nullptr;
+    uint8_t* mem = atlas_memory(0);
+    for (int y = 0; y < g.h; y++) memcpy(mem + (size_t)(gy + y) * kAtlasW + gx, bitmap + g.off + (size_t)y * g.w, g.w);
+    atlas_written(0, gx, gy, g.w, g.h);
     s = GSlot{font + 1, cp, (int16_t)gx, (int16_t)gy};
     gx += w; if (gh > growH) growH = gh;
     gcount++;
@@ -87,8 +91,8 @@ void text(const Cmd& c, const char* s) {
       const Font* bf = c.res >= RUNTIME_FONT_BASE ? font_at(c.res) : &f;
       if (const GSlot* gs = glyph(c.res, cp, *g, bf->bitmap)) {
         const float x = (float)(((pen + 32) >> 6) + g->x0), y = (float)(base + g->y0);
-        quad(glyphs(), false, x, y, x + g->w, y + g->h, (float)gs->x / kGlyphW, (float)gs->y / kGlyphH, (float)(gs->x + g->w) / kGlyphW,
-             (float)(gs->y + g->h) / kGlyphH, c.c1, a);
+        quad(atlas(0), false, x, y, x + g->w, y + g->h, (float)gs->x / kAtlasW, (float)gs->y / kAtlasH, (float)(gs->x + g->w) / kAtlasW,
+             (float)(gs->y + g->h) / kAtlasH, c.c1, a);
       }
     }
     pen += g->adv + track;
@@ -114,28 +118,175 @@ void image(const Cmd& c) {
   const bool whole = (b.w == (float)tw || b.w == -(float)tw) && (b.h == (float)th || b.h == -(float)th) && b.x == fl(b.x) && b.y == fl(b.y);
   quad(t, !(c.grad == 1 || whole), x0, y0, x1, y1, u0, v0, u1, v1, image_tint(c), (float)c.alpha / 255);
 }
+
+// ---- shapes: a single-colour command the raster draws (rounded RECT, BORDER, SHADOW, filled POLY) as its coverage, rasterized once by
+// runtime/raster.cpp in white on black and kept in the shape atlas (atlas 1). The coverage of a box is mostly runs of equal columns and rows
+// (the straight edges, the inside): the longest run of each is kept as one texel, stretched back by a 9-slice of quads, so a card of any
+// size costs its corners. A command that moves keeps its shape when it moves by whole pixels (the key holds the fractions); a POLY is drawn
+// where it is (its points are absolute). ponytail: the atlas is emptied when it is full (between frames), no eviction by use.
+struct Shape { uint16_t ax, ay, w, h, lx, mx, ly, my; };   // atlas place; full size; the left / top part and the stretched run after it
+std::map<uint64_t, Shape> shapes;
+int sx, sy, srowH;          // the shape atlas's shelf
+std::vector<uint32_t> scratch;
+std::vector<uint8_t> cov;
+bool shapesFull;
+
+bool isShape(const Cmd& c) {
+  switch (c.kind) {
+    case RECT: return c.r > 0 && !c.grad;
+    case BORDER: case SHADOW: return !c.grad;
+    case POLY: return !c.grad;
+    default: return false;
+  }
+}
+// The shape's pixel box: where its bitmap's first texel is drawn, and its size.
+void shapeBox(const Cmd& c, int32_t* x0, int32_t* y0, int32_t* w, int32_t* h) {
+  const float e = c.kind == SHADOW ? (c.s > 0.5f ? c.s : 0.5f) + 1 : 1;
+  int32_t a = (int32_t)fl(c.x - e), b = (int32_t)fl(c.y - e);
+  const int32_t a1 = (int32_t)ce(c.x + c.w + e), b1 = (int32_t)ce(c.y + c.h + e);
+  if (c.kind == POLY) { if (a < 0) a = 0; if (b < 0) b = 0; }   // drawn where it is: nothing left of or above the surface
+  *x0 = a; *y0 = b; *w = a1 - a; *h = b1 - b;
+}
+uint64_t mix(uint64_t h, const void* p, size_t n) {   // FNV-1a
+  const uint8_t* b = static_cast<const uint8_t*>(p);
+  for (size_t i = 0; i < n; i++) h = (h ^ b[i]) * 1099511628211ull;
+  return h;
+}
+uint32_t polyFloats(const Cmd& c, const float* p) {   // the contours' floats: [count, x, y, ...] per contour
+  uint32_t len = 0;
+  for (uint32_t k = 0; k < c.n; k++) len += 1 + 2 * (uint32_t)p[len];
+  return len;
+}
+uint64_t shapeKey(const Cmd& c, const float* pts) {
+  uint64_t h = 1469598103934665603ull;
+  const uint8_t head[2] = {c.kind, c.pad};
+  h = mix(h, head, 2);
+  if (c.kind == POLY) {
+    const float* p = pts + c.off;
+    h = mix(h, &c.x, 4 * sizeof(float)); h = mix(h, &c.n, sizeof c.n);
+    return mix(h, p, polyFloats(c, p) * sizeof(float));
+  }
+  const float f[6] = {c.x - fl(c.x), c.y - fl(c.y), c.w, c.h, c.r, c.s};
+  return mix(h, f, sizeof f);
+}
+void emptyShapes() { shapes.clear(); sx = sy = srowH = 0; }
+
+// The shape of `c`, rasterized and placed in the atlas on first use; null when it does not fit (shapesFull: the atlas is full).
+const Shape* shape(const Cmd& c, const float* pts) {
+  const uint64_t key = shapeKey(c, pts);
+  if (auto it = shapes.find(key); it != shapes.end()) return &it->second;
+  int32_t bx, by, w, h;
+  shapeBox(c, &bx, &by, &w, &h);
+  if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return nullptr;
+  // in white on black into a buffer as wide as the box's right edge; a box is moved by whole pixels to the buffer's origin
+  Cmd t = c;
+  t.c1 = t.c2 = 0xFFFFFF; t.alpha = 255;
+  const int32_t dx = c.kind == POLY ? 0 : -bx, dy = c.kind == POLY ? 0 : -by;
+  t.x += (float)dx; t.y += (float)dy;
+  const int32_t x0 = bx + dx, y0 = by + dy, bw = x0 + w;
+  scratch.assign((size_t)bw * h, 0);
+  const Frame f = {&t, 1, nullptr, pts};
+  render(f, scratch.data(), bw, y0, y0 + h, Rect{x0, y0, bw, y0 + h});
+  // the coverage: blend() over black gives (255 k) >> 8, which is k - 1 for k in 1..254
+  cov.resize((size_t)w * h);
+  for (int32_t y = 0; y < h; y++)
+    for (int32_t x = 0; x < w; x++) {
+      const uint32_t g = scratch[(size_t)y * bw + x0 + x] >> 8 & 255;
+      cov[(size_t)y * w + x] = (uint8_t)(g == 0 || g == 255 ? g : g + 1);
+    }
+  // the longest run of equal columns, and of equal rows
+  auto col = [&](int32_t a, int32_t b) { for (int32_t y = 0; y < h; y++) if (cov[(size_t)y * w + a] != cov[(size_t)y * w + b]) return false; return true; };
+  auto row = [&](int32_t a, int32_t b) { return !memcmp(&cov[(size_t)a * w], &cov[(size_t)b * w], (size_t)w); };
+  int32_t lx = 0, mx = 0, ly = 0, my = 0;
+  for (int32_t a = 0, b; a < w; a = b) { for (b = a + 1; b < w && col(a, b); b++) {} if (b - a > mx) { lx = a; mx = b - a; } }
+  for (int32_t a = 0, b; a < h; a = b) { for (b = a + 1; b < h && row(a, b); b++) {} if (b - a > my) { ly = a; my = b - a; } }
+  if (mx < 3) mx = 0;   // not worth a stretch: kept whole
+  if (my < 3) my = 0;
+  const int32_t cw = w - (mx ? mx - 1 : 0), ch = h - (my ? my - 1 : 0);
+  if (cw > 256 || ch > 256) return nullptr;
+  if (sx + cw > kAtlasW) { sx = 0; sy += srowH; srowH = 0; }
+  if (sy + ch > kAtlasH) { shapesFull = true; return nullptr; }
+  // the compressed bitmap: column x of it is column x (before the run), lx (the run) or x + mx - 1 (after) of the full one
+  uint8_t* mem = atlas_memory(1);
+  for (int32_t y = 0; y < ch; y++) {
+    const int32_t fy = !my || y <= ly ? y : y + my - 1;
+    for (int32_t x = 0; x < cw; x++) mem[(size_t)(sy + y) * kAtlasW + sx + x] = cov[(size_t)fy * w + (!mx || x <= lx ? x : x + mx - 1)];
+  }
+  atlas_written(1, sx, sy, cw, ch);
+  const Shape s = {(uint16_t)sx, (uint16_t)sy, (uint16_t)w, (uint16_t)h, (uint16_t)lx, (uint16_t)mx, (uint16_t)ly, (uint16_t)my};
+  sx += cw + 1;
+  if (ch + 1 > srowH) srowH = ch + 1;
+  return &(shapes[key] = s);
+}
+
+// The 9-slice of a shape: up to three spans a side (before the run, the run from one texel, after it).
+void drawShape(const Cmd& c, const float* pts) {
+  const Shape* s = shape(c, pts);
+  if (!s) return;
+  int32_t bx, by, w, h;
+  shapeBox(c, &bx, &by, &w, &h);
+  struct Span { int32_t p0, p1, t0, t1; };
+  auto spans = [](int32_t n, int32_t l, int32_t m, Span* out) {
+    if (!m) { out[0] = Span{0, n, 0, n}; return 1; }
+    int k = 0;
+    if (l > 0) out[k++] = Span{0, l, 0, l};
+    out[k++] = Span{l, l + m, l, l + 1};
+    if (l + m < n) out[k++] = Span{l + m, n, l + 1, n - m + 1};
+    return k;
+  };
+  Span xs[3], ys[3];
+  const int nx = spans(w, s->lx, s->mx, xs), ny = spans(h, s->ly, s->my, ys);
+  const float a = (float)c.alpha / 255;
+  for (int j = 0; j < ny; j++)
+    for (int i = 0; i < nx; i++)
+      quad(atlas(1), false, (float)(bx + xs[i].p0), (float)(by + ys[j].p0), (float)(bx + xs[i].p1), (float)(by + ys[j].p1),
+           (float)(s->ax + xs[i].t0) / kAtlasW, (float)(s->ay + ys[j].t0) / kAtlasH, (float)(s->ax + xs[i].t1) / kAtlasW,
+           (float)(s->ay + ys[j].t1) / kAtlasH, c.c1, a);
+}
 }  // namespace
 
+// The first command of a kind the replay does not draw, once on the log (why a program's frames are the software raster's).
+bool refuse(const Cmd& m) {
+  static uint32_t told;
+  if (!(told & 1u << (m.kind & 31))) {
+    told |= 1u << (m.kind & 31);
+    static const char* const names[] = {"CLEAR", "RECT", "BORDER", "SHADOW", "LINE", "TEXT", "IMAGE", "POLY", "CLIP", "UNCLIP", "STROKE", "XFORM", "SHADER"};
+    char b[160];
+    const int k = snprintf(b, sizeof b, "gpu replay: a frame with a %s (radius %g, gradient %d) is rasterized in software\n",
+                           m.kind < 13 ? names[m.kind] : "command", (double)m.r, (int)m.grad);
+    if (k > 0) hal_log(b, (size_t)k);
+  }
+  return false;
+}
+
 bool drawable(const HalCmdList* const* l, int32_t n) {
-  for (int32_t k = 0; k < n; k++) {
-    const Cmd* c = static_cast<const Cmd*>(l[k]->cmds);
-    for (uint32_t i = 0; i < l[k]->count; i++) {
-      const Cmd& m = c[i];
-      int32_t w, h;
-      switch (m.kind) {
-        case CLEAR: case UNCLIP: break;
-        case RECT: if (m.r > 0 || m.grad) return false; break;
-        case CLIP: if (m.r > 0) return false; break;
-        case TEXT: { const Font* f = font_at(m.res); if (f && f->count == 0 && m.res < font_count) return false; break; }   // an outline font the tables cannot read
-        case IMAGE:
-          if (image_radius(m) > 0 || image_blend(m) != BLEND_NORMAL || (m.pad & kImageLayer)) return false;
-          if (!texture(m.res, &w, &h)) return false;   // too large for the GPU, or no memory left for it
-          break;
-        default: return false;
+  for (int pass = 0; pass < 2; pass++) {   // a second pass when the shape atlas filled up: emptied, the frame's shapes put back
+    shapesFull = false;
+    bool ok = true;
+    for (int32_t k = 0; k < n && ok; k++) {
+      const Cmd* c = static_cast<const Cmd*>(l[k]->cmds);
+      for (uint32_t i = 0; i < l[k]->count && ok; i++) {
+        const Cmd& m = c[i];
+        int32_t w, h;
+        if (isShape(m)) { ok = shape(m, l[k]->pts) != nullptr || (!shapesFull && refuse(m)); continue; }
+        switch (m.kind) {
+          case CLEAR: case UNCLIP: break;
+          case RECT: if (m.grad) ok = refuse(m); break;
+          case CLIP: if (m.r > 0) ok = refuse(m); break;
+          case TEXT: { const Font* f = font_at(m.res); if (f && f->count == 0 && m.res < font_count) ok = refuse(m); break; }   // an outline font the tables cannot read
+          case IMAGE:
+            if (image_radius(m) > 0 || image_blend(m) != BLEND_NORMAL || (m.pad & kImageLayer)) ok = refuse(m);
+            else if (!texture(m.res, &w, &h)) ok = false;   // too large for the GPU, or no memory left for it
+            break;
+          default: ok = refuse(m);
+        }
       }
     }
+    if (ok) return true;
+    if (!shapesFull || pass || quads_pending()) return false;
+    emptyShapes();
   }
-  return true;
+  return false;
 }
 
 void replay(const HalCmdList* l, int32_t w, int32_t h, float k, float ox, float oy) {
@@ -148,7 +299,11 @@ void replay(const HalCmdList* l, int32_t w, int32_t h, float k, float ox, float 
     const Cmd& c = cmds[i];
     switch (c.kind) {
       case CLEAR: quad(nullptr, false, clip.x0, clip.y0, clip.x1, clip.y1, 0, 0, 0, 0, c.c1, 1); break;
-      case RECT: quad(nullptr, false, fl(c.x), fl(c.y), ce(c.x + c.w), ce(c.y + c.h), 0, 0, 0, 0, c.c1, (float)c.alpha / 255); break;
+      case RECT:
+        if (c.r > 0) drawShape(c, l->pts);
+        else quad(nullptr, false, fl(c.x), fl(c.y), ce(c.x + c.w), ce(c.y + c.h), 0, 0, 0, 0, c.c1, (float)c.alpha / 255);
+        break;
+      case BORDER: case SHADOW: case POLY: drawShape(c, l->pts); break;
       case TEXT: text(c, l->text + c.off); break;
       case IMAGE: image(c); break;
       case CLIP:

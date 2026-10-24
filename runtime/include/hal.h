@@ -108,6 +108,10 @@ void hal_win_close(int32_t id);                                             // t
 int32_t hal_win_state(int32_t id);                                          // 1 open, 0 closed (by the user or hal_win_close)
 void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h);       // its events since the last call, pointer and keys; its size
 void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph);   // a frame in physical pixels, 0x00RRGGBB
+// Optional: the window's frame as its command list (pw x ph physical pixels), drawn by the HAL's GPU; 0: not drawn, the runtime rasterizes
+// it and calls hal_win_present (the 3DS's bottom screen, targets/n3ds/c3d_n3ds.cpp).
+struct HalCmdList;
+int32_t hal_win_draw(int32_t id, const HalCmdList* l, int32_t pw, int32_t ph);
 void hal_win_current(int32_t id);                                           // the window being drawn: text input follows it
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it

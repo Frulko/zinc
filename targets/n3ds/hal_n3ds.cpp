@@ -1,7 +1,7 @@
 // Nintendo 3DS HAL (devkitARM + libctru; the console core of targets/console, ZN-457): text through svcOutputDebugString (Azahar logs it as
 // Debug.Emulated), the system tick as the clock, the pad, and the frames on the top screen (400x240, RGBA8; the 3DS framebuffer is rotated:
-// columns of 240 pixels, bottom to top): replayed on the PICA200 (c3d_n3ds.cpp, ZN-469) or, in stereo and with ZINC_N3DS_GPU=0, the shared
-// software rasterizer, swapped at vblank.
+// columns of 240 pixels, bottom to top): replayed on the PICA200 (c3d_n3ds.cpp, ZN-469), both eyes in stereo and the bottom screen's window
+// included, or, with ZINC_N3DS_GPU=0, the shared software rasterizer, swapped at vblank.
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
@@ -26,12 +26,14 @@ static bool gfxOn = false;
 static int32_t stale[2][2] = {{0, 0}, {0, 0}};   // per framebuffer, the rows [first, end) it has not got yet
 static int back = 0;                              // the framebuffer drawn this frame
 static const uint32_t* shown = nullptr;           // the framebuffer on the screen since the last swap
-static bool gpuOn = false;                        // the PICA200 draws the mono frames
-static bool rowsStale = true;                     // `rows` misses frames the GPU drew: the next software frame renders every row
+static bool gpuOn = false;                        // the PICA200 draws the frames
 extern "C" __attribute__((weak)) bool zn_c3d_init(int32_t w, int32_t h);   // c3d_n3ds.cpp
-extern "C" __attribute__((weak)) bool zn_c3d_present(const HalFrame* f);
+extern "C" __attribute__((weak)) bool zn_c3d_draw(const HalFrame* f, int target, bool always);
+extern "C" __attribute__((weak)) bool zn_c3d_window(const HalCmdList* l, int32_t w, int32_t h);
+extern "C" __attribute__((weak)) void zn_c3d_end(void);
 extern "C" __attribute__((weak)) void zn_c3d_wait(void);
-static bool bottomNew = false;                    // the bottom screen got a frame since the last swap
+static bool bottomNew = false;                    // the bottom screen got a frame from the CPU since the last swap
+static bool bottomGpu = false;                    // the GPU frame being built draws the bottom screen
 // Stereoscopic 3D (ZN-759, zinc:hardware setStereo / stereoEye): while the program asks for it and the 3D slider is up, the frames alternate between
 // the left and the right eye; a left frame goes to GFX_LEFT with no swap, the right one to GFX_RIGHT, then both are shown at the vblank.
 static bool stereoAsked = false, stereoOn = false;
@@ -239,6 +241,12 @@ void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
   bottomFb = fb;
 }
 void hal_win_current(int32_t) {}
+int32_t hal_win_draw(int32_t id, const HalCmdList* l, int32_t pw, int32_t ph) {   // the bottom window on the GPU (runtime/gfx.cpp endWindow)
+  if (id != bottomId || !gpuOn || pw > 320 || ph > 240 || !zn_c3d_window(l, pw, ph)) return 0;
+  bottomShown = true;
+  bottomGpu = true;
+  return 1;
+}
 void zn_console_echo(const char* s, size_t n) {   // the program's lines, one debug string each (newlib's stdout has no device here)
   for (size_t b = 0; b < n;) { size_t e = b; while (e < n && s[e] != '\n') e++; if (e > b) out(s + b, e - b); b = e + 1; }
 }
@@ -282,7 +290,11 @@ void hal_frame_end(void) {
   // stereo: the left eye's frame waits for the right one; both buffers of the eye get every row (the frames alternate)
   const bool want = stereoAsked && slider() > 0;
   if (want != stereoOn) { stereoOn = want; gfxSet3D(want); eye = 0; stale[0][0] = stale[1][0] = 0; stale[0][1] = stale[1][1] = H; }
-  if (gpuOn && !stereoOn) {   // citro3d transferred and swaps the top screen; the bottom one is the CPU's
+  if (gpuOn) {   // citro3d transfers and swaps what it drew; a bottom frame the CPU wrote is swapped here
+    if (stereoOn && eye == 0) { eye = 1; return; }   // the right eye's frame closes the GPU frame
+    eye = 0;
+    if (bottomGpu) { bottomFb = (const uint32_t*)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, nullptr, nullptr); bottomGpu = false; }
+    zn_c3d_end();
     if (bottomNew) { gfxFlushBuffers(); gfxScreenSwapBuffers(GFX_BOTTOM, false); bottomNew = false; }
     return;
   }
@@ -344,7 +356,7 @@ void hal_poll_input(HalInput* in) {
   lastPad = g; lastButtons = in->buttons;
   const int32_t frame = frames++;
   const bool budgetOver = ZINC_FRAMES && frame >= ZINC_FRAMES;
-  if (budgetOver && frame == ZINC_FRAMES && gpuOn && !stereoOn) zn_c3d_wait();   // the GPU's last frame is on the screen
+  if (budgetOver && frame == ZINC_FRAMES && gpuOn) zn_c3d_wait();   // the GPU's last frame is on the screens
   if (budgetOver && frame == ZINC_FRAMES && shown) {   // the last frame of a budget as sdmc:/zinc-shot.ppm (the emulator tests), read back from
     ppm("sdmc:/zinc-shot.ppm", shown, W, H, kScreenH);   // the framebuffer the screen shows (rotated, RGBA8), not from the HAL's own frame
     if (bottomFb) ppm("sdmc:/zinc-shot-bottom.ppm", bottomFb, 320, 240, 240); else remove("sdmc:/zinc-shot-bottom.ppm");   // and the bottom screen
@@ -353,18 +365,13 @@ void hal_poll_input(HalInput* in) {
   in->quit = !aptMainLoop() || budgetOver;
 }
 void hal_present(const HalFrame* f) {
-  if (gpuOn && !stereoOn) {
-    u32* target = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, nullptr, nullptr);   // the buffer citro3d's display transfer writes
-    if (zn_c3d_present(f)) { shown = target; rowsStale = true; }
+  if (gpuOn) {   // the eye's target (the left one when mono); the buffer its display transfer writes is the one shown after the swap
+    const bool right = stereoOn && eye;
+    u32* fb = (u32*)gfxGetFramebuffer(GFX_TOP, right ? GFX_RIGHT : GFX_LEFT, nullptr, nullptr);
+    if (zn_c3d_draw(f, right ? 1 : 0, stereoOn)) { if (right) rightFb = fb; else shown = fb; }
     return;
   }
   if (!rows || f->y1 <= f->y0) return;
-  if (rowsStale) {   // back from the GPU: every row, into both buffers
-    f->render(rows, 0, H);
-    rowsStale = false;
-    for (auto& r : stale) { r[0] = 0; r[1] = H; }
-    return;
-  }
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
   for (auto& r : stale) { if (f->y0 < r[0]) r[0] = f->y0; if (f->y1 > r[1]) r[1] = f->y1; }   // both buffers miss these rows
 }

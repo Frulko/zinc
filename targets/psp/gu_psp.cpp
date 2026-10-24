@@ -1,8 +1,8 @@
 // PSP GPU path (ZN-468): the zinc:gfx command lists replayed on the GE with sceGu (targets/console/ff_replay.h), two 8888 buffers in VRAM
 // (480x272, stride 512) swapped at vblank. Quads are GU_SPRITES in GU_TRANSFORM_2D (screen pixels, texel coordinates), float vertices so that a
 // clipped or scaled image keeps its exact texels. Textures live in main memory (the GE reads it; one cache writeback per upload), at most
-// 512x512 (the GE's limit): a frame with a larger image is the software raster's, shown as one texture. The glyph atlas is T8 with a CLUT of
-// white at every alpha, modulated by the vertex colour.
+// 512x512 (the GE's limit): a frame with a larger image is the software raster's, shown as one texture. The coverage atlases (glyphs, shapes)
+// are T8 with a CLUT of white at every alpha, modulated by the vertex colour.
 // ponytail: linear textures (no swizzle) and one sceGuSync a frame (the CPU waits for the GE); swizzled atlases and a list built while the GE
 // draws the last one are the upgrades when the hardware profile shows them.
 #include <malloc.h>
@@ -34,8 +34,8 @@ bool ready, overflow;
 
 struct Tex { void* mem; int32_t w, h, stride, tw, th, psm; uint32_t ver; bool ok; };
 std::map<int32_t, Tex> texs;
-Tex glyphTex, softTex;
-uint32_t __attribute__((aligned(16))) clut[256];   // T8 glyph coverage -> white at that alpha
+Tex atlasTex[2], softTex;   // the coverage atlases (glyphs, shapes)
+uint32_t __attribute__((aligned(16))) clut[256];   // T8 coverage -> white at that alpha
 uint32_t* softRows;         // the software frame, 0x00RRGGBB
 bool softValid;
 const Tex* cur;             // the state of the run: its texture (null: colour) and filter
@@ -46,7 +46,7 @@ void writeback(const void* p, size_t n) { sceKernelDcacheWritebackRange(p, (unsi
 
 bool alloc(Tex& e, int32_t w, int32_t h, int32_t bpp, int32_t psm) {
   e.stride = (w + 7) & ~7; e.tw = pow2(w); e.th = pow2(h); e.psm = psm; e.w = w; e.h = h;
-  const size_t n = (size_t)e.stride * (h + 1) * bpp;   // a zero row below: the linear filter at the bottom edge reads it
+  const size_t n = (size_t)e.stride * (h + 1) * bpp;   // a row below: the linear filter at the bottom edge reads it
   e.mem = memalign(16, n);
   if (e.mem) memset(e.mem, 0, n);
   return e.mem != nullptr;
@@ -90,13 +90,17 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
   } else if (id >= 0 && id < image_count) {   // a baked image: R, G, B, A bytes, the GE's order
     for (int32_t y = 0; y < *h; y++) memcpy(dst + (size_t)y * e.stride, images[id].rgba + (size_t)y * *w * 4, (size_t)*w * 4);
   } else { e.ok = false; return nullptr; }
-  writeback(e.mem, (size_t)e.stride * *h * 4);
+  // the last column and row again beyond the image: the linear filter at its right and bottom edges reads them, as the raster clamps
+  if (*w < e.stride) for (int32_t y = 0; y < *h; y++) dst[(size_t)y * e.stride + *w] = dst[(size_t)y * e.stride + *w - 1];
+  memcpy(dst + (size_t)*h * e.stride, dst + (size_t)(*h - 1) * e.stride, (size_t)e.stride * 4);
+  writeback(e.mem, (size_t)e.stride * (*h + 1) * 4);
   e.ver = ver; e.ok = true;
   return &e;
 }
-const void* glyphs() { return &glyphTex; }
-uint8_t* glyph_memory() { return static_cast<uint8_t*>(glyphTex.mem); }
-void glyphs_written(int32_t, int32_t y, int32_t, int32_t h) { writeback(glyph_memory() + (size_t)y * kGlyphW, (size_t)h * kGlyphW); }
+bool quads_pending() { return nv > 0; }
+const void* atlas(int i) { return &atlasTex[i]; }
+uint8_t* atlas_memory(int i) { return static_cast<uint8_t*>(atlasTex[i].mem); }
+void atlas_written(int i, int32_t, int32_t y, int32_t, int32_t h) { writeback(atlas_memory(i) + (size_t)y * kAtlasW, (size_t)h * kAtlasW); }
 void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a) {
   if (nv + 2 > (uint32_t)kMaxQuads * 2) { overflow = true; return; }
   const Tex* t = static_cast<const Tex*>(tex);
@@ -110,10 +114,10 @@ void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float
 }  // namespace zn::ff
 
 extern "C" {
-uint64_t zn_gu_cpu_us;   // the CPU time of the last frame's replay (or software raster)
 // Starts the GE: false when memory is short; the HAL then keeps its software path.
 bool zn_gu_init(int32_t w, int32_t h) {
-  if (!alloc(glyphTex, zn::ff::kGlyphW, zn::ff::kGlyphH, 1, GU_PSM_T8) || !alloc(softTex, w, h, 4, GU_PSM_8888)) return false;
+  for (Tex& a : atlasTex) if (!alloc(a, zn::ff::kAtlasW, zn::ff::kAtlasH, 1, GU_PSM_T8)) return false;
+  if (!alloc(softTex, w, h, 4, GU_PSM_8888)) return false;
   softRows = static_cast<uint32_t*>(memalign(64, (size_t)w * h * 4));
   if (!softRows) return false;
   for (int i = 0; i < 256; i++) clut[i] = (uint32_t)i << 24 | 0xFFFFFFu;
@@ -177,7 +181,6 @@ bool zn_gu_present(const HalFrame* f) {
   const uint64_t t1 = sceKernelGetSystemTimeWide();
   sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
   zrt_prof_band(0, t0, t1);
-  zn_gu_cpu_us = t1 - t0;
   if (overflow) { static bool told; if (!told) { told = true; hal_log("psp gu: a frame has more quads than the vertex pool: the rest is not drawn\n", 74); } }
   return true;
 }

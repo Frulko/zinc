@@ -35,6 +35,7 @@ extern "C" __attribute__((weak)) int32_t hal_win_state(int32_t id) { return id =
 extern "C" __attribute__((weak)) void hal_win_input(int32_t, HalInput*, int32_t*, int32_t*) {}
 extern "C" __attribute__((weak)) void hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
 extern "C" __attribute__((weak)) void hal_win_current(int32_t) {}
+extern "C" __attribute__((weak)) int32_t hal_win_draw(int32_t, const HalCmdList*, int32_t, int32_t) { return 0; }
 namespace zrt {
 namespace gfx {
 // The program draws in logical pixels; frames are rasterized at pw x ph physical pixels (pxk per logical pixel).
@@ -1920,8 +1921,11 @@ void endWindow() {
   raster::Frame fr{b.cmds + outer.cmd, b.ncmd - outer.cmd, b.text, b.pts};
   const uint32_t hsh = raster::frame_hash(fr) | 1;   // never 0: a new buffer is always drawn
   if (x->px && hsh != x->hash && !kept) {   // an unchanged frame (or keep()) keeps the pixels the window shows
-    raster::render(fr, x->px, wpw, 0, wph, raster::Rect{0, 0, wpw, wph});
-    hal_win_present(x->id, x->px, wpw, wph);
+    const HalCmdList list = {fr.cmds, fr.count, fr.text, fr.pts};
+    if (!hal_win_draw(x->id, &list, wpw, wph)) {   // a HAL that draws the window's commands on its GPU, else its pixels
+      raster::render(fr, x->px, wpw, 0, wph, raster::Rect{0, 0, wpw, wph});
+      hal_win_present(x->id, x->px, wpw, wph);
+    }
     x->hash = hsh;
   }
   b.ncmd = outer.cmd; b.ntext = outer.text; b.npts = outer.pts; n_plugin = outer.plugin;
