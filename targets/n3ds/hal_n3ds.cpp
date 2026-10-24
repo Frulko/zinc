@@ -70,11 +70,11 @@ static HalGamepad lastPad;          // the pad, for the bottom window's input to
 static uint32_t lastButtons = 0;
 
 // also sdmc:/zinc.log: Azahar logs debug strings only at its Debug level, which its default log filter (*:Info) hides; the runner reads the file
-// (<Azahar's user directory>/sdmc/zinc.log)
+// (<Azahar's user directory>/sdmc/zinc.log, removed before each run). Appended to: on a console, the runs of a session follow each other there.
 static FILE* logFile = nullptr;
 static void out(const char* s, size_t n) {
   svcOutputDebugString(s, (s32)n);
-  if (!logFile) logFile = fopen("sdmc:/zinc.log", "w");
+  if (!logFile) logFile = fopen("sdmc:/zinc.log", "a");
   if (logFile) { fwrite(s, 1, n, logFile); fputc('\n', logFile); fflush(logFile); }
 }
 
