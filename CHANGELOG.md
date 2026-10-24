@@ -14,6 +14,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.7.4] - 2026-10-24
 
 ### Fixed
+- The Pi image is built with the latest Zinc release (0.7.4) instead of 0.6.2, and each release now updates it.
 - The Linux downloads carry their version again: those of 0.7.3 were named and reported `0.0.0-dev`, so `zinc update` and the Pi player's Updates menu could not compare them.
 
 ## [0.7.3] - 2026-10-24

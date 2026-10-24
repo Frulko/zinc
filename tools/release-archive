@@ -8,12 +8,26 @@ cleanup() { git worktree remove --force "$tmp/work" 2>/dev/null || true; rm -rf 
 trap cleanup EXIT
 cp "$(dirname -- "$0")/release-notes" "$tmp/release-notes"
 git show "$GITHUB_SHA:CHANGELOG.md" > "$tmp/snapshot"
+# A stable release also becomes the engine of the Pi image (image/profile.json), so a new image never ships an old one.
+if [ -f image/profile.json ] && [[ $TAG != *-* ]]; then
+  python3 tools/pi-image-release "${TAG#v}" "$tmp/pin.json" || echo "::warning::the Pi image stays on its previous engine"
+fi
 for attempt in 1 2 3; do
   git fetch --quiet origin develop
   git worktree add --quiet --detach "$tmp/work" origin/develop
   (
     cd "$tmp/work"
     python3 "$tmp/release-notes" archive "$tmp/snapshot" "$TAG" "https://github.com/$GH_REPO" "$published"
+    if [ -f "$tmp/pin.json" ]; then
+      python3 - "$tmp/pin.json" <<'PIN'
+import json, re, sys
+zinc = json.load(open(sys.argv[1]))['zinc']
+text = open('image/profile.json').read()   # only the engine's two lines change: the file keeps its layout
+text = re.sub(r'("zinc": \{\s*"url": )"[^"]*"(,\s*"sha256": )"[^"]*"', lambda m: m[1] + json.dumps(zinc['url']) + m[2] + json.dumps(zinc['sha256']), text)
+open('image/profile.json', 'w').write(text)
+PIN
+      git add image/profile.json
+    fi
     git add CHANGELOG.md
     if ! git diff --cached --quiet; then
       git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "docs(changelog): archive ${TAG#v}"
