@@ -61,16 +61,20 @@ class Scope(unittest.TestCase):
             (repo / 'source.cpp').write_text('change')
             git('add', 'source.cpp')
             git('-c', 'user.name=test', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-m', 'change')
-            for mode, ref, compare, full, status in (
-                    ('changed', 'refs/heads/develop', base, False, 0),
-                    ('changed', 'refs/heads/develop', '', None, 1),
-                    ('changed', 'refs/heads/develop', 'missing', None, 1),
-                    ('full', 'refs/heads/develop', '', True, 0),
-                    ('changed', 'refs/tags/v1.0.0', '', True, 0)):
+            git('tag', 'v1.0.0')
+            head = git('rev-parse', 'HEAD')
+            # a release is a dispatch on main with TAG set (it keeps every check); a TAG that is not the commit built stops the plan
+            for mode, ref, compare, tag, sha, full, status in (
+                    ('changed', 'refs/heads/develop', base, '', head, False, 0),
+                    ('changed', 'refs/heads/develop', '', '', head, None, 1),
+                    ('changed', 'refs/heads/develop', 'missing', '', head, None, 1),
+                    ('full', 'refs/heads/develop', '', '', head, True, 0),
+                    ('changed', 'refs/heads/main', '', 'v1.0.0', head, True, 0),
+                    ('full', 'refs/heads/main', '', 'v1.0.0', base, None, 1)):
                 output = repo / 'output'
                 output.write_text('')
                 env = dict(os.environ, EVENT='workflow_dispatch', MODE=mode, BASE_REF=compare,
-                           BEFORE=base, PR_BASE='', DEFAULT_BRANCH='main', GITHUB_REF=ref,
+                           BEFORE=base, PR_BASE='', DEFAULT_BRANCH='main', GITHUB_REF=ref, TAG=tag, GITHUB_SHA=sha,
                            RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
                 result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', script], cwd=tmp,
                                         env=env, capture_output=True, text=True)
