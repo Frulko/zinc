@@ -338,7 +338,8 @@ jobs:
         run: |
           build/zinc plugin-build webrtc examples/webrtc-call >/dev/null
           build/zinc plugin-build webrtc examples/webrtc-chat >/dev/null
-          build/zinc plugin-build sqlite examples/notify-relay >/dev/null   # notify_capture's first run gives it 25 s (24 s on v0.7.2 with the build inside)
+          build/zinc plugin-build sqlite examples/notify-relay >/dev/null   # notify_capture gives its run 25 s: built inside it, the two plugins took 24 s to
+          build/zinc plugin-build notifymac examples/notify-relay >/dev/null   # more than 25 on a runner (0.2 s once built)
           build/zinc assets build examples/marble >/dev/null
           ZINC_HEADLESS=1 ZINC_FRAMES=3 build/zinc run examples/marble >/dev/null   # its native plugins (zinc:audio, zinc:3d) too
           build/zinc new 3d "$RUNNER_TEMP/warm-3d" >/dev/null   # the 3d template's plugin (three): first_run gives each template 20 s
