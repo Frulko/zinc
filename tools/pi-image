@@ -69,7 +69,8 @@ case $cmd in
     # whose prebuild failed); the image takes it from the pinned release's tag until a release carries it
     tag=$(jq -r .zinc.url "$tmp/profile.json" | grep -o '/v[0-9][^/]*/' | tr -d /)
     mkdir -p "$tmp/image/engine-overlay/share/zinc/plugins/display-fbdev"
-    git -C "$ROOT" show "$tag:plugins/display-fbdev/fbdev.cpp" >"$tmp/image/engine-overlay/share/zinc/plugins/display-fbdev/fbdev.cpp" ||
+    # the whole plugin, not fbdev.cpp alone: 0.7.4's includes keyboard.h, and without it the player could not start
+    git -C "$ROOT" archive "$tag" plugins/display-fbdev | tar -x -C "$tmp/image/engine-overlay/share/zinc" ||
       { echo "::error no tag $tag here for display-fbdev's source (git fetch --tags)" >&2; exit 1; }
     app=$(jq -r .app "$tmp/profile.json")
     appmount=()

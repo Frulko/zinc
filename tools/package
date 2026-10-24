@@ -290,7 +290,11 @@ def package_linux(build, out, arch=None):
     os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)
     if cross:   # the plugins' native sources: zinc compiles them on the device at first use, with the zig it fetches there
         without = {}
-        native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if os.path.isdir(os.path.join(REPO, "plugins", p, "native"))]
+        def has_native(p):   # as prebuild_plugins: a display driver keeps its code beside plugin.json, not in native/ (display-fbdev shipped without it)
+            d = os.path.join(REPO, "plugins", p)
+            if os.path.isdir(os.path.join(d, "native")): return True
+            return os.path.exists(os.path.join(d, "plugin.json")) and json.load(open(os.path.join(d, "plugin.json"))).get("kind") == "display"
+        native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if has_native(p)]
         for p in native:
             shutil.copytree(os.path.join(REPO, "plugins", p), os.path.join(root, "share", "zinc", "plugins", p), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt", "build", "node_modules", ".*"))
         print("%d plugins with native code, as sources: compiled on the device at first use" % len(native))
