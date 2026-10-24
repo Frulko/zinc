@@ -104,8 +104,13 @@ def expect(text):
     sys.exit("terminal: no %r in %r" % (text, seen[-300:]))
 size(30, 100)
 os.write(fd, b"stty size\n"); expect(b"30 100")
-size(40, 120); time.sleep(0.3)                      # SIGWINCH to the client, which tells the device
-os.write(fd, b"stty size\n"); expect(b"40 120")
+size(40, 120)                                       # SIGWINCH to the client, which tells the device over the network: asked again until it
+seen, end = b"", time.time() + 15                   # arrives (a fixed 0.3 s failed on a loaded CI runner, 2026-10-24)
+while b"40 120" not in seen and time.time() < end:
+    os.write(fd, b"stty size\n"); stop = time.time() + 0.5
+    while time.time() < stop and b"40 120" not in seen:
+        if select.select([fd], [], [], 0.1)[0]: seen += os.read(fd, 4096)
+if b"40 120" not in seen: sys.exit("terminal: no b'40 120' in %r" % seen[-300:])
 os.write(fd, b"exit 3\n")
 end = time.time() + 15
 while time.time() < end:
