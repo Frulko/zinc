@@ -50,8 +50,18 @@ project v11 1.1.0 "console.log('this is 1.1.0'); setTimeout(() => { console.log(
 project v12 1.2.0 'console.log("this is 1.2.0"); throw new Error("a broken build");'
 project v13 1.3.0 'console.log("this is 1.3.0");'
 
+# a Pi image's zinc-admin (ZINC_ADMIN): the releases it lists, and the version it was asked to install
+cat > "$tmp/zinc-admin" <<EOF
+#!/bin/sh
+case \$1 in
+  update-check) echo '{"phase": "idle", "message": "", "current": "0.7.4", "latest": "0.7.5", "versions": ["0.7.5", "0.7.4"]}' ;;
+  update-install) echo "\$2" > "$tmp/installed" ;;
+esac
+EOF
+chmod +x "$tmp/zinc-admin"
+
 # ZINC_REALTIME: the apps wait on the real clock (tests/run sets the virtual one, where a timer of 6 s is over at once)
-ZINC_HOME="$D" SHELL=/bin/sh ZINC_REALTIME=1 ZINC_AGENT_TRIAL_MS=$((4000 * S)) ZINC_UPDATE_PUBKEY="$e_public" "$Z" agent --bind 127.0.0.1 --port 0 --no-mdns --name "$name" > "$tmp/agent.log" 2>&1 & apid=$!
+ZINC_HOME="$D" SHELL=/bin/sh ZINC_REALTIME=1 ZINC_AGENT_TRIAL_MS=$((4000 * S)) ZINC_UPDATE_PUBKEY="$e_public" ZINC_ADMIN="$tmp/zinc-admin" "$Z" agent --bind 127.0.0.1 --port 0 --no-mdns --name "$name" > "$tmp/agent.log" 2>&1 & apid=$!
 until_grep "pairing code" "$tmp/agent.log" || { echo "the agent did not start: $(cat "$tmp/agent.log")"; exit 1; }
 port=$(sed -n 's/.*listening on 127.0.0.1:\([0-9]*\).*/\1/p' "$tmp/agent.log")
 dev pair "127.0.0.1:$port" "$(sed -n 's/.*pairing code: \([0-9]*\).*/\1/p' "$tmp/agent.log")" > /dev/null || { echo "pairing failed"; exit 1; }
@@ -113,6 +123,9 @@ out=$(dev update --url "file://$www/engine.manifest" 2>&1) || bad "engine update
 echo "$out" | grep -q "zinc 99.0.0 downloaded and verified on the device" && cmp -s "$D/updates/zinc-99.0.0.pkg" "$www/zinc-99.0.0.pkg" || bad "the engine package: $out"
 "$Z" update-sign "$tmp/engine.txt" "$k_seed" > "$www/engine.manifest"
 dev update --url "file://$www/engine.manifest" > /dev/null 2>&1 && bad "an engine channel signed with a key the device does not trust was accepted"
+# no channel given on a Pi image: the image's own updater installs the newest release, engine, player and system together
+out=$(dev update 2>&1) || bad "engine update through zinc-admin: $out"
+echo "$out" | grep -q "installing zinc 0.7.5" && [ "$(cat "$tmp/installed" 2>/dev/null)" = 0.7.5 ] || bad "zinc-admin update-install was not asked for 0.7.5: $out"
 
 [ $fail -eq 0 ] && echo "agent_ota: ok"
 exit $fail

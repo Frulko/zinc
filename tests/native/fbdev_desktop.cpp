@@ -8,7 +8,10 @@ extern "C" void hal_escape() { default_escapes++; }
 extern "C" void hal_escape_by_app(int32_t) { app_escapes++; }
 namespace zrt { bool display_driver = true; namespace gfx {
 #include "gfx_display_actions.h"
+static int captures;
+uint8_t* capture_png(size_t* n, int32_t, int32_t) { captures++; *n = 4; return (uint8_t*)strdup("PNG!"); }   // the engine's picture of the frame
 } }
+void hal_free(void* p) { free(p); }
 static int renders;
 static void paint(uint32_t* rows, int32_t a, int32_t b) {
   renders++;
@@ -116,6 +119,11 @@ int main(int argc, char** argv) {
   int pipefd[2]; assert(pipe(pipefd) == 0); close(pipefd[1]);
   close(devs[0].fd); devs[0].fd = pipefd[0]; sim_fb = nullptr;
   in = {}; fb_poll(&in); assert(ndev == 0 && !in.buttons && !in.mods);
+  // ZINC_SHOT: the driver writes the engine's picture of its last frame (the runtime leaves the shot to a display driver)
+  const std::string shot = std::string(argv[1]) + "/shot.png";
+  setenv("ZINC_SHOT", shot.c_str(), 1);
   sim_fb = fb.c_str(); fb_shutdown();
+  unsetenv("ZINC_SHOT");
+  { std::ifstream f(shot, std::ios::binary); std::string got((std::istreambuf_iterator<char>(f)), {}); assert(got == "PNG!" && zrt::gfx::captures == 1); }
   puts("fbdev desktop: native 1080p, input, hotplug, cursor and Escape ok");
 }

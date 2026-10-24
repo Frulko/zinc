@@ -249,6 +249,30 @@ std::string otaUpdate(const std::string& home, const std::string& engine, const 
   if (name.empty()) {   // the engine: what `zinc update` does, with the keys this device trusts
     const char* env = std::getenv("ZINC_UPDATE_URL");
     const std::string url = !urlArg.empty() ? urlArg : env ? env : "";
+    if (!address(url) && urlArg.empty()) {
+      // The Pi image updates the engine, the player and their system files together with zinc-admin (image/files/usr/lib/zinc/zinc-player-update),
+      // as its player's update page does: the agent asks it for the newest stable release and starts that job, which restarts the agent at its end.
+      const char* admin = std::getenv("ZINC_ADMIN");
+      const std::string tool = admin ? admin : "/usr/lib/zinc/zinc-admin";
+      if (::access(tool.c_str(), X_OK) == 0) {
+        std::string out;
+        if (FILE* p = ::popen(("'" + tool + "' update-check 2>&1").c_str(), "r")) {
+          char buf[4096];
+          for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, p)) > 0;) out.append(buf, n);
+          ::pclose(p);
+        }
+        const Doc d(out);
+        const std::string latest = d.ok() ? d.str("latest") : "";
+        if (latest.empty() || latest.find_first_not_of("0123456789.") != std::string::npos)
+          return no("cannot read the releases on the device (zinc-admin update-check): " + out.substr(0, 300));
+        const std::string current = d.str("current").empty() ? engine : d.str("current"), phase = d.str("phase");
+        if (phase == "preparing" || phase == "activating") return yes("an update is already running on the device: " + d.str("message"));
+        if (!zn::tc::newerVersion(latest, current)) return yes("zinc " + current + " is up to date (latest " + latest + ")");
+        if (std::system(("'" + tool + "' update-install " + latest + " >/dev/null 2>&1").c_str()) != 0)
+          return no("zinc-admin update-install " + latest + " failed on the device");
+        return yes("installing zinc " + latest + " on the device (it runs " + current + "): the engine, the player and the agent restart in a few minutes");
+      }
+    }
     if (!address(url)) return no("no channel for the engine: zinc device update --url <manifest-url>, or ZINC_UPDATE_URL on the device");
     if (!zn::tc::fetchManifest(url, info, err)) return no(err);
     if (!zn::tc::newerVersion(info.version, engine)) return yes("zinc " + engine + " is up to date (latest " + info.version + ")");

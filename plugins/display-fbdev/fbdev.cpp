@@ -810,7 +810,18 @@ static void report(const char* name, float Sample::*m) {
   double sum = 0; for (float x : v) sum += x;
   fprintf(stderr, "fbdev stats: %-12s p50=%6.2f p99=%6.2f mean=%6.2f max=%6.2f ms\n", name, v[v.size() / 2], v[(size_t)(v.size() * 0.99)], sum / v.size(), v.back());
 }
+namespace zrt::gfx { uint8_t* capture_png(size_t* n, int32_t maxw, int32_t maxh); }   // runtime/zrt.h: the engine's picture of the frame on the screen
+
 static void fb_shutdown() {
+  // ZINC_SHOT: this driver shows the engine's own frame, so the picture is the engine's (the runtime leaves the shot to a display driver).
+  // The Pi image's updater proves a rebuilt player with it (image/files/usr/lib/zinc/zinc-player-update).
+  if (const char* shot = getenv("ZINC_SHOT"); shot && *shot) {
+    size_t n = 0;
+    if (uint8_t* png = zrt::gfx::capture_png(&n, 0, 0)) {
+      if (FILE* f = fopen(shot, "wb")) { fwrite(png, 1, n, f); fclose(f); }
+      hal_free(png);
+    }
+  }
   if (stats && !samples.empty()) {
     fprintf(stderr, "fbdev stats: threads=%d fuse=%d frames=%zu wall=%.2f s effective=%.1f fps\n", pool.threads, (int)fuse, samples.size(), (last_us_end - first_us) / 1e6, samples.size() * 1e6 / (double)(last_us_end - first_us));
     report("raster", &Sample::raster); report("vsync", &Sample::vsync); report("convert", &Sample::convert); report("present", &Sample::total);

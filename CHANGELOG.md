@@ -8,6 +8,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Changed
+- `zinc device <pi> update` on a Zinc Pi image installs the newest release the way the player's update page does (engine, player and system together) instead of asking for a manifest address.
+
+### Fixed
+- Updating a Zinc Pi image from its player no longer stops at "The rebuilt player did not draw its test frame": the screen driver now writes `ZINC_SHOT` pictures. The update to 0.7.6 works from a Pi on 0.7.4 or 0.7.5.
+
 ## [0.7.5] - 2026-10-24
 
 ### Added

@@ -4,6 +4,8 @@
 #include "fbdev.cpp"
 #include "chip_common.h"
 HalDisplay* hal_display;
+namespace zrt::gfx { uint8_t* capture_png(size_t*, int32_t, int32_t) { return nullptr; } }   // ZINC_SHOT is not set here
+void hal_free(void* p) { free(p); }
 
 // colours that survive RGB565 exactly (5/6/5 bit values expanded back), so every depth shows the same picture
 static uint32_t c565(int r, int g, int b) { r = r << 3 | r >> 2; g = g << 2 | g >> 4; b = b << 3 | b >> 2; return r << 16 | g << 8 | b; }
