@@ -654,6 +654,7 @@ void handleSession(State& s, int fd) {
   else if (op == "listen") opListen(s, c, req);
   else if (op == "accepted") opAccepted(s, c, req);
   else if (op == "top") every(c, 1000, [&] { return infoJson(s); }, gStop);
+  else if (op == "live") opLive(c, gStop);
   else if (op == "screen") {   // the frame on the screen now: asked of the program showing it, which writes a PNG the workstation then pulls
     const std::string request = std::getenv("ZINC_SHOT_REQUEST"), png = s.home + "/run/screen.png";
     ::unlink(png.c_str());

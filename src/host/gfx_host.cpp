@@ -34,6 +34,7 @@ uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, vo
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 }
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
+namespace zrt { extern void (*mirror_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live
 
 namespace {
 
@@ -259,6 +260,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       hal_poll_input(&zrt::input);
       for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
+      if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)
       if (zrt::input.quit) quitFlag = true;
       uint64_t t = hal_time_us();
       double fixed = hal_fixed_dt(), dt = fixed;
@@ -405,6 +407,7 @@ static const zn::gl::PresentHooks kGlPresent = {
     [](int image) { zrt::raster::dyn_update(image, nullptr, 0); },
     onFrameEnd};
 const void* glPresentHooks() { return &kGlPresent; }
-void installGfx() { zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo; hostGfx = call; installSys(); }
+void installMirror();   // mirror.cpp
+void installGfx() { zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo; hostGfx = call; installSys(); installMirror(); }
 
 }  // namespace zn::host

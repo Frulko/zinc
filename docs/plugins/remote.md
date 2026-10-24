@@ -35,7 +35,11 @@ zinc run examples/remote/viewer                      # another terminal: lists t
 ratio. `ZINC_FRAMES=n` stops the app after n frames, as with the SDL HAL.
 
 The app has no local window while the remote display is active (the SDL HAL steps aside when a display plugin is
-linked). A `mirror` mode that also keeps the SDL window is not implemented.
+linked). To watch and drive a program that keeps its own screen (the player of a Zinc Pi image, an app on a paired
+device), use `zinc device <device> screen --live` instead: the program on the device's screen streams its frames with
+this protocol to the device's agent (`src/host/mirror.cpp`), the agent relays them in its session, and a window on the
+workstation shows them and sends its mouse and keyboard back (`src/agent/live.cpp`). Nothing is streamed while no
+viewer is connected.
 
 ## zinc:remote
 
@@ -76,7 +80,9 @@ previous one.
    24-bit pixels (`rle_check.cpp` is the codec's self-check).
 3. The viewer answers `ACK seq` once a frame is decoded; with `inflight` frames unacknowledged the server stops
    sending and lets the damage accumulate, so a slow link gets fewer, larger updates instead of a growing queue.
-4. Viewer to app: `POINTER`, `WHEEL`, `BUTTONS`, `PING` (echoed as `PONG` behind the queued frames).
+4. Viewer to app: `POINTER`, `WHEEL`, `BUTTONS`, `PING` (echoed as `PONG` behind the queued frames). The live screen of
+   `zinc device` adds `INPUT` (22): the workstation's whole input (pointer as 0..1 of the screen, buttons, modifiers,
+   wheel, keys with their text, clicks), merged into what the device's own HAL reads.
 
 Discovery: `ZINC1\tname\ttarget\tport\tpid\tw\th` on UDP multicast `239.255.90.1:7701` once a second. An app bound to
 loopback announces on `lo0` with TTL 0 (never leaves the machine); otherwise TTL 1 on the default interface (the

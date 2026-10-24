@@ -181,6 +181,14 @@ int exitCode(int status);
  *  bytes of `I` frames written to its dev socket (asset reload, src/host/assets_host.h), until the workstation leaves. */
 void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine, std::mutex& displayMu);
 
+// ---- zinc device screen --live (live.cpp) ----
+
+/** The device: the program on the screen streams its frames to a socket named in <screen dir>/live.request (src/host/mirror.cpp), relayed
+ *  as `O` frames; `I` frames carry the workstation's input back, until it leaves. */
+void opLive(Chan& c, const std::atomic<bool>& stop);
+/** The workstation: the device's screen in a window, driven by this machine's mouse and keyboard. */
+int cmdLive(Device& d);
+
 // ---- the inspector, the frame, the telemetry and the load of an app (inspect.cpp, ZN-729.05) ----
 
 using Env = std::vector<std::pair<std::string, std::string>>;

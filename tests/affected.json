@@ -66,7 +66,7 @@
     {"paths": ["src/host/sock.cpp", "src/host/sock.h", "plugins/socket/", "tests/wss_echo.mjs", "tests/golden/host/wss.ts", "tests/golden/host/wss.out", "tests/golden/host/tls_first.ts"], "tests": ["tls"]},
     {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
     {"paths": ["src/agent/", "tests/t1/agent_dev.sh"], "tests": ["agent_dev"]},
-    {"paths": ["src/agent/server.cpp", "src/agent/client.cpp", "runtime/gfx.cpp", "tests/t1/device_screen.sh", "tests/data/screen/"], "tests": ["device_screen"]},
+    {"paths": ["src/agent/server.cpp", "src/agent/client.cpp", "src/agent/live.cpp", "src/host/mirror.cpp", "runtime/gfx.cpp", "tests/t1/device_screen.sh", "tests/data/screen/"], "tests": ["device_screen"]},
     {"paths": ["src/agent/dev.cpp", "src/agent/server.cpp", "tests/t1/agent_dev_versions.sh"], "tests": ["agent_dev_versions"]},
     {"paths": ["src/agent/client.cpp", "src/agent/server.cpp", "tests/t1/agent_deploy.sh"], "tests": ["agent_deploy"]},
     {"paths": ["lib/std/ui.ts", "tests/golden/ui/spread.tsx", "tests/golden/ui/spread.input", "tests/t1/touch_spread.sh"], "tests": ["touch_spread", "touch_finger", "input_touch", "pointer_kind"]},

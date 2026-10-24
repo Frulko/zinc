@@ -854,6 +854,9 @@ bool poll_host(bool& frame) {
   return !quit_requested && (active || next>=0 || mq_len || added!=pollers_added);
 }
 bool display_driver = false;  // a plugins/display-* driver took over the screen and input
+// zinc device screen --live (src/host/mirror.cpp): the frames shown, and the viewer's input merged into the program's; null without a viewer
+void (*mirror_present)(const HalFrame* f) = nullptr;
+void (*mirror_input)(HalInput* in) = nullptr;
 // Input tape (ZINC_RECORD / ZINC_REPLAY): a header, then {frame, HalInput} for every frame whose input differs from the
 // previous one. ponytail: raw structs (~1 KB per changed frame, little-endian hosts with the same hal.h); pen samples
 // (hal_pen_push) and window resizes are not recorded.
@@ -923,6 +926,7 @@ bool loop_once() {
     input.wheel = 0; input.pinch = 1;
     hal_poll_input(&input);
     if (display_driver && hal_display->poll) hal_display->poll(&input);
+    if (mirror_input) mirror_input(&input);
     if (input.quit) return false;
     if (det_mode) det_input();
     uint64_t t = hal_time_us();

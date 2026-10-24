@@ -330,7 +330,8 @@ int cmdPull(Device& d, const std::vector<std::string>& args);
 
 // The frame the device's screen shows (the player, an app, a zinc dev program): the agent asks it of the program, then it comes as a pull.
 int cmdScreen(Device& d, const std::vector<std::string>& args) {
-  if (args.size() > 1) return fail("usage: zinc device [<device>] screen [file.png]");
+  if (args.size() == 1 && args[0] == "--live") return cmdLive(d);
+  if (args.size() > 1) return fail("usage: zinc device [<device>] screen [file.png | --live]");
   std::string answer;
   if (!request(d, Obj().str("op", "screen").done(), answer, true, 15000)) return 1;
   return cmdPull(d, {Doc(answer).str("path"), args.empty() ? "screen.png" : args[0]});
@@ -703,6 +704,7 @@ int usage() {
                "       zinc device [<device>] inspect <app> [--port n]              its inspector on a port of this machine: the DevTools address\n"
                "       zinc device [<device>] shot <app> [file.png]                 the frame the app shows\n"
                "       zinc device [<device>] screen [file.png]                     what its screen shows (the player, an app, zinc dev)\n"
+               "       zinc device [<device>] screen --live                         its screen in a window, driven by this mouse and keyboard\n"
                "       zinc device [<device>] monitor <app>                         its zinc:telemetry lines, as zinc monitor prints them\n"
                "       zinc device [<device>] top [-n count] [--json]               the machine's load and each app's CPU and memory, every second\n"
                "<device> may be left out when one device is paired.\n");

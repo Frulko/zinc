@@ -178,7 +178,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   if(WIN32)   # docs/targets/windows.md: targets/windows/hal_windows.cpp, the Win32 stand-in
     set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/targets/windows/hal_windows.cpp)
   endif()
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp src/host/mirror.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_CURRENT_SOURCE_DIR}/targets/null/hal_null.cpp ${ZN_HAL_PLATFORM})
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
@@ -622,7 +622,7 @@ if(TARGET zn_host_gfx)
   # the POSIX pass yet (a serial server, termios, a pty): its commands say it (docs/targets/windows.md).
   if(NOT WIN32)
     target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
-    target_sources(zinc PRIVATE src/agent/dev.cpp src/agent/screen.cpp)   # zinc dev --device (ZN-729.03)
+    target_sources(zinc PRIVATE src/agent/dev.cpp src/agent/screen.cpp src/agent/live.cpp)   # zinc dev --device (ZN-729.03)
     target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
     target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"
     target_compile_definitions(zinc PRIVATE ZN_AGENT)
