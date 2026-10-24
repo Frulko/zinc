@@ -18,7 +18,7 @@ set(ZN_CONSOLE_EMBED_RES "" CACHE FILEPATH "the resources.bin that goes with it"
 set(ZN_CONSOLE_EMBED_PACK "" CACHE FILEPATH "the asset pack (zinc pack's packs/default.zpk) that goes with it")
 set(ZN_CONSOLE_SIZE "" CACHE STRING "the surface, WxH (the screen of the console: psp 480x272, vita 960x544, ps2 640x448); ZINC_SIZE at run time wins")
 set(ZN_CONSOLE_FRAMES "0" CACHE STRING "a frame budget built into the HAL (ZINC_FRAMES of the emulator tests); 0: until the program ends")
-set(ZN_CONSOLE_TITLE "Zinc" CACHE STRING "the name the console's menu shows (PSP, Vita)")
+set(ZN_CONSOLE_TITLE "Zinc" CACHE STRING "the name the console's menu shows (PSP, Vita, 3DS)")
 set(ZN_CONSOLE_ID "ZINC00001" CACHE STRING "the Vita title id (four letters, five digits): one per program, or they replace each other")
 set(ZN_CONSOLE_INPUT "" CACHE STRING "a pad session built into the HAL (console_pad.h: frame+Name,frame-Name,...)")
 set(ZN_CONSOLE_ENV "" CACHE STRING "environment of the program, NAME=VALUE,... (ZINC_PROFILE=1: the frame times at exit)")

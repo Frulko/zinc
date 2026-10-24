@@ -6,7 +6,7 @@
 # --vitagl: the Vita draws through vitaGL and the GLES 2 replay (needs ur0:data/libshacccg.suprx on the console) instead of GXM;
 # --frames N: the HAL stops after N frames (the emulator tests; never for a copy a person plays); --input: the `pad` and `padup` lines of a
 # ZINC_INPUT script, held on top of the console's pad (targets/console/console_pad.h); --env: the program's environment (ZINC_PROFILE=1: the
-# frame times at exit); --title: the name in the console's menu (PSP, Vita), --id: the Vita title id (one per program, else they replace each
+# frame times at exit); --title: the name in the console's menu (PSP, Vita, 3DS), --id: the Vita title id (one per program, else they replace each
 # other); --size: the program's surface when it is not the screen's (zinc.json targets.<console>; the Vita shows 480x272 doubled).
 # Output: <dir> (default build/console-<console>[-pure]) with EBOOT.PBP (psp),
 # zinc.vpk (vita), zinc-core (ps2, an ELF) or zinc-core.3dsx (n3ds). Prints the path of that file last. The 3DS builds in devkitPro's pinned
