@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <thread>
 
 #include "mdns/mdns.h"
 
@@ -289,11 +290,19 @@ std::vector<Found> browse(const std::string& service, int waitMs, const std::fun
 }
 
 void announce(const std::string& service, const std::string& name, int port, const std::string& bind, const std::function<Txt()>& txt, const std::atomic<bool>& stop) {
+  // A service started at boot can come before the network: no multicast route yet (the group cannot be joined), and Wi-Fi brings an address
+  // later. So the responder is opened again until it works, and again when the machine's addresses change (checked every 3 s).
   Responder r;
-  if (!r.open(service, name, port, bind, txt)) return;
-  while (!stop) {
+  std::string opened;
+  for (int tick = 0; !stop; ++tick) {
+    if (tick % 10 == 0) {
+      std::string now;
+      for (in_addr a : interfaces()) now += std::to_string(a.s_addr) + " ";
+      if (r.sock < 0 || now != opened) opened = r.open(service, name, port, bind, txt) ? now : std::string();
+    }
     pollfd p{r.sock, POLLIN, 0};
-    if (::poll(&p, 1, 300) > 0) r.serve();
+    if (r.sock < 0) std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    else if (::poll(&p, 1, 300) > 0) r.serve();
   }
 }
 

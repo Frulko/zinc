@@ -13,6 +13,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- `zinc agent` started before the network (a Pi at boot) is now found by `zinc device list` and `zinc device pair <name>`: it announces itself once the network is up.
+- Pairing a reflashed device replaces its old pairing: `zinc dev --device` and `zinc device` no longer pick the dead one and fail with "does not accept this workstation's key".
+- `zinc device` and `zinc dev --device` accept the device's address (`192.168.2.32`) as well as its name, and `zinc device pair <name>` falls back to `<name>.local`.
 - The Pi player starts again on images built with 0.7.4: the screen driver's source was incomplete, so the player restarted in a loop. The Linux ARM downloads now carry the source of every screen driver.
 - A Pi image with a keyboard layout finishes its first boot: cloud-init's config stage failed on it, so the first-boot setup never ended.
 - The Pi image is built with the latest Zinc release (0.7.4) instead of 0.6.2, and each release now updates it.

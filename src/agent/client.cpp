@@ -57,9 +57,15 @@ bool saveDevices(const std::vector<Device>& devices) {
   return writePrivate(storePath(), Obj().raw("devices", array(items)).done() + "\n");
 }
 
+// A device named by its name, the start of its id, or its address (host or host:port).
+bool isNamed(const Device& d, const std::string& n) {
+  return d.name == n || (n.size() >= 4 && d.id.rfind(n, 0) == 0) || (!d.host.empty() && (d.host == n || d.host + ":" + std::to_string(d.port) == n));
+}
+
 void remember(const Device& d) {
   std::vector<Device> all = loadDevices();
-  all.erase(std::remove_if(all.begin(), all.end(), [&](const Device& o) { return o.id == d.id; }), all.end());
+  // a reflashed device comes back with a new id under its old name or address: the old pairing is dead, and kept it would be picked first
+  all.erase(std::remove_if(all.begin(), all.end(), [&](const Device& o) { return o.id == d.id || o.name == d.name || (o.host == d.host && o.port == d.port); }), all.end());
   all.push_back(d);
   saveDevices(all);
 }
@@ -189,6 +195,7 @@ int cmdPair(const std::vector<std::string>& args) {
     c.fd = dial(f.host, f.port, 1500, err);
     if (c.fd >= 0) { host = f.host; port = f.port; }
   }
+  if (c.fd < 0 && !address) host += ".local";   // not seen by discovery (an agent that came up before the network): its name on the network
   const size_t colon = host.rfind(':');
   if (c.fd < 0 && colon != std::string::npos) { port = std::atoi(host.c_str() + colon + 1); host.resize(colon); }
   std::string code = args.size() == 2 ? args[1] : std::string();
@@ -705,7 +712,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
 
   std::vector<Device> paired = loadDevices();
   const auto byName = [&](const std::string& n) -> Device* {
-    for (Device& d : paired) if (d.name == n || (n.size() >= 4 && d.id.rfind(n, 0) == 0)) return &d;
+    for (Device& d : paired) if (isNamed(d, n)) return &d;
     return nullptr;
   };
   if (first == "unpair") {
@@ -771,7 +778,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
 std::unique_ptr<Chan> deviceSession(const std::string& device, const std::string& req, std::string& answer, std::string& name) {
   std::vector<Device> paired = loadDevices();
   Device* d = nullptr;
-  for (Device& o : paired) if (device.empty() ? paired.size() == 1 : o.name == device || (device.size() >= 4 && o.id.rfind(device, 0) == 0)) { d = &o; break; }
+  for (Device& o : paired) if (device.empty() ? paired.size() == 1 : isNamed(o, device)) { d = &o; break; }
   if (!d) { fail(device.empty() ? "name the device (zinc device list)" : "no paired device named " + device + " (zinc device list)"); return nullptr; }
   name = d->name;
   return request(*d, req, answer);

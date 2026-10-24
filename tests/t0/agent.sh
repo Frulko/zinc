@@ -38,12 +38,15 @@ mkdir -p "$W"
 printf '{"devices":[{"id":"%s","name":"%s","client":"0123456789abcdef","key":"%064d","host":"127.0.0.1","port":%s}]}\n' "$id" "$name" 0 "$port" > "$W/devices.json"
 out=$(dev info 2>&1) && bad "a made-up key was accepted"
 case $out in *"does not accept this workstation's key"*) ;; *) bad "made-up key: $out";; esac
-rm -f "$W/devices.json"
+# what a reflash leaves: the same name and address under the old id; the next pairing replaces it, never lists it beside the new one
+sed -i.bak "s/\"id\":\"$id\"/\"id\":\"0000000000000000\"/" "$W/devices.json"
 
 # a new code, and the device found by its name
 code=$(agent pair | sed -n 's/^pairing code: //p')
 out=$(dev pair "$name" "$code" 2>&1) || bad "pairing with the right code: $out"
 dev list --wait 500 | grep -q "^$name .* paired " || bad "the device is not listed as paired"
+[ "$(grep -o '"id"' "$W/devices.json" | wc -l | tr -d ' ')" = 1 ] || bad "the pairing of a reflashed device kept the old one: $(cat "$W/devices.json")"
+dev "127.0.0.1:$port" info > /dev/null 2>&1 || bad "the device named by its address"
 [ "$(ls -l "$W/devices.json" | cut -c1-10)" = "-rw-------" ] || bad "the workstation's keys are readable by others"
 [ "$(ls -l "$D/agent/clients.json" | cut -c1-10)" = "-rw-------" ] || bad "the device's keys are readable by others"
 
