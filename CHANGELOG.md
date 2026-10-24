@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- A Pi image with a keyboard layout finishes its first boot: cloud-init's config stage failed on it, so the first-boot setup never ended.
 - The Pi image is built with the latest Zinc release (0.7.4) instead of 0.6.2, and each release now updates it.
 
 ## [0.7.4] - 2026-10-24

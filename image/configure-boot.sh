@@ -8,6 +8,7 @@ NAME=$(q .name)
 hostname=$(q '.hostname // ""')
 [[ -z $hostname || $hostname =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || { echo 'Invalid hostname.' >&2; exit 1; }
 if [ -z "$hostname" ]; then touch "$FW/zinc-auto-name"; else rm -f "$FW/zinc-auto-name"; fi
+[[ $(q '.keyboard // ""') =~ ^([a-z][a-z0-9_,-]*)?$ ]] || { echo 'Invalid keyboard layout (an XKB name: fr, us, gb, de...).' >&2; exit 1; }
 user=$(q .user.name)
 if [ -n "$user" ]; then
   [[ $user =~ ^[a-z][a-z0-9-]{0,31}$ ]] && [ "$user" != root ] && [ "$user" != zinc ] || { echo 'Invalid login user.' >&2; exit 1; }
@@ -24,7 +25,10 @@ HASH=
   jq --arg hash "$HASH" '
     (if (.hostname // "") == "" then {preserve_hostname: true} else {hostname: .hostname, manage_etc_hosts: true} end)
     + (if .timezone != "" then {timezone: .timezone} else {} end)
-    + (if .keyboard != "" then {keyboard: {model: "pc105", layout: .keyboard}} else {} end)
+    # the file itself, not cloud-init'"'"'s keyboard module: that one restarts console-setup, masked here, and fails the
+    # whole config stage; the player reads this file (display-fbdev) and tty1 is its session
+    + (if (.keyboard // "") != "" then {write_files: [{path: "/etc/default/keyboard",
+        content: "XKBMODEL=\"pc105\"\nXKBLAYOUT=\"\(.keyboard)\"\nXKBVARIANT=\"\"\nXKBOPTIONS=\"\"\nBACKSPACE=\"guess\"\n"}]} else {} end)
     + (if .user.name != "" then {
         users: [{name: .user.name, shell: "/bin/bash", sudo: "ALL=(ALL) NOPASSWD:ALL",
                  groups: "users,adm,dialout,audio,netdev,video,plugdev,input,gpio,spi,i2c,render,sudo",

@@ -103,6 +103,22 @@ class Bootstrap(unittest.TestCase):
                     self.assertNotIn('hashed_passwd', user)
                     self.assertEqual(user['ssh_authorized_keys'], keys)
 
+    def test_keyboard_is_a_file_not_the_cloud_init_module(self):
+        # cc_keyboard restarts console-setup, masked in the image: the config stage failed and the first boot never ended
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = Path(tmp) / 'profile.json'
+            base = dict(hostname='fixture', timezone='', name='fixture', ssh=False, agent=False, debug=False,
+                        wifi=dict(ssid='', password='', country=''), user=dict(name='', password='', sshKeys=[]))
+            profile.write_text(json.dumps(dict(base, keyboard='fr')))
+            subprocess.run(['bash', str(ROOT / 'image/configure-boot.sh'), str(profile), tmp], check=True, capture_output=True)
+            config = json.loads((Path(tmp) / 'user-data').read_text().split('\n', 1)[1])
+            self.assertNotIn('keyboard', config)
+            self.assertEqual(config['write_files'][0]['path'], '/etc/default/keyboard')
+            self.assertIn('XKBLAYOUT="fr"\n', config['write_files'][0]['content'])
+            profile.write_text(json.dumps(dict(base, keyboard='fr"; reboot')))
+            self.assertNotEqual(subprocess.run(['bash', str(ROOT / 'image/configure-boot.sh'), str(profile), tmp],
+                                               capture_output=True).returncode, 0)
+
     def test_failed_setup_keeps_settings_and_initramfs(self):
         source = (ROOT / 'image/files/usr/lib/zinc/zinc-firstboot').read_text()
         for status in (1, 2, 0):  # Failed, degraded, successful cloud-init.
