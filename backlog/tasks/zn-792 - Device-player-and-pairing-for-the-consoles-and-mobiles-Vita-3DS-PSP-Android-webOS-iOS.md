@@ -4,7 +4,8 @@ title: >-
   Device player and pairing for the consoles and mobiles (Vita, 3DS, PSP,
   Android, webOS, iOS)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:40'
 labels:
   - network
