@@ -1,0 +1,12 @@
+# The tests that need no Mac: the release runs them on a Linux runner (tests-linux in .github/workflows/zinc-next.yml) and the macOS shards skip
+# them (tests/run --skip-list). Each was checked passing on Linux (tools/linux-build, a clean tree) before it moved here. A test that proves something
+# about macOS (a window, the GPU, a bundle, a signature) stays off this list.
+cross              # zig cross build on a clean ZINC_HOME
+cross_cpu          # the ARM CPU variants, read from the ELF attributes
+cross_linux        # the graphics host cross-built for aarch64 and armhf (11 min on a macOS runner)
+cross_plugin_pack
+cross_windows      # a console program for x86_64-windows
+installer_deb      # zinc export --deb
+diff               # the corpus interpreted and compiled against the frozen outputs
+fixed_aot          # the fx12 conformance programs built with --profile ps1
+compat             # test262 / WPT / quickjs / Node API sets (node, the pnpm modules)

@@ -1,18 +1,20 @@
 #!/bin/sh
 # Quiet runner: one PASS/FAIL line per test, details in .logs/. See TESTING.md.
 # Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
-# Usage: tests/run [--tier t0|t1|t2|demo] [--only <name>] [--changed | --changed-from <ref>] [--fail-fast]
+# Usage: tests/run [--tier t0|t1|t2|demo] [--only <name>] [--changed | --changed-from <ref>] [--shard i/n] [--list file | --skip-list file] [--fail-fast]
 # tests/demo: what a demo app itself does (its rules, files, editor), beyond the one T1 session per demo; run by hand and by --changed, not by CI.
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
 cd "$root" || exit 2
-tier=; only=; changed=; base=; shard=; fail_fast=
+tier=; only=; changed=; base=; shard=; fail_fast=; list=; skip_list=
 while [ $# -gt 0 ]; do
   case $1 in
     --fail-fast) fail_fast=1; shift ;;
     --tier) tier=$2; shift 2 ;;
     --only) only=$2; shift 2 ;;
-    --shard) shard=$2; shift 2 ;;   # i/n: every n-th test, so n runners split the tier (CI)
+    --shard) shard=$2; shift 2 ;;   # i/n: n runners split the tier by measured durations (CI)
+    --list) list=${2:?missing file}; shift 2 ;;   # only the tests named in the file, one per line (# comments): tests/ci/linux.txt on the Linux runner
+    --skip-list) skip_list=${2:?missing file}; shift 2 ;;   # not those: the macOS shards leave them to the Linux runner
     --changed) changed=1; tier=t1; shift ;;   # only the tests that cover the files changed since HEAD (tests/affected.json)
     --changed-from) base=${2:?missing comparison ref}; changed=1; tier=t1; shift 2 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
@@ -48,16 +50,33 @@ fi
 mkdir -p "$root/.logs"
 log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
 : > "$log"
-pass=0; fail=0; skip=0; seen=0
+pass=0; fail=0; skip=0
 results=${ZINC_TEST_RESULTS:-}; [ -n "$results" ] && : > "$results"   # one `STATUS name seconds` line per test: the CI report reads it
 unset ZINC_TEST_RESULTS   # a test that runs tests/run itself (desktop, runner_cwd) must not empty this file
+names() { [ -z "$1" ] || sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$1"; }
+listed=$(names "$list") && unlisted=$(names "$skip_list") || exit 2
+keep() {   # $1: a test's name; true when the flags keep it
+  [ -z "$only" ] || [ "$only" = "$1" ] || return 1
+  [ -z "$changed" ] || echo "$wanted" | grep -qx "$1" || return 1
+  [ -z "$list" ] || echo "$listed" | grep -qx "$1" || return 1
+  [ -z "$skip_list" ] || ! echo "$unlisted" | grep -qx "$1" || return 1
+}
+selected() {   # the tests the flags keep, one name per line, in run order
+  for t in $tiers; do
+    for f in "$here/$t"/*.sh; do
+      [ -e "$f" ] || continue
+      name=$(basename "$f" .sh); keep "$name" && echo "$name"
+    done
+  done
+}
+# --shard i/n: split by the durations measured on CI (tests/ci/durations.txt, tools/ci-durations refreshes it), so the shards end together
+[ -z "$shard" ] || mine=$(selected | python3 "$here/ci/shard.py" "$shard" "$here/ci/durations.txt") || exit 2
 for t in $tiers; do
   for f in "$here/$t"/*.sh; do
     [ -e "$f" ] || continue
     name=$(basename "$f" .sh)
-    [ -z "$only" ] || [ "$only" = "$name" ] || continue
-    [ -z "$changed" ] || echo "$wanted" | grep -qx "$name" || continue
-    if [ -n "$shard" ]; then seen=$((seen + 1)); [ $(( (seen - 1) % ${shard#*/} + 1 )) -eq "${shard%/*}" ] || continue; fi
+    keep "$name" || continue
+    [ -z "$shard" ] || echo "$mine" | grep -qx "$name" || continue
     t0=$(date +%s); sh "$f" >"$log.tmp" 2>&1; rc=$?; took=$(( $(date +%s) - t0 ))
     [ -n "$results" ] && echo "$([ $rc -eq 0 ] && echo PASS || { [ $rc -eq 77 ] && echo SKIP || echo FAIL; }) $name ${took}s" >> "$results"
     if [ $rc -eq 0 ]; then
@@ -74,7 +93,7 @@ for t in $tiers; do
   done
 done
 rm -f "$log.tmp"
-if [ -n "$only" ] && [ -z "$changed$shard" ] && [ $((pass + fail + skip)) -eq 0 ]; then echo "no test named $only in $tiers" >&2; exit 2; fi
+if [ -n "$only" ] && [ -z "$changed$shard$list$skip_list" ] && [ $((pass + fail + skip)) -eq 0 ]; then echo "no test named $only in $tiers" >&2; exit 2; fi
 extra=""; [ "$skip" -gt 0 ] && extra=", $skip skipped"
 echo "$pass passed, $fail failed$extra"
 if [ "$fail" -gt 0 ]; then echo "log: $log"; head -20 "$log"; exit 1; fi

@@ -36,8 +36,16 @@ open(sys.argv[2] + "/sums.sh", "w").write([s for s in rel["steps"] if s.get("nam
 release_steps = [s.get('name') for s in rel['steps']]
 assert release_steps.index('Release') < release_steps.index('Archive published changelog')
 assert next(s for s in rel['steps'] if s.get('name') == 'Archive published changelog')['run'] == 'bash tools/release-archive'
-names = [m["name"] for m in wf["jobs"]["package"]["strategy"]["matrix"]["include"]]
-assert {"macos-arm64", "macos-x86_64"} <= set(names), "a Mac has no package job: %s" % names   # Linux and Windows are off for now (owner, 2026-10-15)
+# the tests that need no Mac run on Linux (tests/ci/linux.txt) and count in the release gate; the macOS shards skip them; fuzzing is on Linux too
+tl = wf["jobs"]["tests-linux"]
+assert tl["runs-on"].startswith("ubuntu-") and any("--list tests/ci/linux.txt" in st.get("run", "") for st in tl["steps"]), "tests-linux does not run tests/ci/linux.txt"
+assert any("--skip-list tests/ci/linux.txt" in st.get("run", "") for st in wf["jobs"]["test"]["steps"]), "the macOS shards run the Linux tests too"
+assert "tests-linux" in rel["needs"] and "results-linux.txt" in [st for st in rel["steps"] if st.get("name") == "Every test passed"][0]["run"], "the release gate does not require the Linux results"
+assert wf["jobs"]["fuzz"]["runs-on"].startswith("ubuntu-"), "fuzz takes a macOS runner"
+names = [m["name"] for j in ("package", "package-intel") for m in wf["jobs"][j]["strategy"]["matrix"]["include"]]
+assert {"macos-arm64", "macos-x86_64"} <= set(names), "a Mac has no package job: %s" % names
+assert wf["jobs"]["package-intel"]["steps"] == wf["jobs"]["package"]["steps"] and wf["jobs"]["package-intel"]["needs"] == "plan", "the Intel package runs the package steps from the start"
+assert "package-intel" in rel["needs"], "the release waits for the Intel package"   # Linux and Windows are off for now (owner, 2026-10-15)
 # ZN-714: console programs cross-built for Windows on Linux, run on a Windows runner; both call the script a person can run (tools/windows-cross)
 wc, wr = wf["jobs"]["windows-cross"], wf["jobs"]["windows-console"]
 assert wr["needs"] == "windows-cross" and wr["runs-on"].startswith("windows-") and not wc["runs-on"].startswith("windows-"), "the Windows console jobs"

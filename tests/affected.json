@@ -98,6 +98,7 @@
     {"paths": ["tests/data/native-gen-device-additions.txt"], "tests": ["native_gen"]},
     {"paths": ["tests/data/plugins-added-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["tools/examples-status", "tests/t0/examples_status.sh", "tests/t1/examples_all.sh", "tests/t2/examples_all.sh", "tests/examples.lst"], "tests": ["examples_status", "examples_all"]},
+    {"paths": ["tests/run", "tests/ci/shard.py", "tests/ci/durations.txt", "tests/t0/shard_split.sh"], "tests": ["shard_split"]},
     {"paths": ["tests/run", "tests/t0/runner_cwd.sh"], "tests": ["runner_cwd", "native", "mqtt", "osc", "codec", "fixed", "gltf", "text_layout"]},
     {"paths": ["src/test_cmd.cpp", "tools/compat/", "tests/t1/zinc_test_runners.sh"], "tests": ["zinc_test_runners", "net", "socket"]},
     {"paths": ["src/dbg/", "src/vm/", "tests/data/debug_cli/", "tests/golden/debug_cli/", "tests/t1/debug_cli.sh", "tests/dap_check.py", "tests/t1/debug_dap.sh", "lib/editor/vscode-zinc-debug/", "tests/cdp_debug_check.mjs", "tests/t1/debug_cdp.sh", "tests/t1/debug_lldb.sh"], "tests": ["debug_cli", "debug_dap", "debug_cdp", "debug_lldb"]},

@@ -1,0 +1,16 @@
+#!/bin/sh
+# usage: tools/ci-durations [run-id]   (default: the last zinc-next run that has a test report)
+# Writes tests/ci/durations.txt (`name seconds`) from the test report of a CI run: tests/run --shard splits the tier by these durations. Run it after
+# a release whose shards ended far apart, and commit the file.
+cd "$(dirname "$0")/.." || exit 2
+last_report() {
+  gh run list --workflow zinc-next --status completed --limit 10 --json databaseId -q '.[].databaseId' | while read -r r; do
+    gh api "repos/{owner}/{repo}/actions/runs/$r/artifacts" -q '.artifacts[].name' | grep -qx test-report && { echo "$r"; break; }
+  done
+}
+id=$1; [ -n "$id" ] || id=$(last_report)
+[ -n "$id" ] || { echo "ci-durations: no run with a test report" >&2; exit 1; }
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+gh run download "$id" -n test-report -D "$tmp" || exit 1
+awk '{ sub(/s$/, "", $3); print $2, $3 }' "$tmp/results.txt" | sort -u -k1,1 > tests/ci/durations.txt
+echo "tests/ci/durations.txt: $(wc -l < tests/ci/durations.txt | tr -d ' ') tests, from run $id"
