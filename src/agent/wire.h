@@ -128,6 +128,7 @@ bool safeRel(const std::string& name);
  *  `sent`, when given, is told the bytes handed to the connection so far, after each frame of data (the progress of a transfer). */
 using Sent = std::function<void(std::uint64_t bytes)>;
 bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint64_t& bytes, std::string& err, const Sent& sent = {});
+Sent progress(const std::string& path);   // the "send" step lines of a transfer of `path` (client.cpp)
 /** Writes the entries under `root` (the file itself when the sender had one file). An entry that cannot be written is skipped and reported
  *  at the end, so the sender is always read to its last entry. */
 bool recvTree(Chan& c, const std::string& root, std::uint64_t& files, std::uint64_t& bytes, std::string& err);

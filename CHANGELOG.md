@@ -9,10 +9,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev --device` shows what it does: packing the project, the transfer's progress, and on the device the plugins being compiled (a Pi takes seconds per plugin).
 - The Pi image builder shows how far the long steps are (download, unpacking, checksum, compression): percent, MiB done and the time left, under the step and in the progress bar.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- `zinc:link` (and the demos that use it, like music-tree) compiles on a Raspberry Pi: the Linux ARM downloads lacked the headers it needs.
 - `zinc agent` started before the network (a Pi at boot) is now found by `zinc device list` and `zinc device pair <name>`: it announces itself once the network is up.
 - Pairing a reflashed device replaces its old pairing: `zinc dev --device` and `zinc device` no longer pick the dead one and fail with "does not accept this workstation's key".
 - `zinc device` and `zinc dev --device` accept the device's address (`192.168.2.32`) as well as its name, and `zinc device pair <name>` falls back to `<name>.local`.

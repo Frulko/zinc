@@ -9,6 +9,7 @@
 #include "../cli_core.h"
 #include "../zapp.h"
 #include "wire.h"
+#include "zn/log.h"
 
 #include <fcntl.h>
 #include <poll.h>
@@ -85,7 +86,7 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   std::vector<std::string> argv = {self, "run", dir + "/program.zbc"};
   if (!args.empty()) argv.push_back("--");
   argv.insert(argv.end(), args.begin(), args.end());
-  std::vector<std::string> env = environment({{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "0"}});   // its output is the program's own
+  std::vector<std::string> env = environment({{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"}});   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
   int gate[2];
   if (::pipe(gate) != 0) { err = "cannot create display gate"; for (const int fd : {null, out[0], out[1], sv[0], sv[1]}) ::close(fd); return false; }
@@ -258,6 +259,7 @@ struct Session {
     const std::string zapp = tmp + "/app.zapp", stage = tmp + "/stage";
     std::string archive, err;
     std::map<std::string, std::string> files, now;
+    if (there.empty()) zn::log::step("pack", dir);   // the first time: compiling a large app takes a moment
     if (!pack(self, dir, zapp, out)) return false;
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
     for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
@@ -279,7 +281,7 @@ struct Session {
     const std::string lost = "the session with " + device + " ended";
     if (!send(*c, kJson, Obj().flag("start", true).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).done())) { out = lost; return false; }
     std::uint64_t sentFiles = 0, sentBytes = 0;
-    if (changed) sendTree(*c, stage, sentFiles, sentBytes, err);   // a failure here is told to the device, whose refusal is the answer read below
+    if (changed) sendTree(*c, stage, sentFiles, sentBytes, err, progress(stage));   // a failure here is told to the device, whose refusal is the answer read below
     char type = 0;
     std::string payload;
     running = false;

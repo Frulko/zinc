@@ -53,6 +53,10 @@ def payload(share):
     mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
     copy_tree(os.path.join(NEXT, "third_party", "lucide"), os.path.join(nx, "third_party", "lucide"), lambda r: r in ("icon-nodes.json", "LICENSE"))   # zinc:icons reads it (src/frontend/modules.cpp)
+    # zinc:link compiles ../../src/net/dnssd.cpp and src/host/tls.cpp where it has no prebuilt library (a Pi): their headers
+    copy_tree(os.path.join(NEXT, "third_party", "mdns"), os.path.join(nx, "third_party", "mdns"), lambda r: r in ("mdns.h", "LICENSE"))
+    mb = os.path.join(NEXT, "third_party", "mbedtls")
+    copy_tree(mb, os.path.join(nx, "third_party", "mbedtls"), lambda r: r == "LICENSE" or (r.endswith(".h") and r.startswith(("include/", "tf-psa-crypto/include/", "tf-psa-crypto/drivers/builtin/include/"))))
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
     for part in ("prebuilt", "js"):   # --engine mquickjs: the firmware image and the files zinc prepares a program with (src/cli_mqjs.cpp)

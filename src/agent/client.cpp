@@ -116,6 +116,8 @@ std::string human(long long bytes) {
   return b;
 }
 
+}  // namespace
+
 // The progress of a transfer, as step lines where the build's go ("  send       45%  16 MiB of 35 MiB  2.1 MiB/s"): rewritten in place in a
 // terminal, a line every half second elsewhere (a pipe is not flooded; Atelier shows the last one), then the whole with its duration.
 // ZINC_PROGRESS_MS sets the pause between two lines. Quiet under -q, as every step.
@@ -141,6 +143,8 @@ Sent progress(const std::string& path) {
     else zn::log::step("send", b, end ? ms : -1);
   };
 }
+
+namespace {
 
 std::string baseName(const std::string& path) {
   std::error_code ec;
