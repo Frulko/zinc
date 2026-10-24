@@ -11,6 +11,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 
+## [0.7.6] - 2026-10-24
+
 ### Changed
 - The macOS downloads (Intel and Apple silicon) run on macOS 12 Monterey and later; they needed macOS 13.3 before.
 - `zinc device <pi> update` on a Zinc Pi image installs the newest release the way the player's update page does (engine, player and system together) instead of asking for a manifest address.
@@ -579,7 +581,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.6...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -597,3 +599,4 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 [0.7.3]: https://github.com/Frulko/zinc/compare/v0.6.2...v0.7.3
 [0.7.4]: https://github.com/Frulko/zinc/compare/v0.7.3...v0.7.4
 [0.7.5]: https://github.com/Frulko/zinc/compare/v0.7.4...v0.7.5
+[0.7.6]: https://github.com/Frulko/zinc/compare/v0.7.5...v0.7.6
