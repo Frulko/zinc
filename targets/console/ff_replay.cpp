@@ -136,8 +136,8 @@ void image(const Cmd& c) {
 // ---- shapes: a single-colour command the raster draws (rounded RECT, BORDER, SHADOW, filled POLY) as its coverage, rasterized once by
 // runtime/raster.cpp in white on black and kept in the shape atlas (atlas 1). The coverage of a box is mostly runs of equal columns and rows
 // (the straight edges, the inside): the longest run of each is kept as one texel, stretched back by a 9-slice of quads, so a card of any
-// size costs its corners. A command that moves keeps its shape when it moves by whole pixels (the key holds the fractions); a POLY is drawn
-// where it is (its points are absolute). ponytail: the atlas is emptied when it is full (between frames), no eviction by use.
+// size costs its corners. A command that moves keeps its shape when it moves by whole pixels (the key holds the fractions), a POLY too
+// (its points are keyed from its box's corner). ponytail: the atlas is emptied when it is full (between frames), no eviction by use.
 struct Shape { uint16_t ax, ay, w, h, lx, mx, ly, my; };   // atlas place; full size; the left / top part and the stretched run after it
 std::map<uint64_t, Shape> shapes;
 int sx, sy, srowH;          // the shape atlas's shelf
@@ -157,7 +157,6 @@ void shapeBox(const Cmd& c, int32_t* x0, int32_t* y0, int32_t* w, int32_t* h) {
   const float e = c.kind == SHADOW ? (c.s > 0.5f ? c.s : 0.5f) + 1 : 1;
   int32_t a = (int32_t)fl(c.x - e), b = (int32_t)fl(c.y - e);
   const int32_t a1 = (int32_t)ce(c.x + c.w + e), b1 = (int32_t)ce(c.y + c.h + e);
-  if (c.kind == POLY) { if (a < 0) a = 0; if (b < 0) b = 0; }   // drawn where it is: nothing left of or above the surface
   *x0 = a; *y0 = b; *w = a1 - a; *h = b1 - b;
 }
 uint64_t mix(uint64_t h, const void* p, size_t n) {   // FNV-1a
@@ -170,17 +169,25 @@ uint32_t polyFloats(const Cmd& c, const float* p) {   // the contours' floats: [
   for (uint32_t k = 0; k < c.n; k++) len += 1 + 2 * (uint32_t)p[len];
   return len;
 }
+std::vector<float> moved;   // a POLY's contours moved by whole pixels to its box's corner: a path that moves keeps its shape
+const float* movedPoly(const Cmd& c, const float* pts) {
+  const float* p = pts + c.off;
+  const uint32_t n = polyFloats(c, p);
+  const float dx = fl(c.x), dy = fl(c.y);
+  moved.assign(p, p + n);
+  for (uint32_t len = 0; len < n; len += 1 + 2 * (uint32_t)moved[len])
+    for (uint32_t i = 0; i < (uint32_t)moved[len]; i++) { moved[len + 1 + 2 * i] -= dx; moved[len + 2 + 2 * i] -= dy; }
+  return moved.data();
+}
 uint64_t shapeKey(const Cmd& c, const float* pts) {
   uint64_t h = 1469598103934665603ull;
   const uint8_t head[2] = {c.kind, c.pad};
   h = mix(h, head, 2);
-  if (c.kind == POLY) {
-    const float* p = pts + c.off;
-    h = mix(h, &c.x, 4 * sizeof(float)); h = mix(h, &c.n, sizeof c.n);
-    return mix(h, p, polyFloats(c, p) * sizeof(float));
-  }
   const float f[6] = {c.x - fl(c.x), c.y - fl(c.y), c.w, c.h, c.r, c.s};
-  return mix(h, f, sizeof f);
+  h = mix(h, f, sizeof f);
+  if (c.kind != POLY) return h;
+  h = mix(h, &c.n, sizeof c.n);
+  return mix(h, movedPoly(c, pts), moved.size() * sizeof(float));
 }
 void emptyShapes() { shapes.clear(); sx = sy = srowH = 0; }
 
@@ -194,11 +201,18 @@ const Shape* shape(const Cmd& c, const float* pts) {
   // in white on black into a buffer as wide as the box's right edge; a box is moved by whole pixels to the buffer's origin
   Cmd t = c;
   t.c1 = t.c2 = 0xFFFFFF; t.alpha = 255; t.grad = 0;
-  const int32_t dx = c.kind == POLY ? 0 : -bx, dy = c.kind == POLY ? 0 : -by;
+  const int32_t dx = -bx, dy = -by;
   t.x += (float)dx; t.y += (float)dy;
   const int32_t x0 = bx + dx, y0 = by + dy, bw = x0 + w;
   scratch.assign((size_t)bw * h, 0);
-  const Frame f = {&t, 1, nullptr, pts};
+  // a POLY's points: moved (shapeKey left them in `moved`) by its box's whole-pixel corner, then by the box's shift
+  if (c.kind == POLY) {
+    const float ex = (float)(dx + (int32_t)fl(c.x)), ey = (float)(dy + (int32_t)fl(c.y));
+    for (uint32_t len = 0; len < moved.size(); len += 1 + 2 * (uint32_t)moved[len])
+      for (uint32_t i = 0; i < (uint32_t)moved[len]; i++) { moved[len + 1 + 2 * i] += ex; moved[len + 2 + 2 * i] += ey; }
+    t.off = 0;
+  }
+  const Frame f = {&t, 1, nullptr, c.kind == POLY ? moved.data() : pts};
   render(f, scratch.data(), bw, y0, y0 + h, Rect{x0, y0, bw, y0 + h});
   // the coverage: blend() over black gives (255 k) >> 8, which is k - 1 for k in 1..254
   cov.resize((size_t)w * h);
