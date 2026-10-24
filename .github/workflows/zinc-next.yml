@@ -734,6 +734,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the tags: CMake takes the version zinc reports from git describe (a run on main is not a tag ref; v0.7.3 shipped 0.0.0-dev)
       - name: Dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils zstd file qemu-user ${{ matrix.libc }}
       - name: The pinned zig (the pin of src/tc/tc.cpp)
@@ -780,11 +781,26 @@ jobs:
           path: |
             dist/linux-${{ matrix.arch }}/*.tar.gz
             dist/linux-${{ matrix.arch }}/*.manifest
+  plugins-lock:
+    # plugins.lock (ZN-335): the split commit of each plugin, 11 minutes of git subtree split that depend on the commit only, so they run beside the
+    # tests instead of inside the release job (v0.7.3: the release waited for them after the last shard)
+    name: plugins-lock
+    needs: plan
+    if: inputs.tag != ''
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the plugins' split commits need the history
+      - run: tools/plugin-split --lock plugins.lock
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugins-lock
+          path: plugins.lock
   release:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
     name: release
-    needs: [package, package-intel, package-windows, linux-cross, test, tests-linux]   # the test shards too: the CI runs only on a release (owner, 2026-10-19), so a FAIL keeps it from being published
+    needs: [package, package-intel, package-windows, linux-cross, test, tests-linux, plugins-lock]   # the test shards too: the CI runs only on a release (owner, 2026-10-19), so a FAIL keeps it from being published
     if: ${{ !cancelled() && needs.package.result == 'success' && inputs.tag != '' }}   # the Windows package is experimental: released when it built
     runs-on: ubuntu-24.04
     permissions:
@@ -821,8 +837,11 @@ jobs:
           pattern: engines-*
           path: release
           merge-multiple: true
-      - name: plugins.lock (ZN-335)
-        run: tools/plugin-split --lock release/plugins.lock
+      - uses: actions/download-artifact@v4
+        # plugins.lock (ZN-335), written by the plugins-lock job while the tests ran
+        with:
+          name: plugins-lock
+          path: release
       - name: Installer and checksums
         # ZN-718: install.sh reads SHA256SUMS beside it (curl -fsSL .../releases/latest/download/install.sh | sh), so both are release assets
         run: |

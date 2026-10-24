@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Fixed
+- The Linux downloads carry their version again: those of 0.7.3 were named and reported `0.0.0-dev`, so `zinc update` and the Pi player's Updates menu could not compare them.
+
 ## [0.7.3] - 2026-10-24
 
 ### Added
