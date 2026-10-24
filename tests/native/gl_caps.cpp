@@ -33,6 +33,13 @@ int main() {
     CHECK(glcaps::print(c, b, sizeof b) > 0 && strstr(b, "family Tegra 3") && strstr(b, "fragment highp no, mediump 13 bits"));
   }
   {
+    const char* name = "PS Vita (vitaGL)";   // the record the owner's PS Vita printed (targets/vita/gl_vita.cpp)
+    glcaps::Info in{"Rinnegatamante", "SGX543MP4+", "OpenGL ES 2.0", "GL_OES_packed_depth_stencil GL_OES_depth24", nullptr, 4096, 23, 23, 32, 8};
+    glcaps::Caps c;
+    glcaps::fill(c, in);
+    CHECK(c.family == glcaps::POWERVR); CHECK(c.tiler); CHECK(!c.lean);
+  }
+  {
     const char* name = "VideoCore IV";
     glcaps::Info in{"Broadcom", "VC4 V3D 2.1", "OpenGL ES 2.0 Mesa 22.3.6",
                     "GL_EXT_blend_minmax GL_EXT_multi_draw_arrays GL_OES_depth24 GL_OES_element_index_uint GL_OES_fbo_render_mipmap "

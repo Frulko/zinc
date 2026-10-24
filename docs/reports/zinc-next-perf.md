@@ -1192,3 +1192,16 @@ The 38 functions gone from styleonly are `applyToken`, the token helpers, the co
 the interpreter start and `zinc build` seconds (load 15 to 26 all evening); `TIMES=1 bench/ui-primitives/measure.sh` on a quiet machine, with
 02bb67ca's binary for the before. The field editor (step 7 of the report) is about 5,700 instructions, 10.6 % of what styleonly keeps, but every
 program with a field needs it; deferred to backlog/later.md.
+
+## The Vita through vitaGL (D165, 2026-10-25)
+
+The owner's PS Vita, `examples/ui/gl-check` with `ZINC_SCENE=cycle` (seven scenes, two seconds each), core built with `--vitagl`, from `ux0:data/ZINC00020/zinc.log`:
+
+| Run | fps (600 frames) | missed vblanks | frame max | programs built | CPU to submit a replayed frame |
+|---|---|---|---|---|---|
+| first launch (Cg compile) | 32.4 | 16 | 1001 ms | 17 in 10304 ms | 88 ms (the compiles) |
+| second launch (shader cache) | 60.5 | 0 | 16.7 ms | 17 in 86 ms | 1.7 ms at start, 0.4 ms after |
+| steady state | 60.4 | 0 | 16.7 ms | | 2.4 ms (first run), 0.43 ms (cached) |
+
+0 LINE/POLY skipped and 0 CPU tiles: every command on the GPU (stencil 8). The same program on GXM: 60.3 fps, its rounded and gradient scenes rasterized in software.
+

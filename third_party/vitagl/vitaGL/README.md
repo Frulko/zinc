@@ -1,0 +1,177 @@
+<p align="center"><img width="50%" src="./vitagl.png"></p>
+vitaGL is an opensource openGL driver for PSVITA development. It acts as a wrapper between openGL and sceGxm and allows to use a subset of openGL functions with full hardware acceleration by translating the code to sceGxm equivalent.
+
+# Prerequisites
+In order to run an homebrew made with vitaGL, you are going to need libshacccg.suprx extracted and decrypted on your console. You can refer to this guide for more details about its extraction: https://samilops2.gitbook.io/vita-troubleshooting-guide/shader-compiler/extract-libshacccg.suprx<br>
+
+# Help and Troubleshooting
+
+If you plan to use vitaGL for one of your projects, you can find an official channel to get help with it on Vita Nuova discord server: https://discord.gg/Mz7MmktcuK
+
+# Build Instructions
+In order to build vitaGL use the following command: `make install`.
+<br>These are all the available flags usable when compiling the library:<br>
+### Debug Flags
+| Flag | Description |
+| --- | --- |
+|`HAVE_SHARK_LOG=1`|  Enables logging support in runtime shader compiler.|
+|`LOG_ERRORS=1`| Errors will be logged with sceClibPrintf.|
+|`HAVE_PROFILING=1`| Enables lightweighted profiler for CPU time spent in draw calls.|
+|`HAVE_DEBUGGER=1`| Enables lightweighted on screen debugger interface.|
+|`HAVE_DEBUGGER=2`| Enables lightweighted on screen debugger interface with extra information (devkit only).|
+|`HAVE_RAZOR=1`| Enables debugging features through Razor debugger (retail and devkit compatible).|
+|`HAVE_DEVKIT=1`| Enables extra debugging features through Razor debugger available only for devkit users.|
+|`HAVE_CPU_TRACER=1`| Makes the library insert a Razor CPU sync at every buffer swap for better frame timelines in the profiler.|
+|`DEBUG_GLSL_TRANSLATOR=1`| Enables logging of GLSL translator input and output prior shader compilation process.|
+|`DEBUG_GLSL_PREPROCESSOR=1`| Enables logging of GLSL preprocessor input and output prior shader compilation process.|
+|`DEBUG_GC=1`| Enables sanity checks for the internal garbage collector.|
+|`DEBUG_THREAD_SAFENESS=1`| Enables sanity checks for thread safety usage of the library.|
+### Compatibility Flags
+| Flag | Description |
+| --- | --- |
+|`HAVE_CUSTOM_HEAP=1`| Replaces sceClibMspace heap implementation with custom one (Safer and with proper diagnostic).|
+|`HAVE_GLSL_TEXTURE_SIZE=1`| Enables experimental automatic handling of textureSize GLSL calls with the GLSL translator.|
+|`HAVE_GLSL_UBOS=1`| Enables experimental support for nominal uniform buffer objects in GLSL shaders with the GLSL translator.|
+|`HAVE_FFP_SHADER_SUPPORT=1`| Enables support for GLSL 1.20 legacy built-in ffp uniform bindings (eg. gl_ModelViewProjectionMatrix). Causes the shader pipeline to be slightly slower.|
+|`SOFTFP_ABI=1`| Compiles the library in soft floating point compatibility mode.|
+|`STORE_DEPTH_STENCIL=1`| Makes all framebuffers depth/stencil surfaces to be load/stored on memory. Makes the rendering slower but more compliant with OpenGL standards.|
+|`HAVE_HIGH_FFP_TEXUNITS=1`| Enables support for more than 2 texunits for fixed function pipeline at the cost of some performance loss.|
+|`HAVE_DISPLAY_LISTS=1`| Enables support for display lists at the cost of some performance loss.|
+|`SAFE_ETC1=1`| Disables hardware support for ETC1 textures. Makes ETC1 textures usage less efficient but allows for proper debugging in Razor.|
+|`SAFE_DRAW=1`| Makes some optimizations in the drawing pipeline less efficient but can solve some glitches.|
+|`SAFE_UNIFORMS=1`| Makes some optimizations in the shaders pipeline less efficient but makes uniform location indexing for basic type arrays compliant.|
+|`UNPURE_TEXFORMATS=1`| Enables support for texture dimensions different than 2D (tex2D is still required in shader code).|
+|`ENABLE_LEGACY_PIPELINE=1`| Enables support for the legacy vglDrawObjects pipeline.|
+|`HAVE_FIXED_ATTRIBUTES=1`| Enables experimental support for GL_FIXED attributes in shaders when GLSL shaders are used.|
+### Hack Flags
+| Flag | Description |
+| --- | --- |
+|`NO_TEX_COMBINER=1`| Disables texture combiner support (GL_COMBINE) for faster fixed function pipeline code execution.|
+|`NO_DEBUG=1`| Disables most of the error handling features (Faster CPU code execution but code may be non compliant to all OpenGL standards).|
+|`BUFFERS_SPEEDHACK=1`| Enables faster vertex buffer copying. May cause crashes.|
+|`DRAW_SPEEDHACK=1`| Enables faster code for draw calls. May cause crashes.|
+|`DRAW_SPEEDHACK=2`| Enables faster code for draw calls only for large vertex data draws. May cause crashes.|
+|`INDICES_DRAW_SPEEDHACK=1`| Enables faster code for handling index buffers for draw calls. May cause crashes.|
+|`INDICES_SPEEDHACK=1`| Produces faster draw code but disables support for instanced draws and makes 32 bit (GL_UNSIGNED_INT) indexed draws potentially cause glitches.|
+|`MATH_SPEEDHACK=1`| Enables faster code for matrix math calls. May cause glitches.|
+|`TEXTURES_SPEEDHACK=1`| Makes glTexSubImage2D/glTexSubImage1D non fully OpenGL compliant but makes rendering pipeline slightly faster. Incompatible with HAVE_TEXTURE_CACHE=1.|
+|`TEXTURE_UPLOADS_SPEEDHACK=1`| Makes uploading of PO2 compressed textures faster but might cause crashes.|
+|`SAMPLERS_SPEEDHACK=1`| Enables faster code for samplers resolution during shaders usage. May cause glitches.|
+|`PRIMITIVES_SPEEDHACK=1`| Makes draw calls more efficient but GL_LINES and GL_POINTS primitives usage may cause glitches.|
+|`DEPTH_STENCIL_HACK=1`| Makes depth and stencil buffers have no memory costs but can cause crashes in some circumstances.|
+|`READBACKS_SPEEDHACK=1`| Makes glReadPixels faster but may cause glitched readbacks.|
+|`CIRCULAR_POOL_SPEEDHACK=1`| Makes the internal circular pool use a single buffer. Slightly improves CPU performance but might cause glitches.|
+### Misc Flags
+| Flag | Description |
+| --- | --- |
+|`HAVE_TEXTURE_CACHE=1`| Adds file caching for textures not used since a lot of time, acting like a sort of swap implementation to increase effective available memory. (Experimental)|
+|`NO_DMAC=1`| Disables sceDmacMemcpy usage. In some rare instances, it can improve framerate.|
+|`HAVE_UNFLIPPED_FBOS=1`| Framebuffers objects won't be internally flipped to match OpenGL standards.|
+|`HAVE_WVP_ON_GPU=1`| Moves calculation of the wvp in fixed function pipeline codepath to the GPU. Reduces CPU workload and increases GPU one.|
+|`SHARED_RENDERTARGETS=1`| Makes small framebuffers objects use shared rendertargets instead of dedicated ones.|
+|`SHARED_RENDERTARGETS=2`| Makes small framebuffers objects use shared rendertargets instead of dedicated ones and adds a mechanism for recycling older rendertargets.|
+|`NO_CIRCULAR_POOL=1`| Makes temporary data buffers being handled without a circular pool. Reduces memory usage but makes CPU performance worse.|
+|`USE_SCRATCH_MEMORY=1`| Makes GL_DYNAMIC and GL_STREAM vbos be configurable to use circular pool instead of regular allocations. Not compatible with NO_CIRCULAR_POOL.|
+|`HAVE_PTHREAD=1`| Use pthread instead of sceKernel for starting garbage collector thread.|
+|`SINGLE_THREADED_GC=1`| Makes the garbage collector run on main thread.|
+|`PHYCONT_ON_DEMAND=1`| Makes the physically contiguous RAM be handled with separate memblocks instead of an heap.|
+|`UNPURE_TEXTURES=1`| Makes legal to upload textures without base level.|
+|`UNPURE_TEXCOORDS=1`| Makes legal to use multitexturing with fixed-function pipeline with GL_TEXTURE0 disabled.|
+|`DISABLE_FFP_MULTITEXTURE=1`| Disables multitexture processing during draw calls performed with fixed function pipeline.|
+|`HAVE_WRAPPED_ALLOCATORS=1`| Allows usage of vgl allocators inside wrapped allocators.|
+|`HAVE_SHADER_CACHE=1`| Enables fast automatic file caching (based on XH3 xxHash algorithm) for application provided shaders.|
+|`HAVE_VERTEX_LAYOUT_CACHE=1`| Enables vertex attributes/streams layouts caching with shaders pipeline. May improve performances.|
+|`NO_CLIB=1`| Disables sceClib functions usage for easier debugging at the cost of slightly slower CPU code.|
+|`DISABLE_W_CLAMPING=1`| Disables W clamping during viewport calculation. Might fix some glitches.|
+|`NO_TILE_CLIPPER=1`| Disables early tile clipping for scissor testing. Slightly reduces CPU workload but increases GPU workload.|
+|`NO_SPLASHSCREEN=1`| Disables the vitaGL boot splashscreen that hides loading times.|
+
+# Samples
+
+You can find samples in the *samples* folder in this repository.
+
+# Projects actually using vitaGL
+
+Here you can find a list of projects using vitaGL:
+
+Direct OpenGL Usage:<br>
+[Aerofoil Vita](https://www.rinnegatamante.eu/vitadb/#/info/1040) - Port of Glider PRO<br>
+[Anomaly 2 Vita](https://www.rinnegatamante.eu/vitadb/#/info/1050) - Port of Anomaly 2<br>
+[Anomaly Defenders Vita](https://www.rinnegatamante.eu/vitadb/#/info/1051) - Port of Anomaly Defenders<br>
+[Anomaly Korea](https://www.rinnegatamante.eu/vitadb/#/info/1047) - Port of Anomaly Korea<br>
+[Anomaly WE Vita](https://www.rinnegatamante.eu/vitadb/#/info/1046) - Port of Anomaly Warzone Earth HD<br>
+[AvP Gold](https://www.rinnegatamante.eu/vitadb/#/info/569) - Port of Aliens versus Predator: Gold Edition<br>
+[Baba Is You Vita](https://www.rinnegatamante.eu/vitadb/#/info/828) - Port of Baba Is You<br>
+[Billy Frontier Vita](https://www.rinnegatamante.eu/vitadb/#/info/1001) - Port of Billy Frontier<br>
+[Bugdom](https://www.rinnegatamante.eu/vitadb/#/info/841) - Port of Bugdom<br>
+[bc2_vita](https://www.rinnegatamante.eu/vitadb/#/info/714) - Port of Battlefield Bad Company 2 Mobile<br>
+[Crazy Taxi Vita](https://www.rinnegatamante.eu/vitadb/#/info/728) - Port of Crazy Taxi Classic<br>
+[Cro-Mag Rally Vita](https://www.rinnegatamante.eu/vitadb/#/info/872) - Port of Cro-Mag Rally<br>
+[CrossCraft Classic](https://www.rinnegatamante.eu/vitadb/#/info/848) - Multiplatform Minecraft Classic clone<br>
+[d3es-vita](https://github.com/Rinnegatamante/d3es-vita) - Port of Doom 3<br>
+[Daedalus X64](https://www.rinnegatamante.eu/vitadb/#/info/553) - Port of Daedalus X64 (N64 Emulator)<br>
+[Dead Space Vita](https://www.rinnegatamante.eu/vitadb/#/info/999) - Port of Dead Space (Android)<br>
+[Death Road to Canada Lite](https://www.rinnegatamante.eu/vitadb/#/info/846) - Port of Death Road to Canada<br>
+[Doom64EX](https://www.rinnegatamante.eu/vitadb/#/info/881) - Port of Doom64EX (Doom 64 sourceport)<br>
+[Fade to Black](https://www.rinnegatamante.eu/vitadb/#/info/367) - Port of Fade to Black<br>
+[Fahrenheit Vita](https://www.rinnegatamante.eu/vitadb/#/info/835) - Port of Fahrenheit: Indigo Prophecy<br>
+[FF3-Vita](https://www.rinnegatamante.eu/vitadb/#/info/725) - Port of Final Fantasy III (3D Remake)<br>
+[FF4-Vita](https://www.rinnegatamante.eu/vitadb/#/info/726) - Port of Final Fantasy IV (3D Remake)<br>
+[FF4AY_Vita](https://www.rinnegatamante.eu/vitadb/#/info/989) - Port of Final Fantasy IV: The After Years (3D Remake)<br>
+[FF5-Vita](https://www.rinnegatamante.eu/vitadb/#/info/733) - Port of Final Fantasy V<br>
+[Flycast](https://www.rinnegatamante.eu/vitadb/#/info/605) - Port of Flycast (Dreamcast Emulator)<br>
+[Funky Smugglers Vita](https://www.rinnegatamante.eu/vitadb/#/info/1044) - Port of Funky Smugglers<br>
+[Hassey Collection](https://www.rinnegatamante.eu/vitadb/#/info/1014) - Port of Galcon 2: Galactic Conquest and BREAKFINITY<br>
+[Hurrican](https://www.rinnegatamante.eu/vitadb/#/info/617) - Port of Hurrican<br>
+[Isotope 244 Collection](https://www.rinnegatamante.eu/vitadb/#/info/873) - Port of Machines at War 3 and Land Air Sea Warfare<br>
+[JetMan 3D](https://www.rinnegatamante.eu/vitadb/#/info/719) - Fanmade remake of Jetpac for ZX Spectrum<br>
+[jfduke3d-vita](https://www.rinnegatamante.eu/vitadb/#/info/711) - Port of JFDuke3D (Duke Nukem 3D sourceport)<br>
+[jfsw-vita](https://www.rinnegatamante.eu/vitadb/#/info/705) - Port of JFSW (Shadow Warrior Classic sourceport)<br>
+[Lugaru HD](https://www.rinnegatamante.eu/vitadb/#/info/853) - Port of Lugaru<br>
+[Mass Effect Infiltrator Vita](https://www.rinnegatamante.eu/vitadb/#/info/1019) - Port of Mass Effect: Infiltrator<br>
+[Nanosaur Vita](https://www.rinnegatamante.eu/vitadb/#/info/851) - Port of Nanosaur<br>
+[Nazi Zombies Portable](https://www.rinnegatamante.eu/vitadb/#/info/757) - Port of Nazi Zombies Portable<br>
+[Neverball Vita](https://www.rinnegatamante.eu/vitadb/#/info/873) - Port of Neverball<br>
+[Neverputt Vita](https://www.rinnegatamante.eu/vitadb/#/info/874) - Port of Neverputt<br>
+[Pekka Kana 2 Vita](https://www.rinnegatamante.eu/vitadb/#/info/847) - Port of Pekka Kana 2<br>
+[Poppy Kart Collection](https://www.rinnegatamante.eu/vitadb/#/info/1030) - Port of Poppy Kart and Poppy Kart 2<br>
+[prboom-plus](https://www.rinnegatamante.eu/vitadb/#/info/591) - Port of PrBoom Plus (Doom engine sourceport)<br>
+[Quakespasm-Spiked](https://www.rinnegatamante.eu/vitadb/#/info/716) - Port of Quakespasm Spiked (Limit removed Quake Engine sourceport)<br>
+[Rigel Engine](https://www.rinnegatamante.eu/vitadb/#/info/988) - Port of Duke Nukem II<br>
+[RVGL Vita](https://www.rinnegatamante.eu/vitadb/#/info/840) - Port of RVGL<br>
+[rvm_soniccd-vitagl](https://github.com/fgsfdsfgs/rvm_soniccd/tree/vitagl) - Port of rvm_soniccd (Sonic CD decompilation)<br>
+[Sleepwalker's Journey Vita](https://www.rinnegatamante.eu/vitadb/#/info/1048) - Port of Sleepwalker's Journey<br>
+[sm64-vita](https://github.com/bythos14/sm64-vita) - Port of Super Mario 64<br>
+[srb2-vita](https://github.com/Rinnegatamante/srb2-vita) - Port of Sonic Robo Blast 2<br>
+[StaticJK](https://github.com/Rinnegatamante/StaticJK) - Port of Star Wars: Jedi Academy<br>
+[TheXTech Vita](https://www.rinnegatamante.eu/vitadb/#/info/727) - Port of Super Mario Bros X<br>
+[Tomb Raider 1 & 2 Classic Collection](https://www.rinnegatamante.eu/vitadb/#/info/845) - Port of Tomb Raider and Tomb Raider 2<br>
+[TWoM Vita](https://www.rinnegatamante.eu/vitadb/#/info/802) - Port of This War of Mine and This War of Mine: Stories - Father's Promise<br>
+[VITA Homebrew Sorter](https://www.rinnegatamante.eu/vitadb/#/info/655) - App to sort your app.db<br>
+[VitaDB Downloader](https://www.rinnegatamante.eu/vitadb/#/info/877) - Homebrew store app<br>
+[VITAlbum](https://www.rinnegatamante.eu/vitadb/#/info/566) - Filebrowser and image viewer app<br>
+[vitaET](https://github.com/Rinnegatamante/vitaET) - Port of ET: Legacy (Wolfenstein: Enemy Territory)<br>
+[vitaHexenII](https://www.rinnegatamante.eu/vitadb/#/info/196) - Port of Hexen II<br>
+[vitaQuake](https://www.rinnegatamante.eu/vitadb/#/info/10) - Port of Quake I and mission packs<br>
+[vitaQuakeII](https://www.rinnegatamante.eu/vitadb/#/info/278) -Port of Quake II and mission packs<br>
+[vitaQuakeIII](https://www.rinnegatamante.eu/vitadb/#/info/375) - Port of ioquake3 (Quake III: Arena, Quake III: Team Arena, OpenArena, Urban Terror)<br>
+[vitaRTCW](https://www.rinnegatamante.eu/vitadb/#/info/459) - Port of iortcw (Return to Castle Wolfenstein)<br>
+[vitaVoyager](https://www.rinnegatamante.eu/vitadb/#/info/491) - Port of lilium-voyager (Star Trek Voyager: Elite Force)<br>
+[vitaXash3D](https://www.rinnegatamante.eu/vitadb/#/info/365) - Port of Xash3D (Half Life, Counter Strike 1.6)<br>
+[World of Goo Vita](https://www.rinnegatamante.eu/vitadb/#/info/806) - Port of World of Goo<br>
+[YoYo Loader](https://www.rinnegatamante.eu/vitadb/#/info/815) - Loader for Game Maker Studio made games<br>
+
+Libraries:<br>
+[imgui_vita](https://github.com/Rinnegatamante/imgui-vita) - Port of dear imGui <br>
+[sdl12_gl](https://github.com/Rinnegatamante/SDL-Vita/tree/sdl12_gl/src) - SDL 1.2 Vita port adapted to work with vitaGL as renderer backend<br>
+[SDL2_vitagl](https://github.com/Northfear/SDL/tree/vitagl) - SDL2 Vita port adapted to work with vitaGL as renderer backend<br>
+
+sdl12_gl Apps:<br>
+[Dstroy Vita](https://www.rinnegatamante.eu/vitadb/#/info/383) - Port of Dstroy<br>
+[meritous](https://www.rinnegatamante.eu/vitadb/#/info/411) - Port of meritous<br>
+[SuperMarioWar](https://www.rinnegatamante.eu/vitadb/#/info/422) - Port of Super Mario War<br>
+[vitaWolfen](https://www.rinnegatamante.eu/vitadb/#/info/31) - Port of Wolf4SDL (Wolfenstein 3D)<br>
+[Zelda3T](https://www.rinnegatamante.eu/vitadb/#/info/334) - Port of Zelda: Time to Triumph<br>
+[ZeldaNSQ](https://www.rinnegatamante.eu/vitadb/#/info/350) - Port of Zelda: Navi's Quest<br>
+[ZeldaOLB](https://www.rinnegatamante.eu/vitadb/#/info/265) - Port of Zelda: Oni Link Begins<br>
+[ZeldaROTH](https://www.rinnegatamante.eu/vitadb/#/info/109) - Port of Zelda: Return of the Hylian<br>

@@ -1,0 +1,227 @@
+/* 
+	Fixed Masks:
+	0x01 = Normal
+	0x02 = Tex0
+	0x04 = Tex1
+*/
+
+const char *ffp_vert_src =
+R"(#define clip_planes_num %d
+#define num_textures %d
+#define has_colors %d
+#define lights_num %d
+#define lighting %d
+#define shading_mode %d
+#define normalization %d
+#define fixed_mode_mask %d
+#define fixed_mode_pos %d
+#define calculate_wvp %d
+#define interp %d
+
+#if interp == 1
+#define TEXCOORD0 TEXCOORD0_HALF
+#define TEXCOORD1 TEXCOORD1_HALF
+#define TEXCOORD2 TEXCOORD2_HALF
+#define TEXCOORD3 TEXCOORD3_HALF
+#define TEXCOORD4 TEXCOORD4_HALF
+#define TEXCOORD5 TEXCOORD5_HALF
+#define TEXCOORD6 TEXCOORD6_HALF
+#endif
+
+#define GLFixedToFloat(fx) (float(bit_cast<short2>(fx).y + (bit_cast<unsigned short2>(fx).x * (1.0f / 65536.0f))))
+#define GLFixed2ToFloat2(fx2) (float2(GLFixedToFloat(fx2.x), GLFixedToFloat(fx2.y)))
+#define GLFixed3ToFloat3(fx3) (float3(GLFixedToFloat(fx3.x), GLFixedToFloat(fx3.y), GLFixedToFloat(fx3.z)))
+#define GLFixed4ToFloat4(fx4) (float4(GLFixedToFloat(fx4.x), GLFixedToFloat(fx4.y), GLFixedToFloat(fx4.z), GLFixedToFloat(fx4.w)))
+
+#if lighting == 1 && shading_mode < 1 // GL_SMOOTH/GL_FLAT
+uniform float4 Flight_global_ambient;
+#endif
+
+#if lights_num > 0 && shading_mode < 1 // GL_SMOOTH/GL_FLAT
+uniform float4 Alights_ambients[lights_num];
+uniform float4 Blights_diffuses[lights_num];
+uniform float4 Clights_speculars[lights_num];
+uniform float4 Dlights_positions[lights_num];
+uniform float3 Elights_attenuations[lights_num];
+uniform float Gshininess;
+
+void point_light(short i, float3 normal, float3 position, float4 inout Ambient, float4 inout Diffuse, float4 inout Specular) {
+	float3 VP = (Dlights_positions[i].xyz / Dlights_positions[i].w) - position;
+	float d = length(VP);
+	VP = normalize(VP);
+	float attenuation = 1.0f / (Elights_attenuations[i].x +
+		Elights_attenuations[i].y * d +
+		Elights_attenuations[i].z * d * d);
+	float nDotVP = max(0.0f, dot(normal, VP));
+
+	Ambient += Alights_ambients[i] * attenuation;
+	Diffuse += Blights_diffuses[i] * nDotVP * attenuation;
+	if (nDotVP != 0.0f) {
+		float nDotHV = max(0.0f, dot(normal, normalize(VP + float3(0.0f, 0.0f, 1.0f))));
+		Specular += Clights_speculars[i] * pow(nDotHV, Gshininess) * attenuation;
+	}
+}
+
+void directional_light(short i, float3 normal, float3 position, float4 inout Ambient, float4 inout Diffuse, float4 inout Specular) {
+	float3 VP = normalize(Dlights_positions[i].xyz);
+	float nDotVP = max(0.0f, dot(normal, VP));
+		
+	Ambient += Alights_ambients[i];
+	Diffuse += Blights_diffuses[i] * nDotVP;
+	if (nDotVP != 0.0f) {
+		float nDotHV = max(0.0f, dot(normal, normalize(VP + float3(0.0f, 0.0f, 1.0f))));
+		Specular += Clights_speculars[i] * pow(nDotHV, Gshininess);
+	}
+}
+
+void calculate_light(short i, float3 ecPosition, float3 N, float4 inout Ambient, float4 inout Diffuse, float4 inout Specular) {
+	if (Dlights_positions[i].w != 0.0f)
+		point_light(i, N, ecPosition, Ambient, Diffuse, Specular);
+	else
+		directional_light(i, N, ecPosition, Ambient, Diffuse, Specular);
+}
+#endif
+
+void main(
+	float4 Nposition,
+#if num_textures > 0
+	float2 Otexcoord0,
+#if num_textures > 1
+	float2 Utexcoord1,
+#endif
+#endif
+#if has_colors == 1 || lighting == 1
+	float4 Pcolor, // We re-use this for ambient values when lighting is on
+#endif
+#if lighting == 1
+	float4 Qdiff,
+#if lights_num > 0
+	float4 Rspec,
+#endif
+	float4 Semission,
+#if lights_num > 0
+	float3 Tnormals,
+#endif
+#endif
+#if num_textures > 0
+	float2 out vTexcoord : TEXCOORD0,
+#if num_textures > 1
+	float2 out vTexcoord2 : TEXCOORD1,
+#endif
+#endif
+#if lighting == 1 && shading_mode == 1 // GL_PHONG_WIN
+#if lights_num > 0
+	float3 out vNormal : TEXCOORD2,
+	float3 out vEcPosition : TEXCOORD3,
+	float4 out vDiffuse : TEXCOORD4,
+	float4 out vSpecular : TEXCOORD5,
+	float4 out vEmission : TEXCOORD6,
+#else
+	float4 out vDiffuse : TEXCOORD2,
+	float4 out vEmission : TEXCOORD3,
+#endif
+#endif
+	float4 out vPosition : POSITION,
+#if has_colors == 1 || lighting == 1
+	float4 out vColor : COLOR,
+#endif
+	float out psize : PSIZE,
+#if clip_planes_num > 0
+	float out vClip[clip_planes_num] : CLP0,
+	uniform float4 Hclip_planes_eq[clip_planes_num],
+#endif
+#if clip_planes_num > 0 || lighting == 1 || calculate_wvp == 1
+	uniform float4x4 Imodelview,
+#endif
+	uniform float4x4 Jwvp,
+#if num_textures > 0
+	uniform float4x4 Ktexmat[num_textures],
+#endif
+	uniform float Mpoint_size,
+	uniform float3x3 Lnormal_mat
+) {
+#if fixed_mode_pos == 1
+	Nposition.xy = GLFixed2ToFloat2(Nposition.xy);
+#endif
+#if fixed_mode_pos == 2
+	Nposition.xyz = GLFixed3ToFloat3(Nposition.xyz);
+#endif
+#if fixed_mode_pos == 3
+	Nposition = GLFixed4ToFloat4(Nposition);
+#endif
+#if calculate_wvp == 1
+	Jwvp = mul(Jwvp, Imodelview); // Jwvp is actually the proj matrix
+#endif
+#if clip_planes_num > 0 || lighting == 1
+	float4 modelpos = mul(Imodelview, Nposition);
+#endif	
+	// User clip planes
+#if clip_planes_num > 0
+	for (short i = 0; i < clip_planes_num; i++) {
+		vClip[i] = dot(modelpos, Hclip_planes_eq[i]);
+	}
+#endif
+	vPosition = mul(Jwvp, Nposition);
+	
+	// Lighting
+#if lighting == 1 && lights_num > 0
+#if (fixed_mode_mask & 0x01) == 0x01
+	Tnormals = GLFixed3ToFloat3(Tnormals);
+#endif
+#if normalization == 1
+	float3 normal = normalize(mul(Lnormal_mat, Tnormals));
+#else
+	float3 normal = mul(Lnormal_mat, Tnormals);
+#endif
+	float3 ecPosition = modelpos.xyz / modelpos.w;
+#if shading_mode < 1 // GL_SMOOTH/GL_FLAT
+	float4 Ambient = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float4 Diffuse = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float4 Specular = float4(0.0f, 0.0f, 0.0f, 0.0f);
+#if lights_num > 0
+	for (short i = 0; i < lights_num; i++) {
+		calculate_light(i, ecPosition, normal, Ambient, Diffuse, Specular);
+	}
+#endif
+#endif
+#endif
+
+#if num_textures > 0
+#if (fixed_mode_mask & 0x02) == 0x02
+	Otexcoord0 = GLFixed2ToFloat2(Otexcoord0);
+#endif
+	vTexcoord = mul(Ktexmat[0], float4(Otexcoord0, 0.f, 1.f)).xy;
+#if num_textures > 1
+#if (fixed_mode_mask & 0x04) == 0x04
+	Utexcoord1 = GLFixed2ToFloat2(Utexcoord1);
+#endif
+	vTexcoord2 = mul(Ktexmat[1], float4(Utexcoord1, 0.f, 1.f)).xy;
+#endif
+#endif
+#if lighting == 1
+#if shading_mode < 1 // GL_SMOOTH/GL_FLAT
+	vColor.rgb = Semission.rgb + Pcolor.rgb * Flight_global_ambient.rgb;
+#if lights_num > 0
+	vColor.rgb += Ambient.rgb * Pcolor.rgb + Diffuse.rgb * Qdiff.rgb + Specular.rgb * Rspec.rgb;
+#endif
+	vColor.a = Qdiff.a;
+	vColor = clamp(vColor, 0.0f, 1.0f);
+#endif
+#if shading_mode == 1 // GL_PHONG_WIN
+	vColor = Pcolor;
+#if lights_num > 0
+	vNormal = normal;
+	vEcPosition = ecPosition;
+#endif
+	vDiffuse = Qdiff;
+#if lights_num > 0
+	vSpecular = Rspec;
+#endif
+	vEmission = Semission;
+#endif
+#elif has_colors == 1
+	vColor = Pcolor;
+#endif
+	psize = Mpoint_size;
+}
+)";

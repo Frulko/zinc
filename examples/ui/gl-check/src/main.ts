@@ -108,13 +108,17 @@ function images(): void {
   gfx.drawImage(checker, 260, 200, 10, 10, 255, 0);             // baked, downscaled
 }
 
+// ZINC_SCENE=cycle: every scene in turn, two seconds each (a console run, where one build shows them all)
+const SCENES: string[] = ['rects', 'gradients', 'borders', 'shadows', 'clip', 'text', 'images'];
+let frame = 0;
 gfx.onFrame((dt: number) => {
   gfx.clear(0xf4f4f5);
-  if (scene === 'gradients') gradients();
-  else if (scene === 'borders') borders();
-  else if (scene === 'shadows') shadows();
-  else if (scene === 'clip') clips();
-  else if (scene === 'text') texts();
-  else if (scene === 'images') images();
+  const s = scene === 'cycle' ? SCENES[Math.floor(frame++ / 120) % SCENES.length] : scene;
+  if (s === 'gradients') gradients();
+  else if (s === 'borders') borders();
+  else if (s === 'shadows') shadows();
+  else if (s === 'clip') clips();
+  else if (s === 'text') texts();
+  else if (s === 'images') images();
   else rects();
 });

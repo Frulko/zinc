@@ -125,12 +125,15 @@ static double gpu_us = 0, gpu_t0 = 0;
 static int gpu_mode = -1;   // -1 not decided, 0 none, 1 core query, 2 EXT query (GLES), 3 glFinish
 static bool gpu_stats() { static const bool on = getenv("ZINC_GL_STATS") != nullptr || getenv("ZINC_GL_TIMER") != nullptr; return on; }
 #if !GLR_CORE
-#include <dlfcn.h>
 static void (*pGenQ)(int, GLuint*);
 static void (*pBeginQ)(GLenum, GLuint);
 static void (*pEndQ)(GLenum);
 static void (*pGetQ)(GLuint, GLenum, GLuint*);
 static void (*pGetQ64)(GLuint, GLenum, unsigned long long*);
+#ifdef __vita__   // vitaGL (targets/vita/gl_vita.cpp): linked statically, no dlopen
+static void* gl_proc(const char* n) { return (void*)eglGetProcAddress(n); }
+#else
+#include <dlfcn.h>
 static void* gl_proc(const char* n) {
   typedef void* (*GP)(const char*);
   static GP gp = (GP)dlsym(RTLD_DEFAULT, "eglGetProcAddress");
@@ -138,6 +141,7 @@ static void* gl_proc(const char* n) {
   if (!gp && !tried) { tried = true; void* h = dlopen("libEGL.so", RTLD_LAZY); if (!h) h = dlopen("libEGL.so.1", RTLD_LAZY); if (h) gp = (GP)dlsym(h, "eglGetProcAddress"); }
   return gp ? gp(n) : nullptr;
 }
+#endif
 #endif
 static void gpu_init() {
   gpu_mode = 0;
@@ -246,9 +250,13 @@ static void probe() {
   glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &in.stencil_bits);
 #else
   in.extensions = (const char*)glGetString(GL_EXTENSIONS);
+#ifdef __vita__   // vitaGL has no precision query: the Vita's USSE shades fragments in fp32
+  in.highp_bits = in.mediump_bits = 23;
+#else
   GLint range[2] = {0, 0};
   glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range, &in.highp_bits);
   glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_MEDIUM_FLOAT, range, &in.mediump_bits);
+#endif
   glGetIntegerv(GL_DEPTH_BITS, &in.depth_bits); glGetIntegerv(GL_STENCIL_BITS, &in.stencil_bits);
 #endif
   glcaps::fill(caps, in);

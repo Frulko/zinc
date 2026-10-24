@@ -56,7 +56,7 @@ static inline Family family_of(const char* vendor, const char* renderer) {
   if (contains(r, "Tegra")) return TEGRA;
   if (contains(r, "Mali-4") || contains(r, "Mali-3") || contains(r, "Mali-2")) return MALI_UTGARD;
   if (contains(r, "Mali")) return MALI;
-  if (contains(r, "PowerVR")) return POWERVR;
+  if (contains(r, "PowerVR") || contains(r, "SGX")) return POWERVR;   // vitaGL names the PS Vita's GPU "SGX543MP4+"
   if (contains(r, "Apple")) return APPLE;
   if (contains(r, "Intel")) return INTEL;
   if (contains(r, "NVIDIA") || contains(r, "GeForce") || contains(r, "Quadro")) return NVIDIA;

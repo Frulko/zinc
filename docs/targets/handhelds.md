@@ -119,6 +119,19 @@ times every 600 frames. A build made with `--env ZINC_VITA_ONCE=1 --frames N --i
 session once when `ux0:data/<title id>/measure` exists (it deletes the file); `--env ZINC_VITA_SOFT_FRAMES=N` draws its first N frames in software,
 so one launch measures both paths. Meadow Run on the owner's PS Vita: 60 fps, work 3.5 ms a frame, replay 0.4 ms (`docs/reports/zinc-next-consoles.md`).
 
+### vitaGL
+
+`tools/build-console-core vita --vitagl` (CMake `-DZN_VITA_GL=ON`) draws through [vitaGL](https://github.com/Rinnegatamante/vitaGL) instead:
+the GLES 2 replay that the Pi, the TouchPad and Android use (`runtime/gl_replay.cpp`, `targets/vita/gl_vita.cpp`), so every command is drawn
+by the GPU, rounded corners, gradients, borders, shadows, paths, turned matrices and zinc:gfx shader programs included, with no software
+fallback. vitaGL compiles the replay's GLSL at run time with the console's own Cg compiler, which Sony does not let anyone redistribute: each
+user extracts `libshacccg.suprx` once from their console (the [ShaRKBR33D](https://github.com/Rinnegatamante/ShaRKBR33D) homebrew puts it in
+`ur0:data/` or `ur0:data/external/`). Without it the log says so and the core falls back to the software raster. The compiled programs
+are kept in `ux0:data/shader_cache/<title id>`: the first launch compiles the replay's 17 programs (10 s on the owner's PS Vita, the first
+frames stall), the next ones read them in 86 ms. On the owner's PS Vita, `examples/ui/gl-check` with every scene: 60 fps, no missed vblank,
+no command left to the CPU (`docs/reports/zinc-next-perf.md`). vitaGL is LGPL-3.0 (`third_party/README.md`): a core
+built with it must be shipped so its user can relink it with another vitaGL (keep the build directory's object files with the release).
+
 ## Limits
 
 - The PSP, PS2 and 3DS draw with the software raster (their GE, GS and PICA replays are later tasks); the Vita draws with its GPU (below); one thread (and the HAL's audio thread); no `zinc:fs` directories or stat (the console host
