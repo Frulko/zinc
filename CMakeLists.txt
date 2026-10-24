@@ -571,7 +571,14 @@ endif()
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
 if(WIN32)   # plugins as .dll: the def exports the engine's C symbols their native code calls, so --out-implib (ENABLE_EXPORTS) writes libzinc.dll.a beside zinc.exe and the plugin links it (docs/reports/zinc-windows-port.md)
   target_sources(zinc PRIVATE src/host/gpu_select_win.cpp)   # a laptop with two GPUs gives the window the NVIDIA or AMD one, not the integrated one
-  set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def")
+  if(TARGET zn_host_gfx)   # the def is src/zinc.def plus the zrt/hal symbols of libzn_host_gfx.a, written before each link (cmake/zinc-def.cmake)
+    find_program(ZN_NM NAMES llvm-nm nm REQUIRED)
+    add_custom_command(TARGET zinc PRE_LINK COMMAND ${CMAKE_COMMAND} -DNM=${ZN_NM} -DLIB=$<TARGET_FILE:zn_host_gfx>
+      -DSEED=${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def -DOUT=${CMAKE_BINARY_DIR}/zinc.def -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/zinc-def.cmake VERBATIM)
+    set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_BINARY_DIR}/zinc.def")
+  else()
+    set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def")
+  endif()
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def)
   # "Zinc Atelier.exe" of the Windows download of the app (tools/package): a GUI program that starts zinc.exe without a console window
   add_executable(zinc-atelier src/app/atelier_launcher_win.c)

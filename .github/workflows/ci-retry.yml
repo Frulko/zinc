@@ -1,0 +1,23 @@
+# A zinc-next run whose job was lost to the runner, not to the code (v0.7.2: "Set up job" could not resolve codeload.github.com and the arm64 package,
+# hence the release, never ran), is re-run once, its failed jobs only. A job that failed in its own steps is a real failure and is left as it is.
+name: ci-retry
+on:
+  workflow_run:
+    workflows: [zinc-next]
+    types: [completed]
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          lost=$(gh run view "$RUN" --json jobs -q '[.jobs[] | select(.conclusion == "failure") | select((.steps | length) == 0 or any(.steps[]; .name == "Set up job" and .conclusion == "failure")) | .name] | join(", ")')
+          [ -n "$lost" ] || { echo "no job lost to the runner: nothing to re-run"; exit 0; }
+          echo "::notice::re-running the failed jobs of run $RUN (lost to the runner: $lost)"
+          gh run rerun "$RUN" --failed

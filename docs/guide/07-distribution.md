@@ -401,13 +401,14 @@ lists the CI secrets not set yet; it never writes a secret's value, and running 
 `gh auth login` as an owner of zinc-engine, `tools/gh-org-setup --dry-run` (every gh command it would run), then
 `tools/gh-org-setup` and `gh secret set -R zinc-engine/zinc NAME` for each secret it lists.
 
-Branches (owner, 2026-10-19): the work happens on `develop`; `make release` fast-forwards `main` to it and pushes a `v*` tag. A release
-runs one pipeline, the tag's (owner, 2026-10-20). What CI does with each:
+Branches (owner, 2026-10-19): the work happens on `develop`; `make release` fast-forwards `main` to it, pushes a `v*` tag and starts the
+pipeline on `main` with that tag (`gh workflow run zinc-next --ref main -f tag=vX.Y.Z`): on `main`, not on the tag, so its caches serve the next release
+(a tag run reads only its own caches and those of `main`). A job lost to the runner (its "Set up job" failed) is re-run once by `ci-retry.yml`. What CI does with each:
 
 | event | what runs |
 | --- | --- |
-| push to `develop` or `main` | nothing |
-| `v*` tag (`make release`) | the build, the whole tier T2 in six shards, the packages; when every test passed, the release, then the plugin mirrors and the site |
+| push to `develop` or `main`, a `v*` tag | nothing |
+| release (`make release`: a run on `main` with `tag=vX.Y.Z`) | the build, the whole tier T2 in six shards, the packages; when every test passed, the release, then the plugin mirrors and the site |
 | manual run (`gh workflow run zinc-next --ref develop`) | the same tests and packages, no release |
 | manual targeted run (`gh workflow run zinc-next --ref develop -f mode=changed -f base=vX.Y.Z`) | affected T0/T1 tests since the last published tag; no packages, benchmarks, fuzz or cross builds; no release |
 
@@ -451,7 +452,7 @@ not look at them at all.
 
 ### The release job
 
-The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
+The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when it runs on `main` with `tag=vX.Y.Z`. Each OS job
 builds with `-DZN_VERSION=<the tag's version>` and packages (`tools/package` names the archives after the version the binary reports), smoke-tests both downloads
 (`tests/t1/install_nocompiler.sh`: installed with no compiler, the app opened headless), signs and notarizes them with
 `tools/sign-macos`, and writes the update manifests `zinc-<os>-<arch>.manifest` (stable) and `zinc-<os>-<arch>-beta.manifest`, signed with the release key; then the
@@ -474,7 +475,7 @@ Use `make preflight` when you want local checks before release: it incrementally
 step with origin, `main` behind `develop`, `gh` signed in, the `ZINC_UPDATE_SEED` secret, `update.pub`), proposes the next version from the commits since the last tag, shows the notes, and asks.
 The notes are the `## [Unreleased]` section of `CHANGELOG.md` (written as the work goes, see AGENTS.md); when it is empty the tool drafts one from the `feat`, `fix` and
 `perf` commits and offers to open it in `$EDITOR`. On a yes it saves the reviewed notes in `Unreleased` (a `docs(changelog)` commit if they changed), tags that snapshot,
-fast-forwards `main` to it, pushes `develop`, `main` and the tag, and watches the tag's workflow: the CI (the whole test tier, the packages), which publishes the downloads, the signed manifests and the notes.
+fast-forwards `main` to it, pushes `develop`, `main` and the tag, starts the workflow on `main` with the tag and watches it: the CI (the whole test tier, the packages), which publishes the downloads, the signed manifests and the notes.
 The workflow reads `CHANGELOG.md` from the tagged commit, so it works even when checkout has peeled the tag annotation; older tags with a version section use that section.
 Only after GitHub confirms publication does CI archive the snapshot under the version on `develop`. Notes added or edited while CI ran stay in `Unreleased`.
 Whether watched or started with `NO_WATCH=1`, notes stay pending until publication; a failed build or upload never consumes them. Rerunning the release job replaces the assets and full notes of an existing release;
@@ -502,7 +503,7 @@ Until then the file holds the placeholder (64 zeros): such a build has no update
 manifests with `ZINC_UPDATE_ALLOW_UNSIGNED=1` pass. When the seed is stored but the keygen output was not kept,
 `zinc update-pubkey <seed>` prints its public key.
 
-Then, for each release, `git tag -a v0.1.0 -m "Zinc 0.1.0"` and `git push origin v0.1.0`.
+Then, for each release, `git tag -a v0.1.0 -m "Zinc 0.1.0"`, `git push origin v0.1.0` and `gh workflow run zinc-next --ref main -f tag=v0.1.0` (`make release` does all three).
 `zinc update` then finds it at `https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest` (the manifest's package URL
 is relative, so it resolves to the CLI archive next to it). `tests/t0/release_workflow.sh` runs the manifest, checksum and release steps of
 the workflow locally (a stand-in for `gh`) and lints the workflow with actionlint. The packaging steps run on a Mac as the job runs them:

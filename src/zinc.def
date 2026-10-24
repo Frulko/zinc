@@ -2,8 +2,9 @@
 ; resolves nothing at load, so zinc.exe exports them (this file at its link, with ENABLE_EXPORTS) and its import
 ; library libzinc.dll.a (written beside zinc.exe by --out-implib) is what every plugin.dll links. C++ symbols carry
 ; their Itanium mangling: the list is the defined external zrt/hal surface of the runtime and HAL (libzn_host_gfx.a's
-; symbol index), the only names a plugin.dll can import. When a plugin link still fails on an engine symbol, add it
-; here (the exe link fails on a name that does not exist, which is the drift test).
+; symbol index), the only names a plugin.dll can import. With the graphics host this list is only the seed: cmake/zinc-def.cmake adds
+; every zrt/hal symbol of libzn_host_gfx.a at each link, so a new engine function needs no line here (v0.7.2 shipped without gfx::matrix).
+; Add a name here only for a symbol outside that library (the exe link fails on a name that does not exist, which is the drift test).
 LIBRARY zinc.exe
 EXPORTS
   _ZN3zrt10add_pollerEPNS_6PollerE

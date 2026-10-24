@@ -31,7 +31,7 @@ echo a > a && git add -A && git commit -q -m "feat: first" && git tag -a v0.1.0 
 git switch -q -c develop && git push -q origin develop   # the work happens on develop; a release moves main to it
 echo b > b && git add b && git commit -q -m "fix(core): a bug"
 echo c > c && git add c && git commit -q -m "feat(ui): a thing"
-run() { PATH="$tmp/bin:$PATH" NO_COLOR=1 sh "$rel" "$@" </dev/null 2>&1; }
+run() { PATH="$tmp/bin:$PATH" NO_COLOR=1 ZINC_RELEASE_RETRY_WAIT=0 sh "$rel" "$@" </dev/null 2>&1; }
 out=$(run --dry-run --yes)
 echo "$out" | grep -q "Changelog of v0.2.0" || { echo "feat since the last tag must propose a minor (v0.2.0): $out" | head -c 600; fail=1; }
 [ -z "$(git tag -l v0.2.0)" ] || { echo "--dry-run tagged"; fail=1; }
@@ -70,9 +70,9 @@ open(p, 'w').write(s)
 END
 git add CHANGELOG.md && git commit -q -m "docs: concurrent note" && git push -q origin develop
 before=$(git -C "$tmp/origin.git" rev-parse develop)
-PATH="$tmp/bin:$PATH" GH_REPO=owner/zinc GITHUB_SHA="$sha" GITHUB_REF_NAME=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 && { echo "unpublished release archived"; fail=1; }
+PATH="$tmp/bin:$PATH" GH_REPO=owner/zinc GITHUB_SHA="$sha" TAG=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 && { echo "unpublished release archived"; fail=1; }
 [ "$(git -C "$tmp/origin.git" rev-parse develop)" = "$before" ] || { echo "failed archive changed develop"; fail=1; }
-PATH="$tmp/bin:$PATH" TEST_PUBLISHED=yes GH_REPO=owner/zinc GITHUB_SHA="$sha" GITHUB_REF_NAME=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 || { cat "$tmp/archive.out"; fail=1; }
+PATH="$tmp/bin:$PATH" TEST_PUBLISHED=yes GH_REPO=owner/zinc GITHUB_SHA="$sha" TAG=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 || { cat "$tmp/archive.out"; fail=1; }
 git fetch -q origin develop && git merge --ff-only -q origin/develop
 python3 - "$notes_tool" <<'END' || fail=1
 import runpy, sys
@@ -92,7 +92,7 @@ edited = snapshot.replace('- One', '- One, clarified')
 assert 'One, clarified' in m['body'](m['archive'](edited, snapshot, '1.0.0', 'https://example.test', '2026-10-23'), 'Unreleased')
 END
 before=$(git -C "$tmp/origin.git" rev-parse develop)
-PATH="$tmp/bin:$PATH" TEST_PUBLISHED=yes GH_REPO=owner/zinc GITHUB_SHA="$sha" GITHUB_REF_NAME=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 || { cat "$tmp/archive.out"; fail=1; }
+PATH="$tmp/bin:$PATH" TEST_PUBLISHED=yes GH_REPO=owner/zinc GITHUB_SHA="$sha" TAG=v0.1.2 bash "$archive" > "$tmp/archive.out" 2>&1 || { cat "$tmp/archive.out"; fail=1; }
 [ "$(git -C "$tmp/origin.git" rev-parse develop)" = "$before" ] || { echo "rerun consumed concurrent notes or created another commit"; fail=1; }
 run --undo v0.1.2 --yes >/dev/null; git tag -l v0.1.2 | grep -q . && { echo "--undo kept the tag"; fail=1; }
 run --bump nonsense --yes --dry-run | grep -q "not a version" || { echo "a wrong version is not refused"; fail=1; }

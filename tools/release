@@ -133,15 +133,21 @@ git push origin "$sha:refs/heads/main" || { git tag -d "$tag" >/dev/null; die "c
 git fetch --quiet . "$sha:refs/heads/main" 2>/dev/null || true   # the local main follows (a fast-forward; never the branch you are on)
 git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push the tag (removed here)"; }
 ok "pushed $tag"
+# the pipeline is a dispatch on main, not the tag push: a run on main saves its caches where the next release reads them (a tag's caches are its own)
+since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run zinc-next --repo "$repo" --ref main -f tag="$tag" -f mode=full || die "could not start the workflow: gh workflow run zinc-next --ref main -f tag=$tag"
 [ -n "$watch" ] || { echo "  notes stay in Unreleased until publication; watch it: gh run watch -R $repo"; exit 0; }
 printf '  waiting for the workflow'
-id=; i=0   # this commit's run: a tag released again keeps the failed run of its first push
+id=; i=0   # the run this dispatch started: a tag released again keeps the runs of its first try
 while [ -z "$id" ] && [ $i -lt 30 ]; do
-  id=$(gh run list --repo "$repo" --workflow zinc-next --branch "$tag" --commit "$sha" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null); [ -n "$id" ] || { printf '.'; sleep 2; i=$((i + 1)); }
+  id=$(gh run list --repo "$repo" --workflow zinc-next --branch main --event workflow_dispatch --commit "$sha" --limit 5 --json databaseId,createdAt -q "[.[] | select(.createdAt >= \"$since\")][0].databaseId // empty" 2>/dev/null); [ -n "$id" ] || { printf '.'; sleep 2; i=$((i + 1)); }
 done; echo
 [ -n "$id" ] || { warn "no run found yet: gh run list -R $repo"; exit 0; }
 printf '  %s%s%s\n\n' "$c" "https://github.com/$repo/actions/runs/$id" "$z"
-gh run watch "$id" --repo "$repo" --interval 20 --exit-status >/dev/null 2>&1 && res=success || res=failed
+for _ in 1 2; do   # a job lost to the runner (its "Set up job" failed) is re-run once by .github/workflows/ci-retry.yml: follow the second attempt
+  gh run watch "$id" --repo "$repo" --interval 20 --exit-status >/dev/null 2>&1 && { res=success; break; }; res=failed
+  sleep "${ZINC_RELEASE_RETRY_WAIT:-90}"; [ "$(gh run view "$id" --repo "$repo" --json status -q .status 2>/dev/null)" = completed ] && break
+done
 if [ "$(gh release view "$tag" --repo "$repo" --json isDraft,publishedAt -q 'select(.isDraft == false and .publishedAt != null) | .publishedAt' 2>/dev/null)" != "" ]; then
   # CI may have archived the notes on develop while we watched. Never overwrite local edits.
   if [ "$res" = success ] && [ "$(git rev-parse --abbrev-ref HEAD)" = "$branch" ] && [ -z "$(git status --porcelain --untracked-files=no)" ]; then

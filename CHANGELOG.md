@@ -67,6 +67,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- Windows: plugins whose native code calls a recent engine function (`svg`, for its transforms) link again; `zinc.exe` now exports the whole engine surface plugins use.
 - Windows archives include the engine import library, so plugins can compile on first use after installation.
 - The Pi player uses the screen's native resolution, including 1080p. Framebuffer input now sends keyboard/text events with the configured layout, handles USB devices connected after boot, and shows a mouse cursor even while the app keeps an idle frame.
 - Signed Pi updates carry the matching player sources, administration helper and session service as well as the engine; existing cards can receive these fixes without reflashing after a one-time updater-helper upgrade. Failed activation and rollback restore the previous player and system files together.

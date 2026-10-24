@@ -1,7 +1,7 @@
 #!/bin/bash
 # CI only: keep newer develop notes while archiving the published tag's snapshot.
 set -euo pipefail
-published=$(gh release view "$GITHUB_REF_NAME" --json isDraft,publishedAt -q 'select(.isDraft == false and .publishedAt != null) | .publishedAt[:10]')
+published=$(gh release view "$TAG" --json isDraft,publishedAt -q 'select(.isDraft == false and .publishedAt != null) | .publishedAt[:10]')
 [ -n "$published" ] || { echo 'release is not published; Unreleased stays pending' >&2; exit 1; }
 tmp=$(mktemp -d)
 cleanup() { git worktree remove --force "$tmp/work" 2>/dev/null || true; rm -rf "$tmp"; }
@@ -13,10 +13,10 @@ for attempt in 1 2 3; do
   git worktree add --quiet --detach "$tmp/work" origin/develop
   (
     cd "$tmp/work"
-    python3 "$tmp/release-notes" archive "$tmp/snapshot" "$GITHUB_REF_NAME" "https://github.com/$GH_REPO" "$published"
+    python3 "$tmp/release-notes" archive "$tmp/snapshot" "$TAG" "https://github.com/$GH_REPO" "$published"
     git add CHANGELOG.md
     if ! git diff --cached --quiet; then
-      git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "docs(changelog): archive ${GITHUB_REF_NAME#v}"
+      git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "docs(changelog): archive ${TAG#v}"
     fi
   )
   if git -C "$tmp/work" push origin HEAD:refs/heads/develop; then exit 0; fi
