@@ -1216,8 +1216,11 @@ static bool unpackZapp(const std::string& path, std::uint64_t offset, std::uint6
     std::ifstream pf(fs::path(dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
     zn::frontend::Project project; std::string perr;
-    if (engine && pf && zn::frontend::parseProject(ps.str(), project, perr) && !project.engine.empty() && project.engine != "zinc") { *engine = project.engine; zbc = dir; return true; }
-    err = "the archive has no program.zbc"; return false;
+    if (!engine) { err = "the archive has no program.zbc"; return false; }
+    // its sources: on the engine its zinc.json names, else QuickJS (a .js entry's, the one zinc pack writes no program for)
+    *engine = pf && zn::frontend::parseProject(ps.str(), project, perr) && !project.engine.empty() && project.engine != "zinc" ? project.engine : "quickjs";
+    zbc = dir;
+    return true;
   }
   zbc = (fs::path(dir) / "program.zbc").string();
   return true;
@@ -2087,7 +2090,9 @@ int main(int argc, char** argv) {
     if (entry.empty()) { std::fprintf(stderr, "zinc pack: %s has no zinc.json entry nor src/main.ts[x]\n", projDir.c_str()); return 2; }
     if (inspect) entry = zn::cli::inspectEntry(projDir, entry);
     std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
-    if (have && !project.engine.empty() && project.engine != "zinc") {   // a project on a JavaScript engine: its sources, run there as `zinc run <dir> --engine` runs them
+    const bool jsEntry = entry.size() > 3 && (entry.compare(entry.size() - 3, 3, ".js") == 0 || (entry.size() > 4 && entry.compare(entry.size() - 4, 4, ".mjs") == 0));
+    const std::string engine = have && !project.engine.empty() ? project.engine : jsEntry ? "quickjs" : "";   // a .js entry runs on QuickJS (ZN-719)
+    if (!engine.empty() && engine != "zinc") {   // a project on a JavaScript engine: its sources, run there as `zinc run <dir> --engine` runs them
       // ponytail: the whole project but build/, node_modules/ and hidden files; a bundle (zinc bundle) when a project needs its npm packages
       std::map<std::string, std::string> files;
       std::error_code ec;
@@ -2098,12 +2103,49 @@ int main(int argc, char** argv) {
         std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
         files[rel] = b.str();
       }
+      // importmap.json's files outside the project (examples/js-three maps `three` to the repository's third_party/three): their folders ride
+      // along as vendor/<n>/, and the packed map points there
+      const fs::path mapDir = fs::path(entry).parent_path();
+      const std::string mapRel = (mapDir / "importmap.json").lexically_relative(projDir).generic_string();
+      if (yyjson_doc* doc = files.count(mapRel) ? yyjson_read(files[mapRel].data(), files[mapRel].size(), 0) : nullptr) {
+        yyjson_val* imports = yyjson_obj_get(yyjson_doc_get_root(doc), "imports");
+        yyjson_mut_doc* md = yyjson_mut_doc_new(nullptr);
+        yyjson_mut_val* mroot = yyjson_mut_obj(md);
+        yyjson_mut_val* mimports = yyjson_mut_obj(md);
+        yyjson_mut_doc_set_root(md, mroot);
+        yyjson_mut_obj_add_val(md, mroot, "imports", mimports);
+        std::vector<fs::path> roots;   // the folders copied, vendor/<their index>
+        size_t i, n;
+        yyjson_val *k, *v;
+        yyjson_obj_foreach(imports, i, n, k, v) {
+          std::string target = yyjson_is_str(v) ? yyjson_get_str(v) : "";
+          const fs::path abs = (mapDir / target).lexically_normal();
+          if (!target.empty() && target.find("://") == std::string::npos && abs.lexically_relative(projDir).generic_string().rfind("..", 0) == 0 && fs::is_regular_file(abs, ec)) {
+            size_t r = 0;
+            while (r < roots.size() && abs.lexically_relative(roots[r]).generic_string().rfind("..", 0) == 0) ++r;
+            if (r == roots.size()) {
+              roots.push_back(abs.parent_path());
+              for (auto it = fs::recursive_directory_iterator(roots[r], ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+                if (it->path().filename().string()[0] == '.') { if (it->is_directory()) it.disable_recursion_pending(); continue; }
+                if (!it->is_regular_file()) continue;
+                std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
+                files["vendor/" + std::to_string(r) + "/" + it->path().lexically_relative(roots[r]).generic_string()] = b.str();
+              }
+            }
+            target = (fs::path("vendor") / std::to_string(r) / abs.lexically_relative(roots[r])).lexically_relative(mapDir.lexically_relative(projDir)).generic_string();
+          }
+          yyjson_mut_obj_add(mimports, yyjson_mut_strcpy(md, yyjson_get_str(k)), yyjson_mut_strcpy(md, target.c_str()));
+        }
+        if (char* json = yyjson_mut_write(md, 0, nullptr)) { files[mapRel] = json; std::free(json); }
+        yyjson_mut_doc_free(md);
+        yyjson_doc_free(doc);
+      }
       if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
       const std::string archive = zn::zapp::pack(files, name, kVersionText);
       std::ofstream out(outPath, std::ios::binary);
       out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
       if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
-      std::printf("packed %s (%zu files, %zu bytes, on %s)\n", outPath.c_str(), files.size() + 1, archive.size(), project.engine.c_str());
+      std::printf("packed %s (%zu files, %zu bytes, on %s)\n", outPath.c_str(), files.size() + 1, archive.size(), engine.c_str());
       return 0;
     }
     zn::zbc::Module zm;
@@ -2128,6 +2170,15 @@ int main(int argc, char** argv) {
       files[base + so.filename().string()] = ls.str();
       files[base + "exports"] = es.str();
     }
+    // the project's own plugins (plugins/), as sources: a .zapp builds its plugins where it runs, and the engine there has only its own
+    if (fs::is_directory(fs::path(projDir) / "plugins", ec))
+      for (auto it = fs::recursive_directory_iterator(fs::path(projDir) / "plugins", ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        const std::string rel = it->path().lexically_relative(projDir).generic_string(), name = it->path().filename().string();
+        if (name[0] == '.' || name == "build" || name == "prebuilt" || name == "node_modules") { if (it->is_directory()) it.disable_recursion_pending(); continue; }
+        if (!it->is_regular_file()) continue;
+        std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
+        files[rel] = b.str();
+      }
     const fs::path assets = fs::path(projDir) / "assets";
     if (fs::is_directory(assets, ec))
       for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {

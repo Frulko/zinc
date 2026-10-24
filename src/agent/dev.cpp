@@ -85,8 +85,10 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   }
   std::vector<std::string> argv = {self, "run", dir + "/program.zbc"};
   std::string project;
-  if (!std::filesystem::exists(dir + "/program.zbc") && readFile(dir + "/zinc.json", project) && !Doc(project).str("engine").empty())
-    argv = {self, "run", dir, "--engine", Doc(project).str("engine")};   // a project on a JavaScript engine sends its sources (zinc pack)
+  if (!std::filesystem::exists(dir + "/program.zbc")) {   // a project on a JavaScript engine sends its sources (zinc pack): QuickJS unless its zinc.json names one
+    const std::string engine = readFile(dir + "/zinc.json", project) ? Doc(project).str("engine") : std::string();
+    argv = {self, "run", dir, "--engine", engine.empty() || engine == "zinc" ? "quickjs" : engine};
+  }
   if (!args.empty()) argv.push_back("--");
   argv.insert(argv.end(), args.begin(), args.end());
   std::vector<std::string> env = environment({{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"}});   // its steps too: building a plugin on a small board takes seconds that must not look like a hang

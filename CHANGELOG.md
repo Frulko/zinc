@@ -14,6 +14,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- `zinc pack`, `zinc dev --device` and `zinc device deploy` carry what a project needs beyond its own code: its own plugins (`plugins/`), and for a JavaScript project (a `.js` entry) its sources and the libraries its `importmap.json` names outside the project (three.js, PixiJS).
 - A project on QuickJS (`"engine": "quickjs"` in zinc.json) runs from `zinc pack`, `zinc dev --device` and `zinc device deploy` as it does with `zinc run`: the package carries its sources instead of compiling them for the typed engine, which refused what QuickJS accepts (examples/fatty's circular imports).
 - `zinc pack` of a project whose assets include a link to a file elsewhere (the hero demo) makes an archive that runs: it named the file outside the archive, which `zinc run`, `zinc dev --device` and devices refused.
 - `zinc:link` (and the demos that use it, like music-tree) compiles on a Raspberry Pi: the Linux ARM downloads lacked the headers it needs.
