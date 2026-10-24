@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-24
+
 ### Added
 - `zinc device <device> screen [file.png]` captures what the device's screen shows now, whoever draws it: the player of a Zinc Pi image, an installed app or a `zinc dev --device` program.
 - `zinc dev --device` shows what it does: packing the project, the transfer's progress, and on the device the plugins being compiled (a Pi takes seconds per plugin).
@@ -567,7 +569,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.5...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -584,3 +586,4 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 [0.2.0]: https://github.com/Frulko/zinc/compare/v0.1.1...v0.2.0
 [0.7.3]: https://github.com/Frulko/zinc/compare/v0.6.2...v0.7.3
 [0.7.4]: https://github.com/Frulko/zinc/compare/v0.7.3...v0.7.4
+[0.7.5]: https://github.com/Frulko/zinc/compare/v0.7.4...v0.7.5
