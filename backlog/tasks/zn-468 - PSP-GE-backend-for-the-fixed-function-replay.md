@@ -1,10 +1,10 @@
 ---
 id: ZN-468
 title: 'PSP: GE backend for the fixed-function replay'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:37'
-updated_date: '2026-10-24 22:20'
+updated_date: '2026-10-24 22:28'
 labels:
   - gpu
   - handheld
