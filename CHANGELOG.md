@@ -12,6 +12,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 - PS Vita: `tools/build-console-core vita --vitagl` builds a core that draws everything on the GPU through vitaGL (rounded corners, gradients, shadows and paths included); the default GXM core stays faster for games. It needs `libshacccg.suprx` extracted on the console (ShaRKBR33D); without it the core draws in software.
 - PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, images, sprites and text. A frame with a gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
+- zinc:hardware's `setStereo` documentation and the hardware-n3ds demo shift a thing in front of the screen right for the left eye; they said the opposite, so near things looked behind the screen. The demo has a new "3D object" page: a cube turning half out of the screen among stars and orbiting balls, its pivot tilted with the circle pad, L and R moving it in depth.
 - Nintendo 3DS: the console core draws zinc:gfx frames on the PICA200 through citro3d, the same way as the PSP, both eyes of stereoscopic 3D and the bottom screen included. `ZINC_N3DS_GPU=0` keeps the software path.
 
 ## [0.7.6] - 2026-10-24

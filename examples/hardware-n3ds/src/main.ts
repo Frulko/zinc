@@ -7,7 +7,7 @@
 import { GamepadButton as B, openWindow, clear, rrect, rect, width, height, pointerDown, pointerX, pointerY, gamepadName, gamepadConnected } from 'zinc:gfx';
 import { App, missing, pressed, say, sayWidth, k, INK, DIM, ACCENT, CARD, RULE, BG } from '../../hardware-kit/kit';
 import { Spot, buttonsPage, sticksPage, soundPage, screenPage, systemPage } from '../../hardware-kit/pages';
-import { motionPage, micPage, stereoPage } from '../../hardware-kit/more';
+import { motionPage, micPage, stereoPage, objectPage } from '../../hardware-kit/more';
 
 const app = new App('3DS');
 const newModel = (): boolean => !gamepadConnected(0) || gamepadName(0).indexOf('New') >= 0;   // a desktop's keyboard has them all
@@ -34,6 +34,7 @@ app.add('Touch screen', (dt: number) => {
   if (pressed(B.South)) strokes.splice(0, strokes.length);
 });
 app.add('3D screen', stereoPage());
+app.add('3D object', objectPage());
 app.add('Motion', motionPage('All zero: give Azahar a motion source (its right mouse button drag, or a gamepad\'s sensors)'));
 app.add('Microphone', micPage('Silence: the emulator\'s microphone is off (Azahar: Settings, Audio)'));
 app.add('Sound', soundPage('22050 Hz stereo through the DSP (ndsp), or CSND when sdmc:/3ds/dspfirm.cdc is missing'));

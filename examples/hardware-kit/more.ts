@@ -1,9 +1,9 @@
 // The screens of the parts only some consoles have (ZN-759): touch screens, the Vita's rear pad, motion sensors, a pad's motors and pressure,
 // the microphone, the memory card and the 3DS's stereoscopic screen. Each says on screen when the machine (or its emulator) gives nothing.
-import { rect, rrect, width, height, drawImage, touchCount, touchX, touchY, touchId, pointerDown, pointerX, pointerY, gamepadRumble, GamepadButton } from 'zinc:gfx';
+import { rect, rrect, polygon, width, height, drawImage, touchCount, touchX, touchY, touchId, pointerDown, pointerX, pointerY, gamepadRumble, GamepadButton, GamepadAxis } from 'zinc:gfx';
 import { rearTouches, hasRearTouch, accelerometer, gyroscope, microphoneLevel, stereoDepth, setStereo, stereoEye, saveLocation } from 'zinc:hardware';
 import { get, set, remove } from 'zinc:storage';
-import { k, say, card, icon, img, held, value, pressed, beep, scale, missing, meter, readout, INK, DIM, ACCENT, GOOD, BAD, RULE } from './kit';
+import { k, say, card, icon, img, held, value, pressed, axis, beep, scale, missing, meter, readout, INK, DIM, ACCENT, GOOD, BAD, RULE } from './kit';
 
 const COLORS: u32[] = [0xffc93c, 0x5ee38f, 0x54a0ff, 0xff6b9d, 0xff8a5c, 0x9b59b6, 0x1dd1a1, 0xfeca57, 0xc8d6e5, 0xff4d4d];
 
@@ -146,12 +146,88 @@ export function stereoPage(): (dt: number) => void {
     if (!asked) { asked = true; setStereo(true); }
     const eye = stereoEye();
     if (eye === 0) t += dt;   // the world moves on the left eye's frames only
-    const shift = (eye === 0 ? -1 : 1) * Math.max(0, depth) * 6;   // near things apart, far ones together
+    const shift = (eye === 0 ? 1 : -1) * Math.max(0, depth) * 6;   // in front of the screen: right for the left eye, left for the right one
     for (let i = 0; i < 12; i++) drawImage(img('particleSmallStar'), (20 + i * 31 - shift * 0.2) * s, (40 + (i * 37) % 120) * s, 10 * s, 10 * s, 140, 0);   // far
     drawImage(img('element_blue_rectangle_glossy'), (w / 2 - 70 + Math.sin(t) * 40) * s, 90 * s, 64 * s, 32 * s, 255, 0);   // the screen's depth
     drawImage(img('ballGrey'), (w / 2 + 20 + shift) * s, (70 + Math.cos(t) * 20) * s, 36 * s, 36 * s, 255, 0);   // in front
     readout(16 * s, 30 * s, '3D slider', depth < 0 ? 'none' : depth === 0 ? 'down (flat)' : `${Math.round(depth * 100)} %`);
     say(0, 16 * s, 172 * s, `this frame: the ${eye === 0 ? 'left' : 'right'} eye; the ball comes out of the screen, the stars go in`, DIM);
+    if (depth < 0) missing('No stereoscopic screen here');
+  };
+}
+
+// The cube of objectPage: its 8 corners (-1 or 1 on each axis) and its 6 faces, each 4 corners counter-clockwise seen from outside, its colour.
+const CUBE: number[] = [-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1];
+const FACES: i32[] = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 2, 3, 7, 6, 1, 2, 6, 5, 0, 4, 7, 3];
+const FACE_COLORS: u32[] = [0xffc93c, 0x54a0ff, 0x5ee38f, 0xff6b9d, 0xff8a5c, 0x9b59b6];
+function shade(c: u32, l: number): u32 {
+  const f = 0.35 + 0.65 * Math.max(0, l);
+  return ((Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f)) as u32;
+}
+/** The 3DS's stereoscopic screen with real depth: a cube turning about its pivot, half out of the screen, stars far behind it and balls
+ *  orbiting through it, each projected for the eye being drawn (the 3D slider sets how far apart the eyes are). The circle pad tilts the
+ *  pivot, L and R push the cube into the screen or pull it out, A stops or starts the turn. */
+export function objectPage(): (dt: number) => void {
+  let t = 0, spin = 0, tiltX = 0.4, tiltY = 0, z = 0, turning = true, asked = false;
+  const stars: number[] = [];   // x, y, z: a wall far behind the screen
+  for (let i = 0; i < 40; i++) { stars.push(((i * 97) % 480) - 240); stars.push(((i * 61) % 260) - 130); stars.push(120 + (i * 13) % 60); }
+  const p: number[] = [], q: number[] = [];   // the cube's corners for this frame: on the screen (x, y, z) and turned in space (x, y, z)
+  for (let i = 0; i < 24; i++) { p.push(0); q.push(0); }
+  return (dt: number) => {
+    const s = k(), w = width() / s, h = height() / s;
+    if (!asked) { asked = true; setStereo(true); }
+    const depth = stereoDepth(), eye = stereoEye();
+    if (eye === 0) {   // the world moves on the left eye's frames only
+      t += dt;
+      if (turning) spin += dt * 0.9;
+      tiltY += axis(GamepadAxis.LeftX) * dt * 2.5;
+      tiltX += axis(GamepadAxis.LeftY) * dt * 2.5;
+      if (held(GamepadButton.LeftShoulder)) z = Math.min(z + dt * 80, 90);
+      if (held(GamepadButton.RightShoulder)) z = Math.max(z - dt * 80, -70);
+      if (pressed(GamepadButton.East)) turning = !turning;   // A on a 3DS
+    }
+    // One camera per eye, D in front of the screen and e to its side; the screen's plane (z 0) is where both see the same thing.
+    const D = 320, e = (eye === 0 ? -1 : 1) * Math.max(0, depth) * 16, cx = w / 2, cy = h / 2 + 10;
+    const sx = (x: number, z1: number): number => cx + e + (x - e) * D / (D + z1);
+    const sy = (y: number, z1: number): number => cy + y * D / (D + z1);
+    rect(0, 0, w * s, h * s, 0x0d1030);
+    for (let i = 0; i < stars.length; i += 3) {
+      const r = 3 * D / (D + stars[i + 2]);
+      drawImage(img('particleSmallStar'), (sx(stars[i], stars[i + 2]) - r) * s, (sy(stars[i + 1], stars[i + 2]) - r) * s, 2 * r * s, 2 * r * s, 150, 0);
+    }
+    // The cube: turned about y by the spin and the pad's tilt, then about x by the tilt; 42 px from its centre to a face.
+    const ca = Math.cos(spin + tiltY), sa = Math.sin(spin + tiltY), cb = Math.cos(tiltX), sb = Math.sin(tiltX);
+    for (let i = 0; i < 8; i++) {
+      const x0 = CUBE[i * 3] * 42, y0 = CUBE[i * 3 + 1] * 42, z0 = CUBE[i * 3 + 2] * 42;
+      const x1 = x0 * ca + z0 * sa, z1 = -x0 * sa + z0 * ca;
+      const y2 = y0 * cb - z1 * sb, z2 = y0 * sb + z1 * cb + z;
+      p[i * 3] = sx(x1, z2); p[i * 3 + 1] = sy(y2, z2); p[i * 3 + 2] = z2;
+      q[i * 3] = x1; q[i * 3 + 1] = y2; q[i * 3 + 2] = z2 - z;
+    }
+    // The balls orbit the cube on a tilted ring: the ones behind it are drawn before it, the ones in front after.
+    const balls = (front: boolean): void => {
+      for (let i = 0; i < 6; i++) {
+        const a = t * 0.7 + i * Math.PI / 3, bx = Math.cos(a) * 110, bz = Math.sin(a) * 110 + z, by = Math.sin(a * 2) * 20 - 10;
+        if ((bz < z) !== front) continue;
+        const r = 9 * D / (D + bz);
+        drawImage(img('ballGrey'), (sx(bx, bz) - r) * s, (sy(by, bz) - r) * s, 2 * r * s, 2 * r * s, 255, 0);
+      }
+    };
+    balls(false);
+    for (let f = 0; f < 6; f++) {
+      const a = FACES[f * 4], b = FACES[f * 4 + 1], c = FACES[f * 4 + 2], d = FACES[f * 4 + 3];
+      // seen from this eye when its corners go clockwise on the screen (y down)
+      const cross = (p[b * 3] - p[a * 3]) * (p[c * 3 + 1] - p[a * 3 + 1]) - (p[b * 3 + 1] - p[a * 3 + 1]) * (p[c * 3] - p[a * 3]);
+      if (cross >= 0) continue;
+      // lit from the top left, in front: the face's outward normal is its centre's direction from the cube's (a cube's faces)
+      const nx = q[a * 3] + q[c * 3], ny = q[a * 3 + 1] + q[c * 3 + 1], nz = q[a * 3 + 2] + q[c * 3 + 2];
+      const light = (-0.45 * nx - 0.6 * ny - 0.66 * nz) / Math.sqrt(nx * nx + ny * ny + nz * nz);
+      polygon([p[a * 3] * s, p[a * 3 + 1] * s, p[b * 3] * s, p[b * 3 + 1] * s, p[c * 3] * s, p[c * 3 + 1] * s, p[d * 3] * s, p[d * 3 + 1] * s],
+        shade(FACE_COLORS[f], light), 255);
+    }
+    balls(true);
+    readout(16 * s, 30 * s, '3D slider', depth < 0 ? 'none' : depth === 0 ? 'down (flat)' : `${Math.round(depth * 100)} %`);
+    say(0, 16 * s, 236 * s, `circle pad: tilt the pivot   L / R: into or out of the screen (${Math.round(-z)})   A: ${turning ? 'stop' : 'turn'}`, DIM);
     if (depth < 0) missing('No stereoscopic screen here');
   };
 }

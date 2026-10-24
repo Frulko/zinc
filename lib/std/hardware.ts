@@ -86,8 +86,9 @@ export function stereoDepth(): number {
   return s === '' ? -1 : parseFloat(s);
 }
 /** Asks for a picture per eye while the slider is up (true) or one picture (false); false when the screen has no 3D. While it is on, the
- *  frames alternate between the eyes, the left one first, and both are shown at each refresh: draw each frame for stereoEye(), its
- *  near things shifted by -depth for the left eye and +depth for the right, and move the world on the left eye's frames only. */
+ *  frames alternate between the eyes, the left one first, and both are shown at each refresh: draw each frame for stereoEye(), a thing
+ *  in front of the screen shifted right (+depth) for the left eye and left (-depth) for the right one, a thing behind it the other way, and
+ *  move the world on the left eye's frames only. */
 export function setStereo(on: boolean): boolean { return device('stereo', on ? '1' : '0') !== ''; }
 /** The eye the frame being drawn is for: 0 the left one (or both, in a flat picture), 1 the right one. */
 export function stereoEye(): i32 { return device('eye') === '1' ? 1 : 0; }
