@@ -4,7 +4,7 @@ title: PERF-13 GPU 2D backend by default where a GPU exists
 status: Done
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-09 13:45'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-L
@@ -46,4 +46,5 @@ Closed through its subtasks:
 Left, as subtasks:
 - AC3, Pi 3 on the rig: ZN-412.04, parked (hardware).
 - Linux GL window: ZN-412.06.
+Review 2026-10-25: the open criteria are moot. Only the Pi 3 measure is left, parked.
 <!-- SECTION:NOTES:END -->

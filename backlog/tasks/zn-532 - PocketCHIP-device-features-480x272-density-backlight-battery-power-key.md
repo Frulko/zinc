@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-519
   - ZN-531
-ordinal: 282000
+ordinal: 97400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ zinc:ui density and font sizes for a 4.3 inch 480x272 panel, backlight control t
 - [ ] #3 the power key blanks the screen and wakes it
 - [ ] #4 the battery widget shows capacity and charging state
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. PocketCHIP device features: needs the PocketCHIP.
+<!-- SECTION:NOTES:END -->

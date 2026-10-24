@@ -9,11 +9,13 @@ labels:
   - desktop
   - plugins
   - size-L
+  - parked
 milestone: m-16
 dependencies:
   - ZN-245
   - ZN-238
-ordinal: 132000
+ordinal: 93700
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -28,3 +30,9 @@ From docs/reports/system-integration.md (section 11, SYS-17). Read the report fi
 - [ ] #2 Without a watcher `tray.isAvailable()` is false and the app keeps running.
 - [ ] #3 Badge and progress emit the `com.canonical.Unity.LauncherEntry` signal with the app's `.desktop` URI.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Depends on ZN-245 (D-Bus layer), Linux only. Keep parked.
+<!-- SECTION:NOTES:END -->

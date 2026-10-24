@@ -4,7 +4,7 @@ title: PERF-09 String concat and template literals without double copy and resca
 status: Done
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-09 09:27'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-S
@@ -34,4 +34,5 @@ Machine::newStrCat: a + b in one allocation and one copy, ascii = a && b, u16len
 AC2 (jsonout interpreter >= QuickJS) is not a concatenation matter: bench-m4 jsonout interpreter 17.0 ms vs QuickJS 8.7 ms, but 'zinc run' of an empty program already takes 12-15 ms (zinc --version 11.2 ms, 88M instructions; qjs 5.1 ms) and jsonout's work is ~2 ms: carried to ZN-592 (launch cost). strings kernel: interpreter 47.4 ms vs QuickJS 61.1 ms.
 Tests: t0 run (rt_strings and the non-ASCII goldens identical), zbc, tests/run --changed 45/45.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. Not a concatenation matter; carried elsewhere.
 <!-- SECTION:NOTES:END -->

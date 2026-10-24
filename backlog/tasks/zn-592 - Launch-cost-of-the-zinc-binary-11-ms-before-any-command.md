@@ -4,7 +4,7 @@ title: 'Launch cost of the zinc binary: 11 ms before any command'
 status: Done
 assignee: []
 created_date: '2026-10-09 09:24'
-updated_date: '2026-10-10 15:47'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
 milestone: m-21
@@ -36,4 +36,5 @@ Done 2026-10-10 (usage: n/a, session total); AC1 and AC2 split to ZN-592.01 (win
 - Tried and dropped: -fvisibility-inlines-hidden (1793 -> 1705 binds, same launch).
 - AC3: tests/t1/launch_time.sh: zinc's own cost over an empty program with the same frameworks, best of 20, budget 20 ms (14.3 / 16.1 now; the binary with the replaced operator new measured 19.6 / 21.0 and fails it). profile and aot tests pass.
 - AC1 (<= 4 ms on arm64) and AC2 (jsonout >= QuickJS: 33.6 vs 14.0 ms here, launch-bound) not met: ZN-592.01, ZN-592.02.
+Review 2026-10-25: the open criteria are moot. The 4 ms target is structural on this machine (dyld binds); measured in .03 and .05.
 <!-- SECTION:NOTES:END -->

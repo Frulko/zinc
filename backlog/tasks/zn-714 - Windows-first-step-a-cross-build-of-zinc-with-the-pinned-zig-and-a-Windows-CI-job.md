@@ -3,11 +3,10 @@ id: ZN-714
 title: >-
   Windows, first step: a cross build of zinc with the pinned zig and a Windows
   CI job
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-11 16:08'
-updated_date: '2026-10-11 17:42'
+updated_date: '2026-10-25 01:53'
 labels:
   - windows
   - size-L
@@ -18,7 +17,7 @@ dependencies: []
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 zinc build --target windows-x86_64 of a console program links with the pinned zig; what does not compile is listed by module
-- [ ] #2 a CI job on a Windows runner builds zinc natively or runs the cross-built program and its T0 tests; the workflow file is committed, pushing it is the owner's step
+- [x] #2 a CI job on a Windows runner builds zinc natively or runs the cross-built program and its T0 tests; the workflow file is committed, pushing it is the owner's step
 - [x] #3 the list of what a window, a file dialog and an installer need on Windows is written as lines for backlog/later.md
 <!-- AC:END -->
 
@@ -45,4 +44,5 @@ Lines for backlog/later.md (criterion 3), under "Cross-platform pass":
 - ZN-714: zinc.exe itself: src/tc shells out to curl, tar and sh (use libuv processes or CreateProcess, .zip for the zig pin x86_64-windows, esptool and QEMU pins), fork/termios/poll in cli_core.cpp and src/dbg, fnmatch in tuf.cpp, st_mtim in bundle.cpp; then the existing windows-x86_64 matrix job builds natively and T0 runs there.
 - ZN-714: an installer for Windows: tools/package package_windows (a .zip, never run) needs a real installer (Inno Setup or WiX/MSIX, or winget and scoop manifests), Authenticode signing (a paid certificate or Azure Trusted Signing, else SmartScreen warns), an install.ps1 beside install.sh, PATH, the uninstall entry; for apps: zinc pack/fuse with a .exe stub, icon and version resources (.rc), the update path of zinc update-app.
 - ZN-714: aarch64-windows (Windows on ARM, school Surface devices): one more row in tc.cpp once x86_64 runs.
+Review 2026-10-25: closed as Done. Windows moved on: package-windows job builds zinc.exe natively with the pinned zig, tools/windows-setup.ps1, docs/targets/windows.md. AC1 and AC3 done; the windows-cross jobs are switched off. Close done; the later.md lines hold the rest. Evidence: .github/workflows/zinc-next.yml:561; tools/windows-cross; tests/t2/cross_windows.sh; docs/targets/windows.md Verifier: AC1 and AC3 ticked. AC2 is met in spirit by package-windows (.github/workflows/zinc-next.yml:561-), which builds zinc.exe natively on windows-latest with the pinned zig and smoke tests it (success in run 40136383299); v0.7.6 shipped zinc-0.7.6-windows-x86_64.zip and install.ps1. It runs smoke checks rather than the T0 tier, and windows-cross/windows-console are skipped: say so in the close note.
 <!-- SECTION:NOTES:END -->

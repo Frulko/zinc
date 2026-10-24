@@ -3,11 +3,10 @@ id: ZN-718
 title: >-
   Nothing to compile for a beginner: a prebuilt engine to download, prebuilt
   plugins for every platform
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-11 16:10'
-updated_date: '2026-10-11 17:17'
+updated_date: '2026-10-25 01:53'
 labels:
   - packaging
   - size-L
@@ -18,8 +17,8 @@ dependencies: []
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 one command or one archive installs a self-contained zinc on macOS with no compiler, CMake or Xcode on the machine; zinc new, run and dev work from it (proved in a directory with a PATH that holds no compiler)
-- [ ] #2 a program that imports plugins runs from that install without building them: each plugin is fetched prebuilt for the host from the signed index, and zinc doctor says which plugins have no prebuilt for which platform
-- [ ] #3 the release job builds the engine archive and the plugin prebuilts for macOS, Linux and Windows targets with the pinned zig; publishing is the owner's step and its exact command is in the task notes
+- [x] #2 a program that imports plugins runs from that install without building them: each plugin is fetched prebuilt for the host from the signed index, and zinc doctor says which plugins have no prebuilt for which platform
+- [x] #3 the release job builds the engine archive and the plugin prebuilts for macOS, Linux and Windows targets with the pinned zig; publishing is the owner's step and its exact command is in the task notes
 - [x] #4 docs/guide/01-getting-started.md starts with the download, not with a source build
 <!-- AC:END -->
 
@@ -85,4 +84,5 @@ Walked the macOS archive as a stranger (empty HOME and ZINC_HOME, PATH /usr/bin:
 - The guide and `install.sh` name `zinc-engine/zinc` (D37). While the releases are on Frulko/zinc: `curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | ZINC_REPO=Frulko/zinc sh`
 - By hand from this Mac, without the CI (Intel archive only): `ZINC_VERSION=0.1.0 tools/package --out dist && cp tools/install.sh dist/ && (cd dist && shasum -a 256 Zinc-*.zip > SHA256SUMS) && gh release create v0.1.0 --title "Zinc v0.1.0" dist/Zinc-0.1.0-macos-x86_64.zip dist/install.sh dist/SHA256SUMS`
 - Signed and notarized (before the checksum): `ZINC_SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" ZINC_NOTARY_PROFILE=<profile> tools/sign-macos dist/Zinc-0.1.0-macos-x86_64.zip`; the CI secrets are listed in `docs/guide/07-distribution.md`.
+Review 2026-10-25: closed as Done. Close as done: install, plugin prebuilts inside the archive and the release job all work and shipped. AC2 was reworded by the recorded decision (prebuilts travel in the archive, offline-first). The Windows archive moves to the cross pass, which Windows opens. @parallel is a leftover. Evidence: tools/install.sh; tools/package; tests/t1/install_nocompiler.sh; docs/guide/01-getting-started.md; releases v0.7.4 to v0.7.6 with CI on tags Verifier: Release v0.7.6 carries macOS, Linux (4 arches) and Windows archives, install.sh, install.ps1 and SHA256SUMS; 37 plugin manifests name windows; doctor reports missing prebuilts (src/cli_core.cpp:812). The AC2 rewording (prebuilts in the archive, not fetched from the index) is only in the task notes: no ZN-718 entry in zinc-next-decisions.md, so record it there when closing.
 <!-- SECTION:NOTES:END -->

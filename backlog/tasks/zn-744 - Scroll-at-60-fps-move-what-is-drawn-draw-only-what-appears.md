@@ -2,22 +2,23 @@
 id: ZN-744
 title: 'Scroll at 60 fps: move what is drawn, draw only what appears'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-16 14:06'
-updated_date: '2026-10-16 21:40'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - ui
   - size-L
 milestone: m-21
 dependencies: []
-ordinal: 196450
+ordinal: 56300
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Close with AC1 as "not reachable on Tegra 3 by CPU"; the open ideas are already lines in later.md. Already there: tests/t0/scroll_move.sh; tests/t1/gl_scroll.sh; D126; perf.md:809.
+
 Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. Measured on the Nexus 7 (ZN-622, docs/reports/zinc-next-android.md): rn-showcase is 60 fps at rest but ~25 fps while scrolling by hand, because each scroll frame re-rasterises the whole scrolled area (~23 ms) then presents it (~13 ms). Browsers (composited scroll layers and tiles), Flutter (raster cache) and Android (RecyclerView over hardware layers) never redraw content that only moved. Do the same for zinc:ui scroll containers: the frame marks a scroll region (bounds, content offset, delta since the last frame); the software raster moves the pixels already drawn by the delta (one memmove of the rows inside the clip) and rasterises only the strip that came into view plus what changed inside; the GPU replay keeps the scrolled content in a layer texture (tiles if larger than the max texture size, 2048 on Tegra 3) and draws it translated, replaying only new tiles and changed rectangles. Fixed elements over the scroll area (headers, the tab bar, the perf panel) are drawn after, unchanged. Works with ZN-191's property slots (scroll records zero primitives per frame) and ZN-741/ZN-743 (damage-aware GPU replay, zero-copy present); none of them is required to start.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -59,4 +60,5 @@ Lines for backlog/later.md:
 - ZN-744: Cross-platform pass: the GPU scroll on the Pi 3 (display-gl: glr::scroll is not called there yet, the KMS window is the surface) and the TouchPad (webOS, a tiler: turned rows cost it nothing).
 
 Handover (2026-10-16 late): AC1/AC2 (60 fps fling on the Nexus 7) not met by either path (software raster p99 27 to 29 ms, GLES 2 with the turned rows 32 ms); AC3 done (scroll_move with scroll_header, gl_scroll); AC5 lines in the coordinator report. Next: the replay passes CPU cost on Tegra 3 (see ZN-741), or overlays drawn into the window instead of the frame texture.
+Review 2026-10-25: done-partly. Pixel move in the raster (diff_move), GPU scroll in the GLES2 replay, T0 and T1 tests, D126 are done. The 60 fps on the Nexus 7 (Tegra 3 memory) is not reached; desktop raster p99 5.2 ms. Left: exact fractional moves and the Pi/TouchPad lines (already in later.md). Evidence: tests/t0/scroll_move.sh; tests/t1/gl_scroll.sh; D126; perf.md:809
 <!-- SECTION:NOTES:END -->

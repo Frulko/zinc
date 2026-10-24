@@ -7,8 +7,10 @@ created_date: '2026-10-10 19:46'
 labels:
   - physics
   - size-S
+  - parked
 dependencies: []
-ordinal: 453410
+ordinal: 97900
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -22,3 +24,9 @@ ordinal: 453410
 - [ ] #1 the plugin builds for the Linux targets with the pinned zig and tests/t1/physics3d.sh passes there
 - [ ] #2 the replay positions on arm64 equal the x86_64 golden
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. arm64 and Linux builds of physics3d: cross-platform pass.
+<!-- SECTION:NOTES:END -->

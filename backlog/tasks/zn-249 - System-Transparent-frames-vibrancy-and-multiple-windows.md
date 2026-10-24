@@ -1,10 +1,10 @@
 ---
 id: ZN-249
 title: 'System: Transparent frames, vibrancy and multiple windows'
-status: Review
+status: Backlog
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 17:03'
+updated_date: '2026-10-25 01:53'
 labels:
   - system
   - desktop
@@ -13,7 +13,7 @@ labels:
 milestone: m-16
 dependencies:
   - ZN-240
-ordinal: 350000
+ordinal: 8700
 ---
 
 ## Description
@@ -32,4 +32,5 @@ From docs/reports/system-integration.md (section 11, SYS-20). Read the report fi
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. Key-colour transparent window, app.window.transparentColor and window.setVibrancy work per AppKit readbacks (opaque=NO, NSVisualEffectView). Open: the window screenshot still shows alpha 255 on the key-colour area (test warns); multi-window split not done; spike notes S2/S8 pending.
+Review 2026-10-25: kept open. (review-close proposed, corrected by the verifier) Open work remains on the Mac. The notes say spikes S2/S8 are not recorded, and zinc-next-decisions.md has no S2/S8 entry. The window screenshot still shows alpha 255 on the key-colour area (the test warns), so transparency is not proven even on macOS, and the vibrancy pixel-variance check is not done. Evidence: plugins/system window transparentColor and setVibrancy (AppKit readbacks); ZN-663 Done gives several windows
 <!-- SECTION:NOTES:END -->

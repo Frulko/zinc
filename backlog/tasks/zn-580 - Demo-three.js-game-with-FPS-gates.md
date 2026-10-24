@@ -18,12 +18,15 @@ dependencies:
   - ZN-573
   - ZN-574
   - ZN-576
-ordinal: 46000
+ordinal: 10400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-10-25:** examples/js-three is a lighthouse scene with GLTFLoader and OrbitControls; it has no third-person controller, 200 dynamic meshes, shadows, positional audio or HUD, and the >= 200 draw calls with shadows gate is not ZN-578's (PixiJS) work. Rewrite as the gate on js-three or keep as written.
+
 examples/games/three-arena: a third-person controller over a textured glTF level, 200 dynamic meshes, a directional light with shadows, positional audio, gamepad and keyboard, a HUD. Real three.js r186 on QuickJS (measured today ~27 us of JS per mesh, ~550 meshes at 60 fps). The native-tier counterpart is ZN-563 (the Zinc subset of three on the GPU through ZN-562 zinc:gl); ZN-543's native accelerators may lift the JS cost. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -35,3 +38,9 @@ examples/games/three-arena: a third-person controller over a textured glTF level
 - [ ] #4 antialiased edges
 - [ ] #5 a T1 test runs 300 frames headless
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: rewrite. (merge proposed, corrected by the verifier) examples/js-three is a lighthouse scene with GLTFLoader and OrbitControls; it has no third-person controller, 200 dynamic meshes, shadows, positional audio or HUD, and the >= 200 draw calls with shadows gate is not ZN-578's (PixiJS) work. Rewrite as the gate on js-three or keep as written. Evidence: examples/js-three, tests/t1/example_js_three.sh
+<!-- SECTION:NOTES:END -->

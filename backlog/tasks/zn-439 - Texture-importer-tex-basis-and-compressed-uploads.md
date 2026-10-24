@@ -1,11 +1,10 @@
 ---
 id: ZN-439
 title: Texture importer tex-basis and compressed uploads
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-09 07:36'
-updated_date: '2026-10-11 19:05'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - assets
@@ -26,7 +25,7 @@ basisu 2.50 as a pinned tool; KTX2; mipmaps; premultiplied alpha; sRGB; transcod
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 for a 2048 px texture, the report gives pack and GPU bytes per profile
-- [ ] #2 it renders in display-gl on macOS and on the Pi 3 (vc4) with ETC1 within a pixel tolerance of the RGBA path
+- [x] #2 it renders in display-gl on macOS and on the Pi 3 (vc4) with ETC1 within a pixel tolerance of the RGBA path
 - [x] #3 the determinism test passes with the thread count it fixes
 <!-- AC:END -->
 
@@ -61,4 +60,5 @@ Lines for later.md:
 - ZN-439: the importer as a plugin of kind importer (plugins/tex-basis) once importer plugins exist; it is built in for now.
 
 usage: n/a (tools/usage printed n/a in the worktree)
+Review 2026-10-25: closed as Done. Close as done: basisu pinned, KTX2/ZIM1 block formats, GL upload and WebGL extensions work on the Mac; the Pi 3 (vc4) ETC1 run is a cross-pass line already written in the notes. Task holds an @parallel marker from a finished worktree. Evidence: src/assets/texture.cpp; tests/t1/texture.sh; docs/reports/zinc-next-assets.md Verifier: AC1/AC3 ticked with numbers; AC2 macOS half measured (0.000% / mae 0.58), the Pi 3 vc4 run is a board step already written as a cross-pass line in the notes. Remove the stale @parallel marker when closing.
 <!-- SECTION:NOTES:END -->

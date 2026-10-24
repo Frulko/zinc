@@ -10,6 +10,7 @@ milestone: m-24
 dependencies:
   - ZN-514
 ordinal: 275000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -30,4 +31,5 @@ runtime/mod/gpio_linux.cpp only opens /dev/gpiochip0 through libgpiod and masks 
 
 <!-- SECTION:NOTES:BEGIN -->
 Merged into ZN-549 by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: zinc:gpio on the GPIO v2 chardev: the same backend as ZN-549 (Pi SDK), filed twice. Keep here only the CHIP line table and the sysfs fallback for 4.4 kernels.
+Review 2026-10-25: the open criteria are moot. Filed twice; CHIP is a board target.
 <!-- SECTION:NOTES:END -->

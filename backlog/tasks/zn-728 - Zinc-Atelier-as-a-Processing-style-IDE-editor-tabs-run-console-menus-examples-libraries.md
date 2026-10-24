@@ -3,11 +3,10 @@ id: ZN-728
 title: >-
   Zinc Atelier as a Processing-style IDE: editor, tabs, run, console, menus,
   examples, libraries
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-12 13:24'
-updated_date: '2026-10-12 14:10'
+updated_date: '2026-10-25 01:53'
 labels:
   - app
   - ui
@@ -81,4 +80,5 @@ Native path: `zinc run --native app/atelier` (headless) compiles Atelier in 9 s 
 Not verified: a real window (everything was seen on headless frames and scripted input: no person clicked, the macOS menu bar and its shortcuts were not seen); Stop on a native child (`zinc run` execs the program, so the signal reaches it: read in main.cpp, shown on an interpreted child only); the ESP32 emulator choice; the packaged app (tools/package still starts app/atelier/main.tsx, which reads zinc.json: run headless as a file entry, not from a package).
 
 Status Review, not Done: the eight criteria pass on headless output; what is left needs a person at the Mac (the window on a real screen, the macOS menu bar and its shortcuts, the owner's eye on the look).
+Review 2026-10-25: closed as Done. Close as done: the remaining step is the owner looking at a real window and macOS menu bar. Evidence: app/atelier; tests/t1/atelier_ide.sh; all 8 criteria ticked Verifier: 8 of 8 criteria ticked; what remains is a person looking at a real window and the menu bar.
 <!-- SECTION:NOTES:END -->

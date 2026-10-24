@@ -11,6 +11,7 @@ milestone: m-23
 dependencies:
   - ZN-456
 ordinal: 264000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -31,4 +32,5 @@ Build the AOT C++ of a few programs plus src/rt and the runtime/ raster with psp
 
 <!-- SECTION:NOTES:BEGIN -->
 Merged into ZN-480 by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: AOT and runtime spike on the PSP, from the PocketJS report. The PSP part of ZN-480 (AOT builds for the four handhelds), filed twice.
+Review 2026-10-25: the open criteria are moot. Filed twice.
 <!-- SECTION:NOTES:END -->

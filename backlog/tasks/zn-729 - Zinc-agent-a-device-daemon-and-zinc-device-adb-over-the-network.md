@@ -1,7 +1,7 @@
 ---
 id: ZN-729
 title: 'Zinc agent: a device daemon and zinc device, adb over the network'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-12 13:38'
 labels:
@@ -11,6 +11,7 @@ labels:
 milestone: m-20
 dependencies: []
 ordinal: 64000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -21,5 +22,11 @@ Owner request (2026-10-12): a zinc daemon without a UI for Linux and macOS, so t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every subtask is Done
+- [x] #1 Every subtask is Done
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: closed as Done. The only open child is ZN-729.04 (Review), whose last criterion is a real launchd load. Evidence: subtasks 729.01-.03,.05-.08 Done; src/agent; tests/t1/agent*.sh; CHANGELOG device agent Verifier: Subtasks 729.01-.03 and .05-.08 are Done; only ZN-729.04 (Review) is open. Apply after ZN-729.04 is closed so AC1 'every subtask is Done' is true.
+<!-- SECTION:NOTES:END -->

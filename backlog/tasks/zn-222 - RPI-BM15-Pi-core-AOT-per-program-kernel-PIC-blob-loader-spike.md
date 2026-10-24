@@ -10,7 +10,8 @@ labels:
   - parked
 milestone: m-11
 dependencies: []
-ordinal: 325000
+ordinal: 92200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -23,3 +24,9 @@ Per-program kernel via the Circle bootloader, then a position-independent blob l
 <!-- AC:BEGIN -->
 - [ ] #1 a linked image runs hello in QEMU; the spike result is written down
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. (drop proposed, corrected by the verifier) It is a speculative perf spike on a parked chain, but no decision supersedes it. If the reviewer wants fewer tasks, merging it into ZN-216/219 keeps the criterion. Deleting it is not justified by the brief's definition of useless.
+<!-- SECTION:NOTES:END -->

@@ -6,10 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:40'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-514
-ordinal: 277000
+ordinal: 95300
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ zinc:system power on Linux from sysfs (no D-Bus): axp20x-battery capacity, statu
 - [ ] #3 a power-key press reaches the program as an event
 - [ ] #4 idle power at the 5 V input recorded with the screen off and the governor at powersave
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. AXP209 power on the CHIP: needs the board.
+<!-- SECTION:NOTES:END -->

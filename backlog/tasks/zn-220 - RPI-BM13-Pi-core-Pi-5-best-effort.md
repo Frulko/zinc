@@ -10,7 +10,8 @@ labels:
   - parked
 milestone: m-11
 dependencies: []
-ordinal: 333000
+ordinal: 92100
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -23,3 +24,9 @@ UART, GPIO, Ethernet through Circle's RP1 drivers; no QEMU. See docs/reports/zin
 <!-- AC:BEGIN -->
 - [ ] #1 manual hardware checklist recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Pi 5 is part of 'widest hardware', and no decision drops it. It is a parked tail of the open RPI-BM chain, the same case as ZN-217.
+<!-- SECTION:NOTES:END -->

@@ -9,13 +9,14 @@ created_date: '2026-10-09 07:40'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
-  - ZN-494
-  - ZN-496
+  - ZN-492
   - ZN-498
   - ZN-504
-ordinal: 259000
+ordinal: 96900
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -30,3 +31,9 @@ Vita: 16-bit height texture compared per fragment, normals with dot(N, sun), nig
 - [ ] #2 Emulator goldens where available
 - [ ] #3 The same city IR and TS program drive the three renderers
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule).
+<!-- SECTION:NOTES:END -->

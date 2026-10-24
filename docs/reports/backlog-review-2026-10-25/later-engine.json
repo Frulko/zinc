@@ -1,0 +1,5708 @@
+[
+ {
+  "line": 9,
+  "start": "ZN-780: explicitly initialise `Native::iram` in `src/cli_mqj",
+  "evidence": "",
+  "into": "",
+  "reason": "a compiler warning on a vector member, no user sees it",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 10,
+  "start": "ZN-775: support component/fragment roots directly in Virtual",
+  "evidence": "",
+  "into": "",
+  "reason": "valid, wait for a Kanban-like use",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 11,
+  "start": "zinc check: a project on the QuickJS engine (\"engine\": \"quic",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group check-diagnostics",
+  "task": {
+   "title": "zinc check and zinc dev diagnostics for QuickJS and JavaScript projects",
+   "criteria": [
+    "`zinc check` of a project with \"engine\": \"quickjs\" resolves node_modules like the loader (examples/carnet-nbe has no Z0119) or states that the check does not apply",
+    "`zinc check` and `zinc lint` on the js-three, js-gsap, js-pixi, js-spline examples use the QuickJS loader's lint",
+    "`zinc dev` prints the diagnostic, not the first stderr line, after `compile error:`"
+   ],
+   "milestone": "m-10",
+   "marks": {
+    "value": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "check-diagnostics",
+  "verdict": "promote"
+ },
+ {
+  "line": 12,
+  "start": "QuickJS: a browser `WebSocket` global (binary frames as Arra",
+  "evidence": "",
+  "into": "",
+  "reason": "a browser WebSocket global would help ported libraries; not urgent",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 13,
+  "start": "ZN-772: `zinc check` and `zinc lint` fail on the plain-JavaS",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group check-diagnostics",
+  "task": {
+   "title": "zinc check and zinc dev diagnostics for QuickJS and JavaScript projects",
+   "criteria": [
+    "`zinc check` of a project with \"engine\": \"quickjs\" resolves node_modules like the loader (examples/carnet-nbe has no Z0119) or states that the check does not apply",
+    "`zinc check` and `zinc lint` on the js-three, js-gsap, js-pixi, js-spline examples use the QuickJS loader's lint",
+    "`zinc dev` prints the diagnostic, not the first stderr line, after `compile error:`"
+   ],
+   "milestone": "m-10",
+   "marks": {
+    "value": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "check-diagnostics",
+  "verdict": "promote"
+ },
+ {
+  "line": 14,
+  "start": "ZN-772: a WebGL canvas of the web environment is shown opaqu",
+  "evidence": "",
+  "into": "",
+  "reason": "visible Spline difference; wait for ZN-772 to finish",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 15,
+  "start": "ZN-772: QuickJS has WebAssembly now (the `wasm` pack, WAMR):",
+  "evidence": "",
+  "into": "",
+  "reason": "wasm modules for js-spline: part of ZN-772",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 16,
+  "start": "ZN-764: the macOS window could show the raster with no drawa",
+  "evidence": "",
+  "into": "",
+  "reason": "memory saving of one window buffer: later",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 18,
+  "start": "Live resize (owner, 2026-10-16): the frame drawn from the wa",
+  "evidence": "",
+  "into": "",
+  "reason": "input lost during live resize: edge, later",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 19,
+  "start": "Live resize (owner, 2026-10-16): present the frame inside Ap",
+  "evidence": "",
+  "into": "",
+  "reason": "speculative until a hand check shows a lag",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 20,
+  "start": "Live resize (owner, 2026-10-16): a resize frame allocates ab",
+  "evidence": "",
+  "into": "",
+  "reason": "allocation count of a resize frame, no user effect",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 22,
+  "start": "ZN-731: a picture with rounded corners of its own or an alph",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 23,
+  "start": "ZN-731: zero-copy on macOS: VideoToolbox's CVPixelBuffer (an",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 24,
+  "start": "ZN-731: the frame on a KMS plane with page flips for every f",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 25,
+  "start": "ZN-731: a capture (ZINC_SHOT, tools/device shot) shows a hol",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 26,
+  "start": "ZN-731: a film in a turned card still costs 38 ms of CPU a p",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 27,
+  "start": "ZN-731: `museum_editor_views` failed in the agent's partial ",
+  "evidence": "",
+  "into": "",
+  "reason": "a golden failure recorded as known, not a task",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 29,
+  "start": "ZN-730: a film decoded at the size it is drawn (museum-table",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 30,
+  "start": "ZN-730: the direct scaled image paths (`draw_dyn`, `draw_ima",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 31,
+  "start": "ZN-730: a gradient paint record (RECT grad 5) under a scalin",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 32,
+  "start": "ZN-730: zinc:video's colour-range fix was checked with FFmpe",
+  "evidence": "",
+  "into": "",
+  "reason": "a one-off comparison of a frame, no owner need",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 34,
+  "start": "ZN-726: once a zoom rests, set the glyphs at the exact size ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 35,
+  "start": "ZN-726: free the fonts made for scaled text that were not dr",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 36,
+  "start": "ZN-726: the GL glyph atlas (1024 px square, reset when full)",
+  "evidence": "",
+  "into": "",
+  "reason": "a counter to read, not a defect",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 37,
+  "start": "ZN-726: zinc:ui inputs and the selection highlight in a scal",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 38,
+  "start": "ZN-726: museum-table's other views (dock, titles, storyboard",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 39,
+  "start": "ZN-726, seen outside the task: `ui_alloc_text` counts 6 allo",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 41,
+  "start": "ZN-722: budget the full-resolution DevTools capture/encoding",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 43,
+  "start": "ZN-721: connect view lifetimes to existing native/asset reso",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 45,
+  "start": "ZN-720: let the renderer consume packed image resources inst",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 47,
+  "start": "ZN-569: a Worker in the web environment, and `createImageBit",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 48,
+  "start": "ZN-569: images read and decoded off the frame in the host; a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 49,
+  "start": "ZN-565: one whole run of `tests/t1/webgl_conformance.sh` on ",
+  "evidence": "",
+  "into": "",
+  "reason": "a run to repeat on a quiet machine, not work",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 50,
+  "start": "ZN-373.04: a zinc:socket WebSocket client that calls ws.clos",
+  "evidence": "",
+  "into": "",
+  "reason": "edge case of a probe, inspector quits explicitly",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 51,
+  "start": "ZN-373.05: Tracing against `zinc debug --cdp`: no frames the",
+  "evidence": "",
+  "into": "",
+  "reason": "inspector view for a debugger target, nobody asked",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 52,
+  "start": "ZN-430: a .zapp's members are still unpacked once into the c",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 53,
+  "start": "ZN-155: `zinc ui` runs the prototype's Node tools (compiler/",
+  "evidence": "",
+  "into": "",
+  "reason": "`zinc ui` and its Node tools died with the prototype (compiler/ removed, no `ui` command in src)",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 54,
+  "start": "ZN-155: `p.then(x => promise)` does not flatten the promise ",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group then-flatten",
+  "task": {
+   "title": "Promise.then flattens a returned promise",
+   "criteria": [
+    "`fetch(u).then(r => r.text())` has type Promise<string> and yields the text on interpreter, AOT and QuickJS",
+    "a T0 test covers then, catch and finally returning a promise"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  "group": "then-flatten",
+  "verdict": "promote"
+ },
+ {
+  "line": 55,
+  "start": "ZN-155: console.log(-0) prints -0 (the prototype printed 0);",
+  "evidence": "src/qjs and interpreter print 0 for -0: checked with build/zinc run (prints 0)",
+  "into": "",
+  "reason": "console.log(-0) now prints 0; the other items there compare with the removed prototype",
+  "task": null,
+  "group": "",
+  "verdict": "done"
+ },
+ {
+  "line": 56,
+  "start": "ZN-155: default values in array patterns (`const [a = 1] = x",
+  "evidence": "zinc run of `const [q = 5] = [] as number[]` prints 5",
+  "into": "",
+  "reason": "array-pattern defaults work",
+  "task": null,
+  "group": "",
+  "verdict": "done"
+ },
+ {
+  "line": 57,
+  "start": "ZN-583.01: zinc:physics2d steps on one thread; Box2D's task ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 58,
+  "start": "ZN-583.01: zinc:physics2d has no shape casts, overlap querie",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 59,
+  "start": "ZN-583.01: remeasure bench/physics2d_pile.ts on a quiet mach",
+  "evidence": "",
+  "into": "",
+  "reason": "re-measure only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 60,
+  "start": "ZN-433: ZN-436's asset workers each own a zstd decoder conte",
+  "evidence": "",
+  "into": "",
+  "reason": "per-thread zstd context: micro-optimisation",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 61,
+  "start": "ZN-433: the first read of a ZPK entry hashes at 169 MB/s (th",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 62,
+  "start": "ZN-433: link zinc with -dead_strip / --gc-sections: lz4.c dr",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 63,
+  "start": "ZN-433: measure zstd's decoder size macros (HUF_FORCE_DECOMP",
+  "evidence": "",
+  "into": "",
+  "reason": "decoder size macros on consoles: no console is size-bound now",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 64,
+  "start": "ZN-354: plugin.yml rebuilds zinc in every leg and in the rel",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 65,
+  "start": "ZN-354: the path filters of zinc-next.yml miss templates/** ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 66,
+  "start": "ZN-354: `zinc test` in a project also runs the tests its plu",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 67,
+  "start": "ZN-274: ease the opaque hover:/focus:/active: text and borde",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 68,
+  "start": "ZN-274: CSS's reversing shortening: a transition sent back m",
+  "evidence": "",
+  "into": "",
+  "reason": "CSS corner case of transitions",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 69,
+  "start": "ZN-274: transition keys in style objects (Reanimated 4's CSS",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 70,
+  "start": "ZN-274: bench-render before and after the applyProp guard of",
+  "evidence": "",
+  "into": "",
+  "reason": "re-measure only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 71,
+  "start": "ZN-327: zinc:fs watch of a file reports its changes without ",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group monitor-fs-hardening",
+  "task": {
+   "title": "Permission and network hardening of zinc monitor and zinc:fs watch",
+   "criteria": [
+    "`zinc monitor --udp` binds 127.0.0.1 by default (an option opens it) and escapes control characters",
+    "zinc:fs watch of a file needs fs:read under permissions",
+    "tests in t0 for both"
+   ],
+   "milestone": "m-10",
+   "marks": {
+    "value": 3,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  "group": "monitor-fs-hardening",
+  "verdict": "promote"
+ },
+ {
+  "line": 72,
+  "start": "ZN-327: `zinc export --target linux` builds aarch64-linux; a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 73,
+  "start": "ZN-327: `zinc monitor --udp` binds every interface and print",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group monitor-fs-hardening",
+  "task": {
+   "title": "Permission and network hardening of zinc monitor and zinc:fs watch",
+   "criteria": [
+    "`zinc monitor --udp` binds 127.0.0.1 by default (an option opens it) and escapes control characters",
+    "zinc:fs watch of a file needs fs:read under permissions",
+    "tests in t0 for both"
+   ],
+   "milestone": "m-10",
+   "marks": {
+    "value": 3,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  "group": "monitor-fs-hardening",
+  "verdict": "promote"
+ },
+ {
+  "line": 74,
+  "start": "ZN-327: release builds have none of the prototype's hardenin",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 75,
+  "start": "ZN-327: docs/guide/06-testing.md still says --debug builds w",
+  "evidence": "docs/guide/06-testing.md:165 describes `zinc build --debug` (lldb) and leak checks",
+  "into": "",
+  "reason": "doc already corrected",
+  "task": null,
+  "group": "",
+  "verdict": "done"
+ },
+ {
+  "line": 76,
+  "start": "ZN-434: asset importers in parallel (ZINC_ASSET_JOBS) when a",
+  "evidence": "",
+  "into": "",
+  "reason": "parallel importers: no measured wait",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 77,
+  "start": "ZN-434: a stat index of the asset sources (size, mtime) when",
+  "evidence": "",
+  "into": "",
+  "reason": "117 ms on 100 MB: fine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 78,
+  "start": "ZN-434: importer versions instead of the engine's executable",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 79,
+  "start": "ZN-434: key the font baker on its scan's result (sizes, char",
+  "evidence": "",
+  "into": "",
+  "reason": "edge reuse in dev, small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 80,
+  "start": "ZN-434: zpk::write taking entries already compressed, so a r",
+  "evidence": "",
+  "into": "",
+  "reason": "recompress one entry: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 81,
+  "start": "ZN-581: the browser host (targets/wasm/glue/worker.mjs) igno",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 82,
+  "start": "ZN-581: a turned sprite takes 15 floats of the point pool (a",
+  "evidence": "",
+  "into": "",
+  "reason": "15 floats per turned sprite: pool overflow not seen",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 83,
+  "start": "ZN-581: 20,000 Retina sprites cost about 10 ms of GPU on the",
+  "evidence": "",
+  "into": "",
+  "reason": "a measure with no owner",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 84,
+  "start": "ZN-581: zinc:canvas could map globalCompositeOperation light",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 85,
+  "start": "ZN-435: zinc.json assets.dir is honoured only by zinc assets",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 86,
+  "start": "ZN-435: wire the effective asset profile's pack codec into r",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 87,
+  "start": "ZN-435: the prototype's zinc:platform now also exports ASSET",
+  "evidence": "",
+  "into": "",
+  "reason": "serves the removed prototype (compiler/src/capabilities.ts)",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 88,
+  "start": "ZN-436: make asset handles engine resources (native ABI R<k>",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 89,
+  "start": "ZN-436: zinc export should ship the packs beside the program",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 90,
+  "start": "ZN-436: zn_asset_font (gfx loadFont) and webview zinc:// URL",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 91,
+  "start": "ZN-436: the browser host, the device core and the ESP32 (esp",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 92,
+  "start": "ZN-436: a 2 ms time slice on one-core targets if the 4 MB by",
+  "evidence": "",
+  "into": "",
+  "reason": "2 ms time slice for one-core targets: speculative",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 93,
+  "start": "ZN-261: Tailwind v4 interpolates bg-linear/radial/conic in o",
+  "evidence": "",
+  "into": "",
+  "reason": "oklab gradient interpolation: not visible to users yet",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 94,
+  "start": "ZN-261: gradients in state variants (hover:from-*, hover:bg-",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 95,
+  "start": "ZN-261: canvas2d createConicGradient through paint kind 4 (t",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 96,
+  "start": "ZN-261: on GL, a box drawn through setTransform with a gradi",
+  "evidence": "",
+  "into": "",
+  "reason": "more than 8 stops under setTransform: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 97,
+  "start": "ZN-262: the GL replay keeps rounded CLIPs above CORNER = 32 ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 98,
+  "start": "ZN-262: zinc:react-native has no ImageBackground and Image t",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 99,
+  "start": "ZN-262: background images follow the box's one radius, not p",
+  "evidence": "",
+  "into": "",
+  "reason": "background-origin/clip: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 100,
+  "start": "ZN-438: `zinc export` (native targets) should copy `build/as",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 101,
+  "start": "ZN-438: the res baker should skip images a sprite rule takes",
+  "evidence": "",
+  "into": "",
+  "reason": "SVG baked twice: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 102,
+  "start": "ZN-438: atlas page format, `maxSize` and POT should come fro",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 103,
+  "start": "ZN-438: zinc:assets v2 image handles should free pack images",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 104,
+  "start": "ZN-438: the browser export should use the atlas (with ZN-449",
+  "evidence": "",
+  "into": "",
+  "reason": "TexturePacker rotated frame check, nobody uses it",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 105,
+  "start": "ZN-446: SDL's video init is about half of exec to splash on ",
+  "evidence": "",
+  "into": "",
+  "reason": "a profile on a quiet machine, not work",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 106,
+  "start": "ZN-446: `zinc run` of a natively built program shows no spla",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 107,
+  "start": "ZN-446: check on a quiet machine that no blank frame flashes",
+  "evidence": "",
+  "into": "",
+  "reason": "a check to do by eye",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 108,
+  "start": "ZN-450: QuickJS has no host events (`__addEvHandler`): asset",
+  "evidence": "",
+  "into": "",
+  "reason": "engines should agree on host events; later with the QuickJS pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 109,
+  "start": "ZN-450: a project without asset rules or groups still restar",
+  "evidence": "",
+  "into": "",
+  "reason": "restart on asset save: harmless",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 110,
+  "start": "ZN-450: a sprite removed from an atlas keeps a stale Frame i",
+  "evidence": "",
+  "into": "",
+  "reason": "stale frame until the next restart: harmless",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 111,
+  "start": "ZN-447: the splash's own `fadeMs` (stored since ZN-446) is s",
+  "evidence": "",
+  "into": "",
+  "reason": "fade ms unused: cosmetic",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 112,
+  "start": "ZN-447: the loader's fade image is in logical pixels, so it ",
+  "evidence": "",
+  "into": "",
+  "reason": "soft at 2x for a short fade",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 113,
+  "start": "ZN-447: the nodes of a zinc:ui loader screen stay allocated ",
+  "evidence": "",
+  "into": "",
+  "reason": "leaked loader nodes: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 114,
+  "start": "ZN-160: `s.raw` inside a tag function is not supported on th",
+  "evidence": "",
+  "into": "",
+  "reason": "s.raw in tag functions: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 115,
+  "start": "ZN-160: an object literal with accessors prints as its gener",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 116,
+  "start": "ZN-160: getters and methods of object literals cannot read v",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 117,
+  "start": "ZN-160: for...in lists the static type's fields: a subclass ",
+  "evidence": "",
+  "into": "",
+  "reason": "for...in static type fields: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 118,
+  "start": "ZN-160: labels around await or yield in async functions and ",
+  "evidence": "",
+  "into": "",
+  "reason": "labels around await: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 119,
+  "start": "ZN-160: still refused: `console.log(...a)`, push with severa",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 120,
+  "start": "ZN-160: QuickJS-ng rejects `a: b: for (...) { continue a; }`",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream QuickJS-ng bug, report only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 121,
+  "start": "ZN-160: at the milestone, regenerate `docs/reports/parity/ga",
+  "evidence": "",
+  "into": "",
+  "reason": "regenerates the prototype parity gate, obsolete since prototype removal",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 122,
+  "start": "ZN-443: tileset images are also packed as their own image en",
+  "evidence": "",
+  "into": "",
+  "reason": "duplicate tileset images: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 123,
+  "start": "ZN-443: not supported yet: Tiled infinite, isometric and hex",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 124,
+  "start": "ZN-443: no hot reload of a map's table under `zinc dev` (the",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 125,
+  "start": "ZN-443: `.tmx`/`.tsx` through a vendored XML parser (tmxlite",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 126,
+  "start": "ZN-443: QuickJS's `Date.now` stayed frozen in a headless run",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 127,
+  "start": "ZN-583: zinc:physics3d `threads: 0` counts hardware threads ",
+  "evidence": "",
+  "into": "",
+  "reason": "threads:0 on Linux SMT: a comparison only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 128,
+  "start": "ZN-583: one pool of workers shared by the worlds of a progra",
+  "evidence": "",
+  "into": "",
+  "reason": "one shared worker pool: speculative",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 129,
+  "start": "ZN-439: share a texture's UASTC encode across profiles in th",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 130,
+  "start": "ZN-439: CPU decoders for ASTC and PVRTC1, so phone packs dra",
+  "evidence": "",
+  "into": "",
+  "reason": "ASTC/PVRTC CPU decoders: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 131,
+  "start": "ZN-439: free a texture's CPU texels after its GPU upload on ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 132,
+  "start": "ZN-439: atlas pages in the profile's GPU formats (rgba4444 o",
+  "evidence": "",
+  "into": "",
+  "reason": "atlas GPU formats: wait for CMA pressure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 133,
+  "start": "ZN-439: basisu fetched prebuilt through the signed index (ZN",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 134,
+  "start": "ZN-439: the texture importer as an importer-kind plugin (plu",
+  "evidence": "",
+  "into": "",
+  "reason": "importer plugin kind does not exist",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 135,
+  "start": "ZN-441: zinc:assets `readBytes` (and `fs.readBytes`, `utf8En",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 136,
+  "start": "ZN-441: dev builds turn a model's 219 KB JPEG into a 22 MB r",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 137,
+  "start": "ZN-441: int16 positions with a scale and packed normals in .",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 138,
+  "start": "ZN-441: .zmesh flattens the scene; moving a named part (the ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 139,
+  "start": "ZN-441: the sim target's three stand-in (`three.sim.ts`) ref",
+  "evidence": "",
+  "into": "",
+  "reason": "sim target three stand-in: sim removed or rarely used",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 140,
+  "start": "ZN-441: plugin keys and stamps do not cover the engine third",
+  "evidence": "",
+  "into": "",
+  "reason": "manual key bump for meshoptimizer upgrades: maintainer note",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 141,
+  "start": "ZN-724: a typed program gives other numbers on `--engine qui",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group qjs-numbers",
+  "task": {
+   "title": "Typed numbers agree on --engine quickjs",
+   "criteria": [
+    "i32/u8 overflow wraps and f32 rounds on QuickJS as on the interpreter (2147483647+1, 250+10, 0.1f+0.2f)",
+    "tools/diff-matrix shows no numeric DIFF for the QuickJS column on a new numeric fixture",
+    "no slowdown measured with bench-gate on the QuickJS kernels"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "qjs-numbers",
+  "verdict": "promote"
+ },
+ {
+  "line": 142,
+  "start": "ZN-724: from docs/reports/microts-vs-zinc.md, worth a task a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 143,
+  "start": "ZN-728: port Atelier's `app/edit.ts` and `app/cursors.ts` ba",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 144,
+  "start": "ZN-728: zinc:ui `anchorOf(h)`, `caretBox(h, offset)` and a t",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 145,
+  "start": "ZN-728: `font('mono', px)` returns -1 in a gfx-only program:",
+  "evidence": "",
+  "into": "line 39",
+  "reason": "same `font('mono')` returns -1",
+  "task": null,
+  "group": "",
+  "verdict": "duplicate"
+ },
+ {
+  "line": 146,
+  "start": "ZN-728: the simulator answers `supports('menubar')` true, so",
+  "evidence": "",
+  "into": "",
+  "reason": "document or ignore, tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 147,
+  "start": "ZN-728: on a real macOS menu bar, check that each Atelier sh",
+  "evidence": "",
+  "into": "",
+  "reason": "a hand check on a real menu bar",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 148,
+  "start": "ZN-728: Atelier: stop a running sketch when Atelier quits (a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 149,
+  "start": "ZN-728: Atelier: Alt or Cmd+Backspace with several cursors d",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 150,
+  "start": "ZN-728: Atelier: Add Library from the signed index (`zinc ad",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 151,
+  "start": "ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click ",
+  "evidence": "",
+  "into": "",
+  "reason": "no pointer modifiers in ZINC_INPUT: test-only gap",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 152,
+  "start": "ZN-732: zinc:ui `select()` and `setValue()` should reset a f",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 153,
+  "start": "ZN-732: F12 has no key name outside the macOS menu bar (HAL ",
+  "evidence": "",
+  "into": "",
+  "reason": "F12 on Linux/Windows: cross pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 154,
+  "start": "ZN-732: zinc lsp publishes the diagnostics of the changed do",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 155,
+  "start": "ZN-732: completion inside the braces of an import, of JSX el",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 156,
+  "start": "ZN-732: Atelier: accepting a function could add its parenthe",
+  "evidence": "",
+  "into": "",
+  "reason": "cosmetic Atelier polish",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 157,
+  "start": "ZN-732: auto-import in zinc lsp and Atelier: a name that is ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 158,
+  "start": "ZN-733: `zinc build` and packaged apps still name their wind",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 159,
+  "start": "ZN-728: `zinc build <dir> --bundle` prints the usage when `-",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group export-fixes",
+  "task": {
+   "title": "Four zinc export and build defects",
+   "criteria": [
+    "`zinc build <dir> --bundle` works with --bundle last",
+    "`zinc export --apk -o relative/path` passes the 16 KB check",
+    "an export run with ZINC_DETERMINISTIC=1 uses the native plugin code, not the fake",
+    "the esp32 flash.sh keeps NVS (writes around 0x9000-0x10000 as zinc run does)",
+    "t0 tests for each"
+   ],
+   "milestone": "m-19",
+   "marks": {
+    "value": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 4,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "export-fixes",
+  "verdict": "promote"
+ },
+ {
+  "line": 161,
+  "start": "ZN-729.05: `zinc device deploy --inspect`, a pack with `impo",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 162,
+  "start": "ZN-729.05: `zinc device debug <app>`, the app restarted unde",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 163,
+  "start": "ZN-729.05: `inspect --all` follows apps started later (it li",
+  "evidence": "",
+  "into": "",
+  "reason": "edge of inspect --all",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 164,
+  "start": "ZN-729.05: the app chooses its inspector port (`ZINC_DEVTOOL",
+  "evidence": "",
+  "into": "",
+  "reason": "port race: tiny window",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 165,
+  "start": "ZN-729.04: the engine update of `zinc device update` stops a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 166,
+  "start": "ZN-729.04: `zinc device deploy --key <seed>`: deploy's pack ",
+  "evidence": "",
+  "into": "",
+  "reason": "deploy of a signed app: wait for a real case",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 167,
+  "start": "ZN-729.04: under `--no-shell`, uninstall then install replac",
+  "evidence": "",
+  "into": "",
+  "reason": "policy question without a user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 168,
+  "start": "ZN-729.03: `zinc dev --device` beside a deployed app of the ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 169,
+  "start": "ZN-729.03: `zinc dev --device` sends every member at its fir",
+  "evidence": "",
+  "into": "",
+  "reason": "hash compare when projects are tens of MB: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 170,
+  "start": "ZN-729.06: forget a device from Atelier's panel (`zinc devic",
+  "evidence": "",
+  "into": "",
+  "reason": "Atelier polish",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 171,
+  "start": "ZN-729.06: a sketch started from Atelier keeps running on th",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 172,
+  "start": "ZN-729.06: a device lost in the middle of a run (the \"Lost <",
+  "evidence": "",
+  "into": "",
+  "reason": "edge cases of a lost device",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 173,
+  "start": "ZN-728: with a sketch that prints without pause (230 lines a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 174,
+  "start": "ZN-728: owner's idea (2026-10-12): in Atelier, a first-start",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 175,
+  "start": "ZN-734: zinc:platform's SCREEN_W and SCREEN_H are the size k",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 176,
+  "start": "ZN-734: zinc device pull shows no progress (the size is not ",
+  "evidence": "",
+  "into": "",
+  "reason": "console link polish",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 177,
+  "start": "ZN-736: a `zinc project --json` that prints the parsed proje",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 178,
+  "start": "ZN-712: a native program gives its script contexts no WebGL:",
+  "evidence": "src/main.cpp:1932-1933 addContextHook(webglHook)",
+  "into": "",
+  "reason": "webgl hook now in the native program",
+  "task": null,
+  "group": "",
+  "verdict": "done"
+ },
+ {
+  "line": 179,
+  "start": "ZN-729: the agent hands its own environment to the apps it s",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 180,
+  "start": "ZN-729.08: `info` gives the kernel's architecture, so a 32-b",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 181,
+  "start": "ZN-729.08: move the fbdev default for a Pi into `zinc export",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 182,
+  "start": "ZN-729.08: deploy sends the whole export each run (hero-rpi ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 183,
+  "start": "ZN-729.08: Atelier shows its send stage on the line `packed`",
+  "evidence": "",
+  "into": "",
+  "reason": "status label",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 184,
+  "start": "ZN-729.07: GCC 14 warns where clang does not (`cli_core.cpp`",
+  "evidence": "",
+  "into": "",
+  "reason": "GCC warnings on Linux: cross pass, no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 185,
+  "start": "ZN-729.07: the Linux arm64 package is 42.7 MB against the 40",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 186,
+  "start": "ZN-729.07: Wayland cannot be built from `third_party/SDL3` (",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 187,
+  "start": "ZN-729.07: `zinc device info` on a Pi repeats the board's mo",
+  "evidence": "",
+  "into": "",
+  "reason": "CPU name on a Pi: cosmetic",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 188,
+  "start": "ZN-735: RGB565 buffers for the flip while no video picture i",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 189,
+  "start": "ZN-735: a third buffer, so a frame's conversion does not wai",
+  "evidence": "",
+  "into": "",
+  "reason": "third buffer: speculative",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 190,
+  "start": "ZN-735: `tools/device shot` reads black while a flipping pro",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 191,
+  "start": "ZN-735: a DRM stub for `tests/native/chip_fbdev.cpp`, so the",
+  "evidence": "",
+  "into": "",
+  "reason": "DRM stub for a Mac test: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 192,
+  "start": "ZN-735: rebuild and install the Pi's engine (`tools/linux-bu",
+  "evidence": "",
+  "into": "",
+  "reason": "a rebuild to do, not a task",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 193,
+  "start": "ZN-735: a display without a free KMS plane still tears: doub",
+  "evidence": "",
+  "into": "",
+  "reason": "tearing without a plane: edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 194,
+  "start": "ZN-737: `h-full` / `w-full` along the main axis grows past i",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 195,
+  "start": "ZN-737: a row child with `basis-N` is measured for the offer",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 196,
+  "start": "ZN-737: `layoutLayers()` measures a layer with left and righ",
+  "evidence": "",
+  "into": "",
+  "reason": "not reproduced",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 197,
+  "start": "ZN-737: the classic layout never shrinks a growing column wh",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 198,
+  "start": "ZN-737: scroll areas take no key (Page Down, End, the arrows",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 199,
+  "start": "ZN-737: hero has no test that scrolls each page to its end a",
+  "evidence": "",
+  "into": "",
+  "reason": "extra test for hero scroll",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 200,
+  "start": "ZN-737: `ui_style` (the ring-mouse hash) and `ui_alloc_text`",
+  "evidence": "",
+  "into": "",
+  "reason": "known failing tests of another day",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 201,
+  "start": "ZN-729: the pairing code on the device's screen (a Zinc wind",
+  "evidence": "",
+  "into": "",
+  "reason": "QR pairing: no terminal-less case yet",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 202,
+  "start": "ZN-729: IPv6 for the agent's listener and its discovery; tod",
+  "evidence": "",
+  "into": "",
+  "reason": "IPv6 for the agent: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 203,
+  "start": "ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and d",
+  "evidence": "",
+  "into": "",
+  "reason": "measure first",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 204,
+  "start": "ZN-729: links in `push` / `pull` / `install` (left out today",
+  "evidence": "",
+  "into": "",
+  "reason": "links in push/pull: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 205,
+  "start": "ZN-729: `zinc deploy --device <paired name>` through the age",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 206,
+  "start": "ZN-729: the mDNS announce probes for a name already taken on",
+  "evidence": "",
+  "into": "",
+  "reason": "two devices with one hostname: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 207,
+  "start": "music (2026-10-15): `for (const s of list) { s.field = await",
+  "evidence": "for-of with `s.n = await f()` in an async function runs and prints 3",
+  "into": "",
+  "reason": "no Z0108 any more",
+  "task": null,
+  "group": "",
+  "verdict": "done"
+ },
+ {
+  "line": 208,
+  "start": "music (2026-10-15): mbedTLS 4.0's TLS 1.3 client is dropped ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 209,
+  "start": "music (2026-10-15): headless runs (ZINC_HEADLESS) run tens o",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 211,
+  "start": "display-gl webOS (2026-10-15): the Matériel page full frame ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 212,
+  "start": "zinc:storage: one file for every program on a desktop (~/.zi",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 214,
+  "start": "ZN-742: Fast Refresh on QuickJS, through a module transform ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 215,
+  "start": "ZN-742: Fast Refresh over `zinc dev --device`, sending the Z",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 216,
+  "start": "ZN-742: `import.meta.hot.data` and `invalidate`, for modules",
+  "evidence": "",
+  "into": "",
+  "reason": "import.meta.hot.data: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 217,
+  "start": "ZN-742: re-install baked fonts and images live instead of re",
+  "evidence": "",
+  "into": "",
+  "reason": "live re-bake: restart is fine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 218,
+  "start": "ZN-742: a parse cache for unchanged files and compiling on a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 219,
+  "start": "ZN-742: Fast Refresh for React-mode components (`_rc`) beyon",
+  "evidence": "",
+  "into": "",
+  "reason": "React-mode Fast Refresh beyond root: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 220,
+  "start": "zinc dev: the `compile error:` line prints the first stderr ",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group check-diagnostics",
+  "task": {
+   "title": "zinc check and zinc dev diagnostics for QuickJS and JavaScript projects",
+   "criteria": [
+    "`zinc check` of a project with \"engine\": \"quickjs\" resolves node_modules like the loader (examples/carnet-nbe has no Z0119) or states that the check does not apply",
+    "`zinc check` and `zinc lint` on the js-three, js-gsap, js-pixi, js-spline examples use the QuickJS loader's lint",
+    "`zinc dev` prints the diagnostic, not the first stderr line, after `compile error:`"
+   ],
+   "milestone": "m-10",
+   "marks": {
+    "value": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "check-diagnostics",
+  "verdict": "promote"
+ },
+ {
+  "line": 221,
+  "start": "JSX (aabbf0fb): a prop that calls a function but reads no si",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 222,
+  "start": "JSX (aabbf0fb): when every prop reads and the last one holds",
+  "evidence": "",
+  "into": "",
+  "reason": "tracking of explicit type arguments: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 223,
+  "start": "JSX (aabbf0fb): a prop that reads a signal remounts the comp",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 224,
+  "start": "Prototype: `compiler/src/jsx.ts:305` evaluates Solid compone",
+  "evidence": "",
+  "into": "",
+  "reason": "describes the removed prototype (compiler/src/jsx.ts)",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 225,
+  "start": "ZN-620: zn_app runs AOT programs only; a bundled .zapp (inte",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 226,
+  "start": "ZN-620: `zn_app_quit` during a run skips `__host_gfxFinish`;",
+  "evidence": "",
+  "into": "",
+  "reason": "__appEnd on quit: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 227,
+  "start": "ZN-620: an app build on macOS/iOS has no wake lock or batter",
+  "evidence": "",
+  "into": "",
+  "reason": "IOKit link for wake lock: mobile pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 228,
+  "start": "music (2026-10-16): the Nexus 7 needs its own Spotify login ",
+  "evidence": "",
+  "into": "",
+  "reason": "owner's own login on a test tablet",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 229,
+  "start": "ZN-618: a press and release between two frames (`adb shell i",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 230,
+  "start": "ZN-618: `setPerformance` on Android could map to `Window.set",
+  "evidence": "",
+  "into": "",
+  "reason": "Android sustained mode: no need",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 231,
+  "start": "ZN-622: hero needs zinc:video without FFmpeg system librarie",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 232,
+  "start": "ZN-622: mimalloc prints \"unable to allocate aligned OS memor",
+  "evidence": "",
+  "into": "",
+  "reason": "log noise of mimalloc",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 233,
+  "start": "ZN-622: measure touch-to-frame latency and page faults of th",
+  "evidence": "",
+  "into": "",
+  "reason": "simpleperf measure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 234,
+  "start": "ZN-622: the window section of `CMakeLists.txt` tests `APPLE`",
+  "evidence": "",
+  "into": "",
+  "reason": "iOS export: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 235,
+  "start": "ZN-622: Android shows the status and navigation bars; immers",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 236,
+  "start": "ZN-742: `if (import.meta.hot)` blocks are not type-checked b",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 237,
+  "start": "ZN-742: the ZBC cache has one directory per entry, so altern",
+  "evidence": "",
+  "into": "",
+  "reason": "cache alternation of hot and run: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 238,
+  "start": "tools/diff-matrix: on `conf:async errors modules features ge",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 239,
+  "start": "ZN-742.02: compile a save on a thread while frames continue ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 240,
+  "start": "ZN-742.02: let a hot child start from the ZBC cache by cachi",
+  "evidence": "",
+  "into": "",
+  "reason": "hot start from cache: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 241,
+  "start": "ZN-742.02: side-effect-only imports (`import './x'`) are not",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 242,
+  "start": "ZN-742.02: hot-swap a newly imported std module instead of r",
+  "evidence": "",
+  "into": "",
+  "reason": "std module hot swap: restart is fine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 243,
+  "start": "ZN-742.02: test that a native plugin callback still works ac",
+  "evidence": "",
+  "into": "",
+  "reason": "test only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 244,
+  "start": "ZN-742: the in-process red box: keep the paused program and ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 245,
+  "start": "ZN-742: after an asset swap (D97) the next code save restart",
+  "evidence": "",
+  "into": "",
+  "reason": "asset swap restart: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 246,
+  "start": "ZN-742: `renderWindow()` in hot mode: dispose the window's t",
+  "evidence": "",
+  "into": "",
+  "reason": "edge case of hot mode",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 247,
+  "start": "ZN-742: a component imported through tsconfig paths or `impo",
+  "evidence": "",
+  "into": "",
+  "reason": "tsconfig paths proxies: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 248,
+  "start": "ZN-742: a save before the child said `hot ready` restarts wi",
+  "evidence": "",
+  "into": "",
+  "reason": "misleading message for a very early save: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 249,
+  "start": "ZN-742: one save by `sed -i` (and some editors: temp file + ",
+  "evidence": "",
+  "into": "",
+  "reason": "double refreshed line: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 250,
+  "start": "D123: zinc:video should hold the screen wake lock while it p",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 251,
+  "start": "D123: SDL also keeps the display awake for every Zinc app on",
+  "evidence": "",
+  "into": "",
+  "reason": "SDL display awake on macOS/Linux: default is fine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 252,
+  "start": "D123: a real Android kiosk needs lock task mode (screen pinn",
+  "evidence": "",
+  "into": "",
+  "reason": "Android kiosk lock task: not the goal",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 253,
+  "start": "D123: the plugins webos, gsap, async-storage and svg run on ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 254,
+  "start": "ZN-743: the KMS dumb buffer and fbdev could take HalFrame.re",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 255,
+  "start": "ZN-743: macOS and iOS could write an IOSurface (CALayer cont",
+  "evidence": "",
+  "into": "",
+  "reason": "IOSurface present: speculative perf",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 256,
+  "start": "ZN-743: Android: buffer age instead of copy-back (ANativeWin",
+  "evidence": "",
+  "into": "",
+  "reason": "buffer age on Android: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 257,
+  "start": "ZN-744: exact moves of fractional content (float32 rounding ",
+  "evidence": "",
+  "into": "",
+  "reason": "float rounding redraw: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 258,
+  "start": "ZN-744: no test yet for horizontal and two-axis moves, nor f",
+  "evidence": "",
+  "into": "",
+  "reason": "tests for horizontal scrolls: low value",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 259,
+  "start": "ZN-746: the software raster at 30 fps on the lava face of a ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 260,
+  "start": "ZN-746: a SHADER under a matrix (setTransform) or inside a r",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 261,
+  "start": "ZN-746: an Android window cannot switch to GL after its firs",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 262,
+  "start": "ZN-741: build the GLES 2 programs at start (the first tab sw",
+  "evidence": "",
+  "into": "",
+  "reason": "hand check of GL program build: Nexus 7 specific",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 263,
+  "start": "zinc:camera: the compiler crashes (SIGSEGV in ir Lowering::F",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group frontend-defects",
+  "task": {
+   "title": "Fix five frontend defects a user program can hit",
+   "criteria": [
+    "Map<K,V>.get of a missing key is undefined in a program that uses any (line 392 sample prints true1)",
+    "the camera.video `boolean | Interface` check in an async function compiles (no SIGSEGV in FnLower::writeVar)",
+    "`props.options.map((o, i) => <P .../>)` in a component passes the IR verifier",
+    "a local `let cur` no longer breaks narrowing of a module-level `cur` in other functions",
+    "an unannotated field initialised by a lambda call reports the errors of the lambda body",
+    "one regression test per defect in tests/t0"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "frontend-defects",
+  "verdict": "promote"
+ },
+ {
+  "line": 264,
+  "start": "zinc:camera: QR and barcode decoding on the frames (a vendor",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 265,
+  "start": "zinc:camera: getUserMedia could load the plugin by itself (a",
+  "evidence": "",
+  "into": "",
+  "reason": "getUserMedia auto-load: the import is one line",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 266,
+  "start": "zinc:camera: `zinc doctor --details` could list the cameras ",
+  "evidence": "",
+  "into": "",
+  "reason": "doctor detail: nice-to-have",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 267,
+  "start": "zinc:camera: export could add NSCameraUseContinuityCameraDev",
+  "evidence": "",
+  "into": "",
+  "reason": "Info.plist key: warning only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 268,
+  "start": "zinc:webrtc: echo cancellation and noise suppression for cal",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 269,
+  "start": "zinc:webrtc: simulcast and SVC (several encodings per sender",
+  "evidence": "",
+  "into": "",
+  "reason": "simulcast: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 270,
+  "start": "zinc:webrtc: screen sharing (getDisplayMedia): ScreenCapture",
+  "evidence": "",
+  "into": "",
+  "reason": "screen sharing: no user yet",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 271,
+  "start": "zinc:webrtc: transport-cc and a send-side bandwidth estimato",
+  "evidence": "",
+  "into": "",
+  "reason": "bandwidth estimation: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 272,
+  "start": "zinc:webrtc: AV1 (dav1d to decode, SVT-AV1 or libaom to enco",
+  "evidence": "",
+  "into": "",
+  "reason": "AV1/VP9: too heavy",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 273,
+  "start": "zinc:webrtc: outbound packetsSent is counted as 1200-byte fr",
+  "evidence": "",
+  "into": "",
+  "reason": "stats count detail",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 274,
+  "start": "zinc:webrtc: report upstream (libdatachannel) that MediaInte",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream report only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 275,
+  "start": "zinc:webrtc: mbedTLS refuses a fragmented DTLS ClientHello (",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream report only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 276,
+  "start": "zinc:webrtc: a null/test video encoder (raw frames in RTP) f",
+  "evidence": "",
+  "into": "",
+  "reason": "null video encoder: tests already run real codecs",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 277,
+  "start": "zinc:webrtc: the H.264 decoder takes SPS and PPS only in ban",
+  "evidence": "",
+  "into": "",
+  "reason": "SDP-only SPS/PPS: rare peers",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 278,
+  "start": "zinc:webrtc: the remote video is copied into a runtime image",
+  "evidence": "",
+  "into": "",
+  "reason": "YUV texture upload: perf, later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 279,
+  "start": "zinc:webrtc: TURN for a classroom or a workshop: a guide pag",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 280,
+  "start": "zinc:webrtc: move the libdatachannel pin from master commit ",
+  "evidence": "",
+  "into": "",
+  "reason": "pin bump: later when 0.25 is out",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 281,
+  "start": "zinc:webrtc: getStats: the SCTP round-trip time (rtt() of th",
+  "evidence": "",
+  "into": "",
+  "reason": "stats detail",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 282,
+  "start": "zinc:webrtc: the WPT subset for RTCDataChannel and RTCPeerCo",
+  "evidence": "",
+  "into": "",
+  "reason": "WPT subset for webrtc: no owner need",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 283,
+  "start": "zinc:webrtc: mDNS host candidates (a .local name instead of ",
+  "evidence": "",
+  "into": "",
+  "reason": "mDNS candidates: privacy nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 284,
+  "start": "zinc:webrtc: events come by polling the native queue every 5",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 285,
+  "start": "zinc:webrtc: a zinc built with -DZN_TLS=OFF has no mbedTLS, ",
+  "evidence": "",
+  "into": "",
+  "reason": "message when TLS is off: rare build",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 286,
+  "start": "plugins: zig adds DWARF by default, so every plugin's plugin",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 287,
+  "start": "package: the CLI archive ships no mbedTLS headers, so zinc:w",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 288,
+  "start": "zinc:microphone: it compiles plugins/audio/vendor/miniaudio_",
+  "evidence": "",
+  "into": "",
+  "reason": "mirror repo for audio plugin: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 289,
+  "start": "zinc:microphone: `zinc doctor --details` could list the micr",
+  "evidence": "",
+  "into": "",
+  "reason": "doctor detail: nice-to-have",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 290,
+  "start": "zinc:microphone: hand the samples to zinc:audio (a monitor, ",
+  "evidence": "",
+  "into": "",
+  "reason": "microphone to audio hand-off: later when asked",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 291,
+  "start": "Native fidelity: the kit ContextMenu uses menu.popup when me",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 292,
+  "start": "Native fidelity: one table of pinned versions (NDK, AGP, Gra",
+  "evidence": "",
+  "into": "",
+  "reason": "table of pinned versions: later with mobile",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 293,
+  "start": "zinc:camera: iOS follows a portrait screen only (camera.maco",
+  "evidence": "",
+  "into": "",
+  "reason": "iOS camera rotation: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 294,
+  "start": "zinc:camera: the format change in place (a parked session ta",
+  "evidence": "",
+  "into": "",
+  "reason": "measure first",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 295,
+  "start": "webcam demo: keep the last frame on screen while a camera sw",
+  "evidence": "",
+  "into": "",
+  "reason": "cosmetic preview during camera switch",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 296,
+  "start": "zinc bundle: `__addEvHandler` (host events), `__host_oscClos",
+  "evidence": "",
+  "into": "line 108",
+  "reason": "same: host events missing on QuickJS",
+  "task": null,
+  "group": "",
+  "verdict": "duplicate"
+ },
+ {
+  "line": 297,
+  "start": "zinc bundle: Q0001 as a `zinc lint` rule (quickjs-api) for p",
+  "evidence": "",
+  "into": "",
+  "reason": "lint rule: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 298,
+  "start": "zinc bundle: follow dynamic `import()` with a literal specif",
+  "evidence": "",
+  "into": "",
+  "reason": "dynamic import of bundles: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 299,
+  "start": "zinc bundle: `zinc pack` / `export` of a QuickJS project cou",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 300,
+  "start": "ZN-623: a launch screen from zinc.json's splash (UILaunchScr",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 301,
+  "start": "ZN-623: an ExportOptions.plist and `xcodebuild -exportArchiv",
+  "evidence": "",
+  "into": "",
+  "reason": "needs an Apple account: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 302,
+  "start": "ZN-624: iOS safe areas: content and the perf panel scroll un",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 303,
+  "start": "ZN-624: a present that uploads only the damaged area on iOS ",
+  "evidence": "",
+  "into": "",
+  "reason": "iOS present damage: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 304,
+  "start": "ZN-624: HTTPS root certificates on an iOS device (SecTrust, ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 305,
+  "start": "ZN-741: the replay as its own CMake target (D119, its AC6): ",
+  "evidence": "",
+  "into": "",
+  "reason": "CMake refactor of the replay: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 306,
+  "start": "ZN-741: fp16-only GPUs (Mali-400 on the CHIP): positions rel",
+  "evidence": "",
+  "into": "",
+  "reason": "Mali-400 precision: CHIP target",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 307,
+  "start": "ZN-741: program binaries (GL_OES_get_program_binary): image ",
+  "evidence": "",
+  "into": "",
+  "reason": "program binaries on GLES: Nexus 7 first-run cost",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 308,
+  "start": "ZN-744: profile a replay pass on the Nexus 7 (simpleperf nee",
+  "evidence": "",
+  "into": "",
+  "reason": "profile on Nexus 7: a measure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 309,
+  "start": "ZN-744: draw overlays (perf panel, touch marks) into the win",
+  "evidence": "",
+  "into": "",
+  "reason": "overlay damage: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 310,
+  "start": "ZN-746: the GPU-layer path renders the damage twice even whe",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 311,
+  "start": "ZN-746: drawShader with an alpha, and a turned shader, if a ",
+  "evidence": "",
+  "into": "",
+  "reason": "alpha shader: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 312,
+  "start": "ZN-745: on the TouchPad platform() / Platform.OS still say l",
+  "evidence": "",
+  "into": "",
+  "reason": "webos platform string: handheld pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 313,
+  "start": "ZN-745: an import written with its extension ('./Screen.tsx'",
+  "evidence": "",
+  "into": "",
+  "reason": "extension imports differ from tsc: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 314,
+  "start": "ZN-745: zinc tsconfig --platform <p> to write another platfo",
+  "evidence": "",
+  "into": "",
+  "reason": "tsconfig --platform: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 315,
+  "start": "ZN-747: Platform.Version on a real iPhone (sysctl kern.ospro",
+  "evidence": "",
+  "into": "",
+  "reason": "needs an Apple team",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 316,
+  "start": "ZN-628: the generated glue carries no Promise, array or reco",
+  "evidence": "",
+  "into": "",
+  "reason": "glue types: wait for a plugin",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 317,
+  "start": "ZN-628: on iOS a deep link at launch arrives as an open-url ",
+  "evidence": "",
+  "into": "",
+  "reason": "iOS deep link: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 318,
+  "start": "ZN-628: zinc:video on phones (Android AMediaExtractor + AMed",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 319,
+  "start": "ZN-628: zinc:webview on WKWebView and the Android WebView th",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 320,
+  "start": "ZN-750: the raster could write RGBA itself (an output-order ",
+  "evidence": "",
+  "into": "",
+  "reason": "RGBA output flag: perf on one tablet",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 321,
+  "start": "ZN-750: measure the sustained performance mode on a device t",
+  "evidence": "",
+  "into": "",
+  "reason": "a measure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 322,
+  "start": "ZN-629: zinc publish --play / --app-store: upload the AAB th",
+  "evidence": "",
+  "into": "",
+  "reason": "needs owner accounts",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 323,
+  "start": "ZN-629: zinc.json targets.ios.privacy for the app's own requ",
+  "evidence": "",
+  "into": "",
+  "reason": "privacy manifest: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 324,
+  "start": "ZN-629: a T0 case for the 16 KB check's failure path (a 4 KB",
+  "evidence": "",
+  "into": "",
+  "reason": "test for a failure path: small",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 325,
+  "start": "ZN-748: the OS's own UI font at run time (CoreText on iOS an",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 326,
+  "start": "ZN-748: Android 12+ dynamic colour as the android tint; re-r",
+  "evidence": "",
+  "into": "",
+  "reason": "dynamic colour: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 327,
+  "start": "ZN-748: more controls per look: checkbox, radio, RefreshCont",
+  "evidence": "",
+  "into": "",
+  "reason": "more controls per look: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 328,
+  "start": "ZN-751: zinc:video audio on phones (AAudio / AVAudioEngine) ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 329,
+  "start": "ZN-751: zinc:video seek(seconds) on every backend (av_seek_f",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 330,
+  "start": "ZN-751: pause zinc:video players on the Android lifecycle pa",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 331,
+  "start": "ZN-751: a zinc export run with ZINC_DETERMINISTIC=1 silently",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group export-fixes",
+  "task": {
+   "title": "Four zinc export and build defects",
+   "criteria": [
+    "`zinc build <dir> --bundle` works with --bundle last",
+    "`zinc export --apk -o relative/path` passes the 16 KB check",
+    "an export run with ZINC_DETERMINISTIC=1 uses the native plugin code, not the fake",
+    "the esp32 flash.sh keeps NVS (writes around 0x9000-0x10000 as zinc run does)",
+    "t0 tests for each"
+   ],
+   "milestone": "m-19",
+   "marks": {
+    "value": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 4,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "export-fixes",
+  "verdict": "promote"
+ },
+ {
+  "line": 332,
+  "start": "ZN-751: hero on a phone is laid out wider than the screen (t",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 333,
+  "start": "ZN-749: a snapshot of a native view under modal sheets inste",
+  "evidence": "",
+  "into": "",
+  "reason": "snapshots of native views: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 334,
+  "start": "ZN-749: the cover test uses the layer node's box: a full-sur",
+  "evidence": "",
+  "into": "",
+  "reason": "cover test: edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 335,
+  "start": "ZN-749: native views in a second window (ui.mountWindow) sha",
+  "evidence": "",
+  "into": "",
+  "reason": "second window native views: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 336,
+  "start": "ZN-749: a dev-server page's bridge on Android through androi",
+  "evidence": "",
+  "into": "",
+  "reason": "Android webview bridge timing: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 337,
+  "start": "ZN-627: the same Metal present for macOS's software windows ",
+  "evidence": "",
+  "into": "",
+  "reason": "Metal present for CPU windows: perf nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 338,
+  "start": "ZN-627: build the Metal back end of the command lists (D119)",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 339,
+  "start": "ZN-627: 120 Hz on ProMotion iPhones needs CADisableMinimumFr",
+  "evidence": "",
+  "into": "",
+  "reason": "ProMotion key: one line when iOS ships",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 340,
+  "start": "ZN-630: a macOS NSAccessibility bridge over the same device(",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 341,
+  "start": "ZN-630: a dirty mark per subtree instead of walking the whol",
+  "evidence": "",
+  "into": "",
+  "reason": "a11y dirty marks: perf nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 342,
+  "start": "ZN-630: iOS text fields read as label/value/hint (no public ",
+  "evidence": "",
+  "into": "",
+  "reason": "iOS text a11y: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 343,
+  "start": "ZN-630: custom actions (onLongPress, aria actions) as UIAcce",
+  "evidence": "",
+  "into": "",
+  "reason": "custom a11y actions: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 344,
+  "start": "ZN-625: document.visibilityState and visibilitychange on pho",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 345,
+  "start": "ZN-625: screen.orientation.type reports landscape-primary on",
+  "evidence": "",
+  "into": "",
+  "reason": "orientation type: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 346,
+  "start": "ZN-625: return from the background with ZINC_RENDERER=gl on ",
+  "evidence": "",
+  "into": "",
+  "reason": "GL restore: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 347,
+  "start": "ZN-625: the bar icons follow the system theme, not an app-ch",
+  "evidence": "",
+  "into": "",
+  "reason": "bar icons scheme: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 348,
+  "start": "ZN-626: adb shell input text (and likely a hardware keyboard",
+  "evidence": "",
+  "into": "",
+  "reason": "Gboard behaviour, not a defect",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 349,
+  "start": "ZN-626: a ZINC_INPUT script on a live window replaces live t",
+  "evidence": "",
+  "into": "",
+  "reason": "scripted input detail",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 350,
+  "start": "ZN-625: an RN <Text> without a colour draws invisibly in a h",
+  "evidence": "",
+  "into": "",
+  "reason": "headless RN Text colour outside preset: edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 351,
+  "start": "ZN-631: Zinc Go has no QuickJS and no zinc:gl/three (ZN_WEBG",
+  "evidence": "",
+  "into": "",
+  "reason": "Zinc Go limits: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 352,
+  "start": "ZN-631: an on-device red box for compile errors (today the p",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 353,
+  "start": "ZN-631: host state of a program the player ends (images, Yog",
+  "evidence": "",
+  "into": "",
+  "reason": "host state after player end: mobile last",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 354,
+  "start": "ZN-631: React-model effects have no cleanup, so Fast Refresh",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 355,
+  "start": "ZN-631: the shake and the three-finger press of the dev menu",
+  "evidence": "",
+  "into": "",
+  "reason": "emulator gesture check",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 356,
+  "start": "ZN-631: a parse cache for unchanged lib/std files would brin",
+  "evidence": "",
+  "into": "",
+  "reason": "parse cache: dev speed only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 357,
+  "start": "ZN-631: a custom component taking several children through c",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 358,
+  "start": "ZN-477: re-aim the Vita's zinc:3d from GLES 2 to our own GXM",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 359,
+  "start": "Consoles: a maintainer step to compile our Cg programs to GX",
+  "evidence": "",
+  "into": "",
+  "reason": "Vita shader step: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 360,
+  "start": "ZN-197: the PS2 GS sprite back end (parked) is the PS2 2D ba",
+  "evidence": "",
+  "into": "",
+  "reason": "parked PS2 back end",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 361,
+  "start": "Consoles: the PS2 3D path in two stages: zinc:3d's CPU front",
+  "evidence": "",
+  "into": "",
+  "reason": "PS2 3D plan: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 362,
+  "start": "ZN-754: zinc's model importer caches a bundle by its bytes b",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 363,
+  "start": "ZN-457: zinc run --target psp|vita|ps2|n3ds --emu, wrapping ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 364,
+  "start": "ZN-457: scripted pad input in the emulators: Azahar TAS movi",
+  "evidence": "",
+  "into": "",
+  "reason": "emulator input scripting: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 365,
+  "start": "ZN-457: a program that calls exit() gets no zinc:exit marker",
+  "evidence": "",
+  "into": "",
+  "reason": "console exit marker: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 366,
+  "start": "ZN-455: band threads and the GE, GXM and PICA command replay",
+  "evidence": "",
+  "into": "",
+  "reason": "console replay work: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 367,
+  "start": "ZN-456: a native devkitARM once the owner runs devkitPro's i",
+  "evidence": "",
+  "into": "",
+  "reason": "devkitARM: needs owner install",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 368,
+  "start": "ZN-754: zinc:audio and zinc:3d have no psp/ps2 target: impor",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 369,
+  "start": "ZN-754: the \"grid\" font of text() draws narrower than textWi",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 370,
+  "start": "ZN-754: the asset build packs every file under assets/ (marb",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 371,
+  "start": "ZN-754: no typed float view of bytes (DataView/Float32Array)",
+  "evidence": "",
+  "into": "",
+  "reason": "typed float view: DataView exists as a task (ZN-158)",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 372,
+  "start": "ZN-746: the music carousel at 20-30 fps on the Nexus 7 is a ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 373,
+  "start": "ZN-746: switching back from the GL window to the CPU window ",
+  "evidence": "",
+  "into": "",
+  "reason": "measure with systrace",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 374,
+  "start": "ZN-746: swipes into and out of the lava face at 12-15 fps on",
+  "evidence": "",
+  "into": "",
+  "reason": "Nexus 7 frame rate",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 375,
+  "start": "raster: NEON for draw_dyn (covers with rounded corners compu",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 376,
+  "start": "ZN-629: --apk --release signed with a real upload key on a d",
+  "evidence": "",
+  "into": "",
+  "reason": "needs an upload key",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 377,
+  "start": "music (2026-10-17): the release APK is 15.4 MB, almost all l",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 378,
+  "start": "music (2026-10-17): at rest on the clock slide the app uses ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 379,
+  "start": "ZN-756: zinc:link across networks through zinc:webrtc, follo",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 380,
+  "start": "ZN-756: zinc:link's outgoing buffer grows without bound when",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 381,
+  "start": "ZN-756: the plugin cache key hashes every file beside a sour",
+  "evidence": "",
+  "into": "",
+  "reason": "plugin cache key breadth: ~1 s",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 382,
+  "start": "ZN-755: zinc export --apk with a relative -o fails after gra",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group export-fixes",
+  "task": {
+   "title": "Four zinc export and build defects",
+   "criteria": [
+    "`zinc build <dir> --bundle` works with --bundle last",
+    "`zinc export --apk -o relative/path` passes the 16 KB check",
+    "an export run with ZINC_DETERMINISTIC=1 uses the native plugin code, not the fake",
+    "the esp32 flash.sh keeps NVS (writes around 0x9000-0x10000 as zinc run does)",
+    "t0 tests for each"
+   ],
+   "milestone": "m-19",
+   "marks": {
+    "value": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 4,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "export-fixes",
+  "verdict": "promote"
+ },
+ {
+  "line": 383,
+  "start": "ZN-755: StandBy glances at low brightness at night: zinc:sys",
+  "evidence": "",
+  "into": "",
+  "reason": "StandBy dimming: one app",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 384,
+  "start": "ZN-755: some geocoding names show \"?\" (Persian and similar l",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 385,
+  "start": "ZN-755: quick adb input taps closer than ~0.5 s can be lost ",
+  "evidence": "",
+  "into": "",
+  "reason": "adb tap timing: test only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 386,
+  "start": "ZN-753: the console core should carry the 8x8 font itself, s",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 387,
+  "start": "ZN-753: a PS2 full redraw costs 18-44 ms on the EE (raster p",
+  "evidence": "",
+  "into": "",
+  "reason": "PS2 redraw cost: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 388,
+  "start": "ZN-753: re-assert the Vita's 444/222/222/166 MHz clocks afte",
+  "evidence": "",
+  "into": "",
+  "reason": "Vita clocks after resume: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 389,
+  "start": "ZN-753: PSP 5650 framebuffer with dither and a vcount guard ",
+  "evidence": "",
+  "into": "",
+  "reason": "PSP dither: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 390,
+  "start": "ZN-753: the PCSX2 runner's data directory has no pad binding",
+  "evidence": "",
+  "into": "",
+  "reason": "PCSX2 bindings: owner's machine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 391,
+  "start": "ZN-753: a real window capture of Vita3K and Azahar (Screen R",
+  "evidence": "",
+  "into": "",
+  "reason": "emulator capture: owner's machine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 392,
+  "start": "ZN-758: `Map<K,V>.get()` of a missing key returns null, not ",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group frontend-defects",
+  "task": {
+   "title": "Fix five frontend defects a user program can hit",
+   "criteria": [
+    "Map<K,V>.get of a missing key is undefined in a program that uses any (line 392 sample prints true1)",
+    "the camera.video `boolean | Interface` check in an async function compiles (no SIGSEGV in FnLower::writeVar)",
+    "`props.options.map((o, i) => <P .../>)` in a component passes the IR verifier",
+    "a local `let cur` no longer breaks narrowing of a module-level `cur` in other functions",
+    "an unannotated field initialised by a lambda call reports the errors of the lambda body",
+    "one regression test per defect in tests/t0"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "frontend-defects",
+  "verdict": "promote"
+ },
+ {
+  "line": 393,
+  "start": "ZN-757: IR verifier \"const of a non-scalar type\" (also \"arrp",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group frontend-defects",
+  "task": {
+   "title": "Fix five frontend defects a user program can hit",
+   "criteria": [
+    "Map<K,V>.get of a missing key is undefined in a program that uses any (line 392 sample prints true1)",
+    "the camera.video `boolean | Interface` check in an async function compiles (no SIGSEGV in FnLower::writeVar)",
+    "`props.options.map((o, i) => <P .../>)` in a component passes the IR verifier",
+    "a local `let cur` no longer breaks narrowing of a module-level `cur` in other functions",
+    "an unannotated field initialised by a lambda call reports the errors of the lambda body",
+    "one regression test per defect in tests/t0"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "frontend-defects",
+  "verdict": "promote"
+ },
+ {
+  "line": 394,
+  "start": "ZN-757: the run-name links in `~/.zinc/cache/run/names` are ",
+  "evidence": "",
+  "into": "",
+  "reason": "run-name links shared across worktrees: maintainer note, cause unknown",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 395,
+  "start": "ZN-759: serve asset groups (`<group>.zpk`, `loadGroup`) and ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 396,
+  "start": "ZN-759: `Math.*` take `number`, so under the psp/ps2 profile",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 397,
+  "start": "ZN-759: the PS2's EE FPU has no NaN or Inf: audit the prelud",
+  "evidence": "",
+  "into": "",
+  "reason": "PS2 NaN audit: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 398,
+  "start": "ZN-759: the PS2 HAL could convert the CDVD clock to UTC (PCS",
+  "evidence": "",
+  "into": "",
+  "reason": "PS2 clock: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 399,
+  "start": "ZN-759: `zinc pack` bakes only font sizes written literally ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 400,
+  "start": "ZN-759: zinc:ui has no API for a second screen (the 3DS bott",
+  "evidence": "",
+  "into": "",
+  "reason": "3DS second screen: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 401,
+  "start": "ZN-471: rounded rectangles, borders, shadows and gradients o",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 402,
+  "start": "ZN-471: the Vita's glyph atlas is never evicted (512x512, 3,",
+  "evidence": "",
+  "into": "",
+  "reason": "Vita atlas eviction: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 403,
+  "start": "ZN-471: a runtime image that changes is rewritten in place i",
+  "evidence": "",
+  "into": "",
+  "reason": "Vita double-buffer: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 404,
+  "start": "ZN-470: Meadow Run's work peaks of about 8 ms on the Vita (g",
+  "evidence": "",
+  "into": "",
+  "reason": "Vita profile: console pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 405,
+  "start": "console host: `host.assetsStat` is not served (logged once o",
+  "evidence": "",
+  "into": "",
+  "reason": "a log line",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 406,
+  "start": "compiler: a local `let cur` (a string) in one function break",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group frontend-defects",
+  "task": {
+   "title": "Fix five frontend defects a user program can hit",
+   "criteria": [
+    "Map<K,V>.get of a missing key is undefined in a program that uses any (line 392 sample prints true1)",
+    "the camera.video `boolean | Interface` check in an async function compiles (no SIGSEGV in FnLower::writeVar)",
+    "`props.options.map((o, i) => <P .../>)` in a component passes the IR verifier",
+    "a local `let cur` no longer breaks narrowing of a module-level `cur` in other functions",
+    "an unannotated field initialised by a lambda call reports the errors of the lambda body",
+    "one regression test per defect in tests/t0"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "frontend-defects",
+  "verdict": "promote"
+ },
+ {
+  "line": 407,
+  "start": "ZN-761: map `import * as Device from 'expo-device'` to zinc:",
+  "evidence": "",
+  "into": "",
+  "reason": "expo-device mapping: wait for a user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 408,
+  "start": "ZN-761: Apple silicon Macs report only a family name (Mac14,",
+  "evidence": "",
+  "into": "",
+  "reason": "Apple silicon name: cosmetic",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 409,
+  "start": "ZN-761: deviceYearClass is missing (expo derives it from mem",
+  "evidence": "",
+  "into": "",
+  "reason": "deviceYearClass: wait for a user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 410,
+  "start": "9b4290a3: e-ink displays (display-rmpp, other e-paper panels",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 411,
+  "start": "agent OTA: send a \"trial running\" frame so `zinc device run`",
+  "evidence": "",
+  "into": "",
+  "reason": "OTA trial frame: waiting 10 min is rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 412,
+  "start": "check: an unannotated field whose initializer calls a lambda",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group frontend-defects",
+  "task": {
+   "title": "Fix five frontend defects a user program can hit",
+   "criteria": [
+    "Map<K,V>.get of a missing key is undefined in a program that uses any (line 392 sample prints true1)",
+    "the camera.video `boolean | Interface` check in an async function compiles (no SIGSEGV in FnLower::writeVar)",
+    "`props.options.map((o, i) => <P .../>)` in a component passes the IR verifier",
+    "a local `let cur` no longer breaks narrowing of a module-level `cur` in other functions",
+    "an unannotated field initialised by a lambda call reports the errors of the lambda body",
+    "one regression test per defect in tests/t0"
+   ],
+   "milestone": "m-13",
+   "marks": {
+    "value": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "frontend-defects",
+  "verdict": "promote"
+ },
+ {
+  "line": 414,
+  "start": "zinc:loro (owner, 2026-10-21): prebuilt loro binaries in the",
+  "evidence": "",
+  "into": "",
+  "reason": "loro prebuilt: wait for users",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 415,
+  "start": "zinc:loro: pin Rust (`zinc toolchain rust`, a fixed rustup t",
+  "evidence": "",
+  "into": "",
+  "reason": "pin Rust: wait for users",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 416,
+  "start": "zinc:loro: generic instance methods in the engine (Z0005 tod",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 417,
+  "start": "zinc:loro: in a file with Dyn, `f() === undefined` compares ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 418,
+  "start": "zinc:loro: what Carnet's `@nbe/collab` still needs from the ",
+  "evidence": "",
+  "into": "",
+  "reason": "Uint8Array, generators, spread: other tasks cover them",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 419,
+  "start": "zinc:loro integration (2026-10-21): the AOT prelude's precom",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 420,
+  "start": "zinc:loro: event `from`/`to` frontiers, detached containers ",
+  "evidence": "",
+  "into": "",
+  "reason": "loro surface: when a program needs it",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 422,
+  "start": "third_party: keep the vendored copies (no submodules: patche",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 423,
+  "start": "mquickjs on the ESP32 (owner, 2026-10-21, firmware/esp32-mqu",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 424,
+  "start": "mquickjs on the ESP32: js/prelude.js is 3.9 KB of the demo's",
+  "evidence": "",
+  "into": "",
+  "reason": "prelude filtering on ESP32: when flash is short",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 425,
+  "start": "mquickjs on the ESP32: an upload over the UART into the js p",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 426,
+  "start": "mquickjs on the ESP32: numbers that are not 31-bit integers ",
+  "evidence": "",
+  "into": "",
+  "reason": "GC measure on ESP32",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 427,
+  "start": "mquickjs in esp32sim: no touch, its T-Display board has no C",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream PR for esp32sim, owner's step",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 428,
+  "start": "mquickjs in esp32sim: the ESP32-2432S022's own wiring (ST778",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream PR for esp32sim, owner's step",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 429,
+  "start": "mquickjs on the ESP32: more of zinc:gfx on the board (line, ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 430,
+  "start": "mquickjs: zinc-mqjs on Windows and in the cross builds of zi",
+  "evidence": "",
+  "into": "",
+  "reason": "mquickjs on Windows: cross pass",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 431,
+  "start": "mquickjs on the ESP32 (owner, 2026-10-22): the station join,",
+  "evidence": "",
+  "into": "",
+  "reason": "needs a real network and a board",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 432,
+  "start": "mquickjs on the ESP32: zinc:ble between the Mac app (example",
+  "evidence": "",
+  "into": "",
+  "reason": "needs a board",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 433,
+  "start": "mquickjs on the ESP32: ESP-NOW between two boards (only the ",
+  "evidence": "",
+  "into": "",
+  "reason": "needs two boards",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 434,
+  "start": "mquickjs on the ESP32: zinc:ble's `connect()` (the central r",
+  "evidence": "",
+  "into": "",
+  "reason": "BLE central on ESP32: RAM trade, no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 435,
+  "start": "mquickjs on the ESP32: the native bridge (main/zn_native.c) ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 436,
+  "start": "mquickjs on the ESP32: install ninja with ESP-IDF (`idf_tool",
+  "evidence": "",
+  "into": "",
+  "reason": "ninja install: build speed only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 437,
+  "start": "mquickjs on the ESP32: ~/.zinc/esp32/firmware keeps one buil",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 438,
+  "start": "mquickjs on the ESP32: zinc as an ESP-IDF component for one'",
+  "evidence": "",
+  "into": "",
+  "reason": "zinc as an IDF component: no owner ask",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 439,
+  "start": "mquickjs on the ESP32: two zinc processes building the same ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 440,
+  "start": "mquickjs on the ESP32: render+send is 0.4 ms slower per fram",
+  "evidence": "",
+  "into": "",
+  "reason": "-O2 measure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 441,
+  "start": "mquickjs on the ESP32: the phy_init partition's RF calibrati",
+  "evidence": "",
+  "into": "",
+  "reason": "calibration warning at boot",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 442,
+  "start": "mquickjs on the ESP32: the USB serial port vanished twice (E",
+  "evidence": "",
+  "into": "",
+  "reason": "serial reopen: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 443,
+  "start": "mquickjs: report the upstream patches (none to the engine so",
+  "evidence": "",
+  "into": "",
+  "reason": "outward step, the owner's",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 444,
+  "start": "ESP32 light (owner 2026-10-22): the rest of item 4. Replace ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 445,
+  "start": "ESP32 light: item 12. Renumber the selectors and drop the 41",
+  "evidence": "",
+  "into": "",
+  "reason": "selector renumbering: size nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 446,
+  "start": "ESP32 light: classes that nothing constructs could become ab",
+  "evidence": "",
+  "into": "",
+  "reason": "abstract classes for size: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 447,
+  "start": "ESP32 light: report the core's low-water heap (`esp_get_mini",
+  "evidence": "",
+  "into": "",
+  "reason": "heap low-water in done line: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 448,
+  "start": "ESP32 light: `zinc run --qemu` copies its flash to the share",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 449,
+  "start": "ESP32 light: `site/public/play/*/app.zbc` and `vm.wasm` are ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 450,
+  "start": "ESP32 light: `tools/diff-matrix` should set `ZINC_STEPS=0` i",
+  "evidence": "",
+  "into": "",
+  "reason": "ZINC_STEPS in diff-matrix: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 451,
+  "start": "zinc:ble: give `onClose` a reason (timeout, refused, not a Z",
+  "evidence": "",
+  "into": "",
+  "reason": "BLE close reason: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 452,
+  "start": "zinc:ble: `CBPeripheralManager` so a Mac can `advertise()`, ",
+  "evidence": "",
+  "into": "",
+  "reason": "Mac advertise: no user",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 453,
+  "start": "zinc:ble: the QuickJS module loader could use `x.sim.ts` und",
+  "evidence": "",
+  "into": "",
+  "reason": "second simulated radio: maintainer",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 454,
+  "start": "zinc:ble: `zinc run` from Terminal.app cannot get Bluetooth ",
+  "evidence": "",
+  "into": "",
+  "reason": "Terminal.app limitation: use iTerm",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 455,
+  "start": "zinc:lvgl: switch the theme (dark/light, primary colour) whi",
+  "evidence": "",
+  "into": "",
+  "reason": "LVGL theme switch: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 456,
+  "start": "zinc:lvgl: an object moved costs LVGL a style refresh and, f",
+  "evidence": "",
+  "into": "",
+  "reason": "LVGL move cost: esp32sim measure",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 457,
+  "start": "zinc:lvgl: report LVGL 9.6's two header gaps upstream (blend",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream report only",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 458,
+  "start": "zinc:lvgl: ThorVG's objects come from `new` (the C++ heap), ",
+  "evidence": "",
+  "into": "",
+  "reason": "ThorVG heap routing: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 459,
+  "start": "mquickjs check: run the program from its 64-bit bytecode (ou",
+  "evidence": "",
+  "into": "",
+  "reason": "mquickjs check detail",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 460,
+  "start": "esp32sim: open the upstream PR for the 2432S022 board, the C",
+  "evidence": "",
+  "into": "",
+  "reason": "outward step, the owner's",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 461,
+  "start": "`--emulator --live`: map keys to the board's buttons (BOOT, ",
+  "evidence": "",
+  "into": "",
+  "reason": "emulator keys: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 462,
+  "start": "`--emulator --live`: check that an occluded Metal window upd",
+  "evidence": "",
+  "into": "",
+  "reason": "capture detail",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 463,
+  "start": "esp32sim: model the 2432S022's real 8-bit i80 panel upstream",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream, owner's step",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 464,
+  "start": "zinc:device (plugins/device) has no native ABI code, so a pr",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 465,
+  "start": "Native ABI: `zn_native_poll(0)` gives the modules' `poll` a ",
+  "evidence": "",
+  "into": "",
+  "reason": "poll argument: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 466,
+  "start": "Native ABI: `now_ms` of a plugin on the computer is the syst",
+  "evidence": "",
+  "into": "",
+  "reason": "deterministic now_ms for plugins: ABI frozen",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 467,
+  "start": "Web globals: the scan that appends `import { screen } from '",
+  "evidence": "",
+  "into": "",
+  "reason": "web globals scan: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 468,
+  "start": "Module resolution: the tsconfig lookup from an absolute path",
+  "evidence": "",
+  "into": "",
+  "reason": "tsconfig lookup edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 469,
+  "start": "Module resolution: a tsconfig `paths` entry wins over a plug",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 470,
+  "start": "Module resolution: platform suffixes apply to `.ts`/`.tsx` o",
+  "evidence": "",
+  "into": "",
+  "reason": "Metro .native.js suffix: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 471,
+  "start": "Module resolution: `tests/t0/module_resolution.sh` runs the ",
+  "evidence": "",
+  "into": "",
+  "reason": "AOT module resolution test: same loader",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 472,
+  "start": "ZN-774: the README summaries \"36 modules\" and \"9 display dri",
+  "evidence": "",
+  "into": "",
+  "reason": "README counts, a doc nit",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 473,
+  "start": "ZN-774: dead links left in `docs/studio.md` (apps/studio), `",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 474,
+  "start": "ZN-774: `docs/guide/07-distribution.md` and `08-security.md`",
+  "evidence": "",
+  "into": "",
+  "reason": "doc check, not a task",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 475,
+  "start": "ZN-774: templates `solid-app`, `react-app`, `kit-app`, `rn-a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 476,
+  "start": "ZN-774.12: `stroke()` draws a larger start cap on some lines",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 477,
+  "start": "ZN-774.12: `lib/gfx.d.ts` types the `onResize` callback with",
+  "evidence": "",
+  "into": "",
+  "reason": "d.ts type nit",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 478,
+  "start": "ZN-774.12: `zinc:ui` has no `.d.ts` (`lib/ui.d.ts` is a plac",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group first-project-kit",
+  "task": {
+   "title": "First-project polish: ui.d.ts, app.window without id, Button default, kit Input",
+   "criteria": [
+    "lib/ui.d.ts is generated from lib/std/ui.ts and an editor shows PointerEvent, KeyEvent and event attributes",
+    "zinc.json app.window works without app.id",
+    "a Button with no bg-* follows the page, or docs/ui-kit.md says so",
+    "zinc:ui/kit has Input and Textarea in shadcn's shape, with a test and docs/ui-kit.md entry"
+   ],
+   "milestone": "m-17",
+   "marks": {
+    "value": 4,
+    "novelty": 4,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "first-project-kit",
+  "verdict": "promote"
+ },
+ {
+  "line": 479,
+  "start": "ZN-774.12: `app.window` in `zinc.json` should not need `app.",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group first-project-kit",
+  "task": {
+   "title": "First-project polish: ui.d.ts, app.window without id, Button default, kit Input",
+   "criteria": [
+    "lib/ui.d.ts is generated from lib/std/ui.ts and an editor shows PointerEvent, KeyEvent and event attributes",
+    "zinc.json app.window works without app.id",
+    "a Button with no bg-* follows the page, or docs/ui-kit.md says so",
+    "zinc:ui/kit has Input and Textarea in shadcn's shape, with a test and docs/ui-kit.md entry"
+   ],
+   "milestone": "m-17",
+   "marks": {
+    "value": 4,
+    "novelty": 4,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "first-project-kit",
+  "verdict": "promote"
+ },
+ {
+  "line": 480,
+  "start": "ZN-774.12: a `Button` with no `bg-*` class is a dark box on ",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group first-project-kit",
+  "task": {
+   "title": "First-project polish: ui.d.ts, app.window without id, Button default, kit Input",
+   "criteria": [
+    "lib/ui.d.ts is generated from lib/std/ui.ts and an editor shows PointerEvent, KeyEvent and event attributes",
+    "zinc.json app.window works without app.id",
+    "a Button with no bg-* follows the page, or docs/ui-kit.md says so",
+    "zinc:ui/kit has Input and Textarea in shadcn's shape, with a test and docs/ui-kit.md entry"
+   ],
+   "milestone": "m-17",
+   "marks": {
+    "value": 4,
+    "novelty": 4,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "first-project-kit",
+  "verdict": "promote"
+ },
+ {
+  "line": 481,
+  "start": "ZN-774.02: translate the long `zinc help <command>` details;",
+  "evidence": "",
+  "into": "",
+  "reason": "translate long help: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 482,
+  "start": "ZN-774.03: `zinc check --engine quickjs` and the mquickjs ch",
+  "evidence": "",
+  "into": "",
+  "reason": "print ok line: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 483,
+  "start": "ZN-774.06: Atelier should read a `--json` form of the CLI's ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 484,
+  "start": "ZN-774.06: the examples hello, text and interface could take",
+  "evidence": "",
+  "into": "",
+  "reason": "example thumbnails language: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 485,
+  "start": "ZN-774.07: an offline copy of the lessons and the reference ",
+  "evidence": "",
+  "into": "",
+  "reason": "offline help: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 486,
+  "start": "ZN-774.07: Atelier's opener permission names https://frulko.",
+  "evidence": "",
+  "into": "",
+  "reason": "permission URL: maintainer note",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 487,
+  "start": "ZN-774.08: check Atelier's tour in a real window (card place",
+  "evidence": "",
+  "into": "",
+  "reason": "hand check of the tour",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 488,
+  "start": "ZN-774.08: in the tour's error step the status shows \"main.t",
+  "evidence": "",
+  "into": "",
+  "reason": "status wording",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 489,
+  "start": "ZN-774.08: a \"Take the tour\" link on the start view if Help ",
+  "evidence": "",
+  "into": "",
+  "reason": "tour link: only if people get lost",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 490,
+  "start": "ZN-774.13: QuickJS under `ZINC_DETERMINISTIC` is not frame-d",
+  "evidence": "",
+  "into": "",
+  "reason": "QuickJS determinism for one carousel",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 491,
+  "start": "ZN-774.13: `VBox`, `HBox`, `Spacer` and a scroll-container n",
+  "evidence": "",
+  "into": "",
+  "reason": "stage layout boxes: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 492,
+  "start": "ZN-774.04: translate more diagnostic details, the less frequ",
+  "evidence": "",
+  "into": "",
+  "reason": "more translated details: on demand",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 493,
+  "start": "ZN-774.16: separate compilation of lib/std (a linkable ZBC p",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 494,
+  "start": "ZN-774.16: a windowed `zinc run` whose native build fails (a",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 495,
+  "start": "ZN-774.14: `zinc:canvas` smooths curves at its own scale, no",
+  "evidence": "",
+  "into": "",
+  "reason": "canvas smoothing under scaled stage: edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 496,
+  "start": "ZN-774.14: when a native plugin fails to compile, auto mode ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 497,
+  "start": "ZN-774.18: zinc:ui/kit has no Input or Textarea; kit apps st",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group first-project-kit",
+  "task": {
+   "title": "First-project polish: ui.d.ts, app.window without id, Button default, kit Input",
+   "criteria": [
+    "lib/ui.d.ts is generated from lib/std/ui.ts and an editor shows PointerEvent, KeyEvent and event attributes",
+    "zinc.json app.window works without app.id",
+    "a Button with no bg-* follows the page, or docs/ui-kit.md says so",
+    "zinc:ui/kit has Input and Textarea in shadcn's shape, with a test and docs/ui-kit.md entry"
+   ],
+   "milestone": "m-17",
+   "marks": {
+    "value": 4,
+    "novelty": 4,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "first-project-kit",
+  "verdict": "promote"
+ },
+ {
+  "line": 498,
+  "start": "ZN-774.18: docs/ui.md:817-818 contradicts the transform-arra",
+  "evidence": "",
+  "into": "",
+  "reason": "doc contradiction: a doc nit",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 499,
+  "start": "ZN-774.18: UiNode carries about 30 text-only fields on every",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 500,
+  "start": "ZN-774.18: the Solid model has no unstyled Switch, Modal or ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 501,
+  "start": "ZN-774.11: English fallback pages shown under `/fr/` (and th",
+  "evidence": "",
+  "into": "",
+  "reason": "i18n fallback links: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 502,
+  "start": "ZN-774.11: the other site pages (philosophy, cli, demos, use",
+  "evidence": "",
+  "into": "",
+  "reason": "English only pages: owner decides",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 503,
+  "start": "ZN-774.11: on a shallow clone the \"English changed\" notice i",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 504,
+  "start": "ZN-774.15: at 1280x800 Atelier's start view shows the 9 Draw",
+  "evidence": "",
+  "into": "",
+  "reason": "start view layout nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 505,
+  "start": "ZN-774: a step and variable view in Atelier with live editin",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 506,
+  "start": "ZN-774: one real app grown across the lessons, the changed l",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 507,
+  "start": "ZN-774: printable cards for classrooms, one page per style, ",
+  "evidence": "",
+  "into": "",
+  "reason": "printable cards: outreach, not engine",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 508,
+  "start": "ZN-774: a short looping capture per lesson made by `zinc cap",
+  "evidence": "",
+  "into": "",
+  "reason": "lesson captures: outreach",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 509,
+  "start": "ZN-774: a first-steps checklist on Atelier's start view (VS ",
+  "evidence": "",
+  "into": "",
+  "reason": "checklist: only if needed",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 510,
+  "start": "ZN-774: a translation guide and a missing-strings report per",
+  "evidence": "",
+  "into": "",
+  "reason": "translation guide: wait for a sixth language",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 511,
+  "start": "ZN-774.18: a text size a program never names in its source f",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 512,
+  "start": "ZN-774.18: the codemod adds `py-1` to a Button whose class f",
+  "evidence": "",
+  "into": "",
+  "reason": "codemod nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 513,
+  "start": "ZN-774.18: a second run of `zinc migrate ui-explicit-looks` ",
+  "evidence": "",
+  "into": "",
+  "reason": "codemod second-run edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 514,
+  "start": "ZN-774.18: fields with `border-0` (Atelier, nuxt inputs) los",
+  "evidence": "",
+  "into": "",
+  "reason": "focus ring check: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 515,
+  "start": "ZN-774.18: examples/kanban (ZN-775) came after the codemod r",
+  "evidence": "",
+  "into": "",
+  "reason": "one codemod run: do it, not a task",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 516,
+  "start": "ZN-774.18: process/shell's proto frame shows the process id,",
+  "evidence": "",
+  "into": "",
+  "reason": "mask pid in compare: test nit",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 517,
+  "start": "ZN-774.18: examples/carnet-nbe does not pass `zinc check` wi",
+  "evidence": "",
+  "into": "",
+  "reason": "carnet-nbe needs external modules",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 518,
+  "start": "ZN-774.18: notify_relay failed once while other jobs ran (it",
+  "evidence": "",
+  "into": "",
+  "reason": "flaky test passed alone",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 519,
+  "start": "ZN-774.18: `zIndex: -1` (and `-z-1`) goes behind its parent'",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 520,
+  "start": "ZN-774.18: the class `text-transparent` writes colour -1, wh",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 521,
+  "start": "ZN-774.18: `textShadowRadius` is accepted but drawn sharp, a",
+  "evidence": "",
+  "into": "",
+  "reason": "text shadow blur: cosmetic",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 522,
+  "start": "ZN-774.18: a dotted or dashed text decoration is one rounded",
+  "evidence": "",
+  "into": "",
+  "reason": "dotted decoration cost: wait for profile",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 523,
+  "start": "ZN-774.18: `animate()` and `getNumber()` do not know the new",
+  "evidence": "",
+  "into": "",
+  "reason": "animate() keys: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 524,
+  "start": "ZN-774.18: UiNode grew by two i32 (shadow alpha, decoration ",
+  "evidence": "",
+  "into": "",
+  "reason": "UiNode size: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 525,
+  "start": "ZN-774.18: a frame sweep must compare runs from roots of the",
+  "evidence": "",
+  "into": "",
+  "reason": "sweep root shape: tool note",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 526,
+  "start": "ZN-774.18: on the web page a transition ignores the delay an",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 527,
+  "start": "ZN-774.18: on the web, hiding one scroll bar of a view that ",
+  "evidence": "",
+  "into": "",
+  "reason": "web scrollbar axes: cosmetic",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 528,
+  "start": "ZN-774.18: `animate()` and `getNumber()` do not read back th",
+  "evidence": "",
+  "into": "",
+  "reason": "animate outline: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 529,
+  "start": "ZN-774.18: dashed and dotted outlines are not checked on the",
+  "evidence": "",
+  "into": "",
+  "reason": "GL dashed outline check: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 530,
+  "start": "ZN-774.18: `caret-*` applies only to the field itself, while",
+  "evidence": "",
+  "into": "",
+  "reason": "caret-color inheritance: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 531,
+  "start": "ZN-774.18: zinc:react-native's Button keeps zinc:ui's 0.6 pr",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 532,
+  "start": "ZN-774.18: Pressable takes `style` and `children` functions ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 533,
+  "start": "ZN-774.18: a keyboard press (Enter, Space) fires Pressable's",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 534,
+  "start": "ZN-774.18: Pressable still lacks hitSlop, pressRetentionOffs",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 535,
+  "start": "ZN-774.18: SafeAreaView (lib/std/react-native.tsx) pads itse",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 536,
+  "start": "ZN-774.18: `sheetNumber` reads any `@` key holding a colon a",
+  "evidence": "",
+  "into": "",
+  "reason": "url(data:) misread as colour: rare",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 537,
+  "start": "ZN-774.18: a hand-built `new ui.Style(['@font-mono'], …)` si",
+  "evidence": "",
+  "into": "",
+  "reason": "debug-build check for @ keys: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 538,
+  "start": "ZN-774.18: step 7 of docs/reports/ui-primitives-like-react-n",
+  "evidence": "",
+  "into": "",
+  "reason": "only helps boards: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 539,
+  "start": "ZN-774.19: a lazy Canvas holding a stage (`style={{ lazy: 1 ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 540,
+  "start": "ZN-774.19: an AS3-style `DisplayObject.localToGlobal` would ",
+  "evidence": "",
+  "into": "",
+  "reason": "localToGlobal: later",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 541,
+  "start": "ZN-774.19: run the seven samples of docs/start/beyond.md on ",
+  "evidence": "",
+  "into": "",
+  "reason": "sample checks: tiny",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 542,
+  "start": "ZN-774.19: `Stage.drawIn` sets the drawing position absolute",
+  "evidence": "",
+  "into": "",
+  "reason": "scene under rotated parent: edge",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 543,
+  "start": "ZN-774.11: in-page anchors of the translated docs stay Engli",
+  "evidence": "",
+  "into": "",
+  "reason": "translated anchors: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 544,
+  "start": "pi-image: the Linux SDL window should try GLES 2 when OpenGL",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 545,
+  "start": "pi-image: display-fbdev should take the KMS plane back, and ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 546,
+  "start": "pi-image: display-fbdev text from a physical keyboard and a ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 547,
+  "start": "pi-image: the engine says READY=1 to systemd after its first",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, Mac work for a later batch",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 549,
+  "start": "ESP-IDF's i80 driver on the classic ESP32 mounts its colour ",
+  "evidence": "",
+  "into": "",
+  "reason": "upstream report, the owner's",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 550,
+  "start": "Touch on the 2432S022: what the affine map leaves (about +12",
+  "evidence": "",
+  "into": "",
+  "reason": "touch offsets per region: one panel",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 551,
+  "start": "zinc:lvgl without mquickjs, on an AOT ESP32 firmware (owner ",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 552,
+  "start": "ESP32 mquickjs, a board without a screen: a status LED (runn",
+  "evidence": "",
+  "into": "",
+  "reason": "status LED: nicety",
+  "task": null,
+  "group": "",
+  "verdict": "drop"
+ },
+ {
+  "line": 553,
+  "start": "ESP32 mquickjs: a hang in C (a plugin's native loop) is stil",
+  "evidence": "",
+  "into": "",
+  "reason": "valid idea for later: not blocking a user now, cross-platform pass",
+  "task": null,
+  "group": "",
+  "verdict": "keep"
+ },
+ {
+  "line": 554,
+  "start": "ESP32 mquickjs: the `flash.sh` of `zinc export --target esp3",
+  "evidence": "",
+  "into": "",
+  "reason": "part of group export-fixes",
+  "task": {
+   "title": "Four zinc export and build defects",
+   "criteria": [
+    "`zinc build <dir> --bundle` works with --bundle last",
+    "`zinc export --apk -o relative/path` passes the 16 KB check",
+    "an export run with ZINC_DETERMINISTIC=1 uses the native plugin code, not the fake",
+    "the esp32 flash.sh keeps NVS (writes around 0x9000-0x10000 as zinc run does)",
+    "t0 tests for each"
+   ],
+   "milestone": "m-19",
+   "marks": {
+    "value": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 4,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  "group": "export-fixes",
+  "verdict": "promote"
+ }
+]

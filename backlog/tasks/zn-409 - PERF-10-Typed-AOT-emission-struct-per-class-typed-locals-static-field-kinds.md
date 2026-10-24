@@ -4,7 +4,7 @@ title: 'PERF-10 Typed AOT emission: struct per class, typed locals, static field
 status: Done
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-09 09:49'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-L
@@ -36,4 +36,5 @@ M4, AOT vs native (min of 5, same machine): fib 0.96, nbody 2.90 -> 1.04 (106 ->
 AC2: bouncing-ball 200k effects p50 4.2 (audit) -> 2.62 ms; the 2.2 ms target also needs the loop-element RC elision (ZN-413, ZN-399).
 AC4: hero's generated C++ 34.3 -> 33.5 MB. AC3: tests/run --changed 30/30, aot, oracle_diff, rc, quickjs, canvas, ui, script, profile, layout_bridge, host_direct, run_compiled; interpreter = AOT frame hashes on bouncing-ball, nuxt-ui, rn-showcase. The weight of AOT programs (hero 21.8 MB, 105 s build) is ZN-603.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. Targets were audit estimates; the remaining gap has its own tasks.
 <!-- SECTION:NOTES:END -->

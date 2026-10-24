@@ -1,22 +1,24 @@
 ---
 id: ZN-727
-title: 'Demo js-anatomy: a gallery of the Anatomy figures, live, without a webview'
+title: 'Demo js-anatomy: the figures from their own render(host)'
 status: Backlog
 assignee: []
 created_date: '2026-10-12 12:57'
-updated_date: '2026-10-12 13:18'
+updated_date: '2026-10-25 01:53'
 labels:
   - js
   - demo
   - size-L
 milestone: m-8
 dependencies: []
-ordinal: 489410
+ordinal: 17300
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Run the unchanged render(host) of the figures once the SVG tree with CSS exists; T1 golden and perf line. Already there: examples/js-anatomy/main.js draws the figures with Canvas 2D (proof, 2026-10-12).
+
 Owner request (2026-10-12): a demo gallery of the figures of https://skills.wheresryan.sh/anatomy (watch, turbofan, seasons) played in Zinc, live, without a webview. The figures come from the npm package anatomy-figures 0.1.0 (MIT): each has a framework-free entry `element/<name>` whose `render(host, { theme })` builds a large SVG, a stylesheet and a small script that rewrites `d`, `transform` and attributes each frame; turbofan adds a WebGL canvas, seasons a 2D canvas and WebGL. The web environment (`lib/std/webenv.js`) has no SVG tree and no CSS: the example brings an SVG scene (markup of innerHTML, the figure's stylesheet, a painter on Canvas 2D, hit test) and runs the figures' own code unchanged. Measured before the task (backlog/later.md, ZN-712 line of 2026-10-12): Canvas 2D paints the paths; a full repaint is 48 ms (watch) and 73 ms (turbofan) under load, bound by the painted area.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -33,4 +35,5 @@ Owner request (2026-10-12): a demo gallery of the figures of https://skills.wher
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-12: the owner cut the scope to a proof of the principle. Done: examples/js-anatomy downloads a figure's module from unpkg (anatomy-figures 0.1.0) and draws its paths and circles still with Canvas 2D, five rules standing for the stylesheet; a click or a key shows the next one (watch, turbofan). Watch: 859 shapes, download about 300 ms, draw about 190 ms at 800x720 under load. Left out, criteria 1 to 5 stay open: the figure's own render(host) (it needs an SVG tree with CSS: an unfinished, uncommitted scene.js of 553 lines is in the worktree .claude/worktrees/agent-aed53744c488c2df3), movement, input to the figure, use, gradients, clips, the WebGL layer, seasons, the test. The click to the turbofan was not run in the window; the same rules drew it in the measure before the task.
+Review 2026-10-25: done-partly. Owner cut it to a proof; criteria 1-5 still open and need an SVG+CSS scene. Evidence: examples/js-anatomy/main.js draws the figures with Canvas 2D (proof, 2026-10-12)
 <!-- SECTION:NOTES:END -->

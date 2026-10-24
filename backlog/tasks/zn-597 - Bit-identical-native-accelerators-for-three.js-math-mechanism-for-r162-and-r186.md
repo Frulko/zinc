@@ -15,7 +15,8 @@ milestone: m-21
 dependencies:
   - ZN-596
 priority: high
-ordinal: 92000
+ordinal: 7800
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

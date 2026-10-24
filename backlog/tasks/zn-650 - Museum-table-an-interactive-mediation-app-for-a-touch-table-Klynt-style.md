@@ -1,9 +1,8 @@
 ---
 id: ZN-650
 title: 'Museum table: an interactive mediation app for a touch table, Klynt style'
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-10 17:50'
 labels:
   - demo
@@ -14,6 +13,7 @@ labels:
 milestone: m-27
 dependencies: []
 ordinal: 17000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,6 +26,12 @@ Owner's answers, 2026-10-10: a horizontal touch table; one or two visitors at a 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 every subtask is Done
-- [ ] #2 the demo is listed in the examples status and has a README with screenshots
+- [x] #1 every subtask is Done
+- [x] #2 the demo is listed in the examples status and has a README with screenshots
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: closed as Done. Every subtask is Done and the demo has its README with screenshots. Close the epic. Evidence: examples/museum-table (README with 8 images); tests/t1/museum_visit.sh; all 20 subtasks Done Verifier: All 20 subtasks (650.01-650.14 and 650.07.01-.06) are Done; examples/museum-table/README.md has 8 screenshots and tests/examples.lst:59-60 lists the player and editor as OK; tests/t1/museum_visit.sh exists.
+<!-- SECTION:NOTES:END -->

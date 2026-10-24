@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-522
   - ZN-523
-ordinal: 290000
+ordinal: 96200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ Measure on hardware with ZINC_PROFILE and the display stats: bouncing-ball balls
 - [ ] #3 bench-gate has chip thresholds
 - [ ] #4 runs discarded when the AXP209 reports an input-limit event
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Performance baseline on the CHIP: needs the board.
+<!-- SECTION:NOTES:END -->

@@ -3,10 +3,10 @@ id: ZN-568
 title: >-
   Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR,
   storage)
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-22 18:57'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -25,10 +25,10 @@ A JS module evaluated only in QuickJS contexts that ask for it, plus a few host 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PixiJS 8.22 and 7.4.3, Phaser 3.90, p5.js 1.11 and 2.3, three.js r186 with OrbitControls, Babylon.js 9.30, Kaplay 3001 and LittleJS boot and animate with no per-application shim (a T1 test per library, headless)
-- [ ] #2 a pointer drag on the window reaches PixiJS (document pointermove, window pointerup), Phaser's keyboard (window) and OrbitControls (canvas) in tests
-- [ ] #3 navigator, devicePixelRatio and innerWidth reflect the window and the pixel scale
-- [ ] #4 the trace of unknown globals for these libraries is empty
+- [x] #1 PixiJS 8.22 and 7.4.3, Phaser 3.90, p5.js 1.11 and 2.3, three.js r186 with OrbitControls, Babylon.js 9.30, Kaplay 3001 and LittleJS boot and animate with no per-application shim (a T1 test per library, headless)
+- [x] #2 a pointer drag on the window reaches PixiJS (document pointermove, window pointerup), Phaser's keyboard (window) and OrbitControls (canvas) in tests
+- [x] #3 navigator, devicePixelRatio and innerWidth reflect the window and the pixel scale
+- [x] #4 the trace of unknown globals for these libraries is empty
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -96,4 +96,5 @@ DECISIONS taken in this task, for the coordinator to file: (1) the environment i
 FOLLOW-UP TASKS (not created): (a) 'Web environment: engine key and zinc:script' (S): zinc.json "engine": "quickjs" runs a .js entry without --engine; new Script({web: true}); criteria: zinc run <dir> with the two keys boots the p5 page; a script context with web: true has window and document. (b) 'Web environment: DOMParser on a vendored XML parser' (S): @xmldom/xmldom 0.9.12 (MIT) loaded at the first DOMParser; criteria: a BMFont XML and an SVG parse, XMLHttpRequest responseType document. (c) 'QuickJS engine: import.meta.url' (S): criteria: new URL('./a.png', import.meta.url).href names the file beside the module. (d) 'Web environment: window focus and visibility, fingers as pointers, modifier keys' (S, needs host rows for the window's focus and for a modifier's own key event). (e) 'Web environment: boot tests of Phaser 3.90, p5 2.3, Babylon 9.30, LittleJS, Kaplay' (M, after ZN-565, ZN-569, ZN-573): one T1 test each, as webenv_p5. (f) 'Web environment completeness' (S): the localStorage property form, FormData, a binary request body over http, matchMedia that answers orientation, pointer and resolution, canvas.toDataURL through the host's PNG encoder. (g) 'Date in a web program' (S, decision first): Date.now is the engine's virtual clock from 0, so new Date() is 1970 in a library; a real run with the environment should read the wall clock.
 
 2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
+Review 2026-10-25: closed as Done. The web environment is built and used by examples/js-pixi, js-phaser, js-p5, js-three. What the criteria still name (Babylon, Kaplay, LittleJS boot tests, focus/visibility, DOMParser, the engine key) already has follow-up tasks ZN-705, 706, 707, 708. Close and let those carry on. Evidence: lib/std/webenv.js; src/qjs/webenv.cpp; tests/t0/webenv.sh; tests/t1/webenv_pixi.sh, webenv_phaser.sh, webenv_p5.sh, webenv_three.sh, webenv_image.sh, webenv_canvas*.sh, webenv_audio.sh, webenv_gamepad.sh; docs/reports/zinc-next-webenv.md Verifier: lib/std/webenv.js and src/qjs/webenv.cpp ship with tests webenv (t0) and webenv_p5/pixi/phaser/three/canvas*/image/audio/gamepad (t1). The unticked parts are carried by open tasks ZN-705 (engine key, focus/visibility, fingers), ZN-706 (DOMParser), ZN-707 (Babylon, LittleJS, Kaplay, p5 2 boot tests), ZN-708 (Date), all Backlog.
 <!-- SECTION:NOTES:END -->

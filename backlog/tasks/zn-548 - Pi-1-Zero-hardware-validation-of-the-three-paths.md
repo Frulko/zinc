@@ -8,11 +8,13 @@ labels:
   - rpi
   - 3d
   - size-M
+  - parked
 milestone: m-25
 dependencies:
   - ZN-545
-  - ZN-546
-ordinal: 212000
+  - ZN-164
+ordinal: 97500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +29,9 @@ On a Pi Zero W or Pi 1 B+ (owner provides) running Raspberry Pi OS 32-bit Trixie
 - [ ] #2 the cooked diorama holds >= 30 fps at 640x360 upscaled to 720p
 - [ ] #3 CMA and memory headroom recorded for 512 MB
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Needs a Pi 1 / Zero W the owner must provide; the three paths do not exist yet.
+<!-- SECTION:NOTES:END -->

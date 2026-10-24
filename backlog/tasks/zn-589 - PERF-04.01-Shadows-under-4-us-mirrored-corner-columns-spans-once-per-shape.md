@@ -4,7 +4,7 @@ title: 'PERF-04.01 Shadows under 4 us: mirrored corner columns, spans once per s
 status: Done
 assignee: []
 created_date: '2026-10-09 08:42'
-updated_date: '2026-10-10 14:43'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
 milestone: m-21
@@ -34,4 +34,5 @@ Done 2026-10-10 (usage: n/a, session total), AC1 split to ZN-589.01.
 - AC2: same pixels: b2-rounded frame 12 hash 6319f520874cbea2 before and after on this machine (d05bc629d0c042a4 was the M1's value of another setup); proto-capture canary 4/4; scene_dump, backend_sw, damage_sig, ui_style, style_shadow, style_border pass; new tests/t1/shadow_mirror.sh (300 shadows of every shape, scales 1 and 2, golden recorded with the former code).
 - AC1 not met on this machine: Intel Mac unloaded, 2000 shadows 18.5-18.9 -> 16.9-17.2 ms = 9.2-9.4 -> 8.4-8.5 us per shadow (-9%); instructions 68.3k -> 65.8k. Breakdown (instructions/cycles removed by disabling parts): blend_alphas 30.8k/17.5k, alpha rows 18k/14k, blend_row 8.3k/8k, rows and keys 8.6k/3.3k. A 16-bit-lane SSE2 blend_alphas: same pixels, within noise (-4%), dropped. The target was set on the M1 (4.38 us): ZN-589.01 remeasures on arm64.
 - Measuring: other agents loaded the machine (ZN-613's load test: 16 'yes', load 70-120); I waited for load < 8 before the timings; instruction counts (time -l) stayed usable under load.
+Review 2026-10-25: the open criteria are moot. The 4 us target came from an M1; carried by ZN-589.01.
 <!-- SECTION:NOTES:END -->

@@ -1,10 +1,10 @@
 ---
 id: ZN-470
 title: 'Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-24 23:20'
+updated_date: '2026-10-25 01:53'
 labels:
   - gpu
   - handheld
@@ -27,7 +27,7 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 decision record with measurements on hardware (or Vita3K, marked) and the user-side requirements of each path
-- [ ] #2 the chosen path renders examples/ui/gl-check
+- [x] #2 the chosen path renders examples/ui/gl-check
 - [x] #3 redistribution of any module shipped with the core is checked and documented
 <!-- AC:END -->
 
@@ -47,4 +47,5 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 2026-10-25, hardware proof of the vitaGL path (D165): the owner's PS Vita (libshacccg.suprx in ur0:data/external), examples/ui/gl-check ZINC_SCENE=cycle built with --vitagl (ZINC00020): every command on the GPU (0 LINE/POLY skipped, 0 CPU tiles, stencil 8, family PowerVR tiler), 60.4 fps with 0 missed vblanks; the first launch compiles 17 programs in 10.3 s (32 fps for 600 frames), the second reads vitaGL's shader cache in 86 ms and holds 60 fps from the start. GXM build of the same program (ZINC00021): 60.3 fps with the rounded/gradient scenes in software. PSP: the owner ran examples/hardware-psp (GE replay) under Adrenaline on the same console: runs well. Later: ship the replay's programs as precompiled GXP (glShaderBinary) so users need no libshacccg; zinc:gl/WebGL1 on vitaGL (ZN-477).
 
 2026-10-25, Meadow Run on vitaGL (ZINC00012) vs GXM (ZINC00011) on the owner's Vita: vitaGL 29 missed vblanks in 600 frames, replay p50 1.10 / p99 16.1 ms; GXM 0 missed, 0.32 / 0.39 ms. Decision (D165): GXM stays the 2D default and grows the rounded/border/shadow commands (coverage atlas as targets/console/ff_replay.cpp does for the GE); vitaGL is for zinc:gl/WebGL1/three/zinc:3d (ZN-477). Possible vitaGL tuning not tried: its BUFFERS_SPEEDHACK / circular pool options, a ring of vertex buffers in the replay.
+Review 2026-10-25: closed as Done. GPU path chosen (D151 GXM + SDL GXP as 2D default; D165 vitaGL for GL) and proved on the owner's Vita: Meadow Run 60 fps on GXM, examples/ui/gl-check 60 fps on vitaGL, redistribution checked. Evidence: targets/vita/gxm_vita.cpp; targets/vita/gl_vita.cpp; third_party/vitagl; docs/reports/zinc-next-decisions.md D151, D165; commits d962083a, 8f1a4756, f02510df Verifier: D151 (GXM 2D default) and D165 (vitaGL for GL) recorded; examples/ui/gl-check at 60.4 fps with 0 missed vblanks on the owner's Vita via vitaGL (notes 2026-10-25); redistribution checked.
 <!-- SECTION:NOTES:END -->

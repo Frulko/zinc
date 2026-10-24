@@ -9,7 +9,8 @@ labels:
   - layout
   - size-M
 dependencies: []
-ordinal: 78000
+ordinal: 17700
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

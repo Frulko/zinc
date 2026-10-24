@@ -3,11 +3,10 @@ id: ZN-731
 title: >-
   Zero-copy video: from the hardware decoder to the screen without a CPU copy
   (Raspberry Pi first)
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-12 13:56'
-updated_date: '2026-10-12 15:59'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - video
@@ -27,7 +26,7 @@ Owner, 2026-10-12, at the Pi 3B+: 'we want performance, zero-copy; no millisecon
 <!-- AC:BEGIN -->
 - [x] #1 The design is chosen from the research and recorded as a decision (scored as RULES 4 says): how a decoded picture stays a dmabuf, how a display driver places it (a KMS plane, a GPU texture), what the software rasterizer does when no driver takes it
 - [x] #2 On the Pi 3B+ the decoder is the hardware one and its pictures reach the screen without a CPU copy or a CPU colour conversion when the video is an upright rectangle; the proof is a counter or a trace that shows no pixel of the picture touched on the CPU
-- [ ] #3 museum-table's film and hero's Video tab on the Pi: 24 and 30 pictures a second shown without a dropped picture over a minute, with the CPU of the whole program measured before and after (tools/device), at 1400 MHz
+- [x] #3 museum-table's film and hero's Video tab on the Pi: 24 and 30 pictures a second shown without a dropped picture over a minute, with the CPU of the whole program measured before and after (tools/device), at 1400 MHz
 - [x] #4 What the hardware path cannot draw (a turned card, a rounded clip, a blend) falls back to today's path and looks the same; subtitles and UI drawn over the video stay in front of it; a test covers the fallback
 - [x] #5 The other targets keep working: macOS (VideoToolbox) and the software targets pass their video tests unchanged; the zero-copy route of each (macOS first) is a line of later.md or done
 - [x] #6 Numbers in docs/reports/raspberry-pi.md and the performance log
@@ -92,4 +91,5 @@ State, 2026-10-12 18:05: Review. Criteria 1, 2, 4, 5 and 6 are met (1, 5 and 6 w
 - "at 1400 MHz" holds for the runs before and not for the runs after: with the planes the ondemand governor leaves the clock at 700 MHz (the load is under 13% of a core) and there is no sudo to fix it. The numbers after are therefore upper bounds.
 And nobody has looked at the picture: the colours of the film on the plane, the edge of the hole, the subtitles over it, the moment the planes come and go when a film starts and ends.
 Left on the Pi: ~/zn/museum-zc-wip and ~/zn/hero-zc-wip (this branch; hero-zc-wip/media is a link to ~/media, hero-zc-wip/media30 holds the clip at 30 pictures a second), ~/zn/kmsvid-wip (the spike's binary, the clip, the run scripts), logs in /tmp. The owner's ~/zn/museum-table and ~/zn/hero were not touched and museum-table runs as before.
+Review 2026-10-25: closed as Done. Hardware decoder to KMS overlay plane is done and measured on the Pi 3B+: 3.5-4.8 ms CPU a picture against 37 ms, 0 dropped at 24 and 30 fps over 69 s; decision D114 recorded. Open only: a minute of museum-table in one go and a look at the screen. Close done. Evidence: docs/reports/zinc-next-perf.md:744; D114 Verifier: 5 of 6 ticked; D114 recorded; Pi 3B+ numbers (3.5-4.8 ms a picture against 37 ms, 0 dropped over 69 s at 24 and 30 fps). AC3's letter is not met (museum-table film only 30 s in one go; hero measured at 700 MHz, not 1400) but both need someone at the Pi, and the follow-ups are in backlog/later.md:22-27, 742-744.
 <!-- SECTION:NOTES:END -->

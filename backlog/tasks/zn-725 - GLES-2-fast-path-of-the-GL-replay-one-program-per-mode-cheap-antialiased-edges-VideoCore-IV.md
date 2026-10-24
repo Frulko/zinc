@@ -4,22 +4,23 @@ title: >-
   GLES 2 fast path of the GL replay: one program per mode, cheap antialiased
   edges (VideoCore IV)
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-12 10:41'
-updated_date: '2026-10-12 12:26'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - gl
   - size-L
 milestone: m-21
 dependencies: []
-ordinal: 487410
+ordinal: 56100
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Left: rounded CLIP on GLES2 without a framebuffer read, fringe passes, geometry kept across frames; then flip the default to auto off macOS only if gallery reaches vsync. Tick #7. Already there: docs/reports/zinc-next-perf.md:697; D111; tests/native/gl_replay_es2.cpp.
+
 Owner request, 2026-10-12, with the Pi 3B+ plugged in: put the UI and the maps on the GPU of a GLES 2 tiler. Measured (docs/reports/raspberry-pi.md, last section): on VideoCore IV the GL replay takes 217 ms for hero's driving frame against 43 ms for the software bands, because one fragment shader holds every mode behind ifs (a GPU without branches runs all of them: 35 ms with one mode compiled in, ZINC_GL_ONLY) and because POLY's fringes are bounding-box quads with distance maths and discard (124 ms; ZINC_GL_FRINGE=0). Research: docs/reports/hardware/vc4-gles2-performance.md, docs/reports/gles2-2d-rendering-techniques.md. Device tool: tools/device (push, profile, shot, stacks). Desktop GL keeps its single program and its pixels.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -113,4 +114,5 @@ HANDOVER (task back to Backlog; #5, #6, #7 open):
 - for #5 the GPU has 22 ms of work on the map: the levers left are the fringe passes (6 ms: three passes over 8 vertices an edge; one indexed set of 3 vertices a point would cut the vertex work by 2.7) and geometry kept across frames (the MESH of docs/reports/gpu-renderer-design.md, phase 4).
 - #7: tick when the performance log has its lines.
 - tools/device: `capture <name> <file.bmp>` (a frame read back by the program), `stop` and the measures kill what is left running (main's fix 036a084d taken as is).
+Review 2026-10-25: done-partly. AC1-AC4 are done (per-mode programs, glslang test, pixels, strips for edges; navigation 181 -> 25 ms on the Pi). #5 not met (25 ms vs bands 19 ms), #6 partly, #7 numbers are in perf.md and raspberry-pi.md; D111 keeps renderer cpu on GLES2. Remaining is Pi-rig work with a doubtful payoff. Evidence: docs/reports/zinc-next-perf.md:697; D111; tests/native/gl_replay_es2.cpp
 <!-- SECTION:NOTES:END -->

@@ -8,12 +8,14 @@ labels:
   - rpi
   - 3d
   - size-L
+  - parked
 milestone: m-25
 dependencies:
   - ZN-433
   - ZN-490
   - ZN-537
-ordinal: 210000
+ordinal: 95400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -28,3 +30,9 @@ The native renderer for cooked packs (the pack and cooker tasks of docs/reports/
 - [ ] #2 every shader compiles threaded on vc4 (shaderdb log)
 - [ ] #3 examples/three/cubes in AOT runs at 60 fps on the Pi 3B+ through the GL backend
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Cooked-pack VC4 renderer depends on the Pocket3D pack and cooker tasks and is large; the Pi 3D path goes through three/WebGL first.
+<!-- SECTION:NOTES:END -->

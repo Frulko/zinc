@@ -4,13 +4,13 @@ title: Hardware validation on real boards
 status: Backlog
 assignee: []
 created_date: '2026-10-06 16:42'
-updated_date: '2026-10-06 22:31'
+updated_date: '2026-10-25 01:53'
 labels:
   - size-M
   - parked
   - needs-board
 dependencies: []
-ordinal: 319000
+ordinal: 98300
 ---
 
 ## Description
@@ -30,4 +30,5 @@ Run on physical boards: ESP32 (closes AC 1 of ZN-030: zinc flash, zinc run), Ras
 
 <!-- SECTION:NOTES:BEGIN -->
 No board reachable in this session (no serial port; the Pi rig timed out on both addresses). Wrote tools/validate-hardware and docs/reports/zinc-next-hardware.md with the table to fill. Task stays in Backlog: needs a person with the boards.
+Review 2026-10-25: parked. Needs real boards and a person; tools/validate-hardware and the report table already exist.
 <!-- SECTION:NOTES:END -->

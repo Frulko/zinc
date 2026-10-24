@@ -1,0 +1,283 @@
+[
+ {
+  "id": "ZN-308",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "No host Arduino shim exists and esp32sim is not shown running a sketch: commit 209fc865 only puts a sketch in the real ESP32 firmware (examples/esp32-arduino), never touches tools/esp32sim, and examples/esp32-arduino/README.md says 'on the computer ARDUINO is not defined'. Simulating unmodified sketches without a board is maker/education value, not superseded."
+ },
+ {
+  "id": "ZN-309",
+  "verdict": "drop",
+  "agree": true,
+  "finding": "The spikes target a plan that changed (QEMU remote backend, Zinc.h interpreter): D158 chose esp32sim, the firmware is mquickjs with Arduino as an IDF component; no decision record waits on these numbers."
+ },
+ {
+  "id": "ZN-310",
+  "verdict": "merge into ZN-164",
+  "agree": true,
+  "finding": "ZN-164 is open (Backlog) and holds the per-target size gates; carry over the libunicode build flag, rtcalls -Os, the 270 KB xtensa budget, the 5% regression script and the bench-m4 15% check."
+ },
+ {
+  "id": "ZN-312",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "AC2 wording allows documented failures: notes give esp32 0 failures and ps1 exactly two documented ones (string_number_edges diagnostic format, three.fx12 1.999 vs 1.998); AC1 ticked."
+ },
+ {
+  "id": "ZN-320.03",
+  "verdict": "merge into ZN-393",
+  "agree": false,
+  "correct_verdict": "keep (parked), or merge only if ZN-393 gains the implementation criterion",
+  "finding": "ZN-393 only checks an AppImage; the AppImage export itself does not exist: no 'appimage' in src/ except the dist listing (src/cli_core.cpp:2193-2211), zinc export has no --appimage (cli_core.cpp:121), tools/appimage packs only Atelier. D39 picks pinned appimagetool on a Linux host: that work would be lost in the merge."
+ },
+ {
+  "id": "ZN-321",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "AC1 spctl --assess needs a notarized Developer ID (owner/Apple step, commands in notes); codesign --verify --strict for ad hoc and test identity and zinc verify of a changed byte are in tests/t1/codesign.sh:26,30-34,60; release job signs/notarizes with secrets (.github/workflows/zinc-next.yml:194). AC3's Linux .deb half is a cross-pass line. Acceptable review-close."
+ },
+ {
+  "id": "ZN-331",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "gh run view 40136383299: tests linux, linux-cross (aarch64/x86_64), build-macos-arm64 and tests 1-6/6 all success; AC1 ticked with tests/t0/build_inputs_tracked.sh."
+ },
+ {
+  "id": "ZN-341",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "done-partly (tick AC2, AC3; rebuilder job to later.md or park)",
+  "finding": "The client half already ships: src/tc/plugin_build.cpp:315-322 reads rebuilds/<sha256>.json and builds locally when matches < policy.rebuilds; the policy setting exists (src/tc/policy.cpp:32, ZINC_REBUILDS_MIN at :62) and docs/guide/08-security.md:256 documents it. Only AC1 (the rebuilder job) is missing; dropping leaves shipped code and a documented feature with no task."
+ },
+ {
+  "id": "ZN-348",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park (rewrite AC2 once ZN-718's decision is recorded)",
+  "finding": "An owner request (description, 2026-10-08) that D40 explicitly defers to ('Revisit with ZN-348': runtime-only zinc per architecture drops compiler, CLI tools, QuickJS). The ZN-718 'in the archive' choice is only a 'Decision to record' in a Review task, absent from zinc-next-decisions.md; it contradicts AC2's fetch, not the minimal per-architecture zinc for small boards (widest hardware)."
+ },
+ {
+  "id": "ZN-354",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "AC1/AC3 pass (tests/t1/plugin_starter.sh); AC2 needs a real GitHub run. Correction to the reason: the zinc-engine/zinc and zinc-engine/plugin-starter names are right by D37 (tools/gh-org-setup:2,13 creates that org); the remaining step is the owner's org creation and push, not a rename."
+ },
+ {
+  "id": "ZN-361.01",
+  "verdict": "merge into ZN-263.02",
+  "agree": true,
+  "finding": "ZN-263.02 is open and states it supersedes 361.01; carry over AC2's rn-mode goldens (software vs GL replay of turned nodes) and note that painting through the ui.ts matrix and gfx::matrix() for svg already landed (361.01 notes), so 263.02's description is partly stale; canvas2d/map/3d inside a turned parent still upright."
+ },
+ {
+  "id": "ZN-371.06",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "DevToolsSecurity -status prints 'Developer mode is currently disabled' on this Mac; the #line/locals emission is in src/aot/aot.cpp and tests/t1/debug_lldb.sh runs the full session once enabled. The remaining step is the owner's sudo."
+ },
+ {
+  "id": "ZN-373",
+  "verdict": "done",
+  "agree": true,
+  "finding": "Subtasks 373.01-.05 are all Done (status lines checked); AC3 (Linux, Pi over ssh) lives in open ZN-373.06."
+ },
+ {
+  "id": "ZN-414.01",
+  "verdict": "merge into ZN-133",
+  "agree": true,
+  "finding": "ZN-133 is open (parked) and is the Linux qemu-user runner; carry over tests/t2/cross_cpu.sh (ARMv6/ARMv7+NEON attribute checks) and the M4 kernels and render corpus measures under qemu-user and on a Pi."
+ },
+ {
+  "id": "ZN-439",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "AC1/AC3 ticked with numbers; AC2 macOS half measured (0.000% / mae 0.58), the Pi 3 vc4 run is a board step already written as a cross-pass line in the notes. Remove the stale @parallel marker when closing."
+ },
+ {
+  "id": "ZN-446",
+  "verdict": "review-close",
+  "agree": true,
+  "finding": "macOS exec-to-splash measured (406.8 ms median, tools/splash-time), AC2/AC3 proved by tests/t1/splash.sh; Linux and Pi 3 timings are cross-pass lines."
+ },
+ {
+  "id": "ZN-459",
+  "verdict": "merge into ZN-458",
+  "agree": true,
+  "finding": "The Vita hello runs through tools/console-run in Vita3K (tests/t2/console_emulators.sh:3,35) and on hardware; what is left (zinc export/run --target <console> without the SDK, the t2 test names) is the same CLI path as ZN-458 (open). Carry over the VPK zip writer criterion."
+ },
+ {
+  "id": "ZN-460",
+  "verdict": "merge into ZN-458",
+  "agree": true,
+  "finding": "Same as ZN-459 for Azahar (console_emulators.sh) and hardware; carry over the RomFS + SMDH export without the SDK and AC2's RetroArch Azahar-core capture into ZN-458."
+ },
+ {
+  "id": "ZN-463",
+  "verdict": "merge into ZN-486",
+  "agree": true,
+  "finding": "ZN-486 is open and is the receipts/gate harness; carry over bouncing-ball's max ball count at 60 fps and the 90% gate. docs/reports/handheld-perf.md (named in AC3) does not exist; the emulator proof in console_emulators.sh is breakout's pad session, not bouncing-ball, so carry the bouncing-ball golden too."
+ },
+ {
+  "id": "ZN-464",
+  "verdict": "merge into ZN-486",
+  "agree": true,
+  "finding": "The 3-core band raster is superseded by GXM (D151); carry over the Vita ball count with 90% gate and the logic/raster/present split into ZN-486."
+ },
+ {
+  "id": "ZN-465",
+  "verdict": "merge into ZN-486",
+  "agree": true,
+  "finding": "Carry over Old/New 3DS ball counts with 90% gate (hardware: later.md:681 line) and the RetroArch screenshot into ZN-486."
+ },
+ {
+  "id": "ZN-469",
+  "verdict": "done",
+  "agree": true,
+  "finding": "citro3d replay in targets/n3ds/c3d_n3ds.cpp, Azahar pixel identity vs software, citro2d-vs-own choice recorded; AC2's ball count (even in Azahar only a 0.74 vs 2.41 ms CPU proxy) is the hardware line backlog/later.md:681. Acceptable as Done with that line, though AC3 has no citro2d numbers as worded."
+ },
+ {
+  "id": "ZN-470",
+  "verdict": "done",
+  "agree": true,
+  "finding": "D151 (GXM 2D default) and D165 (vitaGL for GL) recorded; examples/ui/gl-check at 60.4 fps with 0 missed vblanks on the owner's Vita via vitaGL (notes 2026-10-25); redistribution checked."
+ },
+ {
+  "id": "ZN-473",
+  "verdict": "merge into ZN-472",
+  "agree": true,
+  "finding": "No console implements hal_text_input (grep of targets/: only hal_sdl.cpp), so the IME is open everywhere; ZN-472 is open. Carry over sceImeDialog, hero at 960x544 with scripted touch in Vita3K and idle 60 fps: it is a different system API from PSP's OSK, so 472 must name each console."
+ },
+ {
+  "id": "ZN-474",
+  "verdict": "merge into ZN-472",
+  "agree": true,
+  "finding": "Same as ZN-473: carry swkbd, targets.n3ds.screen top|bottom|both and the UI demo criterion (kit-gallery is gone: use examples/hardware-n3ds or hero)."
+ },
+ {
+  "id": "ZN-482",
+  "verdict": "done",
+  "agree": true,
+  "finding": "sceAudio, sceAudioOut and NDSP with a CSND fallback when dspfirm.cdc is missing (targets/n3ds/hal_n3ds.cpp:82-107, better than AC2's silent playback) through console_audio.h, tests/t0/console_audio.sh; the hardware demos play sound. AC1's game-2d coin per target is not separately evidenced; iOS goes with the parked iOS cluster."
+ },
+ {
+  "id": "ZN-484",
+  "verdict": "drop",
+  "agree": true,
+  "finding": "console_emulators.sh skips under ZINC_CI (line 12), CI runs only on releases (AGENTS.md), and the Linux console-runner CI is already a later.md line (ZN-457, later.md ~907)."
+ },
+ {
+  "id": "ZN-494",
+  "verdict": "merge into ZN-492",
+  "agree": true,
+  "finding": "ZN-492 is open; same program, profile change. Carry over the Vita bloom enhancement, the 60 fps 150 s hardware receipt and Vita3K goldens."
+ },
+ {
+  "id": "ZN-496",
+  "verdict": "merge into ZN-492",
+  "agree": true,
+  "finding": "ZN-492 is open; carry over the 3DS lower-screen touch map layout, the 90 s 30 fps hardware receipt and Azahar goldens of both screens."
+ },
+ {
+  "id": "ZN-499",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "PocketJS 2D parity is a stated owner target: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-500",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-501",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-502",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-503",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-504",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-505",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-506",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-507",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-508",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-509",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-510",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule). ZN-510 is moreover an engine technique (rigid GPU skinning, 0 B vertex upload per frame) for zinc:3d on the 3DS, not a game clone."
+ },
+ {
+  "id": "ZN-511",
+  "verdict": "drop",
+  "agree": false,
+  "correct_verdict": "park",
+  "finding": "Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule)."
+ },
+ {
+  "id": "ZN-516",
+  "verdict": "drop",
+  "agree": true,
+  "finding": "zinc agent / zinc device already do deploy and dev --device over the network (src/agent/dev.cpp, tests/t1/agent_deploy.sh, agent_dev.sh), and the CHIP's ECM gadget is a network (10.43.43.1); the ACM bytecode upload is a second protocol for one board. Stock NTC 4.4 compatibility of the agent is a cross-pass check."
+ },
+ {
+  "id": "ZN-518",
+  "verdict": "merge into ZN-550",
+  "agree": true,
+  "finding": "ZN-550 is open and gives zinc:i2c/spi over hw.h; carry over the CHIP bus table (TWI2 /dev/i2c-2 shared with XIO at 0x38, TWI1), the spi2 DT overlay, PWM0 via /sys/class/pwm (not in 550) and the CHIP-03 EEPROM criterion, labelled needs-board."
+ }
+]

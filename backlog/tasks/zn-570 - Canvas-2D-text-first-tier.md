@@ -2,10 +2,9 @@
 id: ZN-570
 title: 'Canvas 2D, text-first tier'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 15:08'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -14,12 +13,14 @@ milestone: m-22
 dependencies:
   - ZN-568
   - ZN-569
-ordinal: 39000
+ordinal: 10600
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Text-first tier done, AC2 and AC3 ticked, Pixi/Phaser/p5 text at SSIM 0.976 to 0.988. Left: Kaplay and LittleJS text against Chrome, which needs those libraries vendored; fold into ZN-707. Already there: src/qjs/canvas2d.cpp; tests/t1/webenv_canvas2d.sh, webenv_canvas2d_libs.sh; D98, D99.
+
 A CanvasRenderingContext2D for QuickJS on a CPU RGBA8 premultiplied bitmap, enough for the text of WebGL games (PixiJS Text, Phaser Text, Kaplay's font atlas, LittleJS overlay, Babylon font offsets) and the libraries' boot-time canvas probes: state stack, transforms, fillRect/clearRect/strokeRect, drawImage with 3/5/9 arguments, getImageData/putImageData/createImageData, fillText/strokeText/measureText with the full TextMetrics through the HarfBuzz/stb_truetype text tier, font parsing, textAlign/textBaseline/direction/letterSpacing, solid and gradient fills, text shadows; texImage2D(canvas). Loaded as an on-demand module (libzn_canvas2d) like libzn_webgl. zinc:canvas (typed, software raster) stays for typed apps: its deviations (no alpha in runtime images, bbox clip, no composite ops, no getImageData) rule it out for JS libraries. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -67,4 +68,5 @@ CRITERION 1 LEFT OPEN, half proven: PixiJS 8 Text SSIM 0.9755, Phaser 3 Text 0.9
 ALSO DONE: roundRect with circular corners (p5 calls it), ellipse, FontFace and document.fonts for the program's own files (a font from the network is refused; bytes that are not a font file are refused before stb_truetype reads them), PixiJS 7 Graphics fill and Text seen in a frame (no test).
 NOT DONE, NOT IN THIS TIER: nearest-neighbour drawImage (imageSmoothingEnabled is kept and ignored: always bicubic), italic and bold synthesis, a bold monospaced face, toDataURL. The three example READMEs say Text is now possible; the examples themselves are unchanged (ZN-577 to ZN-579).
 LINES FOR later.md (the coordinator adds them): see the final report.
+Review 2026-10-25: done-partly. Text-first tier done, AC2 and AC3 ticked, Pixi/Phaser/p5 text at SSIM 0.976 to 0.988. Left: Kaplay and LittleJS text against Chrome, which needs those libraries vendored; fold into ZN-707. Evidence: src/qjs/canvas2d.cpp; tests/t1/webenv_canvas2d.sh, webenv_canvas2d_libs.sh; D98, D99
 <!-- SECTION:NOTES:END -->

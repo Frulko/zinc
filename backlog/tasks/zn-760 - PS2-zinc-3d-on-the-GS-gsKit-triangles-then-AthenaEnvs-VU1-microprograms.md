@@ -8,11 +8,13 @@ labels:
   - handheld
   - games
   - size-L
+  - parked
 milestone: m-23
 dependencies:
   - ZN-197
   - ZN-489
-ordinal: 214598
+ordinal: 94100
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +29,9 @@ Owner 2026-10-17: the consoles draw 3D on their GPUs, built on existing code and
 - [ ] #2 stage 2 (VU1) is measured against stage 1 on the same scene, and the faster one is the default
 - [ ] #3 a T0 test checks the packet stream of one cooked mesh against a golden
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. PS2 3D on the GS (gsKit then VU1) is a large task on a console far from the goal; depends on the parked ZN-197 and ZN-489. Reopen when the owner wants PS2 3D.
+<!-- SECTION:NOTES:END -->

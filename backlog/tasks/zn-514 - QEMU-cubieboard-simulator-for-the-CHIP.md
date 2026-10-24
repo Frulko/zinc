@@ -6,10 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:40'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-512
-ordinal: 270000
+ordinal: 94000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ Run armv7-linux programs on a real Cortex-A8 under qemu-system-arm -M cubieboard
 - [ ] #3 the guest sees /sys/class/power_supply from the AXP209 model, a pcf8574a gpiochip, gpio-sim lines and a vkms card
 - [ ] #4 a T2 test runs it and skips with exit 77 when qemu-system-arm is missing
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. QEMU cubieboard simulator for the CHIP: needs kernel images and a CHIP target the owner does not have a rig for (memory: rigs are Pi, TouchPad, Nexus 7, Toumei).
+<!-- SECTION:NOTES:END -->

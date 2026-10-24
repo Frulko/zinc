@@ -3,11 +3,10 @@ id: ZN-732
 title: >-
   Atelier: completion, signature help and hover from zinc lsp, and a finer
   editor
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-12 14:13'
-updated_date: '2026-10-12 14:53'
+updated_date: '2026-10-25 01:53'
 labels:
   - app
   - ui
@@ -72,4 +71,5 @@ Lines for backlog/later.md:
 - ZN-732: the hover and signature cards are clipped by the editor card near its right edge when the text is long (width is capped to the pane, the text is cut)
 
 Not verified: a person typing in a real window (speed of the popup under real typing, Cmd+click with a real pointer: ZINC_INPUT has no modifier on pointer events, so F12 and the command were used), the macOS menu bar's Ctrl+Space and F12, hover while the pointer moves fast.
+Review 2026-10-25: closed as Done. Close as done: only a person typing in a real window is unverified. Later lines already exist. Evidence: zinc lsp signatureHelp/hover/completion docs; tests/t0/lsp.sh; tests/t1/atelier_ide.sh; criteria ticked Verifier: 6 of 6 criteria ticked; only a person typing in a real window is left.
 <!-- SECTION:NOTES:END -->

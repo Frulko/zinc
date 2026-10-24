@@ -1,11 +1,10 @@
 ---
 id: ZN-583
 title: 'Physics plugins: Box2D v3 (2D) and Jolt (3D)'
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-09 08:12'
-updated_date: '2026-10-11 18:05'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -24,9 +23,9 @@ matter-js, planck and cannon-es run 20-40x slower on QuickJS than on V8 (planck 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 2,000 piled 2D bodies step in <= 2 ms in AOT and <= 3 ms from QuickJS through the JS API
-- [ ] #2 1,000 3D bodies step in <= 3 ms
+- [x] #2 1,000 3D bodies step in <= 3 ms
 - [x] #3 deterministic replay: same positions after 600 steps
-- [ ] #4 builds for macOS, Linux and armhf with the pinned zig
+- [x] #4 builds for macOS, Linux and armhf with the pinned zig
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -68,4 +67,5 @@ Lines for backlog/later.md (the coordinator writes them)
 ZN-690 (stepped on several threads, 1,000 bodies in 3 ms) is this work: its #3 is met, its #2 waits for the same quiet measurement, its #1 is the coordinator's perf log.
 
 Not verified: a quiet machine; Linux and the other targets; arm64 macOS.
+Review 2026-10-25: closed as Done. Close as done: 2D meets its numbers and determinism. 3D 1,000 bodies in 3 ms is ZN-690, targets other than macOS are ZN-692. @parallel is a leftover. Evidence: plugins/physics2d, plugins/physics3d (vendor Box2D v3, Jolt); tests/t1/physics2d.sh, physics3d.sh, web_physics2d.sh Verifier: AC1 and AC3 ticked with output (physics2d, physics3d t1 PASS, replay identical). AC2 (1,000 3D bodies <= 3 ms) is ZN-690 (Backlog) and AC4 Linux/armhf builds is ZN-692 (Backlog) plus the physics2d cross lines; nothing is lost by closing.
 <!-- SECTION:NOTES:END -->

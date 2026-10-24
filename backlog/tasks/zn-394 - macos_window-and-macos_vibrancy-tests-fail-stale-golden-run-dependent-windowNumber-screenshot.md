@@ -1,23 +1,23 @@
 ---
 id: ZN-394
-title: >-
-  macos_window and macos_vibrancy tests fail: stale golden, run-dependent
-  windowNumber, screenshot
+title: 'macos_window: do not compare the fullscreen button position (display dependent)'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 00:33'
-updated_date: '2026-10-10 07:28'
+updated_date: '2026-10-25 01:53'
 labels:
   - test
   - macos
   - size-S
 dependencies: []
-ordinal: 97000
+ordinal: 11500
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-10-25:** Drop the fullscreen close-button coordinates from the golden (or print only whether it exists); check macos_deeplink too.
+
 Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the window readback prints opaque, windowNumber and vibrancy, which tests/golden/macos/window/expected (a03154e9) does not hold; windowNumber changes every run, so it cannot be in a golden. macos_vibrancy fails reading window.png (the screenshot is not written in this session: screen recording permission, or the capture path). Filter windowNumber out of the readback (or print only whether it is > 0), record the golden again, and make the vibrancy screenshot skip with a reason when capture is not allowed.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -32,4 +32,5 @@ Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the win
 2026-10-09: macos_deeplink fails the same way in full T1 (the app's out.log is never written).
 
 2026-10-10, Intel Mac (no notch): after iTerm got the screen recording permission, macos_vibrancy passes (its window.png failure was the permission). macos_window passed once, then failed on the fullscreen readback only: 'in fullscreen: close 7,6' where the golden has 20,22, so the fullscreen button position depends on the display; the windowNumber line no longer differs.
+Review 2026-10-25: rewrite. Notes say vibrancy passes once screen-recording is granted; macos_window fails only on the fullscreen button position (display dependent).
 <!-- SECTION:NOTES:END -->

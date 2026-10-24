@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-522
   - ZN-515
-ordinal: 287000
+ordinal: 96300
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ Use NTC's mainline overlays (x-chip-dip-hdmi: Chrontel CH7033 on I2C1 0x76; x-ch
 - [ ] #3 the overlays and kernel options are documented in docs/targets/chip.md
 - [ ] #4 brown-out conditions and the required supply documented
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. HDMI/VGA DIPs: needs the DIPs.
+<!-- SECTION:NOTES:END -->

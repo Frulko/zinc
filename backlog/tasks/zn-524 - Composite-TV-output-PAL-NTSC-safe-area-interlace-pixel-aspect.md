@@ -6,10 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-522
-ordinal: 283000
+ordinal: 96100
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ zinc.json display.tv {standard: pal|ntsc, overscan}: mode selection on the TVE c
 - [ ] #3 fps and raster time recorded for both standards
 - [ ] #4 the safe-area insets are covered by a layout golden
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Composite TV output: needs a CHIP and a TV.
+<!-- SECTION:NOTES:END -->

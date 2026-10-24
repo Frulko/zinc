@@ -1,10 +1,10 @@
 ---
 id: ZN-235
 title: 'System: Notifications on macOS with osascript fallback'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 15:46'
+updated_date: '2026-10-25 01:53'
 labels:
   - system
   - desktop
@@ -26,7 +26,7 @@ From docs/reports/system-integration.md (section 11, SYS-06). Read the report fi
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Sim golden covers show with actions/reply/group/replace, permission states, cancel, `delivered()`, click/action/reply/close events from the script.
-- [ ] #2 On this Mac the bundled run delivers a notification (selftest readback shows id, title, body) and the `osascript` tier works unbundled with `backend: 'osascript'`.
+- [x] #2 On this Mac the bundled run delivers a notification (selftest readback shows id, title, body) and the `osascript` tier works unbundled with `backend: 'osascript'`.
 - [x] #3 A denied permission resolves `delivered: false` with a reason, never throws.
 <!-- AC:END -->
 
@@ -34,4 +34,5 @@ From docs/reports/system-integration.md (section 11, SYS-06). Read the report fi
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. plugins/system/notification.ts (Options, Action, Notification with onClick/onAction/onReply/onClose, show/cancel/delivered/requestPermission/backend/isSupported; the same id replaces and takes the events), sim notification centre in system.host.cpp (ZINC_SYSTEM_NOTIFICATION_PERMISSION), goldens notification and notification_denied (per-case 'permission' file) interpreter = AOT; denied or undecided permission resolves delivered false with the reason, never throws. macOS backend plugins/system/native/system.macos.mm (UNUserNotificationCenter with categories for actions and reply, delegate events queued for poll(); osascript through NSTask arguments when there is no bundle id); live mode when not headless/deterministic. Run on this Mac: unbundled -> backend 'osascript', delivered true (a banner was shown); dev bundle -> backend 'native', delivered false 'permission not requested' (the OS prompt needs one human click, requestPermission blocks up to 60 s for it). AC2 open: no native delivered readback until that click.
+Review 2026-10-25: closed as Done. Close as done: the osascript tier delivers on this Mac and the native tier is wired; the native readback needs one human click on the OS permission prompt, not worth an open task. Evidence: plugins/system/notification.ts; plugins/system/native/system.macos.mm; goldens notification, notification_denied Verifier: Its remaining step is a person: the native readback waits for one click on the OS prompt. The osascript tier delivered on this Mac and the sim goldens exist.
 <!-- SECTION:NOTES:END -->

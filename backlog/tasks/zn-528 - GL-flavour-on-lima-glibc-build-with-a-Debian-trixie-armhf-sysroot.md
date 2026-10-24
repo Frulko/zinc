@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-522
   - ZN-132
-ordinal: 284000
+ordinal: 96400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ A dynamic armv7 glibc flavour (arm-linux-gnueabihf.2.36, cortex_a8+neon) linked 
 - [ ] #3 the lima capability table is in docs/plugins/display-gl.md
 - [ ] #4 the static armv7-linux flavour is unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. GL flavour on lima (glibc armhf): needs the CHIP; the Pi GL path (display-gl, tools/linux-sysroot) is the proven one.
+<!-- SECTION:NOTES:END -->

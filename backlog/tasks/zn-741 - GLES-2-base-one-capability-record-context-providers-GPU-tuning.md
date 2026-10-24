@@ -1,11 +1,10 @@
 ---
 id: ZN-741
-title: 'GLES 2 base: one capability record, context providers, GPU tuning'
+title: 'GLES 2 base: standalone CMake target and the Android default decision'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-16 21:40'
+updated_date: '2026-10-25 01:53'
 labels:
   - mobile
   - gl
@@ -14,12 +13,14 @@ labels:
 milestone: m-26
 dependencies:
   - ZN-622
-ordinal: 196500
+ordinal: 52900
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** AC1 hero numbers (needs ZN-628 video), AC4 later.md lines, AC6 own CMake target with no runtime dependency, AC7 second half: profile a replay pass on the Nexus 7 and decide the default. Already there: runtime/gl_replay.cpp; task notes 2026-10-16; docs/reports/zinc-next-android.md.
+
 Owner 2026-10-16: the Pi 3 (VideoCore IV), the HP TouchPad (Adreno 220) and the Nexus 7 2012 (Tegra 3) share one problem, GLES 2 only on little memory, which most Android devices do not have: one generic base with platform specifics, split by capability, not by platform. Design: docs/reports/zinc-next-mobile-core.md §4.1 (Tegra 3 measures). (1) A capability record filled once per GLES/GL context (version, fragment highp, surface and FBO depth/stencil bits, max texture, NPOT, VAO, instancing, 32-bit indices, framebuffer fetch, discard, compressed formats, renderer string, tiler or not), read by runtime/gl_replay.cpp and plugins/display-gl instead of the probes spread over kms.cpp, display_gl.cpp and gl_replay.cpp; model: sokol sg_features/sg_limits, bgfx BGFX_CAPS_*, Impeller Capabilities. (2) A tuning table keyed by GPU family for what capabilities do not say (atlas size, render scale, clear and FBO policy, frame cap), with ANGLE features / Chrome's GPU driver bug list as the model for renderer-string workarounds. (3) Context providers only per platform: KMS/EGL (kms.cpp), webOS SDL 1.2 (webos.cpp), SDL3 (hal_sdl.cpp, desktop and Android); the SDL3 window on Android drives the GLES 2 replay. (4) A device class from the record and SDL_GetSystemRAM (heap budget, glyph and image caches, render scale). (5) mediump-safe shaders: coverage and distance math relative to the primitive, so Tegra 3 (no fragment highp, 13-bit mediump) draws like the desktop within tolerance. Reuse, do not rewrite: the GLES 2 path of gl_replay, glslang for ES 1.00 validation, GLAD for loading, SDL3 for contexts and events.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -81,4 +82,5 @@ Lines for backlog/later.md:
 - ZN-741: GL_OES_get_program_binary or the driver's cache: the first run after an install builds the image programs in 60 to 70 ms each on Tegra 3 (warm() hides it at rest).
 
 Handover (2026-10-16 late): open AC1 (hero: ZN-628), AC4 (the coordinator adds the later.md lines), AC6 (the replay as its own target), AC7 second half (Android default: the fling is 3 to 4 ms behind the software raster at p99). Next: profile a replay pass on the Nexus 7 (ZINC_GL_MOVE_LOG=2 prints each pass CPU and GPU time; 1 to 3 ms of A9 each), then compare again with the scripts in /tmp/zn744 (FLING=fling-c.txt sh pair.sh s 900 2 170 890 "gl:ZINC_RENDERER=gl" "cpu:").
+Review 2026-10-25: done-partly. Capability record, tuning table and mediump build are done and tested; open: hero timings, the later.md lines, the replay as its own CMake target, and the Android-default decision (the fling is 3-4 ms behind the software raster at p99). Evidence: runtime/gl_replay.cpp; task notes 2026-10-16; docs/reports/zinc-next-android.md
 <!-- SECTION:NOTES:END -->

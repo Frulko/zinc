@@ -8,13 +8,15 @@ labels:
   - rpi
   - sdk
   - size-M
+  - parked
 milestone: m-25
 dependencies:
   - ZN-549
   - ZN-551
   - ZN-553
   - ZN-557
-ordinal: 174000
+ordinal: 96700
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -29,3 +31,9 @@ On a Pi 5 (owner provides): GPIO through pinctrl-rp1, the 4-channel PWM map, the
 - [ ] #2 three r186 C2 bench at >= 60 fps at 1080p recorded
 - [ ] #3 Pi 5 differences documented in the report
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Needs a Pi 5 the owner must provide.
+<!-- SECTION:NOTES:END -->

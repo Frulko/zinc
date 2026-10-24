@@ -4,7 +4,7 @@ title: 'Spike: iOS and Android targets, viability and plan (decision record)'
 status: Done
 assignee: []
 created_date: '2026-10-08 15:16'
-updated_date: '2026-10-10 14:10'
+updated_date: '2026-10-25 01:53'
 labels:
   - targets
   - ios
@@ -63,4 +63,5 @@ Not verified: see section 10 of the report (Intel Mac and the iOS 26 simulator, 
 Usage: tools/usage printed 'usage: n/a' in this worktree.
 
 Coordinator, 2026-10-10: decision filed as D59 (docs/reports/zinc-next-decisions.md); follow-up tasks ZN-618..632 created in M26 Mobile targets (m-26, in the cross-platform group of priority.json). Criterion 1 (hello and rn-showcase on a simulator and an emulator) is not met here: no Xcode and no Android SDK on the development Mac, and cross-target runs are deferred; it is carried by ZN-622 (Android) and ZN-624 (iOS).
+Review 2026-10-25: the open criteria are moot. No Xcode or Android SDK on the Mac; mobile is last in the cross pass.
 <!-- SECTION:NOTES:END -->

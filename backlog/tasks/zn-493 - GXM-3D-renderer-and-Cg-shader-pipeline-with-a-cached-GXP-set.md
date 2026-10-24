@@ -1,10 +1,10 @@
 ---
 id: ZN-493
-title: GXM 3D renderer and Cg shader pipeline with a cached GXP set
+title: 'Vita GXM 3D renderer for cooked packs: prove a triangle on hardware, then the pack renderer'
 status: Review
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-17 22:35'
+updated_date: '2026-10-25 01:53'
 labels:
   - handheld
   - pocketjs
@@ -12,12 +12,14 @@ milestone: m-23
 dependencies:
   - ZN-490
   - ZN-471
-ordinal: 214590
+ordinal: 51000
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-10-25:** Set status Backlog. Next: draw one 3D triangle with the committed GXPs on the owner's Vita (Vita3K cannot), then pack layouts, fog, MSAA 4x. Decide with ZN-477 which path zinc:3d takes (GXM vs vitaGL).
+
 GXM device kernel (clean-room): CDRAM and uncached blocks, frame rings released after the GPU, program registration and patching, MSAA 4x display surface drawn into directly, parameter buffer raised to 32 MB. Shaders written in Cg, compiled on the owner's console with SceShaccCg (libshacccg.suprx) at development time, cached as GXP keyed by source hash and shipped. Renderer: pack layouts for vita60, per-vertex sun lighting with normals, fog, sky, governor on near/mid distances. (From docs/reports/hardware/pocketjs-pocket3d.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -40,4 +42,5 @@ ZN-493 first milestone integrated on main via cherry-pick: targets/vita/gxm_3d.c
 Debug session 2 (Vita3K, ZINC_VITA_GPU_PROBE probes in gxm_vita.cpp): all GXM calls return SCE_OK (begin/end/pad/queue all 0x00000000), the replay builds the command list (27 quads, 4 batches), the display queue fires exactly one entry (displayCallback base 0x60000000, the first CDRAM buffer), sceDisplaySetFrameBuf is called from OUR callback, but the CDRAM colour surface stays black across all 3 buffers over 30 frames and the display queue does not process further entries.
 Vita3K log is the smoking gun: 'Stubbed sceGxmMapVertexUsseMemory' and 'Stubbed sceGxmMapFragmentUsseMemory - always return success'. The patcher path we use therefore does not reach the GPU emulation on this Vita3K build. Software path fully paints (standalone probe: hello with ZINC_VITA_SOFT_FRAMES=10000 shows content, 59.8fps), so the shot path and the display library are fine and the failure is only in the GXM colour surface.
 Next probe: a standalone (bypass the shader patcher, write the SDL 2D vertex/loong pair directly via sceGxmSetVertexProgram with the hardcoded uniform buffer) program to see whether raw draws paint at all on this emulator. Alternative: try the pinned emu's OpenGL backend instead of MoltenVK/Metal, or run the pin's own SDL test app.
+Review 2026-10-25: rewrite. Status Review but nothing is provable yet: first milestone staged, GXP blobs built, Vita3K stubs the GXM memory calls so no 3D proof. Back to Backlog; GXM 2D now works on hardware, so the proof moves to the owner's Vita. Evidence: targets/vita/gxm_3d.cpp; targets/vita/shaders; tests/t0/vita_gxp_3d.sh; commits 761e5f8d, 903153a6
 <!-- SECTION:NOTES:END -->

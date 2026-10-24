@@ -4,7 +4,7 @@ title: 'PSP: zinc:3d on the GE with VFPU transforms'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-17 09:37'
+updated_date: '2026-10-25 01:53'
 labels:
   - 3d
   - handheld
@@ -15,7 +15,7 @@ milestone: m-23
 dependencies:
   - ZN-468
   - ZN-491
-ordinal: 214568
+ordinal: 50800
 ---
 
 ## Description

@@ -4,7 +4,7 @@ title: 'Installers: macOS .dmg, Linux AppImage and .deb'
 status: Done
 assignee: []
 created_date: '2026-10-08 14:19'
-updated_date: '2026-10-09 00:15'
+updated_date: '2026-10-25 01:53'
 labels:
   - distribution
   - size-M
@@ -33,4 +33,5 @@ ordinal: 296000
 ZN-320.01 (.deb, reproducible, written without dpkg) and ZN-320.02 (.dmg with the signed .app) done; ZN-320.03 (AppImage) parked by D39 until a Linux runner exists, with ZN-393 (dpkg -i in a container). AC #3: the .deb and the .app are byte-reproducible; hdiutil stamps the .dmg (UUID, times), noted in docs/guide/07-distribution.md.
 
 Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: Parent whose parts are done (.01 .deb, .02 .dmg) or parked on their own (.03 AppImage, ZN-393). Its parked label blocks ZN-321 (signing) and ZN-325 (publish), both Mac work: close it.
+Review 2026-10-25: the open criteria are moot. Needs a Linux runner; tracked by ZN-393. .dmg is stamped by hdiutil, documented in docs/guide/07-distribution.md.
 <!-- SECTION:NOTES:END -->

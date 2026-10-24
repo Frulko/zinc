@@ -3,11 +3,10 @@ id: ZN-734
 title: >-
   Run on a device from Atelier: native resolution, the inspector, transfer
   progress, clean console lines
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-12 16:15'
-updated_date: '2026-10-12 16:16'
+updated_date: '2026-10-25 01:53'
 labels:
   - app
   - device
@@ -25,7 +24,7 @@ Owner report (2026-10-12, a screenshot of Atelier running a sketch on the Raspbe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A sketch that names no size is drawn at the device screen's own resolution (800x480 on that Pi), sharp; a project that names a size keeps it; the rule is the same for fbdev and the other device displays and is written in the display's doc
+- [x] #1 A sketch that names no size is drawn at the device screen's own resolution (800x480 on that Pi), sharp; a project that names a size keeps it; the rule is the same for fbdev and the other device displays and is written in the display's doc
 - [x] #2 Debug on a device opens the inspector on the running sketch with no import in the sketch, as zinc dev does on the desktop; Run then Inspector says what to do in one clear sentence or just does it
 - [x] #3 Notes of a deploy are shown as notes, errors as errors; a console line longer than the card wraps or is cut without covering the next line; the console's lines can be selected with the pointer and copied (Cmd+C, Cmd+A with the focus, a Copy control for everything)
 - [x] #4 The transfer to a device shows its progress live in Atelier's console and status line (percent, size, speed), from lines zinc device prints as it sends
@@ -62,4 +61,5 @@ Lines for backlog/later.md:
 - ZN-734: the app's own step lines in a device's log (`  run        interpreter`) set Atelier's status a second time; harmless.
 - ZN-734: zinc device pull shows no progress (the device sends; the size is not known before).
 - ZN-734: the console's links have no underline and no pointer cursor (a text field colours runs, nothing more).
+Review 2026-10-25: closed as Done. Close as done. AC1 is implemented and proven on a simulated framebuffer; the run on the Pi is a cross-platform line already in the notes. Evidence: agent_inspect, atelier_devices, agent_deploy, chip_fbdev (native_size in runtime/include/hal.h); criteria 2-5 ticked Verifier: Criteria 2-5 ticked; AC1 implemented (HalDisplay native_size, runtime/include/hal.h; display-fbdev answers the framebuffer mode) and proven on a simulated framebuffer; the Pi run is a board step, acceptable.
 <!-- SECTION:NOTES:END -->

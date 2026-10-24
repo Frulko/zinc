@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-528
   - ZN-178
-ordinal: 289000
+ordinal: 97200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ Run the GL UI renderer (R2/R3) on lima: mediump-only shaders (SDF and AA math ch
 - [ ] #2 frames are within the ZN-172 tolerance file of the software oracle
 - [ ] #3 no shader relies on highp in the fragment stage (checked statically)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. GPU UI on Mali-400: needs the CHIP.
+<!-- SECTION:NOTES:END -->

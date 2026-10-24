@@ -2,10 +2,9 @@
 id: ZN-574
 title: 'Gamepad for JS libraries: W3C standard mapping and typed rows'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 15:23'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -13,12 +12,14 @@ labels:
 milestone: m-22
 dependencies:
   - ZN-568
-ordinal: 36000
+ordinal: 10200
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Implemented and tested with Phaser. Left only the Kaplay check (ZN-707) and a real pad, which is by hand. Could be closed as done once ZN-707 vendors Kaplay. Already there: tests/t1/webenv_gamepad.sh (virtual pads through Phaser GamepadPlugin, W3C table, headless without gamepads).
+
 On top of the input layer of ZN-552 (evdev hub and SDL3 gamepad/joystick subsystems), and the same SDL3 subsystems on macOS: gamepad state and events as host rows; navigator.getGamepads() with the W3C standard mapping (SOUTH/EAST/WEST/NORTH -> b0-b3, shoulders b4-b5, analog triggers b6-b7, BACK/START b8-b9, stick clicks b10-b11, d-pad b12-b15, GUIDE b16, sticks axes 0-3), gamepadconnected/disconnected, vibrationActuator through SDL rumble; typed rows for zinc:gfx and zinc:game; SDL_GameControllerDB (Zlib) embedded. Phaser, Kaplay and LittleJS poll navigator.getGamepads(). (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -41,4 +42,5 @@ DECISION TO RECORD (the coordinator files it with a number): SDL3's joystick, ga
 Test: tests/t1/webenv_gamepad.sh (PASS, with webenv, webenv_phaser, example_js_phaser, input, input_touch): a page on navigator.getGamepads() with a script (two pads, buttons, a trigger at 0.5, an axis, plug and unplug, rumble), the same page with no pad (no gamepad, empty stderr), Phaser 3.90 GamepadPlugin (connected, down, up, pad.left, L2 0.5, left stick), the typed rows on the interpreter and compiled, and the window HAL on SDL's dummy video driver with the virtual pad as Xbox and as DualSense: SDL's buttons arrive at W3C 0 1 2 3 8 16 9 10 11 4 5 12 13 14 15, the sticks as axes 0 to 3, the triggers as buttons 6 and 7 with their value.
 
 NOT PROVEN: no real gamepad (hot-plug of a USB or Bluetooth pad, rumble that shakes, the raw mappings of real Xbox and PlayStation pads: the virtual pads use SDL's standard layout, so what is proven is our SDL-to-W3C table, not SDL's per-device database); a visible window (the virtual pad ran on the dummy driver); launch_time and the other window tests after the SDL change (to run after integration); display-gl's own event loop (plugins/display-gl/src/sdl.cpp) does not read gamepads; SDL_GameControllerDB is not embedded (SDL's built-in database, plus the file SDL_GAMECONTROLLERCONFIG_FILE names).
+Review 2026-10-25: done-partly. Implemented and tested with Phaser. Left only the Kaplay check (ZN-707) and a real pad, which is by hand. Could be closed as done once ZN-707 vendors Kaplay. Evidence: tests/t1/webenv_gamepad.sh (virtual pads through Phaser GamepadPlugin, W3C table, headless without gamepads)
 <!-- SECTION:NOTES:END -->

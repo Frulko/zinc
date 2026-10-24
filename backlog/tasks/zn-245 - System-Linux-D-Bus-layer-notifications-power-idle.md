@@ -4,7 +4,7 @@ title: 'System: Linux D-Bus layer, notifications, power, idle'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 16:47'
+updated_date: '2026-10-25 01:53'
 labels:
   - system
   - linux
@@ -12,7 +12,7 @@ labels:
 milestone: m-16
 dependencies:
   - ZN-232
-ordinal: 295000
+ordinal: 92300
 ---
 
 ## Description
@@ -32,4 +32,5 @@ From docs/reports/system-integration.md (section 11, SYS-16). Read the report fi
 
 <!-- SECTION:NOTES:BEGIN -->
 parked 2026-10-07: the D-Bus layer (notifications, power, idle, tray host) needs a Linux session with a bus and a desktop to run; no Linux runner here yet (ZN-133 qemu-user is Linux-user mode, a bus needs a distro). Written code could not be tested. Resume when a Linux CI image or VM exists.
+Review 2026-10-25: parked. Linux session bus and desktop needed; Linux is in the cross pass, desktop integration on Linux is far from the first users. Keep parked.
 <!-- SECTION:NOTES:END -->

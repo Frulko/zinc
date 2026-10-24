@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-08 23:22'
-updated_date: '2026-10-10 17:52'
+updated_date: '2026-10-25 01:53'
 labels:
   - audio
   - size-M
@@ -69,4 +69,5 @@ Done on the development Mac (owner, 2026-10-10: the cross-platform pass comes at
 **Known limits.** A program that ends while the output still opens waits for it at exit (up to 0.5 s). A sound played before the device runs starts when it does. Only 16-bit WAV, Vorbis, FLAC and MP3 files were decoded in the test; the other WAV encodings are dr_wav's. Nothing was heard by a person.
 
 usage: n/a (tools/usage). First build of the worktree 2 min 47 s, ccache 661 hits of 663.
+Review 2026-10-25: the open criteria are moot. Only "and Linux" is unproven: cross pass.
 <!-- SECTION:NOTES:END -->

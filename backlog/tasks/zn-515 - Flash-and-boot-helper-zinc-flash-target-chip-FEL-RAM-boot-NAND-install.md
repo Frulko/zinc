@@ -6,10 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:40'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-513
-ordinal: 273000
+ordinal: 95200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ Pin sunxi-tools (built from source, with the macOS bulk-error patch of Datanoise
 - [ ] #3 the NAND install is documented and validated on at least one board, which then boots Debian trixie from NAND across three cold power cycles
 - [ ] #4 the restore path to stock NTC 4.4 is documented
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. FEL flash helper for the CHIP: needs the board; far from the goal.
+<!-- SECTION:NOTES:END -->

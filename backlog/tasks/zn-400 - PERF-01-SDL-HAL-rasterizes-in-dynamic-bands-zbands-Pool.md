@@ -4,7 +4,7 @@ title: 'PERF-01 SDL HAL rasterizes in dynamic bands (zbands::Pool)'
 status: Done
 assignee: []
 created_date: '2026-10-09 07:33'
-updated_date: '2026-10-09 08:11'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-S
@@ -35,4 +35,5 @@ Measured: bouncing-ball 200k balls, window, 10 s runs alternated: 31.7 -> 42.3 f
 AC2 (<= 15 ms) not reached by bands alone: it needs the row fills of ZN-401 (PERF-02), whose criteria carry it.
 Tests: backend_sw, tests/run --changed 44/44.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. Intent met without zbands::Pool (that header was never committed). Nothing to reopen.
 <!-- SECTION:NOTES:END -->

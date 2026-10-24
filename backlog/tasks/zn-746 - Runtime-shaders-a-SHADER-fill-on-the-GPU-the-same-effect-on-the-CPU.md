@@ -2,22 +2,23 @@
 id: ZN-746
 title: 'Runtime shaders: a SHADER fill on the GPU, the same effect on the CPU'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-16 15:11'
-updated_date: '2026-10-16 21:39'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - gl
   - size-L
 milestone: m-21
 dependencies: []
-ordinal: 196700
+ordinal: 55300
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Tick AC4 (D124); keep AC3 only if the Nexus 7 is still a target, else close. Already there: tests/t0/image_pixels.sh; tests/t1/shader_gl.sh; D124; perf.md:809.
+
 Owner 2026-10-16: the lava lamp face of examples/music (src/faces.ts lava()) lags badly on the Nexus 7. It is a metaball field a fragment shader would compute, done on the CPU because zinc:gfx has no shader: every frame it computes 80x60 in Zinc, encodes a PNG (CRC, Adler), has the engine decode it, then draws it four times full screen with alpha to hide the bilinear grid, and keeps the whole screen animating. Give zinc:gfx what Skia's SkRuntimeEffect, Flutter's FragmentProgram and React Native Skia's RuntimeEffect give: (1) raw pixel images, imageFromPixels(rgba, w, h) and updateImage(img, rgba) (no PNG round trip; on the GPU a glTexSubImage2D of the changed texture), and a smooth upscale filter so one draw replaces the four taps; (2) a SHADER command in the command list: a fill of a rectangle (or rounded rect / path) by a small fragment program in GLSL ES 1.00 with float/vec uniforms and up to two images, compiled once and cached, replayed natively by the GPU replay (mediump-safe for Tegra 3, D119 layer), and on the software raster by a CPU path at a reduced resolution then upscaled (an interpreter of the same program, or a Zinc callback that fills the pixels, decided by measure); (3) damage limited to the shader's rectangle. Then the lava face uses it, unchanged elsewhere.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -70,4 +71,5 @@ Measured on the Nexus 7 (examples/music, lava face, palette 0, perf panel on; be
 Lines for backlog/later.md:
 - ZN-746: the GPU layer path renders the damage twice (holes black and white) even where no SHADER is: render the rest once, and upload only the changed rectangles into a staging texture; a carousel swipe costs 160 to 250 ms a frame on the Nexus 7.
 - ZN-746: drawShader with an alpha (and an XFORM of SHADER for turned shaders) if a program needs to fade or turn one itself.
+Review 2026-10-25: done-partly. imageFromPixels/updateImage, Smooth flag, SHADER command on GL replay and GPU layer, shaderProgram/drawShader and decision D124 are done with tests (image_pixels.sh, shader_gl.sh). Open: lava face at 60 fps on the Nexus 7 (21.9 fps software, GPU layer path costs 160-250 ms on swipes). Two lines in later.md hold the levers. Evidence: tests/t0/image_pixels.sh; tests/t1/shader_gl.sh; D124; perf.md:809
 <!-- SECTION:NOTES:END -->

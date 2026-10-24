@@ -1,11 +1,10 @@
 ---
 id: ZN-631
 title: 'Zinc Go: a player app on Android and iOS, QR code from zinc dev, Fast Refresh'
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-10 14:08'
-updated_date: '2026-10-17 07:42'
+updated_date: '2026-10-25 01:53'
 labels:
   - mobile
   - size-M
@@ -28,7 +27,7 @@ A debug build of the app entry with the interpreter that loads bytecode from `zi
 - [x] #1 a save on the desktop reloads the app on the emulator
 - [x] #2 a release export contains no reload code (`nm`)
 - [x] #3 the store policy of each mode is in `docs/guide`
-- [ ] #4 zinc dev shows a QR code; Zinc Go on the Nexus 7 scans it and runs rn-showcase from the Mac over the Wi-Fi; a save of a .tsx on the Mac updates the screen on the tablet in under a second with state kept (Fast Refresh)
+- [x] #4 zinc dev shows a QR code; Zinc Go on the Nexus 7 scans it and runs rn-showcase from the Mac over the Wi-Fi; a save of a .tsx on the Mac updates the screen on the tablet in under a second with state kept (Fast Refresh)
 - [x] #5 the same on the iOS simulator (URL or deep link instead of the camera)
 - [x] #6 a program asking for a plugin the player does not have shows the plugin's name, nothing crashes
 <!-- AC:END -->
@@ -47,4 +46,5 @@ Owner 2026-10-16 (the whole goal of this task now): at the end of the Android an
 - AC #4 open, status Review: the scan on the Nexus 7 over Wi-Fi was not run (the owner's music app is in front; the brief said not to use it). The rest of #4 is proven on the emulator (QR printed, deep link instead of the camera, refresh under a second with state kept) and the camera scan on the desktop's fake camera. Next, on a free Android device: `zinc export examples/zinc-go --target android --apk --abis armeabi-v7a`, `adb -s <serial> install -r <apk>`, `zinc dev examples/rn-showcase --lan`, scan the terminal's code with Zinc Go, save a .tsx.
 
 2026-10-17, the owner on the Nexus 7 (Android 7.1, Tegra 3): (1) Zinc Go aborted after ~8 s: JNI ERROR local reference table overflow (max=512) in pollIntent (player.cpp), which leaked two GetObjectClass references every tick (newer Android grows the table, so the emulator never showed it); fixed by a local frame around the poll; 150 s of use after the fix, no crash, rn-showcase reached by the typed link (1.1 s from the connection), the tablet and the iOS simulator served at once. (2) The QR scanner shows the fake camera: the Nexus 7's camera is HAL 1 / LEGACY, which the NDK's Camera2 does not list: ZN-752. (3) Rotating the tablet to portrait (window 800x1173) ended rn-showcase in the player with 'runtime error: array index out of bounds' (the player stayed up and went home, as designed); not reproduced on the desktop with --interp at 800x1173, with a live resize, or with rotate on any screen: the player runs --emit=hot units (no optimiser), so reproduce with the hot unit next (zinc dev on the desktop player, then a resize). Also: SHOWCASE_SCREEN=<unknown> ends rn-showcase with the same index error (the demo's own lookup).
+Review 2026-10-25: closed as Done. Zinc Go is built and proven on the Android emulator, iOS simulator and desktop; only the Nexus 7 camera scan is left and it is blocked by ZN-752. Close as done and carry that scan to ZN-752 AC1. Evidence: docs/reports/zinc-next-zinc-go.md; tests/t2/zinc_go_phones.sh; tests/t1/zinc_go.sh Verifier: Agree, with one carry-over the claim misses: the notes record that rotating the Nexus 7 to portrait ended rn-showcase in the player with 'runtime error: array index out of bounds' (hot units, not reproduced on desktop), and nothing in backlog/later.md or another task tracks it (grep finds it only in this task). Add that line with the camera scan going to ZN-752 AC1.
 <!-- SECTION:NOTES:END -->

@@ -1,0 +1,380 @@
+[
+ {
+  "shard": "shard-B",
+  "id": "ZN-520",
+  "title": "Wi-Fi status and provisioning, BLE with NimBLE on HCI user channel",
+  "verdict": "merge",
+  "into": "ZN-558",
+  "evidence": "",
+  "reason": "Wi-Fi and BLE on the CHIP: same subject as zinc:wifi/zinc:ble on Linux; carry the NimBLE-on-HCI option (static builds, no BlueZ) as an alternative backend."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-522",
+  "title": "KMS dumb-buffer display path for sun4i-drm",
+  "verdict": "merge",
+  "into": "ZN-553",
+  "evidence": "plugins/display-fbdev/fbdev.cpp:298; docs/plugins/display-fbdev.md:124",
+  "reason": "Dumb-buffer KMS present with connector chosen by name: display-fbdev already presents through atomic commits and page-flip events on vc4 (plugins/display-fbdev/fbdev.cpp:298,668). What remains is the connector/mode choice and vkms test, which is ZN-553."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-533",
+  "title": "PocketCHIP audio through zinc:audio",
+  "verdict": "merge",
+  "into": "ZN-555",
+  "evidence": "",
+  "reason": "PocketCHIP audio: the same ALSA / tinyalsa static-flavour question as ZN-555; carry the speaker/headphone routing."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-543",
+  "title": "Native accelerators for three on QuickJS: matrices, culling, CPU skinning (NEON/VFP)",
+  "verdict": "merge",
+  "into": "ZN-597",
+  "evidence": "",
+  "reason": "Native accelerators for three on QuickJS (matrices, culling, skinning) is the same mechanism as ZN-597 (bit-identical native accelerators for three.js math, r162 and r186); carry CPU skinning and NEON/VFP over."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-546",
+  "title": "armhf and aarch64 graphics hosts cross-built against a Raspberry Pi OS sysroot",
+  "verdict": "merge",
+  "into": "ZN-164",
+  "evidence": "tools/linux-sysroot; tools/linux-sysroot.lock; docs/targets/linux.md",
+  "reason": "Graphics hosts cross-built for armhf/aarch64 against a pinned sysroot are done: tools/linux-sysroot (SHA-256 lock, Debian bookworm), `zinc build/export --target`, hero runs on the Pi 3B+ (docs/targets/linux.md table, ZN-132). Only the armhf size budget gate is left, which is ZN-164. A trixie sysroot is optional."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-565",
+  "title": "WebGL binding conformance fixes found by real libraries (instanceof, ESSL1 in/out pre-check, 'texture' identifier)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/gl/webgl_js.cpp install; src/gl/webgl1.cpp; tests/t1 webenv_pixi.sh, webenv_phaser.sh",
+  "reason": "Close as done: all six criteria are ticked with test output and a recorded decision. The @parallel assignee is a leftover of a finished worktree."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-567",
+  "title": "WebGL binding fast paths (typed arrays, draw validation caches, host thunk)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/gl/webgl_js.cpp bytesOf; bench/webgl_binding.js",
+  "reason": "Close as done: AC4 passes and the three timing criteria are written for an M1 Pro that the owner does not have at the keyboard; the benchmark is in bench/ and anyone can re-run it. Record the Intel numbers in the perf log if wanted. @parallel is a leftover."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-568",
+  "title": "Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR, storage)",
+  "verdict": "done",
+  "into": "",
+  "evidence": "lib/std/webenv.js; src/qjs/webenv.cpp; tests/t0/webenv.sh; tests/t1/webenv_pixi.sh, webenv_phaser.sh, webenv_p5.sh, webenv_three.sh, webenv_image.sh, webenv_canvas*.sh, webenv_audio.sh, webenv_gamepad.sh; docs/reports/zinc-next-webenv.md",
+  "reason": "The web environment is built and used by examples/js-pixi, js-phaser, js-p5, js-three. What the criteria still name (Babylon, Kaplay, LittleJS boot tests, focus/visibility, DOMParser, the engine key) already has follow-up tasks ZN-705, 706, 707, 708. Close and let those carry on."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-571",
+  "title": "Decision spike: full Canvas 2D backend (Skia vs own compositor over ThorVG)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-decisions.md D98 (canvas_ity ISC chosen), tests/t1/webenv_canvas2d_full.sh",
+  "reason": "Close as dropped: the spike (Skia vs own compositor over ThorVG) was never run, and the full tier went ahead on canvas_ity (D98) with Chrome-matching SSIM. Nobody needs the comparison now. Revisit only if canvas_ity hits a wall."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-577",
+  "title": "Demo: p5.js sketches (2D and WEBGL, p5 1.11 and 2.x) with FPS gates",
+  "verdict": "merge",
+  "into": "ZN-578",
+  "evidence": "examples/js-p5 (WEBGL), tests/t1/example_js_p5.sh",
+  "reason": "js-p5 already runs unmodified p5 1.11 in WEBGL and 2D (sketch2d.js). Only the FPS gates remain; same work as the other three demo gates."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-579",
+  "title": "Demo: Phaser 3 platformer with FPS gates",
+  "verdict": "merge",
+  "into": "ZN-578",
+  "evidence": "examples/js-phaser, tests/t1/example_js_phaser.sh",
+  "reason": "Platformer with Tiled map: js-phaser exists as star catcher; the FPS gate is what remains."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-580",
+  "title": "Demo: three.js game with FPS gates",
+  "verdict": "merge",
+  "into": "ZN-578",
+  "evidence": "examples/js-three, tests/t1/example_js_three.sh",
+  "reason": "Three arena: js-three exists (lighthouse with GLTFLoader, OrbitControls); MSAA (ZN-576) is done; the FPS gate remains."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-582",
+  "title": "Native sprite batcher and PixiJS v8 accelerator",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Native Pixi batcher accelerator was justified by QuickJS being 20-40x slower than V8; the jsc and v8 engines have shipped (about 10x faster JS). Speculative, tied to one library; keep ZN-581 (done) as the GPU sprite path."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-583",
+  "title": "Physics plugins: Box2D v3 (2D) and Jolt (3D)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "plugins/physics2d, plugins/physics3d (vendor Box2D v3, Jolt); tests/t1/physics2d.sh, physics3d.sh, web_physics2d.sh",
+  "reason": "Close as done: 2D meets its numbers and determinism. 3D 1,000 bodies in 3 ms is ZN-690, targets other than macOS are ZN-692. @parallel is a leftover."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-586",
+  "title": "Spike (decision): a JIT JavaScript engine as an optional desktop engine",
+  "verdict": "done",
+  "into": "",
+  "evidence": "CHANGELOG.md:223-224 (--engine jsc, --engine v8 shipped); D110, docs/reports/zinc-next-perf.md",
+  "reason": "The spike question was answered by building it: JavaScriptCore and V8 are optional engines with measured 6 to 32x gains. A decision is recorded (D110). Close."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-592.02",
+  "title": "Re-measure zinc's launch on arm64 (Apple Silicon): --version and console.log(1) <= 4 ms",
+  "verdict": "merge",
+  "into": "ZN-589.01",
+  "evidence": "",
+  "reason": "Same Apple Silicon re-measure as ZN-589.01 (the dev machine is an M1 Pro now); carry over: median of 20 launches, <= 4 ms or next lever, budget in tests/t1/launch_time.sh."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-593",
+  "title": "Diagnose CI benchmark gate regressions and fib output",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "",
+  "reason": "Close as done: bench-gate now measures the candidate against the pinned historical engine on the same runner, every sample verifies exit and stdout (notes); release 0.8.0 shipped, which the tag workflow only does when no test failed."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-631",
+  "title": "Zinc Go: a player app on Android and iOS, QR code from zinc dev, Fast Refresh",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-zinc-go.md; tests/t2/zinc_go_phones.sh; tests/t1/zinc_go.sh",
+  "reason": "Zinc Go is built and proven on the Android emulator, iOS simulator and desktop; only the Nexus 7 camera scan is left and it is blocked by ZN-752. Close as done and carry that scan to ZN-752 AC1."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-634",
+  "title": "Network log: UDP, Unix sockets, wss and the server side (zinc:net serve)",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "src/host/netlog.cpp covers fetch, MQTT, TCP, ws",
+  "reason": "Network-log of UDP/Unix/wss/served requests: no user asks; one later.md line."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-641",
+  "title": "Prototype: zinc:net programs compile again",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "prototype removed 2026-10-20 (compiler/ gone)",
+  "reason": "Only serves the removed Node prototype."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-642",
+  "title": "Prototype: a closure that calls itself is refused or compiled",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "prototype removed 2026-10-20",
+  "reason": "Only serves the removed Node prototype (the new frontend check is separate)."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-649.11",
+  "title": "Pinball 3D: frame time on a quiet machine and on a 120 Hz display",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "A frame-time measure on a quiet machine: the perf log takes any quiet run later. One later.md line, no task."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-650",
+  "title": "Museum table: an interactive mediation app for a touch table, Klynt style",
+  "verdict": "done",
+  "into": "",
+  "evidence": "examples/museum-table (README with 8 images); tests/t1/museum_visit.sh; all 20 subtasks Done",
+  "reason": "Every subtask is Done and the demo has its README with screenshots. Close the epic."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-651",
+  "title": "zinc:audio on Linux: build the plugin and play through ALSA or PulseAudio",
+  "verdict": "merge",
+  "into": "ZN-555",
+  "evidence": "tests/t1/audio.sh (macOS only)",
+  "reason": "The task says itself it may fold into ZN-555 (Pi audio backends); same ALSA/PulseAudio work, cross pass."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-676",
+  "title": "host_direct: the golden has its lines in the old order",
+  "verdict": "done",
+  "into": "",
+  "evidence": "tests/t1/host_direct.sh PASS (run 2026-10-25)",
+  "reason": "tests/run --only host_direct passes now."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-677",
+  "title": "Software sprites: fixed-point stepping in draw_boxed and a drawImageRect case",
+  "verdict": "merge",
+  "into": "ZN-680",
+  "evidence": "",
+  "reason": "Optional software-raster fixed point stepping; same subject as software raster speed of ZN-680, and GPU sprites (ZN-581) are done."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-691",
+  "title": "QuickJS native bridge: callbacks and promises",
+  "verdict": "done",
+  "into": "",
+  "evidence": "src/qjs/native_js.cpp:4; tests/t0/qjs_native.sh:10; dd74d566",
+  "reason": "Callbacks and promise results of native modules are bridged on QuickJS: src/qjs/native_js.cpp:4-5, commit dd74d566, tests/t0/qjs_native.sh runs native_callbacks.ts against its golden. The plugin list (AC2) is not worth a task."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-702",
+  "title": "WebGL works around the macOS AMD and Intel GL shader bugs ANGLE knows",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "tests/golden/webgl/conformance-known-amd.txt records these three pages as driver issues",
+  "reason": "Three pages fail only on AMD, with the list already recording them as known; a shader rewrite per vendor is not worth it."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-714",
+  "title": "Windows, first step: a cross build of zinc with the pinned zig and a Windows CI job",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": ".github/workflows/zinc-next.yml:561; tools/windows-cross; tests/t2/cross_windows.sh; docs/targets/windows.md",
+  "reason": "Windows moved on: package-windows job builds zinc.exe natively with the pinned zig, tools/windows-setup.ps1, docs/targets/windows.md. AC1 and AC3 done; the windows-cross jobs are switched off. Close done; the later.md lines hold the rest."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-718",
+  "title": "Nothing to compile for a beginner: a prebuilt engine to download, prebuilt plugins for every platform",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tools/install.sh; tools/package; tests/t1/install_nocompiler.sh; docs/guide/01-getting-started.md; releases v0.7.4 to v0.7.6 with CI on tags",
+  "reason": "Close as done: install, plugin prebuilts inside the archive and the release job all work and shipped. AC2 was reworded by the recorded decision (prebuilts travel in the archive, offline-first). The Windows archive moves to the cross pass, which Windows opens. @parallel is a leftover."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-728",
+  "title": "Zinc Atelier as a Processing-style IDE: editor, tabs, run, console, menus, examples, libraries",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "app/atelier; tests/t1/atelier_ide.sh; all 8 criteria ticked",
+  "reason": "Close as done: the remaining step is the owner looking at a real window and macOS menu bar."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-729",
+  "title": "Zinc agent: a device daemon and zinc device, adb over the network",
+  "verdict": "done",
+  "into": "",
+  "evidence": "subtasks 729.01-.03,.05-.08 Done; src/agent; tests/t1/agent*.sh; CHANGELOG device agent",
+  "reason": "The only open child is ZN-729.04 (Review), whose last criterion is a real launchd load."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-729.04",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/agent/ota.cpp; tests/t1/agent_ota.sh",
+  "reason": "4 of 5 criteria checked; the 5th (zinc agent install real load) is the owner running one command; close as Done and keep the command in later.md."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-731",
+  "title": "Zero-copy video: from the hardware decoder to the screen without a CPU copy (Raspberry Pi first)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-perf.md:744; D114",
+  "reason": "Hardware decoder to KMS overlay plane is done and measured on the Pi 3B+: 3.5-4.8 ms CPU a picture against 37 ms, 0 dropped at 24 and 30 fps over 69 s; decision D114 recorded. Open only: a minute of museum-table in one go and a look at the screen. Close done."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-732",
+  "title": "Atelier: completion, signature help and hover from zinc lsp, and a finer editor",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "zinc lsp signatureHelp/hover/completion docs; tests/t0/lsp.sh; tests/t1/atelier_ide.sh; criteria ticked",
+  "reason": "Close as done: only a person typing in a real window is unverified. Later lines already exist."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-733",
+  "title": "A run app carries its own name and comes to the front (macOS first)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "targets/macos/hal_sdl.cpp window name and raise; criteria ticked; Linux/Windows checks are later lines",
+  "reason": "Close as done: only the by-eye check remains."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-734",
+  "title": "Run on a device from Atelier: native resolution, the inspector, transfer progress, clean console lines",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "agent_inspect, atelier_devices, agent_deploy, chip_fbdev (native_size in runtime/include/hal.h); criteria 2-5 ticked",
+  "reason": "Close as done. AC1 is implemented and proven on a simulated framebuffer; the run on the Pi is a cross-platform line already in the notes."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-735",
+  "title": "display-fbdev: fast animations tear in bands on the Pi: every frame through two buffers and a flip at the refresh",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "plugins/display-fbdev/fbdev.cpp:668; backlog/later.md ZN-735 lines; docs/plugins/display-fbdev.md:98",
+  "reason": "Close as Done: the KMS flip is the default on the Pi (fbdev.cpp planes_present; docs/plugins/display-fbdev.md:98), measured on the Pi 3B+ (-3.5 to 5% fps, bands removed by design), tests pass; the owner has run the Pi image since. Follow-ups are already lines in backlog/later.md."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-736",
+  "title": "Atelier: a project card for an app with a zinc.json",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "app/atelier/app/project.ts, components/Project.tsx; tests/t1/atelier_ide.sh session project; tests/t0/atelier.sh",
+  "reason": "Close as done. Only the Finder action needs a click by a person; the card, edits and Build App are proven."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-753",
+  "title": "Demo: breakout on PSP, PS Vita, PS2 and Nintendo 3DS, in their emulators",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-consoles.md; tests/golden/breakout/pad.hashes; tests/t2/console_emulators.sh",
+  "reason": "Breakout runs on PSP, Vita and 3DS with pad-session hashes equal to the interpreter, PS2 in PCSX2; the two open items are the PPSSPP window run and Play!, which the owner replaced with PCSX2. Close as done."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-757",
+  "title": "Zinc Relay: a macOS menu bar app that relays notifications to the tablet",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "examples/notify-relay; task notes handover",
+  "reason": "Relay app is built; what is left is an owner check (Full Disk Access, a real notification, pairing the tablet) written in the handover. Close as done and leave the run recipe in the README."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-774.20",
+  "title": "Card shadows cost less without a GPU (PERF-04)",
+  "verdict": "done",
+  "into": "ZN-403",
+  "evidence": "ZN-403 (shadow_rrect row reuse, b2-rounded 40.7 -> 14.4 ms, same pixels) and ZN-589 (mirrored corner columns), both Done",
+  "reason": "Duplicate of PERF-04 already shipped; the criteria are the same as ZN-403 AC2/AC3. The 4 us per shadow target is ZN-589.01 (arm64 re-measure)."
+ }
+]

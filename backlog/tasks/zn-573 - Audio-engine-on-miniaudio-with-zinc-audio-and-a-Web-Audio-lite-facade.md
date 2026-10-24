@@ -1,11 +1,10 @@
 ---
 id: ZN-573
-title: 'Audio engine on miniaudio with zinc:audio and a Web Audio lite facade'
+title: 'Web Audio facade: Howler and Kaplay, audio-thread assertion'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 17:14'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -14,12 +13,14 @@ milestone: m-22
 dependencies:
   - ZN-390
   - ZN-568
-ordinal: 45000
+ordinal: 9900
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Vendor Howler and Kaplay in tools/test-lib, compare ZINC_AUDIO_LOG lines; add a debug assertion for no QuickJS call/allocation on the audio thread; the 10-minute soak is a by-hand line. Already there: plugins/audio; lib/std/webenv.js AudioContext facade; tests/t1/webenv_audio.sh, audio.sh.
+
 One native graph (libzn_audio on miniaudio, decision D12; 128-frame quanta, sample-accurate AudioParam timelines) behind the typed zinc:audio of ZN-390 and a JS AudioContext covering what Howler, Phaser, Kaplay, LittleJS and three.js call: currentTime/state/resume/suspend, decodeAudioData (WAV, MP3, FLAC, Ogg Vorbis; codecs shared with ZN-440), AudioBufferSourceNode (loop, playbackRate, detune, onended), Gain, StereoPanner, Panner + Listener, BiquadFilter, Delay, Analyser, MediaElementSource; HTMLAudioElement with canPlayType (Howler needs it even for Web Audio); a null backend headless. The audio callback never enters QuickJS: commands on a bounded SPSC queue, events back through a ring buffer. Tone.js and p5.sound need almost the full spec: web-audio-api-rs as an optional plugin later. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -44,4 +45,5 @@ Open, criterion 1: Phaser's WebAudioSoundManager is proven; Howler and Kaplay ar
 Open, criterion 2: holds by construction (the device callback is pull() -> render(): ma_engine_read_pcm_frames and one atomic store; QuickJS is only on the main thread) but no debug assertion is written.
 Open, criterion 3: the 10-minute soak with 32 voices needs a real device and a quiet machine (other trees were building); not run.
 Decision to record: the Web Audio of the web environment is a facade over zinc:audio's voices (levels computed once a frame from the graph), not a rendered graph; a rendered graph (filters, analyser, oscillator, sample-accurate params) stays the optional plugin the task names (web-audio-api-rs). The QuickJS engine always runs a plugin's native code (it has no stand-in), so a web program that makes sound builds plugins/audio at its first run.
+Review 2026-10-25: done-partly. Web Audio facade over zinc:audio voices works for Phaser; game-2d template plays through it. Left: Howler and Kaplay not run, no audio-thread assertion, no soak. Soak needs a quiet real device. Evidence: plugins/audio; lib/std/webenv.js AudioContext facade; tests/t1/webenv_audio.sh, audio.sh
 <!-- SECTION:NOTES:END -->

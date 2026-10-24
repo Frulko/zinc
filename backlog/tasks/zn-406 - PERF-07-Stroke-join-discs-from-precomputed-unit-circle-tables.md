@@ -4,7 +4,7 @@ title: PERF-07 Stroke join discs from precomputed unit-circle tables
 status: Done
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-09 09:13'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-S
@@ -34,4 +34,5 @@ Join discs read three unit-circle tables (6, 10, 16 segments) built on first use
 Navigation AOT, ZN-405 + ZN-406 together, CPU time for 600 headless frames minus startup (the wall-clock paint p50 was too noisy at load 9): 3.51 -> 3.27 ms per frame, -6.9%. AC3 (-8%) not reached: the rest of the profile is program-side release/arrPush (~11% of samples, ZN-413) and the comparator sort (ZN-420).
 Tests: stroke_tables (new), tests/run --changed 71/71, canary 4/4, framehash, canvas, svg_lottie.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. Implemented and proven same pixels; the combined gain is below the guess and measured.
 <!-- SECTION:NOTES:END -->

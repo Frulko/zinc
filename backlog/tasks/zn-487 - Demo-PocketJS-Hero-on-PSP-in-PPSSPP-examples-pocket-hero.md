@@ -9,8 +9,9 @@ labels:
   - pocketjs
 milestone: m-23
 dependencies:
-  - ZN-463
-ordinal: 232000
+  - ZN-486
+ordinal: 50400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

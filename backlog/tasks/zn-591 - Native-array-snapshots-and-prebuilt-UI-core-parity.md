@@ -1,6 +1,6 @@
 ---
 id: ZN-591
-title: 'Native array snapshots and prebuilt UI core parity'
+title: 'Native array snapshots across the host ABI (scalars and scalar records)'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 12:00'
@@ -9,12 +9,15 @@ labels:
   - native-abi
 dependencies: []
 priority: medium
-ordinal: 120000
+ordinal: 18700
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-10-25:** Drop AC4 and every prototype reference (the prebuilt core test is gone); keep AC1-3 and AC5 only if a plugin needs array returns, else drop to a later.md line.
+
 The prototype draft in `compiler/src/abi.ts` and `runtime/include/zinc_abi.h` introduces ABI v4 ARRAY return snapshots: scalar elements or named records with scalar fields. It generates element metadata and retained native storage, but `runtime/vm/abi.h` and the QuickJS adapter do not consume ARRAY results yet. The declared element/byte limits are a proposed contract, not enforced support. Do not treat the draft as a completed feature.
 
 Carry the supported contract into Zinc Next through its existing generic host ABI, without adding plugin or demo cases to the engine. Keep the prototype files as the reference; finish the adapter behavior in a separate implementation task if prototype compatibility is required.
@@ -31,3 +34,9 @@ Carry the supported contract into Zinc Next through its existing generic host AB
 - [ ] #4 A focused prebuilt UI core check proves script-only recompilation changes rendered pixels without rebuilding the core, and rejects incompatible exports before execution.
 - [ ] #5 Document supported ABI versions, core cache invalidation and remaining prototype limitations; pass the relevant tests and `tests/run --changed`.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: rewrite. Written around the prototype (compiler/src/abi.ts, tests/engines/prebuilt-core.mjs, which no longer exists). The ABI array snapshot idea may still matter but there is no user for it now.
+<!-- SECTION:NOTES:END -->

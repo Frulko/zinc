@@ -6,11 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
-  - ZN-516
   - ZN-517
-ordinal: 279000
+ordinal: 93200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +27,9 @@ zinc export --target chip writes a systemd unit (restart on failure, sunxi watch
 - [ ] #3 idle RSS and CPU of the service recorded
 - [ ] #4 the unit file is covered by a T1 golden
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Headless service export for the CHIP: the Pi image and `zinc agent` cover the service story for Linux boards; CHIP-only parts need the board.
+<!-- SECTION:NOTES:END -->

@@ -4,7 +4,7 @@ title: '3DS: zinc:3d on citro3d with stereoscopic 3D'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-17 09:37'
+updated_date: '2026-10-25 01:53'
 labels:
   - 3d
   - 3ds
@@ -15,7 +15,7 @@ milestone: m-23
 dependencies:
   - ZN-469
   - ZN-495
-ordinal: 214580
+ordinal: 51800
 ---
 
 ## Description

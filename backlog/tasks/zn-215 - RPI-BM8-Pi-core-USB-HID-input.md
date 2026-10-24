@@ -10,7 +10,8 @@ labels:
   - parked
 milestone: m-11
 dependencies: []
-ordinal: 311000
+ordinal: 91600
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -23,3 +24,9 @@ Keyboard, mouse and touch to gfx events through Circle's USB classes. See docs/r
 <!-- AC:BEGIN -->
 - [ ] #1 QEMU -device usb-kbd + sendkey reaches a Zinc program; hardware: FT5x06 touch
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Bare-metal Raspberry Pi core. The Pi OS image builder, device agent and fast-boot image shipped, and cover the Pi for makers; the bare-metal core only buys boot time and needs Circle (GPLv3 question), a rig and no Mac proof. Park the chain; first step is ZN-207. Evidence: docs/reports/zinc-next-baremetal-pi.md; no firmware/rpi; image/ (Pi OS image) shipped
+<!-- SECTION:NOTES:END -->

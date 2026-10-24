@@ -15,7 +15,8 @@ milestone: m-21
 dependencies:
   - ZN-567
 priority: medium
-ordinal: 87000
+ordinal: 5400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

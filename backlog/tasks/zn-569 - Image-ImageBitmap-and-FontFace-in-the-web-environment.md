@@ -1,10 +1,10 @@
 ---
 id: ZN-569
-title: 'Image, ImageBitmap and FontFace in the web environment'
+title: 'Web environment: asynchronous image decode and createImageBitmap'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-22 18:57'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -12,12 +12,14 @@ labels:
 milestone: m-22
 dependencies:
   - ZN-568
-ordinal: 35000
+ordinal: 10000
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Do (a) async read+decode on the libuv pool under permission checks, (b) read a file in one call, (c) texImage2D without the extra copy; Worker/createImageBitmap stays with ZN-587. Criteria: a 4096x4096 PNG adds at most 2 ms to any frame; reading 40 MiB takes under 30 ms; PixiJS Assets.load works. Already there: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh.
+
 Image.src (files, data/blob URLs, http through zinc:net) and createImageBitmap decode PNG, JPEG and WebP off the main thread with the vendored stb_image and libwebp (decision D34); texImage2D from them honours UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL and UNPACK_COLORSPACE_CONVERSION_WEBGL, and createImageBitmap applies imageOrientation/premultiplyAlpha itself; FontFace.load registers TTF/OTF with the text tier; document.fonts. Closes the known gap of examples/webgl-studio (GLTFLoader decodes textures through createImageBitmap). Related: ZN-432 adds imageFromBytes to zinc:gfx and the thread-pool decoding plan of docs/reports/games/toolchain-assets-loading.md; share the decoder entry points. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -105,4 +107,5 @@ FOLLOW-UP TASKS (not created; for the coordinator to file):
 (d) "Web environment: createImageBitmap resizeWidth / resizeHeight" (S, after (e)), on a proven resampler to vendor (stb_image_resize2.h, public domain or MIT, from the project whose stb_image, stb_image_write and stb_truetype are in third_party/stb; it is not there today). Criteria: a bitmap of the asked size, compared with headless Chrome at SSIM 0.98.
 
 2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
+Review 2026-10-25: done-partly. Images, decode with stb_image/libwebp, flip/premultiply flags and size bound are done; the 2 ms-frame criterion was measured (525 ms) and deliberately not attempted. Left: asynchronous read+decode on libuv, a Worker with createImageBitmap, a one-call file read (the follow-ups (a) to (e) in the notes). Evidence: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh
 <!-- SECTION:NOTES:END -->

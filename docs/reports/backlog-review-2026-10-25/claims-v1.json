@@ -1,0 +1,398 @@
+[
+ {
+  "shard": "shard-G",
+  "id": "ZN-095",
+  "title": "Web platform globals: URL, encoding, events, abort, fetch, Blob, FormData, crypto, structuredClone, streams subset",
+  "verdict": "done",
+  "into": "",
+  "evidence": "tests/t1/conformance.sh (web, fetch_web vs tests/conformance/*.out); tests/t1/wpt_url.sh 896/896 and 278/278; tests/t2/compat.sh (ZN-139, Done) is the compat gate",
+  "reason": "AC2 (compat numbers through zinc test) was delivered by ZN-139. Streams, WebAssembly global and lib/web.d.ts are not in the criteria; streams are a later line if wanted."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-099",
+  "title": "zrt compatibility adapters for plugin native code",
+  "verdict": "done",
+  "into": "",
+  "evidence": "tests/t1/native_plugins.sh (sqlite, wasm, socket conformance and a zinc:process spawn on the native plugins); tests/t0/native_call.sh (60 ns/call); src/native/zrt_compat.h",
+  "reason": "The blocker (closures to native exports) was ZN-167, Done; AC1 now passes."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-102",
+  "title": "Plugin batch A: sqlite, wasm, process natives, ffi",
+  "verdict": "done",
+  "into": "",
+  "evidence": "tests/t1/native_plugins.sh runs sqlite.ts, wasm.ts, socket.ts on native plugins; sqlite/ffi conformance; plugins/wasm/vendor",
+  "reason": "wasm.ts was blocked by ZN-167 (Done). The Linux container run is moot (no Docker by decision; Linux is the cross pass)."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-113",
+  "title": "Pixel goldens for every example from the prototype, with a tolerance comparator",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tools/proto-capture, tools/pngdiff, tests/t2/examples_pixels.sh, tests/golden/examples/proto (47 files, manifest.json), TESTING.md section",
+  "reason": "Close as done. AC1 (regenerate with the prototype) is moot: the prototype is gone since 2026-10-20 and the goldens are frozen outputs by decision. The 13 differing rows are ZN-223 (Done)."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-121",
+  "title": "Fixed-point lowering: fx12 and fx16",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/fixed.sh; tests/t1/fixed_verify.sh; tests/t2/fixed_aot.sh; ZN-121.02/.03 Done",
+  "reason": "Children 121.02 and 121.03 are Done, 121.01 and 121.04 hold only a golden diagnostic list and a verifier clean-up of 12 corpus programs; the PS1 fixed-point profile is far from the goal. Close done; the two leftovers go to later.md."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-121.01",
+  "title": "Fixed point 1/4: checker rules for fx12 and fx16 (conversions, host calls,",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/profile.sh PASS",
+  "reason": "Closing as done: the 44 fx12 conformance programs type-check under --profile ps1 (tests/t1/profile.sh passes now). The golden diagnostic list (AC2) is not worth a Review slot; one line in later.md if wanted."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-121.04",
+  "title": "Fixed point 4/4: verifier forbids f64 in fx profiles",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/fixed_verify.sh",
+  "reason": "Closing as done: negative test and 11 clean conformance programs in tests/t1/fixed_verify.sh; checking the remaining corpus is a measure nobody needs."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-124",
+  "title": "zinc test and the Runner interface",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/cli_core.cpp:102; src/test_cmd.cpp; tests/t1/zinc_test.sh; tests/t1/zinc_test_runners.sh",
+  "reason": "zinc test with runners interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim exists; AC2 ticked; AC1 (every runner PASS) is bounded by engine differences tracked in ZN-312 and skip lines. Close done."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-125",
+  "title": "Frame hash and capture contract for every display",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/framehash.sh; examples/boards/*/*/framehash.golden; follow-up ZN-313",
+  "reason": "ZINC_FRAMEHASH and goldens exist; the open half (device-sim hash equal to the emulator) is already its own task ZN-313. Close done."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-126",
+  "title": "Bus shim (hw.h) with Linux and ESP32 backends",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "runtime/include/hw.h; tests/t1/hw_shim.sh; plugins/*/test_hw.cpp",
+  "reason": "Header-only hw.h shim with esp32, linux and sim backends exists and is tested; only the ESP-IDF build of the esp32 branch was never run (no IDF). Move that to the cross-platform pass line. Close done."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-131",
+  "title": "device-sim with board presets",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/main.cpp:2539; boards/*.json; tests/t1/device_modules.sh; follow-up ZN-313",
+  "reason": "device-sim, board presets, module list in the ready line and the early missing-module refusal are done (tests/t1/device_modules.sh); the window with mouse tilt needs a core frame surface, which is ZN-313. Close done."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-132",
+  "title": "Cross-built host library for aarch64-linux and armhf-linux",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/tc/tc.cpp; tests/t2/cross_linux.sh; tests/t2/cross_plugin_pack.sh",
+  "reason": "zinc build --target aarch64-linux|armhf-linux|armv7-linux links graphics with the pinned zig, no Docker; AC1 (run under qemu-user) cannot run on macOS and belongs to ZN-133. Close done."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-136",
+  "title": "ESP32 board images with host modules in the core, and what the QEMU models",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-esp32.md; tests/t2/esp32_qemu.sh",
+  "reason": "AC1 (QEMU peripheral table in zinc-next-esp32.md) done; AC2 needs full ESP-IDF builds per board, which is ESP32 cross-pass work. Close done; one cross-pass line for the board images."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-138",
+  "title": "CLI core: bare commands, entry discovery, help, init, doctor",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/cli_core.cpp (run/build/check discovery, help, init, doctor); tests/t0/cli_core.sh",
+  "reason": "Close as done. AC2 (audit rows of the prototype era) is stale: check --json, dev, test, export, deploy, plugins exist as later tasks; CLI11 was not adopted and is not needed."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-147",
+  "title": "Fuzzing: parser, checker, ZBC decoder and verifier, native ABI",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/fuzz/; tests/t0/fuzz_regress.sh; tests/t2/fuzz.sh; docs/reports/zinc-next-fuzzing.md; commit 686cfb60",
+  "reason": "Four libFuzzer targets, corpus, T2 gate and report exist; the duplicate-names crash found by the 10-minute check is now refused with a diagnostic (exit 3, no crash) and has a fixture; fuzzing also ran on Linux 2026-10-24. Close done. Note: tests/t0/fuzz_regress.sh fails today on its void-call check because the captured output includes the run banner on stderr; fix the test expectation."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-157",
+  "title": "ps1 target and PCSX-Redux runner",
+  "verdict": "merge",
+  "into": "ZN-156",
+  "evidence": "",
+  "reason": "Same parked PS1 line as ZN-156: fold the runner criteria (9 programs byte-identical, breakout hash) into ZN-156 and delete this task."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-159",
+  "title": "Beyond the prototype: BigInt",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "`10n*3n` is Z0005 not supported; no example or plugin needs BigInt",
+  "reason": "No user in the goal (apps, UI, games, makers); QuickJS engine already runs BigInt for JS programs. Far from the typed subset; reopen from a real need."
+ },
+ {
+  "shard": "shard-G",
+  "id": "ZN-162",
+  "title": "TDZ trap for forward variable reads",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t0/tdz.sh; checker tdzPrepass; AC1 ticked",
+  "reason": "Close as done: the TDZ trap works. AC2 (self-referential closure cycles leak) needs escape analysis or a cycle collector; tests/t1/rc.sh keeps closure_names.ts on its cyclic list. Record as a later line if it matters."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-177",
+  "title": "R2.1 Rank tree",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "docs note on task: D28 (ZN-173) measured ranks do not cut draw calls on real frames",
+  "reason": "Parked on a measurement; no scene shows the interleaving it needs and no user asks."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-179",
+  "title": "R2.3 Hash-diff damage with LVGL joining",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/damage_sig.sh; notes: join rule + CmdSig done, previous-frame RAM -83%",
+  "reason": "Everything provable on the Mac is done; the one-buffer switch needs an esp32/ps1 build (cross pass). Close as Done, put that line in later.md."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-184",
+  "title": "R3.5 Optional instancing",
+  "verdict": "done",
+  "into": "",
+  "evidence": "runtime/gl_replay.cpp:388,1523,1548 instanced draws; runtime/gl_caps.h:95 c.instancing",
+  "reason": "The instanced path exists with ANGLE/EXT detection in the caps."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-187",
+  "title": "R4.1 Scene wire format and JS renderer, WebGL1 + WebGL2",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "targets/web/runtime.js, targets/wasm/host_gfx_web.cpp: web target draws through Canvas 2D/DOM; targets/web/rows-gl.js serves zinc:gl programs",
+  "reason": "A JS replay of the Scene on WebGL was a roadmap idea; the web target ships without it and nobody asks."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-188",
+  "title": "R4.2 Web CI matrix",
+  "verdict": "drop",
+  "into": "ZN-187",
+  "evidence": "depends on ZN-187",
+  "reason": "CI matrix for a renderer that is dropped."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-189",
+  "title": "R5.1 SoA node storage + measure cache + relayout boundaries",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/ui_alloc_layout.sh: relayout allocs 352 -> 0 (measure cache + pooled lists)",
+  "reason": "Text measure cache and pooled lists are done; SoA storage was overtaken by ZN-251 side records; boundaries/B6 never measured as needed. Close as Done with the rest dropped."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-190",
+  "title": "R5.2 Range reuse for clean subtrees",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "task notes: hero frame record p50 0.26 ms, 0 allocs per frame (ZN-192)",
+  "reason": "Parked on a measurement: saves under 3 ms even on a Pi 3."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-191",
+  "title": "R5.3 Property slots for transform/opacity/scroll/colour lerp",
+  "verdict": "merge",
+  "into": "ZN-364.01",
+  "evidence": "ZN-364.01 already says it needs these slots",
+  "reason": "Property slots have no other user than the native driver; carry the slot design into ZN-364.01."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-198",
+  "title": "R6.5 `AcceleratorUnit` hook",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "criterion is a pointer to a report section",
+  "reason": "Optional 2D DMA hook with no hardware and no user."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-200",
+  "title": "R7.2 Native backend",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "task notes: D30 (ZN-199) no separate native backend; GL/GLES is the baseline",
+  "reason": "Superseded by decision D30."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-203",
+  "title": ">-",
+  "verdict": "done",
+  "into": "",
+  "evidence": "tests/golden/webgl/conformance-pass.txt (696 pages); subtasks 203.01-.04,.07,.08 Done; tests/t1/webgl_conformance.sh",
+  "reason": "The umbrella asked for full WebGL1/2 compliance; 696 pages pass and the known failures are recorded. Close when the three Review children close."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-203.05",
+  "title": "WebGL-E WebGL2 on the same core",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/webgl2_js.sh; ZN-203.07/.08 Done; conformance2 143/151 at round 3",
+  "reason": "WebGL2 core, textures and conformance2 exist."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-203.06",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/golden/webgl/conformance-pass.txt; textures/glsl/extensions suites vendored since",
+  "reason": "Superseded by later rounds (696 pages pass)."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-203.09",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/golden/webgl/conformance-failures.txt (91 lines, known)",
+  "reason": "Gate green; the remaining pages are recorded exceptions or driver items (ZN-701, ZN-702)."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-217",
+  "title": "RPI-BM10 Pi core: multicore band raster",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Multicore band raster on bare metal is an optimisation of a core that does not exist and is parked; re-create from docs/reports/zinc-next-baremetal-pi.md if the core ever starts."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-220",
+  "title": "RPI-BM13 Pi core: Pi 5 best effort",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Pi 5 best effort on a core that does not exist, no QEMU, manual checklist only."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-222",
+  "title": "RPI-BM15 Pi core: AOT per-program kernel, PIC blob loader spike",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "AOT per-program kernel and PIC blob loader spike on the non-existent bare-metal Pi core; speculative."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-230",
+  "title": "System: Spikes S1, S4, S5, S10 on macOS",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "docs/reports/zinc-next-decisions.md D27",
+  "reason": "Close as done: D27 answers S1, S4, S5, S10 with measurements; the missing screenshots of tray/dock/menu title are cosmetic evidence, not a reason to keep a Review task."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-235",
+  "title": "System: Notifications on macOS with osascript fallback",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "plugins/system/notification.ts; plugins/system/native/system.macos.mm; goldens notification, notification_denied",
+  "reason": "Close as done: the osascript tier delivers on this Mac and the native tier is wired; the native readback needs one human click on the OS permission prompt, not worth an open task."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-243",
+  "title": "System: Deep links, file open, opener/reveal",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "plugins/system deeplink.ts, opener.ts; tests/t1/macos_deeplink.sh; tests/golden/system/opener",
+  "reason": "Close as done on macOS. The Linux .desktop/xdg-mime half (AC2) is one line in the cross-platform pass of backlog/later.md."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-247",
+  "title": "System: UI kit `MenuBar`, `ContextMenu`, accelerator handling for non-native menus",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "lib/std/kit/menubar.tsx; tests/t1/kit_menubar.sh; tests/golden/ui/menubar",
+  "reason": "Close as done: the kit MenuBar/ContextMenu, accelerators and pixel goldens pass. AC2 (notes example on Linux/Pi) becomes a later.md line: the notes example has no menu and Linux is in the cross pass."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-249",
+  "title": "System: Transparent frames, vibrancy and multiple windows",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "plugins/system window transparentColor and setVibrancy (AppKit readbacks); ZN-663 Done gives several windows",
+  "reason": "Close as done on macOS: transparent key-colour window and vibrancy work per AppKit readbacks, multiple windows shipped as ZN-663. The screenshot proof of alpha and the compositing-Linux check go to the cross pass as one line."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-257",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/golden/style-border, tests/t1/style_border.sh, tests/golden/ui-style/border-ext.tsx",
+  "reason": "Dashed/dotted, per-side colours and per-corner radii are done. Open parts: the GL tolerance (the GL tier exists now, covered by the tier checks) and the esp32 degrade, which belongs to ZN-278. Close as Done."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-266",
+  "title": "UI style: `clip-path` (inset, circle, ellipse, polygon) and gradient masks",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "no clip-path anywhere; no kit uses it",
+  "reason": "Shape clipping and gradient masks have no user among the demos or kits; one later.md line is enough."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-268",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/golden/ui-cmds, tests/t1/ui_cmds.sh, tests/golden/ui-style/text-deco.tsx; commit 5ee774a2",
+  "reason": "Underline, line-through, text-transform, word spacing and vertical align are done with goldens; only the esp32 log line of AC3 is cross."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-277",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/ui_style.sh (30 scenes), tools/style-neutrality",
+  "reason": "AC1 and AC2 done. AC3 (forced render tiers) has no tier switch; move it to ZN-278."
+ }
+]

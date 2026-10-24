@@ -9,7 +9,8 @@ labels:
   - packaging
   - size-M
 dependencies: []
-ordinal: 421410
+ordinal: 4800
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

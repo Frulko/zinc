@@ -4,7 +4,7 @@ title: GE 3D kernel and renderer v1 for cooked packs (PSP)
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-17 09:37'
+updated_date: '2026-10-25 01:53'
 labels:
   - handheld
   - pocketjs
@@ -12,7 +12,7 @@ milestone: m-23
 dependencies:
   - ZN-468
   - ZN-490
-ordinal: 214566
+ordinal: 50500
 ---
 
 ## Description

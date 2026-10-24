@@ -8,7 +8,8 @@ labels:
   - distribution
   - size-S
 dependencies: []
-ordinal: 126000
+ordinal: 5500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

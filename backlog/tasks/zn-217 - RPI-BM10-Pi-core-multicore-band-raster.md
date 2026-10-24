@@ -10,7 +10,8 @@ labels:
   - parked
 milestone: m-11
 dependencies: []
-ordinal: 324000
+ordinal: 91800
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -23,3 +24,9 @@ Core spin instead of the thread pool in render_bands.h. See docs/reports/zinc-ne
 <!-- AC:BEGIN -->
 - [ ] #1 frame CRC identical for 1 to 4 cores in QEMU; fps gain measured on the rig
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Already parked. No decision abandons the bare-metal Pi core (no bare-metal or Circle entry in zinc-next-decisions.md), and its chain ZN-207..216 is open. This is far, not useless, and the brief says far is park.
+<!-- SECTION:NOTES:END -->

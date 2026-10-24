@@ -1,22 +1,24 @@
 ---
 id: ZN-627
-title: 'Mobile GPU path: GLES 3 replay on android, renderer decision for ios'
+title: 'Android GLES 3 replay and the frame times of rn-showcase and hero on both phones'
 status: Backlog
 assignee: []
 created_date: '2026-10-10 14:07'
-updated_date: '2026-10-17 00:20'
+updated_date: '2026-10-25 01:53'
 labels:
   - mobile
   - size-M
 milestone: m-26
 dependencies:
   - ZN-741
-ordinal: 203000
+ordinal: 53300
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Keep AC1 and AC2 only (frame times in zinc-next-perf.md, pixels within the GL tolerance); iOS Metal back end of the command lists stays a later.md line. Already there: targets/macos/hal_metal.mm; tests/t0/ios_present.sh; task notes 2026-10-17.
+
 `gl_replay` on a GLES 3 context on Android; on iOS measure the software raster through Metal, GLES through EAGL and (if needed) ANGLE, and decide (From the spike ZN-372, docs/reports/zinc-next-mobile-spike.md, D59.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -58,4 +60,5 @@ The plan for the Metal back end. It is not built: it is an L task of 4 to 5 sess
 2026-10-17, step 3 and handover. AC1: the iOS half is in these notes (step 1: rn-showcase and hero frame times on the iPhone 17 simulator); the coordinator copies them to zinc-next-perf.md. The Android half (the GLES 3 replay on a capable Android device) is not done: this agent did no Android device work. AC2: on iOS the frame is the software raster's, and the Metal present shows the same pixels as SDL_Renderer (byte-identical screenshots). Comparing a GPU path with the desktop GL goldens waits for the Android GLES 3 replay and for the Metal back end. AC3: the text is above; it can be ticked once the coordinator writes it as a numbered record. AC4: ticked (the text follows D119: Metal is the GPU back end, scored against EAGL and ANGLE). Next command for the Android half: zinc export examples/rn-showcase --target android with ZINC_RENDERER=gl on a GLES 3 device or emulator, then ZINC_PRESENT_STATS and ZINC_GL_INFO as in ZN-741.
 
 2026-10-17: the iOS decision is D137 (coordinator); the iOS numbers are in docs/reports/zinc-next-perf.md. Released: the Android GLES 3 half of AC1 and AC2 remain.
+Review 2026-10-25: done-partly. iOS decision done (D119, Metal present with no texture upload, step 1) and scored; left: the GLES 3 replay on capable Android and the frame-time/pixel criteria. Evidence: targets/macos/hal_metal.mm; tests/t0/ios_present.sh; task notes 2026-10-17
 <!-- SECTION:NOTES:END -->

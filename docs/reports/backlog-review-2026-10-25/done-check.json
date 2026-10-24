@@ -1,0 +1,828 @@
+[
+ {
+  "id": "ZN-026",
+  "title": "IR optimisation passes",
+  "criteria": [
+   "inlining and devirtualisation show a measured gain on at least two kernels.",
+   "the M4 thresholds of TESTING.md hold in tools/bench-m4 (interpreter at least 5x QuickJS on fib, mandelbrot, spectralnorm; AOT within 3x of n",
+   "the dynsum kernel is not slower than QuickJS in tools/bench-m4 on an idle machine (small Dyn helpers inlined)"
+  ],
+  "verdict": "done-ok",
+  "evidence": "src/ir/opt.cpp:20,40,74 (devirtualize, inlineAt); docs/reports/zinc-next-m4-benchmarks.md thresholds pass except jsonout/dynsum",
+  "reason": "The thresholds hold except two launch-bound kernels (jsonout, dynsum), which ZN-648 (Done) now judges on their work. Only the boxes were not ticked.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-030",
+  "title": "Bytecode upload to a preflashed ESP32 core",
+  "criteria": [
+   "`zinc run hello.ts --target esp32` runs on a device with no manual install step."
+  ],
+  "verdict": "done-moot",
+  "evidence": "Closed under RULES.md 2026-10-07 note; validated on Espressif QEMU and device-sim; real board is parked ZN-055",
+  "reason": "Needs a real ESP32 board; parked, cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-042",
+  "title": "Typed AOT: emit C++ from the IR with native locals",
+  "criteria": [
+   "AOT within 1.3x of native on fib, nbody, sort, spectralnorm in tools/bench-m4",
+   "no 8-byte Slot in generated code for typed numeric locals; 32-bit targets use 4-byte references"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-409 (typed struct per class, typed locals) shipped; M4 table: AOT/native 1.12-2.85x",
+  "reason": "The 1.3x target was replaced by the 3x gate of TESTING.md (all pass) and ZN-409/ZN-413 chase the rest.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-053",
+  "title": "Single-app packaging for macOS, Windows and Linux",
+  "criteria": [
+   "a clean machine runs the app, builds for a Pi, and flashes or emulates an ESP32 with no manual install"
+  ],
+  "verdict": "done-ok",
+  "evidence": "zinc pack/fuse/export, toolchain manager (zinc toolchain, doctor), releases with CI on tags (CHANGELOG 0.8.0)",
+  "reason": "Packaging shipped through ZN-319, 320.01/.02, 392 and the toolchain tasks; the clean-machine proof is the release CI. Windows part is the cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-063",
+  "title": "Name resolution: closures that refer to later or own bindings, named function expressions",
+  "criteria": [
+   "fixtures: recursive const arrow, named function expression recursion, closure using a later const after it is initialised (works) and before"
+  ],
+  "verdict": "done-ok",
+  "evidence": "ZN-162 AC1 ticked; tests/t0/tdz.sh",
+  "reason": "The read-before-init trap moved to ZN-162 and works.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-077",
+  "title": "JSX and style lowering: VirtualList, percentage lengths, StyleSheet.create",
+  "criteria": [
+   "examples/inferno-todo and ui/figma-storyboard run 3 headless frames; their frames equal the prototype's within the tolerance defined in E-go"
+  ],
+  "verdict": "done-moot",
+  "evidence": "tests/examples.lst lines 39 and 94: inferno-todo and ui/figma-storyboard are OK",
+  "reason": "Both run; the comparison with prototype frames is moot (prototype removed 2026-10-20, goldens frozen).",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-086",
+  "title": "zinc:mqtt client",
+  "criteria": [
+   "examples/service/sensor-hub passes the module step"
+  ],
+  "verdict": "done-ok",
+  "evidence": "tests/t0/mqtt.sh; examples/service/sensor-hub OK in tests/examples.lst:87 and tests/t1/example_output.sh",
+  "reason": "sensor-hub runs; the zinc:net serve blocker (ZN-087) is Done. TLS hang is ZN-610.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-150",
+  "title": "Spike: baseline JIT for ZBC (sljit) \u2014 measure, then decide",
+  "criteria": [
+   "bench table: interpreter vs JIT vs AOT on fib, nbody, mandelbrot, spectralnorm, sort, hero frame time"
+  ],
+  "verdict": "done-moot",
+  "evidence": "D36 in docs/reports/zinc-next-decisions.md (no-go from the AOT upper bound)",
+  "reason": "The spike answered no-go without a JIT column; a JIT is out of the goal and of iOS rules.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-154",
+  "title": "Examples: video, camera, maps, svg, lottie, mapper, remarkable, webview, remote",
+  "criteria": [
+   "tests/examples.lst OK for every entry (no xfail left); pixel or hash comparisons pass"
+  ],
+  "verdict": "done-ok",
+  "evidence": "tests/examples.lst: all entries OK, no xfail",
+  "reason": "The criterion holds as of the 2026-10-10 review; the reMarkable QEMU part stays with parked ZN-134.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-178",
+  "title": "R2.2 Batch planner",
+  "criteria": [
+   "hero Home <= 40 draws (report); GL output unchanged within tolerance; ZN-117 unaffected."
+  ],
+  "verdict": "done-moot",
+  "evidence": "plugins/display-gl/src/gl_renderer.cpp gone; batching in runtime/gl_replay.cpp (ZN-412)",
+  "reason": "Superseded by the GL replay design.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-180",
+  "title": "R3.1 Direct replay + vertex-expanded VBO ring + index patterns",
+  "criteria": [
+   "hero Home/Kit/Forms within tolerance under llvmpipe; on the Pi, frame time p99 not worse than SW and CPU share <= 25% (existing acceptance)."
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-412.01/.02/.05 replay command lists on the GPU; Pi criterion is parked ZN-412.04",
+  "reason": "Superseded.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-181",
+  "title": "R3.2 `LINE`/`POLY`",
+  "criteria": [
+   "hero Home and Gallery, canvas2d/svg examples within tolerance; no `LINE/POLY` skipped warnings."
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-590.01/.02 (strokes and polygon fills on the GPU, D61, D62)",
+  "reason": "Superseded by the GPU strokes and stencil fills.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-185",
+  "title": "R3.6 Render thread and 3-slot handoff",
+  "criteria": [
+   "`paint` overlaps raster; deterministic mode unaffected."
+  ],
+  "verdict": "done-moot",
+  "evidence": "Merged into ZN-416 (cross pass) by the 2026-10-10 review",
+  "reason": "Same idea as ZN-416; the Mac window renders on the GPU.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-192",
+  "title": "R5.4 Frame arena + `@frame` no-alloc lint",
+  "criteria": [
+   "zero allocations over 600 frames in B4."
+  ],
+  "verdict": "done-ok",
+  "evidence": "tests/golden/ui-alloc and tests/t1/ui_alloc.sh: 600 repainted frames, 0 allocations, interpreter and AOT",
+  "reason": "The measured criterion holds on the UI page; the @frame IR lint was never needed once the counters proved 0.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-193",
+  "title": "R5.5 Variable-height virtual list and token layer for the kit",
+  "criteria": [
+   "100k-row list; theme switch without restyling components."
+  ],
+  "verdict": "done-ok",
+  "evidence": "tests/golden/ui-virtual, tests/t1/ui_virtual.sh (100k rows); theme variables: ZN-271 Done",
+  "reason": "Both halves exist; the theme half was done in ZN-271.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-202",
+  "title": "R7.4 Path renderer upgrade",
+  "criteria": [
+   "see docs/reports/ui-rendering-architecture.md section 7"
+  ],
+  "verdict": "done-moot",
+  "evidence": "D61 and D62 (capsule strokes, stencil-and-cover)",
+  "reason": "Research answered by decisions; reopen only with a profile where fills dominate.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-239",
+  "title": "System: Dialogs: SDL_DIALOG on, open/save/message/confirm, fs scope",
+  "criteria": [
+   "`SDL_DIALOG` switched on in CMake with the vendoring note updated; the engine still builds with clang and `zig c++`.",
+   "On macOS a hands-free check opens a dialog and dismisses it with `NSApp abortModal` in selftest; message dialog attaches as a sheet."
+  ],
+  "verdict": "done-moot",
+  "evidence": "D27: NSOpenPanel chosen over SDL_DIALOG; tests/t1/macos_dialog.sh",
+  "reason": "SDL_DIALOG stays off by decision; a sheet attachment is optional polish.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-244",
+  "title": "System: Power, idle, appearance, sleep blocker, rich clipboard on macOS",
+  "criteria": [
+   "`SDL_POWER` switched on; `power.battery()` returns SDL's values; suspend/resume/lock events come from `NSWorkspace` notifications posted in "
+  ],
+  "verdict": "done-moot",
+  "evidence": "tests/golden/macos/power; IOKit/NSWorkspace implementation",
+  "reason": "SDL_POWER stays off on purpose; the values come from IOKit.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-295",
+  "title": "Sim: Scenario runner `zinc sim` with YAML steps, `SimRunner` for `zinc test`",
+  "criteria": [
+   "1) steps wait-serial, write-serial, delay, advance, set-control, expect-pin, expect-bus, expect-frame, take-screenshot work on `examples/boa"
+  ],
+  "verdict": "done-ok",
+  "evidence": "ZN-295.01 Done (program as device under test, frames, screenshots); tests/t0/sim_scenario.sh",
+  "reason": "The open half moved to ZN-295.01 which is Done.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-319",
+  "title": "Fused executables: runtime plus .zapp in one file",
+  "criteria": [
+   "fusing for another target uses the pinned cross runtime"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-392 (prebuilt player runtimes per target) is open; `zinc fuse` for another OS is refused with a message; tests/t0/fuse.sh",
+  "reason": "Cross-target fusing needs prebuilt runtimes: cross pass, tracked by ZN-392.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-320",
+  "title": "Installers: macOS .dmg, Linux AppImage and .deb",
+  "criteria": [
+   "the AppImage runs in the Linux container; the .deb installs with dpkg -i in the container and its files are listed",
+   "every installer is reproducible (same bytes twice) except for signatures"
+  ],
+  "verdict": "done-moot",
+  "evidence": ".deb and .app are byte-reproducible; AppImage parked D39, container check ZN-393",
+  "reason": "Needs a Linux runner; tracked by ZN-393. .dmg is stamped by hdiutil, documented in docs/guide/07-distribution.md.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-330.03",
+  "title": "SDL3 as a display backend loaded on demand; zinc:gfx and the headless HAL without it",
+  "criteria": [
+   "zinc without the SDL3 module runs every headless test; a windowed program and the WebGL tests load it and pass; an AOT program that never op"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Merged into ZN-592.04 (Linux window host as module); macOS done by ZN-592.01/.06",
+  "reason": "Only Linux is left and it has its own task.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-335",
+  "title": "Plugins in their own git repositories (subtree split from plugins/), history kept",
+  "criteria": [
+   "a split repository builds alone with the reusable workflow of D-plugin-ci (no path into the engine repo)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "tools/plugin-split, tests/t1/plugin_split.sh; the open criterion is ZN-335.01 (needs ZN-338)",
+  "reason": "Carried by ZN-335.01, which waits on the reusable CI workflow and the owner creating the mirror org.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-351",
+  "title": "Threat model and guide for distribution: publishers, mirrors, community",
+  "criteria": [
+   "a publisher can follow the guide from a new repository to a verified-community release with the reusable workflow"
+  ],
+  "verdict": "done-moot",
+  "evidence": "docs/guide/08-security.md plugin distribution section; tests/t0/security_guide.sh; open item is ZN-351.01",
+  "reason": "Carried by ZN-351.01 (needs ZN-338 and the owner).",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-361",
+  "title": "Object styles: the React Native transform array (rotate, scale, translate, skew)",
+  "criteria": [
+   "goldens of rotate/scale/skew in rn mode"
+  ],
+  "verdict": "done-moot",
+  "evidence": "tests/t1/style_transform.sh (translate, scale, hit probes); ZN-361.01 (open, m-17) paints rotate/skew",
+  "reason": "Rotate and skew goldens need the renderer matrix of ZN-361.01.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-372",
+  "title": "Spike: iOS and Android targets, viability and plan (decision record)",
+  "criteria": [
+   "hello and rn-showcase run on the iOS simulator and an Android emulator (screenshots in the report)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "docs/reports/zinc-next-mobile-spike.md; D59; follow-ups ZN-618..632, ZN-622 (Android), ZN-624 (iOS)",
+  "reason": "No Xcode or Android SDK on the Mac; mobile is last in the cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-387",
+  "title": "native_plugins_test does not link: zn::host::hostSys undefined",
+  "criteria": [
+   "cmake --build build builds every target warning-free, native_plugins_test passes"
+  ],
+  "verdict": "done-ok",
+  "evidence": "hostSys inline in include/zn/host.h:34; coordinator ran `tools/build native_plugins_test`: links, \"all checks passed\"; tests/t1/native_plugins.sh",
+  "reason": "Verified on 2026-10-10; box not ticked.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-390",
+  "title": "zinc:audio: sound effects and music for games (and the game-2d template's sound)",
+  "criteria": [
+   "zinc:audio plays an asset on macOS and Linux and is a silent no-op headless (test); templates/game-2d plays a sound when a coin is collected"
+  ],
+  "verdict": "done-moot",
+  "evidence": "plugins/audio, docs/plugins/audio.md, golden on macOS; templates/game-2d plays a sound",
+  "reason": "Only \"and Linux\" is unproven: cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-400",
+  "title": "PERF-01 SDL HAL rasterizes in dynamic bands (zbands::Pool)",
+  "criteria": [
+   "hal_sdl.cpp uses zbands::Pool; its own band workers are removed"
+  ],
+  "verdict": "done-moot",
+  "evidence": "hal_sdl.cpp and backend_sw.cpp take 32-row stripes from an atomic counter: bouncing-ball 31.7 -> 42.3 fps",
+  "reason": "Intent met without zbands::Pool (that header was never committed). Nothing to reopen.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-403",
+  "title": "PERF-04 Shadows, borders and AA edges reuse row and column coverage exactly",
+  "criteria": [
+   "SHADOW <= 4 us per command on b2-rounded (per-kind harness through zrt::raster::render)"
+  ],
+  "verdict": "done-ok",
+  "evidence": "ZN-403 AC2/AC3 ticked: b2-rounded 40.7 -> 14.4 ms; ZN-589 and ZN-589.01 carry the 4 us per shadow target",
+  "reason": "The 4 us target moved to ZN-589.01 (arm64 re-measure). Same subject as ZN-774.20 (duplicate).",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-405",
+  "title": "PERF-06 Host polygon/path/stroke rows read program arrays in place",
+  "criteria": [
+   "navigation AOT paint p50 -8% or better (baseline 3.5 ms headless)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Measured -3% on navigation AOT paint p50; zrt::Array overloads forward to in-place rows",
+  "reason": "The -8% target was the audit estimate; the rest is program-side array building (ZN-413).",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-406",
+  "title": "PERF-07 Stroke join discs from precomputed unit-circle tables",
+  "criteria": [
+   "navigation AOT paint p50 -8% or better"
+  ],
+  "verdict": "done-moot",
+  "evidence": "tests/t1/stroke_tables.sh: 0 mismatches over 5000 polylines",
+  "reason": "Implemented and proven same pixels; the combined gain is below the guess and measured.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-408",
+  "title": "PERF-09 String concat and template literals without double copy and rescan",
+  "criteria": [
+   "jsonout interpreter >= QuickJS speed in tools/bench-m4"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Machine::newStrCat; jsonout gap is launch cost, ZN-592 and ZN-648",
+  "reason": "Not a concatenation matter; carried elsewhere.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-409",
+  "title": "PERF-10 Typed AOT emission: struct per class, typed locals, static field kinds",
+  "criteria": [
+   "AOT/native <= 1.2x on every M4 kernel (nbody baseline 2.7x)",
+   "bouncing-ball 200k AOT script (effects phase) <= 2.2 ms per frame headless (baseline 4.2 ms)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Struct per class shipped; bouncing-ball effects 4.2 -> 2.62 ms; ZN-413 and ZN-399 carry the remainder",
+  "reason": "Targets were audit estimates; the remaining gap has its own tasks.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-412",
+  "title": "PERF-13 GPU 2D backend by default where a GPU exists",
+  "criteria": [
+   "Pi 3 measured on the rig"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-412.01-.05 shipped; GL replay default on macOS; Pi 3 numbers are ZN-412.04 (parked, hardware)",
+  "reason": "Only the Pi 3 measure is left, parked.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-412.06",
+  "title": "Linux SDL window presents with OpenGL and replays the command lists",
+  "criteria": [
+   "a Linux window run of bouncing-ball 200k uses the GL replay with 0 ms of software raster per frame (Mesa on a GPU)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "hal_sdl.cpp ZN_HAL_GL on Linux, tests/t1/window_renderer.sh; Mesa GPU run is ZN-412.07 (parked)",
+  "reason": "Needs a Linux GPU: cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-414",
+  "title": "PERF-15 Per-target CPU flags and number profiles",
+  "criteria": [
+   "zinc build --target armhf-linux has an armv6 and an armv7-neon variant; deploy picks by board",
+   "M4 kernels and render corpus measured on both variants under QEMU user and on the Pi rig, numbers in the task"
+  ],
+  "verdict": "done-moot",
+  "evidence": "src/tc/tc.h cpuFlags per target; tests/t1/profile.sh; checks moved to ZN-414.01",
+  "reason": "Needs ARM and QEMU/Pi: cross pass line.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-415",
+  "title": "PERF-16 zinc run / zinc dev startup: faster passes and a ZBC cache",
+  "criteria": [
+   "hero zinc run to first frame <= 100 ms with a warm cache, <= 0.8 s cold (baseline 1.7 s)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "zinc -v phases hero 1.86 -> 0.81 s; remaining 142 ms is FFmpeg dlopen, ZN-614",
+  "reason": "Target set on an M1 baseline; the measured gain shipped and the rest has a task.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-417",
+  "title": "PERF-18 Borrowed (+0) parameters including this",
+  "criteria": [
+   "zinc mem retains on hero start -50%",
+   "ui-heavy demo script time -10% (AOT)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "src/ir/rc.cpp borrow inference (D51); tests/t0/rc_borrow.sh; retains -26%, paint -2%",
+  "reason": "Shipped; the -50% and -10% targets were estimates that the remaining sentinel stores (ZN-616 rejected) block.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-421",
+  "title": "PERF-22 Interpreter: typed field opcodes and cached globals",
+  "criteria": [
+   "bouncing-ball 200k interpreter script -25% (baseline 13.2 ms headless)",
+   "M4 interpreter kernels no regression; ZBC version check for older device cores"
+  ],
+  "verdict": "done-moot",
+  "evidence": "D53: closed without a change after measuring (-9% upper bound, safe version slower)",
+  "reason": "Rejected by measurement.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-422",
+  "title": "PERF-23 Replace the allocation registry by counters and a mimalloc heap",
+  "criteria": [
+   "no per-object registry",
+   "binarytrees and strings AOT and interpreter -5% or better, measured"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Machine live-object counters; AOT -4 to -6%, interpreter 0%; ZN_LEAK_CHECK",
+  "reason": "Registry kept for ESP32 core and zinc mem on purpose; measured upper bound 0% for the interpreter.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-452",
+  "title": "Console and legacy texture layouts (PSP, 3DS, Vita, iPhone 4S)",
+  "criteria": [
+   "per format, a decode of the output equals the emulator's or a reference decoder's (PPSSPP, Citra-family, Vita3K, PVRTC reference)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "rg_etc1 vendored, ETC1A4/CLUT4/CLUT8 encoders, PSP swizzle, round-trip tests",
+  "reason": "Checking against PPSSPP/Citra/Vita3K needs the emulators: handheld cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-485",
+  "title": "Spike: Zinc Next AOT and runtime on the PSP (32-bit MIPS, f32 numbers)",
+  "criteria": [
+   "fib and at least 10 conformance programs build as PSP executables and print the same output as the interpreter under the psp profile in PPSS",
+   "A table records binary size (text, data, bss) and peak heap for each program",
+   "Every source change needed in src/rt or runtime/ is either made with a T0 test or filed as a follow-up task (ZN-145 for 32-bit references)",
+   "The notes say whether the device core interpreter (src/dev) also builds for PSP, as a fallback"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Merged into ZN-480 (AOT builds for the handhelds) by the 2026-10-10 review",
+  "reason": "Filed twice.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-489",
+  "title": "Cooker v1 geometry: glTF to quantized, chunked, LOD meshes with baked vertex light",
+  "criteria": [
+   "A sample CC0 scene cooks for the four profiles; two cooks are byte-identical",
+   "Budgets per profile are enforced and a failure names the cell and section",
+   "Quantization error and triangle counts per LOD are in the receipt",
+   "No float positions are emitted for the psp profile (checked by a test)"
+  ],
+  "verdict": "reopen",
+  "evidence": "tests/t0/cook.sh checks only one glb on one profile (psp30), byte-identical; `zinc assets cook` in src/cli_core.cpp; no test of four profiles, budget failure naming the cell, receipt error figures, or no float positions for psp",
+  "reason": "Cooker works but three of four criteria have no test. Add a T0 test over the four profiles: byte-identical, over-budget failure names cell and section, receipt carries quantization error and LOD counts, psp output has no float positions.",
+  "marks": {
+   "value": 2,
+   "novelty": 2,
+   "unblocks": 1,
+   "confidence": 5,
+   "effort": 5,
+   "risk": 5
+  },
+  "lane": "mac",
+  "size": "S"
+ },
+ {
+  "id": "ZN-490",
+  "title": "Pack viewer on desktop: reference renderer for cooked packs",
+  "criteria": [
+   "zinc run tools/packview <pack> displays each of the four profiles of the sample scene",
+   "Captures at three route marks reach SSIM >= 0.9 against the three.js source render",
+   "A T1 test renders one pack headless and checks a golden"
+  ],
+  "verdict": "done-moot",
+  "evidence": "`zinc assets view <file.zcook>` prints profile/vertices/triangles (src/cli_core.cpp:3909); no desktop renderer for packs",
+  "reason": "Viewer and SSIM against three.js only matter once a handheld 3D demo uses packs; handhelds are the end of the cross pass. Reopen from that demo, not now.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-517",
+  "title": "zinc:gpio on Linux: GPIO v2 chardev, named lines, CHIP board table",
+  "criteria": [
+   "a T1/T2 test drives gpio-sim lines named XIO-P0 and CSID0 in the CHIP-03 guest: output, input, both edges, debounce",
+   "the pcf857x path is exercised against QEMU's pcf8574 model",
+   "the existing simulator and ZINC_GPIO_SCRIPT keep working on macOS",
+   "on hardware: XIO-P0 drives an LED and an edge on CSID0 reaches the callback"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Merged into ZN-549 (GPIO chardev v2); only the CHIP line table and sysfs fallback stay",
+  "reason": "Filed twice; CHIP is a board target.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-527",
+  "title": "Gamepads and USB HID on the CHIP",
+  "criteria": [
+   "an Xbox-compatible and an 8BitDo pad drive bouncing-ball and the game-2d template",
+   "hot plug works without restarting the program",
+   "uinput-injected gamepad events pass a test in the CHIP-03 guest"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Merged into ZN-552 (evdev hub and gamepads)",
+  "reason": "Filed twice.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-562",
+  "title": "zinc:gl: WebGL and GLES for compiled Zinc code, without QuickJS",
+  "criteria": [
+   "A Zinc TS program compiled with zinc build draws a textured, lit cube through zinc:gl on macOS (GL 3.3 core / GLES3) and on GLES2 under the "
+  ],
+  "verdict": "done-ok",
+  "evidence": "ZN-562.01 zinc:gl core and examples/gl-cube; .02 whole WebGL API via tools/gen-zinc-gl; .04 GLES2 on the Pi is the cross pass",
+  "reason": "Done through its parts; macOS part proven.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-589",
+  "title": "PERF-04.01 Shadows under 4 us: mirrored corner columns, spans once per shape",
+  "criteria": [
+   "SHADOW <= 4 us per command on b2-rounded (per-kind harness), unloaded machine"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-589.01 re-measures on arm64; Intel measure 9.3 -> 8.5 us",
+  "reason": "The 4 us target came from an M1; carried by ZN-589.01.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-590",
+  "title": "GPU-native strokes and fills in display-gl (no CPU tessellation)",
+  "criteria": [
+   "GLES2 (Pi 3, D29 prelude) and desktop GL paths; the software path and its goldens unchanged"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-590.01/.02 shipped; GLES2 path checked in ZN-590.03 (cross pass)",
+  "reason": "Pi GLES2 is the cross pass.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592",
+  "title": "Launch cost of the zinc binary: 11 ms before any command",
+  "criteria": [
+   "zinc --version and zinc run of a console.log(1) program start in <= 4 ms on macOS arm64 (median of 20)",
+   "jsonout interpreter >= QuickJS speed in tools/bench-m4 (carried from ZN-408)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "ZN-592.01 window host as module; tests/t1/launch_time.sh budget",
+  "reason": "The 4 ms target is structural on this machine (dyld binds); measured in .03 and .05.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592.01",
+  "title": "Load the window host on demand: commands that do not draw skip SDL3 and the GUI frameworks",
+  "criteria": [
+   "jsonout interpreter not slower than QuickJS in tools/bench-m4"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Measured jsonout 10.6 vs qjs 6.9 ms; ZN-648 judges short kernels on their work",
+  "reason": "The comparison measures launches, not the interpreter.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592.03",
+  "title": "jsonout interpreted not slower than QuickJS: zinc''s last 3.5 ms of launch",
+  "criteria": [
+   "zinc --version within 2 ms of an empty program linked with libc++ on the Intel Mac (best of 40)",
+   "jsonout interpreter not slower than QuickJS in tools/bench-m4 (and interleaved best-of runs)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Measured: remaining 3.5 ms is dyld binds of libSystem imports",
+  "reason": "Structural; follow-up .05 also concluded it would not reach the target.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592.05",
+  "title": "Toolchain as a module: zinc run of a cached program imports what the VM needs only",
+  "criteria": [
+   "zinc run of a cached console program within 2 ms of qjs on an empty file (best of 40, interleaved)",
+   "jsonout interpreter not slower than QuickJS in tools/bench-m4",
+   "zinc check, build and the plugins work as before (aot, native_plugins, launch_time)"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Measured a run-only binary would save 0.3-0.5 ms of 3.3 ms; compiled jsonout equals qjs (6.7 vs 6.9 ms)",
+  "reason": "Not worth the split of main.cpp; ZN-648 changes the threshold.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592.06",
+  "title": "Compiled programs that do not draw link no window host",
+  "criteria": [
+   "a compiled console program with a timer links libSystem and libc++ only and starts within 2 ms of an empty program (Intel Mac, best of 40)"
+  ],
+  "verdict": "done-ok",
+  "evidence": "tests/t1/launch_time.sh builds a console program that links libSystem and libc++ only (budget 3 ms): PASS; D68",
+  "reason": "Delivered; the 2 ms figure became the 3 ms budget of the test.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-592.07",
+  "title": "Compiled programs link only the host rows they call",
+  "criteria": [
+   "a compiled console program with a timer starts within 1 ms of an empty program on the Intel Mac (best of 40)",
+   "aot, host_direct, native_plugins and the network tests pass"
+  ],
+  "verdict": "done-moot",
+  "evidence": "Closed 2026-10-10 without the change after measuring: libuv and runtime need most imports",
+  "reason": "Measured not worth it.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-600",
+  "title": "Inline caches for named property access in the QuickJS interpreter (patch, upstream proposal)",
+  "criteria": [
+   ">= 15% on two of the four workloads of the report on the M1 Pro, no workload slower",
+   "web-tooling benchmark (quickjs-ng's fork) not slower than 0.97x on any test thanks to the warm-up"
+  ],
+  "verdict": "done-moot",
+  "evidence": "D56: measured, not adopted; patch kept in docs/reports/zinc-next-qjs-ic.patch; ZN-600.01 re-measures on arm64",
+  "reason": "Decision made; nothing adopted so AC2 does not apply.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-603",
+  "title": "AOT program diet: hero 21.8 MB binary, 105 s build, 33.5 MB of C++",
+  "criteria": [
+   "hero AOT binary <= 8 MB and zinc build of hero <= 30 s (macOS arm64, -j3)",
+   "generated C++ of hero <= 10 MB"
+  ],
+  "verdict": "reopen",
+  "evidence": "docs/reports/zinc-next-perf.md: hero AOT 21.8 -> 16.0 MB, build 105 -> 48 s; criteria say 8 MB and 30 s; no follow-up task exists (grep backlog)",
+  "reason": "The notes promise a follow-up for the remaining 8 MB of baked fonts, 4.3 MB of code and 5 MB of runtime, but none was filed. Hero is the showcase demo: measure the current size, move baked fonts to assets (or compress), and decide whether 30 s build is still a goal.",
+  "marks": {
+   "value": 3,
+   "novelty": 2,
+   "unblocks": 1,
+   "confidence": 3,
+   "effort": 3,
+   "risk": 3
+  },
+  "lane": "mac",
+  "size": "M"
+ },
+ {
+  "id": "ZN-616",
+  "title": "Immortal constant objects: no retain when a shared default is stored into a field",
+  "criteria": [
+   "hero start (zinc mem, 1 frame): retains at least 20% below ZN-417's 56,398",
+   "rc (leaks over the corpus, destruction order) and rc_borrow pass; the ASan corpus is clean",
+   "decision recorded: which globals are immortal and when"
+  ],
+  "verdict": "done-moot",
+  "evidence": "D52: closed without a change after measuring (about 40 us of a 200 ms start)",
+  "reason": "Rejected by measurement.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ },
+ {
+  "id": "ZN-645",
+  "title": "The macOS .app of zinc export carries its assets",
+  "criteria": [
+   "a built webview app serves a zinc:// asset from the same directory"
+  ],
+  "verdict": "done-ok",
+  "evidence": "src/tc/bundle.cpp writeBundle copies assets; runtime/include/zrt_assets_dir.h; tests/t1/aot_assets.sh; webview link gap fixed by ZN-655 (Done)",
+  "reason": "AC3 was carried by ZN-655 which is Done.",
+  "marks": null,
+  "lane": "",
+  "size": ""
+ }
+]

@@ -6,11 +6,13 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-528
   - ZN-203
-ordinal: 285000
+ordinal: 97300
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ QuickJS + libzn_webgl on a GLES2 lima context: WebGL1 conformance run on the boa
 - [ ] #2 a three.js r162 cube and a small Lambert scene render at 30 fps or more at 480x272
 - [ ] #3 start-up of the three.js example is measured and under 10 s
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. WebGL1 and three r162 on lima: needs the CHIP; the r162 work is carried by ZN-540.
+<!-- SECTION:NOTES:END -->

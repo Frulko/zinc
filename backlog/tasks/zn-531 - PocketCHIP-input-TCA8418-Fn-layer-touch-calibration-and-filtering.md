@@ -6,10 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-522
-ordinal: 278000
+ordinal: 96500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,3 +27,9 @@ In the display plugins' evdev code: a PocketCHIP keymap with the Fn layer (brack
 - [ ] #3 touch filtering removes jitter on a held stylus (recorded event traces replayed in a test)
 - [ ] #4 the keymap and filter are covered by tests with injected events
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. PocketCHIP input (TCA8418, touch calibration): needs the PocketCHIP; touch calibration of a device exists for the ESP32 only.
+<!-- SECTION:NOTES:END -->

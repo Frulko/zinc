@@ -10,10 +10,12 @@ labels:
   - simulator
   - arduino
   - size-L
+  - parked
 milestone: m-18
 dependencies:
   - ZN-304
-ordinal: 180000
+ordinal: 90100
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-14). Wokwi-styl
 <!-- AC:BEGIN -->
 - [ ] #1 1) a sketch loads `/app.zbc` from LittleFS and calls `onSample` with a typed result. 2) the Zinc task and `loop()` run 60 s together without watchdog reset (QEMU or sim). 3) a native module with a signature mismatch is refused, not a crash.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Zinc.h interpreter library: depends on ZN-304 and on a use case the mquickjs+Arduino firmware already serves; far from the goal for now.
+<!-- SECTION:NOTES:END -->

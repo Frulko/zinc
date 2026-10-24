@@ -1,8 +1,6 @@
 ---
 id: ZN-537
-title: >-
-  DRM atomic planes in display-gl: HVS-scaled 3D plane, UI overlay plane,
-  dynamic render scale
+title: 'display-gl: atomic planes shared with display-fbdev, render scale'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:45'
@@ -13,12 +11,15 @@ labels:
 milestone: m-25
 dependencies:
   - ZN-536
-ordinal: 151000
+ordinal: 52500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-10-25:** Reuse the fbdev kms:: code in display-gl: atomic commit, scaled primary plane, ARGB overlay plane for the UI, render-scale option, TEST_ONLY fallback. Keep the Pi 3B+ criteria.
+
 Move plugins/display-gl/src/kms.cpp to atomic commits. The primary plane takes a source rectangle smaller than the CRTC (HVS upscale), set by a render-scale option in zinc.json or an environment variable; dynamic resolution changes SRC_W/H while rendering into a viewport of a fixed buffer. The UI goes on an ARGB8888 overlay plane written by the software rasterizer on damage. Every new configuration is checked with DRM_MODE_ATOMIC_TEST_ONLY and falls back to today's GL composite. (From docs/reports/hardware/raspberry-pi-threejs-and-sdk.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -30,3 +31,9 @@ Move plugins/display-gl/src/kms.cpp to atomic commits. The primary plane takes a
 - [ ] #4 fallback verified by forcing a TEST_ONLY failure
 - [ ] #5 every run under timeout -s KILL with the GPU reset counter unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: rewrite. Atomic planes exist in display-fbdev (fbdev.cpp:298-477, ZN-735 flip + hardware layers) but display-gl/kms.cpp only uses legacy calls plus the cursor plane. Rewrite: move the plane code into a shared KMS helper and give display-gl the HVS-scaled 3D plane, UI overlay plane and render scale. Evidence: plugins/display-fbdev/fbdev.cpp:298; plugins/display-gl/src/kms.cpp:84
+<!-- SECTION:NOTES:END -->

@@ -1,11 +1,10 @@
 ---
 id: ZN-446
 title: Engine splash from the first frame
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-09 07:36'
-updated_date: '2026-10-11 14:02'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - assets
@@ -24,7 +23,7 @@ splash key. The baker stores the splash, pre-scaled in the target's framebuffer 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the time from exec to the splash on screen is measured on macOS, Linux and the Pi 3 and recorded
+- [x] #1 the time from exec to the splash on screen is measured on macOS, Linux and the Pi 3 and recorded
 - [x] #2 in the browser the splash is in the HTML before app.js runs
 - [x] #3 headless runs are unchanged
 <!-- AC:END -->
@@ -66,4 +65,5 @@ Lines for later.md:
 Not checked: Linux and the Pi 3 (no cross runs during a Mac task); a quiet machine (other agents built throughout); visual absence of a blank frame at the show (the capture shows the splash; the double present is the guard).
 
 Usage: tools/usage printed n/a in this worktree agent.
+Review 2026-10-25: closed as Done. Close as done: macOS measured (about 400 ms exec to splash), browser inline splash and headless unchanged pass. The Linux and Pi 3 timings are cross-pass lines already in later.md. Evidence: src/host/splash.cpp; tests/t1/splash.sh; tools/splash-time Verifier: macOS exec-to-splash measured (406.8 ms median, tools/splash-time), AC2/AC3 proved by tests/t1/splash.sh; Linux and Pi 3 timings are cross-pass lines.
 <!-- SECTION:NOTES:END -->

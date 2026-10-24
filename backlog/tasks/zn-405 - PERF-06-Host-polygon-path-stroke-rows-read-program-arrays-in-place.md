@@ -4,7 +4,7 @@ title: PERF-06 Host polygon/path/stroke rows read program arrays in place
 status: Done
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-09 09:02'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-S
@@ -34,4 +34,5 @@ polygon/path/stroke take (const double*, n): the host rows pass the program's f6
 Measured navigation AOT paint p50 (headless, 300 frames, alternated, machine loaded): 3.61-3.66 -> 3.49-3.58 ms, about -3%: the rest of the audit's 10% was program-side array building (ArrPush/release, ZN-413) and stroke trigonometry (stroke_contours + sincosf ~14% of samples), which is ZN-406; AC2 (-8%) is carried there.
 Tests: tests/run --changed 48/48, proto-capture canary 4/4, framehash, canvas.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. The -8% target was the audit estimate; the rest is program-side array building (ZN-413).
 <!-- SECTION:NOTES:END -->

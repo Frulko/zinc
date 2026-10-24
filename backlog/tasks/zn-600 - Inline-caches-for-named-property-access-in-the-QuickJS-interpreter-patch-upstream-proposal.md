@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-09 09:28'
-updated_date: '2026-10-10 11:04'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - quickjs
@@ -40,4 +40,5 @@ AC1 NOT met (Intel Mac, 3 alternated runs, 89-99.9% hits): three.js 0.98-1.00x, 
 AC2 not run: the web-tooling gate only guards an adopted cache against run-once code; nothing is adopted.
 AC3: test262 regexp 2533/2557 (same failures) and tests/t1/quickjs.sh pass with the caches on; memory 1.6-5 KB per warmed function (three.js 114 KB / 61 functions, matter-js 370 KB / 74); the patch header records upstream's history (removed 2025 at 1.037x, monomorphic read cache closed 2026 flat) and why it is not proposed.
 usage: n/a
+Review 2026-10-25: the open criteria are moot. Decision made; nothing adopted so AC2 does not apply.
 <!-- SECTION:NOTES:END -->

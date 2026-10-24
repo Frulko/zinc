@@ -10,6 +10,7 @@ milestone: m-24
 dependencies:
   - ZN-522
 ordinal: 276000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -29,4 +30,5 @@ Map evdev gamepads (BTN_SOUTH/EAST/..., ABS_HAT0X/Y, sticks) to zinc:gfx buttons
 
 <!-- SECTION:NOTES:BEGIN -->
 Merged into ZN-552 by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: Gamepads over evdev on the CHIP: the evdev hub and gamepad mapping of ZN-552, filed twice.
+Review 2026-10-25: the open criteria are moot. Filed twice.
 <!-- SECTION:NOTES:END -->

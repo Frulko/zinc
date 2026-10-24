@@ -14,7 +14,8 @@ milestone: m-25
 dependencies:
   - ZN-539
   - ZN-540
-ordinal: 157000
+ordinal: 11000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -30,3 +31,9 @@ A helper module for real three.js on T2: downgrade Standard and Physical materia
 - [ ] #3 a KTX2 ETC1S file decodes to ETC1 natively; transcoder vendored with licence and pin
 - [ ] #4 the helpers are no-ops on T3/T4, so the same code runs on macOS
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: split into subtasks (Material downgrade and static mesh merge for T2; Split geometries over 65535 vertices and warm-up; KTX2 ETC1S to ETC1 with a vendored transcoder). Four unrelated helpers in one task: material downgrade/merge, 16-bit geometry split, warm-up, KTX2 to ETC1 transcoder (vendor basis_universal).
+<!-- SECTION:NOTES:END -->

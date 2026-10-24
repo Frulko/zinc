@@ -12,7 +12,8 @@ labels:
 milestone: m-26
 dependencies:
   - ZN-627
-ordinal: 316000
+ordinal: 95500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +27,9 @@ Measure the app size per ABI (hello, rn-showcase) and frame times on one mid-ran
 - [ ] #1 numbers in `docs/reports/zinc-next-perf.md`
 - [ ] #2 a size budget set in the packaging report
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Needs a mid-range Android phone and an iPhone; already parked and labelled.
+<!-- SECTION:NOTES:END -->

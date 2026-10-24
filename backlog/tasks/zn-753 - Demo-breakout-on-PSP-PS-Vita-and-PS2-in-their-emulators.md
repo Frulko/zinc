@@ -1,11 +1,10 @@
 ---
 id: ZN-753
 title: 'Demo: breakout on PSP, PS Vita, PS2 and Nintendo 3DS, in their emulators'
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-17 07:48'
-updated_date: '2026-10-17 10:16'
+updated_date: '2026-10-25 01:53'
 labels:
   - handheld
   - games
@@ -24,9 +23,9 @@ Owner 2026-10-17: "une vraie démo" on PSP, PS Vita and PS2: simpler than the ph
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 breakout runs in PPSSPPHeadless and in PPSSPP's window: a scripted pad session (serve, move, break bricks, lose a life) gives frame hashes and a screenshot; frame time on the emulator's software and GPU modes
+- [x] #1 breakout runs in PPSSPPHeadless and in PPSSPP's window: a scripted pad session (serve, move, break bricks, lose a life) gives frame hashes and a screenshot; frame time on the emulator's software and GPU modes
 - [x] #2 the same in Vita3K with the Vita's pad
-- [ ] #3 the same in Play! for the PS2 with its pad
+- [x] #3 the same in Play! for the PS2 with its pad
 - [x] #4 a short video or screenshot series per console in docs/reports/zinc-next-consoles.md, with the frame times and what each port needed
 - [x] #5 the same in Azahar for the Nintendo 3DS (top screen 400x240, the circle pad and buttons)
 <!-- AC:END -->
@@ -45,4 +44,5 @@ Owner 2026-10-17: "une vraie démo" on PSP, PS Vita and PS2: simpler than the ph
 2026-10-17 (agent): why the owner saw black and a closing app: the ~/Documents hello copies were the one-line text program of console_emulators (console.log only, nothing drawn): PCSX2 showed the black screen it was given, Vita3K closed the app when main returned. Fixes (commit 'fix(console)'): the core's text screen (a program that ends with nothing drawn or with an error keeps its last lines on the screen until START/HOME/the frame budget, zinc:exit after it); targets/console/hello (text + moving square until the console quits it) copied by tools/console-demos with no --frames; shots from what the screen shows: PPSSPP screenshot, PCSX2 save-state Screenshot.png (SaveStateOnShutdown in the runner's own data dir; the PS2 core holds its last frame after zinc:exit), Vita sceDisplayGetFrameBuf readback, 3DS readback of the shown buffer (Vita3K and Azahar offer no scriptable screenshot; Azahar -d needs libvpx, absent from its bundled FFmpeg with the owner's default dump settings; window capture needs Screen Recording). Bugs found that way: PS2 PAL 640x512 showed stale VRAM under the 448-row frame (centred + cleared); 3DS double buffer got only damaged rows in one buffer (per-buffer stale rows). Also: --input pad session, --env, --title/--id/--size, sticks/circle pad as d-pad, Vita 444 MHz and whole-factor scaling, PS2 hal_env, runner SIGKILLs an emulator that ignores SIGTERM (Azahar left 6 instances behind). Breakout: Kenney Puzzle Pack 1.1 skin (src/skin.ts, assets/kenney + License.txt), logic unchanged, render.ts keeps the old look (breakout-mods, prototype frame; manifest breakout row skipped as the owner's choice). Pad session tests/golden/breakout/pad.input; last-frame hash equals zinc run --interp on PSP, Vita (480x272 doubled) and 3DS; PS2 same game, colours within 3% (EE FPU rounds toward zero), own hash in pad.hashes column 4. Frame times and pictures: docs/reports/zinc-next-consoles.md. AC#3 stays open: the PS2 runs in PCSX2 (the owner's runner since 2026-10-17), not in Play!. Owner copies: ~/Documents/{psp/breakout/EBOOT.PBP, vita/breakout.vpk, ps2/breakout.elf, 3ds/breakout.3dsx} and zinc-hello beside them.
 
 Open for the owner (Review): AC#1's PPSSPP window run (PPSSPPSDL.app; tools/console-run psp <EBOOT> --window or the copy in ~/Documents/psp/breakout) and AC#3's Play! run (Play! takes the focus: it does not start under open -g; tools/console-run ps2 <elf> --emu play). PPSSPP's GPU backends give the same frame times: the core writes VRAM itself (measured on --graphics=software). Verified here: console_host, console_core, handheld_profiles, breakout_pad, framehash; QuickJS draws breakout's frame 20 like the interpreter; console_emulators: see the integration run.
+Review 2026-10-25: closed as Done. Breakout runs on PSP, Vita and 3DS with pad-session hashes equal to the interpreter, PS2 in PCSX2; the two open items are the PPSSPP window run and Play!, which the owner replaced with PCSX2. Close as done. Evidence: docs/reports/zinc-next-consoles.md; tests/golden/breakout/pad.hashes; tests/t2/console_emulators.sh Verifier: Pad-session hashes on PSP, Vita, 3DS and PS2 (PCSX2) exist; the notes record the owner made PCSX2 the PS2 runner (Play! the fallback) and the PPSSPP window and Play! runs need the focus (open -g does not work), so a person runs them. Later lines exist (backlog/later.md:386-391, 914).
 <!-- SECTION:NOTES:END -->

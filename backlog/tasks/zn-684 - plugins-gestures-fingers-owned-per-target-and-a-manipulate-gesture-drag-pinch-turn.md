@@ -11,7 +11,8 @@ labels:
   - ui
   - size-S
 dependencies: []
-ordinal: 440410
+ordinal: 4900
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

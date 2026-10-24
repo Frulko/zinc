@@ -1,0 +1,398 @@
+[
+ {
+  "shard": "shard-B",
+  "id": "ZN-308",
+  "title": "Sim: Arduino host core shim over `hw.h` `sim` backend, run unmodified sketches and 20 popular libraries",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "tools/esp32sim/README.md; commit 209fc865",
+  "reason": "Run unmodified Arduino sketches and 20 libraries on a host shim: esp32sim runs the real firmware, Arduino sketches included (commit 209fc865, tools/esp32sim), so a second host core shim is a large duplicate effort."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-309",
+  "title": "Sim: Spike report SIM-S1..S5: RAM with Arduino-ESP32 and WiFi, QEMU remote latency, replay determinism, diagram corpus",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Spike report SIM-S1..S5: the spikes are overtaken by what shipped (esp32sim, src/sim, Arduino core in mquickjs); decisions can be written where they are taken."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-310",
+  "title": "Sim: Interpreter size diet: libunicode behind a flag, rtcalls `-Os`, size gates per target in CI",
+  "verdict": "merge",
+  "into": "ZN-164",
+  "evidence": "",
+  "reason": "Interpreter size diet and size gates per target are the same work as ZN-164 (size gates for Pi 1 and ESP32); carry the xtensa 270 KB and 5%-regression script over."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-312",
+  "title": "Conformance parity gaps found by zinc test",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "",
+  "reason": "Closing as done: macos and esp32 have no FAIL; ps1 has two documented failures (diagnostic format, 1.999 vs 1.998), which are the AC exception."
+ },
+ {
+  "shard": "shard-F",
+  "id": "ZN-320.03",
+  "title": "Installer: appimage",
+  "verdict": "merge",
+  "into": "ZN-393",
+  "evidence": "",
+  "reason": "Parked by D39; the only open step is running the AppImage in a Linux container, which is exactly ZN-393."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-321",
+  "title": "Code signing and notarization",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "tests/t1/codesign.sh; src/tc/bundle.cpp; .github/workflows/zinc-next.yml:194 (sign and notarize job); docs/guide/07-distribution.md:80-90",
+  "reason": "Close as done: everything up to Apple is built and tested, the release job signs and notarizes when the secrets exist, zinc verify exists. `spctl --assess` passes only for a notarized Developer ID app: the owner runs the printed commands once."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-331",
+  "title": "CI: configure on every host again (.gitignore hides SDL3's build_config)",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "gh run list: zinc-next success 2026-10-24 (runs 40136383299, 40132214109); tests/t0/build_inputs_tracked.sh",
+  "reason": "Close as done: CI configures and builds on every host and passes on tags (v0.7.6 released); AC2 is satisfied by the green runs. The text says `-S next`, stale since the move to the root."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-341",
+  "title": "Independent rebuilders: community binaries accepted only when rebuilds match",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "No community plugin ecosystem exists to rebuild; reproducible builds (ZN-333 Done, docs/reports/zinc-next-reproducible.md) already give anyone the means to check. A multi-party policy for nobody. Revive when community binaries exist."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-348",
+  "title": "A minimal zinc per architecture; WebGL, SDL3 and other optional parts fetched as plugins",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "libzn_webgl and libzn_window already split out (ZN-330 Done); engine packs fetched from the index (CHANGELOG: wasm pack, V8 pack)",
+  "reason": "Superseded: the owner-level decision of ZN-718 keeps the engine and its official plugins in one archive so a school works offline; the optional parts already ship as separate modules inside it and the big optional engines (V8, wasm) are fetched as packs. A smaller zinc per architecture is a size optimisation with no user asking."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-354",
+  "title": "Plugin starter: a repository a community author clones to publish a plugin",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "templates/plugin/; tests/t1/plugin_starter.sh (5.7 s); .github/workflows/plugin.yml; gh repo view zinc-engine/plugin-starter: not found",
+  "reason": "Close as done: everything runs on the Mac; AC2 needs a real GitHub run. The workflow and docs refer to zinc-engine/zinc and zinc-engine/plugin-starter, which do not exist (origin is Frulko/zinc): fix the names, push and run once in the owner step already written in the task notes."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-361.01",
+  "title": "Paint rotate, skew and uneven scales of the RN transform array",
+  "verdict": "merge",
+  "into": "ZN-263.02",
+  "evidence": "criterion 1 done (notes); ui.ts:265-287",
+  "reason": "The same remaining work (goldens of rotate/skew/scale on SW and GL); ZN-263.02 already says it supersedes this."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-371.06",
+  "title": ">-",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/aot/aot.cpp #line directives; tests/t1/debug_lldb.sh",
+  "reason": "Implemented; the one open step needs the owner to run sudo DevToolsSecurity -enable. The test runs the full session by itself when that is on. Close as Done."
+ },
+ {
+  "shard": "shard-E",
+  "id": "ZN-373",
+  "title": ">-",
+  "verdict": "done",
+  "into": "",
+  "evidence": "subtasks 373.01-.05 Done: app/inspector, tests/t1/inspector.sh, tests/t1/agent_inspect.sh",
+  "reason": "Everything except Linux/Pi lives in done subtasks; ZN-373.06 holds the rest."
+ },
+ {
+  "shard": "shard-C",
+  "id": "ZN-414.01",
+  "title": "PERF-15.01 Cross-platform check of the ARM CPU variants: cross_cpu, QEMU user and Pi measures",
+  "verdict": "merge",
+  "into": "ZN-133",
+  "evidence": "",
+  "reason": "Needs qemu-user and a Pi: the same Linux runner as ZN-133. Fold tests/t2/cross_cpu.sh and the M4/render measures into that task."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-439",
+  "title": "Texture importer tex-basis and compressed uploads",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/assets/texture.cpp; tests/t1/texture.sh; docs/reports/zinc-next-assets.md",
+  "reason": "Close as done: basisu pinned, KTX2/ZIM1 block formats, GL upload and WebGL extensions work on the Mac; the Pi 3 (vc4) ETC1 run is a cross-pass line already written in the notes. Task holds an @parallel marker from a finished worktree."
+ },
+ {
+  "shard": "shard-D",
+  "id": "ZN-446",
+  "title": "Engine splash from the first frame",
+  "verdict": "review-close",
+  "into": "",
+  "evidence": "src/host/splash.cpp; tests/t1/splash.sh; tools/splash-time",
+  "reason": "Close as done: macOS measured (about 400 ms exec to splash), browser inline splash and headless unchanged pass. The Linux and Pi 3 timings are cross-pass lines already in later.md."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-459",
+  "title": "Vita: hello in Vita3K",
+  "verdict": "merge",
+  "into": "ZN-458",
+  "evidence": "targets/vita/hal_vita.cpp; tests/t2/console_emulators.sh; commit c973e863",
+  "reason": "Vita hello runs in Vita3K and on the owner's Vita (hardware demo); the rest is the same export/run path as ZN-458."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-460",
+  "title": "3DS: hello in Azahar",
+  "verdict": "merge",
+  "into": "ZN-458",
+  "evidence": "targets/n3ds/hal_n3ds.cpp; commit 18e75749, 358c008b",
+  "reason": "3DS hello runs in Azahar and on hardware (hardware demo, Homebrew Launcher naming); the rest is the same export/run path as ZN-458."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-463",
+  "title": "PSP: bouncing-ball with the software raster and a GE copy",
+  "verdict": "merge",
+  "into": "ZN-486",
+  "evidence": "targets/psp/gu_psp.cpp; commit 27202ba5; backlog/later.md:680",
+  "reason": "Software raster on PSP runs bouncing-ball (breakout/bouncing-ball in PPSSPP, GE replay since 27202ba5); only the recorded ball count and gate are left, shared with 464/465."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-464",
+  "title": "Vita: bouncing-ball with 3-core band raster",
+  "verdict": "merge",
+  "into": "ZN-486",
+  "evidence": "docs/reports/zinc-next-consoles.md:52",
+  "reason": "Same remaining work (ball count at 60 fps and a gate) as ZN-463 for the Vita; Vita hardware already measured on Meadow Run (60 fps, none missed)."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-465",
+  "title": "3DS: bouncing-ball on the top screen",
+  "verdict": "merge",
+  "into": "ZN-486",
+  "evidence": "targets/n3ds/c3d_n3ds.cpp; commit 3bbcb4b2",
+  "reason": "3DS bouncing-ball runs in Azahar (600 balls pixel-identical on the PICA); only the recorded ball count and gate remain."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-469",
+  "title": "3DS: PICA200 backend for the fixed-function replay",
+  "verdict": "done",
+  "into": "",
+  "evidence": "targets/n3ds/c3d_n3ds.cpp; targets/n3ds/ff.v.pica; commits 3bbcb4b2, d57004a0; backlog/later.md:681",
+  "reason": "citro3d replay done: top screen, both eyes and the bottom screen on the GPU, TEV, tiled textures; Azahar proofs pixel-identical; choice of own batches over citro2d recorded. The hardware ball count is already a later.md line."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-470",
+  "title": "Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)",
+  "verdict": "done",
+  "into": "",
+  "evidence": "targets/vita/gxm_vita.cpp; targets/vita/gl_vita.cpp; third_party/vitagl; docs/reports/zinc-next-decisions.md D151, D165; commits d962083a, 8f1a4756, f02510df",
+  "reason": "GPU path chosen (D151 GXM + SDL GXP as 2D default; D165 vitaGL for GL) and proved on the owner's Vita: Meadow Run 60 fps on GXM, examples/ui/gl-check 60 fps on vitaGL, redistribution checked."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-473",
+  "title": "Vita: touch, IME and the UI demo",
+  "verdict": "merge",
+  "into": "ZN-472",
+  "evidence": "examples/hardware-vita; commit c973e863",
+  "reason": "Vita touch/back touch exist in the hardware demo; the IME part is the same task as ZN-472."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-474",
+  "title": "3DS: screens, touch, swkbd and the UI demo",
+  "verdict": "merge",
+  "into": "ZN-472",
+  "evidence": "examples/hardware-n3ds; commit d57004a0",
+  "reason": "3DS touch and bottom screen exist (hardware demo, bottom window on the GPU); swkbd is the same task as ZN-472."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-482",
+  "title": "zinc:audio backends for the handhelds",
+  "verdict": "done",
+  "into": "",
+  "evidence": "targets/psp/hal_psp.cpp:58; targets/vita/hal_vita.cpp:122; targets/n3ds/hal_n3ds.cpp:94; targets/console/audio_console.cpp; tests/t0/console_audio.sh; commits dcf35728, 18e75749, c973e863",
+  "reason": "Audio backends are in the console HALs: PSP sceAudio, Vita sceAudioOut, 3DS NDSP with CSND fallback, all through console_audio.h; the hardware demos play sound. The iOS part goes with the parked iOS 9 cluster."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-484",
+  "title": "CI job: handheld emulator matrix",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "tests/t2/console_emulators.sh skips under ZINC_CI; backlog/later.md:910",
+  "reason": "The owner decided CI runs only on a release and the console emulator tests skip on hosted runners (6c106b66); a Linux CI matrix is a later.md line already."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-494",
+  "title": "Demo: diorama on PS Vita at 60 fps with 4x MSAA",
+  "verdict": "merge",
+  "into": "ZN-492",
+  "evidence": "",
+  "reason": "Same diorama on the Vita; a profile change of the PSP demo."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-496",
+  "title": "Demo: diorama on Nintendo 3DS at 30 fps with a touch map on the lower screen",
+  "verdict": "merge",
+  "into": "ZN-492",
+  "evidence": "",
+  "reason": "Same diorama on the 3DS with a touch map."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-499",
+  "title": "PocketJS 2D demo parity on the four devices: Motion Lab, Talk, launcher, gallery",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Port of another project's showcase set (Motion Lab, Talk, Cover Flow, gallery) to four devices; no user need, the hardware demos of ZN-759 already show each console; iOS is parked."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-500",
+  "title": "BSP map pipeline: free maps, PVS, hull collision and vertex-baked light",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "BSP map pipeline: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-501",
+  "title": "Strike-class FPS demo on PSP at 60 fps",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Strike-class FPS on PSP: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-502",
+  "title": "Strike-class FPS on Vita, 3DS and iPhone 4S",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Strike-class FPS on Vita/3DS/iPhone 4S: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-503",
+  "title": "City pipeline: open city data to a city IR and per-target packs",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "City pipeline: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-504",
+  "title": "City demo on PSP at 30 fps: palette shadows, day/night palettes, sector ambient",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "City demo on PSP: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-505",
+  "title": "City demo on Vita, 3DS and iPhone 4S: height shadows, shade textures, dusk lights",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "City demo on Vita/3DS/iPhone 4S: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-506",
+  "title": "Town traversal demo at 60 fps: 5,400 houses, cells, LOD, collision, wire hooks",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Town traversal demo: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-507",
+  "title": "Crowd battlefield demo: 4,000 units from blended baked poses, far silhouettes",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Crowd battlefield demo: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-508",
+  "title": "Places demo: wet reflections, rain, haze, flipbook signs, point-sprite light fields",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Places demo: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-509",
+  "title": "Voxel diorama demo: tile map to voxel chunks with CLUT8 palette tricks",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Voxel diorama demo: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-510",
+  "title": "3DS rigid GPU skinning and 30 Hz simulation with interpolated presentation",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "3DS GPU skinning: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-A",
+  "id": "ZN-511",
+  "title": "Tile-pyramid viewer: streamed CLUT8 tiles at 60 fps on PSP and Vita",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "",
+  "reason": "Tile-pyramid viewer: a clone of a third-party game or tech demo taken from the Pocket3D research (docs/reports/hardware/pocketjs-pocket3d.md), each needing hardware receipts on several devices; no user among education, makers or artists asks for it. The 3D renderers (476, 477, 478, 491, 493, 495) and the diorama (492) prove the path; reopen from the report if a game needs it."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-516",
+  "title": "Deploy and dev loop over the USB gadget (ssh and device core)",
+  "verdict": "drop",
+  "into": "",
+  "evidence": "src/agent/dev.cpp; tests/t1/agent_deploy.sh; tests/t1/agent_dev.sh",
+  "reason": "Deploy and dev loop over the USB gadget: superseded by `zinc agent` / `zinc device` (pairing, deploy, dev --device, OTA; src/agent) which work on any Linux ARM machine over the network; a CHIP needs the agent running, not a second protocol."
+ },
+ {
+  "shard": "shard-B",
+  "id": "ZN-518",
+  "title": "Buses on the CHIP: I2C, SPI2 overlay, PWM0, UART",
+  "verdict": "merge",
+  "into": "ZN-550",
+  "evidence": "",
+  "reason": "CHIP buses: board defaults for hw.h are the same work as the zinc:i2c/spi modules; carry the CHIP bus table and the spi2 overlay doc over."
+ }
+]

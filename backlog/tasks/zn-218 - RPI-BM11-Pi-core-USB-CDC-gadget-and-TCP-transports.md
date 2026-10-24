@@ -10,7 +10,8 @@ labels:
   - parked
 milestone: m-11
 dependencies: []
-ordinal: 320000
+ordinal: 91900
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -23,3 +24,9 @@ Cable-only and network upload. See docs/reports/zinc-next-baremetal-pi.md sectio
 <!-- AC:BEGIN -->
 - [ ] #1 TCP upload works in QEMU via usb-net; the gadget is verified on hardware (the host sees a serial device)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Bare-metal Raspberry Pi core. The Pi OS image builder, device agent and fast-boot image shipped, and cover the Pi for makers; the bare-metal core only buys boot time and needs Circle (GPLv3 question), a rig and no Mac proof. Park the chain; first step is ZN-207. Evidence: docs/reports/zinc-next-baremetal-pi.md; no firmware/rpi; image/ (Pi OS image) shipped
+<!-- SECTION:NOTES:END -->

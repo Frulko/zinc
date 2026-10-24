@@ -1,11 +1,10 @@
 ---
 id: ZN-733
 title: A run app carries its own name and comes to the front (macOS first)
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-12 14:37'
-updated_date: '2026-10-12 14:59'
+updated_date: '2026-10-25 01:53'
 labels:
   - host
   - macos
@@ -50,4 +49,5 @@ Lines for backlog/later.md (cross-platform pass):
 - ZN-733: Windows: the taskbar and Task Manager name of a run app (the executable's name, or an AppUserModelID), and SetForegroundWindow's rules when started from a console
 - ZN-733: `zinc build` and packaged apps name their window "zinc" unless zinc.json sets window.title: give them the project's name at build time
 - ZN-733: old links stay in ~/.zinc/cache/run/names (one symlink per project name): clear them with the run cache
+Review 2026-10-25: closed as Done. Close as done: only the by-eye check remains. Evidence: targets/macos/hal_sdl.cpp window name and raise; criteria ticked; Linux/Windows checks are later lines Verifier: 3 of 3 criteria ticked; only the by-eye check remains.
 <!-- SECTION:NOTES:END -->

@@ -10,11 +10,13 @@ labels:
   - simulator
   - arduino
   - size-M
+  - parked
 milestone: m-18
 dependencies:
   - ZN-305
   - ZN-141
-ordinal: 185000
+ordinal: 95600
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +29,9 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-15). Wokwi-styl
 <!-- AC:BEGIN -->
 - [ ] #1 1) edit, save: the new `.zbc` runs on QEMU in under 3 s and survives a reset. 2) corrupted CRC is refused and the old program keeps running. 3) the sketch's own `Serial.print` output still reaches the monitor.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Hot load for the Arduino library: depends on ZN-305, parked with it.
+<!-- SECTION:NOTES:END -->

@@ -13,7 +13,8 @@ dependencies:
   - ZN-390
   - ZN-433
   - ZN-434
-ordinal: 72000
+ordinal: 15200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -30,3 +31,9 @@ On ZN-390's miniaudio: optional decoders (WAV and IMA ADPCM through dr_wav, QOA,
 - [ ] #4 the report gives bytes per codec
 - [ ] #5 decode CPU per codec measured on the Pi 3 is in the notes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: split into subtasks (Audio importer: QOA/ADPCM encode at pack time, per-codec bytes in report.json; Streaming music from a ZPK pack under 64 KB resident; Opus decode (libopus) as an optional codec, decode CPU on the Pi 3 (cross)). Decoders for WAV/FLAC/MP3/Vorbis shipped with zinc:audio (ZN-390). Missing: the audio importer (QOA, IMA ADPCM, Opus, loudness, resampling), streaming from packs with a small resident set, bytes-per-codec report. Too big as one task.
+<!-- SECTION:NOTES:END -->

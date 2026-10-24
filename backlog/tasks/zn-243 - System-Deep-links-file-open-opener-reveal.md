@@ -1,10 +1,10 @@
 ---
 id: ZN-243
 title: 'System: Deep links, file open, opener/reveal'
-status: Review
+status: Backlog
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 16:46'
+updated_date: '2026-10-25 01:53'
 labels:
   - system
   - desktop
@@ -14,7 +14,7 @@ milestone: m-16
 dependencies:
   - ZN-234
   - ZN-242
-ordinal: 369000
+ordinal: 8600
 ---
 
 ## Description
@@ -34,4 +34,5 @@ From docs/reports/system-integration.md (section 11, SYS-14). Read the report fi
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. deeplink.ts (current, onOpen, onOpenFile, register) and opener.ts (openUrl, openPath, reveal) over ops deep-link.*/opener.*; opener scope: scopes.opener.allow prefixes/globs checked in the host before the simulator or the system (denied error, [system] denied line); sim goldens tests/golden/system/opener (allowed https and mailto, refused file and http URLs, scripted open-url and open-file events). macOS: kAEGetURL handler on NSAppleEventManager (cold start: current() serves AppKit's queue up to 2 s when launched by launchd, warm: onOpen), open-file event, NSWorkspace openURL and activateFileViewerSelectingURLs; tests/t1/macos_deeplink.sh builds a bundle with urlSchemes under ~/.zinc/cache/macos/devapp and checks cold and warm delivery with a real open. Linux register(): .desktop with MimeType + xdg-mime default under XDG_DATA_HOME, URL from argv in current(): written but not run (no Linux here), AC2 open. application:openFiles: is not hooked into SDL's delegate yet.
+Review 2026-10-25: kept open. (review-close proposed, corrected by the verifier) AC1 is ticked but its open-file half is not wired: plugins/system/native/system.macos.mm:621 defines openFilesIMP, which is never installed (it is its only reference), and the task notes say 'application:openFiles: is not hooked into SDL's delegate yet'. That is Mac work. The Linux half alone would be cross-pass. Evidence: plugins/system deeplink.ts, opener.ts; tests/t1/macos_deeplink.sh; tests/golden/system/opener
 <!-- SECTION:NOTES:END -->

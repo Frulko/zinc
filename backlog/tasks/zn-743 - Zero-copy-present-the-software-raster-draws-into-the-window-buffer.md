@@ -2,10 +2,9 @@
 id: ZN-743
 title: 'Zero-copy present: the software raster draws into the window buffer'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-16 14:00'
-updated_date: '2026-10-16 14:59'
+updated_date: '2026-10-25 01:53'
 labels:
   - mobile
   - perf
@@ -13,12 +12,14 @@ labels:
 milestone: m-26
 dependencies:
   - ZN-622
-ordinal: 196400
+ordinal: 54800
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Close once hero is measured on the Nexus 7 (or drop AC3 hero half: hero does not export without libavformat). Already there: targets/macos/hal_sdl.cpp anw_present; docs/reports/zinc-next-android.md; task notes.
+
 Owner 2026-10-16: "on veut du zéro copie". On the Nexus 7 (rn-showcase, software raster through SDL_Renderer, ZN-622) the perf panel shows work p50 1.3-1.7 ms but present (pre) 22.6-23.1 ms and 23-44 fps; hal_sdl.cpp already uploads only the damaged rows (lines 932-973), so first split where those 23 ms go (SDL_UpdateTexture, SDL_RenderTexture, SDL_RenderPresent/eglSwapBuffers, vsync wait). Then remove the copy: on Android the raster renders the damaged rows straight into the window's own buffer (ANativeWindow from SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, ANativeWindow_setBuffersGeometry with an RGBX_8888 or RGB_565 format, ANativeWindow_lock with the dirty bounds so the system keeps the rest, ANativeWindow_unlockAndPost), with no texture and no GL context on that surface; SurfaceFlinger composes the buffer directly. This is the CPU half of zero copy; the GPU half is ZN-741 (the replay draws, no pixels on the CPU). Design seam (D119): each context provider offers either a GL context or a CPU buffer the raster writes into (fbdev and the KMS dumb buffer already are, ANativeWindow now, IOSurface/CALayer on macOS and iOS later). Pixel format, stride and the raster's channel order must match the buffer, not be converted.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -52,4 +53,5 @@ AC5, lines for backlog/later.md (Cross-platform pass / Performance), for the coo
 Also in this commit: hal_dispatch.cpp lets a window run take a ZINC_INPUT script (the scripted fling on a real display, used for AC3 and ZN-744).
 
 Handover: everything is in except the hero half of AC3, which needs hero to export (zinc:video without libavformat, ZN-628). Then build hero's APK (zinc export --target android, gradlew assembleDebug -Pzinc.abis=armeabi-v7a) and repeat the measures of these notes with ZINC_PRESENT=texture and with the default (am start with zinc.env ZINC_PERF_HUD=1 ZINC_PROFILE=1 ZINC_PRESENT_STATS=1 ZINC_TRACE=trace.json).
+Review 2026-10-25: done-partly. Present measured and zero-copy ANativeWindow path written and verified (0 stale pixels); only hero numbers remain, blocked by zinc:video on phones. Evidence: targets/macos/hal_sdl.cpp anw_present; docs/reports/zinc-next-android.md; task notes
 <!-- SECTION:NOTES:END -->

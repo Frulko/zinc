@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-10 08:18'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - size-M
@@ -14,7 +14,7 @@ milestone: m-21
 dependencies:
   - ZN-400
 priority: medium
-ordinal: 165000
+ordinal: 54900
 ---
 
 ## Description

@@ -9,7 +9,8 @@ labels:
   - editor
   - size-M
 dependencies: []
-ordinal: 470410
+ordinal: 16600
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description

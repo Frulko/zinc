@@ -4,7 +4,7 @@ title: 'Console and legacy texture layouts (PSP, 3DS, Vita, iPhone 4S)'
 status: Done
 assignee: []
 created_date: '2026-10-09 07:36'
-updated_date: '2026-10-17 17:25'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - assets
@@ -30,4 +30,5 @@ A tex-console plugin: PSP swizzle with CLUT4/CLUT8 through exoquant and DXT; 3DS
 
 <!-- SECTION:NOTES:BEGIN -->
 Done: rg_etc1 vendored, ETC1A4/CLUT4/CLUT8 encoders, PSP swizzle, picker unblocked, tests round-trip.
+Review 2026-10-25: the open criteria are moot. Checking against PPSSPP/Citra/Vita3K needs the emulators: handheld cross pass.
 <!-- SECTION:NOTES:END -->

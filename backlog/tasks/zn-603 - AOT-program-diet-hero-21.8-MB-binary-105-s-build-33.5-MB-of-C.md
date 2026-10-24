@@ -1,10 +1,10 @@
 ---
 id: ZN-603
 title: 'AOT program diet: hero 21.8 MB binary, 105 s build, 33.5 MB of C++'
-status: Done
+status: Backlog
 assignee: []
 created_date: '2026-10-09 09:48'
-updated_date: '2026-10-09 10:22'
+updated_date: '2026-10-25 01:53'
 labels:
   - perf
   - aot
@@ -35,4 +35,5 @@ Done: (1) the module the AOT program loads keeps its tables only (each function 
 hero after ZN-431 + ZN-603: generated C++ 33.5 -> 16.6 MB, zinc build 105 -> 48 s, binary 21.8 -> 16.0 MB. -Os instead of -O2 only gives 15.96 MB: the size is the shape of the code and the data. AC1 and AC3 not reached: the rest (8 MB of baked fonts, 4.3 MB of code, 5 MB of runtime) is the follow-up task.
 Tests: fib AOT golden refreshed, tests/run --changed 30/30, aot, canvas, ui, script, profile, layout_bridge, host_direct, run_compiled, reach_callbacks, export_wasm, macos_bundle, native_plugins, text_shaped, svg_lottie; interpreter = AOT frames on bouncing-ball, nuxt-ui, rn-showcase.
 usage: n/a
+Review 2026-10-25: reopened. The notes promise a follow-up for the remaining 8 MB of baked fonts, 4.3 MB of code and 5 MB of runtime, but none was filed. Hero is the showcase demo: measure the current size, move baked fonts to assets (or compress), and decide whether 30 s build is still a goal.
 <!-- SECTION:NOTES:END -->

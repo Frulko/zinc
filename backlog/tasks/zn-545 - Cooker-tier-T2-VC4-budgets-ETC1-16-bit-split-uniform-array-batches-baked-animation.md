@@ -10,13 +10,15 @@ labels:
   - rpi
   - 3d
   - size-L
+  - parked
 milestone: m-25
 dependencies:
   - ZN-489
   - ZN-452
   - ZN-439
   - ZN-544
-ordinal: 211000
+ordinal: 96600
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -31,3 +33,9 @@ Add a T2-VC4 profile to the cooker: per-board budgets (draws, triangles, texture
 - [ ] #2 over-budget input fails the cook with a message naming the budget
 - [ ] #3 the cooked diorama runs at >= 30 fps at 640x360 upscaled to 720p on the Pi 1 proxy
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. Cooker T2-VC4 profile: same dependency as ZN-544.
+<!-- SECTION:NOTES:END -->

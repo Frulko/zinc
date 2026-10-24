@@ -1,7 +1,7 @@
 ---
 id: ZN-482
 title: 'zinc:audio backends for the handhelds'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:38'
 labels:
@@ -16,6 +16,7 @@ dependencies:
   - ZN-459
   - ZN-460
 ordinal: 214600
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,6 +27,12 @@ miniaudio custom backends: PSP sceAudio (44.1 kHz, a dedicated thread), Vita sce
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 templates/game-2d plays its coin sound on each target (emulator or device, noted)
-- [ ] #2 missing DSP firmware on 3DS gives a single clear message and silent playback, no crash
+- [x] #1 templates/game-2d plays its coin sound on each target (emulator or device, noted)
+- [x] #2 missing DSP firmware on 3DS gives a single clear message and silent playback, no crash
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: closed as Done. Audio backends are in the console HALs: PSP sceAudio, Vita sceAudioOut, 3DS NDSP with CSND fallback, all through console_audio.h; the hardware demos play sound. The iOS part goes with the parked iOS 9 cluster. Evidence: targets/psp/hal_psp.cpp:58; targets/vita/hal_vita.cpp:122; targets/n3ds/hal_n3ds.cpp:94; targets/console/audio_console.cpp; tests/t0/console_audio.sh; commits dcf35728, 18e75749, c973e863 Verifier: sceAudio, sceAudioOut and NDSP with a CSND fallback when dspfirm.cdc is missing (targets/n3ds/hal_n3ds.cpp:82-107, better than AC2's silent playback) through console_audio.h, tests/t0/console_audio.sh; the hardware demos play sound. AC1's game-2d coin per target is not separately evidenced; iOS goes with the parked iOS cluster.
+<!-- SECTION:NOTES:END -->

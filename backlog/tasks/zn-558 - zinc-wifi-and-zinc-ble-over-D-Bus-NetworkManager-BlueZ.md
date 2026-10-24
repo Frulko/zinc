@@ -11,7 +11,8 @@ labels:
 milestone: m-25
 dependencies:
   - ZN-535
-ordinal: 156000
+ordinal: 52400
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ sd-bus is loaded at run time. wifi: scan, connect, status and access-point mode 
 - [ ] #3 the Pi 3B+ scans and connects to a real access point and a real BLE peripheral
 - [ ] #4 has() = false on boards without radio
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: merged ZN-520 here (Wi-Fi status and provisioning, BLE with NimBLE on HCI user channel). Carry over: Wi-Fi and BLE on the CHIP: same subject as zinc:wifi/zinc:ble on Linux; carry the NimBLE-on-HCI option (static builds, no BlueZ) as an alternative backend. Same zinc:wifi/zinc:ble API; ZN-558 (Backlog) covers scan, GATT and LE advertising over BlueZ/NetworkManager. Carry the NimBLE-on-HCI static backend (UART3 rtscts DT note) and the CHIP checks (phone reads a characteristic, Wi-Fi join on trixie) as criteria or a later.md line, since ZN-558's own ACs are Pi/VM only.
+<!-- SECTION:NOTES:END -->

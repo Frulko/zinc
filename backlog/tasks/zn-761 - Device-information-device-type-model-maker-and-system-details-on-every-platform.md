@@ -4,22 +4,23 @@ title: >-
   Device information: device type, model, maker and system details on every
   platform
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-18 10:55'
-updated_date: '2026-10-18 11:24'
+updated_date: '2026-10-25 01:53'
 labels:
   - mobile
   - platform
   - size-M
 milestone: m-26
 dependencies: []
-ordinal: 1000
+ordinal: 51500
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Run the device-info app on the iPhone simulator and the Android emulator (commands in the notes), tick AC1, AC4, AC5. Already there: src/host/sys_host.cpp; lib/std; tests/golden/device-info; task notes 2026-10-18.
+
 Owner, 2026-10-18 (after rn-showcase ran on an iPad Pro): a real platform layer that reports the kind of device and its details, on iOS and Android first, then every other platform. Today Platform.isPad and Platform.isTV are false constants (lib/std/react-native.tsx) and zinc:sys device('device') is uname's machine and release (src/host/sys_host.cpp). Model on expo-device (deviceType PHONE/TABLET/DESKTOP/TV/UNKNOWN, brand, manufacturer, modelName, modelId, designName, osName, osVersion, osBuildId, totalMemory, supportedCpuArchitectures, isDevice, deviceYearClass) and React Native's Platform (isPad, isTV, Platform.constants: interfaceIdiom, systemName, Brand, Manufacturer, Model, Release). Sources: iOS UIDevice (userInterfaceIdiom, systemName, systemVersion), sysctl hw.machine (iPad6,7) mapped to a marketing name by a table; Android Build.* (MANUFACTURER, BRAND, MODEL, DEVICE, ID) and the smallest screen width / UI_MODE_TYPE_TELEVISION for tablet and TV; macOS sysctl hw.model and IOKit's product name; Linux /sys/firmware/devicetree/base/model (Raspberry Pi), /sys/class/dmi/id/product_name; web navigator.userAgentData. ZINC_PLATFORM=ios|android on the desktop answers a simulated phone.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -43,4 +44,5 @@ Owner, 2026-10-18 (after rn-showcase ran on an iPad Pro): a real platform layer 
 - Open: #1 and #4 on a real run of iOS/Android (Linux is the cross-platform pass), #5 the simulator and emulator apps. Commands: copy tests/golden/device-info/main.tsx into a project (zinc new, replace src), then `zinc export <dir> --target ios -o dist/dev-ios` and the cmake -G Xcode / xcodebuild -sdk iphonesimulator / `xcrun simctl boot "iPad Pro 13-inch (M4)"` / simctl install / `xcrun simctl launch --console-pty booted <bundle id>` of docs/reports/zinc-next-ios.md (expect type tablet, modelId iPad16,5, isPad=true; then "iPhone 17": phone, isPad=false); Android: `zinc export <dir> --target android`, install on the AVD Pixel_10 (adb install), `adb logcat -s zinc` for the record (phone; a Pixel Tablet AVD: tablet; an Android TV AVD: tv).
 
 2026-10-18, real device: rn-showcase's Platform screen on the owner's iPad Pro 12.9 (iPad6,7, iOS 16.7.16) shows Model 'iPad Pro (12.9-inch) (1st generation)', System 'iPadOS 16.7.16', isPad true, isTV false (owner confirmed). Criterion 3 ticked on that run; the iPhone half of 1 and 5, and Android (4), stay open.
+Review 2026-10-25: done-partly. Device info module, Platform.isPad/isTV and the iPad run are done (owner confirmed on an iPad Pro); left: iPhone/Android proofs and the Android tablet/TV rule. Evidence: src/host/sys_host.cpp; lib/std; tests/golden/device-info; task notes 2026-10-18
 <!-- SECTION:NOTES:END -->

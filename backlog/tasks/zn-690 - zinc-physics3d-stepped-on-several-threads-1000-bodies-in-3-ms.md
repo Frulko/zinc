@@ -1,21 +1,23 @@
 ---
 id: ZN-690
-title: 'zinc:physics3d: stepped on several threads, 1,000 bodies in 3 ms'
+title: 'physics3d: measure the 1,000-body step alone and record it'
 status: Backlog
 assignee: []
 created_date: '2026-10-10 19:46'
-updated_date: '2026-10-11 18:10'
+updated_date: '2026-10-25 01:53'
 labels:
   - physics
   - perf
   - size-M
 dependencies: []
-ordinal: 451410
+ordinal: 16500
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** Only AC1 and AC2 remain: run bench/physics3d_pile.ts on a quiet machine, log in zinc-next-perf.md. Already there: backlog notes; ef492b08; tests/t1/physics3d.sh.
+
 (Follow-up of the first playable pinball, D77.) One thread steps 1,000 awake piled bodies in 4.1 to 4.5 ms (measured on a loaded, heat-throttled machine; Jolt's own step is 4.3 ms of it), against the 3 ms target of ZN-583. Measure alone first, then give Jolt its job system on the machine's cores with the stepping still deterministic.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -30,4 +32,5 @@ ordinal: 451410
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-11 (zinc-33, from ZN-583, cbb6a259): zinc:physics3d steps on Jolt's thread pool with threads: 0 (one per core); tests/t1/physics3d.sh passes on main after integration (drop.out on the interpreter, compiled, QuickJS and compiled on 4 threads; both replays identical): criterion 3. Criteria 1 and 2 wait for a measure alone: the machine stayed at load 5.5 to 10 with the CPU held at 37 to 60% by heat all day. Under that load, compiled: one thread 5.97 to 8.19 ms, one per core 3.14 to 3.64 ms (medians; table in docs/reports/zinc-next-perf.md, ZN-583). Next command, alone on a quiet machine: build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile 1000 1; /tmp/pile 1000 0 (three times); write before (1 thread) and after (one per core) in the perf log, tick 1 and 2 when the one-per-core median is 3 ms or less. usage: n/a
+Review 2026-10-25: done-partly. Jolt runs on its thread pool with threads: 0 (notes, D107), replay test passes (AC3). Left: the step-time measure alone on a quiet machine and the 3 ms verdict. Evidence: backlog notes; ef492b08; tests/t1/physics3d.sh
 <!-- SECTION:NOTES:END -->

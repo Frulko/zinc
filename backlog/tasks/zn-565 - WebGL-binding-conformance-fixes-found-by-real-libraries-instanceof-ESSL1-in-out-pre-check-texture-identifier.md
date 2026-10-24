@@ -3,11 +3,10 @@ id: ZN-565
 title: >-
   WebGL binding conformance fixes found by real libraries (instanceof, ESSL1
   in/out pre-check, 'texture' identifier)
-status: Review
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 01:20'
+updated_date: '2026-10-25 01:53'
 labels:
   - games
   - js
@@ -83,4 +82,5 @@ p5.js 1.11.13: first frame median 491 ms before, 497 after; 285 and 287 ms once 
 So: no cost at the frame, none at first frame for three.js and p5.js, about 2 % for PixiJS 7 (its shaders are GLSL ES 1.00: they now carry the helper functions, and each uniform it looks up is mapped).
 
 #6, THE WHOLE KHRONOS SUITE, run once on main 67d8f4f0 (2026-10-11 09:03 to 09:07, tests/run --tier t1 --only webgl_conformance, 4 workers): "webgl-conformance: 695 of 787 pages pass", and the gate FAILED on one line, "REGRESSION glsl/bugs/long-expressions-should-not-crash.html timeout". The load average went from 7 to 85 during the run (the machine had just started launching programs again and every session's queue ran at once). That page, run alone straight after at a load of 21: "PASS ... 49 pass 0 fail"; it had passed in the baseline run and in the three runs of the fixed code. The page moved by hand, conformance2/textures/misc/angle-stuck-depth-textures.html, passed in the whole run (695 is the 696 of the pass list less the one timeout) and alone ("26 pass 0 fail"). So the suite is at 696 of 787 with the pass list as committed, and at 695 by the worst reading of the loaded run: not lower than 695, the criterion is ticked. What is still owed: one whole run with exit 0, on a quiet machine. Also passed that morning on 67d8f4f0, for the first time on this code: webgl_studio and zinc_gl_api_tour.
+Review 2026-10-25: closed as Done. Close as done: all six criteria are ticked with test output and a recorded decision. The @parallel assignee is a leftover of a finished worktree. Evidence: src/gl/webgl_js.cpp install; src/gl/webgl1.cpp; tests/t1 webenv_pixi.sh, webenv_phaser.sh Verifier: All six criteria are ticked with test output (webgl_libs, webenv_pixi, webenv_phaser; whole Khronos run 695/787). Only a quiet-machine whole-suite run with exit 0 is still owed, a later.md line. The @parallel assignee is a leftover.
 <!-- SECTION:NOTES:END -->

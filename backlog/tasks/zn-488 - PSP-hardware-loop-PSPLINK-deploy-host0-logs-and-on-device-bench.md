@@ -7,11 +7,13 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-486
   - ZN-468
-ordinal: 255000
+ordinal: 93900
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ zinc run --target psp --device: load the build over PSPLINK/usbhostfs_pc, stream
 - [ ] #2 A hardware bench receipt (150 s tape) reports frames, late frames and worst frame for renderer cpu and ge
 - [ ] #3 docs/targets/psp.md lists the device prerequisites and known hardware-only pitfalls (dcache, texture flush, float 3D vertices, 64 px CLUT8 pages)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. PSPLINK/usbhostfs hardware loop needs a real PSP; the owner has run the PSP demo only under Adrenaline on the Vita. Park until a PSP is on the bench.
+<!-- SECTION:NOTES:END -->

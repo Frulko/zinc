@@ -1,7 +1,7 @@
 ---
 id: ZN-593
 title: 'Diagnose CI benchmark gate regressions and fib output'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-09 12:30'
 labels:
@@ -10,6 +10,7 @@ labels:
 dependencies: []
 priority: high
 ordinal: 373000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -25,10 +26,10 @@ Reproduce on the tested revision and separate correctness failures from machine/
 ## Acceptance Criteria
 
 <!-- AC:BEGIN -->
-- [ ] #1 Capture fib interpreter exit status, stdout and stderr on the tested revision; fix the cause of the mismatch with a focused regression test.
-- [ ] #2 Explain each ratio regression using repeatable measurements on comparable runner hardware and record the evidence; do not silently relax the threshold or overwrite the baseline.
-- [ ] #3 The benchmark gate passes on a fresh GitHub run, or a reviewed measurement correction explains and fixes the runner mismatch while retaining meaningful regression detection.
-- [ ] #4 Keep any runtime fix separate from benchmark measurement changes and run the relevant focused tests plus `tests/run --changed`.
+- [x] #1 Capture fib interpreter exit status, stdout and stderr on the tested revision; fix the cause of the mismatch with a focused regression test.
+- [x] #2 Explain each ratio regression using repeatable measurements on comparable runner hardware and record the evidence; do not silently relax the threshold or overwrite the baseline.
+- [x] #3 The benchmark gate passes on a fresh GitHub run, or a reviewed measurement correction explains and fixes the runner mismatch while retaining meaningful regression detection.
+- [x] #4 Keep any runtime fix separate from benchmark measurement changes and run the relevant focused tests plus `tests/run --changed`.
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -71,3 +72,9 @@ Reproduce on the tested revision and separate correctness failures from machine/
   pass. Fresh GitHub confirmation remains pending the push. The historical fib
   mismatch remains unreproduced locally, so its original cause is not claimed
   as a diagnosed runtime bug.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: closed as Done. Close as done: bench-gate now measures the candidate against the pinned historical engine on the same runner, every sample verifies exit and stdout (notes); release 0.8.0 shipped, which the tag workflow only does when no test failed. Verifier: bench-gate compares against the pinned reference built on the same runner (.github/workflows/zinc-next.yml:975-1002, tools/bench-gate --baseline-zinc) and passed on a fresh GitHub run (run 40136383299: bench-gate success). The historical fib mismatch was never reproduced, which the notes say honestly.
+<!-- SECTION:NOTES:END -->

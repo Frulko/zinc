@@ -4,7 +4,7 @@ title: reMarkable Paper Pro target under simulation
 status: Backlog
 assignee: []
 created_date: '2026-10-06 23:01'
-updated_date: '2026-10-08 08:27'
+updated_date: '2026-10-25 01:53'
 labels:
   - parked
 milestone: m-11
@@ -12,7 +12,7 @@ dependencies:
   - ZN-130
   - ZN-132
   - ZN-111
-ordinal: 301000
+ordinal: 90400
 ---
 
 ## Description
@@ -30,4 +30,5 @@ Static aarch64 build with display-rmpp, sqlite, socket, wasm, script, lottie, ca
 
 <!-- SECTION:NOTES:BEGIN -->
 parked 2026-10-08: needs qemu-user (Linux hosts only) and plugins/display-rmpp, which holds another developer's uncommitted work (rmpp.cpp, input.h, direct.h). Resume on a Linux machine once display-rmpp is committed.
+Review 2026-10-25: parked. Needs qemu-user (Linux). display-rmpp is committed now, so the blocker in the note is gone, but the proof still needs Linux; the device is far from the owner goal. Keep parked. Evidence: plugins/display-rmpp/; docs/targets/remarkable-paper-pro.md
 <!-- SECTION:NOTES:END -->

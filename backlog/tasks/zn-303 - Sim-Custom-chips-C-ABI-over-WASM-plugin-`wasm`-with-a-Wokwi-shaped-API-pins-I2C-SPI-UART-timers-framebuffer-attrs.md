@@ -10,11 +10,13 @@ labels:
   - simulator
   - arduino
   - size-M
+  - parked
 milestone: m-18
 dependencies:
   - ZN-292
   - ZN-126
-ordinal: 184000
+ordinal: 92500
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +29,9 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-12). Wokwi-styl
 <!-- AC:BEGIN -->
 - [ ] #1 1) a 40-line C chip (I2C register file) compiled to WASM with zig responds to a program. 2) a chip that crashes or loops is stopped with a diagnostic. 3) the same chip works host-native and through SIM-07.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. WASM custom chips with a Wokwi-shaped API: niche, large; the 14 built-in chip models (src/sim/chips) cover the shipped boards. Revisit on demand.
+<!-- SECTION:NOTES:END -->

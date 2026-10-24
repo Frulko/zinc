@@ -1,8 +1,6 @@
 ---
 id: ZN-534
-title: >-
-  Measure the VC4 baseline on the Pi 3B+ rig: fill, draw cost, r162 shader
-  budgets, Pi 1 proxy
+title: 'three r162 on the Pi 3B+: per-material shader cost and C1-C4'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:45'
@@ -12,12 +10,15 @@ labels:
   - size-M
 milestone: m-25
 dependencies: []
-ordinal: 158000
+ordinal: 52200
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-10-25):** After ZN-540: a table of QPU instructions, threaded flag and compile failures per three r162 material; C1-C4 fps. Drop the Pi 1 proxy. Already there: docs/reports/pi-1080p.md; docs/reports/bench/zbench-render-pi-*.json.
+
 Replace the estimates of the report (A4, A5, A7) with measurements. On the Pi 3B+ (aarch64 and armhf builds, vcgencmd get_throttled = 0x0 before and after): full-screen pass throughput per shader class (solid, textured RGBA tiled and linear, ETC1, blended, discard) at 640x360, 1280x720 and 1920x1080 with glFinish timing; microseconds per draw in Mesa vc4 for uniform-only, texture-switch and program-switch patterns; compile every three r162 material variant with VC4_DEBUG=shaderdb (instruction counts, threaded or not, failures); run the report's C1-C4 three.js benches; repeat under a Pi 1 proxy (arm_freq=600, maxcpus=1, v3d_freq=250, core_freq=250, armhf binary). (From docs/reports/hardware/raspberry-pi-threejs-and-sdk.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -28,3 +29,9 @@ Replace the estimates of the report (A4, A5, A7) with measurements. On the Pi 3B
 - [ ] #3 per-material table for three r162: QPU instructions, threaded flag, compile failures
 - [ ] #4 C1-C4 fps on the Pi 3B+ and on the Pi 1 proxy recorded; estimates in A5 and A7 confirmed or replaced
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: done-partly. VC4 fill/draw-cost measurements were made on the Pi 3B+ (docs/reports/pi-1080p.md, docs/reports/hardware/vc4-gles2-performance.md, tools/zbench 19 scenes). Left only the three r162 per-material QPU table and C1-C4 fps, which need ZN-540 first. Evidence: docs/reports/pi-1080p.md; docs/reports/bench/zbench-render-pi-*.json
+<!-- SECTION:NOTES:END -->

@@ -7,11 +7,13 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-489
   - ZN-452
-ordinal: 242000
+ordinal: 93000
+updated_date: '2026-10-25 01:53'
 ---
 
 ## Description
@@ -27,3 +29,9 @@ For a Strike-class FPS: read BSP (GoldSrc v30 from Blender through SDHLT, or Lib
 - [ ] #3 PVS visible sets match the reference for 100 sample points
 - [ ] #4 The pack viewer flies the map
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule).
+<!-- SECTION:NOTES:END -->
