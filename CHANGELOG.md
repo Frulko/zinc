@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-24
+
 ### Added
 - Fresh Pi images generate a unique `xxxx-xxxxxx-xxxxx` network name at first boot when Hostname is empty. It survives reboots; reflashing generates another name. Explicit profile/Imager names remain supported.
 - `zinc:ui/kit` exports a reusable `Spinner` activity ring driven by the engine, with reduced-motion support.
@@ -542,7 +544,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.3...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -557,3 +559,4 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 [0.2.2]: https://github.com/Frulko/zinc/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Frulko/zinc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Frulko/zinc/compare/v0.1.1...v0.2.0
+[0.7.3]: https://github.com/Frulko/zinc/compare/v0.6.2...v0.7.3
