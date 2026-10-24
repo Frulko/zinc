@@ -211,6 +211,14 @@ void zn_c3d_end(void) {
   inFrame = false;
   if (overflow) { static bool told; if (!told) { told = true; static const char m[] = "n3ds c3d: a frame has more quads than the vertex pool: the rest is not drawn\n"; hal_log(m, sizeof m - 1); } }
 }
+// Stops citro3d before gfxExit: the open frame submitted, the GPU's work waited for, its threads and buffers released. Without it a console
+// crashed on the way back to the Homebrew Launcher after a heavy run (a 3DS XL, 600 sprites).
+void zn_c3d_fini(void) {
+  if (!ready) return;
+  zn_c3d_end();
+  C3D_Fini();
+  ready = false;
+}
 static void drawOn(int target) {
   flush();
   C3D_FrameDrawOn(targets[target]);

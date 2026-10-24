@@ -99,6 +99,9 @@ int finish(int status) {
   if (zn::host::hostGfx && zn_hal_is_live() && (status != 0 || !zn::host::gfxStarted)) textScreen(status);
 #endif
   log("zinc:exit " + std::to_string(status) + "\n");   // after the text screen: a runner stops the emulator on it
+#ifdef ZN_CONSOLE_WITH_GFX
+  if (zn_hal_is_live()) hal_shutdown();   // the GPU and the screens stopped before the launcher takes them back (a 3DS crashed without it)
+#endif
   return status;
 }
 // The program's lines also go to the HAL's second output when it has one (PPSSPP prints only what reaches its kemulator: device): Machine::flushOut
