@@ -1,6 +1,6 @@
 // Sony PSP HAL (pspsdk + newlib; the console core of targets/console, ZN-455/ZN-457): text through stdout (PPSSPP prints it), the system clock,
-// the pad, and the shared software rasterizer shown in one 32-bit framebuffer in VRAM (480x272, stride 512), flipped at vblank. The first, simple
-// path: the GE replay of the command lists comes later (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 2.4).
+// the pad, and the frames: replayed on the GE (gu_psp.cpp, ZN-468) or, with ZINC_PSP_GPU=0, the shared software rasterizer shown in one 32-bit
+// framebuffer in VRAM (480x272, stride 512), flipped at vblank.
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
@@ -33,6 +33,10 @@ static int32_t W = kScreenW, H = kScreenH, frames = 0;
 static uint32_t* rows = nullptr;                                     // the software frame, 0x00RRGGBB
 static uint32_t* const vram = (uint32_t*)(0x40000000u | 0x04000000u);   // VRAM through the uncached mirror: the display reads it at once
 static volatile bool quitting = false;
+static bool gpuOn = false, queued = false;   // the GE draws the frames; the last present queued a frame to swap at the vblank
+extern "C" __attribute__((weak)) bool zn_gu_init(int32_t w, int32_t h);   // gu_psp.cpp
+extern "C" __attribute__((weak)) bool zn_gu_present(const HalFrame* f);
+extern "C" __attribute__((weak)) void zn_gu_swap(void);
 
 static int exitCallback(int, int, void*) { quitting = true; return 0; }   // HOME, then "quit the game"
 static int callbackThread(SceSize, void*) {
@@ -92,6 +96,8 @@ void hal_init(const HalConfig* cfg) {
   sceCtrlSetSamplingCycle(0);
   sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
   if (!cfg->gfx) return;
+  const char* g = getenv("ZINC_PSP_GPU");
+  if (!(g && *g == '0') && zn_gu_init && zn_gu_init(W, H)) { gpuOn = true; return; }
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
   for (int32_t i = 0; i < kStride * kScreenH; i++) vram[i] = 0xFF000000u;
   sceDisplaySetMode(0, kScreenW, kScreenH);
@@ -114,7 +120,11 @@ void hal_panic(const char* msg, const char* file, int line) {
   for (;;) {}
 }
 void hal_frame_begin(void) {}
-void hal_frame_end(void) { audioPump(); sceDisplayWaitVblankStart(); }
+void hal_frame_end(void) {
+  audioPump();
+  sceDisplayWaitVblankStart();
+  if (queued) { zn_gu_swap(); queued = false; }
+}
 void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{PSP_CTRL_UP, HAL_UP}, {PSP_CTRL_DOWN, HAL_DOWN}, {PSP_CTRL_LEFT, HAL_LEFT}, {PSP_CTRL_RIGHT, HAL_RIGHT},
     {PSP_CTRL_CROSS, HAL_A}, {PSP_CTRL_CIRCLE, HAL_B}, {PSP_CTRL_SQUARE, HAL_X}, {PSP_CTRL_TRIANGLE, HAL_Y}, {PSP_CTRL_LTRIGGER, HAL_L},
@@ -147,6 +157,7 @@ void hal_poll_input(HalInput* in) {
   in->quit = quitting || budgetOver;
 }
 void hal_present(const HalFrame* f) {
+  if (gpuOn) { queued = zn_gu_present(f); return; }
   if (!rows || f->y1 <= f->y0) return;
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
   for (int32_t y = f->y0; y < f->y1; y++) {   // 0x00RRGGBB -> the GE's 8888 (0xAABBGGRR)
