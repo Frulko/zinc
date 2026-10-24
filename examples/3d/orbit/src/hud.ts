@@ -1,6 +1,7 @@
 // The readout over the 3D view: frame rate, render time, triangles and who draws (GPU or CPU), refreshed twice a second so it builds no
 // string per frame; and a line of help at the bottom. Light pills, the zinc:ui kit badge look.
 import { shadow, rrect, border, drawText, font, textWidth } from 'zinc:gfx';
+import { clock } from 'zinc:sys';
 
 const REGULAR = font('sans', 12);
 const BOLD = font('sans-bold', 12);
@@ -11,6 +12,7 @@ export class Hud {
   private frames: i32 = 0;
   private elapsed = 0;
   private renderSum = 0;
+  private since = -1;   // clock() at the last refresh: a console's dt is a fixed 1/60, the wall clock says what the frames really took
   private text = '';
   private width = 0;
 
@@ -18,7 +20,9 @@ export class Hud {
   frame(dt: number, ms: number, triangles: i32, gpu: boolean, view: string): void {
     this.elapsed += dt; this.frames++; this.renderSum += ms;
     if (this.elapsed < 0.5 && this.text.length > 0) return;
-    const fps = this.frames / Math.max(this.elapsed, 0.001), mean = this.renderSum / Math.max(this.frames, 1);
+    const now = clock(), wall = this.since >= 0 ? (now - this.since) / 1000 : 0;
+    this.since = now;
+    const fps = this.frames / Math.max(wall > 0 ? wall : this.elapsed, 0.001), mean = this.renderSum / Math.max(this.frames, 1);
     this.text = `${Math.round(fps)} fps  ${mean.toFixed(1)} ms  ${triangles} tris  ${gpu ? 'GPU' : 'CPU'}  ${view}`;
     this.width = textWidth(BOLD, this.text, 0) + 20;
     this.elapsed = 0; this.frames = 0; this.renderSum = 0;
