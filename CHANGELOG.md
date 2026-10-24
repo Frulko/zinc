@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - PSP, PS Vita and Nintendo 3DS: zinc:3d (meshes, lights, textures, `render()`) runs in the console cores; it drew nothing there before.
+- New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 - PS Vita: `tools/build-console-core vita --vitagl` builds a core that draws everything on the GPU through vitaGL (rounded corners, gradients, shadows and paths included); the default GXM core stays faster for games. It needs `libshacccg.suprx` extracted on the console (ShaRKBR33D); without it the core draws in software.
 - PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, vertical and horizontal gradients, images, sprites and text. A frame with a radial gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.

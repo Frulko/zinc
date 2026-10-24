@@ -1,0 +1,9 @@
+{
+  "name": "orbit",
+  "entry": "src/main.ts",
+  "app": { "name": "Orbit", "id": "dev.zinc.orbit", "version": "1.0.0", "orientation": "landscape" },
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}

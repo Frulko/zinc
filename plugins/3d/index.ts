@@ -359,6 +359,9 @@ export class Camera {
 
 const IDENTITY = mat4();
 
+/** Whether a GPU draws the scenes (false: the software renderer). */
+export function gpu(): boolean { return R.gpu(); }
+
 /** Renders `scene` seen by `camera` into the screen box (x, y, w, h). Returns the triangles rasterized. */
 export function render(scene: Scene, camera: Camera, x: number, y: number, w: number, h: number): i32 {
   return camera.render(scene, x, y, w, h);
