@@ -14,4 +14,9 @@ for f in tests/fuzz/regress/*; do
 done
 # the files that must be refused, not just survived
 "$ZINC" zbc --check tests/fuzz/regress/zbc-class-flags.zbc >/dev/null 2>&1 && { echo "zbc-class-flags.zbc is accepted: a class flag the encoder never writes"; fail=1; }
+# the value of a void call (libFuzzer on Linux, 2026-10-24: the lowering aborted on a missing operand): undefined in console.log and a template, as
+# JavaScript prints it; elsewhere a Z0005 error, never a crash
+out=$(timeout 20 "$ZINC" run --interp tests/fuzz/regress/check-void-call-value.ts 2>&1 | tr '\n' ' ')
+[ "$out" = "undefined undefined " ] || { echo "check-void-call-value.ts: '$out', expected undefined twice"; fail=1; }
+timeout 20 "$ZINC" run --interp tests/fuzz/regress/check-void-call-element.ts 2>&1 | grep -q "Z0005.*returns nothing" || { echo "check-void-call-element.ts: no Z0005 for the void element"; fail=1; }
 exit $fail

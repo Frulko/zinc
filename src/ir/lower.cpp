@@ -918,6 +918,10 @@ struct Lowering::FnLower {
   }
   ValueId newValue(TypeId t) { f.valueTypes.push_back(t); return static_cast<ValueId>(f.valueTypes.size() - 1); }
   ValueId emit(IrOp op, TypeId t, std::vector<ValueId> args = {}, std::int64_t imm = 0, double fimm = 0, std::uint32_t sym = 0) {
+    for (ValueId& a : args) if (a == kNoValue && !exprAt.empty()) {   // the "value" of a call that returns nothing: an error, never a missing operand (fuzz, 2026-10-24)
+      unsupported(exprAt.back(), "the value of a call that returns nothing (void): call it on its own line, or make it return a value");
+      a = constBool(false);
+    }
     Inst i;
     i.op = op; i.ty = t; i.args = std::move(args); i.imm = imm; i.fimm = fimm; i.sym = sym;
     if (ty(t).k != Type::K::Void) i.res = newValue(t);
@@ -1105,6 +1109,7 @@ struct Lowering::FnLower {
   // The text of an expression: an object converts through its toString().
   ValueId toStrOf(std::uint32_t node) {
     ValueId v = expr(node);
+    if (v == kNoValue) return constStr("undefined");   // `${f()}` of a void f, as JavaScript writes it
     frontend::Type anyAsDyn;
     const frontend::Type& ct = asClassType(c.nodeType[node], anyAsDyn);
     if (ty(tv(v)).k == Type::K::Ref && ct.k == frontend::TK::Object) return invokeMethod(v, ct.obj, frontend::lookupMember(c, ct.obj, "toString", false) ? "toString" : "__errorString", {});
@@ -1379,6 +1384,7 @@ struct Lowering::FnLower {
 
   // `a?.b` and `a?.f(x)`: the receiver is evaluated once; when it is null the result is null (nothing happens for a call returning nothing).
   std::unordered_map<std::uint32_t, ValueId> overrides;  // nodes whose value is already computed
+  std::vector<std::uint32_t> exprAt;  // the expressions being lowered, innermost last: where emit() reports a void value used as a value
   std::unordered_set<std::uint32_t> optBusy;
   ValueId optionalAccess(std::uint32_t i, const Node& x) {
     std::uint32_t recvNode = x.kind == N::Member ? x.kids[0] : n(x.kids[0]).kids[0];
@@ -1406,6 +1412,8 @@ struct Lowering::FnLower {
   }
 
   ValueId expr(std::uint32_t i, TypeId want = kNoValue) {
+    exprAt.push_back(i);
+    struct Pop { std::vector<std::uint32_t>& v; ~Pop() { v.pop_back(); } } pop{exprAt};
     const Node& x = n(i);
     if (auto ov = overrides.find(i); ov != overrides.end()) return ov->second;
     if (((x.kind == N::Member && (x.flags & frontend::kFlagOptional)) || (x.kind == N::Call && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).flags & frontend::kFlagOptional))) && !optBusy.count(i)) return optionalAccess(i, x);
@@ -1959,7 +1967,10 @@ struct Lowering::FnLower {
             TypeId at = L.irType(c.nodeType[x.kids[1]]);
             if (ty(at).k == Type::K::Num && (ty(at).num == NumK::fx12 || ty(at).num == NumK::fx16)) return builtin(static_cast<Builtin>(b), {exprTo(x.kids[1], at)}, at);
           }
-          for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(log ? expr(x.kids[k]) : exprTo(x.kids[k], m.numT(NumK::f64)));
+          for (std::size_t k = 1; k < x.kids.size(); ++k) {
+            ValueId v = log ? expr(x.kids[k]) : exprTo(x.kids[k], m.numT(NumK::f64));
+            vs.push_back(log && v == kNoValue ? constStr("undefined") : v);   // console.log(f()) of a void f prints undefined, as JavaScript does
+          }
           ValueId br = builtin(static_cast<Builtin>(b), std::move(vs), log ? m.voidT() : m.numT(NumK::f64));
           if (log) return br;
           TypeId nt = natural(i);   // Math.* returns the profile's `number`
