@@ -1117,6 +1117,20 @@ static void after_present() {
     char out[1024];
     if (w) { numbered(out, sizeof out, scene_path, n); scene_write(out, *shown); }
   }
+  // ZINC_SHOT_REQUEST=<file> (zinc device screen): the file names where to write the frame shown now, as PNG; emptied once written. Read
+  // every 10 frames, idle ones included (a retained frame is presented too), so the screen answers however still it is.
+  static const char* request = hal_env("ZINC_SHOT_REQUEST");
+  if (request && *request && n % 10 == 0) {
+    char to[1024];
+    size_t got = 0;
+    if (void* f = zrt_host_open(request, "rb")) { got = zrt_host_io(f, to, sizeof to - 1, 0); zrt_host_close(f); }
+    while (got && (to[got - 1] == '\n' || to[got - 1] == '\r')) got--;
+    if (got) {
+      to[got] = 0;
+      save(to);
+      if (void* f = zrt_host_open(request, "wb")) zrt_host_close(f);   // done: the agent waits for an empty request
+    }
+  }
   if (state == 2 && (list || every)) {
     bool want = every > 0 && n % every == 0;
     for (const char* s = list; s && *s && !want;) {

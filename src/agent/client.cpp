@@ -326,6 +326,16 @@ int cmdPush(Device& d, const std::vector<std::string>& args) {
   return 0;
 }
 
+int cmdPull(Device& d, const std::vector<std::string>& args);
+
+// The frame the device's screen shows (the player, an app, a zinc dev program): the agent asks it of the program, then it comes as a pull.
+int cmdScreen(Device& d, const std::vector<std::string>& args) {
+  if (args.size() > 1) return fail("usage: zinc device [<device>] screen [file.png]");
+  std::string answer;
+  if (!request(d, Obj().str("op", "screen").done(), answer, true, 15000)) return 1;
+  return cmdPull(d, {Doc(answer).str("path"), args.empty() ? "screen.png" : args[0]});
+}
+
 int cmdPull(Device& d, const std::vector<std::string>& args) {
   if (args.empty() || args.size() > 2) return fail("usage: zinc device [<device>] pull <remote> [local]");
   std::string answer, err;
@@ -692,6 +702,7 @@ int usage() {
                "       zinc device [<device>] reverse <device-port|0> <local-port>   a port of this machine there (a server an app calls)\n"
                "       zinc device [<device>] inspect <app> [--port n]              its inspector on a port of this machine: the DevTools address\n"
                "       zinc device [<device>] shot <app> [file.png]                 the frame the app shows\n"
+               "       zinc device [<device>] screen [file.png]                     what its screen shows (the player, an app, zinc dev)\n"
                "       zinc device [<device>] monitor <app>                         its zinc:telemetry lines, as zinc monitor prints them\n"
                "       zinc device [<device>] top [-n count] [--json]               the machine's load and each app's CPU and memory, every second\n"
                "<device> may be left out when one device is paired.\n");
@@ -731,7 +742,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   }
 
   if (first == "inspect" && args.size() == 2 && args[1] == "--all") return inspectAll(paired);
-  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top"};
+  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top", "screen"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
   if (isOp(first)) {
@@ -750,6 +761,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "shell") return cmdShell(*d, args);
   if (op == "push") return cmdPush(*d, args);
   if (op == "pull") return cmdPull(*d, args);
+  if (op == "screen") return cmdScreen(*d, args);
   if (op == "deploy") return cmdDeploy(*d, args, self);
   if (op == "forward") return cmdForward(*d, args);
   if (op == "reverse") return cmdReverse(*d, args);

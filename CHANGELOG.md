@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc device <device> screen [file.png]` captures what the device's screen shows now, whoever draws it: the player of a Zinc Pi image, an installed app or a `zinc dev --device` program.
 - `zinc dev --device` shows what it does: packing the project, the transfer's progress, and on the device the plugins being compiled (a Pi takes seconds per plugin).
 - The Pi image builder shows how far the long steps are (download, unpacking, checksum, compression): percent, MiB done and the time left, under the step and in the progress bar.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.

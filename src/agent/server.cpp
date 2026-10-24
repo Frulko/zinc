@@ -654,6 +654,21 @@ void handleSession(State& s, int fd) {
   else if (op == "listen") opListen(s, c, req);
   else if (op == "accepted") opAccepted(s, c, req);
   else if (op == "top") every(c, 1000, [&] { return infoJson(s); }, gStop);
+  else if (op == "screen") {   // the frame on the screen now: asked of the program showing it, which writes a PNG the workstation then pulls
+    const std::string request = std::getenv("ZINC_SHOT_REQUEST"), png = s.home + "/run/screen.png";
+    ::unlink(png.c_str());
+    if (!writePrivate(request, png + "\n")) { refuse(c, "cannot write " + request); return; }
+    ::chmod(request.c_str(), 0660);   // the display session's group may answer
+    std::string left = "x";
+    for (int i = 0; i < 100 && !left.empty(); ++i) { std::this_thread::sleep_for(std::chrono::milliseconds(50)); left.clear(); readFile(request, left); }
+    struct stat st{};
+    if (!left.empty() || ::stat(png.c_str(), &st) != 0) {
+      writePrivate(request, "");
+      refuse(c, "no program on the screen answered in 5 s: the player and apps answer from zinc 0.7.5 (zinc device update), a program without a window has no screen");
+      return;
+    }
+    send(c, kJson, Obj().flag("ok", true).str("path", png).done());
+  }
   else if (op == "apps") send(c, kJson, Obj().flag("ok", true).raw("apps", appsJson(s)).done());
   else if (op == "run" || op == "stop" || op == "uninstall") {
     std::error_code ec;
@@ -774,6 +789,13 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
   s.os = "linux";
 #endif
   s.kind = machineKind();
+  {   // zinc device screen: the request file the programs on this screen read (runtime/gfx.cpp), inherited by those this agent starts; the
+      // display session of a Zinc image exports the same one for its player (/run/zinc, ZINC_AGENT_SCREEN)
+    const char* screen = std::getenv("ZINC_AGENT_SCREEN");
+    std::error_code ec;
+    fs::create_directories(s.home + "/run", ec);
+    ::setenv("ZINC_SHOT_REQUEST", (screen && *screen ? std::string(screen) : s.home + "/run") .append("/shot.request").c_str(), 0);
+  }
 
   // ponytail: IPv4 only, like the discovery; an IPv6 listener when a network without IPv4 shows up
   const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);

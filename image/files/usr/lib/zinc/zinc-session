@@ -8,6 +8,7 @@ APP=${ZINC_APP:-/var/lib/zinc/app}
 RUN=${ZINC_RUN:-/run/zinc}
 PLAYER=${ZINC_PLAYER:-/usr/lib/zinc/current/player.zapp}
 export ZINC_APP=$APP ZINC_RUN=$RUN
+export ZINC_SHOT_REQUEST=$RUN/shot.request   # zinc device screen: the agent asks the program on the screen for its frame
 # the screen through /dev/fb0 (plugins/display-fbdev, compiled into the image): the driver the Pi was proven on. The
 # SDL window asks for OpenGL 3.2, which the Pi's GPUs do not offer (vc4: 2.1, v3d: 3.1), and its fallback draws nothing.
 # ponytail: every app on fbdev; a profile key for display-gl when an app needs the GPU
