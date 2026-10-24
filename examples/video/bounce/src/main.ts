@@ -23,9 +23,9 @@ function parseOptions(): Options {
     else if (args[i] === '--speed' && i + 1 < args.length) o.speed = parseFloat(args[++i]);
     else o.file = args[i];
   }
-  // the sample clip, whether we run from the project folder, the build folder or the repository root
+  // the sample clip: in the program's assets (ZINC_ASSETS, set by zinc run and in a package), else from the project or the repository root
   if (o.file === '') {
-    for (const c of ['media/fractal.mp4', '../../media/fractal.mp4', 'examples/video/bounce/media/fractal.mp4']) {
+    for (const c of [sys.env('ZINC_ASSETS') + '/fractal.mp4', 'assets/fractal.mp4', 'examples/video/bounce/assets/fractal.mp4']) {
       if (fs.exists(c)) { o.file = c; break; }
     }
   }

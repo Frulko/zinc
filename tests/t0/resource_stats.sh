@@ -60,7 +60,7 @@ onFrame((dt: number): void => {
   quit();
 });
 TS
-  env -u ZINC_DETERMINISTIC ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=3000000 VIDEO_FILE="$PWD/examples/video/bounce/media/fractal.mp4" timeout 30 "$ZINC" run --interp "$tmp/video.ts" > "$tmp/output"
+  env -u ZINC_DETERMINISTIC ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=3000000 VIDEO_FILE="$PWD/examples/video/bounce/assets/fractal.mp4" timeout 30 "$ZINC" run --interp "$tmp/video.ts" > "$tmp/output"
   python3 - "$tmp/output" <<'PY'
 import json, sys
 a, b = [json.loads(line) for line in open(sys.argv[1]) if line.startswith('{')]

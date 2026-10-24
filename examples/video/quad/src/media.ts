@@ -3,8 +3,8 @@ import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { EXTENSIONS, isVideo } from 'zinc:video';
 
-/** The sample folder, whether we run from the project folder, the build folder or the repository root. */
-const SAMPLE_FOLDERS: string[] = ['media', '../../media', 'examples/video/quad/media'];
+/** The sample folder: the program's assets (ZINC_ASSETS, set by zinc run and in a package), else from the project or the repository root. */
+const SAMPLE_FOLDERS: string[] = [sys.env('ZINC_ASSETS'), 'assets', 'examples/video/quad/assets'];
 
 /** Video files of a folder, or the path itself when it is a video. */
 function videosIn(path: string): string[] {

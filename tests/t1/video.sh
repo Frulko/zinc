@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}
-M=$PWD/examples/video/bounce/media/fractal.mp4
+M=$PWD/examples/video/bounce/assets/fractal.mp4
 A=$PWD/examples/video/looper/media/02-bars.mp4
 B=$PWD/examples/video/looper/media/03-life.mp4
 if command -v pkg-config >/dev/null && pkg-config --exists libavformat libavcodec libavutil libswscale && command -v c++ >/dev/null; then
