@@ -55,6 +55,8 @@ void zn_resource_stats_register(const char*, ZnResourceStatsFn, void*) {}
 __attribute__((weak)) void hal_set_resize(int32_t) {}   // a console's HAL may follow the program's onResize
 }
 
+namespace zn::host { void installMirror() {} }   // src/host/mirror.cpp (a device's screen watched over a socket) stays out of the core
+
 namespace zn::res {   // src/res/codec.cpp (stb) stays out of the core: imageFromBytes answers -1, captures use the runtime's PNG writer
 uint8_t* encodePngAlloc(const uint8_t*, int, int, int, size_t*, void* (*)(size_t)) { return nullptr; }
 uint8_t* decodeRgbaAlloc(const uint8_t*, size_t, int*, int*) { return nullptr; }
