@@ -1203,14 +1203,22 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
 
 // A .zapp archive (ZN-318) at [offset, offset + size) of `path` (size 0: the whole file), checked and unpacked once into ~/.zinc/cache/zapp/<id>;
 // later launches read only its headers and manifest (ZN-430). `zbc` is its program. False with `err` when refused.
-static bool unpackZapp(const std::string& path, std::uint64_t offset, std::uint64_t size, std::string& zbc, std::string& err) {
+// A project on a JavaScript engine (zinc.json "engine": "quickjs") carries its sources instead: `zbc` is then the unpacked project directory
+// and `engine` its engine, which runs it as `zinc run <dir> --engine <engine>` does.
+static bool unpackZapp(const std::string& path, std::uint64_t offset, std::uint64_t size, std::string& zbc, std::string& err, std::string* engine = nullptr) {
   namespace fs = std::filesystem;
   std::error_code ec;
   if (!size) size = fs::file_size(path, ec);
   if (ec) { err = "cannot read it"; return false; }
   std::string dir;
   if (!zn::zapp::unpackTo(path, offset, size, kVersionText, (fs::path(zn::tc::home()) / "cache" / "zapp").string(), dir, err)) return false;
-  if (!fs::exists(fs::path(dir) / "program.zbc", ec)) { err = "the archive has no program.zbc"; return false; }
+  if (!fs::exists(fs::path(dir) / "program.zbc", ec)) {
+    std::ifstream pf(fs::path(dir) / "zinc.json");
+    std::stringstream ps; ps << pf.rdbuf();
+    zn::frontend::Project project; std::string perr;
+    if (engine && pf && zn::frontend::parseProject(ps.str(), project, perr) && !project.engine.empty() && project.engine != "zinc") { *engine = project.engine; zbc = dir; return true; }
+    err = "the archive has no program.zbc"; return false;
+  }
   zbc = (fs::path(dir) / "program.zbc").string();
   return true;
 }
@@ -1605,9 +1613,10 @@ int main(int argc, char** argv) {
     std::uint64_t at = 0, size = 0;
     if (fusedArchive(at, size)) {
       gFusedApp = true;
-      if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
-      zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
-      gFusedArgs = {argv[0], "run", zbc, "--"};
+      std::string engine;
+      if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err, &engine)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
+      if (engine.empty()) zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
+      gFusedArgs = engine.empty() ? std::vector<std::string>{argv[0], "run", zbc, "--"} : std::vector<std::string>{argv[0], "run", zbc, "--engine", engine, "--"};
       for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
       for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
       gFusedArgv.push_back(nullptr);
@@ -1628,6 +1637,20 @@ int main(int argc, char** argv) {
       gFusedArgv.push_back(nullptr);
       argc = static_cast<int>(gFusedArgs.size());
       argv = gFusedArgv.data();
+    }
+  }
+  if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {   // a .zapp of a project on a JavaScript engine: its sources on that engine
+    const std::string path = argv[2];
+    std::string dir, engine, err;
+    if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0 && std::ifstream(path, std::ios::binary) && unpackZapp(path, 0, 0, dir, err, &engine) && !engine.empty()) {
+      static std::vector<std::string> args;
+      static std::vector<char*> ptrs;
+      args = {argv[0], "run", dir, "--engine", engine, "--"};
+      for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
+      for (std::string& a : args) ptrs.push_back(a.data());
+      ptrs.push_back(nullptr);
+      argc = static_cast<int>(args.size());
+      argv = ptrs.data();
     }
   }
   for (int k = 0; k < argc; ++k) gOriginalArgs.push_back(argv[k]);
@@ -2064,6 +2087,25 @@ int main(int argc, char** argv) {
     if (entry.empty()) { std::fprintf(stderr, "zinc pack: %s has no zinc.json entry nor src/main.ts[x]\n", projDir.c_str()); return 2; }
     if (inspect) entry = zn::cli::inspectEntry(projDir, entry);
     std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
+    if (have && !project.engine.empty() && project.engine != "zinc") {   // a project on a JavaScript engine: its sources, run there as `zinc run <dir> --engine` runs them
+      // ponytail: the whole project but build/, node_modules/ and hidden files; a bundle (zinc bundle) when a project needs its npm packages
+      std::map<std::string, std::string> files;
+      std::error_code ec;
+      for (auto it = fs::recursive_directory_iterator(projDir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        const std::string rel = it->path().lexically_relative(projDir).generic_string(), top = rel.substr(0, rel.find('/'));
+        if (top == "build" || top == "node_modules" || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
+        if (!it->is_regular_file() || it->path().extension() == ".zapp") continue;
+        std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
+        files[rel] = b.str();
+      }
+      if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
+      const std::string archive = zn::zapp::pack(files, name, kVersionText);
+      std::ofstream out(outPath, std::ios::binary);
+      out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
+      if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
+      std::printf("packed %s (%zu files, %zu bytes, on %s)\n", outPath.c_str(), files.size() + 1, archive.size(), project.engine.c_str());
+      return 0;
+    }
     zn::zbc::Module zm;
     if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
     std::map<std::string, std::string> files;

@@ -15,6 +15,11 @@ cmp -s "$tmp/a.zapp" "$tmp/b.zapp" || { echo "two packs of the same project diff
 frame() { ZINC_SIZE=640x400 ZINC_FRAMES=8 ZINC_FRAMEHASH=last "$Z" run "$1" 2>&1 | grep framehash; }
 [ "$(cd "$tmp/game" && frame .)" = "$(frame "$tmp/a.zapp")" ] || { echo "the packed game draws another frame: $(frame "$tmp/a.zapp")"; fail=1; }
 "$Z" pack "$tmp/cli" -o "$tmp/cli.zapp" >/dev/null || { echo "zinc pack cli failed"; fail=1; }
+# a project on QuickJS carries its sources and runs on QuickJS, circular imports and all (examples/fatty)
+mkdir -p "$tmp/q/src" && printf '{"name":"q","entry":"src/main.ts","engine":"quickjs"}\n' > "$tmp/q/zinc.json"
+printf "import { b } from './b';\nexport const a = 'a';\nconsole.log('quickjs ' + b());\n" > "$tmp/q/src/main.ts"
+printf "import { a } from './main';\nexport function b() { return a + 'b'; }\n" > "$tmp/q/src/b.ts"
+"$Z" pack "$tmp/q" -o "$tmp/q.zapp" >/dev/null && [ "$("$Z" run "$tmp/q.zapp" 2>/dev/null)" = "quickjs ab" ] || { echo "the QuickJS project's package does not run: $("$Z" run "$tmp/q.zapp" 2>&1 | tail -2)"; fail=1; }
 # an asset that links to a file outside the project (hero's city.bin) is packed under its own name, not the link's target
 "$Z" new cli "$tmp/linked" >/dev/null && mkdir -p "$tmp/shared" "$tmp/linked/assets" && echo data > "$tmp/shared/city.bin" && ln -s ../../shared/city.bin "$tmp/linked/assets/city.bin"
 "$Z" pack "$tmp/linked" -o "$tmp/linked.zapp" >/dev/null && "$Z" run "$tmp/linked.zapp" >/dev/null 2>&1 && tar tf "$tmp/linked.zapp" | grep -qx 'assets/city.bin' ||

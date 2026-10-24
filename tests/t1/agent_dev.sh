@@ -83,6 +83,15 @@ pgrep -f "$D/agent/dev/" > /dev/null && bad "the program outlived its session"
 ZINC_HOME="$W" "$Z" dev "$P" --device nosuch > "$tmp/nosuch" 2>&1 && bad "a device that is not paired was accepted"
 grep -q "no paired device named nosuch" "$tmp/nosuch" || bad "not paired: $(cat "$tmp/nosuch")"
 
+# a project on QuickJS ("engine": "quickjs", circular imports the typed engines refuse, as examples/fatty has) runs its sources there
+Q="$tmp/devq"; mkdir -p "$Q/src"
+printf '{"name":"devq","entry":"src/main.ts","engine":"quickjs"}\n' > "$Q/zinc.json"
+printf "import { b } from './b';\nexport const a = 'a';\nconsole.log('quickjs: ' + a + b());\n" > "$Q/src/main.ts"
+printf "import { a } from './main';\nexport function b() { return a + 'b'; }\n" > "$Q/src/b.ts"
+ZINC_HOME="$W" "$Z" dev "$Q" --device "$name" > "$tmp/q.log" 2>&1 & qpid=$!
+until_grep "^quickjs: aab" "$tmp/q.log" || bad "the QuickJS project did not run on the device: $(cat "$tmp/q.log")"
+kill $qpid; wait $qpid 2>/dev/null
+
 # an agent that stops takes the program with it, and zinc dev says the device is gone
 ZINC_HOME="$W" "$Z" dev "$P" --device "$name" > "$log" 2>&1 & dpid=$!
 until_grep "^three: second note" "$log" || bad "the second session did not start: $(cat "$log")"
