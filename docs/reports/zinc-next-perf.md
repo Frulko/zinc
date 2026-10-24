@@ -1205,3 +1205,5 @@ The owner's PS Vita, `examples/ui/gl-check` with `ZINC_SCENE=cycle` (seven scene
 
 0 LINE/POLY skipped and 0 CPU tiles: every command on the GPU (stencil 8). The same program on GXM: 60.3 fps, its rounded and gradient scenes rasterized in software.
 
+Meadow Run (`examples/platformer`) on the same console, one 600-frame window each: GXM (ZINC00011, 2026-10-17) 60.2-65.3 fps, 0 missed vblanks, replay CPU p50 0.32 / p99 0.39 ms, frame p99 17.6 ms; vitaGL (ZINC00012, second launch, shader cache) 60.9 fps, 29 missed vblanks, replay CPU p50 1.10 / p99 16.1 ms, frame p99 34.2 ms, 209 quads and 2 draw calls a frame. GXM stays the 2D default (D165).
+

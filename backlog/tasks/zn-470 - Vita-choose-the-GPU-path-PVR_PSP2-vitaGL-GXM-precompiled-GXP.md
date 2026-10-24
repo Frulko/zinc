@@ -4,7 +4,7 @@ title: 'Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-24 23:02'
+updated_date: '2026-10-24 23:20'
 labels:
   - gpu
   - handheld
@@ -45,4 +45,6 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 2026-10-25 (owner: "tu me fais un support avec vitaGL pour la psvita ?", D165): vitaGL vendored in third_party/vitagl (pinned, with vitaShaRK, math-neon, SceShaccCgExt, taiHEN stubs); tools/build-console-core vita --vitagl replays zinc:gfx through runtime/gl_replay.cpp on vitaGL (targets/vita/gl_vita.cpp, same entry points as gxm_vita.cpp). Proved in Vita3K: the core builds and links, vitaGL initialises, and without ur0:data/libshacccg.suprx it says so and draws the hello in software (blue, yellow square, text). Not proved: the GPU replay itself needs libshacccg.suprx (Vita3K here has none) — next: copy it into Vita3K's ur0/data or run on the owner's Vita, then examples/ui/gl-check (AC2) and Meadow Run frame times against GXM.
 
 2026-10-25, hardware proof of the vitaGL path (D165): the owner's PS Vita (libshacccg.suprx in ur0:data/external), examples/ui/gl-check ZINC_SCENE=cycle built with --vitagl (ZINC00020): every command on the GPU (0 LINE/POLY skipped, 0 CPU tiles, stencil 8, family PowerVR tiler), 60.4 fps with 0 missed vblanks; the first launch compiles 17 programs in 10.3 s (32 fps for 600 frames), the second reads vitaGL's shader cache in 86 ms and holds 60 fps from the start. GXM build of the same program (ZINC00021): 60.3 fps with the rounded/gradient scenes in software. PSP: the owner ran examples/hardware-psp (GE replay) under Adrenaline on the same console: runs well. Later: ship the replay's programs as precompiled GXP (glShaderBinary) so users need no libshacccg; zinc:gl/WebGL1 on vitaGL (ZN-477).
+
+2026-10-25, Meadow Run on vitaGL (ZINC00012) vs GXM (ZINC00011) on the owner's Vita: vitaGL 29 missed vblanks in 600 frames, replay p50 1.10 / p99 16.1 ms; GXM 0 missed, 0.32 / 0.39 ms. Decision (D165): GXM stays the 2D default and grows the rounded/border/shadow commands (coverage atlas as targets/console/ff_replay.cpp does for the GE); vitaGL is for zinc:gl/WebGL1/three/zinc:3d (ZN-477). Possible vitaGL tuning not tried: its BUFFERS_SPEEDHACK / circular pool options, a ring of vertex buffers in the replay.
 <!-- SECTION:NOTES:END -->
