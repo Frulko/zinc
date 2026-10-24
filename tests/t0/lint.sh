@@ -14,12 +14,12 @@ check() {   # name, file with the output
 (cd $g/rules && "$ZINC" lint >"$tmp/rules.out" 2>"$tmp/rules.err"; echo $? >"$tmp/rules.code")
 [ "$(cat "$tmp/rules.code")" = 1 ] || { echo "rules: exit $(cat "$tmp/rules.code"), not 1: $(cat "$tmp/rules.err")"; fail=1; }
 check rules.expect "$tmp/rules.out"
-grep -q "^zinc lint: 7 errors, 7 warnings (esp32)" "$tmp/rules.err" || { echo "rules summary: $(cat "$tmp/rules.err")"; fail=1; }
+grep -q "^zinc lint: 7 errors, 8 warnings (esp32)" "$tmp/rules.err" || { echo "rules summary: $(cat "$tmp/rules.err")"; fail=1; }
 for r in $("$ZINC" lint --rules | cut -d' ' -f1); do
   grep -q " $r[ :]" "$tmp/rules.out" || { echo "rule $r has no finding in the fixture"; fail=1; }
 done
 [ "$("$ZINC" lint --rules | wc -l | tr -d ' ')" = 13 ] || { echo "--rules does not list 13 rules"; fail=1; }
-(cd $g/rules && "$ZINC" lint --json 2>/dev/null) | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['targets']==['esp32'] and len(d['diagnostics'])==14, d" || { echo "--json is not the expected JSON"; fail=1; }
+(cd $g/rules && "$ZINC" lint --json 2>/dev/null) | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['targets']==['esp32'] and len(d['diagnostics'])==15, d" || { echo "--json is not the expected JSON"; fail=1; }
 "$ZINC" lint --all-targets examples/hero >"$tmp/hero.out" 2>/dev/null || { echo "hero: errors on its own targets"; fail=1; }
 sed -n '/^target /,$p' "$tmp/hero.out" >"$tmp/hero.matrix"
 check hero.matrix "$tmp/hero.matrix"

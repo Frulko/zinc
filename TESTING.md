@@ -18,6 +18,11 @@ A task ends with the tests that cover **what it touched**, not with the corpus. 
 
 ## CI scope
 
+`make preflight` incrementally builds `zinc` and the native binaries T0 needs, then runs T0 locally, stopping on the first failure. It is opt-in; `make release` does not run it automatically. `make release-dry` only previews notes.
+For committed changes, `make preflight BASE=<ref>` runs affected tests instead of all T0. Neither check replaces the full release validation.
+
+For a hosted check without packages, benchmarks, reproducibility, fuzz or cross builds, use `gh workflow run zinc-next --ref develop -f mode=changed -f base=<last-published-tag>`. The comparison ref is required so a failed release on `main` cannot silently become the baseline. Shared core or unmapped code still conservatively selects all T0/T1 tests. Manual runs default to `mode=full`; release tags always keep all checks.
+
 Pushes to `develop` and `main` run nothing. A release tag (`make release`) and a manual run (`gh workflow run zinc-next --ref develop`) run the whole tier T2 on macOS in six shards, the package job (which runs `install_nocompiler` and `package` on the archive it built: the shards skip them), the fuzz job, the benchmark gate and the reproducible build. A test that needs what a hosted runner has not (a real GPU, a display, a debugger, a timing, an emulator) exits 77 under `ZINC_CI` with the reason; a test never passes on CI without proving what it says (`docs/reports/test-audit-2026-10-21/`).
 
 Owner exception (2026-10-23): `notify_relay` exits 77 under `ZINC_CI` because its intermittent hosted stall remains unresolved. It stays runnable locally with `tests/run --only notify_relay` and `ZINC_CI` unset. The `notify_relay_unit` and `notify_capture` checks remain enabled in CI; this exception does not disable the relay app.

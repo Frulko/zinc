@@ -10,6 +10,15 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'changed: affected tests only; full: all release checks, no publication'
+        type: choice
+        options: [full, changed]
+        default: full
+      base:
+        description: 'Comparison ref for changed mode (use the last published release tag)'
+        type: string
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}   # a release is never cancelled; a newer manual run replaces the older one
@@ -33,16 +42,23 @@ jobs:
           BEFORE: ${{ github.event.before }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MODE: ${{ inputs.mode }}
+          BASE_REF: ${{ inputs.base }}
         run: |
-          full=
+          full=; quick=
           if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then full=--full; fi
+          if [[ "$EVENT" == workflow_dispatch && "$MODE" == changed && "$GITHUB_REF" != refs/tags/v* ]]; then full=; quick=--quick; fi
           base="$BEFORE"
+          if [ -n "$quick" ]; then
+            [ -n "$BASE_REF" ] || { echo '::error::changed mode needs base=<last published release tag>'; exit 1; }
+            base=$(git rev-parse --verify "${BASE_REF}^{commit}") || exit 1
+          fi
           if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
           if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             base=$(git merge-base "origin/$DEFAULT_BRANCH" HEAD 2>/dev/null) || base=$(git hash-object -w -t tree /dev/null)
           fi
           git diff --name-only "$base" HEAD -- > "$RUNNER_TEMP/changed-paths"
-          python3 tools/ci-plan ${full:+"$full"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
+          python3 tools/ci-plan ${full:+"$full"} ${quick:+"$quick"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
   build:
     # The arm64 build, once: the tests and the arm64 package download it instead of compiling again (the Intel package builds its own, in parallel). ccache keeps
@@ -222,7 +238,7 @@ jobs:
           path: dist/
           include-hidden-files: true   # dist/.signed: the macOS package was signed and notarized
   test:
-    # The whole tier, split in parallel shards (tests/run --shard i/n). A FAIL never blocks the release: each shard uploads its results and logs, and `report` gathers them.
+    # Each shard uploads its results even on failure; the release gate refuses any FAIL.
     needs: [plan, build]
     if: needs.plan.outputs.test == 'true'
     strategy:
@@ -367,7 +383,7 @@ jobs:
     # Fuzzing (60 s per target with ASan and UBSan) is a milestone check: the nightly and manual runs, not every push. Apple's clang (see its Dependencies step).
     name: fuzz
     needs: [plan, build]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: needs.plan.outputs.full == 'true'
     runs-on: macos-15
     continue-on-error: true
     defaults:
@@ -535,7 +551,7 @@ jobs:
     # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
     name: windows-cross
     needs: plan
-    if: vars.ZINC_WINDOWS_JOBS == 'true'   # off unless that repository variable is set: macOS only (owner, 2026-10-15)
+    if: vars.ZINC_WINDOWS_JOBS == 'true' && needs.plan.outputs.full == 'true'
     runs-on: ubuntu-24.04
     continue-on-error: true
     defaults:
@@ -600,7 +616,7 @@ jobs:
     # repository variable ZINC_LINUX_JOBS is 'true' (macOS only for now, owner 2026-10-15); never run yet, so it does not block.
     name: linux-cross (${{ matrix.arch }})
     needs: plan
-    if: vars.ZINC_LINUX_JOBS == 'true'
+    if: vars.ZINC_LINUX_JOBS == 'true' && needs.plan.outputs.full == 'true'
     runs-on: ubuntu-24.04
     continue-on-error: true
     strategy:

@@ -8,6 +8,7 @@ src/main.tsx:8:27: warning screen-size [esp32]: w-[480px] is 480 px wide, the sc
 src/main.tsx:9:22: warning ui-tier [esp32]: bg-conic: a conic gradient is drawn as the average of its stops on tier T0 (fix: a two-stop linear gradient along an axis, or an image)
 src/main.tsx:10:50: warning ui-tier [esp32]: via-green-500: a gradient beyond two stops along an axis is drawn from its first to its last colour on tier T0 (fix: a two-stop linear gradient along an axis, or an image)
 ../../../../lib/std/kit/keyboard.tsx:2:5: warning module-requires [esp32]: this module requires heap>=256K (esp32 has heap 160K) (fix: a platform file, or a lighter module)
+../../../../lib/std/icons.tsx:4:21: warning plugin-targets [esp32]: plugin svg is not made for this target (its plugin.json targets: macos, linux, windows, android, ios, rpi1, wasm) (fix: a platform file (x.<target>.tsx) without the import)
 src/main.tsx:5:22: warning plugin-targets [esp32]: plugin audio is not made for this target (its plugin.json targets: macos, linux, ios, windows) (fix: a platform file (x.<target>.tsx) without the import)
 assets: error assets-flash [esp32]: the assets take 1.5 KB, over the 1.0 KB flash budget (fix: smaller or fewer assets for that target (zinc.json targets.<id>.assets))
 assets: warning assets-memory [esp32]: the assets decode to about 512 KB (images as rgb565), over the 96 KB ram budget (fix: zinc assets build --target <target> for the measure)

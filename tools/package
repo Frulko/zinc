@@ -302,14 +302,13 @@ def package_linux(build, out, arch=None):
     return [("linux", archive)], without
 
 def package_windows(build, out):
-    """ZN-718: zinc-<version>-windows-<arch>.zip (bin\\zinc.exe and the DLLs built beside it, share\\zinc). Never run: the Windows host does not build yet
-    (ZN-054), and no plugin names the windows target, so it holds no plugin library. Written so the release job has its step the day the build passes."""
+    """The CLI and Atelier share the engine, DLLs and import library used to build plugins."""
     name = "zinc-%s-windows-%s" % (VERSION, platform.machine().lower().replace("amd64", "x86_64"))
     root = os.path.join(out, "stage", name)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     os.makedirs(os.path.join(root, "bin"))
     for f in os.listdir(build):
-        if f == "zinc.exe" or f.lower().endswith(".dll"):
+        if f in ("zinc.exe", "libzinc.dll.a") or f.lower().endswith(".dll"):
             shutil.copy2(os.path.join(build, f), os.path.join(root, "bin", f))
     payload(os.path.join(root, "share", "zinc"))
     without = prebuild_plugins(os.path.join(build, "zinc.exe"), os.path.join(root, "share", "zinc"), "windows")

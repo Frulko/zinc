@@ -1,14 +1,15 @@
 #!/bin/sh
 # Quiet runner: one PASS/FAIL line per test, details in .logs/. See TESTING.md.
 # Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
-# Usage: tests/run [--tier t0|t1|t2|demo] [--only <name>] [--changed | --changed-from <ref>]
+# Usage: tests/run [--tier t0|t1|t2|demo] [--only <name>] [--changed | --changed-from <ref>] [--fail-fast]
 # tests/demo: what a demo app itself does (its rules, files, editor), beyond the one T1 session per demo; run by hand and by --changed, not by CI.
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
 cd "$root" || exit 2
-tier=; only=; changed=; base=; shard=
+tier=; only=; changed=; base=; shard=; fail_fast=
 while [ $# -gt 0 ]; do
   case $1 in
+    --fail-fast) fail_fast=1; shift ;;
     --tier) tier=$2; shift 2 ;;
     --only) only=$2; shift 2 ;;
     --shard) shard=$2; shift 2 ;;   # i/n: every n-th test, so n runners split the tier (CI)
@@ -68,6 +69,7 @@ for t in $tiers; do
     else
       echo "FAIL $name"; fail=$((fail + 1))
       { echo "=== $name"; cat "$log.tmp"; } >> "$log"
+      [ -z "$fail_fast" ] || break 2
     fi
   done
 done

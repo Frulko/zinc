@@ -1,4 +1,6 @@
-# Resume — 2026-10-23
+# Resume — 2026-10-24
+
+- CI 39998352254: publication blocked by stale lint goldens (4s); Windows archive omitted libzinc.dll.a; splash took 3724s. Added opt-in make preflight and manual mode=changed with explicit base, retaining full tag checks. Fixed lint expectations and archive copy filter. Owner requested removing splash from tests, then stopping validation to re-release: deleted tests/t1/splash.sh and its affected-test mapping, stopped the build/test process group. No automatic preflight in make release. Full preflight interrupted; earlier workflow, scope and regression checks passed. Report docs/reports/ci-preflight-2026-10-24.md. No push/release/dispatch or cross build.
 
 - ZN-789 Done: failed v0.7.0 run 39982002224 (24f5a12f) had 523 pass/4 fail/31 skip. Fixed missing glass-icon-reveal inventory, deterministic music battery/timezone fixture, and client buffered logs lost on EOF. Kanban's empty-log failure did not reproduce; scaled silent timeouts and added phase/output diagnostics. No full suite/CI rerun or publication.
 - Pi player Linux size is native (official 800x480 or framebuffer 1920x1080). fbdev now sends keyboard/text/modifiers via existing libxkbcommon dependency, mouse buttons/wheels, USB hotplug and an outlined cursor that moves on an idle frame. Escape actions reuse HalDisplay.device, preserving its ABI. Physical KMS/USB/real-XKB checks remain pending.

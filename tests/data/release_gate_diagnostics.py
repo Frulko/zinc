@@ -4,11 +4,74 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import runpy
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class Diagnostics(unittest.TestCase):
+    def test_preflight_builds_then_checks_and_preserves_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'tools').mkdir()
+            (root / 'tests').mkdir()
+            (root / 'tools/preflight').write_bytes((ROOT / 'tools/preflight').read_bytes())
+            for name in ('tools/build', 'tests/run'):
+                script = root / name
+                script.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$CALLS"\nexit "${' + ('BUILD_STATUS' if name == 'tools/build' else 'TEST_STATUS') + ':-0}"\n')
+                script.chmod(0o755)
+            calls = root / 'calls'
+            build = ('tools/build zinc assets_test board_test codec_test gl_caps_test gltf_check '
+                     'i18n_test ir_test layout_test layout_yoga_test napi_test native_test ops_test '
+                     'platform_test qr_test scenario_test segment_test sim_test yoga_test zbc_test zpk_test')
+            for args, status, expected in (([], {}, [build, 'tests/run --tier t0 --fail-fast']),
+                                           (['v1.0.0'], {}, [build, 'tests/run --changed-from v1.0.0 --fail-fast']),
+                                           ([], {'BUILD_STATUS': '17'}, [build]),
+                                           ([], {'TEST_STATUS': '19'}, [build, 'tests/run --tier t0 --fail-fast'])):
+                calls.unlink(missing_ok=True)
+                result = subprocess.run(['sh', str(root / 'tools/preflight'), *args],
+                                        env=dict(os.environ, CALLS=str(calls), **status), capture_output=True)
+                self.assertEqual(result.returncode, int(next(iter(status.values()), 0)))
+                self.assertEqual(calls.read_text().splitlines(), expected)
+
+    def test_runner_stops_at_first_failure_across_tiers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'tests/t0').mkdir(parents=True)
+            (root / 'tests/t1').mkdir()
+            (root / 'tests/run').write_bytes((ROOT / 'tests/run').read_bytes())
+            (root / 'tests/t0/a.sh').write_text('echo deliberate failure\nexit 1\n')
+            (root / 'tests/t0/b.sh').write_text('exit 0\n')
+            (root / 'tests/t1/c.sh').write_text('exit 0\n')
+            for args, later in (([], True), (['--fail-fast'], False)):
+                result = subprocess.run(['sh', str(root / 'tests/run'), '--tier', 't1', *args],
+                                        env=dict(os.environ, ZINC_ZIG='fixture'), capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('FAIL a', result.stdout)
+                self.assertEqual('PASS b' in result.stdout, later)
+                self.assertEqual('PASS c' in result.stdout, later)
+                self.assertIn('deliberate failure', result.stdout)
+
+    def test_windows_archives_include_plugin_import_library(self):
+        package = runpy.run_path(str(ROOT / 'tools/package'))
+        fn = package['package_windows']
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build = root / 'build'
+            build.mkdir()
+            for name in ('zinc.exe', 'libzinc.dll.a', 'host.dll', 'zinc-atelier.exe'):
+                (build / name).write_text(name)
+            with patch.dict(fn.__globals__, VERSION='1.0.0', payload=lambda p: None,
+                            prebuild_plugins=lambda *a: {}):
+                archives, _ = fn(str(build), str(root / 'out'))
+            import zipfile
+            self.assertEqual(len(archives), 2)
+            for _, archive in archives:
+                with zipfile.ZipFile(archive) as z:
+                    self.assertTrue(any(n.endswith('/bin/libzinc.dll.a') for n in z.namelist()))
+                    self.assertTrue(any(n.endswith('/bin/zinc.exe') for n in z.namelist()))
+
     def test_relay_is_explicitly_skipped_in_ci(self):
         env = dict(os.environ, ZINC_CI='1', ZINC='/nonexistent/fixture-zinc')
         result = subprocess.run(['sh', str(ROOT / 'tests/t1/notify_relay.sh')], env=env, text=True, capture_output=True)

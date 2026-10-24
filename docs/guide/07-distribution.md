@@ -409,6 +409,7 @@ runs one pipeline, the tag's (owner, 2026-10-20). What CI does with each:
 | push to `develop` or `main` | nothing |
 | `v*` tag (`make release`) | the build, the whole tier T2 in six shards, the packages; when every test passed, the release, then the plugin mirrors and the site |
 | manual run (`gh workflow run zinc-next --ref develop`) | the same tests and packages, no release |
+| manual targeted run (`gh workflow run zinc-next --ref develop -f mode=changed -f base=vX.Y.Z`) | affected T0/T1 tests since the last published tag; no packages, benchmarks, fuzz or cross builds; no release |
 
 
 ### The two downloads of a release
@@ -466,6 +467,8 @@ A prerelease tag (`v1.3.0-beta.1`) makes a GitHub prerelease and writes only the
 address, which the job uploads to the latest release, where `zinc update --channel beta` reads it; a stable tag writes both.
 
 ### Releasing with `make release`
+
+Use `make preflight` when you want local checks before release: it incrementally builds the engine and runs T0 with an immediate stop on failure. For committed changes, `make preflight BASE=vX.Y.Z` selects the affected tests instead. This check is opt-in; `make release` does not launch it automatically. `make release-dry` previews the version and notes without testing. Only the full workflow validates release packages and all targets.
 
 `make release` (`tools/release`) is the one command that publishes a version. It runs from `develop`, where the work happens, and checks the repository (on `develop`, clean tree, in
 step with origin, `main` behind `develop`, `gh` signed in, the `ZINC_UPDATE_SEED` secret, `update.pub`), proposes the next version from the commits since the last tag, shows the notes, and asks.

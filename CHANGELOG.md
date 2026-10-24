@@ -51,6 +51,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A web program that needs WebGL 2 says `"requires": ["gpu>=webgl2"]`: on a machine whose GPU cannot make a WebGL 2 context it now stops with the reason (`--force` runs it anyway), and any other program gets a warning with the `null` context. `ZINC_WEBGL_MAX=1` makes any machine behave like such a GPU.
 
 ### Changed
+- Use `make preflight` for local checks before release, or the manual workflow's `changed` mode with a published tag as its comparison base for affected tests without building release packages.
 - Zinc Pi Image has an illustrated settings workspace with desktop checkboxes and a clearer build panel with hardware summary, animated loading and step progress, and image actions. Build output follows new lines, pauses when you scroll up, and resumes with **Latest output**.
 - LVGL runs about 1.6 times faster on the ESP32-2432S022 under `--engine mquickjs` (the widgets' Bench page: 38 fps, from 24): its hottest code runs from the internal RAM instead of the flash. A plugin lists such files under `targets.esp32.iram` in its `plugin.json`.
 - A program on the ESP32-2432S022 under `--engine mquickjs` has about 26 KB more memory once LVGL draws: the board's panel bus copies each area, so LVGL renders into one buffer and the firmware keeps one band. A Lottie animation now fits after the widgets' benchmark page.
@@ -66,6 +67,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- Windows archives include the engine import library, so plugins can compile on first use after installation.
 - The Pi player uses the screen's native resolution, including 1080p. Framebuffer input now sends keyboard/text events with the configured layout, handles USB devices connected after boot, and shows a mouse cursor even while the app keeps an idle frame.
 - Signed Pi updates carry the matching player sources, administration helper and session service as well as the engine; existing cards can receive these fixes without reflashing after a one-time updater-helper upgrade. Failed activation and rollback restore the previous player and system files together.
 - `zinc device logs` drains output received just before a connection closes instead of occasionally dropping its final lines.

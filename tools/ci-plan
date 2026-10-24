@@ -4,7 +4,7 @@ import json
 import sys
 
 
-def plan(paths, full=False):
+def plan(paths, full=False, quick=False):
     code = [p for p in paths if not (
         p.startswith(("docs/", "backlog/", "tests/compat/results/")) or p.endswith(".md"))]
     performance = ("src/", "include/", "third_party/", "CMakeLists.txt",
@@ -12,7 +12,7 @@ def plan(paths, full=False):
                    "tests/t0/bench_harness.sh", "tests/t2/bench_gate.sh",
                    "runtime/", "lib/", "plugins/", "targets/")
     workflow = ".github/workflows/zinc-next.yml" in code
-    return {
+    result = {
         "test": full or bool(code),
         "full": full,
         "bench": full or workflow or any(p.startswith(performance) for p in code),
@@ -22,9 +22,12 @@ def plan(paths, full=False):
         "package": full or workflow or any(p.startswith((
             "tools/package", "tools/sign-macos")) for p in code),
     }
+    if quick and not full:
+        result.update(bench=False, reproducible=False, package=False)
+    return result
 
 
 if __name__ == "__main__":
-    result = plan([line.strip() for line in sys.stdin if line.strip()], "--full" in sys.argv)
+    result = plan([line.strip() for line in sys.stdin if line.strip()], "--full" in sys.argv, "--quick" in sys.argv)
     for key, value in result.items():
         print(f"{key}={json.dumps(value)}")

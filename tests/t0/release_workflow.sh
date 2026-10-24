@@ -16,6 +16,12 @@ import sys, yaml
 wf = yaml.safe_load(open(sys.argv[1]))
 on = wf.get("on") or wf.get(True)
 assert "v*" in on["push"]["tags"], "no v* tag trigger"
+assert on['workflow_dispatch']['inputs']['mode']['options'] == ['full', 'changed']
+scope = next(s for s in wf['jobs']['plan']['steps'] if s.get('id') == 'scope')
+assert 'MODE' in scope['env'] and 'BASE_REF' in scope['env']
+assert '--quick' in scope['run'] and 'rev-parse --verify' in scope['run']
+for job in ('fuzz', 'linux-cross', 'windows-cross'):
+    assert "needs.plan.outputs.full == 'true'" in wf['jobs'][job]['if'], job
 rel = wf["jobs"]["release"]
 assert {"package", "package-windows", "linux-cross", "test"} <= set(rel["needs"]) and "refs/tags/v" in rel["if"] and rel["permissions"]["contents"] == "write", "release job: %s" % rel["needs"]
 downloads = [s["with"].get("pattern") for s in rel["steps"] if "download-artifact" in s.get("uses", "")]
