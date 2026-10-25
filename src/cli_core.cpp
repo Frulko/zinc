@@ -2112,6 +2112,38 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   const std::string embed = has(o, "--no-embed") ? " --no-embed" : "";   // the fonts and images in <name>.res beside the executable
   const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
                                      : "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
+  if (target == "rmpp") {   // an AppLoad app directory (docs/targets/remarkable-paper-pro.md); zinc.json "display": {"ink": "session"} starts it through the display lease
+    std::string ink, icon;
+    if (yyjson_doc* jd = yyjson_read_file((fs::path(p.dir) / "zinc.json").string().c_str(), 0, nullptr, nullptr)) {
+      yyjson_val* r = yyjson_doc_get_root(jd);
+      if (const char* s = yyjson_get_str(yyjson_obj_get(yyjson_obj_get(r, "display"), "ink"))) ink = s;
+      if (const char* s = yyjson_get_str(yyjson_obj_get(yyjson_obj_get(r, "app"), "icon"))) icon = s;
+      yyjson_doc_free(jd);
+    }
+    const std::string dir = "/home/root/xovi/exthome/appload/" + p.name;
+    const bool session = ink == "session";
+    writeFile(out / "external.manifest.json", "{\n  \"name\": " + jsonString(p.name) + ",\n" +
+              (!session ? "  \"application\": " + jsonString(p.name) + ",\n  \"qtfb\": true,\n"
+                        : "  \"application\": \"lease\",\n  \"args\": [\"launch\", \"--watchdog\", \"10\", " + jsonString(dir + "/" + p.name) + "],\n  \"qtfb\": false,\n") +
+              "  \"workingDirectory\": " + jsonString(dir) + ",\n  \"disablesWindowedMode\": true\n}\n");
+    // AppLoad's tile: zinc.json app.icon when it is a PNG, else a plain framed square to replace
+    if (icon.size() < 4 || icon.compare(icon.size() - 4, 4, ".png") || !fs::copy_file(fs::path(p.dir) / icon, out / "icon.png", fs::copy_options::overwrite_existing, ec)) {
+      std::vector<std::uint8_t> px(128 * 128 * 4, 255);
+      for (int y = 0; y < 128; y++) for (int x = 0; x < 128; x++) if (x < 8 || y < 8 || x >= 120 || y >= 120) for (int c = 0; c < 3; c++) px[(y * 128 + x) * 4 + c] = 0;
+      const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), 128, 128, 4);
+      writeFile(out / "icon.png", std::string(png.begin(), png.end()));
+    }
+    const std::string files = "\"$D/" + p.name + "\" \"$D/external.manifest.json\" \"$D/icon.png\"" + (session ? " \"$D/lease\"" : "");
+    writeFile(out / "deploy.sh", "#!/bin/sh\n# usage: ./deploy.sh [root@10.11.99.1]  (developer mode + xovi/AppLoad installed on the tablet)\nset -e\nD=$(dirname \"$0\")\nHOST=\"${1:-root@10.11.99.1}\"\n"
+              "ssh \"$HOST\" \"mkdir -p " + dir + "\"\nscp -q " + files + " \"$HOST:" + dir + "/\"\necho \"installed in " + dir + ": open AppLoad on the tablet, tap reload, then launch '" + p.name + "'\"\n");
+    fs::permissions(out / "deploy.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+    if (session) {   // the lease supervisor (integrations/remarkable-ink/lease.c), a static binary beside the app
+      std::string zig;
+      const fs::path src = fs::path(engineRoot) / "integrations" / "remarkable-ink" / "lease.c";
+      if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+      if (runArgv({zig, "cc", "-target", "aarch64-linux-musl", "-static", "-O2", src.string(), "-o", (out / "lease").string()}, false) != 0) { std::fprintf(stderr, "zinc export: the display lease (%s) did not build\n", src.string().c_str()); return 1; }
+    }
+  }
   int rc = status(std::system(cmd.c_str()));
   if (rc != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return rc; }
   if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
@@ -2947,7 +2979,7 @@ int indexSearch(const std::vector<std::string>& args, const std::string& engineR
   return 0;
 }
 
-int deploy(const std::vector<std::string>& args) {
+int deploy(const std::vector<std::string>& args, const std::string& engineRoot) {
   Opts o = parseOpts(args, {"--target", "--device", "--dir"}, {"--print"});
   if (o.bad) { std::fprintf(stderr, "zinc deploy: unknown option %s\nusage: zinc deploy [entry|dir] --target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp --device user@host [--dir path] [--print]\n", o.badArg.c_str()); return 2; }
   if (!o.v.count("--device")) { std::fprintf(stderr, "zinc deploy: --device user@host is needed\n"); return 2; }
@@ -2959,7 +2991,7 @@ int deploy(const std::vector<std::string>& args) {
   const std::string remote = o.v.count("--dir") ? o.v["--dir"] : "~/" + p.name;
   const bool dry = has(o, "--print") || std::getenv("ZINC_DEPLOY_DRY");
   std::vector<std::string> ex = {"zinc", "export", p.entry, "--target", target};
-  if (!dry) { int rc = exportApp(ex); if (rc != 0) return rc; }
+  if (!dry) { int rc = exportApp(ex, engineRoot); if (rc != 0) return rc; }
   const std::string dist = (fs::path(p.dir) / "dist" / (p.name + "-" + target)).string();
   const std::string mk = "ssh " + q(device) + " " + q("mkdir -p " + remote);
   const std::string cp = "scp -r " + q(dist + "/.") + " " + q(device + ":" + remote + "/");

@@ -1794,7 +1794,7 @@ int main(int argc, char** argv) {
     if (zn::cli::mquickjsWanted(cl)) return zn::cli::mquickjs(cl, gRoot, qjsCacheDir());   // --target esp32 --engine mquickjs (firmware/esp32-mquickjs)
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "compat")) return zn::cli::compat(cl, gRoot);
-    if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::isNpmCommand(cl) ? zn::cli::npmAdd(cl, false) : zn::cli::addPlugin(cl, gRoot);   // npm:<package>: the project's package manager (cli_pm.h)
     if (argc >= 2 && !std::strcmp(argv[1], "index-sign")) return zn::cli::indexSign(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "index-get")) return zn::cli::indexGet(cl);

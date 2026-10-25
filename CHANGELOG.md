@@ -10,6 +10,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Swift Observatory and Pocket Rally accept finite background native performance probes with idle/active workloads, startup readiness and raw host tick/copy samples.
+- reMarkable Paper Pro: `"display": { "ink": "session" }` runs the app under a display lease. `zinc export --target rmpp` ships the `lease` binary, and the AppLoad tile starts the app through it. The lease stops xochitl through systemd and brings it back once on every way out, also when the app crashes or hangs, when you hold the power button for 2 s, or when its time runs out. It refuses a launch beyond 2 xochitl restarts per 10 minutes or 6 per hour, and says when the next launch is allowed. Recovery commands are in docs/targets/remarkable-paper-pro.md.
+
+### Fixed
+- `zinc export --target rmpp` writes the AppLoad files again: `external.manifest.json`, `icon.png` (zinc.json `app.icon` when it is a PNG), and `deploy.sh`, which copies the app to the tablet.
 
 ## [0.8.2] - 2026-10-25
 

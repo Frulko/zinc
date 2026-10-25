@@ -10,6 +10,6 @@ Local checks cover packet framing, RGB32, acknowledgements, rectangle bounds, fi
 
 Repeated xochitl restarts during diagnosis hit the stock service's `StartLimitBurst=4` / `StartLimitIntervalSec=600`. The journal records `start-limit-hit` followed by `rm-emergency.sh`, which rebooted the tablet. The experimental extension and loader diagnostic were removed from `extensions.d`; stock xochitl is active. Never repeat the restart loop or change the device's safety limits to bypass it.
 
-The old rollback timer also restarted xochitl and cannot be treated as safe independently of this rate limit. It is no longer armed. Further loading diagnosis should happen off-device before another controlled hardware test.
+The old rollback timer also restarted xochitl outside any rate limit; it is removed. `lease.c` (the display lease, docs/targets/remarkable-paper-pro.md) is now the only Zinc code that restarts xochitl, within a budget of 2 starts per 10 minutes. Further loading diagnosis should happen off-device before another controlled hardware test.
 
 Build: `sh integrations/remarkable-ink/build.sh` requires the `zinc-ink-builder` Docker container, the official SDK at `/sdk`, XOVI sources at `/xovi`, and this repository mounted at `/work`.

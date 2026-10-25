@@ -56,7 +56,7 @@ int compat(const std::vector<std::string>& args, const std::string& engineRoot);
 // zinc publish --itch / --site (ZN-325): dist/ to itch.io through butler (--dry-run prints the commands), a static download page.
 int publishStore(const std::vector<std::string>& args);
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */
-int deploy(const std::vector<std::string>& args);
+int deploy(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc add <git-url[@ref] | archive URL> [dir]`: the plugin into <dir>/plugins/<name>, its commit or sha256 in zinc.json "lock" (ZN-328.01). */
 int addPlugin(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc install [dir]`: every plugin of zinc.json "lock" fetched again at its pinned commit or checked against its pinned sha256. */

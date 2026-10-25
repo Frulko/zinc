@@ -93,6 +93,61 @@ a runtime image with the same commands (identical pixels, so the pixel diff sees
 (Marker eraser end or the Eraser tool), undo (50 levels), clear, JSON (`toJSON`/`parseStrokes`) and SVG (`toSVG`,
 round-capped polylines per width run: same geometry as the screen).
 
+## The display lease (`"ink": "session"`)
+
+An app that needs the panel to itself (direct ink through the vendor engine) runs under the display lease,
+`integrations/remarkable-ink/lease.c` (design: `docs/reports/remarkable-bridge-design.md` §3 and §7.1).
+With `"display": { "driver": "rmpp", "ink": "session" }`, `zinc export --target rmpp` puts the static `lease` binary
+beside the app and writes the AppLoad manifest with `"application": "lease"`, `"args": ["launch", "--watchdog", "10", <app>]`
+and `"qtfb": false`. `examples/remarkable/quill-test/launch.sh` uses the same binary.
+
+- `lease launch` checks everything first, then starts one transient unit, `zinc-lease`; a second launch is refused
+  while it runs. Inside it, `lease session` takes a wakelock, owns the power button, runs `systemctl stop xochitl` and
+  starts the app. Every way out (the app quits or crashes, the app stops sending `WATCHDOG=1` for 10 s, a 2 s press on
+  the power button, `systemctl stop zinc-lease`, the supervisor dies, the dead-man `RuntimeMaxSec`, 30 min by default,
+  `--max` up to 2 h) ends in `lease restore`, the unit's `ExecStopPost`. It starts xochitl once, then releases the
+  wakelock.
+- xochitl is stopped through systemd only. The lease never freezes, kills or masks xochitl, and never edits its unit.
+  It refuses to run when the unit's `StartLimitBurst`, `StartLimitIntervalUSec` or `WatchdogUSec` differ from the stock
+  4 / 10min / 1min (after an OS update, verify again first). It also refuses when xochitl is not active, failed, has been
+  up for less than 30 s, or restarted on its own this boot.
+- Budget: at most 2 xochitl starts by the lease in 10 minutes, 6 per hour, and 60 s between leases (`/run/zinc-lease/starts`,
+  reset at boot). A refused launch says why and when the next one is allowed. `reset-failed xochitl` runs only right
+  after the lease's own clean stop, so its cycles never use up systemd's 4 starts in 600 s and xochitl's own crashes still count.
+- A failed restore makes no retry loop. It retries once after 10 s, and only when the display was busy. It keeps the
+  wakelock, writes the reason to the journal and `/run/zinc-lease/last`, and refuses every later launch until someone
+  looks at it.
+
+Proven on the Mac by `tests/run --only rmpp_lease`: a fake systemd (`tests/native/rmpp/lease-sim`) with the stock start
+limit and a fake clock. Not proven: the real unit on the tablet, the power key device, the return time to a usable
+xochitl (test plan T5/T6 of the design report).
+
+### Recovery
+
+From the host, over USB (`ssh root@10.11.99.1`); `<app>` is the AppLoad directory holding `lease`:
+
+```sh
+systemctl status zinc-lease xochitl --no-pager      # what runs
+journalctl -u zinc-lease -n 100 --no-pager          # the lease's lines, its restore included
+/home/root/xovi/exthome/appload/<app>/lease status  # budget, last result, pending restore
+cat /run/zinc-lease/last /run/zinc-lease/starts
+systemctl stop zinc-lease                           # ends a lease; its restore starts xochitl
+systemctl show xochitl -p ActiveState -p Result -p NRestarts
+```
+
+If xochitl is still down after `systemctl stop zinc-lease`, check that no app still holds the panel
+(`cat /tmp/epframebuffer.lock` must not name a live process, `ls -l /proc/*/fd | grep dri/card` must be empty).
+Then start it **once**, and release the lease's wakelock and its pending restore:
+
+```sh
+systemctl start xochitl
+echo zinc-lease > /sys/power/wake_unlock
+rm -f /run/zinc-lease/restore /run/zinc-lease/ours /run/zinc-lease/stopped /run/zinc-lease/wake
+```
+
+Never loop `systemctl restart xochitl`. Four starts in 600 s hit `start-limit-hit`, and its `OnFailure` reboots the
+tablet (2026-09-29). Never run `reset-failed` after a crash of xochitl itself. A reboot clears `/run/zinc-lease`.
+
 ## Desktop emulator
 
 On macOS/Linux, `display-rmpp` runs the same `eink.h` policy and shows its output in the SDL window: paper tint,
@@ -105,8 +160,9 @@ else the mouse (left = pen at pressure 0.5, right = eraser). Give the project th
 
 1. Enable developer mode (wipes the tablet), connect USB, `ssh root@10.11.99.1`.
 2. Install xovi + AppLoad (Vellum or remagic).
-3. `zinc deploy --target rmpp` copies `<name>`, `external.manifest.json` (`"qtfb": true, "disablesWindowedMode": true`)
-   and `icon.png` to `/home/root/xovi/exthome/appload/<name>/`. In AppLoad, reload and launch it. Replace `icon.png`.
+3. `zinc export --target rmpp` writes `<name>`, `external.manifest.json` (`"qtfb": true, "disablesWindowedMode": true`;
+   the lease for `"ink": "session"`), `icon.png` (zinc.json `app.icon` when it is a PNG) and `deploy.sh`, which copies
+   them to `/home/root/xovi/exthome/appload/<name>/`. In AppLoad, reload and launch it.
 4. Without AppLoad (`QTFB_KEY` unset) the app runs headless and says so on stderr. Stopping xochitl
    (`systemctl stop xochitl`) does not give Zinc the screen: the panel needs xochitl's software TCON.
 

@@ -7,22 +7,24 @@ Read-only uptime afterward was 62 days: this restarted xochitl, not the tablet.
 This is a successful subjective drawing/lifecycle test, not a camera latency measurement.
 
 Separate, unsaved monochrome drawing test to evaluate direct ink before porting Notes.
-AppLoad launches a transient systemd service with `qtfb: false`. The service holds a
-wakelock, stops xochitl, runs Quill's `scribble`, and restores xochitl in `ExecStopPost`.
-It stops automatically after **3 minutes**. No firmware, waveform, boot or persistent
+AppLoad (`qtfb: false`) runs `launch.sh`, which hands Quill's `scribble` to the display lease
+(`integrations/remarkable-ink/lease.c`, `docs/targets/remarkable-paper-pro.md`): one transient unit `zinc-lease` holds a
+wakelock, stops xochitl through systemd, runs `scribble`, and restores xochitl once on every way out. It stops
+automatically after **3 minutes**. The lease refuses a launch outside its budget (2 xochitl restarts per 10 minutes,
+6 per hour, 60 s between leases) and says when the next one is allowed. No firmware, waveform, boot or persistent
 service files are installed. Save/close any active notebook before launching.
 
 Exit with the **power button**, **five fingers**, or from the host:
 
 ```sh
-ssh root@10.11.99.1 'systemctl stop zinc-quill-test'
+ssh root@10.11.99.1 'systemctl stop zinc-lease'
 ```
 
 Build on the host (requires the existing `zinc/sdk-rmpp` Docker image):
 
 ```sh
 sh examples/remarkable/quill-test/build.sh
-python3 tests/rmpp/quill-launch.py
+tests/run --only rmpp_lease        # the lease against a fake systemd, on this machine
 scp -O -r examples/remarkable/quill-test/dist/quill-test root@10.11.99.1:/home/root/xovi/exthome/appload/
 ```
 
@@ -35,15 +37,13 @@ launch does not establish equivalent physical latency.
 Diagnostics and recovery from the host:
 
 ```sh
-ssh root@10.11.99.1 'journalctl -u zinc-quill-test -n 100 --no-pager'
-ssh root@10.11.99.1 'systemctl stop zinc-quill-test; systemctl start xochitl'
+ssh root@10.11.99.1 'journalctl -u zinc-lease -n 100 --no-pager; /home/root/xovi/exthome/appload/quill-test/lease status'
 ```
 
-Recovery stops the test before starting xochitl: never run two display engines at once.
-The launcher refuses unknown firmware hashes and living/unknown display-lock owners.
-If restoration fails it keeps the wakelock to avoid autosleep during recovery; inspect
-the journal rather than deleting a live display lock. After restoring xochitl, release
-that test-only wakelock if needed: `echo zinc-quill-test > /sys/power/wake_unlock`.
+Recovery is in `docs/targets/remarkable-paper-pro.md` ("Recovery"): stop the lease before starting xochitl, never
+run two display engines at once. The lease refuses unknown firmware hashes and living/unknown display-lock owners.
+If restoration fails it keeps the wakelock to avoid autosleep during recovery; inspect the journal rather than
+deleting a live display lock.
 Supervision improves crash/disconnect recovery; it is not protection against kernel
 or vendor-engine defects. The lifecycle test uses mocks, not the physical display.
 
