@@ -41,3 +41,33 @@ still holds `aPosition`, `aColor`, `Wvp`.
 - `zn_gxp_3d.h` — the byte-table header generated from the two blobs.
 
 Only these three files are the pair's compiled form.
+
+# The zinc:3d vertex program (`tex3d.vert`)
+
+`plugins/3d/native/render3d.vita.cpp` draws zinc:3d with one vertex program,
+`tex3d.vert` (position and uv of the mesh, the draw's shaded colour, the `Wvp`
+matrix), paired with SDL's texture fragment program (texture x colour, the
+COLOR0 and TEXCOORD0 varyings psp2spvc gives its first vec4 and vec2 outputs).
+psp2spvc translates only loads, stores, vector arithmetic, dot, normalize,
+min, max, pow and matrix x vector: no branch, no division, no texture
+sampling, and its register allocator gives up on the per-vertex lighting
+("Cannot allocate space for temporary register"), so the lighting is computed
+on the CPU and the program only transforms. It reads a matrix by rows: the
+renderer uploads `Wvp` transposed.
+
+Rebuild it from a checkout of psp2spvc (1whatleytay/psp2spvc, commit 1c296ab;
+its `external/usse-decoder-gen` submodule is gone from GitHub and not needed,
+the generated `src/gxp/src/instructions.cpp` is committed) and glslang
+(KhronosGroup/glslang, `glslang-standalone`):
+
+```sh
+git -C psp2spvc submodule update --init external/fmt external/SPIRV-Cross
+cmake -S psp2spvc -B spvc-build -DCMAKE_CXX_FLAGS="-w" && cmake --build spvc-build
+glslang -V tex3d.vert -o tex3d-v.spv
+spvc-build/src/psp2spvc tex3d-v.spv -o tex3d-v.gxp
+```
+
+then write `zn_gxp_tex3d.h` from `tex3d-v.gxp` (the bytes as
+`zn::vita::gxp3d::tex3dVertexProgramGxp`, 16-byte aligned). The same tools
+rebuild `color3d-v.gxp` and `color3d-f.gxp` byte for byte (checked
+2026-10-25).

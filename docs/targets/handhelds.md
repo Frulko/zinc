@@ -41,7 +41,9 @@ never downloaded: it needs the user's own BIOS. `ZINC_EMU_PINNED=1` takes the pi
   PPSSPP's screenshot device, the PS2 from PCSX2's own save state (written when the runner stops it; it holds a screenshot of the GS output, and the
   core keeps its last frame on the screen after `zinc:exit`), the Vita and the 3DS read back from the framebuffer the display scans out
   (`sceDisplayGetFrameBuf`, the 3DS buffer shown since the last swap, rotated back): Vita3K and Azahar have no screenshot a program or a script can
-  ask for (a key in their window; Azahar's `-d` video dump needs an encoder its bundled FFmpeg lacks with the default settings).
+  ask for (a key in their window; Azahar's `-d` video dump needs an encoder its bundled FFmpeg lacks with the default settings). A GXM frame never
+  reaches the Vita's memory in Vita3K on macOS (its Vulkan renderer has no memory mapping, hence no surface sync), so a GXM core holds its last
+  frame 1.5 s and the runner captures the emulator's window instead (`screencapture -l`, in the background), cut to the screen and scaled to 960x544.
 - A program that ends with nothing drawn, or with an error, leaves its last lines on the screen (the text screen of `core_main.cpp`) until START,
   HOME or the frame budget: a console has no terminal. `zinc:exit` comes after it.
 - Windowed emulators start with `open -g`: they never take the focus. Play! is the exception (its emulation does not start under `open -g`), so

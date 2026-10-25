@@ -22,6 +22,8 @@
 #include "zrt_raster.h"
 
 extern "C" void zn_vita_log(const char* line);                       // hal_vita.cpp: the console's log and ux0:data/<id>/zinc.log
+// render3d.vita.cpp: the colour surface (a SceGxmTexture) of the zinc:3d target whose runtime image is `id`; absent without zinc:3d
+extern "C" const void* zn_3d_gpu_texture(int32_t id, int32_t* w, int32_t* h) __attribute__((weak));
 extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);  // runtime/gfx.cpp: the raster phase of ZINC_PROFILE
 
 using namespace zrt::raster;
@@ -84,9 +86,16 @@ void displayCallback(const void* data) {
 // ---- textures: the images a frame draws, by image id, and the replay's two coverage atlases (glyphs, shapes)
 struct Tex { SceGxmTexture t; void* mem; int32_t w, h; uint32_t ver; bool ok; };
 std::map<int32_t, Tex> texs;
+std::map<int32_t, Tex> surfaces;   // zinc:3d targets: their colour surfaces, by the runtime image their IMAGE command names
 const Tex* texture(int32_t id) {
-  Tex& e = texs[id];
   int32_t w, h;
+  if (zn_3d_gpu_texture)
+    if (const void* s = zn_3d_gpu_texture(id, &w, &h)) {   // drawn by the GPU this frame: the surface itself, no copy
+      Tex& e = surfaces[id];
+      e.t = *static_cast<const SceGxmTexture*>(s); e.mem = nullptr; e.w = w; e.h = h; e.ok = true;
+      return &e;
+    }
+  Tex& e = texs[id];
   if (!image_size(id, &w, &h) || w <= 0 || h <= 0 || w > 4096 || h > 4096) return nullptr;
   const uint32_t ver = image_version(id);
   if (e.mem && e.ok && e.ver == ver && e.w == w && e.h == h) return &e;
@@ -187,16 +196,19 @@ void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, floa
 
 extern "C" {
 uint64_t zn_gxm_cpu_us;   // the CPU time of the last frame's replay (or software raster), for the HAL's frame times
-#ifdef ZN_VITA_GXP_3D
-// the 3D path (gxm_3d.cpp, ZN_VITA_GXP_3D) draws on this context: no second GXM context, no
+// zinc:3d on GXM (plugins/3d/native/render3d.vita.cpp, and gxm_3d.cpp's smoke test) draws on this context: no second GXM context, no
 // second display queue. Null when the 2D replay did not come up; the caller keeps its path.
-extern "C" SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** targetOut, SceGxmShaderPatcher** patcherOut, SceGxmDepthStencilSurface* depthOut) {
+SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** targetOut, SceGxmShaderPatcher** patcherOut, SceGxmDepthStencilSurface* depthOut) {
   if (!ready) return nullptr;
   if (targetOut) *targetOut = target;
   if (patcherOut) *patcherOut = patcher;
   if (depthOut) *depthOut = depth;
   return ctx;
 }
+// GPU memory from the CDRAM heap of the textures (render3d.vita.cpp's meshes and targets)
+void* zn_gxm_alloc(uint32_t align, uint32_t size) { return heap ? sceClibMspaceMemalign(heap, align, size) : nullptr; }
+void zn_gxm_free(void* p) { if (p) sceClibMspaceFree(heap, p); }
+#ifdef ZN_VITA_GXP_3D
 extern "C" void zn_gxm_3d_draw(const float* mvp, const float* vbo, uint32_t vcount, const uint16_t* ibo, uint32_t icount);
 // ZINC_VITA_3D_TRIS=1: one triangle of the smoketest's own vertex array, drawn after the 2D replay
 // (the proof the pair loads and the draw entrypoint runs on the device; the HAL 2D path is unchanged).

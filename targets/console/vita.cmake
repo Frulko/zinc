@@ -28,6 +28,9 @@ elseif(ZN_CONSOLE_GFX)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/gxm_vita.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp)   # the replay shared with the PSP and the 3DS
   set_source_files_properties(${ZN_TARGETS}/vita/gxm_vita.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${ZN_RUNTIME};${ZN_NEXT}/third_party/SDL3/src/render/vitagxm")
 endif()
+if(TARGET zn_console_3d)   # zinc:3d on GXM (plugins/3d/native/render3d.vita.cpp): SDL's texture fragment program and the vertex program of shaders/
+  target_include_directories(zn_console_3d PRIVATE ${ZN_NEXT}/third_party/SDL3/src/render/vitagxm ${ZN_TARGETS}/vita/shaders)
+endif()
 # the 3D path (ZN-493, first milestone): gxm_3d.cpp's draw entrypoint, only with the compiled colour pair;
 # default off, the 2D replay above builds and behaves unchanged (targets/vita/shaders/README.md).
 set(ZN_VITA_GXP_3D OFF CACHE BOOL "compile the GXM 3D path (needs targets/vita/shaders/zn_gxp_3d.h, the generated GXP blob header)")
