@@ -371,7 +371,7 @@ void hal_poll_input(HalInput* in) {
   }
   // START and SELECT held together for a second leave the program (back to the Homebrew Launcher): HOME's "close" would close the launcher too
   static int32_t leaving = 0;
-  leaving = (held & (KEY_START | KEY_SELECT)) == (KEY_START | KEY_SELECT) ? leaving + 1 : 0;
+  leaving = (in->buttons & (HAL_START | HAL_SELECT)) == (HAL_START | HAL_SELECT) ? leaving + 1 : 0;   // the pad's or an input script's
   in->quit = !aptMainLoop() || budgetOver || leaving >= 60;
   in->quit |= zn_player_poll();   // the workstation stopped it, or sent another program
 }
