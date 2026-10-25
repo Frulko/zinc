@@ -46,6 +46,7 @@
     {"paths": ["targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/project.cpp", "src/tc/tc.cpp", "tests/t0/mobile_profiles.sh"], "tests": ["mobile_profiles"]},
     {"paths": ["targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "tests/t0/handheld_profiles.sh"], "tests": ["handheld_profiles"]},
     {"paths": ["targets/console/", "src/rt/alloc.cpp", "tests/t0/console_host.sh"], "tests": ["console_host", "console_core"]},
+    {"paths": ["targets/console/core_main.cpp", "targets/console/CMakeLists.txt", "targets/console/embed.cmake", "src/aot/aot.cpp", "tools/build-console-core", "tests/t1/console_aot.sh"], "tests": ["console_aot"]},
     {"paths": ["targets/console/audio_console.cpp", "targets/console/console_audio.h", "targets/console/stubs.cpp", "plugins/audio/index.ts", "tests/t0/console_audio.sh"], "tests": ["console_audio"]},
     {"paths": ["plugins/lan/", "targets/console/console_net.h", "targets/console/stubs.cpp", "tests/golden/host/lan.", "tests/t0/lan.sh"], "tests": ["lan"]},
     {"paths": ["examples/lan-arena/", "plugins/lan/", "tests/t1/lan_arena.sh"], "tests": ["lan_arena"]},

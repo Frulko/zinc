@@ -102,6 +102,13 @@ bool zn::rt::Machine::exec(const Func* f, Slot* base) {
 #define runProgramPacked runProgramApp
 namespace zn::rt { int runProgramApp(const unsigned char*, decltype(sizeof 0), int (*const*)(Machine&, Slot*), decltype(sizeof 0)); }
 #endif
+#ifdef ZN_CONSOLE_CORE   // linked into a console core (tools/build-console-core --aot, ZN-480): its entry installs the hosts and runs the program
+extern "C" void zn_console_aot(const unsigned char** module, unsigned long* size, const unsigned char** res, unsigned long* resSize, int (*const** natives)(Machine&, Slot*), unsigned long* count) {
+  *module = reinterpret_cast<const unsigned char*>(kModule); *size = kModuleSize; *natives = kNatives; *count = 2;
+  *res = nullptr; *resSize = 0;
+}
+#else
 int main(int, char**) {
   return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, 2);
 }
+#endif

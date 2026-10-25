@@ -1,6 +1,6 @@
 // The entry of a console core (ZN-455): loads program.zbc (an argument, the file beside the executable, or the bytes linked in by ZN_CONSOLE_EMBED),
 // decodes and verifies it, installs the console system host and the graphics host (with the baked fonts and images of resources.bin beside it), and
-// runs it in the interpreter. The program's frames go through the console's HAL (zinc:gfx calls hal_poll_input, hal_present, hal_frame_end).
+// runs it in the interpreter, or, built with ZN_CONSOLE_AOT, runs the program compiled to C++ and linked in (ZN-480). The program's frames go through the console's HAL (zinc:gfx calls hal_poll_input, hal_present, hal_frame_end).
 // Its output is framed on the HAL log by `zinc:start` and `zinc:exit <status>`, as the PS1 and ESP32 runners frame theirs: an emulator runner prints
 // the lines between them and exits with the status. Status: the program's (0, 1 runtime error, 101 uncaught exception), 2 no or invalid program.
 // The player (ZN_CONSOLE_PLAYER, ZN-792) runs no program of its own: it waits for a workstation on its waiting screen, runs the program
@@ -145,10 +145,34 @@ int finish(int status) {
 void tap(const char* p, std::size_t n, bool) { std::string line(p, n); line += '\n'; keep(line); zn_console_echo(line.data(), line.size()); }
 }  // namespace
 
+#ifdef ZN_CONSOLE_AOT
+// The program compiled to C++ (tools/build-console-core --aot, ZN-480): src/aot's ZN_CONSOLE_CORE accessor; its file also defines Machine::exec
+extern "C" void zn_console_aot(const unsigned char** module, unsigned long* size, const unsigned char** res, unsigned long* resSize,
+                               int (*const** natives)(zn::rt::Machine&, zn::rt::Slot*), unsigned long* count);
+namespace {
+struct { int (*const* fns)(zn::rt::Machine&, zn::rt::Slot*) = nullptr; unsigned long count = 0; } gAot;
+void bindAot(zn::rt::Machine& m, const void*) {   // as runProgram binds a desktop AOT program (src/rt/program.cpp)
+  m.registry = false;
+  for (unsigned long i = 0; i < gAot.count && i < m.funcs.size(); ++i) m.funcs[i].native = gAot.fns[i];
+}
+}  // namespace
+#endif
+
 namespace {
 // One program: its bytecode at `path` (or the one linked in), resources.bin beside it; the status it ended with.
 int runOne(std::string path, int argc, char** argv, int first) {
   std::vector<std::uint8_t> bytes, res;
+#ifdef ZN_CONSOLE_AOT
+  if (path.empty()) {   // the compiled program: its module (packed by zbc::packRuns) and baked resources come from its C++
+    const unsigned char *mod = nullptr, *rb = nullptr;
+    unsigned long size = 0, rn = 0;
+    zn_console_aot(&mod, &size, &rb, &rn, &gAot.fns, &gAot.count);
+    path = "the compiled program";
+    if (!zn::zbc::unpackRuns(mod, size, bytes)) { logErr("zinc: the compiled program's module is damaged\n"); return 2; }
+    if (rb) res.assign(rb, rb + rn);
+    else if (zn_console_resources) res.assign(zn_console_resources, zn_console_resources + zn_console_resources_size);
+  } else
+#endif
   if (zn_console_program && zn_console_program_size && path.empty()) {
     path = "the linked program";
     bytes.assign(zn_console_program, zn_console_program + zn_console_program_size);
@@ -172,7 +196,12 @@ int runOne(std::string path, int argc, char** argv, int first) {
   std::string out;
   // the register stack and call depth of the console (its <console>.cmake): the desktop's 20 MiB stack is most of a PSP; output goes out live
   zn::rt::gConsoleTap = tap;
-  const zn::rt::Result r = zn::rt::runModuleHooked(m, out, false, nullptr, nullptr, nullptr, nullptr, ZN_CONSOLE_STACK_SLOTS, ZN_CONSOLE_MAX_DEPTH, true);
+#ifdef ZN_CONSOLE_AOT
+  void (*setup)(zn::rt::Machine&, const void*) = bindAot;
+#else
+  void (*setup)(zn::rt::Machine&, const void*) = nullptr;
+#endif
+  const zn::rt::Result r = zn::rt::runModuleHooked(m, out, false, setup, nullptr, nullptr, nullptr, ZN_CONSOLE_STACK_SLOTS, ZN_CONSOLE_MAX_DEPTH, true);
   std::fwrite(out.data(), 1, out.size(), stdout);   // what the program printed last, then its error (zn::rt::report, through the HAL)
   keep(out);
   zn_console_echo(out.data(), out.size());
@@ -254,6 +283,9 @@ int main(int argc, char** argv) {
   if (argc > 1 && endsWith(argv[1], ".zbc")) { path = argv[1]; first = 2; }
   else if (argc > 0 && argv[0] && !dirOf(argv[0]).empty()) path = dirOf(argv[0]) + "program.zbc";
   else { const char* d = zn_console_data_dir(); path = std::string(d ? d : "") + "program.zbc"; }
+#ifdef ZN_CONSOLE_AOT
+  path.clear();   // the compiled program, whatever lies beside the executable
+#endif
   return finish(runOne(zn_console_program && zn_console_program_size ? std::string() : path, argc, argv, first));
 #endif
 }

@@ -1,8 +1,10 @@
 #!/bin/sh
 # Builds the console core (targets/console, ZN-455) for a console with its pinned SDK (zinc toolchain install <console>, ZN-456):
-#   tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--vitagl] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [--player] [-B dir]
+#   tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--vitagl] [--embed program.zbc [resources.bin] [default.zpk] | --aot project] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [--player] [-B dir]
 # --pure: without the graphics host (text programs); --embed: the program linked into the binary (the emulators that give it no file system),
 # with its fonts and images (resources.bin) and its asset pack (zinc pack's packs/default.zpk: zinc:assets, sprite atlases, tile maps);
+# --aot: the program (a project directory or an entry file) compiled to C++ for the console's profile and linked in instead of the interpreter
+# (ZN-480): its fonts and images are in its C++, its asset pack is made by zinc pack and linked in as --embed does;
 # --vitagl: the Vita draws through vitaGL and the GLES 2 replay (needs ur0:data/libshacccg.suprx on the console) instead of GXM;
 # --frames N: the HAL stops after N frames (the emulator tests; never for a copy a person plays); --input: the `pad` and `padup` lines of a
 # ZINC_INPUT script, held on top of the console's pad (targets/console/console_pad.h); --env: the program's environment (ZINC_PROFILE=1: the
@@ -15,8 +17,8 @@
 # docker image unless $DEVKITPRO names a local install.
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd -P)
-console=$1; [ -n "$console" ] && shift || { echo "usage: tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--vitagl] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [--player] [-B dir]" >&2; exit 2; }
-gfx=${gfx:-ON}; embed=; res=; pack=; frames=0; dir=; input=; env=; title=Zinc; id=ZINC00001; want_size=; gxp3d=OFF; vitagl=OFF; player=OFF; named=; ided=
+console=$1; [ -n "$console" ] && shift || { echo "usage: tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--vitagl] [--embed program.zbc [resources.bin] [default.zpk] | --aot project] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [--player] [-B dir]" >&2; exit 2; }
+gfx=${gfx:-ON}; aot=; embed=; res=; pack=; frames=0; dir=; input=; env=; title=Zinc; id=ZINC00001; want_size=; gxp3d=OFF; vitagl=OFF; player=OFF; named=; ided=
 while [ $# -gt 0 ]; do
   case $1 in
     --pure) gfx=OFF ;;
@@ -33,6 +35,8 @@ while [ $# -gt 0 ]; do
     --title) title=$2; named=1; shift ;;
     --id) id=$2; ided=1; shift ;;
     --size) want_size=$2; shift ;;
+    --aot) [ -e "$2" ] || { echo "build-console-core: no program $2" >&2; exit 2; }
+           aot=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2"); shift ;;
     -B) dir=$2; shift ;;
     *) echo "build-console-core: unknown option $1" >&2; exit 2 ;;
   esac
@@ -63,6 +67,18 @@ if [ -n "$embed" ]; then   # inside the build directory: the 3DS container sees 
   [ -z "$res" ] || { cp "$res" "$dir/embed-resources.bin"; res=$dir/embed-resources.bin; }
   [ -z "$pack" ] || { cp "$pack" "$dir/embed-default.zpk"; pack=$dir/embed-default.zpk; }
 fi
+aotdir=
+if [ -n "$aot" ]; then   # the program's C++ for the console's profile (zinc build, as zinc export does for a phone), and its asset pack
+  [ -z "$embed" ] && [ $player = OFF ] || { echo "build-console-core: --aot takes the place of --embed and --player" >&2; exit 2; }
+  aotdir=$dir/aot; rm -rf "$aotdir"; mkdir -p "$aotdir"
+  [ ! -d "$dir/CMakeFiles" ] || find "$dir/CMakeFiles" -name 'program*.cpp.o' -delete   # another program's objects (make's clock counts seconds)
+  ZN_AOT_CPP_ONLY=1 "$Z" build --profile "$console" "$aot" -o "$aotdir/program" >"$aotdir/build.log" 2>&1 ||
+    { tail -20 "$aotdir/build.log" >&2; echo "build-console-core: zinc build --profile $console failed on $aot" >&2; exit 1; }
+  if [ -d "$aot" ] && "$Z" pack --profile "$console" "$aot" -o "$aotdir/program.zapp" >>"$aotdir/build.log" 2>&1 &&
+     tar -tf "$aotdir/program.zapp" | grep -qx 'packs/default.zpk'; then
+    tar -xf "$aotdir/program.zapp" -C "$aotdir" packs/default.zpk && pack=$aotdir/packs/default.zpk
+  fi
+fi
 # zinc:3d in the core (its native module Render3D): the C++ interface and the ABI thunk generated from the spec here, on this machine (the 3DS
 # builds in docker, where no zinc runs)
 gen=
@@ -72,7 +88,7 @@ if [ $gfx = ON ]; then
     { echo "build-console-core: zinc native-gen failed on the zinc:3d spec" >&2; exit 1; }
 fi
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
-configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack' -DZN_VITA_GXP_3D=$gxp3d -DZN_VITA_GL=$vitagl -DZN_CONSOLE_GEN='$gen' -DZN_CONSOLE_PLAYER=$player -DZN_CONSOLE_VERSION='$version'"
+configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack' -DZN_VITA_GXP_3D=$gxp3d -DZN_VITA_GL=$vitagl -DZN_CONSOLE_GEN='$gen' -DZN_CONSOLE_PLAYER=$player -DZN_CONSOLE_VERSION='$version' -DZN_CONSOLE_AOT='$aotdir'"
 build="cmake --build '$dir' -j $cores -- -l $cores"
 if [ -n "$docker" ]; then
   root=$here

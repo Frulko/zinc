@@ -33,9 +33,16 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# ZN_CONSOLE_AOT: a directory with the program's C++ for the console's profile (ZN_AOT_CPP_ONLY=1 zinc build --profile <console>: program.cpp and
+# its program.partN.cpp, ZN-480): the program runs compiled, and its C++ provides Machine::exec in place of the interpreter (src/vm stays out)
+set(ZN_CONSOLE_AOT "" CACHE PATH "the program compiled to C++ (tools/build-console-core --aot)")
+set(ZN_ENGINE_EXEC ${ZN_NEXT}/src/vm/vm.cpp)
+if(ZN_CONSOLE_AOT)
+  set(ZN_ENGINE_EXEC "")
+endif()
 # the engine (C++20): the same files as the WASI build (tools/build-wasm), the plain allocator
 add_library(zn_console_engine STATIC ${ZN_NEXT}/src/rt/alloc.cpp ${ZN_NEXT}/src/rt/machine.cpp ${ZN_NEXT}/src/rt/program.cpp ${ZN_NEXT}/src/rt/rtcalls.cpp
-  ${ZN_NEXT}/src/rt/unicode.cpp ${ZN_NEXT}/src/zbc/zbc.cpp ${ZN_NEXT}/src/vm/vm.cpp ${ZN_NEXT}/third_party/quickjs-ng/libunicode.c)
+  ${ZN_NEXT}/src/rt/unicode.cpp ${ZN_NEXT}/src/zbc/zbc.cpp ${ZN_ENGINE_EXEC} ${ZN_NEXT}/third_party/quickjs-ng/libunicode.c)
 set_target_properties(zn_console_engine PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_include_directories(zn_console_engine PUBLIC ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_NEXT}/third_party/quickjs-ng)
 target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC $<$<BOOL:${CMAKE_CROSSCOMPILING}>:ZN_NO_MMAP>)   # a console has no mmap
@@ -51,7 +58,7 @@ if(ZN_CONSOLE_HAL)
 else()
   list(APPEND ZN_CORE_SRC ${ZN_TARGETS}/null/hal_null.cpp ${ZN_TARGETS}/common/hal_posix.cpp)
 endif()
-if(ZN_CONSOLE_EMBED)   # program.zbc (and resources.bin) as arrays in a generated C file
+if(ZN_CONSOLE_EMBED OR ZN_CONSOLE_EMBED_PACK)   # program.zbc (and resources.bin, the asset pack) as arrays in a generated C file; a compiled program: the pack alone
   set(ZN_EMBED_C ${CMAKE_CURRENT_BINARY_DIR}/embedded_program.c)
   add_custom_command(OUTPUT ${ZN_EMBED_C} COMMAND ${CMAKE_COMMAND} -DZBC=${ZN_CONSOLE_EMBED} -DRES=${ZN_CONSOLE_EMBED_RES} -DPACK=${ZN_CONSOLE_EMBED_PACK} -DOUT=${ZN_EMBED_C}
     -P ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake DEPENDS ${ZN_CONSOLE_EMBED} ${ZN_CONSOLE_EMBED_RES} ${ZN_CONSOLE_EMBED_PACK} ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake)
@@ -59,6 +66,21 @@ if(ZN_CONSOLE_EMBED)   # program.zbc (and resources.bin) as arrays in a generate
 endif()
 add_executable(zinc-core ${ZN_CORE_SRC})
 target_link_libraries(zinc-core PRIVATE zn_console_engine)
+if(ZN_CONSOLE_AOT)   # the compiled program: zinc build's flags (-O2, no fused multiply-add, no exceptions) and the console's CPU
+  file(GLOB ZN_AOT_SRC CONFIGURE_DEPENDS ${ZN_CONSOLE_AOT}/program*.cpp)
+  set(ZN_AOT_CPU "")
+  if(ZN_CONSOLE STREQUAL "psp")
+    set(ZN_AOT_CPU "-march=allegrex;-G0")
+  elseif(ZN_CONSOLE STREQUAL "vita")
+    set(ZN_AOT_CPU "-mcpu=cortex-a9;-mfpu=neon")
+  elseif(ZN_CONSOLE STREQUAL "n3ds")
+    set(ZN_AOT_CPU "-march=armv6k;-mtune=mpcore")
+  endif()
+  target_sources(zinc-core PRIVATE ${ZN_AOT_SRC})
+  set_source_files_properties(${ZN_AOT_SRC} PROPERTIES COMPILE_DEFINITIONS ZN_CONSOLE_CORE
+    COMPILE_OPTIONS "-O2;-ffp-contract=off;-fno-exceptions;-fno-rtti;-fwrapv;-w;${ZN_AOT_CPU}")
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_AOT)
+endif()
 # the reader of ZPK packs (zinc:assets, ZN-759) with its decoders: lz4, zstd's decompressor, SHA-256 (the entries' checksums)
 file(GLOB ZN_CONSOLE_ZSTD ${ZN_NEXT}/third_party/zstd/common/*.c ${ZN_NEXT}/third_party/zstd/decompress/*.c)
 add_library(zn_console_zpk STATIC ${ZN_NEXT}/src/zpk/zpk.cpp ${ZN_NEXT}/third_party/lz4/lz4.c ${ZN_NEXT}/third_party/sha256/sha256.c ${ZN_CONSOLE_ZSTD})

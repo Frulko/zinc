@@ -21,6 +21,16 @@ moving square). `--input script` builds a pad session into a core (the `pad`/`pa
 and `--env NAME=VALUE` its environment (`ZINC_PROFILE=1` prints the frame times at exit, `ZINC_FRAMEHASH=last` the last frame's hash, which matches
 `zinc run --interp` with the same profile, size and script).
 
+`--aot <project>` in place of `--embed` compiles the program instead (ZN-480): `zinc build --profile <console>` writes its C++
+(`ZN_AOT_CPP_ONLY=1`, as `zinc export` does for a phone), the console's compiler builds it with `-O2 -ffp-contract=off -fno-exceptions
+-fno-rtti` and the CPU's flags (`-march=allegrex -G0`, `-mcpu=cortex-a9 -mfpu=neon`, `-march=armv6k -mtune=mpcore`), and the core links it
+instead of the interpreter (`targets/console/CMakeLists.txt` `ZN_CONSOLE_AOT`). The fonts and images are in the program's C++, the asset
+pack comes from `zinc pack` and is linked in; the native modules of the core (zinc:3d, zinc:audio, zinc:lan) are the same.
+
+```sh
+tools/build-console-core psp --aot examples/3d/orbit --title Orbit -B build/orbit-psp   # -> build/orbit-psp/EBOOT.PBP, the program compiled
+```
+
 | Console | SDK (`zinc toolchain install <id>`) | Core | Runner (`tools/console-run`) |
 |---|---|---|---|
 | `psp` | pspdev v20261001, GCC 15.2.0 (`$PSPDEV` wins) | `EBOOT.PBP` (PRX), `targets/psp/hal_psp.cpp` | PPSSPPHeadless 1.20.4, built once from the pinned sources; `--window`: PPSSPPSDL.app |

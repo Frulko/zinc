@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.2] - 2026-10-25
 
 ### Added
+- `tools/build-console-core <psp|vita|n3ds> --aot <project>` compiles the program into the console build instead of interpreting it (PSP, PS Vita, 3DS): about 1.8 times faster program code, and a smaller binary.
 - Debug and measure a paired device from your computer: `zinc dev --device <name>` puts the program's inspector on `localhost:9229` here (open `chrome://inspect`), `zinc device <name> profile <app>` runs the app with the frame profiler and brings back its summary and its trace (for Perfetto or `chrome://tracing`), `zinc device <name> bench` runs the render benchmark suite there and writes its JSON here, and `zinc device <name> deploy --no-run` installs without starting.
 - `zinc dev --device` puts a dev bar across the top of the device's screen: X quits back to the player, the time, and a menu to restart the program, show the performance panel or save a screenshot. `ZINC_DEV_BAR=1` shows it over any app.
 - examples/tokyo: Pocket Tokyo's flight over Shiba and the Tokyo Tower (PLATEAU and OpenStreetMap buildings) on zinc:3d, one program for the Mac, the Pi, the PSP, the Vita and the 3DS with per-device levels of detail; `examples/tokyo/tools/city-gltf.py fetch` then `build` makes the city as glTF files.
