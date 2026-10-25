@@ -20,6 +20,9 @@ export class Eyes {
 /** The program's own time per refresh (both eyes and the bottom screen), when ZINC_PROFILE is set: its p50 and p99 every 240 refreshes on
  *  the log. ZINC_PROFILE's own `work` counts the bottom screen's wait for the GPU's last frame too (citro3d's frame start), this does not. */
 export class ProgramTime {
+  fps = '';
+  private fpsSince = -1;
+  private fpsFrames = 0;
   private on = env('ZINC_PROFILE') !== '';
   private spent = 0;
   private t0 = 0;
@@ -31,8 +34,16 @@ export class ProgramTime {
   end(): void { if (this.on) this.spent += clock() - this.t0; }
   /** A new refresh starts: the last one's time is kept. */
   refresh(): void {
-    if (!this.on) return;
     const now = clock();
+    if (this.fpsSince < 0) this.fpsSince = now;
+    else {
+      this.fpsFrames++;
+      if (now - this.fpsSince >= 1000) {
+        this.fps = `${Math.round(this.fpsFrames * 1000 / (now - this.fpsSince))} FPS`;
+        this.fpsSince = now; this.fpsFrames = 0;
+      }
+    }
+    if (!this.on) return;
     if (this.last > 0) { this.samples.push(this.spent); this.gaps.push(now - this.last); }
     this.last = now;
     this.spent = 0;

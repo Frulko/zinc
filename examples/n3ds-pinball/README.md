@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.1" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.2" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -70,3 +70,17 @@ For the real 3DS HAL in Azahar, compile this entry with `--aot`, `--frames 3600`
 A fixed 1/60-second delta per eye is incorrect: stereo draws two eye callbacks per refresh. Live 3DS builds
 now use elapsed time; deterministic tests can still request their fixed virtual clock. New 3DS hardware also
 requests libctru's supported higher CPU clock and L2 cache; Old 3DS hardware keeps its existing mode.
+
+
+## Physical FPS follow-up (0.2.2)
+
+The bottom-left panel displays refresh FPS, counted once per eye pair, rather than counting eye callbacks as full frames.
+The DS game now requests a 240 Hz base physics clock; desktop retains 960 Hz. Both use the same Box2D adapter,
+travel-limited adaptive steps and continuous collision detection. This reduces complete adapter scans and native bridge calls;
+fast contacts can still request more than 240 solver steps per second. Timing/interpolation use the selected base step.
+
+The 3DS build disables the runtime's extra 8 ms callback cap: citro3d already synchronizes display output, and the
+software HAL waits for vblank. Profiling also reports `n3ds replay: ... GPU, ... software surfaces` (texture/atlas failures included)
+and separates `n3ds-pinball physics` from total program cost. Use `--env ZINC_PROFILE=1` in a separate measured build.
+The playable build keeps profiling off, avoiding repeated diagnostic SD writes. CPU costs and refresh FPS on physical
+hardware still need measuring; emulator timing alone does not establish 60 FPS on a console.

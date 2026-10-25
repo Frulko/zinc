@@ -1284,3 +1284,8 @@ Measured the actual uncompressed local bundles by summing regular file lengths (
 No FPS, frame-time, CPU or RAM benchmark was performed for these demos. Concurrent other-session PSP/Vita compilation was active; no timing was taken or presented as valid under that load. Earlier native/GPU regression passes establish correctness, not speed. Warehouse packaging is a working demo using a full editor-capable runtime, not a lean distribution template.
 
 The Zinc Warehouse extension itself is **6,955,136 B / 6.63 MiB**; this is the native AOT UI/runtime module inside the Godot host, not the full application bundle.
+
+
+### 2026-10-25: DS below-30-FPS feedback, CPU and replay checks
+
+Owner still measures/perceives below30 FPS on physical 3DS. GPU-active SD log is insufficient to rule out fallback; added profile counters report zero software surfaces for compiled real-app stereo multiball probes. Removed generic8 ms per-eye cap from3DS builds (existing citro3d/vblank synchronization remains). DS now uses240 Hz base game steps with unchanged travel subdivision and Box2D CCD; desktop defaults960 Hz. Matched1200-callback stereo probes: program median5 ms at960 Hz vs3 ms at240 Hz; reporting-window p99 16/7 vs11/7 ms; both median17 ms refresh gaps, occasional34 ms. Trajectories differ, so this is indicative guest profiling only. Physical FPS and CPU split remain unmeasured; the new bottom-screen FPS display enables the next physical check. Full commands/details in pinball physics report.

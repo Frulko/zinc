@@ -18,6 +18,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
 ### Fixed
+- Nova Patrol DS 0.2.2 reduces CPU work with a 240 Hz base physics clock while retaining adaptive fast-contact steps and Box2D CCD, and shows refresh FPS on the bottom screen. 3DS builds no longer add an 8 ms per-eye delay on top of display synchronization.
+- Console GPU polygon cache keys no longer depend on the previous polygon’s point count. 3DS profiling now reports GPU versus software surfaces.
 - `zinc export --target rmpp` writes the AppLoad files again: `external.manifest.json`, `icon.png` (zinc.json `app.icon` when it is a PNG), and `deploy.sh`, which copies the app to the tablet.
 - zinc.json `"3d": {...}` sets zinc:3d `defaults3D()`'s numbers for every machine or one profile (`"3d": {"psp": {"budget": 30000}}`), read by the program on every engine and console.
 - The `world` asset rule reads glTF extras: a material's `night` picture and `"glow": "night"`, a node's `reach` (a landmark with a cell of its own), and the `region` option writes one far chunk per region; textured grounds whose uvs follow x and z become top batches.

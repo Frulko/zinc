@@ -1,5 +1,5 @@
 // The rules: a state machine over the physics world (attract, play, bonus count, game over, initials entry), the
-// fixed-step loop (960 substeps a second whatever the frame rate; events are handled after every substep, so a drop
+// fixed-step loop (960 Hz by default, caller-selectable; events are handled after every fixed step, so a drop
 // target falls before the next substep can hit it again), scoring, missions and ranks, lanes and the bonus
 // multiplier, the ball saver, extra balls, multiball with a ramp jackpot, bumps and the tilt, 1 to 4 players.
 import { FixedClock } from '../../../pinball-kit/clock';
@@ -52,7 +52,7 @@ export class Game {
   /** Seconds since start (lights and chases animate from it). */
   time: number = 0;
   private fixed: FixedClock = new FixedClock();
-  alpha(): number { return this.fixed.alpha(STEP); }
+  alpha(): number { return this.fixed.alpha(this.physicsStep); }
   /** Seconds in the current phase. */
   phaseTime: number = 0;
 
@@ -99,7 +99,7 @@ export class Game {
   autopilot: boolean = true;
   private aiT: number[] = [0, 0];
 
-  constructor(public store: Store) {
+  constructor(public store: Store, private physicsStep: number = STEP) {
     this.table = new Table(3);
     this.world = this.table.world;
     this.toAttract();
@@ -222,9 +222,9 @@ export class Game {
   }
 
   private simulate(dt: number): void {
-    const count = this.fixed.advance(dt, STEP);
+    const count = this.fixed.advance(dt, this.physicsStep);
     for (let i: i32 = 0; i < count; i++) {
-      this.world.step(STEP);
+      this.world.step(this.physicsStep);
       this.handleEvents();
     }
     this.timers(dt);

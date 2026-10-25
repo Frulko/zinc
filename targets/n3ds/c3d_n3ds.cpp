@@ -7,6 +7,8 @@
 // texture. Own batches rather than citro2d: the replay already batches and cuts its quads, citro2d would add its own vertex format and tint
 // rules (multiply only in its newer tint modes) for no gain.
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <map>
 
@@ -279,10 +281,25 @@ static void fit(int target, int32_t w, int32_t h, float* K, float* OX, float* OY
 
 // The program's window on the bottom screen, from its command list: false when the replay cannot draw it (the runtime rasterizes it and
 // hal_win_present shows the pixels).
+// Report replay versus software fallback, including texture/atlas failures that have no command refusal.
+static void replayStats(bool gpu) {
+  static const bool on = getenv("ZINC_PROFILE") && *getenv("ZINC_PROFILE");
+  if (!on) return;
+  static unsigned frames = 0, software = 0;
+  frames++; if (!gpu) software++;
+  if (frames == 240) {
+    char line[100];
+    const int n = snprintf(line, sizeof line, "n3ds replay: %u GPU, %u software surfaces\n", frames - software, software);
+    hal_log(line, (size_t)n);
+    frames = software = 0;
+  }
+}
 bool zn_c3d_window(const HalCmdList* l, int32_t w, int32_t h) {
   if (!ready) return false;
   zn_c3d_begin();
-  if (!zn::ff::drawable(&l, 1)) return false;
+  const bool drawable = zn::ff::drawable(&l, 1);
+  replayStats(drawable);
+  if (!drawable) return false;
   drawOn(BOTTOM);
   float K, OX, OY;
   fit(BOTTOM, w, h, &K, &OX, &OY);
@@ -302,7 +319,9 @@ bool zn_c3d_draw(const HalFrame* f, int target, bool always) {
   zn_c3d_begin();
   const uint64_t t0 = svcGetSystemTick();   // after the wait for the GPU's last frame: the replay's CPU time, ZINC_PROFILE's raster
   auto done = [&] { zrt_prof_band(0, t0 * 1000000ull / SYSCLOCK_ARM11, svcGetSystemTick() * 1000000ull / SYSCLOCK_ARM11); return true; };
-  if (n > 0 && zn::ff::drawable(lists, n)) {
+  const bool drawable = n > 0 && zn::ff::drawable(lists, n);
+  replayStats(drawable);
+  if (drawable) {
     drawOn(target);
     for (int32_t i = 0; i < n; i++) zn::ff::replay(lists[i], f->w, f->h, K, OX, OY);
     softValid = false;

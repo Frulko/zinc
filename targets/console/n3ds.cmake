@@ -10,6 +10,8 @@ ctr_create_3dsx(zinc-core SMDH zinc.smdh)
 # the GPU path (ZN-469): the command lists replayed on the PICA200 with citro3d (targets/console/ff_replay.cpp, the replay shared with the PSP),
 # its vertex shader assembled by picasso and linked in
 if(ZN_CONSOLE_GFX)
+  # citro3d (or the software HAL) waits for vblank; a second per-eye sleep misses refreshes.
+  target_compile_definitions(zn_console_gfx PRIVATE ZRT_MIN_FRAME_US=0)
   ctr_add_shader_library(ff_shader ${ZN_TARGETS}/n3ds/ff.v.pica)
   dkp_add_embedded_binary_library(ff_shader_bin ff_shader)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/c3d_n3ds.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp)

@@ -54,3 +54,22 @@ The real application exports its game for `tools/multiball.ts`: three balls, aut
 Guest program cost is typically 4–5 ms; stereo reporting windows reach p99 22 ms and refresh gaps of 34 ms. This does not prove sustained 60 FPS or physical-device performance. Flat and stereo assertions pass, with three active balls throughout the reports. Logs: `/tmp/zinc-pinball3ds-clock-flat.log`, `/tmp/zinc-pinball3ds-clock-stereo.log`. Reproduction commands are in the demo README.
 
 Playable artifact: `build/n3ds-pinball-0.2.1-native.3dsx`, SHA-256 `702d9f619398afc236c7ff58a8967178eadc1069fe0404d85f3f7bb4765ef67d`, 2431832 bytes. CMake confirms AOT linked, FRAMES=0, no scripted input/profiling environment, title Nova Patrol DS 0.2.1. SD absent; not installed. Metadata: `build/n3ds-pinball-0.2.1-native.json`.
+
+
+## 0.2.2: physical report below 30 FPS
+
+The owner still reports below 30 FPS on the physical console after 0.2.1. Actual SD log confirms `n3ds c3d: on`, but that alone cannot exclude a software fallback. New profiling counts every top-eye/bottom surface including silent texture/atlas failures. Compiled three-ball stereo probes report only GPU surfaces (zero software fallbacks). This isolates CPU/pacing as the current suspects, without claiming a measured physical CPU breakdown.
+
+The elapsed-time fix enabled the runtime's generic minimum 8 ms per callback, in addition to citro3d synchronization. The 3DS build now sets existing `ZRT_MIN_FRAME_US=0`; software presentation already waits for vblank too. CMake flags in the playable build confirm this definition. No change to the shared runtime or other target pacing.
+
+The game accepts a base physics step, defaulting to the existing 960 Hz. The DS entry chooses 240 Hz to avoid redundant full adapter scans/bridge work at low speed; travel-limited subdivision and Box2D CCD remain unchanged. Alpha/interpolation use this same selected step. The collision-core regression now checks the held-ball cradle at both 240 and 960 Hz; existing fast-wall and opposing-ball checks exercise coarse callers. Real-app multiball checks pass with the new DS clock. The DS top frame hashes at 300/600 change with the new trajectory, while frame900 and both other demos remain unchanged.
+
+Matched 1200-callback (~10 second) compiled stereo probes with initial three-ball conditions: pacing-only 960 Hz program p50 5 ms, reporting-window p99 16 then7 ms; adaptive-base240 Hz p50 3 ms, p99 11 then7 ms. Both have median17 ms refresh gaps and occasional34 ms gaps, zero software surfaces, and pass elapsed-clock/bounds/speed assertions. Physics changes trajectories (scores differ); this is an indicative emulator guest-cost comparison, not an identical-trajectory gate or physical FPS proof. Startup ~573–575 ms remains. Logs `/tmp/zinc-pinball3ds-pacing-stereo.log` and `/tmp/zinc-pinball3ds-adaptive-stereo.log`.
+
+A refresh FPS readout is now visible in the bottom-left panel, counted once per eye pair. Optional profiling separates physics and total program cost. The release build keeps profiling disabled so SD logging does not add periodic stalls.
+
+Also fixed an independent shared-console polygon-key bug found in the audit: evaluating `movedPoly(...)` and `moved.size()` as arguments to the same function left their order unspecified. The key now builds the normalized points before reading their length. `ff_shape_key` checks repeated first polygons and alternating contour sizes without a GPU. No other renderer abstraction or physics dependency was added.
+
+Final flat1200-callback (~20 s) probe with FPS display and split profiling also passes: program median2–3 ms, physics median1–2 ms after baking, median17 ms refresh gaps, zero software surfaces. Log `/tmp/zinc-pinball3ds-022-flat.log`. Both demos type-check; `pinball_core`, `ff_shape_key`, `n3ds_pinball_multiball`, and updated `n3ds_demos` pass.
+
+Playable0.2.2: `build/n3ds-pinball-0.2.2-native.3dsx`, 2457584 bytes, SHA-256 `a71130ba07a7a28b873587ae0bc3992987ed115aae5628f2ce9f90714dc79c46`. Installed atomically at `/Volumes/DS/3ds/zinc/n3ds-pinball.3dsx`, flushed and read-back checksum verified. Previous0.2.1 and physical log preserved in `build/n3ds-pinball-sd-backups/20261025-171134/`. No push/release. Physical performance after this update remains unmeasured.

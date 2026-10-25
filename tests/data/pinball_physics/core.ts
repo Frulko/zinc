@@ -57,13 +57,13 @@ for (const dt of [1 / 240, 1 / 60]) {
   check(b.x < 10 - BALL_R && b.vx < 0, 'fast wall collision');
 }
 
-// Held flippers must stay passive: keep a ball in the cradle for three seconds.
-{
+// Held flippers must stay passive at both desktop and handheld caller rates.
+for (const hz of [240, 960]) {
   const table = new Table(1), w = table.world, b = w.balls[0];
   table.left.pressed = true;
-  for (let i = 0; i < 100; i++) w.step(1 / 960);
+  for (let i = 0; i < hz / 10; i++) w.step(1 / hz);
   w.place(b, 8.2, 33.5);
-  for (let i = 0; i < 2880; i++) w.step(1 / 960);
+  for (let i = 0; i < hz * 3; i++) w.step(1 / hz);
   check(b.active && b.y > 34 && b.y < 37 && speed(b.vx, b.vy) < 1, 'stable Box2D cradle');
   w.destroy();
 }

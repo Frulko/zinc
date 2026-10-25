@@ -187,7 +187,8 @@ uint64_t shapeKey(const Cmd& c, const float* pts) {
   h = mix(h, f, sizeof f);
   if (c.kind != POLY) return h;
   h = mix(h, &c.n, sizeof c.n);
-  return mix(h, movedPoly(c, pts), moved.size() * sizeof(float));
+  const float* points = movedPoly(c, pts);
+  return mix(h, points, moved.size() * sizeof(float));
 }
 void emptyShapes() { shapes.clear(); sx = sy = srowH = 0; }
 

@@ -15,7 +15,8 @@ import { Panels } from './panels';
 import { Touch, readControls, clearPresses } from './input';
 import { TOP_W, TOP_H, BOTTOM_W, BOTTOM_H, BOTTOM_PANEL_W } from './constants';
 
-export const game = new Game(new Store(true));
+// Travel-limited subdivision and Box2D CCD retain fast-contact precision without 960 full adapter calls per second.
+export const game = new Game(new Store(true), 1 / 240);
 const upper = new Half(game, false, TOP_W, TOP_H);
 const lower = new Half(game, true, BOTTOM_W, BOTTOM_H);
 const panels = new Panels(game);
@@ -23,6 +24,7 @@ const controls = new Controls();
 const touch = new Touch();
 const eyes = new Eyes();
 const time = new ProgramTime('n3ds-pinball');
+const physicsTime = new ProgramTime('n3ds-pinball physics');
 let pending = 0, wasDown = false;
 
 onFrame((dt: number) => {
@@ -34,6 +36,8 @@ onFrame((dt: number) => {
   readControls(controls, touch);
   pending += dt;
   if (eyes.first()) {   // the world moves on the left eye's frames
+    physicsTime.refresh();
+    physicsTime.begin();
     if (controls.pause && game.phase === PH_PLAY) panels.paused = !panels.paused;
     else if (controls.start && panels.paused) panels.paused = false;
     else if (controls.start && game.canAddPlayer()) game.addPlayer();
@@ -42,6 +46,7 @@ onFrame((dt: number) => {
       if (controls.tap && game.phase === PH_ATTRACT) controls.start = true;
       game.update(Math.min(pending, 0.1), controls);
     }
+    physicsTime.end();
     clearPresses(controls);
     pending = 0;
   }
@@ -61,6 +66,6 @@ openWindow('Bottom screen', BOTTOM_W, BOTTOM_H, (dt: number) => {
   touch.left = down && !touch.plunger && x < BOTTOM_W / 2;
   touch.right = down && !touch.plunger && x >= BOTTOM_W / 2;
   lower.draw(null);
-  panels.bottom();
+  panels.bottom(time.fps);
   time.end();
 });
