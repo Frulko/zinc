@@ -395,7 +395,7 @@ add_executable(project_test tests/unit/project_test.cpp)   # zinc.json's game ke
 target_link_libraries(project_test PRIVATE zn_frontend)
 
 # The version zinc reports (zinc --version, the .zapp stamps, zinc update): -DZN_VERSION, else git describe of the checkout (v0.1.1-46-g9e97 -> 0.1.1+46.g9e97),
-# else 0.0.0-dev; read at configure time. The release key: -DZN_UPDATE_PUBKEY, else update.pub (all zeros: the placeholder, no key).
+# else 0.0.0-dev; read at configure time, which a move of HEAD starts again. The release key: -DZN_UPDATE_PUBKEY, else update.pub (all zeros: the placeholder, no key).
 set(ZN_VERSION "" CACHE STRING "the version zinc reports (empty: git describe)")
 set(ZN_UPDATE_PUBKEY "" CACHE STRING "hex Ed25519 public key of the release update manifests (empty: update.pub)")
 set(_zn_version "${ZN_VERSION}")
@@ -406,6 +406,11 @@ if(NOT _zn_version)
     string(REGEX REPLACE "-([0-9]+)-g([0-9a-f]+)$" "+\\1.g\\2" _zn_version "${_zn_version}")
   else()
     set(_zn_version "0.0.0-dev")
+  endif()
+  # configured again when HEAD moves (a commit, a checkout, a reset: the reflog of HEAD), or a build of today's tree says last week's version
+  execute_process(COMMAND git rev-parse --absolute-git-dir WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE _zn_gitdir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  if(_zn_gitdir AND EXISTS "${_zn_gitdir}/logs/HEAD")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_zn_gitdir}/logs/HEAD")
   endif()
 endif()
 set(_zn_pubkey "${ZN_UPDATE_PUBKEY}")
