@@ -2,7 +2,19 @@
 
 Date: 2026-10-25. Requested by the owner: investigate native Swift apps containing Zinc, Godot games exported to Zinc, Zinc UI inside Godot, and a production workflow broader than DOGWALK's Blender/Godot pipeline, with a demonstration of each integration.
 
-Status: **research and proposed demo specifications, not implemented demos**. Three research agents examined Swift embedding, Blender production, and Godot interoperability. Repository source and primary upstream documentation were inspected; no builds, device runs or performance measurements were performed. This report does not change the engine or claim new compatibility.
+Status: research completed; **implementation launched by the owner on 2026-10-25**. The specifications below describe the required outcome, not completed capabilities. Three implementation agents work in separate branches after three research agents examined Swift embedding, Blender production, and Godot interoperability. Actual implementation/test evidence belongs to the task files below; this report does not itself establish compatibility or performance.
+
+## Implementation workstreams
+
+The owner's delivery requirement is explicit: every demonstration is a real runnable project with source files, the native or authoring project files, a README containing exact build/run/test commands, and execution evidence. A design document or mock alone does not satisfy a task.
+
+| Agent branch | Tasks in delivery order | Real projects to deliver |
+|---|---|---|
+| `feat/workflow-swift` | ZN-825 embedded surface; ZN-826 Swift host | Native embedding harness and Swift Observatory |
+| `feat/workflow-godot` | ZN-827 restricted scene export; ZN-828 Zinc UI in Godot; ZN-832 LibGodot in Zinc | Parcel Yard, Godot Warehouse and a separately labelled LibGodot experiment |
+| `feat/workflow-blender` | ZN-829 scene publication; ZN-830 skeletal animation; ZN-831 production showcase | Blender authoring project/add-on and scene viewer, animation lab, Lantern Post |
+
+The Swift agent owns the common embedding ABI and implementation. The Blender agent owns the common versioned scene contract and reader; the Godot agent supplies an exporter for that contract. Dependency integration precedes acceptance of dependent features. Workers commit separately per task; the coordinator integrates and runs windowed tests alone. macOS is the initial proof platform, following repository policy.
 
 ## Recommendation
 
