@@ -1,22 +1,24 @@
 // The native modules of a console core (ZN-454, ZN-759): no dlopen and no plugin threads on a console, so the only modules are the ones linked into
-// the core (zinc:audio's mixer, audio_console.cpp; zinc:3d's Render3D when the core has graphics); a program that calls another gets "not linked into this engine", as on WASI.
-// src/rt/native.cpp stays out of the core.
+// the core (zinc:audio's mixer, audio_console.cpp; zinc:lan's sockets, plugins/lan/native/lan.abi.cpp; zinc:3d's Render3D when the core has
+// graphics); a program that calls another gets "not linked into this engine", as on WASI. src/rt/native.cpp stays out of the core.
 #include <cstring>
 
 #include "zn/native.h"
 
 extern "C" const ZnModule zn_console_audio_module;
+extern "C" const ZnModule zn_console_lan_module;
 #ifdef ZN_CONSOLE_WITH_3D
 extern "C" const ZnModule* zn_module_Render3D(void);   // zinc:3d, the thunk zinc native-gen made from plugins/3d (targets/console/CMakeLists.txt)
 #endif
 
 namespace {
 const ZnModule* moduleOf(const char* name) {
-  static const ZnModule* modules[2];
+  static const ZnModule* modules[3];
   static int count = -1;
   if (count < 0) {   // once: a module made by the thunk starts its implementation in init (no host API on a console: its calls never need one)
     count = 0;
     modules[count++] = &zn_console_audio_module;
+    modules[count++] = &zn_console_lan_module;
 #ifdef ZN_CONSOLE_WITH_3D
     const ZnModule* m = zn_module_Render3D();
     void* self = nullptr;

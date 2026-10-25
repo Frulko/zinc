@@ -42,7 +42,8 @@ target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC $<$<BOOL:${CM
 target_compile_options(zn_console_engine PRIVATE -fwrapv -ffp-contract=off $<$<COMPILE_LANGUAGE:C>:-w>)
 
 set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp   # zinc:audio's mixer (ZN-759): the one native module a core links
+  ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp   # zinc:audio's mixer (ZN-759), a native module linked into the core
+  ${ZN_NEXT}/plugins/lan/native/lan.abi.cpp       # zinc:lan, polled sockets (ZN-791); the network comes up in targets/<console>/net_<console>.cpp
   ${ZN_NEXT}/plugins/audio/vendor/stb_vorbis.c)   # its Ogg Vorbis decoder, the one plugins/audio vendors (stb_vorbis 1.22, public domain)
 set_source_files_properties(${ZN_NEXT}/plugins/audio/vendor/stb_vorbis.c PROPERTIES COMPILE_OPTIONS "-w")
 if(ZN_CONSOLE_HAL)

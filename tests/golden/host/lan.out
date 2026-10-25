@@ -1,0 +1,10 @@
+up 1 address true
+bound true
+nothing yet true
+from b true
+udp everyone hello
+bad address true
+tcp open true true
+wrote 4
+read ping
+answer pong then closed true

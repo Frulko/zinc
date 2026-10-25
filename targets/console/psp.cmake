@@ -1,6 +1,10 @@
 # Sony PSP (pspdev: -DCMAKE_TOOLCHAIN_FILE=$PSPDEV/psp/share/pspdev.cmake, PSPDEV set): targets/psp/hal_psp.cpp's libraries and EBOOT.PBP as a PRX
 # (current firmware runs PRX; PPSSPP runs either). Small-data off (-G0): the core is larger than the 64 KiB a $gp-relative access reaches.
 target_link_libraries(zinc-core PRIVATE pspdisplay pspctrl psppower pspaudio pspwlan atomic)   # libatomic: the runtime's 64-bit counters on a 32-bit MIPS
+target_sources(zinc-core PRIVATE ${ZN_TARGETS}/psp/net_psp.cpp)   # the network (targets/console/console_net.h, ZN-791)
+# libcglue first (newlib's socket calls): its sceNetInet imports must come in with the others of that module, in one pass, or the import's NID
+# table interleaves with another module's (PPSSPP then reads unknown NIDs and socket() calls nothing)
+target_link_libraries(zinc-core PRIVATE cglue pspnet_apctl pspnet_resolver pspnet_inet pspnet psputility)
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=262144 ZN_CONSOLE_MAX_DEPTH=1000)   # 2 MiB of registers, 1000 calls deep
 target_compile_options(zn_console_engine PRIVATE -G0)
 target_compile_options(zinc-core PRIVATE -G0)

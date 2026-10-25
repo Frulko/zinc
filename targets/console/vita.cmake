@@ -3,6 +3,7 @@
 include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
 target_link_libraries(zinc-core PRIVATE SceDisplay_stub SceCtrl_stub SceLibKernel_stub SceSysmem_stub SceKernelThreadMgr_stub SceProcessmgr_stub ScePower_stub
   SceAudio_stub SceTouch_stub SceMotion_stub SceNet_stub SceNetCtl_stub SceSysmodule_stub SceCamera_stub SceAppMgr_stub SceGxm_stub)
+target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/net_vita.cpp)   # the network (targets/console/console_net.h, ZN-791)
 # the vitaGL path (owner, 2026-10-24): the GLES 2 replay of runtime/gl_replay.cpp on vitaGL (third_party/vitagl, LGPL-3.0, its GLSL compiled
 # at run time by the console's SceShaccCg: the user extracts ur0:data/libshacccg.suprx), instead of the GXM replay below
 option(ZN_VITA_GL "replay zinc:gfx through vitaGL and the GLES 2 replay instead of GXM (needs libshacccg.suprx on the console)" OFF)

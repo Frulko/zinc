@@ -4,6 +4,7 @@
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
+#include "console_net.h"
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +104,7 @@ void hal_init(const HalConfig* cfg) {
   sceDisplaySetMode(0, kScreenW, kScreenH);
   sceDisplaySetFrameBuf((void*)0x04000000u, kStride, PSP_DISPLAY_PIXEL_FORMAT_8888, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
-void hal_shutdown(void) {}
+void hal_shutdown(void) { zn_console_net_down(); }
 void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
 uint64_t hal_time_us(void) { return (uint64_t)sceKernelGetSystemTimeWide(); }

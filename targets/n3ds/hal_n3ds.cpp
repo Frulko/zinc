@@ -5,6 +5,7 @@
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
+#include "console_net.h"
 #include <math.h>
 #include <malloc.h>
 #include <stdio.h>
@@ -269,6 +270,7 @@ void hal_init(const HalConfig* cfg) {
   gpuOn = !(g && *g == '0') && zn_c3d_init && zn_c3d_init(W, H);
 }
 void hal_shutdown(void) {
+  zn_console_net_down();   // soc:u released, or the next app cannot start it
   if (gpuOn) zn_c3d_fini();
   if (gfxOn) gfxExit();
 }
