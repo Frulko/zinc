@@ -255,6 +255,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-477: `vita-elf-create` fails with "Cannot allocate N bytes for SCE data at end of segment 0; segment 1 overlaps" when the text segment ends less than ~2.7 KiB before a 4 KiB page (seen on a gl-check core, 2026-10-25): any program size can hit it. Reserve the room in vita.cmake (a second link with padding, or a linker script) instead of luck.
 
+- ZN-820: show SVG app icons in the player's tiles (zinc:svg) and pack app.icon for JavaScript-engine projects; today they fall back to the default glyph.
+
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
@@ -424,3 +426,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-792: the device player on a real PSP, Vita, 3DS and the TouchPad over Wi-Fi; EC J-PAKE pairing time on each; iPhone signing and the local network permission prompt.
 - ZN-791: Paint Arena on a real PSP, Vita and 3DS on real Wi-Fi (PSP WPA limits, routers that block client broadcasts).
 - ZN-792: the phone player on a real iPhone (signing, the local network prompt, Bonjour on Wi-Fi) and the TouchPad player (`tools/webos-player install/start`, pair, deploy hello).
+- ZN-820: on a Pi, tap an app in the player and check zinc-session starts it from next-app (app.zapp and run.sh) and that a crash names it.
+- ZN-822: on the Pi's touch screen, check the dev bar takes a finger (touch[0]) and its X brings the player back.
