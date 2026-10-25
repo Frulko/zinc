@@ -391,6 +391,9 @@ The next backlog review turns lines into tasks or deletes them.
 - world rule: emit `TOP` batches for textured grounds whose uvs follow x/z, so the PSP and 3DS compact layouts apply.
 - defaults3D: zinc.json `"3d": {...}` overrides, and measured rows for Android, iOS and web.
 
+- zinc:3d: `World` needs a real shadows on/off; tokyo fakes "off" with a flat height field and re-reads `hmap.bin` to turn them on (freeing the old map while a frame may draw it is unchecked).
+- tokyo: the panel's map is a 24 m-per-pixel height relief; Pocket's far ground pictures would read better.
+
 ## Cross-platform pass
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
@@ -478,3 +481,5 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo 3DS: time the frame on the real Old 3DS XL (Azahar does not time the PICA200); if it misses 30 fps, lower the n3ds budget in devices.ts from 60,000 toward Pocket's 40,000.
 - tokyo 3DS: if ETC1 blocks show on the windows on hardware, make the facades RGB565 as Pocket does.
 - zinc:3d: run `zinc3d_world_build`'s world with `--profile psp`, n3ds and vita on the real consoles.
+- tokyo: stereo on the 3DS is unproven (Azahar runs with the slider at 0): check the right-eye shot on hardware, measure the second render (~0.6 ms), tune `STEREO_SPREAD` (1.5 m).
+- tokyo: run the PSP and Vita overlay panel with `ZINC_TOKYO_TAP` in PPSSPP and Vita3K, and the pad navigation on a real pad.
