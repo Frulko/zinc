@@ -8,7 +8,7 @@
 
 An entry is the source file `zinc run` starts: the zinc.json "entry"/"main" of each project under examples/, else src/main.ts[x]; the entries named in
 tests/examples.lst count too. tests/examples.lst has one line per entry: `path | STATUS | reason | task`; a status other than OK needs a reason and the task
-that will fix it.
+that will fix it. WIP marks a demo still being written: it is not run until its line says OK.
 """
 import concurrent.futures, json, os, re, subprocess, sys
 
@@ -96,7 +96,7 @@ def main(argv):
         else: only.append(a)
         i += 1
     known = read_list()
-    todo = sorted(only) if only else sorted(entries() | set(known))
+    todo = sorted(only) if only else sorted(e for e in entries() | set(known) if known.get(e, {}).get("status") != "WIP")   # WIP: a demo being written, not run
     results = {}
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
         for entry, status, first in ex.map(lambda e: run_one(zinc, e, frames, timeout), todo):
@@ -115,6 +115,7 @@ def main(argv):
             reason = old.get("reason", "") if s != "OK" else ""
             if s != "OK" and not reason: reason = first
             out.append("%s | %s | %s | %s" % (e, s, reason, old.get("task", "?") if s != "OK" else ""))
+        out += ["%s | WIP | %s | %s" % (e, r["reason"], r["task"]) for e, r in sorted(known.items()) if r["status"] == "WIP"]
         open(LIST, "w").write("\n".join(out) + "\n")
         print("wrote %s (%s)" % (LIST, ", ".join("%d %s" % (counts[s], s) for s in sorted(counts))))
         return 0
@@ -128,9 +129,10 @@ def main(argv):
         if row["status"] == "OK": print("REGRESSED %s: was OK, now %s: %s" % (e, s, first)); bad += 1
         elif s == "OK": print("UNEXPECTED PASS %s: listed %s (%s), now OK: promote it in tests/examples.lst" % (e, row["status"], row["reason"])); bad += 1
         else: print("CHANGED  %s: listed %s, now %s: %s (update the list)" % (e, row["status"], s, first)); bad += 1
-    for e in sorted(set(known) - set(todo)) if not only else []: print("MISSING  %s is listed but no longer an example entry" % e); bad += 1
+    for e in sorted(set(known) - set(todo)) if not only else []:
+        if known[e]["status"] != "WIP" or e not in entries(): print("MISSING  %s is listed but no longer an example entry" % e); bad += 1
     for e, row in known.items():
-        if row["status"] != "OK" and (not row["reason"] or row["task"] in ("", "?")): print("INCOMPLETE %s: a failing entry needs a reason and a task" % e); bad += 1
+        if row["status"] not in ("OK", "WIP") and (not row["reason"] or row["task"] in ("", "?")): print("INCOMPLETE %s: a failing entry needs a reason and a task" % e); bad += 1
     by_task = {}
     for e in todo:
         row = known.get(e)

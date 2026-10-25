@@ -5,3 +5,4 @@ console_player_psp   # PPSSPP on a slow hosted runner refuses the pairing
 web_hw               # a hosted runner's Chrome had drawn nothing of the map after 5 s
 lan                  # a hosted runner may drop the UDP broadcast to 255.255.255.255
 atelier_devices      # a windowed app, a local agent and per-second figures: timing on a shared runner
+examples_all         # owner 2026-10-25: off the CI for now (demos under way), back later
