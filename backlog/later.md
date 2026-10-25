@@ -294,6 +294,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-841: notes' RmppRefresh project native module falls back to its sim stand-in on the tablet engine; move the refresh switch into display-rmpp (a zinc:gfx/plugin API) so packed apps keep Colour preview.
 - ZN-841: zinc-tile could take the app's own icon from the .zapp (zinc.json app.icon) instead of the shared one.
 - ZN-841: on a reMarkable the engine takes the display size from zinc.json targets.linux and runs headless without it; default to the model row's size.
+- ZN-843: compiler: `d.field = f(await x)` with a `const d` fails with Z0108 on a hidden temporary (`__vN`); worked around in app/hub/src/services/server.ts.
+- ZN-843: the hub protocol has no manifest expires/seq, the protection against a server freezing updates (zinc-app-ota-updates.md §5.3).
+- ZN-843: the hub cannot remove an installed app yet (zinc-tile --remove plus deleting the package).
+- ZN-843: a text field's placeholder is slate grey, which shows grey on e-ink.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
 - ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
