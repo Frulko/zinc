@@ -322,6 +322,7 @@ struct World {
   WItem* items; int32_t ni, icap;
   bool night;
   float scale;
+  float dusk;   // how far the night has come, 0..1 (worldNight)
 };
 /** Metres from p to the nearest point of a box. */
 static float boxDist(const float* mn, const float* mx, const float* p) {
@@ -865,7 +866,8 @@ struct Engine : NativeRender3D {
     mfree(k.b); mfree(k.spans);
     k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
   }
-  void worldNight(int32_t id, bool on) override { if (World* w = worlds.at(id)) w->night = on; }
+  void worldNight(int32_t id, N night) override { if (World* w = worlds.at(id)) { w->dusk = F(night); w->night = w->dusk >= 0.5f; } }
+  void worldShadows(int32_t, String, Array<N>) override {}   // the 3DS draws them (render3d.n3ds.cpp)
 
   /** One cell's indices of a batch, of which only the sectors in `arc` (all when count >= 16) for a batch ordered by sector. */
   void ranges(World* w, int32_t chunk, int32_t batch, const WBatch& b, const WCell& c, int32_t ci, bool sectors) {

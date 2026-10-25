@@ -1,0 +1,48 @@
+; zinc:3d World on the PICA200 (render3d.n3ds.cpp): what looks up, the ground and the roofs. A vertex is its place over its batch's box
+; (s16, the matrix decodes it) and its colour as one byte (grey: the sky it sees); the picture's coordinates, and the shadows' (one map over
+; the whole world), come from the place itself. Pocket Tokyo's 3DS program (pocket-nexus/pocket-tokyo n3ds/src/top.v.pica, MIT).
+.fvec mvp[4]
+; u = x pic.x + pic.y, t = z pic.z + pic.w: the picture inside its power-of-two texture, t from the top
+.fvec pic
+; the shadows' map, the same way
+.fvec map
+; rgb: the light on what looks up, times the batch's colour; w: 1 / 255
+.fvec light
+; rgb: the batch's emissive colour, added before the picture
+.fvec emit
+.constf consts(0.0, 1.0, 0.0, 1.0)
+.in inpos v0
+.in inao v1
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outtc2 texcoord2
+.entry top
+.proc top
+    mov r0.xyz, inpos.xyz
+    mov r0.w, consts.w
+    dp4 outpos.x, mvp[0], r0
+    dp4 outpos.y, mvp[1], r0
+    dp4 outpos.z, mvp[2], r0
+    dp4 outpos.w, mvp[3], r0
+    ; (a source's swizzle is applied before the write mask picks components)
+    mul r1.xy, pic.xz, inpos.xz
+    add r1.xy, pic.yw, r1.xy
+    mov r1.z, consts.x
+    mov r1.w, consts.w
+    mov outtc0, r1
+    mov outtc1, r1
+    mul r2.xy, map.xz, inpos.xz
+    add r2.xy, map.yw, r2.xy
+    mov r2.z, consts.x
+    mov r2.w, consts.w
+    mov outtc2, r2
+    mul r3, light.wwww, inao.xxxx
+    mul r3.xyz, light.xyz, r3.xyz
+    add r3.xyz, emit.xyz, r3.xyz
+    min r3.xyz, consts.yyy, r3.xyz
+    mov r3.w, consts.w
+    mov outclr, r3
+    end
+.end

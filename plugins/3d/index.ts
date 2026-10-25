@@ -367,8 +367,13 @@ export class World extends Node {
   /** Loads a chunk: the bytes read, -1 when it cannot. */
   load(chunk: i32): i32 { return R.worldLoad(this.handle, chunk); }
   free(chunk: i32): void { R.worldFree(this.handle, chunk); }
-  /** The batches' night pictures and glow on or off. */
-  setNight(on: boolean): void { R.worldNight(this.handle, on); }
+  /** How far the night has come, 0 (day) to 1: the batches' night pictures and glow from 0.5, or mixed by it where the renderer can. */
+  setNight(night: number): void { R.worldNight(this.handle, night); }
+  /** The shadows of the scene's first light over a field of heights (the asset: u16 little-endian, rows along +z), the first cell's corner at
+   *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit. Drawn where the renderer can (the 3DS). */
+  shadows(heights: string, x0: number, z0: number, step: number, w: i32, h: i32, y0: number, unit: number): void {
+    R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
+  }
 
   /** Chooses what the next render() of `camera` draws, its picture `aspect` wide for one high, and the chunks to load for the eye and for
    *  `ahead` (x, y, z of points it will pass, possibly none). `dt`: seconds since the last call. */

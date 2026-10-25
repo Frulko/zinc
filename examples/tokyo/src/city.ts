@@ -6,7 +6,7 @@ import { Scene, Camera, World } from 'zinc:3d';
 import { readText, readBytes } from 'zinc:assets';
 import { clock } from 'zinc:sys';
 import { Device } from './devices';
-import { CITY_INDEX, CITY_HEIGHTS, CITY_WORLD } from './constants';
+import { CITY_INDEX, CITY_HEIGHTS, CITY_HMAP, CITY_WORLD } from './constants';
 
 export class City {
   readonly world: World;
@@ -38,7 +38,8 @@ export class City {
       else if (t[0] === 'tour') this.tour.push([n(1), n(2), n(3), n(4), n(5), n(6)]);
       else if (t[0] === 'heights') {
         this.hx0 = n(1); this.hz0 = n(2); this.hstep = n(3); this.hw = parseInt(t[4], 10); this.hh = parseInt(t[5], 10); this.hy0 = n(6); this.hunit = n(7);
-      } else if (t[0] === 'credit') this.credits.push(line.slice(7));
+      } else if (t[0] === 'hmap') w.shadows(CITY_HMAP, n(1), n(2), n(3), parseInt(t[4], 10), parseInt(t[5], 10), n(6), n(7));   // the pack's heights
+      else if (t[0] === 'credit') this.credits.push(line.slice(7));
     }
     this.heights = readBytes(CITY_HEIGHTS);
   }
@@ -72,6 +73,6 @@ export class City {
   /** Whether the last select() found every chunk it wants loaded. */
   complete(): boolean { return this.world.missing.length === 0; }
 
-  /** The night's pictures on or off: the windows lit, the lamps' light on the ground, the tower floodlit. */
-  setNight(on: boolean): void { this.world.setNight(on); }
+  /** How far the night has come (0..1): the windows lit, the lamps' light on the ground, the tower floodlit. */
+  setNight(night: number): void { this.world.setNight(night); }
 }

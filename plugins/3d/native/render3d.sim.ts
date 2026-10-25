@@ -62,6 +62,7 @@ export default {
   worldLoad(): i32 { return -1; },
   worldFree(): void {},
   worldNight(): void {},
+  worldShadows(): void {},
   worldSelect(): void {},
   worldDraw(): void {},
 };

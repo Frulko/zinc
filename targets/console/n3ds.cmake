@@ -15,9 +15,11 @@ if(ZN_CONSOLE_GFX)
   set_source_files_properties(${ZN_TARGETS}/n3ds/c3d_n3ds.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp PROPERTIES COMPILE_OPTIONS "-w;-fpermissive" INCLUDE_DIRECTORIES "${ZN_RUNTIME}")
   target_link_libraries(zinc-core PRIVATE ff_shader_bin citro3d ctru)
 endif()
-# zinc:3d on the PICA200 (plugins/3d/native/render3d.n3ds.cpp): its lighting vertex shader, assembled by picasso
+# zinc:3d on the PICA200 (plugins/3d/native/render3d.n3ds.cpp): its lighting vertex shader, then a World's programs per vertex layout (top,
+# wall, solid), assembled by picasso into one library (DVLE 0 to 3, in this order)
 if(TARGET zn_console_3d)
-  ctr_add_shader_library(r3d_shader ${ZN_NEXT}/plugins/3d/native/render3d.n3ds.v.pica)
+  ctr_add_shader_library(r3d_shader ${ZN_NEXT}/plugins/3d/native/render3d.n3ds.v.pica ${ZN_NEXT}/plugins/3d/native/render3d.n3ds.top.v.pica
+                         ${ZN_NEXT}/plugins/3d/native/render3d.n3ds.wall.v.pica ${ZN_NEXT}/plugins/3d/native/render3d.n3ds.solid.v.pica)
   dkp_add_embedded_binary_library(r3d_shader_bin r3d_shader)
   target_link_libraries(zn_console_3d PRIVATE r3d_shader_bin citro3d ctru)
 endif()

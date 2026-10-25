@@ -6,7 +6,8 @@ chunk (`far.zwc`), the mid level a chunk per block of 512 m (`b<x>_<z>.mid.zwc`)
 tower a chunk per level; the PNG pictures they name, the heights and the tour. zinc:3d's World (plugins/3d/index.ts) reads it.
 
   python3 -I examples/tokyo/tools/city-world.py fetch [cache dir]          # the public pack (177 MB, SHA-256 checked) into ~/.zinc/cache/tokyo
-  python3 -I examples/tokyo/tools/city-world.py build <pack> <out dir>     # the world, its pictures, heights.bin and city.txt
+  python3 -I examples/tokyo/tools/city-world.py build <pack> <out dir>     # the world, its pictures, heights.bin, hmap.bin and city.txt
+  python3 -I examples/tokyo/tools/city-world.py hmap <pack> <out dir>      # hmap.bin alone, and its line in city.txt (a world built before it)
 
 Python's standard library only. The pack's data keeps its sources' terms (PLATEAU, GSI, OpenStreetMap: ODbL); it is not committed.
 """
@@ -418,12 +419,13 @@ def build(pack_path, out):
             top = max(hm[(j * k + jj) * pk.gw + i * k + ii] for jj in range(k) for ii in range(k))
             heights[j * w + i] = min(255, int(top * pk.hstep / 2 + 0.999))
     open(os.path.join(out, 'heights.bin'), 'wb').write(heights)
+    hmap_line = write_hmap(pk, out)
     tour = struct.unpack('<%df' % (len(pk.section('TOUR')) // 4), pk.section('TOUR'))
     # city.txt: one record a line, words separated by spaces (the program reads it without a JSON parser, as a console's strict profile wants)
     g = lambda v: ('%g' % v)
     lines = ['city %d %d %s %s %s %s' % (pk.bx, pk.bz, g(pk.block), g(pk.x0), g(pk.z0), g(pk.hour)),
              'view ' + ' '.join(g(v) for v in pk.view),
-             'heights %s %s %s %d %d %s 2' % (g(pk.gx0), g(pk.gz0), g(pk.gstep * k), w, h, g(pk.y0))]
+             'heights %s %s %s %d %d %s 2' % (g(pk.gx0), g(pk.gz0), g(pk.gstep * k), w, h, g(pk.y0)), hmap_line]
     lines += ['tour ' + ' '.join(g(v) for v in tour[i:i + 6]) for i in range(0, len(tour), 6)]
     lines += ['credit ' + a for a in pk.meta.get('source', {}).get('attribution', [])]
     with open(os.path.join(out, 'city.txt'), 'w') as f:
@@ -431,10 +433,31 @@ def build(pack_path, out):
     print('world: %d cells, %d chunks, triangles near %d, mid %d, far %d -> %s' % (len(cells), len(chunks), total[0], total[1], total[2], out))
 
 
+def write_hmap(pk, out):
+    """The pack's own heights (HMAP: u16 little-endian, rows along +z, at the pack's grid) for the shadows (zinc:3d World.shadows); returns
+    city.txt's line for them: hmap x0 z0 step w h y0 unit."""
+    open(os.path.join(out, 'hmap.bin'), 'wb').write(pk.section('HMAP'))
+    g = lambda v: ('%g' % v)
+    return 'hmap %s %s %s %d %d %s %s' % (g(pk.gx0), g(pk.gz0), g(pk.gstep), pk.gw, pk.gh, g(pk.y0), g(pk.hstep))
+
+
+def hmap(pack_path, out):
+    pk = Pack(pack_path)
+    line = write_hmap(pk, out)
+    txt = os.path.join(out, 'city.txt')
+    lines = [l for l in open(txt).read().split('\n') if l and not l.startswith('hmap ')]
+    lines.insert(3, line)
+    with open(txt, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    print('world: %s -> %s' % (line, out))
+
+
 if __name__ == '__main__':
     if len(sys.argv) >= 2 and sys.argv[1] == 'fetch':
         fetch(sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser('~/.zinc/cache/tokyo'))
     elif len(sys.argv) == 4 and sys.argv[1] == 'build':
         build(sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 4 and sys.argv[1] == 'hmap':
+        hmap(sys.argv[2], sys.argv[3])
     else:
         sys.exit(__doc__)

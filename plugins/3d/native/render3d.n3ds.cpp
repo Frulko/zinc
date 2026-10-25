@@ -8,6 +8,13 @@
 // target's picture (the zn_3d_gpu_texture hook), inside the GPU frame c3d_n3ds.cpp opened (citro3d has one frame open at a time; in stereo the
 // left eye opens it and the right one closes it, and each eye's frame draws the 3D view it was given), so the 3D view composes in the 2D
 // order without a read back. present() emits the IMAGE command of the target's runtime image, as the software renderer does.
+// A World (include/zn/zworld.h) is drawn as Pocket Tokyo's 3DS draws its city (docs/reports/pocket3d-techniques.md 2.2, pocket-nexus/pocket-tokyo
+// n3ds/src/render.c, MIT): each batch keeps its vertices quantised in one of three layouts (worldMesh: 8 bytes for what looks up, 16 for the
+// faces with a picture, 12 for the painted ones, positions s16 over the batch's box decoded by its matrix), drawn by a small vertex program
+// each (render3d.n3ds.{top,wall,solid}.v.pica) that takes a face's light from 17 lights filled once a frame (the 16 sectors of the compass a
+// face looks to, then up or down); worldDraw records the ranges worldSelect chose and render() draws them, setting a batch's state only when
+// the batch changes. Three combiner stages: the light times the shadows (an 8-bit map swept from the heights of worldShadows, a few rows a
+// frame when the light has moved), times the picture, then mixed into the night picture by how far the night has come; the haze is the fog table.
 // ponytail: a frame whose 2D commands the replay cannot draw falls back to the software raster, which shows the target's runtime image (black)
 // instead of the GPU's picture; one view for both eyes (no eye offset of the camera).
 #define ZP_3D_GPU 1
@@ -27,15 +34,35 @@ namespace {
 // c3d_n3ds.cpp's texture, as zn::ff::texture returns it and its replay reads it (keep the two in step)
 struct C3Tex { C3D_Tex t; int32_t w, h; uint32_t ver; bool ok; };
 struct GVtx { float p[3], n[3], uv[2]; uint8_t c[4]; };
-struct GMesh { GVtx* v; GVtx* flat; uint16_t* idx; int32_t ni; bool col; };
-struct Rec { int32_t mesh, flags; uint32_t color; C3Tex* tex; float tsc[2]; C3D_Mtx mvp, model; float spec[4], emit[3]; int32_t first, count; };   // first, count: the range of indices drawn
+// a World's batch: its layout (FLOATS: GVtx), its vertices, its box (origin, size) and, for TOP, its uv as a function of the place (u = uvk0 qx
+// + uvk1, v = uvk2 qz + uvk3, q the s16 position)
+enum Layout : uint8_t { FLOATS = 0, TOP = 1, WALL = 2, SOLID = 3, LAYOUTS = 4 };
+struct TopV { int16_t p[3]; uint8_t ao, pad; };                              // 8 bytes: the colour a grey (the sky the face sees)
+struct WallV { int16_t p[3]; uint8_t ao, sector; uint8_t c[4]; int16_t uv[2]; };   // 16 bytes
+struct SolidV { int16_t p[3]; uint8_t ao, sector; uint8_t c[4]; };          // 12 bytes
+struct GMesh { GVtx* v; GVtx* flat; uint16_t* idx; int32_t ni; bool col; uint8_t lay; void* cv; float org[3], size[3], us, uvk[4]; };
+struct Rec { int32_t mesh, flags; uint32_t color; C3Tex* tex; float tsc[2]; C3D_Mtx mvp, model; float spec[4], emit[3]; int32_t first, count, world; };   // first, count: the range of indices drawn (a world: of the target's items)
 struct GTarget {
   int32_t img, w, h; uint32_t* px; C3Tex tex; C3D_RenderTarget* rt; uint32_t clear; bool dirty;
   Rec* recs; int32_t nrec, cap;
   float amb[3], ld[4][3], lc[4][3], eye[3]; int nl;
   bool fog; float fogC[3], fogN, fogF, camN, camF;   // the frame's fog (Engine::fog) and the camera's planes, for the PICA's fog table
+  WItem* wi; int32_t nwi, wcap;   // the worlds' ranges of the frame (worldDraw)
+  C3D_Mtx vp;                     // the frame's projection x view
+  float lut[4];                   // the planes and fog the fog table was made for
 };
 struct Loc { int mvp, model, base, vk, amb, ld, lc, spec, eye, emit, tsc; };
+struct WLoc { int mvp, a, b, light, emit, lights; };   // a World program's uniforms: top a = pic, b = map; wall a = tsc; wall, solid b = base
+// The shadows of a World (worldShadows): the heights, the 8-bit map the top program reads at texcoord 2 (255 in the light), and the sweep in
+// progress (Pocket Tokyo's tokyo-sim shadow.rs, MIT): a row at a time from the side of the light, each row from the one before it.
+struct Shade {
+  int32_t world = -1; uint16_t* hm = nullptr; int32_t w = 0, h = 0; float x0 = 0, z0 = 0, step = 1, unit = 1;
+  C3D_Tex tex; bool ok = false;
+  float sun[3] = {0, 0, 0}, dark = -1;   // what the map shows: the light's direction and how dark its shade is (0..255)
+  int32_t row = -1; bool whole = true;   // the next row of a sweep (-1: none); the first sweep runs whole
+  float sdark = 0; bool xdom = false, flat = false, back = false, fwd = false; uint32_t drop = 0, f = 0;
+  uint16_t *prev = nullptr, *cur = nullptr;
+};
 
 int32_t pow2(int32_t v) { int32_t p = 8; while (p < v) p <<= 1; return p; }
 /** A column-major 4x4 (the program's) as citro3d's rows. */
@@ -49,24 +76,42 @@ struct N3ds : Engine {
   DVLB_s* dvlb = nullptr;
   shaderProgram_s prog;
   Loc loc;
+  shaderProgram_s wprog[LAYOUTS];   // a World's programs, by layout (DVLE 1 to 3)
+  WLoc wloc[LAYOUTS];
+  void** dead = nullptr; int32_t ndead = 0, deadCap = 0;   // linear memory the GPU may still read: freed at the next render()
+  Shade shade;
 
   bool open() {
     dvlb = DVLB_ParseFile((u32*)r3d_shader_shbin, r3d_shader_shbin_size);
-    if (!dvlb) return false;
+    if (!dvlb || dvlb->numDVLE < LAYOUTS) return false;
     shaderProgramInit(&prog);
     shaderProgramSetVsh(&prog, &dvlb->DVLE[0]);
     auto u = [&](const char* n) { return (int)shaderInstanceGetUniformLocation(prog.vertexShader, n); };
     loc = Loc{u("mvp"), u("model"), u("base"), u("vk"), u("amb"), u("ld"), u("lc"), u("spec"), u("eye"), u("emit"), u("tsc")};
+    for (int l = TOP; l < LAYOUTS; l++) {
+      shaderProgramInit(&wprog[l]);
+      shaderProgramSetVsh(&wprog[l], &dvlb->DVLE[l]);
+      auto v = [&](const char* n) { return (int)shaderInstanceGetUniformLocation(wprog[l].vertexShader, n); };
+      wloc[l] = WLoc{v("mvp"), v(l == TOP ? "pic" : l == WALL ? "tsc" : "base"), v(l == TOP ? "map" : "base"), v("light"), v("emit"), v("lights")};
+    }
     return true;
+  }
+  void later(void* p) {   // freed once the GPU has finished the frame that may read it
+    if (!p) return;
+    dead = (void**)grown(dead, ndead, &deadCap, ndead + 1, sizeof(void*));
+    dead[ndead++] = p;
   }
 
   GMesh* gmesh(int32_t id) { return id >= 0 && id < ngm ? gm[id] : nullptr; }
+  void room(int32_t sid) {
+    if (sid >= ngm) { gm = (GMesh**)realloc(gm, sizeof(GMesh*) * (size_t)(sid + 1)); for (int32_t i = ngm; i <= sid; i++) gm[i] = nullptr; ngm = sid + 1; }
+  }
   int32_t keep(int32_t sid) {
     Mesh* m = meshes.at(sid);
     if (!m) return -1;
-    if (sid >= ngm) { gm = (GMesh**)realloc(gm, sizeof(GMesh*) * (size_t)(sid + 1)); for (int32_t i = ngm; i <= sid; i++) gm[i] = nullptr; ngm = sid + 1; }
+    room(sid);
     GMesh* g = (GMesh*)mem(sizeof(GMesh));
-    *g = GMesh{(GVtx*)linearAlloc(sizeof(GVtx) * (size_t)m->nv), nullptr, (uint16_t*)linearAlloc(sizeof(uint16_t) * (size_t)m->ni), m->ni, m->col != nullptr};
+    *g = GMesh{(GVtx*)linearAlloc(sizeof(GVtx) * (size_t)m->nv), nullptr, (uint16_t*)linearAlloc(sizeof(uint16_t) * (size_t)m->ni), m->ni, m->col != nullptr, FLOATS, nullptr, {}, {}, 0, {}};
     if (!g->v || !g->idx) { if (g->v) linearFree(g->v); if (g->idx) linearFree(g->idx); mfree(g); Engine::meshDestroy(sid); return -1; }
     for (int32_t i = 0; i < m->nv; i++) {
       GVtx& v = g->v[i];
@@ -101,8 +146,115 @@ struct N3ds : Engine {
   int32_t meshCreate(Array<N> pos, Array<N> nrm, Array<N> uv, Array<uint32_t> col, Array<int32_t> idx) override { return keep(Engine::meshCreate(pos, nrm, uv, col, idx)); }
   int32_t meshLoad(Array<uint8_t> data, int32_t at) override { return keep(Engine::meshLoad(data, at)); }
   void meshDestroy(int32_t id) override {
-    if (GMesh* g = gmesh(id)) { linearFree(g->v); linearFree(g->idx); if (g->flat) linearFree(g->flat); mfree(g); gm[id] = nullptr; }
+    if (GMesh* g = gmesh(id)) { later(g->v); later(g->idx); later(g->flat); later(g->cv); mfree(g); gm[id] = nullptr; }
     Engine::meshDestroy(id);
+  }
+
+  /** A World's batch in its layout (TOP, WALL or SOLID), from the chunk's 20-byte vertices: the mesh handle (an Engine mesh of no arrays,
+   *  for its counts), -1 when linear memory is short (the float mesh is tried). */
+  int32_t worldMesh(const uint8_t* rec, const uint8_t* vtx, uint32_t nv, const uint8_t* idx, uint32_t ni) override {
+    const uint32_t kind = rd32(rec), flags = rd32(rec + 4);
+    const bool textured = (int32_t)rd32(rec + 20) >= 0, vcol = flags & VCOL;
+    const float us = rdf(rec + 76);
+    auto col = [&](uint32_t v, int c) { return vcol ? vtx[(size_t)v * zn::zworld::kVertex + 10 + c] : (uint8_t)255; };
+    auto h16 = [&](uint32_t v, int a) { int16_t x; memcpy(&x, vtx + (size_t)v * zn::zworld::kVertex + 2 * a, 2); return x; };
+    uint8_t lay = textured ? WALL : SOLID;
+    float uvk[4] = {0, 0, 0, 0};
+    if (kind == zn::zworld::Top) {   // grey vertices whose uv follow the place: TOP
+      bool ok = true;
+      for (uint32_t v = 0; v < nv && ok; v++) ok = col(v, 0) == col(v, 1) && col(v, 1) == col(v, 2);
+      for (int a = 0; a < 2 && ok && textured; a++) {   // u from x (axis 0), v from z (axis 2)
+        const int ax = a ? 2 : 0;
+        uint32_t lo = 0, hi = 0;
+        for (uint32_t v = 1; v < nv; v++) { if (h16(v, ax) < h16(lo, ax)) lo = v; if (h16(v, ax) > h16(hi, ax)) hi = v; }
+        const float q0 = h16(lo, ax), q1 = h16(hi, ax), u0 = h16(lo, 3 + a) * us, u1 = h16(hi, 3 + a) * us;
+        const float k = q1 > q0 ? (u1 - u0) / (q1 - q0) : 0, b = u0 - k * q0;
+        for (uint32_t v = 0; v < nv && ok; v++) ok = fabsf(k * h16(v, ax) + b - h16(v, 3 + a) * us) <= us * 1.5f + 1e-6f;
+        uvk[a * 2] = k; uvk[a * 2 + 1] = b;
+      }
+      if (ok) lay = TOP;
+    }
+    static const uint32_t bytes[LAYOUTS] = {0, sizeof(TopV), sizeof(WallV), sizeof(SolidV)};
+    void* cv = linearAlloc((size_t)bytes[lay] * nv);
+    uint16_t* ix = (uint16_t*)linearAlloc(2 * (size_t)ni);
+    if (!cv || !ix) { if (cv) linearFree(cv); if (ix) linearFree(ix); return -1; }
+    for (uint32_t v = 0; v < nv; v++) {
+      const uint8_t* x = vtx + (size_t)v * zn::zworld::kVertex;
+      int16_t p[3]; memcpy(p, x, 6);
+      // the sector the face looks to (16 around from -pi, as atan2(z, x): tokyo-pack's), 16 for what looks up or down
+      const float nx = (int8_t)x[14], ny = (int8_t)x[15], nz = (int8_t)x[16];
+      int sector = 16;
+      if (2 * ny * ny < nx * nx + ny * ny + nz * nz) { sector = (int)floorf((atan2f(nz, nx) + 3.14159265f) * (16 / 6.2831853f)); sector = sector < 0 ? 0 : sector > 15 ? 15 : sector; }
+      if (lay == TOP) { TopV& o = ((TopV*)cv)[v]; memcpy(o.p, p, 6); o.ao = col(v, 0); o.pad = 0; }
+      else if (lay == WALL) {
+        WallV& o = ((WallV*)cv)[v]; memcpy(o.p, p, 6); o.ao = 255; o.sector = (uint8_t)sector;
+        for (int c = 0; c < 3; c++) o.c[c] = col(v, c);
+        o.c[3] = 255; memcpy(o.uv, x + 6, 4);
+      } else {
+        SolidV& o = ((SolidV*)cv)[v]; memcpy(o.p, p, 6); o.ao = 255; o.sector = (uint8_t)sector;
+        for (int c = 0; c < 3; c++) o.c[c] = col(v, c);
+        o.c[3] = 255;
+      }
+    }
+    memcpy(ix, idx, 2 * (size_t)ni);
+    GSPGPU_FlushDataCache(cv, (size_t)bytes[lay] * nv);
+    GSPGPU_FlushDataCache(ix, 2 * (size_t)ni);
+    Mesh* m = (Mesh*)mem(sizeof(Mesh));
+    *m = Mesh{(int32_t)nv, (int32_t)ni, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const int32_t id = meshes.add(m);
+    room(id);
+    GMesh* g = (GMesh*)mem(sizeof(GMesh));
+    *g = GMesh{nullptr, nullptr, ix, (int32_t)ni, vcol, lay, cv, {rdf(rec + 52), rdf(rec + 56), rdf(rec + 60)}, {rdf(rec + 64), rdf(rec + 68), rdf(rec + 72)}, us,
+               {uvk[0], uvk[1], uvk[2], uvk[3]}};
+    gm[id] = g;
+    return id;
+  }
+
+  /** The ranges worldSelect chose, kept for render(): the frame draws them where this record stands among the draws. */
+  void worldDraw(int32_t id) override {
+    World* w = worlds.at(id);
+    if (!w || !gcur || !gcur->rt || !w->ni) return;
+    GTarget* t = gcur;
+    t->wi = (WItem*)grown(t->wi, t->nwi, &t->wcap, t->nwi + w->ni, sizeof(WItem));
+    memcpy(t->wi + t->nwi, w->items, sizeof(WItem) * (size_t)w->ni);
+    if (t->nrec == t->cap) { t->cap = t->cap ? t->cap * 2 : 32; t->recs = (Rec*)realloc(t->recs, sizeof(Rec) * (size_t)t->cap); }
+    Rec& r = t->recs[t->nrec++];
+    memset(&r, 0, sizeof r);
+    r.mesh = -1; r.world = id; r.first = t->nwi; r.count = w->ni;
+    t->nwi += w->ni;
+    const WBatch* last = nullptr;
+    for (int32_t i = 0; i < w->ni; i++) {
+      const WItem& it = w->items[i];
+      tris += (int32_t)(it.to - it.from) / 3;
+      const WChunk& ch = w->k[it.chunk];
+      if (!ch.loaded || it.batch >= ch.nb || &ch.b[it.batch] == last) continue;
+      last = &ch.b[it.batch];
+      int32_t tw, th;   // the batch's pictures uploaded now, outside the GPU frame (render() finds them there)
+      if (last->tex >= 0) zn::ff::texture(last->tex, &tw, &th);
+      if (w->dusk > 0 && last->ntex >= 0 && last->ntex != last->tex) zn::ff::texture(last->ntex, &tw, &th);
+    }
+  }
+
+  /** The heights of a World's shadows (one World at a time): the map is swept by render() whenever the light moves. */
+  void worldShadows(int32_t id, String name, Array<N> prm) override {
+    Shade& s = shade;
+    if (prm.length() < 7 || !worlds.at(id)) return;
+    uint32_t n = 0;
+    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+    const int32_t w = (int32_t)F(prm.a->data[3]), h = (int32_t)F(prm.a->data[4]);
+    if (!p || w < 2 || h < 2 || w > 1024 || h > 1024 || n < (uint32_t)(w * h * 2)) { free(p); return; }
+    free(s.hm); mfree(s.prev); mfree(s.cur);
+    if (s.ok) { C3D_TexDelete(&s.tex); s.ok = false; }   // ponytail: a second call while a frame draws the old map; none does
+    s.hm = (uint16_t*)p; s.w = w; s.h = h; s.world = id;
+    s.x0 = F(prm.a->data[0]); s.z0 = F(prm.a->data[1]); s.step = F(prm.a->data[2]); s.unit = F(prm.a->data[6]);
+    s.prev = (uint16_t*)mem(2 * (size_t)w); s.cur = (uint16_t*)mem(2 * (size_t)w);
+    s.ok = C3D_TexInit(&s.tex, (u16)pow2(w), (u16)pow2(h), GPU_L8);
+    if (!s.ok) return;
+    memset(s.tex.data, 255, s.tex.size);   // all in the light until the first sweep
+    GSPGPU_FlushDataCache(s.tex.data, s.tex.size);
+    C3D_TexSetFilter(&s.tex, GPU_LINEAR, GPU_LINEAR);
+    C3D_TexSetWrap(&s.tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    s.dark = -1; s.row = -1; s.whole = true;
   }
 
   int32_t target(int32_t id, int32_t w, int32_t h) override {
@@ -136,7 +288,7 @@ struct N3ds : Engine {
   void targetDestroy(int32_t id) override {
     GTarget* t = gtargets.at(id);
     if (!t) return;
-    release(t); mfree(t->recs); mfree(t);
+    release(t); mfree(t->recs); mfree(t->wi); mfree(t);
     gtargets.p[id] = nullptr;
   }
   GTarget* byImage(int32_t img) { for (int32_t i = 0; i < gtargets.n; i++) if (GTarget* t = gtargets.p[i]) if (t->img == img) return t; return nullptr; }
@@ -149,7 +301,7 @@ struct N3ds : Engine {
     spec[0] = spec[1] = spec[2] = 0; emit[0] = emit[1] = emit[2] = 0;
     camera(nearN, farN, ortho);
     eyeOf(view);
-    t->nrec = 0;
+    t->nrec = 0; t->nwi = 0;
     t->clear = (clear & 0xFFFFFF) << 8 | 0xFF;
     const float n = F(nearN), f = F(farN), asp = (float)t->w / t->h;
     C3D_Mtx P;
@@ -160,6 +312,7 @@ struct N3ds : Engine {
     C3D_Mtx Vm;
     rows(&Vm, V);
     Mtx_Multiply(&proj, &P, &Vm);   // projection x view
+    t->vp = proj;
   }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
@@ -174,7 +327,7 @@ struct N3ds : Engine {
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     rows(&r.model, M);
     Mtx_Multiply(&r.mvp, &proj, &r.model);
-    r.mesh = id; r.flags = flags; r.color = color;
+    r.mesh = id; r.flags = flags; r.color = color; r.world = -1;
     r.tex = nullptr;
     int32_t tw = 0, th = 0;
     if (tex >= 0 && m->uv) r.tex = (C3Tex*)zn::ff::texture(tex, &tw, &th);   // uploaded now, outside the GPU frame
@@ -203,14 +356,220 @@ struct N3ds : Engine {
     if (t && t->img >= 0) presentImage(t->img, x, y, w, h);
   }
 
-  /** The recorded frame of `t` into its texture, inside the open GPU frame; c3d_n3ds.cpp's state around it. */
-  void render(GTarget* t) {
-    t->dirty = false;
-    zn_c3d_yield();
-    const C3D_AttrInfo attrs = *C3D_GetAttrInfo();
-    const C3D_BufInfo bufs = *C3D_GetBufInfo();
-    C3D_RenderTargetClear(t->rt, C3D_CLEAR_ALL, t->clear, 0);
-    C3D_FrameDrawOn(t->rt);
+  /** The 17 lights of a World's faces (render3d.n3ds.wall.v.pica): the ambient and the lights on a face that looks to each of the 16 sectors
+   *  of the compass (tokyo-pack's: the k-th at -pi + (k + 1/2) 2 pi / 16, as atan2(z, x)), then on one that looks up; clamped, as Engine::shade. */
+  static void sectorLights(const GTarget* t, float (*L)[4]) {
+    for (int k = 0; k <= 16; k++) {
+      float n[3] = {0, 1, 0};
+      if (k < 16) { const float a = -3.14159265f + (k + 0.5f) * (6.2831853f / 16); n[0] = cosf(a); n[2] = sinf(a); n[1] = 0; }
+      for (int c = 0; c < 3; c++) L[k][c] = t->amb[c];
+      for (int i = 0; i < t->nl; i++) {
+        const float d = -(t->ld[i][0] * n[0] + t->ld[i][1] * n[1] + t->ld[i][2] * n[2]);
+        if (d > 0) for (int c = 0; c < 3; c++) L[k][c] += d * t->lc[i][c];
+      }
+      for (int c = 0; c < 3; c++) L[k][c] = L[k][c] > 1 ? 1 : L[k][c];
+      L[k][3] = 1;
+    }
+  }
+
+  /** The shadows' map follows the scene's first light: a sweep starts when the light has turned by more than a degree or the darkness of its
+   *  shade has changed by 3%, and goes on a few rows a frame (all of them the first time), each row written into the map as it is done. */
+  void shadows(const GTarget* t) {
+    Shade& s = shade;
+    if (s.row < 0) {
+      float sun[3] = {0, 0, 0}, dark = 0;
+      if (t->nl > 0 && t->ld[0][1] < 0) {   // a light from above: towards it; what stands in its shade keeps the ambient of what looks up
+        for (int a = 0; a < 3; a++) sun[a] = -t->ld[0][a];
+        float lit = 0, am = 0;
+        for (int c = 0; c < 3; c++) { am += t->amb[c]; lit += t->amb[c] + t->lc[0][c] * sun[1]; }
+        dark = lit > 0.003f ? (1 - (am < lit ? am / lit : 1)) * 255 : 0;
+      }
+      const bool none = sun[1] == 0 && s.sun[1] == 0;
+      const float turn = sun[0] * s.sun[0] + sun[1] * s.sun[1] + sun[2] * s.sun[2];
+      if (s.dark >= 0 && (none || turn > 0.99985f) && fabsf(dark - s.dark) < 8) return;
+      memcpy(s.sun, sun, sizeof sun);
+      s.dark = dark;
+      // tokyo-sim shadow::sweep, one row a step: along the axis the light leans to more, from its side
+      const float lx = sun[0], ly = sun[1], lz = sun[2], fl = sqrtf(lx * lx + lz * lz);
+      s.flat = fl < 1e-4f;
+      const float slope = (ly > 0.01f ? ly : 0.01f) / (s.flat ? 1 : fl);
+      s.xdom = fabsf(lx) >= fabsf(lz);
+      const float tt = s.flat ? 0 : s.xdom ? lz / fabsf(lx) : lx / fabsf(lz);
+      const float drop = s.step * sqrtf(1 + tt * tt) * slope / s.unit;
+      s.drop = drop > 65535 ? 65535 : (uint32_t)drop;
+      s.f = (uint32_t)(fabsf(tt) * 256);
+      s.fwd = s.xdom ? lx > 0 : tt >= 0;    // x-major: the light from +x (each cell reads x + 1); z-major: the row before is read at x + 1
+      s.back = s.xdom ? tt >= 0 : lz > 0;   // the rows from the last: x-major, the row before is z + 1; z-major, the light from +z
+      s.sdark = dark;
+      s.row = 0;
+    }
+    const int32_t w = s.w, h = s.h, tw = s.tex.width, n = s.whole ? h : 24;
+    const uint32_t k = (uint32_t)(s.unit * 128 * 256), f = s.f, drop = s.drop;
+    uint8_t* tex = (uint8_t*)s.tex.data;
+    int32_t lo = h, hi = -1;
+    for (int32_t done = 0; done < n && s.row < h; done++, s.row++) {
+      const int32_t z = s.back ? h - 1 - s.row : s.row;
+      const uint16_t* own = s.hm + (size_t)z * w;
+      uint16_t* out = s.cur;
+      const uint16_t* pv = s.prev;
+      const bool first = s.row == 0;
+      auto pass = [&](uint32_t a, uint32_t b, uint32_t mine) { const uint32_t p = (a * (256 - f) + b * f) >> 8; return (uint16_t)(p > drop && p - drop > mine ? p - drop : mine); };
+      if (s.flat || (!s.xdom && first)) memcpy(out, own, 2 * (size_t)w);
+      else if (s.xdom) {
+        for (int32_t i = 0; i < w; i++) {
+          const int32_t x = s.fwd ? w - 1 - i : i, up = s.fwd ? x + 1 : x - 1;
+          out[x] = up >= 0 && up < w ? pass(out[up], first ? 0 : pv[up], own[x]) : own[x];
+        }
+      } else {
+        for (int32_t x = 0; x < w; x++) {
+          const int32_t o = s.fwd ? x + 1 : x - 1;
+          out[x] = pass(pv[x], o >= 0 && o < w ? pv[o] : 0, own[x]);
+        }
+      }
+      for (int32_t x = 0; x < w; x++) {   // the light left: 255 in it, less the deeper under the shade (2 m and more: the darkest)
+        const uint32_t d = (uint32_t)(out[x] - own[x]) * k >> 8, under = d > 255 ? 255 : d;
+        const uint32_t m = (x & 1) | (z & 1) << 1 | (x & 2) << 1 | (z & 2) << 2 | (x & 4) << 2 | (z & 4) << 3;
+        tex[(size_t)((z >> 3) * (tw >> 3) + (x >> 3)) * 64 + m] = (uint8_t)(255 - ((uint32_t)(under * s.sdark) >> 8));
+      }
+      lo = z < lo ? z : lo; hi = z > hi ? z : hi;
+      uint16_t* q = s.prev; s.prev = s.cur; s.cur = q;
+    }
+    if (hi >= lo) GSPGPU_FlushDataCache(tex + (size_t)(lo >> 3) * tw * 8, (size_t)((hi >> 3) - (lo >> 3) + 1) * tw * 8);
+    if (s.row >= h) { s.row = -1; s.whole = false; }
+  }
+
+  /** A World's ranges of the frame (worldDraw), in their order (by kind, then batch): a batch's state is set when the batch changes. */
+  void renderWorld(GTarget* t, const Rec& rec) {
+    World* w = worlds.at(rec.world);
+    if (!w) return;
+    float L[17][4];
+    sectorLights(t, L);
+    const float night = w->dusk < 0 ? 0 : w->dusk > 1 ? 1 : w->dusk;
+    const bool shadowed = shade.ok && shade.world == rec.world;
+    if (shadowed) shadows(t);
+    const uint32_t nightK = (uint32_t)(night * 255 + 0.5f) * 0x010101u | 0xFF000000u;
+    int lay = -1, tev = -1, cull = -1, fogged = -1, white = -1;
+    C3D_Tex* bound[3] = {nullptr, nullptr, nullptr};
+    const WBatch* cur = nullptr;
+    GMesh* g = nullptr;
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+    C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+    auto stage = [](int i, GPU_COMBINEFUNC fn, GPU_TEVSRC a, GPU_TEVSRC b, GPU_TEVSRC c, uint32_t k) {
+      C3D_TexEnv* e = C3D_GetTexEnv(i);
+      C3D_TexEnvInit(e);
+      C3D_TexEnvSrc(e, C3D_RGB, a, b, c);
+      C3D_TexEnvFunc(e, C3D_RGB, fn);
+      C3D_TexEnvColor(e, k);
+      C3D_TexEnvSrc(e, C3D_Alpha, i == 0 ? GPU_PRIMARY_COLOR : GPU_PREVIOUS, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+      C3D_TexEnvFunc(e, C3D_Alpha, GPU_REPLACE);
+    };
+    auto pass = [](int i) { C3D_TexEnvInit(C3D_GetTexEnv(i)); };
+    auto bind = [&](int unit, C3D_Tex* x) { if (bound[unit] != x) { bound[unit] = x; C3D_TexBind(unit, x); } };
+    for (int32_t i = rec.first; i < rec.first + rec.count; i++) {
+      const WItem& it = t->wi[i];
+      if (it.chunk < 0 || it.chunk >= w->nk) continue;
+      const WChunk& ch = w->k[it.chunk];
+      if (!ch.loaded || it.batch >= ch.nb) continue;
+      const WBatch& b = ch.b[it.batch];
+      if (&b != cur) {
+        cur = &b;
+        g = gmesh(b.mesh);
+        if (!g || !g->cv) { g = nullptr; continue; }   // ponytail: a batch left as a float mesh (linear memory was short) is not drawn
+        const WLoc& u = wloc[g->lay];
+        const bool lit = !(b.flags & UNLIT);
+        if (g->lay != lay) {   // the layout's program and loaders
+          lay = g->lay;
+          C3D_BindProgram(&wprog[lay]);
+          C3D_AttrInfo* a = C3D_GetAttrInfo();
+          AttrInfo_Init(a);
+          AttrInfo_AddLoader(a, 0, GPU_SHORT, 3);                                 // the place over the box
+          AttrInfo_AddLoader(a, 1, GPU_UNSIGNED_BYTE, 2);                         // the grey of a top, or the sector
+          if (lay != TOP) AttrInfo_AddLoader(a, 2, GPU_UNSIGNED_BYTE, 4);         // the colour
+          if (lay == WALL) AttrInfo_AddLoader(a, 3, GPU_SHORT, 2);                // the uv over the batch's scale
+          tev = -1; white = -1;
+        }
+        if (lay != TOP && white != (lit ? 0 : 1)) {   // the 17 lights (an unlit batch: white)
+          white = lit ? 0 : 1;
+          C3D_FVec* l = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u.lights, 17);
+          for (int k = 0; k < 17; k++) l[k] = lit ? FVec4_New(L[k][0], L[k][1], L[k][2], 1) : FVec4_New(1, 1, 1, 1);
+        }
+        // the place: clip = vp x T(origin + size 32768 / 65535) x S(size / 65535)
+        C3D_Mtx M, mvp;
+        Mtx_Identity(&M);
+        const float qk = 1 / 65535.0f, qh = 32768.0f / 65535.0f;
+        M.r[0].x = g->size[0] * qk; M.r[0].w = g->org[0] + g->size[0] * qh;
+        M.r[1].y = g->size[1] * qk; M.r[1].w = g->org[1] + g->size[1] * qh;
+        M.r[2].z = g->size[2] * qk; M.r[2].w = g->org[2] + g->size[2] * qh;
+        Mtx_Multiply(&mvp, &t->vp, &M);
+        C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, u.mvp, &mvp);
+        const float bc[3] = {(b.color >> 16 & 255) / 255.0f, (b.color >> 8 & 255) / 255.0f, (b.color & 255) / 255.0f};
+        // the night: a batch with a picture of its own for it mixes into that picture; the others' glow goes from the day's to the night's
+        const bool own = b.tex >= 0 && b.ntex >= 0 && b.ntex != b.tex;
+        float e[3];
+        for (int c = 0; c < 3; c++) {
+          const float d = (b.emis >> (16 - 8 * c) & 255) / 255.0f, nn = (b.nemis >> (16 - 8 * c) & 255) / 255.0f;
+          e[c] = own ? d : d + (nn - d) * night;
+        }
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, u.emit, e[0], e[1], e[2], 0);
+        if (lay == TOP) C3D_FVUnifSet(GPU_VERTEX_SHADER, u.light, (lit ? L[16][0] : 1) * bc[0], (lit ? L[16][1] : 1) * bc[1], (lit ? L[16][2] : 1) * bc[2], 1 / 255.0f);
+        else C3D_FVUnifSet(GPU_VERTEX_SHADER, u.b, bc[0] / 255, bc[1] / 255, bc[2] / 255, 1 / 255.0f);
+        // the pictures: the day's on unit 0, the night's on 1 while it mixes in, the shadows on 2 (tops)
+        int32_t tw = 0, th = 0, nw = 0, nh = 0;
+        C3Tex* day = b.tex >= 0 && lay != SOLID ? (C3Tex*)zn::ff::texture(b.tex, &tw, &th) : nullptr;
+        C3Tex* dark = day && own && night > 0 ? (C3Tex*)zn::ff::texture(b.ntex, &nw, &nh) : nullptr;
+        const bool sh = shadowed && lay == TOP;
+        const int key = lay | (day ? 4 : 0) | (dark ? 8 : 0) | (sh ? 16 : 0);
+        if (day) {
+          const int fm = (b.flags >> 4) & 3;
+          const float sx = (float)tw / day->t.width, sy = (float)th / day->t.height;
+          const bool whole = sx == 1 && sy == 1;   // a power-of-two picture repeats
+          auto take = [&](int unit, C3Tex* x) {    // (the filter and the wrap go to the GPU when the unit is bound)
+            if (!x || bound[unit] == &x->t) return;
+            C3D_TexSetFilter(&x->t, fm == 1 ? GPU_NEAREST : GPU_LINEAR, fm == 1 ? GPU_NEAREST : GPU_LINEAR);
+            C3D_TexSetWrap(&x->t, whole ? GPU_REPEAT : GPU_CLAMP_TO_EDGE, whole ? GPU_REPEAT : GPU_CLAMP_TO_EDGE);
+            bind(unit, &x->t);
+          };
+          take(0, day);
+          take(1, dark);
+          if (lay == TOP) C3D_FVUnifSet(GPU_VERTEX_SHADER, u.a, g->uvk[0] * sx, g->uvk[1] * sx, -g->uvk[2] * sy, 1 - g->uvk[3] * sy);
+          else C3D_FVUnifSet(GPU_VERTEX_SHADER, u.a, g->us * sx, -g->us * sy, 0, 1);
+        }
+        if (sh) {   // the shadows' map over the heights' grid, t from the top
+          const Shade& s = shade;
+          const float ax = g->size[0] * qk / (s.tex.width * s.step), bx = (g->org[0] + g->size[0] * qh - s.x0) / (s.tex.width * s.step);
+          const float az = g->size[2] * qk / (s.tex.height * s.step), bz = (g->org[2] + g->size[2] * qh - s.z0) / (s.tex.height * s.step);
+          C3D_FVUnifSet(GPU_VERTEX_SHADER, u.b, ax, bx, -az, 1 - bz);
+          bind(2, &shade.tex);
+        }
+        if (key != tev) {   // the combiners: (light x shadow) x picture, mixed into the night's picture by the night
+          tev = key;
+          int k = 0;
+          if (sh) { stage(k, GPU_MODULATE, GPU_PRIMARY_COLOR, GPU_TEXTURE2, GPU_PRIMARY_COLOR, 0); k++; }
+          if (day) { stage(k, GPU_MODULATE, k ? GPU_PREVIOUS : GPU_PRIMARY_COLOR, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0); k++; }
+          if (dark) { stage(k, GPU_INTERPOLATE, GPU_TEXTURE1, GPU_PREVIOUS, GPU_CONSTANT, nightK); k++; }
+          if (!k) { stage(k, GPU_REPLACE, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, 0); k++; }
+          while (k < 3) pass(k++);
+        }
+        const int c = b.flags & DOUBLE ? 0 : 1;
+        if (c != cull) { cull = c; C3D_CullFace(c ? GPU_CULL_BACK_CCW : GPU_CULL_NONE); }
+        const int fo = t->fog && !(b.flags & NOFOG) ? 1 : 0;
+        if (t->fog && fo != fogged) { fogged = fo; C3D_FogGasMode(fo ? GPU_FOG : GPU_NO_FOG, GPU_PLAIN_DENSITY, false); }
+        static const uint8_t stride[LAYOUTS] = {0, sizeof(TopV), sizeof(WallV), sizeof(SolidV)}, count[LAYOUTS] = {0, 2, 4, 3};
+        static const uint64_t perm[LAYOUTS] = {0, 0x10, 0x3210, 0x210};
+        C3D_BufInfo* bi = C3D_GetBufInfo();
+        BufInfo_Init(bi);
+        BufInfo_Add(bi, g->cv, stride[lay], count[lay], perm[lay]);
+      }
+      if (!g) continue;
+      C3D_DrawElements(GPU_TRIANGLES, (int)(it.to - it.from), C3D_UNSIGNED_SHORT, g->idx + it.from);
+    }
+    pass(1); pass(2);   // what follows draws with one stage and one texture
+    C3D_TexBind(1, nullptr);
+    C3D_TexBind(2, nullptr);
+  }
+
+  /** The general program and its loaders (the meshes' floats), the eye; one combiner stage. */
+  void general(const GTarget* t) {
     C3D_BindProgram(&prog);
     C3D_AttrInfo* a = C3D_GetAttrInfo();
     AttrInfo_Init(a);
@@ -219,22 +578,44 @@ struct N3ds : Engine {
     AttrInfo_AddLoader(a, 2, GPU_FLOAT, 2);           // uv
     AttrInfo_AddLoader(a, 3, GPU_UNSIGNED_BYTE, 4);   // colour, 0..255
     C3D_FVUnifSet(GPU_VERTEX_SHADER, loc.eye, t->eye[0], t->eye[1], t->eye[2], 0);
+    C3D_TexEnvInit(C3D_GetTexEnv(1));
+    C3D_TexEnvInit(C3D_GetTexEnv(2));
+  }
+
+  /** The recorded frame of `t` into its texture, inside the open GPU frame; c3d_n3ds.cpp's state around it. */
+  void render(GTarget* t) {
+    t->dirty = false;
+    for (int32_t i = 0; i < ndead; i++) linearFree(dead[i]);   // the GPU has finished the frames that drew them: this one began after them
+    ndead = 0;
+    zn_c3d_yield();
+    const C3D_AttrInfo attrs = *C3D_GetAttrInfo();
+    const C3D_BufInfo bufs = *C3D_GetBufInfo();
+    C3D_RenderTargetClear(t->rt, C3D_CLEAR_ALL, t->clear, 0);
+    C3D_FrameDrawOn(t->rt);
     if (t->fog) {   // the PICA's fog: a table over the depth buffer's values (citro3d's FogLut_Exp, linear here), the colour after the TEV
       static C3D_FogLut lut;
-      float data[256];
-      for (int i = 0; i <= 128; i++) {
-        const float x = FogLut_CalcZ(i / 128.0f, t->camN, t->camF), k = (x - t->fogN) / (t->fogF - t->fogN);
-        const float val = 1 - (k < 0 ? 0 : k > 1 ? 1 : k);   // the share of the colour kept
-        if (i < 128) data[i] = val;
-        if (i > 0) data[i + 127] = val - data[i - 1];
+      static float made[4] = {-1, -1, -1, -1};
+      const float want[4] = {t->camN, t->camF, t->fogN, t->fogF};
+      if (memcmp(made, want, sizeof want)) {   // made again only when the planes or the fog change
+        memcpy(made, want, sizeof want);
+        float data[256];
+        for (int i = 0; i <= 128; i++) {
+          const float x = FogLut_CalcZ(i / 128.0f, t->camN, t->camF), k = (x - t->fogN) / (t->fogF - t->fogN);
+          const float val = 1 - (k < 0 ? 0 : k > 1 ? 1 : k);   // the share of the colour kept
+          if (i < 128) data[i] = val;
+          if (i > 0) data[i + 127] = val - data[i - 1];
+        }
+        FogLut_FromArray(&lut, data);
       }
-      FogLut_FromArray(&lut, data);
       C3D_FogGasMode(GPU_FOG, GPU_PLAIN_DENSITY, false);
       C3D_FogColor((uint32_t)t->fogC[2] << 16 | (uint32_t)t->fogC[1] << 8 | (uint32_t)t->fogC[0]);
       C3D_FogLutBind(&lut);
     }
+    bool inGeneral = false;
     for (int32_t k = 0; k < t->nrec; k++) {
       const Rec& r = t->recs[k];
+      if (r.world >= 0) { renderWorld(t, r); inGeneral = false; continue; }
+      if (!inGeneral) { general(t); inGeneral = true; }
       Mesh* m = meshes.at(r.mesh);
       GMesh* g = gmesh(r.mesh);
       if (!m || !g) continue;

@@ -78,7 +78,7 @@ onFrame((dt: number) => {
   sky.update(scene, flight.hour, DAY_OF_YEAR, flight.eye, FAR_PLANE * 0.8);
   const fog = scene.fog;
   if (fog !== null) fog.color = scene.background;
-  city.setNight(dev.night && sky.night > 0.5);
+  city.setNight(dev.night ? sky.night : 0);
   aim(); aheadAt(0, 2); aheadAt(1, 4);
   const t1 = clock();
   city.select(camera, w / h, ahead, dt);

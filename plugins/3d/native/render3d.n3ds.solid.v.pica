@@ -1,0 +1,41 @@
+; zinc:3d World on the PICA200 (render3d.n3ds.cpp): painted faces, a colour each, lit by the sector of the compass they look to (one of
+; seventeen lights, filled once a frame). Pocket Tokyo's 3DS program (pocket-nexus/pocket-tokyo n3ds/src/solid.v.pica, MIT).
+.fvec mvp[4]
+; rgb: the batch's colour / 255 (the vertex colours are 0..255), w: 1 / 255
+.fvec base
+; rgb: the batch's emissive colour, added
+.fvec emit
+.fvec lights[17]
+.constf consts(0.0, 1.0, 0.0, 1.0)
+.in inpos v0
+; y: the sector
+.in inao v1
+.in inclr v2
+.out outpos position
+.out outclr color
+; (a texture unit that stays bound is read at these: every program writes all three)
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outtc2 texcoord2
+.entry solid
+.proc solid
+    mov r0.xyz, inpos.xyz
+    mov r0.w, consts.w
+    dp4 outpos.x, mvp[0], r0
+    dp4 outpos.y, mvp[1], r0
+    dp4 outpos.z, mvp[2], r0
+    dp4 outpos.w, mvp[3], r0
+    mova a0.x, inao.y
+    mov r2, lights[a0.x]
+    mul r3, base, inclr
+    mul r3.xyz, r2.xyz, r3.xyz
+    add r3.xyz, emit.xyz, r3.xyz
+    min r3.xyz, consts.yyy, r3.xyz
+    mov r3.w, consts.w
+    mov outclr, r3
+    mov r9, consts.xxxw
+    mov outtc0, r9
+    mov outtc1, r9
+    mov outtc2, r9
+    end
+.end

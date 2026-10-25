@@ -3,6 +3,7 @@
 export const CITY_WORLD = 'city/city.zworld';
 export const CITY_INDEX = 'city/city.txt';
 export const CITY_HEIGHTS = 'city/heights.bin';
+export const CITY_HMAP = 'city/hmap.bin';
 
 /** The tour: metres a second along its loop (tokyo-sim's Flight::new). */
 export const TOUR_SPEED = 60;
