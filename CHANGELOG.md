@@ -11,7 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - PSP, PS Vita and Nintendo 3DS: zinc:3d (meshes, lights, textures, `render()`) runs in the console cores; it drew nothing there before.
 - New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
-- PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, vertical and horizontal gradients, images, sprites and text. A frame with a radial gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
+- PSP and Nintendo 3DS: vertical and horizontal gradients are drawn on the GPU; a frame with one was drawn in software before (only radial gradients still are).
 - PSP: zinc:3d draws on the GE (hardware transform and lighting) instead of in software: the cubes demo renders in about 6 ms a frame instead of 30. `ZINC_PSP_GPU=0` keeps the software renderer.
 - Nintendo 3DS: zinc:3d draws on the PICA200 instead of in software, on both eyes in stereoscopic 3D: the cubes demo renders in about 2 ms a frame instead of 25. `ZINC_N3DS_GPU=0` keeps the software renderer.
 - Three games for the Nintendo 3DS's two screens, in stereoscopic 3D: Nova Patrol DS (`examples/n3ds-pinball`, the space pinball's table across both screens), Meadow Run 3D (`examples/n3ds-platformer`, the level on top, the map and the stylus look-around below) and Starfall (`examples/n3ds-starfall`, draw lines with the stylus to throw falling stars back into their constellation).
