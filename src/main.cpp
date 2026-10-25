@@ -374,6 +374,7 @@ static bool loadManifestPermissions(const char* path) {
   static std::vector<std::string> granted;
   granted.clear();
   std::string appJson, scopesJson, uiLayout = "classic";
+  std::vector<std::string> defaults3d;
   std::string pf = zn::frontend::findProjectFile(path);
   zn::frontend::Project p;
   if (!pf.empty()) {
@@ -381,7 +382,7 @@ static bool loadManifestPermissions(const char* path) {
     std::stringstream ss; ss << in.rdbuf();
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
+    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; defaults3d = p.defaults3d; }
   }
   if (const zn::frontend::Profile* rp = zn::frontend::currentProfile(); rp && !p.requires_.empty() && !zn::frontend::force()) {   // zinc.json "requires" for zinc check and build --profile (ZN-618; zinc run checks it before, with --force's warning)
     const std::string why = zn::frontend::explain(p.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/targets/capabilities.json"), rp->name);
@@ -404,6 +405,7 @@ static bool loadManifestPermissions(const char* path) {
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
   zn::frontend::setSystemScopesJson(scopesJson);
+  zn::frontend::setDefaults3D(defaults3d);
   return true;
 }
 

@@ -317,6 +317,9 @@ const std::vector<std::string>& systemFeatures() {
 void setSystemAppJson(const std::string& json) { gAppJson = json; }
 std::string gScopesJson;
 void setSystemScopesJson(const std::string& json) { gScopesJson = json; }
+namespace { std::vector<std::string> gDefaults3D; }
+void setDefaults3D(const std::vector<std::string>& triples) { gDefaults3D = triples; }
+const std::vector<std::string>& defaults3DOverrides() { return gDefaults3D; }
 namespace { std::string gUiLayout = "classic"; }
 void setUiLayout(const std::string& layout) { gUiLayout = layout.empty() ? "classic" : layout; }
 const std::string& uiLayout() { return gUiLayout; }
@@ -586,11 +589,36 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (!yyjson_is_obj(sc)) return fatal(lineOf(text, "scopes"), "\"scopes\" must be an object");
     char* js = yyjson_val_write(sc, 0, nullptr); if (js) { out.scopes = js; std::free(js); }
   }
+  if (yyjson_val* d3 = yyjson_obj_get(root, "3d")) {   // zinc:3d defaults3D()'s fields for every machine, or under a profile's name for one
+    static const char* const kNumbers[] = {"nearReach", "midReach", "budget", "fogStart", "fogEnd", "fps", "idle", "readMs", "slots"};
+    static const char* const kFlags[] = {"sectors", "night", "dome"};
+    const char* const usage = "\"3d\" sets zinc:3d defaults3D()'s fields, for every machine or under a profile's name: { \"budget\": 300000, \"psp\": { \"budget\": 30000 } }";
+    if (!yyjson_is_obj(d3)) return fatal(lineOf(text, "3d"), usage);
+    auto field = [&](const std::string& profile, const char* key, yyjson_val* v) {
+      const std::string where = "3d." + (profile.empty() ? "" : profile + ".") + key;
+      bool number = false, flag = false;
+      for (const char* f : kNumbers) number = number || !std::strcmp(key, f);
+      for (const char* f : kFlags) flag = flag || !std::strcmp(key, f);
+      if (!number && !flag) return fatal(lineOf(text, key), where + " is not a field of defaults3D(): nearReach, midReach, budget, sectors, fogStart, fogEnd, fps, night, dome, idle, readMs, slots (docs/plugins/3d.md)");
+      if (number && !yyjson_is_num(v)) return fatal(lineOf(text, key), where + " must be a number");
+      if (flag && !yyjson_is_bool(v)) return fatal(lineOf(text, key), where + " must be true or false");
+      char b[32];
+      if (number) std::snprintf(b, sizeof b, "%.17g", yyjson_get_num(v)); else std::snprintf(b, sizeof b, "%s", yyjson_get_bool(v) ? "1" : "0");
+      out.defaults3d.insert(out.defaults3d.end(), {profile, key, b});
+      return true;
+    };
+    size_t i3, n3; yyjson_val *k3, *v3;
+    yyjson_obj_foreach(d3, i3, n3, k3, v3) {
+      if (!yyjson_is_obj(v3)) { if (!field("", yyjson_get_str(k3), v3)) return false; continue; }
+      size_t i4, n4; yyjson_val *k4, *v4;
+      yyjson_obj_foreach(v3, i4, n4, k4, v4) if (!field(yyjson_get_str(k3), yyjson_get_str(k4), v4)) return false;
+    }
+  }
   if (yyjson_val* t = yyjson_obj_get(root, "targets")) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player"};
+  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

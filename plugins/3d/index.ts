@@ -6,6 +6,7 @@ import R from './native/render3d.spec';
 import { readText, readBytes } from 'zinc:assets';
 import { pixelScale, image } from 'zinc:gfx';
 import { utf8Decode, env, platform, clock } from 'zinc:sys';
+import { OVERRIDES } from 'zinc:3d/config';
 
 // ---------------------------------------------------------------- math (flat arrays)
 export function mat4(): number[] { return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
@@ -366,7 +367,25 @@ function row(d: Defaults3D, name: string, near: number, mid: number, budget: i32
   return d;
 }
 
+/** One field of zinc.json's "3d" (zinc:3d/config: compiled into the program, so every engine and console reads it). */
+function override(d: Defaults3D, field: string, v: string): void {
+  const n = parseFloat(v), on = v === '1';
+  if (field === 'nearReach') d.nearReach = n;
+  else if (field === 'midReach') d.midReach = n;
+  else if (field === 'budget') d.budget = Math.round(n);
+  else if (field === 'sectors') d.sectors = on;
+  else if (field === 'fogStart') d.fogStart = n;
+  else if (field === 'fogEnd') d.fogEnd = n;
+  else if (field === 'fps') d.fps = Math.round(n);
+  else if (field === 'night') d.night = on;
+  else if (field === 'dome') d.dome = on;
+  else if (field === 'idle') d.idle = n;
+  else if (field === 'readMs') d.readMs = n;
+  else if (field === 'slots') d.slots = Math.round(n);
+}
+
 /** The defaults of `profile` (''): ZINC_3D_PROFILE, else the machine's, zinc:sys platform(); a profile not in the table takes the desktop's.
+ *  zinc.json's "3d" then changes the fields it names, for every machine and then under the profile's name (or the table row's: "desktop");
  *  ZINC_3D_BUDGET tries another triangle budget without a rebuild. */
 export function defaults3D(profile: string = ''): Defaults3D {
   const p = profile !== '' ? profile : env('ZINC_3D_PROFILE') !== '' ? env('ZINC_3D_PROFILE') : platform();
@@ -376,6 +395,12 @@ export function defaults3D(profile: string = ''): Defaults3D {
   else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 60000, 1200, 5800, 30, true, false, 4, 6, 40);
   else if (p === 'vita') row(d, 'vita', 300, 1300, 40000, 1600, 5800, 60, true, true, 0, 4, 0);
   else if (p === 'rpi1') row(d, 'rpi1', 300, 900, 12000, 600, 3000, 30, false, false, 4, 6, 0);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i + 2 < OVERRIDES.length; i += 3) {
+      const who = OVERRIDES[i];
+      if (pass === 0 ? who === '' : who !== '' && (who === p || who === d.name)) override(d, OVERRIDES[i + 1], OVERRIDES[i + 2]);
+    }
+  }
   const budget = env('ZINC_3D_BUDGET');
   if (budget !== '') d.budget = parseInt(budget, 10);
   return d;

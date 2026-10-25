@@ -351,6 +351,7 @@
     {"paths": ["plugins/3d/", "tests/t1/zinc3d_glow.sh", "tests/data/zinc3d_glow/"], "tests": ["zinc3d_glow", "zinc3d_aa", "three_gpu"]},
     {"paths": ["plugins/3d/native/render3d.host.cpp", "plugins/3d/index.ts", "include/zn/zworld.h", "tests/t0/zinc3d_world.sh"], "tests": ["zinc3d_world", "tokyo"]},
     {"paths": ["plugins/3d/native/render3d.sim.ts", "plugins/3d/index.ts", "tests/t0/zinc3d_world.sh", "tests/t0/zinc3d_sim.sh"], "tests": ["zinc3d_sim"]},
+    {"paths": ["plugins/3d/index.ts", "src/frontend/project.cpp", "tests/t0/zinc3d_config.sh"], "tests": ["zinc3d_config"]},
     {"paths": ["examples/3d/orbit/", "tests/t1/zinc3d_orbit.sh"], "tests": ["zinc3d_orbit"]},
     {"paths": ["runtime/ttf.cpp", "runtime/gfx.cpp", "runtime/raster.cpp", "src/res/res.cpp", "src/host/gfx_host.cpp", "src/host/layout_host.cpp", "tests/t1/fonts_runtime.sh", "tests/data/fonts_runtime/", "tests/data/fonts_typed/"], "tests": ["fonts_runtime", "scale_push"]},
     {"paths": ["runtime/gfx.cpp", "runtime/include/hal.h", "targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/window_module.cpp", "src/frontend/modules.cpp", "lib/std/ui.ts", "lib/std/solid.ts", "tests/t1/windows.sh", "tests/data/windows/", "tests/data/ui_windows/"], "tests": ["windows"]},

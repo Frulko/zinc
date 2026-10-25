@@ -1540,7 +1540,7 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, generatedModuleSource(spec));
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      if (spec == "zinc:system/permissions" || spec == "zinc:system/app") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
+      if (spec == "zinc:system/permissions" || spec == "zinc:system/app" || spec == "zinc:3d/config") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
         if (done.count(path)) return done[path];
@@ -3352,6 +3352,11 @@ std::string generatedModuleSource(std::string_view spec) {
     std::string csv;
     if (const std::vector<std::string>* g = systemPermissions()) for (const std::string& p : *g) csv += (csv.empty() ? "" : ",") + p;
     return "export const GRANTED: string = '" + csv + "';\n";
+  }
+  if (spec == "zinc:3d/config") {   // zinc.json "3d": defaults3D()'s fields, triples of profile ("" every one), field and value
+    std::string list;
+    for (const std::string& t : defaults3DOverrides()) list += (list.empty() ? "'" : ", '") + quote(t) + "'";
+    return "export const OVERRIDES: string[] = [" + list + "];\n";
   }
   if (spec == "zinc:system/app")   // the app object of zinc.json as JSON text: the simulator logs the window request from it
     return "export const APP: string = '" + quote(systemAppJson()) + "';\nexport const SCOPES: string = '" + quote(systemScopesJson()) + "';\n";

@@ -19,6 +19,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc export --target rmpp` writes the AppLoad files again: `external.manifest.json`, `icon.png` (zinc.json `app.icon` when it is a PNG), and `deploy.sh`, which copies the app to the tablet.
+- zinc.json `"3d": {...}` sets zinc:3d `defaults3D()`'s numbers for every machine or one profile (`"3d": {"psp": {"budget": 30000}}`), read by the program on every engine and console.
+
 ### Changed
 - zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
 

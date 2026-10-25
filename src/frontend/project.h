@@ -83,6 +83,7 @@ struct Project {
   std::string iosTeam, iosMethod, iosProfile;       // "signing.ios" (ZN-629): the Apple team id, the export method (app-store-connect, release-testing, debugging, enterprise), a provisioning profile (manual signing)
   std::string updateUrl, updateChannel = "stable", updateKey;   // "update": where the channel manifests are, the channel, the app's Ed25519 public key (ZN-324)                // the "permissions" key is there: the host modules check it at run time (ZN-322)
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
+  std::vector<std::string> defaults3d;             // "3d": zinc:3d defaults3D()'s fields, as triples: profile ("" every one), field, value
   std::map<std::string, std::vector<std::string>> targetPermissions;   // targets.<name>.permissions: additions, and `-id` removals for that target
   bool fatal = false;                              // parseProject failed on a manifest rule (not on JSON): the command must stop
   Assets assets;
@@ -107,6 +108,9 @@ const std::vector<std::string>& systemFeatures();
 // The `app` object of the project being compiled as JSON text ("" when there is none): baked as the constant of the synthetic module zinc:system/app.
 void setSystemAppJson(const std::string& json);
 void setSystemScopesJson(const std::string& json);   // zinc.json "scopes" as JSON text
+// zinc.json "3d" (Project::defaults3d) of the project being compiled: the constant of the synthetic module zinc:3d/config.
+void setDefaults3D(const std::vector<std::string>& triples);
+const std::vector<std::string>& defaults3DOverrides();
 const std::string& systemScopesJson();
 const std::string& systemAppJson();
 // The permissions of the project being compiled (null: none declared); `zinc:system/<feature>` is refused without its permission (Z5006).
