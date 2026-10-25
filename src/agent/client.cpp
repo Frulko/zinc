@@ -587,9 +587,11 @@ int deployPlayer(Device& d, const Doc& info, const std::string& path, std::strin
   std::map<std::string, std::string> files;
   if (!readFile(tmp + "/app.zapp", archive) || !zn::zapp::untar(archive, files, err)) return fail("the packed project cannot be read: " + err);
   std::vector<std::string> have = info.strs("plugins");
-  for (const auto& [member, bytes] : files) {   // native/<plugin>/...: what the program loads besides the engine
+  for (const auto& [member, bytes] : files) {   // native/<target>/<plugin>/...: what the program loads besides the engine
     if (member.rfind("native/", 0) != 0) continue;
-    const std::string plugin = member.substr(7, member.find('/', 7) - 7);
+    const std::size_t at = member.find('/', 7) + 1;   // past the target (zinc pack's packedTarget)
+    if (at == 0) continue;
+    const std::string plugin = member.substr(at, member.find('/', at) - at);
     if (std::find(have.begin(), have.end(), plugin) == have.end())
       return fail("the program uses the plugin " + plugin + ", which the player on " + d.name + " does not have (it has: " + [&] { std::string h; for (const std::string& x : have) h += (h.empty() ? "" : ", ") + x; return h.empty() ? std::string("none") : h; }() + ")");
   }

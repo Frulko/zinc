@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.net.wifi.WifiManager;
 import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -48,6 +49,26 @@ public class ZincActivity extends SDLActivity {
 
     /** The activity, for a plugin's code (null before onCreate). */
     public static ZincActivity current() { return self; }
+
+    private WifiManager.MulticastLock multicast;
+    /** Zinc Go's device mode (src/app/player.cpp, ZN-792): Wi-Fi drops multicast without this lock, and mDNS is multicast. Needs
+     *  CHANGE_WIFI_MULTICAST_STATE (zinc export adds it to a player's manifest); without it the player is reached by its address only. */
+    public void zincMulticast(boolean on) {
+        try {
+            if (on && multicast == null) {
+                WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wifi == null) return;
+                multicast = wifi.createMulticastLock("zinc-player");
+                multicast.setReferenceCounted(false);
+                multicast.acquire();
+            } else if (!on && multicast != null) {
+                multicast.release();
+                multicast = null;
+            }
+        } catch (RuntimeException e) {
+            Log.w("zinc", "no multicast lock: " + e);
+        }
+    }
     private boolean moving, programFast, sustainedOn;   // who wants steady clocks, and what the window has
     private static int sustainedSupported = -1;        // PowerManager.isSustainedPerformanceModeSupported, asked once
 

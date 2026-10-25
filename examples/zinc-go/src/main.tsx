@@ -2,6 +2,8 @@
 // one from `expo start`. Scan the QR code zinc dev prints, or type its zinc:// link, and the player (src/app/player.cpp, in the package)
 // connects, runs the project and keeps it live: a save on your computer updates the phone in place. This screen is the app's own program:
 // the player starts it with what it has to say (args: --message, --last, --connecting) and opens the links it hands to the system.
+// The player is also a device of `zinc device` (ZN-792): --device, --address, --code (while a pairing is open), --paired; zinc://pair asks
+// it for a new pairing code.
 //   zinc export examples/zinc-go --target android --apk     (or --target ios; "player": true in zinc.json)
 import { render, useState } from 'zinc:ui/react';
 import { View, Text, Pressable, TextInput, ScrollView, SafeAreaView, StyleSheet, Platform } from 'zinc:react-native';
@@ -18,6 +20,7 @@ function arg(name: string): string {
   return i >= 0 && i + 1 < a.length ? a[i + 1] : '';
 }
 const message = arg('--message'), last = arg('--last'), connecting = arg('--connecting');
+const device = arg('--device'), address = arg('--address'), code = arg('--code'), paired = arg('--paired');
 
 /** What a person types: zinc://host:port/code, or host:port/code. */
 function linkOf(s: string): string {
@@ -56,6 +59,19 @@ function Home() {
     {last !== '' && <Pressable style={({ pressed }) => [s.secondary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(last)} accessibilityLabel="Open again">
       <Icon name="refresh-cw" size={18} color={() => INK} /><Text style={s.secondaryText}>{`Open again: ${last.split('/')[2]}`}</Text>
     </Pressable>}
+    {device !== '' && <View style={s.card} accessibilityLabel="This device">
+      <Text style={s.label}>{`This device: ${device} at ${address}`}</Text>
+      {code !== '' ? <View style={s.stack}>
+        <Text style={s.code}>{code}</Text>
+        <Text style={s.mono}>{`zinc device pair ${address} ${code}`}</Text>
+        <Text style={s.sub}>Type this on your computer, then zinc device deploy runs a project here.</Text>
+      </View> : <View style={s.stack}>
+        <Text style={s.text}>{paired !== '' ? `Paired with ${paired}. On it: zinc device deploy, or zinc dev --device ${device}.` : `On your computer: zinc device deploy, or zinc dev --device ${device}.`}</Text>
+        <Pressable style={({ pressed }) => [s.secondary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open('zinc://pair')} accessibilityLabel="New pairing code">
+          <Icon name="link" size={18} color={() => INK} /><Text style={s.secondaryText}>Pair another computer</Text>
+        </Pressable>
+      </View>}
+    </View>}
     <Text style={s.foot}>{`In a project: shake the ${Platform.OS === 'ios' ? 'phone' : 'device'}, press with three fingers or the Menu key for the dev menu (reload, back home).`}</Text>
   </ScrollView></SafeAreaView>;
 }
@@ -75,6 +91,9 @@ const s = StyleSheet.create({
   primaryText: { fontSize: 17, fontWeight: '700', color: 0xFFFFFF },
   secondary: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', height: 46, borderRadius: 12, borderWidth: 1, borderColor: LINE, backgroundColor: 0xFFFFFF },
   secondaryText: { fontSize: 15, fontWeight: '600', color: INK },
+  stack: { gap: 12 },
+  code: { fontSize: 40, fontWeight: '800', color: INK, letterSpacing: 6, textAlign: 'center' },
+  mono: { fontSize: 13, color: INK, textAlign: 'center' },
   foot: { fontSize: 12, color: MUTED, textAlign: 'center' },
 });
 

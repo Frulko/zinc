@@ -1460,14 +1460,17 @@ static bool playerProgram(const ProjectInfo& p, const fs::path& engine, const ch
   units = {"player_modules.cpp"};
   return true;
 }
-static std::string playerModules(const std::vector<std::string>& modules) {
-  std::string decl, reg;
+static std::string playerModules(const std::vector<std::string>& modules, const std::vector<std::string>& plugins) {
+  std::string decl, reg, names;
+  for (const std::string& n : plugins) names += (names.empty() ? "" : ",") + n;
   for (const std::string& m : modules) {
     decl += "extern \"C\" const ZnModule* zn_module_" + m + "(void);\n";
     reg += "  if (zn_register_module(zn_module_" + m + "(), e, sizeof e) < 0) std::fprintf(stderr, \"zinc go: %s\\n\", e);\n";
   }
   return "// Written by zinc export for a player (zinc.json \"player\": true, ZN-631): the native modules of its plugins, registered at start (src/app/player.cpp).\n"
-         "#include <cstdio>\n#include \"zn/native.h\"\n\n" + decl + "\nextern \"C\" void zn_player_modules(void) {\n  char e[256];\n" + reg + "}\n";
+         "#include <cstdio>\n#include \"zn/native.h\"\n\n" + decl + "\nextern \"C\" void zn_player_modules(void) {\n  char e[256];\n" + reg + "}\n"
+         "// the plugins, for the device mode's info (zinc device checks a program's native plugins against them, ZN-792)\n"
+         "extern \"C\" const char* zn_player_plugins(void) { return \"" + names + "\"; }\n";
 }
 
 // The packages of a phone export (ZN-629): --aab (a release bundle for Google Play), --apk (a debug APK), --ipa (an App Store, TestFlight, ad hoc
@@ -1594,7 +1597,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   if (proj.player ? !playerProgram(p, engine, "android", out / "app/src/main/assets/zinc/home.unit", units, names) : !appProgram(p, "android", src, units, names)) return 1;
   AppPlugins plugs;
   if (!appPluginsCmake(names, engine, p, "android", src, src / "plugins", plugs)) return 1;
-  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules));
+  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules, names));
   const std::string& pluginCmake = plugs.cmake;
   const std::string pluginLibs = plugs.libs + (proj.player ? " zn_app_player" : "");   // the interpreter and the link to zinc dev (src/app/player.cpp)
   const int minSdk = std::max(kMinSdk, plugs.minSdk);
@@ -1614,6 +1617,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
     const std::string full = pm.find('.') == std::string::npos ? "android.permission." + pm : pm, at = "<uses-permission android:name=\"" + xml(full) + "\" />";
     if (perms.find(at) == std::string::npos && tplManifest.find("\n    " + at) == std::string::npos) perms += "    " + at + "\n";
   }
+  if (proj.player) perms += "    <uses-permission android:name=\"android.permission.CHANGE_WIFI_MULTICAST_STATE\" />\n";   // its device mode's mDNS (ZN-792, ZincActivity.zincMulticast)
   std::string topXml, appXml;   // the plugins' fragments, inside <manifest> and inside <application>
   for (const std::string& x : plugs.manifestXml) topXml += "    " + x + "\n";
   for (const std::string& x : plugs.applicationXml) appXml += "        " + x + "\n";
@@ -1813,7 +1817,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   if (proj.player ? !playerProgram(p, engine, "ios", out / "zinc/home.unit", units, names) : !appProgram(p, "ios", src, units, names)) return 1;
   AppPlugins plugs;
   if (!appPluginsCmake(names, engine, p, "ios", out, src / "plugins", plugs)) return 1;
-  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules));
+  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules, names));
   const std::string& pluginCmake = plugs.cmake;
   const std::string pluginLibs = plugs.libs + (proj.player ? " zn_app_player" : "");   // the interpreter and the link to zinc dev (src/app/player.cpp)
   const zn::frontend::Profile* prof = zn::frontend::findProfile("ios");

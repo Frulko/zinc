@@ -48,6 +48,12 @@ int appFinish() {
     a.res.leaked = m.live - m.immortals;
   }
   a.res.trace = std::move(m.trace);
+  if (!a.out.empty()) m.flushOut();   // the last lines through the console's tap too (a player's log, the inspector), not only on stdout
+  if (!a.res.ok && gExitEndsRun && a.res.error.rfind("exit ", 0) == 0) return a.status = std::atoi(a.res.error.c_str() + 5);   // zinc:sys exit(n) in a player
+  if (!a.res.ok && gConsoleTap) {   // the error as report writes it
+    const std::string e = a.res.error.rfind("panic: ", 0) == 0 ? a.res.error : "runtime error: " + a.res.error;
+    gConsoleTap(e.data(), e.size(), true);
+  }
   a.status = report(a.res, a.out, a.trace);
   return a.status;
 }

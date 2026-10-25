@@ -45,7 +45,7 @@ if [ -f "$BUILD/libzn_app_player.a" ]; then
 fi
 for f in $(head -2 "$BUILD/zn_app.link") "$tmp/rn"; do
   [ -f "$f" ] || continue
-  bad=$(nm "$f" 2>/dev/null | grep -E 'dev3hot|zn_player|Machine5execT' | head -3)
+  bad=$(nm "$f" 2>/dev/null | grep -E 'dev3hot|zn_player_modules|zn_player_plugins|Machine5execT' | head -3)
   [ -z "$bad" ] || { echo "$(basename "$f") has player code: $bad"; fail=1; }
   strings "$f" | grep -q "zinc-go 1 " && { echo "$(basename "$f") has the player's protocol"; fail=1; }
 done

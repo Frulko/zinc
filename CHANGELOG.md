@@ -12,6 +12,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - PS Vita: zinc:3d draws on the GPU (GXM) in the default core: lights, flat and smooth shading, vertex colours, textures, blending and emissive colours, composed with the 2D frame; `ZINC_3D=software` keeps the CPU renderer. examples/3d/cubes takes 0.7 ms a frame instead of 6.7 in Vita3K.
 - PS Vita: the default GXM core draws rounded rectangles, borders, shadows, filled paths and vertical and horizontal gradients on the GPU, like the PSP and the 3DS; such frames were drawn in software before. A frame with a radial gradient, a rounded clip or a rotation still is. `ZINC_VITA_GPU=0` keeps the software path.
 - Zinc Player for the PSP, the PS Vita and the 3DS: start it on the console, pair with `zinc device pair <address> <code>` (the code is on its screen), then `zinc device deploy <project>` sends and runs your program there, and `zinc device logs`, `stop`, `run`, `shot` and `zinc dev --device` work as with any device.
+- Zinc Go is a device of `zinc device` too: its home screen shows the phone's name, address and a pairing code; `zinc device pair <address> <code>`, then `zinc device deploy <project>`, `zinc dev <project> --device <name>`, `logs`, `stop`, `run` and `shot` work on the phone as on a Raspberry Pi. On Android `zinc device list` finds it on the Wi-Fi; over USB, `adb forward tcp:7733 tcp:7733` and pair with `127.0.0.1`.
 - `tools/build-console-core <psp|vita|n3ds> --player` builds the Zinc Player (EBOOT.PBP, a VPK with its own title id ZNPL00001, a .3dsx).
 - PSP, PS Vita and Nintendo 3DS: zinc:3d (meshes, lights, textures, `render()`) runs in the console cores; it drew nothing there before.
 - New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
@@ -21,6 +22,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Three games for the Nintendo 3DS's two screens, in stereoscopic 3D: Nova Patrol DS (`examples/n3ds-pinball`, the space pinball's table across both screens), Meadow Run 3D (`examples/n3ds-platformer`, the level on top, the map and the stylus look-around below) and Starfall (`examples/n3ds-starfall`, draw lines with the stylus to throw falling stars back into their constellation).
 - `zinc:lan`: UDP (broadcast included) and TCP sockets that you poll once a frame. The same calls work on a desktop and on the PSP, PS Vita and 3DS. On the consoles, `up()` joins the Wi-Fi first: a PSP uses its first network setting. See `docs/plugins/lan.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
+
+### Fixed
+- `zinc device deploy` to a player (a console, Zinc Go) no longer refuses a program that uses a native plugin the player has (it read the target's name as the plugin's).
 
 ## [0.8.0] - 2026-10-25
 
