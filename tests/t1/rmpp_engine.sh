@@ -18,7 +18,7 @@ ZINC_ZIG=$tmp/zig tools/rmpp-engine --package "$tmp/pkg.tar.gz" -o "$tmp/out" > 
 sh -n "$tmp/out/deploy.sh" || fail "deploy.sh does not parse"
 mkdir "$tmp/tablet" && tar xzf "$tmp/out/zinc-rmpp.tar.gz" -C "$tmp/tablet" || fail "zinc-rmpp.tar.gz does not unpack"
 z=$tmp/tablet/zinc
-for f in bin/zinc bin/zinc-app bin/zinc-tile bin/lease lib/libquill.so QUILL-LICENSE share/zinc/rmpp/icon.png share/zinc/rmpp/verified \
+for f in bin/zinc bin/zinc-app bin/zinc-tile bin/lease bin/qtfb-hold lib/libquill.so QUILL-LICENSE share/zinc/rmpp/icon.png share/zinc/rmpp/verified \
          share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so; do [ -e "$z/$f" ] || fail "the bundle has no $f"; done
 cmp -s "$z/lib/libquill.so" integrations/remarkable-ink/quill/libquill.so || fail "lib/libquill.so is not Quill's"
 grep -qx 07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec "$z/share/zinc/rmpp/verified" || fail "verified lacks OS 3.29's display engine"

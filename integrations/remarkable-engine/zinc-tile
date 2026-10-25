@@ -39,14 +39,16 @@ grep -qx "\$V" "$Z/share/zinc/rmpp/verified" || { echo "$name: this OS's display
 exec "$Z/bin/lease" launch --watchdog 10 --vendor-sha256 "\$V" "$Z/bin/zinc-app" "$zapp"
 EOF
 else
-  # ZINC_NEXT: an app (the hub's Open) writes a .zapp path there and quits; it runs in this window, then this tile's app comes back
+  # ZINC_NEXT: an app (the hub's Open) writes a .zapp path there and quits; it runs in this window, then this tile's app comes back.
+  # qtfb-hold stays attached meanwhile: AppLoad closes the window when the last client of its framebuffer leaves.
   cat > "$dir/launch.sh" <<EOF
 #!/bin/sh
 export ZINC_NEXT=/tmp/zinc-next.\$\$
+"$Z/bin/qtfb-hold" > /dev/null & hold=\$!
+trap 'kill \$hold 2>/dev/null; rm -f "\$ZINC_NEXT"' EXIT
 run() { rm -f "\$ZINC_NEXT"; "$Z/bin/zinc-app" "\$1"; }
 run "$zapp"
 while [ -s "\$ZINC_NEXT" ]; do next=\$(cat "\$ZINC_NEXT"); run "\$next"; run "$zapp"; done
-rm -f "\$ZINC_NEXT"
 EOF
 fi
 chmod 755 "$dir/launch.sh"

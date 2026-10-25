@@ -29,6 +29,7 @@ z=$stage/zinc
 [ -f "$z/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so" ] || { echo "rmpp-engine: $package has no display-rmpp prebuilt for rmpp (a package of tools/package before ZN-841)" >&2; exit 1; }
 ink=$root/integrations/remarkable-ink
 "$zig" cc -target aarch64-linux-musl -static -O2 "$ink/lease.c" -o "$z/bin/lease"
+"$zig" cc -target aarch64-linux-musl -static -O2 "$root/integrations/remarkable-engine/qtfb-hold.c" -o "$z/bin/qtfb-hold"
 cp "$ink/quill/libquill.so" "$z/lib/libquill.so"
 cp "$ink/quill/LICENSE" "$z/QUILL-LICENSE"
 for f in zinc-app zinc-tile; do cp "$root/integrations/remarkable-engine/$f" "$z/bin/$f"; chmod 755 "$z/bin/$f"; done

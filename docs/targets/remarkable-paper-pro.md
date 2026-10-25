@@ -347,7 +347,8 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
 ```
 
 - The bundle is the Linux package of `tools/build-linux` (`bin/zinc`, `share/zinc`) plus `bin/lease` (the display lease, static),
-  `lib/libquill.so` and `QUILL-LICENSE` (the ink session), `bin/zinc-app`, `bin/zinc-tile`, and `share/zinc/rmpp/` (the tiles' icon and
+  `lib/libquill.so` and `QUILL-LICENSE` (the ink session), `bin/zinc-app`, `bin/zinc-tile`, `bin/qtfb-hold` (keeps a tile's window
+  open while it hands it from the hub to an app and back: AppLoad closes a window when its last client leaves), and `share/zinc/rmpp/` (the tiles' icon and
   `verified`, the `libqsgepaper.so` hashes of `models.h`). Sources: `integrations/remarkable-engine/`.
 - **Native code comes prebuilt.** The engine finds out it runs on a reMarkable (`/sys/devices/soc0/machine`; `ZINC_DEVICE_TARGET` overrides
   it) and loads display-rmpp's `rmpp` entry instead of the desktop emulator of `linux`, from `prebuilt/rmpp/`, which `tools/package` builds
