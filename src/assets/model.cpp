@@ -439,6 +439,8 @@ std::vector<double> ratios(const std::string& s) {
 
 }  // namespace
 
+std::string bundleOf(const std::vector<BundleEntry>& entries) { return writeBundle(entries); }
+
 bool modelDeps(const std::string& name, const std::string& in, std::vector<std::string>& deps, std::string& err) {
   std::string json, bin;
   if (!splitGlb(in, json, bin, err)) return false;

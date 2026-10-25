@@ -333,6 +333,7 @@
     {"paths": ["runtime/gl_replay_shaders.h", "src/gl/essl_check.cpp", "tests/native/gl_replay_es2.cpp", "tests/t1/gl_replay_es2.sh"], "tests": ["gl_replay_es2", "gl_renderer"]},
     {"paths": ["runtime/gl_caps.h", "tests/native/gl_caps.cpp", "tests/t0/gl_caps.sh"], "tests": ["gl_caps"]},
     {"paths": ["src/assets/texture.cpp", "src/assets/texture.h", "include/zn/zim.h", "third_party/bcdec/", "third_party/etcdec/", "third_party/stb/stb_image_resize2.h", "runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "runtime/raster.cpp", "runtime/zrt_raster.h", "src/host/sys_host.cpp", "src/res/res.cpp", "src/gl/webgl_ext.h", "src/gl/webgl2_tex.cpp", "tests/data/texture/", "tests/t1/texture.sh"], "tests": ["texture", "assets"]},
+    {"paths": ["src/assets/world.cpp", "src/assets/world.h", "src/assets/assets.cpp", "src/assets/model.cpp", "include/zn/zworld.h", "plugins/3d/index.ts", "tests/t0/zinc3d_world_build.sh"], "tests": ["zinc3d_world_build"]},
     {"paths": ["src/assets/model.cpp", "src/assets/model.h", "include/zn/zmesh.h", "third_party/cgltf/", "third_party/meshoptimizer/", "plugins/three/native/", "plugins/3d/", "tests/data/model/", "tests/t1/model.sh"], "tests": ["model", "gltf"]},
     {"paths": ["runtime/raster.cpp", "runtime/gl_replay.cpp", "tests/t1/many_images.sh", "tests/data/many_images/"], "tests": ["many_images"]},
     {"paths": ["runtime/gl_replay.cpp", "tests/t1/gl_convex.sh", "tests/data/gl_convex/", "tests/t1/gl_strips.sh"], "tests": ["gl_convex", "gl_renderer", "gpu_strokes", "gl_strips"]},

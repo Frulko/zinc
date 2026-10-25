@@ -3,7 +3,7 @@
 // three levels of detail (0 the finest), each level held by a chunk, a file loaded and freed as one. A chunk's batches are a few large
 // buffers whose indices are grouped by cell and, for upright faces, by the compass sector they face, so a frame draws index ranges: the
 // cells in view, and of their walls only the sectors that can face the eye (Pocket Tokyo's model, docs/reports/pocket3d-techniques.md).
-// examples/tokyo/tools/city-world.py writes one from Pocket Tokyo's pack. Little-endian, every section a multiple of 4 bytes.
+// The asset rule `"as": "world"` writes one from glTF (src/assets/world.h); examples/tokyo/tools/city-world.py from Pocket Tokyo's pack. Little-endian, every section a multiple of 4 bytes.
 //
 // Index (`.zworld`):
 //   header, 16 B: "ZWD1", u32 version (1), u32 cells, u32 chunks

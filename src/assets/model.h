@@ -31,6 +31,8 @@ struct BundleEntry { std::string name; std::uint8_t kind = 0; std::uint64_t offs
 /** The entries of a bundle from its first bytes, without their data; false when `head` is shorter than the directory (`need` says how long it
  *  is, 0 when the bundle is damaged). */
 bool bundleDirectory(std::string_view head, std::vector<BundleEntry>& out, std::size_t& need);
+/** The bundle of `entries` (their name, kind and data). */
+std::string bundleOf(const std::vector<BundleEntry>& entries);
 /** Every entry with its bytes. False when the bundle is damaged. */
 bool splitBundle(const std::string& bundle, std::vector<BundleEntry>& out);
 

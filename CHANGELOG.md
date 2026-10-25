@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.2] - 2026-10-25
 
 ### Added
+- An asset rule `"as": "world"` turns any glTF or GLB scene (or a `.world.json` listing several) into a zinc:3d world: cells of `cell` metres, near, mid and far levels (`_LOD1`/`_LOD2` nodes, else simplified), walls by compass sector, per-target `levels` and picture options, and a `.zworld.json` saying where each source node went.
 - The pinball demos share `examples/pinball-kit`: Box2D for Nova Patrol and Nova Patrol DS, Jolt for the 3D tables, reusable table geometry and validation, and a fixed simulation clock with ball interpolation. New graphics console cores link Box2D too; existing cores need rebuilding.
 - Refreshed pinball cabinets: clearer score panels and launch instructions, Kenney CC0 ball and spark sprites, darker Tidal Lock art, and mechanical bumper and slingshot recoil.
 - `tools/build-console-core <psp|vita|n3ds> --aot <project>` compiles the program into the console build instead of interpreting it (PSP, PS Vita, 3DS): about 1.8 times faster program code, and a smaller binary.
