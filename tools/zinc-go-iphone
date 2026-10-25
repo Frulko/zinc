@@ -11,7 +11,7 @@ here=$(cd "$(dirname "$0")/.." && pwd -P)
 Z=${ZINC:-$here/build/zinc}
 out=${ZINC_GO_OUT:-$here/build/zinc-go-ios}
 team=${ZINC_IOS_TEAM:-$(defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null | sed -n 's/.*teamID = \([A-Z0-9]*\);.*/\1/p' | head -1)}
-device=${ZINC_IOS_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && /available/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-/) { print $i; exit } }')}
+device=${ZINC_IOS_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && /available|connected/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-/) { print $i; exit } }')}
 # an id belongs to one team: Zinc Go is signed as dev.zinc.go.<team> (ZINC_GO_BUNDLE to choose another)
 bundle=${ZINC_GO_BUNDLE:-dev.zinc.go.$(echo "$team" | tr 'A-Z' 'a-z')}
 app=$out/build-device/Release-iphoneos/zinc-go.app

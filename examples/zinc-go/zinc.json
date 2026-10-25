@@ -19,11 +19,18 @@
   "permissions": [
     "net",
     "camera",
+    "microphone",
+    "location",
+    "motion",
     "opener",
     "deep-link"
   ],
   "permissionStrings": {
-    "camera": "Zinc Go reads the QR code zinc dev --lan prints to open your project."
+    "camera": "Zinc Go scans the QR code of zinc dev, and the projects you run in it can use the camera.",
+    "microphone": "The projects you run in Zinc Go can record sound, for a call or a recorder.",
+    "location": "The projects you run in Zinc Go can ask where you are, for a map or a walk.",
+    "motion": "The projects you run in Zinc Go can read the motion sensors.",
+    "net": "Zinc Go talks to zinc dev and zinc device on your computer, on your network."
   },
   "scopes": {
     "opener": {
