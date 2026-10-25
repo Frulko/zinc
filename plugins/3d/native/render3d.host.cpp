@@ -49,7 +49,7 @@ static const int ZSHIFT = 0;
 #endif
 static const float ZS = 1073741823.0f;  // depth [0, 1] -> Q30
 static const float GUARD = 2;           // guard band: clip x, y at +-2w (pixels stay well inside 16.16)
-enum { VCOL = 1, FLAT = 2, UNLIT = 4, DOUBLE = 8 };
+enum { VCOL = 1, FLAT = 2, UNLIT = 4, DOUBLE = 8, NOFOG = 1 << 16 };
 enum { OPAQUE = 0, ALPHA = 1, ADD = 2 };   // draw flags bits 6-7 (ZN-696); bits 8-15 the opacity of a blended draw
 
 struct Mesh { int32_t nv, ni; float *pos, *nrm, *uv; uint32_t* col; uint16_t* idx; };
@@ -306,6 +306,10 @@ struct Engine : NativeRender3D {
   // the lights already divided by pi), and the eye in world space (from the view matrix)
   float spec[3] = {0, 0, 0}, shin = 30, specK = 0, eye[3] = {0, 0, 0};
   float emit[3] = {0, 0, 0};   // the emissive colour of the next draws (ZN-696), 0..255, added to the light they receive
+  // fog: on for the rest of the frame, its colour 0..255, the view depths where it starts and where it is whole; the camera's planes
+  bool fogOn = false;
+  float fogC[3] = {0, 0, 0}, fogN = 0, fogF = 1, camN = 0.1f, camF = 100;
+  bool camOrtho = false;
   int32_t tris = 0;
   V* vs = nullptr; uint8_t* oc = nullptr; int32_t cap = 0;
 
@@ -430,6 +434,33 @@ struct Engine : NativeRender3D {
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
+    camera(nearN, farN, ortho);
+  }
+  /** The camera's planes, which fog needs, and no fog yet: every begin() calls it. */
+  void camera(N nearN, N farN, bool ortho) { camN = F(nearN); camF = F(farN); camOrtho = ortho; fogOn = false; }
+  void fog(uint32_t c, N nearN, N farN) override {
+    fogC[0] = (float)(c >> 16 & 255); fogC[1] = (float)(c >> 8 & 255); fogC[2] = (float)(c & 255);
+    fogN = F(nearN); fogF = F(farN); if (!(fogF > fogN)) fogF = fogN + 1e-3f;
+    fogOn = true;
+  }
+  /** The fog's share (0..1) at view depth `d`. */
+  float fogAt(float d) const { const float k = (d - fogN) / (fogF - fogN); return k < 0 ? 0 : k > 1 ? 1 : k; }
+  /** Software fog: once the frame is drawn, each pixel something covers moves toward the fog colour by the view depth its depth buffer
+   *  holds. ponytail: a blended pixel takes the depth of what is behind it; per pixel in a span would need one more interpolant. */
+  void fogPass() {
+    if (!fogOn || !cur) return;
+    const ZT clear = (ZT)~(ZT)0;
+    const float n = camN, f = camF, k = (float)(1u << ZSHIFT) / ZS;
+    for (int32_t i = 0, total = cur->w * cur->h; i < total; i++) {
+      const ZT z = cur->z[i];
+      if (z == clear) continue;
+      const float ndc = 2 * (z * k) - 1;
+      const float a = fogAt(camOrtho ? (ndc * (f - n) + f + n) * 0.5f : 2 * f * n / ((f + n) - ndc * (f - n)));
+      if (a <= 0) continue;
+      const uint32_t p = cur->px[i];
+      const float r = (float)(p >> 16 & 255), g = (float)(p >> 8 & 255), b = (float)(p & 255);
+      cur->px[i] = pack(r + (fogC[0] - r) * a, g + (fogC[1] - g) * a, b + (fogC[2] - b) * a);
+    }
   }
   void emissive(uint32_t c) override { emit[0] = (float)(c >> 16 & 255); emit[1] = (float)(c >> 8 & 255); emit[2] = (float)(c & 255); }
   bool emitOn() const { return emit[0] > 0 || emit[1] > 0 || emit[2] > 0; }
@@ -591,6 +622,7 @@ struct Engine : NativeRender3D {
   }
   int32_t end() override {
     if (!cur) return 0;
+    fogPass();
     raster::dyn_update(cur->img, nullptr, 0);
     cur = nullptr;
     return tris;

@@ -65,6 +65,9 @@ uniform vec3 u_color;
 SCREEN varying vec3 v_col;
 varying vec2 v_uv;
 varying vec3 v_pos, v_nrm;
+#ifdef FOG
+varying float v_fz;
+#endif
 void main() {
   gl_Position = u_mvp * vec4(a_pos, 1.0);
   v_nrm = (u_model * vec4(a_nrm, 0.0)).xyz;
@@ -80,6 +83,9 @@ void main() {
 #endif
   v_uv = a_uv;
   v_pos = (u_model * vec4(a_pos, 1.0)).xyz;
+#ifdef FOG
+  v_fz = gl_Position.w;   // the view depth (a perspective projection's w)
+#endif
 }
 )";
 // Flat: the face normal from the derivatives of the world position (the projection flips y, hence the minus), turned away on a back face
@@ -91,6 +97,11 @@ uniform vec3 u_emit;   // the emissive colour (ZN-696), added to the light befor
 #endif
 #ifdef BLEND
 uniform float u_alpha;   // the opacity of a blended draw
+#endif
+#ifdef FOG
+uniform vec3 u_fogc;   // Engine::fog: the colour, then the depths where it starts and where it is whole
+uniform vec2 u_fog;
+varying float v_fz;
 #endif
 SCREEN varying vec3 v_col;
 varying vec2 v_uv;
@@ -115,6 +126,9 @@ void main() {
 #ifdef TEX
   c *= texture2D(u_tex, v_uv).rgb;
 #endif
+#ifdef FOG
+  c = mix(c, u_fogc, clamp((v_fz - u_fog.x) / (u_fog.y - u_fog.x), 0.0, 1.0));
+#endif
 #ifdef BLEND
   gl_FragColor = vec4(c.bgr, u_alpha);  // blended with this alpha; the framebuffer's alpha is masked off and stays 0
 #else
@@ -123,9 +137,9 @@ void main() {
 }
 )";
 
-enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16, P_EMIT = 32, P_BLEND = 64 };   // EMIT, BLEND: ZN-696; an opaque draw without them keeps the programs it had
-struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1, emit = -1, alpha = -1; uint32_t frame = 0; bool failed = false;
-  float emitSet[3] = {0, 0, 0}, alphaSet = 0; };   // the values its uniforms hold (a program keeps them): sent again only when they change
+enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16, P_EMIT = 32, P_BLEND = 64, P_FOG = 128 };   // EMIT, BLEND: ZN-696; an opaque draw without them keeps the programs it had
+struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1, emit = -1, alpha = -1, fogc = -1, fog = -1; uint32_t frame = 0; bool failed = false;
+  float emitSet[3] = {0, 0, 0}, alphaSet = 0, fogSet[5] = {-1, -1, -1, -1, -1}; };   // the values its uniforms hold (a program keeps them): sent again only when they change
 struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; uint64_t bytes; };
 // msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
 struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
@@ -148,7 +162,7 @@ struct Gpu : Engine {
   Pool<GMesh> gmeshes;
   Pool<GTarget> gtargets;
   GTarget* gcur = nullptr;
-  Prog progs[128];
+  Prog progs[256];
   GTex* texs = nullptr;  // by image: the baked ones, then the runtime ones (no STL here: zrt.h defines placement new)
   int32_t ntex = 0;
   uint32_t frame = 0;
@@ -221,7 +235,7 @@ struct Gpu : Engine {
     Prog& p = progs[k];
     if (p.id || p.failed) return p;
     char defs[128];
-    snprintf(defs, sizeof defs, "%s%s%s%s%s%s%s", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "", k & P_SPEC ? "#define SPEC\n" : "", k & P_EMIT ? "#define EMIT\n" : "", k & P_BLEND ? "#define BLEND\n" : "");
+    snprintf(defs, sizeof defs, "%s%s%s%s%s%s%s%s", k & P_FOG ? "#define FOG\n" : "", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "", k & P_SPEC ? "#define SPEC\n" : "", k & P_EMIT ? "#define EMIT\n" : "", k & P_BLEND ? "#define BLEND\n" : "");
     GLuint vs = shader(GL_VERTEX_SHADER, kVsPre, defs, kVs), fs = shader(GL_FRAGMENT_SHADER, kFsPre, defs, kFs);
     p.id = glCreateProgram();
     glAttachShader(p.id, vs); glAttachShader(p.id, fs);
@@ -235,6 +249,7 @@ struct Gpu : Engine {
     p.amb = glGetUniformLocation(p.id, "u_amb"); p.ld = glGetUniformLocation(p.id, "u_ld"); p.lc = glGetUniformLocation(p.id, "u_lc");
     p.eye = glGetUniformLocation(p.id, "u_eye"); p.spec = glGetUniformLocation(p.id, "u_spec"); p.shin = glGetUniformLocation(p.id, "u_shin");
     p.emit = glGetUniformLocation(p.id, "u_emit"); p.alpha = glGetUniformLocation(p.id, "u_alpha");
+    p.fogc = glGetUniformLocation(p.id, "u_fogc"); p.fog = glGetUniformLocation(p.id, "u_fog");
     glUseProgram(p.id);
     glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
     used = p.id;
@@ -372,6 +387,7 @@ struct Gpu : Engine {
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
+    camera(nearN, farN, ortho);
     blendOn = -1;
     for (int c = 0; c < 4; c++) vp[c * 4 + 1] = -vp[c * 4 + 1];  // y down: row 0 of the framebuffer is the top of the image
   }
@@ -444,7 +460,7 @@ struct Gpu : Engine {
     const bool textured = tex >= 0 && g->uv && texture(tex, f ? f : filter);
     const int bl = (flags >> 6) & 3;
     const int k = (flags & UNLIT ? 0 : P_LIT | (specOn() ? P_SPEC : 0)) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0) |
-                  (emitOn() ? P_EMIT : 0) | (bl == ALPHA || bl == ADD ? P_BLEND : 0);
+                  (emitOn() ? P_EMIT : 0) | (bl == ALPHA || bl == ADD ? P_BLEND : 0) | (fogOn && !(flags & NOFOG) ? P_FOG : 0);
     Prog& p = program(k);
     if (!p.id) return;
     if (used != p.id) { glUseProgram(p.id); used = p.id; }
@@ -468,6 +484,10 @@ struct Gpu : Engine {
       if (bl == ALPHA || bl == ADD) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, bl == ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE); }
       else { glDisable(GL_BLEND); glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); }
       blendOn = bl;
+    }
+    if ((k & P_FOG) && (fogC[0] != p.fogSet[0] || fogC[1] != p.fogSet[1] || fogC[2] != p.fogSet[2] || fogN != p.fogSet[3] || fogF != p.fogSet[4])) {
+      glUniform3f(p.fogc, fogC[0] / 255.0f, fogC[1] / 255.0f, fogC[2] / 255.0f); glUniform2f(p.fog, fogN, fogF);
+      p.fogSet[0] = fogC[0]; p.fogSet[1] = fogC[1]; p.fogSet[2] = fogC[2]; p.fogSet[3] = fogN; p.fogSet[4] = fogF;
     }
     if (k & P_BLEND) { const float alpha = ((flags >> 8) & 255) / 255.0f; if (alpha != p.alphaSet) { glUniform1f(p.alpha, alpha); p.alphaSet = alpha; } }
     const int c = flags & DOUBLE ? 0 : 1;

@@ -249,6 +249,8 @@ export class Material {
    *  what comes after it. */
   blend: Blend = Blend.Opaque;
   opacity = 1;
+  /** false: the scene's fog leaves it alone (a sky, a readout in the scene), as three.js's material.fog. The software renderer fogs it anyway. */
+  fog = true;
   constructor(color: u32) { this.color = color; }
 }
 
@@ -295,7 +297,7 @@ export class Node {
   drawMesh(): void {
     const m = this.mesh, mat = this.material;
     if (m === null || mat === null) return;
-    let flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0) | ((mat.filter as i32) << 4);
+    let flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0) | ((mat.filter as i32) << 4) | (mat.fog ? 0 : 1 << 16);
     if (mat.blend !== Blend.Opaque) flags |= ((mat.blend as i32) << 6) | (Math.round(Math.min(1, Math.max(0, mat.opacity)) * 255) << 8);
     if (mat.specular !== specColor || (specColor !== 0 && mat.shininess !== specShin)) {
       specColor = mat.specular; specShin = mat.shininess;
@@ -306,10 +308,21 @@ export class Node {
   }
 }
 
+/** Linear fog, as three.js's Fog: nothing at view depth `near` and closer, all `color` (0xRRGGBB) at `far` and beyond. Set the scene's
+ *  background to the same colour and the far edge of the world fades into it. */
+export class Fog {
+  color: u32;
+  near: number;
+  far: number;
+  constructor(color: u32, near: number, far: number) { this.color = color; this.near = near; this.far = far; }
+}
+
 export class Scene extends Node {
   background: u32 = 0x000000;
   ambient: u32 = 0x333333;
   lights: Light[] = [];
+  /** null: no fog. */
+  fog: Fog | null = null;
   constructor() { super(null, null); }
 }
 
@@ -343,6 +356,8 @@ export class Camera {
     mat4LookAt(this.view, this.position, this.target, this.up);
     R.begin(this.rt, scene.background, this.view, this.ortho ? this.height : this.fov * Math.PI / 180, this.near, this.far, this.ortho);
     R.ambient(scene.ambient);
+    const fog = scene.fog;
+    if (fog !== null) R.fog(fog.color, fog.near, fog.far);
     specColor = 0; emitColor = 0;
     for (const l of scene.lights) R.light(l.direction[0], l.direction[1], l.direction[2], l.color);
     blended.length = 0;

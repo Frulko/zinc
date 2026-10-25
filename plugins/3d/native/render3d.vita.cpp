@@ -232,6 +232,7 @@ struct Vita : Engine {
     if (!vcur) return;
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     viewProjection(vp, (float)vcur->w / vcur->h, view, proj, nearN, farN, ortho);
+    camera(nearN, farN, ortho);
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
@@ -336,6 +337,31 @@ struct Vita : Engine {
         c[k] = c[k + 1] = c[k + 2] = rgba(s, alpha);
       }
     }
+    // fog (Engine::fog), per vertex by view depth (the clip w), on the CPU like the light (the vertex program stays as it is): an untextured
+    // or blended draw's colours move toward the fog's; an opaque textured one, which the fragment program multiplies by its texture, gets
+    // the fog laid over it in a second pass (the fog's colour, its share as the alpha, at the same depth)
+    uint32_t* veil = nullptr;
+    if (fogOn && !(flags & NOFOG)) {
+      const uint32_t nc = flat ? (uint32_t)m->ni : (uint32_t)m->nv;
+      const uint32_t fc = (uint32_t)fogC[0] << 16 | (uint32_t)fogC[1] << 8 | (uint32_t)fogC[2];
+      const bool over = t && !blend;
+      if (over && !(veil = colours(nc))) return;
+      bool any = false;
+      for (uint32_t j = 0; j < nc; j++) {
+        const float* p = m->pos + (flat ? m->idx[j] : (int32_t)j) * 3;
+        const float a = fogAt(MVP[3] * p[0] + MVP[7] * p[1] + MVP[11] * p[2] + MVP[15]);
+        any |= a > 0;
+        if (over) { veil[j] = rgbaOf(fc, (uint32_t)(a * 255 + 0.5f)); continue; }
+        if (a <= 0) continue;
+        uint32_t v = c[j], o = v & 0xFF000000u;
+        for (int s = 0; s < 24; s += 8) {
+          const float ch = (float)(v >> s & 255), to = bl == ADD ? 0 : (float)(fc >> (16 - s) & 255);   // added light fades out
+          o |= (uint32_t)(ch + (to - ch) * a + 0.5f) << s;
+        }
+        c[j] = o;
+      }
+      if (!any) veil = nullptr;
+    }
     sceGxmSetCullMode(ctx, flags & DOUBLE ? SCE_GXM_CULL_NONE : SCE_GXM_CULL_CW);
     const SceGxmDepthWriteMode dw = blend ? SCE_GXM_DEPTH_WRITE_DISABLED : SCE_GXM_DEPTH_WRITE_ENABLED;   // a blended draw is tested, writes no depth
     sceGxmSetFrontDepthWriteEnable(ctx, dw); sceGxmSetBackDepthWriteEnable(ctx, dw);
@@ -345,6 +371,14 @@ struct Vita : Engine {
     else for (uint32_t k = 0; k < (uint32_t)m->ni; k += kSeq) {   // the corners in runs the 16-bit indices reach
       const uint32_t n = (uint32_t)m->ni - k < kSeq ? (uint32_t)m->ni - k : kSeq;
       submit(g->flat + k, seq, n, c + k, MVP, tx, linear, blend);
+    }
+    if (veil) {
+      sceGxmSetFrontDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED); sceGxmSetBackDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED);
+      if (!flat) submit(g->vb, g->ib, (uint32_t)m->ni, veil, MVP, &white, false, ALPHA);
+      else for (uint32_t k = 0; k < (uint32_t)m->ni; k += kSeq) {
+        const uint32_t n = (uint32_t)m->ni - k < kSeq ? (uint32_t)m->ni - k : kSeq;
+        submit(g->flat + k, seq, n, veil + k, MVP, &white, false, ALPHA);
+      }
     }
     tris += m->ni / 3;
   }

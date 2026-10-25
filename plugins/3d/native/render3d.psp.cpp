@@ -147,6 +147,7 @@ struct Psp : Engine {
     GTarget* t = gcur;
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     spec[0] = spec[1] = spec[2] = 0; emit[0] = emit[1] = emit[2] = 0;
+    camera(nearN, farN, ortho);
     eyeOf(view);
     float P[16] = {0}, V[16];
     const float n = F(nearN), f = F(farN), asp = (float)t->w / t->h;
@@ -175,9 +176,18 @@ struct Psp : Engine {
     sceGuSetMatrix(GU_PROJECTION, (const ScePspFMatrix4*)P);
     sceGuSetMatrix(GU_VIEW, (const ScePspFMatrix4*)V);
     sceGuTexFlush();
-    blendOn = -1; cullOn = -1; litOn = -1;
+    blendOn = -1; cullOn = -1; litOn = -1; fogLive = 0;
   }
-  int blendOn = -1, cullOn = -1, litOn = -1;
+  int blendOn = -1, cullOn = -1, litOn = -1, fogLive = 0;
+
+  /** The GE's own fog, by view depth, for the rest of the list (end() turns it off). */
+  void fog(uint32_t c, N nearN, N farN) override {
+    Engine::fog(c, nearN, farN);
+    if (!gcur) return;
+    sceGuFog(fogN, fogF, abgr(c));
+    sceGuEnable(GU_FOG);
+    fogLive = 1;
+  }
 
   void lights(bool lit) {
     const int want = lit ? 1 : 0;
@@ -234,6 +244,10 @@ struct Psp : Engine {
     const int b = bl == ALPHA || bl == ADD ? bl : 0;
     if (b) sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, alpha * 0x010101u, b == ALPHA ? (255 - alpha) * 0x010101u : 0xFFFFFFu);
     if (b != blendOn) { if (b) { sceGuEnable(GU_BLEND); sceGuDepthMask(GU_TRUE); } else { sceGuDisable(GU_BLEND); sceGuDepthMask(GU_FALSE); } blendOn = b; }
+    if (fogOn) {   // a material without fog (bit 16) draws with the GE's fog off
+      const int fo = flags & NOFOG ? 0 : 1;
+      if (fo != fogLive) { if (fo) sceGuEnable(GU_FOG); else sceGuDisable(GU_FOG); fogLive = fo; }
+    }
     const int c = flags & DOUBLE ? 0 : 1;
     if (c != cullOn) { if (c) sceGuEnable(GU_CULL_FACE); else sceGuDisable(GU_CULL_FACE); cullOn = c; }
     sceGuSetMatrix(GU_MODEL, (const ScePspFMatrix4*)M);
@@ -254,6 +268,7 @@ struct Psp : Engine {
     raster::dyn_update(gcur->img, nullptr, 0);   // a new picture: the frame's diff redraws its box (the GPU writes no pixels the diff could see)
     gcur = nullptr;
     sceGuDisable(GU_DEPTH_TEST); sceGuDisable(GU_LIGHTING); sceGuDisable(GU_CULL_FACE); sceGuDisable(GU_CLIP_PLANES); sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_FOG);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);

@@ -25,10 +25,14 @@ export interface Spec extends NativeModule {
   specular(color: u32, shininess: number): void;
   /** The emissive colour of the next draws (ZN-696), 0xRRGGBB, 0 none (begin resets it): added to the light they receive, before the texture. */
   emissive(color: u32): void;
+  /** Linear fog for the rest of the frame (begin turns it off): a pixel at view depth `near` or closer keeps its colour, one at `far` or
+   *  beyond is `color` (0xRRGGBB), in between mixed. By depth along the view, as the fixed-function GPUs' fog (the GE, the PICA200). */
+  fog(color: u32, near: number, far: number): void;
   /** Draws a mesh with a column-major model matrix. texture: image id or -1. flags: 1 vertex colours, 2 flat
    *  shading, 4 unlit, 8 double sided; bits 4-5 the texture filter (ZN-657): 0 the renderer's (the `filter` option), 1 nearest,
    *  2 linear, 3 mipmaps (trilinear). The software renderer always takes the nearest texel. Bits 6-7 the blending (ZN-696): 0 opaque,
-   *  1 over the frame, 2 added to it, with the opacity in bits 8-15 (0..255); a blended draw is depth tested and writes no depth. */
+   *  1 over the frame, 2 added to it, with the opacity in bits 8-15 (0..255); a blended draw is depth tested and writes no depth. Bit 16: no fog (the GPUs; the software renderer
+   *  fogs by its depth buffer once the frame is drawn). */
   draw(mesh: i32, model: number[], color: u32, texture: i32, flags: i32): void;
   /** A node's world matrix: world = parent x translation(p) x rotation(q, a quaternion x, y, z, w) x scale(s), column major, written into
    *  `world`. Here and not in the program: interpreted, the two products took 12 of the 14 ms of a PSP frame of examples/3d/orbit. */

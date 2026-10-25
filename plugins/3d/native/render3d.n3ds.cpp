@@ -33,6 +33,7 @@ struct GTarget {
   int32_t img, w, h; uint32_t* px; C3Tex tex; C3D_RenderTarget* rt; uint32_t clear; bool dirty;
   Rec* recs; int32_t nrec, cap;
   float amb[3], ld[4][3], lc[4][3], eye[3]; int nl;
+  bool fog; float fogC[3], fogN, fogF, camN, camF;   // the frame's fog (Engine::fog) and the camera's planes, for the PICA's fog table
 };
 struct Loc { int mvp, model, base, vk, amb, ld, lc, spec, eye, emit, tsc; };
 
@@ -146,6 +147,7 @@ struct N3ds : Engine {
     GTarget* t = gcur;
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     spec[0] = spec[1] = spec[2] = 0; emit[0] = emit[1] = emit[2] = 0;
+    camera(nearN, farN, ortho);
     eyeOf(view);
     t->nrec = 0;
     t->clear = (clear & 0xFFFFFF) << 8 | 0xFF;
@@ -190,6 +192,7 @@ struct N3ds : Engine {
     gcur = nullptr;
     memcpy(t->amb, amb, sizeof amb); memcpy(t->ld, ld, sizeof ld); memcpy(t->lc, lc, sizeof lc); memcpy(t->eye, eye, sizeof eye);
     t->nl = nl;
+    t->fog = fogOn; memcpy(t->fogC, fogC, sizeof fogC); t->fogN = fogN; t->fogF = fogF; t->camN = camN; t->camF = camF;
     t->dirty = true;
     raster::dyn_update(t->img, nullptr, 0);   // a new picture: the frame's diff redraws its box (the GPU writes no pixels the diff could see)
     return tris;
@@ -215,6 +218,20 @@ struct N3ds : Engine {
     AttrInfo_AddLoader(a, 2, GPU_FLOAT, 2);           // uv
     AttrInfo_AddLoader(a, 3, GPU_UNSIGNED_BYTE, 4);   // colour, 0..255
     C3D_FVUnifSet(GPU_VERTEX_SHADER, loc.eye, t->eye[0], t->eye[1], t->eye[2], 0);
+    if (t->fog) {   // the PICA's fog: a table over the depth buffer's values (citro3d's FogLut_Exp, linear here), the colour after the TEV
+      static C3D_FogLut lut;
+      float data[256];
+      for (int i = 0; i <= 128; i++) {
+        const float x = FogLut_CalcZ(i / 128.0f, t->camN, t->camF), k = (x - t->fogN) / (t->fogF - t->fogN);
+        const float val = 1 - (k < 0 ? 0 : k > 1 ? 1 : k);   // the share of the colour kept
+        if (i < 128) data[i] = val;
+        if (i > 0) data[i + 127] = val - data[i - 1];
+      }
+      FogLut_FromArray(&lut, data);
+      C3D_FogGasMode(GPU_FOG, GPU_PLAIN_DENSITY, false);
+      C3D_FogColor((uint32_t)t->fogC[2] << 16 | (uint32_t)t->fogC[1] << 8 | (uint32_t)t->fogC[0]);
+      C3D_FogLutBind(&lut);
+    }
     for (int32_t k = 0; k < t->nrec; k++) {
       const Rec& r = t->recs[k];
       Mesh* m = meshes.at(r.mesh);
@@ -269,6 +286,7 @@ struct N3ds : Engine {
         C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
       }
       C3D_CullFace(r.flags & DOUBLE ? GPU_CULL_NONE : GPU_CULL_BACK_CCW);
+      if (t->fog) C3D_FogGasMode(r.flags & NOFOG ? GPU_NO_FOG : GPU_FOG, GPU_PLAIN_DENSITY, false);
       C3D_BufInfo* b = C3D_GetBufInfo();
       BufInfo_Init(b);
       BufInfo_Add(b, v, sizeof(GVtx), 4, 0x3210);
@@ -276,6 +294,7 @@ struct N3ds : Engine {
       else C3D_DrawElements(GPU_TRIANGLES, m->ni, C3D_UNSIGNED_SHORT, g->idx);
       if (r.tex) C3D_TexSetWrap(&r.tex->t, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);   // the replay's (the draw above took its own)
     }
+    if (t->fog) C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);   // the 2D replay draws without it
     C3D_SetAttrInfo(const_cast<C3D_AttrInfo*>(&attrs));
     C3D_SetBufInfo(const_cast<C3D_BufInfo*>(&bufs));
     zn_c3d_resume();

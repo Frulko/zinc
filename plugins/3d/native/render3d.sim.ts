@@ -39,6 +39,7 @@ export default {
   light(): void {},
   specular(): void {},
   emissive(): void {},
+  fog(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   gpu(): boolean { return false; },
   transform(world: number[], parent: number[], p: number[], q: number[], s: number[]): void {
