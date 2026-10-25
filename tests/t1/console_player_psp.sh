@@ -3,6 +3,7 @@
 # the loopback interface, deploys a program packed for the PSP and reads its lines, deploys a drawing program and gets the frame of its
 # screen, stops it, and deploys again. The 3DS (Azahar) and the Vita (Vita3K) ran the same steps by hand (docs/reports/zinc-next-agent.md).
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: PPSSPP on a hosted CI runner refuses the pairing (slow emulator); runs on the development Mac"; exit 77; }
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 [ -f targets/psp/net_psp.cpp ] || { echo "console player psp: no PSP network (ZN-791) in this tree"; exit 77; }
 emu=$("$Z" toolchain install ppsspp-headless 2>/dev/null) || { echo "console player psp: no ppsspp-headless"; exit 77; }

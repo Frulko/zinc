@@ -12,7 +12,9 @@ tmp=$(mktemp -d)
 trap 'kill $ppid $dpid 2>/dev/null; wait $ppid 2>/dev/null; rm -rf "$tmp"' EXIT
 fail=0
 bad() { echo "console player: $*"; fail=1; }
-{ [ -f "$B/CMakeCache.txt" ] || cmake -S targets/console -B "$B" -DZN_CONSOLE_PLAYER=ON; } >"$tmp/build.log" 2>&1 && cmake --build "$B" -j 4 >>"$tmp/build.log" 2>&1 ||
+# the player reports the version of the zinc under test (a CI build of zinc from a shallow clone says 0.0.0-dev, git describe would not)
+ver=$("$Z" --version | sed -n 's/^zinc-next //p')
+cmake -S targets/console -B "$B" -DZN_CONSOLE_PLAYER=ON -DZN_CONSOLE_VERSION="$ver" >"$tmp/build.log" 2>&1 && cmake --build "$B" -j 4 >>"$tmp/build.log" 2>&1 ||
   { echo "console player: the player does not build"; tail -20 "$tmp/build.log"; exit 1; }
 
 # the player: real time (ZINC_DETERMINISTIC would make its waits virtual, and a program's timers would spin), a port the system chooses
