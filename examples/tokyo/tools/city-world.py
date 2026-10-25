@@ -180,9 +180,26 @@ def write_png(path, w, h, rgb):
 # ---------------------------------------------------------------- the world (include/zn/zworld.h)
 GROUPS = SECTORS + 1           # a cell's index groups when its faces are ordered by sector: 16 compass sectors, then up and down
 VCOL, DOUBLE = 1, 8            # zinc:3d draw flags
-NIGHT_LIT = 0xffffff           # a night picture is lit by itself: its light is in the picture
+ATLAS = 2                      # the mid and far grounds: one picture by day and one by night for 2 x 2 blocks
+NIGHT_LIT = 0xffffff          # a night picture is lit by itself: its light is in the picture
 LANDMARK_GLOW = 0xa0a0a0       # the tower's painted members by night (the pack's alpha 191: floodlights)
 NO_SPANS = 0xffffffff
+
+
+def in_use_order(m, cuts):
+    """Renumbers a batch's vertices in the order its indices first use them (the indices are in cell and sector order), each cell (its
+    indices from cuts[c] to cuts[c + 1]) with its own copies of the vertices it shares with another, so a range of indices uses one
+    short run of vertices: a renderer that lights or hazes vertices on the CPU (the Vita) does only that run."""
+    order, idx = [], []
+    for c in range(len(cuts) - 1):
+        new = {}
+        for i in m.idx[cuts[c]:cuts[c + 1]]:
+            if i not in new: new[i] = len(order); order.append(i)
+            idx.append(new[i])
+    assert len(order) <= 65535 and len(idx) == len(m.idx)
+    pick = lambda a, k: [a[o * k + j] for o in order for j in range(k)] if a else a
+    m.pos, m.nrm, m.uv, m.col = pick(m.pos, 3), pick(m.nrm, 3), pick(m.uv, 2), pick(m.col, 3)
+    m.idx = idx
 
 
 def quantise(m):
@@ -203,13 +220,13 @@ def quantise(m):
     return lo, sc, us, buf
 
 
-def batch(pk, bi, verts, idx, frame, cell_first, cells, pics, landmark=False):
+def batch(pk, bi, verts, idx, frame, cell_first, cells, pics, landmark=False, uv_frame=None):
     """One of the pack's batches as a zworld batch: its triangles, its material by day and by night, its spans (where each of its cells,
     and each sector of a cell, starts in its indices)."""
     b = pk.batches[bi]
     kind, icount, spans_at = b[0], b[4], b[11]
     ms = {k: Mesh(k) for k in (TOP, WALL, SOLID, OPEN)}
-    unpack_batch(pk, b, verts, idx, frame, ms)
+    unpack_batch(pk, b, verts, idx, frame, ms, uv_frame)
     m = ms[kind]
     by_sector = kind == WALL or (pk.flags & 1 and kind == SOLID)   # tokyo-sim view.rs by_sector (FACED: solids too)
     if spans_at == NO_SPANS:   # in no order: one group, the cell's whole
@@ -239,6 +256,7 @@ def write_chunk(path, batches):
     for b in batches:
         m = b['mesh']
         if not m.idx: continue
+        in_use_order(m, b['spans'][::b['groups']])
         lo, sc, us, vb = quantise(m)
         recs += struct.pack('<5I3i5I8f', b['kind'], b['flags'], 0xffffff, b['emis'], b['nemis'], name(b['tex']), name(b['ntex']), b['cell'], b['cells'],
                             b['groups'], len(spans), len(m.pos) // 3, len(m.idx), lo[0], lo[1], lo[2], sc[0], sc[1], sc[2], us, 0.0)
@@ -281,25 +299,49 @@ def build(pack_path, out):
 
     # the cells (the pack's, 128 m, a block's in a row) and the chunks that hold their levels: the far level of the whole city in one, the
     # mid level a chunk per block, the near level a chunk per cell
+    # the ground pictures of the mid and far levels, in atlases of ATLAS x ATLAS blocks: a console holds 64 runtime pictures at once
+    # (ZRT_DYN_IMAGES), and 48 blocks by day and by night are 96
+    grounds = []
+    for b in range(pk.bx * pk.bz):
+        bx, bz = b % pk.bx, b // pk.bx
+        off, size, gw, gh, gl = pk.hpic[b]
+        ground = rgb565(htex, off, gw, gw)
+        grounds.append((gw, ground, night_ground(pk, ground, gw, (pk.x0 + bx * pk.block, pk.z0 + bz * pk.block, pk.block), lamps, lamp_side)))
+    gw = grounds[0][0]
+    assert all(g[0] == gw for g in grounds)
+    aw = gw * ATLAS
+    for ax in range((pk.bx + ATLAS - 1) // ATLAS):
+        for az in range((pk.bz + ATLAS - 1) // ATLAS):
+            for k, suffix in ((1, '.png'), (2, '.night.png')):
+                pic = bytearray(aw * aw * 3)
+                for j in range(ATLAS):
+                    for i in range(ATLAS):
+                        bx, bz = ax * ATLAS + i, az * ATLAS + j
+                        if bx >= pk.bx or bz >= pk.bz: continue
+                        src = grounds[bz * pk.bx + bx][k]
+                        for yy in range(gw):
+                            o = ((j * gw + yy) * aw + i * gw) * 3
+                            pic[o:o + gw * 3] = src[yy * gw * 3:(yy + 1) * gw * 3]
+                write_png(os.path.join(out, 'g%d_%d%s' % (ax, az, suffix)), aw, aw, pic)
+
     cells = [{'box': list(pk.cell_tab[c][0:6]), 'reach': (0.0, 0.0), 'chunks': [-1, -1, 0]} for c in range(pk.bx * pk.bz * per)]
     chunks, far, total = [('far.zwc', 2)], [], [0, 0, 0]
     for b in range(pk.bx * pk.bz):
         bx, bz = b % pk.bx, b // pk.bx
         frame = (pk.x0 + bx * pk.block, pk.z0 + bz * pk.block, pk.block)
         stem = 'b%d_%d' % (bx, bz)
-        off, size, gw, gh, gl = pk.hpic[b]
-        ground = rgb565(htex, off, gw, gw)
-        write_png(os.path.join(out, stem + '.png'), gw, gw, ground)
-        write_png(os.path.join(out, stem + '.night.png'), gw, gw, night_ground(pk, ground, gw, frame, lamps, lamp_side))
-        pics = (stem + '.png', stem + '.night.png', NIGHT_LIT)
+        gw, ground, night = grounds[b]
+        ax, az = bx // ATLAS, bz // ATLAS
+        pics = ('g%d_%d.png' % (ax, az), 'g%d_%d.night.png' % (ax, az), NIGHT_LIT)
+        atlas = (pk.x0 + ax * ATLAS * pk.block, pk.z0 + az * ATLAS * pk.block, ATLAS * pk.block)
         bf, bc = pk.blocks[b][2:4]
-        mid = [batch(pk, i, gverts, gidx, frame, b * per, per, pics) for i in range(bf, bf + bc)]
+        mid = [batch(pk, i, gverts, gidx, frame, b * per, per, pics, uv_frame=atlas) for i in range(bf, bf + bc)]
         if mid:
             total[1] += write_chunk(os.path.join(out, stem + '.mid.zwc'), mid)
             chunks.append((stem + '.mid.zwc', 1))
             for c in range(per): cells[b * per + c]['chunks'][1] = len(chunks) - 1
         rf, rc = pk.regions[b][2:4]
-        far += [batch(pk, i, gverts, gidx, frame, b * per, per, pics) for i in range(rf, rf + rc)]
+        far += [batch(pk, i, gverts, gidx, frame, b * per, per, pics, uv_frame=atlas) for i in range(rf, rf + rc)]
         # near: each cell's record, its ground in one picture of the block at the cells' resolution
         cw = max((pk.ncel[b * per + c][7] for c in range(per)), default=0)
         side = cw * pk.cells if cw else 0
@@ -337,6 +379,7 @@ def build(pack_path, out):
                     o, s = (yy * side + xx) * 3, ((yy // k) * gw + xx // k) * 3
                     pic[o:o + 3] = ground[s:s + 3]
             write_png(os.path.join(out, stem + '.near.png'), side, side, pic)
+            write_png(os.path.join(out, stem + '.night.png'), gw, gw, night)   # the near level's night: the block's own
         print('\rworld: block %d/%d' % (b + 1, pk.bx * pk.bz), end='', file=sys.stderr)
     print(file=sys.stderr)
     total[2] += write_chunk(os.path.join(out, 'far.zwc'), far)

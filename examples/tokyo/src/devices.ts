@@ -52,8 +52,8 @@ export function currentDevice(): Device {
 function settings(p: string): Device {
   //                             near  mid    budget   sectors fog   fog end fps  night  dome   idle read ms
   if (p === 'psp') return device('psp', 600, 1600, 40000, true, 1200, 5800, 30, false, false, 4, 6);
-  if (p === 'n3ds') return device('n3ds', 600, 1600, 60000, true, 1200, 5800, 30, true, false, 4, 6);
-  if (p === 'vita') return device('vita', 300, 1300, 160000, true, 1600, 5800, 60, true, true, 0, 4);
+  if (p === 'n3ds') return device('n3ds', 600, 2400, 60000, true, 1200, 5800, 30, true, false, 4, 6);
+  if (p === 'vita') return device('vita', 300, 1300, 40000, true, 1600, 5800, 60, true, true, 0, 4);
   if (p === 'rpi1') return device('rpi', 300, 900, 12000, true, 600, 3000, 30, false, false, 4, 6);
   return device('desktop', 600, 2000, 400000, true, 2500, 5800, 60, true, true, 0, 4);
 }
