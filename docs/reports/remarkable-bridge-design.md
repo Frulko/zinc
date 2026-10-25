@@ -448,3 +448,12 @@ numbers go to `docs/reports/zinc-next-perf.md`.
 - Ink lane v2 (no load-time libqsgepaper hooks, framebuffer-spy import, crash guard) with the Docker fake-xochitl
   harness.
 - Hash rows for the Move and the Pure; rM2 through rm2fb (timower) instead of a bridge of our own.
+
+## 11. Tablet results, 2026-10-25 (Paper Pro, OS 3.27.3.0, AppLoad of August, before 0.6.0)
+
+- L0 qtfb, Notes in Fast drawing: the app sends an update every 22.6 ms (median), AppLoad repaints every 89.3 ms (median, 32
+  intervals): the owner finds it lagging behind the pen. Its buttons react to neither pen nor finger (bug, being fixed).
+- Lease + Quill (`quill-test`, two runs 46 min apart): xochitl stopped through systemd, scribble drew, the 180 s dead-man ended
+  it and xochitl came back once each time (`NRestarts=0`, no start-limit hit). The owner: "très bon touché", the feel of the
+  native app. The power key was not pressed (not yet proven); scribble opens `/dev/input/event0` itself, which the supervisor
+  should own.
