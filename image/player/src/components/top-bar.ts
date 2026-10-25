@@ -1,8 +1,8 @@
 // ============================================================================
 // components/top-bar.ts — The bar at the top of every page
 // ============================================================================
-// Home and crash pages: the Pi's name and the time, how it is connected, the settings button. Settings: back, the
-// title and the time.
+// Home and crash pages: the Pi's name and the time, how it is connected, the settings button. Settings and the
+// launcher: back, the title and the time.
 
 import { rect, textWidth } from 'zinc:gfx';
 import {
@@ -11,6 +11,7 @@ import {
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   COLOR_WHITE,
+  PAGE_APPS,
   PAGE_PADDING,
   PAGE_SETTINGS,
   SECTION_WIFI,
@@ -45,6 +46,13 @@ export class TopBarNode extends DisplayObject {
         appState.clockText, COLOR_TEXT_SECONDARY);
       if (updateAvailable) drawIconButton('top/update', 'download', barWidth - PAGE_PADDING - 90, barHeight / 2, 22,
         COLOR_TEXT_PRIMARY, () => openSettings(SECTION_UPDATES), 40);
+      return;
+    }
+    if (appState.page === PAGE_APPS) {
+      drawIconButton('top/back', 'chevron-left', PAGE_PADDING, barHeight / 2, 24, COLOR_WHITE, goBack);
+      drawLabel(Fonts.heading, PAGE_PADDING + 26, textY, 'All apps', COLOR_WHITE);
+      drawLabel(Fonts.label, barWidth - PAGE_PADDING - textWidth(Fonts.label, appState.clockText, 0), textY + 2,
+        appState.clockText, COLOR_WHITE, 100, 200);
       return;
     }
     const name = appState.status.hostname;

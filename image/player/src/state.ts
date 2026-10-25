@@ -18,6 +18,8 @@ import {
   EXIT_START_APP,
   KEYBOARD_AZERTY,
   KEYBOARD_QWERTY,
+  NEXT_APP_FILE,
+  PAGE_APPS,
   PAGE_CRASH,
   PAGE_HOME,
   PAGE_REFRESH_INTERVAL_MS,
@@ -31,6 +33,7 @@ import { PairingState, readPairingState } from './services/pairing';
 import { AdminResult, SystemStatus, parseStatus, runAdmin, statusFromOs } from './services/system';
 import { PlayerConfig, loadConfig, saveConfig } from './services/config';
 import { UpdateStatus } from './services/updates';
+import { InstalledApp, appsSignature, deleteInstalledApp, readInstalledApps } from './services/apps';
 
 function fromEnv(name: string, fallback: string): string {
   return sys.env(name) === '' ? fallback : sys.env(name);
@@ -38,7 +41,8 @@ function fromEnv(name: string, fallback: string): string {
 
 const zincHome = fromEnv('ZINC_HOME', os.homedir() + '/.zinc');
 const appPath = fromEnv('ZINC_APP', DEFAULT_APP_PATH);
-const crashReportPath = fromEnv('ZINC_RUN', DEFAULT_RUN_DIRECTORY) + '/' + CRASH_REPORT_FILE;
+const runDirectory = fromEnv('ZINC_RUN', DEFAULT_RUN_DIRECTORY);
+const crashReportPath = runDirectory + '/' + CRASH_REPORT_FILE;
 const adminPath = fromEnv('ZINC_ADMIN', DEFAULT_ADMIN_PATH);
 const agentDirectory = fromEnv('ZINC_PLAYER_AGENT_DIR', zincHome + '/agent');
 const configPath = fromEnv('ZINC_PLAYER_CONFIG', zincHome + '/player.json');
@@ -68,6 +72,12 @@ class AppState {
   settingsSection: string = SECTION_WIFI;
   crashReport: CrashReport | null = null;
   isAppInstalled: boolean = false;
+  /** The apps sent to the device, newest first. */
+  apps: InstalledApp[] = [];
+  /** The apps show their delete buttons. */
+  isEditingApps: boolean = false;
+  /** The app whose deletion waits for its confirmation. */
+  appToDelete: InstalledApp | null = null;
   status: SystemStatus = new SystemStatus();
   network: network.NetworkStatus = new network.NetworkStatus();
   pairing: PairingState = new PairingState();
@@ -185,6 +195,12 @@ export function refreshSystem(): void {
     appState.isAppInstalled = installed;
     uiState.dirty = true;
   }
+  const apps = readInstalledApps(agentDirectory);
+  if (appsSignature(apps) !== appsSignature(appState.apps)) {
+    appState.apps = apps;
+    if (apps.length === 0) appState.isEditingApps = false;
+    uiState.dirty = true;
+  }
   const pairing = readPairing();
   if (pairing.signature() !== appState.pairing.signature()) uiState.dirty = true;
   appState.pairing = pairing;
@@ -240,6 +256,7 @@ function setMessage(text: string, isError: boolean): void {
 
 export function navigateTo(page: string): void {
   appState.page = page;
+  appState.isEditingApps = false;
   appState.pendingPowerAction = '';
   setMessage('', false);
 }
@@ -257,7 +274,9 @@ export function selectSettingsSection(section: string): void {
 
 /** Escape and the back button: a page up. */
 export function goBack(): void {
-  if (appState.page === PAGE_SETTINGS) navigateTo(appState.crashReport !== null ? PAGE_CRASH : PAGE_HOME);
+  if (appState.appToDelete !== null) cancelDeleteApp();
+  else if (appState.page === PAGE_SETTINGS) navigateTo(appState.crashReport !== null ? PAGE_CRASH : PAGE_HOME);
+  else if (appState.page === PAGE_APPS) navigateTo(PAGE_HOME);
 }
 
 // ----------------------------------------------------------------------------
@@ -266,6 +285,49 @@ export function goBack(): void {
 
 export function startApp(): void {
   sys.exit(EXIT_START_APP);
+}
+
+/** Starts an app sent to the device: zinc-session reads its folder from the run directory. */
+export function startInstalledApp(app: InstalledApp): void {
+  try {
+    fs.writeText(runDirectory + '/' + NEXT_APP_FILE, app.directory + '\n');
+  } catch (e) {
+    setMessage('Could not start ' + app.title + '.', true);
+    return;
+  }
+  sys.exit(EXIT_START_APP);
+}
+
+export function openAllApps(): void {
+  navigateTo(PAGE_APPS);
+}
+
+export function toggleEditingApps(): void {
+  appState.isEditingApps = !appState.isEditingApps;
+  uiState.dirty = true;
+}
+
+export function askDeleteApp(app: InstalledApp): void {
+  appState.appToDelete = app;
+  uiState.focusedZoneId = '';
+  uiState.dirty = true;
+}
+
+export function cancelDeleteApp(): void {
+  appState.appToDelete = null;
+  uiState.focusedZoneId = '';
+  uiState.dirty = true;
+}
+
+export function confirmDeleteApp(): void {
+  const app = appState.appToDelete;
+  appState.appToDelete = null;
+  uiState.focusedZoneId = '';
+  if (app === null) return;
+  const deleted = app as InstalledApp;
+  if (!deleteInstalledApp(agentDirectory, deleted)) setMessage('Could not delete ' + deleted.title + '.', true);
+  refreshSystem();
+  uiState.dirty = true;
 }
 
 export function dismissCrash(): void {

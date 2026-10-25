@@ -15,6 +15,10 @@ export const CRASH_REPORT_FILE = 'crash.txt';
 export const DEFAULT_ADMIN_PATH = '/usr/lib/zinc/zinc-admin';
 /** The exit status that tells zinc-session to start the app. */
 export const EXIT_START_APP = 10;
+/** In the run directory: the folder of the app sent to the device that zinc-session starts instead of its own. */
+export const NEXT_APP_FILE = 'next-app';
+/** The apps the home page shows; past this many a + opens the page with all of them. */
+export const HOME_APPS_SHOWN = 6;
 
 /** How often the system's state is read again: on the settings page, and on the other pages. */
 export const SETTINGS_REFRESH_INTERVAL_MS = 4000;
@@ -33,6 +37,7 @@ export const BYTES_PER_MIB = 1048576;
 export const PAGE_HOME = 'home';
 export const PAGE_CRASH = 'crash';
 export const PAGE_SETTINGS = 'settings';
+export const PAGE_APPS = 'apps';
 
 export const SECTION_WIFI = 'wifi';
 export const SECTION_REMOTE = 'remote';

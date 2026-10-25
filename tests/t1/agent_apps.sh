@@ -2,7 +2,7 @@
 # Apps on a device through the agent (ZN-729.02), on the loopback interface: a project deployed (packed, installed, started) with its log
 # and its exit status; a UI app started with its inspector, whose /json/list is read through a forwarded port; an export directory
 # installed and started with arguments and variables, its log followed while it runs, stopped, removed; a log that grows past its bound;
-# a reversed port (a server of the workstation called from the device);
+# a reversed port (a server of the workstation called from the device); the app.json the player's launcher reads (ZN-820);
 # and the shell as a terminal: typed commands, the window's size followed when it changes, the exit status. Skips (77) without python3.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || exit 77
@@ -39,8 +39,13 @@ set -- $(python3 tests/free_ports.py 2); inspector=$1; arg=$2
 mkdir -p "$tmp/ui/src"
 cp tests/golden/ui-style/radius.tsx "$tmp/ui/src/screen.tsx"
 printf "import 'zinc:devtools';\nimport './screen';\n" > "$tmp/ui/src/main.tsx"
-printf '{"name":"inspected","entry":"src/main.tsx"}\n' > "$tmp/ui/zinc.json"
+printf '{"name":"inspected","entry":"src/main.tsx","app":{"name":"Inspected","id":"dev.zinc.inspected","icon":"icon.png"}}\n' > "$tmp/ui/zinc.json"
+cp image/player/icon.png "$tmp/ui/icon.png"
 out=$(dev deploy "$tmp/ui" --no-logs --env ZINC_DEVTOOLS_PORT=$inspector --env ZINC_HEADLESS=1 --env ZINC_REALTIME=1 --env ZINC_FRAMES=100000000 2>&1) || bad "deploy of the UI app: $out"
+# what the player's launcher reads (ZN-820): the title, the icon kept beside the app, when it came, not from zinc dev
+meta=$(cat "$D/agent/apps/inspected/app.json" 2>&1)
+case $meta in *'"title":"Inspected","icon":"icon.png","sent":'*'"dev":false'*) ;; *) bad "app.json of the deployed app: $meta";; esac
+cmp -s "$tmp/ui/icon.png" "$D/agent/apps/inspected/icon.png" || bad "the deployed app's icon was not kept beside it"
 n=0; while [ $n -lt 100 ] && ! dev logs inspected 2>/dev/null | grep -q "zinc devtools:"; do sleep 0.1; n=$((n+1)); done
 dev apps | grep -q "^inspected .*running" || bad "the UI app is not running: $(dev apps; dev logs inspected)"
 ZINC_HOME="$W" "$Z" device forward 0 "$inspector" > "$tmp/fwd.log" 2>&1 & fpid=$!   # not through dev(): $! must be the process to end

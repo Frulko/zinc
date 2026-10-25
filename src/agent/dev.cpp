@@ -149,6 +149,29 @@ bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const st
   return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
 }
 
+// A dev session's program stays an app of the device when the session ends (ZN-820): the player lists it, marked DEV, and starts it again
+// through its run.sh. It is named as its project; a deployed app of that name keeps it, and this one is "<name>-dev".
+void keepApp(const std::string& home, const std::string& dir, std::string name) {
+  std::error_code ec;
+  std::string project, meta;
+  const bool zbc = fs::exists(dir + "/program.zbc", ec);
+  readFile(dir + "/zinc.json", project);
+  if (!zbc && project.empty()) { fs::remove_all(dir, ec); return; }   // nothing was sent
+  if (name.empty()) name = Doc(project.empty() ? "{}" : project).str("name");   // a workstation before ZN-820 sends no name
+  name = cleanName(name);
+  if (name.empty()) name = "app";
+  if (fs::exists(home + "/apps/" + name, ec) && !(readFile(home + "/apps/" + name + "/app.json", meta) && Doc(meta).flag("dev"))) name += "-dev";
+  const std::string dest = home + "/apps/" + name;
+  fs::remove_all(dest, ec);
+  fs::create_directories(home + "/apps", ec);
+  fs::rename(dir, dest, ec);
+  if (ec) { fs::remove_all(dir, ec); return; }
+  const std::string engine = project.empty() ? std::string() : Doc(project).str("engine");
+  const std::string run = zbc ? "program.zbc" : ". --engine " + (engine.empty() || engine == "zinc" ? std::string("quickjs") : cleanName(engine));
+  writePrivate(dest + "/run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec \"${ZINC_ENGINE:-zinc}\" run " + run + " -- \"$@\"\n");
+  recordApp(dest, name, true, nullptr);
+}
+
 }  // namespace
 
 void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine, std::mutex& displayMu) {
@@ -170,6 +193,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
   // stall the session against the workstation's own send. Give the output its own thread if that ever shows.
   Program p;
   long ownerPid = 0;
+  std::string appName;   // the project's, from the workstation's start
   for (bool open = true; open;) {
     const char* display = std::getenv("ZINC_AGENT_SCREEN");
     std::string owner;
@@ -185,7 +209,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
         if (p.dev >= 0 && !feed(p.dev, payload)) { ::close(p.dev); p.dev = -1; }   // it stopped reading: its next start brings the files
       } else if (type == kJson) {
         const Doc m(payload);
-        if (m.flag("start")) { open = restart(c, p, m, dir, self, displayMu); if (open) ownerPid = p.pid; }
+        if (m.flag("start")) { appName = m.str("name"); open = restart(c, p, m, dir, self, displayMu); if (open) ownerPid = p.pid; }
       }
     }
     if (bad || !open) break;
@@ -209,7 +233,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
     if (n > 0 && fds[0].revents && !fill(c)) open = false;   // the workstation left
   }
   stop(p, displayMu);
-  fs::remove_all(dir, ec);
+  keepApp(home, dir, appName);
 }
 
 // ---- on the workstation ----
@@ -332,7 +356,7 @@ struct Session {
     std::vector<std::string> vars;
     for (const std::string& kv : env) vars.push_back(jsonText(kv));
     const std::string lost = "the session with " + device + " ended";
-    if (!send(*c, kJson, Obj().flag("start", true).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).raw("env", array(vars)).done())) { out = lost; return false; }
+    if (!send(*c, kJson, Obj().flag("start", true).str("name", Doc(files["manifest.json"]).str("name")).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).raw("env", array(vars)).done())) { out = lost; return false; }
     std::uint64_t sentFiles = 0, sentBytes = 0;
     const auto sendT0 = std::chrono::steady_clock::now();
     if (changed) sendTree(*c, stage, sentFiles, sentBytes, err, progress(stage));   // a failure here is told to the device, whose refusal is the answer read below

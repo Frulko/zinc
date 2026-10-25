@@ -3,7 +3,7 @@
 # a saved source file is running there (its new line read here) and only the program was sent; a saved asset reaches the running program
 # without a restart (assets.onReload reads the new text); a compile error is the red box on the device, the diagnostics in the program it
 # runs and its bar on the frame it draws; the next good save replaces it, with the new asset in its packs; the program ends with the
-# session and the agent keeps nothing. Prints the time from a save to the new version's first line. Skips (77) without python3.
+# session and the agent keeps its app (ZN-820), not the session's files. Prints the time from a save to the new version's first line. Skips (77) without python3.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || exit 77
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -78,6 +78,12 @@ grep -q "v3 started on the device" "$log" || bad "no v3: $(cat "$log")"
 kill $dpid; wait $dpid 2>/dev/null
 n=0; while [ $n -lt 100 ] && [ -n "$(ls "$D/agent/dev" 2>/dev/null)" ]; do sleep 0.05; n=$((n+1)); done
 [ -z "$(ls "$D/agent/dev" 2>/dev/null)" ] || bad "the agent kept the session's files: $(ls "$D/agent/dev")"
+# ...but its app, which the player's launcher lists marked DEV and starts again through run.sh (ZN-820)
+meta=$(cat "$D/agent/apps/devd/app.json" 2>&1)
+case $meta in *'"name":"devd","title":"devd"'*'"dev":true'*) ;; *) bad "app.json of the dev session's app: $meta";; esac
+ZINC_ENGINE="$Z" ZINC_HOME="$W" sh "$D/agent/apps/devd/run.sh" > "$tmp/kept.log" 2>&1 & kpid=$!   # run.sh execs zinc: $! is the program
+until_grep "^three: second note" "$tmp/kept.log" || bad "the kept app does not start again: $(cat "$tmp/kept.log")"
+kill $kpid; wait $kpid 2>/dev/null
 pgrep -f "$D/agent/dev/" > /dev/null && bad "the program outlived its session"
 
 ZINC_HOME="$W" "$Z" dev "$P" --device nosuch > "$tmp/nosuch" 2>&1 && bad "a device that is not paired was accepted"

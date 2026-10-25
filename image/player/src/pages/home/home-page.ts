@@ -3,7 +3,8 @@
 // ============================================================================
 // What a person sees when the Pi starts with no app, or after it quit: hello, what Zinc is, and the one next step to
 // send an app from a computer (join a network, turn on the agent, pair with the code shown here, then zinc dev), with
-// "Start the app" when one is installed.
+// "Start the app" when one is installed. Once apps were sent, the last six take the place of the welcome (a + opens
+// all of them), and Edit shows the buttons that delete them.
 
 import { gradient, lineHeight, rrect, textWidth } from 'zinc:gfx';
 import {
@@ -12,6 +13,7 @@ import {
   BUTTON_HEIGHT,
   CORNER_RADIUS,
   COLOR_WHITE,
+  HOME_APPS_SHOWN,
   HOME_CONTENT_MAX_WIDTH,
   PAGE_PADDING,
   SECTION_WIFI,
@@ -21,14 +23,30 @@ import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
 import { uiState } from '../../core/input';
 import { AmbientAnimation } from '../../components/ambient-animation';
-import { appState, deviceName, openPairing, openSettings, refreshSystem, setAgentEnabled, startApp, zincVersion } from '../../state';
-import { BUTTON_LIGHT, drawButton, measureButton } from '../../components/buttons';
+import {
+  appState,
+  deviceName,
+  openAllApps,
+  openPairing,
+  openSettings,
+  refreshSystem,
+  setAgentEnabled,
+  startApp,
+  toggleEditingApps,
+  zincVersion,
+} from '../../state';
+import { BUTTON_GLASS, BUTTON_LIGHT, drawButton, measureButton } from '../../components/buttons';
+import { APP_TILE_HEIGHT, drawAppTile, drawMoreTile } from '../../components/app-tiles';
+import { drawMessage } from '../../components/rows';
 import { countWrappedLines, drawGlyph, drawLabel, drawWrappedText } from '../../components/primitives';
 
 const CARD_PADDING = 20;
 const CARD_ICON_SIZE = 28;
 const CODE_BOX_HEIGHT = 40;
 const TEXT_LINE_HEIGHT = 22;
+const APP_SLOTS = HOME_APPS_SHOWN + 1;
+const APP_SLOT_GAP = 8;
+const APPS_ROW_TOP = 14;
 
 /** The next step the card offers, from the machine's state. */
 class NextStep {
@@ -100,17 +118,27 @@ export class HomePageNode extends DisplayObject {
     const hasCode = appState.status.agentOn && appState.pairing.code !== '';
     const step = nextStep();
     const cardHeight = hasCode ? this.pairingCardHeight() : this.stepCardHeight(step, contentWidth);
-    const blockHeight = lineHeight(Fonts.hero) + 4 + lineHeight(Fonts.title) + 6 + TEXT_LINE_HEIGHT + 22 + cardHeight +
-      (appState.isAppInstalled ? 18 + BUTTON_HEIGHT : 0);
+    const hasApps = appState.apps.length > 0;
+    const messageHeight = hasApps && appState.message !== '' ? 26 : 0;
+    const topHeight = hasApps ? BUTTON_HEIGHT + APPS_ROW_TOP + APP_TILE_HEIGHT + messageHeight
+      : lineHeight(Fonts.hero) + 4 + lineHeight(Fonts.title) + 6 + TEXT_LINE_HEIGHT;
+    const blockHeight = topHeight + 22 + cardHeight + (appState.isAppInstalled ? 18 + BUTTON_HEIGHT : 0);
     const footerHeight = 36;
     let cursorY = Math.round(Math.max(TOP_BAR_HEIGHT + 8, TOP_BAR_HEIGHT + (pageHeight - TOP_BAR_HEIGHT - footerHeight - blockHeight) / 2));
 
-    drawLabel(Fonts.hero, contentX, cursorY, 'Hello!', COLOR_WHITE, contentWidth);
-    cursorY += lineHeight(Fonts.hero) + 4;
-    drawLabel(Fonts.title, contentX, cursorY, 'This Raspberry Pi runs Zinc.', COLOR_WHITE, contentWidth);
-    cursorY += lineHeight(Fonts.title) + 6;
-    drawLabel(Fonts.body, contentX, cursorY, 'Make an app on your computer and try it here.', COLOR_WHITE, contentWidth, 220);
-    cursorY += TEXT_LINE_HEIGHT + 22;
+    if (hasApps) {
+      this.drawApps(contentX, cursorY, contentWidth);
+      cursorY += topHeight - messageHeight;
+      if (messageHeight > 0) drawMessage(contentX, cursorY + 4, contentWidth, appState.message, appState.isMessageError);
+      cursorY += messageHeight + 22;
+    } else {
+      drawLabel(Fonts.hero, contentX, cursorY, 'Hello!', COLOR_WHITE, contentWidth);
+      cursorY += lineHeight(Fonts.hero) + 4;
+      drawLabel(Fonts.title, contentX, cursorY, 'This Raspberry Pi runs Zinc.', COLOR_WHITE, contentWidth);
+      cursorY += lineHeight(Fonts.title) + 6;
+      drawLabel(Fonts.body, contentX, cursorY, 'Make an app on your computer and try it here.', COLOR_WHITE, contentWidth, 220);
+      cursorY += TEXT_LINE_HEIGHT + 22;
+    }
 
     rrect(contentX, cursorY, contentWidth, cardHeight, CORNER_RADIUS + 4, COLOR_WHITE, 40);
     if (hasCode) this.drawPairingCard(contentX, cursorY, contentWidth);
@@ -136,6 +164,22 @@ export class HomePageNode extends DisplayObject {
     const rightWidth = Math.min(textWidth(Fonts.small, right, 0), (pageWidth - PAGE_PADDING * 2) / 2);
     drawLabel(Fonts.small, pageWidth - PAGE_PADDING - rightWidth, footerY, right, COLOR_WHITE, rightWidth, 200);
     drawLabel(Fonts.small, PAGE_PADDING, footerY, footer, COLOR_WHITE, pageWidth - PAGE_PADDING * 2 - rightWidth - 24, 200);
+  }
+
+  /** "Your apps", Edit, and the last apps sent in a row of tiles (newest first), with a + past six. */
+  private drawApps(x: number, y: number, width: number): void {
+    const apps = appState.apps;
+    drawLabel(Fonts.title, x, y + (BUTTON_HEIGHT - lineHeight(Fonts.title)) / 2, 'Your apps', COLOR_WHITE, width / 2);
+    const editLabel = appState.isEditingApps ? 'Done' : 'Edit';
+    const editIcon = appState.isEditingApps ? 'check' : 'pencil';
+    const editWidth = measureButton(editLabel, editIcon);
+    drawButton('home/edit-apps', x + width - editWidth, y, editWidth, editLabel, editIcon, BUTTON_GLASS, toggleEditingApps);
+    const rowY = y + BUTTON_HEIGHT + APPS_ROW_TOP;
+    const slotWidth = (width - APP_SLOT_GAP * (APP_SLOTS - 1)) / APP_SLOTS;
+    const hasMore = apps.length > HOME_APPS_SHOWN;
+    const shown = hasMore ? HOME_APPS_SHOWN : apps.length;
+    for (let index = 0; index < shown; index++) drawAppTile(apps[index], x + index * (slotWidth + APP_SLOT_GAP), rowY, slotWidth);
+    if (hasMore) drawMoreTile(x + shown * (slotWidth + APP_SLOT_GAP), rowY, slotWidth, openAllApps);
   }
 
   private stepCardHeight(step: NextStep, contentWidth: number): number {

@@ -13,6 +13,8 @@ export const Fonts = {
   label: font('sans', 16),
   labelBold: font('sans-bold', 16),
   small: font('sans', 14),
+  /** The DEV band of an app's tile. */
+  badge: font('sans-bold', 11),
   /** A command to type and an app's output: Inter too (the baked families are sans and sans-bold). */
   code: font('sans', 16),
   codeSmall: font('sans', 14),

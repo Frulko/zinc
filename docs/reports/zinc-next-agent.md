@@ -241,10 +241,12 @@ poll); `src/agent/dev.cpp` fills them with one session of the agent, and holds t
 - **A saved asset** of a project that packs its assets is rebuilt on the workstation and its entries are sent as `I` frames: the bytes
   are the messages of ZN-450 (`src/host/assets_host.h`), which the agent writes to the program's dev socket (`ZINC_DEV_FD`, descriptor
   3). The program swaps them in and keeps its state, as under `zinc dev` on one machine. When no program runs, the save restarts it.
-- **The end**: the program ends with the session (Ctrl-C on the workstation, a lost connection) and its directory is removed; an agent
-  that stops ends the programs of its dev sessions. `zinc device deploy` is what leaves a program on a device.
+- **The end**: the program ends with the session (Ctrl-C on the workstation, a lost connection) and an agent that stops ends the
+  programs of its dev sessions. Its directory becomes the app `apps/<name>/` (ZN-820), with a `run.sh` that starts it again and
+  `"dev": true` in its `app.json`: the player lists it marked DEV. `<name>` is the project's (the `start` message carries it); a
+  deployed app of that name keeps it, and the dev one is `<name>-dev`.
 
-Inside the session the client sends `{"start": true, "files": bool, "remove": [names], "args": [...]}`, followed when `files` is set
+Inside the session the client sends `{"start": true, "name": project, "files": bool, "remove": [names], "args": [...]}`, followed when `files` is set
 by entries as for `push`; the agent answers `{"ok": true, "pid", "files", "bytes"}` or an error, and the session goes on either way.
 The bytecode is compiled on the workstation, so the versions matter (2026-10-23, `tests/t1/agent_dev_versions.sh`): the workstation
 asks the device's version first (`info`). The same version, or another release of the same series (0.6.x, a note says so), runs: a
@@ -270,7 +272,9 @@ Limits (each a `ponytail:` comment or a choice in the code):
 ## Files of the agent (`~/.zinc/agent`)
 
 `agent.json` (the device's id and name), `clients.json`, `pairing.json` (the open pairing: `zinc agent pair` writes it, the daemon
-reads it, so the two need no channel between them), `apps/<name>/` (`app.zapp`, or an export directory), `logs/<name>.log` (cut back
+reads it, so the two need no channel between them), `apps/<name>/` (`app.zapp`, or an export directory, and `app.json`: its
+`title` and `icon` from the project's `zinc.json` app.name and app.icon, the icon kept with the app, `sent` in seconds since 1970 and
+`dev`, which the player's launcher reads, ZN-820), `logs/<name>.log` (cut back
 past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid` (the pid, then the port of its inspector).
 
 ## Known limits (each is a `ponytail:` comment in the code)

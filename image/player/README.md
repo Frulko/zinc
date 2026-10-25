@@ -5,7 +5,10 @@ when it crashed. It exits with 10 to have the session start the app.
 
 - **Home**: a coloured page with a slow animation that invites to try Zinc. Its card says the next step: join a network, turn
   remote access on, show a pairing code (with the `zinc device pair` command to type on the computer), or `zinc dev --device` once
-  paired. "Start the app" when one is installed. At the bottom: the Pi's name and addresses, the Zinc version, and while the Pi
+  paired. "Start the app" when one is installed. Once apps were sent to the Pi (`zinc device deploy`, or `zinc dev --device`,
+  whose app stays after the session with a DEV band), the six newest take the place of the welcome, each with its icon: a tap
+  starts it (the player writes its folder to `$ZINC_RUN/next-app` and exits 10), Edit shows the buttons that delete one after a
+  confirmation, and past six a + opens the launcher with all of them. At the bottom: the Pi's name and addresses, the Zinc version, and while the Pi
   starts what it is doing (the job systemd runs, from `zinc-admin status`).
 - **Crash**: the app's exit status, time and last lines, with "Restart the app" and "Dismiss".
 - **Settings** (the gear): Wi-Fi (scan, join with the on-screen keyboard, forget, the country), remote access (the agent, a
@@ -33,7 +36,7 @@ The pretend Pi is `dev/`: `dev/zinc-admin` plays the system helper and `dev/bin/
 | `ZINC_APP` | the app's path (`/var/lib/zinc/app`) |
 | `ZINC_ADMIN` | the system helper (`/usr/lib/zinc/zinc-admin`) |
 | `ZINC_VERSION` | the Zinc version the System section shows (set by `zinc-session`) |
-| `ZINC_PLAYER_CONFIG`, `ZINC_PLAYER_AGENT_DIR` | the preferences (`~/.zinc/player.json`) and the agent's pairing files (`~/.zinc/agent`) |
+| `ZINC_PLAYER_CONFIG`, `ZINC_PLAYER_AGENT_DIR` | the preferences (`~/.zinc/player.json`) and the agent's files: pairing, apps (`~/.zinc/agent`) |
 | `ZINC_PLAYER_TRACE_FRAMES=1`, `ZINC_PLAYER_POLL_MS=n` | for tests: print each frame drawn; wait up to n ms a frame for the helpers' answers |
 
 ## Layout of `src/`
@@ -47,9 +50,9 @@ src/
 ├── fonts.ts            # Inter at each size used
 ├── state.ts            # what the pages show and every action (zinc-admin, zinc:network)
 ├── core/               # the display tree and touch zones (music-tree's), with keyboard focus
-├── services/           # crash-report, system (zinc-admin), pairing (the agent's files), config (player.json)
-├── components/         # buttons, rows, top bar, on-screen keyboard, text form, ambient animation
-└── pages/              # home, crash, settings (wifi, remote, preferences, system)
+├── services/           # crash-report, system (zinc-admin), pairing and apps (the agent's files), config (player.json)
+├── components/         # buttons, rows, top bar, app tiles, on-screen keyboard, text form, delete dialog, ambient animation
+└── pages/              # home, apps (the launcher), crash, settings (wifi, remote, preferences, system)
 ```
 
 ## On the device

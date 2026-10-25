@@ -2189,6 +2189,11 @@ int main(int argc, char** argv) {
         std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
         files[rel] = as.str();
       }
+    if (have && !project.app.icon.empty()) {   // zinc.json app.icon, outside assets/ too: a device's launcher shows it (ZN-820)
+      const std::string rel = fs::path(project.app.icon).lexically_normal().generic_string();
+      std::ifstream icf(fs::path(projDir) / rel, std::ios::binary);
+      if (icf && rel.rfind("..", 0) != 0 && !fs::path(rel).is_absolute() && !files.count(rel)) { std::stringstream ics; ics << icf.rdbuf(); files[rel] = ics.str(); }
+    }
     if (!zn::cli::buildAssets(projDir, zn::tc::pluginTarget(), false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }   // the packs, build/assets/<this machine> (ZN-434)
     if (have && project.assets.packed())   // the groups of zinc:assets v2 (ZN-436) and the atlases (ZN-438): the packs ride along as packs/<group>.zpk, read from the unpacked archive
       for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / zn::tc::pluginTarget(), ec))

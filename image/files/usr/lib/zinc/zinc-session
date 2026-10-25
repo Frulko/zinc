@@ -76,10 +76,19 @@ while :; do
   ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
   export ZINC_VERSION
   is_app=0
-  if [ "$launch" = 1 ] && [ -e "$APP" ]; then
+  # an app sent to the device, chosen in the player: its folder (the agent's app.zapp or run.sh), once
+  app=$APP
+  if [ "$launch" = 1 ] && read -r chosen 2>/dev/null <"$RUN/next-app"; then app=$chosen; fi
+  rm -f "$RUN/next-app"
+  if [ -f "$app/app.zapp" ]; then app=$app/app.zapp; fi
+  if [ "$launch" = 1 ] && [ -e "$app" ]; then
     is_app=1
     rm -f "$RUN/crash.txt"
-    setsid /bin/bash -c 'zinc run "$1" 2>&1 | tee "$2"; exit ${PIPESTATUS[0]}' _ "$APP" "$RUN/app.log" &
+    if [ -f "$app/run.sh" ]; then
+      setsid /bin/bash -c '/bin/sh "$1/run.sh" 2>&1 | tee "$2"; exit ${PIPESTATUS[0]}' _ "$app" "$RUN/app.log" &
+    else
+      setsid /bin/bash -c 'zinc run "$1" 2>&1 | tee "$2"; exit ${PIPESTATUS[0]}' _ "$app" "$RUN/app.log" &
+    fi
   else
     rm -f "$RUN/player-ready"
     ZINC_PLAYER_READY_FILE="$RUN/player-ready" setsid zinc run "$PLAYER" 0<&0 &
@@ -95,7 +104,7 @@ while :; do
   status=$?
   foreground=0
   if [ "$is_app" = 1 ] && [ "$status" -ne 0 ]; then
-    { echo "app=$APP"; echo "status=$status"; echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo; tail -n 80 "$RUN/app.log"; } >"$RUN/crash.txt"
+    { echo "app=$app"; echo "status=$status"; echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo; tail -n 80 "$RUN/app.log"; } >"$RUN/crash.txt"
   fi
   case $status in
     10) launch=1 ;;

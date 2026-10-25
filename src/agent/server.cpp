@@ -6,6 +6,7 @@
 #include "../tc/tc.h"
 #include "../zapp.h"
 #include "wire.h"
+#include "yyjson.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -215,8 +216,11 @@ std::string appsJson(const State& s) {
     const std::string name = e.path().filename().string();
     if (name.empty() || name[0] == '.' || !e.is_directory(ec)) continue;
     const pid_t pid = runningPid(s, name);
+    std::string meta;
+    readFile((e.path() / "app.json").string(), meta);
     Obj o;
-    o.str("name", name).str("kind", fs::exists(e.path() / "app.zapp", ec) ? "zapp" : "export").flag("running", pid > 0).num("pid", pid);
+    o.str("name", name).str("kind", fs::exists(e.path() / "app.zapp", ec) ? "zapp" : "export").flag("dev", Doc(meta.empty() ? "{}" : meta).flag("dev"));
+    o.flag("running", pid > 0).num("pid", pid);
     if (pid > 0) appStats(o, s.home + "/run/" + name + ".pid", pid);   // its inspector's port, its CPU time and its memory
     items.push_back(o.done());
   }
@@ -307,6 +311,24 @@ std::vector<char*> pointers(std::vector<std::string>& v) {
 }
 
 int exitCode(int status) { return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0); }
+
+void recordApp(const std::string& dir, const std::string& name, bool dev, const std::map<std::string, std::string>* members) {
+  std::string project, base;   // base: where the project's files are in the app ("project/" in what a source deployment sends)
+  if (members) { if (const auto it = members->find("zinc.json"); it != members->end()) project = it->second; }
+  else if (!readFile(dir + "/zinc.json", project) && readFile(dir + "/project/zinc.json", project)) base = "project/";
+  const Doc z(project.empty() ? "{}" : project);
+  const Val app{yyjson_obj_get(z.v, "app")};
+  std::string title = app.str("name"), kept;
+  if (title.empty()) title = z.str("name");
+  if (title.empty()) title = name;
+  const std::string icon = fs::path(app.str("icon")).lexically_normal().generic_string(), ext = fs::path(icon).extension().string();
+  std::error_code ec;
+  if (!icon.empty() && icon != "." && safeRel(icon)) {
+    if (!members) { if (fs::is_regular_file(dir + "/" + base + icon, ec)) kept = base + icon; }
+    else if (const auto it = members->find(icon); it != members->end() && writePrivate(dir + "/icon" + ext, it->second)) kept = "icon" + ext;
+  }
+  writePrivate(dir + "/app.json", Obj().str("name", name).str("title", title).str("icon", kept).num("sent", static_cast<long long>(std::time(nullptr))).flag("dev", dev).done() + "\n");
+}
 
 namespace {
 
@@ -617,11 +639,11 @@ void opInstall(State& s, Chan& c, const Val& req) {
   std::uint64_t files = 0, bytes = 0;
   std::string err, name = req.str("name").empty() ? std::string() : cleanName(req.str("name")), kind;
   const std::string payload = stage + "/payload", app = stage + "/app";
+  std::map<std::string, std::string> members;   // a .zapp's files: its zinc.json and icon for app.json
   bool ok = recvTree(c, payload, files, bytes, err);
   if (ok && fs::is_regular_file(payload, ec)) {   // a .zapp: checked as zinc run checks it, kept as the file it is
     // ponytail: the archive is read whole to check it; stream it through zapp::unpackTo when apps reach hundreds of megabytes
     std::string archive;
-    std::map<std::string, std::string> members;
     ok = readFile(payload, archive) && zn::zapp::unpack(archive, s.engine, members, err);
     if (ok && name.empty()) { const Doc m(members["manifest.json"]); if (!m.str("name").empty()) name = cleanName(m.str("name")); }
     if (ok) { fs::create_directories(app, ec); fs::rename(payload, app + "/app.zapp", ec); }
@@ -643,6 +665,7 @@ void opInstall(State& s, Chan& c, const Val& req) {
     fs::remove_all(dest, ec);
     fs::rename(app, dest, ec);
     if (ec) { ok = false; err = dest + ": " + ec.message(); }
+    else recordApp(dest, name, false, kind == "zapp" ? &members : nullptr);
   }
   fs::remove_all(stage, ec);
   if (ok) send(c, kJson, Obj().flag("ok", true).str("name", name).str("kind", kind).num("bytes", static_cast<long long>(bytes)).done());

@@ -3,8 +3,9 @@
 // ============================================================================
 //
 //   Stage
-//   ├── PageContainer: the page mounted (HomePageNode, CrashPageNode or SettingsPageNode)
+//   ├── PageContainer: the page mounted (HomePageNode, AppsPageNode, CrashPageNode or SettingsPageNode)
 //   ├── TopBarNode (0, 0, width, TOP_BAR_HEIGHT)
+//   ├── DeleteAppDialogNode: "Delete this app?", over everything while it is asked
 //   └── TextFormNode: the form and the on-screen keyboard, over everything while a value is asked
 //
 // A frame is drawn only when something changed (`uiState.dirty`): an input, an answer of zinc-admin, the clock's
@@ -37,7 +38,7 @@ import {
 } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
-import { PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
+import { PAGE_APPS, PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
 import { DisplayObject, Stage } from './core/display';
 import {
   ScrollBox,
@@ -61,8 +62,10 @@ import {
 } from './state';
 import { TopBarNode } from './components/top-bar';
 import { TextFormNode } from './components/text-form';
+import { DeleteAppDialogNode } from './components/delete-app-dialog';
 import { HomePageNode } from './pages/home/home-page';
 import { CrashPageNode } from './pages/crash/crash-page';
+import { AppsPageNode } from './pages/apps/apps-page';
 import { SettingsPageNode } from './pages/settings/settings-page';
 
 const WHEEL_STEP_PIXELS = 48;
@@ -80,13 +83,16 @@ const pageContainer = new DisplayObject('PageContainer');
 const homePage = new HomePageNode();
 const crashPage = new CrashPageNode();
 const settingsPage = new SettingsPageNode();
+const appsPage = new AppsPageNode();
 const topBar = new TopBarNode();
+const deleteAppDialog = new DeleteAppDialogNode();
 const textForm = new TextFormNode();
 stage.addChild(pageContainer);
 stage.addChild(topBar);
+stage.addChild(deleteAppDialog);
 stage.addChild(textForm);
 /** The nodes as big as the screen. */
-const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, textForm];
+const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, deleteAppDialog, textForm];
 
 let mountedPage = '';
 
@@ -95,7 +101,8 @@ function syncMountedPage(screenWidth: number, screenHeight: number): void {
   if (mountedPage !== appState.page) {
     mountedPage = appState.page;
     pageContainer.removeChildren();
-    pageContainer.addChild(appState.page === PAGE_SETTINGS ? settingsPage : appState.page === PAGE_CRASH ? crashPage : homePage);
+    const page = appState.page;
+    pageContainer.addChild(page === PAGE_SETTINGS ? settingsPage : page === PAGE_CRASH ? crashPage : page === PAGE_APPS ? appsPage : homePage);
   }
   if (appState.page === PAGE_SETTINGS) settingsPage.syncSection();
   for (let index = 0; index < screenSizedNodes.length; index++) {

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -174,6 +175,9 @@ std::vector<char*> pointers(std::vector<std::string>& v);
 /** In the child, between fork and exec: the directory, then every descriptor from `keep` on closed, then the program. */
 [[noreturn]] void execChild(const char* dir, char* const* argv, char* const* envp, int keep = 3);
 int exitCode(int status);
+/** apps/<name>/app.json (ZN-820): what the player's launcher shows of an app sent here, its title and its icon (zinc.json app.icon, kept
+ *  with the app; `members`: a .zapp's files, its icon then copied beside it), when it came and whether zinc dev sent it. */
+void recordApp(const std::string& dir, const std::string& name, bool dev, const std::map<std::string, std::string>* members);
 
 // ---- zinc dev --device (dev.cpp) ----
 
