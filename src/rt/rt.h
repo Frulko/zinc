@@ -63,6 +63,10 @@ std::string numberToString(double v);
 // The inspector's console (ZN-373.01): set by the host while plugins/devtools listens, it gets each line the program prints (console.log, and
 // console.error with err) as Machine::flushOut / flushErrLine write it, out of the interpreter's loop.
 extern void (*gConsoleTap)(const char* p, std::size_t n, bool err);
+// The console player (ZN-792) runs one program after another in its own process: a host that sets gStop ends the running program at its next
+// host call (the error is this text), and with gExitEndsRun zinc:sys exit(n) ends the run with the error "exit <n>" instead of the process.
+extern const char* gStop;
+extern bool gExitEndsRun;
 
 struct Machine;
 

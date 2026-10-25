@@ -18,10 +18,12 @@ bool zn_console_pack_read(const std::string& name, int kind, std::string& out); 
 #define ZN_CONSOLE_LIVE 0   // 1 with a console's HAL: the screen is real, a program runs until it ends (no 60-frame budget of a headless run)
 #endif
 
+static std::map<std::string, int32_t> made;   // the pack's images decoded so far, by name
 extern "C" {
+// The player's next program has another pack (ZN-792): its images are decoded again (the old ones are freed with that program's runtime images).
+void zn_console_assets_reset(void) { made.clear(); }
 // zinc:gfx image(name) of a pack's image entry: decoded once into a runtime image (block-compressed formats are a GPU's: drawn transparent here)
 int zn_asset_image(const char* name, uint32_t n) {
-  static std::map<std::string, int32_t> made;
   const std::string key(name, n);
   if (auto it = made.find(key); it != made.end()) return it->second;
   std::string zim;

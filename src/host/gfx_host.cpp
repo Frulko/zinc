@@ -372,6 +372,7 @@ const char* traceEvents(bool on, std::size_t* n) {
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
 void pauseLoop() { pauseFlag = true; }
+void resetLoop() { quitFlag = pauseFlag = false; zrt::frame_no = 0; zrt::quit_requested = false; }
 
 // screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)
 uint8_t* encodePngHook(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {

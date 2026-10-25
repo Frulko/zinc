@@ -3,6 +3,8 @@
 // runs it in the interpreter. The program's frames go through the console's HAL (zinc:gfx calls hal_poll_input, hal_present, hal_frame_end).
 // Its output is framed on the HAL log by `zinc:start` and `zinc:exit <status>`, as the PS1 and ESP32 runners frame theirs: an emulator runner prints
 // the lines between them and exits with the status. Status: the program's (0, 1 runtime error, 101 uncaught exception), 2 no or invalid program.
+// The player (ZN_CONSOLE_PLAYER, ZN-792) runs no program of its own: it waits for a workstation on its waiting screen, runs the program
+// `zinc device` sent, and waits again; `zinc:start` / `zinc:exit` frame the player's whole life (START on the waiting screen ends it).
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +16,12 @@
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "zn/host.h"
+#ifdef ZN_CONSOLE_PLAYER
+#include "player_console.h"
+extern "C" void zn_console_use_pack(const unsigned char* p, unsigned long n);   // host_console.cpp
+extern "C" void zn_console_set_app_dir(const char* dir);
+extern "C" void zn_console_assets_reset(void);                                  // gfx_stubs.cpp
+#endif
 
 extern "C" void zn_console_set_args(int argc, const char* const* argv);   // host_console.cpp
 extern "C" void zn_console_install_host(void);
@@ -53,27 +61,51 @@ std::string dirOf(const std::string& p) {
   const std::size_t s = p.find_last_of("/\\");
   return s == std::string::npos ? std::string() : p.substr(0, s + 1);
 }
+#ifndef ZN_CONSOLE_PLAYER
 bool endsWith(const char* s, const char* tail) { const std::size_t a = std::strlen(s), b = std::strlen(tail); return a >= b && !std::strcmp(s + a - b, tail); }
+#endif
 std::string shown;   // the last lines of the program's output and errors, for the text screen
+#ifdef ZN_CONSOLE_PLAYER
+ZnPlayerRun pendingRun;   // what the workstation sent, taken by the waiting screen
+#endif
 void keep(const std::string& s) {
+#ifdef ZN_CONSOLE_PLAYER
+  znPlayerOutput(s.data(), s.size());   // the program's log on the workstation
+#endif
   shown += s;
   if (shown.size() > 4096) shown.erase(0, shown.size() - 4096);
 }
 #ifdef ZN_CONSOLE_WITH_GFX
 // A console has no terminal (ZN-753): a program that ends with nothing drawn, or with an error, leaves its last lines on the screen until START
 // (or the console's own quit: HOME on the PSP, a frame budget in the emulator tests) instead of a black screen or an app that closes at once.
-void textScreen(int status) {
+// The player's waiting screen is the same screen with its lines on top, and returns (true) when the workstation sent a program; SELECT gives a
+// new pairing code.
+bool textScreen(int status, bool player = false) {
   using zn::host::HostArg;
   auto call = [](zn::Rt id, const HostArg* a = nullptr) { HostArg r; zn::host::hostGfx(static_cast<int>(id), a, &r); return r; };
-  const std::string footer = status ? "zinc: the program stopped (status " + std::to_string(status) + ") - START quits" : "zinc: the program ended - START quits";
+  const std::string footer = player ? "START quits the player" : status ? "zinc: the program stopped (status " + std::to_string(status) + ") - START quits" : "zinc: the program ended - START quits";
   for (;;) {
     call(zn::Rt::HostGfxPoll);
     HostArg start; start.i = 10;   // Btn.Start
-    if (call(zn::Rt::HostGfxShouldQuit).i || call(zn::Rt::HostGfxWasPressed, &start).i) return;
+    if (call(zn::Rt::HostGfxShouldQuit).i || call(zn::Rt::HostGfxWasPressed, &start).i) return false;
+#ifdef ZN_CONSOLE_PLAYER
+    std::vector<std::string> head;
+    if (player) {
+      HostArg select; select.i = 11;   // Btn.Select
+      if (call(zn::Rt::HostGfxWasPressed, &select).i) znPlayerNewCode();
+      znPlayerPoll();
+      ZnPlayerRun next;
+      if (znPlayerTake(next)) { pendingRun = next; return true; }
+      head = znPlayerScreen();
+      head.emplace_back();
+    }
+#else
+    const std::vector<std::string> head;
+#endif
     call(zn::Rt::HostGfxBegin);
     HostArg bg; bg.i = 0x101828;
     call(zn::Rt::HostGfxClear, &bg);
-    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i, cols = w / 8 - 1, rows = h / 10 - 2;
+    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i, cols = w / 8 - 1, rows = h / 10 - 2 - static_cast<std::int64_t>(head.size());
     std::vector<std::string> lines;   // the output wrapped to the screen, its last rows shown
     for (std::size_t b = 0; b < shown.size();) {
       std::size_t e = shown.find('\n', b);
@@ -87,8 +119,10 @@ void textScreen(int status) {
       HostArg a[5]; a[0].d = 4; a[1].d = y; a[2].p = t.data(); a[2].n = static_cast<std::uint32_t>(t.size()); a[3].i = color; a[4].i = 1;
       call(zn::Rt::HostGfxText, a);
     };
-    const std::size_t first = lines.size() > static_cast<std::size_t>(rows) ? lines.size() - rows : 0;
-    for (std::size_t i = first; i < lines.size(); i++) text(4 + 10.0 * static_cast<double>(i - first), lines[i], 0xe0e6ff);
+    for (std::size_t i = 0; i < head.size(); i++) text(4 + 10.0 * static_cast<double>(i), head[i].substr(0, static_cast<std::size_t>(cols)), i == 2 ? 0xffd166 : 0x8fd3ff);
+    const double top = 4 + 10.0 * static_cast<double>(head.size());
+    const std::size_t first = rows <= 0 ? lines.size() : lines.size() > static_cast<std::size_t>(rows) ? lines.size() - rows : 0;
+    for (std::size_t i = first; i < lines.size(); i++) text(top + 10.0 * static_cast<double>(i - first), lines[i], 0xe0e6ff);
     text(static_cast<double>(h - 12), footer.substr(0, static_cast<std::size_t>(cols)), status ? 0xff6b6b : 0x8899cc);
     call(zn::Rt::HostGfxEnd);
   }
@@ -96,7 +130,9 @@ void textScreen(int status) {
 #endif
 int finish(int status) {
 #ifdef ZN_CONSOLE_WITH_GFX
+#ifndef ZN_CONSOLE_PLAYER   // the player's waiting screen was that screen
   if (zn::host::hostGfx && zn_hal_is_live() && (status != 0 || !zn::host::gfxStarted)) textScreen(status);
+#endif
 #endif
   log("zinc:exit " + std::to_string(status) + "\n");   // after the text screen: a runner stops the emulator on it
 #ifdef ZN_CONSOLE_WITH_GFX
@@ -107,6 +143,91 @@ int finish(int status) {
 // The program's lines also go to the HAL's second output when it has one (PPSSPP prints only what reaches its kemulator: device): Machine::flushOut
 // writes them on stdout and hands each to this tap.
 void tap(const char* p, std::size_t n, bool) { std::string line(p, n); line += '\n'; keep(line); zn_console_echo(line.data(), line.size()); }
+}  // namespace
+
+namespace {
+// One program: its bytecode at `path` (or the one linked in), resources.bin beside it; the status it ended with.
+int runOne(std::string path, int argc, char** argv, int first) {
+  std::vector<std::uint8_t> bytes, res;
+  if (zn_console_program && zn_console_program_size && path.empty()) {
+    path = "the linked program";
+    bytes.assign(zn_console_program, zn_console_program + zn_console_program_size);
+    if (zn_console_resources) res.assign(zn_console_resources, zn_console_resources + zn_console_resources_size);
+  } else {
+    if (!readFile(path, bytes)) { logErr("zinc: cannot read " + path + "\n"); return 2; }
+    readFile(dirOf(path) + "resources.bin", res);   // the fonts and images a drawing program needs (zinc pack writes them beside it)
+  }
+  zn::zbc::Module m;
+  std::string err;
+  if (!zn::zbc::decode(bytes, m, err)) { logErr("zinc: " + path + ": " + err + "\n"); return 2; }
+  err = zn::zbc::verify(m);
+  if (!err.empty()) { logErr("zinc: " + path + ": invalid ZBC: " + err + "\n"); return 2; }
+  zn_console_set_args(argc - first, argv + first);
+#ifdef ZN_CONSOLE_WITH_GFX
+  if (!res.empty() && !zn::host::installResources(res.data(), res.size())) { logErr("zinc: " + dirOf(path) + "resources.bin: not a resource blob\n"); return 2; }
+  zn::host::installGfx();   // the graphics host and, through installSys, the console system host
+#else
+  zn_console_install_host();
+#endif
+  std::string out;
+  // the register stack and call depth of the console (its <console>.cmake): the desktop's 20 MiB stack is most of a PSP; output goes out live
+  zn::rt::gConsoleTap = tap;
+  const zn::rt::Result r = zn::rt::runModuleHooked(m, out, false, nullptr, nullptr, nullptr, nullptr, ZN_CONSOLE_STACK_SLOTS, ZN_CONSOLE_MAX_DEPTH, true);
+  std::fwrite(out.data(), 1, out.size(), stdout);   // what the program printed last, then its error (zn::rt::report, through the HAL)
+  keep(out);
+  zn_console_echo(out.data(), out.size());
+  if (r.ok) return 0;
+  if (r.error.rfind("exit ", 0) == 0) return std::atoi(r.error.c_str() + 5);   // zinc:sys exit(n) in the player (zn::rt::gExitEndsRun)
+  if (zn::rt::gStop && r.error == zn::rt::gStop) return 0;                      // stopped from the workstation
+  const bool panic = r.error.rfind("panic: ", 0) == 0;   // an uncaught exception
+  logErr((panic ? "" : "runtime error: ") + r.error + "\n");
+  return panic ? 101 : 1;
+}
+
+#ifdef ZN_CONSOLE_PLAYER
+// The player: the waiting screen, the program the workstation sent, the waiting screen again, until START there (or the console's own quit).
+// Each program gets the surface, the frame count and the quit flag afresh, its own asset pack and its own directory (storage.kv per app).
+int playerLoop(char** argv) {
+  std::vector<unsigned char> packBytes;
+  int status = 0;
+  for (;;) {
+    ZnPlayerRun run;
+    if (!znPlayerTake(run)) {
+#ifdef ZN_CONSOLE_WITH_GFX
+      if (zn_hal_is_live()) {
+        if (!zn::host::hostGfx) zn::host::installGfx();
+        zn::host::resetLoop();
+        if (!textScreen(status, true)) return status;
+        run = pendingRun;
+      } else
+#endif
+      {   // headless (the host build of the tests): no screen, the server polled until a program comes
+        while (!znPlayerTake(run)) { znPlayerPoll(); hal_sleep_us(10000); }
+      }
+    }
+    std::vector<std::uint8_t> pk;
+    packBytes.clear();
+    if (readFile(run.dir + "/packs/default.zpk", pk)) packBytes.assign(pk.begin(), pk.end());   // ponytail: read whole, as the linked pack is
+    zn_console_use_pack(packBytes.empty() ? nullptr : packBytes.data(), packBytes.size());
+#ifdef ZN_CONSOLE_WITH_GFX
+    zn_console_assets_reset();
+    zn::host::resetLoop();
+#endif
+    zn_console_set_app_dir((run.dir + "/").c_str());
+    for (const auto& [k, v] : run.env) setenv(k.c_str(), v.c_str(), 1);
+    std::vector<std::string> args = run.args;
+    std::vector<char*> av = {argv[0]};
+    for (std::string& a : args) av.push_back(a.data());
+    av.push_back(nullptr);
+    shown.clear();
+    znPlayerStarted(run);
+    status = runOne(run.dir + "/program.zbc", static_cast<int>(av.size()) - 1, av.data(), 1);
+    for (const auto& kv : run.env) unsetenv(kv.first.c_str());
+    znPlayerExited(status);
+    zn_console_set_app_dir(nullptr);
+  }
+}
+#endif
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -123,42 +244,16 @@ int main(int argc, char** argv) {
   }
 #endif
   log("zinc:start\n");
+#ifdef ZN_CONSOLE_PLAYER
+  (void)argc;
+  return finish(playerLoop(argv));
+#else
   // the program: an argument ending in .zbc, else program.zbc beside the executable (EBOOT.PBP, eboot.bin, the ELF), else in the data directory
   int first = 1;
   std::string path;
   if (argc > 1 && endsWith(argv[1], ".zbc")) { path = argv[1]; first = 2; }
   else if (argc > 0 && argv[0] && !dirOf(argv[0]).empty()) path = dirOf(argv[0]) + "program.zbc";
   else { const char* d = zn_console_data_dir(); path = std::string(d ? d : "") + "program.zbc"; }
-  std::vector<std::uint8_t> bytes, res;
-  if (zn_console_program && zn_console_program_size) {
-    path = "the linked program";
-    bytes.assign(zn_console_program, zn_console_program + zn_console_program_size);
-    if (zn_console_resources) res.assign(zn_console_resources, zn_console_resources + zn_console_resources_size);
-  } else {
-    if (!readFile(path, bytes)) { logErr("zinc: cannot read " + path + "\n"); return finish(2); }
-    readFile(dirOf(path) + "resources.bin", res);   // the fonts and images a drawing program needs (zinc pack writes them beside it)
-  }
-  zn::zbc::Module m;
-  std::string err;
-  if (!zn::zbc::decode(bytes, m, err)) { logErr("zinc: " + path + ": " + err + "\n"); return finish(2); }
-  err = zn::zbc::verify(m);
-  if (!err.empty()) { logErr("zinc: " + path + ": invalid ZBC: " + err + "\n"); return finish(2); }
-  zn_console_set_args(argc - first, argv + first);
-#ifdef ZN_CONSOLE_WITH_GFX
-  if (!res.empty() && !zn::host::installResources(res.data(), res.size())) { logErr("zinc: " + dirOf(path) + "resources.bin: not a resource blob\n"); return finish(2); }
-  zn::host::installGfx();   // the graphics host and, through installSys, the console system host
-#else
-  zn_console_install_host();
+  return finish(runOne(zn_console_program && zn_console_program_size ? std::string() : path, argc, argv, first));
 #endif
-  std::string out;
-  // the register stack and call depth of the console (its <console>.cmake): the desktop's 20 MiB stack is most of a PSP; output goes out live
-  zn::rt::gConsoleTap = tap;
-  const zn::rt::Result r = zn::rt::runModuleHooked(m, out, false, nullptr, nullptr, nullptr, nullptr, ZN_CONSOLE_STACK_SLOTS, ZN_CONSOLE_MAX_DEPTH, true);
-  std::fwrite(out.data(), 1, out.size(), stdout);   // what the program printed last, then its error (zn::rt::report, through the HAL)
-  keep(out);
-  zn_console_echo(out.data(), out.size());
-  if (r.ok) return finish(0);
-  const bool panic = r.error.rfind("panic: ", 0) == 0;   // an uncaught exception
-  logErr((panic ? "" : "runtime error: ") + r.error + "\n");
-  return finish(panic ? 101 : 1);
 }

@@ -55,6 +55,8 @@ void onFrameEnd(void (*fn)());   // runs `fn` on the main thread at the end of e
 // Ends the frame loop after this frame without finishing the run: the window, the surface and the resources stay for the next loop (zinc dev's
 // Fast Refresh, ZN-742: the program returns to an empty stack, its code is swapped, then its event loop starts again).
 void pauseLoop();
+// The frame loop of a new program in the same surface (the console player, ZN-792): the quit and pause flags cleared, the frame count back to 0.
+void resetLoop();
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
 const char* traceEvents(bool on, std::size_t* n);   // DevTools Tracing.start (true) / Tracing.end (false: the frame spans as trace events JSON, valid until the next call)
 struct RenderBench { int width, height, cmds; double medianUs, p99Us; std::uint64_t hash; };   // hash: FNV-1a 64 of the pixels like ZINC_FRAMEHASH

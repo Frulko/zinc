@@ -6,6 +6,7 @@
 static int32_t frames_left = 60, w = 320, h = 240;
 
 extern "C" {
+__attribute__((weak)) int zn_player_poll(void) { return 0; }   // the console player (targets/console/player_console.cpp): 1 to stop the program
 void hal_init(const HalConfig* cfg) {
   w = cfg->width; h = cfg->height;
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atoi(f);
@@ -16,6 +17,7 @@ void hal_frame_end(void) {}
 void hal_poll_input(HalInput* in) {
   in->buttons = 0; in->px = in->py = 0; in->pdown = 0;
   in->quit = frames_left-- <= 0;
+  in->quit |= zn_player_poll();
 }
 void hal_present(const HalFrame*) {}
 void hal_surface_size(int* ow, int* oh) { *ow = w; *oh = h; }

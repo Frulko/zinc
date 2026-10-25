@@ -24,8 +24,13 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <mbedtls/error.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/ssl.h>
-#include <mbedtls/x509_crt.h>
 #include <psa/crypto.h>
+// The console player (targets/console/mbedtls_console.h) builds mbedTLS without X.509: only the agent's sessions (PSK, EC J-PAKE) then,
+// and the clients and servers with certificates say they are missing.
+#ifdef MBEDTLS_X509_CRT_PARSE_C
+#include <mbedtls/x509_crt.h>
+#define TLS_CERTS 1
+#endif
 
 #include <cstdio>
 #include <string>
@@ -44,7 +49,7 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <memory>
 #ifdef __APPLE__
 #include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE && defined(TLS_CERTS)
 #include <Security/Security.h>
 #define TLS_OS_TRUST 1
 #endif
@@ -55,7 +60,9 @@ namespace zn::TLS_NS {
 struct Conn {
   mbedtls_ssl_context ssl;
   mbedtls_ssl_config conf;
+#ifdef TLS_CERTS
   mbedtls_x509_crt own;
+#endif
   mbedtls_pk_context key;
   std::string in, out, err;
   std::function<std::string(const std::string&)> pskLookup;
@@ -71,6 +78,7 @@ bool psaReady() {
   return ok;
 }
 
+#ifdef TLS_CERTS
 // The system root store, parsed once. ZINC_CA_FILE names a PEM bundle instead (tests, private CAs).
 mbedtls_x509_crt* roots() {
   static mbedtls_x509_crt* store = [] {
@@ -141,6 +149,8 @@ bool osTrusted(Conn* c) {
 }
 #endif
 
+#endif  // TLS_CERTS
+
 int sendCb(void* ctx, const unsigned char* buf, size_t n) { static_cast<Conn*>(ctx)->out.append(reinterpret_cast<const char*>(buf), n); return static_cast<int>(n); }
 int recvCb(void* ctx, unsigned char* buf, size_t n) {
   auto* c = static_cast<Conn*>(ctx);
@@ -152,6 +162,7 @@ int recvCb(void* ctx, unsigned char* buf, size_t n) {
 }
 
 std::string describe(Conn* c, int rc) {
+#ifdef TLS_CERTS
   if (!c->server) {
     uint32_t flags = mbedtls_ssl_get_verify_result(&c->ssl);
     if (flags != 0 && flags != 0xFFFFFFFFu) {
@@ -162,6 +173,9 @@ std::string describe(Conn* c, int rc) {
       return "CERT_REJECTED";
     }
   }
+#else
+  (void)c;
+#endif
   char buf[160];
   mbedtls_strerror(rc, buf, sizeof buf);
   return buf;
@@ -173,7 +187,9 @@ Conn* make(bool server, std::string& err) {
   c->server = server;
   mbedtls_ssl_init(&c->ssl);
   mbedtls_ssl_config_init(&c->conf);
+#ifdef TLS_CERTS
   mbedtls_x509_crt_init(&c->own);
+#endif
   mbedtls_pk_init(&c->key);
   int rc = mbedtls_ssl_config_defaults(&c->conf, server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
   if (rc != 0) { err = describe(c, rc); destroy(c); return nullptr; }
@@ -182,6 +198,10 @@ Conn* make(bool server, std::string& err) {
 
 }  // namespace
 
+#ifndef TLS_CERTS
+Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
+Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
+#else
 Conn* openClient(const std::string& serverName, std::string& err, bool tls12) {
   Conn* c = make(false, err);
   if (!c) return nullptr;
@@ -212,6 +232,7 @@ Conn* openServer(const std::string& certPem, const std::string& keyPem, std::str
   mbedtls_ssl_set_bio(&c->ssl, c, sendCb, recvCb, nullptr);
   return c;
 }
+#endif  // TLS_CERTS
 
 namespace {
 
@@ -283,7 +304,9 @@ void destroy(Conn* c) {
   if (!c) return;
   mbedtls_ssl_free(&c->ssl);
   mbedtls_ssl_config_free(&c->conf);
+#ifdef TLS_CERTS
   mbedtls_x509_crt_free(&c->own);
+#endif
   mbedtls_pk_free(&c->key);
   delete c;
 }
@@ -352,7 +375,7 @@ void close(Conn* c) { if (c->done && !c->failed && !c->closed) mbedtls_ssl_close
 
 // Plugins link against this binary's mbedTLS (zinc:webrtc's DTLS, plugins/webrtc): the certificate writer, which nothing here calls, would
 // be left out of the link; these references keep it, exported like the rest of the library.
-#ifdef TLS_ENGINE_COPY
+#if defined(TLS_ENGINE_COPY) && defined(TLS_CERTS)
 extern "C" __attribute__((used, visibility("default"))) void* const zn_tls_plugin_symbols[] = {
     (void*)&mbedtls_x509write_crt_init, (void*)&mbedtls_x509write_crt_free, (void*)&mbedtls_x509write_crt_der,
     (void*)&mbedtls_x509write_crt_set_version, (void*)&mbedtls_x509write_crt_set_serial_raw, (void*)&mbedtls_x509write_crt_set_validity,

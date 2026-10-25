@@ -667,6 +667,9 @@ void redrawFrame() {
 }
 }  // namespace
 
+const char* gStop = nullptr;
+bool gExitEndsRun = false;
+
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
 static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   const RtInfo& ri = rtInfo(id);
@@ -674,8 +677,10 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   zn::host::HostCall call = isLayoutRow(id) ? zn::host::hostLayout : isGlRow(id) ? zn::host::hostGl : sys ? zn::host::hostSys : zn::host::hostGfx;
   // what needs the machine: the program's standard output is buffered in the machine, so writes and exit go through it
   if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
+  if (gStop) return gStop;
   if (id == Rt::HostSysExit) {
     m.flushOut();
+    if (gExitEndsRun) { static std::string why; why = "exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
   // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:

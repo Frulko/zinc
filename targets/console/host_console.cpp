@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -43,6 +44,9 @@ extern "C" __attribute__((weak)) const char* hal_device(const char*, const char*
 extern "C" {
 __attribute__((weak)) const unsigned char* zn_console_pack = nullptr;   // the asset pack linked in (embed.cmake), none by default
 __attribute__((weak)) unsigned long zn_console_pack_size = 0;
+// The console player (targets/console/player_console.cpp, ZN-792) waits by slices of 50 ms and serves the workstation between them: 1 when
+// the program must stop, -1 in a core without a player.
+__attribute__((weak)) int zn_player_wait_poll(void) { return -1; }
 }
 
 namespace {
@@ -62,7 +66,12 @@ void ret(HostArg* r, std::string s) { gOut = std::move(s); r->p = gOut.data(); r
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
 bool envSet(const char* n) { const char* v = hal_env(n); return v && *v && *v != '0'; }
 
-std::string dataDir() { const char* d = zn_console_data_dir(); return d ? d : ""; }
+std::string gAppDir;   // the player's app: its own directory under the console's (zn_console_set_app_dir), so storage.kv stays per app
+std::string dataDir() {
+  if (!gAppDir.empty()) return gAppDir;
+  const char* d = zn_console_data_dir();
+  return d ? d : "";
+}
 // a relative path is the app's: under the data directory (a device name such as ms0: or ux0: makes it absolute)
 std::string at(const std::string& p) {
   const std::string d = dataDir();
@@ -151,16 +160,23 @@ void storageSave(const std::map<std::string, std::string>& m) {
   if (std::FILE* f = std::fopen(storagePath().c_str(), "wb")) { std::fwrite(text.data(), 1, text.size(), f); std::fclose(f); }
 }
 
-// the asset pack: opened on first use; kind 0 data entries for zinc:assets, kind 1 images for zinc:gfx
+// the asset pack: opened on first use; kind 0 data entries for zinc:assets, kind 1 images for zinc:gfx. The linked one, or the one the player
+// read for the program it runs (zn_console_use_pack).
+const unsigned char* gPack = nullptr;
+unsigned long gPackSize = 0;
+bool gPackSet = false;
+std::unique_ptr<zn::zpk::Reader> gReader;
+int gPackState = 0;   // 0 not opened, 1 open, -1 none or invalid
 zn::zpk::Reader* pack() {
-  static zn::zpk::Reader reader;
-  static int state = 0;   // 0 not opened, 1 open, -1 none or invalid
-  if (state == 0) {
+  if (gPackState == 0) {
+    const unsigned char* bytes = gPackSet ? gPack : zn_console_pack;
+    const unsigned long size = gPackSet ? gPackSize : zn_console_pack_size;
     std::string err;
-    state = zn_console_pack && zn_console_pack_size && reader.open(zn_console_pack, zn_console_pack_size, err) ? 1 : -1;
-    if (state < 0 && !err.empty()) { const std::string line = "zinc: the asset pack: " + err + "\n"; hal_log_err(line.data(), line.size()); }
+    gReader = std::make_unique<zn::zpk::Reader>();
+    gPackState = bytes && size && gReader->open(bytes, size, err) ? 1 : -1;
+    if (gPackState < 0 && !err.empty()) { const std::string line = "zinc: the asset pack: " + err + "\n"; hal_log_err(line.data(), line.size()); }
   }
-  return state > 0 ? &reader : nullptr;
+  return gPackState > 0 ? gReader.get() : nullptr;
 }
 long packFind(const std::string& name, int kind) {
   zn::zpk::Reader* r = pack();
@@ -179,8 +195,10 @@ void waitMs(double ms) {
   if (!(ms > 0)) return;
   if (gVirtual) { gVirtualNow += ms; return; }
   for (std::uint64_t left = static_cast<std::uint64_t>(ms * 1000.0); left > 0;) {   // a HAL may cap one sleep (hal_posix: a second)
+    const int player = zn_player_wait_poll();
+    if (player > 0) return;   // stopped from the workstation: the next host call ends the program
     const std::uint64_t t0 = hal_time_us();
-    hal_sleep_us(left);
+    hal_sleep_us(player < 0 || left < 50000 ? left : 50000);
     const std::uint64_t spent = hal_time_us() - t0;
     if (spent == 0) break;   // a clock coarser than the wait: the sleep was the wait
     left = spent >= left ? 0 : left - spent;
@@ -270,6 +288,10 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 bool zn_console_pack_read(const std::string& name, int kind, std::string& out) { return packRead(name, kind, out); }   // gfx_stubs.cpp's images
+
+// The player's program (ZN-792): its asset pack (null: the linked one) and its directory (null: the console's data directory).
+extern "C" void zn_console_use_pack(const unsigned char* p, unsigned long n) { gPack = p; gPackSize = n; gPackSet = p != nullptr; gPackState = 0; }
+extern "C" void zn_console_set_app_dir(const char* dir) { gAppDir = dir ? dir : ""; }
 
 // The core's entry gives the program's arguments (argv after the program) and installs the host before the program starts.
 extern "C" void zn_console_set_args(int argc, const char* const* argv) { gArgs.assign(argv, argv + (argc > 0 ? argc : 0)); }

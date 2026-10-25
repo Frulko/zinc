@@ -621,7 +621,7 @@ if(TARGET zn_host_gfx)
   # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header). On Windows the daemon is
   # the POSIX pass yet (a serial server, termios, a pty): its commands say it (docs/targets/windows.md).
   if(NOT WIN32)
-    target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
+    target_sources(zinc PRIVATE src/agent/chan.cpp src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
     target_sources(zinc PRIVATE src/agent/dev.cpp src/agent/screen.cpp src/agent/live.cpp)   # zinc dev --device (ZN-729.03)
     target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
     target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"

@@ -211,7 +211,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
 namespace {
 
 // zinc pack of the project in `dir` into the file `zapp`; `out` gets what it printed (the diagnostics of a program that does not compile).
-bool pack(const std::string& self, const std::string& dir, const std::string& zapp, std::string& out) {
+bool pack(const std::string& self, const std::string& dir, const std::string& zapp, std::string& out, const std::string& profile) {
   const std::string log = zapp + ".log";
   const pid_t pid = ::fork();
   if (pid == 0) {
@@ -219,6 +219,7 @@ bool pack(const std::string& self, const std::string& dir, const std::string& za
     ::dup2(fd, 1);
     ::dup2(fd, 2);
     ::setenv("ZINC_STEPS", "0", 1);   // no progress lines: what it prints is the diagnostics
+    if (!profile.empty()) ::execl(self.c_str(), self.c_str(), "pack", dir.c_str(), "-o", zapp.c_str(), "--profile", profile.c_str(), static_cast<char*>(nullptr));   // a console's player (ZN-792)
     ::execl(self.c_str(), self.c_str(), "pack", dir.c_str(), "-o", zapp.c_str(), static_cast<char*>(nullptr));
     ::_exit(127);
   }
@@ -231,7 +232,7 @@ bool pack(const std::string& self, const std::string& dir, const std::string& za
 
 struct Session {
   std::unique_ptr<Chan> c;
-  std::string self, engine, device, tmp;
+  std::string self, engine, device, tmp, profile;   // profile: a player's (zinc pack --profile)
   std::map<std::string, std::string> there;   // what the device holds: member -> SHA-256
   bool running = false;
 
@@ -265,7 +266,7 @@ struct Session {
     std::string archive, err;
     std::map<std::string, std::string> files, now;
     if (there.empty()) zn::log::step("pack", dir);   // the first time: compiling a large app takes a moment
-    if (!pack(self, dir, zapp, out)) return false;
+    if (!pack(self, dir, zapp, out, profile)) return false;
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
     for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
       if (name.rfind("native/", 0) != 0) now[name] = sha;   // The device loads its own plugins; these libraries are for the workstation's architecture.
@@ -326,6 +327,7 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   // changed is refused by the device's loader with its reason. Another series runs with --force only, at the risk of a crash.
   if (!deviceSession(device, Obj().str("op", "info").done(), answer, s->device)) return false;
   const std::string there = Doc(answer).str("engine");
+  if (Doc(answer).flag("player")) s->profile = Doc(answer).str("profile");
   if (there != engine) {
     if (!force && series(there) != series(engine)) {
       const std::string update = "zinc device " + s->device + " update", retry = "zinc dev --device " + s->device + " --force";

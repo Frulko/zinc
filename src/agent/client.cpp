@@ -4,6 +4,7 @@
 
 #include "../tc/tc.h"
 #include "../frontend/project.h"
+#include "../zapp.h"
 #include "wire.h"
 #include "yyjson.h"
 #include "zn/log.h"
@@ -28,6 +29,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <thread>
 
 namespace zn::agent {
@@ -236,6 +238,15 @@ int cmdInfo(Device& d, const std::vector<std::string>& args) {
   const Doc a(answer);
   std::printf("%s (%s)\n", a.str("name").c_str(), a.str("id").c_str());
   if (!a.str("kind").empty()) std::printf("  kind         %s\n", a.str("kind").c_str());
+  if (a.flag("player")) {   // a console's player (ZN-792): no shell, no files, the bytecode of zinc pack --profile
+    std::string plugins, apps;
+    for (const std::string& m : a.strs("plugins")) plugins += (plugins.empty() ? "" : ", ") + m;
+    for (const Val& app : a.items("apps")) apps += (apps.empty() ? "" : ", ") + app.str("name") + (app.flag("running") ? " (running)" : "");
+    std::printf("  player       %s, at %s\n  plugins      %s\n  engine       zinc %s\n  apps         %s\n", a.str("profile").empty() ? a.str("os").c_str() : a.str("profile").c_str(),
+                a.str("address").c_str(), plugins.empty() ? "none" : plugins.c_str(), a.str("engine").c_str(), apps.empty() ? "none" : apps.c_str());
+    if (a.has("memFree")) std::printf("  memory       %s free\n", human(a.num("memFree")).c_str());
+    return 0;
+  }
   std::printf("  system       %s %s %s\n", a.str("os").c_str(), a.str("osVersion").c_str(), a.str("arch").c_str());
   std::printf("  cpu          %s%s%lld cores", a.str("cpu").c_str(), a.str("cpu").empty() ? "" : ", ", a.num("cores"));
   if (a.has("mhz")) std::printf(", %lld MHz", a.num("mhz"));
@@ -333,8 +344,19 @@ int cmdScreen(Device& d, const std::vector<std::string>& args) {
   if (args.size() == 1 && args[0] == "--live") return cmdLive(d);
   if (args.size() > 1) return fail("usage: zinc device [<device>] screen [file.png | --live]");
   std::string answer;
-  if (!request(d, Obj().str("op", "screen").done(), answer, true, 15000)) return 1;
-  return cmdPull(d, {Doc(answer).str("path"), args.empty() ? "screen.png" : args[0]});
+  std::unique_ptr<Chan> c = request(d, Obj().str("op", "screen").done(), answer, true, 15000);
+  if (!c) return 1;
+  const std::string file = args.empty() ? "screen.png" : args[0];
+  if (Doc(answer).str("format") == "png") {   // a player (ZN-792) sends the frame itself
+    std::string png, payload;
+    char type = 0;
+    while (recv(*c, type, payload, 30000) && type == kOut) png += payload;
+    if (type != kExit || !writePrivate(file, png)) return fail("the frame from " + d.name + " did not arrive whole");
+    std::printf("%s (%s)\n", file.c_str(), human(static_cast<long long>(png.size())).c_str());
+    return 0;
+  }
+  c.reset();
+  return cmdPull(d, {Doc(answer).str("path"), file});
 }
 
 int cmdPull(Device& d, const std::vector<std::string>& args) {
@@ -542,16 +564,58 @@ bool sourceProject(const std::string& path, const std::string& stage, std::strin
   return true;
 }
 
+// "0.6" of "0.6.2+52.g6feb1df0": the series whose engines run one another's bytecode (dev.cpp has the same).
+std::string seriesOf(const std::string& v) { return v.substr(0, v.find('.', v.find('.') + 1)); }
+
+
+// A player (a console, ZN-792) runs bytecode: the project packed here for its profile, the members of the .zapp sent (no native code: its
+// plugins are linked into it), then started and followed as any app.
+int deployPlayer(Device& d, const Doc& info, const std::string& path, std::string name, const Launch& l, const std::string& self, bool force) {
+  const std::string profile = info.str("profile"), there = info.str("engine"), here = zn::tc::version();
+  const std::string what = info.str("kind").empty() ? info.str("os") : info.str("kind");
+  if (there != here && seriesOf(there) != seriesOf(here) && !force)
+    return fail(d.name + " runs the player of zinc " + there + " and this computer zinc " + here + ": its bytecode may not run there. Install this zinc's player "
+                "on it (tools/build-console-core " + (profile.empty() ? std::string("<console>") : profile) + " --player), or --force tries anyway");
+  zn::log::step("device", d.name + " is a " + what + " player: packing for --profile " + (profile.empty() ? "of this machine" : profile) + " (bytecode, no native code)");
+  std::error_code ec;
+  std::string tmp = (fs::temp_directory_path(ec) / "zinc-deploy-XXXXXX").string(), archive, err;
+  if (!::mkdtemp(tmp.data())) return fail("cannot create a staging directory");
+  struct Gone { std::string dir; ~Gone() { std::error_code e; fs::remove_all(dir, e); } } gone{tmp};
+  std::vector<std::string> cmd = {self, "pack", path, "-o", tmp + "/app.zapp"};
+  if (!profile.empty()) { cmd.push_back("--profile"); cmd.push_back(profile); }
+  if (const int rc = spawnWait(cmd)) return rc;
+  std::map<std::string, std::string> files;
+  if (!readFile(tmp + "/app.zapp", archive) || !zn::zapp::untar(archive, files, err)) return fail("the packed project cannot be read: " + err);
+  std::vector<std::string> have = info.strs("plugins");
+  for (const auto& [member, bytes] : files) {   // native/<plugin>/...: what the program loads besides the engine
+    if (member.rfind("native/", 0) != 0) continue;
+    const std::string plugin = member.substr(7, member.find('/', 7) - 7);
+    if (std::find(have.begin(), have.end(), plugin) == have.end())
+      return fail("the program uses the plugin " + plugin + ", which the player on " + d.name + " does not have (it has: " + [&] { std::string h; for (const std::string& x : have) h += (h.empty() ? "" : ", ") + x; return h.empty() ? std::string("none") : h; }() + ")");
+  }
+  if (name.empty()) name = cleanName(Doc(files["manifest.json"]).str("name"));
+  const std::string app = tmp + "/" + name;
+  for (const auto& [member, bytes] : files) {
+    if (member == "manifest.json" || member.rfind("native/", 0) == 0) continue;
+    const fs::path to = fs::path(app) / member;
+    fs::create_directories(to.parent_path(), ec);
+    if (!writePrivate(to.string(), bytes)) return fail("cannot write " + to.string());
+  }
+  if (const int rc = install(d, app, name)) return rc;
+  return run(d, name, l);
+}
+
 // The project of `dir` installed and started on the device, its log followed: the loop of `zinc run`, on another machine. What is sent
 // follows from what the device is: sources for a Pi's installed engine, a .zapp for this system/architecture, else a native export.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true, pack = false, inspect = false, source = false;
+  bool follow = true, pack = false, inspect = false, source = false, force = false;
   std::string name, path = ".", target;
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
     else if (args[i] == "--pack") pack = true;
     else if (args[i] == "--inspect") inspect = true;
+    else if (args[i] == "--force") force = true;
     else if (args[i] == "--target" && i + 1 < args.size()) target = args[++i];
     else if (args[i] == "--name" && i + 1 < args.size()) name = args[++i];
     else path = args[i];
@@ -565,6 +629,11 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       std::string answer;
       if (!request(d, Obj().str("op", "info").done(), answer)) return 1;
       const Doc a(answer);
+      if (a.flag("player")) {
+        if (inspect) return fail(d.name + " is a player: no inspector on a console yet (deploy without --inspect)");
+        l.follow = follow;
+        return deployPlayer(d, a, path, name, l, self, force);
+      }
       struct utsname u{};
       ::uname(&u);
       const std::string os = a.str("os"), arch = a.str("arch"), kind = a.str("kind");
@@ -767,6 +836,11 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "deploy") return cmdDeploy(*d, args, self);
   if (op == "forward") return cmdForward(*d, args);
   if (op == "reverse") return cmdReverse(*d, args);
+  if (op == "shot" && !args.empty()) {   // a player has no inspector: the frame of its screen, which shows the app
+    std::string answer;
+    if (!request(*d, Obj().str("op", "info").done(), answer)) return 1;
+    if (Doc(answer).flag("player")) return cmdScreen(*d, {args.size() > 1 ? args[1] : args[0] + ".png"});
+  }
   if (op == "inspect" || op == "shot" || op == "monitor" || op == "top") return inspectCommand(*d, op, args, self);
   if (op == "apps") return simple(*d, "apps", "");
   if (op == "update") {   // the device fetches and checks (ota.cpp); a second answer when the download is done
