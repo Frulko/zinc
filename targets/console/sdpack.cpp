@@ -47,7 +47,7 @@ extern char** __system_argv;
 #endif
 }
 
-namespace zrt { size_t heap_used(); size_t heap_budget(); }   // the runtime's own heap, inside the C heap
+namespace zrt { size_t heap_used() __attribute__((weak)); size_t heap_budget() __attribute__((weak)); }   // the runtime's own heap, inside the C heap (weak: a --pure core has none)
 
 namespace {
 
@@ -264,7 +264,7 @@ void numbers() {
   snprintf(line, sizeof line, "zinc: sd packs: %lu entries read (%lu while a frame waited), %lu KB, %.1f ms each; %lu linked entries read ahead, %.1f ms each; %lu never taken, %lu without room; heap at most %lu of %lu KB (the runtime's %lu of %lu KB; largest free block at least %lu KB), linear memory free at least %lu KB\n",
            (unsigned long)reads, (unsigned long)waited, (unsigned long)(bytesRead / 1024), reads ? readMs / reads : 0.0, (unsigned long)linked,
            linked ? linkedMs / linked : 0.0, (unsigned long)dropped, (unsigned long)short_of, (unsigned long)(peakHeap / 1024), (unsigned long)(heap / 1024),
-           (unsigned long)(peakRt / 1024), (unsigned long)(zrt::heap_budget() / 1024),
+           (unsigned long)(peakRt / 1024), (unsigned long)((zrt::heap_budget ? zrt::heap_budget() : 0) / 1024),
            (unsigned long)(minLargest == (size_t)-1 ? 0 : minLargest / 1024), (unsigned long)(minLinear == (size_t)-1 ? 0 : minLinear / 1024));
   say(line);
 }
@@ -336,7 +336,7 @@ void sample() {
   used -= zn_console_heap_held();   // what hal_n3ds.cpp holds back to be an Old 3DS in the emulator
 #endif
   if (used > peakHeap) peakHeap = used;
-  if (zrt::heap_used() > peakRt) peakRt = zrt::heap_used();
+  if (zrt::heap_used && zrt::heap_used() > peakRt) peakRt = zrt::heap_used();
 #if defined(__3DS__)
   const size_t lf = linearSpaceFree();
   if (lf < minLinear) minLinear = lf;
