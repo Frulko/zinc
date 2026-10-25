@@ -103,17 +103,34 @@ release's plus three from Qt6Core (`QIODevice::write(QByteArray)`, `QRect::opera
 
 ## Install on the Paper Pro
 
+Keep each build that worked next to the one you install, so any of them comes back with one copy:
+
 ```sh
-scp dist/rmpp/appload-window.so root@10.11.99.1:/home/root/xovi/extensions.d/appload.so.new
+scp -O dist/rmpp/appload-window.so root@10.11.99.1:/home/root/xovi/appload.so.compact-0003   # staged, not active
 ssh root@10.11.99.1 '
-  cd /home/root/xovi/extensions.d &&
-  [ -f appload.so.0.6.0 ] || cp appload.so appload.so.0.6.0 &&
-  mv appload.so.new appload.so'
-ssh root@10.11.99.1 /home/root/xovi/start          # ONCE (it restarts xochitl); then wait for the UI
+  cd /home/root/xovi &&
+  [ -f appload.so.0.6.0 ] || cp extensions.d/appload.so appload.so.0.6.0 &&   # the release, once
+  cp extensions.d/appload.so appload.so.previous &&
+  cp appload.so.compact-0003 extensions.d/appload.so'
 ```
 
-Go back to 0.6.0: `cp appload.so.0.6.0 appload.so` in the same directory, then one `xovi/start`
-(see `docs/targets/remarkable-paper-pro.md`, "Safety rules").
+Then restart xochitl ONCE, through a guard that goes back to the stock UI at the first crash (never loop restarts: at most 2 in
+10 minutes; `docs/targets/remarkable-paper-pro.md`, "Safety rules"):
+
+```sh
+# /tmp/zn-guard.sh on the tablet
+/home/root/xovi/start
+for i in $(seq 1 45); do
+  sleep 1
+  n=$(systemctl show xochitl -p NRestarts --value); s=$(systemctl show xochitl -p ActiveState --value)
+  if [ "$n" != "0" ] || [ "$s" = "failed" ]; then echo "crash after ${i}s (NRestarts=$n state=$s): back to stock"; /home/root/xovi/stock; exit 1; fi
+done
+echo "alive 45s NRestarts=$n state=$s"
+```
+
+It prints `alive 45s NRestarts=0 state=active` when the UI came up; then read `journalctl -u xochitl --since -2min` for AppLoad or
+QML errors. Go back: copy `appload.so.previous` (or `appload.so.0.6.0`) over `extensions.d/appload.so`, then the guard again.
+The tablet of 2026-10-25 keeps `appload.so.0.6.0`, `appload.so.window-0001`, `appload.so.widgets-0002` and runs 0003.
 
 ## Upstream pull requests
 

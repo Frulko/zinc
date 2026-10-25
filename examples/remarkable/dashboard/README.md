@@ -19,6 +19,8 @@ zinc deploy examples/remarkable/dashboard --target rmpp   # install over ssh; la
 Controls: tap a task or a habit day to toggle it, **Start** / **Pause** runs the focus timer, write in the
 scratchpad with the pen (the mouse on the desktop). The shared `RemarkableBar` shows local time, battery, **Accueil** (back to the tablet's screen, the app keeps running) and **Quitter**. **Clear** empties the scratchpad, **Refresh** asks for a full refresh. Everything is saved as it changes (`zinc:storage`, keys `dashboard.*`): the tasks, the habits, the scratchpad and the time the focus timer ends, so the app comes back as it was after Accueil, Quitter or a restart, and the timer keeps running while it is closed. Fingers operate the controls, including while the pen hovers; only the pen draws.
 
+With the patched AppLoad (`integrations/remarkable-engine/appload`), Accueil leaves a widget on the tablet's screen: `DashboardWidget` (`src/components/panels.tsx`, 640x260) shows the focus timer with Start/Pause and the first three tasks, and what is ticked there is the app's state. A tap on the card's header folds it to the header alone while the timer keeps running; the open button brings the full dashboard back. `main.tsx` declares it with `RemarkableApp` of `zinc:remarkable` (`plugins/remarkable/README.md`).
+
 ## What to look at
 
 | File | Role |
