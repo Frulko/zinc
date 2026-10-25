@@ -1,4 +1,14 @@
-# Resume — 2026-10-24
+# Resume — 2026-10-25 (consoles night)
+
+- PSP/3DS GPU replay: linear gradients on the GPU (a85c9583), moved paths reuse their shape (55297d44); cores now call hal_shutdown at exit (7c61b5ed: the real 3DS XL crashed returning to the launcher; fix not yet confirmed on the console). Stereo sign fixed in setStereo docs and hardware-n3ds, new "3D object" page; 3DSX titles via --title (SMDH).
+- ZN-790 Done: examples/n3ds-pinball (Nova Patrol DS), n3ds-platformer (Meadow Run 3D), n3ds-starfall; tests/t1/n3ds_demos.sh.
+- ZN-791 Done: zinc:lan (polled UDP/TCP, plugins/lan, console Wi-Fi in targets/<c>/net_<c>.cpp) and examples/lan-arena (Paint Arena, raycaster, broadcast discovery). Proven in PPSSPP, Azahar, Vita3K against a Mac host; not on real Wi-Fi. tests/t0/lan.sh runs on the real clock (tests/run's virtual clock hung it).
+- ZN-792 Review: device player (src/agent/player.cpp): consoles (tools/build-console-core <c> --player; proven in the three emulators, 3DS re-proven after integration), Zinc Go on Android (proven on the Nexus 7) and the iOS simulator, a headless webOS player (tools/webos-player, not run: no novacomd). Needs the real consoles, an iPhone and the TouchPad.
+- On the 3DS SD card (/Volumes/DS/3ds/zinc): the three games, Orbit, Paint Arena, Zinc Player, Zinc Hardware, benches. PSP/Vita builds in ~/Documents/psp, ~/Documents/vita.
+- Azahar is shared: always `lockf -k /tmp/zinc-azahar.lock tools/console-run n3ds ...`.
+
+
+## 2026-10-24
 
 - CI 39998352254: publication blocked by stale lint goldens (4s); Windows archive omitted libzinc.dll.a; splash took 3724s. Added opt-in make preflight and manual mode=changed with explicit base, retaining full tag checks. Fixed lint expectations and archive copy filter. Owner requested removing splash from tests, then stopping validation to re-release: deleted tests/t1/splash.sh and its affected-test mapping, stopped the build/test process group. No automatic preflight in make release. Full preflight interrupted; earlier workflow, scope and regression checks passed. Report docs/reports/ci-preflight-2026-10-24.md. No push/release/dispatch or cross build.
 
