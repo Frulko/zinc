@@ -116,6 +116,13 @@ export function pixelScale(): i32 { return __host_gfxPixelScale(); }
 export function refreshDisplay(): boolean { return __host_sysDevice('display.refresh', 'full') === '1'; }
 /** Minimizes the app's window and shows the system's screen while the app keeps running (AppLoad on a reMarkable, with the window-state patch). false when the host cannot: quit instead, with the state saved. */
 export function minimizeWindow(): boolean { return __host_sysDevice('window.minimize', '') === '1'; }
+/** Declares the app's widget: the rectangle of its screen (pixels) the system shows, 1:1, when the app is shown as a widget (w or h 0
+ *  removes it). The app draws its widget there while windowState() is 'widget'. false when the host has no widgets. */
+export function setWidget(x: i32, y: i32, w: i32, h: i32): boolean { return __host_sysDevice('window.widget', `${x},${y},${w},${h}`) === '1'; }
+/** Shows the app as its widget (setWidget first): a small card over the system's screen, its taps go to the app. false when the host cannot. */
+export function showWidget(): boolean { return __host_sysDevice('window.show-widget', '') === '1'; }
+/** 'full', 'widget' or 'hidden' (minimized); 'full' on a host without window states. */
+export function windowState(): string { const s = __host_sysDevice('window.state', ''); return s === 'widget' || s === 'hidden' ? s : 'full'; }
 export function clear(color: u32): void { __host_gfxClear(color); }
 export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
 export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }

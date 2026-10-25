@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - The reMarkable dashboard example saves its tasks, habits, scratchpad and focus timer as they change: it comes back as it was, and the timer keeps running while the app is closed. Its scratchpad has Clear and Refresh buttons and writes in the fast pen mode.
+- reMarkable app widgets: wrap an app in `RemarkableApp` of `zinc:remarkable` with a small view (`widget={{ view, width, height }}`) and **Accueil** shows it as a card over the tablet's screen, its taps going to the running app; the dashboard example's widget has the focus timer and three tasks. Needs the patched AppLoad of `integrations/remarkable-engine/appload`.
 - reMarkable apps keep running in the background: the top bar of `zinc:remarkable` has an **Accueil** button next to **Quitter** that minimizes the app (`minimizeWindow()` of `zinc:gfx`; with an AppLoad that does not support it, it quits instead), and AppLoad's own `_` button now works on Zinc tiles (swipe down from the top).
 - Zinc hub: `zinc run app/hub-server -- --port 8787 --data <dir>` serves your apps to paired devices: `zinc publish --hub <url> --token <t>` uploads a version (the hub checks its signature, its SHA-256 and that it is newer), a device pairs with the code the hub prints and gets a catalog signed with the hub's key, and an admin page lists apps and devices and retracts a version.
 - Zinc Hub (`app/hub`), the app store of the reMarkable: set the hub server's address, pair with the code it prints, then install, update (checked at start), roll back and switch an app between stable and beta; each installed app gets its own AppLoad tile. A catalog, manifest or `.zapp` that does not match its signature or SHA-256, and a version older than the installed one, are refused with a message.
@@ -45,6 +46,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
 
 ### Fixed
+- The reMarkable top bar shows the battery level on the tablet (it showed "Battery —").
 - PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
 - Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
 - `zinc dev --device` and `zinc device deploy` to a console player refuse a JavaScript project (QuickJS) before sending it, with the reason, instead of "cannot read ./dev/program.zbc", and warn about each plugin the player lacks (`zinc lint --target <profile>`); on the console, a missing module is "not available on this device (profile n3ds)".

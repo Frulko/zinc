@@ -58,3 +58,21 @@ export function HabitsPanel(): i32 {
     {HABITS.map((name: string, i: i32) => <HabitRow name={name} habit={i} />)}
   </View>;
 }
+
+/** The widget Accueil leaves over the tablet's screen (zinc:remarkable RemarkableApp): the focus timer and the first three tasks, the
+ *  same signals as the full dashboard, so a task ticked here is ticked when the app opens again. */
+export function DashboardWidget(): i32 {
+  return <View className="flex-row grow gap-6 p-6 bg-white border-4 border-black rounded-xl">
+    <View className="flex-col justify-between">
+      <Text className={LABEL}>Focus</Text>
+      <Text className="text-[88px] font-bold text-black">{timerText()}</Text>
+      <Button className={PRIMARY_BUTTON} onClick={toggleTimer}>
+        <Text className={PRIMARY_LABEL}>{timerRunning() ? 'Pause' : 'Start'}</Text>
+      </Button>
+    </View>
+    <View className="flex-col grow gap-1">
+      <Text className={LABEL}>Today</Text>
+      {TASKS.slice(0, 3).map((text: string, i: i32) => <TaskRow text={text} index={i} />)}
+    </View>
+  </View>;
+}

@@ -1,7 +1,7 @@
 // dashboard: an e-ink friendly JSX app for the reMarkable Paper Pro. High contrast, big targets, no animation:
 // only what changes is redrawn (the clock once a minute, the timer once a second, a tapped task), so display-rmpp
 // refreshes small rectangles with its fast waveform and upgrades them once the screen is idle.
-import { RemarkableBar } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { refreshDisplay, quit } from 'zinc:gfx';
@@ -9,7 +9,7 @@ import * as storage from 'zinc:storage';
 import { InkCanvas, Ink, parseStrokes } from 'zinc:ink';
 import { PAGE, LABEL } from './eink';
 import { everySecond } from './state';
-import { ClockPanel, TimerPanel, TasksPanel, HabitsPanel } from './components/panels';
+import { ClockPanel, TimerPanel, TasksPanel, HabitsPanel, DashboardWidget } from './components/panels';
 
 // the scratchpad's strokes are saved with the rest of the state (zinc:storage; every 10 s when they changed, and on Accueil and Quitter)
 const scratch = new Ink();
@@ -57,4 +57,8 @@ function App(): i32 {
 setPressFeedback(false);
 setInterval(everySecond, 1000);
 setInterval(saveScratch, 10000);
-render(App, 0xffffff, null);
+/** Accueil shows the widget (the timer and three tasks) over the tablet's screen while the dashboard keeps running. */
+function Root(): i32 {
+  return <RemarkableApp app={App} widget={{ view: DashboardWidget, width: 900, height: 440 }} />;
+}
+render(Root, 0xffffff, null);

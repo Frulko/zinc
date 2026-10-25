@@ -95,6 +95,11 @@ state it sends after init (another AppLoad drops a client that sends the message
 false; Accueil then quits like Quitter). While the window is hidden the driver sends nothing; when it shows again the whole page goes
 out, then a full refresh.
 
+**Widgets**: with the second patch (`0002`), AppLoad can show a rectangle of the app's screen 1:1 as a card over xochitl, its taps
+going to the app. `zinc:remarkable`'s `RemarkableApp` declares it (`widget={{ view, width, height }}`) and Accueil shows it; the driver
+then sends only what changes inside the rectangle and asks for no automatic full refresh, and the card's open button brings the full
+window back (the whole page, then a full refresh). The patched AppLoad announces it in its device state (capabilities, bit 1).
+
 The desktop emulator retains the illustrative FAST/QUALITY/FULL policy in `eink.h`.
 Its `full_every`, `upgrade_ms` and `dither` options do **not** control the device backend.
 

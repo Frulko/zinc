@@ -64,6 +64,15 @@ if run again dashboard 30 - ZINC_RMPP_REFRESH_MODE=fast; then
   [ "$(first again)" != "$(first dashboard)" ] || { echo "again: the dashboard did not restore its saved state"; fail=1; }
   grep -q "^dashboard.tasks	00000$" "$tmp/again/storage.kv" || { echo "again: the saved tasks changed"; fail=1; }
 fi
+# the dashboard's widget (RemarkableApp of zinc:remarkable) with the widget AppLoad: Accueil shows it, only its rectangle is sent, a task
+# ticked in it is saved, and the full window comes back with the whole page and one full refresh
+if run widget dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=${WIDGET_TAPS:-40:1294,85;80:500,286}" \
+     ZN_RMPP_SIM_RESTORE=${WIDGET_RESTORE:-60} ${WIDGET_FULL:+ZN_RMPP_SIM_FULL=1}; then
+  [ -n "$WIDGET_FULL" ] && cp "$tmp/widget/out/glass.ppm" "$WIDGET_FULL"
+  has widget trace 1 "widget rect 0,0 900x440"; has widget trace 1 " widget$"; has widget trace 1 " restore"
+  has widget trace + "update PARTIAL 0,0 1620x2160"; has widget trace 1 "full refresh"
+  grep -q "^dashboard.tasks	01100$" "$tmp/widget/storage.kv" || { echo "widget: the task ticked in the widget was not saved: $(grep tasks "$tmp/widget/storage.kv")"; fail=1; }
+fi
 taps=
 
 # the automatic full refresh: after the notes demo's strokes and an idle pen, AppLoad 0.6 gets one; 0.5 (no device state) never

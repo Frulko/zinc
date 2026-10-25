@@ -465,6 +465,7 @@ The next backlog review turns lines into tasks or deletes them.
 ## Cross-platform pass
 
 - ZN-844: run app/web on the reMarkable Paper Pro and the Move (954x1696): pinch from AppLoad's touches, pen ink, link taps and Refresh.
+- ZN-844: compiler: in JSX, `{f()}` where `f: () => i32` is a component held in a variable or a field renders the element's handle as text ("98"), silently; `<F />` works. Either mount it or refuse it with a diagnostic (found in zinc:remarkable RemarkableApp).
 - ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.

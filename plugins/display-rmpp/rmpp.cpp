@@ -10,6 +10,7 @@
 // Touch comes from qtfb (evdev under L2 and on the rM2); evdev supplies Marker pressure, tilt and the eraser end.
 // Mode changes are explicit (drawing FAST / colour preview UI), never automatic per stroke.
 // Only changed RGB pixels are submitted; xochitl owns the physical refresh policy.
+#include <algorithm>
 #include "eink.h"
 #include "input.h"
 #include "models.h"
@@ -36,8 +37,9 @@
 
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
-                   MSG_WINDOW_STATE = 9 };   // 9: AppLoad with integrations/remarkable-engine/appload (minimize = 0, restore = 1)
-enum : int { REASON_VISIBILITY = 1 };
+                   MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };   // 9, 10: AppLoad with integrations/remarkable-engine/appload
+enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, CAN_WINDOW = 1, CAN_WIDGET = 2 };
+enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2 };   // also the visibility values: 0 minimized, 1 shown, 2 as its widget
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
@@ -62,6 +64,9 @@ bool full_asked = false;   // refreshDisplay() of zinc:gfx: a full refresh at th
 bool ghost_skip = true;     // the first page lands on a white panel: no ghost to count
 bool window_ok = false;     // AppLoad reports the window's visibility (reason 1), so it takes MSG_WINDOW_STATE; others drop the client
 bool hidden = false;        // the window is minimized: frames stay in the buffer, nothing is sent until it shows again
+bool widget_ok = false;     // AppLoad shows a rectangle of the buffer as the app's widget (capability bit 1, 0002 of the patch)
+bool as_widget = false;     // shown as the widget: only what changes inside the rectangle is sent
+eink::Rect widget = {};     // the rectangle, framebuffer pixels
 
 bool set_mode(int mode) {
   if (mode != MODE_FAST && mode != MODE_UI) return false;
@@ -119,10 +124,13 @@ void rm_poll(HalInput* in) {
     if (n != sizeof m || m.type == MSG_TERMINATE) { rin::quit_flag = 1; break; }
     if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) {
       full_refresh_ok = true;
+      if (m.state.reason == REASON_CAPABILITIES) { window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; }
       if (m.state.reason == REASON_VISIBILITY) {
         window_ok = true;
-        if (hidden && m.state.value) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }  // back: the whole page, then a full refresh
-        hidden = !m.state.value;
+        // back to the full window: the whole page, then a full refresh
+        if ((hidden || as_widget) && m.state.value == WINDOW_RESTORE) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }
+        hidden = m.state.value == WINDOW_MINIMIZE;
+        as_widget = m.state.value == WINDOW_WIDGET;
       }
     }
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
@@ -246,8 +254,13 @@ void rm_present(const HalFrame* f) {
   }
   eink::unite(pending, r);
   if (hidden) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
+  if (as_widget) {   // the rest of the page is not on the screen: what lies outside the widget waits for the full window
+    eink::Rect in = {std::max(pending.x0, widget.x0), std::max(pending.y0, widget.y0), std::min(pending.x1, widget.x1), std::min(pending.y1, widget.y1)};
+    if (eink::empty(in)) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
+    pending = in;
+  }
   uint64_t now = hal_time_us();
-  if (eink::empty(pending) && full_refresh_ok && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
+  if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
     if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + 1100000; }  // qtfb sleeps 1 s on this connection
   }
@@ -284,13 +297,32 @@ void rm_shutdown() {
 }
 
 // zinc:gfx refreshDisplay() asks for "display.refresh": "1" when this layer can do a full refresh (qtfb of AppLoad 0.6.0+, the ink session)
-// zinc:gfx minimizeWindow() asks for "window.minimize": "1" when AppLoad minimized the window (the app keeps running)
-const char* rm_device(const char* query, const char*) {
+bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m; }
+
+// zinc:gfx's window calls: "window.minimize" (minimizeWindow), "window.widget" with "x,y,w,h" (setWidget), "window.show-widget"
+// (showWidget): "1" when AppLoad did it, the app keeps running; "window.state": "full", "widget" or "hidden"
+const char* rm_device(const char* query, const char* arg) {
+  const bool qtfb = window_ok && sock >= 0 && (layer == L0 || layer == L1);
+  if (strcmp(query, "window.state") == 0) return hidden ? "hidden" : as_widget ? "widget" : "full";
   if (strcmp(query, "window.minimize") == 0) {
-    if (!window_ok || sock < 0 || layer == L2 || layer == RM2) return "0";
-    ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = 0;
-    if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) != sizeof m) return "0";
+    ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;
+    if (!qtfb || !send_msg(m)) return "0";
     hidden = true;   // at once: AppLoad's answer comes at the next poll, and a frame sent before it would land in a hidden window
+    return "1";
+  }
+  if (strcmp(query, "window.widget") == 0) {
+    int x = 0, y = 0, w = 0, h = 0;
+    if (!qtfb || !widget_ok || !arg || sscanf(arg, "%d,%d,%d,%d", &x, &y, &w, &h) != 4) return "0";
+    if (w > 0 && h > 0 && (x < 0 || y < 0 || x + w > panel.w || y + h > panel.h)) return "0";   // AppLoad drops a client for this
+    ClientMsg m = {}; m.type = MSG_SET_WIDGET; m.update.x = x; m.update.y = y; m.update.w = w; m.update.h = h;
+    if (!send_msg(m)) return "0";
+    widget = w > 0 && h > 0 ? eink::Rect{x, y, x + w, y + h} : eink::Rect{};
+    return "1";
+  }
+  if (strcmp(query, "window.show-widget") == 0) {
+    ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_WIDGET;
+    if (!qtfb || !widget_ok || eink::empty(widget) || !send_msg(m)) return "0";
+    as_widget = true;   // as for minimize: frames from now on are the widget's
     return "1";
   }
   if (strcmp(query, "display.refresh") != 0) return nullptr;
