@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-25 18:57'
-updated_date: '2026-10-25 19:25'
+updated_date: '2026-10-25 20:05'
 labels:
   - remarkable
   - size-L
@@ -41,4 +41,6 @@ Design (2026-10-25, agent worktree):
 
 Proof on the Mac: `sh integrations/remarkable-ink/build.sh` (official ferrari SDK 5.7.119, one-shot container) builds dist/zinc-canvas.so and dist/zinc-ink.so without warnings; zinc-canvas.so needs only Qt6 Core/Gui/Qml/Quick (qt_version_tag Qt_6.8, as the lane that XOVI loaded on 3.27). `sh tests/native/rmpp/fake-xochitl/run.sh`: 12/12 ok (the six lane scenarios, then canvas-install, canvas-load, canvas-stroke: Pen at the stroke start, paints 100,100 20x10 / 118,104 20x10 / 136,108 20x10 only, then UI and AppLoad's repaint of 100,100 56x18; canvas-crash, canvas-hash: one journal line, no socket, the lease's reopen answered "no"; canvas-reopen). `tests/run --only rmpp_sim` and `--only rmpp_lease` pass (a canvas run in rmpp_sim; the lease-sim checks the reopen record and the cleared crash mark).
 Status Review: the rest is the tablet (owner): one xovi/start, the journal, then ink, settle and reopen (steps in docs/targets/remarkable-paper-pro.md, "The ink canvas"). Tablet now on OS 3.29.0.153 with AppLoad 0.6.0 (coordinator, 2026-10-25): nothing here depends on the hashtab; the 3.29 libqsgepaper row for the lane is not added (later.md).
+
+Tablet, OS 3.29, 2026-10-25: canvas granted after the shm key fix (66cb9ecf), but the owner found it much worse than plain qtfb ufast (flashes everywhere: qtfb in UI mode at 8 Hz, UI-waveform repaint at each pen-up). Removed from extensions.d. Stays in Review: tune per backlog/later.md or retire.
 <!-- SECTION:NOTES:END -->

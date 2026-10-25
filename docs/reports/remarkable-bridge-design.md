@@ -480,3 +480,9 @@ numbers go to `docs/reports/zinc-next-perf.md`.
   (`swapBuffers(QRect, EPScreenMode, QFlags<UpdateFlag>)`), so Quill v0.1.0 cannot draw. Quill has no commit since 2026-07-12.
   It is patched in `integrations/remarkable-ink/quill`: the 3.27 signature first, then the new one. `quill-test` with the patched
   library and the 3.29 hash, under the lease: "le test marche toujours très bien" (owner). Pen mode 0 is unchanged.
+- zinc-canvas (ZN-839) on 3.29, 2026-10-25. First run: off ("qtfb buffer"): AppLoad 0.6.0 names its shared memory with a random
+  key, not QTFB_KEY (fixed in display-rmpp: the Hello carries the shm key). The app fell back to plain qtfb in ufast, 60 Hz partial
+  updates: "parfait" (owner). Second run, canvas granted: "beaucoup moins agréable et beaucoup de refresh de partout" (owner). The
+  driver puts qtfb in UI mode (8 Hz) while the canvas owns ink, and every pen-up repaints the stroke's box through AppLoad's item in
+  xochitl's UI waveform. Plain qtfb ufast beats the canvas as built; the canvas was taken out of extensions.d (kept in
+  /home/root/zinc-ink/dist). Fast ink with xochitl running is today qtfb ufast (L0); the lease + Quill (L2) for long sessions.
