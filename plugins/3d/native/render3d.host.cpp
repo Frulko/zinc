@@ -310,7 +310,7 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) __attribute__((weak)
 enum { WORLD_ASK = 64, WORLD_FREE = 16, WORLD_POINTS = 8 };
 struct WBatch { int32_t mesh; uint32_t kind, flags, color, emis, nemis; int32_t tex, ntex, cell; uint32_t cells, groups; const uint32_t* spans; };
 struct WChunk { int32_t level; char* name; bool loaded; float idle, need; WBatch* b; int32_t nb; uint32_t* spans; };
-struct WCell { float mn[3], mx[3], reach[2]; int32_t chunk[3]; int8_t shown; bool vis; float d; int16_t arc0, arcN; };
+struct WCell { float mn[3], mx[3], reach[2], diag; int32_t chunk[3]; int8_t shown; bool vis; float d; int16_t arc0, arcN; };
 // sector: the compass sector its faces look to, 16 up or down, 17 several (one colour lights a draw, render3d.psp.cpp); near: in the near
 // pass (Engine::worldSplit); out: metres from the eye to the farthest point of its cells' boxes
 enum { WORLD_MIXED = 17 };
@@ -340,8 +340,40 @@ static bool inFrustum(const float (*pl)[4], const float* mn, const float* mx) {
   return true;
 }
 static float wrapAngle(float a) { const float T = 6.2831853f; a = fmodf(a + 3.14159265f, T); if (a < 0) a += T; return a - 3.14159265f; }
+/** atan2 within 1.1e-5 radians (Abramowitz and Stegun 4.4.49): a few multiplications where a console's atan2f costs hundreds of cycles. */
+static float atan2Fast(float y, float x) {
+  const float ax = fabsf(x), ay = fabsf(y);
+  if (ax == 0 && ay == 0) return 0;
+  const float a = ax > ay ? ay / ax : ax / ay, s = a * a;
+  float r = a * (0.9998660f + s * (-0.3302995f + s * (0.1801410f + s * (-0.0851330f + s * 0.0208351f))));
+  if (ay > ax) r = 1.57079633f - r;
+  if (x < 0) r = 3.14159265f - r;
+  return y < 0 ? -r : r;
+}
 /** The sectors of the compass whose walls can face `eye` from somewhere in a box: the first and how many; count 16 (or more): all. */
+static void facingExact(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count);
 static void facing(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count) {
+  const float PAD = 4, PI = 3.14159265f, T = 6.2831853f, step = T / zn::zworld::kSectors;
+  *first = 0; *count = zn::zworld::kSectors;
+  if (eye[0] > mn[0] - PAD && eye[0] < mx[0] + PAD && eye[2] > mn[2] - PAD && eye[2] < mx[2] + PAD) return;
+  // facingExact's sectors from the fast angles; where an edge of the arc falls within a thousandth of a sector of a boundary (far more than
+  // the angles' error), facingExact itself decides, so the result is always facingExact's (5.1 ms of selection on the 3DS was 3 of this)
+  const float cx = (mn[0] + mx[0]) * 0.5f, cz = (mn[2] + mx[2]) * 0.5f, mid = atan2Fast(eye[2] - cz, eye[0] - cx);
+  float lo = 0, hi = 0;
+  const float xs[2] = {mn[0], mx[0]}, zs[2] = {mn[2], mx[2]};
+  for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
+    float d = atan2Fast(eye[2] - zs[j], eye[0] - xs[i]) - mid;
+    d = d > PI ? d - T : d < -PI ? d + T : d;
+    if (d > 3.0f || d < -3.0f) { facingExact(eye, mn, mx, first, count); return; }
+    lo = d < lo ? d : lo; hi = d > hi ? d : hi;
+  }
+  const float F = (mid + lo - PI * 0.5f + PI) / step, L = (mid + hi + PI * 0.5f + PI) / step, ff = floorf(F), fl = floorf(L);
+  if (F - ff < 1e-3f || F - ff > 1 - 1e-3f || L - fl < 1e-3f || L - fl > 1 - 1e-3f) { facingExact(eye, mn, mx, first, count); return; }
+  const int f = (int)ff, n = (int)fl - f + 1;
+  if (n >= (int)zn::zworld::kSectors) return;
+  *first = (int16_t)(((f % 16) + 16) % 16); *count = (int16_t)n;
+}
+static void facingExact(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count) {
   const float PAD = 4, PI = 3.14159265f, step = 6.2831853f / zn::zworld::kSectors;
   *first = 0; *count = zn::zworld::kSectors;
   if (eye[0] > mn[0] - PAD && eye[0] < mx[0] + PAD && eye[2] > mn[2] - PAD && eye[2] < mx[2] + PAD) return;
@@ -751,6 +783,8 @@ struct Engine : NativeRender3D {
       memset(&c, 0, sizeof c);
       for (int a = 0; a < 3; a++) { c.mn[a] = rdf(q + 4 * a); c.mx[a] = rdf(q + 12 + 4 * a); }
       c.reach[0] = rdf(q + 24); c.reach[1] = rdf(q + 28);
+      for (int a = 0; a < 3; a++) c.diag += (c.mx[a] - c.mn[a]) * (c.mx[a] - c.mn[a]);
+      c.diag = sqrtf(c.diag);   // the box's diagonal (WItem::out)
       for (int l = 0; l < 3; l++) { const int32_t k = (int32_t)rd32(q + 32 + 4 * l); c.chunk[l] = k >= 0 && (uint32_t)k < nk ? k : -1; }
       c.shown = -1;
     }
@@ -875,9 +909,7 @@ struct Engine : NativeRender3D {
     const uint32_t* s = b.spans + (size_t)(ci - b.cell) * g;
     const float split = worldSplit();
     const uint8_t nr = split > 0 && c.d < split;
-    float diag = 0;
-    for (int a = 0; a < 3; a++) diag += (c.mx[a] - c.mn[a]) * (c.mx[a] - c.mn[a]);
-    const float out = c.d + sqrtf(diag);
+    const float out = c.d + c.diag;
     auto push = [&](uint32_t from, uint32_t to, uint8_t sec) {
       if (to <= from) return;
       WItem* last = w->ni ? &w->items[w->ni - 1] : nullptr;
