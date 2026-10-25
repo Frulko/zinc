@@ -1,0 +1,102 @@
+// The hub server of ZN-842 (app/hub-server), seen from the tablet: pairing, the signed catalog, an app's signed manifest and its .zapp.
+// Nothing the server sends is trusted as is: the catalog must be signed by the key pinned at pairing, the manifest by the app's key that the
+// catalog lists, and the .zapp must have the SHA-256 of that manifest. Every refusal is an Error whose message is shown to the user.
+import * as net from 'zinc:net';
+import * as sys from 'zinc:sys';
+import { subtle } from 'zinc:subtle';
+import { unhex, sha256, safe, Manifest, parseManifest, verifyManifest } from '../../../hub-server/src/protocol';
+import { HubConfig } from './config';
+import { REQUEST_TIMEOUT_MS, MAX_ZAPP_BYTES } from '../constants';
+
+export class CatalogChannel {
+  channel: string = '';
+  version: string = '';
+  manifest: string = '';   // path on the server: apps/<id>/<channel>.manifest
+  url: string = '';        // path on the server: apps/<id>/<file>.zapp
+  sha256: string = '';
+}
+export class CatalogApp {
+  id: string = '';
+  key: string = '';        // the app's Ed25519 public key (hex)
+  channels: CatalogChannel[] = [];
+  channel(name: string): CatalogChannel | null { for (const c of this.channels) if (c.channel === name) return c; return null; }
+}
+
+function base(server: string): string { return server.endsWith('/') ? server.slice(0, server.length - 1) : server; }
+
+async function request(cfg: HubConfig, path: string, init: net.RequestInit): Promise<net.Response> {
+  init.timeoutMs = REQUEST_TIMEOUT_MS;
+  let r: net.Response;
+  try { r = await net.fetch(base(cfg.server) + '/' + path, init); }
+  catch (e) { throw new Error('Cannot reach the server ' + cfg.server + ' (' + e.message + '). Check its address and the network.'); }
+  if (r.status === 401) throw new Error('The server does not know this tablet any more: pair it again in Settings.');
+  if (r.status === 403 && path === 'pair') throw new Error('Wrong pairing code: type the code the server shows now.');
+  if (!r.ok) throw new Error('The server answered ' + r.status.toString() + ' for ' + path + '.');
+  return r;
+}
+async function get(cfg: HubConfig, path: string): Promise<net.Response> {
+  const h = new net.Headers();
+  h.set('Authorization', 'Bearer ' + cfg.token);
+  return await request(cfg, path, { headers: h, maxBytes: MAX_ZAPP_BYTES });
+}
+
+/** POST /pair: the server key and this device's token, or an Error. */
+export async function pair(cfg: HubConfig, code: string, device: string): Promise<void> {
+  const r = await request(cfg, 'pair', { method: 'POST', body: 'code=' + encodeURIComponent(code) + '&name=' + encodeURIComponent(device), contentType: 'application/x-www-form-urlencoded' });
+  const j = await r.json();
+  const key = '' + j.serverKey, token = '' + j.token;
+  if (key.length !== 64 || token.length === 0) throw new Error('The server did not answer like a Zinc hub.');
+  cfg.serverKey = key;
+  cfg.token = token;
+}
+
+/** The catalog, its signature checked against the pinned server key. */
+export async function catalog(cfg: HubConfig): Promise<CatalogApp[]> {
+  const text = await (await get(cfg, 'catalog.json')).text();
+  const sig = (await (await get(cfg, 'catalog.json.sig')).text()).trim();
+  const key = await subtle.importKey('raw', unhex(cfg.serverKey), { name: 'Ed25519' }, false, ['verify']);
+  if (sig.length !== 128 || !(await subtle.verify({ name: 'Ed25519' }, key, unhex(sig), sys.utf8Encode(text))))
+    throw new Error('Refused: the catalog is not signed by the server this tablet paired with. Someone may be in between; pair again only if you trust this server.');
+  const j = JSON.parse(text);
+  const apps: CatalogApp[] = [];
+  for (let i: i32 = 0; i < j.apps.length; i++) {
+    const a = j.apps[i];
+    const app = new CatalogApp();
+    app.id = '' + a.id; app.key = '' + a.key;
+    if (!safe(app.id)) continue;
+    for (let k: i32 = 0; k < a.channels.length; k++) {
+      const c = a.channels[k];
+      const ch = new CatalogChannel();
+      ch.channel = '' + c.channel; ch.version = '' + c.version; ch.manifest = '' + c.manifest; ch.url = '' + c.url; ch.sha256 = '' + c.sha256;
+      if (safe(ch.channel)) app.channels.push(ch);
+    }
+    apps.push(app);
+  }
+  return apps;
+}
+
+/** The file name of a channel's package (apps/<id>/notes-1.2.0.zapp -> notes-1.2.0.zapp). */
+export function fileOf(ch: CatalogChannel): string { return ch.url.slice(ch.url.lastIndexOf('/') + 1); }
+
+/** A downloaded package: its manifest (signature, app, channel and version checked) and its bytes (SHA-256 checked). */
+export class Download {
+  manifest: Manifest = new Manifest();
+  zapp: u8[] = [];
+}
+export async function download(cfg: HubConfig, app: CatalogApp, ch: CatalogChannel): Promise<Download> {
+  const d = new Download();
+  const text = await (await get(cfg, ch.manifest)).text();
+  const m = parseManifest(text);
+  d.manifest = m;
+  if (!(await verifyManifest(m, app.key)))
+    throw new Error('Refused: the manifest of ' + app.id + ' is not signed by its publisher. It was altered; nothing was installed.');
+  if (m.get('app') !== app.id || m.get('channel') !== ch.channel || m.get('version') !== ch.version || m.get('sha256') !== ch.sha256 || m.get('url') !== fileOf(ch))
+    throw new Error('Refused: the server offers ' + app.id + ' ' + ch.version + ' but sends the manifest of ' + m.get('app') + ' ' + m.get('version') + '. Nothing was installed.');
+  if (!safe(m.get('url')) || !m.get('url').endsWith('.zapp')) throw new Error('Refused: the manifest of ' + app.id + ' names no .zapp file.');
+  const zapp = await (await get(cfg, ch.url)).bytes();
+  d.zapp = zapp;
+  const sum = await sha256(zapp);
+  if (sum !== m.get('sha256'))
+    throw new Error('Refused: ' + m.get('url') + ' does not match the SHA-256 its publisher signed. It was altered; nothing was installed.');
+  return d;
+}

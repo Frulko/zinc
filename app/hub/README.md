@@ -1,0 +1,38 @@
+# Zinc Hub
+
+The app store of the reMarkable Paper Pro: it pairs with a hub server (`app/hub-server`), lists its apps, installs, updates and rolls them
+back, and gives each installed app its own AppLoad tile (`zinc-tile` of the engine on the tablet). Black on white, large targets, no
+animation; the on-screen keyboard types the server address and the pairing code.
+
+## Run it
+
+```sh
+zinc run app/hub-server -- --data hub-data          # on the Mac: prints the server key and a pairing code
+zinc publish <app> --key <seed> --hub http://127.0.0.1:8787 --token "$(cat hub-data/publisher.token)"
+zinc run app/hub                                    # the e-ink emulator at 1620x2160 (or the tablet, below)
+```
+
+On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, copy `hub.zapp` to `/home/root/zinc-apps`, then
+`/home/root/zinc/bin/zinc-tile /home/root/zinc-apps/hub.zapp` and reload AppLoad. In **Settings**, set the server (the Mac is
+`http://10.11.99.2:8787` over USB), type the pairing code and check that the server key shown starts like the one the server printed.
+
+## What it checks
+
+- The catalog is signed by the server key pinned at pairing; the app's manifest by the app's key the catalog lists; the `.zapp` has the
+  manifest's SHA-256; the manifest is the version the catalog offers. Any mismatch is refused with a message, and nothing is replaced.
+- An update never goes to an older or equal version (a server cannot downgrade an app). **Rollback** puts back the package the last update
+  replaced (its SHA-256 checked again); **Update** brings the newer one back.
+- Each app follows **stable** or **beta** (the Channel button when the server has both). Updates are checked at start.
+
+## Files
+
+| Path | What |
+| --- | --- |
+| `~/.zinc/hub/hub.conf` (`ZINC_HUB_DIR`) | server, server key, device token (mode 600), the channel of each app |
+| `~/.zinc/hub/apps/<id>/` | `installed`, `previous` and `previous.zapp` (what Rollback brings back) |
+| `~/zinc-apps/<name>.zapp` (`ZINC_HUB_APPS`) | the installed package, the one its tile `zinc-<name>` runs |
+| `~/zinc/bin/zinc-tile` (`ZINC_HUB_TILE`) | makes the tile; absent on a desktop, where installing makes no tile |
+
+`src/`: `main.tsx` (the shell), `state.ts` (the actions), `services/server.ts` (pairing, catalog, download and their checks),
+`services/installs.ts` (install, rollback, tiles), `services/config.ts`, `pages/`, `components/`, `script.ts` (`ZINC_HUB_SCRIPT`, the test
+mode of `tests/t1/hub_app.sh`). The signature, SHA-256 and version code is `app/hub-server/src/protocol.ts`, shared with the server.

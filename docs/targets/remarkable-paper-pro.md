@@ -361,6 +361,9 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   lease `zinc-app` sets `ZINC_RMPP_INK=session`, `HOME` and the library path (the engine's `lib/`, then `/usr/lib/plugins/scenegraph`).
 - `ZINC_RMPP_DIR` gives `deploy.sh` another directory for a trial beside an installed engine. Proven on the Mac by `tests/run --only rmpp_engine`
   (the bundle's layout, the tiles and their launchers against stand-ins).
+- **The hub** (`app/hub`, ZN-843; `app/hub/README.md`): an app with its own tile that pairs with a hub server (`app/hub-server`), checks the
+  catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
+  previous package for Rollback and calls `zinc-tile` for the app's tile.
 
 ## What is verified and what is not
 

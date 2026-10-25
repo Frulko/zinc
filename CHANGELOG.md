@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Zinc hub: `zinc run app/hub-server -- --port 8787 --data <dir>` serves your apps to paired devices: `zinc publish --hub <url> --token <t>` uploads a version (the hub checks its signature, its SHA-256 and that it is newer), a device pairs with the code the hub prints and gets a catalog signed with the hub's key, and an admin page lists apps and devices and retracts a version.
+- Zinc Hub (`app/hub`), the app store of the reMarkable: set the hub server's address, pair with the code it prints, then install, update (checked at start), roll back and switch an app between stable and beta; each installed app gets its own AppLoad tile. A catalog, manifest or `.zapp` that does not match its signature or SHA-256, and a version older than the installed one, are refused with a message.
 - `crypto.subtle` (`zinc:subtle`) signs and verifies with Ed25519: `importKey('raw' | 'raw-private', ..., { name: 'Ed25519' })`, `generateKeyPair`, `sign` and `verify`.
 - A `zinc:net` server accepts request bodies up to 64 MiB (was 1 MiB), and `req.rawBody` gives a binary upload byte for byte.
 - reMarkable Paper Pro: zinc runs on the tablet itself. `tools/rmpp-engine` makes the engine bundle and its `deploy.sh` installs it in /home/root/zinc; there `zinc run app.zapp` draws through AppLoad or, from a `zinc-tile --session` tile, through the display lease, and `zinc pack` packs a project with no compiler on the tablet. `zinc-tile app.zapp` adds the app's AppLoad tile.
