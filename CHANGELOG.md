@@ -14,6 +14,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The pinball demos share `examples/pinball-kit`: Box2D for Nova Patrol and Nova Patrol DS, Jolt for the 3D tables, reusable table geometry and validation, and a fixed simulation clock with ball interpolation. New graphics console cores link Box2D too; existing cores need rebuilding.
 - Refreshed pinball cabinets: clearer score panels and launch instructions, Kenney CC0 ball and spark sprites, darker Tidal Lock art, and mechanical bumper and slingshot recoil.
 - `tools/build-console-core <psp|vita|n3ds> --aot <project>` compiles the program into the console build instead of interpreting it (PSP, PS Vita, 3DS): about 1.8 times faster program code, and a smaller binary.
+- `examples/swift-observatory` builds a macOS SwiftUI app with a live embedded Zinc scene, native speed/pause controls and two-way object selection.
 
 - Native hosts can drive one Zinc program offscreen through a C surface API, with input, resize, pause and premultiplied alpha output.
 - Debug and measure a paired device from your computer: `zinc dev --device <name>` puts the program's inspector on `localhost:9229` here (open `chrome://inspect`), `zinc device <name> profile <app>` runs the app with the frame profiler and brings back its summary and its trace (for Perfetto or `chrome://tracing`), `zinc device <name> bench` runs the render benchmark suite there and writes its JSON here, and `zinc device <name> deploy --no-run` installs without starting.
