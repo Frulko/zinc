@@ -7,6 +7,7 @@ Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 want=tests/golden/host/lan.out
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+unset ZINC_DETERMINISTIC   # tests/run's virtual clock stands still in the program's busy waits for the network: the real one
 timeout 60 "$Z" run -q tests/golden/host/lan.ts > "$tmp/native" 2>&1; diff -q "$tmp/native" $want >/dev/null || { echo "zinc:lan: the native engine differs"; diff "$tmp/native" $want | head; fail=1; }
 timeout 60 "$Z" run -q --interp tests/golden/host/lan.ts > "$tmp/interp" 2>&1; diff -q "$tmp/interp" $want >/dev/null || { echo "zinc:lan: the interpreter differs"; diff "$tmp/interp" $want | head; fail=1; }
 command -v cmake >/dev/null 2>&1 || { [ $fail -eq 0 ] && echo "zinc:lan: ok (no cmake: the console core is not tried)"; exit $fail; }
