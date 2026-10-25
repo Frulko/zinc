@@ -1,6 +1,6 @@
 // zinc:subtle — Web Crypto (crypto.subtle) beyond digest, on PSA / mbedTLS through the host (src/host/crypto.cpp): HMAC, AES-GCM / AES-CBC / AES-CTR, PBKDF2, HKDF,
-// ECDSA and ECDH on P-256. Zinc Next only (the prototype's lib/std/web.ts has digest). Keys import and export as 'raw' (an EC private key as 'raw-private', its 32-byte
-// scalar); jwk, pkcs8, spki and RSA are not supported. generateKey makes a symmetric key, generateKeyPair (not in the Web Crypto API) an EC pair.
+// ECDSA and ECDH on P-256, Ed25519 (Monocypher, src/host/ed25519.cpp). Zinc Next only (the prototype's lib/std/web.ts has digest). Keys import and export as 'raw' (an EC private key as 'raw-private', its 32-byte
+// scalar, an Ed25519 private key as 'raw-private', its 32-byte seed); jwk, pkcs8, spki and RSA are not supported. generateKey makes a symmetric key, generateKeyPair (not in the Web Crypto API) an EC or Ed25519 pair.
 import { op as cryptoOp } from 'zinc:__crypto';
 import { DOMException } from 'zinc:web';
 
@@ -58,6 +58,11 @@ export class FullSubtleCrypto {
   async importKey(format: string, keyData: u8[], algorithm: Algorithm, extractable: boolean, usages: string[]): Promise<CryptoKey> {
     const name = algorithm.name.toUpperCase();
     if (format === 'raw' || format === 'raw-private') {
+      if (name === 'ED25519') {
+        if (keyData.length !== 32) throw new DOMException('an Ed25519 key is 32 bytes', 'DataError');
+        if (format === 'raw-private') return new CryptoKey('private', extractable, algorithm, usages, op('ed25519-public', keyData, NONE, NONE, NONE, 0, 0), keyData);
+        return new CryptoKey('public', extractable, algorithm, usages, keyData, NONE);
+      }
       if (name === 'ECDH' || name === 'ECDSA') {
         if (algorithm.namedCurve !== 'P-256') throw new DOMException('only P-256', 'NotSupportedError');
         if (format === 'raw-private') return new CryptoKey('private', extractable, algorithm, usages, op('ec-public', keyData, NONE, NONE, NONE, 0, 0), keyData);
@@ -92,7 +97,12 @@ export class FullSubtleCrypto {
   }
   async generateKeyPair(algorithm: Algorithm, extractable: boolean, usages: string[]): Promise<CryptoKeyPair> {
     const name = algorithm.name.toUpperCase();
-    if ((name !== 'ECDSA' && name !== 'ECDH') || algorithm.namedCurve !== 'P-256') throw new DOMException('ECDSA or ECDH on P-256 only', 'NotSupportedError');
+    if (name === 'ED25519') {
+      const seed = op('random', NONE, NONE, NONE, NONE, 32, 0);
+      const pk = op('ed25519-public', seed, NONE, NONE, NONE, 0, 0);
+      return new CryptoKeyPair(new CryptoKey('public', true, algorithm, ['verify'], pk, NONE), new CryptoKey('private', extractable, algorithm, usages, pk, seed));
+    }
+    if ((name !== 'ECDSA' && name !== 'ECDH') || algorithm.namedCurve !== 'P-256') throw new DOMException('ECDSA or ECDH on P-256, or Ed25519', 'NotSupportedError');
     const both = op('ec-generate', NONE, NONE, NONE, NONE, 0, 0);
     const pub = both.slice(32);
     return new CryptoKeyPair(new CryptoKey('public', true, algorithm, name === 'ECDSA' ? ['verify'] : [], pub, NONE), new CryptoKey('private', extractable, algorithm, usages, pub, both.slice(0, 32)));
@@ -100,6 +110,7 @@ export class FullSubtleCrypto {
   async sign(algorithm: Algorithm, key: CryptoKey, data: u8[]): Promise<u8[]> {
     const name = algorithm.name.toUpperCase();
     if (name === 'HMAC') { need(key, 'sign', 'HMAC'); return op('hmac:' + hashName(key.algorithm.hash), key.data, data, NONE, NONE, 0, 0); }
+    if (name === 'ED25519') { need(key, 'sign', 'ED25519'); return op('ed25519-sign', key.priv, data, NONE, NONE, 0, 0); }
     if (name === 'ECDSA') { need(key, 'sign', 'ECDSA'); return op('ecdsa-sign:' + hashName(algorithm.hash), key.priv, data, NONE, NONE, 0, 0); }
     throw new DOMException('Unrecognized algorithm name', 'NotSupportedError');
   }
@@ -113,6 +124,7 @@ export class FullSubtleCrypto {
       for (let i = 0; i < mac.length; i++) diff |= mac[i] ^ signature[i];
       return diff === 0;
     }
+    if (name === 'ED25519') { need(key, 'verify', 'ED25519'); return op('ed25519-verify', key.data, data, signature, NONE, 0, 0)[0] === 49; }
     if (name === 'ECDSA') { need(key, 'verify', 'ECDSA'); return op('ecdsa-verify:' + hashName(algorithm.hash), key.data, data, signature, NONE, 0, 0)[0] === 49; }
     throw new DOMException('Unrecognized algorithm name', 'NotSupportedError');
   }

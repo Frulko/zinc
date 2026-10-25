@@ -1,7 +1,8 @@
 #pragma once
 // The crypto behind crypto.subtle (ZN-089), on the PSA API of TF-PSA-Crypto (third_party/mbedtls). One entry point: an operation name and byte arguments in, the result
 // bytes out (a failure sets `err`). Names: digest:<alg>, hmac:<alg>, pbkdf2:<alg>, hkdf:<alg>, aes-gcm-encrypt/decrypt, aes-cbc-encrypt/decrypt, aes-ctr,
-// ec-generate, ec-public, ecdsa-sign:<alg>, ecdsa-verify:<alg>, ecdh, random. <alg> is sha-1, sha-256, sha-384 or sha-512.
+// ec-generate, ec-public, ecdsa-sign:<alg>, ecdsa-verify:<alg>, ecdh, random,
+// and without PSA ed25519-public, ed25519-sign, ed25519-verify (Monocypher, ed25519.cpp; a private key is its 32-byte seed). <alg> is sha-1, sha-256, sha-384 or sha-512.
 #include <string>
 
 namespace zn::crypto {

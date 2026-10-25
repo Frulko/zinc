@@ -143,7 +143,9 @@ declare module 'zinc:net' {
   /** HTTP(S) request (libcurl on hosts, esp_http_client on esp32): follows redirects, decodes gzip / br.
    *  Rejects with 'fetch failed: ECONNREFUSED' / 'ENOTFOUND' / 'timeout' / 'response too large' / the libcurl message. */
   export function fetch(url: string, init?: RequestInit): Promise<Response>;
-  export interface Request { method: string; path: string; body: string; headers: Headers }
+  /** body: the request body as text (invalid UTF-8 repaired); rawBody: the same bytes unchanged, for a binary upload: read it with
+   *  utf8Encode (byte for byte) or store it with fs.writeText, never through other string operations. */
+  export interface Request { method: string; path: string; body: string; headers: Headers; rawBody: string }
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
   /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. */
   export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): void;

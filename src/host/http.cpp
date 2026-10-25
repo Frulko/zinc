@@ -300,7 +300,7 @@ void startConnection(Fetch* f) {
 }
 
 // ---------------------------------------------------------------- server
-constexpr size_t kHeadCap = 16384, kBodyCap = 1u << 20, kConnCap = 32;
+constexpr size_t kHeadCap = 16384, kBodyCap = 64u << 20, kConnCap = 32;   // kBodyCap: an upload as large as the largest fetch body (a .zapp sent to app/hub-server, ZN-842)
 constexpr uint64_t kIdleMs = 10000;
 
 struct SConn {
@@ -413,7 +413,7 @@ void onConnection(uv_stream_t* srv, int status) {
     auto* k = static_cast<SConn*>(p->data);
     k->msg.flush();
     k->complete = true;
-    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + k->msg.head + '\x1e' + k->msg.body);
+    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
     return static_cast<int>(HPE_PAUSED);
   };
   llhttp_init(&c->parser, HTTP_REQUEST, &c->settings);

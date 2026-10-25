@@ -55,5 +55,15 @@ async function main(): Promise<void> {
   console.log('ecdh agree', toHex(s1) === toHex(s2), s1.length);
   const aes = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
   console.log('aes key', (await subtle.exportKey('raw', aes)).length);
+
+  const ed = { name: 'Ed25519' };
+  const edk = await subtle.importKey('raw-private', hex('4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb'), ed, false, ['sign']);
+  const edp = await subtle.importKey('raw', hex('3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c'), ed, true, ['verify']);
+  check('ed25519 rfc8032-2 public', edk.data, '3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c');
+  const eds = await subtle.sign(ed, edk, hex('72'));
+  check('ed25519 rfc8032-2 sign', eds, '92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00');
+  console.log('ed25519 verify', await subtle.verify(ed, edp, eds, hex('72')), await subtle.verify(ed, edp, eds, hex('73')));
+  const edpair = await subtle.generateKeyPair(ed, true, ['sign']);
+  console.log('ed25519 pair', await subtle.verify(ed, edpair.publicKey, await subtle.sign(ed, edpair.privateKey, text('message')), text('message')));
 }
 main();

@@ -1,8 +1,18 @@
 #include "crypto.h"
 
+namespace zn::crypto {
+std::string ed25519(const std::string& op, const std::string& a, const std::string& b, const std::string& c, bool& handled, std::string& err);   // ed25519.cpp
+}
+
 #ifdef ZN_NO_TLS
 namespace zn::crypto {
-std::string run(const std::string&, const std::string&, const std::string&, const std::string&, const std::string&, int, int, std::string& err) { err = "this build has no crypto (ZN_TLS=OFF)"; return std::string(); }
+std::string run(const std::string& op, const std::string& a, const std::string& b, const std::string& c, const std::string&, int, int, std::string& err) {
+  err.clear();
+  bool handled = false;
+  std::string out = ed25519(op, a, b, c, handled, err);
+  if (!handled) err = "this build has no crypto (ZN_TLS=OFF)";
+  return out;
+}
 }  // namespace zn::crypto
 #else
 
@@ -87,6 +97,9 @@ std::string cipher(psa_algorithm_t alg, bool encrypt, const std::string& key, co
 
 std::string run(const std::string& op, const std::string& a, const std::string& b, const std::string& c, const std::string& d, int n, int m, std::string& err) {
   err.clear();
+  bool handled = false;
+  std::string ed = ed25519(op, a, b, c, handled, err);
+  if (handled) return ed;
   if (!ready()) return fail(err, "crypto: PSA did not start", PSA_ERROR_BAD_STATE);
   std::string head;
   std::string arg = split(op, head);

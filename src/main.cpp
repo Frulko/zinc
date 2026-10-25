@@ -3062,10 +3062,12 @@ int main(int argc, char** argv) {
     // verified. --url is where the channel is when zinc.json's update.url is not: an address the app keeps with its content (ZN-650.11)
     namespace fs = std::filesystem;
     const bool publish = !std::strcmp(argv[1], "publish");
-    std::string dir = ".", key, channel, notes, outDir, urlArg;
+    std::string dir = ".", key, channel, notes, outDir, urlArg, hub, hubToken;
     bool checkOnly = false;
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "--key") && k + 1 < argc) key = argv[++k];
+      else if (publish && !std::strcmp(argv[k], "--hub") && k + 1 < argc) hub = argv[++k];   // ZN-842: upload to app/hub-server
+      else if (publish && !std::strcmp(argv[k], "--token") && k + 1 < argc) hubToken = argv[++k];
       else if (!publish && !std::strcmp(argv[k], "--url") && k + 1 < argc) urlArg = argv[++k];
       else if (!std::strcmp(argv[k], "--channel") && k + 1 < argc) channel = argv[++k];
       else if (!std::strcmp(argv[k], "--notes") && k + 1 < argc) notes = argv[++k];
@@ -3096,6 +3098,21 @@ int main(int argc, char** argv) {
       const fs::path mf = fs::path(outDir) / (channel + ".manifest");
       std::ofstream(mf) << signedText;
       std::printf("published %s %s on %s: %s, %s\n", name.c_str(), version.c_str(), channel.c_str(), zapp.c_str(), mf.string().c_str());
+      if (hub.empty()) return 0;
+      // --hub: POST <hub>/publish, the body the signed manifest then the .zapp (X-Manifest-Length bytes of manifest), the app's public key beside it;
+      // the token goes to curl in a header file, never on a command line that ps shows. The hub checks the signature, the SHA-256 and the version.
+      if (hubToken.empty()) { std::fprintf(stderr, "zinc publish: --hub needs --token <the hub's publisher token>\n"); return 2; }
+      std::ifstream zf(zapp, std::ios::binary);
+      const std::string body = signedText + std::string((std::istreambuf_iterator<char>(zf)), std::istreambuf_iterator<char>());
+      const fs::path up = fs::path(outDir) / ".hub-upload", hd = fs::path(outDir) / ".hub-headers";
+      { std::ofstream(up, std::ios::binary) << body; }
+      { std::ofstream h(hd); fs::permissions(hd, fs::perms::owner_read | fs::perms::owner_write, ec);
+        h << "Authorization: Bearer " << hubToken << "\nX-Manifest-Length: " << signedText.size() << "\nX-App-Key: " << proj.updateKey << "\nContent-Type: application/octet-stream\n"; }
+      const std::string target = hub + (hub.back() == '/' ? "" : "/") + "publish";
+      const int rc = zn::plat::run({"curl", "-sS", "--fail-with-body", "--max-time", "600", "-X", "POST", "-H", "@" + hd.string(), "--data-binary", "@" + up.string(), target});
+      fs::remove(up, ec); fs::remove(hd, ec);
+      std::printf("\n");
+      if (rc != 0) { std::fprintf(stderr, "zinc publish: the hub %s refused the upload (curl exit %d)\n", target.c_str(), rc); return 1; }
       return 0;
     }
     if (proj.updateUrl.empty()) { std::fprintf(stderr, "zinc update-app: zinc.json update.url is where the channel manifests are\n"); return 2; }

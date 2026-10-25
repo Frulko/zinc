@@ -1,0 +1,5 @@
+{
+  "name": "hub-server",
+  "entry": "src/main.ts",
+  "app": { "id": "dev.zinc.hub-server", "version": "0.1.0" }
+}

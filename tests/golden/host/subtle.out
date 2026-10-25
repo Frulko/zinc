@@ -16,3 +16,7 @@ ok   ecdh p-256 rfc5903
 ecdsa 64 true false
 ecdh agree true 32
 aes key 32
+ok   ed25519 rfc8032-2 public 
+ok   ed25519 rfc8032-2 sign 
+ed25519 verify true false
+ed25519 pair true
