@@ -1,0 +1,37 @@
+#!/bin/sh
+# Read-only probe of a reMarkable Paper Pro over USB (docs/reports/remarkable-bridge-design.md §9 T1): never stops, restarts
+# or changes xochitl. `info` prints what every run logs (OS, model, AppLoad and XOVI, vendor hash, xochitl's unit and
+# restarts); `draw [seconds]` reads xochitl's journal while you draw and prints the qtfb update rate, the FB Repaint rate and
+# the median paint interval, the counters of docs/reports/rmpp-latency-2026-09-29.md.
+# usage: tools/rmpp-probe info|draw [seconds] [host]   (host: $RMPP_HOST or root@10.11.99.1)
+set -e
+cmd=${1:-info}; secs=${2:-20}; host=${3:-${RMPP_HOST:-root@10.11.99.1}}
+r() { ssh -o ConnectTimeout=5 "$host" "$@"; }
+case $cmd in
+info)
+  r 'cat /etc/version 2>/dev/null; grep -h -E "^(IMG_VERSION|REMARKABLE_RELEASE_VERSION)=" /usr/share/remarkable/update.conf /etc/os-release 2>/dev/null
+     echo "model: $(tr -d "\0" < /proc/device-tree/model 2>/dev/null)"; uname -r; systemctl --version | head -1
+     lib=$(find / -xdev -name libqsgepaper.so 2>/dev/null | head -1); echo "libqsgepaper: $lib $(sha256sum "$lib" 2>/dev/null | cut -d" " -f1)"
+     echo "xovi extensions:"; ls /home/root/xovi/extensions.d 2>/dev/null
+     echo "appload:"; ls /home/root/xovi/exthome/appload 2>/dev/null; strings /home/root/xovi/extensions.d/appload.so 2>/dev/null | grep -m1 -E "^v?[0-9]+\.[0-9]+\.[0-9]+$"
+     systemctl show xochitl -p NRestarts -p Result -p ActiveState -p StartLimitBurst -p StartLimitIntervalUSec -p WatchdogUSec
+     systemctl cat xochitl rm-emergency 2>/dev/null | grep -v "^$"' ;;
+draw)
+  since=$(r 'date +%s'); echo "draw now for ${secs}s (fast strokes) ..."; sleep "$secs"
+  r "journalctl -u xochitl --since @$since -o short-unix --no-pager" | python3 -c '
+import sys, statistics
+upd, rep = [], []
+for l in sys.stdin:
+    t = l.split(" ", 1)[0]
+    try: t = float(t)
+    except ValueError: continue
+    if "Updated region" in l: upd.append(t)
+    elif "FB Repaint" in l: rep.append(t)
+span = float(sys.argv[1])
+print(f"qtfb updates: {len(upd)} ({len(upd)/span:.1f}/s), FB repaints: {len(rep)} ({len(rep)/span:.1f}/s)")
+iv = [(b - a) * 1000 for a, b in zip(rep, rep[1:]) if b - a < 0.5]
+if iv: print(f"median paint interval while drawing: {statistics.median(iv):.1f} ms (min {min(iv):.1f}, max {max(iv):.1f}, n={len(iv)})")
+else: print("no repaint pairs under 500 ms: did AppLoad log them (journalctl -u xochitl) and did you draw?")
+' "$secs" ;;
+*) echo "usage: tools/rmpp-probe info|draw [seconds] [host]" >&2; exit 2 ;;
+esac
