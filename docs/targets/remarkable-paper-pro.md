@@ -78,10 +78,11 @@ Configuration (settings are compiled into each app; environment override is read
 
 `refresh_mode`: `fast` or `ui`; `ZINC_RMPP_REFRESH_MODE=fast|ui` overrides the initial mode.
 
-**Full refresh**: partial updates leave ghosts, the fast waveforms most. The driver adds up their area and, once it reaches
-`full_after_pct` percent of the panel (400: four screens; 0 turns it off) and nothing has changed for `full_idle_ms` (1500) with the
-pen up, it asks for one full refresh. The first page is not counted. `ZINC_RMPP_FULL_AFTER_PCT` and `ZINC_RMPP_FULL_IDLE_MS`
-override them at launch. An app asks for one itself with `refreshDisplay()` of `zinc:gfx` (Notes' Refresh button): it returns
+**Full refresh**: partial updates leave ghosts, the fast waveforms most. The driver counts them and adds up their area; once the
+area reaches `full_after_pct` percent of the panel (100: one screen) or the count `full_after_updates` (300: about 30 s of writing,
+a stroke being many small updates; 0 turns either off), and nothing has changed for `full_idle_ms` (1500) with the pen up, it asks for
+one full refresh. The first page is not counted. `ZINC_RMPP_FULL_AFTER_PCT`, `ZINC_RMPP_FULL_AFTER_UPDATES` and
+`ZINC_RMPP_FULL_IDLE_MS` override them at launch. An app asks for one itself with `refreshDisplay()` of `zinc:gfx` (Notes' Refresh button): it returns
 true when the display does it at its next idle frame, false elsewhere. On qtfb this needs AppLoad 0.6.0 or later, recognised by
 the device state it sends after init (0.5 drops a client that asks); the ink session swaps the whole panel in colour.
 Frequency knobs are clamped to 1–125 Hz. Desktop controls preview UI state only, not device timing.

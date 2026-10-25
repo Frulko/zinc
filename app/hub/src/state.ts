@@ -3,7 +3,10 @@ import { createSignal } from 'zinc:ui/solid';
 import { newer } from '../../hub-server/src/protocol';
 import { HubConfig, loadConfig, saveConfig } from './services/config';
 import { CatalogApp, catalog, download, pair, fileOf } from './services/server';
-import { installed, previous, install, rollback, nameOf } from './services/installs';
+import * as fs from 'zinc:fs';
+import * as sys from 'zinc:sys';
+import { quit } from 'zinc:gfx';
+import { installed, previous, install, rollback, nameOf, livePath } from './services/installs';
 import { STABLE, DEVICE_NAME } from './constants';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
@@ -115,6 +118,17 @@ export async function installApp(id: string): Promise<void> {
 
 export async function rollbackApp(id: string): Promise<void> {
   await run(async (): Promise<string> => { const message = await rollback(id); rebuildRows(); return message; });
+}
+
+/** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. */
+export function openApp(id: string): void {
+  const i = installed(id);
+  if (i === null) { say(id + ' is not installed.'); return; }
+  const next = sys.env('ZINC_NEXT');
+  if (next === '') { say('Open ' + i.name + ' from AppLoad: reload it, then tap ' + i.name + '.'); return; }
+  fs.writeText(next, livePath(i.name));
+  say('Opening ' + i.name + '.');
+  quit();
 }
 
 /** Follows the stable or the beta channel for an app; Update then offers that channel's version. */

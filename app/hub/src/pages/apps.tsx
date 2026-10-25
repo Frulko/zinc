@@ -1,6 +1,6 @@
-// Apps: the catalog of the server with what is installed, one row per app: Install, Update, Rollback and the channel.
+// Apps: the catalog of the server with what is installed, one row per app: Open, Install, Update, Rollback and the channel.
 import { SECTION, TITLE, LABEL, SMALL, STABLE } from '../constants';
-import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel } from '../state';
+import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 
 function versionLine(r: AppRow): string {
@@ -19,6 +19,7 @@ function Row(props: { row: AppRow }): i32 {
     </View>
     <Text className={LABEL}>{versionLine(r)}</Text>
     <View className="flex-row gap-6">
+      {r.installed !== '' ? <SolidButton label="Open" onClick={() => openApp(r.id)} /> : null}
       {r.installed === '' && r.available !== '' ? <SolidButton label="Install" onClick={() => installApp(r.id)} /> : null}
       {r.updatable ? <SolidButton label={`Update to ${r.available}`} onClick={() => installApp(r.id)} /> : null}
       {r.canRollback ? <OutlineButton label={`Rollback to ${r.previous}`} onClick={() => rollbackApp(r.id)} /> : null}

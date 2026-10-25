@@ -34,22 +34,28 @@ struct Update { Rect r; Mode mode; };
 #endif
 
 #ifndef ZP_DISPLAY_RMPP_FULL_AFTER_PCT
-#define ZP_DISPLAY_RMPP_FULL_AFTER_PCT 400
+#define ZP_DISPLAY_RMPP_FULL_AFTER_PCT 100
+#endif
+#ifndef ZP_DISPLAY_RMPP_FULL_AFTER_UPDATES
+#define ZP_DISPLAY_RMPP_FULL_AFTER_UPDATES 300
 #endif
 #ifndef ZP_DISPLAY_RMPP_FULL_IDLE_MS
 #define ZP_DISPLAY_RMPP_FULL_IDLE_MS 1500
 #endif
 
 /** The device's automatic full refresh (qtfb, Quill): partial updates leave ghosts, the fast waveforms most. Once their area adds up
- *  to `full_after_pct` percent of the panel (0: never) and nothing changed for `full_idle_ms` with the pen up, one full refresh
- *  clears them. ZINC_RMPP_FULL_AFTER_PCT and ZINC_RMPP_FULL_IDLE_MS override the project's values (the engine on the tablet). */
-struct Ghost { int64_t area = 0; uint64_t last_us = 0; };
+ *  to `full_after_pct` percent of the panel or their count to `full_after_updates` (a pen stroke is many small ones; 0 turns either
+ *  off), and nothing changed for `full_idle_ms` with the pen up, one full refresh clears them. ZINC_RMPP_FULL_AFTER_PCT,
+ *  ZINC_RMPP_FULL_AFTER_UPDATES and ZINC_RMPP_FULL_IDLE_MS override the project's values (the engine on the tablet). */
+struct Ghost { int64_t area = 0; int32_t updates = 0; uint64_t last_us = 0; };
 inline int env_or(const char* name, int fallback) { const char* v = getenv(name); return v ? atoi(v) : fallback; }
-inline void ghost_add(Ghost& g, int64_t a, uint64_t now_us) { if (a > 0) { g.area += a; g.last_us = now_us; } }
+inline void ghost_add(Ghost& g, int64_t a, uint64_t now_us) { if (a > 0) { g.area += a; g.updates++; g.last_us = now_us; } }
 inline bool ghost_due(const Ghost& g, int64_t screen, uint64_t now_us, bool pen_down) {
   static const int pct = env_or("ZINC_RMPP_FULL_AFTER_PCT", ZP_DISPLAY_RMPP_FULL_AFTER_PCT);
+  static const int count = env_or("ZINC_RMPP_FULL_AFTER_UPDATES", ZP_DISPLAY_RMPP_FULL_AFTER_UPDATES);
   static const int idle_ms = env_or("ZINC_RMPP_FULL_IDLE_MS", ZP_DISPLAY_RMPP_FULL_IDLE_MS);
-  return pct > 0 && !pen_down && g.area > 0 && g.area * 100 >= screen * pct && now_us - g.last_us >= (uint64_t)idle_ms * 1000;
+  const bool enough = (pct > 0 && g.area * 100 >= screen * pct) || (count > 0 && g.updates >= count);
+  return enough && !pen_down && g.area > 0 && now_us - g.last_us >= (uint64_t)idle_ms * 1000;
 }
 
 struct Panel {

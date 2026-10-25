@@ -54,6 +54,11 @@ grep -qx "$live" "$tmp/tile.log" 2>/dev/null || { echo "zinc-tile was not called
 out=$("$Z" run "$live" 2>&1); echo "$out" | grep -q 'hello from' || { echo "the installed app does not run: $out" | tail -5; fail=1; }   # what its tile runs
 grep -qx "serverKey=$serverkey" "$tmp/hub/hub.conf" && [ "$(stat -f %Lp "$tmp/hub/hub.conf" 2>/dev/null || stat -c %a "$tmp/hub/hub.conf")" = 600 ] \
   || { echo "hub.conf: $(ls -l "$tmp/hub/hub.conf"; cat "$tmp/hub/hub.conf")"; fail=1; }
+# Open: with the tile's launcher (ZINC_NEXT) the hub names the package and quits; without it, it says to use AppLoad
+export ZINC_NEXT=$tmp/next; app "open com.example.notes"; unset ZINC_NEXT
+[ "$(cat "$tmp/next" 2>/dev/null)" = "$live" ] || { echo "Open did not hand $live to the launcher: $(cat "$tmp/next" 2>/dev/null)"; fail=1; }
+app "open com.example.notes"
+expect 'Open notes from AppLoad'
 grep -q 'test-tablet' "$tmp/data/devices.txt" || { echo "the server does not list the tablet"; fail=1; }
 
 # 1.1.0: announced by the check at start, then updated; 1.0.0 kept for rollback
