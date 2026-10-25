@@ -11,9 +11,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - PSP, PS Vita and Nintendo 3DS: zinc:3d (meshes, lights, textures, `render()`) runs in the console cores; it drew nothing there before.
 - New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
+- PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, vertical and horizontal gradients, images, sprites and text. A frame with a radial gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
+
+## [0.8.0] - 2026-10-25
+
+### Added
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 - PS Vita: `tools/build-console-core vita --vitagl` builds a core that draws everything on the GPU through vitaGL (rounded corners, gradients, shadows and paths included); the default GXM core stays faster for games. It needs `libshacccg.suprx` extracted on the console (ShaRKBR33D); without it the core draws in software.
-- PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, vertical and horizontal gradients, images, sprites and text. A frame with a radial gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
+- PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, images, sprites and text. A frame with a gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
 - zinc:hardware's `setStereo` documentation and the hardware-n3ds demo shift a thing in front of the screen right for the left eye; they said the opposite, so near things looked behind the screen. The demo has a new "3D object" page: a cube turning half out of the screen among stars and orbiting balls, its pivot tilted with the circle pad, L and R moving it in depth.
 - Nintendo 3DS: `tools/build-console-core n3ds --title NAME` names the app in the Homebrew Launcher; every core was called "zinc-core" there.
 - Nintendo 3DS: the console core draws zinc:gfx frames on the PICA200 through citro3d, the same way as the PSP, both eyes of stereoscopic 3D and the bottom screen included. `ZINC_N3DS_GPU=0` keeps the software path.
@@ -589,7 +594,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.7.6...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.8.0...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -608,3 +613,4 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 [0.7.4]: https://github.com/Frulko/zinc/compare/v0.7.3...v0.7.4
 [0.7.5]: https://github.com/Frulko/zinc/compare/v0.7.4...v0.7.5
 [0.7.6]: https://github.com/Frulko/zinc/compare/v0.7.5...v0.7.6
+[0.8.0]: https://github.com/Frulko/zinc/compare/v0.7.6...v0.8.0
