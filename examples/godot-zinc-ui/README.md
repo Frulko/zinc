@@ -73,4 +73,36 @@ GODOT="$GODOT" ZINC_CAPTURE="$PWD/examples/godot-zinc-ui/preview.png" \
   tests/run --tier demo --only godot_zinc_ui_visual
 ```
 
-No GPU completion latency or memory/performance claim has been measured.
+The finite performance probe uses ordinary game frames, with the 3D parcel still
+animating. `idle` keeps the Zinc UI unchanged; `active` cycles inventory through
+0..8 each frame. Gameplay keyboard input is disabled during the probe. Run the two
+workloads alone, in a disposable project copy containing `bin/` and the imported
+extension cache, with `override.cfg` set to prevent focus theft:
+
+```ini
+[display]
+window/size/no_focus=true
+```
+
+```sh
+"$GODOT" --path /path/to/disposable/godot -- --bench-frames 330 --bench-workload idle
+"$GODOT" --path /path/to/disposable/godot -- --bench-frames 330 --bench-workload active
+GODOT="$GODOT" examples/godot-zinc-ui/bench-smoke.sh
+```
+
+`--bench-frames` accepts 300..360 total frames; the first 30 are warmup, so 330
+produces 300 samples. Each run exits cleanly after one `workflow bench json: `
+record with schema 1, raw microsecond samples and nearest-rank p50/p99, upload
+count, renderer, window/viewport/surface sizes and render draw/primitive counts.
+`workflow ready` marks the first `frame_post_draw` on a real renderer.
+`first_ready_us` starts at scene-script initialization, excluding process launch
+and engine initialization; an external launcher must measure end-to-end startup.
+
+`step_us` measures the main-thread `ZincControl.step()` call, including CPU texture
+upload submission. `process_us` samples Godot's `Performance.TIME_PROCESS` monitor
+for the preceding process frame; it is neither CPU utilization nor total process
+CPU time. `interval_us` is wall time between normal process callbacks, including
+frame pacing; it does not claim uncapped maximum FPS. Neither timing waits for
+GPU completion. RSS and physical footprint require the external process sampler.
+The headless smoke validates the schema, exact sample/upload counts and finite
+exit; its timings are discarded and are not graphical performance evidence.

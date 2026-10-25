@@ -6,6 +6,17 @@ var parcels: Array[MeshInstance3D] = []
 var inventory = 0
 var used = 0
 var tick = 0
+var bench_frames = 0
+var bench_mode = "idle"
+var bench_step_us: Array = []
+var bench_interval_us: Array = []
+var bench_process_us: Array = []
+var bench_previous_us = 0
+var bench_uploads = 0
+var bench_started = false
+var bench_ready_us = 0
+var bench_launch_us = Time.get_ticks_usec()
+const BENCH_WARMUP = 30
 
 func box(at: Vector3, dimensions: Vector3, color: Color) -> MeshInstance3D:
     var item = MeshInstance3D.new()
@@ -43,7 +54,23 @@ func _ready():
     assert(zinc.start(), "Zinc runtime failed to start")
     get_viewport().size_changed.connect(_layout)
     _layout()
-    if "--self-test" in OS.get_cmdline_user_args():
+    var args = OS.get_cmdline_user_args()
+    if "--bench-frames" in args:
+        var index = args.find("--bench-frames")
+        if index + 1 >= args.size() or not args[index + 1].is_valid_int():
+            push_error("--bench-frames requires 300..360 total frames")
+            get_tree().quit(2)
+            return
+        bench_frames = int(args[index + 1])
+        index = args.find("--bench-workload")
+        if index >= 0:
+            bench_mode = args[index + 1] if index + 1 < args.size() else ""
+        if bench_frames < 300 or bench_frames > 360 or bench_mode not in ["idle", "active"]:
+            push_error("benchmark requires 300..360 frames and idle|active mode")
+            get_tree().quit(2)
+            return
+        call_deferred("_bench_ready")
+    elif "--self-test" in args:
         call_deferred("_self_test")
     elif "--visual-proof" in OS.get_cmdline_user_args():
         call_deferred("_visual_proof")
@@ -58,9 +85,17 @@ func gameplay_allowed() -> bool:
 
 func _process(delta):
     tick += 1
+    var frame_start_us = Time.get_ticks_usec()
+    if bench_frames > 0 and bench_started:
+        if bench_mode == "active":
+            inventory = tick % 9
+        if tick > BENCH_WARMUP:
+            bench_interval_us.append(frame_start_us - bench_previous_us)
+            bench_process_us.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000000.0)
+        bench_previous_us = frame_start_us
     if not parcels.is_empty():
         parcels[0].rotation.y += delta * 0.5
-    if gameplay_allowed():
+    if bench_frames == 0 and gameplay_allowed():
         var direction = Vector3(float(Input.is_physical_key_pressed(KEY_RIGHT))-float(Input.is_physical_key_pressed(KEY_LEFT)),0,float(Input.is_physical_key_pressed(KEY_DOWN))-float(Input.is_physical_key_pressed(KEY_UP)))
         courier.position += direction * delta * zinc.get_speed()
         if Input.is_physical_key_pressed(KEY_SPACE):
@@ -78,7 +113,54 @@ func _process(delta):
         for parcel in parcels:
             parcel.visible = true
     zinc.set_inventory(inventory)
+    var step_start_us = Time.get_ticks_usec()
     zinc.step()
+    if bench_frames > 0 and bench_started:
+        if tick == BENCH_WARMUP:
+            bench_uploads = zinc.get_uploads()
+        if tick > BENCH_WARMUP:
+            bench_step_us.append(Time.get_ticks_usec() - step_start_us)
+        if tick >= bench_frames:
+            set_process(false)
+            call_deferred("_bench_finish")
+
+func _bench_ready():
+    if DisplayServer.get_name() != "headless":
+        await RenderingServer.frame_post_draw
+        bench_ready_us = Time.get_ticks_usec() - bench_launch_us
+        print("workflow ready")
+    tick = 0
+    bench_started = true
+
+func _bench_stats(values: Array) -> Dictionary:
+    var ordered = values.duplicate()
+    ordered.sort()
+    return {"count": ordered.size(), "p50": ordered[int(ceil(ordered.size() * 0.50)) - 1], "p99": ordered[int(ceil(ordered.size() * 0.99)) - 1]}
+
+func _bench_finish():
+    # Wait for the last measured submission to be rendered before shutting down.
+    if DisplayServer.get_name() != "headless":
+        await RenderingServer.frame_post_draw
+    var viewport_size = get_viewport().get_visible_rect().size
+    var window_size = DisplayServer.window_get_size()
+    print("workflow bench json: " + JSON.stringify({
+        "schema": 1, "host": "godot-warehouse", "workload": bench_mode,
+        "renderer": DisplayServer.get_name(), "godot_version": Engine.get_version_info().string,
+        "warmup_frames": BENCH_WARMUP, "total_frames": bench_frames,
+        "first_ready_us": bench_ready_us, "clock_scope": "scene script initialization to first frame_post_draw; excludes process launch and engine initialization",
+        "window_size": [window_size.x, window_size.y],
+        "viewport_size": [viewport_size.x, viewport_size.y],
+        "surface_size": [zinc.size.x, zinc.size.y],
+        "step_us": bench_step_us, "step_stats_us": _bench_stats(bench_step_us),
+        "interval_us": bench_interval_us, "frame_interval_stats_us": _bench_stats(bench_interval_us),
+        "process_us": bench_process_us, "process_stats_us": _bench_stats(bench_process_us),
+        "uploads": zinc.get_uploads() - bench_uploads,
+        "render_draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+        "render_primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+        "boundaries": "step_us is main-thread Zinc step including CPU texture upload submission; process_us is Godot TIME_PROCESS (previous process frame), not total process CPU; intervals are paced process callback wall times, not uncapped maximum FPS; no GPU completion timing"
+    }))
+    zinc.stop()
+    get_tree().quit()
 
 func pickup():
     for parcel in parcels:
