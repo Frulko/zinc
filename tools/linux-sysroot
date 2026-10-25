@@ -107,7 +107,13 @@ def install(arch, home):
                 if os.path.islink(p) and os.readlink(p).startswith("/"):
                     target = os.path.join(tmp, os.readlink(p).lstrip("/"))
                     os.remove(p); os.symlink(os.path.relpath(target, d), p)
-        # laid over what is there: a sysroot may hold libraries copied from a device by hand (FFmpeg, docs/reports/raspberry-pi.md)
+        # laid over what is there: a sysroot may hold libraries copied from a device by hand (FFmpeg, docs/reports/raspberry-pi.md); copytree
+        # will not write a link over an existing one (an update of the lock), so those go first
+        for d, dirs, files in os.walk(tmp):
+            for n in files + dirs:   # a link to a directory is listed with the directories
+                p = os.path.join(d, n)
+                dest = os.path.join(root, os.path.relpath(p, tmp))
+                if os.path.islink(p) and os.path.lexists(dest): os.remove(dest)
         shutil.copytree(tmp, root, symlinks=True, dirs_exist_ok=True)
         open(stamp, "w").write(want + "\n")
     finally:
