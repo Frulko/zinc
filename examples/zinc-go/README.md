@@ -25,7 +25,7 @@ zinc device shot <app> shot.png              # the frame on the phone's screen
 ```
 
 Without Wi-Fi, over USB: `adb forward tcp:7733 tcp:7733`, then `zinc device pair 127.0.0.1 <code>`. "Pair another computer" on the home
-screen gives a new code. The phone announces itself over mDNS (Android takes the Wi-Fi multicast lock for it), so `zinc device list`
-finds it; on iOS pair with the address. The program stops when the app leaves the screen.
+screen gives a new code. The phone announces itself over mDNS (Android takes the Wi-Fi multicast lock for it, iOS goes through Bonjour), so
+`zinc device list` finds it. The program stops when the app leaves the screen.
 
 A store release of your own app is AOT and has none of this; see `docs/guide/07-distribution.md` and `docs/reports/zinc-next-zinc-go.md`.

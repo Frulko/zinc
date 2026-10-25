@@ -48,6 +48,8 @@
 #if !(defined(__APPLE__) && TARGET_OS_IPHONE)
 #include "net/dnssd.h"
 #define ZN_PLAYER_MDNS 1
+#else
+#include <dns_sd.h>   // iOS: the system's Bonjour (raw multicast sockets need an entitlement Apple grants on request)
 #endif
 #include "zn/app.h"
 #include "zn/host.h"
@@ -101,6 +103,8 @@ std::string gAgentPacks;            // the packs/ of the program that runs, moun
 std::string gAgentShown;            // what the home screen shows of the agent: it starts again when this changes
 #ifdef ZN_PLAYER_MDNS
 zn::dnssd::Responder gMdns;
+#else
+DNSServiceRef gBonjour = nullptr;
 #endif
 
 // ---- the connection to zinc dev
@@ -318,6 +322,15 @@ void agentOpen() {
         return zn::dnssd::Txt{{"id", id}, {"v", "1"}, {"os", os}, {"kind", kind}, {"pair", zn::agent::playerPairing(gAgent) ? "1" : "0"}};
       }))
     std::fprintf(stderr, "zinc go: no multicast here: pair with the address (zinc device pair %s %s)\n", p.address.c_str(), p.code.c_str());
+#else
+  TXTRecordRef txt;   // ponytail: the pairing flag of the moment it starts; zinc device pair takes the address the list gives either way
+  TXTRecordCreate(&txt, 0, nullptr);
+  const auto put = [&](const char* k, const std::string& v) { TXTRecordSetValue(&txt, k, static_cast<uint8_t>(v.size()), v.data()); };
+  put("id", p.id); put("v", "1"); put("os", p.os); put("kind", p.kind); put("pair", zn::agent::playerPairing(p) ? "1" : "0");
+  if (DNSServiceRegister(&gBonjour, 0, 0, p.name.c_str(), "_zinc._tcp", nullptr, nullptr, htons(static_cast<uint16_t>(p.port)), TXTRecordGetLength(&txt),
+                         TXTRecordGetBytesPtr(&txt), nullptr, nullptr) != kDNSServiceErr_NoError)
+    std::fprintf(stderr, "zinc go: Bonjour refused the announce: pair with the address (zinc device pair %s %s)\n", p.address.c_str(), p.code.c_str());
+  TXTRecordDeallocate(&txt);
 #endif
 }
 

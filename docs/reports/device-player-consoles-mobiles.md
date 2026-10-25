@@ -311,11 +311,11 @@ local network permission prompt, Bonjour on a real Wi-Fi); Android's `MulticastL
 
 ### iOS (step 10): done in the simulator
 
-- The same code in the iOS export (`zinc export examples/zinc-go --target ios --ipa --simulator`); no mDNS on iOS (raw multicast needs
-  Apple's entitlement: `DNSServiceRegister` is the next step), so a phone is paired by its address. `NSLocalNetworkUsageDescription` comes
-  from Zinc Go's `net` permission.
+- The same code in the iOS export (`zinc export examples/zinc-go --target ios --ipa --simulator`); the announce goes through the system's
+  Bonjour (`DNSServiceRegister`: raw multicast needs an entitlement on iOS), with `NSBonjourServices = [_zinc._tcp]` in a player's
+  Info.plist; `NSLocalNetworkUsageDescription` comes from Zinc Go's `net` permission. The TXT record's pairing flag is the one at start.
 - Proven in the iPhone 17 simulator (iOS 26.3): pair on 127.0.0.1, `info` (`ios`, 13 plugins), `deploy examples/hello` (identical to `zinc
-  run --profile ios`), `deploy examples/rn-showcase` and its shot, `stop` back to the home screen (which shows "Paired with ...").
+  run --profile ios`), `deploy examples/rn-showcase` and its shot, `stop` back to the home screen (which shows "Paired with ..."), `zinc device list` finding `ios-e39b` through Bonjour.
 - Not proven: an iPhone. The owner's step: `ZINC_IOS_TEAM=<team id> zinc export examples/zinc-go --target ios --ipa -o dist/zinc-go-ios`,
   install the .ipa (Xcode, Devices and Simulators), start it, allow the local network, then `zinc device pair <address> <code>`.
 

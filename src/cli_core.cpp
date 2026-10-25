@@ -1841,6 +1841,10 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
     else if (f == "bluetooth") usage += key("NSBluetoothAlwaysUsageDescription", display + " talks to Bluetooth devices.");
   }
   for (const char* k : {"NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSLocationWhenInUseUsageDescription", "NSLocalNetworkUsageDescription", "NSBluetoothAlwaysUsageDescription"}) if (usage.find(k) != std::string::npos) taken.insert(k);
+  if (proj.player) {   // a player announces itself as a device of zinc device (ZN-792, src/app/player.cpp's DNSServiceRegister)
+    usage += "\t<key>NSBonjourServices</key>\n\t<array>\n\t\t<string>_zinc._tcp</string>\n\t</array>\n";
+    taken.insert("NSBonjourServices");
+  }
   if (!proj.app.urlSchemes.empty()) {   // zinc.json app.urlSchemes: the app opens their links (deep links, zinc:system open-url)
     usage += "\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLName</key>\n\t\t\t<string>" + android::xml(id) + "</string>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>\n";
     for (const std::string& s : proj.app.urlSchemes) usage += "\t\t\t\t<string>" + android::xml(s) + "</string>\n";
