@@ -1,6 +1,7 @@
 {
   "name": "notes",
   "entry": "src/main.tsx",
+  "app": { "id": "dev.zinc.notes", "version": "0.1.0", "icon": "icon.svg" },
   "display": {
     "driver": "rmpp",
     "refresh_mode": "fast"

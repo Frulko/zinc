@@ -27,6 +27,7 @@ scratchpad with the pen (the mouse on the desktop). The shared `RemarkableBar` s
 | `src/state.ts` | clock, timer, tasks and habits as signals; toggles return new arrays |
 | `src/components/panels.tsx` | clock, timer, tasks and habits panels; rows built with inline `.map()` |
 | `src/eink.ts` | the e-ink class vocabulary (black on white, 2 px outlines, big sizes) |
+| `icon.svg` | the AppLoad tile's icon (zinc.json `app.icon`): Lucide's `layout-dashboard`, lucide-static 0.462.0, ISC licence (https://lucide.dev/license) |
 
 The light kit (`zinc:ui/kit`) is deliberately not used here: its soft greys and shadows ghost on e-paper.
 See [docs/targets/remarkable-paper-pro.md](../../../docs/targets/remarkable-paper-pro.md) for the display pipeline.

@@ -23,16 +23,20 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 - An update never goes to an older or equal version (a server cannot downgrade an app). **Rollback** puts back the package the last update
   replaced (its SHA-256 checked again); **Update** brings the newer one back.
 - Each app follows **stable** or **beta** (the Channel button when the server has both). Updates are checked at start.
+- Each row shows the app's icon (the `icon.png` that `zinc pack` puts in the package from zinc.json `app.icon`): the server lists it with its
+  SHA-256 in the signed catalog, the hub caches it and checks it against that hash; an app without one, or whose icon does not match, shows
+  a framed initial.
 
 ## Files
 
 | Path | What |
 | --- | --- |
 | `~/.zinc/hub/hub.conf` (`ZINC_HUB_DIR`) | server, server key, device token (mode 600), the channel of each app |
-| `~/.zinc/hub/apps/<id>/` | `installed`, `previous` and `previous.zapp` (what Rollback brings back) |
+| `~/.zinc/hub/apps/<id>/` | `installed`, `previous` and `previous.zapp` (what Rollback brings back), `icon.png` (the list's icon) |
 | `~/zinc-apps/<name>.zapp` (`ZINC_HUB_APPS`) | the installed package, the one its tile `zinc-<name>` runs |
 | `~/zinc/bin/zinc-tile` (`ZINC_HUB_TILE`) | makes the tile; absent on a desktop, where installing makes no tile |
 
 `src/`: `main.tsx` (the shell), `state.ts` (the actions), `services/server.ts` (pairing, catalog, download and their checks),
 `services/installs.ts` (install, rollback, tiles), `services/config.ts`, `pages/`, `components/`, `script.ts` (`ZINC_HUB_SCRIPT`, the test
 mode of `tests/t1/hub_app.sh`). The signature, SHA-256 and version code is `app/hub-server/src/protocol.ts`, shared with the server.
+`icon.svg` (zinc.json `app.icon`) is Lucide's `layout-grid` (lucide-static 0.462.0, ISC licence, https://lucide.dev/license), drawn black at stroke width 2.5.

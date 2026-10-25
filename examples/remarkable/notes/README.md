@@ -37,6 +37,7 @@ Pages are saved to `/home/root/zinc-notes` on the tablet, `notes-data/` in the w
 | `src/notebook.ts` | the `Ink` surface, pages, tool / colour / width state, load / save / export |
 | `src/components/toolbar.tsx` | tool buttons, colour swatches, page navigation, status line |
 | `src/demo.ts` | the `NOTES_DEMO=1` replay: a spiral and two waves fed through the live pen path |
+| `icon.svg` | the AppLoad tile's icon (zinc.json `app.icon`): Lucide's `notebook-pen`, lucide-static 0.462.0, ISC licence (https://lucide.dev/license) |
 
 See [docs/targets/remarkable-paper-pro.md](../../../docs/targets/remarkable-paper-pro.md) for the e-ink refresh
 strategy and the device setup.

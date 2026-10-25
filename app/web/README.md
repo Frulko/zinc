@@ -43,3 +43,4 @@ or by hand: `zinc pack app/web -o web.zapp`, `scp web.zapp root@10.11.99.1:/home
 `src/`: `main.tsx` (the shell), `state.ts` (the actions: open, turn, zoom, pan, links, ink, bookmarks), `pageview.ts` (the page view's
 drawing and gestures), `relay.ts` (the relay's HTTP), `conf.ts`, `script.ts` (`ZINC_WEB_SCRIPT`, the test mode of `tests/t1/web_relay.sh`).
 Pinch reads `touchCount()`: the reMarkable driver (`plugins/display-rmpp`) passes up to ten fingers, from AppLoad or from evdev.
+`icon.svg` (zinc.json `app.icon`, the tile's icon) is Lucide's `globe` (lucide-static 0.462.0, ISC licence, https://lucide.dev/license).
