@@ -106,8 +106,42 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
   Tex& e = texs[id];
   const uint32_t ver = image_version(id);
   if (e.ok && e.ver == ver && e.w == *w && e.h == *h) return &e;
-  if (e.t.data && (e.w != *w || e.h != *h)) { C3D_TexDelete(&e.t); e.t.data = nullptr; }
-  if (!e.t.data && !make(e, *w, *h, GPU_RGBA8)) { e.ok = false; return nullptr; }
+  uint32_t gl = 0, nb = 0; const void* blocks = nullptr; bool pre = false;
+  const bool etc1 = dyn_blocks(id, &gl, &blocks, &nb, &pre) && gl == 0x8D64 && nb >= (uint32_t)((*w + 3) / 4 * ((*h + 3) / 4) * 8);
+  const GPU_TEXCOLOR fmt = etc1 ? GPU_ETC1 : GPU_RGBA8;
+  if (e.t.data && (e.w != *w || e.h != *h || e.t.fmt != fmt)) { C3D_TexDelete(&e.t); e.t.data = nullptr; }
+  if (!etc1 && !e.t.data && !make(e, *w, *h, fmt)) { e.ok = false; return nullptr; }
+  if (etc1) {   // the pack's ETC1 blocks (include/zn/zim.h, rows of 4x4 blocks, each big-endian) in the PICA's order: in each 8x8 tile its four
+                // blocks in Z order, each block's 8 bytes reversed. The texture's rows run from the image's first, as the RGBA8 path writes them.
+                // A power-of-two picture brings its mipmaps (the pack's levels, down to the PICA's 8 x 8)
+    auto bytes = [](int32_t lw, int32_t lh) { return (uint32_t)((lw + 3) / 4) * (uint32_t)((lh + 3) / 4) * 8; };
+    int levels = 1;
+    if (*w == pow2(*w) && *h == pow2(*h))
+      for (uint32_t at = bytes(*w, *h); (*w >> levels) >= 8 && (*h >> levels) >= 8 && at + bytes(*w >> levels, *h >> levels) <= nb; levels++)
+        at += bytes(*w >> levels, *h >> levels);
+    if (!e.t.data) {
+      if (!C3D_TexInitWithParams(&e.t, nullptr, C3D_TexInitParams{(u16)pow2(*w), (u16)pow2(*h), (u8)(levels - 1), GPU_ETC1, GPU_TEX_2D, false})) { e.ok = false; return nullptr; }
+      memset(e.t.data, 0, e.t.size);
+      C3D_TexSetWrap(&e.t, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+      if (levels > 1) C3D_TexSetFilterMipmap(&e.t, GPU_NEAREST);   // as Pocket Tokyo: the nearest level, linear within it
+      e.w = *w; e.h = *h;
+    }
+    const uint8_t* src = static_cast<const uint8_t*>(blocks);
+    for (int l = 0; l < levels && l <= e.t.maxLevel; l++) {
+      const int32_t lw = *w >> l, lh = *h >> l, bw = (lw + 3) / 4, bh = (lh + 3) / 4, tiles = (e.t.width >> l) / 8;
+      uint8_t* dst = static_cast<uint8_t*>(C3D_TexGetImagePtr(&e.t, e.t.data, l, nullptr));
+      for (int32_t by = 0; by < bh; by++)
+        for (int32_t bx = 0; bx < bw; bx++) {
+          const uint8_t* b = src + ((size_t)by * bw + bx) * 8;
+          uint8_t* d = dst + (((size_t)(by >> 1) * tiles + (bx >> 1)) * 4 + ((bx & 1) | (by & 1) << 1)) * 8;
+          for (int i = 0; i < 8; i++) d[i] = b[7 - i];
+        }
+      src += bytes(lw, lh);
+    }
+    C3D_TexFlush(&e.t);
+    e.ver = ver; e.ok = true;
+    return &e;
+  }
   uint32_t* dst = static_cast<uint32_t*>(e.t.data);
   const int32_t tw = e.t.width;
   const uint32_t* px; int32_t pw, ph, ps;

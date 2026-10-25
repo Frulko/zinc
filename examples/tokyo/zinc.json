@@ -9,8 +9,8 @@
       { "match": "city/c*.near.zwc", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
       { "match": "city/hmap.bin", "targets": { "psp": { "skip": true }, "vita": { "skip": true } } },
       { "match": "city/b*.png", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
-      { "match": "city/g*.png", "targets": { "psp": { "maxSize": 128 }, "n3ds": { "maxSize": 256 }, "vita": { "maxSize": 256 } } },
-      { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 256 }, "n3ds": { "maxSize": 256 } } }
+      { "match": "city/g*.png", "targets": { "psp": { "maxSize": 128 }, "n3ds": { "maxSize": 512, "format": "etc1", "pot": true, "mipmaps": true }, "vita": { "maxSize": 256 } } },
+      { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 256 }, "n3ds": { "maxSize": 1024, "format": "etc1", "pot": true, "mipmaps": true } } }
     ]
   },
   "targets": {

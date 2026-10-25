@@ -35,7 +35,16 @@ int zn_asset_image(const char* name, uint32_t n) {
   const zn::zim::Format* f = zn::zim::format(p[4]);
   const unsigned flags = p[6] | p[7] << 8;
   const uint32_t w = u32(8), h = u32(12);
-  if (!f || f->bw > 1 || w == 0 || h == 0 || w > 4096 || h > 4096 || zim.size() < zn::zim::kHeader + zn::zim::levelBytes(*f, w, h)) return -1;
+  const bool etc1 = f && f->id == 11;   // kept as blocks for a GPU that samples them (the 3DS, targets/n3ds/c3d_n3ds.cpp), drawn transparent here
+  if (!f || (f->bw > 1 && !etc1) || w == 0 || h == 0 || w > 4096 || h > 4096 || zim.size() < zn::zim::kHeader + zn::zim::levelBytes(*f, w, h)) return -1;
+  if (etc1) {   // no pixels of its own: one shared transparent run, row y at y (stride 1), so a software draw reads w + h zeros, not w x h
+    static const uint32_t clear[8192] = {};
+    const int32_t id = zrt::raster::dyn_wrap(static_cast<int32_t>(w), static_cast<int32_t>(h), clear, 1);
+    if (id < 0) return -1;
+    zrt::raster::dyn_set_blocks(id, f->gl, p + zn::zim::kHeader, static_cast<uint32_t>(zim.size() - zn::zim::kHeader), false);   // its mipmaps too
+    made[key] = id;
+    return id;
+  }
   const int32_t id = zrt::raster::dyn_create(static_cast<int32_t>(w), static_cast<int32_t>(h));
   uint32_t* px = zrt::raster::dyn_pixels(id);
   if (!px) return -1;
