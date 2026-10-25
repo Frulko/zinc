@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+"""Validate a completed scene publication, including every content hash."""
+import json
+import sys
+from pathlib import Path
+from scene_exchange import validate
+
+try:
+    path = Path(sys.argv[1])
+    scene = validate(json.loads(path.read_text()), path.parent)
+    print(f"scene {scene['id']}: {len(scene['nodes'])} nodes, {len(scene['assets'])} assets, {scene['revision']}")
+except (ValueError, OSError, IndexError, TypeError, KeyError) as error:
+    sys.exit(f'scene-exchange: {error}')

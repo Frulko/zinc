@@ -1,7 +1,7 @@
 ---
 id: ZN-829
 title: Blender asset library scene publication and safe Zinc reimport
-status: Ready
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -30,3 +30,7 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 ## Delivery contract
 
 Owner clarification (2026-10-25): deliver a real runnable project, source files, a README with exact build/run/test commands, required native or authoring project files, and actual execution evidence. A specification or mock alone does not satisfy this task. Do not mark unsupported or unexecuted behavior as Done.
+
+## Implementation notes
+
+Shared zinc.scene v1 boundary implemented first for the Blender/Godot exporters. Validator tests cover deterministic no-op publication, last-valid atomic record, duplicate/missing/cyclic identity diagnostics and provenance paths. Remaining acceptance criteria are open until the actual Blender and runtime slices execute.
