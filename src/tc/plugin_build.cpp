@@ -827,6 +827,7 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
   { std::vector<std::string> d = buildDefines(p, ts->second, engineRoot, projectDir, target); out.defines.insert(out.defines.begin(), d.begin(), d.end()); }   // ZN_NATIVE_CLASS stays after them
   out.libs = ts->second.libs;
   out.frameworks = ts->second.frameworks;
+  out.vendorFlags = ts->second.vendorFlags;
   for (const std::string& f : ts->second.flags) {
     const size_t at = f.rfind("-I", 0) == 0 ? 2 : 0;
     out.flags.push_back(f.compare(at, 2, "./") != 0 && f.compare(at, 3, "../") != 0 ? f : f.substr(0, at) + (fs::path(p.dir) / f.substr(at)).lexically_normal().string());

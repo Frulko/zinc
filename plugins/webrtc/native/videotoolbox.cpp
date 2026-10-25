@@ -51,7 +51,9 @@ struct VtEnc : VideoEncoder {
   VtEnc(int w_, int h_, int bps, int fps) {
     w = w_; h = h_;
     CFMutableDictionaryRef spec = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+#if !TARGET_OS_IPHONE   // iOS encodes on the hardware anyway, and the key is iOS 17.4's (the app runs from 16.3)
     CFDictionarySetValue(spec, kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
+#endif
     CFMutableDictionaryRef src = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFNumberRef pf = num(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange), cw = num(w), ch = num(h);
     CFDictionarySetValue(src, kCVPixelBufferPixelFormatTypeKey, pf);

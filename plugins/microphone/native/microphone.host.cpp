@@ -1,4 +1,4 @@
-// zinc:microphone for macos and linux: capture devices of miniaudio (Core Audio, PulseAudio, ALSA; the copy of plugins/audio/vendor),
+// zinc:microphone for macos, linux and ios: capture devices of miniaudio (Core Audio, PulseAudio, ALSA; the copy of plugins/audio/vendor),
 // each filling a buffer on miniaudio's thread that read() empties on the program's thread, and the fake microphone.
 // The fake microphone ("Zinc Fake Microphone"): a triangle wave whose loudness steps every 20 ms block, plus a little noise, a function of
 // the sample index only (sample(), written again in microphone.sim.ts), one block per read() call. It is the only microphone with
@@ -80,7 +80,15 @@ float sample(long long n, int rate) {
 }
 
 ma_context* context() {
-  if (!ctxTried) { ctxTried = true; ctxOk = ma_context_init(nullptr, 0, nullptr, &ctx) == MA_SUCCESS; }
+  if (!ctxTried) {
+    ctxTried = true;
+    ma_context_config cc = ma_context_config_init();
+#ifdef MIC_IOS_SESSION   // iOS: the audio session of a call (microphone.ios.mm)
+    cc.coreaudio.sessionCategory = ma_ios_session_category_play_and_record;
+    cc.coreaudio.sessionCategoryOptions = ma_ios_session_category_option_default_to_speaker | ma_ios_session_category_option_allow_bluetooth;
+#endif
+    ctxOk = ma_context_init(nullptr, 0, &cc, &ctx) == MA_SUCCESS;
+  }
   return ctxOk ? &ctx : nullptr;
 }
 // A device's id as text: the backend's own name for it (Core Audio's UID, PulseAudio's and ALSA's names), else its place in the list.

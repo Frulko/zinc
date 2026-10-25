@@ -38,7 +38,8 @@ audio track holds the `Microphone` (`track.microphone as Microphone`); `track.st
 | macos | miniaudio on Core Audio; the privacy question through AVFoundation (`AVCaptureDevice` for audio) | built-in, USB and virtual (BlackHole, Loopback) inputs |
 | linux, rpi1 | miniaudio on PulseAudio, else ALSA (loaded at run time, nothing to install to build) | written, not proven on a board yet; the user needs the `audio` group on a system without PulseAudio |
 | sim, `ZINC_NATIVE=sim` | the fake microphone alone (`native/microphone.sim.ts`): the same samples | |
-| windows, android, ios, wasm | not yet (error Z5005: the profile has `microphone` false) | |
+| ios | miniaudio on Core Audio through the audio session (play and record, the loudspeaker, Bluetooth headsets); the privacy question through AVFoundation | `zinc.json` `"permissions": ["microphone"]` writes `NSMicrophoneUsageDescription`; zinc:audio keeps playing while it captures |
+| windows, android, wasm | not yet (error Z5005: the profile has `microphone` false) | |
 
 The device fills a buffer on miniaudio's thread (one second at most: a program that stops reading loses the oldest samples); `index.ts`
 takes what came in every 20 ms on the program's thread and runs the `onData` handlers. No callback runs on another thread.

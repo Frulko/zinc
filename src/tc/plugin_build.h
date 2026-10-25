@@ -53,6 +53,7 @@ struct PluginSource {
   std::string plugin, module;          // "svg", "SvgEngine"
   std::vector<std::string> own, vendored, defines, flags, libs;   // libs: the system libraries the target's settings link ("camera2ndk")
   std::vector<std::string> java, frameworks;   // android: the .java and .kt sources Gradle compiles; ios: the frameworks the plugin links
+  std::vector<std::string> vendorFlags;        // the flags of the vendored C++ sources only (libdatachannel's -fexceptions -frtti)
 };
 bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, const std::string& genDir, PluginSource& out, std::string& err);
 

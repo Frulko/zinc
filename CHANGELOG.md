@@ -22,6 +22,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `tools/zinc-go-iphone` builds Zinc Go from your tree, signs it with your Apple team (a free Personal Team works), installs it on your iPhone and starts it.
 - `zinc:location`: the device's position on iOS and macOS (permission, current position, a watch, errors as values), a fake path for tests (`ZINC_FAKE_LOCATION`), and the `examples/geo` demo; Zinc Go links it.
 - `zinc:photos` reads and writes the photo library on iOS and macOS: full or limited access, albums with counts, pictures newest first, thumbnails and whole pictures to draw, saving to the library or an album. Ask for it with `"permissions": ["photos"]` (or `"photos-add"` to save only); `ZINC_FAKE_PHOTOS=<folder>` lends a folder of pictures on a desktop. Zinc Go includes it, and `examples/photos` shows it.
+- iOS: `zinc:microphone` and `zinc:webrtc` build for iPhone and iPad, so a video call (examples/webrtc-call) runs in an exported app and in Zinc Go.
+- Nova Patrol DS 0.2.6 adds depth behind the stars and along ramp slopes, with cached stereo views prepared before play.
 - `zinc:physics2d` exposes `ContactKind.Hit` with solved approach speed for kicks, scoring and audiovisual feedback, including the browser backend.
 - Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.

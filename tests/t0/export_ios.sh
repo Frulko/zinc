@@ -65,6 +65,10 @@ cp -R tests/data/mobile-plugin "$tmp/noentry"
 perl -0pi -e 's/,\n    "ios": \{.*?\n    \}\n/\n/s' "$tmp/noentry/plugins/beep/plugin.json"
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target ios -o "$tmp/noentry-ios" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an ios entry was exported"; fail=1; }
 grep -q "plugin 'beep' is not made for ios" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
+# a call (webrtc, microphone): libdatachannel's vendorFlags reach its C++ sources only, after the plugin's -fno-exceptions -fno-rtti
+PATH="$tmp/bin:$PATH" "$Z" export examples/webrtc-call --target ios -o "$tmp/call" >/dev/null 2>&1 || { echo "webrtc-call does not export for ios"; fail=1; }
+grep -q 'set_source_files_properties(${ZINC_PLUGINS}/webrtc/vendor/libdatachannel/src/candidate.cpp .* PROPERTIES COMPILE_OPTIONS "-fexceptions;-frtti;-fthreadsafe-statics")' "$tmp/call/CMakeLists.txt" &&
+  ! grep 'COMPILE_OPTIONS' "$tmp/call/CMakeLists.txt" | grep -q 'usrsctp' && grep -q 'add_library(zn_app_plugin_microphone ' "$tmp/call/CMakeLists.txt" || { echo "webrtc's vendorFlags or the microphone are missing from the ios project"; fail=1; }
 [ -f "$tmp/ran" ] && { echo "an Apple tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export ios: ok"
 exit $fail

@@ -1370,6 +1370,13 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
       out.cmake += " \"" + e + "\"";
     }
     out.cmake += ")\n";
+    std::string vcxx;   // the vendored C++ sources take the entry's vendorFlags after the plugin's -fno-exceptions -fno-rtti (libdatachannel)
+    for (const std::string& s : ps.vendored) if (fs::path(s).extension() != ".c") vcxx += " " + path(s);
+    if (!vcxx.empty() && !ps.vendorFlags.empty()) {
+      std::string opts;
+      for (const std::string& f : ps.vendorFlags) opts += (opts.empty() ? "" : ";") + f;
+      out.cmake += "set_source_files_properties(" + vcxx.substr(1) + " PROPERTIES COMPILE_OPTIONS \"" + opts + "\")\n";
+    }
     if (!ps.libs.empty() || !ps.frameworks.empty()) {   // the system libraries (camera2ndk, mediandk, sqlite3...) and frameworks of the entry
       out.cmake += "target_link_libraries(" + lib + " PUBLIC";
       for (const std::string& l : ps.libs) out.cmake += " " + l;

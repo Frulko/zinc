@@ -96,7 +96,7 @@ role (`a=setup:active`): mbedTLS cannot be the server for Chrome, whose ClientHe
 - H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `backlog/later.md`.
 - `restartIce`, `setConfiguration`, `RTCCertificate` (the certificate is a fresh ECDSA one per connection), `RTCError.errorDetail`.
 - The browser target (wasm): the page's own `RTCPeerConnection` would be the way, not this plugin.
-- Windows, Android and iOS: no build yet (Android export: libdatachannel's `vendorFlags` are not passed to the app's CMake).
+- Windows and Android: no build yet. iOS builds from the macOS sources (H.264 through VideoToolbox, VP8 through libvpx's generic C).
 
 ## STUN and TURN
 

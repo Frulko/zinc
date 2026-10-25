@@ -27,6 +27,17 @@ and the microphone; the answers are kept in System Settings > Privacy & Security
 - **Room**: one person per copy of the app, on two machines of a LAN. Start webrtc-chat's signalling server on one of them
   (`build/zinc run examples/webrtc-chat/signal-server.ts`), put its address and the same room name in both apps, press Call.
 
+A call between this Mac and an iPhone in Zinc Go (paired with `zinc device pair`), on the same Wi-Fi:
+
+```sh
+build/zinc run examples/webrtc-chat/signal-server.ts                     # terminal 1: the signalling server, port 8787
+CALL_MODE=room build/zinc run examples/webrtc-call                        # terminal 2: the Mac's side (server ws://localhost:8787)
+build/zinc device deploy examples/webrtc-call --env CALL_MODE=room --env CALL_SIGNAL=ws://<the Mac's LAN address>:8787
+```
+
+Keep the room name `zinc` on both (or type another one in both), press Call on each side. The address can also be typed in the phone's
+**Signalling server** field. `ipconfig getifaddr en0` prints the Mac's address.
+
 Keys: **M** mutes, **V** stops the video, **C** picks the next camera, **S** shows or hides the stats, **Esc** hangs up, then quits.
 
 The speaker is off at first: in this window your own voice would come back through it. There is no echo cancellation yet, so use a
