@@ -202,8 +202,17 @@ struct N3ds : Engine {
     return id;
   }
 
-  /** A chunk's pictures (day and night) go to the GPU as it loads, behind the loading screen or within the frame's reading time, not in the
-   *  first frame that draws it (the opening's first frame took 48 ms uploading the city's pictures). */
+  /** A chunk's pictures go to the GPU as it loads, behind the loading screen or within the frame's reading time, not in the first frame
+   *  that draws it (the opening's first frame took 48 ms uploading the city's pictures). Its night pictures only once the dusk has begun
+   *  (about 5 MB of GPU memory by day): then as it loads, else a few a frame (worldDraw), the night mixing in from nothing meanwhile. */
+  uint8_t* nightUp = nullptr; int32_t nNight = 0;   // by image id: its night picture is on the GPU
+  bool nightReady(int32_t img) const { return img >= 0 && img < nNight && nightUp[img]; }
+  void nightUpload(int32_t img) {
+    int32_t tw, th;
+    if (img < 0 || !zn::ff::texture(img, &tw, &th)) return;
+    if (img >= nNight) { nightUp = (uint8_t*)realloc(nightUp, (size_t)img + 64); memset(nightUp + nNight, 0, (size_t)(img + 64 - nNight)); nNight = img + 64; }
+    nightUp[img] = 1;
+  }
   int32_t worldLoad(int32_t id, int32_t chunk) override {
     const int32_t r = Engine::worldLoad(id, chunk);
     const World* w = worlds.at(id);
@@ -212,9 +221,16 @@ struct N3ds : Engine {
     int32_t tw, th;
     for (int32_t i = 0; i < k.nb; i++) {
       if (k.b[i].tex >= 0) zn::ff::texture(k.b[i].tex, &tw, &th);
-      if (k.b[i].ntex >= 0 && k.b[i].ntex != k.b[i].tex) zn::ff::texture(k.b[i].ntex, &tw, &th);
+      if (w->dusk > 0 && k.b[i].ntex >= 0 && k.b[i].ntex != k.b[i].tex) nightUpload(k.b[i].ntex);
     }
     return r;
+  }
+  /** A freed chunk's night pictures: uploaded again if their ids come back (a streamed picture's id is reused). */
+  void worldFree(int32_t id, int32_t chunk) override {
+    const World* w = worlds.at(id);
+    if (w && chunk >= 0 && chunk < w->nk && w->k[chunk].loaded)
+      for (int32_t i = 0; i < w->k[chunk].nb; i++) { const int32_t n = w->k[chunk].b[i].ntex; if (n >= 0 && n < nNight) nightUp[n] = 0; }
+    Engine::worldFree(id, chunk);
   }
 
   /** The ranges worldSelect chose, kept for render(): the frame draws them where this record stands among the draws. */
@@ -230,6 +246,7 @@ struct N3ds : Engine {
     r.mesh = -1; r.world = id; r.first = t->nwi; r.count = w->ni;
     t->nwi += w->ni;
     const WBatch* last = nullptr;
+    int nights = 3;   // night pictures a frame may upload (171 KB of ETC1 and its mipmaps each)
     for (int32_t i = 0; i < w->ni; i++) {
       const WItem& it = w->items[i];
       tris += (int32_t)(it.to - it.from) / 3;
@@ -238,7 +255,7 @@ struct N3ds : Engine {
       last = &ch.b[it.batch];
       int32_t tw, th;   // the batch's pictures uploaded now, outside the GPU frame (render() finds them there)
       if (last->tex >= 0) zn::ff::texture(last->tex, &tw, &th);
-      if (w->dusk > 0 && last->ntex >= 0 && last->ntex != last->tex) zn::ff::texture(last->ntex, &tw, &th);
+      if (w->dusk > 0 && nights > 0 && last->ntex >= 0 && last->ntex != last->tex && !nightReady(last->ntex)) { nightUpload(last->ntex); nights--; }
     }
   }
 
@@ -472,7 +489,7 @@ struct N3ds : Engine {
         // the pictures: the day's on unit 0, the night's on 1 while it mixes in, the shadows on 2 (tops)
         int32_t tw = 0, th = 0, nw = 0, nh = 0;
         C3Tex* day = b.tex >= 0 && lay != SOLID ? (C3Tex*)zn::ff::texture(b.tex, &tw, &th) : nullptr;
-        C3Tex* dark = day && own && night > 0 ? (C3Tex*)zn::ff::texture(b.ntex, &nw, &nh) : nullptr;
+        C3Tex* dark = day && own && night > 0 && nightReady(b.ntex) ? (C3Tex*)zn::ff::texture(b.ntex, &nw, &nh) : nullptr;
         const bool sh = shadowed && lay == TOP;
         const int key = lay | (day ? 4 : 0) | (dark ? 8 : 0) | (sh ? 16 : 0);
         if (day) {
