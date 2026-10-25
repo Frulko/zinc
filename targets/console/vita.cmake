@@ -46,7 +46,15 @@ endif()
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=1048576 ZN_CONSOLE_MAX_DEPTH=4000)   # 8 MiB of registers, 4000 calls deep
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp PROPERTIES COMPILE_DEFINITIONS "ZN_CONSOLE_AUDIO_RATE=48000;ZN_CONSOLE_AUDIO_NAME=\"sceAudioOut\"")
 vita_create_self(eboot.bin zinc-core UNSAFE)
-vita_create_vpk(zinc.vpk ${ZN_CONSOLE_ID} eboot.bin VERSION 01.00 NAME "${ZN_CONSOLE_TITLE}")
+set(zn_art)   # the bubble's icon (128x128) and the LiveArea (840x500 background, 280x158 start gate): 8-bit palette PNGs, or the install fails
+if(EXISTS ${ZN_CONSOLE_ART}/vita/icon0.png)
+  list(APPEND zn_art FILE ${ZN_CONSOLE_ART}/vita/icon0.png sce_sys/icon0.png)
+endif()
+if(EXISTS ${ZN_CONSOLE_ART}/vita/bg.png AND EXISTS ${ZN_CONSOLE_ART}/vita/startup.png)
+  list(APPEND zn_art FILE ${ZN_CONSOLE_ART}/vita/bg.png sce_sys/livearea/contents/bg.png FILE ${ZN_CONSOLE_ART}/vita/startup.png sce_sys/livearea/contents/startup.png
+    FILE ${CMAKE_CURRENT_SOURCE_DIR}/art/vita/template.xml sce_sys/livearea/contents/template.xml)
+endif()
+vita_create_vpk(zinc.vpk ${ZN_CONSOLE_ID} eboot.bin VERSION 01.00 NAME "${ZN_CONSOLE_TITLE}" ${zn_art})
 # the device player (ZN-792): mbedTLS's entropy from the kernel's generator (targets/vita/player_vita.cpp)
 if(ZN_CONSOLE_PLAYER)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/player_vita.cpp)

@@ -14,6 +14,10 @@ tools/console-run psp build/console-psp/EBOOT.PBP [--timeout 60] [--shot frame.p
 tools/console-demos examples/breakout breakout --title Breakout --id ZINC00002          # the four consoles, no frame budget, copied to ~/Documents/<console>
 ```
 
+Menu art: a project's `console/` folder holds `psp/ICON0.PNG` (144x80) and `psp/PIC1.PNG` (480x272), and `vita/icon0.png` (128x128), `vita/bg.png`
+(840x500) and `vita/startup.png` (280x158), the Vita's as 8-bit palette PNGs or VitaShell refuses the package. `--art DIR` names another folder;
+without one a build shows Zinc's own (`targets/console/art`).
+
 `tools/console-demos` builds what a person plays: no `--frames` (the program runs until the console quits it), one Vita title id per demo (two
 demos with the same id replace each other in Vita3K), and copies `psp/<name>/EBOOT.PBP`, `vita/<name>.vpk`, `ps2/<name>.elf` and `3ds/<name>.3dsx`
 into `$ZINC_DEMOS` (default `~/Documents`), the folders the emulators' game lists show. `targets/console/hello` is the console hello (text and a
