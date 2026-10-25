@@ -88,8 +88,10 @@ bool manifestScenes(const std::string& name, const std::string& in, std::vector<
 // ---------------------------------------------------------------- reading the scenes
 struct V { float p[3], n[3], t[2], c[4]; };
 struct Tri { V v[3]; int mat, obj; };
-struct Mat { std::string tex; std::uint32_t kind, flags, emis; };
-struct Obj { std::string id, node, file, base; int level; float mn[3], mx[3]; std::vector<Tri> tris; };
+// ntex: the night picture (material extras {"night": "<picture>"}); nemis: the glow at night (the emissive, or only at night with {"glow": "night"})
+struct Mat { std::string tex, ntex; std::uint32_t kind, flags, emis, nemis; };
+// reach: node extras {"reach": m} or [near, mid]: a landmark, a cell of its own whose levels change at these distances
+struct Obj { std::string id, node, file, base; int level; float mn[3], mx[3]; std::vector<Tri> tris; float reach[2] = {0, 0}; };
 
 std::uint32_t byte(float v) { return v <= 0 ? 0u : v >= 1 ? 255u : static_cast<std::uint32_t>(std::lround(v * 255)); }
 
@@ -155,10 +157,23 @@ struct Reader {
     const std::uint32_t kind = blend ? zworld::Open : !tex.empty() ? zworld::Wall : dbl ? zworld::Open : zworld::Solid;
     const std::uint32_t flags = 1u | (m && m->unlit ? 4u : 0u) | (dbl ? 8u : 0u) | (blend ? (1u << 6) | (byte(a) << 8) : 0u);   // vertex colours, render3d.spec.ts draw
     const float* e = m ? m->emissive_factor : nullptr;
-    const std::uint32_t emis = e ? byte(e[0]) << 16 | byte(e[1]) << 8 | byte(e[2]) : 0;
-    const std::string key = tex + "|" + std::to_string(kind) + "|" + std::to_string(flags) + "|" + std::to_string(emis);
+    const float strength = m && m->has_emissive_strength ? m->emissive_strength.emissive_strength : 1;
+    std::uint32_t emis = e ? byte(e[0] * strength) << 16 | byte(e[1] * strength) << 8 | byte(e[2] * strength) : 0, nemis = emis;
+    std::string ntex;   // extras {"night": "<picture>"} (beside the glTF, imported by its own rule) and {"glow": "night"}
+    if (m && m->extras.data) {
+      yyjson_doc* x = yyjson_read(m->extras.data, std::strlen(m->extras.data), 0);
+      yyjson_val* r = x ? yyjson_doc_get_root(x) : nullptr;
+      if (yyjson_val* v = yyjson_obj_get(r, "night"); yyjson_is_str(v)) {
+        const std::string p = normal(dirOf(file) + yyjson_get_str(v));
+        if (p.compare(0, dir.size(), dir) != 0) { yyjson_doc_free(x); err = "night picture " + p + " is not under " + (dir.empty() ? "the assets directory" : dir) + ", where the world is"; return false; }
+        ntex = p.substr(dir.size());
+      }
+      if (yyjson_val* v = yyjson_obj_get(r, "glow"); yyjson_is_str(v) && !std::strcmp(yyjson_get_str(v), "night")) emis = 0;
+      yyjson_doc_free(x);
+    }
+    const std::string key = tex + "|" + ntex + "|" + std::to_string(kind) + "|" + std::to_string(flags) + "|" + std::to_string(emis) + "|" + std::to_string(nemis);
     const auto [it, fresh] = matIds.emplace(key, static_cast<int>(mats.size()));
-    if (fresh) mats.push_back({tex, kind, flags, emis});
+    if (fresh) mats.push_back({tex, ntex, kind, flags, emis, nemis});
     id = it->second;
     return true;
   }
@@ -181,6 +196,13 @@ struct Reader {
         yyjson_doc* x = yyjson_read(nd->extras.data, std::strlen(nd->extras.data), 0);
         yyjson_val* r = x ? yyjson_doc_get_root(x) : nullptr;
         if (yyjson_val* v = yyjson_obj_get(r, "id"); yyjson_is_str(v)) o.id = yyjson_get_str(v);
+        if (yyjson_val* v = yyjson_obj_get(r, "reach")) {   // a landmark: a number (the mid level's reach) or [near, mid]
+          if (yyjson_is_num(v)) o.reach[1] = static_cast<float>(yyjson_get_num(v));
+          else if (yyjson_is_arr(v) && yyjson_arr_size(v) == 2) for (int k = 0; k < 2; k++) o.reach[k] = static_cast<float>(yyjson_get_num(yyjson_arr_get(v, k)));
+          if (!(o.reach[0] >= 0 && o.reach[1] >= 0) || !std::isfinite(o.reach[0]) || !std::isfinite(o.reach[1])) {
+            yyjson_doc_free(x); err = file + ": node " + o.node + ": extras.reach is metres, a number or [near, mid]"; return false;
+          }
+        }
         if (yyjson_val* v = yyjson_obj_get(r, "level")) {
           const std::string s = yyjson_is_str(v) ? yyjson_get_str(v) : "";
           o.level = yyjson_is_num(v) ? std::clamp(static_cast<int>(yyjson_get_num(v)), 0, 2) : s == "mid" ? 1 : s == "far" ? 2 : 0;
@@ -383,12 +405,13 @@ std::string chunk(const std::vector<Part>& parts, const std::vector<Mat>& mats, 
     for (int a = 0; a < 3; ++a) size[a] = std::max(hi[a] - lo[a], 1e-3f);
     const float us = std::max(uvMax, 1e-6f) / 32767;
     const int first = b.ps.front().cell, cells = b.ps.back().cell - first + 1;
-    std::int32_t tex = -1;
-    if (!m.tex.empty()) {
-      auto it = std::find(names.begin(), names.end(), m.tex);
-      tex = static_cast<std::int32_t>(it - names.begin());
-      if (it == names.end()) names.push_back(m.tex);
-    }
+    auto nameOf = [&](const std::string& t) {
+      if (t.empty()) return -1;
+      auto it = std::find(names.begin(), names.end(), t);
+      if (it == names.end()) { names.push_back(t); return static_cast<int>(names.size()) - 1; }
+      return static_cast<int>(it - names.begin());
+    };
+    const std::int32_t tex = nameOf(m.tex), ntex = nameOf(m.ntex);
     std::string vb, ib;
     std::uint32_t cur = 0;
     std::size_t k = 0;
@@ -411,8 +434,8 @@ std::string chunk(const std::vector<Part>& parts, const std::vector<Mat>& mats, 
       for (int o : pc->part->objs) where.push_back({o, c, level, name, static_cast<int>(bi)});
     }
     put32(spans, cur); ++nspans;
-    for (std::uint32_t v : {m.kind, m.flags, 0xffffffu, m.emis, m.emis}) put32(recs, v);
-    put32(recs, static_cast<std::uint32_t>(tex)); put32(recs, 0xffffffffu);   // no night picture
+    for (std::uint32_t v : {m.kind, m.flags, 0xffffffu, m.emis, m.nemis}) put32(recs, v);
+    put32(recs, static_cast<std::uint32_t>(tex)); put32(recs, static_cast<std::uint32_t>(ntex));
     put32(recs, static_cast<std::uint32_t>(first)); put32(recs, static_cast<std::uint32_t>(cells)); put32(recs, zworld::kGroups);
     put32(recs, firstSpan); put32(recs, static_cast<std::uint32_t>(vb.size() / zworld::kVertex)); put32(recs, cur);
     for (float f : {lo[0], lo[1], lo[2], size[0], size[1], size[2], us, 0.0f}) putf(recs, f);
@@ -458,9 +481,9 @@ bool worldDeps(const std::string& name, const std::string& in, const std::functi
 bool importWorld(const ToolPath& basisu, const std::string& name, const std::string& in, const Side& side, const Opts& opts, std::string& out, std::string& err) {
   const double cell = num(opts, "cell", 128), ratio[3] = {1, num(opts, "mid", 0.3), num(opts, "far", 0.08)};
   const float error = static_cast<float>(num(opts, "error", 0.02));
-  const int block = static_cast<int>(num(opts, "block", 4));
-  if (!(cell > 0) || block < 1 || !(ratio[1] > 0 && ratio[1] <= 1) || !(ratio[2] > 0 && ratio[2] <= 1)) {
-    err = "a world's cell (metres), block (cells), mid and far (ratios in (0, 1]) must be positive";
+  const int block = static_cast<int>(num(opts, "block", 4)), region = static_cast<int>(num(opts, "region", 0));
+  if (!(cell > 0) || block < 1 || region < 0 || !(ratio[1] > 0 && ratio[1] <= 1) || !(ratio[2] > 0 && ratio[2] <= 1)) {
+    err = "a world's cell (metres), block (cells), region (blocks, 0 the whole world), mid and far (ratios in (0, 1]) must be positive";
     return false;
   }
   const std::string lv = opts.count("levels") ? opts.at("levels") : "near,mid,far";
@@ -481,6 +504,41 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
     }
   } else if (!rd.scene(0, name, in, side, err)) return false;
   if (rd.objs.empty()) { err = "no triangles in its scenes"; return false; }
+  // a node's textured faces that all look up or down with uvs u = a x + b, v = c z + d (a ground's picture laid over it) are a top: the PSP and
+  // the 3DS draw those in their compact layouts, the uvs made from the position. Decided per node, so a wall sharing the picture stays a wall
+  {
+    struct Fit { bool ok = true; float lo[2] = {1e30f, 1e30f}, hi[2] = {-1e30f, -1e30f}; V a[2], b[2]; };
+    std::map<std::string, int> tops;   // a wall material's top twin
+    for (Obj& o : rd.objs) {
+      std::map<int, Fit> fits;
+      for (const Tri& t : o.tris) {
+        if (rd.mats[static_cast<std::size_t>(t.mat)].kind != zworld::Wall) continue;
+        Fit& f = fits[t.mat];
+        if (groupOf(t, false) != static_cast<int>(zworld::kSectors)) f.ok = false;
+        for (const V& v : t.v) for (int k = 0; k < 2; k++) {
+          const float q = v.p[k * 2];
+          if (q < f.lo[k]) { f.lo[k] = q; f.a[k] = v; }
+          if (q > f.hi[k]) { f.hi[k] = q; f.b[k] = v; }
+        }
+      }
+      for (const Tri& t : o.tris) {
+        auto it = fits.find(t.mat);
+        if (it == fits.end() || !it->second.ok) continue;
+        Fit& f = it->second;
+        for (int k = 0; k < 2; k++) {
+          const float d = f.hi[k] - f.lo[k], s = d > 0 ? (f.b[k].t[k] - f.a[k].t[k]) / d : 0, tol = 1e-4f * std::max(1.0f, std::fabs(s * d));
+          for (const V& v : t.v) f.ok = f.ok && std::fabs(f.a[k].t[k] + s * (v.p[k * 2] - f.lo[k]) - v.t[k]) <= tol;
+        }
+      }
+      for (Tri& t : o.tris) {
+        auto it = fits.find(t.mat);
+        if (it == fits.end() || !it->second.ok) continue;
+        const auto [tw, fresh] = tops.emplace(std::to_string(t.mat), static_cast<int>(rd.mats.size()));
+        if (fresh) { Mat m = rd.mats[static_cast<std::size_t>(t.mat)]; m.kind = zworld::Top; rd.mats.push_back(m); }
+        t.mat = tw->second;
+      }
+    }
+  }
 
   // the grid: from the scene's lowest corner, on multiples of the cell
   float lo[2] = {1e30f, 1e30f};
@@ -489,14 +547,20 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
   auto cellOf = [&](float x, float z) { return std::make_pair(static_cast<int>(std::floor((x - x0) / cell)), static_cast<int>(std::floor((z - z0) / cell))); };
   // each (cell, level, material): the triangles given at that level, and those to simplify from a finer one
   struct Bin { std::vector<Tri> given, from[3]; std::set<int> objs; };
-  std::map<std::pair<int, int>, std::map<std::pair<int, int>, Bin>> grid;   // (x, z) -> (level, material) -> bin
+  // (x, z, landmark: -1, else the landmark's own cell) -> (level, material) -> bin
+  std::map<std::tuple<int, int, int>, std::map<std::pair<int, int>, Bin>> grid;
+  std::vector<std::array<float, 2>> landmarks;   // their reaches
   std::map<std::string, std::vector<int>> bases;
   for (std::size_t i = 0; i < rd.objs.size(); ++i) bases[rd.objs[i].file + "\n" + rd.objs[i].base].push_back(static_cast<int>(i));
   for (const auto& [base, members] : bases) {
     int byLevel[3] = {-1, -1, -1}, finest = 3;
     for (int i : members) { const int l = rd.objs[static_cast<std::size_t>(i)].level; if (byLevel[l] < 0) byLevel[l] = i; finest = std::min(finest, l); }
     const Obj& head = rd.objs[static_cast<std::size_t>(byLevel[finest])];
-    const bool whole = head.mx[0] - head.mn[0] <= cell && head.mx[2] - head.mn[2] <= cell;
+    float reach[2] = {0, 0};
+    for (int i : members) for (int k = 0; k < 2; k++) reach[k] = std::max(reach[k], rd.objs[static_cast<std::size_t>(i)].reach[k]);
+    const int mark = reach[0] > 0 || reach[1] > 0 ? static_cast<int>(landmarks.size()) : -1;   // a landmark goes whole into a cell of its own
+    if (mark >= 0) landmarks.push_back({reach[0], reach[1]});
+    const bool whole = mark >= 0 || (head.mx[0] - head.mn[0] <= cell && head.mx[2] - head.mn[2] <= cell);
     const auto home = cellOf((head.mn[0] + head.mx[0]) / 2, (head.mn[2] + head.mx[2]) / 2);
     for (int l = 0; l < 3; ++l) {
       if (!carry[l]) continue;
@@ -506,17 +570,21 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
       const Obj& o = rd.objs[static_cast<std::size_t>(byLevel[src])];
       for (const Tri& t : o.tris) {
         const auto c = whole ? home : cellOf((t.v[0].p[0] + t.v[1].p[0] + t.v[2].p[0]) / 3, (t.v[0].p[2] + t.v[1].p[2] + t.v[2].p[2]) / 3);
-        Bin& b = grid[c][{l, t.mat}];
+        Bin& b = grid[{c.first, c.second, mark}][{l, t.mat}];
         (src < l ? b.from[src] : b.given).push_back(t);
         b.objs.insert(t.obj);
       }
     }
   }
-  // the cells with something in them, a block's in a row (a mid chunk holds a run of cells), and their levels' triangles
-  struct Cell { std::pair<int, int> at; int blockX, blockZ; float mn[3], mx[3]; std::vector<Part> parts[3]; };
+  // the cells with something in them, a block's in a row (a mid chunk holds a run of cells) and a region's blocks in a row (a far chunk holds
+  // a region, `region` x `region` blocks, or the whole world), the landmarks last; and their levels' triangles
+  struct Cell { std::tuple<int, int, int> at; int blockX, blockZ, regionX, regionZ, mark; float mn[3], mx[3]; std::vector<Part> parts[3]; };
   std::vector<Cell> cells;
-  for (auto& [at, bins] : grid) cells.push_back(Cell{at, at.first >= 0 ? at.first / block : 0, at.second >= 0 ? at.second / block : 0, {1e30f, 1e30f, 1e30f}, {-1e30f, -1e30f, -1e30f}, {}});
-  auto blockKey = [&](const Cell& c) { return std::make_tuple(c.blockZ, c.blockX, c.at.second, c.at.first); };
+  for (auto& [at, bins] : grid) {
+    const int x = std::get<0>(at), z = std::get<1>(at), bx = x >= 0 ? x / block : 0, bz = z >= 0 ? z / block : 0;
+    cells.push_back(Cell{at, bx, bz, region ? bx / region : 0, region ? bz / region : 0, std::get<2>(at), {1e30f, 1e30f, 1e30f}, {-1e30f, -1e30f, -1e30f}, {}});
+  }
+  auto blockKey = [&](const Cell& c) { return std::make_tuple(c.mark, c.regionZ, c.regionX, c.blockZ, c.blockX, std::get<1>(c.at), std::get<0>(c.at)); };
   std::sort(cells.begin(), cells.end(), [&](const Cell& a, const Cell& b) { return blockKey(a) < blockKey(b); });
   for (int ci = 0; ci < static_cast<int>(cells.size()); ++ci) {
     Cell& c = cells[static_cast<std::size_t>(ci)];
@@ -545,15 +613,25 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
     for (std::size_t i = from; i < to; ++i) chunkOf[i][static_cast<std::size_t>(level)] = static_cast<std::int32_t>(chunks.size());
     chunks.push_back({static_cast<std::uint32_t>(level), file});
   };
-  if (carry[2]) emit(2, stem + ".far.zwc", 0, cells.size());
-  if (carry[1])
-    for (std::size_t i = 0; i < cells.size();) {
+  std::size_t ground = 0;   // the cells before the landmarks
+  while (ground < cells.size() && cells[ground].mark < 0) ++ground;
+  if (carry[2])
+    for (std::size_t i = 0; i < ground;) {
       std::size_t j = i;
-      while (j < cells.size() && cells[j].blockX == cells[i].blockX && cells[j].blockZ == cells[i].blockZ) ++j;
+      while (j < ground && cells[j].regionX == cells[i].regionX && cells[j].regionZ == cells[i].regionZ) ++j;
+      emit(2, stem + (region ? ".f" + std::to_string(cells[i].regionX) + "_" + std::to_string(cells[i].regionZ) : std::string()) + ".far.zwc", i, j);
+      i = j;
+    }
+  if (carry[1])
+    for (std::size_t i = 0; i < ground;) {
+      std::size_t j = i;
+      while (j < ground && cells[j].blockX == cells[i].blockX && cells[j].blockZ == cells[i].blockZ) ++j;
       emit(1, stem + ".b" + std::to_string(cells[i].blockX) + "_" + std::to_string(cells[i].blockZ) + ".mid.zwc", i, j);
       i = j;
     }
-  if (carry[0]) for (std::size_t i = 0; i < cells.size(); ++i) emit(0, stem + ".c" + std::to_string(i) + ".near.zwc", i, i + 1);
+  if (carry[0]) for (std::size_t i = 0; i < ground; ++i) emit(0, stem + ".c" + std::to_string(i) + ".near.zwc", i, i + 1);
+  for (std::size_t i = ground; i < cells.size(); ++i)   // a landmark: a chunk a level, its own (Pocket Tokyo's Tokyo Tower)
+    for (int l = 0; l < 3; ++l) if (carry[l]) emit(l, stem + ".l" + std::to_string(cells[i].mark) + (l == 0 ? ".near" : l == 1 ? ".mid" : ".far") + ".zwc", i, i + 1);
   // the index
   std::string& idx = entries[0].data;
   entries[0].name = rd.dir + stem + ".zworld";
@@ -562,7 +640,7 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
   for (std::size_t i = 0; i < cells.size(); ++i) {
     for (float f : cells[i].mn) putf(idx, f);
     for (float f : cells[i].mx) putf(idx, f);
-    putf(idx, 0); putf(idx, 0);   // the view's reaches
+    for (int k = 0; k < 2; k++) putf(idx, cells[i].mark >= 0 ? landmarks[static_cast<std::size_t>(cells[i].mark)][static_cast<std::size_t>(k)] : 0);   // 0: the view's
     for (std::int32_t k : chunkOf[i]) put32(idx, static_cast<std::uint32_t>(k));
   }
   for (const auto& [level, file] : chunks) { put32(idx, level); put32(idx, static_cast<std::uint32_t>(file.size())); idx += file; pad4(idx); }
