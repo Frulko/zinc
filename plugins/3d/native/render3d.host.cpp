@@ -329,6 +329,9 @@ struct World {
   bool night;
   float scale;
   float dusk;   // how far the night has come, 0..1 (worldNight)
+  bool rested; float restDt;            // worldSelect: the last call left the chunks' pass out, and its seconds
+  int32_t asked[WORLD_ASK], nasked;     // the chunks the last pass asked for
+  float passEye[3];                     // where the eye was at that pass
 };
 /** Metres from p to the nearest point of a box. */
 static float boxDist(const float* mn, const float* mx, const float* p) {
@@ -858,6 +861,7 @@ struct Engine : NativeRender3D {
   }
   // ------------------------------------------------ worlds
   Pool<World> worlds;
+  uint32_t worldWaits = 0;   // chunks held back because a picture of theirs could not be made or sent to the GPU (a renderer's log)
   uint32_t* live = nullptr;   // worldSelect's scratch: the loaded chunks, each with the kinds of its batches in its top 4 bits
   int32_t nLive = 0, liveCap = 0;
   static unsigned char* worldBytes(const char* name, uint32_t length, uint32_t* size) {
@@ -1011,6 +1015,13 @@ struct Engine : NativeRender3D {
       }
       if (waiting) { k.raw = p; k.nraw = n; return -2; }
     }
+    // a slow medium: a chunk whose day picture could not be made now (the runtime's picture table full, the heap short) waits, its cells at
+    // the coarser level, rather than drawing its ground white
+    if (zn_asset_ready)
+      for (uint32_t i = 0; i < nb; i++) {
+        const int32_t tn = (int32_t)rd32(p + 16 + i * zn::zworld::kBatch + 20);
+        if (tn >= 0 && tn < 256 && (uint32_t)tn < nn && names[tn] < 0) { k.raw = p; k.nraw = n; worldWaits++; return -2; }
+      }
     if ((uint64_t)ns * 4 > (uint64_t)(end-q)) { free(p); return -1; }
     k.spans = (uint32_t*)mem(4 * (size_t)(ns ? ns : 1));
     memcpy(k.spans, q, 4 * (size_t)ns);
@@ -1238,6 +1249,23 @@ struct Engine : NativeRender3D {
       else if ((float)tris < budget * 0.88f) w->scale *= 1.008f;
       w->scale = w->scale < 0.25f ? 0.25f : w->scale > 1 ? 1 : w->scale;
     }
+    // the chunks to load and to free, every other call of a flight (dt > 0, the eye moved less than a twentieth of the near reach): the eye moves a few metres a frame and the reading runs seconds
+    // ahead, so a call in two sends the last list again (what is still not loaded) and saves the pass over every cell and point (on the 3DS
+    // about a quarter of the selection, 12 ms a frame on a real Old 3DS); a loading screen (dt 0) has it every time
+    // (only for an eye that moved a little: a still eye, or a jump, has the pass every time)
+    const float mx = E[0][0] - w->passEye[0], my = E[0][1] - w->passEye[1], mz = E[0][2] - w->passEye[2], moved = mx * mx + my * my + mz * mz;
+    if (dt > 0 && !w->rested && moved > 0 && moved < P[4] * P[4] * 0.0025f) {
+      w->rested = true; w->restDt += dt;
+      int32_t na = 0;
+      for (int32_t a = 0; a < w->nasked; a++) if (!w->k[w->asked[a]].loaded) w->asked[na++] = w->asked[a];
+      w->nasked = na;
+      out.set_length(0);
+      out.push((int32_t)tris); out.push(w->ni); out.push((int32_t)(w->scale * 1000)); out.push(na); out.push(0);
+      for (int32_t a = 0; a < na; a++) out.push(w->asked[a]);
+      return;
+    }
+    const float spent = dt + w->restDt;   // the seconds since the last pass, for the idle chunks
+    w->rested = false; w->restDt = 0;
     // the chunks to load: for the eye and the points after it, each cell's coarsest level (without it the cell is missing), then the
     // level its distance asks for; nearest first. And those nobody has wanted for `idle` seconds, to free (never a coarsest level).
     // A point ahead is A[e] from the eye, so a cell's distance to it is within A[e] of the cell's to the eye: when the level wanted is the
@@ -1320,7 +1348,7 @@ struct Engine : NativeRender3D {
       if (ch.loaded) {
         if (ch.need == -1) continue;   // already named to free for a slot
         if (ch.need < NONE || ch.level == 2) ch.idle = 0;
-        else if ((ch.idle += dt) > idleMax && idleMax > 0 && nf < WORLD_FREE) { freed[nf++] = k; ch.idle = 0; }
+        else if ((ch.idle += spent) > idleMax && idleMax > 0 && nf < WORLD_FREE) { freed[nf++] = k; ch.idle = 0; }
         continue;
       }
       if (ch.need >= NONE || (na == WORLD_ASK && ch.need >= w->k[ask[na - 1]].need)) continue;
@@ -1332,6 +1360,9 @@ struct Engine : NativeRender3D {
     out.push((int32_t)tris); out.push(w->ni); out.push((int32_t)(w->scale * 1000)); out.push(na); out.push(nf);
     for (int k = 0; k < na; k++) out.push(ask[k]);
     for (int k = 0; k < nf; k++) out.push(freed[k]);
+    memcpy(w->asked, ask, sizeof(int32_t) * (size_t)na);
+    w->nasked = na;
+    for (int a = 0; a < 3; a++) w->passEye[a] = E[0][a];
   }
   /** Draws the ranges worldSelect chose, in its order (by kind, then batch): state changes only between batches. */
   void worldDraw(int32_t id) override {

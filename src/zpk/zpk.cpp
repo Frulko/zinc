@@ -129,7 +129,7 @@ bool Reader::decode(std::size_t i, const std::uint8_t* stored, std::uint8_t* dst
 bool Reader::inflate(const Entry& e, const std::uint8_t* src, std::uint8_t* dst, std::string& err, ZSTD_DCtx* zstd) const {
   std::size_t got = 0;
   switch (e.codec) {
-    case Codec::None: if (e.size) std::memcpy(dst, src, e.size); return true;
+    case Codec::None: if (e.size && dst != src) std::memcpy(dst, src, e.size); return true;   // src == dst: read in place (sdpack.cpp)
     case Codec::Lz4:
       if (e.storedSize > INT_MAX || e.size > INT_MAX) break;
       got = static_cast<std::size_t>(std::max(0, LZ4_decompress_safe(reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dst), static_cast<int>(e.storedSize), static_cast<int>(e.size))));

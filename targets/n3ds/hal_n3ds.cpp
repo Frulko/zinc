@@ -19,12 +19,18 @@
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or the system asks to quit
 #endif
 #ifndef ZRT_HEAP_BYTES
-#define ZRT_HEAP_BYTES (16u << 20)   // the n3ds profile's heap (src/frontend/profile.cpp)
+#ifdef ZN_CONSOLE_AOT
+#define ZRT_HEAP_BYTES (16u << 20)   // the n3ds profile's heap (src/frontend/profile.cpp): a compiled program's objects live there
+#else
+// the interpreter keeps its objects in malloc's heap (src/rt/alloc.cpp): the runtime's own heap holds only what the natives make (Tokyo's
+// long flight: 1 KB at most, out of the 16 MB it took before)
+#define ZRT_HEAP_BYTES (4u << 20)
+#endif
 #endif
 
-// libctru's split (see memoryHold): the GPU's memory, the heap gets the rest (Tokyo on an Old 3DS: at night 16.5 MB of
-// linear memory at most, 34 MB of heap out of 38)
-extern "C" u32 __ctru_linear_heap_size = 22u << 20;
+// libctru's split (see memoryHold): the GPU's memory, the heap gets the rest (Tokyo on an Old 3DS, a long flight with stereo and the night:
+// 19.2 MB of linear memory at most)
+extern "C" u32 __ctru_linear_heap_size = 24u << 20;
 extern "C" u32 __ctru_heap_size;
 static const int32_t kScreenW = 400, kScreenH = 240;
 static int32_t W = kScreenW, H = kScreenH, frames = 0;
@@ -247,6 +253,7 @@ void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
 void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
   if (id != bottomId || !gfxOn) return;
   u32* fb = (u32*)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, nullptr, nullptr);
+  if (!fb) return;   // the screens closed (null only before gfxInitDefault and after gfxExit)
   for (int32_t x = 0; x < 320 && x < pw; x++)
     for (int32_t y = 0; y < 240 && y < ph; y++) { const uint32_t c = px[(size_t)y * pw + x]; fb[x * 240 + (239 - y)] = (c & 0xFFFFFF) << 8 | 0xFF; }
   bottomShown = true;
@@ -272,8 +279,17 @@ void zn_console_echo(const char* s, size_t n) {   // the program's lines, one de
 // program that does not fit a real console does not fit there either (tools/console-run runs the cores as an Old 3DS).
 static size_t heldBack = 0;
 static bool leaving = false;
+// an end asked for on another thread (the card's reader, on the other core): the main thread owns the screens and draws them, so it makes
+// the end at its next poll (hal_poll_input). Closed under it, it wrote its next frame through a null framebuffer: a data abort in
+// hal_win_present on a real Old 3DS (Tokyo) instead of the message.
+static char pendingWhy[256];
+static volatile int pendingStatus = -1;
 // a clean end with a message (the log has `zinc:exit N`): the screens closed, back to the Homebrew Launcher, instead of a black screen
 static void leave(const char* why, int status) {
+  if (threadGetCurrent()) {   // libctru gives the main thread no Thread object: this is another thread
+    if (pendingStatus < 0) { snprintf(pendingWhy, sizeof pendingWhy, "%s", why); pendingStatus = status; }
+    for (;;) svcSleepThread(1000000000LL);   // parked until the process ends
+  }
   out(why, strlen(why));
   char b[32];
   const int k = snprintf(b, sizeof b, "zinc:exit %d", status);
@@ -286,27 +302,41 @@ static void leave(const char* why, int status) {
 static size_t heapUsed() { const size_t u = (size_t)mallinfo().uordblks; return u > heldBack ? u - heldBack : 0; }   // the held block left out
 static size_t heapFree() { const size_t h = __ctru_heap_size - heldBack, u = heapUsed(); return h > u ? h - u : 0; }
 extern "C" size_t zn_console_heap_held(void) { return heldBack; }   // sdpack.cpp's heap numbers leave it out
+extern "C" size_t zn_console_heap_largest(void);
 static void oom(size_t asked, bool linear = false) {
-  char b[220];
-  snprintf(b, sizeof b, "zinc: out of memory on the 3DS (asked %lu KB%s; heap %lu of %lu KB in use, linear memory %lu KB free)", (unsigned long)(asked / 1024), linear ? " of linear memory" : "",
-           (unsigned long)(heapUsed() / 1024), (unsigned long)((__ctru_heap_size - heldBack) / 1024), (unsigned long)(linearSpaceFree() / 1024));
+  char b[240];
+  snprintf(b, sizeof b, "zinc: out of memory on the 3DS (asked %lu KB%s; heap %lu of %lu KB in use, its largest free block %lu KB; linear memory %lu KB free)",
+           (unsigned long)(asked / 1024), linear ? " of linear memory" : "", (unsigned long)(heapUsed() / 1024), (unsigned long)((__ctru_heap_size - heldBack) / 1024),
+           (unsigned long)(zn_console_heap_largest() / 1024), (unsigned long)(linearSpaceFree() / 1024));
   leave(b, 3);
 }
 static void outOfMemory() { oom(0); }   // operator new's handler
-// Every malloc and linearAlloc of the core goes through these (n3ds.cmake links with --wrap): an allocation that fails ends the program with
-// the line above. Unchecked, a null block was written through and the console froze on a black screen (Tokyo on an Old 3DS).
+// Every malloc and linearAlloc of the core goes through these (n3ds.cmake links with --wrap): an allocation of the main thread that fails
+// ends the program with the line above. Unchecked, a null block was written through and the console froze on a black screen (Tokyo on an
+// Old 3DS). Another thread gets the null and checks it (sdpack.cpp's reader drops that read and asks again later); its operator new ends.
 void* __real_malloc(size_t);
 void* __real_calloc(size_t, size_t);
 void* __real_realloc(void*, size_t);
 void* __real_memalign(size_t, size_t);
-void* __wrap_malloc(size_t n) { void* p = __real_malloc(n); if (!p && n) oom(n); return p; }
-void* __wrap_calloc(size_t k, size_t n) { void* p = __real_calloc(k, n); if (!p && k && n) oom(k * n); return p; }
-void* __wrap_realloc(void* q, size_t n) { void* p = __real_realloc(q, n); if (!p && n) oom(n); return p; }
-void* __wrap_memalign(size_t a, size_t n) { void* p = __real_memalign(a, n); if (!p && n) oom(n); return p; }
+static bool mainThread() { return threadGetCurrent() == nullptr; }
+void* __wrap_malloc(size_t n) { void* p = __real_malloc(n); if (!p && n && mainThread()) oom(n); return p; }
+void* __wrap_calloc(size_t k, size_t n) { void* p = __real_calloc(k, n); if (!p && k && n && mainThread()) oom(k * n); return p; }
+void* __wrap_realloc(void* q, size_t n) { void* p = __real_realloc(q, n); if (!p && n && mainThread()) oom(n); return p; }
+void* __wrap_memalign(size_t a, size_t n) { void* p = __real_memalign(a, n); if (!p && n && mainThread()) oom(n); return p; }
 void* __real_linearAlloc(size_t);
 void* __real_linearMemAlign(size_t, size_t);
 void* __wrap_linearAlloc(size_t n) { void* p = __real_linearAlloc(n); if (!p && n) oom(n, true); return p; }
 void* __wrap_linearMemAlign(size_t n, size_t a) { void* p = __real_linearMemAlign(n, a); if (!p && n) oom(n, true); return p; }
+// the largest block malloc can give now (sdpack.cpp's numbers): a heap with room enough in all can still fail a large block when it is in pieces
+extern "C" size_t zn_console_heap_largest(void) {
+  size_t lo = 0, hi = heapFree();
+  while (hi - lo > 16 * 1024) {
+    const size_t mid = lo + (hi - lo) / 2;
+    void* p = __real_malloc(mid);
+    if (p) { free(p); lo = mid; } else hi = mid;
+  }
+  return lo;
+}
 static void memoryHold() {   // once a run, before anything large is allocated
   static bool done = false;
   if (done) return;
@@ -365,6 +395,7 @@ void hal_shutdown(void) {
   zn_console_net_down();   // soc:u released, or the next app cannot start it
   if (gpuOn) zn_c3d_fini();
   if (gfxOn) gfxExit();
+  gpuOn = gfxOn = false;   // a frame after this draws nowhere (an atexit handler's)
 }
 void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
@@ -436,6 +467,7 @@ void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{KEY_DUP, HAL_UP}, {KEY_DDOWN, HAL_DOWN}, {KEY_DLEFT, HAL_LEFT}, {KEY_DRIGHT, HAL_RIGHT}, {KEY_CPAD_UP, HAL_UP},
     {KEY_CPAD_DOWN, HAL_DOWN}, {KEY_CPAD_LEFT, HAL_LEFT}, {KEY_CPAD_RIGHT, HAL_RIGHT}, {KEY_A, HAL_A},
     {KEY_B, HAL_B}, {KEY_X, HAL_X}, {KEY_Y, HAL_Y}, {KEY_L, HAL_L}, {KEY_R, HAL_R}, {KEY_START, HAL_START}, {KEY_SELECT, HAL_SELECT}};
+  if (pendingStatus >= 0) leave(pendingWhy, pendingStatus);   // another thread's end, made here
   hidScanInput();
   if (cstickOn) irrstScanInput();
   const u32 held = hidKeysHeld();

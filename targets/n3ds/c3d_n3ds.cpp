@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include <map>
+#include <vector>
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -43,6 +44,10 @@ bool ready, overflow, inFrame;
 
 struct Tex { C3D_Tex t; int32_t w, h; uint32_t ver; bool ok; };
 std::map<int32_t, Tex> texs;
+// The textures of pictures replaced (an image id reused: a streamed chunk's ground freed, the next one's made in its place), which a frame
+// sent may still read: the GPU of a console runs behind the CPU, and a texture written over in place showed another block's ground for part
+// of a frame (a blink on a real 3DS; Azahar draws a frame at once). Deleted at the next zn_c3d_begin, which waits for the frames sent.
+std::vector<C3D_Tex> retired;
 Tex atlasTex[2], softTex[2];   // the coverage atlases (glyphs, shapes); a software frame per eye (a GPU frame may draw both)
 uint8_t* atlasLinear[2];    // the atlases as rows (ff_replay writes there), tiled into atlasTex
 bool atlasDirty[2];
@@ -113,7 +118,9 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
   uint32_t gl = 0, nb = 0; const void* blocks = nullptr; bool pre = false;
   const bool etc1 = dyn_blocks(id, &gl, &blocks, &nb, &pre) && gl == 0x8D64 && nb >= (uint32_t)((*w + 3) / 4 * ((*h + 3) / 4) * 8);
   const GPU_TEXCOLOR fmt = etc1 ? GPU_ETC1 : GPU_RGBA8;
-  if (e.t.data && (e.w != *w || e.h != *h || e.t.fmt != fmt)) { C3D_TexDelete(&e.t); e.t.data = nullptr; }
+  // another picture (a block-compressed one is a streamed picture, its id reused) or another size: a new texture, the old one kept for the
+  // GPU; new pixels of the same RGBA picture (a picture a program draws into) are written in place, as they always were
+  if (e.t.data && (etc1 || e.w != *w || e.h != *h || e.t.fmt != fmt)) { retired.push_back(e.t); e.t.data = nullptr; }
   if (!etc1 && !e.t.data && !make(e, *w, *h, fmt)) { e.ok = false; return nullptr; }
   if (etc1) {   // the pack's ETC1 blocks (include/zn/zim.h, rows of 4x4 blocks, each big-endian) in the PICA's order: in each 8x8 tile its four
                 // blocks in Z order, each block's 8 bytes reversed. The texture's rows run from the image's first, as the RGBA8 path writes them.
@@ -146,6 +153,9 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
     e.ver = ver; e.ok = true;
     zn::n3ds::capture::add(zn::n3ds::capture::Uploads, 1);
     zn::n3ds::capture::add(zn::n3ds::capture::UploadBytes, e.t.size);
+    // the texture is the picture now: its heap copy goes (Tokyo's grounds held 170 KB each there, and the holes they left when a streamed
+    // chunk freed them broke the heap into pieces too small for the next one: out of memory with 6 MB free, on a real Old 3DS)
+    dyn_release_blocks(id);
     return &e;
   }
   uint32_t* dst = static_cast<uint32_t*>(e.t.data);
@@ -254,6 +264,8 @@ void zn_c3d_begin(void) {
   if (!ready || inFrame) return;
   { zn::n3ds::capture::Scope waitScope(zn::n3ds::capture::Wait);
     inFrame = C3D_FrameBegin(C3D_FRAME_SYNCDRAW); }
+  for (C3D_Tex& t : retired) C3D_TexDelete(&t);   // the frames that could read them are done
+  retired.clear();
   zn::n3ds::capture::add(zn::n3ds::capture::PreviousGpu, (uint32_t)(C3D_GetDrawingTime() * 1000));
   static uint32_t previousVblank;
   const uint32_t vblank = C3D_FrameCounter(0);

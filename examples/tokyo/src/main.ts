@@ -38,12 +38,17 @@ const panel = new Panel(settings, flight, city, hud, touch);
 const stage = new Stage();
 stage.color = PANEL_BG;
 stage.addChild(panel);
-// ZINC_TOKYO_TAP=<frame>:<x>:<y>: a touch of the panel at (x, y), that many frames after the loading (the consoles' scripted runs: their
-// input scripts hold buttons, not the stylus); the overlay opens first
-const tapAt = env('ZINC_TOKYO_TAP').split(':');
+// ZINC_TOKYO_TAP=<frame>:<x>:<y>[/<frame>:<x>:<y>...]: touches of the panel at (x, y), that many frames after the loading, in order (the
+// consoles' scripted runs: their input scripts hold buttons, not the stylus); the overlay opens first
+const taps = env('ZINC_TOKYO_TAP').split('/');
+let tapAt: string[] = [], tapNext: i32 = 0;
+function nextTap(): i32 {
+  tapAt = tapNext < taps.length ? taps[tapNext++].split(':') : [];
+  return tapAt.length === 3 ? parseInt(tapAt[0], 10) : -1;
+}
 if (env('ZINC_TOKYO_STEREO') === '1') settings.toggleStereo();   // to measure the stereo picture without touching the panel
 if (env('ZINC_TOKYO_SHADOWS') === '0') settings.toggleShadows();   // to see and measure the city without its shadows
-let tapFrame: i32 = tapAt.length === 3 ? parseInt(tapAt[0], 10) : -1, ran: i32 = 0, settled: i32 = 0, eye: i32 = 0, panelMs = 0;
+let tapFrame: i32 = nextTap(), ran: i32 = 0, settled: i32 = 0, eye: i32 = 0, panelMs = 0;
 // where the eye will be: in 2 and 4 seconds in flight, in 4 and 8 seconds behind the loading screen (the chunks to read for them)
 const ahead: number[] = [0, 0, 0, 0, 0, 0];
 const spot: number[] = [0, 0, 0];
@@ -144,7 +149,10 @@ onFrame((dt: number) => {
     }
     if (panel.shown) { panel.navigate(pad.step, pad.press); pad.still(); stage.update(dt); }
   }
-  if (tapFrame >= 0 && ran > tapFrame && panel.tapAt(parseFloat(tapAt[1]), parseFloat(tapAt[2]))) tapFrame = -1;
+  if (tapFrame >= 0 && ran > tapFrame && panel.tapAt(parseFloat(tapAt[1]), parseFloat(tapAt[2]))) {
+    console.log(`tokyo: tapped ${tapAt[1]}, ${tapAt[2]} at ${ran}`);
+    tapFrame = nextTap();
+  }
   flight.step(city, pad, dt);
   // a flight to a place: once the eye has been there for half a second, where it is (the scripted runs check it arrived)
   const there = flight.arrived;

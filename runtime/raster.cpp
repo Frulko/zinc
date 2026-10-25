@@ -656,6 +656,7 @@ void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, b
   __builtin_memcpy(d->blocks, data, bytes);
   d->gl = gl; d->nblocks = bytes; d->pre = premultiplied;
 }
+void dyn_release_blocks(int32_t id) { if (Dyn* d = dyn_at(id)) dyn_drop_blocks(d); }
 bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied) {
   Dyn* d = dyn_at(id);
   if (!d || !d->blocks) return false;

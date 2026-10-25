@@ -25,8 +25,8 @@ day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120"); n3ds=$(tris "$tmp/n3ds-1
 [ -n "$day" ] && [ "$day" -gt 20000 ] || { echo "tokyo: the desktop readout shows ${day:-no} triangles"; fail=1; }
 # the PSP's budget is 42000 triangles (src/devices.ts, Pocket Tokyo's): the governor keeps it within a few per cent, fewer than the desktop's
 [ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 44000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
-# the 3DS's: the near level in 40 slots (World.slots) within its 60000 triangles
-[ -n "$n3ds" ] && [ "$n3ds" -gt 1000 ] && [ "$n3ds" -le 63000 ] || { echo "tokyo: the 3DS's settings draw ${n3ds:-no} triangles"; fail=1; }
+# the 3DS's: the near level in 40 slots (World.slots) within its 40000 triangles
+[ -n "$n3ds" ] && [ "$n3ds" -gt 1000 ] && [ "$n3ds" -le 42000 ] || { echo "tokyo: the 3DS's settings draw ${n3ds:-no} triangles"; fail=1; }
 python3 tools/scene-texts "$tmp/day-80" | grep -q 'tour' || { echo "tokyo: not on the tour at frame 80"; fail=1; }
 python3 tools/scene-texts "$tmp/day-198" | grep -q 'free' || { echo "tokyo: Start did not leave the tour"; fail=1; }
 python3 tools/scene-texts "$tmp/day-230" | grep -q 'Shinbashi' || { echo "tokyo: Select did not open the panel's places"; fail=1; }

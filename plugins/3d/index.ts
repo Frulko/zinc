@@ -392,7 +392,7 @@ export function defaults3D(profile: string = ''): Defaults3D {
   const d = new Defaults3D();
   //                       name    near mid   budget  fog   fog end fps night  dome   idle read ms slots
   if (p === 'psp') row(d, 'psp', 600, 1600, 42000, 1200, 5800, 30, true, false, 4, 6, 40);
-  else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 60000, 1200, 5800, 30, true, false, 4, 6, 40);
+  else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 40000, 1200, 5800, 30, true, false, 4, 4, 40);   // Pocket's 40,000: 55,000 held a real Old 3DS at 20 fps
   else if (p === 'vita') row(d, 'vita', 300, 1300, 40000, 1600, 5800, 60, true, true, 0, 4, 64);
   else if (p === 'rpi1') row(d, 'rpi1', 300, 900, 12000, 600, 3000, 30, false, false, 4, 6, 0);
   for (let pass = 0; pass < 2; pass++) {

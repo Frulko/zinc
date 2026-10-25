@@ -15,6 +15,9 @@ ctr_create_3dsx(zinc-core SMDH zinc.smdh)
 if(ZN_CONSOLE_GFX)
   # citro3d (or the software HAL) waits for vblank; a second per-eye sleep misses refreshes.
   target_compile_definitions(zn_console_gfx PRIVATE ZRT_MIN_FRAME_US=0)
+  # 256 runtime images, not a device's 64: Tokyo streams a ground picture a block by day and by night beside the mid level's 24 and the
+  # facades (an image costs its table entry; its ETC1 blocks go to the GPU's memory, c3d_n3ds.cpp texture)
+  target_compile_definitions(zn_console_gfx PRIVATE ZRT_DYN_IMAGES=256)
   ctr_add_shader_library(ff_shader ${ZN_TARGETS}/n3ds/ff.v.pica)
   dkp_add_embedded_binary_library(ff_shader_bin ff_shader)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/c3d_n3ds.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp)
@@ -33,6 +36,6 @@ endif()
 if(ZN_CONSOLE_PLAYER)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/player_n3ds.cpp)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_OWN_ENTROPY)
-  dkp_add_embedded_binary_library(player_font ${ZN_TARGETS}/n3ds/player_font.zrs)   # the waiting screen's 8 px font
+  dkp_add_embedded_binary_library(player_font ${ZN_TARGETS}/n3ds/player_font.zrs)   # the waiting screen's 8 and 16 px fonts
   target_link_libraries(zinc-core PRIVATE player_font)
 endif()

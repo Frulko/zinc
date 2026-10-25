@@ -73,6 +73,8 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
  *  them; new pixels (dyn_update, dyn_resize) drop them. */
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied);
+/** The blocks let go once a GPU that keeps its own copy has them (the 3DS: 171 KB of heap a 512 x 512 ETC1 picture with its mipmaps). */
+void dyn_release_blocks(int32_t id);
 
 /** A picture in device memory behind a runtime image (ZN-731, hal.h HalPicture: a video decoder's dmabuf). A display with hardware layers
  *  shows it without the CPU reading it (gfx.cpp, "hardware layers"); a frame that has to draw it in software calls `fill(user)` first,

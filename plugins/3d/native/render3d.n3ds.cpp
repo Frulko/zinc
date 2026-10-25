@@ -221,7 +221,8 @@ struct N3ds : Engine {
     const WChunk& k = w->k[chunk];
     int32_t tw, th;
     for (int32_t i = 0; i < k.nb; i++) {
-      if (k.b[i].tex >= 0) zn::ff::texture(k.b[i].tex, &tw, &th);
+      // a picture the GPU could not take now (its memory short): the chunk waits, its cells at the coarser level, rather than a white ground
+      if (k.b[i].tex >= 0 && !zn::ff::texture(k.b[i].tex, &tw, &th)) { worldFree(id, chunk); worldWaits++; return -2; }
       if (w->dusk > 0 && k.b[i].ntex >= 0 && k.b[i].ntex != k.b[i].tex) nightUpload(k.b[i].ntex);
     }
     return r;
@@ -235,7 +236,15 @@ struct N3ds : Engine {
   }
 
   /** The ranges worldSelect chose, kept for render(): the frame draws them where this record stands among the draws. */
+  uint32_t bare = 0;   // world draws made without their picture since the start
   void worldDraw(int32_t id) override {
+    static const bool profile = getenv("ZINC_PROFILE") && *getenv("ZINC_PROFILE") == '1';
+    static uint32_t calls = 0;
+    if (profile && ++calls % 300 == 0) {
+      char line[160];
+      const int n = snprintf(line, sizeof line, "n3ds world: %lu draws without their picture, %lu chunk loads held back for a picture\n", (unsigned long)bare, (unsigned long)worldWaits);
+      hal_log(line, (size_t)n);
+    }
     World* w = worlds.at(id);
     if (!w || !gcur || !gcur->rt || !w->ni) return;
     GTarget* t = gcur;
@@ -490,6 +499,7 @@ struct N3ds : Engine {
         // the pictures: the day's on unit 0, the night's on 1 while it mixes in, the shadows on 2 (tops)
         int32_t tw = 0, th = 0, nw = 0, nh = 0;
         C3Tex* day = b.tex >= 0 && lay != SOLID ? (C3Tex*)zn::ff::texture(b.tex, &tw, &th) : nullptr;
+        if (!day && b.tex >= 0 && lay != SOLID) bare++;   // drawn without its picture: white (ZINC_PROFILE's count, never expected)
         C3Tex* dark = day && own && night > 0 && nightReady(b.ntex) ? (C3Tex*)zn::ff::texture(b.ntex, &nw, &nh) : nullptr;
         const bool sh = shadowed && lay == TOP;
         const int key = lay | (day ? 4 : 0) | (dark ? 8 : 0) | (sh ? 16 : 0);

@@ -40,10 +40,14 @@ extern unsigned long zn_console_pack_size;
 void hal_log(const char* s, size_t n);         // the console's HAL: its log
 #if defined(__3DS__)
 size_t zn_console_heap_held(void);             // hal_n3ds.cpp
+size_t zn_console_heap_largest(void);
+extern u32 __ctru_heap_size;
 extern int __system_argc;                      // libctru: the program's arguments (the Homebrew Launcher gives its path)
 extern char** __system_argv;
 #endif
 }
+
+namespace zrt { size_t heap_used(); size_t heap_budget(); }   // the runtime's own heap, inside the C heap
 
 namespace {
 
@@ -67,6 +71,7 @@ bool start(void (*fn)()) {
   return reader != nullptr;
 }
 void join() { if (reader) { threadJoin(reader, 1000000000ull); threadFree(reader); reader = nullptr; } }
+void rest() { svcSleepThread(100000000LL); }   // a tenth of a second
 #else   // the PSP and the Vita: the same kernel calls (a semaphore as the lock)
 struct Lock {
   SceUID s = -1;
@@ -111,6 +116,7 @@ void join() {
   sceKernelDeleteThread(reader);
   reader = -1;
 }
+void rest() { sceKernelDelayThread(100000); }
 #endif
 
 // the program's folder on the card (ZINC_SD_DIR: tools/console-demos sets it for the 3DS emulator, which gives no path; on a 3DS the path
@@ -137,7 +143,8 @@ std::string folder() {
 
 // ---------------------------------------------------------------- the packs and the reader
 struct Pack { std::string path; std::vector<unsigned char> index; zn::zpk::Reader r; FILE* f = nullptr; };   // f null: the linked pack
-struct Slot { std::string name, data; };
+// data: malloc'd, the taker's then (an allocation the thread could not have is a read dropped, asked for again by a later frame)
+struct Slot { std::string name; unsigned char* data; size_t size; };
 // names asked for ahead, entries read and not taken yet (the oldest dropped first); a linked entry smaller than kSmall, or asked for while
 // kBurst wait already, is read by the frame
 enum { kWant = 8, kReady = 8, kSmall = 16 * 1024, kBurst = 2 };
@@ -154,7 +161,7 @@ bool running = false;
 volatile bool quit = false;
 // what the run cost: entries read from the card (those a frame waited for), their bytes and milliseconds, the linked entries the thread read
 // and their milliseconds, the most heap in use, the least linear memory free (the 3DS's GPU memory)
-uint32_t reads = 0, waited = 0, linked = 0, dropped = 0; uint64_t bytesRead = 0; double readMs = 0, linkedMs = 0; size_t peakHeap = 0, minLinear = (size_t)-1;
+uint32_t reads = 0, waited = 0, linked = 0, dropped = 0, short_of = 0; uint64_t bytesRead = 0; double readMs = 0, linkedMs = 0; size_t peakHeap = 0, peakRt = 0, minLinear = (size_t)-1, minLargest = (size_t)-1;
 
 void say(const std::string& s) { hal_log(s.data(), s.size()); }
 
@@ -191,34 +198,74 @@ bool readEntry(Pack* p, long i, const std::string& name, std::string& out) {
   if (!ok) say("zinc: " + err + "\n");
   return ok;
 }
+// The same on the reader thread, into one malloc'd block (two for a compressed entry): null when the heap has no room for it now, or the
+// entry is bad. No std::string or vector holds the bytes: their allocation cannot fail without ending the program, a malloc can (the 3DS's
+// HAL ends the program only for its main thread), and the read is then dropped and asked for again by a later frame.
+unsigned char* readInto(Pack* p, long i, const std::string& name, size_t* size) {
+  const zn::zpk::Entry e = p->r.entry((size_t)i);
+  unsigned char* out = (unsigned char*)malloc(e.size ? e.size : 1);
+  if (!out) return nullptr;
+  const bool none = e.codec == zn::zpk::Codec::None;
+  std::string err;
+  bool ok;
+  const double t0 = nowMs();
+  if (!p->f) {
+    ok = p->r.read((size_t)i, out, err);
+    linked++; linkedMs += nowMs() - t0;
+  } else {
+    unsigned char* stored = none ? out : (unsigned char*)malloc(e.storedSize ? e.storedSize : 1);   // an entry stored as it is: read in place
+    if (!stored) { free(out); return nullptr; }
+    files.on();
+    ok = fseek(p->f, (long)e.offset, SEEK_SET) == 0 && fread(stored, 1, e.storedSize, p->f) == e.storedSize;
+    readMs += nowMs() - (double)t0;
+    reads++; bytesRead += e.storedSize;
+    files.off();
+    if (!ok) err = "cannot read " + name + " in " + p->path;
+    else ok = p->r.decode((size_t)i, stored, out, err);
+    if (stored != out) free(stored);
+  }
+  if (!ok) { say("zinc: " + err + "\n"); free(out); return nullptr; }
+  *size = e.size;
+  return out;
+}
 
 void work() {
+  static const bool slow = getenv("ZINC_SD_SLOW") && *getenv("ZINC_SD_SLOW") == '1';
   while (!quit) {
     lock.on();
     if (want.empty()) { lock.off(); wake.wait(); continue; }
-    Slot s{want.front(), std::string()};
+    Slot s{std::move(want.front()), nullptr, 0};
     want.erase(want.begin());
-    busy = s.name;
+    busy.assign(s.name);   // its capacity reserved by open(): no allocation here
     lock.off();
     long i = -1;
     Pack* p = where(s.name, -1, &i);
-    const bool ok = p && readEntry(p, i, s.name, s.data);
+    s.data = p ? readInto(p, i, s.name, &s.size) : nullptr;
+    const bool full = p && !s.data;   // no room in the heap now: dropped, a later frame asks again
     lock.on();
-    if (ok) {
-      if (ready.size() >= kReady) { ready.erase(ready.begin()); dropped++; }   // asked for and never taken (the eye turned away)
-      ready.push_back(std::move(s));
+    if (s.data) {
+      if (ready.size() >= kReady) { free(ready.front().data); ready.erase(ready.begin()); dropped++; }   // asked for and never taken (the eye turned away)
+      ready.push_back(std::move(s));   // within the capacity open() reserved
     }
     busy.clear();
     lock.off();
+    if (full) { short_of++; rest(); }
+    else if (slow) rest();   // ZINC_SD_SLOW=1: a card far slower than the console's (an emulator reads in a few ms what a 3DS takes 40 for)
   }
 }
 
 // the numbers so far (the memory too without packs: the same program's peak without its streamed level)
 void numbers() {
-  char line[320];
-  snprintf(line, sizeof line, "zinc: sd packs: %lu entries read (%lu while a frame waited), %lu KB, %.1f ms each; %lu linked entries read ahead, %.1f ms each; %lu never taken; heap at most %lu KB, linear memory free at least %lu KB\n",
+  char line[400];
+  size_t heap = 0;
+#if defined(__3DS__)
+  heap = __ctru_heap_size - zn_console_heap_held();
+#endif
+  snprintf(line, sizeof line, "zinc: sd packs: %lu entries read (%lu while a frame waited), %lu KB, %.1f ms each; %lu linked entries read ahead, %.1f ms each; %lu never taken, %lu without room; heap at most %lu of %lu KB (the runtime's %lu of %lu KB; largest free block at least %lu KB), linear memory free at least %lu KB\n",
            (unsigned long)reads, (unsigned long)waited, (unsigned long)(bytesRead / 1024), reads ? readMs / reads : 0.0, (unsigned long)linked,
-           linked ? linkedMs / linked : 0.0, (unsigned long)dropped, (unsigned long)(peakHeap / 1024), (unsigned long)(minLinear == (size_t)-1 ? 0 : minLinear / 1024));
+           linked ? linkedMs / linked : 0.0, (unsigned long)dropped, (unsigned long)short_of, (unsigned long)(peakHeap / 1024), (unsigned long)(heap / 1024),
+           (unsigned long)(peakRt / 1024), (unsigned long)(zrt::heap_budget() / 1024),
+           (unsigned long)(minLargest == (size_t)-1 ? 0 : minLargest / 1024), (unsigned long)(minLinear == (size_t)-1 ? 0 : minLinear / 1024));
   say(line);
 }
 void report() {
@@ -226,6 +273,8 @@ void report() {
   if (running) { wake.signal(); join(); running = false; }
   numbers();
   for (auto& p : packs) if (p->f) fclose(p->f);
+  for (Slot& s : ready) free(s.data);
+  ready.clear();
 }
 
 void open() {
@@ -275,6 +324,8 @@ void open() {
     if (p->r.open(zn_console_pack, zn_console_pack_size, err)) packs.push_back(std::move(p));
   }
   atexit(report);
+  ready.reserve(kReady);   // the thread allocates nothing of its own but the entries' bytes
+  busy.reserve(256);
   running = !packs.empty() && !(getenv("ZINC_SD_SYNC") && *getenv("ZINC_SD_SYNC") == '1') && start(work);   // ZINC_SD_SYNC=1: no thread
 }
 
@@ -285,13 +336,17 @@ void sample() {
   used -= zn_console_heap_held();   // what hal_n3ds.cpp holds back to be an Old 3DS in the emulator
 #endif
   if (used > peakHeap) peakHeap = used;
+  if (zrt::heap_used() > peakRt) peakRt = zrt::heap_used();
 #if defined(__3DS__)
   const size_t lf = linearSpaceFree();
   if (lf < minLinear) minLinear = lf;
 #endif
-  static double last = 0;   // ZINC_PROFILE=1: the numbers every 5 seconds too (an emulator's runner may stop the program before its exit)
+  static double last = 0, probed = 0;   // ZINC_PROFILE=1: the numbers every 5 seconds too (an emulator's runner may stop the program before its exit)
   static const bool profile = getenv("ZINC_PROFILE") && *getenv("ZINC_PROFILE") == '1';
   const double now = nowMs();
+#if defined(__3DS__)
+  if (profile && now - probed > 500) { probed = now; const size_t big = zn_console_heap_largest(); if (big < minLargest) minLargest = big; }
+#endif
   if (profile && now - last > 5000) { last = now; numbers(); }
 }
 
@@ -327,14 +382,23 @@ extern "C" int zn_console_side_ready(const char* name, uint32_t n) {
 }
 
 /** The entry `name` if the thread has read it (it is then the caller's): before the linked pack, which would inflate it again. */
-bool zn_console_side_take(const std::string& name, std::string& out) {
-  if (!running) return false;
-  bool ok = false;
+/** The same as a malloc'd block the caller frees (zn_asset_bytes: no copy). */
+extern "C" unsigned char* zn_console_side_take_bytes(const char* name, uint32_t n, uint32_t* size) {
+  if (!running) return nullptr;
+  unsigned char* d = nullptr;
   lock.on();
-  for (size_t k = 0; k < ready.size() && !ok; k++)
-    if (ready[k].name == name) { out = std::move(ready[k].data); ready.erase(ready.begin() + (long)k); ok = true; }
+  for (size_t k = 0; k < ready.size() && !d; k++)
+    if (ready[k].name.size() == n && !memcmp(ready[k].name.data(), name, n)) { d = ready[k].data; *size = (uint32_t)ready[k].size; ready.erase(ready.begin() + (long)k); }
   lock.off();
-  return ok;
+  return d;
+}
+bool zn_console_side_take(const std::string& name, std::string& out) {
+  uint32_t n = 0;
+  unsigned char* d = zn_console_side_take_bytes(name.data(), (uint32_t)name.size(), &n);
+  if (!d) return false;
+  out.assign((const char*)d, n);
+  free(d);
+  return true;
 }
 
 /** The entry `name` (kind 0 data, 1 an image) of the card's packs: the one read ahead, else read now. False when it is not there. */

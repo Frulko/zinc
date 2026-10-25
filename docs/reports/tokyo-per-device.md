@@ -51,7 +51,7 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 |---|---|---|---|---|---|---|---|
 | Mac (desktop) | all levels | 600 / 2000 m | 2500 to 5800 m | 400,000 | yes | yes | dome |
 | PS Vita | 13.9 MB: mid + far, grounds 256² (128² a block); near in `app0:near.zpk` inside the .vpk (64 slots) | 600 / 1300 m | 1600 to 5800 m | 40,000 | yes | yes | dome |
-| 3DS | 12.7 MB on the SD card (default.zpk): mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps; near on the SD card (30.5 MB, 40 slots) | 600 / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
+| 3DS | 12.7 MB on the SD card (default.zpk): mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps; near on the SD card (30.5 MB, 40 slots) | 600 / 2400 m | 1200 to 5800 m | 40,000 (Pocket's; 55,000 held a real Old 3DS XL at 20 fps) | yes | yes | one colour |
 | PSP | 9.2 MB: mid + far, grounds 256² (128² a block) and facades 512 × 64 in CLUT8 with their night palettes, the heights for the shadows; the pack on the memory stick (`default.zpk` 9.2 MB, `near.zpk` 17.0 MB, 40 slots), not in the EBOOT | 600 / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
 | Raspberry Pi 1 (`rpi1`) | not built yet | 300 / 900 m | 600 to 3000 m | 12,000 | yes | no | one colour |
 
@@ -230,7 +230,7 @@ What is left (the next agents' per-console work):
   before CLUT8), 16 MB of it the runtime's, beside a 12.5 MB EBOOT whose pack is 9.2 MB. That is 42 MB: a PSP-2000, 3000 or Go (52 MB with
   the EBOOT's `MEMSIZE=1`) holds it. Since the near level: 15.0 to 15.7 MB of heap and a 3.3 MB EBOOT, the packs on the stick: a PSP-1000
   holds it on paper (see above), not tried on one. CLUT8 mipmaps are not done.
-- **3DS:** the GPU's time on hardware is not known: Azahar does not time the PICA200, and the budget (60,000) is above Pocket's 40,000.
+- **3DS:** the GPU's time on hardware is not known: Azahar does not time the PICA200. A real Old 3DS XL drew 55,000 triangles at about 20 fps (work p50 16, p95 33 ms; select 12.3, read 5.0 ms: about 3 times Azahar's clock); the budget is now Pocket's 40,000.
   The SD card's timing on hardware is not measured.
 - **The selection** costs 4.3 ms a frame on the PSP (with a range per sector) and 3.6 to 3.9 on the 3DS (5.1 before; Azahar's clock), against
   Pocket's 4.4 ms on a PSP. On the 3DS, Azahar's clock: the cells 1.8 ms (the facing sectors were 1.3 ms more with `atan2f`, now a

@@ -18,7 +18,9 @@ bool zn_console_pack_read(const std::string& name, int kind, std::string& out); 
 static bool (*const zn_console_side_read)(const std::string&, int, std::string&) = nullptr;
 static bool (*const zn_console_side_take)(const std::string&, std::string&) = nullptr;
 static int (*const zn_console_side_ready)(const char*, uint32_t) = nullptr;
+static unsigned char* (*const zn_console_side_take_bytes)(const char*, uint32_t, uint32_t*) = nullptr;
 #else
+extern "C" unsigned char* zn_console_side_take_bytes(const char* name, uint32_t n, uint32_t* size) __attribute__((weak));
 bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
 bool zn_console_side_take(const std::string& name, std::string& out) __attribute__((weak));
 extern "C" int zn_console_side_ready(const char* name, uint32_t n) __attribute__((weak));
@@ -93,6 +95,7 @@ void zn_ui_log_mark(int) {}
 int zn_asset_font(const char*, uint32_t) { return -1; }
 // zinc:assets readBytes for a native module (zinc:3d's models): the pack entry in one call, a malloc'd copy the caller frees
 unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) {
+  if (zn_console_side_take_bytes) if (unsigned char* p = zn_console_side_take_bytes(name, n, size)) return p;   // what the thread read, as it is
   std::string d;
   if (!packOrSide(std::string(name, n), 0, d)) return nullptr;
   auto* p = static_cast<unsigned char*>(malloc(d.size() ? d.size() : 1));
