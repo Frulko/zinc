@@ -6,6 +6,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-829: measure asynchronous staging and paged provenance for large scene reimports; the demonstrated world slice eagerly validates its small chunk set.
+- ZN-828: extend native embedding adapters with IME, clipboard, accessibility and gamepad support before treating the demo bridge as a production UI SDK.
+- ZN-830: measure representative animated-character CPU skinning and memory before choosing a GPU palette path; current proofs establish structural limits and correctness.
+
 - ZN-162: a self-referential closure cycle leaks (tests/t1/rc.sh:7, closure_names.ts): needs escape analysis or a cycle collector; nothing else tracks it.
 - ZN-571: D103 kept canvas_ity for Canvas 2D on the condition that no JIT engine runs; JSC and V8 now run on macOS: check the condition again.
 - ZN-677: draw_boxed's drawImageRect path has no bench/render case; add one if a profile shows image rectangles cost.
@@ -395,6 +399,10 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: the panel's map is a 24 m-per-pixel height relief; Pocket's far ground pictures would read better.
 
 ## Cross-platform pass
+
+- ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
+- ZN-827/ZN-828/ZN-832: build and exercise the pinned Godot exporter, GDExtension and LibGodot hosts on each supported desktop platform; embedding does not confer Zinc console/MCU support on Godot.
+- ZN-830/ZN-831: verify the animation plugin, deformation backend and authoring-scene reimport on later targets, preserving explicit unsupported-feature diagnostics.
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
 

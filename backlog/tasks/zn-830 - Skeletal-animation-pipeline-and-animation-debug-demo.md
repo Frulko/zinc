@@ -46,3 +46,5 @@ Limits are explicit in docs/plugins/animation.md: CPU baseline, Mac proof only,4
 Saved-project followup proof: reopening companion.blend exposed Blender dropping unused Actions from disk even though same-process GLB export retained them. Generator now gives Idle/Walk/Run fake users and a named Companion collection. Reopened the actual saved file and successfully retimed its existing Walk action/exported a 2s clip (Lantern Post authoring/retime.py). The published original GLB/reference remain byte-identical.
 
 Finish-worktree verification (2026-10-25): Integration verification against develop 55e263e0: sequential headless `animation_pipeline` and `animation_lab` PASS using this tree native sources (explicit ZINC_ROOT), preserving meshDeform alongside current World API. Fresh local zinc build succeeded. Native windows and timing are coordinator-owned; not repeated here.
+
+Coordinator decision record: D167 in docs/reports/zinc-next-decisions.md records the pinned ozz boundary and qualitative option scores; no unmeasured performance claim.

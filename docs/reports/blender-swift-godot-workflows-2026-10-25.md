@@ -2,9 +2,30 @@
 
 Date: 2026-10-25. Requested by the owner: investigate native Swift apps containing Zinc, Godot games exported to Zinc, Zinc UI inside Godot, and a production workflow broader than DOGWALK's Blender/Godot pipeline, with a demonstration of each integration.
 
-Status: research completed; **implementation launched by the owner on 2026-10-25**. The specifications below describe the required outcome, not completed capabilities. Three implementation agents work in separate branches after three research agents examined Swift embedding, Blender production, and Godot interoperability. Actual implementation/test evidence belongs to the task files below; this report does not itself establish compatibility or performance.
+Status: **demo workstreams delivered and integrated on develop, 2026-10-25; ZN-825 through ZN-832 Done**. Real native windows and GPU composition were exercised after headless integration. The initial analysis/specification is retained below for context; the delivered-project table and task evidence describe current scope. No cross-platform or production-scale performance claim follows from these macOS demonstrations.
 
-## Implementation workstreams
+## Delivered projects
+
+Every project has source, a README with build/run/test instructions and actual execution evidence. Blender projects include editable `.blend` files and reproducible authoring scripts; Godot projects include real scenes and scripts. Native applications run without a separately installed Zinc CLI.
+
+| Project | Entry point and evidence |
+|---|---|
+| [Swift Observatory](../../examples/swift-observatory/README.md) | SwiftUI host and Zinc child view; native controls, pointer/keyboard selection, resize/Retina, hide/show and shutdown; reviewed `preview.png` |
+| [Parcel Yard](../../examples/godot-to-zinc/README.md) | Godot editor exporter, shared assets/scene contract, standalone Zinc gameplay and unsupported-feature diagnostics |
+| [Godot Warehouse](../../examples/godot-zinc-ui/README.md) | Actual GDExtension hosting Zinc UI; input/focus, game state and real GPU premultiplied-alpha composition; reviewed `preview.png` |
+| [Zinc Pocket Rally](../../examples/zinc-libgodot/README.md) | Zinc-owned native host with Godot child view; AppKit game keys, Zinc mouse commands, actual GPU viewport readback and clean close; reviewed `preview.png` |
+| [Blender Library](../../examples/blender-library/README.md) | Editable library, Blender extension, scene publication, shared instances, source provenance and safe reimport |
+| [Animation Lab](../../examples/animation-lab/README.md) | Real skinned companion, idle/walk/run, blends, events, sockets, seek/step and independent Blender pose reference |
+| [Lantern Post](../../examples/lantern-post/README.md) | Playable three-delivery route; real Blender gate/clip edits, collision and animation debugging, preserved compatible progress and rollback |
+| [Blender World](../../examples/blender-world/README.md) | Collection `world` metadata through the existing world importer; fused static descendants and authoritative cell/chunk/batch provenance |
+
+Verification: fresh `tools/build zinc`; sequential targeted `animation_pipeline`, `animation_lab`, `animated_scene`, `lantern_post`, `blender_world`, `scene_exchange`, `blender_library`, `zinc3d_world` and `native_gen` passed on the integrated source tree. Coordinator main-tree `blender_world` and `lantern_post` also passed after integration. Embedding, Swift, Godot export/UI and LibGodot headless/package tests passed. The three finite background graphical proofs are `swift_observatory_native`, `godot_zinc_ui_visual` and `zinc_libgodot_native` in the demo tier; all passed and their captures were inspected. Do not invoke multiple `tests/run` processes simultaneously: the existing log naming can collide.
+
+The graphical phase found and fixed missing AppKit event dispatch/background click handling in the LibGodot host. An early GPU capture also crashed because a raw Godot `Image*` outlived its temporary owning `Variant`; retaining both texture/image owners through `save_png` fixed the lifetime, and the bounded native regression then passed with orderly destruction. This is a concrete fixed crash, not a guarantee against all future crashes.
+
+Limits: one embedded runtime instance per process, macOS proof only; no general GDScript/game translation, universal shader/PBR parity, native IME/accessibility bridge or measured large-world/memory performance. Inspector controls supplied by the scene/game demos are not a complete external Blender/Inspector round-trip editor. World import eagerly validates chunks/provenance for the small fixture; large production-scene staging needs its own measured work. See each README for its actual supported contract.
+
+## Completed implementation workstreams
 
 The owner's delivery requirement is explicit: every demonstration is a real runnable project with source files, the native or authoring project files, a README containing exact build/run/test commands, and execution evidence. A design document or mock alone does not satisfy a task.
 
@@ -14,7 +35,7 @@ The owner's delivery requirement is explicit: every demonstration is a real runn
 | `feat/workflow-godot` | ZN-827 restricted scene export; ZN-828 Zinc UI in Godot; ZN-832 LibGodot in Zinc | Parcel Yard, Godot Warehouse and a separately labelled LibGodot experiment |
 | `feat/workflow-blender` | ZN-829 scene publication; ZN-830 skeletal animation; ZN-831 production showcase | Blender authoring project/add-on and scene viewer, animation lab, Lantern Post |
 
-The Swift agent owns the common embedding ABI and implementation. The Blender agent owns the common versioned scene contract and reader; the Godot agent supplies an exporter for that contract. Dependency integration precedes acceptance of dependent features. Workers commit separately per task; the coordinator integrates and runs windowed tests alone. macOS is the initial proof platform, following repository policy.
+The Swift agent owns the common embedding ABI and implementation. The Blender agent owns the common versioned scene contract and reader; the Godot agent supplies an exporter for that contract. Dependency integration precedes acceptance of dependent features. Workers committed separately per task; the coordinator integrated them and ran windowed tests alone. Temporary worker worktrees and branches were removed after integration. macOS is the proof platform, following repository policy.
 
 ## Recommendation
 
@@ -22,7 +43,9 @@ Build two reusable boundaries: an embeddable Zinc surface, and a versioned asset
 
 Use Blender for art, level assembly, rigs and animation; Zinc for gameplay and execution; extend the existing Inspector for runtime debugging. Godot remains an optional scene authoring tool or host engine. Do not make Godot a required intermediate step between Blender and Zinc.
 
-## What exists
+## Baseline before this work
+
+This table records the research baseline. The additions and completed proofs are listed above.
 
 | Area | Evidence | Present limitation |
 |---|---|---|
