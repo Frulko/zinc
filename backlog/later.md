@@ -244,6 +244,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-476/ZN-478/ZN-477: a console frame whose 2D commands fall back to software (a radial gradient, a rounded clip, a rotation) shows the zinc:3d GPU target black; read the target back only in that case.
 - ZN-476: the PSP's VRAM is a bump allocator in render3d.psp.cpp, a target that grows leaks its old space unless it was the last made; and a failed zn_gu_init/zn_c3d_init leaves the 3D blank instead of falling back to software.
 - ZN-477: Vita zinc:3d lights per vertex on the CPU (psp2spvc has no branches, division or sampling); per-pixel specular and mipmaps on PSP, 3DS and Vita once a fuller shader path exists.
+- ZN-791: an mDNS answer from the Paint Arena host, so other tools find a match without the broadcast.
+- ZN-792: mDNS discovery for the console players (they are paired by address today).
+- ZN-792: the PSP player's entropy from KIRK through a kernel PRX instead of the jitter pool.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -338,6 +341,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-757: avatars from WhatsApp's own cache (group.net.whatsapp.WhatsApp.shared/Media/Profile + ChatStorage) are not built.
 - ZN-757: the banner-capture avatar source (Accessibility + ScreenCaptureKit, off by default) and its assistant step are not built.
 - ZN-757: check real Chrome, Firefox, Safari web notifications and real Messages/WhatsApp records with `zinc run examples/notify-relay -- --inspect 30` once Full Disk Access is granted; whether a scheduled Focus writes an assertion is unverified.
+- ZN-791: smooth the other players' movement in Paint Arena between the 20 Hz snapshots.
 
 ## Cross-platform pass
 
@@ -411,3 +415,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-785: evaluate a separately flashed A/B Pi OS image with RAUC, persistent app/settings storage, signed boot+rootfs bundles and tryboot health confirmation on Pi 3 B+; prove power-cut rollback before offering whole-system updates. Current engine generations do not update the OS.
 - ZN-790: play n3ds-pinball, n3ds-platformer and n3ds-starfall on a real 3DS (stereo depth comfort, stylus, frame time).
 - ZN-792: the device player on a real PSP, Vita, 3DS and the TouchPad over Wi-Fi; EC J-PAKE pairing time on each; iPhone signing and the local network permission prompt.
+- ZN-791: Paint Arena on a real PSP, Vita and 3DS on real Wi-Fi (PSP WPA limits, routers that block client broadcasts).
