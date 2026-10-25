@@ -6,3 +6,29 @@ web_hw               # a hosted runner's Chrome had drawn nothing of the map aft
 lan                  # a hosted runner may drop the UDP broadcast to 255.255.255.255
 atelier_devices      # a windowed app, a local agent and per-second figures: timing on a shared runner
 examples_all         # owner 2026-10-25: off the CI for now (demos under way), back later
+# owner 2026-10-25: the platform tests of iOS (Zinc Go), the reMarkable and the consoles (PSP, Vita, 3DS) are off the CI; they run on the Mac with their devices
+console_aot          # consoles (PSP, Vita, 3DS)
+console_assets       # consoles (PSP, Vita, 3DS)
+console_audio        # consoles (PSP, Vita, 3DS)
+console_core         # consoles (PSP, Vita, 3DS)
+console_emulators    # consoles (PSP, Vita, 3DS)
+console_host         # consoles (PSP, Vita, 3DS)
+console_live         # consoles (PSP, Vita, 3DS)
+console_player       # consoles (PSP, Vita, 3DS)
+console_sdks         # consoles (PSP, Vita, 3DS)
+psp_swizzle          # consoles (PSP, Vita, 3DS)
+n3ds_demos           # consoles (PSP, Vita, 3DS)
+n3ds_frame_profile   # consoles (PSP, Vita, 3DS)
+handheld_profiles    # consoles (PSP, Vita, 3DS)
+export_ios           # iOS (Zinc Go)
+ios_present          # iOS (Zinc Go)
+ios_sim              # iOS (Zinc Go)
+zinc_go              # iOS (Zinc Go)
+zinc_go_device       # iOS (Zinc Go)
+zinc_go_fonts        # iOS (Zinc Go)
+zinc_go_home         # iOS (Zinc Go)
+zinc_go_phones       # iOS (Zinc Go)
+rmpp_engine          # reMarkable
+rmpp_lease           # reMarkable
+rmpp_sim             # reMarkable
+hub_app              # reMarkable
