@@ -369,7 +369,10 @@ void hal_poll_input(HalInput* in) {
     if (bottomFb) ppm("sdmc:/zinc-shot-bottom.ppm", bottomFb, 320, 240, 240); else remove("sdmc:/zinc-shot-bottom.ppm");   // and the bottom screen
     if (stereoOn && rightFb) ppm("sdmc:/zinc-shot-right.ppm", rightFb, W, H, kScreenH); else remove("sdmc:/zinc-shot-right.ppm");   // the right eye
   }
-  in->quit = !aptMainLoop() || budgetOver;
+  // START and SELECT held together for a second leave the program (back to the Homebrew Launcher): HOME's "close" would close the launcher too
+  static int32_t leaving = 0;
+  leaving = (held & (KEY_START | KEY_SELECT)) == (KEY_START | KEY_SELECT) ? leaving + 1 : 0;
+  in->quit = !aptMainLoop() || budgetOver || leaving >= 60;
   in->quit |= zn_player_poll();   // the workstation stopped it, or sent another program
 }
 void hal_present(const HalFrame* f) {

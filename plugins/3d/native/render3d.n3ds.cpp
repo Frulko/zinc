@@ -191,6 +191,7 @@ struct N3ds : Engine {
     memcpy(t->amb, amb, sizeof amb); memcpy(t->ld, ld, sizeof ld); memcpy(t->lc, lc, sizeof lc); memcpy(t->eye, eye, sizeof eye);
     t->nl = nl;
     t->dirty = true;
+    raster::dyn_update(t->img, nullptr, 0);   // a new picture: the frame's diff redraws its box (the GPU writes no pixels the diff could see)
     return tris;
   }
   void present(int32_t id, N x, N y, N w, N h) override {

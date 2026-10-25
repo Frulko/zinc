@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Nintendo 3DS: hold START and SELECT for a second to leave a program and go back to the Homebrew Launcher.
 - PS Vita: zinc:3d draws on the GPU (GXM) in the default core: lights, flat and smooth shading, vertex colours, textures, blending and emissive colours, composed with the 2D frame; `ZINC_3D=software` keeps the CPU renderer. examples/3d/cubes takes 0.7 ms a frame instead of 6.7 in Vita3K.
 - PS Vita: the default GXM core draws rounded rectangles, borders, shadows, filled paths and vertical and horizontal gradients on the GPU, like the PSP and the 3DS; such frames were drawn in software before. A frame with a radial gradient, a rounded clip or a rotation still is. `ZINC_VITA_GPU=0` keeps the software path.
 - Zinc Player for the PSP, the PS Vita and the 3DS: start it on the console, pair with `zinc device pair <address> <code>` (the code is on its screen), then `zinc device deploy <project>` sends and runs your program there, and `zinc device logs`, `stop`, `run`, `shot` and `zinc dev --device` work as with any device.
@@ -25,6 +26,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 
 ### Fixed
+- Nintendo 3DS: a zinc:3d view on the GPU updates at every frame with the 3D slider down; it showed a new picture only when something else on the screen changed (2 or 3 a second in Orbit).
 - `zinc device deploy` to a player (a console, Zinc Go) no longer refuses a program that uses a native plugin the player has (it read the target's name as the plugin's).
 
 ## [0.8.0] - 2026-10-25
