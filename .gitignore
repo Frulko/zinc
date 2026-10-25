@@ -21,6 +21,9 @@ tests/compat/cache/
 # Big Buck Bunny for the Video tab (see README.md), an asset read at runtime, not embedded
 examples/hero/media/
 
+# PDFium of zinc:pdf, fetched by plugins/pdf/vendor/fetch (plugins/pdf/vendor/PIN)
+/plugins/pdf/vendor/pdfium/
+
 # test reports downloaded from CI runs (the artifacts stay on GitHub)
 docs/reports/ci-run-*/
 

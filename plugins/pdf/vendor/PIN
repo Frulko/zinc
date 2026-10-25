@@ -1,0 +1,14 @@
+PDFium chromium/8100 (157.0.8100.0), prebuilt by bblanchon/pdfium-binaries, release tag chromium/8100 (2026-10-12),
+https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100 (build options: no V8, no XFA, not a component build)
+archives (fetched by vendor/fetch into vendor/pdfium/<platform>/, not committed: 3.5 MB each, the libraries 7 to 8 MB):
+macos-arm64 pdfium-mac-arm64.tgz 7ea647c7a7a9c1169be3f947000bc071ece2fade2cd6bd7e401e3675c6560cce
+linux-arm64 pdfium-linux-arm64.tgz 58c87a95a40a24c914a9c755fae798843f46f06adf9e5e9f2c893302d4bdb040
+linux-arm64: libpdfium.so needs GLIBC_2.17 at most and only libc, libm, libpthread, libgcc_s, ld-linux (libc++ is linked in):
+it loads on reMarkable OS 3.x (glibc 2.35 / 2.39). macos-arm64: AppKit, CoreGraphics, CoreFoundation, Foundation, libSystem.
+kept in the repository: include/fpdfview.h, fpdf_annot.h, fpdf_formfill.h, fpdf_save.h of the archives (equal in both), unmodified
+  sha256 21fb11834607c74cbc1e3a9ac14a85a5dba95d7669ec86c21c05a4890a38648d fpdfview.h
+  sha256 40add618da4d09ee1f8eaa2c1ff301dab90ec8315d94af673feabdb67abfce3b fpdf_annot.h
+  sha256 8792ed53df3f5852f1a8b98d2b6e140898ab595888df8a2f70bc8c165d188c12 fpdf_formfill.h
+  sha256 96a78a3e3eb8a387dc4a35c1e87b430618e9ee8e7ceae9fea424baf1de6b497a fpdf_save.h
+LICENSE: PDFium's (licenses/pdfium.txt of the archive: BSD-3-Clause and Apache-2.0); LICENSE.pdfium-binaries: the packaging's (MIT).
+The archives' licenses/ (FreeType, libjpeg-turbo, OpenJPEG, lcms, libpng, zlib, ICU, abseil...) are fetched beside each library.

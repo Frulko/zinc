@@ -1,0 +1,13 @@
+{
+  "name": "pdf",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:pdf",
+  "entry": "index.ts",
+  "description": "PDF documents on PDFium chromium/8100 (BSD-3-Clause / Apache-2.0, prebuilt, loaded at run time): pages as runtime images, ink annotations, save a copy",
+  "license": "BSD-3-Clause",
+  "targets": {
+    "macos": { "flags": ["-I./vendor/include"] },
+    "linux": { "flags": ["-I./vendor/include"], "libs": ["dl", "m"] }
+  }
+}

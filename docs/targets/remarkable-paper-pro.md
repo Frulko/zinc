@@ -393,6 +393,21 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   top of the page as an 810 x 540 widget on the same timer. The program's timers keep running while the window is minimized or a widget:
   `rm_present` waits at most 8 ms for input and returns. The mode is kept in `web.conf`, so a reopened app is the dashboard again.
 
+## Zinc PDF (ZN-844)
+
+`app/pdf` reads the PDFs of `/home/root/zinc-docs` with pen notes (`app/pdf/README.md`). The pages are drawn by `zinc:pdf`
+(`plugins/pdf`), over PDFium: the prebuilt `libpdfium.so` of bblanchon/pdfium-binaries `chromium/8100` (pinned by SHA-256 in
+`plugins/pdf/vendor/PIN`; MuPDF is AGPL). It needs GLIBC_2.17 at most and no libstdc++, so it loads on every OS 3.x; `tools/rmpp-engine`
+fetches it and puts it in the bundle's `lib/` (with `PDFIUM-LICENSES/`), where `zinc-app`'s `LD_LIBRARY_PATH` finds it, and the plugin's
+own code is in the package's `prebuilt/linux/` like the others (it loads PDFium with `dlopen`, so it cross-builds with no library).
+
+- The page is fitted to the page view and drawn by PDFium into one runtime image the size of the view; a zoomed page is only the visible
+  rectangle at the larger scale, never a bigger image (memory stays at one screen, about 14 MB).
+- The ink is in page points, saved per page beside the document (`<name>.pdf.ink/p<n>.json`); Export writes `<name>.annotated.pdf`
+  with real `/Ink` annotations. `display.refresh_mode` is `fast` for the pen.
+- Proven on the Mac: `tests/t0/pdf.sh` (the plugin) and `tests/t1/pdf_reader.sh` (the app headless). Not yet on the tablet: the
+  pen and pinch there, and how long PDFium takes per page on the Cortex-A53.
+
 ## What is verified and what is not
 
 Verified here: conformance suite on `rmpp` (static ELF in the arm64 container, same bytes as the sim oracle, incl.

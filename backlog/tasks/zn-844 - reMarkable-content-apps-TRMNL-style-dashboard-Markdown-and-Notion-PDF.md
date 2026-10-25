@@ -4,7 +4,7 @@ title: 'reMarkable content apps: TRMNL-style dashboard, Markdown and Notion, PDF
 status: In Progress
 assignee: []
 created_date: '2026-10-25 19:27'
-updated_date: '2026-10-25 22:46'
+updated_date: '2026-10-25 22:51'
 labels:
   - remarkable
   - size-L
@@ -47,4 +47,10 @@ Part 1b, timed dashboard (TRMNL-style) in app/web, test tests/t1/web_relay.sh (1
 - Proven (headless): render 1 new picture, the page changes, render 2 (one period later) new picture, render 3 unchanged (no swap); web.conf keeps dash=; the widget draws (810x506 canvas, the top 1620x1012); ZINC_SHOT of the widget and of the dashboard checked by eye. zinc pack app/web OK.
 - Not proven: on the tablet (timer while minimized/widget for real, the full refresh after the swap, tablet sleep: a suspended tablet does not run timers).
 - Hub publication still needs the owner's key: zinc update-keygen > web.key; add "update": {"url": "<hub>", "publicKey": "<public= line of web.key>"} to app/web/zinc.json; zinc publish app/web --key "$(sed -n 's/^seed=//p' web.key)" --hub http://<hub>:8787 --token "$(cat hub-data/publisher.token)".
+Part 3, PDF (app/pdf + plugins/pdf), tests/t0/pdf.sh (PASS, 1 s) and tests/t1/pdf_reader.sh (PASS, 3 s).
+- Library: PDFium chromium/8100 prebuilt by bblanchon/pdfium-binaries (BSD-3/Apache; MuPDF is AGPL), not built here (gn/depot_tools). plugins/pdf/vendor/fetch downloads the pinned archives (vendor/PIN, SHA-256 each) into vendor/pdfium/<platform>/ (git-ignored, 7-8 MB libraries); the four public headers it calls are committed. linux-arm64 libpdfium.so: GLIBC_2.17 at most, NEEDED libc/libm/libpthread/libgcc_s/ld-linux only (libc++ inside): fits OS 3.x (glibc 2.35/2.39).
+- Plugin: native code loads PDFium with dlopen at the first open (ZINC_PDFIUM, the loader's path = the bundle's lib/ through zinc-app's LD_LIBRARY_PATH, <exe>/../lib, vendor/pdfium of ZINC_ROOT / checkout / package), so it builds anywhere, cross builds of tools/package included, and nothing is linked into zinc. API: open(path, password), pageCount, pageSize, render(page, scale, x, y, w, h, img) straight into a runtime image (BGRx = 0x00RRGGBB), addInk (FPDFAnnot ink, page points mapped with FPDF_DeviceToPage), save (FPDF_SaveAsCopy), close; imageHash for tests. One thread, FPDF_InitLibrary once, a page loaded per call.
+- App: library of ~/zinc-docs (ZINC_PDF_DOCS), page fitted and centred, swipe/Previous/Next, a page strip (jump on lift), pinch and +/- zoom (the visible rectangle rendered at the zoom, never a big image), pen ink per page in points in <name>.pdf.ink/p<n>.json, Eraser tool + the Marker's eraser end, Undo, Export = <name>.annotated.pdf with real /Ink annotations (checked: reopened by PDFium, drawn), last document/page/zoom in zinc:storage, RemarkableBar (Accueil/Quitter save first). zinc.json: rmpp, refresh_mode fast, dev.zinc.pdf, Lucide file-text icon. tools/rmpp-engine puts libpdfium.so in lib/ and its licences in PDFIUM-LICENSES/ (rmpp_engine test PASS).
+- Proven headless on the Mac: page count/size, render hash, ink drawn and kept after save, error texts; the app: open, next/prev, last page, stroke on page 2 in page points (matches the logged scale and origin within 0.15 pt), export with /Ink, second run back on page 2 with its stroke, eraser removes it, undo restores it; ZINC_SHOT checked by eye (page 2 with the stroke, zoom 200%, library).
+- Not proven: the tablet run (pen, pinch, PDFium speed on the A53), the linux-aarch64 cross build of the plugin by tools/package and libpdfium.so loading on the tablet.
 <!-- SECTION:NOTES:END -->

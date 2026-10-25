@@ -1,0 +1,34 @@
+#!/bin/sh
+# Fetches PDFium's prebuilt library (vendor/PIN) for a platform into vendor/pdfium/<platform>/ (lib/, licenses/, VERSION), checked by SHA-256.
+#   plugins/pdf/vendor/fetch [macos-arm64|linux-arm64]...      (default: this machine's)
+# zinc:pdf loads it at run time (native/pdf.host.cpp says where it looks).
+set -eu
+here=$(cd "$(dirname "$0")" && pwd -P)
+tag=chromium%2F8100
+if [ $# -eq 0 ]; then
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) set -- macos-arm64 ;;
+    Linux-aarch64) set -- linux-arm64 ;;
+    *) echo "fetch: no pinned PDFium for $(uname -s)-$(uname -m) (vendor/PIN)" >&2; exit 2 ;;
+  esac
+fi
+sha() { if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | cut -d' ' -f1; }
+for p in "$@"; do
+  line=$(grep "^$p " "$here/PIN") || { echo "fetch: $p is not in vendor/PIN" >&2; exit 2; }
+  file=$(echo "$line" | cut -d' ' -f2)
+  want=$(echo "$line" | cut -d' ' -f3)
+  dest=$here/pdfium/$p
+  if [ -f "$dest/sha256" ] && [ "$(cat "$dest/sha256")" = "$want" ]; then echo "fetch: $p already in $dest"; continue; fi
+  tmp=$(mktemp -d)
+  curl -fsSL -o "$tmp/$file" "https://github.com/bblanchon/pdfium-binaries/releases/download/$tag/$file"
+  got=$(sha "$tmp/$file")
+  [ "$got" = "$want" ] || { echo "fetch: $file has SHA-256 $got, vendor/PIN says $want: refused" >&2; rm -rf "$tmp"; exit 1; }
+  mkdir -p "$tmp/x"
+  tar xzf "$tmp/$file" -C "$tmp/x"
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  cp -R "$tmp/x/lib" "$tmp/x/licenses" "$tmp/x/VERSION" "$tmp/x/LICENSE" "$dest/"
+  echo "$want" > "$dest/sha256"
+  rm -rf "$tmp"
+  echo "fetch: $p -> $dest/lib"
+done

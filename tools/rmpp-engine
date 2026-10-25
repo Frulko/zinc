@@ -32,6 +32,10 @@ ink=$root/integrations/remarkable-ink
 "$zig" cc -target aarch64-linux-musl -static -O2 "$root/integrations/remarkable-engine/qtfb-hold.c" -o "$z/bin/qtfb-hold"
 cp "$ink/quill/libquill.so" "$z/lib/libquill.so"
 cp "$ink/quill/LICENSE" "$z/QUILL-LICENSE"
+# zinc:pdf loads PDFium from lib/ (zinc-app puts it on LD_LIBRARY_PATH): the pinned prebuilt, GLIBC_2.17 at most (plugins/pdf/vendor/PIN)
+"$root/plugins/pdf/vendor/fetch" linux-arm64 >/dev/null
+cp "$root/plugins/pdf/vendor/pdfium/linux-arm64/lib/libpdfium.so" "$z/lib/libpdfium.so"
+rm -rf "$z/PDFIUM-LICENSES" && cp -R "$root/plugins/pdf/vendor/pdfium/linux-arm64/licenses" "$z/PDFIUM-LICENSES"
 for f in zinc-app zinc-tile; do cp "$root/integrations/remarkable-engine/$f" "$z/bin/$f"; chmod 755 "$z/bin/$f"; done
 mkdir -p "$z/share/zinc/rmpp"
 cp "$root/app/atelier/icon.png" "$z/share/zinc/rmpp/icon.png"   # the tiles' icon
