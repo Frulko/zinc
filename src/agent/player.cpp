@@ -176,8 +176,11 @@ void pairConnection(Player& p, int fd) {
   ++p.tries;   // counted before the handshake: a try that never ends is a try
   sendLine(fd, "ZNA1 ok");
   std::string err;
-  if (!openPake(c, true, p.code, err) || !handshake(c, 10000, err)) {
+  const long long t0 = now();
+  if (!openPake(c, true, p.code, err) || !handshake(c, 60000, err)) {   // 60 s: EC J-PAKE takes seconds a step on an Old 3DS
     if (p.tries >= 3) p.closed = true;   // SELECT gives a new code
+    std::printf("zinc player: pairing try %d failed after %lld s: %s\n", p.tries, now() - t0, err.c_str());   // on the screen and in the log
+    std::fflush(stdout);
     return;
   }
   char type;
@@ -219,7 +222,7 @@ void session(Player& p, int fd) {
   const std::vector<Client> clients = loadClients(p);
   std::string err;
   if (!openPskServer(*c, [&](const std::string& id) { for (const Client& cl : clients) if (cl.id == id) return cl.key; return std::string(); }, err) ||
-      !handshake(*c, 10000, err)) return;
+      !handshake(*c, 30000, err)) return;
   const std::string who = peerIdentity(*c);
   char type;
   std::string payload;
