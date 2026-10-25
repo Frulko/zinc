@@ -10,7 +10,8 @@
 //                  window's visibility): minimize hides the window, an update while hidden is an error, and 60 frames later the window shows again
 //                  (ZN_RMPP_SIM_RESTORE=<frames>; 0: never);
 //   MSG_SET_WIDGET, window state 2  only with ZN_RMPP_SIM_APPLOAD=widget (also 0002: capabilities 3): the widget shows its rectangle of the
-//                  buffer, an update outside it is an error, and it opens back like a minimized window;
+//                  buffer, an update outside it is an error, and it opens back like a minimized window; ZN_RMPP_SIM_COLLAPSE=a-b taps its
+//                  header at frame a (collapsed: visibility 0, an update is an error) and again at frame b (visibility 2);
 //   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | canvas | eof:N; unset: nobody listens) answers Hello with a vendor hash (canvas: as zinc-canvas), copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
@@ -70,6 +71,7 @@ static int updates = 0, modes = 0, errors = 0, inks = 0;
 static bool blocked = false;                       // the lane holds xochitl's rendering
 static uint64_t hiddenAt = 0;                      // frame of the minimize (or of the widget), 0: the window shows
 static bool asWidget = false;
+static bool collapsed = false;                    // the widget shows only its header
 static int wx = 0, wy = 0, ww = 0, wh = 0;         // the widget's rectangle
 static std::string trace;
 static uint64_t pixelsSent = 0;
@@ -130,6 +132,7 @@ static void handle(const ClientMsg& m) {
     int x = m.update.x, y = m.update.y, w = m.update.w, h = m.update.h;
     if (now < sleepUntil) { line("%8.1f ms error: update %d,%d %dx%d inside qtfb's sleep: lost", now / 1000.0, x, y, w, h); errors++; return; }
     if (blocked) { line("%8.1f ms error: update %d,%d %dx%d while the lane blocks rendering", now / 1000.0, x, y, w, h); errors++; return; }
+    if (collapsed) { line("%8.1f ms error: update %d,%d %dx%d while the widget is collapsed", now / 1000.0, x, y, w, h); errors++; return; }
     if (hiddenAt && !asWidget) { line("%8.1f ms error: update %d,%d %dx%d while the window is minimized", now / 1000.0, x, y, w, h); errors++; return; }
     if (asWidget && (x < wx || y < wy || x + w > wx + ww || y + h > wy + wh)) { line("%8.1f ms error: update %d,%d %dx%d outside the widget", now / 1000.0, x, y, w, h); errors++; return; }
     if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > W || y + h > H) { line("%8.1f ms error: update %d,%d %dx%d outside the panel", now / 1000.0, x, y, w, h); errors++; return; }
@@ -300,12 +303,24 @@ static void qsim_restore() {
   const char* e = getenv("ZN_RMPP_SIM_RESTORE");
   const long after = e ? atol(e) : 60;
   if (!qsim::hiddenAt || after <= 0 || (long)qsim::frames < (long)qsim::hiddenAt + after) return;
-  qsim::hiddenAt = 0; qsim::asWidget = false;
+  qsim::hiddenAt = 0; qsim::asWidget = false; qsim::collapsed = false;
   qsim::line("%8.1f ms restore", qsim::virtualNow() / 1000.0);
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 1; send(qsim::qtfb, &st, sizeof st, 0);
 }
+// a tap on the widget's header collapses it, another opens it
+static void qsim_collapse() {
+  const char* e = getenv("ZN_RMPP_SIM_COLLAPSE");
+  if (!e || !qsim::asWidget) return;
+  char* end; const long a = strtol(e, &end, 10), b = *end == '-' ? atol(end + 1) : 0;
+  const long f = (long)qsim::frames;
+  if (f != a && f != b) return;
+  qsim::collapsed = f == a;
+  qsim::line("%8.1f ms %s", qsim::virtualNow() / 1000.0, qsim::collapsed ? "collapse" : "expand");
+  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = qsim::collapsed ? 0 : 2; send(qsim::qtfb, &st, sizeof st, 0);
+}
 static void qsim_polled(HalInput* in) {
   qsim_taps();
+  qsim_collapse();
   qsim_restore();
   qsim_poll(in);
   if (const char* p = getenv("ZN_RMPP_SIM_PEN")) {

@@ -65,12 +65,15 @@ if run again dashboard 30 - ZINC_RMPP_REFRESH_MODE=fast; then
   grep -q "^dashboard.tasks	00000$" "$tmp/again/storage.kv" || { echo "again: the saved tasks changed"; fail=1; }
 fi
 # the dashboard's widget (RemarkableApp of zinc:remarkable) with the widget AppLoad: Accueil shows it, only its rectangle is sent, a task
-# ticked in it is saved, and the full window comes back with the whole page and one full refresh
-if run widget dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=${WIDGET_TAPS:-40:1294,85;80:500,286}" \
-     ZN_RMPP_SIM_RESTORE=${WIDGET_RESTORE:-60} ${WIDGET_FULL:+ZN_RMPP_SIM_FULL=1}; then
+# ticked in it is saved, a tap on its header collapses it (nothing sent) and opens it again (its rectangle repainted), and the full window comes back with the whole page and one full refresh
+if run widget dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=${WIDGET_TAPS:-40:1294,85;80:400,180}" \
+     ZN_RMPP_SIM_RESTORE=${WIDGET_RESTORE:-60} ZN_RMPP_SIM_COLLAPSE=70-76 ${WIDGET_FULL:+ZN_RMPP_SIM_FULL=1}; then
+  [ -n "$WIDGET_TRACE" ] && cp "$tmp/widget/out/trace.txt" "$WIDGET_TRACE"
   [ -n "$WIDGET_FULL" ] && cp "$tmp/widget/out/glass.ppm" "$WIDGET_FULL"
-  has widget trace 1 "widget rect 0,0 900x440"; has widget trace 1 " widget$"; has widget trace 1 " restore"
-  has widget trace + "update PARTIAL 0,0 1620x2160"; has widget trace 1 "full refresh"
+  has widget trace 1 "widget rect 0,0 640x260"; has widget trace 1 " widget$"; has widget trace 1 " restore"
+  has widget trace + "update PARTIAL 0,0 1620x2160"; has widget trace 1 "full refresh"; has widget trace 1 " collapse$"
+  awk '/ expand$/ { e = 1; next } e && / update / { print; exit }' "$tmp/widget/out/trace.txt" | grep -q "update PARTIAL 0,0 640x260" ||
+    { echo "widget: the widget was not repainted when it opened again"; fail=1; }
   grep -q "^dashboard.tasks	01100$" "$tmp/widget/storage.kv" || { echo "widget: the task ticked in the widget was not saved: $(grep tasks "$tmp/widget/storage.kv")"; fail=1; }
 fi
 taps=

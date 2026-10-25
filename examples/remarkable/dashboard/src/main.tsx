@@ -59,6 +59,6 @@ setInterval(everySecond, 1000);
 setInterval(saveScratch, 10000);
 /** Accueil shows the widget (the timer and three tasks) over the tablet's screen while the dashboard keeps running. */
 function Root(): i32 {
-  return <RemarkableApp app={App} widget={{ view: DashboardWidget, width: 900, height: 440 }} />;
+  return <RemarkableApp app={App} widget={{ view: DashboardWidget, width: 640, height: 260 }} />;
 }
 render(Root, 0xffffff, null);

@@ -129,8 +129,11 @@ void rm_poll(HalInput* in) {
         window_ok = true;
         // back to the full window: the whole page, then a full refresh
         if ((hidden || as_widget) && m.state.value == WINDOW_RESTORE) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }
+        // a collapsed widget (a tap on its header) is hidden and stays the widget: the app keeps its widget view, and the
+        // rectangle is sent again when it opens
+        if (hidden && as_widget && m.state.value == WINDOW_WIDGET) eink::unite(pending, widget);
         hidden = m.state.value == WINDOW_MINIMIZE;
-        as_widget = m.state.value == WINDOW_WIDGET;
+        as_widget = m.state.value == WINDOW_WIDGET || (as_widget && hidden);
       }
     }
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
@@ -303,7 +306,7 @@ bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT
 // (showWidget): "1" when AppLoad did it, the app keeps running; "window.state": "full", "widget" or "hidden"
 const char* rm_device(const char* query, const char* arg) {
   const bool qtfb = window_ok && sock >= 0 && (layer == L0 || layer == L1);
-  if (strcmp(query, "window.state") == 0) return hidden ? "hidden" : as_widget ? "widget" : "full";
+  if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : "full";
   if (strcmp(query, "window.minimize") == 0) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;
     if (!qtfb || !send_msg(m)) return "0";
