@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""Sequential real-window workflow measurements. Prepare builds first; never benchmark under a build."""
+import argparse
+import json
+import os
+from pathlib import Path
+import platform
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+import shutil
+import ctypes
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from zn_resmon import _ps
+
+ROOT = Path(os.environ.get('ZINC_BENCH_ROOT', Path(__file__).resolve().parent.parent)).resolve()
+BUILDERS = {'clang', 'clang++', 'cc1', 'cc1plus', 'cmake', 'make', 'gmake', 'ninja', 'scons', 'swift-frontend'}
+
+
+class RUsage0(ctypes.Structure):
+    # macOS SDK sys/resource.h, RUSAGE_INFO_V0; no task suspension or debugger attachment.
+    _fields_ = [('uuid', ctypes.c_uint8*16)]+[(name, ctypes.c_uint64) for name in
+        ('user_time','system_time','pkg_idle_wkups','interrupt_wkups','pageins','wired_size',
+         'resident_size','phys_footprint','proc_start_abstime','proc_exit_abstime')]
+
+
+def physical_footprint(pid):
+    library = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
+    library.proc_pid_rusage.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.POINTER(RUsage0)]
+    library.proc_pid_rusage.restype = ctypes.c_int
+    usage = RUsage0()
+    if library.proc_pid_rusage(pid, 0, ctypes.byref(usage)):
+        return None, os.strerror(ctypes.get_errno())
+    return usage.phys_footprint, 'proc_pid_rusage RUSAGE_INFO_V0 ri_phys_footprint; live non-suspending snapshot'
+
+
+def builders():
+    rows = subprocess.check_output(['ps', '-axo', 'pid=,comm='], text=True).splitlines()
+    return [row.strip() for row in rows if len(row.split(None, 1)) == 2 and
+            Path(row.split(None, 1)[1]).name in BUILDERS]
+
+
+def stats(values):
+    if not values:
+        return None
+    v = sorted(values)
+    return {'count': len(v), 'p50': statistics.median(v), 'p99': v[max(0, (99*len(v)+99)//100-1)], 'max': v[-1]}
+
+
+def parsed(text):
+    host = [json.loads(line[len('workflow bench json: '):]) for line in text.splitlines() if line.startswith('workflow bench json: ')]
+    profile = [json.loads(line[len('zinc profile json: '):]) for line in text.splitlines() if line.startswith('zinc profile json: ')]
+    if host:
+        h = host[-1]
+        if h['schema'] != 1 or len(h['interval_us']) != h['total_frames']-h['warmup_frames']:
+            raise ValueError('incomplete native probe samples')
+        return {'host': h, 'sample_stats': {k: stats(v) for k, v in h.items() if k.endswith('_us') and isinstance(v, list)}, 'profiles': profile}
+    return {'host': None, 'profiles': profile, 'note': None if profile else 'No post-warmup rendered frames; idle callback cadence is not displayed FPS.'}
+
+
+def wait_quiet(seconds):
+    deadline = time.monotonic()+seconds
+    while True:
+        busy = builders()
+        if not busy:
+            time.sleep(1)
+            if not builders():
+                return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('builds still active: '+', '.join(busy[:4]))
+        time.sleep(2)
+
+
+def run(case, env, log_path, helper, memory=False):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    start_ns = time.monotonic_ns()
+    samples, contamination, footprint, footprint_note = [], [], None, None
+    ready_observed_ms, window_observed_ms = None, None
+    watcher, window_text, window_checked = None, '', False
+    window = None
+    with log_path.open('w') as log:
+        child = subprocess.Popen(case['cmd'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        watcher = subprocess.Popen([str(helper), str(child.pid)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        last_check, status, usage = 0, None, None
+        try:
+            while True:
+                done, status, usage = os.wait4(child.pid, os.WNOHANG)
+                if done:
+                    child.returncode = os.waitstatus_to_exitcode(status)
+                    break
+                elapsed = (time.monotonic_ns()-start_ns)/1e9
+                if elapsed > 35:
+                    raise TimeoutError('finite benchmark exceeded 35 seconds')
+                sample = _ps(child.pid)
+                if sample:
+                    samples.append({'t_s': elapsed, 'rss_mib': sample[0], 'ps_cpu_pct': sample[1]})
+                if ready_observed_ms is None and 'workflow ready' in log_path.read_text():
+                    ready_observed_ms = elapsed*1000
+                if not window_checked and watcher.poll() is not None:
+                    window_text = watcher.communicate()[0]
+                    window_checked = True
+                    window = json.loads(window_text) if window_text.strip() else None
+                    if window:
+                        window_observed_ms = elapsed*1000
+                if elapsed-last_check >= 0.5:
+                    contamination.extend(builders())
+                    last_check = elapsed
+                ready_s = window_observed_ms/1000 if window_observed_ms is not None else None
+                delay = 0.1 if case['id'].startswith('libgodot-') else 2
+                if memory and ready_s is not None and elapsed >= ready_s+delay and footprint_note is None:
+                    footprint, footprint_note = physical_footprint(child.pid)
+                    footprint_note += f'; {delay}s after observed window; frame timings excluded'
+                time.sleep(0.1)
+        finally:
+            if child.returncode is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait()
+            if not window_checked:
+                if watcher.poll() is None:
+                    watcher.terminate()
+                window_text = watcher.communicate(timeout=2)[0]
+    elapsed = (time.monotonic_ns()-start_ns)/1e9
+    window = json.loads(window_text) if window_text.strip() else None
+    output = parsed(log_path.read_text())
+    result = {'case': case['id'], 'command': case['cmd'], 'workload': case['workload'], 'memory_pass': memory,
+              'engine': case['engine'], 'source_revision': subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+              'environment': {k:env[k] for k in ['ZINC_BACKGROUND','ZINC_VSYNC','ZINC_3D','ZINC_SIZE','ZINC_FRAMES','ZINC_PROFILE','ZINC_PROFILE_SKIP'] if k in env},
+              'exit': child.returncode, 'wall_s': elapsed, 'user_s': usage.ru_utime, 'system_s': usage.ru_stime,
+              'cpu_pct_one_core': (usage.ru_utime+usage.ru_stime)/elapsed*100,
+              'peak_rss_mib': usage.ru_maxrss/1048576, 'physical_footprint_bytes': footprint, 'footprint_note': footprint_note,
+              'ready_marker_observed_ms': ready_observed_ms, 'window': window,
+              'window_observed_ms': window_observed_ms,
+              'contamination': sorted(set(contamination+builders())), 'resource_samples': samples, **output}
+    if child.returncode:
+        raise RuntimeError(f"{case['id']} exited {child.returncode}: {log_path.read_text()[-1200:]}")
+    if not window:
+        raise RuntimeError(f"{case['id']}: no actual visible window observed")
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--runs', type=int, default=3)
+    parser.add_argument('--frames', type=int, default=330)
+    parser.add_argument('--wait-idle', type=int, default=300)
+    parser.add_argument('--cases', default='')
+    parser.add_argument('--no-memory', action='store_true')
+    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--memory-only', action='store_true')
+    args = parser.parse_args()
+    if sys.platform != 'darwin' or not 61 <= args.frames <= 360 or args.runs < 1:
+        parser.error('macOS, 61..360 frames and positive runs required')
+    args.out = args.out.resolve()
+    logs = ROOT/'.logs/workflow-perf'
+    logs.mkdir(parents=True, exist_ok=True)
+    helper = logs/'window-ready'
+    source = Path(__file__).resolve().parent/'workflow-window-ready.swift'
+    if not helper.exists() or helper.stat().st_mtime < source.stat().st_mtime:
+        subprocess.run(['swiftc', str(source), '-o', str(helper)], check=True)
+    base = dict(os.environ)
+    for key in ['ZINC_HEADLESS', 'ZINC_DETERMINISTIC', 'ZINC_INPUT', 'ZINC_FRAMES', 'ZINC_FRAMEHASH', 'ZINC_SHOT', 'ZINC_TRACE']:
+        base.pop(key, None)
+    base.update(ZINC_BACKGROUND='1', ZINC_VSYNC='1', ZINC_ROOT=str(ROOT))
+    results = {'schema': 1, 'host': platform.platform(), 'git_head': subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+               'frames': args.frames, 'warmup': 30, 'runs': args.runs,
+               'method': 'Sequential warmed real-window runs; raw samples; CPU percentage per one core; RSS is not physical footprint; separate footprint passes excluded from timing.',
+               'conditions_before': {'load': os.getloadavg(),
+                  'hardware': subprocess.check_output(['sysctl','-n','hw.model','hw.memsize','hw.physicalcpu'],text=True).strip(),
+                  'power': subprocess.run(['pmset','-g','batt'],capture_output=True,text=True).stdout.strip(),
+                  'thermal': subprocess.run(['pmset','-g','therm'],capture_output=True,text=True).stdout.strip()}, 'measurements': [], 'rejected': []}
+    if args.out.exists():
+        if not args.resume:
+            parser.error('output exists; use --resume to preserve accepted passages')
+        existing = json.loads(args.out.read_text())
+        if existing['frames'] != args.frames or existing['runs'] != args.runs:
+            parser.error('resume frame/run counts differ')
+        existing.setdefault('resumptions', []).append(results['conditions_before'])
+        results = existing
+    def save():
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(results, indent=2)+'\n')
+    with tempfile.TemporaryDirectory(prefix='zinc-workflow-perf-') as temp:
+        warehouse = Path(temp)/'warehouse'
+        shutil.copytree(ROOT/'examples/godot-zinc-ui/godot', warehouse)
+        (warehouse/'override.cfg').write_text('[display]\nwindow/size/no_focus=true\n')
+        cases = []
+        native = [('swift', [str(ROOT/'examples/swift-observatory/build/Native Observatory.app/Contents/MacOS/Observatory')]),
+                  ('libgodot', [str(ROOT/'examples/zinc-libgodot/build/rally'), str(ROOT/'examples/zinc-libgodot/build/libgodot.dylib')]),
+                  ('warehouse', [os.environ.get('GODOT', '/private/tmp/zinc-godot-tools/Godot.app/Contents/MacOS/Godot'), '--path', str(warehouse), '--'])]
+        for name, command in native:
+            for workload in ['idle', 'active']:
+                cases.append({'id': name+'-'+workload, 'workload': workload,
+                              'cmd': command+['--bench-frames',str(args.frames),'--bench-workload',workload],
+                              'engine': 'AOT Zinc UI'+(' + Godot 4.6' if name != 'swift' else ' + SwiftUI'), 'env': {}})
+        for project in ['animation-lab', 'lantern-post', 'blender-world', 'blender-library', 'godot-to-zinc']:
+            cases.append({'id': project, 'workload': 'default CLI/interpreter scene', 'cmd': [str(ROOT/'build/zinc'),'run',str(ROOT/'examples'/project)],
+                          'engine': 'Zinc interpreter (default zinc run; includes frontend/runtime in process)',
+                          'env': {'ZINC_FRAMES':str(args.frames),'ZINC_PROFILE':'json','ZINC_PROFILE_SKIP':'30','ZINC_3D':'gpu','ZINC_SIZE':'960x640'}})
+        if args.cases:
+            wanted = set(args.cases.split(','))
+            cases = [case for case in cases if case['id'] in wanted]
+            if {c['id'] for c in cases} != wanted:
+                parser.error('unknown case')
+        # Interleave cases so drift does not systematically favour one host.
+        repeats = [args.runs] if args.memory_only else range(args.runs + (not args.no_memory))
+        for repeat in repeats:
+            memory = repeat == args.runs
+            for case in cases:
+                if any(r['case'] == case['id'] and r['run'] == repeat+1 and r['memory_pass'] == memory for r in results['measurements']):
+                    continue
+                for attempt in range(8):
+                    print(f"waiting for quiet: {case['id']} run {repeat+1}{' memory' if memory else ''}",flush=True)
+                    wait_quiet(args.wait_idle)
+                    log_path = logs/f"{case['id']}-{repeat+1}-{attempt}.log"
+                    try:
+                        result = run(case, {**base, **case['env']}, log_path, helper, memory)
+                    except (TimeoutError, RuntimeError) as error:
+                        results.setdefault('failures', []).append({'case':case['id'],'run':repeat+1,'memory_pass':memory,'error':str(error),'log':str(log_path)})
+                        save()
+                        raise
+                    result['run'] = repeat+1
+                    if result['contamination']:
+                        results['rejected'].append(result)
+                        save()
+                        print('discarded: another build started',flush=True)
+                        continue
+                    results['measurements'].append(result)
+                    save()
+                    print(f"OK {case['id']} {result['wall_s']:.2f}s RSS {result['peak_rss_mib']:.1f}MiB",flush=True)
+                    break
+                else:
+                    raise RuntimeError('no uncontended passage after eight attempts')
+    results['conditions_after'] = {'load': os.getloadavg()}
+    save()
+
+
+if __name__ == '__main__':
+    if sys.argv[1:] == ['--self-test']:
+        from unittest.mock import patch
+        assert stats([]) is None
+        assert stats(list(range(1, 101))) == {'count': 100, 'p50': 50.5, 'p99': 99, 'max': 100}
+        native = {'schema': 1, 'total_frames': 33, 'warmup_frames': 30, 'interval_us': [1, 2, 3]}
+        assert parsed('workflow bench json: '+json.dumps(native))['host'] == native
+        native['interval_us'].pop()
+        try:
+            parsed('workflow bench json: '+json.dumps(native))
+            raise AssertionError('accepted incomplete measurement')
+        except ValueError:
+            pass
+        assert parsed('zinc profile json: {"frames":300}')['profiles'] == [{'frames': 300}]
+        assert parsed('idle')['profiles'] == []
+        with patch('subprocess.check_output', return_value='12 /usr/bin/clang++\n13 /bin/editor\n'):
+            assert builders() == ['12 /usr/bin/clang++']
+        if sys.platform == 'darwin':
+            footprint, _ = physical_footprint(os.getpid())
+            assert footprint is not None and 0 < footprint < 1024**4
+        print('workflow bench parser, quantiles and build gate: PASS')
+    else:
+        main()

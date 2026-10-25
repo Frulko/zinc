@@ -23,13 +23,13 @@ Verification: fresh `tools/build zinc`; sequential targeted `animation_pipeline`
 
 The graphical phase found and fixed missing AppKit event dispatch/background click handling in the LibGodot host. An early GPU capture also crashed because a raw Godot `Image*` outlived its temporary owning `Variant`; retaining both texture/image owners through `save_png` fixed the lifetime, and the bounded native regression then passed with orderly destruction. This is a concrete fixed crash, not a guarantee against all future crashes.
 
-Limits: one embedded runtime instance per process, macOS proof only; no general GDScript/game translation, universal shader/PBR parity, native IME/accessibility bridge or measured large-world/memory performance. Inspector controls supplied by the scene/game demos are not a complete external Blender/Inspector round-trip editor. World import eagerly validates chunks/provenance for the small fixture; large production-scene staging needs its own measured work. See each README for its actual supported contract.
+Limits: one embedded runtime instance per process, macOS proof only; no general GDScript/game translation, universal shader/PBR parity, native IME/accessibility bridge or measured large-world performance. Inspector controls supplied by the scene/game demos are not a complete external Blender/Inspector round-trip editor. World import eagerly validates chunks/provenance for the small fixture; large production-scene staging needs its own measured work. See each README for its actual supported contract.
 
-## Measured package footprint and remaining performance work
+## Measured macOS performance and package footprint
 
 Actual local bundle file sizes: Swift Observatory **5.60 MiB** (arm64), Godot Warehouse **345.66 MiB** (official full universal Godot executable), Pocket Rally **46.96 MiB** (arm64 minimal 2D LibGodot). The Zinc UI extension itself is **6.63 MiB**. Warehouse is not yet using a lean export-template build, and Rally does not carry its 3D feature set. These are uncompressed package sizes, not RAM, startup latency or frame times. Raw evidence: [workflow footprint JSON](bench/workflow-footprint-2026-10-25.json).
 
-**CPU/GPU frame times, FPS, startup and RAM remain unmeasured for these new demos.** The functional delivery is complete within the scoped macOS demonstrations; performance validation is a separate outstanding step. Other-session native compilation was active during the footprint audit, so no timing figures were taken under contention. Do not interpret native/GPU correctness tests as performance evidence.
+Actual-window macOS CPU spans, callback cadence, readiness, process CPU, peak RSS and separate physical-footprint snapshots are now measured: [performance report](workflow-macos-performance-2026-10-25.md), [raw evidence](bench/workflow-macos-2026-10-25.json). Three finite passages per case; builds observed during a passage cause rejection. These small-fixture baselines do not measure GPU completion, displayed FPS, production-scale worlds or sustained load. Instrumented boundaries differ between hosts and are documented; package sizes above remain separate from RAM.
 
 ## Completed implementation workstreams
 

@@ -1289,3 +1289,24 @@ The Zinc Warehouse extension itself is **6,955,136 B / 6.63 MiB**; this is the n
 ### 2026-10-25: DS below-30-FPS feedback, CPU and replay checks
 
 Owner still measures/perceives below30 FPS on physical 3DS. GPU-active SD log is insufficient to rule out fallback; added profile counters report zero software surfaces for compiled real-app stereo multiball probes. Removed generic8 ms per-eye cap from3DS builds (existing citro3d/vblank synchronization remains). DS now uses240 Hz base game steps with unchanged travel subdivision and Box2D CCD; desktop defaults960 Hz. Matched1200-callback stereo probes: program median5 ms at960 Hz vs3 ms at240 Hz; reporting-window p99 16/7 vs11/7 ms; both median17 ms refresh gaps, occasional34 ms. Trajectories differ, so this is indicative guest profiling only. Physical FPS and CPU split remain unmeasured; the new bottom-screen FPS display enables the next physical check. Full commands/details in pinball physics report.
+
+
+## 2026-10-25 — Swift / Godot / Blender real-window macOS baselines (ZN-836..838)
+
+M1 Pro 10 cores, 16 GiB, AC; three finite passages of 330 callbacks per case, 30 warmup excluded. Sequential runs with no observed build process; contaminated runs rejected. Median of per-run statistics. Physical footprint is one separate live kernel snapshot, not peak RSS. CPU includes launch-to-reap lifetime with ~100 ms polling precision. Different instrumentation/workloads are not directly comparable; callbacks are not displayed FPS.
+
+| Case | Instrumented work p50 / p99 (ms) | Callback interval p50 (ms) | Process CPU (% of one core) | Peak RSS (MiB) | Physical snapshot (MiB) |
+|---|---:|---:|---:|---:|---:|
+| swift-idle | 0.030 / 0.065 | 16.668 | 2.7 | 130.3 | 66.6 |
+| swift-active | 2.858 / 4.012 | 18.705 | 68.5 | 199.4 | 113.1 |
+| libgodot-idle | 0.018 / 0.046 | 0.570 | 44.6 | 111.9 | 87.3 |
+| libgodot-active | 0.026 / 0.077 | 0.666 | 39.5 | 112.4 | 86.6 |
+| warehouse-idle | 0.035 / 0.068 | 8.275 | 21.5 | 188.9 | 117.5 |
+| warehouse-active | 0.909 / 1.049 | 9.559 | 30.4 | 195.7 | 115.2 |
+| animation-lab | 0.821 / 1.897 | 8.936 | 29.4 | 121.1 | 183.9 |
+| lantern-post | 0.921 / 1.693 | 8.926 | 32.5 | 124.3 | 187.7 |
+| blender-world | 0.746 / 1.330 | 8.953 | 27.8 | 120.4 | 183.6 |
+| blender-library | 0.003 / 0.008 | 9.026 | 6.3 | 101.4 | 159.3 |
+| godot-to-zinc | 0.001 / 0.002 | 10.021 | 5.4 | 99.3 | 157.7 |
+
+Full boundaries, startup/variability, exact commands, hashes, rejected/failed experiments and limits: [report](workflow-macos-performance-2026-10-25.md), [raw evidence](bench/workflow-macos-2026-10-25.json). Standalone runs use the fixed checkout recorded in the artifact. LibGodot loop cadence is unstable; pure GPU time, displayed FPS and sustained production-scale stress are unmeasured. All 44 accepted final processes exited 0; optional Godot editor-import cleanup crash remains open.

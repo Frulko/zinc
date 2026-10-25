@@ -1,7 +1,7 @@
 ---
 id: ZN-837
 title: Add Godot Warehouse macOS performance probe
-status: In Progress
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 15:25'
@@ -21,7 +21,7 @@ Owner request 2026-10-25: measure workflow performance on macOS first. Add an op
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Finite actual-window probe outputs versioned JSON for idle and updating UI workloads
+- [x] #1 Finite actual-window probe outputs versioned JSON for idle and updating UI workloads
 - [x] #2 Frame interval and CPU boundaries are explicit and do not imply GPU completion time
 - [x] #3 Smoke check validates output schema and clean shutdown without publishing loaded-machine timings
 <!-- AC:END -->
@@ -34,3 +34,5 @@ Owner request 2026-10-25: measure workflow performance on macOS first. Add an op
 - Existing `--self-test`: PASS native pixels, alpha, idle, state, focus, resize and teardown (exit 0).
 - Coordinator owns actual-window interleaved measurements and final criterion #1 evidence; no GUI performance claim from this worker. No native build or shared surface modification.
 - The optional editor import crashed in Godot extension documentation cleanup; ordinary game runs and clean benchmark teardown passed. No editor import is needed once the extension cache exists.
+
+- Coordinator completed three real-window passages per workload plus separate physical-footprint snapshots, all exit 0; raw evidence and boundaries in docs/reports/workflow-macos-performance-2026-10-25.md.
