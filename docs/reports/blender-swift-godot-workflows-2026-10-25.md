@@ -135,6 +135,16 @@ Keep asset identity distinct from content hash: editing an asset changes its con
 
 Preserve nested asset references rather than expanding every collection instance into copied geometry. Share meshes/textures between instances; merge only compatible static geometry into chunks as a build optimization. Keep articulated transforms, sockets, collisions and debug identities outside flattened `.zmesh` data. Ship a source map from runtime entities and optimized draws back to Blender file, collection, object and asset revision.
 
+### Owner extension: compiled world collections
+
+Owner request (2026-10-25): `zinc.scene` v1 accepts a `world: {cell: <meters>, levels?: [near, mid, far]}` metadata component on a Blender collection or parent node. `cell` is a positive finite size in meters; level values and their meaning must follow the forthcoming Tokyo `.zworld` importer contract rather than a separate Blender-specific interpretation.
+
+`zinc assets build` compiles eligible static descendants into a `.zworld`, using `include/zn/zworld.h` when the Tokyo city integration makes it available on develop. Those compiled descendants do not also become `SceneRevision` nodes. Dynamic/animated/behavior-bearing descendants retain the scene entities required to run them. Static collision geometry is not inherently a dynamic entity; preserve collision and interaction semantics when choosing the compiled boundary.
+
+Keep a publication provenance table mapping Blender source object identities to the authoritative world cell/batch produced by the builder, so Inspector picking still locates the source object after merging. Do not infer final batch indices in Blender or discard source identities during optimization. Validation must cover invalid cell sizes, nested world ownership, dynamic exclusions, no duplicate runtime representation, and source picking across a rebuild.
+
+ZN-829 owns this extension and coordinates its shared metadata with the Godot exporter. At the time of this request, `include/zn/zworld.h` was not yet present on develop (`cd51f9e0`); actual world compilation remains dependent on that integration. Metadata/provenance work can proceed without inventing a competing world format or claiming the binary path has passed.
+
 ### Publish, validate, build and reimport
 
 1. Artist edits a work `.blend` and previews using an agreed material/light subset.
