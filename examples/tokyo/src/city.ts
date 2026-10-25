@@ -2,10 +2,8 @@
 // the near level a chunk per cell, the Tokyo Tower), and the heights the eye keeps above. zinc:3d's World chooses natively what a frame
 // draws: the cells in view, each at the level of its distance, of their walls the sectors that face the eye, within the device's triangle
 // budget. This file reads the chunks it asks for and frees the ones it no longer wants.
-import { Scene, Camera, World } from 'zinc:3d';
+import { Scene, Camera, World, Defaults3D } from 'zinc:3d';
 import { readText, readBytes } from 'zinc:assets';
-import { clock } from 'zinc:sys';
-import { Device } from './devices';
 import { CITY_INDEX, CITY_HEIGHTS, CITY_HMAP, CITY_WORLD } from './constants';
 
 export class City {
@@ -25,9 +23,8 @@ export class City {
   /** Chunks read since the start. */
   loads: i32 = 0;
 
-  constructor(scene: Scene, dev: Device) {
-    const w = new World(CITY_WORLD);
-    w.nearReach = dev.nearReach; w.midReach = dev.midReach; w.budget = dev.budget; w.sectors = dev.sectors; w.idle = dev.idle;
+  constructor(scene: Scene, dev: Defaults3D) {
+    const w = new World(CITY_WORLD, dev);
     scene.add(w);
     this.world = w;
     for (const line of readText(CITY_INDEX).split('\n')) {
@@ -57,15 +54,7 @@ export class City {
   /** Frees the chunks the last select() no longer wants and reads the ones it asked for, coarse levels and nearest first, for up to `ms`
    *  milliseconds (at least one). Returns the chunks read. */
   serve(ms: number): i32 {
-    const w = this.world;
-    for (const k of w.unused) w.free(k);
-    const started = clock();
-    let read: i32 = 0;
-    for (const k of w.missing) {
-      if (read > 0 && clock() - started >= ms) break;
-      w.load(k);   // -1: a level this device's packs leave out (its cells keep another)
-      read++;
-    }
+    const read = this.world.serve(ms);
     this.loads += read;
     return read;
   }

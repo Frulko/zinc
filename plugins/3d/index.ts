@@ -5,7 +5,7 @@
 import R from './native/render3d.spec';
 import { readText, readBytes } from 'zinc:assets';
 import { pixelScale, image } from 'zinc:gfx';
-import { utf8Decode } from 'zinc:sys';
+import { utf8Decode, env, platform, clock } from 'zinc:sys';
 
 // ---------------------------------------------------------------- math (flat arrays)
 export function mat4(): number[] { return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
@@ -329,6 +329,56 @@ function materialFlags(mat: Material): i32 {
   return flags;
 }
 
+/** What a large static world spends on each machine (docs/plugins/3d.md "Large static worlds"): Pocket Tokyo's numbers per console
+ *  (docs/reports/tokyo-per-device.md). A World takes the reaches, the budget, the sectors and the idle seconds; the haze, the frame rate,
+ *  the night, the sky dome and the reading time are the program's to apply. A program changes the fields it wants after defaults3D(). */
+export class Defaults3D {
+  /** The profile the numbers are for: psp, n3ds, vita, rpi1 or desktop. */
+  name = 'desktop';
+  /** Metres where the near level hands over to the mid, and the mid to the far (the governor brings them in to keep the budget). */
+  nearReach = 600;
+  midReach = 2000;
+  /** Triangles a frame may draw. */
+  budget: i32 = 400000;
+  /** Leave out the walls that face away from the eye. */
+  sectors = true;
+  /** Metres where the haze starts and where it is whole. */
+  fogStart = 2500;
+  fogEnd = 5800;
+  /** Frames a second aimed at. */
+  fps: i32 = 60;
+  /** The night pictures and glow (World.setNight). */
+  night = true;
+  /** A sky of several colours (else one colour behind the world). */
+  dome = true;
+  /** Seconds before a chunk nobody wants is freed (0: chunks stay once read). */
+  idle = 0;
+  /** Milliseconds a frame may spend reading chunks (World.serve; at least one is read when one is wanted). */
+  readMs = 4;
+}
+
+function row(d: Defaults3D, name: string, near: number, mid: number, budget: i32, fog: number, fogEnd: number, fps: i32, night: boolean, dome: boolean,
+             idle: number, readMs: number): Defaults3D {
+  d.name = name; d.nearReach = near; d.midReach = mid; d.budget = budget; d.fogStart = fog; d.fogEnd = fogEnd; d.fps = fps; d.night = night;
+  d.dome = dome; d.idle = idle; d.readMs = readMs;
+  return d;
+}
+
+/** The defaults of `profile` (''): ZINC_3D_PROFILE, else the machine's, zinc:sys platform(); a profile not in the table takes the desktop's.
+ *  ZINC_3D_BUDGET tries another triangle budget without a rebuild. */
+export function defaults3D(profile: string = ''): Defaults3D {
+  const p = profile !== '' ? profile : env('ZINC_3D_PROFILE') !== '' ? env('ZINC_3D_PROFILE') : platform();
+  const d = new Defaults3D();
+  //                       name    near mid   budget  fog   fog end fps night  dome   idle read ms
+  if (p === 'psp') row(d, 'psp', 600, 1600, 42000, 1200, 5800, 30, true, false, 4, 6);
+  else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 60000, 1200, 5800, 30, true, false, 4, 6);
+  else if (p === 'vita') row(d, 'vita', 300, 1300, 40000, 1600, 5800, 60, true, true, 0, 4);
+  else if (p === 'rpi1') row(d, 'rpi1', 300, 900, 12000, 600, 3000, 30, false, false, 4, 6);
+  const budget = env('ZINC_3D_BUDGET');
+  if (budget !== '') d.budget = parseInt(budget, 10);
+  return d;
+}
+
 /** A static world (include/zn/zworld.h: a city, a terrain, a level), as Pocket Tokyo draws its city: cells on the ground with up to three
  *  levels of detail (0 the finest), each level held by a chunk, a file loaded and freed as one, whose batches are a few large meshes with
  *  their indices grouped by cell and by the compass sector a wall faces. select() culls the cells against the camera's frustum, gives each
@@ -339,16 +389,20 @@ function materialFlags(mat: Material): i32 {
  *  position is ignored: the world's coordinates are the scene's. */
 export class World extends Node {
   readonly handle: i32;
+  /** The machine's defaults (defaults3D(), or the ones given): the fields below start from them. */
+  readonly defaults: Defaults3D;
   /** Metres where the near level hands over to the mid level, and the mid to the far, when the budget allows them in full. */
-  nearReach = 300;
-  midReach = 1300;
+  nearReach = 600;
+  midReach = 2000;
   /** Triangles a frame may draw (0: no limit): over it the reaches come in by 3% a call, under 88% of it they go out by 0.8% (down to 1/4). */
-  budget: i32 = 100000;
+  budget: i32 = 400000;
   hysteresis = 1.15;
   /** Leave out the walls that face away from the eye: fewer triangles, more draws. */
   sectors = true;
   /** Seconds a loaded chunk nobody wants waits before select names it to free (0: never). */
   idle = 0;
+  /** Milliseconds serve() reads chunks for. */
+  readMs = 4;
   /** After select(): the triangles and draws of what is shown, the reaches' scale (reachScale), the chunks to load (load()) and the ones to free (free()). */
   triangles: i32 = 0;
   draws: i32 = 0;
@@ -359,14 +413,30 @@ export class World extends Node {
   private readonly prm: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   private readonly eyes: number[] = [];
 
-  constructor(asset: string) {
+  constructor(asset: string, defaults: Defaults3D | null = null) {
     super(null, null);
+    const d = defaults !== null ? defaults : defaults3D();
+    this.defaults = d;
+    this.nearReach = d.nearReach; this.midReach = d.midReach; this.budget = d.budget; this.sectors = d.sectors; this.idle = d.idle; this.readMs = d.readMs;
     this.handle = R.worldOpen(asset);
     if (this.handle < 0) throw new Error(`zinc:3d: ${asset} is not a world (include/zn/zworld.h)`);
   }
   /** Loads a chunk: the bytes read, -1 when it cannot. */
   load(chunk: i32): i32 { return R.worldLoad(this.handle, chunk); }
   free(chunk: i32): void { R.worldFree(this.handle, chunk); }
+  /** After select(): frees the chunks it no longer wants and loads the ones it asked for, coarse levels and nearest first, for up to `ms`
+   *  milliseconds (-1: readMs; at least one). Returns the chunks read. */
+  serve(ms: number = -1): i32 {
+    for (const k of this.unused) this.free(k);
+    const budget = ms < 0 ? this.readMs : ms, started = clock();
+    let read: i32 = 0;
+    for (const k of this.missing) {
+      if (read > 0 && clock() - started >= budget) break;
+      this.load(k);   // -1: a level this device's packs leave out (its cells keep another)
+      read++;
+    }
+    return read;
+  }
   /** How far the night has come, 0 (day) to 1: the batches' night pictures and glow from 0.5, or mixed by it where the renderer can. */
   setNight(night: number): void { R.worldNight(this.handle, night); }
   /** The shadows of the scene's first light over a field of heights (the asset: u16 little-endian, rows along +z), the first cell's corner at
