@@ -60,6 +60,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 - PSP: a zinc:3d `World` is drawn the way Pocket Tokyo draws its city (vertices of 8 and 12 bytes, one light per wall direction, two depth ranges for a 6 km view): examples/tokyo renders in 1.3 ms a frame instead of 3.2, with Pocket Tokyo's 42,000-triangle budget, and now shows the night.
 
+### Changed
+- Calls from a program into a native plugin are cheaper on the consoles, and zinc:3d places its nodes in single precision on the PSP, which has no double-precision hardware: Orbit's 3D work takes a quarter less time a frame on a PSP.
+
 ### Fixed
 - Nova Patrol DS 0.2: use the compiled `--aot` console build, skip unchanged Box2D bridge writes and stationary flipper geometry, and apply a smaller 3DS effect budget. The dual-screen view now displays the textured bumper caps, mechanical recoil, Kenney spark sprites and refreshed score panels.
 - Pinball flippers stop transferring energy when held at rest, fast multiball contacts use travel-limited steps, and separating 3D contacts no longer trigger active kicks. Nova Patrol's target bank and ramp lip no longer trap slow balls.

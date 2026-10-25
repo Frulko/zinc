@@ -326,7 +326,7 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
           case 's': ex = "zn::compat::str(a[" + idx + "])"; break;
           case 'B': case 'I': case 'U': case 'D': {   // an array: the plugin may fill it (an out parameter); a change is copied back for the engine after the call
             const char* et = l == 'B' ? "uint8_t" : l == 'I' ? "int32_t" : l == 'U' ? "uint32_t" : "double";
-            tpre += std::string("auto av") + idx + " = zn::compat::arr<" + et + ">(a[" + idx + "]);\n  ";
+            tpre += std::string("static zrt::Array<") + et + "> kv" + idx + ";\n  auto av" + idx + " = zn::compat::arr<" + et + ">(a[" + idx + "], kv" + idx + ");\n  ";
             tpost += "zn::compat::back(H, cx, const_cast<ZnVal&>(a[" + idx + "]), av" + idx + ");\n  ";
             ex = "av" + idx;
             break;

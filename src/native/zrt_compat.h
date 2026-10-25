@@ -13,12 +13,14 @@ namespace zn::compat {
 
 inline zrt::String str(const ZnVal& v) { return zrt::String::from(v.s.p, v.s.n); }
 
-// An array argument: the elements are copied (the view is only valid during the call).
-template <class T> zrt::Array<T> arr(const ZnVal& v) {
-  zrt::Array<T> r = zrt::Array<T>::with_cap(static_cast<int32_t>(v.v.n));
-  const T* p = static_cast<const T*>(v.v.p);
-  for (uint32_t i = 0; i < v.v.n; ++i) r.push_raw(p[i]);
-  return r;
+// An array argument: the elements are copied (the view is only valid during the call). `keep` is the thunk's array for this argument, reused
+// from call to call while nothing else holds it: two allocations and two frees less a call (a third of transform's 30 us on the PSP).
+template <class T> zrt::Array<T> arr(const ZnVal& v, zrt::Array<T>& keep) {
+  const int32_t n = static_cast<int32_t>(v.v.n);
+  if (!keep.a || keep.a->rc != 1 || keep.a->cap < n) keep = zrt::Array<T>::with_cap(n);   // held by the plugin or by a call still running
+  if (n) std::memcpy(keep.a->data, v.v.p, static_cast<size_t>(n) * sizeof(T));   // the element types of a view are plain numbers
+  keep.a->len = n;
+  return keep;
 }
 
 // A string[] argument: the strings are copied out of the view of ZnStr.
