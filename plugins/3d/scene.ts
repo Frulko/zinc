@@ -17,7 +17,13 @@ export interface SceneMetadata {
   socket?: SceneName; spawn?: SceneName; gate?: SceneName; interaction?: SceneEvent;
   world?: SceneWorld;
 }
-export interface SceneAsset { id: string; uri: string; hash: string; dependencies: string[]; }
+export interface SceneClipEvent { clip: string; time: number; name: string; }
+export interface SceneSocket { name: string; joint: string; translation: number[]; }
+export interface SceneAsset {
+  id: string; uri: string; hash: string; dependencies: string[]; kind?: string;
+  rootMotion?: string; events?: SceneClipEvent[]; sockets?: SceneSocket[];
+  source?: SceneSource;
+}
 export interface SceneRecord {
   id: string; name: string; parent: string | null; asset: string | null;
   translation: number[]; rotation: number[]; scale: number[];
@@ -79,6 +85,15 @@ export function validateScene(text: string): SceneDocument {
   for (const a of d.assets) {
     identity(a.id, 'asset'); requireScene(!assets.has(a.id), 'duplicate asset identity ' + a.id);
     path(a.uri); requireScene(a.hash.length === 64 && Array.isArray(a.dependencies), a.id + ': invalid hash/dependencies');
+    requireScene(a.kind === undefined || a.kind === 'model' || a.kind === 'skin', a.id + ': unsupported asset kind');
+    if (a.kind === 'skin') {
+      requireScene(a.source !== undefined, a.id + ': missing animation provenance');
+      if (a.source !== undefined) { path(a.source.file); identity(a.source.object,a.id); }
+      const rawAsset: any = a;
+      requireScene(a.rootMotion === 'controller' && Array.isArray(rawAsset.events) && Array.isArray(rawAsset.sockets), a.id + ': invalid animation metadata');
+      if (a.events !== undefined) for (const e of a.events) { identity(e.clip, a.id); identity(e.name, a.id); requireScene(Number.isFinite(e.time) && e.time >= 0, a.id + ': invalid event time'); }
+      if (a.sockets !== undefined) for (const s of a.sockets) { identity(s.name, a.id); identity(s.joint, a.id); vector(s.translation,3,a.id); }
+    }
     assets.set(a.id, a);
   }
   for (const n of d.nodes) {
@@ -86,6 +101,8 @@ export function validateScene(text: string): SceneDocument {
     identity(n.name, n.id + '.name'); path(n.source.file); identity(n.source.object, n.id + '.source.object');
     requireScene(n.parent === null || typeof n.parent === 'string', n.id + ': invalid parent');
     requireScene(n.asset === null || assets.has(n.asset), n.id + ': missing asset reference');
+    const referenced = n.asset === null ? undefined : assets.get(n.asset);
+    if (referenced !== undefined && referenced.kind === 'skin') requireScene(n.dynamic === true, n.id + ': skinned instance must be dynamic');
     vector(n.translation, 3, n.id); vector(n.rotation, 4, n.id); vector(n.scale, 3, n.id);
     let norm = 0; for (const q of n.rotation) norm += q * q;
     requireScene(Math.abs(norm - 1) < .001, n.id + ': quaternion must be normalized');
@@ -135,25 +152,39 @@ export class SceneRevision {
   error = '';
   private assets = new Map<string, Node>();
   private hashes = new Map<string, string>();
+  private dynamicNodes = new Map<string, Node>();
+  /** Optional per-instance skinned asset boundary. Factories own cleanup if they throw before returning a node. */
+  skinFactory: ((record: SceneRecord, asset: SceneAsset, file: string) => Node) | null = null;
+  skinDisposer: ((node: Node) => void) | null = null;
 
   reload(text: string, base: string): boolean {
     const acquired = new Map<string, Node>();
+    const acquiredDynamic = new Map<string, Node>();
     try {
       const d = validateScene(text), assets = new Map<string, Node>(), hashes = new Map<string, string>();
       for (const n of d.nodes) requireScene(n.metadata.world === undefined, n.id + ': world publication requires the .zworld asset importer; raw static descendants cannot be loaded as individual entities');
       for (const a of d.assets) {
         const file = base + a.uri;
         requireScene(digest(file) === a.hash, a.id + ': content hash mismatch: ' + a.uri);
+        if (a.kind === 'skin') {
+          requireScene(this.skinFactory !== null && this.skinDisposer !== null, a.id + ': skinned scene needs a factory and disposer from zinc:animation');
+          hashes.set(a.id,a.hash); continue;
+        }
         let source = this.hashes.get(a.id) === a.hash ? this.assets.get(a.id) : undefined;
         if (source === undefined) { source = loadGltf(file); acquired.set(a.id, source); }
         assets.set(a.id, source); hashes.set(a.id, a.hash);
       }
       const scene = new Scene(), nodes = new Map<string, Node>(), state = new Map<string, string>();
       const previous = new Map<string, SceneRecord>();
+      const records = new Map<string, SceneAsset>(); for (const a of d.assets) records.set(a.id,a);
       if (this.document !== null && this.document.id === d.id) for (const n of this.document.nodes) previous.set(n.id, n);
       for (const n of d.nodes) {
-        const source = n.asset === null ? undefined : assets.get(n.asset);
-        const node = source === undefined ? new Node(null, null) : clone(source);
+        const source = n.asset === null || !assets.has(n.asset) ? undefined : assets.get(n.asset);
+        const asset = n.asset === null ? undefined : records.get(n.asset);
+        let node = source === undefined ? new Node(null, null) : clone(source);
+        if (asset !== undefined && asset.kind === 'skin' && this.skinFactory !== null) {
+          node = this.skinFactory(n,asset,base+asset.uri); acquiredDynamic.set(n.id,node);
+        }
         node.position = n.translation.slice(); node.rotation = n.rotation.slice(); node.scale = n.scale.slice();
         nodes.set(n.id, node);
         const old = previous.get(n.id), value = this.state.get(n.id);
@@ -165,10 +196,13 @@ export class SceneRevision {
         if (parent !== undefined) parent.add(node);
       }
       for (const id of this.assets.keys()) if (this.hashes.get(id) !== hashes.get(id)) { const old = this.assets.get(id); if (old !== undefined) dispose(old); }
+      for (const node of this.dynamicNodes.values()) this.releaseDynamic(node);
+      this.dynamicNodes = acquiredDynamic;
       this.scene = scene; this.nodes = nodes; this.state = state; this.assets = assets; this.hashes = hashes; this.document = d; this.error = '';
       return true;
     } catch (e) {
       for (const source of acquired.values()) dispose(source);
+      for (const node of acquiredDynamic.values()) this.releaseDynamic(node);
       this.error = (e as Error).message; return false;
     }
   }
@@ -189,7 +223,9 @@ export class SceneRevision {
     return camera;
   }
 
-  dispose(): void { for (const source of this.assets.values()) dispose(source); this.assets.clear(); this.hashes.clear(); this.nodes.clear(); this.state.clear(); this.scene = new Scene(); this.document = null; }
+  private releaseDynamic(node: Node): void { const release = this.skinDisposer; if (release !== null) release(node); }
+
+  dispose(): void { for (const node of this.dynamicNodes.values()) this.releaseDynamic(node); this.dynamicNodes.clear(); for (const source of this.assets.values()) dispose(source); this.assets.clear(); this.hashes.clear(); this.nodes.clear(); this.state.clear(); this.scene = new Scene(); this.document = null; }
 }
 function worldMatrix(record: SceneRecord, records: Map<string, SceneRecord>): number[] {
   const local = mat4Compose(mat4(), record.translation, record.rotation, record.scale);

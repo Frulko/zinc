@@ -1,0 +1,10 @@
+import { onFrame,width,height } from 'zinc:gfx';
+import { args } from 'zinc:sys';
+import { Stage } from 'zinc:stage';
+import { GameState } from './state';
+import { GameView } from './view';
+import { prove } from './proof';
+const game=new GameState();
+if(args().includes('--proof'))prove(game);
+const stage=new Stage(),view=new GameView(game);stage.addChild(view);
+onFrame((dt:number)=>{view.width=width();view.height=height();stage.frame(dt);});

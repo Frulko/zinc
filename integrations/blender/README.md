@@ -60,3 +60,11 @@ The runnable [library project](../../examples/blender-library/README.md) include
 a saved `.blend`, deterministic authoring generator, actual Blender/Zinc captures
 and exact headless exporter checks. No Blender installation is needed to run the
 published Zinc app.
+
+A skinned library instance uses string property `zinc_skin`, for example
+`{"id":"companion-v1","file":"//dog.glb","metadata":"//dog.animation.json","source":"authoring/dog.blend"}`.
+The GLB and metadata are published by the character library first; the scene
+publisher copies immutable GLB bytes and embeds validated events/sockets/source
+metadata in the same atomic scene revision. Its linked collection remains visible
+in Blender but is not expanded into rigid runtime geometry. The
+[Lantern Post](../../examples/lantern-post/README.md) source project demonstrates it.

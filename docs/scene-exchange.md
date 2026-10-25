@@ -72,3 +72,21 @@ incompatible/deleted records reset it. Authored transforms always update.
 Runtime validation checks structure and asset hashes; publication revision
 canonicalization is checked offline by `tools/scene-exchange` (Python and Zinc
 number serialization are deliberately not assumed byte-identical).
+
+## Skinned instances
+
+Assets can declare `kind:"skin"`, `rootMotion:"controller"`, explicit
+`events:[{clip,time,name}]`, `sockets:[{name,joint,translation}]`, and
+`source:{file,object}`. Referencing nodes must be `dynamic:true`. The plain reader
+rejects skins without a factory/disposer; it never substitutes a rigid pose.
+Factories prepare independent instances after byte hashes validate and clean up
+if they throw. Disposers must not throw. Failed candidates release new skins and
+leave the previous revision live.
+
+`import { AnimatedScene } from 'zinc:animation/scene'` supplies that boundary.
+`animations` holds players by stable node ID; `sockets` uses keys such as
+`companion/mouth`. Same scene/node/asset identity and compatible joint topology
+preserve normalized clip phase. Event metadata updates without replay, and pending
+transitions cancel. Changed asset identity makes a new player; changed topology
+resets clip/phase. Gameplay reconciles actor positions/quests at that boundary.
+[Lantern Post](../examples/lantern-post/README.md) executes the complete workflow.

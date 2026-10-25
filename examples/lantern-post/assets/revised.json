@@ -1,0 +1,1204 @@
+{
+  "assets": [
+    {
+      "dependencies": [],
+      "hash": "b247d8813006d19875319c560f978bf0dac2828491a218bf4f02c54e2daf77dc",
+      "id": "mesh-cottage-door",
+      "uri": "objects/b247d8813006d19875319c560f978bf0dac2828491a218bf4f02c54e2daf77dc.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "193533b14e75140825e36d5aa62d49467de36c58cbb6d24a317f8f7825925cf2",
+      "id": "mesh-cottage-roof",
+      "uri": "objects/193533b14e75140825e36d5aa62d49467de36c58cbb6d24a317f8f7825925cf2.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "10778876b8ad2e5e8d9c19743732d58fe1df5fdb2aec1cdfab3e6fe19b9566ee",
+      "id": "mesh-cottage-walls",
+      "uri": "objects/10778876b8ad2e5e8d9c19743732d58fe1df5fdb2aec1cdfab3e6fe19b9566ee.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "943c562543f4ac433aefc6b301d7664de2ec1b09827b0a7da6d0e59fbcd0f4a2",
+      "id": "mesh-courier-bag",
+      "uri": "objects/943c562543f4ac433aefc6b301d7664de2ec1b09827b0a7da6d0e59fbcd0f4a2.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "1122e6073e17f69fb1c82fe57fcd21d57782b48430af8f6ee8fa593fe3da0c85",
+      "id": "mesh-courier-cap",
+      "uri": "objects/1122e6073e17f69fb1c82fe57fcd21d57782b48430af8f6ee8fa593fe3da0c85.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "3970f40ba3b15d8de57ab4636a6cfad3f774185339238c718da7a1ce5d4213fd",
+      "id": "mesh-courier-coat",
+      "uri": "objects/3970f40ba3b15d8de57ab4636a6cfad3f774185339238c718da7a1ce5d4213fd.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "fc7b6d873d318c416dd9eed4130343153959b12d6b7b6f737d9a0ea3d4c8921c",
+      "id": "mesh-courier-head",
+      "uri": "objects/fc7b6d873d318c416dd9eed4130343153959b12d6b7b6f737d9a0ea3d4c8921c.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "64a1e1c119553770653e6835a9a38e90c27550f4b5d9dde14930839091e4a8a6",
+      "id": "mesh-gate",
+      "uri": "objects/64a1e1c119553770653e6835a9a38e90c27550f4b5d9dde14930839091e4a8a6.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "56f4dac0e53e4fb6a6b28f1ee645034b92f16b219a172bd7d9b89ec0b57f591f",
+      "id": "mesh-ground",
+      "uri": "objects/56f4dac0e53e4fb6a6b28f1ee645034b92f16b219a172bd7d9b89ec0b57f591f.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "5957af910ede6bd6b7882c7390a9a922f0ba93ac18b35ce9693895028023dc32",
+      "id": "mesh-lantern-light",
+      "uri": "objects/5957af910ede6bd6b7882c7390a9a922f0ba93ac18b35ce9693895028023dc32.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "5360315b0b29cf0b61de35c75733601b125a18df6a977b3651523f09a03c834c",
+      "id": "mesh-lantern-post",
+      "uri": "objects/5360315b0b29cf0b61de35c75733601b125a18df6a977b3651523f09a03c834c.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "71399b4c93cac4b5b278af46b2245fd9e4b1113ee07a8efe6ec3612c33dbd0f0",
+      "id": "mesh-mailbox-east",
+      "uri": "objects/71399b4c93cac4b5b278af46b2245fd9e4b1113ee07a8efe6ec3612c33dbd0f0.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "44553188e371e0fcfc78a9af1a1e579e18339a9edc48a3a9a6409a232affa268",
+      "id": "mesh-mailbox-post",
+      "uri": "objects/44553188e371e0fcfc78a9af1a1e579e18339a9edc48a3a9a6409a232affa268.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "d078943122436706154c0639806d51fbdb13a362cb1a3efbe85766715a1b909c",
+      "id": "mesh-mailbox-west",
+      "uri": "objects/d078943122436706154c0639806d51fbdb13a362cb1a3efbe85766715a1b909c.glb"
+    },
+    {
+      "dependencies": [],
+      "events": [
+        {
+          "clip": "Walk",
+          "name": "foot-left",
+          "time": 0.5
+        },
+        {
+          "clip": "Walk",
+          "name": "foot-right",
+          "time": 1.5
+        },
+        {
+          "clip": "Run",
+          "name": "foot-left",
+          "time": 0.16666666666666666
+        },
+        {
+          "clip": "Run",
+          "name": "foot-right",
+          "time": 0.5
+        }
+      ],
+      "hash": "a6bbf07a87dc235e39f6d611cc48ac00c996af6c6cca2f5d62c9fc79af8a499c",
+      "id": "companion-v1",
+      "kind": "skin",
+      "rootMotion": "controller",
+      "sockets": [
+        {
+          "joint": "Head",
+          "name": "mouth",
+          "translation": [
+            0.0,
+            0.5997071862220764,
+            -0.2748657763004303
+          ]
+        }
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/companion-revised.blend",
+        "object": "CompanionRig"
+      },
+      "uri": "objects/a6bbf07a87dc235e39f6d611cc48ac00c996af6c6cca2f5d62c9fc79af8a499c.glb"
+    }
+  ],
+  "id": "lantern-post",
+  "nodes": [
+    {
+      "asset": "companion-v1",
+      "dynamic": true,
+      "id": "companion",
+      "metadata": {
+        "spawn": {
+          "name": "companion"
+        }
+      },
+      "name": "companion",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "companion"
+      },
+      "translation": [
+        0.699999988079071,
+        1.5298985545086907e-07,
+        3.5
+      ]
+    },
+    {
+      "asset": null,
+      "id": "delivery-east",
+      "metadata": {
+        "trigger": {
+          "event": "delivery:east",
+          "shape": "box",
+          "size": [
+            1.2,
+            1.5,
+            1.2
+          ]
+        }
+      },
+      "name": "delivery-east",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "delivery-east"
+      },
+      "translation": [
+        2.5999999046325684,
+        0.4999999701976776,
+        -0.6499999761581421
+      ]
+    },
+    {
+      "asset": null,
+      "id": "delivery-post",
+      "metadata": {
+        "trigger": {
+          "event": "delivery:post",
+          "shape": "box",
+          "size": [
+            1.2,
+            1.5,
+            1.2
+          ]
+        }
+      },
+      "name": "delivery-post",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "delivery-post"
+      },
+      "translation": [
+        -3.0,
+        0.5000000596046448,
+        2.0
+      ]
+    },
+    {
+      "asset": null,
+      "id": "delivery-west",
+      "metadata": {
+        "trigger": {
+          "event": "delivery:west",
+          "shape": "box",
+          "size": [
+            1.2,
+            1.5,
+            1.2
+          ]
+        }
+      },
+      "name": "delivery-west",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "delivery-west"
+      },
+      "translation": [
+        -2.5999999046325684,
+        0.4999999701976776,
+        -0.6499999761581421
+      ]
+    },
+    {
+      "asset": "mesh-gate",
+      "id": "gate",
+      "metadata": {
+        "collision": {
+          "shape": "box",
+          "size": [
+            2.8,
+            0.85,
+            0.16
+          ]
+        },
+        "gate": {
+          "name": "courtyard"
+        }
+      },
+      "name": "gate",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "gate"
+      },
+      "translation": [
+        0.5,
+        0.5500000715255737,
+        0.699999988079071
+      ]
+    },
+    {
+      "asset": "mesh-ground",
+      "id": "ground",
+      "metadata": {},
+      "name": "ground",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "ground"
+      },
+      "translation": [
+        0.0,
+        -0.20000000298023224,
+        8.742278012618954e-09
+      ]
+    },
+    {
+      "asset": "mesh-mailbox-east",
+      "id": "mailbox-east",
+      "metadata": {},
+      "name": "mailbox-east",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "mailbox-east"
+      },
+      "translation": [
+        3.0999999046325684,
+        0.949999988079071,
+        -0.6500000357627869
+      ]
+    },
+    {
+      "asset": "mesh-mailbox-post",
+      "id": "mailbox-post",
+      "metadata": {},
+      "name": "mailbox-post",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "mailbox-post"
+      },
+      "translation": [
+        -2.5,
+        0.9500000476837158,
+        2.0
+      ]
+    },
+    {
+      "asset": "mesh-mailbox-west",
+      "id": "mailbox-west",
+      "metadata": {},
+      "name": "mailbox-west",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "mailbox-west"
+      },
+      "translation": [
+        -2.0999999046325684,
+        0.949999988079071,
+        -0.6500000357627869
+      ]
+    },
+    {
+      "asset": null,
+      "id": "overview-camera",
+      "metadata": {
+        "camera": {
+          "far": 1000.0,
+          "fov": 35.05113729641687,
+          "near": 0.10000000149011612
+        }
+      },
+      "name": "overview-camera",
+      "parent": null,
+      "rotation": [
+        -0.32529476284980774,
+        0.29186445474624634,
+        0.10630135238170624,
+        0.893139660358429
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "overview-camera"
+      },
+      "translation": [
+        9.0,
+        13.000000953674316,
+        11.999999046325684
+      ]
+    },
+    {
+      "asset": null,
+      "dynamic": true,
+      "id": "player-spawn",
+      "metadata": {
+        "spawn": {
+          "name": "courier"
+        }
+      },
+      "name": "player-spawn",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "player-spawn"
+      },
+      "translation": [
+        0.0,
+        1.3113415775478643e-07,
+        3.0
+      ]
+    },
+    {
+      "asset": "mesh-courier-bag",
+      "id": "courier-bag",
+      "metadata": {},
+      "name": "courier-bag",
+      "parent": "player-spawn",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "courier-bag"
+      },
+      "translation": [
+        0.2800000011920929,
+        0.4300000071525574,
+        -1.879589639486312e-08
+      ]
+    },
+    {
+      "asset": "mesh-courier-cap",
+      "id": "courier-cap",
+      "metadata": {},
+      "name": "courier-cap",
+      "parent": "player-spawn",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "courier-cap"
+      },
+      "translation": [
+        0.0,
+        1.1100000143051147,
+        -4.851964163776756e-08
+      ]
+    },
+    {
+      "asset": "mesh-courier-coat",
+      "id": "courier-coat",
+      "metadata": {},
+      "name": "courier-coat",
+      "parent": "player-spawn",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "courier-coat"
+      },
+      "translation": [
+        0.0,
+        0.5,
+        -2.1855694143368964e-08
+      ]
+    },
+    {
+      "asset": "mesh-courier-head",
+      "id": "courier-head",
+      "metadata": {},
+      "name": "courier-head",
+      "parent": "player-spawn",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "courier-head"
+      },
+      "translation": [
+        0.0,
+        0.9399999976158142,
+        -4.108870399477382e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "square-lantern",
+      "metadata": {},
+      "name": "square-lantern",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "square-lantern"
+      },
+      "translation": [
+        -3.0,
+        8.742277657347586e-08,
+        2.0
+      ]
+    },
+    {
+      "asset": "mesh-lantern-light",
+      "id": "square-lantern/lantern-light",
+      "metadata": {},
+      "name": "lantern-light",
+      "parent": "square-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-light"
+      },
+      "translation": [
+        0.0,
+        1.7000000476837158,
+        -7.430936221908269e-08
+      ]
+    },
+    {
+      "asset": "mesh-lantern-post",
+      "id": "square-lantern/lantern-post",
+      "metadata": {},
+      "name": "lantern-post",
+      "parent": "square-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-post"
+      },
+      "translation": [
+        0.0,
+        0.800000011920929,
+        -3.4969112050475815e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "square-lantern/lantern-socket",
+      "metadata": {
+        "socket": {
+          "name": "light"
+        }
+      },
+      "name": "lantern-socket",
+      "parent": "square-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-socket"
+      },
+      "translation": [
+        0.0,
+        1.899999976158142,
+        -8.30516384553448e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village",
+      "metadata": {},
+      "name": "village",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "village"
+      },
+      "translation": [
+        0.0,
+        -8.742277657347586e-08,
+        -2.0
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-east-cottage",
+      "metadata": {},
+      "name": "square-east-cottage",
+      "parent": "village",
+      "rotation": [
+        -0.0,
+        -1.0,
+        4.371138828673793e-08,
+        4.371138828673793e-08
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "square-east-cottage"
+      },
+      "translation": [
+        2.5999999046325684,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "mesh-cottage-door",
+      "id": "village/square-east-cottage/cottage-door",
+      "metadata": {},
+      "name": "cottage-door",
+      "parent": "village/square-east-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-door"
+      },
+      "translation": [
+        0.0,
+        0.5250000357627869,
+        0.9599999785423279
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-east-cottage/cottage-lantern",
+      "metadata": {},
+      "name": "cottage-lantern",
+      "parent": "village/square-east-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-lantern"
+      },
+      "translation": [
+        1.399999976158142,
+        3.4969112050475815e-08,
+        0.800000011920929
+      ]
+    },
+    {
+      "asset": "mesh-lantern-light",
+      "id": "village/square-east-cottage/cottage-lantern/lantern-light",
+      "metadata": {},
+      "name": "lantern-light",
+      "parent": "village/square-east-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-light"
+      },
+      "translation": [
+        0.0,
+        1.7000000476837158,
+        -7.430936221908269e-08
+      ]
+    },
+    {
+      "asset": "mesh-lantern-post",
+      "id": "village/square-east-cottage/cottage-lantern/lantern-post",
+      "metadata": {},
+      "name": "lantern-post",
+      "parent": "village/square-east-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-post"
+      },
+      "translation": [
+        0.0,
+        0.800000011920929,
+        -3.4969112050475815e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-east-cottage/cottage-lantern/lantern-socket",
+      "metadata": {
+        "socket": {
+          "name": "light"
+        }
+      },
+      "name": "lantern-socket",
+      "parent": "village/square-east-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-socket"
+      },
+      "translation": [
+        0.0,
+        1.899999976158142,
+        -8.30516384553448e-08
+      ]
+    },
+    {
+      "asset": "mesh-cottage-roof",
+      "id": "village/square-east-cottage/cottage-roof",
+      "metadata": {},
+      "name": "cottage-roof",
+      "parent": "village/square-east-cottage",
+      "rotation": [
+        0.0,
+        -3.275281601489155e-09,
+        -0.07492970675230026,
+        0.9971888065338135
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-roof"
+      },
+      "translation": [
+        0.0,
+        2.0,
+        -8.742277657347586e-08
+      ]
+    },
+    {
+      "asset": "mesh-cottage-walls",
+      "id": "village/square-east-cottage/cottage-walls",
+      "metadata": {
+        "collision": {
+          "shape": "box",
+          "size": [
+            2,
+            1.8,
+            1.8
+          ]
+        }
+      },
+      "name": "cottage-walls",
+      "parent": "village/square-east-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-walls"
+      },
+      "translation": [
+        0.0,
+        0.8999999761581421,
+        -3.934025016860687e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-west-cottage",
+      "metadata": {},
+      "name": "square-west-cottage",
+      "parent": "village",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "square-west-cottage"
+      },
+      "translation": [
+        -2.5999999046325684,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "mesh-cottage-door",
+      "id": "village/square-west-cottage/cottage-door",
+      "metadata": {},
+      "name": "cottage-door",
+      "parent": "village/square-west-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-door"
+      },
+      "translation": [
+        0.0,
+        0.5250000357627869,
+        0.9599999785423279
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-west-cottage/cottage-lantern",
+      "metadata": {},
+      "name": "cottage-lantern",
+      "parent": "village/square-west-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-lantern"
+      },
+      "translation": [
+        1.399999976158142,
+        3.4969112050475815e-08,
+        0.800000011920929
+      ]
+    },
+    {
+      "asset": "mesh-lantern-light",
+      "id": "village/square-west-cottage/cottage-lantern/lantern-light",
+      "metadata": {},
+      "name": "lantern-light",
+      "parent": "village/square-west-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-light"
+      },
+      "translation": [
+        0.0,
+        1.7000000476837158,
+        -7.430936221908269e-08
+      ]
+    },
+    {
+      "asset": "mesh-lantern-post",
+      "id": "village/square-west-cottage/cottage-lantern/lantern-post",
+      "metadata": {},
+      "name": "lantern-post",
+      "parent": "village/square-west-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-post"
+      },
+      "translation": [
+        0.0,
+        0.800000011920929,
+        -3.4969112050475815e-08
+      ]
+    },
+    {
+      "asset": null,
+      "id": "village/square-west-cottage/cottage-lantern/lantern-socket",
+      "metadata": {
+        "socket": {
+          "name": "light"
+        }
+      },
+      "name": "lantern-socket",
+      "parent": "village/square-west-cottage/cottage-lantern",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "lantern-socket"
+      },
+      "translation": [
+        0.0,
+        1.899999976158142,
+        -8.30516384553448e-08
+      ]
+    },
+    {
+      "asset": "mesh-cottage-roof",
+      "id": "village/square-west-cottage/cottage-roof",
+      "metadata": {},
+      "name": "cottage-roof",
+      "parent": "village/square-west-cottage",
+      "rotation": [
+        0.0,
+        -3.275281601489155e-09,
+        -0.07492970675230026,
+        0.9971888065338135
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-roof"
+      },
+      "translation": [
+        0.0,
+        2.0,
+        -8.742277657347586e-08
+      ]
+    },
+    {
+      "asset": "mesh-cottage-walls",
+      "id": "village/square-west-cottage/cottage-walls",
+      "metadata": {
+        "collision": {
+          "shape": "box",
+          "size": [
+            2,
+            1.8,
+            1.8
+          ]
+        }
+      },
+      "name": "cottage-walls",
+      "parent": "village/square-west-cottage",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+        "object": "cottage-walls"
+      },
+      "translation": [
+        0.0,
+        0.8999999761581421,
+        -3.934025016860687e-08
+      ]
+    }
+  ],
+  "revision": "36e93debf7f4692d9d9f1b7871ba2b1e38bab2491e399e99bb727e913c3a091f",
+  "schema": "zinc.scene",
+  "source": {
+    "file": "examples/lantern-post/authoring/revisions/lantern-revised.blend",
+    "scene": "Lantern Post",
+    "tool": "Blender 5.2.1 LTS"
+  },
+  "version": 1
+}

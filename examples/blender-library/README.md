@@ -50,7 +50,7 @@ recovery. Reimport is explicit at a frame boundary; there is no partial-file wat
 and `view.ts` displays the scene and provenance. `authoring/build.py` is the
 reproducible original art source; `library.blend` is the actual generated editable
 project. Blender and Zinc previews are separate captures, not a parity golden.
-Original meshes and source code are MIT under the repository licence.
+The generator creates original meshes without external art downloads.
 
 Supported proof platform: development Mac. The existing Zinc asset cache and ZPK
 builder pack the raw GLBs and manifest; the semantic scene is never flattened to

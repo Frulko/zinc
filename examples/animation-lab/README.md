@@ -33,7 +33,7 @@ blender -b --factory-startup -P examples/animation-lab/authoring/build.py
 ```
 
 `authoring/companion.blend` is the actual generated project; the generator is the
-original source, with no network art dependency. All original art/source is MIT.
+original source, with no network art dependency. No external art downloads are needed.
 The GLB has 723 vertices and 1442 triangles; the runtime skeleton includes the
 armature/mesh nodes for 14 hierarchy nodes. The generator samples Blender's own
 evaluated deformed mesh for Walk and Run. The regression compares every Zinc

@@ -26,7 +26,10 @@ struct HostAnimation : NativeAnimation {
   int32_t joints(int32_t h) override { auto* s = get(h); return s ? s->skeleton->num_joints() : 0; }
   zrt::String signature(int32_t h) override {
     auto* s = get(h); std::string result;
-    if (s) for (int i = 0; i < s->skeleton->num_joints(); ++i) result += std::to_string(s->skeleton->joint_parents()[i]) + ":" + s->skeleton->joint_names()[i] + "\n";
+    if (s) for (int i = 0; i < s->skeleton->num_joints(); ++i) {
+      const std::string name=s->skeleton->joint_names()[i];
+      result += std::to_string(s->skeleton->joint_parents()[i]) + ":" + std::to_string(name.size()) + ":" + name + ";";
+    }
     return zrt::String::from(result.data(), uint32_t(result.size()));
   }
   uint32_t color(int32_t h) override { auto* s = get(h); return s ? s->color : 0; }

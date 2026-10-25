@@ -72,10 +72,23 @@ def validate(document, directory=None, check_revision=True):
             require(key not in table, f'{kind}: duplicate identity {key}')
             table[key] = record
     for key, asset in assets.items():
+        require(asset.get('kind', 'model') in ('model', 'skin'), key + ': unsupported asset kind')
         uri = relative(asset.get('uri'), key + '.uri')
         digest = asset.get('hash')
         require(isinstance(digest, str) and len(digest) == 64 and all(c in '0123456789abcdef' for c in digest), key + ': invalid SHA256')
         require(isinstance(asset.get('dependencies'), list) and all(isinstance(x, str) for x in asset['dependencies']), key + ': missing dependencies')
+        if asset.get('kind') == 'skin':
+            source(asset.get('source'), key + '.source')
+            require(asset.get('rootMotion') == 'controller', key + ': only controller-owned in-place animation supported')
+            require(isinstance(asset.get('events'), list) and isinstance(asset.get('sockets'), list), key + ': missing animation metadata')
+            for event in asset['events']:
+                identity(event.get('clip'), key + '.event.clip')
+                identity(event.get('name'), key + '.event.name')
+                require(type(event.get('time')) in (int, float) and math.isfinite(event['time']) and event['time'] >= 0, key + ': invalid event time')
+            for socket in asset['sockets']:
+                identity(socket.get('name'), key + '.socket.name')
+                identity(socket.get('joint'), key + '.socket.joint')
+                vector(socket.get('translation'), 3, key + '.socket.translation')
         if directory is not None:
             root = Path(directory).resolve()
             path = (root / uri).resolve()
@@ -86,6 +99,8 @@ def validate(document, directory=None, check_revision=True):
     for key, node in nodes.items():
         require('parent' in node and (node['parent'] is None or isinstance(node['parent'], str)), key + ': parent must be identity or null')
         require('asset' in node and (node['asset'] is None or node['asset'] in assets), key + ': missing asset reference')
+        if node['asset'] is not None and assets[node['asset']].get('kind') == 'skin':
+            require(node.get('dynamic') is True, key + ': skinned instance must be dynamic')
         identity(node.get('name'), key + '.name')
         source(node.get('source'), key + '.source')
         for field, count in [('translation', 3), ('rotation', 4), ('scale', 3)]:

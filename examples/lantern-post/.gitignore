@@ -1,0 +1,5 @@
+authoring/*.blend1
+build/
+dist/
+authoring/revisions/*.blend1
+authoring/revisions/published/

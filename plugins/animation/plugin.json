@@ -56,5 +56,8 @@
         "-I./../../third_party/cgltf"
       ]
     }
+  },
+  "modules": {
+    "zinc:animation/scene": "scene.ts"
   }
 }

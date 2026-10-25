@@ -175,7 +175,7 @@ bpy.ops.export_scene.gltf(filepath=str(HERE.parent / 'assets' / 'companion.glb')
                           export_vertex_color='ACTIVE')
 mouth_local = rig.data.bones['Head'].matrix_local.inverted() @ Vector((0, 1.12, .96))
 (HERE.parent / 'assets' / 'companion.animation.json').write_text(json.dumps(dict(
-    source='authoring/companion.blend', skeleton='companion-v1', rootMotion='controller',
+    source='authoring/companion.blend', sourceObject='CompanionRig', skeleton='companion-v1', rootMotion='controller',
     sockets=[dict(name='mouth', joint='Head', translation=[mouth_local.x, mouth_local.y, mouth_local.z])], events=events), indent=2)+'\n')
 print(f'Actual skin: {len(mesh.data.vertices)} vertices, {len(mesh.data.polygons)} triangles, {len(bones)} deform bones, {mixed} vertices with mixed weights')
 reference = {}

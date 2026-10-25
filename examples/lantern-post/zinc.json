@@ -1,0 +1,8 @@
+{
+  "name": "lantern-post",
+  "app": {"id": "dev.zinc.examples.lantern-post", "name": "Lantern Post", "version": "0.1.0"},
+  "entry": "src/main.ts",
+  "permissions": ["fs"],
+  "assets": {"dir": "assets"},
+  "targets": {"macos": {"width": 960, "height": 640}}
+}

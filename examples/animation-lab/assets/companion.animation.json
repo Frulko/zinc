@@ -34,5 +34,6 @@
       "time": 0.5,
       "name": "foot-right"
     }
-  ]
+  ],
+  "sourceObject": "CompanionRig"
 }

@@ -31,6 +31,8 @@ def assign_missing(scene):
     if not scene.get('zinc_id'):
         scene['zinc_id'] = str(uuid.uuid4())
     for obj in bpy.data.objects:
+        if obj.library is not None:
+            continue
         if not obj.get('zinc_id'):
             obj['zinc_id'] = str(uuid.uuid4())
         if obj.type == 'MESH' and not obj.data.get('zinc_asset_id'):
@@ -45,8 +47,23 @@ def publish_scene(scene, directory, source_file):
     document = dict(schema='zinc.scene', version=1, id=stable(scene, 'zinc_id'),
                     source=dict(tool='Blender ' + bpy.app.version_string, file=source_file, scene=scene.name),
                     assets=[], nodes=[])
-    meshes, authored = {}, {}
-    for obj in bpy.data.objects:
+    meshes, authored, skins = {}, {}, {}
+    reachable = set()
+    def collect(objects, stack):
+        for obj in objects:
+            if obj.hide_render or obj in reachable:
+                continue
+            reachable.add(obj)
+            collect(obj.children, stack)
+            if obj.instance_type == 'COLLECTION' and not obj.get('zinc_skin'):
+                collection = obj.instance_collection
+                if collection is None:
+                    raise ValueError(f'{obj.name}: missing collection reference')
+                if collection.name in stack:
+                    raise ValueError(f'{obj.name}: collection reference cycle: {collection.name}')
+                collect(collection.objects, stack + [collection.name])
+    collect(scene.objects, [])
+    for obj in reachable:
         if obj.hide_render:
             continue
         key = stable(obj, 'zinc_id')
@@ -60,7 +77,7 @@ def publish_scene(scene, directory, source_file):
             meshes[asset_id] = obj
     # Validate metadata and hierarchy before exporting any content.
     def visit(objects, parent, prefix, stack):
-        for obj in sorted(objects, key=lambda o: stable(o, 'zinc_id')):
+        for obj in sorted((o for o in objects if not o.hide_render), key=lambda o: stable(o, 'zinc_id')):
             if obj.hide_render:
                 continue
             if obj.type not in {'EMPTY', 'MESH', 'CAMERA'}:
@@ -84,11 +101,30 @@ def publish_scene(scene, directory, source_file):
                         asset=stable(obj.data, 'zinc_asset_id') if obj.type == 'MESH' else None,
                         translation=list(position), rotation=[rotation.x, rotation.y, rotation.z, rotation.w], scale=list(scale),
                         metadata=metadata, source=dict(file=source_file, object=obj.name))
+            if obj.get('zinc_skin'):
+                if obj.type != 'EMPTY':
+                    raise ValueError(f'{obj.name}: skinned library references must be collection instance/empty nodes')
+                reference = json.loads(obj['zinc_skin'])
+                asset_id = reference['id']
+                path = Path(bpy.path.abspath(reference['file']))
+                data = path.read_bytes()
+                if len(data)>32*1024*1024 or len(data)<20 or data[:4]!=b'glTF' or int.from_bytes(data[4:8],'little')!=2 or int.from_bytes(data[8:12],'little')!=len(data):
+                    raise ValueError(f'{obj.name}: character must be a GLB 2.0 file below 32 MiB')
+                clip_metadata = json.loads(Path(bpy.path.abspath(reference['metadata'])).read_text())
+                digest = hashlib.sha256(data).hexdigest()
+                record = dict(id=asset_id, kind='skin', uri='objects/' + digest + '.glb', hash=digest, dependencies=[],
+                              rootMotion=clip_metadata['rootMotion'], events=clip_metadata['events'], sockets=clip_metadata['sockets'],
+                              source=dict(file=reference.get('source', clip_metadata['source']), object=clip_metadata.get('sourceObject', 'Skeleton')))
+                if asset_id in skins and skins[asset_id][0] != record:
+                    raise ValueError(f'{obj.name}: conflicting skinned asset identity {asset_id}')
+                skins[asset_id] = (record, data)
+                node['asset'] = asset_id
+                node['dynamic'] = True
             if obj.get('zinc_dynamic', False) or obj.animation_data is not None or (obj.rigid_body is not None and obj.rigid_body.type == 'ACTIVE'):
                 node['dynamic'] = True
             document['nodes'].append(node)
             visit(obj.children, key, prefix, stack)
-            if obj.instance_type == 'COLLECTION':
+            if obj.instance_type == 'COLLECTION' and not obj.get('zinc_skin'):
                 collection = obj.instance_collection
                 if collection is None:
                     raise ValueError(f'{obj.name}: missing collection reference')
@@ -100,6 +136,8 @@ def publish_scene(scene, directory, source_file):
     visit([o for o in scene.objects if o.parent is None], None, '', [])
     for asset_id in sorted(meshes):
         document['assets'].append(dict(id=asset_id, uri='objects/pending.glb', hash='0'*64, dependencies=[]))
+    for asset_id in sorted(skins):
+        document['assets'].append(skins[asset_id][0])
     validate(document, check_revision=False)
     selected = list(bpy.context.selected_objects)
     active = bpy.context.view_layer.objects.active
@@ -108,6 +146,11 @@ def publish_scene(scene, directory, source_file):
     try:
         bpy.context.window.scene = export_scene
         for record in document['assets']:
+            if record.get('kind') == 'skin':
+                path = directory / record['uri']
+                if not path.exists():
+                    path.write_bytes(skins[record['id']][1])
+                continue
             obj = meshes[record['id']]
             if obj.modifiers or obj.constraints:
                 raise ValueError(f'{obj.name}: modifiers/constraints require an explicit baked mesh in static scene profile')
