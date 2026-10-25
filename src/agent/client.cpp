@@ -923,7 +923,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top", "screen", "profile", "bench"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
-  if (isOp(first)) {
+  if (isOp(first) && !(args.size() > 1 && isOp(args[1]) && byName(first))) {   // a device named like a command ("bench") followed by a command is the device
     if (paired.empty()) return fail("no paired device: zinc device list, then zinc device pair <name>");
     if (paired.size() > 1) return fail("several devices are paired: name one (zinc device list)");
     d = &paired[0];

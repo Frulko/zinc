@@ -32,6 +32,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 
 ### Fixed
+- `zinc device <name> <command>` works again for a device named like a command (`bench`, `top`...): the name comes first.
 - Linux packages for ARM and the other architectures built on another machine (`tools/build-linux`) now hold the plugins' libraries for that architecture: the first program run on a Raspberry Pi after an install or an update no longer compiles plugins for minutes. Plugins that need a system library (zinc:video, zinc:ffi...) are still compiled on the device; `sizes-linux.json` names them.
 - Nova Patrol DS (`examples/n3ds-pinball`): the ball shows on the 3DS; its picture was left out of the package.
 - `zinc device screen --live`: a second viewer of the same device used to freeze the first window without a word; the first one now says another viewer took the screen and ends.
