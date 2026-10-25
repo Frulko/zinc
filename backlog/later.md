@@ -284,6 +284,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-839: if the canvas item's first transparent full paint refreshes the screen on the tablet, create the item at the first StrokeBegin instead of at Hello.
 - ZN-839: the zinc-ink lane has no 3.29 row (libqsgepaper 07aa9327..., abi 328); retire the lane if the canvas proves enough.
 - ZN-839: reopen uses "last opened" for "open now"; check on 3.29 that a lease started from the home screen does not reopen a document unexpectedly.
+- ZN-839: xochitl's helper processes (same binary, same LD_PRELOAD) log "[zinc-canvas] refused: xochitl died while the canvas was armed" at every start (seen on 3.29): load the canvas only in the main xochitl, or check the armed mark's pid is gone.
+- ZN-842: a per-server body-size option in zinc:net; 64 MiB times 32 connections is the memory ceiling on a Pi or a reMarkable.
+- ZN-842: run the hub on --engine quickjs (byte-for-byte strings not proven there).
+- ZN-842: forget a paired device from the admin page.
+- ZN-842: HTTPS for a hub outside the LAN (serveAsync's tls option).
+- ZN-842: run the hub on a Pi and on a reMarkable (cross-platform pass).
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
 - ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
