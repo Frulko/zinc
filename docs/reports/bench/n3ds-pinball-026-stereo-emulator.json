@@ -1,0 +1,92 @@
+{
+  "source": "emulator",
+  "capture": "build/n3ds-pinball-026-stereo.csv",
+  "header": "# zinc-n3ds-frame-capture schema=1 capacity=3600 omitted=0 model=old3ds",
+  "warmup_refreshes": 120,
+  "modes": {
+    "stereo": {
+      "physics_us": {
+        "p50": 801,
+        "p99": 2482,
+        "max": 3292
+      },
+      "paint_us": {
+        "p50": 1283,
+        "p99": 2002,
+        "max": 2171
+      },
+      "diff_us": {
+        "p50": 189,
+        "p99": 472,
+        "max": 543
+      },
+      "wait_us": {
+        "p50": 5900,
+        "p99": 6686,
+        "max": 6813
+      },
+      "validate_us": {
+        "p50": 332,
+        "p99": 696,
+        "max": 1468
+      },
+      "replay_us": {
+        "p50": 1082,
+        "p99": 1777,
+        "max": 1903
+      },
+      "upload_us": {
+        "p50": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "submit_us": {
+        "p50": 307,
+        "p99": 386,
+        "max": 386
+      },
+      "previous_gpu_us": {
+        "p50": 332,
+        "p99": 332,
+        "max": 332
+      },
+      "rt_allocs": {
+        "p50": 82,
+        "p99": 160,
+        "max": 182
+      },
+      "physics_steps": {
+        "p50": 4,
+        "p99": 12,
+        "max": 15
+      },
+      "refreshes": 1680,
+      "fps": 59.83,
+      "gap_us": {
+        "p50": 16714,
+        "p99": 17161,
+        "max": 17739
+      },
+      "cpu_us": {
+        "p50": 4438,
+        "p99": 6605,
+        "max": 7582
+      },
+      "missed_refreshes": 0,
+      "missed_vblanks": 0,
+      "software_surfaces": 0,
+      "uploads": 0,
+      "slowest_refreshes": [
+        176,
+        467,
+        201,
+        157,
+        1336
+      ],
+      "passes_60fps_gate": true
+    }
+  },
+  "comparison": "0.2.5 emulator CPU p99 6.732 ms; 0.2.6 6.605 ms, different trajectories, no physical performance claim",
+  "native_log": "build/n3ds-pinball-026-native.log",
+  "build": "AOT tools/multiball.ts, 3600 eye callbacks, slider 1, Old3DS emulation"
+}

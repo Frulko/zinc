@@ -1,7 +1,7 @@
 // Runs the real two-screen application with three balls, without requiring a player to unlock multiball.
 import { stereoDepth } from 'zinc:hardware';
 import { clock } from 'zinc:sys';
-import { game } from '../src/main';
+import { game, boardReady } from '../src/main';
 import { MAX_SPEED } from '../../pinball-kit/physics/world';
 
 game.startGame(1);
@@ -19,6 +19,7 @@ console.log(`pinball probe: ${game.world.activeBalls()} balls served`);
 
 let wallAnchor: number = -1, gameAnchor: number = 0;
 setInterval(() => {
+  if (!boardReady()) { wallAnchor = -1; return; }
   const now = clock();
   // Ignore the initial board bake; thereafter gameplay must track elapsed time in flat and stereo mode.
   if (wallAnchor >= 0 && Math.abs((game.time - gameAnchor) - (now - wallAnchor) / 1000) > 0.25) throw new Error('game clock drifts from elapsed time');

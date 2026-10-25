@@ -21,6 +21,15 @@ export class Panels {
 
   constructor(public game: Game) {}
 
+  loading(progress: number): void {
+    const w = width(), h = height();
+    rect(0, 0, w, h, INK);
+    centred(big, 0, w, h / 2 - 30, 'NOVA PATROL DS', CYAN);
+    centred(small, 0, w, h / 2, 'PREPARING TABLE', DIM);
+    rect(32, h / 2 + 24, w - 64, 3, PANEL);
+    rect(32, h / 2 + 24, (w - 64) * progress, 3, CYAN);
+  }
+
   /** The texts of the panels, again when the state they show changed. */
   private refresh(): void {
     const g = this.game, p = g.player, m = MISSIONS[p.mission];

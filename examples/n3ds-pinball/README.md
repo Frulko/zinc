@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.5" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.6" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -42,8 +42,9 @@ new navy score panels belong to this dual-screen renderer; desktop-only overlays
 
 - Every frame is replayed on the PICA200: images, rectangles, text and shapes that keep their geometry (the lamps, the bumper caps on whole
   pixels, the flippers at 11 angles), each rasterized once into the shape atlas. The art, which uses gradients and strokes, is painted once
-  at the start in software (about 0.6 s).
-- 3D: the bumper caps, a ball riding the ramp (by its height), the score popups and the message band come out of the screen.
+  at loading in software, with a progress bar.
+- 3D: stars occupy two planes behind the playfield; ramp floors, rails and wire tracks follow their height. Bumper caps,
+  a ball riding the ramp, score popups and the message band come out of the screen.
 - Use the **compiled program** (`--aot`) for the console. An embedded `.zbc` runs through the interpreter;
   combining that path with 960 Hz Box2D calls caused the previous slow version.
 - The 3DS profile uses 12 image-based sparks, no soft halos or trails. Contacts use Box2D with the 240 Hz DS base clock, adaptive travel subdivision and CCD.
@@ -123,3 +124,16 @@ base clock and the optimized GPU path remain unchanged.
 `tests/run --only pinball_feedback` drives real bumper, slingshot and target hits through the application
 on the interpreter and QuickJS. `tools/feedback.ts` can also be compiled as a short native proof; the main
 playable build has no scripted input or frame limit. The existing deferred capture remains enabled.
+
+
+## Stereo table depth (0.2.6)
+
+Stars sit behind the playfield on two depth planes; the ramp and wire track use height-dependent stereo
+disparity, so their slope has depth. The upper screen caches nine views during loading (mono plus left/right
+views at four strengths); the lower screen caches one. The slider selects the nearest of five depth levels.
+Changing depth during play does not repaint or upload the board. Compared with the previous single upper
+view, this uses about 4 MiB more GPU texture memory and 3 MiB more CPU image storage at native resolution.
+
+`tests/run --only n3ds_pinball_stereo` checks projection, unchanged mono images, ramp disparity and cache reuse.
+Physics, impact feedback and the shared GPU renderer are unchanged. Physical stereo comfort and refresh timing
+need the owner's console session; emulator measurements are recorded in the pinball report.

@@ -200,6 +200,7 @@
     {"paths": ["plugins/physics2d/", "tests/data/physics2d/bulk.ts", "tests/t0/physics2d_bulk.sh"], "tests": ["physics2d_bulk"]},
     {"paths": ["targets/console/ff_replay.cpp", "tests/native/ff_shape_key.cpp", "tests/t0/ff_shape_key.sh"], "tests": ["ff_shape_key"]},
     {"paths": ["examples/n3ds-pinball/tools/", "tests/demo/n3ds_pinball_multiball.sh"], "tests": ["n3ds_pinball_multiball"]},
+    {"paths": ["examples/n3ds-pinball/src/", "examples/n3ds-pinball/tools/stereo.ts", "examples/pinball/src/render/", "tests/demo/n3ds_pinball_stereo.sh"], "tests": ["n3ds_pinball_stereo"]},
     {"paths": ["examples/n3ds-pinball/", "examples/n3ds-platformer/", "examples/n3ds-starfall/", "examples/n3ds-kit/", "examples/pinball/src/", "examples/platformer/src/", "tests/data/n3ds-demos/", "tests/t1/n3ds_demos.sh"], "tests": ["n3ds_demos"]},
     {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/assets/", "targets/capabilities.json", "tests/unit/project_test.cpp", "tests/t0/project_assets.sh"], "tests": ["project_assets"]},
     {"paths": ["src/host/assets_host.cpp", "src/host/assets_host.h", "src/host/sys_host.cpp", "plugins/sprite/", "templates/game-2d/", "src/cli_core.cpp", "tests/t1/asset_reload.sh"], "tests": ["asset_reload"]},

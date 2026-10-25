@@ -1325,3 +1325,14 @@ Physical0.2.3:3600 stereo refreshes,41.11 FPS,1639 missed refreshes/vblanks; phy
 ### 2026-10-25: impacts restored; returned 0.2.4 physical trace
 
 Returned Old3DS 0.2.4: 3600 stereo refreshes, 57.38 FPS, 153 missed vblanks, CPU p99/max 15.686/22.375 ms, physics9.315/16.733 ms; native calls14/24. Summary docs/reports/bench/n3ds-pinball-024-old3ds.json. The strict 60 Hz gate still fails on this trace. 0.2.5 fixes missing powered/visual feedback using solved Box2D Hit events, preserving the optimized timestep. Emulator three-ball stereo:59.83 Hz, zero misses/fallbacks; CPU p50/p99/max 4.652/6.732/7.845 ms, physics 0.773/2.579/3.178 ms; calls 4/12/17. Different trajectories/targets: not a physical before/after speed comparison. Three-part bumper/slingshot/target feedback proof passes on interpreter, QuickJS and compiled 3DS/Azahar; physical post-fix capture still needed.
+
+
+### 2026-10-25: pinball DS 0.2.6 cached stereo board
+
+Old3DS Azahar, compiled actual application with three balls, full stereo: 1680 refreshes after warm-up,
+59.83 Hz, zero misses/vblank misses/software surfaces/uploads. CPU p50/p99/max 4.438/6.605/7.582 ms
+(previous 0.2.5 emulator p99 6.732 ms); physics 0.801/2.482/3.292 ms, native calls 4/12/15.
+Nine cached upper views add an estimated 4 MiB GPU + 3 MiB CPU image memory; cold loading callback
+max 309.49 ms, excluded from gameplay measurements. No physical timing claim or exact before/after
+speed claim (trajectories differ). Summary docs/reports/bench/n3ds-pinball-026-stereo-emulator.json;
+commands, raw paths and limits in zinc-next-pinball-physics.md.

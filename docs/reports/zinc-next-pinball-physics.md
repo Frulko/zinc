@@ -120,3 +120,49 @@ The returned 0.2.4 physical capture is preserved in `build/n3ds-pinball-physical
 With hit feedback restored, the 0.2.5 emulator three-ball stereo capture after warm-up reports 59.83 Hz, zero misses/vblank losses/fallbacks, complete CPU p50/p99/max 4.652/6.732/7.845 ms, physics 0.773/2.579/3.178 ms and native world calls 4/12/17. Artifacts: `build/n3ds-pinball-025-stereo.csv` and `-report.json`. These emulator costs do not prove physical performance with feedback active; the next hardware capture remains necessary.
 
 Playable 0.2.5: `build/n3ds-pinball-0.2.5-native.3dsx`, 2451952 bytes, SHA-256 `3c7c1bf42fcd4a3cca0d58db4129f409573f30af64f68aeb3dcfe3068f2e7d43`. Installed and read-back verified at `/Volumes/DS/3ds/zinc/n3ds-pinball.3dsx`; 0.2.4 executable/physical CSV/log retained in `build/n3ds-pinball-sd-backups/20261025-195139/`. AOT, no frame limit or scripted input, deferred capture enabled. No push/release.
+
+
+## Stereo table depth — 0.2.6 (2026-10-25)
+
+Owner request: depth behind the upper stars and along the ramp's slope. The shared camera adds a
+height-dependent horizontal stereo offset (zero by default, leaving desktop rendering unchanged).
+The shared painter puts stars at -1.5 and -4 table units; the DS renderer uses actual ramp/rail/wire
+heights, with the existing ball-height scale of 1.6 pixels per inch at full stereo.
+
+To preserve the GPU path, loading prepares nine upper pictures: mono and four strengths per eye.
+One lower picture remains. The slider selects one of five strengths; drawing uses one textured quad
+per screen/eye, without board rasterization or texture upload during gameplay. Loading advances one
+view per left-eye refresh, shows progress and pauses the game clock until both screens are ready.
+The cache costs an estimated extra 4 MiB of padded GPU textures and 3 MiB of RGBA CPU pictures at
+native resolution. This is a deliberate finite cache, rather than adding geometry to the runtime or
+changing its shared GPU renderer. The existing baked-ramp/ball occlusion limitation is unchanged.
+
+Proof: `n3ds_pinball_stereo` asserts projection/height, two negative star depths, scale propagation,
+clamping and cache reuse; captured mono eyes match exactly, and the ramp region differs in stereo.
+`n3ds_pinball_multiball`, `pinball_feedback`, `n3ds_demos` and the 27-file application check pass.
+The two DS pinball golden changes follow the initial loading delay; platformer/Starfall are unchanged.
+Host left/right images and compiled 3DS eye captures were visually inspected. Desktop camera offset
+remains zero.
+
+Compiled Old3DS Azahar proof: 1680 refreshes after warm-up, 59.83 Hz, no missed refreshes/vblanks,
+no software fallback and no texture upload. CPU p50/p99/max 4.438/6.605/7.582 ms; physics
+0.801/2.482/3.292 ms; native step calls 4/12/15. Previous 0.2.5 emulator CPU p99 was 6.732 ms.
+Different trajectories prevent a strict speed comparison; physical depth comfort and 60 FPS remain
+unverified. Summary: `docs/reports/bench/n3ds-pinball-026-stereo-emulator.json`; raw CSV and eye
+captures: `build/n3ds-pinball-026-*`. Cold preparation reaches a 309.49 ms callback and is deliberately
+excluded from the gameplay gate (first 120 refreshes); this is startup work, not a zero-hitch launch.
+
+```sh
+ZINC_STEPS=0 tools/build-console-core n3ds --aot examples/n3ds-pinball/tools/multiball.ts --frames 3600 --env ZINC_PROFILE=defer --env ZINC_FRAME_CAPTURE=1 --env ZINC_3D_SLIDER=1 --title 'Nova Patrol DS stereo depth check' -B build/n3ds-pinball-026-stereo
+lockf -t 180 -k /tmp/zinc-azahar.lock tools/console-run n3ds build/n3ds-pinball-026-stereo/zinc-core.3dsx --timeout 120 --shot build/n3ds-pinball-026-native-left.png
+tools/n3ds-frame-report build/n3ds-pinball-026-stereo.csv --source emulator --gate
+```
+
+The build includes the already committed shared Tokyo memory fixes (d543daf2) and passed its real
+GPU path. This stereo change itself touches pinball examples and their tests only; no shared runtime
+or GPU source changes are required. Playable 0.2.6 keeps deferred capture and has no frame limit or
+scripted input. Artifact/install provenance is in `build/n3ds-pinball-0.2.6-native.json`.
+
+Installed on `/Volumes/DS/3ds/zinc/n3ds-pinball.3dsx` at 2026-10-25T20:28:07.113774+01:00;
+2,462,548 bytes, SHA256 `f6b73bd2e668a140e6e0ee7ab7241a8a240dbab7504ddb2e16821dd5a2340dd5` (SD read-back verified).
+Previous executable and returned SD log/capture preserved in `build/n3ds-pinball-sd-backups/20261025-202807`.

@@ -1,7 +1,7 @@
-// The static table of one screen, painted once into an image: Nova Patrol's own art (examples/pinball/src/render/art.ts) seen from straight
+// The static table of one screen, cached at loading for each stereo view: Nova Patrol's own art (examples/pinball/src/render/art.ts) seen from straight
 // above, then the plastic ramp, the wire habitrail and the apron, which the desktop table draws every frame (here they are part of the
 // picture: a ball rolling under the ramp shows over it, the price of a frame with no gradient or stroke). Painting uses everything zinc:gfx
-// has (gradients, strokes, paths): it happens once, in software; a frame then draws this image as one textured quad on the GPU.
+// has (gradients, strokes, paths): it happens only at loading, in software; a frame draws its cached view as one textured quad on the GPU.
 import { createImage, beginImage, endImage, resetTransform, polygon, drawText, font, textWidth } from 'zinc:gfx';
 import { Camera } from '../../pinball/src/render/camera';
 import { pts, line3, flat } from '../../pinball/src/render/draw';
@@ -9,7 +9,7 @@ import { Inserts } from '../../pinball/src/render/inserts';
 import { paintTable } from '../../pinball/src/render/art';
 import { Table, Rail, RAIL_RAMP, RAIL_WIRE } from '../../pinball/src/table/layout';
 import { Ramp } from '../../pinball-kit/physics/bodies';
-import { K, EYE_HEIGHT, CENTER_X } from './constants';
+import { K, EYE_HEIGHT, CENTER_X, DEPTH_PER_INCH } from './constants';
 
 /** A camera straight above the table point (cx, cy), shown at screen point (sx, sy), `s` image pixels per screen pixel. */
 export function topDown(cy: number, sx: number, sy: number, s: number): Camera {
@@ -85,11 +85,13 @@ function paintApron(cam: Camera, s: number): void {
 }
 
 /** One screen's picture of the table: w x h screen pixels at `s` image pixels each, the table point (CENTER_X, cy) at its centre. */
-export function bakeHalf(t: Table, cy: number, w: number, h: number, s: number): i32 {
+export function bakeHalf(t: Table, cy: number, w: number, h: number, s: number, stereo: number = 0): i32 {
   const iw: i32 = Math.ceil(w * s), ih: i32 = Math.ceil(h * s);
   const cam = topDown(cy, w / 2, h / 2, s);
+  cam.parallax = stereo * DEPTH_PER_INCH * s / 2;
   const ins = new Inserts(t);
   const image = createImage(iw, ih);
+  if (image < 0) throw new Error('Not enough memory for the pinball view');
   resetTransform();
   beginImage(image);
   paintTable(cam, t, ins, iw, ih, s);

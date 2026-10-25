@@ -14,6 +14,7 @@ export const TOP_PANEL_W: number = Math.floor((TOP_W - (TABLE_W + 2.2) * K) / 2)
 export const BOTTOM_PANEL_W: number = Math.floor((BOTTOM_W - (TABLE_W + 2.2) * K) / 2);
 
 // Depths on the top screen, in pixels of parallax at full slider (> 0: in front of the screen).
+export const STEREO_STEPS: i32 = 4; // five slider strengths, mono plus four cached views per eye
 export const DEPTH_CAP = 3;          // the pop bumpers' caps
 export const DEPTH_PER_INCH = 1.6;   // a ball riding a ramp, per inch above the playfield
 export const DEPTH_POPUP = 5;        // the score popups

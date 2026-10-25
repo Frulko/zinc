@@ -1,6 +1,6 @@
 n3ds-pinball 300 cd845850c8cbd40f
-n3ds-pinball 600 e1efb02e50708989
-n3ds-pinball 900 e1efb02e50708989
+n3ds-pinball 600 7a9dcfc34e64fc7c
+n3ds-pinball 900 7a9dcfc34e64fc7c
 n3ds-platformer 200 a66399218d49c177
 n3ds-platformer 500 5be2e97c4d4fc05f
 n3ds-platformer 840 a6f93daa644450af

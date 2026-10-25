@@ -7,6 +7,8 @@ export class Camera {
   fy: number = 0; fz: number = 0;
   uy: number = 0; uz: number = 0;
   focal: number = 1;
+  /** Horizontal stereo shift per table-height unit; zero for the desktop camera. */
+  parallax: number = 0;
   ox: number = 0;
   oy: number = 0;
   /** Results of project(): screen point and pixels per inch at that depth. */
@@ -26,7 +28,7 @@ export class Camera {
     const qx = x - this.ex, qy = y - this.ey, qz = z - this.ez;
     const depth = qy * this.fy + qz * this.fz;
     const inv = this.focal / (depth > 0.1 ? depth : 0.1);
-    this.x = this.ox + qx * inv;
+    this.x = this.ox + qx * inv + z * this.parallax;
     this.y = this.oy - (qy * this.uy + qz * this.uz) * inv;
     this.k = inv;
   }
@@ -51,6 +53,7 @@ export class Camera {
     const c = new Camera();
     c.ex = this.ex; c.ey = this.ey; c.ez = this.ez; c.fy = this.fy; c.fz = this.fz; c.uy = this.uy; c.uz = this.uz;
     c.focal = this.focal * s;
+    c.parallax = this.parallax * s;
     c.ox = (this.ox - x0) * s;
     c.oy = (this.oy - y0) * s;
     return c;

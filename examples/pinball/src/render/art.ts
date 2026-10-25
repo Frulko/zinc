@@ -24,6 +24,9 @@ function outline(xs: number[], ys: number[]): void {
   xs.push(20.65); ys.push(TABLE_L);
 }
 
+/** Two star planes behind the board, in the camera's table-height units. */
+export function starDepth(index: i32): number { return index % 3 === 0 ? -1.5 : -4; }
+
 /** Paints the whole static layer through `cam` into a w x h target (an image being rendered, s = pixel scale). */
 export function paintTable(cam: Camera, t: Table, ins: Inserts, w: number, h: number, s: number): void {
   seed = 12345;
@@ -31,7 +34,7 @@ export function paintTable(cam: Camera, t: Table, ins: Inserts, w: number, h: nu
   gradient(0, 0, w, h, 0, 0x02030a, 0x0d0826, true, 255);
   for (let i: i32 = 0; i < 100; i++) {
     const sz = (0.6 + rnd() * 1.4) * s;
-    rrect(rnd() * w, rnd() * h, sz, sz, sz / 2, mix(0x8fa8ff, 0xffffff, rnd()), Math.round(60 + rnd() * 160));
+    rrect(rnd() * w + cam.parallax * starDepth(i), rnd() * h, sz, sz, sz / 2, mix(0x8fa8ff, 0xffffff, rnd()), Math.round(60 + rnd() * 160));
   }
 
   // cabinet floor
@@ -90,7 +93,7 @@ function paintPlayfield(cam: Camera, t: Table, ins: Inserts, s: number): void {
   for (let i: i32 = 0; i < 220; i++) {
     cam.project(0.4 + rnd() * 20, 1 + rnd() * 40, 0);
     const sz = (0.5 + rnd() * rnd() * 2.2) * s;
-    rrect(cam.x - sz / 2, cam.y - sz / 2, sz, sz, sz / 2, mix(0xbfd0ff, 0xffffff, rnd()), 80 + Math.round(rnd() * 175));
+    rrect(cam.x - sz / 2 + cam.parallax * starDepth(i), cam.y - sz / 2, sz, sz, sz / 2, mix(0xbfd0ff, 0xffffff, rnd()), 80 + Math.round(rnd() * 175));
   }
   // the planet with its ring
   const px = 4.6, py = 24.4, pr = 2.2;

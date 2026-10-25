@@ -17,7 +17,11 @@ import { PLUNGER_TRAVEL } from '../../pinball-kit/physics/world';
 import { SHOOTER_X, TABLE_L } from '../../pinball/src/table/layout';
 import { Eyes } from '../../n3ds-kit/stereo';
 import { topDown, bakeHalf } from './art';
-import { SPLIT, DEPTH_CAP, DEPTH_PER_INCH, DEPTH_POPUP, PINK, CYAN } from './constants';
+import { SPLIT, DEPTH_CAP, DEPTH_PER_INCH, DEPTH_POPUP, STEREO_STEPS, PINK, CYAN } from './constants';
+
+export function viewLevel(depth: number): i32 {
+  return Math.max(0, Math.min(STEREO_STEPS, Math.round(depth * STEREO_STEPS)));
+}
 
 const FLIP_STEPS: i32 = 10;          // the flipper drawn at 11 angles from rest to up
 const POPUP_LIFE = 1.1, SPARK_LIFE = 0.6;   // as examples/pinball/src/render/fx.ts
@@ -38,7 +42,8 @@ function flipperOutline(cam: Camera, f: Flipper, a: number, g: number): number[]
 export class Half {
   cam: Camera;
   inserts: Inserts;
-  art: i32 = -1;
+  baked: i32 = 0;
+  private views: i32[] = [];
   private rubber: number[][][] = [[], []];   // per flipper, per step: the red rubber, then the white body
   private body: number[][][] = [[], []];
   private slings: number[][] = [];
@@ -48,6 +53,7 @@ export class Half {
   constructor(public game: Game, public lower: boolean, public w: number, public h: number) {
     this.cam = topDown(this.centre(), w / 2, h / 2, 1);
     const t = game.table;
+    for (let i = 0; i < this.viewCount(); i++) this.views.push(-1);
     this.inserts = new Inserts(t);
     this.inserts.project(this.cam);
     const flips: Flipper[] = [t.left, t.right];
@@ -77,14 +83,27 @@ export class Half {
   /** Whether the table row y (with a margin of m inches) shows on this screen. */
   shows(y: number, m: number): boolean { return this.lower ? y > SPLIT - m : y < SPLIT + m; }
 
-  bake(): void { if (this.art < 0) this.art = bakeHalf(this.game.table, this.centre(), this.w, this.h, pixelScale()); }
+  viewCount(): i32 { return this.lower ? 1 : STEREO_STEPS * 2 + 1; }
+  ready(): boolean { return this.baked === this.viewCount(); }
+
+  /** One cached view per loading refresh; gameplay never rasterizes or uploads a new slider view. */
+  bake(): void {
+    if (this.ready()) return;
+    const level: i32 = this.baked === 0 ? 0 : Math.ceil(this.baked / 2) * (this.baked % 2 === 1 ? 1 : -1);
+    const id = bakeHalf(this.game.table, this.centre(), this.w, this.h, pixelScale(), level / STEREO_STEPS);
+    this.views[this.lower ? 0 : STEREO_STEPS + level] = id;
+    this.baked++;
+    // The following loading screen covers this pixel; the GPU uploads the texture now, rather than on a slider change.
+    drawImage(id, this.w - 1, this.h - 1, 1, 1, 255, 0);
+  }
 
   /** The frame of this screen; `eyes` on the top screen (stereo), null on the bottom one. */
   draw(eyes: Eyes | null): void {
     const g = this.game;
     const sx = Math.round(g.fx.shakeX), sy = Math.round(g.fx.shakeY);
     translate(sx, sy);
-    drawImage(this.art, 0, 0, this.w, this.h, 255, 0);
+    const level: i32 = eyes === null ? 0 : viewLevel(eyes.depth) * (eyes.eye === 0 ? 1 : -1);
+    drawImage(this.views[this.lower ? 0 : STEREO_STEPS + level], 0, 0, this.w, this.h, 255, 0);
     this.lights();
     if (this.lower) this.lowerParts(); else this.upperParts(eyes, sx, sy);
     this.balls(eyes, sx, sy);

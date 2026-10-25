@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Nova Patrol DS 0.2.6 adds depth behind the stars and along ramp slopes, with cached stereo views prepared before play.
 - `zinc:physics2d` exposes `ContactKind.Hit` with solved approach speed for kicks, scoring and audiovisual feedback, including the browser backend.
 - Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.

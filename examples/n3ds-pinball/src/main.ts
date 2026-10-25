@@ -10,10 +10,10 @@ import { Game, PH_ATTRACT, PH_PLAY } from '../../pinball/src/game/game';
 import { Store } from '../../pinball/src/game/store';
 import { Controls } from '../../pinball/src/input';
 import { Eyes, ProgramTime } from '../../n3ds-kit/stereo';
-import { Half } from './half';
+import { Half, viewLevel } from './half';
 import { Panels } from './panels';
 import { Touch, readControls, clearPresses } from './input';
-import { TOP_W, TOP_H, BOTTOM_W, BOTTOM_H, BOTTOM_PANEL_W } from './constants';
+import { TOP_W, TOP_H, BOTTOM_W, BOTTOM_H, BOTTOM_PANEL_W, STEREO_STEPS } from './constants';
 
 // Travel-limited subdivision and Box2D CCD retain fast-contact precision without 960 full adapter calls per second.
 export const game = new Game(new Store(true), 1 / 240);
@@ -25,13 +25,27 @@ const touch = new Touch();
 const eyes = new Eyes();
 const time = new ProgramTime('n3ds-pinball');
 let pending = 0, wasDown = false;
+let ready = false;
+const bakeTotal = upper.viewCount() + lower.viewCount();
+export function boardReady(): boolean { return ready; }
 
 onFrame((dt: number) => {
   eyes.read();
+  eyes.depth = viewLevel(eyes.depth) / STEREO_STEPS;
+  if (!ready) {
+    if (eyes.first()) {
+      if (upper.ready() && lower.ready()) ready = true;
+      else if (!upper.ready()) upper.bake();
+      else lower.bake();
+    }
+    if (!ready) {
+      panels.loading((upper.baked + lower.baked) / bakeTotal);
+      profMark(1);
+      return;
+    }
+  }
   if (eyes.first()) time.refresh();
   time.begin();
-  upper.bake();
-  lower.bake();
   readControls(controls, touch);
   profMark(1);   // input and one-time baking
   pending += dt;
@@ -56,6 +70,7 @@ onFrame((dt: number) => {
 
 openWindow('Bottom screen', BOTTOM_W, BOTTOM_H, (dt: number) => {
   if (!eyes.first()) { keep(); return; }   // drawn once per pair of eyes
+  if (!ready) { panels.loading((upper.baked + lower.baked) / bakeTotal); return; }
   time.begin();
   // the stylus: the strip right of the table pulls the plunger, the left and right halves hold the flippers
   const down = pointerDown(), x = pointerX();
