@@ -20,6 +20,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Nova Patrol DS 0.2.6 adds depth behind the stars and along ramp slopes, with cached stereo views prepared before play.
 - Zinc Go keeps the apps `zinc device deploy` sends: its home screen lists them, starts one again (its name and a loader first) or deletes it, and on iOS puts one on the iPhone's home screen as an icon that opens it (`zinc://open/<app>`, a Web Clip profile installed from Settings).
 - `tools/zinc-go-iphone` builds Zinc Go from your tree, signs it with your Apple team (a free Personal Team works), installs it on your iPhone and starts it.
+- `zinc:location`: the device's position on iOS and macOS (permission, current position, a watch, errors as values), a fake path for tests (`ZINC_FAKE_LOCATION`), and the `examples/geo` demo; Zinc Go links it.
 - `zinc:physics2d` exposes `ContactKind.Hit` with solved approach speed for kicks, scoring and audiovisual feedback, including the browser backend.
 - Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.

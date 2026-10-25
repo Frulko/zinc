@@ -1,0 +1,15 @@
+{
+  "name": "location",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:location",
+  "entry": "index.ts",
+  "description": "Where the device is (Core Location on iOS and macOS): permission (when in use), the current position, a watch with a callback, errors as values; a fake position or path for tests (ZINC_FAKE_LOCATION)",
+  "native": { "impl": { "macos": "native/location.macos.mm", "ios": "native/location.ios.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["CoreLocation", "Foundation"] },
+    "linux": {},
+    "windows": {},
+    "ios": { "frameworks": ["CoreLocation", "Foundation"], "plist": { "NSLocationWhenInUseUsageDescription": "Shows where you are." } }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "geo",
+  "entry": "src/main.tsx",
+  "app": {
+    "id": "dev.zinc.geo",
+    "name": "Geo",
+    "version": "0.1.0",
+    "orientation": "portrait"
+  },
+  "ui": {
+    "preset": "react-native"
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "permissions": [
+    "location"
+  ],
+  "permissionStrings": {
+    "location": "Geo shows where you are and how far you walked."
+  },
+  "targets": {
+    "macos": {
+      "width": 390,
+      "height": 760
+    }
+  }
+}

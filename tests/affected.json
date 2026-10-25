@@ -334,6 +334,7 @@
     {"paths": ["plugins/webrtc/", "tests/data/webrtc_interop.ts", "tools/webrtc-interop", "tools/cdp.py"], "tests": ["webrtc_interop"]},
     {"paths": ["plugins/webrtc/", "plugins/audio/", "examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},
     {"paths": ["plugins/microphone/", "tests/golden/host/microphone_session.ts", "tests/golden/host/microphone_session.out"], "tests": ["microphone_sim", "microphone", "webcam"]},
+    {"paths": ["plugins/location/", "examples/geo/", "tests/golden/host/location_session.ts", "tests/golden/host/location_session.out"], "tests": ["location"]},
     {"paths": ["plugins/serial/", "examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
     {"paths": ["plugins/ble/", "examples/esp32-ble/mac/", "tests/data/ble/", "tests/t1/ble.sh"], "tests": ["ble"]},
     {"paths": ["plugins/osc/", "plugins/socket/", "examples/osc/", "tests/data/osc/"], "tests": ["osc_full"]},
