@@ -60,6 +60,8 @@ export default {
   present(): void {},
   // ponytail: the sim draws no world (metadata only): it opens none
   worldOpen(): i32 { return -1; },
+  worldChunkCount(): i32 { return 0; },
+  worldClose(): void {},
   worldLoad(): i32 { return -1; },
   worldFree(): void {},
   worldNight(): void {},

@@ -55,13 +55,32 @@ std::string base64(const char* uri) {
 }
 bool isManifest(const std::string& name) { return name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0; }
 /** The scenes a .world.json names, relative to the assets directory. */
-bool manifestScenes(const std::string& name, const std::string& in, std::vector<std::string>& out, std::string& err) {
+struct SceneRef {
+  std::string file,id;
+  std::array<float,16> matrix{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+};
+bool manifestScenes(const std::string& name, const std::string& in, std::vector<SceneRef>& out, std::string& err) {
   yyjson_doc* d = yyjson_read(in.data(), in.size(), 0);
   yyjson_val* s = d ? yyjson_obj_get(yyjson_doc_get_root(d), "scenes") : nullptr;
   size_t i, n;
   yyjson_val* v;
-  if (yyjson_is_arr(s)) yyjson_arr_foreach(s, i, n, v) if (yyjson_is_str(v)) out.push_back(normal(dirOf(name) + yyjson_get_str(v)));
+  bool valid=true;
+  if (yyjson_is_arr(s)) yyjson_arr_foreach(s, i, n, v) {
+    SceneRef ref;
+    if(yyjson_is_str(v))ref.file=normal(dirOf(name)+yyjson_get_str(v));
+    else if(yyjson_is_obj(v)){
+      const char* file=yyjson_get_str(yyjson_obj_get(v,"file")),*id=yyjson_get_str(yyjson_obj_get(v,"id"));
+      yyjson_val* matrix=yyjson_obj_get(v,"matrix");
+      if(!file||!*file||!id||!*id||!yyjson_is_arr(matrix)||yyjson_arr_size(matrix)!=16){valid=false;break;}
+      ref.file=normal(dirOf(name)+file);ref.id=id;
+      for(int k=0;k<16;k++){yyjson_val* value=yyjson_arr_get(matrix,k);ref.matrix[k]=static_cast<float>(yyjson_get_num(value));if(!yyjson_is_num(value)||!std::isfinite(ref.matrix[k]))valid=false;}
+      if(std::abs(ref.matrix[3])+std::abs(ref.matrix[7])+std::abs(ref.matrix[11])>1e-6f||std::abs(ref.matrix[15]-1)>1e-6f)valid=false;
+    }else valid=false;
+    if(!valid)break;
+    out.push_back(std::move(ref));
+  }
   yyjson_doc_free(d);
+  if(!valid){err="a world scene reference is a path or {file,id,matrix:[16 finite affine numbers]}";return false;}
   if (out.empty()) { err = "a world manifest lists its glTF or GLB files: {\"scenes\": [\"city.glb\"]}"; return false; }
   return true;
 }
@@ -144,7 +163,8 @@ struct Reader {
     return true;
   }
 
-  bool node(const cgltf_data* d, std::size_t scene, const cgltf_node* nd, const std::string& file, int depth, std::string& err) {
+  bool node(const cgltf_data* d, std::size_t scene, const cgltf_node* nd, const std::string& file, const SceneRef* ref,int depth, std::string& err) {
+    if(depth>64){err=file+": world hierarchy exceeds 64 levels; bake the source hierarchy";return false;}
     if (nd->mesh) {
       Obj o;
       o.file = file;
@@ -167,8 +187,14 @@ struct Reader {
         }
         yyjson_doc_free(x);
       }
+      if(ref&&!ref->id.empty()){o.id=ref->id;o.base=std::to_string(ref->id.size())+":"+ref->id+o.base;}
       float m[16];
       cgltf_node_transform_world(nd, m);
+      if(ref&&!ref->id.empty()){
+        float transformed[16]{};
+        for(int c=0;c<4;c++)for(int r=0;r<4;r++)for(int k=0;k<4;k++)transformed[c*4+r]+=ref->matrix[k*4+r]*m[c*4+k];
+        std::copy(transformed,transformed+16,m);
+      }
       const float det = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5]);
       const float sg = det < 0 ? -1.0f : 1.0f;
       const float cof[9] = {m[5] * m[10] - m[6] * m[9], m[6] * m[8] - m[4] * m[10], m[4] * m[9] - m[5] * m[8],
@@ -246,11 +272,11 @@ struct Reader {
         objs.push_back(std::move(o));
       }
     }
-    if (depth < 64) for (cgltf_size i = 0; i < nd->children_count; ++i) if (!node(d, scene, nd->children[i], file, depth + 1, err)) return false;
+    for (cgltf_size i = 0; i < nd->children_count; ++i) if (!node(d, scene, nd->children[i], file,ref, depth + 1, err)) return false;
     return true;
   }
 
-  bool scene(std::size_t index, const std::string& file, const std::string& bytes, const Side& side, std::string& err) {
+  bool scene(std::size_t index, const std::string& file, const std::string& bytes, const Side& side, std::string& err,const SceneRef* ref=nullptr) {
     cgltf_options o{};
     o.file.read = readSide;
     o.file.release = releaseSide;
@@ -259,9 +285,10 @@ struct Reader {
     if (cgltf_parse(&o, bytes.data(), bytes.size(), &raw) != cgltf_result_success) { err = file + ": not glTF or GLB"; return false; }
     std::unique_ptr<cgltf_data, decltype(&cgltf_free)> data(raw, cgltf_free);
     if (cgltf_load_buffers(&o, raw, file.c_str()) != cgltf_result_success) { err = file + ": cannot read its buffers"; return false; }
+    if(cgltf_validate(raw)!=cgltf_result_success||raw->skins_count||raw->animations_count){err=file+": world scenes must be valid static glTF; preserve animated/skinned instances outside the world";return false;}
     const cgltf_scene* s = raw->scene ? raw->scene : raw->scenes_count ? &raw->scenes[0] : nullptr;
-    if (s) { for (cgltf_size i = 0; i < s->nodes_count; ++i) if (!node(raw, index, s->nodes[i], file, 0, err)) return false; }
-    else for (cgltf_size i = 0; i < raw->nodes_count; ++i) if (!raw->nodes[i].parent && !node(raw, index, &raw->nodes[i], file, 0, err)) return false;
+    if (s) { for (cgltf_size i = 0; i < s->nodes_count; ++i) if (!node(raw, index, s->nodes[i], file,ref, 0, err)) return false; }
+    else for (cgltf_size i = 0; i < raw->nodes_count; ++i) if (!raw->nodes[i].parent && !node(raw, index, &raw->nodes[i], file,ref, 0, err)) return false;
     return true;
   }
 };
@@ -414,9 +441,10 @@ std::string jsonString(const std::string& s) {
 bool worldDeps(const std::string& name, const std::string& in, const std::function<bool(const std::string&, std::string&)>& read,
                std::vector<std::string>& deps, std::string& err) {
   if (!isManifest(name)) return modelDeps(name, in, deps, err);
-  std::vector<std::string> scenes;
+  std::vector<SceneRef> scenes;
   if (!manifestScenes(name, in, scenes, err)) return false;
-  for (const std::string& s : scenes) {
+  for (const SceneRef& ref : scenes) {
+    const std::string& s=ref.file;
     std::string bytes;
     if (!read(s, bytes)) { err = "cannot read " + s + ", which it names"; return false; }
     deps.push_back(s);
@@ -444,12 +472,12 @@ bool importWorld(const ToolPath& basisu, const std::string& name, const std::str
     if (stem.size() > std::strlen(ext) && stem.compare(stem.size() - std::strlen(ext), std::strlen(ext), ext) == 0) { stem.resize(stem.size() - std::strlen(ext)); break; }
   Reader rd{basisu, opts, dirOf(name), stem, {}, {}, {}, {}, {}};
   if (isManifest(name)) {
-    std::vector<std::string> scenes;
+    std::vector<SceneRef> scenes;
     if (!manifestScenes(name, in, scenes, err)) return false;
     for (std::size_t i = 0; i < scenes.size(); ++i) {
-      const auto it = side.find(scenes[i]);
-      if (it == side.end()) { err = "cannot read " + scenes[i] + ", which it names"; return false; }
-      if (!rd.scene(i, scenes[i], it->second, side, err)) return false;
+      const auto it = side.find(scenes[i].file);
+      if (it == side.end()) { err = "cannot read " + scenes[i].file + ", which it names"; return false; }
+      if (!rd.scene(i, scenes[i].file, it->second, side, err,&scenes[i])) return false;
     }
   } else if (!rd.scene(0, name, in, side, err)) return false;
   if (rd.objs.empty()) { err = "no triangles in its scenes"; return false; }

@@ -1,0 +1,22 @@
+{
+  "name": "blender-world",
+  "entry": "src/main.ts",
+  "permissions": [
+    "fs"
+  ],
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      {
+        "match": "scene.json",
+        "as": "scene"
+      }
+    ]
+  },
+  "targets": {
+    "macos": {
+      "width": 960,
+      "height": 640
+    }
+  }
+}

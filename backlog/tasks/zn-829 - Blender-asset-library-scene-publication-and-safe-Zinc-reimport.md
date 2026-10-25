@@ -1,7 +1,7 @@
 ---
 id: ZN-829
 title: Blender asset library scene publication and safe Zinc reimport
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -26,7 +26,7 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 - [x] #3 A Zinc scene viewer reloads a validated revision while preserving compatible state and rejects failed publications atomically
 - [x] #4 Fixtures prove duplicate identity missing reference cycle diagnostics deterministic unchanged export and source provenance
 - [x] #5 World authoring metadata validates positive finite cell size and classifies static collision geometry separately from dynamic/behavior subtrees without losing IDs
-- [ ] #6 World-marked static descendants compile through the Tokyo .zworld importer in zinc assets build and bypass individual SceneRevision nodes with builder-authoritative cell/batch provenance
+- [x] #6 World-marked static descendants compile through the Tokyo .zworld importer in zinc assets build and bypass individual SceneRevision nodes with builder-authoritative cell/batch provenance
 <!-- AC:END -->
 
 ## Delivery contract
@@ -46,3 +46,9 @@ Executed proofs (2026-10-25): Blender build.py generated and rendered actual pro
 Owner extension (2026-10-25): reopen for world metadata/baking. Independent metadata, collection inheritance, partition and provenance seed implemented/tested. `worldSources` retains node/source/world IDs; behavior/animated/active-body/explicit-dynamic subtrees remain entities, static collision geometry is mergeable. Raw world publications are rejected atomically by the loader until binary baking is real.
 
 Integration dependency: current develop cd51f9e0 has no include/zn/zworld.h or Tokyo importer. Do not invent binary layout, level thresholds or cell/batch IDs. After Tokyo lands, inspect that header/importer, validate `levels` with its real contract, route zinc assets build through it, add authoritative source-to-cell/batch mappings, and prove no static descendant SceneRevision nodes remain. Then tick #6 and restore Done. Existing static library remains runnable and tested.
+
+Tokyo dependency arrived on develop (ZWD1 introduced by 97aeb5dd, current develop f801f7d6). This branch takes the existing World renderer/header/test snapshot from develop and reapplies its own meshDeform addition; the dependency snapshot commit is not a change to integrate back into develop. `tests/run --only zinc3d_world` PASS on the real native plugin. Proceeding with native asset importer and compiled-scene/runtime/provenance integration.
+
+World integration delivered: reuses the landed `src/assets/world.cpp` importer via glTF instance refs (stable ID + global matrix), not a second writer/simplifier. `levels` is an included near/mid/far name subset. `as:scene` packs `scene.runtime.json`, existing .zworld/chunks and enriched authoritative .zworld.json. Static descendant nodes/assets leave the runtime entity catalogue; retained semantic descendants preserve global TRS (shear rejected). Provenance keeps every removed object, original asset IDs/hashes, static collision metadata/global matrix, and the builder's exact cell/level/chunk/batch tuples. Picking yields candidates because fused batches can contain several objects; no invented triangle ranges. World handles dispose/reuse and malformed revisions keep the last valid live world.
+
+Actual proof: reopened original library.blend, saved authoring/world.blend and published 26 nodes. `blender_world` PASS: 14 fused identities, 12 entities, 4 retained assets, 2 cells/4 chunks, two static collision records, Inspector candidate mapping, eight unchanged handle reuses, bad revision/chunk hash rollback, cached no-op build and failed build retains byte-identical pack. `scene_exchange`, `zinc3d_world`, `blender_library`, `animated_scene`, `lantern_post` PASS. Actual headless Zinc capture in examples/blender-world/authoring/zinc-preview.png. No large-world timing/RSS claims: small fixture eagerly validates chunks and loads provenance with scene metadata; background staging deferred until measured scale requires it. Native render3d golden updated for lifecycle/deformation methods. Dependency snapshots 61c798be and da284ebb are not feature commits for coordinator integration.

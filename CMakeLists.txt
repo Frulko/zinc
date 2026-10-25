@@ -386,7 +386,7 @@ target_include_directories(gl_caps_test PRIVATE runtime)
 # (ZN-443): yyjson reads Tiled and LDtk JSON, stb_image (zn_res) and zstd (zn_zpk) decompress their layers; textures (ZN-439): stb_image_resize2
 # 2.18 makes the mipmaps, basisu (a pinned tool, src/tc) encodes the block formats; models (ZN-441): gltfpack (a pinned tool) processes them, cgltf 1.15
 # reads its output for the .zmesh of zinc:3d; worlds (src/assets/world.h): cgltf reads the scenes, meshoptimizer 1.3 simplifies their levels
-add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp src/assets/tilemap.cpp src/assets/texture.cpp src/assets/model.cpp src/assets/world.cpp src/assets/cook.cpp src/assets/console_tex.cpp third_party/rg_etc1/rg_etc1.cpp)
+add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp src/assets/tilemap.cpp src/assets/texture.cpp src/assets/model.cpp src/assets/world.cpp src/assets/scene_world.cpp src/assets/cook.cpp src/assets/console_tex.cpp third_party/rg_etc1/rg_etc1.cpp)
 target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash third_party/stb third_party/cute_aseprite third_party/cgltf third_party/meshoptimizer third_party/rg_etc1)
 target_link_libraries(zn_assets PUBLIC zn_platform zn_zpk zn_res zn_meshopt PRIVATE zn_yyjson zn_codec)   # zn_codec: the PNG levels basisu reads (ZN-439)
 add_executable(assets_test tests/unit/assets_test.cpp)

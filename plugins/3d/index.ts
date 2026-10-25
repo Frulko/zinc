@@ -389,6 +389,8 @@ export function defaults3D(profile: string = ''): Defaults3D {
  *  position is ignored: the world's coordinates are the scene's. */
 export class World extends Node {
   readonly handle: i32;
+  readonly chunkCount: i32;
+  private disposed=false;
   /** The machine's defaults (defaults3D(), or the ones given): the fields below start from them. */
   readonly defaults: Defaults3D;
   /** Metres where the near level hands over to the mid level, and the mid to the far, when the budget allows them in full. */
@@ -420,13 +422,16 @@ export class World extends Node {
     this.nearReach = d.nearReach; this.midReach = d.midReach; this.budget = d.budget; this.sectors = d.sectors; this.idle = d.idle; this.readMs = d.readMs;
     this.handle = R.worldOpen(asset);
     if (this.handle < 0) throw new Error(`zinc:3d: ${asset} is not a world (include/zn/zworld.h)`);
+    this.chunkCount=R.worldChunkCount(this.handle);
   }
   /** Loads a chunk: the bytes read, -1 when it cannot. */
-  load(chunk: i32): i32 { return R.worldLoad(this.handle, chunk); }
-  free(chunk: i32): void { R.worldFree(this.handle, chunk); }
+  load(chunk: i32): i32 { return this.disposed?-1:R.worldLoad(this.handle, chunk); }
+  free(chunk: i32): void { if(!this.disposed)R.worldFree(this.handle, chunk); }
+  dispose(): void { if(this.disposed)return;this.disposed=true;R.worldClose(this.handle); }
   /** After select(): frees the chunks it no longer wants and loads the ones it asked for, coarse levels and nearest first, for up to `ms`
    *  milliseconds (-1: readMs; at least one). Returns the chunks read. */
   serve(ms: number = -1): i32 {
+    if(this.disposed)return 0;
     for (const k of this.unused) this.free(k);
     const budget = ms < 0 ? this.readMs : ms, started = clock();
     let read: i32 = 0;
@@ -438,16 +443,17 @@ export class World extends Node {
     return read;
   }
   /** How far the night has come, 0 (day) to 1: the batches' night pictures and glow from 0.5, or mixed by it where the renderer can. */
-  setNight(night: number): void { R.worldNight(this.handle, night); }
+  setNight(night: number): void { if(!this.disposed)R.worldNight(this.handle, night); }
   /** The shadows of the scene's first light over a field of heights (the asset: u16 little-endian, rows along +z), the first cell's corner at
    *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit. Drawn where the renderer can (the 3DS). */
   shadows(heights: string, x0: number, z0: number, step: number, w: i32, h: i32, y0: number, unit: number): void {
-    R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
+    if(!this.disposed)R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
   }
 
   /** Chooses what the next render() of `camera` draws, its picture `aspect` wide for one high, and the chunks to load for the eye and for
    *  `ahead` (x, y, z of points it will pass, possibly none). `dt`: seconds since the last call. */
   select(camera: Camera, aspect: number, ahead: number[], dt: number): void {
+    if(this.disposed)return;
     mat4LookAt(camera.view, camera.position, camera.target, camera.up);
     const e = this.eyes;
     e.length = 0;
@@ -467,7 +473,7 @@ export class World extends Node {
   }
 
   draw(_parent: number[], _parentStamp: i32 = 0): void {
-    if (!this.visible) return;
+    if (!this.visible||this.disposed) return;
     R.worldDraw(this.handle);
     specColor = 0; emitColor = 0;   // what worldDraw left the renderer with
   }

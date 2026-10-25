@@ -124,7 +124,11 @@ def validate(document, directory=None, check_revision=True):
             if kind == 'world':
                 require(type(value.get('cell')) in (int, float) and math.isfinite(value['cell']) and value['cell'] > 0,
                         key + ': world.cell must be positive finite metres')
-                # The pending zworld importer owns level semantics; retain the author's value without converting it.
+                if 'levels' in value:
+                    levels = value['levels']
+                    require(isinstance(levels, list) and 0 < len(levels) <= 3 and
+                            all(isinstance(level, str) and level in ('near', 'mid', 'far') for level in levels) and
+                            len(set(levels)) == len(levels), key + ': world.levels must contain unique near/mid/far names')
                 require(not set(value) - {'cell', 'levels'}, key + ': unsupported world property')
             if kind in ('socket', 'spawn', 'gate'):
                 identity(value.get('name'), key + '.' + kind + '.name')

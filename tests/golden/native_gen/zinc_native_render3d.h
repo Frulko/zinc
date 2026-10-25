@@ -7,6 +7,7 @@ struct NativeRender3D : zrt::Object {
   virtual int32_t meshCreate(zrt::Array<double> pos, zrt::Array<double> nrm, zrt::Array<double> uv, zrt::Array<uint32_t> col, zrt::Array<int32_t> idx) = 0;
   virtual int32_t meshLoad(zrt::Array<uint8_t> data, int32_t at) = 0;
   virtual void meshDestroy(int32_t mesh) = 0;
+  virtual bool meshDeform(int32_t mesh, zrt::Array<double> pos, zrt::Array<double> nrm) = 0;
   virtual int32_t assetOpen(zrt::String name) = 0;
   virtual int32_t assetByte(int32_t at) = 0;
   virtual int32_t assetMesh(int32_t at) = 0;
@@ -25,6 +26,8 @@ struct NativeRender3D : zrt::Object {
   virtual int32_t end() = 0;
   virtual void present(int32_t t, double x, double y, double w, double h) = 0;
   virtual int32_t worldOpen(zrt::String name) = 0;
+  virtual int32_t worldChunkCount(int32_t world) = 0;
+  virtual void worldClose(int32_t world) = 0;
   virtual int32_t worldLoad(int32_t world, int32_t chunk) = 0;
   virtual void worldFree(int32_t world, int32_t chunk) = 0;
   virtual void worldNight(int32_t world, double night) = 0;

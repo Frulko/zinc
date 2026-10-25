@@ -32,23 +32,7 @@ Metadata is restricted to `camera:{fov,near,far}` (vertical FOV in degrees),
 local full extent; scene TRS applies once. Unknown component kinds fail validation.
 Gameplay behavior is supplied by Zinc, never by the authoring tool.
 
-The authoring boundary also accepts `world:{cell:<positive finite metres>}` on a
-parent or instanced collection. Optional `levels` is preserved as authoring data;
-its meaning/validation must come from the upcoming `include/zn/zworld.h` importer,
-not from this publisher. It is not currently executable world configuration.
-`dynamic:true` on a node keeps that subtree as normal runtime entities. Blender
-sets it for `zinc_dynamic`, animated objects and active rigid bodies. Trigger,
-socket, spawn, gate, interaction and camera subtrees also remain entities; ordinary
-static collision geometry can be merged. `partition_world` prepares static source
-records without deleting any authored nodes and emits `{node,source,world}` seed
-provenance. Blender includes it as `worldSources` in the publication when needed.
-
-**World baking is pending the Tokyo `.zworld` importer integration.** The builder
-must supply actual cell/batch ranges and retain every source ID before static
-records can be removed from the runtime scene. The current runtime rejects a
-raw world-marked publication atomically, keeping the previous scene, rather than
-creating thousands of individual nodes or pretending a world was compiled. No
-new world binary, batch identity scheme or level thresholds are defined here.
+The authoring boundary accepts `world:{cell:<positive finite metres>,levels:["near","mid","far"]}` on a collection or parent. Levels are optional included names, following the existing world importer's contract. Blender publishes `{node,source,world}` source seeds without deleting authoring nodes. The asset build fuses static descendants through the existing world importer; dynamic/behavior descendants remain scene entities. See **Static world builds** below for the runtime manifest and picking API.
 
 Canonical hashing uses UTF-8 JSON with sorted keys, no insignificant whitespace,
 finite numbers, and excludes only the top-level `revision`. Exporters must omit
@@ -90,3 +74,9 @@ preserve normalized clip phase. Event metadata updates without replay, and pendi
 transitions cancel. Changed asset identity makes a new player; changed topology
 resets clip/phase. Gameplay reconciles actor positions/quests at that boundary.
 [Lantern Post](../examples/lantern-post/README.md) executes the complete workflow.
+
+## Static world builds
+
+The `scene` asset importer routes a `zinc.scene` publication's `metadata.world` subtrees through the existing `world` importer. Set an explicit asset rule `{ "match": "scene.json", "as": "scene" }` to enable packed loading during `zinc run`, then load `scene.runtime.json`. The original scene remains an authoring source. `world.cell` is positive finite metres; optional `levels` is a nonempty unique subset of `near`, `mid`, `far`, matching the world's included-level option. Existing asset rule options `mid`/`far` remain the simplification ratios.
+
+Static collision geometry is fused. Behavior, animation and explicit dynamic subtrees remain entities. Removed static IDs, source objects, collision metadata and global matrices remain in `worlds[].provenance.logicalNodes`; `sourceAssets` retains original asset IDs/hashes. The `.zworld.json` sidecar preserves the world builder's exact cell/level/chunk/batch tuples. `SceneRevision.sourcesForWorld` returns all matching authored candidates, since a fused batch may contain several objects. No per-triangle identity is inferred. See `examples/blender-world` for the actual editable project and exact commands.

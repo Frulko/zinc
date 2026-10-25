@@ -87,6 +87,12 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual([n['id'] for n in result['entities']], ['crate', 'gate', 'body'])
         self.assertEqual(result['provenance'], [dict(node='wall', source=self.node['source'], world='crate')])
         self.assertEqual(len(self.doc['nodes']), 4)
+        for invalid in ([], ['far', 'far'], [1, .5, .2], ['ultra']):
+            self.node['metadata']['world']['levels'] = invalid
+            with self.assertRaisesRegex(ValueError, 'near/mid/far'):
+                self.check()
+        self.node['metadata']['world']['levels'] = ['mid', 'far']
+        self.check()
         self.node['metadata']['world']['cell'] = 0
         with self.assertRaisesRegex(ValueError, 'positive finite'):
             self.check()

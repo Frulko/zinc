@@ -23,6 +23,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Parcel Yard (`examples/godot-to-zinc`) exports an editable Godot scene with stable object IDs and shared assets, then runs Zinc-written movement and gate interactions without Godot. Unsupported behavior fails before publication.
 
 - Native hosts can drive one Zinc program offscreen through a C surface API, with input, resize, pause and premultiplied alpha output.
+- Blender scene world collections now build through the existing streamed world importer, preserving authored object and static collision provenance for Inspector picking.
+
 
 - Lantern Post is a playable Blender-authored courier game with a skinned companion, three deliveries, source/collision inspection and safe scene/clip reimport. `zinc:animation/scene` loads independently animated scene instances.
 

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
 // Options (plugin.json, zinc.json "plugins": { "3d": {...} }): zbits (0 = auto: 16 on ESP32, 32 elsewhere),
 // scale (internal resolution divisor), dither (2x2 ordered dither to RGB565), subdiv (perspective step in pixels).
@@ -766,6 +767,42 @@ struct Engine : NativeRender3D {
   }
   // ------------------------------------------------ worlds
   Pool<World> worlds;
+  static unsigned char* worldBytes(const char* name, uint32_t length, uint32_t* size) {
+    if (zn_asset_bytes) if (unsigned char* p=zn_asset_bytes(name,length,size)) return p;
+    if (length>=1024 || memchr(name,0,length)) return nullptr;
+    char path[1024]; memcpy(path,name,length);path[length]=0;
+    FILE* f=fopen(path,"rb");if(!f)return nullptr;
+    if(fseek(f,0,SEEK_END)!=0){fclose(f);return nullptr;}
+    const long n=ftell(f);
+    if(n<0 || n>256*1024*1024 || fseek(f,0,SEEK_SET)!=0){fclose(f);return nullptr;}
+    auto* p=(unsigned char*)malloc(n?n:1);
+    if(!p){fclose(f);return nullptr;}
+    const bool ok=fread(p,1,(size_t)n,f)==(size_t)n;fclose(f);
+    if(!ok){free(p);return nullptr;}*size=(uint32_t)n;return p;
+  }
+  static bool worldRelative(const uint8_t* name,uint32_t length) {
+    if(!length||name[0]=='/')return false;
+    uint32_t start=0;
+    for(uint32_t i=0;i<=length;i++){
+      if(i<length&&(name[i]==0||name[i]=='\\'||name[i]==':'))return false;
+      if(i==length||name[i]=='/'){
+        const uint32_t n=i-start;
+        if(!n||(n==1&&name[start]=='.')||(n==2&&name[start]=='.'&&name[start+1]=='.'))return false;
+        start=i+1;
+      }
+    }
+    return true;
+  }
+  void destroyWorld(World* w) {
+    if(!w)return;
+    for(int32_t i=0;i<w->nk;i++){
+      WChunk& k=w->k[i];for(int32_t j=0;j<k.nb;j++)meshDestroy(k.b[j].mesh);
+      mfree(k.b);mfree(k.spans);mfree(k.name);
+    }
+    mfree(w->c);mfree(w->k);mfree(w->items);mfree(w);
+  }
+  int32_t worldChunkCount(int32_t id) override { const World* w=worlds.at(id);return w?w->nk:0; }
+  void worldClose(int32_t id) override { if(World* w=worlds.at(id)){destroyWorld(w);worlds.p[id]=nullptr;} }
   Array<N> ident;                     // the world matrix of a world's batches: their positions are the world's
   // The index range of the next draw (worldDraw): every renderer's draw() draws indices rFirst .. rFirst + rCount of its mesh (rCount < 0: all)
   int32_t rFirst = 0, rCount = -1;
@@ -780,15 +817,16 @@ struct Engine : NativeRender3D {
   /** Reads a world's index (include/zn/zworld.h): its cells and chunks, none loaded. -1 when it is not there or damaged. */
   int32_t worldOpen(String name) override {
     uint32_t n = 0;
-    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+    unsigned char* p = worldBytes(name.ptr(), name.bytes(), &n);
     if (!p) return -1;
     const uint32_t nc = n >= 16 ? rd32(p + 8) : 0, nk = n >= 16 ? rd32(p + 12) : 0;
-    if (n < 16 || memcmp(p, "ZWD1", 4) || rd32(p + 4) != zn::zworld::kVersion || (uint64_t)16 + (uint64_t)nc * zn::zworld::kCell > n) { free(p); return -1; }
+    if (n < 16 || n>64*1024*1024 || memcmp(p, "ZWD1", 4) || rd32(p + 4) != zn::zworld::kVersion || (uint64_t)16 + (uint64_t)nc * zn::zworld::kCell + (uint64_t)nk*8 > n) { free(p); return -1; }
     World* w = (World*)mem(sizeof(World));
     memset(w, 0, sizeof(World));
     w->scale = 1;
     uint32_t slash = 0;
     for (uint32_t i = 0; i < name.bytes() && i < sizeof(w->dir) - 1; i++) if (name.ptr()[i] == '/') slash = i + 1;
+    if(name.bytes()>=sizeof(w->dir)&&memchr(name.ptr()+sizeof(w->dir)-1,'/',name.bytes()-sizeof(w->dir)+1)){free(p);destroyWorld(w);return -1;}
     memcpy(w->dir, name.ptr(), slash < sizeof(w->dir) ? slash : 0);
     w->c = (WCell*)mem(sizeof(WCell) * (nc ? nc : 1));
     w->nc = (int32_t)nc;
@@ -798,23 +836,30 @@ struct Engine : NativeRender3D {
       memset(&c, 0, sizeof c);
       for (int a = 0; a < 3; a++) { c.mn[a] = rdf(q + 4 * a); c.mx[a] = rdf(q + 12 + 4 * a); }
       c.reach[0] = rdf(q + 24); c.reach[1] = rdf(q + 28);
+      for(int a=0;a<3;a++)if(!isfinite(c.mn[a])||!isfinite(c.mx[a])||c.mn[a]>c.mx[a]){free(p);destroyWorld(w);return -1;}
+      for(int a=0;a<2;a++)if(!isfinite(c.reach[a])||c.reach[a]<0){free(p);destroyWorld(w);return -1;}
       for (int a = 0; a < 3; a++) c.diag += (c.mx[a] - c.mn[a]) * (c.mx[a] - c.mn[a]);
       c.diag = sqrtf(c.diag);   // the box's diagonal (WItem::out)
-      for (int l = 0; l < 3; l++) { const int32_t k = (int32_t)rd32(q + 32 + 4 * l); c.chunk[l] = k >= 0 && (uint32_t)k < nk ? k : -1; }
+      for (int l = 0; l < 3; l++) { const int32_t k = (int32_t)rd32(q + 32 + 4 * l); if(k < -1 || (k>=0&&(uint32_t)k>=nk)){free(p);destroyWorld(w);return -1;} c.chunk[l]=k; }
       c.shown = -1;
     }
     w->k = (WChunk*)mem(sizeof(WChunk) * (nk ? nk : 1));
     w->nk = (int32_t)nk;
+    memset(w->k,0,sizeof(WChunk)*(size_t)nk);
     for (uint32_t i = 0; i < nk; i++) {
       WChunk& k = w->k[i];
       memset(&k, 0, sizeof k);
-      const uint32_t len = q + 8 <= p + n ? rd32(q + 4) : 0;
-      if (q + 8 + len > p + n) { w->nk = (int32_t)i; break; }
+      const size_t remaining=(size_t)(p+n-q);
+      const uint32_t len = remaining>=8 ? rd32(q + 4) : 0;
+      if (remaining<8 || 8+((uint64_t)len+3)/4*4>remaining || !worldRelative(q+8,len)) {free(p);destroyWorld(w);return -1;}
       k.level = (int32_t)rd32(q);
+      if(k.level<0||k.level>=(int32_t)zn::zworld::kLevels){free(p);destroyWorld(w);return -1;}
       k.name = (char*)mem(slash + len + 1);
       memcpy(k.name, w->dir, slash); memcpy(k.name + slash, q + 8, len); k.name[slash + len] = 0;
       q += 8 + ((len + 3) & ~3u);
     }
+    if(q!=p+n){free(p);destroyWorld(w);return -1;}
+    for(int32_t i=0;i<w->nc;i++)for(int l=0;l<3;l++)if(w->c[i].chunk[l]>=0&&w->k[w->c[i].chunk[l]].level!=l){free(p);destroyWorld(w);return -1;}
     free(p);
     return worlds.add(w);
   }
@@ -826,21 +871,23 @@ struct Engine : NativeRender3D {
     WChunk& k = w->k[chunk];
     if (k.loaded) return 0;
     uint32_t n = 0;
-    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(k.name, (uint32_t)strlen(k.name), &n) : nullptr;
+    unsigned char* p = worldBytes(k.name, (uint32_t)strlen(k.name), &n);
     if (!p) {   // not in this device's packs (an asset rule left the level out): its cells no longer have that level
       for (int32_t i = 0; i < w->nc; i++) if (w->c[i].chunk[k.level] == chunk) w->c[i].chunk[k.level] = -1;
       return -1;
     }
     const uint32_t nb = n >= 16 ? rd32(p + 4) : 0, ns = n >= 16 ? rd32(p + 8) : 0, nn = n >= 16 ? rd32(p + 12) : 0;
-    if (n < 16 || memcmp(p, "ZWC1", 4) || (uint64_t)16 + (uint64_t)nb * zn::zworld::kBatch > n) { free(p); return -1; }
+    if (n < 16 || nn>256 || memcmp(p, "ZWC1", 4) || (uint64_t)16 + (uint64_t)nb * zn::zworld::kBatch > n) { free(p); return -1; }
     const uint8_t* end = p + n;
     const uint8_t* q = p + 16 + nb * zn::zworld::kBatch;
     int32_t names[256];
     for (uint32_t i = 0; i < nn; i++) {   // the pictures, by name beside the index
-      const uint32_t len = q + 4 <= end ? rd32(q) : 0;
-      if (q + 4 + len > end) { free(p); return -1; }
+      const size_t remaining=(size_t)(end-q);
+      const uint32_t len = remaining>=4 ? rd32(q) : 0;
+      if (remaining<4 || 4+((uint64_t)len+3)/4*4>remaining || !worldRelative(q+4,len)) { free(p); return -1; }
       char path[512];
-      const size_t dl = strlen(w->dir), l = len < sizeof(path) - dl - 1 ? len : sizeof(path) - dl - 1;
+      const size_t dl = strlen(w->dir), l = len;
+      if(dl+l>=sizeof(path)){free(p);return -1;}
       memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
       if (i < 256) {
         names[i] = raster::find_image(path, (uint32_t)(dl + l));
@@ -848,7 +895,7 @@ struct Engine : NativeRender3D {
       }
       q += 4 + ((len + 3) & ~3u);
     }
-    if (q + (uint64_t)ns * 4 > end) { free(p); return -1; }
+    if ((uint64_t)ns * 4 > (uint64_t)(end-q)) { free(p); return -1; }
     k.spans = (uint32_t*)mem(4 * (size_t)(ns ? ns : 1));
     memcpy(k.spans, q, 4 * (size_t)ns);
     q += 4 * (size_t)ns;
@@ -858,7 +905,7 @@ struct Engine : NativeRender3D {
       const uint8_t* r = p + 16 + i * zn::zworld::kBatch;
       const uint32_t nv = rd32(r + 44), ni = rd32(r + 48), groups = rd32(r + 36), cells = rd32(r + 32), at = rd32(r + 40);
       const size_t vbytes = (size_t)nv * zn::zworld::kVertex, ibytes = ((size_t)ni * 2 + 3) & ~(size_t)3;
-      if (!nv || nv > zn::zmesh::kMaxVertices || ni % 3 || q + vbytes + ibytes > end || (uint64_t)at + (uint64_t)cells * groups + 1 > ns) break;
+      if (!nv || nv > zn::zmesh::kMaxVertices || ni % 3 || vbytes + ibytes > (size_t)(end-q) || (uint64_t)at + (uint64_t)cells * groups + 1 > ns) break;
       bool ok = true;
       for (uint32_t j = 0; j < ni && ok; j++) { uint16_t v; memcpy(&v, q + vbytes + 2 * j, 2); ok = v < nv; }
       for (uint32_t j = 0; j <= cells * groups && ok; j++) ok = k.spans[at + j] <= ni;
@@ -903,6 +950,7 @@ struct Engine : NativeRender3D {
       b.cell = (int32_t)rd32(r + 28); b.cells = cells; b.groups = groups; b.spans = k.spans + at;
     }
     free(p);
+    if(k.nb!=(int32_t)nb||q!=end){for(int32_t i=0;i<k.nb;i++)meshDestroy(k.b[i].mesh);mfree(k.b);mfree(k.spans);k.b=nullptr;k.spans=nullptr;k.nb=0;return -1;}
     k.loaded = true; k.idle = 0;
     return (int32_t)n;
   }

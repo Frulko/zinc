@@ -57,6 +57,9 @@ export interface Spec extends NativeModule {
   /** Opens a world (include/zn/zworld.h, index.ts World): its index of cells and chunks, nothing loaded. Returns a handle, -1 when the asset
    *  is not there or damaged. */
   worldOpen(name: string): i32;
+  worldChunkCount(world: i32): i32;
+  /** Releases loaded batches, chunk metadata and the index. */
+  worldClose(world: i32): void;
   /** Loads one of its chunks (a level of a few cells): the bytes read, -1 when it cannot. */
   worldLoad(world: i32, chunk: i32): i32;
   /** Frees a chunk: its cells show another level from the next worldSelect. */

@@ -6,6 +6,7 @@
 #include "assets/texture.h"
 #include "assets/tilemap.h"
 #include "assets/world.h"
+#include "assets/scene_world.h"
 #include "res/codec.h"
 #include "zn/zim.h"
 #include "zpk/zpk.h"
@@ -162,7 +163,9 @@ bool importWorldFile(const Options& opt, const std::string& name, const std::str
   return importWorld(opt.basisu, name, in, side, o, out, err);
 }
 /** An importer whose artifact is a bundle of entries (model.h): a model, a world. */
-bool bundles(ImportFn f) { return f == importModelFile || f == importWorldFile; }
+bool importSceneFile(const Options& opt,const std::string& name,const std::string& in,const Side& side,const Opts& o,std::string& out,std::string& err) { return importSceneWorld(opt.basisu,name,in,side,o,out,err); }
+
+bool bundles(ImportFn f) { return f == importModelFile || f == importWorldFile || f == importSceneFile; }
 
 struct Importer { const char* id; int version; Kind kind; ImportFn run; };
 // Built-in importers (the importer decision of ZN-434: codecs come as pinned command-line tools run as subprocesses, data formats as Zinc
@@ -176,6 +179,7 @@ const Importer kImporters[] = {
   {"tilemap", 1, Kind::Data, importTilemapFile},
   {"texture", 1, Kind::Image, importTextureFile},
   {"model", 1, Kind::Data, importModelFile},   // a bundle of entries (model.h): the model, its LODs, its textures
+  {"scene", 2, Kind::Data, importSceneFile},
   {"world", 1, Kind::Data, importWorldFile},   // a bundle (world.h): the .zworld, its chunks, its provenance, its pictures
 };
 const Importer* findImporter(const std::string& id) {
@@ -386,6 +390,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
   };
   std::vector<Entry> sources;
   std::set<std::string> sheets;   // images that sprite sheets read: when a sprite rule takes one too, it is not a frame of its own
+  std::set<std::string> retained;
   std::set<std::string> consumed;   // the scenes and buffers a world reads: copied nowhere
   for (const std::string& name : names) {
     std::string id;
@@ -397,6 +402,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
         if (!targetOptions(o, opt.target, err)) { err = name + ": " + err; return false; }
       }
     if (o.count("skip") && o.at("skip") == "true") continue;   // not on this target
+    if (id == "copy" && fs::path(name).extension() == ".json") { std::string json; if (readFile(fs::path(opt.sourceDir)/name,json) && hasSceneWorld(json)) id="scene"; }
     const Importer* imp = findImporter(id);
     if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world)"; return false; }
     if (imp->run == importTextureFile || bundles(imp->run)) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
@@ -430,6 +436,12 @@ bool build(const Options& opt, Report& report, std::string& err) {
       std::string model;
       if (!readFile(fs::path(opt.sourceDir) / name, model)) { err = name + ": cannot read the file"; return false; }
       if (!modelDeps(name, model, e.deps, err)) { err = name + ": " + err; return false; }
+    } else if (imp->run == importSceneFile) {
+      std::string src;std::vector<std::string> removed,kept;
+      if (!readFile(fs::path(opt.sourceDir)/name,src) || !sceneWorldDeps(name,src,e.deps,removed,kept,err)) {err=name+": "+err;return false;}
+      const auto base=fs::weakly_canonical(opt.sourceDir);
+      for(const auto& dep:e.deps){const auto file=fs::weakly_canonical(base/dep);const auto rel=file.lexically_relative(base);if(rel.empty()||*rel.begin()==".."){err=name+": asset dependency escapes the source directory: "+dep;return false;}}
+      consumed.insert(removed.begin(),removed.end());retained.insert(kept.begin(),kept.end());
     } else if (imp->run == importWorldFile) {   // the scenes it reads are not entries of their own
       std::string src;
       if (!readFile(fs::path(opt.sourceDir) / name, src)) { err = name + ": cannot read the file"; return false; }
@@ -439,7 +451,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     }
     sources.push_back(std::move(e));
   }
-  sources.erase(std::remove_if(sources.begin(), sources.end(), [&](const Entry& e) { return e.imp->run == importCopy && consumed.count(e.name); }), sources.end());
+  sources.erase(std::remove_if(sources.begin(), sources.end(), [&](const Entry& e) { return e.imp->run == importCopy && consumed.count(e.name) && !retained.count(e.name); }), sources.end());
   std::map<std::string, std::vector<std::string>> outputs;   // the entries of the models, by name
   std::map<std::string, std::vector<Entry>> packs;   // by group name
   std::map<std::string, std::pair<std::string, std::string>> atlases;   // the group and the packing options of each atlas: one of each
@@ -499,7 +511,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
       std::string head = bytesAt(0, want);
       while (!bundleDirectory(head, dir, need) && need > head.size() && head.size() == want) head = bytesAt(0, want = need * 2);
       Item& it = report.items.back();
-      it.format = e.imp->run == importWorldFile ? "zworld" : e.opts.count("format") ? e.opts.at("format") : "glb";
+      it.format = e.imp->run == importSceneFile ? "scene" : e.imp->run == importWorldFile ? "zworld" : e.opts.count("format") ? e.opts.at("format") : "glb";
       for (const BundleEntry& b : dir) {
         outputs[e.name].push_back(b.name);
         std::string f;

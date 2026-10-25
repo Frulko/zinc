@@ -12,6 +12,8 @@
 // cells' mid level, the whole world's far level. In a chunk, one batch per material (vertex colours carry the base colour, so materials that
 // differ only by it share a batch), its faces ordered by cell, then the 16 compass sectors of the upright ones, then the rest. `levels` (a
 // target option, "mid,far"): the levels this target carries; `texture.*`: the texture importer's options for the pictures embedded.
+// A scenes entry may also be {"file":"model.glb","id":"stable-instance-id","matrix":[16 column-major affine numbers]}:
+// the shared authoring scene importer uses it to preserve instances and their global transforms without copying source geometry.
 #include <functional>
 #include <map>
 #include <string>
