@@ -269,6 +269,13 @@ The next backlog review turns lines into tasks or deletes them.
 - Pi updates (docs/reports/pi-updates-design.md): the Pi release assets come from the linux-cross job, which may fail; it should fail the release for aarch64 and armhf.
 - Pi updates: the update catalog uses the unauthenticated GitHub API (60 requests per hour per IP), which a classroom behind one network will hit.
 - reMarkable bridge (docs/reports/remarkable-bridge-design.md): re-measure qtfb with AppLoad >= 0.6.0 on the Paper Pro; its partial-update bug (fixed in PR #55) may explain the 125 ms paints.
+- ZN-833: run tablet plan T5/T6 (10 lease cycles in the budget; app SIGKILL, hang, power press, systemctl stop zinc-lease, 2-minute RuntimeMaxSec) and log stop->inactive, start->active and NRestarts in zinc-next-perf.md.
+- ZN-833: check on the tablet that stock xochitl reports StartLimitIntervalUSec=10min and WatchdogUSec=1min (the lease refuses any other text); rows for the Move and the Pure.
+- ZN-833: build lease with zig for aarch64-musl and run lease status on the tablet (cross-platform pass).
+- ZN-833: zinc.json display.lease_max for the dead-man time instead of the fixed 30 minutes.
+- ZN-833: ink session tries the in-process lane first and re-execs through lease launch (design §7) instead of pointing the manifest at lease.
+- ZN-833: five-finger tap escape in the lease supervisor (design §3.3); only the power long press is handled.
+- ZN-833: zinc deploy --target rmpp copies to ~/<name> and runs run.sh; make it run the exported deploy.sh (AppLoad directory).
 - tokyo: zinc:3d on the Vita and 3DS: a render target made after textures filled GPU memory fails silently (nothing drawn): report it or reserve targets first.
 - tokyo: zinc:assets `readBytes` is one host call per byte: a bulk read for every program (zinc:3d bypasses it now).
 - tokyo: zinc:3d's software fog ignores `material.fog` and fogs blended pixels by depth.
