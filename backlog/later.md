@@ -430,6 +430,11 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo PSP: CLUT8 mipmaps for the ground pictures, against far-ground shimmer.
 - tokyo PSP: a 13 ms read in the 5th frame after loading is the run's max (19 ms); send that entry to the reader thread.
 
+- console player: the waiting screen has no font on PSP and Vita until a program has run (the 3DS now embeds player_font.zrs); the shared fix is in core_main's playerLoop (install zn_console_resources or a built-in grid font).
+- n3ds: render3d.n3ds.cpp does not check its linearAlloc results; drop far-level pictures instead of exiting when linear memory runs out.
+- tokyo 3DS: mid chunks now come from the card, so the loading takes 175 frames instead of 32; read the chunks the loading needs in larger batches.
+- consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
+
 ## Cross-platform pass
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
@@ -529,3 +534,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo PSP-1000: the 17,000 KB heap fit in PPSSPP only (peak 15.8 of 16.6 MiB); try a real PSP-1000 and time the stick's reads on hardware.
 - tokyo 3DS: linked-pack read-ahead costs 36-47 ms an entry on core 1 at an 80% limit in Azahar; measure on a real Old 3DS, where core 1 is shared with the system.
 - tokyo Vita: Vita3K follows the Mac's load (p95 12-23 ms); remeasure on a quiet Mac or a real Vita.
+- tokyo 3DS: on the real Old 3DS XL read the `n3ds:` and `sd packs` lines of sdmc:/zinc.log; the heap margin is about 4 MB (34.2 of 38), lower the 16 MB zrt heap if Tokyo uses much less.
