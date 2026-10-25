@@ -122,6 +122,7 @@ static std::string gProjectDir = ".";
 static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
+static bool gPackingConsole = false;   // zinc pack --profile psp|vita|n3ds: the program goes into a console core (installNativeProvider)
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static bool gFusedApp = false;                   // this is a fused executable (ZN-319): its archive's native libraries are its own code (ZN-652)
@@ -196,6 +197,9 @@ static void installNativeProvider(const char* entry) {
   zn::tc::loadPolicy(gProjectDir);     // the trust policy of the plugins built for it (ZN-346)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     if (packedPlugin(module)) return true;
+    // a console's pack: its core links these modules itself (tools/build-console-core), so no library of this machine is built for it, and
+    // a build that fails here cannot slip the plugin's x.sim.ts stand-in into the console's program
+    if (gPackingConsole && (module == "Render3D" || module == "Physics2D")) return true;
     std::vector<std::string> problems;
     std::string root = gRoot;
     static std::vector<zn::frontend::FoundPlugin> found;
@@ -2150,7 +2154,9 @@ int main(int argc, char** argv) {
       return 0;
     }
     zn::zbc::Module zm;
+    gPackingConsole = gProfile && (!std::strcmp(gProfile->name, "psp") || !std::strcmp(gProfile->name, "vita") || !std::strcmp(gProfile->name, "n3ds"));
     if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
+    printPlugins();   // a stand-in packed in place of a plugin's native code says so (a build that failed would otherwise go unseen)
     std::map<std::string, std::string> files;
     const auto zbc = zn::zbc::encode(zm);
     files["program.zbc"] = std::string(zbc.begin(), zbc.end());
