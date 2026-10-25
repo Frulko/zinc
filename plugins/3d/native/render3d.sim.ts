@@ -57,4 +57,11 @@ export default {
   },
   end(): number { return tris; },
   present(): void {},
+  // ponytail: the sim draws no cells (metadata only); a set chooses nothing
+  cellsCreate(): i32 { return 0; },
+  cellAdd(): i32 { return 0; },
+  cellPart(): void {},
+  cellsNight(): void {},
+  cellsSelect(_set: i32, _eyes: number[], _prm: number[], out: i32[]): void { out.length = 0; out.push(0); out.push(0); out.push(0); out.push(0); },
+  cellsDraw(): void {},
 };

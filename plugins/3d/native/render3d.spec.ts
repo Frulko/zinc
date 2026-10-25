@@ -52,5 +52,22 @@ export interface Spec extends NativeModule {
   end(): i32;
   /** Draws the target's image in the screen box (nearest-neighbour scaling; composes with zinc:gfx commands). */
   present(t: i32, x: number, y: number, w: number, h: number): void;
+  /** A new set of cells (index.ts Cells): boxes with up to three levels of detail, culled, chosen and drawn here. */
+  cellsCreate(): i32;
+  /** Adds a cell: info = min x y z, max x y z, the geometric error of each level in metres (0 the finest), the triangles of each level
+   *  (0: not in this pack). Returns its index. */
+  cellAdd(set: i32, info: number[]): i32;
+  /** Adds a part to a cell's level: mat = colour, draw flags (as draw's), texture, emissive, the night's texture and emissive. mesh -1
+   *  forgets the level's parts: present in the pack, not loaded. */
+  cellPart(set: i32, cell: i32, level: i32, mesh: i32, mat: i32[]): void;
+  /** The parts show their night texture and emissive colour (or their day ones). */
+  cellsNight(set: i32, on: boolean): void;
+  /** Chooses the level each cell shows. eyes: x y z of the eye, then of points it will pass (for the levels to load). prm: look x y z,
+   *  half-angle of the view cone (radians), focal length (pixels), tau (pixels), budget (triangles), reach, fogStart (metres), hysteresis,
+   *  hold (calls), fade (seconds), dt (seconds since the last call), idle (seconds, 0 never). out: triangles, draws, n levels to load, m
+   *  to free, then n and m (cell, level) pairs. */
+  cellsSelect(set: i32, eyes: number[], prm: number[], out: i32[]): void;
+  /** Draws the levels cellsSelect chose (pass 0, opaque) or the ones fading out (pass 1, blended: after the opaque nodes). */
+  cellsDraw(set: i32, pass: i32): void;
 }
 export default requireNative<Spec>('Render3D');

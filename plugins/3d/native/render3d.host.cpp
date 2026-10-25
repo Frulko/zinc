@@ -298,6 +298,86 @@ static bool texture(int32_t id, Tex& t) {
 // there or this host gives none (weak: a host without it leaves loadModel on zinc:assets).
 extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) __attribute__((weak));
 
+// ---------------------------------------------------------------- cells (zinc:3d Cells: the culling, levels of detail and budget of a city)
+// A set of cells, each a box with up to three levels of detail (0 the finest), each level a list of parts: a mesh and its material by day
+// and by night. cellsSelect chooses the level each cell shows from its projected geometric error and a triangle budget, and names the
+// levels to load and the ones to free; cellsDraw draws what it chose. docs/plugins/3d.md "Cells".
+enum { CELL_LEVELS = 3, CELL_ASK = 48, CELL_FREE = 16, CELL_POINTS = 8 };
+struct CPart { int32_t mesh; uint32_t color; int32_t flags, tex; uint32_t emis; int32_t ntex; uint32_t nemis; };
+struct Cell {
+  float mn[3], mx[3], err[CELL_LEVELS];
+  int32_t tris[CELL_LEVELS];          // 0: the level is not in this device's pack
+  CPart* parts[CELL_LEVELS];
+  int32_t np[CELL_LEVELS], capp[CELL_LEVELS];
+  bool loaded[CELL_LEVELS];
+  float idle[CELL_LEVELS];            // seconds since the level was last shown or wanted
+  int8_t shown, from, lvl;            // the level drawn (-1 none), the one fading out (-1 none), the choice of this call
+  bool vis;
+  int32_t hold;                       // calls left before the level may coarsen again
+  float fadeT, d;
+};
+struct CellSet {
+  Cell* c; int32_t n, cap;
+  int32_t* order;                     // the cells nearest the eye first (insertion sort: the order changes little between calls)
+  const CPart** list; int32_t lcap;
+  bool night, fading;
+  float fade;
+};
+/** Metres from p to the nearest point of a cell's box. */
+static float boxDist(const Cell& c, const float* p) {
+  float s = 0;
+  for (int a = 0; a < 3; a++) { const float d = p[a] < c.mn[a] ? c.mn[a] - p[a] : p[a] > c.mx[a] ? p[a] - c.mx[a] : 0; s += d * d; }
+  return sqrtf(s);
+}
+/** Whether a cell's bounding sphere meets the cone of half-angle `half` (radians) along the unit `look` from `eye`. */
+static bool inCone(const Cell& c, const float* eye, const float* look, float half) {
+  const float cx = (c.mn[0] + c.mx[0]) * 0.5f - eye[0], cy = (c.mn[1] + c.mx[1]) * 0.5f - eye[1], cz = (c.mn[2] + c.mx[2]) * 0.5f - eye[2];
+  const float ex = (c.mx[0] - c.mn[0]) * 0.5f, ey = (c.mx[1] - c.mn[1]) * 0.5f, ez = (c.mx[2] - c.mn[2]) * 0.5f;
+  const float r = sqrtf(ex * ex + ey * ey + ez * ez), d = sqrtf(cx * cx + cy * cy + cz * cz);
+  if (d <= r) return true;
+  float k = (cx * look[0] + cy * look[1] + cz * look[2]) / d;
+  k = k < -1 ? -1 : k > 1 ? 1 : k;
+  return acosf(k) <= half + asinf(r / d);
+}
+static inline bool present(const Cell& c, int l) { return c.tris[l] > 0; }
+/** The coarsest level whose error, seen from `d` metres by a camera of `focal` pixels, is at most `tau` pixels (else the finest the cell
+ *  has); -1 when it has none. */
+static int ideal(const Cell& c, float d, float focal, float tau) {
+  int finest = -1;
+  for (int l = CELL_LEVELS - 1; l >= 0; l--) {
+    if (!present(c, l)) continue;
+    if (c.err[l] * focal <= tau * d) return l;
+    finest = l;
+  }
+  return finest;
+}
+static int coarsest(const Cell& c, bool loadedOnly) {
+  for (int l = CELL_LEVELS - 1; l >= 0; l--) if (present(c, l) && (!loadedOnly || c.loaded[l])) return l;
+  return -1;
+}
+/** The draw order of the parts: by texture, then by emissive colour (the day's or the night's), so the GPU changes state least. */
+static int partsByDay(const void* a, const void* b) {
+  const CPart* p = *(const CPart* const*)a; const CPart* q = *(const CPart* const*)b;
+  if (p->tex != q->tex) return p->tex < q->tex ? -1 : 1;
+  return p->emis < q->emis ? -1 : p->emis > q->emis ? 1 : p->mesh - q->mesh;
+}
+static int partsByNight(const void* a, const void* b) {
+  const CPart* p = *(const CPart* const*)a; const CPart* q = *(const CPart* const*)b;
+  if (p->ntex != q->ntex) return p->ntex < q->ntex ? -1 : 1;
+  return p->nemis < q->nemis ? -1 : p->nemis > q->nemis ? 1 : p->mesh - q->mesh;
+}
+/** Grows a mem() array of `n` items of `size` bytes to hold `need`. */
+static void* grown(void* p, int32_t n, int32_t* cap, int32_t need, size_t size) {
+  if (need <= *cap) return p;
+  int32_t c = *cap < 16 ? 16 : *cap * 2;
+  if (c < need) c = need;
+  void* q = mem(size * (size_t)c);
+  if (n) memcpy(q, p, size * (size_t)n);
+  mfree(p);
+  *cap = c;
+  return q;
+}
+
 struct Engine : NativeRender3D {
   Array<uint8_t> asset;   // the model assetOpen read
   Pool<Mesh> meshes;
@@ -639,6 +719,207 @@ struct Engine : NativeRender3D {
       tris++;
     }
   }
+  // ------------------------------------------------ cells
+  Pool<CellSet> cellSets;
+  Array<N> ident;   // the world matrix of the cells' parts: their positions are the world's
+
+  int32_t cellsCreate() override {
+    CellSet* s = (CellSet*)mem(sizeof(CellSet));
+    memset(s, 0, sizeof(CellSet));
+    return cellSets.add(s);
+  }
+  int32_t cellAdd(int32_t id, Array<N> info) override {
+    CellSet* s = cellSets.at(id);
+    if (!s || info.length() < 12) return -1;
+    int32_t cap = s->cap;
+    s->c = (Cell*)grown(s->c, s->n, &cap, s->n + 1, sizeof(Cell));
+    cap = s->cap;
+    s->order = (int32_t*)grown(s->order, s->n, &cap, s->n + 1, sizeof(int32_t));
+    s->cap = cap;
+    Cell& c = s->c[s->n];
+    memset(&c, 0, sizeof(Cell));
+    for (int a = 0; a < 3; a++) {
+      c.mn[a] = F(info.a->data[a]); c.mx[a] = F(info.a->data[3 + a]); c.err[a] = F(info.a->data[6 + a]);
+      const float t = F(info.a->data[9 + a]);
+      c.tris[a] = t > 0 ? (int32_t)t : 0;
+    }
+    c.shown = c.from = c.lvl = -1;
+    s->order[s->n] = s->n;
+    return s->n++;
+  }
+  void cellPart(int32_t id, int32_t cell, int32_t level, int32_t mesh, Array<int32_t> mat) override {
+    CellSet* s = cellSets.at(id);
+    if (!s || cell < 0 || cell >= s->n || level < 0 || level >= CELL_LEVELS) return;
+    Cell& c = s->c[cell];
+    if (mesh < 0) {   // the level is in the pack but not loaded (any more)
+      c.np[level] = 0; c.loaded[level] = false;
+      if (c.shown == level) c.shown = -1;
+      if (c.from == level) c.from = -1;
+      return;
+    }
+    if (mat.length() < 6) return;
+    c.parts[level] = (CPart*)grown(c.parts[level], c.np[level], &c.capp[level], c.np[level] + 1, sizeof(CPart));
+    const int32_t* m = mat.a->data;
+    c.parts[level][c.np[level]++] = CPart{mesh, (uint32_t)m[0], m[1], m[2], (uint32_t)m[3], m[4], (uint32_t)m[5]};
+    c.loaded[level] = true; c.idle[level] = 0;
+  }
+  void cellsNight(int32_t id, bool on) override { if (CellSet* s = cellSets.at(id)) s->night = on; }
+
+  /** prm: look x y z, half-angle, focal (pixels), tau (pixels), budget (triangles), reach, fogStart (metres), hysteresis (>= 1), hold
+   *  (calls), fade (seconds, 0 none), dt (seconds since the last call), idle (seconds before an unused level is named to free, 0 never).
+   *  out: triangles, draws, the count of levels to load and of levels to free, then (cell, level) pairs of each. */
+  void cellsSelect(int32_t id, Array<N> eyes, Array<N> prm, Array<int32_t> out) override {
+    CellSet* s = cellSets.at(id);
+    if (!s || prm.length() < 14 || eyes.length() < 3) return;
+    float P[14];
+    for (int i = 0; i < 14; i++) P[i] = F(prm.a->data[i]);
+    const float *look = P, half = P[3], focal = P[4], tau = P[5] > 0 ? P[5] : 1, reach = P[7], fogStart = P[8], fade = P[11], dt = P[12], idleMax = P[13];
+    const int64_t budget = (int64_t)P[6];
+    const float hyst = P[9] > 1 ? P[9] : 1;
+    const int32_t hold = (int32_t)P[10];
+    int ne = eyes.length() / 3;
+    if (ne > CELL_POINTS) ne = CELL_POINTS;
+    float E[CELL_POINTS][3];
+    for (int k = 0; k < ne; k++) for (int a = 0; a < 3; a++) E[k][a] = F(eyes.a->data[k * 3 + a]);
+    Cell* C = s->c;
+    const int32_t n = s->n;
+    for (int32_t i = 0; i < n; i++) {
+      Cell& c = C[i];
+      c.d = boxDist(c, E[0]);
+      c.vis = c.d < reach && inCone(c, E[0], look, half);
+      if (c.hold > 0) c.hold--;
+    }
+    int32_t* o = s->order;
+    for (int32_t k = 1; k < n; k++) {
+      const int32_t v = o[k]; const float d = C[v].d;
+      int32_t j = k - 1;
+      while (j >= 0 && C[o[j]].d > d) { o[j + 1] = o[j]; j--; }
+      o[j + 1] = v;
+    }
+    // the budget, coarse first: every cell in view gets its coarsest loaded level; over the budget, the farthest cells in the fog go
+    int64_t spent = 0;
+    for (int32_t k = 0; k < n; k++) {
+      Cell& c = C[o[k]];
+      c.lvl = (int8_t)(c.vis ? coarsest(c, true) : -1);
+      if (c.lvl >= 0) spent += c.tris[c.lvl];
+    }
+    for (int32_t k = n - 1; k >= 0 && spent > budget; k--) {
+      Cell& c = C[o[k]];
+      if (c.d <= fogStart) break;
+      if (c.lvl >= 0) { spent -= c.tris[c.lvl]; c.lvl = -1; }
+    }
+    // then the nearest cells first get the level their error asks for, while the budget lasts
+    for (int32_t k = 0; k < n; k++) {
+      Cell& c = C[o[k]];
+      if (c.lvl < 0) continue;
+      int want = ideal(c, c.d, focal, tau);
+      if (c.shown >= 0 && want > c.shown) {   // coarser than what it shows: only well past the threshold, and not while it holds
+        int w = c.shown;
+        if (c.hold <= 0) for (int l = want; l > c.shown; l--) if (present(c, l) && c.err[l] * focal * hyst <= tau * c.d) { w = l; break; }
+        want = w;
+      }
+      for (int l = want < 0 ? 0 : want; l < c.lvl; l++) {
+        if (!c.loaded[l]) continue;
+        const int64_t more = (int64_t)c.tris[l] - c.tris[c.lvl];
+        if (spent + more <= budget) { spent += more; c.lvl = (int8_t)l; break; }
+      }
+    }
+    // the changes: a fade from the level shown before, a hold; what is drawn
+    int32_t tris = 0, draws = 0;
+    s->fading = false; s->fade = fade;
+    for (int32_t i = 0; i < n; i++) {
+      Cell& c = C[i];
+      if (c.lvl != c.shown) {
+        c.from = (int8_t)(fade > 0 && c.shown >= 0 && c.lvl >= 0 && c.loaded[c.shown] ? c.shown : -1);
+        c.fadeT = 0;
+        if (c.shown >= 0 && c.lvl >= 0) c.hold = hold;
+        c.shown = c.lvl;
+      } else if (c.from >= 0 && (c.fadeT += dt) >= fade) c.from = -1;
+      if (c.from >= 0 && !c.loaded[c.from]) c.from = -1;
+      if (c.shown >= 0) { tris += c.tris[c.shown]; draws += c.np[c.shown]; }
+      if (c.from >= 0) { tris += c.tris[c.from]; draws += c.np[c.from]; s->fading = true; }
+    }
+    // the levels to load, for the eye and the points ahead: a cell's coarsest level first (without it the cell is missing), then the
+    // finer levels the error asks for; nearest first. And the levels nobody has wanted for `idle` seconds, to free.
+    struct Ask { int32_t cell, level; float key; };
+    Ask ask[CELL_ASK], freed[CELL_FREE];
+    int na = 0, nf = 0;
+    const float FAR_KEY = 1e7f, NONE = 1e30f;
+    for (int32_t i = 0; i < n; i++) {
+      Cell& c = C[i];
+      const int cl = coarsest(c, false);
+      if (cl < 0) continue;
+      float need[CELL_LEVELS] = {NONE, NONE, NONE}, any = NONE;
+      for (int k = 0; k < ne; k++) {
+        const float d = k == 0 ? c.d : boxDist(c, E[k]);
+        if (d >= reach) continue;
+        if (d < any) any = d;
+        const int w = ideal(c, d, focal, tau);
+        if (d < need[w]) need[w] = d;
+      }
+      if (any < NONE) need[cl] = any;
+      for (int l = 0; l < CELL_LEVELS; l++) {
+        if (!c.loaded[l]) continue;
+        if (l == c.shown || l == c.from || need[l] < NONE) c.idle[l] = 0;
+        else c.idle[l] += dt;
+        if (idleMax > 0 && l != cl && c.idle[l] > idleMax && nf < CELL_FREE) { freed[nf++] = Ask{i, l, 0}; c.idle[l] = 0; }
+      }
+      for (int l = 0; l <= cl; l++) {
+        if (need[l] >= NONE || !present(c, l) || c.loaded[l]) continue;
+        const float key = (l == cl ? 0 : FAR_KEY) + need[l];
+        if (na == CELL_ASK && key >= ask[na - 1].key) continue;
+        int j = na < CELL_ASK ? na++ : na - 1;
+        while (j > 0 && ask[j - 1].key > key) { ask[j] = ask[j - 1]; j--; }
+        ask[j] = Ask{i, l, key};
+      }
+    }
+    out.set_length(0);
+    out.push(tris); out.push(draws); out.push(na); out.push(nf);
+    for (int k = 0; k < na; k++) { out.push(ask[k].cell); out.push(ask[k].level); }
+    for (int k = 0; k < nf; k++) { out.push(freed[k].cell); out.push(freed[k].level); }
+  }
+  /** pass 0: the levels shown, opaque, sorted by texture and emissive colour; pass 1: the levels fading out, blended over them. */
+  void cellsDraw(int32_t id, int32_t pass) override {
+    CellSet* s = cellSets.at(id);
+    if (!s || (pass == 1 && !s->fading)) return;
+    if (!ident.a) { ident = Array<N>::with_cap(16); for (int i = 0; i < 16; i++) ident.push_raw(N(i % 5 == 0 ? 1 : 0)); }
+    specular(0, N(30));
+    uint32_t e = 0;
+    const bool night = s->night;
+    if (pass == 1) {   // few parts: in cell order, each with its cell's opacity
+      for (int32_t i = 0; i < s->n; i++) {
+        const Cell& c = s->c[i];
+        if (c.from < 0) continue;
+        float k = s->fade > 0 ? 1 - c.fadeT / s->fade : 0;
+        const int32_t a = (int32_t)(k * 255);
+        if (a <= 0) continue;
+        for (int32_t p = 0; p < c.np[c.from]; p++) {
+          const CPart& q = c.parts[c.from][p];
+          const uint32_t em = night ? q.nemis : q.emis;
+          if (em != e) { emissive(em); e = em; }
+          draw(q.mesh, ident, q.color, night ? q.ntex : q.tex, (q.flags & ~(0x3FF << 6)) | ALPHA << 6 | (a > 255 ? 255 : a) << 8);
+        }
+      }
+    } else {
+      int32_t m = 0;
+      for (int32_t i = 0; i < s->n; i++) if (s->c[i].shown >= 0) m += s->c[i].np[s->c[i].shown];
+      s->list = (const CPart**)grown(s->list, 0, &s->lcap, m, sizeof(CPart*));
+      m = 0;
+      for (int32_t i = 0; i < s->n; i++) {
+        const Cell& c = s->c[i];
+        if (c.shown >= 0) for (int32_t p = 0; p < c.np[c.shown]; p++) s->list[m++] = &c.parts[c.shown][p];
+      }
+      qsort(s->list, (size_t)m, sizeof(CPart*), night ? partsByNight : partsByDay);
+      for (int32_t k = 0; k < m; k++) {
+        const CPart& q = *s->list[k];
+        const uint32_t em = night ? q.nemis : q.emis;
+        if (em != e) { emissive(em); e = em; }
+        draw(q.mesh, ident, q.color, night ? q.ntex : q.tex, q.flags);
+      }
+    }
+    if (e) emissive(0);
+  }
+
   int32_t end() override {
     if (!cur) return 0;
     fogPass();

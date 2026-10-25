@@ -6,11 +6,14 @@ export const CITY_HEIGHTS = 'city/heights.bin';
 export const FACADE_DAY = 'city/facade.png';
 export const FACADE_NIGHT = 'city/facade-night.png';
 
-/** Levels of detail, finest first, and their file suffixes. */
-export const LOD_NEAR = 0;
-export const LOD_MID = 1;
-export const LOD_FAR = 2;
+/** The levels of detail's file suffixes, finest first. */
 export const LOD_NAMES: string[] = ['near', 'mid', 'far'];
+/** The geometric error of a tile's mid and far levels, metres (the near level's is 0): what the first port's distances gave on the Mac, mid
+ *  from 700 m and far from 2200 m with the reference camera at a pixel (REFERENCE_FOCAL: 544 pixels high, 55 degrees). A device's tau and
+ *  focal scale them: a smaller screen takes coarser levels nearer. */
+export const REFERENCE_FOCAL = 522.5;
+export const ERROR_MID = 700 / REFERENCE_FOCAL;
+export const ERROR_FAR = 2200 / REFERENCE_FOCAL;
 
 /** The tour: metres a second along its loop (tokyo-sim's Flight::new). */
 export const TOUR_SPEED = 60;
