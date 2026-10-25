@@ -2,7 +2,7 @@
 // The adapter owns pinball mechanisms, collision layers, ramp height and gameplay events. Units: table inches.
 import { World as BoxWorld, Shape, Body, Motion, ContactKind } from 'zinc:physics2d';
 import { cross, crosses } from './geom';
-import { Ball, BALL_R, Circle, Hole, Material, Ramp, Segment, Sensor, PLUNGER_TIP, K_PLUNGER, K_FLIPPER } from './bodies';
+import { Ball, BALL_R, Circle, Hole, Material, Ramp, Segment, Sensor, PLUNGER_TIP, K_PLUNGER, K_FLIPPER, FLIPPER_RUBBER } from './bodies';
 import { FLIP_MAX_W, Flipper } from './flipper';
 import { GRAVITY_CM, INCH_CM, MAX_SPEED_CM, PLUNGER_SPEED_CM, SLOPE_DEGREES, rollingGravity, travelSteps, speedScale } from '../tuning';
 
@@ -69,6 +69,7 @@ export class World {
   balls: Ball[] = [];
   events: PhysEvent[] = [];
   nevents: i32 = 0;
+  lastSubsteps: i32 = 0;
   kicks: boolean = true;
   plunger: Segment | null = null;
   plungerRestY: number = 0;
@@ -139,7 +140,7 @@ export class World {
 
   private buildFlippers(): void {
     while (this.flipperBodies.length < this.flippers.length) {
-      const f = this.flippers[this.flipperBodies.length], m = f.edgeA.mat;
+      const f = this.flippers[this.flipperBodies.length], m = FLIPPER_RUBBER;
       const sb = (f.r0 - f.r1) / f.len, cb = Math.sqrt(1 - sb * sb);
       const b = this.layers[0].world.body(Shape.polygon([f.r0 * sb, f.r0 * cb, f.len + f.r1 * sb, f.r1 * cb,
         f.len + f.r1 * sb, -f.r1 * cb, f.r0 * sb, -f.r0 * cb]),
@@ -160,14 +161,42 @@ export class World {
       const on = c.segment !== null ? c.segment.enabled : c.circle !== null ? c.circle.enabled : true;
       if (on !== c.enabled) { c.body.setEnabled(on); c.enabled = on; }
     }
-    let fastest = 0, surfaceSpeed = 0;
-    for (const b of this.balls) if (b.active && !b.held) fastest = Math.max(fastest, Math.sqrt(b.vx * b.vx + b.vy * b.vy));
-    for (const f of this.flippers) {
-      const goal = f.pressed && f.enabled ? f.up : f.rest;
-      if (f.angle !== goal) surfaceSpeed = Math.max(surfaceSpeed, FLIP_MAX_W * (f.len + f.r0));
+    // Box2D bullets sweep static/kinematic bodies; guard only nearby pairs and slow balls hit by mechanisms.
+    let relativeSpeed = 0;
+    for (let i: i32 = 0; i < this.balls.length; i++) {
+      const ball = this.balls[i];
+      if (!ball.active || ball.held) continue;
+      const magnitude = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      const speed = Math.min(MAX_SPEED, magnitude + GRAVITY * dt);
+      const reach = MAX_SPEED * dt;
+      for (let j: i32 = i + 1; j < this.balls.length; j++) {
+        const other = this.balls[j];
+        if (!other.active || other.held || other.layer !== ball.layer) continue;
+        const dx = ball.x - other.x, dy = ball.y - other.y, near = 2 * BALL_R + 2 * reach;
+        if (dx * dx + dy * dy <= near * near) {
+          const otherSpeed = Math.min(MAX_SPEED, Math.sqrt(other.vx * other.vx + other.vy * other.vy) + GRAVITY * dt);
+          relativeSpeed = Math.max(relativeSpeed, speed + otherSpeed);
+        }
+      }
+      const minimumSpeed = Math.max(0, Math.min(MAX_SPEED, magnitude) - GRAVITY * dt) / (1 + ROLLING_DRAG * dt);
+      if (ball.layer !== 0 || minimumSpeed * dt > BALL_R * 0.5) continue;
+      // CCD is activated by the ball's own motion, not a kinematic bat moving towards a resting ball.
+      for (const f of this.flippers) {
+        const goal = f.pressed && f.enabled ? f.up : f.rest;
+        if (f.angle === goal) continue;
+        const dx = ball.x - f.px, dy = ball.y - f.py, near = f.len + f.r0 + BALL_R + reach;
+        if (dx * dx + dy * dy <= near * near) relativeSpeed = Math.max(relativeSpeed, speed + FLIP_MAX_W * (f.len + f.r0));
+      }
+      const p = this.plunger;
+      if (p !== null && this.plungerPull > 0) {
+        const surfaceSpeed = this.pulling ? PULL_SPEED : PLUNGER_SPEED;
+        const margin = BALL_R + p.r + reach + surfaceSpeed * dt;
+        if (ball.x >= Math.min(p.ax, p.bx) - margin && ball.x <= Math.max(p.ax, p.bx) + margin && Math.abs(ball.y - p.ay) <= margin)
+          relativeSpeed = Math.max(relativeSpeed, speed + surfaceSpeed);
+      }
     }
-    if (this.plungerPull > 0) surfaceSpeed = Math.max(surfaceSpeed, this.pulling ? PULL_SPEED : PLUNGER_SPEED);
-    const steps = travelSteps(dt, BALL_R, 2 * Math.min(MAX_SPEED, fastest + GRAVITY * dt) + surfaceSpeed);
+    const steps = travelSteps(dt, BALL_R, relativeSpeed);
+    this.lastSubsteps = steps;
     for (let i: i32 = 0; i < steps; i++) this.substep(dt / steps);
   }
 

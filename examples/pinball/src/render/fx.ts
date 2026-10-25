@@ -3,6 +3,7 @@
 // Pools of fixed size (quality.ts sets how many sparks), nothing allocated per frame.
 import { image, drawImage, drawText, font, textWidth, stroke, rrect } from 'zinc:gfx';
 import { Camera } from './camera';
+import { Random } from '../../../pinball-kit/random';
 import { MAX_SPARKS } from './quality';
 
 class Popup { x: number = 0; y: number = 0; age: number = 9; text: string = ''; color: u32 = 0; big: boolean = false; }
@@ -28,6 +29,7 @@ export class Effects {
   shakeX: number = 0;
   shakeY: number = 0;
   private time: number = 0;
+  private random = new Random();
   private pts: number[] = [];
   private star: i32 = image('kenney/particleSmallStar.png');
 
@@ -53,8 +55,8 @@ export class Effects {
     for (let i: i32 = 0; i < n && this.sparks.length > 0; i++) {
       const s = this.sparks[this.nextSpark];
       this.nextSpark = (this.nextSpark + 1) % this.sparks.length;
-      const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random() * 0.6);
-      s.x = x; s.y = y; s.z = z; s.vx = Math.cos(a) * v; s.vy = Math.sin(a) * v; s.vz = 4 + Math.random() * 8;
+      const a = this.random.next() * Math.PI * 2, v = speed * (0.4 + this.random.next() * 0.6);
+      s.x = x; s.y = y; s.z = z; s.vx = Math.cos(a) * v; s.vy = Math.sin(a) * v; s.vz = 4 + this.random.next() * 8;
       s.age = 0; s.color = color;
     }
   }

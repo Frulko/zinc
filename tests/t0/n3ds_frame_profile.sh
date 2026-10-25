@@ -15,6 +15,7 @@ f=d['modes']['flat']; s=d['modes']['stereo']
 assert f['refreshes']==4 and s['refreshes']==4
 assert f['physics_us']['p50']==500 and s['physics_us']['p50']==1000
 assert f['rt_allocs']['p50']==10 and s['rt_allocs']['p50']==20
+assert f['physics_steps']['p50']==2 and s['physics_steps']['p50']==3
 assert f['missed_refreshes']==s['missed_refreshes']==0
 file=p/'sdmc:/zinc-frames.csv'
 with file.open() as inp:

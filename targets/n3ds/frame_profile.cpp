@@ -6,16 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 extern "C" uint32_t zrt_prof_last_frame(uint32_t*, uint32_t) __attribute__((weak));
+extern "C" uint64_t zn_physics2d_step_count() __attribute__((weak));
 namespace zn::n3ds::capture {
 namespace {
 constexpr uint32_t Capacity = 3600;
 struct Sample {
-  uint32_t gap, elapsed, stereo, phase[9], metric[Count], allocs, frees;
+  uint32_t gap, elapsed, stereo, phase[9], metric[Count], allocs, frees, physicsSteps;
 };
 Sample* samples;
 Sample current{};
 uint32_t count;
-uint64_t start, previous, allocStart, freeStart;
+uint64_t start, previous, allocStart, freeStart, stepStart;
 bool on;
 const char* deviceModel = "unknown";
 }
@@ -39,6 +40,7 @@ void begin(bool first, bool stereo) {
   current.stereo = stereo;
   previous = start = now;
   allocStart = zn::rt::gAllocs; freeStart = zn::rt::gFrees;
+  stepStart = zn_physics2d_step_count ? zn_physics2d_step_count() : 0;
 }
 void phases() {
   if (!on) return;
@@ -52,6 +54,7 @@ void end(bool complete) {
   current.elapsed = (uint32_t)(tick() - start);
   current.allocs = (uint32_t)(zn::rt::gAllocs - allocStart);
   current.frees = (uint32_t)(zn::rt::gFrees - freeStart);
+  current.physicsSteps = zn_physics2d_step_count ? (uint32_t)(zn_physics2d_step_count() - stepStart) : 0;
   samples[count++ % Capacity] = current;
 }
 void finish() {
@@ -60,13 +63,13 @@ void finish() {
   FILE* f = fopen("sdmc:/zinc-frames.csv", "w");
   if (f) {
     fprintf(f, "# zinc-n3ds-frame-capture schema=1 capacity=%" PRIu32 " omitted=%" PRIu32 " model=%s\n", Capacity, count > Capacity ? count - Capacity : 0, deviceModel);
-    fputs("refresh,stereo,gap_us,elapsed_us,app_us,input_us,physics_us,layout_us,paint_us,effects_us,diff_us,raster_us,present_us,wait_us,validate_us,replay_us,upload_us,submit_us,gpu_surfaces,software_surfaces,uploads,upload_bytes,quads,previous_gpu_us,vblanks,rt_allocs,rt_frees\n", f);
+    fputs("refresh,stereo,gap_us,elapsed_us,app_us,input_us,physics_us,layout_us,paint_us,effects_us,diff_us,raster_us,present_us,wait_us,validate_us,replay_us,upload_us,submit_us,gpu_surfaces,software_surfaces,uploads,upload_bytes,quads,previous_gpu_us,vblanks,rt_allocs,rt_frees,physics_steps\n", f);
     for (uint32_t i = count > Capacity ? count - Capacity : 0; i < count; i++) {
       const Sample& s = samples[i % Capacity];
       fprintf(f, "%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32, i, s.stereo, s.gap, s.elapsed);
       for (uint32_t p : s.phase) fprintf(f, ",%" PRIu32, p);
       for (uint32_t m : s.metric) fprintf(f, ",%" PRIu32, m);
-      fprintf(f, ",%" PRIu32 ",%" PRIu32 "\n", s.allocs, s.frees);
+      fprintf(f, ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n", s.allocs, s.frees, s.physicsSteps);
     }
     const bool failed = ferror(f) != 0;
     if (fclose(f) != 0 || failed) { static const char msg[] = "n3ds capture: writing zinc-frames.csv failed"; hal_log_err(msg, sizeof msg - 1); }

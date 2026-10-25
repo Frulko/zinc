@@ -3,6 +3,7 @@
 // target falls before the next substep can hit it again), scoring, missions and ranks, lanes and the bonus
 // multiplier, the ball saver, extra balls, multiball with a ramp jackpot, bumps and the tilt, 1 to 4 players.
 import { FixedClock } from '../../../pinball-kit/clock';
+import { Random } from '../../../pinball-kit/random';
 import { Table, S_LANE, S_SPINNER, S_INLANE_L, S_INLANE_R, S_OUTLANE_L, S_OUTLANE_R, S_SHOOTER, P_WIRE_OUT, P_RAMP_IN, SHOOTER_X, PLUNGER_Y } from '../table/layout';
 import { World, E_SENSOR, E_PORTAL, E_CAPTURE, E_DRAIN, E_BALL_HIT } from '../../../pinball-kit/physics/world';
 import { Ball, BALL_R, K_BUMPER, K_SLING, K_TARGET, K_FLIPPER, K_POST } from '../../../pinball-kit/physics/bodies';
@@ -52,6 +53,7 @@ export class Game {
   /** Seconds since start (lights and chases animate from it). */
   time: number = 0;
   private fixed: FixedClock = new FixedClock();
+  private random = new Random();
   alpha(): number { return this.fixed.alpha(this.physicsStep); }
   /** Seconds in the current phase. */
   phaseTime: number = 0;
@@ -264,7 +266,7 @@ export class Game {
       this.holdT -= dt;
       if (this.holdT < 0) {
         const b = this.world.balls[this.heldBall];
-        this.world.eject(b, 22 + Math.random() * 8, 30 + Math.random() * 6);
+        this.world.eject(b, 22 + this.random.next() * 8, 30 + this.random.next() * 6);
         this.fx.burst(b.x, b.y, 0.3, 10, 12, C_PINK);
         this.holdT = -1; this.heldBall = -1;
         if (this.multiball && this.pendingLaunches > 0) this.launchNext();
@@ -594,7 +596,7 @@ export class Game {
       const dx = (b.x - f.px) * (side === 0 ? 1 : -1), dy = b.y - f.py;
       if (dx > 0.6 && dx < f.len + 0.3 && dy > -2.6 && dy < 1.4 && b.vy > -10) {
         // aim a little: a random delay spreads the shots over the table
-        if (Math.random() < 0.35) { this.aiT[side] = 0.3 + Math.random() * 0.12; return true; }
+        if (this.random.next() < 0.35) { this.aiT[side] = 0.3 + this.random.next() * 0.12; return true; }
       }
     }
     return false;

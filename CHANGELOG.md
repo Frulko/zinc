@@ -23,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
 ### Fixed
+- Nova Patrol DS 0.2.4 removes redundant physics subdivisions during fast free flight; Box2D CCD handles board contacts, with local guards for nearby ball pairs and slow balls hit by moving mechanisms. Pinball game/effect random streams now replay consistently across engines.
 - 3DS: a zinc:3d world (Tokyo) no longer crashes a real console with a data abort at the end of its draw; the device player's waiting screen wraps its pairing line instead of cutting the code off.
 - Nintendo 3DS GPU submission avoids flushing the entire linear heap each frame. Nova Patrol DS 0.2.3 caches fixed lamp contours, reduces Box2D bridge traffic, and shifts the FPS label right.
 - 3DS: Tokyo runs on an original 3DS, 2DS or 3DS XL (it froze on a black screen there): `tools/console-demos` writes its `default.zpk` to the SD card beside the `.3dsx` (`3ds/<name>/`) instead of linking it in, and a program gets 22 MB of GPU memory and the rest as heap. When memory runs out, the program now says so and returns to the Homebrew Launcher. The device player's waiting screen shows its address and pairing code again (it was blank). The log has a `n3ds: old|new, app, heap, linear` line, and `tools/console-run` gives a program only an Old 3DS's 64 MB in Azahar.

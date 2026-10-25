@@ -8,7 +8,7 @@ Build a playable capture without a frame limit or scripted inputs:
 ```sh
 tools/build-console-core n3ds --aot examples/n3ds-pinball \
   --env ZINC_PROFILE=defer --env ZINC_FRAME_CAPTURE=1 \
-  --title 'Nova Patrol DS 0.2.3' -B build/n3ds-pinball-profile
+  --title 'Nova Patrol DS 0.2.4' -B build/n3ds-pinball-profile
 ```
 
 Play normally, including the situation that stutters. Hold START and SELECT together to return to the
@@ -23,7 +23,8 @@ tools/n3ds-frame-report /Volumes/DS/zinc-frames.csv --source hardware --gate
 The report is JSON. It distinguishes flat/stereo modes and reports frame gaps, CPU time excluding the
 GPU/vblank wait, physics, draw-command recording, command comparison, GPU validation/replay, texture
 uploads, submission/cache maintenance, the previous refresh's GPU execution time, runtime allocations,
-software fallbacks and missed vblanks. Times are microseconds. `previous_gpu_us` includes the previous
+software fallbacks and missed vblanks. New captures also contain `physics_steps`, the count of native
+Box2D world-step calls in the refresh (not its internal solver iterations). Older captures remain readable. Times are microseconds. `previous_gpu_us` includes the previous
 queue's display transfers, not the current frame; nested upload/validation/replay measurements must not
 be added to the runtime phase totals. Allocations count Zinc runtime objects/storage, not every Box2D or
 SDK allocation. The capture header identifies the model reported by libctru and overwritten ring rows.

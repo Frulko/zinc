@@ -22,6 +22,7 @@ def summarize(rows, warmup, cpu_budget):
         missed = sum(max(0, round(g / 16715) - 1) for g in gaps)
         missed_vblanks = sum(max(0, r['vblanks'] - 1) for r in group)
         fields = ['physics_us', 'paint_us', 'diff_us', 'wait_us', 'validate_us', 'replay_us', 'upload_us', 'submit_us', 'previous_gpu_us', 'rt_allocs']
+        if all('physics_steps' in r for r in group): fields.append('physics_steps')
         detail = {field: stats([r[field] for r in group]) for field in fields}
         detail.update(refreshes=len(group), fps=round(1e6*len(gaps)/sum(gaps), 2) if gaps else 0,
                       gap_us=stats(gaps) if gaps else None, cpu_us=stats(cpu), missed_refreshes=missed, missed_vblanks=missed_vblanks,

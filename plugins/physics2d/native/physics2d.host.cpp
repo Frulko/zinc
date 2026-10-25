@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+namespace { std::uint64_t gStepCount = 0; }
+extern "C" std::uint64_t zn_physics2d_step_count() { return gStepCount; }
+
 namespace {
 
 const int kEventSize = 9, kMovedSize = 7;
@@ -139,7 +142,7 @@ struct HostPhysics2D : NativePhysics2D {
   void worldGravity(int32_t h, double x, double y) override { if (World* w = world(h)) b2World_SetGravity(w->id, vec(x, y)); }
   void step(int32_t h, double dt, int32_t subSteps) override {
     World* w = world(h);
-    if (w && dt > 0) b2World_Step(w->id, float(dt), subSteps < 1 ? 1 : subSteps);
+    if (w && dt > 0) { ++gStepCount; b2World_Step(w->id, float(dt), subSteps < 1 ? 1 : subSteps); }
   }
   void appendMoved(int32_t h, zrt::Array<double>& out) {
     World* w = world(h);

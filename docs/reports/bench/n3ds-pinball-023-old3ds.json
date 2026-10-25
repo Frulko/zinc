@@ -1,0 +1,86 @@
+{
+  "source": "hardware",
+  "capture": "build/n3ds-pinball-physical-023/zinc-frames.csv",
+  "header": "# zinc-n3ds-frame-capture schema=1 capacity=3600 omitted=1552 model=old3ds",
+  "warmup_refreshes": 120,
+  "modes": {
+    "stereo": {
+      "physics_us": {
+        "p50": 2572,
+        "p99": 47263,
+        "max": 96940
+      },
+      "paint_us": {
+        "p50": 2755,
+        "p99": 3842,
+        "max": 4638
+      },
+      "diff_us": {
+        "p50": 413,
+        "p99": 818,
+        "max": 1178
+      },
+      "wait_us": {
+        "p50": 3064,
+        "p99": 16566,
+        "max": 16747
+      },
+      "validate_us": {
+        "p50": 406,
+        "p99": 885,
+        "max": 2115
+      },
+      "replay_us": {
+        "p50": 1600,
+        "p99": 2651,
+        "max": 3299
+      },
+      "upload_us": {
+        "p50": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "submit_us": {
+        "p50": 234,
+        "p99": 318,
+        "max": 505
+      },
+      "previous_gpu_us": {
+        "p50": 5047,
+        "p99": 5805,
+        "max": 6425
+      },
+      "rt_allocs": {
+        "p50": 78,
+        "p99": 622,
+        "max": 1100
+      },
+      "refreshes": 3600,
+      "fps": 41.11,
+      "gap_us": {
+        "p50": 16742,
+        "p99": 66988,
+        "max": 116939
+      },
+      "cpu_us": {
+        "p50": 9450,
+        "p99": 55311,
+        "max": 105911
+      },
+      "missed_refreshes": 1639,
+      "missed_vblanks": 1639,
+      "software_surfaces": 0,
+      "uploads": 0,
+      "slowest_refreshes": [
+        2407,
+        2405,
+        2630,
+        2406,
+        2623
+      ],
+      "passes_60fps_gate": false
+    }
+  },
+  "application_version": "0.2.3",
+  "raw_csv_sha256": "00d402fbd8d1d4b912897f5714797446a94c7039b1f027e9b026f551c8ee4807"
+}

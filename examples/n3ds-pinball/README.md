@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.3" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.4" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -96,3 +96,18 @@ measurements and the 60 Hz gate. The FPS label moves six pixels right for readab
 0.2.3 flushes only the modified GPU buffers and the command list (citro3d previously also flushed the whole
 linear heap), caches fixed lamp contours, skips kept-window hashing, and packs Box2D state/events into one
 native call. Gravity, CCD, contact subdivisions and the 240 Hz DS base clock are unchanged.
+
+
+## Physical trace correction (0.2.4)
+
+The owner's 0.2.3 Old3DS capture measured 41.11 FPS, 1639 missed refreshes and physics p99 47.263 ms
+(max 96.940 ms), with no software fallback or texture upload. GPU queue time stayed below 6.425 ms.
+The global relative-travel bound was subdividing even a lone fast ball far from moving mechanisms.
+
+0.2.4 lets Box2D CCD handle free-flight board contacts and retains travel guards for nearby same-layer
+ball pairs and nearby slow balls struck by a moving flipper/plunger. Slow-ball guards remain important:
+Box2D activates CCD based on the ball's own motion. The fixed base clock, gravity, materials, speed cap
+and catch-up clock remain unchanged. Dead tangent-edge updates are removed; Box2D owns flipper geometry.
+The capture adds `physics_steps`, the number of native Box2D world-step calls per complete refresh.
+Close with START+SELECT to save and compare actual hardware results; emulator success alone does not
+establish 60 FPS on the console.
