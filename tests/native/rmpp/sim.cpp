@@ -100,7 +100,7 @@ static void handle(const ClientMsg& m) {
     send(qtfb, &r, sizeof r, 0);
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
   } else if (m.type == MSG_SET_MODE) {
-    line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 1 ? "FAST" : m.mode == 4 ? "UI" : "?");
+    line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?");
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
     sleepUntil = now + 1000000;
     modes++;

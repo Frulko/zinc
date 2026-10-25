@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:physics2d` exposes `ContactKind.Hit` with solved approach speed for kicks, scoring and audiovisual feedback, including the browser backend.
 - Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.
 - Swift Observatory and Pocket Rally accept finite background native performance probes with idle/active workloads, startup readiness and raw host tick/copy samples.
@@ -23,6 +24,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
 ### Fixed
+- reMarkable Paper Pro: fast drawing on qtfb asks AppLoad for its fastest pen waveform (ufast) instead of the slower fast mode.
+- Nova Patrol and Nova Patrol DS 0.2.5 trigger powered bumper/slingshot rebounds, scores, target drops, flashes and sparks from actual Box2D impact events. The optimized collision stepping is preserved.
+- The browser Physics2D shim implements the packed `stepState` protocol used by the shared plugin.
 - Nova Patrol DS 0.2.4 removes redundant physics subdivisions during fast free flight; Box2D CCD handles board contacts, with local guards for nearby ball pairs and slow balls hit by moving mechanisms. Pinball game/effect random streams now replay consistently across engines.
 - 3DS: a zinc:3d world (Tokyo) no longer crashes a real console with a data abort at the end of its draw; the device player's waiting screen wraps its pairing line instead of cutting the code off.
 - Nintendo 3DS GPU submission avoids flushing the entire linear heap each frame. Nova Patrol DS 0.2.3 caches fixed lamp contours, reduces Box2D bridge traffic, and shifts the FPS label right.

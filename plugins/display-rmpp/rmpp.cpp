@@ -35,7 +35,7 @@
 
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5 };
-enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 1, MODE_UI = 4 };
+enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
 struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input; }; };
