@@ -26,6 +26,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc:3d's stand-in (`ZINC_NATIVE=sim`, used where the native renderer cannot be built) compiles again and selects a `World` as the native renderer does, so a streaming world runs on it.
 - `zinc pack --profile psp|vita|n3ds` no longer builds zinc:3d and zinc:physics2d for this machine nor puts their libraries in the console's pack, and a native build that fails can no longer slip a plugin's stand-in into a console program unseen: the pack now says when it uses one.
 - A program compiled with a plugin's stand-in because the plugin's native code did not build is compiled again on the next run instead of being reused from the cache, so the native code is used as soon as it builds.
+- A compiled program (`zinc run --native`, `zinc build`) that uses a zinc:3d `World` links again on macOS instead of falling back to the interpreter.
 
 ## [0.8.2] - 2026-10-25
 
