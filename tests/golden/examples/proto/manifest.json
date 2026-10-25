@@ -363,7 +363,8 @@
   "known": {
    "over": 2600,
    "reason": "the status-bar clock shows the prototype's wall-clock time, a deterministic run here shows 00:00; everything else is identical (ZN-223)"
-  }
+  },
+  "skip": "redesigned since the prototype (the top bar's Accueil button, widgets and pill, 2026-10-25): tests/t1/examples.sh and tests/t1/rmpp_sim.sh prove its frames"
  },
  {
   "entry": "remarkable/notes/src/main.tsx",
@@ -375,7 +376,8 @@
   "known": {
    "over": 2800,
    "reason": "the status-bar clock shows the prototype's wall-clock time, a deterministic run here shows 00:00; everything else is identical (ZN-223)"
-  }
+  },
+  "skip": "redesigned since the prototype (the top bar's Accueil button, widgets and pill, 2026-10-25): tests/t1/examples.sh and tests/t1/rmpp_sim.sh prove its frames"
  },
  {
   "entry": "remote/viewer/main.tsx",
