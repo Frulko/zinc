@@ -105,6 +105,8 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot);
 /** The entry of the project in `dir` with the inspector in front, as zinc dev runs it (and --inspect of pack, export and zinc device deploy): a file in
  *  build/.zinc-dev that imports 'zinc:devtools', then `entry`. A project that never names zinc:ui has nothing to inspect: `entry` itself. */
 std::string inspectEntry(const std::string& dir, const std::string& entry);
+/** Whether a source of the project in `dir` names zinc:ui (what inspectEntry checks): zinc dev --device then forwards its inspector here. */
+bool usesUi(const std::string& dir);
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);
 /** What zinc:assets needs to run the project in `dir` on `target` (ZN-436): `ram`, the ram budget zinc.json and targets/capabilities.json put
  *  in force there (0: none); `packs`, when zinc.json has asset groups and `build`, the directory of its dev packs, built now (empty otherwise). */

@@ -69,6 +69,7 @@
     {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
     {"paths": ["src/agent/", "tests/t1/agent_dev.sh"], "tests": ["agent_dev"]},
     {"paths": ["src/agent/dev.cpp", "tests/t1/agent_dev_perf.sh"], "tests": ["agent_dev_perf"]},
+    {"paths": ["src/agent/client.cpp", "src/agent/dev.cpp", "src/agent/inspect.cpp", "tools/zbench", "tests/bench/render_suite/", "tests/t1/agent_tools.sh"], "tests": ["agent_tools"]},
     {"paths": ["src/agent/server.cpp", "src/agent/client.cpp", "tests/t1/agent_local_engine.sh"], "tests": ["agent_local_engine"]},
     {"paths": ["src/agent/player.cpp", "src/agent/player.h", "src/agent/chan.cpp", "src/agent/client.cpp", "src/agent/dev.cpp", "src/host/tls.cpp", "src/rt/rtcalls.cpp", "targets/console/", "targets/null/hal_null.cpp", "tests/t0/console_player.sh"], "tests": ["console_player"]},
     {"paths": ["src/agent/player.cpp", "src/agent/chan.cpp", "src/platform/socket.h", "targets/console/player_console.cpp", "targets/console/mbedtls_console.h", "targets/psp/", "tests/t1/console_player_psp.sh"], "tests": ["console_player_psp"]},

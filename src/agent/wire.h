@@ -213,5 +213,10 @@ std::unique_ptr<Chan> ask(Device& d, const std::string& req, std::string& answer
 int forwardPort(Device& d, int local, int remote, const std::function<void(int port)>& listening);       // `forward`, never returns while it works
 int followLogs(Device& d, const std::string& name);
 int runTool(const std::vector<std::string>& argv);                                                         // its exit status
+/** The workstation: a port of this machine (`local`, 0: any) forwarded to `remote` of the device, in a thread, for as long as this process
+ *  lives; the port, or 0 when it could not listen (taken). */
+int startForward(Device device, int remote, int local = 0);
+/** The same for the paired device named `device` (dev.cpp: zinc dev --device puts the program's inspector here). */
+int startForward(const std::string& device, int remote, int local);
 
 }  // namespace zn::agent

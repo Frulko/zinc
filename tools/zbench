@@ -11,7 +11,9 @@ usage:
 --engine (mac): the suite through `zinc run --engine X` (plain JavaScript on QuickJS-ng, JavaScriptCore, V8 or Hermes, the program bundled once) instead of the app built by
 `zinc build` (the typed engine compiled ahead of time); the artifact's config and file name say which.
 
-DEVICE: mac | android | webos | ios   (one device on adb / novacom / usb; ios needs --app-id, see below)
+DEVICE: mac | android | webos | ios | pi | agent:<device>   (one device on adb / novacom / usb; ios needs --app-id, see below; agent:<device> is a machine paired with
+`zinc device pair`: the suite goes there with `zinc device <device> deploy`, which builds what that machine runs, and its report comes back with `zinc device pull`;
+`zinc device <device> bench [options]` runs this for you). --out FILE writes the artifact there instead of docs/reports/bench/.
 
 What it does, for the render suite: builds tests/bench/render_suite ONCE for the device (one app, not one app per scene), installs it, then launches it once per
 scene and per run (ZB_SCENE=<id>), interleaving the runs (scene 1 run 1, scene 2 run 1, ..., scene 1 run 2) so that a thermal drift hits every scene alike.
@@ -32,7 +34,7 @@ run side by side in one artifact (modes are keyed `uncapped`, `uncapped/gl`...).
 ios: builds with the bundle id of an app of yours already on the device (ZINC_IOS_TEAM, ZINC_PYMD3, ZINC_IOS_UDID; that app is REPLACED, its data kept; no contact with
 Apple: the Xcode-managed profile already on this Mac is used), docs/reports/ipad-16-bringup.md.
 """
-import datetime, glob, json, os, platform, re, shlex, shutil, signal, statistics, subprocess, sys, time
+import datetime, glob, json, os, platform, re, shlex, shutil, signal, statistics, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NXT = os.path.dirname(HERE)
@@ -42,7 +44,7 @@ OUT = os.path.join(REPO, "docs", "reports", "bench")
 SCENES = ["fill_opaque", "fill_blend", "quads_10k", "rounded_shadow", "gradients", "text_static", "text_churn", "clip_nested", "poly", "scroll_list", "image_update", "image_fill_only", "image_upload_only", "damage_small",
           "ui_scroll_fling", "ui_scroll_wheel", "ui_anim_transform", "ui_anim_layout", "ui_list_update"]
 SUITES = {
-    "render": {"project": os.path.join(NXT, "tests", "bench", "render_suite"), "app_id": "dev.zinc.bench.rendersuite", "name": "render_suite", "scenes": SCENES, "devices": ["mac", "android", "webos", "ios", "pi"]},
+    "render": {"project": os.path.join(NXT, "tests", "bench", "render_suite"), "app_id": "dev.zinc.bench.rendersuite", "name": "render_suite", "scenes": SCENES, "devices": ["mac", "android", "webos", "ios", "pi", "agent"]},
     # video: zinc:video has a decoder on macOS (VideoToolbox / FFmpeg) and iOS (AVFoundation); none on Android or webOS yet. The clip is a test pattern made by ffmpeg (nothing committed).
     "media": {"project": os.path.join(NXT, "tests", "bench", "render_media"), "app_id": "dev.zinc.bench.rendermedia", "name": "render_media", "scenes": ["video_play"], "devices": ["mac"]},
 }
@@ -411,7 +413,50 @@ class Pi(Device):
         return text
 
 
+class Agent(Device):
+    """A machine running `zinc agent`, paired with this one (ZN-821): `zinc device <name> deploy --no-run` installs the suite as what that machine runs (a .zapp, an
+    export, the sources for a Pi), `run --env` launches it, the report it writes in the agent's run/ directory comes back with `pull`."""
+    label = "agent"
+    APP = "zbench_render"
+    def __init__(self, name):
+        self.name, self.tmp, self.home = name, tempfile.mkdtemp(prefix="zbench-agent-"), ""
+    def _dev(self, *a, timeout=120):
+        return sh([ZINC, "device"] + ([self.name] if self.name else []) + list(a), timeout=timeout, env=dict(os.environ, ZINC_STEPS="0"))
+    def info(self):
+        r = self._dev("info", "--json", timeout=60)
+        try: i = json.loads(r.stdout)
+        except ValueError: sys.exit("zbench: no answer from %s: %s" % (self.name or "the paired device", (r.stdout + r.stderr)[-500:]))
+        self.home = i.get("home", "")
+        if not self.home: sys.exit("zbench: the agent of %s is older than zinc device bench: zinc device %s update" % (i.get("name"), i.get("name")))
+        i["model"] = i.get("kind") or i.get("cpu") or i.get("name")
+        return i
+    def prepare(self, suite, args):
+        self.info()
+        if args["no_build"]: return
+        r = self._dev("deploy", suite["project"], "--name", self.APP, "--no-run", timeout=1800)
+        if r.returncode: sys.exit("zbench: deploy to %s failed:\n%s" % (self.name, (r.stdout + r.stderr)[-1500:]))
+    def report_path(self): return self.home + "/run/zbench-report.json"
+    def fetch_report(self):
+        local = os.path.join(self.tmp, "report.json")
+        if os.path.exists(local): os.remove(local)
+        self._dev("pull", self.report_path(), local, timeout=60)
+        try: return open(local).read()
+        except OSError: return ""
+    def running(self): return any(l.split()[:1] == [self.APP] and "running" in l for l in self._dev("apps", timeout=30).stdout.splitlines())
+    def launch(self, env, timeout):
+        sets = [x for k, v in env.items() for x in ("--env", "%s=%s" % (k, v))]
+        r = self._dev("run", self.APP, *sets, timeout=120)
+        if r.returncode: return "ZB_ERROR " + (r.stdout + r.stderr).strip()[-300:]
+        txt = self.wait_report(env, timeout, alive=self.running)
+        self._dev("stop", self.APP, timeout=30)
+        return txt
+    def cleanup(self):
+        self._dev("stop", self.APP, timeout=30)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
 def device_of(name, args):
+    if name == "agent" or name.startswith("agent:"): return Agent(name[6:])
     if name == "mac": return Mac()
     if name == "android": return Android()
     if name == "webos": return WebOS()
@@ -482,7 +527,7 @@ def cmd_run(a):
         r = subprocess.run([os.path.join(HERE, "bench-bridge"), a["device_name"]] + (["--app-id", a["app_id"]] if a["app_id"] else []) + (["--no-build"] if a["no_build"] else []))
         sys.exit(r.returncode)
     suite = SUITES.get(suite_name) or sys.exit("zbench: unknown suite " + suite_name)
-    if a["device_name"] not in suite["devices"]: sys.exit("zbench: the %s suite runs on %s only (no video backend on the others yet)" % (suite_name, ", ".join(suite["devices"])))
+    if a["device_name"].split(":")[0] not in suite["devices"]: sys.exit("zbench: the %s suite runs on %s only (no video backend on the others yet)" % (suite_name, ", ".join(suite["devices"])))
     scenes = a["scene"].split(",") if a["scene"] else suite["scenes"]
     extra = dict(kv.split("=", 1) for kv in a["set"].split(",") if "=" in kv)   # --set K=V,K=V: engine switches for every launch (ZINC_GL_CORNERS=0, ZINC_GL_OCCLUDE=0 ...), recorded in config
     if suite_name == "media":
@@ -554,6 +599,7 @@ def cmd_run(a):
     label = re.sub(r"[^A-Za-z0-9._-]+", "_", "%s-%s" % (dev.label, (env_before.get("model") or env_before.get("device_name") or "").strip()))
     os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, "zbench-%s-%s-%s%s.json" % (suite_name, label, datetime.date.today().isoformat(), "-" + (a["tag"] or a["engine"]) if a["tag"] or a["engine"] else ""))   # --tag: an experiment keeps its own artifact
+    path = a["out"] or path
     json.dump(doc, open(path, "w"), indent=1)
     say("wrote", path)
     show([path])
@@ -615,14 +661,14 @@ def cmd_gate(a):
 
 
 def parse_args(argv):
-    a = {"suite": "render", "scene": "", "runs": 3, "frames": 240, "skip": 30, "mode": "uncapped", "backend": "auto", "size": "1024x768", "no_build": False, "one_by_one": False, "set": "", "tag": "", "host": "", "app_id": "", "tolerance": 0.15, "files": [], "device_name": "", "engine": ""}
+    a = {"suite": "render", "scene": "", "runs": 3, "frames": 240, "skip": 30, "mode": "uncapped", "backend": "auto", "size": "1024x768", "no_build": False, "one_by_one": False, "set": "", "tag": "", "host": "", "app_id": "", "tolerance": 0.15, "files": [], "device_name": "", "engine": "", "out": ""}
     cmd = argv[0] if argv else "-h"
     rest = argv[1:]
     if cmd == "run" and rest and not rest[0].startswith("--"): a["device_name"] = rest.pop(0)
     i = 0
     while i < len(rest):
         x = rest[i]
-        if x in ("--suite", "--scene", "--mode", "--backend", "--size", "--app-id", "--host", "--set", "--tag", "--engine"): a[x[2:].replace("-", "_")] = rest[i + 1]; i += 2
+        if x in ("--suite", "--scene", "--mode", "--backend", "--size", "--app-id", "--host", "--set", "--tag", "--engine", "--out"): a[x[2:].replace("-", "_")] = rest[i + 1]; i += 2
         elif x in ("--runs", "--frames", "--skip"): a[x[2:]] = int(rest[i + 1]); i += 2
         elif x == "--tolerance": a["tolerance"] = float(rest[i + 1]); i += 2
         elif x == "--no-build": a["no_build"] = True; i += 1

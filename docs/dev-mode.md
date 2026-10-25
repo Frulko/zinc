@@ -215,7 +215,8 @@ On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, 
 `localhost:9229` as well.
 
 A device that runs the agent needs no ssh: `zinc device [<device>] inspect <app>` brings the inspector of an app running there to a port
-of this machine and prints the address for Chrome, and Zinc Inspector lists the apps of the paired devices with the programs of this
+of this machine and prints the address for Chrome, `zinc dev --device <name>` forwards the inspector of its program to `localhost:9229`
+for the session (see "Debug and measure on the device" below), and Zinc Inspector lists the apps of the paired devices with the programs of this
 machine (`docs/reports/zinc-next-agent.md`).
 
 ### HAR export
@@ -364,6 +365,19 @@ device <name> pull <path>` brings it back). A press on the bar or on the open me
 Each start says where its time goes: `packed here in …, sent in …, started on <device> in …`, then the device's own steps (the engine,
 each plugin: cached, prebuilt, or `built here` with its time), `first frame on the screen, from the start`, and `on the screen of <device>
 … after the save`. A start that takes minutes on a small board is nearly always plugins built there (the first run after an engine update).
+
+### Debug and measure on the device
+
+The tools of this machine reach a paired device through its agent, with nothing to install there:
+
+| Tool | Command | What comes back here |
+|---|---|---|
+| Inspector | `zinc dev --device <name>` (a program with an interface) | Chrome DevTools: the program there gets its inspector (`zinc:devtools` in front, as `zinc dev` does here; `--no-devtools` leaves it out), forwarded to `localhost:9229` of this machine for the session, which `chrome://inspect` lists (another free port when 9229 is taken: the line says which). |
+| Inspector of an app | `zinc device <name> inspect <app>` | The same for an app started with `deploy` or `run`. |
+| Frame profile | `zinc device <name> profile <app> [--frames 600] [-o trace.json]` | The installed app runs there for that many frames with the frame profiler (`ZINC_PROFILE=1`, `ZINC_TRACE`): its log, the profile's summary (`zinc profile: frames=… work p50=…`, per phase), then its trace, `<app>-trace.json` here; open it in https://ui.perfetto.dev or `chrome://tracing`. `--env K=V` and `-- args` go to the app. |
+| Render bench | `zinc device <name> bench [--scene id,id] [--runs 3] [--frames 240] [--out file.json]` | `tools/zbench run agent:<name>`: the render suite (`tests/bench/render_suite`) built for that machine and installed (`deploy --no-run`), launched once per run, its report pulled; the JSON goes to `docs/reports/bench/` or `--out`. Needs a source checkout (the tool is `tools/zbench`). |
+| Load | `zinc device <name> top` | The machine's load, memory and temperature, each app's CPU and memory, every second. |
+| Telemetry, frame, screen | `zinc device <name> monitor <app>`, `shot <app>`, `screen [--live]` | Its `zinc:telemetry` lines, the frame an app shows, the device's screen. |
 
 To try a change of the engine itself on a Linux device without a release, `zinc device <name> update --local` builds this source tree for
 the device's architecture (`tools/build-linux`, minutes the first time, then only what changed), sends the package, and the device's agent

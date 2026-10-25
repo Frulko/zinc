@@ -320,7 +320,7 @@ int cmdShell(Device& d, std::vector<std::string> args) {
   return code;
 }
 
-int cmdPush(Device& d, const std::vector<std::string>& args) {
+int cmdPush(Device& d, const std::vector<std::string>& args, bool quiet = false) {
   if (args.empty() || args.size() > 2) return fail("usage: zinc device [<device>] push <local> [remote]   (remote: from the home directory of the device)");
   std::error_code ec;
   if (!fs::exists(args[0], ec)) return fail(args[0] + ": no such file or directory");
@@ -329,11 +329,11 @@ int cmdPush(Device& d, const std::vector<std::string>& args) {
   if (!c) return 1;
   std::uint64_t files = 0, bytes = 0;
   char type = 0;
-  if (!sendTree(*c, args[0], files, bytes, err, progress(args[0]))) return fail(err);
+  if (!sendTree(*c, args[0], files, bytes, err, quiet ? Sent{} : progress(args[0]))) return fail(err);
   if (!recv(*c, type, answer, 60000) || type != kJson) return fail("the session with " + d.name + " ended early");
   const Doc a(answer);
   if (!a.flag("ok")) return fail(a.str("error"));
-  std::printf("%lld file%s, %s -> %s:%s\n", a.num("files"), a.num("files") == 1 ? "" : "s", human(a.num("bytes")).c_str(), d.name.c_str(), a.str("root").c_str());
+  if (!quiet) std::printf("%lld file%s, %s -> %s:%s\n", a.num("files"), a.num("files") == 1 ? "" : "s", human(a.num("bytes")).c_str(), d.name.c_str(), a.str("root").c_str());
   return 0;
 }
 
@@ -658,10 +658,11 @@ int deployPlayer(Device& d, const Doc& info, const std::string& path, std::strin
 // follows from what the device is: sources for a Pi's installed engine, a .zapp for this system/architecture, else a native export.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true, pack = false, inspect = false, source = false, force = false;
+  bool follow = true, pack = false, inspect = false, source = false, force = false, start = true;
   std::string name, path = ".", target;
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
+    else if (args[i] == "--no-run") start = false;   // installed only: zinc device bench starts it itself
     else if (args[i] == "--pack") pack = true;
     else if (args[i] == "--inspect") inspect = true;
     else if (args[i] == "--force") force = true;
@@ -732,8 +733,62 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
   if (pack && !made.empty()) fs::remove(made, ec);   // the export stays in dist/, as after zinc export
   if (source && !made.empty()) fs::remove_all(made, ec);
   if (rc != 0) return rc;
+  if (!start) return 0;
   l.follow = follow;
   return run(d, name, l);
+}
+
+// zinc device <d> profile <app> [--frames n] [-o trace.json] [--env K=V] [-- args] (ZN-821): the installed app run there for `frames`
+// frames with the frame profiler (ZINC_PROFILE=1: its summary closes the log) and the trace of its frames (ZINC_TRACE), then the trace
+// brought here. The trace file there is emptied first, so an app that ends without writing one is not taken for the last profile's.
+int cmdProfile(Device& d, std::vector<std::string> args) {
+  const char* const use = "usage: zinc device [<device>] profile <app> [--frames n] [-o trace.json] [--env K=V] [-- args]";
+  Launch l = launchOptions(args);
+  std::string app, out, frames = "600";
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "--frames" && i + 1 < args.size()) frames = args[++i];
+    else if (args[i] == "-o" && i + 1 < args.size()) out = args[++i];
+    else if (app.empty() && args[i][0] != '-') app = args[i];
+    else return fail(use);
+  }
+  if (app.empty()) return fail(use);
+  std::string answer;
+  if (!request(d, Obj().str("op", "info").done(), answer)) return 1;
+  const Doc info(answer);
+  if (info.flag("player")) return fail(d.name + " is a player: its apps are not profiled through the agent yet");
+  if (info.str("home").empty()) return fail("the agent of " + d.name + " is older than zinc device profile: zinc device " + d.name + " update");
+  const std::string trace = info.str("home") + "/run/" + app + ".trace.json";
+  if (out.empty()) out = app + "-trace.json";
+  std::error_code ec;
+  const std::string empty = (fs::temp_directory_path(ec) / ("zinc-profile-" + std::to_string(::getpid()))).string();
+  if (!writePrivate(empty, "")) return fail("cannot write " + empty);
+  const int pushed = cmdPush(d, {empty, trace}, true);
+  fs::remove(empty, ec);
+  if (pushed != 0) return pushed;
+  l.env.emplace_back("ZINC_PROFILE", "1");
+  l.env.emplace_back("ZINC_TRACE", trace);
+  l.env.emplace_back("ZINC_FRAMES", frames);
+  l.follow = true;   // the log to the app's end: the profile's summary is its last lines
+  const int rc = run(d, app, l);
+  if (rc != 0) return rc;
+  fs::remove(out, ec);
+  if (cmdPull(d, {trace, out}) != 0) return 1;
+  if (fs::file_size(out, ec) == 0) { fs::remove(out, ec); return fail(app + " ended without a trace: does it draw frames (zinc:gfx or zinc:ui)?"); }
+  std::printf("trace of %s on %s: %s (open it in https://ui.perfetto.dev or chrome://tracing)\n", app.c_str(), d.name.c_str(), out.c_str());
+  return 0;
+}
+
+// zinc device <d> bench [zbench run options] (ZN-821): tools/zbench's render suite on the device (agent:<d>: deployed with deploy --no-run,
+// started with run --env, its report pulled), its JSON written here. The tool is part of zinc's sources, beside this binary's build/.
+int cmdBench(Device& d, const std::vector<std::string>& args, const std::string& self) {
+  const fs::path zbench = fs::path(self).parent_path().parent_path() / "tools/zbench";
+  std::error_code ec;
+  if (!fs::exists(zbench, ec))
+    return fail("zinc device bench runs tools/zbench of zinc's sources, and this zinc is not a source build: tools/zbench run agent:" + d.name + " from a checkout");
+  std::vector<std::string> argv = {zbench.string(), "run", "agent:" + d.name};
+  argv.insert(argv.end(), args.begin(), args.end());
+  ::setenv("ZINC", self.c_str(), 1);   // the tool drives the device with this zinc
+  return spawnWait(argv);
 }
 
 int simple(Device& d, const std::string& op, const std::string& name) {
@@ -811,7 +866,7 @@ int usage() {
                "       zinc device [<device>] info [--json]            what the machine is, its load, its apps\n"
                "       zinc device [<device>] shell [-t] [command]     a command with its exit status, or a terminal\n"
                "       zinc device [<device>] push <local> [remote]    a file or a tree to the device; pull <remote> [local] the other way\n"
-               "       zinc device [<device>] deploy [dir] [-- args]   build for the device, install, start, follow the log (--no-logs, --env K=V, --name n)\n"
+               "       zinc device [<device>] deploy [dir] [-- args]   build for the device, install, start, follow the log (--no-logs, --no-run, --env K=V, --name n)\n"
                "                                                       --inspect puts the inspector in front of a program with an interface, as zinc dev does\n"
                "                                                       a .zapp for a machine like this one, else zinc export for its target; --pack, --target <t> decide\n"
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
@@ -826,6 +881,8 @@ int usage() {
                "       zinc device [<device>] screen --live                         its screen in a window, driven by this mouse and keyboard\n"
                "       zinc device [<device>] monitor <app>                         its zinc:telemetry lines, as zinc monitor prints them\n"
                "       zinc device [<device>] top [-n count] [--json]               the machine's load and each app's CPU and memory, every second\n"
+               "       zinc device [<device>] profile <app> [--frames n] [-o trace.json]   it runs with the frame profiler: the summary, the trace brought here\n"
+               "       zinc device [<device>] bench [--scene id,id] [--runs n] [--frames n] [--out file.json]   tools/zbench's render suite there, its JSON here\n"
                "<device> may be left out when one device is paired.\n");
   return 2;
 }
@@ -863,7 +920,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   }
 
   if (first == "inspect" && args.size() == 2 && args[1] == "--all") return inspectAll(paired);
-  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top", "screen"};
+  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top", "screen", "profile", "bench"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
   if (isOp(first)) {
@@ -884,6 +941,8 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "pull") return cmdPull(*d, args);
   if (op == "screen") return cmdScreen(*d, args);
   if (op == "deploy") return cmdDeploy(*d, args, self);
+  if (op == "profile") return cmdProfile(*d, args);
+  if (op == "bench") return cmdBench(*d, args, self);
   if (op == "forward") return cmdForward(*d, args);
   if (op == "reverse") return cmdReverse(*d, args);
   if (op == "shot" && !args.empty()) {   // a player has no inspector: the frame of its screen, which shows the app
@@ -916,6 +975,11 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "run") return run(*d, args[0], l);
   if (op == "logs") return logs(*d, args[0], l.follow);
   return simple(*d, op, args[0]);
+}
+
+int startForward(const std::string& device, int remote, int local) {
+  for (const Device& d : loadDevices()) if (isNamed(d, device)) return startForward(d, remote, local);
+  return 0;
 }
 
 std::unique_ptr<Chan> deviceSession(const std::string& device, const std::string& req, std::string& answer, std::string& name) {

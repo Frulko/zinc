@@ -186,4 +186,14 @@ inside the program:
 console.time('parse'); doWork(); console.timeEnd('parse');   // "parse: 3.2ms"
 ```
 
+## On a device
+
+A machine paired with `zinc device pair` (it runs `zinc agent`) is debugged and measured from this one
+([dev mode, debug and measure on the device](../dev-mode.md#debug-and-measure-on-the-device)):
+
+- `zinc dev --device <name>`: the program runs there, and its inspector is on `localhost:9229` here (`chrome://inspect`).
+- `zinc device <name> profile <app> [--frames n]`: the app runs with the frame profiler; its summary and its trace (`<app>-trace.json`, for Perfetto or `chrome://tracing`) come back.
+- `zinc device <name> bench [--scene id] [--out file.json]`: the render suite of `tools/zbench` runs there; its JSON is written here.
+- `zinc device <name> top`: the machine's load, memory and temperature, and each app's CPU and memory, every second.
+
 Next: [distribution](07-distribution.md).

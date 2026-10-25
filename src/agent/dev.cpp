@@ -139,17 +139,20 @@ bool feed(int fd, std::string_view bytes) {
 }
 
 // A start: the version that runs is stopped first (its packs are mapped: its files cannot change under it), then the files change, then
-// the new version starts. False once the workstation is gone.
-bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const std::string& self, std::mutex& displayMu) {
+// the new version starts. False once the workstation is gone. Every version of a session has the same inspector port (ZN-821): the
+// workstation's forwarding to it stays good across saves.
+bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const std::string& self, std::mutex& displayMu, int inspector) {
   stop(p, displayMu);
   std::error_code ec;
   for (const std::string& name : m.strs("remove")) if (safeRel(name)) fs::remove(dir + "/" + name, ec);
   std::uint64_t files = 0, bytes = 0;
   std::string err;
   if (m.flag("files") && !recvTree(c, dir, files, bytes, err)) return refuse(c, err);
-  if (!launch(p, self, dir, m.strs("args"), m.strs("env"), err, displayMu)) return refuse(c, err);
-  p.args = m.strs("args"); p.env = m.strs("env");
-  return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
+  std::vector<std::string> env = m.strs("env");
+  if (inspector > 0) env.push_back("ZINC_DEVTOOLS_PORT=" + std::to_string(inspector));   // read by zinc:devtools, in front of a UI program
+  if (!launch(p, self, dir, m.strs("args"), env, err, displayMu)) return refuse(c, err);
+  p.args = m.strs("args"); p.env = env;
+  return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).num("inspector", inspector).done());
 }
 
 // A dev session's program stays an app of the device when the session ends (ZN-820): the player lists it, marked DEV, and starts it again
@@ -197,6 +200,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
   // stall the session against the workstation's own send. Give the output its own thread if that ever shows.
   Program p;
   long ownerPid = 0;
+  int inspector = 0;     // the port of the session's inspector, chosen at its first start
   std::string appName;   // the project's, from the workstation's start
   for (bool open = true; open;) {
     const char* display = std::getenv("ZINC_AGENT_SCREEN");
@@ -213,7 +217,12 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
         if (p.dev >= 0 && !feed(p.dev, payload)) { ::close(p.dev); p.dev = -1; }   // it stopped reading: its next start brings the files
       } else if (type == kJson) {
         const Doc m(payload);
-        if (m.flag("start")) { appName = m.str("name"); open = restart(c, p, m, dir, self, displayMu); if (open) ownerPid = p.pid; }
+        if (m.flag("start")) {
+          if (!inspector) { Env none; inspector = inspectorPort(none); }
+          appName = m.str("name");
+          open = restart(c, p, m, dir, self, displayMu, inspector);
+          if (open) ownerPid = p.pid;
+        }
       }
     }
     if (bad || !open) break;
@@ -247,7 +256,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
 namespace {
 
 // zinc pack of the project in `dir` into the file `zapp`; `out` gets what it printed (the diagnostics of a program that does not compile).
-bool pack(const std::string& self, const std::string& dir, const std::string& zapp, std::string& out, const std::string& profile) {
+bool pack(const std::string& self, const std::string& dir, const std::string& zapp, std::string& out, const std::string& profile, bool inspect) {
   const std::string log = zapp + ".log";
   const pid_t pid = ::fork();
   if (pid == 0) {
@@ -256,6 +265,7 @@ bool pack(const std::string& self, const std::string& dir, const std::string& za
     ::dup2(fd, 2);
     ::setenv("ZINC_STEPS", "0", 1);   // no progress lines: what it prints is the diagnostics
     if (!profile.empty()) ::execl(self.c_str(), self.c_str(), "pack", dir.c_str(), "-o", zapp.c_str(), "--profile", profile.c_str(), static_cast<char*>(nullptr));   // a console's player (ZN-792)
+    if (inspect) ::execl(self.c_str(), self.c_str(), "pack", dir.c_str(), "-o", zapp.c_str(), "--inspect", static_cast<char*>(nullptr));   // zinc:devtools in front, as zinc dev runs it here
     ::execl(self.c_str(), self.c_str(), "pack", dir.c_str(), "-o", zapp.c_str(), static_cast<char*>(nullptr));
     ::_exit(127);
   }
@@ -272,6 +282,8 @@ struct Session {
   std::map<std::string, std::string> there;   // what the device holds: member -> SHA-256
   std::vector<std::string> env;   // KEY=VALUE for the program there (--perf)
   bool running = false, live = false;   // live: --live, the device's screen in a window here while the session runs
+  bool inspect = false;                 // a UI program without --no-devtools: packed with its inspector, which is forwarded here
+  int inspector = 0;                    // the port of this machine that reaches it (9229 when it is free), once it is known
   pid_t viewer = -1;
   std::chrono::steady_clock::time_point viewerTried{};
 
@@ -340,7 +352,7 @@ struct Session {
     std::string archive, err;
     std::map<std::string, std::string> files, now;
     if (there.empty()) zn::log::step("pack", dir);   // the first time: compiling a large app takes a moment
-    if (!pack(self, dir, zapp, out, profile)) return false;
+    if (!pack(self, dir, zapp, out, profile, inspect && !over)) return false;   // not the red box
     const double packMs = zn::log::since(saved);
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
     for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
@@ -385,6 +397,13 @@ struct Session {
     std::fprintf(stderr, "zinc dev: packed here in %s, sent in %s, started on %s in %s; its own steps follow\n", zn::log::duration(packMs).c_str(),
                  zn::log::duration(sendMs).c_str(), device.c_str(), zn::log::duration(zn::log::since(startT0)).c_str());
     timing = true;
+    if (inspect && !inspector && a.num("inspector") > 0) {   // the first start: the program's inspector there, on a port here for the session (ZN-821)
+      const int there = static_cast<int>(a.num("inspector"));
+      inspector = startForward(device, there, 9229);   // chrome://inspect looks at localhost:9229 by default
+      if (!inspector) inspector = startForward(device, there, 0);
+      if (inspector) std::fprintf(stderr, "zinc dev: the inspector of the program on %s is on localhost:%d here: chrome://inspect%s, or devtools://devtools/bundled/inspector.html?ws=127.0.0.1:%d/zinc\n",
+                                  device.c_str(), inspector, inspector == 9229 ? " lists it" : (" with localhost:" + std::to_string(inspector) + " among its network targets").c_str(), inspector);
+    }
     return true;
   }
 };
@@ -441,6 +460,11 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   s->engine = engine;
   s->tmp = tmp;
   if (perf) s->env.push_back("ZINC_PERF_HUD=1");
+  std::string dir = ".";   // the project, to know whether it has an interface to inspect (zinc dev's own entry argument)
+  for (std::size_t i = 2; i < args.size() && args[i] != "--"; ++i) if (args[i][0] != '-') { dir = args[i]; break; }   // after "zinc dev"
+  std::error_code ec;
+  if (!fs::is_directory(dir, ec)) dir = fs::path(dir).parent_path().string();
+  s->inspect = std::find(args.begin(), args.end(), "--no-devtools") == args.end() && zn::cli::usesUi(dir.empty() ? "." : dir);
   s->live = live;
   if (live) std::fprintf(stderr, "zinc dev: the screen of %s opens in a window here once the program shows a frame (close it to stop watching)\n", s->device.c_str());
   remote.start = [s](const std::string& dir, const std::vector<std::string>& a, bool over, std::string& out) { return s->start(dir, a, over, out); };

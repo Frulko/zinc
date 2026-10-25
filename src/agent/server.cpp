@@ -242,6 +242,7 @@ std::string infoJson(const State& s) {
   }
   o.flag("ok", true).str("id", s.id).str("name", s.name).str("engine", s.engine).str("os", os).str("osVersion", u.release).str("arch", arch).str("kind", kind);
   o.flag("localEngine", std::getenv("ZINC_AGENT_LOCAL") != nullptr);   // zinc device update --local
+  o.str("home", s.home);   // where the agent keeps apps, logs and run/: zinc device profile and bench leave their files in run/ (ZN-821)
   o.num("cores", std::thread::hardware_concurrency());
   double load[3] = {0, 0, 0};
   ::getloadavg(load, 3);

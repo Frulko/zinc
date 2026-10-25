@@ -128,17 +128,20 @@ int inspectorOf(Device& d, const std::string& app) {
   return 0;
 }
 
-// A port of this machine forwarded to `remote` of the device for as long as this process lives; 0 when it could not listen.
-int startForward(Device device, int remote) {
+}  // namespace
+
+int startForward(Device device, int remote, int local) {
   auto port = std::make_shared<std::promise<int>>();
   std::future<int> listening = port->get_future();
-  std::thread([device, remote, port]() mutable {
+  std::thread([device, remote, local, port]() mutable {
     bool said = false;
-    forwardPort(device, 0, remote, [&](int local) { said = true; port->set_value(local); });
+    forwardPort(device, local, remote, [&](int at) { said = true; port->set_value(at); });
     if (!said) port->set_value(0);
   }).detach();
   return listening.get();
 }
+
+namespace {
 
 int cmdInspect(Device& d, const std::vector<std::string>& args) {
   std::string app;
