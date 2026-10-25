@@ -5,8 +5,8 @@
     "sha256": "483db18a48da399b5b7022ffae9a07bc6d99daab30e593aedac09b69ff422843"
   },
   "zinc": {
-    "url": "https://github.com/Frulko/zinc/releases/download/v0.8.0/zinc-0.8.0-linux-aarch64.tar.gz",
-    "sha256": "57bb85677a3086b5e37ae416796b37dff8ce6dfd5fe933aa52195e2ddb49947e"
+    "url": "https://github.com/Frulko/zinc/releases/download/v0.8.2/zinc-0.8.2-linux-aarch64.tar.gz",
+    "sha256": "d153f756cded202912e67c53aac5839e3892f929d0e05de5f67a513dd6308dce"
   },
   "board": "all",
   "display": "auto",
