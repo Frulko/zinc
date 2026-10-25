@@ -75,8 +75,10 @@ void state(const Tex* t, bool linear, bool tris = false) {
 }
 }  // namespace
 
+extern "C" const void* zn_3d_gpu_texture(int32_t id, int32_t* w, int32_t* h) __attribute__((weak));   // zinc:3d's GPU picture
 namespace zn::ff {
 const void* texture(int32_t id, int32_t* w, int32_t* h) {
+  if (zn_3d_gpu_texture) if (const void* t = zn_3d_gpu_texture(id, w, h)) return t;
   if (!image_size(id, w, h) || *w <= 0 || *h <= 0 || *w > kMaxTex || *h > kMaxTex) return nullptr;
   Tex& e = texs[id];
   const uint32_t ver = image_version(id);
