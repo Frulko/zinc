@@ -25,6 +25,8 @@ For a hosted check without packages, benchmarks, reproducibility, fuzz or cross 
 
 Pushes to `develop` and `main` run nothing. A release (`make release`) and a manual run (`gh workflow run zinc-next --ref develop`) run the whole tier T2 on macOS in six shards, split by the durations of the last report (`tests/ci/durations.txt`, refreshed by `tools/ci-durations`) so they end together, the tests that need no Mac on a Linux runner (`tests/ci/linux.txt`: the macOS shards skip them, the release gate requires their results), the package job (which runs `install_nocompiler` and `package` on the archive it built: the shards skip them), the fuzz job (Linux, Ubuntu's clang), the benchmark gate and the reproducible build. GitHub gives 5 macOS runners at a time to the whole run: a job that needs no Mac goes to Linux. A test that needs what a hosted runner has not (a real GPU, a display, a debugger, a timing, an emulator) exits 77 under `ZINC_CI` with the reason; a test never passes on CI without proving what it says (`docs/reports/test-audit-2026-10-21/`).
 
+Owner rule (2026-10-25): a test that is ambiguous or likely to break on a hosted runner (timing, an emulator, the network, a browser) leaves the CI instead of holding a release: its name and the reason go in `tests/ci/off.txt`, which `tests/run` skips under `ZINC_CI`; it still runs on the development Mac.
+
 Owner exception (2026-10-23): `notify_relay` exits 77 under `ZINC_CI` because its intermittent hosted stall remains unresolved. It stays runnable locally with `tests/run --only notify_relay` and `ZINC_CI` unset. The `notify_relay_unit` and `notify_capture` checks remain enabled in CI; this exception does not disable the relay app.
 
 ## Test tiers

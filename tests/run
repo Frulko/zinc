@@ -55,11 +55,13 @@ results=${ZINC_TEST_RESULTS:-}; [ -n "$results" ] && : > "$results"   # one `STA
 unset ZINC_TEST_RESULTS   # a test that runs tests/run itself (desktop, runner_cwd) must not empty this file
 names() { [ -z "$1" ] || sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$1"; }
 listed=$(names "$list") && unlisted=$(names "$skip_list") || exit 2
+ci_off=; [ -z "$ZINC_CI" ] || ci_off=$(names "$here/ci/off.txt")   # left out of the CI: tests/ci/off.txt
 keep() {   # $1: a test's name; true when the flags keep it
   [ -z "$only" ] || [ "$only" = "$1" ] || return 1
   [ -z "$changed" ] || echo "$wanted" | grep -qx "$1" || return 1
   [ -z "$list" ] || echo "$listed" | grep -qx "$1" || return 1
   [ -z "$skip_list" ] || ! echo "$unlisted" | grep -qx "$1" || return 1
+  [ -z "$ci_off" ] || ! echo "$ci_off" | grep -qx "$1" || return 1
 }
 selected() {   # the tests the flags keep, one name per line, in run order
   for t in $tiers; do

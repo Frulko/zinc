@@ -1,0 +1,7 @@
+# Tests left out of the CI (owner, 2026-10-25: "an ambiguous test, or one likely to break, can leave the CI: we do not need to test everything").
+# tests/run skips them when ZINC_CI is set; each still runs on the development Mac (tests/run --only <name>). One line each: the name, then why.
+# A test goes here when it failed on a hosted runner for the runner's sake (timing, emulator, network, browser, virtual GPU) and not for a bug.
+console_player_psp   # PPSSPP on a slow hosted runner refuses the pairing
+web_hw               # a hosted runner's Chrome had drawn nothing of the map after 5 s
+lan                  # a hosted runner may drop the UDP broadcast to 255.255.255.255
+atelier_devices      # a windowed app, a local agent and per-second figures: timing on a shared runner
