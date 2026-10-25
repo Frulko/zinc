@@ -78,7 +78,9 @@ export class World {
   private layers: Layer[] = [];
   private colliders: Collider[] = [];
   private flipperBodies: Body[] = [];
+  private flipperMoving: boolean[] = [];
   private plungerBody: Body | null = null;
+  private plungerMoving: boolean = false;
   private fromX: number[] = [];
   private fromY: number[] = [];
 
@@ -146,6 +148,7 @@ export class World {
       b.addShape(Shape.circle(f.r1, f.len, 0), { friction: m.friction, restitution: m.restitution });
       this.colliders.push(new Collider(b, null, null, m, K_FLIPPER, f.tag));
       this.flipperBodies.push(b);
+      this.flipperMoving.push(false);
     }
   }
 
@@ -153,6 +156,10 @@ export class World {
     if (dt <= 0) return;
     for (const b of this.balls) { b.previousX = b.x; b.previousY = b.y; b.previousZ = b.z; }
     this.buildFlippers();
+    for (const c of this.colliders) {
+      const on = c.segment !== null ? c.segment.enabled : c.circle !== null ? c.circle.enabled : true;
+      if (on !== c.enabled) { c.body.setEnabled(on); c.enabled = on; }
+    }
     let fastest = 0, surfaceSpeed = 0;
     for (const b of this.balls) if (b.active && !b.held) fastest = Math.max(fastest, Math.sqrt(b.vx * b.vx + b.vy * b.vy));
     for (const f of this.flippers) {
@@ -166,16 +173,17 @@ export class World {
 
   private substep(dt: number): void {
     for (let i: i32 = 0; i < this.balls.length; i++) { this.fromX[i] = this.balls[i].x; this.fromY[i] = this.balls[i].y; }
-    for (const c of this.colliders) {
-      const on = c.segment !== null ? c.segment.enabled : c.circle !== null ? c.circle.enabled : true;
-      if (on !== c.enabled) { c.body.setEnabled(on); c.enabled = on; }
-    }
     for (let i: i32 = 0; i < this.flippers.length; i++) {
       const f = this.flippers[i];
       f.update(dt);
       const body = this.flipperBodies[i];
-      if (f.sweepOmega !== 0) body.moveTo(f.px, f.py, f.angle, dt);
-      else { body.setVelocity(0, 0); body.setAngularVelocity(0); }
+      if (f.sweepOmega !== 0) {
+        body.moveTo(f.px, f.py, f.angle, dt);
+        this.flipperMoving[i] = true;
+      } else if (this.flipperMoving[i]) {
+        body.setVelocity(0, 0); body.setAngularVelocity(0);
+        this.flipperMoving[i] = false;
+      }
     }
     this.stepPlunger(dt);
     for (let layer: i32 = 0; layer < this.layers.length; layer++) {
@@ -189,7 +197,8 @@ export class World {
         if (b.layer > 0) this.rampSlope(b, dt); else b.z = 0;
         this.limitSpeed(b);
         if (body.x !== b.x || body.y !== b.y) body.setPosition(b.x, b.y);
-        body.setVelocity(b.vx, b.vy); body.setAngularVelocity(b.w);
+        if (body.vx !== b.vx || body.vy !== b.vy) body.setVelocity(b.vx, b.vy);
+        if (body.w !== b.w) body.setAngularVelocity(b.w);
       }
       if (!live && layer !== 0) continue;
       l.world.step(dt, 1);
@@ -233,8 +242,13 @@ export class World {
       this.plungerPull = Math.max(0, this.plungerPull + this.plungerVel * dt / PLUNGER_TRAVEL);
     } else this.plungerVel = 0;
     const y = this.plungerRestY + this.plungerPull * PLUNGER_TRAVEL;
-    if (this.plungerPull !== previousPull) body.moveTo(0, y, 0, dt);
-    else body.setVelocity(0, 0);
+    if (this.plungerPull !== previousPull) {
+      body.moveTo(0, y, 0, dt);
+      this.plungerMoving = true;
+    } else if (this.plungerMoving) {
+      body.setVelocity(0, 0);
+      this.plungerMoving = false;
+    }
     p.place(p.ax, y, p.bx, y);
   }
 

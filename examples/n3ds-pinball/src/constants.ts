@@ -19,6 +19,6 @@ export const DEPTH_PER_INCH = 1.6;   // a ball riding a ramp, per inch above the
 export const DEPTH_POPUP = 5;        // the score popups
 export const DEPTH_BAND = 6;         // the message band
 
-export const INK: u32 = 0x0b0e24, PANEL: u32 = 0x161a36, WHITE: u32 = 0xffffff, DIM: u32 = 0x8f97c0, CYAN: u32 = 0x3fe7ff,
+export const INK: u32 = 0x07111f, PANEL: u32 = 0x0b1c2d, WHITE: u32 = 0xffffff, DIM: u32 = 0xa9bbcc, CYAN: u32 = 0x3fe7ff,
   GOLD: u32 = 0xffd23f, PINK: u32 = 0xff4fa3, RED: u32 = 0xff3b3b, GREEN: u32 = 0x5cff8a;
 export const BUMPER_COLORS: u32[] = [0xff3b8a, 0x3fe7ff, 0xffb13b];

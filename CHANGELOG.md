@@ -52,6 +52,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 
 ### Fixed
+- Nova Patrol DS 0.2: use the compiled `--aot` console build, skip unchanged Box2D bridge writes and stationary flipper geometry, and apply a smaller 3DS effect budget. The dual-screen view now displays the textured bumper caps, mechanical recoil, Kenney spark sprites and refreshed score panels.
 - Pinball flippers stop transferring energy when held at rest, fast multiball contacts use travel-limited steps, and separating 3D contacts no longer trigger active kicks. Nova Patrol's target bank and ramp lip no longer trap slow balls.
 - Nova Patrol starts with `--engine quickjs`; its control hints now show keyboard, touch and gamepad inputs together.
 - `zinc device <name> <command>` works again for a device named like a command (`bench`, `top`...): the name comes first.

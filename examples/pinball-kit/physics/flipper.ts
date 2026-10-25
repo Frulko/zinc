@@ -53,7 +53,7 @@ export class Flipper {
     if ((this.angle - this.up) * s >= 0) { this.angle = this.up; if (this.omega * s > 0) this.omega = 0; }
     if ((this.angle - this.rest) * s <= 0) { this.angle = this.rest; if (this.omega * s < 0) this.omega = 0; }
     this.sweepOmega = (this.angle - this.previousAngle) / dt;
-    this.pose(this.angle);
+    if (this.angle !== this.previousAngle) this.pose(this.angle);
   }
 
   /** Recomputes the tip and the tangent edges for the current angle. */

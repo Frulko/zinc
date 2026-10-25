@@ -31,3 +31,15 @@ New console cores generate/link the existing Physics2D module. A host-only build
 Short headless timing sample on the M1 Pro, interpreter, 960×600, 2702 fixed-delta frames, after other session checks finished: rules+physics per frame is 0.189 ms with one ball and 0.235 ms with three, versus 0.074/0.142 ms for the former solver. Total frame averages are 0.39/0.46 ms versus 0.25/0.35 ms; one new-run outlier reaches 16 ms. This is added cost for a proven solver and new feedback, not a speedup. Shots diverge with the new physics, so it is not a formal identical-workload benchmark or a device FPS guarantee. See the performance tracker for commands.
 
 Human play, listening and real-device frame costs remain open in ZN-649.12 and the cross-platform pass. Nova Patrol's existing audio module still only records cues; this change does not wire its sound output. No push or release.
+
+## Physical 3DS feedback and version 0.2 — 2026-10-25
+
+The owner reported severe lag and little visible asset change in the SD build. That build did include Box2D, but embedded bytecode still ran through the interpreter; the dual-screen renderer also retained its old flat bumper decals and rectangle sparks. Desktop verification was insufficient for this delivery.
+
+Fixed: compile the complete program through `tools/build-console-core n3ds --aot`, retain 960 Hz/adaptive collision accuracy, send changed ball velocities only, stop moving kinematic mechanisms once, skip resting flipper geometry updates, and synchronize collider enable flags once per outer step. Core invariants and the desktop interpreter/QuickJS pixel comparison still pass unchanged.
+
+The actual DS renderer now uses the shared textured cap with recoil, Kenney star images for sparks, darker score panels, accent strips and mission progress. `quality.n3ds.ts` limits the pool to 12 sparks. Only n3ds-pinball frame hashes change in `n3ds_demos`; the test passes. Azahar's captured top screen visibly confirms the blue cap textures and panel changes.
+
+Matched 360-frame scripted Azahar sessions, serialized under the shared emulator lock and with no build from this session running: embedded interpreter program p50/p99 12/21 ms, compiled optimized 0.2 program 4/7 ms; emulated refresh gaps p50/p99 17/34 → 17/18 ms. Startup baking remains approximately 575–647 ms in these guest logs. These are emulator/guest observations, not physical-console timing or a claim of guaranteed 60 FPS on the owner's model.
+
+Playable artifact: `build/n3ds-pinball-0.2-native.3dsx`, SHA-256 `6fb60baf11a318c3a00b476d2e46972b1fcecfa57ac379e5fe5e9ca6d47f6463`, 2,377,236 bytes. Its CMake cache confirms `FRAMES=0`, empty input/profiling environment, AOT program linked, title `Nova Patrol DS 0.2`. The SD card was absent while preparing it; installation status is recorded in `build/n3ds-pinball-0.2-native.json`. Physical replay/performance feedback remains required.

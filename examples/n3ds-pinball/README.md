@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-ZINC_DEMOS=~/Documents tools/console-demos examples/n3ds-pinball n3ds-pinball --title "Nova Patrol DS" n3ds   # the .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -33,7 +33,10 @@ ZINC_DEMOS=~/Documents tools/console-demos examples/n3ds-pinball n3ds-pinball --
 | `src/panels.ts` | the side panels (score, ball, rank, mission; tilt meter, plunger strip) and the message band |
 | `src/input.ts`, `src/constants.ts` | the buttons and the stylus into the desktop game's `Controls`; sizes, depths and colours |
 
-The ball is Kenney's `ballGrey.png` (Puzzle Pack, CC0), in `assets/kenney`.
+The ball and spark sprites are Kenney's `ballGrey.png` and `particleSmallStar.png` (Puzzle Pack 1.1, CC0), in
+`assets/kenney`. `assets/bumper-cap.png` is the Zinc Tidal Lock cap texture, with the same Kenney CC0 star;
+its editable source is `examples/pinball3d/tools/tidal_lock_art.py`. The textured caps, their recoil and the
+new navy score panels belong to this dual-screen renderer; desktop-only overlays are not imported.
 
 ## On the 3DS
 
@@ -41,13 +44,19 @@ The ball is Kenney's `ballGrey.png` (Puzzle Pack, CC0), in `assets/kenney`.
   pixels, the flippers at 11 angles), each rasterized once into the shape atlas. The art, which uses gradients and strokes, is painted once
   at the start in software (about 0.6 s).
 - 3D: the bumper caps, a ball riding the ramp (by its height), the score popups and the message band come out of the screen.
-- Measured in Azahar (`ZINC_PROFILE=1`, a scripted game, 3D on): the program's own time per refresh (both eyes, the physics at 960 Hz and the
-  bottom screen) p50 8 ms, p99 12 ms; no frame falls back to the software raster.
-- `--engine quickjs` does not run it (nor `examples/pinball`, which imports `zinc:platform`'s `TOUCH`).
+- Use the **compiled program** (`--aot`) for the console. An embedded `.zbc` runs through the interpreter;
+  combining that path with 960 Hz Box2D calls caused the previous slow version.
+- The 3DS profile uses 12 image-based sparks, no soft halos or trails. Contacts still use Box2D at the same
+  fixed rate and retain adaptive travel subdivision; this does not reduce physics accuracy to gain speed.
 
 ## Shared physics update
 
 The desktop game now uses Box2D through `examples/pinball-kit`. Rebuild the console core with the current
-`tools/build-console-core` to include its Physics2D module; older cores cannot run this version. The new
-Box2D registration is checked on the development Mac, not yet on the physical 3DS. Earlier frame-time
-numbers above describe the previous solver and need remeasurement.
+`tools/build-console-core` to include its Physics2D module; older cores cannot run this version. The 0.2 build is compiled to C++ and includes the native Box2D module. Unchanged ball and mechanism state
+is no longer resent through the native bridge on every substep. A held flipper is stopped once, explicitly.
+The compiled 3DS binary and visible assets are checked in Azahar; physical-console timing still needs the
+owner's play session. Measurements and the regression checks are in `docs/reports/zinc-next-pinball-physics.md`.
+
+The release build command above has no frame limit, scripted inputs or profiling environment. For a measured
+session, use a separate build directory and add `--frames 360 --input tests/data/n3ds-demos/pinball.input
+--env ZINC_PROFILE=1`, then `lockf -k /tmp/zinc-azahar.lock tools/console-run n3ds <file.3dsx>`.

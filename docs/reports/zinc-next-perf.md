@@ -1264,3 +1264,9 @@ Owner asked for proven physics and more consistent pinballs. Box2D replaces the 
 One Box2D-run multiball frame reached 16 ms; other measured maxima were 2 ms or less. This is a small absolute increase and a large relative increase, not a performance win. Physics and artwork change the trajectories/workloads; this single sample is not an identical-workload regression gate. It proves neither windowed 120 Hz presentation nor performance on a console/Pi. Previous sources were read from git into `/tmp/zinc-pinball-before`; neither tree nor engine was rebuilt for this comparison.
 
 Reproduce after builds/tests finish: `ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_FRAMES=2702 ZINC_FIXED_DT=0.016667 ZINC_DEMO=bench build/zinc run examples/pinball --interp`. Calibration probes and test coverage: `zinc-next-pinball-physics.md`.
+
+### 2026-10-25: Nova Patrol DS, compiled program after physical lag report
+
+Matched 360-frame Azahar guest sessions (`tests/data/n3ds-demos/pinball.input`, `ZINC_PROFILE=1`), serialized with `/tmp/zinc-azahar.lock`, no concurrent build from this session. Previous embedded/interpreted 3DS build: program p50/p99 12/21 ms, refresh gap 17/34 ms. Optimized compiled (`--aot`) 0.2 build: 4/7 ms and 17/18 ms. Startup/baking remains 575–647 ms. This is emulator/guest profiling, not a real-device timing claim; other work on the host prevents treating it as a formal host CPU benchmark.
+
+Accuracy is unchanged: 960 Hz plus adaptive travel steps, Box2D retained. Changes remove redundant bridge writes, resting flipper geometry and repeated collider scans; 3DS effect pool is 12 sparks. Core invariants and desktop frame comparison pass. The DS view now actually draws cap and spark image assets. Commands and artifact provenance: `zinc-next-pinball-physics.md`, section Physical 3DS feedback.

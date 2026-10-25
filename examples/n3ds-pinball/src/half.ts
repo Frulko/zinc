@@ -3,6 +3,7 @@
 // plunger, the drain). A ball near the cut is drawn by both, so it rolls from one screen to the other.
 // Everything here is a command the 3DS's GPU replay draws: images, rectangles, text, and shapes that do not change from frame to frame
 // (each is rasterized once into the shape atlas): lamps at their place, discs on whole pixels, the flippers at one of FLIP_STEPS angles.
+import { recoil } from '../../pinball-kit/feedback';
 import { interpolate } from '../../pinball-kit/clock';
 import { drawImage, image, rect, rrect, polygon, translate, drawText, font, textWidth, pixelScale } from 'zinc:gfx';
 import { Camera } from '../../pinball/src/render/camera';
@@ -16,11 +17,13 @@ import { PLUNGER_TRAVEL } from '../../pinball-kit/physics/world';
 import { SHOOTER_X, TABLE_L } from '../../pinball/src/table/layout';
 import { Eyes } from '../../n3ds-kit/stereo';
 import { topDown, bakeHalf } from './art';
-import { SPLIT, DEPTH_CAP, DEPTH_PER_INCH, DEPTH_POPUP, BUMPER_COLORS, PINK, WHITE } from './constants';
+import { SPLIT, DEPTH_CAP, DEPTH_PER_INCH, DEPTH_POPUP, PINK, CYAN } from './constants';
 
 const FLIP_STEPS: i32 = 10;          // the flipper drawn at 11 angles from rest to up
 const POPUP_LIFE = 1.1, SPARK_LIFE = 0.6;   // as examples/pinball/src/render/fx.ts
 const ball = image('kenney/ballGrey.png');
+const star = image('kenney/particleSmallStar.png');
+const bumperCap = image('bumper-cap.png');
 const popupFont = font('sans-bold', 12);
 
 /** A flipper's outline at an angle: the back half of its pivot circle, the front half of its tip (as the desktop scene draws it), grown by g. */
@@ -39,7 +42,6 @@ export class Half {
   private rubber: number[][][] = [[], []];   // per flipper, per step: the red rubber, then the white body
   private body: number[][][] = [[], []];
   private slings: number[][] = [];
-  private stars: number[][] = [];            // the bumpers' star decals, per bumper (top screen, depth 0; shifted by translate)
 
   /** `lower`: the bottom screen's half. */
   constructor(public game: Game, public lower: boolean, public w: number, public h: number) {
@@ -65,14 +67,7 @@ export class Half {
       this.cam.project(s.ax + nx, s.ay + ny, 0); pts.push(Math.round(this.cam.x)); pts.push(Math.round(this.cam.y));
       this.slings.push(keepPts());
     }
-    for (const b of t.bumpers) {
-      pts.length = 0;
-      for (let k: i32 = 0; k < 10; k++) {
-        const r = k % 2 === 0 ? 0.55 : 0.24, a = -Math.PI / 2 + k * Math.PI / 5;
-        this.cam.project(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r, 0); pts.push(Math.round(this.cam.x)); pts.push(Math.round(this.cam.y));
-      }
-      this.stars.push(keepPts());
-    }
+
   }
 
   /** The table y at the screen's centre. */
@@ -164,9 +159,9 @@ export class Half {
       const b = t.bumpers[i], f = g.bumperFlash[i];
       cam.project(b.x, b.y, 0);
       const x = Math.round(cam.x), y = Math.round(cam.y);
-      rrect(x - 10, y - 10, 20, 20, 10, f > 0.1 ? WHITE : BUMPER_COLORS[i], 255);
-      rrect(x - 8, y - 8, 16, 16, 8, BUMPER_COLORS[i], f > 0.1 ? 160 : 255);
-      polygon(this.stars[i], WHITE, 200);
+      if (f > 0) rrect(x - 12, y - 12, 24, 24, 12, CYAN, Math.round(f * 130));
+      const drop = Math.round(recoil(f) * 2);
+      drawImage(bumperCap, x - 11, y - 11 + drop, 22, 22, 255, 0);
     }
     translate(sx, sy);
   }
@@ -207,7 +202,7 @@ export class Half {
     for (const s of fx.sparks) {
       if (s.age >= SPARK_LIFE || !this.shows(s.y, 0.5)) continue;
       cam.project(s.x, s.y, s.z);
-      rect(Math.round(cam.x), Math.round(cam.y), 2, 2, s.color);
+      drawImage(star, Math.round(cam.x) - 3, Math.round(cam.y) - 3, 6, 6, Math.round(255 * (1 - s.age / SPARK_LIFE)), 0);
     }
     const d = eyes !== null ? eyes.shift(DEPTH_POPUP) : 0;
     for (const p of fx.popups) {

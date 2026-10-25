@@ -42,6 +42,9 @@ export class Panels {
     this.refresh();
     rect(0, 0, pw, height(), PANEL);
     rect(w - pw, 0, pw, height(), PANEL);
+    rect(8, 6, pw - 16, 2, CYAN);
+    rect(w - pw + 8, 6, pw - 16, 2, GOLD);
+    rrect(4, 25, pw - 8, 24, 4, INK, 255);
     centred(small, 0, pw, 14, 'SCORE', DIM);
     centred(bold, 0, pw, 28, this.score, GOLD);
     if (g.phase !== PH_ATTRACT) {
@@ -54,6 +57,9 @@ export class Panels {
     centred(small, w - pw, pw, 76, this.mission1, 0xff8a2a);
     centred(small, w - pw, pw, 90, this.mission2, 0xff8a2a);
     centred(small, w - pw, pw, 108, this.progress, WHITE);
+    const mission = MISSIONS[g.player.mission], progress = Math.min(1, g.player.progress / mission.count);
+    rect(w - pw + 8, 126, pw - 16, 3, INK);
+    if (progress > 0) rect(w - pw + 8, 126, (pw - 16) * progress, 3, GOLD);
     if (g.multiball) centred(small, w - pw, pw, 140, 'MULTIBALL', g.time % 0.5 < 0.25 ? GOLD : RED);
     if (g.ballSave > 0) centred(small, 0, pw, 140, 'BALL SAVE', g.time % 0.5 < 0.25 ? GREEN : WHITE);
     this.band(eyes);
@@ -65,7 +71,7 @@ export class Panels {
     let a = '', b = '', color: u32 = GOLD;
     if (this.paused) { a = 'PAUSED'; b = 'START: play on'; color = WHITE; }
     else if (g.phase === PH_ATTRACT) {
-      if (g.time % 2 < 1.4) { a = 'NOVA PATROL'; b = 'START or tap the bottom screen'; color = CYAN; }
+      if (g.time % 2 < 1.4) { a = 'NOVA PATROL DS'; b = 'START or tap the bottom screen'; color = CYAN; }
       else { a = 'PRESS START'; b = 'L / R flippers   B pulls the plunger'; }
     } else if (g.phase === PH_ENTRY) {
       a = `HIGH SCORE  ${g.entryNameText()}`;

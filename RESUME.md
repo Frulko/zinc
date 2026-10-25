@@ -1,5 +1,7 @@
 # Resume — 2026-10-25 (pinball)
 
+- Pinball DS 0.2 follow-up: owner reports severe lag on the physical 3DS. The previous SD executable was embedded/interpreted despite native Box2D; new playable **compiled** artifact is build/n3ds-pinball-0.2-native.3dsx (frames=0, no input/profile). Removed redundant bridge writes; DS now draws textured blue caps/recoil and Kenney sparks, 12-spark profile budget and revised panels. Core + desktop pixel checks and n3ds_demos pass; Azahar program p50/p99 12/21 → 4/7 ms (emulator only). SD absent at preparation, async request pending; physical retest still needed. See pinball physics report for checksum and build command.
+
 ## Swift / Godot / Blender workflows — 2026-10-25
 
 - Integrated embedded C surface, Swift Observatory, shared scene contract/reader, Blender library with actual .blend and Godot Parcel Yard exporter. READMEs in examples/swift-observatory, examples/blender-library and examples/godot-to-zinc.
