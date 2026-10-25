@@ -455,8 +455,10 @@ numbers go to `docs/reports/zinc-next-perf.md`.
   intervals): the owner finds it lagging behind the pen. Its buttons react to neither pen nor finger (bug, being fixed).
 - Lease + Quill (`quill-test`, two runs 46 min apart): xochitl stopped through systemd, scribble drew, the 180 s dead-man ended
   it and xochitl came back once each time (`NRestarts=0`, no start-limit hit). The owner: "très bon touché", the feel of the
-  native app. The power key was not pressed (not yet proven); scribble opens `/dev/input/event0` itself, which the supervisor
-  should own.
+  native app. scribble opens `/dev/input/event0` itself; Zinc apps leave it to the supervisor.
+- Notes on L2 (lease + Quill, `"ink": "session"`): drawn by Quill 3.3 s after launch, "super fluide" (owner). Save & quit ended it
+  (status 0) and a 2 s power press ended another session ("power key long press: ending notes"); xochitl came back once each
+  time, `NRestarts=0`, the unit deactivated cleanly.
 - Ink lane v2 (zinc-ink, protocol 2), one `xovi/start` at 18:53: XOVI loaded it, every gate passed (model row, framebuffer-spy
   geometry, vendor hash), then it stayed off: "libqsgepaper is not loaded". On OS 3.27.3.0 xochitl never maps
   `/usr/lib/plugins/scenegraph/libqsgepaper.so`: its platform plugin is `plugins/platforms/libepaper.so` (no EPFramebuffer symbol)
