@@ -247,6 +247,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-791: an mDNS answer from the Paint Arena host, so other tools find a match without the broadcast.
 - ZN-792: mDNS discovery for the console players (they are paired by address today).
 - ZN-792: the PSP player's entropy from KIRK through a kernel PRX instead of the jitter pool.
+- ZN-792: a `touchpad` profile (1024x768, GLES 2) in src/frontend/profile.cpp; the webOS player says `linux` for now.
+- ZN-792: targets/webos/hal_webos.cpp (SDL 1.2 + PDL) so `tools/webos-player` draws, as a PDK app with the consoles' waiting screen.
+- ZN-792: the iOS player updates its Bonjour TXT `pair` flag (DNSServiceUpdateRecord) when a pairing opens or closes.
+- ZN-792: run zinc_go_device on an Android emulator (arm64 API 37 image) beside the Nexus 7.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -416,3 +420,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-790: play n3ds-pinball, n3ds-platformer and n3ds-starfall on a real 3DS (stereo depth comfort, stylus, frame time).
 - ZN-792: the device player on a real PSP, Vita, 3DS and the TouchPad over Wi-Fi; EC J-PAKE pairing time on each; iPhone signing and the local network permission prompt.
 - ZN-791: Paint Arena on a real PSP, Vita and 3DS on real Wi-Fi (PSP WPA limits, routers that block client broadcasts).
+- ZN-792: the phone player on a real iPhone (signing, the local network prompt, Bonjour on Wi-Fi) and the TouchPad player (`tools/webos-player install/start`, pair, deploy hello).
