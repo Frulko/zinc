@@ -1219,3 +1219,13 @@ Azahar, Vita3K on the Intel Mac; the hardware numbers are still to take.
 | examples/3d/orbit (2,300 tris) | 36.95 ms | 15.07 ms | 26.35 ms | 4.54 ms | 8.99 ms (work) | 2.21 ms (work), 61.5 fps |
 
 The PSP's 15 ms on orbit is not split yet between the interpreted scene walk (matrices composed in Zinc) and the GE.
+
+On the owner's hardware (2026-10-25), examples/3d/orbit:
+
+| Device | 3D (`effects` p50) | Work p50 | Frame rate |
+|---|---|---|---|
+| PSP via Adrenaline on a PS Vita, GE | 25.4 ms | 25.7 ms | 30 fps |
+| PS Vita, GXM with the vertex program from SceShaccCg | — | 5.3 ms | 60 fps (52.7 over the first 600 frames: spikes up to 117 ms at the start) |
+
+- PPSSPP said 15 ms for the PSP; the console takes 25. Split the time between the interpreted scene walk and the GE before optimizing.
+- The Pocket3D directions are listed in docs/reports/hardware/pocketjs-pocket3d.md §2.7: the list built while the GE draws the previous one, i16 vertices.
