@@ -189,7 +189,7 @@ async function pair(req: Request): Promise<Reply> {
 }
 
 async function publish(req: Request): Promise<Reply> {
-  const all = sys.utf8Encode(req.rawBody);   // byte for byte: the body is the manifest then the .zapp
+  const all = sys.utf8Encode(req.rawBody ?? req.body);   // byte for byte (a server always sets rawBody): the body is the manifest then the .zapp
   const n: i32 = parseInt(req.headers.get('x-manifest-length'));
   if (!(n > 0) || n > all.length || n > 65536) return reply(400, 'X-Manifest-Length is the size of the manifest at the start of the body\n');
   const m = parseManifest(sys.utf8Decode(all.slice(0, n)));

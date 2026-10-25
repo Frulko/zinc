@@ -562,7 +562,7 @@ export class Response {
     try { return Promise.resolve(JSON.parse(this.body)); } catch (e) { return Promise.reject(e); }
   }
 }
-export interface Request { method: string; path: string; body: string; headers: Headers; rawBody: string }
+export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string }
 export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
