@@ -1,0 +1,10 @@
+{
+  "name": "lan-arena",
+  "app": { "id": "dev.zinc.examples.lanarena", "name": "Paint Arena", "version": "0.1.0", "orientation": "landscape" },
+  "entry": "src/main.ts",
+  "permissions": ["net"],
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}

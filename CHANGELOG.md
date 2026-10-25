@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Nintendo 3DS: zinc:3d draws on the PICA200 instead of in software, on both eyes in stereoscopic 3D: the cubes demo renders in about 2 ms a frame instead of 25. `ZINC_N3DS_GPU=0` keeps the software renderer.
 - Three games for the Nintendo 3DS's two screens, in stereoscopic 3D: Nova Patrol DS (`examples/n3ds-pinball`, the space pinball's table across both screens), Meadow Run 3D (`examples/n3ds-platformer`, the level on top, the map and the stylus look-around below) and Starfall (`examples/n3ds-starfall`, draw lines with the stylus to throw falling stars back into their constellation).
 - `zinc:lan`: UDP (broadcast included) and TCP sockets that you poll once a frame. The same calls work on a desktop and on the PSP, PS Vita and 3DS. On the consoles, `up()` joins the Wi-Fi first: a PSP uses its first network setting. See `docs/plugins/lan.md`.
+- `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 
 ## [0.8.0] - 2026-10-25
 
