@@ -41,6 +41,15 @@ export default {
   emissive(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   gpu(): boolean { return false; },
+  transform(world: number[], parent: number[], p: number[], q: number[], s: number[]): void {
+    const x = q[0], y = q[1], z = q[2], w = q[3];
+    const L: number[] = [(1 - 2 * (y * y + z * z)) * s[0], 2 * (x * y + z * w) * s[0], 2 * (x * z - y * w) * s[0], 0,
+      2 * (x * y - z * w) * s[1], (1 - 2 * (x * x + z * z)) * s[1], 2 * (y * z + x * w) * s[1], 0,
+      2 * (x * z + y * w) * s[2], 2 * (y * z - x * w) * s[2], (1 - 2 * (x * x + y * y)) * s[2], 0, p[0], p[1], p[2], 1];
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) world[c * 4 + r] = parent[r] * L[c * 4] + parent[4 + r] * L[c * 4 + 1] + parent[8 + r] * L[c * 4 + 2] + parent[12 + r] * L[c * 4 + 3];
+    }
+  },
   end(): number { return tris; },
   present(): void {},
 };

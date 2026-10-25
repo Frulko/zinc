@@ -30,6 +30,9 @@ export interface Spec extends NativeModule {
    *  2 linear, 3 mipmaps (trilinear). The software renderer always takes the nearest texel. Bits 6-7 the blending (ZN-696): 0 opaque,
    *  1 over the frame, 2 added to it, with the opacity in bits 8-15 (0..255); a blended draw is depth tested and writes no depth. */
   draw(mesh: i32, model: number[], color: u32, texture: i32, flags: i32): void;
+  /** A node's world matrix: world = parent x translation(p) x rotation(q, a quaternion x, y, z, w) x scale(s), column major, written into
+   *  `world`. Here and not in the program: interpreted, the two products took 12 of the 14 ms of a PSP frame of examples/3d/orbit. */
+  transform(world: number[], parent: number[], p: number[], q: number[], s: number[]): void;
   /** Whether the GPU draws (ZN-657): a camera renders at the window's pixel scale there, at 1 in software. */
   gpu(): boolean;
   /** Ends the frame (the image shows the new pixels); returns the number of triangles rasterized. */

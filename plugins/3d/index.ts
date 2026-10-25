@@ -275,7 +275,6 @@ export class Node {
   readonly children: Node[] = [];
   /** World matrix, updated by render(). */
   readonly world: number[] = mat4();
-  private local: number[] = mat4();
 
   constructor(mesh: Mesh | null, material: Material | null) { this.mesh = mesh; this.material = material; }
   add(child: Node): Node { this.children.push(child); return child; }
@@ -287,8 +286,7 @@ export class Node {
   /** Updates world matrices and issues draw calls for this subtree. */
   draw(parent: number[]): void {
     if (!this.visible) return;
-    mat4Compose(this.local, this.position, this.rotation, this.scale);
-    mat4Multiply(this.world, parent, this.local);
+    R.transform(this.world, parent, this.position, this.rotation, this.scale);
     const mat = this.material;
     if (this.mesh !== null && mat !== null) { if (mat.blend === Blend.Opaque) this.drawMesh(); else blended.push(this); }
     for (const c of this.children) c.draw(this.world);

@@ -13,12 +13,15 @@
 #include "render3d.host.cpp"
 
 #include <malloc.h>
+#include <stdio.h>
 
 #include <pspge.h>
 #include <pspgu.h>
 #include <pspkernel.h>
 
 #include "ff_replay.h"
+
+extern "C" void hal_log(const char* s, size_t n);   // hal_psp.cpp: the console log and zinc.log
 
 namespace {
 
@@ -45,6 +48,12 @@ uint32_t abgrf(const float* c, float k) {   // 0..k floats -> the GE's 0xAABBGGR
   return o;
 }
 void writeback(const void* p, size_t n) { sceKernelDcacheWritebackRange(p, (unsigned)n); }
+
+// Where a render's time goes, logged every 600 renders: in this file (building the GE list), waiting for the GE, and the rest of the
+// window from begin() to end() (the program: its scene walk and the calls into this module)
+uint64_t now() { return sceKernelGetSystemTimeWide(); }
+struct Times { uint64_t start = 0, native = 0, wait = 0, span = 0; uint32_t n = 0; } times;
+struct Spend { uint64_t& acc; uint64_t t0; explicit Spend(uint64_t& a) : acc(a), t0(now()) {} ~Spend() { acc += now() - t0; } };
 
 struct Psp : Engine {
   GMesh** gm = nullptr; int32_t ngm = 0;   // by the software mesh's id
@@ -131,6 +140,8 @@ struct Psp : Engine {
   GTarget* byImage(int32_t img) { for (int32_t i = 0; i < gtargets.n; i++) if (GTarget* t = gtargets.p[i]) if (t->img == img) return t; return nullptr; }
 
   void begin(int32_t id, uint32_t clear, Array<N> view, N proj, N nearN, N farN, bool ortho) override {
+    times.start = now();
+    Spend spent(times.native);
     gcur = gtargets.at(id);
     if (!gcur) return;
     GTarget* t = gcur;
@@ -142,7 +153,7 @@ struct Psp : Engine {
     if (ortho) { const float hh = F(proj); P[0] = 2 / (hh * asp); P[5] = 2 / hh; P[10] = -2 / (f - n); P[14] = -(f + n) / (f - n); P[15] = 1; }
     else { const float k = 1 / tanf(F(proj) * 0.5f); P[0] = k / asp; P[5] = k; P[10] = (f + n) / (n - f); P[11] = -1; P[14] = 2 * f * n / (n - f); }
     for (int i = 0; i < 16; i++) V[i] = i < view.length() ? F(view.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
-    sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);   // the last 3D list is done with list3d (gu_psp.cpp's frame waited for the GE already)
+    { Spend waited(times.wait); sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE); }   // the last 3D list is done with list3d (gu_psp.cpp's frame waited for the GE already)
     sceGuStart(GU_DIRECT, list3d);
     sceGuDrawBufferList(GU_PSM_5650, (void*)t->off, t->tex.stride);
     sceGuDepthBuffer((void*)(t->off + (uint32_t)t->tex.stride * t->h * 2), t->tex.stride);
@@ -186,6 +197,7 @@ struct Psp : Engine {
   }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
+    Spend spent(times.native);
     Mesh* m = meshes.at(id);
     GMesh* g = gmesh(id);
     if (!m || !g || !gcur) return;
@@ -254,6 +266,15 @@ struct Psp : Engine {
     sceGuTexOffset(0, 0);
     sceGuDrawBufferList(GU_PSM_8888, nullptr, 512);   // the screen's pixel format; the next sceGuStart (gu_psp.cpp's frame) sets its address again
     sceGuFinish();
+    times.span += now() - times.start;
+    if (++times.n == 600) {
+      char b[160];
+      const double k = 1.0 / (1000.0 * times.n);
+      const int len = snprintf(b, sizeof b, "psp 3d: %.2f ms a render: %.2f in the module (%.2f waiting for the GE), %.2f in the program, %d tris\n",
+        times.span * k, times.native * k, times.wait * k, (times.span - times.native) * k, (int)tris);
+      hal_log(b, (size_t)len);
+      times = Times{};
+    }
     return tris;
   }
   void present(int32_t id, N x, N y, N w, N h) override {
