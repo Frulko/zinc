@@ -13,6 +13,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <chrono>
 
 using namespace godot;
 static std::string pending;
@@ -83,6 +84,24 @@ static Object* singleton(const char* name) {
 @end
 
 int main(int argc,char** argv) {
+  const auto host_start=std::chrono::steady_clock::now();
+  auto now=[&]() { return std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-host_start).count(); };
+  int bench_frames=0;
+  std::string workload="active";
+  for (int i=2;i<argc;++i) {
+    if (!std::strcmp(argv[i],"--bench-frames")) {
+      char* end=nullptr;
+      if (++i>=argc) return 2;
+      long count=std::strtol(argv[i],&end,10);
+      if (*end || count<31 || count>360) { std::fprintf(stderr,"bench frames must be 31...360\n"); return 2; }
+      bench_frames=int(count);
+    } else if (!std::strcmp(argv[i],"--bench-workload")) {
+      if (++i>=argc) return 2;
+      workload=argv[i];
+      if (workload!="idle" && workload!="active") { std::fprintf(stderr,"bench workload must be idle or active\n"); return 2; }
+    }
+  }
+  if (bench_frames) setenv("ZINC_BACKGROUND","1",1);
   if (argc < 2) { std::fprintf(stderr,"usage: rally <libgodot.dylib> [--self-test]\n"); return 2; }
   const bool test = argc > 2 && std::strcmp(argv[2],"--self-test") == 0;
   const bool visual = argc > 3 && std::strcmp(argv[2],"--visual-test") == 0;
@@ -134,6 +153,9 @@ int main(int argc,char** argv) {
       [window orderFront:nil];
       if (!std::getenv("ZINC_BACKGROUND")) [window makeKeyWindow];
     }
+    if (bench_frames && workload=="idle") game->call("command",String("pause"));
+    double first_ready=0, previous_tick=0;
+    std::vector<double> intervals, godot_ticks, zinc_ticks;
     int frames=0, result=0;
     double initial_paddle=double(game->get("paddle"));
     while (!closed) {
@@ -142,12 +164,29 @@ int main(int argc,char** argv) {
           NSEvent* event;
           while ((event=[NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])) [NSApp sendEvent:event];
         }
-        if (bool(instance->call("iteration"))) break;
+        const double tick_start=now();
+        const double godot_start=now();
+        if (bool(instance->call("iteration"))) { if (bench_frames) result=1; break; }
+        const double godot_duration=now()-godot_start;
         if (!pending.empty()) { game->call("command",String(pending.c_str())); pending.clear(); }
         const int64_t score=game->call("snapshot");
         char text[32]; std::snprintf(text,sizeof(text),"%lld",static_cast<long long>(score)); setenv("ZINC_RALLY_SCORE",text,1);
+        const double zinc_start=now();
         if (zn_embed_tick() != 0) { result=1; break; }
         if (!test) { [navigation tick]; [window displayIfNeeded]; }
+        if (bench_frames) {
+          const double zinc_duration=now()-zinc_start;
+          if (!first_ready && game_view && window && [game_view window]) {
+            first_ready=now(); std::puts("workflow ready"); std::fflush(stdout);
+          }
+          ++frames;
+          if (frames>30) {
+            intervals.push_back(tick_start-previous_tick);
+            godot_ticks.push_back(godot_duration); zinc_ticks.push_back(zinc_duration);
+          }
+          previous_tick=tick_start;
+          if (frames==bench_frames) { if (!first_ready) result=1; break; }
+        }
         if (visual) {
           ++frames;
           if (frames==20) {
@@ -195,6 +234,16 @@ int main(int argc,char** argv) {
           if (frames==110) { if (int64_t(game->call("snapshot")) != 0) result=1; break; }
         }
       }
+    }
+    if (bench_frames && !result && frames==bench_frames) {
+      std::printf("workflow bench json: {\"schema\":1,\"host\":\"zinc-libgodot\",\"workload\":\"%s\",\"warmup_frames\":30,\"total_frames\":%d,\"first_ready_us\":%.3f,\"clock_scope\":\"host_entry_to_native_view_first_iteration\",\"timing_scope\":\"host wall durations; no GPU completion\",\"sample_count\":%zu",workload.c_str(),frames,first_ready,godot_ticks.size());
+      auto samples=[](const char* name,const std::vector<double>& values) {
+        std::printf(",\"%s\":[",name);
+        for (size_t i=0;i<values.size();++i) std::printf("%s%.3f",i ? "," : "",values[i]);
+        std::putchar(']');
+      };
+      samples("interval_us",intervals); samples("godot_iteration_us",godot_ticks); samples("zinc_tick_present_us",zinc_ticks);
+      std::puts("}"); std::fflush(stdout);
     }
     if (game_view) { [game_view removeFromSuperview]; [game_window setContentView:game_view]; [game_view release]; }
     zn::rt::gConsoleTap=nullptr; zn_embed_quit(); destroy(raw);

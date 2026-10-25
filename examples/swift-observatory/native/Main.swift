@@ -1,6 +1,25 @@
 import SwiftUI
 import AppKit
 
+let hostStart = DispatchTime.now().uptimeNanoseconds
+func benchNow() -> Double { Double(DispatchTime.now().uptimeNanoseconds - hostStart) / 1000 }
+let benchArguments = CommandLine.arguments
+var benchFrames = 0
+var benchWorkload = "active"
+for (index, argument) in benchArguments.enumerated() {
+    if argument == "--bench-frames" || argument == "--bench-workload" {
+        guard index + 1 < benchArguments.count else { fputs("Missing benchmark argument\n", stderr); exit(2) }
+        if argument == "--bench-frames" {
+            guard let value = Int(benchArguments[index + 1]), (31...360).contains(value) else { fputs("bench frames must be 31...360\n", stderr); exit(2) }
+            benchFrames = value
+        } else {
+            benchWorkload = benchArguments[index + 1]
+            guard ["idle", "active"].contains(benchWorkload) else { fputs("bench workload must be idle or active\n", stderr); exit(2) }
+        }
+    }
+}
+if benchFrames > 0 { setenv("ZINC_BACKGROUND", "1", 1) }
+
 final class ObservatoryModel: ObservableObject {
     @Published var speed = 1.0 { didSet { send() } }
     @Published var paused = false { didSet { send() } }
@@ -20,6 +39,12 @@ final class ZincView: NSView {
     var timer: Timer?
     var serial: UInt64 = 0
     var image: CGImage?
+    var benchCount = 0
+    var firstReady: Double?
+    var previousTick: Double?
+    var intervals: [Double] = []
+    var ticks: [Double] = []
+    var copies: [Double] = []
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(model: ObservatoryModel) {
@@ -35,11 +60,41 @@ final class ZincView: NSView {
     }
     override func viewDidChangeBackingProperties() { super.viewDidChangeBackingProperties(); needsLayout = true }
     func tick() {
+        let start = benchNow()
+        var tickDuration = 0.0
+        var copyDuration = 0.0
+        defer {
+            if benchFrames > 0 {
+                benchCount += 1
+                if benchCount > 30 {
+                    if let previous = previousTick { intervals.append(start - previous) }
+                    ticks.append(tickDuration); copies.append(copyDuration)
+                }
+                previousTick = start
+                if benchCount == benchFrames {
+                    guard let ready = firstReady else { fputs("No native image became ready\n", stderr); exit(1) }
+                    let result: [String: Any] = ["schema": 1, "host": "swift-observatory", "workload": benchWorkload,
+                        "warmup_frames": 30, "total_frames": benchCount, "first_ready_us": ready,
+                        "clock_scope": "host_entry_to_native_image", "interval_us": intervals,
+                        "tick_us": ticks, "copy_us": copies, "sample_count": ticks.count,
+                        "timing_scope": "host wall durations; no GPU completion"]
+                    let data = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+                    print("workflow bench json: " + String(data: data, encoding: .utf8)!); fflush(stdout)
+                    timer?.invalidate(); obs_stop(); NSApp.terminate(nil)
+                }
+            }
+        }
         zn_embed_pause(model.visible && window != nil ? 0 : 1)
-        if zn_embed_tick() < 0 { model.error = "Zinc stopped with an error" }
+        let tickStart = benchNow()
+        if zn_embed_tick() < 0 {
+            if benchFrames > 0 { fputs("Zinc stopped with an error\n", stderr); exit(1) }
+            model.error = "Zinc stopped with an error"
+        }
+        tickDuration = benchNow() - tickStart
         model.receive()
         var frame = ZnEmbedFrame()
         guard zn_embed_frame(&frame) != 0, frame.serial != serial, let pixels = frame.pixels else { return }
+        let copyStart = benchNow()
         serial = frame.serial
         // CGImage owns a copy so a later Zinc tick never mutates a pending draw.
         let data = Data(bytes: pixels, count: Int(frame.stride_bytes * frame.height)) as CFData
@@ -48,6 +103,10 @@ final class ZincView: NSView {
                             bytesPerRow: Int(frame.stride_bytes), space: CGColorSpaceCreateDeviceRGB(),
                             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue).union(.byteOrder32Little),
                             provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        }
+        copyDuration = benchNow() - copyStart
+        if benchFrames > 0 && firstReady == nil && image != nil && window != nil {
+            firstReady = benchNow(); print("workflow ready"); fflush(stdout)
         }
         needsDisplay = true
     }
@@ -116,6 +175,10 @@ final class Delegate: NSObject, NSApplicationDelegate {
     var model: ObservatoryModel?
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = ObservatoryModel(); self.model = model
+        if benchFrames > 0 {
+            if !model.error.isEmpty { fputs("Zinc could not start\n", stderr); exit(1) }
+            model.paused = benchWorkload == "idle"
+        }
         let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 1100, height: 680),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Native Observatory — Swift × Zinc"

@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- Swift Observatory and Pocket Rally accept finite background native performance probes with idle/active workloads, startup readiness and raw host tick/copy samples.
+
 ## [0.8.2] - 2026-10-25
 
 ### Added

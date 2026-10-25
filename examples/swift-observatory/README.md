@@ -91,3 +91,21 @@ Committed text/IME, clipboard and accessibility semantics inside Zinc, gamepad
 navigation, iOS packaging and non-macOS builds are not implemented by this demo.
 Native SwiftUI controls keep their own accessibility. No performance or memory
 claim is made while parallel work is running.
+
+Finite native performance probe (background window, no activation):
+
+```sh
+'examples/swift-observatory/build/Native Observatory.app/Contents/MacOS/Observatory' --bench-frames 330 --bench-workload active
+```
+
+Use `idle` for a paused scene/game. Frames include 30 warmup ticks; 31–360
+are accepted. The host prints `workflow ready` once its native image/view is
+available, then one `workflow bench json: ` record (schema 1) and exits cleanly.
+The record preserves every steady tick interval and host work duration in
+monotonic microseconds, plus startup readiness since host entry. Host work
+measures wall time around native calls and image copy/presentation submission;
+it does not measure GPU completion. Intervals count host ticks, including idle
+ticks without a Zinc redraw, rather than claiming displayed-frame FPS. Run
+`tests/run --tier demo --only native_host_bench` for the short lifecycle proof;
+its timings are discarded. Measure on a quiet Mac and sample process memory
+and CPU separately.

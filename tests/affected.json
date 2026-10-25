@@ -2,9 +2,9 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
-    {"paths": ["examples/swift-observatory/", "tests/t1/swift_observatory.sh", "tests/demo/swift_observatory_native.sh"], "tests": ["swift_observatory", "swift_observatory_native"]},
-    {"paths": ["examples/zinc-libgodot/", "tools/godot/build-lib", "tests/t1/zinc_libgodot.sh"], "tests": ["zinc_libgodot"]},
-    {"paths": ["tests/demo/zinc_libgodot_native.sh"], "tests": ["zinc_libgodot_native"]},
+    {"paths": ["examples/swift-observatory/", "tests/t1/swift_observatory.sh", "tests/demo/swift_observatory_native.sh"], "tests": ["swift_observatory", "swift_observatory_native", "native_host_bench"]},
+    {"paths": ["examples/zinc-libgodot/", "tools/godot/build-lib", "tests/t1/zinc_libgodot.sh"], "tests": ["zinc_libgodot", "native_host_bench"]},
+    {"paths": ["tests/demo/native_host_bench.sh", "tests/demo/zinc_libgodot_native.sh"], "tests": ["zinc_libgodot_native", "native_host_bench"]},
     {"paths": ["examples/godot-zinc-ui/", "tests/t1/godot_zinc_ui.sh", "tests/demo/godot_zinc_ui_visual.sh", "tools/godot/fetch-cpp"], "tests": ["godot_zinc_ui", "godot_zinc_ui_visual"]},
     {"paths": ["examples/godot-to-zinc/", "tools/godot/", "tests/t1/godot_export.sh", "tests/data/godot-export/"], "tests": ["godot_export"]},
     {"paths": ["include/zn/embed.h", "src/app/embed.cpp", "tools/link-embedded", "tests/data/embed/", "tests/t0/embed.sh"], "tests": ["embed"]},

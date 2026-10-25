@@ -65,3 +65,21 @@ multi-instance, footprint or performance claim is made. Distribution signing and
 notarization are not provided. Upstream references:
 [LibGodot FAQ](https://docs.godotengine.org/en/4.6/about/faq.html#is-it-possible-to-use-godot-as-a-library),
 [GodotInstance API](https://docs.godotengine.org/en/4.6/classes/class_godotinstance.html).
+
+Finite native performance probe (background window, no activation):
+
+```sh
+examples/zinc-libgodot/build/rally examples/zinc-libgodot/build/libgodot.dylib --bench-frames 330 --bench-workload active
+```
+
+Use `idle` for a paused scene/game. Frames include 30 warmup ticks; 31–360
+are accepted. The host prints `workflow ready` once its native image/view is
+available, then one `workflow bench json: ` record (schema 1) and exits cleanly.
+The record preserves every steady tick interval and host work duration in
+monotonic microseconds, plus startup readiness since host entry. Host work
+measures wall time around native calls and image copy/presentation submission;
+it does not measure GPU completion. Intervals count host ticks, including idle
+ticks without a Zinc redraw, rather than claiming displayed-frame FPS. Run
+`tests/run --tier demo --only native_host_bench` for the short lifecycle proof;
+its timings are discarded. Measure on a quiet Mac and sample process memory
+and CPU separately.
