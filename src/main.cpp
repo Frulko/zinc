@@ -1111,7 +1111,8 @@ static bool load(const std::string& entry, zn::zbc::Module& zm, bool compiledRun
   loadPlugins(dir / "plugins");
   // compiled with a stand-in because a plugin's native code did not build then: compile again, so the native code is tried again (a cached
   // stand-in outlived the failure that chose it: zinc:3d ran its simulation after its library built again)
-  for (const auto& n : gNativeFallbacks) if (!n.reason.empty()) { zn::log::step("cache", n.module + " was compiled with its stand-in; compiling"); return false; }
+  // a plugin with no native source for this target has nothing to try again: its stand-in is the program (tc/plugin_build.cpp's noSource)
+  for (const auto& n : gNativeFallbacks) if (!n.reason.empty() && n.reason.find("has no native source") == std::string::npos) { zn::log::step("cache", n.module + " was compiled with its stand-in; compiling"); return false; }
   if (hot) *hot = std::move(unit);
   std::error_code ec;
   fs::last_write_time(dir, fs::file_time_type::clock::now(), ec);   // recently run: kept when the cache is trimmed
