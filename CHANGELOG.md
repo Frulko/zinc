@@ -16,6 +16,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the display driver knows the Paper Pro Move and the Paper Pure (their AppLoad framebuffer formats), and draws on the reMarkable 2 through rm2fb when it is installed; an unknown model runs on AppLoad's framebuffer with a message naming it.
 - PSP and PS Vita: a project's asset groups (`packs/<group>.zpk`) are read from the memory stick or the app's folder while the program runs, on a reader thread, as on the 3DS. `tools/console-demos` writes them beside the PSP's `EBOOT.PBP` (with `default.zpk`, which the EBOOT no longer carries) and into the Vita's .vpk.
 - The `night` option of a picture's asset rule accepts `{base}`, the file name before its first dot: `"night": "{base}.night.png"` pairs `b12.near.png` with `b12.night.png`.
+- Tokyo draws its near level on the PSP and the PS Vita, and its first frames behind the loading screen: no more hitch when the flight starts.
 
 ### Changed (breaking)
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).

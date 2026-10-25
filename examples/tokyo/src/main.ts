@@ -48,18 +48,23 @@ let tapFrame: i32 = tapAt.length === 3 ? parseInt(tapAt[0], 10) : -1, ran: i32 =
 const ahead: number[] = [0, 0, 0, 0, 0, 0];
 const spot: number[] = [0, 0, 0];
 function aheadAt(k: i32, s: number): void { flight.ahead(s, spot); ahead[k * 3] = spot[0]; ahead[k * 3 + 1] = spot[1]; ahead[k * 3 + 2] = spot[2]; }
-let loading = true, loaded: i32 = 0, frame: i32 = 0;
+let loading = true, loaded: i32 = 0, frame: i32 = 0, warm: i32 = -1;
+const WARM_FRAMES: i32 = 3;   // frames of the city rendered behind the loading screen once its chunks are read
 // the first 300 frames after the loading, measured by the device's clock and printed once (docs/reports/tokyo-per-device.md)
 const works: number[] = [];
+const worstParts: number[] = [0, 0, 0, 0];   // the slowest frame: its work, read, select and render
 let inRead = 0, inSelect = 0, inRender = 0, loadsBefore: i32 = 0, drawSum = 0, triSum = 0, panelBefore = 0;
 function measure(readMs: number, selectMs: number, renderMs: number, workMs: number): void {
   if (works.length >= 300) return;
   const world = city.world;
   if (works.length === 0) panelBefore = panelMs;
+  if (works.length === 0 || workMs > worstParts[0]) { worstParts[0] = workMs; worstParts[1] = readMs; worstParts[2] = selectMs; worstParts[3] = renderMs; }
   works.push(workMs); inRead += readMs; inSelect += selectMs; inRender += renderMs; drawSum += world.draws; triSum += world.triangles;
   if (works.length < 300) return;
   const s = works.slice(0).sort((a: number, b: number): number => a - b), f = (v: number): string => v.toFixed(1);
-  console.log(`tokyo: ${dev.name}, 300 frames after the loading: work p50 ${f(s[150])} p95 ${f(s[285])} max ${f(s[299])} ms; ` +
+  let worst: i32 = 0;
+  for (let i: i32 = 1; i < 300; i++) if (works[i] > works[worst]) worst = i;
+  console.log(`tokyo: ${dev.name}, 300 frames after the loading: work p50 ${f(s[150])} p95 ${f(s[285])} max ${f(s[299])} ms (frame ${worst}: read ${f(worstParts[1])}, select ${f(worstParts[2])}, render ${f(worstParts[3])}); ` +
     `read ${f(inRead / 300)}, select ${f(inSelect / 300)}, render ${f(inRender / 300)}, panel ${(Math.max(0, panelMs - panelBefore) / 300).toFixed(2)} ms a frame; ` +
     `${city.loads - loadsBefore} chunks read; ` +
     `${Math.round(triSum / 300)} triangles and ${Math.round(drawSum / 300)} draws a frame, reaches at ${world.reachScale.toFixed(2)}`);
@@ -88,15 +93,33 @@ onFrame((dt: number) => {
   if (frame === 1) camera.render(scene, 0, 0, width(), height());
   if (frame === 2) panel.prepare();   // the map picture, behind the loading screen
   const w = width(), h = height();
-  if (loading) {
+  if (loading || warm > 0) {
     aim(0); aheadAt(0, 4); aheadAt(1, 8);
+    // the hour's night before the chunks load: a renderer sends their night pictures to the GPU only once the dusk has begun (the 3DS)
+    sky.update(scene, flight.hour, DAY_OF_YEAR, flight.eye, FAR_PLANE * 0.8);
+    city.setNight(dev.night ? sky.night : 0);
+    if (!loading) {
+      // the first frames of the city drawn behind the loading screen: their pictures, palettes, shadows and lists made before the flight
+      // (the first frame after the loading took 26 to 62 ms on the consoles)
+      const fog = scene.fog;
+      if (fog !== null) fog.color = scene.background;
+      city.select(camera, w / h, ahead, 0);
+      city.serve(dev.readMs);
+      camera.render(scene, 0, 0, w, h);
+      if (--warm === 0) loadsBefore = city.loads;
+    }
     const started = clock();
     while (loading && clock() - started < 30) {
       city.select(camera, w / h, ahead, 0);
       if (city.complete()) loading = false;
-      else loaded += city.serve(30 - (clock() - started));
+      else {
+        const wanted = city.world.missing.length, n = city.serve(30 - (clock() - started));
+        loaded += n;
+        // some on their way from the reader thread (the card, a console's other core): the frame ends, the thread reads while it waits
+        if (n < wanted) break;
+      }
     }
-    if (!loading) { console.log(`tokyo: ${loaded} chunks read in ${frame} frames`); loadsBefore = city.loads; }
+    if (!loading && warm < 0) { console.log(`tokyo: ${loaded} chunks read in ${frame} frames`); warm = WARM_FRAMES; }
     clear(0x0b0d14);
     const text = `Pocket Tokyo  ${loaded} chunks`;
     drawText(LOADING, (width() - textWidth(LOADING, text, 0)) / 2, height() / 2 - 8, text, 0xf4f4f5, 255, 0);
