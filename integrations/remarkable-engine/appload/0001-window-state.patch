@@ -1,0 +1,236 @@
+From 5dd4de286a68fe3fb699907adc59ccce69f923f3 Mon Sep 17 00:00:00 2001
+From: Guillaume Dumoulin <dev@myrole.fr>
+Date: Sun, 25 Oct 2026 22:09:10 +0100
+Subject: [PATCH] qtfb: let a client minimize/restore its window and learn its
+ visibility
+
+Adds MESSAGE_SET_WINDOW_STATE (9) with an int windowState payload
+(0 = minimize, 1 = restore). The window minimizes the same way the "_"
+button does (leaving fullscreen first) and, for apps that disable
+windowed mode, goes back to fullscreen on restore.
+
+Adds STATE_CHANGED_REASON_VISIBILITY (1): the server sends it in the
+initial state packets and with MESSAGE_DEVICE_STATE_CHANGED whenever the
+window is minimized or restored, so a client knows when it is hidden and
+that the server understands MESSAGE_SET_WINDOW_STATE.
+
+The "_" button stays visible while a window is minimized, so a
+fullscreen-only app that minimized itself can be brought back.
+---
+ resources/qml/window.qml  | 33 +++++++++++++++++++++++++++++++--
+ src/qtfb/FBController.cpp | 16 +++++++++++++++-
+ src/qtfb/FBController.h   |  5 +++++
+ src/qtfb/common.h         |  9 +++++++++
+ src/qtfb/fbmanagement.cpp | 13 +++++++++++++
+ 5 files changed, 73 insertions(+), 3 deletions(-)
+
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index e2d1a31..6b9eded 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -32,6 +32,8 @@ FocusScope {
+     // This is defined like that so as it doesn't interfere with minimization
+     property var _height: root.globalHeight / 3
+     property var beforeFullscreenData: null
++    // Set when the client minimized itself from fullscreen (MESSAGE_SET_WINDOW_STATE)
++    property bool restoreToFullscreen: false
+ 
+     // Keyboard handling:
+     property var virtualKeyboardLayout: null
+@@ -89,6 +91,22 @@ FocusScope {
+         }
+     }
+ 
++    // Window state requested by the qtfb client itself.
++    function clientMinimize() {
++        if(minimized) return;
++        restoreToFullscreen = fullscreen && disablesWindowedMode;
++        if(fullscreen) maximize(); // Cannot have a full screen minimized app.
++        minimized = true;
++    }
++    function clientRestore() {
++        if(!minimized) return;
++        minimized = false;
++        if(restoreToFullscreen) {
++            restoreToFullscreen = false;
++            maximize();
++        }
++    }
++
+     AppLoadLibrary {
+         id: library
+         onPidDied: (pid) => {
+@@ -293,7 +311,8 @@ FocusScope {
+             border.width: 2
+             border.color: "black"
+             color: parent.color
+-            visible: !root.disablesWindowedMode
++            // Shown while minimized too, so a fullscreen-only app the client minimized can be brought back.
++            visible: !root.disablesWindowedMode || root.minimized
+ 
+             Text {
+                 anchors.fill: parent
+@@ -306,8 +325,12 @@ FocusScope {
+             MouseArea {
+                 anchors.fill: parent
+                 onClicked: () => {
++                    if(minimized) {
++                        clientRestore();
++                        return;
++                    }
+                     if(fullscreen) maximize(); // Cannot have a full screen minimized app.
+-                    minimized = !minimized;
++                    minimized = true;
+                 }
+             }
+         }
+@@ -412,6 +435,12 @@ FocusScope {
+ 
+             fbRotation: !supportsRotation ? FBController.Deg0 : fullscreen ? root.globalRotation : root.windowRotation
+             sendFlippedRotationToClient: false
++            clientVisible: !root.minimized
++
++            onWindowStateRequested: (state) => {
++                if(state == 0) root.clientMinimize();
++                else root.clientRestore();
++            }
+ 
+             onActiveChanged: () => {
+                 if(!windowCanvas.active) {
+diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
+index 339e3ee..cbb05e2 100644
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -351,7 +351,21 @@ qtfb::DeviceStateChangedContents FBController::formRotationChangePacket() {
+ }
+ 
+ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialStatePackets() {
+-    return { formRotationChangePacket() };
++    return { formRotationChangePacket(), formVisibilityChangePacket() };
++}
++
++qtfb::DeviceStateChangedContents FBController::formVisibilityChangePacket() {
++    qtfb::DeviceStateChangedContents dscc = {
++        .reason = STATE_CHANGED_REASON_VISIBILITY,
++        .visibility = { clientVisible ? 1 : 0 },
++    };
++    return dscc;
++}
++
++void FBController::setClientVisible(bool visible) {
++    if(visible == clientVisible) return;
++    clientVisible = visible;
++    qtfb::management::sendDeviceStateChange(framebufferID, formVisibilityChangePacket());
+ }
+ 
+ void FBController::setFbRotation(Rotation rotation) {
+diff --git a/src/qtfb/FBController.h b/src/qtfb/FBController.h
+index dba4f3b..b363449 100644
+--- a/src/qtfb/FBController.h
++++ b/src/qtfb/FBController.h
+@@ -27,6 +27,7 @@ class FBController : public QQuickPaintedItem
+     Q_PROPERTY(FillMode fillMode MEMBER fillMode)
+     Q_PROPERTY(Rotation fbRotation MEMBER fbRotation WRITE setFbRotation NOTIFY fbRotationChanged)
+     Q_PROPERTY(bool sendFlippedRotationToClient MEMBER sendFlippedRotationToClient)
++    Q_PROPERTY(bool clientVisible MEMBER clientVisible WRITE setClientVisible)
+     Q_OBJECT
+ public:
+     explicit FBController(QQuickItem *parent = nullptr) : QQuickPaintedItem(parent) { setAcceptTouchEvents(true); setAcceptedMouseButtons((Qt::MouseButtons) 0xFFFFFFFF); setFocusPolicy(Qt::StrongFocus); }
+@@ -65,6 +66,7 @@ public:
+     void associateSHM(QImage *image);
+     std::vector<struct qtfb::DeviceStateChangedContents> buildInitialStatePackets();
+     void setFbRotation(Rotation rotation);
++    void setClientVisible(bool visible);
+ 
+     std::optional<QPoint> convertPointToQTFBPixels(const QPointF &input);
+     QRect convertQTFBRectToScreen(const QRect &input);
+@@ -88,6 +90,7 @@ signals:
+     void refreshModeChanged();
+     void framebufferSizeChanged();
+     void fbRotationChanged();
++    void windowStateRequested(int windowState);
+ 
+ private:
+     int framebufferID = -1;
+@@ -96,6 +99,7 @@ private:
+     Rotation fbRotation = Deg0;
+     bool allowScaling = false;
+     bool sendFlippedRotationToClient = false;
++    bool clientVisible = true;
+     FillMode fillMode = Stretch;
+ 
+     bool checkingGestureDragDown = false;
+@@ -105,4 +109,5 @@ private:
+ 
+     void mouseEvent(QMouseEvent *me, int inputType);
+     qtfb::DeviceStateChangedContents formRotationChangePacket();
++    qtfb::DeviceStateChangedContents formVisibilityChangePacket();
+ };
+diff --git a/src/qtfb/common.h b/src/qtfb/common.h
+index 122a516..e5e5982 100644
+--- a/src/qtfb/common.h
++++ b/src/qtfb/common.h
+@@ -23,6 +23,7 @@
+ #define MESSAGE_REQUEST_FULL_REFRESH 6
+ #define MESSAGE_DEVICE_STATE_CHANGED 7
+ #define MESSAGE_DEVICE_STATE_INIT 8
++#define MESSAGE_SET_WINDOW_STATE 9
+ 
+ #define FBFMT_RM2FB 0
+ #define FBFMT_RMPP_RGB888 1
+@@ -62,6 +63,10 @@
+ #define INPUT_VKB_RELEASE 0x41
+ 
+ #define STATE_CHANGED_REASON_ROTATION 0
++#define STATE_CHANGED_REASON_VISIBILITY 1
++
++#define WINDOW_STATE_MINIMIZE 0
++#define WINDOW_STATE_RESTORE 1
+ 
+ #define ROTATION_0 0
+ #define ROTATION_L90 1
+@@ -105,6 +110,9 @@ namespace qtfb {
+             struct {
+                 int rotation;
+             } rotation;
++            struct {
++                int visible; // 1 = shown, 0 = minimized
++            } visibility;
+         };
+     };
+ 
+@@ -116,6 +124,7 @@ namespace qtfb {
+             struct CustomInitMessageContents customInit;
+             // struct TerminateMessageContents terminate; - Terminate does not send any data.
+             int refreshMode;
++            int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / WINDOW_STATE_RESTORE
+             // no full refresh - Force full refresh does not send any data.
+         };
+     };
+diff --git a/src/qtfb/fbmanagement.cpp b/src/qtfb/fbmanagement.cpp
+index 13fb821..f7b4da3 100644
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -344,6 +344,19 @@ static void managementClientThread(int incomingFD) {
+                     return RESP_OK;
+                 });
+                 break;
++            case MESSAGE_SET_WINDOW_STATE:
++                status = invokeOnConnectedFramebuffer(&connection, [=](auto controller) {
++                    int state = inboundMessage.windowState;
++                    if(state != WINDOW_STATE_MINIMIZE && state != WINDOW_STATE_RESTORE) {
++                        CERR << "The client tried to set the window state to an undefined value!" << std::endl;
++                        return RESP_ERR;
++                    }
++                    QMetaObject::invokeMethod(controller, [controller, state]() {
++                        emit controller->windowStateRequested(state);
++                    });
++                    return RESP_OK;
++                });
++                break;
+             default:
+                 CERR << "Client has tried to send a message with an invalid type: " << inboundMessage.type << std::endl;
+                 goto close;
+-- 
+2.50.1 (Apple Git-155)
+
