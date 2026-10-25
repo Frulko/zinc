@@ -128,6 +128,7 @@ events = []
 for clip, frames, strength in [('Idle', 48, .04), ('Walk', 24, .45), ('Run', 16, .85)]:
     rig.animation_data_create()
     action = bpy.data.actions.new(clip)
+    action.use_fake_user = True
     rig.animation_data.action = action
     for frame in range(frames + 1):
         scene.frame_set(frame)
@@ -157,6 +158,12 @@ scene.frame_set(0)
 for pose in rig.pose.bones:
     pose.rotation_euler = (0, 0, 0)
     pose.location = (0, 0, 0)
+library = bpy.data.collections.new('Companion')
+scene.collection.children.link(library)
+for obj in (mesh, rig):
+    for old in list(obj.users_collection):
+        old.objects.unlink(obj)
+    library.objects.link(obj)
 scene.frame_start = 0
 scene.frame_end = 48
 (HERE.parent / 'assets').mkdir(exist_ok=True)
