@@ -291,6 +291,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-842: forget a paired device from the admin page.
 - ZN-842: HTTPS for a hub outside the LAN (serveAsync's tls option).
 - ZN-842: run the hub on a Pi and on a reMarkable (cross-platform pass).
+- ZN-841: notes' RmppRefresh project native module falls back to its sim stand-in on the tablet engine; move the refresh switch into display-rmpp (a zinc:gfx/plugin API) so packed apps keep Colour preview.
+- ZN-841: zinc-tile could take the app's own icon from the .zapp (zinc.json app.icon) instead of the shared one.
+- ZN-841: on a reMarkable the engine takes the display size from zinc.json targets.linux and runs headless without it; default to the model row's size.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
 - ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
