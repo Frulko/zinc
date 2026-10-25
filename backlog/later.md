@@ -253,6 +253,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-792: run zinc_go_device on an Android emulator (arm64 API 37 image) beside the Nexus 7.
 - ZN-790: `zinc pack`/`zinc check` say so when zinc.json's `assets` is a string or points outside the project: n3ds-pinball's `"assets": "../hardware-n3ds/assets"` was dropped silently and the ball was missing on the 3DS.
 
+- ZN-477: `vita-elf-create` fails with "Cannot allocate N bytes for SCE data at end of segment 0; segment 1 overlaps" when the text segment ends less than ~2.7 KiB before a 4 KiB page (seen on a gl-check core, 2026-10-25): any program size can hit it. Reserve the room in vita.cmake (a second link with padding, or a linker script) instead of luck.
+
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
