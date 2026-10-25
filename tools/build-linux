@@ -68,7 +68,14 @@ EOF
 command -v file >/dev/null && file -b "$dir/zinc"
 [ -n "$package" ] || exit 0
 # the plugins of the package are cross-built by a zinc of this machine (tools/package, ZN-823): $ZINC, else build/zinc, built here when missing
-[ -n "$ZINC" ] || [ -x "$next/build/zinc" ] || BUILD_DIR=$next/build "$here/build" zinc || exit 1
+if [ -z "$ZINC" ] && [ ! -x "$next/build/zinc" ]; then
+  if [ "$(uname -s)" = Linux ]; then   # a Linux runner has no X11/Wayland headers for a window build: the zinc just built when it runs here, else a headless one
+    host=$(uname -m)
+    if [ "$host" = "$arch" ] && [ $libc = gnu ]; then ZINC=$dir/zinc
+    else "$0" --arch "$host" --headless --no-package || exit 1; ZINC=$next/build-linux-$host/zinc; fi
+    export ZINC
+  else BUILD_DIR=$next/build "$here/build" zinc || exit 1; fi
+fi
 python3 "$here/package" --build "$dir" --out "$next/dist/linux-$arch" --linux-arch $arch
 case $? in 0|3) ;; *) exit 1 ;; esac
 echo "build-linux: $(ls -t "$next/dist/linux-$arch"/zinc-*.tar.gz | head -1)"
