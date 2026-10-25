@@ -1,0 +1,1 @@
+{"name":"warehouse","kind":"module","module":"zinc:warehouse","entry":"index.ts","deterministic":true,"description":"Bounded state and actions between the Warehouse game and Zinc UI","targets":{"macos":{}}}

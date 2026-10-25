@@ -1,0 +1,10 @@
+config_version=5
+[application]
+config/name="Godot Warehouse + Zinc UI"
+run/main_scene="res://warehouse.tscn"
+[display]
+window/size/viewport_width=1100
+window/size/viewport_height=700
+[rendering]
+renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.05,0.09,0.13,1)

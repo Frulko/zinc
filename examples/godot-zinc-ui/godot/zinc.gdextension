@@ -1,0 +1,6 @@
+[configuration]
+entry_symbol="zinc_library_init"
+compatibility_minimum="4.5"
+[libraries]
+macos.debug.arm64="res://bin/libzinc_godot.dylib"
+macos.release.arm64="res://bin/libzinc_godot.dylib"

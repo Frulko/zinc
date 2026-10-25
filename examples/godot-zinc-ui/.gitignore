@@ -1,0 +1,3 @@
+build/
+godot/.godot/
+godot/bin/*.dylib

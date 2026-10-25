@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Refreshed pinball cabinets: clearer score panels and launch instructions, Kenney CC0 ball and spark sprites, darker Tidal Lock art, and mechanical bumper and slingshot recoil.
 - `tools/build-console-core <psp|vita|n3ds> --aot <project>` compiles the program into the console build instead of interpreting it (PSP, PS Vita, 3DS): about 1.8 times faster program code, and a smaller binary.
 - `examples/swift-observatory` builds a macOS SwiftUI app with a live embedded Zinc scene, native speed/pause controls and two-way object selection.
+- Godot Warehouse (`examples/godot-zinc-ui`) hosts a real Zinc inventory/search/settings interface in a native GDExtension, with bidirectional game actions, focus routing and premultiplied transparent output.
 - Parcel Yard (`examples/godot-to-zinc`) exports an editable Godot scene with stable object IDs and shared assets, then runs Zinc-written movement and gate interactions without Godot. Unsupported behavior fails before publication.
 
 - Native hosts can drive one Zinc program offscreen through a C surface API, with input, resize, pause and premultiplied alpha output.

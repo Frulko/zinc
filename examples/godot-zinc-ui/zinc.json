@@ -1,0 +1,1 @@
+{"name":"godot-warehouse-ui","entry":"src/main.tsx","app":{"name":"Warehouse UI","id":"org.zinc.godot-warehouse-ui","version":"1.0.0","orientation":"landscape"},"permissions":[],"targets":{"macos":{"width":400,"height":600}}}

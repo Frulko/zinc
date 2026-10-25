@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(zinc_godot LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(GODOTCPP_BUILD_PROFILE "${CMAKE_CURRENT_SOURCE_DIR}/profile.json" CACHE PATH "" FORCE)
+set(GODOTCPP_TARGET template_release CACHE STRING "" FORCE)
+add_subdirectory("${GODOT_CPP}" godot-cpp)

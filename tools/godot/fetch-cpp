@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+cache=${ZINC_GODOT_CACHE:-${TMPDIR:-/tmp}/zinc-godot-4.6}
+commit=e83fd0904c13356ed1d4c3d09f8bb9132bdc6b77
+folder="$cache/godot-cpp-$commit"
+if [ ! -f "$folder/CMakeLists.txt" ]; then
+  mkdir -p "$cache"
+  curl -fL --silent --show-error "https://github.com/godotengine/godot-cpp/archive/$commit.tar.gz" -o "$cache/godot-cpp.tar.gz"
+  printf '%s  %s\n' d4c03daf46c8bef4544614182b0762c3e32789151c7f8f44e8eb2053d5cddeba "$cache/godot-cpp.tar.gz" | shasum -a 256 -c - >&2
+  tar -xzf "$cache/godot-cpp.tar.gz" -C "$cache"
+fi
+printf '%s\n' "$folder"
