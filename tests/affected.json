@@ -134,6 +134,7 @@
     {"paths": ["lib/std/react-native.tsx", "lib/std/icons.tsx", "lib/std/ui.ts", "tests/golden/rn-idle/"], "tests": ["rn_idle"]},
     {"paths": ["examples/rn-port/", "tests/golden/rn-port/"], "tests": ["rn_port"]},
     {"paths": ["examples/rn-tester/", "tests/golden/rn-tester/"], "tests": ["rn_tester"]},
+    {"paths": ["examples/tokyo/", "tests/t1/tokyo.sh"], "tests": ["tokyo"]},
     {"paths": ["examples/js-three/", "tests/golden/js-examples/three.input", "third_party/three/"], "tests": ["example_js_three"]},
     {"paths": ["examples/js-spline/", "tests/golden/js-examples/spline.input", "tests/golden/js-examples/spline-blob.png", "tests/t1/example_js_spline.sh"], "tests": ["example_js_spline"]},
     {"paths": ["examples/js-phaser/", "tests/golden/js-examples/phaser.input", "third_party/phaser/"], "tests": ["example_js_phaser"]},

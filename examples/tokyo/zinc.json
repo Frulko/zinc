@@ -1,0 +1,21 @@
+{
+  "name": "tokyo",
+  "entry": "src/main.ts",
+  "app": { "name": "Pocket Tokyo", "id": "dev.zinc.tokyo", "version": "0.1.0", "orientation": "landscape" },
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      { "match": "city/*.glb", "as": "model", "format": "zmesh" },
+      { "match": "city/*.png", "as": "texture", "mipmaps": false },
+      { "match": "city/*.near.{glb,png}", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
+      { "match": "city/landmark*.near.glb", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true } } },
+      { "match": "city/*night*.png", "targets": { "psp": { "skip": true } } },
+      { "match": "city/b*.png", "targets": { "psp": { "maxSize": 64 }, "n3ds": { "maxSize": 128 }, "vita": { "maxSize": 128 } } },
+      { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 256 }, "n3ds": { "maxSize": 256 } } }
+    ]
+  },
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}
