@@ -1,0 +1,40 @@
+#!/bin/sh
+# zinc dev --device --perf (ZN-819), on the loopback interface: the program on the device starts with the performance panel
+# (ZINC_PERF_HUD=1 in its environment, read with ps); --live starts zinc device <d> screen --live beside the session and ends it with
+# the session; --live without --device is refused with the way out.
+cd "$(dirname "$0")/../.." || exit 2
+Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
+tmp=$(mktemp -d)
+D="$tmp/device" W="$tmp/work" name="zn-p$$" fail=0
+cleanup() { kill $dpid $apid 2>/dev/null; wait $dpid $apid 2>/dev/null; rm -rf "$tmp"; }
+trap cleanup EXIT
+until_grep() { n=0; while [ $n -lt 200 ] && ! grep -q "$1" "$2" 2>/dev/null; do sleep 0.05; n=$((n+1)); done; grep -q "$1" "$2" 2>/dev/null; }
+
+ZINC_HOME="$D" ZINC_HEADLESS=1 "$Z" agent --bind 127.0.0.1 --port 0 --no-mdns --name "$name" > "$tmp/agent.log" 2>&1 & apid=$!
+until_grep "pairing code" "$tmp/agent.log" || { echo "the agent did not start: $(cat "$tmp/agent.log")"; exit 1; }
+port=$(sed -n 's/.*listening on 127.0.0.1:\([0-9]*\).*/\1/p' "$tmp/agent.log")
+ZINC_HOME="$W" "$Z" device pair "127.0.0.1:$port" "$(sed -n 's/.*pairing code: \([0-9]*\).*/\1/p' "$tmp/agent.log")" > /dev/null || { echo "pairing failed"; exit 1; }
+
+P="$tmp/perfd"
+mkdir -p "$P/src"
+printf '{"name":"perfd","entry":"src/main.ts"}\n' > "$P/zinc.json"
+printf "console.log('ready');\nsetInterval(() => {}, 1000);\n" > "$P/src/main.ts"
+ZINC_HOME="$W" "$Z" dev "$P" --device "$name" --perf > "$tmp/dev.log" 2>&1 & dpid=$!
+until_grep "^ready" "$tmp/dev.log" || { echo "the project did not start on the device: $(cat "$tmp/dev.log")"; exit 1; }
+pid=$(pgrep -f "$D/agent/dev/.*/program.zbc" | head -1)
+[ -n "$pid" ] || { echo "no program of the session on the device"; exit 1; }
+ps eww -p "$pid" | grep -q "ZINC_PERF_HUD=1" || { echo "the program on the device has no ZINC_PERF_HUD=1"; fail=1; }
+kill $dpid; wait $dpid 2>/dev/null
+
+ZINC_HOME="$W" ZINC_HEADLESS=1 "$Z" dev "$P" --device "$name" --live > "$tmp/live.log" 2>&1 & dpid=$!
+until_grep "^ready" "$tmp/live.log" || { echo "the --live session did not start: $(cat "$tmp/live.log")"; exit 1; }
+n=0; while [ $n -lt 60 ] && ! pgrep -f "device $name screen --live" > /dev/null; do sleep 0.05; n=$((n+1)); done
+pgrep -f "device $name screen --live" > /dev/null || { echo "no live viewer beside the session: $(cat "$tmp/live.log")"; fail=1; }
+kill $dpid; wait $dpid 2>/dev/null; sleep 0.3
+pgrep -f "device $name screen --live" > /dev/null && { echo "the live viewer outlived the session"; pkill -f "device $name screen --live"; fail=1; }
+
+out=$(ZINC_HOME="$W" "$Z" dev "$P" --live 2>&1) && { echo "--live without --device ran: $out"; fail=1; }
+case $out in *"goes with --device"*) ;; *) echo "--live without --device: $out"; fail=1;; esac
+
+[ $fail -eq 0 ] && echo "agent_dev_perf: ok"
+exit $fail

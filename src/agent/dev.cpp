@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -75,7 +76,7 @@ void stop(Program& p, std::mutex& displayMu) {
 }
 
 // `zinc run program.zbc` in `dir`, in a session of its own: its output in a pipe, its dev socket as descriptor 3.
-bool launch(Program& p, const std::string& self, const std::string& dir, const std::vector<std::string>& args, std::string& err, std::mutex& displayMu) {
+bool launch(Program& p, const std::string& self, const std::string& dir, const std::vector<std::string>& args, const std::vector<std::string>& extra, std::string& err, std::mutex& displayMu) {
   int out[2] = {-1, -1}, sv[2] = {-1, -1};
   const int null = ::open("/dev/null", O_RDONLY);
   if (null < 0 || ::pipe(out) != 0 || ::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
@@ -91,7 +92,10 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   }
   if (!args.empty()) argv.push_back("--");
   argv.insert(argv.end(), args.begin(), args.end());
-  std::vector<std::string> env = environment({{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"}});   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
+  std::vector<std::pair<std::string, std::string>> vars = {{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"}};   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
+  for (const std::string& kv : extra)   // zinc dev --perf and the like: the engine's own switches only
+    if (kv.rfind("ZINC_", 0) == 0 && kv.find('=') != std::string::npos) vars.emplace_back(kv.substr(0, kv.find('=')), kv.substr(kv.find('=') + 1));
+  std::vector<std::string> env = environment(vars);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
   int gate[2];
   if (::pipe(gate) != 0) { err = "cannot create display gate"; for (const int fd : {null, out[0], out[1], sv[0], sv[1]}) ::close(fd); return false; }
@@ -139,7 +143,7 @@ bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const st
   std::uint64_t files = 0, bytes = 0;
   std::string err;
   if (m.flag("files") && !recvTree(c, dir, files, bytes, err)) return refuse(c, err);
-  if (!launch(p, self, dir, m.strs("args"), err, displayMu)) return refuse(c, err);
+  if (!launch(p, self, dir, m.strs("args"), m.strs("env"), err, displayMu)) return refuse(c, err);
   return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
 }
 
@@ -234,9 +238,38 @@ struct Session {
   std::unique_ptr<Chan> c;
   std::string self, engine, device, tmp, profile;   // profile: a player's (zinc pack --profile)
   std::map<std::string, std::string> there;   // what the device holds: member -> SHA-256
-  bool running = false;
+  std::vector<std::string> env;   // KEY=VALUE for the program there (--perf)
+  bool running = false, live = false;   // live: --live, the device's screen in a window here while the session runs
+  pid_t viewer = -1;
+  std::chrono::steady_clock::time_point viewerTried{};
 
-  ~Session() { std::error_code ec; if (!tmp.empty()) fs::remove_all(tmp, ec); }
+  ~Session() {
+    std::error_code ec;
+    if (!tmp.empty()) fs::remove_all(tmp, ec);
+    if (viewer > 0) { ::kill(viewer, SIGTERM); ::waitpid(viewer, nullptr, 0); }
+  }
+
+  // zinc device <d> screen --live beside the session. A first start on a small board can take longer than the viewer waits for a frame:
+  // a viewer that failed is started again 10 s later; one the person closed stays closed.
+  void watch() {
+    if (!live) return;
+    int status = 0;
+    if (viewer > 0 && ::waitpid(viewer, &status, WNOHANG) == viewer) {
+      viewer = -1;
+      if (WIFEXITED(status) && WEXITSTATUS(status) == 0) { live = false; return; }
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (viewer > 0 || !running || now - viewerTried < std::chrono::seconds(10)) return;
+    viewerTried = now;
+    viewer = ::fork();
+    if (viewer == 0) {
+      const int null = ::open("/dev/null", O_WRONLY);
+      ::dup2(null, 1);
+      ::dup2(null, 2);
+      ::execl(self.c_str(), self.c_str(), "device", device.c_str(), "screen", "--live", static_cast<char*>(nullptr));
+      ::_exit(127);
+    }
+  }
 
   void show(char type, const std::string& payload) {
     if (type == kOut || type == kErr) writeAll(type == kOut ? STDOUT_FILENO : STDERR_FILENO, payload.data(), payload.size());
@@ -249,6 +282,7 @@ struct Session {
     char type = 0;
     std::string payload;
     while (next(*c, type, payload)) show(type, payload);
+    watch();
     return open;
   }
 
@@ -284,8 +318,10 @@ struct Session {
     }
     for (const auto& [name, sha] : there) if (!over && !now.count(name)) gone.push_back(jsonText(name));
     for (const std::string& a : args) argv.push_back(jsonText(a));
+    std::vector<std::string> vars;
+    for (const std::string& kv : env) vars.push_back(jsonText(kv));
     const std::string lost = "the session with " + device + " ended";
-    if (!send(*c, kJson, Obj().flag("start", true).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).done())) { out = lost; return false; }
+    if (!send(*c, kJson, Obj().flag("start", true).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).raw("env", array(vars)).done())) { out = lost; return false; }
     std::uint64_t sentFiles = 0, sentBytes = 0;
     if (changed) sendTree(*c, stage, sentFiles, sentBytes, err, progress(stage));   // a failure here is told to the device, whose refusal is the answer read below
     char type = 0;
@@ -312,6 +348,11 @@ static std::string series(const std::string& v) { return v.substr(0, v.find('.',
 
 bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, bool force, zn::cli::DevRemote& remote) {
   std::string device;
+  bool perf = false, live = false;
+  for (std::size_t i = 0; i < args.size() && args[i] != "--";) {   // --perf and --live belong to --device
+    if (args[i] == "--perf" || args[i] == "--live") { (args[i] == "--perf" ? perf : live) = true; args.erase(args.begin() + static_cast<std::ptrdiff_t>(i)); }
+    else ++i;
+  }
   for (std::size_t i = 0; i < args.size() && args[i] != "--"; ++i) {
     if (args[i] != "--device") continue;
     if (i + 1 >= args.size()) { std::fprintf(stderr, "zinc dev: --device takes the name of a paired device (zinc device list)\n"); return false; }
@@ -319,7 +360,11 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
     args.erase(args.begin() + static_cast<std::ptrdiff_t>(i), args.begin() + static_cast<std::ptrdiff_t>(i) + 2);
     break;
   }
-  if (device.empty()) return true;
+  if (device.empty()) {
+    if (live) { std::fprintf(stderr, "zinc dev: --live shows a device's screen: it goes with --device <name>\n"); return false; }
+    if (perf) ::setenv("ZINC_PERF_HUD", "1", 1);   // here: the panel over the window (Cmd/Ctrl+Shift+P toggles it)
+    return true;
+  }
   ::signal(SIGPIPE, SIG_IGN);
   const auto s = std::make_shared<Session>();
   std::string answer, tmp = (fs::temp_directory_path() / "zinc-dev-XXXXXX").string();
@@ -347,6 +392,9 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   s->self = self;
   s->engine = engine;
   s->tmp = tmp;
+  if (perf) s->env.push_back("ZINC_PERF_HUD=1");
+  s->live = live;
+  if (live) std::fprintf(stderr, "zinc dev: the screen of %s opens in a window here once the program shows a frame (close it to stop watching)\n", s->device.c_str());
   remote.start = [s](const std::string& dir, const std::vector<std::string>& a, bool over, std::string& out) { return s->start(dir, a, over, out); };
   remote.assets = [s](const std::string& messages) { return s->assets(messages); };
   remote.poll = [s] { return s->poll(); };

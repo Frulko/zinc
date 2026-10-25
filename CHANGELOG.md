@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev <project> --device <name> --perf` shows the performance panel over the program on the device, and `--live` opens the device's screen in a window here for the session. `zinc dev --perf` shows the panel on this computer.
 - Nintendo 3DS: hold START and SELECT for a second to leave a program and go back to the Homebrew Launcher.
 - PS Vita: zinc:3d draws on the GPU (GXM) in the default core: lights, flat and smooth shading, vertex colours, textures, blending and emissive colours, composed with the 2D frame; `ZINC_3D=software` keeps the CPU renderer. examples/3d/cubes takes 0.7 ms a frame instead of 6.7 in Vita3K.
 - PS Vita: the default GXM core draws rounded rectangles, borders, shadows, filled paths and vertical and horizontal gradients on the GPU, like the PSP and the 3DS; such frames were drawn in software before. A frame with a radial gradient, a rounded clip or a rotation still is. `ZINC_VITA_GPU=0` keeps the software path.
