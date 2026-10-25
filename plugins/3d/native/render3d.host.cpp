@@ -922,7 +922,7 @@ struct Engine : NativeRender3D {
       memset(&c, 0, sizeof c);
       for (int a = 0; a < 3; a++) { c.mn[a] = rdf(q + 4 * a); c.mx[a] = rdf(q + 12 + 4 * a); }
       c.reach[0] = rdf(q + 24); c.reach[1] = rdf(q + 28);
-      for(int a=0;a<3;a++)if(!isfinite(c.mn[a])||!isfinite(c.mx[a])||c.mn[a]>c.mx[a]){free(p);destroyWorld(w);return -1;}
+      for(int a=0;a<3;a++)if(isnan(c.mn[a])||isnan(c.mx[a])||(c.mn[a]>c.mx[a]&&!(c.mn[a]==INFINITY&&c.mx[a]==-INFINITY))){free(p);destroyWorld(w);return -1;}   // +inf..-inf: an empty cell (city-world.py writes them)
       for(int a=0;a<2;a++)if(!isfinite(c.reach[a])||c.reach[a]<0){free(p);destroyWorld(w);return -1;}
       for (int a = 0; a < 3; a++) c.diag += (c.mx[a] - c.mn[a]) * (c.mx[a] - c.mn[a]);
       c.diag = sqrtf(c.diag);   // the box's diagonal (WItem::out)
