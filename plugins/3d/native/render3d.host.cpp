@@ -359,21 +359,25 @@ static float atan2Fast(float y, float x) {
 /** The sectors of the compass whose walls can face `eye` from somewhere in a box: the first and how many; count 16 (or more): all. */
 static void facingExact(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count);
 static void facing(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count) {
-  const float PAD = 4, PI = 3.14159265f, T = 6.2831853f, step = T / zn::zworld::kSectors;
+  const float PAD = 4, PI = 3.14159265f, T = 6.2831853f, perStep = zn::zworld::kSectors / T;
   *first = 0; *count = zn::zworld::kSectors;
   if (eye[0] > mn[0] - PAD && eye[0] < mx[0] + PAD && eye[2] > mn[2] - PAD && eye[2] < mx[2] + PAD) return;
-  // facingExact's sectors from the fast angles; where an edge of the arc falls within a thousandth of a sector of a boundary (far more than
-  // the angles' error), facingExact itself decides, so the result is always facingExact's (5.1 ms of selection on the 3DS was 3 of this)
-  const float cx = (mn[0] + mx[0]) * 0.5f, cz = (mn[2] + mx[2]) * 0.5f, mid = atan2Fast(eye[2] - cz, eye[0] - cx);
-  float lo = 0, hi = 0;
-  const float xs[2] = {mn[0], mx[0]}, zs[2] = {mn[2], mx[2]};
-  for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
-    float d = atan2Fast(eye[2] - zs[j], eye[0] - xs[i]) - mid;
-    d = d > PI ? d - T : d < -PI ? d + T : d;
-    if (d > 3.0f || d < -3.0f) { facingExact(eye, mn, mx, first, count); return; }
-    lo = d < lo ? d : lo; hi = d > hi ? d : hi;
-  }
-  const float F = (mid + lo - PI * 0.5f + PI) / step, L = (mid + hi + PI * 0.5f + PI) / step, ff = floorf(F), fl = floorf(L);
+  // facingExact's sectors from the fast angles of the two corners the box's outline ends at, seen from the eye outside it (the nearer side's
+  // two, or from a corner region the two beside the nearest); where an edge of the arc falls within a thousandth of a sector of a boundary
+  // (far more than the angles' error), facingExact itself decides, so the result is always facingExact's (5.1 ms of selection on the 3DS was 3
+  // of this; two angles instead of five)
+  const int sx = eye[0] < mn[0] ? -1 : eye[0] > mx[0] ? 1 : 0, sz = eye[2] < mn[2] ? -1 : eye[2] > mx[2] ? 1 : 0;
+  float ax, az, bx, bz;
+  if (sx == 0) { ax = mn[0]; bx = mx[0]; az = bz = sz < 0 ? mn[2] : mx[2]; }
+  else if (sz == 0) { az = mn[2]; bz = mx[2]; ax = bx = sx < 0 ? mn[0] : mx[0]; }
+  else if (sx == sz) { ax = mn[0]; az = mx[2]; bx = mx[0]; bz = mn[2]; }
+  else { ax = mn[0]; az = mn[2]; bx = mx[0]; bz = mx[2]; }
+  const float a = atan2Fast(eye[2] - az, eye[0] - ax);
+  float d = atan2Fast(eye[2] - bz, eye[0] - bx) - a;
+  d = d > PI ? d - T : d < -PI ? d + T : d;
+  if (d > 2.9f || d < -2.9f) { facingExact(eye, mn, mx, first, count); return; }
+  const float lo = d < 0 ? d : 0, hi = d > 0 ? d : 0;
+  const float F = (a + lo + PI * 0.5f) * perStep, L = (a + hi + PI * 1.5f) * perStep, ff = floorf(F), fl = floorf(L);
   if (F - ff < 1e-3f || F - ff > 1 - 1e-3f || L - fl < 1e-3f || L - fl > 1 - 1e-3f) { facingExact(eye, mn, mx, first, count); return; }
   const int f = (int)ff, n = (int)fl - f + 1;
   if (n >= (int)zn::zworld::kSectors) return;
@@ -854,6 +858,8 @@ struct Engine : NativeRender3D {
   }
   // ------------------------------------------------ worlds
   Pool<World> worlds;
+  uint32_t* live = nullptr;   // worldSelect's scratch: the loaded chunks, each with the kinds of its batches in its top 4 bits
+  int32_t nLive = 0, liveCap = 0;
   static unsigned char* worldBytes(const char* name, uint32_t length, uint32_t* size) {
     if (zn_asset_bytes) if (unsigned char* p=zn_asset_bytes(name,length,size)) return p;
     if (length>=1024 || memchr(name,0,length)) return nullptr;
@@ -1166,11 +1172,16 @@ struct Engine : NativeRender3D {
     if (ne > WORLD_POINTS) ne = WORLD_POINTS;
     float E[WORLD_POINTS][3];
     for (int k = 0; k < ne; k++) for (int a = 0; a < 3; a++) E[k][a] = F(eyes.a->data[k * 3 + a]);
+    // each chunk's need (the chunks to load, below) starts here, while each cell is at hand: the distance from the eye of the nearest cell
+    // whose coarsest level it holds
+    const float NONE = 1e30f, LATER = 1e7f;
+    for (int32_t k = 0; k < w->nk; k++) w->k[k].need = NONE;
     // each cell's level: by distance, coarser only past the distance times the hysteresis; the level wanted if loaded, else a coarser one
     // that is, else a finer one (no holes); of its walls, the sectors that can face the eye
     for (int32_t i = 0; i < w->nc; i++) {
       WCell& c = w->c[i];
       c.d = boxDist(c.mn, c.mx, E[0]);
+      for (int l = 2; l >= 0; l--) if (c.chunk[l] >= 0) { WChunk& co = w->k[c.chunk[l]]; if (c.d < co.need) co.need = c.d; break; }
       c.vis = c.mn[1] <= c.mx[1] && inFrustum(pl, c.mn, c.mx);
       if (!c.vis) { c.shown = -1; continue; }
       const float r[2] = {c.reach[0] > 0 ? c.reach[0] : nearR, c.reach[1] > 0 ? c.reach[1] : midR};
@@ -1184,12 +1195,23 @@ struct Engine : NativeRender3D {
       else c.arcN = (int16_t)zn::zworld::kSectors;
     }
     // the ranges: of every loaded chunk's batches, the cells that show the chunk's level; in the order they are drawn (by kind, chunk,
-    // batch, then index), with no sort
+    // batch, then index), with no sort. The loaded chunks are found once, with the kinds of their batches, so each kind's pass visits only
+    // those (not the world's every chunk four times: 772 in Tokyo, a few dozen loaded)
     w->ni = 0;
     int64_t tris = 0;
-    for (uint32_t kd = 0; kd < zn::zworld::Kinds; kd++) for (int32_t k = 0; k < w->nk; k++) {
+    nLive = 0;
+    for (int32_t k = 0; k < w->nk; k++) {
       const WChunk& ch = w->k[k];
       if (!ch.loaded) continue;
+      uint32_t kinds = 0;
+      for (int32_t j = 0; j < ch.nb; j++) kinds |= 1u << (ch.b[j].kind < zn::zworld::Kinds ? ch.b[j].kind : zn::zworld::Kinds - 1);
+      live = (uint32_t*)grown(live, nLive, &liveCap, nLive + 1, sizeof(uint32_t));
+      live[nLive++] = (uint32_t)k | kinds << 28;
+    }
+    for (uint32_t kd = 0; kd < zn::zworld::Kinds; kd++) for (int32_t li = 0; li < nLive; li++) {
+      if (!(live[li] >> 28 & 1u << kd)) continue;
+      const int32_t k = (int32_t)(live[li] & 0x0fffffffu);
+      const WChunk& ch = w->k[k];
       for (int32_t j = 0; j < ch.nb; j++) {
         const WBatch& b = ch.b[j];
         if ((b.kind < zn::zworld::Kinds ? b.kind : zn::zworld::Kinds - 1) != kd) continue;
@@ -1211,8 +1233,15 @@ struct Engine : NativeRender3D {
     }
     // the chunks to load: for the eye and the points after it, each cell's coarsest level (without it the cell is missing), then the
     // level its distance asks for; nearest first. And those nobody has wanted for `idle` seconds, to free (never a coarsest level).
-    const float NONE = 1e30f, LATER = 1e7f;
-    for (int32_t k = 0; k < w->nk; k++) w->k[k].need = NONE;
+    // A point ahead is A[e] from the eye, so a cell's distance to it is within A[e] of the cell's to the eye: when the level wanted is the
+    // same at both ends of that interval and no need it would lower can still change (one already as low as the interval allows, or a loaded
+    // chunk, whose need only says that it is wanted), the distance is not worked out (most of a city's cells, for each point ahead)
+    float A[WORLD_POINTS] = {0};
+    for (int e = 1; e < ne; e++) { const float x = E[e][0] - E[0][0], y = E[e][1] - E[0][1], z = E[e][2] - E[0][2]; A[e] = sqrtf(x * x + y * y + z * z); }
+    auto settled = [&](int32_t k, float least) {
+      const WChunk& ch = w->k[k];
+      return ch.need <= LATER + least || (ch.loaded && ch.need < NONE && (!slots || ch.level != 0));
+    };
     for (int32_t i = 0; i < w->nc; i++) {
       const WCell& c = w->c[i];
       int cl = -1;
@@ -1220,6 +1249,14 @@ struct Engine : NativeRender3D {
       if (cl < 0) continue;
       const float r[2] = {c.reach[0] > 0 ? c.reach[0] : nearR, c.reach[1] > 0 ? c.reach[1] : midR};
       for (int e = 0; e < ne; e++) {
+        if (e > 0) {
+          const float least = c.d - A[e], most = c.d + A[e];
+          int want = least < r[0] ? 0 : least < r[1] ? 1 : 2;
+          if (want == (most < r[0] ? 0 : most < r[1] ? 1 : 2) && w->k[c.chunk[cl]].need <= least) {
+            while (want < cl && c.chunk[want] < 0) want++;
+            if ((want >= cl || settled(c.chunk[want], least)) && !(slots && want == 0 && cl > 1 && c.chunk[1] >= 0 && !settled(c.chunk[1], least))) continue;
+          }
+        }
         const float d = e == 0 ? c.d : boxDist(c.mn, c.mx, E[e]);
         // the slots' order (tokyo-sim n3ds range()): a cell 140 m away and more that lies behind the eye counts 2.2 times farther
         float rank = d;
