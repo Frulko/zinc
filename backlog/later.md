@@ -370,6 +370,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-757: check real Chrome, Firefox, Safari web notifications and real Messages/WhatsApp records with `zinc run examples/notify-relay -- --inspect 30` once Full Disk Access is granted; whether a scheduled Focus writes an assertion is unverified.
 - ZN-791: smooth the other players' movement in Paint Arena between the 20 Hz snapshots.
 
+- tokyo: `ZINC_3D=software` on the desktop falls back to `render3d.sim.ts`, which no longer type-checks (`??` on `number`, typed arrays passed as number[] at plugins/3d/index.ts:78); the software fallback is broken.
+- tokyo: the Vita at a 2000 m mid reach did not finish in Vita3K under load; measure on a quiet Mac whether it is memory (more mid chunks resident).
+- tokyo: the first frame after loading takes 26 to 62 ms on the consoles (269 ms on the Mac); warm it up behind the loading screen.
+- tokyo: the World selection costs 3.9 ms a frame on the PSP and 5.1 on the 3DS; sort ranges incrementally or select every other frame on the handhelds.
+
 ## Cross-platform pass
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
@@ -452,3 +457,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-823: prebuilt plugins of the armhf, armv7, x86_64 and i686 packages and the release linux-cross CI job (it now builds a host zinc first) are not proven.
 - tokyo: a Pi profile (a Pi 3/4 on Linux takes the desktop settings), the Pi build and real PSP/Vita/3DS measurements.
 - ZN-480: --aot on a real PSP, Vita and 3DS (orbit's frame rate, the owner's PSP first) and graphics programs on the PS2.
+- tokyo: measure the native World on the real PSP, 3DS and Vita.
