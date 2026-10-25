@@ -258,6 +258,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-820: show SVG app icons in the player's tiles (zinc:svg) and pack app.icon for JavaScript-engine projects; today they fall back to the default glyph.
 - ZN-821: `zinc device bench` on a machine like this one installs the suite as a .zapp (interpreter), so its numbers do not compare with `zbench run mac` (AOT); a --target or AOT option for the agent device would make them comparable.
 - ZN-821: when 9229 is taken, `zinc dev --device` prints the forward's "cannot listen on port 9229" before falling back; probe the port quietly first.
+- ZN-823: tools/linux-sysroot fails on an existing sysroot without a stamp (copytree raises "File exists" on symlinks): replace existing links, so a second run or a hand-filled sysroot works.
+- ZN-823: plugins/camera's Linux source does not compile with zig for aarch64 (stb_image.h typedef redefinition): fix the double include, else a Pi fails the same way.
+- ZN-823: the plugin stamp does not list prebuilt/<target>/key among its inputs: a changed key is not seen until plugin.so changes.
+- ZN-823: zinc:loro (cargo) is not cross-built, so a Pi still compiles it with Rust at first use.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -431,3 +435,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-820: on a Pi, tap an app in the player and check zinc-session starts it from next-app (app.zapp and run.sh) and that a crash names it.
 - ZN-822: on the Pi's touch screen, check the dev bar takes a finger (touch[0]) and its X brings the player back.
 - ZN-821: run `zinc device <pi> profile/bench` and `zinc dev --device <pi>` with the inspector on a real Pi through its agent (source deploy, --no-run, report pull).
+- ZN-823: prebuilt plugins of the armhf, armv7, x86_64 and i686 packages and the release linux-cross CI job (it now builds a host zinc first) are not proven.
