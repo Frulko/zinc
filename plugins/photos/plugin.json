@@ -1,0 +1,15 @@
+{
+  "name": "photos",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:photos",
+  "entry": "index.ts",
+  "description": "The photo library (PhotoKit on iOS and macOS): full or limited access, albums with counts, assets newest first, thumbnails and full pictures as runtime images, saving pictures to the library and to an album; a folder of images stands in for it (ZINC_FAKE_PHOTOS)",
+  "native": { "impl": { "macos": "native/photos.macos.mm", "ios": "native/photos.ios.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["Photos", "Foundation", "CoreGraphics", "AppKit"], "flags": ["-fobjc-arc"] },
+    "linux": {},
+    "windows": {},
+    "ios": { "frameworks": ["Photos", "PhotosUI", "Foundation", "CoreGraphics", "UIKit"], "flags": ["-fobjc-arc"] }
+  }
+}

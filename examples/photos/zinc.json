@@ -1,0 +1,29 @@
+{
+  "name": "photos",
+  "entry": "src/main.tsx",
+  "app": {
+    "id": "dev.zinc.photos",
+    "name": "Photos",
+    "version": "0.1.0",
+    "orientation": "portrait"
+  },
+  "ui": {
+    "preset": "react-native"
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "permissions": [
+    "photos"
+  ],
+  "permissionStrings": {
+    "photos": "Photos shows your albums and saves the pictures it makes into the album Zinc."
+  },
+  "targets": {
+    "macos": {
+      "width": 390,
+      "height": 760
+    }
+  }
+}

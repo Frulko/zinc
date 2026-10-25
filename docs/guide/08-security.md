@@ -98,6 +98,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `camera` | cameras; on macOS the camera entitlement and `NSCameraUsageDescription` |
 | `microphone` | microphones; on macOS the audio-input entitlement and `NSMicrophoneUsageDescription` |
 | `bluetooth` | Bluetooth Low Energy (`zinc:ble`); on macOS the Bluetooth entitlement and `NSBluetoothAlwaysUsageDescription`, which macOS needs before it asks the user |
+| `photos`, `photos-add` | the photo library (`zinc:photos`): `photos` reads and saves, `photos-add` saves only; on iOS and macOS `NSPhotoLibraryUsageDescription` (for `photos`) and `NSPhotoLibraryAddUsageDescription`, on macOS the photos-library entitlement |
 | `location` | accepted, and on macOS its entitlement and usage strings; no module of the engine checks it yet |
 | `serial` | accepted; no module of the engine checks it yet |
 | `notification`, `menu`, `tray`, `dialog`, `window`, `shortcut`, `instance`, `deep-link`, `autostart`, `dock`, `power`, `clipboard`, `opener`, `update` | the module `zinc:system/<id>` (`zinc:system/deeplink` for `deep-link`): every op of it |

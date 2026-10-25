@@ -624,6 +624,7 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
     if (f == "camera") add("com.apple.security.device.camera");
     else if (f == "microphone") add("com.apple.security.device.audio-input");
     else if (f == "location") add("com.apple.security.personal-information.location");
+    else if (f == "photos" || f == "photos-add") add("com.apple.security.personal-information.photos-library");
     else if (f == "bluetooth") add("com.apple.security.device.bluetooth");
     else if (f == "net") { add("com.apple.security.network.client"); if (e == "net" || e == "net:*") add("com.apple.security.network.server"); }   // listening needs "net" or "net:*"
   }

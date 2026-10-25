@@ -22,6 +22,7 @@
     "microphone",
     "location",
     "motion",
+    "photos",
     "opener",
     "deep-link"
   ],
@@ -30,7 +31,8 @@
     "microphone": "The projects you run in Zinc Go can record sound, for a call or a recorder.",
     "location": "The projects you run in Zinc Go can ask where you are, for a map or a walk.",
     "motion": "The projects you run in Zinc Go can read the motion sensors.",
-    "net": "Zinc Go talks to zinc dev and zinc device on your computer, on your network."
+    "net": "Zinc Go talks to zinc dev and zinc device on your computer, on your network.",
+    "photos": "The projects you run in Zinc Go can show your pictures and save new ones to your photo library."
   },
   "scopes": {
     "opener": {

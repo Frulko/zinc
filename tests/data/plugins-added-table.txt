@@ -1,3 +1,4 @@
   zinc:network             linux,macos,windows,rpi1           Network connections: the interfaces, their state and addresses, the Wi-Fi networks around; join and forget one (NetworkManager through nmcli on Linux, addresses only elsewhere)
   zinc:lan                 macos,linux                        The local network for games and devices, polled once a frame: UDP datagrams with broadcast and TCP streams over BSD sockets, the same calls on a desktop and in the PSP, PS Vita and 3DS cores
   zinc:animation           macos                              glTF skeletal animation: ozz sampling blending CPU skinning and safe preview clocks
+  zinc:photos              macos,linux,windows,ios            The photo library (PhotoKit on iOS and macOS): full or limited access, albums with counts, assets newest first, thumbnails and full pictures as runtime images, saving pictures to the library and to an album; a folder of images stands in for it (ZINC_FAKE_PHOTOS)

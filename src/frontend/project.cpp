@@ -373,6 +373,11 @@ std::vector<std::pair<std::string, std::string>> usageStrings(const Project& p, 
     else if (e == "microphone") out.push_back({"NSMicrophoneUsageDescription", say("microphone", who + " uses the microphone.")});
     else if (e == "contacts") out.push_back({"NSContactsUsageDescription", say("contacts", who + " reads your contacts.")});
     else if (e == "bluetooth") out.push_back({"NSBluetoothAlwaysUsageDescription", say("bluetooth", who + " talks to Bluetooth devices.")});
+    else if (e == "photos" || e == "photos-add") {   // zinc:photos: reading the library (photos), saving to it (both)
+      if (e == "photos") out.push_back({"NSPhotoLibraryUsageDescription", say("photos", who + " shows the pictures of your photo library.")});
+      if (std::none_of(out.begin(), out.end(), [](const auto& kv) { return kv.first == "NSPhotoLibraryAddUsageDescription"; }))
+        out.push_back({"NSPhotoLibraryAddUsageDescription", say(e.c_str(), who + " saves pictures to your photo library.")});
+    }
     else if (e == "location") {
       out.push_back({"NSLocationWhenInUseUsageDescription", say("location", who + " uses your location.")});
       if (target == "macos") out.push_back({"NSLocationUsageDescription", say("location", who + " uses your location.")});
@@ -509,7 +514,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
       if (!yyjson_is_str(e)) return fatal(1, std::string("\"") + where + "\" holds a non-string entry");
       std::string id = yyjson_get_str(e), base = id.size() && id[0] == '-' ? id.substr(1) : id;
       std::string feature = base.substr(0, base.find(':'));
-      static const std::vector<std::string> hostFeatures = {"net", "fs", "process", "serial", "camera", "microphone", "location", "contacts", "bluetooth", "motion"};   // checked by the host modules at run time (ZN-322); motion: CoreMotion asks on iOS; contacts: a plugin asks the system (Contacts.framework); bluetooth: zinc:ble
+      static const std::vector<std::string> hostFeatures = {"net", "fs", "process", "serial", "camera", "microphone", "location", "contacts", "bluetooth", "motion", "photos", "photos-add"};   // checked by the host modules at run time (ZN-322); motion: CoreMotion asks on iOS; contacts: a plugin asks the system (Contacts.framework); bluetooth: zinc:ble
       if (std::find(systemFeatures().begin(), systemFeatures().end(), feature) == systemFeatures().end() && std::find(hostFeatures.begin(), hostFeatures.end(), feature) == hostFeatures.end()) {
         std::string all; for (const std::string& f : systemFeatures()) all += (all.empty() ? "" : ", ") + f;
         for (const std::string& f : hostFeatures) all += ", " + f;

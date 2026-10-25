@@ -244,6 +244,12 @@ void permissions() {
   CHECK(parseProject(R"({ "name": "q", "permissions": ["camera", "location"] })", q, err), "parse q");
   auto d = usageStrings(q, "macos", "Q");
   CHECK(d.size() == 3 && d[0].second == "Q uses the camera." && d[2].first == "NSLocationUsageDescription", "macOS defaults");
+  Project ph, add;   // zinc:photos: "photos" reads and saves (both keys, the one text), "photos-add" saves only
+  CHECK(parseProject(R"({ "name": "ph", "permissions": ["photos"], "permissionStrings": { "photos": "Shows your pictures." } })", ph, err) &&
+        parseProject(R"({ "name": "add", "permissions": ["photos-add", "photos"] })", add, err), "parse photos: %s", err.c_str());
+  auto pk = usageStrings(ph, "ios", "Ph"), ak = usageStrings(add, "ios", "Add");
+  CHECK(pk.size() == 2 && pk[0].first == "NSPhotoLibraryUsageDescription" && pk[1].first == "NSPhotoLibraryAddUsageDescription" && pk[1].second == "Shows your pictures.", "photos usage strings");
+  CHECK(ak.size() == 2 && ak[0].first == "NSPhotoLibraryAddUsageDescription" && ak[0].second == "Add saves pictures to your photo library.", "photos-add usage strings");
   Project open;
   CHECK(parseProject(R"({ "name": "o" })", open, err), "parse o");
   CHECK(androidManifestPermissions(open) == "    <uses-permission android:name=\"android.permission.INTERNET\" />\n", "no permissions declared: INTERNET only");
