@@ -280,6 +280,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-834: the in-xochitl ink lane cannot find the engine on OS 3.27.3.0 (linked into the stripped xochitl, libqsgepaper not mapped; remarkable-bridge-design §11): research per-OS addresses in /usr/bin/xochitl (rm2fb, qt-resource-rebuilder hashtable) before any new tablet test; until then L2 (lease + Quill) is the fast ink.
 - ZN-834: on the tablet, T2-T4 of remarkable-bridge-design §9: one xovi/start and lane ready in the journal, camera latency, the colour settle (else the full-update flag on the box).
 - ZN-834: on failure the lane repaints the item but requests no full refresh; needs AppLoad's full-refresh function or the vendor full-update flag value.
+- ZN-839: measure zinc-canvas on the Paper Pro, OS 3.29 (camera pen-to-glass vs xochitl, the colour settle, whether our Pen ScreenModeItem wins over AppLoad's UI one) and log the numbers in zinc-next-perf.md.
+- ZN-839: if the canvas item's first transparent full paint refreshes the screen on the tablet, create the item at the first StrokeBegin instead of at Hello.
+- ZN-839: the zinc-ink lane has no 3.29 row (libqsgepaper 07aa9327..., abi 328); retire the lane if the canvas proves enough.
+- ZN-839: reopen uses "last opened" for "open now"; check on 3.29 that a lease started from the home screen does not reopen a document unexpectedly.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
 - ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
