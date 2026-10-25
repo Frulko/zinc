@@ -375,6 +375,12 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: the first frame after loading takes 26 to 62 ms on the consoles (269 ms on the Mac); warm it up behind the loading screen.
 - tokyo: the World selection costs 3.9 ms a frame on the PSP and 5.1 on the 3DS; sort ranges incrementally or select every other frame on the handhelds.
 
+- tokyo PSP: CLUT8 pictures with day and night palettes mixed by the hour (Pocket P4); needs `worldNight(id, amount)` as a number; a smooth dusk and a quarter of the texture memory.
+- tokyo PSP: shadows from the height-grid sweep in bit 7 of the ground indices and the palettes' upper half (Pocket P4/C5), the last visible gap after the near level.
+- zinc:3d PSP: ordinary draws after a World in the same frame use the full depth range, not the World's split ranges; give them the far range if a scene mixes both.
+- zinc:3d select: per-sector ranges cost 0.4 ms of selection on the PSP; a cheaper facing() (four atan2f per cell) wins it back.
+- zinc:3d PSP: the pre-World-GE PSP renderer crashed PPSSPP on tokyo from a fresh build dir; check memory (72 bytes a vertex) if the old path is ever used again.
+
 ## Cross-platform pass
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
@@ -458,3 +464,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: a Pi profile (a Pi 3/4 on Linux takes the desktop settings), the Pi build and real PSP/Vita/3DS measurements.
 - ZN-480: --aot on a real PSP, Vita and 3DS (orbit's frame rate, the owner's PSP first) and graphics programs on the PS2.
 - tokyo: measure the native World on the real PSP, 3DS and Vita.
+- tokyo PSP: measure on a real PSP-2000 the GE time of 38,900 triangles and 1,451 draws (Pocket estimates ~26 ms) and the 30.3 MB heap (too much for a PSP-1000).
