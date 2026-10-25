@@ -1,12 +1,14 @@
 # AppLoad window-state and widget patches
 
-Two patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
+Three patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
 
 - `0001-window-state.patch`: a qtfb client can minimize and restore its own window and knows when it is hidden. A Zinc
   app on the reMarkable Paper Pro uses it for its "Home" button: the app minimizes itself, xochitl is usable again, and
   the app keeps running. It also applies cleanly on AppLoad master (df974a6, 2026-10).
 - `0002-widgets-and-icons.patch` (on top of 0001): a client can show a part of its framebuffer as a widget, a small
   card over xochitl; the minimized window becomes a compact pill; the window bar gets vector icons.
+- `0003-compact-widgets.patch` (on top of 0002): a tap on a widget card's header collapses it to the header alone (the
+  client is hidden) and expands it again; the window bar, the card and the pill get a finer, shared look.
 
 ## Protocol (0001)
 
@@ -50,13 +52,39 @@ Added to `src/qtfb/common.h`; every existing message is unchanged.
 - The minimized window (state 0) is a rounded pill: tile, name, open, close, 3 px black outline, 88 px targets. The
   window bar uses the same icons instead of the "_", "□"/"▭" and "X" glyphs: minimize, maximize/restore, close.
 
+0003 makes the header 64 px, the outline 2 px and the pill a 12 px rounded rectangle (see Protocol (0003)).
+
 The patch also changes `xovi/make.sh`: it piped `rcc` into a `sed` that quits early, which under `pipefail` fails
 the build with SIGPIPE once the embedded resources outgrow the pipe buffer (the new icons do); `rcc` now writes a file.
 
 Icons: [Lucide](https://lucide.dev) v0.462.0 (`lucide-static`), ISC licence (Copyright (c) for portions of Lucide are
 held by Cole Bemis 2013-2022 as part of Feather (MIT); all other copyright (c) for Lucide are held by Lucide
-Contributors 2022). Files `resources/icons/lucide-{minus,maximize,minimize,maximize-2,x}.svg`, stroke set to black and
-2.5 wide for e-ink, each with its `@license` comment; the licence text: https://lucide.dev/license.
+Contributors 2022). Files `resources/icons/lucide-{minus,maximize,minimize,maximize-2,x}.svg`, stroke set to black
+(2.5 wide in 0002, Lucide's own 2 since 0003), each with its `@license` comment; the licence text: https://lucide.dev/license.
+
+## Protocol (0003)
+
+No new message or value; the collapsed widget reuses the visibility values of 0001 and 0002.
+
+| Event | Server to client (`MESSAGE_DEVICE_STATE_CHANGED`, reason 1) |
+|---|---|
+| Tap on the widget card's header: collapse | `visibility.visible` 0 (hidden, as minimized) |
+| Tap on the collapsed header: expand | `visibility.visible` 2 (widget) |
+| Client sets window state 2 for an app whose card was left collapsed | nothing new: it stays 0 until the user expands it |
+
+- A tap is a press and release on the header, outside its open and close buttons, that moves less than the 12 px drag
+  threshold; a longer move drags the card as before.
+- Collapsed, the card is its header alone (tile, name, open, close), as wide as the card; the client gets no input and
+  need not draw (an update it sends lands in the framebuffer but nothing of it is shown). On expand the card shows
+  the framebuffer's last pixels; a client repaints the widget's rectangle when it sees visibility 2 again.
+- Open and close work from the collapsed header as from the card; open sends 1, as before.
+- The collapsed state is saved with the position: `widget-positions.json` holds
+  `{"<app id>": {"x": .., "y": .., "collapsed": true|false}}` (an entry without `collapsed`, from 0002, is expanded).
+  Expanding near the bottom of the screen moves the card up so it stays whole on the screen.
+- Look: the window bar, the card header and the pill are 64 px high, built of 64 px cells (the touch targets) with
+  30 px Lucide icons (stroke 2), a 36 px tile, the name at 15 pt regular, a 2 px black outline, a 1.5 px black hairline
+  under the bar and the card header, and a 12 px radius for the card and the pill. The window bar's buttons lose their
+  boxes. The card's content sits 6 px inside the outline, clear of the rounded corners.
 
 ## Build
 
@@ -68,6 +96,7 @@ It follows AppLoad's own CI (`.github/workflows/build-release.yml`): AppLoad `v0
 commit, `xovi/make.sh` inside `eeems/remarkable-toolchain:latest-rmpp` pinned by digest. Needs Docker and git; a few
 minutes on an M1. First build (2026-10-25, 0001 alone): sha256 `46ec75d1b65a6fd54ec2ec98d2918db524976140ac87fd6bde3995f5cb8580e1`.
 With 0002 (2026-10-25): sha256 `e1139bf4eeb0852a14fb71958e96c430e1ab8b26a6461c5d0c3906165856951b`.
+With 0003 (2026-10-25): sha256 `6cb5a3de9e583240ae1f74bcd1d8647b64dc565595fb5b6ae655d5ee3dfda41d` (same imports as with 0002).
 The result is an aarch64 ELF with the same xovi entry points (`_xovi_construct`, `_xovi_depconstruct`,
 `LINKTABLENAMES`, `LINKTABLEVALUES`) and the same `NEEDED` libraries as the 0.6.0 release asset; its imports are the
 release's plus three from Qt6Core (`QIODevice::write(QByteArray)`, `QRect::operator&`, the `QRect` metatype).
@@ -88,7 +117,8 @@ Go back to 0.6.0: `cp appload.so.0.6.0 appload.so` in the same directory, then o
 
 ## Upstream pull requests
 
-Two pull requests, one per patch: the window state is small and useful alone, the widgets depend on it.
+Two pull requests: the window state is small and useful alone, the widgets depend on it. 0003 goes into the
+second one (`git am` 0002 then 0003 on its branch).
 
 ### 1. Window state
 
@@ -138,12 +168,15 @@ Title: `qtfb: client widgets, a compact minimized pill and vector icons for the 
 >   e-ink refresh stays as small as the card. Visibility reports 2 while shown as a widget.
 > - The minimized window is a compact pill (icon, name, open, close) instead of a full-width bar, and the window bar
 >   uses Lucide SVG icons (ISC) instead of text glyphs.
+>   A tap on a widget's header collapses it to the header (the client sees visibility 0) and another expands it
+>   (visibility 2); the collapsed state is remembered with the position.
 >
 > Tested by building with the release workflow's toolchain image; the exported xovi entry points are unchanged.
 
 ```sh
 git checkout -b qtfb-widgets qtfb-window-state
 git am ../zinc/integrations/remarkable-engine/appload/0002-widgets-and-icons.patch
+git am ../zinc/integrations/remarkable-engine/appload/0003-compact-widgets.patch
 git push -u origin qtfb-widgets
 gh pr create -R asivery/rm-appload --base master --head <your-user>:qtfb-widgets \
   --title "qtfb: client widgets, a compact minimized pill and vector icons for the window bar" --body-file pr2.md

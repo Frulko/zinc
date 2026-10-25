@@ -1,0 +1,448 @@
+From 5da1172545696ece1d9ffd2d6e100259e924dd0b Mon Sep 17 00:00:00 2001
+From: Guillaume Dumoulin <dev@myrole.fr>
+Date: Sun, 25 Oct 2026 23:10:19 +0100
+Subject: [PATCH] qtfb: collapsible widget cards; a finer window bar, card and
+ pill
+
+A tap on a widget card's header (a press and release that moves less
+than the 12 px drag threshold; a drag still moves the card) collapses
+the card to its header: the client is told it is hidden (visibility 0)
+and sends nothing; another tap expands it and sends visibility 2 again.
+The collapsed state is saved per app id with the position in
+widget-positions.json ("collapsed": true) and restored the next time
+the app shows its widget. No new message.
+
+The window bar, the widget card and the minimized pill share one look:
+64 px cells (touch targets), 30 px icons with Lucide's stroke width 2,
+a 2 px outline, a 1.5 px hairline under the header, a 12 px radius for
+the card and the pill, the name at 15 pt, and no boxed buttons. The
+card's content sits 6 px inside the outline, clear of the corners.
+---
+ resources/icons/lucide-maximize-2.svg |   2 +-
+ resources/icons/lucide-maximize.svg   |   2 +-
+ resources/icons/lucide-minimize.svg   |   2 +-
+ resources/icons/lucide-minus.svg      |   2 +-
+ resources/icons/lucide-x.svg          |   2 +-
+ resources/qml/window.qml              | 168 ++++++++++++++++----------
+ 6 files changed, 106 insertions(+), 72 deletions(-)
+
+diff --git a/resources/icons/lucide-maximize-2.svg b/resources/icons/lucide-maximize-2.svg
+index dd24987..ca83d03 100644
+--- a/resources/icons/lucide-maximize-2.svg
++++ b/resources/icons/lucide-maximize-2.svg
+@@ -6,7 +6,7 @@
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#000000"
+-  stroke-width="2.5"
++  stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+ >
+diff --git a/resources/icons/lucide-maximize.svg b/resources/icons/lucide-maximize.svg
+index f16e24b..15c0fef 100644
+--- a/resources/icons/lucide-maximize.svg
++++ b/resources/icons/lucide-maximize.svg
+@@ -6,7 +6,7 @@
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#000000"
+-  stroke-width="2.5"
++  stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+ >
+diff --git a/resources/icons/lucide-minimize.svg b/resources/icons/lucide-minimize.svg
+index 7c8f555..9099a39 100644
+--- a/resources/icons/lucide-minimize.svg
++++ b/resources/icons/lucide-minimize.svg
+@@ -6,7 +6,7 @@
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#000000"
+-  stroke-width="2.5"
++  stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+ >
+diff --git a/resources/icons/lucide-minus.svg b/resources/icons/lucide-minus.svg
+index 7c753a9..835e550 100644
+--- a/resources/icons/lucide-minus.svg
++++ b/resources/icons/lucide-minus.svg
+@@ -6,7 +6,7 @@
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#000000"
+-  stroke-width="2.5"
++  stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+ >
+diff --git a/resources/icons/lucide-x.svg b/resources/icons/lucide-x.svg
+index 5be5599..e749e34 100644
+--- a/resources/icons/lucide-x.svg
++++ b/resources/icons/lucide-x.svg
+@@ -6,7 +6,7 @@
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#000000"
+-  stroke-width="2.5"
++  stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+ >
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index 3eb36b8..c639002 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -42,11 +42,20 @@ FocusScope {
+     property bool widget: false
+     readonly property bool hasWidget: windowCanvas.widgetRect.width > 0 && windowCanvas.widgetRect.height > 0
+     readonly property bool compact: minimized || widget
+-    readonly property int barHeight: 88
+-    readonly property int outline: 3
++    // One look for the window bar, the widget card and the pill: 64 px cells (touch targets),
++    // 30 px icons, 2 px outlines, 1.5 px separators, one radius.
++    readonly property int barHeight: 64
++    readonly property int outline: 2
++    readonly property real hairline: 1.5
++    readonly property int cornerRadius: 12
++    readonly property int iconSize: 30
++    // The widget's content inset inside the card: clears the rounded corners.
++    readonly property int cardPadding: 6
+     property int widgetX: 0
+     property int widgetY: 0
+-    readonly property int pillWidth: barHeight / 4 + barHeight + 12 + Math.min(_appName.implicitWidth, 560) + 12 + 2 * barHeight + barHeight / 4 + 8 // +8: slack for font metrics
++    // Collapsed widget card: the header alone, the client hidden (visibility 0). Saved per app.
++    property bool collapsed: false
++    readonly property int pillWidth: barHeight + Math.min(_appName.implicitWidth, 560) + 16 + 2 * barHeight + 4 // +4: slack for font metrics
+ 
+     // Keyboard handling:
+     property var virtualKeyboardLayout: null
+@@ -150,23 +159,32 @@ FocusScope {
+         }
+     }
+     function placeWidget() {
+-        const w = windowCanvas.widgetRect.width + 2 * outline;
+-        const h = barHeight + windowCanvas.widgetRect.height + outline;
+         const saved = widgetPositions()[appId];
++        collapsed = !!(saved && saved.collapsed);
++        const w = windowCanvas.widgetRect.width + 2 * cardPadding;
++        const h = barHeight + (collapsed ? 0 : windowCanvas.widgetRect.height + 2 * cardPadding);
+         const x = saved ? saved.x : globalWidth - w - 40;
+         const y = saved ? saved.y : 160;
+         // Keep the whole card on the screen (it may have rotated since).
+         widgetX = Math.max(0, Math.min(x, globalWidth - w));
+         widgetY = Math.max(0, Math.min(y, globalHeight - h));
+     }
+-    function saveWidgetPosition() {
+-        if(root.x == widgetX && root.y == widgetY) return;
++    function saveWidget() {
+         widgetX = root.x;
+         widgetY = root.y;
+         const all = widgetPositions();
+-        all[appId] = { x: Math.round(root.x), y: Math.round(root.y) };
++        const old = all[appId];
++        const now = { x: Math.round(root.x), y: Math.round(root.y), collapsed: collapsed };
++        if(old && old.x == now.x && old.y == now.y && !!old.collapsed == now.collapsed) return;
++        all[appId] = now;
+         library.writeWidgetPositions(JSON.stringify(all));
+     }
++    function toggleCollapsed() {
++        collapsed = !collapsed;
++        // Expanded again near the bottom: keep the whole card on the screen.
++        root.y = Math.max(0, Math.min(root.y, globalHeight - root.height));
++        saveWidget();
++    }
+ 
+     AppLoadLibrary {
+         id: library
+@@ -201,21 +219,23 @@ FocusScope {
+             }
+         },
+         State {
+-            // A card: the header, then the widget's rectangle pixel for pixel inside a black outline.
++            // A card: the header, then the widget's rectangle pixel for pixel (none when collapsed).
+             name: "widget"
+             when: widget && !minimized
+             PropertyChanges {
+                 target: root
+                 x: root.widgetX
+                 y: root.widgetY
+-                width: windowCanvas.widgetRect.width + 2 * outline
+-                height: barHeight + windowCanvas.widgetRect.height + outline
++                width: windowCanvas.widgetRect.width + 2 * cardPadding
++                height: barHeight + (collapsed ? 0 : windowCanvas.widgetRect.height + 2 * cardPadding)
+             }
+             PropertyChanges {
+                 target: mainWindowView
+                 width: windowCanvas.widgetRect.width
+                 height: windowCanvas.widgetRect.height
+-                anchors.rightMargin: outline
++                anchors.rightMargin: cardPadding
++                anchors.topMargin: cardPadding
++                visible: !collapsed && !topbarDragHandle.drag.active
+             }
+         },
+         State {
+@@ -286,13 +306,23 @@ FocusScope {
+         }
+     }
+ 
++    // The card's white ground, under its padding.
++    Rectangle {
++        anchors.fill: parent
++        radius: cornerRadius
++        color: "white"
++        visible: widget && !minimized
++    }
++
++    // The outline of the window, the card and the pill, over the bar.
+     Rectangle {
+         anchors.fill: parent
+         color: "transparent"
+-        border.width: widget ? outline : 2
++        radius: compact ? cornerRadius : 0
++        border.width: outline
+         border.color: "black"
+-        z: 101
+-        visible: !topbarDragHandle.drag.active && !minimized
++        z: 2002
++        visible: compact || !topbarDragHandle.drag.active
+     }
+ 
+     Rectangle {
+@@ -303,10 +333,7 @@ FocusScope {
+         color: "white"
+         z: 2001
+         // Minimized: a pill with the app's tile, its name, open and close.
+-        radius: minimized ? height / 2 : 0
+-
+-        border.width: compact ? outline : 2
+-        border.color: "black"
++        radius: compact ? cornerRadius : 0
+ 
+         // The app's tile (its icon.png), in the pill and the widget header.
+         Item {
+@@ -315,12 +342,11 @@ FocusScope {
+             width: parent.height
+             height: parent.height
+             anchors.left: parent.left
+-            anchors.leftMargin: minimized ? parent.height / 4 : 0
+ 
+             Image {
+                 anchors.centerIn: parent
+-                width: parent.height - 24
+-                height: parent.height - 24
++                width: 36
++                height: 36
+                 sourceSize.width: width
+                 sourceSize.height: height
+                 fillMode: Image.PreserveAspectFit
+@@ -334,12 +360,12 @@ FocusScope {
+             anchors.bottom: parent.bottom
+             anchors.left: parent.left
+             anchors.right: parent.right
+-            anchors.leftMargin: compact ? appIconBox.x + appIconBox.width + 12 : 0
+-            anchors.rightMargin: compact ? closeButton.anchors.rightMargin + 2 * barHeight + 12 : 0
++            anchors.leftMargin: compact ? appIconBox.width : 0
++            anchors.rightMargin: compact ? 2 * barHeight + 16 : 0
+             horizontalAlignment: compact ? Text.AlignLeft : Text.AlignHCenter
+             verticalAlignment: Text.AlignVCenter
+             elide: Text.ElideRight
+-            font.pointSize: 20
++            font.pointSize: 15
+             text: "<AppLoad Window>"
+         }
+ 
+@@ -347,13 +373,29 @@ FocusScope {
+             id: topbarDragHandle
+             anchors.fill: parent
+             drag.target: root
++            drag.threshold: 12
+             enabled: !fullscreen
+ 
++            // A tap on a widget's header (no move beyond the drag threshold) collapses or expands it.
++            property real pressX: 0
++            property real pressY: 0
++            property real startX: 0
++            property real startY: 0
++            onPressed: (mouse) => {
++                pressX = mouse.x;
++                pressY = mouse.y;
++                startX = root.x;
++                startY = root.y;
++            }
+             onClicked: () => {
+                 root.forceActiveFocus();
+             }
+-            onReleased: () => {
+-                if(widget) saveWidgetPosition();
++            onReleased: (mouse) => {
++                if(!widget) return;
++                const moved = root.x != startX || root.y != startY
++                    || Math.abs(mouse.x - pressX) > drag.threshold || Math.abs(mouse.y - pressY) > drag.threshold;
++                if(moved) saveWidget();
++                else toggleCollapsed();
+             }
+         }
+ 
+@@ -362,17 +404,14 @@ FocusScope {
+             width: parent.height
+             height: parent.height
+             anchors.right: parent.right
+-            anchors.rightMargin: minimized ? parent.height / 4 : 0
+-            border.width: compact ? 0 : 2
+-            border.color: "black"
+             color: "transparent"
+ 
+             Image {
+                 anchors.centerIn: parent
+-                width: 52
+-                height: 52
+-                sourceSize.width: 52
+-                sourceSize.height: 52
++                width: iconSize
++                height: iconSize
++                sourceSize.width: iconSize
++                sourceSize.height: iconSize
+                 source: "qrc:/appload/icons/close"
+             }
+ 
+@@ -401,10 +440,10 @@ FocusScope {
+ 
+             Image {
+                 anchors.centerIn: parent
+-                width: 52
+-                height: 52
+-                sourceSize.width: 52
+-                sourceSize.height: 52
++                width: iconSize
++                height: iconSize
++                sourceSize.width: iconSize
++                sourceSize.height: iconSize
+                 source: "qrc:/appload/icons/open"
+             }
+ 
+@@ -418,17 +457,15 @@ FocusScope {
+             width: parent.height
+             height: parent.height
+             anchors.right: closeButton.left
+-            border.width: 2
+-            border.color: "black"
+             color: parent.color
+             visible: !root.disablesWindowedMode && !compact
+ 
+             Image {
+                 anchors.centerIn: parent
+-                width: 52
+-                height: 52
+-                sourceSize.width: 52
+-                sourceSize.height: 52
++                width: iconSize
++                height: iconSize
++                sourceSize.width: iconSize
++                sourceSize.height: iconSize
+                 source: fullscreen ? "qrc:/appload/icons/restore" : "qrc:/appload/icons/maximize"
+             }
+ 
+@@ -444,18 +481,16 @@ FocusScope {
+             width: parent.height
+             height: parent.height
+             anchors.right: maximizeButton.left
+-            border.width: 2
+-            border.color: "black"
+             color: parent.color
+             // The pill and the widget header have their own open button instead.
+             visible: !root.disablesWindowedMode && !compact
+ 
+             Image {
+                 anchors.centerIn: parent
+-                width: 52
+-                height: 52
+-                sourceSize.width: 52
+-                sourceSize.height: 52
++                width: iconSize
++                height: iconSize
++                sourceSize.width: iconSize
++                sourceSize.height: iconSize
+                 source: "qrc:/appload/icons/minimize"
+             }
+ 
+@@ -473,17 +508,16 @@ FocusScope {
+             width: virtualKeyboardButton.visible ? parent.height : 0
+             height: parent.height
+             anchors.left: parent.left
+-            border.width: 2
+-            border.color: "black"
+             color: parent.color
+             visible: virtualKeyboardLayout !== null && !compact
+ 
+             Image {
+                 source: "qrc:/appload/icons/keyboard"
+-                sourceSize.width: 120
+-                sourceSize.height: 120
+-                anchors.fill: parent
+-                anchors.margins: 10
++                anchors.centerIn: parent
++                width: iconSize + 6
++                height: iconSize + 6
++                sourceSize.width: width
++                sourceSize.height: height
+             }
+ 
+             MouseArea {
+@@ -506,17 +540,16 @@ FocusScope {
+             width: rotateButton.visible ? parent.height : 0
+             height: parent.height
+             anchors.left: virtualKeyboardButton.right
+-            border.width: 2
+-            border.color: "black"
+             color: parent.color
+             visible: !fullscreen && supportsRotation && !compact
+ 
+             Image {
+                 source: "qrc:/appload/icons/rotate"
+-                sourceSize.width: 120
+-                sourceSize.height: 120
+-                anchors.fill: parent
+-                anchors.margins: 10
++                anchors.centerIn: parent
++                width: iconSize + 6
++                height: iconSize + 6
++                sourceSize.width: width
++                sourceSize.height: height
+             }
+ 
+             MouseArea {
+@@ -534,13 +567,13 @@ FocusScope {
+             }
+         }
+ 
++        // The hairline under the bar and the card's header.
+         Rectangle {
+             width: parent.width
+-            height: 2
++            height: hairline
+             anchors.bottom: parent.bottom
+-            visible: !minimized
+-            border.width: 2
+-            border.color: "black"
++            visible: !minimized && !(widget && collapsed)
++            color: "black"
+         }
+     }
+     Rectangle {
+@@ -569,7 +602,8 @@ FocusScope {
+ 
+             fbRotation: !supportsRotation ? FBController.Deg0 : fullscreen ? root.globalRotation : root.windowRotation
+             sendFlippedRotationToClient: false
+-            clientVisible: !root.minimized
++            // A collapsed widget is hidden for the client (visibility 0); expanding shows it again (2).
++            clientVisible: !root.minimized && !(root.widget && root.collapsed)
+             showWidget: root.widget
+ 
+             onWindowStateRequested: (state) => {
+-- 
+2.50.1 (Apple Git-155)
+
