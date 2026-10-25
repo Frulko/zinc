@@ -6,7 +6,7 @@
 // it for a new pairing code.
 //   zinc export examples/zinc-go --target android --apk     (or --target ios; "player": true in zinc.json)
 import { render, useState } from 'zinc:ui/react';
-import { View, Text, Pressable, TextInput, ScrollView, SafeAreaView, StyleSheet, Platform } from 'zinc:react-native';
+import { View, Text, Pressable, TextInput, ScrollView, SafeAreaView, StyleSheet, Platform, ActivityIndicator } from 'zinc:react-native';
 import { Linking } from 'zinc:react-native/linking';
 import { Icon } from 'zinc:icons';
 import { args, env } from 'zinc:sys';
@@ -19,7 +19,17 @@ function arg(name: string): string {
   const i = a.indexOf(name);
   return i >= 0 && i + 1 < a.length ? a[i + 1] : '';
 }
-const message = arg('--message'), last = arg('--last'), connecting = arg('--connecting');
+const message = arg('--message'), last = arg('--last'), connecting = arg('--connecting'), opening = arg('--opening');
+/** The apps zinc device sent to this phone (--app "name<TAB>title", once each): they stay, and a tile starts one again. */
+function appsSent(): { name: string, title: string }[] {
+  const a = args(), out: { name: string, title: string }[] = [];
+  for (let i = 0; i + 1 < a.length; i++) if (a[i] === '--app') {
+    const t = a[i + 1].indexOf('\t');
+    out.push(t < 0 ? { name: a[i + 1], title: a[i + 1] } : { name: a[i + 1].slice(0, t), title: a[i + 1].slice(t + 1) });
+  }
+  return out;
+}
+const apps = appsSent();
 const device = arg('--device'), address = arg('--address'), code = arg('--code'), paired = arg('--paired');
 
 /** What a person types: zinc://host:port/code, or host:port/code. */
@@ -35,6 +45,11 @@ function open(url: string): void {
 function Home() {
   const [typed, setTyped] = useState(last);
   const [scanning, setScanning] = useState(env('ZINC_GO_SCAN') === '1');   // a test opens the scanner at once (tests/t1/zinc_go_home.sh)
+  if (opening !== '') return <View style={s.splash} accessibilityLabel={`Opening ${opening}`}>   {/* an app of this phone starts: its splash */}
+    <Text style={s.splashTitle}>{opening}</Text>
+    <ActivityIndicator size="large" color="#0EA5E9" />
+    <Text style={s.foot}>Zinc Go</Text>
+  </View>;
   if (scanning) return <Scanner onCode={(url: string) => { setScanning(false); open(url); }} onClose={() => setScanning(false)} />;
   return <SafeAreaView style={s.page}><ScrollView style={s.body}>
     <View style={s.head}>
@@ -44,6 +59,21 @@ function Home() {
     {connecting !== '' && <View style={s.card}><Text style={s.text}>{`Connecting to ${connecting.split('/')[2]}...`}</Text></View>}
     {message !== '' && <View style={[s.card, { backgroundColor: WARN_SOFT, borderColor: WARN_SOFT }]}>
       <View style={s.row}><Icon name="circle-alert" size={18} color={() => WARN} /><Text style={[s.text, { color: WARN, flex: 1 }]}>{message}</Text></View>
+    </View>}
+    {apps.length > 0 && <View style={s.card} accessibilityLabel="Your apps">
+      <Text style={s.label}>Your apps</Text>
+      {apps.map((app) => <View key={app.name} style={s.row}>
+        <Pressable style={({ pressed }) => [s.tile, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(`zinc://open/${app.name}`)} accessibilityLabel={`Open ${app.title}`}>
+          <Text style={s.tileTitle}>{app.title}</Text>
+          {app.title !== app.name && <Text style={s.tileName}>{app.name}</Text>}
+        </Pressable>
+        {Platform.OS === 'ios' && <Pressable style={({ pressed }) => [s.icon, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(`zinc://shortcut/${app.name}`)} accessibilityLabel={`Add ${app.title} to the Home Screen`}>
+          <Icon name="square-plus" size={18} color={() => INK} />
+        </Pressable>}
+        <Pressable style={({ pressed }) => [s.icon, { opacity: pressed ? 0.6 : 1 }]} onPress={() => open(`zinc://delete/${app.name}`)} accessibilityLabel={`Delete ${app.title}`}>
+          <Icon name="x" size={18} color={() => MUTED} />
+        </Pressable>
+      </View>)}
     </View>}
     <Pressable style={({ pressed }) => [s.primary, { opacity: pressed ? 0.6 : 1 }]} onPress={() => setScanning(true)} accessibilityLabel="Scan QR code">
       <Icon name="camera" size={20} color={() => 0xFFFFFF} /><Text style={s.primaryText}>Scan QR code</Text>
@@ -92,6 +122,12 @@ const s = StyleSheet.create({
   secondary: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', height: 46, borderRadius: 12, borderWidth: 1, borderColor: LINE, backgroundColor: 0xFFFFFF },
   secondaryText: { fontSize: 15, fontWeight: '600', color: INK },
   stack: { gap: 12 },
+  splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, backgroundColor: 0xFAFAFA },
+  splashTitle: { fontSize: 30, fontWeight: '800', color: INK, textAlign: 'center', paddingHorizontal: 24 },
+  tile: { flex: 1, minHeight: 52, justifyContent: 'center', borderRadius: 12, backgroundColor: 0xF4F4F5, paddingHorizontal: 14, paddingVertical: 8 },
+  tileTitle: { fontSize: 16, fontWeight: '700', color: INK },
+  tileName: { fontSize: 12, color: MUTED },
+  icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   code: { fontSize: 40, fontWeight: '800', color: INK, letterSpacing: 6, textAlign: 'center' },
   mono: { fontSize: 13, color: INK, textAlign: 'center' },
   foot: { fontSize: 12, color: MUTED, textAlign: 'center' },

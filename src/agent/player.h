@@ -63,6 +63,12 @@ void playerStarted(Player& p, const std::string& app, long long pid);
 void playerOutput(Player& p, std::string_view bytes);
 /** The running program ended with `status`: "[exited n]" in its log, the end of the sessions that waited for it. */
 void playerExited(Player& p, int status);
+/** The apps zinc device installed: {name, title} (title: zinc.json app.name, else the name), sorted. */
+std::vector<std::pair<std::string, std::string>> playerApps(const Player& p);
+/** Starts installed app `name` again, as `zinc device run` does (the home screen's tile); 0 when there is none. */
+long long playerLaunch(Player& p, const std::string& name);
+/** Deletes installed app `name` and its log (stops it first when it runs); false when there is none. */
+bool playerRemove(Player& p, const std::string& name);
 /** Forgets every workstation (SELECT held at start). */
 void playerForget(Player& p);
 

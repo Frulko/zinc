@@ -100,13 +100,20 @@ bool saveClients(const Player& p, const std::vector<Client>& clients) {
 
 // ---- what it says it is ----
 
+// The installed apps as {directory, name kept}: a PSP's FAT gives a short name back in capitals (HELLO for hello), app.name keeps the real one
+std::vector<std::pair<std::string, std::string>> installed(const Player& p) {
+  std::vector<std::pair<std::string, std::string>> out;
+  for (const std::string& d : subdirs(p.home + "/apps")) {
+    std::string kept;
+    out.push_back({d, slurp(p.home + "/apps/" + d + "/app.name", kept) && !kept.empty() ? kept : d});
+  }
+  return out;
+}
+
 std::string appsJson(const Player& p) {
   std::vector<std::string> items;
-  for (std::string n : subdirs(p.home + "/apps")) {
-    std::string kept;   // the name as installed: a PSP's FAT gives a short name back in capitals (HELLO for hello)
-    if (slurp(p.home + "/apps/" + n + "/app.name", kept) && !kept.empty()) n = kept;
+  for (const auto& [dir, n] : installed(p))
     items.push_back(Obj().str("name", n).str("kind", "zapp").flag("running", n == p.current).num("pid", n == p.current ? p.pid : 0).done());
-  }
   return array(items);
 }
 std::string infoJson(Player& p) {
@@ -262,10 +269,7 @@ void session(Player& p, int fd) {
     if (mine) stopRunning(p);
     send(*c, kJson, Obj().flag("ok", true).flag("stopped", mine).done());
   } else if (op == "uninstall") {
-    if (!named || !isDir(appDir(p, name))) { refuse(*c, "no app named " + name + " on this player"); return; }
-    if (name == p.current) stopRunning(p);
-    removeTree(appDir(p, name));
-    std::remove(logFile(p, name).c_str());
+    if (!named || !playerRemove(p, name)) { refuse(*c, "no app named " + name + " on this player"); return; }
     send(*c, kJson, Obj().flag("ok", true).done());
   } else if (op == "logs") {
     std::string text;
@@ -332,6 +336,31 @@ void playerNewCode(Player& p) {
   char code[8];
   std::snprintf(code, sizeof code, "%06u", static_cast<unsigned>(v % 1000000u));
   p.code = r.size() == 4 ? code : "";
+}
+
+std::vector<std::pair<std::string, std::string>> playerApps(const Player& p) {
+  std::vector<std::pair<std::string, std::string>> out;
+  for (const auto& [dir, n] : installed(p)) {
+    std::string text, title = n;
+    if (slurp(appDir(p, dir) + "/zinc.json", text))
+      for (const auto& [k, v] : Doc(text).pairs("app")) if (k == "name" && !v.empty()) title = v;
+    out.push_back({n, title});
+  }
+  return out;
+}
+
+long long playerLaunch(Player& p, const std::string& name) {
+  if (name != cleanName(name) || !isFile(appDir(p, name) + "/program.zbc")) return 0;
+  replaceRunning(p);
+  return startApp(p, name, appDir(p, name), {}, {});
+}
+
+bool playerRemove(Player& p, const std::string& name) {
+  if (name.empty() || name != cleanName(name) || !isDir(appDir(p, name))) return false;
+  if (name == p.current) stopRunning(p);
+  removeTree(appDir(p, name));
+  std::remove(logFile(p, name).c_str());
+  return true;
 }
 
 void playerForget(Player& p) { std::remove((agentDir(p) + "/clients.json").c_str()); playerNewCode(p); }

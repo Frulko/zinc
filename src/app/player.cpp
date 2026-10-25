@@ -39,9 +39,11 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "agent/player.h"
+#include "agent/wire.h"
 #include "app/app_core.h"
 #include "dev/hot.h"
 #include "host/assets_host.h"
@@ -55,6 +57,7 @@
 #include "zn/host.h"
 #include "zn/hostsys.h"
 #include "zn/native.h"
+#include <mbedtls/base64.h>
 #ifdef __ANDROID__
 #include <jni.h>
 #include <sys/system_properties.h>
@@ -100,6 +103,8 @@ zn::agent::Player gAgent;
 bool gAgentOn = false;
 struct AgentRun { std::string app, dir; std::vector<std::string> args; zn::agent::Env env; long long pid = 0; };
 AgentRun gAgentNext;
+std::string gOpening, gOpeningTitle;   // an app of this phone about to start (zinc://open): the home screen shows its name and a loader first
+int gOpeningFrames = 0;
 bool gAgentPending = false, gAgentRunning = false, gAgentStop = false;
 std::string gAgentPacks;            // the packs/ of the program that runs, mounted in front
 std::string gAgentShown;            // what the home screen shows of the agent: it starts again when this changes
@@ -172,6 +177,7 @@ std::string lastUrl() {
 }
 
 void startHome();
+void goHome(const std::string& why);
 
 bool openLink(const std::string& url) {
   Link l;
@@ -398,6 +404,86 @@ void agentPoll() {
   if (!gAgentRunning && !gRemote && agentKey() != gAgentShown) startHome();   // the home screen shows the new code, or who paired
 }
 
+// ---- a shortcut on the phone's home screen (zinc://shortcut/<app>): a Web Clip whose link is zinc://open/<app> ----
+// iOS lets no app put an icon on the home screen, but a configuration profile can: the player writes one (the app's title and zinc.json
+// app.icon), serves it once on the loopback and hands its address to Safari, which offers to install it (Settings > Profile Downloaded).
+// The clip opens zinc://open/<app>: Zinc Go comes up on that app, its splash first. No paid account, no web site.
+std::string xmlText(const std::string& v) {
+  std::string o;
+  for (const char ch : v) o += ch == '&' ? "&amp;" : ch == '<' ? "&lt;" : ch == '>' ? "&gt;" : std::string(1, ch);
+  return o;
+}
+std::string uuid() {
+  char b[37];
+  std::snprintf(b, sizeof b, "%08X-%04X-4%03X-A%03X-%04X%08X", static_cast<unsigned>(SDL_rand_bits()), SDL_rand_bits() & 0xFFFF, SDL_rand_bits() & 0xFFF,
+                SDL_rand_bits() & 0xFFF, SDL_rand_bits() & 0xFFFF, static_cast<unsigned>(SDL_rand_bits()));
+  return b;
+}
+std::string webClip(const std::string& name, const std::string& title, const std::string& iconPng) {
+  std::string icon;
+  if (!iconPng.empty()) {
+    std::size_t n = 0;
+    mbedtls_base64_encode(nullptr, 0, &n, reinterpret_cast<const unsigned char*>(iconPng.data()), iconPng.size());
+    icon.resize(n);
+    if (mbedtls_base64_encode(reinterpret_cast<unsigned char*>(icon.data()), n, &n, reinterpret_cast<const unsigned char*>(iconPng.data()), iconPng.size()) == 0) icon.resize(n);
+    else icon.clear();
+  }
+  const std::string id = "dev.zinc.go.clip." + name;
+  return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+         "<plist version=\"1.0\"><dict>\n<key>PayloadContent</key><array><dict>\n"
+         "<key>PayloadType</key><string>com.apple.webClip.managed</string><key>PayloadVersion</key><integer>1</integer>\n"
+         "<key>PayloadIdentifier</key><string>" + id + ".clip</string><key>PayloadUUID</key><string>" + uuid() + "</string>\n"
+         "<key>Label</key><string>" + xmlText(title) + "</string><key>URL</key><string>zinc://open/" + xmlText(name) + "</string>\n"
+         "<key>FullScreen</key><true/><key>IsRemovable</key><true/><key>Precomposed</key><true/>\n" +
+         (icon.empty() ? "" : "<key>Icon</key><data>" + icon + "</data>\n") +
+         "</dict></array>\n<key>PayloadType</key><string>Configuration</string><key>PayloadVersion</key><integer>1</integer>\n"
+         "<key>PayloadIdentifier</key><string>" + id + "</string><key>PayloadUUID</key><string>" + uuid() + "</string>\n"
+         "<key>PayloadDisplayName</key><string>" + xmlText(title) + " (Zinc Go)</string>\n"
+         "<key>PayloadDescription</key><string>Puts " + xmlText(title) + " on the home screen: it opens in Zinc Go.</string>\n"
+         "<key>PayloadRemovalDisallowed</key><false/></dict></plist>\n";
+}
+// Serves `body` to the first request on 127.0.0.1 (a thread: Safari asks while Zinc Go is in the background), for one minute at most; the
+// address to open, empty when no port could be had. ponytail: one request, one file; the clip of another app is another call.
+std::string serveOnce(const std::string& file, std::string body) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) return "";
+  sockaddr_in a{};
+  a.sin_family = AF_INET;
+  a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  socklen_t len = sizeof a;
+  if (::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0 || ::listen(fd, 2) != 0 || ::getsockname(fd, reinterpret_cast<sockaddr*>(&a), &len) != 0) { ::close(fd); return ""; }
+  std::thread([fd, body = std::move(body)] {
+    pollfd p{fd, POLLIN, 0};
+    for (int served = 0; served < 2 && ::poll(&p, 1, 60000) > 0;) {   // Safari may ask twice (a probe, then the download)
+      const int c = ::accept(fd, nullptr, nullptr);
+      if (c < 0) break;
+      char req[2048];
+      (void)::recv(c, req, sizeof req, 0);
+      const std::string head = "HTTP/1.1 200 OK\r\nContent-Type: application/x-apple-aspen-config\r\nContent-Length: " + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n";
+      (void)::send(c, head.data(), head.size(), 0);
+      (void)::send(c, body.data(), body.size(), 0);
+      ::close(c);
+      ++served;
+    }
+    ::close(fd);
+  }).detach();
+  return "http://127.0.0.1:" + std::to_string(ntohs(a.sin_port)) + "/" + file;
+}
+void addShortcut(const std::string& name) {
+  std::string title, project, icon;
+  if (gAgentOn) for (const auto& [n, t] : zn::agent::playerApps(gAgent)) if (n == name) title = t;
+  if (title.empty()) { goHome("No app named " + name + " on this phone"); return; }
+  const std::string dir = gAgent.home + "/apps/" + name;
+  if (size_t n = 0; void* b = SDL_LoadFile((dir + "/zinc.json").c_str(), &n)) { project.assign(static_cast<const char*>(b), n); SDL_free(b); }
+  for (const auto& [k, v] : zn::agent::Doc(project.empty() ? "{}" : project).pairs("app"))   // app.icon, a PNG the pack carried
+    if (k == "icon" && v.find("..") == std::string::npos && v.size() > 4 && v.compare(v.size() - 4, 4, ".png") == 0)
+      if (size_t n = 0; void* b = SDL_LoadFile((dir + "/" + v).c_str(), &n)) { icon.assign(static_cast<const char*>(b), n); SDL_free(b); }
+  const std::string url = serveOnce(name + ".mobileconfig", webClip(name, title, icon));
+  if (url.empty() || !SDL_OpenURL(url.c_str())) { goHome("Could not hand the shortcut of " + title + " to Safari"); return; }
+  gMessage = "Safari has the shortcut of " + title + ": allow the download, then Settings > Profile Downloaded > Install. Its icon opens it in Zinc Go.";
+  startHome();
+}
+
 void startHome() {
   if (gAgentRunning) agentEnded(zn::rt::appFinish());   // the program zinc device sent gives the screen back
   gAgentShown = agentKey();
@@ -415,6 +501,8 @@ void startHome() {
   if (!last.empty()) { args.push_back("--last"); args.push_back(last); }
   if (gLink.fd >= 0) { args.push_back("--connecting"); args.push_back(gLink.url); }
   for (const std::string& a : agentArgs()) args.push_back(a);
+  if (gAgentOn) for (const auto& [name, title] : zn::agent::playerApps(gAgent)) { args.push_back("--app"); args.push_back(name + "\t" + title); }   // the tiles
+  if (!gOpening.empty()) { args.push_back("--opening"); args.push_back(gOpeningTitle); }
   if (!gMessage.empty()) std::fprintf(stderr, "zinc go: %s\n", gMessage.c_str());
   gMessage.clear();
   if (run(std::move(home), false, args) != 0) std::fprintf(stderr, "zinc go: the home screen did not start\n");
@@ -593,13 +681,28 @@ int tick() {
     const std::string url = std::move(gPendingUrl);
     gPendingUrl.clear();
     if (url == "zinc://pair") { if (gAgentOn) zn::agent::playerNewCode(gAgent); }   // the home screen's "New pairing code": agentPoll shows it
-    else if (openLink(url)) startHome();   // the home screen says it is connecting until the program comes
+    else if (url.rfind("zinc://open/", 0) == 0) {   // a tile of the home screen or a shortcut: an app zinc device sent, started again here
+      const std::string name = url.substr(12);
+      gOpeningTitle.clear();
+      if (gAgentOn) for (const auto& [n, title] : zn::agent::playerApps(gAgent)) if (n == name) gOpeningTitle = title;
+      if (gOpeningTitle.empty()) goHome("No app named " + name + " on this phone");
+      else { gOpening = name; gOpeningFrames = 3; startHome(); }   // its splash for a few frames, then it starts (below)
+    } else if (url.rfind("zinc://shortcut/", 0) == 0) addShortcut(url.substr(16));
+    else if (url.rfind("zinc://delete/", 0) == 0) {
+      if (gAgentOn) zn::agent::playerRemove(gAgent, url.substr(14));
+      startHome();
+    } else if (openLink(url)) startHome();   // the home screen says it is connecting until the program comes
     else goHome(gMessage);
   }
   pollLink();
   agentPoll();
   if (gFingers >= 3 && Clock::now() - gFingersSince > std::chrono::milliseconds(800)) { gFingers = 0; gMenuAsked = true; }
   if (gMenuAsked) { gMenuAsked = false; devMenu(); }
+  if (!gOpening.empty() && (!zn::rt::appMachine() || --gOpeningFrames <= 0)) {   // its splash was drawn (or there is no home screen): the app replaces it
+    const std::string name = std::move(gOpening);
+    gOpening.clear();
+    if (!zn::agent::playerLaunch(gAgent, name)) goHome("No app named " + name + " on this phone");
+  }
   if (!zn::rt::appMachine()) {
     if (!gHome && gLink.fd < 0 && !gAgentOn) return 1;   // no home screen (a desktop test's player) and nothing to wait for: done
     flushOut();
@@ -657,6 +760,7 @@ extern "C" int zn_app_init(int argc, char** argv) {
   if (url.empty()) url = gPendingUrl;
   gPendingUrl.clear();
 #endif
+  if (url.rfind("zinc://open/", 0) == 0 || url.rfind("zinc://delete/", 0) == 0) { gPendingUrl = url; url.clear(); }   // an app of this phone (a home screen shortcut): the tick starts it
   if (!url.empty() && !openLink(url)) url.clear();
   agentOpen();
   startHome();

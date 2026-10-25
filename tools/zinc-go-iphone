@@ -1,0 +1,47 @@
+#!/bin/sh
+# Zinc Go on a real iPhone (ZN-840): the player built from this tree (the engine and every plugin made for iOS, precompiled into the app),
+# signed with your Apple team (a free Personal Team works: the app then lasts 7 days, run this again), installed and started over USB or
+# Wi-Fi through Xcode's devicectl. Then zinc device pair <its address> <code> here, and zinc device deploy sends your projects to it: they
+# stay on the phone, its home screen starts them again, and a tile can become an icon on the iPhone's home screen.
+#   tools/zinc-go-iphone [build|install|start|all]     # all (the default): build, install, start
+# Environment: ZINC (default build/zinc), ZINC_IOS_TEAM (default: the first team Xcode knows), ZINC_IOS_DEVICE (default: the first paired
+# iPhone devicectl lists), ZINC_GO_OUT (default build/zinc-go-ios).
+set -e
+here=$(cd "$(dirname "$0")/.." && pwd -P)
+Z=${ZINC:-$here/build/zinc}
+out=${ZINC_GO_OUT:-$here/build/zinc-go-ios}
+team=${ZINC_IOS_TEAM:-$(defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null | sed -n 's/.*teamID = \([A-Z0-9]*\);.*/\1/p' | head -1)}
+device=${ZINC_IOS_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && /available/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-/) { print $i; exit } }')}
+# an id belongs to one team: Zinc Go is signed as dev.zinc.go.<team> (ZINC_GO_BUNDLE to choose another)
+bundle=${ZINC_GO_BUNDLE:-dev.zinc.go.$(echo "$team" | tr 'A-Z' 'a-z')}
+app=$out/build-device/Release-iphoneos/zinc-go.app
+
+build() {
+  [ -n "$team" ] || { echo "zinc-go-iphone: no Apple team: sign in to Xcode once (Settings > Accounts), or set ZINC_IOS_TEAM" >&2; exit 2; }
+  "$Z" export "$here/examples/zinc-go" --target ios -o "$out"
+  cd "$out"
+  cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM="$team" -DZINC_BUNDLE_ID="$bundle" > build-device.log 2>&1 || { tail -20 build-device.log; exit 1; }
+  # -jobs: the machine's performance cores, as tools/build shares them (Xcode takes every core by default)
+  # the phone as destination: Xcode registers it in the team and its profile (a free team holds 3 iPhones)
+  udid=$(xcrun devicectl device info details --device "$device" 2>/dev/null | sed -n 's/.*udid: //p' | head -1)
+  dest="-sdk iphoneos"; [ -z "$udid" ] || dest="-destination id=$udid"
+  xcodebuild -project build-device/zinc-go.xcodeproj -scheme zinc-go -configuration Release $dest -derivedDataPath build-device/dd \
+    -jobs "$(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null || echo 4)" -allowProvisioningUpdates -allowProvisioningDeviceRegistration build \
+    >> build-device.log 2>&1 || { grep -E "error:|BUILD FAILED" build-device.log | head -20; exit 1; }
+  echo "zinc-go-iphone: built $app ($bundle, team $team)"
+}
+need_device() { [ -n "$device" ] || { echo "zinc-go-iphone: no iPhone: plug it in, trust this Mac, turn on Developer Mode (Settings > Privacy & Security)" >&2; exit 2; }; }
+install() { need_device; xcrun devicectl device install app --device "$device" "$app"; }
+start() {
+  need_device
+  xcrun devicectl device process launch --device "$device" --terminate-existing "$bundle" || {
+    echo "zinc-go-iphone: if iOS says the developer is not trusted: Settings > General > VPN & Device Management > your Apple ID > Trust" >&2; exit 1; }
+}
+
+case ${1:-all} in
+build) build ;;
+install) install ;;
+start) start ;;
+all) build; install; start ;;
+*) sed -n '2,9p' "$0"; exit 2 ;;
+esac

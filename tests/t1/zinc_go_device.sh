@@ -77,5 +77,18 @@ kill $dpid 2>/dev/null; wait $dpid 2>/dev/null
 
 dev info >/dev/null 2>&1 && dev apps | grep -q "^ticker " || bad "the player stopped serving"
 kill -0 $pl 2>/dev/null || bad "the player is gone: $(tail -5 "$t/player.log")"
+
+# The apps stay on the phone: started again with the player (a home screen tile or shortcut: zinc://open/<app>), deleted (zinc://delete/<app>)
+kill $pl 2>/dev/null; wait $pl 2>/dev/null
+go() { env -u ZINC_DETERMINISTIC ZINC_HEADLESS=1 ZINC_FRAMES=2000000000 ZINC_GO_HOME="$t/none.unit" ZINC_PLAYER_HOME="$t/home" ZINC_PLAYER_PORT=$port \
+  ZINC_PLAYER_BIND=127.0.0.1 ZINC_PLAYER_NAME=zn-go ZINC_GO_URL="$1" "$t/player" > "$t/player.log" 2>&1 & pl=$!; until_grep "listening on" "$t/player.log"; }
+go zinc://open/ticker || bad "the player did not start again: $(cat "$t/player.log")"
+sleep 0.5
+dev apps | grep -q "^ticker .*running" || bad "zinc://open/ticker did not start the installed app: $(dev apps 2>&1)"
+kill $pl 2>/dev/null; wait $pl 2>/dev/null
+go zinc://delete/quits || bad "the player did not start a third time"
+sleep 0.3
+dev apps | grep -q "^quits " && bad "zinc://delete/quits left the app: $(dev apps 2>&1)"
+dev apps | grep -q "^ticker " || bad "zinc://delete/quits removed another app: $(dev apps 2>&1)"
 [ $fail -eq 0 ] && echo "zinc go device: ok"
 exit $fail
