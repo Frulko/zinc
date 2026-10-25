@@ -1,10 +1,10 @@
 // PS Vita GPU path (ZN-470, ZN-471; docs/reports/games/console-2d-3d-frameworks.md section 4.3): the zinc:gfx command lists replayed with GXM, one
 // scene a frame at 960x544, three display buffers in CDRAM flipped by the display queue at vblank. The programs are SDL3's precompiled GXP
 // (third_party/SDL3/src/render/vitagxm, zlib): a colour pair and a texture-times-colour pair, so users need no shader compiler and no module
-// extracted from their console (vitaGL's libshacccg). What the replay draws: CLEAR, square RECTs of one colour, IMAGEs (atlas boxes, flips, tint,
-// alpha, nearest or linear), TEXT of the glyph tables, rectangular CLIPs (cut on the CPU: exact, no stencil). A frame that holds anything else
-// (rounded corners, gradients, borders, shadows, paths, matrices that turn) is rasterized in software into a texture the GPU shows scaled: the
-// same pixels as before, without the CPU's doubling. Images and the glyph atlas live in CDRAM, uploaded once (again when a runtime image changes).
+// extracted from their console (vitaGL's libshacccg). The replay is the shared one of the console GPUs (targets/console/ff_replay.h, as the PSP's
+// and the 3DS's): rects, images, text, rectangular clips, and rounded rects, borders, shadows, filled paths and linear gradients as coverage in
+// its shape atlas times the corner colours. A frame that holds anything else (radial gradients, rounded clips, lines, matrices that turn) is
+// rasterized in software into a texture the GPU shows scaled. Images and the two coverage atlases live in CDRAM, uploaded once.
 #include <psp2/display.h>
 #include <psp2/gxm.h>
 #include <psp2/kernel/clib.h>
@@ -17,6 +17,7 @@
 #include <map>
 
 #include "SDL_render_vita_gxm_shaders.h"
+#include "ff_replay.h"
 #include "hal.h"
 #include "zrt_raster.h"
 
@@ -26,7 +27,7 @@ extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);  // runti
 using namespace zrt::raster;
 
 namespace {
-constexpr unsigned kW = 960, kH = 544, kStride = 960, kBuffers = 3, kPool = 1u << 20, kGlyphW = 512, kGlyphH = 512;
+constexpr unsigned kW = 960, kH = 544, kStride = 960, kBuffers = 3, kPool = 1u << 20;
 struct V { float x, y, u, v, r, g, b, a; };
 struct DisplayData { void* address; };
 
@@ -80,7 +81,7 @@ void displayCallback(const void* data) {
   sceDisplayWaitVblankStart();
 }
 
-// ---- textures: the images a frame draws, by image id, and one atlas of glyph coverage
+// ---- textures: the images a frame draws, by image id, and the replay's two coverage atlases (glyphs, shapes)
 struct Tex { SceGxmTexture t; void* mem; int32_t w, h; uint32_t ver; bool ok; };
 std::map<int32_t, Tex> texs;
 const Tex* texture(int32_t id) {
@@ -108,174 +109,24 @@ const Tex* texture(int32_t id) {
   return e.ok ? &e : nullptr;
 }
 
-SceGxmTexture glyphTex, softTex;
-uint8_t* glyphMem;
+Tex atlasTex[2], softTex;   // the coverage atlases (U8 as alpha over white, times the quad's colour); the software frame
 uint32_t* softMem;      // the software frame shown when the replay cannot draw a frame
-int32_t softW, softH;
 bool softValid;         // softMem holds the last software frame (render_damage may then draw only what changed)
 uint32_t* softRows;     // the rows the rasterizer writes (cached memory: blends read it), copied to softMem
-struct GSlot { int32_t font; uint32_t cp; int16_t x, y; };
-GSlot gtab[4096];
-int gx, gy, growH, gcount;
-// A glyph's place in the atlas, uploaded on first use; null when the atlas is full. ponytail: never evicted, a reset when a program needs more
-// than 512x512 of distinct glyphs is the upgrade.
-const GSlot* glyph(int32_t font, uint32_t cp, const Glyph& g, const uint8_t* bitmap) {
-  uint32_t h = ((uint32_t)font * 2654435761u) ^ (cp * 40503u);
-  for (int probe = 0; probe < 4096; probe++, h++) {
-    GSlot& s = gtab[h & 4095];
-    if (s.font == font + 1 && s.cp == cp) return &s;
-    if (s.font) continue;
-    if (gcount >= 3072) return nullptr;
-    const int w = g.w + 1, gh = g.h + 1;   // a texel of space between glyphs
-    if (gx + w > (int)kGlyphW) { gx = 0; gy += growH; growH = 0; }
-    if (gy + gh > (int)kGlyphH || w > (int)kGlyphW) return nullptr;
-    for (int y = 0; y < g.h; y++) memcpy(glyphMem + (size_t)(gy + y) * kGlyphW + gx, bitmap + g.off + (size_t)y * g.w, g.w);
-    s = GSlot{font + 1, cp, (int16_t)gx, (int16_t)gy};
-    gx += w; if (gh > growH) growH = gh;
-    gcount++;
-    return &s;
-  }
-  return nullptr;
-}
-const Glyph* glyphOf(int32_t font, const Font& f, uint32_t cp) {   // raster.cpp glyph_of without its ASCII table
-  if (font >= RUNTIME_FONT_BASE) return runtime_glyph(font, cp);
-  int32_t lo = 0, hi = f.count - 1;
-  while (lo <= hi) { const int32_t m = (lo + hi) >> 1; if (f.glyphs[m].cp == cp) return &f.glyphs[m]; if (f.glyphs[m].cp < cp) lo = m + 1; else hi = m - 1; }
-  return nullptr;
-}
-uint32_t nextCp(const char* s, uint32_t n, uint32_t& i) {
-  const uint8_t c = (uint8_t)s[i];
-  const uint32_t w = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
-  uint32_t cp = c < 0x80 ? c : c < 0xE0 ? c & 0x1F : c < 0xF0 ? c & 0x0F : c & 0x07;
-  for (uint32_t k = 1; k < w && i + k < n; k++) cp = (cp << 6) | ((uint8_t)s[i + k] & 0x3F);
-  i += w;
-  return cp;
-}
 
 // ---- the batch being built: consecutive quads of one program and texture
-struct Batch { const SceGxmTexture* tex; bool linear; uint32_t first, count; };
+struct Batch { const Tex* tex; bool linear; uint32_t first, count; };
 Batch batches[1024];
 uint32_t nb;
 float K = 1, OX = 0, OY = 0;   // the program's surface to the screen: x' = OX + K x
-struct Clip { float x0, y0, x1, y1; };
-Clip clip;
 bool overflow;
 
-void quad(const SceGxmTexture* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a) {
-  // cut to the clip on the CPU, the texture coordinates with it: exact for the axis-aligned clips of zinc:gfx
-  if (x0 < clip.x0) { u0 += (u1 - u0) * (clip.x0 - x0) / (x1 - x0); x0 = clip.x0; }
-  if (x1 > clip.x1) { u1 -= (u1 - u0) * (x1 - clip.x1) / (x1 - x0); x1 = clip.x1; }
-  if (y0 < clip.y0) { v0 += (v1 - v0) * (clip.y0 - y0) / (y1 - y0); y0 = clip.y0; }
-  if (y1 > clip.y1) { v1 -= (v1 - v0) * (y1 - clip.y1) / (y1 - y0); y1 = clip.y1; }
-  if (x0 >= x1 || y0 >= y1 || a <= 0) return;
-  if (nq >= kPool / (4 * sizeof(V)) || nb >= 1024) { overflow = true; return; }
+// The next quad's four vertices (x0 y0, x1 y0, x0 y1, x1 y1), in the batch of its texture; null when the pool is full.
+V* quadAt(const Tex* tex, bool linear) {
+  if (nq >= kPool / (4 * sizeof(V)) || nb >= 1024) { overflow = true; return nullptr; }
   if (!nb || batches[nb - 1].tex != tex || batches[nb - 1].linear != linear) batches[nb++] = Batch{tex, linear, nq, 0};
   batches[nb - 1].count++;
-  V* v = pools[back] + nq++ * 4;
-  const float r = (float)(rgb >> 16 & 255) / 255, g = (float)(rgb >> 8 & 255) / 255, b = (float)(rgb & 255) / 255;
-  const float X0 = OX + K * x0, X1 = OX + K * x1, Y0 = OY + K * y0, Y1 = OY + K * y1;
-  v[0] = V{X0, Y0, u0, v0, r, g, b, a}; v[1] = V{X1, Y0, u1, v0, r, g, b, a};
-  v[2] = V{X0, Y1, u0, v1, r, g, b, a}; v[3] = V{X1, Y1, u1, v1, r, g, b, a};
-}
-float fl(float v) { const float i = (float)(int32_t)v; return i > v ? i - 1 : i; }
-float ce(float v) { const float i = (float)(int32_t)v; return i < v ? i + 1 : i; }
-
-// Whether every command of the lists is one the replay draws (else the frame is rasterized in software).
-bool drawable(const HalCmdList* const* l, int32_t n) {
-  for (int32_t k = 0; k < n; k++) {
-    const Cmd* c = static_cast<const Cmd*>(l[k]->cmds);
-    for (uint32_t i = 0; i < l[k]->count; i++) {
-      const Cmd& m = c[i];
-      switch (m.kind) {
-        case CLEAR: case UNCLIP: break;
-        case RECT: if (m.r > 0 || m.grad) return false; break;
-        case CLIP: if (m.r > 0) return false; break;
-        case TEXT: { const Font* f = font_at(m.res); if (f && f->count == 0 && m.res < font_count) return false; break; }   // an outline font the tables cannot read
-        case IMAGE: if (image_radius(m) > 0 || image_blend(m) != BLEND_NORMAL || (m.pad & kImageLayer)) return false; break;
-        default: return false;
-      }
-    }
-  }
-  return true;
-}
-
-void text(const Cmd& c, const char* s) {
-  const Font* fp = font_at(c.res);
-  if (!fp) return;
-  const Font& f = *fp;
-  // a baked font's ASCII glyphs go into the atlas at its first use, together: an emulator that caches textures (Vita3K) sees one upload
-  static bool loaded[64];
-  if (c.res >= 0 && c.res < 64 && !loaded[c.res]) {
-    loaded[c.res] = true;
-    for (int32_t i = 0; i < f.count; i++) if (f.glyphs[i].cp < 128 && f.glyphs[i].w && f.glyphs[i].h) glyph(c.res, f.glyphs[i].cp, f.glyphs[i], f.bitmap);
-  }
-  // raster.cpp draw_text: the pen in 26.6, glyphs on whole pixels, the baseline at the rounded y plus the ascent
-  int32_t pen = (int32_t)fl(c.x * 64);
-  const int32_t base = (int32_t)fl(c.y + 0.5f) + f.ascent, track = (int32_t)(c.s * 64);
-  const float a = (float)c.alpha / 255;
-  for (uint32_t i = 0; i < c.n;) {
-    const uint32_t cp = nextCp(s, c.n, i);
-    const Glyph* g = glyphOf(c.res, f, cp);
-    if (!g && !ignorable_cp(cp)) g = glyphOf(c.res, f, '?');
-    if (!g) continue;
-    if (g->w && g->h) {
-      const Font* bf = c.res >= RUNTIME_FONT_BASE ? font_at(c.res) : &f;
-      if (const GSlot* s = glyph(c.res, cp, *g, bf->bitmap)) {
-        const float gx = (float)(((pen + 32) >> 6) + g->x0), gy = (float)(base + g->y0);
-        quad(&glyphTex, false, gx, gy, gx + g->w, gy + g->h, (float)s->x / kGlyphW, (float)s->y / kGlyphH, (float)(s->x + g->w) / kGlyphW,
-             (float)(s->y + g->h) / kGlyphH, c.c1, a);
-      }
-    }
-    pen += g->adv + track;
-  }
-}
-
-void image(const Cmd& c) {
-  if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f)) return;
-  const Tex* t = texture(c.res);
-  if (!t) return;
-  const Box b = image_box(c);   // the box the whole image covers; what of it lies over the painted rectangle is drawn
-  if (!(b.w != 0 && b.h != 0)) return;
-  // the pixels the rasterizer paints: floor / ceil of the rectangle, within the box
-  const float bx0 = b.w < 0 ? b.x + b.w : b.x, bx1 = b.w < 0 ? b.x : b.x + b.w, by0 = b.h < 0 ? b.y + b.h : b.y, by1 = b.h < 0 ? b.y : b.y + b.h;
-  float x0 = fl(c.x), y0 = fl(c.y), x1 = ce(c.x + c.w), y1 = ce(c.y + c.h);
-  if (fl(bx0) > x0) x0 = fl(bx0);
-  if (fl(by0) > y0) y0 = fl(by0);
-  if (ce(bx1) < x1) x1 = ce(bx1);
-  if (ce(by1) < y1) y1 = ce(by1);
-  if (x0 >= x1 || y0 >= y1) return;
-  const float u0 = (x0 - b.x) / b.w, u1 = (x1 - b.x) / b.w, v0 = (y0 - b.y) / b.h, v1 = (y1 - b.y) / b.h;
-  const bool whole = (b.w == (float)t->w || b.w == -(float)t->w) && (b.h == (float)t->h || b.h == -(float)t->h) && b.x == fl(b.x) && b.y == fl(b.y);
-  quad(&t->t, !(c.grad == 1 || whole), x0, y0, x1, y1, u0, v0, u1, v1, image_tint(c), (float)c.alpha / 255);
-}
-
-void replay(const HalCmdList* l, int32_t w, int32_t h) {
-  const Cmd* cmds = static_cast<const Cmd*>(l->cmds);
-  Clip stack[16];
-  int sp = 0;
-  clip = Clip{0, 0, (float)w, (float)h};
-  for (uint32_t i = 0; i < l->count; i++) {
-    const Cmd& c = cmds[i];
-    switch (c.kind) {
-      case CLEAR: quad(nullptr, false, clip.x0, clip.y0, clip.x1, clip.y1, 0, 0, 0, 0, c.c1, 1); break;
-      case RECT: {
-        const float x0 = fl(c.x), y0 = fl(c.y), x1 = ce(c.x + c.w), y1 = ce(c.y + c.h);
-        quad(nullptr, false, x0, y0, x1, y1, 0, 0, 0, 0, c.c1, (float)c.alpha / 255);
-        break;
-      }
-      case TEXT: text(c, l->text + c.off); break;
-      case IMAGE: image(c); break;
-      case CLIP:
-        if (sp < 16) {
-          stack[sp++] = clip;
-          const float x0 = fl(c.x), y0 = fl(c.y), x1 = ce(c.x + c.w), y1 = ce(c.y + c.h);
-          clip = Clip{x0 > clip.x0 ? x0 : clip.x0, y0 > clip.y0 ? y0 : clip.y0, x1 < clip.x1 ? x1 : clip.x1, y1 < clip.y1 ? y1 : clip.y1};
-        }
-        break;
-      case UNCLIP: if (sp > 0) clip = stack[--sp]; break;
-      default: break;
-    }
-  }
+  return pools[back] + nq++ * 4;
 }
 
 void draw() {
@@ -288,7 +139,7 @@ void draw() {
       sceGxmSetFragmentProgram(ctx, ftex);
       sceGxmReserveVertexDefaultUniformBuffer(ctx, &uniforms);
       sceGxmSetUniformDataF(uniforms, wvpTex, 0, 16, ortho);
-      t = *b.tex;
+      t = b.tex->t;
       const SceGxmTextureFilter filt = b.linear ? SCE_GXM_TEXTURE_FILTER_LINEAR : SCE_GXM_TEXTURE_FILTER_POINT;
       sceGxmTextureSetMinFilter(&t, filt); sceGxmTextureSetMagFilter(&t, filt);
       sceGxmTextureSetUAddrMode(&t, SCE_GXM_TEXTURE_ADDR_CLAMP); sceGxmTextureSetVAddrMode(&t, SCE_GXM_TEXTURE_ADDR_CLAMP);
@@ -304,6 +155,35 @@ void draw() {
   }
 }
 }  // namespace
+
+// The backend of the shared replay (targets/console/ff_replay.h): textures, the atlases and quads in screen pixels.
+namespace zn::ff {
+const void* texture(int32_t id, int32_t* w, int32_t* h) {
+  const Tex* t = ::texture(id);
+  if (!t) return nullptr;
+  *w = t->w; *h = t->h;
+  return t;
+}
+const void* atlas(int i) { return &atlasTex[i]; }
+uint8_t* atlas_memory(int i) { return static_cast<uint8_t*>(atlasTex[i].mem); }
+// CDRAM is written through (no cache to clean); the shape atlas starting again at its origin was emptied: the frames still queued may read it
+void atlas_written(int i, int32_t x, int32_t y, int32_t, int32_t) { if (i == 1 && !x && !y) sceGxmFinish(ctx); }
+bool quads_pending() { return nq > 0; }
+void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a) {
+  V* v = quadAt(static_cast<const Tex*>(tex), linear);
+  if (!v) return;
+  const float r = (float)(rgb >> 16 & 255) / 255, g = (float)(rgb >> 8 & 255) / 255, b = (float)(rgb & 255) / 255;
+  v[0] = V{x0, y0, u0, v0, r, g, b, a}; v[1] = V{x1, y0, u1, v0, r, g, b, a};
+  v[2] = V{x0, y1, u0, v1, r, g, b, a}; v[3] = V{x1, y1, u1, v1, r, g, b, a};
+}
+void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, const uint32_t rgb[4], float a) {
+  V* v = quadAt(static_cast<const Tex*>(tex), linear);
+  if (!v) return;
+  const float xs[4] = {x0, x1, x0, x1}, ys[4] = {y0, y0, y1, y1}, us[4] = {u0, u1, u0, u1}, vs[4] = {v0, v0, v1, v1};
+  for (int i = 0; i < 4; i++)
+    v[i] = V{xs[i], ys[i], us[i], vs[i], (float)(rgb[i] >> 16 & 255) / 255, (float)(rgb[i] >> 8 & 255) / 255, (float)(rgb[i] & 255) / 255, a};
+}
+}  // namespace zn::ff
 
 extern "C" {
 uint64_t zn_gxm_cpu_us;   // the CPU time of the last frame's replay (or software raster), for the HAL's frame times
@@ -441,14 +321,16 @@ bool zn_gxm_init(int32_t w, int32_t h) {
   heapSize &= ~0x3FFFFu;
   void* hmem = heapSize ? gpuAlloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, heapSize, RW) : nullptr;
   if (!hmem || !(heap = sceClibMspaceCreate(hmem, heapSize))) { say("the texture heap in CDRAM", (int)fm.size_cdram); return false; }
-  glyphMem = static_cast<uint8_t*>(sceClibMspaceMemalign(heap, SCE_GXM_TEXTURE_ALIGNMENT, kGlyphW * kGlyphH));
-  softW = w; softH = h;
+  for (Tex& a : atlasTex) {
+    a.mem = sceClibMspaceMemalign(heap, SCE_GXM_TEXTURE_ALIGNMENT, zn::ff::kAtlasW * zn::ff::kAtlasH);
+    if (!a.mem) break;
+    memset(a.mem, 0, zn::ff::kAtlasW * zn::ff::kAtlasH);
+    sceGxmTextureInitLinear(&a.t, a.mem, SCE_GXM_TEXTURE_FORMAT_U8_R111, zn::ff::kAtlasW, zn::ff::kAtlasH, 0);   // coverage as alpha over white
+  }
   softMem = static_cast<uint32_t*>(sceClibMspaceMemalign(heap, SCE_GXM_TEXTURE_ALIGNMENT, (((unsigned)w + 7) & ~7u) * (unsigned)h * 4));
   softRows = static_cast<uint32_t*>(malloc((size_t)w * h * 4));
-  if (!glyphMem || !softMem || !softRows) { say("the glyph atlas and software frame", 0); return false; }
-  memset(glyphMem, 0, kGlyphW * kGlyphH);
-  sceGxmTextureInitLinear(&glyphTex, glyphMem, SCE_GXM_TEXTURE_FORMAT_U8_R111, kGlyphW, kGlyphH, 0);   // coverage as alpha over white
-  sceGxmTextureInitLinear(&softTex, softMem, SCE_GXM_TEXTURE_FORMAT_X8U8U8U8_1RGB, (unsigned)w, (unsigned)h, 0);
+  if (!atlasTex[0].mem || !atlasTex[1].mem || !softMem || !softRows) { say("the coverage atlases and software frame", 0); return false; }
+  sceGxmTextureInitLinear(&softTex.t, softMem, SCE_GXM_TEXTURE_FORMAT_X8U8U8U8_1RGB, (unsigned)w, (unsigned)h, 0);
   // the program's surface on the screen: a whole factor, centred (a 480x272 surface doubled), as the software path shows it
   const int32_t k = (int32_t)kW / w < (int32_t)kH / h ? (int32_t)kW / w : (int32_t)kH / h;
   K = (float)(k > 0 ? k : 1); OX = (float)(((int32_t)kW - w * (int32_t)K) / 2); OY = (float)(((int32_t)kH - h * (int32_t)K) / 2);
@@ -468,20 +350,19 @@ bool zn_gxm_present(const HalFrame* f) {
   const HalCmdList* lists[6];
   const int32_t n = f->frames ? f->frames(lists, 6) : 0;
   nq = 0; nb = 0; overflow = false;
-  if (n > 0 && drawable(lists, n)) {
-    for (int32_t k = 0; k < n; k++) replay(lists[k], f->w, f->h);
+  if (n > 0 && zn::ff::drawable(lists, n)) {
+    for (int32_t k = 0; k < n; k++) zn::ff::replay(lists[k], f->w, f->h, K, OX, OY);
     softValid = false;
   } else {   // software: the damaged rows (all of them when the last frame was the GPU's), copied into the texture the quad shows
     static bool told;
-    if (!told) { told = true; zn_vita_log("vita gxm: a frame the replay does not draw (rounded, gradient, path or turned commands): rasterized in software\n"); }
+    if (!told) { told = true; zn_vita_log("vita gxm: a frame the replay does not draw (radial gradients, rounded clips, lines or turned commands): rasterized in software\n"); }
     int32_t y0 = f->y0, y1 = f->y1;
     if (!softValid || !f->render_damage) { y0 = 0; y1 = f->h; f->render(softRows, 0, f->h); }
     else f->render_damage(softRows + (size_t)y0 * f->w, y0, y1);
     const uint32_t stride = ((uint32_t)f->w + 7) & ~7u;
     for (int32_t y = y0; y < y1; y++) memcpy(softMem + (size_t)y * stride, softRows + (size_t)y * f->w, (size_t)f->w * 4);
     softValid = true;
-    clip = Clip{0, 0, (float)f->w, (float)f->h};
-    quad(&softTex, false, 0, 0, (float)f->w, (float)f->h, 0, 0, 1, 1, 0xFFFFFF, 1);
+    zn::ff::full(&softTex, f->w, f->h, K, OX, OY);
   }
   if (overflow) { static bool told; if (!told) { told = true; zn_vita_log("vita gxm: a frame has more quads than the vertex pool: the rest is not drawn\n"); } }
   const uint64_t t1 = sceKernelGetProcessTimeWide();

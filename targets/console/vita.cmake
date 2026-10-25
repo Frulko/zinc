@@ -25,8 +25,8 @@ if(ZN_CONSOLE_GFX AND ZN_VITA_GL)
   target_link_libraries(zinc-core PRIVATE zn_vitagl)
 elseif(ZN_CONSOLE_GFX)
 # the GPU path (ZN-471): the command lists replayed with GXM, SDL3's precompiled GXP programs (zlib) from the vendored SDL3
-  target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/gxm_vita.cpp)
-  set_source_files_properties(${ZN_TARGETS}/vita/gxm_vita.cpp PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${ZN_RUNTIME};${ZN_NEXT}/third_party/SDL3/src/render/vitagxm")
+  target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/gxm_vita.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp)   # the replay shared with the PSP and the 3DS
+  set_source_files_properties(${ZN_TARGETS}/vita/gxm_vita.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ff_replay.cpp PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${ZN_RUNTIME};${ZN_NEXT}/third_party/SDL3/src/render/vitagxm")
 endif()
 # the 3D path (ZN-493, first milestone): gxm_3d.cpp's draw entrypoint, only with the compiled colour pair;
 # default off, the 2D replay above builds and behaves unchanged (targets/vita/shaders/README.md).
