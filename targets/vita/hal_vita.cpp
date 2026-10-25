@@ -268,7 +268,9 @@ void hal_init(const HalConfig* cfg) {
   d.size = sizeof d; d.base = fb; d.pitch = kScreenW; d.pixelformat = SCE_DISPLAY_PIXELFORMAT_A8B8G8R8; d.width = kScreenW; d.height = kScreenH;
   sceDisplaySetFrameBuf(&d, SCE_DISPLAY_SETBUF_NEXTFRAME);
 }
-void hal_shutdown(void) {}
+// A frame-budget build (an emulator test) waits after zinc:exit: tools/console-run kills Vita3K on that line, before the program's return
+// reaches Vita3K's own shutdown, which crashes in gxm::destroy_all_contexts (a crash report each run). A console only pauses before it exits.
+void hal_shutdown(void) { if (ZINC_FRAMES > 0) sceKernelDelayThread(3000000); }
 void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
 uint64_t hal_time_us(void) { return (uint64_t)sceKernelGetProcessTimeWide(); }

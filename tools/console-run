@@ -34,11 +34,10 @@ frame() {
   sed '/^zinc:exit/d' "$tmp/out" | grep -v "${3:-^zinc:never-matched$}"
 }
 # waits until the log has zinc:exit or the time is over; then stops the emulator started with `marker` in its arguments
-wait_exit() {   # $1 log, $2 marker
+wait_exit() {   # $1 log, $2 marker, $3 "kill": SIGKILL at once (Vita3K crashes in its own shutdown, whether asked to stop or left to end)
   n=0
   while [ $n -lt $((timeout * 4)) ]; do grep -q "zinc:exit" "$1" 2>/dev/null && break; sleep 0.25; n=$((n + 1)); done
-  sleep 0.3
-  pkill -f "$2" 2>/dev/null
+  if [ "${3:-}" = kill ]; then pkill -9 -f "$2" 2>/dev/null; else sleep 0.3; pkill -f "$2" 2>/dev/null; fi
   n=0; while pgrep -f "$2" >/dev/null && [ $n -lt 40 ]; do sleep 0.25; n=$((n + 1)); done
   pkill -9 -f "$2" 2>/dev/null   # Azahar asks before it stops a running app (a dialog nobody answers): it would stay behind
   grep -q "zinc:exit" "$1" 2>/dev/null
@@ -102,7 +101,7 @@ open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/window.bmp" &&
          sips -s format png -z 544 960 "$tmp/window.bmp" --out "$tmp/window-shot.png" >/dev/null 2>&1) &
       watcher=$!
     fi
-    wait_exit "$tmp/log" "$tmp/config.yml"
+    wait_exit "$tmp/log" "$tmp/config.yml" kill
     [ -z "${watcher:-}" ] || { grep -q "holding the last frame for the shot" "$tmp/log" || kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null; }
     frame "$tmp/log" 's/^.*\[export_sceClibPrintf\]: \(.*\)$/\1/p'
     if [ -f "$tmp/window-shot.png" ]; then cp "$tmp/window-shot.png" "$shot"; else png "$pref/ux0/data/zinc-shot.ppm"; fi
