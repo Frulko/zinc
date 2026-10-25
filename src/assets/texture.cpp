@@ -1,6 +1,7 @@
 // GPU textures (ZN-439): the texture importer, the image decoding it shares with the image importer, the report's view of an image artifact.
 #include "assets/texture.h"
 
+#include "assets/console_tex.h"
 #include "assets/sprite.h"   // zimHeader
 #include "res/codec.h"
 #include "res/res.h"
@@ -51,7 +52,7 @@ constexpr Name kNames[] = {
   {"rgba5551", 4, 4, 16, nullptr, nullptr},  {"bc1", 8, 8, 4, "BC1", "BC1"},          {"bc3", 9, 9, 8, "BC3", "BC3"},
   {"bc7", 10, 10, 8, "BC7", "BC7"},          {"etc1", 11, 11, 4, "ETC1", "ETC1"},     {"etc2", 11, 12, 8, "ETC1", "ETC2"},   // opaque ETC2 is ETC1 data
   {"astc", 13, 13, 8, "ASTC", "ASTC"},       {"pvrtc", 14, 15, 4, "PVRTC1_RGB", "PVRTC1_RGBA"},
-  {"ktx2", 0, 0, 8, nullptr, nullptr},
+  {"clut8", 16, 16, 8, nullptr, nullptr},    {"ktx2", 0, 0, 8, nullptr, nullptr},
 };
 bool hasAlpha(const Name& n) { return n.alpha == 0 || zim::format(n.alpha)->alpha; }
 // The thread count basisu runs with: fixed, not the machine's, so that a texture gives the same bytes everywhere (tests/t1/texture.sh bakes
@@ -72,7 +73,7 @@ bool pick(const std::string& list, bool alpha, const Name*& out, std::string& se
     const Name* n = nullptr;
     for (const Name& k : kNames) if (name == k.name) n = &k;
     if (n) { names.push_back({n, set}); continue; }
-    if (name == "clut4" || name == "clut8" || name == "etc1a4") { names.push_back({&kNames[0], set}); continue; }   // ZN-452: handled by console_tex encoders; reported as rgba8 to the pipeline for now
+    if (name == "clut4" || name == "etc1a4") { names.push_back({&kNames[0], set}); continue; }   // ZN-452: handled by console_tex encoders; reported as rgba8 to the pipeline for now
     err = "the texture format \"" + name + "\" is not one of rgba8, rgb565, rgba4444, rgba5551, bc1, bc3, bc7, etc1, etc2, astc, pvrtc, ktx2";
     return false;
   }
@@ -175,7 +176,8 @@ bool decodeImage(const std::string& name, const std::string& in, const Opts& o, 
   return true;
 }
 
-bool importTexture(const ToolPath& basisu, const std::string& name, const std::string& in, const Opts& o, std::string& out, std::string& err) {
+bool importTexture(const ToolPath& basisu, const std::string& name, const std::string& in, const Opts& o, std::string& out, std::string& err,
+                   const std::string* night) {
   int w = 0, h = 0, k = 1;
   std::vector<std::uint8_t> rgba;
   if (!decodeImage(name, in, o, w, h, k, rgba, err)) return false;
@@ -184,8 +186,9 @@ bool importTexture(const ToolPath& basisu, const std::string& name, const std::s
   const Name* fmt = nullptr;
   std::string setting;
   if (!pick(o.count("format") ? o.at("format") : "rgba8", alpha, fmt, setting, err)) return false;
-  const bool linear = flag(o, "linear", false), mipmaps = flag(o, "mipmaps", true), premultiply = alpha && flag(o, "premultiply", true);
   const std::uint8_t id = alpha ? fmt->alpha : fmt->opaque;
+  // ponytail: clut8 has one level (the PSP's GE samples it without mipmaps); mipmaps when a far ground shimmers
+  const bool linear = flag(o, "linear", false), mipmaps = id != 16 && flag(o, "mipmaps", true), premultiply = alpha && flag(o, "premultiply", true);
 
   // the size the target takes: within maxSize (the aspect kept), each side a power of two with `pot` (stretched, not padded), PVRTC1 square too
   const int maxSize = o.count("maxSize") ? std::atoi(o.at("maxSize").c_str()) : 0;
@@ -216,6 +219,23 @@ bool importTexture(const ToolPath& basisu, const std::string& name, const std::s
         for (int c = 0; c < 3; ++c) l.rgba[i + c] = static_cast<std::uint8_t>((l.rgba[i + c] * l.rgba[i + 3] + 127) / 255);
 
   const unsigned flags = (premultiply ? zim::Premultiplied : 0) | (mipmaps && id != 0 ? zim::Mipmaps : 0) | (linear ? 0 : zim::Srgb);
+  if (id == 16) {   // CLUT8: with its night picture (the `night` option), quantised together into one set of indices and two palettes
+    std::vector<std::uint8_t> dark;
+    if (night) {
+      int nw = 0, nh = 0, nk = 1;
+      std::vector<std::uint8_t> n;
+      if (!decodeImage(name, *night, o, nw, nh, nk, n, err)) { err = "its night picture: " + err; return false; }
+      if (nw != tw || nh != th) resize(n, nw, nh, dark, tw, th, linear); else dark = std::move(n);
+    }
+    const int colors = o.count("colors") ? std::atoi(o.at("colors").c_str()) : 256;
+    if (colors < 2 || colors > 256) { err = "colors " + o.at("colors") + " is not 2 to 256"; return false; }
+    std::vector<std::uint8_t> idx, pal;
+    encodeClut8(levels[0].rgba, night ? &dark : nullptr, tw, th, colors, idx, pal);
+    out = zimHeader(id, k, flags, tw, th);
+    out.append(reinterpret_cast<const char*>(pal.data()), pal.size());
+    out.append(reinterpret_cast<const char*>(idx.data()), idx.size());
+    return true;
+  }
   if (id != 0 && zim::format(id)->bw == 1) {   // a 16- or 32-bit layout: no encoder
     out = zimHeader(id, k, flags, tw, th);
     for (const Level& l : levels) out += rawLevel(id, l);

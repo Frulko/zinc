@@ -153,8 +153,8 @@ bool importSpriteFile(const Options&, const std::string& name, const std::string
 bool importTilemapFile(const Options&, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importTilemap(name, in, side, o, out, err);
 }
-bool importTextureFile(const Options& opt, const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
-  return importTexture(opt.basisu, name, in, o, out, err);
+bool importTextureFile(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+  return importTexture(opt.basisu, name, in, o, out, err, side.empty() ? nullptr : &side.begin()->second);   // its night picture
 }
 bool importModelFile(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importModel(opt.gltfpack, opt.basisu, name, in, side, o, out, err);
@@ -432,6 +432,14 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!readFile(fs::path(opt.sourceDir) / name, json)) { err = name + ": cannot read the file"; return false; }
       auto read = [&](const std::string& f, std::string& bytes) { return readFile(fs::path(opt.sourceDir) / f, bytes); };
       if (!tilemapDeps(name, json, read, e.deps, err)) { err = name + ": " + err; return false; }
+    } else if (imp->run == importTextureFile && e.opts.count("night")) {
+      // a clut8 texture's night picture: `night` names it from the texture's own name ({stem}: without its extension), beside it; none there:
+      // the day's palette for both
+      const fs::path self(name);
+      std::string other = e.opts.at("night");
+      for (std::size_t at; (at = other.find("{stem}")) != std::string::npos;) other.replace(at, 6, self.stem().string());
+      const std::string dep = (self.parent_path() / other).generic_string();
+      if (dep != name && fs::is_regular_file(fs::path(opt.sourceDir) / dep)) e.deps = {dep};
     } else if (imp->run == importModelFile) {
       std::string model;
       if (!readFile(fs::path(opt.sourceDir) / name, model)) { err = name + ": cannot read the file"; return false; }

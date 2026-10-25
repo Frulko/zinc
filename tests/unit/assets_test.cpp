@@ -3,6 +3,7 @@
 // Sprites and atlases (ZN-438): the page layout and extrusion, the errors of the atlas. Textures (ZN-439): formats, mipmaps, alpha, sizes.
 // Run from the repository root (it reads tests/data/images); prints "all checks passed" or one line per failure.
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -191,7 +192,32 @@ void textures() {
   CHECK(make(translucent, {{"format", "rgba5551"}, {"mipmaps", "false"}, {"premultiply", "false"}}) && u16(out, 16) == ((31u << 11) | 1u), "rgba5551: %04x", u16(out, 16));
   CHECK(make(translucent, {{"format", "rgba4444"}, {"maxSize", "4"}, {"pot", "true"}}) && u32(out, 8) == 4 && u32(out, 12) == 2, "maxSize 4, pot: %ux%u", u32(out, 8), u32(out, 12));
   CHECK(!make(translucent, {{"format", "bc7"}}) && err.find("basisu") != std::string::npos, "bc7 without an encoder: %s", err.c_str());
-  CHECK(make(translucent, {{"format", "clut8"}, {"mipmaps", "false"}}) && describeImage(out, fmt, gpu) && fmt == "rgba8", "clut8 is rgba8 until its encoder (ZN-452): %s %s", fmt.c_str(), err.c_str());
+  // clut8 (the PSP): a 32 x 16 gradient of 512 colours and its night (a quarter as bright), quantised together to 128 pairs: the two palettes
+  // then the indices, every index below 128, each texel's day and night colours within a step of the median cut's boxes
+  {
+    std::vector<unsigned char> day(32 * 16 * 4), dark(32 * 16 * 4);
+    for (int i = 0; i < 32 * 16; i++) {
+      const unsigned char c[4] = {static_cast<unsigned char>(i % 32 * 8), static_cast<unsigned char>(i / 32 * 16), static_cast<unsigned char>(255 - i % 32 * 8), 255};
+      for (int k = 0; k < 4; k++) { day[i * 4 + k] = c[k]; dark[i * 4 + k] = k < 3 ? c[k] / 4 : 255; }
+    }
+    const std::vector<std::uint8_t> dp = zn::res::encodePng(day.data(), 32, 16, 4), np = zn::res::encodePng(dark.data(), 32, 16, 4);
+    const std::string d(dp.begin(), dp.end()), n(np.begin(), np.end());
+    out.clear(); err.clear();
+    CHECK(importTexture(none, "g.png", d, {{"format", "clut8"}, {"colors", "128"}}, out, err, &n), "clut8: %s", err.c_str());
+    CHECK(out.size() == 16 + 2048 + 32 * 16 && out[4] == 16 && !(u16(out, 6) & 2), "clut8: format %d flags %u, %zu bytes", out[4], u16(out, 6), out.size());
+    CHECK(describeImage(out, fmt, gpu) && fmt == "clut8" && gpu == 2048 + 32 * 16, "clut8 described as %s, %llu GPU bytes", fmt.c_str(), static_cast<unsigned long long>(gpu));
+    int over = 0, far = 0;
+    for (int i = 0; i < 32 * 16 && out.size() == 16 + 2048 + 32 * 16; i++) {
+      const unsigned k = static_cast<unsigned char>(out[16 + 2048 + i]);
+      over += k >= 128;
+      for (int c = 0; c < 3; c++) {
+        far += std::abs(static_cast<unsigned char>(out[16 + k * 4 + c]) - day[i * 4 + c]) > 40;
+        far += std::abs(static_cast<unsigned char>(out[16 + 1024 + k * 4 + c]) - dark[i * 4 + c]) > 16;
+      }
+    }
+    CHECK(over == 0 && far == 0, "clut8: %d indices of 128 or more, %d channels far from the picture's", over, far);
+  }
+  CHECK(make(translucent, {{"format", "clut8"}, {"colors", "300"}}) == false && err.find("colors") != std::string::npos, "clut8 colors 300: %s", err.c_str());
   CHECK(!make(translucent, {{"format", "dxt9"}}) && err.find("not one of") != std::string::npos, "unknown: %s", err.c_str());
   CHECK(importerFor("tex/a.png", {{"tex/**", "texture", {}}}) == "texture" && importerFor("b.png", {{"tex/**", "texture", {}}}) == "image" &&
         importerFor("b.wav", {}) == "copy", "importerFor");

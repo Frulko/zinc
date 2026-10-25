@@ -25,9 +25,10 @@ void resizeRgba(const std::vector<std::uint8_t>& rgba, int w, int h, std::vector
 
 /** The texture of `in`. Options: `format` (formats in preference order, `a|b`: an image with alpha takes the first that has alpha, an opaque
  *  one the first, or a later one without alpha that is smaller), `maxSize`, `pot`, `mipmaps` (true), `premultiply` (true), `linear` (false:
- *  colour in sRGB). `basisu` is asked for only when a block format is chosen. */
+ *  colour in sRGB); for clut8, `colors` (256) and `night` (assets.cpp: a night picture beside it, whose bytes are `night`, quantised with
+ *  it into the second palette). `basisu` is asked for only when a block format is chosen. */
 bool importTexture(const ToolPath& basisu, const std::string& name, const std::string& in, const std::map<std::string, std::string>& opts,
-                   std::string& out, std::string& err);
+                   std::string& out, std::string& err, const std::string* night = nullptr);
 
 /** What the report says of an image artifact from its first bytes (512 are enough): its format and the bytes its texels take on the GPU
  *  (every level of a ZIM1 entry; for a KTX2 file, the levels transcoded to 4 x 4 blocks of 16 bytes, or 8 for opaque ETC1S). */
