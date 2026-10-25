@@ -52,6 +52,13 @@ export class Flight {
     if (this.keys.length < 2) this.touring = false;
   }
 
+  /** Where the eye will be in `s` seconds (`out`): on the tour, its path; in free flight, straight on at the present speed. */
+  ahead(s: number, out: number[]): void {
+    if (this.touring && this.keys.length >= 2) { this.tourAt(this.seconds + s, out, this.spare); return; }
+    for (let c = 0; c < 3; c++) out[c] = this.eye[c] + this.vel[c] * s;
+  }
+  private readonly spare: number[] = [0, 0, 0];
+
   /** The tour's eye (`out` 0..2) and the point it looks at (3..5), `s` seconds in. */
   private tourAt(s: number, eye: number[], target: number[]): void {
     const n = this.keys.length, len = this.at[n];

@@ -148,11 +148,34 @@ export class City {
       }
       p.shown = show;
       if (show >= 0) spent += p.tris[show];
-      // a device short of memory frees the finer levels a place has not used for a while
-      p.idle = want === LOD_NEAR || want === LOD_MID ? 0 : p.idle + dt;
+      // a device short of memory frees the finer levels of a place that has been out of their reach for a while
+      p.idle = p.distance < (landmark ? p.reach[1] : dev.midReach) * 1.3 ? 0 : p.idle + dt;
       if (!dev.keepModels && p.idle > 4) { this.unload(p, LOD_NEAR); this.unload(p, LOD_MID); }
     }
     this.triangles = spent;
+  }
+
+  /** Reads one model a place will want soon: the level its distance from one of `points` asks for, the view cone aside, the nearest
+   *  first. The opening reads them all behind the loading screen; the flight then reads ahead of the eye, so a place is there before it
+   *  comes out of the fog. Returns false when every place within reach of the points has its level. */
+  prefetch(points: number[][], dev: Device): boolean {
+    let best: Place | null = null, bestLod: i32 = -1, bestD = 1e30;
+    const all = this.blocks.length;
+    for (let k = 0; k < this.order.length; k++) {
+      const p = this.at(k);
+      for (const e of points) {
+        const d = boxDistance(p, e);
+        if (d >= dev.farReach || d >= bestD) continue;
+        const near = k >= all ? p.reach[0] : dev.nearReach, mid = k >= all ? p.reach[1] : dev.midReach;
+        let lod: i32 = d < near ? LOD_NEAR : d < mid ? LOD_MID : LOD_FAR;
+        while (lod <= LOD_FAR && !p.has[lod]) lod++;
+        if (lod > LOD_FAR || p.models[lod] !== null) continue;
+        best = p; bestLod = lod; bestD = d;
+      }
+    }
+    if (best === null) return false;
+    this.load(best, bestLod);
+    return true;
   }
 
   /** The night's pictures on or off: the windows lit, the lamps' light on the ground. Lit by themselves: their light is in the picture. */

@@ -38,7 +38,7 @@ export class Sky {
     scene.lights.push(this.light);
     this.useDome = dome;
     const m = this.dome.material;
-    if (m !== null) { m.shading = Shading.Unlit; m.vertexColors = true; m.doubleSided = true; }
+    if (m !== null) { m.shading = Shading.Unlit; m.vertexColors = true; m.doubleSided = true; m.fog = false; }   // the haze fades into the sky
     if (dome) scene.add(this.dome);
   }
 

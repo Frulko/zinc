@@ -9,8 +9,14 @@ export class Device {
   /** Metres to which a block is drawn at the near level, then at the mid level; beyond, the far level. */
   nearReach = 0;
   midReach = 0;
-  /** Metres beyond which nothing is drawn (the sky's colour stands for the haze there). */
+  /** Metres beyond which nothing is drawn. */
   farReach = 0;
+  /** Metres where the haze starts: it thickens into the sky's colour until just before farReach, so places and level changes come out of
+   *  it instead of popping in. A shorter reach in a thicker haze is the consoles' main lever for a steady frame rate. */
+  fogStart = 0;
+  /** Frames between two choices of what to draw (1: every frame). The choice costs a console's interpreter more than the drawing, and a
+   *  few frames late it misses nothing: the cone it tests is widened to cover the turn in between. */
+  selectEvery: i32 = 1;
   /** Triangles a frame may draw: the nearest blocks get their finer level first, the rest step down. */
   budget: i32 = 0;
   /** Frames a second the settings aim for (the readout shows the rate it gets). */
@@ -23,9 +29,10 @@ export class Device {
   keepModels = true;
 }
 
-function device(name: string, near: number, mid: number, far: number, budget: i32, fps: i32, night: boolean, dome: boolean, keep: boolean): Device {
+function device(name: string, near: number, mid: number, far: number, fog: number, budget: i32, fps: i32, every: i32, night: boolean, dome: boolean,
+                keep: boolean): Device {
   const d = new Device();
-  d.name = name; d.nearReach = near; d.midReach = mid; d.farReach = far; d.budget = budget; d.fps = fps; d.night = night; d.dome = dome; d.keepModels = keep;
+  d.name = name; d.nearReach = near; d.midReach = mid; d.farReach = far; d.fogStart = fog; d.selectEvery = every; d.budget = budget; d.fps = fps; d.night = night; d.dome = dome; d.keepModels = keep;
   return d;
 }
 
@@ -40,10 +47,10 @@ export function currentDevice(): Device {
 }
 
 function settings(p: string): Device {
-  //                     name       near  mid   far   budget  fps  night  dome   keep models
-  if (p === 'psp') return device('psp', 0, 700, 2500, 14000, 30, false, false, false);
-  if (p === 'n3ds') return device('n3ds', 0, 800, 2500, 18000, 30, true, false, false);
-  if (p === 'vita') return device('vita', 0, 1400, 4000, 40000, 60, true, true, true);
-  if (p === 'rpi1') return device('rpi', 0, 600, 2000, 8000, 30, false, false, true);
-  return device('desktop', 700, 2200, 6000, 250000, 60, true, true, true);
+  //                            near  mid   far   fog   budget  fps  every  night  dome   keep models
+  if (p === 'psp') return device('psp', 0, 600, 1800, 300, 14000, 30, 4, false, false, false);
+  if (p === 'n3ds') return device('n3ds', 0, 700, 2000, 350, 18000, 30, 3, true, false, false);
+  if (p === 'vita') return device('vita', 0, 1400, 3500, 900, 40000, 60, 2, true, true, true);
+  if (p === 'rpi1') return device('rpi', 0, 600, 1800, 300, 8000, 30, 3, false, false, true);
+  return device('desktop', 700, 2200, 6000, 2500, 250000, 60, 1, true, true, true);
 }
