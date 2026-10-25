@@ -26,10 +26,11 @@ if open(f'{d}/icon.png', 'rb').read(8) != b'\x89PNG\r\n\x1a\n': bad['icon.png'] 
 deploy = open(f'{d}/deploy.sh').read()
 shipped = all(f'"$D/{f}"' in deploy for f in ('launch.sh', 'lease', 'libquill.so'))
 if shipped != (ink == 'session') or '/home/root/xovi/exthome/appload/inkapp' not in deploy: bad['deploy.sh'] = deploy
-# the launcher: libquill.so and the vendor engine on the library path, the lease with the app watchdog and the verified hash of models.h
+# the launcher: libquill.so and the vendor engine on the library path, the lease with the app watchdog and the tablet's hash when models.h verified it
 if ink == 'session':
     launch = open(f'{d}/launch.sh').read()
-    for part in ('LD_LIBRARY_PATH="$D:/usr/lib/plugins/scenegraph"', 'exec "$D/lease" launch --watchdog 10 --vendor-sha256 3800e9f3d01f40fa3f5cc96ca49bcd982471ce5b033320f8788707520c8ddd08 "$D/inkapp"'):
+    for part in ('LD_LIBRARY_PATH="$D:/usr/lib/plugins/scenegraph"', 'exec "$D/lease" launch --watchdog 10 --vendor-sha256 "$V" "$D/inkapp"',
+                 'case "$V" in 3800e9f3d01f40fa3f5cc96ca49bcd982471ce5b033320f8788707520c8ddd08|07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec) ;;'):
         if part not in launch: bad['launch.sh'] = launch
 print(f'export manifest ({ink}): ' + ('ok' if not bad else f'FAIL {bad}'))
 sys.exit(1 if bad else 0)

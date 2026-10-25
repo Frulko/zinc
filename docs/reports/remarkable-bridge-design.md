@@ -467,3 +467,16 @@ numbers go to `docs/reports/zinc-next-perf.md`.
   not inside xochitl, which also explains why the first bridge never loaded. xochitl came back once, `NRestarts=0`; the lane was
   removed from extensions.d afterwards (framebuffer-spy stays). An in-xochitl lane needs the engine's addresses in xochitl's own
   binary, per OS hash (the way rm2fb and qt-resource-rebuilder's hashtable work): a research item, not a fix.
+
+## 12. OS 3.29.0.153, 2026-10-25 evening
+
+- The owner updated the tablet from reManager. With XOVI, xochitl aborted at start three times ("Couldn't resolve the hashed
+  identifier 17451049988834079337 required by .../qt-resource-rebuilder/ghostbuster.qmd"); systemd's start limit then ran
+  `rm-emergency` and the tablet came back on stock xochitl. Nothing was bricked: XOVI's drop-in lives on a tmpfs.
+- Repair, files only: AppLoad 0.6.0 (the build for 3.28 and 3.29) replaced the August 0.5 build. `ghostbuster.qmd`,
+  `hideDevModeIcon.qmd` and framebuffer-spy went to `/home/root/xovi/disabled-2026-10-25/`. Then one `xovi/start` behind a guard
+  that runs `xovi/stock` on the first crash: alive 45 s, `NRestarts=0`, the AppLoad menu is back.
+- `libqsgepaper.so` 3.29 (sha256 `07aa9327...`): `EPFramebuffer::swapBuffers` lost `EPContentType`
+  (`swapBuffers(QRect, EPScreenMode, QFlags<UpdateFlag>)`), so Quill v0.1.0 cannot draw. Quill has no commit since 2026-07-12.
+  It is patched in `integrations/remarkable-ink/quill`: the 3.27 signature first, then the new one. `quill-test` with the patched
+  library and the 3.29 hash, under the lease: "le test marche toujours très bien" (owner). Pen mode 0 is unchanged.

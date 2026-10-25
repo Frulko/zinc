@@ -2127,11 +2127,14 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
               (!session ? "  \"application\": " + jsonString(p.name) + ",\n  \"qtfb\": true,\n" : "  \"application\": \"launch.sh\",\n  \"qtfb\": false,\n") +
               "  \"workingDirectory\": " + jsonString(dir) + ",\n  \"disablesWindowedMode\": true\n}\n");
     if (session) {   // the ink session (L2): the lease checks the vendor library, stops xochitl and runs the app with Quill's libquill.so beside it
-      const rmm::Vendor& v = rmm::vendors[0];   // ponytail: the lease checks one hash, the Paper Pro's verified row; one launcher per row when a second OS is verified
+      std::string verified;   // the libqsgepaper.so hashes of models.h: launch.sh passes the tablet's own, the lease checks it again
+      for (const rmm::Vendor& v : rmm::vendors) verified += (verified.empty() ? "" : "|") + std::string(v.sha256);
       writeFile(out / "launch.sh", "#!/bin/sh\n# AppLoad starts this: the display lease (lease.c) runs " + p.name + " with xochitl stopped and brings xochitl back on every way out\n"
                 "# (the app quits, crashes or hangs 10 s, a 2 s press on the power button, systemctl stop zinc-lease, 30 minutes at most).\n"
                 "D=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
-                "LD_LIBRARY_PATH=\"$D:/usr/lib/plugins/scenegraph\" exec \"$D/lease\" launch --watchdog 10 --vendor-sha256 " + v.sha256 + " \"$D/" + p.name + "\"\n");
+                "V=$(sha256sum /usr/lib/plugins/scenegraph/libqsgepaper.so | cut -c1-64)\n"
+                "case \"$V\" in " + verified + ") ;; *) echo \"" + p.name + ": this OS's display engine ($V) is not verified for the ink session\" >&2; exit 1 ;; esac\n"
+                "LD_LIBRARY_PATH=\"$D:/usr/lib/plugins/scenegraph\" exec \"$D/lease\" launch --watchdog 10 --vendor-sha256 \"$V\" \"$D/" + p.name + "\"\n");
       fs::permissions(out / "launch.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
     }
     // AppLoad's tile: zinc.json app.icon when it is a PNG, else a plain framed square to replace
@@ -2151,23 +2154,12 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
       const fs::path src = fs::path(engineRoot) / "integrations" / "remarkable-ink" / "lease.c";
       if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
       if (runArgv({zig, "cc", "-target", "aarch64-linux-musl", "-static", "-O2", src.string(), "-o", (out / "lease").string()}, false) != 0) { std::fprintf(stderr, "zinc export: the display lease (%s) did not build\n", src.string().c_str()); return 1; }
-      // Quill's engine shim (MIT, github.com/MaximeRivest/quill): the published release built with reMarkable's SDK, pinned and cached in ZINC_HOME
-      const std::string quillSha = "e395af8e7ffb614dedf4370ef5fa2acc5ffa1f195da415b9049fd4f7d96f9929";
-      const fs::path cache = fs::path(zn::tc::home()) / "cache" / "quill-v0.1.0";
-      fs::create_directories(cache, ec);
-      auto fetch = [&](const std::string& url, const fs::path& to, const std::string& sha) {
-        if (fs::exists(to, ec) && (sha.empty() || zn::tc::sha256File(to.string()) == sha)) return true;
-        return zn::tc::downloadTo(url, "quill-v0.1.0/" + to.filename().string(), to.string(), [&](const std::string& f, std::string& why) {
-          if (sha.empty() || zn::tc::sha256File(f) == sha) return true;
-          why = "SHA-256 is not the pinned " + sha; return false;
-        }, err);
-      };
-      if (!fetch("https://github.com/MaximeRivest/quill/releases/download/v0.1.0/libquill.so", cache / "libquill.so", quillSha) ||
-          !fetch("https://raw.githubusercontent.com/MaximeRivest/quill/39262ee0bef69915e3ead3ac218d5973916f422a/LICENSE", cache / "LICENSE", "")) {
-        std::fprintf(stderr, "zinc export: Quill's libquill.so for the ink session: %s\n", err.c_str()); return 1;
+      // Quill's engine shim (MIT, github.com/MaximeRivest/quill), patched for OS 3.28+ and built with reMarkable's SDK (integrations/remarkable-ink/quill)
+      const fs::path quill = fs::path(engineRoot) / "integrations" / "remarkable-ink" / "quill";
+      if (!fs::copy_file(quill / "libquill.so", out / "libquill.so", fs::copy_options::overwrite_existing, ec) ||
+          !fs::copy_file(quill / "LICENSE", out / "QUILL-LICENSE", fs::copy_options::overwrite_existing, ec)) {
+        std::fprintf(stderr, "zinc export: Quill's libquill.so for the ink session (%s): %s\n", quill.string().c_str(), ec.message().c_str()); return 1;
       }
-      fs::copy_file(cache / "libquill.so", out / "libquill.so", fs::copy_options::overwrite_existing, ec);
-      fs::copy_file(cache / "LICENSE", out / "QUILL-LICENSE", fs::copy_options::overwrite_existing, ec);
     }
   }
   int rc = status(std::system(cmd.c_str()));

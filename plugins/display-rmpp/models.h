@@ -42,6 +42,9 @@ inline const Vendor vendors[] = {
   // OS 3.27.3.0: hashed on the tablet 2026-09-29 (docs/reports/rmpp-latency-2026-09-29.md), Quill v0.1.0's device record
   {"3800e9f3d01f40fa3f5cc96ca49bcd982471ce5b033320f8788707520c8ddd08", "reMarkable Ferrari", "3.27.3.0",
    "_ZN13EPFramebuffer11swapBuffersE5QRect13EPContentType12EPScreenMode6QFlagsINS_10UpdateFlagEE", 327, 0, 4, 1, "libquill.so"},
+  // OS 3.29.0.153: hashed on the tablet 2026-10-25; Quill patched for the new swapBuffers (integrations/remarkable-ink/quill)
+  {"07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec", "reMarkable Ferrari", "3.29.0.153",
+   "_ZN13EPFramebuffer11swapBuffersE5QRect12EPScreenMode6QFlagsINS_10UpdateFlagEE", 328, 0, 4, 1, "libquill.so"},
 #ifdef ZINK_TEST_HASH  // the fake-xochitl harness only (tests/native/rmpp/fake-xochitl): its stub library's hash
   {ZINK_TEST_HASH, "reMarkable Ferrari", "fake", "_ZN13EPFramebuffer11swapBuffersE5QRect13EPContentType12EPScreenMode6QFlagsINS_10UpdateFlagEE", 327, 0, 4, 1, "libquill.so"},
 #endif

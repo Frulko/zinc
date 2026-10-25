@@ -132,7 +132,7 @@ One driver serves every tablet; `plugins/display-rmpp/models.h` holds one row pe
 
 | Codename | Model | Panel | qtfb format | Display path | Fast ink |
 |---|---|---|---|---|---|
-| reMarkable Ferrari | Paper Pro | 1620x2160 colour | 1 | qtfb (L0), lane (L1), session (L2) | OS 3.27.3.0 verified |
+| reMarkable Ferrari | Paper Pro | 1620x2160 colour | 1 | qtfb (L0), lane (L1), session (L2) | OS 3.27.3.0 and 3.29.0.153 verified |
 | reMarkable Chiappa | Paper Pro Move | 954x1696 colour | 4 | qtfb (L0), lane and session once a vendor row exists | none verified yet: qtfb |
 | reMarkable Tatsu | Paper Pure | 1404x1872 mono | 7 | as the Move | none verified yet: qtfb |
 | reMarkable 2.0 | reMarkable 2 | 1404x1872 mono | n/a | [timower's rm2fb](https://github.com/timower/rM2-stuff) client (DU for ink, GC16_FAST for UI) | rm2fb's DU waveform |
@@ -152,6 +152,11 @@ the app runs headless and says so. (The rM2 is 32-bit ARM: its build comes with 
    `tests/t1/rmpp_sim.sh` and the fake-xochitl harness with that ABI.
 4. On the tablet: one `xovi/start`, the journal must say `lane ready`; then the camera and settle tests (T2 to T4 of the
    design's §9). Record the result in the row's comment.
+
+An OS update also breaks what XOVI loads into xochitl. On 3.29 a QML patch built for 3.27 (`ghostbuster.qmd`) aborted
+xochitl ("Couldn't resolve the hashed identifier"); three aborts, and `rm-emergency` rebooted on stock xochitl. Before
+the first `xovi/start`, install the AppLoad build for the new OS and move every `.qmd` of
+`exthome/qt-resource-rebuilder` out. Bring them back one per start, after their authors publish a build for the new OS.
 
 **A new model** is one row of `models`: codename, panel size, qtfb format (AppLoad's `src/qtfb/common.h`), the vendor
 buffer that framebuffer-spy reports (width, height, bytes per line; 0 until read), colour, pen and touch maxima
@@ -190,11 +195,12 @@ With `"display": { "driver": "rmpp", "ink": "session" }`, `zinc export --target 
 glibc 2.28 aarch64 binary, which can `dlopen` the engine):
 
 - `lease`, the static supervisor (zig, aarch64 musl);
-- `libquill.so` and `QUILL-LICENSE`: [Quill](https://github.com/MaximeRivest/quill) v0.1.0's published engine shim (MIT, built
-  with reMarkable's SDK), checked against its pinned SHA-256 and cached in `$ZINC_HOME/cache/quill-v0.1.0`;
+- `libquill.so` and `QUILL-LICENSE`: [Quill](https://github.com/MaximeRivest/quill)'s engine shim (MIT), patched to call
+  both swap signatures (3.27 and 3.28+) and built with reMarkable's SDK; it lives in `integrations/remarkable-ink/quill`;
 - `launch.sh`, the AppLoad entry (`"application": "launch.sh"`, `"qtfb": false`): it puts the app's directory and
   `/usr/lib/plugins/scenegraph` on `LD_LIBRARY_PATH` (libquill.so needs `libqsgepaper.so`) and runs
-  `lease launch --watchdog 10 --vendor-sha256 <the Paper Pro row of models.h> <app>`.
+  `lease launch --watchdog 10 --vendor-sha256 <the tablet's hash> <app>` when that hash is one of the rows of models.h,
+  and refuses with one line otherwise.
 
 The lease refuses a tablet whose `libqsgepaper.so` has another hash, then hands the app `ZINC_LEASE=1`,
 `ZINC_VENDOR_SHA256` and `LD_LIBRARY_PATH`; systemd adds `NOTIFY_SOCKET`. The app loads `libquill.so` with `RTLD_GLOBAL`

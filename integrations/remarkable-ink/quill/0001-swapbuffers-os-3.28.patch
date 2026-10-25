@@ -1,0 +1,35 @@
+diff --git a/src/vendor_probe.cpp b/src/vendor_probe.cpp
+index b974648..bfe936b 100644
+--- a/src/vendor_probe.cpp
++++ b/src/vendor_probe.cpp
+@@ -181,17 +181,19 @@ int initialize(FramebufferView *view) {
+ }
+ 
+ unsigned long swap(const QRect &rect, int content_type, int mode, bool complete) {
+-    using Swap = unsigned long (*)(void *, QRect, int, int, int);
+-    static Swap function = [] {
+-        auto resolved = reinterpret_cast<Swap>(dlsym(
+-            RTLD_DEFAULT,
+-            "_ZN13EPFramebuffer11swapBuffersE5QRect13EPContentType12EPScreenMode6QFlagsINS_10UpdateFlagEE"));
+-        if (!resolved)
+-            std::fputs("quill: EPFramebuffer::swapBuffers unavailable\n", stderr);
+-        return resolved;
+-    }();
+-    if (!function || !vendor_instance) return 0;
+-    return function(vendor_instance, rect, content_type, mode, complete ? 1 : 0);
++    // OS 3.27: swapBuffers(QRect, EPContentType, EPScreenMode, flags); OS 3.28+: the content type is gone.
++    using Swap327 = unsigned long (*)(void *, QRect, int, int, int);
++    using Swap328 = unsigned long (*)(void *, QRect, int, int);
++    static Swap327 f327 = reinterpret_cast<Swap327>(dlsym(RTLD_DEFAULT,
++        "_ZN13EPFramebuffer11swapBuffersE5QRect13EPContentType12EPScreenMode6QFlagsINS_10UpdateFlagEE"));
++    static Swap328 f328 = f327 ? nullptr : reinterpret_cast<Swap328>(dlsym(RTLD_DEFAULT,
++        "_ZN13EPFramebuffer11swapBuffersE5QRect12EPScreenMode6QFlagsINS_10UpdateFlagEE"));
++    static bool said = (!f327 && !f328) ? (std::fputs("quill: EPFramebuffer::swapBuffers unavailable\n", stderr), true) : false;
++    (void)said;
++    if (!vendor_instance) return 0;
++    if (f327) return f327(vendor_instance, rect, content_type, mode, complete ? 1 : 0);
++    if (f328) return f328(vendor_instance, rect, mode, complete ? 1 : 0);
++    return 0;
+ }
+ 
+ } // namespace quill_vendor
