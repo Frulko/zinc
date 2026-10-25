@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 15:09'
-updated_date: '2026-10-25 15:31'
+updated_date: '2026-10-25 17:30'
 labels:
   - remarkable
   - size-L
@@ -37,4 +37,15 @@ Done on the Mac (worktree agent).
 - Proof: tests/t1/rmpp_sim.sh PASS (goldens unchanged; lane run: 2 strokes through the lane, qtfb UI only; eof:5 -> 'ink lane closed; qtfb from now on' once, FAST and qtfb updates after; badhash, nolane, session outside the lease, unknown model, ink=qtfb each with its one message). bridge.cpp syntax-checked with -Wall -Wextra against Homebrew Qt 6 (0 warnings); install.sh double-hook refusal checked on a fake extensions.d.
 - Not run (by hand, Docker): tests/native/rmpp/fake-xochitl/run.sh (late load, block/unblock order, deadline, crash guard, double hook, hash gate). Not provable without the tablet: real latency, the colour settle on the engine, xochitl's behaviour under blockRendering, the static binary dlopen'ing the L2 shim.
 - Contract for ZN-833 (lease): the app under the lease expects ZINC_LEASE=1 and ZINC_VENDOR_SHA256=<checked hash> in its environment, LD_LIBRARY_PATH (or ZINC_RMPP_ENGINE) reaching libquill.so, and NOTIFY_SOCKET. Without the engine it exits 3.
+
+Reopened 2026-10-25 (tablet test, OS 3.27.3.0): make an exported app draw through Quill on L2 under the lease, keep the power key with the lease, fix L0 taps (Notes' buttons reacted to neither pen nor finger).
+
+Done again 2026-10-25 (worktree agent, Mac only, not run on the tablet).
+- L2 export: zinc export --target rmpp already links a dynamic glibc 2.28 binary (zig aarch64-linux-gnu.2.28), so the app can dlopen; display-rmpp's rmpp target links -ldl (dlopen@GLIBC_2.17 checked with llvm-readelf). For ink session the export writes launch.sh (AppLoad's application; LD_LIBRARY_PATH=<app dir>:/usr/lib/plugins/scenegraph since libquill.so NEEDs libqsgepaper.so without rpath; lease launch --watchdog 10 --vendor-sha256 <models.h Paper Pro row>), lease, libquill.so (Quill v0.1.0 release, sha256 e395af8e..., cached in ZINC_HOME/cache/quill-v0.1.0) and QUILL-LICENSE; deploy.sh copies them all with scp -O.
+- lease.c passes ZINC_LEASE=1 and ZINC_VENDOR_SHA256 (the checked hash) with -E; sends one WATCHDOG=1 right before starting the app so stopping xochitl does not use the app's 10 s. NOTIFY_SOCKET comes from systemd (NotifyAccess=all).
+- native.h dlopens the engine RTLD_GLOBAL: Quill resolves EPFramebuffer::instance with dlsym(RTLD_DEFAULT) and interposes QImage's constructors, both need libquill in the global scope (RTLD_LOCAL would have failed quill_init with 3).
+- Power key: Quill's library opens no input device; only its scribble.c test opens and grabs the power key. The app's input.h never opens it; the lease grabs it. No change needed.
+- L0 taps: the base HAL polled before the driver writes its pointer (0,0) every frame and the driver set px/py only while a finger or the Marker was there, so every release landed at (0,0) and no button clicked (pen too when it left range on lift). input.h keeps the last pointer position. tests/t1/rmpp_sim.sh: the fake qtfb sends MESSAGE_USERINPUT taps (ZN_RMPP_SIM_TAP) on the dashboard and the screens must equal the golden's (fails without the fix); the test also hashes the driver's files into the sim plugin source, since the plugin cache did not see edited driver headers.
+- Notes keeps ink qtfb by default (xochitl restart, restart budget, 30 min dead-man, SIGTERM exit does not save); the doc says how to opt in.
+- Not proven here: the tablet run (Quill init in a zinc process, mimalloc alongside Qt, watchdog timing, return to xochitl).
 <!-- SECTION:NOTES:END -->

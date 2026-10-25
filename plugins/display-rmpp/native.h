@@ -39,9 +39,11 @@ bool open(const rmm::Model& m) {
   const char* hash = getenv("ZINC_VENDOR_SHA256");
   if (!hash || !(row = rmm::vendor(hash, m.codename))) return fail("vendor library not verified for this model", hash);
   const char* path = getenv("ZINC_RMPP_ENGINE");
-  void* h = dlopen(path ? path : row->engine, RTLD_NOW | RTLD_LOCAL);
+  // RTLD_GLOBAL: Quill finds EPFramebuffer::instance with dlsym(RTLD_DEFAULT), and its QImage constructors must come before Qt's
+  // in the lookup order for the vendor engine to hand it the framebuffer. The app is a dynamic glibc binary (zinc export --target
+  // rmpp: aarch64-linux-gnu.2.28); launch.sh puts the app's directory and /usr/lib/plugins/scenegraph on LD_LIBRARY_PATH.
+  void* h = dlopen(path ? path : row->engine, RTLD_NOW | RTLD_GLOBAL);
   if (!h) return fail("cannot load the engine shim", dlerror());
-  // ponytail: a static app binary cannot dlopen Qt reliably; L2 needs the dynamic (SDK) build of the app.
   api = {(int (*)())dlsym(h, "quill_init"), (int (*)())dlsym(h, "quill_width"), (int (*)())dlsym(h, "quill_height"),
          (int (*)())dlsym(h, "quill_stride"), (unsigned char* (*)())dlsym(h, "quill_buffer"),
          (unsigned long (*)(int, int, int, int, int, int, int))dlsym(h, "quill_swap_ex"), (void (*)())dlsym(h, "quill_process_events")};

@@ -3,7 +3,8 @@
 # qtfb server, a fake ink lane and a model of the compositor (tests/native/rmpp/sim.cpp).
 #   notes, dashboard: the trace of messages (modes, update rectangles, hash of the glass after each) is compared with tests/golden/sim/rmpp-<app>.trace;
 #   the other runs prove the backend choice per manifest option ("ink": qtfb / native / session), the L1 -> L0 downgrade on EOF and the fallbacks
-#   (no lane, unverified vendor hash, unknown model), each with its one message.
+#   (no lane, unverified vendor hash, unknown model), each with its one message; the "touch" run taps the dashboard's buttons through AppLoad's
+#   MESSAGE_USERINPUT (ZN_RMPP_SIM_TAP) and must give the golden's screens.
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens.
 cd "$(dirname "$0")/../.." || exit 2
 root=$(pwd)
@@ -22,11 +23,13 @@ run() {
   sz=""; [ -n "$size" ] && sz="-e s/1620/${size%x*}/ -e s/2160/${size#*x}/"   # $size=WxH: another model's panel
   sed $sz -e "1s/{/{$opt/" -e 's/"driver": "rmpp"/"driver": "rmpp-sim"/' "$src/zinc.json" > "$proj/zinc.json"
   sed "s|\"RMPP_DRIVER\"|\"$root/plugins/display-rmpp/rmpp.cpp\"|" tests/native/rmpp/sim.cpp > "$proj/plugins/display-rmpp-sim/sim.cpp"
+  # the plugin cache keys on this source and its neighbours: the driver's own files go in as a hash, so an edited header is rebuilt
+  cat plugins/display-rmpp/*.cpp plugins/display-rmpp/*.h integrations/remarkable-ink/protocol.h | shasum | sed 's|^|// driver |' >> "$proj/plugins/display-rmpp-sim/sim.cpp"
   cat > "$proj/plugins/display-rmpp-sim/plugin.json" <<J
 { "name": "display-rmpp-sim", "kind": "display", "options": {},
   "targets": { "macos": { "sources": ["sim.cpp"], "flags": ["-I$root/tests/native/stubs", "-I$root/plugins/display-rmpp", "-I$root/integrations/remarkable-ink"] }, "linux": { "sources": ["sim.cpp"] } } }
 J
-  : > "$proj/input"; [ $app = dashboard ] && printf "80 move 1360 456\n81 down\n82 up\n200 move 120 800\n201 down\n202 up\n" > "$proj/input"
+  : > "$proj/input"; [ $app = dashboard ] && [ -z "$taps" ] && printf "80 move 1360 456\n81 down\n82 up\n200 move 120 800\n201 down\n202 up\n" > "$proj/input"
   ( cd "$proj" && env "$@" ZN_RMPP_SIM_OUT="$proj/out" ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_INPUT="$proj/input" ZINC_FRAMES=$frames \
       "$ZINC" run "$proj" >"$tmp/$label.log" 2>&1 ) || { echo "$label: run failed: $(tail -c 400 "$tmp/$label.log")"; fail=1; return 1; }
   [ -n "$headless" ] && return 0   # the driver refused the panel: no trace to judge
@@ -83,6 +86,15 @@ fi
 headless=1; run rm2-none notes 20 qtfb "ZINC_RMPP_MACHINE=reMarkable 2.0"; headless=
 has rm2-none log 1 "reMarkable 2: rm2fb is not running"
 size=
+
+# L0 touch (AppLoad's MESSAGE_USERINPUT): the dashboard's two taps sent by the fake qtfb instead of ZINC_INPUT give the same screens as the golden
+taps=1
+if run touch dashboard 360 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=80:1360,456;200:120,800"; then
+  has touch trace 4 " touch "
+  grep -v " touch " "$tmp/touch/out/trace.txt" | diff -q - tests/golden/sim/rmpp-dashboard.trace >/dev/null ||
+    { echo "touch: qtfb taps do not press the dashboard's buttons as the golden's taps do"; grep -v " touch " "$tmp/touch/out/trace.txt" | diff - tests/golden/sim/rmpp-dashboard.trace | head -6; fail=1; }
+fi
+taps=
 
 [ $fail -eq 0 ] && echo "rmpp sim: ok"
 exit $fail

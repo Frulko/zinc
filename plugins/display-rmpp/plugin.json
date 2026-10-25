@@ -17,7 +17,8 @@
         "rmpp.cpp"
       ],
       "linkFlags": [
-        "-pthread"
+        "-pthread",
+        "-ldl"
       ]
     },
     "macos": {

@@ -21,9 +21,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -233,7 +236,7 @@ static int launch(int argc, char **argv) {
   char who[256];
   if (drm_openers("xochitl", who, sizeof who)) refuse("the display is open by %s besides xochitl", who);
 
-  char rt[32], wds[32], post[PATH_MAX + 16], wdir[PATH_MAX + 32], ld[PATH_MAX + 32];
+  char rt[32], wds[32], post[PATH_MAX + 16], wdir[PATH_MAX + 32], ld[PATH_MAX + 32], vs[96];
   snprintf(rt, sizeof rt, "RuntimeMaxSec=%ld", max);
   snprintf(wds, sizeof wds, "WatchdogSec=%ld", wd);
   snprintf(post, sizeof post, "ExecStopPost=%s restore", self);
@@ -243,6 +246,9 @@ static int launch(int argc, char **argv) {
   a[k++] = "-p"; a[k++] = rt; a[k++] = "-p"; a[k++] = "KillMode=control-group"; a[k++] = "-p"; a[k++] = "TimeoutStopSec=90";
   if (wd > 0) { a[k++] = "-p"; a[k++] = wds; a[k++] = "-p"; a[k++] = "NotifyAccess=all"; }   // the app sends WATCHDOG=1 every frame
   if (getenv("LD_LIBRARY_PATH")) { snprintf(ld, sizeof ld, "LD_LIBRARY_PATH=%s", getenv("LD_LIBRARY_PATH")); a[k++] = "-E"; a[k++] = ld; }
+  // what the app's display driver needs to open the vendor engine (plugins/display-rmpp/native.h): it runs under a lease, and the hash checked above
+  a[k++] = "-E"; a[k++] = "ZINC_LEASE=1";
+  if (vendor) { snprintf(vs, sizeof vs, "ZINC_VENDOR_SHA256=%s", vendor); a[k++] = "-E"; a[k++] = vs; }
   a[k++] = "-p"; a[k++] = post; a[k++] = self; a[k++] = "session";
   for (; i < argc && k < 63; i++) a[k++] = argv[i];
   a[k] = NULL;
@@ -275,6 +281,19 @@ static void end_app(pid_t app) {   // SIGTERM, 3 s of grace, then SIGKILL
   kill(app, SIGKILL); waitpid(app, NULL, 0);
 }
 
+// One WATCHDOG=1 to systemd (NotifyAccess=all) from the supervisor, only before the app starts: the app sends its own every frame.
+static void notify_watchdog(void) {
+  const char *n = getenv("NOTIFY_SOCKET");
+  struct sockaddr_un a;
+  memset(&a, 0, sizeof a);
+  if (!n || !*n || strlen(n) >= sizeof a.sun_path) return;
+  int s = socket(AF_UNIX, SOCK_DGRAM, 0); if (s < 0) return;
+  a.sun_family = AF_UNIX; strcpy(a.sun_path, n);
+  if (n[0] == '@') a.sun_path[0] = 0;   // abstract namespace
+  sendto(s, "WATCHDOG=1", 10, MSG_DONTWAIT, (struct sockaddr *)&a, (socklen_t)(offsetof(struct sockaddr_un, sun_path) + strlen(n)));
+  close(s);
+}
+
 static int session(int argc, char **argv) {
   if (argc < 3) return 2;
   if (!getenv("INVOCATION_ID")) { fprintf(stderr, "lease: a session runs inside its unit: use lease launch\n"); return 2; }
@@ -295,6 +314,7 @@ static int session(int argc, char **argv) {
   if (clear_stale_lock(name, why, sizeof why)) { say("%s", why); return 1; }
   if (drm_openers(NULL, who, sizeof who)) { say("the display is still open by %s", who); return 1; }
   if (stop_asked) return 0;
+  notify_watchdog();   // stopping xochitl used part of WatchdogSec: the app gets all of it from its start
   pid_t app = fork();
   if (app < 0) { say("fork failed"); return 1; }
   if (!app) { signal(SIGTERM, SIG_DFL); signal(SIGINT, SIG_DFL); execv(argv[2], argv + 2); _exit(127); }

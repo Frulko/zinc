@@ -19,12 +19,18 @@ for ink in session qtfb; do
   python3 - "$tmp/$ink/dist/inkapp-rmpp/external.manifest.json" $ink <<'PY' || rc=1
 import json, sys
 m, ink = json.load(open(sys.argv[1])), sys.argv[2]
-want = {'application': 'lease', 'args': ['launch', '--watchdog', '10', '/home/root/xovi/exthome/appload/inkapp/inkapp'], 'qtfb': False} if ink == 'session' else {'application': 'inkapp', 'qtfb': True}
+want = {'application': 'launch.sh', 'qtfb': False} if ink == 'session' else {'application': 'inkapp', 'qtfb': True}
 bad = {k: m.get(k) for k in want if m.get(k) != want[k]}
 d = sys.argv[1].rsplit('/', 1)[0]
 if open(f'{d}/icon.png', 'rb').read(8) != b'\x89PNG\r\n\x1a\n': bad['icon.png'] = 'not a PNG'
 deploy = open(f'{d}/deploy.sh').read()
-if ('"$D/lease"' in deploy) != (ink == 'session') or '/home/root/xovi/exthome/appload/inkapp' not in deploy: bad['deploy.sh'] = deploy
+shipped = all(f'"$D/{f}"' in deploy for f in ('launch.sh', 'lease', 'libquill.so'))
+if shipped != (ink == 'session') or '/home/root/xovi/exthome/appload/inkapp' not in deploy: bad['deploy.sh'] = deploy
+# the launcher: libquill.so and the vendor engine on the library path, the lease with the app watchdog and the verified hash of models.h
+if ink == 'session':
+    launch = open(f'{d}/launch.sh').read()
+    for part in ('LD_LIBRARY_PATH="$D:/usr/lib/plugins/scenegraph"', 'exec "$D/lease" launch --watchdog 10 --vendor-sha256 3800e9f3d01f40fa3f5cc96ca49bcd982471ce5b033320f8788707520c8ddd08 "$D/inkapp"'):
+        if part not in launch: bad['launch.sh'] = launch
 print(f'export manifest ({ink}): ' + ('ok' if not bad else f'FAIL {bad}'))
 sys.exit(1 if bad else 0)
 PY

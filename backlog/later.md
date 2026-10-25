@@ -278,7 +278,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-833: zinc deploy --target rmpp copies to ~/<name> and runs run.sh; make it run the exported deploy.sh (AppLoad directory).
 - ZN-834: run tests/native/rmpp/fake-xochitl/run.sh in Docker, pinned to the tablet's XOVI and extension commits (late load, block/unblock order, deadline, crash guard, double hook, hash gate).
 - ZN-834: on the tablet, T2-T4 of remarkable-bridge-design §9: one xovi/start and lane ready in the journal, camera latency, the colour settle (else the full-update flag on the box).
-- ZN-834: L2 needs a dynamic SDK binary (a static glibc binary cannot dlopen libquill.so/Qt reliably); align with the lease's static export, and the lease must pass ZINC_LEASE=1, ZINC_VENDOR_SHA256, NOTIFY_SOCKET and the engine path to the app.
 - ZN-834: on failure the lane repaints the item but requests no full refresh; needs AppLoad's full-refresh function or the vendor full-update flag value.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.

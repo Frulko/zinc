@@ -84,7 +84,9 @@ Its `full_every`, `upgrade_ms` and `dither` options do **not** control the devic
 
 **Input**: Marker samples come from evdev (pressure, tilt, eraser), queued on a reader thread.
 Finger events come from AppLoad's `MESSAGE_USERINPUT`, already mapped to framebuffer coordinates;
-quick press/release pairs are delivered on separate UI frames. Fingers are ignored while the Marker is in range
+quick press/release pairs are delivered on separate UI frames, and the pointer stays where the finger or the Marker
+left the glass, so the release lands on the button that was pressed (`tests/t1/rmpp_sim.sh` taps the dashboard's buttons
+through the fake qtfb). Fingers are ignored while the Marker is in range
 (palm rejection). Pen orientation override: `ZINC_RMPP_PEN_ROTATE` (0/90/180/270).
 The app holds `/sys/power/wake_lock` while running. Notes has **Save & quit** (stays open if saving fails);
 dashboard has **Quit**. AppLoad disconnect and SIGTERM also exit the app.
@@ -184,9 +186,27 @@ The same rules bind the lane, the lease and anyone diagnosing on a tablet
 
 An app that needs the panel to itself (direct ink through the vendor engine) runs under the display lease,
 `integrations/remarkable-ink/lease.c` (design: `docs/reports/remarkable-bridge-design.md` §3 and §7.1).
-With `"display": { "driver": "rmpp", "ink": "session" }`, `zinc export --target rmpp` puts the static `lease` binary
-beside the app and writes the AppLoad manifest with `"application": "lease"`, `"args": ["launch", "--watchdog", "10", <app>]`
-and `"qtfb": false`. `examples/remarkable/quill-test/launch.sh` uses the same binary.
+With `"display": { "driver": "rmpp", "ink": "session" }`, `zinc export --target rmpp` writes beside the app (a dynamic
+glibc 2.28 aarch64 binary, which can `dlopen` the engine):
+
+- `lease`, the static supervisor (zig, aarch64 musl);
+- `libquill.so` and `QUILL-LICENSE`: [Quill](https://github.com/MaximeRivest/quill) v0.1.0's published engine shim (MIT, built
+  with reMarkable's SDK), checked against its pinned SHA-256 and cached in `$ZINC_HOME/cache/quill-v0.1.0`;
+- `launch.sh`, the AppLoad entry (`"application": "launch.sh"`, `"qtfb": false`): it puts the app's directory and
+  `/usr/lib/plugins/scenegraph` on `LD_LIBRARY_PATH` (libquill.so needs `libqsgepaper.so`) and runs
+  `lease launch --watchdog 10 --vendor-sha256 <the Paper Pro row of models.h> <app>`.
+
+The lease refuses a tablet whose `libqsgepaper.so` has another hash, then hands the app `ZINC_LEASE=1`,
+`ZINC_VENDOR_SHA256` and `LD_LIBRARY_PATH`; systemd adds `NOTIFY_SOCKET`. The app loads `libquill.so` with `RTLD_GLOBAL`
+(Quill finds the vendor engine with `dlsym(RTLD_DEFAULT)` and must see its framebuffer constructor first) and sends
+`WATCHDOG=1` every frame; the lease sends one itself just before it starts the app, so stopping xochitl does not eat into
+the app's 10 s. Nothing in the app or in `libquill.so` opens the power key: the lease grabs it (`EVIOCGRAB`). Quill's own
+`scribble` test opens it too, which is why `examples/remarkable/quill-test` is not the model for an app.
+
+**Notes stays on qtfb by default.** An ink session stops xochitl (seconds to come back, the open notebook view is lost),
+fits in the lease's budget of 2 restarts per 10 minutes, and ends after 30 minutes; a power-key exit or the dead-man ends
+the app with SIGTERM, which does not save the page (only **Save & quit** does). To try it, add `"ink": "session"` to the
+`display` object of `examples/remarkable/notes/zinc.json`, then `zinc export ... --target rmpp` and run its `deploy.sh`.
 
 - `lease launch` checks everything first, then starts one transient unit, `zinc-lease`; a second launch is refused
   while it runs. Inside it, `lease session` takes a wakelock, owns the power button, runs `systemctl stop xochitl` and
@@ -248,7 +268,7 @@ else the mouse (left = pen at pressure 0.5, right = eraser). Give the project th
 1. Enable developer mode (wipes the tablet), connect USB, `ssh root@10.11.99.1`.
 2. Install xovi + AppLoad (Vellum or remagic).
 3. `zinc export --target rmpp` writes `<name>`, `external.manifest.json` (`"qtfb": true, "disablesWindowedMode": true`;
-   the lease for `"ink": "session"`), `icon.png` (zinc.json `app.icon` when it is a PNG) and `deploy.sh`, which copies
+   `launch.sh`, `lease` and `libquill.so` for `"ink": "session"`), `icon.png` (zinc.json `app.icon` when it is a PNG) and `deploy.sh`, which copies
    them to `/home/root/xovi/exthome/appload/<name>/`. In AppLoad, reload and launch it.
 4. Without AppLoad (`QTFB_KEY` unset) the app runs headless and says so on stderr. Stopping xochitl
    (`systemctl stop xochitl`) does not give Zinc the screen: the panel needs xochitl's software TCON.

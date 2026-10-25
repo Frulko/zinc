@@ -140,9 +140,13 @@ static void poll_input(HalInput* in) {
   pen_down = (last_pen.flags & HAL_PEN_DOWN) != 0;
   in->ntouch = ntouch;
   for (int i = 0; i < in->ntouch; i++) in->touch[i] = touches[i];
-  if (ntouch > 0) { in->px = touches[0].x; in->py = touches[0].y; in->pdown = 1; }
-  else if (pen_near) { in->px = last_pen.x; in->py = last_pen.y; in->pdown = (last_pen.flags & HAL_PEN_DOWN) != 0; }
+  // The pointer stays where the finger or the Marker last was: the base HAL polled before this one writes its own (0, 0), and a
+  // release reported there would land outside the button that was pressed (no click, ZN-834).
+  static float px = 0, py = 0;
+  if (ntouch > 0) { px = touches[0].x; py = touches[0].y; in->pdown = 1; }
+  else if (pen_near) { px = last_pen.x; py = last_pen.y; in->pdown = (last_pen.flags & HAL_PEN_DOWN) != 0; }
   else in->pdown = 0;
+  in->px = px; in->py = py;
   pthread_mutex_unlock(&mu);
   if (!getenv("ZINC_FRAMES")) in->quit = quit_flag;
   else in->quit |= quit_flag;  // the headless base HAL would stop after 60 frames

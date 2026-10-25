@@ -231,6 +231,7 @@ def fake_app():
     with State() as s:
         if s['xochitl']['state'] == 'active' or os.path.exists(f'{ROOT}/proc/{XPID}'): event(s, 'two engines', mode)
         if 'zinc-lease' not in open(f'{ROOT}/sys/power/wake_lock').read(): event(s, 'no wakelock', mode)
+        if os.environ.get('ZINC_LEASE') != '1': event(s, 'no ZINC_LEASE', mode)   # what display-rmpp's ink session needs (native.h)
         event(s, 'app', mode)
     open(os.path.join(SIM, 'app.pid'), 'w').write(str(me))
     if mode == 'crash': os.kill(me, signal.SIGSEGV)
@@ -336,6 +337,7 @@ def run(lease):
     check('xochitl active at the end', x['state'] == 'active')
     check('no reboot (no start-limit-hit)', not [e for e in ev if e[1] == 'reboot'])
     check('never two engines, the wakelock always held under the app', not [e for e in ev if e[1] in ('two engines', 'no wakelock')])
+    check('the app sees ZINC_LEASE=1', not [e for e in ev if e[1] == 'no ZINC_LEASE'])
     check('no forbidden systemctl verb (kill, freeze, mask, edit...)', not [e for e in ev if e[1] == 'forbidden'])
     ours = [e[0] for e in ev if e[1] == 'start' and e[2] == 'lease']
     worst = max((sum(1 for u in ours if t <= u < t + 600) for t in ours), default=0)
