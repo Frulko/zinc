@@ -6,7 +6,8 @@
 // buffer through the zn_3d_gpu_texture hook below, so the 3D view composes in the 2D order without a read back. Lighting is the GE's: ambient
 // plus up to 4 directional lights per vertex, specular per vertex (the GE's half vector with an infinite viewer), the emissive colour as the
 // material's. The GE clamps the lit colour once (emissive + base x light), the software renderer clamps the light first: a lit colour brighter
-// than white by both lights and ambient comes out a little brighter here.
+// than white by both lights and ambient comes out a little brighter here. A World (worldMesh, worldDraw below) is drawn as Pocket Tokyo's PSP
+// draws its city: 8 and 12-byte vertices, a sector's light as the ambient colour, a few words of list a range, two depth ranges.
 // ponytail: a frame whose 2D commands the replay cannot draw falls back to the software raster, which shows the target's runtime image (black)
 // instead of the GE's picture; VRAM is a bump allocator (a target that grows leaks its last size unless it was the last one made).
 #define ZP_3D_GPU 1
@@ -102,6 +103,10 @@ struct Psp : Engine {
   int32_t meshCreate(Array<N> pos, Array<N> nrm, Array<N> uv, Array<uint32_t> col, Array<int32_t> idx) override { return keep(Engine::meshCreate(pos, nrm, uv, col, idx)); }
   int32_t meshLoad(Array<uint8_t> data, int32_t at) override { return keep(Engine::meshLoad(data, at)); }
   void meshDestroy(int32_t id) override {
+    if (id >= 0 && (id & kWorldMesh)) {   // a world's batch (worldMesh)
+      if (WMesh* g = wm.at(id & ~kWorldMesh)) { sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE); free(g->v); free(g->idx); mfree(g); wm.p[id & ~kWorldMesh] = nullptr; }
+      return;
+    }
     if (GMesh* g = gmesh(id)) { sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE); free(g->v); free(g->flat); mfree(g); gm[id] = nullptr; }
     Engine::meshDestroy(id);
   }
@@ -155,6 +160,8 @@ struct Psp : Engine {
     if (ortho) { const float hh = F(proj); P[0] = 2 / (hh * asp); P[5] = 2 / hh; P[10] = -2 / (f - n); P[14] = -(f + n) / (f - n); P[15] = 1; }
     else { const float k = 1 / tanf(F(proj) * 0.5f); P[0] = k / asp; P[5] = k; P[10] = (f + n) / (n - f); P[11] = -1; P[14] = 2 * f * n / (n - f); }
     for (int i = 0; i < 16; i++) V[i] = i < view.length() ? F(view.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
+    memcpy(frameP, P, sizeof P); memcpy(frameV, V, sizeof V);
+    fovY = F(proj); aspect = asp;
     { Spend waited(times.wait); sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE); }   // the last 3D list is done with list3d (gu_psp.cpp's frame waited for the GE already)
     sceGuStart(GU_DIRECT, list3d);
     sceGuDrawBufferList(GU_PSM_5650, (void*)t->off, t->tex.stride);
@@ -180,6 +187,196 @@ struct Psp : Engine {
     blendOn = -1; cullOn = -1; litOn = -1; fogLive = 0;
   }
   int blendOn = -1, cullOn = -1, litOn = -1, fogLive = 0;
+  float frameP[16], frameV[16], fovY = 1, aspect = 1;   // the frame's projection and view (worldDraw sets its own and puts them back)
+
+  // ------------------------------------------------ worlds, as Pocket Tokyo's PSP draws its city (TK/psp/src/gfx.rs, MIT)
+  // A batch keeps the GE's own vertices: s16 positions over the batch's box (the model matrix places them, the eye subtracted on the CPU),
+  // RGB565 colours, no normals: a draw's light is its sector's, the GE's ambient colour. Tops are 8 bytes, their uvs made from the position
+  // by the texture matrix; walls 12 (u16 uvs, the stored s16 + 32768); the painted geometry 8. A range is then a few words of display list:
+  // the vertex address when the batch changes, the ambient when the sector does, the index address and the primitive.
+  struct V8 { uint16_t c; int16_t x, y, z; };
+  struct V12 { uint16_t u, v, c; int16_t x, y, z; };
+  static constexpr int kV8 = GU_COLOR_5650 | GU_VERTEX_16BIT | GU_INDEX_16BIT | GU_TRANSFORM_3D, kV12 = GU_TEXTURE_16BIT | kV8;
+  static constexpr int32_t kWorldMesh = 1 << 30;   // the ids of these batches, apart from the meshes' (meshDestroy)
+  /** Metres from the eye that split the cells into the near pass (depth 65535..16384) and the far one (16384..0, to the far plane):
+   *  a 16-bit depth buffer over 12 km (gfx.rs DEPTH_SPLIT). */
+  static constexpr float kSplit = 400;
+  struct WMesh { void* v; uint16_t* idx; int32_t ni; bool uvs, fit; float o[3], s[3], us, tk[2], tb[2]; };
+  Pool<WMesh> wm;
+
+  bool worldSectorDraws() const override { return true; }
+  float worldSplit() const override { return kSplit; }
+  int32_t worldMesh(const uint8_t* r, const uint8_t* x, uint32_t nv, const uint8_t* ix, uint32_t ni) override {
+    const uint32_t kind = rd32(r);
+    WMesh* g = (WMesh*)mem(sizeof(WMesh));
+    memset(g, 0, sizeof *g);
+    for (int a = 0; a < 3; a++) { g->o[a] = rdf(r + 52 + 4 * a); g->s[a] = rdf(r + 64 + 4 * a); }
+    g->us = rdf(r + 76);
+    g->ni = (int32_t)ni;
+    auto h = [&](uint32_t v, int k) { int16_t s; memcpy(&s, x + (size_t)v * zn::zworld::kVertex + 2 * k, 2); return s; };
+    // a top's uvs as a line of its position (city-world.py makes them so): u from x, v from z, checked on every vertex; else kept
+    if (kind == zn::zworld::Top) {
+      g->fit = true;
+      for (int a = 0; a < 2 && g->fit; a++) {
+        const int p = a * 2, t = 3 + a;
+        uint32_t lo = 0, hi = 0;
+        for (uint32_t v = 1; v < nv; v++) { if (h(v, p) < h(lo, p)) lo = v; if (h(v, p) > h(hi, p)) hi = v; }
+        const float d = (float)(h(hi, p) - h(lo, p)), k = d > 0 ? (h(hi, t) - h(lo, t)) / d : 0, b = h(lo, t) - k * h(lo, p);
+        for (uint32_t v = 0; v < nv && g->fit; v++) g->fit = fabsf(k * h(v, p) + b - h(v, t)) * g->us < 1e-3f;
+        g->tk[a] = k * 32768 * g->us; g->tb[a] = b * g->us;   // u = tk n + tb, n the GE's -1..1 of the s16
+      }
+    }
+    g->uvs = kind == zn::zworld::Wall || (kind == zn::zworld::Top && !g->fit);
+    const size_t vb = (g->uvs ? sizeof(V12) : sizeof(V8)) * nv;
+    g->v = memalign(16, vb);
+    for (uint32_t v = 0; v < nv; v++) {
+      const uint8_t* c = x + (size_t)v * zn::zworld::kVertex + 10;
+      const uint16_t col = (uint16_t)(c[0] >> 3 | (c[1] >> 2) << 5 | (c[2] >> 3) << 11);
+      if (g->uvs) ((V12*)g->v)[v] = V12{(uint16_t)(h(v, 3) + 32768), (uint16_t)(h(v, 4) + 32768), col, h(v, 0), h(v, 1), h(v, 2)};
+      else ((V8*)g->v)[v] = V8{col, h(v, 0), h(v, 1), h(v, 2)};
+    }
+    g->idx = (uint16_t*)memalign(16, 2 * (size_t)ni);
+    memcpy(g->idx, ix, 2 * (size_t)ni);
+    writeback(g->v, vb); writeback(g->idx, 2 * (size_t)ni);
+    return kWorldMesh | wm.add(g);
+  }
+
+  /** The light of each sector: the frame's ambient plus its lights on the sector's normal, clamped (the software renderer's shade() of a
+   *  wall), 16 what looks up, 17 a draw of several sectors (lit as what looks up, as Pocket's). */
+  void sectorLights(uint32_t* out) const {
+    for (int k = 0; k <= WORLD_MIXED; k++) {
+      const float a = -3.14159265f + (k + 0.5f) * 6.2831853f / zn::zworld::kSectors;
+      const float n[3] = {k < (int)zn::zworld::kSectors ? cosf(a) : 0, k < (int)zn::zworld::kSectors ? 0.0f : 1.0f, k < (int)zn::zworld::kSectors ? sinf(a) : 0};
+      float c[3] = {amb[0], amb[1], amb[2]};
+      for (int i = 0; i < nl; i++) {
+        const float d = -(n[0] * ld[i][0] + n[1] * ld[i][1] + n[2] * ld[i][2]);
+        if (d > 0) for (int j = 0; j < 3; j++) c[j] += d * lc[i][j];
+      }
+      for (int j = 0; j < 3; j++) c[j] = c[j] > 1 ? 1 : c[j];
+      out[k] = abgrf(c, 1);
+    }
+  }
+  static void projection(float* P, float fov, float asp, float n, float f) {
+    memset(P, 0, 16 * sizeof(float));
+    const float k = 1 / tanf(fov * 0.5f);
+    P[0] = k / asp; P[5] = k; P[10] = (f + n) / (n - f); P[11] = -1; P[14] = 2 * f * n / (n - f);
+  }
+
+  /** The ranges worldSelect chose (by kind, then batch), the near pass and then the far one, each with its share of the depth buffer. The
+   *  frame's projection, view and depth range are put back after. */
+  void worldDraw(int32_t id) override {
+    Spend spent(times.native);
+    World* w = worlds.at(id);
+    if (!w || !gcur) return;
+    uint32_t light[WORLD_MIXED + 1];
+    sectorLights(light);
+    sceGuEnable(GU_LIGHTING);
+    for (int i = 0; i < 4; i++) sceGuDisable(GU_LIGHT0 + i);
+    litOn = -1;
+    sceGuColorMaterial(GU_AMBIENT);   // the vertex colour under the ambient light; the emissive colour is the batch's
+    if (blendOn) { sceGuDisable(GU_BLEND); sceGuDepthMask(GU_FALSE); blendOn = 0; }
+    if (fogOn && !fogLive) { sceGuEnable(GU_FOG); fogLive = 1; }
+    sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGB);
+    sceGuTexFilter(GU_LINEAR, GU_LINEAR);
+    float V[16];   // the view without the eye: a batch's model matrix carries where it is from the eye
+    memcpy(V, frameV, sizeof V); V[12] = V[13] = V[14] = 0;
+    sceGuSetMatrix(GU_VIEW, (const ScePspFMatrix4*)V);
+    // the near pass ends past its farthest cell; the far one starts short of the split (a corner of the view sees a cell at 0.68 of its
+    // distance in depth)
+    float nearF = camN + 1;
+    bool anyNear = false;
+    for (int32_t i = 0; i < w->ni; i++) if (w->items[i].near) { anyNear = true; if (w->items[i].out > nearF) nearF = w->items[i].out; }
+    if (nearF > camF) nearF = camF;
+    const float farN = kSplit * 0.6f > camN ? kSplit * 0.6f : camN;
+    for (int pass = anyNear ? 1 : 0; pass >= 0; pass--) {
+      float P[16];
+      if (camOrtho) memcpy(P, frameP, sizeof P);
+      else projection(P, fovY, aspect, pass ? camN : farN, pass ? nearF : camF);
+      sceGuSetMatrix(GU_PROJECTION, (const ScePspFMatrix4*)P);
+      if (pass) sceGuDepthRange(65535, 16384); else sceGuDepthRange(anyNear ? 16384 : 65535, 0);
+      worldPass(w, pass, light);
+    }
+    sceGuSetMatrix(GU_PROJECTION, (const ScePspFMatrix4*)frameP);
+    sceGuSetMatrix(GU_VIEW, (const ScePspFMatrix4*)frameV);
+    sceGuDepthRange(65535, 0);
+    sceGuTexMapMode(GU_TEXTURE_COORDS, 0, 0);
+  }
+  void worldPass(World* w, int near, const uint32_t* light) {
+    const WMesh* g = nullptr;
+    const void* tex = nullptr;
+    int32_t chunk = -1, batch = -1, vt = -1, sector = -1, kind = -1, since = 0;
+    uint32_t em = 0xFFFFFFFFu;
+    for (int32_t i = 0; i < w->ni; i++) {
+      const WItem& it = w->items[i];
+      if (it.near != near) continue;
+      const WChunk& ch = w->k[it.chunk];
+      if (!ch.loaded || it.batch >= ch.nb) continue;   // freed since the select
+      const WBatch& b = ch.b[it.batch];
+      if (it.chunk != chunk || it.batch != batch) {   // ---- a new batch: its vertices, place, picture, material
+        chunk = it.chunk; batch = it.batch;
+        g = (b.mesh & kWorldMesh) ? wm.at(b.mesh & ~kWorldMesh) : nullptr;
+        if (!g) continue;
+        const int t = g->uvs ? kV12 : kV8;
+        if (t != vt) { sceGuSendCommandi(18, t); vt = t; }
+        float M[16] = {0};
+        for (int a = 0; a < 3; a++) { const float h = g->s[a] * (32768.0f / 65535.0f); M[a * 5] = h; M[12 + a] = g->o[a] + h - eye[a]; }
+        M[15] = 1;
+        sceGuSetMatrix(GU_MODEL, (const ScePspFMatrix4*)M);
+        const uint32_t e = w->night ? b.nemis : b.emis;
+        if (e != em) { sceGuModelColor(abgr(e), 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFF000000u); em = e; }
+        const int c = b.flags & DOUBLE ? 0 : 1;
+        if (c != cullOn) { if (c) sceGuEnable(GU_CULL_FACE); else sceGuDisable(GU_CULL_FACE); cullOn = c; }
+        int32_t tw = 0, th = 0;
+        const int32_t ti = w->night ? b.ntex : b.tex;
+        const GuTex* tx = ti >= 0 ? (const GuTex*)zn::ff::texture(ti, &tw, &th) : nullptr;
+        const int k = !tx ? 0 : g->uvs ? 2 : 1;   // no picture, a picture placed by the position, by the uvs
+        if (k != kind) {
+          if (!k) sceGuDisable(GU_TEXTURE_2D);
+          else {
+            sceGuEnable(GU_TEXTURE_2D);
+            if (k == 1) { sceGuTexMapMode(GU_TEXTURE_MATRIX, 0, 0); sceGuTexProjMapMode(GU_POSITION); }
+            else sceGuTexMapMode(GU_TEXTURE_COORDS, 0, 0);
+          }
+          kind = k;
+        }
+        if (tx) {
+          if (tx->mem != tex) {
+            const bool whole = tw == tx->tw && th == tx->th;   // a power-of-two image repeats, as in the software renderer
+            sceGuTexMode(tx->psm, 0, 0, 0);
+            sceGuTexImage(0, tx->tw, tx->th, tx->stride, tx->mem);
+            sceGuTexWrap(whole ? GU_REPEAT : GU_CLAMP, whole ? GU_REPEAT : GU_CLAMP);
+            sceGuTexFlush();
+            tex = tx->mem;
+          }
+          const float fx = (float)tw / tx->tw, fy = (float)th / tx->th;   // uv over the image, inside its power-of-two texture
+          if (k == 1) {
+            const float T[16] = {fx * g->tk[0], 0, 0, 0, 0, 0, 0, 0, 0, fy * g->tk[1], 0, 0, fx * g->tb[0], fy * g->tb[1], 1, 0};
+            sceGuSetMatrix(GU_TEXTURE, (const ScePspFMatrix4*)T);
+            sceGuTexScale(1, 1); sceGuTexOffset(0, 0);
+          } else {   // the GE reads u16 / 32768: the stored s16 + 32768, so an offset of one whole scale
+            const float su = fx * g->us * 32768, sv = fy * g->us * 32768;
+            sceGuTexScale(su, sv); sceGuTexOffset(-su, -sv);
+          }
+        }
+        sceGuSendCommandi(16, (int)(((uint32_t)(uintptr_t)g->v >> 8) & 0xF0000));   // the vertex address: BASE, VADDR
+        sceGuSendCommandi(1, (int)((uint32_t)(uintptr_t)g->v & 0xFFFFFF));
+      }
+      if (!g) continue;
+      if (it.sector != sector) { sector = it.sector; sceGuAmbient(light[sector]); }
+      for (uint32_t from = it.from; from < it.to;) {   // a draw takes at most 65535 indices
+        const uint32_t n = it.to - from < 65535 ? it.to - from : 65535;
+        const uint16_t* at = g->idx + from;
+        if (++since == 24) { since = 0; sceGuDrawArray(GU_TRIANGLES, 0, (int)n, at, nullptr); }   // also lets the GE read this far
+        else {
+          sceGuSendCommandi(16, (int)(((uint32_t)(uintptr_t)at >> 8) & 0xF0000));   // BASE, IADDR, PRIM
+          sceGuSendCommandi(2, (int)((uint32_t)(uintptr_t)at & 0xFFFFFF));
+          sceGuSendCommandi(4, (int)(GU_TRIANGLES << 16 | n));
+        }
+        from += n;
+      }
+      tris += (int32_t)(it.to - it.from) / 3;
+    }
+  }
 
   /** The GE's own fog, by view depth, for the rest of the list (end() turns it off). */
   void fog(uint32_t c, N nearN, N farN) override {

@@ -311,7 +311,10 @@ enum { WORLD_ASK = 64, WORLD_FREE = 16, WORLD_POINTS = 8 };
 struct WBatch { int32_t mesh; uint32_t kind, flags, color, emis, nemis; int32_t tex, ntex, cell; uint32_t cells, groups; const uint32_t* spans; };
 struct WChunk { int32_t level; char* name; bool loaded; float idle, need; WBatch* b; int32_t nb; uint32_t* spans; };
 struct WCell { float mn[3], mx[3], reach[2]; int32_t chunk[3]; int8_t shown; bool vis; float d; int16_t arc0, arcN; };
-struct WItem { int32_t chunk, batch; uint32_t kind, from, to; };
+// sector: the compass sector its faces look to, 16 up or down, 17 several (one colour lights a draw, render3d.psp.cpp); near: in the near
+// pass (Engine::worldSplit); out: metres from the eye to the farthest point of its cells' boxes
+enum { WORLD_MIXED = 17 };
+struct WItem { int32_t chunk, batch; uint32_t kind, from, to; uint8_t sector, near; float out; };
 struct World {
   WCell* c; int32_t nc;
   WChunk* k; int32_t nk;
@@ -352,13 +355,6 @@ static void facing(const float* eye, const float* mn, const float* mx, int16_t* 
   const int n = l - f + 1;
   if (n >= (int)zn::zworld::kSectors) return;
   *first = (int16_t)(((f % 16) + 16) % 16); *count = (int16_t)n;
-}
-static int itemOrder(const void* a, const void* b) {
-  const WItem* p = (const WItem*)a; const WItem* q = (const WItem*)b;
-  if (p->kind != q->kind) return p->kind < q->kind ? -1 : 1;
-  if (p->chunk != q->chunk) return p->chunk < q->chunk ? -1 : 1;
-  if (p->batch != q->batch) return p->batch < q->batch ? -1 : 1;
-  return p->from < q->from ? -1 : p->from > q->from;
 }
 /** Grows a mem() array of `n` items of `size` bytes to hold `need`. */
 static void* grown(void* p, int32_t n, int32_t* cap, int32_t need, size_t size) {
@@ -726,6 +722,12 @@ struct Engine : NativeRender3D {
   // The index range of the next draw (worldDraw): every renderer's draw() draws indices rFirst .. rFirst + rCount of its mesh (rCount < 0: all)
   int32_t rFirst = 0, rCount = -1;
   int32_t rangeCount(const Mesh* m) const { return rCount < 0 ? m->ni - rFirst : rCount; }
+  // A renderer that draws a world its own way (render3d.psp.cpp) overrides these: one range a sector (it lights a draw with one colour), the
+  // distance that splits the cells into a near and a far pass (0: one pass), and its own copy of a batch from the chunk's record, 20-byte
+  // vertices and indices (include/zn/zworld.h), whose mesh id its meshDestroy frees (-1: the float mesh every renderer draws)
+  virtual bool worldSectorDraws() const { return false; }
+  virtual float worldSplit() const { return 0; }
+  virtual int32_t worldMesh(const uint8_t*, const uint8_t*, uint32_t, const uint8_t*, uint32_t) { return -1; }
 
   /** Reads a world's index (include/zn/zworld.h): its cells and chunks, none loaded. -1 when it is not there or damaged. */
   int32_t worldOpen(String name) override {
@@ -811,32 +813,35 @@ struct Engine : NativeRender3D {
       for (uint32_t j = 0; j < ni && ok; j++) { uint16_t v; memcpy(&v, q + vbytes + 2 * j, 2); ok = v < nv; }
       for (uint32_t j = 0; j <= cells * groups && ok; j++) ok = k.spans[at + j] <= ni;
       if (!ok) break;
-      // the part as meshLoad takes it (include/zn/zmesh.h): float positions and normals, uvs, colours, the indices
-      const uint32_t flags = zn::zmesh::Uvs | zn::zmesh::Colors;
-      const size_t bytes = zn::zmesh::partBytes(nv, ni, flags);
-      Array<uint8_t> part = Array<uint8_t>::with_cap((int32_t)bytes);
-      part.a->len = (int32_t)bytes;
-      uint8_t* d = part.a->data;
-      memset(d, 0, zn::zmesh::kPartHeader);
-      memcpy(d, &nv, 4); memcpy(d + 4, &ni, 4); memcpy(d + 8, &flags, 4);
-      float* pos = (float*)(d + zn::zmesh::kPartHeader);
-      float* nrm = pos + 3 * (size_t)nv;
-      float* uv = nrm + 3 * (size_t)nv;
-      uint32_t* col = (uint32_t*)(uv + 2 * (size_t)nv);
-      const float o[3] = {rdf(r + 52), rdf(r + 56), rdf(r + 60)}, s[3] = {rdf(r + 64), rdf(r + 68), rdf(r + 72)}, us = rdf(r + 76);
-      for (uint32_t v = 0; v < nv; v++) {
-        const uint8_t* x = q + (size_t)v * zn::zworld::kVertex;
-        int16_t h[5]; memcpy(h, x, 10);
-        for (int a = 0; a < 3; a++) pos[v * 3 + a] = o[a] + ((float)h[a] + 32768.0f) / 65535.0f * s[a];
-        uv[v * 2] = h[3] * us; uv[v * 2 + 1] = h[4] * us;
-        col[v] = (uint32_t)x[10] << 16 | (uint32_t)x[11] << 8 | x[12];
-        float nx = (int8_t)x[14] / 127.0f, ny = (int8_t)x[15] / 127.0f, nz = (int8_t)x[16] / 127.0f, l = sqrtf(nx * nx + ny * ny + nz * nz);
-        if (l > 0) { nx /= l; ny /= l; nz /= l; }
-        nrm[v * 3] = nx; nrm[v * 3 + 1] = ny; nrm[v * 3 + 2] = nz;
+      int32_t mesh = worldMesh(r, q, nv, q + vbytes, ni);   // the renderer's own layout, else the float mesh
+      if (mesh < 0) {
+        // the part as meshLoad takes it (include/zn/zmesh.h): float positions and normals, uvs, colours, the indices
+        const uint32_t flags = zn::zmesh::Uvs | zn::zmesh::Colors;
+        const size_t bytes = zn::zmesh::partBytes(nv, ni, flags);
+        Array<uint8_t> part = Array<uint8_t>::with_cap((int32_t)bytes);
+        part.a->len = (int32_t)bytes;
+        uint8_t* d = part.a->data;
+        memset(d, 0, zn::zmesh::kPartHeader);
+        memcpy(d, &nv, 4); memcpy(d + 4, &ni, 4); memcpy(d + 8, &flags, 4);
+        float* pos = (float*)(d + zn::zmesh::kPartHeader);
+        float* nrm = pos + 3 * (size_t)nv;
+        float* uv = nrm + 3 * (size_t)nv;
+        uint32_t* col = (uint32_t*)(uv + 2 * (size_t)nv);
+        const float o[3] = {rdf(r + 52), rdf(r + 56), rdf(r + 60)}, s[3] = {rdf(r + 64), rdf(r + 68), rdf(r + 72)}, us = rdf(r + 76);
+        for (uint32_t v = 0; v < nv; v++) {
+          const uint8_t* x = q + (size_t)v * zn::zworld::kVertex;
+          int16_t h[5]; memcpy(h, x, 10);
+          for (int a = 0; a < 3; a++) pos[v * 3 + a] = o[a] + ((float)h[a] + 32768.0f) / 65535.0f * s[a];
+          uv[v * 2] = h[3] * us; uv[v * 2 + 1] = h[4] * us;
+          col[v] = (uint32_t)x[10] << 16 | (uint32_t)x[11] << 8 | x[12];
+          float nx = (int8_t)x[14] / 127.0f, ny = (int8_t)x[15] / 127.0f, nz = (int8_t)x[16] / 127.0f, l = sqrtf(nx * nx + ny * ny + nz * nz);
+          if (l > 0) { nx /= l; ny /= l; nz /= l; }
+          nrm[v * 3] = nx; nrm[v * 3 + 1] = ny; nrm[v * 3 + 2] = nz;
+        }
+        memcpy(col + nv, q + vbytes, (size_t)ni * 2);
+        mesh = meshLoad(part, 0);
       }
-      memcpy(col + nv, q + vbytes, (size_t)ni * 2);
       q += vbytes + ibytes;
-      const int32_t mesh = meshLoad(part, 0);
       if (mesh < 0) break;
       WBatch& b = k.b[k.nb++];
       const int32_t tn = (int32_t)rd32(r + 20), nt = (int32_t)rd32(r + 24);
@@ -866,17 +871,36 @@ struct Engine : NativeRender3D {
   void ranges(World* w, int32_t chunk, int32_t batch, const WBatch& b, const WCell& c, int32_t ci, bool sectors) {
     const uint32_t g = b.groups;
     const uint32_t* s = b.spans + (size_t)(ci - b.cell) * g;
-    auto push = [&](uint32_t from, uint32_t to) {
+    const float split = worldSplit();
+    const uint8_t nr = split > 0 && c.d < split;
+    float diag = 0;
+    for (int a = 0; a < 3; a++) diag += (c.mx[a] - c.mn[a]) * (c.mx[a] - c.mn[a]);
+    const float out = c.d + sqrtf(diag);
+    auto push = [&](uint32_t from, uint32_t to, uint8_t sec) {
       if (to <= from) return;
       WItem* last = w->ni ? &w->items[w->ni - 1] : nullptr;
-      if (last && last->chunk == chunk && last->batch == batch && last->to == from) { last->to = to; return; }   // continues the last
+      if (last && last->chunk == chunk && last->batch == batch && last->to == from && last->sector == sec && last->near == nr) {   // continues the last
+        last->to = to; last->out = out > last->out ? out : last->out;
+        return;
+      }
       w->items = (WItem*)grown(w->items, w->ni, &w->icap, w->ni + 1, sizeof(WItem));
-      w->items[w->ni++] = WItem{chunk, batch, b.kind, from, to};
+      w->items[w->ni++] = WItem{chunk, batch, b.kind, from, to, sec, nr, out};
     };
-    if (g != zn::zworld::kGroups || !sectors || c.arcN >= (int16_t)zn::zworld::kSectors) { push(s[0], s[g]); return; }
-    const int first = c.arc0, end = c.arc0 + c.arcN, S = zn::zworld::kSectors;
-    if (end <= S) { push(s[first], s[end]); push(s[S], s[g]); }
-    else { push(s[0], s[end - S]); push(s[first], s[g]); }
+    const int S = zn::zworld::kSectors;
+    const uint8_t whole = g == zn::zworld::kGroups || b.kind != zn::zworld::Top ? WORLD_MIXED : (uint8_t)S;
+    const bool each = g == zn::zworld::kGroups && worldSectorDraws();
+    if (g != zn::zworld::kGroups || !sectors || c.arcN >= (int16_t)S) {
+      if (!each) { push(s[0], s[g], whole); return; }
+      for (int j = 0; j <= S; j++) push(s[j], s[j + 1], (uint8_t)j);
+      return;
+    }
+    const int first = c.arc0, end = c.arc0 + c.arcN;
+    if (each) {   // in index order: the sectors from 0 when the arc wraps, those from its first, then the faces that look up or down
+      for (int j = end > S ? 0 : S; j < end - S; j++) push(s[j], s[j + 1], (uint8_t)j);
+      for (int j = first; j < (end < S ? end : S); j++) push(s[j], s[j + 1], (uint8_t)j);
+      push(s[S], s[g], (uint8_t)S);
+    } else if (end <= S) { push(s[first], s[end], whole); push(s[S], s[g], whole); }
+    else { push(s[0], s[end - S], whole); push(s[first], s[g], whole); }
   }
 
   /** view: the camera's view matrix. eyes: the eye, then points it will pass (x, y, z each). prm: vertical field of view (radians), aspect,
@@ -925,14 +949,16 @@ struct Engine : NativeRender3D {
       if (sectors && lvl >= 0) facing(E[0], c.mn, c.mx, &c.arc0, &c.arcN);
       else c.arcN = (int16_t)zn::zworld::kSectors;
     }
-    // the ranges: of every loaded chunk's batches, the cells that show the chunk's level
+    // the ranges: of every loaded chunk's batches, the cells that show the chunk's level; in the order they are drawn (by kind, chunk,
+    // batch, then index), with no sort
     w->ni = 0;
     int64_t tris = 0;
-    for (int32_t k = 0; k < w->nk; k++) {
+    for (uint32_t kd = 0; kd < zn::zworld::Kinds; kd++) for (int32_t k = 0; k < w->nk; k++) {
       const WChunk& ch = w->k[k];
       if (!ch.loaded) continue;
       for (int32_t j = 0; j < ch.nb; j++) {
         const WBatch& b = ch.b[j];
+        if ((b.kind < zn::zworld::Kinds ? b.kind : zn::zworld::Kinds - 1) != kd) continue;
         for (uint32_t ci = 0; ci < b.cells; ci++) {
           const int32_t cell = b.cell + (int32_t)ci;
           if (cell < 0 || cell >= w->nc) continue;
@@ -943,7 +969,6 @@ struct Engine : NativeRender3D {
       }
     }
     for (int32_t t = 0; t < w->ni; t++) tris += (w->items[t].to - w->items[t].from) / 3;
-    qsort(w->items, (size_t)w->ni, sizeof(WItem), itemOrder);
     // the governor (tokyo-sim view.rs Governor): the distances in quickly over the budget, out slowly under 88% of it
     if (budget > 0) {
       if (tris > budget) w->scale *= 0.97f;
