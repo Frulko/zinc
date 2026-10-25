@@ -488,17 +488,18 @@ struct Engine : NativeRender3D {
   bool gpu() override { return false; }
   void transform(Array<N> world, Array<N> parent, Array<N> p, Array<N> q, Array<N> s) override {
     if (world.length() < 16 || parent.length() < 16 || p.length() < 3 || q.length() < 4 || s.length() < 3) return;
-    const float x = F(q.a->data[0]), y = F(q.a->data[1]), z = F(q.a->data[2]), w = F(q.a->data[3]);
-    const float sx = F(s.a->data[0]), sy = F(s.a->data[1]), sz = F(s.a->data[2]);
-    const float L[16] = {(1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0,
-                         2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
-                         2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0,
-                         F(p.a->data[0]), F(p.a->data[1]), F(p.a->data[2]), 1};
-    float P[16];
-    for (int i = 0; i < 16; i++) P[i] = F(parent.a->data[i]);
+    // in double, as mat4Compose and mat4Multiply of index.ts do: the frames are the same as before (examples_pixels 3d/cubes)
+    const double x = q.a->data[0], y = q.a->data[1], z = q.a->data[2], w = q.a->data[3];
+    const double sx = s.a->data[0], sy = s.a->data[1], sz = s.a->data[2];
+    const double L[16] = {(1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0,
+                          2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
+                          2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0,
+                          p.a->data[0], p.a->data[1], p.a->data[2], 1};
+    double P[16];
+    for (int i = 0; i < 16; i++) P[i] = parent.a->data[i];
     for (int c = 0; c < 4; c++)
       for (int r = 0; r < 4; r++)
-        world.a->data[c * 4 + r] = N((double)(P[r] * L[c * 4] + P[4 + r] * L[c * 4 + 1] + P[8 + r] * L[c * 4 + 2] + P[12 + r] * L[c * 4 + 3]));
+        world.a->data[c * 4 + r] = N(P[r] * L[c * 4] + P[4 + r] * L[c * 4 + 1] + P[8 + r] * L[c * 4 + 2] + P[12 + r] * L[c * 4 + 3]);
   }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
