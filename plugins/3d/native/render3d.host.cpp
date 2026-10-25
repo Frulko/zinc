@@ -404,6 +404,88 @@ static void* grown(void* p, int32_t n, int32_t* cap, int32_t need, size_t size) 
 static uint32_t rd32(const uint8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
 static float rdf(const uint8_t* p) { float v; memcpy(&v, p, 4); return v; }
 
+/** A World's shadows (World.shadows): its field of heights and the sweep that finds what the light does not reach, a port of Pocket Tokyo's
+ *  tokyo-sim shadow::sweep (MIT): a row at a time from the side of the light, each row from the one before it, so that a renderer spreads a
+ *  sweep over frames. Each renderer keeps what a row says its own way (render3d.n3ds.cpp: an 8-bit texture; render3d.psp.cpp: the top bit of
+ *  the ground pictures' indices). */
+struct ShadowSweep {
+  int32_t world = -1; uint16_t* hm = nullptr; int32_t w = 0, h = 0; float x0 = 0, z0 = 0, step = 1, unit = 1;
+  float sun[3] = {0, 0, 0}, dark = -1;   // what the last sweep was for: towards the light, how dark its shade is (0..255; -1: none yet)
+  int32_t row = -1; bool whole = true;   // the next row of a sweep (-1: none); the first sweep runs whole
+  bool xdom = false, flat = false, back = false, fwd = false; uint32_t drop = 0, f = 0;
+  uint16_t *prev = nullptr, *cur = nullptr;
+  bool on() const { return hm != nullptr; }
+  void close() { free(hm); mfree(prev); mfree(cur); *this = ShadowSweep{}; }
+  /** Takes `heights` (malloc'd, freed here) of w x h cells, `step` metres a cell from (x0, z0), `unit` metres a step. */
+  bool open(int32_t id, uint16_t* heights, int32_t cw, int32_t ch, float cx0, float cz0, float cstep, float cunit) {
+    close();
+    hm = heights; w = cw; h = ch; x0 = cx0; z0 = cz0; step = cstep; unit = cunit; world = id;
+    prev = (uint16_t*)mem(2 * (size_t)w); cur = (uint16_t*)mem(2 * (size_t)w);
+    return true;
+  }
+  /** The light of a frame for the shadows: towards the first light when it comes from above, and how dark what stands in its shade is (it
+   *  keeps the ambient of what looks up: 0..255). */
+  static void light(int nl, const float (*ld)[3], const float (*lc)[3], const float* amb, float* to, float& shade) {
+    to[0] = to[1] = to[2] = 0; shade = 0;
+    if (nl <= 0 || ld[0][1] >= 0) return;
+    for (int a = 0; a < 3; a++) to[a] = -ld[0][a];
+    float lit = 0, am = 0;
+    for (int c = 0; c < 3; c++) { am += amb[c]; lit += amb[c] + lc[0][c] * to[1]; }
+    shade = lit > 0.003f ? (1 - (am < lit ? am / lit : 1)) * 255 : 0;
+  }
+  /** Starts a sweep when the light has turned by more than a degree, or its shade's darkness has changed by more than `tolerance`. */
+  bool aim(const float* to, float shade, float tolerance) {
+    if (row >= 0) return false;
+    const bool none = to[1] == 0 && sun[1] == 0;
+    const float turn = to[0] * sun[0] + to[1] * sun[1] + to[2] * sun[2];
+    if (dark >= 0 && (none || turn > 0.99985f) && fabsf(shade - dark) < tolerance) return false;
+    memcpy(sun, to, sizeof sun);
+    dark = shade;
+    // along the axis the light leans to more, from its side
+    const float lx = to[0], ly = to[1], lz = to[2], fl = sqrtf(lx * lx + lz * lz);
+    flat = fl < 1e-4f;
+    const float slope = (ly > 0.01f ? ly : 0.01f) / (flat ? 1 : fl);
+    xdom = fabsf(lx) >= fabsf(lz);
+    const float tt = flat ? 0 : xdom ? lz / fabsf(lx) : lx / fabsf(lz);
+    const float dr = step * sqrtf(1 + tt * tt) * slope / unit;
+    drop = dr > 65535 ? 65535 : (uint32_t)dr;
+    f = (uint32_t)(fabsf(tt) * 256);
+    fwd = xdom ? lx > 0 : tt >= 0;    // x-major: the light from +x (each cell reads x + 1); z-major: the row before is read at x + 1
+    back = xdom ? tt >= 0 : lz > 0;   // the rows from the last: x-major, the row before is z + 1; z-major, the light from +z
+    row = 0;
+    return true;
+  }
+  /** Sweeps up to `n` rows of the sweep in progress (all of them the first time): done(z, top, own) for each, `top` the highest a ray from
+   *  the light passes over each cell of row z and `own` the row's heights (in the light where top == own). */
+  template <class Done> void rows(int32_t n, Done&& done) {
+    if (row < 0 || !hm) return;
+    if (whole) n = h;
+    for (int32_t k = 0; k < n && row < h; k++, row++) {
+      const int32_t z = back ? h - 1 - row : row;
+      const uint16_t* own = hm + (size_t)z * w;
+      uint16_t* out = cur;
+      const uint16_t* pv = prev;
+      const bool first = row == 0;
+      auto pass = [&](uint32_t a, uint32_t b, uint32_t mine) { const uint32_t p = (a * (256 - f) + b * f) >> 8; return (uint16_t)(p > drop && p - drop > mine ? p - drop : mine); };
+      if (flat || (!xdom && first)) memcpy(out, own, 2 * (size_t)w);
+      else if (xdom) {
+        for (int32_t i = 0; i < w; i++) {
+          const int32_t x = fwd ? w - 1 - i : i, up = fwd ? x + 1 : x - 1;
+          out[x] = up >= 0 && up < w ? pass(out[up], first ? 0 : pv[up], own[x]) : own[x];
+        }
+      } else {
+        for (int32_t x = 0; x < w; x++) {
+          const int32_t o = fwd ? x + 1 : x - 1;
+          out[x] = pass(pv[x], o >= 0 && o < w ? pv[o] : 0, own[x]);
+        }
+      }
+      done(z, (const uint16_t*)out, own);
+      uint16_t* q = prev; prev = cur; cur = q;
+    }
+    if (row >= h) { row = -1; whole = false; }
+  }
+};
+
 
 struct Engine : NativeRender3D {
   Array<uint8_t> asset;   // the model assetOpen read
@@ -813,6 +895,10 @@ struct Engine : NativeRender3D {
   virtual bool worldSectorDraws() const { return false; }
   virtual float worldSplit() const { return 0; }
   virtual int32_t worldMesh(const uint8_t*, const uint8_t*, uint32_t, const uint8_t*, uint32_t) { return -1; }
+  /** A renderer's own copy of a picture a chunk names (render3d.psp.cpp: a clut8 picture with its night palette, its id with kWorldPair),
+   *  else -1: the runtime image. */
+  static constexpr int32_t kWorldPair = 1 << 29;
+  virtual int32_t worldPicture(const char*, uint32_t) { return -1; }
 
   /** Reads a world's index (include/zn/zworld.h): its cells and chunks, none loaded. -1 when it is not there or damaged. */
   int32_t worldOpen(String name) override {
@@ -890,7 +976,8 @@ struct Engine : NativeRender3D {
       if(dl+l>=sizeof(path)){free(p);return -1;}
       memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
       if (i < 256) {
-        names[i] = raster::find_image(path, (uint32_t)(dl + l));
+        names[i] = worldPicture(path, (uint32_t)(dl + l));
+        if (names[i] < 0) names[i] = raster::find_image(path, (uint32_t)(dl + l));
         if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, (uint32_t)(dl + l));
       }
       q += 4 + ((len + 3) & ~3u);
@@ -945,7 +1032,8 @@ struct Engine : NativeRender3D {
       b.mesh = mesh; b.kind = rd32(r); b.flags = rd32(r + 4); b.color = rd32(r + 8); b.emis = rd32(r + 12); b.nemis = rd32(r + 16);
       b.tex = tn >= 0 && tn < 256 && (uint32_t)tn < nn ? names[tn] : -1;
       b.ntex = nt >= 0 && nt < 256 && (uint32_t)nt < nn ? names[nt] : -1;
-      if (nt >= 0 && b.ntex < 0) { b.ntex = b.tex; b.nemis = b.emis; }   // a night picture this device's packs leave out: the day's
+      // a night picture this device's packs leave out: the day's, and its glow, unless the day's holds the night (kWorldPair)
+      if (nt >= 0 && b.ntex < 0) { b.ntex = b.tex; if (b.tex < 0 || !(b.tex & kWorldPair)) b.nemis = b.emis; }
       else if (nt < 0) b.ntex = b.tex;
       b.cell = (int32_t)rd32(r + 28); b.cells = cells; b.groups = groups; b.spans = k.spans + at;
     }
@@ -964,7 +1052,24 @@ struct Engine : NativeRender3D {
     k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
   }
   void worldNight(int32_t id, N night) override { if (World* w = worlds.at(id)) { w->dusk = F(night); w->night = w->dusk >= 0.5f; } }
-  void worldShadows(int32_t, String, Array<N>) override {}   // the 3DS draws them (render3d.n3ds.cpp)
+  /** A renderer that draws a World's shadows (the 3DS, the PSP) says so; shadowsOn() then follows a new field of heights, shadowsOff() lets go
+   *  of what it made from the last one, once no frame it sent may still read it. */
+  ShadowSweep sweep;
+  virtual bool shadowsDrawn() const { return false; }
+  virtual void shadowsOn() {}
+  virtual void shadowsOff() {}
+  /** The heights of a World's shadows (one World at a time), or none (`heights` empty: the shadows off). */
+  void worldShadows(int32_t id, String name, Array<N> prm) override {
+    if (!shadowsDrawn()) return;
+    if (sweep.on()) { shadowsOff(); sweep.close(); }
+    if (!name.bytes() || prm.length() < 7 || !worlds.at(id)) return;
+    uint32_t n = 0;
+    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+    const int32_t w = (int32_t)F(prm.a->data[3]), h = (int32_t)F(prm.a->data[4]);
+    if (!p || w < 2 || h < 2 || w > 1024 || h > 1024 || n < (uint32_t)(w * h * 2)) { free(p); return; }
+    sweep.open(id, (uint16_t*)p, w, h, F(prm.a->data[0]), F(prm.a->data[1]), F(prm.a->data[2]), F(prm.a->data[6]));
+    shadowsOn();
+  }
 
   /** One cell's indices of a batch, of which only the sectors in `arc` (all when count >= 16) for a batch ordered by sector. */
   void ranges(World* w, int32_t chunk, int32_t batch, const WBatch& b, const WCell& c, int32_t ci, bool sectors) {

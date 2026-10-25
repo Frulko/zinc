@@ -445,10 +445,12 @@ export class World extends Node {
   /** How far the night has come, 0 (day) to 1: the batches' night pictures and glow from 0.5, or mixed by it where the renderer can. */
   setNight(night: number): void { if(!this.disposed)R.worldNight(this.handle, night); }
   /** The shadows of the scene's first light over a field of heights (the asset: u16 little-endian, rows along +z), the first cell's corner at
-   *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit. Drawn where the renderer can (the 3DS). */
+   *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit. Drawn where the renderer can (the 3DS, the PSP). */
   shadows(heights: string, x0: number, z0: number, step: number, w: i32, h: i32, y0: number, unit: number): void {
     if(!this.disposed)R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
   }
+  /** The shadows off: the renderer lets go of the heights and of what it made from them (shadows() turns them on again). */
+  clearShadows(): void { R.worldShadows(this.handle, '', []); }
 
   /** Chooses what the next render() of `camera` draws, its picture `aspect` wide for one high, and the chunks to load for the eye and for
    *  `ahead` (x, y, z of points it will pass, possibly none). `dt`: seconds since the last call. */

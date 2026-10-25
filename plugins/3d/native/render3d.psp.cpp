@@ -7,14 +7,20 @@
 // plus up to 4 directional lights per vertex, specular per vertex (the GE's half vector with an infinite viewer), the emissive colour as the
 // material's. The GE clamps the lit colour once (emissive + base x light), the software renderer clamps the light first: a lit colour brighter
 // than white by both lights and ambient comes out a little brighter here. A World (worldMesh, worldDraw below) is drawn as Pocket Tokyo's PSP
-// draws its city: 8 and 12-byte vertices, a sector's light as the ambient colour, a few words of list a range, two depth ranges.
+// draws its city: 8 and 12-byte vertices, a sector's light as the ambient colour, a few words of list a range, two depth ranges, clut8 pictures
+// whose palette is the day's and the night's mixed by the hour, and shadows in the top bit of the ground pictures' indices.
 // ponytail: a frame whose 2D commands the replay cannot draw falls back to the software raster, which shows the target's runtime image (black)
 // instead of the GE's picture; VRAM is a bump allocator (a target that grows leaks its last size unless it was the last one made).
+#define ZRT_HOSTED_CPP   // the standard library's placement new, not zrt.h's: the pack's pictures come as a std::string
 #define ZP_3D_GPU 1
 #include "render3d.host.cpp"
 
 #include <malloc.h>
 #include <stdio.h>
+
+#include <string>
+
+#include "zn/zim.h"
 
 #include <pspge.h>
 #include <pspgu.h>
@@ -23,6 +29,7 @@
 #include "ff_replay.h"
 
 extern "C" void hal_log(const char* s, size_t n);   // hal_psp.cpp: the console log and zinc.log
+bool zn_console_pack_read(const std::string& name, int kind, std::string& out) __attribute__((weak));   // targets/console/host_console.cpp
 
 namespace {
 
@@ -54,7 +61,7 @@ void writeback(const void* p, size_t n) { sceKernelDcacheWritebackRange(p, (unsi
 // Where a render's time goes, logged every 600 renders: in this file (building the GE list), waiting for the GE, and the rest of the
 // window from begin() to end() (the program: its scene walk and the calls into this module)
 uint64_t now() { return sceKernelGetSystemTimeWide(); }
-struct Times { uint64_t start = 0, native = 0, wait = 0, span = 0; uint32_t n = 0; } times;
+struct Times { uint64_t start = 0, native = 0, wait = 0, span = 0, shadows = 0; uint32_t n = 0; } times;   // shadows: of the module's, the sweep and its patch
 struct Spend { uint64_t& acc; uint64_t t0; explicit Spend(uint64_t& a) : acc(a), t0(now()) {} ~Spend() { acc += now() - t0; } };
 
 struct Psp : Engine {
@@ -204,6 +211,106 @@ struct Psp : Engine {
   struct WMesh { void* v; uint16_t* idx; int32_t ni; bool uvs, fit; float o[3], s[3], us, tk[2], tb[2]; };
   Pool<WMesh> wm;
 
+  // ---- clut8 pictures (include/zn/zim.h): the indices swizzled for the GE, the day's and the night's palettes, and the palette the GE reads,
+  // the two mixed by how far the night has come in 64 steps (Pocket Tokyo's handheld.rs). A ground picture of at most 128 colours keeps the
+  // upper half of its palette for the same colours in shadow, and the shadows set the top bit of its indices: where the sweep of the heights
+  // (Engine::sweep) finds something between the texel and the light. Its place on the ground comes from the first top drawn with it.
+  struct Pic { uint8_t* idx; int32_t w, h; uint32_t day[256], night[256]; uint32_t* clut; int32_t key; bool shade, placed; float ax, bx, az, bz;
+               int16_t* col; float colX0, colStep; };   // col: the column of heights under each column of texels (-1: none), for that grid
+  Pool<Pic> pics;
+  std::string picNames;   // "name\n" a picture, in the order of pics
+  int32_t picKey = -1;    // what the palettes were mixed for
+  int32_t worldPicture(const char* path, uint32_t n) override {
+    const std::string name(path, n);
+    for (size_t at = 0, k = 0; at < picNames.size(); k++) {
+      const size_t end = picNames.find('\n', at);
+      if (picNames.compare(at, end - at, name) == 0) return kWorldPair | (int32_t)k;
+      at = end + 1;
+    }
+    std::string zim;
+    if (!zn_console_pack_read || !zn_console_pack_read(name, 1, zim) || zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1")) return -1;
+    const uint8_t* p = (const uint8_t*)zim.data();
+    const int32_t w = (int32_t)rd32(p + 8), h = (int32_t)rd32(p + 12);
+    // the GE's swizzled T8: a power of two from 16 x 8 to 512 x 512; another size or format is the runtime image's
+    if (p[4] != 16 || w < 16 || h < 8 || w > 512 || h > 512 || (w & (w - 1)) || (h & (h - 1)) || zim.size() < zn::zim::kHeader + zn::zim::kClut8Palettes + (size_t)w * h) return -1;
+    Pic* q = (Pic*)mem(sizeof(Pic));
+    memset(q, 0, sizeof *q);
+    q->w = w; q->h = h; q->key = -1;
+    memcpy(q->day, p + zn::zim::kHeader, 1024); memcpy(q->night, p + zn::zim::kHeader + 1024, 1024);   // R, G, B, A: the GE's 0xAABBGGRR
+    q->idx = (uint8_t*)memalign(16, (size_t)w * h);
+    q->clut = (uint32_t*)memalign(64, 1024);
+    const uint8_t* ix = p + zn::zim::kHeader + zn::zim::kClut8Palettes;
+    uint8_t top = 0;
+    for (int32_t y = 0; y < h; y++)   // blocks of 16 bytes x 8 rows, row by row
+      for (int32_t x = 0; x < w; x++) { const uint8_t v = ix[(size_t)y * w + x]; top |= v; q->idx[swz(w, x, y)] = v; }
+    q->shade = !(top & 0x80);
+    writeback(q->idx, (size_t)w * h);
+    picNames += name; picNames += '\n';
+    sweep.dark = -1;   // a new ground picture: the next sweep patches it
+    picKey = -1;       // and its palette is mixed
+    return kWorldPair | pics.add(q);
+  }
+  static size_t swz(int32_t w, int32_t x, int32_t y) { return ((size_t)(y >> 3) * (size_t)(w >> 4) + (size_t)(x >> 4)) * 128 + (size_t)(y & 7) * 16 + (size_t)(x & 15); }
+  /** The palettes the GE reads: day and night mixed by the night (64 steps), the shaded half `lit` of the lit (0..64). */
+  void palettes(float night, int32_t lit) {
+    const int32_t t = (int32_t)((night < 0 ? 0 : night > 1 ? 1 : night) * 64 + 0.5f), key = t * 65 + lit;
+    if (key == picKey) return;
+    picKey = key;
+    for (int32_t i = 0; i < pics.n; i++) {
+      Pic* q = pics.p[i];
+      if (!q) continue;
+      for (int k = 0; k < 256; k++) {
+        const uint32_t d = q->day[k], n = q->night[k];
+        uint32_t o = d & 0xFF000000u;
+        for (int c = 0; c < 24; c += 8) { const int32_t a = (int32_t)(d >> c & 255), b = (int32_t)(n >> c & 255); o |= (uint32_t)(a + (b - a) * t / 64) << c; }
+        q->clut[k] = o;
+      }
+      if (q->shade)
+        for (int k = 0; k < 128; k++) {
+          const uint32_t o = q->clut[k];
+          q->clut[128 + k] = (o & 0xFF000000u) | ((o >> 16 & 255) * lit / 64) << 16 | ((o >> 8 & 255) * lit / 64) << 8 | (o & 255) * lit / 64;
+        }
+      writeback(q->clut, 1024);
+    }
+  }
+  /** Where the sweep says a row of cells is in shade, the top bit of the ground pictures' texels over it. */
+  void shadeRow(int32_t z, const uint16_t* top, const uint16_t* own) {
+    const ShadowSweep& s = sweep;
+    const uint32_t deep = (uint32_t)(0.5f / s.unit);   // half a metre under the shade's top: in it (the 3DS's map has 2 m of shades)
+    const float zlo = s.z0 + z * s.step, zhi = zlo + s.step;
+    for (int32_t i = 0; i < pics.n; i++) {
+      Pic* q = pics.p[i];
+      if (!q || !q->shade || !q->placed) continue;
+      // the texel rows whose centres stand over the cells of row z: v = az world z + bz
+      float v0 = q->az * zlo + q->bz, v1 = q->az * zhi + q->bz;
+      if (v0 > v1) { const float t = v0; v0 = v1; v1 = t; }
+      int32_t j0 = (int32_t)ceilf(v0 * q->h - 0.5f), j1 = (int32_t)ceilf(v1 * q->h - 0.5f);
+      j0 = j0 < 0 ? 0 : j0; j1 = j1 > q->h ? q->h : j1;
+      if (j0 >= j1) continue;
+      if (!q->col || q->colX0 != s.x0 || q->colStep != s.step) {   // the cells under its texels' centres: u = ax world x + bx
+        if (!q->col) q->col = (int16_t*)mem(2 * (size_t)q->w);
+        q->colX0 = s.x0; q->colStep = s.step;
+        for (int32_t x = 0; x < q->w; x++) {
+          const int32_t c = (int32_t)floorf((((x + 0.5f) / q->w - q->bx) / q->ax - s.x0) / s.step);
+          q->col[x] = (int16_t)(c >= 0 && c < s.w ? c : -1);
+        }
+      }
+      for (int32_t j = j0; j < j1; j++) {
+        uint8_t* row = q->idx + swz(q->w, 0, j);   // swizzled: 16 texels a block of 128 bytes
+        for (int32_t x = 0; x < q->w; x++) {
+          const int32_t c = q->col[x];
+          uint8_t& t = row[(x >> 4) * 128 + (x & 15)];
+          t = (uint8_t)((t & 0x7F) | (c >= 0 && top[c] > own[c] + deep ? 0x80 : 0));
+        }
+      }
+      writeback(q->idx + (size_t)(j0 >> 3) * q->w * 8, (size_t)(((j1 - 1) >> 3) - (j0 >> 3) + 1) * q->w * 8);
+    }
+  }
+  bool shadowsDrawn() const override { return true; }
+  // the shadows off: the heights go (Engine::worldShadows), the shaded half of the palettes becomes the lit one (palettes(), the bits stay)
+  void shadowsOn() override { picKey = -1; sweep.whole = false; }   // spread over frames from the first: no frame of a whole sweep
+  void shadowsOff() override { picKey = -1; }
+
   bool worldSectorDraws() const override { return true; }
   float worldSplit() const override { return kSplit; }
   int32_t worldMesh(const uint8_t* r, const uint8_t* x, uint32_t nv, const uint8_t* ix, uint32_t ni) override {
@@ -270,6 +377,15 @@ struct Psp : Engine {
     if (!w || !gcur) return;
     uint32_t light[WORLD_MIXED + 1];
     sectorLights(light);
+    float sun[3], dark = 0;
+    const bool shadowed = sweep.on() && sweep.world == id;
+    if (shadowed) {   // 12 rows of a sweep a frame (about 2 s a sweep) when the light has turned by a degree
+      Spend shading(times.shadows);
+      ShadowSweep::light(nl, ld, lc, amb, sun, dark);
+      if (dark >= 8) sweep.aim(sun, 0, 256);   // the shade's darkness is in the palettes, not the bits; none to see (the moon): no new sweep
+      sweep.rows(12, [&](int32_t z, const uint16_t* top, const uint16_t* own) { shadeRow(z, top, own); });
+    }
+    palettes(w->dusk, shadowed ? (int32_t)((255 - dark) * 64 / 255 + 0.5f) : 64);
     sceGuEnable(GU_LIGHTING);
     for (int i = 0; i < 4; i++) sceGuDisable(GU_LIGHT0 + i);
     litOn = -1;
@@ -322,13 +438,22 @@ struct Psp : Engine {
         for (int a = 0; a < 3; a++) { const float h = g->s[a] * (32768.0f / 65535.0f); M[a * 5] = h; M[12 + a] = g->o[a] + h - eye[a]; }
         M[15] = 1;
         sceGuSetMatrix(GU_MODEL, (const ScePspFMatrix4*)M);
-        const uint32_t e = w->night ? b.nemis : b.emis;
+        const bool pair = b.tex >= 0 && (b.tex & kWorldPair);   // its night in its palette: the glow mixed by the night too
+        uint32_t e = w->night ? b.nemis : b.emis;
+        if (pair) {
+          const float t = w->dusk < 0 ? 0 : w->dusk > 1 ? 1 : w->dusk;
+          e = 0;
+          for (int c = 0; c < 24; c += 8) { const float a = (float)(b.emis >> c & 255), z = (float)(b.nemis >> c & 255); e |= (uint32_t)(a + (z - a) * t + 0.5f) << c; }
+        }
         if (e != em) { sceGuModelColor(abgr(e), 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFF000000u); em = e; }
         const int c = b.flags & DOUBLE ? 0 : 1;
         if (c != cullOn) { if (c) sceGuEnable(GU_CULL_FACE); else sceGuDisable(GU_CULL_FACE); cullOn = c; }
         int32_t tw = 0, th = 0;
-        const int32_t ti = w->night ? b.ntex : b.tex;
-        const GuTex* tx = ti >= 0 ? (const GuTex*)zn::ff::texture(ti, &tw, &th) : nullptr;
+        const int32_t ti = w->night && !pair ? b.ntex : b.tex;
+        Pic* pic = pair ? pics.at(ti & ~kWorldPair) : nullptr;
+        GuTex own;
+        if (pic) { own = GuTex{pic->idx, pic->w, pic->h, pic->w, pic->w, pic->h, GU_PSM_T8, 0, true}; tw = pic->w; th = pic->h; }
+        const GuTex* tx = pic ? &own : ti >= 0 && !pair ? (const GuTex*)zn::ff::texture(ti, &tw, &th) : nullptr;
         const int k = !tx ? 0 : g->uvs ? 2 : 1;   // no picture, a picture placed by the position, by the uvs
         if (k != kind) {
           if (!k) sceGuDisable(GU_TEXTURE_2D);
@@ -342,7 +467,8 @@ struct Psp : Engine {
         if (tx) {
           if (tx->mem != tex) {
             const bool whole = tw == tx->tw && th == tx->th;   // a power-of-two image repeats, as in the software renderer
-            sceGuTexMode(tx->psm, 0, 0, 0);
+            if (pic) { sceGuClutMode(GU_PSM_8888, 0, 0xFF, 0); sceGuClutLoad(256 / 8, pic->clut); }
+            sceGuTexMode(tx->psm, 0, 0, pic ? 1 : 0);   // a clut8 picture is swizzled
             sceGuTexImage(0, tx->tw, tx->th, tx->stride, tx->mem);
             sceGuTexWrap(whole ? GU_REPEAT : GU_CLAMP, whole ? GU_REPEAT : GU_CLAMP);
             sceGuTexFlush();
@@ -350,6 +476,13 @@ struct Psp : Engine {
           }
           const float fx = (float)tw / tx->tw, fy = (float)th / tx->th;   // uv over the image, inside its power-of-two texture
           if (k == 1) {
+            if (pic && !pic->placed) {   // where the picture lies: u = ax x + bx, v = az z + bz (the s16 n of a coordinate is (x - o) 65535 / s - 32768)
+              const float kx = g->tk[0] / 32768, kz = g->tk[1] / 32768;
+              pic->ax = kx * 65535 / g->s[0]; pic->bx = g->tb[0] - kx * (32768 + g->o[0] * 65535 / g->s[0]);
+              pic->az = kz * 65535 / g->s[2]; pic->bz = g->tb[1] - kz * (32768 + g->o[2] * 65535 / g->s[2]);
+              pic->placed = pic->ax != 0 && pic->az != 0;
+              if (pic->placed) sweep.dark = -1;   // the next sweep patches it
+            }
             const float T[16] = {fx * g->tk[0], 0, 0, 0, 0, 0, 0, 0, 0, fy * g->tk[1], 0, 0, fx * g->tb[0], fy * g->tb[1], 1, 0};
             sceGuSetMatrix(GU_TEXTURE, (const ScePspFMatrix4*)T);
             sceGuTexScale(1, 1); sceGuTexOffset(0, 0);
@@ -487,6 +620,10 @@ struct Psp : Engine {
       const int len = snprintf(b, sizeof b, "psp 3d: %.2f ms a render: %.2f in the module (%.2f waiting for the GE), %.2f in the program, %d tris\n",
         times.span * k, times.native * k, times.wait * k, (times.span - times.native) * k, (int)tris);
       hal_log(b, (size_t)len);
+      const struct mallinfo mi = mallinfo();   // the heap's bytes in use (the runtime's 16 MiB among them): with the core's own size, what a PSP-1000's 24 MiB must hold
+      const int hl = snprintf(b, sizeof b, "psp heap: %.1f MB in use, %.1f MB taken; shadows %.2f ms a render\n", mi.uordblks / 1048576.0,
+        mi.arena / 1048576.0, times.shadows * k);
+      hal_log(b, (size_t)hl);
       times = Times{};
     }
     return tris;

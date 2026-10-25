@@ -68,8 +68,9 @@ export interface Spec extends NativeModule {
    *  the two (the 3DS's combiners) goes from one to the other by it. */
   worldNight(world: i32, night: number): void;
   /** The shadows of the scene's first light over a field of heights: the asset `heights` holds u16 heights (little-endian, rows along +z),
-   *  prm: x0, z0 (the first cell's corner), step (metres a cell), w, h (cells), y0 (the height of 0), unit (metres a step). A renderer that
-   *  draws them (the 3DS) darkens the ground and the roofs where something stands between them and the light; the others ignore them. */
+   *  prm: x0, z0 (the first cell's corner), step (metres a cell), w, h (cells), y0 (the height of 0), unit (metres a step); `heights` empty:
+   *  the shadows off. A renderer that draws them (the 3DS, the PSP) darkens the ground and the roofs where something stands between them
+   *  and the light; the others ignore them. */
   worldShadows(world: i32, heights: string, prm: number[]): void;
   /** Chooses what worldDraw draws: the cells in the frustum of the camera (`view`, its view matrix), each at the level of its distance,
    *  of their walls the sectors that can face the eye. eyes: x y z of the eye, then of points it will pass (for the chunks to load). prm:

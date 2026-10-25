@@ -53,16 +53,8 @@ struct GTarget {
 };
 struct Loc { int mvp, model, base, vk, amb, ld, lc, spec, eye, emit, tsc; };
 struct WLoc { int mvp, a, b, light, emit, lights; };   // a World program's uniforms: top a = pic, b = map; wall a = tsc; wall, solid b = base
-// The shadows of a World (worldShadows): the heights, the 8-bit map the top program reads at texcoord 2 (255 in the light), and the sweep in
-// progress (Pocket Tokyo's tokyo-sim shadow.rs, MIT): a row at a time from the side of the light, each row from the one before it.
-struct Shade {
-  int32_t world = -1; uint16_t* hm = nullptr; int32_t w = 0, h = 0; float x0 = 0, z0 = 0, step = 1, unit = 1;
-  C3D_Tex tex; bool ok = false;
-  float sun[3] = {0, 0, 0}, dark = -1;   // what the map shows: the light's direction and how dark its shade is (0..255)
-  int32_t row = -1; bool whole = true;   // the next row of a sweep (-1: none); the first sweep runs whole
-  float sdark = 0; bool xdom = false, flat = false, back = false, fwd = false; uint32_t drop = 0, f = 0;
-  uint16_t *prev = nullptr, *cur = nullptr;
-};
+// The shadows of a World (Engine::sweep, render3d.host.cpp): the 8-bit map the top program reads at texcoord 2 (255 in the light).
+struct Shade { C3D_Tex tex; bool ok = false; };
 
 int32_t pow2(int32_t v) { int32_t p = 8; while (p < v) p <<= 1; return p; }
 /** A column-major 4x4 (the program's) as citro3d's rows. */
@@ -235,26 +227,20 @@ struct N3ds : Engine {
     }
   }
 
-  /** The heights of a World's shadows (one World at a time): the map is swept by render() whenever the light moves. */
-  void worldShadows(int32_t id, String name, Array<N> prm) override {
+  /** The shadows' map of the heights in Engine::sweep (one World at a time), swept by render() whenever the light moves. */
+  bool shadowsDrawn() const override { return true; }
+  void shadowsOn() override {
     Shade& s = shade;
-    if (prm.length() < 7 || !worlds.at(id)) return;
-    uint32_t n = 0;
-    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
-    const int32_t w = (int32_t)F(prm.a->data[3]), h = (int32_t)F(prm.a->data[4]);
-    if (!p || w < 2 || h < 2 || w > 1024 || h > 1024 || n < (uint32_t)(w * h * 2)) { free(p); return; }
-    free(s.hm); mfree(s.prev); mfree(s.cur);
-    if (s.ok) { C3D_TexDelete(&s.tex); s.ok = false; }   // ponytail: a second call while a frame draws the old map; none does
-    s.hm = (uint16_t*)p; s.w = w; s.h = h; s.world = id;
-    s.x0 = F(prm.a->data[0]); s.z0 = F(prm.a->data[1]); s.step = F(prm.a->data[2]); s.unit = F(prm.a->data[6]);
-    s.prev = (uint16_t*)mem(2 * (size_t)w); s.cur = (uint16_t*)mem(2 * (size_t)w);
-    s.ok = C3D_TexInit(&s.tex, (u16)pow2(w), (u16)pow2(h), GPU_L8);
+    s.ok = C3D_TexInit(&s.tex, (u16)pow2(sweep.w), (u16)pow2(sweep.h), GPU_L8);
     if (!s.ok) return;
     memset(s.tex.data, 255, s.tex.size);   // all in the light until the first sweep
     GSPGPU_FlushDataCache(s.tex.data, s.tex.size);
     C3D_TexSetFilter(&s.tex, GPU_LINEAR, GPU_LINEAR);
     C3D_TexSetWrap(&s.tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
-    s.dark = -1; s.row = -1; s.whole = true;
+  }
+  void shadowsOff() override {   // a frame sent may still read the map: freed after it (later)
+    if (shade.ok) later(shade.tex.data);
+    shade = Shade{};
   }
 
   int32_t target(int32_t id, int32_t w, int32_t h) override {
@@ -375,67 +361,22 @@ struct N3ds : Engine {
   /** The shadows' map follows the scene's first light: a sweep starts when the light has turned by more than a degree or the darkness of its
    *  shade has changed by 3%, and goes on a few rows a frame (all of them the first time), each row written into the map as it is done. */
   void shadows(const GTarget* t) {
-    Shade& s = shade;
-    if (s.row < 0) {
-      float sun[3] = {0, 0, 0}, dark = 0;
-      if (t->nl > 0 && t->ld[0][1] < 0) {   // a light from above: towards it; what stands in its shade keeps the ambient of what looks up
-        for (int a = 0; a < 3; a++) sun[a] = -t->ld[0][a];
-        float lit = 0, am = 0;
-        for (int c = 0; c < 3; c++) { am += t->amb[c]; lit += t->amb[c] + t->lc[0][c] * sun[1]; }
-        dark = lit > 0.003f ? (1 - (am < lit ? am / lit : 1)) * 255 : 0;
-      }
-      const bool none = sun[1] == 0 && s.sun[1] == 0;
-      const float turn = sun[0] * s.sun[0] + sun[1] * s.sun[1] + sun[2] * s.sun[2];
-      if (s.dark >= 0 && (none || turn > 0.99985f) && fabsf(dark - s.dark) < 8) return;
-      memcpy(s.sun, sun, sizeof sun);
-      s.dark = dark;
-      // tokyo-sim shadow::sweep, one row a step: along the axis the light leans to more, from its side
-      const float lx = sun[0], ly = sun[1], lz = sun[2], fl = sqrtf(lx * lx + lz * lz);
-      s.flat = fl < 1e-4f;
-      const float slope = (ly > 0.01f ? ly : 0.01f) / (s.flat ? 1 : fl);
-      s.xdom = fabsf(lx) >= fabsf(lz);
-      const float tt = s.flat ? 0 : s.xdom ? lz / fabsf(lx) : lx / fabsf(lz);
-      const float drop = s.step * sqrtf(1 + tt * tt) * slope / s.unit;
-      s.drop = drop > 65535 ? 65535 : (uint32_t)drop;
-      s.f = (uint32_t)(fabsf(tt) * 256);
-      s.fwd = s.xdom ? lx > 0 : tt >= 0;    // x-major: the light from +x (each cell reads x + 1); z-major: the row before is read at x + 1
-      s.back = s.xdom ? tt >= 0 : lz > 0;   // the rows from the last: x-major, the row before is z + 1; z-major, the light from +z
-      s.sdark = dark;
-      s.row = 0;
-    }
-    const int32_t w = s.w, h = s.h, tw = s.tex.width, n = s.whole ? h : 24;
-    const uint32_t k = (uint32_t)(s.unit * 128 * 256), f = s.f, drop = s.drop;
-    uint8_t* tex = (uint8_t*)s.tex.data;
-    int32_t lo = h, hi = -1;
-    for (int32_t done = 0; done < n && s.row < h; done++, s.row++) {
-      const int32_t z = s.back ? h - 1 - s.row : s.row;
-      const uint16_t* own = s.hm + (size_t)z * w;
-      uint16_t* out = s.cur;
-      const uint16_t* pv = s.prev;
-      const bool first = s.row == 0;
-      auto pass = [&](uint32_t a, uint32_t b, uint32_t mine) { const uint32_t p = (a * (256 - f) + b * f) >> 8; return (uint16_t)(p > drop && p - drop > mine ? p - drop : mine); };
-      if (s.flat || (!s.xdom && first)) memcpy(out, own, 2 * (size_t)w);
-      else if (s.xdom) {
-        for (int32_t i = 0; i < w; i++) {
-          const int32_t x = s.fwd ? w - 1 - i : i, up = s.fwd ? x + 1 : x - 1;
-          out[x] = up >= 0 && up < w ? pass(out[up], first ? 0 : pv[up], own[x]) : own[x];
-        }
-      } else {
-        for (int32_t x = 0; x < w; x++) {
-          const int32_t o = s.fwd ? x + 1 : x - 1;
-          out[x] = pass(pv[x], o >= 0 && o < w ? pv[o] : 0, own[x]);
-        }
-      }
-      for (int32_t x = 0; x < w; x++) {   // the light left: 255 in it, less the deeper under the shade (2 m and more: the darkest)
-        const uint32_t d = (uint32_t)(out[x] - own[x]) * k >> 8, under = d > 255 ? 255 : d;
+    float sun[3], dark;
+    ShadowSweep::light(t->nl, t->ld, t->lc, t->amb, sun, dark);
+    sweep.aim(sun, dark, 8);
+    const int32_t tw = shade.tex.width;
+    const uint32_t k = (uint32_t)(sweep.unit * 128 * 256), sdark = (uint32_t)sweep.dark;
+    uint8_t* tex = (uint8_t*)shade.tex.data;
+    int32_t lo = sweep.h, hi = -1;
+    sweep.rows(24, [&](int32_t z, const uint16_t* top, const uint16_t* own) {
+      for (int32_t x = 0; x < sweep.w; x++) {   // the light left: 255 in it, less the deeper under the shade (2 m and more: the darkest)
+        const uint32_t d = (uint32_t)(top[x] - own[x]) * k >> 8, under = d > 255 ? 255 : d;
         const uint32_t m = (x & 1) | (z & 1) << 1 | (x & 2) << 1 | (z & 2) << 2 | (x & 4) << 2 | (z & 4) << 3;
-        tex[(size_t)((z >> 3) * (tw >> 3) + (x >> 3)) * 64 + m] = (uint8_t)(255 - ((uint32_t)(under * s.sdark) >> 8));
+        tex[(size_t)((z >> 3) * (tw >> 3) + (x >> 3)) * 64 + m] = (uint8_t)(255 - ((under * sdark) >> 8));
       }
       lo = z < lo ? z : lo; hi = z > hi ? z : hi;
-      uint16_t* q = s.prev; s.prev = s.cur; s.cur = q;
-    }
+    });
     if (hi >= lo) GSPGPU_FlushDataCache(tex + (size_t)(lo >> 3) * tw * 8, (size_t)((hi >> 3) - (lo >> 3) + 1) * tw * 8);
-    if (s.row >= h) { s.row = -1; s.whole = false; }
   }
 
   /** A World's ranges of the frame (worldDraw), in their order (by kind, then batch): a batch's state is set when the batch changes. */
@@ -445,7 +386,7 @@ struct N3ds : Engine {
     float L[17][4];
     sectorLights(t, L);
     const float night = w->dusk < 0 ? 0 : w->dusk > 1 ? 1 : w->dusk;
-    const bool shadowed = shade.ok && shade.world == rec.world;
+    const bool shadowed = shade.ok && sweep.world == rec.world;
     if (shadowed) shadows(t);
     const uint32_t nightK = (uint32_t)(night * 255 + 0.5f) * 0x010101u | 0xFF000000u;
     int lay = -1, tev = -1, cull = -1, fogged = -1, white = -1;
@@ -535,9 +476,10 @@ struct N3ds : Engine {
           else C3D_FVUnifSet(GPU_VERTEX_SHADER, u.a, g->us * sx, -g->us * sy, 0, 1);
         }
         if (sh) {   // the shadows' map over the heights' grid, t from the top
-          const Shade& s = shade;
-          const float ax = g->size[0] * qk / (s.tex.width * s.step), bx = (g->org[0] + g->size[0] * qh - s.x0) / (s.tex.width * s.step);
-          const float az = g->size[2] * qk / (s.tex.height * s.step), bz = (g->org[2] + g->size[2] * qh - s.z0) / (s.tex.height * s.step);
+          const ShadowSweep& s = sweep;
+          const C3D_Tex& st = shade.tex;
+          const float ax = g->size[0] * qk / (st.width * s.step), bx = (g->org[0] + g->size[0] * qh - s.x0) / (st.width * s.step);
+          const float az = g->size[2] * qk / (st.height * s.step), bz = (g->org[2] + g->size[2] * qh - s.z0) / (st.height * s.step);
           C3D_FVUnifSet(GPU_VERTEX_SHADER, u.b, ax, bx, -az, 1 - bz);
           bind(2, &shade.tex);
         }
