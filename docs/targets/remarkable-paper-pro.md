@@ -123,6 +123,39 @@ on EOF, and each fallback with its message. `tests/native/rmpp/fake-xochitl/run.
 in a fake xochitl under XOVI and framebuffer-spy. Only the tablet can prove the latency, the colour settle on a real
 engine and the return time.
 
+## Models, and adding a model or an OS
+
+One driver serves every tablet; `plugins/display-rmpp/models.h` holds one row per model, read from
+`/sys/devices/soc0/machine` (`ZINC_RMPP_MACHINE` overrides it in tests):
+
+| Codename | Model | Panel | qtfb format | Display path | Fast ink |
+|---|---|---|---|---|---|
+| reMarkable Ferrari | Paper Pro | 1620x2160 colour | 1 | qtfb (L0), lane (L1), session (L2) | OS 3.27.3.0 verified |
+| reMarkable Chiappa | Paper Pro Move | 954x1696 colour | 4 | qtfb (L0), lane and session once a vendor row exists | none verified yet: qtfb |
+| reMarkable Tatsu | Paper Pure | 1404x1872 mono | 7 | as the Move | none verified yet: qtfb |
+| reMarkable 2.0 | reMarkable 2 | 1404x1872 mono | n/a | [timower's rm2fb](https://github.com/timower/rM2-stuff) client (DU for ink, GC16_FAST for UI) | rm2fb's DU waveform |
+
+An unknown codename runs on qtfb with the row of the same panel size and one message (`unknown model '...'`). A known
+model whose `libqsgepaper.so` hash has no row in `vendors` stays on qtfb with one message naming the hash. The rM2 has no
+bridge of our own: its SWTCON is static inside xochitl, and rm2fb already owns the panel for every client; without rm2fb
+the app runs headless and says so. (The rM2 is 32-bit ARM: its build comes with the cross-platform pass.)
+
+**A new OS on a known model** is one row of `vendors`, added after a tablet test, never guessed:
+
+1. Read only, on the tablet: `sha256sum /usr/lib/plugins/scenegraph/libqsgepaper.so`, the OS version, and the swap's
+   mangled name with `nm -D -C` on a copy of the library taken off the tablet (`EPFramebuffer::swapBuffers(QRect, ...)`;
+   3.27 takes `EPContentType, EPScreenMode, flags`, 3.28 `EPScreenMode, flags`: `abi` 327 or 328).
+2. Check `systemctl show xochitl -p StartLimitBurst -p StartLimitIntervalUSec -p WatchdogUSec` against the model row.
+3. Add the row (hash, codename, OS, swap symbol, `abi`, Pen mode, colour mode and content, engine shim), then run
+   `tests/t1/rmpp_sim.sh` and the fake-xochitl harness with that ABI.
+4. On the tablet: one `xovi/start`, the journal must say `lane ready`; then the camera and settle tests (T2 to T4 of the
+   design's §9). Record the result in the row's comment.
+
+**A new model** is one row of `models`: codename, panel size, qtfb format (AppLoad's `src/qtfb/common.h`), the vendor
+buffer that framebuffer-spy reports (width, height, bytes per line; 0 until read), colour, pen and touch maxima
+(`evtest`), pen rotation, the display path, and the xochitl unit limits as shipped. Add a `size=WxH` run to
+`tests/t1/rmpp_sim.sh` for its qtfb format. Its fast ink stays off until a vendor row exists.
+
 ## Safety rules
 
 The same rules bind the lane, the lease and anyone diagnosing on a tablet

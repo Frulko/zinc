@@ -5,7 +5,8 @@
 //      /tmp/qtfb.sock (protocol: asivery/rm-appload src/qtfb/common.h). Always there; QTFB_KEY comes from AppLoad.
 // The manifest's "ink" option chooses: "qtfb" L0; "native" L1, else L0; "session" L1, else L2 (inside the lease), else L0.
 // A downgrade is one way (L1 -> L0 on any lane error) and says so once. The model and its vendor rows are in models.h.
-// Touch comes from qtfb (evdev under L2); evdev supplies Marker pressure, tilt and the eraser end.
+// The reMarkable 2 has no lane and no session: its row selects timower's rm2fb (rm2fb.h), whose DU waveform draws the ink.
+// Touch comes from qtfb (evdev under L2 and on the rM2); evdev supplies Marker pressure, tilt and the eraser end.
 // Mode changes are explicit (drawing FAST / colour preview UI), never automatic per stroke.
 // Only changed RGB pixels are submitted; xochitl owns the physical refresh policy.
 #include "eink.h"
@@ -13,6 +14,7 @@
 #include "models.h"
 #include "lane.h"
 #include "native.h"
+#include "rm2fb.h"
 #include <errno.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -40,7 +42,7 @@ struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; 
 static_assert(sizeof(ClientMsg) == 24 && sizeof(ServerMsg) == 32, "qtfb wire layout");
 
 eink::Panel panel;
-enum Layer { L0, L1, L2 } layer = L0;
+enum Layer { L0, L1, L2, RM2 } layer = L0;
 const rmm::Model* row = nullptr;
 int wanted_mode = MODE_UI;  // the qtfb mode the app asked for; L1 keeps UI while the lane runs
 int sock = -1;
@@ -94,7 +96,7 @@ int connect_qtfb(int key, int fmt) {
 }
 
 void rm_poll(HalInput* in) {
-  if (layer == L2) { rin::poll_touch(); rin::poll_input(in); return; }
+  if (layer == L2 || layer == RM2) { rin::poll_touch(); rin::poll_input(in); return; }
   ServerMsg m = {};
   for (;;) {
     ssize_t n = recv(sock, &m, sizeof m, MSG_DONTWAIT);
@@ -139,6 +141,17 @@ int rm_init(const HalConfig* cfg) {
   if (!eink::init(panel, cfg->width, cfg->height)) return 0;
   free(panel.out); panel.out = nullptr;  // the device sends original RGB; only the emulator quantizes
   signal(SIGPIPE, SIG_IGN);
+  if (ZP_DISPLAY_RMPP_PEN_ROTATE == 0) rin::pen_rot = row->pen_rotate;  // ZINC_RMPP_PEN_ROTATE still wins (rin::start)
+  if (row->backend == rmm::RM2FB) {
+    if (strcmp(ink, "qtfb")) fprintf(stderr, "display-rmpp: no ink lane or session on the %s; rm2fb's DU waveform draws the ink\n", row->name);
+    if (!rm2fb::open(cfg->width, cfg->height)) return 0;
+    rm2fb::fast = wanted_mode == MODE_FAST;
+    layer = RM2; refresh_mode = wanted_mode;
+    rin::start(cfg->width, cfg->height);
+    if (!rin::open_touch()) fprintf(stderr, "display-rmpp: no evdev touch found\n");
+    wake_lock(true);
+    return 1;
+  }
   if (fast_ink && session && getenv("ZINC_LEASE")) {
     // Inside the lease xochitl is stopped: no lane, no qtfb. Without the engine the app exits and the lease restores xochitl.
     if (!native::open(*row)) exit(3);
@@ -185,6 +198,14 @@ void rm_present(const HalFrame* f) {
   }
   const bool first = panel.first;
   if (panel.first) { r = {0, 0, panel.w, panel.h}; panel.first = false; }
+  if (layer == RM2) {
+    const bool fast = rm2fb::fast;
+    if (first) rm2fb::fast = false;  // the first page in grey levels, then the mode the app asked for
+    if (!eink::empty(r) && !rm2fb::update(panel, r)) rin::quit_flag = 1;
+    rm2fb::fast = fast;
+    if (eink::empty(r)) rin::wait_input(8, -1);
+    return;
+  }
   if (layer == L2) {
     native::present(panel, r, rin::pen_down, first);
     if (eink::empty(r)) rin::wait_input(8, -1);
@@ -219,8 +240,9 @@ void rm_present(const HalFrame* f) {
 void rm_shutdown() {
   rin::quit_flag = 1;
   lane::bye();
-  if (layer == L2) {
+  if (layer == L2 || layer == RM2) {
     if (rin::touch_fd >= 0) close(rin::touch_fd);
+    if (layer == RM2) { rm2fb::close_fb(); wake_lock(false); }
   } else {
     ClientMsg m = {}; m.type = MSG_TERMINATE;
     send(sock, &m, sizeof m, MSG_DONTWAIT);
@@ -239,6 +261,7 @@ int reg = (hal_display = &rmpp, 0);
 extern "C" bool zinc_rmpp_set_fast(bool fast) {
   wanted_mode = fast ? MODE_FAST : MODE_UI;
   if (layer == L2) { native::fast = fast; refresh_mode = wanted_mode; return true; }
+  if (layer == RM2) { rm2fb::fast = fast; refresh_mode = wanted_mode; return true; }
   if (layer == L1) return true;  // the lane draws ink in Pen mode; qtfb stays in UI for the settle
   return set_mode(wanted_mode);
 }

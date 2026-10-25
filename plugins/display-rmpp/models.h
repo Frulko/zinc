@@ -32,6 +32,11 @@ struct Vendor {                    // one verified libqsgepaper.so
 
 inline const Model models[] = {
   {"reMarkable Ferrari", "Paper Pro", 1620, 2160, 1, 1620, 2160, 6528, true, 11180, 15340, 2064, 2832, 0, QTFB, 4, 600, 60},
+  // Move and Pure: geometry from AppLoad's common.h, framebuffer-spy and KOReader; unit limits assumed as the Paper Pro's until read on a tablet
+  {"reMarkable Chiappa", "Paper Pro Move", 954, 1696, 4, 960, 1696, 3840, true, 6760, 11960, 1248, 2208, 0, QTFB, 4, 600, 60},
+  {"reMarkable Tatsu", "Paper Pure", 1404, 1872, 7, 0, 0, 0, false, 9620, 13000, 1776, 2400, 0, QTFB, 4, 600, 60},
+  // rM2: the digitizer's long side is X (rotated against the portrait panel); the panel belongs to rm2fb's server
+  {"reMarkable 2.0", "reMarkable 2", 1404, 1872, 0, 1404, 1872, 5616, false, 20967, 15725, 1403, 1871, 90, RM2FB, 4, 600, 60},
 };
 inline const Vendor vendors[] = {
   // OS 3.27.3.0: hashed on the tablet 2026-09-29 (docs/reports/rmpp-latency-2026-09-29.md), Quill v0.1.0's device record

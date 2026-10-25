@@ -8,6 +8,8 @@
 //   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | eof:N; unset: nobody listens) answers Hello with a vendor hash, copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
+//   rm2fb          (ZN_RMPP_SIM_RM2FB=1; unset: not running) timower's rm2fb server for the reMarkable 2: Init is answered with the format and the
+//                  framebuffer's fd (SCM_RIGHTS, RGB565 1404x1872), each UpdateParams copies its rectangle to the glass and is answered true.
 // ZN_RMPP_SIM_PEN=a-b,c-d holds the Marker down during those frames (the driver's stroke detection; the app's own ink is scripted).
 // Output (ZN_RMPP_SIM_OUT=<dir>): trace.txt, one line per message with the virtual time, plus a hash of the glass after every update, and glass.ppm (last glass, 1/8 scale).
 // Sockets are socketpairs (SOCK_DGRAM: AF_UNIX SEQPACKET does not exist on macOS) driven synchronously: the models run inside send().
@@ -43,7 +45,8 @@ enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4,
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
 struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input; }; };
 
-static int qtfb = -1, lane = -1;                   // server ends
+static int qtfb = -1, lane = -1, rm2 = -1;         // server ends
+static uint16_t* rm2fb = nullptr;
 static uint8_t* shm = nullptr;
 static std::vector<uint8_t> glass;                 // what xochitl shows: W x H RGB
 static int W = 1620, H = 2160;
@@ -147,9 +150,50 @@ static void handleLane(const zink::Message& m) {
     line("%8.1f ms lane bye", now);
   }
 }
+static void handleRm2(int32_t index) {
+  double now = virtualNow() / 1000.0;
+  struct FbFormat { int32_t w, h, format; };
+  struct Init { bool own; FbFormat format; } init;
+  struct Update { int32_t y1, x1, y2, x2, flags, waveform; float temperature; int32_t extra; } u;
+  if (index == 0 && recv(rm2, &init, sizeof init, MSG_WAITALL) == (ssize_t)sizeof init) {
+    W = 1404; H = 1872;
+    int fd = shm_open("/zn-rm2fb-sim", O_RDWR | O_CREAT, 0600);
+    shm_unlink("/zn-rm2fb-sim");
+    if (fd < 0 || ftruncate(fd, (off_t)W * H * 3) < 0) { line("error: rm2fb buffer"); errors++; return; }
+    rm2fb = (uint16_t*)mmap(nullptr, (size_t)W * H * 2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    glass.assign((size_t)W * H * 3, 0xFF);
+    FbFormat granted = {W, H, 0};
+    send(rm2, &granted, sizeof granted, 0);
+    char one = 0, ctrl[CMSG_SPACE(sizeof(int))] = {};
+    iovec io = {&one, 1};
+    msghdr msg = {};
+    msg.msg_iov = &io; msg.msg_iovlen = 1; msg.msg_control = ctrl; msg.msg_controllen = sizeof ctrl;
+    cmsghdr* c = CMSG_FIRSTHDR(&msg);
+    c->cmsg_level = SOL_SOCKET; c->cmsg_type = SCM_RIGHTS; c->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(c), &fd, sizeof fd);
+    sendmsg(rm2, &msg, 0);
+    close(fd);
+    line("%8.1f ms rm2fb init own %d format %dx%d/%d", now, init.own, init.format.w, init.format.h, init.format.format);
+  } else if (index == 2 && recv(rm2, &u, sizeof u, MSG_WAITALL) == (ssize_t)sizeof u) {
+    bool ok = rm2fb && u.x1 >= 0 && u.y1 >= 0 && u.x1 <= u.x2 && u.y1 <= u.y2 && u.x2 < W && u.y2 < H;
+    if (!ok) { line("%8.1f ms error: rm2fb update %d,%d-%d,%d", now, u.x1, u.y1, u.x2, u.y2); errors++; }
+    else for (int y = u.y1; y <= u.y2; y++) for (int x = u.x1; x <= u.x2; x++) {
+      uint16_t v = rm2fb[(size_t)y * W + x];
+      uint8_t* g = &glass[((size_t)y * W + x) * 3];
+      g[0] = (uint8_t)((v >> 11) << 3); g[1] = (uint8_t)(((v >> 5) & 63) << 2); g[2] = (uint8_t)((v & 31) << 3);
+    }
+    if (ok) { updates++; pixelsSent += (uint64_t)(u.x2 - u.x1 + 1) * (u.y2 - u.y1 + 1); }
+    const int wave = u.waveform & 0xfff;
+    line("%8.1f ms rm2fb update %d,%d %dx%d %s glass %016llx", now, u.x1, u.y1, u.x2 - u.x1 + 1, u.y2 - u.y1 + 1,
+         wave == 1 ? "DU" : wave == 3 ? "GC16_FAST" : "?", glassHash());
+    send(rm2, &ok, 1, 0);
+  } else { line("error: rm2fb message %d", index); errors++; }
+}
 static void pump() {
   ClientMsg m;
   while (qtfb >= 0 && recv(qtfb, &m, sizeof m, MSG_DONTWAIT) == (ssize_t)sizeof m) handle(m);
+  int32_t index;
+  while (rm2 >= 0 && recv(rm2, &index, sizeof index, MSG_DONTWAIT) == (ssize_t)sizeof index) handleRm2(index);
   zink::Message z;
   while (lane >= 0 && recv(lane, &z, sizeof z, MSG_DONTWAIT) == (ssize_t)sizeof z) handleLane(z);
 }
@@ -158,10 +202,11 @@ struct Flush { ~Flush() { flush(); } } flusher;
 static int zn_socket(int, int, int) { return socket(AF_UNIX, SOCK_DGRAM, 0); }
 static int zn_connect(int s, const struct sockaddr* a, socklen_t) {
   const char* path = ((const sockaddr_un*)a)->sun_path;
-  int* server = !strcmp(path, "/tmp/qtfb.sock") ? &qtfb : !strcmp(path, zink::socket_path) && getenv("ZN_RMPP_SIM_LANE") ? &lane : nullptr;
+  int* server = !strcmp(path, "/tmp/qtfb.sock") ? &qtfb : !strcmp(path, zink::socket_path) && getenv("ZN_RMPP_SIM_LANE") ? &lane
+               : !strcmp(path, "/var/run/rm2fb.sock") && getenv("ZN_RMPP_SIM_RM2FB") ? &rm2 : nullptr;
   if (!server) { errno = ECONNREFUSED; return -1; }
   int pair[2];
-  if (socketpair(AF_UNIX, SOCK_DGRAM, 0, pair) != 0 || dup2(pair[0], s) < 0) return -1;
+  if (socketpair(AF_UNIX, server == &rm2 ? SOCK_STREAM : SOCK_DGRAM, 0, pair) != 0 || dup2(pair[0], s) < 0) return -1;
   close(pair[0]);
   *server = pair[1];
   return 0;
