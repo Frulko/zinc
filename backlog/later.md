@@ -262,6 +262,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-823: plugins/camera's Linux source does not compile with zig for aarch64 (stb_image.h typedef redefinition): fix the double include, else a Pi fails the same way.
 - ZN-823: the plugin stamp does not list prebuilt/<target>/key among its inputs: a changed key is not seen until plugin.so changes.
 - ZN-823: zinc:loro (cargo) is not cross-built, so a Pi still compiles it with Rust at first use.
+- Pi updates (docs/reports/pi-updates-design.md): the Pi release assets come from the linux-cross job, which may fail; it should fail the release for aarch64 and armhf.
+- Pi updates: the update catalog uses the unauthenticated GitHub API (60 requests per hour per IP), which a classroom behind one network will hit.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
