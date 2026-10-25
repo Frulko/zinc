@@ -1834,17 +1834,12 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   std::string usage;
   std::set<std::string> taken = {"CFBundleDevelopmentRegion", "CFBundleDisplayName", "CFBundleExecutable", "CFBundleIdentifier", "CFBundleInfoDictionaryVersion", "CFBundleName",
                                  "CFBundlePackageType", "CFBundleShortVersionString", "CFBundleVersion", "LSRequiresIPhoneOS", "UILaunchScreen", "UIRequiresFullScreen"};
-  for (const std::string& f : zn::frontend::permissionsFor(proj, "ios")) {
-    if (f == "camera") usage += key("NSCameraUsageDescription", display + " uses the camera.");
-    else if (f == "microphone") usage += key("NSMicrophoneUsageDescription", display + " uses the microphone.");
-    else if (f == "location") usage += key("NSLocationWhenInUseUsageDescription", display + " uses your location.");
-    else if (f == "net") usage += key("NSLocalNetworkUsageDescription", display + " talks to devices on your network.");   // only the LAN asks; the internet needs no key
-    else if (f == "bluetooth") usage += key("NSBluetoothAlwaysUsageDescription", display + " talks to Bluetooth devices.");
-  }
-  for (const char* k : {"NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSLocationWhenInUseUsageDescription", "NSLocalNetworkUsageDescription", "NSBluetoothAlwaysUsageDescription"}) if (usage.find(k) != std::string::npos) taken.insert(k);
+  for (const auto& [k, v] : zn::frontend::usageStrings(proj, "ios", proj.app.name.empty() ? p.name : proj.app.name)) { usage += key(k, android::xml(v)); taken.insert(k); }   // zinc.json permissionStrings, else a default
   if (proj.player) {   // a player announces itself as a device of zinc device (ZN-792, src/app/player.cpp's DNSServiceRegister)
     usage += "\t<key>NSBonjourServices</key>\n\t<array>\n\t\t<string>_zinc._tcp</string>\n\t</array>\n";
-    taken.insert("NSBonjourServices");
+    // its Documents folder in the Files app (On My iPhone > Zinc Go): what the programs it runs save there, a file to give one
+    usage += "\t<key>UIFileSharingEnabled</key>\n\t<true/>\n\t<key>LSSupportsOpeningDocumentsInPlace</key>\n\t<true/>\n";
+    taken.insert({"NSBonjourServices", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace"});
   }
   if (!proj.app.urlSchemes.empty()) {   // zinc.json app.urlSchemes: the app opens their links (deep links, zinc:system open-url)
     usage += "\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLName</key>\n\t\t\t<string>" + android::xml(id) + "</string>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>\n";
@@ -1858,7 +1853,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   const std::string pad = proj.app.orientation == "portrait" ? orients({"Portrait", "PortraitUpsideDown"}) : proj.app.orientation == "landscape" ? orients({"LandscapeLeft", "LandscapeRight"})
                                                                                                                                               : orients({"Portrait", "PortraitUpsideDown", "LandscapeLeft", "LandscapeRight"});
   writeFile(out / "Info.plist", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n" +
-            key("CFBundleDevelopmentRegion", "en") + key("CFBundleDisplayName", display) + key("CFBundleExecutable", p.name) + key("CFBundleIdentifier", id) +
+            key("CFBundleDevelopmentRegion", "en") + key("CFBundleDisplayName", display) + key("CFBundleExecutable", p.name) + key("CFBundleIdentifier", "$(PRODUCT_BUNDLE_IDENTIFIER)") +
             key("CFBundleInfoDictionaryVersion", "6.0") + key("CFBundleName", display) + key("CFBundlePackageType", "APPL") + key("CFBundleShortVersionString", android::xml(version)) +
             key("CFBundleVersion", std::to_string(appVersionCode(proj, version))) + "\t<key>LSRequiresIPhoneOS</key>\n\t<true/>\n" + usage +
             "\t<key>UILaunchScreen</key>\n\t<dict/>\n"
@@ -1939,6 +1934,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "project(" + n + " C CXX OBJC OBJCXX" + (plugs.swift ? " Swift" : "") + ")   # Objective-C for the plugins' .m and .mm sources, Swift for their .swift ones\n"
             "set(ZINC_ENGINE \"" + engine.generic_string() + "\" CACHE PATH \"the engine whose sources this project compiles (a checkout)\")\n"
             "set(ZINC_TEAM \"\" CACHE STRING \"the Apple team that signs a device build (DEVELOPMENT_TEAM)\")\n"
+            "set(ZINC_BUNDLE_ID \"" + id + "\" CACHE STRING \"the bundle identifier (zinc.json app.id); another team signs it under its own, as an id belongs to one team\")\n"
             "set(ZINC_PROFILE \"\" CACHE STRING \"a provisioning profile that signs a device build manually (zinc.json signing.ios.profile; empty: automatic signing)\")\n"
             "add_compile_options(" + std::string(plugs.swift ? "\"$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-O2>\"" : "-O2") + ")   # the engine and SDL optimized in a Debug build too\n"
             "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\n"
@@ -1956,7 +1952,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "endforeach()\n"
             "set_target_properties(" + n + " PROPERTIES CXX_STANDARD 20 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist\n" +
             (plugs.entitlements.empty() ? "" : "  XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS ${CMAKE_CURRENT_SOURCE_DIR}/" + n + ".entitlements\n") +
-            "  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER " + id + " XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY \"1,2\"\n" +
+            "  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER \"${ZINC_BUNDLE_ID}\" XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY \"1,2\"\n" +
             (icon ? "  XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon\n" : "") +
             "  XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic XCODE_ATTRIBUTE_DEVELOPMENT_TEAM \"${ZINC_TEAM}\")\n"
             "if(ZINC_PROFILE)   # manual signing: this profile and its certificate, for the app only (the static libraries are not signed)\n  set_target_properties(" + n + " PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER \"${ZINC_PROFILE}\" XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY \"" + (method == "debugging" ? "Apple Development" : "Apple Distribution") + "\")\nendif()\n"

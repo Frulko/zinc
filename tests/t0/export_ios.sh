@@ -27,7 +27,7 @@ if [ -n "$UPDATE" ]; then mkdir -p "$(dirname "$golden")"; cp "$tmp/tree.txt" "$
 diff "$golden" "$tmp/tree.txt" > "$tmp/diff.txt" || { echo "the exported tree differs from $golden:"; head -20 "$tmp/diff.txt"; fail=1; }
 pl="$tmp/hello/Info.plist"; cm="$tmp/hello/CMakeLists.txt"
 command -v plutil >/dev/null 2>&1 && { plutil -lint "$pl" >/dev/null || { echo "Info.plist is not a valid plist"; fail=1; }; }
-grep -A1 CFBundleIdentifier "$pl" | grep -q dev.zinc.hello && grep -q '<key>UILaunchScreen</key>' "$pl" || { echo "no bundle id or launch screen in Info.plist"; fail=1; }
+grep -A1 CFBundleIdentifier "$pl" | grep -q '$(PRODUCT_BUNDLE_IDENTIFIER)' && grep -q 'set(ZINC_BUNDLE_ID "dev.zinc.hello"' "$cm" && grep -q '<key>UILaunchScreen</key>' "$pl" || { echo "no bundle id (ZINC_BUNDLE_ID, PRODUCT_BUNDLE_IDENTIFIER in Info.plist) or launch screen"; fail=1; }
 grep -q "ZN_APP_HEAP_MB=256" "$cm" && grep -q "add_executable(hello MACOSX_BUNDLE src/program.cpp" "$cm" || { echo "CMakeLists.txt: no ios heap or bundle"; fail=1; }
 grep -q "ZN_APP_ENV\|AppIcon\|UsageDescription" "$cm" "$pl" && { echo "hello has no icon, permission nor targets.ios, yet one is in the project"; fail=1; }
 # zinc.json: app.icon, app.orientation, permissions, targets.ios
@@ -39,7 +39,7 @@ echo '{ "name": "cam", "entry": "main.ts", "app": { "id": "org.example.cam-app",
   "permissions": ["camera", "net"], "targets": { "ios": { "kiosk": true } } }' > "$tmp/cam/zinc.json"
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/cam" --target ios -o "$tmp/cam-ios" >/dev/null 2>&1 || { echo "export of the cam project failed"; fail=1; }
 pl="$tmp/cam-ios/Info.plist"; cm="$tmp/cam-ios/CMakeLists.txt"
-grep -A1 CFBundleIdentifier "$pl" | grep -q 'org.example.cam-app' || { echo "the bundle id is not org.example.cam-app"; fail=1; }
+grep -q 'set(ZINC_BUNDLE_ID "org.example.cam-app"' "$cm" || { echo "the bundle id is not org.example.cam-app"; fail=1; }
 grep -A1 CFBundleDisplayName "$pl" | grep -q 'Cam &amp; Co' || { echo "the display name is not escaped"; fail=1; }
 grep -A1 CFBundleVersion "$pl" | grep -q '>10203<' || { echo "CFBundleVersion is not 10203"; fail=1; }
 grep -q NSCameraUsageDescription "$pl" && grep -q NSLocalNetworkUsageDescription "$pl" || { echo "no usage strings for camera and net"; fail=1; }
@@ -52,7 +52,7 @@ PATH="$tmp/bin:$PATH" "$Z" export tests/data/mobile-plugin --target ios -o "$tmp
 pl="$tmp/beep/Info.plist"; cm="$tmp/beep/CMakeLists.txt"; en="$tmp/beep/beepapp.entitlements"
 command -v plutil >/dev/null 2>&1 && { plutil -lint "$pl" "$en" >/dev/null || { echo "the merged Info.plist or the entitlements are not valid plists"; fail=1; }; }
 grep -A1 NSBluetoothAlwaysUsageDescription "$pl" | grep -q 'Beeps over Bluetooth.' && grep -A2 UIBackgroundModes "$pl" | grep -q '<string>audio</string>' || { echo "the plugin's Info.plist keys are missing"; fail=1; }
-[ "$(grep -c CFBundleIdentifier "$pl")" = 1 ] && grep -A1 CFBundleIdentifier "$pl" | grep -q dev.zinc.beepapp || { echo "a plugin's key replaced Zinc's CFBundleIdentifier"; fail=1; }
+[ "$(grep -c CFBundleIdentifier "$pl")" = 1 ] && grep -A1 CFBundleIdentifier "$pl" | grep -q '$(PRODUCT_BUNDLE_IDENTIFIER)' || { echo "a plugin's key replaced Zinc's CFBundleIdentifier"; fail=1; }
 grep -q 'applinks:example.org' "$en" && grep -q 'CODE_SIGN_ENTITLEMENTS ${CMAKE_CURRENT_SOURCE_DIR}/beepapp.entitlements' "$cm" || { echo "the entitlements are not written or not signed in"; fail=1; }
 grep -q 'target_link_libraries(zn_app_plugin_beep PUBLIC "-framework AudioToolbox")' "$cm" || { echo "the plugin's framework is not linked"; fail=1; }
 # targets.ios.class: the Swift class and the generated Swift protocol in a library of their own, the Objective-C++ bridge as the implementation,

@@ -18,6 +18,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A `zinc:net` server accepts request bodies up to 64 MiB (was 1 MiB), and `req.rawBody` gives a binary upload byte for byte.
 - reMarkable Paper Pro: zinc runs on the tablet itself. `tools/rmpp-engine` makes the engine bundle and its `deploy.sh` installs it in /home/root/zinc; there `zinc run app.zapp` draws through AppLoad or, from a `zinc-tile --session` tile, through the display lease, and `zinc pack` packs a project with no compiler on the tablet. `zinc-tile app.zapp` adds the app's AppLoad tile.
 - Nova Patrol DS 0.2.6 adds depth behind the stars and along ramp slopes, with cached stereo views prepared before play.
+- Zinc Go keeps the apps `zinc device deploy` sends: its home screen lists them, starts one again (its name and a loader first) or deletes it, and on iOS puts one on the iPhone's home screen as an icon that opens it (`zinc://open/<app>`, a Web Clip profile installed from Settings).
+- `tools/zinc-go-iphone` builds Zinc Go from your tree, signs it with your Apple team (a free Personal Team works), installs it on your iPhone and starts it.
 - `zinc:physics2d` exposes `ContactKind.Hit` with solved approach speed for kicks, scoring and audiovisual feedback, including the browser backend.
 - Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.
@@ -44,6 +46,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
 - `zinc dev --device` and `zinc device deploy` to a console player refuse a JavaScript project (QuickJS) before sending it, with the reason, instead of "cannot read ./dev/program.zbc", and warn about each plugin the player lacks (`zinc lint --target <profile>`); on the console, a missing module is "not available on this device (profile n3ds)".
 - `zinc --version` of a build tree follows the checkout: the version is read again when HEAD moves, not only when the tree was first configured.
+- The iOS export uses the texts of `permissionStrings` in zinc.json for the system's permission questions (it wrote a default text), and asks for the motion sensors with `"motion"`.
+- `zinc export --target ios`: `-DZINC_BUNDLE_ID=` signs the app under another bundle id, for a team other than the one that registered `app.id`.
 - reMarkable Paper Pro: fast drawing on qtfb asks AppLoad for its fastest pen waveform (ufast) instead of the slower fast mode.
 - Nova Patrol and Nova Patrol DS 0.2.5 trigger powered bumper/slingshot rebounds, scores, target drops, flashes and sparks from actual Box2D impact events. Solved hit speeds replace pre-solve snapshots; the optimized collision stepping is preserved.
 - The browser Physics2D shim implements the packed `stepState` protocol used by the shared plugin.

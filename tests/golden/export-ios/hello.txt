@@ -1,7 +1,7 @@
 ./Assets.xcassets/Contents.json 0fd49ba3c3585c70
-./CMakeLists.txt 002f88e5c29f2d52
+./CMakeLists.txt 6dc1f4e9e7d1bb0c
 ./ExportOptions.plist c9019fc4145fd92f
-./Info.plist 559dc7607b6c31ca
+./Info.plist 10903e0872d27c45
 ./PrivacyInfo.xcprivacy 145a659e6279151f
 ./README-zinc.txt fff124602c144083
 ./src/program.cpp (the program's C++)
