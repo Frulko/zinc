@@ -1,0 +1,23 @@
+import { SceneRevision, SceneRecord, SceneDocument } from 'zinc:3d/scene';
+const scene = new SceneRevision();
+const node: SceneRecord = {id:'crate', name:'Crate', parent:null, asset:null, translation:[0,0,0], rotation:[0,0,0,1], scale:[1,1,1], metadata:{gate:{name:'gate'}}, source:{file:'yard.blend',object:'Crate'}};
+const doc: SceneDocument = {schema:'zinc.scene', version:1, id:'yard', revision:'0000000000000000000000000000000000000000000000000000000000000000', source:{tool:'test',file:'yard.blend',scene:'Yard'}, assets:[], nodes:[node]};
+function check(ok: boolean): void { if (!ok) throw new Error('scene runtime regression'); }
+check(scene.reload(JSON.stringify(doc), ''));
+scene.state.set('crate', 'delivered');
+node.translation[0] = 2;
+check(scene.reload(JSON.stringify(doc), ''));
+check(scene.state.get('crate') === 'delivered');
+const crate = scene.nodes.get('crate'); check(crate !== undefined && crate.position[0] === 2);
+doc.nodes.push(node);
+check(!scene.reload(JSON.stringify(doc), ''));
+check(scene.error.includes('duplicate'));
+check(scene.nodes.size === 1 && scene.state.get('crate') === 'delivered');
+doc.nodes.pop(); node.parent = 'missing';
+check(!scene.reload(JSON.stringify(doc), ''));
+check(scene.error.includes('missing parent'));
+node.parent = 'crate';
+check(!scene.reload(JSON.stringify(doc), ''));
+check(scene.error.includes('cycle'));
+scene.dispose();
+console.log('scene runtime: nested validation, state and rollback passed');

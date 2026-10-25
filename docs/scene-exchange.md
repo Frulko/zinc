@@ -40,3 +40,17 @@ metadata, content hashes and revision. Exporters can import
 `tools/scene_exchange` to validate/publish. Write immutable hash-named assets
 before atomically replacing `scene.json`; a failed publication leaves the previous
 record usable. Unreferenced content is retained to keep older revisions valid.
+
+`import { SceneRevision } from 'zinc:3d/scene'` loads the format. Call
+`revision.reload(text, baseDirectoryWithTrailingSlash)` at a frame boundary;
+false leaves `scene`, `nodes`, `document` and `state` intact and sets `error`.
+Assets are hash-checked before loading and shared across instances. Unchanged
+asset IDs/hashes reuse existing mesh resources. Replaced mesh resources are freed.
+The existing glTF texture decoder owns decoded image lifetime; repeated texture
+replacement is not yet a bounded-memory guarantee. `cameraFor(id)` reconstructs
+the authored camera including parent transforms. `state` is a string map owned
+by gameplay: same scene/node ID, asset identity and component kinds preserve it;
+incompatible/deleted records reset it. Authored transforms always update.
+Runtime validation checks structure and asset hashes; publication revision
+canonicalization is checked offline by `tools/scene-exchange` (Python and Zinc
+number serialization are deliberately not assumed byte-identical).

@@ -4,9 +4,39 @@
   "deterministic": true,
   "module": "zinc:3d",
   "entry": "index.ts",
-  "modules": { "zinc:3d/gltf": "gltf.ts" },
+  "modules": {
+    "zinc:3d/gltf": "gltf.ts",
+    "zinc:3d/scene": "scene.ts"
+  },
   "description": "3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it",
-  "options": { "zbits": 0, "scale": 0, "dither": false, "subdiv": 16, "renderer": "auto", "msaa": 4, "filter": "mipmap" },
-  "native": { "impl": { "macos": "native/render3d.gl.cpp" } },
-  "targets": { "macos": { "frameworks": ["OpenGL"], "defines": ["GL_SILENCE_DEPRECATION"] }, "linux": {}, "windows": {}, "rpi1": {}, "esp32": {}, "wasm": {}, "ios": {} }
+  "options": {
+    "zbits": 0,
+    "scale": 0,
+    "dither": false,
+    "subdiv": 16,
+    "renderer": "auto",
+    "msaa": 4,
+    "filter": "mipmap"
+  },
+  "native": {
+    "impl": {
+      "macos": "native/render3d.gl.cpp"
+    }
+  },
+  "targets": {
+    "macos": {
+      "frameworks": [
+        "OpenGL"
+      ],
+      "defines": [
+        "GL_SILENCE_DEPRECATION"
+      ]
+    },
+    "linux": {},
+    "windows": {},
+    "rpi1": {},
+    "esp32": {},
+    "wasm": {},
+    "ios": {}
+  }
 }

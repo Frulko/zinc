@@ -34,3 +34,5 @@ Owner clarification (2026-10-25): deliver a real runnable project, source files,
 ## Implementation notes
 
 Shared zinc.scene v1 boundary implemented first for the Blender/Godot exporters. Validator tests cover deterministic no-op publication, last-valid atomic record, duplicate/missing/cyclic identity diagnostics and provenance paths. Remaining acceptance criteria are open until the actual Blender and runtime slices execute.
+
+Runtime reader check passed with the interpreter: duplicate/missing/cyclic nodes rejected while prior scene and delivery state remain live. Asset mesh instances share buffers; replacement releases old mesh handles. Repeated decoded texture lifetime remains an explicit existing-loader limit.
