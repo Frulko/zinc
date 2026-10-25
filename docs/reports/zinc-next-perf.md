@@ -1229,3 +1229,22 @@ On the owner's hardware (2026-10-25), examples/3d/orbit:
 
 - PPSSPP said 15 ms for the PSP; the console takes 25. Split the time between the interpreted scene walk and the GE before optimizing.
 - The Pocket3D directions are listed in docs/reports/hardware/pocketjs-pocket3d.md §2.7: the list built while the GE draws the previous one, i16 vertices.
+
+## Programs compiled into the console cores (ZN-480, 2026-10-25)
+
+`tools/build-console-core <console> --aot <project>`. Emulators: PPSSPP 1.20.4 software, Azahar, Vita3K (Vita3K runs on the Mac's JIT: its times are not the device's).
+
+| examples/3d/orbit on PPSSPP | Interpreted | Compiled |
+|---|---|---|
+| "psp 3d" render | 5.91 ms | 4.41 ms |
+| of which the program | 5.72 ms | 4.22 ms |
+| frame work p50 | 7.06 ms | 5.34 ms |
+
+| bouncing-ball, frame work p50 | Interpreted | Compiled |
+|---|---|---|
+| PSP, 1000 balls | 15.46 ms | 8.64 ms |
+| PSP, 3000 balls | 46.81 ms | 25.93 ms |
+| 3DS, 1000 balls | 11.93 ms | 6.96 ms |
+| Vita, 6000 balls | 5.74 ms | 2.86 ms |
+
+Balls at 16.7 ms (linear fit): PSP about 1080 interpreted, 1890 compiled; 3DS about 1400 and 2400. The compiled cores are smaller (no interpreter): PSP orbit EBOOT 2,614,510 to 2,552,918 bytes, 3DS fib 1,265,956 to 852,928.

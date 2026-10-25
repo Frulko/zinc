@@ -272,6 +272,8 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: zinc:assets `readBytes` is one host call per byte: a bulk read for every program (zinc:3d bypasses it now).
 - tokyo: zinc:3d's software fog ignores `material.fog` and fogs blended pixels by depth.
 - tokyo: a .zapp carries the raw assets beside the imported ones (size).
+- ZN-480: the native call path costs about 12 us a call on the PSP (rtcalls nativeCall parses the signature and builds two std::deque per call, stubs.cpp finds the export by strcmp, the thunk copies every array in and out). Caching the signature and the export alone gave nothing measurable in PPSSPP (5.91 vs 6.16 ms, 2026-10-25): the array copies of the thunk are left to try, measured on a real PSP.
+- ZN-480: tools/console-run vita keeps only the first line of a multi-line printf chunk from Vita3K's log (examples/lang prints nothing through it; its text is in the log).
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -447,3 +449,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-821: run `zinc device <pi> profile/bench` and `zinc dev --device <pi>` with the inspector on a real Pi through its agent (source deploy, --no-run, report pull).
 - ZN-823: prebuilt plugins of the armhf, armv7, x86_64 and i686 packages and the release linux-cross CI job (it now builds a host zinc first) are not proven.
 - tokyo: a Pi profile (a Pi 3/4 on Linux takes the desktop settings), the Pi build and real PSP/Vita/3DS measurements.
+- ZN-480: --aot on a real PSP, Vita and 3DS (orbit's frame rate, the owner's PSP first) and graphics programs on the PS2.
