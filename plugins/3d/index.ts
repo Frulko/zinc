@@ -258,6 +258,8 @@ export class Material {
 let specColor: u32 = 0, specShin = 30, emitColor: u32 = 0;
 // The blended nodes of the frame being drawn (ZN-696): drawn after the opaque ones, in scene order.
 const blended: Node[] = [];
+// Counts the world matrices made: a node's stamp names the one it holds, so a child knows whether its parent's moved since it made its own.
+let stamps: i32 = 0;
 
 /** Directional light: the direction light travels, in world space. */
 export class Light {
@@ -277,6 +279,11 @@ export class Node {
   readonly children: Node[] = [];
   /** World matrix, updated by render(). */
   readonly world: number[] = mat4();
+  /** The position, rotation and scale the world matrix was made from, the parent's stamp then, and this world's own stamp: a node that
+   *  has not moved under a parent that has not either keeps its matrix (ten comparisons instead of a native call with five arrays). */
+  private readonly made: number[] = [NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN];
+  private seen: i32 = -1;
+  private stamp: i32 = 0;
 
   constructor(mesh: Mesh | null, material: Material | null) { this.mesh = mesh; this.material = material; }
   add(child: Node): Node { this.children.push(child); return child; }
@@ -286,12 +293,20 @@ export class Node {
   setScale(x: number, y: number, z: number): Node { set3(this.scale, x, y, z); return this; }
 
   /** Updates world matrices and issues draw calls for this subtree. */
-  draw(parent: number[]): void {
+  draw(parent: number[], parentStamp: i32 = 0): void {
     if (!this.visible) return;
-    R.transform(this.world, parent, this.position, this.rotation, this.scale);
+    const p = this.position, q = this.rotation, s = this.scale, k = this.made;
+    if (this.seen !== parentStamp || p[0] !== k[0] || p[1] !== k[1] || p[2] !== k[2] || q[0] !== k[3] || q[1] !== k[4] || q[2] !== k[5] ||
+        q[3] !== k[6] || s[0] !== k[7] || s[1] !== k[8] || s[2] !== k[9]) {
+      R.transform(this.world, parent, p, q, s);
+      k[0] = p[0]; k[1] = p[1]; k[2] = p[2]; k[3] = q[0]; k[4] = q[1]; k[5] = q[2]; k[6] = q[3]; k[7] = s[0]; k[8] = s[1]; k[9] = s[2];
+      this.seen = parentStamp;
+      stamps++;
+      this.stamp = stamps;
+    }
     const mat = this.material;
     if (this.mesh !== null && mat !== null) { if (mat.blend === Blend.Opaque) this.drawMesh(); else blended.push(this); }
-    for (const c of this.children) c.draw(this.world);
+    for (const c of this.children) c.draw(this.world, this.stamp);
   }
   /** Draws this node's mesh at its world matrix (draw() computed it). */
   drawMesh(): void {

@@ -220,7 +220,7 @@
     {"paths": ["src/cli_core.cpp", "src/tc/tc.cpp", "tests/t0/publish_store.sh"], "tests": ["publish_store"]},
     {"paths": ["third_party/quickjs-ng/", "tools/quickjs-patches", "src/qjs/qjs_prof.cpp", "bench/qjs/", "tools/qjs2c", "tests/data/qjs2c-sprite.jsonl"], "tests": ["quickjs_patches", "quickjs", "test262_regexp", "qjs_profile", "qjs2c"]},
     {"paths": ["targets/macos/hal_sdl.cpp", "src/frontend/project", "tests/t1/pixel_scale.sh"], "tests": ["pixel_scale"]},
-    {"paths": ["plugins/3d/", "plugins/three/", "tests/t1/three_gpu.sh"], "tests": ["three_gpu", "three_3d", "templates_kickstart", "zinc3d_aa", "zinc3d_gltf", "zinc3d_fog"]},
+    {"paths": ["plugins/3d/", "plugins/three/", "tests/t1/three_gpu.sh"], "tests": ["three_gpu", "three_3d", "templates_kickstart", "zinc3d_aa", "zinc3d_gltf", "zinc3d_fog", "zinc3d_still"]},
     {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile", "console_live"]},
     {"paths": ["src/qjs/qjs.cpp", "src/vm/vm.cpp"], "tests": ["console_live"]},
     {"paths": ["src/qjs/qjs.cpp"], "tests": ["qjs_robust", "qjs"]},
