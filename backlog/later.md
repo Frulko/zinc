@@ -381,6 +381,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:3d select: per-sector ranges cost 0.4 ms of selection on the PSP; a cheaper facing() (four atan2f per cell) wins it back.
 - zinc:3d PSP: the pre-World-GE PSP renderer crashed PPSSPP on tokyo from a fresh build dir; check memory (72 bytes a vertex) if the old path is ever used again.
 
+- tokyo 3DS: stream the near level (`c*.near.zwc`, 15 MB) from the SD card or romfs like Pocket's 40 slots: embedded beside the 12.7 MB pack it does not fit an Old 3DS's 64 MB; needs the console core's pack reader to read from the card.
+- zinc pack: in auto mode tokyo's pack falls back to `plugins/3d/native/render3d.sim.ts`, which no longer compiles (`??` on a number, meshCreate array types); fix the sim or why auto skips the native plugin (`ZINC_NATIVE=real` works).
+- tokyo 3DS: selection is still 3.6 ms in Azahar (cells 1.8, ranges 0.8, chunk reads 0.8); skip the read-ahead points' boxDist for cells far past the mid reach.
+- n3ds: a develop baseline build of tokyo hit svcBreak in GPUCMD_AddInternal (command buffer full) at 5.9 s in Azahar; raise C3D_Init's command buffer size if it shows on hardware.
+
 ## Cross-platform pass
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
@@ -465,3 +470,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-480: --aot on a real PSP, Vita and 3DS (orbit's frame rate, the owner's PSP first) and graphics programs on the PS2.
 - tokyo: measure the native World on the real PSP, 3DS and Vita.
 - tokyo PSP: measure on a real PSP-2000 the GE time of 38,900 triangles and 1,451 draws (Pocket estimates ~26 ms) and the 30.3 MB heap (too much for a PSP-1000).
+- tokyo 3DS: time the frame on the real Old 3DS XL (Azahar does not time the PICA200); if it misses 30 fps, lower the n3ds budget in devices.ts from 60,000 toward Pocket's 40,000.
+- tokyo 3DS: if ETC1 blocks show on the windows on hardware, make the facades RGB565 as Pocket does.
