@@ -6,6 +6,8 @@
 //   MSG_UPDATE     only the rectangle of the update is copied from the shared framebuffer to the "glass": a driver that draws outside what it announces leaves stale pixels;
 //   MSG_SET_MODE   qtfb sleeps one second on that connection: an update inside the second is lost (an error here), the driver must wait;
 //   MSG_FULL_REFRESH  only with ZN_RMPP_SIM_APPLOAD=0.6, which also sends the device state after init (AppLoad 0.5 drops the client); sleeps one second too;
+//   MSG_WINDOW_STATE  only with ZN_RMPP_SIM_APPLOAD=window (0.6 plus integrations/remarkable-engine/appload: the device state includes the
+//                  window's visibility): minimize hides the window, an update while hidden is an error, and 60 frames later the window shows again;
 //   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | canvas | eof:N; unset: nobody listens) answers Hello with a vendor hash (canvas: as zinc-canvas), copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
@@ -42,10 +44,14 @@
 #include "protocol.h"
 
 namespace qsim {
-enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_INIT = 8 };
-static const bool appload06 = getenv("ZN_RMPP_SIM_APPLOAD") && !strcmp(getenv("ZN_RMPP_SIM_APPLOAD"), "0.6");   // else 0.5: no device state, no full refresh
-struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
-struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input; }; };
+enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7,
+                 MSG_STATE_INIT = 8, MSG_WINDOW_STATE = 9 };
+static const char* appload = getenv("ZN_RMPP_SIM_APPLOAD") ? getenv("ZN_RMPP_SIM_APPLOAD") : "0.5";
+static const bool windowState = !strcmp(appload, "window");
+static const bool appload06 = windowState || !strcmp(appload, "0.6");   // else 0.5: no device state, no full refresh
+struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
+struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input;
+                                   struct { int reason, value; } state; }; };
 
 static int qtfb = -1, lane = -1, rm2 = -1;         // server ends
 static uint16_t* rm2fb = nullptr;
@@ -58,6 +64,7 @@ static uint64_t virtualNow() { return frames * 16667; }   // 60 Hz
 static uint64_t sleepUntil = 0;
 static int updates = 0, modes = 0, errors = 0, inks = 0;
 static bool blocked = false;                       // the lane holds xochitl's rendering
+static uint64_t hiddenAt = 0;                      // frame of the minimize, 0: the window shows
 static std::string trace;
 static uint64_t pixelsSent = 0;
 
@@ -103,7 +110,8 @@ static void handle(const ClientMsg& m) {
     ServerMsg r = {}; r.type = MSG_INIT; r.init.shm_key = shmKey; r.init.shm_size = size;
     send(qtfb, &r, sizeof r, 0);
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
-    if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }
+    if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }   // the rotation
+    if (windowState) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 1; st.state.value = 1; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
     line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?");
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
@@ -113,6 +121,7 @@ static void handle(const ClientMsg& m) {
     int x = m.update.x, y = m.update.y, w = m.update.w, h = m.update.h;
     if (now < sleepUntil) { line("%8.1f ms error: update %d,%d %dx%d inside qtfb's sleep: lost", now / 1000.0, x, y, w, h); errors++; return; }
     if (blocked) { line("%8.1f ms error: update %d,%d %dx%d while the lane blocks rendering", now / 1000.0, x, y, w, h); errors++; return; }
+    if (hiddenAt) { line("%8.1f ms error: update %d,%d %dx%d while the window is minimized", now / 1000.0, x, y, w, h); errors++; return; }
     if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > W || y + h > H) { line("%8.1f ms error: update %d,%d %dx%d outside the panel", now / 1000.0, x, y, w, h); errors++; return; }
     show(x, y, w, h);
     updates++; pixelsSent += (uint64_t)w * h;
@@ -122,6 +131,12 @@ static void handle(const ClientMsg& m) {
     if (now < sleepUntil) { line("%8.1f ms error: full refresh inside qtfb's sleep", now / 1000.0); errors++; }
     sleepUntil = now + 1000000;
     line("%8.1f ms full refresh (qtfb sleeps 1000 ms)", now / 1000.0);
+  } else if (m.type == MSG_WINDOW_STATE) {
+    if (!windowState) { line("%8.1f ms error: window state: this AppLoad closes the connection", now / 1000.0); errors++; return; }
+    if (m.window != 0) { line("%8.1f ms error: window state %d", now / 1000.0, m.window); errors++; return; }
+    hiddenAt = frames;
+    line("%8.1f ms minimize", now / 1000.0);
+    ServerMsg st = {}; st.type = MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 0; send(qtfb, &st, sizeof st, 0);
   } else if (m.type == MSG_TERMINATE) {
     line("%8.1f ms terminate", now / 1000.0);
   }
@@ -263,8 +278,16 @@ static void qsim_taps() {
     s = *e ? e + 1 : e;
   }
 }
+// the person taps the minimized window's bar 60 frames after the app minimized it
+static void qsim_restore() {
+  if (!qsim::hiddenAt || qsim::frames < qsim::hiddenAt + 60) return;
+  qsim::hiddenAt = 0;
+  qsim::line("%8.1f ms restore", qsim::virtualNow() / 1000.0);
+  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 1; send(qsim::qtfb, &st, sizeof st, 0);
+}
 static void qsim_polled(HalInput* in) {
   qsim_taps();
+  qsim_restore();
   qsim_poll(in);
   if (const char* p = getenv("ZN_RMPP_SIM_PEN")) {
     bool down = false;

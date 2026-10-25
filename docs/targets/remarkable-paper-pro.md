@@ -87,6 +87,14 @@ true when the display does it at its next idle frame, false elsewhere. On qtfb t
 the device state it sends after init (0.5 drops a client that asks); the ink session swaps the whole panel in colour.
 Frequency knobs are clamped to 1–125 Hz. Desktop controls preview UI state only, not device timing.
 
+**Leaving an app without quitting**: a qtfb tile keeps AppLoad's window buttons (`"disablesWindowedMode": false`): a tap opens the
+app full screen, a swipe down from the top shows `_`, which minimizes the window while the app keeps running (tap its bar to come
+back), and `X`. An app minimizes itself with `minimizeWindow()` of `zinc:gfx` (the **Accueil** button of `zinc:remarkable`'s bar): it
+needs AppLoad with the window-state patch of `integrations/remarkable-engine/appload`, recognised by the window visibility in the device
+state it sends after init (another AppLoad drops a client that sends the message, so the driver never does there and the call returns
+false; Accueil then quits like Quitter). While the window is hidden the driver sends nothing; when it shows again the whole page goes
+out, then a full refresh.
+
 The desktop emulator retains the illustrative FAST/QUALITY/FULL policy in `eink.h`.
 Its `full_every`, `upgrade_ms` and `dither` options do **not** control the device backend.
 

@@ -35,11 +35,14 @@
 #endif
 
 namespace {
-enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8 };
+enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
+                   MSG_WINDOW_STATE = 9 };   // 9: AppLoad with integrations/remarkable-engine/appload (minimize = 0, restore = 1)
+enum : int { REASON_VISIBILITY = 1 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
-struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
-struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input; }; };
+struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
+struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input;
+                                   struct { int reason, value; } state; }; };
 static_assert(sizeof(ClientMsg) == 24 && sizeof(ServerMsg) == 32, "qtfb wire layout");
 
 eink::Panel panel;
@@ -57,6 +60,8 @@ eink::Ghost ghost;          // partial area since the last full refresh
 bool full_refresh_ok = false;  // AppLoad 0.6.0+ (it sends its device state after init); 0.5 drops a client that asks for a full refresh
 bool full_asked = false;   // refreshDisplay() of zinc:gfx: a full refresh at the next idle frame
 bool ghost_skip = true;     // the first page lands on a white panel: no ghost to count
+bool window_ok = false;     // AppLoad reports the window's visibility (reason 1), so it takes MSG_WINDOW_STATE; others drop the client
+bool hidden = false;        // the window is minimized: frames stay in the buffer, nothing is sent until it shows again
 
 bool set_mode(int mode) {
   if (mode != MODE_FAST && mode != MODE_UI) return false;
@@ -112,7 +117,14 @@ void rm_poll(HalInput* in) {
     if (n < 0 && errno == EINTR) continue;
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
     if (n != sizeof m || m.type == MSG_TERMINATE) { rin::quit_flag = 1; break; }
-    if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) full_refresh_ok = true;
+    if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) {
+      full_refresh_ok = true;
+      if (m.state.reason == REASON_VISIBILITY) {
+        window_ok = true;
+        if (hidden && m.state.value) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }  // back: the whole page, then a full refresh
+        hidden = !m.state.value;
+      }
+    }
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
       // Deliver each touch transition to the UI; draining a quick press+release would swallow the tap.
       break;
@@ -233,6 +245,7 @@ void rm_present(const HalFrame* f) {
     else if (was) r = {};  // pen-up: the lane repaints the stroke's box through AppLoad's item
   }
   eink::unite(pending, r);
+  if (hidden) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
   uint64_t now = hal_time_us();
   if (eink::empty(pending) && full_refresh_ok && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
@@ -271,7 +284,15 @@ void rm_shutdown() {
 }
 
 // zinc:gfx refreshDisplay() asks for "display.refresh": "1" when this layer can do a full refresh (qtfb of AppLoad 0.6.0+, the ink session)
+// zinc:gfx minimizeWindow() asks for "window.minimize": "1" when AppLoad minimized the window (the app keeps running)
 const char* rm_device(const char* query, const char*) {
+  if (strcmp(query, "window.minimize") == 0) {
+    if (!window_ok || sock < 0 || layer == L2 || layer == RM2) return "0";
+    ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = 0;
+    if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) != sizeof m) return "0";
+    hidden = true;   // at once: AppLoad's answer comes at the next poll, and a frame sent before it would land in a hidden window
+    return "1";
+  }
   if (strcmp(query, "display.refresh") != 0) return nullptr;
   if (layer == L2) { native::full_now = true; return "1"; }
   if ((layer == L0 || layer == L1) && full_refresh_ok) { full_asked = true; return "1"; }

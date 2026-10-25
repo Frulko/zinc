@@ -114,6 +114,8 @@ export function height(): i32 { return __host_gfxHeight(); }
 export function pixelScale(): i32 { return __host_gfxPixelScale(); }
 /** A full refresh of an e-ink panel at the next idle frame (it flashes and clears the ghosts that partial updates leave). true when the display does it; false elsewhere (a window, an LCD). */
 export function refreshDisplay(): boolean { return __host_sysDevice('display.refresh', 'full') === '1'; }
+/** Minimizes the app's window and shows the system's screen while the app keeps running (AppLoad on a reMarkable, with the window-state patch). false when the host cannot: quit instead, with the state saved. */
+export function minimizeWindow(): boolean { return __host_sysDevice('window.minimize', '') === '1'; }
 export function clear(color: u32): void { __host_gfxClear(color); }
 export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
 export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }

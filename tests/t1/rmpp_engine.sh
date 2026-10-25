@@ -36,7 +36,7 @@ python3 - "$ZINC_APPLOAD" <<'PY' || exit 1
 import json, sys
 for tile, qtfb in (('zinc-notes', True), ('zinc-notes-session', False)):
     m = json.load(open(f'{sys.argv[1]}/{tile}/external.manifest.json'))
-    want = {'application': 'launch.sh', 'qtfb': qtfb, 'workingDirectory': f'{sys.argv[1]}/{tile}', 'disablesWindowedMode': True}
+    want = {'application': 'launch.sh', 'qtfb': qtfb, 'workingDirectory': f'{sys.argv[1]}/{tile}', 'disablesWindowedMode': not qtfb}
     bad = {k: m.get(k) for k in want if m.get(k) != want[k]}
     if bad: sys.exit(f'FAIL {tile}/external.manifest.json: {bad}')
     if open(f'{sys.argv[1]}/{tile}/icon.png', 'rb').read(8) != b'\x89PNG\r\n\x1a\n': sys.exit(f'FAIL {tile}/icon.png is not a PNG')

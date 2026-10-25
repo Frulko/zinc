@@ -58,6 +58,13 @@ if run full notes 260 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APP
 if run full05 notes 260 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast ZINC_RMPP_FULL_AFTER_PCT=1; then has full05 trace 0 "full refresh"; fi
 # refreshDisplay() of zinc:gfx (the demo asks once after its strokes), with the automatic one off: exactly one
 if run asked notes 260 - NOTES_DEMO=1 NOTES_DEMO_REFRESH=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then has asked trace 1 "full refresh"; fi
+# Accueil (minimizeWindow of zinc:gfx; the demo asks after its strokes): with the window-state AppLoad the window hides, nothing is sent
+# while it is hidden (an update then is an error), and when it shows again the whole page goes out and one full refresh follows
+if run home notes 300 - NOTES_DEMO=1 NOTES_DEMO_HOME=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=window ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
+  has home trace 1 " minimize"; has home trace 1 " restore"; has home trace + "update PARTIAL 0,0 1620x2160"; has home trace 1 "full refresh"
+fi
+# an AppLoad without it would drop the client: the driver never sends the message there
+if run home06 notes 300 - NOTES_DEMO=1 NOTES_DEMO_HOME=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6; then has home06 trace 0 "minimize"; fi
 
 # L1: "ink": "native" with a lane that answers a verified hash. qtfb stays in UI; strokes go through the lane, never through qtfb.
 pen=ZN_RMPP_SIM_PEN=70-95,110-130

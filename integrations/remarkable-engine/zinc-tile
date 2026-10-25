@@ -27,8 +27,10 @@ if [ -n "$session" ]; then
 fi
 mkdir -p "$dir"
 cp "$Z/share/zinc/rmpp/icon.png" "$dir/icon.png"
-printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": true\n}\n' \
-  "$name" "$([ -n "$session" ] && echo false || echo true)" "$dir" > "$dir/external.manifest.json"
+# a qtfb tile keeps AppLoad's window buttons: a tap opens it full screen, a swipe down from the top shows _ (minimize, the app keeps
+# running) and X; an ink session has no AppLoad window
+printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": %s\n}\n' \
+  "$name" "$([ -n "$session" ] && echo false || echo true)" "$dir" "$([ -n "$session" ] && echo true || echo false)" > "$dir/external.manifest.json"
 if [ -n "$session" ]; then
   cat > "$dir/launch.sh" <<EOF
 #!/bin/sh
