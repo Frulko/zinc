@@ -292,6 +292,45 @@ local network permission prompt, Bonjour on a real Wi-Fi); Android's `MulticastL
 - **The real agent on webOS**, because it is a Linux where processes work: no second server to keep.
 - **No mDNS on consoles:** no `getifaddrs`, multicast doubtful in the emulators; an address on the screen, then a broadcast probe.
 
+## 5. Where it stands (2026-10-25, after the consoles)
+
+### Android (step 8): done, proven on the Nexus 7
+
+- Zinc Go's device mode is in `src/app/player.cpp`: `src/agent/player.cpp` polled from its tick (on by default on a phone, on a desktop
+  only with `ZINC_PLAYER_PORT`), its files in `SDL_GetPrefPath("zinc", "player")`. The home screen gets `--device`, `--address`, `--code`,
+  `--paired` and starts again when they change; "Pair another computer" opens `zinc://pair`, which the player takes as "a new code". A
+  received `program.zbc` starts with `appStart` (its `resources.bin` installed, its `packs/` mounted in front), its lines go to the app's log
+  (`appFinish` now sends the last lines and the error through the console tap, and `exit(n)` gives status `n`), `stop` goes back home, `shot`
+  is `capture_png`. mDNS through `src/net/dnssd.cpp`'s polled `Responder`, with the Wi-Fi `MulticastLock` (`ZincActivity.zincMulticast`,
+  `CHANGE_WIFI_MULTICAST_STATE` in a player's manifest). `info.plugins` is the list `zinc export` writes into `player_modules.cpp`.
+- Proven: `tests/t1/zinc_go_device.sh` (the desktop player on the loopback); on the Nexus 7 (Android 7.1, armeabi-v7a APK): pairing through
+  `adb forward tcp:7733 tcp:7733` and over Wi-Fi, `info`, `deploy examples/hello` (29 lines, identical to `zinc run --profile android`),
+  `deploy examples/rn-showcase` (2 MiB, its Home in `zinc device shot`), `stop` back to the home screen, `bouncing-ball` and its shot,
+  `zinc dev --device` (v2 285 ms after the save), `zinc device list` finding `android-ed6b` over mDNS.
+- Not proven: the API 37 emulator (only an arm64 image is installed and the Nexus 7 was there), a phone on another network.
+
+### iOS (step 10): done in the simulator
+
+- The same code in the iOS export (`zinc export examples/zinc-go --target ios --ipa --simulator`); no mDNS on iOS (raw multicast needs
+  Apple's entitlement: `DNSServiceRegister` is the next step), so a phone is paired by its address. `NSLocalNetworkUsageDescription` comes
+  from Zinc Go's `net` permission.
+- Proven in the iPhone 17 simulator (iOS 26.3): pair on 127.0.0.1, `info` (`ios`, 13 plugins), `deploy examples/hello` (identical to `zinc
+  run --profile ios`), `deploy examples/rn-showcase` and its shot, `stop` back to the home screen (which shows "Paired with ...").
+- Not proven: an iPhone. The owner's step: `ZINC_IOS_TEAM=<team id> zinc export examples/zinc-go --target ios --ipa -o dist/zinc-go-ios`,
+  install the .ipa (Xcode, Devices and Simulators), start it, allow the local network, then `zinc device pair <address> <code>`.
+
+### webOS (step 9): a headless player built, not run
+
+- The design's way (the real `zinc agent` in ZN-392's runtime) waits for ZN-392. Built instead, as a first step: the console core with the
+  player, headless (programs print, they do not draw), cross built with the pinned zig for `armv7-webos`: `tools/webos-player build` (1.3 MB
+  stripped, highest symbol `GLIBC_2.4`; the same code passes `tests/t0/console_player.sh` on this Mac). `os webos`, profile `linux`
+  (`ZINC_PLAYER_PROFILE`; a `touchpad` profile is a later line), port 7733 opened in the tablet's firewall by its start script.
+- Not run: the tablet was not reachable (`novacom -l`: no `novacomd`). The owner's steps: `sudo ~/.local/bin/novacomd` in a terminal,
+  then `tools/webos-player install`, `tools/webos-player start` (it prints the address and the code), and here `zinc device pair <address>
+  <code>`, `zinc device deploy examples/hello`.
+- Next: a webOS HAL for the core (`targets/webos/hal_webos.cpp` over SDL 1.2 and `PDL_Init`, GLES 2 as `plugins/display-gl/src/webos.cpp`
+  does), so the player draws, packaged as a PDK app by `tools/webos-apps` with the waiting screen of the consoles.
+
 Sources: pspsdk headers of the pinned pspdev (`pspnet_inet.h`, `pspcrypt.h`), the pinned PPSSPP 1.20.4 sources (`headless/Headless.cpp`,
 `Core/HLE/sceNetInet.cpp`, `NetInetConstants.cpp`, `sceChnnlsv.cpp`), VitaSDK's `psp2/kernel/rng.h` ([docs.vitasdk.org, SceRngUser](https://docs.vitasdk.org/group__SceRngUser.html)),
 3dbrew's [PS:GenerateRandomBytes](https://www.3dbrew.org/wiki/PSPXI:GenerateRandomBytes), Citra's first SOC_U commit (Berkeley sockets on the host),

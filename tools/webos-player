@@ -1,0 +1,45 @@
+#!/bin/sh
+# The device player on webOS (HP TouchPad, ZN-792 step 9, docs/reports/device-player-consoles-mobiles.md): the console core with the agent's
+# player (targets/console -DZN_CONSOLE_PLAYER=ON, src/agent/player.cpp), headless (no screen yet: its programs print, they do not draw),
+# cross built with the pinned zig for armv7-webos (glibc 2.8, soft-float calls), then run on the tablet as root over novacom.
+#   tools/webos-player build      # build/webos-player/zinc-player (needs the pinned zig: zinc toolchain)
+#   tools/webos-player install    # the binary and its start script into /var/zinc/player on the tablet (novacom -l must list it)
+#   tools/webos-player start      # runs it in the foreground: its address and pairing code, then zinc device pair <address> <code> here
+# Not proven on the tablet yet (unreachable when it was written): the cross link is (highest symbol GLIBC_2.4).
+set -e
+here=$(cd "$(dirname "$0")/.." && pwd -P)
+out=$here/build/webos-player
+zig=$(ls -d "${ZINC_HOME:-$HOME/.zinc}"/toolchains/zig-*/zig 2>/dev/null | tail -1)
+case ${1:-build} in
+build)
+  [ -x "$zig" ] || { echo "webos-player: no pinned zig (zinc toolchain install zig)" >&2; exit 2; }
+  mkdir -p "$out/cc"
+  flags="-target arm-linux-gnueabi.2.8 -mcpu=cortex_a8+neon -mfloat-abi=softfp -fno-sanitize=undefined -Xclang -target-feature -Xclang +vfp2"   # src/tc/tc.cpp's armv7-webos
+  printf '#!/bin/sh\nexec "%s" cc %s "$@"\n' "$zig" "$flags" > "$out/cc/cc"
+  printf '#!/bin/sh\nexec "%s" c++ %s "$@"\n' "$zig" "$flags" > "$out/cc/c++"
+  chmod +x "$out/cc/cc" "$out/cc/c++"
+  [ -f "$out/CMakeCache.txt" ] || cmake -S "$here/targets/console" -B "$out" -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=arm \
+    -DCMAKE_C_COMPILER="$out/cc/cc" -DCMAKE_CXX_COMPILER="$out/cc/c++" -DCMAKE_LINK_DEPENDS_USE_LINKER=OFF \
+    -DZN_CONSOLE=webos -DZN_CONSOLE_GFX=OFF -DZN_CONSOLE_PLAYER=ON >/dev/null
+  cmake --build "$out" -j 4 >/dev/null
+  strip=$(ls /opt/homebrew/opt/llvm*/bin/llvm-strip 2>/dev/null | tail -1)   # zig's objcopy cannot strip an ARM ELF
+  if [ -n "$strip" ]; then "$strip" -o "$out/zinc-player" "$out/zinc-core"; else cp "$out/zinc-core" "$out/zinc-player"; fi
+  echo "webos-player: $out/zinc-player" ;;
+install)
+  [ -f "$out/zinc-player" ] || { echo "webos-player: build it first (tools/webos-player build)" >&2; exit 2; }
+  # its start script: the tablet's address for the screen and info, the profile it runs (webOS is a Linux), port 7733 opened in the firewall
+  cat > "$out/player.sh" <<'SH'
+#!/bin/sh
+addr=$(ifconfig 2>/dev/null | sed -n 's/.*inet addr:\([0-9.]*\).*/\1/p' | grep -v '^127\.' | head -n 1)
+iptables -C INPUT -p tcp --dport 7733 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 7733 -j ACCEPT
+cd /var/zinc/player && ZINC_PLAYER_ADDR=$addr ZINC_PLAYER_PROFILE=linux ZINC_PLAYER_HOME=/var/zinc/player/home exec ./zinc-core
+SH
+  printf 'mkdir -p /var/zinc/player/home\n' | novacom run file://bin/sh
+  novacom put file://var/zinc/player/zinc-core < "$out/zinc-player"
+  novacom put file://var/zinc/player/player.sh < "$out/player.sh"
+  printf 'chmod 755 /var/zinc/player/zinc-core /var/zinc/player/player.sh\n' | novacom run file://bin/sh
+  echo "webos-player: installed in /var/zinc/player; tools/webos-player start" ;;
+start)
+  echo "/var/zinc/player/player.sh" | novacom run file://bin/sh ;;
+*) echo "usage: tools/webos-player build|install|start" >&2; exit 2 ;;
+esac
