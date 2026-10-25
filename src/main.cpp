@@ -2761,8 +2761,13 @@ int main(int argc, char** argv) {
       auto found = zn::frontend::discoverPlugins(gRoot, pdir, problems);
       const zn::tc::Target* tg0 = zn::tc::findTarget(argv[3]);
       zn::tc::setCrossTarget(tg0->name, tg0->zigTarget, zig);
-      // the entry of a plugin's manifest: "linux" for every Linux, or the system's own when the plugin has one (webOS: its SDL, no KMS)
-      auto entryOf = [&](const zn::frontend::FoundPlugin& f) { for (const std::string& t : f.manifest.targets) if (t == "webos" && std::strstr(tg0->name, "-webos")) return std::string("webos"); return std::string("linux"); };
+      // the entry of a plugin's manifest: "linux" for every Linux, or the system's own when the plugin has one (webOS: its SDL, no KMS; the
+      // device zinc export names, ZINC_EXPORT_TARGET: the reMarkable's rmpp, whose driver is not the desktop emulator of "linux")
+      const char* device = std::getenv("ZINC_EXPORT_TARGET");
+      auto entryOf = [&](const zn::frontend::FoundPlugin& f) {
+        for (const std::string& t : f.manifest.targets) if ((device && t == device) || (t == "webos" && std::strstr(tg0->name, "-webos"))) return t;
+        return std::string("linux");
+      };
       for (const zn::tc::PluginLib& host : gPlugins) {
         if (host.display) continue;   // this machine's driver: the target's own is built below
         const zn::frontend::FoundPlugin* hit = nullptr;

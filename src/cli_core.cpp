@@ -2111,7 +2111,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string embed = has(o, "--no-embed") ? " --no-embed" : "";   // the fonts and images in <name>.res beside the executable
   const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
-                                     : "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
+                                     : "ZINC_COMPONENTS=1 ZINC_EXPORT_TARGET=" + q(target) + " " + q(self()) + " build" + embed + " --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
   if (target == "rmpp") {   // an AppLoad app directory (docs/targets/remarkable-paper-pro.md); zinc.json "display": {"ink": "session"} starts it through the display lease
     std::string ink, icon;
     if (yyjson_doc* jd = yyjson_read_file((fs::path(p.dir) / "zinc.json").string().c_str(), 0, nullptr, nullptr)) {
