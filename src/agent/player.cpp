@@ -102,8 +102,11 @@ bool saveClients(const Player& p, const std::vector<Client>& clients) {
 
 std::string appsJson(const Player& p) {
   std::vector<std::string> items;
-  for (const std::string& n : subdirs(p.home + "/apps"))
+  for (std::string n : subdirs(p.home + "/apps")) {
+    std::string kept;   // the name as installed: a PSP's FAT gives a short name back in capitals (HELLO for hello)
+    if (slurp(p.home + "/apps/" + n + "/app.name", kept) && !kept.empty()) n = kept;
     items.push_back(Obj().str("name", n).str("kind", "zapp").flag("running", n == p.current).num("pid", n == p.current ? p.pid : 0).done());
+  }
   return array(items);
 }
 std::string infoJson(Player& p) {
@@ -243,6 +246,7 @@ void session(Player& p, int fd) {
     std::uint64_t files = 0, bytes = 0;
     if (!recvFiles(*c, dir, files, bytes, err)) { refuse(*c, err); return; }
     if (!isFile(dir + "/program.zbc")) { removeTree(dir); refuse(*c, "no program.zbc in what was sent: a player runs the bytecode zinc pack makes"); return; }
+    spill(dir + "/app.name", app);
     send(*c, kJson, Obj().flag("ok", true).str("name", app).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
   } else if (op == "run") {
     if (!named) { refuse(*c, "bad app name"); return; }
@@ -362,7 +366,9 @@ void playerPoll(Player& p) {
   if (p.lfd < 0) return;
   pollfd l{p.lfd, POLLIN, 0};
   if (::poll(&l, 1, 0) > 0) {
-    const int fd = ::accept(p.lfd, nullptr, nullptr);
+    sockaddr_in peer{};   // never null: the PSP's sceNetInetAccept (PPSSPP too) fails with EFAULT without one
+    socklen_t peerLen = sizeof peer;
+    const int fd = ::accept(p.lfd, reinterpret_cast<sockaddr*>(&peer), &peerLen);
     if (fd >= 0) {
       prepare(fd);
       std::string line;

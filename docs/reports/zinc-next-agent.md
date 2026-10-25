@@ -403,6 +403,20 @@ and a player of another version series unless `--force`. The host build of the s
 -DZN_CONSOLE_PLAYER=ON`, the headless HAL, `/dev/urandom`) is what `tests/t0/console_player.sh` drives on the loopback interface: a wrong
 code, pairing, info, deploy and its lines, a program that never ends read, stopped and run again, `exit(3)`, a shot, `zinc dev --device`.
 
+Proven 2026-10-25 in the emulators, each player built with ZN-791's network (`targets/<console>/net_<console>.cpp`) and a fixed code, the
+workstation on 127.0.0.1: pair, info, deploy `examples/hello` (its lines equal to `zinc run --profile <console>`), deploy
+`examples/bouncing-ball`, `shot` (a PNG of the console's frame), `stop`, deploy again. PPSSPPHeadless 1.20.4 (`tests/t1/console_player_psp.sh`,
+1 min with the build), Azahar and Vita3K by hand. Pairing (the client's process included): 0.14 s in PPSSPP, 1.09 s in Azahar, 0.19 s in
+Vita3K; emulators are not the hardware, the J-PAKE on a 333 MHz PSP is still to be timed. What the player adds to a core (text section,
+`size`): PSP +258 KB (EBOOT.PBP 2.37 to 2.65 MB), Vita +154 KB (VPK 0.92 to 1.04 MB), 3DS .3dsx 1.22 to 1.57 MB.
+
+What the consoles taught: the PSP has no `poll` (a `select` shim in `src/platform/socket.h`) and sets non-blocking with `SO_NONBLOCK` (the
+Vita too); PSP `accept` fails with EFAULT on a null address; a PSP FAT directory comes back in capitals (`HELLO`), so each app keeps its
+name in `app.name`; the consoles' C libraries give mbedTLS no clock (`MBEDTLS_PLATFORM_MS_TIME_ALT`, the HAL's). A user-mode PSP program
+cannot reach the KIRK generator: its entropy is a SHA-256 pool of clock jitter, the RTC, the Wi-Fi MAC, the pad and the battery, with a
+seed file advanced each start (`targets/psp/player_psp.cpp`); a kernel PRX for KIRK is the upgrade. Not there yet: discovery (a player is
+paired by its address; `zinc device list` shows it once paired), the real consoles.
+
 ## Next
 
 Open: the start of the service at login run for real (ZN-729.04, in review), and

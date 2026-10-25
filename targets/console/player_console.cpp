@@ -50,6 +50,7 @@ Player gPlayer;
 int gState = 0;            // 0 the network not up yet, 1 listening, -1 failed (gWhy)
 std::string gWhy;
 bool gStop = false;        // the running program must end
+bool gRunning = false;     // a program runs (the waiting screen's frames must not see gStop as a quit)
 bool gPending = false;
 ZnPlayerRun gNext;
 std::uint64_t gLastPollUs = 0;
@@ -128,11 +129,13 @@ void znPlayerStarted(const ZnPlayerRun& run) {
   gStop = gPending;   // a run asked for during the start: this one ends at once
   zn::rt::gStop = nullptr;
   zn::rt::gExitEndsRun = true;   // zinc:sys exit ends the program, not the player
+  gRunning = true;
   zn::agent::playerStarted(gPlayer, run.app, run.pid);
 }
 void znPlayerOutput(const char* p, std::size_t n) { if (gState == 1) zn::agent::playerOutput(gPlayer, std::string_view(p, n)); }
 void znPlayerExited(int status) {
   zn::rt::gStop = nullptr;
+  gRunning = false;
   if (gState == 1) zn::agent::playerExited(gPlayer, status);
 }
 void znPlayerNewCode() { if (gState == 1) zn::agent::playerNewCode(gPlayer); }
@@ -159,13 +162,13 @@ std::vector<std::string> znPlayerScreen() {
 extern "C" int zn_player_poll(void) {
   const std::uint64_t t = hal_time_us();
   if (t - gLastPollUs >= 20000) { gLastPollUs = t; znPlayerPoll(); }
-  return gStop ? 1 : 0;
+  return gStop && gRunning ? 1 : 0;
 }
 // host_console.cpp's waits: a program without frames ends at its next host call once stopped (zinc:sys has no other way in)
 extern "C" int zn_player_wait_poll(void) {
   znPlayerPoll();
-  if (gStop) zn::rt::gStop = "stopped from the workstation";
-  return gStop ? 1 : 0;
+  if (gStop && gRunning) zn::rt::gStop = "stopped from the workstation";
+  return gStop && gRunning ? 1 : 0;
 }
 
 // mbedTLS's milliseconds (TLS 1.3's ticket ages; mbedtls_console.h's MBEDTLS_PLATFORM_MS_TIME_ALT)

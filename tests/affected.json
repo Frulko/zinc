@@ -69,6 +69,7 @@
     {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
     {"paths": ["src/agent/", "tests/t1/agent_dev.sh"], "tests": ["agent_dev"]},
     {"paths": ["src/agent/player.cpp", "src/agent/player.h", "src/agent/chan.cpp", "src/agent/client.cpp", "src/agent/dev.cpp", "src/host/tls.cpp", "src/rt/rtcalls.cpp", "targets/console/", "targets/null/hal_null.cpp", "tests/t0/console_player.sh"], "tests": ["console_player"]},
+    {"paths": ["src/agent/player.cpp", "src/agent/chan.cpp", "src/platform/socket.h", "targets/console/player_console.cpp", "targets/console/mbedtls_console.h", "targets/psp/", "tests/t1/console_player_psp.sh"], "tests": ["console_player_psp"]},
     {"paths": ["src/agent/server.cpp", "src/agent/client.cpp", "src/agent/live.cpp", "src/host/mirror.cpp", "runtime/gfx.cpp", "tests/t1/device_screen.sh", "tests/data/screen/"], "tests": ["device_screen"]},
     {"paths": ["src/agent/dev.cpp", "src/agent/server.cpp", "tests/t1/agent_dev_versions.sh"], "tests": ["agent_dev_versions"]},
     {"paths": ["src/agent/client.cpp", "src/agent/server.cpp", "tests/t1/agent_deploy.sh"], "tests": ["agent_deploy"]},

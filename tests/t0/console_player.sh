@@ -3,7 +3,7 @@
 # loopback interface: a wrong code refused, pairing by its code, info (a player, its profile), zinc device deploy of a program packed for the
 # PSP's profile (its lines followed to its end), a program that never ends deployed, its log read, stopped from the workstation, run again,
 # zinc:sys exit (the player outlives it), a drawing program and the frame of its screen (zinc device shot), the refusals of a player (shell),
-# and the player still serving after all of it. The same player runs in PPSSPP, Azahar and Vita3K (tests/t1/console_player_emulators.sh).
+# and the player still serving after all of it. The same player runs in PPSSPP (tests/t1/console_player_psp.sh), Azahar and Vita3K.
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 command -v cmake >/dev/null 2>&1 || { echo "console player: no cmake"; exit 77; }
