@@ -14,12 +14,13 @@ Displays the tablet's local time, battery percentage/charging state and a finger
 
 ```tsx
 import { RemarkableApp } from 'zinc:remarkable';
-render(() => <RemarkableApp app={App} widget={{ view: TimerWidget, width: 900, height: 440 }} />, 0xffffff, null);
+render(() => <RemarkableApp app={App} widget={{ view: TimerWidget, width: 640, height: 260 }} />, 0xffffff, null);
 ```
 
 Accueil then shows the widget as a card over the tablet's screen: the same program, drawing `view` at the top left of its screen while
 `windowMode()` is `'widget'`, so what is tapped in the card is the app's state when it opens again (the card's open button). The card
-needs AppLoad with both window patches of `integrations/remarkable-engine/appload`; without them Accueil minimizes, or quits. The calls
+needs AppLoad with the window patches of `integrations/remarkable-engine/appload` (with `0003`, a tap on the card's header folds it
+and the app keeps running); without them Accueil minimizes, or quits. The calls
 under it are `setWidget(x, y, w, h)`, `showWidget()` and `windowState()` of `zinc:gfx`.
 
 **Accueil** goes back to the tablet's screen and leaves the app running: it calls `onHome` (save the state there), then `zinc:gfx.minimizeWindow()`, which minimizes the AppLoad window; tap the window's bar to come back. An AppLoad without the window-state patch (`integrations/remarkable-engine/appload`) cannot minimize from the app: Accueil then quits like **Quitter**, and an app that restores its saved state at start comes back as it was. AppLoad's own `_` button (swipe down from the top of a full-screen app) minimizes too.

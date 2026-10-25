@@ -99,6 +99,9 @@ out, then a full refresh.
 going to the app. `zinc:remarkable`'s `RemarkableApp` declares it (`widget={{ view, width, height }}`) and Accueil shows it; the driver
 then sends only what changes inside the rectangle and asks for no automatic full refresh, and the card's open button brings the full
 window back (the whole page, then a full refresh). The patched AppLoad announces it in its device state (capabilities, bit 1).
+With the third patch (`0003`) a tap on the card's header folds it to the header alone and another tap opens it (AppLoad keeps it
+with the card's place): folded, the device state says hidden (0) and the driver sends nothing, the app keeps its widget view, and
+when the card opens (2) the driver repaints the whole rectangle.
 
 The desktop emulator retains the illustrative FAST/QUALITY/FULL policy in `eink.h`.
 Its `full_every`, `upgrade_ms` and `dither` options do **not** control the device backend.
