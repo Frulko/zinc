@@ -25,6 +25,8 @@ extern int32_t surf_w, surf_h;
 extern bool display_driver;
 extern void (*mirror_present)(const HalFrame* f);
 extern void (*first_present)();
+extern void (*dev_restart)();
+extern int32_t (*wall_minute)();
 static void present(const HalFrame* f) {
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
@@ -115,6 +117,9 @@ static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncm
 struct Overlay { Cmd cmds[64]; char text[ZRT_OVERLAY_TEXT]; uint32_t ncmd, ntext; };
 static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-style strip at the bottom
 static Overlay taps;               // the fingers of a touch screen, where they press (taps_update below)
+static Overlay bar;                // the dev bar (devbar:: below): quit, the time, a menu
+static bool bar_off = false;       // a screenshot taken from its menu leaves it out
+static bool bar_on() { static const bool on = [] { const char* e = hal_env("ZINC_DEV_BAR"); return e && *e && *e != '0'; }(); return on; }
 static bool ovl_changed = false;  // next present repaints the whole screen
 static double banner_until = 0;
 static int32_t banner_count = 0;
@@ -190,12 +195,12 @@ bool crash_screen(const char* text, uint32_t n) {
   ovl_changed = true;
   if (!text) return true;
   int32_t k = ovl_k();
-  float pad = 6.0f * k, y;
+  float pad = 6.0f * k, y, top = bar_on() ? 14.0f * k : 0;   // below the dev bar
   ovl_rect(rbox, 0, 0, (float)pw, (float)ph, 0xb91c1c);
-  ovl_rect(rbox, 0, 0, (float)pw, 14.0f * k, 0x7f1d1d);
+  ovl_rect(rbox, 0, top, (float)pw, 14.0f * k, 0x7f1d1d);
   static const char title[] = "Zinc: uncaught error";
-  ovl_text(rbox, pad, 3.0f * k, title, sizeof title - 1, 0xfecaca);
-  y = 20.0f * k;
+  ovl_text(rbox, pad, top + 3.0f * k, title, sizeof title - 1, 0xfecaca);
+  y = top + 20.0f * k;
   uint32_t i = 0;
   while (i < n && text[i] != '\n') i++;
   y = ovl_para(rbox, pad, y, text, i, 0xffffff, 6) + 6.0f * k;
@@ -262,6 +267,7 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
   if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, all);
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, all);
+  if (bar.ncmd && !bar_off) raster::render(ovl_frame(bar), rows, pw, y0, y1, all);
   if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, all);
 }
 // the same rows with the holes of the hardware layers in another colour (HalFrame.render_holes, "hardware layers" below)
@@ -272,15 +278,16 @@ static void render_holes(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color)
   raster::set_layer_fill(HAL_LAYER_HOLE);
 }
 // the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
-static HalCmdList lists[6];
+static HalCmdList lists[7];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   int32_t n = 0;
-  auto add = [&](const raster::Frame& f) { if (n < max && n < 6) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 7) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
   if (shown) add(frame_of(*shown));
   if (rbox.ncmd) add(ovl_frame(rbox));
   if (banner.ncmd) add(ovl_frame(banner));
   if (vis.ncmd) add(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr});
   if (hud_ovl && hud_ovl->ncmd) add(ovl_frame(*hud_ovl));
+  if (bar.ncmd) add(ovl_frame(bar));
   if (taps.ncmd) add(ovl_frame(taps));
   return n;
 }
@@ -296,6 +303,7 @@ static void render_in(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) { 
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
   if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
+  if (bar.ncmd && !bar_off) raster::render(ovl_frame(bar), rows, pw, y0, y1, r);
   if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, r);
 }
 static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
@@ -1298,6 +1306,103 @@ static bool layers_again(Buf& b) {
   return true;
 }
 
+// The dev bar (ZN-822): a strip at the top of the screen over any program of a dev session (ZINC_DEV_BAR=1: zinc dev --device sets it, a
+// deployed app may), since a Pi has no compositor to give it a title bar. Its X quits (the player comes back), it shows the time, and its
+// menu restarts the program, shows the performance panel or saves a screenshot. A pointer or a finger that lands on it, or on the open menu,
+// is not the program's until it lifts; the program's frame is untouched outside it.
+namespace devbar {
+static int32_t state = -1;   // -1: the environment not read yet, 0 off, 1 on
+static bool menu = false, held = false, was_down = false, dirty = true;
+static int32_t minute = -1, hud_was = -1;
+static uint64_t checked = 0;
+static raster::Rect was = {0, 0, 0, 0};
+enum { RESTART, PERF, SHOT, NITEMS };
+static int32_t k() { return ovl_k(); }
+static int32_t height() { return 14 * k(); }
+static int32_t item_h() { return 16 * k(); }
+static raster::Rect menu_box() { return raster::Rect{0, height(), 22 * 8 * k(), height() + NITEMS * item_h()}; }
+static bool in(const raster::Rect& r, float x, float y) { return x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1; }
+static void act(int32_t item) {
+  menu = false; dirty = true;
+  if (item == RESTART && dev_restart) dev_restart();
+  else if (item == PERF) { if (hud::state == 1) hud::hide(); else hud::show(); }
+  else if (item == SHOT) {
+    StrBuilder sb;
+    const char* dir = hal_env("ZINC_SHOT_DIR");
+    sb.cstr(dir && *dir ? dir : "."); sb.cstr("/screenshot-"); to_s(sb, frame_no); sb.cstr(".png"); sb.ch('\0');
+    bar_off = true;
+    const bool ok = save(sb.buf);
+    bar_off = false;
+    StrBuilder m; m.cstr(ok ? "zinc dev: screenshot saved to " : "zinc dev: cannot write "); m.cstr(sb.buf); m.ch('\n');
+    hal_log_err(m.buf, m.len);
+  }
+}
+/** Frame start, before the program reads its input: a press on the bar or the menu acts there, and the program sees no pointer (nor
+ *  finger) from it until it lifts. */
+static void frame_start() {
+  if (state < 0) state = bar_on() ? 1 : 0;
+  if (state != 1) return;
+  init_scale();
+  float x = input.px * (float)pxk, y = input.py * (float)pxk;
+  bool down = input.pdown != 0;
+  if (input.ntouch > 0) { x = input.touch[0].x * pxk; y = input.touch[0].y * pxk; down = true; }
+  const bool pressed = down && !was_down;
+  was_down = down;
+  if (pressed) {
+    const int32_t b = height();
+    if (in(raster::Rect{0, 0, pw, b}, x, y)) {
+      held = true;
+      if (x >= pw - b * 2) { quit_requested = true; menu = false; }   // the X
+      else if (x < 8 * 8 * k()) { menu = !menu; dirty = true; }        // the menu button
+    } else if (menu) {
+      held = true;
+      const raster::Rect m = menu_box();
+      if (in(m, x, y)) act((int32_t)(y - m.y0) / item_h());
+      else { menu = false; dirty = true; }   // a press beside the open menu closes it
+    }
+  }
+  if (!held) return;
+  if (!down) held = false;
+  input.pdown = 0; input.pbuttons = 0; input.nbtn = 0; input.ntouch = 0;
+}
+static void build() {
+  bar.ncmd = bar.ntext = 0;
+  const int32_t K = k(), b = height();
+  ovl_rect(bar, 0, 0, (float)pw, (float)b, 0x111827);
+  for (int32_t i = 0; i < 3; i++) ovl_rect(bar, 4.0f * K, (3.0f + 3 * i) * K, 8.0f * K, 1.0f * K, 0xe5e7eb);   // the menu button
+  ovl_text(bar, 16.0f * K, 2.0f * K, "DEV", 3, 0xfbbf24);
+  char t[6] = {'-', '-', ':', '-', '-', 0};
+  if (minute >= 0) { t[0] = (char)('0' + minute / 600); t[1] = (char)('0' + minute / 60 % 10); t[3] = (char)('0' + minute % 60 / 10); t[4] = (char)('0' + minute % 10); }
+  ovl_text(bar, (float)(pw - b * 2 - 6 * 8 * K), 2.0f * K, t, 5, 0xe5e7eb);
+  ovl_rect(bar, (float)(pw - b * 2), 0, (float)(b * 2), (float)b, 0xb91c1c);   // the X
+  ovl_text(bar, (float)(pw - b - 4 * K), 2.0f * K, "X", 1, 0xffffff);
+  if (!menu) return;
+  const raster::Rect m = menu_box();
+  ovl_rect(bar, (float)m.x0, (float)m.y0, (float)(m.x1 - m.x0), (float)(m.y1 - m.y0), 0x1f2937);
+  const char* items[NITEMS] = {dev_restart ? "Restart" : "Restart (zinc dev only)", hud::state == 1 ? "Hide performance panel" : "Performance panel", "Screenshot"};
+  for (int32_t i = 0; i < NITEMS; i++) {
+    uint32_t n = 0;
+    while (items[i][n]) n++;
+    ovl_text(bar, 6.0f * K, (float)(m.y0 + i * item_h() + 4 * K), items[i], n, i == RESTART && !dev_restart ? 0x6b7280 : 0xe5e7eb);
+  }
+}
+/** Before the frame is presented: rebuilt when its menu, the panel's state or the minute changed; its damage is its box now and before. */
+static void update() {
+  if (state != 1) return;
+  const uint64_t t = hal_time_us();
+  if (wall_minute && t - checked >= 1000000) { checked = t; const int32_t m = wall_minute(); if (m != minute) { minute = m; dirty = true; } }
+  if (hud::state != hud_was) { hud_was = hud::state; dirty = true; }
+  if (!dirty && bar.ncmd) return;
+  dirty = false;
+  build();
+  raster::Rect at = {0, 0, pw, height()};
+  if (menu) { const raster::Rect m = menu_box(); at.y1 = m.y1; }
+  hud::add_rect(at);
+  hud::add_rect(was);
+  was = at;
+}
+}  // namespace devbar
+
 static bool first_frame() { first = true; return true; }
 // Bulk frames (ZN-402): when most commands changed, the damage is the union of everything the two frames draw, found without comparing them;
 // a full diff every 16th frame leaves the mode once the scene calms down. all_box caches that union per buffer.
@@ -1305,7 +1410,7 @@ static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; devbar::frame_start(); hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
@@ -1320,6 +1425,7 @@ void end_frame() {
     if (ovl_changed) set_full_damage(); else ndmg = 0;
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
     taps_update();
+  devbar::update();
     const raster::Rect d = damage_box();
     HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
     ovl_changed = false;
@@ -1360,6 +1466,7 @@ void end_frame() {
   if (prof_on) prof::mark(prof::DIFF);
   hud::before_present(damage_box());
   taps_update();
+  devbar::update();
   static HalRect mdmg[16];
   HalMove hm{};
   if (moved) {   // what is left to draw once the pixels moved, the overlays over the area included (their pixels moved too); the area joins the frame's damage
@@ -1378,6 +1485,7 @@ void end_frame() {
     if (rbox.ncmd) both(raster::bounds_all(ovl_frame(rbox), pw, ph));
     if (banner.ncmd) both(raster::bounds_all(ovl_frame(banner), pw, ph));
     if (hud_ovl && hud_ovl->ncmd) both(hud_ovl->at);
+    if (bar.ncmd) both(raster::bounds_all(ovl_frame(bar), pw, ph));
     if (taps.ncmd) both(raster::bounds_all(ovl_frame(taps), pw, ph));
     hud::add_rect(A);
     hm = HalMove{HalRect{A.x0, A.y0, A.x1, A.y1}, mv.dx, mv.dy, mn, mdmg};

@@ -355,6 +355,12 @@ swapped into the running program. Details and limits: `docs/reports/zinc-next-ag
 `--perf` shows the performance panel over the program on the device, `--live` opens the device's screen in a window here for the
 session (`zinc device <name> screen --live`; closing the window stops watching, the session goes on).
 
+The program of a session wears the dev bar, a strip across the top of the device's screen drawn by the engine (a Pi has no window
+manager to give it a title bar): its X ends the program and the player comes back, it shows the time, and its menu restarts the program,
+shows or hides the performance panel, or saves a screenshot without the bar to `~/.zinc/agent/shots/` (the path is printed here; `zinc
+device <name> pull <path>` brings it back). A press on the bar or on the open menu never reaches the program. A deployed app shows it with
+`ZINC_DEV_BAR=1` (its Restart works in `zinc dev` sessions only: the program ends with code 75 and the agent starts it again).
+
 Each start says where its time goes: `packed here in …, sent in …, started on <device> in …`, then the device's own steps (the engine,
 each plugin: cached, prebuilt, or `built here` with its time), `first frame on the screen, from the start`, and `on the screen of <device>
 … after the save`. A start that takes minutes on a small board is nearly always plugins built there (the first run after an engine update).

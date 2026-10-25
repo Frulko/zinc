@@ -3145,8 +3145,9 @@ std::string redBoxSource(const std::vector<std::string>& lines) {
   std::string arr = "[";
   for (std::size_t i = 0; i < lines.size() && i < 16; ++i) arr += (i ? "," : "") + jsonString(lines[i].substr(0, 90));
   arr += "]";
-  return "import { onFrame, clear, rect, text, width } from 'zinc:gfx';\n// zinc dev: the red box of a compile error; the next save that compiles replaces it\nconst lines: string[] = " + arr + ";\n"
-         "onFrame((dt: number) => {\n  clear(0x3b0a0a);\n  rect(0, 0, width(), 22, 0xdc2626);\n  text(6, 7, 'ZINC  COMPILE ERROR', 0xffffff, 1);\n  for (let i = 0; i < lines.length; i++) text(6, 32 + i * 12, lines[i], 0xfecaca, 1);\n});\n";
+  return "import { onFrame, clear, rect, text, width } from 'zinc:gfx';\nimport { env } from 'zinc:sys';\n// zinc dev: the red box of a compile error; the next save that compiles replaces it\nconst lines: string[] = " + arr + ";\n"
+         "const top = env('ZINC_DEV_BAR') == '1' ? 14 : 0;   // below the dev bar\n"
+         "onFrame((dt: number) => {\n  clear(0x3b0a0a);\n  rect(0, top, width(), 22, 0xdc2626);\n  text(6, top + 7, 'ZINC  COMPILE ERROR', 0xffffff, 1);\n  for (let i = 0; i < lines.length; i++) text(6, top + 32 + i * 12, lines[i], 0xfecaca, 1);\n});\n";
 }
 
 }  // namespace

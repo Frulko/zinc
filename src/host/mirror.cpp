@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fcntl.h>
 #include <string>
 #include <sys/socket.h>
@@ -25,6 +26,9 @@ namespace zrt {
 extern void (*mirror_present)(const HalFrame* f);
 extern void (*mirror_input)(HalInput* in);
 extern void (*first_present)();
+extern void (*dev_restart)();
+extern int32_t (*wall_minute)();
+extern bool quit_requested;
 extern int32_t surf_w, surf_h;
 }
 
@@ -211,6 +215,18 @@ void installMirror() {
       const double ms = t0 && *t0 ? static_cast<double>(now - std::atoll(t0)) / 1000 : zn::log::since(zn::log::state().t0);
       zn::log::step("frame", "first frame on the screen, from the start", ms);
     };
+  if (const char* dev = std::getenv("ZINC_DEV"); dev && *dev == '1')
+    zrt::dev_restart = [] {   // the agent starts it again on this exit code (src/agent/dev.cpp kRestart)
+      // ponytail: the code is set by a handler run first at exit, which skips the handlers before it; a real exit code of the loop if one matters
+      std::atexit([] { std::fflush(nullptr); std::_Exit(75); });
+      zrt::quit_requested = true;
+    };
+  zrt::wall_minute = [] {
+    const std::time_t t = std::time(nullptr);
+    std::tm tm{};
+    localtime_r(&t, &tm);
+    return static_cast<int32_t>(tm.tm_hour * 60 + tm.tm_min);
+  };
   const char* r = std::getenv("ZINC_SHOT_REQUEST");
   if (!r || !*r) return;
   request = r;

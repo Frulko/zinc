@@ -858,6 +858,9 @@ bool display_driver = false;  // a plugins/display-* driver took over the screen
 void (*mirror_present)(const HalFrame* f) = nullptr;
 void (*mirror_input)(HalInput* in) = nullptr;
 void (*first_present)() = nullptr;   // once, after the program's first frame reached the screen (zinc dev's startup timeline)
+// the dev bar's (runtime/gfx.cpp devbar): restart the program, the local time in minutes since midnight; set by the host, null without one
+void (*dev_restart)() = nullptr;
+int32_t (*wall_minute)() = nullptr;
 // Input tape (ZINC_RECORD / ZINC_REPLAY): a header, then {frame, HalInput} for every frame whose input differs from the
 // previous one. ponytail: raw structs (~1 KB per changed frame, little-endian hosts with the same hal.h); pen samples
 // (hal_pen_push) and window resizes are not recorded.

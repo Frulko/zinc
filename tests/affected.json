@@ -237,6 +237,7 @@
     {"paths": [".spec.ts", "tests/golden/native_gen/"], "tests": ["native_gen"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
     {"paths": ["runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},
+    {"paths": ["runtime/gfx.cpp", "src/host/mirror.cpp", "tools/pngdiff"], "tests": ["dev_bar"]},
     {"paths": ["runtime/gfx.cpp", "tests/data/scale_push/"], "tests": ["scale_push"]},
     {"paths": ["runtime/raster.cpp", "tests/data/shadow_mirror/"], "tests": ["shadow_mirror", "style_shadow"]},
     {"paths": ["lib/std/ui.ts", "runtime/raster.cpp", "runtime/gfx.cpp", "runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "src/frontend/jsx.cpp", "tests/golden/style-gradient/", "tests/data/style_gradient/", "tests/t1/style_gradient.sh"], "tests": ["style_gradient"]},

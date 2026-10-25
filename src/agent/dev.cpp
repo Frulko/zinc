@@ -39,7 +39,8 @@ namespace {
 
 // ---- on the device ----
 
-struct Program { pid_t pid = 0; int out = -1, dev = -1; };   // the version that runs: its output (a pipe), our end of its dev socket
+struct Program { pid_t pid = 0; int out = -1, dev = -1; std::vector<std::string> args, env; };   // the version that runs: its output (a pipe), our end of its dev socket, how it started
+constexpr int kRestart = 75;   // the exit code of a program whose dev bar asked for a restart (src/host/mirror.cpp)
 
 // The programs of the dev sessions end with the agent: nothing else knows them (an app has its pid file, they have none).
 struct Live { std::mutex mu; std::set<pid_t> pids; };
@@ -94,7 +95,8 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   argv.insert(argv.end(), args.begin(), args.end());
   const auto epochUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   std::vector<std::pair<std::string, std::string>> vars = {{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"},
-                                                           {"ZINC_DEV_T0", std::to_string(epochUs)}};   // its first-frame line counts from here   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
+                                                           {"ZINC_DEV_T0", std::to_string(epochUs)},   // its steps and its first-frame line count from here
+                                                           {"ZINC_DEV_BAR", "1"}, {"ZINC_SHOT_DIR", fs::path(dir).parent_path().parent_path().string() + "/shots"}};   // the dev bar, where its screenshots go
   for (const std::string& kv : extra)   // zinc dev --perf and the like: the engine's own switches only
     if (kv.rfind("ZINC_", 0) == 0 && kv.find('=') != std::string::npos) vars.emplace_back(kv.substr(0, kv.find('=')), kv.substr(kv.find('=') + 1));
   std::vector<std::string> env = environment(vars);
@@ -146,6 +148,7 @@ bool restart(Chan& c, Program& p, const Val& m, const std::string& dir, const st
   std::string err;
   if (m.flag("files") && !recvTree(c, dir, files, bytes, err)) return refuse(c, err);
   if (!launch(p, self, dir, m.strs("args"), m.strs("env"), err, displayMu)) return refuse(c, err);
+  p.args = m.strs("args"); p.env = m.strs("env");
   return send(c, kJson, Obj().flag("ok", true).num("pid", p.pid).num("files", static_cast<long long>(files)).num("bytes", static_cast<long long>(bytes)).done());
 }
 
@@ -188,6 +191,7 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
     if (e.path().filename().string().rfind(mine, 0) != 0) fs::remove_all(e.path(), ec);
   fs::remove_all(dir, ec);
   fs::create_directories(dir, ec);
+  fs::create_directories(home + "/shots", ec);   // the dev bar's screenshots (zinc device <name> pull shots/...)
   if (ec || !send(c, kJson, Obj().flag("ok", true).done())) { fs::remove_all(dir, ec); return; }
   // ponytail: one thread relays both ways with blocking sends; a program that prints megabytes while megabytes of assets arrive could
   // stall the session against the workstation's own send. Give the output its own thread if that ever shows.
@@ -228,7 +232,9 @@ void opDev(Chan& c, const Val& req, const std::string& home, const std::string& 
       { std::lock_guard<std::mutex> display(displayMu); releaseScreen(p.pid); }
       p.pid = 0;
       stop(p, displayMu);
-      open = open && send(c, kExit, std::to_string(exitCode(status)));
+      std::string err;
+      if (exitCode(status) == kRestart && launch(p, self, dir, p.args, p.env, err, displayMu)) { ownerPid = p.pid; open = send(c, kOut, "zinc dev: restarted from the dev bar\n"); }
+      else open = open && send(c, kExit, std::to_string(exitCode(status)));
     }
     if (n > 0 && fds[0].revents && !fill(c)) open = false;   // the workstation left
   }

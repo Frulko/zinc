@@ -63,7 +63,7 @@ n=0; while [ $n -lt 100 ] && [ ! -s "$tmp/shot-3.png" ]; do sleep 0.05; n=$((n+1
 bar=$(python3 - "$root" "$tmp/shot-3.png" 2>&1 <<'PY'
 import sys, importlib.machinery, importlib.util
 l = importlib.machinery.SourceFileLoader("pd", sys.argv[1] + "/tools/pngdiff"); s = importlib.util.spec_from_loader("pd", l); m = importlib.util.module_from_spec(s); l.exec_module(m)
-w, h, b, d = m.dec(sys.argv[2]); i = (4 * w + 40) * b
+w, h, b, d = m.dec(sys.argv[2]); i = (18 * w + 40) * b   # row 18: below the dev bar (14)
 print(d[i], d[i + 1], d[i + 2])
 PY
 )
