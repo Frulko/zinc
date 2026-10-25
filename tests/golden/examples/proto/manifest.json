@@ -317,7 +317,8 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "skip": "redesigned since the prototype (both cabinets refreshed, 2026-10-25): tests/t1/pinball.sh proves its frames"
  },
  {
   "entry": "pocket-hero/main.tsx",
