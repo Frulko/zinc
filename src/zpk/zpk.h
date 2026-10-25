@@ -52,11 +52,17 @@ class Reader {
    *  its thread (an asset worker), reused across reads (small dictionary entries read 30% faster); null: one is made for the read. */
   bool read(std::size_t i, std::uint8_t* dst, std::string& err, ZSTD_DCtx_s* zstd = nullptr) const;
   bool read(std::size_t i, std::string& out, std::string& err, ZSTD_DCtx_s* zstd = nullptr) const;
+  /** Entry `i` decoded into `dst` from its stored bytes `stored` (entry(i).storedSize of them), which the caller read itself: a pack on a
+   *  slow medium is opened over its index alone (header, TOC, names and dictionary: the header's names offset + names size + dictionary
+   *  size bytes, with `size` the whole file's; only find, entry and decode are used then) and each entry read from the file where its row says (targets/n3ds/sdpack_n3ds.cpp). The stored bytes are checked
+   *  every time. */
+  bool decode(std::size_t i, const std::uint8_t* stored, std::uint8_t* dst, std::string& err, ZSTD_DCtx_s* zstd = nullptr) const;
   /** The bytes of an uncompressed entry in place (no copy), checked; null with `err` otherwise. */
   const std::uint8_t* view(std::size_t i, std::string& err) const;
 
  private:
   bool verify(std::size_t i, const Entry& e, std::string& err) const;
+  bool inflate(const Entry& e, const std::uint8_t* src, std::uint8_t* dst, std::string& err, ZSTD_DCtx_s* zstd) const;
   const std::uint8_t* base_ = nullptr;
   std::size_t size_ = 0, count_ = 0, indexEnd_ = 0;
   std::unique_ptr<ZSTD_DDict_s, void (*)(ZSTD_DDict_s*)> dict_{nullptr, nullptr};

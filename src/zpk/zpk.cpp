@@ -114,8 +114,19 @@ bool Reader::verify(std::size_t i, const Entry& e, std::string& err) const {
 
 bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err, ZSTD_DCtx* zstd) const {
   const Entry e = entry(i);
-  if (!verify(i, e, err)) return false;
-  const std::uint8_t* src = base_ + e.offset;
+  return verify(i, e, err) && inflate(e, base_ + e.offset, dst, err, zstd);
+}
+bool Reader::decode(std::size_t i, const std::uint8_t* stored, std::uint8_t* dst, std::string& err, ZSTD_DCtx* zstd) const {
+  const Entry e = entry(i);
+  BYTE d[32];
+  SHA256_CTX c;
+  sha256_init(&c);
+  sha256_update(&c, stored, e.storedSize);
+  sha256_final(&c, d);
+  if (std::memcmp(d, base_ + kHeaderSize + i * kRowSize + 48, 16) != 0) { err = corrupted(e.name); return false; }
+  return inflate(e, stored, dst, err, zstd);
+}
+bool Reader::inflate(const Entry& e, const std::uint8_t* src, std::uint8_t* dst, std::string& err, ZSTD_DCtx* zstd) const {
   std::size_t got = 0;
   switch (e.codec) {
     case Codec::None: if (e.size) std::memcpy(dst, src, e.size); return true;
@@ -136,7 +147,6 @@ bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err, ZSTD_DCtx*
   if (got != e.size) { err = "the pack is corrupted: " + std::string(e.name) + " does not decode to its size"; return false; }
   return true;
 }
-
 bool Reader::read(std::size_t i, std::string& out, std::string& err, ZSTD_DCtx* zstd) const {
   out.resize(entry(i).size);
   return read(i, reinterpret_cast<std::uint8_t*>(out.data()), err, zstd);

@@ -4,6 +4,7 @@
 //   zpk_test seeds <dir>      small packs of every codec: the corpus of tools/fuzz zpk
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -100,6 +101,20 @@ void alignment() {
   std::string err, got;
   CHECK(r.open(bytes.data(), bytes.size(), err), "open 4096: %s", err.c_str());
   for (std::size_t i = 0; i < r.count(); ++i) CHECK(r.entry(i).offset % 4096 == 0 && r.read(i, got, err), "entry %zu at 4096", i);
+  // a pack read from a file: opened over its index alone, each entry decoded from the bytes read where its row says, checked each time
+  std::uint32_t names = 0, nsize = 0, dsize = 0;
+  std::memcpy(&names, bytes.data() + 20, 4); std::memcpy(&nsize, bytes.data() + 24, 4); std::memcpy(&dsize, bytes.data() + 28, 4);
+  const std::string index = bytes.substr(0, names + nsize + dsize);
+  Reader f;
+  CHECK(f.open(index.data(), bytes.size(), err), "open the index alone: %s", err.c_str());
+  for (const Input& in : inputs) {
+    const long i = f.find(in.name);
+    const Entry e = f.entry(static_cast<std::size_t>(i < 0 ? 0 : i));
+    std::string stored = bytes.substr(e.offset, e.storedSize), out(e.size, '\0');
+    CHECK(i >= 0 && f.decode(static_cast<std::size_t>(i), reinterpret_cast<const std::uint8_t*>(stored.data()), reinterpret_cast<std::uint8_t*>(out.data()), err) && out == in.data, "%s: decoded from the file %s", in.name.c_str(), err.c_str());
+    if (!stored.empty()) stored[0] ^= 1;
+    CHECK(stored.empty() || !f.decode(static_cast<std::size_t>(i), reinterpret_cast<const std::uint8_t*>(stored.data()), reinterpret_cast<std::uint8_t*>(out.data()), err), "%s: a damaged read decoded", in.name.c_str());
+  }
   for (std::uint32_t bad : {0u, 3u, 1u << 21}) {
     o.alignment = bad;
     CHECK(!write(inputs, o, got, err) && err.find("power of two") != std::string::npos, "alignment %u accepted", bad);
