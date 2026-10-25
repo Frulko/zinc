@@ -35,6 +35,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Changed (breaking)
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
+### Changed
+- zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
+
 ### Fixed
 - PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
 - Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
@@ -59,11 +62,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc.json `"3d": {...}` sets zinc:3d `defaults3D()`'s numbers for every machine or one profile (`"3d": {"psp": {"budget": 30000}}`), read by the program on every engine and console.
 - The `world` asset rule reads glTF extras: a material's `night` picture and `"glow": "night"`, a node's `reach` (a landmark with a cell of its own), and the `region` option writes one far chunk per region; textured grounds whose uvs follow x and z become top batches.
 - PSP and PS Vita builds show an icon and a background in the console menu: a project puts its own in `console/` (`--art` names another folder), the others get Zinc's. Orbit, Breakout, Meadow Run, Pocket Tokyo, Paint Arena and the PSP hardware demo have theirs.
-
-### Changed
-- zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
-
-### Fixed
 - zinc:3d's stand-in (`ZINC_NATIVE=sim`, used where the native renderer cannot be built) compiles again and selects a `World` as the native renderer does, so a streaming world runs on it.
 - `zinc pack --profile psp|vita|n3ds` no longer builds zinc:3d and zinc:physics2d for this machine nor puts their libraries in the console's pack, and a native build that fails can no longer slip a plugin's stand-in into a console program unseen: the pack now says when it uses one.
 - A program compiled with a plugin's stand-in because the plugin's native code did not build is compiled again on the next run instead of being reused from the cache, so the native code is used as soon as it builds.
