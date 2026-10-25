@@ -34,6 +34,11 @@ ZINC_TOKYO_DEVICE=psp zinc run examples/tokyo              # the PSP's settings,
 tools/console-demos examples/tokyo tokyo --title "Pocket Tokyo" psp vita n3ds
 ```
 
+At start, a loading screen reads the tiles within reach of the first view and of the tour ahead. The flight then reads ahead of the eye, and
+the far edge fades into a haze in the colour of the sky, so tiles come out of the haze instead of popping in.
+
+Each device prints one `tokyo:` line with its frame times, 300 frames after the loading.
+
 Useful variables:
 
 - `ZINC_TOKYO_HOUR=21` starts at night.

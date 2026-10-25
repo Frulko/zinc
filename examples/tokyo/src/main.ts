@@ -45,6 +45,8 @@ onFrame((dt: number) => {
   // the opening: every place within reach of the first view and of the tour's next seconds, read behind a loading screen (a slice of time
   // a frame, so the screen keeps drawing); then the flight reads ahead of the eye, one model every few frames, before it is in view
   frame++;
+  // the 3D target first, before the city's pictures fill the GPU memory of the Vita and the 3DS (made after them, it found no room)
+  if (frame === 1) camera.render(scene, 0, 0, width(), height());
   if (loading) {
     for (let i = 0; i < 3; i++) flight.ahead(i * 4, ahead[i]);
     const started = clock();

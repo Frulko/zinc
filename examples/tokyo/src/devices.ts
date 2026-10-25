@@ -48,9 +48,9 @@ export function currentDevice(): Device {
 
 function settings(p: string): Device {
   //                            near  mid   far   fog   budget  fps  every  night  dome   keep models
-  if (p === 'psp') return device('psp', 0, 600, 1800, 300, 14000, 30, 4, false, false, false);
-  if (p === 'n3ds') return device('n3ds', 0, 700, 2000, 350, 18000, 30, 3, true, false, false);
-  if (p === 'vita') return device('vita', 0, 1400, 3500, 900, 40000, 60, 2, true, true, true);
+  if (p === 'psp') return device('psp', 0, 600, 1800, 400, 14000, 30, 4, false, false, false);
+  if (p === 'n3ds') return device('n3ds', 0, 700, 2000, 500, 18000, 30, 3, true, false, false);
+  if (p === 'vita') return device('vita', 0, 1400, 3500, 1600, 40000, 60, 2, true, true, true);
   if (p === 'rpi1') return device('rpi', 0, 600, 1800, 300, 8000, 30, 3, false, false, true);
   return device('desktop', 700, 2200, 6000, 2500, 250000, 60, 1, true, true, true);
 }
