@@ -33,7 +33,7 @@ ZINC_DEMOS=~/Documents tools/console-demos examples/n3ds-pinball n3ds-pinball --
 | `src/panels.ts` | the side panels (score, ball, rank, mission; tilt meter, plunger strip) and the message band |
 | `src/input.ts`, `src/constants.ts` | the buttons and the stylus into the desktop game's `Controls`; sizes, depths and colours |
 
-The ball is Kenney's `ballGrey.png` (Puzzle Pack, CC0), read from `examples/hardware-n3ds/assets`.
+The ball is Kenney's `ballGrey.png` (Puzzle Pack, CC0), in `assets/kenney`.
 
 ## On the 3DS
 

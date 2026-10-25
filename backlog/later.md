@@ -251,6 +251,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-792: targets/webos/hal_webos.cpp (SDL 1.2 + PDL) so `tools/webos-player` draws, as a PDK app with the consoles' waiting screen.
 - ZN-792: the iOS player updates its Bonjour TXT `pair` flag (DNSServiceUpdateRecord) when a pairing opens or closes.
 - ZN-792: run zinc_go_device on an Android emulator (arm64 API 37 image) beside the Nexus 7.
+- ZN-790: `zinc pack`/`zinc check` say so when zinc.json's `assets` is a string or points outside the project: n3ds-pinball's `"assets": "../hardware-n3ds/assets"` was dropped silently and the ball was missing on the 3DS.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
