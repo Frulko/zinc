@@ -1,5 +1,6 @@
 // The two toolbars. E-ink friendly: flat black and white, thick outlines, big touch targets, no transitions or
 // shadows (they ghost on e-paper); the active tool is inverted.
+import { refreshDisplay } from 'zinc:gfx';
 import {
   ink, COLORS, COLOR_NAMES, WIDTHS, WIDTH_NAMES, tool, color, penWidth, page, pageCount, status,
   pickTool, pickColor, pickWidth, goToPage, savePage,
@@ -62,6 +63,7 @@ export function DisplayBar(): i32 {
   return <View className="flex-row flex-wrap items-center gap-4 px-6 py-3">
     <ToolButton label="Fast drawing" active={fastDrawing} onPress={() => pickDisplay(true)} />
     <ToolButton label="Colour preview" active={() => !fastDrawing()} onPress={() => pickDisplay(false)} />
+    <ToolButton label="Refresh" active={() => false} onPress={() => { refreshDisplay(); }} />
     <Text className="text-[26px] text-black">{!onTablet ? 'Desktop preview' : displayBusy() ? 'Switching display…' : fastDrawing() ? 'B&W screen · saved in colour' : 'Colour screen · slower drawing'}</Text>
   </View>;
 }

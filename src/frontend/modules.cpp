@@ -112,6 +112,8 @@ export function windowOpen(id: i32): boolean { return __host_gfxWindowOpen(id) !
 export function width(): i32 { return __host_gfxWidth(); }
 export function height(): i32 { return __host_gfxHeight(); }
 export function pixelScale(): i32 { return __host_gfxPixelScale(); }
+/** A full refresh of an e-ink panel at the next idle frame (it flashes and clears the ghosts that partial updates leave). true when the display does it; false elsewhere (a window, an LCD). */
+export function refreshDisplay(): boolean { return __host_sysDevice('display.refresh', 'full') === '1'; }
 export function clear(color: u32): void { __host_gfxClear(color); }
 export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
 export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }

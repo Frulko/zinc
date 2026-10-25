@@ -53,6 +53,12 @@ for app in notes dashboard; do
   cmp -s "$proj/out/glass.ppm" tests/golden/sim/rmpp-$app.ppm || { echo "$app: glass differs from tests/golden/sim/rmpp-$app.ppm"; fail=1; }
 done
 
+# the automatic full refresh: after the notes demo's strokes and an idle pen, AppLoad 0.6 gets one; 0.5 (no device state) never
+if run full notes 260 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6 ZINC_RMPP_FULL_AFTER_PCT=1; then has full trace + "full refresh"; fi
+if run full05 notes 260 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast ZINC_RMPP_FULL_AFTER_PCT=1; then has full05 trace 0 "full refresh"; fi
+# refreshDisplay() of zinc:gfx (the demo asks once after its strokes), with the automatic one off: exactly one
+if run asked notes 260 - NOTES_DEMO=1 NOTES_DEMO_REFRESH=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6 ZINC_RMPP_FULL_AFTER_PCT=0; then has asked trace 1 "full refresh"; fi
+
 # L1: "ink": "native" with a lane that answers a verified hash. qtfb stays in UI; strokes go through the lane, never through qtfb.
 pen=ZN_RMPP_SIM_PEN=70-95,110-130
 if run lane notes 140 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=ok $pen; then

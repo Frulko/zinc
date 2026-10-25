@@ -5,6 +5,7 @@
 //                  the format picks the panel (1 Paper Pro 1620x2160, 4 Move 954x1696, 7 Paper Pure 1404x1872);
 //   MSG_UPDATE     only the rectangle of the update is copied from the shared framebuffer to the "glass": a driver that draws outside what it announces leaves stale pixels;
 //   MSG_SET_MODE   qtfb sleeps one second on that connection: an update inside the second is lost (an error here), the driver must wait;
+//   MSG_FULL_REFRESH  only with ZN_RMPP_SIM_APPLOAD=0.6, which also sends the device state after init (AppLoad 0.5 drops the client); sleeps one second too;
 //   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | canvas | eof:N; unset: nobody listens) answers Hello with a vendor hash (canvas: as zinc-canvas), copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
@@ -41,7 +42,8 @@
 #include "protocol.h"
 
 namespace qsim {
-enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5 };
+enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_INIT = 8 };
+static const bool appload06 = getenv("ZN_RMPP_SIM_APPLOAD") && !strcmp(getenv("ZN_RMPP_SIM_APPLOAD"), "0.6");   // else 0.5: no device state, no full refresh
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
 struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input; }; };
 
@@ -101,6 +103,7 @@ static void handle(const ClientMsg& m) {
     ServerMsg r = {}; r.type = MSG_INIT; r.init.shm_key = shmKey; r.init.shm_size = size;
     send(qtfb, &r, sizeof r, 0);
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
+    if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
     line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?");
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
@@ -114,6 +117,11 @@ static void handle(const ClientMsg& m) {
     show(x, y, w, h);
     updates++; pixelsSent += (uint64_t)w * h;
     line("%8.1f ms update %s %d,%d %dx%d glass %016llx", now / 1000.0, m.update.type == 1 ? "PARTIAL" : "FULL", x, y, w, h, glassHash());
+  } else if (m.type == MSG_FULL_REFRESH) {
+    if (!appload06) { line("%8.1f ms error: full refresh: AppLoad 0.5 closes the connection", now / 1000.0); errors++; return; }
+    if (now < sleepUntil) { line("%8.1f ms error: full refresh inside qtfb's sleep", now / 1000.0); errors++; }
+    sleepUntil = now + 1000000;
+    line("%8.1f ms full refresh (qtfb sleeps 1000 ms)", now / 1000.0);
   } else if (m.type == MSG_TERMINATE) {
     line("%8.1f ms terminate", now / 1000.0);
   }

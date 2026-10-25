@@ -5,6 +5,8 @@
   "options": {
     "ink": "qtfb",
     "full_every": 60,
+    "full_after_pct": 400,
+    "full_idle_ms": 1500,
     "upgrade_ms": 350,
     "dither": false,
     "refresh_mode": "ui",

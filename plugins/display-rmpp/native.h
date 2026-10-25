@@ -29,6 +29,8 @@ sockaddr_un notify_to = {};
 socklen_t notify_len = 0;
 bool fast = true;          // zinc_rmpp_set_fast: Pen mode for everything, else colour outside strokes
 eink::Rect stroke = {};    // damage swapped in Pen mode, settled in colour at pen-up
+eink::Ghost ghost;         // partial area since the last full swap (eink.h)
+bool full_now = false;     // refreshDisplay() of zinc:gfx
 
 bool fail(const char* what, const char* detail) {
   fprintf(stderr, "display-rmpp: ink session unavailable: %s%s%s\n", what, detail ? ": " : "", detail ? detail : "");
@@ -83,6 +85,9 @@ void present(const eink::Panel& p, eink::Rect r, bool pen_down, bool first) {
     if (pen_down && !fast) eink::unite(stroke, r);
   }
   if (!pen_down && !eink::empty(stroke)) { swap(stroke, false); stroke = {}; }
+  const uint64_t now = hal_time_us();
+  if (!first) eink::ghost_add(ghost, eink::area(r), now);
+  if (eink::empty(r) && !pen_down && (full_now || eink::ghost_due(ghost, (int64_t)p.w * p.h, now, pen_down))) { api.swap(0, 0, p.w, p.h, row->colour_mode, 1, row->colour_content); ghost = {}; full_now = false; }
   api.events();
   watchdog();
 }

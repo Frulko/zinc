@@ -1,6 +1,7 @@
 // NOTES_DEMO=1: replays a scripted pressure stroke (a spiral, then two waves) through the live ink path, a few
 // samples per frame like a real pen, so the rendering and the refresh logic can be watched without a tablet.
 import * as sys from 'zinc:sys';
+import { refreshDisplay } from 'zinc:gfx';
 import { ink } from './notebook';
 
 const SAMPLES_PER_PART: i32 = 300;
@@ -8,6 +9,7 @@ const PARTS: i32 = 3;
 const SAMPLES_PER_FRAME: i32 = 6;
 
 let sample: i32 = sys.env('NOTES_DEMO') === '1' ? 0 : -1;
+let refreshed: boolean = sys.env('NOTES_DEMO_REFRESH') !== '1';   // NOTES_DEMO_REFRESH=1: ask for one full refresh after the strokes
 
 /** One pen sample of the spiral (part 0) or of a wave (parts 1 and 2). */
 function feedSample(n: i32): void {
@@ -27,4 +29,5 @@ function feedSample(n: i32): void {
 export function stepDemo(dt: number): void {
   if (sample < 0) return;
   for (let k = 0; k < SAMPLES_PER_FRAME && sample < SAMPLES_PER_PART * PARTS; k++, sample++) feedSample(sample);
+  if (!refreshed && sample >= SAMPLES_PER_PART * PARTS) { refreshed = true; refreshDisplay(); }
 }

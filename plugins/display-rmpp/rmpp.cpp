@@ -35,7 +35,7 @@
 #endif
 
 namespace {
-enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5 };
+enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; }; };
@@ -53,6 +53,10 @@ int shm_key = 0;          // AppLoad's name for the buffer (/qtfb_<shm_key>): QT
 eink::Rect pending = {};
 int refresh_mode = -1;
 uint64_t mode_ready_us = 0, last_sent_us = 0;
+eink::Ghost ghost;          // partial area since the last full refresh
+bool full_refresh_ok = false;  // AppLoad 0.6.0+ (it sends its device state after init); 0.5 drops a client that asks for a full refresh
+bool full_asked = false;   // refreshDisplay() of zinc:gfx: a full refresh at the next idle frame
+bool ghost_skip = true;     // the first page lands on a white panel: no ghost to count
 
 bool set_mode(int mode) {
   if (mode != MODE_FAST && mode != MODE_UI) return false;
@@ -108,6 +112,7 @@ void rm_poll(HalInput* in) {
     if (n < 0 && errno == EINTR) continue;
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
     if (n != sizeof m || m.type == MSG_TERMINATE) { rin::quit_flag = 1; break; }
+    if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) full_refresh_ok = true;
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
       // Deliver each touch transition to the UI; draining a quick press+release would swallow the tap.
       break;
@@ -229,6 +234,10 @@ void rm_present(const HalFrame* f) {
   }
   eink::unite(pending, r);
   uint64_t now = hal_time_us();
+  if (eink::empty(pending) && full_refresh_ok && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
+    ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
+    if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + 1100000; }  // qtfb sleeps 1 s on this connection
+  }
   if (eink::empty(pending) || now < mode_ready_us || (last_sent_us && now - last_sent_us < update_interval())) {
     if (eink::empty(r)) rin::wait_input(8, sock);
     return;
@@ -237,7 +246,10 @@ void rm_present(const HalFrame* f) {
   m.update.type = UPDATE_PARTIAL; m.update.x = pending.x0; m.update.y = pending.y0;
   m.update.w = pending.x1 - pending.x0; m.update.h = pending.y1 - pending.y0;
   ssize_t sent = send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL);
-  if (sent == sizeof m) { pending = {}; last_sent_us = now; }
+  if (sent == sizeof m) {
+    if (ghost_skip) ghost_skip = false; else eink::ghost_add(ghost, eink::area(pending), now);
+    pending = {}; last_sent_us = now;
+  }
   else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) rin::quit_flag = 1;
   // Unsent frames share one dirty region; the newest pixels survive socket backpressure.
 }
@@ -258,7 +270,15 @@ void rm_shutdown() {
   free(panel.cur); free(panel.scratch); free(panel.out); panel = {};
 }
 
-HalDisplay rmpp = {rm_init, rm_present, rm_poll, rm_shutdown, 0, 0};
+// zinc:gfx refreshDisplay() asks for "display.refresh": "1" when this layer can do a full refresh (qtfb of AppLoad 0.6.0+, the ink session)
+const char* rm_device(const char* query, const char*) {
+  if (strcmp(query, "display.refresh") != 0) return nullptr;
+  if (layer == L2) { native::full_now = true; return "1"; }
+  if ((layer == L0 || layer == L1) && full_refresh_ok) { full_asked = true; return "1"; }
+  return "0";
+}
+
+HalDisplay rmpp = {rm_init, rm_present, rm_poll, rm_shutdown, 0, 0, nullptr, nullptr, nullptr, rm_device};
 int reg = (hal_display = &rmpp, 0);
 }  // namespace
 
