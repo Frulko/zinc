@@ -13,7 +13,9 @@ tools/build zn_app zinc
 examples/zinc-libgodot/build.sh
 examples/zinc-libgodot/package.sh
 tests/run --only zinc_libgodot
-open 'examples/zinc-libgodot/build/Zinc Pocket Rally.app'
+ZINC_BACKGROUND=1 'examples/zinc-libgodot/build/Zinc Pocket Rally.app/Contents/MacOS/Launcher'
+# Finite native-window proof, with actual GPU viewport PNG:
+tests/run --tier demo --only zinc_libgodot_native
 ```
 
 The first build fetches pinned official Godot 4.6 source (SHA256 verified), builds
@@ -43,7 +45,9 @@ The AppKit host attaches Godot's native `WINDOW_VIEW` to its game region and
 returns it to Godot before destroying the engine. Zinc input is local to its
 navigation view, while the game view receives native Godot input. The window is
 fixed-size in this first integration. `ZINC_BACKGROUND=1` prevents activating it
-during automated runs; stop the process after capture. The host owns the loop,
+during automated runs. The finite `--visual-test <PNG>` mode dispatches AppKit
+mouse/key events, checks both attached views, saves the actual Godot viewport,
+and closes the window through its delegate before destroying the engine. The host owns the loop,
 with externally driven Godot iterations and Zinc ticks. Godot 4.6 has no supported
 runtime restart promise, so the library intentionally stays loaded until process
 exit after orderly instance destruction.
@@ -51,8 +55,10 @@ exit after orderly instance destruction.
 Executed: official source shared-library build; real game startup/ticks; actual
 Zinc pointer clicks producing pause, resume, speed and reset commands; real Godot
 score updates; clean shutdown; and bundled headless run from `/tmp`. Native view
-attachment/rendering/input needs the separate graphical coordinator check before
-claiming a proven embedded surface. No mobile/cross-platform, resize, restart,
+attachment, actual OpenGL rendering, native AppKit keyboard movement, background
+Zinc mouse clicks and window close/destruction also passed `--visual-test` on
+Apple Silicon macOS. `.logs/libgodot-native.png` is the real Godot GPU viewport
+readback, rather than a composite image or a capture of the whole desktop. No mobile/cross-platform, resize, restart,
 multi-instance, footprint or performance claim is made. Distribution signing and
 notarization are not provided. Upstream references:
 [LibGodot FAQ](https://docs.godotengine.org/en/4.6/about/faq.html#is-it-possible-to-use-godot-as-a-library),

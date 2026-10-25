@@ -50,6 +50,7 @@ static Object* singleton(const char* name) {
 @end
 @implementation ZincNavigation
 - (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent*)event { (void)event; return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
 - (void)tick {
   ZnEmbedFrame frame{};
@@ -84,6 +85,7 @@ static Object* singleton(const char* name) {
 int main(int argc,char** argv) {
   if (argc < 2) { std::fprintf(stderr,"usage: rally <libgodot.dylib> [--self-test]\n"); return 2; }
   const bool test = argc > 2 && std::strcmp(argv[2],"--self-test") == 0;
+  const bool visual = argc > 3 && std::strcmp(argv[2],"--visual-test") == 0;
   @autoreleasepool {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
@@ -133,14 +135,48 @@ int main(int argc,char** argv) {
       if (!std::getenv("ZINC_BACKGROUND")) [window makeKeyWindow];
     }
     int frames=0, result=0;
+    double initial_paddle=double(game->get("paddle"));
     while (!closed) {
       @autoreleasepool {
+        if (!test) {
+          NSEvent* event;
+          while ((event=[NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])) [NSApp sendEvent:event];
+        }
         if (bool(instance->call("iteration"))) break;
         if (!pending.empty()) { game->call("command",String(pending.c_str())); pending.clear(); }
         const int64_t score=game->call("snapshot");
         char text[32]; std::snprintf(text,sizeof(text),"%lld",static_cast<long long>(score)); setenv("ZINC_RALLY_SCORE",text,1);
         if (zn_embed_tick() != 0) { result=1; break; }
         if (!test) { [navigation tick]; [window displayIfNeeded]; }
+        if (visual) {
+          ++frames;
+          if (frames==20) {
+            if (game_view.superview != window.contentView || navigation.superview != window.contentView) { result=1; break; }
+            [window makeFirstResponder:game_view];
+            [window sendEvent:[NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil characters:@"\uf701" charactersIgnoringModifiers:@"\uf701" isARepeat:NO keyCode:125]];
+          }
+          if (frames==50) {
+            [window sendEvent:[NSEvent keyEventWithType:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil characters:@"\uf701" charactersIgnoringModifiers:@"\uf701" isARepeat:NO keyCode:125]];
+            if (double(game->get("paddle")) <= initial_paddle+1) { std::fprintf(stderr,"native key input failed\n"); result=1; break; }
+          }
+          if (frames==60 || frames==62) {
+            NSPoint point=[navigation convertPoint:NSMakePoint(160,210) toView:nil];
+            NSEventType type=frames==60 ? NSEventTypeLeftMouseDown : NSEventTypeLeftMouseUp;
+            [window sendEvent:[NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1]];
+          }
+          if (frames==70 && !bool(game->get("paused"))) { std::fprintf(stderr,"native Zinc click failed\n"); result=1; break; }
+          if (frames==80) {
+            Object* viewport=game->call("get_viewport");
+            Variant texture_value=viewport->call("get_texture");
+            Object* texture=texture_value;
+            Variant image_value=texture->call("get_image");
+            Object* image=image_value;
+            if (!image || int64_t(image->call("save_png",String(argv[3]))) != 0) { result=1; break; }
+            [window performClose:nil];
+            if (!closed) { result=1; break; }
+          }
+          [NSThread sleepForTimeInterval:0.016];
+        }
         if (test) {
           ++frames;
           ZnEmbedEvent click{}; click.x=160;
@@ -164,6 +200,7 @@ int main(int argc,char** argv) {
     zn::rt::gConsoleTap=nullptr; zn_embed_quit(); destroy(raw);
     [navigation release]; [window orderOut:nil]; [window release]; [delegate release];
     // Godot 4.6 supports one instance per process, with no restart/unload promise.
+    if (visual && result==0) std::puts("PASS LibGodot native: attached views, AppKit game keys and Zinc click, GPU capture, window close and shutdown");
     if (test && result==0) std::puts("PASS LibGodot: real game ticks, Zinc commands/state, pause/speed/reset, clean shutdown");
     return result;
   }
