@@ -8,7 +8,7 @@ target_link_libraries(zinc-core PRIVATE cglue pspnet_apctl pspnet_resolver pspne
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=262144 ZN_CONSOLE_MAX_DEPTH=1000)   # 2 MiB of registers, 1000 calls deep
 target_compile_options(zn_console_engine PRIVATE -G0)
 target_compile_options(zinc-core PRIVATE -G0)
-foreach(lib zn_console_gfx zn_console_3d)
+foreach(lib zn_console_gfx zn_console_3d zn_console_physics2d)
   if(TARGET ${lib})
     target_compile_options(${lib} PRIVATE -G0)
   endif()
