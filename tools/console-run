@@ -154,8 +154,16 @@ open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/window.bmp" &&
     # the user's Azahar (its settings untouched); the HAL writes its lines to sdmc:/zinc.log, Azahar's default log filter hiding debug strings
     sd="$HOME/Library/Application Support/Azahar/sdmc"; mkdir -p "$sd"
     rm -f "$sd/zinc.log" "$sd/zinc-shot.ppm"
+    # an Old 3DS by default, the owner's console (Azahar's own default is a New 3DS: twice the memory, a faster CPU, so a core that runs
+    # there can fail to start on the real thing); ZINC_N3DS_MODEL=new for a New 3DS. The setting is put back once the run is over.
+    cfg="$HOME/Library/Application Support/Azahar/config/qt-config.ini"; new=false; [ "${ZINC_N3DS_MODEL:-old}" = new ] && new=true
+    if [ -f "$cfg" ]; then
+      cp "$cfg" "$tmp/qt-config.ini"
+      sed -i '' -e "s/^is_new_3ds=.*/is_new_3ds=$new/" -e 's/^is_new_3ds\\default=.*/is_new_3ds\\default=false/' "$cfg"
+    fi
     open -g -n --stdout "$tmp/emu.log" --stderr "$tmp/emu.log" -a "$app" --args "$bin"
     wait_exit "$sd/zinc.log" "$bin"
+    [ -f "$tmp/qt-config.ini" ] && cp "$tmp/qt-config.ini" "$cfg"
     frame "$sd/zinc.log" 'p'
     png "$sd/zinc-shot.ppm"
     finish ;;
