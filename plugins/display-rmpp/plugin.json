@@ -3,7 +3,7 @@
   "kind": "display",
   "description": "reMarkable Paper Pro: e-ink refresh policy, Marker pen + touch (emulated e-ink look on desktop)",
   "options": {
-    "direct": false,
+    "ink": "qtfb",
     "full_every": 60,
     "upgrade_ms": 350,
     "dither": false,

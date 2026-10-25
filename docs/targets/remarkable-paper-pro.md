@@ -71,8 +71,10 @@ the pending damage for retry, and idle frames flush the final stroke segment. Ra
 Configuration (settings are compiled into each app; environment override is read at launch):
 
 ```json
-"display": { "driver": "rmpp", "refresh_mode": "fast", "fast_hz": 60, "color_hz": 8 }
+"display": { "driver": "rmpp", "refresh_mode": "fast", "fast_hz": 60, "color_hz": 8, "ink": "qtfb" }
 ```
+
+`ink`: `qtfb` (default), `native` or `session`, see "Display layers" below; `ZINC_RMPP_INK` overrides it at launch.
 
 `refresh_mode`: `fast` or `ui`; `ZINC_RMPP_REFRESH_MODE=fast|ui` overrides the initial mode.
 Frequency knobs are clamped to 1–125 Hz. Desktop controls preview UI state only, not device timing.
@@ -92,6 +94,58 @@ frame, so the damage is just the new segment → partial RGB update of the chang
 a runtime image with the same commands (identical pixels, so the pixel diff sees nothing to refresh). Stroke eraser
 (Marker eraser end or the Eraser tool), undo (50 levels), clear, JSON (`toJSON`/`parseStrokes`) and SVG (`toSVG`,
 round-capped polylines per width run: same geometry as the screen).
+
+## Display layers: the ink lane, the ink session and qtfb
+
+`plugins/display-rmpp/rmpp.cpp` chooses one of three layers when the app starts
+([design](../reports/remarkable-bridge-design.md), §7). The app's own frame draws the same pixels on all three.
+
+| Layer | What draws | Return to xochitl | Chosen when |
+|---|---|---|---|
+| **L1 ink lane** (`lane.h`) | qtfb in UI mode, plus fast Pen/Mono swaps by the `zinc-ink` XOVI extension inside xochitl while the Marker is down; at pen-up the stroke's box is repainted through qtfb (the colour settle) | instant: the app never leaves xochitl | `"ink": "native"` or `"session"`, the lane answers on `/run/zinc-ink.sock` and the vendor hash it reports is a row of `models.h` |
+| **L2 ink session** (`native.h`) | the app owns the vendor engine through an engine shim with Quill's C ABI (`libquill.so`), with xochitl stopped by the lease | a xochitl restart (seconds), the open notebook view is lost | `"ink": "session"`, no lane, and the app was started through the lease (`ZINC_LEASE` and the checked `ZINC_VENDOR_SHA256` in its environment) |
+| **L0 qtfb** (`rmpp.cpp`) | AppLoad's shared framebuffer, partial updates; FAST mode when `ink` asked for fast ink, `refresh_mode` otherwise | instant | always, and whenever L1 or L2 is not available |
+
+Each fallback prints one line on stderr that names why: no lane, the lane refused the app (window not fullscreen 1:1),
+a vendor library not verified for the model, an unknown model, a session started outside the lease. A downgrade is one way
+during a session: when the lane closes (any error on its side: a missed deadline, the power key, the window leaving
+fullscreen), the app says `ink lane closed; qtfb from now on`, repaints the stroke through qtfb and goes on in L0. It
+never moves to L2 in the middle of work. Under the lease, an app whose engine does not open exits, and the lease brings
+xochitl back.
+
+The lane (`integrations/remarkable-ink`, protocol 2): no pixels on the socket. The app writes them into its qtfb shared
+memory as on L0 and names the rectangle (`Hello` with the qtfb key, `StrokeBegin`, `Ink(rect)`, `StrokeEnd(box)`,
+`Bye`). The lane blocks xochitl's rendering only for a stroke, with a deadline of 500 ms after the last `Ink` and 10 s per
+stroke. Install it with `integrations/remarkable-ink/install.sh` on the tablet.
+
+Proved on the Mac by `tests/t1/rmpp_sim.sh` (fake qtfb and fake lane): the choice per `ink` value, the L1 → L0 downgrade
+on EOF, and each fallback with its message. `tests/native/rmpp/fake-xochitl/run.sh` (Docker, by hand) runs the real lane
+in a fake xochitl under XOVI and framebuffer-spy. Only the tablet can prove the latency, the colour settle on a real
+engine and the return time.
+
+## Safety rules
+
+The same rules bind the lane, the lease and anyone diagnosing on a tablet
+([design](../reports/remarkable-bridge-design.md), §7.1). The 2026-09-29 reboot came from breaking the first one.
+
+1. Zinc code never restarts xochitl more than 2 times in 10 minutes or 6 times per hour (the lease's budget). The lane
+   never restarts xochitl.
+2. Never freeze, `SIGSTOP` or `kill` xochitl; never mask, edit or override its unit; never set `WatchdogSec=0`.
+3. Never run two vendor engines: the lease checks the display lock, the DRM openers and its cgroup before every stop and
+   start.
+4. `systemctl reset-failed xochitl` only right after our own clean stop, never after xochitl failed by itself.
+5. Every lease has a dead-man: `RuntimeMaxSec`, the app's watchdog (`WATCHDOG=1` every frame, `WatchdogSec=10`), and the
+   power-key escape, which belongs to the supervisor: the app never opens the power key.
+6. Every failure leaves xochitl running. The lane never takes xochitl down more than once per boot: it writes
+   `/run/zinc-ink/armed` while it may touch the engine, and a leftover mark at load (xochitl died while it was armed)
+   makes it refuse to load until the next reboot (the reason is in `/run/zinc-ink/last`).
+7. No load-time XOVI condition or override on `libqsgepaper` (Qt `dlopen`s it after XOVI's constructor), and no override
+   of a symbol another installed extension hooks (`install.sh` checks `extensions.d`). Vendor symbols are resolved at
+   run time.
+8. Hash-gated everywhere: an unknown `libqsgepaper.so` hash means L0 only, with a message. A new OS is one row of
+   `models.h` after a tablet test, not a new design.
+9. A wakelock is held whenever xochitl is stopped.
+10. Diagnosis on a tablet never repeats xochitl restarts: one load test (one `xovi/start`), then read the journal.
 
 ## The display lease (`"ink": "session"`)
 

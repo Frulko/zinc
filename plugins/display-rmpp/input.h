@@ -32,6 +32,8 @@ static HalPen last_pen;             // pen pointer emulation
 static HalTouch touches[HAL_MAX_TOUCH];
 static int ntouch = 0;
 static volatile sig_atomic_t quit_flag = 0;
+static bool pen_down = false;       // the Marker touches the glass: a stroke for the ink lane (L1) and the engine (L2)
+// The power key is never opened here: under a lease (L2) the supervisor owns it for its escape, and in AppLoad xochitl does.
 
 static bool has(int fd, int type, int code) {
   unsigned long bits[KEY_MAX / (8 * sizeof(long)) + 1] = {};
@@ -92,7 +94,7 @@ static void* reader(void*) {
 static void on_signal(int) { quit_flag = 1; }
 
 /** Opens the Marker and starts the reader thread. Touch remains available without evdev. */
-static bool start(int32_t w, int32_t h, bool exclusive = false) {
+static bool start(int32_t w, int32_t h) {
   W = (float)w; H = (float)h;
   if (const char* r = getenv("ZINC_RMPP_PEN_ROTATE")) pen_rot = atoi(r);
   char path[32];
@@ -105,7 +107,6 @@ static bool start(int32_t w, int32_t h, bool exclusive = false) {
       ax_x = axis(fd, ABS_X); ax_y = axis(fd, ABS_Y); ax_p = axis(fd, ABS_PRESSURE); ax_tx = axis(fd, ABS_TILT_X); ax_ty = axis(fd, ABS_TILT_Y);
     } else close(fd);
   }
-  if (exclusive && (pen_fd < 0 || ioctl(pen_fd, EVIOCGRAB, 1) < 0)) return false;
   if (pipe(wake) != 0) return false;
   fcntl(wake[0], F_SETFL, O_NONBLOCK); fcntl(wake[1], F_SETFL, O_NONBLOCK);
   signal(SIGTERM, on_signal); signal(SIGINT, on_signal);
@@ -136,6 +137,7 @@ static void poll_input(HalInput* in) {
   for (int i = 0; i < qn; i++) hal_pen_push(&q[i]);
   qn = 0;
   const bool pen_near = last_pen.flags != 0;
+  pen_down = (last_pen.flags & HAL_PEN_DOWN) != 0;
   in->ntouch = ntouch;
   for (int i = 0; i < in->ntouch; i++) in->touch[i] = touches[i];
   if (ntouch > 0) { in->px = touches[0].x; in->py = touches[0].y; in->pdown = 1; }
@@ -144,6 +146,43 @@ static void poll_input(HalInput* in) {
   pthread_mutex_unlock(&mu);
   if (!getenv("ZINC_FRAMES")) in->quit = quit_flag;
   else in->quit |= quit_flag;  // the headless base HAL would stop after 60 frames
+}
+
+// Touch from evdev, for L2 where xochitl is stopped and no qtfb forwards it (MT type B, one report per UI frame so a quick
+// press and release cannot collapse into nothing).
+static int touch_fd = -1, slot = 0;
+static struct Contact { int id = -1, x = 0, y = 0; } contacts[16];
+static Axis tx, ty;
+static bool open_touch() {
+  for (int i = 0; i < 32 && touch_fd < 0; ++i) {
+    char p[32]; snprintf(p, sizeof p, "/dev/input/event%d", i);
+    int fd = open(p, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) continue;
+    if (has(fd, EV_ABS, ABS_MT_POSITION_X) && !has(fd, EV_KEY, BTN_TOOL_PEN)) {
+      touch_fd = fd; tx = axis(fd, ABS_MT_POSITION_X); ty = axis(fd, ABS_MT_POSITION_Y);
+    } else close(fd);
+  }
+  return touch_fd >= 0;
+}
+static void poll_touch() {
+  input_event e{};
+  while (touch_fd >= 0 && read(touch_fd, &e, sizeof e) == sizeof e) {
+    if (e.type == EV_ABS) {
+      if (e.code == ABS_MT_SLOT) slot = e.value >= 0 && e.value < 16 ? e.value : -1;
+      else if (slot >= 0) {
+        if (e.code == ABS_MT_TRACKING_ID) contacts[slot].id = e.value;
+        else if (e.code == ABS_MT_POSITION_X) contacts[slot].x = e.value;
+        else if (e.code == ABS_MT_POSITION_Y) contacts[slot].y = e.value;
+      }
+    } else if (e.type == EV_SYN && e.code == SYN_REPORT) {
+      ntouch = 0;
+      for (const auto& c : contacts) if (c.id >= 0 && ntouch < HAL_MAX_TOUCH) {
+        float x, y; place(norm(c.x, tx), norm(c.y, ty), pen_rot, &x, &y);
+        touches[ntouch++] = {c.id, x, y};
+      }
+      break;
+    }
+  }
 }
 
 /** Sleeps until input arrives or `ms` elapse (idle frames cost no CPU). */

@@ -13,4 +13,3 @@ $CXX -fPIC -shared -O2 -std=c++17 -Wall -Wextra bridge.cpp build/xovi.o \
   $(pkg-config --cflags --libs Qt6Core Qt6Gui Qt6Quick) -ldl -o dist/zinc-ink.so
 echo "Built dist/zinc-ink.so"
 '
-docker exec zinc-ink-builder sh -c 'cd /work/integrations/remarkable-ink && g++ -std=c++17 -O2 -static probe.cpp -o dist/probe'

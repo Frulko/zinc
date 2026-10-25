@@ -1,14 +1,27 @@
-# Experimental xochitl display bridge — disabled on device
+# zinc-ink: the ink lane (XOVI extension, protocol 2)
 
-This prototype is **not validated for use**. Notes and Dashboard keep the AppLoad/qtfb backend by default. Their shared `zinc:remarkable` toolbar and finger UI support do not depend on this prototype.
+L1 of the reMarkable display layers (`docs/targets/remarkable-paper-pro.md`, "Display layers"; design:
+`docs/reports/remarkable-bridge-design.md` §4.3, §7). Inside xochitl, while the Marker is down, it copies the rectangles an
+app names from the app's qtfb shared memory into xochitl's own vendor buffer and calls the Pen/Mono partial swap; at
+pen-up it repaints the stroke's box through AppLoad's item (the colour settle). One engine, nothing restarted, nothing to
+restore. Apps opt in with `"display": { "ink": "native" }` (or `"session"`); any refusal leaves them on qtfb.
 
-The intended path shares xochitl's existing vendor engine, blocks its scene rendering for a bounded lease, stages client pixels, and restores the previous framebuffer on exit. No firmware files are modified. The driver is selected with `display.direct: true`; export then sets `qtfb: false`. Do not enable it until the bridge is validated.
+- `bridge.cpp`, `bridge.xovi`: the extension. One override, on Qt6Quick (`QQuickWindow::exposeEvent`), to start after the
+  first frame; nothing on `libqsgepaper` at load time; vendor symbols from the loaded library's handle at run time; gates on
+  the model, framebuffer-spy's geometry and the vendor hash (`plugins/display-rmpp/models.h`); crash guard in `/run/zinc-ink`.
+- `protocol.h`: the wire format shared with `plugins/display-rmpp/lane.h`.
+- `install.sh`: copies `dist/zinc-ink.so` into `extensions.d` on the tablet, refused when framebuffer-spy is missing or another
+  extension hooks the same symbol. It never restarts xochitl.
+- `build.sh`: builds `dist/zinc-ink.so` with the official SDK in the `zinc-ink-builder` container.
+- The fake-xochitl harness: `tests/native/rmpp/fake-xochitl/run.sh` (Docker, by hand).
 
-Local checks cover packet framing, RGB32, acknowledgements, rectangle bounds, finger/pen separation and disconnect. The extension compiled with the official ferrari 5.7.119 SDK and its compatibility hash matches the tablet. It did not load into xochitl; no drawing lease was enabled or tested. Native latency and input ownership remain unvalidated.
+Not yet tested on a tablet: load (one `xovi/start`, then the journal), latency, the colour settle on a real engine.
 
 ## Device test incident, 2026-09-29
 
-Repeated xochitl restarts during diagnosis hit the stock service's `StartLimitBurst=4` / `StartLimitIntervalSec=600`. The journal records `start-limit-hit` followed by `rm-emergency.sh`, which rebooted the tablet. The experimental extension and loader diagnostic were removed from `extensions.d`; stock xochitl is active. Never repeat the restart loop or change the device's safety limits to bypass it.
+Repeated xochitl restarts during diagnosis of the first bridge hit the stock service's `StartLimitBurst=4` /
+`StartLimitIntervalSec=600`. The journal records `start-limit-hit` followed by `rm-emergency.sh`, which rebooted the tablet.
+Never repeat a restart loop or change the device's safety limits to bypass it: the rules are in the target doc, "Safety rules".
 
 The old rollback timer also restarted xochitl outside any rate limit; it is removed. `lease.c` (the display lease, docs/targets/remarkable-paper-pro.md) is now the only Zinc code that restarts xochitl, within a budget of 2 starts per 10 minutes. Further loading diagnosis should happen off-device before another controlled hardware test.
 
