@@ -30,6 +30,15 @@ Author metadata in the object's string custom property `zinc_metadata`, as JSON:
 ```
 
 Metadata dimensions use exchange coordinates: metres, Y up, full extents.
+An object or collection can hold `{"world":{"cell":8}}` in `zinc_metadata`.
+The publisher validates cell size, retains every static source identity in
+`worldSources`, and preserves behavior/animated/dynamic descendants as entities.
+Use the object boolean `zinc_dynamic` for an explicit dynamic subtree. Static
+collision geometry is eligible for merging. World binary compilation is pending
+the Tokyo `.zworld` importer integration; the current viewer refuses world-marked
+publications and keeps its last valid revision. Optional `levels` remains opaque
+until that importer defines its serialization. Do not use it as a working LOD
+control yet.
 [The contract](../../docs/scene-exchange.md) lists the allowed marker types.
 Source transforms convert from Blender Z up exactly once. Perspective cameras
 preserve their local -Z view direction and use the render aspect ratio for FOV.

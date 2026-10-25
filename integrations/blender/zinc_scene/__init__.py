@@ -11,10 +11,10 @@ import bpy
 from mathutils import Matrix
 
 try:
-    from .scene_exchange import publish, validate
+    from .scene_exchange import publish, validate, revision, partition_world
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'tools'))
-    from scene_exchange import publish, validate
+    from scene_exchange import publish, validate, revision, partition_world
 
 CONVERSION = Matrix.Rotation(-math.pi / 2, 4, 'X')
 
@@ -70,6 +70,9 @@ def publish_scene(scene, directory, source_file):
             matrix = CONVERSION @ matrix if obj.type == 'CAMERA' else CONVERSION @ matrix @ CONVERSION.inverted()
             position, rotation, scale = matrix.decompose()
             metadata = json.loads(obj.get('zinc_metadata', '{}'))
+            if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None:
+                inherited = json.loads(obj.instance_collection.get('zinc_metadata', '{}'))
+                metadata = {**inherited, **metadata}
             if obj.type == 'CAMERA':
                 if obj.data.type != 'PERSP':
                     raise ValueError(f'{obj.name}: only perspective cameras supported')
@@ -81,6 +84,8 @@ def publish_scene(scene, directory, source_file):
                         asset=stable(obj.data, 'zinc_asset_id') if obj.type == 'MESH' else None,
                         translation=list(position), rotation=[rotation.x, rotation.y, rotation.z, rotation.w], scale=list(scale),
                         metadata=metadata, source=dict(file=source_file, object=obj.name))
+            if obj.get('zinc_dynamic', False) or obj.animation_data is not None or (obj.rigid_body is not None and obj.rigid_body.type == 'ACTIVE'):
+                node['dynamic'] = True
             document['nodes'].append(node)
             visit(obj.children, key, prefix, stack)
             if obj.instance_type == 'COLLECTION':
@@ -130,6 +135,10 @@ def publish_scene(scene, directory, source_file):
             path = directory / record['uri']
             if not path.exists():
                 path.write_bytes(data)
+        document['revision'] = revision(document)
+        sources = partition_world(document)['provenance']
+        if sources:
+            document['worldSources'] = sources
         changed = publish(document, directory)
         return document, changed
     finally:

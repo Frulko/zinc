@@ -1,7 +1,7 @@
 ---
 id: ZN-829
 title: Blender asset library scene publication and safe Zinc reimport
-status: Done
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -25,6 +25,8 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 - [x] #2 Published manifests distinguish source identity content revisions and dependencies and reuse Zinc asset caches and packs
 - [x] #3 A Zinc scene viewer reloads a validated revision while preserving compatible state and rejects failed publications atomically
 - [x] #4 Fixtures prove duplicate identity missing reference cycle diagnostics deterministic unchanged export and source provenance
+- [x] #5 World authoring metadata validates positive finite cell size and classifies static collision geometry separately from dynamic/behavior subtrees without losing IDs
+- [ ] #6 World-marked static descendants compile through the Tokyo .zworld importer in zinc assets build and bypass individual SceneRevision nodes with builder-authoritative cell/batch provenance
 <!-- AC:END -->
 
 ## Delivery contract
@@ -40,3 +42,7 @@ Runtime reader check passed with the interpreter: duplicate/missing/cyclic nodes
 Completed vertical slice: actual Blender 5.2.1 library.blend (96 KB), extension manifest/operator and installable ZIP builder, nested cottage/lantern libraries (26 nodes, seven GLBs), source mapping, authored camera/boxes/triggers/socket/spawn, Stage viewer with explicit file reimport, gameplay gate state and rejection display. Unsupported static-profile objects/shaders/modifiers fail explicitly; animation remains ZN-830.
 
 Executed proofs (2026-10-25): Blender build.py generated and rendered actual project; Blender verify.py passed deterministic identical export/mtime, duplicate-ID rollback and transform-only unchanged mesh hashes. `tests/run --only scene_exchange` PASS (four Python tests and actual Zinc interpreter rollback/state test); `tests/run --only blender_library` PASS (300 frames, one idle draw, real pixel golden). `zinc check examples/blender-library` PASS. `zinc assets build examples/blender-library`: eight imports then repeat eight cache hits, one 32,342-byte ZPK. Extension ZIP built successfully. Actual Blender and Zinc captures checked by eye; they are explicitly different shading contracts. No cross-platform, window/focus, repeated texture lifetime, or animation proof claimed.
+
+Owner extension (2026-10-25): reopen for world metadata/baking. Independent metadata, collection inheritance, partition and provenance seed implemented/tested. `worldSources` retains node/source/world IDs; behavior/animated/active-body/explicit-dynamic subtrees remain entities, static collision geometry is mergeable. Raw world publications are rejected atomically by the loader until binary baking is real.
+
+Integration dependency: current develop cd51f9e0 has no include/zn/zworld.h or Tokyo importer. Do not invent binary layout, level thresholds or cell/batch IDs. After Tokyo lands, inspect that header/importer, validate `levels` with its real contract, route zinc assets build through it, add authoritative source-to-cell/batch mappings, and prove no static descendant SceneRevision nodes remain. Then tick #6 and restore Done. Existing static library remains runnable and tested.

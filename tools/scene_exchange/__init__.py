@@ -94,7 +94,9 @@ def validate(document, directory=None, check_revision=True):
         require(all(abs(x) > 1e-9 for x in node['scale']), key + ': zero scale')
         metadata = node.get('metadata')
         require(isinstance(metadata, dict), key + ': expected typed metadata object')
-        require(not set(metadata) - {'camera', 'collision', 'trigger', 'socket', 'spawn', 'gate', 'interaction'}, key + ': unsupported metadata')
+        require(not set(metadata) - {'camera', 'collision', 'trigger', 'socket', 'spawn', 'gate', 'interaction', 'world'}, key + ': unsupported metadata')
+        if 'dynamic' in node:
+            require(type(node['dynamic']) is bool, key + ': dynamic must be a boolean')
         for kind, value in metadata.items():
             require(isinstance(value, dict), key + '.' + kind + ': expected object')
             if kind in ('collision', 'trigger'):
@@ -104,6 +106,11 @@ def validate(document, directory=None, check_revision=True):
             if kind == 'camera':
                 require(all(type(value.get(f)) in (int, float) and math.isfinite(value[f]) for f in ('fov', 'near', 'far')), key + ': invalid camera')
                 require(0 < value['fov'] < 180 and 0 < value['near'] < value['far'], key + ': invalid camera frustum')
+            if kind == 'world':
+                require(type(value.get('cell')) in (int, float) and math.isfinite(value['cell']) and value['cell'] > 0,
+                        key + ': world.cell must be positive finite metres')
+                # The pending zworld importer owns level semantics; retain the author's value without converting it.
+                require(not set(value) - {'cell', 'levels'}, key + ': unsupported world property')
             if kind in ('socket', 'spawn', 'gate'):
                 identity(value.get('name'), key + '.' + kind + '.name')
             if kind in ('trigger', 'interaction'):
@@ -112,6 +119,37 @@ def validate(document, directory=None, check_revision=True):
     if check_revision:
         require(document.get('revision') == revision(document), 'scene: revision hash mismatch')
     return document
+
+
+def partition_world(document):
+    """Prepare source records for the zworld importer, without losing source identities.
+
+    This is not a world builder. The binary importer must return authoritative
+    cell/batch ranges before static records can be removed from a runtime scene.
+    """
+    validate(document)
+    records = {n['id']: n for n in document['nodes']}
+    groups = {n['id']: [] for n in document['nodes'] if 'world' in n['metadata']}
+    entities, provenance = [], []
+    behavior = {'camera', 'trigger', 'socket', 'spawn', 'gate', 'interaction'}
+
+    def context(node):
+        lineage = []
+        while node is not None:
+            lineage.append(node)
+            node = records.get(node['parent'])
+        dynamic = any(n.get('dynamic', False) or bool(set(n['metadata']) & behavior) for n in lineage)
+        world = next((n['id'] for n in lineage if 'world' in n['metadata']), None)
+        return world, dynamic
+
+    for node in document['nodes']:
+        world, dynamic = context(node)
+        if world is not None and node['id'] != world and not dynamic:
+            groups[world].append(node)
+            provenance.append(dict(node=node['id'], source=node['source'], world=world))
+        else:
+            entities.append(node)
+    return dict(worlds=groups, entities=entities, provenance=provenance)
 
 
 def publish(document, directory):

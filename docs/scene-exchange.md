@@ -32,6 +32,24 @@ Metadata is restricted to `camera:{fov,near,far}` (vertical FOV in degrees),
 local full extent; scene TRS applies once. Unknown component kinds fail validation.
 Gameplay behavior is supplied by Zinc, never by the authoring tool.
 
+The authoring boundary also accepts `world:{cell:<positive finite metres>}` on a
+parent or instanced collection. Optional `levels` is preserved as authoring data;
+its meaning/validation must come from the upcoming `include/zn/zworld.h` importer,
+not from this publisher. It is not currently executable world configuration.
+`dynamic:true` on a node keeps that subtree as normal runtime entities. Blender
+sets it for `zinc_dynamic`, animated objects and active rigid bodies. Trigger,
+socket, spawn, gate, interaction and camera subtrees also remain entities; ordinary
+static collision geometry can be merged. `partition_world` prepares static source
+records without deleting any authored nodes and emits `{node,source,world}` seed
+provenance. Blender includes it as `worldSources` in the publication when needed.
+
+**World baking is pending the Tokyo `.zworld` importer integration.** The builder
+must supply actual cell/batch ranges and retain every source ID before static
+records can be removed from the runtime scene. The current runtime rejects a
+raw world-marked publication atomically, keeping the previous scene, rather than
+creating thousands of individual nodes or pretending a world was compiled. No
+new world binary, batch identity scheme or level thresholds are defined here.
+
 Canonical hashing uses UTF-8 JSON with sorted keys, no insignificant whitespace,
 finite numbers, and excludes only the top-level `revision`. Exporters must omit
 volatile timestamps and machine paths. Arrays use deterministic authoring order.

@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Native hosts can drive one Zinc program offscreen through a C surface API, with input, resize, pause and premultiplied alpha output.
 
+- Blender scene publications validate world cell sizes and retain source identities for static world baking; unbuilt world revisions are rejected safely while the world importer is pending.
 - Blender and Godot authoring tools can publish validated `zinc.scene` scenes; `zinc:3d/scene` loads shared models and preserves compatible gameplay state when a revision is reimported.
 
 - Debug and measure a paired device from your computer: `zinc dev --device <name>` puts the program's inspector on `localhost:9229` here (open `chrome://inspect`), `zinc device <name> profile <app>` runs the app with the frame profiler and brings back its summary and its trace (for Perfetto or `chrome://tracing`), `zinc device <name> bench` runs the render benchmark suite there and writes its JSON here, and `zinc device <name> deploy --no-run` installs without starting.

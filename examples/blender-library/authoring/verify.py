@@ -35,3 +35,12 @@ with tempfile.TemporaryDirectory() as directory:
     after = next(n for n in updated['nodes'] if n['id'] == 'gate')
     assert abs(after['translation'][0] - before['translation'][0] - .5) < 1e-6
     print('Blender proof: deterministic unchanged export, duplicate failure rollback, transform-only asset reuse')
+    bpy.data.collections['Library - square']['zinc_metadata'] = json.dumps({'world': {'cell': 8}})
+    bpy.data.objects['square-west-cottage']['zinc_dynamic'] = True
+    world, changed = publish_scene(bpy.context.scene, directory, 'authoring/library.blend')
+    assert changed and world['worldSources']
+    assert all(s['world'] == 'village' for s in world['worldSources'])
+    assert not any('square-west-cottage/' in s['node'] for s in world['worldSources'])
+    assert any('square-east-cottage/' in s['node'] for s in world['worldSources'])
+    assert any(n.get('dynamic') and n['id'].endswith('/square-west-cottage') for n in world['nodes'])
+    print('Blender world proof: collection metadata, source identities and dynamic subtree retained')

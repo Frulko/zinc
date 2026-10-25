@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'tools'))
-from scene_exchange import publish, revision, validate
+from scene_exchange import publish, revision, validate, partition_world
 
 
 class ExchangeTest(unittest.TestCase):
@@ -72,6 +72,24 @@ class ExchangeTest(unittest.TestCase):
                 publish(self.doc, directory)
             self.assertEqual(path.read_bytes(), previous)
             validate(json.loads(previous))
+
+    def test_world_partition_preserves_identity_and_static_collisions(self):
+        self.node['metadata'] = {'world': {'cell': 8}}
+        for key, metadata, dynamic in [('wall', {'collision': {'shape': 'box', 'size': [1, 2, 3]}}, False),
+                                        ('gate', {'gate': {'name': 'gate'}}, False),
+                                        ('body', {}, True)]:
+            child = copy.deepcopy(self.node)
+            child.update(id=key, parent='crate', metadata=metadata, dynamic=dynamic)
+            self.doc['nodes'].append(child)
+        self.check()
+        result = partition_world(self.doc)
+        self.assertEqual([n['id'] for n in result['worlds']['crate']], ['wall'])
+        self.assertEqual([n['id'] for n in result['entities']], ['crate', 'gate', 'body'])
+        self.assertEqual(result['provenance'], [dict(node='wall', source=self.node['source'], world='crate')])
+        self.assertEqual(len(self.doc['nodes']), 4)
+        self.node['metadata']['world']['cell'] = 0
+        with self.assertRaisesRegex(ValueError, 'positive finite'):
+            self.check()
 
 
 if __name__ == '__main__':

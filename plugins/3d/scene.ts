@@ -11,15 +11,18 @@ export interface SceneBox { shape: string; size: number[]; }
 export interface SceneTrigger { shape: string; size: number[]; event: string; }
 export interface SceneName { name: string; }
 export interface SceneEvent { event: string; }
+export interface SceneWorld { cell: number; }
 export interface SceneMetadata {
   camera?: SceneCamera; collision?: SceneBox; trigger?: SceneTrigger;
   socket?: SceneName; spawn?: SceneName; gate?: SceneName; interaction?: SceneEvent;
+  world?: SceneWorld;
 }
 export interface SceneAsset { id: string; uri: string; hash: string; dependencies: string[]; }
 export interface SceneRecord {
   id: string; name: string; parent: string | null; asset: string | null;
   translation: number[]; rotation: number[]; scale: number[];
   metadata: SceneMetadata; source: SceneSource;
+  dynamic?: boolean;
 }
 export interface SceneDocument {
   schema: string; version: number; id: string; revision: string;
@@ -88,7 +91,8 @@ export function validateScene(text: string): SceneDocument {
     requireScene(Math.abs(norm - 1) < .001, n.id + ': quaternion must be normalized');
     for (const s of n.scale) requireScene(Math.abs(s) > 1e-9, n.id + ': zero scale');
     requireScene(n.metadata !== null && typeof n.metadata === 'object', n.id + ': missing metadata');
-    for (const kind in n.metadata) requireScene(['camera', 'collision', 'trigger', 'socket', 'spawn', 'gate', 'interaction'].includes(kind), n.id + ': unsupported metadata ' + kind);
+    for (const kind in n.metadata) requireScene(['camera', 'collision', 'trigger', 'socket', 'spawn', 'gate', 'interaction', 'world'].includes(kind), n.id + ': unsupported metadata ' + kind);
+    if (n.metadata.world !== undefined) requireScene(Number.isFinite(n.metadata.world.cell) && n.metadata.world.cell > 0, n.id + ': world.cell must be positive finite metres');
     const c = n.metadata.camera;
     if (c !== undefined) requireScene(Number.isFinite(c.fov) && Number.isFinite(c.near) && Number.isFinite(c.far) && c.fov > 0 && c.fov < 180 && c.near > 0 && c.far > c.near, n.id + ': invalid camera');
     const box = n.metadata.collision;
@@ -136,6 +140,7 @@ export class SceneRevision {
     const acquired = new Map<string, Node>();
     try {
       const d = validateScene(text), assets = new Map<string, Node>(), hashes = new Map<string, string>();
+      for (const n of d.nodes) requireScene(n.metadata.world === undefined, n.id + ': world publication requires the .zworld asset importer; raw static descendants cannot be loaded as individual entities');
       for (const a of d.assets) {
         const file = base + a.uri;
         requireScene(digest(file) === a.hash, a.id + ': content hash mismatch: ' + a.uri);
@@ -152,7 +157,7 @@ export class SceneRevision {
         node.position = n.translation.slice(); node.rotation = n.rotation.slice(); node.scale = n.scale.slice();
         nodes.set(n.id, node);
         const old = previous.get(n.id), value = this.state.get(n.id);
-        if (old !== undefined && value !== undefined && old.asset === n.asset && componentSignature(old.metadata) === componentSignature(n.metadata)) state.set(n.id, value);
+        if (old !== undefined && value !== undefined && old.asset === n.asset && old.dynamic === n.dynamic && componentSignature(old.metadata) === componentSignature(n.metadata)) state.set(n.id, value);
       }
       for (const n of d.nodes) {
         const node = nodes.get(n.id); if (node === undefined) continue;
