@@ -386,6 +386,11 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo 3DS: selection is still 3.6 ms in Azahar (cells 1.8, ranges 0.8, chunk reads 0.8); skip the read-ahead points' boxDist for cells far past the mid reach.
 - n3ds: a develop baseline build of tokyo hit svcBreak in GPUCMD_AddInternal (command buffer full) at 5.9 s in Azahar; raise C3D_Init's command buffer size if it shows on hardware.
 
+- world rule: night pictures and night glow per material (material extras), so a glTF city lights up like Tokyo's.
+- world rule: a far chunk per region for very large worlds (one chunk for the whole world today), and a per-cell reach for landmarks.
+- world rule: emit `TOP` batches for textured grounds whose uvs follow x/z, so the PSP and 3DS compact layouts apply.
+- defaults3D: zinc.json `"3d": {...}` overrides, and measured rows for Android, iOS and web.
+
 ## Cross-platform pass
 
 - ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
@@ -472,3 +477,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo PSP: measure on a real PSP-2000 the GE time of 38,900 triangles and 1,451 draws (Pocket estimates ~26 ms) and the 30.3 MB heap (too much for a PSP-1000).
 - tokyo 3DS: time the frame on the real Old 3DS XL (Azahar does not time the PICA200); if it misses 30 fps, lower the n3ds budget in devices.ts from 60,000 toward Pocket's 40,000.
 - tokyo 3DS: if ETC1 blocks show on the windows on hardware, make the facades RGB565 as Pocket does.
+- zinc:3d: run `zinc3d_world_build`'s world with `--profile psp`, n3ds and vita on the real consoles.
