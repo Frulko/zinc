@@ -301,6 +301,10 @@ static bool texture(int32_t id, Tex& t) {
 extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) __attribute__((weak));
 // zinc:gfx image(name) of a pack's image entry (the same hosts): a world's pictures by name.
 extern "C" int zn_asset_image(const char* name, uint32_t n) __attribute__((weak));
+// A host with assets on a slow medium (the 3DS's SD card, targets/console/gfx_stubs.cpp): whether one can be had now (0: asked for, on its
+// way), and a picture of zn_asset_image no chunk draws any more.
+extern "C" int zn_asset_ready(const char* name, uint32_t n) __attribute__((weak));
+extern "C" void zn_asset_image_free(int id) __attribute__((weak));
 
 // ---------------------------------------------------------------- worlds (zinc:3d World, include/zn/zworld.h)
 // A static world: cells on the ground with up to three levels of detail, each level in a chunk loaded and freed as one; a chunk's batches
@@ -310,7 +314,8 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) __attribute__((weak)
 // port of Pocket Tokyo's tokyo-sim view.rs (select, facing, arcs, Governor; MIT, (c) pocket-nexus).
 enum { WORLD_ASK = 64, WORLD_FREE = 16, WORLD_POINTS = 8 };
 struct WBatch { int32_t mesh; uint32_t kind, flags, color, emis, nemis; int32_t tex, ntex, cell; uint32_t cells, groups; const uint32_t* spans; };
-struct WChunk { int32_t level; char* name; bool loaded; float idle, need; WBatch* b; int32_t nb; uint32_t* spans; };
+// raw: its bytes, read, while its pictures are on their way (zn_asset_ready)
+struct WChunk { int32_t level; char* name; bool loaded; float idle, need; WBatch* b; int32_t nb; uint32_t* spans; unsigned char* raw; uint32_t nraw; };
 struct WCell { float mn[3], mx[3], reach[2], diag; int32_t chunk[3]; int8_t shown; bool vis; float d; int16_t arc0, arcN; };
 // sector: the compass sector its faces look to, 16 up or down, 17 several (one colour lights a draw, render3d.psp.cpp); near: in the near
 // pass (Engine::worldSplit); out: metres from the eye to the farthest point of its cells' boxes
@@ -879,7 +884,7 @@ struct Engine : NativeRender3D {
     if(!w)return;
     for(int32_t i=0;i<w->nk;i++){
       WChunk& k=w->k[i];for(int32_t j=0;j<k.nb;j++)meshDestroy(k.b[j].mesh);
-      mfree(k.b);mfree(k.spans);mfree(k.name);
+      mfree(k.b);mfree(k.spans);mfree(k.name);free(k.raw);
     }
     mfree(w->c);mfree(w->k);mfree(w->items);mfree(w);
   }
@@ -950,14 +955,17 @@ struct Engine : NativeRender3D {
     return worlds.add(w);
   }
   /** Loads a chunk: its batches become meshes (through meshLoad, so a GPU renderer keeps its own copy), its pictures are looked up. The
-   *  bytes read, or -1. */
+   *  bytes read, -1, or -2 when it or its pictures are still on their way from a slow medium (asked for: load it again later). */
   int32_t worldLoad(int32_t id, int32_t chunk) override {
     World* w = worlds.at(id);
     if (!w || chunk < 0 || chunk >= w->nk) return -1;
     WChunk& k = w->k[chunk];
     if (k.loaded) return 0;
-    uint32_t n = 0;
-    unsigned char* p = worldBytes(k.name, (uint32_t)strlen(k.name), &n);
+    uint32_t n = k.nraw;
+    unsigned char* p = k.raw;
+    k.raw = nullptr; k.nraw = 0;
+    if (!p && zn_asset_ready && !zn_asset_ready(k.name, (uint32_t)strlen(k.name))) return -2;
+    if (!p) p = worldBytes(k.name, (uint32_t)strlen(k.name), &n);
     if (!p) {   // not in this device's packs (an asset rule left the level out): its cells no longer have that level
       for (int32_t i = 0; i < w->nc; i++) if (w->c[i].chunk[k.level] == chunk) w->c[i].chunk[k.level] = -1;
       return -1;
@@ -967,20 +975,29 @@ struct Engine : NativeRender3D {
     const uint8_t* end = p + n;
     const uint8_t* q = p + 16 + nb * zn::zworld::kBatch;
     int32_t names[256];
-    for (uint32_t i = 0; i < nn; i++) {   // the pictures, by name beside the index
-      const size_t remaining=(size_t)(end-q);
-      const uint32_t len = remaining>=4 ? rd32(q) : 0;
-      if (remaining<4 || 4+((uint64_t)len+3)/4*4>remaining || !worldRelative(q+4,len)) { free(p); return -1; }
-      char path[512];
-      const size_t dl = strlen(w->dir), l = len;
-      if(dl+l>=sizeof(path)){free(p);return -1;}
-      memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
-      if (i < 256) {
-        names[i] = worldPicture(path, (uint32_t)(dl + l));
-        if (names[i] < 0) names[i] = raster::find_image(path, (uint32_t)(dl + l));
-        if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, (uint32_t)(dl + l));
+    const uint8_t* q0 = q;
+    for (int pass = zn_asset_ready ? 0 : 1; pass < 2; pass++) {   // a slow medium: first that every picture is there (else wait for them)
+      bool waiting = false;
+      q = q0;
+      for (uint32_t i = 0; i < nn; i++) {   // the pictures, by name beside the index
+        const size_t remaining=(size_t)(end-q);
+        const uint32_t len = remaining>=4 ? rd32(q) : 0;
+        if (remaining<4 || 4+((uint64_t)len+3)/4*4>remaining || !worldRelative(q+4,len)) { free(p); return -1; }
+        char path[512];
+        const size_t dl = strlen(w->dir), l = len;
+        if(dl+l>=sizeof(path)){free(p);return -1;}
+        memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
+        if (i < 256) {
+          if (pass == 0) waiting |= raster::find_image(path, (uint32_t)(dl + l)) < 0 && !zn_asset_ready(path, (uint32_t)(dl + l));
+          else {
+            names[i] = worldPicture(path, (uint32_t)(dl + l));
+            if (names[i] < 0) names[i] = raster::find_image(path, (uint32_t)(dl + l));
+            if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, (uint32_t)(dl + l));
+          }
+        }
+        q += 4 + ((len + 3) & ~3u);
       }
-      q += 4 + ((len + 3) & ~3u);
+      if (waiting) { k.raw = p; k.nraw = n; return -2; }
     }
     if ((uint64_t)ns * 4 > (uint64_t)(end-q)) { free(p); return -1; }
     k.spans = (uint32_t*)mem(4 * (size_t)(ns ? ns : 1));
@@ -1048,6 +1065,19 @@ struct Engine : NativeRender3D {
     if (!w || chunk < 0 || chunk >= w->nk || !w->k[chunk].loaded) return;
     WChunk& k = w->k[chunk];
     for (int32_t i = 0; i < k.nb; i++) meshDestroy(k.b[i].mesh);
+    // the finest level is streamed (World.slots): its pictures (a block's ground) go with the last chunk that draws them
+    for (int32_t i = 0; i < k.nb && k.level == 0 && zn_asset_image_free; i++)
+      for (int32_t t = 0; t < 2; t++) {
+        const int32_t img = t ? k.b[i].ntex : k.b[i].tex;
+        bool used = img < 0 || (img & kWorldPair) || (t && img == k.b[i].tex);   // a renderer's own copy is not an asset picture
+        for (int32_t j = 0; j < i && !used; j++) used = k.b[j].tex == img || k.b[j].ntex == img;
+        for (int32_t o = 0; o < w->nk && !used; o++) {
+          const WChunk& h = w->k[o];
+          if (o == chunk || !h.loaded) continue;
+          for (int32_t j = 0; j < h.nb && !used; j++) used = h.b[j].tex == img || h.b[j].ntex == img;
+        }
+        if (!used) zn_asset_image_free(img);
+      }
     mfree(k.b); mfree(k.spans);
     k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
   }
@@ -1107,13 +1137,15 @@ struct Engine : NativeRender3D {
 
   /** view: the camera's view matrix. eyes: the eye, then points it will pass (x, y, z each). prm: vertical field of view (radians), aspect,
    *  near, far, near reach, mid reach (metres, scaled by the governor), budget (triangles), hysteresis (>= 1), sectors (0/1), dt (seconds),
-   *  idle (seconds before a chunk nobody wants is named to free; 0 never). out: triangles, draws, the governor's scale x 1000, the count of
+   *  idle (seconds before a chunk nobody wants is named to free; 0 never), and optionally slots (the most chunks of the finest level loaded at
+   *  once, Pocket Tokyo's 40 streamed cells: the nearest take them, those behind the eye counted 2.2 times farther; 0 or absent: no limit). out: triangles, draws, the governor's scale x 1000, the count of
    *  chunks to load and to free, then the chunks to load (the coarse levels first, nearest first) and to free. */
   void worldSelect(int32_t id, Array<N> view, Array<N> eyes, Array<N> prm, Array<int32_t> out) override {
     World* w = worlds.at(id);
     if (!w || prm.length() < 11 || eyes.length() < 3 || view.length() < 16) return;
-    float P[11];
-    for (int i = 0; i < 11; i++) P[i] = F(prm.a->data[i]);
+    float P[12] = {0};
+    for (int i = 0; i < 12 && i < prm.length(); i++) P[i] = F(prm.a->data[i]);
+    const int32_t slots = P[11] > 0 ? (int32_t)P[11] : 0;
     const float nearR = P[4] * w->scale, midR = P[5] * w->scale, hyst = P[7] > 1 ? P[7] : 1, dt = P[9], idleMax = P[10];
     const int64_t budget = (int64_t)P[6];
     const bool sectors = P[8] != 0;
@@ -1189,18 +1221,60 @@ struct Engine : NativeRender3D {
       const float r[2] = {c.reach[0] > 0 ? c.reach[0] : nearR, c.reach[1] > 0 ? c.reach[1] : midR};
       for (int e = 0; e < ne; e++) {
         const float d = e == 0 ? c.d : boxDist(c.mn, c.mx, E[e]);
+        // the slots' order (tokyo-sim n3ds range()): a cell 140 m away and more that lies behind the eye counts 2.2 times farther
+        float rank = d;
+        if (slots && e == 0 && d >= 140) {
+          const float tx = (c.mn[0] + c.mx[0]) * 0.5f - E[0][0], tz = (c.mn[2] + c.mx[2]) * 0.5f - E[0][2];
+          const float fx = -F(view.a->data[2]), fz = -F(view.a->data[10]), tl = sqrtf(tx * tx + tz * tz), fl = sqrtf(fx * fx + fz * fz);
+          if (fl > 0.22f && tl > 0 && (tx * fx + tz * fz) / (tl * fl) <= 0.3f) rank = d * 2.2f;
+        }
         WChunk& co = w->k[c.chunk[cl]];
         if (d < co.need) co.need = d;
         int want = d < r[0] ? 0 : d < r[1] ? 1 : 2;
         while (want < cl && c.chunk[want] < 0) want++;
-        if (want < cl) { WChunk& ch = w->k[c.chunk[want]]; if (LATER + d < ch.need) ch.need = LATER + d; }
+        if (want < cl) { WChunk& ch = w->k[c.chunk[want]]; const float rk = want == 0 ? rank : d; if (LATER + rk < ch.need) ch.need = LATER + rk; }
+        // a streamed cell may get no slot: its mid level stands in (Pocket Tokyo draws a cell without its near level at the mid level)
+        if (slots && want == 0 && cl > 1 && c.chunk[1] >= 0) { WChunk& m = w->k[c.chunk[1]]; if (LATER + d < m.need) m.need = LATER + d; }
       }
     }
     int32_t ask[WORLD_ASK], freed[WORLD_FREE];
     int na = 0, nf = 0;
+    if (slots) {
+      // the finest level within `slots` chunks: the nearest wanted take a slot, a free one or the one of the farthest loaded (nobody's, or 1.25
+      // times as far: no back and forth at the edge); a chunk that gets none is not read. The loaded ones stay until a nearer one needs room.
+      int32_t best[64], nb = 0, held = 0;
+      const int32_t cap = slots < 64 ? slots : 64;
+      for (int32_t k = 0; k < w->nk; k++) {
+        const WChunk& ch = w->k[k];
+        if (ch.level != 0) continue;
+        if (ch.loaded) { held++; continue; }
+        if (ch.need >= NONE || (nb == cap && ch.need >= w->k[best[nb - 1]].need)) continue;
+        int32_t j = nb < cap ? nb++ : nb - 1;
+        while (j > 0 && w->k[best[j - 1]].need > ch.need) { best[j] = best[j - 1]; j--; }
+        best[j] = k;
+      }
+      for (int32_t b = 0; b < nb; b++) {
+        WChunk& ch = w->k[best[b]];
+        if (held < slots) { held++; continue; }
+        int32_t worst = -1;
+        for (int32_t k = 0; k < w->nk; k++) {
+          const WChunk& o = w->k[k];
+          if (o.level == 0 && o.loaded && o.need != -1 && (worst < 0 || o.need > w->k[worst].need)) worst = k;
+        }
+        auto metres = [&](float need) { return need >= LATER ? need - LATER : need; };
+        if (worst >= 0 && nf < WORLD_FREE && (w->k[worst].need >= NONE || metres(w->k[worst].need) > metres(ch.need) * 1.25f)) {
+          freed[nf++] = worst; w->k[worst].need = -1;   // named to free (and not again below)
+          continue;
+        }
+        for (int32_t r = b; r < nb; r++) w->k[best[r]].need = NONE;   // no room: these and the farther ones wait
+        break;
+      }
+    }
     for (int32_t k = 0; k < w->nk; k++) {
       WChunk& ch = w->k[k];
+      if (!ch.loaded && ch.raw && ch.need >= NONE) { free(ch.raw); ch.raw = nullptr; ch.nraw = 0; }   // its pictures came too late
       if (ch.loaded) {
+        if (ch.need == -1) continue;   // already named to free for a slot
         if (ch.need < NONE || ch.level == 2) ch.idle = 0;
         else if ((ch.idle += dt) > idleMax && idleMax > 0 && nf < WORLD_FREE) { freed[nf++] = k; ch.idle = 0; }
         continue;

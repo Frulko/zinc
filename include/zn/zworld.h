@@ -8,7 +8,7 @@
 // Index (`.zworld`):
 //   header, 16 B: "ZWD1", u32 version (1), u32 cells, u32 chunks
 //   cells, 44 B each: f32 min[3], f32 max[3], f32 reach[2] (the distances from near to mid and from mid to far; 0: the view's), i32 chunk
-//          of each level (-1: none)
+//          of each level (-1: none); a box whose min is above its max (+inf and -inf) is an empty cell, never in view
 //   chunks: each u32 level, u32 name length, the name's UTF-8 bytes padded to 4 (relative to the index's directory)
 // Chunk (`.zwc`):
 //   header, 16 B: "ZWC1", u32 batches, u32 spans, u32 names

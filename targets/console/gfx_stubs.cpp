@@ -12,6 +12,12 @@
 #include "zrt_raster.h"
 
 bool zn_console_pack_read(const std::string& name, int kind, std::string& out);   // host_console.cpp
+// the packs on the SD card beside the program (targets/n3ds/sdpack_n3ds.cpp; a console without them links none): what the linked pack has not
+bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
+extern "C" int zn_console_side_ready(const char* name, uint32_t n) __attribute__((weak));
+static bool packOrSide(const std::string& name, int kind, std::string& out) {
+  return zn_console_pack_read(name, kind, out) || (zn_console_side_read && zn_console_side_read(name, kind, out));
+}
 
 #define HOST_DEFINES_RESOURCE_STATS   // the definition below is the core's, not a weak one
 #include "zn/resource_stats.h"
@@ -29,7 +35,7 @@ int zn_asset_image(const char* name, uint32_t n) {
   const std::string key(name, n);
   if (auto it = made.find(key); it != made.end()) return it->second;
   std::string zim;
-  if (!zn_console_pack_read(key, 1, zim) || zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1") != 0) return -1;
+  if (!packOrSide(key, 1, zim) || zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1") != 0) return -1;
   const auto* p = reinterpret_cast<const unsigned char*>(zim.data());
   auto u32 = [&](int at) { return static_cast<uint32_t>(p[at] | p[at + 1] << 8 | p[at + 2] << 16) | static_cast<uint32_t>(p[at + 3]) << 24; };
   const zn::zim::Format* f = zn::zim::format(p[4]);
@@ -58,6 +64,18 @@ int zn_asset_image(const char* name, uint32_t n) {
   made[key] = id;
   return id;
 }
+// Whether an asset can be had without waiting for a slow medium: 1 now (decoded already, in the linked pack, or nowhere), 0 asked for from
+// the SD card and on its way (render3d.host.cpp worldLoad asks again on a later frame).
+int zn_asset_ready(const char* name, uint32_t n) {
+  if (!zn_console_side_ready) return 1;
+  if (made.count(std::string(name, n))) return 1;
+  return zn_console_side_ready(name, n);
+}
+// A picture zn_asset_image made that its user no longer draws (a World's freed chunk): its runtime image is destroyed, its name forgotten.
+void zn_asset_image_free(int id) {
+  for (auto it = made.begin(); it != made.end(); ++it)
+    if (it->second == id) { zrt::raster::dyn_destroy(id); made.erase(it); return; }
+}
 int zn_hal_is_live(void) { return ZN_CONSOLE_LIVE; }
 int zn_hal_signal_count(void) { return 0; }
 const char* zn_hal_signal_next(void) { return ""; }
@@ -67,7 +85,7 @@ int zn_asset_font(const char*, uint32_t) { return -1; }
 // zinc:assets readBytes for a native module (zinc:3d's models): the pack entry in one call, a malloc'd copy the caller frees
 unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) {
   std::string d;
-  if (!zn_console_pack_read(std::string(name, n), 0, d)) return nullptr;
+  if (!packOrSide(std::string(name, n), 0, d)) return nullptr;
   auto* p = static_cast<unsigned char*>(malloc(d.size() ? d.size() : 1));
   if (!p) return nullptr;
   memcpy(p, d.data(), d.size());

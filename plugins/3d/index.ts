@@ -355,12 +355,14 @@ export class Defaults3D {
   idle = 0;
   /** Milliseconds a frame may spend reading chunks (World.serve; at least one is read when one is wanted). */
   readMs = 4;
+  /** The most chunks of the finest level loaded at once (World.slots; 0: no limit): the 3DS streams its near level from the SD card. */
+  slots: i32 = 0;
 }
 
 function row(d: Defaults3D, name: string, near: number, mid: number, budget: i32, fog: number, fogEnd: number, fps: i32, night: boolean, dome: boolean,
-             idle: number, readMs: number): Defaults3D {
+             idle: number, readMs: number, slots: i32): Defaults3D {
   d.name = name; d.nearReach = near; d.midReach = mid; d.budget = budget; d.fogStart = fog; d.fogEnd = fogEnd; d.fps = fps; d.night = night;
-  d.dome = dome; d.idle = idle; d.readMs = readMs;
+  d.dome = dome; d.idle = idle; d.readMs = readMs; d.slots = slots;
   return d;
 }
 
@@ -369,11 +371,11 @@ function row(d: Defaults3D, name: string, near: number, mid: number, budget: i32
 export function defaults3D(profile: string = ''): Defaults3D {
   const p = profile !== '' ? profile : env('ZINC_3D_PROFILE') !== '' ? env('ZINC_3D_PROFILE') : platform();
   const d = new Defaults3D();
-  //                       name    near mid   budget  fog   fog end fps night  dome   idle read ms
-  if (p === 'psp') row(d, 'psp', 600, 1600, 42000, 1200, 5800, 30, true, false, 4, 6);
-  else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 60000, 1200, 5800, 30, true, false, 4, 6);
-  else if (p === 'vita') row(d, 'vita', 300, 1300, 40000, 1600, 5800, 60, true, true, 0, 4);
-  else if (p === 'rpi1') row(d, 'rpi1', 300, 900, 12000, 600, 3000, 30, false, false, 4, 6);
+  //                       name    near mid   budget  fog   fog end fps night  dome   idle read ms slots
+  if (p === 'psp') row(d, 'psp', 600, 1600, 42000, 1200, 5800, 30, true, false, 4, 6, 0);
+  else if (p === 'n3ds') row(d, 'n3ds', 600, 2400, 60000, 1200, 5800, 30, true, false, 4, 6, 40);
+  else if (p === 'vita') row(d, 'vita', 300, 1300, 40000, 1600, 5800, 60, true, true, 0, 4, 0);
+  else if (p === 'rpi1') row(d, 'rpi1', 300, 900, 12000, 600, 3000, 30, false, false, 4, 6, 0);
   const budget = env('ZINC_3D_BUDGET');
   if (budget !== '') d.budget = parseInt(budget, 10);
   return d;
@@ -405,6 +407,9 @@ export class World extends Node {
   idle = 0;
   /** Milliseconds serve() reads chunks for. */
   readMs = 4;
+  /** The most chunks of the finest level loaded at once (0: no limit), as Pocket Tokyo's 40 slots: the nearest cells take them (those behind
+   *  the eye count 2.2 times farther), and a loaded one gives its slot up to one at most 1/1.25 as far. */
+  slots: i32 = 0;
   /** After select(): the triangles and draws of what is shown, the reaches' scale (reachScale), the chunks to load (load()) and the ones to free (free()). */
   triangles: i32 = 0;
   draws: i32 = 0;
@@ -412,7 +417,7 @@ export class World extends Node {
   readonly missing: i32[] = [];
   readonly unused: i32[] = [];
   private readonly out: i32[] = [];
-  private readonly prm: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  private readonly prm: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   private readonly eyes: number[] = [];
 
   constructor(asset: string, defaults: Defaults3D | null = null) {
@@ -420,11 +425,13 @@ export class World extends Node {
     const d = defaults !== null ? defaults : defaults3D();
     this.defaults = d;
     this.nearReach = d.nearReach; this.midReach = d.midReach; this.budget = d.budget; this.sectors = d.sectors; this.idle = d.idle; this.readMs = d.readMs;
+    this.slots = d.slots;
     this.handle = R.worldOpen(asset);
     if (this.handle < 0) throw new Error(`zinc:3d: ${asset} is not a world (include/zn/zworld.h)`);
     this.chunkCount=R.worldChunkCount(this.handle);
   }
-  /** Loads a chunk: the bytes read, -1 when it cannot. */
+  /** Loads a chunk: the bytes read, -1 when it cannot, -2 while it is on its way from a slow medium (the 3DS's SD card: asked for, ready on a
+   *  later frame). */
   load(chunk: i32): i32 { return this.disposed?-1:R.worldLoad(this.handle, chunk); }
   free(chunk: i32): void { if(!this.disposed)R.worldFree(this.handle, chunk); }
   dispose(): void { if(this.disposed)return;this.disposed=true;R.worldClose(this.handle); }
@@ -437,8 +444,7 @@ export class World extends Node {
     let read: i32 = 0;
     for (const k of this.missing) {
       if (read > 0 && clock() - started >= budget) break;
-      this.load(k);   // -1: a level this device's packs leave out (its cells keep another)
-      read++;
+      if (this.load(k) !== -2) read++;   // -1: a level this device's packs leave out (its cells keep another); -2: not read yet
     }
     return read;
   }
@@ -463,7 +469,7 @@ export class World extends Node {
     for (const v of ahead) e.push(v);
     const p = this.prm;
     p[0] = camera.fov * Math.PI / 180; p[1] = aspect; p[2] = camera.near; p[3] = camera.far; p[4] = this.nearReach; p[5] = this.midReach;
-    p[6] = this.budget; p[7] = this.hysteresis; p[8] = this.sectors ? 1 : 0; p[9] = dt; p[10] = this.idle;
+    p[6] = this.budget; p[7] = this.hysteresis; p[8] = this.sectors ? 1 : 0; p[9] = dt; p[10] = this.idle; p[11] = this.slots;
     const o = this.out;
     R.worldSelect(this.handle, camera.view, e, p, o);
     if (o.length < 5) return;

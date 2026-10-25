@@ -202,6 +202,21 @@ struct N3ds : Engine {
     return id;
   }
 
+  /** A chunk's pictures (day and night) go to the GPU as it loads, behind the loading screen or within the frame's reading time, not in the
+   *  first frame that draws it (the opening's first frame took 48 ms uploading the city's pictures). */
+  int32_t worldLoad(int32_t id, int32_t chunk) override {
+    const int32_t r = Engine::worldLoad(id, chunk);
+    const World* w = worlds.at(id);
+    if (r <= 0 || !w) return r;
+    const WChunk& k = w->k[chunk];
+    int32_t tw, th;
+    for (int32_t i = 0; i < k.nb; i++) {
+      if (k.b[i].tex >= 0) zn::ff::texture(k.b[i].tex, &tw, &th);
+      if (k.b[i].ntex >= 0 && k.b[i].ntex != k.b[i].tex) zn::ff::texture(k.b[i].ntex, &tw, &th);
+    }
+    return r;
+  }
+
   /** The ranges worldSelect chose, kept for render(): the frame draws them where this record stands among the draws. */
   void worldDraw(int32_t id) override {
     World* w = worlds.at(id);

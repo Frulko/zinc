@@ -41,6 +41,9 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 - **Read-ahead.** Each frame reads what the selection asks for, within the device's milliseconds (`readMs`), at least one chunk.
 - **Haze.** zinc:3d's `Fog` fades the city into the horizon colour of the sky.
 - **Freeing.** On the PSP and the 3DS, a chunk nobody has wanted for 4 seconds is freed (never the far level).
+- **Slots.** On the 3DS the near level is streamed into 40 slots, as Pocket Tokyo's (`World.slots`, `defaults3D().slots`): the nearest cells
+  take them, those 140 m away and more behind the eye counted 2.2 times farther; a loaded chunk gives its slot up only to one at most 1/1.25
+  as far. A cell without a slot shows its mid level.
 
 ## Settings
 
@@ -48,12 +51,12 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 |---|---|---|---|---|---|---|---|
 | Mac (desktop) | all levels | 600 / 2000 m | 2500 to 5800 m | 400,000 | yes | yes | dome |
 | PS Vita | 13.9 MB: mid + far, grounds 256² (128² a block) | — / 1300 m | 1600 to 5800 m | 40,000 | yes | yes | dome |
-| 3DS | 12.7 MB: mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps | — / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
+| 3DS | 12.7 MB: mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps; near on the SD card (30.5 MB, 40 slots) | 600 / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
 | PSP | 9.2 MB: mid + far, grounds 256² (128² a block) and facades 512 × 64 in CLUT8 with their night palettes, the heights for the shadows | — / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
 | Raspberry Pi 1 (`rpi1`) | not built yet | 300 / 900 m | 600 to 3000 m | 12,000 | yes | no | one colour |
 
-The far level reaches the whole city on every device. The consoles leave the near level out of their packs: they have no room for it in
-memory without streaming (`backlog/later.md`).
+The far level reaches the whole city on every device. The PSP and the Vita leave the near level out of their packs: they have no room for
+it in memory without streaming (`backlog/later.md`). The 3DS streams it from the SD card.
 
 ### Mac
 
@@ -87,6 +90,19 @@ memory without streaming (`backlog/later.md`).
     sun has turned by a degree. The ground and the roofs read it as a third texture.
   - Pictures: the pack keeps the grounds and facades as ETC1 (an asset rule `"format": "etc1"`, encoded by basisu), and the 3DS uploads the
     blocks and their mipmaps as they are, in the PICA's tile order. Four times the ground's resolution for half the memory.
+
+- **The near level from the SD card** (Pocket Tokyo reads 40 slots from its ROMFS pack):
+  - `zinc.json` puts the near chunks and their ground pictures (`b*.near.png`, `b*.night.png`, 512² ETC1 with mipmaps on the 3DS) in an
+    asset group, `near`. The linked pack stays the 12.7 MB of the mid and far levels; `tools/console-demos` writes the group as
+    `3ds/tokyo/near.zpk` (30.5 MB) beside `3ds/tokyo.3dsx`.
+  - The core opens every `.zpk` of the folder named as the `.3dsx` (`targets/n3ds/sdpack_n3ds.cpp`; the Homebrew Launcher gives the path,
+    Azahar gives none: then `ZINC_SD_DIR`, which `console-demos` sets to `sdmc:/3ds/<name>/`). Only the index is read (`zn::zpk::Reader`
+    over the index alone, `decode()` for each entry read from the file); an entry the linked pack has not is read from the card.
+  - A reader thread on the other core, below the program's priority, reads ahead what the World asks for: `worldLoad` answers -2 while a
+    chunk or one of its pictures is on its way (`zn_asset_ready`), and keeps a chunk's bytes until its pictures are there. A picture of the
+    near level is freed with the last chunk that draws it.
+  - Each chunk's pictures go to the GPU when it loads (`render3d.n3ds.cpp worldLoad`) instead of in the first frame that draws it: the
+    first frame after the loading went from 48 ms to under 15.
 
 ### PSP
 
@@ -147,13 +163,19 @@ in the interpreter); "after" is the world. Pocket Tokyo's figures are its own, o
 |---|---|---|---|
 | Mac | 115,000 triangles; work p50 1.0, p95 2.0 ms; render 1.7 ms | 68,400 triangles, 433 draws; work p50 1.0, p95 1.0 ms; select 0.1, render 1.7 ms | — |
 | PS Vita (Vita3K) | budget 40,000; work p50 13, p95 14 ms; render 11.9 ms | 30,200 triangles, 303 draws (mid reach 1300 m); work p50 13, p95 14 ms; select 1.9, render 10.7 ms; 58.6 fps | 158,200 triangles, 222 draws, 60 fps |
-| 3DS (Azahar) | budget 18,000; work p50 7, p95 15 ms; select 2.1, render 5.8 ms | 55,500 triangles, 383 draws (budget 60,000, reaches at 0.87); work p50 8, p95 8 ms; select 5.1, render 2.0 ms; 30 fps held. With Pocket's PICA200 path: the same 55,500 triangles and 383 draws, with shadows, ETC1 pictures and the dusk blend; work p50 5, p95 5 ms; select 3.6 to 3.9, render 0.5 to 0.8 ms; 30 fps held | 40,000 triangles, 276 draws, 30 fps |
+| 3DS (Azahar) | budget 18,000; work p50 7, p95 15 ms; select 2.1, render 5.8 ms | 55,500 triangles, 383 draws (budget 60,000, reaches at 0.87); work p50 8, p95 8 ms; select 5.1, render 2.0 ms; 30 fps held. With Pocket's PICA200 path: the same 55,500 triangles and 383 draws, with shadows, ETC1 pictures and the dusk blend; work p50 5, p95 5 ms; select 3.6 to 3.9, render 0.5 to 0.8 ms; 30 fps held. With the near level from the SD card: 54,500 triangles, 385 draws (reaches at 0.81), 5 to 17 cells drawn at the near level out of the 40 in their slots; work p50 5, p95 6, max 15 ms (48 before, the first frame); read 0.1, select 4.0, render 0.4 ms | 40,000 triangles, 276 draws, 30 fps |
 | PSP (PPSSPP) | budget 14,000; work p50 8, p95 28 ms; select 5.1, render 6.6 ms | 37,100 triangles, 328 draws (budget 40,000); work p50 9, p95 9 ms; select 3.9, render 3.2 ms; 30 fps held. With Pocket's GE path: 38,900 triangles, 1,451 draws (budget 42,000, reaches at 1.00); work p50 7, p95 8 ms; select 4.3, render 1.3 ms (1.0 building the list); 30 fps held, 1,500 frames. With CLUT8 pictures and shadows (15:30): the same 38,900 triangles and 1,451 draws; work p50 7, p95 9 ms (6 and 7 before); select 3.4, render 2.2 ms (1.2 before), of which 0.9 the sweep and its patch; 30 fps held. Shadows off: work p50 6, p95 7, render 1.1 ms | 37,600 triangles, 1,255 draws, 30 fps |
 
 The work no longer has spikes from reads: a chunk is read whole, natively, and the far level of the whole city is resident. The max of
 each run (26 to 62 ms) is the first frame after the loading.
 
-Loading screens: PSP 94 chunks in 20 frames, 3DS 109 in 33, Vita 48 in 3, Mac 102 in 9.
+Loading screens: PSP 94 chunks in 20 frames, 3DS 109 in 33, Vita 48 in 3, Mac 102 in 9. The 3DS with its near level: 79 chunks in 62
+frames (Azahar's clock; 109 in 67 for the same build without the card's pack, whose near chunks counted as reads that failed).
+
+The 3DS's memory, the same build with and without `near.zpk` on the card (Azahar, the tour's opening and 20 seconds of it, sampled at each
+chunk asked for): the heap at most 30.5 MB without, 32.6 MB with; linear memory (the GPU's) at least 20.4 MB free without, 15.5 MB with
+(the night pictures now go to the GPU with their chunk, by day too). The card's entries read in 13 to 14 ms each in Azahar (a chunk of
+25 to 80 KB, a picture of 171 KB), all of them ahead of the frames (none waited for).
 
 Two fixes the measurements found:
 
@@ -171,8 +193,9 @@ What is left (the next agents' per-console work):
   before CLUT8), 16 MB of it the runtime's, beside a 12.5 MB EBOOT whose pack is 9.2 MB. That is 42 MB: a PSP-2000, 3000 or Go (52 MB with
   the EBOOT's `MEMSIZE=1`) holds it; a PSP-1000 (24 MB for a program) does not, and needs a smaller runtime heap and the pack read from the
   memory stick instead of linked in.
-- **3DS:** the near level needs streaming: its 15 MB do not fit beside the embedded pack in an Old 3DS's 64 MB (Pocket reads 40 slots from
-  the SD card). The GPU's time on hardware is not known: Azahar does not time the PICA200, and the budget (60,000) is above Pocket's 40,000.
+- **3DS:** the GPU's time on hardware is not known: Azahar does not time the PICA200, and the budget (60,000) is above Pocket's 40,000.
+  A mid chunk read from the linked pack takes 15 to 70 ms in Azahar (checked, then turned into the PICA's layouts): a frame that reads one
+  is late. The SD card's timing on hardware is not measured.
 - **The selection** costs 4.3 ms a frame on the PSP (with a range per sector) and 3.6 to 3.9 on the 3DS (5.1 before; Azahar's clock), against
   Pocket's 4.4 ms on a PSP. On the 3DS, Azahar's clock: the cells 1.8 ms (the facing sectors were 1.3 ms more with `atan2f`, now a
   polynomial whose result is checked against the exact one near a sector's edge), the ranges 0.8, the chunks to read 0.8.
@@ -184,6 +207,8 @@ What is left (the next agents' per-console work):
 python3 -I examples/tokyo/tools/city-world.py fetch && python3 -I examples/tokyo/tools/city-world.py build ~/.zinc/cache/tokyo/ipod60.pack examples/tokyo/assets/city
 zinc pack --profile psp examples/tokyo -o /tmp/t.zapp     # then tools/build-console-core psp --embed program.zbc resources.bin packs/default.zpk --frames 500 --env ZINC_PROFILE=1
 tools/console-run psp build/.../EBOOT.PBP                  # the 3DS only through lockf -k /tmp/zinc-azahar.lock
+# the 3DS's near level: packs/near.zpk of the same .zapp into Azahar's sdmc/3ds/tokyo/ (~/Library/Application Support/Azahar/sdmc), and
+# --env ZINC_SD_DIR=sdmc:/3ds/tokyo/ (Azahar gives the program no path); the core prints `zinc: sd packs: ...` with ZINC_PROFILE=1
 ```
 
 The program prints the `tokyo:` lines on every device. `ZINC_TOKYO_DEVICE=<name>` tries a device's settings on the Mac, and

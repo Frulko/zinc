@@ -17,13 +17,16 @@ run() {   # run <name> [env...]: 400 frames (the loading screen takes the first 
 frames=400 run day ZINC_TOKYO_HOUR=12
 run night ZINC_TOKYO_HOUR=21
 run psp ZINC_TOKYO_HOUR=12 ZINC_TOKYO_DEVICE=psp
+run n3ds ZINC_TOKYO_HOUR=12 ZINC_TOKYO_DEVICE=n3ds
 fail=0
 grep -q 'tokyo: [0-9]* chunks read' "$tmp/day.out" || { echo "tokyo: the loading screen did not end"; fail=1; }
 tris() { python3 tools/scene-texts "$1" | sed -n 's/.* \([0-9][0-9]*\) tris .*/\1/p' | head -1; }
-day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120")
+day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120"); n3ds=$(tris "$tmp/n3ds-120")
 [ -n "$day" ] && [ "$day" -gt 20000 ] || { echo "tokyo: the desktop readout shows ${day:-no} triangles"; fail=1; }
 # the PSP's budget is 42000 triangles (src/devices.ts, Pocket Tokyo's): the governor keeps it within a few per cent, fewer than the desktop's
 [ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 44000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
+# the 3DS's: the near level in 40 slots (World.slots) within its 60000 triangles
+[ -n "$n3ds" ] && [ "$n3ds" -gt 1000 ] && [ "$n3ds" -le 63000 ] || { echo "tokyo: the 3DS's settings draw ${n3ds:-no} triangles"; fail=1; }
 python3 tools/scene-texts "$tmp/day-80" | grep -q 'tour' || { echo "tokyo: not on the tour at frame 80"; fail=1; }
 python3 tools/scene-texts "$tmp/day-198" | grep -q 'free' || { echo "tokyo: Start did not leave the tour"; fail=1; }
 python3 tools/scene-texts "$tmp/day-230" | grep -q 'Shinbashi' || { echo "tokyo: Select did not open the panel's places"; fail=1; }
@@ -40,5 +43,5 @@ if sum(1 for x, y in zip(a, b) if x != y) < len(a) // 3: print('tokyo: the tour 
 lum = lambda s: sum(sum(p) for p in s) / len(s)
 if not (lum(n) < lum(b) * 0.6 and len(set(n)) > 100): print('tokyo: the night frame is not a lit night (%.0f vs %.0f, %d colours)' % (lum(n), lum(b), len(set(n)))); sys.exit(1)
 P
-[ $fail -eq 0 ] && echo "tokyo: ok (desktop $day triangles, PSP settings $psp)"
+[ $fail -eq 0 ] && echo "tokyo: ok (desktop $day triangles, PSP settings $psp, 3DS settings $n3ds)"
 exit $fail
