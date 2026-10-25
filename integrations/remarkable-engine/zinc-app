@@ -1,0 +1,10 @@
+#!/bin/sh
+# Runs a .zapp (or a project) with the engine of this directory, on a reMarkable (ZN-841): what an AppLoad tile and the display lease start.
+#   zinc-app <app.zapp|project> [args]
+# The engine loads display-rmpp's prebuilt "rmpp" driver (tools/package). Under the lease (ZINC_LEASE, set by lease.c) the driver opens the
+# ink session through Quill's libquill.so, which lib/ holds; libquill.so needs the vendor's libqsgepaper.so (/usr/lib/plugins/scenegraph).
+Z=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export HOME="${HOME:-/home/root}"   # a systemd unit (the lease's) has none: ~/.zinc holds the unpacked apps
+export LD_LIBRARY_PATH="$Z/lib:/usr/lib/plugins/scenegraph${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if [ -n "$ZINC_LEASE" ]; then export ZINC_RMPP_INK="${ZINC_RMPP_INK:-session}"; fi
+exec "$Z/bin/zinc" run "$@"

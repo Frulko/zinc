@@ -276,6 +276,12 @@ std::string pluginTarget() {
 #endif
 }
 
+std::string deviceTarget() {
+  if (const char* e = std::getenv("ZINC_DEVICE_TARGET")) return e;
+  std::string machine;
+  return pluginTarget() == "linux" && readAll("/sys/devices/soc0/machine", machine) && machine.rfind("reMarkable", 0) == 0 ? "rmpp" : "";
+}
+
 namespace { std::string buildOs() { return gCross.on ? "linux" : pluginTarget(); } }
 
 const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPlugin>& plugins, const std::string& module) {
@@ -479,7 +485,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // (other options in zinc.json, another engine) the plugin is built locally as before.
   {
     out.key = prebuiltKey(p, engineRoot, projectDir, target);
-    const fs::path pre = fs::path(p.dir) / "prebuilt" / (gCross.on ? gCross.name : target);
+    const fs::path pre = fs::path(p.dir) / "prebuilt" / (gCross.on && target == "linux" ? gCross.name : target);   // a device's own entry: prebuilt/rmpp (ZN-841)
     std::string key;
     if (readAll((pre / "key").string(), key)) {
       while (!key.empty() && (key.back() == '\n' || key.back() == '\r' || key.back() == ' ')) key.pop_back();

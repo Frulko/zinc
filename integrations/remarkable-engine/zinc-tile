@@ -1,0 +1,45 @@
+#!/bin/sh
+# An AppLoad tile for a .zapp, run by the engine of this directory (ZN-841; docs/targets/remarkable-paper-pro.md, "The engine on the tablet").
+#   zinc-tile <app.zapp> [--session]     the tile zinc-<name> (--session: zinc-<name>-session) in AppLoad's directory
+#   zinc-tile --remove <tile>
+# Default: AppLoad's shared framebuffer (qtfb), xochitl keeps running. --session: the ink session, xochitl stopped by the display lease and
+# brought back on every way out; refused here when this OS's display engine is not one the engine verified (share/zinc/rmpp/verified).
+# Then in AppLoad: reload, and tap the tile.
+set -eu
+Z=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+APPLOAD=${ZINC_APPLOAD:-/home/root/xovi/exthome/appload}
+usage() { sed -n '3,4p' "$0" >&2; exit 2; }
+[ $# -ge 1 ] || usage
+if [ "$1" = --remove ]; then
+  [ $# -eq 2 ] || usage
+  case $2 in zinc-*) ;; *) echo "zinc-tile: $2 is not a tile of zinc-tile (zinc-<name>)" >&2; exit 2 ;; esac
+  rm -rf "${APPLOAD:?}/$2"; echo "removed $2: reload AppLoad"; exit 0
+fi
+session=
+[ "${2:-}" = --session ] && session=1
+[ -f "$1" ] || { echo "zinc-tile: no file $1" >&2; exit 2; }
+zapp=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")
+name=$(basename "$zapp" .zapp)${session:+-session}
+dir=$APPLOAD/zinc-$name
+if [ -n "$session" ]; then
+  V=$(sha256sum "${ZINC_QSGEPAPER:-/usr/lib/plugins/scenegraph/libqsgepaper.so}" | cut -c1-64)
+  grep -qx "$V" "$Z/share/zinc/rmpp/verified" || { echo "zinc-tile: this OS's display engine ($V) is not verified for the ink session; use the qtfb tile" >&2; exit 1; }
+fi
+mkdir -p "$dir"
+cp "$Z/share/zinc/rmpp/icon.png" "$dir/icon.png"
+printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": true\n}\n' \
+  "$name" "$([ -n "$session" ] && echo false || echo true)" "$dir" > "$dir/external.manifest.json"
+if [ -n "$session" ]; then
+  cat > "$dir/launch.sh" <<EOF
+#!/bin/sh
+# zinc-tile --session: the display lease runs $name with xochitl stopped and brings xochitl back on every way out
+# (the app quits, crashes or hangs 10 s, a 2 s press on the power button, systemctl stop zinc-lease, 30 minutes at most).
+V=\$(sha256sum "\${ZINC_QSGEPAPER:-/usr/lib/plugins/scenegraph/libqsgepaper.so}" | cut -c1-64)
+grep -qx "\$V" "$Z/share/zinc/rmpp/verified" || { echo "$name: this OS's display engine (\$V) is not verified for the ink session" >&2; exit 1; }
+exec "$Z/bin/lease" launch --watchdog 10 --vendor-sha256 "\$V" "$Z/bin/zinc-app" "$zapp"
+EOF
+else
+  printf '#!/bin/sh\nexec "%s/bin/zinc-app" "%s"\n' "$Z" "$zapp" > "$dir/launch.sh"
+fi
+chmod 755 "$dir/launch.sh"
+echo "tile zinc-$name in $dir: open AppLoad, reload, then tap '$name'"

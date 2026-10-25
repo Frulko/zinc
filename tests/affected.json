@@ -4,6 +4,7 @@
   "map": [
     {"paths": ["tools/bench-workflows-macos", "tools/workflow-window-ready.swift", "tests/t0/workflow_bench.sh"], "tests": ["workflow_bench"]},
     {"paths": ["integrations/remarkable-ink/lease.c", "tests/native/rmpp/lease-sim/", "tests/t1/rmpp_lease.sh", "examples/remarkable/quill-test/"], "tests": ["rmpp_lease"]},
+    {"paths": ["tools/rmpp-engine", "integrations/remarkable-engine/", "tests/t1/rmpp_engine.sh"], "tests": ["rmpp_engine"]},
     {"paths": ["examples/swift-observatory/", "tests/t1/swift_observatory.sh", "tests/demo/swift_observatory_native.sh"], "tests": ["swift_observatory", "swift_observatory_native", "native_host_bench"]},
     {"paths": ["examples/zinc-libgodot/", "tools/godot/build-lib", "tests/t1/zinc_libgodot.sh"], "tests": ["zinc_libgodot", "native_host_bench"]},
     {"paths": ["tests/demo/native_host_bench.sh", "tests/demo/zinc_libgodot_native.sh"], "tests": ["zinc_libgodot_native", "native_host_bench"]},

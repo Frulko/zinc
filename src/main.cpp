@@ -298,9 +298,27 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   const zn::frontend::FoundPlugin* hit = nullptr;
   for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
   if (!hit) { std::fprintf(stderr, "zinc: display driver '%s' not found (zinc plugins lists them)\n", sel.driver.c_str()); return; }
+  // ZN-841: on a device whose driver has an entry of its own (a reMarkable runs display-rmpp's "rmpp", not the desktop emulator of "linux"), that
+  // entry, prebuilt with the driver's default options (tools/package): the device has no compiler. The project's other values reach the driver at
+  // launch as ZINC_<DRIVER>_<OPTION> (a variable already set wins), which it reads over its defaults.
+  std::string target = zn::tc::pluginTarget(), project = dir;
+  if (const std::string dev = zn::tc::deviceTarget(); !dev.empty() && std::find(hit->manifest.targets.begin(), hit->manifest.targets.end(), dev) != hit->manifest.targets.end()) {
+    auto upper = [](std::string s) { for (char& c : s) c = std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : '_'; return s; };
+    const std::string& name = hit->manifest.name;
+    const std::string prefix = "ZINC_" + upper(name.rfind("display-", 0) == 0 ? name.substr(8) : name) + "_";
+    for (const auto& o : zn::frontend::pluginOptions(*hit, dir, gRoot, dev)) {
+      auto d = std::find_if(hit->manifest.options.begin(), hit->manifest.options.end(), [&](const zn::frontend::PluginOption& x) { return x.key == o.key; });
+      if (d != hit->manifest.options.end() && d->cpp == o.cpp) continue;
+      std::string v = o.cpp;   // a C++ token: a string is a quoted literal
+      if (v.size() >= 2 && v.front() == '"' && v.back() == '"') v = v.substr(1, v.size() - 2);
+      setenv((prefix + upper(o.key)).c_str(), v.c_str(), 0);
+    }
+    target = dev;
+    project = (fs::path(gRoot) / "plugins").string();   // a directory with no zinc.json: the default options, the key of the prebuilt library
+  }
   zn::tc::PluginLib lib;
   std::string err;
-  if (!zn::tc::buildPlugin(*hit, gRoot, dir, zn::tc::pluginTarget(), lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
+  if (!zn::tc::buildPlugin(*hit, gRoot, project, target, lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
   gPlugins.push_back(lib);
   gPluginDirs.push_back(hit->dir);
   gDisplayPlugin = hit->manifest.name;
@@ -3180,11 +3198,14 @@ int main(int argc, char** argv) {
       if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig, true);   // the .so too: a prebuilt library a device of that target loads (tools/package --linux-arch, ZN-823)
     }
-    const bool built = zn::tc::buildPlugin(*hit, gRoot, project, cross ? "linux" : zn::tc::pluginTarget(), lib, err);
+    // cross: the plugin's "linux" entry, or the device's own that ZINC_EXPORT_TARGET names (the reMarkable's rmpp, ZN-841: prebuilt/rmpp/)
+    std::string entry = cross ? "linux" : zn::tc::pluginTarget();
+    if (const char* dev = std::getenv("ZINC_EXPORT_TARGET"); cross && dev && std::find(hit->manifest.targets.begin(), hit->manifest.targets.end(), dev) != hit->manifest.targets.end()) entry = dev;
+    const bool built = zn::tc::buildPlugin(*hit, gRoot, project, entry, lib, err);
     zn::tc::clearCrossTarget();
     if (!built) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.fetched ? "fetched" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
-    const std::string t = cross ? cross->name : zn::tc::pluginTarget();   // the directory of binaries/<target>/ in the index and of prebuilt/<target>/
+    const std::string t = !cross ? zn::tc::pluginTarget() : entry != "linux" ? entry : cross->name;   // the directory of binaries/<target>/ in the index and of prebuilt/<target>/
     if (!packOut.empty()) {
       namespace fs = std::filesystem;
       std::vector<zn::zapp::TarEntry> files;

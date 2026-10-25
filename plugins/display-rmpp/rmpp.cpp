@@ -69,7 +69,10 @@ bool set_mode(int mode) {
 }
 
 uint64_t update_interval() {
-  int hz = refresh_mode == MODE_FAST ? ZP_DISPLAY_RMPP_FAST_HZ : ZP_DISPLAY_RMPP_COLOR_HZ;
+  // ZINC_RMPP_FAST_HZ / ZINC_RMPP_COLOR_HZ: the project's values when the engine on the tablet runs the prebuilt driver (ZN-841)
+  static const int fast_hz = getenv("ZINC_RMPP_FAST_HZ") ? atoi(getenv("ZINC_RMPP_FAST_HZ")) : ZP_DISPLAY_RMPP_FAST_HZ;
+  static const int color_hz = getenv("ZINC_RMPP_COLOR_HZ") ? atoi(getenv("ZINC_RMPP_COLOR_HZ")) : ZP_DISPLAY_RMPP_COLOR_HZ;
+  int hz = refresh_mode == MODE_FAST ? fast_hz : color_hz;
   if (hz < 1) hz = 1; if (hz > 125) hz = 125;
   return 1000000u / hz;
 }

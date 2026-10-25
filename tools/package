@@ -125,7 +125,18 @@ def prebuild_plugins(zinc, share, target, cross=None):
                 shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt"))
                 continue
             shutil.copytree(pre, os.path.join(share, "plugins", name, "prebuilt", target))
+        # a device's own entry (ZN-841): the engine on a reMarkable loads display-rmpp's "rmpp" driver from prebuilt/rmpp/, not the desktop emulator of "linux"
+        for name, device in DEVICE_ENTRIES.get(cross or "", ()):
+            r = subprocess.run([zinc, "plugin-build", name, tmp, "--target", "linux-" + cross, "--prebuild"], capture_output=True, text=True,
+                               env=dict(os.environ, ZINC_PREBUILT="0", ZINC_EXPORT_TARGET=device))
+            at = [l[len("prebuilt: "):] for l in r.stdout.splitlines() if l.startswith("prebuilt: ")]
+            if r.returncode != 0 or not at:
+                without[name + " (" + device + ")"] = (r.stderr.strip().splitlines() or ["no library"])[-1][:200]
+                continue
+            shutil.copytree(at[0], os.path.join(share, "plugins", name, "prebuilt", device), dirs_exist_ok=True)
     return without
+
+DEVICE_ENTRIES = {"aarch64": [("display-rmpp", "rmpp")]}   # cross arch: (plugin, device entry) built besides its "linux" entry
 
 def run(*cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)

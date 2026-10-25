@@ -1,0 +1,42 @@
+#!/bin/sh
+# The engine bundle for a reMarkable (ZN-841): zinc for aarch64 Linux (glibc 2.28+) that runs and packs .zapp files on the tablet, with
+# display-rmpp's driver prebuilt for it, the display lease and Quill's libquill.so for the ink session, zinc-app, zinc-tile and deploy.sh.
+#   tools/rmpp-engine [--package zinc-<version>-linux-aarch64.tar.gz] [-o dir]      (default: tools/build-linux --arch aarch64, dist/rmpp)
+#   then: dist/rmpp/deploy.sh [root@10.11.99.1] [app.zapp [--session]]...
+# docs/targets/remarkable-paper-pro.md, "The engine on the tablet".
+set -eu
+here=$(cd "$(dirname "$0")" && pwd -P)
+root=$(dirname "$here")
+package= out=$root/dist/rmpp
+while [ $# -gt 0 ]; do
+  case $1 in
+    --package) package=${2:?--package file}; shift 2 ;;
+    -o) out=${2:?-o dir}; shift 2 ;;
+    *) sed -n '4,5p' "$0" >&2; exit 2 ;;
+  esac
+done
+if [ -z "$package" ]; then
+  "$here/build-linux" --arch aarch64 || exit 1
+  package=$(ls -t "$root"/dist/linux-aarch64/zinc-*-linux-aarch64.tar.gz | head -1)
+fi
+zig=${ZINC_ZIG:-$(ls -d "${ZINC_HOME:-$HOME/.zinc}"/toolchains/zig-*/zig 2>/dev/null | tail -1)}
+[ -x "$zig" ] || { echo "rmpp-engine: no pinned zig (zinc toolchain install zig)" >&2; exit 2; }
+stage=$out/stage
+rm -rf "$stage" && mkdir -p "$stage"
+tar xzf "$package" -C "$stage"
+mv "$stage"/zinc-*-linux-aarch64 "$stage/zinc"
+z=$stage/zinc
+[ -f "$z/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so" ] || { echo "rmpp-engine: $package has no display-rmpp prebuilt for rmpp (a package of tools/package before ZN-841)" >&2; exit 1; }
+ink=$root/integrations/remarkable-ink
+"$zig" cc -target aarch64-linux-musl -static -O2 "$ink/lease.c" -o "$z/bin/lease"
+cp "$ink/quill/libquill.so" "$z/lib/libquill.so"
+cp "$ink/quill/LICENSE" "$z/QUILL-LICENSE"
+for f in zinc-app zinc-tile; do cp "$root/integrations/remarkable-engine/$f" "$z/bin/$f"; chmod 755 "$z/bin/$f"; done
+mkdir -p "$z/share/zinc/rmpp"
+cp "$root/app/atelier/icon.png" "$z/share/zinc/rmpp/icon.png"   # the tiles' icon
+# the libqsgepaper.so hashes of models.h: the ink session runs only on an OS a tablet test verified
+grep -o '"[0-9a-f]\{64\}"' "$root/plugins/display-rmpp/models.h" | tr -d '"' > "$z/share/zinc/rmpp/verified"
+COPYFILE_DISABLE=1 tar czf "$out/zinc-rmpp.tar.gz" -C "$stage" zinc
+cp "$root/integrations/remarkable-engine/deploy.sh" "$out/deploy.sh"; chmod 755 "$out/deploy.sh"
+rm -rf "$stage"
+echo "rmpp-engine: $out/zinc-rmpp.tar.gz ($(du -k "$out/zinc-rmpp.tar.gz" | cut -f1) KB) and $out/deploy.sh"

@@ -324,6 +324,37 @@ else the mouse (left = pen at pressure 0.5, right = eraser). Give the project th
 4. Without AppLoad (`QTFB_KEY` unset) the app runs headless and says so on stderr. Stopping xochitl
    (`systemctl stop xochitl`) does not give Zinc the screen: the panel needs xochitl's software TCON.
 
+## The engine on the tablet (ZN-841)
+
+zinc itself runs on the Paper Pro (aarch64, glibc), so the tablet runs and packs `.zapp` files with no C toolchain and no export per
+app: the first step of an app store for the reMarkable.
+
+```sh
+# on the Mac
+tools/rmpp-engine                         # tools/build-linux --arch aarch64, then dist/rmpp/zinc-rmpp.tar.gz and deploy.sh
+dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/root/zinc, the apps in /home/root/zinc-apps, one tile each
+# on the tablet
+/home/root/zinc/bin/zinc pack             # in a project copied there: build/<name>.zapp
+/home/root/zinc/bin/zinc-tile build/<name>.zapp [--session]   # its AppLoad tile; zinc-tile --remove zinc-<name>
+```
+
+- The bundle is the Linux package of `tools/build-linux` (`bin/zinc`, `share/zinc`) plus `bin/lease` (the display lease, static),
+  `lib/libquill.so` and `QUILL-LICENSE` (the ink session), `bin/zinc-app`, `bin/zinc-tile`, and `share/zinc/rmpp/` (the tiles' icon and
+  `verified`, the `libqsgepaper.so` hashes of `models.h`). Sources: `integrations/remarkable-engine/`.
+- **Native code comes prebuilt.** The engine finds out it runs on a reMarkable (`/sys/devices/soc0/machine`; `ZINC_DEVICE_TARGET` overrides
+  it) and loads display-rmpp's `rmpp` entry instead of the desktop emulator of `linux`, from `prebuilt/rmpp/`, which `tools/package` builds
+  for aarch64 with the driver's default options. The options a project sets in `display` reach the prebuilt driver at launch as
+  `ZINC_RMPP_<OPTION>` (`ZINC_RMPP_INK`, `ZINC_RMPP_REFRESH_MODE`, `ZINC_RMPP_FAST_HZ`, `ZINC_RMPP_COLOR_HZ`); a variable already set wins.
+  The other plugins are the package's `prebuilt/linux/`. A project's own native module (`native/*.rmpp.cpp`) needs a compiler: on the
+  tablet the program gets its `x.sim.ts` stand-in, with a warning (notes' **Colour preview** then switches nothing on the panel); export
+  such an app with `zinc export --target rmpp` for its native code.
+- **A tile** (`zinc-tile`) is an AppLoad directory `zinc-<name>` whose `launch.sh` runs `bin/zinc-app <app.zapp>`: qtfb (L0, or L1 when
+  an ink canvas answers), xochitl keeps running. `--session` makes `zinc-<name>-session`, `"qtfb": false`, whose `launch.sh` checks the
+  tablet's `libqsgepaper.so` against `verified` and runs `lease launch --watchdog 10 --vendor-sha256 <hash> zinc-app <app.zapp>`; under the
+  lease `zinc-app` sets `ZINC_RMPP_INK=session`, `HOME` and the library path (the engine's `lib/`, then `/usr/lib/plugins/scenegraph`).
+- `ZINC_RMPP_DIR` gives `deploy.sh` another directory for a trial beside an installed engine. Proven on the Mac by `tests/run --only rmpp_engine`
+  (the bundle's layout, the tiles and their launchers against stand-ins).
+
 ## What is verified and what is not
 
 Verified here: conformance suite on `rmpp` (static ELF in the arm64 container, same bytes as the sim oracle, incl.
