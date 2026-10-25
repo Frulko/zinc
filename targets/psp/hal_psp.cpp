@@ -109,8 +109,15 @@ void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
 uint64_t hal_time_us(void) { return (uint64_t)sceKernelGetSystemTimeWide(); }
 void hal_sleep_us(uint64_t us) { sceKernelDelayThread(us > 1000000u ? 1000000u : (SceUInt)us); }
-void hal_log(const char* s, size_t n) { fwrite(s, 1, n, stdout); fflush(stdout); emulatorOut(s, n); }
-void hal_log_err(const char* s, size_t n) { fflush(stdout); fwrite(s, 1, n, stderr); fflush(stderr); emulatorOut(s, n); }
+// the lines also in zinc.log beside the EBOOT (the working directory; on a Vita's Adrenaline, ux0:pspemu/PSP/GAME/<dir>/): a console prints nowhere
+static void fileOut(const char* s, size_t n) {
+  static FILE* f = nullptr;
+  static bool tried = false;
+  if (!tried) { tried = true; f = fopen("zinc.log", "w"); }
+  if (f) { fwrite(s, 1, n, f); fflush(f); }
+}
+void hal_log(const char* s, size_t n) { fwrite(s, 1, n, stdout); fflush(stdout); emulatorOut(s, n); fileOut(s, n); }
+void hal_log_err(const char* s, size_t n) { fflush(stdout); fwrite(s, 1, n, stderr); fflush(stderr); emulatorOut(s, n); fileOut(s, n); }
 int hal_isatty(int) { return 0; }
 const char* hal_env(const char* name) { return getenv(name); }
 void hal_heap_region(void** base, size_t* size) { *size = ZRT_HEAP_BYTES; *base = malloc(*size); if (!*base) *size = 0; }

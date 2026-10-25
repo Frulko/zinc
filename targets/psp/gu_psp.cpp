@@ -27,7 +27,7 @@ constexpr int32_t kW = 480, kH = 272, kStride = 512, kMaxTex = 512, kMaxQuads = 
 struct V { float u, v; uint32_t color; float x, y, z; };   // GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF
 constexpr int kVertex = GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D;
 
-unsigned int __attribute__((aligned(16))) list[256 * 1024 / 4];
+unsigned int __attribute__((aligned(64))) list[256 * 1024 / 4];   // whole cache lines: see list3d in plugins/3d/native/render3d.psp.cpp
 V __attribute__((aligned(64))) pool[kMaxQuads * 2];
 uint32_t nv, runFirst;      // vertices written this frame, the first of the run not drawn yet
 bool ready, overflow;
@@ -35,7 +35,7 @@ bool ready, overflow;
 struct Tex { void* mem; int32_t w, h, stride, tw, th, psm; uint32_t ver; bool ok; };
 std::map<int32_t, Tex> texs;
 Tex atlasTex[2], softTex;   // the coverage atlases (glyphs, shapes)
-uint32_t __attribute__((aligned(16))) clut[256];   // T8 coverage -> white at that alpha
+uint32_t __attribute__((aligned(64))) clut[256];   // T8 coverage -> white at that alpha
 uint32_t* softRows;         // the software frame, 0x00RRGGBB
 bool softValid;
 const Tex* cur;             // the state of the run: its texture (null: colour) and filter

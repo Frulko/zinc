@@ -32,7 +32,9 @@ constexpr int32_t kScreenW = 480, kScreenH = 272;   // gu_psp.cpp's 2D state, se
 struct GMesh { GVtx* v; GVtx* flat; int32_t nv, ni; };
 struct GTarget { int32_t img, w, h, d; uint32_t* px; uint32_t off, bytes; GuTex tex; };
 
-unsigned int __attribute__((aligned(16))) list3d[64 * 1024 / 4];
+// 64-byte aligned, whole cache lines: sceGu writes the list through the uncached mirror, and a cached line it shared with a CPU-written static
+// would be written back over its first commands on a real PSP (Pocket3D's finding; PPSSPP has no data cache)
+unsigned int __attribute__((aligned(64))) list3d[64 * 1024 / 4];
 uint32_t vramTop = kVramScreens;
 
 int32_t pow2(int32_t v) { int32_t p = 8; while (p < v) p <<= 1; return p; }
@@ -237,6 +239,7 @@ struct Psp : Engine {
   /** Sends the frame's list (the GE draws it while the program goes on; gu_psp.cpp's frame waits for it), with gu_psp.cpp's 2D state back. */
   int32_t end() override {
     if (!gcur) return 0;
+    raster::dyn_update(gcur->img, nullptr, 0);   // a new picture: the frame's diff redraws its box (the GPU writes no pixels the diff could see)
     gcur = nullptr;
     sceGuDisable(GU_DEPTH_TEST); sceGuDisable(GU_LIGHTING); sceGuDisable(GU_CULL_FACE); sceGuDisable(GU_CLIP_PLANES); sceGuDisable(GU_TEXTURE_2D);
     sceGuDepthMask(GU_FALSE);
