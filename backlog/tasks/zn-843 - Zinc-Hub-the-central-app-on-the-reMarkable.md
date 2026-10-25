@@ -2,7 +2,8 @@
 id: ZN-843
 title: 'Zinc Hub: the central app on the reMarkable'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-25 19:26'
 updated_date: '2026-10-25 19:28'
 labels:
