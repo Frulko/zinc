@@ -3,6 +3,8 @@
 // images of the asset pack linked into the core (ZIM1 entries: an imported image, a page of a sprite atlas) are zinc:gfx images (ZN-759).
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <map>
 #include <string>
 
@@ -53,6 +55,16 @@ const char* zn_hal_signal_next(void) { return ""; }
 int zn_ui_log_on(void) { return 0; }
 void zn_ui_log_mark(int) {}
 int zn_asset_font(const char*, uint32_t) { return -1; }
+// zinc:assets readBytes for a native module (zinc:3d's models): the pack entry in one call, a malloc'd copy the caller frees
+unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) {
+  std::string d;
+  if (!zn_console_pack_read(std::string(name, n), 0, d)) return nullptr;
+  auto* p = static_cast<unsigned char*>(malloc(d.size() ? d.size() : 1));
+  if (!p) return nullptr;
+  memcpy(p, d.data(), d.size());
+  *size = static_cast<uint32_t>(d.size());
+  return p;
+}
 void zn_resource_stats_register(const char*, ZnResourceStatsFn, void*) {}
 __attribute__((weak)) void hal_set_resize(int32_t) {}   // a console's HAL may follow the program's onResize
 }

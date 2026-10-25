@@ -1404,6 +1404,23 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) {
   if (id >= 0) gPackImages[key] = id;
   return id;
 }
+// zinc:assets readBytes for a native module (zinc:3d's models): the whole entry in one call, a malloc'd copy the caller frees; null when
+// it is in no pack and not in assetsDir.
+extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) {
+  const std::string key(name, n);
+  std::string d, err;
+  if (!assets::read(key, d, err)) {
+    const std::string dir = assetsDir();
+    std::ifstream in(dir + "/" + key, std::ios::binary);
+    if (dir.empty() || !in) return nullptr;
+    d.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  } else if (!err.empty()) return nullptr;
+  auto* p = static_cast<unsigned char*>(std::malloc(d.size() ? d.size() : 1));
+  if (!p) return nullptr;
+  std::memcpy(p, d.data(), d.size());
+  *size = static_cast<uint32_t>(d.size());
+  return p;
+}
 void assets::imageReloaded(const std::string& name) {
   if (auto it = gPackImages.find(name); it != gPackImages.end()) packImage(name, it->second);
 }

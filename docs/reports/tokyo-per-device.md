@@ -106,10 +106,11 @@ Loading screens:
 
 What is left:
 
-- **Reads still drop frames.** A tile's mid model is about 50 KB. `zinc:assets` `readBytes` makes one host call per byte, so a read costs
-  about 200 ms on the PSP and up to 100 ms on the 3DS. With read-ahead the reads happen before the tiles are in view, so nothing pops in.
-  But the frame that reads still stalls, about once every 40 frames on the tour. A bulk `readBytes` (one host call that fills a `u8[]`) is
-  the fix (`backlog/later.md`). zinc-09's change of 2026-10-25 lets a native call write into an array, which makes that possible.
+- **Model reads, fixed.** A tile's mid model is about 50 KB, and `zinc:assets` `readBytes` makes one host call per byte: a read cost about
+  200 ms on the PSP and up to 100 ms on the 3DS. zinc:3d's `loadModel` now has the renderer read the file in one call
+  (`R.assetOpen`, from the pack or the assets directory) and build the meshes from its own copy; the interpreter reads only the header.
+  On PPSSPP the loading went from 83 to 62 frames, the read-ahead from 2.0 to 0.8 ms a frame, and no frame of the tour stalls on a read any
+  more. The one slow frame left is the first choice of levels after the loading (181 ms, once).
 - **The real consoles are not measured.**
 
 ## How to measure again

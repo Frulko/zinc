@@ -40,6 +40,10 @@ export default {
   specular(): void {},
   emissive(): void {},
   fog(): void {},
+  assetOpen(): i32 { return -1; },
+  assetByte(): i32 { return 0; },
+  assetMesh(): i32 { return -1; },
+  assetClose(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   gpu(): boolean { return false; },
   transform(world: number[], parent: number[], p: number[], q: number[], s: number[]): void {

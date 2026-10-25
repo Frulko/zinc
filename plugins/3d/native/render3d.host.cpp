@@ -294,7 +294,12 @@ static bool texture(int32_t id, Tex& t) {
   return raster::dyn_view(id, &t.px, &t.w, &t.h, &t.stride) && t.w > 0 && t.h > 0;
 }
 
+// The bytes of an asset for a native module (src/host/sys_host.cpp, targets/console/host_console.cpp): a malloc'd copy, null when it is not
+// there or this host gives none (weak: a host without it leaves loadModel on zinc:assets).
+extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) __attribute__((weak));
+
 struct Engine : NativeRender3D {
+  Array<uint8_t> asset;   // the model assetOpen read
   Pool<Mesh> meshes;
   Pool<Target> targets;
   Target* cur = nullptr;
@@ -375,6 +380,20 @@ struct Engine : NativeRender3D {
     room((int32_t)nv);
     return meshes.add(m);
   }
+  int32_t assetOpen(String name) override {
+    asset = Array<uint8_t>();
+    uint32_t n = 0;
+    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+    if (!p) return -1;
+    asset = Array<uint8_t>::with_cap((int32_t)n);
+    memcpy(asset.a->data, p, n);
+    asset.a->len = (int32_t)n;
+    free(p);
+    return (int32_t)n;
+  }
+  int32_t assetByte(int32_t at) override { return asset.a && at >= 0 && at < asset.a->len ? asset.a->data[at] : 0; }
+  int32_t assetMesh(int32_t at) override { return asset.a ? meshLoad(asset, at) : -1; }
+  void assetClose() override { asset = Array<uint8_t>(); }
   /** The per-vertex scratch of draw() for meshes of `nv` vertices. */
   void room(int32_t nv) {
     if (nv <= cap) return;

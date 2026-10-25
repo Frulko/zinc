@@ -14,6 +14,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - examples/tokyo: Pocket Tokyo's flight over Shiba and the Tokyo Tower (PLATEAU and OpenStreetMap buildings) on zinc:3d, one program for the Mac, the Pi, the PSP, the Vita and the 3DS with per-device levels of detail; `examples/tokyo/tools/city-gltf.py fetch` then `build` makes the city as glTF files.
 - zinc:3d has fog: `scene.fog = new Fog(color, near, far)` fades what is between `near` and `far` (view depth) into `color`, as three.js's Fog, on the GPU, in software and on the PSP, PS Vita and 3DS. `material.fog = false` keeps a sky out of it.
 - zinc:3d no longer recomputes the matrices of nodes that have not moved, which cost the PSP a native call per node each frame.
+- zinc:3d's `loadModel` reads a `.zmesh` file in one call instead of one call per byte: a 50 KB model no longer stalls a PSP frame for about 200 ms.
 - An asset rule's `targets` object gives options for one target only (`"targets": { "psp": { "maxSize": 64 } }`), and `"skip": true` leaves a file out of that target's packs.
 - `zinc pack --profile <console>` packs the assets built for that console instead of this computer's.
 - `zinc dev --device` tells each start phase by phase: packing here, sending, starting there, the device's own steps (a plugin built there shows with its time) and the first frame on its screen, then the total from the save.
