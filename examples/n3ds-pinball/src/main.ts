@@ -15,7 +15,7 @@ import { Panels } from './panels';
 import { Touch, readControls, clearPresses } from './input';
 import { TOP_W, TOP_H, BOTTOM_W, BOTTOM_H, BOTTOM_PANEL_W } from './constants';
 
-const game = new Game(new Store(true));
+export const game = new Game(new Store(true));
 const upper = new Half(game, false, TOP_W, TOP_H);
 const lower = new Half(game, true, BOTTOM_W, BOTTOM_H);
 const panels = new Panels(game);

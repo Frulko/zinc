@@ -262,6 +262,7 @@ void hal_init(const HalConfig* cfg) {
   gfxSetScreenFormat(GFX_BOTTOM, GSP_RGBA8_OES);
   gfxSetDoubleBuffering(GFX_BOTTOM, true);
   APT_CheckNew3DS(&isNew3ds);
+  if (isNew3ds) osSetSpeedupEnable(true);
   cstickOn = isNew3ds && irrstInit() == 0;
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
   memset(rows, 0, (size_t)W * H * 4);
@@ -387,6 +388,7 @@ void hal_present(const HalFrame* f) {
   for (auto& r : stale) { if (f->y0 < r[0]) r[0] = f->y0; if (f->y1 > r[1]) r[1] = f->y1; }   // both buffers miss these rows
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
-double hal_fixed_dt(void) { return 1.0 / 60.0; }
+// Stereo renders two callbacks per refresh; a fixed 1/60 per eye doubles simulation time.
+double hal_fixed_dt(void) { return 0; }
 void hal_run(int (*step)(void)) { while (step()) {} }
 }

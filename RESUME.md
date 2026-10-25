@@ -1,5 +1,6 @@
 # Resume — 2026-10-25 (pinball)
 
+- Pinball DS latest: 0.2.1 compiled artifact build/n3ds-pinball-0.2.1-native.3dsx, SD absent/not installed. Fixed 3DS stereo clock (previously almost double speed), enabled supported New3DS CPU/cache mode. Real-app three-ball bounds/speed/clock checks pass headless and Azahar flat/stereo. Physical fluidity remains unproven; occasional emulator frame spikes remain. See report and artifact JSON.
 - Pinball DS 0.2 follow-up: owner reports severe lag on the physical 3DS. The previous SD executable was embedded/interpreted despite native Box2D; new playable **compiled** artifact is build/n3ds-pinball-0.2-native.3dsx (frames=0, no input/profile). Removed redundant bridge writes; DS now draws textured blue caps/recoil and Kenney sparks, 12-spark profile budget and revised panels. Core + desktop pixel checks and n3ds_demos pass; Azahar program p50/p99 12/21 → 4/7 ms (emulator only). SD absent at preparation, async request pending; physical retest still needed. See pinball physics report for checksum and build command.
 
 ## Swift / Godot / Blender workflows — delivered 2026-10-25

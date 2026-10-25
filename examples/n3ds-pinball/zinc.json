@@ -1,6 +1,6 @@
 {
   "name": "n3ds-pinball",
-  "app": { "id": "dev.zinc.examples.n3ds-pinball", "name": "Nova Patrol DS", "version": "0.2.0" },
+  "app": { "id": "dev.zinc.examples.n3ds-pinball", "name": "Nova Patrol DS", "version": "0.2.1" },
   "entry": "src/main.ts",
   "assets": "assets",
   "targets": {

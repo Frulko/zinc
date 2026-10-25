@@ -43,3 +43,14 @@ The actual DS renderer now uses the shared textured cap with recoil, Kenney star
 Matched 360-frame scripted Azahar sessions, serialized under the shared emulator lock and with no build from this session running: embedded interpreter program p50/p99 12/21 ms, compiled optimized 0.2 program 4/7 ms; emulated refresh gaps p50/p99 17/34 → 17/18 ms. Startup baking remains approximately 575–647 ms in these guest logs. These are emulator/guest observations, not physical-console timing or a claim of guaranteed 60 FPS on the owner's model.
 
 Playable artifact: `build/n3ds-pinball-0.2-native.3dsx`, SHA-256 `6fb60baf11a318c3a00b476d2e46972b1fcecfa57ac379e5fe5e9ca6d47f6463`, 2,377,236 bytes. Its CMake cache confirms `FRAMES=0`, empty input/profiling environment, AOT program linked, title `Nova Patrol DS 0.2`. The SD card was absent while preparing it; installation status is recorded in `build/n3ds-pinball-0.2-native.json`. Physical replay/performance feedback remains required.
+
+
+## 0.2.1: stereo elapsed-time regression
+
+The 3DS HAL supplied 1/60 s for each callback, while stereo renders two callbacks per refresh. Gameplay therefore advanced almost twice as fast in stereo and did extra physics work. `hal_fixed_dt()` now returns zero to select the runtime's elapsed-time clock; deterministic test timing and the shared fixed-step physics remain intact. New3DS initialization also enables libctru's supported CPU/cache mode, guarded by the existing model check. Old3DS keeps its supported mode. System-tick conversion is unchanged.
+
+The real application exports its game for `tools/multiball.ts`: three balls, automatic controls, bounds/finite-speed checks and a game-clock versus elapsed-clock assertion after initial baking. `tests/run --only n3ds_pinball_multiball` passes. Compiled Azahar runs pass for 1200 flat callbacks (~20 seconds) and 3600 stereo callbacks (~30 seconds). Stereo reports 4.5, 9.5, …29.5 seconds of gameplay; before the fix it reported ~58 seconds after 30 wall seconds. The initial half-second is dropped by the existing catch-up cap during baking.
+
+Guest program cost is typically 4–5 ms; stereo reporting windows reach p99 22 ms and refresh gaps of 34 ms. This does not prove sustained 60 FPS or physical-device performance. Flat and stereo assertions pass, with three active balls throughout the reports. Logs: `/tmp/zinc-pinball3ds-clock-flat.log`, `/tmp/zinc-pinball3ds-clock-stereo.log`. Reproduction commands are in the demo README.
+
+Playable artifact: `build/n3ds-pinball-0.2.1-native.3dsx`, SHA-256 `702d9f619398afc236c7ff58a8967178eadc1069fe0404d85f3f7bb4765ef67d`, 2431832 bytes. CMake confirms AOT linked, FRAMES=0, no scripted input/profiling environment, title Nova Patrol DS 0.2.1. SD absent; not installed. Metadata: `build/n3ds-pinball-0.2.1-native.json`.

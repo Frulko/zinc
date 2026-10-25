@@ -1270,3 +1270,8 @@ Reproduce after builds/tests finish: `ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_FRAMES=2
 Matched 360-frame Azahar guest sessions (`tests/data/n3ds-demos/pinball.input`, `ZINC_PROFILE=1`), serialized with `/tmp/zinc-azahar.lock`, no concurrent build from this session. Previous embedded/interpreted 3DS build: program p50/p99 12/21 ms, refresh gap 17/34 ms. Optimized compiled (`--aot`) 0.2 build: 4/7 ms and 17/18 ms. Startup/baking remains 575–647 ms. This is emulator/guest profiling, not a real-device timing claim; other work on the host prevents treating it as a formal host CPU benchmark.
 
 Accuracy is unchanged: 960 Hz plus adaptive travel steps, Box2D retained. Changes remove redundant bridge writes, resting flipper geometry and repeated collider scans; 3DS effect pool is 12 sparks. Core invariants and desktop frame comparison pass. The DS view now actually draws cap and spark image assets. Commands and artifact provenance: `zinc-next-pinball-physics.md`, section Physical 3DS feedback.
+
+
+### 2026-10-25: 3DS stereo clock and three-ball regression
+
+Compiled real-app multiball probe passes bounds, speed and elapsed-clock assertions under Azahar: 1200 flat callbacks (~20 s), 3600 stereo callbacks (~30 s). Corrected 1/60-per-eye HAL timing: stereo game time now advances ~5 s per 5 s report rather than ~10 s. Guest program p50 4–5 ms, stereo reporting-window p99 up to22 ms, occasional34 ms refresh gaps; initial board bake ~575 ms. Emulator correctness/profiling only, not a physical 60 FPS claim. Supported New3DS CPU/cache mode enabled; physical benefit unmeasured. See pinball physics report and 0.2.1 artifact metadata.

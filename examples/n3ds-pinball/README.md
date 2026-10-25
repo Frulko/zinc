@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.1" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -60,3 +60,13 @@ owner's play session. Measurements and the regression checks are in `docs/report
 The release build command above has no frame limit, scripted inputs or profiling environment. For a measured
 session, use a separate build directory and add `--frames 360 --input tests/data/n3ds-demos/pinball.input
 --env ZINC_PROFILE=1`, then `lockf -k /tmp/zinc-azahar.lock tools/console-run n3ds <file.3dsx>`.
+
+## Stereo timing regression check
+
+`tools/multiball.ts` imports the real application, serves three balls, checks positions/speed and compares
+gameplay time with elapsed time after warm-up. `tests/run --only n3ds_pinball_multiball` exercises it headless.
+For the real 3DS HAL in Azahar, compile this entry with `--aot`, `--frames 3600`, `--env ZINC_PROFILE=1` and
+`--env ZINC_3D_SLIDER=1`, then run it under `/tmp/zinc-azahar.lock`. Repeat with slider 0 for the flat case.
+A fixed 1/60-second delta per eye is incorrect: stereo draws two eye callbacks per refresh. Live 3DS builds
+now use elapsed time; deterministic tests can still request their fixed virtual clock. New 3DS hardware also
+requests libctru's supported higher CPU clock and L2 cache; Old 3DS hardware keeps its existing mode.
