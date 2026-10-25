@@ -6,8 +6,8 @@
 
 - Integrated embedded C surface, Swift Observatory, shared scene contract/reader, Blender library with actual .blend and Godot Parcel Yard exporter. READMEs in examples/swift-observatory, examples/blender-library and examples/godot-to-zinc.
 - tools/build zn_app and six integrated targeted tests PASS: embed, swift_observatory, app_library, scene_exchange, blender_library, godot_export. ZN-825 Done; Swift native-window/capture proof remains (ZN-826 Review).
-- ZN-829 world metadata/provenance slice integrated; actual .zworld compiler/SceneRevision bypass waits Tokyo include/zn/zworld.h (still absent). ZN-830 skeletal animation and ZN-831 showcase remain open.
-- Godot UI agent has 94d06f7b ready for integration and graphical proof; LibGodot source build succeeded, host demo still in progress. Live branches feat/workflow-godot and feat/workflow-blender in /private/tmp/zinc-workflow-*. No push/release/cross builds or benchmarks.
+- ZN-829 world metadata/provenance slice integrated; Tokyo header and world importer are now on develop (1097dbd6). Blender agent is connecting publication/static-node bypass to that importer. ZN-830 skeletal animation (bfcbdf05,08d0efdc) and ZN-831 playable Lantern Post (8a48cd90) tested on agent branch, not yet integrated.
+- Godot UI c3bd5913, LibGodot host 6407824e and Godot world metadata 8679feab integrated. Integrated godot_zinc_ui, zinc_libgodot and updated godot_export PASS, including packaged headless runs outside checkout; graphical proof still pending, ZN-828/832 Review. Copied unchanged agent-built native artifacts to ignored demo build paths for these checks. Godot worker finished cleanly; Blender worker remains active in /private/tmp/zinc-workflow-blender. No push/release/cross builds or benchmarks.
 
 
 - Owner pinball request: shared examples/pinball-kit, Box2D for pinball/n3ds-pinball, Jolt for pinball3d/editor; fixed clock + interpolation, adaptive travel steps, passive held flippers, contact direction and two board pockets fixed. Kenney sprites/emblem, quieter art, clearer panels and recoil. ZN-801 Done; ZN-649.12 still needs human play/listening, ZN-800 still has Pocket Hero/platform asset work.
