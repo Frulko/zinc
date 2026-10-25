@@ -92,7 +92,9 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   }
   if (!args.empty()) argv.push_back("--");
   argv.insert(argv.end(), args.begin(), args.end());
-  std::vector<std::pair<std::string, std::string>> vars = {{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"}};   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
+  const auto epochUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  std::vector<std::pair<std::string, std::string>> vars = {{"ZINC_DEV", "1"}, {"ZINC_DEV_FD", "3"}, {"ZINC_STEPS", "1"},
+                                                           {"ZINC_DEV_T0", std::to_string(epochUs)}};   // its first-frame line counts from here   // its steps too: building a plugin on a small board takes seconds that must not look like a hang
   for (const std::string& kv : extra)   // zinc dev --perf and the like: the engine's own switches only
     if (kv.rfind("ZINC_", 0) == 0 && kv.find('=') != std::string::npos) vars.emplace_back(kv.substr(0, kv.find('=')), kv.substr(kv.find('=') + 1));
   std::vector<std::string> env = environment(vars);
@@ -271,8 +273,15 @@ struct Session {
     }
   }
 
+  std::chrono::steady_clock::time_point saved{};   // when the start began: the timeline ends at the program's first frame there
+  bool timing = false;
+
   void show(char type, const std::string& payload) {
     if (type == kOut || type == kErr) writeAll(type == kOut ? STDOUT_FILENO : STDERR_FILENO, payload.data(), payload.size());
+    if (timing && type == kOut && payload.find("first frame on the screen") != std::string::npos) {   // the program's step line (src/host/gfx_host.cpp)
+      timing = false;
+      std::fprintf(stderr, "zinc dev: on the screen of %s %s after the save\n", device.c_str(), zn::log::duration(zn::log::since(saved)).c_str());
+    }
     else if (type == kExit) { running = false; std::fprintf(stderr, "zinc dev: program exited (%s) on %s, waiting for changes...\n", payload.c_str(), device.c_str()); }
   }
 
@@ -296,11 +305,13 @@ struct Session {
   bool start(const std::string& dir, const std::vector<std::string>& args, bool over, std::string& out) {
     // ponytail: the archive is written, read back, and its changed members written again for sendTree: three copies of a small project.
     // Pack straight into members when a save of a large app feels it.
+    saved = std::chrono::steady_clock::now();
     const std::string zapp = tmp + "/app.zapp", stage = tmp + "/stage";
     std::string archive, err;
     std::map<std::string, std::string> files, now;
     if (there.empty()) zn::log::step("pack", dir);   // the first time: compiling a large app takes a moment
     if (!pack(self, dir, zapp, out, profile)) return false;
+    const double packMs = zn::log::since(saved);
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
     for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
       if (name.rfind("native/", 0) != 0) now[name] = sha;   // The device loads its own plugins; these libraries are for the workstation's architecture.
@@ -323,7 +334,10 @@ struct Session {
     const std::string lost = "the session with " + device + " ended";
     if (!send(*c, kJson, Obj().flag("start", true).flag("files", changed).raw("remove", array(gone)).raw("args", array(argv)).raw("env", array(vars)).done())) { out = lost; return false; }
     std::uint64_t sentFiles = 0, sentBytes = 0;
+    const auto sendT0 = std::chrono::steady_clock::now();
     if (changed) sendTree(*c, stage, sentFiles, sentBytes, err, progress(stage));   // a failure here is told to the device, whose refusal is the answer read below
+    const double sendMs = zn::log::since(sendT0);
+    const auto startT0 = std::chrono::steady_clock::now();
     char type = 0;
     std::string payload;
     running = false;
@@ -337,6 +351,10 @@ struct Session {
     if (over) for (const auto& [name, sha] : now) there[name] = sha; else there = now;
     running = true;
     if (sentFiles) std::fprintf(stderr, "zinc dev: %llu file(s), %llu bytes sent to %s\n", static_cast<unsigned long long>(sentFiles), static_cast<unsigned long long>(sentBytes), device.c_str());
+    // the start, phase by phase; the device's own steps follow (engine, plugins cached or built there, the first frame), then the total
+    std::fprintf(stderr, "zinc dev: packed here in %s, sent in %s, started on %s in %s; its own steps follow\n", zn::log::duration(packMs).c_str(),
+                 zn::log::duration(sendMs).c_str(), device.c_str(), zn::log::duration(zn::log::since(startT0)).c_str());
+    timing = true;
     return true;
   }
 };

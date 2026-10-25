@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev --device` tells each start phase by phase: packing here, sending, starting there, the device's own steps (a plugin built there shows with its time) and the first frame on its screen, then the total from the save.
 - `zinc device <name> update --local` puts the engine of your zinc source tree on a Linux device without a release: it builds the package for the device (`tools/build-linux`), sends it, and the device's agent and the apps it starts run on it. `--local --remove` goes back to the installed engine; an engine that cannot start is set aside by itself.
 - `zinc dev <project> --device <name> --perf` shows the performance panel over the program on the device, and `--live` opens the device's screen in a window here for the session. `zinc dev --perf` shows the panel on this computer.
 - Nintendo 3DS: hold START and SELECT for a second to leave a program and go back to the Homebrew Launcher.

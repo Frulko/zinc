@@ -6,7 +6,9 @@
 #include "hal.h"
 #ifndef _WIN32
 #include "../../plugins/display-remote/remote_proto.h"
+#include "zn/log.h"
 #include <cerrno>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -22,6 +24,7 @@
 namespace zrt {
 extern void (*mirror_present)(const HalFrame* f);
 extern void (*mirror_input)(HalInput* in);
+extern void (*first_present)();
 extern int32_t surf_w, surf_h;
 }
 
@@ -198,8 +201,16 @@ void merge(HalInput* i) {
 }
 }  // namespace
 
-/** Installs the hooks when this process may be watched: a program run by an agent or a Pi session (ZINC_SHOT_REQUEST names their files). */
+/** Installs the hooks when this process may be watched: a program run by an agent or a Pi session (ZINC_SHOT_REQUEST names their files).
+ *  A program of zinc dev also says when its first frame is on the screen, from the start of the process (zinc dev --device's timeline). */
 void installMirror() {
+  if (const char* dev = std::getenv("ZINC_DEV"); dev && *dev == '1')
+    zrt::first_present = [] {   // from the agent's start of it (ZINC_DEV_T0, wall clock in µs), else from this process's own start
+      const char* t0 = std::getenv("ZINC_DEV_T0");
+      const long long now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+      const double ms = t0 && *t0 ? static_cast<double>(now - std::atoll(t0)) / 1000 : zn::log::since(zn::log::state().t0);
+      zn::log::step("frame", "first frame on the screen, from the start", ms);
+    };
   const char* r = std::getenv("ZINC_SHOT_REQUEST");
   if (!r || !*r) return;
   request = r;
@@ -210,5 +221,5 @@ void installMirror() {
 }
 }  // namespace zn::host
 #else
-namespace zn::host { void installMirror() {} }
+namespace zn::host { void installMirror() {} }   // ponytail: no live screen nor first-frame line on Windows yet
 #endif

@@ -24,7 +24,12 @@ extern bool quit_requested;
 extern int32_t surf_w, surf_h;
 extern bool display_driver;
 extern void (*mirror_present)(const HalFrame* f);
-static void present(const HalFrame* f) { if (display_driver) hal_display->present(f); else hal_present(f); if (mirror_present) mirror_present(f); }
+extern void (*first_present)();
+static void present(const HalFrame* f) {
+  if (display_driver) hal_display->present(f); else hal_present(f);
+  if (mirror_present) mirror_present(f);
+  if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }
+}
 }  // namespace zrt
 // HiDPI: physical pixels per logical pixel (the SDL HAL reports Retina density x window magnification)
 extern "C" __attribute__((weak)) int32_t hal_pixel_scale(void) { return 1; }

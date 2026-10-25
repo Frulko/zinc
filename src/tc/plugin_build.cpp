@@ -639,6 +639,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   }
   out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   log::write("plugin", log::Info, m.name + ": " + (out.fetched ? "fetched from the index" : out.rebuilt ? "built" : "cache hit") + " (" + dir + ")", out.seconds * 1000);   // ZN-368
+  if (out.fetched || out.rebuilt) log::step("plugin", m.name + (out.fetched ? ": downloaded" : ": built here"), out.seconds * 1000);   // what a first start spends (ZN-824)
   return true;
 }
 

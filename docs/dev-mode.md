@@ -355,6 +355,10 @@ swapped into the running program. Details and limits: `docs/reports/zinc-next-ag
 `--perf` shows the performance panel over the program on the device, `--live` opens the device's screen in a window here for the
 session (`zinc device <name> screen --live`; closing the window stops watching, the session goes on).
 
+Each start says where its time goes: `packed here in …, sent in …, started on <device> in …`, then the device's own steps (the engine,
+each plugin: cached, prebuilt, or `built here` with its time), `first frame on the screen, from the start`, and `on the screen of <device>
+… after the save`. A start that takes minutes on a small board is nearly always plugins built there (the first run after an engine update).
+
 To try a change of the engine itself on a Linux device without a release, `zinc device <name> update --local` builds this source tree for
 the device's architecture (`tools/build-linux`, minutes the first time, then only what changed), sends the package, and the device's agent
 starts again on it: the apps it starts (`zinc dev --device`, `deploy`, `run`) run on that engine too. `zinc device <name> info` says
