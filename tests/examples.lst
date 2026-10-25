@@ -1,8 +1,8 @@
 # Examples status (tools/examples-status): path | STATUS | reason | task. OK needs nothing else; a status other than OK needs the reason and the task that will fix it.
 3d/cubes/src/main.ts | OK |  | 
 3d/model/src/main.ts | OK |  | 
+3d/orbit/src/main.ts | OK |  | 
 agents/src/main.tsx | OK |  | 
-glass-icon-reveal/src/main.ts | OK |  |
 boards/esp32-2432s022-hello/src/main.ts | OK |  | 
 boards/esp32-2432s022/src/main.tsx | OK |  | 
 boards/s3-matrix/dice/src/main.ts | OK |  | 
@@ -28,6 +28,7 @@ esp32-widgets/src/main.ts | OK |  |
 fatty/src/main.ts | OK |  |
 flipctl/src/main.ts | OK |  | 
 gl-cube/src/main.ts | OK |  | 
+glass-icon-reveal/src/main.ts | OK |  |
 hardware-n3ds/src/main.ts | OK |  | 
 hardware-ps2/src/main.ts | OK |  | 
 hardware-psp/src/main.ts | OK |  | 
@@ -45,6 +46,7 @@ js-phaser/main.js | OK |  |
 js-pixi/main.js | OK |  | 
 js-three/main.js | OK |  | 
 kanban/src/main.tsx | OK |  |
+lan-arena/src/main.ts | OK |  | 
 lang/src/main.ts | OK |  | 
 leapmotion/src/main.ts | OK |  | 
 led/falling-cubes/src/main.ts | OK |  | 
@@ -93,6 +95,7 @@ text/src/main-react.tsx | OK |  |
 text/src/main-solid.tsx | OK |  | 
 three/cubes/main.ts | OK |  | 
 three/gltf-viewer/main.tsx | OK |  | 
+tokyo/src/main.ts | OK |  | 
 touch-check/src/main.ts | OK |  | 
 ui/figma-storyboard/src/main.tsx | OK |  | 
 ui/forms/main.tsx | OK |  | 

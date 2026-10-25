@@ -1,1 +1,2 @@
   zinc:network             linux,macos,windows,rpi1           Network connections: the interfaces, their state and addresses, the Wi-Fi networks around; join and forget one (NetworkManager through nmcli on Linux, addresses only elsewhere)
+  zinc:lan                 macos,linux                        The local network for games and devices, polled once a frame: UDP datagrams with broadcast and TCP streams over BSD sockets, the same calls on a desktop and in the PSP, PS Vita and 3DS cores
