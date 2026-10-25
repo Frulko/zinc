@@ -24,6 +24,7 @@ Image images[128];
 int image_count = 0;
 TtfFile ttf_files[16];
 int ttf_count = 0;
+void fonts_changed();
 }}
 
 namespace zn::host {
@@ -97,6 +98,7 @@ bool installResources(const uint8_t* blob, size_t size) {
   }
   if (!r.ok) return false;
   font_count = static_cast<int>(nf);
+  fonts_changed();   // the ids of these fonts were another program's (a player, ZN-840): the caches by font id start again
   image_count = static_cast<int>(ni);
   ttf_count = static_cast<int>(nt);
   return true;

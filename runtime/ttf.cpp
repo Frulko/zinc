@@ -369,6 +369,12 @@ const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
 /** Font `name` at exactly `px` pixels, rasterized from its TrueType file (embedded, or added at run time); `baked`: a baked font of that size
  *  first. -1 when no file has that name. */
 static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool baked_first, bool scaled = false) {
+  static uint32_t gen = 0;
+  if (gen != font_gen) {   // another program's files at the same indices: its runtime fonts start again (ponytail: the old glyphs are not freed)
+    gen = font_gen;
+    nrfonts = nscaled = 0;
+    for (Ttf& t : ttfs) t.ok = false;
+  }
   bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
   if (italic) name_len -= 2;
   if (baked_first) { int32_t b = find_font(name, name_len, px); if (b >= 0 && fonts[b].px == px && !italic) return b; }

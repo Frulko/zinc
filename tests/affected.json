@@ -239,6 +239,7 @@
     {"paths": ["src/dev/hot_swap.cpp", "src/dev/hot.h"], "tests": ["hot_swap", "fast_refresh", "zinc_go", "zbc_cache"]},
     {"paths": ["src/app/player.cpp", "src/app/app.cpp", "src/app/app_core.h", "lib/std/react.ts", "tests/t1/zinc_go.sh"], "tests": ["zinc_go", "app_library"]},
     {"paths": ["src/app/player.cpp", "src/agent/player.cpp", "src/agent/chan.cpp", "src/agent/client.cpp", "src/net/dnssd.cpp", "tests/t1/zinc_go_device.sh"], "tests": ["zinc_go_device"]},
+    {"paths": ["runtime/raster.cpp", "runtime/ttf.cpp", "src/host/resources.cpp", "tests/t1/zinc_go_fonts.sh"], "tests": ["zinc_go_fonts"]},
     {"paths": ["examples/zinc-go/", "plugins/camera/", "tests/t1/zinc_go_home.sh"], "tests": ["zinc_go_home"]},
     {"paths": ["third_party/qrcodegen/", "plugins/camera/vendor/quirc/", "plugins/camera/native/camera.host.cpp", "tests/native/qr_test.cpp", "tests/t0/qr_code.sh"], "tests": ["qr_code"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},

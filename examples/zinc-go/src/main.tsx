@@ -51,7 +51,7 @@ function Home() {
     <Text style={s.foot}>Zinc Go</Text>
   </View>;
   if (scanning) return <Scanner onCode={(url: string) => { setScanning(false); open(url); }} onClose={() => setScanning(false)} />;
-  return <SafeAreaView style={s.page}><ScrollView style={s.body}>
+  return <SafeAreaView style={s.page}><ScrollView style={s.scroll}><View style={s.body}>
     <View style={s.head}>
       <Text style={s.title}>Zinc Go</Text>
       <Text style={s.sub}>Run your project from your computer: start it with zinc dev --lan, then scan the QR code it prints.</Text>
@@ -103,12 +103,13 @@ function Home() {
       </View>}
     </View>}
     <Text style={s.foot}>{`In a project: shake the ${Platform.OS === 'ios' ? 'phone' : 'device'}, press with three fingers or the Menu key for the dev menu (reload, back home).`}</Text>
-  </ScrollView></SafeAreaView>;
+  </View></ScrollView></SafeAreaView>;
 }
 
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: 0xFAFAFA },
-  body: { padding: 20, gap: 16 },
+  scroll: { flex: 1 },   // the screen's height, so what is longer scrolls
+  body: { padding: 20, paddingBottom: 40, gap: 16 },
   head: { gap: 6, paddingTop: 12 },
   title: { fontSize: 32, fontWeight: '800', color: INK },
   sub: { fontSize: 15, color: MUTED },

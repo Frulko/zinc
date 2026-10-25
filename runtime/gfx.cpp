@@ -1183,13 +1183,14 @@ void present_overlay() {
 // C++ plugins fill theirs after emit(), in logical pixels: those are converted when the frame ends.
 static uint32_t* plugin_cmds = nullptr;  // indices of this frame's emit() commands
 static uint32_t n_plugin = 0, cap_plugin = 0;
-static int32_t font_map[2][64];  // logical font id -> physical font id (cache)
+static int32_t font_map[2][64];  // logical font id -> physical font id (cache, for one pixel scale and one generation of the fonts)
 static int32_t phys_font(int32_t f) {
-  if (f >= 0 && f < 64 && font_map[0][f] == pxk + 1) return font_map[1][f];
+  const int32_t key = (int32_t)(raster::font_gen << 4) + pxk + 1;
+  if (f >= 0 && f < 64 && font_map[0][f] == key) return font_map[1][f];
   const raster::Font* fo = raster::font_at(f);
   int32_t r = f;
   if (fo) { uint32_t n = 0; while (fo->name[n]) n++; r = raster::render_font(fo->name, n, fo->px * pxk); }
-  if (f >= 0 && f < 64) { font_map[0][f] = pxk + 1; font_map[1][f] = r; }
+  if (f >= 0 && f < 64) { font_map[0][f] = key; font_map[1][f] = r; }
   return r;
 }
 static void scale_contours(float* p, uint32_t contours, float k) {  // [count, x, y, ...]*: the coordinates, not the counts

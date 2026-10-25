@@ -35,6 +35,11 @@ struct ShapeHooks { int32_t (*run)(int32_t font, const char* s, uint32_t n, floa
 extern const ShapeHooks* shape_hooks;
 /** The embedded TrueType file (index in ttf_files) a runtime font was made from, -1 for a baked font. */
 int32_t font_file(int32_t id);
+/** The fonts' generation: a new program's resources (a player starting another program, ZN-840) reuse the ids of the last one's fonts,
+ *  so every cache keyed by a font id is valid for one generation. */
+extern uint32_t font_gen;
+/** The baked fonts were replaced (installResources): the caches by font id start again. */
+void fonts_changed();
 /** Baked or runtime font by id (null when unknown). */
 const Font* font_at(int32_t id);
 bool runtime_font(int32_t id);

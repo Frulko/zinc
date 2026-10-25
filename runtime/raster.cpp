@@ -477,14 +477,17 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
 // ASCII glyphs of the baked fonts by direct index (ZN-407): 128 entries per font, built on first use (concurrent bands write the same values;
 // the ready flag is published after the table). -1: no glyph. Fonts past the first 64 and other code points keep the binary search.
 static int16_t ascii_tab[64][128];
-static int ascii_ready[64];
+static uint32_t ascii_ready[64];   // font_gen + 1 when the font's table is built
+uint32_t font_gen = 0;
+void fonts_changed() { __atomic_add_fetch(&font_gen, 1, __ATOMIC_RELEASE); }
 static const Glyph* glyph_of(int32_t font, const Font& f, uint32_t cp) {
   if (font >= RUNTIME_FONT_BASE) return runtime_glyph(font, cp);
   if (cp < 128 && font >= 0 && font < 64 && f.count < 32768) {
-    if (!__atomic_load_n(&ascii_ready[font], __ATOMIC_ACQUIRE)) {
+    const uint32_t gen = __atomic_load_n(&font_gen, __ATOMIC_ACQUIRE) + 1;
+    if (__atomic_load_n(&ascii_ready[font], __ATOMIC_ACQUIRE) != gen) {
       for (int k = 0; k < 128; k++) ascii_tab[font][k] = -1;
       for (int32_t g = 0; g < f.count; g++) if (f.glyphs[g].cp < 128 && ascii_tab[font][f.glyphs[g].cp] < 0) ascii_tab[font][f.glyphs[g].cp] = (int16_t)g;
-      __atomic_store_n(&ascii_ready[font], 1, __ATOMIC_RELEASE);
+      __atomic_store_n(&ascii_ready[font], gen, __ATOMIC_RELEASE);
     }
     const int16_t g = ascii_tab[font][cp];
     return g < 0 ? nullptr : &f.glyphs[g];
