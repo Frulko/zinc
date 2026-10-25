@@ -49,9 +49,9 @@ func walk(node: Node, parent_id):
     var metadata = {}
     for key in node.get_meta_list():
         var name = str(key)
-        if name.begins_with("zinc_") and name != "zinc_id":
+        if name.begins_with("zinc_") and not name in ["zinc_id", "zinc_dynamic"]:
             var component = name.trim_prefix("zinc_")
-            if not component in ["collision", "trigger", "socket", "spawn", "interaction", "gate"]:
+            if not component in ["collision", "trigger", "socket", "spawn", "interaction", "gate", "world"]:
                 reject(node, name, "unsupported component")
             else:
                 metadata[component] = node.get_meta(key)
@@ -61,6 +61,8 @@ func walk(node: Node, parent_id):
         metadata["camera"] = {"fov":node.fov,"near":node.near,"far":node.far}
     var q = node.quaternion
     nodes.append({"id":id,"name":node.name,"parent":parent_id,"asset":asset,"translation":vector(node.position),"rotation":[q.x,q.y,q.z,q.w],"scale":vector(node.scale),"metadata":metadata,"source":{"file":scene_file,"object":str(scene_root.get_path_to(node))}})
+    if node.has_meta("zinc_dynamic"):
+        nodes[-1]["dynamic"] = node.get_meta("zinc_dynamic")
     for child in node.get_children():
         walk(child, id)
 

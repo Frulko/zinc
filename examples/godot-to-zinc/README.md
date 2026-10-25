@@ -40,3 +40,12 @@ bytes/mtime. Temporary `.staging` output is ignored. No source writeback occurs.
 Verified on the development Mac: Godot 4.6 official headless export, repeated
 publication, shared mesh identity, duplicate ID/script/material rejection. Other
 platforms and matching Godot/Zinc shading are not claimed.
+
+For static-world authoring, set a parent node's `zinc_world` metadata dictionary
+(e.g. `{"cell":16.0,"levels":["near","mid","far"]}`); `zinc_dynamic=true` keeps
+an articulated subtree separate. Publication retains the exact world options
+and per-static-object `worldSources` provenance. Gameplay markers remain dynamic
+entities. This is source publication for the shared `.zworld` asset builder;
+the raw world-marked document is intentionally rejected by `SceneRevision` until
+compiled. It is never silently expanded into thousands of regular runtime nodes.
+The ordinary playable Yard does not use world grouping.
