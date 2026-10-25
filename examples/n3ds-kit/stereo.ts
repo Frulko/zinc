@@ -23,7 +23,7 @@ export class ProgramTime {
   fps = '';
   private fpsSince = -1;
   private fpsFrames = 0;
-  private on = env('ZINC_PROFILE') !== '';
+  private on = env('ZINC_PROFILE') !== '' && env('ZINC_PROFILE') !== 'defer';
   private spent = 0;
   private t0 = 0;
   private samples: number[] = [];

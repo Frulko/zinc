@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.2" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.3" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -46,8 +46,7 @@ new navy score panels belong to this dual-screen renderer; desktop-only overlays
 - 3D: the bumper caps, a ball riding the ramp (by its height), the score popups and the message band come out of the screen.
 - Use the **compiled program** (`--aot`) for the console. An embedded `.zbc` runs through the interpreter;
   combining that path with 960 Hz Box2D calls caused the previous slow version.
-- The 3DS profile uses 12 image-based sparks, no soft halos or trails. Contacts still use Box2D at the same
-  fixed rate and retain adaptive travel subdivision; this does not reduce physics accuracy to gain speed.
+- The 3DS profile uses 12 image-based sparks, no soft halos or trails. Contacts use Box2D with the 240 Hz DS base clock, adaptive travel subdivision and CCD.
 
 ## Shared physics update
 
@@ -82,5 +81,18 @@ fast contacts can still request more than 240 solver steps per second. Timing/in
 The 3DS build disables the runtime's extra 8 ms callback cap: citro3d already synchronizes display output, and the
 software HAL waits for vblank. Profiling also reports `n3ds replay: ... GPU, ... software surfaces` (texture/atlas failures included)
 and separates `n3ds-pinball physics` from total program cost. Use `--env ZINC_PROFILE=1` in a separate measured build.
-The playable build keeps profiling off, avoiding repeated diagnostic SD writes. CPU costs and refresh FPS on physical
+The 0.2.2 playable build kept profiling off, avoiding repeated diagnostic SD writes. CPU costs and refresh FPS on physical
 hardware still need measuring; emulator timing alone does not establish 60 FPS on a console.
+
+
+## Buffered hardware capture (0.2.3)
+
+The delivered 0.2.3 build enables `ZINC_PROFILE=defer,ZINC_FRAME_CAPTURE=1`. Hold START+SELECT to exit
+and save the latest minute to `sdmc:/zinc-frames.csv`; it does not write the CSV during gameplay.
+Run `tools/n3ds-frame-report /Volumes/DS/zinc-frames.csv --source hardware --gate` after remounting the SD.
+[Capture fields and interpretation](../../docs/targets/n3ds-performance.md) explain the complete-refresh
+measurements and the 60 Hz gate. The FPS label moves six pixels right for readability.
+
+0.2.3 flushes only the modified GPU buffers and the command list (citro3d previously also flushed the whole
+linear heap), caches fixed lamp contours, skips kept-window hashing, and packs Box2D state/events into one
+native call. Gravity, CCD, contact subdivisions and the 240 Hz DS base clock are unchanged.

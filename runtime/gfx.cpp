@@ -2032,7 +2032,7 @@ void endWindow() {
   }
   soft_pictures(b, outer.cmd);
   raster::Frame fr{b.cmds + outer.cmd, b.ncmd - outer.cmd, b.text, b.pts};
-  const uint32_t hsh = raster::frame_hash(fr) | 1;   // never 0: a new buffer is always drawn
+  const uint32_t hsh = kept ? x->hash : raster::frame_hash(fr) | 1;   // never 0: a new buffer is always drawn
   if (x->px && hsh != x->hash && !kept) {   // an unchanged frame (or keep()) keeps the pixels the window shows
     const HalCmdList list = {fr.cmds, fr.count, fr.text, fr.pts};
     if (!hal_win_draw(x->id, &list, wpw, wph)) {   // a HAL that draws the window's commands on its GPU, else its pixels
@@ -2165,6 +2165,13 @@ extern "C" void hal_pen_push(const HalPen* s) {
 }
 // Raster bands (the SDL HAL renders them on worker threads): their spans feed the profiler's raster phase and
 // the per-band tracks of the trace. The HAL has weak no-op defaults for programs without zinc:gfx.
+// The completed callback's phase totals, for a HAL's buffered refresh capture.
+extern "C" uint32_t zrt_prof_last_frame(uint32_t* out, uint32_t capacity) {
+  using namespace zrt::gfx::prof;
+  if (!active() || capacity < N) return 0;
+  __builtin_memcpy(out, st->acc, sizeof st->acc);
+  return N;
+}
 extern "C" int32_t zrt_profiling(void) { return zrt::gfx::prof::active() ? 1 : 0; }
 extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1) {
   using namespace zrt::gfx::prof;

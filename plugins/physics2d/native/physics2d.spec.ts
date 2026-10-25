@@ -18,6 +18,8 @@ export interface Spec extends NativeModule {
   worldGravity(w: i32, x: f64, y: f64): void;
   /** Advances the simulation by dt seconds, each step solved in `subSteps` sub-steps (4 is the library's advice). */
   step(w: i32, dt: f64, subSteps: i32): void;
+  /** Steps once and returns [moved-float count, moved records..., event records...] in one bridge call. */
+  stepState(w: i32, dt: f64, subSteps: i32): f64[];
   /** The bodies that moved in the last step or fell asleep in it, 7 numbers each: body, x, y, angle, linear velocity x y,
    *  angular velocity. */
   moved(w: i32): f64[];

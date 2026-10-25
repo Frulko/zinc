@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Buffered complete-refresh captures on 3DS (`ZINC_FRAME_CAPTURE=1`, `ZINC_PROFILE=defer`) save the last minute on exit; `tools/n3ds-frame-report` reports CPU/GPU costs, allocations, fallbacks and missed refreshes with a 60 Hz gate.
 - Godot Warehouse offers finite idle/updating UI probes; `tools/bench-workflows-macos` records sequential macOS window timings, process CPU and memory with raw evidence.
 - Swift Observatory and Pocket Rally accept finite background native performance probes with idle/active workloads, startup readiness and raw host tick/copy samples.
 - reMarkable Paper Pro: `"display": { "ink": "session" }` runs the app under a display lease. `zinc export --target rmpp` ships the `lease` binary, and the AppLoad tile starts the app through it. The lease stops xochitl through systemd and brings it back once on every way out, also when the app crashes or hangs, when you hold the power button for 2 s, or when its time runs out. It refuses a launch beyond 2 xochitl restarts per 10 minutes or 6 per hour, and says when the next launch is allowed. Recovery commands are in docs/targets/remarkable-paper-pro.md.
@@ -22,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
 ### Fixed
+- Nintendo 3DS GPU submission avoids flushing the entire linear heap each frame. Nova Patrol DS 0.2.3 caches fixed lamp contours, reduces Box2D bridge traffic, and shifts the FPS label right.
 - `zinc export --target rmpp` links the reMarkable display driver: the exported app opened no screen on the tablet and quit after a second.
 - Nova Patrol DS 0.2.2 reduces CPU work with a 240 Hz base physics clock while retaining adaptive fast-contact steps and Box2D CCD, and shows refresh FPS on the bottom screen. 3DS builds no longer add an 8 ms per-eye delay on top of display synchronization.
 - Console GPU polygon cache keys no longer depend on the previous polygon’s point count. 3DS profiling now reports GPU versus software surfaces.

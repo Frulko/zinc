@@ -42,6 +42,7 @@ export class Half {
   private rubber: number[][][] = [[], []];   // per flipper, per step: the red rubber, then the white body
   private body: number[][][] = [[], []];
   private slings: number[][] = [];
+  private flippers: Flipper[];
 
   /** `lower`: the bottom screen's half. */
   constructor(public game: Game, public lower: boolean, public w: number, public h: number) {
@@ -50,6 +51,7 @@ export class Half {
     this.inserts = new Inserts(t);
     this.inserts.project(this.cam);
     const flips: Flipper[] = [t.left, t.right];
+    this.flippers = flips;
     for (let k: i32 = 0; k < 2; k++) {
       const f = flips[k];
       for (let i: i32 = 0; i <= FLIP_STEPS; i++) {
@@ -170,7 +172,7 @@ export class Half {
   private lowerParts(): void {
     const g = this.game, t = g.table, w = g.world, cam = this.cam;
     for (let i: i32 = 0; i < 2; i++) if (g.slingFlash[i] > 0) polygon(this.slings[i], 0xffe08a, Math.round(255 * g.slingFlash[i]));
-    const flips: Flipper[] = [t.left, t.right];
+    const flips = this.flippers;
     for (let k: i32 = 0; k < 2; k++) {
       const step: i32 = Math.round(Math.max(0, Math.min(1, flips[k].lift())) * FLIP_STEPS);
       polygon(this.rubber[k][step], 0xc81d34, 255);

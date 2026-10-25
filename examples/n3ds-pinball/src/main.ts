@@ -5,7 +5,7 @@
 //   zinc run --simulate n3ds examples/n3ds-pinball      (the second window is the bottom screen)
 // Frame: read the controls -> the rules and the physics on the left eye's frames -> the top screen for this eye; the bottom screen's
 // window draws once per pair of eyes and reads the stylus.
-import { onFrame, openWindow, keep, pointerDown, pointerX } from 'zinc:gfx';
+import { onFrame, openWindow, keep, pointerDown, pointerX, profMark } from 'zinc:gfx';
 import { Game, PH_ATTRACT, PH_PLAY } from '../../pinball/src/game/game';
 import { Store } from '../../pinball/src/game/store';
 import { Controls } from '../../pinball/src/input';
@@ -24,7 +24,6 @@ const controls = new Controls();
 const touch = new Touch();
 const eyes = new Eyes();
 const time = new ProgramTime('n3ds-pinball');
-const physicsTime = new ProgramTime('n3ds-pinball physics');
 let pending = 0, wasDown = false;
 
 onFrame((dt: number) => {
@@ -34,10 +33,9 @@ onFrame((dt: number) => {
   upper.bake();
   lower.bake();
   readControls(controls, touch);
+  profMark(1);   // input and one-time baking
   pending += dt;
   if (eyes.first()) {   // the world moves on the left eye's frames
-    physicsTime.refresh();
-    physicsTime.begin();
     if (controls.pause && game.phase === PH_PLAY) panels.paused = !panels.paused;
     else if (controls.start && panels.paused) panels.paused = false;
     else if (controls.start && game.canAddPlayer()) game.addPlayer();
@@ -46,12 +44,13 @@ onFrame((dt: number) => {
       if (controls.tap && game.phase === PH_ATTRACT) controls.start = true;
       game.update(Math.min(pending, 0.1), controls);
     }
-    physicsTime.end();
     clearPresses(controls);
     pending = 0;
   }
+  profMark(2);   // rules and fixed-step physics
   upper.draw(eyes);
   panels.top(eyes);
+  profMark(4);   // top draw commands
   time.end();
 });
 
@@ -67,5 +66,6 @@ openWindow('Bottom screen', BOTTOM_W, BOTTOM_H, (dt: number) => {
   touch.right = down && !touch.plunger && x >= BOTTOM_W / 2;
   lower.draw(null);
   panels.bottom(time.fps);
+  profMark(4);   // bottom draw commands (native replay follows endWindow)
   time.end();
 });

@@ -141,11 +141,10 @@ struct HostPhysics2D : NativePhysics2D {
     World* w = world(h);
     if (w && dt > 0) b2World_Step(w->id, float(dt), subSteps < 1 ? 1 : subSteps);
   }
-  zrt::Array<double> moved(int32_t h) override {
+  void appendMoved(int32_t h, zrt::Array<double>& out) {
     World* w = world(h);
-    if (!w) return zrt::Array<double>::with_cap(0);
+    if (!w) return;
     const b2BodyEvents e = b2World_GetBodyEvents(w->id);
-    zrt::Array<double> out = zrt::Array<double>::with_cap(e.moveCount * kMovedSize);
     for (int i = 0; i < e.moveCount; i++) {
       const b2BodyMoveEvent& m = e.moveEvents[i];
       const int32_t hb = handleOf(m.userData);
@@ -153,14 +152,12 @@ struct HostPhysics2D : NativePhysics2D {
       out.push_raw(double(hb));
       pushBody(out, m.bodyId, m.transform);
     }
-    return out;
   }
-  zrt::Array<double> events(int32_t h) override {
+  void appendEvents(int32_t h, zrt::Array<double>& out) {
     World* w = world(h);
-    if (!w) return zrt::Array<double>::with_cap(0);
+    if (!w) return;
     const b2ContactEvents c = b2World_GetContactEvents(w->id);
     const b2SensorEvents s = b2World_GetSensorEvents(w->id);
-    zrt::Array<double> out = zrt::Array<double>::with_cap((c.beginCount + c.endCount + s.beginCount + s.endCount) * kEventSize);
     for (int i = 0; i < c.beginCount; i++) {
       const b2ContactBeginTouchEvent& e = c.beginEvents[i];
       const b2Manifold& m = e.manifold;
@@ -176,6 +173,37 @@ struct HostPhysics2D : NativePhysics2D {
     for (int i = 0; i < c.endCount; i++) push(out, {2, double(handleOf(c.endEvents[i].shapeIdA)), double(handleOf(c.endEvents[i].shapeIdB)), 0, 0, 0, 0, 0, 0});
     for (int i = 0; i < s.beginCount; i++) push(out, {4, double(handleOf(s.beginEvents[i].sensorShapeId)), double(handleOf(s.beginEvents[i].visitorShapeId)), 0, 0, 0, 0, 0, 0});
     for (int i = 0; i < s.endCount; i++) push(out, {6, double(handleOf(s.endEvents[i].sensorShapeId)), double(handleOf(s.endEvents[i].visitorShapeId)), 0, 0, 0, 0, 0, 0});
+  }
+  zrt::Array<double> moved(int32_t h) override {
+    World* w = world(h);
+    auto out = zrt::Array<double>::with_cap(w ? b2World_GetBodyEvents(w->id).moveCount * kMovedSize : 0);
+    appendMoved(h, out); return out;
+  }
+  zrt::Array<double> events(int32_t h) override {
+    World* w = world(h);
+    int cap = 0;
+    if (w) {
+      const auto c = b2World_GetContactEvents(w->id);
+      const auto s = b2World_GetSensorEvents(w->id);
+      cap = (c.beginCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
+    }
+    auto out = zrt::Array<double>::with_cap(cap);
+    appendEvents(h, out); return out;
+  }
+  zrt::Array<double> stepState(int32_t h, double dt, int32_t subSteps) override {
+    step(h, dt, subSteps);
+    World* w = world(h);
+    int cap = 1;
+    if (w) {
+      const auto c = b2World_GetContactEvents(w->id);
+      const auto s = b2World_GetSensorEvents(w->id);
+      cap += b2World_GetBodyEvents(w->id).moveCount * kMovedSize + (c.beginCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
+    }
+    auto out = zrt::Array<double>::with_cap(cap);
+    out.push_raw(0);
+    appendMoved(h, out);
+    out.set(0, double(out.length() - 1));
+    appendEvents(h, out);
     return out;
   }
   int32_t awakeCount(int32_t h) override { World* w = world(h); return w ? b2World_GetAwakeBodyCount(w->id) : 0; }

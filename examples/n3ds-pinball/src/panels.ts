@@ -95,7 +95,7 @@ export class Panels {
     rect(8, 40, pw - 16, 150, INK);
     rect(8, 40 + 150 * (1 - tilt), pw - 16, 150 * tilt, g.danger > 0 ? RED : GREEN);
     centred(small, 0, pw, 196, 'TILT', DIM);
-    centred(small, 0, pw, 218, fps, DIM);
+    centred(small, 6, pw, 218, fps, DIM);
     // the plunger's strip: how far it is pulled
     rect(w - pw + 8, 40, pw - 16, 150, INK);
     rect(w - pw + 8, 40, pw - 16, 150 * g.world.plungerPull, GOLD);

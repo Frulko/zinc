@@ -243,15 +243,15 @@ export class World {
 
   /** Advances the simulation by `dt` seconds (a fixed value: 1/60, 1/240...), solved in `subSteps` sub-steps. */
   step(dt: number, subSteps: i32 = 4): void {
-    P.step(this.handle, dt, subSteps);
-    const m = P.moved(this.handle);
-    for (let i = 0; i + 6 < m.length; i += 7) {
+    const m = P.stepState(this.handle, dt, subSteps);
+    const movedEnd = 1 + m[0];
+    for (let i = 1; i + 6 < movedEnd; i += 7) {
       const b = this.at(m[i]);
       if (b !== null) b.read(m, i + 1);
     }
-    const e = P.events(this.handle);
+    const e = m;
     const out: Contact[] = [];
-    for (let i = 0; i + 8 < e.length; i += 9) {
+    for (let i = movedEnd; i + 8 < e.length; i += 9) {
       const k: i32 = e[i];
       out.push(new Contact((k & 3) as ContactKind, (k & 4) !== 0, this.at(e[i + 1]), this.at(e[i + 2]), e, i + 3));
     }

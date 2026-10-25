@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <3ds.h>
+#include "frame_profile.h"
 
 #ifndef ZINC_FRAMES
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or the system asks to quit
@@ -74,10 +75,14 @@ static uint32_t lastButtons = 0;
 // also sdmc:/zinc.log: Azahar logs debug strings only at its Debug level, which its default log filter (*:Info) hides; the runner reads the file
 // (<Azahar's user directory>/sdmc/zinc.log, removed before each run). Appended to: on a console, the runs of a session follow each other there.
 static FILE* logFile = nullptr;
+static char logBuffer[16384];
 static void out(const char* s, size_t n) {
   svcOutputDebugString(s, (s32)n);
-  if (!logFile) logFile = fopen("sdmc:/zinc.log", "a");
-  if (logFile) { fwrite(s, 1, n, logFile); fputc('\n', logFile); fflush(logFile); }
+  if (!logFile) {
+    logFile = fopen("sdmc:/zinc.log", "a");
+    if (logFile && zn::n3ds::capture::enabled()) setvbuf(logFile, logBuffer, _IOFBF, sizeof logBuffer);
+  }
+  if (logFile) { fwrite(s, 1, n, logFile); fputc('\n', logFile); if (!zn::n3ds::capture::enabled()) fflush(logFile); }
 }
 
 // Sound (ZN-759): zinc:audio's mix at 22050 Hz. ndsp (the DSP) when its firmware is on the SD card (sdmc:/3ds/dspfirm.cdc, dumped from the
@@ -244,7 +249,9 @@ void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
 }
 void hal_win_current(int32_t) {}
 int32_t hal_win_draw(int32_t id, const HalCmdList* l, int32_t pw, int32_t ph) {   // the bottom window on the GPU (runtime/gfx.cpp endWindow)
-  if (id != bottomId || !gpuOn || pw > 320 || ph > 240 || !zn_c3d_window(l, pw, ph)) return 0;
+  if (id != bottomId) return 0;
+  if (!gpuOn || pw > 320 || ph > 240) { zn::n3ds::capture::add(zn::n3ds::capture::SoftwareSurfaces, 1); return 0; }
+  if (!zn_c3d_window(l, pw, ph)) return 0;
   bottomShown = true;
   bottomGpu = true;
   return 1;
@@ -253,6 +260,7 @@ void zn_console_echo(const char* s, size_t n) {   // the program's lines, one de
   for (size_t b = 0; b < n;) { size_t e = b; while (e < n && s[e] != '\n') e++; if (e > b) out(s + b, e - b); b = e + 1; }
 }
 void hal_init(const HalConfig* cfg) {
+  zn::n3ds::capture::init();
   W = cfg->width < kScreenW ? cfg->width : kScreenW;
   H = cfg->height < kScreenH ? cfg->height : kScreenH;
   if (!cfg->gfx) return;
@@ -262,6 +270,7 @@ void hal_init(const HalConfig* cfg) {
   gfxSetScreenFormat(GFX_BOTTOM, GSP_RGBA8_OES);
   gfxSetDoubleBuffering(GFX_BOTTOM, true);
   APT_CheckNew3DS(&isNew3ds);
+  zn::n3ds::capture::model(isNew3ds);
   if (isNew3ds) osSetSpeedupEnable(true);
   cstickOn = isNew3ds && irrstInit() == 0;
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
@@ -271,6 +280,8 @@ void hal_init(const HalConfig* cfg) {
   gpuOn = !(g && *g == '0') && zn_c3d_init && zn_c3d_init(W, H);
 }
 void hal_shutdown(void) {
+  zn::n3ds::capture::finish();
+  if (logFile) fflush(logFile);
   zn_console_net_down();   // soc:u released, or the next app cannot start it
   if (gpuOn) zn_c3d_fini();
   if (gfxOn) gfxExit();
@@ -290,8 +301,9 @@ void hal_panic(const char* msg, const char* file, int line) {
   out(b, (size_t)(k > 0 ? k : 0));
   svcExitProcess();
 }
-void hal_frame_begin(void) {}
+void hal_frame_begin(void) { zn::n3ds::capture::begin(eye == 0, stereoOn); }
 void hal_frame_end(void) {
+  zn::n3ds::capture::phases();
   audioPump();
   if (!gfxOn) return;
   // stereo: the left eye's frame waits for the right one; both buffers of the eye get every row (the frames alternate)
@@ -302,6 +314,7 @@ void hal_frame_end(void) {
     eye = 0;
     if (bottomGpu) { bottomFb = (const uint32_t*)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, nullptr, nullptr); bottomGpu = false; }
     zn_c3d_end();
+    zn::n3ds::capture::end(true);
     if (bottomNew) { gfxFlushBuffers(); gfxScreenSwapBuffers(GFX_BOTTOM, false); bottomNew = false; }
     return;
   }
@@ -314,7 +327,9 @@ void hal_frame_end(void) {
     rightFb = fb;
     eye = 0;
     back ^= 1;   // the mono path's double-buffer parity follows the swaps
-    gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
+    gfxFlushBuffers(); gfxSwapBuffers();
+    { zn::n3ds::capture::Scope waitScope(zn::n3ds::capture::Wait); gspWaitForVBlank(); }
+    zn::n3ds::capture::end(true);
     return;
   }
   // the top screen is double-buffered: the buffer drawn now last got the rows of two frames ago, so it takes every row changed since
@@ -324,8 +339,10 @@ void hal_frame_end(void) {
   for (int32_t x = 0; x < W && stale[b][1] > stale[b][0]; x++)   // the panel is portrait: a column of the image is a row of the framebuffer, from the bottom
     for (int32_t y = stale[b][0]; y < stale[b][1]; y++) { const uint32_t c = rows[(size_t)y * W + x]; fb[x * kScreenH + (kScreenH - 1 - y)] = (c & 0xFFFFFF) << 8 | 0xFF; }
   stale[b][0] = H; stale[b][1] = 0;
-  gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
+  gfxFlushBuffers(); gfxSwapBuffers();
+    { zn::n3ds::capture::Scope waitScope(zn::n3ds::capture::Wait); gspWaitForVBlank(); }
   shown = fb;
+  zn::n3ds::capture::end(true);
 }
 extern "C" __attribute__((weak)) int zn_player_poll(void) { return 0; }   // the console player (targets/console/player_console.cpp, ZN-792): 1 ends the program
 void hal_poll_input(HalInput* in) {
@@ -384,6 +401,7 @@ void hal_present(const HalFrame* f) {
     return;
   }
   if (!rows || f->y1 <= f->y0) return;
+  zn::n3ds::capture::add(zn::n3ds::capture::SoftwareSurfaces, 1);
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
   for (auto& r : stale) { if (f->y0 < r[0]) r[0] = f->y0; if (f->y1 > r[1]) r[1] = f->y1; }   // both buffers miss these rows
 }

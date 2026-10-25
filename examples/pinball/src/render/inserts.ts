@@ -3,7 +3,7 @@
 // multiplier, shoot again, extra ball, wormhole progress, arrows), plus the light chases.
 import { polygon } from 'zinc:gfx';
 import { Camera } from './camera';
-import { pts, arrowPts, chevronPts, circlePts, keepPts } from './draw';
+import { arrowPts, chevronPts, circlePts, keepPts } from './draw';
 import { Table } from '../table/layout';
 
 export const SH_CIRCLE: i32 = 0, SH_ARROW: i32 = 1, SH_CHEVRON: i32 = 2;
@@ -12,6 +12,7 @@ export class Insert {
   /** Outline projected with the screen camera (set by project()). */
   screen: number[] = [];
   glow: number[] = [];
+  hot: number[] = [];
   constructor(public shape: i32, public x: number, public y: number, public size: number, public angle: number, public color: u32) {}
 
   /** Outline into draw.pts; `grow` scales it (glow halos). */
@@ -63,6 +64,7 @@ export class Inserts {
     for (const i of this.all) {
       i.outline(cam, 1); i.screen = keepPts();
       i.outline(cam, 1.9); i.glow = keepPts();
+      i.outline(cam, 0.45); i.hot = keepPts();
     }
   }
 
@@ -71,7 +73,6 @@ export class Inserts {
     const a: i32 = Math.round(255 * level);
     if (glow) polygon(i.glow, i.color, Math.round(55 * level));
     polygon(i.screen, i.color, a);
-    i.outline(cam, 0.45);
-    polygon(pts, 0xffffff, Math.round(170 * level));
+    polygon(i.hot, 0xffffff, Math.round(170 * level));
   }
 }

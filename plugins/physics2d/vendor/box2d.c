@@ -2,7 +2,7 @@
 // compiles it once into the vendor archive of its cache (4 s), so an edit of the plugin's own code never recompiles the library.
 // plugin.json passes -I./vendor/box2d/include and -ffp-contract=off.
 // 32-bit ARM without NEON (ARMv6: the Pi 1 and Zero, zinc's armhf-linux target): Box2D's scalar path, as on a CPU it does not know
-#if defined(__arm__) && !defined(__ARM_NEON)
+#if defined(__arm__) && !defined(__ARM_NEON) && !defined(BOX2D_DISABLE_SIMD)
 #define BOX2D_DISABLE_SIMD
 #endif
 #include "box2d/src/aabb.c"

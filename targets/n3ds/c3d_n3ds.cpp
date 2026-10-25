@@ -16,6 +16,7 @@
 #include <citro3d.h>
 
 #include "ff_replay.h"
+#include "frame_profile.h"
 #include "ff_shader_shbin.h"
 #include "hal.h"
 #include "zrt_raster.h"
@@ -108,6 +109,7 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
   Tex& e = texs[id];
   const uint32_t ver = image_version(id);
   if (e.ok && e.ver == ver && e.w == *w && e.h == *h) return &e;
+  zn::n3ds::capture::Scope uploadScope(zn::n3ds::capture::Upload);
   uint32_t gl = 0, nb = 0; const void* blocks = nullptr; bool pre = false;
   const bool etc1 = dyn_blocks(id, &gl, &blocks, &nb, &pre) && gl == 0x8D64 && nb >= (uint32_t)((*w + 3) / 4 * ((*h + 3) / 4) * 8);
   const GPU_TEXCOLOR fmt = etc1 ? GPU_ETC1 : GPU_RGBA8;
@@ -142,6 +144,8 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
     }
     C3D_TexFlush(&e.t);
     e.ver = ver; e.ok = true;
+    zn::n3ds::capture::add(zn::n3ds::capture::Uploads, 1);
+    zn::n3ds::capture::add(zn::n3ds::capture::UploadBytes, e.t.size);
     return &e;
   }
   uint32_t* dst = static_cast<uint32_t*>(e.t.data);
@@ -161,6 +165,8 @@ const void* texture(int32_t id, int32_t* w, int32_t* h) {
   if (*h < e.t.height) for (int32_t x = 0; x <= *w && x < tw; x++) dst[tiled(x, *h, tw)] = dst[tiled(x, *h - 1, tw)];
   C3D_TexFlush(&e.t);
   e.ver = ver; e.ok = true;
+    zn::n3ds::capture::add(zn::n3ds::capture::Uploads, 1);
+    zn::n3ds::capture::add(zn::n3ds::capture::UploadBytes, e.t.size);
   return &e;
 }
 bool quads_pending() { return nv > 0; }
@@ -171,9 +177,11 @@ void atlas_written(int i, int32_t x0, int32_t y0, int32_t w, int32_t h) {
   for (int32_t y = y0; y < y0 + h; y++)
     for (int32_t x = x0; x < x0 + w; x++) dst[tiled(x, y, kAtlasW)] = atlasLinear[i][(size_t)y * kAtlasW + x];
   atlasDirty[i] = true;
+  zn::n3ds::capture::add(zn::n3ds::capture::UploadBytes, (uint32_t)(w * h));
 }
 void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t rgb, float a) {
   if (nv + 6 > (uint32_t)kMaxQuads * 6) { overflow = true; return; }
+  zn::n3ds::capture::add(zn::n3ds::capture::Quads, 1);
   const Tex* t = static_cast<const Tex*>(tex);
   state(t, linear);
   // u, v over the image -> over the power-of-two texture, whose t runs from its last row in memory (0) to its first (1)
@@ -244,7 +252,13 @@ bool zn_c3d_init(int32_t w, int32_t h) {
 // in one pool, submitted by zn_c3d_end.
 void zn_c3d_begin(void) {
   if (!ready || inFrame) return;
-  inFrame = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+  { zn::n3ds::capture::Scope waitScope(zn::n3ds::capture::Wait);
+    inFrame = C3D_FrameBegin(C3D_FRAME_SYNCDRAW); }
+  zn::n3ds::capture::add(zn::n3ds::capture::PreviousGpu, (uint32_t)(C3D_GetDrawingTime() * 1000));
+  static uint32_t previousVblank;
+  const uint32_t vblank = C3D_FrameCounter(0);
+  if (previousVblank) zn::n3ds::capture::add(zn::n3ds::capture::Vblanks, vblank - previousVblank);
+  previousVblank = vblank;
   nv = runFirst = 0; overflow = false; curMode = NONE; cur = nullptr;
 }
 void zn_c3d_end(void);
@@ -253,10 +267,12 @@ void zn_c3d_wait(void) { zn_c3d_end(); zn_c3d_begin(); }
 // Submits the open frame: the targets drawn are transferred to their screens and shown at the next vblank.
 void zn_c3d_end(void) {
   if (!inFrame) return;
+  zn::n3ds::capture::Scope submitScope(zn::n3ds::capture::Submit);
   flush();
   for (int i = 0; i < 2; i++) if (atlasDirty[i]) { C3D_TexFlush(&atlasTex[i].t); atlasDirty[i] = false; }
   GSPGPU_FlushDataCache(pool, nv * sizeof(V));
-  C3D_FrameEnd(0);
+  // Textures, atlases and used vertices are already flushed; flags=0 flushes the entire linear heap again.
+  C3D_FrameEnd(GX_CMDLIST_FLUSH);
   inFrame = false;
   if (overflow) { static bool told; if (!told) { told = true; static const char m[] = "n3ds c3d: a frame has more quads than the vertex pool: the rest is not drawn\n"; hal_log(m, sizeof m - 1); } }
 }
@@ -283,6 +299,8 @@ static void fit(int target, int32_t w, int32_t h, float* K, float* OX, float* OY
 // hal_win_present shows the pixels).
 // Report replay versus software fallback, including texture/atlas failures that have no command refusal.
 static void replayStats(bool gpu) {
+  zn::n3ds::capture::add(gpu ? zn::n3ds::capture::GpuSurfaces : zn::n3ds::capture::SoftwareSurfaces, 1);
+  if (zn::n3ds::capture::enabled()) return;
   static const bool on = getenv("ZINC_PROFILE") && *getenv("ZINC_PROFILE");
   if (!on) return;
   static unsigned frames = 0, software = 0;
@@ -297,13 +315,14 @@ static void replayStats(bool gpu) {
 bool zn_c3d_window(const HalCmdList* l, int32_t w, int32_t h) {
   if (!ready) return false;
   zn_c3d_begin();
-  const bool drawable = zn::ff::drawable(&l, 1);
+  bool drawable;
+  { zn::n3ds::capture::Scope scope(zn::n3ds::capture::Validate); drawable = zn::ff::drawable(&l, 1); }
   replayStats(drawable);
   if (!drawable) return false;
   drawOn(BOTTOM);
   float K, OX, OY;
   fit(BOTTOM, w, h, &K, &OX, &OY);
-  zn::ff::replay(l, w, h, K, OX, OY);
+  { zn::n3ds::capture::Scope scope(zn::n3ds::capture::Replay); zn::ff::replay(l, w, h, K, OX, OY); }
   return true;
 }
 
@@ -319,11 +338,13 @@ bool zn_c3d_draw(const HalFrame* f, int target, bool always) {
   zn_c3d_begin();
   const uint64_t t0 = svcGetSystemTick();   // after the wait for the GPU's last frame: the replay's CPU time, ZINC_PROFILE's raster
   auto done = [&] { zrt_prof_band(0, t0 * 1000000ull / SYSCLOCK_ARM11, svcGetSystemTick() * 1000000ull / SYSCLOCK_ARM11); return true; };
-  const bool drawable = n > 0 && zn::ff::drawable(lists, n);
+  bool drawable;
+  { zn::n3ds::capture::Scope scope(zn::n3ds::capture::Validate); drawable = n > 0 && zn::ff::drawable(lists, n); }
   replayStats(drawable);
   if (drawable) {
     drawOn(target);
-    for (int32_t i = 0; i < n; i++) zn::ff::replay(lists[i], f->w, f->h, K, OX, OY);
+    { zn::n3ds::capture::Scope scope(zn::n3ds::capture::Replay);
+      for (int32_t i = 0; i < n; i++) zn::ff::replay(lists[i], f->w, f->h, K, OX, OY); }
     softValid = false;
     return done();
   }

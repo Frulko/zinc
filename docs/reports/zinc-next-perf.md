@@ -1310,3 +1310,8 @@ M1 Pro 10 cores, 16 GiB, AC; three finite passages of 330 callbacks per case, 30
 | godot-to-zinc | 0.001 / 0.002 | 10.021 | 5.4 | 99.3 | 157.7 |
 
 Full boundaries, startup/variability, exact commands, hashes, rejected/failed experiments and limits: [report](workflow-macos-performance-2026-10-25.md), [raw evidence](bench/workflow-macos-2026-10-25.json). Standalone runs use the fixed checkout recorded in the artifact. LibGodot loop cadence is unstable; pure GPU time, displayed FPS and sustained production-scale stress are unmeasured. All 44 accepted final processes exited 0; optional Godot editor-import cleanup crash remains open.
+
+
+### 2026-10-25: complete 3DS refresh capture and submission coherency
+
+Previous callback-only timings omitted bottom replay/synchronization. New buffered refresh capture includes both eyes and the bottom window, actual vblank deltas and runtime allocations. Flat3480 measured refreshes:59.83 Hz, CPU p50/p99/max 2.765/5.624/7.946 ms; stereo 1680:59.83 Hz, 4.387/7.367/8.554 ms. Zero missed refreshes/vblanks and zero software surfaces in either Azahar run, after 120 warm-up refreshes. GPU submission changed from full-linear-heap cache flush to explicit resources plus command-list flush; physical gain is unmeasured and not modeled by these timings. Packed Box2D bridge 1200-step equivalence test: identical states/events, runtime allocations 7240→6016. No solver/calibration reduction. Source/provenance, raw CSV/JSON paths and reproduction commands in pinball physics report and docs/targets/n3ds-performance.md. Physical60 FPS requires the next SD capture; emulator gate success is not a physical claim.

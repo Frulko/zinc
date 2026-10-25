@@ -1,6 +1,7 @@
 # Nintendo 3DS (devkitARM: -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake; tools/build-console-core runs it in devkitPro's pinned image):
 # targets/n3ds/hal_n3ds.cpp with libctru, and zinc-core.3dsx, the homebrew format Azahar and the Homebrew Launcher start.
 target_link_libraries(zinc-core PRIVATE ctru)
+target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/frame_profile.cpp)
 target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/net_n3ds.cpp)   # the network (targets/console/console_net.h, ZN-791)
 target_sources(zinc-core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdpack.cpp)   # the asset packs on the SD card beside the .3dsx and the reader thread (a streamed level)
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=262144 ZN_CONSOLE_MAX_DEPTH=1000)   # 2 MiB of registers, 1000 calls deep

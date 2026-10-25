@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Report complete 3DS refresh captures, retaining emulator/hardware provenance."""
+import argparse
+import csv
+import json
+from pathlib import Path
+
+
+def summarize(rows, warmup, cpu_budget):
+    rows = [r for r in rows if r['refresh'] >= warmup]
+    if not rows:
+        raise ValueError('no samples after warm-up')
+    result = {}
+    for stereo in sorted({r['stereo'] for r in rows}):
+        group = [r for r in rows if r['stereo'] == stereo]
+        def stats(values):
+            v = sorted(values)
+            return {'p50': v[(len(v)-1)//2], 'p99': v[min(len(v)-1, int(len(v)*.99))], 'max': v[-1]}
+        # 3DS refresh is approximately 59.83 Hz. A >25 ms gap misses at least one refresh.
+        gaps = [r['gap_us'] for r in group if r['gap_us']]
+        cpu = [max(0, r['elapsed_us'] - r['wait_us']) for r in group]
+        missed = sum(max(0, round(g / 16715) - 1) for g in gaps)
+        missed_vblanks = sum(max(0, r['vblanks'] - 1) for r in group)
+        fields = ['physics_us', 'paint_us', 'diff_us', 'wait_us', 'validate_us', 'replay_us', 'upload_us', 'submit_us', 'previous_gpu_us', 'rt_allocs']
+        detail = {field: stats([r[field] for r in group]) for field in fields}
+        detail.update(refreshes=len(group), fps=round(1e6*len(gaps)/sum(gaps), 2) if gaps else 0,
+                      gap_us=stats(gaps) if gaps else None, cpu_us=stats(cpu), missed_refreshes=missed, missed_vblanks=missed_vblanks,
+                      software_surfaces=sum(r['software_surfaces'] for r in group),
+                      uploads=sum(r['uploads'] for r in group),
+                      slowest_refreshes=[r['refresh'] for r in sorted(group, key=lambda r:r['gap_us'], reverse=True)[:5]])
+        detail['passes_60fps_gate'] = missed == 0 and missed_vblanks == 0 and detail['cpu_us']['p99'] <= cpu_budget and detail['software_surfaces'] == 0
+        result['stereo' if stereo else 'flat'] = detail
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('capture', type=Path)
+    parser.add_argument('--warmup', type=int, default=120)
+    parser.add_argument('--cpu-budget-ms', type=float, default=15)
+    parser.add_argument('--source', choices=['hardware','emulator','test'], required=True)
+    parser.add_argument('--gate', action='store_true', help='fail on missed refreshes, CPU p99 over budget, or software fallback')
+    args = parser.parse_args()
+    with args.capture.open() as f:
+        header = f.readline().strip()
+        if not header.startswith('# zinc-n3ds-frame-capture schema=1 '):
+            parser.error('unsupported capture schema')
+        try:
+            rows = [{k:int(v) for k,v in row.items()} for row in csv.DictReader(f)]
+        except (TypeError, ValueError) as error:
+            parser.error(f'invalid numeric capture row: {error}')
+    if args.warmup < 0 or args.cpu_budget_ms <= 0:
+        parser.error('warm-up must be nonnegative and CPU budget positive')
+    try:
+        result = summarize(rows, args.warmup, args.cpu_budget_ms * 1000)
+    except (ValueError, KeyError) as error:
+        parser.error(f'invalid or incomplete capture: {error}')
+    print(json.dumps({'source': args.source, 'capture': str(args.capture), 'header': header,
+                      'warmup_refreshes': args.warmup, 'modes': result}, indent=2))
+    return int(args.gate and not all(mode['passes_60fps_gate'] for mode in result.values()))
+
+if __name__ == '__main__':
+    raise SystemExit(main())
