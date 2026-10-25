@@ -1,6 +1,7 @@
 version 0.3.0
 ; zinc-ink v2 (protocol 2). No condition, import or override on libqsgepaper: Qt dlopens it after XOVI's constructor.
 ; Vendor symbols are resolved with dlsym at run time (bridge.cpp, setup).
+depends-on framebuffer-spy:0.2.0
 import? framebuffer-spy$getFramebufferConfig>FramebufferConfig
 import? _ZN12QQuickWindow11exposeEventEP12QExposeEvent
 override _ZN12QQuickWindow11exposeEventEP12QExposeEvent

@@ -15,7 +15,7 @@ cd "$(dirname "$0")/../../../.."
 XOVI_REF=${XOVI_REF:-master} EXT_REF=${EXT_REF:-master}   # pin to the commits the tablet runs when recording a result
 docker run --rm --platform linux/arm64 -v "$PWD:/work:ro" -e XOVI_REF="$XOVI_REF" -e EXT_REF="$EXT_REF" zinc/sdk-rmpp bash -c '
 set -eu
-apt-get update -qq >/dev/null && apt-get install -y -qq git python3 cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev >/dev/null
+apt-get update -qq >/dev/null && apt-get install -y -qq build-essential pkg-config git python3 cmake qt6-base-dev qt6-base-dev-tools qt6-declarative-dev >/dev/null
 H=/tmp/h; mkdir -p $H; cd $H
 git clone -q https://github.com/asivery/xovi && git -C xovi checkout -q "$XOVI_REF"
 git clone -q https://github.com/asivery/rm-xovi-extensions ext && git -C ext checkout -q "$EXT_REF"
