@@ -19,7 +19,7 @@ namespace zn::agent {
 
 namespace {
 
-constexpr std::size_t kMaxRequest = 64 * 1024;   // a player refuses a JSON frame above this (a console's memory)
+constexpr std::size_t kRequestLimit = 64 * 1024;   // a player refuses a JSON frame above this (a console's memory)
 constexpr long kLogMax = 256 * 1024;              // the log of one run: cut to its end past this
 
 long long now() { return static_cast<long long>(std::time(nullptr)); }
@@ -224,7 +224,7 @@ void session(Player& p, int fd) {
   char type;
   std::string payload;
   if (!recv(*c, type, payload, 10000)) return;   // the request follows the handshake at once
-  if (type != kJson || payload.size() > kMaxRequest) { refuse(*c, "not a request"); return; }
+  if (type != kJson || payload.size() > kRequestLimit) { refuse(*c, "not a request"); return; }
   const Doc req(payload);
   const std::string op = req.str("op"), name = req.str("name");
   if (!req.ok() || op.empty()) { refuse(*c, "not a request"); return; }

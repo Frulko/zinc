@@ -47,7 +47,7 @@
 #include "host/assets_host.h"
 #if !(defined(__APPLE__) && TARGET_OS_IPHONE)
 #include "net/dnssd.h"
-#define ZN_PLAYER_MDNS 1
+#define PLAYER_MDNS 1
 #else
 #include <dns_sd.h>   // iOS: the system's Bonjour (raw multicast sockets need an entitlement Apple grants on request)
 #endif
@@ -59,8 +59,10 @@
 #include <jni.h>
 #include <sys/system_properties.h>
 #endif
-#ifndef ZN_VERSION
-#define ZN_VERSION "0.0.0-dev"
+#ifdef ZN_VERSION
+static const char* const kVersion = ZN_VERSION;
+#else
+static const char* const kVersion = "0.0.0-dev";
 #endif
 
 extern "C" void zn_hal_sdl_resignal(void);   // targets/macos/hal_sdl.cpp
@@ -101,7 +103,7 @@ AgentRun gAgentNext;
 bool gAgentPending = false, gAgentRunning = false, gAgentStop = false;
 std::string gAgentPacks;            // the packs/ of the program that runs, mounted in front
 std::string gAgentShown;            // what the home screen shows of the agent: it starts again when this changes
-#ifdef ZN_PLAYER_MDNS
+#ifdef PLAYER_MDNS
 zn::dnssd::Responder gMdns;
 #else
 DNSServiceRef gBonjour = nullptr;
@@ -284,7 +286,7 @@ void agentOpen() {
   p.kind = SDL_GetPlatform();
   p.osVersion = u.release;
 #endif
-  p.engine = ZN_VERSION;
+  p.engine = kVersion;
   p.address = localAddress();
   for (std::string list = zn_player_plugins(); !list.empty();) {
     const std::size_t c = list.find(',');
@@ -313,7 +315,7 @@ void agentOpen() {
   if (!zn::agent::playerOpen(p, err)) { std::fprintf(stderr, "zinc go: no device mode: %s\n", err.c_str()); return; }
   gAgentOn = true;
   std::fprintf(stderr, "zinc player: %s listening on %s:%d%s%s\n", p.name.c_str(), p.address.c_str(), p.port, p.code.empty() ? "" : ", pairing code: ", p.code.c_str());
-#ifdef ZN_PLAYER_MDNS
+#ifdef PLAYER_MDNS
 #ifdef __ANDROID__
   multicastLock(true);
 #endif
@@ -387,7 +389,7 @@ void agentStart(const AgentRun& r) {
 void agentPoll() {
   if (!gAgentOn) return;
   zn::agent::playerPoll(gAgent);
-#ifdef ZN_PLAYER_MDNS
+#ifdef PLAYER_MDNS
   gMdns.serve();
 #endif
   if (gAgentPending) { gAgentPending = false; agentStart(gAgentNext); return; }
