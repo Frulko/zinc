@@ -67,6 +67,9 @@ extern void (*gConsoleTap)(const char* p, std::size_t n, bool err);
 // host call (the error is this text), and with gExitEndsRun zinc:sys exit(n) ends the run with the error "exit <n>" instead of the process.
 extern const char* gStop;
 extern bool gExitEndsRun;
+// The profile of the device the engine is (a console core: "n3ds"), or null on a desktop: a module the program needs and this engine lacks is
+// then "not available on this device (profile n3ds)" rather than the desktop's reason (a library beside zinc).
+extern const char* gDeviceProfile;
 
 struct Machine;
 

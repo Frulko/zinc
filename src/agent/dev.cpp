@@ -279,7 +279,7 @@ bool pack(const std::string& self, const std::string& dir, const std::string& za
 
 struct Session {
   std::unique_ptr<Chan> c;
-  std::string self, engine, device, tmp, profile;   // profile: a player's (zinc pack --profile)
+  std::string self, engine, device, tmp, profile, player;   // profile: a player's (zinc pack --profile); player: its info
   std::map<std::string, std::string> there;   // what the device holds: member -> SHA-256
   std::vector<std::string> env;   // KEY=VALUE for the program there (--perf)
   bool running = false, live = false;   // live: --live, the device's screen in a window here while the session runs
@@ -356,6 +356,8 @@ struct Session {
     if (!pack(self, dir, zapp, out, profile, inspect && !over)) return false;   // not the red box
     const double packMs = zn::log::since(saved);
     if (!readFile(zapp, archive) || !zn::zapp::unpack(archive, engine, files, err)) { out = "the packed project cannot be read: " + err; return false; }
+    if (!player.empty() && !(out = playerLacks(files, Doc(player), device)).empty()) return false;   // said before anything is sent
+    if (!player.empty() && there.empty()) playerWarnings(self, dir, Doc(player), device);
     for (const auto& [name, sha] : Doc(files["manifest.json"]).pairs("files"))
       if (name.rfind("native/", 0) != 0) now[name] = sha;   // The device loads its own plugins; these libraries are for the workstation's architecture.
     std::error_code ec;
@@ -440,7 +442,7 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   // changed is refused by the device's loader with its reason. Another series runs with --force only, at the risk of a crash.
   if (!deviceSession(device, Obj().str("op", "info").done(), answer, s->device)) return false;
   const std::string there = Doc(answer).str("engine");
-  if (Doc(answer).flag("player")) s->profile = Doc(answer).str("profile");
+  if (Doc(answer).flag("player")) { s->profile = Doc(answer).str("profile"); s->player = answer; }
   if (there != engine) {
     if (!force && series(there) != series(engine)) {
       const std::string update = "zinc device " + s->device + " update", retry = "zinc dev --device " + s->device + " --force";

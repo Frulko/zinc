@@ -32,6 +32,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
+- Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
+- `zinc dev --device` and `zinc device deploy` to a console player refuse a JavaScript project (QuickJS) before sending it, with the reason, instead of "cannot read ./dev/program.zbc", and warn about each plugin the player lacks (`zinc lint --target <profile>`); on the console, a missing module is "not available on this device (profile n3ds)".
+- `zinc --version` of a build tree follows the checkout: the version is read again when HEAD moves, not only when the tree was first configured.
 - reMarkable Paper Pro: fast drawing on qtfb asks AppLoad for its fastest pen waveform (ufast) instead of the slower fast mode.
 - Nova Patrol and Nova Patrol DS 0.2.5 trigger powered bumper/slingshot rebounds, scores, target drops, flashes and sparks from actual Box2D impact events. Solved hit speeds replace pre-solve snapshots; the optimized collision stepping is preserved.
 - The browser Physics2D shim implements the packed `stepState` protocol used by the shared plugin.

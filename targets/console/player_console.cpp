@@ -85,6 +85,7 @@ void up() {
   if (const char* v = std::getenv("ZINC_PLAYER_BIND"); v && *v) p.bind = v;
   if (const char* v = std::getenv("ZINC_PLAYER_CODE"); v && *v) p.fixedCode = v;
   if (const char* v = std::getenv("ZINC_PLAYER_PROFILE"); v && *v) p.profile = v;   // a test switch: the host build says it is a console
+  if (!p.profile.empty()) zn::rt::gDeviceProfile = p.profile.c_str();
   p.run = [](const std::string& app, const std::string& dir, const std::vector<std::string>& args, const zn::agent::Env& env, long long pid) {
     gNext = ZnPlayerRun{app, dir, args, env, pid};
     gPending = true;

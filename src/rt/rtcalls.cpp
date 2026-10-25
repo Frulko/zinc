@@ -669,6 +669,7 @@ void redrawFrame() {
 
 const char* gStop = nullptr;
 bool gExitEndsRun = false;
+const char* gDeviceProfile = nullptr;
 
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
 static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
@@ -686,6 +687,11 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:
   // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
   if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
+  if (!call && gDeviceProfile) {
+    static std::string why;
+    why = std::string(isLayoutRow(id) ? "the rn layout engine" : isGlRow(id) ? "zinc:gl" : sys ? "the system modules" : "zinc:gfx") + " is not available on this device (profile " + gDeviceProfile + ")";
+    return why.c_str();
+  }
   if (!call) return isLayoutRow(id) ? "the rn layout engine is not available in this build" : isGlRow(id) ? "zinc:gl is not available (no libzn_webgl beside zinc)" : sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
   zn::host::HostArg args[kMaxHostParams], res;
   for (unsigned k = 0; k < rtParamCount(ri); ++k) {

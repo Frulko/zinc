@@ -29,7 +29,9 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <fcntl.h>
 #include <map>
+#include <sstream>
 #include <thread>
 
 namespace zn::agent {
@@ -507,7 +509,7 @@ Launch launchOptions(std::vector<std::string>& args) {
 }
 
 // Runs a tool to its end. With `out`, what it prints on its standard output is kept there too (it is still printed).
-int spawnWait(const std::vector<std::string>& argv, std::string* out = nullptr) {
+int spawnWait(const std::vector<std::string>& argv, std::string* out = nullptr, bool echo = true) {
   std::vector<char*> p;
   for (const std::string& a : argv) p.push_back(const_cast<char*>(a.c_str()));
   p.push_back(nullptr);
@@ -516,6 +518,7 @@ int spawnWait(const std::vector<std::string>& argv, std::string* out = nullptr) 
   const pid_t pid = ::fork();
   if (pid == 0) {
     if (out) { ::dup2(fds[1], STDOUT_FILENO); ::close(fds[0]); ::close(fds[1]); }
+    if (!echo) { const int null = ::open("/dev/null", O_WRONLY); ::dup2(null, STDERR_FILENO); }   // quiet: its summary line too
     ::signal(SIGPIPE, SIG_DFL);
     ::execv(p[0], p.data());
     ::_exit(127);
@@ -525,7 +528,7 @@ int spawnWait(const std::vector<std::string>& argv, std::string* out = nullptr) 
     char buf[4096];
     ssize_t n = 0;
     while (pid > 0 && ((n = ::read(fds[0], buf, sizeof buf)) > 0 || (n < 0 && errno == EINTR)))
-      if (n > 0) { out->append(buf, static_cast<size_t>(n)); writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n)); }
+      if (n > 0) { out->append(buf, static_cast<size_t>(n)); if (echo) writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n)); }
     ::close(fds[0]);
   }
   int status = 0;
@@ -615,6 +618,35 @@ bool sourceProject(const std::string& path, const std::string& stage, std::strin
 // "0.6" of "0.6.2+52.g6feb1df0": the series whose engines run one another's bytecode (dev.cpp has the same).
 std::string seriesOf(const std::string& v) { return v.substr(0, v.find('.', v.find('.') + 1)); }
 
+}  // namespace
+
+std::string playerLacks(const std::map<std::string, std::string>& files, const Val& info, const std::string& device) {
+  const std::string profile = info.str("profile").empty() ? info.str("os") : info.str("profile");
+  if (!files.count("program.zbc"))   // zinc pack of a JavaScript project sends its sources, for QuickJS
+    return "the project runs on QuickJS (a JavaScript project), and the " + profile + " player on " + device +
+           " runs Zinc bytecode only: a TypeScript project (no \"engine\": \"quickjs\" in its zinc.json) runs there";
+  return "";
+}
+
+void playerWarnings(const std::string& self, const std::string& dir, const Val& info, const std::string& device) {
+  const std::string profile = info.str("profile");
+  if (profile.empty()) return;
+  std::string out;
+  spawnWait({self, "lint", "--target", profile, dir}, &out, false);   // its rule plugin-targets: the plugin.json targets of each plugin used
+  const std::vector<std::string> have = info.strs("plugins");   // linked into the player (3d, audio): there whatever their plugin.json says
+  std::istringstream lines(out);
+  for (std::string line; std::getline(lines, line);) {   // "...: warning plugin-targets [n3ds]: plugin canvas2d is not made for this target (its plugin.json targets: ...) (fix: ...)"
+    const std::size_t p = line.find("plugin-targets ["), n = line.find(": plugin ", p == std::string::npos ? 0 : p);
+    if (p == std::string::npos || n == std::string::npos) continue;
+    const std::string plugin = line.substr(n + 9, line.find(' ', n + 9) - n - 9);
+    if (std::find(have.begin(), have.end(), plugin) != have.end()) continue;
+    const std::size_t why = line.find(" (its plugin.json", n), whyEnd = line.find(')', why);
+    std::fprintf(stderr, "warning: plugin %s is not available on %s (profile %s)%s: the program may stop where it uses it\n", plugin.c_str(), device.c_str(),
+                 profile.c_str(), why == std::string::npos || whyEnd == std::string::npos ? "" : line.substr(why, whyEnd + 1 - why).c_str());
+  }
+}
+
+namespace {
 
 // A player (a console, ZN-792) runs bytecode: the project packed here for its profile, the members of the .zapp sent (no native code: its
 // plugins are linked into it), then started and followed as any app.
@@ -634,15 +666,8 @@ int deployPlayer(Device& d, const Doc& info, const std::string& path, std::strin
   if (const int rc = spawnWait(cmd)) return rc;
   std::map<std::string, std::string> files;
   if (!readFile(tmp + "/app.zapp", archive) || !zn::zapp::untar(archive, files, err)) return fail("the packed project cannot be read: " + err);
-  std::vector<std::string> have = info.strs("plugins");
-  for (const auto& [member, bytes] : files) {   // native/<target>/<plugin>/...: what the program loads besides the engine
-    if (member.rfind("native/", 0) != 0) continue;
-    const std::size_t at = member.find('/', 7) + 1;   // past the target (zinc pack's packedTarget)
-    if (at == 0) continue;
-    const std::string plugin = member.substr(at, member.find('/', at) - at);
-    if (std::find(have.begin(), have.end(), plugin) == have.end())
-      return fail("the program uses the plugin " + plugin + ", which the player on " + d.name + " does not have (it has: " + [&] { std::string h; for (const std::string& x : have) h += (h.empty() ? "" : ", ") + x; return h.empty() ? std::string("none") : h; }() + ")");
-  }
+  if (const std::string why = playerLacks(files, info, d.name); !why.empty()) return fail(why);
+  playerWarnings(self, path, info, d.name);
   if (name.empty()) name = cleanName(Doc(files["manifest.json"]).str("name"));
   const std::string app = tmp + "/" + name;
   for (const auto& [member, bytes] : files) {

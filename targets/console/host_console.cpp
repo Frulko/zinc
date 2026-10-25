@@ -63,6 +63,9 @@ namespace {
 using zn::host::HostArg;
 using zn::Rt;
 
+// a module this core lacks is "not available on this device (profile n3ds)" (the player of the headless host build sets its test profile)
+[[maybe_unused]] const bool gProfileNamed = (zn::rt::gDeviceProfile = std::strcmp(ZN_CONSOLE_PLATFORM, "console") ? ZN_CONSOLE_PLATFORM : nullptr, true);
+
 std::vector<std::string> gArgs;
 std::string gOut, gError;
 bool gFailed = false;
@@ -200,7 +203,19 @@ bool packRead(const std::string& name, int kind, std::string& out) {
   return true;
 }
 
-bool assetRead(const std::string& name, std::string& out) { return packRead(name, 0, out) || (zn_console_side_read && zn_console_side_read(name, 0, out)); }
+// a project without asset groups: zinc pack sends its assets/ as files, which the player keeps in the app's directory (desktop: assetsDir)
+bool assetFile(const std::string& name, std::string& out) {
+  std::FILE* f = std::fopen(at("assets/" + name).c_str(), "rb");
+  if (!f) return false;
+  out.clear();
+  char buf[4096];
+  for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) out.append(buf, n);
+  std::fclose(f);
+  return true;
+}
+bool assetRead(const std::string& name, std::string& out) {
+  return packRead(name, 0, out) || (zn_console_side_read && zn_console_side_read(name, 0, out)) || assetFile(name, out);
+}
 
 double nowMs() { return gVirtual ? gVirtualNow : static_cast<double>(hal_time_us() - gStartUs) / 1000.0; }
 void waitMs(double ms) {
@@ -268,7 +283,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(str(a[0])); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gKeys.clear(); for (auto& kv : storageLoad()) gKeys.push_back(kv.first); r->i = static_cast<std::int64_t>(gKeys.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<std::size_t>(n(0)) < gKeys.size() ? gKeys[static_cast<std::size_t>(n(0))] : ""); break;
-    case Rt::HostAssetsExists: r->i = packFind(str(a[0]), 0) >= 0 || (zn_console_side_has && zn_console_side_has(str(a[0]), 0)); break;
+    case Rt::HostAssetsExists: r->i = packFind(str(a[0]), 0) >= 0 || (zn_console_side_has && zn_console_side_has(str(a[0]), 0)) ||
+                                    [&] { std::FILE* f = std::fopen(at("assets/" + str(a[0])).c_str(), "rb"); if (f) std::fclose(f); return f != nullptr; }(); break;
     case Rt::HostAssetsReadText: { std::string d; if (assetRead(str(a[0]), d)) ret(r, std::move(d)); else { if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } ret(r, ""); } break; }
     case Rt::HostAssetsLoad: {
       std::string d;

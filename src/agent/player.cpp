@@ -307,6 +307,7 @@ bool devMessage(Player& p, Player::Follower& f, const std::string& payload) {
   std::uint64_t files = 0, bytes = 0;
   std::string err;
   if (m.flag("files") && !recvFiles(*f.c, dir, files, bytes, err)) return refuse(*f.c, err);
+  if (!isFile(dir + "/program.zbc")) return refuse(*f.c, "no program.zbc in what was sent: a player runs the bytecode zinc pack makes, not a JavaScript project");
   replaceRunning(p);
   const long long pid = startApp(p, "dev", dir, m.strs("args"), {});
   f.pid = pid;

@@ -111,6 +111,13 @@ struct Doc : Val {
   bool ok() const { return v != nullptr; }
 };
 
+/** Why a player (`info`: its answer to info) cannot run the members of a .zapp packed for its profile: a JavaScript project (no
+ *  program.zbc); empty when it can (client.cpp: zinc device deploy, zinc dev --device). */
+std::string playerLacks(const std::map<std::string, std::string>& files, const Val& info, const std::string& device);
+/** The warnings of `zinc lint --target <its profile>` (rule plugin-targets) for the project `dir`, one line per plugin the player lacks,
+ *  on stderr: the program is sent anyway. */
+void playerWarnings(const std::string& self, const std::string& dir, const Val& info, const std::string& device);
+
 /** Sends the answer {"ok": false, "error": ...}. */
 bool refuse(Chan& c, const std::string& why);
 

@@ -68,6 +68,28 @@ printf 'import { exit } from "zinc:sys";\nconsole.log("bye");\nexit(3);\n' > "$t
 dev deploy "$tmp/quits" > "$tmp/quits.out" 2>&1 || bad "deploy quits: $(cat "$tmp/quits.out")"
 grep -q '^bye$' "$tmp/quits.out" && grep -q '^\[exited 3\]$' "$tmp/quits.out" || bad "exit(3): $(cat "$tmp/quits.out")"
 
+# an asset of assets/ (a project without asset groups: zinc pack sends it as a file; examples/3d/model's rocket.obj)
+mkdir -p "$tmp/reads/src" "$tmp/reads/assets"
+printf '{ "name": "reads", "entry": "src/main.ts" }\n' > "$tmp/reads/zinc.json"
+printf 'import { readText, exists } from "zinc:assets";\nconsole.log((exists("hi.txt") ? "has " : "no ") + readText("hi.txt"));\n' > "$tmp/reads/src/main.ts"
+printf 'rocket' > "$tmp/reads/assets/hi.txt"
+dev deploy "$tmp/reads" > "$tmp/reads.out" 2>&1
+grep -q '^has rocket$' "$tmp/reads.out" || bad "an asset of assets/ is not read on the player: $(cat "$tmp/reads.out")"
+
+# a JavaScript project (examples/js-p5, fatty): refused before it is sent, with the reason
+mkdir -p "$tmp/js"
+printf '{ "name": "js", "entry": "main.js" }\n' > "$tmp/js/zinc.json"
+printf 'console.log("js");\n' > "$tmp/js/main.js"
+out=$(dev deploy "$tmp/js" 2>&1) && bad "a JavaScript project deployed to a player"
+case $out in *"runs on QuickJS"*"psp player"*) ;; *) bad "deploy of a JavaScript project: $out";; esac
+
+# a module the player lacks: named as not available on this device and its profile (not the desktop's library beside zinc)
+mkdir -p "$tmp/gl/src"
+printf '{ "name": "gl", "entry": "src/main.ts" }\n' > "$tmp/gl/zinc.json"
+printf 'import { createContext } from "zinc:gl";\nconst gl = createContext(64, 64);\nconsole.log(gl == null ? "no gl" : "gl");\n' > "$tmp/gl/src/main.ts"
+dev deploy "$tmp/gl" > "$tmp/gl.out" 2>&1
+grep -q "zinc:gl is not available on this device (profile psp)" "$tmp/gl.out" || bad "zinc:gl on the player: $(cat "$tmp/gl.out")"
+
 # a drawing program and the frame of the player's screen
 dev deploy examples/bouncing-ball --no-logs >/dev/null 2>"$tmp/ball.err" || bad "deploy bouncing-ball: $(cat "$tmp/ball.err")"
 sleep 0.5
@@ -84,6 +106,9 @@ ZINC_HOME="$tmp/work" "$Z" dev "$tmp/devd" --device zn-player > "$tmp/dev.log" 2
 until_grep "^one$" "$tmp/dev.log" || bad "zinc dev --device: the program did not start on the player: $(cat "$tmp/dev.log")"
 printf 'console.log("two");\nsetInterval(() => {}, 1000);\n' > "$tmp/main.new"; mv "$tmp/main.new" "$tmp/devd/src/main.ts"
 until_grep "^two$" "$tmp/dev.log" || bad "zinc dev --device: the saved source does not run on the player: $(cat "$tmp/dev.log")"
+kill $dpid 2>/dev/null; wait $dpid 2>/dev/null
+ZINC_HOME="$tmp/work" "$Z" dev "$tmp/js" --device zn-player > "$tmp/devjs.log" 2>&1 & dpid=$!
+until_grep "runs on QuickJS" "$tmp/devjs.log" || bad "zinc dev --device of a JavaScript project: $(cat "$tmp/devjs.log")"
 kill $dpid 2>/dev/null; wait $dpid 2>/dev/null
 
 # still there, and the ticker's files kept
