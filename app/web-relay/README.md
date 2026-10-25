@@ -22,7 +22,7 @@ laid out at `w / dpr` CSS pixels (`dpr` 2: 1620 tablet pixels are 810 CSS pixels
 | Request | Answer |
 | --- | --- |
 | `GET /render?url=&w=&h=&dpr=2&mode=grey\|color` | `{"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}` of the whole page (cut at 40 screens) |
-| `GET /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1` | PNG of the page rectangle (x, y, cw, ch) at `zoom`: `cw*zoom` x `ch*zoom` pixels. Page k is `y=k*h` |
+| `GET /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1` | PNG of the page rectangle (x, y, cw, ch) at `zoom`: `cw*zoom` x `ch*zoom` pixels. Page k is `y=k*h`. `&fresh=1` (the dashboard's timer) reloads the page in the running Chrome, bypassing its cache |
 | `POST /export?url=&w=&h=&dpr=&mode=` | body: an SVG of the ink in page pixels; answer: PNG of the whole page with the ink over it |
 | `GET /health` | `ok` |
 

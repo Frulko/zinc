@@ -62,6 +62,15 @@ export class Relay {
     return await (await this.send(a, {})).bytes();
   }
 
+  /** The dashboard: PNG of page 1 of `page` laid out at w x h, loaded again by the relay (fresh), not its cached tab. */
+  async firstPage(page: string, w: i32, h: i32): Promise<u8[]> {
+    const vw = this.w, vh = this.h;
+    this.w = w; this.h = h;
+    const a = this.address('/shot', page) + '&fresh=1';
+    this.w = vw; this.h = vh;
+    return await (await this.send(a, {})).bytes();
+  }
+
   /** PNG of the whole page with `svg` (the ink, in page pixels) over it. */
   async exportPage(page: string, svg: string): Promise<u8[]> {
     return await (await this.send(this.address('/export', page), { method: 'POST', body: svg, contentType: 'image/svg+xml' })).bytes();

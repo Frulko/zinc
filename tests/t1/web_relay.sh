@@ -3,6 +3,7 @@
 # it headless. Relay: a page picture is exactly the viewport, a zoomed one too, the link map has the fixture's two http links (not the mailto),
 # a request without the token is refused, a file:// page is refused. Reader (ZINC_WEB_SCRIPT, the buttons' actions): open, page down,
 # follow a link by a tap on it, back, write with the pen, save the ink per URL (it comes back on the next run), export page + ink as PNG.
+# Dashboard (TRMNL-style): on a short period (ZINC_WEB_DASH_MS) a page that changed is swapped, an unchanged one is not, the widget draws it.
 # No network: the fixture is served by python3 on 127.0.0.1.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -14,7 +15,8 @@ trap '[ -n "$rel" ] && kill $rel; [ -n "$web" ] && kill $web; wait 2>/dev/null; 
 fail=0
 free() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 wp=$(free); rp=$(free)
-python3 -m http.server "$wp" --bind 127.0.0.1 --directory app/web-relay/fixture >"$tmp/http.log" 2>&1 & web=$!
+cp -R app/web-relay/fixture "$tmp/site"; echo '<h1>Count 1</h1>' > "$tmp/site/dash.html"
+python3 -m http.server "$wp" --bind 127.0.0.1 --directory "$tmp/site" >"$tmp/http.log" 2>&1 & web=$!
 "$Z" run app/web-relay -- --port "$rp" --data "$tmp/relay" >"$tmp/relay.log" 2>&1 & rel=$!
 for i in $(seq 1 100); do grep -q 'relay: token' "$tmp/relay.log" && curl -s "http://127.0.0.1:$wp/" >/dev/null && break; sleep 0.2; done
 grep -q 'relay: token' "$tmp/relay.log" || { echo "the relay did not start:"; head -20 "$tmp/relay.log"; exit 1; }
@@ -72,6 +74,21 @@ assert min(xs) == 500 and max(xs) == 1100 and min(ys) > 1200 and max(ys) - min(y
 ZINC_SHOT="$tmp/shot.png" app "open $page; next; zoom 2"
 expect 'web: Relay fixture · 2 links'
 [ "$(size "$tmp/shot.png")" != not-png ] || { echo "no shot of the reader"; fail=1; }
+
+# the dashboard: render 1 is new, the page changes, render 2 (one period later) is new, render 3 is unchanged; then the widget
+# (the page changes once Chrome fetched it: http.server's log is unbuffered, the app's may not be)
+( for i in $(seq 1 300); do grep -q 'GET /dash.html' "$tmp/http.log" 2>/dev/null && break; sleep 0.05; done
+  echo '<h1>Count 2</h1>' > "$tmp/site/dash.html" ) &
+edit=$!
+ZINC_WEB_DASH_MS=2500 ZINC_SHOT="$tmp/widget.png" app "relay $R $token; dash http://127.0.0.1:$wp/dash.html; ticks 3; widget"
+wait $edit
+expect 'web: dashboard 1: new picture'
+expect 'web: dashboard 2: new picture'
+expect 'web: dashboard 3: unchanged'
+expect 'web: widget 810x'
+grep -qx "dash=http://127.0.0.1:$wp/dash.html" "$tmp/web/web.conf" || { echo "the dashboard mode was not saved: $(grep dash "$tmp/web/web.conf")"; fail=1; }
+[ "$(size "$tmp/widget.png")" != not-png ] || { echo "no shot of the widget"; fail=1; }
+[ -n "$WEB_SHOTS" ] && cp "$tmp/widget.png" "$WEB_SHOTS/" 2>/dev/null
 [ -n "$WEB_SHOTS" ] && cp "$tmp/shot.png" "$tmp/p1.png" "$tmp/z.png" "$ex" "$WEB_SHOTS/" 2>/dev/null
 
 kill $rel; wait $rel 2>/dev/null; rel=

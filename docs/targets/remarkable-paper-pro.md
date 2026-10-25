@@ -386,6 +386,12 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
   previous package for Rollback and calls `zinc-tile` for the app's tile. Its list shows each app's icon, which the server takes from the
   published `.zapp` and lists with its SHA-256 in the signed catalog.
+- **Lecteur web and dashboard** (`app/web`, ZN-844; `app/web/README.md`): the Mac's relay (`zinc run app/web-relay`) renders pages in
+  headless Chrome at the tablet's size, grey. **Bookmarks, Dashboard** turns a page into a TRMNL-style dashboard: page 1 full screen,
+  rendered again every 5, 15, 30 or 60 minutes (`&fresh=1`: the relay's running Chrome reloads the tab), the picture swapped only when its
+  SHA-256 changed and followed by one full refresh (`refreshDisplay()`), so it does not ghost; a tap renders it now. **Accueil** shows the
+  top of the page as an 810 x 540 widget on the same timer. The program's timers keep running while the window is minimized or a widget:
+  `rm_present` waits at most 8 ms for input and returns. The mode is kept in `web.conf`, so a reopened app is the dashboard again.
 
 ## What is verified and what is not
 

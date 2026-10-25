@@ -7,7 +7,8 @@
 //   GET  /render?url=&w=&h=&dpr=2&mode=grey|color   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
 //        {"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}, all in device pixels of the whole page (height capped)
 //   GET  /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1   PNG of the page rectangle (x, y, cw, ch) at `zoom`: cw*zoom x ch*zoom pixels.
-//        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change.
+//        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
+//        &fresh=1 (the dashboard's timer): the same tab reloads it, bypassing the cache; Chrome keeps running between requests.
 //   POST /export?url=&w=&h=&dpr=&mode=                body: an SVG of the ink in page pixels -> PNG of the whole page with the ink over it
 //   GET  /health                                     "ok" (no token)
 // Only http:// and https:// pages are rendered: a file:// URL would read this Mac's files.
@@ -86,9 +87,10 @@ const INFO_JS = `(() => { const d = DPR, L = [];
   return JSON.stringify({ url: location.href, title: document.title, width: Math.round(innerWidth * d), height: height, page: PAGEH, links: L.filter(l => l[1] < height) }); })()`;
 
 /** Loads the page of `v` in the tab unless it is already there; returns its JSON (size and links). */
-async function show(v: View): Promise<string> {
+async function show(v: View, fresh: boolean = false): Promise<string> {
   if (!v.url.startsWith('http://') && !v.url.startsWith('https://')) throw new Error('only http:// and https:// pages: ' + v.url);
-  if (v.key() === shown && chrome.alive) return info;
+  if (v.key() === shown && chrome.alive && !fresh) return info;
+  const again = v.key() === shown && chrome.alive;
   await ensureChrome();
   shown = '';
   await chrome.call('Emulation.setDeviceMetricsOverride', '{"width":' + Math.round(v.w / v.dpr).toString() + ',"height":' + Math.round(v.h / v.dpr).toString() +
@@ -96,7 +98,7 @@ async function show(v: View): Promise<string> {
   // grey: what the page looks like to someone who sees no colour, which keeps the contrast of the colours (Chrome's achromatopsia)
   await chrome.call('Emulation.setEmulatedVisionDeficiency', '{"type":' + (v.mode === 'grey' ? '"achromatopsia"' : '"none"') + '}');
   const loaded = chrome.event('Page.loadEventFired', LOAD_TIMEOUT_MS);
-  const nav = await chrome.call('Page.navigate', '{"url":' + JSON.stringify(v.url) + '}');
+  const nav = await chrome.call(again ? 'Page.reload' : 'Page.navigate', again ? '{"ignoreCache":true}' : '{"url":' + JSON.stringify(v.url) + '}');
   if (nav.errorText !== undefined && ('' + nav.errorText) !== '') throw new Error('cannot load ' + v.url + ': ' + ('' + nav.errorText));
   if (!(await loaded)) console.log('relay: ' + v.url + ' still loading after ' + (LOAD_TIMEOUT_MS / 1000).toString() + ' s, shown as it is');
   await sleep(SETTLE_MS);
@@ -121,7 +123,7 @@ async function render(req: Request): Promise<Reply> { return reply(200, await sh
 
 async function shotOf(req: Request): Promise<Reply> {
   const v = viewOf(req.path);
-  await show(v);
+  await show(v, query(req.path, 'fresh') === '1');
   const zoom = num(query(req.path, 'zoom'), 1, 0.25, 8);
   const cw = num(query(req.path, 'cw'), v.w, 1, 20000), ch = num(query(req.path, 'ch'), v.h, 1, 20000);
   return png(await shot(v, num(query(req.path, 'x'), 0, 0, 1e6), num(query(req.path, 'y'), 0, 0, 1e6), cw, ch, zoom));

@@ -5,12 +5,13 @@ import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { Keyboard } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
-import { RemarkableBar } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, KEY } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, refresh,
   SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS } from './state';
 import { pageView } from './pageview';
+import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
 
 function Btn(props: { label: string; onClick: () => void; on?: boolean }): i32 {
@@ -26,6 +27,7 @@ function Bookmarks(): i32 {
       {bookmarks().map((u: string) => <View className="flex-row gap-4 items-center py-3 border-b-2 border-black">
         <Text className={`grow ${LABEL}`}>{u}</Text>
         <Btn label="Open" on={true} onClick={() => openUrl(u)} />
+        <Btn label="Dashboard" onClick={() => startDash(u)} />
         <Btn label="Remove" onClick={() => removeBookmark(u)} />
       </View>)}
     </View>
@@ -48,7 +50,32 @@ function Settings(): i32 {
   </View>;
 }
 
-function App(): i32 {
+const SMALL = 'text-[24px] text-black';
+/** Dashboard mode: the page full screen, a thin bar, the period and the time of the last render; a tap on the page renders it now. */
+function Dashboard(): i32 {
+  return <View className={PAGE}>
+    <RemarkableBar title="Dashboard" onQuit={() => quit()} />
+    <Canvas className="grow" onDraw={dashView} />
+    <View className="flex-row gap-3 px-4 py-2 items-center border-t-2 border-black">
+      <Text className={SMALL}>{updated() === '' ? (busy() ? 'Loading…' : status()) : 'Updated ' + updated() + ' · every'}</Text>
+      {PERIODS.map((m: i32) => <Button className={`px-4 h-[56px] items-center justify-center rounded-lg border-2 border-black ${m === every() ? 'bg-black focus:bg-black' : 'bg-white focus:bg-white'}`}
+        onClick={() => setPeriod(m)}><Text className={m === every() ? 'text-[24px] text-white' : SMALL}>{m.toString() + ' min'}</Text></Button>)}
+      <View className="grow" />
+      <Button className="px-4 h-[56px] items-center justify-center rounded-lg border-2 border-black bg-white focus:bg-white" onClick={() => stopDash()}>
+        <Text className={SMALL}>Reader</Text>
+      </Button>
+    </View>
+  </View>;
+}
+/** Accueil's card: the top of the dashboard page; without a dashboard, how to make one. */
+function Widget(): i32 {
+  return <View className="flex-col bg-white" style={{ width: WIDGET_W, height: WIDGET_H }}>
+    {dashUrl() !== '' ? <Canvas className="grow" onDraw={widgetView} /> : <Text className={`p-6 ${LABEL}`}>No dashboard: open Web, Bookmarks, Dashboard.</Text>}
+    <Text className={`px-2 ${SMALL}`}>{dashUrl() === '' ? '' : updated() === '' ? 'Loading…' : 'Updated ' + updated()}</Text>
+  </View>;
+}
+
+function Reader(): i32 {
   return <View className={PAGE}>
     <RemarkableBar title="Web" onQuit={() => { if (saveInk()) quit(); }} />
     <View className="flex-row gap-4 px-6 pt-4 items-center" onSubmit={() => openUrl(address())}>
@@ -86,9 +113,14 @@ function App(): i32 {
 
 // a pressed button fading in and out would ghost on e-paper (as the hub)
 setPressFeedback(false);
-render(App, 0xffffff, null);
+// signals read in braces: the switch follows them (a component's body runs once)
+function App(): i32 { return <View className="flex-col h-full">{dashUrl() !== '' ? <Dashboard /> : <Reader />}</View>; }
+function Root(): i32 {
+  return <View className="flex-col h-full">{widgetPreview() ? <Widget /> : <RemarkableApp app={App} widget={{ view: Widget, width: WIDGET_W, height: WIDGET_H }} />}</View>;
+}
+render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   if (scripted()) { await runScript(); return; }
-  if (relay.token !== '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
+  if (relay.token !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
 }
 start();

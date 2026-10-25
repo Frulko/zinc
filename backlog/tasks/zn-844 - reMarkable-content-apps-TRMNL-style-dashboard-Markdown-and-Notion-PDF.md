@@ -4,7 +4,7 @@ title: 'reMarkable content apps: TRMNL-style dashboard, Markdown and Notion, PDF
 status: In Progress
 assignee: []
 created_date: '2026-10-25 19:27'
-updated_date: '2026-10-25 22:34'
+updated_date: '2026-10-25 22:46'
 labels:
   - remarkable
   - size-L
@@ -22,7 +22,7 @@ Hub step 4 (owner 2026-10-25), published through the hub. (1) A TRMNL-style dash
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the dashboard app shows a server-rendered page and refreshes it on a timer
+- [x] #1 the dashboard app shows a server-rendered page and refreshes it on a timer
 - [ ] #2 the Markdown app reads .md files and a Notion page
 - [ ] #3 the PDF app opens a PDF, turns pages and saves ink annotations
 - [ ] #4 each app is published through the hub and installed from it on the tablet
@@ -38,4 +38,13 @@ Part 1, server-rendered pages (owner 2026-10-25: a web reader with a relay on th
 - Proven: relay PNG sizes (page 1620x1800, zoom 3 of 540x600 -> 1620x1800), link map (2 http links, mailto skipped), 401 without token, 502 on file://, the reader headless: open, next/prev, pen stroke saved in page px of page 2, link followed by a tap, back, export 1620x5962 PNG, bookmark, ink reloaded and drawn at zoom 2 (ZINC_SHOT checked by eye). zinc pack app/web OK; zinc publish to a local app/hub-server stored dev.zinc.web 0.1.0 (with a test key added to a copy of zinc.json: the real app needs the owner's update.publicKey).
 - Not proven: pinch and the pen on the tablet itself (needs the tablet); a real site through the relay (the test is offline).
 - Worked around in the relay: 'finally' is skipped after 'return await' in an async function (reproduced); a zinc:net Reply body cannot carry binary bytes (PNG written to a file and read back with fs.readText, as the hub does for .zapp); the HTTP server answers 408 after 10 s per connection, so the page-load wait is 7 s.
+
+Part 1b, timed dashboard (TRMNL-style) in app/web, test tests/t1/web_relay.sh (13 s, PASS):
+- Bookmarks, Dashboard: page 1 of a bookmarked page full screen under RemarkableBar, rendered again every 5/15/30/60 min (footer buttons; ZINC_WEB_DASH_MS for tests), a deadline checked every second so a new period or a late wake-up renders at once; tap = render now; Reader leaves the mode. The picture is swapped only when the PNG's SHA-256 changed, then refreshDisplay() (display-rmpp sends the full refresh once the partial of the new picture is out). Last update time at the bottom. Mode and period in web.conf (dash=, every=) with the rest of the app's state rather than zinc:storage: one file, one ZINC_WEB_DIR for tests; a reopen comes back to the dashboard.
+- Widget: RemarkableApp widget 810x540, the top of the same picture scaled by 1/2, kept fresh by the same timer (the timer is module-level, the widget only draws).
+- Relay: /shot&fresh=1 reloads the tab (Page.reload ignoreCache) in the running Chrome: no relaunch, no stale cached tab. No dithering (the driver dithers), grey.
+- Timers while minimized/widget: no driver change needed: rm_present returns after rin::wait_input(8 ms) while hidden or as widget, so the loop and the program's timers keep running (read in plugins/display-rmpp/rmpp.cpp; not run on the tablet).
+- Proven (headless): render 1 new picture, the page changes, render 2 (one period later) new picture, render 3 unchanged (no swap); web.conf keeps dash=; the widget draws (810x506 canvas, the top 1620x1012); ZINC_SHOT of the widget and of the dashboard checked by eye. zinc pack app/web OK.
+- Not proven: on the tablet (timer while minimized/widget for real, the full refresh after the swap, tablet sleep: a suspended tablet does not run timers).
+- Hub publication still needs the owner's key: zinc update-keygen > web.key; add "update": {"url": "<hub>", "publicKey": "<public= line of web.key>"} to app/web/zinc.json; zinc publish app/web --key "$(sed -n 's/^seed=//p' web.key)" --hub http://<hub>:8787 --token "$(cat hub-data/publisher.token)".
 <!-- SECTION:NOTES:END -->

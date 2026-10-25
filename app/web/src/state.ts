@@ -14,7 +14,7 @@ export const SCREEN_PAGE: i32 = 0;
 export const SCREEN_BOOKMARKS: i32 = 1;
 export const SCREEN_SETTINGS: i32 = 2;
 
-const conf = new Conf(WEB_DIR + '/web.conf');
+export const conf = new Conf(WEB_DIR + '/web.conf');
 export const relay = new Relay();
 relay.url = conf.get('relay') !== '' ? conf.get('relay') : DEFAULT_RELAY;
 relay.token = conf.get('token');
@@ -43,8 +43,8 @@ ink.width = 4;
 let history: string[] = [];
 let inkFile = '';
 
-function say(message: string): void { setStatus(message); console.log('web: ' + message); }
-function saveConf(): void {
+export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
+export function saveConf(): void {
   conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode);
   conf.save();
 }

@@ -1,11 +1,13 @@
 // ZINC_WEB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
 //   relay <url> <token> | open <url> | next | prev | zoom <z> | link <href suffix> (a tap on its middle) | back
 //   draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | save | export | bookmark | refresh
+//   dash <url> (dashboard mode) | ticks <n> (waits until the dashboard's timer made n renders) | widget (draws the widget) | undash
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
 import { view, setScreen, SCREEN_PAGE, openUrl, back, turn, zoomTo, tapAt, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
 import { feedPen } from './pageview';
 import { Doc } from './relay';
+import { dash, startDash, stopDash, setWidgetPreview } from './dashboard';
 
 export function scripted(): boolean { return sys.env('ZINC_WEB_SCRIPT') !== ''; }
 function sleep(ms: i32): Promise<void> { return new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, ms); }); }
@@ -15,6 +17,10 @@ export async function runScript(): Promise<void> {
     const w = step.trim().split(' ');
     const verb = w[0], arg = w.length > 1 ? w[1] : '';
     if (verb === 'relay') { saveRelay(arg, w.length > 2 ? w[2] : ''); setScreen(SCREEN_PAGE); continue; }
+    if (verb === 'dash') { startDash(arg); continue; }
+    if (verb === 'ticks') { const n = parseInt(arg); while (dash.count < n || dash.busy) await sleep(20); continue; }
+    if (verb === 'widget') { setWidgetPreview(true); await sleep(300); continue; }
+    if (verb === 'undash') { stopDash(); continue; }
     while (view.w === 0) await sleep(20);   // the page view's size comes with its first frame
     if (verb === 'open') await openUrl(arg);
     else if (verb === 'next') await turn(1);
