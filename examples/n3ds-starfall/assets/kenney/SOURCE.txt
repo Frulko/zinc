@@ -1,0 +1,3 @@
+Kenney Puzzle Pack 1.1 (https://kenney.nl/assets/puzzle-pack-1, as examples/hardware-n3ds): particleSmallStar.png (the stars), ballGrey.png (the meteors). CC0 (License-puzzle-pack.txt).
+Kenney, "Digital Audio", https://kenney.nl/assets/digital-audio (as examples/platformer): phaseJump2.ogg (a bounce), highUp.ogg (a star caught), lowDown.ogg (a star lost, a meteor hit). CC0 1.0 (License-digital-audio.txt).
+Files copied unchanged.

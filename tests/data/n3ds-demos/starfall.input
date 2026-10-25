@@ -1,0 +1,376 @@
+20 window 1
+20 move 160 120
+21 window 1
+21 down
+23 window 1
+23 up
+60 window 1
+60 move 10 140
+61 window 1
+61 down
+63 window 1
+63 move 85 140
+65 window 1
+65 move 160 140
+66 window 1
+66 up
+105 window 1
+105 move 160 165
+106 window 1
+106 down
+108 window 1
+108 move 235 165
+110 window 1
+110 move 310 165
+111 window 1
+111 up
+150 window 1
+150 move 10 190
+151 window 1
+151 down
+153 window 1
+153 move 85 190
+155 window 1
+155 move 160 190
+156 window 1
+156 up
+195 window 1
+195 move 160 140
+196 window 1
+196 down
+198 window 1
+198 move 235 140
+200 window 1
+200 move 310 140
+201 window 1
+201 up
+240 window 1
+240 move 10 165
+241 window 1
+241 down
+243 window 1
+243 move 85 165
+245 window 1
+245 move 160 165
+246 window 1
+246 up
+285 window 1
+285 move 160 190
+286 window 1
+286 down
+288 window 1
+288 move 235 190
+290 window 1
+290 move 310 190
+291 window 1
+291 up
+330 window 1
+330 move 10 140
+331 window 1
+331 down
+333 window 1
+333 move 85 140
+335 window 1
+335 move 160 140
+336 window 1
+336 up
+375 window 1
+375 move 160 165
+376 window 1
+376 down
+378 window 1
+378 move 235 165
+380 window 1
+380 move 310 165
+381 window 1
+381 up
+420 window 1
+420 move 10 190
+421 window 1
+421 down
+423 window 1
+423 move 85 190
+425 window 1
+425 move 160 190
+426 window 1
+426 up
+465 window 1
+465 move 160 140
+466 window 1
+466 down
+468 window 1
+468 move 235 140
+470 window 1
+470 move 310 140
+471 window 1
+471 up
+510 window 1
+510 move 10 165
+511 window 1
+511 down
+513 window 1
+513 move 85 165
+515 window 1
+515 move 160 165
+516 window 1
+516 up
+555 window 1
+555 move 160 190
+556 window 1
+556 down
+558 window 1
+558 move 235 190
+560 window 1
+560 move 310 190
+561 window 1
+561 up
+600 window 1
+600 move 10 140
+601 window 1
+601 down
+603 window 1
+603 move 85 140
+605 window 1
+605 move 160 140
+606 window 1
+606 up
+645 window 1
+645 move 160 165
+646 window 1
+646 down
+648 window 1
+648 move 235 165
+650 window 1
+650 move 310 165
+651 window 1
+651 up
+690 window 1
+690 move 10 190
+691 window 1
+691 down
+693 window 1
+693 move 85 190
+695 window 1
+695 move 160 190
+696 window 1
+696 up
+735 window 1
+735 move 160 140
+736 window 1
+736 down
+738 window 1
+738 move 235 140
+740 window 1
+740 move 310 140
+741 window 1
+741 up
+780 window 1
+780 move 10 165
+781 window 1
+781 down
+783 window 1
+783 move 85 165
+785 window 1
+785 move 160 165
+786 window 1
+786 up
+825 window 1
+825 move 160 190
+826 window 1
+826 down
+828 window 1
+828 move 235 190
+830 window 1
+830 move 310 190
+831 window 1
+831 up
+870 window 1
+870 move 10 140
+871 window 1
+871 down
+873 window 1
+873 move 85 140
+875 window 1
+875 move 160 140
+876 window 1
+876 up
+915 window 1
+915 move 160 165
+916 window 1
+916 down
+918 window 1
+918 move 235 165
+920 window 1
+920 move 310 165
+921 window 1
+921 up
+960 window 1
+960 move 10 190
+961 window 1
+961 down
+963 window 1
+963 move 85 190
+965 window 1
+965 move 160 190
+966 window 1
+966 up
+1005 window 1
+1005 move 160 140
+1006 window 1
+1006 down
+1008 window 1
+1008 move 235 140
+1010 window 1
+1010 move 310 140
+1011 window 1
+1011 up
+1050 window 1
+1050 move 10 165
+1051 window 1
+1051 down
+1053 window 1
+1053 move 85 165
+1055 window 1
+1055 move 160 165
+1056 window 1
+1056 up
+1095 window 1
+1095 move 160 190
+1096 window 1
+1096 down
+1098 window 1
+1098 move 235 190
+1100 window 1
+1100 move 310 190
+1101 window 1
+1101 up
+1140 window 1
+1140 move 10 140
+1141 window 1
+1141 down
+1143 window 1
+1143 move 85 140
+1145 window 1
+1145 move 160 140
+1146 window 1
+1146 up
+1185 window 1
+1185 move 160 165
+1186 window 1
+1186 down
+1188 window 1
+1188 move 235 165
+1190 window 1
+1190 move 310 165
+1191 window 1
+1191 up
+1230 window 1
+1230 move 10 190
+1231 window 1
+1231 down
+1233 window 1
+1233 move 85 190
+1235 window 1
+1235 move 160 190
+1236 window 1
+1236 up
+1275 window 1
+1275 move 160 140
+1276 window 1
+1276 down
+1278 window 1
+1278 move 235 140
+1280 window 1
+1280 move 310 140
+1281 window 1
+1281 up
+1320 window 1
+1320 move 10 165
+1321 window 1
+1321 down
+1323 window 1
+1323 move 85 165
+1325 window 1
+1325 move 160 165
+1326 window 1
+1326 up
+1365 window 1
+1365 move 160 190
+1366 window 1
+1366 down
+1368 window 1
+1368 move 235 190
+1370 window 1
+1370 move 310 190
+1371 window 1
+1371 up
+1410 window 1
+1410 move 10 140
+1411 window 1
+1411 down
+1413 window 1
+1413 move 85 140
+1415 window 1
+1415 move 160 140
+1416 window 1
+1416 up
+1455 window 1
+1455 move 160 165
+1456 window 1
+1456 down
+1458 window 1
+1458 move 235 165
+1460 window 1
+1460 move 310 165
+1461 window 1
+1461 up
+1500 window 1
+1500 move 10 190
+1501 window 1
+1501 down
+1503 window 1
+1503 move 85 190
+1505 window 1
+1505 move 160 190
+1506 window 1
+1506 up
+1545 window 1
+1545 move 160 140
+1546 window 1
+1546 down
+1548 window 1
+1548 move 235 140
+1550 window 1
+1550 move 310 140
+1551 window 1
+1551 up
+1590 window 1
+1590 move 10 165
+1591 window 1
+1591 down
+1593 window 1
+1593 move 85 165
+1595 window 1
+1595 move 160 165
+1596 window 1
+1596 up
+1635 window 1
+1635 move 160 190
+1636 window 1
+1636 down
+1638 window 1
+1638 move 235 190
+1640 window 1
+1640 move 310 190
+1641 window 1
+1641 up
+1680 window 1
+1680 move 10 140
+1681 window 1
+1681 down
+1683 window 1
+1683 move 85 140
+1685 window 1
+1685 move 160 140
+1686 window 1
+1686 up

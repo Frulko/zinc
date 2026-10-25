@@ -1,0 +1,16 @@
+{
+  "name": "n3ds-platformer",
+  "app": { "id": "dev.zinc.examples.n3ds-platformer", "name": "Meadow Run 3D", "version": "0.1.0" },
+  "entry": "src/main.ts",
+  "assets": {
+    "dir": "../platformer/assets",
+    "rules": [
+      { "match": "level.ldtk", "as": "tilemap", "atlas": "game", "extrude": 1, "padding": 1, "maxSize": 256, "pot": true },
+      { "match": "{characters,items}.json", "as": "sprite", "atlas": "game", "extrude": 1, "padding": 1, "maxSize": 256, "pot": true }
+    ]
+  },
+  "targets": {
+    "macos": { "width": 400, "height": 240 },
+    "linux": { "width": 400, "height": 240 }
+  }
+}

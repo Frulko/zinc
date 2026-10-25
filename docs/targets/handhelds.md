@@ -102,6 +102,13 @@ zinc:audio is a plugin on a desktop; a console core links its mixer instead (`ta
 module and contract), rendered on the program's thread at the end of each frame. It decodes PCM WAV and Ogg Vorbis (stb_vorbis, the
 decoder plugins/audio vendors); FLAC and MP3 play on a desktop.
 
+Three games are made for the 3DS's two screens at once (ZN-790), each with its top screen in stereoscopic 3D and its bottom screen a
+`openWindow` played with the stylus: `examples/n3ds-pinball` (the Nova Patrol table standing across both screens, the ball rolling from one
+to the other), `examples/n3ds-platformer` (Meadow Run on top, the level's map below, the stylus looks around) and `examples/n3ds-starfall`
+(stars fall through both screens, lines drawn with the stylus throw them back up into a constellation). They draw only what the PICA200
+replay draws (no gradient, stroke or turned matrix in a frame; those are painted once into images), and share `examples/n3ds-kit`: the
+eye being drawn, the parallax of a depth, and the program's own time per refresh (`ZINC_PROFILE=1`).
+
 The assets: `zinc pack` writes the project's asset pack (`packs/default.zpk`: data files, sprite atlases, tile maps, sounds) and
 `tools/build-console-core --embed program.zbc resources.bin default.zpk` (and `tools/console-demos`) links it into the core, which serves
 zinc:assets (`exists`, `readText`, `readBytes`, `list`) from it and makes its images zinc:gfx images (uncompressed ZIM formats; a

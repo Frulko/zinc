@@ -1,0 +1,9 @@
+n3ds-pinball 300 8ef89ca121c65f75
+n3ds-pinball 600 e96a804269322859
+n3ds-pinball 900 faa877c19c2e7ac9
+n3ds-platformer 200 a66399218d49c177
+n3ds-platformer 500 5be2e97c4d4fc05f
+n3ds-platformer 840 a6f93daa644450af
+n3ds-starfall 200 589c2c298e70f19c
+n3ds-starfall 500 aedf32bbf39ac2c1
+n3ds-starfall 900 0b26b193883e72f3

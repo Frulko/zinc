@@ -60,6 +60,9 @@ museum-table/editor/main.tsx | OK |  |
 museum-table/src/main.ts | OK |  | 
 music-tree/src/main.ts | OK |  | 
 music/src/main.ts | OK |  | 
+n3ds-pinball/src/main.ts | OK |  | 
+n3ds-platformer/src/main.ts | OK |  | 
+n3ds-starfall/src/main.ts | OK |  | 
 native-module/src/main.ts | OK |  | 
 notify-relay/main.tsx | OK |  | 
 nuxt-ui/src/main.tsx | OK |  | 
