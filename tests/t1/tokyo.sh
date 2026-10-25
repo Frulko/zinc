@@ -2,18 +2,19 @@
 # examples/tokyo, Pocket Tokyo's flight on zinc:3d: the city's world from tools/city-world.py (cells, levels, sectors chosen natively), the tour over Shiba.
 # The city is not in git (177 MB of PLATEAU / OpenStreetMap data, ODbL): the test is skipped until `examples/tokyo/tools/city-world.py fetch`
 # and `build` have made it. One headless session: the readout counts the triangles of the levels chosen, the tour moves the eye (two frames
-# differ), Start (frame 140) leaves the tour, the night draws the lamps (a night frame is darker but not black), and the PSP's settings keep
-# their triangle budget.
+# differ), Start (frame 140) leaves the tour, the night draws the lamps (a night frame is darker but not black), the PSP's settings keep
+# their triangle budget, and the control panel (Select, frame 205) shows its places and a click on Zojo-ji flies the eye there.
 cd "$(dirname "$0")/../.." || exit 2
 [ -f examples/tokyo/assets/city/city.txt ] || { echo "skipped: no city (python3 -I examples/tokyo/tools/city-world.py fetch, then build)"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-printf '140 pad Start\n142 padup Start\n' > "$tmp/input"
-run() {   # run <name> [env...]: 200 frames (the loading screen takes the first 15 to 40), shots at 80, 120 and 198, the scene dumps
+# the panel is an overlay at the right edge, vertically centred (960 x 544: its corner at 636, 152); Zojo-ji is its second place button
+printf '140 pad Start\n142 padup Start\n205 pad Select\n207 padup Select\n215 move 864 228\n216 down\n218 up\n' > "$tmp/input"
+run() {   # run <name> [env...]: 400 frames (the loading screen takes the first 15 to 40), shots at 80, 120, 198 and 230, the scene dumps
   name=$1; shift
-  env "$@" ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=200 ZINC_INPUT="$tmp/input" ZINC_SHOT="$tmp/$name.png" ZINC_SHOT_FRAMES=80,120,198 \
+  env "$@" ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=${frames:-200} ZINC_INPUT="$tmp/input" ZINC_SHOT="$tmp/$name.png" ZINC_SHOT_FRAMES=80,120,198,230 \
     ZINC_SCENE_DUMP="$tmp/$name" "$ZINC" run examples/tokyo >"$tmp/$name.out" 2>&1 || { echo "tokyo: the $name run failed: $(tail -5 "$tmp/$name.out")"; exit 1; }
 }
-run day ZINC_TOKYO_HOUR=12
+frames=400 run day ZINC_TOKYO_HOUR=12
 run night ZINC_TOKYO_HOUR=21
 run psp ZINC_TOKYO_HOUR=12 ZINC_TOKYO_DEVICE=psp
 fail=0
@@ -25,6 +26,8 @@ day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120")
 [ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 44000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
 python3 tools/scene-texts "$tmp/day-80" | grep -q 'tour' || { echo "tokyo: not on the tour at frame 80"; fail=1; }
 python3 tools/scene-texts "$tmp/day-198" | grep -q 'free' || { echo "tokyo: Start did not leave the tour"; fail=1; }
+python3 tools/scene-texts "$tmp/day-230" | grep -q 'Shinbashi' || { echo "tokyo: Select did not open the panel's places"; fail=1; }
+grep -q 'tokyo: at Zojo-ji, free flight, 0.0 m from its view' "$tmp/day.out" || { echo "tokyo: the panel did not fly the eye to Zojo-ji"; fail=1; }
 python3 - "$tmp/day-80.png" "$tmp/day-120.png" "$tmp/night-120.png" <<'P' || fail=1
 import importlib.machinery, sys
 dec = importlib.machinery.SourceFileLoader('pngdiff', 'tools/pngdiff').load_module().dec

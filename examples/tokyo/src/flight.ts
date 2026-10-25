@@ -1,8 +1,10 @@
 // The flight, ported from tokyo-sim's tour.rs, camera.rs and flight.rs: the tour carries the eye through a closed loop of places on a
 // Catmull-Rom curve at a steady speed, lifted over what stands on its way two seconds ahead; the pad takes the eye off it and flies freely,
-// and Start hands it back (the eye glides to the path, it does not cut).
+// and Start hands it back (the eye glides to the path, it does not cut). goTo() glides the eye to a point of interest (src/places.ts) over a
+// hump that clears the roofs, and leaves it in free flight there.
 import { City } from './city';
 import { Pad } from './input';
+import { Place } from './places';
 import { TOUR_SPEED, CLEARANCE, FLOOR, CEILING, CLOCK_RATE, CLOCK_TURN, FIELD_OF_VIEW } from './constants';
 
 function ease(cur: number, target: number, rate: number, dt: number): number { return target + (cur - target) * Math.exp(-rate * dt); }
@@ -36,6 +38,12 @@ export class Flight {
   private joinSeconds = 2;
   private readonly p: number[] = [0, 0, 0];
   private readonly q: number[] = [0, 0, 0];
+  /** The point of interest the eye glides to (null: none), how far it has come (0..1) and in how many seconds; the last one reached. */
+  private place: Place | null = null;
+  private glide = 1;
+  private glideSeconds = 2;
+  private hump = 0;
+  arrived: Place | null = null;
 
   constructor(city: City) {
     this.keys = city.tour;
@@ -52,9 +60,11 @@ export class Flight {
     if (this.keys.length < 2) this.touring = false;
   }
 
-  /** Where the eye will be in `s` seconds (`out`): on the tour, its path; in free flight, straight on at the present speed. */
+  /** Where the eye will be in `s` seconds (`out`): on the tour, its path; on the way to a place, there; in free flight, straight on at the
+   *  present speed. */
   ahead(s: number, out: number[]): void {
     if (this.touring && this.keys.length >= 2) { this.tourAt(this.seconds + s, out, this.spare); return; }
+    if (this.place !== null) { for (let c = 0; c < 3; c++) out[c] = (this.place as Place).eye[c]; return; }   // read where the glide ends
     for (let c = 0; c < 3; c++) out[c] = this.eye[c] + this.vel[c] * s;
   }
   private readonly spare: number[] = [0, 0, 0];
@@ -89,22 +99,54 @@ export class Flight {
     this.yaw = Math.atan2(dz, dx); this.pitch = Math.asin(Math.max(-1, Math.min(1, dy)));
   }
 
+  /** The tour (true: the eye glides back to its path) or free flight where the eye is. */
+  setTour(on: boolean): void {
+    this.place = null;
+    if (on === this.touring || (on && this.keys.length < 2)) return;
+    this.touring = on;
+    if (!on) { this.floor = -1e9; return; }
+    for (let c = 0; c < 3; c++) { this.from[c] = this.eye[c]; this.looked[c] = this.eye[c] + this.look[c] * 400; }
+    this.tourAt(this.seconds, this.p, this.q);
+    const d = Math.sqrt((this.p[0] - this.eye[0]) ** 2 + (this.p[1] - this.eye[1]) ** 2 + (this.p[2] - this.eye[2]) ** 2);
+    this.joinSeconds = Math.max(1.5, Math.min(5, d / 400));
+    this.join = 0;
+  }
+
+  /** Glides the eye to `place`'s view, then flies freely from there. */
+  goTo(place: Place): void {
+    this.setTour(false);
+    this.place = place;
+    for (let c = 0; c < 3; c++) { this.from[c] = this.eye[c]; this.looked[c] = this.eye[c] + this.look[c] * 400; }
+    const e = place.eye;
+    const d = Math.sqrt((e[0] - this.eye[0]) ** 2 + (e[1] - this.eye[1]) ** 2 + (e[2] - this.eye[2]) ** 2);
+    this.glideSeconds = Math.max(1.5, Math.min(6, d / 350));
+    this.hump = Math.min(250, d * 0.2);
+    this.glide = 0;
+    this.arrived = null;
+  }
+
   step(city: City, pad: Pad, dt: number): void {
     this.hour += (this.rate + pad.clock * CLOCK_TURN) * dt;
     this.hour -= Math.floor(this.hour / 24) * 24;
-    if (pad.toggleTour && this.keys.length >= 2) {
-      this.touring = !this.touring;
-      if (this.touring) {   // glide back to the path
-        for (let c = 0; c < 3; c++) { this.from[c] = this.eye[c]; this.looked[c] = this.eye[c] + this.look[c] * 400; }
-        this.tourAt(this.seconds, this.p, this.q);
-        const d = Math.sqrt((this.p[0] - this.eye[0]) ** 2 + (this.p[1] - this.eye[1]) ** 2 + (this.p[2] - this.eye[2]) ** 2);
-        this.joinSeconds = Math.max(1.5, Math.min(5, d / 400));
-        this.join = 0;
-      }
-    }
-    if (this.touring && pad.flying()) this.touring = false;
-    if (this.touring) this.tour(city, dt);
+    if (pad.toggleTour) this.setTour(!this.touring);
+    if ((this.touring || this.place !== null) && pad.flying()) this.setTour(false);   // the pad takes the eye where it is
+    if (this.place !== null) this.toPlace(dt);
+    else if (this.touring) this.tour(city, dt);
     else this.fly(city, pad, dt);
+  }
+
+  private toPlace(dt: number): void {
+    const place = this.place as Place;
+    this.glide = Math.min(1, this.glide + dt / this.glideSeconds);
+    const k = this.glide * this.glide * (3 - 2 * this.glide), up = Math.sin(Math.PI * k) * this.hump;
+    const e = place.eye, t = place.target, p = this.p, q = this.q;
+    for (let c = 0; c < 3; c++) { p[c] = this.from[c] + (e[c] - this.from[c]) * k; q[c] = this.looked[c] + (t[c] - this.looked[c]) * k; }
+    this.setLook(p[0], p[1] + up, p[2], q[0], q[1], q[2]);
+    if (this.glide < 1) return;
+    this.place = null;
+    this.arrived = place;
+    for (let c = 0; c < 3; c++) this.vel[c] = 0;
+    this.turnX = 0; this.turnY = 0; this.floor = -1e9;
   }
 
   private tour(city: City, dt: number): void {

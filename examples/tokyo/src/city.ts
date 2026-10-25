@@ -22,6 +22,8 @@ export class City {
   private hunit = 2;
   /** Chunks read since the start. */
   loads: i32 = 0;
+  /** city.txt's `hmap` line: the pack's height map that zinc:3d's shadows are swept from (empty: none). */
+  private hmap: number[] = [];
 
   constructor(scene: Scene, dev: Defaults3D) {
     const w = new World(CITY_WORLD, dev);
@@ -35,7 +37,7 @@ export class City {
       else if (t[0] === 'tour') this.tour.push([n(1), n(2), n(3), n(4), n(5), n(6)]);
       else if (t[0] === 'heights') {
         this.hx0 = n(1); this.hz0 = n(2); this.hstep = n(3); this.hw = parseInt(t[4], 10); this.hh = parseInt(t[5], 10); this.hy0 = n(6); this.hunit = n(7);
-      } else if (t[0] === 'hmap') w.shadows(CITY_HMAP, n(1), n(2), n(3), parseInt(t[4], 10), parseInt(t[5], 10), n(6), n(7));   // the pack's heights
+      } else if (t[0] === 'hmap') { this.hmap = [n(1), n(2), n(3), n(4), n(5), n(6), n(7)]; this.setShadows(true); }   // the pack's heights
       else if (t[0] === 'credit') this.credits.push(line.slice(7));
     }
     this.heights = readBytes(CITY_HEIGHTS);
@@ -57,6 +59,30 @@ export class City {
     const read = this.world.serve(ms);
     this.loads += read;
     return read;
+  }
+
+  /** The shadows on or off (drawn where the renderer can: the 3DS). */
+  setShadows(on: boolean): void {
+    const m = this.hmap;
+    if (m.length < 7) return;
+    if (on) this.world.shadows(CITY_HMAP, m[0], m[1], m[2], m[3], m[4], m[5], m[6]);
+    // ponytail: zinc:3d has no switch for them; a flat field of 2 x 2 heights over the whole city (unit 0) leaves everything in the light
+    else this.world.shadows(CITY_HEIGHTS, m[0], m[1], 8192, 2, 2, 0, 0);
+  }
+
+  /** The heights as a map picture, RGBA, `w` x `h` pixels of `metres` from (x0, z0): the bay in blue, the roofs lighter the higher. */
+  mapPixels(x0: number, z0: number, metres: number, w: i32, h: i32): u8[] {
+    const px: u8[] = [];
+    for (let j: i32 = 0; j < h; j++) {
+      for (let i: i32 = 0; i < w; i++) {
+        const top = this.top(x0 + (i + 0.5) * metres, z0 + (j + 0.5) * metres);
+        const g: i32 = Math.round(Math.min(220, 46 + Math.max(0, top - 4) * 1.1));
+        if (top <= 2.5) { px.push(26); px.push(52); px.push(84); }
+        else { px.push(g); px.push(g); px.push(g + 6 > 255 ? 255 : g + 6); }
+        px.push(255);
+      }
+    }
+    return px;
   }
 
   /** Whether the last select() found every chunk it wants loaded. */

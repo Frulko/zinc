@@ -44,6 +44,23 @@ Useful variables:
 
 - `ZINC_TOKYO_HOUR=21` starts at night.
 - `ZINC_TOKYO_BUDGET=<triangles>` tries another triangle budget.
+- `ZINC_TOKYO_TAP=<frame>:<x>:<y>` touches the panel at (x, y), that many frames after the loading (the consoles' scripted runs, whose
+  input scripts hold buttons but not the stylus).
+- `ZINC_TOKYO_STEREO=1` starts with the stereo picture on (3DS).
+
+## The control panel
+
+The same panel of 320 × 240 on every device, with three pages:
+
+- **Places:** a map of Shiba with the eye on it, and Tokyo Tower, Zojo-ji, Shiba Park, Hamamatsucho, Shiodome, Takeshiba pier and
+  Shinbashi (Pocket Tokyo's coordinates and viewpoints, `src/places.ts`). Touch one and the eye flies there over the roofs, then stays in
+  free flight.
+- **Settings:** the time of day (day, dusk, night) and whether the clock runs, the haze (off, near, normal, far), the triangle budget
+  (half the device's, the device's, twice), the shadows (3DS), the readout, and the stereo picture (3DS; mono by default, as Pocket runs).
+- **Controls:** the guided tour or free flight, and the buttons.
+
+On the 3DS the panel is the touch screen, drawn again only when something it shows has changed. On the other devices Select (Tab on a
+computer) opens it over the city; the d-pad moves between its buttons, A presses one, B or Select closes it, and the mouse clicks it.
 
 ## Controls
 
@@ -51,12 +68,12 @@ Useful variables:
 |---|---|---|
 | Stick or d-pad | arrows | fly ahead and turn (leaves the tour) |
 | Right stick | | look around (Vita) |
-| Triangle / Cross | Y / A | look up / down |
-| R / L | R / L | climb / descend |
-| Square | X | faster |
-| Circle | B | turn the clock (the sun, then the night) |
-| Start | Start | the tour on or off |
-| Select | Select | the readout (fps, ms, triangles, device, hour) |
+| Triangle / Cross | V / Space | look up / down |
+| R / L | E / Q | climb / descend |
+| Square | C | faster |
+| Circle | X | turn the clock (the sun, then the night) |
+| Start | Return | the tour on or off |
+| Select | Tab | the control panel (on the 3DS, whose panel is the touch screen: the readout) |
 
 ## Layout
 
@@ -69,6 +86,9 @@ Useful variables:
 | `src/devices.ts` | the per-device table |
 | `src/input.ts` | the pad |
 | `src/hud.ts` | the readout |
+| `src/panel.ts` | the control panel (a `zinc:stage` node) |
+| `src/settings.ts` | what the panel changes, and its actions |
+| `src/places.ts` | the points of interest |
 | `tools/city-world.py` | pack to a zinc:3d world |
 
 ## Credits and licences
