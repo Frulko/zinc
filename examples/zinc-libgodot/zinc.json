@@ -1,0 +1,1 @@
+{"name":"zinc-libgodot","entry":"src/main.tsx","app":{"name":"Zinc Pocket Rally","id":"org.zinc.libgodot-rally","version":"1.0.0","orientation":"landscape"},"permissions":[],"targets":{"macos":{"width":320,"height":640}}}

@@ -1,0 +1,13 @@
+config_version=5
+[application]
+config/name="Pocket Rally — LibGodot"
+run/main_scene="res://game.tscn"
+[display]
+window/size/viewport_width=800
+window/size/viewport_height=640
+window/size/no_focus=true
+[rendering]
+renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.04,0.08,0.12,1)
+[physics]
+2d/physics_engine="Dummy"

@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["examples/swift-observatory/", "tests/t1/swift_observatory.sh"], "tests": ["swift_observatory"]},
+    {"paths": ["examples/zinc-libgodot/", "tools/godot/build-lib", "tests/t1/zinc_libgodot.sh"], "tests": ["zinc_libgodot"]},
     {"paths": ["examples/godot-zinc-ui/", "tests/t1/godot_zinc_ui.sh", "tools/godot/fetch-cpp"], "tests": ["godot_zinc_ui"]},
     {"paths": ["examples/godot-to-zinc/", "tools/godot/", "tests/t1/godot_export.sh", "tests/data/godot-export/"], "tests": ["godot_export"]},
     {"paths": ["include/zn/embed.h", "src/app/embed.cpp", "tools/link-embedded", "tests/data/embed/", "tests/t0/embed.sh"], "tests": ["embed"]},

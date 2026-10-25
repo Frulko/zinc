@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+cache=${ZINC_GODOT_CACHE:-${TMPDIR:-/tmp}/zinc-godot-4.6}
+source="$cache/godot-4.6-stable"
+mkdir -p "$cache"
+if [ ! -f "$source/SConstruct" ]; then
+  curl -fL --silent --show-error https://github.com/godotengine/godot/archive/refs/tags/4.6-stable.tar.gz -o "$cache/godot-src.tar.gz"
+  printf '%s  %s\n' b451eaa16d3abe0c7430e9ce1c4e83b146e5670e5b683dd8995c931fc82b57a0 "$cache/godot-src.tar.gz" | shasum -a 256 -c - >&2
+  tar -xzf "$cache/godot-src.tar.gz" -C "$cache"
+fi
+if [ ! -x "$cache/venv/bin/scons" ]; then
+  python3 -m venv "$cache/venv"
+  "$cache/venv/bin/pip" install scons==4.9.1 >&2
+fi
+cd "$source"
+# This demo needs the real 2D runtime; no 3D renderer or unused asset codecs.
+nice -n 5 "$cache/venv/bin/scons" platform=macos target=template_release library_type=shared_library arch=arm64 vulkan=no metal=no opengl3=yes sdl=no disable_3d=yes modules_enabled_by_default=no module_gdscript_enabled=yes module_text_server_fb_enabled=yes module_freetype_enabled=yes module_svg_enabled=yes module_jpg_enabled=yes module_webp_enabled=yes -j2 >&2
+printf '%s\n' "$source/bin/libgodot.macos.template_release.arm64.dylib"
