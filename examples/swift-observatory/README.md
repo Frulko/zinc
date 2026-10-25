@@ -1,5 +1,7 @@
 # Native Observatory
 
+![Native SwiftUI window with the embedded Zinc scene](preview.png)
+
 A runnable macOS SwiftUI application with a **live Zinc view in the same window**.
 Swift owns the sidebar, speed slider, pause and visibility controls, and selection
 inspector. Zinc owns the orbit display tree and object hit testing. Click the Sun,
@@ -47,6 +49,18 @@ ZINC_BACKGROUND=1 'examples/swift-observatory/build/Native Observatory.app/Conte
 The process prints a success line only after its assertions pass. Review the PNG
 before treating visual acceptance as complete. Native window/capture proof is
 separate from the no-window test; compiling Swift does not prove AppKit behavior.
+
+The bounded native regression is also available through the demo runner:
+
+```sh
+ZINC_CAPTURE="$PWD/examples/swift-observatory/preview.png" tests/run --tier demo --only swift_observatory_native
+```
+
+Executed on macOS: the actual background native-window proof passed, including
+one-window ownership, native controls, pointer selection, keyboard focus,
+Retina/resize, hide/show and clean shutdown. The reviewed image above comes from
+that run. The sidebar paints its native background explicitly so captures retain
+the same readable contrast as the window.
 
 ## Source and ownership
 

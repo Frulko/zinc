@@ -1,5 +1,7 @@
 # Godot Warehouse with real Zinc UI
 
+![Godot viewport with the embedded Zinc inventory](preview.png)
+
 Godot owns the 3D warehouse, movement, pickups and inventory. One native
 `ZincControl` GDExtension hosts the AOT-compiled Zinc TSX search/inventory,
 settings slider and transparent HUD. No browser, second UI window, screenshots
@@ -57,6 +59,18 @@ project override `display/window/size/no_focus=true` and clean up the process.
 Executed evidence: headless real Godot GDExtension startup, native pixels and
 partial premultiplied alpha, no idle upload, inventory and UI action exchange,
 search text, slider, focus plus polled key isolation, 2× resize, idempotent teardown,
-and packaged run from `/tmp`. Graphical moving-background compositing remains a
-separate coordinator check. No GPU completion latency or memory/performance claim
-has been measured.
+and packaged run from `/tmp`. The graphical proof also passes on the real OpenGL
+viewport: viewport-routed clicks reach Zinc and the game, focus blocks polled
+movement, the slider changes game speed, and actual GPU pixels over red/blue
+backdrops match premultiplied composition. The reviewed image above captures the
+ordinary 3D scene after those probes are removed.
+
+Run this finite graphical proof alone; it copies the project to a disposable
+directory, prevents window activation and exits after saving the viewport:
+
+```sh
+GODOT="$GODOT" ZINC_CAPTURE="$PWD/examples/godot-zinc-ui/preview.png" \
+  tests/run --tier demo --only godot_zinc_ui_visual
+```
+
+No GPU completion latency or memory/performance claim has been measured.

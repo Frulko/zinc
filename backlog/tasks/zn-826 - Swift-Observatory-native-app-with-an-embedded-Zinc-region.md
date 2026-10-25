@@ -1,7 +1,7 @@
 ---
 id: ZN-826
 title: Swift Observatory native app with an embedded Zinc region
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -22,10 +22,10 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The macOS app builds and embeds Zinc in the same window with no external Zinc window
+- [x] #1 The macOS app builds and embeds Zinc in the same window with no external Zinc window
 - [x] #2 Swift controls update Zinc and Zinc selection updates a native details panel
-- [ ] #3 Retina resize keyboard focus hide show and shutdown have a scripted proof
-- [ ] #4 A runnable README targeted smoke check and reviewed capture accompany the demo
+- [x] #3 Retina resize keyboard focus hide show and shutdown have a scripted proof
+- [x] #4 A runnable README targeted smoke check and reviewed capture accompany the demo
 <!-- AC:END -->
 
 ## Delivery contract
@@ -49,3 +49,7 @@ ZINC_BACKGROUND=1 'examples/swift-observatory/build/Native Observatory.app/Conte
 The script asserts one visible native window and no SDL window, native controls/selection, pointer-to-native selection, keyboard focus, native resize, explicit 2x surface, hide/show, and idempotent shutdown; it captures the native view and terminates itself. Run alone, inspect PNG, then update criteria.
 
 Cross-platform pass: ZN-826: iOS SwiftUI/UIView embedding needs its own lifecycle, text/IME/accessibility and device proof; the project only builds macOS. No timing/memory numbers claimed while other workers build.
+
+## Coordinator graphical acceptance
+
+Coordinator native proof passed on develop: tests/run --tier demo --only swift_observatory_native. Actual background SwiftUI window, controls/selection, pointer events, keyboard focus, native resize/2x pixels, hide/show and shutdown passed. Reviewed examples/swift-observatory/preview.png; explicit native sidebar background keeps capture text readable.

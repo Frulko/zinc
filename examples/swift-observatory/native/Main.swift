@@ -108,7 +108,7 @@ struct ObservatoryContent: View {
             Divider()
             ZStack { Color(red: 0.06, green: 0.1, blue: 0.18); ZincRegion(model: model).opacity(model.visible ? 1 : 0) }
             if !model.error.isEmpty { Text(model.error).foregroundStyle(.red) }
-        }.frame(minWidth: 900, minHeight: 560)
+        }.frame(minWidth: 900, minHeight: 560).background(Color(nsColor: .windowBackgroundColor))
     }
 }
 final class Delegate: NSObject, NSApplicationDelegate {

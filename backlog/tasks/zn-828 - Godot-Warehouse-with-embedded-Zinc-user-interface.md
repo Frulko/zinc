@@ -1,7 +1,7 @@
 ---
 id: ZN-828
 title: Godot Warehouse with embedded Zinc user interface
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -26,7 +26,7 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 <!-- AC:BEGIN -->
 - [x] #1 An actual Godot project runs Zinc UI with bidirectional inventory and settings state
 - [x] #2 Pointer capture focus keyboard text and polled gameplay input routing are demonstrated
-- [ ] #3 A transparent HUD composites correctly with an explicit alpha contract and persistent texture lifecycle
+- [x] #3 A transparent HUD composites correctly with an explicit alpha contract and persistent texture lifecycle
 - [x] #4 A reproducible extension build packaged run README and targeted integration tests cover resize teardown and idle
 <!-- AC:END -->
 
@@ -39,3 +39,7 @@ Actual macOS arm64 GDExtension + real Zinc TSX inventory/search/kit-slider/HUD a
 ## Delivery contract
 
 Owner clarification (2026-10-25): deliver a real runnable project, source files, a README with exact build/run/test commands, required native or authoring project files, and actual execution evidence. A specification or mock alone does not satisfy this task. Do not mark unsupported or unexecuted behavior as Done.
+
+## Coordinator graphical acceptance
+
+Coordinator GPU proof passed on develop: tests/run --tier demo --only godot_zinc_ui_visual with pinned Godot4.6. Actual viewport-routed mouse input, game action, focus isolation, slider and premultiplied RGB composition over two rendered backdrops pass. Capture examples/godot-zinc-ui/preview.png inspected. Test closes its background window; initial probe needed the next game tick to consume the queued Zinc action. No performance claims.

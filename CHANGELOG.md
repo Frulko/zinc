@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.2] - 2026-10-25
 
 ### Added
+- Native integration demos include bounded background-window proofs and reviewed captures for SwiftUI, Godot-hosted Zinc UI and the LibGodot host.
 - Pocket Rally dispatches native desktop events and accepts background Zinc button clicks; its finite native proof checks game keyboard input, GPU rendering and clean window shutdown.
 - zinc:3d `defaults3D()` gives each machine's numbers for a large world (the PSP's, 3DS's, Vita's, Pi's and the desktop's reaches, triangle budget, haze, frame rate, night, sky, chunk idle and read times); `new World(asset)` applies them and `world.serve()` reads the chunks it asked for. `ZINC_3D_PROFILE=psp` tries a console's on a desktop. A World's default reaches and budget are now the desktop's (600 m, 2000 m, 400000 triangles).
 - An asset rule `"as": "world"` turns any glTF or GLB scene (or a `.world.json` listing several) into a zinc:3d world: cells of `cell` metres, near, mid and far levels (`_LOD1`/`_LOD2` nodes, else simplified), walls by compass sector, per-target `levels` and picture options, and a `.zworld.json` saying where each source node went.

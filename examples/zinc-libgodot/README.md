@@ -1,5 +1,7 @@
 # Zinc Pocket Rally with experimental LibGodot
 
+![Actual Godot viewport captured from the native host proof](preview.png)
+
 A Zinc-owned macOS AppKit window contains a Zinc TSX navigation panel and the
 actual native view of a real Godot 4.6 game. This is runtime embedding: GDScript,
 Godot's scene tree and renderer remain Godot. The game pack is not translated to
