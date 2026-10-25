@@ -1,0 +1,5 @@
+{
+  "name": "web-relay",
+  "entry": "src/main.ts",
+  "app": { "id": "dev.zinc.web-relay", "version": "0.1.0" }
+}

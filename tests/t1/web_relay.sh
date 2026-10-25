@@ -1,0 +1,81 @@
+#!/bin/sh
+# Zinc Web (ZN-844): the relay (app/web-relay) renders a local page in headless Chrome at the tablet's size, and the reader (app/web) drives
+# it headless. Relay: a page picture is exactly the viewport, a zoomed one too, the link map has the fixture's two http links (not the mailto),
+# a request without the token is refused, a file:// page is refused. Reader (ZINC_WEB_SCRIPT, the buttons' actions): open, page down,
+# follow a link by a tap on it, back, write with the pen, save the ink per URL (it comes back on the next run), export page + ink as PNG.
+# No network: the fixture is served by python3 on 127.0.0.1.
+cd "$(dirname "$0")/../.." || exit 2
+Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
+command -v curl >/dev/null && command -v python3 >/dev/null || { echo "SKIP: needs curl and python3"; exit 77; }
+[ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ] || [ -n "$CHROME" ] || command -v chromium >/dev/null || command -v google-chrome >/dev/null \
+  || { echo "SKIP: needs Google Chrome (or CHROME=<path>)"; exit 77; }
+tmp=$(mktemp -d); web=; rel=
+trap '[ -n "$rel" ] && kill $rel; [ -n "$web" ] && kill $web; wait 2>/dev/null; rm -rf "$tmp"' EXIT
+fail=0
+free() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
+wp=$(free); rp=$(free)
+python3 -m http.server "$wp" --bind 127.0.0.1 --directory app/web-relay/fixture >"$tmp/http.log" 2>&1 & web=$!
+"$Z" run app/web-relay -- --port "$rp" --data "$tmp/relay" >"$tmp/relay.log" 2>&1 & rel=$!
+for i in $(seq 1 100); do grep -q 'relay: token' "$tmp/relay.log" && curl -s "http://127.0.0.1:$wp/" >/dev/null && break; sleep 0.2; done
+grep -q 'relay: token' "$tmp/relay.log" || { echo "the relay did not start:"; head -20 "$tmp/relay.log"; exit 1; }
+token=$(cat "$tmp/relay/relay.token")
+R=http://127.0.0.1:$rp
+page=http://127.0.0.1:$wp/index.html
+size() { python3 -c 'import struct, sys; d = open(sys.argv[1], "rb").read(24); print("%dx%d" % struct.unpack(">II", d[16:24]) if d[:8] == b"\x89PNG\r\n\x1a\n" else "not-png")' "$1"; }
+get() { curl -s -H "Authorization: Bearer $token" "$@"; }
+
+# the relay alone
+j=$(get "$R/render?url=$page&w=1620&h=1800")
+echo "$j" | python3 -c '
+import json, sys
+j = json.load(sys.stdin)
+hrefs = [l[4] for l in j["links"]]
+assert j["width"] == 1620 and j["page"] == 1800 and j["height"] > 3 * 1800, j
+assert len(hrefs) == 2 and hrefs[0].endswith("/next.html") and hrefs[1].endswith("/next.html#end"), hrefs
+x, y, w, h = j["links"][0][:4]
+assert 0 < x < 200 and 100 < y < 600 and w > 100 and h > 40, j["links"][0]
+' || { echo "render: $j"; fail=1; }
+get -o "$tmp/p1.png" "$R/shot?url=$page&w=1620&h=1800&x=0&y=1800"
+[ "$(size "$tmp/p1.png")" = 1620x1800 ] || { echo "page 2: $(size "$tmp/p1.png")"; fail=1; }
+get -o "$tmp/z.png" "$R/shot?url=$page&w=1620&h=1800&x=200&y=100&cw=540&ch=600&zoom=3"
+[ "$(size "$tmp/z.png")" = 1620x1800 ] || { echo "zoom 3: $(size "$tmp/z.png")"; fail=1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$R/render?url=$page")" = 401 ] || { echo "a request without the token was not refused"; fail=1; }
+[ "$(get -o /dev/null -w '%{http_code}' "$R/render?url=file:///etc/hosts")" = 502 ] || { echo "a file:// page was not refused"; fail=1; }
+
+# the reader, headless (its page view is the relay's viewport)
+export ZINC_WEB_DIR="$tmp/web"
+app() {
+  ZINC_HEADLESS=1 ZINC_FRAMES=2000000000 ZINC_WEB_SCRIPT="$1" timeout 90 "$Z" run app/web >"$tmp/app.log" 2>&1 || { echo "the reader failed ($1):"; tail -15 "$tmp/app.log"; fail=1; }
+}
+expect() { grep -qF "$1" "$tmp/app.log" || { echo "expected '$1' in:"; grep '^web:' "$tmp/app.log"; fail=1; }; }
+app "relay $R $token; open $page; next; next; prev; draw 500 700 1100 900; save; link next.html; back; export; bookmark"
+expect 'web: Relay fixture · 2 links'
+expect 'web: tap on http://127.0.0.1:'"$wp"'/next.html'
+expect 'web: Second page · 1 links'
+expect 'web: Ink saved (1 strokes).'
+expect 'web: Exported '
+expect 'web: Bookmarked http://127.0.0.1:'"$wp"'/index.html.'
+grep -qx "http://127.0.0.1:$wp/index.html" "$tmp/web/bookmarks.txt" 2>/dev/null || { echo "bookmarks.txt: $(cat "$tmp/web/bookmarks.txt" 2>/dev/null)"; fail=1; }
+ex=$(ls "$tmp/web/exports/"*.png 2>/dev/null | head -1)
+s=$(size "$ex" 2>/dev/null); case "$s" in 1620x*) h=${s#1620x}; [ "$h" -gt 5400 ] || { echo "the export is not the whole page: $s"; fail=1; } ;; *) echo "no export PNG: $s"; fail=1 ;; esac
+inkf=$(ls "$tmp/web/ink/"*.json 2>/dev/null | head -1)
+grep -q '"strokes":\[{"color":"#000000"' "$inkf" 2>/dev/null || { echo "the ink file: $(cat "$inkf" 2>/dev/null | head -c 300)"; fail=1; }
+grep -qx "$page" "${inkf%.json}.txt" 2>/dev/null || { echo "the ink's URL: $(cat "${inkf%.json}.txt" 2>/dev/null)"; fail=1; }
+# the ink drawn on page 2 is in page pixels: one view height down, + 700..900
+python3 -c '
+import json, sys
+s = json.load(open(sys.argv[1]))["strokes"][0]["points"]
+xs, ys = s[0::3], s[1::3]
+assert min(xs) == 500 and max(xs) == 1100 and min(ys) > 1200 and max(ys) - min(ys) == 200, (min(xs), max(xs), min(ys), max(ys))
+' "$inkf" || fail=1
+# the ink comes back with the page; a zoomed view shows it at the right place (the shot of the reader)
+ZINC_SHOT="$tmp/shot.png" app "open $page; next; zoom 2"
+expect 'web: Relay fixture · 2 links'
+[ "$(size "$tmp/shot.png")" != not-png ] || { echo "no shot of the reader"; fail=1; }
+[ -n "$WEB_SHOTS" ] && cp "$tmp/shot.png" "$tmp/p1.png" "$tmp/z.png" "$ex" "$WEB_SHOTS/" 2>/dev/null
+
+kill $rel; wait $rel 2>/dev/null; rel=
+for i in $(seq 1 25); do pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null || break; sleep 0.2; done   # the relay stops its Chrome
+pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null && { echo "Chrome was left running"; pkill -f "user-data-dir=$tmp/relay/chrome-profile"; fail=1; }
+[ $fail -eq 0 ] && echo "web relay: ok"
+exit $fail

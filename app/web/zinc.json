@@ -1,0 +1,10 @@
+{
+  "name": "web",
+  "entry": "src/main.tsx",
+  "app": { "id": "dev.zinc.web", "version": "0.1.0" },
+  "display": { "driver": "rmpp" },
+  "targets": {
+    "macos": { "width": 1620, "height": 2160 },
+    "linux": { "width": 1620, "height": 2160 }
+  }
+}
