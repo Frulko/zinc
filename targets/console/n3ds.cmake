@@ -36,6 +36,4 @@ endif()
 if(ZN_CONSOLE_PLAYER)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/n3ds/player_n3ds.cpp)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_OWN_ENTROPY)
-  dkp_add_embedded_binary_library(player_font ${ZN_TARGETS}/n3ds/player_font.zrs)   # the waiting screen's 8 and 16 px fonts
-  target_link_libraries(zinc-core PRIVATE player_font)
 endif()

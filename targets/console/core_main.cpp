@@ -26,6 +26,8 @@ extern "C" void zn_console_assets_reset(void);                                  
 extern "C" void zn_console_set_args(int argc, const char* const* argv);   // host_console.cpp
 extern "C" void zn_console_install_host(void);
 extern "C" const char* zn_console_data_dir(void);
+extern "C" const unsigned char* zn_console_player_font;   // the player's generated player_font.c
+extern "C" unsigned long zn_console_player_font_size;
 extern "C" int zn_hal_is_live(void);   // gfx_stubs.cpp: 1 with a console's HAL (a real screen)
 
 #ifndef ZN_CONSOLE_STACK_SLOTS
@@ -246,6 +248,8 @@ int playerLoop(char** argv) {
 #ifdef ZN_CONSOLE_WITH_GFX
       if (zn_hal_is_live()) {
         if (!zn::host::hostGfx) zn::host::installGfx();
+        static bool font = false;   // the waiting screen's font (player_font.zrs, CMakeLists.txt): the player has no resources.bin of its own
+        if (!font) font = zn::host::installResources(zn_console_player_font, zn_console_player_font_size);
         zn::host::resetLoop();
         if (!textScreen(status, true)) return status;
         run = pendingRun;

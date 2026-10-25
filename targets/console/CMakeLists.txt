@@ -189,6 +189,11 @@ if(ZN_CONSOLE_PLAYER)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_PLAYER ZN_AGENT_NO_THREADS ZN_AGENT_SERVER_ONLY ZN_CONSOLE_VERSION="${_zn_ver}"
     ZN_CONSOLE_KIND="${ZN_PLAYER_KIND}" ZN_CONSOLE_ARCH="${ZN_PLAYER_ARCH}")
   target_link_libraries(zinc-core PRIVATE zn_console_mbedtls)
+  # the waiting screen's gfx.text `grid` font, 8 and 16 px (player_font.zrs): without it the screen stays blank until a program comes
+  set(ZN_FONT_C ${CMAKE_CURRENT_BINARY_DIR}/player_font.c)
+  add_custom_command(OUTPUT ${ZN_FONT_C} COMMAND ${CMAKE_COMMAND} -DFONT=${CMAKE_CURRENT_SOURCE_DIR}/player_font.zrs -DOUT=${ZN_FONT_C}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/player_font.zrs ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake)
+  target_sources(zinc-core PRIVATE ${ZN_FONT_C})
   if(CMAKE_CROSSCOMPILING)
     target_link_options(zinc-core PRIVATE -Wl,--gc-sections)
   endif()

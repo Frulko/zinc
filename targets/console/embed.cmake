@@ -14,6 +14,9 @@ endif()
 if(RES)
   zn_array(resources ${RES} ${OUT} 8)
 endif()
+if(FONT)   # the player's waiting-screen font (player_font.zrs): zn_console_player_font
+  zn_array(player_font ${FONT} ${OUT} 8)
+endif()
 if(PACK)   # its entries are aligned within the pack: the pack itself on a 64-byte boundary
   zn_array(pack ${PACK} ${OUT} 64)
 endif()

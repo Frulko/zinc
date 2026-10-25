@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: the `display.direct` option is gone; use `"ink": "native"` (the ink lane replaces the experimental direct bridge, which never loaded).
 
 ### Fixed
+- PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
 - reMarkable Paper Pro: fast drawing on qtfb asks AppLoad for its fastest pen waveform (ufast) instead of the slower fast mode.
 - Nova Patrol and Nova Patrol DS 0.2.5 trigger powered bumper/slingshot rebounds, scores, target drops, flashes and sparks from actual Box2D impact events. Solved hit speeds replace pre-solve snapshots; the optimized collision stepping is preserved.
 - The browser Physics2D shim implements the packed `stepState` protocol used by the shared plugin.

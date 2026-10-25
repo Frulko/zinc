@@ -46,7 +46,6 @@ extern "C" __attribute__((weak)) bool zn_c3d_window(const HalCmdList* l, int32_t
 extern "C" __attribute__((weak)) void zn_c3d_end(void);
 extern "C" __attribute__((weak)) void zn_c3d_wait(void);
 extern "C" __attribute__((weak)) void zn_c3d_fini(void);
-extern "C" __attribute__((weak)) void zn_n3ds_player_font(void);   // player_n3ds.cpp
 static bool bottomNew = false;                    // the bottom screen got a frame from the CPU since the last swap
 static bool bottomGpu = false;                    // the GPU frame being built draws the bottom screen
 // Stereoscopic 3D (ZN-759, zinc:hardware setStereo / stereoEye): while the program asks for it and the 3D slider is up, the frames alternate between
@@ -386,7 +385,6 @@ void hal_init(const HalConfig* cfg) {
   gfxOn = true;
   const char* g = getenv("ZINC_N3DS_GPU");
   gpuOn = !(g && *g == '0') && zn_c3d_init && zn_c3d_init(W, H);
-  if (zn_n3ds_player_font) zn_n3ds_player_font();   // the player's waiting screen (player_n3ds.cpp)
   memoryLine();
 }
 void hal_shutdown(void) {
