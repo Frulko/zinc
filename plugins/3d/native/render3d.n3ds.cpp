@@ -28,7 +28,7 @@ namespace {
 struct C3Tex { C3D_Tex t; int32_t w, h; uint32_t ver; bool ok; };
 struct GVtx { float p[3], n[3], uv[2]; uint8_t c[4]; };
 struct GMesh { GVtx* v; GVtx* flat; uint16_t* idx; int32_t ni; bool col; };
-struct Rec { int32_t mesh, flags; uint32_t color; C3Tex* tex; float tsc[2]; C3D_Mtx mvp, model; float spec[4], emit[3]; };
+struct Rec { int32_t mesh, flags; uint32_t color; C3Tex* tex; float tsc[2]; C3D_Mtx mvp, model; float spec[4], emit[3]; int32_t first, count; };   // first, count: the range of indices drawn
 struct GTarget {
   int32_t img, w, h; uint32_t* px; C3Tex tex; C3D_RenderTarget* rt; uint32_t clear; bool dirty;
   Rec* recs; int32_t nrec, cap;
@@ -182,7 +182,8 @@ struct N3ds : Engine {
     const bool sp = !(flags & UNLIT) && specOn();
     for (int i = 0; i < 3; i++) { r.spec[i] = sp ? spec[i] * specK : 0; r.emit[i] = emit[i] / 255; }
     r.spec[3] = shin;
-    tris += m->ni / 3;
+    r.first = rFirst; r.count = rangeCount(m);   // a range of the indices (worldDraw), else all
+    tris += r.count / 3;
   }
 
   bool gpu() override { return true; }
@@ -290,8 +291,8 @@ struct N3ds : Engine {
       C3D_BufInfo* b = C3D_GetBufInfo();
       BufInfo_Init(b);
       BufInfo_Add(b, v, sizeof(GVtx), 4, 0x3210);
-      if (fl) C3D_DrawArrays(GPU_TRIANGLES, 0, m->ni);
-      else C3D_DrawElements(GPU_TRIANGLES, m->ni, C3D_UNSIGNED_SHORT, g->idx);
+      if (fl) C3D_DrawArrays(GPU_TRIANGLES, r.first, r.count);
+      else C3D_DrawElements(GPU_TRIANGLES, r.count, C3D_UNSIGNED_SHORT, g->idx + r.first);
       if (r.tex) C3D_TexSetWrap(&r.tex->t, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);   // the replay's (the draw above took its own)
     }
     if (t->fog) C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);   // the 2D replay draws without it

@@ -24,6 +24,12 @@ struct NativeRender3D : zrt::Object {
   virtual bool gpu() = 0;
   virtual int32_t end() = 0;
   virtual void present(int32_t t, double x, double y, double w, double h) = 0;
+  virtual int32_t worldOpen(zrt::String name) = 0;
+  virtual int32_t worldLoad(int32_t world, int32_t chunk) = 0;
+  virtual void worldFree(int32_t world, int32_t chunk) = 0;
+  virtual void worldNight(int32_t world, bool on) = 0;
+  virtual void worldSelect(int32_t world, zrt::Array<double> view, zrt::Array<double> eyes, zrt::Array<double> prm, zrt::Array<int32_t> out) = 0;
+  virtual void worldDraw(int32_t world) = 0;
 };
 NativeRender3D* zinc_create_Render3D();
 static NativeRender3D* zn_Render3D;

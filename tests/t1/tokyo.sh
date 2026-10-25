@@ -1,10 +1,11 @@
 #!/bin/sh
-# examples/tokyo, Pocket Tokyo's flight on zinc:3d: the city's GLBs from tools/city-gltf.py through the asset build, the tour over Shiba.
-# The city is not in git (177 MB of PLATEAU / OpenStreetMap data, ODbL): the test is skipped until `examples/tokyo/tools/city-gltf.py fetch`
+# examples/tokyo, Pocket Tokyo's flight on zinc:3d: the city's world from tools/city-world.py (cells, levels, sectors chosen natively), the tour over Shiba.
+# The city is not in git (177 MB of PLATEAU / OpenStreetMap data, ODbL): the test is skipped until `examples/tokyo/tools/city-world.py fetch`
 # and `build` have made it. One headless session: the readout counts the triangles of the levels chosen, the tour moves the eye (two frames
-# differ), Start (frame 140) leaves the tour, the night draws the lamps (a night frame is darker but not black), and the PSP's settings draw fewer triangles.
+# differ), Start (frame 140) leaves the tour, the night draws the lamps (a night frame is darker but not black), and the PSP's settings keep
+# their triangle budget.
 cd "$(dirname "$0")/../.." || exit 2
-[ -f examples/tokyo/assets/city/city.txt ] || { echo "skipped: no city (python3 -I examples/tokyo/tools/city-gltf.py fetch, then build)"; exit 77; }
+[ -f examples/tokyo/assets/city/city.txt ] || { echo "skipped: no city (python3 -I examples/tokyo/tools/city-world.py fetch, then build)"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf '140 pad Start\n142 padup Start\n' > "$tmp/input"
 run() {   # run <name> [env...]: 200 frames (the loading screen takes the first 15 to 40), shots at 80, 120 and 198, the scene dumps
@@ -16,11 +17,12 @@ run day ZINC_TOKYO_HOUR=12
 run night ZINC_TOKYO_HOUR=21
 run psp ZINC_TOKYO_HOUR=12 ZINC_TOKYO_DEVICE=psp
 fail=0
-grep -q 'tokyo: [0-9]* models read' "$tmp/day.out" || { echo "tokyo: the loading screen did not end"; fail=1; }
+grep -q 'tokyo: [0-9]* chunks read' "$tmp/day.out" || { echo "tokyo: the loading screen did not end"; fail=1; }
 tris() { python3 tools/scene-texts "$1" | sed -n 's/.* \([0-9][0-9]*\) tris .*/\1/p' | head -1; }
 day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120")
 [ -n "$day" ] && [ "$day" -gt 20000 ] || { echo "tokyo: the desktop readout shows ${day:-no} triangles"; fail=1; }
-[ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -lt $((day / 2)) ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
+# the PSP's budget is 40000 triangles (src/devices.ts): the governor keeps it within a few per cent, fewer than the desktop's
+[ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 42000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
 python3 tools/scene-texts "$tmp/day-80" | grep -q 'tour' || { echo "tokyo: not on the tour at frame 80"; fail=1; }
 python3 tools/scene-texts "$tmp/day-198" | grep -q 'free' || { echo "tokyo: Start did not leave the tour"; fail=1; }
 python3 - "$tmp/day-80.png" "$tmp/day-120.png" "$tmp/night-120.png" <<'P' || fail=1

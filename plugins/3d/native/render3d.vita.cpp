@@ -292,11 +292,18 @@ struct Vita : Engine {
     const int f = (flags >> 4) & 3;
     const bool lit = !(flags & UNLIT), flat = flags & FLAT, vcol = (flags & VCOL) && m->col, em = emitOn(), sp = lit && specOn();
     const bool smooth = !flat && (lit || vcol || em);
+    // a range of the indices (worldDraw), else all: its corners, and the vertices they use (only those are lit; a colour stream starts
+    // as far before its first written entry as that vertex's number)
+    const int32_t t0 = rFirst, ni = rangeCount(m);
+    int32_t v0 = 0, v1 = m->nv;
+    if (rCount >= 0 && !flat) { v0 = m->nv; v1 = 0; for (int32_t k = t0; k < t0 + ni; k++) { const int32_t x = m->idx[k]; v0 = x < v0 ? x : v0; v1 = x >= v1 ? x + 1 : v1; } }
+    if (ni <= 0 || v1 <= v0) return;
     // the colours, as Engine::draw computes them
     uint32_t* c;
     if (!flat) {
-      if (!(c = colours((uint32_t)m->nv))) return;
-      for (int32_t i = 0; i < m->nv; i++) {
+      if (!(c = colours((uint32_t)(v1 - v0)))) return;
+      c -= v0;
+      for (int32_t i = v0; i < v1; i++) {
         if (!smooth) { c[i] = rgbaOf(color, alpha); continue; }
         const float* p = m->pos + i * 3;
         const uint32_t base = vcol ? m->col[i] : color;
@@ -315,8 +322,9 @@ struct Vita : Engine {
         if (!g->flat) return;
         for (int32_t k = 0; k < m->ni; k++) g->flat[k] = g->vb[m->idx[k]];
       }
-      if (!(c = colours((uint32_t)m->ni))) return;
-      for (int32_t k = 0; k < m->ni; k += 3) {
+      if (!(c = colours((uint32_t)ni))) return;
+      c -= t0;
+      for (int32_t k = t0; k < t0 + ni; k += 3) {
         const int32_t i0 = m->idx[k], i1 = m->idx[k + 1], i2 = m->idx[k + 2];
         uint32_t base = color;
         if (vcol) {
@@ -342,12 +350,13 @@ struct Vita : Engine {
     // the fog laid over it in a second pass (the fog's colour, its share as the alpha, at the same depth)
     uint32_t* veil = nullptr;
     if (fogOn && !(flags & NOFOG)) {
-      const uint32_t nc = flat ? (uint32_t)m->ni : (uint32_t)m->nv;
+      const uint32_t j0 = flat ? (uint32_t)t0 : (uint32_t)v0, j1 = flat ? (uint32_t)(t0 + ni) : (uint32_t)v1;
       const uint32_t fc = (uint32_t)fogC[0] << 16 | (uint32_t)fogC[1] << 8 | (uint32_t)fogC[2];
       const bool over = t && !blend;
-      if (over && !(veil = colours(nc))) return;
+      if (over && !(veil = colours(j1 - j0))) return;
+      if (over) veil -= j0;
       bool any = false;
-      for (uint32_t j = 0; j < nc; j++) {
+      for (uint32_t j = j0; j < j1; j++) {
         const float* p = m->pos + (flat ? m->idx[j] : (int32_t)j) * 3;
         const float a = fogAt(MVP[3] * p[0] + MVP[7] * p[1] + MVP[11] * p[2] + MVP[15]);
         any |= a > 0;
@@ -367,20 +376,21 @@ struct Vita : Engine {
     sceGxmSetFrontDepthWriteEnable(ctx, dw); sceGxmSetBackDepthWriteEnable(ctx, dw);
     const SceGxmTexture* tx = t ? t : &white;
     const bool linear = t && (f == 2 || f == 3);
-    if (!flat) submit(g->vb, g->ib, (uint32_t)m->ni, c, MVP, tx, linear, blend);
-    else for (uint32_t k = 0; k < (uint32_t)m->ni; k += kSeq) {   // the corners in runs the 16-bit indices reach
-      const uint32_t n = (uint32_t)m->ni - k < kSeq ? (uint32_t)m->ni - k : kSeq;
+    const uint32_t te = (uint32_t)(t0 + ni);
+    if (!flat) submit(g->vb, g->ib + t0, (uint32_t)ni, c, MVP, tx, linear, blend);
+    else for (uint32_t k = (uint32_t)t0; k < te; k += kSeq) {   // the corners in runs the 16-bit indices reach
+      const uint32_t n = te - k < kSeq ? te - k : kSeq;
       submit(g->flat + k, seq, n, c + k, MVP, tx, linear, blend);
     }
     if (veil) {
       sceGxmSetFrontDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED); sceGxmSetBackDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED);
-      if (!flat) submit(g->vb, g->ib, (uint32_t)m->ni, veil, MVP, &white, false, ALPHA);
-      else for (uint32_t k = 0; k < (uint32_t)m->ni; k += kSeq) {
-        const uint32_t n = (uint32_t)m->ni - k < kSeq ? (uint32_t)m->ni - k : kSeq;
+      if (!flat) submit(g->vb, g->ib + t0, (uint32_t)ni, veil, MVP, &white, false, ALPHA);
+      else for (uint32_t k = (uint32_t)t0; k < te; k += kSeq) {
+        const uint32_t n = te - k < kSeq ? te - k : kSeq;
         submit(g->flat + k, seq, n, veil + k, MVP, &white, false, ALPHA);
       }
     }
-    tris += m->ni / 3;
+    tris += ni / 3;
   }
 
   bool gpu() override { return on(); }

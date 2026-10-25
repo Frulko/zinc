@@ -52,22 +52,22 @@ export interface Spec extends NativeModule {
   end(): i32;
   /** Draws the target's image in the screen box (nearest-neighbour scaling; composes with zinc:gfx commands). */
   present(t: i32, x: number, y: number, w: number, h: number): void;
-  /** A new set of cells (index.ts Cells): boxes with up to three levels of detail, culled, chosen and drawn here. */
-  cellsCreate(): i32;
-  /** Adds a cell: info = min x y z, max x y z, the geometric error of each level in metres (0 the finest), the triangles of each level
-   *  (0: not in this pack). Returns its index. */
-  cellAdd(set: i32, info: number[]): i32;
-  /** Adds a part to a cell's level: mat = colour, draw flags (as draw's), texture, emissive, the night's texture and emissive. mesh -1
-   *  forgets the level's parts: present in the pack, not loaded. */
-  cellPart(set: i32, cell: i32, level: i32, mesh: i32, mat: i32[]): void;
-  /** The parts show their night texture and emissive colour (or their day ones). */
-  cellsNight(set: i32, on: boolean): void;
-  /** Chooses the level each cell shows. eyes: x y z of the eye, then of points it will pass (for the levels to load). prm: look x y z,
-   *  half-angle of the view cone (radians), focal length (pixels), tau (pixels), budget (triangles), reach, fogStart (metres), hysteresis,
-   *  hold (calls), fade (seconds), dt (seconds since the last call), idle (seconds, 0 never). out: triangles, draws, n levels to load, m
-   *  to free, then n and m (cell, level) pairs. */
-  cellsSelect(set: i32, eyes: number[], prm: number[], out: i32[]): void;
-  /** Draws the levels cellsSelect chose (pass 0, opaque) or the ones fading out (pass 1, blended: after the opaque nodes). */
-  cellsDraw(set: i32, pass: i32): void;
+  /** Opens a world (include/zn/zworld.h, index.ts World): its index of cells and chunks, nothing loaded. Returns a handle, -1 when the asset
+   *  is not there or damaged. */
+  worldOpen(name: string): i32;
+  /** Loads one of its chunks (a level of a few cells): the bytes read, -1 when it cannot. */
+  worldLoad(world: i32, chunk: i32): i32;
+  /** Frees a chunk: its cells show another level from the next worldSelect. */
+  worldFree(world: i32, chunk: i32): void;
+  /** The batches show their night picture and emissive colour (or their day ones). */
+  worldNight(world: i32, on: boolean): void;
+  /** Chooses what worldDraw draws: the cells in the frustum of the camera (`view`, its view matrix), each at the level of its distance,
+   *  of their walls the sectors that can face the eye. eyes: x y z of the eye, then of points it will pass (for the chunks to load). prm:
+   *  vertical field of view (radians), aspect, near, far, near reach, mid reach (metres), budget (triangles), hysteresis, sectors (0/1),
+   *  dt (seconds since the last call), idle (seconds, 0 never). out: triangles, draws, the reaches' scale x 1000, n chunks to load, m to
+   *  free, then the n and the m chunk numbers. */
+  worldSelect(world: i32, view: number[], eyes: number[], prm: number[], out: i32[]): void;
+  /** Draws the index ranges worldSelect chose. */
+  worldDraw(world: i32): void;
 }
 export default requireNative<Spec>('Render3D');

@@ -329,79 +329,73 @@ function materialFlags(mat: Material): i32 {
   return flags;
 }
 
-/** What Cells.select chooses with: the view, the device's limits and the pace of the changes. */
-export class CellView {
-  /** The unit direction looked along, and the half-angle of the cone that holds the picture (radians, its diagonal). */
-  look: number[] = [0, 0, -1];
-  half = 0.6;
-  /** Pixels a metre at one metre (height / 2 / tan(fov / 2)): with `tau`, how fine a level must be. */
-  focal = 500;
-  /** The error in pixels a level may show: a cell takes the coarsest level whose geometric error, projected, is at most this. */
-  tau = 1;
-  /** Triangles a frame may draw: every cell in view gets its coarsest loaded level, then the nearest get finer ones while it lasts. */
-  budget: i32 = 100000;
-  /** Metres beyond which nothing is drawn or loaded, and where the fog starts: over the budget, only cells beyond it are left out. */
-  reach = 1000;
-  fogStart = 1000;
-  /** A level coarsens only once its error is below tau / hysteresis, and not for `hold` calls after a change. */
-  hysteresis = 1.15;
-  hold: i32 = 4;
-  /** Seconds a level change fades over (0: none: a device whose changes are in the fog). */
-  fade = 0;
-  /** Seconds a loaded level nobody wants waits before select names it to free (0: never). */
-  idle = 0;
-}
-
-/** Cells (a city's blocks, a terrain's tiles): boxes in world space with up to three levels of detail, 0 the finest, each level a list
- *  of parts (a mesh and its material, by day and by night). select() culls them, chooses each one's level from its projected error and a
- *  triangle budget, and names the levels to load and to free; the node then draws what it chose, sorted by texture, the levels being
- *  replaced fading out. The culling, the choice and the drawing run in the renderer (native/render3d.host.cpp). The node's own position
- *  is ignored: the parts are in world coordinates. */
-export class Cells extends Node {
+/** A static world (include/zn/zworld.h: a city, a terrain, a level), as Pocket Tokyo draws its city: cells on the ground with up to three
+ *  levels of detail (0 the finest), each level held by a chunk, a file loaded and freed as one, whose batches are a few large meshes with
+ *  their indices grouped by cell and by the compass sector a wall faces. select() culls the cells against the camera's frustum, gives each
+ *  the level of its distance (the reaches scaled down to keep the triangle budget, coarser only past the reach times the hysteresis, a
+ *  coarser or finer loaded level while the one wanted is not loaded: no holes), keeps of its walls the sectors that can face the eye, and
+ *  names the chunks to load (each cell's coarsest level first, then the nearest) and those nobody has wanted for `idle` seconds; the node
+ *  then draws those index ranges, sorted by kind and batch. All of it runs in the renderer (native/render3d.host.cpp). The node's own
+ *  position is ignored: the world's coordinates are the scene's. */
+export class World extends Node {
   readonly handle: i32;
-  /** After select(): the triangles and the draws of what is shown, the (cell, level) pairs to load (coarse levels first, nearest first)
-   *  and the pairs nobody has wanted for `idle` seconds. */
+  /** Metres where the near level hands over to the mid level, and the mid to the far, when the budget allows them in full. */
+  nearReach = 300;
+  midReach = 1300;
+  /** Triangles a frame may draw (0: no limit): over it the reaches come in by 3% a call, under 88% of it they go out by 0.8% (down to 1/4). */
+  budget: i32 = 100000;
+  hysteresis = 1.15;
+  /** Leave out the walls that face away from the eye: fewer triangles, more draws. */
+  sectors = true;
+  /** Seconds a loaded chunk nobody wants waits before select names it to free (0: never). */
+  idle = 0;
+  /** After select(): the triangles and draws of what is shown, the reaches' scale (reachScale), the chunks to load (load()) and the ones to free (free()). */
   triangles: i32 = 0;
   draws: i32 = 0;
+  reachScale = 1;
   readonly missing: i32[] = [];
   readonly unused: i32[] = [];
   private readonly out: i32[] = [];
-  private readonly prm: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-  constructor() { super(null, null); this.handle = R.cellsCreate(); }
+  private readonly prm: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  private readonly eyes: number[] = [];
 
-  /** Adds a cell: its box, the geometric error of each level in metres, the triangles of each (0: the level is not in this pack). */
-  addCell(min: number[], max: number[], errors: number[], triangles: i32[]): i32 {
-    return R.cellAdd(this.handle, [min[0], min[1], min[2], max[0], max[1], max[2], errors[0], errors[1], errors[2], triangles[0], triangles[1], triangles[2]]);
+  constructor(asset: string) {
+    super(null, null);
+    this.handle = R.worldOpen(asset);
+    if (this.handle < 0) throw new Error(`zinc:3d: ${asset} is not a world (include/zn/zworld.h)`);
   }
-  /** Adds a part to a cell's level (the level is then loaded); at night it shows `nightTexture` and `nightEmissive` instead. */
-  addPart(cell: i32, level: i32, mesh: Mesh, mat: Material, nightTexture: i32, nightEmissive: u32): void {
-    R.cellPart(this.handle, cell, level, mesh.handle, [mat.color as i32, materialFlags(mat), mat.texture, mat.emissive as i32, nightTexture, nightEmissive as i32]);
-  }
-  /** Forgets a level's parts (the meshes stay the caller's to dispose): the level is no longer loaded. */
-  clearLevel(cell: i32, level: i32): void { R.cellPart(this.handle, cell, level, -1, []); }
-  setNight(on: boolean): void { R.cellsNight(this.handle, on); }
+  /** Loads a chunk: the bytes read, -1 when it cannot. */
+  load(chunk: i32): i32 { return R.worldLoad(this.handle, chunk); }
+  free(chunk: i32): void { R.worldFree(this.handle, chunk); }
+  /** The batches' night pictures and glow on or off. */
+  setNight(on: boolean): void { R.worldNight(this.handle, on); }
 
-  /** Chooses what the next frames draw, seen from `eyes[0]` (x, y, z), and the levels to load for it and the points after it. */
-  select(eyes: number[], v: CellView, dt: number): void {
+  /** Chooses what the next render() of `camera` draws, its picture `aspect` wide for one high, and the chunks to load for the eye and for
+   *  `ahead` (x, y, z of points it will pass, possibly none). `dt`: seconds since the last call. */
+  select(camera: Camera, aspect: number, ahead: number[], dt: number): void {
+    mat4LookAt(camera.view, camera.position, camera.target, camera.up);
+    const e = this.eyes;
+    e.length = 0;
+    e.push(camera.position[0]); e.push(camera.position[1]); e.push(camera.position[2]);
+    for (const v of ahead) e.push(v);
     const p = this.prm;
-    p[0] = v.look[0]; p[1] = v.look[1]; p[2] = v.look[2]; p[3] = v.half; p[4] = v.focal; p[5] = v.tau; p[6] = v.budget; p[7] = v.reach;
-    p[8] = v.fogStart; p[9] = v.hysteresis; p[10] = v.hold; p[11] = v.fade; p[12] = dt; p[13] = v.idle;
+    p[0] = camera.fov * Math.PI / 180; p[1] = aspect; p[2] = camera.near; p[3] = camera.far; p[4] = this.nearReach; p[5] = this.midReach;
+    p[6] = this.budget; p[7] = this.hysteresis; p[8] = this.sectors ? 1 : 0; p[9] = dt; p[10] = this.idle;
     const o = this.out;
-    R.cellsSelect(this.handle, eyes, p, o);
-    this.triangles = o[0]; this.draws = o[1];
-    const n = o[2], m = o[3];
+    R.worldSelect(this.handle, camera.view, e, p, o);
+    if (o.length < 5) return;
+    this.triangles = o[0]; this.draws = o[1]; this.reachScale = o[2] / 1000;
+    const n = o[3], m = o[4];
     this.missing.length = 0; this.unused.length = 0;
-    for (let k = 0; k < n * 2; k++) this.missing.push(o[4 + k]);
-    for (let k = 0; k < m * 2; k++) this.unused.push(o[4 + n * 2 + k]);
+    for (let k = 0; k < n; k++) this.missing.push(o[5 + k]);
+    for (let k = 0; k < m; k++) this.unused.push(o[5 + n + k]);
   }
 
   draw(_parent: number[], _parentStamp: i32 = 0): void {
     if (!this.visible) return;
-    R.cellsDraw(this.handle, 0);
-    specColor = 0; emitColor = 0;   // what cellsDraw left the renderer with
-    blended.push(this);
+    R.worldDraw(this.handle);
+    specColor = 0; emitColor = 0;   // what worldDraw left the renderer with
   }
-  drawMesh(): void { R.cellsDraw(this.handle, 1); specColor = 0; emitColor = 0; }
 }
 
 /** Linear fog, as three.js's Fog: nothing at view depth `near` and closer, all `color` (0xRRGGBB) at `far` and beyond. Set the scene's

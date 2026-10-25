@@ -37,7 +37,8 @@ struct GTarget { int32_t img, w, h, d; uint32_t* px; uint32_t off, bytes; GuTex 
 
 // 64-byte aligned, whole cache lines: sceGu writes the list through the uncached mirror, and a cached line it shared with a CPU-written static
 // would be written back over its first commands on a real PSP (Pocket3D's finding; PPSSPP has no data cache)
-unsigned int __attribute__((aligned(64))) list3d[64 * 1024 / 4];
+// 256 KiB: a world's ranges are several hundred draws of about 150 bytes of state each (a 64 KiB list held about 450)
+unsigned int __attribute__((aligned(64))) list3d[256 * 1024 / 4];
 uint32_t vramTop = kVramScreens;
 
 int32_t pow2(int32_t v) { int32_t p = 8; while (p < v) p <<= 1; return p; }
@@ -253,12 +254,13 @@ struct Psp : Engine {
     sceGuSetMatrix(GU_MODEL, (const ScePspFMatrix4*)M);
     const bool fl = flags & FLAT;
     const GVtx* v = fl ? flat(m, g) : g->v;
-    for (int32_t at = 0; at < m->ni; at += 65535) {   // a draw takes at most 65535 vertices
-      const int32_t k = m->ni - at < 65535 ? m->ni - at : 65535;
-      if (fl) sceGuDrawArray(GU_TRIANGLES, kVtype, k, nullptr, v + at);
-      else sceGuDrawArray(GU_TRIANGLES, kVtype | GU_INDEX_16BIT, k, m->idx + at, v);
+    const int32_t t0 = rFirst, ni = rangeCount(m);   // a range of the indices (worldDraw), else all
+    for (int32_t at = 0; at < ni; at += 65535) {   // a draw takes at most 65535 vertices
+      const int32_t k = ni - at < 65535 ? ni - at : 65535;
+      if (fl) sceGuDrawArray(GU_TRIANGLES, kVtype, k, nullptr, v + t0 + at);
+      else sceGuDrawArray(GU_TRIANGLES, kVtype | GU_INDEX_16BIT, k, m->idx + t0 + at, v);
     }
-    tris += m->ni / 3;
+    tris += ni / 3;
   }
 
   bool gpu() override { return true; }

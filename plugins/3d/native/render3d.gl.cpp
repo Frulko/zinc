@@ -493,8 +493,9 @@ struct Gpu : Engine {
     const int c = flags & DOUBLE ? 0 : 1;
     if (c != cull) { if (c) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE); cull = c; }
     glBindVertexArray(g->vao);
-    glDrawElements(GL_TRIANGLES, g->ni, GL_UNSIGNED_SHORT, (void*)0);
-    tris += g->ni / 3;  // triangles drawn, before culling (three.js's renderer.info counts them so too)
+    const int32_t n = rCount < 0 ? g->ni - rFirst : rCount;   // a range of the indices (worldDraw), else all
+    glDrawElements(GL_TRIANGLES, n, GL_UNSIGNED_SHORT, (void*)((size_t)rFirst * 2));
+    tris += n / 3;  // triangles drawn, before culling (three.js's renderer.info counts them so too)
   }
 
   /** The framebuffer into `dst` (a pixel buffer offset when one is bound): 0x00RRGGBB words, the shaders write blue first and alpha 0. RGBA bytes

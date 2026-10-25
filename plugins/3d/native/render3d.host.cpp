@@ -5,6 +5,7 @@
 #include "zinc_native_render3d.h"
 #include "zrt_raster.h"
 #include "zn/zmesh.h"
+#include "zn/zworld.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
@@ -297,74 +298,67 @@ static bool texture(int32_t id, Tex& t) {
 // The bytes of an asset for a native module (src/host/sys_host.cpp, targets/console/host_console.cpp): a malloc'd copy, null when it is not
 // there or this host gives none (weak: a host without it leaves loadModel on zinc:assets).
 extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t* size) __attribute__((weak));
+// zinc:gfx image(name) of a pack's image entry (the same hosts): a world's pictures by name.
+extern "C" int zn_asset_image(const char* name, uint32_t n) __attribute__((weak));
 
-// ---------------------------------------------------------------- cells (zinc:3d Cells: the culling, levels of detail and budget of a city)
-// A set of cells, each a box with up to three levels of detail (0 the finest), each level a list of parts: a mesh and its material by day
-// and by night. cellsSelect chooses the level each cell shows from its projected geometric error and a triangle budget, and names the
-// levels to load and the ones to free; cellsDraw draws what it chose. docs/plugins/3d.md "Cells".
-enum { CELL_LEVELS = 3, CELL_ASK = 48, CELL_FREE = 16, CELL_POINTS = 8 };
-struct CPart { int32_t mesh; uint32_t color; int32_t flags, tex; uint32_t emis; int32_t ntex; uint32_t nemis; };
-struct Cell {
-  float mn[3], mx[3], err[CELL_LEVELS];
-  int32_t tris[CELL_LEVELS];          // 0: the level is not in this device's pack
-  CPart* parts[CELL_LEVELS];
-  int32_t np[CELL_LEVELS], capp[CELL_LEVELS];
-  bool loaded[CELL_LEVELS];
-  float idle[CELL_LEVELS];            // seconds since the level was last shown or wanted
-  int8_t shown, from, lvl;            // the level drawn (-1 none), the one fading out (-1 none), the choice of this call
-  bool vis;
-  int32_t hold;                       // calls left before the level may coarsen again
-  float fadeT, d;
+// ---------------------------------------------------------------- worlds (zinc:3d World, include/zn/zworld.h)
+// A static world: cells on the ground with up to three levels of detail, each level in a chunk loaded and freed as one; a chunk's batches
+// are meshes whose indices are grouped by cell and by the compass sector a face looks to. worldSelect culls the cells against the frustum,
+// chooses each one's level by distance (the distances scaled to keep a triangle budget), keeps of each cell's walls only the sectors that
+// can face the eye, and lists the index ranges to draw and the chunks to load and to free; worldDraw draws the ranges. The selection is a
+// port of Pocket Tokyo's tokyo-sim view.rs (select, facing, arcs, Governor; MIT, (c) pocket-nexus).
+enum { WORLD_ASK = 64, WORLD_FREE = 16, WORLD_POINTS = 8 };
+struct WBatch { int32_t mesh; uint32_t kind, flags, color, emis, nemis; int32_t tex, ntex, cell; uint32_t cells, groups; const uint32_t* spans; };
+struct WChunk { int32_t level; char* name; bool loaded; float idle, need; WBatch* b; int32_t nb; uint32_t* spans; };
+struct WCell { float mn[3], mx[3], reach[2]; int32_t chunk[3]; int8_t shown; bool vis; float d; int16_t arc0, arcN; };
+struct WItem { int32_t chunk, batch; uint32_t kind, from, to; };
+struct World {
+  WCell* c; int32_t nc;
+  WChunk* k; int32_t nk;
+  char dir[256];
+  WItem* items; int32_t ni, icap;
+  bool night;
+  float scale;
 };
-struct CellSet {
-  Cell* c; int32_t n, cap;
-  int32_t* order;                     // the cells nearest the eye first (insertion sort: the order changes little between calls)
-  const CPart** list; int32_t lcap;
-  bool night, fading;
-  float fade;
-};
-/** Metres from p to the nearest point of a cell's box. */
-static float boxDist(const Cell& c, const float* p) {
+/** Metres from p to the nearest point of a box. */
+static float boxDist(const float* mn, const float* mx, const float* p) {
   float s = 0;
-  for (int a = 0; a < 3; a++) { const float d = p[a] < c.mn[a] ? c.mn[a] - p[a] : p[a] > c.mx[a] ? p[a] - c.mx[a] : 0; s += d * d; }
+  for (int a = 0; a < 3; a++) { const float d = p[a] < mn[a] ? mn[a] - p[a] : p[a] > mx[a] ? p[a] - mx[a] : 0; s += d * d; }
   return sqrtf(s);
 }
-/** Whether a cell's bounding sphere meets the cone of half-angle `half` (radians) along the unit `look` from `eye`. */
-static bool inCone(const Cell& c, const float* eye, const float* look, float half) {
-  const float cx = (c.mn[0] + c.mx[0]) * 0.5f - eye[0], cy = (c.mn[1] + c.mx[1]) * 0.5f - eye[1], cz = (c.mn[2] + c.mx[2]) * 0.5f - eye[2];
-  const float ex = (c.mx[0] - c.mn[0]) * 0.5f, ey = (c.mx[1] - c.mn[1]) * 0.5f, ez = (c.mx[2] - c.mn[2]) * 0.5f;
-  const float r = sqrtf(ex * ex + ey * ey + ez * ez), d = sqrtf(cx * cx + cy * cy + cz * cz);
-  if (d <= r) return true;
-  float k = (cx * look[0] + cy * look[1] + cz * look[2]) / d;
-  k = k < -1 ? -1 : k > 1 ? 1 : k;
-  return acosf(k) <= half + asinf(r / d);
-}
-static inline bool present(const Cell& c, int l) { return c.tris[l] > 0; }
-/** The coarsest level whose error, seen from `d` metres by a camera of `focal` pixels, is at most `tau` pixels (else the finest the cell
- *  has); -1 when it has none. */
-static int ideal(const Cell& c, float d, float focal, float tau) {
-  int finest = -1;
-  for (int l = CELL_LEVELS - 1; l >= 0; l--) {
-    if (!present(c, l)) continue;
-    if (c.err[l] * focal <= tau * d) return l;
-    finest = l;
+/** Whether a box is inside (or across) the six planes (a x + b y + c z + d >= 0 inside). */
+static bool inFrustum(const float (*pl)[4], const float* mn, const float* mx) {
+  for (int i = 0; i < 6; i++) {
+    const float* p = pl[i];
+    const float x = p[0] >= 0 ? mx[0] : mn[0], y = p[1] >= 0 ? mx[1] : mn[1], z = p[2] >= 0 ? mx[2] : mn[2];
+    if (p[0] * x + p[1] * y + p[2] * z + p[3] < 0) return false;
   }
-  return finest;
+  return true;
 }
-static int coarsest(const Cell& c, bool loadedOnly) {
-  for (int l = CELL_LEVELS - 1; l >= 0; l--) if (present(c, l) && (!loadedOnly || c.loaded[l])) return l;
-  return -1;
+static float wrapAngle(float a) { const float T = 6.2831853f; a = fmodf(a + 3.14159265f, T); if (a < 0) a += T; return a - 3.14159265f; }
+/** The sectors of the compass whose walls can face `eye` from somewhere in a box: the first and how many; count 16 (or more): all. */
+static void facing(const float* eye, const float* mn, const float* mx, int16_t* first, int16_t* count) {
+  const float PAD = 4, PI = 3.14159265f, step = 6.2831853f / zn::zworld::kSectors;
+  *first = 0; *count = zn::zworld::kSectors;
+  if (eye[0] > mn[0] - PAD && eye[0] < mx[0] + PAD && eye[2] > mn[2] - PAD && eye[2] < mx[2] + PAD) return;
+  const float cx = (mn[0] + mx[0]) * 0.5f, cz = (mn[2] + mx[2]) * 0.5f, mid = atan2f(eye[2] - cz, eye[0] - cx);
+  float lo = 0, hi = 0;
+  const float xs[2] = {mn[0], mx[0]}, zs[2] = {mn[2], mx[2]};
+  for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
+    const float d = wrapAngle(atan2f(eye[2] - zs[j], eye[0] - xs[i]) - mid);
+    lo = d < lo ? d : lo; hi = d > hi ? d : hi;
+  }
+  const int f = (int)floorf((mid + lo - PI * 0.5f + PI) / step), l = (int)floorf((mid + hi + PI * 0.5f + PI) / step);
+  const int n = l - f + 1;
+  if (n >= (int)zn::zworld::kSectors) return;
+  *first = (int16_t)(((f % 16) + 16) % 16); *count = (int16_t)n;
 }
-/** The draw order of the parts: by texture, then by emissive colour (the day's or the night's), so the GPU changes state least. */
-static int partsByDay(const void* a, const void* b) {
-  const CPart* p = *(const CPart* const*)a; const CPart* q = *(const CPart* const*)b;
-  if (p->tex != q->tex) return p->tex < q->tex ? -1 : 1;
-  return p->emis < q->emis ? -1 : p->emis > q->emis ? 1 : p->mesh - q->mesh;
-}
-static int partsByNight(const void* a, const void* b) {
-  const CPart* p = *(const CPart* const*)a; const CPart* q = *(const CPart* const*)b;
-  if (p->ntex != q->ntex) return p->ntex < q->ntex ? -1 : 1;
-  return p->nemis < q->nemis ? -1 : p->nemis > q->nemis ? 1 : p->mesh - q->mesh;
+static int itemOrder(const void* a, const void* b) {
+  const WItem* p = (const WItem*)a; const WItem* q = (const WItem*)b;
+  if (p->kind != q->kind) return p->kind < q->kind ? -1 : 1;
+  if (p->chunk != q->chunk) return p->chunk < q->chunk ? -1 : 1;
+  if (p->batch != q->batch) return p->batch < q->batch ? -1 : 1;
+  return p->from < q->from ? -1 : p->from > q->from;
 }
 /** Grows a mem() array of `n` items of `size` bytes to hold `need`. */
 static void* grown(void* p, int32_t n, int32_t* cap, int32_t need, size_t size) {
@@ -377,6 +371,9 @@ static void* grown(void* p, int32_t n, int32_t* cap, int32_t need, size_t size) 
   *cap = c;
   return q;
 }
+static uint32_t rd32(const uint8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
+static float rdf(const uint8_t* p) { float v; memcpy(&v, p, 4); return v; }
+
 
 struct Engine : NativeRender3D {
   Array<uint8_t> asset;   // the model assetOpen read
@@ -646,7 +643,11 @@ struct Engine : NativeRender3D {
     const bool em = emitOn();
     bool smooth = !flat && (lit || vcol || em);
     const bool sp = lit && specOn();
-    for (int32_t i = 0; i < m->nv; i++) {
+    // a range of the indices (worldDraw): only the vertices it uses
+    const int32_t t0 = rFirst, t1 = rFirst + rangeCount(m);
+    int32_t v0 = 0, v1 = m->nv;
+    if (rCount >= 0) { v0 = m->nv; v1 = 0; for (int32_t t = t0; t < t1; t++) { const int32_t k = m->idx[t]; v0 = k < v0 ? k : v0; v1 = k >= v1 ? k + 1 : v1; } }
+    for (int32_t i = v0; i < v1; i++) {
       const float* p = m->pos + i * 3;
       V& o = vs[i];
       o.x = MVP[0] * p[0] + MVP[4] * p[1] + MVP[8] * p[2] + MVP[12];
@@ -666,7 +667,7 @@ struct Engine : NativeRender3D {
       } else o.r = o.g = o.b = 0;
     }
     const float W = (float)cur->w, H = (float)cur->h;
-    for (int32_t t = 0; t < m->ni; t += 3) {
+    for (int32_t t = t0; t < t1; t += 3) {
       int32_t i0 = m->idx[t], i1 = m->idx[t + 1], i2 = m->idx[t + 2];
       uint32_t o0 = oc[i0], o1 = oc[i1], o2 = oc[i2];
       if (o0 & o1 & o2) continue;
@@ -719,206 +720,295 @@ struct Engine : NativeRender3D {
       tris++;
     }
   }
-  // ------------------------------------------------ cells
-  Pool<CellSet> cellSets;
-  Array<N> ident;   // the world matrix of the cells' parts: their positions are the world's
+  // ------------------------------------------------ worlds
+  Pool<World> worlds;
+  Array<N> ident;                     // the world matrix of a world's batches: their positions are the world's
+  // The index range of the next draw (worldDraw): every renderer's draw() draws indices rFirst .. rFirst + rCount of its mesh (rCount < 0: all)
+  int32_t rFirst = 0, rCount = -1;
+  int32_t rangeCount(const Mesh* m) const { return rCount < 0 ? m->ni - rFirst : rCount; }
 
-  int32_t cellsCreate() override {
-    CellSet* s = (CellSet*)mem(sizeof(CellSet));
-    memset(s, 0, sizeof(CellSet));
-    return cellSets.add(s);
-  }
-  int32_t cellAdd(int32_t id, Array<N> info) override {
-    CellSet* s = cellSets.at(id);
-    if (!s || info.length() < 12) return -1;
-    int32_t cap = s->cap;
-    s->c = (Cell*)grown(s->c, s->n, &cap, s->n + 1, sizeof(Cell));
-    cap = s->cap;
-    s->order = (int32_t*)grown(s->order, s->n, &cap, s->n + 1, sizeof(int32_t));
-    s->cap = cap;
-    Cell& c = s->c[s->n];
-    memset(&c, 0, sizeof(Cell));
-    for (int a = 0; a < 3; a++) {
-      c.mn[a] = F(info.a->data[a]); c.mx[a] = F(info.a->data[3 + a]); c.err[a] = F(info.a->data[6 + a]);
-      const float t = F(info.a->data[9 + a]);
-      c.tris[a] = t > 0 ? (int32_t)t : 0;
+  /** Reads a world's index (include/zn/zworld.h): its cells and chunks, none loaded. -1 when it is not there or damaged. */
+  int32_t worldOpen(String name) override {
+    uint32_t n = 0;
+    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+    if (!p) return -1;
+    const uint32_t nc = n >= 16 ? rd32(p + 8) : 0, nk = n >= 16 ? rd32(p + 12) : 0;
+    if (n < 16 || memcmp(p, "ZWD1", 4) || rd32(p + 4) != zn::zworld::kVersion || (uint64_t)16 + (uint64_t)nc * zn::zworld::kCell > n) { free(p); return -1; }
+    World* w = (World*)mem(sizeof(World));
+    memset(w, 0, sizeof(World));
+    w->scale = 1;
+    uint32_t slash = 0;
+    for (uint32_t i = 0; i < name.bytes() && i < sizeof(w->dir) - 1; i++) if (name.ptr()[i] == '/') slash = i + 1;
+    memcpy(w->dir, name.ptr(), slash < sizeof(w->dir) ? slash : 0);
+    w->c = (WCell*)mem(sizeof(WCell) * (nc ? nc : 1));
+    w->nc = (int32_t)nc;
+    const uint8_t* q = p + 16;
+    for (uint32_t i = 0; i < nc; i++, q += zn::zworld::kCell) {
+      WCell& c = w->c[i];
+      memset(&c, 0, sizeof c);
+      for (int a = 0; a < 3; a++) { c.mn[a] = rdf(q + 4 * a); c.mx[a] = rdf(q + 12 + 4 * a); }
+      c.reach[0] = rdf(q + 24); c.reach[1] = rdf(q + 28);
+      for (int l = 0; l < 3; l++) { const int32_t k = (int32_t)rd32(q + 32 + 4 * l); c.chunk[l] = k >= 0 && (uint32_t)k < nk ? k : -1; }
+      c.shown = -1;
     }
-    c.shown = c.from = c.lvl = -1;
-    s->order[s->n] = s->n;
-    return s->n++;
-  }
-  void cellPart(int32_t id, int32_t cell, int32_t level, int32_t mesh, Array<int32_t> mat) override {
-    CellSet* s = cellSets.at(id);
-    if (!s || cell < 0 || cell >= s->n || level < 0 || level >= CELL_LEVELS) return;
-    Cell& c = s->c[cell];
-    if (mesh < 0) {   // the level is in the pack but not loaded (any more)
-      c.np[level] = 0; c.loaded[level] = false;
-      if (c.shown == level) c.shown = -1;
-      if (c.from == level) c.from = -1;
-      return;
+    w->k = (WChunk*)mem(sizeof(WChunk) * (nk ? nk : 1));
+    w->nk = (int32_t)nk;
+    for (uint32_t i = 0; i < nk; i++) {
+      WChunk& k = w->k[i];
+      memset(&k, 0, sizeof k);
+      const uint32_t len = q + 8 <= p + n ? rd32(q + 4) : 0;
+      if (q + 8 + len > p + n) { w->nk = (int32_t)i; break; }
+      k.level = (int32_t)rd32(q);
+      k.name = (char*)mem(slash + len + 1);
+      memcpy(k.name, w->dir, slash); memcpy(k.name + slash, q + 8, len); k.name[slash + len] = 0;
+      q += 8 + ((len + 3) & ~3u);
     }
-    if (mat.length() < 6) return;
-    c.parts[level] = (CPart*)grown(c.parts[level], c.np[level], &c.capp[level], c.np[level] + 1, sizeof(CPart));
-    const int32_t* m = mat.a->data;
-    c.parts[level][c.np[level]++] = CPart{mesh, (uint32_t)m[0], m[1], m[2], (uint32_t)m[3], m[4], (uint32_t)m[5]};
-    c.loaded[level] = true; c.idle[level] = 0;
+    free(p);
+    return worlds.add(w);
   }
-  void cellsNight(int32_t id, bool on) override { if (CellSet* s = cellSets.at(id)) s->night = on; }
+  /** Loads a chunk: its batches become meshes (through meshLoad, so a GPU renderer keeps its own copy), its pictures are looked up. The
+   *  bytes read, or -1. */
+  int32_t worldLoad(int32_t id, int32_t chunk) override {
+    World* w = worlds.at(id);
+    if (!w || chunk < 0 || chunk >= w->nk) return -1;
+    WChunk& k = w->k[chunk];
+    if (k.loaded) return 0;
+    uint32_t n = 0;
+    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(k.name, (uint32_t)strlen(k.name), &n) : nullptr;
+    if (!p) {   // not in this device's packs (an asset rule left the level out): its cells no longer have that level
+      for (int32_t i = 0; i < w->nc; i++) if (w->c[i].chunk[k.level] == chunk) w->c[i].chunk[k.level] = -1;
+      return -1;
+    }
+    const uint32_t nb = n >= 16 ? rd32(p + 4) : 0, ns = n >= 16 ? rd32(p + 8) : 0, nn = n >= 16 ? rd32(p + 12) : 0;
+    if (n < 16 || memcmp(p, "ZWC1", 4) || (uint64_t)16 + (uint64_t)nb * zn::zworld::kBatch > n) { free(p); return -1; }
+    const uint8_t* end = p + n;
+    const uint8_t* q = p + 16 + nb * zn::zworld::kBatch;
+    int32_t names[256];
+    for (uint32_t i = 0; i < nn; i++) {   // the pictures, by name beside the index
+      const uint32_t len = q + 4 <= end ? rd32(q) : 0;
+      if (q + 4 + len > end) { free(p); return -1; }
+      char path[512];
+      const size_t dl = strlen(w->dir), l = len < sizeof(path) - dl - 1 ? len : sizeof(path) - dl - 1;
+      memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
+      if (i < 256) {
+        names[i] = raster::find_image(path, (uint32_t)(dl + l));
+        if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, (uint32_t)(dl + l));
+      }
+      q += 4 + ((len + 3) & ~3u);
+    }
+    if (q + (uint64_t)ns * 4 > end) { free(p); return -1; }
+    k.spans = (uint32_t*)mem(4 * (size_t)(ns ? ns : 1));
+    memcpy(k.spans, q, 4 * (size_t)ns);
+    q += 4 * (size_t)ns;
+    k.b = (WBatch*)mem(sizeof(WBatch) * (nb ? nb : 1));
+    k.nb = 0;
+    for (uint32_t i = 0; i < nb; i++) {
+      const uint8_t* r = p + 16 + i * zn::zworld::kBatch;
+      const uint32_t nv = rd32(r + 44), ni = rd32(r + 48), groups = rd32(r + 36), cells = rd32(r + 32), at = rd32(r + 40);
+      const size_t vbytes = (size_t)nv * zn::zworld::kVertex, ibytes = ((size_t)ni * 2 + 3) & ~(size_t)3;
+      if (!nv || nv > zn::zmesh::kMaxVertices || ni % 3 || q + vbytes + ibytes > end || (uint64_t)at + (uint64_t)cells * groups + 1 > ns) break;
+      bool ok = true;
+      for (uint32_t j = 0; j < ni && ok; j++) { uint16_t v; memcpy(&v, q + vbytes + 2 * j, 2); ok = v < nv; }
+      for (uint32_t j = 0; j <= cells * groups && ok; j++) ok = k.spans[at + j] <= ni;
+      if (!ok) break;
+      // the part as meshLoad takes it (include/zn/zmesh.h): float positions and normals, uvs, colours, the indices
+      const uint32_t flags = zn::zmesh::Uvs | zn::zmesh::Colors;
+      const size_t bytes = zn::zmesh::partBytes(nv, ni, flags);
+      Array<uint8_t> part = Array<uint8_t>::with_cap((int32_t)bytes);
+      part.a->len = (int32_t)bytes;
+      uint8_t* d = part.a->data;
+      memset(d, 0, zn::zmesh::kPartHeader);
+      memcpy(d, &nv, 4); memcpy(d + 4, &ni, 4); memcpy(d + 8, &flags, 4);
+      float* pos = (float*)(d + zn::zmesh::kPartHeader);
+      float* nrm = pos + 3 * (size_t)nv;
+      float* uv = nrm + 3 * (size_t)nv;
+      uint32_t* col = (uint32_t*)(uv + 2 * (size_t)nv);
+      const float o[3] = {rdf(r + 52), rdf(r + 56), rdf(r + 60)}, s[3] = {rdf(r + 64), rdf(r + 68), rdf(r + 72)}, us = rdf(r + 76);
+      for (uint32_t v = 0; v < nv; v++) {
+        const uint8_t* x = q + (size_t)v * zn::zworld::kVertex;
+        int16_t h[5]; memcpy(h, x, 10);
+        for (int a = 0; a < 3; a++) pos[v * 3 + a] = o[a] + ((float)h[a] + 32768.0f) / 65535.0f * s[a];
+        uv[v * 2] = h[3] * us; uv[v * 2 + 1] = h[4] * us;
+        col[v] = (uint32_t)x[10] << 16 | (uint32_t)x[11] << 8 | x[12];
+        float nx = (int8_t)x[14] / 127.0f, ny = (int8_t)x[15] / 127.0f, nz = (int8_t)x[16] / 127.0f, l = sqrtf(nx * nx + ny * ny + nz * nz);
+        if (l > 0) { nx /= l; ny /= l; nz /= l; }
+        nrm[v * 3] = nx; nrm[v * 3 + 1] = ny; nrm[v * 3 + 2] = nz;
+      }
+      memcpy(col + nv, q + vbytes, (size_t)ni * 2);
+      q += vbytes + ibytes;
+      const int32_t mesh = meshLoad(part, 0);
+      if (mesh < 0) break;
+      WBatch& b = k.b[k.nb++];
+      const int32_t tn = (int32_t)rd32(r + 20), nt = (int32_t)rd32(r + 24);
+      b.mesh = mesh; b.kind = rd32(r); b.flags = rd32(r + 4); b.color = rd32(r + 8); b.emis = rd32(r + 12); b.nemis = rd32(r + 16);
+      b.tex = tn >= 0 && tn < 256 && (uint32_t)tn < nn ? names[tn] : -1;
+      b.ntex = nt >= 0 && nt < 256 && (uint32_t)nt < nn ? names[nt] : -1;
+      if (nt >= 0 && b.ntex < 0) { b.ntex = b.tex; b.nemis = b.emis; }   // a night picture this device's packs leave out: the day's
+      else if (nt < 0) b.ntex = b.tex;
+      b.cell = (int32_t)rd32(r + 28); b.cells = cells; b.groups = groups; b.spans = k.spans + at;
+    }
+    free(p);
+    k.loaded = true; k.idle = 0;
+    return (int32_t)n;
+  }
+  /** Frees a chunk's meshes: its cells fall back to another level at the next select. */
+  void worldFree(int32_t id, int32_t chunk) override {
+    World* w = worlds.at(id);
+    if (!w || chunk < 0 || chunk >= w->nk || !w->k[chunk].loaded) return;
+    WChunk& k = w->k[chunk];
+    for (int32_t i = 0; i < k.nb; i++) meshDestroy(k.b[i].mesh);
+    mfree(k.b); mfree(k.spans);
+    k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
+  }
+  void worldNight(int32_t id, bool on) override { if (World* w = worlds.at(id)) w->night = on; }
 
-  /** prm: look x y z, half-angle, focal (pixels), tau (pixels), budget (triangles), reach, fogStart (metres), hysteresis (>= 1), hold
-   *  (calls), fade (seconds, 0 none), dt (seconds since the last call), idle (seconds before an unused level is named to free, 0 never).
-   *  out: triangles, draws, the count of levels to load and of levels to free, then (cell, level) pairs of each. */
-  void cellsSelect(int32_t id, Array<N> eyes, Array<N> prm, Array<int32_t> out) override {
-    CellSet* s = cellSets.at(id);
-    if (!s || prm.length() < 14 || eyes.length() < 3) return;
-    float P[14];
-    for (int i = 0; i < 14; i++) P[i] = F(prm.a->data[i]);
-    const float *look = P, half = P[3], focal = P[4], tau = P[5] > 0 ? P[5] : 1, reach = P[7], fogStart = P[8], fade = P[11], dt = P[12], idleMax = P[13];
+  /** One cell's indices of a batch, of which only the sectors in `arc` (all when count >= 16) for a batch ordered by sector. */
+  void ranges(World* w, int32_t chunk, int32_t batch, const WBatch& b, const WCell& c, int32_t ci, bool sectors) {
+    const uint32_t g = b.groups;
+    const uint32_t* s = b.spans + (size_t)(ci - b.cell) * g;
+    auto push = [&](uint32_t from, uint32_t to) {
+      if (to <= from) return;
+      WItem* last = w->ni ? &w->items[w->ni - 1] : nullptr;
+      if (last && last->chunk == chunk && last->batch == batch && last->to == from) { last->to = to; return; }   // continues the last
+      w->items = (WItem*)grown(w->items, w->ni, &w->icap, w->ni + 1, sizeof(WItem));
+      w->items[w->ni++] = WItem{chunk, batch, b.kind, from, to};
+    };
+    if (g != zn::zworld::kGroups || !sectors || c.arcN >= (int16_t)zn::zworld::kSectors) { push(s[0], s[g]); return; }
+    const int first = c.arc0, end = c.arc0 + c.arcN, S = zn::zworld::kSectors;
+    if (end <= S) { push(s[first], s[end]); push(s[S], s[g]); }
+    else { push(s[0], s[end - S]); push(s[first], s[g]); }
+  }
+
+  /** view: the camera's view matrix. eyes: the eye, then points it will pass (x, y, z each). prm: vertical field of view (radians), aspect,
+   *  near, far, near reach, mid reach (metres, scaled by the governor), budget (triangles), hysteresis (>= 1), sectors (0/1), dt (seconds),
+   *  idle (seconds before a chunk nobody wants is named to free; 0 never). out: triangles, draws, the governor's scale x 1000, the count of
+   *  chunks to load and to free, then the chunks to load (the coarse levels first, nearest first) and to free. */
+  void worldSelect(int32_t id, Array<N> view, Array<N> eyes, Array<N> prm, Array<int32_t> out) override {
+    World* w = worlds.at(id);
+    if (!w || prm.length() < 11 || eyes.length() < 3 || view.length() < 16) return;
+    float P[11];
+    for (int i = 0; i < 11; i++) P[i] = F(prm.a->data[i]);
+    const float nearR = P[4] * w->scale, midR = P[5] * w->scale, hyst = P[7] > 1 ? P[7] : 1, dt = P[9], idleMax = P[10];
     const int64_t budget = (int64_t)P[6];
-    const float hyst = P[9] > 1 ? P[9] : 1;
-    const int32_t hold = (int32_t)P[10];
+    const bool sectors = P[8] != 0;
+    // the frustum's planes from projection x view (Gribb and Hartmann), inside >= 0
+    float VP[16], pl[6][4];
+    {
+      const float asp = P[1] > 0 ? P[1] : 1, n = P[2], f = P[3], k = 1 / tanf(P[0] * 0.5f);
+      float Pm[16] = {0}, Vw[16];
+      Pm[0] = k / asp; Pm[5] = k; Pm[10] = (f + n) / (n - f); Pm[11] = -1; Pm[14] = 2 * f * n / (n - f);
+      for (int i = 0; i < 16; i++) Vw[i] = F(view.a->data[i]);
+      mul(VP, Pm, Vw);
+      for (int i = 0; i < 3; i++) for (int sgn = 0; sgn < 2; sgn++) {
+        float* q = pl[i * 2 + sgn];
+        for (int c = 0; c < 4; c++) q[c] = VP[c * 4 + 3] + (sgn ? -1.0f : 1.0f) * VP[c * 4 + i];
+      }
+    }
     int ne = eyes.length() / 3;
-    if (ne > CELL_POINTS) ne = CELL_POINTS;
-    float E[CELL_POINTS][3];
+    if (ne > WORLD_POINTS) ne = WORLD_POINTS;
+    float E[WORLD_POINTS][3];
     for (int k = 0; k < ne; k++) for (int a = 0; a < 3; a++) E[k][a] = F(eyes.a->data[k * 3 + a]);
-    Cell* C = s->c;
-    const int32_t n = s->n;
-    for (int32_t i = 0; i < n; i++) {
-      Cell& c = C[i];
-      c.d = boxDist(c, E[0]);
-      c.vis = c.d < reach && inCone(c, E[0], look, half);
-      if (c.hold > 0) c.hold--;
+    // each cell's level: by distance, coarser only past the distance times the hysteresis; the level wanted if loaded, else a coarser one
+    // that is, else a finer one (no holes); of its walls, the sectors that can face the eye
+    for (int32_t i = 0; i < w->nc; i++) {
+      WCell& c = w->c[i];
+      c.d = boxDist(c.mn, c.mx, E[0]);
+      c.vis = c.mn[1] <= c.mx[1] && inFrustum(pl, c.mn, c.mx);
+      if (!c.vis) { c.shown = -1; continue; }
+      const float r[2] = {c.reach[0] > 0 ? c.reach[0] : nearR, c.reach[1] > 0 ? c.reach[1] : midR};
+      int want = c.d < r[0] ? 0 : c.d < r[1] ? 1 : 2;
+      if (c.shown >= 0 && want > c.shown) { int l = c.shown; while (l < want && c.d >= r[l] * hyst) l++; want = l; }
+      int lvl = -1;
+      for (int l = want; l < 3 && lvl < 0; l++) if (c.chunk[l] >= 0 && w->k[c.chunk[l]].loaded) lvl = l;
+      for (int l = want - 1; l >= 0 && lvl < 0; l--) if (c.chunk[l] >= 0 && w->k[c.chunk[l]].loaded) lvl = l;
+      c.shown = (int8_t)lvl;
+      if (sectors && lvl >= 0) facing(E[0], c.mn, c.mx, &c.arc0, &c.arcN);
+      else c.arcN = (int16_t)zn::zworld::kSectors;
     }
-    int32_t* o = s->order;
-    for (int32_t k = 1; k < n; k++) {
-      const int32_t v = o[k]; const float d = C[v].d;
-      int32_t j = k - 1;
-      while (j >= 0 && C[o[j]].d > d) { o[j + 1] = o[j]; j--; }
-      o[j + 1] = v;
-    }
-    // the budget, coarse first: every cell in view gets its coarsest loaded level; over the budget, the farthest cells in the fog go
-    int64_t spent = 0;
-    for (int32_t k = 0; k < n; k++) {
-      Cell& c = C[o[k]];
-      c.lvl = (int8_t)(c.vis ? coarsest(c, true) : -1);
-      if (c.lvl >= 0) spent += c.tris[c.lvl];
-    }
-    for (int32_t k = n - 1; k >= 0 && spent > budget; k--) {
-      Cell& c = C[o[k]];
-      if (c.d <= fogStart) break;
-      if (c.lvl >= 0) { spent -= c.tris[c.lvl]; c.lvl = -1; }
-    }
-    // then the nearest cells first get the level their error asks for, while the budget lasts
-    for (int32_t k = 0; k < n; k++) {
-      Cell& c = C[o[k]];
-      if (c.lvl < 0) continue;
-      int want = ideal(c, c.d, focal, tau);
-      if (c.shown >= 0 && want > c.shown) {   // coarser than what it shows: only well past the threshold, and not while it holds
-        int w = c.shown;
-        if (c.hold <= 0) for (int l = want; l > c.shown; l--) if (present(c, l) && c.err[l] * focal * hyst <= tau * c.d) { w = l; break; }
-        want = w;
-      }
-      for (int l = want < 0 ? 0 : want; l < c.lvl; l++) {
-        if (!c.loaded[l]) continue;
-        const int64_t more = (int64_t)c.tris[l] - c.tris[c.lvl];
-        if (spent + more <= budget) { spent += more; c.lvl = (int8_t)l; break; }
+    // the ranges: of every loaded chunk's batches, the cells that show the chunk's level
+    w->ni = 0;
+    int64_t tris = 0;
+    for (int32_t k = 0; k < w->nk; k++) {
+      const WChunk& ch = w->k[k];
+      if (!ch.loaded) continue;
+      for (int32_t j = 0; j < ch.nb; j++) {
+        const WBatch& b = ch.b[j];
+        for (uint32_t ci = 0; ci < b.cells; ci++) {
+          const int32_t cell = b.cell + (int32_t)ci;
+          if (cell < 0 || cell >= w->nc) continue;
+          const WCell& c = w->c[cell];
+          if (c.shown != ch.level || c.chunk[ch.level] != k) continue;
+          ranges(w, k, j, b, c, cell, sectors);
+        }
       }
     }
-    // the changes: a fade from the level shown before, a hold; what is drawn
-    int32_t tris = 0, draws = 0;
-    s->fading = false; s->fade = fade;
-    for (int32_t i = 0; i < n; i++) {
-      Cell& c = C[i];
-      if (c.lvl != c.shown) {
-        c.from = (int8_t)(fade > 0 && c.shown >= 0 && c.lvl >= 0 && c.loaded[c.shown] ? c.shown : -1);
-        c.fadeT = 0;
-        if (c.shown >= 0 && c.lvl >= 0) c.hold = hold;
-        c.shown = c.lvl;
-      } else if (c.from >= 0 && (c.fadeT += dt) >= fade) c.from = -1;
-      if (c.from >= 0 && !c.loaded[c.from]) c.from = -1;
-      if (c.shown >= 0) { tris += c.tris[c.shown]; draws += c.np[c.shown]; }
-      if (c.from >= 0) { tris += c.tris[c.from]; draws += c.np[c.from]; s->fading = true; }
+    for (int32_t t = 0; t < w->ni; t++) tris += (w->items[t].to - w->items[t].from) / 3;
+    qsort(w->items, (size_t)w->ni, sizeof(WItem), itemOrder);
+    // the governor (tokyo-sim view.rs Governor): the distances in quickly over the budget, out slowly under 88% of it
+    if (budget > 0) {
+      if (tris > budget) w->scale *= 0.97f;
+      else if ((float)tris < budget * 0.88f) w->scale *= 1.008f;
+      w->scale = w->scale < 0.25f ? 0.25f : w->scale > 1 ? 1 : w->scale;
     }
-    // the levels to load, for the eye and the points ahead: a cell's coarsest level first (without it the cell is missing), then the
-    // finer levels the error asks for; nearest first. And the levels nobody has wanted for `idle` seconds, to free.
-    struct Ask { int32_t cell, level; float key; };
-    Ask ask[CELL_ASK], freed[CELL_FREE];
-    int na = 0, nf = 0;
-    const float FAR_KEY = 1e7f, NONE = 1e30f;
-    for (int32_t i = 0; i < n; i++) {
-      Cell& c = C[i];
-      const int cl = coarsest(c, false);
+    // the chunks to load: for the eye and the points after it, each cell's coarsest level (without it the cell is missing), then the
+    // level its distance asks for; nearest first. And those nobody has wanted for `idle` seconds, to free (never a coarsest level).
+    const float NONE = 1e30f, LATER = 1e7f;
+    for (int32_t k = 0; k < w->nk; k++) w->k[k].need = NONE;
+    for (int32_t i = 0; i < w->nc; i++) {
+      const WCell& c = w->c[i];
+      int cl = -1;
+      for (int l = 2; l >= 0 && cl < 0; l--) if (c.chunk[l] >= 0) cl = l;
       if (cl < 0) continue;
-      float need[CELL_LEVELS] = {NONE, NONE, NONE}, any = NONE;
-      for (int k = 0; k < ne; k++) {
-        const float d = k == 0 ? c.d : boxDist(c, E[k]);
-        if (d >= reach) continue;
-        if (d < any) any = d;
-        const int w = ideal(c, d, focal, tau);
-        if (d < need[w]) need[w] = d;
+      const float r[2] = {c.reach[0] > 0 ? c.reach[0] : nearR, c.reach[1] > 0 ? c.reach[1] : midR};
+      for (int e = 0; e < ne; e++) {
+        const float d = e == 0 ? c.d : boxDist(c.mn, c.mx, E[e]);
+        WChunk& co = w->k[c.chunk[cl]];
+        if (d < co.need) co.need = d;
+        int want = d < r[0] ? 0 : d < r[1] ? 1 : 2;
+        while (want < cl && c.chunk[want] < 0) want++;
+        if (want < cl) { WChunk& ch = w->k[c.chunk[want]]; if (LATER + d < ch.need) ch.need = LATER + d; }
       }
-      if (any < NONE) need[cl] = any;
-      for (int l = 0; l < CELL_LEVELS; l++) {
-        if (!c.loaded[l]) continue;
-        if (l == c.shown || l == c.from || need[l] < NONE) c.idle[l] = 0;
-        else c.idle[l] += dt;
-        if (idleMax > 0 && l != cl && c.idle[l] > idleMax && nf < CELL_FREE) { freed[nf++] = Ask{i, l, 0}; c.idle[l] = 0; }
+    }
+    int32_t ask[WORLD_ASK], freed[WORLD_FREE];
+    int na = 0, nf = 0;
+    for (int32_t k = 0; k < w->nk; k++) {
+      WChunk& ch = w->k[k];
+      if (ch.loaded) {
+        if (ch.need < NONE || ch.level == 2) ch.idle = 0;
+        else if ((ch.idle += dt) > idleMax && idleMax > 0 && nf < WORLD_FREE) { freed[nf++] = k; ch.idle = 0; }
+        continue;
       }
-      for (int l = 0; l <= cl; l++) {
-        if (need[l] >= NONE || !present(c, l) || c.loaded[l]) continue;
-        const float key = (l == cl ? 0 : FAR_KEY) + need[l];
-        if (na == CELL_ASK && key >= ask[na - 1].key) continue;
-        int j = na < CELL_ASK ? na++ : na - 1;
-        while (j > 0 && ask[j - 1].key > key) { ask[j] = ask[j - 1]; j--; }
-        ask[j] = Ask{i, l, key};
-      }
+      if (ch.need >= NONE || (na == WORLD_ASK && ch.need >= w->k[ask[na - 1]].need)) continue;
+      int j = na < WORLD_ASK ? na++ : na - 1;
+      while (j > 0 && w->k[ask[j - 1]].need > ch.need) { ask[j] = ask[j - 1]; j--; }
+      ask[j] = k;
     }
     out.set_length(0);
-    out.push(tris); out.push(draws); out.push(na); out.push(nf);
-    for (int k = 0; k < na; k++) { out.push(ask[k].cell); out.push(ask[k].level); }
-    for (int k = 0; k < nf; k++) { out.push(freed[k].cell); out.push(freed[k].level); }
+    out.push((int32_t)tris); out.push(w->ni); out.push((int32_t)(w->scale * 1000)); out.push(na); out.push(nf);
+    for (int k = 0; k < na; k++) out.push(ask[k]);
+    for (int k = 0; k < nf; k++) out.push(freed[k]);
   }
-  /** pass 0: the levels shown, opaque, sorted by texture and emissive colour; pass 1: the levels fading out, blended over them. */
-  void cellsDraw(int32_t id, int32_t pass) override {
-    CellSet* s = cellSets.at(id);
-    if (!s || (pass == 1 && !s->fading)) return;
+  /** Draws the ranges worldSelect chose, in its order (by kind, then batch): state changes only between batches. */
+  void worldDraw(int32_t id) override {
+    World* w = worlds.at(id);
+    if (!w) return;
     if (!ident.a) { ident = Array<N>::with_cap(16); for (int i = 0; i < 16; i++) ident.push_raw(N(i % 5 == 0 ? 1 : 0)); }
     specular(0, N(30));
     uint32_t e = 0;
-    const bool night = s->night;
-    if (pass == 1) {   // few parts: in cell order, each with its cell's opacity
-      for (int32_t i = 0; i < s->n; i++) {
-        const Cell& c = s->c[i];
-        if (c.from < 0) continue;
-        float k = s->fade > 0 ? 1 - c.fadeT / s->fade : 0;
-        const int32_t a = (int32_t)(k * 255);
-        if (a <= 0) continue;
-        for (int32_t p = 0; p < c.np[c.from]; p++) {
-          const CPart& q = c.parts[c.from][p];
-          const uint32_t em = night ? q.nemis : q.emis;
-          if (em != e) { emissive(em); e = em; }
-          draw(q.mesh, ident, q.color, night ? q.ntex : q.tex, (q.flags & ~(0x3FF << 6)) | ALPHA << 6 | (a > 255 ? 255 : a) << 8);
-        }
-      }
-    } else {
-      int32_t m = 0;
-      for (int32_t i = 0; i < s->n; i++) if (s->c[i].shown >= 0) m += s->c[i].np[s->c[i].shown];
-      s->list = (const CPart**)grown(s->list, 0, &s->lcap, m, sizeof(CPart*));
-      m = 0;
-      for (int32_t i = 0; i < s->n; i++) {
-        const Cell& c = s->c[i];
-        if (c.shown >= 0) for (int32_t p = 0; p < c.np[c.shown]; p++) s->list[m++] = &c.parts[c.shown][p];
-      }
-      qsort(s->list, (size_t)m, sizeof(CPart*), night ? partsByNight : partsByDay);
-      for (int32_t k = 0; k < m; k++) {
-        const CPart& q = *s->list[k];
-        const uint32_t em = night ? q.nemis : q.emis;
-        if (em != e) { emissive(em); e = em; }
-        draw(q.mesh, ident, q.color, night ? q.ntex : q.tex, q.flags);
-      }
+    for (int32_t i = 0; i < w->ni; i++) {
+      const WItem& it = w->items[i];
+      const WChunk& ch = w->k[it.chunk];
+      if (!ch.loaded || it.batch >= ch.nb) continue;   // freed since the select
+      const WBatch& b = ch.b[it.batch];
+      const uint32_t em = w->night ? b.nemis : b.emis;
+      if (em != e) { emissive(em); e = em; }
+      rFirst = (int32_t)it.from; rCount = (int32_t)(it.to - it.from);
+      draw(b.mesh, ident, b.color, w->night ? b.ntex : b.tex, (int32_t)b.flags);
     }
+    rFirst = 0; rCount = -1;
     if (e) emissive(0);
   }
+
 
   int32_t end() override {
     if (!cur) return 0;

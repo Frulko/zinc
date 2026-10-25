@@ -5,10 +5,9 @@
   "assets": {
     "dir": "assets",
     "rules": [
-      { "match": "city/*.glb", "as": "model", "format": "zmesh" },
       { "match": "city/*.png", "as": "texture", "mipmaps": false },
-      { "match": "city/*.near.{glb,png}", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
-      { "match": "city/landmark*.near.glb", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true } } },
+      { "match": "city/c*.near.zwc", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
+      { "match": "city/b*.near.png", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
       { "match": "city/*night*.png", "targets": { "psp": { "skip": true } } },
       { "match": "city/b*.png", "targets": { "psp": { "maxSize": 64 }, "n3ds": { "maxSize": 128 }, "vita": { "maxSize": 128 } } },
       { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 256 }, "n3ds": { "maxSize": 256 } } }

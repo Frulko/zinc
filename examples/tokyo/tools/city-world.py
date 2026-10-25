@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Pocket Tokyo's city as glTF: reads a cooked pack of pocket-nexus/pocket-tokyo (TKPK v3, the `ipod60` profile: OpenGL ES vertices
-and 16-bit pictures, crates/tokyo-pack/src/lib.rs) and writes, for each block of 512 m, one GLB per level of detail the cook made
-(near, mid, far) plus the PNG pictures they name, the Tokyo Tower at its three levels, the heights and the tour. The project's
-zinc.json then imports them like any model (`zinc assets build`: gltfpack, .zmesh for zinc:3d, the textures per target).
+"""Pocket Tokyo's city as a zinc:3d world: reads a cooked pack of pocket-nexus/pocket-tokyo (TKPK v3, the `ipod60` profile: OpenGL ES
+vertices and 16-bit pictures, crates/tokyo-pack/src/lib.rs) and writes a world (include/zn/zworld.h) that keeps the pack's batches and
+their spans as they are: the index `city.zworld` (its 768 cells of 128 m and the Tokyo Tower), the far level of the whole city in one
+chunk (`far.zwc`), the mid level a chunk per block of 512 m (`b<x>_<z>.mid.zwc`), the near level a chunk per cell (`c<n>.near.zwc`), the
+tower a chunk per level; the PNG pictures they name, the heights and the tour. zinc:3d's World (plugins/3d/index.ts) reads it.
 
-  python3 -I examples/tokyo/tools/city-gltf.py fetch [cache dir]          # the public pack (177 MB, SHA-256 checked) into ~/.zinc/cache/tokyo
-  python3 -I examples/tokyo/tools/city-gltf.py build <pack> <out dir>     # the GLBs, PNGs and city.json
+  python3 -I examples/tokyo/tools/city-world.py fetch [cache dir]          # the public pack (177 MB, SHA-256 checked) into ~/.zinc/cache/tokyo
+  python3 -I examples/tokyo/tools/city-world.py build <pack> <out dir>     # the world, its pictures, heights.bin and city.txt
 
 Python's standard library only. The pack's data keeps its sources' terms (PLATEAU, GSI, OpenStreetMap: ODbL); it is not committed.
 """
@@ -85,31 +86,6 @@ class Mesh:
     def __init__(self, material):
         self.material, self.pos, self.nrm, self.uv, self.col, self.idx = material, [], [], [], [], []
 
-
-TILES = 2   # a block's models are cut into TILES x TILES tiles (256 m): small reads, a finer choice of level
-
-
-def split(meshes, x0, z0, step):
-    """Cuts the meshes of a block (a dict kind -> Mesh) into tiles of `step` metres, each triangle to the tile of its centroid:
-    a dict (i, j) -> {kind: Mesh}."""
-    tiles, maps = {}, {}
-    for kind, m in meshes.items():
-        p = m.pos
-        for t in range(0, len(m.idx), 3):
-            tri = m.idx[t:t + 3]
-            cx = sum(p[v * 3] for v in tri) / 3.0
-            cz = sum(p[v * 3 + 2] for v in tri) / 3.0
-            ij = (min(TILES - 1, max(0, int((cx - x0) // step))), min(TILES - 1, max(0, int((cz - z0) // step))))
-            out = tiles.setdefault(ij, {k: Mesh(k) for k in meshes})[kind]
-            rm = maps.setdefault((ij, kind), {})
-            for v in tri:
-                if v not in rm:
-                    rm[v] = len(out.pos) // 3
-                    out.pos += p[v * 3:v * 3 + 3]; out.nrm += m.nrm[v * 3:v * 3 + 3]
-                    if m.uv: out.uv += m.uv[v * 2:v * 2 + 2]
-                    if m.col: out.col += m.col[v * 3:v * 3 + 3]
-                out.idx.append(rm[v])
-    return tiles
 
 
 def unpack_batch(pk, batch, verts, idx_bytes, frame, out, uv_frame=None):
@@ -200,65 +176,94 @@ def write_png(path, w, h, rgb):
         f.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 6)) + chunk(b'IEND', b''))
 
 
-# ---------------------------------------------------------------- glTF
-MATERIALS = {TOP: 'ground', WALL: 'facade', SOLID: 'paint', OPEN: 'steel'}
+
+# ---------------------------------------------------------------- the world (include/zn/zworld.h)
+GROUPS = SECTORS + 1           # a cell's index groups when its faces are ordered by sector: 16 compass sectors, then up and down
+VCOL, DOUBLE = 1, 8            # zinc:3d draw flags
+NIGHT_LIT = 0xffffff           # a night picture is lit by itself: its light is in the picture
+LANDMARK_GLOW = 0xa0a0a0       # the tower's painted members by night (the pack's alpha 191: floodlights)
+NO_SPANS = 0xffffffff
 
 
-def write_glb(path, meshes, images):
-    """`meshes`: Mesh list; `images`: material name -> picture URI (beside the GLB)."""
-    meshes = [m for m in meshes if m.idx]
-    if not meshes: return 0
-    bin_, views, accessors, prims, mats, texs, imgs = bytearray(), [], [], [], [], [], []
+def quantise(m):
+    """A batch's vertices as zworld's 20-byte records over its own box: s16 position, s16 uv, RGBA8 colour, s8 normal."""
+    P, n = m.pos, len(m.pos) // 3
+    lo = [min(P[a::3]) for a in range(3)]
+    sc = [max(max(P[a::3]) - lo[a], 1e-3) for a in range(3)]
+    us = max(max((abs(v) for v in m.uv), default=0), 1e-6) / 32767
+    c8 = lambda v: max(0, min(255, int(round(v * 255))))
+    s8 = lambda v: max(-127, min(127, int(round(v * 127))))
+    buf = bytearray()
+    for i in range(n):
+        q = [max(-32768, min(32767, int(round((P[i * 3 + a] - lo[a]) / sc[a] * 65535)) - 32768)) for a in range(3)]
+        u = (int(round(m.uv[i * 2] / us)), int(round(m.uv[i * 2 + 1] / us))) if m.uv else (0, 0)
+        c = m.col[i * 3:i * 3 + 3] if m.col else (1.0, 1.0, 1.0)
+        nn = m.nrm[i * 3:i * 3 + 3]
+        buf += struct.pack('<3h2h4B3b3x', q[0], q[1], q[2], u[0], u[1], c8(c[0]), c8(c[1]), c8(c[2]), 255, s8(nn[0]), s8(nn[1]), s8(nn[2]))
+    return lo, sc, us, buf
 
-    def view(data, target):
-        while len(bin_) % 4: bin_.append(0)
-        views.append({'buffer': 0, 'byteOffset': len(bin_), 'byteLength': len(data), 'target': target})
-        bin_.extend(data)
-        return len(views) - 1
 
-    def acc(values, comps, kind, minmax=False):
-        fmt = '<%df' % len(values)
-        a = {'bufferView': view(struct.pack(fmt, *values), 34962), 'componentType': 5126, 'count': len(values) // comps, 'type': kind}
-        if minmax:
-            a['min'] = [min(values[i::comps]) for i in range(comps)]
-            a['max'] = [max(values[i::comps]) for i in range(comps)]
-        accessors.append(a)
-        return len(accessors) - 1
+def batch(pk, bi, verts, idx, frame, cell_first, cells, pics, landmark=False):
+    """One of the pack's batches as a zworld batch: its triangles, its material by day and by night, its spans (where each of its cells,
+    and each sector of a cell, starts in its indices)."""
+    b = pk.batches[bi]
+    kind, icount, spans_at = b[0], b[4], b[11]
+    ms = {k: Mesh(k) for k in (TOP, WALL, SOLID, OPEN)}
+    unpack_batch(pk, b, verts, idx, frame, ms)
+    m = ms[kind]
+    by_sector = kind == WALL or (pk.flags & 1 and kind == SOLID)   # tokyo-sim view.rs by_sector (FACED: solids too)
+    if spans_at == NO_SPANS:   # in no order: one group, the cell's whole
+        assert cells == 1, bi
+        groups, spans = 1, [0, icount]
+    else:
+        groups = GROUPS if by_sector or cells == 1 else 1   # a record of its own (near, landmark): ordered by sector
+        spans = list(pk.spans[spans_at:spans_at + cells * groups + 1])
+        assert spans[0] == 0 and spans[-1] == icount, (bi, spans[0], spans[-1], icount)
+    tex = ntex = None
+    emis, nemis = 0, 0
+    if kind == TOP: tex, ntex, nemis = pics
+    elif kind == WALL: tex, ntex, nemis = 'facade.png', 'facade-night.png', NIGHT_LIT
+    elif landmark: nemis = LANDMARK_GLOW
+    return {'kind': kind, 'flags': VCOL | (DOUBLE if kind == OPEN else 0), 'tex': tex, 'ntex': ntex, 'emis': emis, 'nemis': nemis,
+            'cell': cell_first, 'cells': cells, 'groups': groups, 'spans': spans, 'mesh': m}
 
-    for m in meshes:
-        name = MATERIALS[m.material]
-        attrs = {'POSITION': acc(m.pos, 3, 'VEC3', True), 'NORMAL': acc(m.nrm, 3, 'VEC3'), 'COLOR_0': acc(m.col, 3, 'VEC3')}
-        if m.uv: attrs['TEXCOORD_0'] = acc(m.uv, 2, 'VEC2')
-        big = len(m.pos) // 3 > 65535
-        idx = struct.pack('<%d%s' % (len(m.idx), 'I' if big else 'H'), *m.idx)
-        accessors.append({'bufferView': view(idx, 34963), 'componentType': 5125 if big else 5123, 'count': len(m.idx), 'type': 'SCALAR'})
-        mat = {'name': name, 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0, 'roughnessFactor': 1}}
-        if m.material == OPEN: mat['doubleSided'] = True
-        if name in images and m.uv:
-            imgs.append({'uri': images[name]}); texs.append({'source': len(imgs) - 1})
-            mat['pbrMetallicRoughness']['baseColorTexture'] = {'index': len(texs) - 1}
-        mats.append(mat)
-        prims.append({'attributes': attrs, 'indices': len(accessors) - 1, 'material': len(mats) - 1})
-    gltf = {'asset': {'version': '2.0', 'generator': 'zinc examples/tokyo city-gltf.py'}, 'scene': 0, 'scenes': [{'nodes': [0]}],
-            'nodes': [{'mesh': 0, 'name': os.path.basename(path)}], 'meshes': [{'primitives': prims}], 'materials': mats,
-            'accessors': accessors, 'bufferViews': views, 'buffers': [{'byteLength': len(bin_)}]}
-    if imgs: gltf['images'], gltf['textures'] = imgs, texs
-    js = json.dumps(gltf, separators=(',', ':')).encode()
-    js += b' ' * (-len(js) % 4)
-    while len(bin_) % 4: bin_.append(0)
-    with open(path, 'wb') as f:
-        f.write(struct.pack('<III', 0x46546C67, 2, 12 + 8 + len(js) + 8 + len(bin_)))
-        f.write(struct.pack('<II', len(js), 0x4E4F534A) + js + struct.pack('<II', len(bin_), 0x004E4942) + bin_)
-    return sum(len(m.idx) // 3 for m in meshes)
+
+def write_chunk(path, batches):
+    """A zworld chunk: what one level of a few cells draws, loaded and freed as one."""
+    names, recs, spans, data = [], bytearray(), [], bytearray()
+    def name(s):
+        if s is None: return -1
+        if s not in names: names.append(s)
+        return names.index(s)
+    tris = 0
+    for b in batches:
+        m = b['mesh']
+        if not m.idx: continue
+        lo, sc, us, vb = quantise(m)
+        recs += struct.pack('<5I3i5I8f', b['kind'], b['flags'], 0xffffff, b['emis'], b['nemis'], name(b['tex']), name(b['ntex']), b['cell'], b['cells'],
+                            b['groups'], len(spans), len(m.pos) // 3, len(m.idx), lo[0], lo[1], lo[2], sc[0], sc[1], sc[2], us, 0.0)
+        spans += b['spans']
+        data += vb + struct.pack('<%dH' % len(m.idx), *m.idx)
+        while len(data) % 4: data.append(0)
+        tris += len(m.idx) // 3
+    out = bytearray(struct.pack('<4sIII', b'ZWC1', len(recs) // 84, len(spans), len(names))) + recs
+    for s in names:
+        e = s.encode()
+        out += struct.pack('<I', len(e)) + e + b'\0' * (-len(e) % 4)
+    out += struct.pack('<%dI' % len(spans), *spans) + data
+    with open(path, 'wb') as f: f.write(out)
+    return tris
 
 
 def build(pack_path, out):
     pk = Pack(pack_path)
+    pk.spans = struct.unpack('<%dI' % (len(pk.section('SPAN')) // 4), pk.section('SPAN'))
     os.makedirs(out, exist_ok=True)
     gverts = {TOP: pk.section('VTOP'), WALL: pk.section('VWAL'), SOLID: pk.section('VSOL')}
     gidx = pk.section('IDX0')
-    htex, near = pk.section('HTEX'), pk.section('NEAR')
+    htex = pk.section('HTEX')
     no, _ = pk.sec['NEAR']
+    per = pk.cells ** 2
 
     # the facades: the day picture, then what the windows emit (levels each; the largest is first)
     off, size, fw, fh, levels = pk.hpic[-1]
@@ -274,7 +279,10 @@ def build(pack_path, out):
     lamp_side = int(math.sqrt(len(lamp) // 2))
     lamps = struct.unpack('<%dH' % (lamp_side * lamp_side), lamp)
 
-    blocks = []
+    # the cells (the pack's, 128 m, a block's in a row) and the chunks that hold their levels: the far level of the whole city in one, the
+    # mid level a chunk per block, the near level a chunk per cell
+    cells = [{'box': list(pk.cell_tab[c][0:6]), 'reach': (0.0, 0.0), 'chunks': [-1, -1, 0]} for c in range(pk.bx * pk.bz * per)]
+    chunks, far, total = [('far.zwc', 2)], [], [0, 0, 0]
     for b in range(pk.bx * pk.bz):
         bx, bz = b % pk.bx, b // pk.bx
         frame = (pk.x0 + bx * pk.block, pk.z0 + bz * pk.block, pk.block)
@@ -283,28 +291,23 @@ def build(pack_path, out):
         ground = rgb565(htex, off, gw, gw)
         write_png(os.path.join(out, stem + '.png'), gw, gw, ground)
         write_png(os.path.join(out, stem + '.night.png'), gw, gw, night_ground(pk, ground, gw, frame, lamps, lamp_side))
-        step = pk.block / TILES
-        recs = {(i, j): {'name': 't%d_%d' % (bx * TILES + i, bz * TILES + j), 'ground': stem, 'x': frame[0] + i * step, 'z': frame[1] + j * step,
-                         'side': step, 'yMin': pk.blocks[b][0], 'yMax': pk.blocks[b][1], 'tris': {}} for i in range(TILES) for j in range(TILES)}
-
-        def tiled(meshes, lod, pic):   # writes each tile's model of one level, the block's picture shared
-            for ij, ms in split(meshes, frame[0], frame[1], step).items():
-                n = write_glb(os.path.join(out, '%s.%s.glb' % (recs[ij]['name'], lod)), ms.values(), {'ground': pic, 'facade': 'facade.png'})
-                if n: recs[ij]['tris'][lod] = n
-        # mid (the block's batches) and far (its region's): the block's own picture
-        for lod, draws in (('mid', pk.blocks[b][2:4]), ('far', pk.regions[b][2:4])):
-            meshes = {k: Mesh(k) for k in (TOP, WALL, SOLID, OPEN)}
-            for i in range(draws[0], draws[0] + draws[1]):
-                unpack_batch(pk, pk.batches[i], gverts, gidx, frame, meshes)
-            tiled(meshes, lod, stem + '.png')
+        pics = (stem + '.png', stem + '.night.png', NIGHT_LIT)
+        bf, bc = pk.blocks[b][2:4]
+        mid = [batch(pk, i, gverts, gidx, frame, b * per, per, pics) for i in range(bf, bf + bc)]
+        if mid:
+            total[1] += write_chunk(os.path.join(out, stem + '.mid.zwc'), mid)
+            chunks.append((stem + '.mid.zwc', 1))
+            for c in range(per): cells[b * per + c]['chunks'][1] = len(chunks) - 1
+        rf, rc = pk.regions[b][2:4]
+        far += [batch(pk, i, gverts, gidx, frame, b * per, per, pics) for i in range(rf, rf + rc)]
         # near: each cell's record, its ground in one picture of the block at the cells' resolution
-        meshes = {k: Mesh(k) for k in (TOP, WALL, SOLID, OPEN)}
-        cw = max((pk.ncel[b * pk.cells ** 2 + c][7] for c in range(pk.cells ** 2)), default=0)
+        cw = max((pk.ncel[b * per + c][7] for c in range(per)), default=0)
         side = cw * pk.cells if cw else 0
         pic = bytearray(side * side * 3) if side else None
-        have = [False] * pk.cells ** 2
-        for c in range(pk.cells ** 2):
-            cid = b * pk.cells ** 2 + c
+        have = [False] * per
+        npics = (stem + '.near.png', stem + '.night.png', NIGHT_LIT)
+        for c in range(per):
+            cid = b * per + c
             nc = pk.ncel[cid]
             first, count = pk.cell_tab[cid][6:8]
             if nc[1] == 0 or count == 0: continue
@@ -313,8 +316,11 @@ def build(pack_path, out):
                 parts.append(at); at += (s + 15) & ~15
             rec_verts = {TOP: pk.b[parts[0]:parts[0] + nc[2]], WALL: pk.b[parts[1]:parts[1] + nc[3]], SOLID: pk.b[parts[2]:parts[2] + nc[4]]}
             rec_idx = pk.b[parts[3]:parts[3] + nc[5]]
-            for i in range(first, first + count):
-                unpack_batch(pk, pk.batches[i], rec_verts, rec_idx, frame, meshes)
+            near = [batch(pk, i, rec_verts, rec_idx, frame, cid, 1, npics) for i in range(first, first + count)]
+            name = 'c%d.near.zwc' % cid
+            total[0] += write_chunk(os.path.join(out, name), near)
+            chunks.append((name, 0))
+            cells[cid]['chunks'][0] = len(chunks) - 1
             w = nc[7]
             if w == cw:
                 cx, cz = c % pk.cells, c // pk.cells
@@ -331,26 +337,33 @@ def build(pack_path, out):
                     o, s = (yy * side + xx) * 3, ((yy // k) * gw + xx // k) * 3
                     pic[o:o + 3] = ground[s:s + 3]
             write_png(os.path.join(out, stem + '.near.png'), side, side, pic)
-            tiled(meshes, 'near', stem + '.near.png')
-        blocks += [r for r in recs.values() if r['tris']]
-        print('\rgltf: block %d/%d' % (b + 1, pk.bx * pk.bz), end='', file=sys.stderr)
+        print('\rworld: block %d/%d' % (b + 1, pk.bx * pk.bz), end='', file=sys.stderr)
     print(file=sys.stderr)
+    total[2] += write_chunk(os.path.join(out, 'far.zwc'), far)
 
-    # the landmarks (Tokyo Tower): a model at three levels, chosen by distance alone
-    marks = []
+    # the landmarks (Tokyo Tower): a cell of their own, a chunk a level, their own distances between the levels
     for m, l in enumerate(pk.land):
         lo, hi, lods, reach, blk = l[0:3], l[3:6], l[6:12], l[12:14], l[14]
         bx, bz = blk % pk.bx, blk // pk.bx
         frame = (pk.x0 + bx * pk.block, pk.z0 + bz * pk.block, pk.block)
-        rec = {'name': 'landmark%d' % m, 'min': lo, 'max': hi, 'reach': reach, 'tris': {}}
+        cell = {'box': list(lo) + list(hi), 'reach': tuple(reach), 'chunks': [-1, -1, -1]}
         for k, lod in enumerate(('near', 'mid', 'far')):
-            meshes = {k2: Mesh(k2) for k2 in (TOP, WALL, SOLID, OPEN)}
             first, count = lods[k * 2], lods[k * 2 + 1]
-            for i in range(first, first + count):
-                unpack_batch(pk, pk.batches[i], gverts, gidx, frame, meshes)   # OPEN: solids seen from both sides
-            n = write_glb(os.path.join(out, '%s.%s.glb' % (rec['name'], lod)), meshes.values(), {})
-            if n: rec['tris'][lod] = n
-        marks.append(rec)
+            bs = [batch(pk, i, gverts, gidx, frame, len(cells), 1, (None, None, 0), True) for i in range(first, first + count)]
+            if not bs: continue
+            name = 'landmark%d.%s.zwc' % (m, lod)
+            write_chunk(os.path.join(out, name), bs)
+            chunks.append((name, k))
+            cell['chunks'][k] = len(chunks) - 1
+        cells.append(cell)
+
+    # the index: the cells and the chunks
+    idx = bytearray(struct.pack('<4sIII', b'ZWD1', 1, len(cells), len(chunks)))
+    for c in cells: idx += struct.pack('<8f3i', *c['box'], c['reach'][0], c['reach'][1], *c['chunks'])
+    for name, level in chunks:
+        e = name.encode()
+        idx += struct.pack('<II', level, len(e)) + e + b'\0' * (-len(e) % 4)
+    with open(os.path.join(out, 'city.zworld'), 'wb') as f: f.write(idx)
 
     # the heights, at 8 m: the highest of what each cell covers, in metres above y0, one byte per 2 m
     hm = struct.unpack('<%dH' % (pk.gw * pk.gh), pk.section('HMAP'))
@@ -369,15 +382,10 @@ def build(pack_path, out):
              'view ' + ' '.join(g(v) for v in pk.view),
              'heights %s %s %s %d %d %s 2' % (g(pk.gx0), g(pk.gz0), g(pk.gstep * k), w, h, g(pk.y0))]
     lines += ['tour ' + ' '.join(g(v) for v in tour[i:i + 6]) for i in range(0, len(tour), 6)]
-    lines += ['tile %s %s %s %s %s %s %d %d %d %s' % (b['name'], g(b['x']), g(b['z']), g(b['side']), g(b['yMin']), g(b['yMax']),
-              b['tris'].get('near', 0), b['tris'].get('mid', 0), b['tris'].get('far', 0), b['ground']) for b in blocks]
-    lines += ['landmark %s %s %s %s %d %d %d' % (m['name'], ' '.join(g(v) for v in m['min']), ' '.join(g(v) for v in m['max']),
-              ' '.join(g(v) for v in m['reach']), m['tris'].get('near', 0), m['tris'].get('mid', 0), m['tris'].get('far', 0)) for m in marks]
     lines += ['credit ' + a for a in pk.meta.get('source', {}).get('attribution', [])]
     with open(os.path.join(out, 'city.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
-    total = {lod: sum(b['tris'].get(lod, 0) for b in blocks) for lod in ('near', 'mid', 'far')}
-    print('gltf: %d tiles, triangles %s -> %s' % (len(blocks), total, out))
+    print('world: %d cells, %d chunks, triangles near %d, mid %d, far %d -> %s' % (len(cells), len(chunks), total[0], total[1], total[2], out))
 
 
 if __name__ == '__main__':

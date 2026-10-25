@@ -8,23 +8,24 @@ frame times measured.
 ## Make the city
 
 The city data is not in git: 177 MB of PLATEAU and OpenStreetMap data. Fetch Pocket Tokyo's published pack once. The script checks its
-SHA-256. Then turn it into glTF files, one per 256 m tile and level of detail:
+SHA-256. Then turn it into a zinc:3d world (`include/zn/zworld.h`): the 769 cells of 128 m, the far level of the whole city in one chunk,
+the mid level a chunk per 512 m block, the near level a chunk per cell, each batch's indices grouped by cell and by wall sector.
 
 ```sh
-python3 -I examples/tokyo/tools/city-gltf.py fetch          # ~/.zinc/cache/tokyo/ipod60.pack
-python3 -I examples/tokyo/tools/city-gltf.py build ~/.zinc/cache/tokyo/ipod60.pack examples/tokyo/assets/city
+python3 -I examples/tokyo/tools/city-world.py fetch          # ~/.zinc/cache/tokyo/ipod60.pack
+python3 -I examples/tokyo/tools/city-world.py build ~/.zinc/cache/tokyo/ipod60.pack examples/tokyo/assets/city
 ```
 
 `build` takes about a minute. It writes:
 
-- `t<x>_<z>.{near,mid,far}.glb`: the tiles.
-- `landmark0.*.glb`: Tokyo Tower.
-- The ground pictures, by day and by night.
-- The facade pictures.
+- `city.zworld`: the index of cells and chunks.
+- `far.zwc`, `b<x>_<z>.mid.zwc`, `c<n>.near.zwc`, `landmark0.*.zwc` (Tokyo Tower): the chunks.
+- The ground pictures, by day and by night, and the facade pictures.
 - `heights.bin`.
-- `city.txt`: the index the program reads.
+- `city.txt`: the view, the tour, the heights' grid, the credits.
 
-Zinc's asset build then imports the files: gltfpack, `.zmesh`, and textures sized per target.
+The asset build copies the chunks and sizes the pictures per target. At run time zinc:3d's `World` chooses natively what a frame draws:
+the cells in view, each at the level of its distance, the wall sectors facing the eye, within the device's triangle budget.
 
 ## Run
 
@@ -62,13 +63,13 @@ Useful variables:
 | File | What it holds |
 |---|---|
 | `src/main.ts` | the frame |
-| `src/city.ts` | the tiles, the choice of level per tile within the triangle budget, the loading, the night pictures |
+| `src/city.ts` | the world, the reading of the chunks it asks for, the heights, the night pictures |
 | `src/flight.ts` | the tour (Catmull-Rom over the original's keys) and the free flight |
 | `src/sky.ts` | the sun and moon, the light, the sky dome |
 | `src/devices.ts` | the per-device table |
 | `src/input.ts` | the pad |
 | `src/hud.ts` | the readout |
-| `tools/city-gltf.py` | pack to glTF |
+| `tools/city-world.py` | pack to a zinc:3d world |
 
 ## Credits and licences
 
