@@ -5,7 +5,8 @@
 #   -> $ZINC_DEMOS (default ~/Documents)/psp/<name>/EBOOT.PBP, vita/<name>.vpk, ps2/<name>.elf, 3ds/<name>.3dsx, and the asset groups the
 #      linked pack leaves out (a streamed level, read by targets/console/sdpack.cpp): psp/<name>/<group>.zpk beside the EBOOT (the default
 #      pack too, not linked in on the PSP), inside the .vpk (app0:), 3ds/<name>/<group>.zpk (the default pack too)
-# --title: the name in the PSP and Vita menus (default <name>); --id: the Vita title id, one per demo (default ZINC00001).
+# --title: the name in the PSP and Vita menus (default <name>); --id: the Vita title id, one per demo (default ZINC00001); --env NAME=VALUE
+# (repeated): built into the core, as tools/build-console-core --env (ZINC_PROFILE=1 for a console's log).
 # Each console's program is packed with its profile (zinc pack --profile) and linked into the core (tools/build-console-core --embed), with
 # its default asset pack except on the PSP and the 3DS (the card's memory, not the console's: Tokyo's 12.7 MB linked into the .3dsx left an
 # Old 3DS's 64 MB too short of heap).
@@ -15,7 +16,7 @@ project=$1; name=$2
 [ -d "$project" ] && [ -n "$name" ] || { echo "usage: tools/console-demos <project> <name> [--title NAME] [--id ABCD12345] [psp vita ps2 n3ds]" >&2; exit 2; }
 shift 2
 title=$name; id=ZINC00001
-while [ $# -gt 0 ]; do case $1 in --title) title=$2; shift 2 ;; --id) id=$2; shift 2 ;; *) break ;; esac; done
+while [ $# -gt 0 ]; do case $1 in --title) title=$2; shift 2 ;; --id) id=$2; shift 2 ;; --env) envs="$envs --env $2"; shift 2 ;; *) break ;; esac; done
 [ $# -gt 0 ] || set -- psp vita ps2 n3ds
 Z=${ZINC:-$here/build/zinc}
 out=${ZINC_DEMOS:-$HOME/Documents}
@@ -27,7 +28,7 @@ for c in "$@"; do
   tar -xf "$tmp/$c.zapp" -C "$tmp/$c" packs/default.zpk 2>/dev/null || true   # the asset pack, when the project's zinc.json has asset rules
   # zinc.json targets.<console>.width / height: the program's surface when it is not the screen's
   size=$(python3 -I -c "import json,sys; t=json.load(open(sys.argv[1])).get('targets',{}).get(sys.argv[2],{}); print('%dx%d' % (t['width'],t['height']) if 'width' in t and 'height' in t else '')" "$project/zinc.json" "$c")
-  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" $( [ -f "$tmp/$c/packs/default.zpk" ] && [ "$c" != psp ] && [ "$c" != n3ds ] && echo "$tmp/$c/packs/default.zpk") --title "$title" --id "$id" $( [ -d "$project/console" ] && echo --art "$project/console" ) ${size:+--size "$size"} $( [ "$c" = n3ds ] && echo --env ZINC_SD_DIR=sdmc:/3ds/$name/ ) -B "$here/build/console-demo-$c" | tail -1)
+  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" $( [ -f "$tmp/$c/packs/default.zpk" ] && [ "$c" != psp ] && [ "$c" != n3ds ] && echo "$tmp/$c/packs/default.zpk") --title "$title" --id "$id" $( [ -d "$project/console" ] && echo --art "$project/console" ) ${size:+--size "$size"} $envs $( [ "$c" = n3ds ] && echo --env ZINC_SD_DIR=sdmc:/3ds/$name/ ) -B "$here/build/console-demo-$c" | tail -1)
   groups=$(tar -tf "$tmp/$c.zapp" | grep '^packs/.*\.zpk$' | grep -v '^packs/default\.zpk$' || true)
   for g in $groups; do tar -xf "$tmp/$c.zapp" -C "$tmp/$c" "$g"; done
   case $c in
