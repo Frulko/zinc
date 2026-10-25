@@ -2,7 +2,8 @@
 id: ZN-480
 title: 'AOT builds for the PSP, Vita, 3DS and PS2 cores'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:38'
 labels:
   - aot
