@@ -457,3 +457,11 @@ numbers go to `docs/reports/zinc-next-perf.md`.
   it and xochitl came back once each time (`NRestarts=0`, no start-limit hit). The owner: "très bon touché", the feel of the
   native app. The power key was not pressed (not yet proven); scribble opens `/dev/input/event0` itself, which the supervisor
   should own.
+- Ink lane v2 (zinc-ink, protocol 2), one `xovi/start` at 18:53: XOVI loaded it, every gate passed (model row, framebuffer-spy
+  geometry, vendor hash), then it stayed off: "libqsgepaper is not loaded". On OS 3.27.3.0 xochitl never maps
+  `/usr/lib/plugins/scenegraph/libqsgepaper.so`: its platform plugin is `plugins/platforms/libepaper.so` (no EPFramebuffer symbol)
+  and the engine is linked into the stripped `/usr/bin/xochitl` (the EPFramebuffer strings are there, no exported symbols). The
+  design's assumption (§4.3: the engine is a dlopen'ed plugin whose symbols dlsym finds) holds for a separate process like Quill's,
+  not inside xochitl, which also explains why the first bridge never loaded. xochitl came back once, `NRestarts=0`; the lane was
+  removed from extensions.d afterwards (framebuffer-spy stays). An in-xochitl lane needs the engine's addresses in xochitl's own
+  binary, per OS hash (the way rm2fb and qt-resource-rebuilder's hashtable work): a research item, not a fix.

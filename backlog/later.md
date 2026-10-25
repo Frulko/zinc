@@ -276,7 +276,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-833: ink session tries the in-process lane first and re-execs through lease launch (design §7) instead of pointing the manifest at lease.
 - ZN-833: five-finger tap escape in the lease supervisor (design §3.3); only the power long press is handled.
 - ZN-833: zinc deploy --target rmpp copies to ~/<name> and runs run.sh; make it run the exported deploy.sh (AppLoad directory).
-- ZN-834: run tests/native/rmpp/fake-xochitl/run.sh in Docker, pinned to the tablet's XOVI and extension commits (late load, block/unblock order, deadline, crash guard, double hook, hash gate).
+- ZN-834: the in-xochitl ink lane cannot find the engine on OS 3.27.3.0 (linked into the stripped xochitl, libqsgepaper not mapped; remarkable-bridge-design §11): research per-OS addresses in /usr/bin/xochitl (rm2fb, qt-resource-rebuilder hashtable) before any new tablet test; until then L2 (lease + Quill) is the fast ink.
 - ZN-834: on the tablet, T2-T4 of remarkable-bridge-design §9: one xovi/start and lane ready in the journal, camera latency, the colour settle (else the full-update flag on the box).
 - ZN-834: on failure the lane repaints the item but requests no full refresh; needs AppLoad's full-refresh function or the vendor full-update flag value.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
