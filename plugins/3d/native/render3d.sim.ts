@@ -23,6 +23,7 @@ export default {
     return meshes.length - 1;
   },
   meshDestroy(m: number): void { if (m >= 0 && m < meshes.length) meshes[m] = 0; },
+  meshDeform(m: number, pos: number[], nrm: number[]): boolean { return m >= 0 && m < meshes.length && pos.length === nrm.length; },
   target(t: number, w: number, h: number): number {
     w = Math.max(1, w); h = Math.max(1, h);
     const cur = targets[t] ?? null;

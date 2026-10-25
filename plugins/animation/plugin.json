@@ -1,0 +1,60 @@
+{
+  "name": "animation",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:animation",
+  "entry": "index.ts",
+  "license": "MIT",
+  "description": "glTF skeletal animation: ozz sampling blending CPU skinning and safe preview clocks",
+  "targets": {
+    "macos": {
+      "sources": [
+        "../../third_party/ozz-animation/src/base/containers/string_archive.cc",
+        "../../third_party/ozz-animation/src/base/encode/group_varint.cc",
+        "../../third_party/ozz-animation/src/base/io/archive.cc",
+        "../../third_party/ozz-animation/src/base/io/stream.cc",
+        "../../third_party/ozz-animation/src/base/log.cc",
+        "../../third_party/ozz-animation/src/base/maths/box.cc",
+        "../../third_party/ozz-animation/src/base/maths/math_archive.cc",
+        "../../third_party/ozz-animation/src/base/maths/simd_math.cc",
+        "../../third_party/ozz-animation/src/base/maths/simd_math_archive.cc",
+        "../../third_party/ozz-animation/src/base/maths/soa_math_archive.cc",
+        "../../third_party/ozz-animation/src/base/memory/allocator.cc",
+        "../../third_party/ozz-animation/src/base/platform.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/animation.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/animation_utils.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/blending_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/ik_aim_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/ik_two_bone_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/local_to_model_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/motion_blending_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/sampling_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/skeleton.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/skeleton_utils.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/track.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/track_sampling_job.cc",
+        "../../third_party/ozz-animation/src/animation/runtime/track_triggering_job.cc",
+        "../../third_party/ozz-animation/src/animation/offline/additive_animation_builder.cc",
+        "../../third_party/ozz-animation/src/animation/offline/animation_builder.cc",
+        "../../third_party/ozz-animation/src/animation/offline/animation_optimizer.cc",
+        "../../third_party/ozz-animation/src/animation/offline/motion_extractor.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_animation.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_animation_archive.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_animation_utils.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_skeleton.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_skeleton_archive.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_track.cc",
+        "../../third_party/ozz-animation/src/animation/offline/raw_track_utils.cc",
+        "../../third_party/ozz-animation/src/animation/offline/skeleton_builder.cc",
+        "../../third_party/ozz-animation/src/animation/offline/track_builder.cc",
+        "../../third_party/ozz-animation/src/animation/offline/track_optimizer.cc",
+        "../../third_party/ozz-animation/src/geometry/runtime/skinning_job.cc"
+      ],
+      "flags": [
+        "-I./../../third_party/ozz-animation/include",
+        "-I./../../third_party/ozz-animation/src",
+        "-I./../../third_party/cgltf"
+      ]
+    }
+  }
+}

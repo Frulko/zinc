@@ -514,6 +514,15 @@ struct Engine : NativeRender3D {
     mfree(m->pos); mfree(m->nrm); mfree(m->uv); mfree(m->col); mfree(m->idx); mfree(m);
     meshes.p[id] = nullptr;
   }
+  bool meshDeform(int32_t id, Array<N> pos, Array<N> nrm) override {
+    Mesh* m = meshes.at(id);
+    if (!m || pos.length() != m->nv * 3 || nrm.length() != m->nv * 3) return false;
+    for (int32_t i = 0; i < m->nv * 3; ++i) {
+      if (!isfinite(F(pos.a->data[i])) || !isfinite(F(nrm.a->data[i]))) return false;
+    }
+    for (int32_t i = 0; i < m->nv * 3; ++i) { m->pos[i] = F(pos.a->data[i]); m->nrm[i] = F(nrm.a->data[i]); }
+    return true;
+  }
 
   // scale 0 (auto): the smallest divisor that keeps the internal picture under AUTO_PIXELS, so a 1080p screen is drawn at 640x360 and scaled up.
   // Measured on a Pi 3B+: 85 ms a frame at 1920x1080, 24 ms at 640x360 (docs/plugins/3d.md). A deterministic run (goldens) keeps scale 1.

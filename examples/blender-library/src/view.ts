@@ -47,7 +47,7 @@ export class LibraryView extends Sprite {
     text(20, h - 118, this.selection, 0xf4ddae, 1);
     text(20, h - 98, this.provenance, 0x90b3ba, 1);
     text(20, h - 77, this.model.status, 0xffffff, 1);
-    text(20, h - 40, 'RELOAD [ENTER]    GATE [SPACE]    SOURCE [RIGHT]    BAD REVISION [B]', 0xf4ddae, 1);
+    text(20, h - 40, 'RELOAD [ENTER]    GATE [SPACE]    SOURCE [RIGHT]    BAD REVISION [X]', 0xf4ddae, 1);
     registerTapZone('reload', 10, h - 55, 150, 50, this.reloadAction);
     registerTapZone('gate', 165, h - 55, 150, 50, this.gateAction);
     registerTapZone('source', 320, h - 55, 155, 50, this.nextAction);

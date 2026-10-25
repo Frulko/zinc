@@ -10,6 +10,8 @@ export interface Spec extends NativeModule {
    *  a handle, -1 when the part does not fit in `data` or an index passes its vertices. */
   meshLoad(data: u8[], at: i32): i32;
   meshDestroy(mesh: i32): void;
+  /** CPU-skinned positions/normals, same vertex count. Returns false for unsupported GPU mesh layouts. */
+  meshDeform(mesh: i32, pos: number[], nrm: number[]): boolean;
   /** Reads an asset (a .zmesh model) into the renderer in one go, for assetByte and assetMesh: its size, or -1 when this host gives native
    *  modules no asset (loadModel then reads it through zinc:assets). */
   assetOpen(name: string): i32;

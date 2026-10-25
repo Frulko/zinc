@@ -140,7 +140,7 @@ void main() {
 enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16, P_EMIT = 32, P_BLEND = 64, P_FOG = 128 };   // EMIT, BLEND: ZN-696; an opaque draw without them keeps the programs it had
 struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1, emit = -1, alpha = -1, fogc = -1, fog = -1; uint32_t frame = 0; bool failed = false;
   float emitSet[3] = {0, 0, 0}, alphaSet = 0, fogSet[5] = {-1, -1, -1, -1, -1}; };   // the values its uniforms hold (a program keeps them): sent again only when they change
-struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; uint64_t bytes; };
+struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; uint64_t bytes; int32_t nv; bool interleaved; };
 // msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
 struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
 struct GTex { GLuint id = 0; uint32_t version = 0; int filter = 0; bool mips = false; uint64_t bytes = 0; };   // filter: the one set on the texture (1 nearest, 2 linear, 3 mipmaps)
@@ -270,7 +270,7 @@ struct Gpu : Engine {
       v[i].c = m->col ? m->col[i] : 0;
     }
     GMesh* g = (GMesh*)mem(sizeof(GMesh));
-    *g = GMesh{0, 0, 0, m->ni, m->uv != nullptr, m->col != nullptr, sizeof(Vtx) * (uint64_t)m->nv + sizeof(uint16_t) * (uint64_t)m->ni};
+    *g = GMesh{0, 0, 0, m->ni, m->uv != nullptr, m->col != nullptr, sizeof(Vtx) * (uint64_t)m->nv + sizeof(uint16_t) * (uint64_t)m->ni, m->nv, true};
     glGenVertexArrays(1, &g->vao); glBindVertexArray(g->vao);
     glGenBuffers(1, &g->vbo); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(sizeof(Vtx) * (size_t)m->nv), v, GL_STATIC_DRAW);
@@ -294,7 +294,7 @@ struct Gpu : Engine {
     const bool uv = flags & zn::zmesh::Uvs, col = flags & zn::zmesh::Colors;
     const size_t vb = zn::zmesh::vertexBytes(nv, flags);
     GMesh* g = (GMesh*)mem(sizeof(GMesh));
-    *g = GMesh{0, 0, 0, (int32_t)ni, uv, col, vb + 2 * (uint64_t)ni};
+    *g = GMesh{0, 0, 0, (int32_t)ni, uv, col, vb + 2 * (uint64_t)ni, (int32_t)nv, false};
     glGenVertexArrays(1, &g->vao); glBindVertexArray(g->vao);
     glGenBuffers(1, &g->vbo); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)vb, p, GL_STATIC_DRAW);
@@ -315,6 +315,19 @@ struct Gpu : Engine {
     glDeleteVertexArrays(1, &g->vao); glDeleteBuffers(1, &g->vbo); glDeleteBuffers(1, &g->ibo);
     mfree(g);
     gmeshes.p[id] = nullptr;
+  }
+  bool meshDeform(int32_t id, Array<N> pos, Array<N> nrm) override {
+    GMesh* g = gmeshes.at(id);
+    if (!g || !g->interleaved || pos.length() != g->nv * 3 || nrm.length() != g->nv * 3) return false;
+    for (int32_t i = 0; i < g->nv * 3; ++i) if (!isfinite(F(pos.a->data[i])) || !isfinite(F(nrm.a->data[i]))) return false;
+    current(); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
+    auto* memory = (uint8_t*)glMapBufferRange(GL_ARRAY_BUFFER, 0, (GLsizeiptr)(36 * (size_t)g->nv), GL_MAP_WRITE_BIT);
+    if (!memory) return false;
+    for (int32_t i = 0; i < g->nv; ++i) {
+      float* vertex = (float*)(memory + (size_t)i * 36);
+      for (int j = 0; j < 3; ++j) { vertex[j] = F(pos.a->data[i * 3 + j]); vertex[3 + j] = F(nrm.a->data[i * 3 + j]); }
+    }
+    return glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE;
   }
 
   int32_t target(int32_t id, int32_t w, int32_t h) override {

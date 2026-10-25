@@ -1,0 +1,38 @@
+{
+  "source": "authoring/companion.blend",
+  "skeleton": "companion-v1",
+  "rootMotion": "controller",
+  "sockets": [
+    {
+      "name": "mouth",
+      "joint": "Head",
+      "translation": [
+        0.0,
+        0.5997071862220764,
+        -0.2748657763004303
+      ]
+    }
+  ],
+  "events": [
+    {
+      "clip": "Walk",
+      "time": 0.25,
+      "name": "foot-left"
+    },
+    {
+      "clip": "Walk",
+      "time": 0.75,
+      "name": "foot-right"
+    },
+    {
+      "clip": "Run",
+      "time": 0.16666666666666666,
+      "name": "foot-left"
+    },
+    {
+      "clip": "Run",
+      "time": 0.5,
+      "name": "foot-right"
+    }
+  ]
+}

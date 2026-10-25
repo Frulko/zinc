@@ -13,7 +13,7 @@ ZINC_BACKGROUND=1 build/zinc run examples/blender-library
 ```
 
 Click/tap the bottom actions or use Enter (reload), Space (gate), Right (next
-source record), B (reject a malformed revision). The selected record shows its
+source record), X (reject a malformed revision). The selected record shows its
 exact authoring object and stable ID. No source link executes a command.
 Idle frames retain the prior picture instead of redrawing the 3D scene.
 
@@ -43,7 +43,7 @@ ZINC_BACKGROUND=1 ZINC_SCENE_DIR="$PWD/examples/blender-library/assets" build/zi
 Open the gate in Zinc. Move the gate/cottages in Blender, publish to `assets/`,
 then press Enter in Zinc. Authored placements update and gate progress survives.
 Deliberately duplicate an ID and publish: Blender reports the two objects and
-keeps the previous manifest. The B action separately demonstrates runtime failure
+keeps the previous manifest. The X action separately demonstrates runtime failure
 recovery. Reimport is explicit at a frame boundary; there is no partial-file watcher.
 
 `src/main.ts` mounts the stage, `state.ts` owns revision/gate state and file input,
