@@ -2,10 +2,11 @@
 // The program on the device's screen streams its frames (src/host/mirror.cpp, the protocol of plugins/display-remote/remote_proto.h) to a
 // Unix socket of the agent, which relays them in the session; the window here decodes them and sends back the input its HAL reads.
 // When another program takes the screen (an app started from the player, the player back after it), it connects too and replaces the
-// first one: its HELLO starts the picture again.
+// first one: its HELLO starts the picture again. A second viewer takes the screen from the first, which is told and ends.
 #include "wire.h"
 #include "../../plugins/display-remote/remote_proto.h"
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -49,7 +50,8 @@ void opLive(Chan& c, const std::atomic<bool>& stop) {
   const char* r = std::getenv("ZINC_SHOT_REQUEST");
   std::string dir = r ? r : "";
   dir = dir.empty() || dir.rfind('/') == std::string::npos ? "." : dir.substr(0, dir.rfind('/'));
-  const std::string request = dir + "/live.request", path = dir + "/live.sock";
+  static std::atomic<int> session{0};   // a socket per viewer: the request names the last one, so an earlier viewer sees it was replaced
+  const std::string request = dir + "/live.request", path = dir + "/live-" + std::to_string(::getpid()) + "-" + std::to_string(++session) + ".sock";
   sockaddr_un a{};
   a.sun_family = AF_UNIX;
   if (path.size() >= sizeof a.sun_path) { refuse(c, "the screen's socket path is too long: " + path); return; }
@@ -63,7 +65,13 @@ void opLive(Chan& c, const std::atomic<bool>& stop) {
   }
   ::chmod(path.c_str(), 0660);   // the display session's group may connect, as it may answer screen requests
   int prog = -1;
-  const auto end = [&] { writePrivate(request, ""); if (prog >= 0) ::close(prog); ::close(lfd); ::unlink(path.c_str()); };
+  const auto end = [&] {
+    std::string now;
+    if (readFile(request, now) && now == path + "\n") writePrivate(request, "");   // a viewer that took the screen keeps its request
+    if (prog >= 0) ::close(prog);
+    ::close(lfd);
+    ::unlink(path.c_str());
+  };
   if (!writePrivate(request, path + "\n")) { end(); refuse(c, "cannot write " + request); return; }
   ::chmod(request.c_str(), 0660);
   pollfd w{lfd, POLLIN, 0};
@@ -97,6 +105,11 @@ void opLive(Chan& c, const std::atomic<bool>& stop) {
       } else if (n == 0 || (errno != EAGAIN && errno != EINTR)) { ::close(prog); prog = -1; from.clear(); }   // it ended: the next one connects
     }
     if (p[0].revents) open = fill(c);
+    std::string now;
+    if (open && readFile(request, now) && now != path + "\n") {   // another viewer wrote its socket there
+      send(c, kErr, "another viewer took the screen (zinc device screen --live from another terminal or computer)\n");
+      break;
+    }
   }
   end();
 }
@@ -164,6 +177,7 @@ int cmdLive(Device& d) {
     if (c->in.empty() && ::poll(&p, 1, ms) > 0 && !fill(*c)) gone = true;
     while (next(*c, type, payload)) {
       if (type == kOut) in += payload;
+      else if (type == kErr) std::fprintf(stderr, "%s: %s", d.name.c_str(), payload.c_str());
       else if (type == kEof || type == kExit) gone = true;
     }
     take();
