@@ -408,6 +408,18 @@ own code is in the package's `prebuilt/linux/` like the others (it loads PDFium 
 - Proven on the Mac: `tests/t0/pdf.sh` (the plugin) and `tests/t1/pdf_reader.sh` (the app headless). Not yet on the tablet: the
   pen and pinch there, and how long PDFium takes per page on the Cortex-A53.
 
+## Zinc Read: Markdown and Notion (ZN-844)
+
+`app/markdown` (`app/markdown/README.md`) reads the `.md` files of `~/zinc-docs` on the tablet: md4c parses them (`zinc:markdown`,
+`plugins/markdown`, MIT), the reader lays each one out on fixed pages of the screen (swipe or **Previous**/**Next**, no scrolling), with a
+table of contents, links between documents (and to `#headings`), task boxes ticked into the file, A−/A+ and pen notes per document saved
+under `~/.zinc/markdown/ink`. **Settings** takes a Notion integration secret (`~/.zinc/markdown/read.conf`, mode 600) and a page link:
+the page and its nested blocks come through `https://api.notion.com/v1` (`Notion-Version: 2026-03-11`, zinc:net over mbedTLS) and are saved
+as `~/zinc-docs/notion/<title>-<id>.md`, read offline; **Sync** fetches them again. Without internet the status line says so.
+`zinc pack app/markdown -o markdown.zapp`, then the hub or `zinc-tile` as for any `.zapp`; the engine bundle must include the
+`markdown` plugin's prebuilt library (`tools/rmpp-engine` after this plugin landed). Proven headless on the Mac by
+`tests/run --only markdown_reader` (a fake Notion API); not yet run on the tablet.
+
 ## What is verified and what is not
 
 Verified here: conformance suite on `rmpp` (static ELF in the arm64 container, same bytes as the sim oracle, incl.
