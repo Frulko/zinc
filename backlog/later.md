@@ -307,6 +307,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: web relay: dither to the Paper Pro's colour e-ink palette (Floyd–Steinberg on the PNG) and measure whether it reads better than plain grey.
 - ZN-844: web reader: forms and JavaScript clicks (only `<a href>` is followed today); send a tap to the relay as a CDP mouse event.
 - ZN-844: web reader: draw only the new pen segment instead of redrawing every stroke each frame, to cut pen latency on pages with many strokes.
+- ZN-844: the web dashboard stops while the tablet sleeps: render once on wake-up, or keep a wake lock while it is shown, so a wall dashboard stays current.
+- ZN-844: the web dashboard's widget halves the full-page picture; a relay `/shot` at zoom 0.5 would give sharper text if it reads soft on the panel.
 - ZN-844: the iOS export's SVG icon goes through the fill-only `res::rasterizeSvg`: stroked icons (Lucide) come out as filled blobs; render it with nanosvg as `appIconPng()` of `src/cli_core.cpp` does.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
@@ -466,6 +468,7 @@ The next backlog review turns lines into tasks or deletes them.
 ## Cross-platform pass
 
 - ZN-844: run app/web on the reMarkable Paper Pro and the Move (954x1696): pinch from AppLoad's touches, pen ink, link taps and Refresh.
+- ZN-844: try the web dashboard on the tablet: a 5-minute period while minimized and as a widget, and whether the full refresh after a swap leaves no ghost.
 - ZN-844: run `rmpp_lease` (zig cross build) and check that `zinc export --target rmpp` writes the app's SVG icon as the tile's icon.png.
 - ZN-844: compiler: in JSX, `{f()}` where `f: () => i32` is a component held in a variable or a field renders the element's handle as text ("98"), silently; `<F />` works. Either mount it or refuse it with a diagnostic (found in zinc:remarkable RemarkableApp).
 - ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
