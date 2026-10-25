@@ -2,7 +2,7 @@
 // comes from and kept: a scene that is built again for the same table (an editor after each change) gets the same
 // images back instead of reading them again, for the engine holds a limited number of images at a time.
 import { imageFromBytes, destroyImage } from 'zinc:gfx';
-import { TableSource } from './format/source';
+import { TableSource } from '../../pinball-kit/format/source';
 
 const images = new Map<string, i32>();
 

@@ -2,7 +2,7 @@
 // score, the bonus, the lights, the mission, the rank, the locks and the jackpot, by reading the table's `rules`.
 // It has no rule of its own, draws nothing and moves nothing: what it wants done to the table (raise targets, serve
 // balls) it leaves in lists that the game (game.ts) carries out.
-import { TableDef, RulesDef, ConditionDef, ActionDef, StepDef } from './format/table';
+import { TableDef, RulesDef, ConditionDef, ActionDef, StepDef } from '../../pinball-kit/format/table';
 
 /** Where an event comes from: an element with its group and the light that goes with it, or the game. */
 export class Source {

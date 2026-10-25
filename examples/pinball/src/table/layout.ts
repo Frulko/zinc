@@ -2,13 +2,13 @@
 // The playfield is 0.5 .. 19.1 wide with the shooter lane on the right (19.1 .. 20.4) and 42 long; the left and right
 // halves mirror about x = 9.8 below the slingshots. buildTable() creates the physics World and keeps what the
 // renderer and the rules need to know about each element (positions, tags, drawing styles).
-import { World } from '../physics/world';
-import { Flipper } from '../physics/flipper';
+import { World } from '../../../pinball-kit/physics/world';
+import { Flipper } from '../../../pinball-kit/physics/flipper';
 import {
   Circle, Hole, Material, Ramp, Segment, Sensor,
   METAL, RUBBER, PLASTIC, WIRE, BUMPER_SKIRT, SLING_RUBBER, TARGET_FACE,
   K_WALL, K_POST, K_BUMPER, K_SLING, K_TARGET, K_GATE,
-} from '../physics/bodies';
+} from '../../../pinball-kit/physics/bodies';
 
 /** Drawing styles of the walls. */
 export const RAIL_METAL: i32 = 0, RAIL_RUBBER: i32 = 1, RAIL_GUIDE: i32 = 2, RAIL_RAMP: i32 = 3, RAIL_WIRE: i32 = 4,
@@ -127,7 +127,7 @@ export class Table {
     // ---- drop targets: a bank of three on the left wall, facing the field
     for (let i: i32 = 0; i < 3; i++) {
       const y0 = 16.3 + i * 1.65;
-      const t = new Segment(1.5, y0 + 1.35, 1.5, y0, 0.12, TARGET_FACE, K_TARGET, i);
+      const t = new Segment(1.1, y0 + 1.35, 1.1, y0, 0.12, TARGET_FACE, K_TARGET, i);
       w.addSegment(t, 0);
       this.targets.push(t);
     }
@@ -176,8 +176,8 @@ export class Table {
     // on the playfield the ramp's low end is solid: flaps along the mouth and a lip where it is too low to pass under
     const flapL = this.rail(RAIL_FLAP, 0.4, 0), flapR = this.rail(RAIL_FLAP, 0.4, 0), lip = this.rail(RAIL_FLAP, 0.4, 0);
     this.pt(flapL, rampL, mouthY); this.pt(flapL, rampL, 19.2);
-    this.pt(flapR, rampR, mouthY); this.pt(flapR, rampR, 19.2);
-    this.pt(lip, rampL, 19.2); this.pt(lip, rampR, 19.2);
+    this.pt(flapR, rampR, mouthY); this.pt(flapR, rampR, 19.8);
+    this.pt(lip, rampL, 19.2); this.pt(lip, rampR, 19.8);
     this.wall(flapL, PLASTIC, 0.08, K_WALL); this.wall(flapR, PLASTIC, 0.08, K_WALL); this.wall(lip, PLASTIC, 0.08, K_WALL);
   }
 

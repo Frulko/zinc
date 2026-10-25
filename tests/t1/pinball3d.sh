@@ -137,7 +137,7 @@ python3 - "$ex" "$ex/$t/table.json" <<'PY' || fail=1
 import json, os, re, sys, glob
 ex, table = sys.argv[1], sys.argv[2]
 missing = []
-code = ''.join(open(f).read() for f in glob.glob(ex + '/src/*.ts') + glob.glob(ex + '/src/format/*.ts') + glob.glob(ex + '/tools/*.ts'))
+code = ''.join(open(f).read() for f in glob.glob(ex + '/src/*.ts') + glob.glob(ex + '/../pinball-kit/*.ts') + glob.glob(ex + '/../pinball-kit/format/*.ts') + glob.glob(ex + '/tools/*.ts'))
 found = []
 # fields whose value is a word of the format, not of the table
 WORDS = {'format', 'event', 'jackpotEvent', 'do', 'mode', 'test', 'is', 'kind', 'shape', 'style', 'show', 'align', 'button', 'shading', 'penalty', 'collide', 'wave'}

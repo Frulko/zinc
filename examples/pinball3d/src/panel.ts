@@ -1,7 +1,7 @@
 // The score panel: the items the layout of the table names, each in its box, drawn with zinc:gfx over or beside the 3D
 // view. What an item shows comes from the game; where, how big and in what colour comes from the table.
-import { rect, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect } from 'zinc:gfx';
-import { PanelItemDef } from './format/table';
+import { rect, rrect, border, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect } from 'zinc:gfx';
+import { PanelItemDef } from '../../pinball-kit/format/table';
 import { Game, Phase } from './game';
 import { View } from './view';
 import { rgb } from './scene';
@@ -34,7 +34,9 @@ export function grouped(n: number): string {
 }
 
 function line(v: View, item: PanelItemDef, text: string, row: i32, bold: boolean): void {
-  const k = nearest(item.size * v.scale), f = bold ? BOLD[k] : FONTS[k], size = SIZES[k];
+  let k = nearest(item.size * v.scale);
+  while (k > 0 && textWidth(bold ? BOLD[k] : FONTS[k], text, 0) > v.w(item.box)) k--;
+  const f = bold ? BOLD[k] : FONTS[k], size = SIZES[nearest(item.size * v.scale)];
   const w = textWidth(f, text, 0), bw = v.w(item.box);
   const x = v.x(item.box) + (item.align === 'right' ? bw - w : item.align === 'center' ? (bw - w) / 2 : 0);
   drawText(f, Math.round(x), v.y(item.box) + row * Math.round(size * 1.25), text, rgb(item.color), 255, 0);
@@ -43,7 +45,7 @@ function label(v: View, item: PanelItemDef): void {
   if (item.label === '') return;
   const k = nearest(Math.max(10, item.size * 0.38) * v.scale), w = textWidth(FONTS[k], item.label, 1), bw = v.w(item.box);
   const x = v.x(item.box) + (item.align === 'right' ? bw - w : item.align === 'center' ? (bw - w) / 2 : 0);
-  drawText(FONTS[k], Math.round(x), v.y(item.box) - Math.round(SIZES[k] * 1.3), item.label, 0x7080a0, 255, 1);
+  drawText(FONTS[k], Math.round(x), v.y(item.box) - Math.round(SIZES[k] * 1.3), item.label, 0xa4b4ca, 255, 1);
 }
 
 /** The backglass: the panel's image fills the box, keeping its proportions; what does not fit is cut, centred. */
@@ -85,7 +87,19 @@ export function drawPanel(v: View, g: Game, hint: string): void {
       continue;
     }
     if (text === '') continue;
+    if (item.show === 'score') {
+      const x = v.x(item.box), y = v.y(item.box), w = v.w(item.box), h = v.h(item.box), pad = 12 * v.scale;
+      rrect(x - pad, y - pad, w + pad * 2, h + pad * 2, 10 * v.scale, 0x030b13, 215);
+      border(x - pad, y - pad, w + pad * 2, h + pad * 2, 10 * v.scale, 1, 0x72899e, 90);
+      rrect(x - pad, y + 4 * v.scale, 3 * v.scale, h - 8 * v.scale, v.scale, rgb(item.color), 220);
+    }
     label(v, item);
     line(v, item, text, 0, bold);
+    if (item.show === 'step' && play && step !== null && step.count > 1) {
+      const y = v.y(item.box) + v.h(item.box) + 6 * v.scale, width = v.w(item.box);
+      rrect(v.x(item.box), y, width, 3 * v.scale, v.scale, 0x26354b, 255);
+      const progress = Math.min(1, rules.stepCount / step.count);
+      if (progress > 0) rrect(v.x(item.box), y, width * progress, 3 * v.scale, v.scale, rgb(item.color), 255);
+    }
   }
 }

@@ -4,7 +4,9 @@
 // habitrail over them, balls riding the ramps, the apron, score popups. A bump or a tilt shakes all of it (one
 // translate). Everything but the art is a few dozen commands; the frame diff of zinc:gfx rasterizes only the
 // rectangles where they changed.
-import { drawImage, createImage, destroyImage, beginImage, endImage, pixelScale, polygon, stroke, rrect, gradient, translate,
+import { interpolate } from '../../../pinball-kit/clock';
+import { recoil } from '../../../pinball-kit/feedback';
+import { image, drawImage, createImage, destroyImage, beginImage, endImage, pixelScale, polygon, stroke, rrect, gradient, translate,
   drawText, font, textWidth } from 'zinc:gfx';
 import { clock } from 'zinc:sys';
 import { Camera } from './camera';
@@ -14,9 +16,9 @@ import { paintTable } from './art';
 import { TRAIL, GLOW } from './quality';
 import { Game, PH_ATTRACT, C_PINK } from '../game/game';
 import { Rail, RAIL_RAMP, RAIL_WIRE, TABLE_W, TABLE_L, SHOOTER_X } from '../table/layout';
-import { Ball, BALL_R, Ramp } from '../physics/bodies';
-import { Flipper } from '../physics/flipper';
-import { PLUNGER_TRAVEL } from '../physics/world';
+import { Ball, BALL_R, Ramp } from '../../../pinball-kit/physics/bodies';
+import { Flipper } from '../../../pinball-kit/physics/flipper';
+import { PLUNGER_TRAVEL } from '../../../pinball-kit/physics/world';
 import { MISSIONS, M_RAMP, M_SPINNER, M_HOLE } from '../game/missions';
 
 /** Camera pose: looking up the table from the player's side, like standing at the cabinet. */
@@ -55,6 +57,7 @@ class Trail {
 export class Scene {
   cam = new Camera();
   inserts: Inserts;
+  private ballSprite: i32 = image('kenney/ballGrey.png');
   private image: i32 = -1;
   private imageScale: i32 = 0;
   private rampRails: RampRail[] = [];
@@ -275,30 +278,31 @@ export class Scene {
   private drawBumper(i: i32): void {
     const g = this.game, b = g.table.bumpers[i], cam = this.cam;
     const f = g.bumperFlash[i];
-    const col = BUMPER_COLORS[i];
+    const col = BUMPER_COLORS[i], drop = 0.22 * recoil(f);
     if (f > 0 && GLOW) disc(cam, b.x, b.y, 0.4, 1.3 + f * 0.6, col, Math.round(70 * f));
-    cylinder(cam, b.x, b.y, 0.32, 1.05, 0.86, mix(mix(col, 0x000000, 0.45), 0xffffff, f * 0.5), 255);
-    disc(cam, b.x, b.y, 1.05, 0.86, mix(col, 0xffffff, 0.15 + f * 0.7), 255);
-    ring(cam, b.x, b.y, 1.05, 0.86, 1.5, mix(col, 0xffffff, 0.6), 255);
+    cylinder(cam, b.x, b.y, 0.32, 1.05 - drop, 0.86, mix(mix(col, 0x000000, 0.45), 0xffffff, f * 0.5), 255);
+    disc(cam, b.x, b.y, 1.05 - drop, 0.86, mix(col, 0xffffff, 0.15 + f * 0.7), 255);
+    ring(cam, b.x, b.y, 1.05 - drop, 0.86, 1.5, mix(col, 0xffffff, 0.6), 255);
     // a star on the cap
     pts.length = 0;
     for (let k: i32 = 0; k < 10; k++) {
       const r = k % 2 === 0 ? 0.55 : 0.24, t = -Math.PI / 2 + k * Math.PI / 5;
-      cam.project(b.x + Math.cos(t) * r, b.y + Math.sin(t) * r, 1.06); pts.push(cam.x); pts.push(cam.y);
+      cam.project(b.x + Math.cos(t) * r, b.y + Math.sin(t) * r, 1.06 - drop); pts.push(cam.x); pts.push(cam.y);
     }
     polygon(pts, mix(0xffffff, col, 0.3 - f * 0.3), 230);
-    disc(cam, b.x - 0.3, b.y - 0.35, 1.07, 0.22, 0xffffff, 120 + Math.round(100 * f));
+    disc(cam, b.x - 0.3, b.y - 0.35, 1.07 - drop, 0.22, 0xffffff, 120 + Math.round(100 * f));
   }
 
   // ---------------------------------------------------------------- balls
 
   private drawBall(b: Ball, tr: Trail): void {
-    const cam = this.cam;
+    const cam = this.cam, alpha = this.game.alpha();
+    const bx = interpolate(b.previousX, b.x, alpha), by = interpolate(b.previousY, b.y, alpha), bz = interpolate(b.previousZ, b.z, alpha);
     // shadow on the playfield (under a ramp, it falls on the playfield below)
-    cam.project(b.x + 0.22 + b.z * 0.32, b.y + 0.16 + b.z * 0.22, 0);
+    cam.project(bx + 0.22 + bz * 0.32, by + 0.16 + bz * 0.22, 0);
     const rs = BALL_R * cam.k;
-    rrect(cam.x - rs * 1.05, cam.y - rs * 0.62, rs * 2.1, rs * 1.24, rs * 0.62, 0x000000, Math.round(Math.max(40, 110 - b.z * 20)));
-    cam.project(b.x, b.y, b.z + BALL_R);
+    rrect(cam.x - rs * 1.05, cam.y - rs * 0.62, rs * 2.1, rs * 1.24, rs * 0.62, 0x000000, Math.round(Math.max(40, 110 - bz * 20)));
+    cam.project(bx, by, bz + BALL_R);
     const x = cam.x, y = cam.y, r = BALL_R * cam.k;
     // motion trail at speed
     if (TRAIL > 0) {
@@ -314,12 +318,8 @@ export class Scene {
       tr.xs.push(x); tr.ys.push(y); tr.rs.push(r);
       if (tr.xs.length > TRAIL) { tr.xs.shift(); tr.ys.shift(); tr.rs.shift(); }
     }
-    // chrome sphere: dark rim, a light-to-dark body, the playfield reflected below, specular highlights
-    rrect(x - r, y - r, r * 2, r * 2, r, 0x23262f, 255);
-    gradient(x - r * 0.93, y - r * 0.93, r * 1.86, r * 1.86, r * 0.93, 0xf6f8fc, 0x566078, true, 255);
-    rrect(x - r * 0.78, y + r * 0.08, r * 1.56, r * 0.62, r * 0.31, 0x2a2a7a, 90);
-    rrect(x - r * 0.72, y - r * 0.78, r * 0.98, r * 0.74, r * 0.37, 0xffffff, 70);
-    rrect(x - r * 0.52, y - r * 0.6, r * 0.46, r * 0.34, r * 0.17, 0xffffff, 240);
+    drawImage(this.ballSprite, x - r, y - r, r * 2, r * 2, 255, 0);
+
   }
 
   // ---------------------------------------------------------------- ramps, apron

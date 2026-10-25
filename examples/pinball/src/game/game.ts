@@ -2,9 +2,10 @@
 // fixed-step loop (960 substeps a second whatever the frame rate; events are handled after every substep, so a drop
 // target falls before the next substep can hit it again), scoring, missions and ranks, lanes and the bonus
 // multiplier, the ball saver, extra balls, multiball with a ramp jackpot, bumps and the tilt, 1 to 4 players.
+import { FixedClock } from '../../../pinball-kit/clock';
 import { Table, S_LANE, S_SPINNER, S_INLANE_L, S_INLANE_R, S_OUTLANE_L, S_OUTLANE_R, S_SHOOTER, P_WIRE_OUT, P_RAMP_IN, SHOOTER_X, PLUNGER_Y } from '../table/layout';
-import { World, E_SENSOR, E_PORTAL, E_CAPTURE, E_DRAIN, E_BALL_HIT } from '../physics/world';
-import { Ball, BALL_R, K_BUMPER, K_SLING, K_TARGET, K_FLIPPER, K_POST } from '../physics/bodies';
+import { World, E_SENSOR, E_PORTAL, E_CAPTURE, E_DRAIN, E_BALL_HIT } from '../../../pinball-kit/physics/world';
+import { Ball, BALL_R, K_BUMPER, K_SLING, K_TARGET, K_FLIPPER, K_POST } from '../../../pinball-kit/physics/bodies';
 import { Controls } from '../input';
 import { Effects } from '../render/fx';
 import { Store, TABLE_SIZE } from './store';
@@ -12,7 +13,6 @@ import { MISSIONS, RANKS, Mission, M_BUMPERS, M_TARGETS, M_RAMP, M_SPINNER, M_LA
 import * as sound from '../audio/sound';
 
 export const STEP: number = 1 / 960;
-const MAX_STEPS: i32 = 48;                  // per frame: a stalled frame does not snowball
 export const BALLS_PER_GAME: i32 = 3;
 const BALL_SAVE: number = 10;
 const HOLE_HOLD: number = 1.3;
@@ -51,7 +51,8 @@ export class Game {
   current: i32 = 0;
   /** Seconds since start (lights and chases animate from it). */
   time: number = 0;
-  private acc: number = 0;
+  private fixed: FixedClock = new FixedClock();
+  alpha(): number { return this.fixed.alpha(STEP); }
   /** Seconds in the current phase. */
   phaseTime: number = 0;
 
@@ -221,15 +222,11 @@ export class Game {
   }
 
   private simulate(dt: number): void {
-    this.acc += dt;
-    let n: i32 = 0;
-    while (this.acc >= STEP && n < MAX_STEPS) {
+    const count = this.fixed.advance(dt, STEP);
+    for (let i: i32 = 0; i < count; i++) {
       this.world.step(STEP);
       this.handleEvents();
-      this.acc -= STEP;
-      n++;
     }
-    if (n === MAX_STEPS) this.acc = 0;
     this.timers(dt);
   }
 
@@ -319,6 +316,7 @@ export class Game {
     const b = this.table.bumpers[i];
     this.award(100 + 50 * this.player.rank, true);
     this.bumperFlash[i] = 1;
+    this.fx.bump(1.2);
     this.fx.ring(b.x, b.y, 0.9, 1.1, C_CYAN);
     this.fx.burst(b.x, b.y, 1.0, 6, 10, C_CYAN);
     this.fx.popup(`${100 + 50 * this.player.rank}`, b.x, b.y, C_CYAN, false);
@@ -331,6 +329,7 @@ export class Game {
     const s = this.table.slings[i];
     this.award(50, true);
     this.slingFlash[i] = 1;
+    this.fx.bump(0.7);
     this.fx.burst((s.ax + s.bx) / 2, (s.ay + s.by) / 2, 0.6, 5, 9, C_ORANGE);
     this.progress(M_SLINGS, 1);
     sound.play(sound.SFX_SLING);

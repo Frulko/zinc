@@ -1,7 +1,7 @@
 // A layout of the table file placed in the window: the layout is drawn for one window size (landscape 1280 x 800,
 // portrait 800 x 1280...), another window shows it whole, scaled and centred. The game takes the portrait layout when
 // its window is taller than wide and the landscape one otherwise, unless an option forces one.
-import { LayoutDef, TableDef } from './format/table';
+import { LayoutDef, TableDef } from '../../pinball-kit/format/table';
 
 export class View {
   layout: LayoutDef;

@@ -1,8 +1,8 @@
-// The disc of a pool of light cut to the level it lies on (examples/pinball3d/src/geometry.ts, discWithin), for
+// The disc of a pool of light cut to the level it lies on (examples/pinball-kit/geometry.ts, discWithin), for
 // tests/t1/pinball3d.sh: the area of what is left of a disc of radius 2 inside an L-shaped level (a square of 10 with its
 // top right quarter taken away), as a share of the whole disc. Whole in the middle of an arm, a half on a straight edge,
 // a quarter on an outer corner, three quarters on the corner that goes in.
-import { Polyline, discWithin } from '../../../examples/pinball3d/src/geometry';
+import { Polyline, discWithin } from '../../../examples/pinball-kit/geometry';
 
 const level = new Polyline();
 level.closed = true;

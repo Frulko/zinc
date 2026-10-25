@@ -2,11 +2,12 @@
 // rate: controls in, then one step of the physics, then what the balls did in that step (what they touched, the lines
 // they crossed, the holes they fell in, the drain) told to the rules as events. It draws nothing and reads no key:
 // the window (main.ts), or an editor that embeds it, gives it the controls and asks it to show() a scene.
-import { Table, TableDef } from './format/table';
-import { TablePhysics, JoltPhysics, BallState, Part } from './physics';
+import { interpolate } from '../../pinball-kit/clock';
+import { Table, TableDef } from '../../pinball-kit/format/table';
+import { TablePhysics, JoltPhysics, BallState, Part } from '../../pinball-kit/physics3d';
 import { Rules, Source, GAME } from './rules';
 import { TableScene } from './scene';
-import { tessellate, rad } from './geometry';
+import { tessellate, rad } from '../../pinball-kit/geometry';
 
 /** What the player holds down. */
 export class Controls {
@@ -602,11 +603,11 @@ export class Game {
 
   // ---------------------------------------------------------------- showing it
   /** Puts the scene in the state of the game. */
-  show(scene: TableScene): void {
+  show(scene: TableScene, alpha: number = 1): void {
     const t = this.t, ph = this.physics, rules = this.rules, play = this.phase === Phase.Play;
     for (let i = 0; i < ph.balls.length; i++) {
       const b = ph.balls[i];
-      if (b.live) scene.setBall(i, b.x, b.y, b.z, b.qx, b.qy, b.qz, b.qw); else scene.hideBall(i);
+      if (b.live) scene.setBall(i, interpolate(b.previousX, b.x, alpha), interpolate(b.previousY, b.y, alpha), interpolate(b.previousZ, b.z, alpha), b.qx, b.qy, b.qz, b.qw); else scene.hideBall(i);
     }
     for (let i = 0; i < t.flippers.length; i++) scene.setFlipper(i, ph.flipperAngle[i]);
     scene.setPlunger(ph.plungerPull);
@@ -624,8 +625,8 @@ export class Game {
     // an element glows when it is hit, and while the light the table gives it is lit
     const lit = (light: i32): boolean => light >= 0 && this.lightLit[light];
     for (let i = 0; i < t.targets.length; i++) scene.setTarget(i, !rules.targetDown[i] && this.raiseAt[i] < 0, (play && rules.now < this.targetGlow[i]) || lit(this.targetSrc[i].light));
-    for (let i = 0; i < t.bumpers.length; i++) scene.setBumper(i, (play && rules.now < this.bumperGlow[i]) || lit(this.bumperLight[i]));
-    for (let i = 0; i < t.slingshots.length; i++) scene.setSlingshot(i, (play && rules.now < this.slingGlow[i]) || lit(this.slingLight[i]));
+    for (let i = 0; i < t.bumpers.length; i++) scene.setBumper(i, (play && rules.now < this.bumperGlow[i]) || lit(this.bumperLight[i]), play ? (this.bumperGlow[i] - rules.now) / 0.12 : 0);
+    for (let i = 0; i < t.slingshots.length; i++) scene.setSlingshot(i, (play && rules.now < this.slingGlow[i]) || lit(this.slingLight[i]), play ? (this.slingGlow[i] - rules.now) / 0.12 : 0);
     for (let i = 0; i < t.spinners.length; i++) scene.setSpinner(i, this.spin[i]);
   }
 }

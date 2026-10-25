@@ -40,7 +40,7 @@ onFrame((dt: number) => {
     else if (controls.start && game.phase === PH_PLAY) panels.paused = true;
     else if (!panels.paused) {
       if (controls.tap && game.phase === PH_ATTRACT) controls.start = true;
-      game.update(Math.min(pending, 0.05), controls);
+      game.update(Math.min(pending, 0.1), controls);
     }
     clearPresses(controls);
     pending = 0;

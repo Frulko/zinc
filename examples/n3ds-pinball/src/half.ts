@@ -3,15 +3,16 @@
 // plunger, the drain). A ball near the cut is drawn by both, so it rolls from one screen to the other.
 // Everything here is a command the 3DS's GPU replay draws: images, rectangles, text, and shapes that do not change from frame to frame
 // (each is rasterized once into the shape atlas): lamps at their place, discs on whole pixels, the flippers at one of FLIP_STEPS angles.
+import { interpolate } from '../../pinball-kit/clock';
 import { drawImage, image, rect, rrect, polygon, translate, drawText, font, textWidth, pixelScale } from 'zinc:gfx';
 import { Camera } from '../../pinball/src/render/camera';
 import { pts, keepPts } from '../../pinball/src/render/draw';
 import { Inserts, Insert } from '../../pinball/src/render/inserts';
 import { Game, PH_ATTRACT } from '../../pinball/src/game/game';
 import { MISSIONS, M_RAMP, M_SPINNER, M_HOLE } from '../../pinball/src/game/missions';
-import { Flipper } from '../../pinball/src/physics/flipper';
-import { BALL_R } from '../../pinball/src/physics/bodies';
-import { PLUNGER_TRAVEL } from '../../pinball/src/physics/world';
+import { Flipper } from '../../pinball-kit/physics/flipper';
+import { BALL_R } from '../../pinball-kit/physics/bodies';
+import { PLUNGER_TRAVEL } from '../../pinball-kit/physics/world';
 import { SHOOTER_X, TABLE_L } from '../../pinball/src/table/layout';
 import { Eyes } from '../../n3ds-kit/stereo';
 import { topDown, bakeHalf } from './art';
@@ -190,10 +191,10 @@ export class Half {
 
   /** The balls: on the playfield, on the ramp (bigger, out of the screen as they climb). */
   private balls(eyes: Eyes | null, sx: number, sy: number): void {
-    const cam = this.cam;
+    const cam = this.cam, alpha = this.game.alpha();
     for (const b of this.game.world.balls) {
       if (!b.active || !this.shows(b.y, 1)) continue;
-      cam.project(b.x, b.y, b.z + BALL_R);
+      cam.project(interpolate(b.previousX, b.x, alpha), interpolate(b.previousY, b.y, alpha), interpolate(b.previousZ, b.z, alpha) + BALL_R);
       const r = BALL_R * cam.k + 0.5;
       const d = eyes !== null ? eyes.shift(b.z * DEPTH_PER_INCH) : 0;
       drawImage(ball, cam.x - r + d, cam.y - r, r * 2, r * 2, 255, 0);

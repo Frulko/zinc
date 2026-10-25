@@ -3,6 +3,7 @@
 // list of what each ball touched in a step. JoltPhysics answers with zinc:physics3d: a real sphere on a tilted board
 // among real volumes, so a ball climbs a ramp, rides a rail, falls off its end and jumps. Another engine would be
 // another class beside it.
+import { travelSteps, speedScale } from './tuning';
 import { World, Shape, Body, Motion, ContactKind } from 'zinc:physics3d';
 import { quatFromAxisAngle } from 'zinc:3d';
 import { Table, TableDef } from './format/table';
@@ -14,6 +15,7 @@ export const enum Part { Board, Wall, Flipper, Plunger, Bumper, Slingshot, Targe
 export class BallState {
   live: boolean = false;
   x: number = 0; y: number = 0; z: number = 0;
+  previousX: number = 0; previousY: number = 0; previousZ: number = 0;
   vx: number = 0; vy: number = 0; vz: number = 0;
   /** Its rotation, for the eye only: a quaternion in the engine's axes. */
   qx: number = 0; qy: number = 0; qz: number = 0; qw: number = 1;
@@ -86,7 +88,7 @@ export class JoltPhysics extends TablePhysics {
     this.maxSpeed = t.physics.maxSpeed;
     // the board lies flat and gravity leans: its share along the slope pulls down the table (+y), the rest into the board
     const slope = rad(t.playfield.slope), g = t.physics.gravity;
-    const w = new World({ gravity: [0, -g * Math.cos(slope), g * Math.sin(slope)], maxBodies: 1024, sleeping: false });
+    const w = new World({ gravity: [0, -g * Math.cos(slope), g * Math.sin(slope)], maxBodies: 1024, sleeping: false, minRestitutionSpeed: 8 });
     this.world = w;
     const pw = t.playfield.width, plen = t.playfield.length, glass = t.playfield.glass;
     const board = this.surface(t.playfield.surface);
@@ -227,7 +229,21 @@ export class JoltPhysics extends TablePhysics {
   }
 
   step(): void {
-    const t = this.t, dt = this.dt;
+    for (const b of this.balls) { b.previousX = b.x; b.previousY = b.y; b.previousZ = b.z; }
+    let fastest = 0, surfaceSpeed = 0;
+    for (const b of this.balls) if (b.live) fastest = Math.max(fastest, b.speed());
+    for (let i = 0; i < this.t.flippers.length; i++) {
+      const f = this.t.flippers[i], goal = this.pressed[i] ? f.rest + f.stroke : f.rest;
+      if (goal !== this.flipperAngle[i]) surfaceSpeed = Math.max(surfaceSpeed, rad(this.pressed[i] ? f.speed : f.returnSpeed) * (f.length + f.baseRadius));
+    }
+    if (this.plungerPull > 0) surfaceSpeed = Math.max(surfaceSpeed, this.shootSpeed);
+    const steps = travelSteps(this.dt, this.t.physics.ball.radius, 2 * fastest + surfaceSpeed);
+    this.touches = [];
+    for (let i = 0; i < steps; i++) this.substep(this.dt / steps);
+  }
+
+  private substep(dt: number): void {
+    const t = this.t;
     for (let i = 0; i < t.flippers.length; i++) {
       const e = t.flippers[i], goal = this.pressed[i] ? e.rest + e.stroke : e.rest;
       const most = (this.pressed[i] ? e.speed : e.returnSpeed) * dt, d = goal - this.flipperAngle[i];
@@ -248,22 +264,7 @@ export class JoltPhysics extends TablePhysics {
         this.plungerBody.moveTo(e.at[0] - Math.cos(rad(e.angle)) * pull, e.z + e.height / 2, e.at[1] - Math.sin(rad(e.angle)) * pull, q[0], q[1], q[2], q[3], dt);
       } else if (this.plungerBody.vx !== 0 || this.plungerBody.vz !== 0) this.plungerBody.setVelocity(0, 0, 0);
     }
-    // two balls flying at each other are only swept against where the other was (docs/plugins/physics3d.md): more
-    // collision steps when two of them close fast
-    let closing = 0;
-    for (let i = 0; i < this.balls.length; i++) {
-      if (!this.balls[i].live) continue;
-      for (let k = i + 1; k < this.balls.length; k++) {
-        if (!this.balls[k].live) continue;
-        const a = this.balls[i], b = this.balls[k];
-        const rx = b.x - a.x, ry = b.y - a.y, rz = b.z - a.z, d = Math.sqrt(rx * rx + ry * ry + rz * rz);
-        if (d < 1e-6 || d > 30) continue;
-        const v = -((b.vx - a.vx) * rx + (b.vy - a.vy) * ry + (b.vz - a.vz) * rz) / d;
-        if (v > closing) closing = v;
-      }
-    }
-    const steps: i32 = Math.max(1, Math.min(8, Math.ceil(closing * dt / (0.5 * t.physics.ball.radius))));
-    this.world.step(dt, steps);
+    this.world.step(dt, 1);
 
     for (let i = 0; i < this.balls.length; i++) {
       const s = this.balls[i], b = this.ballBodies[i];
@@ -272,16 +273,18 @@ export class JoltPhysics extends TablePhysics {
       s.vx = b.vx; s.vy = b.vz; s.vz = b.vy;
       s.qx = b.qx; s.qy = b.qy; s.qz = b.qz; s.qw = b.qw;
     }
-    const touches: Touch[] = [];
     for (const c of this.world.contacts) {
-      if (c.kind !== ContactKind.Added || c.a === null || c.b === null) continue;
+      if (c.kind !== ContactKind.Added || c.speed <= 0 || c.a === null || c.b === null) continue;
       const ta = (c.a as Body).tag, tb = (c.b as Body).tag;
       const aBall = Math.floor(ta / TAG) === Part.Ball;
       if (!aBall && Math.floor(tb / TAG) !== Part.Ball) continue;
       const ball: i32 = aBall ? ta % TAG : tb % TAG, other: i32 = aBall ? tb : ta;
-      touches.push(new Touch(ball, Math.floor(other / TAG) as Part, other % TAG, Math.abs(c.speed)));
+      const part = Math.floor(other / TAG) as Part, index = other % TAG;
+      let previous: Touch | null = null;
+      for (const touch of this.touches) if (touch.ball === ball && touch.part === part && touch.index === index) previous = touch;
+      if (previous === null) this.touches.push(new Touch(ball, part, index, c.speed));
+      else previous.speed = Math.max(previous.speed, c.speed);
     }
-    this.touches = touches;
   }
 
   putBall(i: i32, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
@@ -291,6 +294,7 @@ export class JoltPhysics extends TablePhysics {
     b.setAngularVelocity(0, 0, 0);
     b.setVelocity(vx, vz, vy);
     s.live = true;
+    s.previousX = x; s.previousY = y; s.previousZ = z;
     s.x = x; s.y = y; s.z = z; s.vx = vx; s.vy = vy; s.vz = vz;
     s.qx = 0; s.qy = 0; s.qz = 0; s.qw = 1;
   }
@@ -304,7 +308,8 @@ export class JoltPhysics extends TablePhysics {
     if (!s.live) return;
     let nx = s.vx + vx, ny = s.vy + vy, nz = s.vz + vz;
     const sp = Math.sqrt(nx * nx + ny * ny + nz * nz);
-    if (sp > this.maxSpeed) { const k = this.maxSpeed / sp; nx *= k; ny *= k; nz *= k; }
+    const k = speedScale(sp, this.maxSpeed);
+    nx *= k; ny *= k; nz *= k;
     b.setVelocity(nx, nz, ny);
     s.vx = nx; s.vy = ny; s.vz = nz;
   }

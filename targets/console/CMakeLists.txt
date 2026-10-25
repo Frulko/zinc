@@ -125,6 +125,19 @@ if(ZN_CONSOLE_GFX AND ZN_CONSOLE_GEN AND EXISTS ${ZN_CONSOLE_GEN}/zinc_native_re
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_3D)
   set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp PROPERTIES COMPILE_DEFINITIONS ZN_CONSOLE_WITH_3D)
 endif()
+if(ZN_CONSOLE_GFX AND ZN_CONSOLE_GEN AND EXISTS ${ZN_CONSOLE_GEN}/zinc_native_physics2d_thunk.cpp)
+  add_library(zn_console_physics2d STATIC
+    ${ZN_NEXT}/plugins/physics2d/native/physics2d.host.cpp
+    ${ZN_NEXT}/plugins/physics2d/vendor/box2d.c
+    ${ZN_CONSOLE_GEN}/zinc_native_physics2d_thunk.cpp)
+  set_target_properties(zn_console_physics2d PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  target_include_directories(zn_console_physics2d PRIVATE ${ZN_CONSOLE_GEN} ${ZN_NEXT}/plugins/physics2d/vendor/box2d/include
+    ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_RUNTIME} ${ZN_RUNTIME}/include)
+  target_compile_definitions(zn_console_physics2d PRIVATE NDEBUG BOX2D_DISABLE_SIMD)
+  target_compile_options(zn_console_physics2d PRIVATE -ffp-contract=off $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions;-fno-rtti>)
+  target_link_libraries(zinc-core PRIVATE zn_console_physics2d)
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_PHYSICS2D)
+endif()
 if(ZN_CONSOLE_SIZE)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_SIZE="${ZN_CONSOLE_SIZE}")
 endif()

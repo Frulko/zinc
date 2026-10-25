@@ -3,7 +3,7 @@
 // listens to that event there without a condition and scores (one rule per cell that has a score). A rule with a condition, and
 // what a rule does beside scoring, are seen in the rule's own form. Pure code: the view is scoregrid.tsx, selftest.ts runs this
 // without a window.
-import { SENDS, EVENTS } from '../../pinball3d/src/format/table-schema';
+import { SENDS, EVENTS } from '../../pinball-kit/format/table-schema';
 
 export class ScoreRow {
   /** What a rule names: a group of elements, or one element. */

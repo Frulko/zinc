@@ -2,7 +2,7 @@
 // a cradle on the raised flipper, the speed a shot needs to make the ramp, and plunger power.
 //   zinc run examples/pinball/tools/feel.ts --target sim
 import { Table, P_WIRE_OUT } from '../src/table/layout';
-import { E_PORTAL } from '../src/physics/world';
+import { E_PORTAL } from '../../pinball-kit/physics/world';
 
 const STEP = 1 / 960;
 function f(v: number): string { return v.toFixed(1); }

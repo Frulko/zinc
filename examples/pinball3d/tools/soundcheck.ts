@@ -7,8 +7,8 @@
 // decodes nothing, and every sound is silent: add ZINC_NATIVE=real there.)
 import { args, exit } from 'zinc:sys';
 import { mix, stopAll, backend } from 'zinc:audio';
-import { loadTable, filesOf } from '../src/format/table';
-import { openTable } from '../src/format/source';
+import { loadTable, filesOf } from '../../pinball-kit/format/table';
+import { openTable } from '../../pinball-kit/format/source';
 import { TableAudio } from '../src/audio';
 
 function main(): i32 {

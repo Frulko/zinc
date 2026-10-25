@@ -1,9 +1,9 @@
-// Pinball physics (examples/pinball): the table and its fixed-step simulation replay scripted plunger and flipper
+// Frozen pinball language fixture (tests/data/pinball-frozen): the table and its fixed-step simulation replay scripted plunger and flipper
 // inputs; ball positions, layers and a score from the physics events are printed at fixed steps. The physics is pure
 // Zinc (no clock, no randomness), so sim and native print the same bytes in every profile (f64, f32, Q20.12).
-import { Table } from '../../examples/pinball/src/table/layout';
-import { E_SENSOR, E_PORTAL, E_CAPTURE, E_DRAIN } from '../../examples/pinball/src/physics/world';
-import { K_BUMPER, K_SLING, K_TARGET, K_FLIPPER } from '../../examples/pinball/src/physics/bodies';
+import { Table } from '../data/pinball-frozen/table/layout';
+import { E_SENSOR, E_PORTAL, E_CAPTURE, E_DRAIN } from '../data/pinball-frozen/physics/world';
+import { K_BUMPER, K_SLING, K_TARGET, K_FLIPPER } from '../data/pinball-frozen/physics/bodies';
 
 const STEP: number = 1 / 960;
 const table = new Table(3);

@@ -1,11 +1,12 @@
 // The table as a 3D scene (zinc:3d), built from the table data alone: every mesh is generated from a path, an outline
 // or a few numbers of the file (geometry.ts), or loaded from a model file the table names. The game then moves what
 // moves: balls, flippers, the plunger, targets, spinners, and what lights up. Nothing here knows a rule or a score.
+import { recoil } from '../../pinball-kit/feedback';
 import { Scene, Camera, Node, Mesh, Material, Light, Shading, Blend, cube, sphere, parseObj, quatFromAxisAngle, quatMultiply } from 'zinc:3d';
-import { Table, TableDef, LookDef, LayoutDef, LightDef } from './format/table';
-import { TableSource } from './format/source';
+import { Table, TableDef, LookDef, LayoutDef, LightDef } from '../../pinball-kit/format/table';
+import { TableSource } from '../../pinball-kit/format/source';
 import { tableImage } from './images';
-import { Solid, Polyline, tessellate, wall, track, wire, slab, lathe, plate, floor, prism, flipperOutline, discWithin, inside, rad } from './geometry';
+import { Solid, Polyline, tessellate, wall, track, wire, slab, lathe, plate, floor, prism, flipperOutline, discWithin, inside, rad } from '../../pinball-kit/geometry';
 
 export function rgb(hex: string): u32 { return parseInt(hex.slice(1), 16); }
 /** A dark shade of a colour: a light that is off. */
@@ -46,6 +47,7 @@ export class TableScene {
   private plunger: Node | null = null;
   private targets: Glowing[] = [];
   private bumpers: Glowing[] = [];
+  private bumperCaps: Node[] = [];
   private slingshots: Glowing[] = [];
   private spinners: Node[] = [];
   private spinnerYaw: number[][] = [];
@@ -224,7 +226,7 @@ export class TableScene {
       this.drape(body, b.look, 0);
       this.drape(cap, b.cap, 0);
       const n = this.add(body, this.look(b.look));
-      this.add(cap, this.look(b.cap));
+      this.bumperCaps.push(this.add(cap, this.look(b.cap)));
       this.bumpers.push(new Glowing(n, this.look(b.look), this.glow(b.look)));
     }
     for (const sl of t.slingshots) {
@@ -375,8 +377,17 @@ export class TableScene {
     this.targets[i].node.setPosition(0, up ? g.z : g.z - g.height + 0.12, 0);
     this.targets[i].set(lit);
   }
-  setBumper(i: i32, lit: boolean): void { this.bumpers[i].set(lit); }
-  setSlingshot(i: i32, lit: boolean): void { this.slingshots[i].set(lit); }
+  setBumper(i: i32, lit: boolean, pulse: number): void {
+    this.bumpers[i].set(lit);
+    this.bumperCaps[i].setPosition(0, -0.6 * recoil(pulse), 0);
+  }
+  setSlingshot(i: i32, lit: boolean, pulse: number): void {
+    const band = this.slingshots[i], e = this.def.slingshots[i];
+    band.set(lit);
+    const dx = e.b[0] - e.a[0], dy = e.b[1] - e.a[1], length = Math.sqrt(dx * dx + dy * dy);
+    const amount = 0.4 * recoil(pulse) / length;
+    band.node.setPosition(dy * amount, 0, -dx * amount);
+  }
   /** Spinner `i` turned by `turns` half turns. */
   setSpinner(i: i32, turns: number): void {
     const q = quatMultiply(this.spinnerYaw[i], quatFromAxisAngle(1, 0, 0, turns * Math.PI)), r = this.spinners[i].rotation;

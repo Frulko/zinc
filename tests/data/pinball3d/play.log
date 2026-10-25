@@ -4,137 +4,131 @@
 1.833 plunger launch
 1.937 launched roll
 1.943 laneGate pass
-2.144 drop1 hit
-2.144 drop1 down +2000 = 2000
+2.142 drop1 hit
+2.142 drop1 down +2000 = 2000
 2.167 left flip
 2.167 deckFlipper flip
-2.419 pop1 hit +500 = 2500
 2.783 right flip
-3.234 pop3 hit +500 = 3000
-3.366 lane2 roll +1300 = 4300
 3.400 left flip
 3.400 deckFlipper flip
-3.737 lane2 roll +1300 = 5600
 4.017 right flip
-4.103 pop3 hit +500 = 6100
 4.633 left flip
 4.633 deckFlipper flip
 5.250 right flip
-5.354 game drain
-5.354 game ballSaved
 5.867 left flip
 5.867 deckFlipper flip
 6.483 right flip
-6.833 plunger launch
-6.937 launched roll
-6.943 laneGate pass
+6.709 pop2 hit +500 = 2500
 7.100 left flip
 7.100 deckFlipper flip
-7.152 drop2 hit
-7.152 drop2 down +2000 = 8100
-7.262 pop1 hit +500 = 8600
 7.717 right flip
-7.725 slingRight hit +110 = 8710
-7.836 slingLeft hit +110 = 8820
 8.333 left flip
 8.333 deckFlipper flip
-8.433 game drain
-8.433 game ballSaved
+8.908 game drain
+8.908 game ballSaved
 8.950 right flip
-9.384 plunger launch
-9.489 launched roll
-9.494 laneGate pass
 9.567 left flip
 9.567 deckFlipper flip
-9.710 drop3 hit
-9.710 drop3 down +12000 = 20820
-9.843 pop1 hit +500 = 21320
-9.864 pop3 hit +500 = 21820
+9.859 plunger launch
+9.964 launched roll
+9.969 laneGate pass
+10.176 drop2 hit
+10.176 drop2 down +2000 = 4500
 10.183 right flip
+10.292 pop1 hit +500 = 5000
 10.800 left flip
 10.800 deckFlipper flip
 11.333 game bump
 11.417 right flip
+11.443 game drain
+11.443 end of ball 1: bonus 1200, score 6200
+11.443 game ballStart
+11.443 ball 2
+11.833 plunger launch
+11.939 launched roll
+11.944 laneGate pass
 12.033 left flip
 12.033 deckFlipper flip
-12.328 inlaneLeft roll +400 = 22220
+12.160 drop3 hit
+12.160 drop3 down +12000 = 18200
+12.291 pop1 hit +500 = 18700
+12.647 game drain
+12.647 game ballSaved
 12.650 right flip
-13.178 game drain
-13.178 end of ball 1: bonus 2600, score 24820
-13.178 game ballStart
-13.178 ball 2
 13.267 left flip
 13.267 deckFlipper flip
+13.598 plunger launch
+13.702 launched roll
+13.707 laneGate pass
 13.883 right flip
+13.906 drop1 hit
+13.906 drop1 down +2000 = 20700
+14.286 pop2 hit +500 = 21200
 14.500 left flip
 14.500 deckFlipper flip
+14.804 slingLeft hit +110 = 21310
+14.931 slingRight hit +110 = 21420
 15.117 right flip
 15.733 left flip
 15.733 deckFlipper flip
 16.350 right flip
-16.833 plunger launch
-16.938 launched roll
-16.943 laneGate pass
+16.455 game drain
+16.455 game ballSaved
 16.967 left flip
 16.967 deckFlipper flip
-17.144 drop1 hit
-17.144 drop1 down +2000 = 26820
-17.392 lane1 roll +300 = 27120
 17.583 right flip
+17.794 plunger launch
+17.898 launched roll
+17.903 laneGate pass
+18.110 drop2 hit
+18.110 drop2 down +2000 = 23420
 18.200 left flip
 18.200 deckFlipper flip
-18.467 lane2 roll +300 = 27420
+18.226 pop1 hit +500 = 23920
 18.817 right flip
-18.970 pop3 hit +500 = 27920
-18.998 pop2 hit +500 = 28420
-19.021 pop1 hit +500 = 28920
-19.365 slingLeft hit +110 = 29030
+19.377 game drain
+19.377 game ballSaved
 19.433 left flip
 19.433 deckFlipper flip
-19.472 slingRight hit +110 = 29140
 20.050 right flip
+20.328 plunger launch
+20.432 launched roll
+20.438 laneGate pass
+20.652 drop3 hit
+20.652 drop3 down +12000 = 35920
 20.667 left flip
 20.667 deckFlipper flip
-21.109 game drain
-21.109 game ballSaved
+20.780 pop1 hit +500 = 36420
+20.993 slingLeft hit +110 = 36530
+21.135 slingRight hit +110 = 36640
+21.232 slingLeft hit +110 = 36750
 21.283 right flip
+21.582 stand2 hit +1500 = 38250
 21.900 left flip
 21.900 deckFlipper flip
 22.517 right flip
-22.794 plunger launch
-22.898 launched roll
-22.903 laneGate pass
-23.112 drop2 hit
-23.112 drop2 down +2000 = 31140
 23.133 left flip
 23.133 deckFlipper flip
-23.222 pop1 hit +500 = 31640
 23.750 right flip
-23.927 game drain
-23.927 game ballSaved
+23.816 slingRight hit +110 = 38360
+23.915 slingLeft hit +110 = 38470
 24.367 left flip
 24.367 deckFlipper flip
-24.878 plunger launch
-24.982 launched roll
 24.983 right flip
-24.987 laneGate pass
-25.204 drop3 hit
-25.204 drop3 down +12000 = 43640
-25.336 pop1 hit +500 = 44140
-25.357 pop3 hit +500 = 44640
+25.564 slingLeft hit +110 = 38580
 25.600 left flip
 25.600 deckFlipper flip
 26.217 right flip
 26.833 left flip
 26.833 deckFlipper flip
-27.276 inlaneLeft roll +400 = 45040
 27.450 right flip
+27.526 outlaneLeftSwitch roll +2500 = 41080
 28.067 left flip
 28.067 deckFlipper flip
-28.150 game drain
-28.150 end of ball 2: bonus 2600, score 47640
-28.150 game ballStart
-28.150 ball 3
+28.105 game drain
+28.105 end of ball 2: bonus 2600, score 43680
+28.105 game ballStart
+28.105 ball 3
 28.683 right flip
 29.300 left flip
 29.300 deckFlipper flip
@@ -148,62 +142,64 @@
 31.833 plunger launch
 31.937 launched roll
 31.943 laneGate pass
-32.148 drop1 hit
-32.148 drop1 down +2000 = 49640
+32.142 drop1 hit
+32.142 drop1 down +2000 = 45680
 32.383 right flip
-32.396 lane1 roll +6300 = 55940
 33.000 left flip
 33.000 deckFlipper flip
-33.485 lane1 roll +1300 = 57240
+33.458 game drain
+33.458 game ballSaved
 33.617 right flip
-33.777 pop1 hit +500 = 57740
-33.910 pop2 hit +500 = 58240
 34.233 left flip
 34.233 deckFlipper flip
+34.409 plunger launch
+34.514 launched roll
+34.519 laneGate pass
+34.726 drop2 hit
+34.726 drop2 down +2000 = 47680
+34.842 pop1 hit +500 = 48180
 34.850 right flip
-35.052 game drain
-35.052 game ballSaved
 35.467 left flip
 35.467 deckFlipper flip
+35.993 game drain
+35.993 game ballSaved
 36.083 right flip
 36.700 left flip
 36.700 deckFlipper flip
-36.833 plunger launch
-36.937 launched roll
-36.943 laneGate pass
-37.152 drop2 hit
-37.152 drop2 down +2000 = 60240
-37.262 pop1 hit +500 = 60740
 37.317 right flip
-37.725 slingRight hit +110 = 60850
-37.837 slingLeft hit +110 = 60960
+37.794 plunger launch
+37.898 launched roll
+37.903 laneGate pass
 37.933 left flip
 37.933 deckFlipper flip
-38.434 game drain
-38.434 game ballSaved
+38.118 drop3 hit
+38.118 drop3 down +12000 = 60180
+38.247 pop1 hit +500 = 60680
 38.550 right flip
+38.581 game drain
+38.581 game ballSaved
 39.167 left flip
 39.167 deckFlipper flip
-39.385 plunger launch
-39.490 launched roll
-39.495 laneGate pass
-39.711 drop3 hit
-39.711 drop3 down +12000 = 72960
+39.532 plunger launch
+39.636 launched roll
+39.642 laneGate pass
 39.783 right flip
-39.844 pop1 hit +500 = 73460
-39.865 pop3 hit +500 = 73960
+39.841 drop1 hit
+39.841 drop1 down +2000 = 62680
+40.221 pop2 hit +500 = 63180
 40.400 left flip
 40.400 deckFlipper flip
+40.739 slingLeft hit +110 = 63290
+40.865 slingRight hit +110 = 63400
 41.017 right flip
 41.633 left flip
 41.633 deckFlipper flip
-41.783 inlaneLeft roll +400 = 74360
 42.250 right flip
-42.657 game drain
-42.657 end of ball 3: bonus 5000, score 79360
-42.657 game gameOver
-42.657 game over: score 79360
-42.657 game letter
-42.657 game letter
-42.657 game letter
-42.657 high score: ZAA 79360
+42.397 game drain
+42.397 end of ball 3: bonus 2300, score 65700
+42.397 game gameOver
+42.397 game over: score 65700
+42.397 game letter
+42.397 game letter
+42.397 game letter
+42.397 high score: ZAA 65700

@@ -44,3 +44,10 @@ The ball is Kenney's `ballGrey.png` (Puzzle Pack, CC0), in `assets/kenney`.
 - Measured in Azahar (`ZINC_PROFILE=1`, a scripted game, 3D on): the program's own time per refresh (both eyes, the physics at 960 Hz and the
   bottom screen) p50 8 ms, p99 12 ms; no frame falls back to the software raster.
 - `--engine quickjs` does not run it (nor `examples/pinball`, which imports `zinc:platform`'s `TOUCH`).
+
+## Shared physics update
+
+The desktop game now uses Box2D through `examples/pinball-kit`. Rebuild the console core with the current
+`tools/build-console-core` to include its Physics2D module; older cores cannot run this version. The new
+Box2D registration is checked on the development Mac, not yet on the physical 3DS. Earlier frame-time
+numbers above describe the previous solver and need remeasurement.

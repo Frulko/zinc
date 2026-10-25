@@ -1248,3 +1248,19 @@ On the owner's hardware (2026-10-25), examples/3d/orbit:
 | Vita, 6000 balls | 5.74 ms | 2.86 ms |
 
 Balls at 16.7 ms (linear fit): PSP about 1080 interpreted, 1890 compiled; 3DS about 1400 and 2400. The compiled cores are smaller (no interpreter): PSP orbit EBOOT 2,614,510 to 2,552,918 bytes, 3DS fib 1,265,956 to 852,928.
+
+## 2026-10-25: shared Box2D pinball, M1 Pro headless sample
+
+Owner asked for proven physics and more consistent pinballs. Box2D replaces the live handwritten 2D collision solver; Jolt remains the 3D solver. Short interpreter run at 960×600, fixed delta 0.016667, 2702 frames (869 measured frames per phase after warm-up), no other session build/test running:
+
+| Per-frame work | Previous solver | Shared Box2D + cabinet refresh |
+|---|---:|---:|
+| Rules + physics, one ball | 0.074 ms | 0.189 ms |
+| Rules + physics, three balls | 0.142 ms | 0.235 ms |
+| Rules + physics, attract | 0.069 ms | 0.170 ms |
+| Total frame, one ball | 0.25 ms | 0.39 ms |
+| Total frame, three balls | 0.35 ms | 0.46 ms |
+
+One Box2D-run multiball frame reached 16 ms; other measured maxima were 2 ms or less. This is a small absolute increase and a large relative increase, not a performance win. Physics and artwork change the trajectories/workloads; this single sample is not an identical-workload regression gate. It proves neither windowed 120 Hz presentation nor performance on a console/Pi. Previous sources were read from git into `/tmp/zinc-pinball-before`; neither tree nor engine was rebuilt for this comparison.
+
+Reproduce after builds/tests finish: `ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_FRAMES=2702 ZINC_FIXED_DT=0.016667 ZINC_DEMO=bench build/zinc run examples/pinball --interp`. Calibration probes and test coverage: `zinc-next-pinball-physics.md`.

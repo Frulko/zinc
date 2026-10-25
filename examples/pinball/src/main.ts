@@ -37,7 +37,7 @@ onFrame((dt: number) => {
   else if (controls.pause) menu.show();
   else if (controls.start && game.canAddPlayer()) game.addPlayer();
   else if (controls.start && game.phase === PH_PLAY) menu.show();
-  else game.update(Math.min(dt, 0.05), controls);
+  else game.update(Math.min(dt, 0.1), controls);
   const t1 = clock();
   scene.draw();
   panel.draw();

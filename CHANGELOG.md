@@ -11,6 +11,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.2] - 2026-10-25
 
 ### Added
+- The pinball demos share `examples/pinball-kit`: Box2D for Nova Patrol and Nova Patrol DS, Jolt for the 3D tables, reusable table geometry and validation, and a fixed simulation clock with ball interpolation. New graphics console cores link Box2D too; existing cores need rebuilding.
+- Refreshed pinball cabinets: clearer score panels and launch instructions, Kenney CC0 ball and spark sprites, darker Tidal Lock art, and mechanical bumper and slingshot recoil.
 - `tools/build-console-core <psp|vita|n3ds> --aot <project>` compiles the program into the console build instead of interpreting it (PSP, PS Vita, 3DS): about 1.8 times faster program code, and a smaller binary.
 - Debug and measure a paired device from your computer: `zinc dev --device <name>` puts the program's inspector on `localhost:9229` here (open `chrome://inspect`), `zinc device <name> profile <app>` runs the app with the frame profiler and brings back its summary and its trace (for Perfetto or `chrome://tracing`), `zinc device <name> bench` runs the render benchmark suite there and writes its JSON here, and `zinc device <name> deploy --no-run` installs without starting.
 - `zinc dev --device` puts a dev bar across the top of the device's screen: X quits back to the player, the time, and a menu to restart the program, show the performance panel or save a screenshot. `ZINC_DEV_BAR=1` shows it over any app.
@@ -41,6 +43,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
 
 ### Fixed
+- Pinball flippers stop transferring energy when held at rest, fast multiball contacts use travel-limited steps, and separating 3D contacts no longer trigger active kicks. Nova Patrol's target bank and ramp lip no longer trap slow balls.
+- Nova Patrol starts with `--engine quickjs`; its control hints now show keyboard, touch and gamepad inputs together.
 - `zinc device <name> <command>` works again for a device named like a command (`bench`, `top`...): the name comes first.
 - Linux packages for ARM and the other architectures built on another machine (`tools/build-linux`) now hold the plugins' libraries for that architecture: the first program run on a Raspberry Pi after an install or an update no longer compiles plugins for minutes. Plugins that need a system library (zinc:video, zinc:ffi...) are still compiled on the device; `sizes-linux.json` names them.
 - Nova Patrol DS (`examples/n3ds-pinball`): the ball shows on the 3DS; its picture was left out of the package.

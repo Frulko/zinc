@@ -1,4 +1,9 @@
-# Resume — 2026-10-25 (consoles night)
+# Resume — 2026-10-25 (pinball)
+
+- Owner pinball request: shared examples/pinball-kit, Box2D for pinball/n3ds-pinball, Jolt for pinball3d/editor; fixed clock + interpolation, adaptive travel steps, passive held flippers, contact direction and two board pockets fixed. Kenney sprites/emblem, quieter art, clearer panels and recoil. ZN-801 Done; ZN-649.12 still needs human play/listening, ZN-800 still has Pocket Hero/platform asset work.
+- Pinball core, 2D interpreter/QuickJS pixels, 3D interpreted/AOT game and sounds, format, editor, chooser, second table and n3ds_demos pass on Mac; ten simulated minutes with no stuck ball. Host console core links Box2D and runs packed invariants. No console/Pi/cross build; rebuild old console cores before this pinball. Report docs/reports/zinc-next-pinball-physics.md; timings in zinc-next-perf.md. No push/release.
+
+## Previous console work
 
 - PSP/3DS GPU replay: linear gradients on the GPU (a85c9583), moved paths reuse their shape (55297d44); cores now call hal_shutdown at exit (7c61b5ed: the real 3DS XL crashed returning to the launcher; fix not yet confirmed on the console). Stereo sign fixed in setStereo docs and hardware-n3ds, new "3D object" page; 3DSX titles via --title (SMDH).
 - ZN-790 Done: examples/n3ds-pinball (Nova Patrol DS), n3ds-platformer (Meadow Run 3D), n3ds-starfall; tests/t1/n3ds_demos.sh.

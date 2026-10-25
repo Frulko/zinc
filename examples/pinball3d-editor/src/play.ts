@@ -3,12 +3,13 @@
 // written again here: the editor builds a scene from the document, drops a ball where one points, steps the game with the time of
 // each frame, and keeps what it has to show on the top view: where the balls are, what they touched, which switches fired.
 // A change of the table ends the game being played: the next one is the changed table's.
+import { FixedClock } from '../../pinball-kit/clock';
 import { createSignal, batch } from 'zinc:ui/solid';
 import { Camera } from 'zinc:3d';
-import { Table, LayoutDef } from '../../pinball3d/src/format/table';
-import { FolderSource } from '../../pinball3d/src/format/source';
+import { Table, LayoutDef } from '../../pinball-kit/format/table';
+import { FolderSource } from '../../pinball-kit/format/source';
 import { Game, Controls, Phase } from '../../pinball3d/src/game';
-import { Part } from '../../pinball3d/src/physics';
+import { Part } from '../../pinball-kit/physics3d';
 import { TableScene } from '../../pinball3d/src/scene';
 import { TableAudio } from '../../pinball3d/src/audio';
 import { Bindings, readControls } from '../../pinball3d/src/input';
@@ -42,7 +43,8 @@ let built: Table | null = null, scene: TableScene | null = null, game: Game | nu
 // the document the scene was built from: a change makes it stale
 let builtFrom: any = null;
 const controls = new Controls(), fromWindow = new Controls(), bindings = new Bindings();
-let owed = 0, logged = 0, clock = 0, windowHeard = 0;
+const fixed = new FixedClock();
+let logged = 0, clock = 0, windowHeard = 0;
 // where each element of the table is in its file, by its name: the events of the game name their element
 let paths = new Map<string, string>();
 /** The lists of the table whose items a ball can touch, by the part the physics reports. */
@@ -88,7 +90,7 @@ export function paintingOf(file: string): i32 { return tableImage(tableNow().sou
 export function sceneNow(): TableScene {
   const t = tableNow();
   if (scene === null) scene = new TableScene(t);
-  if (game !== null) game.show(scene);
+  if (game !== null) game.show(scene, fixed.alpha(game.dt()));
   return scene as TableScene;
 }
 /** The game on the table as the document has it now; made when it is first asked for. */
@@ -135,7 +137,7 @@ export function aim(camera: Camera, l: LayoutDef, w: number, h: number): void {
 // ---------------------------------------------------------------- playing
 
 /** Nothing to show of a game yet. */
-function clear(): void { flashes.splice(0, flashes.length); events.splice(0, events.length); logged = 0; owed = 0; }
+function clear(): void { flashes.splice(0, flashes.length); events.splice(0, events.length); logged = 0; fixed.reset(); }
 /** Starts a game by putting a ball on the table at (x, y) of the top view, at rest on the level of height `on` (0: the playfield):
  *  it rolls from there. */
 export function dropBall(x: number, y: number, on: number): void {
@@ -199,8 +201,8 @@ export function advance(dt: number, vx: number, vy: number, vw: number, vh: numb
     controls.nudgeLeft = controls.nudgeLeft || fromWindow.nudgeLeft; controls.nudgeRight = controls.nudgeRight || fromWindow.nudgeRight;
     controls.nudgeUp = controls.nudgeUp || fromWindow.nudgeUp; controls.start = controls.start || fromWindow.start;
   }
-  owed = Math.min(owed + dt, 0.1);
-  while (owed >= g.dt()) { stepOnce(g); owed -= g.dt(); }
+  const count = fixed.advance(dt, g.dt());
+  for (let i = 0; i < count; i++) stepOnce(g);
   hear(g);
   if (audio !== null) { audio.update(g); audio.log = []; }   // the events of the game are what --log prints of a game; its sounds are in the game's own test
   setMoved(moved() + 1);

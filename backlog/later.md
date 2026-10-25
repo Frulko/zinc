@@ -372,6 +372,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-649.12: rebuild graphics console cores with Physics2D, verify the Box2D pinball on the physical 3DS/other consoles and Pi, and measure frame time/memory; the registration and packed invariants pass only on the Mac so far.
+
 - ZN-477: run examples/3d/orbit, cubes and gl-check on the owner's Vita with the GXM core (watch SDL's texture fragment program paired with the psp2spvc vertex program, the transposed Wvp), and log the ms in zinc-next-perf.md.
 - ZN-476/ZN-478: run examples/3d/orbit on a real PSP (Adrenaline) and 3DS, Old and New, with the slider up; log the ms.
 - ZN-102: sqlite, wasm, process and ffi conformance in the Linux container.

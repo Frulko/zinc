@@ -3,7 +3,7 @@
 The editor of the tables of [`examples/pinball3d`](../pinball3d/README.md). A table is data, not code: a folder with a
 `table.json` and the images, sounds and models it names. The editor draws that file, lets you place, shape, name and tune
 everything in it, write its rules as sentences, and play the table as you build it. It is written in Zinc with `zinc:ui`,
-and it reads the format's own definition (`examples/pinball3d/src/format/`): a field added to the format shows in its
+and it reads the format's own definition (`examples/pinball-kit/format/`): a field added to the format shows in its
 forms without a line of editor code.
 
 ```sh

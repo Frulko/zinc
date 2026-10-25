@@ -7,8 +7,8 @@
 // and again every 0.2 s until the end. sounds: also the sounds the game asks for ("0.412 sound pop1 hit: <name> gain 1.00"),
 // and how fast the ball that rolls goes, every half second.
 import { args, exit } from 'zinc:sys';
-import { loadTable } from '../src/format/table';
-import { openTable } from '../src/format/source';
+import { loadTable } from '../../pinball-kit/format/table';
+import { openTable } from '../../pinball-kit/format/source';
 import { Game, Controls } from '../src/game';
 
 function main(): i32 {

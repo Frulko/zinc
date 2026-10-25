@@ -2,7 +2,7 @@
 // The format says what each kind of condition and of action reads (the variants of its schema); strings.ts has a sentence per kind
 // in each language, with the place of every part. Here the two meet: the pieces of a sentence (words, and the parts that a form
 // turns into choices), and the same sentence as plain text for the lists and the titles. No screen: selftest.ts prints them.
-import { Schema, Kind, Variant } from '../../pinball3d/src/format/schema';
+import { Schema, Kind, Variant } from '../../pinball-kit/format/schema';
 import { phrase, readable, amount, t, f, RULE_SAID, RULE_IF, AND, THEN } from './strings';
 
 /** A piece of a sentence: words, or the place of a part (`slot`: "target", "way", or the name of a number field). */

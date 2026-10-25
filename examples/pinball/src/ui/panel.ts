@@ -3,12 +3,11 @@
 // the moment), bonus and ball saver state, and the controls. In attract mode it lists the high scores. Every
 // command repeats frame to frame unless a number changes, so the frame diff leaves the panel alone.
 import { rrect, gradient, border, polygon, stroke, drawText, font, textWidth, lineHeight } from 'zinc:gfx';
-import { TOUCH } from 'zinc:platform';
 import { Game, PH_ATTRACT, PH_ENTRY, PH_OVER, PH_BONUS, BALLS_PER_GAME, C_GOLD, C_CYAN, C_PINK, C_GREEN } from '../game/game';
 import { MISSIONS, RANKS } from '../game/missions';
 import { mix } from '../render/draw';
 
-const INK: u32 = 0xe6ecff, DIM: u32 = 0x8b95c9, FRAME: u32 = 0x9aa4c8;
+const INK: u32 = 0xe6ecff, DIM: u32 = 0xa1b2c9, FRAME: u32 = 0x32445c;
 const seg: number[] = [];
 
 /** Seven-segment digit masks (a b c d e f g). */
@@ -21,9 +20,9 @@ export class Panel {
     const g = this.game, x = this.x, w = this.w, h = this.h;
     const pad = Math.round(w * 0.05);
     // frame: dark blue metal with a chrome border
-    gradient(x, 0, w, h, 0, 0x151a3a, 0x07081a, true, 255);
+    gradient(x, 0, w, h, 0, 0x101e30, 0x050c16, true, 255);
     border(x + 3, 3, w - 6, h - 6, 10, 2, FRAME, 200);
-    border(x + 7, 7, w - 14, h - 14, 8, 1, 0x3a4378, 255);
+    rrect(x + 18, 14, 34, 3, 1.5, C_CYAN, 220);
     let cy = pad;
     cy = this.emblem(x + pad, cy, w - pad * 2);
     cy += Math.round(h * 0.02);
@@ -86,9 +85,9 @@ export class Panel {
     return y;
   }
 
-  /** Ten digits, leading zeros unlit; a dim ghost of every segment under the lit ones. */
+  /** Eight digits (growing for large scores), leading zeros unlit; a dim ghost of every segment under the lit ones. */
   private sevenSeg(x: number, y: number, w: number, h: number, value: i32): void {
-    const n: i32 = 10;
+    const n: i32 = Math.max(8, `${value}`.length);
     const cw = w / n, dw = cw * 0.72, t = Math.max(2, dw * 0.16);
     let v = value;
     const digits: i32[] = [];
@@ -101,9 +100,9 @@ export class Panel {
       const dx = x + (n - 1 - i) * cw + (cw - dw) / 2;
       for (let sgi: i32 = 0; sgi < 7; sgi++) {
         const on = ((mask >> sgi) & 1) === 1;
-        this.segment(dx, y, dw, h, t, sgi, on ? 0x5cff8a : 0x0a1c10, 255);
+        this.segment(dx, y, dw, h, t, sgi, on ? 0x5cff8a : 0x07110e, 255);
       }
-      if (i % 3 === 0 && i > 0) rrect(dx + dw + (cw - dw) / 2 - t / 2, y + h - t, t, t, t / 2, started ? 0x5cff8a : 0x0a1c10, 255);
+      if (i % 3 === 0 && i > 0) rrect(dx + dw + (cw - dw) / 2 - t / 2, y + h - t, t, t, t / 2, started ? 0x5cff8a : 0x07110e, 255);
     }
   }
 
@@ -206,14 +205,13 @@ export class Panel {
     }
   }
 
-  private helpHeight(): number { return lineHeight(font('sans', 12)) * 3 + 4; }
+  private helpHeight(): number { return lineHeight(font('sans', 12)) * 4 + 4; }
 
   private help(x: number, y: number): void {
     const f = font('sans', 12);
     const lh = lineHeight(f);
-    const lines: string[] = TOUCH
-      ? ['Touch left / right: flippers', 'Touch this panel: plunger', 'Keys: Z  /  Space  Esc']
-      : ['Z and / : flippers    Space: plunger', 'X  .  Up: bump the table', 'Enter: start    Esc: menu'];
+    const lines: string[] = ['Z /: flippers    Space: hold / release', 'Tap left / right: flippers; panel: launch',
+      'X . Up: bump    Esc: pause', 'Enter: start    Gamepad: L / R, A'];
     for (let i: i32 = 0; i < lines.length; i++) drawText(f, x + 2, y + i * lh, lines[i], DIM, 255, 0);
   }
 

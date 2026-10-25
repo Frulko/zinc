@@ -8,7 +8,7 @@ import { pts, line3, flat } from '../../pinball/src/render/draw';
 import { Inserts } from '../../pinball/src/render/inserts';
 import { paintTable } from '../../pinball/src/render/art';
 import { Table, Rail, RAIL_RAMP, RAIL_WIRE } from '../../pinball/src/table/layout';
-import { Ramp } from '../../pinball/src/physics/bodies';
+import { Ramp } from '../../pinball-kit/physics/bodies';
 import { K, EYE_HEIGHT, CENTER_X } from './constants';
 
 /** A camera straight above the table point (cx, cy), shown at screen point (sx, sy), `s` image pixels per screen pixel. */

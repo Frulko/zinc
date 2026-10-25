@@ -1,9 +1,9 @@
 // The help lines of the table format in French. The format gives every field and every kind of thing one English line
-// (examples/pinball3d/src/format/table-schema.ts); the form shows it under the field. This table pairs each of those lines with its
+// (examples/pinball-kit/format/table-schema.ts); the form shows it under the field. This table pairs each of those lines with its
 // French one, by the English text itself: a line the format changes or gains has no pair any more, and `helpFaults` (run by
 // selftest.ts) names it, so the French form never shows an English line without a test saying so. The words of the format itself
 // (`glow`, "self", drop, blink) stay as the file writes them.
-import { Schema } from '../../pinball3d/src/format/schema';
+import { Schema } from '../../pinball-kit/format/schema';
 import { uiLang } from './strings';
 
 const EN: string[] = [], FR: string[] = [];

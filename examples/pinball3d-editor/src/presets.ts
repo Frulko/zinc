@@ -2,9 +2,9 @@
 // flipper rests and swings the other way, a drop target is a target of another kind); where it goes comes from clicks on the top
 // view, in the order of the format's fields: one click per point, then one per point of its path. Every list of the format whose items
 // have a place gets an entry even when this file names none for it, so a kind added to the format can be placed at once.
-import { Schema, Field, Kind, Variants } from '../../pinball3d/src/format/schema';
-import { TableDef, formatSchema, parseTable } from '../../pinball3d/src/format/table';
-import { FORMAT, VERSION } from '../../pinball3d/src/format/table-schema';
+import { Schema, Field, Kind, Variants } from '../../pinball-kit/format/schema';
+import { TableDef, formatSchema, parseTable } from '../../pinball-kit/format/table';
+import { FORMAT, VERSION } from '../../pinball-kit/format/table-schema';
 import { isPoint, isPath, isProfile } from './doc';
 import { Outline, outlines } from './shapes';
 

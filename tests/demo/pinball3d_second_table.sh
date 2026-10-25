@@ -56,7 +56,7 @@ python3 - "$game" "$table" <<'PY' || fail=1
 import glob, json, os, re, sys
 game, folder = sys.argv[1], sys.argv[2]
 t = json.load(open(folder + '/table.json'))
-code = ''.join(open(f).read() for f in glob.glob(game + '/src/*.ts') + glob.glob(game + '/src/format/*.ts') + glob.glob(game + '/tools/*.ts'))
+code = ''.join(open(f).read() for f in glob.glob(game + '/src/*.ts') + glob.glob(game + '/../pinball-kit/*.ts') + glob.glob(game + '/../pinball-kit/format/*.ts') + glob.glob(game + '/tools/*.ts'))
 credited = {f for c in t.get('credits', []) for f in c['files'] if c.get('author') and c.get('licence')}
 WORDS = {'format', 'event', 'jackpotEvent', 'do', 'mode', 'test', 'is', 'kind', 'shape', 'style', 'show', 'align', 'button', 'shading', 'penalty', 'collide', 'wave'}
 bad, named = [], set()

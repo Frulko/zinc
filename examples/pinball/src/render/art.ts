@@ -29,7 +29,7 @@ export function paintTable(cam: Camera, t: Table, ins: Inserts, w: number, h: nu
   seed = 12345;
   // space backdrop around the cabinet
   gradient(0, 0, w, h, 0, 0x02030a, 0x0d0826, true, 255);
-  for (let i: i32 = 0; i < 160; i++) {
+  for (let i: i32 = 0; i < 100; i++) {
     const sz = (0.6 + rnd() * 1.4) * s;
     rrect(rnd() * w, rnd() * h, sz, sz, sz / 2, mix(0x8fa8ff, 0xffffff, rnd()), Math.round(60 + rnd() * 160));
   }
@@ -66,7 +66,7 @@ function paintPlayfield(cam: Camera, t: Table, ins: Inserts, s: number): void {
   for (let i: i32 = 0; i < bands; i++) {
     const y0 = TABLE_L * i / bands, y1 = TABLE_L * (i + 1) / bands + 0.05;
     const bx: number[] = [0, TABLE_W, TABLE_W, 0], by: number[] = [y0, y0, y1, y1];
-    flat(cam, bx, by, 0, mix(0x070a26, 0x1b1552, i / bands), 255);
+    flat(cam, bx, by, 0, mix(0x070a26, 0x142d40, i / bands), 255);
   }
   // nebulas: layered translucent discs
   const nx: number[] = [5.5, 14.5, 9.0, 16.5, 3.5], ny: number[] = [8.0, 14.0, 24.0, 30.5, 31.0];
@@ -75,7 +75,7 @@ function paintPlayfield(cam: Camera, t: Table, ins: Inserts, s: number): void {
   for (let i: i32 = 0; i < nx.length; i++) {
     for (let k: i32 = 0; k < 7; k++) {
       const r = nr[i] * (1 - k * 0.12);
-      disc(cam, nx[i] + (rnd() - 0.5) * 0.8, ny[i] + (rnd() - 0.5) * 0.8, 0, r, nc[i], 12 + k * 4);
+      disc(cam, nx[i] + (rnd() - 0.5) * 0.8, ny[i] + (rnd() - 0.5) * 0.8, 0, r, nc[i], 6 + k * 2);
     }
   }
   // hyperspace streaks from the centre

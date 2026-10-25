@@ -4,206 +4,251 @@
 1.833 plunger launch
 1.951 laneGate pass
 2.167 left flip
-2.186 duck1 hit +1000 = 1000
-2.345 coconut1 hit
-2.345 coconut1 down +2000 = 3000
+2.185 duck1 hit +1000 = 1000
+2.256 bumper3 hit +500 = 1500
+2.361 slingLeft hit +110 = 1610
+2.570 coconut3 hit
+2.570 coconut3 down +2000 = 3610
 2.783 right flip
-2.908 slingLeft hit +110 = 3110
-3.022 slingRight hit +110 = 3220
-3.178 duck2 hit +1000 = 4220
 3.400 left flip
+3.792 bumper1 hit +500 = 4110
+3.832 bumper2 hit +500 = 4610
 4.017 right flip
+4.074 lane1 roll +300 = 4910
+4.360 striker capture +5000 = 9910
 4.633 left flip
+5.161 striker eject
+5.199 bell1 hit +2500 = 12410
 5.250 right flip
-5.365 game drain
-5.365 game ballSaved
 5.867 left flip
 6.483 right flip
-6.833 plunger launch
-6.951 laneGate pass
+6.577 bumper3 hit +500 = 12910
+6.604 bumper2 hit +500 = 13410
+6.628 bumper1 hit +500 = 13910
+6.646 bumper3 hit +500 = 14410
+6.659 bumper2 hit +500 = 14910
+6.673 bumper3 hit +500 = 15410
+6.848 bumper3 hit +20500 = 35910
+6.848 game missionDone
+6.848 game rankUp
+6.931 coconut1 hit
+6.931 coconut1 down +2000 = 37910
 7.100 left flip
-7.185 duck1 hit +1000 = 5220
-7.254 bumper3 hit +500 = 5720
-7.636 game drain
-7.636 game ballSaved
 7.717 right flip
+7.897 game drain
+7.897 game ballSaved
 8.333 left flip
-8.588 plunger launch
-8.705 laneGate pass
-8.941 duck1 hit +1000 = 6720
+8.848 plunger launch
 8.950 right flip
+8.966 laneGate pass
+9.199 duck1 hit +1000 = 38910
+9.268 bumper3 hit +500 = 39410
+9.335 duck3 hit +1000 = 40410
+9.400 slingLeft hit +110 = 40520
+9.525 bumper3 hit +500 = 41020
 9.567 left flip
-9.750 duck3 hit +1000 = 7720
+9.625 slingLeft hit +110 = 41130
+9.698 slingRight hit +110 = 41240
+9.809 duck2 hit +1000 = 42240
+10.010 bumper3 hit +500 = 42740
+10.119 slingLeft hit +110 = 42850
 10.183 right flip
+10.217 bumper3 hit +500 = 43350
+10.336 slingRight hit +110 = 43460
+10.427 bumper3 hit +500 = 43960
 10.800 left flip
-10.923 game drain
-10.923 game ballSaved
+10.946 game drain
+10.946 game ballSaved
 11.333 game bump
 11.417 right flip
 12.033 left flip
 12.650 right flip
 12.795 plunger launch
 12.913 laneGate pass
-13.148 duck1 hit +1000 = 8720
+13.146 duck1 hit +1000 = 44960
+13.215 bumper3 hit +500 = 45460
 13.267 left flip
+13.273 duck2 hit +1000 = 46460
+13.751 game drain
+13.751 end of ball 1: bonus 500, score 46960
+13.751 game ballStart
+13.751 ball 2
 13.883 right flip
-13.957 duck3 hit +1000 = 9720
 14.500 left flip
-14.580 slingLeft hit +110 = 9830
-14.782 bumper1 hit +500 = 10330
-14.799 bumper3 hit +500 = 10830
-14.814 bumper1 hit +500 = 11330
-14.891 slingLeft hit +110 = 11440
-14.974 coconut2 hit
-14.974 coconut2 down +2000 = 13440
-15.105 bumper3 hit +500 = 13940
 15.117 right flip
-15.195 coconut3 hit
-15.195 coconut3 down +12000 = 25940
 15.733 left flip
-15.754 spinner spin +100 = 26040
 16.350 right flip
-16.439 bumper2 hit +500 = 26540
+16.833 plunger launch
+16.951 laneGate pass
 16.967 left flip
-17.222 spinner spin +100 = 26640
+17.184 duck1 hit +1000 = 47960
+17.254 bumper3 hit +500 = 48460
+17.320 duck3 hit +1000 = 49460
+17.400 slingLeft hit +110 = 49570
 17.583 right flip
-17.706 bumper1 hit +500 = 27140
-17.719 bumper3 hit +500 = 27640
-17.759 duck1 hit +1000 = 28640
-17.760 duck2 hit +1000 = 29640
-18.074 slingRight hit +110 = 29750
+18.009 bumper1 hit +500 = 50070
+18.040 bumper3 hit +500 = 50570
 18.200 left flip
-18.259 duck2 hit +1000 = 30750
 18.817 right flip
 19.433 left flip
+19.607 game drain
+19.607 game ballSaved
 20.050 right flip
-20.609 slingLeft hit +110 = 30860
+20.558 plunger launch
 20.667 left flip
+20.676 laneGate pass
+20.909 duck1 hit +1000 = 51570
+20.978 bumper3 hit +500 = 52070
 21.283 right flip
-21.851 slingRight hit +110 = 30970
+21.351 game drain
+21.351 game ballSaved
 21.900 left flip
-22.095 duck3 hit +1000 = 31970
 22.517 right flip
+22.795 plunger launch
+22.912 laneGate pass
 23.133 left flip
-23.409 game drain
-23.409 end of ball 1: bonus 2000, score 33970
-23.409 game ballStart
-23.409 ball 2
+23.146 duck1 hit +1000 = 53070
+23.215 bumper3 hit +500 = 53570
+23.272 duck2 hit +1000 = 54570
 23.750 right flip
+23.776 game drain
+23.776 game ballSaved
 24.367 left flip
+24.727 plunger launch
+24.845 laneGate pass
 24.983 right flip
+25.078 duck1 hit +1000 = 55570
+25.147 bumper3 hit +500 = 56070
+25.204 duck2 hit +1000 = 57070
 25.600 left flip
 26.217 right flip
+26.642 game drain
+26.642 game ballSaved
 26.833 left flip
-26.833 plunger launch
-26.951 laneGate pass
-27.186 duck1 hit +1000 = 34970
-27.345 coconut2 hit
-27.345 coconut2 down +2000 = 36970
-27.346 coconut1 hit
-27.346 coconut1 down +2000 = 38970
 27.450 right flip
-27.535 bumper3 hit +500 = 39470
-27.570 bumper2 hit +20500 = 59970
-27.570 game missionDone
-27.570 game rankUp
-27.759 slingRight hit +110 = 60080
+27.795 plunger launch
+27.912 laneGate pass
 28.067 left flip
+28.146 duck1 hit +1000 = 58070
+28.215 bumper3 hit +500 = 58570
+28.272 duck2 hit +1000 = 59570
 28.683 right flip
-28.934 game drain
-28.934 game ballSaved
+28.776 game drain
+28.776 end of ball 2: bonus 0, score 59570
+28.776 game ballStart
+28.776 ball 3
 29.300 left flip
 29.667 game bump
-29.885 plunger launch
 29.917 right flip
-30.003 laneGate pass
-30.239 duck1 hit +1000 = 61080
 30.533 left flip
 31.150 right flip
 31.767 left flip
-31.773 game drain
-31.773 game ballSaved
+31.833 plunger launch
+31.951 laneGate pass
+32.184 duck1 hit +1000 = 60570
+32.254 bumper3 hit +500 = 61070
+32.312 duck2 hit +1000 = 62070
 32.383 right flip
-32.795 plunger launch
-32.912 laneGate pass
 33.000 left flip
-33.148 duck1 hit +1000 = 62080
+33.583 game drain
+33.583 game ballSaved
 33.617 right flip
-33.957 duck3 hit +1000 = 63080
 34.233 left flip
+34.534 plunger launch
+34.652 laneGate pass
 34.850 right flip
-35.134 game drain
-35.134 game ballSaved
+34.885 duck1 hit +1000 = 63070
+34.954 bumper3 hit +500 = 63570
+35.011 duck2 hit +1000 = 64570
 35.467 left flip
+35.517 game drain
+35.517 game ballSaved
 36.083 right flip
 36.700 left flip
 36.833 plunger launch
 36.951 laneGate pass
-37.185 duck1 hit +1000 = 64080
-37.254 bumper3 hit +500 = 64580
+37.184 duck1 hit +1000 = 65570
+37.260 bumper3 hit +500 = 66070
 37.317 right flip
-37.636 game drain
-37.636 end of ball 2: bonus 0, score 64580
-37.636 game ballStart
-37.636 ball 3
+37.341 slingRight hit +110 = 66180
+37.457 duck1 hit +1000 = 67180
+37.623 bumper1 hit +500 = 67680
+37.652 bumper3 hit +500 = 68180
+37.715 duck1 hit +1000 = 69180
+37.861 striker capture +5000 = 74180
 37.933 left flip
 38.550 right flip
+38.662 striker eject
+38.700 bell1 hit +2500 = 76680
 39.167 left flip
 39.783 right flip
+40.078 bumper3 hit +500 = 77180
+40.105 bumper2 hit +500 = 77680
+40.129 bumper1 hit +500 = 78180
+40.149 bumper3 hit +500 = 78680
 40.400 left flip
 41.017 right flip
+41.231 game drain
+41.231 game ballSaved
 41.633 left flip
-41.833 plunger launch
-41.951 laneGate pass
-42.185 duck1 hit +1000 = 65580
 42.250 right flip
-42.254 bumper3 hit +500 = 66080
-42.321 duck3 hit +1000 = 67080
-42.392 slingLeft hit +110 = 67190
-42.515 bumper3 hit +500 = 67690
+42.795 plunger launch
 42.867 left flip
-43.110 game drain
-43.110 game ballSaved
+42.912 laneGate pass
+43.146 duck1 hit +1000 = 79680
+43.215 bumper3 hit +500 = 80180
+43.273 duck2 hit +1000 = 81180
 43.483 right flip
-44.061 plunger launch
-44.100 left flip
-44.179 laneGate pass
-44.415 duck1 hit +1000 = 68690
-44.717 right flip
-45.224 duck3 hit +1000 = 69690
-45.333 left flip
-45.950 right flip
-46.216 game drain
-46.216 game ballSaved
-46.567 left flip
-47.183 right flip
-47.795 plunger launch
-47.800 left flip
-47.912 laneGate pass
-48.000 game bump
-48.157 duck1 hit +1000 = 70690
-48.232 bumper3 hit +500 = 71190
-48.314 slingLeft hit +110 = 71300
-48.417 right flip
-48.920 duck1 hit +1000 = 72300
-49.033 left flip
-49.380 slingLeft hit +110 = 72410
-49.650 right flip
-50.267 left flip
-50.883 right flip
-51.500 left flip
-51.631 game drain
-51.631 game ballSaved
-52.117 right flip
-52.733 left flip
-52.795 plunger launch
-52.912 laneGate pass
-53.148 duck1 hit +1000 = 73410
-53.350 right flip
-53.957 duck3 hit +1000 = 74410
-53.967 left flip
-54.583 right flip
-54.876 game drain
-54.876 end of ball 3: bonus 0, score 74410
-54.876 game gameOver
-54.876 game over: score 74410
+43.769 game drain
+43.769 end of ball 3: bonus 500, score 81680
+43.769 game gameOver
+43.769 game over: score 81680
+0.000 game start
+0.000 game ballStart
+0.000 ball 1
+0.217 right flip
+0.833 left flip
+1.167 plunger launch
+1.284 laneGate pass
+1.450 right flip
+1.518 duck1 hit +1000 = 1000
+1.587 bumper3 hit +500 = 1500
+1.966 game drain
+1.966 game ballSaved
+2.067 left flip
+2.683 right flip
+2.917 plunger launch
+3.034 laneGate pass
+3.268 duck1 hit +1000 = 2500
+3.300 left flip
+3.336 bumper3 hit +500 = 3000
+3.394 duck2 hit +1000 = 4000
+3.898 game drain
+3.898 game ballSaved
+3.917 right flip
+4.533 left flip
+4.849 plunger launch
+4.967 laneGate pass
+5.150 right flip
+5.200 duck1 hit +1000 = 5000
+5.275 bumper3 hit +500 = 5500
+5.366 slingRight hit +110 = 5610
+5.444 slingLeft hit +110 = 5720
+5.554 spinner spin +100 = 5820
+5.728 spinner spin +100 = 5920
+5.767 left flip
+5.944 spinner spin +100 = 6020
+6.228 spinner spin +100 = 6120
+6.383 right flip
+6.643 spinner spin +100 = 6220
+7.000 left flip
+7.097 slingLeft hit +110 = 6330
+7.252 slingRight hit +110 = 6440
+7.407 duck3 hit +1000 = 7440
+7.429 spinner spin +100 = 7540
+7.617 right flip
+7.801 bumper3 hit +500 = 8040
+8.157 game drain
+8.157 game ballSaved
+8.233 left flip
+8.850 right flip

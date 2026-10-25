@@ -11,7 +11,7 @@
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rect, border, stroke, gradient } from 'zinc:gfx';
-import { Schema, Field, Kind, Variants, Variant } from '../../pinball3d/src/format/schema';
+import { Schema, Field, Kind, Variants, Variant } from '../../pinball-kit/format/schema';
 import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
   activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected, addKind as addKindTo, setKind as setKindOf, removeItem, moveItem } from './state';
 import { previewSound } from './play';

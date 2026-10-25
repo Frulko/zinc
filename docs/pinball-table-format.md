@@ -2,7 +2,7 @@
 
 A table of `examples/pinball3d` is one JSON file, `table.json`, with the files it names beside it (models, images, sounds). Nothing about a table is in the
 game's code: the game, and the editor, read this file. This page is the reference of every field. It is printed from the format's own
-definition (`examples/pinball3d/src/format/table-schema.ts`) by `zinc run examples/pinball3d/tools/table.ts -- doc <table>`, with its examples
+definition (`examples/pinball-kit/format/table-schema.ts`) by `zinc run examples/pinball3d/tools/table.ts -- doc <table>`, with its examples
 taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinball-table"`, version 1.
 
 ## The file

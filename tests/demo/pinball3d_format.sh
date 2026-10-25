@@ -1,5 +1,5 @@
 #!/bin/sh
-# The pinball table format and its loader (ZN-649.01, examples/pinball3d/src/format, docs/pinball-table-format.md):
+# The pinball table format and its loader (ZN-649.01, examples/pinball-kit/format, docs/pinball-table-format.md):
 # - the table the example ships with loads, and its file is the canonical text: loading it and saving it gives the same bytes; the same table
 #   written another way (other indentation, defaults spelled out) saves to those bytes too;
 # - 16 broken copies (tests/data/pinball3d/break.py) each give the message that names the offending value by its path, and a file with three

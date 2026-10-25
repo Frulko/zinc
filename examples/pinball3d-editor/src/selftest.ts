@@ -2,9 +2,9 @@
 //   zinc run examples/pinball3d-editor/src/selftest.ts -- examples/pinball3d/assets/tables/tidal-lock/table.json
 import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
-import { Schema, Field, Kind, Variants } from '../../pinball3d/src/format/schema';
-import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
-import { EVENTS } from '../../pinball3d/src/format/table-schema';
+import { Schema, Field, Kind, Variants } from '../../pinball-kit/format/schema';
+import { parseTable, formatSchema } from '../../pinball-kit/format/table';
+import { EVENTS } from '../../pinball-kit/format/table-schema';
 import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, isOffset, isPath, isClosed, found, mirrorName, newTableText } from './doc';
 import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
 import { help, helpFaults } from './help';

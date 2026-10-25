@@ -3,7 +3,7 @@
 // write, not by how many lines they have.
 //   zinc run examples/pinball3d-editor/src/formcheck.tsx
 import { createSignal, render } from 'zinc:ui/solid';
-import { Schema, Field } from '../../pinball3d/src/format/schema';
+import { Schema, Field } from '../../pinball-kit/format/schema';
 import { valueAt, fieldIn } from './doc';
 import { Source, Fields, Help } from './form';
 

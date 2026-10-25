@@ -1,7 +1,7 @@
 // Short-lived effects in table coordinates: score popups that float up and fade, flash rings that grow from a
 // bumper or a target, sparks, and the screen shake of a bump or a tilt. The game adds them; the scene draws them.
 // Pools of fixed size (quality.ts sets how many sparks), nothing allocated per frame.
-import { drawText, font, textWidth, stroke, rrect } from 'zinc:gfx';
+import { image, drawImage, drawText, font, textWidth, stroke, rrect } from 'zinc:gfx';
 import { Camera } from './camera';
 import { MAX_SPARKS } from './quality';
 
@@ -29,6 +29,7 @@ export class Effects {
   shakeY: number = 0;
   private time: number = 0;
   private pts: number[] = [];
+  private star: i32 = image('kenney/particleSmallStar.png');
 
   constructor() {
     for (let i: i32 = 0; i < 12; i++) this.popups.push(new Popup());
@@ -90,7 +91,7 @@ export class Effects {
       if (s.age >= SPARK_LIFE) continue;
       cam.project(s.x, s.y, s.z);
       const sz = Math.max(1.5, 0.12 * cam.k);
-      rrect(cam.x - sz / 2, cam.y - sz / 2, sz, sz, sz / 2, s.color, Math.round(255 * (1 - s.age / SPARK_LIFE)));
+      drawImage(this.star, cam.x - sz, cam.y - sz, sz * 2, sz * 2, Math.round(255 * (1 - s.age / SPARK_LIFE)), 0);
     }
   }
 

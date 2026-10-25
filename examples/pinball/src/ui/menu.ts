@@ -100,15 +100,15 @@ export function drawTableOverlay(g: Game, x: number, y: number, w: number, h: nu
   const big = font('sans-bold', 40), f = font('sans-bold', 18);
   const blink = Math.floor(g.time * 2) % 2 === 0;
   if (g.phase === PH_ATTRACT) {
-    const t = 'NOVA PATROL';
-    const tw = textWidth(big, t, 3);
-    rrect(x + (w - tw) / 2 - 18, y + h * 0.3 - 10, tw + 36, 64, 14, 0x000000, 120);
-    drawText(big, x + (w - tw) / 2 + 2, y + h * 0.3 + 2, t, 0x000000, 180, 3);
-    drawText(big, x + (w - tw) / 2, y + h * 0.3, t, C_GOLD, 255, 3);
-    if (blink) {
-      const s = 'PRESS SPACE OR TAP TO PLAY';
-      drawText(f, x + (w - textWidth(f, s, 1)) / 2, y + h * 0.3 + 58, s, 0xffffff, 255, 1);
-    }
+    const title = font('sans-bold', 28), small = font('sans', 14);
+    const t = 'NOVA PATROL', bw = Math.min(w - 40, 350), bx = x + (w - bw) / 2, by = y + h * 0.33;
+    rrect(bx, by, bw, 116, 12, 0x07111f, 235);
+    border(bx, by, bw, 116, 12, 1, 0x43627a, 180);
+    drawText(title, x + (w - textWidth(title, t, 2)) / 2, by + 16, t, C_GOLD, 255, 2);
+    const s = 'HOLD SPACE, RELEASE TO LAUNCH';
+    drawText(small, x + (w - textWidth(small, s, 0)) / 2, by + 59, s, 0xb4c4d8, 255, 0);
+    const go = 'SPACE OR TAP TO PLAY';
+    drawText(small, x + (w - textWidth(small, go, 1)) / 2, by + 84, go, C_CYAN, blink ? 255 : 165, 1);
   } else if (g.phase === PH_OVER && g.messageT <= 0) {
     const t = 'GAME OVER';
     drawText(big, x + (w - textWidth(big, t, 3)) / 2, y + h * 0.38, t, C_PINK, 255, 3);

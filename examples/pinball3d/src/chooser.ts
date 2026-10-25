@@ -6,8 +6,8 @@
 import { rect, rrect, border, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect, pointerDown, pointerX, pointerY } from 'zinc:gfx';
 import { nextTable } from './input';
 import * as assets from 'zinc:assets';
-import { TABLE_FILE } from './format/table';
-import { TableSource, BuiltinSource, packageOfBytes, PACKAGE_EXT, openTable } from './format/source';
+import { TABLE_FILE } from '../../pinball-kit/format/table';
+import { TableSource, BuiltinSource, packageOfBytes, PACKAGE_EXT, openTable } from '../../pinball-kit/format/source';
 import { tableImage } from './images';
 import { View } from './view';
 

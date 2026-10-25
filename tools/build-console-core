@@ -86,6 +86,8 @@ if [ $gfx = ON ]; then
   gen=$dir/gen; mkdir -p "$gen"
   "$Z" native-gen "$here/plugins/3d/native/render3d.spec.ts" "$gen" >/dev/null && "$Z" native-gen --thunk "$here/plugins/3d/native/render3d.spec.ts" "$gen" >/dev/null ||
     { echo "build-console-core: zinc native-gen failed on the zinc:3d spec" >&2; exit 1; }
+  "$Z" native-gen "$here/plugins/physics2d/native/physics2d.spec.ts" "$gen" >/dev/null && "$Z" native-gen --thunk "$here/plugins/physics2d/native/physics2d.spec.ts" "$gen" >/dev/null ||
+    { echo "build-console-core: zinc native-gen failed on the zinc:physics2d spec" >&2; exit 1; }
 fi
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack' -DZN_VITA_GXP_3D=$gxp3d -DZN_VITA_GL=$vitagl -DZN_CONSOLE_GEN='$gen' -DZN_CONSOLE_PLAYER=$player -DZN_CONSOLE_VERSION='$version' -DZN_CONSOLE_AOT='$aotdir'"

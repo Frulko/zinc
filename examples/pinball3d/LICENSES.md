@@ -1,7 +1,7 @@
 # Licences of what the pinball ships
 
 The table "Tidal Lock" (`assets/tables/tidal-lock/`) is an original work: its name, layout, rules, art and sounds were
-made for this example. Nothing comes from another pinball game. The same credits are in the table file itself
+made for this example, with a Kenney CC0 star used in the bumper caps. Nothing comes from another pinball game. The same credits are in the table file itself
 (`table.json`, `credits`), so they travel with the table when it is shared.
 
 ## Recorded sounds (CC0)
@@ -50,3 +50,9 @@ text set in Inter, SIL Open Font License 1.1). Its table file was made in the ta
 
 The files are encoded as MP3 by ffmpeg with LAME (the MP3 patents have expired); the game decodes them with miniaudio
 (`plugins/audio`, public domain or MIT-0).
+
+## Kenney bumper emblem (CC0)
+
+`tidal-lock/art/kenney-star.png` is the unchanged `particleSmallStar.png` from Kenney Puzzle Pack 1.1
+(<https://kenney.nl/assets/puzzle-pack-1>), also used by `tools/tidal_lock_art.py` in `cap.png`.
+The CC0 1.0 licence ships beside it as `License-kenney.txt`; credits travel in the table file.

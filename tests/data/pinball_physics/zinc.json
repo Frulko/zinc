@@ -1,0 +1,4 @@
+{
+  "name": "pinball-physics-check",
+  "entry": "core.ts"
+}

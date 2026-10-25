@@ -13,13 +13,14 @@
 //   --scores=<file>                                  keep the high scores in this file instead of the application's storage
 //   --stats                                          print the time of the physics and of the drawing every 5 seconds
 //   --demo                                           a player who cannot see holds the controls: start, the plunger every 5 s, the flippers in turn
+import { FixedClock } from '../../pinball-kit/clock';
 import { onFrame, width, height, rect } from 'zinc:gfx';
 import { args, clock, env } from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as storage from 'zinc:storage';
 import { setVolume } from 'zinc:audio';
-import { Table, TableError, loadTable } from './format/table';
-import { openTable } from './format/source';
+import { Table, TableError, loadTable } from '../../pinball-kit/format/table';
+import { openTable } from '../../pinball-kit/format/source';
 import { TableScene, rgb } from './scene';
 import { View } from './view';
 import { Game, Controls, Phase } from './game';
@@ -86,7 +87,8 @@ readScores();
 let view = new View(table.def, width(), height(), option('layout'));
 scene.setCamera(view.layout);
 let seenW = width(), seenH = height();
-let owed = 0, logged = 0, saved = 0;
+const fixed = new FixedClock();
+let logged = 0, saved = 0;
 let physicsMs = 0, drawMs = 0, frames = 0, statsAt = 5, played = 0;
 const hint = 'Z and /: flippers   SPACE: plunger   X . UP: bump   ENTER: start';
 
@@ -107,7 +109,7 @@ function show(at: i32): void {
   audio.logging = flag('sounds');
   view = new View(table.def, seenW, seenH, option('layout'));
   scene.setCamera(view.layout);
-  owed = 0; logged = 0; saved = 0;
+  fixed.reset(); logged = 0; saved = 0;
   readScores();
   if (logging) console.log(`table ${table.def.name}`);
   if (audio.logging) console.log(`audio ${audio.describe()}`);
@@ -135,8 +137,8 @@ onFrame((dt: number) => {
 
   // the game runs at the table's rate whatever the frame rate; a frame that took too long is not caught up beyond a tenth of a second
   const t0 = clock();
-  owed = Math.min(owed + dt, 0.1);
-  while (owed >= game.dt()) { game.step(controls); owed -= game.dt(); }
+  const steps = fixed.advance(dt, game.dt());
+  for (let i = 0; i < steps; i++) game.step(controls);
   audio.update(game);
   const t1 = clock();
   if (audio.logging) { for (const line of audio.log) console.log(line); audio.log = []; }
@@ -148,7 +150,7 @@ onFrame((dt: number) => {
     if (scoresFile === '') storage.set(scoresKey(), lines.join('\n')); else fs.writeText(scoresFile, `${lines.join('\n')}\n`);
   }
 
-  game.show(scene);
+  game.show(scene, fixed.alpha(game.dt()));
   rect(0, 0, seenW, seenH, rgb(table.def.lighting.background));
   scene.render(view.x(l.view), view.y(l.view), view.w(l.view), view.h(l.view));
   drawPanel(view, game, hint);

@@ -2,8 +2,8 @@
 """The art of the table Tidal Lock, made again from nothing: the images and the models of assets/tables/tidal-lock/art/.
 
 Everything is drawn or built here, by code: the painting of the playfield (space, the gas giant, the hull of the
-station, the lanes, the legends), the images of the pieces, and the modelled pieces as OBJ files. Nothing is fetched
-or copied from a game. The painting is laid out from the table file itself: the pads under the lights, the rings of
+station, the lanes, the legends), the images of the pieces, and the modelled pieces as OBJ files. The bumper emblem uses Kenney Puzzle Pack (CC0); its source PNG ships with the table.
+Nothing is copied from another pinball game. The painting is laid out from the table file itself: the pads under the lights, the rings of
 the bumpers, the docking ring, the lane strips are drawn where table.json puts those elements, so a table that is
 retuned gets its art back by running this again.
 
@@ -190,7 +190,7 @@ def light_outline(l, grow):
 
 
 # ---------------------------------------------------------------- the playfield
-SPACE_TOP, SPACE_MID, SPACE_LOW = rgb('#0a1030'), rgb('#191546'), rgb('#07192e')
+SPACE_TOP, SPACE_MID, SPACE_LOW = rgb('#071321'), rgb('#10243a'), rgb('#07192e')
 CYAN, AMBER, PINK, VIOLET, STEEL = rgb('#66f0ff'), rgb('#ffb347'), rgb('#ff5f8a'), rgb('#9f8cff'), rgb('#8fa0c8')
 GIANT = [rgb('#c9743a'), rgb('#e0a868'), rgb('#a85428'), rgb('#f0d0a0'), rgb('#8a4424'), rgb('#d89050'), rgb('#b8683a')]
 
@@ -217,7 +217,7 @@ def playfield(t):
     gx, gy, gr = 14.5, 43.5, 19.0
     disc, mask = planet(int(gr * k), GIANT, 5)
     c.glow(lambda l: l.circle(gx, gy, gr + 0.3, fill=(120, 60, 30)), 1.6)   # its air, lit at the limb
-    c.paste(disc, gx - gr, gy - gr, mask)
+    c.paste(disc.point(lambda value: int(value * 0.65)), gx - gr, gy - gr, mask)
     def orbits(l):
         for rx, ry, w in ((27, 8.5, 0.16), (33, 11.5, 0.1), (40, 15, 0.08)):
             o = Image.new('RGB', l.im.size, (0, 0, 0))
@@ -414,18 +414,19 @@ def ramp(t):
 
 
 def cap():
-    """The cap of a bumper, seen from above: a rock ringed with warning marks, a star in its middle."""
+    """A ceramic cap with a metal rim and a Kenney CC0 star, clear at a small size."""
     n = 256 * SS
-    c = Canvas(10, 10, n / 10, rgb('#d8601c'))
-    c.circle(5, 5, 4.9, fill=rgb('#ff8a3a'))
-    for i in range(12):
-        if i % 2 == 0:
-            c.d.pieslice([0.2 * n / 10, 0.2 * n / 10, 9.8 * n / 10, 9.8 * n / 10], i * 30, i * 30 + 30, fill=rgb('#2a1a10'))
-    c.circle(5, 5, 3.7, fill=rgb('#ffb060'))
-    c.circle(5, 5, 3.3, fill=rgb('#ff7a2a'))
-    star = [(5 + math.cos(i * math.pi / 8 - math.pi / 2) * (2.9 if i % 2 == 0 else 1.2), 5 + math.sin(i * math.pi / 8 - math.pi / 2) * (2.9 if i % 2 == 0 else 1.2)) for i in range(16)]
-    c.poly(star, fill=rgb('#fff2d0'))
-    c.circle(5, 5, 0.8, fill=rgb('#ff5a1a'))
+    c = Canvas(10, 10, n / 10, rgb('#0b1c2d'))
+    c.circle(5, 5, 4.9, fill=rgb('#bdcfda'))
+    c.circle(5, 5, 4.65, fill=rgb('#17384a'))
+    c.circle(5, 5, 3.8, fill=rgb('#56deee'))
+    c.circle(5, 5, 3.4, fill=rgb('#163448'))
+    for i in range(8):
+        a = i * math.pi / 4
+        c.circle(5 + math.cos(a) * 4.25, 5 + math.sin(a) * 4.25, 0.16, fill=rgb('#e6f5fa'))
+    star = Image.open(os.path.join(OUT, 'kenney-star.png')).convert('RGBA')
+    star = star.resize((int(n * 0.55), int(n * 0.55)), Image.Resampling.LANCZOS)
+    c.im.paste(star, (int(n * 0.225), int(n * 0.225)), star)
     return c.im.resize((256, 256), Image.LANCZOS)
 
 
@@ -459,7 +460,7 @@ def backglass(w, h, wide):
     """The picture behind the score: the giant's limb and the station's arm over a field of stars, dark where the text goes."""
     k = SS
     c = Canvas(w, h, k, rgb('#070b1c'))
-    c.im = vertical(c.im.size, [(0, rgb('#0a1030')), (0.6, rgb('#12103a')), (1, rgb('#060a18'))])
+    c.im = vertical(c.im.size, [(0, rgb('#071321')), (0.6, rgb('#0b1c30')), (1, rgb('#060a18'))])
     c.d = ImageDraw.Draw(c.im)
 
     def nebula(l):
@@ -470,7 +471,7 @@ def backglass(w, h, wide):
                 l.d.ellipse([(x - s) * k, (y - s * 0.5) * k, (x + s) * k, (y + s * 0.5) * k], fill=tuple(int(v * 0.35) for v in color))
     c.glow(nebula, max(w, h) * 0.07)
     r = random.Random(22)
-    for _ in range(int(w * h / 900)):
+    for _ in range(int(w * h / 1800)):
         x, y, m = r.uniform(0, w), r.uniform(0, h), r.random() ** 3
         v = 0.2 + 0.6 * m
         c.circle(x, y, 0.5 + 1.1 * m, fill=(int(255 * v), int(255 * v), int(255 * v)))

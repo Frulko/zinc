@@ -1,11 +1,11 @@
 // What each thing of a table looks like from above: lines, filled outlines and discs in table coordinates (centimetres, x to the
 // right, y down the table), with the height it stands at and reaches. The top view draws these shapes, picks with them and shows their
 // heights in the side profile; nothing here draws.
-// The shapes come from the same geometry as the game's scene (../../pinball3d/src/geometry): a path with arcs is the same polyline, a
+// The shapes come from the same geometry as the game's scene (../../pinball-kit/geometry): a path with arcs is the same polyline, a
 // flipper the same outline. An element kind this file does not know is still shown, as its points and its paths (generic()).
-import { Schema } from '../../pinball3d/src/format/schema';
-import { TableDef, WallDef, GateDef, FlipperDef, PlungerDef, BumperDef, SlingshotDef, KickerDef, TargetDef, RolloverDef, SpinnerDef, RampDef, FloorDef, LightDef, ModelDef } from '../../pinball3d/src/format/table';
-import { tessellate, profileAt, withProfilePoints, offset, flipperOutline, rad } from '../../pinball3d/src/geometry';
+import { Schema } from '../../pinball-kit/format/schema';
+import { TableDef, WallDef, GateDef, FlipperDef, PlungerDef, BumperDef, SlingshotDef, KickerDef, TargetDef, RolloverDef, SpinnerDef, RampDef, FloorDef, LightDef, ModelDef } from '../../pinball-kit/format/table';
+import { tessellate, profileAt, withProfilePoints, offset, flipperOutline, rad } from '../../pinball-kit/geometry';
 import { isPoint, isPath } from './doc';
 
 export const enum Draw { Line, Fill, Disc }

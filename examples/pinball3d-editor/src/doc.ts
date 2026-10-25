@@ -1,7 +1,7 @@
 // The document of the table editor: the table being edited, what is on disk, and every edit as one step that undo takes back.
 // Pure code (no screen, no file system): the views call these operations and draw `data`; selftest.ts runs them without a window.
 //
-// The editor knows no element kind here. A table is the tree the format describes (../../pinball3d/src/format), and every operation is
+// The editor knows no element kind here. A table is the tree the format describes (../../pinball-kit/format), and every operation is
 // said with a path as the loader writes it in its messages ("flippers[1].speed", "walls[2]", "plunger"): set a field, move or turn an
 // element, delete or add an item of a list. What an operation means for a field comes from the schema, so a field or an element kind
 // added to the format is edited without a line here.
@@ -10,9 +10,9 @@
 // document. A change the check refuses is not made, and `refused` holds the loader's message, which names the field. Two operations
 // mend what they break before giving up: renaming something renames it wherever it is named, and deleting something clears the
 // optional names that pointed to it and deletes the rules and missions that cannot do without it (`went` says which).
-import { Schema, Field, Kind, write } from '../../pinball3d/src/format/schema';
-import { TableDef, TableError, formatSchema, parseTable, checkTable } from '../../pinball3d/src/format/table';
-import { FORMAT, VERSION } from '../../pinball3d/src/format/table-schema';
+import { Schema, Field, Kind, write } from '../../pinball-kit/format/schema';
+import { TableDef, TableError, formatSchema, parseTable, checkTable } from '../../pinball-kit/format/table';
+import { FORMAT, VERSION } from '../../pinball-kit/format/table-schema';
 
 // ---------------------------------------------------------------- paths
 

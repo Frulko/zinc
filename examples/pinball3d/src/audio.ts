@@ -6,7 +6,7 @@
 // sound: another table plays other ones. Without an audio output (a headless or deterministic run) zinc:audio plays
 // nothing and every call still works.
 import { Sound, Wave, decode, tone, stopAll, backend } from 'zinc:audio';
-import { Table, TableDef, SoundDef } from './format/table';
+import { Table, TableDef, SoundDef } from '../../pinball-kit/format/table';
 import { Game, Phase } from './game';
 
 class Loaded {

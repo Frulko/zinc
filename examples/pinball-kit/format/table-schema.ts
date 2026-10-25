@@ -6,6 +6,7 @@
 // Conventions: lengths in centimetres; the top view has x to the right and y down the table, towards the player, with
 // the origin at the top left corner of the playfield; z is the height above the playfield. Angles are degrees in the top
 // view, 0 along +x and 90 along +y (down the table). Speeds are cm/s.
+import { GRAVITY_CM, MAX_SPEED_CM, SLOPE_DEGREES } from '../tuning';
 import { Schema, Variants } from './schema';
 
 export const FORMAT = 'zinc-pinball-table';
@@ -111,7 +112,7 @@ export function tableSchema(): Schema {
   const playfield = new Schema('playfield', 'The board the ball rolls on: a rectangle from (0, 0) at the top left to (width, length) at the bottom right, where the drain is. A ball that passes the bottom edge is lost.');
   playfield.num('width', 51, 'Left to right.').range(20, 200).withUnit('cm');
   playfield.num('length', 107, 'Top to bottom.').range(40, 400).withUnit('cm');
-  playfield.num('slope', 6.5, 'The tilt of the table in degrees: how hard the ball is pulled towards the player.').range(0, 45).withUnit('degrees');
+  playfield.num('slope', SLOPE_DEGREES, 'The tilt of the table in degrees: how hard the ball is pulled towards the player.').range(0, 45).withUnit('degrees');
   playfield.num('glass', 12, 'The height of the glass above the playfield: a ball that jumps cannot go higher.').range(3, 100).withUnit('cm');
   body(playfield, 'Usually smooth wood.', 'The colour or the image of the board.');
 
@@ -131,8 +132,8 @@ export function tableSchema(): Schema {
 
   const physics = new Schema('physics', 'How the table plays. The numbers are real ones at first; a table tuned for arcade play raises gravity and kicks.');
   physics.int('rate', 960, 'Steps of the simulation per second. Fast flippers and a small ball need many: under 480 a slow ball can end behind a flipper.').range(240, 4000).withUnit('steps/s');
-  physics.num('gravity', 981, 'cm/s² straight down. The slope of the playfield sends its share down the table.').range(100, 5000).withUnit('cm/s2');
-  physics.num('maxSpeed', 700, 'The fastest a ball may go; kicks that would exceed it are capped.').range(100, 4000).withUnit('cm/s');
+  physics.num('gravity', GRAVITY_CM, 'cm/s² straight down. The slope of the playfield sends its share down the table.').range(100, 5000).withUnit('cm/s2');
+  physics.num('maxSpeed', MAX_SPEED_CM, 'The fastest a ball may go; kicks that would exceed it are capped.').range(100, 4000).withUnit('cm/s');
   physics.num('nudge', 35, 'The speed a bump of the table gives every ball.').range(0, 400).withUnit('cm/s');
   physics.obj('ball', ball, 'The ball.');
 

@@ -41,6 +41,7 @@ game "$tmp/press.log" "$tmp/press.input" 14 0 "$ex" --interp -- --log
 
 # ---- tables put in the folder (a folder, a package) and a package named: all in the list
 cp -R "$ex" "$tmp/game"
+cp -R "$PWD/examples/pinball-kit" "$tmp/pinball-kit"
 small=$PWD/examples/pinball3d-editor/assets/new-table/table.json   # a table with no file of its own: a board and a plunger
 named() {   # folder, name: the small table under that name
   mkdir -p "$1"; sed "s/\"name\": \"[^\"]*\"/\"name\": \"$2\"/" "$small" > "$1/table.json"

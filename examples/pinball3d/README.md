@@ -161,10 +161,10 @@ The game is a library that a window, a test or an editor drives; `src/main.ts` i
 
 | path | role |
 | --- | --- |
-| `src/format/` | the table format: `schema.ts` (a small schema engine), `table-schema.ts` (every field), `table.ts` (the typed table, load, check, save), `source.ts` (a folder, the game's assets, a package) |
-| `src/geometry.ts` | shapes from data: a path with arcs to a polyline, walls, tracks with a height profile, wires, lathes, floors, the flipper's outline. Used by the scene and by the physics |
+| `../pinball-kit/format/` | the table format: `schema.ts` (a small schema engine), `table-schema.ts` (every field), `table.ts` (the typed table, load, check, save), `source.ts` (a folder, the game's assets, a package) |
+| `../pinball-kit/geometry.ts` | shapes from data: a path with arcs to a polyline, walls, tracks with a height profile, wires, lathes, floors, the flipper's outline. Used by the scene and by the physics |
 | `src/scene.ts` | the table as a `zinc:3d` scene, and what the game moves or lights in it |
-| `src/physics.ts` | `TablePhysics`, what the game asks of a physics engine, and `JoltPhysics`, its answer with `zinc:physics3d` |
+| `../pinball-kit/physics3d.ts` | `TablePhysics`, what the game asks of a physics engine, and `JoltPhysics`, its answer with `zinc:physics3d` |
 | `src/rules.ts` | the rules engine: events in; score, lights, missions, ranks, locks, jackpot out. It has no rule of its own |
 | `src/game.ts` | a table played: controls in, one step of the physics, what each ball did told to the rules; `show(scene)`; the sounds it asks for (`cues`) |
 | `src/audio.ts` | the sounds of a table, played: what the game asked for, the rolling sound, the music of each state |
@@ -203,3 +203,13 @@ chosen and played, a table put in the folder, a package named).
   (a bumper or a target shows its look's `glow` instead).
 - An image is laid flat, as the top view shows the element: a wall or the face of a target cannot carry one.
 - Text of a table is drawn with the characters and sizes baked into the program: ASCII, 18 sizes from 10 to 96.
+
+## Shared engine and refreshed cabinet
+
+Physics, table validation and geometry live in [`../pinball-kit`](../pinball-kit/README.md). Jolt handles the 3D
+contacts; the same fixed clock and travel bound are used by the Box2D demos and the editor. Balls interpolate
+between fixed steps. Only approaching contacts fire active mechanisms; bumper caps and sling rubbers recoil
+visually without changing collision geometry. The panel fits long text and separates the score from its backglass.
+
+Tidal Lock's darker playfield and bumper caps are reproducible with `tools/tidal_lock_art.py`. The cap emblem
+uses Kenney Puzzle Pack 1.1's `particleSmallStar.png` (CC0 1.0); see `LICENSES.md` and the table's credits.

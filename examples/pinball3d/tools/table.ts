@@ -7,10 +7,10 @@
 // <table> is a table folder, the table.json in it, or a package.
 import * as fs from 'zinc:fs';
 import { args, exit } from 'zinc:sys';
-import { Schema, Field, Kind, write } from '../src/format/schema';
-import { FORMAT, VERSION, ROLES } from '../src/format/table-schema';
-import { Table, TableError, TABLE_FILE, loadTable, saveTable, formatSchema, filesOf } from '../src/format/table';
-import { openTable, packTable, PACKAGE_EXT, PACKAGE_FORMAT, PACKAGE_INDEX, PACKAGE_VERSION } from '../src/format/source';
+import { Schema, Field, Kind, write } from '../../pinball-kit/format/schema';
+import { FORMAT, VERSION, ROLES } from '../../pinball-kit/format/table-schema';
+import { Table, TableError, TABLE_FILE, loadTable, saveTable, formatSchema, filesOf } from '../../pinball-kit/format/table';
+import { openTable, packTable, PACKAGE_EXT, PACKAGE_FORMAT, PACKAGE_INDEX, PACKAGE_VERSION } from '../../pinball-kit/format/source';
 
 /** The type of a field as the reference shows it, with its unit and its role. */
 function typeOf(f: Field): string {
@@ -83,7 +83,7 @@ function doc(t: Table): string {
   out.push('');
   out.push(`A table of \`examples/pinball3d\` is one JSON file, \`${TABLE_FILE}\`, with the files it names beside it (models, images, sounds). Nothing about a table is in the`);
   out.push('game\'s code: the game, and the editor, read this file. This page is the reference of every field. It is printed from the format\'s own');
-  out.push('definition (`examples/pinball3d/src/format/table-schema.ts`) by `zinc run examples/pinball3d/tools/table.ts -- doc <table>`, with its examples');
+  out.push('definition (`examples/pinball-kit/format/table-schema.ts`) by `zinc run examples/pinball3d/tools/table.ts -- doc <table>`, with its examples');
   out.push(`taken from the table "${t.def.name}"; a test keeps it current. Format \`"${FORMAT}"\`, version ${VERSION}.`);
   out.push('');
   out.push('## The file');

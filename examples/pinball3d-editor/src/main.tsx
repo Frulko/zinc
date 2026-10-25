@@ -13,8 +13,8 @@ import { args, env } from 'zinc:sys';
 import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
-import { TABLE_FILE } from '../../pinball3d/src/format/table';
-import { PACKAGE_EXT } from '../../pinball3d/src/format/source';
+import { TABLE_FILE } from '../../pinball-kit/format/table';
+import { PACKAGE_EXT } from '../../pinball-kit/format/source';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, saveAs, newCommand, openCommand, openPackageCommand, openFolder, openPackage, newTable, waiting, answer, guard,
   advanced, setAdvanced, doomed, answerDelete, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel, exportPackage, setEcho } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';

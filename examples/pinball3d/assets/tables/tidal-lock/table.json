@@ -101,6 +101,12 @@
       "author": "the Zinc project",
       "source": "tools/tidal_lock_art.py",
       "licence": "original work, drawn and modelled by the script; its text is set in Inter (SIL Open Font License 1.1)"
+    },
+    {
+      "files": ["art/cap.png", "art/kenney-star.png"],
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/puzzle-pack-1",
+      "licence": "CC0 1.0; particleSmallStar.png used in the bumper cap"
     }
   ],
   "playfield": { "glass": 9.5, "surface": "wood", "look": "board" },

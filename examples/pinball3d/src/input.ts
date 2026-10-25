@@ -7,7 +7,7 @@
 // also the "pad:" buttons. A settings file replaces the inputs of the actions it names.
 import { gamepadCount, gamepadButtons, isDown, Btn, keyCount, keyKind, keyName, KeyKind, touchCount, touchX, touchY, pointerDown, pointerX, pointerY } from 'zinc:gfx';
 import { Controls } from './game';
-import { keysOf } from './format/schema';
+import { keysOf } from '../../pinball-kit/format/schema';
 
 export const ACTIONS = ['left', 'right', 'plunger', 'nudgeLeft', 'nudgeRight', 'nudgeUp', 'start', 'nextTable'];
 const PADS = ['Up', 'Down', 'Left', 'Right', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'];
