@@ -290,6 +290,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-480: the native call path costs about 12 us a call on the PSP (rtcalls nativeCall parses the signature and builds two std::deque per call, stubs.cpp finds the export by strcmp, the thunk copies every array in and out). Caching the signature and the export alone gave nothing measurable in PPSSPP (5.91 vs 6.16 ms, 2026-10-25): the array copies of the thunk are left to try, measured on a real PSP.
 - ZN-480: tools/console-run vita keeps only the first line of a multi-line printf chunk from Vita3K's log (examples/lang prints nothing through it; its text is in the log).
 
+- IR: "field access on a non-ref" inside an object-literal method: `const w = world(id); if (w !== null && k >= 0 && k < w.chunks.length) { w.chunks[k].loaded = false; w.chunks[k].b.length = 0; }`; render3d.sim.ts works around it with early returns.
+- zinc pack: a plugin whose native build fails still falls back to its stand-in with only a warning; auto mode should fail loudly.
+- zinc pack: under a console profile it hardcodes the Render3D and Physics2D modules; the list should come from the console core.
+- zinc:3d: the consoles check the x/z uv fit of Top grounds over a whole batch, so two Top grounds with different uv lines in one mid or far chunk fall back (PSP keeps uvs, 3DS draws a wall); fit per cell.
+- zinc:3d: render3d.sim.ts has no sectors and no slots.
+- zinc:3d: World.select keeps interpreted overhead around it (mat4LookAt) on the consoles.
+
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
@@ -515,3 +522,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: run the PSP and Vita overlay panel with `ZINC_TOKYO_TAP` in PPSSPP and Vita3K, and the pad navigation on a real pad.
 - tokyo PSP: time the GE with CLUT8 swizzled pictures and shadows on a real PSP (PPSSPP does not time the GE).
 - tokyo 3DS: measure the SD read time and the memory peak of near streaming on the real Old 3DS.
+- zinc:3d: re-measure select-bench on a quiet Mac and on a real PSP.
