@@ -1,11 +1,11 @@
 ---
 id: ZN-843
 title: 'Zinc Hub: the central app on the reMarkable'
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 19:26'
-updated_date: '2026-10-25 20:21'
+updated_date: '2026-10-25 20:46'
 labels:
   - remarkable
   - ui
@@ -26,7 +26,7 @@ Hub step 3 (owner 2026-10-25). A Zinc app, an AppLoad tile on the tablet, e-ink 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 the hub pairs with a server whose URL is set in the app and lists its apps
-- [ ] #2 install, update and rollback of an app work on the tablet; each installed app has its own AppLoad tile and launches
+- [x] #2 install, update and rollback of an app work on the tablet; each installed app has its own AppLoad tile and launches
 - [x] #3 a tampered or older app is refused with a clear message
 - [x] #4 a T1 test runs the hub against the server of ZN-842 on the Mac (emulator window)
 <!-- AC:END -->
@@ -39,4 +39,6 @@ Test: tests/run --only hub_app PASS (31 s; pairing incl. a wrong code, install, 
 Decisions: test mode ZINC_HUB_SCRIPT calls the buttons' actions (text entry by ZINC_INPUT is brittle); tile name = package name without version; Rollback swaps with the kept package, Update brings the newer back; hub never downgrades.
 AC #2 left for the owner (tablet, read-only checked: /home/root/zinc/bin/zinc-tile and /home/root/zinc-apps exist, Mac is 10.11.99.2 over USB): on the Mac 'zinc run app/hub-server -- --data hub-data' and 'zinc pack app/hub'; scp -O build/hub.zapp root@10.11.99.1:/home/root/zinc-apps/; ssh root@10.11.99.1 /home/root/zinc/bin/zinc-tile /home/root/zinc-apps/hub.zapp; reload AppLoad, open hub, Settings: http://10.11.99.2:8787 + code; publish an app with zinc publish --hub; Install, open its tile, Update, Rollback.
 later.md: compiler: 'd.field = f(await x)' with const d fails Z0108 on a temp (__vN), worked around in app/hub/src/services/server.ts; hub: manifest expires/seq anti-freeze (zinc-app-ota-updates.md 5.3) not in the hub protocol; hub: remove an installed app (zinc-tile --remove) from the list; hub: placeholder text of Input is slate grey on e-ink.
+
+Owner test on the tablet (2026-10-25): pair, install, update, rollback, and Open (after e7b2cf82, qtfb-hold keeps the window across the handoff) all work.
 <!-- SECTION:NOTES:END -->
