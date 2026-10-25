@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
 - PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, vertical and horizontal gradients, images, sprites and text. A frame with a radial gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
 - PSP: zinc:3d draws on the GE (hardware transform and lighting) instead of in software: the cubes demo renders in about 6 ms a frame instead of 30. `ZINC_PSP_GPU=0` keeps the software renderer.
+- Nintendo 3DS: zinc:3d draws on the PICA200 instead of in software, on both eyes in stereoscopic 3D: the cubes demo renders in about 2 ms a frame instead of 25. `ZINC_N3DS_GPU=0` keeps the software renderer.
 
 ## [0.8.0] - 2026-10-25
 

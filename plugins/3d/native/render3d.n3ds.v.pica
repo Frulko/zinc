@@ -1,0 +1,122 @@
+; zinc:3d's vertex shader on the PICA200 (render3d.n3ds.cpp): the software renderer's lighting per vertex (Engine::shade in
+; render3d.host.cpp). The light is the ambient plus up to 4 directional lights, clamped to 1 and times the base colour (the draw's colour,
+; or its vertex colours when vk = (1/255, 0)); then the specular reflection (Blinn-Phong, three.js's factor folded into spec.rgb, the
+; exponent in spec.w) and the emissive colour are added, clamped to 1. An unlit draw is a white ambient with no light and no specular.
+.fvec mvp[4]
+.fvec model[3]
+.fvec base
+.fvec vk
+.fvec amb
+.fvec ld[4]
+.fvec lc[4]
+.fvec spec
+.fvec eye
+.fvec emit
+.fvec tsc
+.constf one(1.0, 1.0, 1.0, 1.0)
+.constf zero(0.0, 0.0, 0.0, 0.0)
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+.alias inpos v0
+.alias innrm v1
+.alias intex v2
+.alias inclr v3
+
+.proc main
+  mov r0.xyz, inpos
+  mov r0.w, one.w
+  dp4 outpos.x, mvp[0], r0
+  dp4 outpos.y, mvp[1], r0
+  dp4 outpos.z, mvp[2], r0
+  dp4 outpos.w, mvp[3], r0
+  ; the texture coordinate over the image inside its power-of-two texture, t from the top: (u sx, 1 - v sy)
+  mul r13, tsc, intex
+  add outtc0, tsc.zwzw, r13
+  ; world position r1, unit world normal r2
+  dp4 r1.x, model[0], r0
+  dp4 r1.y, model[1], r0
+  dp4 r1.z, model[2], r0
+  mov r3.xyz, innrm
+  mov r3.w, zero.w
+  dp4 r2.x, model[0], r3
+  dp4 r2.y, model[1], r3
+  dp4 r2.z, model[2], r3
+  mov r2.w, zero.w
+  dp3 r3.x, r2, r2
+  rsq r3.x, r3.x
+  mul r2.xyz, r2.xyz, r3.xxx
+  ; the light: ambient + the lights facing the surface, clamped
+  mov r4, amb
+  dp3 r5.x, ld[0], -r2
+  max r5.x, zero.x, r5.x
+  mul r6, lc[0], r5.xxxx
+  add r4, r4, r6
+  dp3 r5.x, ld[1], -r2
+  max r5.x, zero.x, r5.x
+  mul r6, lc[1], r5.xxxx
+  add r4, r4, r6
+  dp3 r5.x, ld[2], -r2
+  max r5.x, zero.x, r5.x
+  mul r6, lc[2], r5.xxxx
+  add r4, r4, r6
+  dp3 r5.x, ld[3], -r2
+  max r5.x, zero.x, r5.x
+  mul r6, lc[3], r5.xxxx
+  add r4, r4, r6
+  min r4, one, r4
+  ; the base colour: inclr (0..255) vk.x + vk.y, times the draw's colour
+  mul r6, vk.xxxx, inclr
+  add r6, vk.yyyy, r6
+  mul r6, base, r6
+  mul r7, r6, r4
+  ; the specular reflection: the half vector of each light and the eye, (n.h)^s times n.l
+  add r8.xyz, eye, -r1
+  mov r8.w, zero.w
+  dp3 r8.w, r8, r8
+  rsq r8.w, r8.w
+  mul r8.xyz, r8.xyz, r8.www
+  mov r9, zero
+  add r10.xyz, -ld[0], r8
+  dp3 r11.y, ld[0], -r2
+  call light
+  mul r12, lc[0], r11.xxxx
+  add r9, r9, r12
+  add r10.xyz, -ld[1], r8
+  dp3 r11.y, ld[1], -r2
+  call light
+  mul r12, lc[1], r11.xxxx
+  add r9, r9, r12
+  add r10.xyz, -ld[2], r8
+  dp3 r11.y, ld[2], -r2
+  call light
+  mul r12, lc[2], r11.xxxx
+  add r9, r9, r12
+  add r10.xyz, -ld[3], r8
+  dp3 r11.y, ld[3], -r2
+  call light
+  mul r12, lc[3], r11.xxxx
+  add r9, r9, r12
+  mul r9, spec, r9
+  add r7, r7, r9
+  add r7, emit, r7
+  min r7, one, r7
+  mov r7.w, one.w
+  mov outclr, r7
+  end
+.end
+
+; r10.xyz = l + v (not normalized), r11.y = n.l: r11.x = (n.h)^s max(n.l, 0)
+.proc light
+  mov r10.w, zero.w
+  dp3 r10.w, r10, r10
+  rsq r10.w, r10.w
+  mul r10.xyz, r10.xyz, r10.www
+  dp3 r11.x, r2, r10
+  max r11.x, zero.x, r11.x
+  lg2 r11.x, r11.x
+  mul r11.x, spec.wwww, r11.x
+  ex2 r11.x, r11.x
+  max r11.y, zero.y, r11.y
+  mul r11.x, r11.x, r11.y
+.end

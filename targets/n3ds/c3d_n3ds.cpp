@@ -98,8 +98,10 @@ bool make(Tex& e, int32_t w, int32_t h, GPU_TEXCOLOR fmt) {
 }
 }  // namespace
 
+extern "C" const void* zn_3d_gpu_texture(int32_t id, int32_t* w, int32_t* h) __attribute__((weak));   // zinc:3d's GPU picture
 namespace zn::ff {
 const void* texture(int32_t id, int32_t* w, int32_t* h) {
+  if (zn_3d_gpu_texture) if (const void* t = zn_3d_gpu_texture(id, w, h)) return t;
   if (!image_size(id, w, h) || *w <= 0 || *h <= 0 || *w > kMaxTex || *h > kMaxTex) return nullptr;
   Tex& e = texs[id];
   const uint32_t ver = image_version(id);
@@ -288,4 +290,14 @@ bool zn_c3d_draw(const HalFrame* f, int target, bool always) {
   zn::ff::full(&st, f->w, f->h, K, OX, OY);
   return done();
 }
+}
+
+// zinc:3d (plugins/3d/native/render3d.n3ds.cpp) draws its target inside the frame when the replay first asks for its picture: the quads queued
+// before it go first, and the replay's shader and fixed state are set again after it.
+extern "C" void zn_c3d_yield(void) { flush(); curMode = NONE; cur = nullptr; }
+extern "C" void zn_c3d_resume(void) {
+  C3D_BindProgram(&program);
+  C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+  C3D_CullFace(GPU_CULL_NONE);
+  C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
 }
