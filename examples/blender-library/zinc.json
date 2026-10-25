@@ -1,0 +1,8 @@
+{
+  "name": "blender-library",
+  "app": {"id": "dev.zinc.examples.blender-library", "name": "Lantern Library", "version": "0.1.0"},
+  "entry": "src/main.ts",
+  "permissions": ["fs"],
+  "assets": {"dir": "assets"},
+  "targets": {"macos": {"width": 960, "height": 640}}
+}

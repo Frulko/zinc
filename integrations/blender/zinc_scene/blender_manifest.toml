@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "zinc_scene"
+version = "0.1.0"
+name = "Zinc Scene Publisher"
+tagline = "Publish validated shared scenes to Zinc"
+maintainer = "Zinc contributors"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:MIT"]
+[permissions]
+files = "Read the current project and publish GLB assets and scene metadata"

@@ -64,8 +64,10 @@ function digest(file: string): string {
 
 /** Validates data before any renderer resources are acquired. Publication hashes are checked by tools/scene-exchange. */
 export function validateScene(text: string): SceneDocument {
-  const d: SceneDocument = JSON.parse(text);
-  requireScene(d !== null && d.schema === 'zinc.scene' && d.version === 1, 'unsupported schema/version');
+  const raw: any = JSON.parse(text);
+  if (raw === null || raw.schema !== 'zinc.scene') throw new Error('scene: unsupported schema/version');
+  if (raw.version !== 1) throw new Error('scene: unsupported schema/version');
+  const d: SceneDocument = raw;
   identity(d.id, 'id'); identity(d.revision, 'revision');
   requireScene(d.revision.length === 64, 'invalid revision');
   path(d.source.file); identity(d.source.tool, 'source.tool'); identity(d.source.scene, 'source.scene');
