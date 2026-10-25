@@ -167,15 +167,16 @@ void keepApp(const std::string& home, const std::string& dir, std::string name) 
   name = cleanName(name);
   if (name.empty()) name = "app";
   if (fs::exists(home + "/apps/" + name, ec) && !(readFile(home + "/apps/" + name + "/app.json", meta) && Doc(meta).flag("dev"))) name += "-dev";
+  const std::string engine = project.empty() ? std::string() : Doc(project).str("engine");
+  const std::string run = zbc ? "program.zbc" : ". --engine " + (engine.empty() || engine == "zinc" ? std::string("quickjs") : cleanName(engine));
+  // written before the move: the app appears whole (the player's launcher, a test reading app.json, never see it without them)
+  writePrivate(dir + "/run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec \"${ZINC_ENGINE:-zinc}\" run " + run + " -- \"$@\"\n");
+  recordApp(dir, name, true, nullptr);
   const std::string dest = home + "/apps/" + name;
   fs::remove_all(dest, ec);
   fs::create_directories(home + "/apps", ec);
   fs::rename(dir, dest, ec);
-  if (ec) { fs::remove_all(dir, ec); return; }
-  const std::string engine = project.empty() ? std::string() : Doc(project).str("engine");
-  const std::string run = zbc ? "program.zbc" : ". --engine " + (engine.empty() || engine == "zinc" ? std::string("quickjs") : cleanName(engine));
-  writePrivate(dest + "/run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec \"${ZINC_ENGINE:-zinc}\" run " + run + " -- \"$@\"\n");
-  recordApp(dest, name, true, nullptr);
+  if (ec) fs::remove_all(dir, ec);
 }
 
 }  // namespace
