@@ -4,7 +4,7 @@ title: 'Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)'
 status: Done
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-10-25 00:27'
 labels:
   - gpu
   - handheld
@@ -48,4 +48,6 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 
 2026-10-25, Meadow Run on vitaGL (ZINC00012) vs GXM (ZINC00011) on the owner's Vita: vitaGL 29 missed vblanks in 600 frames, replay p50 1.10 / p99 16.1 ms; GXM 0 missed, 0.32 / 0.39 ms. Decision (D165): GXM stays the 2D default and grows the rounded/border/shadow commands (coverage atlas as targets/console/ff_replay.cpp does for the GE); vitaGL is for zinc:gl/WebGL1/three/zinc:3d (ZN-477). Possible vitaGL tuning not tried: its BUFFERS_SPEEDHACK / circular pool options, a ring of vertex buffers in the replay.
 Review 2026-10-25: closed as Done. GPU path chosen (D151 GXM + SDL GXP as 2D default; D165 vitaGL for GL) and proved on the owner's Vita: Meadow Run 60 fps on GXM, examples/ui/gl-check 60 fps on vitaGL, redistribution checked. Evidence: targets/vita/gxm_vita.cpp; targets/vita/gl_vita.cpp; third_party/vitagl; docs/reports/zinc-next-decisions.md D151, D165; commits d962083a, 8f1a4756, f02510df Verifier: D151 (GXM 2D default) and D165 (vitaGL for GL) recorded; examples/ui/gl-check at 60.4 fps with 0 missed vblanks on the owner's Vita via vitaGL (notes 2026-10-25); redistribution checked.
+
+2026-10-25: the chosen default, GXM, renders examples/ui/gl-check (shadows, borders, rects, gradients) on the GPU since gxm_vita.cpp became an ff_replay backend (d18d9f72); proved in Vita3K against the software shots.
 <!-- SECTION:NOTES:END -->

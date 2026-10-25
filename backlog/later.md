@@ -241,6 +241,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ESP32 mquickjs: a hang in C (a plugin's native loop) is still silent; the JavaScript one is stopped after 10 s. The task watchdog on the main task, with a panic and released while the update server writes the flash (zn_pause), would turn it into a crash the next start tells.
 - ZN-790: QuickJS's `zinc:platform` has no `TOUCH` export, so examples/pinball and n3ds-pinball do not run with `--engine quickjs`.
 - ZN-790: the n3ds HAL's `ZINC_PROFILE` work counts the bottom window's wait for the refresh inside endWindow: time that wait apart, the profile of two-screen programs reads too high.
+- ZN-476/ZN-478/ZN-477: a console frame whose 2D commands fall back to software (a radial gradient, a rounded clip, a rotation) shows the zinc:3d GPU target black; read the target back only in that case.
+- ZN-476: the PSP's VRAM is a bump allocator in render3d.psp.cpp, a target that grows leaks its old space unless it was the last made; and a failed zn_gu_init/zn_c3d_init leaves the 3D blank instead of falling back to software.
+- ZN-477: Vita zinc:3d lights per vertex on the CPU (psp2spvc has no branches, division or sampling); per-pixel specular and mipmaps on PSP, 3DS and Vita once a fuller shader path exists.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -338,6 +341,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-477: run examples/3d/orbit, cubes and gl-check on the owner's Vita with the GXM core (watch SDL's texture fragment program paired with the psp2spvc vertex program, the transposed Wvp), and log the ms in zinc-next-perf.md.
+- ZN-476/ZN-478: run examples/3d/orbit on a real PSP (Adrenaline) and 3DS, Old and New, with the slider up; log the ms.
 - ZN-102: sqlite, wasm, process and ffi conformance in the Linux container.
 - ZN-126: the hw.h drivers built with ESP-IDF on a board, same frames as before.
 - ZN-136: ESP-IDF images per board booted in QEMU, their module list reported.

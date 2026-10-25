@@ -1207,3 +1207,15 @@ The owner's PS Vita, `examples/ui/gl-check` with `ZINC_SCENE=cycle` (seven scene
 
 Meadow Run (`examples/platformer`) on the same console, one 600-frame window each: GXM (ZINC00011, 2026-10-17) 60.2-65.3 fps, 0 missed vblanks, replay CPU p50 0.32 / p99 0.39 ms, frame p99 17.6 ms; vitaGL (ZINC00012, second launch, shader cache) 60.9 fps, 29 missed vblanks, replay CPU p50 1.10 / p99 16.1 ms, frame p99 34.2 ms, 209 quads and 2 draw calls a frame. GXM stays the 2D default (D165).
 
+
+## zinc:3d on the console GPUs (2026-10-25, emulators)
+
+3D time per frame (`effects` of ZINC_PROFILE, p50), software renderer against the console's GPU renderer. Emulators only: PPSSPP headless,
+Azahar, Vita3K on the Intel Mac; the hardware numbers are still to take.
+
+| Program | PSP software | PSP GE | 3DS software | 3DS PICA200 | Vita software | Vita GXM |
+|---|---|---|---|---|---|---|
+| examples/3d/cubes (679 tris) | 29.88 ms | 6.57 ms | 25.31 ms | 2.05 ms | 6.02 ms (work) | 0.74 ms (work) |
+| examples/3d/orbit (2,300 tris) | 36.95 ms | 15.07 ms | 26.35 ms | 4.54 ms | 8.99 ms (work) | 2.21 ms (work), 61.5 fps |
+
+The PSP's 15 ms on orbit is not split yet between the interpreted scene walk (matrices composed in Zinc) and the GE.
