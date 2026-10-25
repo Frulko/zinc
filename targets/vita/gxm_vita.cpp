@@ -21,7 +21,8 @@
 #include "hal.h"
 #include "zrt_raster.h"
 
-extern "C" void zn_vita_log(const char* line);                       // hal_vita.cpp: the console's log and ux0:data/<id>/zinc.log
+extern "C" void zn_vita_log(const char* line);   // hal_vita.cpp: the console's log and ux0:data/<id>/zinc.log
+extern "C" void zn_vita_trace(const char* step);   // hal_vita.cpp: ZINC_VITA_TRACE=1
 // render3d.vita.cpp: the colour surface (a SceGxmTexture) of the zinc:3d target whose runtime image is `id`; absent without zinc:3d
 extern "C" const void* zn_3d_gpu_texture(int32_t id, int32_t* w, int32_t* h) __attribute__((weak));
 extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);  // runtime/gfx.cpp: the raster phase of ZINC_PROFILE
@@ -362,6 +363,7 @@ bool zn_gxm_present(const HalFrame* f) {
   const HalCmdList* lists[6];
   const int32_t n = f->frames ? f->frames(lists, 6) : 0;
   nq = 0; nb = 0; overflow = false;
+  zn_vita_trace("2d: replay");
   if (n > 0 && zn::ff::drawable(lists, n)) {
     for (int32_t k = 0; k < n; k++) zn::ff::replay(lists[k], f->w, f->h, K, OX, OY);
     softValid = false;
@@ -388,16 +390,20 @@ bool zn_gxm_present(const HalFrame* f) {
       ((const uint32_t*)fbuf[2])[kH / 2 * kStride + kW / 2], (int)n, nq, nb, back, probe);
     zn_vita_log(b);
   }
+  zn_vita_trace("2d: begin scene");
   const int eBegin = sceGxmBeginScene(ctx, 0, target, nullptr, nullptr, sync[back], &surf[back], &depth);
   sceGxmSetViewport(ctx, kW / 2.0f, kW / 2.0f, kH / 2.0f, -(kH / 2.0f), 0.5f, 0.5f);   // SDL's viewport with its matrix: screen pixels in
+  zn_vita_trace("2d: draw");
   draw();
 #ifdef ZN_VITA_GXP_3D
   draw3dTris();   // the smoketest's own proof triangle; other 3D callers drive the same entrypoint inside their begin/end scenes
 #endif
+  zn_vita_trace("2d: end scene");
   const int eEnd = sceGxmEndScene(ctx, nullptr, nullptr);
   const int ePad = sceGxmPadHeartbeat(&surf[back], sync[back]);
   DisplayData d = {fbuf[back]};
   const int eQueue = sceGxmDisplayQueueAddEntry(sync[front], sync[back], &d);
+  zn_vita_trace("2d: queued");
   front = back;
   back = (back + 1) % kBuffers;
   static bool said;

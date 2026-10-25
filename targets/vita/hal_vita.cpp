@@ -49,17 +49,29 @@ extern "C" __attribute__((weak)) uint64_t zn_gxm_cpu_us;
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);   // runtime/gfx.cpp: the raster phase of ZINC_PROFILE
 static void out(const char* s, size_t n) {
   sceClibPrintf("%.*s", (int)n, s);
-  static FILE* log = nullptr;   // the same lines in the app's data folder, written through at once: a run that crashes keeps them
+  // the same lines in the app's data folder, synced to the card at once: a GPU fault freezes the whole console, and a line still in a cache
+  // (newlib's or the file system's) is lost with it
+  static SceUID log = -1;
   static bool tried = false;
   if (!tried) {
     tried = true;
     char path[96];
     snprintf(path, sizeof path, "%szinc.log", zn_console_data_dir());
-    log = fopen(path, "w");
+    log = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
   }
-  if (log) { fwrite(s, 1, n, log); fflush(log); }
+  if (log >= 0) { sceIoWrite(log, s, (SceSize)n); sceIoSyncByFd(log, 0); }
 }
 extern "C" void zn_vita_log(const char* line) { out(line, strlen(line)); }
+// ZINC_VITA_TRACE=1: the GPU steps of the first frames in the log (which one a console that freezes did not finish)
+extern "C" void zn_vita_trace(const char* step) {
+  static int left = -1;
+  if (left < 0) { const char* e = getenv("ZINC_VITA_TRACE"); left = e && *e == '1' ? 400 : 0; }
+  if (left <= 0) return;
+  left--;
+  char b[128];
+  snprintf(b, sizeof b, "trace: %s\n", step);
+  out(b, strlen(b));
+}
 
 // The frame times the HAL sees, printed every 600 frames and at the end of a frame budget: work from the poll to the present, the present, the
 // raster (or the GPU replay's CPU time) inside it, and the whole frame (poll to poll), for the software frames and the GPU's apart

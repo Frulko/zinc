@@ -22,6 +22,7 @@ extern "C" {
 // gxm_vita.cpp: its context, render target, patcher and depth surface (null when GXM did not start: the software renderer then); its CDRAM heap
 SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** target, SceGxmShaderPatcher** patcher, SceGxmDepthStencilSurface* depth) __attribute__((weak));
 void* zn_gxm_alloc(uint32_t align, uint32_t size) __attribute__((weak));
+void zn_vita_trace(const char* step) __attribute__((weak));   // hal_vita.cpp: ZINC_VITA_TRACE=1
 void zn_gxm_free(void* p) __attribute__((weak));
 void zn_vita_log(const char* line);
 }
@@ -58,7 +59,7 @@ struct Vita : Engine {
 
   // The program loads zinc:3d before it opens its window (and the HAL starts GXM): the choice is made at the first target, or gpu().
   bool on() {
-    if (!mode) { mode = open() ? 1 : -1; if (mode < 0) zn_vita_log("vita gxm 3d: off, drawing with the software renderer\n"); }
+    if (!mode) { if (zn_vita_trace) zn_vita_trace("3d: open"); mode = open() ? 1 : -1; if (zn_vita_trace) zn_vita_trace(mode > 0 ? "3d: opened" : "3d: software"); if (mode < 0) zn_vita_log("vita gxm 3d: off, drawing with the software renderer\n"); }
     return mode > 0;
   }
   bool open() {
@@ -234,6 +235,7 @@ struct Vita : Engine {
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
+    if (zn_vita_trace) zn_vita_trace("3d: begin scene");
     const int err = sceGxmBeginScene(ctx, 0, vcur->rt, nullptr, nullptr, nullptr, &vcur->surf, &vcur->depth);
     if (err < 0) { say("sceGxmBeginScene (3d)", err); vcur = nullptr; return; }
     // GL's clip space (z in -w..w) into GXM's depth 0..1: the matrix makes z 0..w (wvp() below), the viewport keeps it
@@ -277,6 +279,7 @@ struct Vita : Engine {
     Mesh* m = meshes.at(id);
     VMesh* g = vmeshes.at(id);
     if (!m || !g || !g->vb || !vcur) return;
+    if (zn_vita_trace) zn_vita_trace("3d: draw");
     float M[16], MVP[16];
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     mul(MVP, vp, M);
@@ -350,7 +353,9 @@ struct Vita : Engine {
   int32_t end() override {
     if (mode < 0) return Engine::end();
     if (!vcur) return 0;
+    raster::dyn_update(vcur->img, nullptr, 0);   // a new picture: the frame's diff redraws its box (the GPU writes no pixels the diff could see)
     vcur = nullptr;
+    if (zn_vita_trace) zn_vita_trace("3d: end scene");
     sceGxmEndScene(ctx, nullptr, nullptr);
     // the 2D replay's state: no depth, no culling
     sceGxmSetFrontDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_ALWAYS); sceGxmSetBackDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_ALWAYS);
