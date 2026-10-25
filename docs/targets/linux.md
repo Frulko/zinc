@@ -153,8 +153,10 @@ svg, physics2d and physics3d, serial, process, system, midi (ALSA), ffi (libffi)
 plugins with native code, seven do not: leapmotion, mapping and webview have no Linux target; gphoto2 and video need libraries the
 pinned sysroot leaves out (libgphoto2, FFmpeg: their -dev packages pull dozens of others; FFmpeg can be copied from the device by hand,
 `docs/reports/raspberry-pi.md`); script and imu-qmi8658 do not build with `zinc plugin-build` on any machine (their spec has a member
-the generated thunk cannot carry). A cross build makes the static archive a program links (`zinc build --target`), not the shared
-library `zinc run` loads on the device: there zinc compiles the plugin itself at first use.
+the generated thunk cannot carry). A cross build makes the static archive a program links (`zinc build --target`);
+`zinc plugin-build <plugin> --target <target> --prebuild` also links the shared library `zinc run` loads on the device, which is how
+the package of `tools/build-linux` ships every plugin without a system library in `share/zinc/plugins/<name>/prebuilt/linux/`
+(the others are named in `sizes-linux.json` and compiled on the device at first use).
 
 ## Proving it from the Mac
 

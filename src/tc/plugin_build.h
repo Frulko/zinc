@@ -44,7 +44,7 @@ bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std:
 
 // Cross builds (zinc build --target aarch64-linux): while set, buildPlugin compiles with `zig c++ -target <zigTarget>` and produces only the static archive (no shared
 // library to dlopen); the cache entry is keyed by the target. System libraries (`pkg`) are not available that way: such a plugin is refused with a message.
-void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig);
+void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig, bool shared = false);   // shared: also link plugin.so (plugin-build --target)
 void clearCrossTarget();
 
 // What another build system compiles of a module plugin (zinc export --target android, ZN-621): its implementation and sources, the vendored C

@@ -113,7 +113,8 @@ bool endsWith(const std::string& s, const char* e) { std::size_t n = std::strlen
 bool isSpec(const fs::path& p) { const std::string f = p.filename().string(); return endsWith(f, ".spec.ts") && f[0] != '.'; }
 bool isAbi(const std::string& impl) { return endsWith(impl, ".abi.c") || endsWith(impl, ".abi.cpp"); }   // on include/zn/native.h, with its own zn_module_<X>: no thunk
 
-struct Cross { std::string name, zigTarget, zig; bool on = false; } gCross;
+struct Cross { std::string name, zigTarget, zig; bool on = false, shared = false; } gCross;   // shared: link the .so too (a prebuilt library for the device, ZN-823)
+std::string buildOs();   // the system the code is for: this machine's, "linux" in a cross build
 std::string crossArch() { const Target* t = findTarget(gCross.name); return t ? t->cpuFlags : ""; }
 
 // The compilers: $CXX / $CC, else c++ / cc, else the pinned zig (downloaded on first use).
@@ -262,7 +263,7 @@ bool buildCargo(const frontend::FoundPlugin& p, const std::string& crate, const 
 
 std::string cargoPath() { return cargoCommand(); }
 
-void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig) { gCross = Cross{name, zigTarget, zig, true}; }
+void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig, bool shared) { gCross = Cross{name, zigTarget, zig, true, shared}; }
 void clearCrossTarget() { gCross = Cross{}; }
 
 std::string pluginTarget() {
@@ -274,6 +275,8 @@ std::string pluginTarget() {
   return "linux";
 #endif
 }
+
+namespace { std::string buildOs() { return gCross.on ? "linux" : pluginTarget(); } }
 
 const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPlugin>& plugins, const std::string& module) {
   for (const frontend::FoundPlugin& p : plugins) {
@@ -345,7 +348,7 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
 
 // The defines a plugin is compiled with: the runtime's own, the manifest's, the options as ZP_ defines.
 std::vector<std::string> buildDefines(const frontend::FoundPlugin& p, const frontend::PluginTarget& ts, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
-  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", pluginTarget() == "macos" ? "ZRT_PLATFORM=\"macos\"" : pluginTarget() == "windows" ? "ZRT_PLATFORM=\"windows\"" : "ZRT_PLATFORM=\"linux\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
+  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", buildOs() == "macos" ? "ZRT_PLATFORM=\"macos\"" : buildOs() == "windows" ? "ZRT_PLATFORM=\"windows\"" : "ZRT_PLATFORM=\"linux\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
   for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot, target)) defines.push_back(d);
   return defines;
@@ -480,7 +483,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string key;
     if (readAll((pre / "key").string(), key)) {
       while (!key.empty() && (key.back() == '\n' || key.back() == '\r' || key.back() == ' ')) key.pop_back();
-      const std::string ext = pluginTarget() == "macos" ? ".dylib" : pluginTarget() == "windows" ? ".dll" : ".so";
+      const std::string ext = buildOs() == "macos" ? ".dylib" : buildOs() == "windows" ? ".dll" : ".so";
       if (key == out.key && fs::exists(pre / "plugin.a") && (gCross.on || fs::exists(pre / ("plugin" + ext)))) {
         out.shared = (pre / ("plugin" + ext)).string();
         out.archive = (pre / "plugin.a").string();
@@ -505,7 +508,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
   h.add(keyFlags); vh.add(keyFlags);
-  if (pluginTarget() == "macos") h.add("-Wl,-headerpad_max_install_names");   // a link flag: the libraries linked before it was added are not reused
+  if (buildOs() == "macos") h.add("-Wl,-headerpad_max_install_names");
+  if (buildOs() == "linux") h.add("-Wl,-S");   // the libraries linked before were not stripped   // a link flag: the libraries linked before it was added are not reused
   for (const std::string& f : ts.vendorFlags) vh.add(f);
   vh.add("-g0");   // the vendored libraries carry no debug information: zig's clang writes it by default, and it was 70 to 85% of their archives
   h.add(ccId); vh.add(ccId);
@@ -513,7 +517,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
-  if (pluginTarget() == "windows") h.add(sha256File(zincImplib(engineRoot)));   // DATA vs code exports in libzinc.dll.a change the DLL's import table
+  if (buildOs() == "windows") h.add(sha256File(zincImplib(engineRoot)));   // DATA vs code exports in libzinc.dll.a change the DLL's import table
   for (const std::string& s : own) {   // the files beside the sources, in name order: headers, and sources one of them #includes (display-gl's gl_renderer.cpp)
     std::vector<std::string> hs;
     std::error_code e2;
@@ -540,6 +544,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     for (const std::string& f : conf) vh.add(sha256File(f));
   }
   h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
+  if (gCross.shared) h.add("shared");   // never the placeholder of a cross build without the .so
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
   const std::string vendorHex = vh.hex();
   h.add(vendorHex);   // the library links the vendored archive: a new archive (its sources, defines, configuration header) relinks it
@@ -547,8 +552,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   std::string dir = cache + "/" + m.name + "-" + keyHex;
   std::string vdir = cache + "/" + m.name + "-vendor-" + vendorHex;
   bool dyn = true;
-  const bool windowsHost = pluginTarget() == "windows";
-  std::string ext = pluginTarget() == "macos" ? ".dylib" : windowsHost ? ".dll" : ".so";
+  const bool windowsHost = buildOs() == "windows";
+  std::string ext = buildOs() == "macos" ? ".dylib" : windowsHost ? ".dll" : ".so";
   out.shared = dir + "/plugin" + ext;
   out.archive = dir + "/plugin.a";
   if (!vendored.empty()) out.vendor = vdir + "/vendor.a";
@@ -603,7 +608,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
       + (!display && fs::exists(root + "/plugins/display-gl/zgl.h") ? " -I" + q(root + "/plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
-      + (pluginTarget() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
+      + (buildOs() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
 #endif
       + " -I" + q(root + "/third_party");
     std::vector<std::string> objs;
@@ -620,7 +625,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string linkLibs;
     for (const std::string& l : libs) linkLibs += " " + l;
     std::string undefined;
-    if (pluginTarget() == "macos")
+    if (buildOs() == "macos")
       // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333);
       // room in the header for a longer install name: Homebrew rewrites it to the keg's path and failed the install without it (v0.4.2)
       undefined = " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S -Wl,-headerpad_max_install_names";
@@ -628,12 +633,12 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       const std::string implib = zincImplib(engineRoot);
       if (implib.empty()) { err = "plugin '" + m.name + "' needs the import library of zinc (libzinc.dll.a beside the zinc that loads it, or ZINC_IMPLIB)"; return false; }
       undefined = " -Wl,--export-all-symbols " + q(implib);
-    }
+    } else undefined = " -Wl,-S";   // Linux: no debug sections, which zig's libc++ brings into each library (1.3 of svg's 1.7 MB, ZN-823)
     std::string vend = out.vendor.empty() ? "" : " " + q(out.vendor);
-    if (!gCross.on && !run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
+    if ((!gCross.on || gCross.shared) && !run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
     fs::remove(out.archive, ec);
     if (!run(arTool() + " rcs " + q(out.archive) + list, err, "ar")) return false;
-    if (gCross.on) { std::ofstream(out.shared) << "cross build: no shared library\n"; }   // a placeholder so the cache check below finds the entry
+    if (gCross.on && !gCross.shared) { std::ofstream(out.shared) << "cross build: no shared library\n"; }   // a placeholder so the cache check below finds the entry
     { std::ofstream(digestFile) << sha256File(out.shared) << " " << sha256File(out.archive) << "\n"; }
     out.rebuilt = true;
   }
@@ -675,7 +680,7 @@ std::string statLine(const std::string& path, bool library) {
 std::string stampPath(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   const frontend::PluginTarget& ts = p.manifest.targetSettings.at(target);
   Hash h;
-  h.add("stamp 1"); h.add(fs::path(p.dir).lexically_normal().string()); h.add(target); h.add(gCross.on ? gCross.name : "");
+  h.add("stamp 1"); h.add(fs::path(p.dir).lexically_normal().string()); h.add(target); h.add(gCross.on ? gCross.name : ""); if (gCross.shared) h.add("shared");
   for (const std::string& d : buildDefines(p, ts, engineRoot, projectDir, target)) h.add(d);
   const bool system = systemCompiler(projectDir);
   h.add(system ? "system" : "zig");

@@ -88,10 +88,11 @@ def payload(share):
     with open(os.path.join(share, "VERSION"), "w") as stamp:
         stamp.write(VERSION + "\n")
 
-def prebuild_plugins(zinc, share, target):
+def prebuild_plugins(zinc, share, target, cross=None):
     """ZN-718: the native libraries of the plugins, built here with the pinned zig, in share/plugins/<name>/prebuilt/<target>/ (dylib or so, plugin.a, vendor.a, key),
     so an install runs a program that imports a plugin with no compiler. A plugin that needs a system library (`pkg`) is left out: its library would not load
-    on a machine without it. Returns {name: why} for the plugins of this target left without one."""
+    on a machine without it. Returns {name: why} for the plugins of this target left without one.
+    cross: a Linux architecture (aarch64...): this machine's zinc cross-builds them with --target linux-<arch>, into prebuilt/linux/ where the device looks (ZN-823)."""
     without = {}
     with tempfile.TemporaryDirectory() as tmp:   # built from a copy in a project that sets none of the plugins' options, as tools/plugin-pack does
         shutil.copytree(os.path.join(REPO, "plugins"), os.path.join(tmp, "plugins"), ignore=shutil.ignore_patterns("prebuilt"))
@@ -113,10 +114,12 @@ def prebuild_plugins(zinc, share, target):
                 without[name] = "needs the system libraries " + " ".join(pkg)
                 shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True)   # its sources: compiled on first use, on a machine that has the libraries
                 continue
-            r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
-            pre = os.path.join(d, "prebuilt", target)
+            r = subprocess.run([zinc, "plugin-build", name, tmp] + (["--target", "linux-" + cross] if cross else []) + ["--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
+            at = [l[len("prebuilt: "):] for l in r.stdout.splitlines() if l.startswith("prebuilt: ")]   # cross: prebuilt/aarch64-linux, the directory of its --target
+            pre = at[0] if at else os.path.join(d, "prebuilt", target)
             if r.returncode != 0 or not os.path.exists(os.path.join(pre, "key")):
-                without[name] = (r.stderr.strip().splitlines() or ["no library"])[-1][:200]   # the last line: the error, not the first progress line
+                lines = r.stderr.strip().splitlines() or ["no library"]
+                without[name] = ([l for l in lines if "error:" in l] or lines[-1:])[0][:200]   # the first compiler error, else the last line (not a progress line)
                 # its sources, compiled on first use: without them nothing can build it (display-fbdev in 0.6.2 shipped its plugin.json alone)
                 shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt"))
                 continue
@@ -270,7 +273,7 @@ def package_macos(build, out):
     return [("macos-cli", cli), ("macos-app", zipped)], without
 
 def package_linux(build, out, arch=None):
-    """arch: a cross build from another machine (tools/build-linux): nothing of it runs here, so no ldd and no prebuilt plugin library."""
+    """arch: a cross build from another machine (tools/build-linux): nothing of it runs here, so no ldd; this machine's zinc cross-builds the plugins."""
     cross = arch is not None
     arch = arch or platform.machine()
     name = "zinc-%s-linux-%s" % (VERSION, arch)
@@ -292,18 +295,10 @@ def package_linux(build, out, arch=None):
     payload(os.path.join(root, "share", "zinc"))
     with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)
     os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)
-    if cross:   # the plugins' native sources: zinc compiles them on the device at first use, with the zig it fetches there
-        without = {}
-        def has_native(p):   # as prebuild_plugins: a display driver keeps its code beside plugin.json, not in native/ (display-fbdev shipped without it)
-            d = os.path.join(REPO, "plugins", p)
-            if os.path.isdir(os.path.join(d, "native")): return True
-            return os.path.exists(os.path.join(d, "plugin.json")) and json.load(open(os.path.join(d, "plugin.json"))).get("kind") == "display"
-        native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if has_native(p)]
-        for p in native:
-            shutil.copytree(os.path.join(REPO, "plugins", p), os.path.join(root, "share", "zinc", "plugins", p), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt", "build", "node_modules", ".*"))
-        print("%d plugins with native code, as sources: compiled on the device at first use" % len(native))
-    else:
-        without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux")
+    # cross: the cross-built zinc cannot run here, this machine's builds the plugins for the device's architecture (ZN-823: the Pi compiled five at first run, 20 to 90 s each)
+    host = os.environ.get("ZINC") or os.path.join(NEXT, "build", "zinc")
+    if cross and not os.path.exists(host): sys.exit("tools/package --linux-arch: no zinc for this machine at %s to cross-build the plugins (build it, or set ZINC)" % host)
+    without = prebuild_plugins(host if cross else os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux", arch if cross else None)
     archive = os.path.join(out, name + ".tar.gz")
     with tarfile.open(archive, "w:gz", compresslevel=9) as t:
         t.add(root, arcname=name)

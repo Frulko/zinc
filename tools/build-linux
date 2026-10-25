@@ -6,7 +6,8 @@
 # The window build needs the target's X11, DRM and GBM headers: tools/linux-sysroot fetches them first (pinned Debian packages, ~18 MB per arch).
 # --headless (and --musl) skip them: SDL3 keeps its offscreen and dummy video drivers, enough for zinc run, check, build, tests and ZINC_HEADLESS.
 # Builds in build-linux-<arch>[-musl] through tools/build (one build at a time beside other work), prints the size, the libraries the binary
-# needs and the newest glibc symbol it uses, then tools/package writes dist/linux-<arch>/zinc-<version>-linux-<arch>.tar.gz.
+# needs and the newest glibc symbol it uses, then tools/package writes dist/linux-<arch>/zinc-<version>-linux-<arch>.tar.gz, its plugins
+# prebuilt for <arch> by this machine's zinc ($ZINC or build/zinc).
 # tools/linux-build is the other way: a native build in a Debian container (Docker), which can also run the tests.
 here=$(cd "$(dirname "$0")" && pwd -P)
 next=$(dirname "$here")
@@ -66,6 +67,8 @@ print("build-linux: needs %s; newest glibc symbol %s" % (" ".join(needed) or "no
 EOF
 command -v file >/dev/null && file -b "$dir/zinc"
 [ -n "$package" ] || exit 0
+# the plugins of the package are cross-built by a zinc of this machine (tools/package, ZN-823): $ZINC, else build/zinc, built here when missing
+[ -n "$ZINC" ] || [ -x "$next/build/zinc" ] || BUILD_DIR=$next/build "$here/build" zinc || exit 1
 python3 "$here/package" --build "$dir" --out "$next/dist/linux-$arch" --linux-arch $arch
 case $? in 0|3) ;; *) exit 1 ;; esac
 echo "build-linux: $(ls -t "$next/dist/linux-$arch"/zinc-*.tar.gz | head -1)"

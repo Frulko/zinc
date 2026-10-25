@@ -3143,7 +3143,7 @@ int main(int argc, char** argv) {
     if (cross) {
       std::string zig;
       if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-      zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig);
+      zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig, true);   // the .so too: a prebuilt library a device of that target loads (tools/package --linux-arch, ZN-823)
     }
     const bool built = zn::tc::buildPlugin(*hit, gRoot, project, cross ? "linux" : zn::tc::pluginTarget(), lib, err);
     zn::tc::clearCrossTarget();

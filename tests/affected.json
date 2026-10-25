@@ -183,6 +183,7 @@
     {"paths": ["plugins/loader/", "src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/project.h", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "templates/game-2d/", "tests/data/loader/", "tests/golden/loader/", "tests/t1/loader.sh"], "tests": ["loader"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow", "release_gate_diagnostics"]},
+    {"paths": ["tools/package", "tools/build-linux", "src/tc/plugin_build.cpp", "tests/t1/linux_cross_prebuilt.sh"], "tests": ["linux_cross_prebuilt"]},
     {"paths": ["tools/package", "tests/t0/package_app.sh", "examples/museum-table/zinc.json"], "tests": ["package_app"]},
     {"paths": ["tools/install.sh", "tests/t1/install_nocompiler.sh"], "tests": ["install_nocompiler", "release_workflow"]},
     {"paths": ["src/tc/selfupdate.cpp", "src/tc/tc.cpp", "tools/install.sh", "update.pub", "tests/t1/self_update.sh"], "tests": ["self_update", "version", "package"]},
