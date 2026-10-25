@@ -17,7 +17,7 @@ zinc deploy examples/remarkable/dashboard --target rmpp   # install over ssh; la
 ```
 
 Controls: tap a task or a habit day to toggle it, **Start** / **Pause** runs the focus timer, write in the
-scratchpad with the pen (the mouse on the desktop). The shared `RemarkableBar` shows local time, battery and **Quitter**; the scratchpad is session-only. Fingers operate the controls, including while the pen hovers; only the pen draws.
+scratchpad with the pen (the mouse on the desktop). The shared `RemarkableBar` shows local time, battery, **Accueil** (back to the tablet's screen, the app keeps running) and **Quitter**. **Clear** empties the scratchpad, **Refresh** asks for a full refresh. Everything is saved as it changes (`zinc:storage`, keys `dashboard.*`): the tasks, the habits, the scratchpad and the time the focus timer ends, so the app comes back as it was after Accueil, Quitter or a restart, and the timer keeps running while it is closed. Fingers operate the controls, including while the pen hovers; only the pen draws.
 
 ## What to look at
 

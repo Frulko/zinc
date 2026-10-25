@@ -30,7 +30,7 @@ run() {
   "targets": { "macos": { "sources": ["sim.cpp"], "flags": ["-I$root/tests/native/stubs", "-I$root/plugins/display-rmpp", "-I$root/integrations/remarkable-ink"] }, "linux": { "sources": ["sim.cpp"] } } }
 J
   : > "$proj/input"; [ $app = dashboard ] && [ -z "$taps" ] && printf "80 move 1360 456\n81 down\n82 up\n200 move 120 800\n201 down\n202 up\n" > "$proj/input"
-  ( cd "$proj" && env "$@" ZN_RMPP_SIM_OUT="$proj/out" ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_INPUT="$proj/input" ZINC_FRAMES=$frames \
+  ( cd "$proj" && env "$@" ZN_RMPP_SIM_OUT="$proj/out" ZINC_STORAGE="$proj/storage.kv" ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_INPUT="$proj/input" ZINC_FRAMES=$frames \
       "$ZINC" run "$proj" >"$tmp/$label.log" 2>&1 ) || { echo "$label: run failed: $(tail -c 400 "$tmp/$label.log")"; fail=1; return 1; }
   [ -n "$headless" ] && return 0   # the driver refused the panel: no trace to judge
   [ -s "$proj/out/trace.txt" ] || { echo "$label: no trace: $(tail -c 400 "$tmp/$label.log")"; fail=1; return 1; }
@@ -52,6 +52,19 @@ for app in notes dashboard; do
   diff -q "$proj/out/trace.txt" tests/golden/sim/rmpp-$app.trace >/dev/null || { echo "$app: trace differs from tests/golden/sim/rmpp-$app.trace"; diff "$proj/out/trace.txt" tests/golden/sim/rmpp-$app.trace | head -6; fail=1; }
   cmp -s "$proj/out/glass.ppm" tests/golden/sim/rmpp-$app.ppm || { echo "$app: glass differs from tests/golden/sim/rmpp-$app.ppm"; fail=1; }
 done
+
+# the dashboard saves its state as it changes (zinc:storage): after the golden run's taps (Start, the second task, done at start) the timer's end and the
+# tasks are stored, and a second run on that storage starts from them (its first page differs from a fresh start's)
+st=$tmp/dashboard/storage.kv
+grep -q "^dashboard.tasks	00000$" "$st" && grep -q "^dashboard.timerEnd	[0-9]" "$st" || { echo "dashboard: state not saved: $(cat "$st" 2>/dev/null | cut -c1-60)"; fail=1; }
+mkdir -p "$tmp/again" && cp "$st" "$tmp/again/storage.kv"
+taps=none
+if run again dashboard 30 - ZINC_RMPP_REFRESH_MODE=fast; then
+  first() { grep -m1 " update " "$tmp/$1/out/trace.txt" | sed 's/.* glass //'; }
+  [ "$(first again)" != "$(first dashboard)" ] || { echo "again: the dashboard did not restore its saved state"; fail=1; }
+  grep -q "^dashboard.tasks	00000$" "$tmp/again/storage.kv" || { echo "again: the saved tasks changed"; fail=1; }
+fi
+taps=
 
 # the automatic full refresh: after the notes demo's strokes and an idle pen, AppLoad 0.6 gets one; 0.5 (no device state) never
 if run full notes 260 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=20; then has full trace + "full refresh"; fi
