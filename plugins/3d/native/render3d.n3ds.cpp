@@ -72,6 +72,7 @@ struct N3ds : Engine {
   WLoc wloc[LAYOUTS];
   void** dead = nullptr; int32_t ndead = 0, deadCap = 0;   // linear memory the GPU may still read: freed at the next render()
   Shade shade;
+  C3D_Tex blank; bool blankOk = false;   // what units 1 and 2 hold after a World: citro3d's C3D_TexBind reads through a null texture
 
   bool open() {
     dvlb = DVLB_ParseFile((u32*)r3d_shader_shbin, r3d_shader_shbin_size);
@@ -538,8 +539,9 @@ struct N3ds : Engine {
       C3D_DrawElements(GPU_TRIANGLES, (int)(it.to - it.from), C3D_UNSIGNED_SHORT, g->idx + it.from);
     }
     pass(1); pass(2);   // what follows draws with one stage and one texture
-    C3D_TexBind(1, nullptr);
-    C3D_TexBind(2, nullptr);
+    // never C3D_TexBind(unit, nullptr): citro3d 1.7.1 reads the type through it (a data abort at 0xC on a real 3DS; Azahar lets it by)
+    if (!blankOk) blankOk = C3D_TexInit(&blank, 8, 8, GPU_L8);
+    if (blankOk) { C3D_TexBind(1, &blank); C3D_TexBind(2, &blank); }
   }
 
   /** The general program and its loaders (the meshes' floats), the eye; one combiner stage. */

@@ -105,7 +105,20 @@ bool textScreen(int status, bool player = false) {
     call(zn::Rt::HostGfxBegin);
     HostArg bg; bg.i = 0x101828;
     call(zn::Rt::HostGfxClear, &bg);
-    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i, cols = w / 8 - 1, rows = h / 10 - 2 - static_cast<std::int64_t>(head.size());
+    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i, cols = w / 8 - 1;
+    std::vector<std::pair<std::string, std::uint32_t>> top;   // the player's lines wrapped to the screen (the 3DS's 49 columns cut the pairing hint)
+    for (std::size_t i = 0; i < head.size(); i++) {
+      const std::uint32_t color = i == 2 ? 0xffd166 : 0x8fd3ff;
+      if (head[i].empty()) top.emplace_back(std::string(), color);
+      for (std::size_t at = 0; at < head[i].size();) {   // at a space, so an address or a code stays whole
+        std::size_t n = std::min(static_cast<std::size_t>(cols), head[i].size() - at);
+        if (at + n < head[i].size()) { const std::size_t sp = head[i].rfind(' ', at + n); if (sp != std::string::npos && sp > at) n = sp - at; }
+        top.emplace_back(head[i].substr(at, n), color);
+        at += n;
+        while (at < head[i].size() && head[i][at] == ' ') at++;
+      }
+    }
+    const std::int64_t rows = h / 10 - 2 - static_cast<std::int64_t>(top.size());
     std::vector<std::string> lines;   // the output wrapped to the screen, its last rows shown
     for (std::size_t b = 0; b < shown.size();) {
       std::size_t e = shown.find('\n', b);
@@ -119,10 +132,10 @@ bool textScreen(int status, bool player = false) {
       HostArg a[5]; a[0].d = 4; a[1].d = y; a[2].p = t.data(); a[2].n = static_cast<std::uint32_t>(t.size()); a[3].i = color; a[4].i = 1;
       call(zn::Rt::HostGfxText, a);
     };
-    for (std::size_t i = 0; i < head.size(); i++) text(4 + 10.0 * static_cast<double>(i), head[i].substr(0, static_cast<std::size_t>(cols)), i == 2 ? 0xffd166 : 0x8fd3ff);
-    const double top = 4 + 10.0 * static_cast<double>(head.size());
+    for (std::size_t i = 0; i < top.size(); i++) text(4 + 10.0 * static_cast<double>(i), top[i].first, top[i].second);
+    const double below = 4 + 10.0 * static_cast<double>(top.size());
     const std::size_t first = rows <= 0 ? lines.size() : lines.size() > static_cast<std::size_t>(rows) ? lines.size() - rows : 0;
-    for (std::size_t i = first; i < lines.size(); i++) text(top + 10.0 * static_cast<double>(i - first), lines[i], 0xe0e6ff);
+    for (std::size_t i = first; i < lines.size(); i++) text(below + 10.0 * static_cast<double>(i - first), lines[i], 0xe0e6ff);
     text(static_cast<double>(h - 12), footer.substr(0, static_cast<std::size_t>(cols)), status ? 0xff6b6b : 0x8899cc);
     call(zn::Rt::HostGfxEnd);
   }
