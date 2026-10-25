@@ -311,6 +311,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: the web dashboard's widget halves the full-page picture; a relay `/shot` at zoom 0.5 would give sharper text if it reads soft on the panel.
 - ZN-844: desktop packages (macOS, Linux `tools/package`) do not ship libpdfium, so `zinc:pdf` there needs `plugins/pdf/vendor/fetch`; ship `vendor/pdfium/<platform>` in `share/zinc` for PDF reading from an install.
 - ZN-844: Zinc PDF: text search (FPDFText) and thumbnails in the library.
+- ZN-844: an italic face (Inter Italic) for `*emphasis*` in Zinc Read and in the gfx fonts.
+- ZN-844: key iteration on parsed JSON (`Object.keys`), so a Notion page title is found under any property name (Zinc Read reads `title` or `Name` only).
+- ZN-844: Zinc Read: download Notion images into the library during sync (Notion's file links expire after an hour), so pictures read offline.
+- ZN-844: a web or wasm build of `zinc:markdown`, and move `lib/std/markdown.ts` (the hand-written subset the chat uses) onto md4c.
 - ZN-844: the iOS export's SVG icon goes through the fill-only `res::rasterizeSvg`: stroked icons (Lucide) come out as filled blobs; render it with nanosvg as `appIconPng()` of `src/cli_core.cpp` does.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
@@ -473,6 +477,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: try the web dashboard on the tablet: a 5-minute period while minimized and as a widget, and whether the full refresh after a swap leaves no ghost.
 - ZN-844: check that `tools/package --linux-arch aarch64` builds `plugins/pdf/prebuilt/linux`, that the tablet loads `lib/libpdfium.so` and draws a page; time one page render at 1620x2160 on the A53.
 - ZN-844: add the x86_64, Windows and armv7 archives of PDFium `chromium/8100` to `plugins/pdf/vendor/PIN` and `fetch`.
+- ZN-844: Zinc Read on the tablet: swipes, the pen, task ticks and a real Notion sync over Wi-Fi (HTTPS through mbedTLS).
 - ZN-844: run `rmpp_lease` (zig cross build) and check that `zinc export --target rmpp` writes the app's SVG icon as the tile's icon.png.
 - ZN-844: compiler: in JSX, `{f()}` where `f: () => i32` is a component held in a variable or a field renders the element's handle as text ("98"), silently; `<F />` works. Either mount it or refuse it with a diagnostic (found in zinc:remarkable RemarkableApp).
 - ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
