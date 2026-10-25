@@ -301,6 +301,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-843: the hub protocol has no manifest expires/seq, the protection against a server freezing updates (zinc-app-ota-updates.md §5.3).
 - ZN-843: the hub cannot remove an installed app yet (zinc-tile --remove plus deleting the package).
 - ZN-843: a text field's placeholder is slate grey, which shows grey on e-ink.
+- ZN-844: `finally` is skipped after `return await` in an async function (interpreter and native): a cleanup in a `finally` never runs; found in app/web-relay, reproduced in 5 lines.
+- ZN-844: a `zinc:net` Reply needs a bytes body (like `RequestInit.bodyBytes`): binary replies go through a temporary file today (web relay PNGs, hub `.zapp`).
+- ZN-844: the `zinc:net` server's 10 s per-connection timer (`kIdleMs`, `src/host/http.cpp`) answers 408 while a `serveAsync` handler still works: stop it once the request is complete, so slow pages load fully in the web relay.
+- ZN-844: web relay: dither to the Paper Pro's colour e-ink palette (Floyd–Steinberg on the PNG) and measure whether it reads better than plain grey.
+- ZN-844: web reader: forms and JavaScript clicks (only `<a href>` is followed today); send a tap to the relay as a CDP mouse event.
+- ZN-844: web reader: draw only the new pen segment instead of redrawing every stroke each frame, to cut pen latency on pages with many strokes.
 - ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
 - ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
 - ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
@@ -458,6 +464,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-844: run app/web on the reMarkable Paper Pro and the Move (954x1696): pinch from AppLoad's touches, pen ink, link taps and Refresh.
 - ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
