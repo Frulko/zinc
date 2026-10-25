@@ -403,6 +403,12 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo PSP: CLUT8 mipmaps (Pocket's down to 16 texels) with bit 7 set per level, against far-ground shimmer.
 - zinc:3d PSP: clut8 pictures are never freed; free a world's pictures when it closes.
 
+- n3ds: a mid chunk read from the pack inside the .3dsx takes 15-70 ms in Azahar, so the frame that reads one is late; move those reads to the SD reader thread or make them cheaper.
+- tokyo PSP and Vita: stream the near level from the memory card as the 3DS does (the PSP-1000 needs it for memory too).
+- zinc:3d: `zn_asset_image_free` also frees a near picture a program took by name itself; pictures need a reference count.
+- n3ds: night pictures go to the GPU at load even by day (about 5 MB of GPU memory); upload them when the dusk starts.
+- docs: with neither a launcher path nor `ZINC_SD_DIR`, the 3DS looks for its packs in `sdmc:/3ds/zinc/`; say so in the 3DS target doc.
+
 ## Cross-platform pass
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
@@ -497,3 +503,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo: stereo on the 3DS is unproven (Azahar runs with the slider at 0): check the right-eye shot on hardware, measure the second render (~0.6 ms), tune `STEREO_SPREAD` (1.5 m).
 - tokyo: run the PSP and Vita overlay panel with `ZINC_TOKYO_TAP` in PPSSPP and Vita3K, and the pad navigation on a real pad.
 - tokyo PSP: time the GE with CLUT8 swizzled pictures and shadows on a real PSP (PPSSPP does not time the GE).
+- tokyo 3DS: measure the SD read time and the memory peak of near streaming on the real Old 3DS.
