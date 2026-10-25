@@ -5,6 +5,9 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-792: list n3ds/psp/vita in the "targets" of the plugins the console cores link (3d, audio, physics2d), so zinc lint --target n3ds stops warning about them; dev and deploy already filter them out using the player's list.
+- ZN-792: give the bytecode's native imports the plugin they come from, so the console's runtime error names the plugin (canvas2d), not only the module (Canvas2D).
+- ZN-792: list zinc:gl (and other host modules) per profile in targets/capabilities.json, so the lint and the pre-send warning catch gl-cube before it is sent to a console.
 - 3DS AOT: an AOT build keeps a 16 MB zrt heap Tokyo leaves almost empty (1 KB used, largest free block down to 1.3 MB on a long flight); measure the other compiled demos and size it to what they use.
 
 - ZN-829: measure asynchronous staging and paged provenance for large scene reimports; the demonstrated world slice eagerly validates its small chunk set.
@@ -556,4 +559,3 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo Vita: Vita3K follows the Mac's load (p95 12-23 ms); remeasure on a quiet Mac or a real Vita.
 - tokyo 3DS: on the real Old 3DS XL read the `n3ds:` and `sd packs` lines of sdmc:/zinc.log; the heap margin is about 4 MB (34.2 of 38), lower the 16 MB zrt heap if Tokyo uses much less.
 - tokyo 3DS: confirm on the real Old 3DS that the white ground blocks are gone (ZINC_PROFILE=1 counters `draws without their picture`, `chunk loads held back`); Azahar never showed them.
-- ZN-792: the PSP and Vita players install no font, so their waiting screens stay blank; bake player_font.zrs into them as on the 3DS.
