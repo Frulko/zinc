@@ -1,7 +1,7 @@
 ---
 id: ZN-825
 title: Embedded Zinc surface driven by a native host
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
@@ -24,7 +24,7 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 - [x] #1 A C-importable host boundary drives one Zinc program without creating a secondary window
 - [x] #2 A persistent surface exposes documented dimensions stride channel order alpha ownership and frame lifetime
 - [x] #3 Resize input pause resume and clean shutdown are covered by targeted native tests
-- [ ] #4 Existing standalone application behavior remains covered and the host contract is documented
+- [x] #4 Existing standalone application behavior remains covered and the host contract is documented
 <!-- AC:END -->
 
 ## Delivery contract
@@ -40,3 +40,5 @@ Alpha opts into interpreting CLEAR as transparent and reconstructs premultiplied
 AC4 remains unchecked until coordinator runs `BUILD=build ZINC=build/zinc tests/run --only app_library` after integration; the existing standalone test may create a window and must run alone. Host contract documentation is complete.
 
 Cross-platform pass: ZN-825: verify the C offscreen host surface and host linker on Windows, then mobile; only macOS was built here.
+
+Coordinator integration (2026-10-25): tools/build zn_app passed on develop. Integrated tests/run --only embed, swift_observatory and app_library all passed; standalone hello output, rn-showcase frame hash, timers and library isolation regression are covered. Scene exchange, Blender library and Godot export tests also passed after shared integration. No new window proof, cross-platform execution or benchmark claimed.
