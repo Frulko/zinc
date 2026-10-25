@@ -1,10 +1,11 @@
 ---
 id: ZN-827
 title: Godot scene exporter and standalone Zinc Parcel Yard demo
-status: Ready
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-25 11:00'
+updated_date: '2026-10-25 11:09'
 labels:
   - size-L
   - godot
@@ -22,11 +23,17 @@ Owner request (2026-10-25): launch the Swift/Godot/Blender workflows and demos w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A Godot editor export transfers nested transforms shared model instances cameras and typed gameplay markers
-- [ ] #2 A standalone Zinc demo runs the exported scene and Zinc-written interaction logic without Godot
-- [ ] #3 Unsupported scripts shaders extensions and missing references produce precise compatibility diagnostics
-- [ ] #4 Pinned Godot tooling repeatable export fixtures and targeted regression tests prove the supported subset
+- [x] #1 A Godot editor export transfers nested transforms shared model instances cameras and typed gameplay markers
+- [x] #2 A standalone Zinc demo runs the exported scene and Zinc-written interaction logic without Godot
+- [x] #3 Unsupported scripts shaders extensions and missing references produce precise compatibility diagnostics
+- [x] #4 Pinned Godot tooling repeatable export fixtures and targeted regression tests prove the supported subset
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented real Godot 4.6-stable project, authored yard, editor plugin, headless exporter and standalone Zinc Parcel Yard. Official universal archive verified SHA512. tests/run --only godot_export passed with Godot headless deterministic repeated export, shared crate IDs, script/material/duplicate rejection preserving prior manifest, shared scene validation, Zinc check and 30-frame scripted delivery/open/reset. Captured and inspected tests/golden/godot-export/yard.png. Dependency commits 4a1f109f and d228602b consumed (local cherry-picks cef3d1f2/65ef851e); integrate upstream dependency commits once only. No target builds, GPU visual parity or other-platform execution claimed.
+<!-- SECTION:NOTES:END -->
 
 ## Delivery contract
 

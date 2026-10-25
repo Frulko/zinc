@@ -6,6 +6,7 @@
     {"paths": ["include/zn/embed.h", "src/app/embed.cpp", "tools/link-embedded", "tests/data/embed/", "tests/t0/embed.sh"], "tests": ["embed"]},
     {"paths": ["tools/scene-exchange", "tools/scene_exchange/", "tools/build-blender-extension", "integrations/blender/", "plugins/3d/scene.ts", "tests/data/scene-exchange/", "tests/t0/scene_exchange.sh"], "tests": ["scene_exchange", "blender_library"]},
     {"paths": ["examples/blender-library/", "tests/t1/blender_library.sh", "tests/golden/blender-library/"], "tests": ["blender_library"]},
+    {"paths": ["examples/godot-to-zinc/", "tools/godot/", "tests/t1/godot_export.sh", "tests/data/godot-export/"], "tests": ["godot_export"]},
     {"paths": ["plugins/display-fbdev/", "tests/native/fbdev_desktop.cpp", "tests/native/chip_fbdev.cpp", "tests/native/stubs/linux/input.h", "tests/t0/fbdev_desktop.sh", "runtime/gfx.cpp"], "tests": ["fbdev_desktop"]},
     {"paths": ["src/agent/client.cpp", "tests/data/agent_logs_eof.py", "tests/t0/agent_logs_eof.sh"], "tests": ["agent_logs_eof"]},
     {"paths": ["lib/std/kit/spinner.tsx", "image/builder/src/components/progress-bar.tsx", "tests/data/pi-image/builder-motion.tsx", "tests/t0/pi_builder_motion.sh"], "tests": ["pi_builder_motion"]},

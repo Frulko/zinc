@@ -1,0 +1,56 @@
+[gd_scene load_steps=6 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Material_crate"]
+albedo_color = Color(0.82, 0.45, 0.2, 1)
+[sub_resource type="BoxMesh" id="Mesh_crate"]
+resource_name = "yard-crate"
+material = SubResource("Material_crate")
+metadata/zinc_asset_id = "yard-crate"
+[sub_resource type="StandardMaterial3D" id="Material_ground"]
+albedo_color = Color(0.17, 0.27, 0.28, 1)
+[sub_resource type="BoxMesh" id="Mesh_ground"]
+material = SubResource("Material_ground")
+metadata/zinc_asset_id = "yard-ground"
+[sub_resource type="BoxMesh" id="Mesh_gate"]
+material = SubResource("Material_crate")
+metadata/zinc_asset_id = "yard-gate"
+
+[node name="ParcelYard" type="Node3D"]
+metadata/zinc_id = "parcel-yard"
+[node name="Ground" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.3, 0)
+scale = Vector3(14, 0.3, 10)
+mesh = SubResource("Mesh_ground")
+metadata/zinc_id = "ground"
+[node name="Stacks" type="Node3D" parent="."]
+position = Vector3(-3, 0.5, 0)
+rotation = Vector3(0, 0.2, 0)
+metadata/zinc_id = "stacks"
+[node name="CrateA" type="MeshInstance3D" parent="Stacks"]
+mesh = SubResource("Mesh_crate")
+metadata/zinc_id = "crate-a"
+metadata/zinc_interaction = {"event": "pickup"}
+[node name="CrateB" type="MeshInstance3D" parent="Stacks"]
+position = Vector3(1.4, 0, 0)
+mesh = SubResource("Mesh_crate")
+metadata/zinc_id = "crate-b"
+[node name="CrateC" type="MeshInstance3D" parent="Stacks"]
+position = Vector3(0.7, 1, 0)
+mesh = SubResource("Mesh_crate")
+metadata/zinc_id = "crate-c"
+[node name="Gate" type="MeshInstance3D" parent="."]
+position = Vector3(2, 1, -1)
+scale = Vector3(0.25, 2, 4)
+mesh = SubResource("Mesh_gate")
+metadata/zinc_id = "gate"
+metadata/zinc_gate = {"name": "delivery-gate"}
+metadata/zinc_collision = {"shape": "box", "size": [0.25, 2.0, 4.0]}
+[node name="Spawn" type="Marker3D" parent="."]
+position = Vector3(0, 0.5, 3)
+metadata/zinc_id = "spawn"
+metadata/zinc_spawn = {"name": "courier"}
+[node name="Camera" type="Camera3D" parent="."]
+position = Vector3(8, 7, 11)
+rotation = Vector3(-0.45, 0.6, 0)
+fov = 55.0
+metadata/zinc_id = "camera"

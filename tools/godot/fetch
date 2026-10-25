@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+# Official macOS universal build, shared by editor export and extension tests.
+cache=${ZINC_GODOT_CACHE:-${TMPDIR:-/tmp}/zinc-godot-4.6}
+mkdir -p "$cache"
+archive="$cache/Godot_v4.6-stable_macos.universal.zip"
+if [ ! -x "$cache/Godot.app/Contents/MacOS/Godot" ]; then
+  curl -fL --silent --show-error https://github.com/godotengine/godot-builds/releases/download/4.6-stable/Godot_v4.6-stable_macos.universal.zip -o "$archive"
+  printf '%s  %s\n' 589ac663552253e93dc34d741bbc280f9e23e050f5cd79ec6bb8586d55114fbb71539d0e630d0af6c0f7fb4352e562a5b0666b3c7cb5d4bef9f7514fdce130ef "$archive" | shasum -a 512 -c - >&2
+  ditto -xk "$archive" "$cache"
+fi
+printf '%s\n' "$cache/Godot.app/Contents/MacOS/Godot"

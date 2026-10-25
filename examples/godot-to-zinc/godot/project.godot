@@ -1,0 +1,8 @@
+config_version=5
+[application]
+config/name="Parcel Yard — Zinc Authoring"
+run/main_scene="res://yard.tscn"
+[rendering]
+renderer/rendering_method="gl_compatibility"
+[editor_plugins]
+enabled=PackedStringArray("res://addons/zinc_export/plugin.cfg")

@@ -1,0 +1,7 @@
+{
+  "name": "parcel-yard",
+  "entry": "src/main.ts",
+  "app": {"name":"Parcel Yard","id":"org.zinc.parcel-yard","version":"1.0.0","orientation":"landscape"},
+  "targets": {"macos":{"width":960,"height":640}},
+  "permissions": []
+}

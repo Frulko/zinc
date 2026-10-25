@@ -1,0 +1,302 @@
+{
+  "assets": [
+    {
+      "dependencies": [],
+      "hash": "2287623db747a3b0f46057e329108ef639deb5835ed1ab75a77405437257a226",
+      "id": "yard-ground",
+      "uri": "2287623db747a3b0f46057e329108ef639deb5835ed1ab75a77405437257a226.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "2f9b54245aaff9b907c9865c08a7727599c188bb37d266360d5129d6ed9cc59e",
+      "id": "yard-crate",
+      "uri": "2f9b54245aaff9b907c9865c08a7727599c188bb37d266360d5129d6ed9cc59e.glb"
+    },
+    {
+      "dependencies": [],
+      "hash": "4d054844d92be532a50e6b29120f8e083c8f320692ae0a9912c4e7c8ffbfac77",
+      "id": "yard-gate",
+      "uri": "4d054844d92be532a50e6b29120f8e083c8f320692ae0a9912c4e7c8ffbfac77.glb"
+    }
+  ],
+  "id": "parcel-yard",
+  "nodes": [
+    {
+      "asset": null,
+      "id": "parcel-yard",
+      "metadata": {},
+      "name": "ParcelYard",
+      "parent": null,
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "."
+      },
+      "translation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "yard-ground",
+      "id": "ground",
+      "metadata": {},
+      "name": "Ground",
+      "parent": "parcel-yard",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        14.0,
+        0.30000001192092896,
+        10.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Ground"
+      },
+      "translation": [
+        0.0,
+        -0.30000001192092896,
+        0.0
+      ]
+    },
+    {
+      "asset": null,
+      "id": "stacks",
+      "metadata": {},
+      "name": "Stacks",
+      "parent": "parcel-yard",
+      "rotation": [
+        0.0,
+        0.0998334065079689,
+        0.0,
+        0.9950041770935059
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Stacks"
+      },
+      "translation": [
+        -3.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "asset": "yard-crate",
+      "id": "crate-a",
+      "metadata": {
+        "interaction": {
+          "event": "pickup"
+        }
+      },
+      "name": "CrateA",
+      "parent": "stacks",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Stacks/CrateA"
+      },
+      "translation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "yard-crate",
+      "id": "crate-b",
+      "metadata": {},
+      "name": "CrateB",
+      "parent": "stacks",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Stacks/CrateB"
+      },
+      "translation": [
+        1.399999976158142,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "yard-crate",
+      "id": "crate-c",
+      "metadata": {},
+      "name": "CrateC",
+      "parent": "stacks",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Stacks/CrateC"
+      },
+      "translation": [
+        0.699999988079071,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "yard-gate",
+      "id": "gate",
+      "metadata": {
+        "collision": {
+          "shape": "box",
+          "size": [
+            0.25,
+            2.0,
+            4.0
+          ]
+        },
+        "gate": {
+          "name": "delivery-gate"
+        }
+      },
+      "name": "Gate",
+      "parent": "parcel-yard",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        0.25,
+        2.0,
+        4.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Gate"
+      },
+      "translation": [
+        2.0,
+        1.0,
+        -1.0
+      ]
+    },
+    {
+      "asset": null,
+      "id": "spawn",
+      "metadata": {
+        "spawn": {
+          "name": "courier"
+        }
+      },
+      "name": "Spawn",
+      "parent": "parcel-yard",
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Spawn"
+      },
+      "translation": [
+        0.0,
+        0.5,
+        3.0
+      ]
+    },
+    {
+      "asset": null,
+      "id": "camera",
+      "metadata": {
+        "camera": {
+          "far": 4000.0,
+          "fov": 55.0,
+          "near": 0.05000000074505806
+        }
+      },
+      "name": "Camera",
+      "parent": "parcel-yard",
+      "rotation": [
+        -0.21314163506031036,
+        0.28807133436203003,
+        0.06593243777751923,
+        0.9312564134597778
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "source": {
+        "file": "godot/yard.tscn",
+        "object": "Camera"
+      },
+      "translation": [
+        8.0,
+        7.0,
+        11.0
+      ]
+    }
+  ],
+  "revision": "04c3fae910a9662d0eee0186da3e4939d67f145d6e01882d42b4f8be53571b70",
+  "schema": "zinc.scene",
+  "source": {
+    "file": "godot/yard.tscn",
+    "scene": "ParcelYard",
+    "tool": "Godot 4.6-stable"
+  },
+  "version": 1
+}
