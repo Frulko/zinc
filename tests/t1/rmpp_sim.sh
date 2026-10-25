@@ -59,6 +59,11 @@ if run lane notes 140 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=ok $pen; t
   has lane log 1 "ink lane on (Paper Pro"; has lane trace 1 "mode UI"; has lane trace 0 "mode FAST"
   has lane trace 2 "lane stroke begin"; has lane trace + "lane ink "; has lane trace 2 "lane stroke end"; has lane trace 1 "lane bye"
 fi
+# L1 through zinc-canvas: its Welcome names xochitl's hash (verified on the tablet), not a vendor row; the same strokes, no vendor check
+if run canvas notes 140 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=canvas $pen; then
+  has canvas log 1 "ink canvas on (Paper Pro, xochitl 0badc0de0bad)"; has canvas log 0 "not verified"; has canvas trace 1 "mode UI"
+  has canvas trace 2 "lane stroke begin"; has canvas trace + "lane ink "; has canvas trace 2 "lane stroke end"
+fi
 # L1 -> L0: the lane closes its end mid-stroke; the driver says so once and goes on with qtfb, in FAST as the app asked
 if run eof notes 170 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=eof:5 $pen; then
   has eof trace 5 "lane ink "; has eof trace 1 "lane closed: eof"; has eof trace 0 "lane stroke end"; has eof log 1 "ink lane closed; qtfb from now on"

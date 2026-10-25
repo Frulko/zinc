@@ -104,7 +104,7 @@ round-capped polylines per width run: same geometry as the screen).
 
 | Layer | What draws | Return to xochitl | Chosen when |
 |---|---|---|---|
-| **L1 ink lane** (`lane.h`) | qtfb in UI mode, plus fast Pen/Mono swaps by the `zinc-ink` XOVI extension inside xochitl while the Marker is down; at pen-up the stroke's box is repainted through qtfb (the colour settle) | instant: the app never leaves xochitl | `"ink": "native"` or `"session"`, the lane answers on `/run/zinc-ink.sock` and the vendor hash it reports is a row of `models.h` |
+| **L1 ink canvas or lane** (`lane.h`) | qtfb in UI mode, plus, while the Marker is down, the stroke's rectangles in xochitl's Pen mode: repainted by the `zinc-canvas` XOVI extension (preferred, see below), or swapped by the older `zinc-ink` lane; at pen-up the stroke's box is repainted through qtfb (the colour settle) | instant: the app never leaves xochitl | `"ink": "native"` or `"session"`, and an extension answers on `/run/zinc-ink.sock`: the canvas (it verified xochitl itself), or the lane with a vendor hash that is a row of `models.h` |
 | **L2 ink session** (`native.h`) | the app owns the vendor engine through an engine shim with Quill's C ABI (`libquill.so`), with xochitl stopped by the lease | a xochitl restart (seconds), the open notebook view is lost | `"ink": "session"`, no lane, and the app was started through the lease (`ZINC_LEASE` and the checked `ZINC_VENDOR_SHA256` in its environment) |
 | **L0 qtfb** (`rmpp.cpp`) | AppLoad's shared framebuffer, partial updates; FAST mode when `ink` asked for fast ink, `refresh_mode` otherwise | instant | always, and whenever L1 or L2 is not available |
 
@@ -124,6 +124,44 @@ Proved on the Mac by `tests/t1/rmpp_sim.sh` (fake qtfb and fake lane): the choic
 on EOF, and each fallback with its message. `tests/native/rmpp/fake-xochitl/run.sh` (Docker, by hand) runs the real lane
 in a fake xochitl under XOVI and framebuffer-spy. Only the tablet can prove the latency, the colour settle on a real
 engine and the return time.
+
+### The ink canvas (`zinc-canvas`, ZN-839)
+
+The lane needs the vendor engine's symbols, and on OS 3.27 they are not in any library xochitl loads (the engine is linked
+into `/usr/bin/xochitl`; design §11). The canvas needs none: it is route 2 of
+[the fast-ink landscape](../reports/remarkable-fast-ink-landscape.md) (AppLoad PR #61's InkCanvas), written as its own
+extension, `integrations/remarkable-ink/canvas.cpp`.
+
+- When the app says `Hello`, it lays a `QQuickPaintedItem` over AppLoad's window (the `FBController` item, fullscreen 1:1),
+  reading the app's qtfb shared memory directly (no copy), with a child `ScreenModeItem` of xochitl's own `xofm.libs.epaper`
+  module (the type and the `Pen`/`UI` modes AppLoad's QMD uses). `StrokeBegin` sets that item to `Pen`; each `Ink(rect)`
+  repaints only that rectangle; `StrokeEnd` goes back to `UI`, makes the item transparent again and repaints the box
+  through AppLoad's item: the colour settle. Input stays with AppLoad's item underneath. `Bye` or any error removes the item.
+- No override, no import, no QMD, no native address: it starts from Qt's `qAddPreRoutine` and uses exported Qt API and
+  xochitl's QML names, created at run time. A missing type or mode is a QML error, caught: the canvas stays off for that app.
+- Fail closed with one journal line (`[zinc-canvas] off: ...`): an unknown model; a running xochitl whose SHA-256 is not in
+  `/home/root/xovi/exthome/zinc-canvas/verified` (`install.sh` records the tablet's xochitl there, so a new OS is one line
+  after a test, not a build); the QML type or its modes missing. The crash guard is the lane's: `/run/zinc-canvas/armed`
+  while it touches xochitl's scene; a leftover mark refuses it until the next reboot (the lease clears the mark after its
+  own clean stop of xochitl, which is no crash).
+- It also brings back the open document after a lease (below).
+
+Install and test it on the tablet (one load test, rule 10):
+
+```sh
+# on the Mac
+sh integrations/remarkable-ink/build.sh          # dist/zinc-canvas.so and dist/zinc-ink.so, official SDK, one-shot container
+scp -r integrations/remarkable-ink root@10.11.99.1:/home/root/zinc-ink
+# on the tablet (ssh root@10.11.99.1)
+rm -f /home/root/xovi/extensions.d/zinc-ink.so   # the lane answers on the same socket
+sh /home/root/zinc-ink/install.sh canvas         # records xochitl's hash for this OS, copies zinc-canvas.so; no restart
+/home/root/xovi/start                            # ONCE; then wait for the UI
+journalctl -u xochitl --since "-5min" --no-pager | grep zinc-canvas   # "ready on /run/zinc-ink.sock (Paper Pro, OS ...)" or "off: <why>"
+```
+
+Then launch an app exported with `"ink": "native"` from AppLoad (fullscreen); its stderr says `ink canvas on (Paper Pro,
+xochitl <hash>)`, and the journal `canvas granted to pid N`. Remove it with `rm /home/root/xovi/extensions.d/zinc-canvas.so`
+(it is gone at the next `xovi/start`; until then it stays idle), and `rm -r /home/root/xovi/exthome/zinc-canvas`.
 
 ## Models, and adding a model or an OS
 
@@ -176,9 +214,10 @@ The same rules bind the lane, the lease and anyone diagnosing on a tablet
 4. `systemctl reset-failed xochitl` only right after our own clean stop, never after xochitl failed by itself.
 5. Every lease has a dead-man: `RuntimeMaxSec`, the app's watchdog (`WATCHDOG=1` every frame, `WatchdogSec=10`), and the
    power-key escape, which belongs to the supervisor: the app never opens the power key.
-6. Every failure leaves xochitl running. The lane never takes xochitl down more than once per boot: it writes
-   `/run/zinc-ink/armed` while it may touch the engine, and a leftover mark at load (xochitl died while it was armed)
-   makes it refuse to load until the next reboot (the reason is in `/run/zinc-ink/last`).
+6. Every failure leaves xochitl running. The lane and the canvas never take xochitl down more than once per boot: each
+   writes its `armed` mark (`/run/zinc-ink/`, `/run/zinc-canvas/`) while it may touch the engine or the scene, and a
+   leftover mark at load (xochitl died while it was armed) makes it refuse to load until the next reboot (the reason is
+   in its `last` file).
 7. No load-time XOVI condition or override on `libqsgepaper` (Qt `dlopen`s it after XOVI's constructor), and no override
    of a symbol another installed extension hooks (`install.sh` checks `extensions.d`). Vendor symbols are resolved at
    run time.
@@ -227,6 +266,12 @@ the app with SIGTERM, which does not save the page (only **Save & quit** does). 
 - Budget: at most 2 xochitl starts by the lease in 10 minutes, 6 per hour, and 60 s between leases (`/run/zinc-lease/starts`,
   reset at boot). A refused launch says why and when the next one is allowed. `reset-failed xochitl` runs only right
   after the lease's own clean stop, so its cycles never use up systemd's 4 starts in 600 s and xochitl's own crashes still count.
+- The open document comes back when `zinc-canvas` is loaded. It records xochitl's `Settings.lastOpen` in
+  `/run/zinc-canvas/document`; `lease session` copies it to `/run/zinc-lease/reopen` before the stop (and says
+  `reopen: <id>`), and at xochitl's next start the canvas opens it once, the way rm-hacks-qmd's `openLastDocument` does
+  (`Library.entryForId`, then `navigator.requestOpenDocument`), and writes the result to `/run/zinc-lease/reopened`
+  (`lease status` prints it). Without the canvas the lease says why it cannot (`reopen: not possible, zinc-canvas is not
+  loaded`), and xochitl shows its home screen.
 - A failed restore makes no retry loop. It retries once after 10 s, and only when the display was busy. It keeps the
   wakelock, writes the reason to the journal and `/run/zinc-lease/last`, and refuses every later launch until someone
   looks at it.

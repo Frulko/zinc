@@ -5,7 +5,7 @@
 //                  the format picks the panel (1 Paper Pro 1620x2160, 4 Move 954x1696, 7 Paper Pure 1404x1872);
 //   MSG_UPDATE     only the rectangle of the update is copied from the shared framebuffer to the "glass": a driver that draws outside what it announces leaves stale pixels;
 //   MSG_SET_MODE   qtfb sleeps one second on that connection: an update inside the second is lost (an error here), the driver must wait;
-//   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | eof:N; unset: nobody listens) answers Hello with a vendor hash, copies each Ink rectangle from the
+//   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | canvas | eof:N; unset: nobody listens) answers Hello with a vendor hash (canvas: as zinc-canvas), copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
 //   rm2fb          (ZN_RMPP_SIM_RM2FB=1; unset: not running) timower's rm2fb server for the reMarkable 2: Init is answered with the format and the
@@ -127,7 +127,8 @@ static void handleLane(const zink::Message& m) {
   if (m.magic != zink::magic || m.version != zink::version) { line("error: lane protocol"); errors++; laneClose("protocol"); return; }
   if (m.type == zink::Hello) {
     zink::Message w; w.type = zink::Welcome; w.seq = m.seq; w.w = W; w.h = H;
-    memcpy(w.hash, !strcmp(mode, "badhash") ? "0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de"
+    if (!strcmp(mode, "canvas")) w.key = zink::Canvas;   // zinc-canvas: the hash is xochitl's, verified on the tablet, not a vendor row
+    memcpy(w.hash, !strcmp(mode, "badhash") || !strcmp(mode, "canvas") ? "0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de"
                                              : "3800e9f3d01f40fa3f5cc96ca49bcd982471ce5b033320f8788707520c8ddd08", 64);
     send(lane, &w, sizeof w, 0);
     line("%8.1f ms lane hello key %d -> welcome %.12s", now, m.key, w.hash);

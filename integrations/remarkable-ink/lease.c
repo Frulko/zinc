@@ -41,6 +41,7 @@ struct input_event { struct timeval time; unsigned short type, code; int value; 
 
 #define UNIT "zinc-lease"
 #define RUN "/run/zinc-lease"
+#define CANVAS "/run/zinc-canvas"   // zinc-canvas inside xochitl (canvas.cpp): its record of the open document, its crash mark
 // The stock xochitl unit of the Paper Pro (OS 3.2x): a different policy means an OS update changed it, and the lease is re-verified first.
 #define XO_BURST "4"
 #define XO_INTERVAL "10min"
@@ -303,11 +304,23 @@ static int session(int argc, char **argv) {
   put(P(RUN "/restore"), "%s\n", name);   // first: ExecStopPost restores whatever happens next
   if (wakelock(1)) { say("cannot take the wakelock"); return 1; }
   int pw = power_device();
+  // The document xochitl has open, as zinc-canvas records it (Settings.lastOpen): zinc-canvas opens it again at xochitl's next start.
+  char doc[64] = ""; FILE *df = fopen(P(CANVAS "/document"), "r");
+  if (df) { if (!fgets(doc, sizeof doc, df)) doc[0] = 0; fclose(df); doc[strcspn(doc, "\n")] = 0; }
+  unlink(P(RUN "/reopened"));
+  if (doc[0]) { put(P(RUN "/reopen"), "%s\n", doc); say("reopen: %s after the session (zinc-canvas)", doc); }
+  else {
+    unlink(P(RUN "/reopen"));
+    say(df ? "reopen: none, xochitl had no document open" : "reopen: not possible, zinc-canvas is not loaded in xochitl (no record of its open document); xochitl will show its home screen");
+  }
   long t = now();
   int rc = sysctl("stop", "xochitl");
   const char *state = show("xochitl", "ActiveState"), *result = show("xochitl", "Result");
   if (strcmp(state, "inactive") && strcmp(state, "failed")) { say("xochitl is still %s after systemctl stop (exit %d)", state, rc); return 1; }
-  if (!strcmp(result, "success")) put(P(RUN "/ours"), "%ld\n", t);   // our own clean stop: the restore may reset-failed
+  if (!strcmp(result, "success")) {   // our own clean stop: the restore may reset-failed, and it is no crash of zinc-canvas
+    put(P(RUN "/ours"), "%ld\n", t);
+    unlink(P(CANVAS "/armed"));
+  }
   else say("xochitl stopped with result %s: the restore will not reset its counters", result);
   put(P(RUN "/stopped"), "%ld\n", t);
   char why[256], who[256];
@@ -390,7 +403,8 @@ static int restore(void) {
   } else if (t < 0) say("restore: systemctl start xochitl failed; no retry");
   for (int i = 0; i < 30 && !active("xochitl"); i++) pause_s(1);
   if (!active("xochitl")) { say("restore: xochitl did not come back (Result=%s); keeping the wakelock (docs/targets/remarkable-paper-pro.md, Recovery)", show("xochitl", "Result")); return 1; }
-  say("restore: xochitl active again (stopped at %ld, started at %ld, active at %ld)", stopped, t < 0 ? -t : t, now());
+  say("restore: xochitl active again (stopped at %ld, started at %ld, active at %ld)%s", stopped, t < 0 ? -t : t, now(),
+      exists(P(RUN "/reopen")) ? "; zinc-canvas reopens the document (result in " RUN "/reopened)" : "");
 done:
   wakelock(0);
   unlink(P(RUN "/ours")); unlink(P(RUN "/stopped")); unlink(P(RUN "/restore"));
@@ -406,6 +420,9 @@ static int status(void) {
          exists(P(RUN "/restore")) ? "a restore is pending" : "nothing to restore");
   if (wait > 0) printf("next lease in %ld s: %s\n", wait, why);
   if (l[0]) printf("last: %s", l);
+  f = fopen(P(RUN "/reopened"), "r"); l[0] = 0;
+  if (f) { if (!fgets(l, sizeof l, f)) l[0] = 0; fclose(f); }
+  if (l[0]) printf("reopened: %s", l);
   return 0;
 }
 

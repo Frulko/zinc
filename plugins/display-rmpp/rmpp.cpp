@@ -1,5 +1,6 @@
 // display-rmpp on the reMarkable tablets: the backend selector of docs/reports/remarkable-bridge-design.md §7.
-//   L1 the ink lane (lane.h): qtfb in UI mode, plus Pen/Mono swaps inside xochitl while the Marker is down; instant return.
+//   L1 the ink layer inside xochitl (lane.h): qtfb in UI mode, plus, while the Marker is down, the stroke's rectangles repainted in
+//      xochitl's Pen mode by zinc-canvas (its painted item; preferred, and the one that works on OS 3.27) or the zinc-ink lane (vendor swaps).
 //   L2 the ink session (native.h): the app owns the vendor engine inside a lease (xochitl stopped); "ink": "session" only.
 //   L0 AppLoad's qtfb: a shared-memory RGB888 framebuffer that xochitl composites, update/refresh-mode messages on
 //      /tmp/qtfb.sock (protocol: asivery/rm-appload src/qtfb/common.h). Always there; QTFB_KEY comes from AppLoad.

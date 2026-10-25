@@ -12,7 +12,9 @@ static int s;
 static uint32_t seq;
 static bool put(uint32_t type, int x = 0, int y = 0, int w = 0, int h = 0) {
   zink::Message m; m.type = type; m.seq = ++seq; m.x = x; m.y = y; m.w = w; m.h = h; m.key = 7; m.pid = getpid();
-  return send(s, &m, sizeof m, MSG_NOSIGNAL) == sizeof m;
+  bool ok = send(s, &m, sizeof m, MSG_NOSIGNAL) == sizeof m;
+  usleep(50000);   // a stroke takes time: each message gets its own frame of the fake xochitl
+  return ok;
 }
 int main(int argc, char** argv) {
   bool stall = argc > 1 && !strcmp(argv[1], "stall");

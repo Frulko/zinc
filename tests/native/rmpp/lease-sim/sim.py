@@ -314,11 +314,24 @@ def run(lease):
         with State() as s: main = s['lease']['main']
         os.kill(main, signal.SIGKILL)
 
+    def record(doc):   # zinc-canvas's record of xochitl's open document, and its crash mark (canvas.cpp)
+        os.makedirs(f'{ROOT}/run/zinc-canvas', exist_ok=True)
+        open(f'{ROOT}/run/zinc-canvas/armed', 'w').write('1000\n')
+        if doc is None:
+            if os.path.exists(f'{ROOT}/run/zinc-canvas/document'): os.unlink(f'{ROOT}/run/zinc-canvas/document')
+        else: open(f'{ROOT}/run/zinc-canvas/document', 'w').write(doc + '\n')
+
+    def reopen(doc):
+        path = f'{ROOT}/run/zinc-lease/reopen'
+        got = open(path).read().strip() if os.path.exists(path) else None
+        check(f'reopen record {got!r} (want {doc!r}); the crash mark cleared by our clean stop', got == doc and not os.path.exists(f'{ROOT}/run/zinc-canvas/armed'))
+
+    doc = '0d9a1c2e-4b5f-4c3d-8e7f-112233445566'
     for step in (
         lambda: launch(10, refused='active for 10 s only'),
-        lambda: launch(100, 'quit'),
+        lambda: (record(doc), launch(100, 'quit'), reopen(doc)),
         lambda: launch(130, refused='at least 60 s apart'),
-        lambda: launch(400, 'crash'),
+        lambda: (record(None), launch(400, 'crash'), reopen(None)),
         lambda: launch(500, refused='2 times in the last 10 minutes'),
         lambda: launch(720, 'hang', ('--watchdog', '10'), during=advance(11)),
         lambda: launch(1100, 'run', during=press_power),

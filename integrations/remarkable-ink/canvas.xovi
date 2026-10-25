@@ -1,0 +1,3 @@
+version 0.1.0
+; zinc-canvas (ZN-839): no import, no override, no condition. It starts from qAddPreRoutine (Qt6Core), uses only exported Qt API
+; and xochitl QML types, and canvas.cpp holds the gates. (xovigen cuts a line at its LAST semicolon: one per comment line.)

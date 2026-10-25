@@ -2,6 +2,8 @@
 // UI mode; while the Marker is down it names each new rectangle (already written into the qtfb shared memory) to the lane,
 // which swaps it with the vendor engine's Pen/Mono mode. Pen-up hands the stroke's box back to qtfb's own repaint: the colour
 // settle. Any error closes the lane for the rest of the session (one way: L1 -> L0).
+// The same messages drive zinc-canvas (integrations/remarkable-ink/canvas.cpp), which answers Welcome with key = zink::Canvas: there
+// a painted item repaints each rectangle under xochitl's Pen screen mode instead of a vendor swap. The driver cannot tell the difference.
 #pragma once
 #include "eink.h"
 #include "models.h"
@@ -32,7 +34,7 @@ bool open(const rmm::Model& row, int key) {
   a.sun_family = AF_UNIX;
   strcpy(a.sun_path, zink::socket_path);
   if (sock < 0 || connect(sock, (sockaddr*)&a, sizeof a) != 0) {
-    fprintf(stderr, "display-rmpp: no ink lane at %s (zinc-ink not loaded in xochitl); fast ink off, qtfb\n", zink::socket_path);
+    fprintf(stderr, "display-rmpp: no ink lane at %s (neither zinc-canvas nor zinc-ink is loaded in xochitl); fast ink off, qtfb\n", zink::socket_path);
     close_lane(); return false;
   }
   timeval limit = {1, 0};
@@ -44,7 +46,15 @@ bool open(const rmm::Model& row, int key) {
     fprintf(stderr, "display-rmpp: the ink lane refused this app (protocol %u, window not fullscreen 1:1, or lane off for this boot); fast ink off, qtfb\n", zink::version);
     close_lane(); return false;
   }
-  if (!rmm::vendor(w.hash, row.codename) || w.w != row.w || w.h != row.h) {
+  if (w.w != row.w || w.h != row.h) {
+    fprintf(stderr, "display-rmpp: the ink lane serves a %dx%d panel, not the %s's; fast ink off, qtfb\n", w.w, w.h, row.name);
+    close_lane(); return false;
+  }
+  if (w.key == zink::Canvas) {   // zinc-canvas verified the running xochitl against the tablet's own list before answering
+    fprintf(stderr, "display-rmpp: ink canvas on (%s, xochitl %.12s)\n", row.name, w.hash);
+    return true;
+  }
+  if (!rmm::vendor(w.hash, row.codename)) {
     fprintf(stderr, "display-rmpp: vendor library %.64s is not verified for the %s; fast ink off, qtfb\n", w.hash, row.name);
     close_lane(); return false;
   }
