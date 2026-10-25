@@ -10,12 +10,15 @@
 //   devices.txt                one paired device per line: SHA-256 of its token, name, pairing time (ms)
 //   apps/<id>/key              the app's Ed25519 public key, recorded by its first publish
 //   apps/<id>/<file>.zapp      the packages; apps/<id>/<channel>/<version>.manifest the signed manifests; <version>.retracted a retracted version
+//   apps/<id>/<file>.png       the package's icon.png (zinc pack, from zinc.json app.icon), when it has one
 //
 // HTTP (a device token or the publisher token as `Authorization: Bearer <token>`):
 //   POST /pair                 form `code=<the code the hub prints>&name=<device>` -> {"serverKey": hex, "token": hex}; the code changes after each use
-//   GET  /catalog.json         device: {"server", "issued", "apps": [{"id", "key", "channels": [{"channel", "version", "manifest", "url", "sha256"}]}]}
+//   GET  /catalog.json         device: {"server", "issued", "apps": [{"id", "key", "channels": [{"channel", "version", "manifest", "url", "sha256",
+//                              "icon", "iconSha256"}]}]} (icon and iconSha256 '' for a package without an icon)
 //   GET  /catalog.json.sig     device: the Ed25519 signature of catalog.json by the hub key, hex (`zinc verify catalog.json --key <server key>`)
-//   GET  /apps/<id>/<channel>.manifest, /apps/<id>/<file>.zapp   device: the channel's current manifest (its url is relative) and the package
+//   GET  /apps/<id>/<channel>.manifest, /apps/<id>/<file>.zapp, /apps/<id>/<file>.png   device: the channel's current manifest (its url is
+//                              relative), the package and its icon
 //   POST /publish              publisher: body = the signed manifest then the .zapp, headers X-Manifest-Length (bytes of manifest) and X-App-Key
 //   GET  /admin?token=<t>      publisher: apps, versions, paired devices, the pairing code; POST /admin/retract (form token, app, channel, version)
 import { serveAsync, Request, Reply, Headers } from 'zinc:net';
@@ -111,7 +114,33 @@ function current(id: string, channel: string): string {   // the newest version 
 }
 function channels(id: string): string[] { return list(apps + '/' + id).filter((c: string) => safe(c) && fs.stat(apps + '/' + id + '/' + c).isDirectory); }
 
-function catalog(): string {
+// A member of a ustar archive (a .zapp), [] when absent: 512-byte headers, the name in bytes 0..100, the size in octal at 124..136.
+function member(tar: u8[], name: string): u8[] {
+  let off: i32 = 0;
+  while (off + 512 <= tar.length && tar[off] !== 0) {
+    let n = '';
+    for (let i: i32 = 0; i < 100 && tar[off + i] !== 0; i++) n += String.fromCharCode(tar[off + i] as i32);
+    let size: i32 = 0;
+    for (let i: i32 = 124; i < 136; i++) { const c = tar[off + i] as i32; if (c >= 48 && c <= 55) size = size * 8 + c - 48; }
+    if (n === name) return off + 512 + size <= tar.length ? tar.slice(off + 512, off + 512 + size) : [];
+    off += 512 + Math.floor((size + 511) / 512) * 512;
+  }
+  return [];
+}
+const MAX_ICON_BYTES: i32 = 512 * 1024;
+// The .zapp's icon.png, checked against the SHA-256 its manifest.json lists; [] when it has none; an Error when it is not what it claims.
+async function iconOf(zapp: u8[]): Promise<u8[]> {
+  const icon = member(zapp, 'icon.png');
+  if (icon.length === 0) return icon;
+  const listed = '' + JSON.parse(sys.utf8Decode(member(zapp, 'manifest.json'))).files['icon.png'];
+  if (icon.length > MAX_ICON_BYTES || icon[1] !== 0x50 || icon[2] !== 0x4e || icon[3] !== 0x47 || (await sha256(icon)) !== listed)
+    throw new Error('refused: the icon.png of the .zapp is not a PNG of at most 512 KB that matches its manifest.json\n');
+  return icon;
+}
+/** The icon of the package `file` (<name>.zapp), relative to the data directory and to the server: apps/<id>/<name>.png. */
+function iconPath(id: string, file: string): string { return 'apps/' + id + '/' + file.slice(0, file.length - 5) + '.png'; }
+
+async function catalog(): Promise<string> {
   let s = '{"server":' + json(hubPublic) + ',"issued":' + Date.now().toString() + ',"apps":[';
   let firstApp = true;
   for (const id of list(apps)) {
@@ -121,8 +150,11 @@ function catalog(): string {
       const v = current(id, c);
       if (v.length === 0) continue;
       const m = parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest'));
+      let icon = iconPath(id, m.get('url')), iconSum = '';
+      if (fs.exists(data + '/' + icon)) iconSum = await sha256(fs.readBytes(data + '/' + icon));
+      else icon = '';
       chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + '.manifest') +
-        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + '}';
+        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + '}';
     }
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;
@@ -134,7 +166,7 @@ let catalogText = '';
 let catalogSig = '';
 async function signedCatalog(): Promise<void> {
   if (catalogText.length > 0) return;
-  const text = catalog();
+  const text = await catalog();
   catalogSig = hex(await subtle.sign({ name: 'Ed25519' }, hubKey as CryptoKey, sys.utf8Encode(text)));
   catalogText = text;
 }
@@ -173,9 +205,12 @@ async function publish(req: Request): Promise<Reply> {
   for (const v of versions(id, channel)) if (!newer(version, v)) return reply(409, 'refused: ' + version + ' is not newer than ' + v + ' on ' + channel + '\n');
   const path = dir + '/' + file;
   if (fs.exists(path) && (await sha256(fs.readBytes(path))) !== sum) return reply(409, 'refused: ' + file + ' already exists with another content\n');
+  let icon: u8[] = [];
+  try { icon = await iconOf(zapp); } catch (e) { return reply(400, e.message); }
   fs.mkdir(dir + '/' + channel, true);
   if (!fs.exists(dir + '/key')) fs.writeText(dir + '/key', key + '\n');
   fs.writeBytes(path, zapp);
+  if (icon.length > 0) fs.writeBytes(data + '/' + iconPath(id, file), icon);
   fs.writeText(dir + '/' + channel + '/' + version + '.manifest', m.body + 'sig=' + m.sig + '\n');
   catalogText = '';
   console.log('hub: stored ' + id + ' ' + version + ' on ' + channel);
@@ -236,11 +271,12 @@ async function handle(req: Request): Promise<Reply> {
     if (name.endsWith('.manifest')) {
       const c = name.slice(0, name.length - 9), v = current(id, c);
       if (v.length > 0) return reply(200, fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest'));
-    } else if (name.endsWith('.zapp') && fs.exists(apps + '/' + id + '/' + name)) {
-      for (const c of channels(id)) {   // only a package that a current, unretracted manifest points at
+    } else if ((name.endsWith('.zapp') || name.endsWith('.png')) && fs.exists(apps + '/' + id + '/' + name)) {
+      const zapp = name.endsWith('.png') ? name.slice(0, name.length - 4) + '.zapp' : name;
+      for (const c of channels(id)) {   // only a package (or its icon) that a current, unretracted manifest points at
         const v = current(id, c);
-        if (v.length > 0 && parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest')).get('url') === name)
-          return reply(200, fs.readText(apps + '/' + id + '/' + name), 'application/octet-stream');   // readText is byte for byte
+        if (v.length > 0 && parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest')).get('url') === zapp)
+          return reply(200, fs.readText(apps + '/' + id + '/' + name), name.endsWith('.png') ? 'image/png' : 'application/octet-stream');   // readText is byte for byte
       }
     }
   }

@@ -3,6 +3,8 @@
 # `zinc publish --hub`, pairs a device by the code it prints, serves it a catalog signed with the hub key (checked with zinc verify) and the
 # app's manifest and .zapp (the app's signature and the SHA-256 checked here); it refuses a tampered .zapp, an older version, a wrong
 # publisher token, a wrong pairing code and a request without a device token; the admin page lists apps and devices and retracts a version.
+# Icons: 1.1.0 has zinc.json app.icon (an SVG): its package carries icon.png (150 px, on white), the signed catalog lists it with its SHA-256
+# and the hub serves it to a paired device while 1.1.0 is current; 1.0.0 has none.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v curl >/dev/null && command -v python3 >/dev/null || { echo "SKIP: needs curl and python3"; exit 77; }
@@ -19,16 +21,18 @@ grep -q 'pairing code' "$tmp/hub.log" || { echo "the hub did not start:"; head -
 token=$(cat "$tmp/data/publisher.token")
 serverkey=$(sed -n 's/^hub: server key //p' "$tmp/hub.log")
 
-setver() { python3 - "$1/zinc.json" "$2" "$k_public" <<'PY'
+setver() { python3 - "$1/zinc.json" "$2" "$k_public" "$3" <<'PY'
 import json, sys
-p, v, key = sys.argv[1:]
+p, v, key, icon = sys.argv[1:]
 d = json.load(open(p)); d['app'] = {'id': 'com.example.hub', 'version': v}
+if icon: d['app']['icon'] = icon
 d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
 json.dump(d, open(p, 'w'))
 PY
 }
 "$Z" new cli "$tmp/v1" >/dev/null && cp -R "$tmp/v1" "$tmp/v2" && cp -R "$tmp/v1" "$tmp/v0" || exit 2
-setver "$tmp/v1" 1.0.0; setver "$tmp/v2" 1.1.0; setver "$tmp/v0" 0.9.0
+cp app/web/icon.svg "$tmp/v2/icon.svg"
+setver "$tmp/v1" 1.0.0; setver "$tmp/v2" 1.1.0 icon.svg; setver "$tmp/v0" 0.9.0
 
 # publishing: two versions in order, then an older one and a wrong token are refused
 out=$("$Z" publish "$tmp/v1" --key "$k_seed" -o "$tmp/out1" --hub "$hub" --token "$token" 2>&1) && echo "$out" | grep -q 'stored com.example.hub 1.0.0 on stable' || { echo "publish 1.0.0: $out"; fail=1; }
@@ -68,6 +72,17 @@ grep -v '^sig=' "$tmp/m" >"$tmp/m.body"; sed -n 's/^sig=//p' "$tmp/m" >"$tmp/m.b
 curl -sf -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.zapp" >"$tmp/got.zapp" || { echo "zapp download failed"; fail=1; }
 sum=$(shasum -a 256 "$tmp/got.zapp" | cut -d' ' -f1)
 grep -q "^sha256=$sum$" "$tmp/m" && cmp -s "$tmp/got.zapp" "$tmp/out2/v1-1.1.0.zapp" || { echo "the served .zapp is not the published one ($sum)"; fail=1; }
+# the icon: in the package as icon.png, listed in the signed catalog, served to the paired device only
+tar xOf "$tmp/got.zapp" icon.png >"$tmp/zapp-icon.png" 2>/dev/null || { echo "the .zapp has no icon.png"; fail=1; }
+python3 - "$tmp/zapp-icon.png" <<'PY' || fail=1
+import struct, sys
+b = open(sys.argv[1], 'rb').read()
+if b[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', b[16:24]) != (150, 150): sys.exit(f'icon.png is not a 150 x 150 PNG: {b[:24]!r}')
+PY
+isum=$(shasum -a 256 "$tmp/zapp-icon.png" | cut -d' ' -f1)
+curl -sf -H "$auth" "$hub/catalog.json" | grep -q "\"icon\":\"apps/com.example.hub/v1-1.1.0.png\",\"iconSha256\":\"$isum\"" || { echo "the catalog does not list the icon: $(curl -s -H "$auth" "$hub/catalog.json")"; fail=1; }
+curl -sf -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.png" >"$tmp/got-icon.png" && cmp -s "$tmp/got-icon.png" "$tmp/zapp-icon.png" || { echo "the served icon is not the package's"; fail=1; }
+code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/apps/com.example.hub/v1-1.1.0.png"); [ "$code" = 401 ] || { echo "the icon without a token: $code"; fail=1; }
 
 # admin: apps and devices listed, 1.1.0 retracted -> 1.0.0 is current again; a wrong token sees nothing
 code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/admin?token=nope"); [ "$code" = 403 ] || { echo "admin with a wrong token: $code"; fail=1; }
@@ -77,6 +92,8 @@ page=$(curl -sf -d "token=$token&app=com.example.hub&channel=stable&version=1.1.
 echo "$page" | grep -q '1.1.0 (retracted)' && echo "$page" | grep -q '1.0.0 (current)' || { echo "retract: $page" | head -5; fail=1; }
 curl -sf -H "$auth" "$hub/catalog.json" | grep -q '"version":"1.0.0"' || { echo "the catalog still offers the retracted version"; fail=1; }
 code=$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.zapp"); [ "$code" = 404 ] || { echo "a retracted .zapp is served: $code"; fail=1; }
+code=$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.png"); [ "$code" = 404 ] || { echo "a retracted version's icon is served: $code"; fail=1; }
+curl -sf -H "$auth" "$hub/catalog.json" | grep -q '"icon":"","iconSha256":""' || { echo "1.0.0 (no icon) lists one"; fail=1; }
 
 kill $srv; wait $srv 2>/dev/null; srv=
 [ $fail -eq 0 ] && echo "hub server: ok"

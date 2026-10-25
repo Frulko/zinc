@@ -2,12 +2,12 @@
 import { createSignal } from 'zinc:ui/solid';
 import { newer } from '../../hub-server/src/protocol';
 import { HubConfig, loadConfig, saveConfig } from './services/config';
-import { CatalogApp, catalog, download, pair, fileOf } from './services/server';
+import { CatalogApp, CatalogChannel, catalog, download, pair, fileOf, fetchIcon } from './services/server';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 import { installed, previous, install, rollback, nameOf, livePath } from './services/installs';
-import { STABLE, DEVICE_NAME } from './constants';
+import { STABLE, DEVICE_NAME, HUB_DIR } from './constants';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -18,6 +18,8 @@ export class AppRow {
   available: string = '';           // the version on that channel, '' when none
   installed: string = '';           // '' when not installed
   previous: string = '';            // what Rollback brings back, '' when nothing
+  icon: string = '';                // the cached icon (a PNG checked against the catalog), '' for the placeholder
+  iconSha256: string = '';
   /** Rollback goes back to an older version only: after a rollback the newer one comes back with Update. */
   get canRollback(): boolean { return this.previous !== '' && newer(this.installed, this.previous); }
   get updatable(): boolean { return this.installed !== '' && this.available !== '' && newer(this.available, this.installed); }
@@ -40,6 +42,26 @@ export function serverFingerprint(): string { return paired() ? config.serverKey
 
 function say(message: string): void { setStatus(message); console.log('hub: ' + message); }
 
+/** The channel whose version the row shows: the one this tablet follows, else the first the server offers. */
+function shownChannel(a: CatalogApp): CatalogChannel | null {
+  const ch = a.channel(config.channelOf(a.id));
+  return ch !== null || a.channels.length === 0 ? ch : a.channels[0];
+}
+function iconPath(id: string): string { return HUB_DIR + '/apps/' + id + '/icon.png'; }
+
+/** The icons of the catalog's apps, cached next to the installs (HUB_DIR/apps/<id>/icon.png). */
+async function syncIcons(): Promise<void> {
+  for (const a of apps) {
+    const ch = shownChannel(a);
+    const path = iconPath(a.id);
+    if (ch !== null && (ch as CatalogChannel).icon !== '') {
+      fs.mkdir(HUB_DIR + '/apps/' + a.id, true);
+      if (await fetchIcon(config, ch as CatalogChannel, path)) continue;
+    }
+    if (fs.exists(path)) fs.remove(path);   // no icon, or one that does not check: the placeholder
+  }
+}
+
 function rebuildRows(): void {
   const list: AppRow[] = [];
   for (const a of apps) {
@@ -53,6 +75,8 @@ function rebuildRows(): void {
     const i = installed(a.id), p = previous(a.id);
     if (i !== null) { r.installed = i.version; r.name = i.name; }
     if (p !== null) r.previous = p.version;
+    const shown = shownChannel(a);
+    if (shown !== null && (shown as CatalogChannel).iconSha256 !== '' && fs.exists(iconPath(a.id))) { r.icon = iconPath(a.id); r.iconSha256 = (shown as CatalogChannel).iconSha256; }
     if (r.name === '') r.name = a.id;
     list.push(r);
   }
@@ -85,6 +109,7 @@ export async function pairWith(code: string): Promise<void> {
     saveConfig(config);
     setPaired(true);
     apps = await catalog(config);
+    await syncIcons();
     rebuildRows();
     setPage(PAGE_APPS);
     return 'Paired with ' + config.server + ' (key ' + serverFingerprint() + '). ' + apps.length.toString() + ' apps.';
@@ -96,6 +121,7 @@ export async function refresh(): Promise<void> {
   if (!paired()) { say('Pair this tablet with a server first (Settings).'); return; }
   await run(async (): Promise<string> => {
     apps = await catalog(config);
+    await syncIcons();
     rebuildRows();
     const updates = rows().filter((r: AppRow) => r.updatable).map((r: AppRow) => r.name + ' ' + r.available);
     return updates.length > 0 ? 'Updates: ' + updates.join(', ') + '.' : apps.length.toString() + ' apps, everything up to date.';

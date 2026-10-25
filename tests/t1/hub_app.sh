@@ -2,6 +2,8 @@
 # Zinc Hub (ZN-843, app/hub) against the hub server of ZN-842 on this machine, headless: the app pairs with the code the server prints,
 # installs an app published with `zinc publish --hub`, updates it (the check at start announces the update), rolls it back and forward,
 # follows the beta channel, and refuses a tampered .zapp, a tampered manifest, a catalog signed by another key and an older version.
+# Icons: 1.0.0 has none (a framed initial in the list); from 1.1.0 on, zinc.json app.icon: the hub caches the package's icon.png
+# checked against the catalog's SHA-256, and an icon altered on the server leaves the placeholder.
 # zinc-tile is a stand-in that records its calls (on the tablet it is the engine's, ZN-841). ZINC_HUB_SCRIPT runs the buttons' actions.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -21,11 +23,13 @@ pc=$(sed -n 's/^hub: pairing code //p' "$tmp/server.log" | tail -1)
 serverkey=$(sed -n 's/^hub: server key //p' "$tmp/server.log")
 
 "$Z" new cli "$tmp/notes" >/dev/null || exit 2
+cp examples/remarkable/notes/icon.svg "$tmp/notes/icon.svg"
 publish() {   # version [channel]
   python3 - "$tmp/notes/zinc.json" "$1" "$k_public" <<'PY'
 import json, sys
 p, v, key = sys.argv[1:]
 d = json.load(open(p)); d['app'] = {'id': 'com.example.notes', 'version': v}
+if v != '1.0.0': d['app']['icon'] = 'icon.svg'
 d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
 json.dump(d, open(p, 'w'))
 PY
@@ -60,6 +64,9 @@ export ZINC_NEXT=$tmp/next; app "open com.example.notes"; unset ZINC_NEXT
 app "open com.example.notes"
 expect 'Open notes from AppLoad'
 grep -q 'test-tablet' "$tmp/data/devices.txt" || { echo "the server does not list the tablet"; fail=1; }
+icon=$tmp/hub/apps/com.example.notes/icon.png
+[ -e "$icon" ] && { echo "an icon is cached for 1.0.0, which has none"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx N || { echo "no placeholder (the initial N) for an app without an icon"; fail=1; }
 
 # 1.1.0: announced by the check at start, then updated; 1.0.0 kept for rollback
 publish 1.1.0
@@ -68,6 +75,15 @@ expect 'Updates: notes 1.1.0.'
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" && cmp -s "$tmp/hub/apps/com.example.notes/previous.zapp" "$tmp/out-1.0.0/notes-1.0.0.zapp" \
   || { echo "after the update: the live or the kept package is wrong"; fail=1; }
+tar xOf "$tmp/out-1.1.0/notes-1.1.0.zapp" icon.png >"$tmp/icon-1.1.0.png" && cmp -s "$icon" "$tmp/icon-1.1.0.png" || { echo "the cached icon is not the package's icon.png"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx N && { echo "the placeholder is shown for an app with an icon"; fail=1; }
+# an icon altered on the server: not cached, the placeholder instead
+srvicon=$tmp/data/apps/com.example.notes/notes-1.1.0.png
+cp "$srvicon" "$tmp/srvicon.bak" && printf 'X' | dd of="$srvicon" bs=1 seek=40 conv=notrunc 2>/dev/null && rm -f "$icon"
+app "refresh"
+[ -e "$icon" ] && { echo "an altered icon was cached"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx N || { echo "no placeholder for an altered icon"; fail=1; }
+cp "$tmp/srvicon.bak" "$srvicon"
 
 # rollback to 1.0.0, and the list shows it (the drawn frame); then forward again
 app "rollback com.example.notes"

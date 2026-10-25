@@ -3,6 +3,7 @@
 // catalog lists, and the .zapp must have the SHA-256 of that manifest. Every refusal is an Error whose message is shown to the user.
 import * as net from 'zinc:net';
 import * as sys from 'zinc:sys';
+import * as fs from 'zinc:fs';
 import { subtle } from 'zinc:subtle';
 import { unhex, sha256, safe, Manifest, parseManifest, verifyManifest } from '../../../hub-server/src/protocol';
 import { HubConfig } from './config';
@@ -14,6 +15,8 @@ export class CatalogChannel {
   manifest: string = '';   // path on the server: apps/<id>/<channel>.manifest
   url: string = '';        // path on the server: apps/<id>/<file>.zapp
   sha256: string = '';
+  icon: string = '';       // path on the server: apps/<id>/<file>.png, '' when the package has no icon
+  iconSha256: string = '';
 }
 export class CatalogApp {
   id: string = '';
@@ -68,6 +71,7 @@ export async function catalog(cfg: HubConfig): Promise<CatalogApp[]> {
       const c = a.channels[k];
       const ch = new CatalogChannel();
       ch.channel = '' + c.channel; ch.version = '' + c.version; ch.manifest = '' + c.manifest; ch.url = '' + c.url; ch.sha256 = '' + c.sha256;
+      ch.icon = c.icon === undefined ? '' : '' + c.icon; ch.iconSha256 = c.iconSha256 === undefined ? '' : '' + c.iconSha256;
       if (safe(ch.channel)) app.channels.push(ch);
     }
     apps.push(app);
@@ -99,4 +103,17 @@ export async function download(cfg: HubConfig, app: CatalogApp, ch: CatalogChann
   if (sum !== m.get('sha256'))
     throw new Error('Refused: ' + m.get('url') + ' does not match the SHA-256 its publisher signed. It was altered; nothing was installed.');
   return d;
+}
+
+/** The icon of a channel's package, cached as `path` (next to the installs) and checked against the SHA-256 the signed catalog lists:
+ *  true when `path` holds it. A missing or altered icon is only a placeholder in the list, never an error. */
+export async function fetchIcon(cfg: HubConfig, ch: CatalogChannel, path: string): Promise<boolean> {
+  if (ch.icon === '' || ch.iconSha256.length !== 64) return false;
+  if (fs.exists(path) && (await sha256(fs.readBytes(path))) === ch.iconSha256) return true;
+  try {
+    const png = await (await get(cfg, ch.icon)).bytes();
+    if ((await sha256(png)) !== ch.iconSha256) return false;
+    fs.writeBytes(path, png);
+    return true;
+  } catch (e) { return false; }
 }
