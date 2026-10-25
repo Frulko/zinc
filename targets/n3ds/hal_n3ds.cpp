@@ -13,6 +13,7 @@
 #include <string.h>
 #include <3ds.h>
 #include "frame_profile.h"
+#include <new>
 
 #ifndef ZINC_FRAMES
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or the system asks to quit
@@ -21,6 +22,10 @@
 #define ZRT_HEAP_BYTES (16u << 20)   // the n3ds profile's heap (src/frontend/profile.cpp)
 #endif
 
+// libctru's split (see memoryHold): the GPU's memory, the heap gets the rest (Tokyo on an Old 3DS: at night 16.5 MB of
+// linear memory at most, 34 MB of heap out of 38)
+extern "C" u32 __ctru_linear_heap_size = 22u << 20;
+extern "C" u32 __ctru_heap_size;
 static const int32_t kScreenW = 400, kScreenH = 240;
 static int32_t W = kScreenW, H = kScreenH, frames = 0;
 static uint32_t* rows = nullptr;   // the software frame, 0x00RRGGBB
@@ -35,6 +40,7 @@ extern "C" __attribute__((weak)) bool zn_c3d_window(const HalCmdList* l, int32_t
 extern "C" __attribute__((weak)) void zn_c3d_end(void);
 extern "C" __attribute__((weak)) void zn_c3d_wait(void);
 extern "C" __attribute__((weak)) void zn_c3d_fini(void);
+extern "C" __attribute__((weak)) void zn_n3ds_player_font(void);   // player_n3ds.cpp
 static bool bottomNew = false;                    // the bottom screen got a frame from the CPU since the last swap
 static bool bottomGpu = false;                    // the GPU frame being built draws the bottom screen
 // Stereoscopic 3D (ZN-759, zinc:hardware setStereo / stereoEye): while the program asks for it and the 3D slider is up, the frames alternate between
@@ -259,11 +265,82 @@ int32_t hal_win_draw(int32_t id, const HalCmdList* l, int32_t pw, int32_t ph) { 
 void zn_console_echo(const char* s, size_t n) {   // the program's lines, one debug string each (newlib's stdout has no device here)
   for (size_t b = 0; b < n;) { size_t e = b; while (e < n && s[e] != '\n') e++; if (e > b) out(s + b, e - b); b = e + 1; }
 }
+// The memory. An original 3DS or 2DS gives a program 64 MB (the APPLICATION region), its code and linked data included; libctru splits what is
+// left between the heap (malloc, the runtime's heap) and the linear heap (what the GPU reads), by default 24 MB of heap and the rest linear,
+// at most 32. A Zinc program needs the heap more: the linear heap is fixed (__ctru_linear_heap_size, below) and the heap gets the rest.
+// Azahar gives a .3dsx 96 MB whatever the model it emulates: as an Old 3DS the HAL holds the difference out of the heap at its start, so a
+// program that does not fit a real console does not fit there either (tools/console-run runs the cores as an Old 3DS).
+static size_t heldBack = 0;
+static bool leaving = false;
+// a clean end with a message (the log has `zinc:exit N`): the screens closed, back to the Homebrew Launcher, instead of a black screen
+static void leave(const char* why, int status) {
+  out(why, strlen(why));
+  char b[32];
+  const int k = snprintf(b, sizeof b, "zinc:exit %d", status);
+  out(b, (size_t)k);
+  if (leaving) svcExitProcess();   // the end itself failed
+  leaving = true;
+  hal_shutdown();
+  exit(status);
+}
+static size_t heapUsed() { const size_t u = (size_t)mallinfo().uordblks; return u > heldBack ? u - heldBack : 0; }   // the held block left out
+static size_t heapFree() { const size_t h = __ctru_heap_size - heldBack, u = heapUsed(); return h > u ? h - u : 0; }
+extern "C" size_t zn_console_heap_held(void) { return heldBack; }   // sdpack.cpp's heap numbers leave it out
+static void oom(size_t asked, bool linear = false) {
+  char b[220];
+  snprintf(b, sizeof b, "zinc: out of memory on the 3DS (asked %lu KB%s; heap %lu of %lu KB in use, linear memory %lu KB free)", (unsigned long)(asked / 1024), linear ? " of linear memory" : "",
+           (unsigned long)(heapUsed() / 1024), (unsigned long)((__ctru_heap_size - heldBack) / 1024), (unsigned long)(linearSpaceFree() / 1024));
+  leave(b, 3);
+}
+static void outOfMemory() { oom(0); }   // operator new's handler
+// Every malloc and linearAlloc of the core goes through these (n3ds.cmake links with --wrap): an allocation that fails ends the program with
+// the line above. Unchecked, a null block was written through and the console froze on a black screen (Tokyo on an Old 3DS).
+void* __real_malloc(size_t);
+void* __real_calloc(size_t, size_t);
+void* __real_realloc(void*, size_t);
+void* __real_memalign(size_t, size_t);
+void* __wrap_malloc(size_t n) { void* p = __real_malloc(n); if (!p && n) oom(n); return p; }
+void* __wrap_calloc(size_t k, size_t n) { void* p = __real_calloc(k, n); if (!p && k && n) oom(k * n); return p; }
+void* __wrap_realloc(void* q, size_t n) { void* p = __real_realloc(q, n); if (!p && n) oom(n); return p; }
+void* __wrap_memalign(size_t a, size_t n) { void* p = __real_memalign(a, n); if (!p && n) oom(n); return p; }
+void* __real_linearAlloc(size_t);
+void* __real_linearMemAlign(size_t, size_t);
+void* __wrap_linearAlloc(size_t n) { void* p = __real_linearAlloc(n); if (!p && n) oom(n, true); return p; }
+void* __wrap_linearMemAlign(size_t n, size_t a) { void* p = __real_linearMemAlign(n, a); if (!p && n) oom(n, true); return p; }
+static void memoryHold() {   // once a run, before anything large is allocated
+  static bool done = false;
+  if (done) return;
+  done = true;
+  std::set_new_handler(outOfMemory);
+  bool n = false;
+  APT_CheckNew3DS(&n);
+  const u32 app = osGetMemRegionSize(MEMREGION_APPLICATION), old = 64u << 20;
+  s64 emulator = 0;   // Azahar (and Citra) answer svcGetSystemInfo(0x20000, 0) with non-zero (Azahar 2126: 2); a console refuses the call
+  static void* volatile held = nullptr;   // kept: a malloc whose block nobody reads is dropped by the compiler
+  if (!n && app > old && R_SUCCEEDED(svcGetSystemInfo(&emulator, 0x20000, 0)) && emulator != 0 && (held = __real_malloc(app - old)))
+    heldBack = app - old;
+}
+static void memoryLine() {   // once a run, on the console too, the screens up: n3ds: old, app 64 MB, heap 38 MB (34 MB free), linear 22 MB (16 MB free)
+  static bool said = false;
+  if (said) return;
+  said = true;
+  bool n = false;
+  APT_CheckNew3DS(&n);
+  char held[64] = "";
+  if (heldBack) snprintf(held, sizeof held, " (an Old 3DS's: the emulator gives %lu)", (unsigned long)((osGetMemRegionSize(MEMREGION_APPLICATION)) >> 20));
+  char b[220];
+  const int k = snprintf(b, sizeof b, "n3ds: %s, app %lu MB%s, heap %lu MB (%lu MB free), linear %lu MB (%lu MB free)", n ? "new" : "old",
+                         (unsigned long)((osGetMemRegionSize(MEMREGION_APPLICATION) - heldBack) >> 20), held,
+                         (unsigned long)((__ctru_heap_size - heldBack) >> 20), (unsigned long)(heapFree() >> 20),
+                         (unsigned long)(__ctru_linear_heap_size >> 20), (unsigned long)(linearSpaceFree() >> 20));
+  out(b, (size_t)(k > 0 ? k : 0));
+}
 void hal_init(const HalConfig* cfg) {
+  memoryHold();
   zn::n3ds::capture::init();
   W = cfg->width < kScreenW ? cfg->width : kScreenW;
   H = cfg->height < kScreenH ? cfg->height : kScreenH;
-  if (!cfg->gfx) return;
+  if (!cfg->gfx) { memoryLine(); return; }
   gfxInitDefault();
   gfxSetScreenFormat(GFX_TOP, GSP_RGBA8_OES);
   gfxSetDoubleBuffering(GFX_TOP, true);
@@ -274,10 +351,13 @@ void hal_init(const HalConfig* cfg) {
   if (isNew3ds) osSetSpeedupEnable(true);
   cstickOn = isNew3ds && irrstInit() == 0;
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
+  if (!rows || !gfxGetFramebuffer(GFX_TOP, GFX_LEFT, nullptr, nullptr)) leave("zinc: no memory for the screens on the 3DS", 3);
   memset(rows, 0, (size_t)W * H * 4);
   gfxOn = true;
   const char* g = getenv("ZINC_N3DS_GPU");
   gpuOn = !(g && *g == '0') && zn_c3d_init && zn_c3d_init(W, H);
+  if (zn_n3ds_player_font) zn_n3ds_player_font();   // the player's waiting screen (player_n3ds.cpp)
+  memoryLine();
 }
 void hal_shutdown(void) {
   zn::n3ds::capture::finish();
@@ -294,12 +374,19 @@ void hal_log(const char* s, size_t n) { zn_console_echo(s, n); }
 void hal_log_err(const char* s, size_t n) { zn_console_echo(s, n); }
 int hal_isatty(int) { return 0; }
 const char* hal_env(const char* name) { return getenv(name); }
-void hal_heap_region(void** base, size_t* size) { *size = ZRT_HEAP_BYTES; *base = malloc(*size); if (!*base) *size = 0; }
+void hal_heap_region(void** base, size_t* size) {
+  memoryHold();
+  *size = ZRT_HEAP_BYTES;
+  *base = __real_malloc(*size);
+  if (*base) return;
+  char b[160];
+  snprintf(b, sizeof b, "zinc: no room for the runtime's %lu MB heap on the 3DS (%lu MB of heap free)", (unsigned long)(ZRT_HEAP_BYTES >> 20), (unsigned long)(heapFree() >> 20));
+  leave(b, 3);
+}
 void hal_panic(const char* msg, const char* file, int line) {
   char b[256];
   int k = file && *file ? snprintf(b, sizeof b, "panic: %s (%s:%d)", msg, file, line) : snprintf(b, sizeof b, "panic: %s", msg);
-  out(b, (size_t)(k > 0 ? k : 0));
-  svcExitProcess();
+  leave(b, 101);
 }
 void hal_frame_begin(void) { zn::n3ds::capture::begin(eye == 0, stereoOn); }
 void hal_frame_end(void) {

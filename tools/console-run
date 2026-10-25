@@ -156,6 +156,8 @@ open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/window.bmp" &&
     rm -f "$sd/zinc.log" "$sd/zinc-shot.ppm"
     # an Old 3DS by default, the owner's console (Azahar's own default is a New 3DS: twice the memory, a faster CPU, so a core that runs
     # there can fail to start on the real thing); ZINC_N3DS_MODEL=new for a New 3DS. The setting is put back once the run is over.
+    # Azahar gives a .3dsx 96 MB of memory on either model: as an Old 3DS the HAL holds 32 MB back (hal_n3ds.cpp memoryHold, its line
+    # `n3ds: old, app 64 MB (an Old 3DS's: the emulator gives 96)`), so a program that does not fit an Old 3DS fails here too.
     cfg="$HOME/Library/Application Support/Azahar/config/qt-config.ini"; new=false; [ "${ZINC_N3DS_MODEL:-old}" = new ] && new=true
     if [ -f "$cfg" ]; then
       cp "$cfg" "$tmp/qt-config.ini"

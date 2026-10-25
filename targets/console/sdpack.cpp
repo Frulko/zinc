@@ -39,6 +39,7 @@ extern const unsigned char* zn_console_pack;   // host_console.cpp (weak: none) 
 extern unsigned long zn_console_pack_size;
 void hal_log(const char* s, size_t n);         // the console's HAL: its log
 #if defined(__3DS__)
+size_t zn_console_heap_held(void);             // hal_n3ds.cpp
 extern int __system_argc;                      // libctru: the program's arguments (the Homebrew Launcher gives its path)
 extern char** __system_argv;
 #endif
@@ -112,15 +113,18 @@ void join() {
 }
 #endif
 
-// the program's folder on the card (ZINC_SD_DIR first: tools/console-demos sets it for the 3DS emulator, which gives no path)
+// the program's folder on the card (ZINC_SD_DIR: tools/console-demos sets it for the 3DS emulator, which gives no path; on a 3DS the path
+// the Homebrew Launcher gives comes first, wherever the person put the .3dsx and its folder)
 std::string folder() {
-  if (const char* d = getenv("ZINC_SD_DIR")) if (*d) { std::string s(d); return s.back() == '/' || s.back() == ':' ? s : s + "/"; }
 #if defined(__3DS__)
-  if (__system_argc > 0 && __system_argv && __system_argv[0]) {   // the Homebrew Launcher gives the .3dsx's path
+  if (__system_argc > 0 && __system_argv && __system_argv[0]) {
     std::string p(__system_argv[0]);
     const size_t slash = p.rfind('/'), dot = p.rfind('.');
     if (slash != std::string::npos && dot != std::string::npos && dot > slash) return p.substr(0, dot) + "/";
   }
+#endif
+  if (const char* d = getenv("ZINC_SD_DIR")) if (*d) { std::string s(d); return s.back() == '/' || s.back() == ':' ? s : s + "/"; }
+#if defined(__3DS__)
   return "sdmc:/3ds/zinc/";
 #elif defined(__PSP__)
   char cwd[256];   // the PSP's C library starts in the EBOOT's folder
@@ -276,7 +280,11 @@ void open() {
 
 void sample() {
   const struct mallinfo m = mallinfo();
-  if ((size_t)m.uordblks > peakHeap) peakHeap = (size_t)m.uordblks;
+  size_t used = (size_t)m.uordblks;
+#if defined(__3DS__)
+  used -= zn_console_heap_held();   // what hal_n3ds.cpp holds back to be an Old 3DS in the emulator
+#endif
+  if (used > peakHeap) peakHeap = used;
 #if defined(__3DS__)
   const size_t lf = linearSpaceFree();
   if (lf < minLinear) minLinear = lf;

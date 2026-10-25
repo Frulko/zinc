@@ -51,7 +51,7 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 |---|---|---|---|---|---|---|---|
 | Mac (desktop) | all levels | 600 / 2000 m | 2500 to 5800 m | 400,000 | yes | yes | dome |
 | PS Vita | 13.9 MB: mid + far, grounds 256² (128² a block); near in `app0:near.zpk` inside the .vpk (64 slots) | 600 / 1300 m | 1600 to 5800 m | 40,000 | yes | yes | dome |
-| 3DS | 12.7 MB: mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps; near on the SD card (30.5 MB, 40 slots) | 600 / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
+| 3DS | 12.7 MB on the SD card (default.zpk): mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps; near on the SD card (30.5 MB, 40 slots) | 600 / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
 | PSP | 9.2 MB: mid + far, grounds 256² (128² a block) and facades 512 × 64 in CLUT8 with their night palettes, the heights for the shadows; the pack on the memory stick (`default.zpk` 9.2 MB, `near.zpk` 17.0 MB, 40 slots), not in the EBOOT | 600 / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
 | Raspberry Pi 1 (`rpi1`) | not built yet | 300 / 900 m | 600 to 3000 m | 12,000 | yes | no | one colour |
 
@@ -74,7 +74,13 @@ stick, the .vpk's `app0:`) with one reader, `targets/console/sdpack.cpp`.
 
 ### 3DS
 
-- **Limit:** about 64 MB of memory on an original 3DS for the program and its embedded pack.
+- **Limit:** 64 MB on an original 3DS or 2DS for the code, the heap and the linear (GPU) heap. The 12.7 MB pack linked into the `.3dsx`
+  left 24 MB of heap (libctru's split) for Tokyo's 33: the real Old 3DS XL froze on a black screen after `n3ds c3d: on`. Azahar gives a
+  `.3dsx` 96 MB whatever the model, so it ran there. Now the default pack lives on the SD card beside `near.zpk` (`3ds/tokyo/default.zpk`,
+  the `.3dsx` 1.8 MB), the linear heap is fixed at 22 MB and the heap gets the rest (38 MB); in Azahar as an Old 3DS the HAL holds the
+  extra 32 MB back so the emulator fails where the console would. Old 3DS (Azahar, night tour, 900 frames): heap at most 34.2 of 38 MB,
+  linear memory at least 5.6 of 22 MB free; work p50 4, p95 5 ms after the loading (30 fps held, 56,400 triangles, near level kept). The
+  trade: the loading reads its 77 chunks from the card, 175 frames instead of 32.
 - **Haze:** the PICA200 has a fog table (citro3d `FogLut`), filled per frame from the camera's planes. It is free.
 - **Pocket Tokyo's PICA200 path** (`render3d.n3ds.cpp`, `worldMesh` and `worldDraw`; `docs/reports/pocket3d-techniques.md`):
   - Each batch is decoded at load into one of three vertex layouts, each with its own small vertex program (`render3d.n3ds.top.v.pica`,
