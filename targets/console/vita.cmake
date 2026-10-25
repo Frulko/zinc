@@ -47,3 +47,8 @@ target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=1048576 ZN_C
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp PROPERTIES COMPILE_DEFINITIONS "ZN_CONSOLE_AUDIO_RATE=48000;ZN_CONSOLE_AUDIO_NAME=\"sceAudioOut\"")
 vita_create_self(eboot.bin zinc-core UNSAFE)
 vita_create_vpk(zinc.vpk ${ZN_CONSOLE_ID} eboot.bin VERSION 01.00 NAME "${ZN_CONSOLE_TITLE}")
+# the device player (ZN-792): mbedTLS's entropy from the kernel's generator (targets/vita/player_vita.cpp)
+if(ZN_CONSOLE_PLAYER)
+  target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/player_vita.cpp)
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_OWN_ENTROPY)
+endif()

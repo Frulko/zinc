@@ -354,7 +354,7 @@ bool playerOpen(Player& p, std::string& err) {
     return false;
   }
   p.port = ntohs(addr.sin_port);
-  ::fcntl(p.lfd, F_SETFL, ::fcntl(p.lfd, F_GETFL, 0) | O_NONBLOCK);
+  zn::plat::sockNonBlock(p.lfd);
   return true;
 }
 

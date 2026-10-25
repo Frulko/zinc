@@ -369,6 +369,40 @@ is vendored without its `wayland-protocols`, so with `libwayland-dev` installed 
 Not proven yet: the agent running on the Pi and a workstation paired with it (discovery beside avahi, which holds port 5353 there;
 info, shell, push and pull, an export installed and started); `zinc agent install` (the systemd user unit) on the Pi.
 
+## The player on a console (ZN-792)
+
+A PSP, a PS Vita or a 3DS cannot run `zinc agent`: no threads to spare, no shell, no file system worth the name, a few MiB for TLS. The
+Zinc Player is a console core with no program of its own (`tools/build-console-core <psp|vita|n3ds> --player`): it brings the network up
+(targets/<console>/net_<console>.cpp, ZN-791), shows its name, address and a 6-digit code, and serves the agent's protocol from
+`src/agent/player.cpp`, polled from the frames (`zn_player_poll` at the end of each HAL's `hal_poll_input`), from the waits of programs
+without frames (`zn_player_wait_poll`) and from its waiting screen. One thread, one session served at a time; a request is served inline.
+The protocol, the pairing (TLS 1.2 EC J-PAKE) and the sessions (TLS 1.3 PSK + ECDHE) are the agent's, with mbedTLS trimmed to those two
+suites (`targets/console/mbedtls_console.h`); the entropy is the console's (`targets/<console>/player_<console>.cpp`).
+
+```sh
+tools/build-console-core psp --player       # build/console-psp-player/EBOOT.PBP; vita: zinc.vpk (title id ZNPL00001); n3ds: zinc-core.3dsx
+# on the console: start Zinc Player, read its name, address and code (SELECT: a new code)
+zinc device pair 192.168.1.40 123456        # or the name the screen shows, once zinc device list finds it
+zinc device deploy examples/breakout        # packed with --profile <console>, sent, run, its lines followed; Ctrl-C leaves it running
+zinc device logs breakout; zinc device stop breakout; zinc device run breakout
+zinc device shot breakout breakout.png      # the frame on the console's screen
+zinc dev examples/breakout --device psp-1a2b   # each save repacks and restarts the program on the console
+```
+
+| op | on a player |
+|---|---|
+| `info`, `top` | `"player": true`, its profile, the plugins linked into it, its address; no shell |
+| `apps`, `install`, `run`, `stop`, `uninstall`, `logs` | an app is the bytecode members of `zinc pack --profile <p>` (program.zbc, resources, packs), no manifest, no native code |
+| `screen`, `shot` | the frame on screen as PNG (`zrt::gfx::capture_png`) |
+| `dev` | `zinc dev --device`: the files received, the program restarted |
+| `shell`, `push`, `pull`, `connect`, `listen`, `update`, signed install | refused ("is a player: no shell"...) |
+
+One program runs at a time: a `run` stops the one running (the HAL's quit, or `zn::rt::gStop` for a program without frames), and
+`zinc:sys` `exit` ends the program, not the player. `zinc device deploy` refuses a program that needs a plugin the player has not linked,
+and a player of another version series unless `--force`. The host build of the same player (`cmake -S targets/console -B build/console-player
+-DZN_CONSOLE_PLAYER=ON`, the headless HAL, `/dev/urandom`) is what `tests/t0/console_player.sh` drives on the loopback interface: a wrong
+code, pairing, info, deploy and its lines, a program that never ends read, stopped and run again, `exit(3)`, a shot, `zinc dev --device`.
+
 ## Next
 
 Open: the start of the service at login run for real (ZN-729.04, in review), and

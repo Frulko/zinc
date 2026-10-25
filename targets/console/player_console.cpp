@@ -168,6 +168,10 @@ extern "C" int zn_player_wait_poll(void) {
   return gStop ? 1 : 0;
 }
 
+// mbedTLS's milliseconds (TLS 1.3's ticket ages; mbedtls_console.h's MBEDTLS_PLATFORM_MS_TIME_ALT)
+#include <mbedtls/platform_time.h>
+mbedtls_ms_time_t mbedtls_ms_time(void) { return static_cast<mbedtls_ms_time_t>(hal_time_us() / 1000); }
+
 #ifndef ZN_CONSOLE_OWN_ENTROPY
 // The host build of the core: the system's generator (a console's HAL gives its own, targets/<console>/player_<console>.cpp)
 #include <mbedtls/platform.h>

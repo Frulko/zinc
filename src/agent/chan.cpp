@@ -91,7 +91,7 @@ Chan::~Chan() {
 }
 
 void prepare(int fd) {
-  ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+  zn::plat::sockNonBlock(fd);
 #ifdef FD_CLOEXEC
   ::fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif

@@ -11,6 +11,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - PS Vita: zinc:3d draws on the GPU (GXM) in the default core: lights, flat and smooth shading, vertex colours, textures, blending and emissive colours, composed with the 2D frame; `ZINC_3D=software` keeps the CPU renderer. examples/3d/cubes takes 0.7 ms a frame instead of 6.7 in Vita3K.
 - PS Vita: the default GXM core draws rounded rectangles, borders, shadows, filled paths and vertical and horizontal gradients on the GPU, like the PSP and the 3DS; such frames were drawn in software before. A frame with a radial gradient, a rounded clip or a rotation still is. `ZINC_VITA_GPU=0` keeps the software path.
+- Zinc Player for the PSP, the PS Vita and the 3DS: start it on the console, pair with `zinc device pair <address> <code>` (the code is on its screen), then `zinc device deploy <project>` sends and runs your program there, and `zinc device logs`, `stop`, `run`, `shot` and `zinc dev --device` work as with any device.
+- `tools/build-console-core <psp|vita|n3ds> --player` builds the Zinc Player (EBOOT.PBP, a VPK with its own title id ZNPL00001, a .3dsx).
 - PSP, PS Vita and Nintendo 3DS: zinc:3d (meshes, lights, textures, `render()`) runs in the console cores; it drew nothing there before.
 - New demo `examples/3d/orbit`: a ringed planet, moons, a space station and an asteroid belt in zinc:3d, for the desktop, the PSP, the PS Vita and the 3DS (in stereo there). zinc:3d's `gpu()` says whether a GPU draws.
 - PSP and Nintendo 3DS: vertical and horizontal gradients are drawn on the GPU; a frame with one was drawn in software before (only radial gradients still are).

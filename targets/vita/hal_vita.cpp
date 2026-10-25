@@ -273,6 +273,7 @@ void hal_panic(const char* msg, const char* file, int line) {
 }
 void hal_frame_begin(void) {}
 void hal_frame_end(void) { audioPump(); if (!queued) sceDisplayWaitVblankStart(); }   // a GPU frame waits for its vblank in the display queue
+extern "C" __attribute__((weak)) int zn_player_poll(void) { return 0; }   // the console player (targets/console/player_console.cpp, ZN-792): 1 ends the program
 void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{SCE_CTRL_UP, HAL_UP}, {SCE_CTRL_DOWN, HAL_DOWN}, {SCE_CTRL_LEFT, HAL_LEFT}, {SCE_CTRL_RIGHT, HAL_RIGHT},
     {SCE_CTRL_CROSS, HAL_A}, {SCE_CTRL_CIRCLE, HAL_B}, {SCE_CTRL_SQUARE, HAL_X}, {SCE_CTRL_TRIANGLE, HAL_Y}, {SCE_CTRL_LTRIGGER, HAL_L},
@@ -342,6 +343,7 @@ void hal_poll_input(HalInput* in) {
   }
   tPoll = tNow; lastPath = -1;
   if (in->quit && frame == ZINC_FRAMES) { shot(); report(0); report(1); }
+  in->quit |= zn_player_poll();   // the workstation stopped it, or sent another program
 }
 void hal_present(const HalFrame* f) {
   tPresent0 = (uint64_t)sceKernelGetProcessTimeWide();

@@ -12,10 +12,46 @@
 #include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
-#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#ifdef __PSP__
+// The PSP's C library (newlib and libcglue over sceNetInet) has select but no poll: the few polls of the console player (one or two
+// sockets, src/agent) go through select. ponytail: FD_SETSIZE bounds the descriptors, as select does.
+#include <sys/select.h>
+struct pollfd { int fd; short events; short revents; };
+#define POLLIN 0x001
+#define POLLOUT 0x004
+#define POLLERR 0x008
+#define POLLHUP 0x010
+inline int poll(pollfd* p, unsigned n, int ms) {
+  fd_set r, w;
+  FD_ZERO(&r);
+  FD_ZERO(&w);
+  int top = -1;
+  for (unsigned i = 0; i < n; i++) {
+    p[i].revents = 0;
+    if (p[i].fd < 0) continue;
+    if (p[i].events & POLLIN) FD_SET(p[i].fd, &r);
+    if (p[i].events & POLLOUT) FD_SET(p[i].fd, &w);
+    if (p[i].fd > top) top = p[i].fd;
+  }
+  timeval tv{ms / 1000, (ms % 1000) * 1000};
+  const int rc = ::select(top + 1, &r, &w, nullptr, ms < 0 ? nullptr : &tv);
+  if (rc <= 0) return rc;
+  int ready = 0;
+  for (unsigned i = 0; i < n; i++) {
+    if (p[i].fd < 0) continue;
+    if (FD_ISSET(p[i].fd, &r)) p[i].revents |= POLLIN;
+    if (FD_ISSET(p[i].fd, &w)) p[i].revents |= POLLOUT;
+    if (p[i].revents) ready++;
+  }
+  return ready;
+}
+#else
+#include <poll.h>
+#endif
 #endif
 
 namespace zn::plat {
@@ -35,6 +71,14 @@ inline long sockReadNow(int fd, void* buf, std::size_t n) {   // what has arrive
 }
 #else
 inline bool netInit() { return true; }
+inline void sockNonBlock(int fd) {   // the PSP and the Vita: a socket option (their fcntl does not reach the network stack)
+#if defined(__PSP__) || defined(__vita__)
+  int one = 1;
+  ::setsockopt(fd, SOL_SOCKET, SO_NONBLOCK, &one, sizeof one);
+#else
+  ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+#endif
+}
 inline long sockReadNow(int fd, void* buf, std::size_t n) { return ::recv(fd, buf, n, MSG_DONTWAIT); }
 inline long sockRead(int fd, void* buf, std::size_t n) { return ::read(fd, buf, n); }
 inline long sockWrite(int fd, const void* buf, std::size_t n) { return ::write(fd, buf, n); }

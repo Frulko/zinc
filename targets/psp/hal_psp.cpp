@@ -126,6 +126,7 @@ void hal_frame_end(void) {
   sceDisplayWaitVblankStart();
   if (queued) { zn_gu_swap(); queued = false; }
 }
+extern "C" __attribute__((weak)) int zn_player_poll(void) { return 0; }   // the console player (targets/console/player_console.cpp, ZN-792): 1 ends the program
 void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{PSP_CTRL_UP, HAL_UP}, {PSP_CTRL_DOWN, HAL_DOWN}, {PSP_CTRL_LEFT, HAL_LEFT}, {PSP_CTRL_RIGHT, HAL_RIGHT},
     {PSP_CTRL_CROSS, HAL_A}, {PSP_CTRL_CIRCLE, HAL_B}, {PSP_CTRL_SQUARE, HAL_X}, {PSP_CTRL_TRIANGLE, HAL_Y}, {PSP_CTRL_LTRIGGER, HAL_L},
@@ -156,6 +157,7 @@ void hal_poll_input(HalInput* in) {
   const bool budgetOver = ZINC_FRAMES && frame >= ZINC_FRAMES;
   if (budgetOver && frame == ZINC_FRAMES) sceIoDevctl("kemulator:", 0x20, nullptr, 0, nullptr, 0);   // EMIT_SCREENSHOT: PPSSPPHeadless --screenshot gets the last frame
   in->quit = quitting || budgetOver;
+  in->quit |= zn_player_poll();   // the workstation stopped it, or sent another program
 }
 void hal_present(const HalFrame* f) {
   if (gpuOn) { queued = zn_gu_present(f); return; }

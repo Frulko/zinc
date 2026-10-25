@@ -49,6 +49,7 @@
 // ---- the crypto half (tf-psa-crypto/include/psa/crypto_config.h) ----
 #undef MBEDTLS_FS_IO
 #undef MBEDTLS_HAVE_TIME_DATE
+#define MBEDTLS_PLATFORM_MS_TIME_ALT   // the HAL's clock (player_console.cpp): the consoles' C libraries have no clock_gettime mbedTLS recognises
 #undef MBEDTLS_THREADING_C
 #undef MBEDTLS_THREADING_PTHREAD
 #undef MBEDTLS_SELF_TEST

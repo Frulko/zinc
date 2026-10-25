@@ -326,6 +326,7 @@ void hal_frame_end(void) {
   gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
   shown = fb;
 }
+extern "C" __attribute__((weak)) int zn_player_poll(void) { return 0; }   // the console player (targets/console/player_console.cpp, ZN-792): 1 ends the program
 void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{KEY_DUP, HAL_UP}, {KEY_DDOWN, HAL_DOWN}, {KEY_DLEFT, HAL_LEFT}, {KEY_DRIGHT, HAL_RIGHT}, {KEY_CPAD_UP, HAL_UP},
     {KEY_CPAD_DOWN, HAL_DOWN}, {KEY_CPAD_LEFT, HAL_LEFT}, {KEY_CPAD_RIGHT, HAL_RIGHT}, {KEY_A, HAL_A},
@@ -369,6 +370,7 @@ void hal_poll_input(HalInput* in) {
     if (stereoOn && rightFb) ppm("sdmc:/zinc-shot-right.ppm", rightFb, W, H, kScreenH); else remove("sdmc:/zinc-shot-right.ppm");   // the right eye
   }
   in->quit = !aptMainLoop() || budgetOver;
+  in->quit |= zn_player_poll();   // the workstation stopped it, or sent another program
 }
 void hal_present(const HalFrame* f) {
   if (gpuOn) {   // the eye's target (the left one when mono); the buffer its display transfer writes is the one shown after the swap
