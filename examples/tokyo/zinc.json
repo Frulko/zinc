@@ -1,7 +1,7 @@
 {
   "name": "tokyo",
   "entry": "src/main.ts",
-  "app": { "name": "Pocket Tokyo", "id": "dev.zinc.tokyo", "version": "0.1.0", "orientation": "landscape" },
+  "app": { "name": "Zinc Tokyo", "id": "dev.zinc.tokyo", "version": "0.1.0", "orientation": "landscape" },
   "assets": {
     "dir": "assets",
     "rules": [

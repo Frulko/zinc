@@ -398,6 +398,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:3d: `World` needs a real shadows on/off; tokyo fakes "off" with a flat height field and re-reads `hmap.bin` to turn them on (freeing the old map while a frame may draw it is unchecked).
 - tokyo: the panel's map is a 24 m-per-pixel height relief; Pocket's far ground pictures would read better.
 
+- tokyo PSP: a PSP-1000 fit needs a smaller runtime heap (the psp profile's 16 MB) and the pack read from the memory stick instead of embedded; the heights also cost 1.5 MB twice (pack and the heap copy from zn_asset_bytes).
+- tokyo PSP: run the shadow sweep on a low-priority thread during the vblank and GE wait as Pocket does, to remove its 1 ms a frame.
+- tokyo PSP: CLUT8 mipmaps (Pocket's down to 16 texels) with bit 7 set per level, against far-ground shimmer.
+- zinc:3d PSP: clut8 pictures are never freed; free a world's pictures when it closes.
+
 ## Cross-platform pass
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
@@ -491,3 +496,4 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:3d: run `zinc3d_world_build`'s world with `--profile psp`, n3ds and vita on the real consoles.
 - tokyo: stereo on the 3DS is unproven (Azahar runs with the slider at 0): check the right-eye shot on hardware, measure the second render (~0.6 ms), tune `STEREO_SPREAD` (1.5 m).
 - tokyo: run the PSP and Vita overlay panel with `ZINC_TOKYO_TAP` in PPSSPP and Vita3K, and the pad navigation on a real pad.
+- tokyo PSP: time the GE with CLUT8 swizzled pictures and shadows on a real PSP (PPSSPP does not time the GE).
