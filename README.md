@@ -7,7 +7,7 @@
 Desktop and mobile apps the way Electron makes them, without shipping a browser.<br>
 UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX.
 
-[Architecture](#️-architecture) · [Quick start](#-quick-start) · [The CLI](#-the-cli) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
+[Architecture](#️-architecture) · [Quick start](#-quick-start) · [The CLI](#-the-cli) · [What's new](#-whats-new) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
 
 <img src="docs/img/hero.png" alt="The hero demo: an app with an intro, screens, transitions and a gallery" width="820">
 
@@ -27,7 +27,7 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   JavaScript engine or browser inside, a fast start on modest hardware.
 - 🧠 **Any JavaScript engine.** Plain JavaScript and npm packages run on QuickJS (built in), JavaScriptCore, V8 or Hermes: one
   flag, the same program, plugins and WebGL. The engines you do not use are not shipped; they download, signed, the first time.
-- 🌍 **One program, every screen.** A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2.
+- 🌍 **One program, every screen.** A Mac, Windows, Linux, every Raspberry Pi, an iPhone, a reMarkable, an HP TouchPad from 2011, an ESP32, a PSP, a Vita, a 3DS, a PS2.
 - ⚡ **Fast Refresh.** `zinc dev` swaps each save into the running program: the window stays and so does the state (the page you were on,
   what you typed, the game round in progress). A save shows up in a fraction of a second, and nothing of it ends up in what you ship.
 - 🧰 **Batteries included.** One `zinc` command builds, runs, debugs, tests, packages and flashes; cross builds need no Docker and no SDK.
@@ -35,8 +35,27 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
 - 🔌 **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle`, `localStorage`, and the battery, sensors, vibration, orientation and
   notifications of the device the program runs on.
-- 📦 **58 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
+- 📦 **63 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
   e-ink and OLED screens.
+
+## 🆕 What's new
+
+Since the last release (details in [CHANGELOG.md](CHANGELOG.md)):
+
+- 📓 **reMarkable Paper Pro.** Zinc runs on the tablet itself: `tools/rmpp-engine` installs the engine, `zinc pack` makes a `.zapp`, and
+  `zinc run app.zapp` draws through AppLoad. Pen ink has modes (`"display": { "ink": "native" }` or `"session"`), the screen refreshes
+  itself after many partial updates, and apps can minimize to **Accueil** and show a small widget there
+  ([docs/targets/remarkable-paper-pro.md](docs/targets/remarkable-paper-pro.md)).
+- 🏪 **Zinc Hub.** An app store for the tablet (`app/hub`) and a server for your own apps (`zinc run app/hub-server`). `zinc publish --hub <url>`
+  uploads a version; catalogs and apps are signed and checked before install, with updates, rollback and a stable or beta channel.
+- 🌐 **Zinc Web.** Read web pages on the tablet: `zinc run app/web-relay` on a Mac renders them, `app/web` shows them, with links, zoom and
+  pen notes you can export. Also new: `examples/remarkable/dashboard`.
+- 📱 **Zinc Go on a real iPhone.** `tools/zinc-go-iphone` builds it, signs it with your Apple team (a free Personal Team works) and installs
+  it. Zinc Go keeps the apps `zinc device deploy` sends and can put one on the home screen as an icon. New iOS plugins: `zinc:photos`,
+  `zinc:location` (`examples/photos`, `examples/geo`), and `zinc:microphone` and `zinc:webrtc` now build for iPhone and iPad.
+- 🎮 **Consoles.** PSP and PS Vita read asset packs from the memory stick like the 3DS; `examples/tokyo` flies over Tokyo on the PSP,
+  Vita and 3DS; `tools/build-console-core --aot` compiles the program into the console build.
+- 🔐 **Network and crypto.** `crypto.subtle` signs and verifies with Ed25519, and a `zinc:net` server accepts bodies up to 64 MiB.
 
 ## 🏗️ Architecture
 
@@ -171,7 +190,7 @@ From a desktop app to a microcontroller, the same engine and the same language:
 </table>
 
 More: `examples/hero` (a complete app), `examples/nuxt-ui`, `examples/rn-showcase`, `examples/js-phaser` (Phaser, unmodified),
-`examples/leapmotion` (hand tracking games), `examples/webcam` (a camera app on `zinc:camera`), `examples/webrtc-call` (a video call on `zinc:webrtc`), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
+`examples/leapmotion` (hand tracking games), `examples/remarkable/dashboard` (a tablet dashboard), `examples/webcam` (a camera app on `zinc:camera`), `examples/webrtc-call` (a video call on `zinc:webrtc`), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
 
 ## 🔌 Plugins
 
@@ -180,7 +199,7 @@ code or a library; **Zinc** ones are written in Zinc and run wherever the module
 the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry Pi, rM = reMarkable Paper Pro, Web = WebAssembly.
 
 <details>
-<summary><b>36 modules</b>: 3D, video, sound, maps, physics, storage, network, desktop, hardware</summary>
+<summary><b>38 modules</b>: 3D, video, sound, maps, physics, storage, network, desktop, hardware</summary>
 
 | Plugin | What it does | Code | Platforms |
 |---|---|---|---|
@@ -207,7 +226,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `gsap` | GSAP's core API in typed Zinc (tweens, timelines, eases, staggers), compiled by `zinc build`; the whole library runs on the QuickJS engine | Zinc | macOS, Linux, Windows, Pi, rM, webOS, Web, ESP32 |
 | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
 | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
-| `zinc:webrtc` | WebRTC (`RTCPeerConnection`): data channels, audio and video tracks (Opus, VP8, H.264 in hardware on macOS), stats, STUN/TURN (libdatachannel) | Native | macOS, Linux, Pi |
+| `zinc:webrtc` | WebRTC (`RTCPeerConnection`): data channels, audio and video tracks (Opus, VP8, H.264 in hardware on macOS), stats, STUN/TURN (libdatachannel) | Native | macOS, iOS, Linux, Pi |
 | `zinc:link` | Two programs find each other (DNS-SD), pair once with a 6-digit code and talk over an encrypted channel (JSON and bytes, reconnecting): zinc agent's protocol | Native | macOS, Linux, Android |
 | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
 | `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
@@ -218,7 +237,9 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `zinc:devtools` | UI inspector for Chrome DevTools | Native | macOS, Linux, Pi |
 | `zinc:serial` | Serial ports (Arduino and other boards) | Native | macOS, Linux |
 | `zinc:camera` | Webcams and built-in cameras: frames as an image, snapshots, a fake camera (AVFoundation, V4L2) | Native | macOS, Linux, Pi |
-| `zinc:microphone` | Microphones: samples in blocks, a level meter, a fake microphone (miniaudio: Core Audio, ALSA) | Native | macOS, Linux, Pi |
+| `zinc:microphone` | Microphones: samples in blocks, a level meter, a fake microphone (miniaudio: Core Audio, ALSA) | Native | macOS, iOS, Linux, Pi |
+| `zinc:photos` | The photo library: albums, pictures newest first, thumbnails, saving | Native | iOS, macOS |
+| `zinc:location` | The device's position: permission, current position, a watch, a fake path for tests | Native | iOS, macOS |
 | `zinc:gphoto2` | Camera remote control over USB (libgphoto2) | Native | macOS, Linux, Pi |
 | `zinc:leapmotion` | Ultraleap hand tracking (LeapC) | Native | macOS |
 | `zinc:imu` | QMI8658 motion sensor | Native | ESP32, macOS, Linux |
