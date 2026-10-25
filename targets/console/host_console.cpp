@@ -49,6 +49,16 @@ __attribute__((weak)) unsigned long zn_console_pack_size = 0;
 __attribute__((weak)) int zn_player_wait_poll(void) { return -1; }
 }
 
+// the packs on the card beside the program (targets/console/sdpack.cpp; a console without them links none): what the linked pack has not,
+// or all of it when none is linked (a PSP-1000 keeps its pack on the memory stick)
+#ifdef __APPLE__   // Mach-O links no undefined weak symbol: the Mac test cores have no card packs
+static bool (*const zn_console_side_read)(const std::string&, int, std::string&) = nullptr;
+static bool (*const zn_console_side_has)(const std::string&, int) = nullptr;
+#else
+bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
+bool zn_console_side_has(const std::string& name, int kind) __attribute__((weak));
+#endif
+
 namespace {
 using zn::host::HostArg;
 using zn::Rt;
@@ -190,6 +200,8 @@ bool packRead(const std::string& name, int kind, std::string& out) {
   return true;
 }
 
+bool assetRead(const std::string& name, std::string& out) { return packRead(name, 0, out) || (zn_console_side_read && zn_console_side_read(name, 0, out)); }
+
 double nowMs() { return gVirtual ? gVirtualNow : static_cast<double>(hal_time_us() - gStartUs) / 1000.0; }
 void waitMs(double ms) {
   if (!(ms > 0)) return;
@@ -256,11 +268,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(str(a[0])); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gKeys.clear(); for (auto& kv : storageLoad()) gKeys.push_back(kv.first); r->i = static_cast<std::int64_t>(gKeys.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<std::size_t>(n(0)) < gKeys.size() ? gKeys[static_cast<std::size_t>(n(0))] : ""); break;
-    case Rt::HostAssetsExists: r->i = packFind(str(a[0]), 0) >= 0; break;
-    case Rt::HostAssetsReadText: { std::string d; if (packRead(str(a[0]), 0, d)) ret(r, std::move(d)); else { if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } ret(r, ""); } break; }
+    case Rt::HostAssetsExists: r->i = packFind(str(a[0]), 0) >= 0 || (zn_console_side_has && zn_console_side_has(str(a[0]), 0)); break;
+    case Rt::HostAssetsReadText: { std::string d; if (assetRead(str(a[0]), d)) ret(r, std::move(d)); else { if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } ret(r, ""); } break; }
     case Rt::HostAssetsLoad: {
       std::string d;
-      if (packRead(str(a[0]), 0, d)) gBytes.assign(d.begin(), d.end()); else { gBytes.clear(); if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } }
+      if (assetRead(str(a[0]), d)) gBytes.assign(d.begin(), d.end()); else { gBytes.clear(); if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } }
       r->i = static_cast<std::int64_t>(gBytes.size());
       break;
     }

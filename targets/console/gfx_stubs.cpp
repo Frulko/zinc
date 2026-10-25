@@ -12,16 +12,20 @@
 #include "zrt_raster.h"
 
 bool zn_console_pack_read(const std::string& name, int kind, std::string& out);   // host_console.cpp
-// the packs on the SD card beside the program (targets/n3ds/sdpack_n3ds.cpp; a console without them links none): what the linked pack has not
-#ifdef __APPLE__   // Mach-O links no undefined weak symbol, and the SD-card packs are the 3DS's: the Mac test cores have none
+// the packs on the card beside the program and the reader thread (targets/console/sdpack.cpp; a console without them links none): what the
+// thread read ahead, else the linked pack, else the card
+#ifdef __APPLE__   // Mach-O links no undefined weak symbol, and the card packs are the consoles': the Mac test cores have none
 static bool (*const zn_console_side_read)(const std::string&, int, std::string&) = nullptr;
+static bool (*const zn_console_side_take)(const std::string&, std::string&) = nullptr;
 static int (*const zn_console_side_ready)(const char*, uint32_t) = nullptr;
 #else
 bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
+bool zn_console_side_take(const std::string& name, std::string& out) __attribute__((weak));
 extern "C" int zn_console_side_ready(const char* name, uint32_t n) __attribute__((weak));
 #endif
 static bool packOrSide(const std::string& name, int kind, std::string& out) {
-  return zn_console_pack_read(name, kind, out) || (zn_console_side_read && zn_console_side_read(name, kind, out));
+  return (zn_console_side_take && zn_console_side_take(name, out)) || zn_console_pack_read(name, kind, out) ||
+         (zn_console_side_read && zn_console_side_read(name, kind, out));
 }
 
 #define HOST_DEFINES_RESOURCE_STATS   // the definition below is the core's, not a weak one
@@ -70,7 +74,7 @@ int zn_asset_image(const char* name, uint32_t n) {
   return id;
 }
 // Whether an asset can be had without waiting for a slow medium: 1 now (decoded already, in the linked pack, or nowhere), 0 asked for from
-// the SD card and on its way (render3d.host.cpp worldLoad asks again on a later frame).
+// the card (or read ahead from the linked pack) and on its way (render3d.host.cpp worldLoad asks again on a later frame).
 int zn_asset_ready(const char* name, uint32_t n) {
   if (!zn_console_side_ready) return 1;
   if (made.count(std::string(name, n))) return 1;

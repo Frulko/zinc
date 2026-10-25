@@ -2,9 +2,12 @@
 # Builds a project for the consoles as a person plays it (no frame budget: it runs until the console quits it) and copies each build where the
 # emulators' game lists look (ZN-753):
 #   tools/console-demos <project> <name> [--title NAME] [--id ABCD12345] [psp vita ps2 n3ds]
-#   -> $ZINC_DEMOS (default ~/Documents)/psp/<name>/EBOOT.PBP, vita/<name>.vpk, ps2/<name>.elf, 3ds/<name>.3dsx (and 3ds/<name>/<group>.zpk)
+#   -> $ZINC_DEMOS (default ~/Documents)/psp/<name>/EBOOT.PBP, vita/<name>.vpk, ps2/<name>.elf, 3ds/<name>.3dsx, and the asset groups the
+#      linked pack leaves out (a streamed level, read by targets/console/sdpack.cpp): psp/<name>/<group>.zpk beside the EBOOT (the default
+#      pack too, not linked in on the PSP), inside the .vpk (app0:), 3ds/<name>/<group>.zpk
 # --title: the name in the PSP and Vita menus (default <name>); --id: the Vita title id, one per demo (default ZINC00001).
-# Each console's program is packed with its profile (zinc pack --profile) and linked into the core (tools/build-console-core --embed).
+# Each console's program is packed with its profile (zinc pack --profile) and linked into the core (tools/build-console-core --embed), with
+# its default asset pack except on the PSP.
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd -P)
 project=$1; name=$2
@@ -23,17 +26,23 @@ for c in "$@"; do
   tar -xf "$tmp/$c.zapp" -C "$tmp/$c" packs/default.zpk 2>/dev/null || true   # the asset pack, when the project's zinc.json has asset rules
   # zinc.json targets.<console>.width / height: the program's surface when it is not the screen's
   size=$(python3 -I -c "import json,sys; t=json.load(open(sys.argv[1])).get('targets',{}).get(sys.argv[2],{}); print('%dx%d' % (t['width'],t['height']) if 'width' in t and 'height' in t else '')" "$project/zinc.json" "$c")
-  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" $( [ -f "$tmp/$c/packs/default.zpk" ] && echo "$tmp/$c/packs/default.zpk") --title "$title" --id "$id" $( [ -d "$project/console" ] && echo --art "$project/console" ) ${size:+--size "$size"} $( [ "$c" = n3ds ] && echo --env ZINC_SD_DIR=sdmc:/3ds/$name/ ) -B "$here/build/console-demo-$c" | tail -1)
+  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" $( [ -f "$tmp/$c/packs/default.zpk" ] && [ "$c" != psp ] && echo "$tmp/$c/packs/default.zpk") --title "$title" --id "$id" $( [ -d "$project/console" ] && echo --art "$project/console" ) ${size:+--size "$size"} $( [ "$c" = n3ds ] && echo --env ZINC_SD_DIR=sdmc:/3ds/$name/ ) -B "$here/build/console-demo-$c" | tail -1)
+  groups=$(tar -tf "$tmp/$c.zapp" | grep '^packs/.*\.zpk$' | grep -v '^packs/default\.zpk$' || true)
+  for g in $groups; do tar -xf "$tmp/$c.zapp" -C "$tmp/$c" "$g"; done
   case $c in
-    psp)  mkdir -p "$out/psp/$name"; cp "$bin" "$out/psp/$name/EBOOT.PBP"; echo "$out/psp/$name/EBOOT.PBP" ;;
-    vita) mkdir -p "$out/vita"; cp "$bin" "$out/vita/$name.vpk"; echo "$out/vita/$name.vpk" ;;
+    psp)  mkdir -p "$out/psp/$name"; rm -f "$out/psp/$name/"*.zpk; cp "$bin" "$out/psp/$name/EBOOT.PBP"; echo "$out/psp/$name/EBOOT.PBP"
+          # the PSP keeps its default pack on the memory stick too (a PSP-1000 has 24 MB for the EBOOT and its memory)
+          [ ! -f "$tmp/$c/packs/default.zpk" ] || { cp "$tmp/$c/packs/default.zpk" "$out/psp/$name/"; echo "$out/psp/$name/default.zpk"; }
+          for g in $groups; do cp "$tmp/$c/$g" "$out/psp/$name/"; echo "$out/psp/$name/${g#packs/}"; done ;;
+    vita) mkdir -p "$out/vita"; cp "$bin" "$out/vita/$name.vpk"
+          # the groups at the package's root (app0:<group>.zpk), stored: the Vita reads them in place
+          [ -z "$groups" ] || (cd "$tmp/$c/packs" && for g in $groups; do zip -q -0 "$out/vita/$name.vpk" "${g#packs/}"; done)
+          echo "$out/vita/$name.vpk" ;;
     ps2)  mkdir -p "$out/ps2"; cp "$bin" "$out/ps2/$name.elf"; echo "$out/ps2/$name.elf" ;;
     n3ds) mkdir -p "$out/3ds"; cp "$bin" "$out/3ds/$name.3dsx"; echo "$out/3ds/$name.3dsx"
           # the asset groups the linked pack leaves out (a streamed level): <group>.zpk in 3ds/<name>/, read from the SD card
-          # (targets/n3ds/sdpack_n3ds.cpp); copy the folder with the .3dsx
+          # (targets/console/sdpack.cpp); copy the folder with the .3dsx
           rm -rf "$out/3ds/$name"
-          for g in $(tar -tf "$tmp/$c.zapp" | grep '^packs/.*\.zpk$' | grep -v '^packs/default\.zpk$'); do
-            tar -xf "$tmp/$c.zapp" -C "$tmp/$c" "$g"; mkdir -p "$out/3ds/$name"; cp "$tmp/$c/$g" "$out/3ds/$name/"; echo "$out/3ds/$name/${g#packs/}"
-          done ;;
+          for g in $groups; do mkdir -p "$out/3ds/$name"; cp "$tmp/$c/$g" "$out/3ds/$name/"; echo "$out/3ds/$name/${g#packs/}"; done ;;
   esac
 done

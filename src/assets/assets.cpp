@@ -433,11 +433,13 @@ bool build(const Options& opt, Report& report, std::string& err) {
       auto read = [&](const std::string& f, std::string& bytes) { return readFile(fs::path(opt.sourceDir) / f, bytes); };
       if (!tilemapDeps(name, json, read, e.deps, err)) { err = name + ": " + err; return false; }
     } else if (imp->run == importTextureFile && e.opts.count("night")) {
-      // a clut8 texture's night picture: `night` names it from the texture's own name ({stem}: without its extension), beside it; none there:
-      // the day's palette for both
+      // a clut8 texture's night picture: `night` names it from the texture's own name ({stem}: without its extension; {base}: without
+      // everything from its first dot, b0_0 of b0_0.near.png), beside it; none there: the day's palette for both
       const fs::path self(name);
       std::string other = e.opts.at("night");
+      const std::string file = self.filename().string(), base = file.substr(0, file.find('.'));
       for (std::size_t at; (at = other.find("{stem}")) != std::string::npos;) other.replace(at, 6, self.stem().string());
+      for (std::size_t at; (at = other.find("{base}")) != std::string::npos;) other.replace(at, 6, base);
       const std::string dep = (self.parent_path() / other).generic_string();
       if (dep != name && fs::is_regular_file(fs::path(opt.sourceDir) / dep)) e.deps = {dep};
     } else if (imp->run == importModelFile) {

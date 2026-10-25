@@ -6,9 +6,8 @@
     "dir": "assets",
     "rules": [
       { "match": "city/*.png", "as": "texture", "mipmaps": false },
-      { "match": "city/c*.near.zwc", "targets": { "psp": { "skip": true }, "vita": { "skip": true } } },
       { "match": "city/hmap.bin", "targets": { "vita": { "skip": true } } },
-      { "match": "city/b*.png", "targets": { "psp": { "skip": true }, "n3ds": { "maxSize": 512, "format": "etc1", "pot": true, "mipmaps": true }, "vita": { "skip": true } } },
+      { "match": "city/b*.png", "targets": { "psp": { "maxSize": 256, "format": "clut8", "colors": 128, "night": "{base}.night.png" }, "n3ds": { "maxSize": 512, "format": "etc1", "pot": true, "mipmaps": true }, "vita": { "maxSize": 256 } } },
       { "match": "city/g*.png", "targets": { "psp": { "maxSize": 256, "format": "clut8", "colors": 128, "night": "{stem}.night.png" }, "n3ds": { "maxSize": 512, "format": "etc1", "pot": true, "mipmaps": true }, "vita": { "maxSize": 256 } } },
       { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 512, "format": "clut8", "night": "{stem}-night.png" }, "n3ds": { "maxSize": 1024, "format": "etc1", "pot": true, "mipmaps": true } } },
       { "match": "city/*night*.png", "targets": { "psp": { "skip": true } } }

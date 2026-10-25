@@ -151,7 +151,7 @@ the files texture rules take to the packs, so the name finds the texture), and i
   `rgb565`, `rgba4444`, `rgba5551` (made here), `bc1`, `bc3`, `bc7`, `etc1`, `etc2` (RGBA8 EAC; opaque art is ETC1 data, which ETC2 decoders
   read), `astc` (4x4), `pvrtc` (PVRTC1 4 bpp, RGB or RGBA), `ktx2` (`ktx2:uastc` or `ktx2:etc1s`, transcoded in the browser by ZN-449),
   `clut8` (the PSP's 8-bit pictures: one level, `colors` (256) at most, a median cut over each texel's colour; `night` names a night picture
-  beside it, `{stem}` the texture's name without its extension, quantised with it into a second palette the PSP mixes in by the hour); the
+  beside it, `{stem}` the texture's name without its extension and `{base}` without everything from its first dot, quantised with it into a second palette the PSP mixes in by the hour); the
   console layouts `clut4`, `etc1a4` are ZN-452's and are refused with that name.
 - **Steps.** Decoded (stb_image, libwebp, the SVG rasterizer), resized to `maxSize` (the aspect kept) and with `pot` to powers of two
   (stretched, not padded: draw it with its size; PVRTC1 is made square), mipmaps down to 1 x 1 (`mipmaps`, true) each from level 0 with

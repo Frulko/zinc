@@ -54,7 +54,7 @@ class Reader {
   bool read(std::size_t i, std::string& out, std::string& err, ZSTD_DCtx_s* zstd = nullptr) const;
   /** Entry `i` decoded into `dst` from its stored bytes `stored` (entry(i).storedSize of them), which the caller read itself: a pack on a
    *  slow medium is opened over its index alone (header, TOC, names and dictionary: the header's names offset + names size + dictionary
-   *  size bytes, with `size` the whole file's; only find, entry and decode are used then) and each entry read from the file where its row says (targets/n3ds/sdpack_n3ds.cpp). The stored bytes are checked
+   *  size bytes, with `size` the whole file's; only find, entry and decode are used then) and each entry read from the file where its row says (targets/console/sdpack.cpp). The stored bytes are checked
    *  every time. */
   bool decode(std::size_t i, const std::uint8_t* stored, std::uint8_t* dst, std::string& err, ZSTD_DCtx_s* zstd = nullptr) const;
   /** The bytes of an uncompressed entry in place (no copy), checked; null with `err` otherwise. */

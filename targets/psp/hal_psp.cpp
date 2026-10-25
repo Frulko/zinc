@@ -20,7 +20,10 @@
 PSP_MODULE_INFO("zinc", PSP_MODULE_USER, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 PSP_MAIN_THREAD_STACK_SIZE_KB(1024);   // the interpreter's native recursion (a call is a C++ frame)
-PSP_HEAP_SIZE_KB(-1024);               // the newlib heap takes the user memory but 1 MiB (threads, the kernel's own)
+#ifndef ZN_PSP_HEAP_KB
+#define ZN_PSP_HEAP_KB -1024   // the newlib heap takes the user memory but 1 MiB (threads, the kernel's own)
+#endif
+PSP_HEAP_SIZE_KB(ZN_PSP_HEAP_KB);   // a fixed size tries a smaller PSP in PPSSPP, which gives a PSP-2000's memory (psp.cmake, ZN_PSP_HEAP_KB)
 
 #ifndef ZINC_FRAMES
 #define ZINC_FRAMES 0   // a frame budget built in (the emulator tests), 0: until the program ends or HOME quits
@@ -120,7 +123,14 @@ void hal_log(const char* s, size_t n) { fwrite(s, 1, n, stdout); fflush(stdout);
 void hal_log_err(const char* s, size_t n) { fflush(stdout); fwrite(s, 1, n, stderr); fflush(stderr); emulatorOut(s, n); fileOut(s, n); }
 int hal_isatty(int) { return 0; }
 const char* hal_env(const char* name) { return getenv(name); }
-void hal_heap_region(void** base, size_t* size) { *size = ZRT_HEAP_BYTES; *base = malloc(*size); if (!*base) *size = 0; }
+// The runtime's heap: a compiled program's objects live there, an interpreted one's in the C heap (the VM's), which then needs the memory more:
+// a program linked into the core for the interpreter (core_main.cpp) gets 1 MiB (tokyo uses none of it), so that it fits a PSP-1000's 24 MB with its pack on the stick
+extern "C" __attribute__((weak)) const unsigned char* zn_console_program;
+void hal_heap_region(void** base, size_t* size) {
+  *size = &zn_console_program && zn_console_program ? (1u << 20) : ZRT_HEAP_BYTES;
+  *base = malloc(*size);
+  if (!*base) *size = 0;
+}
 void hal_panic(const char* msg, const char* file, int line) {
   if (file && *file) printf("panic: %s (%s:%d)\n", msg, file, line); else printf("panic: %s\n", msg);
   fflush(stdout);

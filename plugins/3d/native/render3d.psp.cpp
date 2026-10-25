@@ -19,17 +19,22 @@
 #include <stdio.h>
 
 #include <string>
+#include <vector>
 
 #include "zn/zim.h"
 
 #include <pspge.h>
 #include <pspgu.h>
 #include <pspkernel.h>
+#include <pspthreadman.h>
 
 #include "ff_replay.h"
 
 extern "C" void hal_log(const char* s, size_t n);   // hal_psp.cpp: the console log and zinc.log
 bool zn_console_pack_read(const std::string& name, int kind, std::string& out) __attribute__((weak));   // targets/console/host_console.cpp
+// targets/console/sdpack.cpp: what the reader thread read ahead, and the packs on the memory stick (the streamed near level)
+bool zn_console_side_take(const std::string& name, std::string& out) __attribute__((weak));
+bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
 
 namespace {
 
@@ -61,7 +66,9 @@ void writeback(const void* p, size_t n) { sceKernelDcacheWritebackRange(p, (unsi
 // Where a render's time goes, logged every 600 renders: in this file (building the GE list), waiting for the GE, and the rest of the
 // window from begin() to end() (the program: its scene walk and the calls into this module)
 uint64_t now() { return sceKernelGetSystemTimeWide(); }
-struct Times { uint64_t start = 0, native = 0, wait = 0, span = 0, shadows = 0; uint32_t n = 0; } times;   // shadows: of the module's, the sweep and its patch
+size_t runtimePeak = 0;   // the most of the runtime's heap in use (a PSP-1000's smaller heap)
+// shadows: of the module's, the frame's part of the shadows; sweep: the shadows' thread (in the frame's waits)
+struct Times { uint64_t start = 0, native = 0, wait = 0, span = 0, shadows = 0, sweep = 0; uint32_t n = 0; } times;
 struct Spend { uint64_t& acc; uint64_t t0; explicit Spend(uint64_t& a) : acc(a), t0(now()) {} ~Spend() { acc += now() - t0; } };
 
 struct Psp : Engine {
@@ -215,20 +222,20 @@ struct Psp : Engine {
   // the two mixed by how far the night has come in 64 steps (Pocket Tokyo's handheld.rs). A ground picture of at most 128 colours keeps the
   // upper half of its palette for the same colours in shadow, and the shadows set the top bit of its indices: where the sweep of the heights
   // (Engine::sweep) finds something between the texel and the light. Its place on the ground comes from the first top drawn with it.
-  struct Pic { uint8_t* idx; int32_t w, h; uint32_t day[256], night[256]; uint32_t* clut; int32_t key; bool shade, placed; float ax, bx, az, bz;
+  struct Pic { uint8_t* idx; int32_t w, h; uint32_t day[256], night[256]; uint32_t* clut; int32_t key; bool shade, placed, fresh; int32_t filled; float ax, bx, az, bz;
                int16_t* col; float colX0, colStep; };   // col: the column of heights under each column of texels (-1: none), for that grid
   Pool<Pic> pics;
-  std::string picNames;   // "name\n" a picture, in the order of pics
+  std::vector<std::string> picNames;   // by the slot of pics
   int32_t picKey = -1;    // what the palettes were mixed for
+  int32_t picFind(const std::string& name) const { for (int32_t k = 0; k < pics.n; k++) if (pics.p[k] && picNames[(size_t)k] == name) return k; return -1; }
+  bool worldPictureHeld(const char* path, uint32_t n) override { return picFind(std::string(path, n)) >= 0; }
   int32_t worldPicture(const char* path, uint32_t n) override {
     const std::string name(path, n);
-    for (size_t at = 0, k = 0; at < picNames.size(); k++) {
-      const size_t end = picNames.find('\n', at);
-      if (picNames.compare(at, end - at, name) == 0) return kWorldPair | (int32_t)k;
-      at = end + 1;
-    }
+    if (const int32_t k = picFind(name); k >= 0) return kWorldPair | k;
     std::string zim;
-    if (!zn_console_pack_read || !zn_console_pack_read(name, 1, zim) || zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1")) return -1;
+    const bool got = (zn_console_side_take && zn_console_side_take(name, zim)) || (zn_console_pack_read && zn_console_pack_read(name, 1, zim)) ||
+                     (zn_console_side_read && zn_console_side_read(name, 1, zim));
+    if (!got || zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1")) return -1;
     const uint8_t* p = (const uint8_t*)zim.data();
     const int32_t w = (int32_t)rd32(p + 8), h = (int32_t)rd32(p + 12);
     // the GE's swizzled T8: a power of two from 16 x 8 to 512 x 512; another size or format is the runtime image's
@@ -245,10 +252,25 @@ struct Psp : Engine {
       for (int32_t x = 0; x < w; x++) { const uint8_t v = ix[(size_t)y * w + x]; top |= v; q->idx[swz(w, x, y)] = v; }
     q->shade = !(top & 0x80);
     writeback(q->idx, (size_t)w * h);
-    picNames += name; picNames += '\n';
-    sweep.dark = -1;   // a new ground picture: the next sweep patches it
-    picKey = -1;       // and its palette is mixed
-    return kWorldPair | pics.add(q);
+    shadeLock(true);
+    const int32_t k = pics.add(q);
+    shadeLock(false);
+    if ((size_t)k >= picNames.size()) picNames.resize((size_t)k + 1);
+    picNames[(size_t)k] = name;
+    picKey = -1;       // its palette is mixed; its shade is patched from the map once it is placed (fresh)
+    return kWorldPair | k;
+  }
+  /** A streamed chunk's picture nobody draws now: freed once the GE is done with the frame that drew it. */
+  void worldPictureFree(int32_t id) override {
+    const int32_t k = id & ~kWorldPair;
+    Pic* q = pics.at(k);
+    if (!q) return;
+    sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
+    shadeLock(true);   // not while the shadows' thread patches it
+    pics.p[k] = nullptr;
+    shadeLock(false);
+    free(q->idx); free(q->clut); if (q->col) mfree(q->col); mfree(q);
+    picNames[(size_t)k].clear();
   }
   static size_t swz(int32_t w, int32_t x, int32_t y) { return ((size_t)(y >> 3) * (size_t)(w >> 4) + (size_t)(x >> 4)) * 128 + (size_t)(y & 7) * 16 + (size_t)(x & 15); }
   /** The palettes the GE reads: day and night mixed by the night (64 steps), the shaded half `lit` of the lit (0..64). */
@@ -273,43 +295,112 @@ struct Psp : Engine {
       writeback(q->clut, 1024);
     }
   }
-  /** Where the sweep says a row of cells is in shade, the top bit of the ground pictures' texels over it. */
+  // ---- shadows (Pocket Tokyo's shade.rs): the sweep runs on a thread below the frame's and the reader's priority, in the time the frame
+  // waits for the vblank and the GE; each row it sweeps goes into a bit map of the cells in shade (`mask`, one bit a cell), and the ground
+  // pictures' texels over that row take their bit from it. A picture placed later (a streamed near ground) is patched whole from the map,
+  // without a new sweep. The GE may read a texel while it changes: a frame may show a row half shaded.
+  uint32_t* mask = nullptr;   // sweep.w x sweep.h bits, a row padded to whole words
+  SceUID shadeSema = -1, shadeWake = -1, shadeThread = -1;
+  volatile bool shadeQuit = false;
+  void shadeLock(bool on) { if (shadeSema >= 0) { if (on) sceKernelWaitSema(shadeSema, 1, nullptr); else sceKernelSignalSema(shadeSema, 1); } }
+  int32_t maskWords() const { return (sweep.w + 31) / 32; }
+  bool inShade(int32_t cx, int32_t cz) const { return mask && (mask[(size_t)cz * maskWords() + (cx >> 5)] >> (cx & 31) & 1); }
+  /** The top bit of the texels of rows j0..j1 of a placed ground picture, from the map. */
+  void patchRows(Pic* q, int32_t j0, int32_t j1) {
+    const ShadowSweep& s = sweep;
+    if (!q->col || q->colX0 != s.x0 || q->colStep != s.step) {   // the cells under its texels' centres: u = ax world x + bx
+      if (!q->col) q->col = (int16_t*)mem(2 * (size_t)q->w);
+      q->colX0 = s.x0; q->colStep = s.step;
+      for (int32_t x = 0; x < q->w; x++) {
+        const int32_t c = (int32_t)floorf((((x + 0.5f) / q->w - q->bx) / q->ax - s.x0) / s.step);
+        q->col[x] = (int16_t)(c >= 0 && c < s.w ? c : -1);
+      }
+    }
+    for (int32_t j = j0; j < j1; j++) {
+      const int32_t cz = (int32_t)floorf((((j + 0.5f) / q->h - q->bz) / q->az - s.z0) / s.step);   // v = az world z + bz
+      uint8_t* row = q->idx + swz(q->w, 0, j);   // swizzled: 16 texels a block of 128 bytes
+      for (int32_t x = 0; x < q->w; x++) {
+        const int32_t c = q->col[x];
+        uint8_t& t = row[(x >> 4) * 128 + (x & 15)];
+        t = (uint8_t)((t & 0x7F) | (c >= 0 && cz >= 0 && cz < s.h && inShade(c, cz) ? 0x80 : 0));
+      }
+    }
+    if (j1 > j0) writeback(q->idx + (size_t)(j0 >> 3) * q->w * 8, (size_t)(((j1 - 1) >> 3) - (j0 >> 3) + 1) * q->w * 8);
+  }
+  /** A swept row: its cells' bits in the map, then the texels over it. */
   void shadeRow(int32_t z, const uint16_t* top, const uint16_t* own) {
     const ShadowSweep& s = sweep;
     const uint32_t deep = (uint32_t)(0.5f / s.unit);   // half a metre under the shade's top: in it (the 3DS's map has 2 m of shades)
+    uint32_t* m = mask + (size_t)z * maskWords();
+    memset(m, 0, 4 * (size_t)maskWords());
+    for (int32_t c = 0; c < s.w; c++) if (top[c] > own[c] + deep) m[c >> 5] |= 1u << (c & 31);
     const float zlo = s.z0 + z * s.step, zhi = zlo + s.step;
     for (int32_t i = 0; i < pics.n; i++) {
       Pic* q = pics.p[i];
-      if (!q || !q->shade || !q->placed) continue;
+      if (!q || !q->shade || !q->placed || q->fresh) continue;
       // the texel rows whose centres stand over the cells of row z: v = az world z + bz
       float v0 = q->az * zlo + q->bz, v1 = q->az * zhi + q->bz;
       if (v0 > v1) { const float t = v0; v0 = v1; v1 = t; }
       int32_t j0 = (int32_t)ceilf(v0 * q->h - 0.5f), j1 = (int32_t)ceilf(v1 * q->h - 0.5f);
       j0 = j0 < 0 ? 0 : j0; j1 = j1 > q->h ? q->h : j1;
-      if (j0 >= j1) continue;
-      if (!q->col || q->colX0 != s.x0 || q->colStep != s.step) {   // the cells under its texels' centres: u = ax world x + bx
-        if (!q->col) q->col = (int16_t*)mem(2 * (size_t)q->w);
-        q->colX0 = s.x0; q->colStep = s.step;
-        for (int32_t x = 0; x < q->w; x++) {
-          const int32_t c = (int32_t)floorf((((x + 0.5f) / q->w - q->bx) / q->ax - s.x0) / s.step);
-          q->col[x] = (int16_t)(c >= 0 && c < s.w ? c : -1);
-        }
-      }
-      for (int32_t j = j0; j < j1; j++) {
-        uint8_t* row = q->idx + swz(q->w, 0, j);   // swizzled: 16 texels a block of 128 bytes
-        for (int32_t x = 0; x < q->w; x++) {
-          const int32_t c = q->col[x];
-          uint8_t& t = row[(x >> 4) * 128 + (x & 15)];
-          t = (uint8_t)((t & 0x7F) | (c >= 0 && top[c] > own[c] + deep ? 0x80 : 0));
-        }
-      }
-      writeback(q->idx + (size_t)(j0 >> 3) * q->w * 8, (size_t)(((j1 - 1) >> 3) - (j0 >> 3) + 1) * q->w * 8);
+      if (j0 < j1) patchRows(q, j0, j1);
     }
+  }
+  /** The shadows' thread: woken each frame, it sweeps what the light asks for a row at a time and patches the new pictures. */
+  static int shadeMain(SceSize, void* arg) {
+    Psp* e = *(Psp**)arg;
+    while (!e->shadeQuit) {
+      sceKernelWaitSema(e->shadeWake, 1, nullptr);
+      const uint64_t t0 = now();
+      for (bool more = true; more && !e->shadeQuit;) {
+        e->shadeLock(true);
+        more = false;
+        if (e->sweep.on() && e->mask) {
+          if (e->sweep.row >= 0) {
+            e->sweep.rows(1, [&](int32_t z, const uint16_t* top, const uint16_t* own) { e->shadeRow(z, top, own); });
+            more = true;
+          } else
+            for (int32_t i = 0; i < e->pics.n && !more; i++)
+              if (Pic* q = e->pics.p[i]; q && q->fresh) {   // 16 rows at a time: the lock is never held long
+                const int32_t j0 = q->filled, j1 = j0 + 16 < q->h ? j0 + 16 : q->h;
+                if (q->shade) e->patchRows(q, j0, j1);
+                q->filled = j1;
+                if (j1 >= q->h) { q->fresh = false; q->filled = 0; }
+                more = true;
+              }
+        }
+        e->shadeLock(false);
+      }
+      times.sweep += now() - t0;
+    }
+    return 0;
+  }
+  void shadeStart() {
+    if (shadeThread >= 0) return;
+    shadeSema = sceKernelCreateSema("zinc shade lock", 0, 1, 1, nullptr);
+    shadeWake = sceKernelCreateSema("zinc shade wake", 0, 0, 1, nullptr);
+    Psp* self = this;
+    // below the frame (32) and the reader (36, targets/console/sdpack.cpp), as Pocket Tokyo's 44
+    shadeThread = sceKernelCreateThread("zinc shadows", shadeMain, 44, 16 * 1024, PSP_THREAD_ATTR_USER, nullptr);
+    if (shadeThread >= 0) sceKernelStartThread(shadeThread, sizeof self, &self);
+  }
+  /** The shadows' heights come or go with the thread stopped from patching. */
+  void worldShadows(int32_t id, String name, Array<N> prm) override {
+    shadeStart();
+    shadeLock(true);
+    Engine::worldShadows(id, name, prm);
+    shadeLock(false);
   }
   bool shadowsDrawn() const override { return true; }
   // the shadows off: the heights go (Engine::worldShadows), the shaded half of the palettes becomes the lit one (palettes(), the bits stay)
-  void shadowsOn() override { picKey = -1; sweep.whole = false; }   // spread over frames from the first: no frame of a whole sweep
-  void shadowsOff() override { picKey = -1; }
+  void shadowsOn() override {   // the thread sweeps it, row by row; the pictures already placed are patched from the new map
+    picKey = -1; sweep.whole = false;
+    mfree(mask);
+    mask = (uint32_t*)mem(4 * (size_t)maskWords() * (size_t)sweep.h);
+    memset(mask, 0, 4 * (size_t)maskWords() * (size_t)sweep.h);
+    for (int32_t i = 0; i < pics.n; i++) if (Pic* q = pics.p[i]) { q->fresh = q->placed; q->filled = 0; }
+  }
+  void shadowsOff() override { picKey = -1; mfree(mask); mask = nullptr; }
 
   bool worldSectorDraws() const override { return true; }
   float worldSplit() const override { return kSplit; }
@@ -379,11 +470,13 @@ struct Psp : Engine {
     sectorLights(light);
     float sun[3], dark = 0;
     const bool shadowed = sweep.on() && sweep.world == id;
-    if (shadowed) {   // 12 rows of a sweep a frame (about 2 s a sweep) when the light has turned by a degree
+    if (shadowed) {   // a sweep when the light has turned by a degree, on the shadows' thread (shadeMain)
       Spend shading(times.shadows);
       ShadowSweep::light(nl, ld, lc, amb, sun, dark);
+      shadeLock(true);
       if (dark >= 8) sweep.aim(sun, 0, 256);   // the shade's darkness is in the palettes, not the bits; none to see (the moon): no new sweep
-      sweep.rows(12, [&](int32_t z, const uint16_t* top, const uint16_t* own) { shadeRow(z, top, own); });
+      shadeLock(false);
+      if (shadeWake >= 0) sceKernelSignalSema(shadeWake, 1);
     }
     palettes(w->dusk, shadowed ? (int32_t)((255 - dark) * 64 / 255 + 0.5f) : 64);
     sceGuEnable(GU_LIGHTING);
@@ -481,7 +574,7 @@ struct Psp : Engine {
               pic->ax = kx * 65535 / g->s[0]; pic->bx = g->tb[0] - kx * (32768 + g->o[0] * 65535 / g->s[0]);
               pic->az = kz * 65535 / g->s[2]; pic->bz = g->tb[1] - kz * (32768 + g->o[2] * 65535 / g->s[2]);
               pic->placed = pic->ax != 0 && pic->az != 0;
-              if (pic->placed) sweep.dark = -1;   // the next sweep patches it
+              pic->fresh = pic->placed;   // the shadows' thread patches it from the map
             }
             const float T[16] = {fx * g->tk[0], 0, 0, 0, 0, 0, 0, 0, 0, fy * g->tk[1], 0, 0, fx * g->tb[0], fy * g->tb[1], 1, 0};
             sceGuSetMatrix(GU_TEXTURE, (const ScePspFMatrix4*)T);
@@ -614,15 +707,16 @@ struct Psp : Engine {
     sceGuDrawBufferList(GU_PSM_8888, nullptr, 512);   // the screen's pixel format; the next sceGuStart (gu_psp.cpp's frame) sets its address again
     sceGuFinish();
     times.span += now() - times.start;
+    if (zrt::heap_used() > runtimePeak) runtimePeak = zrt::heap_used();
     if (++times.n == 600) {
-      char b[160];
+      char b[200];
       const double k = 1.0 / (1000.0 * times.n);
       const int len = snprintf(b, sizeof b, "psp 3d: %.2f ms a render: %.2f in the module (%.2f waiting for the GE), %.2f in the program, %d tris\n",
         times.span * k, times.native * k, times.wait * k, (times.span - times.native) * k, (int)tris);
       hal_log(b, (size_t)len);
       const struct mallinfo mi = mallinfo();   // the heap's bytes in use (the runtime's 16 MiB among them): with the core's own size, what a PSP-1000's 24 MiB must hold
-      const int hl = snprintf(b, sizeof b, "psp heap: %.1f MB in use, %.1f MB taken; shadows %.2f ms a render\n", mi.uordblks / 1048576.0,
-        mi.arena / 1048576.0, times.shadows * k);
+      const int hl = snprintf(b, sizeof b, "psp heap: %.1f MB in use, %.1f MB taken, the runtime's at most %.1f of %.1f MB; shadows %.2f ms a render, %.2f on their thread\n",
+        mi.uordblks / 1048576.0, mi.arena / 1048576.0, runtimePeak / 1048576.0, zrt::heap_budget() / 1048576.0, times.shadows * k, times.sweep * k);
       hal_log(b, (size_t)hl);
       times = Times{};
     }

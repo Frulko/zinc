@@ -910,6 +910,9 @@ struct Engine : NativeRender3D {
    *  else -1: the runtime image. */
   static constexpr int32_t kWorldPair = 1 << 29;
   virtual int32_t worldPicture(const char*, uint32_t) { return -1; }
+  /** A copy worldPicture made that no loaded chunk draws any more (a streamed chunk freed); whether it holds one of that name already. */
+  virtual void worldPictureFree(int32_t) {}
+  virtual bool worldPictureHeld(const char*, uint32_t) { return false; }
 
   /** Reads a world's index (include/zn/zworld.h): its cells and chunks, none loaded. -1 when it is not there or damaged. */
   int32_t worldOpen(String name) override {
@@ -994,11 +997,14 @@ struct Engine : NativeRender3D {
         if(dl+l>=sizeof(path)){free(p);return -1;}
         memcpy(path, w->dir, dl); memcpy(path + dl, q + 4, l); path[dl + l] = 0;
         if (i < 256) {
-          if (pass == 0) waiting |= raster::find_image(path, (uint32_t)(dl + l)) < 0 && !zn_asset_ready(path, (uint32_t)(dl + l));
-          else {
-            names[i] = worldPicture(path, (uint32_t)(dl + l));
-            if (names[i] < 0) names[i] = raster::find_image(path, (uint32_t)(dl + l));
-            if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, (uint32_t)(dl + l));
+          const uint32_t pl = (uint32_t)(dl + l);
+          // a slow medium: a picture read ahead is made at once (it leaves the reader's few slots), one on its way makes the chunk wait
+          const bool now = pass == 1 || (raster::find_image(path, pl) < 0 && !worldPictureHeld(path, pl) && zn_asset_ready(path, pl));
+          if (pass == 0 && !now) waiting |= raster::find_image(path, pl) < 0 && !worldPictureHeld(path, pl);
+          if (now) {
+            names[i] = worldPicture(path, pl);
+            if (names[i] < 0) names[i] = raster::find_image(path, pl);
+            if (names[i] < 0 && zn_asset_image) names[i] = zn_asset_image(path, pl);
           }
         }
         q += 4 + ((len + 3) & ~3u);
@@ -1071,18 +1077,19 @@ struct Engine : NativeRender3D {
     if (!w || chunk < 0 || chunk >= w->nk || !w->k[chunk].loaded) return;
     WChunk& k = w->k[chunk];
     for (int32_t i = 0; i < k.nb; i++) meshDestroy(k.b[i].mesh);
-    // the finest level is streamed (World.slots): its pictures (a block's ground) go with the last chunk that draws them
+    // the finest level is streamed (World.slots): its pictures (a block's ground) go with the last chunk that draws them, the renderer's own
+    // copy (kWorldPair) or the asset picture
     for (int32_t i = 0; i < k.nb && k.level == 0 && zn_asset_image_free; i++)
       for (int32_t t = 0; t < 2; t++) {
         const int32_t img = t ? k.b[i].ntex : k.b[i].tex;
-        bool used = img < 0 || (img & kWorldPair) || (t && img == k.b[i].tex);   // a renderer's own copy is not an asset picture
+        bool used = img < 0 || (t && img == k.b[i].tex);
         for (int32_t j = 0; j < i && !used; j++) used = k.b[j].tex == img || k.b[j].ntex == img;
         for (int32_t o = 0; o < w->nk && !used; o++) {
           const WChunk& h = w->k[o];
           if (o == chunk || !h.loaded) continue;
           for (int32_t j = 0; j < h.nb && !used; j++) used = h.b[j].tex == img || h.b[j].ntex == img;
         }
-        if (!used) zn_asset_image_free(img);
+        if (!used) { if (img & kWorldPair) worldPictureFree(img); else zn_asset_image_free(img); }
       }
     mfree(k.b); mfree(k.spans);
     k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
