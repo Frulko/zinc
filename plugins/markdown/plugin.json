@@ -1,0 +1,14 @@
+{
+  "name": "markdown",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:markdown",
+  "entry": "index.ts",
+  "description": "Markdown (CommonMark + GitHub tables, task lists, strikethrough, autolinks) parsed by md4c 0.6.0 (MIT) into a block tree",
+  "targets": {
+    "macos": { "sources": ["vendor/md4c/md4c.c", "vendor/md4c/entity.c"] },
+    "linux": { "sources": ["vendor/md4c/md4c.c", "vendor/md4c/entity.c"] },
+    "windows": { "sources": ["vendor/md4c/md4c.c", "vendor/md4c/entity.c"] },
+    "rmpp": { "sources": ["vendor/md4c/md4c.c", "vendor/md4c/entity.c"] }
+  }
+}

@@ -1,0 +1,8 @@
+md4c 0.6.0 (tag v0.6.0 of mity/md4c, commit 7fc1815a5eeba2af7d6120a76202bf59f3b6e6e4, 2026-09-17), https://github.com/mity/md4c
+archive https://github.com/mity/md4c/archive/refs/tags/v0.6.0.tar.gz sha256 4d151298125a81da3b2efa2e0eed8bdb7a9318569804e4fa4d7a2375ab83ef70
+src/md4c.c sha256 b9102e0ddfdfd494fdda903f79c554ffaab7e87b4eeb85b4c113057dee3e0728
+src/md4c.h sha256 d0c14762f1eac3cd9d1c08c3a287b61d93ee2382e5a22ee48f5a6f3ad2c2349d
+src/entity.c sha256 7ea50d695d9210958e01b12b3e4d1db78d783d03d95b040fd7d2d9cfe1f1d39c
+src/entity.h sha256 99a8952be6629e4114947cb61a901bf4f73b10d84d1ac5e17ad8299dfbad708e
+LICENSE.md (MIT) sha256 e547c9a66c120b19f9838a1f7c2f51137f5c71ba27b70c3611b673f2cdb4e02e
+kept unchanged: src/md4c.c, src/md4c.h, src/entity.c and src/entity.h (the HTML entity table of md4c-html, decodes &name;), LICENSE.md
