@@ -42,32 +42,22 @@ still holds `aPosition`, `aColor`, `Wvp`.
 
 Only these three files are the pair's compiled form.
 
-# The zinc:3d vertex program (`tex3d.vert`)
+# The zinc:3d vertex program (`tex3d-v.gxp`)
 
-`plugins/3d/native/render3d.vita.cpp` draws zinc:3d with one vertex program,
-`tex3d.vert` (position and uv of the mesh, the draw's shaded colour, the `Wvp`
-matrix), paired with SDL's texture fragment program (texture x colour, the
-COLOR0 and TEXCOORD0 varyings psp2spvc gives its first vec4 and vec2 outputs).
-psp2spvc translates only loads, stores, vector arithmetic, dot, normalize,
-min, max, pow and matrix x vector: no branch, no division, no texture
-sampling, and its register allocator gives up on the per-vertex lighting
-("Cannot allocate space for temporary register"), so the lighting is computed
-on the CPU and the program only transforms. It reads a matrix by rows: the
-renderer uploads `Wvp` transposed.
+It transforms the mesh's position by `Wvp` (uploaded row by row) and passes the
+uv and the draw's shaded colour (the lighting runs on the CPU) to SDL's texture
+fragment program. Its Cg source is in `targets/vita/gxpc/gxpc.c`.
 
-Rebuild it from a checkout of psp2spvc (1whatleytay/psp2spvc, commit 1c296ab;
-its `external/usse-decoder-gen` submodule is gone from GitHub and not needed,
-the generated `src/gxp/src/instructions.cpp` is committed) and glslang
-(KhronosGroup/glslang, `glslang-standalone`):
+It is compiled by Sony's SceShaccCg, on a PS Vita:
+1. Build the `gxpc` tool (its `CMakeLists.txt` names the commands).
+2. Install `gxpc.vpk` and run it once. It needs `libshacccg.suprx` in
+   `ur0:data` or `ur0:data/external`.
+3. Fetch `ux0:data/zinc/gxp/tex3d-v.gxp` over FTP.
+4. Write `zn_gxp_tex3d.h` from it: its bytes as
+   `zn::vita::gxp3d::tex3dVertexProgramGxp`, 16-byte aligned.
 
-```sh
-git -C psp2spvc submodule update --init external/fmt external/SPIRV-Cross
-cmake -S psp2spvc -B spvc-build -DCMAKE_CXX_FLAGS="-w" && cmake --build spvc-build
-glslang -V tex3d.vert -o tex3d-v.spv
-spvc-build/src/psp2spvc tex3d-v.spv -o tex3d-v.gxp
-```
-
-then write `zn_gxp_tex3d.h` from `tex3d-v.gxp` (the bytes as
-`zn::vita::gxp3d::tex3dVertexProgramGxp`, 16-byte aligned). The same tools
-rebuild `color3d-v.gxp` and `color3d-f.gxp` byte for byte (checked
-2026-10-25).
+The first version came from glslang and psp2spvc. It ran in Vita3K but crashed
+a real Vita's GPU (2026-10-25): its header fields differ from those of Sony's
+compiler. The colour pair above (`color3d-*.gxp`, ZN-493, off by default) comes
+from the same tools and was never run on a console; build it with `gxpc` before
+turning it on.
