@@ -21,8 +21,8 @@ grep -q 'tokyo: [0-9]* chunks read' "$tmp/day.out" || { echo "tokyo: the loading
 tris() { python3 tools/scene-texts "$1" | sed -n 's/.* \([0-9][0-9]*\) tris .*/\1/p' | head -1; }
 day=$(tris "$tmp/day-120"); psp=$(tris "$tmp/psp-120")
 [ -n "$day" ] && [ "$day" -gt 20000 ] || { echo "tokyo: the desktop readout shows ${day:-no} triangles"; fail=1; }
-# the PSP's budget is 40000 triangles (src/devices.ts): the governor keeps it within a few per cent, fewer than the desktop's
-[ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 42000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
+# the PSP's budget is 42000 triangles (src/devices.ts, Pocket Tokyo's): the governor keeps it within a few per cent, fewer than the desktop's
+[ -n "$psp" ] && [ "$psp" -gt 1000 ] && [ "$psp" -le 44000 ] && [ "$psp" -lt "$day" ] || { echo "tokyo: the PSP's settings draw ${psp:-no} triangles (the desktop's $day)"; fail=1; }
 python3 tools/scene-texts "$tmp/day-80" | grep -q 'tour' || { echo "tokyo: not on the tour at frame 80"; fail=1; }
 python3 tools/scene-texts "$tmp/day-198" | grep -q 'free' || { echo "tokyo: Start did not leave the tour"; fail=1; }
 python3 - "$tmp/day-80.png" "$tmp/day-120.png" "$tmp/night-120.png" <<'P' || fail=1

@@ -50,6 +50,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Three games for the Nintendo 3DS's two screens, in stereoscopic 3D: Nova Patrol DS (`examples/n3ds-pinball`, the space pinball's table across both screens), Meadow Run 3D (`examples/n3ds-platformer`, the level on top, the map and the stylus look-around below) and Starfall (`examples/n3ds-starfall`, draw lines with the stylus to throw falling stars back into their constellation).
 - `zinc:lan`: UDP (broadcast included) and TCP sockets that you poll once a frame. The same calls work on a desktop and on the PSP, PS Vita and 3DS. On the consoles, `up()` joins the Wi-Fi first: a PSP uses its first network setting. See `docs/plugins/lan.md`.
 - `examples/lan-arena` (Paint Arena): a paint-ball match in a raycast 3D arena. The Mac hosts it, and PSP, PS Vita and 3DS players on the same Wi-Fi find it and join. Bots fill in when you play alone.
+- PSP: a zinc:3d `World` is drawn the way Pocket Tokyo draws its city (vertices of 8 and 12 bytes, one light per wall direction, two depth ranges for a 6 km view): examples/tokyo renders in 1.3 ms a frame instead of 3.2, with Pocket Tokyo's 42,000-triangle budget, and now shows the night.
 
 ### Fixed
 - Nova Patrol DS 0.2: use the compiled `--aot` console build, skip unchanged Box2D bridge writes and stationary flipper geometry, and apply a smaller 3DS effect budget. The dual-screen view now displays the textured bumper caps, mechanical recoil, Kenney spark sprites and refreshed score panels.

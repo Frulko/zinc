@@ -8,7 +8,6 @@
       { "match": "city/*.png", "as": "texture", "mipmaps": false },
       { "match": "city/c*.near.zwc", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
       { "match": "city/b*.png", "targets": { "psp": { "skip": true }, "n3ds": { "skip": true }, "vita": { "skip": true } } },
-      { "match": "city/*night*.png", "targets": { "psp": { "skip": true } } },
       { "match": "city/g*.png", "targets": { "psp": { "maxSize": 128 }, "n3ds": { "maxSize": 256 }, "vita": { "maxSize": 256 } } },
       { "match": "city/facade*.png", "targets": { "psp": { "maxSize": 256 }, "n3ds": { "maxSize": 256 } } }
     ]
