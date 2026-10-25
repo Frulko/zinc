@@ -49,7 +49,7 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 | Mac (desktop) | all levels | 600 / 2000 m | 2500 to 5800 m | 400,000 | yes | yes | dome |
 | PS Vita | 13.9 MB: mid + far, grounds 256² (128² a block) | — / 1300 m | 1600 to 5800 m | 40,000 | yes | yes | dome |
 | 3DS | 12.7 MB: mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps | — / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
-| PSP | 8.4 MB: mid + far, grounds 128² (64² a block), facades 256² | — / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
+| PSP | 9.2 MB: mid + far, grounds 256² (128² a block) and facades 512 × 64 in CLUT8 with their night palettes, the heights for the shadows | — / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
 | Raspberry Pi 1 (`rpi1`) | not built yet | 300 / 900 m | 600 to 3000 m | 12,000 | yes | no | one colour |
 
 The far level reaches the whole city on every device. The consoles leave the near level out of their packs: they have no room for it in
@@ -110,6 +110,18 @@ memory without streaming (`backlog/later.md`).
   - The selection lists the ranges in draw order (kind, chunk, batch, index) instead of sorting them.
   - The memory the vertices no longer take (72 bytes a vertex before, the float mesh and the GE's copy) leaves room for the night: the
     PSP pack now carries the night pictures (8.4 MB instead of 7.4) and the device table turns the night on.
+  - Pictures in CLUT8 (`P4`): the asset rule `"format": "clut8", "night": "{stem}.night.png"` quantises a picture and its night together
+    (a median cut over each texel's day and night colours, `src/assets/console_tex.cpp`) into one set of indices and two palettes. The GE reads
+    a palette that is the two mixed by `World.setNight` in 64 steps, so the dusk is a smooth blend and the night pictures are no longer in the
+    pack. A byte a texel: the grounds went from 128² to 256² (4 m a texel, the heights' own grid) and the facades from 256 × 32 to 512 × 64,
+    and the pictures still take half as much: 0.85 MB against 1.64 MB.
+  - Shadows (`P4`, `C5`): `World.shadows` hands the renderer the pack's heights (1024 × 768 at 4 m), and the 3DS's sweep (now
+    `ShadowSweep` in `render3d.host.cpp`, shared by both) runs 12 rows a frame when the sun has turned by a degree. Each row sets the top bit of
+    the ground pictures' texels over it where something stands between them and the sun; a ground picture keeps to 128 colours
+    (`"colors": 128`) and the upper half of its palette is the lower half under the ambient light only. The shade's darkness is in the
+    palettes, so it follows the light every frame without patching texels; by moonlight there is nothing to see and no sweep.
+  - `World.clearShadows()` turns them off (the Shadows button of the panel): the heights are freed, the shaded half of the palettes becomes the
+    lit one. No picture or map is freed while a frame may draw it (the 3DS frees its map after the GPU's frame).
 
 ### Raspberry Pi
 
@@ -136,7 +148,7 @@ in the interpreter); "after" is the world. Pocket Tokyo's figures are its own, o
 | Mac | 115,000 triangles; work p50 1.0, p95 2.0 ms; render 1.7 ms | 68,400 triangles, 433 draws; work p50 1.0, p95 1.0 ms; select 0.1, render 1.7 ms | — |
 | PS Vita (Vita3K) | budget 40,000; work p50 13, p95 14 ms; render 11.9 ms | 30,200 triangles, 303 draws (mid reach 1300 m); work p50 13, p95 14 ms; select 1.9, render 10.7 ms; 58.6 fps | 158,200 triangles, 222 draws, 60 fps |
 | 3DS (Azahar) | budget 18,000; work p50 7, p95 15 ms; select 2.1, render 5.8 ms | 55,500 triangles, 383 draws (budget 60,000, reaches at 0.87); work p50 8, p95 8 ms; select 5.1, render 2.0 ms; 30 fps held. With Pocket's PICA200 path: the same 55,500 triangles and 383 draws, with shadows, ETC1 pictures and the dusk blend; work p50 5, p95 5 ms; select 3.6 to 3.9, render 0.5 to 0.8 ms; 30 fps held | 40,000 triangles, 276 draws, 30 fps |
-| PSP (PPSSPP) | budget 14,000; work p50 8, p95 28 ms; select 5.1, render 6.6 ms | 37,100 triangles, 328 draws (budget 40,000); work p50 9, p95 9 ms; select 3.9, render 3.2 ms; 30 fps held. With Pocket's GE path: 38,900 triangles, 1,451 draws (budget 42,000, reaches at 1.00); work p50 7, p95 8 ms; select 4.3, render 1.3 ms (1.0 building the list); 30 fps held, 1,500 frames | 37,600 triangles, 1,255 draws, 30 fps |
+| PSP (PPSSPP) | budget 14,000; work p50 8, p95 28 ms; select 5.1, render 6.6 ms | 37,100 triangles, 328 draws (budget 40,000); work p50 9, p95 9 ms; select 3.9, render 3.2 ms; 30 fps held. With Pocket's GE path: 38,900 triangles, 1,451 draws (budget 42,000, reaches at 1.00); work p50 7, p95 8 ms; select 4.3, render 1.3 ms (1.0 building the list); 30 fps held, 1,500 frames. With CLUT8 pictures and shadows (15:30): the same 38,900 triangles and 1,451 draws; work p50 7, p95 9 ms (6 and 7 before); select 3.4, render 2.2 ms (1.2 before), of which 0.9 the sweep and its patch; 30 fps held. Shadows off: work p50 6, p95 7, render 1.1 ms | 37,600 triangles, 1,255 draws, 30 fps |
 
 The work no longer has spikes from reads: a chunk is read whole, natively, and the far level of the whole city is resident. The max of
 each run (26 to 62 ms) is the first frame after the loading.
@@ -154,9 +166,11 @@ Two fixes the measurements found:
 What is left (the next agents' per-console work):
 
 - **Vita, 158,000 triangles:** lighting and haze in a vertex program instead of the CPU (`render3d.vita.cpp`), then the near level.
-- **PSP:** the near level needs streaming (Pocket's 40 slots, a reader thread); shadows (the height-grid sweep and the ground palettes'
-  upper half); CLUT8 pictures with day and night palettes mixed by the hour, for a smooth dusk and a quarter of the texture memory; the
-  GE's time on hardware (Pocket's 1.5 ms + 0.63 ms per 1,000 triangles: about 26 ms for 38,900).
+- **PSP:** the near level needs streaming (Pocket's 40 slots, a reader thread); the GE's time on hardware (Pocket's 1.5 ms + 0.63 ms per
+  1,000 triangles: about 26 ms for 38,900). Memory (PPSSPP, `psp heap:` line): 29.2 MB of heap in use with the shadows (27.7 without; 29.1
+  before CLUT8), 16 MB of it the runtime's, beside a 12.5 MB EBOOT whose pack is 9.2 MB. That is 42 MB: a PSP-2000, 3000 or Go (52 MB with
+  the EBOOT's `MEMSIZE=1`) holds it; a PSP-1000 (24 MB for a program) does not, and needs a smaller runtime heap and the pack read from the
+  memory stick instead of linked in.
 - **3DS:** the near level needs streaming: its 15 MB do not fit beside the embedded pack in an Old 3DS's 64 MB (Pocket reads 40 slots from
   the SD card). The GPU's time on hardware is not known: Azahar does not time the PICA200, and the budget (60,000) is above Pocket's 40,000.
 - **The selection** costs 4.3 ms a frame on the PSP (with a range per sector) and 3.6 to 3.9 on the 3DS (5.1 before; Azahar's clock), against

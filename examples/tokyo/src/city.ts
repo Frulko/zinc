@@ -61,13 +61,11 @@ export class City {
     return read;
   }
 
-  /** The shadows on or off (drawn where the renderer can: the 3DS). */
+  /** The shadows on or off (drawn where the renderer can: the 3DS, the PSP). */
   setShadows(on: boolean): void {
     const m = this.hmap;
-    if (m.length < 7) return;
-    if (on) this.world.shadows(CITY_HMAP, m[0], m[1], m[2], m[3], m[4], m[5], m[6]);
-    // ponytail: zinc:3d has no switch for them; a flat field of 2 x 2 heights over the whole city (unit 0) leaves everything in the light
-    else this.world.shadows(CITY_HEIGHTS, m[0], m[1], 8192, 2, 2, 0, 0);
+    if (!on) this.world.clearShadows();
+    else if (m.length >= 7) this.world.shadows(CITY_HMAP, m[0], m[1], m[2], m[3], m[4], m[5], m[6]);
   }
 
   /** The heights as a map picture, RGBA, `w` x `h` pixels of `metres` from (x0, z0): the bay in blue, the roofs lighter the higher. */

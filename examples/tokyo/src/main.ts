@@ -42,6 +42,7 @@ stage.addChild(panel);
 // input scripts hold buttons, not the stylus); the overlay opens first
 const tapAt = env('ZINC_TOKYO_TAP').split(':');
 if (env('ZINC_TOKYO_STEREO') === '1') settings.toggleStereo();   // to measure the stereo picture without touching the panel
+if (env('ZINC_TOKYO_SHADOWS') === '0') settings.toggleShadows();   // to see and measure the city without its shadows
 let tapFrame: i32 = tapAt.length === 3 ? parseInt(tapAt[0], 10) : -1, ran: i32 = 0, settled: i32 = 0, eye: i32 = 0, panelMs = 0;
 // where the eye will be: in 2 and 4 seconds in flight, in 4 and 8 seconds behind the loading screen (the chunks to read for them)
 const ahead: number[] = [0, 0, 0, 0, 0, 0];

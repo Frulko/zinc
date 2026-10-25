@@ -47,6 +47,7 @@ Useful variables:
 - `ZINC_TOKYO_TAP=<frame>:<x>:<y>` touches the panel at (x, y), that many frames after the loading (the consoles' scripted runs, whose
   input scripts hold buttons but not the stylus).
 - `ZINC_TOKYO_STEREO=1` starts with the stereo picture on (3DS).
+- `ZINC_TOKYO_SHADOWS=0` starts with the shadows off (3DS, PSP).
 
 ## The control panel
 
@@ -56,7 +57,7 @@ The same panel of 320 × 240 on every device, with three pages:
   Shinbashi (Pocket Tokyo's coordinates and viewpoints, `src/places.ts`). Touch one and the eye flies there over the roofs, then stays in
   free flight.
 - **Settings:** the time of day (day, dusk, night) and whether the clock runs, the haze (off, near, normal, far), the triangle budget
-  (half the device's, the device's, twice), the shadows (3DS), the readout, and the stereo picture (3DS; mono by default, as Pocket runs).
+  (half the device's, the device's, twice), the shadows (3DS, PSP), the readout, and the stereo picture (3DS; mono by default, as Pocket runs).
 - **Controls:** the guided tour or free flight, and the buttons.
 
 On the 3DS the panel is the touch screen, drawn again only when something it shows has changed. On the other devices Select (Tab on a

@@ -27,8 +27,8 @@ export class Settings {
   stereo = false;
   /** Shown on the panel: the budget in triangles. */
   budgetText = '';
-  /** Only the 3DS draws shadows (zinc:3d World.shadows) and has a 3D screen. */
-  readonly canShadow: boolean = platform() === 'n3ds';
+  /** The 3DS and the PSP draw shadows (zinc:3d World.shadows); the 3DS has a 3D screen. */
+  readonly canShadow: boolean = platform() === 'n3ds' || platform() === 'psp';
   readonly canStereo: boolean = stereoDepth() >= 0;
   version: i32 = 0;
 
