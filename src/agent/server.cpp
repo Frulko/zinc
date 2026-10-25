@@ -237,6 +237,7 @@ std::string infoJson(const State& s) {
     kind = b == std::string::npos ? "" : t.substr(b + 1);
   }
   o.flag("ok", true).str("id", s.id).str("name", s.name).str("engine", s.engine).str("os", os).str("osVersion", u.release).str("arch", arch).str("kind", kind);
+  o.flag("localEngine", std::getenv("ZINC_AGENT_LOCAL") != nullptr);   // zinc device update --local
   o.num("cores", std::thread::hardware_concurrency());
   double load[3] = {0, 0, 0};
   ::getloadavg(load, 3);
@@ -480,6 +481,111 @@ void opShell(State& s, Chan& c, const Val& req) {
   if (!peerGone) send(c, kExit, std::to_string(exitCode(status)));
 }
 
+// ---- zinc device update --local (ZN-818): an engine built on a workstation runs this agent, without a release ----
+// It lives in <home>/engine (the package of tools/build-linux, unpacked). The installed agent hands over to it at its start (serve below),
+// with ZINC_AGENT_LOCAL naming the installed binary to come back to. It is on trial until it listens: an agent that finds the trial mark
+// still there (that engine never got so far, and the service started the installed one again) sets it aside and runs itself.
+
+std::vector<std::string> gAgentArgs;   // serve's arguments: what the agent restarts with
+
+// The agent starts again in place (same process: the service and the apps it started do not notice), through the installed binary.
+void restartAgent(const State& s) {
+  std::thread([&s] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));   // the answer reaches the workstation first
+    for (int fd = 3; fd < 1024; ++fd) ::fcntl(fd, F_SETFD, FD_CLOEXEC);   // its listening socket among them: the next one binds the port
+    const char* installed = std::getenv("ZINC_AGENT_LOCAL");
+    const std::string bin = installed && *installed ? installed : s.self;
+    ::unsetenv("ZINC_AGENT_LOCAL");
+    std::vector<std::string> argv = {bin, "agent"};
+    argv.insert(argv.end(), gAgentArgs.begin(), gAgentArgs.end());
+    std::vector<char*> p;
+    for (std::string& a : argv) p.push_back(a.data());
+    p.push_back(nullptr);
+    ::execv(bin.c_str(), p.data());
+    std::fprintf(stderr, "zinc agent: cannot start again (%s): %s\n", bin.c_str(), std::strerror(errno));
+    std::_Exit(1);   // the service starts it again
+  }).detach();
+}
+
+// A command's exit status and output (tar, the new engine's --version).
+int capture(const std::vector<std::string>& argv, std::string& out) {
+  int fds[2];
+  if (::pipe(fds) != 0) return -1;
+  const pid_t pid = ::fork();
+  if (pid == 0) {
+    ::dup2(fds[1], 1);
+    ::dup2(fds[1], 2);
+    ::close(fds[0]);
+    std::vector<char*> p;
+    for (const std::string& a : argv) p.push_back(const_cast<char*>(a.c_str()));
+    p.push_back(nullptr);
+    ::execvp(p[0], p.data());
+    ::_exit(127);
+  }
+  ::close(fds[1]);
+  char buf[4096];
+  for (ssize_t n; (n = ::read(fds[0], buf, sizeof buf)) > 0 || (n < 0 && errno == EINTR);) if (n > 0) out.append(buf, static_cast<size_t>(n));
+  ::close(fds[0]);
+  int status = 0;
+  while (pid > 0 && ::waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+  return pid > 0 && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+void opEngine(State& s, Chan& c, const Val& req) {
+  const std::string dir = s.home + "/engine", stage = s.home + "/engine.incoming";
+  std::error_code ec;
+  if (req.flag("remove")) {
+    if (!fs::exists(dir, ec)) { send(c, kJson, Obj().flag("ok", true).str("text", "no local engine on " + s.name + ": it runs the installed zinc " + s.engine).done()); return; }
+    fs::remove_all(dir, ec);
+    if (ec) { refuse(c, dir + ": " + ec.message()); return; }
+    send(c, kJson, Obj().flag("ok", true).str("text", "the local engine is removed: " + s.name + "'s agent starts again on the installed zinc").done());
+    restartAgent(s);
+    return;
+  }
+  fs::remove_all(stage, ec);
+  fs::create_directories(stage + "/engine", ec);
+  if (ec || !send(c, kJson, Obj().flag("ok", true).done())) return;
+  std::uint64_t files = 0, bytes = 0;
+  std::string err, out;
+  if (!recvTree(c, stage + "/package.tar.gz", files, bytes, err)) { refuse(c, err); fs::remove_all(stage, ec); return; }
+  if (capture({"tar", "-xzf", stage + "/package.tar.gz", "-C", stage + "/engine", "--strip-components=1"}, out) != 0) err = "the package does not unpack: " + out;
+  else if (out.clear(), capture({stage + "/engine/bin/zinc", "--version"}, out) != 0 || out.rfind("zinc-next ", 0) != 0) err = "the engine of the package does not start on " + s.name + ": " + out.substr(0, 300);
+  if (!err.empty()) { refuse(c, err); fs::remove_all(stage, ec); return; }
+  while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+  fs::remove_all(dir, ec);
+  fs::rename(stage + "/engine", dir, ec);
+  fs::remove_all(stage, ec);
+  if (ec) { refuse(c, dir + ": " + ec.message()); return; }
+  fs::remove(s.home + "/engine.trial", ec);
+  send(c, kJson, Obj().flag("ok", true).str("text", out + " (local build) runs " + s.name + "'s agent and the apps it starts; zinc device " + s.name + " update --local --remove goes back to the installed zinc " + s.engine).done());
+  restartAgent(s);
+}
+
+// At the agent's start: hand over to a local engine, or set aside one that failed. Returns only when this binary keeps serving.
+void handOver(const std::string& home, const std::string& self, const std::vector<std::string>& args) {
+  if (std::getenv("ZINC_AGENT_LOCAL")) return;   // the local engine itself
+  const std::string bin = home + "/engine/bin/zinc", trial = home + "/engine.trial";
+  std::error_code ec;
+  if (!fs::exists(bin, ec)) return;
+  if (fs::exists(trial, ec)) {   // that engine never reached its socket: the installed one serves, the local one is kept aside to look at
+    fs::remove_all(home + "/engine.failed", ec);
+    fs::rename(home + "/engine", home + "/engine.failed", ec);
+    fs::remove(trial, ec);
+    std::fprintf(stderr, "zinc agent: the local engine did not start: the installed one runs; it is kept in %s/engine.failed\n", home.c_str());
+    return;
+  }
+  writePrivate(trial, "");
+  ::setenv("ZINC_AGENT_LOCAL", self.c_str(), 1);
+  std::vector<std::string> argv = {bin, "agent"};
+  argv.insert(argv.end(), args.begin(), args.end());
+  std::vector<char*> p;
+  for (std::string& a : argv) p.push_back(a.data());
+  p.push_back(nullptr);
+  ::execv(bin.c_str(), p.data());
+  ::unsetenv("ZINC_AGENT_LOCAL");   // it cannot start at all: this one serves
+  fs::remove(trial, ec);
+}
+
 void opPush(Chan& c, const Val& req) {
   const std::string base = req.str("base");
   if (base.find('/') != std::string::npos || !safeRel(base)) { refuse(c, "bad name"); return; }
@@ -646,6 +752,7 @@ void handleSession(State& s, int fd) {
   if (op == "info") send(c, kJson, infoJson(s));
   else if (op == "shell") opShell(s, c, req);
   else if (op == "push") opPush(c, req);
+  else if (op == "engine") opEngine(s, c, req);
   else if (op == "pull") opPull(c, req);
   else if (op == "install") opInstall(s, c, req);
   else if (op == "logs") opLogs(s, c, req);
@@ -736,6 +843,7 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
   fs::create_directories(s.home + "/apps", ec);
   ::chmod(s.home.c_str(), 0700);
   if (ec) { std::fprintf(stderr, "zinc agent: cannot use %s: %s\n", s.home.c_str(), ec.message().c_str()); return 1; }
+  if (args.empty() || args[0][0] == '-') { gAgentArgs = args; handOver(s.home, self, args); }
 
   for (const auto& e : fs::directory_iterator(s.home + "/apps", ec))   // an install the last agent did not finish
     if (e.path().filename().string().rfind(".incoming-", 0) == 0 && (args.empty() || args[0][0] == '-')) fs::remove_all(e.path(), ec);
@@ -817,7 +925,8 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
   ::signal(SIGPIPE, SIG_IGN);
   ::signal(SIGINT, onStop);
   ::signal(SIGTERM, onStop);
-  say(s.name + " (" + s.id + ") listening on " + bind + ":" + std::to_string(s.port) + (s.shell ? "" : ", shell off"));
+  say(s.name + " (" + s.id + ") listening on " + bind + ":" + std::to_string(s.port) + (s.shell ? "" : ", shell off") + (std::getenv("ZINC_AGENT_LOCAL") ? ", local engine" : ""));
+  { std::error_code e; fs::remove(s.home + "/engine.trial", e); }   // a local engine that got here holds
   if (loadClients(s.home).empty()) {
     const std::string open = pairingCode(s.home);
     const std::string code = open.empty() ? openPairing(s.home) : open;

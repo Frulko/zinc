@@ -352,6 +352,16 @@ machine at each save, sends the device's agent what changed and restarts the pro
 terminal, a compile error is the red box on the device's screen, and a saved asset of a project that packs its assets is
 swapped into the running program. Details and limits: `docs/reports/zinc-next-agent.md`.
 
+`--perf` shows the performance panel over the program on the device, `--live` opens the device's screen in a window here for the
+session (`zinc device <name> screen --live`; closing the window stops watching, the session goes on).
+
+To try a change of the engine itself on a Linux device without a release, `zinc device <name> update --local` builds this source tree for
+the device's architecture (`tools/build-linux`, minutes the first time, then only what changed), sends the package, and the device's agent
+starts again on it: the apps it starts (`zinc dev --device`, `deploy`, `run`) run on that engine too. `zinc device <name> info` says
+`"localEngine": true`. `--local <package.tar.gz>` sends a package built elsewhere; `--local --remove` goes back to the installed engine. An
+engine that cannot serve is set aside by the next start of the agent's service (kept in `~/.zinc/agent/engine.failed`), so the device is
+never left without its agent. The player of a Zinc Pi image keeps the installed engine; only a release updates it (`zinc device <name> update`).
+
 ## Phones and tablets: Zinc Go (`--lan`)
 
 `zinc dev --lan` serves the project to Zinc Go (`examples/zinc-go`, exported with `zinc export --target android|ios`) as `expo start` serves

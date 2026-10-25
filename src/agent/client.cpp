@@ -375,6 +375,53 @@ int cmdPull(Device& d, const std::vector<std::string>& args) {
   return 0;
 }
 
+// zinc device <d> update --local [package.tar.gz] | --local --remove (ZN-818): this tree's engine on the device without a release. The
+// package is the one tools/build-linux makes for the device's architecture (built here when none is given), sent and unpacked there; the
+// device's agent then runs on it, and so do the apps it starts. The paired channel is the trust: a local build has no release signature.
+int updateLocal(Device& d, const std::vector<std::string>& args, const std::string& self) {
+  std::string package, answer, err;
+  bool remove = false;
+  for (const std::string& a : args) { if (a == "--remove") remove = true; else if (a != "--local") package = a; }
+  if (remove) {
+    if (!request(d, Obj().str("op", "engine").flag("remove", true).done(), answer)) return 1;
+    std::printf("%s\n", Doc(answer).str("text").c_str());
+    return 0;
+  }
+  if (!request(d, Obj().str("op", "info").done(), answer)) return 1;
+  const Doc info(answer);
+  if (info.flag("player")) return fail(d.name + " is a player: its engine is its core (tools/build-console-core), not a package");
+  if (info.str("os") != "linux") return fail("update --local puts a Linux package on the device; " + d.name + " runs " + info.str("os") + " (zinc update there, or install.sh)");
+  const std::string m = info.str("arch");
+  const std::string arch = m == "aarch64" || m == "arm64" ? "aarch64" : m.rfind("armv", 0) == 0 ? "armhf" : m == "x86_64" || m == "amd64" ? "x86_64" : m;
+  if (package.empty()) {
+    const fs::path root = fs::path(self).parent_path().parent_path();
+    std::error_code ec;
+    if (!fs::exists(root / "tools/build-linux", ec))
+      return fail("update --local builds the package with tools/build-linux of zinc's sources, and this zinc is not a source build: give the package (zinc device " + d.name + " update --local zinc-<version>-linux-" + arch + ".tar.gz)");
+    std::fprintf(stderr, "building zinc for %s (%s) with tools/build-linux: the first time takes minutes, then only what changed\n", d.name.c_str(), arch.c_str());
+    const std::string cmd = "'" + (root / "tools/build-linux").string() + "' --arch " + arch;
+    if (std::system(cmd.c_str()) != 0) return fail("tools/build-linux --arch " + arch + " failed");
+    fs::file_time_type newest{};
+    for (const auto& e : fs::directory_iterator(root / ("dist/linux-" + arch), ec)) {
+      const std::string n = e.path().filename().string();
+      if (n.rfind("zinc-", 0) == 0 && n.size() > 7 && n.compare(n.size() - 7, 7, ".tar.gz") == 0 && e.last_write_time(ec) > newest) { newest = e.last_write_time(ec); package = e.path().string(); }
+    }
+    if (package.empty()) return fail("tools/build-linux made no package in " + (root / ("dist/linux-" + arch)).string());
+  }
+  std::error_code ec;
+  if (!fs::is_regular_file(package, ec)) return fail(package + ": not a package file");
+  std::unique_ptr<Chan> c = request(d, Obj().str("op", "engine").done(), answer);
+  if (!c) return 1;
+  std::uint64_t files = 0, bytes = 0;
+  char type = 0;
+  if (!sendTree(*c, package, files, bytes, err, progress(package))) return fail(err);
+  if (!recv(*c, type, answer, 300000) || type != kJson) return fail("the session with " + d.name + " ended early");
+  const Doc a(answer);
+  if (!a.flag("ok")) return fail(a.str("error"));
+  std::printf("%s\n", a.str("text").c_str());
+  return 0;
+}
+
 // Installs a .zapp or an export directory; `name` gets the name the device gave it.
 int install(Device& d, const std::string& path, std::string& name) {
   std::error_code ec;
@@ -770,6 +817,7 @@ int usage() {
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"
                "       zinc device [<device>] update [<app>] [--url u]  an app from its signed channel, fetched by the device; no app: the engine\n"
+               "       zinc device [<device>] update --local [package] | --local --remove  this source tree's engine on the device, without a release (built with tools/build-linux)\n"
                "       zinc device [<device>] forward <local-port|0> <device-port>   a port of the device here (its inspector)\n"
                "       zinc device [<device>] reverse <device-port|0> <local-port>   a port of this machine there (a server an app calls)\n"
                "       zinc device [<device>] inspect <app> [--port n]              its inspector on a port of this machine: the DevTools address\n"
@@ -845,6 +893,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   }
   if (op == "inspect" || op == "shot" || op == "monitor" || op == "top") return inspectCommand(*d, op, args, self);
   if (op == "apps") return simple(*d, "apps", "");
+  if (op == "update" && std::find(args.begin(), args.end(), "--local") != args.end()) return updateLocal(*d, args, self);
   if (op == "update") {   // the device fetches and checks (ota.cpp); a second answer when the download is done
     std::string app, url, answer;
     for (size_t i = 0; i < args.size(); ++i) { if (args[i] == "--url" && i + 1 < args.size()) url = args[++i]; else app = args[i]; }
