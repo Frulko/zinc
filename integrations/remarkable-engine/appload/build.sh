@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds AppLoad v0.6.0 + 0001-window-state.patch for the reMarkable Paper Pro
+# Builds AppLoad v0.6.0 + 0001-window-state.patch + 0002-widgets-and-icons.patch for the reMarkable Paper Pro
 # the way AppLoad's own CI does (.github/workflows/build-release.yml), in Docker.
 # Output: <repo>/dist/rmpp/appload-window.so
 set -eu
@@ -16,7 +16,7 @@ IMAGE=eeems/remarkable-toolchain@sha256:3576ab0c6a75b081e30a84abf67bf7473ff449f6
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 git clone -q --depth 1 --branch "$APPLOAD_TAG" https://github.com/asivery/rm-appload.git "$work/appload"
-git -C "$work/appload" apply "$here/0001-window-state.patch"
+for patch in "$here"/0*.patch; do git -C "$work/appload" apply "$patch"; done
 git clone -q https://github.com/asivery/xovi.git "$work/xovi"
 git -C "$work/xovi" -c advice.detachedHead=false checkout -q "$XOVI_COMMIT"
 

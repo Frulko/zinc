@@ -1,0 +1,864 @@
+From 33f54cb3fb58efb7d3c9912a6624d00bff0fec81 Mon Sep 17 00:00:00 2001
+From: Guillaume Dumoulin <dev@myrole.fr>
+Date: Sun, 25 Oct 2026 22:53:03 +0100
+Subject: [PATCH] qtfb: let a client show a widget; give the window bar real
+ icons
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Adds MESSAGE_SET_WIDGET (10): in the update slot of ClientMessage, the
+rectangle of the client's framebuffer to show as a widget (w or h <= 0
+removes it; a rectangle outside the framebuffer drops the client).
+MESSAGE_SET_WINDOW_STATE gains WINDOW_STATE_WIDGET (2): the window
+becomes a card showing that rectangle 1:1 under a header with the app's
+tile, its name, open and close. The card is dragged by its header and
+its position is kept per app in widget-positions.json. Input inside the
+card reaches the client in framebuffer pixels; a MESSAGE_UPDATE repaints
+only the part of the card it touches. Without a widget, state 2
+minimizes.
+
+STATE_CHANGED_REASON_VISIBILITY gains 2 (shown as a widget), and the
+new STATE_CHANGED_REASON_CAPABILITIES (2) tells a client in the initial
+state packets which extensions the server understands (bit 0 window
+state, bit 1 widgets).
+
+The minimized window is a compact pill (tile, name, open, close) and
+the window bar uses vector icons (Lucide, ISC) instead of the "_",
+"□"/"▭" and "X" glyphs.
+
+xovi/make.sh writes rcc's output to a file before trimming it: with
+pipefail, sed quitting early killed rcc with SIGPIPE once the resources
+outgrew the pipe buffer.
+---
+ resources/icons/lucide-maximize-2.svg |  17 ++
+ resources/icons/lucide-maximize.svg   |  17 ++
+ resources/icons/lucide-minimize.svg   |  17 ++
+ resources/icons/lucide-minus.svg      |  14 ++
+ resources/icons/lucide-x.svg          |  15 ++
+ resources/qml/appload.qml             |   2 +
+ resources/qml/window.qml              | 215 +++++++++++++++++++++-----
+ resources/resources.qrc               |   5 +
+ src/AppLibrary.h                      |  13 ++
+ src/qtfb/FBController.cpp             |  56 ++++++-
+ src/qtfb/FBController.h               |  15 ++
+ src/qtfb/common.h                     |  20 ++-
+ src/qtfb/fbmanagement.cpp             |  27 +++-
+ xovi/make.sh                          |   4 +-
+ 14 files changed, 390 insertions(+), 47 deletions(-)
+ create mode 100644 resources/icons/lucide-maximize-2.svg
+ create mode 100644 resources/icons/lucide-maximize.svg
+ create mode 100644 resources/icons/lucide-minimize.svg
+ create mode 100644 resources/icons/lucide-minus.svg
+ create mode 100644 resources/icons/lucide-x.svg
+
+diff --git a/resources/icons/lucide-maximize-2.svg b/resources/icons/lucide-maximize-2.svg
+new file mode 100644
+index 0000000..dd24987
+--- /dev/null
++++ b/resources/icons/lucide-maximize-2.svg
+@@ -0,0 +1,17 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2.5"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <polyline points="15 3 21 3 21 9" />
++  <polyline points="9 21 3 21 3 15" />
++  <line x1="21" x2="14" y1="3" y2="10" />
++  <line x1="3" x2="10" y1="21" y2="14" />
++</svg>
+diff --git a/resources/icons/lucide-maximize.svg b/resources/icons/lucide-maximize.svg
+new file mode 100644
+index 0000000..f16e24b
+--- /dev/null
++++ b/resources/icons/lucide-maximize.svg
+@@ -0,0 +1,17 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2.5"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
++  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
++  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
++  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
++</svg>
+diff --git a/resources/icons/lucide-minimize.svg b/resources/icons/lucide-minimize.svg
+new file mode 100644
+index 0000000..7c8f555
+--- /dev/null
++++ b/resources/icons/lucide-minimize.svg
+@@ -0,0 +1,17 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2.5"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
++  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
++  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
++  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
++</svg>
+diff --git a/resources/icons/lucide-minus.svg b/resources/icons/lucide-minus.svg
+new file mode 100644
+index 0000000..7c753a9
+--- /dev/null
++++ b/resources/icons/lucide-minus.svg
+@@ -0,0 +1,14 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2.5"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <path d="M5 12h14" />
++</svg>
+diff --git a/resources/icons/lucide-x.svg b/resources/icons/lucide-x.svg
+new file mode 100644
+index 0000000..5be5599
+--- /dev/null
++++ b/resources/icons/lucide-x.svg
+@@ -0,0 +1,15 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2.5"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <path d="M18 6 6 18" />
++  <path d="m6 6 12 12" />
++</svg>
+diff --git a/resources/qml/appload.qml b/resources/qml/appload.qml
+index 138da65..c3d2d29 100644
+--- a/resources/qml/appload.qml
++++ b/resources/qml/appload.qml
+@@ -52,6 +52,8 @@ Rectangle {
+             }
+ 
+             win.appName = modelData.name;
++            win.appId = modelData.id;
++            win.appIcon = modelData.icon;
+             win.supportsScaling = modelData.supportsScaling;
+             win.supportsRotation = modelData.supportsRotation;
+             win.virtualKeyboardLayout = modelData.virtualKeyboardLayout;
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index 6b9eded..3eb36b8 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -35,6 +35,19 @@ FocusScope {
+     // Set when the client minimized itself from fullscreen (MESSAGE_SET_WINDOW_STATE)
+     property bool restoreToFullscreen: false
+ 
++    // The app's tile, for the minimized pill and the widget header:
++    property string appId: ""
++    property string appIcon: "qrc:/appload/icons/appload"
++    // Widget: the window shows only the rectangle the client set with MESSAGE_SET_WIDGET, 1:1.
++    property bool widget: false
++    readonly property bool hasWidget: windowCanvas.widgetRect.width > 0 && windowCanvas.widgetRect.height > 0
++    readonly property bool compact: minimized || widget
++    readonly property int barHeight: 88
++    readonly property int outline: 3
++    property int widgetX: 0
++    property int widgetY: 0
++    readonly property int pillWidth: barHeight / 4 + barHeight + 12 + Math.min(_appName.implicitWidth, 560) + 12 + 2 * barHeight + barHeight / 4 + 8 // +8: slack for font metrics
++
+     // Keyboard handling:
+     property var virtualKeyboardLayout: null
+     property var virtualKeyboardRef: null
+@@ -94,18 +107,66 @@ FocusScope {
+     // Window state requested by the qtfb client itself.
+     function clientMinimize() {
+         if(minimized) return;
++        if(widget) {
++            // restoreToFullscreen is kept: open goes back to where the widget came from.
++            minimized = true;
++            widget = false;
++            return;
++        }
+         restoreToFullscreen = fullscreen && disablesWindowedMode;
+         if(fullscreen) maximize(); // Cannot have a full screen minimized app.
+         minimized = true;
+     }
+     function clientRestore() {
+-        if(!minimized) return;
++        if(!minimized && !widget) return;
++        widget = false;
+         minimized = false;
+         if(restoreToFullscreen) {
+             restoreToFullscreen = false;
+             maximize();
+         }
+     }
++    function clientWidget() {
++        if(!hasWidget) {
++            clientMinimize();
++            return;
++        }
++        if(widget) return;
++        if(!minimized) {
++            restoreToFullscreen = fullscreen;
++            if(fullscreen) maximize(); // A widget is never full screen.
++        }
++        placeWidget();
++        widget = true; // Before minimized, so that the client sees a single visibility change.
++        minimized = false;
++    }
++
++    // Widget positions, per app id, kept in AppLoad's directory.
++    function widgetPositions() {
++        try {
++            return JSON.parse(library.readWidgetPositions()) || {};
++        } catch(e) {
++            return {};
++        }
++    }
++    function placeWidget() {
++        const w = windowCanvas.widgetRect.width + 2 * outline;
++        const h = barHeight + windowCanvas.widgetRect.height + outline;
++        const saved = widgetPositions()[appId];
++        const x = saved ? saved.x : globalWidth - w - 40;
++        const y = saved ? saved.y : 160;
++        // Keep the whole card on the screen (it may have rotated since).
++        widgetX = Math.max(0, Math.min(x, globalWidth - w));
++        widgetY = Math.max(0, Math.min(y, globalHeight - h));
++    }
++    function saveWidgetPosition() {
++        if(root.x == widgetX && root.y == widgetY) return;
++        widgetX = root.x;
++        widgetY = root.y;
++        const all = widgetPositions();
++        all[appId] = { x: Math.round(root.x), y: Math.round(root.y) };
++        library.writeWidgetPositions(JSON.stringify(all));
++    }
+ 
+     AppLoadLibrary {
+         id: library
+@@ -131,6 +192,7 @@ FocusScope {
+                 target: root
+                 implicitHeight: topbar.height
+                 height: topbar.height
++                width: root.pillWidth
+             }
+ 
+             PropertyChanges {
+@@ -138,6 +200,24 @@ FocusScope {
+                 visible: false
+             }
+         },
++        State {
++            // A card: the header, then the widget's rectangle pixel for pixel inside a black outline.
++            name: "widget"
++            when: widget && !minimized
++            PropertyChanges {
++                target: root
++                x: root.widgetX
++                y: root.widgetY
++                width: windowCanvas.widgetRect.width + 2 * outline
++                height: barHeight + windowCanvas.widgetRect.height + outline
++            }
++            PropertyChanges {
++                target: mainWindowView
++                width: windowCanvas.widgetRect.width
++                height: windowCanvas.widgetRect.height
++                anchors.rightMargin: outline
++            }
++        },
+         State {
+             name: "maximized"
+             when: fullscreen
+@@ -172,7 +252,7 @@ FocusScope {
+         width: 100
+         height: 100
+         cursorShape: Qt.SizeFDiagCursor
+-        enabled: !fullscreen && !minimized
++        enabled: !fullscreen && !minimized && !widget
+         z: 10001
+ 
+         property real startX: 0
+@@ -209,28 +289,56 @@ FocusScope {
+     Rectangle {
+         anchors.fill: parent
+         color: "transparent"
+-        border.width: 2
++        border.width: widget ? outline : 2
+         border.color: "black"
+         z: 101
+-        visible: !topbarDragHandle.drag.active
++        visible: !topbarDragHandle.drag.active && !minimized
+     }
+ 
+     Rectangle {
+         id: topbar
+         visible: !fullscreen || forceTopBarVisible
+         width: parent.width
+-        height: visible ? 75 : 0
++        height: visible ? barHeight : 0
+         color: "white"
+         z: 2001
++        // Minimized: a pill with the app's tile, its name, open and close.
++        radius: minimized ? height / 2 : 0
+ 
+-        border.width: 2
++        border.width: compact ? outline : 2
+         border.color: "black"
+ 
++        // The app's tile (its icon.png), in the pill and the widget header.
++        Item {
++            id: appIconBox
++            visible: compact
++            width: parent.height
++            height: parent.height
++            anchors.left: parent.left
++            anchors.leftMargin: minimized ? parent.height / 4 : 0
++
++            Image {
++                anchors.centerIn: parent
++                width: parent.height - 24
++                height: parent.height - 24
++                sourceSize.width: width
++                sourceSize.height: height
++                fillMode: Image.PreserveAspectFit
++                source: root.appIcon
++            }
++        }
++
+         Text {
+             id: _appName
+-            anchors.fill: parent
+-            horizontalAlignment: Text.AlignHCenter
++            anchors.top: parent.top
++            anchors.bottom: parent.bottom
++            anchors.left: parent.left
++            anchors.right: parent.right
++            anchors.leftMargin: compact ? appIconBox.x + appIconBox.width + 12 : 0
++            anchors.rightMargin: compact ? closeButton.anchors.rightMargin + 2 * barHeight + 12 : 0
++            horizontalAlignment: compact ? Text.AlignLeft : Text.AlignHCenter
+             verticalAlignment: Text.AlignVCenter
++            elide: Text.ElideRight
+             font.pointSize: 20
+             text: "<AppLoad Window>"
+         }
+@@ -244,6 +352,9 @@ FocusScope {
+             onClicked: () => {
+                 root.forceActiveFocus();
+             }
++            onReleased: () => {
++                if(widget) saveWidgetPosition();
++            }
+         }
+ 
+         Rectangle {
+@@ -251,16 +362,18 @@ FocusScope {
+             width: parent.height
+             height: parent.height
+             anchors.right: parent.right
+-            border.width: 2
++            anchors.rightMargin: minimized ? parent.height / 4 : 0
++            border.width: compact ? 0 : 2
+             border.color: "black"
+-            color: parent.color
++            color: "transparent"
+ 
+-            Text {
+-                anchors.fill: parent
+-                horizontalAlignment: Text.AlignHCenter
+-                verticalAlignment: Text.AlignVCenter
+-                text: "X"
+-                font.pointSize: 20
++            Image {
++                anchors.centerIn: parent
++                width: 52
++                height: 52
++                sourceSize.width: 52
++                sourceSize.height: 52
++                source: "qrc:/appload/icons/close"
+             }
+ 
+             MouseArea {
+@@ -278,6 +391,28 @@ FocusScope {
+                 }
+             }
+         }
++        Rectangle {
++            id: openButton
++            width: parent.height
++            height: parent.height
++            anchors.right: closeButton.left
++            color: "transparent"
++            visible: compact
++
++            Image {
++                anchors.centerIn: parent
++                width: 52
++                height: 52
++                sourceSize.width: 52
++                sourceSize.height: 52
++                source: "qrc:/appload/icons/open"
++            }
++
++            MouseArea {
++                anchors.fill: parent
++                onClicked: () => clientRestore()
++            }
++        }
+         Rectangle {
+             id: maximizeButton
+             width: parent.height
+@@ -286,14 +421,15 @@ FocusScope {
+             border.width: 2
+             border.color: "black"
+             color: parent.color
+-            visible: !root.disablesWindowedMode
++            visible: !root.disablesWindowedMode && !compact
+ 
+-            Text {
+-                anchors.fill: parent
+-                horizontalAlignment: Text.AlignHCenter
+-                verticalAlignment: Text.AlignVCenter
+-                text: fullscreen ? "▭" : "□"
+-                font.pointSize: 20
++            Image {
++                anchors.centerIn: parent
++                width: 52
++                height: 52
++                sourceSize.width: 52
++                sourceSize.height: 52
++                source: fullscreen ? "qrc:/appload/icons/restore" : "qrc:/appload/icons/maximize"
+             }
+ 
+             MouseArea {
+@@ -311,24 +447,21 @@ FocusScope {
+             border.width: 2
+             border.color: "black"
+             color: parent.color
+-            // Shown while minimized too, so a fullscreen-only app the client minimized can be brought back.
+-            visible: !root.disablesWindowedMode || root.minimized
++            // The pill and the widget header have their own open button instead.
++            visible: !root.disablesWindowedMode && !compact
+ 
+-            Text {
+-                anchors.fill: parent
+-                horizontalAlignment: Text.AlignHCenter
+-                verticalAlignment: Text.AlignVCenter
+-                text: "_"
+-                font.pointSize: 20
++            Image {
++                anchors.centerIn: parent
++                width: 52
++                height: 52
++                sourceSize.width: 52
++                sourceSize.height: 52
++                source: "qrc:/appload/icons/minimize"
+             }
+ 
+             MouseArea {
+                 anchors.fill: parent
+                 onClicked: () => {
+-                    if(minimized) {
+-                        clientRestore();
+-                        return;
+-                    }
+                     if(fullscreen) maximize(); // Cannot have a full screen minimized app.
+                     minimized = true;
+                 }
+@@ -343,7 +476,7 @@ FocusScope {
+             border.width: 2
+             border.color: "black"
+             color: parent.color
+-            visible: virtualKeyboardLayout !== null
++            visible: virtualKeyboardLayout !== null && !compact
+ 
+             Image {
+                 source: "qrc:/appload/icons/keyboard"
+@@ -376,7 +509,7 @@ FocusScope {
+             border.width: 2
+             border.color: "black"
+             color: parent.color
+-            visible: !fullscreen && supportsRotation
++            visible: !fullscreen && supportsRotation && !compact
+ 
+             Image {
+                 source: "qrc:/appload/icons/rotate"
+@@ -405,6 +538,7 @@ FocusScope {
+             width: parent.width
+             height: 2
+             anchors.bottom: parent.bottom
++            visible: !minimized
+             border.width: 2
+             border.color: "black"
+         }
+@@ -436,12 +570,19 @@ FocusScope {
+             fbRotation: !supportsRotation ? FBController.Deg0 : fullscreen ? root.globalRotation : root.windowRotation
+             sendFlippedRotationToClient: false
+             clientVisible: !root.minimized
++            showWidget: root.widget
+ 
+             onWindowStateRequested: (state) => {
+                 if(state == 0) root.clientMinimize();
++                else if(state == 2) root.clientWidget();
+                 else root.clientRestore();
+             }
+ 
++            // The client removed its widget while it was shown: fall back to the pill.
++            onWidgetRectChanged: () => {
++                if(root.widget && !root.hasWidget) root.clientMinimize();
++            }
++
+             onActiveChanged: () => {
+                 if(!windowCanvas.active) {
+                     // Application closed.
+diff --git a/resources/resources.qrc b/resources/resources.qrc
+index 8012f7e..c8216ef 100644
+--- a/resources/resources.qrc
++++ b/resources/resources.qrc
+@@ -6,6 +6,11 @@
+ 		<file alias="icons/check">icons/check.svg</file>
+ 		<file alias="icons/keyboard">icons/keyboard.svg</file>
+ 		<file alias="icons/rotate">icons/rotate.svg</file>
++		<file alias="icons/minimize">icons/lucide-minus.svg</file>
++		<file alias="icons/maximize">icons/lucide-maximize.svg</file>
++		<file alias="icons/restore">icons/lucide-minimize.svg</file>
++		<file alias="icons/open">icons/lucide-maximize-2.svg</file>
++		<file alias="icons/close">icons/lucide-x.svg</file>
+ 
+ 		<file>qml/appload.qml</file>
+ 		<file>qml/window.qml</file>
+diff --git a/src/AppLibrary.h b/src/AppLibrary.h
+index 10e06da..29cddd9 100644
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -13,6 +13,7 @@
+ #include <QQuickPaintedItem>
+ 
+ #include "library.h"
++#include "config.h"
+ #include "keyboard/layout.h"
+ 
+ #define INTERNAL 0
+@@ -157,6 +158,18 @@ public:
+         appload::library::terminateExternal(pid);
+     }
+ 
++    // Where each app's widget was left, kept across restarts in a small JSON file in AppLoad's directory.
++    Q_INVOKABLE QString readWidgetPositions() {
++        QFile file(QString(APPLICATION_DIRECTORY_ROOT) + "/widget-positions.json");
++        if(!file.open(QIODevice::ReadOnly)) return "{}";
++        return QString::fromUtf8(file.readAll());
++    }
++
++    Q_INVOKABLE void writeWidgetPositions(const QString &json) {
++        QFile file(QString(APPLICATION_DIRECTORY_ROOT) + "/widget-positions.json");
++        if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(json.toUtf8());
++    }
++
+     const appload::vk::Layout *defaultLayout() const { return appload::library::defaultLayout; }
+ 
+     void loadList() {
+diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
+index cbb05e2..1d6e9b9 100644
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -30,7 +30,10 @@ void FBController::paint(QPainter *painter) {
+     isMidPaint = true;
+     QDEBUG << "FB Repaint triggered for " << framebufferID << ". Status: " << _active;
+     // Do we have an SHM associated?
+-    if(this->image && this->_active) {
++    if(this->image && this->_active && widgetShown()) {
++        // Widget: the client's rectangle, pixel for pixel, without rotation or scaling.
++        painter->drawImage(QPoint(0, 0), *image, _widgetRect);
++    } else if(this->image && this->_active) {
+         // Cool. Paint it.
+         switch(fbRotation) {
+             case Deg0: break;
+@@ -92,7 +95,11 @@ void FBController::markedUpdate(const QRect &rect) {
+         return;
+     }
+ 
+-    if(image) {
++    if(widgetShown()) {
++        // Repaint only what the widget shows of the updated region, if anything.
++        QRect visible = rect.intersected(_widgetRect);
++        if(!visible.isEmpty()) update(visible.translated(-_widgetRect.topLeft()));
++    } else if(image) {
+         auto updateRect = convertQTFBRectToScreen(rect).adjusted(0, 0, 1, 1);
+         QTransform rotate;
+         switch(fbRotation) {
+@@ -114,6 +121,12 @@ void FBController::markedUpdate(const QRect &rect) {
+ }
+ 
+ std::optional<QPoint> FBController::convertPointToQTFBPixels(const QPointF &input) {
++    if(widgetShown()) {
++        // Widget: item pixels are framebuffer pixels of the rectangle.
++        QPoint point = input.toPoint();
++        if(!QRect(QPoint(0, 0), _widgetRect.size()).contains(point)) return {};
++        return point + _widgetRect.topLeft();
++    }
+     QRect imgRect = image->rect();
+     QRect fbRect = convertQTFBRectToScreen(imgRect);
+     if(fbRotation == Deg90L || fbRotation == Deg90R) {
+@@ -351,13 +364,46 @@ qtfb::DeviceStateChangedContents FBController::formRotationChangePacket() {
+ }
+ 
+ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialStatePackets() {
+-    return { formRotationChangePacket(), formVisibilityChangePacket() };
++    sentVisibility = currentVisibility();
++    return { formRotationChangePacket(), formVisibilityChangePacket(), formCapabilitiesPacket() };
++}
++
++qtfb::DeviceStateChangedContents FBController::formCapabilitiesPacket() {
++    qtfb::DeviceStateChangedContents dscc = {
++        .reason = STATE_CHANGED_REASON_CAPABILITIES,
++        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS },
++    };
++    return dscc;
++}
++
++// Sends the visibility only when it changed: a move between two states that sets
++// clientVisible and showWidget one after the other sends no intermediate value.
++void FBController::sendVisibility() {
++    int visibility = currentVisibility();
++    if(visibility == sentVisibility) return;
++    sentVisibility = visibility;
++    qtfb::management::sendDeviceStateChange(framebufferID, formVisibilityChangePacket());
++}
++
++void FBController::setShowWidget(bool show) {
++    if(show == showWidget) return;
++    showWidget = show;
++    sendVisibility();
++    markedUpdate();
++}
++
++void FBController::setWidgetRect(const QRect &rect) {
++    if(rect == _widgetRect) return;
++    _widgetRect = rect;
++    emit widgetRectChanged();
++    sendVisibility();
++    if(showWidget) markedUpdate();
+ }
+ 
+ qtfb::DeviceStateChangedContents FBController::formVisibilityChangePacket() {
+     qtfb::DeviceStateChangedContents dscc = {
+         .reason = STATE_CHANGED_REASON_VISIBILITY,
+-        .visibility = { clientVisible ? 1 : 0 },
++        .visibility = { sentVisibility },
+     };
+     return dscc;
+ }
+@@ -365,7 +411,7 @@ qtfb::DeviceStateChangedContents FBController::formVisibilityChangePacket() {
+ void FBController::setClientVisible(bool visible) {
+     if(visible == clientVisible) return;
+     clientVisible = visible;
+-    qtfb::management::sendDeviceStateChange(framebufferID, formVisibilityChangePacket());
++    sendVisibility();
+ }
+ 
+ void FBController::setFbRotation(Rotation rotation) {
+diff --git a/src/qtfb/FBController.h b/src/qtfb/FBController.h
+index b363449..7648ef3 100644
+--- a/src/qtfb/FBController.h
++++ b/src/qtfb/FBController.h
+@@ -28,6 +28,10 @@ class FBController : public QQuickPaintedItem
+     Q_PROPERTY(Rotation fbRotation MEMBER fbRotation WRITE setFbRotation NOTIFY fbRotationChanged)
+     Q_PROPERTY(bool sendFlippedRotationToClient MEMBER sendFlippedRotationToClient)
+     Q_PROPERTY(bool clientVisible MEMBER clientVisible WRITE setClientVisible)
++    // The rectangle of the framebuffer the client asked to show as a widget (empty: none).
++    Q_PROPERTY(QRect widgetRect READ widgetRect NOTIFY widgetRectChanged)
++    // When set (and widgetRect is not empty) only widgetRect is shown, 1:1, at the item's origin.
++    Q_PROPERTY(bool showWidget MEMBER showWidget WRITE setShowWidget)
+     Q_OBJECT
+ public:
+     explicit FBController(QQuickItem *parent = nullptr) : QQuickPaintedItem(parent) { setAcceptTouchEvents(true); setAcceptedMouseButtons((Qt::MouseButtons) 0xFFFFFFFF); setFocusPolicy(Qt::StrongFocus); }
+@@ -67,6 +71,9 @@ public:
+     std::vector<struct qtfb::DeviceStateChangedContents> buildInitialStatePackets();
+     void setFbRotation(Rotation rotation);
+     void setClientVisible(bool visible);
++    void setShowWidget(bool show);
++    QRect widgetRect() const { return _widgetRect; }
++    void setWidgetRect(const QRect &rect);
+ 
+     std::optional<QPoint> convertPointToQTFBPixels(const QPointF &input);
+     QRect convertQTFBRectToScreen(const QRect &input);
+@@ -91,6 +98,7 @@ signals:
+     void framebufferSizeChanged();
+     void fbRotationChanged();
+     void windowStateRequested(int windowState);
++    void widgetRectChanged();
+ 
+ private:
+     int framebufferID = -1;
+@@ -100,6 +108,9 @@ private:
+     bool allowScaling = false;
+     bool sendFlippedRotationToClient = false;
+     bool clientVisible = true;
++    bool showWidget = false;
++    int sentVisibility = VISIBILITY_SHOWN;
++    QRect _widgetRect;
+     FillMode fillMode = Stretch;
+ 
+     bool checkingGestureDragDown = false;
+@@ -110,4 +121,8 @@ private:
+     void mouseEvent(QMouseEvent *me, int inputType);
+     qtfb::DeviceStateChangedContents formRotationChangePacket();
+     qtfb::DeviceStateChangedContents formVisibilityChangePacket();
++    qtfb::DeviceStateChangedContents formCapabilitiesPacket();
++    bool widgetShown() const { return showWidget && !_widgetRect.isEmpty() && image; }
++    int currentVisibility() const { return !clientVisible ? VISIBILITY_MINIMIZED : widgetShown() ? VISIBILITY_WIDGET : VISIBILITY_SHOWN; }
++    void sendVisibility();
+ };
+diff --git a/src/qtfb/common.h b/src/qtfb/common.h
+index e5e5982..fe4bb1b 100644
+--- a/src/qtfb/common.h
++++ b/src/qtfb/common.h
+@@ -24,6 +24,7 @@
+ #define MESSAGE_DEVICE_STATE_CHANGED 7
+ #define MESSAGE_DEVICE_STATE_INIT 8
+ #define MESSAGE_SET_WINDOW_STATE 9
++#define MESSAGE_SET_WIDGET 10
+ 
+ #define FBFMT_RM2FB 0
+ #define FBFMT_RMPP_RGB888 1
+@@ -64,9 +65,19 @@
+ 
+ #define STATE_CHANGED_REASON_ROTATION 0
+ #define STATE_CHANGED_REASON_VISIBILITY 1
++#define STATE_CHANGED_REASON_CAPABILITIES 2
++
++// STATE_CHANGED_REASON_CAPABILITIES flags: what this server understands.
++#define CAPABILITY_WINDOW_STATE 1 // MESSAGE_SET_WINDOW_STATE, STATE_CHANGED_REASON_VISIBILITY
++#define CAPABILITY_WIDGETS 2      // MESSAGE_SET_WIDGET, WINDOW_STATE_WIDGET, VISIBILITY_WIDGET
++
++#define VISIBILITY_MINIMIZED 0
++#define VISIBILITY_SHOWN 1
++#define VISIBILITY_WIDGET 2
+ 
+ #define WINDOW_STATE_MINIMIZE 0
+ #define WINDOW_STATE_RESTORE 1
++#define WINDOW_STATE_WIDGET 2
+ 
+ #define ROTATION_0 0
+ #define ROTATION_L90 1
+@@ -111,8 +122,11 @@ namespace qtfb {
+                 int rotation;
+             } rotation;
+             struct {
+-                int visible; // 1 = shown, 0 = minimized
++                int visible; // VISIBILITY_SHOWN 1, VISIBILITY_MINIMIZED 0, VISIBILITY_WIDGET 2
+             } visibility;
++            struct {
++                int flags; // CAPABILITY_*
++            } capabilities;
+         };
+     };
+ 
+@@ -120,11 +134,11 @@ namespace qtfb {
+         uint8_t type;
+         union {
+             struct InitMessageContents init;
+-            struct UpdateRegionMessageContents update;
++            struct UpdateRegionMessageContents update; // also MESSAGE_SET_WIDGET: x, y, w, h (type unused)
+             struct CustomInitMessageContents customInit;
+             // struct TerminateMessageContents terminate; - Terminate does not send any data.
+             int refreshMode;
+-            int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / WINDOW_STATE_RESTORE
++            int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / _RESTORE / _WIDGET
+             // no full refresh - Force full refresh does not send any data.
+         };
+     };
+diff --git a/src/qtfb/fbmanagement.cpp b/src/qtfb/fbmanagement.cpp
+index f7b4da3..8e49e88 100644
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -347,7 +347,7 @@ static void managementClientThread(int incomingFD) {
+             case MESSAGE_SET_WINDOW_STATE:
+                 status = invokeOnConnectedFramebuffer(&connection, [=](auto controller) {
+                     int state = inboundMessage.windowState;
+-                    if(state != WINDOW_STATE_MINIMIZE && state != WINDOW_STATE_RESTORE) {
++                    if(state != WINDOW_STATE_MINIMIZE && state != WINDOW_STATE_RESTORE && state != WINDOW_STATE_WIDGET) {
+                         CERR << "The client tried to set the window state to an undefined value!" << std::endl;
+                         return RESP_ERR;
+                     }
+@@ -357,6 +357,31 @@ static void managementClientThread(int incomingFD) {
+                     return RESP_OK;
+                 });
+                 break;
++            case MESSAGE_SET_WIDGET:
++                status = invokeOnConnectedFramebuffer(&connection, [&](auto controller) {
++                    int x = inboundMessage.update.x, y = inboundMessage.update.y;
++                    int w = inboundMessage.update.w, h = inboundMessage.update.h;
++                    QRect rect; // w or h <= 0: no widget.
++                    if(w > 0 && h > 0) {
++                        QSize size;
++                        {
++                            SYNCHRONIZE;
++                            auto backend = qtfb::management::connections.find(connection.fbKey);
++                            if(backend != qtfb::management::connections.end() && backend->second->image)
++                                size = backend->second->image->size();
++                        }
++                        if(x < 0 || y < 0 || (long long) x + w > size.width() || (long long) y + h > size.height()) {
++                            CERR << "The client tried to set a widget outside of its framebuffer!" << std::endl;
++                            return RESP_ERR;
++                        }
++                        rect = QRect(x, y, w, h);
++                    }
++                    QMetaObject::invokeMethod(controller, [controller, rect]() {
++                        controller->setWidgetRect(rect);
++                    });
++                    return RESP_OK;
++                });
++                break;
+             default:
+                 CERR << "Client has tried to send a message with an invalid type: " << inboundMessage.type << std::endl;
+                 goto close;
+diff --git a/xovi/make.sh b/xovi/make.sh
+index a968ae0..c2cb35d 100755
+--- a/xovi/make.sh
++++ b/xovi/make.sh
+@@ -6,7 +6,9 @@ rm -rf temporary/*
+ cp -rv ../src temporary
+ cp -rv template/* temporary/
+ 
+-rcc --no-compress -g cpp ../resources/resources.qrc | sed '/#ifdef _MSC_VER/,/#endif/d' | sed -n '/#ifdef/q;p' > temporary/resources.cpp
++# No pipe: with pipefail, sed quitting early kills its writer with SIGPIPE once the resources outgrow the pipe buffer.
++rcc --no-compress -g cpp ../resources/resources.qrc > temporary/resources.full.cpp
++sed -n -e '/#ifdef _MSC_VER/,/#endif/d' -e '/#ifdef/q' -e p temporary/resources.full.cpp > temporary/resources.cpp
+ 
+ cd temporary
+ python3 "$XOVI_REPO/util/xovigen.py" -o xovi.cpp -H xovi.h appload.xovi
+-- 
+2.50.1 (Apple Git-155)
+

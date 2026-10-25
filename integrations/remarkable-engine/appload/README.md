@@ -1,11 +1,14 @@
-# AppLoad window-state patch
+# AppLoad window-state and widget patches
 
-`0001-window-state.patch` adds to [AppLoad](https://github.com/asivery/rm-appload) v0.6.0 a way for a qtfb client to
-minimize and restore its own window and to know when it is hidden. A Zinc app on the reMarkable Paper Pro uses it for
-its "Home" button: the app minimizes itself, xochitl is usable again, and the app keeps running.
-The patch also applies cleanly on AppLoad master (df974a6, 2026-10).
+Two patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
 
-## Protocol
+- `0001-window-state.patch`: a qtfb client can minimize and restore its own window and knows when it is hidden. A Zinc
+  app on the reMarkable Paper Pro uses it for its "Home" button: the app minimizes itself, xochitl is usable again, and
+  the app keeps running. It also applies cleanly on AppLoad master (df974a6, 2026-10).
+- `0002-widgets-and-icons.patch` (on top of 0001): a client can show a part of its framebuffer as a widget, a small
+  card over xochitl; the minimized window becomes a compact pill; the window bar gets vector icons.
+
+## Protocol (0001)
 
 Added to `src/qtfb/common.h`; every existing message is unchanged.
 
@@ -24,18 +27,50 @@ Added to `src/qtfb/common.h`; every existing message is unchanged.
 - The "_" button now also shows while a window is minimized, so a fullscreen-only app (whose topbar has no "_" button)
   that minimized itself can be brought back by the user.
 
+## Protocol (0002)
+
+| Name | Value | Direction | Payload |
+|---|---|---|---|
+| `STATE_CHANGED_REASON_CAPABILITIES` | 2 | server to client | `DeviceStateChangedContents.capabilities.flags`: bit 0 (`CAPABILITY_WINDOW_STATE`) message 9 and reason 1, bit 1 (`CAPABILITY_WIDGETS`) message 10, window state 2 and visibility 2 |
+| `MESSAGE_SET_WIDGET` | 10 | client to server | `x, y, w, h` in the `update` slot of `ClientMessage` (`type` unused, 0): the widget's rectangle in framebuffer pixels; `w` or `h` <= 0 removes the widget |
+| `WINDOW_STATE_WIDGET` | 2 | client to server | new value of `MESSAGE_SET_WINDOW_STATE` |
+| `VISIBILITY_WIDGET` | 2 | server to client | new value of `visibility.visible` (0 minimized, 1 shown, 2 shown as a widget) |
+
+- Capabilities are sent in the initial state packets (`MESSAGE_DEVICE_STATE_INIT`), after rotation and visibility. A
+  client sends message 10 or window state 2 only after it saw bit 1; a server with 0001 alone sends no reason 2.
+- A widget rectangle that does not lie inside the framebuffer disconnects the client, like other invalid messages.
+- Window state 2 without a widget rectangle minimizes. Removing the rectangle while the widget is shown minimizes too.
+- Widget mode: the window becomes a card showing exactly the rectangle, framebuffer pixels to screen pixels (no
+  scaling, no rotation), under an 88 px header with the app's tile (its `icon.png`), its name, open (back to the window
+  as it was: full screen if it was, state 1) and close (the window's close). The card is dragged by its header; its
+  position is saved per app id in `widget-positions.json` in AppLoad's directory (`xovi/exthome/appload`) and clamped
+  to the screen. Pen and touch inside the card reach the client as `MESSAGE_USERINPUT` at `x + rect.x, y + rect.y`.
+  A `MESSAGE_UPDATE` repaints only its intersection with the rectangle, and nothing when it misses it.
+- Visibility is sent only when it changes: going from the pill to the widget sends 2 alone, not 1 then 2.
+- The minimized window (state 0) is a rounded pill: tile, name, open, close, 3 px black outline, 88 px targets. The
+  window bar uses the same icons instead of the "_", "□"/"▭" and "X" glyphs: minimize, maximize/restore, close.
+
+The patch also changes `xovi/make.sh`: it piped `rcc` into a `sed` that quits early, which under `pipefail` fails
+the build with SIGPIPE once the embedded resources outgrow the pipe buffer (the new icons do); `rcc` now writes a file.
+
+Icons: [Lucide](https://lucide.dev) v0.462.0 (`lucide-static`), ISC licence (Copyright (c) for portions of Lucide are
+held by Cole Bemis 2013-2022 as part of Feather (MIT); all other copyright (c) for Lucide are held by Lucide
+Contributors 2022). Files `resources/icons/lucide-{minus,maximize,minimize,maximize-2,x}.svg`, stroke set to black and
+2.5 wide for e-ink, each with its `@license` comment; the licence text: https://lucide.dev/license.
+
 ## Build
 
 ```sh
 integrations/remarkable-engine/appload/build.sh    # writes dist/rmpp/appload-window.so
 ```
 
-It follows AppLoad's own CI (`.github/workflows/build-release.yml`): AppLoad `v0.6.0` plus the patch, xovi at a pinned
+It follows AppLoad's own CI (`.github/workflows/build-release.yml`): AppLoad `v0.6.0` plus the patches, xovi at a pinned
 commit, `xovi/make.sh` inside `eeems/remarkable-toolchain:latest-rmpp` pinned by digest. Needs Docker and git; a few
-minutes on an M1. First build (2026-10-25): sha256 `46ec75d1b65a6fd54ec2ec98d2918db524976140ac87fd6bde3995f5cb8580e1`.
+minutes on an M1. First build (2026-10-25, 0001 alone): sha256 `46ec75d1b65a6fd54ec2ec98d2918db524976140ac87fd6bde3995f5cb8580e1`.
+With 0002 (2026-10-25): sha256 `e1139bf4eeb0852a14fb71958e96c430e1ab8b26a6461c5d0c3906165856951b`.
 The result is an aarch64 ELF with the same xovi entry points (`_xovi_construct`, `_xovi_depconstruct`,
-`LINKTABLENAMES`, `LINKTABLEVALUES`), the same imports and the same `NEEDED` libraries as the 0.6.0 release asset, plus
-three new `FBController` symbols.
+`LINKTABLENAMES`, `LINKTABLEVALUES`) and the same `NEEDED` libraries as the 0.6.0 release asset; its imports are the
+release's plus three from Qt6Core (`QIODevice::write(QByteArray)`, `QRect::operator&`, the `QRect` metatype).
 
 ## Install on the Paper Pro
 
@@ -51,7 +86,11 @@ ssh root@10.11.99.1 /home/root/xovi/start          # ONCE (it restarts xochitl);
 Go back to 0.6.0: `cp appload.so.0.6.0 appload.so` in the same directory, then one `xovi/start`
 (see `docs/targets/remarkable-paper-pro.md`, "Safety rules").
 
-## Upstream pull request
+## Upstream pull requests
+
+Two pull requests, one per patch: the window state is small and useful alone, the widgets depend on it.
+
+### 1. Window state
 
 Title: `qtfb: let a client minimize/restore its window and learn its visibility`
 
@@ -79,3 +118,33 @@ gh pr create -R asivery/rm-appload --base master --head <your-user>:qtfb-window-
 ```
 
 (`pr.md`: the quoted text above.)
+
+### 2. Widgets and icons (after the first is merged, or stacked on its branch)
+
+Title: `qtfb: client widgets, a compact minimized pill and vector icons for the window bar`
+
+> Builds on the window-state extension. A qtfb client can show a part of its framebuffer as a small card over the
+> main UI (a timer, a now-playing control, a clock), and the window bar gets real icons.
+>
+> - `STATE_CHANGED_REASON_CAPABILITIES` (2), sent in the initial state packets: `capabilities.flags` bit 0 = window
+>   state (message 9, visibility reason 1), bit 1 = widgets. Clients test a bit before using an extension instead of
+>   guessing from other packets.
+> - `MESSAGE_SET_WIDGET` (10), payload in the `update` slot: the rectangle of the framebuffer to show; `w`/`h` <= 0
+>   removes it. A rectangle outside the framebuffer is refused (the client is disconnected, as for other invalid
+>   messages).
+> - `MESSAGE_SET_WINDOW_STATE` accepts 2 (widget): the window becomes a card showing that rectangle 1:1, with a
+>   header (app icon, name, open, close), draggable, its position remembered per app in `widget-positions.json`.
+>   Input inside it is forwarded in framebuffer coordinates; updates outside the rectangle repaint nothing, so the
+>   e-ink refresh stays as small as the card. Visibility reports 2 while shown as a widget.
+> - The minimized window is a compact pill (icon, name, open, close) instead of a full-width bar, and the window bar
+>   uses Lucide SVG icons (ISC) instead of text glyphs.
+>
+> Tested by building with the release workflow's toolchain image; the exported xovi entry points are unchanged.
+
+```sh
+git checkout -b qtfb-widgets qtfb-window-state
+git am ../zinc/integrations/remarkable-engine/appload/0002-widgets-and-icons.patch
+git push -u origin qtfb-widgets
+gh pr create -R asivery/rm-appload --base master --head <your-user>:qtfb-widgets \
+  --title "qtfb: client widgets, a compact minimized pill and vector icons for the window bar" --body-file pr2.md
+```
