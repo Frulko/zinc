@@ -2,7 +2,8 @@
 id: ZN-823
 title: Linux packages ship prebuilt plugin libraries for their architecture
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-25 07:59'
 labels:
   - packaging
