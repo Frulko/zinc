@@ -122,6 +122,7 @@ uint32_t* dyn_pixels(int32_t id);
 void dyn_resize(int32_t id, int32_t w, int32_t h);
 void dyn_set_alpha(int32_t id, bool on);
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride);
+void dyn_destroy(int32_t id);
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 }
 namespace zn::host {
@@ -1403,6 +1404,13 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) {
   const int32_t id = packImage(key, -1);
   if (id >= 0) gPackImages[key] = id;
   return id;
+}
+// Whether an asset can be had without waiting: always on a desktop (the packs are in memory or on a fast disk); a console with an SD pack waits.
+extern "C" int zn_asset_ready(const char*, uint32_t) { return 1; }
+// A picture zn_asset_image made that zinc:3d no longer draws (a World's freed chunk): destroyed and forgotten, as the console cores do.
+extern "C" void zn_asset_image_free(int id) {
+  for (auto it = gPackImages.begin(); it != gPackImages.end(); ++it)
+    if (it->second == id) { zrt::raster::dyn_destroy(id); gPackImages.erase(it); return; }
 }
 // zinc:assets readBytes for a native module (zinc:3d's models): the whole entry in one call, a malloc'd copy the caller frees; null when
 // it is in no pack and not in assetsDir.

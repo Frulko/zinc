@@ -13,8 +13,13 @@
 
 bool zn_console_pack_read(const std::string& name, int kind, std::string& out);   // host_console.cpp
 // the packs on the SD card beside the program (targets/n3ds/sdpack_n3ds.cpp; a console without them links none): what the linked pack has not
+#ifdef __APPLE__   // Mach-O links no undefined weak symbol, and the SD-card packs are the 3DS's: the Mac test cores have none
+static bool (*const zn_console_side_read)(const std::string&, int, std::string&) = nullptr;
+static int (*const zn_console_side_ready)(const char*, uint32_t) = nullptr;
+#else
 bool zn_console_side_read(const std::string& name, int kind, std::string& out) __attribute__((weak));
 extern "C" int zn_console_side_ready(const char* name, uint32_t n) __attribute__((weak));
+#endif
 static bool packOrSide(const std::string& name, int kind, std::string& out) {
   return zn_console_pack_read(name, kind, out) || (zn_console_side_read && zn_console_side_read(name, kind, out));
 }
