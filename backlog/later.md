@@ -427,6 +427,9 @@ The next backlog review turns lines into tasks or deletes them.
 - n3ds: night pictures go to the GPU at load even by day (about 5 MB of GPU memory); upload them when the dusk starts.
 - docs: with neither a launcher path nor `ZINC_SD_DIR`, the 3DS looks for its packs in `sdmc:/3ds/zinc/`; say so in the 3DS target doc.
 
+- tokyo PSP: CLUT8 mipmaps for the ground pictures, against far-ground shimmer.
+- tokyo PSP: a 13 ms read in the 5th frame after loading is the run's max (19 ms); send that entry to the reader thread.
+
 ## Cross-platform pass
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
@@ -523,3 +526,6 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo PSP: time the GE with CLUT8 swizzled pictures and shadows on a real PSP (PPSSPP does not time the GE).
 - tokyo 3DS: measure the SD read time and the memory peak of near streaming on the real Old 3DS.
 - zinc:3d: re-measure select-bench on a quiet Mac and on a real PSP.
+- tokyo PSP-1000: the 17,000 KB heap fit in PPSSPP only (peak 15.8 of 16.6 MiB); try a real PSP-1000 and time the stick's reads on hardware.
+- tokyo 3DS: linked-pack read-ahead costs 36-47 ms an entry on core 1 at an 80% limit in Azahar; measure on a real Old 3DS, where core 1 is shared with the system.
+- tokyo Vita: Vita3K follows the Mac's load (p95 12-23 ms); remeasure on a quiet Mac or a real Vita.
