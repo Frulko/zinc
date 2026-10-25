@@ -110,6 +110,9 @@ static void shot() {
       fwrite(p, 1, 3, f);
     }
   fclose(f);
+  // a GXM frame reaches the guest's memory on the console, not in Vita3K on macOS (no surface sync without its memory mapping): the screen
+  // holds the last frame a moment, and tools/console-run takes the shot from the emulator's window when it reads this line
+  if (gpuOn) { zn_vita_log("vita: holding the last frame for the shot\n"); sceKernelDelayThread(1500000); }
 }
 
 // Sound (ZN-759): zinc:audio's mix at 48 kHz, rendered on the program's thread at the end of each frame into a ring that a thread plays through a

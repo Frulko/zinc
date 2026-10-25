@@ -79,9 +79,33 @@ open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/__testfailure.bmp"
     pref=$(sed -n 's/^pref-path: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$tmp/config.yml"); [ -n "$pref" ] || pref="$HOME/Library/Application Support/Vita3K/Vita3K/fs"
     rm -f "$pref/ux0/data/zinc-shot.ppm"
     open -g -n --stdout "$tmp/log" --stderr "$tmp/log" -a "$app" --args -c "$tmp/config.yml" -w --frontend sdl "$bin"
+    # a GXM frame never reaches the guest's memory in Vita3K on macOS (its Vulkan has no memory mapping, so no surface sync): the HAL holds its
+    # last frame and says so, and the shot is the emulator's window (screencapture of a window in the background: no focus taken), its title
+    # bar cut and scaled back to 960x544
+    if [ -n "$shot" ]; then
+      (n=0; while [ $n -lt $((timeout * 5)) ] && ! grep -q "holding the last frame for the shot" "$tmp/log" 2>/dev/null; do sleep 0.2; n=$((n + 1)); done
+       sleep 0.5
+       pid=$(pgrep -f "$tmp/config.yml" | head -1)   # this run's emulator: other sessions may run their own
+       set -- $(osascript -l JavaScript -e "ObjC.import('CoreGraphics'); var l=ObjC.deepUnwrap(ObjC.castRefToObject(\$.CGWindowListCopyWindowInfo(1|16, 0)));
+         l=l.filter(w=>w.kCGWindowOwnerPID==${pid:-0}&&w.kCGWindowLayer==0).sort((a,b)=>b.kCGWindowBounds.Width-a.kCGWindowBounds.Width);
+         l.length?String(l[0].kCGWindowNumber):''" 2>/dev/null)
+       [ -n "${1:-}" ] && screencapture -x -o -l "$1" "$tmp/window.png" 2>/dev/null &&
+         sips -s format bmp "$tmp/window.png" --out "$tmp/window.bmp" >/dev/null 2>&1 &&
+         python3 -I -c "
+import struct,sys
+d=bytearray(open(sys.argv[1],'rb').read()); off,=struct.unpack_from('<I',d,10); w,h=struct.unpack_from('<ii',d,18); n=struct.unpack_from('<H',d,28)[0]//8
+row=(w*n+3)//4*4; ch=w*544//960   # the screen: the bottom rows of the window, 960x544 at its scale (a bottom-up BMP: the first rows)
+rows=range(ch) if h>0 else range(abs(h)-ch,abs(h))
+px=b''.join(bytes(d[off+y*row:off+(y+1)*row]) for y in rows)
+struct.pack_into('<i',d,22,ch if h>0 else -ch); struct.pack_into('<I',d,34,len(px)); struct.pack_into('<I',d,2,off+len(px))
+open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/window.bmp" &&
+         sips -s format png -z 544 960 "$tmp/window.bmp" --out "$tmp/window-shot.png" >/dev/null 2>&1) &
+      watcher=$!
+    fi
     wait_exit "$tmp/log" "$tmp/config.yml"
+    [ -z "${watcher:-}" ] || { grep -q "holding the last frame for the shot" "$tmp/log" || kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null; }
     frame "$tmp/log" 's/^.*\[export_sceClibPrintf\]: \(.*\)$/\1/p'
-    png "$pref/ux0/data/zinc-shot.ppm"
+    if [ -f "$tmp/window-shot.png" ]; then cp "$tmp/window-shot.png" "$shot"; else png "$pref/ux0/data/zinc-shot.ppm"; fi
     finish ;;
   ps2)
     [ -n "$emu" ] || { "$Z" toolchain install pcsx2 >/dev/null 2>&1 && [ -f "$HOME/Library/Application Support/PCSX2/inis/PCSX2.ini" ] && emu=pcsx2 || emu=play; }
