@@ -340,7 +340,7 @@ else the mouse (left = pen at pressure 0.5, right = eraser). Give the project th
 1. Enable developer mode (wipes the tablet), connect USB, `ssh root@10.11.99.1`.
 2. Install xovi + AppLoad (Vellum or remagic).
 3. `zinc export --target rmpp` writes `<name>`, `external.manifest.json` (`"qtfb": true, "disablesWindowedMode": true`;
-   `launch.sh`, `lease` and `libquill.so` for `"ink": "session"`), `icon.png` (zinc.json `app.icon` when it is a PNG) and `deploy.sh`, which copies
+   `launch.sh`, `lease` and `libquill.so` for `"ink": "session"`), `icon.png` (zinc.json `app.icon`, a PNG or an SVG, as a 150 px square on white; a framed square without one) and `deploy.sh`, which copies
    them to `/home/root/xovi/exthome/appload/<name>/`. In AppLoad, reload and launch it.
 4. Without AppLoad (`QTFB_KEY` unset) the app runs headless and says so on stderr. Stopping xochitl
    (`systemctl stop xochitl`) does not give Zinc the screen: the panel needs xochitl's software TCON.
@@ -374,11 +374,15 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   an ink canvas answers), xochitl keeps running. `--session` makes `zinc-<name>-session`, `"qtfb": false`, whose `launch.sh` checks the
   tablet's `libqsgepaper.so` against `verified` and runs `lease launch --watchdog 10 --vendor-sha256 <hash> zinc-app <app.zapp>`; under the
   lease `zinc-app` sets `ZINC_RMPP_INK=session`, `HOME` and the library path (the engine's `lib/`, then `/usr/lib/plugins/scenegraph`).
+- **Icons.** The tile shows the `.zapp`'s `icon.png` (`zinc pack` makes it from zinc.json `app.icon`, a PNG or an SVG, 150 x 150 on white as
+  AppLoad draws it), else `share/zinc/rmpp/icon.png`. Lucide icons (ISC) suit e-paper: black strokes, `stroke-width="2.5"`, as the hub's
+  `app/hub/icon.svg`.
 - `ZINC_RMPP_DIR` gives `deploy.sh` another directory for a trial beside an installed engine. Proven on the Mac by `tests/run --only rmpp_engine`
   (the bundle's layout, the tiles and their launchers against stand-ins).
 - **The hub** (`app/hub`, ZN-843; `app/hub/README.md`): an app with its own tile that pairs with a hub server (`app/hub-server`), checks the
   catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
-  previous package for Rollback and calls `zinc-tile` for the app's tile.
+  previous package for Rollback and calls `zinc-tile` for the app's tile. Its list shows each app's icon, which the server takes from the
+  published `.zapp` and lists with its SHA-256 in the signed catalog.
 
 ## What is verified and what is not
 

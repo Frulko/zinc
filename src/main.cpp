@@ -2169,6 +2169,7 @@ int main(int argc, char** argv) {
         yyjson_mut_doc_free(md);
         yyjson_doc_free(doc);
       }
+      if (have) if (std::string png = zn::cli::appIconPng(projDir, project.app.icon); !png.empty()) files["icon.png"] = std::move(png);   // the launcher tile (zinc-tile, the hub)
       if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
       const std::string archive = zn::zapp::pack(files, name, kVersionText);
       std::ofstream out(outPath, std::ios::binary);
@@ -2223,6 +2224,8 @@ int main(int argc, char** argv) {
       const std::string rel = fs::path(project.app.icon).lexically_normal().generic_string();
       std::ifstream icf(fs::path(projDir) / rel, std::ios::binary);
       if (icf && rel.rfind("..", 0) != 0 && !fs::path(rel).is_absolute() && !files.count(rel)) { std::stringstream ics; ics << icf.rdbuf(); files[rel] = ics.str(); }
+      // and as icon.png, a 150 px square on white whatever its format: the tile zinc-tile makes on a reMarkable, the hub's list
+      if (std::string png = zn::cli::appIconPng(projDir, project.app.icon); !png.empty()) files["icon.png"] = std::move(png);
     }
     // the packs, build/assets/<target> (ZN-434): the --profile's target (a console's packs carry its levels and picture sizes), else this machine
     const std::string assetTarget = gProfile ? gProfile->name : zn::tc::pluginTarget();

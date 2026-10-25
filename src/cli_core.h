@@ -108,6 +108,11 @@ std::string inspectEntry(const std::string& dir, const std::string& entry);
 /** Whether a source of the project in `dir` names zinc:ui (what inspectEntry checks): zinc dev --device then forwards its inspector here. */
 bool usesUi(const std::string& dir);
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);
+/** zinc.json app.icon (`icon`, relative to `dir`: a PNG, an SVG or any image zinc decodes) as the launcher tile of a .zapp and of the rmpp
+ *  export: a kAppIconSize-square PNG, the picture fit and centred on white (AppLoad draws it on white, e-paper shows no alpha). Empty when
+ *  the file is missing or not an image. */
+constexpr int kAppIconSize = 150;   // AppLoad's launcher shows icon.png in a 150 x 150 Image (rm-appload resources/qml/appload.qml)
+std::string appIconPng(const std::string& dir, const std::string& icon);
 /** What zinc:assets needs to run the project in `dir` on `target` (ZN-436): `ram`, the ram budget zinc.json and targets/capabilities.json put
  *  in force there (0: none); `packs`, when zinc.json has asset groups and `build`, the directory of its dev packs, built now (empty otherwise). */
 bool assetRun(const std::string& dir, const std::string& target, const std::string& engineRoot, bool build, std::string& packs, std::uint64_t& ram, std::string& err);

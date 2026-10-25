@@ -1,0 +1,5 @@
+nanosvg master 239e102ec2c691f2902e20ace2ed36ee4a35cfe6 (memononen/nanosvg, 2026-07-09), https://github.com/memononen/nanosvg
+src/nanosvg.h sha256 e34fd5d084be106cea972d19ce5d27fd96d17ba89f8d06bdceee058420c8b2b0
+src/nanosvgrast.h sha256 79a9c5f4db19debf9f3a648a1589e96d92854f245a5cb4f3d823f263785234d8
+LICENSE.txt (zlib) sha256 e82bc3dd03400aecabe12201219ba14750dbc4b36faab58663a7a6068548d372
+kept unchanged: nanosvg.h, nanosvgrast.h, LICENSE.txt

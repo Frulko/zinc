@@ -61,6 +61,10 @@
 #include "tc/policy.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
+#define NANOSVG_IMPLEMENTATION
+#define NANOSVGRAST_IMPLEMENTATION
+#include "../third_party/nanosvg/nanosvg.h"      // an SVG app.icon drawn for a launcher (appIconPng)
+#include "../third_party/nanosvg/nanosvgrast.h"
 #include "../plugins/display-rmpp/models.h"   // the verified vendor rows: the hash zinc export --target rmpp gives the display lease
 
 namespace fs = std::filesystem;
@@ -2140,8 +2144,9 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
                 "LD_LIBRARY_PATH=\"$D:/usr/lib/plugins/scenegraph\" exec \"$D/lease\" launch --watchdog 10 --vendor-sha256 \"$V\" \"$D/" + p.name + "\"\n");
       fs::permissions(out / "launch.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
     }
-    // AppLoad's tile: zinc.json app.icon when it is a PNG, else a plain framed square to replace
-    if (icon.size() < 4 || icon.compare(icon.size() - 4, 4, ".png") || !fs::copy_file(fs::path(p.dir) / icon, out / "icon.png", fs::copy_options::overwrite_existing, ec)) {
+    // AppLoad's tile: zinc.json app.icon (PNG or SVG) on white, else a plain framed square to replace
+    if (const std::string tile = appIconPng(p.dir, icon); !tile.empty()) writeFile(out / "icon.png", tile);
+    else {
       std::vector<std::uint8_t> px(128 * 128 * 4, 255);
       for (int y = 0; y < 128; y++) for (int x = 0; x < 128; x++) if (x < 8 || y < 8 || x >= 120 || y >= 120) for (int c = 0; c < 3; c++) px[(y * 128 + x) * 4 + c] = 0;
       const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), 128, 128, 4);
@@ -3206,6 +3211,41 @@ std::string redBoxSource(const std::vector<std::string>& lines) {
 }  // namespace
 
 bool usesUi(const std::string& dir) { return projectUsesUi(dir); }
+
+std::string appIconPng(const std::string& dir, const std::string& icon) {
+  std::ifstream in(fs::path(dir) / icon, std::ios::binary);
+  const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  const int n = kAppIconSize;
+  int w = 0, h = 0, scale = 1, fw = 0, fh = 0;
+  std::vector<std::uint8_t> rgba, fit;
+  std::string err;
+  if (icon.empty() || !in) return "";
+  if (fs::path(icon).extension() == ".svg") {   // nanosvg: the baker's SVG reader fills shapes only, and an icon is mostly strokes (Lucide)
+    std::string text = bytes;
+    NSVGimage* im = nsvgParse(text.data(), "px", 96);
+    if (!im || im->width <= 0 || im->height <= 0) { if (im) nsvgDelete(im); return ""; }
+    const float k = n / std::max(im->width, im->height);
+    fw = std::max(1, static_cast<int>(im->width * k + 0.5f)); fh = std::max(1, static_cast<int>(im->height * k + 0.5f));
+    fit.assign(static_cast<std::size_t>(fw) * fh * 4, 0);
+    NSVGrasterizer* r = nsvgCreateRasterizer();
+    nsvgRasterize(r, im, 0, 0, k, fit.data(), fw, fh, fw * 4);
+    nsvgDeleteRasterizer(r);
+    nsvgDelete(im);
+  } else {
+    if (!zn::assets::decodeImage(icon, bytes, {}, w, h, scale, rgba, err) || w <= 0 || h <= 0) return "";
+    fw = std::max(1, w >= h ? n : w * n / h); fh = std::max(1, h >= w ? n : h * n / w);
+    zn::assets::resizeRgba(rgba, w, h, fit, fw, fh);
+  }
+  std::vector<std::uint8_t> px(n * n * 3, 255);
+  for (int y = 0; y < fh; y++)
+    for (int x = 0; x < fw; x++) {
+      const std::uint8_t* s = &fit[(y * fw + x) * 4];
+      std::uint8_t* d = &px[((y + (n - fh) / 2) * n + x + (n - fw) / 2) * 3];
+      for (int c = 0; c < 3; c++) d[c] = static_cast<std::uint8_t>((s[c] * s[3] + 255 * (255 - s[3]) + 127) / 255);   // over white
+    }
+  const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), n, n, 3);
+  return std::string(png.begin(), png.end());
+}
 
 std::string inspectEntry(const std::string& dir, const std::string& entry) {
   if (!projectUsesUi(dir)) return entry;

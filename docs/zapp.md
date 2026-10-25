@@ -17,6 +17,7 @@ byte-identical, and `tar tf game.zapp` lists it.
 | `program.zbc` | the compiled program (ZBC) |
 | `resources.bin` | the fonts and images baked for the program |
 | `zinc.json` | the project's manifest: window size, targets, permissions |
+| `icon.png` | zinc.json `app.icon` (a PNG, an SVG or any image zinc decodes) as a 150 x 150 PNG on white: the launcher tile (`zinc-tile` on a reMarkable, the hub's list); absent when the app has no icon. The file itself is also packed at its own path |
 | `assets/...` | the project's assets, read at run time (`zinc:assets`); hidden files stay out |
 | `native/<target>-<arch>/<plugin>/` | the library of each native plugin the program calls, built for the machine that packed it, and its `exports` |
 

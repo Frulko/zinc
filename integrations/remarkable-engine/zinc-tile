@@ -26,7 +26,9 @@ if [ -n "$session" ]; then
   grep -qx "$V" "$Z/share/zinc/rmpp/verified" || { echo "zinc-tile: this OS's display engine ($V) is not verified for the ink session; use the qtfb tile" >&2; exit 1; }
 fi
 mkdir -p "$dir"
-cp "$Z/share/zinc/rmpp/icon.png" "$dir/icon.png"
+# the app's icon (zinc pack's icon.png member, from zinc.json app.icon) when it has one, else the engine's
+if tar xOf "$zapp" icon.png > "$dir/icon.png" 2>/dev/null && [ "$(head -c 4 "$dir/icon.png" | tail -c 3)" = PNG ]; then :
+else cp "$Z/share/zinc/rmpp/icon.png" "$dir/icon.png"; fi
 # a qtfb tile keeps AppLoad's window buttons: a tap opens it full screen, a swipe down from the top shows _ (minimize, the app keeps
 # running) and X; an ink session has no AppLoad window
 printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": %s\n}\n' \

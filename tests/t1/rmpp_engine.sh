@@ -42,6 +42,15 @@ for tile, qtfb in (('zinc-notes', True), ('zinc-notes-session', False)):
     if open(f'{sys.argv[1]}/{tile}/icon.png', 'rb').read(8) != b'\x89PNG\r\n\x1a\n': sys.exit(f'FAIL {tile}/icon.png is not a PNG')
 print('tiles: ok')
 PY
+cmp -s "$ZINC_APPLOAD/zinc-notes/icon.png" "$z/share/zinc/rmpp/icon.png" || fail "a .zapp without icon.png does not get the default tile icon"
+# a .zapp with icon.png (zinc pack from zinc.json app.icon): the tile shows it
+mkdir "$tmp/icon" && python3 -c 'import sys, zlib, struct
+c = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+sys.stdout.buffer.write(b"\x89PNG\r\n\x1a\n" + c(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0)) + c(b"IDAT", zlib.compress(b"\0\0")) + c(b"IEND", b""))' > "$tmp/icon/icon.png"
+COPYFILE_DISABLE=1 tar cf "$tmp/drawn.zapp" -C "$tmp/icon" icon.png
+"$z/bin/zinc-tile" "$tmp/drawn.zapp" > /dev/null || fail "zinc-tile (a .zapp with an icon)"
+cmp -s "$ZINC_APPLOAD/zinc-drawn/icon.png" "$tmp/icon/icon.png" || fail "the tile does not show the .zapp's icon.png"
+echo "icons: ok"
 out=$(HOME=/home/root "$ZINC_APPLOAD/zinc-notes/launch.sh")
 [ "$out" = "zinc run $tmp/notes.zapp LD_LIBRARY_PATH=$z/lib:/usr/lib/plugins/scenegraph ZINC_RMPP_INK= HOME=/home/root" ] || fail "qtfb launch: $out"
 V=$(sha256sum "$ZINC_QSGEPAPER" | cut -c1-64)
