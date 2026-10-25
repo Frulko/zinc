@@ -2,7 +2,8 @@
 id: ZN-821
 title: Remote debug and performance tools through the agent
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-25 07:50'
 labels:
   - agent
