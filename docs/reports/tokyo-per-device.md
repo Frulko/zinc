@@ -48,7 +48,7 @@ draws a range of a mesh's indices. The program keeps the camera tour, the clock,
 |---|---|---|---|---|---|---|---|
 | Mac (desktop) | all levels | 600 / 2000 m | 2500 to 5800 m | 400,000 | yes | yes | dome |
 | PS Vita | 13.9 MB: mid + far, grounds 256² (128² a block) | — / 1300 m | 1600 to 5800 m | 40,000 | yes | yes | dome |
-| 3DS | 12.9 MB: mid + far, grounds 256², facades 256² | — / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
+| 3DS | 12.7 MB: mid + far, grounds 512² and facades 1024 × 128 in ETC1 with mipmaps | — / 2400 m | 1200 to 5800 m | 60,000 | yes | yes | one colour |
 | PSP | 8.4 MB: mid + far, grounds 128² (64² a block), facades 256² | — / 1600 m | 1200 to 5800 m | 42,000 | yes | yes | one colour |
 | Raspberry Pi 1 (`rpi1`) | not built yet | 300 / 900 m | 600 to 3000 m | 12,000 | yes | no | one colour |
 
@@ -73,6 +73,20 @@ memory without streaming (`backlog/later.md`).
 
 - **Limit:** about 64 MB of memory on an original 3DS for the program and its embedded pack.
 - **Haze:** the PICA200 has a fog table (citro3d `FogLut`), filled per frame from the camera's planes. It is free.
+- **Pocket Tokyo's PICA200 path** (`render3d.n3ds.cpp`, `worldMesh` and `worldDraw`; `docs/reports/pocket3d-techniques.md`):
+  - Each batch is decoded at load into one of three vertex layouts, each with its own small vertex program (`render3d.n3ds.top.v.pica`,
+    `wall`, `solid`, assembled by picasso into the same DVLB as the old program): 8 bytes for the ground and roofs (`s16` position, a grey;
+    the uvs come from the position), 16 for textured walls (plus colour and `s16` uv), 12 for painted geometry. No normals and no float
+    copy: the position is decoded from the batch's box by the model matrix.
+  - The light: a face's sector of the compass (16 around, one up or down) is stored in its vertices, and the vertex program reads one of 17
+    lights, computed once a frame from the scene's ambient and lights.
+  - Three combiner stages: light × shadow, × the day's picture, then mixed into the night's picture by how far the night has come
+    (`World.setNight` takes 0 to 1): the dusk is a smooth blend instead of a switch at 0.5.
+  - Shadows: `World.shadows` hands the renderer the pack's height map (1024 × 768 at 4 m, `city/hmap.bin`, written by
+    `city-world.py hmap`); tokyo-sim's sweep turns it into an 8-bit map of what the sun does not reach, swept again (24 rows a frame) when the
+    sun has turned by a degree. The ground and the roofs read it as a third texture.
+  - Pictures: the pack keeps the grounds and facades as ETC1 (an asset rule `"format": "etc1"`, encoded by basisu), and the 3DS uploads the
+    blocks and their mipmaps as they are, in the PICA's tile order. Four times the ground's resolution for half the memory.
 
 ### PSP
 
@@ -121,7 +135,7 @@ in the interpreter); "after" is the world. Pocket Tokyo's figures are its own, o
 |---|---|---|---|
 | Mac | 115,000 triangles; work p50 1.0, p95 2.0 ms; render 1.7 ms | 68,400 triangles, 433 draws; work p50 1.0, p95 1.0 ms; select 0.1, render 1.7 ms | — |
 | PS Vita (Vita3K) | budget 40,000; work p50 13, p95 14 ms; render 11.9 ms | 30,200 triangles, 303 draws (mid reach 1300 m); work p50 13, p95 14 ms; select 1.9, render 10.7 ms; 58.6 fps | 158,200 triangles, 222 draws, 60 fps |
-| 3DS (Azahar) | budget 18,000; work p50 7, p95 15 ms; select 2.1, render 5.8 ms | 55,500 triangles, 383 draws (budget 60,000, reaches at 0.87); work p50 8, p95 8 ms; select 5.1, render 2.0 ms; 30 fps held | 40,000 triangles, 276 draws, 30 fps |
+| 3DS (Azahar) | budget 18,000; work p50 7, p95 15 ms; select 2.1, render 5.8 ms | 55,500 triangles, 383 draws (budget 60,000, reaches at 0.87); work p50 8, p95 8 ms; select 5.1, render 2.0 ms; 30 fps held. With Pocket's PICA200 path: the same 55,500 triangles and 383 draws, with shadows, ETC1 pictures and the dusk blend; work p50 5, p95 5 ms; select 3.6 to 3.9, render 0.5 to 0.8 ms; 30 fps held | 40,000 triangles, 276 draws, 30 fps |
 | PSP (PPSSPP) | budget 14,000; work p50 8, p95 28 ms; select 5.1, render 6.6 ms | 37,100 triangles, 328 draws (budget 40,000); work p50 9, p95 9 ms; select 3.9, render 3.2 ms; 30 fps held. With Pocket's GE path: 38,900 triangles, 1,451 draws (budget 42,000, reaches at 1.00); work p50 7, p95 8 ms; select 4.3, render 1.3 ms (1.0 building the list); 30 fps held, 1,500 frames | 37,600 triangles, 1,255 draws, 30 fps |
 
 The work no longer has spikes from reads: a chunk is read whole, natively, and the far level of the whole city is resident. The max of
@@ -143,8 +157,11 @@ What is left (the next agents' per-console work):
 - **PSP:** the near level needs streaming (Pocket's 40 slots, a reader thread); shadows (the height-grid sweep and the ground palettes'
   upper half); CLUT8 pictures with day and night palettes mixed by the hour, for a smooth dusk and a quarter of the texture memory; the
   GE's time on hardware (Pocket's 1.5 ms + 0.63 ms per 1,000 triangles: about 26 ms for 38,900).
-- **3DS:** per-surface vertex programs and combiners; the near level needs streaming.
-- **The selection** costs 4.3 ms a frame on the PSP (with a range per sector) and 5.1 on the 3DS, against Pocket's 4.4 ms on a PSP.
+- **3DS:** the near level needs streaming: its 15 MB do not fit beside the embedded pack in an Old 3DS's 64 MB (Pocket reads 40 slots from
+  the SD card). The GPU's time on hardware is not known: Azahar does not time the PICA200, and the budget (60,000) is above Pocket's 40,000.
+- **The selection** costs 4.3 ms a frame on the PSP (with a range per sector) and 3.6 to 3.9 on the 3DS (5.1 before; Azahar's clock), against
+  Pocket's 4.4 ms on a PSP. On the 3DS, Azahar's clock: the cells 1.8 ms (the facing sectors were 1.3 ms more with `atan2f`, now a
+  polynomial whose result is checked against the exact one near a sector's edge), the ranges 0.8, the chunks to read 0.8.
 - **The real consoles are not measured.**
 
 ## How to measure again
