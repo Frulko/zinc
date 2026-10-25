@@ -268,6 +268,10 @@ The next backlog review turns lines into tasks or deletes them.
 - reMarkable bridge: a lease supervisor replacing quill-test/launch.sh (at most 2 xochitl starts in 10 min, systemctl stop only, dead-man timeout), proven with a fake-systemd harness.
 - reMarkable bridge: ink lane v2 (no load-time libqsgepaper hooks, no clash with framebuffer-spy's QImage hook, one-crash disarm), with a Docker fake-xochitl harness.
 - reMarkable bridge: vendor-library hash rows for the Move and the Paper Pure; the rM2 through rm2fb (timower) instead of a bridge of our own.
+- tokyo: zinc:3d on the Vita and 3DS: a render target made after textures filled GPU memory fails silently (nothing drawn): report it or reserve targets first.
+- tokyo: zinc:assets `readBytes` is one host call per byte: a bulk read for every program (zinc:3d bypasses it now).
+- tokyo: zinc:3d's software fog ignores `material.fog` and fogs blended pixels by depth.
+- tokyo: a .zapp carries the raw assets beside the imported ones (size).
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -442,3 +446,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-822: on the Pi's touch screen, check the dev bar takes a finger (touch[0]) and its X brings the player back.
 - ZN-821: run `zinc device <pi> profile/bench` and `zinc dev --device <pi>` with the inspector on a real Pi through its agent (source deploy, --no-run, report pull).
 - ZN-823: prebuilt plugins of the armhf, armv7, x86_64 and i686 packages and the release linux-cross CI job (it now builds a host zinc first) are not proven.
+- tokyo: a Pi profile (a Pi 3/4 on Linux takes the desktop settings), the Pi build and real PSP/Vita/3DS measurements.
