@@ -1,10 +1,10 @@
 ---
 id: ZN-844
 title: 'reMarkable content apps: TRMNL-style dashboard, Markdown and Notion, PDF'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-25 19:27'
-updated_date: '2026-10-25 21:08'
+updated_date: '2026-10-25 22:34'
 labels:
   - remarkable
   - size-L
