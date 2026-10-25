@@ -2,7 +2,8 @@
 id: ZN-841
 title: 'reMarkable: the Zinc engine on the tablet runs a .zapp'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-25 19:26'
 labels:
   - remarkable

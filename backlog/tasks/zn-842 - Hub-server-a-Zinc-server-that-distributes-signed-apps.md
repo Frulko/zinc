@@ -2,7 +2,8 @@
 id: ZN-842
 title: 'Hub server: a Zinc server that distributes signed apps'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-25 19:26'
 labels:
   - packaging
