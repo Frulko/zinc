@@ -269,9 +269,6 @@ The next backlog review turns lines into tasks or deletes them.
 - Pi updates (docs/reports/pi-updates-design.md): the Pi release assets come from the linux-cross job, which may fail; it should fail the release for aarch64 and armhf.
 - Pi updates: the update catalog uses the unauthenticated GitHub API (60 requests per hour per IP), which a classroom behind one network will hit.
 - reMarkable bridge (docs/reports/remarkable-bridge-design.md): re-measure qtfb with AppLoad >= 0.6.0 on the Paper Pro; its partial-update bug (fixed in PR #55) may explain the 125 ms paints.
-- reMarkable bridge: a lease supervisor replacing quill-test/launch.sh (at most 2 xochitl starts in 10 min, systemctl stop only, dead-man timeout), proven with a fake-systemd harness.
-- reMarkable bridge: ink lane v2 (no load-time libqsgepaper hooks, no clash with framebuffer-spy's QImage hook, one-crash disarm), with a Docker fake-xochitl harness.
-- reMarkable bridge: vendor-library hash rows for the Move and the Paper Pure; the rM2 through rm2fb (timower) instead of a bridge of our own.
 - tokyo: zinc:3d on the Vita and 3DS: a render target made after textures filled GPU memory fails silently (nothing drawn): report it or reserve targets first.
 - tokyo: zinc:assets `readBytes` is one host call per byte: a bulk read for every program (zinc:3d bypasses it now).
 - tokyo: zinc:3d's software fog ignores `material.fog` and fogs blended pixels by depth.
