@@ -239,6 +239,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 - zinc:lvgl without mquickjs, on an AOT ESP32 firmware (owner 2026-10-22: keep both paths): docs/reports/esp32-aot-lvgl.md lists the eight pieces; the AOT ESP32 target itself does not exist yet (docs/reports/zinc-next-esp32-aot.md).
 - ESP32 mquickjs: a hang in C (a plugin's native loop) is still silent; the JavaScript one is stopped after 10 s. The task watchdog on the main task, with a panic and released while the update server writes the flash (zn_pause), would turn it into a crash the next start tells.
+- ZN-790: QuickJS's `zinc:platform` has no `TOUCH` export, so examples/pinball and n3ds-pinball do not run with `--engine quickjs`.
+- ZN-790: the n3ds HAL's `ZINC_PROFILE` work counts the bottom window's wait for the refresh inside endWindow: time that wait apart, the profile of two-screen programs reads too high.
+
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
@@ -401,3 +404,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-773.06: share an imported Memory, Table and mutable Global instead of copying them into the instance (WAMR multi-module or a host-memory hook); funcref and externref parameters of an import arrive as null today.
 
 - ZN-785: evaluate a separately flashed A/B Pi OS image with RAUC, persistent app/settings storage, signed boot+rootfs bundles and tryboot health confirmation on Pi 3 B+; prove power-cut rollback before offering whole-system updates. Current engine generations do not update the OS.
+- ZN-790: play n3ds-pinball, n3ds-platformer and n3ds-starfall on a real 3DS (stereo depth comfort, stylus, frame time).
+- ZN-792: the device player on a real PSP, Vita, 3DS and the TouchPad over Wi-Fi; EC J-PAKE pairing time on each; iPhone signing and the local network permission prompt.
