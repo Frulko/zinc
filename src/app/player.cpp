@@ -469,6 +469,9 @@ std::string serveOnce(const std::string& file, std::string body) {
   }).detach();
   return "http://127.0.0.1:" + std::to_string(ntohs(a.sin_port)) + "/" + file;
 }
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" void zn_ios_keep_running(int seconds);   // ios_glue.mm: Safari asks while Zinc Go is in the background
+#endif
 void addShortcut(const std::string& name) {
   std::string title, project, icon;
   if (gAgentOn) for (const auto& [n, t] : zn::agent::playerApps(gAgent)) if (n == name) title = t;
@@ -479,6 +482,9 @@ void addShortcut(const std::string& name) {
     if (k == "icon" && v.find("..") == std::string::npos && v.size() > 4 && v.compare(v.size() - 4, 4, ".png") == 0)
       if (size_t n = 0; void* b = SDL_LoadFile((dir + "/" + v).c_str(), &n)) { icon.assign(static_cast<const char*>(b), n); SDL_free(b); }
   const std::string url = serveOnce(name + ".mobileconfig", webClip(name, title, icon));
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (!url.empty()) zn_ios_keep_running(60);
+#endif
   if (url.empty() || !SDL_OpenURL(url.c_str())) { goHome("Could not hand the shortcut of " + title + " to Safari"); return; }
   gMessage = "Safari has the shortcut of " + title + ": allow the download, then Settings > Profile Downloaded > Install. Its icon opens it in Zinc Go.";
   startHome();

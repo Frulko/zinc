@@ -280,6 +280,15 @@ extern "C" void zn_mobile_open_url(const char* url) {   // SDL's openURL, which 
   if (u) each(@selector(zincOpenURL:), u);
 }
 
+// The app keeps running `seconds` in the background (Zinc Go hands Safari a file it serves on the loopback, ZN-840: iOS suspends the whole
+// process, its threads too, as soon as Safari is in front). Called on the main thread.
+extern "C" void zn_ios_keep_running(int seconds) {
+  __block UIBackgroundTaskIdentifier task = UIBackgroundTaskInvalid;
+  void (^end)(void) = ^{ if (task != UIBackgroundTaskInvalid) { [UIApplication.sharedApplication endBackgroundTask:task]; task = UIBackgroundTaskInvalid; } };
+  task = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"zinc-serve" expirationHandler:end];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)seconds * NSEC_PER_SEC), dispatch_get_main_queue(), end);
+}
+
 extern "C" void zn_mobile_glue_init(void) {
   zn_mobile_command = command;
   dispatch_async(dispatch_get_main_queue(), ^{

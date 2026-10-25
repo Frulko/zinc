@@ -50,6 +50,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
 - `zinc dev --device` and `zinc device deploy` to a console player refuse a JavaScript project (QuickJS) before sending it, with the reason, instead of "cannot read ./dev/program.zbc", and warn about each plugin the player lacks (`zinc lint --target <profile>`); on the console, a missing module is "not available on this device (profile n3ds)".
 - `zinc --version` of a build tree follows the checkout: the version is read again when HEAD moves, not only when the tree was first configured.
+- Zinc Go on iOS: adding an app to the home screen no longer leaves Safari waiting on 127.0.0.1 (Zinc Go keeps serving the profile while Safari is in front).
 - Zinc Go: after an app ran, the home screen no longer draws its texts in that app's font sizes (the font caches start again with each program's fonts), and it scrolls when it is longer than the screen.
 - The iOS export uses the texts of `permissionStrings` in zinc.json for the system's permission questions (it wrote a default text), and asks for the motion sensors with `"motion"`.
 - `zinc export --target ios`: `-DZINC_BUNDLE_ID=` signs the app under another bundle id, for a team other than the one that registered `app.id`.
