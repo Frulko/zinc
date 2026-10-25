@@ -33,7 +33,10 @@ line; an unknown key inside them is a warning.
 ```
 
 - `assets` may be a string, the directory (the prototype's form). A rule's keys other than `match` and `as` are the importer's options (arrays
-  and objects kept as JSON text). Groups keep the manifest's order: the first that includes an asset and does not exclude it takes it.
+  and objects kept as JSON text). A rule's `targets` object holds options for one target only, merged over the rule's own when the packs
+  of that target are built (`zinc assets build --target psp`, `zinc pack --profile psp`): `{ "match": "city/*.near.glb", "targets": { "psp":
+  { "skip": true } } }` leaves the near models out of the PSP's packs, `{ "match": "city/*.png", "targets": { "n3ds": { "maxSize": 128 } } }`
+  makes the 3DS's pictures smaller (examples/tokyo). `"skip": true` leaves a file out of the packs. Groups keep the manifest's order: the first that includes an asset and does not exclude it takes it.
 - A profile names texture formats in preference order (`|`: the fallback; rgba8, rgb565, rgba4444, rgba5551, bc1, bc3, bc7, etc1, etc1a4,
   etc2, astc, pvrtc, clut4, clut8, ktx2), the music (`audio`) and effect (`sfx`) codecs (pcm, opus, vorbis, mp3, aac, qoa, adpcm, vag,
   dsp-adpcm, atrac3), a setting after `:` (`opus:96`, `ktx2:uastc`); `maxSize` 1 to 16384; `pack` none, lz4, zstd or zstd-dict; `split` none

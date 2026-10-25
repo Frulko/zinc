@@ -2194,9 +2194,11 @@ int main(int argc, char** argv) {
       std::ifstream icf(fs::path(projDir) / rel, std::ios::binary);
       if (icf && rel.rfind("..", 0) != 0 && !fs::path(rel).is_absolute() && !files.count(rel)) { std::stringstream ics; ics << icf.rdbuf(); files[rel] = ics.str(); }
     }
-    if (!zn::cli::buildAssets(projDir, zn::tc::pluginTarget(), false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }   // the packs, build/assets/<this machine> (ZN-434)
+    // the packs, build/assets/<target> (ZN-434): the --profile's target (a console's packs carry its levels and picture sizes), else this machine
+    const std::string assetTarget = gProfile ? gProfile->name : zn::tc::pluginTarget();
+    if (!zn::cli::buildAssets(projDir, assetTarget, false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }
     if (have && project.assets.packed())   // the groups of zinc:assets v2 (ZN-436) and the atlases (ZN-438): the packs ride along as packs/<group>.zpk, read from the unpacked archive
-      for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / zn::tc::pluginTarget(), ec))
+      for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / assetTarget, ec))
         if (e.path().extension() == ".zpk") { std::ifstream zf(e.path(), std::ios::binary); std::stringstream zs; zs << zf.rdbuf(); files["packs/" + e.path().filename().string()] = zs.str(); }
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
     const std::string archive = zn::zapp::pack(files, name, kVersionText);

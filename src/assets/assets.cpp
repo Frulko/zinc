@@ -11,6 +11,7 @@
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
+#include "yyjson.h"
 
 #include <algorithm>
 #include <chrono>
@@ -95,6 +96,29 @@ std::regex globRegex(const std::string& g) {
 using Opts = std::map<std::string, std::string>;
 // `side`: the bytes of the files a source names and its importer also reads, by name (the image of a sprite sheet, the tilesets of a map)
 using Side = std::map<std::string, std::string>;
+
+/** A rule's "targets": { "<target>": { options } }: the options of the target being built, over the rule's own; the other targets' are
+ *  dropped. "skip": true (in a rule or a target's options) leaves the asset out of the packs. */
+bool targetOptions(Opts& o, const std::string& target, std::string& err) {
+  auto it = o.find("targets");
+  if (it == o.end()) return true;
+  const std::string text = it->second;
+  o.erase(it);
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* root = doc ? yyjson_doc_get_root(doc) : nullptr;
+  if (!yyjson_is_obj(root)) { yyjson_doc_free(doc); err = "a rule's \"targets\" must be an object: { \"<target>\": { options } }"; return false; }
+  if (yyjson_val* mine = yyjson_obj_get(root, target.c_str()); yyjson_is_obj(mine)) {
+    size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(mine, i, n, k, v) {
+      if (yyjson_is_str(v)) { o[yyjson_get_str(k)] = yyjson_get_str(v); continue; }
+      char* js = yyjson_val_write(v, 0, nullptr);
+      o[yyjson_get_str(k)] = js ? js : "";
+      std::free(js);
+    }
+  }
+  yyjson_doc_free(doc);
+  return true;
+}
 // `opt`: the build's options (the texture importer's encoder); the rest is what the importer's output depends on (its key)
 using ImportFn = bool (*)(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err);
 
@@ -362,7 +386,9 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (std::regex_match(name, r.re)) {
         if (!r.rule->as.empty()) id = r.rule->as;
         for (const auto& [k, v] : r.rule->options) o[k] = v;
+        if (!targetOptions(o, opt.target, err)) { err = name + ": " + err; return false; }
       }
+    if (o.count("skip") && o.at("skip") == "true") continue;   // not on this target
     const Importer* imp = findImporter(id);
     if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model)"; return false; }
     if (imp->run == importTextureFile || imp->run == importModelFile) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact

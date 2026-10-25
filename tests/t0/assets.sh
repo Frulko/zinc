@@ -44,6 +44,17 @@ ln -s player.svg "$tmp/one/g2d/assets/linked.svg"
 one assets build g2d >/dev/null || exit 1
 grep -q '"name": "linked.svg"' "$tmp/one/g2d"/build/assets/*/report.json || { echo "the linked asset is not packed"; exit 1; }
 
+# a rule's "targets": a target's own options over the rule's ("skip" leaves the asset out of its packs); `zinc pack --profile` builds that
+# target's packs (examples/tokyo: the consoles carry fewer levels of detail and smaller pictures)
+mkdir -p "$tmp/t/assets" && cp "$tmp/one/g2d/assets/player.svg" "$tmp/t/assets/a.svg" && cp "$tmp/t/assets/a.svg" "$tmp/t/assets/b.svg"
+printf '{ "name": "t", "entry": "main.ts", "assets": { "rules": [{ "match": "b.svg", "targets": { "psp": { "skip": true } } }] } }\n' > "$tmp/t/zinc.json"
+echo "console.log('t');" > "$tmp/t/main.ts"
+one assets build "$tmp/t" --target psp >/dev/null && one assets build "$tmp/t" >/dev/null || { echo "targets: the builds failed"; exit 1; }
+grep -q '"name": "b.svg"' "$tmp/t/build/assets/psp/report.json" && { echo "targets: b.svg is in the psp packs"; exit 1; }
+grep -q '"name": "a.svg"' "$tmp/t/build/assets/psp/report.json" && grep -q '"name": "b.svg"' "$tmp/t"/build/assets/macos/report.json "$tmp/t"/build/assets/linux/report.json 2>/dev/null ||
+  { echo "targets: a.svg on psp or b.svg on this machine is missing"; exit 1; }
+one pack --profile psp "$tmp/t" -o "$tmp/t.zapp" >/dev/null 2>&1 && tar -xOf "$tmp/t.zapp" packs/default.zpk | grep -q 'b\.svg' && { echo "targets: zinc pack --profile psp packed this machine's packs"; exit 1; }
+
 # the font baker behind the same cache: the second bake of an unchanged program is the blob of the first (a program with no plugin: a fresh
 # ZINC_HOME would build game-2d's audio plugin first)
 printf "console.log('baked: \\\\u00e9');\n" > "$tmp/one/p.ts"
