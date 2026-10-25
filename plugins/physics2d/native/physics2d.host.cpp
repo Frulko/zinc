@@ -173,6 +173,11 @@ struct HostPhysics2D : NativePhysics2D {
       push(out, {0, double(handleOf(e.shapeIdA)), double(handleOf(e.shapeIdB)), x, y, double(m.normal.x), double(m.normal.y), speed,
                  impulseOf(w, e.shapeIdA, e.shapeIdB)});
     }
+    for (int i = 0; i < c.hitCount; i++) {
+      const b2ContactHitEvent& e = c.hitEvents[i];
+      push(out, {1, double(handleOf(e.shapeIdA)), double(handleOf(e.shapeIdB)), double(e.point.x), double(e.point.y),
+                 double(e.normal.x), double(e.normal.y), double(e.approachSpeed), impulseOf(w, e.shapeIdA, e.shapeIdB)});
+    }
     for (int i = 0; i < c.endCount; i++) push(out, {2, double(handleOf(c.endEvents[i].shapeIdA)), double(handleOf(c.endEvents[i].shapeIdB)), 0, 0, 0, 0, 0, 0});
     for (int i = 0; i < s.beginCount; i++) push(out, {4, double(handleOf(s.beginEvents[i].sensorShapeId)), double(handleOf(s.beginEvents[i].visitorShapeId)), 0, 0, 0, 0, 0, 0});
     for (int i = 0; i < s.endCount; i++) push(out, {6, double(handleOf(s.endEvents[i].sensorShapeId)), double(handleOf(s.endEvents[i].visitorShapeId)), 0, 0, 0, 0, 0, 0});
@@ -188,7 +193,7 @@ struct HostPhysics2D : NativePhysics2D {
     if (w) {
       const auto c = b2World_GetContactEvents(w->id);
       const auto s = b2World_GetSensorEvents(w->id);
-      cap = (c.beginCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
+      cap = (c.beginCount + c.hitCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
     }
     auto out = zrt::Array<double>::with_cap(cap);
     appendEvents(h, out); return out;
@@ -200,7 +205,7 @@ struct HostPhysics2D : NativePhysics2D {
     if (w) {
       const auto c = b2World_GetContactEvents(w->id);
       const auto s = b2World_GetSensorEvents(w->id);
-      cap += b2World_GetBodyEvents(w->id).moveCount * kMovedSize + (c.beginCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
+      cap += b2World_GetBodyEvents(w->id).moveCount * kMovedSize + (c.beginCount + c.hitCount + c.endCount + s.beginCount + s.endCount) * kEventSize;
     }
     auto out = zrt::Array<double>::with_cap(cap);
     out.push_raw(0);
@@ -259,6 +264,7 @@ struct HostPhysics2D : NativePhysics2D {
     const int flags = int(opt(o, 5, 0));
     d.isSensor = (flags & kSensor) != 0;
     d.enableContactEvents = (flags & kEvents) != 0;
+    d.enableHitEvents = (flags & kEvents) != 0;
     d.enableSensorEvents = true;   // every shape is seen by the sensors, and a sensor sees
     std::vector<b2Vec2> pts;
     const int32_t first = kind == kPolygon || kind == kChain ? 1 : 0;

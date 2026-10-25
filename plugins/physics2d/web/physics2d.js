@@ -22,6 +22,11 @@ Z.registerNative('Physics2D', {
   worldDestroy(w) { api(); ex.p2d_world_destroy(w); },
   worldGravity(w, x, y) { api(); ex.p2d_world_gravity(w, x, y); },
   step(w, dt, sub) { api(); ex.p2d_step(w, dt, sub); },
+  stepState(w, dt, sub) {
+    api(); ex.p2d_step(w, dt, sub);
+    const moved = result(ex.p2d_moved(w));
+    return [moved.length, ...moved, ...result(ex.p2d_events(w))];
+  },
   moved(w) { api(); return result(ex.p2d_moved(w)); },
   events(w) { api(); return result(ex.p2d_events(w)); },
   awakeCount(w) { api(); return ex.p2d_awake_count(w); },

@@ -23,7 +23,7 @@ export interface Spec extends NativeModule {
   /** The bodies that moved in the last step or fell asleep in it, 7 numbers each: body, x, y, angle, linear velocity x y,
    *  angular velocity. */
   moved(w: i32): f64[];
-  /** The contact and sensor events of the last step, 9 numbers each: kind (0 began, 2 ended; +4 for a sensor: a is the
+  /** The contact and sensor events of the last step, 9 numbers each: kind (0 began, 1 solved impact, 2 ended; +4 for a sensor: a is the
    *  sensor, b the visitor), body a, body b, a contact point, the normal from a to b, the approach speed along it and the
    *  normal impulse the solver applied in the step. An ended contact has only its bodies (-1: destroyed since). Contacts are
    *  reported when one of the two shapes was made with events. */

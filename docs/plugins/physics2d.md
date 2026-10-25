@@ -31,7 +31,7 @@ const ball = world.body(Shape.circle(0.5), { position: [0, 4], restitution: 0.6,
 
 for (let i = 0; i < 240; i++) {
   world.step(1 / 120);                                       // a fixed step, never the frame's dt
-  for (const c of world.contacts) if (c.kind === ContactKind.Added) console.log(`hit at ${c.speed.toFixed(1)} m/s`);
+  for (const c of world.contacts) if (c.kind === ContactKind.Hit) console.log(`hit at ${c.speed.toFixed(1)} m/s`);
 }
 console.log(ball.x, ball.y, ball.angle);                     // plain fields, updated by step()
 ```
@@ -53,7 +53,7 @@ cannot be done throws `PhysicsError` with the reason.
 |---|---|
 | `new World(options?)` | `gravity` ([0, -9.81]), `maxSpeed` (400), `minRestitutionSpeed` (1), `pushSpeed` (3: how fast overlapping bodies are separated), `contactHertz` (30), `contactDamping` (10), `sleeping` (true), `continuous` (true: fast bodies are swept against static ones) |
 | `step(dt, subSteps = 4)` | Advances by `dt` seconds, solved in `subSteps` sub-steps (contacts are found once per step), then updates the fields of the bodies that moved and fills `contacts` |
-| `contacts: Contact[]` | The contacts that began or ended in the last step (shapes made with `events`) and the sensor overlaps |
+| `contacts: Contact[]` | The begin/end contacts and solved impacts in the last step (shapes made with `events`) and the sensor overlaps |
 | `body(shape, options?): Body` | A new body with this shape, in the simulation unless `enabled: false` |
 | `revolute(a, b, point, options?)`, `prismatic(a, b, point, axis, options?)` | A `Joint` between `a` and `b`, or `a` and the world (`b` null); see [Joints](#joints) |
 | `rayCast(ox, oy, dx, dy, mask?)` | The first `Hit` along `d`, whose length is the reach, or null. `mask` has a bit per layer (all by default) |
@@ -96,9 +96,10 @@ meet when each one's layer is in the other's mask.
 ## Contacts and sensors
 
 A shape made with `events: true` has its contacts reported in `world.contacts` after each step: `kind` is
-`ContactKind.Added` when two shapes start touching and `Removed` when they stop. An added contact has a point (the middle
-of the contact points), the normal from `a` to `b`, the `speed` at which the two approached along it and the `impulse`
-the solver applied to push them apart in that step (read after the solve: the impulse of the hit, for a sound or a score).
+`ContactKind.Added` when two shapes start touching, `Hit` for a solved impact, and `Removed` when they stop.
+Use `Hit` for scores, kicks, sounds and particles: its positive `speed` is the solved approach speed along the
+normal from `a` to `b`. Begin-touch data is captured before solving and its speed can be zero, especially
+with continuous collision detection. Added/Hit events include a point, normal and the solver's impulse.
 A removed contact has only its bodies; one that was destroyed since is null.
 
 A `sensor` shape collides with nothing and reports what enters and leaves it as contacts whose `sensor` is true (`a` is the

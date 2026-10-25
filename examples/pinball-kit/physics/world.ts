@@ -238,7 +238,7 @@ export class World {
         this.limitSpeed(b);
       }
       for (const c of l.world.contacts) {
-        if (c.kind !== ContactKind.Added || c.sensor || c.a === null || c.b === null || c.speed < EVENT_SPEED) continue;
+        if (c.kind !== ContactKind.Hit || c.sensor || c.a === null || c.b === null || c.speed < EVENT_SPEED) continue;
         const a = c.a as Body, q = c.b as Body;
         const first = a.tag < 0;
         if (!first && q.tag >= 0) continue;

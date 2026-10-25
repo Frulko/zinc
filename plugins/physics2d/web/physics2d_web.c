@@ -134,6 +134,11 @@ int p2d_events(int h) {
     for (int k = 0; k < m->pointCount; k++) { x += m->points[k].point.x / m->pointCount; y += m->points[k].point.y / m->pointCount; speed = fmax(speed, -m->points[k].normalVelocity); }
     ev(0, shapeHandle(e->shapeIdA), shapeHandle(e->shapeIdB), x, y, m->normal.x, m->normal.y, speed, impulseOf(w, e->shapeIdA, e->shapeIdB));
   }
+  for (int i = 0; i < c.hitCount; i++) {
+    const b2ContactHitEvent* e = &c.hitEvents[i];
+    ev(1, shapeHandle(e->shapeIdA), shapeHandle(e->shapeIdB), e->point.x, e->point.y,
+       e->normal.x, e->normal.y, e->approachSpeed, impulseOf(w, e->shapeIdA, e->shapeIdB));
+  }
   for (int i = 0; i < c.endCount; i++) ev(2, shapeHandle(c.endEvents[i].shapeIdA), shapeHandle(c.endEvents[i].shapeIdB), 0, 0, 0, 0, 0, 0);
   for (int i = 0; i < s.beginCount; i++) ev(4, shapeHandle(s.beginEvents[i].sensorShapeId), shapeHandle(s.beginEvents[i].visitorShapeId), 0, 0, 0, 0, 0, 0);
   for (int i = 0; i < s.endCount; i++) ev(6, shapeHandle(s.endEvents[i].sensorShapeId), shapeHandle(s.endEvents[i].visitorShapeId), 0, 0, 0, 0, 0, 0);
@@ -188,6 +193,7 @@ int p2d_body_shape(int hb, int kind, const double* g, int n, const double* o, in
   int flags = (int)opt(o, on, 5, 0);
   d.isSensor = (flags & kSensor) != 0;
   d.enableContactEvents = (flags & kEvents) != 0;
+  d.enableHitEvents = (flags & kEvents) != 0;
   d.enableSensorEvents = 1;
   b2Vec2 pts[256]; int np = 0;   // ponytail: 256 points of a chain at most; raise when a level needs more
   int first = kind == kPolygon || kind == kChain ? 1 : 0;

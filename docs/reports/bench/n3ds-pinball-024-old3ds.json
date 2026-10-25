@@ -1,0 +1,91 @@
+{
+  "source": "hardware",
+  "capture": "/Volumes/DS/zinc-frames.csv",
+  "header": "# zinc-n3ds-frame-capture schema=1 capacity=3600 omitted=572 model=old3ds",
+  "warmup_refreshes": 120,
+  "modes": {
+    "stereo": {
+      "physics_us": {
+        "p50": 2516,
+        "p99": 9315,
+        "max": 16733
+      },
+      "paint_us": {
+        "p50": 2327,
+        "p99": 2672,
+        "max": 2852
+      },
+      "diff_us": {
+        "p50": 290,
+        "p99": 469,
+        "max": 524
+      },
+      "wait_us": {
+        "p50": 3056,
+        "p99": 15882,
+        "max": 16738
+      },
+      "validate_us": {
+        "p50": 153,
+        "p99": 291,
+        "max": 1810
+      },
+      "replay_us": {
+        "p50": 1234,
+        "p99": 1563,
+        "max": 1736
+      },
+      "upload_us": {
+        "p50": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "submit_us": {
+        "p50": 230,
+        "p99": 310,
+        "max": 502
+      },
+      "previous_gpu_us": {
+        "p50": 5008,
+        "p99": 5440,
+        "max": 6019
+      },
+      "rt_allocs": {
+        "p50": 78,
+        "p99": 158,
+        "max": 254
+      },
+      "physics_steps": {
+        "p50": 4,
+        "p99": 14,
+        "max": 24
+      },
+      "refreshes": 3600,
+      "fps": 57.38,
+      "gap_us": {
+        "p50": 16712,
+        "p99": 33449,
+        "max": 34762
+      },
+      "cpu_us": {
+        "p50": 8012,
+        "p99": 15686,
+        "max": 22375
+      },
+      "missed_refreshes": 154,
+      "missed_vblanks": 153,
+      "software_surfaces": 0,
+      "uploads": 0,
+      "slowest_refreshes": [
+        692,
+        683,
+        1753,
+        1761,
+        1768
+      ],
+      "passes_60fps_gate": false
+    }
+  },
+  "application_version": "0.2.4",
+  "raw_csv_sha256": "643277ccf60d967401da41cf2ff04c7df1f51ce5eb69dea849a307edfe00cced"
+}

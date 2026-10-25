@@ -11,7 +11,7 @@ export class PhysicsError extends Error {
 function fail(): PhysicsError { return new PhysicsError(P.error()); }
 
 export const enum Motion { Static = 0, Kinematic = 1, Dynamic = 2 }
-export const enum ContactKind { Added = 0, Removed = 2 }
+export const enum ContactKind { Added = 0, Hit = 1, Removed = 2 }
 export const enum Motor { Off = 0, Velocity = 1, Position = 2 }
 
 /** The version of the library ('3.1.1'). */
@@ -47,7 +47,7 @@ export interface ShapeOptions {
   mask?: u32;
   /** Reports what overlaps it (contacts with `sensor` true, at the end of the step) and collides with nothing. */
   sensor?: boolean;
-  /** Its contacts are reported in world.contacts when they begin and end. */
+  /** Its begin/end contacts and solved impact events are reported in world.contacts. */
   events?: boolean;
 }
 
@@ -177,7 +177,7 @@ export class Contact {
   /** A contact point, and the normal from a to b. */
   x: number; y: number;
   nx: number; ny: number;
-  /** How fast the bodies approached along the normal, and the impulse the solver applied to push them apart. */
+  /** Hit events carry the positive approach speed; Added events describe contact creation before solving. */
   speed: number;
   impulse: number;
   constructor(kind: ContactKind, sensor: boolean, a: Body | null, b: Body | null, e: number[], at: i32) {
@@ -227,7 +227,7 @@ export class Joint {
 
 export class World {
   readonly handle: i32;
-  /** The contacts of the last step (for shapes made with `events`) and the sensor overlaps that began or ended. */
+  /** The begin/end contacts and solved hits of the last step (shapes with `events`), plus sensor overlaps. */
   contacts: Contact[] = [];
   joints: Joint[] = [];
   /** Bodies by native handle. */

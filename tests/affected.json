@@ -195,6 +195,8 @@
     {"paths": ["src/assets/sprite.cpp", "src/assets/sprite.h", "third_party/stb/stb_rect_pack.h", "third_party/cute_aseprite/", "plugins/sprite/", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/sprite_atlas/", "tests/t1/sprite_atlas.sh"], "tests": ["sprite_atlas", "assets"]},
     {"paths": ["examples/platformer/", "tests/data/platformer/", "tests/t1/platformer.sh"], "tests": ["platformer"]},
     {"paths": ["targets/n3ds/frame_profile.cpp", "targets/n3ds/frame_profile.h", "tools/n3ds-frame-report", "tests/native/n3ds_frame_profile.cpp", "tests/t0/n3ds_frame_profile.sh"], "tests": ["n3ds_frame_profile"]},
+    {"paths": ["plugins/physics2d/web/", "tests/native/physics2d_web_hits.c", "tests/t0/physics2d_web_hits.sh"], "tests": ["physics2d_web_hits"]},
+    {"paths": ["examples/n3ds-pinball/tools/feedback.ts", "tests/t0/pinball_feedback.sh", "plugins/physics2d/", "examples/pinball-kit/physics/world.ts"], "tests": ["pinball_feedback"]},
     {"paths": ["plugins/physics2d/", "tests/data/physics2d/bulk.ts", "tests/t0/physics2d_bulk.sh"], "tests": ["physics2d_bulk"]},
     {"paths": ["targets/console/ff_replay.cpp", "tests/native/ff_shape_key.cpp", "tests/t0/ff_shape_key.sh"], "tests": ["ff_shape_key"]},
     {"paths": ["examples/n3ds-pinball/tools/", "tests/demo/n3ds_pinball_multiball.sh"], "tests": ["n3ds_pinball_multiball"]},

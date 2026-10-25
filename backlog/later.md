@@ -436,6 +436,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
+
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.
 - ZN-827/ZN-828/ZN-832: build and exercise the pinned Godot exporter, GDExtension and LibGodot hosts on each supported desktop platform; embedding does not confer Zinc console/MCU support on Godot.
 - ZN-830/ZN-831: verify the animation plugin, deformation backend and authoring-scene reimport on later targets, preserving explicit unsupported-feature diagnostics.

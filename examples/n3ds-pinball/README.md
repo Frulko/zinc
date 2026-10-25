@@ -8,7 +8,7 @@ the high scores.
 
 ```sh
 zinc run --simulate n3ds examples/n3ds-pinball                                 # on a desktop: the second window is the bottom screen
-tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.4" -B build/n3ds-pinball-native  # compiled .3dsx
+tools/build-console-core n3ds --aot examples/n3ds-pinball --title "Nova Patrol DS 0.2.5" -B build/n3ds-pinball-native  # compiled .3dsx
 ```
 
 ## Controls
@@ -111,3 +111,15 @@ and catch-up clock remain unchanged. Dead tangent-edge updates are removed; Box2
 The capture adds `physics_steps`, the number of native Box2D world-step calls per complete refresh.
 Close with START+SELECT to save and compare actual hardware results; emulator success alone does not
 establish 60 FPS on the console.
+
+
+## Impact feedback correction (0.2.5)
+
+Powered bumper/slingshot kicks, scores, target drops, flashes, recoil and sparks now use Box2D's solved
+`ContactKind.Hit` events. Begin-contact events can have zero pre-solve approach speed and are unsuitable
+for triggering those reactions, particularly after CCD free-flight optimization. Travel guards, the 240 Hz
+base clock and the optimized GPU path remain unchanged.
+
+`tests/run --only pinball_feedback` drives real bumper, slingshot and target hits through the application
+on the interpreter and QuickJS. `tools/feedback.ts` can also be compiled as a short native proof; the main
+playable build has no scripted input or frame limit. The existing deferred capture remains enabled.
