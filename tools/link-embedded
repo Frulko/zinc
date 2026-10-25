@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Link AOT C++ plus a native shell using the existing app-library manifest."""
+import glob, os, pathlib, shlex, subprocess, sys
+if len(sys.argv) < 4:
+    sys.exit('usage: tools/link-embedded <AOT-prefix> <output> <shell-source> [sources...]')
+root = pathlib.Path(__file__).resolve().parent.parent
+build = pathlib.Path(os.environ.get('BUILD', root / 'build')).resolve()
+prefix, output, *sources = sys.argv[1:]
+libs = (build / 'zn_app.link').read_text().splitlines()
+plugins = pathlib.Path(prefix + '.libs')
+if plugins.exists(): libs = shlex.split(plugins.read_text()) + libs
+frameworks = 'Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL'.split()
+cmd = ['c++', '-std=c++20', '-O1', '-w', '-ffp-contract=off', '-DZN_APP_LIBRARY']
+for inc in ['include', 'src', 'third_party/mimalloc/include', 'third_party/SDL3/include']: cmd += ['-I', str(root / inc)]
+cmd += shlex.split(os.environ.get('EMBED_LINK_FLAGS', ''))
+cmd += [prefix + '.cpp', *sorted(glob.glob(prefix + '.part*.cpp')), *sources, *libs, '-Wl,-dead_strip', '-lobjc']
+for framework in frameworks: cmd += ['-framework', framework]
+subprocess.run([*cmd, '-o', output], check=True)

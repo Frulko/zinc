@@ -735,7 +735,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   elseif(ANDROID)
     target_link_libraries(zn_app_host PUBLIC GLESv2)
   endif()
-  add_library(zn_app STATIC src/app/app.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
+  add_library(zn_app STATIC src/app/app.cpp src/app/embed.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
   if(NOT ZN_SANITIZE)
     target_sources(zn_app PRIVATE src/rt/alloc.cpp)
   endif()
@@ -748,7 +748,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   endif()
   set_target_properties(zn_app PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_include_directories(zn_app PUBLIC include src)
-  target_link_libraries(zn_app PUBLIC zn_app_host zn_layout zn_native zn_mimalloc zn_regexp)
+  target_link_libraries(zn_app PUBLIC zn_app_host zn_layout zn_native zn_mimalloc zn_regexp zn_yyjson)
   target_link_libraries(zn_app PUBLIC zn_script)   # zinc:script (QuickJS) for a program that imports it: a static archive, so a program that does not import it pulls no object
   # Zinc Go, the player (ZN-631, src/app/player.cpp): the interpreter, Fast Refresh's swap and the link to zinc dev --lan; linked into a
   # player's package only (zinc.json "player": true), never into a user's app, whose AOT program defines Machine::exec itself

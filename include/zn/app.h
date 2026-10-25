@@ -12,10 +12,14 @@
 // Window.setSustainedPerformanceMode while frames move or the program asks for it (device('performance'))
 #define ZN_APP_ANDROID_SUSTAINED 0x8002
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 int zn_app_init(int argc, char** argv);    // the program's top level, up to where its loop would start: 0 running, 1 done, <0 error
 int zn_app_iterate(void);                  // one tick: a frame when the program draws, else the due timers and a look at the host's loop; the same codes
 void zn_app_event(const void* sdl_event);  // an SDL_Event the shell took off SDL's queue: the window HAL reads it at the next frame
 void zn_app_quit(void);                    // flushes the console output, ends the run (once; zn_app_iterate's last call does it too)
 int zn_app_main(int argc, char** argv);    // desktop and tests: init, then iterate until done; the exit status of `zinc run`
+#ifdef __cplusplus
 }
+#endif
