@@ -49,6 +49,7 @@ int wanted_mode = MODE_UI;  // the qtfb mode the app asked for; L1 keeps UI whil
 int sock = -1;
 uint8_t* shm = nullptr;
 size_t shm_size = 0;
+int shm_key = 0;          // AppLoad's name for the buffer (/qtfb_<shm_key>): QTFB_KEY on 0.5, random since 0.6.0
 eink::Rect pending = {};
 int refresh_mode = -1;
 uint64_t mode_ready_us = 0, last_sent_us = 0;
@@ -91,7 +92,7 @@ int connect_qtfb(int key, int fmt) {
       if (p != MAP_FAILED) munmap(p, r.init.shm_size);
       close(s); return -1;
     }
-    shm = (uint8_t*)p; shm_size = r.init.shm_size;
+    shm = (uint8_t*)p; shm_size = r.init.shm_size; shm_key = r.init.shm_key;
   }
   return s;
 }
@@ -169,7 +170,7 @@ int rm_init(const HalConfig* cfg) {
   }
   sock = connect_qtfb(atoi(k), row->qtfb_fmt);
   if (sock < 0) { fprintf(stderr, "display-rmpp: cannot attach to qtfb (is AppLoad running?)\n"); return 0; }
-  if (fast_ink && lane::open(*row, atoi(k))) layer = L1;
+  if (fast_ink && lane::open(*row, shm_key)) layer = L1;
   else if (fast_ink && session) fprintf(stderr, "display-rmpp: an ink session starts from its AppLoad tile, through the lease; qtfb\n");
   if (!set_mode(layer == L1 ? MODE_UI : wanted_mode)) { close(sock); sock = -1; lane::close_lane(); return 0; }
   fprintf(stderr, "display-rmpp: %s on qtfb%s, partial updates capped at %llu Hz\n", refresh_mode == MODE_FAST ? "fast" : "ui",

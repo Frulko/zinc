@@ -48,6 +48,7 @@ struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; 
 static int qtfb = -1, lane = -1, rm2 = -1;         // server ends
 static uint16_t* rm2fb = nullptr;
 static uint8_t* shm = nullptr;
+static int shmKey = 0;
 static std::vector<uint8_t> glass;                 // what xochitl shows: W x H RGB
 static int W = 1620, H = 2160;
 static uint64_t frames = 0;                        // presented frames: the clock of the model (a headless run has no real time worth keeping)
@@ -88,7 +89,8 @@ static void handle(const ClientMsg& m) {
   uint64_t now = virtualNow();
   if (m.type == MSG_INIT) {
     if (m.init.fmt == 4) { W = 954; H = 1696; } else if (m.init.fmt == 7) { W = 1404; H = 1872; }
-    char name[32]; snprintf(name, sizeof name, "/qtfb_%d", m.init.key);
+    shmKey = m.init.key + 1000;   // AppLoad 0.6.0 names the buffer with a random key, not the framebuffer's
+    char name[32]; snprintf(name, sizeof name, "/qtfb_%d", shmKey);
     shm_unlink(name);
     int fd = shm_open(name, O_RDWR | O_CREAT, 0600);
     size_t size = (size_t)W * H * 3;
@@ -96,7 +98,7 @@ static void handle(const ClientMsg& m) {
     shm = (uint8_t*)mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
     glass.assign(size, 0xFF);
-    ServerMsg r = {}; r.type = MSG_INIT; r.init.shm_key = m.init.key; r.init.shm_size = size;
+    ServerMsg r = {}; r.type = MSG_INIT; r.init.shm_key = shmKey; r.init.shm_size = size;
     send(qtfb, &r, sizeof r, 0);
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
   } else if (m.type == MSG_SET_MODE) {
@@ -126,6 +128,7 @@ static void handleLane(const zink::Message& m) {
   const char* mode = getenv("ZN_RMPP_SIM_LANE");
   if (m.magic != zink::magic || m.version != zink::version) { line("error: lane protocol"); errors++; laneClose("protocol"); return; }
   if (m.type == zink::Hello) {
+    if (m.key != shmKey) { line("error: lane hello key %d is not the qtfb buffer's %d", m.key, shmKey); errors++; }
     zink::Message w; w.type = zink::Welcome; w.seq = m.seq; w.w = W; w.h = H;
     if (!strcmp(mode, "canvas")) w.key = zink::Canvas;   // zinc-canvas: the hash is xochitl's, verified on the tablet, not a vendor row
     memcpy(w.hash, !strcmp(mode, "badhash") || !strcmp(mode, "canvas") ? "0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de"

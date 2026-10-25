@@ -1,6 +1,6 @@
 // The ink lane's wire protocol, version 2 (docs/reports/remarkable-bridge-design.md §4.3). One client (root), SOCK_SEQPACKET.
 // No pixels travel on the socket: the client writes them into its own qtfb shared memory, as on L0, and names the rectangle.
-//   client Hello {key = QTFB_KEY, pid}        lane Welcome {key = Lane, hash = SHA-256 of libqsgepaper.so, w, h = panel}, or closes
+//   client Hello {key = qtfb shm key, pid}        lane Welcome {key = Lane, hash = SHA-256 of libqsgepaper.so, w, h = panel}, or closes
 //                                             canvas Welcome {key = Canvas, hash = SHA-256 of the xochitl it verified itself}
 //   client StrokeBegin                         lane blocks xochitl's rendering (deadline: 500 ms after the last Ink, 10 s per stroke)
 //   client Ink {x, y, w, h}                    lane copies the rectangle from qtfb into the vendor buffer, Pen/Mono partial swap
