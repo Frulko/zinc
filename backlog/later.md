@@ -276,6 +276,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-833: ink session tries the in-process lane first and re-execs through lease launch (design §7) instead of pointing the manifest at lease.
 - ZN-833: five-finger tap escape in the lease supervisor (design §3.3); only the power long press is handled.
 - ZN-833: zinc deploy --target rmpp copies to ~/<name> and runs run.sh; make it run the exported deploy.sh (AppLoad directory).
+- ZN-834: run tests/native/rmpp/fake-xochitl/run.sh in Docker, pinned to the tablet's XOVI and extension commits (late load, block/unblock order, deadline, crash guard, double hook, hash gate).
+- ZN-834: on the tablet, T2-T4 of remarkable-bridge-design §9: one xovi/start and lane ready in the journal, camera latency, the colour settle (else the full-update flag on the box).
+- ZN-834: L2 needs a dynamic SDK binary (a static glibc binary cannot dlopen libquill.so/Qt reliably); align with the lease's static export, and the lease must pass ZINC_LEASE=1, ZINC_VENDOR_SHA256, NOTIFY_SOCKET and the engine path to the app.
+- ZN-834: on failure the lane repaints the item but requests no full refresh; needs AppLoad's full-refresh function or the vendor full-update flag value.
+- ZN-834: pluginOptions drops zinc.json display options when ZINC_DISPLAY is set; apply them when the env names the same driver, then rmpp_sim.sh uses display.ink.
+- ZN-835: Move and Paper Pure vendor rows (hash, swap ABI), evdev ranges and xochitl unit limits, read on a tablet.
+- ZN-835 (cross-platform pass): armv7 export for the rM2 (-mcpu=cortex-a7) and the rm2fb client against a real rm2fb server.
 - tokyo: zinc:3d on the Vita and 3DS: a render target made after textures filled GPU memory fails silently (nothing drawn): report it or reserve targets first.
 - tokyo: zinc:assets `readBytes` is one host call per byte: a bulk read for every program (zinc:3d bypasses it now).
 - tokyo: zinc:3d's software fog ignores `material.fog` and fogs blended pixels by depth.
