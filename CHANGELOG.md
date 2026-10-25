@@ -27,6 +27,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable Paper Pro: fast drawing on qtfb asks AppLoad for its fastest pen waveform (ufast) instead of the slower fast mode.
 - Nova Patrol and Nova Patrol DS 0.2.5 trigger powered bumper/slingshot rebounds, scores, target drops, flashes and sparks from actual Box2D impact events. Solved hit speeds replace pre-solve snapshots; the optimized collision stepping is preserved.
 - The browser Physics2D shim implements the packed `stepState` protocol used by the shared plugin.
+- 3DS: the device player's waiting screen writes in a font twice as large, readable on the console.
 - Nova Patrol DS 0.2.4 removes redundant physics subdivisions during fast free flight; Box2D CCD handles board contacts, with local guards for nearby ball pairs and slow balls hit by moving mechanisms. Pinball game/effect random streams now replay consistently across engines.
 - 3DS: a zinc:3d world (Tokyo) no longer crashes a real console with a data abort at the end of its draw; the device player's waiting screen wraps its pairing line instead of cutting the code off.
 - Nintendo 3DS GPU submission avoids flushing the entire linear heap each frame. Nova Patrol DS 0.2.3 caches fixed lamp contours, reduces Box2D bridge traffic, and shifts the FPS label right.

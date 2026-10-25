@@ -105,7 +105,11 @@ bool textScreen(int status, bool player = false) {
     call(zn::Rt::HostGfxBegin);
     HostArg bg; bg.i = 0x101828;
     call(zn::Rt::HostGfxClear, &bg);
-    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i, cols = w / 8 - 1;
+    const std::int64_t w = call(zn::Rt::HostGfxWidth).i, h = call(zn::Rt::HostGfxHeight).i;
+    // a screen 480 wide or less (the 3DS, the PSP): the grid font twice as large when it is baked (the 3DS player's own font is 8 and 16 px),
+    // the 8 px one was too small to read on a 3DS
+    HostArg g8[2], g16[2]; g8[0].p = g16[0].p = "grid"; g8[0].n = g16[0].n = 4; g8[1].i = 8; g16[1].i = 16;
+    const std::int64_t k = w <= 480 && call(zn::Rt::HostGfxFont, g16).i != call(zn::Rt::HostGfxFont, g8).i ? 2 : 1, cols = w / (8 * k) - 1;
     std::vector<std::pair<std::string, std::uint32_t>> top;   // the player's lines wrapped to the screen (the 3DS's 49 columns cut the pairing hint)
     for (std::size_t i = 0; i < head.size(); i++) {
       const std::uint32_t color = i == 2 ? 0xffd166 : 0x8fd3ff;
@@ -118,7 +122,10 @@ bool textScreen(int status, bool player = false) {
         while (at < head[i].size() && head[i][at] == ' ') at++;
       }
     }
-    const std::int64_t rows = h / 10 - 2 - static_cast<std::int64_t>(top.size());
+    // rows of 10 px, 18 for the large font (12 of them on a 3DS), the footer's row left free
+    const std::int64_t lineH = k == 1 ? 10 : 18, fit = (h - 12 * k - 4) / lineH;
+    if (static_cast<std::int64_t>(top.size()) > fit) top.resize(static_cast<std::size_t>(fit > 0 ? fit : 0));
+    const std::int64_t rows = fit - static_cast<std::int64_t>(top.size());
     std::vector<std::string> lines;   // the output wrapped to the screen, its last rows shown
     for (std::size_t b = 0; b < shown.size();) {
       std::size_t e = shown.find('\n', b);
@@ -129,14 +136,15 @@ bool textScreen(int status, bool player = false) {
       b = e + 1;
     }
     auto text = [&](double y, const std::string& t, std::uint32_t color) {
-      HostArg a[5]; a[0].d = 4; a[1].d = y; a[2].p = t.data(); a[2].n = static_cast<std::uint32_t>(t.size()); a[3].i = color; a[4].i = 1;
+      HostArg a[5]; a[0].d = 4; a[1].d = y; a[2].p = t.data(); a[2].n = static_cast<std::uint32_t>(t.size()); a[3].i = color; a[4].i = k;
       call(zn::Rt::HostGfxText, a);
     };
-    for (std::size_t i = 0; i < top.size(); i++) text(4 + 10.0 * static_cast<double>(i), top[i].first, top[i].second);
-    const double below = 4 + 10.0 * static_cast<double>(top.size());
+    const double line = static_cast<double>(lineH);
+    for (std::size_t i = 0; i < top.size(); i++) text(4 + line * static_cast<double>(i), top[i].first, top[i].second);
+    const double below = 4 + line * static_cast<double>(top.size());
     const std::size_t first = rows <= 0 ? lines.size() : lines.size() > static_cast<std::size_t>(rows) ? lines.size() - rows : 0;
-    for (std::size_t i = first; i < lines.size(); i++) text(below + 10.0 * static_cast<double>(i - first), lines[i], 0xe0e6ff);
-    text(static_cast<double>(h - 12), footer.substr(0, static_cast<std::size_t>(cols)), status ? 0xff6b6b : 0x8899cc);
+    for (std::size_t i = first; i < lines.size(); i++) text(below + line * static_cast<double>(i - first), lines[i], 0xe0e6ff);
+    text(static_cast<double>(h - 12 * k), footer.substr(0, static_cast<std::size_t>(cols)), status ? 0xff6b6b : 0x8899cc);
     call(zn::Rt::HostGfxEnd);
   }
 }

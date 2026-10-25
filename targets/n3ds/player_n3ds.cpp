@@ -17,8 +17,9 @@ int mbedtls_platform_get_entropy(psa_driver_get_entropy_flags_t, size_t* estimat
 }
 
 // The waiting screen writes with gfx.text's 8 px grid font, which only a program's resources.bin brings: the player has none until a program
-// comes, and its screen stayed blank (a dark screen on the console, as if it had frozen). player_font.zrs is that font alone (6.7 KB, the
-// `grid` 8 px font of any zinc pack's resources.bin, kept by its ZRS1 layout, src/host/resources.cpp); hal_init installs it once.
+// comes, and its screen stayed blank (a dark screen on the console, as if it had frozen). player_font.zrs is that font alone (23 KB, the
+// `grid` 8 and 16 px fonts of any zinc pack's resources.bin, kept by their ZRS1 layout, src/host/resources.cpp; the 16 px one is what the
+// 400 x 240 screen shows, textScreen in core_main.cpp, the 8 px one was too small to read); hal_init installs it once.
 extern "C" void zn_n3ds_player_font(void) {
   static bool done = false;
   if (done) return;
