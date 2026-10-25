@@ -25,6 +25,12 @@ The graphical phase found and fixed missing AppKit event dispatch/background cli
 
 Limits: one embedded runtime instance per process, macOS proof only; no general GDScript/game translation, universal shader/PBR parity, native IME/accessibility bridge or measured large-world/memory performance. Inspector controls supplied by the scene/game demos are not a complete external Blender/Inspector round-trip editor. World import eagerly validates chunks/provenance for the small fixture; large production-scene staging needs its own measured work. See each README for its actual supported contract.
 
+## Measured package footprint and remaining performance work
+
+Actual local bundle file sizes: Swift Observatory **5.60 MiB** (arm64), Godot Warehouse **345.66 MiB** (official full universal Godot executable), Pocket Rally **46.96 MiB** (arm64 minimal 2D LibGodot). The Zinc UI extension itself is **6.63 MiB**. Warehouse is not yet using a lean export-template build, and Rally does not carry its 3D feature set. These are uncompressed package sizes, not RAM, startup latency or frame times. Raw evidence: [workflow footprint JSON](bench/workflow-footprint-2026-10-25.json).
+
+**CPU/GPU frame times, FPS, startup and RAM remain unmeasured for these new demos.** The functional delivery is complete within the scoped macOS demonstrations; performance validation is a separate outstanding step. Other-session native compilation was active during the footprint audit, so no timing figures were taken under contention. Do not interpret native/GPU correctness tests as performance evidence.
+
 ## Completed implementation workstreams
 
 The owner's delivery requirement is explicit: every demonstration is a real runnable project with source files, the native or authoring project files, a README containing exact build/run/test commands, and execution evidence. A design document or mock alone does not satisfy a task.

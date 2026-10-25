@@ -1275,3 +1275,12 @@ Accuracy is unchanged: 960 Hz plus adaptive travel steps, Box2D retained. Change
 ### 2026-10-25: 3DS stereo clock and three-ball regression
 
 Compiled real-app multiball probe passes bounds, speed and elapsed-clock assertions under Azahar: 1200 flat callbacks (~20 s), 3600 stereo callbacks (~30 s). Corrected 1/60-per-eye HAL timing: stereo game time now advances ~5 s per 5 s report rather than ~10 s. Guest program p50 4–5 ms, stereo reporting-window p99 up to22 ms, occasional34 ms refresh gaps; initial board bake ~575 ms. Emulator correctness/profiling only, not a physical 60 FPS claim. Supported New3DS CPU/cache mode enabled; physical benefit unmeasured. See pinball physics report and 0.2.1 artifact metadata.
+
+
+### 2026-10-25: workflow demo package footprints, timing not measured
+
+Measured the actual uncompressed local bundles by summing regular file lengths (system frameworks excluded), artifact `docs/reports/bench/workflow-footprint-2026-10-25.json`. Swift Observatory: **5,869,720 B / 5.60 MiB**, macOS arm64 native app plus Zinc. Godot Warehouse: **362,450,283 B / 345.66 MiB**, using the official full universal x86_64+arm64 Godot executable plus the Zinc extension. Official reference Godot.app: **357,753,867 B / 341.18 MiB**; package-content differences mean subtracting the whole bundles is not a precise runtime-overhead calculation. Zinc Pocket Rally: **49,240,979 B / 46.96 MiB**, arm64, with a minimal real 2D LibGodot runtime. They are different feature/build profiles, not a like-for-like engine comparison.
+
+No FPS, frame-time, CPU or RAM benchmark was performed for these demos. Concurrent other-session PSP/Vita compilation was active; no timing was taken or presented as valid under that load. Earlier native/GPU regression passes establish correctness, not speed. Warehouse packaging is a working demo using a full editor-capable runtime, not a lean distribution template.
+
+The Zinc Warehouse extension itself is **6,955,136 B / 6.63 MiB**; this is the native AOT UI/runtime module inside the Godot host, not the full application bundle.

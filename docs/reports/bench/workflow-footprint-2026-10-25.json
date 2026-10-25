@@ -1,0 +1,58 @@
+{
+  "captured_utc": "2026-10-25T15:09:55.675741+00:00",
+  "git_head": "47ed9197e06bceab702a19208da0733e16ff1dd5",
+  "host": "macOS-15.7.4-arm64-arm-64bit",
+  "measurement": "sum of regular non-symlink bundle file lengths; uncompressed local ad-hoc/unsigned demo builds; system frameworks excluded",
+  "bundles": [
+    {
+      "id": "swift_observatory",
+      "path": "examples/swift-observatory/build/Native Observatory.app",
+      "apparent_bytes": 5869720,
+      "MiB": 5.6,
+      "files": 3,
+      "architectures": "arm64"
+    },
+    {
+      "id": "godot_warehouse",
+      "path": "examples/godot-zinc-ui/build/Warehouse.app",
+      "apparent_bytes": 362450283,
+      "MiB": 345.66,
+      "files": 12,
+      "architectures": "x86_64 arm64"
+    },
+    {
+      "id": "zinc_libgodot",
+      "path": "examples/zinc-libgodot/build/Zinc Pocket Rally.app",
+      "apparent_bytes": 49240979,
+      "MiB": 46.96,
+      "files": 8,
+      "architectures": "arm64"
+    },
+    {
+      "id": "official_godot_reference",
+      "path": "/private/tmp/zinc-godot-tools/Godot.app",
+      "apparent_bytes": 357753867,
+      "MiB": 341.18,
+      "files": 80,
+      "architectures": "x86_64 arm64"
+    }
+  ],
+  "timing": {
+    "measured": false,
+    "reason": "Other-session PSP/Vita native compilation active; repository policy forbids publishing benchmark timing under concurrent builds."
+  },
+  "memory": {
+    "measured": false
+  },
+  "scope_notes": [
+    "Warehouse ships the official universal editor-capable Godot executable, not an optimized export template.",
+    "Pocket Rally uses a minimal 2D LibGodot runtime; it is not feature-equivalent to Warehouse.",
+    "These are package sizes, not RAM or frame-time measurements.",
+    "Bundles are existing workflow-session artifacts, not newly rebuilt binaries for every later repository commit."
+  ],
+  "zinc_ui_extension": {
+    "path": "examples/godot-zinc-ui/godot/bin/libzinc_godot.dylib",
+    "bytes": 6955136,
+    "MiB": 6.63
+  }
+}
