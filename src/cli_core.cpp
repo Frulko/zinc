@@ -3236,14 +3236,11 @@ std::string appIconPng(const std::string& dir, const std::string& icon) {
     fw = std::max(1, w >= h ? n : w * n / h); fh = std::max(1, h >= w ? n : h * n / w);
     zn::assets::resizeRgba(rgba, w, h, fit, fw, fh);
   }
-  std::vector<std::uint8_t> px(n * n * 3, 255);
+  std::vector<std::uint8_t> px(n * n * 4, 0);   // transparent around the picture
   for (int y = 0; y < fh; y++)
-    for (int x = 0; x < fw; x++) {
-      const std::uint8_t* s = &fit[(y * fw + x) * 4];
-      std::uint8_t* d = &px[((y + (n - fh) / 2) * n + x + (n - fw) / 2) * 3];
-      for (int c = 0; c < 3; c++) d[c] = static_cast<std::uint8_t>((s[c] * s[3] + 255 * (255 - s[3]) + 127) / 255);   // over white
-    }
-  const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), n, n, 3);
+    for (int x = 0; x < fw; x++)
+      std::memcpy(&px[((y + (n - fh) / 2) * n + x + (n - fw) / 2) * 4], &fit[(y * fw + x) * 4], 4);
+  const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), n, n, 4);
   return std::string(png.begin(), png.end());
 }
 

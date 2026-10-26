@@ -3,7 +3,7 @@
 # `zinc publish --hub`, pairs a device by the code it prints, serves it a catalog signed with the hub key (checked with zinc verify) and the
 # app's manifest and .zapp (the app's signature and the SHA-256 checked here); it refuses a tampered .zapp, an older version, a wrong
 # publisher token, a wrong pairing code and a request without a device token; the admin page lists apps and devices and retracts a version.
-# Icons: 1.1.0 has zinc.json app.icon (an SVG): its package carries icon.png (150 px, on white), the signed catalog lists it with its SHA-256
+# Icons: 1.1.0 has zinc.json app.icon (an SVG): its package carries icon.png (150 px, transparent around the drawing), the signed catalog lists it with its SHA-256
 # and the hub serves it to a paired device while 1.1.0 is current; 1.0.0 has none. The catalog lists the engine each package needs (zbc, rt:
 # the needs of its manifest.json), what the tablet compares with its engine before installing.
 # The engine (ZN-844): `tools/rmpp-engine --publish` sends a bundle (a stand-in here) with the publisher token; the signed catalog lists it
@@ -82,6 +82,7 @@ python3 - "$tmp/zapp-icon.png" <<'PY' || fail=1
 import struct, sys
 b = open(sys.argv[1], 'rb').read()
 if b[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', b[16:24]) != (150, 150): sys.exit(f'icon.png is not a 150 x 150 PNG: {b[:24]!r}')
+if b[25] != 6: sys.exit(f'icon.png has no alpha (colour type {b[25]}): the sidebar of xochitl draws it as a black block')
 PY
 isum=$(shasum -a 256 "$tmp/zapp-icon.png" | cut -d' ' -f1)
 curl -sf -H "$auth" "$hub/catalog.json" | grep -q "\"icon\":\"apps/com.example.hub/v1-1.1.0.png\",\"iconSha256\":\"$isum\"" || { echo "the catalog does not list the icon: $(curl -s -H "$auth" "$hub/catalog.json")"; fail=1; }

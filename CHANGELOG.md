@@ -39,6 +39,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - reMarkable Read: pictures from the web (http/https, downloaded once and kept for offline reading, also for Notion pages at sync), inline `data:` pictures and file names with spaces or `%20` now show instead of a "[picture: …]" placeholder.
@@ -94,6 +95,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The reMarkable top bar shows the battery level on the tablet (it showed "Battery —").
@@ -199,6 +201,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Calls from a program into a native plugin are cheaper on the consoles, and zinc:3d places its nodes in single precision on the PSP, which has no double-precision hardware: Orbit's 3D work takes a quarter less time a frame on a PSP.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Nintendo 3DS games use elapsed time in stereo, fixing doubled gameplay speed and excess physics work. New Nintendo 3DS also enables its supported faster CPU/cache mode. Nova Patrol DS 0.2.1 includes these fixes.
@@ -231,6 +234,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc device <pi> update` on a Zinc Pi image installs the newest release the way the player's update page does (engine, player and system together) instead of asking for a manifest address.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Nintendo 3DS and other consoles: a program leaving the console core stops the GPU and the screens first; on a real 3DS XL, going back to the Homebrew Launcher after a heavy run crashed the console.
@@ -246,6 +250,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc pack`, `zinc dev --device` and `zinc device deploy` carry what a project needs beyond its own code: its own plugins (`plugins/`), and for a JavaScript project (a `.js` entry) its sources, its `node_modules` (linked packages included) and the libraries its `importmap.json` names outside the project (three.js, PixiJS).
@@ -262,6 +267,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.7.4] - 2026-10-24
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The Linux downloads carry their version again: those of 0.7.3 were named and reported `0.0.0-dev`, so `zinc update` and the Pi player's Updates menu could not compare them.
@@ -328,6 +334,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Using the result of a function that returns nothing no longer crashes the compiler: `console.log(f())` and `` `${f()}` `` print `undefined` as in JavaScript, and other uses (`[f()]`) give a Z0005 error on that line.
@@ -365,6 +372,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.6.2] - 2026-10-22
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc:icons` draws its icons on an installed Zinc: the packages lacked the Lucide icon data, so every `icon()` was `null` and every `<Icon>` empty. When that data is missing, the compiler now says so.
@@ -379,6 +387,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The macOS packages ship the native libraries of `zinc:link`, `zinc:webrtc` and `zinc:webview`: a program that imports them (`examples/music-tree`) no longer stops with Z5011 "no native source" on an installed Zinc.
@@ -416,6 +425,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
@@ -427,6 +437,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.5.2] - 2026-10-22
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 
@@ -478,6 +489,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On macOS, trackpad and Magic Mouse scrolling follows the fingers pixel for pixel, then macOS's own momentum, so a fling glides and stops as in any Mac app; fingers on the pad stop it, and a mouse wheel notch still eases (and jumps with Reduce motion).
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `--engine quickjs` loads a package that a pnpm workspace links in two places (`node_modules` symbolic links) once, by its real path; it was loaded twice, with two copies of its state.
@@ -498,6 +510,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On a Homebrew install, the update notice, `zinc update` and the formula's caveats say `brew update && brew upgrade zinc`: Homebrew reads its taps at most once a day on its own, so `brew upgrade zinc` alone could say there is nothing new.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `brew install` and `brew upgrade` of zinc no longer end with "Failed to fix install linkage": the plugins' libraries now leave room in their header for the path Homebrew writes into them.
@@ -519,6 +532,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example shows OpenCode Go's 5-hour, week and month usage with their resets, a rate-limited window in red, in the Agents panel and the status bar: it reads them from opencode.ai with the Go key `opencode auth export` gives, for that one request, never writing or passing the key on. Settings turns it off; then, or when the key is missing, expired or revoked, they show as unknown with the reason and a link to the console.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc:net`: `fetch` no longer sends the `Authorization`, `Proxy-Authorization` and `Cookie` headers on to another site when it follows a redirect; they go to the address they were given for only, as in browsers and curl.
@@ -552,6 +566,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc ui` (the Figma design tools), ZincStudio and the Figma plugin: they ran on the Node prototype, which is removed with them (its code is under the git tag `prototype-final`).
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Two programs started at the same time (two `zinc run`, a test beside an app) no longer fail to build or load the same plugin: the builds of a `ZINC_HOME` take turns.
@@ -564,6 +579,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.3.1] - 2026-10-19
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - tc: zinc.exe finds its package and unpacks zig on Windows
@@ -576,6 +592,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The zinc CLI for Linux (x86_64, aarch64, armhf, i686) on each release, updated by `zinc update`; `install.sh --atelier` adds Zinc Atelier to the applications menu.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Windows: zinc.exe finds the standard library and the prebuilt plugins beside it; the download looked for them at the path of the machine that built it.
@@ -592,6 +609,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - music: scroll and swipe with the mouse wheel and the trackpad
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - frontend: include algorithm for the JSX source map lookup
@@ -599,6 +617,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.2.1] - 2026-10-19
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Windows: the `zinc` download is back; 0.2.0 shipped without it because its build failed.
@@ -627,6 +646,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Windows: `ZINC_GPU=integrated|discrete` picks the graphics card of a laptop with two (the discrete one is the default, `ZINC_GL_STATS=1` prints the card in use).
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc device run` and `deploy` no longer fail with "the session with <device> ended early" while an update is on trial: the client waits for the whole trial, and `ZINC_AGENT_TRIAL_MS` is now real time on a busy device.
@@ -804,6 +824,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Text no longer shows `?` for invisible characters (bidi marks, zero-width spaces, variation selectors) a font has no glyph for: they draw as nothing.
