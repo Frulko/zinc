@@ -1,10 +1,12 @@
 // ZINC_PDF_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
 //   open <file> | next | prev | page <n> | zoom <z> | draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | erase <x> <y> (the Marker's
 //   eraser end) | write <x0> <y0> <x1> <y1> (the same, one sample a frame: logs the most draw commands of a frame) | undo | redo | save | export | library
-//   | tool <name> (a zinc:ink TOOLS or ERASERS name) | color <rrggbb>
+//   | tool <name> (a zinc:ink TOOLS or ERASERS name) | color <rrggbb> | pinch <factor> (two fingers spread around the middle of the screen,
+//   through the page view's ZoomView: logs the zoom and how many times the page was drawn while they moved)
 import * as sys from 'zinc:sys';
-import { quit, PenFlag } from 'zinc:gfx';
-import { parseHex } from 'zinc:ui';
+import { quit, PenFlag, width, height } from 'zinc:gfx';
+import { parseHex, touchAt } from 'zinc:ui';
+import { zoomViewDraws } from 'zinc:ui/kit';
 import { view, ink, scale, openDoc, turn, goTo, zoomTo, saveInk, undoInk, exportPdf, showLibrary } from './state';
 import { feedPen, penCommands } from './pageview';
 
@@ -37,6 +39,15 @@ export async function runScript(): Promise<void> {
     } else if (verb === 'erase') {
       feedPen(parseFloat(w[1]), parseFloat(w[2]), 0.5, PenFlag.Down | PenFlag.Eraser);
       feedPen(parseFloat(w[1]), parseFloat(w[2]), 0, 0);
+    }
+    else if (verb === 'pinch') {
+      const cx = width() / 2, cy = height() / 2, f = parseFloat(arg), r0 = 100;
+      touchAt(1, cx - r0, cy, 0); await sleep(20); touchAt(2, cx + r0, cy, 0);
+      const d0 = zoomViewDraws();
+      for (let i: i32 = 1; i <= 10; i++) { await sleep(20); const r = r0 * (1 + (f - 1) * i / 10); touchAt(1, cx - r, cy, 1); touchAt(2, cx + r, cy, 1); }
+      const during = zoomViewDraws() - d0, r1 = r0 * f;
+      touchAt(2, cx + r1, cy, 2); touchAt(1, cx - r1, cy, 2);
+      console.log('pdf: pinch to zoom ' + view.zoom.toFixed(2) + ', ' + during.toString() + ' draws of the page while the fingers moved');
     }
     else if (verb === 'undo') undoInk();
     else if (verb === 'redo') ink.redo();

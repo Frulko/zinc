@@ -171,28 +171,20 @@ export function turn(dir: i32): void {
   goTo(view.page + dir);
 }
 
-/** Zoom to `z` keeping the page point under (cx, cy) of the view in place. */
-export function zoomTo(z: number, cx: number, cy: number): void {
+/** The view zoomed by `f` around (cx, cy) of the view, then moved by (dx, dy) view pixels (ZoomView's onView), drawn by PDFium. */
+export async function setView(f: number, cx: number, cy: number, dx: number, dy: number): Promise<void> {
   if (view.doc === null) return;
   const s0 = scale();
   const px = view.ox + cx / s0, py = view.oy + cy / s0;
-  view.zoom = Math.max(1, Math.min(MAX_ZOOM, z));
+  view.zoom = Math.max(1, Math.min(MAX_ZOOM, view.zoom * f));
   const s = scale();
-  view.ox = px - cx / s; view.oy = py - cy / s;
+  view.ox = px - (cx + dx) / s; view.oy = py - (cy + dy) / s;
   clampView();
   draw();
   remember();
 }
-
-/** A zoomed view moved by (dx, dy) pixels of the view (a finger drag). */
-export function pan(dx: number, dy: number): void {
-  if (view.doc === null) return;
-  const s = scale();
-  view.ox -= dx / s; view.oy -= dy / s;
-  clampView();
-  draw();
-  remember();
-}
+/** Zoom to `z` keeping the page point under (cx, cy) of the view in place. */
+export function zoomTo(z: number, cx: number, cy: number): void { setView(z / view.zoom, cx, cy, 0, 0); }
 
 // ---------------------------------------------------------------- ink, per page in points, beside the document
 function inkDir(): string { return view.path + '.ink'; }

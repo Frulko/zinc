@@ -4,12 +4,13 @@
 // Export writes a copy of the PDF with the notes as ink annotations. E-paper: black on white, one refresh per gesture.
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
+import { ZoomView } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp, InkPalette } from 'zinc:remarkable';
-import { PAGE, LABEL, TITLE, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR } from './constants';
+import { MAX_ZOOM, PAGE, LABEL, TITLE, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR } from './constants';
 import { screen, status, pageLabel, penMode, setPenMode, files, onTablet, view, ink, scanLibrary, showLibrary, openDoc,
-  reopenLast, turn, goTo, zoomTo, saveInk, exportPdf, refresh, remember, docName, SCREEN_LIBRARY } from './state';
-import { pageView, pageStrip } from './pageview';
+  reopenLast, turn, goTo, zoomTo, setView, saveInk, exportPdf, refresh, remember, docName, SCREEN_LIBRARY } from './state';
+import { pageView, pageStrip, writing, swipe } from './pageview';
 import { scripted, runScript } from './script';
 
 function Btn(props: { label: string; onClick: () => void; on?: boolean }): i32 {
@@ -42,7 +43,8 @@ function Reader(): i32 {
       <Btn label="Refresh" onClick={() => refresh()} />
     </View>
     <InkPalette ink={ink} open={false} />
-    <Canvas className="grow" onDraw={pageView} />
+    <ZoomView className="grow" zoom={() => view.zoom} maxZoom={MAX_ZOOM} draw={pageView} picture={() => ink.img} writing={writing}
+      onView={setView} onSwipe={swipe} onWheel={(s: number) => { turn(s > 0 ? -1 : 1); }} />
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">
       <Btn label="Previous" onClick={() => turn(-1)} />
       <Text className={`w-[260px] text-center ${LABEL}`}>{pageLabel()}</Text>

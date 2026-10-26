@@ -1,28 +1,17 @@
-// The page view: PDFium's picture of the page, the ink over it, and the gestures (Zinc Web's, app/web/src/pageview.ts). Pen: writes
-// (its eraser end, or the Eraser tool, erases; on a desktop the mouse writes in Pen mode). Finger: a swipe turns the page (pans when
-// zoomed), two fingers pinch to zoom. The picture is scaled while the fingers move and drawn sharp by PDFium when they lift: one e-ink
-// refresh per gesture. The wheel turns pages, Ctrl+wheel zooms.
-import { rect, drawImageRect, penCount, penX, penY, penPressure, penFlags, PenFlag, touchCount, touchX, touchY,
-  pointerX, pointerY, pointerDown, wheel, modifiers, Mod, commandCount } from 'zinc:gfx';
-import { view, ink, penMode, onTablet, resize, turn, zoomTo, pan, scale } from './state';
-import { MAX_ZOOM } from './constants';
+// The page view: PDFium's picture of the page, the ink over it, and the pen (Zinc Web's, app/web/src/pageview.ts). Pen: writes (its eraser
+// end, or the Eraser tool, erases; on a desktop the mouse writes in Pen mode). The finger gestures are the kit's ZoomView (main.tsx): a
+// swipe turns the page, a drag pans a zoomed page, two fingers pinch; the picture is scaled while the fingers move and drawn sharp by
+// PDFium when they lift (setView), one e-ink refresh per gesture. The wheel turns pages, Ctrl+wheel zooms.
+import { rect, drawImageRect, penCount, penX, penY, penPressure, penFlags, PenFlag, pointerX, pointerY, pointerDown, commandCount } from 'zinc:gfx';
+import { view, ink, penMode, onTablet, resize, turn, scale } from './state';
 
-const TAP_SLOP: number = 24;
 const SWIPE: number = 120;
-
-let fingers: i32 = 0;            // 0 none, 1 one finger (or the mouse), 2 pinch
-let sx: number = 0, sy: number = 0, lx: number = 0, ly: number = 0;
-let d0: number = 1, mx: number = 0, my: number = 0, pinch: number = 1;
 let penFrames: i32 = 99;          // frames since the last pen sample: the Marker also moves the pointer
 
 /** The picture and the ink: one image while the view stays put, plus the live stroke's new segments (zinc:ink drawOver). */
 function draw(x: i32, y: i32, w: i32, h: i32): void {
   if (view.img < 0 || view.doc === null) { rect(x, y, w, h, 0xffffff); return; }
-  // the live transform: a pinch scales around its middle, a drag of a zoomed page moves it
-  const s0 = scale(), z = s0 * pinch;
-  let ox = view.ox, oy = view.oy;
-  if (pinch !== 1) { ox += mx / s0 - mx / z; oy += my / s0 - my / z; }
-  else if (fingers === 1 && view.zoom > 1) { ox -= (lx - sx) / s0; oy -= (ly - sy) / s0; }
+  const z = scale(), ox = view.ox, oy = view.oy;
   const k = z / view.iscale;   // the picture is the view at (iox, ioy) and iscale
   ink.drawOver(x, y, w, h, ox, oy, z, view.shot, (_w: i32, _h: i32) => {
     drawImageRect(view.img, 0, 0, view.w, view.h, (view.iox - ox) * z, (view.ioy - oy) * z, view.w * k, view.h * k);
@@ -46,50 +35,17 @@ function pen(x: number, y: number, w: number, h: number): void {
   }
 }
 
-function fingersInput(x: number, y: number, w: number, h: number): void {
-  const t = touchCount();
-  if (t >= 2) {
-    const ax = touchX(0) - x, ay = touchY(0) - y, bx = touchX(1) - x, by = touchY(1) - y;
-    const d = Math.max(1, Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by)));
-    if (fingers !== 2) { fingers = 2; d0 = d; mx = (ax + bx) / 2; my = (ay + by) / 2; }
-    pinch = Math.max(1 / view.zoom, Math.min(MAX_ZOOM / view.zoom, d / d0));
-    return;
-  }
-  if (fingers === 2) {   // the pinch ends when the fingers lift
-    if (t === 0) { const p = pinch; pinch = 1; fingers = 0; zoomTo(view.zoom * p, mx, my); }
-    return;
-  }
-  const writing = penFrames < 3 || ink.live !== null || (!onTablet && penMode());
-  const down = pointerDown() && !writing;
-  const px = pointerX() - x, py = pointerY() - y;
-  if (down && fingers === 0) {
-    if (px < 0 || py < 0 || px >= w || py >= h) return;
-    fingers = 1; sx = px; sy = py; lx = px; ly = py;
-    return;
-  }
-  if (down && fingers === 1) { lx = px; ly = py; return; }
-  if (!down && fingers === 1) {
-    fingers = 0;
-    const dx = lx - sx, dy = ly - sy;
-    if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) return;
-    if (view.zoom > 1) { pan(dx, dy); return; }
-    if (Math.abs(dy) >= Math.abs(dx) ? Math.abs(dy) > SWIPE : Math.abs(dx) > SWIPE) turn((Math.abs(dy) >= Math.abs(dx) ? dy : dx) < 0 ? 1 : -1);
-  }
+/** The pointer is the pen (or the mouse in Pen mode): ZoomView starts no gesture. */
+export function writing(): boolean { return penFrames < 3 || ink.live !== null || (!onTablet && penMode()); }
+/** A drag of the page at zoom 1: a long enough one turns it. */
+export function swipe(dx: number, dy: number): void {
+  if (Math.abs(dy) >= Math.abs(dx) ? Math.abs(dy) > SWIPE : Math.abs(dx) > SWIPE) turn((Math.abs(dy) >= Math.abs(dx) ? dy : dx) < 0 ? 1 : -1);
 }
 
-function wheelInput(x: number, y: number): void {
-  const s = wheel();
-  if (s === 0) return;
-  if ((modifiers() & Mod.Ctrl) !== 0 || (modifiers() & Mod.Meta) !== 0) zoomTo(view.zoom * (s > 0 ? 1.25 : 0.8), pointerX() - x, pointerY() - y);
-  else turn(s > 0 ? -1 : 1);
-}
-
-/** The Canvas onDraw of the page view. */
+/** ZoomView's draw: the page view. */
 export function pageView(x: i32, y: i32, w: i32, h: i32): void {
   resize(w, h);
   pen(x, y, w, h);
-  fingersInput(x, y, w, h);
-  wheelInput(x, y);
   const c0 = commandCount();
   draw(x, y, w, h);
   if (ink.live !== null) penCmds = Math.max(penCmds, commandCount() - c0);

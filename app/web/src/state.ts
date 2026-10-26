@@ -205,25 +205,20 @@ export async function turn(dir: i32): Promise<void> {
   await run(async (): Promise<string> => { await fetchShot(); tabs[current].oy = view.oy; saveTabs(); conf.save(); return ''; });
 }
 
-/** Zoom to `z` keeping the page point under (cx, cy) of the view in place; 1 goes back to whole pages. */
-export async function zoomTo(z: number, cx: number, cy: number): Promise<void> {
+/** The view zoomed by `f` around (cx, cy) of the view, then moved by (dx, dy) view pixels (ZoomView's onView); zoom 1 goes back to whole
+ *  pages. Resolves once the relay's picture of it is here. */
+export async function setView(f: number, cx: number, cy: number, dx: number, dy: number): Promise<void> {
   if (view.doc === null) return;
-  const nz = Math.max(1, Math.min(MAX_ZOOM, z));
+  const nz = Math.max(1, Math.min(MAX_ZOOM, view.zoom * f));
   const px = view.ox + cx / view.zoom, py = view.oy + cy / view.zoom;
   view.zoom = nz;
   if (nz === 1) { view.ox = 0; view.oy = Math.floor(py / view.h) * view.h; }
-  else { view.ox = px - cx / nz; view.oy = py - cy / nz; }
+  else { view.ox = px - (cx + dx) / nz; view.oy = py - (cy + dy) / nz; }
   clampView();
   await run(async (): Promise<string> => { await fetchShot(); return ''; });
 }
-
-/** A zoomed view moved by (dx, dy) pixels of the view (a finger drag). */
-export async function pan(dx: number, dy: number): Promise<void> {
-  if (view.doc === null) return;
-  view.ox -= dx / view.zoom; view.oy -= dy / view.zoom;
-  clampView();
-  await run(async (): Promise<string> => { await fetchShot(); return ''; });
-}
+/** Zoom to `z` keeping the page point under (cx, cy) of the view in place. */
+export async function zoomTo(z: number, cx: number, cy: number): Promise<void> { await setView(z / view.zoom, cx, cy, 0, 0); }
 
 /** The link under (vx, vy) of the view, or null. A finger is wide: 16 px of slack around each link. */
 export function linkAt(vx: number, vy: number): Link | null {

@@ -3,13 +3,15 @@
 // E-paper: black on white, page turns instead of scrolling, one refresh per gesture; Refresh clears the ghosting.
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
+import { ZoomView } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp, RemarkableKeyboard, InkPalette } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { ink, screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, back, turn, zoomTo, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
+  openUrl, back, turn, zoomTo, setView, tapAt, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
   tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, closeAllTabs, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
-import { pageView } from './pageview';
+import { pageView, writing, swipe } from './pageview';
+import { MAX_ZOOM } from './constants';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
 
@@ -96,7 +98,8 @@ function Widget(): i32 {
 /** The page with the writing tools floating over its top: unfolding them does not change the page view's size (which would render the page again). */
 function Page(): i32 {
   return <View className="grow relative">
-    <Canvas className="grow" onDraw={pageView} />
+    <ZoomView className="grow" zoom={() => view.zoom} maxZoom={MAX_ZOOM} draw={pageView} picture={() => ink.img} writing={writing}
+      onView={setView} onSwipe={swipe} onTap={(x: number, y: number) => { tapAt(x, y); }} onWheel={(s: number) => { turn(s > 0 ? -1 : 1); }} />
     <View className="absolute top-0 left-0 right-0"><InkPalette ink={ink} open={false} /></View>
   </View>;
 }

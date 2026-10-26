@@ -60,6 +60,9 @@ grep -aq '/CA *0*\.35' "$tmp/docs/sample.annotated.pdf" || { echo "the highlight
 app "open sample.pdf; page 3; draw 100 100 900 300; draw 100 300 900 500; draw 100 500 900 700; write 100 800 900 900"
 n=$(sed -n 's/^pdf: \([0-9]*\) draw commands at most a frame while writing$/\1/p' "$tmp/app.log")
 [ -n "$n" ] && [ "$n" -le 30 ] || { echo "a frame while writing drew $n commands (at most 30)"; fail=1; }
+# a pinch through the page view's ZoomView: the page is scaled, not drawn again, while the fingers move; it zooms when they lift
+app "open sample.pdf; pinch 2"
+expect 'pdf: pinch to zoom 2.00, 0 draws of the page while the fingers moved'
 [ -n "$PDF_SHOTS" ] && cp "$tmp/shot.png" "$tmp/docs/sample.annotated.pdf" "$PDF_SHOTS/" 2>/dev/null
 [ $fail -eq 0 ] && echo "pdf reader: ok"
 exit $fail

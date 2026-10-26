@@ -21,6 +21,9 @@ export interface ZoomViewProps {
   /** Picture mode: draws the content at the committed view into (x, y, w, h); never called while a gesture moves (once at its start, for
    *  the picture it moves). It may read the pen there, as a Canvas onDraw does. */
   draw?: (x: i32, y: i32, w: i32, h: i32) => void;
+  /** Picture mode: an image the app keeps of what `draw` shows, the view's size (zinc:ink's `img` after drawOver); the gesture moves it
+   *  instead of a picture recorded from `draw`, which must then not draw into an image itself (images are not recorded nested). */
+  picture?: () => i32;
   /** Content mode: the children, scaled around the view's top-left corner by the committed zoom. */
   children?: () => i32;
   /** The gesture ended: the view zoomed by `factor` around (cx, cy) of the view, then moved by (dx, dy) view pixels. Resolves once the app
@@ -115,16 +118,21 @@ export function ZoomView(props: ZoomViewProps): i32 {
   const paint = (x: i32, y: i32, w: i32, h: i32): void => {
     const d = props.draw as (x: i32, y: i32, w: i32, h: i32) => void;
     if (!live()) { draws++; d(x, y, w, h); return; }
-    if (snapDue) {   // the picture the gesture moves: what the view showed when it started
-      if (snap < 0 || sw !== w || sh !== h) { if (snap >= 0) destroyImage(snap); snap = createImage(w, h); sw = w; sh = h; }
-      beginImage(snap);
-      draws++; d(0, 0, w, h);
-      endImage();
-      snapDue = false;
+    let img = props.picture !== undefined ? (props.picture as () => i32)() : -1;
+    if (img >= 0) snapDue = false;
+    else {
+      if (snapDue) {   // the picture the gesture moves: what the view showed when it started
+        if (snap < 0 || sw !== w || sh !== h) { if (snap >= 0) destroyImage(snap); snap = createImage(w, h); sw = w; sh = h; }
+        beginImage(snap);
+        draws++; d(0, 0, w, h);
+        endImage();
+        snapDue = false;
+      }
+      img = snap;
     }
     const k = s();
     rect(x, y, w, h, 0xffffff);
-    drawImageRect(snap, 0, 0, sw, sh, x + mx * (1 - k) + tx(), y + my * (1 - k) + ty(), sw * k, sh * k);
+    drawImageRect(img, 0, 0, w, h, x + mx * (1 - k) + tx(), y + my * (1 - k) + ty(), w * k, h * k);
   };
   return <Canvas className={props.className ?? ''} onDraw={paint} onPinch={pinch} onDrag={drag} onTap={tap} onWheel={wheel} />;
 }
