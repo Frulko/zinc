@@ -7,7 +7,7 @@
 // The manifest's "ink" option chooses: "qtfb" L0; "native" L1, else L0; "session" L1, else L2 (inside the lease), else L0.
 // A downgrade is one way (L1 -> L0 on any lane error) and says so once. The model and its vendor rows are in models.h.
 // The reMarkable 2 has no lane and no session: its row selects timower's rm2fb (rm2fb.h), whose DU waveform draws the ink.
-// Touch comes from qtfb (evdev under L2 and on the rM2); evdev supplies Marker pressure, tilt and the eraser end.
+// Touch and keys (the Type Folio, AppLoad's keyboard) come from qtfb (touch from evdev under L2 and on the rM2); evdev supplies Marker pressure, tilt and the eraser end.
 // Mode changes are explicit (drawing FAST / colour preview UI), never automatic per stroke.
 // Only changed RGB pixels are submitted; xochitl owns the physical refresh policy.
 #include <algorithm>
@@ -136,6 +136,7 @@ void rm_poll(HalInput* in) {
         as_widget = m.state.value == WINDOW_WIDGET || (as_widget && hidden);
       }
     }
+    if (m.type == MSG_INPUT && rin::key_event(m.input.type, m.input.x)) continue;   // keys queue in order: no frame each
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
       // Deliver each touch transition to the UI; draining a quick press+release would swallow the tap.
       break;

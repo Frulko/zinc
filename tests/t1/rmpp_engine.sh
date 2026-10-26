@@ -51,6 +51,14 @@ COPYFILE_DISABLE=1 tar cf "$tmp/drawn.zapp" -C "$tmp/icon" icon.png
 "$z/bin/zinc-tile" "$tmp/drawn.zapp" > /dev/null || fail "zinc-tile (a .zapp with an icon)"
 cmp -s "$ZINC_APPLOAD/zinc-drawn/icon.png" "$tmp/icon/icon.png" || fail "the tile does not show the .zapp's icon.png"
 echo "icons: ok"
+# zinc.json "display": {"keyboard": true}: the tile asks AppLoad for its on-screen keyboard; the others do not
+mkdir "$tmp/kb" && printf '{ "name": "typer", "display": { "driver": "rmpp", "keyboard": true } }\n' > "$tmp/kb/zinc.json"
+COPYFILE_DISABLE=1 tar cf "$tmp/typer.zapp" -C "$tmp/kb" zinc.json
+"$z/bin/zinc-tile" "$tmp/typer.zapp" > /dev/null || fail "zinc-tile (a .zapp with the keyboard)"
+python3 -c 'import json, sys; m = json.load(open(sys.argv[1])); sys.exit(m.get("supportsVirtualKeyboard") is not True)' "$ZINC_APPLOAD/zinc-typer/external.manifest.json" ||
+  fail "the keyboard tile has no supportsVirtualKeyboard: $(cat "$ZINC_APPLOAD/zinc-typer/external.manifest.json")"
+grep -q supportsVirtualKeyboard "$ZINC_APPLOAD/zinc-drawn/external.manifest.json" && fail "a tile without the keyboard asks for it"
+echo "keyboard: ok"
 out=$(HOME=/home/root "$ZINC_APPLOAD/zinc-notes/launch.sh")
 [ "$out" = "zinc run $tmp/notes.zapp LD_LIBRARY_PATH=$z/lib:/usr/lib/plugins/scenegraph ZINC_RMPP_INK= HOME=/home/root" ] || fail "qtfb launch: $out"
 V=$(sha256sum "$ZINC_QSGEPAPER" | cut -c1-64)

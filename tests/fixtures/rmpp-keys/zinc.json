@@ -1,0 +1,10 @@
+{
+  "name": "rmpp-keys",
+  "entry": "src/main.tsx",
+  "display": { "driver": "rmpp", "keyboard": true },
+  "ui": { "layout": "rn" },
+  "targets": {
+    "macos": { "width": 1620, "height": 2160 },
+    "linux": { "width": 1620, "height": 2160 }
+  }
+}

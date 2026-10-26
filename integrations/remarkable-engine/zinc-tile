@@ -31,7 +31,12 @@ if tar xOf "$zapp" icon.png > "$dir/icon.png" 2>/dev/null && [ "$(dd if="$dir/ic
 else cp "$Z/share/zinc/rmpp/icon.png" "$dir/icon.png"; fi
 # a qtfb tile keeps AppLoad's window buttons: a tap opens it full screen, a swipe down from the top shows _ (minimize, the app keeps
 # running) and X; an ink session has no AppLoad window
-printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": %s\n}\n' \
+# zinc.json "display": {"keyboard": true} (in the .zapp): AppLoad shows its on-screen keyboard for the app (qtfb tiles only)
+vkb=
+if [ -z "$session" ] && tar xOf "$zapp" zinc.json 2>/dev/null | tr -d ' \n\t' | grep -q '"display":{[^}]*"keyboard":true'; then
+  vkb=',\n  "supportsVirtualKeyboard": true'
+fi
+printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": %s'"$vkb"'\n}\n' \
   "$name" "$([ -n "$session" ] && echo false || echo true)" "$dir" "$([ -n "$session" ] && echo true || echo false)" > "$dir/external.manifest.json"
 if [ -n "$session" ]; then
   cat > "$dir/launch.sh" <<EOF

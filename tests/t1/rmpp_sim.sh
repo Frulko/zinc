@@ -16,7 +16,7 @@ ferrari="ZINC_RMPP_MACHINE=reMarkable Ferrari"
 run() {
   label=$1 app=$2 frames=$3 ink=$4; shift 4
   proj=$tmp/$label; mkdir -p "$proj/plugins/display-rmpp-sim" "$proj/out"
-  src=$root/examples/remarkable/$app
+  src=$root/examples/remarkable/$app; case $app in */*) src=$root/$app ;; esac   # an app of examples/remarkable, or a path (a fixture)
   ln -s "$src/src" "$proj/src"; [ -d "$src/native" ] && ln -s "$src/native" "$proj/native"
   # the option as a project sets it; under ZINC_DISPLAY (needed headless) it is read from plugins.<driver> of zinc.json
   opt=""; [ "$ink" != - ] && opt=" \"plugins\": { \"display-rmpp-sim\": { \"ink\": \"$ink\" } },"
@@ -138,6 +138,13 @@ if run touch dashboard 360 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=80:136
     { echo "touch: qtfb taps do not press the dashboard's buttons as the golden's taps do"; grep -v " touch " "$tmp/touch/out/trace.txt" | diff - tests/golden/sim/rmpp-dashboard.trace | head -6; fail=1; }
 fi
 taps=
+
+# L0 keys (AppLoad's MESSAGE_USERINPUT, INPUT_BTN_*: the Type Folio): Qt key codes, with Shift held, reach the focused field as text and
+# named keys: "Hi é!" ("Hi é" on the way and again after Backspace), Return, then Ctrl+A that types nothing.
+S=0x01000020
+if run keys tests/fixtures/rmpp-keys 40 - "ZN_RMPP_SIM_KEYS=10:+$S,0x48,-$S,0x49,0x20,0xC9,+$S,0x21,-$S;14:0x01000003;16:0x01000004;18:+0x01000021,0x41,-0x01000021"; then
+  has keys log 1 "typed \[Hi é!\]"; has keys log 2 "typed \[Hi é\]$"; has keys log 1 "^submit"; has keys log 0 "typed \[.*a"
+fi
 
 [ $fail -eq 0 ] && echo "rmpp sim: ok"
 exit $fail

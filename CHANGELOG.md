@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
+
 ### Changed
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 

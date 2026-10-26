@@ -338,6 +338,17 @@ muted pigments, fast updates in black/white, colour arriving after the idle upgr
 else the mouse (left = pen at pressure 0.5, right = eraser). Give the project the device resolution with
 `"targets": { "macos": { "width": 1620, "height": 2160 } }`.
 
+## Keyboard: the Type Folio and AppLoad's keyboard
+
+Under AppLoad (qtfb), display-rmpp turns AppLoad's key messages into the engine's keys, so a focused text field types and shortcuts
+work: the Type Folio (or any keyboard xochitl sees) arrives as `INPUT_BTN_PRESS`/`RELEASE`, AppLoad's own on-screen keyboard as
+`INPUT_VKB_PRESS`/`RELEASE`, both with a Qt key code and nothing else. The driver tracks Shift, Ctrl, Alt and Meta itself, maps the
+named keys (arrows, Home/End, Page Up/Down, Backspace, Delete, Return, Tab, Escape, F1 to F12) and types ASCII and Latin-1 (é, ç...;
+upper case only with Shift held, nothing while Ctrl or Meta is held). AppLoad shows its on-screen keyboard only for an app that asks:
+set `"display": { "driver": "rmpp", "keyboard": true }` in zinc.json and `zinc-tile` writes `"supportsVirtualKeyboard": true` in the
+tile's `external.manifest.json`. Caps Lock, dead keys and characters outside Latin-1 are not seen (AppLoad sends no text). The ink
+session (`"ink": "session"`) has no keyboard yet.
+
 ## Install on the tablet
 
 1. Enable developer mode (wipes the tablet), connect USB, `ssh root@10.11.99.1`.

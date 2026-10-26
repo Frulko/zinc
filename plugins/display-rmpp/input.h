@@ -1,4 +1,4 @@
-// Marker pressure, tilt and eraser from evdev on a reader thread; touch from AppLoad on the UI thread.
+// Marker pressure, tilt and eraser from evdev on a reader thread; touch and keys from AppLoad on the UI thread.
 // Pen ranges come from EVIOCGABS. ZINC_RMPP_PEN_ROTATE overrides orientation (0/90/180/270).
 #pragma once
 #include "hal.h"
@@ -131,6 +131,47 @@ static bool touch_event(int type, int id, int x, int y) {
   return true;
 }
 
+// Keys from AppLoad (UI thread): a hardware keyboard (the Type Folio, INPUT_BTN_*) or AppLoad's own on-screen keyboard (INPUT_VKB_*) send
+// QKeyEvent::key(), a Qt::Key code, with no text and no modifiers: the modifiers are tracked here, the text derived from the code.
+static HalKey kq[64];
+static int kqn = 0;
+static char kt[HAL_TEXT_BYTES];
+static int ktn = 0;
+static uint32_t mods = 0;
+static void key_push(int32_t key, int32_t kind, const char* text = nullptr, int n = 0) {
+  if (kqn == 64 || ktn + n > HAL_TEXT_BYTES) return;   // ponytail: a full queue drops keys (64 per frame is far above typing speed)
+  kq[kqn++] = HalKey{key, mods, kind, (uint16_t)ktn, (uint16_t)n};
+  if (n) { memcpy(kt + ktn, text, n); ktn += n; }
+}
+/** INPUT_BTN_PRESS/RELEASE (0x30/0x31) and INPUT_VKB_PRESS/RELEASE (0x40/0x41) with the Qt key code; false for other messages. */
+static bool key_event(int type, int qt) {
+  if (type != 0x30 && type != 0x31 && type != 0x40 && type != 0x41) return false;
+  const bool down = type == 0x30 || type == 0x40;
+  static const uint32_t modbits[] = {HAL_MOD_SHIFT, HAL_MOD_CTRL, HAL_MOD_META, HAL_MOD_ALT};   // Qt::Key_Shift, Control, Meta, Alt
+  if (qt >= 0x01000020 && qt <= 0x01000023) { mods = down ? mods | modbits[qt - 0x01000020] : mods & ~modbits[qt - 0x01000020]; return true; }
+  int32_t key = 0;
+  uint32_t ch = 0;   // the typed character (Latin-1), 0: none
+  static const int32_t named[] = {HAL_KEY_ESCAPE, HAL_KEY_TAB, 0, HAL_KEY_BACKSPACE, HAL_KEY_ENTER, HAL_KEY_ENTER, 0, HAL_KEY_DELETE};   // Qt 0x01000000..07
+  static const int32_t moves[] = {HAL_KEY_HOME, HAL_KEY_END, HAL_KEY_ARROW_LEFT, HAL_KEY_ARROW_UP, HAL_KEY_ARROW_RIGHT, HAL_KEY_ARROW_DOWN,
+                                  HAL_KEY_PAGEUP, HAL_KEY_PAGEDOWN};   // Qt 0x01000010..17
+  const bool shift = mods & HAL_MOD_SHIFT;
+  if (qt >= 0x01000000 && qt <= 0x01000007) key = named[qt - 0x01000000];
+  else if (qt >= 0x01000010 && qt <= 0x01000017) key = moves[qt - 0x01000010];
+  else if (qt >= 0x01000030 && qt <= 0x0100003b) key = HAL_KEY_F1 + (qt - 0x01000030);   // F1..F12
+  else if (qt >= 'A' && qt <= 'Z') { key = qt + 32; ch = shift ? qt : qt + 32; }        // Qt letters are the upper-case code
+  else if (qt >= 32 && qt <= 126) key = ch = qt;
+  else if (qt >= 0xC0 && qt <= 0xDE && qt != 0xD7) { key = qt + 32; ch = shift ? qt : qt + 32; }   // Latin-1 letters (Key_Eacute 0xC9)
+  else if (qt >= 0xA0 && qt <= 0xFF) key = ch = qt;
+  if (!key) return true;
+  key_push(key, down ? HAL_KEY_DOWN : HAL_KEY_UP);
+  if (down && ch && !(mods & (HAL_MOD_CTRL | HAL_MOD_META))) {
+    char u[2]; int n = 1;
+    if (ch < 0x80) u[0] = (char)ch; else { u[0] = (char)(0xC0 | ch >> 6); u[1] = (char)(0x80 | (ch & 0x3F)); n = 2; }
+    key_push(0, HAL_KEY_TEXT, u, n);
+  }
+  return true;
+}
+
 /** HalDisplay.poll: pen samples to the runtime queue; the first finger (or else the pen) drives the UI pointer. */
 static void poll_input(HalInput* in) {
   pthread_mutex_lock(&mu);
@@ -148,6 +189,21 @@ static void poll_input(HalInput* in) {
   else in->pdown = 0;
   in->px = px; in->py = py;
   pthread_mutex_unlock(&mu);
+  // keys after the base HAL's own (its queue was reset by its poll); what does not fit waits for the next frame
+  int k = 0;
+  for (; k < kqn && in->nkeys < HAL_MAX_KEYS && in->ntext + kq[k].len <= HAL_TEXT_BYTES; k++) {
+    HalKey e = kq[k];
+    if (e.len) { memcpy(in->text + in->ntext, kt + e.off, e.len); e.off = (uint16_t)in->ntext; in->ntext += e.len; }
+    in->keys[in->nkeys++] = e;
+  }
+  if (k) {
+    const int skip = k < kqn ? kq[k].off : ktn;
+    memmove(kq, kq + k, (kqn - k) * sizeof(HalKey)); kqn -= k;
+    memmove(kt, kt + skip, ktn - skip); ktn -= skip;
+    for (int i = 0; i < kqn; i++) kq[i].off = (uint16_t)(kq[i].off - skip);
+  }
+  static uint32_t ours = 0;
+  in->mods = (in->mods & ~ours) | mods; ours = mods;
   if (!getenv("ZINC_FRAMES")) in->quit = quit_flag;
   else in->quit |= quit_flag;  // the headless base HAL would stop after 60 frames
 }

@@ -298,6 +298,29 @@ static void qsim_taps() {
     s = *e ? e + 1 : e;
   }
 }
+// ZN_RMPP_SIM_KEYS=frame:code[,code...][;...]: the Type Folio through AppLoad's MESSAGE_USERINPUT at that frame, Qt::Key codes
+// (0x48, 0x01000020...) in x as FBController::keyPressEvent sends them: INPUT_BTN_PRESS then INPUT_BTN_RELEASE for each code; +code only
+// presses (a held Shift), -code only releases
+static void qsim_keys() {
+  const char* p = getenv("ZN_RMPP_SIM_KEYS");
+  for (const char* s = p ? p : ""; *s && qsim::qtfb >= 0;) {
+    char* e;
+    const long f = strtol(s, &e, 10);
+    for (s = e + 1; *s && *s != ';'; s += *s == ',') {
+      const char op = *s == '+' || *s == '-' ? *s++ : 0;
+      const int code = (int)strtol(s, &e, 0);
+      s = e;
+      if ((long)qsim::frames != f) continue;
+      for (int k = op == '-'; k < (op == '+' ? 1 : 2); k++) {
+        qsim::ServerMsg m = {};
+        m.type = qsim::MSG_INPUT; m.input.type = 0x30 + k; m.input.x = code;
+        send(qsim::qtfb, &m, sizeof m, 0);
+      }
+      qsim::line("%8.1f ms key %c0x%x", qsim::virtualNow() / 1000.0, op ? op : ' ', code);
+    }
+    s += *s == ';';
+  }
+}
 // the person taps the minimized window's bar 60 frames after the app minimized it
 static void qsim_restore() {
   const char* e = getenv("ZN_RMPP_SIM_RESTORE");
@@ -320,6 +343,7 @@ static void qsim_collapse() {
 }
 static void qsim_polled(HalInput* in) {
   qsim_taps();
+  qsim_keys();
   qsim_collapse();
   qsim_restore();
   qsim_poll(in);
