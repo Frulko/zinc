@@ -18,6 +18,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: InkML or Xournal++ .xopp export of zinc:ink when a user asks (lossless pressure for desktop apps).
 - ZN-844: check the highlighter of <name>.annotated.pdf (/CA, no /AP) in Preview, Acrobat and Firefox; add appearance streams if one hides it.
 - ZN-844: InkPalette in examples/remarkable/notes (replaces its DrawingBar; regenerate the rmpp_sim goldens).
+- ZN-844: try the Running page and zinc-watch on the Paper Pro: minimize an app (it stays OK), hang one (kill -STOP), check the banner, AppLoad's X stopping it and the journal lines; tune zinc-watch.c's thresholds after a week of use.
+- ZN-844: a hang before the first frame is not detected (no heartbeat yet); a start-up deadline in zinc-watch.
 - ZN-844: `charCodeAt(i)` (and the other UTF-16 index reads) on a non-ASCII string converts the whole string with `toU16` at each call (src/rt/rtcalls.cpp), so a charCodeAt loop over accented text is quadratic: 90 KB took 19 s in JSON.stringify before it got a native quote. Keep a UTF-16 view or a byte cursor per string.
 - ZN-792: list n3ds/psp/vita in the "targets" of the plugins the console cores link (3d, audio, physics2d), so zinc lint --target n3ds stops warning about them; dev and deploy already filter them out using the player's list.
 - ZN-792: give the bytecode's native imports the plugin they come from, so the console's runtime error names the plugin (canvas2d), not only the module (Canvas2D).
