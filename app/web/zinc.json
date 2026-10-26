@@ -1,7 +1,7 @@
 {
   "name": "web",
   "entry": "src/main.tsx",
-  "app": { "id": "dev.zinc.web", "version": "0.1.4", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.web", "version": "0.1.5", "icon": "icon.svg" },
   "display": { "driver": "rmpp" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
