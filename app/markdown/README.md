@@ -54,3 +54,9 @@ and reload AppLoad. The engine's `markdown` plugin must be in its bundle (`tools
 layout of the md4c tree), `pageview.ts` (drawing and gestures), `notion.ts` (the API and the Markdown it becomes), `conf.ts`, `script.ts`
 (`ZINC_READ_SCRIPT`, the test mode of `tests/t1/markdown_reader.sh`). `fixture/`: the test documents. `icon.svg` (zinc.json `app.icon`) is
 Lucide's `book-open` (lucide-static 1.47.0, ISC licence, https://lucide.dev/license).
+
+## Credits
+
+Markdown is parsed by [md4c](https://github.com/mity/md4c) (Martin Mitáš, MIT); Notion pages come through the
+[Notion API](https://developers.notion.com/). The other projects Zinc uses on the reMarkable are listed in
+[Credits and inspiration](../../docs/targets/remarkable-paper-pro.md#credits-and-inspiration).

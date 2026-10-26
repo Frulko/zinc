@@ -41,3 +41,10 @@ and reload AppLoad. Copy documents with `scp *.pdf root@10.11.99.1:/home/root/zi
 `src/`: `main.tsx` (the shell), `state.ts` (the actions: library, open, turn, zoom, pan, ink, export), `pageview.ts` (the page view's
 drawing and gestures, the page strip), `constants.ts`, `script.ts` (`ZINC_PDF_SCRIPT`, the test mode of `tests/t1/pdf_reader.sh`).
 `icon.svg` (zinc.json `app.icon`, the tile's icon) is Lucide's `file-text` (lucide-static 1.47.0, ISC licence, https://lucide.dev/license).
+
+## Credits
+
+PDF pages are drawn by [PDFium](https://pdfium.googlesource.com/pdfium/) (Google, BSD-3-Clause and Apache 2.0), in
+the prebuilt libraries of [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) (Benoît Blanchon). The other
+projects Zinc uses on the reMarkable are listed in
+[Credits and inspiration](../../docs/targets/remarkable-paper-pro.md#credits-and-inspiration).

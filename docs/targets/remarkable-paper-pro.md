@@ -444,3 +444,24 @@ To validate on hardware:
 - finger taps with the Marker away from the screen, pressure, eraser and palm rejection;
 - **Save & quit** / **Quit**, followed by relaunch from AppLoad;
 - pen-to-glass latency and ghosting in FAST versus UI (the socket test cannot measure these).
+
+## Credits and inspiration
+
+Zinc on the reMarkable stands on the work of others:
+
+- [AppLoad](https://github.com/asivery/rm-appload) and [xovi](https://github.com/asivery/xovi) by asivery: the app
+  launcher and its qtfb framebuffer, which Zinc's display driver talks to. The window and widget patches of
+  `integrations/remarkable-engine/appload` are written on top of AppLoad v0.6.0.
+- [KOReader](https://github.com/koreader/koreader), whose qtfb client showed how to draw through AppLoad, and
+  [quill](https://github.com/MaximeRivest/quill), which documents the tablet's private e-paper calls.
+- The [`eeems/remarkable-toolchain`](https://hub.docker.com/r/eeems/remarkable-toolchain) image by Eeems, in which AppLoad is built.
+- [PDFium](https://pdfium.googlesource.com/pdfium/) (Google, BSD-3-Clause and Apache 2.0) in the prebuilt libraries of
+  [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) by Benoît Blanchon: Zinc PDF.
+- [md4c](https://github.com/mity/md4c) by Martin Mitáš (MIT): Zinc Read's Markdown parser. The
+  [Notion API](https://developers.notion.com/) brings Notion pages in.
+- Headless [Google Chrome](https://www.google.com/chrome/) through the Chrome DevTools Protocol: the pages of Zinc Web.
+- [nanosvg](https://github.com/memononen/nanosvg) by Mikko Mononen (zlib): app icons drawn from SVG.
+- [Lucide](https://lucide.dev) (ISC): the icons of the apps and of the AppLoad patches.
+
+Inspiration: [TRMNL](https://usetrmnl.com) for the web dashboard (a page rendered elsewhere, shown on e-ink at
+a fixed period), iOS WidgetKit and Android's Glance for the widgets, and the reMarkable's own notebooks for the ink.
