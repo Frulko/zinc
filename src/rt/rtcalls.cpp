@@ -33,16 +33,23 @@ inline ArrObj* A(Slot s) { return reinterpret_cast<ArrObj*>(s); }
 inline MapObj* M(Slot s) { return reinterpret_cast<MapObj*>(s); }
 inline Slot P(const Obj* o) { return reinterpret_cast<Slot>(o); }
 
+// UTF-16 units of the string, as many as u16len counts (machine.cpp): one per byte that is not a continuation byte, two for a 4-byte
+// lead. Bytes that are not UTF-8 (a binary body read as text) become U+FFFD units instead of shifting every index after them.
 std::u16string toU16(const StrObj* s) {
   std::u16string r;
   const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
   for (std::uint32_t i = 0; i < s->len;) {
-    std::uint32_t c = d[i], n = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
-    if (c >= 0x80) c &= n == 2 ? 0x1Fu : n == 3 ? 0x0Fu : 0x07u;
-    for (std::uint32_t k = 1; k < n && i + k < s->len; ++k) c = c << 6 | (d[i + k] & 0x3Fu);
-    i += n;
-    if (c >= 0x10000) { c -= 0x10000; r += static_cast<char16_t>(0xD800 + (c >> 10)); r += static_cast<char16_t>(0xDC00 + (c & 0x3FF)); }
-    else r += static_cast<char16_t>(c);
+    std::uint32_t c = d[i++];
+    if (c < 0x80) { r += static_cast<char16_t>(c); continue; }
+    if ((c & 0xC0) == 0x80) continue;   // a stray continuation byte: no unit, as u16len
+    const std::uint32_t n = c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+    c &= n == 2 ? 0x1Fu : n == 3 ? 0x0Fu : 0x07u;
+    std::uint32_t k = 1;
+    for (; k < n && i < s->len && (d[i] & 0xC0) == 0x80; ++k, ++i) c = c << 6 | (d[i] & 0x3Fu);
+    if (n == 4) {
+      if (k < n || c < 0x10000 || c > 0x10FFFF) { r += u'\uFFFD'; r += u'\uFFFD'; continue; }
+      c -= 0x10000; r += static_cast<char16_t>(0xD800 + (c >> 10)); r += static_cast<char16_t>(0xDC00 + (c & 0x3FF));
+    } else r += k < n ? u'\uFFFD' : static_cast<char16_t>(c);
   }
   return r;
 }
