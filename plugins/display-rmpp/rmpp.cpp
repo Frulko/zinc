@@ -110,8 +110,9 @@ bool header_wanted() {
   static const char* h = getenv("ZINC_RMPP_HEADER") ? getenv("ZINC_RMPP_HEADER") : ZP_DISPLAY_RMPP_HEADER;
   if (strcmp(h, "remarkable") == 0) return true;
   const char* zh = getenv("ZINC_HOME");
-  const std::string flag = zh ? std::string(zh) + "/rmpp-header" : std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.zinc/rmpp-header";
-  return access(flag.c_str(), F_OK) == 0;
+  char flag[512];
+  if (zh) snprintf(flag, sizeof flag, "%s/rmpp-header", zh); else snprintf(flag, sizeof flag, "%s/.zinc/rmpp-header", getenv("HOME") ? getenv("HOME") : ".");
+  return access(flag, F_OK) == 0;
 }
 
 bool set_mode(int mode) {
