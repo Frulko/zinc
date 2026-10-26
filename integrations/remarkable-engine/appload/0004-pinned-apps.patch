@@ -98,7 +98,7 @@ diff --git a/xovi/template/appload.qmd b/xovi/template/appload.qmd
 +                    readonly property var apploadApp: Array.from(_apploadPins.applications).find((a) => a.id === modelData)
 +                    ~&8399878573055752961&~: "openAppLoadPin:" + modelData
 +                    ~&6504315758&~: apploadApp ? apploadApp.name : ""
-+                    ~&8399601734642709923&~: apploadApp ? apploadApp.icon : "qrc:/appload/icons/appload"
++                    ~&8399601734642709923&~: apploadApp ? apploadApp.icon.replace(/^file:\/\//, "") : "qrc:/appload/icons/appload"
 +                    ~&233726547792244&~: ~&6504329801&~
 +                    ~&254542236275632405&~: {
 +                        ~&6504254477&~.~&7083211098251&~();
