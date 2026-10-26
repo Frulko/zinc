@@ -292,7 +292,9 @@ static void qsim_taps() {
     const bool pen = e[1] == 'p';
     int x = (int)strtol(e + 1 + pen, &e, 10), y = (int)strtol(e + 1, &e, 10), y2 = y;
     if (*e == '>') y2 = (int)strtol(e + 1, &e, 10);   // frame:x,y>y2: a swipe, moved to y2 at the next frame
-    for (int k = 0; k < 3; k++) if ((long)qsim::frames == f + (k == 2 ? 1 : 2 * k) && (k < 2 || y2 != y)) {
+    const bool lost = *e == '!';   // ...! : no release (xochitl took the finger), as on the tablet
+    if (lost) e++;
+    for (int k = 0; k < 3; k++) if ((long)qsim::frames == f + (k == 2 ? 1 : 2 * k) && (k < 2 || y2 != y) && !(k == 1 && lost)) {
       qsim::ServerMsg m = {};
       const int t = k == 2 ? 2 : k, ky = k ? y2 : y;
       m.type = qsim::MSG_INPUT; m.input.type = (pen ? 0x20 : 0x10) + t; m.input.id = 3; m.input.x = x; m.input.y = ky;

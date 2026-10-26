@@ -84,6 +84,8 @@ if run edge dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=${EDGE_
   [ -n "$EDGE_TRACE" ] && cp "$tmp/edge/out/trace.txt" "$EDGE_TRACE"
   has edge trace 1 "update PARTIAL 0,32 1620x152"; quits edge 2000   # Quitter pressed in the panel, then the app ended
 fi
+# on the tablet xochitl's own top gesture can take the finger: AppLoad forwards no release, and the next touch reuses its id
+if run edgelost dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=40:800,10>450!;100:810,92"; then quits edgelost 2000; fi
 if run edgetap dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=40:1474,86"; then quits edgetap 1500; fi   # the bar's own Quitter
 # the same task ticked with the Marker: inside a widget card AppLoad forwards the pen (evdev's is in screen pixels, not the app's)
 if run widgetpen dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=40:1294,85;80:p400,180"; then

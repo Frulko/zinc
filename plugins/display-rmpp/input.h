@@ -135,6 +135,9 @@ static int edge_swipes = 0;
 static void touch_set(int id, int x, int y);
 /** true when the edge swipe took the message. */
 static bool edge_event(int type, int id, int x, int y) {
+  // a press with the held finger's id: its release never came (xochitl's own top gesture takes the finger and AppLoad forwards no release)
+  // and Qt reuses the id, so the hold ends here; else every later touch with that id would be swallowed
+  if (type == 0x10 && id == edge_id) edge_id = NO_ID;
   if (type == 0x10 && edge_id == NO_ID && !pen_from_appload && id != PEN_TOUCH_ID && y >= 0 && y < EDGE_PX) {
     edge_id = id; edge_x = x; edge_y = y; edge_done = false; return true;
   }
