@@ -323,7 +323,9 @@ export async function resetApp(id: string): Promise<void> {
     if (id === HUB_ID) throw new Error('The Hub keeps its pairing: unpair in Settings instead.');
     const i = installed(id);
     const name = i !== null ? (i as Installed).name : nameFor(id);
-    for (const a of running()) if (a.name === name) throw new Error(name + ' is running: stop it first (Running).');
+    // a running app keeps its state in memory and would write it back: it is stopped first (Confirm reset was the consent)
+    for (const a of running()) if (a.name === name) { progress('Stopping ' + name); await stopApp(a); }
+    refreshRunning();
     progress('Removing what ' + name + ' saved');
     return resetData(name);
   });

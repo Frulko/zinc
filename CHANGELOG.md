@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- reMarkable Hub: **Reset data** on an app that is running stops it first, then erases what it saved (it used to refuse and ask you to stop it).
 - reMarkable Hub: Store › Installed always lists the Zinc engine first, with its version and **Update the engine** when the server has a newer one.
 - reMarkable: swipe down from the top edge of any Zinc app, past the upper fifth of the screen, to open a panel with **Accueil**, **Quitter** and **Annuler** (a shorter swipe still brings AppLoad's window bar). Apps get it through `RemarkableApp` of `zinc:remarkable`.
 - reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
