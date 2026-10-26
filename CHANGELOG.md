@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-26
+
 ### Added
 - App icons on the reMarkable: `zinc pack` puts zinc.json's `app.icon` (a PNG or an SVG) in the `.zapp` as a 150 px `icon.png` on white, `zinc-tile` shows it on the app's AppLoad tile, and the hub lists each app with its icon (checked against the signed catalog; a framed initial when an app has none). The hub, Zinc Web and the dashboard and notes examples have one.
 - The reMarkable dashboard example saves its tasks, habits, scratchpad and focus timer as they change: it comes back as it was, and the timer keeps running while the app is closed. Its scratchpad has Clear and Refresh buttons and writes in the fast pen mode.
@@ -747,7 +749,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.9.1...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -768,3 +770,4 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 [0.7.6]: https://github.com/Frulko/zinc/compare/v0.7.5...v0.7.6
 [0.8.0]: https://github.com/Frulko/zinc/compare/v0.7.6...v0.8.0
 [0.8.2]: https://github.com/Frulko/zinc/compare/v0.8.0...v0.8.2
+[0.9.1]: https://github.com/Frulko/zinc/compare/v0.8.2...v0.9.1
