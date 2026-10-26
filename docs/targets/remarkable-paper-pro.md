@@ -402,6 +402,8 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
   previous package for Rollback and calls `zinc-tile` for the app's tile. Its list shows each app's icon, which the server takes from the
   published `.zapp` and lists with its SHA-256 in the signed catalog.
+- **Gestures**: two fingers or more held 150 ms (a pinch, a two-finger pan) switch the panel to its fast Pen waveform while they move;
+  when the last finger lifts the app's own mode comes back and, 1.5 s later, one full refresh clears the ghosts.
 - **The way out**: three fingers held on the screen for 2 s quit any Zinc app, even one whose buttons no longer answer (the driver
   sees it in its input poll, which turns while the app's code waits); the journal says `three fingers held 2 s: quitting the app`.
 - **Stuck apps** (ZN-844): `zinc-app` starts `bin/zinc-watch` (`integrations/remarkable-engine/zinc-watch.c`, static, about 60 KB) with

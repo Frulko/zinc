@@ -97,6 +97,11 @@ if run penmode tests/data/rmpp-penmode 400 - "$ferrari"; then
   [ "$(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')" = "mode UI mode FAST mode UI " ] || { echo "penmode: $(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')"; fail=1; }
 fi
 
+# A pinch (two fingers held and moving): the Pen waveform while they are down, the app's UI mode after, then one full refresh
+if run pinch tests/data/rmpp-penmode 400 - "$ferrari" PENMODE_STILL=1 ZN_RMPP_SIM_APPLOAD=0.6 ZN_RMPP_SIM_HOLD=150:2:60 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
+  t=$(grep -o 'mode [A-Z][A-Z]*\|fingers [a-z]*\|full refresh' "$tmp/pinch/out/trace.txt" | tr '\n' ' ')
+  case "$t" in *"fingers down mode FAST fingers up mode UI full refresh"*) ;; *) echo "pinch: $t"; fail=1 ;; esac
+fi
 # The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
 if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then
   has escape log 1 "three fingers held 2 s: quitting the app"; [ "$(grep -c 'update PARTIAL' "$tmp/escape/out/trace.txt")" -lt 60 ] || { echo "escape: the app went on after the gesture"; fail=1; }

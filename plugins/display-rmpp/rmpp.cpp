@@ -116,7 +116,24 @@ int connect_qtfb(int key, int fmt) {
 
 // The way out of an app that does not answer its buttons: three fingers held 2 s quit it (the frame loop still turns when the app's
 // own code is stuck waiting). One journal line says why it quit.
+// Two fingers or more held 150 ms (a pinch, a two-finger pan): the Pen waveform while they move, then the app's own mode and one full
+// refresh when the last finger lifts, so a zoom follows the fingers and lands clean. qtfb pauses about a second on each switch.
+bool gesture = false;
+uint64_t full_due = 0;   // the full refresh after a gesture, once the app had time to draw its sharp picture
+void gestures(const HalInput* in) {
+  static uint64_t since = 0;
+  if (in->ntouch >= 2) {
+    uint64_t now = hal_time_us();
+    if (!since) since = now;
+    else if (!gesture && now - since >= 150000) gesture = true;
+    return;
+  }
+  since = 0;
+  if (in->ntouch == 0 && gesture) { gesture = false; full_due = hal_time_us() + 1500000; }
+}
+
 void escape(HalInput* in) {
+  gestures(in);
   static uint64_t since = 0;
   if (in->ntouch < 3) { since = 0; return; }
   uint64_t now = hal_time_us();
@@ -277,7 +294,9 @@ void rm_present(const HalFrame* f) {
     pending = in;
   }
   uint64_t now = hal_time_us();
-  if (layer == L0 && refresh_mode != wanted_mode && now >= mode_ready_us) set_mode(wanted_mode);   // a switch asked during qtfb's second
+  if (full_due && now >= full_due) { full_due = 0; full_asked = true; }
+  const int want = gesture ? MODE_FAST : wanted_mode;
+  if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want);   // a gesture, or a switch asked during qtfb's second
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
     if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + 1100000; }  // qtfb sleeps 1 s on this connection
