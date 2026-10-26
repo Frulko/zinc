@@ -391,6 +391,11 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
 - **Icons.** The tile shows the `.zapp`'s `icon.png` (`zinc pack` makes it from zinc.json `app.icon`, a PNG or an SVG, 150 x 150 on white as
   AppLoad draws it), else `share/zinc/rmpp/icon.png`. Lucide icons (ISC) suit e-paper: black strokes, `stroke-width="2.5"`, as the hub's
   `app/hub/icon.svg`.
+- **Engine updates from the hub** (ZN-844): `tools/rmpp-engine` writes `share/zinc/rmpp/engine.json` (the version, and the `zbc` and `rt`
+  the binary carries as its `zinc-engine` line, which `zinc --engine-info` prints); `tools/rmpp-engine --publish <hub> --token <t>` sends
+  the bundle to a hub server, whose signed catalog then offers it, and the Hub app replaces `/home/root/zinc` with it (checked, unpacked
+  beside, swapped only once the new `zinc --engine-info` answers; `app/hub/README.md`). `deploy.sh` stays the way to install the first
+  engine and to change the ZBC version.
 - `ZINC_RMPP_DIR` gives `deploy.sh` another directory for a trial beside an installed engine. Proven on the Mac by `tests/run --only rmpp_engine`
   (the bundle's layout, the tiles and their launchers against stand-ins).
 - **The hub** (`app/hub`, ZN-843; `app/hub/README.md`): an app with its own tile that pairs with a hub server (`app/hub-server`), checks the

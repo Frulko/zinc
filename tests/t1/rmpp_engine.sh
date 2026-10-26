@@ -3,13 +3,14 @@
 # zinc-tile and the launchers it writes run on this machine with stand-ins for zinc and the lease: the qtfb tile runs zinc-app, which runs
 # `zinc run <app>` with libquill.so's directory and the vendor's on the library path; the session tile refuses an unverified display engine
 # and starts `lease launch --watchdog 10 --vendor-sha256 <hash> zinc-app <app>`, and zinc-app under the lease asks for the ink session.
+# share/zinc/rmpp/engine.json says what the bundle's zinc runs (the zinc-engine line its binary carries) for the hub's engine updates.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail() { echo "FAIL $*"; exit 1; }
 # the package tools/build-linux makes, reduced to what the bundle needs: a stand-in zinc that prints what it is asked
 p=$tmp/pkg/zinc-0.0.0-linux-aarch64
 mkdir -p "$p/bin" "$p/lib" "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp"
-printf '#!/bin/sh\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n[ -n "$ZA_SLEEP" ] && sleep "$ZA_SLEEP"\nexit 0\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
+printf '#!/bin/sh\n# zinc-engine zbc=8 rt=612\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n[ -n "$ZA_SLEEP" ] && sleep "$ZA_SLEEP"\nexit 0\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
 : > "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so"
 tar czf "$tmp/pkg.tar.gz" -C "$tmp/pkg" zinc-0.0.0-linux-aarch64
 # a zig that "builds" the lease as a stand-in printing its arguments (the real one is an aarch64 binary)
@@ -22,6 +23,8 @@ for f in bin/zinc bin/zinc-app bin/zinc-tile bin/lease bin/qtfb-hold lib/libquil
          share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so lib/libpdfium.so PDFIUM-LICENSES/pdfium.txt; do [ -e "$z/$f" ] || fail "the bundle has no $f"; done
 cmp -s "$z/lib/libquill.so" integrations/remarkable-ink/quill/libquill.so || fail "lib/libquill.so is not Quill's"
 grep -qx 07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec "$z/share/zinc/rmpp/verified" || fail "verified lacks OS 3.29's display engine"
+[ "$(cat "$z/share/zinc/rmpp/engine.json" 2>/dev/null)" = '{"version":"0.0.0","zbc":8,"rt":612}' ] && cmp -s "$z/share/zinc/rmpp/engine.json" "$tmp/out/engine.json" \
+  || fail "engine.json: $(cat "$z/share/zinc/rmpp/engine.json" 2>/dev/null)"
 echo "bundle: ok ($(tar tzf "$tmp/out/zinc-rmpp.tar.gz" | wc -l | tr -d ' ') entries)"
 # the tiles, against a stand-in vendor library whose hash the engine then verifies
 export ZINC_APPLOAD=$tmp/appload ZINC_QSGEPAPER=$tmp/libqsgepaper.so

@@ -2,7 +2,8 @@
 import { createSignal } from 'zinc:ui/solid';
 import { newer } from '../../hub-server/src/protocol';
 import { HubConfig, loadConfig, saveConfig } from './services/config';
-import { CatalogApp, CatalogChannel, catalog, download, pair, fileOf, fetchIcon } from './services/server';
+import { CatalogApp, CatalogChannel, CatalogEngine, catalog, download, pair, fileOf, fetchIcon } from './services/server';
+import { engineOffered, engineVersion, installEngine } from './services/engine';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
@@ -30,12 +31,25 @@ export const PAGE_SETTINGS: i32 = 1;
 
 let config: HubConfig = loadConfig();
 let apps: CatalogApp[] = [];
+let engine: CatalogEngine | null = null;
+let engineReplaced = false;   // the swap is done: the hub still runs the old engine until it is opened again
 export const [page, setPage] = createSignal<i32>(config.paired ? PAGE_APPS : PAGE_SETTINGS);
 export const [server, setServer] = createSignal<string>(config.server);
 export const [paired, setPaired] = createSignal<boolean>(config.paired);
 export const [rows, setRows] = createSignal<AppRow[]>([]);
 export const [status, setStatus] = createSignal<string>(config.paired ? '' : 'Set the server address, then type the pairing code the server shows.');
 export const [busy, setBusy] = createSignal<boolean>(false);
+/** The engine version the server offers to this tablet ('' when none): the apps page shows "Update the engine". */
+export const [engineOffer, setEngineOffer] = createSignal<string>('');
+/** The running engine's version, for the engine row. */
+export function engineNow(): string { return engineVersion(); }
+
+async function fetchCatalog(): Promise<void> {
+  const c = await catalog(config);
+  apps = c.apps;
+  engine = c.engine;
+  setEngineOffer(!engineReplaced && engineOffered(engine) ? (engine as CatalogEngine).version : '');
+}
 
 /** The first 16 hex digits of the pinned server key, to compare with what the server prints. */
 export function serverFingerprint(): string { return paired() ? config.serverKey.slice(0, 16) : ''; }
@@ -108,7 +122,7 @@ export async function pairWith(code: string): Promise<void> {
     await pair(config, c, DEVICE_NAME);
     saveConfig(config);
     setPaired(true);
-    apps = await catalog(config);
+    await fetchCatalog();
     await syncIcons();
     rebuildRows();
     setPage(PAGE_APPS);
@@ -120,10 +134,11 @@ export async function pairWith(code: string): Promise<void> {
 export async function refresh(): Promise<void> {
   if (!paired()) { say('Pair this tablet with a server first (Settings).'); return; }
   await run(async (): Promise<string> => {
-    apps = await catalog(config);
+    await fetchCatalog();
     await syncIcons();
     rebuildRows();
     const updates = rows().filter((r: AppRow) => r.updatable).map((r: AppRow) => r.name + ' ' + r.available);
+    if (engineOffer() !== '') updates.push('the engine ' + engineOffer());
     return updates.length > 0 ? 'Updates: ' + updates.join(', ') + '.' : apps.length.toString() + ' apps, everything up to date.';
   });
 }
@@ -131,7 +146,11 @@ export async function refresh(): Promise<void> {
 /** A package this engine cannot run (its needs, from the signed catalog) is refused before anything is downloaded. 0: not known, no check. */
 function refuseUnrunnable(ch: CatalogChannel): void {
   if (ch.zbc === 0 || ENGINE_ZBC === 0) return;
-  if (ch.zbc > ENGINE_ZBC || (ch.zbc === ENGINE_ZBC && ch.rt > ENGINE_RT)) throw new Error('Needs a newer engine: update the engine on the tablet.');
+  if (ch.zbc > ENGINE_ZBC || (ch.zbc === ENGINE_ZBC && ch.rt > ENGINE_RT)) {
+    const e = engine;
+    if (engineOffer() !== '' && (e as CatalogEngine).zbc === ch.zbc && (e as CatalogEngine).rt >= ch.rt) throw new Error('Needs a newer engine: tap Update the engine (' + engineOffer() + '), then install it again.');
+    throw new Error('Needs a newer engine: update the engine on the tablet.');
+  }
   if (ch.zbc < ENGINE_ZBC) throw new Error('Made for an older engine: its publisher must pack it again with this one.');
 }
 
@@ -146,6 +165,17 @@ export async function installApp(id: string): Promise<void> {
     refuseUnrunnable(ch as CatalogChannel);
     const message = await install(id, await download(config, app as CatalogApp, ch));
     rebuildRows();
+    return message;
+  });
+}
+
+/** Replaces the engine on the tablet with the one the signed catalog offers (services/engine.ts); the old one stays on any failure. */
+export async function updateEngine(): Promise<void> {
+  await run(async (): Promise<string> => {
+    if (engineOffer() === '') throw new Error('The server offers no newer engine for this tablet.');
+    const message = await installEngine(config, engine as CatalogEngine);
+    engineReplaced = true;
+    setEngineOffer('');
     return message;
   });
 }

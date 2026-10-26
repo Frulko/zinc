@@ -15,10 +15,13 @@ export const DEVICE_NAME = envOr('ZINC_HUB_DEVICE', 'reMarkable');
 /** What this engine runs (src/main.cpp sets them): a package that needs a newer ZBC or more runtime calls is not installed. */
 export const ENGINE_ZBC: i32 = parseInt(envOr('ZINC_HUB_ENGINE_ZBC', envOr('ZINC_ENGINE_ZBC', '0')));
 export const ENGINE_RT: i32 = parseInt(envOr('ZINC_HUB_ENGINE_RT', envOr('ZINC_ENGINE_RT', '0')));
+/** The engine directory the hub runs from (zinc-app sets ZINC_RMPP_ENGINE, /home/root/zinc): an engine update replaces it. '' (a desktop): no engine updates. */
+export const ENGINE_DIR = sys.env('ZINC_RMPP_ENGINE');
 export const DEFAULT_SERVER = 'http://10.11.99.2:8787';
 export const STABLE = 'stable';
 export const REQUEST_TIMEOUT_MS: i32 = 20000;
-export const MAX_ZAPP_BYTES: i32 = 64 * 1024 * 1024;
+export const MAX_ZAPP_BYTES: i32 = 64 * 1024 * 1024;   // ponytail: also the engine bundle's ceiling (39 MB in 0.9), the most zinc:net fetches
+export const ENGINE_TIMEOUT_MS: i32 = 600000;
 
 // E-paper: pure black on white, thick outlines, large type and targets, no greys, shadows or transitions (they ghost).
 export const PAGE = 'flex-col h-full bg-white';

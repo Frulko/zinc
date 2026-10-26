@@ -7,7 +7,7 @@ import * as fs from 'zinc:fs';
 import { subtle } from 'zinc:subtle';
 import { unhex, sha256, safe, Manifest, parseManifest, verifyManifest } from '../../../hub-server/src/protocol';
 import { HubConfig } from './config';
-import { REQUEST_TIMEOUT_MS, MAX_ZAPP_BYTES } from '../constants';
+import { REQUEST_TIMEOUT_MS, ENGINE_TIMEOUT_MS, MAX_ZAPP_BYTES } from '../constants';
 
 export class CatalogChannel {
   channel: string = '';
@@ -27,10 +27,24 @@ export class CatalogApp {
   channel(name: string): CatalogChannel | null { for (const c of this.channels) if (c.channel === name) return c; return null; }
 }
 
+/** The reMarkable engine bundle the server offers (tools/rmpp-engine): what it runs, and where it is with its SHA-256 and size. */
+export class CatalogEngine {
+  version: string = '';
+  zbc: i32 = 0;
+  rt: i32 = 0;
+  url: string = '';        // path on the server: engine/zinc-rmpp-<version>.tar.gz
+  sha256: string = '';
+  size: i32 = 0;
+}
+export class Catalog {
+  apps: CatalogApp[] = [];
+  engine: CatalogEngine | null = null;
+}
+
 function base(server: string): string { return server.endsWith('/') ? server.slice(0, server.length - 1) : server; }
 
 async function request(cfg: HubConfig, path: string, init: net.RequestInit): Promise<net.Response> {
-  init.timeoutMs = REQUEST_TIMEOUT_MS;
+  if (init.timeoutMs === undefined) init.timeoutMs = REQUEST_TIMEOUT_MS;
   let r: net.Response;
   try { r = await net.fetch(base(cfg.server) + '/' + path, init); }
   catch (e) { throw new Error('Cannot reach the server ' + cfg.server + ' (' + e.message + '). Check its address and the network.'); }
@@ -39,10 +53,10 @@ async function request(cfg: HubConfig, path: string, init: net.RequestInit): Pro
   if (!r.ok) throw new Error('The server answered ' + r.status.toString() + ' for ' + path + '.');
   return r;
 }
-async function get(cfg: HubConfig, path: string): Promise<net.Response> {
+async function get(cfg: HubConfig, path: string, timeoutMs: i32 = REQUEST_TIMEOUT_MS): Promise<net.Response> {
   const h = new net.Headers();
   h.set('Authorization', 'Bearer ' + cfg.token);
-  return await request(cfg, path, { headers: h, maxBytes: MAX_ZAPP_BYTES });
+  return await request(cfg, path, { headers: h, maxBytes: MAX_ZAPP_BYTES, timeoutMs: timeoutMs });
 }
 
 /** POST /pair: the server key and this device's token, or an Error. */
@@ -56,14 +70,21 @@ export async function pair(cfg: HubConfig, code: string, device: string): Promis
 }
 
 /** The catalog, its signature checked against the pinned server key. */
-export async function catalog(cfg: HubConfig): Promise<CatalogApp[]> {
+export async function catalog(cfg: HubConfig): Promise<Catalog> {
   const text = await (await get(cfg, 'catalog.json')).text();
   const sig = (await (await get(cfg, 'catalog.json.sig')).text()).trim();
   const key = await subtle.importKey('raw', unhex(cfg.serverKey), { name: 'Ed25519' }, false, ['verify']);
   if (sig.length !== 128 || !(await subtle.verify({ name: 'Ed25519' }, key, unhex(sig), sys.utf8Encode(text))))
     throw new Error('Refused: the catalog is not signed by the server this tablet paired with. Someone may be in between; pair again only if you trust this server.');
   const j = JSON.parse(text);
-  const apps: CatalogApp[] = [];
+  const r = new Catalog();
+  const apps = r.apps;
+  const e = j.engine;
+  if (e !== undefined && e !== null) {
+    const en = new CatalogEngine();
+    en.version = '' + e.version; en.zbc = parseInt('' + e.zbc); en.rt = parseInt('' + e.rt); en.url = '' + e.url; en.sha256 = '' + e.sha256; en.size = parseInt('' + e.size);
+    if (safe(en.version) && en.url.startsWith('engine/') && safe(en.url.slice(7))) r.engine = en;
+  }
   for (let i: i32 = 0; i < j.apps.length; i++) {
     const a = j.apps[i];
     const app = new CatalogApp();
@@ -79,7 +100,15 @@ export async function catalog(cfg: HubConfig): Promise<CatalogApp[]> {
     }
     apps.push(app);
   }
-  return apps;
+  return r;
+}
+
+/** The engine bundle into `path`, checked against the SHA-256 and the size of the signed catalog (the hub key vouches for the engine). */
+export async function downloadEngine(cfg: HubConfig, e: CatalogEngine, path: string): Promise<void> {
+  const bundle = await (await get(cfg, e.url, ENGINE_TIMEOUT_MS)).bytes();
+  if (bundle.length !== e.size || (await sha256(bundle)) !== e.sha256)
+    throw new Error('Refused: the engine ' + e.version + ' does not match the SHA-256 the server signed. It was altered; the engine was not changed.');
+  fs.writeBytes(path, bundle);
 }
 
 /** The file name of a channel's package (apps/<id>/notes-1.2.0.zapp -> notes-1.2.0.zapp). */

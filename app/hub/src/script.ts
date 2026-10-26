@@ -1,8 +1,8 @@
 // ZINC_HUB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons, after the check at start, then quit.
-//   server <url> | pair <code> | refresh | install <id> | update <id> | rollback <id> | channel <id> <stable|beta> | page apps|settings
+//   server <url> | pair <code> | refresh | install <id> | update <id> | rollback <id> | channel <id> <stable|beta> | page apps|settings | engine
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { saveServer, pairWith, refresh, installApp, rollbackApp, openApp, setChannel, setPage, PAGE_APPS, PAGE_SETTINGS } from './state';
+import { saveServer, pairWith, refresh, installApp, rollbackApp, openApp, setChannel, setPage, updateEngine, PAGE_APPS, PAGE_SETTINGS } from './state';
 
 export function scripted(): boolean { return sys.env('ZINC_HUB_SCRIPT') !== ''; }
 
@@ -15,6 +15,7 @@ export async function runScript(): Promise<void> {
     else if (verb === 'refresh') await refresh();
     else if (verb === 'install' || verb === 'update') await installApp(arg);
     else if (verb === 'rollback') await rollbackApp(arg);
+    else if (verb === 'engine') await updateEngine();
     else if (verb === 'open') openApp(arg);
     else if (verb === 'channel') setChannel(arg, w.length > 2 ? w[2] : 'stable');
     else if (verb === 'page') setPage(arg === 'settings' ? PAGE_SETTINGS : PAGE_APPS);

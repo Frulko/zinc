@@ -1,4 +1,5 @@
 #include "zn/native.h"
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -96,6 +97,16 @@ static uint8_t* webpShot(const uint32_t* px, int32_t w, int32_t h, size_t* n, vo
 #include "zbc/zbc.h"
 
 static const char* const kVersionText = zn::tc::version();   // CMake ZN_VERSION (src/tc/selfupdate.cpp)
+// The engine this zinc provides, as text a cross-built binary carries: tools/rmpp-engine greps it from a zinc it cannot run (engine.json of the
+// reMarkable bundle), `zinc --engine-info` prints it with the version, and app/hub compares both with the engine its hub offers (ZN-844).
+static constexpr auto kEngineInfo = [] {
+  std::array<char, 64> s{};
+  std::size_t n = 0;
+  auto put = [&](const char* t) { while (*t) s[n++] = *t++; };
+  auto num = [&](unsigned v) { char d[12]{}; int k = 0; do { d[k++] = static_cast<char>('0' + v % 10); v /= 10; } while (v); while (k) s[n++] = d[--k]; };
+  put("zinc-engine zbc="); num(zn::kZbcVersion); put(" rt="); num(static_cast<unsigned>(zn::Rt::Count));
+  return s;
+}();
 #ifdef ZN_HOST_LIBS
 static std::string hostLibs() {   // ZN_HOST_LIBS with @bin@ (the directory of this zinc, where the build tree keeps libSDL3.a) filled in
   std::string s = ZN_HOST_LIBS;
@@ -1914,6 +1925,7 @@ int main(int argc, char** argv) {
     std::printf("zinc-next %s\n", kVersionText);
     return 0;
   }
+  if (argc == 2 && !std::strcmp(argv[1], "--engine-info")) { std::printf("%s version=%s\n", kEngineInfo.data(), kVersionText); return 0; }
   int qjsProfileHz = 0;
   if (argc >= 5 && !std::strcmp(argv[1], "profile") && !std::strcmp(argv[3], "--engine")) {   // zinc profile <file> --engine quickjs [--hz N]: the QuickJS run below under its profiler (ZN-598)
 #ifdef ZN_QJS_PROFILE

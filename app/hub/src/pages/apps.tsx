@@ -1,6 +1,6 @@
 // Apps: the catalog of the server with what is installed, one row per app: Open, Install, Update, Rollback and the channel.
 import { SECTION, TITLE, LABEL, SMALL, STABLE } from '../constants';
-import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp } from '../state';
+import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp, engineOffer, engineNow, updateEngine } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 import * as fs from 'zinc:fs';
 import { imageFromBytes, drawImage } from 'zinc:gfx';
@@ -54,6 +54,16 @@ function Row(props: { row: AppRow }): i32 {
   </View>;
 }
 
+/** The engine on the tablet, when the server offers a newer one (ZN-844). */
+function EngineRow(): i32 {
+  const now = engineNow();
+  return <View className="flex-col gap-4 py-6 border-b-2 border-black">
+    <Text className={TITLE}>Zinc engine</Text>
+    <Text className={LABEL}>{`Engine ${now !== '' ? now : 'installed'} · ${engineOffer()} available`}</Text>
+    <View className="flex-row gap-6"><SolidButton label="Update the engine" onClick={() => updateEngine()} /></View>
+  </View>;
+}
+
 export function AppsPage(): i32 {
   return <View className={`${SECTION} grow`}>
     <View className="flex-row justify-between items-center">
@@ -63,7 +73,10 @@ export function AppsPage(): i32 {
     {!paired() ? <Text className={LABEL}>Pair this tablet with a server in Settings.</Text>
       : rows().length === 0 ? <Text className={LABEL}>The server has no apps yet.</Text> : null}
     <ScrollView className="grow">
-      <View className="flex-col">{rows().map((r: AppRow) => <Row row={r} />)}</View>
+      <View className="flex-col">
+        {engineOffer() !== '' ? <EngineRow /> : null}
+        {rows().map((r: AppRow) => <Row row={r} />)}
+      </View>
     </ScrollView>
   </View>;
 }

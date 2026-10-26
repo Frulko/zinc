@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- The Hub updates the reMarkable's engine itself: `tools/rmpp-engine --publish <hub> --token <t>` sends the engine bundle to a hub server, and the Hub app shows **Update the engine** (also when an app needs a newer engine), checks it and swaps it in, keeping the old engine if anything fails. `zinc --engine-info` prints what an engine runs.
 - Zinc Web: a Contrast setting (normal, high, max) darkens the page and thickens thin text for e-ink; the next screen is fetched while you read, so a page turn waits for nothing; the relay starts Chrome at once, and `--no-token` runs it without a token for a test on a trusted network.
 - Zinc Web: send a page to the tablet from the Mac, with the relay's page at `http://127.0.0.1:8790/` or its **Send to reMarkable** bookmarklet; an e-ink style (on by default) makes pages black on white, underlines links and puts fixed bars and cookie banners back in the page.
 - `zinc:remarkable` has `RemarkableKeyboard`, an on-screen keyboard drawn for e-paper in the tablet's language (Hub, Web and Read use it); the kit's `Keyboard` takes `labelClass`, `specialLabelClass`, `enterKeyClass`, `shiftOnClass`, `handleClass` and `shadow={false}`.

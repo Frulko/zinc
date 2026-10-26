@@ -6,6 +6,9 @@
 # Icons: 1.1.0 has zinc.json app.icon (an SVG): its package carries icon.png (150 px, on white), the signed catalog lists it with its SHA-256
 # and the hub serves it to a paired device while 1.1.0 is current; 1.0.0 has none. The catalog lists the engine each package needs (zbc, rt:
 # the needs of its manifest.json), what the tablet compares with its engine before installing.
+# The engine (ZN-844): `tools/rmpp-engine --publish` sends a bundle (a stand-in here) with the publisher token; the signed catalog lists it
+# (version, zbc, rt, url, sha256, size), a paired device downloads it, the admin page shows it; a wrong token, an older version and a body
+# that is not a gzip are refused.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v curl >/dev/null && command -v python3 >/dev/null || { echo "SKIP: needs curl and python3"; exit 77; }
@@ -98,6 +101,27 @@ curl -sf -H "$auth" "$hub/catalog.json" | grep -q '"version":"1.0.0"' || { echo 
 code=$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.zapp"); [ "$code" = 404 ] || { echo "a retracted .zapp is served: $code"; fail=1; }
 code=$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.png"); [ "$code" = 404 ] || { echo "a retracted version's icon is served: $code"; fail=1; }
 curl -sf -H "$auth" "$hub/catalog.json" | grep -q '"icon":"","iconSha256":""' || { echo "1.0.0 (no icon) lists one"; fail=1; }
+
+# the engine bundle
+eng=$tmp/eng
+mkdir -p "$eng/b/zinc/bin" && echo stand-in >"$eng/b/zinc/bin/zinc" && tar czf "$eng/zinc-rmpp.tar.gz" -C "$eng/b" zinc || exit 2
+echo '{"version":"1.0.0","zbc":8,"rt":600}' >"$eng/engine.json"
+curl -sf -H "$auth" "$hub/catalog.json" | grep -q '"engine":null}$' || { echo "a catalog without an engine: $(curl -s -H "$auth" "$hub/catalog.json")"; fail=1; }
+out=$(tools/rmpp-engine --publish "$hub" --token wrong -o "$eng" 2>&1) && { echo "an engine with a wrong token is accepted: $out"; fail=1; }
+echo "$out" | grep -q 'wrong publisher token' || { echo "engine, wrong token: $out"; fail=1; }
+out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1); echo "$out" | grep -q 'stored the engine 1.0.0 (zbc 8, rt 600)' || { echo "publish the engine: $out"; fail=1; }
+out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1) && { echo "the same engine version is accepted again: $out"; fail=1; }
+echo "$out" | grep -q 'refused: 1.0.0 is not newer than the engine 1.0.0' || { echo "engine, same version: $out"; fail=1; }
+out=$(curl -s -X POST -H "Authorization: Bearer $token" -H 'X-Engine-Version: 2.0.0' -H 'X-Engine-Zbc: 8' -H 'X-Engine-Rt: 600' --data-binary 'not a gzip' "$hub/publish-engine")
+echo "$out" | grep -q 'not a gzip' || { echo "an engine that is not a gzip: $out"; fail=1; }
+curl -sf -H "$auth" "$hub/catalog.json" >"$tmp/cat-e.json" && curl -sf -H "$auth" "$hub/catalog.json.sig" >"$tmp/cat-e.json.sig" || { echo "catalog download failed"; fail=1; }
+"$Z" verify "$tmp/cat-e.json" --key "$serverkey" >/dev/null 2>&1 || { echo "the catalog with the engine does not verify"; fail=1; }
+esum=$(shasum -a 256 "$eng/zinc-rmpp.tar.gz" | cut -d' ' -f1) esize=$(wc -c <"$eng/zinc-rmpp.tar.gz" | tr -d ' ')
+grep -qF "\"engine\":{\"version\":\"1.0.0\",\"zbc\":8,\"rt\":600,\"url\":\"engine/zinc-rmpp-1.0.0.tar.gz\",\"sha256\":\"$esum\",\"size\":$esize}" "$tmp/cat-e.json" \
+  || { echo "the catalog does not list the engine: $(cat "$tmp/cat-e.json")"; fail=1; }
+curl -sf -H "$auth" "$hub/engine/zinc-rmpp-1.0.0.tar.gz" >"$tmp/got-engine.tar.gz" && cmp -s "$tmp/got-engine.tar.gz" "$eng/zinc-rmpp.tar.gz" || { echo "the served engine is not the published one"; fail=1; }
+code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/engine/zinc-rmpp-1.0.0.tar.gz"); [ "$code" = 401 ] || { echo "the engine without a token: $code"; fail=1; }
+curl -sf "$hub/admin?token=$token" | grep -q 'reMarkable engine 1.0.0 (zbc 8, rt 600' || { echo "the admin page does not show the engine"; fail=1; }
 
 kill $srv; wait $srv 2>/dev/null; srv=
 [ $fail -eq 0 ] && echo "hub server: ok"

@@ -3,18 +3,29 @@
 # display-rmpp's driver prebuilt for it, the display lease and Quill's libquill.so for the ink session, zinc-app, zinc-tile and deploy.sh.
 #   tools/rmpp-engine [--package zinc-<version>-linux-aarch64.tar.gz] [-o dir]      (default: tools/build-linux --arch aarch64, dist/rmpp)
 #   then: dist/rmpp/deploy.sh [root@10.11.99.1] [app.zapp [--session]]...
+#   or:   tools/rmpp-engine --publish <hub url> --token <publisher token> [-o dir]   (the bundle built before, to a hub: its Hub app updates the engine)
 # docs/targets/remarkable-paper-pro.md, "The engine on the tablet".
 set -eu
 here=$(cd "$(dirname "$0")" && pwd -P)
 root=$(dirname "$here")
-package= out=$root/dist/rmpp
+package= out=$root/dist/rmpp hub= token=
 while [ $# -gt 0 ]; do
   case $1 in
     --package) package=${2:?--package file}; shift 2 ;;
     -o) out=${2:?-o dir}; shift 2 ;;
-    *) sed -n '4,5p' "$0" >&2; exit 2 ;;
+    --publish) hub=${2:?--publish hub url}; shift 2 ;;
+    --token) token=${2:?--token publisher token}; shift 2 ;;
+    *) sed -n '4,6p' "$0" >&2; exit 2 ;;
   esac
 done
+if [ -n "$hub" ]; then   # POST /publish-engine of app/hub-server: the numbers of engine.json as headers, the bundle as the body
+  [ -f "$out/zinc-rmpp.tar.gz" ] && [ -f "$out/engine.json" ] || { echo "rmpp-engine: no bundle in $out: run tools/rmpp-engine first" >&2; exit 2; }
+  field() { sed -n "s/.*\"$1\":\"\{0,1\}\([^\",}]*\).*/\1/p" "$out/engine.json"; }
+  curl -sS --fail-with-body -X POST -H "Authorization: Bearer $token" -H "X-Engine-Version: $(field version)" -H "X-Engine-Zbc: $(field zbc)" -H "X-Engine-Rt: $(field rt)" \
+    -H 'Content-Type: application/gzip' --data-binary @"$out/zinc-rmpp.tar.gz" "${hub%/}/publish-engine" || { echo; exit 1; }
+  echo
+  exit 0
+fi
 if [ -z "$package" ]; then
   "$here/build-linux" --arch aarch64 || exit 1
   package=$(ls -t "$root"/dist/linux-aarch64/zinc-*-linux-aarch64.tar.gz | head -1)
@@ -24,8 +35,13 @@ zig=${ZINC_ZIG:-$(ls -d "${ZINC_HOME:-$HOME/.zinc}"/toolchains/zig-*/zig 2>/dev/
 stage=$out/stage
 rm -rf "$stage" && mkdir -p "$stage"
 tar xzf "$package" -C "$stage"
+version=$(basename "$stage"/zinc-*-linux-aarch64 | sed 's/^zinc-//; s/-linux-aarch64$//')
 mv "$stage"/zinc-*-linux-aarch64 "$stage/zinc"
 z=$stage/zinc
+# what this engine runs, from the binary itself (kEngineInfo of src/main.cpp): the hub offers it to tablets whose engine runs less
+info=$(LC_ALL=C grep -a -o 'zinc-engine zbc=[0-9]* rt=[0-9]*' "$z/bin/zinc" | head -1)
+[ -n "$info" ] || { echo "rmpp-engine: $package's zinc does not say what it runs (a zinc before ZN-844)" >&2; exit 1; }
+zbc=$(echo "$info" | sed 's/.*zbc=\([0-9]*\).*/\1/') rt=$(echo "$info" | sed 's/.*rt=\([0-9]*\).*/\1/')
 [ -f "$z/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so" ] || { echo "rmpp-engine: $package has no display-rmpp prebuilt for rmpp (a package of tools/package before ZN-841)" >&2; exit 1; }
 ink=$root/integrations/remarkable-ink
 "$zig" cc -target aarch64-linux-musl -static -O2 "$ink/lease.c" -o "$z/bin/lease"
@@ -39,9 +55,11 @@ rm -rf "$z/PDFIUM-LICENSES" && cp -R "$root/plugins/pdf/vendor/pdfium/linux-arm6
 for f in zinc-app zinc-tile; do cp "$root/integrations/remarkable-engine/$f" "$z/bin/$f"; chmod 755 "$z/bin/$f"; done
 mkdir -p "$z/share/zinc/rmpp"
 cp "$root/app/atelier/icon.png" "$z/share/zinc/rmpp/icon.png"   # the tiles' icon
+printf '{"version":"%s","zbc":%s,"rt":%s}\n' "$version" "$zbc" "$rt" > "$z/share/zinc/rmpp/engine.json"   # what the Hub app compares (app/hub)
+cp "$z/share/zinc/rmpp/engine.json" "$out/engine.json"   # what --publish sends
 # the libqsgepaper.so hashes of models.h: the ink session runs only on an OS a tablet test verified
 grep -o '"[0-9a-f]\{64\}"' "$root/plugins/display-rmpp/models.h" | tr -d '"' > "$z/share/zinc/rmpp/verified"
 COPYFILE_DISABLE=1 tar czf "$out/zinc-rmpp.tar.gz" -C "$stage" zinc
 cp "$root/integrations/remarkable-engine/deploy.sh" "$out/deploy.sh"; chmod 755 "$out/deploy.sh"
 rm -rf "$stage"
-echo "rmpp-engine: $out/zinc-rmpp.tar.gz ($(du -k "$out/zinc-rmpp.tar.gz" | cut -f1) KB) and $out/deploy.sh"
+echo "rmpp-engine: $out/zinc-rmpp.tar.gz ($version, zbc $zbc, rt $rt, $(du -k "$out/zinc-rmpp.tar.gz" | cut -f1) KB) and $out/deploy.sh"

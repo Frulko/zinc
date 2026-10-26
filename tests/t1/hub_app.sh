@@ -5,6 +5,9 @@
 # Icons: 1.0.0 has none (a framed initial in the list); from 1.1.0 on, zinc.json app.icon: the hub caches the package's icon.png
 # checked against the catalog's SHA-256, and an icon altered on the server leaves the placeholder. A package that needs more runtime calls
 # than the engine has (the catalog's rt; ZINC_HUB_ENGINE_RT plays an older engine) is refused before the download.
+# The engine (ZN-844): with a stand-in engine directory (ZINC_RMPP_ENGINE, what zinc-app sets) and a bundle published with
+# `tools/rmpp-engine --publish`, the hub offers "Update the engine" (also from a "Needs a newer engine" refusal), swaps the directories after
+# the new zinc answers --engine-info as the catalog says, and keeps the old engine for a bundle altered on the server or one that does not run.
 # zinc-tile is a stand-in that records its calls (on the tablet it is the engine's, ZN-841). ZINC_HUB_SCRIPT runs the buttons' actions.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -123,6 +126,42 @@ expect 'Needs a newer engine: update the engine on the tablet.'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" || { echo "a package for a newer engine replaced the app"; fail=1; }
 app "channel com.example.notes beta; update com.example.notes"
 expect 'Updated notes 1.3.0-beta.1 (was 1.1.0).'
+
+# the engine: a stand-in directory the hub runs from (0.0.1), bundles whose zinc answers --engine-info (a broken one exits 1)
+zbc=$(tar xOf "$tmp/out-1.0.0/notes-1.0.0.zapp" manifest.json | python3 -c 'import json, sys; print(json.load(sys.stdin)["needs"]["zbc"])')
+eng=$tmp/engine
+mkdir -p "$eng/bin" "$eng/share/zinc/rmpp" && echo old >"$eng/bin/zinc" && echo '{"version":"0.0.1"}' >"$eng/share/zinc/rmpp/engine.json"
+bundle() {   # version [broken]: tools/rmpp-engine's output in $tmp/eng-<version>, then published to the hub
+  b=$tmp/eng-$1; mkdir -p "$b/s/zinc/bin" "$b/s/zinc/share/zinc/rmpp"
+  printf '#!/bin/sh\n%s\necho "zinc-engine zbc=%s rt=9999 version=%s"\n' "$([ -n "$2" ] && echo 'exit 1')" "$zbc" "$1" >"$b/s/zinc/bin/zinc"; chmod 755 "$b/s/zinc/bin/zinc"
+  printf '{"version":"%s","zbc":%s,"rt":9999}\n' "$1" "$zbc" | tee "$b/engine.json" >"$b/s/zinc/share/zinc/rmpp/engine.json"
+  tar czf "$b/zinc-rmpp.tar.gz" -C "$b/s" zinc
+  out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$b" 2>&1); echo "$out" | grep -q "stored the engine $1" || { echo "publish the engine $1: $out"; fail=1; }
+}
+engine_is() { out=$("$eng/bin/zinc" --engine-info 2>&1); [ "$out" = "$1" ] || { echo "$2: the engine says '$out'"; fail=1; }
+  for x in .old .new .download.tar.gz; do [ -e "$eng$x" ] && { echo "$2: $eng$x is left"; fail=1; }; done; }
+export ZINC_RMPP_ENGINE=$eng ZINC_HUB_ENGINE_RT=1
+bundle 1.0.0
+publish 1.4.0-beta.1 beta
+app "update com.example.notes"
+expect ', the engine 1.0.0.'
+expect 'Needs a newer engine: tap Update the engine (1.0.0), then install it again.'
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Engine 0.0.1 · 1.0.0 available' 'Update the engine'; do echo "$texts" | grep -qxF "$t" || { echo "the apps page does not show '$t'"; fail=1; }; done
+app "engine"
+expect 'Engine updated to 1.0.0. Close the Hub and open it again to use it.'
+engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "after the update"
+# altered on the server: refused by the catalog's SHA-256; a bundle whose zinc does not run: refused; the engine stays 1.0.0
+bundle 1.0.1
+printf 'X' | dd of="$tmp/data/engine/zinc-rmpp-1.0.1.tar.gz" bs=1 seek=100 conv=notrunc 2>/dev/null
+app "engine"
+expect 'Refused: the engine 1.0.1 does not match the SHA-256 the server signed.'
+engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "an altered bundle"
+bundle 1.0.2 broken
+app "engine"
+expect 'Refused: the new engine does not run on this tablet as offered'
+engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "a bundle that does not run"
+unset ZINC_RMPP_ENGINE ZINC_HUB_ENGINE_RT
 
 # a catalog signed by another key than the one pinned at pairing
 sed -i.bak 's/^serverKey=.*/serverKey=0000000000000000000000000000000000000000000000000000000000000000/' "$tmp/hub/hub.conf"

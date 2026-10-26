@@ -11,22 +11,30 @@
 //   apps/<id>/key              the app's Ed25519 public key, recorded by its first publish
 //   apps/<id>/<file>.zapp      the packages; apps/<id>/<channel>/<version>.manifest the signed manifests; <version>.retracted a retracted version
 //   apps/<id>/<file>.png       the package's icon.png (zinc pack, from zinc.json app.icon), when it has one
+//   engine/current             the reMarkable engine bundle offered (ZN-844): `key=value` lines version, zbc, rt, sha256, size, file
+//   engine/<file>              that bundle, zinc-rmpp-<version>.tar.gz of tools/rmpp-engine (only the current one is kept)
 //
 // HTTP (a device token or the publisher token as `Authorization: Bearer <token>`):
 //   POST /pair                 form `code=<the code the hub prints>&name=<device>` -> {"serverKey": hex, "token": hex}; the code changes after each use
 //   GET  /catalog.json         device: {"server", "issued", "apps": [{"id", "key", "channels": [{"channel", "version", "manifest", "url", "sha256",
 //                              "icon", "iconSha256", "zbc", "rt"}]}]} (icon and iconSha256 '' for a package without an icon; zbc and rt: the
-//                              engine the package needs, its manifest.json `needs` (docs/zapp.md), 0 when it names none)
+//                              engine the package needs, its manifest.json `needs` (docs/zapp.md), 0 when it names none)],
+//                              "engine": {"version", "zbc", "rt", "url", "sha256", "size"} or null: the engine bundle the Hub app installs
+//                              on the tablet. There is no publisher key for the engine: the hub key that signs this catalog is what a
+//                              device trusts for it, with the SHA-256 and size listed here and the new engine's own `zinc --engine-info`.
 //   GET  /catalog.json.sig     device: the Ed25519 signature of catalog.json by the hub key, hex (`zinc verify catalog.json --key <server key>`)
 //   GET  /apps/<id>/<channel>.manifest, /apps/<id>/<file>.zapp, /apps/<id>/<file>.png   device: the channel's current manifest (its url is
 //                              relative), the package and its icon
 //   POST /publish              publisher: body = the signed manifest then the .zapp, headers X-Manifest-Length (bytes of manifest) and X-App-Key
-//   GET  /admin?token=<t>      publisher: apps, versions, paired devices, the pairing code; POST /admin/retract (form token, app, channel, version)
+//   POST /publish-engine       publisher: body = zinc-rmpp.tar.gz, headers X-Engine-Version, X-Engine-Zbc, X-Engine-Rt (its engine.json);
+//                              `tools/rmpp-engine --publish <hub> --token <t>` sends it. A version not newer than the current one is refused.
+//   GET  /engine/<file>        device: the current engine bundle
+//   GET  /admin?token=<t>      publisher: apps, versions, the engine, paired devices, the pairing code; POST /admin/retract (form token, app, channel, version)
 import { serveAsync, Request, Reply, Headers } from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { subtle, CryptoKey } from 'zinc:subtle';
-import { hex, unhex, sha256, safe, newer, parseManifest, verifyManifest } from './protocol';
+import { hex, unhex, sha256, safe, newer, Manifest, parseManifest, verifyManifest } from './protocol';
 
 function opt(name: string, def: string): string {
   const a = sys.args();
@@ -66,6 +74,7 @@ function reply(status: i32, body: string, contentType: string = 'text/plain; cha
 const port: i32 = parseInt(opt('port', '8787'));
 const data = opt('data', 'hub-data');
 const apps = data + '/apps';
+const engineDir = data + '/engine';
 let hubKey: CryptoKey | null = null;
 let hubPublic = '';
 let publisherToken = '';
@@ -147,6 +156,16 @@ function needsOf(zapp: u8[]): string {
 /** The icon of the package `file` (<name>.zapp), relative to the data directory and to the server: apps/<id>/<name>.png. */
 function iconPath(id: string, file: string): string { return 'apps/' + id + '/' + file.slice(0, file.length - 5) + '.png'; }
 
+/** The engine bundle offered (engine/current), null when none was published. */
+function engine(): Manifest | null { return fs.exists(engineDir + '/current') ? parseManifest(fs.readText(engineDir + '/current')) : null; }
+function engineJson(): string {
+  const e = engine();
+  if (e === null) return 'null';
+  const m = e as Manifest;
+  return '{"version":' + json(m.get('version')) + ',"zbc":' + m.get('zbc') + ',"rt":' + m.get('rt') + ',"url":' + json('engine/' + m.get('file')) +
+    ',"sha256":' + json(m.get('sha256')) + ',"size":' + m.get('size') + '}';
+}
+
 async function catalog(): Promise<string> {
   let s = '{"server":' + json(hubPublic) + ',"issued":' + Date.now().toString() + ',"apps":[';
   let firstApp = true;
@@ -166,7 +185,7 @@ async function catalog(): Promise<string> {
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;
   }
-  return s + ']}';
+  return s + '],"engine":' + engineJson() + '}';
 }
 // The catalog and its signature are made together and kept until a publish or a retract changes them: catalog.json and catalog.json.sig always match.
 let catalogText = '';
@@ -224,6 +243,26 @@ async function publish(req: Request): Promise<Reply> {
   return reply(200, 'stored ' + id + ' ' + version + ' on ' + channel);
 }
 
+function posInt(t: string): boolean { return t.length > 0 && t.length < 10 && parseInt(t).toString() === t && parseInt(t) > 0; }
+/** The bundle of tools/rmpp-engine: a gzip, a version newer than the current one, the numbers of its engine.json (positive integers). */
+async function publishEngine(req: Request): Promise<Reply> {
+  const body = sys.utf8Encode(req.rawBody ?? req.body);
+  const version = req.headers.get('x-engine-version').trim(), zbc = req.headers.get('x-engine-zbc').trim(), rt = req.headers.get('x-engine-rt').trim();
+  if (!safe(version) || !posInt(zbc) || !posInt(rt)) return reply(400, 'X-Engine-Version, X-Engine-Zbc and X-Engine-Rt are the version, zbc and rt of the bundle\'s engine.json\n');
+  if (body.length < 2 || body[0] !== 0x1f || body[1] !== 0x8b) return reply(400, 'refused: the body is not a gzip (zinc-rmpp.tar.gz of tools/rmpp-engine)\n');
+  const now = engine();
+  if (now !== null && !newer(version, (now as Manifest).get('version'))) return reply(409, 'refused: ' + version + ' is not newer than the engine ' + (now as Manifest).get('version') + '\n');
+  const file = 'zinc-rmpp-' + version + '.tar.gz';
+  fs.mkdir(engineDir, true);
+  fs.writeBytes(engineDir + '/' + file, body);
+  fs.writeText(engineDir + '/current.tmp', 'version=' + version + '\nzbc=' + zbc + '\nrt=' + rt + '\nsha256=' + (await sha256(body)) + '\nsize=' + body.length.toString() + '\nfile=' + file + '\n');
+  fs.rename(engineDir + '/current.tmp', engineDir + '/current');
+  if (now !== null && (now as Manifest).get('file') !== file) fs.remove(engineDir + '/' + (now as Manifest).get('file'));   // ponytail: only the current bundle is kept
+  catalogText = '';
+  console.log('hub: stored the engine ' + version);
+  return reply(200, 'stored the engine ' + version + ' (zbc ' + zbc + ', rt ' + rt + ')');
+}
+
 function adminPage(token: string, note: string): Reply {
   let s = '<!doctype html><meta charset="utf-8"><title>Zinc hub</title><style>body{font:15px system-ui;margin:2em;max-width:60em}td,th{padding:.2em .8em;text-align:left}</style>';
   s += '<h1>Zinc hub</h1>' + (note.length > 0 ? '<p><b>' + html(note) + '</b></p>' : '');
@@ -241,7 +280,10 @@ function adminPage(token: string, note: string): Reply {
       }
     }
   }
-  s += '</table><h2>Devices</h2><table><tr><th>Name</th><th>Paired</th></tr>';
+  const e = engine();
+  s += '</table><h2>Engine</h2><p>' + (e === null ? 'No engine published (tools/rmpp-engine --publish).' : 'reMarkable engine ' + html((e as Manifest).get('version')) +
+    ' (zbc ' + html((e as Manifest).get('zbc')) + ', rt ' + html((e as Manifest).get('rt')) + ', ' + Math.round(parseFloat((e as Manifest).get('size')) / 1048576).toString() + ' MB)') + '</p>';
+  s += '<h2>Devices</h2><table><tr><th>Name</th><th>Paired</th></tr>';
   for (const l of deviceLines()) { const f = l.split('\t'); s += '<tr><td>' + html(f.length > 1 ? f[1] : '') + '</td><td>' + (f.length > 2 ? new Date(parseFloat(f[2])).toISOString() : '') + '</td></tr>'; }
   return reply(200, s + '</table>', 'text/html; charset=utf-8');
 }
@@ -264,6 +306,10 @@ async function handle(req: Request): Promise<Reply> {
     if (!same(bearer(req), publisherToken)) return reply(403, 'wrong publisher token\n');
     return await publish(req);
   }
+  if (req.method === 'POST' && path === '/publish-engine') {
+    if (!same(bearer(req), publisherToken)) return reply(403, 'wrong publisher token\n');
+    return await publishEngine(req);
+  }
   if (req.method === 'GET' && path === '/admin') { const t = query(req.path, 'token'); return same(t, publisherToken) ? adminPage(t, '') : reply(403, 'wrong token\n'); }
   if (req.method === 'POST' && path === '/admin/retract') return retract(req);
   if (req.method !== 'GET') return reply(405, 'method not allowed\n');
@@ -273,6 +319,9 @@ async function handle(req: Request): Promise<Reply> {
     return path === '/catalog.json' ? reply(200, catalogText, 'application/json') : reply(200, catalogSig + '\n');
   }
   const p = path.split('/');   // '', 'apps', id, name
+  const e = engine();
+  if (p.length === 3 && p[1] === 'engine' && e !== null && p[2] === (e as Manifest).get('file'))
+    return reply(200, fs.readText(engineDir + '/' + p[2]), 'application/gzip');   // readText is byte for byte
   if (p.length === 4 && p[1] === 'apps' && safe(p[2]) && safe(p[3])) {
     const id = p[2], name = p[3];
     if (name.endsWith('.manifest')) {
