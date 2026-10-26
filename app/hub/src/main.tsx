@@ -3,7 +3,7 @@
 // E-paper: black on white, large targets, no animation; only the status line and a changed row redraw.
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
-import { RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableKeyboard, RemarkableApp, windowMode } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
 import { page, openPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
 import { InfoPage } from './pages/info';
@@ -13,6 +13,8 @@ import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
 import { RunningPage, StuckBanner } from './pages/running';
 import { scripted, runScript } from './script';
+import { HubWidget, WIDGET_W, WIDGET_H } from './pages/widget';
+import { widgetPreview } from './state';
 
 function Tab(props: { label: string; index: i32 }): i32 {
   const on = (): boolean => page() === props.index;
@@ -74,10 +76,16 @@ function App(): i32 {
 
 // a pressed button fading in and out would ghost on e-paper and cost a dozen refreshes: it keeps its look while pressed
 setPressFeedback(false);
-render(App, 0xffffff, null);
+// Accueil shows the widget (RemarkableApp); ZINC_HUB_SCRIPT's `widget` draws it alone for the tests
+function Root(): i32 {
+  return <View className="flex-col h-full">{widgetPreview() ? <HubWidget /> : <RemarkableApp app={App} widget={{ view: HubWidget, width: WIDGET_W, height: WIDGET_H }} />}</View>;
+}
+render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   watchRunning();
   if (paired()) await refresh();   // check for updates at start
+  // shown as a widget, the Hub checks again every 30 minutes, so the card's count stays true; the window checks when it is opened
+  setInterval(() => { if (windowMode() === 'widget' && paired() && !busy()) refresh(); }, 1800000);
   if (scripted()) await runScript();
 }
 start();

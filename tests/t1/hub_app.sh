@@ -92,6 +92,8 @@ expect 'Updates: notes 1.1.0.'
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")   # it asks for the network now: the update asks for that alone
 echo "$texts" | grep -qxF 'notes 1.1.0 asks for more' && echo "$texts" | grep -qxF '• Connect to api.example.com' || { echo "the update does not ask for the new permission"; fail=1; }
 echo "$texts" | grep -qxF '• Read the files in data' && { echo "the update asks again for what was allowed"; fail=1; }
+app "widget"   # the widget counts it too
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF '1 update: notes' || { echo "the widget does not count the update"; fail=1; }
 app "update com.example.notes; allow"
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" && cmp -s "$tmp/hub/apps/com.example.notes/previous.zapp" "$tmp/out-1.0.0/notes-1.0.0.zapp" \

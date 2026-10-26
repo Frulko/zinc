@@ -39,6 +39,8 @@ export const PAGE_APPS: i32 = 0;
 export const PAGE_SETTINGS: i32 = 1;
 export const PAGE_RUNNING: i32 = 2;
 export const PAGE_INFO: i32 = 3;
+/** The tests draw the widget alone (ZINC_HUB_SCRIPT `widget`), as Accueil shows it. */
+export const [widgetPreview, setWidgetPreview] = createSignal<boolean>(false);
 
 let config: HubConfig = loadConfig();
 let apps: CatalogApp[] = [];

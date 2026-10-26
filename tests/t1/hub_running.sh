@@ -41,6 +41,10 @@ done
 expect 'hub: stuck is not responding'
 for f in gone reused; do [ -e "$TMPDIR/zinc-app-_home_root_zinc-apps_$f.zapp.pid" ] && { echo "the stale pidfile of $f was kept"; fail=1; }; done
 kill -0 "$other" 2>/dev/null || { echo "the program that reused a pid was signalled"; fail=1; }
+# the widget Accueil shows: the app not responding, with Stop
+app "widget"
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Zinc Hub' 'stuck is not responding' Stop; do echo "$texts" | grep -qxF "$t" || { echo "the widget does not show '$t':"; echo "$texts"; fail=1; }; done
 
 app "page running; stop web; stop stuck"
 expect 'Stopped web.'

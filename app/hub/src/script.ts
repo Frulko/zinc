@@ -1,9 +1,9 @@
 // ZINC_HUB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons, after the check at start, then quit.
 //   server <url> | pair <code> | refresh | install <id> | update <id> | rollback <id> | channel <id> <stable|beta> | page apps|running|info|settings | engine | stop <app name>
-//   uninstall <id> (twice: the first arms it) | clean | allow | cancel (the consent screen)
+//   uninstall <id> (twice: the first arms it) | clean | allow | cancel (the consent screen) | widget (draws the widget alone)
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { saveServer, pairWith, refresh, installApp, allowConsent, cancelConsent, uninstallApp, cleanAppLoad, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, refreshInfo, PAGE_INFO, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
+import { saveServer, pairWith, refresh, installApp, allowConsent, cancelConsent, setWidgetPreview, uninstallApp, cleanAppLoad, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, refreshInfo, PAGE_INFO, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
 
 export function scripted(): boolean { return sys.env('ZINC_HUB_SCRIPT') !== ''; }
 
@@ -20,6 +20,7 @@ export async function runScript(): Promise<void> {
     else if (verb === 'uninstall') await uninstallApp(arg);
     else if (verb === 'clean') await cleanAppLoad();
     else if (verb === 'allow') await allowConsent();
+    else if (verb === 'widget') { refreshRunning(); setWidgetPreview(true); }
     else if (verb === 'cancel') cancelConsent();
     else if (verb === 'open') openApp(arg);
     else if (verb === 'channel') setChannel(arg, w.length > 2 ? w[2] : 'stable');
