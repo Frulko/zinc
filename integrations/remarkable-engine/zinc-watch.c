@@ -77,6 +77,18 @@ static long read_rss_kb(int pid) {
   return p ? strtol(p + 6, NULL, 10) : 0;
 }
 
+// Seconds the tablet slept since it started: CLOCK_BOOTTIME counts them, CLOCK_MONOTONIC does not. The tests write it in
+// <ZINC_PROC_ROOT>/slept (they cannot put the machine to sleep).
+static double slept_s(void) {
+  if (getenv("ZINC_PROC_ROOT")) { char path[256], buf[32]; snprintf(path, sizeof path, "%s/slept", proc_root()); return read_file(path, buf, sizeof buf) ? atof(buf) : 0; }
+#ifdef CLOCK_BOOTTIME
+  struct timespec b, m; clock_gettime(CLOCK_BOOTTIME, &b); clock_gettime(CLOCK_MONOTONIC, &m);
+  return (b.tv_sec - m.tv_sec) + (b.tv_nsec - m.tv_nsec) / 1e9;
+#else
+  return 0;
+#endif
+}
+
 static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec / 1e9; }
 
 static void stop(int pid, const char* why) {
@@ -97,7 +109,8 @@ int main(int argc, char** argv) {
   const long hz = sysconf(_SC_CLK_TCK);
   long ppid0 = -1, ppid = -1;
   unsigned long long last_ticks = 0;
-  double last_t = now_s(), hung_since = 0;
+  double last_t = now_s(), hung_since = 0, slept = slept_s();
+  int was_hung = 0;
   int busy_run = 0, waste_run = 0, waste_said = 0, mem_said = 0, first = 1;
   if (read_stat(pid, &ppid0, &last_ticks)) first = 0;   // the parent the app has now (launch.sh): another one later means its window is gone
   while (getppid() == pid) {
@@ -118,6 +131,14 @@ int main(int argc, char** argv) {
       if (read_file(beat, window, sizeof window)) window[strcspn(window, "\n ")] = 0;
       if (!window[0]) strcpy(window, "full");
     }
+    // The power button: a press puts the tablet to sleep, the next wakes it. An app that was not responding before the sleep is stopped
+    // on waking (the user's way out with the button); after any sleep the heartbeat is old by the time slept, so hung is judged afresh.
+    const double s = slept_s();
+    const int resumed = s - slept > 1;
+    slept = s;
+    if (resumed && was_hung) { stop(pid, "not responding, and the tablet was put to sleep and woken (power button)"); break; }
+    if (resumed) { hung = 0; hung_since = 0; }
+    was_hung = hung;
     const int hidden = strcmp(window, "hidden") == 0;
     busy_run = cpu >= BUSY_PCT ? busy_run + 1 : 0;
     waste_run = hidden && cpu >= WASTE_PCT ? waste_run + 1 : 0;

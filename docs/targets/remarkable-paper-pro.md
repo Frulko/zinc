@@ -406,6 +406,9 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   when the last finger lifts the app's own mode comes back and, 1.5 s later, one full refresh clears the ghosts.
 - **The way out**: three fingers held on the screen for 2 s quit any Zinc app, even one whose buttons no longer answer (the driver
   sees it in its input poll, which turns while the app's code waits); the journal says `three fingers held 2 s: quitting the app`.
+  The power button too: press it (the tablet sleeps) and press it again; an app that was not responding before the sleep is stopped
+  on waking by `zinc-watch` (it reads the time slept from CLOCK_BOOTTIME, so sleep and xochitl are untouched;
+  docs/reports/remarkable-power-button.md).
 - **Stuck apps** (ZN-844): `zinc-app` starts `bin/zinc-watch` (`integrations/remarkable-engine/zinc-watch.c`, static, about 60 KB) with
   every app, as a child of the app's pid, so it ends with it. The engine's frame loop rewrites `ZINC_HEARTBEAT` (`/tmp/zinc-app-<path>.beat`,
   set by `zinc-app`) every 2 s with the window's state; the loop keeps turning while the window is minimized, so a hidden app beats too. The

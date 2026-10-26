@@ -133,4 +133,16 @@ i=0; while kill -0 $a 2>/dev/null && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); 
 kill -0 $a 2>/dev/null && { kill $a; fail "a hung app whose window was closed was not stopped"; }
 grep -q "its window was closed" "$tmp/watch.err" || fail "no journal line for the closed window: $(cat "$tmp/watch.err")"
 wait 2>/dev/null
+# the power button: a sleep and a wake stop an app that was hung before it, and leave alone one that was answering (its heartbeat is
+# old by the time slept)
+watched three; ticker & tk=$!
+sleep 1.5; until_state ok "an app before a sleep"
+echo 30 > "$wp/slept"; touch -t 202001010000 "$b.beat"; sleep 1.5
+kill -0 $a 2>/dev/null || fail "a sleep and a wake stopped an app that was answering"
+until_state hung "an app hung after the wake"
+echo 60 > "$wp/slept"
+i=0; while kill -0 $a 2>/dev/null && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done
+kill -0 $a 2>/dev/null && { kill $a; fail "a hung app was not stopped after a sleep and a wake"; }
+grep -q "put to sleep and woken" "$tmp/watch.err" || fail "no journal line for the power button: $(cat "$tmp/watch.err")"
+wait 2>/dev/null
 echo "watcher: ok"
