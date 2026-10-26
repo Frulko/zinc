@@ -423,3 +423,12 @@ export function watchRunning(): void {
   refreshRunning();
   setInterval(() => { if (sys.device('window.state', '') !== 'hidden') refreshRunning(); }, 3000);
 }
+
+// Experimental: every Zinc app docks under xochitl's header (display-rmpp reads the file <zinc home>/rmpp-header when an app starts)
+const HEADER_FLAG = (sys.env('ZINC_HOME') !== '' ? sys.env('ZINC_HOME') : sys.env('HOME') + '/.zinc') + '/rmpp-header';
+export const [header, setHeader] = createSignal<boolean>(fs.exists(HEADER_FLAG));
+export function toggleHeader(): void {
+  if (fs.exists(HEADER_FLAG)) fs.remove(HEADER_FLAG); else fs.writeText(HEADER_FLAG, 'on\n');
+  setHeader(fs.exists(HEADER_FLAG));
+  say(header() ? 'reMarkable header on: apps open below the tablet\'s top bar from their next start (needs AppLoad patch 0005).' : 'reMarkable header off: apps open full screen.');
+}

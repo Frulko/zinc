@@ -269,6 +269,9 @@ expect "Reset notes: removed $tmp/appdata/apps/notes and $tmp/appdata/notes and 
   || { echo "Reset data removed the wrong things: $(ls "$tmp/appdata"; cat "$ZINC_HOME/storage.kv")"; fail=1; }
 app "reset com.example.notes; reset com.example.notes"
 expect 'notes had no data of its own to remove.'
+app "header"   # Settings › Experimental: the flag display-rmpp reads when an app starts, on and off again
+[ -f "$ZINC_HOME/rmpp-header" ] || { echo "the reMarkable header flag was not written"; fail=1; }
+app "header"; [ -e "$ZINC_HOME/rmpp-header" ] && { echo "the reMarkable header flag was not removed"; fail=1; }
 app "reset dev.zinc.hub; reset dev.zinc.hub"
 expect 'The Hub keeps its pairing'
 # Pin to sidebar (AppLoad 0004): APPLOAD_DIR/pinned.json, the ids of others kept in their order, ours appended; Uninstall unpins

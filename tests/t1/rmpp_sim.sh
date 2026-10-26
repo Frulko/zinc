@@ -102,6 +102,9 @@ if run dock dashboard 260 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock
   has dock trace 2 "update PARTIAL 0,152 1620x152"   # the panel under the header, opened by the swipe and closed by the tap under it
   quits dock 3500   # the swipe's panel was opened (and closed by the tap under it): the bar's Quitter still ends the app
 fi
+# the Hub's Settings switch instead of the option: the file <zinc home>/rmpp-header docks every app
+mkdir -p "$tmp/flaghome" && : > "$tmp/flaghome/rmpp-header"
+if run dockflag dashboard 60 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock "ZINC_HOME=$tmp/flaghome"; then has dockflag trace 1 "docked under a 120 px header"; fi
 # the option on an AppLoad without 0005: never asked (it would drop the client), the app stays full screen
 if run nodock dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget ZINC_RMPP_HEADER=remarkable; then
   has nodock trace 0 "docked"; has nodock trace 1 "update PARTIAL 0,0 1620x2160"

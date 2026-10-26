@@ -1,7 +1,7 @@
 // Settings: the server address and pairing by the code the server prints (its admin page shows it too).
 import { createSignal } from 'zinc:ui/solid';
 import { SECTION, TITLE, LABEL, SMALL, FIELD } from '../constants';
-import { server, paired, serverFingerprint, saveServer, pairWith, cleanAppLoad } from '../state';
+import { server, paired, serverFingerprint, saveServer, pairWith, cleanAppLoad, header, toggleHeader } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 
 export function SettingsPage(): i32 {
@@ -26,5 +26,9 @@ export function SettingsPage(): i32 {
     <Text className={TITLE}>AppLoad</Text>
     <Text className={SMALL}>Removes the Zinc tiles whose app is no longer on the tablet. Other tiles are left alone.</Text>
     <View className="flex-row"><OutlineButton label="Clean up AppLoad" onClick={() => cleanAppLoad()} /></View>
+    <View className="h-[2px] bg-black" />
+    <Text className={TITLE}>Experimental</Text>
+    <Text className={SMALL}>reMarkable header: apps open below the tablet's own top bar (menu, logo, battery, time) instead of full screen. Needs the Zinc AppLoad with patch 0005; takes effect the next time an app opens.</Text>
+    <View className="flex-row"><OutlineButton label={header() ? 'reMarkable header: on' : 'reMarkable header: off'} onClick={() => toggleHeader()} /></View>
   </View>;
 }

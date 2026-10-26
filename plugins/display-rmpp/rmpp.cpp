@@ -105,9 +105,13 @@ bool dock() {
 }
 // zinc.json "display": {"header": "remarkable"} (ZINC_RMPP_HEADER on the tablet, which a launcher can also set per app): experimental, the app docks
 // under xochitl's header as soon as AppLoad says it can (its capabilities come with the first device state); else it stays full screen.
+// The Hub's Settings turn it on for every app at once: the file <zinc home>/rmpp-header (ZINC_HOME, else ~/.zinc).
 bool header_wanted() {
   static const char* h = getenv("ZINC_RMPP_HEADER") ? getenv("ZINC_RMPP_HEADER") : ZP_DISPLAY_RMPP_HEADER;
-  return strcmp(h, "remarkable") == 0;
+  if (strcmp(h, "remarkable") == 0) return true;
+  const char* zh = getenv("ZINC_HOME");
+  const std::string flag = zh ? std::string(zh) + "/rmpp-header" : std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.zinc/rmpp-header";
+  return access(flag.c_str(), F_OK) == 0;
 }
 
 bool set_mode(int mode) {
