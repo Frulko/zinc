@@ -3,7 +3,8 @@
 // command appended after the canvas image, so the frame diff damages only the new segment and an e-ink driver can use
 // its fast waveform on a tiny rectangle. Finished strokes are baked into a runtime image with the very same commands
 // (identical pixels: the display driver's own pixel diff then sees nothing to refresh when the image takes over).
-import { stroke, rect, drawImage, createImage, destroyImage, beginImage, endImage, penCount, penX, penY, penPressure, penFlags, PenFlag } from 'zinc:gfx';
+// A reader draws the ink over its page with drawOver: the page goes into the same image, under the finished strokes.
+import { stroke, rect, clip, unclip, drawImage, createImage, destroyImage, beginImage, endImage, penCount, penX, penY, penPressure, penFlags, PenFlag } from 'zinc:gfx';
 import * as ui from 'zinc:ui';
 
 export class Stroke {
@@ -24,10 +25,10 @@ export class Stroke {
   }
 }
 
-/** Draws segment i of `s` shifted by (ox, oy): live frames and baking use exactly this call. */
-function segment(s: Stroke, i: i32, ox: number, oy: number): void {
+/** Draws segment i of `s`, ink point p at (x, y) + (p - (ox, oy)) * z: live frames and baking use exactly this call. */
+function segment(s: Stroke, i: i32, x: number, y: number, ox: number, oy: number, z: number): void {
   const p = s.pts, a = Math.max(0, i - 1) * 3, b = i * 3;
-  stroke([p[a] + ox, p[a + 1] + oy, p[b] + ox, p[b + 1] + oy], s.segWidth(i), s.color, 255, false);
+  stroke([x + (p[a] - ox) * z, y + (p[a + 1] - oy) * z, x + (p[b] - ox) * z, y + (p[b + 1] - oy) * z], s.segWidth(i) * z, s.color, 255, false);
 }
 
 /** Point-to-polyline distance test (stroke eraser). */
@@ -55,12 +56,14 @@ export class Ink {
   eraserRadius: number = 12;
   background: i32 = 0xffffff;
   version: i32 = 0;               // bumps on every change (autosave, dirty flags)
-  w: i32 = 0; h: i32 = 0;         // size of the last draw
+  w: i32 = 0; h: i32 = 0;         // size of the last draw (toJSON, toSVG; a reader sets its page's before saving)
+  iw: i32 = 0; ih: i32 = 0;       // size of the image
   live: Stroke | null = null;     // stroke under the pen
   tail: Stroke | null = null;     // stroke whose segments from `baked` on are frame commands, not image pixels yet
   baked: i32 = 0;
   img: i32 = -1;
   stale: boolean = true;          // image must be rebuilt from every stroke
+  ox: number = 0; oy: number = 0; z: number = 1; key: number = 0;   // the image's view transform and background version (drawOver)
   erasing: boolean = false;
   erasedNow: boolean = false;
   history: Stroke[][] = [];
@@ -116,17 +119,33 @@ export class Ink {
       if (outside && this.live === null && !this.erasing && (f & PenFlag.Down) !== 0) continue;  // strokes start inside
       this.feed(sx, sy, penPressure(i), f);
     }
-    if (w !== this.w || h !== this.h || this.img < 0) {
+    this.paint(x, y, w, h, 0, 0, 1, 0, null);
+  }
+
+  /** The ink over a reader's page in the view (x, y, w, h): ink point p shows at (x, y) + (p - (ox, oy)) * z, and bg(w, h) draws the
+   *  page from (0, 0). Page and finished strokes are one image, drawn again only when the transform, `key` (the caller's version of
+   *  the page), the size or the strokes change; while the pen writes, a frame is that image plus the live stroke's new segments.
+   *  The caller feeds the pen samples (feed) in ink coordinates. */
+  drawOver(x: i32, y: i32, w: i32, h: i32, ox: number, oy: number, z: number, key: number, bg: (w: i32, h: i32) => void): void {
+    clip(x, y, w, h);
+    this.paint(x, y, w, h, ox, oy, z, key, bg);
+    unclip();
+  }
+
+  paint(x: i32, y: i32, w: i32, h: i32, ox: number, oy: number, z: number, key: number, bg: ((w: i32, h: i32) => void) | null): void {
+    this.w = w; this.h = h;
+    if (w !== this.iw || h !== this.ih || this.img < 0) {
       if (this.img >= 0) destroyImage(this.img);
       this.img = createImage(w, h);
-      this.w = w; this.h = h; this.stale = true;
+      this.iw = w; this.ih = h; this.stale = true;
     }
-    if (this.stale) this.rebake();
+    if (ox !== this.ox || oy !== this.oy || z !== this.z || key !== this.key) { this.ox = ox; this.oy = oy; this.z = z; this.key = key; this.stale = true; }
+    if (this.stale) this.rebake(bg);
     const t = this.tail;
     if (t !== null && (t !== this.live || t.count() - this.baked > 200)) this.bakeTail();
     drawImage(this.img, x, y, w, h, 255, 0);
     const s = this.tail;
-    if (s !== null) for (let i = this.baked; i < s.count(); i++) segment(s, i, x, y);
+    if (s !== null) for (let i = this.baked; i < s.count(); i++) segment(s, i, x, y, ox, oy, z);
   }
 
   /** Moves the tail's pending segments into the image (same commands, same pixels). */
@@ -135,7 +154,7 @@ export class Ink {
     if (s === null || this.img < 0) return;
     beginImage(this.img);
     for (let i = this.baked; i < s.count(); i++) {
-      segment(s, i, 0, 0);
+      segment(s, i, 0, 0, this.ox, this.oy, this.z);
       if ((i - this.baked) % 200 === 199) { endImage(); beginImage(this.img); }  // frame pools are finite
     }
     endImage();
@@ -143,15 +162,21 @@ export class Ink {
     if (s !== this.live) this.tail = null;
   }
 
-  rebake(): void {
+  rebake(bg: ((w: i32, h: i32) => void) | null): void {
     this.stale = false;
     if (this.img < 0) return;
     beginImage(this.img);
-    rect(0, 0, this.w, this.h, this.background);
+    rect(0, 0, this.iw, this.ih, this.background);
+    if (bg !== null) (bg as (w: i32, h: i32) => void)(this.iw, this.ih);
+    const ox = this.ox, oy = this.oy, z = this.z, x1 = ox + this.iw / z, y1 = oy + this.ih / z;
     let n = 0;
-    for (const s of this.strokes) for (let i = 0; i < s.count(); i++) {
-      segment(s, i, 0, 0);
-      if (++n % 200 === 0) { endImage(); beginImage(this.img); }
+    for (const s of this.strokes) {
+      const m = s.width;   // the stroke's ink reaches half its width past its points
+      if (s.x1 + m < ox || s.x0 - m > x1 || s.y1 + m < oy || s.y0 - m > y1) continue;
+      for (let i = 0; i < s.count(); i++) {
+        segment(s, i, 0, 0, ox, oy, z);
+        if (++n % 200 === 0) { endImage(); beginImage(this.img); }
+      }
     }
     endImage();
     const t = this.tail;

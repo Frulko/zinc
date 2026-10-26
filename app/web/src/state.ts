@@ -37,6 +37,7 @@ export class View {
   w: i32 = 0; h: i32 = 0;                       // the page view's size, the relay's viewport
   img: i32 = -1;                                // the last picture and the page rectangle it shows
   ix: number = 0; iy: number = 0; iw: number = 0; ih: number = 0;
+  shot: i32 = 0;                                // bumps with each picture (the ink's baked layer is drawn again)
 }
 export const view = new View();
 export const ink = new Ink();
@@ -105,7 +106,7 @@ async function fetchShot(): Promise<void> {
   console.log('web: picture ' + (t1 - t0).toString() + (hit ? ' ms (asked ahead), decode ' : ' ms, decode ') + (Date.now() - t1).toString() + ' ms, ' + bytes.length.toString() + ' bytes');
   if (img < 0) throw new Error('The relay sent a picture that is not a PNG.');
   if (view.img >= 0) destroyImage(view.img);
-  view.img = img; view.ix = x; view.iy = y; view.iw = w; view.ih = h;
+  view.img = img; view.ix = x; view.iy = y; view.iw = w; view.ih = h; view.shot++;
 }
 
 /** The page view's size: the relay renders at it. A new size renders the page again. */

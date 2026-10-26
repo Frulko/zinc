@@ -2,9 +2,8 @@
 // (its eraser end, or the Eraser tool, erases; on a desktop the mouse writes in Pen mode). Finger: a swipe turns the page (pans when
 // zoomed), two fingers pinch to zoom. The picture is scaled while the fingers move and drawn sharp by PDFium when they lift: one e-ink
 // refresh per gesture. The wheel turns pages, Ctrl+wheel zooms.
-import { rect, clip, unclip, drawImageRect, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag, touchCount, touchX, touchY,
-  pointerX, pointerY, pointerDown, wheel, modifiers, Mod } from 'zinc:gfx';
-import { Stroke } from 'zinc:ink';
+import { rect, drawImageRect, penCount, penX, penY, penPressure, penFlags, PenFlag, touchCount, touchX, touchY,
+  pointerX, pointerY, pointerDown, wheel, modifiers, Mod, commandCount } from 'zinc:gfx';
 import { view, ink, penMode, onTablet, resize, turn, zoomTo, pan, scale } from './state';
 import { MAX_ZOOM } from './constants';
 
@@ -16,28 +15,18 @@ let sx: number = 0, sy: number = 0, lx: number = 0, ly: number = 0;
 let d0: number = 1, mx: number = 0, my: number = 0, pinch: number = 1;
 let penFrames: i32 = 99;          // frames since the last pen sample: the Marker also moves the pointer
 
-function segment(s: Stroke, i: i32, x: number, y: number, ox: number, oy: number, z: number): void {
-  const p = s.pts, a = Math.max(0, i - 1) * 3, b = i * 3;
-  stroke([x + (p[a] - ox) * z, y + (p[a + 1] - oy) * z, x + (p[b] - ox) * z, y + (p[b + 1] - oy) * z], s.segWidth(i) * z, s.color, 255, false);
-}
-
-function draw(x: number, y: number, w: number, h: number): void {
-  rect(x, y, w, h, 0xffffff);
-  if (view.img < 0 || view.doc === null) return;
+/** The picture and the ink: one image while the view stays put, plus the live stroke's new segments (zinc:ink drawOver). */
+function draw(x: i32, y: i32, w: i32, h: i32): void {
+  if (view.img < 0 || view.doc === null) { rect(x, y, w, h, 0xffffff); return; }
   // the live transform: a pinch scales around its middle, a drag of a zoomed page moves it
   const s0 = scale(), z = s0 * pinch;
   let ox = view.ox, oy = view.oy;
   if (pinch !== 1) { ox += mx / s0 - mx / z; oy += my / s0 - my / z; }
   else if (fingers === 1 && view.zoom > 1) { ox -= (lx - sx) / s0; oy -= (ly - sy) / s0; }
-  clip(x, y, w, h);
   const k = z / view.iscale;   // the picture is the view at (iox, ioy) and iscale
-  drawImageRect(view.img, 0, 0, view.w, view.h, x + (view.iox - ox) * z, y + (view.ioy - oy) * z, view.w * k, view.h * k);
-  const x0 = ox, y0 = oy, x1 = ox + w / z, y1 = oy + h / z;
-  for (const s of ink.strokes) {
-    if (s.x1 < x0 || s.x0 > x1 || s.y1 < y0 || s.y0 > y1) continue;
-    for (let i: i32 = 0; i < s.count(); i++) segment(s, i, x, y, ox, oy, z);
-  }
-  unclip();
+  ink.drawOver(x, y, w, h, ox, oy, z, view.shot, (_w: i32, _h: i32) => {
+    drawImageRect(view.img, 0, 0, view.w, view.h, (view.iox - ox) * z, (view.ioy - oy) * z, view.w * k, view.h * k);
+  });
 }
 
 /** One pen sample at (vx, vy) of the view, into page points; the test script writes through it too. */
@@ -101,8 +90,12 @@ export function pageView(x: i32, y: i32, w: i32, h: i32): void {
   pen(x, y, w, h);
   fingersInput(x, y, w, h);
   wheelInput(x, y);
+  const c0 = commandCount();
   draw(x, y, w, h);
+  if (ink.live !== null) penCmds = Math.max(penCmds, commandCount() - c0);
 }
+let penCmds: i32 = 0;   // the most draw commands of a frame while the pen writes (the test script's `write`)
+export function penCommands(): i32 { return penCmds; }
 
 /** The Canvas onDraw of the page strip: the document as a bar, the page as a block. A finger on it moves the block; the page under it
  *  opens when the finger lifts (one page drawn, one refresh). */

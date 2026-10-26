@@ -1,9 +1,8 @@
 // The page view: one laid-out page, the ink over it, and the gestures. Pen: writes (on a desktop the mouse writes in Pen mode). Finger:
 // a tap follows a link or ticks a task box, a swipe turns the page. Nothing moves while a finger does: one e-ink refresh per gesture.
 // The wheel turns pages.
-import { rect, line, clip, unclip, drawText, drawImage, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag, pointerX, pointerY,
+import { rect, line, drawText, drawImage, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag, pointerX, pointerY,
   pointerDown, wheel } from 'zinc:gfx';
-import { Stroke } from 'zinc:ink';
 import { doc, ink, penMode, onTablet, version, resize, turn, tapAt } from './state';
 import { I_TEXT, I_FILL, I_BOX, I_IMAGE, I_CHECK } from './layout';
 
@@ -14,13 +13,17 @@ let down: boolean = false;
 let sx: number = 0, sy: number = 0, lx: number = 0, ly: number = 0;
 let penFrames: i32 = 99;   // frames since the last pen sample: the Marker also moves the pointer
 
-function draw(x: number, y: number, w: number, h: number): void {
-  version();   // the layout's version: a new layout redraws
-  rect(x, y, w, h, 0xffffff);
-  if (doc.lay.pages.length === 0) return;
-  clip(x, y, w, h);
+/** The page and the ink: one image while the page stays put, plus the live stroke's new segments (zinc:ink drawOver). */
+function draw(x: i32, y: i32, w: i32, h: i32): void {
+  const v = version();   // the layout's version: a new layout redraws
+  if (doc.lay.pages.length === 0) { rect(x, y, w, h, 0xffffff); return; }
+  // the ink is in document pixels: page k starts k * h down
+  ink.drawOver(x, y, w, h, 0, doc.page * doc.h, 1, v, (_w: i32, _h: i32) => { drawPage(); });
+}
+/** The laid-out page from (0, 0): the ink's baked layer. */
+function drawPage(): void {
   for (const it of doc.lay.pages[doc.page]) {
-    const ix = x + it.x, iy = y + it.y;
+    const ix = it.x, iy = it.y;
     if (it.kind === I_TEXT) drawText(it.font, ix, iy, it.text, it.color, 255, 0);
     else if (it.kind === I_FILL) rect(ix, iy, it.w, it.h, it.color);
     else if (it.kind === I_BOX) {
@@ -35,17 +38,6 @@ function draw(x: number, y: number, w: number, h: number): void {
       }
     }
   }
-  // the ink of this page: document pixels, page k starts k * h down
-  const top = doc.page * doc.h;
-  for (const s of ink.strokes) {
-    if (s.y1 < top || s.y0 > top + h) continue;
-    for (let i: i32 = 0; i < s.count(); i++) segment(s, i, x, y - top);
-  }
-  unclip();
-}
-function segment(s: Stroke, i: i32, x: number, y: number): void {
-  const p = s.pts, a = Math.max(0, i - 1) * 3, b = i * 3;
-  stroke([x + p[a], y + p[a + 1], x + p[b], y + p[b + 1]], s.segWidth(i), s.color, 255, false);
 }
 
 /** One pen sample at (vx, vy) of the view; the test script writes through it too. */

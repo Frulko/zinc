@@ -32,6 +32,7 @@ export class View {
   w: i32 = 0; h: i32 = 0;                       // the page view's size in pixels
   img: i32 = -1;                                // the picture: the view as of (iox, ioy) at iscale
   iox: number = 0; ioy: number = 0; iscale: number = 1;
+  shot: i32 = 0;                                // bumps with each picture (the ink's baked layer is drawn again)
 }
 export const view = new View();
 export const ink = new Ink();
@@ -64,7 +65,7 @@ function draw(): void {
   const s = scale();
   try {
     view.img = (d as pdf.PdfDocument).render(view.page, s, view.ox * s, view.oy * s, view.w, view.h, view.img);
-    view.iox = view.ox; view.ioy = view.oy; view.iscale = s;
+    view.iox = view.ox; view.ioy = view.oy; view.iscale = s; view.shot++;
   } catch (e) { say(e.message); }
 }
 

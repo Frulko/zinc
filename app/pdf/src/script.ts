@@ -1,10 +1,10 @@
 // ZINC_PDF_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
 //   open <file> | next | prev | page <n> | zoom <z> | draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | erase <x> <y> (the Marker's
-//   eraser end) | undo | save | export | library
+//   eraser end) | write <x0> <y0> <x1> <y1> (the same, one sample a frame: logs the most draw commands of a frame) | undo | save | export | library
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
 import { view, scale, openDoc, turn, goTo, zoomTo, saveInk, undoInk, exportPdf, showLibrary } from './state';
-import { feedPen } from './pageview';
+import { feedPen, penCommands } from './pageview';
 
 export function scripted(): boolean { return sys.env('ZINC_PDF_SCRIPT') !== ''; }
 function sleep(ms: i32): Promise<void> { return new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, ms); }); }
@@ -27,6 +27,11 @@ export async function runScript(): Promise<void> {
       const x0 = parseFloat(w[1]), y0 = parseFloat(w[2]), x1 = parseFloat(w[3]), y1 = parseFloat(w[4]);
       for (let i: i32 = 0; i <= 20; i++) feedPen(x0 + (x1 - x0) * i / 20, y0 + (y1 - y0) * i / 20, 0.8, PenFlag.Down);
       feedPen(x1, y1, 0, 0);
+    } else if (verb === 'write') {
+      const x0 = parseFloat(w[1]), y0 = parseFloat(w[2]), x1 = parseFloat(w[3]), y1 = parseFloat(w[4]);
+      for (let i: i32 = 0; i <= 20; i++) { feedPen(x0 + (x1 - x0) * i / 20, y0 + (y1 - y0) * i / 20, 0.8, PenFlag.Down); await sleep(20); }
+      feedPen(x1, y1, 0, 0);
+      console.log('pdf: ' + penCommands().toString() + ' draw commands at most a frame while writing');
     } else if (verb === 'erase') {
       feedPen(parseFloat(w[1]), parseFloat(w[2]), 0.5, PenFlag.Down | PenFlag.Eraser);
       feedPen(parseFloat(w[1]), parseFloat(w[2]), 0, 0);

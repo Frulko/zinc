@@ -2,7 +2,9 @@
 # Zinc PDF (app/pdf, ZN-844) headless, driven by ZINC_PDF_SCRIPT (the buttons' and gestures' actions) over the zinc:pdf fixture: the library
 # lists it, open, next/prev, a pen stroke on page 2 saved beside the document in page points (checked against the view's scale and origin),
 # Export writes <name>.annotated.pdf with an ink annotation that PDFium opens again; a second run comes back on page 2 with the stroke,
-# the Marker's eraser removes it, undo brings it back. ZINC_SHOT of the second run (WEB_SHOTS-style: PDF_SHOTS=<dir> keeps it).
+# the Marker's eraser removes it, undo brings it back. While the pen writes, a frame is the baked page + ink and only the live stroke's
+# segments (zinc:ink drawOver), not every stroke again: one sample a frame over three finished strokes. ZINC_SHOT of the second run
+# (WEB_SHOTS-style: PDF_SHOTS=<dir> keeps it).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null || { echo "SKIP: needs python3"; exit 77; }
 plugins/pdf/vendor/fetch >/dev/null 2>&1 || { echo "SKIP: PDFium is not fetched and cannot be (plugins/pdf/vendor/fetch)"; exit 77; }
@@ -46,6 +48,11 @@ expect 'pdf: Opened sample.pdf · 3 pages · page 2 · 1 strokes.'
 expect 'pdf: Ink saved, page 2 (0 strokes).'
 expect 'pdf: Ink saved, page 2 (1 strokes).'
 [ -s "$tmp/shot.png" ] || { echo "no shot of the reader"; fail=1; }
+
+# writing: clip, image, unclip and the live stroke's 21 segments; drawing every stroke again was 88
+app "open sample.pdf; page 3; draw 100 100 900 300; draw 100 300 900 500; draw 100 500 900 700; write 100 800 900 900"
+n=$(sed -n 's/^pdf: \([0-9]*\) draw commands at most a frame while writing$/\1/p' "$tmp/app.log")
+[ -n "$n" ] && [ "$n" -le 30 ] || { echo "a frame while writing drew $n commands (at most 30)"; fail=1; }
 [ -n "$PDF_SHOTS" ] && cp "$tmp/shot.png" "$tmp/docs/sample.annotated.pdf" "$PDF_SHOTS/" 2>/dev/null
 [ $fail -eq 0 ] && echo "pdf reader: ok"
 exit $fail

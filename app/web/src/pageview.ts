@@ -1,9 +1,8 @@
 // The page view: the relay's picture, the ink over it, and the gestures. Pen: writes (on a desktop the mouse writes in Pen mode). Finger:
 // a tap follows a link, a swipe turns the page (pans when zoomed), two fingers pinch to zoom. The picture is scaled while a finger
 // moves and fetched sharp from the relay when it lifts: one e-ink refresh per gesture. The wheel turns pages, Ctrl+wheel zooms.
-import { rect, clip, unclip, drawImageRect, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag, touchCount, touchX, touchY,
+import { rect, drawImageRect, penCount, penX, penY, penPressure, penFlags, PenFlag, touchCount, touchX, touchY,
   pointerX, pointerY, pointerDown, wheel, modifiers, Mod } from 'zinc:gfx';
-import { Stroke } from 'zinc:ink';
 import { view, ink, penMode, onTablet, resize, turn, zoomTo, pan, tapAt } from './state';
 
 const TAP_SLOP: number = 24;
@@ -15,27 +14,17 @@ let sx: number = 0, sy: number = 0, lx: number = 0, ly: number = 0;
 let d0: number = 1, mx: number = 0, my: number = 0, scale: number = 1;
 let penFrames: i32 = 99;          // frames since the last pen sample: the Marker also moves the pointer
 
-function segment(s: Stroke, i: i32, x: number, y: number, ox: number, oy: number, z: number): void {
-  const p = s.pts, a = Math.max(0, i - 1) * 3, b = i * 3;
-  stroke([x + (p[a] - ox) * z, y + (p[a + 1] - oy) * z, x + (p[b] - ox) * z, y + (p[b + 1] - oy) * z], s.segWidth(i) * z, s.color, 255, false);
-}
-
-function draw(x: number, y: number, w: number, h: number): void {
-  rect(x, y, w, h, 0xffffff);
-  if (view.img < 0) return;
+/** The picture and the ink: one image while the view stays put, plus the live stroke's new segments (zinc:ink drawOver). */
+function draw(x: i32, y: i32, w: i32, h: i32): void {
+  if (view.img < 0) { rect(x, y, w, h, 0xffffff); return; }
   // the live transform: a pinch scales around its middle, a drag of a zoomed page moves it
   const z = view.zoom * scale;
   let ox = view.ox, oy = view.oy;
   if (scale !== 1) { ox += mx / view.zoom - mx / z; oy += my / view.zoom - my / z; }
   else if (fingers === 1 && view.zoom > 1) { ox -= (lx - sx) / view.zoom; oy -= (ly - sy) / view.zoom; }
-  clip(x, y, w, h);
-  drawImageRect(view.img, 0, 0, view.w, view.h, x + (view.ix - ox) * z, y + (view.iy - oy) * z, view.iw * z, view.ih * z);
-  const x0 = ox, y0 = oy, x1 = ox + w / z, y1 = oy + h / z;
-  for (const s of ink.strokes) {
-    if (s.x1 < x0 || s.x0 > x1 || s.y1 < y0 || s.y0 > y1) continue;
-    for (let i: i32 = 0; i < s.count(); i++) segment(s, i, x, y, ox, oy, z);
-  }
-  unclip();
+  ink.drawOver(x, y, w, h, ox, oy, z, view.shot, (_w: i32, _h: i32) => {
+    drawImageRect(view.img, 0, 0, view.w, view.h, (view.ix - ox) * z, (view.iy - oy) * z, view.iw * z, view.ih * z);
+  });
 }
 
 /** Pen samples of this frame: page pixels of the ink. */

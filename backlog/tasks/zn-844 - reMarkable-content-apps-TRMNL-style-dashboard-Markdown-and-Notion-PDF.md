@@ -4,7 +4,7 @@ title: 'reMarkable content apps: TRMNL-style dashboard, Markdown and Notion, PDF
 status: In Progress
 assignee: []
 created_date: '2026-10-25 19:27'
-updated_date: '2026-10-25 22:58'
+updated_date: '2026-10-26 07:23'
 labels:
   - remarkable
   - size-L
@@ -61,4 +61,6 @@ Part 2, Markdown and Notion (app/markdown 'Zinc Read', plugins/markdown, test te
 - Not proven: the tablet (no ssh here; the engine bundle needs the markdown plugin prebuilt: tools/rmpp-engine), a real Notion workspace over HTTPS from the tablet, the pen and swipes on the panel.
 - Known, unrelated: tests/t0/plugin_manifest fails on develop already (microphone and webrtc list ios but plugins-table.txt does not); zinc:markdown was added to tests/data/plugins-added-table.txt.
 - Pack: zinc pack app/markdown -o markdown.zapp; on the tablet /home/root/zinc/bin/zinc-tile /home/root/zinc-apps/markdown.zapp (or publish through the hub with the owner's update key).
+
+Pen in the readers (worktree agent): zinc:ink gains Ink.drawOver(x, y, w, h, ox, oy, z, key, bg): page + finished strokes baked into one image at view size (rebuilt on transform, key = picture/layout version, size or stroke change), live stroke drawn as segments then baked, as Ink.draw does. app/web, app/markdown, app/pdf page views use it. pdf_reader checks the draw commands of a frame while writing (24 vs 88 before). Tablet feel not measured yet.
 <!-- SECTION:NOTES:END -->
