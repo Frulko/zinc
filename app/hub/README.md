@@ -25,6 +25,9 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 - **Uninstall** (two taps: the first turns it into **Confirm uninstall**) removes the app's tiles, its package and the hub's record of it;
   what the app saved stays. A running app is refused until it is stopped (Running). Settings › **Clean up AppLoad** removes the `zinc-*`
   tiles whose `.zapp` is gone and leaves every other tile alone.
+- **Every action** (pairing, checking, installing, updating, rolling back, uninstalling, the engine, cleaning AppLoad, stopping, opening an
+  app, the Hub's own restart) shows a modal with its title and current step that cannot be closed and takes every tap until it ends; a
+  failure stays in it with **OK**. The top bar stays usable.
 - **Info** shows the Hub's and the engine's versions, the server, the tablet (model, system, uptime, kernel), its battery and the Marker's,
   free memory and storage, read again each time the page opens.
 - **The Hub itself** (`dev.zinc.hub`, its row says "this app" and has no Open) updates like any app, then hands its new package to its tile's launcher and quits: it opens again on

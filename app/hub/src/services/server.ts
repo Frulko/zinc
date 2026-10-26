@@ -1,6 +1,7 @@
 // The hub server of ZN-842 (app/hub-server), seen from the tablet: pairing, the signed catalog, an app's signed manifest and its .zapp.
 // Nothing the server sends is trusted as is: the catalog must be signed by the key pinned at pairing, the manifest by the app's key that the
 // catalog lists, and the .zapp must have the SHA-256 of that manifest. Every refusal is an Error whose message is shown to the user.
+import { progress } from './progress';
 import * as net from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
@@ -105,7 +106,9 @@ export async function catalog(cfg: HubConfig): Promise<Catalog> {
 
 /** The engine bundle into `path`, checked against the SHA-256 and the size of the signed catalog (the hub key vouches for the engine). */
 export async function downloadEngine(cfg: HubConfig, e: CatalogEngine, path: string): Promise<void> {
+  progress('Downloading the engine ' + e.version + ' (' + Math.round(e.size / 1048576).toString() + ' MB)');
   const bundle = await (await get(cfg, e.url, ENGINE_TIMEOUT_MS)).bytes();
+  progress('Checking it against the SHA-256 the server signed');
   if (bundle.length !== e.size || (await sha256(bundle)) !== e.sha256)
     throw new Error('Refused: the engine ' + e.version + ' does not match the SHA-256 the server signed. It was altered; the engine was not changed.');
   fs.writeBytes(path, bundle);
@@ -121,15 +124,19 @@ export class Download {
 }
 export async function download(cfg: HubConfig, app: CatalogApp, ch: CatalogChannel): Promise<Download> {
   const d = new Download();
+  progress('Downloading the manifest of ' + app.id + ' ' + ch.version);
   const text = await (await get(cfg, ch.manifest)).text();
   const m = parseManifest(text);
   d.manifest = m;
+  progress('Checking the publisher\'s signature');
   if (!(await verifyManifest(m, app.key)))
     throw new Error('Refused: the manifest of ' + app.id + ' is not signed by its publisher. It was altered; nothing was installed.');
   if (m.get('app') !== app.id || m.get('channel') !== ch.channel || m.get('version') !== ch.version || m.get('sha256') !== ch.sha256 || m.get('url') !== fileOf(ch))
     throw new Error('Refused: the server offers ' + app.id + ' ' + ch.version + ' but sends the manifest of ' + m.get('app') + ' ' + m.get('version') + '. Nothing was installed.');
   if (!safe(m.get('url')) || !m.get('url').endsWith('.zapp')) throw new Error('Refused: the manifest of ' + app.id + ' names no .zapp file.');
+  progress('Downloading ' + m.get('url'));
   const zapp = await (await get(cfg, ch.url)).bytes();
+  progress('Checking its SHA-256');
   d.zapp = zapp;
   const sum = await sha256(zapp);
   if (sum !== m.get('sha256'))

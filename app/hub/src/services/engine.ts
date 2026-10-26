@@ -7,6 +7,7 @@ import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import { newerEngine } from '../../../hub-server/src/protocol';
 import { HubConfig } from './config';
+import { progress } from './progress';
 import { CatalogEngine, downloadEngine } from './server';
 import { ENGINE_DIR, ENGINE_ZBC, ENGINE_RT } from '../constants';
 
@@ -54,10 +55,13 @@ export async function installEngine(cfg: HubConfig, e: CatalogEngine): Promise<s
   if (fs.exists(old)) fs.remove(old, true);
   try {
     await downloadEngine(cfg, e, part);
+    progress('Unpacking the engine');
     fs.mkdir(fresh, true);
     const r = await proc.run('tar', ['xzf', part, '-C', fresh], {});   // BusyBox tar on the tablet
     if (r.code !== 0 || !fs.exists(fresh + '/zinc/bin/zinc')) throw new Error('Refused: the engine ' + e.version + ' does not unpack (' + r.stderr.trim() + '). The engine was not changed.');
+    progress('Checking that the new engine runs on this tablet');
     await check(fresh + '/zinc/bin/zinc', e);
+    progress('Putting the new engine in place');
     fs.rename(dir, old);
     try { fs.rename(fresh + '/zinc', dir); }
     catch (err) { fs.rename(old, dir); throw new Error('The new engine could not be put in place (' + err.message + '). The engine was not changed.'); }

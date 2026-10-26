@@ -4,9 +4,11 @@
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
-import { PAGE, LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
+import { PAGE, LABEL, TITLE, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
 import { page, openPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
 import { InfoPage } from './pages/info';
+import { task, step, failure } from './services/progress';
+import { dismiss } from './state';
 import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
 import { RunningPage, StuckBanner } from './pages/running';
@@ -19,9 +21,23 @@ function Tab(props: { label: string; index: i32 }): i32 {
   </Button>;
 }
 
+/** While an action runs: what it is and its current step, over the hub (not over the top bar: Quit stays), which takes no tap until it
+ *  ends (no way to close it). A failure stays with OK. Drawn once per step, not animated: e-paper. */
+function Activity(): i32 {
+  return <View className="absolute top-0 left-0 right-0 bottom-0 items-center justify-center bg-white" onClick={() => {}}>
+    <View className="flex-col gap-8 w-[1200px] p-12 border-4 border-black rounded-lg bg-white">
+      <Text className={TITLE}>{failure() !== '' ? `${task()}: failed` : `${task()}…`}</Text>
+      <Text className={LABEL}>{failure() !== '' ? failure() : step() !== '' ? step() : 'Starting.'}</Text>
+      {failure() !== '' ? <View className="flex-row"><Button className={BUTTON} onClick={() => dismiss()}><Text className={BUTTON_LABEL}>OK</Text></Button></View>
+        : <Text className={LABEL}>Please wait: the Hub takes no other action until this one ends.</Text>}
+    </View>
+  </View>;
+}
+
 function App(): i32 {
   return <View className={PAGE}>
     <RemarkableBar title="Zinc Hub" />
+    <View className="flex-col grow relative">
     <View className="flex-row gap-6 px-10 pt-8">
       <Tab label="Apps" index={PAGE_APPS} />
       <Tab label="Running" index={PAGE_RUNNING} />
@@ -32,6 +48,8 @@ function App(): i32 {
     <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_RUNNING ? <RunningPage /> : page() === PAGE_INFO ? <InfoPage /> : <SettingsPage />}</View>
     <View className="px-10 py-6 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
+    </View>
+    {task() !== '' ? <Activity /> : null}
     </View>
     <RemarkableKeyboard />
   </View>;

@@ -43,18 +43,30 @@ function model(): string {
   return m.indexOf('Ferrari') >= 0 ? 'reMarkable Paper Pro' : m.indexOf('Chiappa') >= 0 ? 'reMarkable Paper Pro Move' : m;
 }
 
-/** The power supplies: the tablet's battery (the first of type Battery with a capacity), the charger, the Marker's (a "marker" supply). */
+/** The power supplies: the tablet's battery (the first of type Battery with a capacity), the charger, and the Marker. The Paper Pro reports
+ *  the Marker twice: nfc-marker-battery while it is attached to the tablet's side (charging) and elants-marker-battery while the screen sees
+ *  it; the one that is not present keeps its last capacity. One line: the present one (attached first), else the last reading. */
 function battery(s: InfoSection): void {
   const dir = '/sys/class/power_supply';
   if (!fs.exists(ROOT + dir)) return;
-  let tablet = '', plugged = false;
+  let tablet = '', plugged = false, marker = '', markerRank = 0;
   for (const n of fs.list(ROOT + dir)) {
     const p = dir + '/' + n, type = read(p + '/type'), cap = read(p + '/capacity'), st = read(p + '/status');
-    if (n.indexOf('marker') >= 0) { if (cap !== '' && cap !== '0') s.add('Marker', cap + '%'); continue; }
+    if (n.indexOf('marker') >= 0) {
+      if (cap === '' || cap === '0') continue;
+      const present = read(p + '/present') === '1', attached = present && n.indexOf('nfc') >= 0;
+      const rank = attached ? 3 : present ? 2 : 1;
+      if (rank > markerRank) {
+        markerRank = rank;
+        marker = cap + '%' + (st === 'Charging' ? ' · charging' : st === 'Full' ? ' · charged' : attached ? ' · attached' : present ? '' : ' · last reading');
+      }
+      continue;
+    }
     if (type === 'Battery' && cap !== '' && tablet === '') tablet = cap + '%' + (st !== '' && st !== 'Unknown' ? ' · ' + st.toLowerCase() : '');
     if (type === 'USB' && (read(p + '/online') === '1' || st === 'Charging')) plugged = true;
   }
   s.add('Tablet', tablet + (tablet !== '' && plugged ? ' · plugged in' : ''));
+  s.add('Marker', marker);
 }
 
 export async function loadInfo(hubVersion: string, engine: string, zbc: i32, rt: i32, server: string): Promise<InfoSection[]> {
@@ -77,11 +89,11 @@ export async function loadInfo(hubVersion: string, engine: string, zbc: i32, rt:
   const mem = new InfoSection(); mem.title = 'Memory and storage';
   const mi = read('/proc/meminfo'), total = kb(mi, 'MemTotal'), avail = kb(mi, 'MemAvailable');
   if (total > 0 && avail >= 0) mem.add('Memory', size(avail) + ' free of ' + size(total));
-  try {   // df -k <dir>: the last line is "<fs> <total> <used> <free> <use%> <mount>" (BusyBox and macOS alike)
-    const r = await proc.run('df', ['-k', HUB_DIR], {});
-    const f = r.stdout.trim().split('\n').pop() as string;
-    const w = f.split(' ').filter((x: string) => x !== '');
-    if (r.code === 0 && w.length >= 4) mem.add('Storage', size(parseInt(w[3])) + ' free of ' + size(parseInt(w[1])));
+  try {   // df -kP <dir>: "<fs> <total> <used> <free> <use%> <mount>" on one line (without -P BusyBox wraps a long <fs> name onto its own
+          // line); read from the end, so a wrapped line would still give the right columns
+    const r = await proc.run('df', ['-kP', HUB_DIR], {});
+    const w = (r.stdout.trim().split('\n').pop() as string).split(' ').filter((x: string) => x !== '');
+    if (r.code === 0 && w.length >= 5) mem.add('Storage', size(parseInt(w[w.length - 3])) + ' free of ' + size(parseInt(w[w.length - 5])));
   } catch (e) { }
 
   return [zinc, tab, power, mem].filter((x: InfoSection) => x.lines.length > 0);

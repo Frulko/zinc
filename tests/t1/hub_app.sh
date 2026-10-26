@@ -156,6 +156,10 @@ bundle 1.0.1
 printf 'X' | dd of="$tmp/data/engine/zinc-rmpp-1.0.1.tar.gz" bs=1 seek=100 conv=notrunc 2>/dev/null
 app "engine"
 expect 'Refused: the engine 1.0.1 does not match the SHA-256 the server signed.'
+expect 'hub: · Downloading the engine 1.0.1'
+# the modal: the action's title and its error, kept with OK until it is dismissed
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Updating the Zinc engine to 1.0.1: failed' 'OK'; do echo "$texts" | grep -qxF "$t" || { echo "the modal does not show '$t'"; fail=1; }; done
 engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "an altered bundle"
 bundle 1.0.2 broken
 app "engine"
@@ -191,11 +195,20 @@ printf 'MemTotal:        2009204 kB\nMemFree:          525720 kB\nMemAvailable: 
 printf 'ID=codex\nIMG_VERSION="3.29.0.153"\n' > "$r/etc/os-release"
 b=$r/sys/class/power_supply; echo Battery > "$b/max1726x_battery/type"; echo 87 > "$b/max1726x_battery/capacity"; echo Discharging > "$b/max1726x_battery/status"
 echo USB > "$b/max77963-charger/type"; echo Charging > "$b/max77963-charger/status"
-echo Wireless > "$b/elants-marker-battery/type"; echo 82 > "$b/elants-marker-battery/capacity"; echo 0 > "$b/nfc-marker-battery/capacity"
-ZINC_HUB_SYS_ROOT=$r app "page info"
+# the Marker attached to the side: nfc-marker-battery present and charging; elants-marker-battery keeps its last value (one line, not two)
+m=$b/elants-marker-battery; echo Wireless > "$m/type"; echo 79 > "$m/capacity"; echo 0 > "$m/present"; echo Unknown > "$m/status"
+m=$b/nfc-marker-battery; echo Wireless > "$m/type"; echo 82 > "$m/capacity"; echo 1 > "$m/present"; echo Charging > "$m/status"
+# BusyBox df: a long file system name wraps the line
+mkdir -p "$tmp/bin"; printf '#!/bin/sh\necho "Filesystem 1024-blocks Used Available Capacity Mounted on"\necho /dev/mapper/home-encrypted-disk\necho "   48568796   3877664  44164404   8%% /home"\n' > "$tmp/bin/df"; chmod 755 "$tmp/bin/df"
+PATH=$tmp/bin:$PATH ZINC_HUB_SYS_ROOT=$r app "page info"
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in 'Hub' '0.2.0' 'reMarkable Paper Pro' '3.29.0.153' '18 h 47 min' '87% · discharging · plugged in' 'Marker' '82%' '1.0 GB free of 1.9 GB' 'Storage'; do
+for t in 'Hub' '0.2.0' 'reMarkable Paper Pro' '3.29.0.153' '18 h 47 min' '87% · discharging · plugged in' '82% · charging' '1.0 GB free of 1.9 GB' '42.1 GB free of 46.3 GB'; do
   echo "$texts" | grep -qxF "$t" || { echo "the Info page does not show '$t'"; fail=1; }; done
+[ "$(echo "$texts" | grep -cx 'Marker')" = 1 ] || { echo "the Marker shows $(echo "$texts" | grep -cx 'Marker') times"; fail=1; }
+# detached: the screen sees it, the side does not
+echo 1 > "$b/elants-marker-battery/present"; echo 0 > "$b/nfc-marker-battery/present"; echo Discharging > "$b/nfc-marker-battery/status"
+PATH=$tmp/bin:$PATH ZINC_HUB_SYS_ROOT=$r app "page info"
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx '79%' || { echo "the detached Marker is not read from the screen's supply"; fail=1; }
 # Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
 : > "$tmp/tile.log"
 app "uninstall com.example.notes"

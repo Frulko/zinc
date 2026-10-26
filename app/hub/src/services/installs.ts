@@ -6,6 +6,7 @@ import * as proc from 'zinc:process';
 import { sha256, newer, safe } from '../../../hub-server/src/protocol';
 import { KeyValues, readKeyValues, writeKeyValues } from './config';
 import { Download } from './server';
+import { progress } from './progress';
 import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR } from '../constants';
 
 export class Installed {
@@ -39,6 +40,7 @@ export function nameOf(file: string, version: string): string {
 /** zinc-tile on the package: the app's own AppLoad tile. Without zinc-tile (a desktop) this is a dry run that says so. */
 async function makeTile(name: string): Promise<string> {
   if (!fs.exists(TILE_COMMAND)) return 'No zinc-tile at ' + TILE_COMMAND + ' (not a reMarkable): no tile made.';
+  progress('Making its AppLoad tile');
   const r = await proc.run(TILE_COMMAND, [livePath(name)], {});
   if (r.code !== 0) throw new Error('Installed, but zinc-tile failed: ' + (r.stderr.trim() !== '' ? r.stderr.trim() : 'exit ' + r.code.toString()));
   return 'Tile zinc-' + name + ' ready: reload AppLoad.';
@@ -59,6 +61,7 @@ export async function install(id: string, d: Download): Promise<string> {
       if (other !== id && o !== null && o.name === name) throw new Error('Refused: the app ' + other + ' already uses the tile name ' + name + '.');
     }
   }
+  progress('Installing ' + name + ' ' + version);
   fs.mkdir(APPS_DIR, true);
   fs.mkdir(dirOf(id), true);
   const live = livePath(name);
@@ -106,8 +109,10 @@ export async function uninstall(id: string): Promise<string> {
   const i = installed(id);
   if (i === null) throw new Error(id + ' is not installed.');
   const name = (i as Installed).name, dir = dirOf(id);
+  progress('Removing its AppLoad tiles');
   await removeTile('zinc-' + name);
   await removeTile('zinc-' + name + '-session');
+  progress('Removing its package');
   if (fs.exists(livePath(name))) fs.remove(livePath(name));
   for (const f of ['installed', 'previous', 'previous.zapp']) if (fs.exists(dir + '/' + f)) fs.remove(dir + '/' + f);
   return 'Uninstalled ' + name + '. Reload AppLoad.';

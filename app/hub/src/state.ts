@@ -11,6 +11,7 @@ import { Installed, installed, previous, install, rollback, uninstall, cleanTile
 import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 import { RunningApp, running, stopApp } from './services/running';
 import { InfoSection, loadInfo, hubVersion } from './services/system';
+import { setTask, setStep, failure, setFailure, progress } from './services/progress';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -122,14 +123,21 @@ function rebuildRows(): void {
   setRows(list);
 }
 
-/** Runs one action with the busy flag; its result or its error becomes the status line. */
-async function run(action: () => Promise<string>): Promise<void> {
+/** Runs one action with the busy flag and the modal (main.tsx) titled `title`: nothing else can be tapped until it ends. Its result becomes
+ *  the status line and the modal closes; an error stays in the modal until OK. */
+async function run(title: string, action: () => Promise<string>): Promise<void> {
   if (busy()) return;
-  setBusy(true);
+  setBusy(true); setTask(title); setStep(''); setFailure('');
   try { say(await action()); }
-  catch (e) { say(e.message); }
-  if (!restarting) setBusy(false);
+  catch (e) { say(e.message); setFailure(e.message); }
+  if (restarting) return;   // the modal stays until the hub quits
+  setBusy(false);
+  if (failure() === '') setTask('');
 }
+/** OK on a failure: the modal closes. */
+export function dismiss(): void { setFailure(''); setTask(''); }
+/** The name a row shows for an app id, for the modal's title. */
+function nameFor(id: string): string { for (const r of rows()) if (r.id === id) return r.name; return id; }
 
 export function saveServer(url: string): void {
   const u = url.trim();
@@ -141,10 +149,12 @@ export function saveServer(url: string): void {
 }
 
 export async function pairWith(code: string): Promise<void> {
-  await run(async (): Promise<string> => {
+  await run('Pairing with ' + config.server, async (): Promise<string> => {
     const c = code.trim();
     if (c.length === 0) throw new Error('Type the pairing code the server shows.');
+    progress('Asking the server to pair');
     await pair(config, c, DEVICE_NAME);
+    progress('Reading its catalog');
     saveConfig(config);
     setPaired(true);
     await fetchCatalog();
@@ -158,8 +168,10 @@ export async function pairWith(code: string): Promise<void> {
 /** Fetches the signed catalog: the list, and the updates on the channels this tablet follows. */
 export async function refresh(): Promise<void> {
   if (!paired()) { say('Pair this tablet with a server first (Settings).'); return; }
-  await run(async (): Promise<string> => {
+  await run('Checking for updates', async (): Promise<string> => {
+    progress('Reading the signed catalog of ' + config.server);
     await fetchCatalog();
+    progress('Fetching the icons');
     await syncIcons();
     rebuildRows();
     const updates = rows().filter((r: AppRow) => r.updatable).map((r: AppRow) => r.name + ' ' + r.available);
@@ -181,7 +193,8 @@ function refuseUnrunnable(ch: CatalogChannel): void {
 
 /** Install or update: downloads, verifies and installs the version of the channel this tablet follows. */
 export async function installApp(id: string): Promise<void> {
-  await run(async (): Promise<string> => {
+  const i = installed(id);
+  await run((i !== null || id === HUB_ID ? 'Updating ' : 'Installing ') + nameFor(id), async (): Promise<string> => {
     let app: CatalogApp | null = null;
     for (const a of apps) if (a.id === id) app = a;
     if (app === null) throw new Error('The server does not offer ' + id + '.');
@@ -197,7 +210,7 @@ export async function installApp(id: string): Promise<void> {
 
 /** Replaces the engine on the tablet with the one the signed catalog offers (services/engine.ts); the old one stays on any failure. */
 export async function updateEngine(): Promise<void> {
-  await run(async (): Promise<string> => {
+  await run('Updating the Zinc engine to ' + engineOffer(), async (): Promise<string> => {
     if (engineOffer() === '') throw new Error('The server offers no newer engine for this tablet.');
     const message = await installEngine(config, engine as CatalogEngine);
     setEngineOffer('');
@@ -206,7 +219,7 @@ export async function updateEngine(): Promise<void> {
 }
 
 export async function rollbackApp(id: string): Promise<void> {
-  await run(async (): Promise<string> => { const message = await rollback(id); rebuildRows(); return message; });
+  await run('Rolling back ' + nameFor(id), async (): Promise<string> => { const message = await rollback(id); rebuildRows(); return message; });
 }
 
 /** Uninstall asks twice: the first tap arms it (the button and the status line say so), the second removes the app. */
@@ -214,7 +227,7 @@ export const [armed, setArmed] = createSignal<string>('');
 export async function uninstallApp(id: string): Promise<void> {
   if (armed() !== id) { setArmed(id); say('Tap Confirm uninstall to remove ' + id + ' from this tablet.'); return; }
   setArmed('');
-  await run(async (): Promise<string> => {
+  await run('Uninstalling ' + nameFor(id), async (): Promise<string> => {
     if (id === HUB_ID) throw new Error('The Hub does not uninstall itself.');
     const i = installed(id);
     if (i !== null) for (const a of running()) if (a.name === (i as Installed).name) throw new Error(a.name + ' is running: stop it first (Running).');
@@ -224,7 +237,7 @@ export async function uninstallApp(id: string): Promise<void> {
   });
 }
 
-export async function cleanAppLoad(): Promise<void> { await run(cleanTiles); }
+export async function cleanAppLoad(): Promise<void> { await run('Cleaning up AppLoad', cleanTiles); }
 
 /** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. */
 export function openApp(id: string): void {
@@ -234,8 +247,9 @@ export function openApp(id: string): void {
   if (next === '') { say('Open ' + i.name + ' from AppLoad: reload it, then tap ' + i.name + '.'); return; }
   fs.writeText(next, livePath(i.name));
   say('Opening ' + i.name + '.');
-  setBusy(true);
-  quit();
+  setBusy(true); setFailure(''); setTask('Opening ' + i.name);
+  progress('The Hub closes and ' + i.name + ' opens in this window; closing ' + i.name + ' brings the Hub back.');
+  setTimeout(() => { quit(); }, 300);   // the modal is drawn first
 }
 
 let restarting = false;
@@ -244,6 +258,8 @@ function restartSelf(): boolean {
   const i = installed(HUB_ID), next = sys.env('ZINC_NEXT');
   if (i === null || next === '') return false;
   fs.writeText(next, livePath(i.name));
+  setTask('Restarting the Hub');
+  progress('The Hub ' + i.version + ' is installed; it closes and opens again on it.');
   setTimeout(() => { quit(); }, 1500);   // the status line shows first; busy stays on, so nothing else starts
   restarting = true;
   return true;
@@ -288,7 +304,9 @@ export function refreshRunning(): void {
 }
 
 export async function stopRunning(pid: i32): Promise<void> {
-  await run(async (): Promise<string> => {
+  let name = 'the app';
+  for (const a of running()) if (a.pid === pid) name = a.name;
+  await run('Stopping ' + name, async (): Promise<string> => {
     let app: RunningApp | null = null;
     for (const a of running()) if (a.pid === pid) app = a;
     if (app === null) return 'It has already stopped.';
