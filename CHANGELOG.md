@@ -45,6 +45,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - JSX: `{(c ? xs : ys).map((r) => c ? <A /> : <B />)}` draws one row per item; it drew the list of node numbers as text.
+- `zinc run` on Linux (and the reMarkable) applies the `"targets": {"linux": {"permissions": …}}` adjustments of zinc.json, and `--profile <name>` those of that target; it read the Windows ones.
 - reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.

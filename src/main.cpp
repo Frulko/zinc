@@ -133,6 +133,8 @@ static std::string gProjectDir = ".";
 static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
+// the target whose zinc.json adjustments ("targets.<name>.permissions") a run uses: the profile's, else this machine's OS
+static std::string runTarget() { return gProfile ? gProfile->name : zn::tc::pluginTarget(); }
 static bool gPackingConsole = false;   // zinc pack --profile psp|vita|n3ds: the program goes into a console core (installNativeProvider)
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
@@ -411,7 +413,7 @@ static bool loadManifestPermissions(const char* path) {
     std::stringstream ss; ss << in.rdbuf();
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; defaults3d = p.defaults3d; }
+    else { granted = zn::frontend::permissionsFor(p, runTarget()); appJson = p.app.json; scopesJson = p.scopes; defaults3d = p.defaults3d; }
   }
   if (const zn::frontend::Profile* rp = zn::frontend::currentProfile(); rp && !p.requires_.empty() && !zn::frontend::force()) {   // zinc.json "requires" for zinc check and build --profile (ZN-618; zinc run checks it before, with --force's warning)
     const std::string why = zn::frontend::explain(p.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/targets/capabilities.json"), rp->name);
@@ -2388,11 +2390,7 @@ int main(int argc, char** argv) {
         path = e;
       }
       {   // zinc.json "permissions" at run time (ZN-322): warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)
-#if defined(__APPLE__)
-        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "macos") : std::vector<std::string>{};
-#else
-        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "windows") : std::vector<std::string>{};
-#endif
+        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, runTarget()) : std::vector<std::string>{};
         const char* mode = std::getenv("ZINC_PERMISSIONS");
         zn::host::perm::configure(granted, have && project.permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
       }

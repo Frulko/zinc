@@ -37,6 +37,13 @@ echo '{ "name": "meta", "entry": "main.ts", "permissions": [] }' > "$d/app/zinc.
 out=$(cd "$d/app" && ZINC_PERMISSIONS=enforce "$Z" run . 2>&1)
 echo "$out" | grep -qx 'exists: false' && echo "$out" | grep -q '^mkdtemp: EACCES.*fs:write' && echo "$out" | grep -q '^realpath: EACCES.*fs:read' || { echo "unchecked fs calls: $out"; fail=1; }
 [ -z "$(ls "$d/other")" ] || { echo "mkdtemp made a directory outside the permissions"; fail=1; }
+t="$tmp/target"; mkdir -p "$t"   # "targets.<name>.permissions" of the target that runs: the profile's, else this OS's (not "windows" off macOS)
+echo "import * as fs from 'zinc:fs'; try { fs.writeText('$t/out.txt', 'x'); console.log('written'); } catch (e) { console.log((e as Error).message); }" > "$t/main.ts"
+echo '{ "name": "target", "entry": "main.ts", "permissions": [], "targets": { "rmpp": { "permissions": ["fs:write"] } } }' > "$t/zinc.json"
+out=$(cd "$t" && ZINC_PERMISSIONS=enforce "$Z" run --profile rmpp . 2>&1 | tail -1)
+[ "$out" = written ] || { echo "targets.rmpp.permissions not applied under --profile rmpp: $out"; fail=1; }
+out=$(cd "$t" && ZINC_PERMISSIONS=enforce "$Z" run . 2>&1 | tail -1)
+case "$out" in EACCES*fs:write*) ;; *) echo "targets.rmpp.permissions applied on this machine: $out"; fail=1;; esac
 a=tests/golden/permissions-assets   # the assets exemption is read-only (ZN-646): run on a copy, a refused write must leave nothing behind
 cp -R $a "$tmp/assets-app"
 (cd "$tmp/assets-app" && ZINC_PERMISSIONS=enforce "$Z" run . > "$tmp/assets" 2>&1)
