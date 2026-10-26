@@ -45,7 +45,9 @@ out=$(dev deploy "$tmp/ui" --no-logs --env ZINC_DEVTOOLS_PORT=$inspector --env Z
 # what the player's launcher reads (ZN-820): the title, the icon kept beside the app, when it came, not from zinc dev
 meta=$(cat "$D/agent/apps/inspected/app.json" 2>&1)
 case $meta in *'"title":"Inspected","icon":"icon.png","sent":'*'"dev":false'*) ;; *) bad "app.json of the deployed app: $meta";; esac
-cmp -s "$tmp/ui/icon.png" "$D/agent/apps/inspected/icon.png" || bad "the deployed app's icon was not kept beside it"
+# the .zapp carries app.icon as its launcher tile (docs/zapp.md): a 150 x 150 PNG
+python3 -c "import struct,sys; d=open(sys.argv[1],'rb').read(24); sys.exit(not (d[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',d[16:24])==(150,150)))" \
+  "$D/agent/apps/inspected/icon.png" 2>/dev/null || bad "the deployed app's icon tile was not kept beside it"
 n=0; while [ $n -lt 100 ] && ! dev logs inspected 2>/dev/null | grep -q "zinc devtools:"; do sleep 0.1; n=$((n+1)); done
 dev apps | grep -q "^inspected .*running" || bad "the UI app is not running: $(dev apps; dev logs inspected)"
 ZINC_HOME="$W" "$Z" device forward 0 "$inspector" > "$tmp/fwd.log" 2>&1 & fpid=$!   # not through dev(): $! must be the process to end
