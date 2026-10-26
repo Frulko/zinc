@@ -482,6 +482,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: run `rmpp_lease` (zig cross build) and check that `zinc export --target rmpp` writes the app's SVG icon as the tile's icon.png.
 - ZN-844: compiler: in JSX, `{f()}` where `f: () => i32` is a component held in a variable or a field renders the element's handle as text ("98"), silently; `<F />` works. Either mount it or refuse it with a diagnostic (found in zinc:remarkable RemarkableApp).
 - ZN-844: the hub app installed web 0.1.1 packed by zinc 0.9.1 on a tablet running engine 0.8.2, which refuses the archive: the catalog should carry the engine version a .zapp needs and the hub refuse (or say "update the engine") before installing.
+- ZN-844: during a pinch or drag in Zinc Web or PDF, draw the scaled picture directly instead of rebuilding the ink's baked image every frame, if pinching feels slow on the reMarkable.
+- ZN-844: Zinc Web: lighter pictures from the relay (a PNG screen is ~500 KB, ~0.5 s to reach the tablet), and fetch the screen above too.
 - ZN-649.12: run web_physics2d after rebuilding browser WASM to verify Hit events and packed snapshots end-to-end; C/JS shim regression passes on the development Mac.
 
 - ZN-825/ZN-826: verify the C offscreen host/linker on Windows, then a real iOS SwiftUI/UIView lifecycle and input integration; only macOS native windows were proved.

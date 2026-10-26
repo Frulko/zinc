@@ -1,7 +1,7 @@
 {
   "name": "pdf",
   "entry": "src/main.tsx",
-  "app": { "id": "dev.zinc.pdf", "version": "0.1.0", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.pdf", "version": "0.1.1", "icon": "icon.svg" },
   "display": { "driver": "rmpp", "refresh_mode": "fast" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
