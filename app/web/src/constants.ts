@@ -17,10 +17,15 @@ export const REQUEST_TIMEOUT_MS: i32 = 30000;
 export const MAX_IMAGE_BYTES: i32 = 32 * 1024 * 1024;
 
 export const PAGE = 'flex-col h-full bg-white';
-export const LABEL = 'text-[30px] text-black';
-export const TITLE = 'text-[44px] font-bold text-black';
-export const FIELD = 'h-[88px] px-5 text-[32px] text-black bg-white border-4 border-black rounded-lg focus:border-black';
-export const BUTTON = 'px-6 h-[88px] items-center justify-center rounded-lg bg-black focus:bg-black';
-export const BUTTON_LABEL = 'text-[30px] font-bold text-white';
-export const OUTLINE_BUTTON = 'px-6 h-[88px] items-center justify-center rounded-lg border-4 border-black bg-white focus:bg-white';
-export const OUTLINE_LABEL = 'text-[30px] font-bold text-black';
+export const LABEL = 'text-[28px] text-black';
+export const SMALL = 'text-[24px] text-black';
+export const TITLE = 'text-[40px] font-bold text-black';
+export const FIELD = 'h-[88px] px-4 text-[28px] text-black bg-white border-2 border-black rounded-lg focus:border-black';
+/** A toolbar target: 88 px for a finger, a 2 px outline; pressed or active, inverted (black fill, white icon), never grey. */
+export const BUTTON = 'flex-row gap-2 px-3 min-w-[88px] h-[88px] items-center justify-center rounded-lg border-2 border-black bg-black focus:bg-black';
+export const OUTLINE_BUTTON = 'flex-row gap-2 px-3 min-w-[88px] h-[88px] items-center justify-center rounded-lg border-2 border-black bg-white focus:bg-white';
+export const BUTTON_LABEL = 'text-[26px] font-bold text-white';
+export const OUTLINE_LABEL = 'text-[26px] font-bold text-black';
+/** A bar between the top bar, the page and the status line: thin rule, little padding. */
+export const BAR = 'flex-row gap-2 px-4 py-2 items-center';
+export const ICON: number = 44;

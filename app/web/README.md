@@ -3,22 +3,25 @@
 Web pages on the reMarkable Paper Pro. The relay on the Mac (`app/web-relay`) renders each page in Chrome at the size of the page view;
 this app shows it a page at a time. Black on white, large targets, page turns instead of scrolling: one e-ink refresh per gesture.
 
-- **Address bar**: a URL (`https://` is added), or words to search; the on-screen keyboard comes up with it. **‹** goes back.
+- **Address bar**: a URL (`https://` is added), or words to search; the on-screen keyboard comes up with it. The buttons are icons (Lucide, from `zinc:icons`): the arrow left goes back, the house opens the home page, × shows a blank page,
+  the black arrow opens the address.
 - **Fingers**: swipe up or left for the next page, down or right for the previous one; tap a link to follow it; pinch with two
   fingers to zoom (the picture scales while the fingers move, then the relay sends it sharp); a swipe moves a zoomed page.
-  **Previous**, **Next**, **−** and **+** do the same. On a desktop the wheel turns pages and Ctrl+wheel zooms.
-- **Pen**: writes over the page. The ink is kept in page pixels, so it stays in place when you zoom, and saved per URL (**Save**, and on
+  The page bar does the same: first page (arrow to the top line), previous and next (chevrons), zoom out and in (magnifiers).
+  On a desktop the wheel turns pages and Ctrl+wheel zooms.
+- **Pen**: writes over the page. The ink is kept in page pixels, so it stays in place when you zoom, and saved per URL (the floppy disk, and on
   every page change and Quitter). **Tools** (the palette over the page, folded to one row) picks the pen as on the tablet: ballpoint, fineliner, marker, pencil,
-  calligraphy, highlighter, eraser or area eraser, the colour, Thin/Medium/Thick, Undo, Redo, Erase all; the Marker's eraser end erases. On a desktop, **Pen** makes the mouse
+  calligraphy, highlighter, eraser or area eraser, the colour, Thin/Medium/Thick, Undo, Redo, Erase all; the Marker's eraser end erases. On a desktop, the pen button makes the mouse
   write.
-- **Export**: the whole page with its ink as a PNG in `exports/` (the relay draws it). **★** bookmarks the page; **Bookmarks** lists them.
-- **Tabs**: each tab keeps its page, the page you were on and its way back; **Tabs** lists them (**Open**, **Close**, **New tab**). A
+- **Export** (the picture with an arrow): the whole page with its ink as a PNG in `exports/` (the relay draws it). The bookmark with + bookmarks the page; the bookmark lists them.
+- **Tabs**: each tab keeps its page, the page you were on and its way back; the stack with the number of tabs lists them (open, close, **New tab**, **Close all**). A
   page sent from the Mac (the relay's page) opens in a new tab, or in the tab that already shows it; the tabs are kept when Web quits.
-- **A−** / **A+**: the page drawn smaller or larger (55 % to 150 %); smaller fits more of it per screen, at 65 % or less most sites show
-  their desktop layout. **Full screen**: only the top bar and one thin row (**Normal view**, the page number, A−/A+) stay; swipes still
+- **A↓** / **A↑**: the page drawn smaller or larger (55 % to 150 %); smaller fits more of it per screen, at 65 % or less most sites show
+  their desktop layout. **Full screen** (the corners): only the top bar and one thin row (back to the normal view, the page number, A↓/A↑) stay; swipes still
   turn pages. Both are kept when Web quits.
-- **Refresh**: a full refresh of the display, to clear the ghosting. **Settings**: the relay, its token, colour or grey.
-- **Dashboard** (TRMNL-style; **Bookmarks**, then **Dashboard** on a page): the first page of that page, full screen under a thin bar,
+- **Refresh** (the circular arrows): a full refresh of the display, to clear the ghosting. **Settings** (the gear): the relay, its token,
+  colour or grey, the e-ink style and the contrast.
+- **Dashboard** (TRMNL-style; the bookmarks, then the dashboard icon of a page): the first page of that page, full screen under a thin bar,
   rendered again by the relay every **5**, **15**, **30** or **60 min** (the relay reloads the tab in its running Chrome). The picture is
   replaced only when it changed (SHA-256 of the PNG), then the whole panel gets one full refresh, so nothing ghosts. The time of the last
   render is at the bottom; a tap on the page renders it now; **Reader** goes back to the reader. **Accueil** shows the top of the page as

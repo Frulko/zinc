@@ -224,6 +224,15 @@ export async function turn(dir: i32): Promise<void> {
   await run(async (): Promise<string> => { await fetchShot(); tabs[current].oy = view.oy; saveTabs(); conf.save(); return ''; });
 }
 
+/** Back to the first screenful of the page (its top, zoom kept). */
+export async function firstPage(): Promise<void> {
+  if (view.doc === null) return;
+  if (view.oy === 0) { say('First page.'); return; }
+  view.oy = 0;
+  clampView();
+  await run(async (): Promise<string> => { await fetchShot(); tabs[current].oy = view.oy; saveTabs(); conf.save(); return ''; });
+}
+
 /** The view zoomed by `f` around (cx, cy) of the view, then moved by (dx, dy) view pixels (ZoomView's onView); zoom 1 goes back to whole
  *  pages. Resolves once the relay's picture of it is here. */
 export async function setView(f: number, cx: number, cy: number, dx: number, dy: number): Promise<void> {

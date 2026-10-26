@@ -114,6 +114,10 @@ expect 'web: Relay fixture · 2 links'
 long="$page?q=$(printf 'x%.0s' $(seq 1 400))"
 app "open $long"
 [ "$(grep -c 'web: relay loaded the page' "$tmp/app.log")" = 1 ] || { echo "a long address loaded $(grep -c 'web: relay loaded the page' "$tmp/app.log") times"; fail=1; }
+# First (the page bar's button): back to page 1 of the page; a second press says it is there
+app "open $page; next; next; first; first"
+expect 'web: First page.'
+[ "$(head -n 1 "$tmp/web/tabs.txt" | cut -f1)" = 0 ] || { echo "first: $(cat "$tmp/web/tabs.txt")"; fail=1; }
 # Close all: one tab left, on the home page, the others and their histories gone
 app "open $page; contrast 2.4"   # the slider: saved, and the page rendered again at that factor
 grep -q '^contrast=2.4$' "$tmp/web/web.conf" || { echo "contrast: $(grep contrast "$tmp/web/web.conf")"; fail=1; }

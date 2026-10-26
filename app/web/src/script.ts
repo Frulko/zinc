@@ -1,12 +1,12 @@
 // ZINC_WEB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
-//   relay <url> <token> | open <url> | next | prev | zoom <z> | link <href suffix> (a tap on its middle) | back | home | blank (about:blank in the tab: no request)
+//   relay <url> <token> | open <url> | next | prev | first (page 1 of the page) | screen page|tabs|bookmarks|settings | zoom <z> | link <href suffix> (a tap on its middle) | back | home | blank (about:blank in the tab: no request)
 //   draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | save | export | bookmark | refresh
 //   tool <name> (a pen of zinc:ink's TOOLS) | smaller | larger (page size) | full | normal (full screen on, off)
 //   tab <url> (a new tab) | switch <i> | close <i> | inbox (what the relay received)
 //   dash <url> (dashboard mode) | ticks <n> (waits until the dashboard's timer made n renders) | widget (draws the widget) | undash
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { ink, view, busy, setScreen, SCREEN_PAGE, openUrl, goHome, showBlank, setContrast, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, closeAllTabs, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
+import { ink, view, busy, setScreen, SCREEN_PAGE, SCREEN_TABS, SCREEN_BOOKMARKS, SCREEN_SETTINGS, firstPage, openUrl, goHome, showBlank, setContrast, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, closeAllTabs, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
 import { feedPen } from './pageview';
 import { Doc } from './relay';
 import { dash, startDash, stopDash, setWidgetPreview } from './dashboard';
@@ -28,6 +28,8 @@ export async function runScript(): Promise<void> {
     else if (verb === 'home') await goHome();
     else if (verb === 'blank') showBlank();
     else if (verb === 'contrast') { setContrast(parseFloat(arg)); await sleep(700); while (busy()) await sleep(20); }
+    else if (verb === 'screen') { setScreen(arg === 'tabs' ? SCREEN_TABS : arg === 'bookmarks' ? SCREEN_BOOKMARKS : arg === 'settings' ? SCREEN_SETTINGS : SCREEN_PAGE); await sleep(200); }
+    else if (verb === 'first') await firstPage();
     else if (verb === 'next') await turn(1);
     else if (verb === 'prev') await turn(-1);
     else if (verb === 'zoom') await zoomTo(parseFloat(arg), view.w / 2, view.h / 2);

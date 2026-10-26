@@ -2,11 +2,14 @@
   "name": "web",
   "entry": "src/main.tsx",
   "description": "Browse the web on the reMarkable through your relay, with tabs, a reading mode and ink notes.",
-  "app": { "id": "dev.zinc.web", "version": "0.1.13", "author": "Zinc", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.web", "version": "0.1.14", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
     "linux": { "width": 1620, "height": 2160 }
   },
-  "permissions": ["fs", "net"]
+  "permissions": ["fs", "net"],
+  "icons": ["a-arrow-down", "a-arrow-up", "arrow-left", "arrow-right", "arrow-up-to-line", "book-open", "book-open-text", "bookmark", "bookmark-plus",
+    "check", "chevron-down", "chevron-up", "house", "image-down", "layers", "layout-dashboard", "maximize", "minimize", "minus", "palette", "pen-line",
+    "plus", "refresh-cw", "save", "settings", "x", "zoom-in", "zoom-out"]
 }
