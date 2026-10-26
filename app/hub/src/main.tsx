@@ -5,7 +5,8 @@ import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { RemarkableBar, RemarkableKeyboard, RemarkableApp, windowMode } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
-import { page, openPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
+import { page, openPage, status, busy, paired, refresh, rebuildRows, stuck, watchRunning, PAGE_APPS, PAGE_STORE, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
+import { StorePage } from './pages/store';
 import { InfoPage } from './pages/info';
 import { task, step, failure } from './services/progress';
 import { dismiss, consent, allowConsent, cancelConsent, Consent } from './state';
@@ -59,14 +60,15 @@ function App(): i32 {
     <View className="flex-col grow relative">
     <View className="flex-row gap-6 px-10 pt-8">
       <Tab label="Apps" index={PAGE_APPS} />
+      <Tab label="Store" index={PAGE_STORE} />
       <Tab label="Running" index={PAGE_RUNNING} />
       <Tab label="Info" index={PAGE_INFO} />
       <Tab label="Settings" index={PAGE_SETTINGS} />
     </View>
     {stuck().length > 0 ? <StuckBanner /> : null}
-    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_RUNNING ? <RunningPage /> : page() === PAGE_INFO ? <InfoPage /> : <SettingsPage />}</View>
+    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_STORE ? <StorePage /> : page() === PAGE_RUNNING ? <RunningPage /> : page() === PAGE_INFO ? <InfoPage /> : <SettingsPage />}</View>
     <View className="px-10 py-6 border-t-2 border-black">
-      <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
+      <Text className={`truncate ${LABEL}`}>{busy() ? 'Working…' : status()}</Text>
     </View>
     {task() !== '' ? <Activity /> : consent() !== null ? <ConsentBox /> : null}
     </View>
@@ -83,6 +85,7 @@ function Root(): i32 {
 render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   watchRunning();
+  rebuildRows();   // the installed apps at once, the catalog when the server answers
   if (paired()) await refresh();   // check for updates at start
   // shown as a widget, the Hub checks again every 30 minutes, so the card's count stays true; the window checks when it is opened
   setInterval(() => { if (windowMode() === 'widget' && paired() && !busy()) refresh(); }, 1800000);

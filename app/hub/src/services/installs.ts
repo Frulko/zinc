@@ -7,7 +7,8 @@ import { sha256, newer, safe } from '../../../hub-server/src/protocol';
 import { KeyValues, readKeyValues, writeKeyValues } from './config';
 import { Download } from './server';
 import { progress } from './progress';
-import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR } from '../constants';
+import * as storage from 'zinc:storage';
+import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR, APP_DATA_DIR } from '../constants';
 
 export class Installed {
   version: string = '';
@@ -112,6 +113,7 @@ export async function uninstall(id: string): Promise<string> {
   progress('Removing its AppLoad tiles');
   await removeTile('zinc-' + name);
   await removeTile('zinc-' + name + '-session');
+  if (isPinned(name)) setPinned(name, false);
   progress('Removing its package');
   if (fs.exists(livePath(name))) fs.remove(livePath(name));
   for (const f of ['installed', 'previous', 'previous.zapp']) if (fs.exists(dir + '/' + f)) fs.remove(dir + '/' + f);
@@ -131,4 +133,43 @@ export async function cleanTiles(): Promise<string> {
     if (!fs.exists(zapp)) { await removeTile(t); gone.push(t); }
   }
   return gone.length === 0 ? 'AppLoad is clean: every Zinc tile has its app.' : 'Removed ' + gone.join(', ') + '. Reload AppLoad.';
+}
+
+// Pins (AppLoad patch 0004, integrations/remarkable-engine/appload/README.md): pinned.json in AppLoad's directory, a JSON array of AppLoad ids
+// (external::zinc-<name>) in sidebar order. Ids the Hub did not add keep their order, a new pin goes at the end, and the list is written
+// whole through a temporary file and a rename, so AppLoad's watcher never reads half of it.
+function pinsFile(): string { return APPLOAD_DIR + '/pinned.json'; }
+function pinId(name: string): string { return 'external::zinc-' + name; }
+export function pinnedIds(): string[] {
+  const out: string[] = [];
+  try {
+    if (!fs.exists(pinsFile())) return out;
+    const a = JSON.parse(fs.readText(pinsFile()));
+    for (let k: i32 = 0; k < (a.length as i32); k++) out.push('' + a[k]);
+  } catch (e) { }
+  return out;
+}
+export function isPinned(name: string): boolean { return pinnedIds().indexOf(pinId(name)) >= 0; }
+export function setPinned(name: string, on: boolean): string {
+  if (!fs.exists(APPLOAD_DIR)) throw new Error('No AppLoad on this machine: nothing to pin.');
+  const id = pinId(name);
+  const list = pinnedIds().filter((x: string) => x !== id);
+  if (on) list.push(id);
+  fs.writeText(pinsFile() + '.tmp', JSON.stringify(list) + '\n');
+  fs.rename(pinsFile() + '.tmp', pinsFile());
+  return on ? 'Pinned ' + name + ' to the sidebar.' : 'Unpinned ' + name + ' from the sidebar.';
+}
+
+// Reset data removes only what is surely the app's own: its folder APP_DATA_DIR/<name>/ and its keys "<name>.…" in zinc:storage (the shared
+// storage.kv). Documents put in shared folders (~/zinc-docs, ~/zinc-notes) belong to the user and stay.
+// ponytail: the engine's own folders under ~/.zinc are listed by hand; an app named like one of them keeps that folder.
+const RESERVED = ['hub', 'cache', 'toolchains', 'plugins', 'bin', 'tmp', 'storage.kv'];
+export function resetData(name: string): string {
+  const removed: string[] = [];
+  const dir = APP_DATA_DIR + '/' + name;
+  if (RESERVED.indexOf(name) < 0 && safe(name) && fs.exists(dir)) { fs.remove(dir, true); removed.push(dir); }
+  let keys = 0;
+  for (const k of storage.keys()) if (k.startsWith(name + '.')) { storage.remove(k); keys++; }
+  if (keys > 0) removed.push(keys.toString() + (keys === 1 ? ' saved setting' : ' saved settings'));
+  return removed.length === 0 ? name + ' had no data of its own to remove.' : 'Reset ' + name + ': removed ' + removed.join(' and ') + '. It starts fresh next time.';
 }

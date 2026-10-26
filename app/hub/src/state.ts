@@ -7,7 +7,7 @@ import { engineOffered, engineVersion, installEngine } from './services/engine';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath } from './services/installs';
+import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath, pinnedIds, setPinned, resetData } from './services/installs';
 import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 import { RunningApp, running, stopApp } from './services/running';
 import { InfoSection, loadInfo, hubVersion } from './services/system';
@@ -30,6 +30,8 @@ export class AppRow {
   size: i32 = 0;
   uses: string = '';                // its permissions in a few words, '' when it declares none of them
   declared: boolean = false;
+  pinned: boolean = false;          // in xochitl's sidebar (AppLoad 0004's pinned.json)
+  inCatalog: boolean = true;        // false: installed earlier, the server no longer offers it
   /** Rollback goes back to an older version only: after a rollback the newer one comes back with Update. */
   get canRollback(): boolean { return this.previous !== '' && newer(this.installed, this.previous); }
   get updatable(): boolean { return this.installed !== '' && this.available !== '' && newer(this.available, this.installed); }
@@ -39,6 +41,10 @@ export const PAGE_APPS: i32 = 0;
 export const PAGE_SETTINGS: i32 = 1;
 export const PAGE_RUNNING: i32 = 2;
 export const PAGE_INFO: i32 = 3;
+export const PAGE_STORE: i32 = 4;
+/** The Store's two tabs: every app of the server, or the installed ones with their maintenance (update, rollback, pin, reset, uninstall). */
+export const STORE_ALL = 'all', STORE_INSTALLED = 'installed';
+export const [storeTab, setStoreTab] = createSignal<string>(STORE_ALL);
 /** The tests draw the widget alone (ZINC_HUB_SCRIPT `widget`), as Accueil shows it. */
 export const [widgetPreview, setWidgetPreview] = createSignal<boolean>(false);
 
@@ -73,6 +79,7 @@ export async function refreshInfo(): Promise<void> {
 }
 export function openPage(p: i32): void {
   setPage(p);
+  setArmed('');
   if (p === PAGE_INFO) refreshInfo();
 }
 
@@ -109,7 +116,8 @@ async function syncIcons(): Promise<void> {
   }
 }
 
-function rebuildRows(): void {
+/** The rows from the last catalog and what is installed; at start, before the server answers, the installed apps alone. */
+export function rebuildRows(): void {
   const list: AppRow[] = [];
   for (const a of apps) {
     const r = new AppRow();
@@ -133,6 +141,18 @@ function rebuildRows(): void {
     if (r.name === '') r.name = a.id;
     list.push(r);
   }
+  // installed earlier but no longer in the catalog (or the server not reached yet): still on the home grid and in Installed
+  if (fs.exists(HUB_DIR + '/apps')) for (const id of fs.list(HUB_DIR + '/apps')) {
+    const i = installed(id);
+    if (i === null || list.some((r: AppRow) => r.id === id)) continue;
+    const r = new AppRow();
+    r.id = id; r.name = (i as Installed).name; r.installed = (i as Installed).version; r.inCatalog = false;
+    const p = previous(id);
+    if (p !== null) r.previous = p.version;
+    list.push(r);
+  }
+  const pins = pinnedIds();
+  for (const r of list) r.pinned = pins.indexOf('external::zinc-' + r.name) >= 0;
   setRows(list);
 }
 
@@ -294,6 +314,27 @@ export async function uninstallApp(id: string): Promise<void> {
 }
 
 export async function cleanAppLoad(): Promise<void> { await run('Cleaning up AppLoad', cleanTiles); }
+
+/** Reset data asks twice too (armed with "reset:<id>"): the app's own folder and saved settings go, the app is not uninstalled. */
+export async function resetApp(id: string): Promise<void> {
+  if (armed() !== 'reset:' + id) { setArmed('reset:' + id); say('Tap Confirm reset to erase what ' + nameFor(id) + ' saved; your documents stay.'); return; }
+  setArmed('');
+  await run('Resetting ' + nameFor(id), async (): Promise<string> => {
+    if (id === HUB_ID) throw new Error('The Hub keeps its pairing: unpair in Settings instead.');
+    const i = installed(id);
+    const name = i !== null ? (i as Installed).name : nameFor(id);
+    for (const a of running()) if (a.name === name) throw new Error(name + ' is running: stop it first (Running).');
+    progress('Removing what ' + name + ' saved');
+    return resetData(name);
+  });
+}
+
+/** Pin to sidebar: the app gets its own entry in xochitl's sidebar (AppLoad 0004), or loses it. */
+export function togglePin(id: string): void {
+  for (const r of rows()) if (r.id === id) {
+    try { say(setPinned(r.name, !r.pinned)); rebuildRows(); } catch (e) { say(e.message); }
+  }
+}
 
 /** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. */
 export function openApp(id: string): void {

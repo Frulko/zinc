@@ -43,7 +43,7 @@ PY
   echo "$out" | grep -q "stored com.example.notes $1" || { echo "publish $1: $out"; fail=1; }
 }
 printf '#!/bin/sh\necho "$@" >>"%s/tile.log"\n' "$tmp" >"$tmp/zinc-tile"; chmod 755 "$tmp/zinc-tile"
-export ZINC_HUB_DIR="$tmp/hub" ZINC_HUB_APPS="$tmp/apps" ZINC_HUB_TILE="$tmp/zinc-tile" ZINC_HUB_DEVICE=test-tablet
+export ZINC_HUB_DIR="$tmp/hub" ZINC_HUB_APPS="$tmp/apps" ZINC_HUB_TILE="$tmp/zinc-tile" ZINC_HUB_DEVICE=test-tablet ZINC_HUB_APP_DATA="$tmp/appdata"
 session=0
 app() {   # a session of the hub app: $1 the script, the log in $tmp/app.log (HUB_APP_SHOTS=<dir>: the last frame of each, n.png)
   session=$((session + 1)); [ -n "$HUB_APP_SHOTS" ] && export ZINC_SHOT="$HUB_APP_SHOTS/$session.png"
@@ -56,11 +56,11 @@ live=$tmp/apps/notes.zapp
 # pairing with the code, then install 1.0.0: its tile, the key and token kept by the app only
 publish 1.0.0
 # Install first shows what the app says it uses (its zinc.json "permissions"), and the list its description, author and size
-app "server $hub; pair 123456; pair $pc; install com.example.notes"
+app "server $hub; pair 123456; pair $pc; store all; install com.example.notes"
 expect 'Wrong pairing code'
 expect "Paired with $hub (key $(echo "$serverkey" | cut -c1-16)). 1 apps."
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in 'Install notes 1.0.0?' '• Read the files in data' 'Allow' 'Cancel' 'Notes for the hub test.' 'by Zinc tests' 'Uses: Read the files in data'; do
+for t in 'Install notes 1.0.0?' '• Read the files in data' 'Allow' 'Cancel' 'Notes for the hub test.' 'notes · by Zinc tests' 'Uses: Read the files in data'; do
   echo "$texts" | grep -qxF "$t" || { echo "the consent screen or the row does not show '$t'"; fail=1; }; done
 echo "$texts" | grep -q '^Not installed · stable 1.0.0 · [0-9]* KB$' || { echo "the row does not show the size: $(echo "$texts" | grep 'Not installed')"; fail=1; }
 [ -e "$live" ] && { echo "the app was installed before Allow"; fail=1; }
@@ -109,7 +109,7 @@ python3 tools/scene-texts "$tmp/scene.bin" | grep -qx N || { echo "no placeholde
 cp "$tmp/srvicon.bak" "$srvicon"
 
 # rollback to 1.0.0, and the list shows it (the drawn frame); then forward again
-app "rollback com.example.notes"
+app "rollback com.example.notes; store installed"
 expect 'Rolled notes back to 1.0.0 (from 1.1.0).'
 cmp -s "$live" "$tmp/out-1.0.0/notes-1.0.0.zapp" || { echo "the rollback did not put 1.0.0 back"; fail=1; }
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
@@ -117,6 +117,9 @@ for t in 'Zinc Hub' 'notes' 'Installed 1.0.0 · 1.1.0 available · ' 'Update to 
   echo "$texts" | grep -q "^$t" || { echo "the apps page does not show '$t':"; echo "$texts" | head -30; fail=1; }
 done
 echo "$texts" | grep -q 'Rollback' && { echo "the apps page offers a rollback to a newer version"; fail=1; }
+app "page apps"   # the home grid: the tile's badge and the count that opens Store › Installed
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in notes Update '1 update'; do echo "$texts" | grep -qxF "$t" || { echo "the grid does not show '$t'"; fail=1; }; done
 app "update com.example.notes"
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 
@@ -166,7 +169,7 @@ app "update com.example.notes"
 expect ', the engine 1.0.0.'
 expect 'Needs a newer engine: tap Update the engine (1.0.0), then install it again.'
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in 'Engine 0.0.1 · 1.0.0 available' 'Update the engine'; do echo "$texts" | grep -qxF "$t" || { echo "the apps page does not show '$t'"; fail=1; }; done
+for t in 'Zinc engine 0.0.1 · 1.0.0 available' 'Update the engine'; do echo "$texts" | grep -qxF "$t" || { echo "the apps page does not show '$t'"; fail=1; }; done
 app "engine"
 expect 'Engine updated to 1.0.0. Close the Hub and open it again to use it.'
 engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "after the update"
@@ -205,7 +208,7 @@ out=$("$Z" publish "$tmp/selfhub" --key "$k_seed" -o "$tmp/out-hub" --hub "$hub"
 rm -f "$tmp/next"; export ZINC_NEXT=$tmp/next; app "refresh; install dev.zinc.hub"; unset ZINC_NEXT
 expect 'Installed hub 0.2.0. Tile zinc-hub ready: reload AppLoad. Restarting the Hub.'
 [ "$(cat "$tmp/next" 2>/dev/null)" = "$tmp/apps/hub.zapp" ] || { echo "the hub did not hand itself to the launcher: $(cat "$tmp/next" 2>/dev/null)"; fail=1; }
-python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'dev.zinc.hub · this app' || { echo "the hub's own row does not say this app"; fail=1; }
+app "store installed"; python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'hub · this app' || { echo "the hub's own row does not say this app"; fail=1; }
 # Info: the versions, and the tablet from a stand-in /proc, /sys and /etc (the Paper Pro's files)
 r=$tmp/sysroot; mkdir -p "$r/proc/device-tree" "$r/proc/sys/kernel" "$r/etc" "$r/sys/class/power_supply/max1726x_battery" \
   "$r/sys/class/power_supply/max77963-charger" "$r/sys/class/power_supply/elants-marker-battery" "$r/sys/class/power_supply/nfc-marker-battery"
@@ -239,21 +242,55 @@ d.pop('permissions', None)
 json.dump(d, open(p, 'w'))
 PY
 out=$("$Z" publish "$tmp/plain" --key "$k_seed" -o "$tmp/out-plain" --hub "$hub" --token "$token" 2>&1); echo "$out" | grep -q 'stored com.example.plain 1.0.0' || { echo "publish plain: $out"; fail=1; }
-app "refresh; install com.example.plain"
+app "refresh; store all; install com.example.plain"
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
 echo "$texts" | grep -qF '• It does not say what it uses' && echo "$texts" | grep -qxF 'Uses: does not say' || { echo "an app without permissions is not shown as such"; fail=1; }
 app "install com.example.plain; allow"
 expect 'Installed plain 1.0.0.'
+app "store all"   # every app of the server; the installed ones say so instead of Install
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in plain 'notes · by Zinc tests' 'hub' Installed; do echo "$texts" | grep -qxF "$t" || { echo "Store › All does not show '$t'"; fail=1; }; done
 [ "$(cat "$tmp/hub/apps/com.example.plain/granted" 2>/dev/null)" = '*' ] || { echo "the consent to an undeclared app is not recorded as *"; fail=1; }
+
+# Reset data: twice, as Uninstall; it removes ZINC_HUB_APP_DATA/<name> and the "<name>." keys of zinc:storage, nothing else
+mkdir -p "$tmp/appdata/notes/sub" "$tmp/appdata/plain" "$ZINC_HOME" && echo x > "$tmp/appdata/notes/sub/f"
+printf 'notes.tasks\t[1]\nnotes.theme\tdark\nnotesy.keep\t1\nplain.keep\t1\n' > "$ZINC_HOME/storage.kv"
+app "store installed; reset com.example.notes"
+expect 'Tap Confirm reset to erase what notes saved'
+[ -d "$tmp/appdata/notes" ] || { echo "one tap on Reset data removed the data"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Confirm reset' || { echo "the armed button does not say Confirm reset"; fail=1; }
+app "reset com.example.notes; reset com.example.notes"
+expect "Reset notes: removed $tmp/appdata/notes and 2 saved settings. It starts fresh next time."
+[ -e "$tmp/appdata/notes" ] && { echo "Reset data left the app's folder"; fail=1; }
+[ -d "$tmp/appdata/plain" ] && ! grep -q '^notes\.' "$ZINC_HOME/storage.kv" && grep -q '^notesy\.keep' "$ZINC_HOME/storage.kv" && grep -q '^plain\.keep' "$ZINC_HOME/storage.kv" \
+  || { echo "Reset data removed the wrong things: $(ls "$tmp/appdata"; cat "$ZINC_HOME/storage.kv")"; fail=1; }
+app "reset com.example.notes; reset com.example.notes"
+expect 'notes had no data of its own to remove.'
+app "reset dev.zinc.hub; reset dev.zinc.hub"
+expect 'The Hub keeps its pairing'
+# Pin to sidebar (AppLoad 0004): APPLOAD_DIR/pinned.json, the ids of others kept in their order, ours appended; Uninstall unpins
+export ZINC_APPLOAD=$tmp/appload; mkdir -p "$ZINC_APPLOAD"; pins=$ZINC_APPLOAD/pinned.json
+printf '["external::koreader"]\n' > "$pins"
+app "pin com.example.notes; store installed"
+expect 'Pinned notes to the sidebar.'
+[ "$(cat "$pins")" = '["external::koreader","external::zinc-notes"]' ] || { echo "pinned.json after Pin: $(cat "$pins")"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Unpin from sidebar' || { echo "a pinned app does not offer Unpin"; fail=1; }
+app "pin com.example.notes"
+expect 'Unpinned notes from the sidebar.'
+[ "$(cat "$pins")" = '["external::koreader"]' ] || { echo "pinned.json after Unpin: $(cat "$pins")"; fail=1; }
+app "pin com.example.notes"
+[ -e "$pins.tmp" ] && { echo "the pins' temporary file was left"; fail=1; }
 
 # Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
 : > "$tmp/tile.log"
-app "uninstall com.example.notes"
+app "store installed; uninstall com.example.notes"
 expect 'Tap Confirm uninstall to remove com.example.notes'
 [ -e "$live" ] || { echo "one tap on Uninstall removed the app"; fail=1; }
 python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Confirm uninstall' || { echo "the armed button does not say Confirm uninstall"; fail=1; }
 app "uninstall com.example.notes; uninstall com.example.notes"
 expect 'Uninstalled notes. Reload AppLoad.'
+[ "$(cat "$pins")" = '["external::koreader"]' ] || { echo "Uninstall left the pin: $(cat "$pins")"; fail=1; }
+unset ZINC_APPLOAD
 [ -e "$live" ] || [ -e "$tmp/hub/apps/com.example.notes/installed" ] || [ -e "$tmp/hub/apps/com.example.notes/previous.zapp" ] && { echo "Uninstall left the package or its record"; fail=1; }
 grep -qx -- '--remove zinc-notes' "$tmp/tile.log" && grep -qx -- '--remove zinc-notes-session' "$tmp/tile.log" || { echo "Uninstall did not remove the tiles: $(cat "$tmp/tile.log")"; fail=1; }
 app "uninstall dev.zinc.hub; uninstall dev.zinc.hub"

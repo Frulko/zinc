@@ -16,6 +16,16 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 `/home/root/zinc/bin/zinc-tile /home/root/zinc-apps/hub.zapp` and reload AppLoad. In **Settings**, set the server (the Mac is
 `http://10.11.99.2:8787` over USB), type the pairing code and check that the server key shown starts like the one the server printed.
 
+## Pages
+
+- **Apps**, the home page: the installed apps as a grid of large tiles (icon, name); a tap opens one. A badge says **Update** when the
+  server has a newer version, **Not responding** when the running app is hung; the header's "N updates" opens Store › Installed, and the
+  engine's update shows as a banner above the grid. The Hub itself is not a tile.
+- **Store › All**: every app of the server, compact (icon, name, author, description, version, size, what it uses), with **Install** or
+  **Update**. **Store › Installed**: Update, Rollback, the channel, **Pin to sidebar**, **Reset data** and **Uninstall** (the last two ask
+  twice); the Hub's own row says "this app".
+- **Running**, **Info**, **Settings** as below.
+
 ## What it checks
 
 - The catalog is signed by the server key pinned at pairing; the app's manifest by the app's key the catalog lists; the `.zapp` has the
@@ -30,7 +40,13 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   so the screen says to allow only apps you trust.
 - **Uninstall** (two taps: the first turns it into **Confirm uninstall**) removes the app's tiles, its package and the hub's record of it;
   what the app saved stays. A running app is refused until it is stopped (Running). Settings › **Clean up AppLoad** removes the `zinc-*`
-  tiles whose `.zapp` is gone and leaves every other tile alone.
+  tiles whose `.zapp` is gone and leaves every other tile alone. Uninstall also unpins the app.
+- **Reset data** (two taps) erases only what is unambiguously the app's own: `~/.zinc/<name>` (`ZINC_HUB_APP_DATA` for `~/.zinc`; never
+  the engine's own folders such as `hub`, `cache`, `plugins`) and the `<name>.` keys of `zinc:storage`. Documents the user made
+  (`~/zinc-docs`, `~/zinc-notes`) stay. The status lists what was removed; a running app is refused until it is stopped.
+- **Pin to sidebar** follows AppLoad's `pinned.json` (AppLoad 0004): a JSON array of ids in `APPLOAD_DIR/pinned.json` (`ZINC_APPLOAD`),
+  ours `external::zinc-<name>`; the ids of other tools keep their order, a new pin is appended, and the file is written to a temporary
+  file then renamed.
 - **Check for updates** (at start and with its button) runs in the background: its result, or "Server unreachable: …", goes to the
   status band and the Hub stays usable meanwhile.
 - **Every other action** (pairing, installing, updating, rolling back, uninstalling, the engine, cleaning AppLoad, stopping, opening an

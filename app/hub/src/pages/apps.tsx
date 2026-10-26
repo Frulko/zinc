@@ -1,7 +1,9 @@
-// Apps: the catalog of the server with what is installed, one row per app: Open, Install, Update, Rollback, the channel and Uninstall.
-import { SECTION, TITLE, LABEL, SMALL, STABLE, HUB_ID } from '../constants';
-import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp, uninstallApp, armed, engineOffer, engineNow, updateEngine } from '../state';
-import { SolidButton, OutlineButton } from '../components/buttons';
+// Apps, the home page: the installed apps as a grid of large tiles, a tap opens one. A badge says an update waits or the app is not
+// responding; the engine's update shows above. Everything else (install, update, rollback, pin, reset, uninstall) is in the Store.
+import { SECTION, TITLE, LABEL, SMALL, HUB_ID } from '../constants';
+import { AppRow, rows, paired, openApp, openPage, setStoreTab, stuck, engineOffer, engineNow, updateEngine, PAGE_STORE, STORE_INSTALLED } from '../state';
+import { RunningApp } from '../services/running';
+import { SolidButton } from '../components/buttons';
 import * as fs from 'zinc:fs';
 import { imageFromBytes, drawImage } from 'zinc:gfx';
 
@@ -17,73 +19,53 @@ function picture(r: AppRow): i32 {
   return pictures.get(r.iconSha256) as i32;
 }
 
-/** The app's icon (zinc.json app.icon, from its package), or a framed square with its initial. */
-function Icon(props: { row: AppRow }): i32 {
-  const r = props.row;
-  if (r.icon !== '' && picture(r) >= 0) return <Canvas className="w-[120px] h-[120px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawImage(picture(r), x, y, w, h, 255, 0)} />;
-  return <View className="w-[120px] h-[120px] items-center justify-center border-4 border-black rounded-lg">
+/** The app's icon (zinc.json app.icon, from its package), or a framed square with its initial; `size` in pixels. */
+export function Icon(props: { row: AppRow; size: i32 }): i32 {
+  const r = props.row, s = props.size;
+  if (r.icon !== '' && picture(r) >= 0) return <Canvas style={{ width: s, height: s }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawImage(picture(r), x, y, w, h, 255, 0)} />;
+  return <View className="items-center justify-center border-4 border-black rounded-lg" style={{ width: s, height: s }}>
     <Text className={TITLE}>{r.name.slice(0, 1).toUpperCase()}</Text>
   </View>;
 }
 
-function versionLine(r: AppRow): string {
-  const have = r.installed !== '' ? `Installed ${r.installed}` : 'Not installed';
-  const offer = r.available === '' ? `nothing on ${r.channel}` : r.updatable ? `${r.available} available` : `${r.channel} ${r.available}`;
-  const size = r.size >= 1048576 ? ` · ${(r.size / 1048576).toFixed(1)} MB` : r.size > 0 ? ` · ${Math.max(1, Math.round(r.size / 1024))} KB` : '';
-  return `${have} · ${offer}${size}`;
-}
-/** What it says it uses, as the consent screen words it. */
-function usesLine(r: AppRow): string { return !r.declared ? 'Uses: does not say' : r.uses === '' ? 'Uses: nothing sensitive' : `Uses: ${r.uses}`; }
+function hung(r: AppRow): boolean { return stuck().some((a: RunningApp) => a.name === r.name); }
 
-function Row(props: { row: AppRow }): i32 {
+/** One tile: the icon, the name, and its badge. */
+function Tile(props: { row: AppRow }): i32 {
   const r = props.row;
-  const other = r.channel === STABLE ? 'beta' : STABLE;
-  return <View className="flex-col gap-4 py-6 border-b-2 border-black">
-    <View className="flex-row gap-6 items-center">
-      <Icon row={r} />
-      <View className="flex-col gap-2 grow">
-        <Text className={TITLE}>{r.name}</Text>
-        <Text className={SMALL}>{r.id === HUB_ID ? `${r.id} · this app` : r.id}</Text>
-        {r.author !== '' ? <Text className={SMALL}>{`by ${r.author}`}</Text> : null}
-      </View>
-    </View>
-    {r.description !== '' ? <Text className={LABEL}>{r.description}</Text> : null}
-    <Text className={LABEL}>{versionLine(r)}</Text>
-    <Text className={SMALL}>{usesLine(r)}</Text>
-    <View className="flex-row gap-6">
-      {r.installed !== '' && r.id !== HUB_ID ? <SolidButton label="Open" onClick={() => openApp(r.id)} /> : null}
-      {r.installed === '' && r.available !== '' ? <SolidButton label="Install" onClick={() => installApp(r.id)} /> : null}
-      {r.updatable ? <SolidButton label={`Update to ${r.available}`} onClick={() => installApp(r.id)} /> : null}
-      {r.canRollback ? <OutlineButton label={`Rollback to ${r.previous}`} onClick={() => rollbackApp(r.id)} /> : null}
-      {r.channels.indexOf(other) >= 0 || r.channel !== STABLE ? <OutlineButton label={`Channel: ${r.channel}`} onClick={() => setChannel(r.id, other)} /> : null}
-      {r.installed !== '' && r.id !== HUB_ID ? <OutlineButton label={armed() === r.id ? 'Confirm uninstall' : 'Uninstall'} onClick={() => uninstallApp(r.id)} /> : null}
-    </View>
-  </View>;
+  const badge = hung(r) ? 'Not responding' : r.updatable ? 'Update' : '';
+  return <Button className="w-[460px] h-[400px] flex-col items-center justify-center gap-6 border-2 border-black rounded-lg bg-white focus:bg-white"
+    onClick={() => openApp(r.id)}>
+    <Icon row={r} size={200} />
+    <Text className={`truncate font-bold ${LABEL}`}>{r.name}</Text>
+    {badge !== '' ? <View className="px-6 py-2 rounded-full bg-black"><Text className="text-[26px] font-bold text-white">{badge}</Text></View>
+      : <View className="h-[46px]" />}
+  </Button>;
 }
 
 /** The engine on the tablet, when the server offers a newer one (ZN-844). */
-function EngineRow(): i32 {
+function EngineBanner(): i32 {
   const now = engineNow();
-  return <View className="flex-col gap-4 py-6 border-b-2 border-black">
-    <Text className={TITLE}>Zinc engine</Text>
-    <Text className={LABEL}>{`Engine ${now !== '' ? now : 'installed'} · ${engineOffer()} available`}</Text>
-    <View className="flex-row gap-6"><SolidButton label="Update the engine" onClick={() => updateEngine()} /></View>
+  return <View className="flex-row items-center justify-between gap-6 p-6 border-4 border-black rounded-lg">
+    <Text className={`grow ${LABEL}`}>{`Zinc engine ${now !== '' ? now : 'installed'} · ${engineOffer()} available`}</Text>
+    <SolidButton label="Update the engine" onClick={() => updateEngine()} />
   </View>;
 }
 
 export function AppsPage(): i32 {
+  // the Hub itself is not a tile: it is open already (its updates are in Store › Installed)
+  const mine = (): AppRow[] => rows().filter((r: AppRow) => r.installed !== '' && r.id !== HUB_ID);
+  const waiting = (): i32 => rows().filter((r: AppRow) => r.updatable).length;
   return <View className={`${SECTION} grow`}>
     <View className="flex-row justify-between items-center">
       <Text className={TITLE}>Apps</Text>
-      <OutlineButton label="Check for updates" onClick={() => refresh()} />
+      {waiting() > 0 ? <SolidButton label={waiting() === 1 ? '1 update' : `${waiting()} updates`} onClick={() => { setStoreTab(STORE_INSTALLED); openPage(PAGE_STORE); }} /> : null}
     </View>
-    {!paired() ? <Text className={LABEL}>Pair this tablet with a server in Settings.</Text>
-      : rows().length === 0 ? <Text className={LABEL}>The server has no apps yet.</Text> : null}
+    {engineOffer() !== '' ? <EngineBanner /> : null}
+    {mine().length === 0 ? <Text className={LABEL}>{paired() ? 'No app installed yet: find one in the Store.' : 'Pair this tablet with a server in Settings, then find apps in the Store.'}</Text> : null}
     <ScrollView className="grow">
-      <View className="flex-col">
-        {engineOffer() !== '' ? <EngineRow /> : null}
-        {rows().map((r: AppRow) => <Row row={r} />)}
-      </View>
+      <View className="flex-row flex-wrap gap-10">{mine().map((r: AppRow) => <Tile row={r} />)}</View>
     </ScrollView>
+    <Text className={SMALL}>Tap an app to open it. The Store installs, updates, pins and removes apps.</Text>
   </View>;
 }

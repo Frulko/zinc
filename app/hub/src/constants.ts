@@ -12,6 +12,8 @@ export const APPS_DIR = envOr('ZINC_HUB_APPS', HOME + '/zinc-apps');
 export const TILE_COMMAND = envOr('ZINC_HUB_TILE', HOME + '/zinc/bin/zinc-tile');
 /** AppLoad's tiles (zinc-tile's ZINC_APPLOAD): Clean up AppLoad looks there for tiles whose package is gone. */
 export const APPLOAD_DIR = envOr('ZINC_APPLOAD', '/home/root/xovi/exthome/appload');
+/** Where the apps keep their own files: <dir>/<name>/ (Zinc Web's ~/.zinc/web, Read's ~/.zinc/markdown). Reset data empties it. */
+export const APP_DATA_DIR = envOr('ZINC_HUB_APP_DATA', HOME + '/.zinc');
 /** The name the server records for this device at pairing. */
 export const DEVICE_NAME = envOr('ZINC_HUB_DEVICE', 'reMarkable');
 /** What this engine runs (src/main.cpp sets them): a package that needs a newer ZBC or more runtime calls is not installed. */
