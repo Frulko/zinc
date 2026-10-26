@@ -273,5 +273,13 @@ app "refresh; page settings"
 expect 'Refused: the catalog is not signed by the server this tablet paired with.'
 
 kill $srv; wait $srv 2>/dev/null; srv=
+# Check for updates runs in the background: a server that cannot be reached is said in the status band, no modal, and the Hub stays usable
+app "refresh"
+expect 'Server unreachable: Cannot reach the server'
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+echo "$texts" | grep -q '^Server unreachable: ' || { echo "the status band does not say the server is unreachable"; fail=1; }
+echo "$texts" | grep -qE 'Checking for updates…$|: failed$|^OK$' && { echo "a refresh showed the modal"; fail=1; }
+app "refresh; uninstall com.example.plain; uninstall com.example.plain"
+expect 'Uninstalled plain. Reload AppLoad.'
 [ $fail -eq 0 ] && echo "hub app: ok"
 exit $fail

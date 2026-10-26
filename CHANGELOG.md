@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
 
 ### Changed
+- reMarkable Hub: checking for updates (at start and with **Check for updates**) no longer blocks the Hub; its result, or "Server unreachable", shows in the status line.
 - reMarkable: a pinch or a two-finger pan uses the fast refresh while the fingers move, then one full refresh cleans the page when they lift.
 - reMarkable: PDF, Read and Web draw their pages with the panel's clean UI refresh and switch to the fast Pen refresh only while the writing tools are unfolded (`setPenMode` of `zinc:remarkable`); Read has the tools palette too, and in Web unfolding it no longer renders the page again.
 - A `.zapp` runs on any zinc engine that has what its program uses, even one older than the zinc that packed it: `zinc pack` writes `needs` in the manifest, and an engine that lacks something says "this app needs a newer zinc engine". The Hub tells you to update the tablet's engine instead of installing such an app.

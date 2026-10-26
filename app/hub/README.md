@@ -31,7 +31,9 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 - **Uninstall** (two taps: the first turns it into **Confirm uninstall**) removes the app's tiles, its package and the hub's record of it;
   what the app saved stays. A running app is refused until it is stopped (Running). Settings › **Clean up AppLoad** removes the `zinc-*`
   tiles whose `.zapp` is gone and leaves every other tile alone.
-- **Every action** (pairing, checking, installing, updating, rolling back, uninstalling, the engine, cleaning AppLoad, stopping, opening an
+- **Check for updates** (at start and with its button) runs in the background: its result, or "Server unreachable: …", goes to the
+  status band and the Hub stays usable meanwhile.
+- **Every other action** (pairing, installing, updating, rolling back, uninstalling, the engine, cleaning AppLoad, stopping, opening an
   app, the Hub's own restart) shows a modal with its title and current step that cannot be closed and takes every tap until it ends; a
   failure stays in it with **OK**. The top bar stays usable.
 - **Its widget**: Accueil shows the Hub as an AppLoad card (zinc:remarkable `RemarkableApp`, 700 x 420) with the number of updates

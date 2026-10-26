@@ -179,18 +179,25 @@ export async function pairWith(code: string): Promise<void> {
 }
 
 /** Fetches the signed catalog: the list, and the updates on the channels this tablet follows. */
+/** Runs in the background, without the modal: the Hub stays usable, and its steps and result (or "Server unreachable") go to the status
+ *  band only. One check at a time. */
+let checking = false;
 export async function refresh(): Promise<void> {
   if (!paired()) { say('Pair this tablet with a server first (Settings).'); return; }
-  await run('Checking for updates', async (): Promise<string> => {
-    progress('Reading the signed catalog of ' + config.server);
+  if (checking) return;
+  checking = true;
+  try {
+    setStatus('Checking for updates on ' + config.server + '…');
     await fetchCatalog();
-    progress('Fetching the icons');
     await syncIcons();
     rebuildRows();
     const updates = rows().filter((r: AppRow) => r.updatable).map((r: AppRow) => r.name + ' ' + r.available);
     if (engineOffer() !== '') updates.push('the engine ' + engineOffer());
-    return updates.length > 0 ? 'Updates: ' + updates.join(', ') + '.' : apps.length.toString() + ' apps, everything up to date.';
-  });
+    say(updates.length > 0 ? 'Updates: ' + updates.join(', ') + '.' : apps.length.toString() + ' apps, everything up to date.');
+  } catch (e) {
+    say(e.message.startsWith('Cannot reach the server') ? 'Server unreachable: ' + e.message : e.message);
+  }
+  checking = false;
 }
 
 /** A package this engine cannot run (its needs, from the signed catalog) is refused before anything is downloaded. 0: not known, no check. */
