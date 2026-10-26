@@ -282,7 +282,7 @@ static void (*qsim_present)(const HalFrame*) = nullptr;
 static void (*qsim_poll)(HalInput*) = nullptr;
 static void qsim_counted(const HalFrame* f) { qsim::frames++; qsim_present(f); }
 // ZN_RMPP_SIM_TAP=frame:x,y[;...]: AppLoad's MESSAGE_USERINPUT for a finger, INPUT_TOUCH_PRESS at that frame and INPUT_TOUCH_RELEASE two
-// frames later, in framebuffer pixels (src/qtfb/FBController.cpp touchEvent); frame:px,y is the Marker (INPUT_PEN_PRESS/RELEASE), as
+// frames later (frame:x,y>y2 also moves to y2 at the next frame: a swipe), in framebuffer pixels (src/qtfb/FBController.cpp touchEvent); frame:px,y is the Marker (INPUT_PEN_PRESS/RELEASE), as
 // AppLoad forwards it inside a widget card
 static void qsim_taps() {
   const char* p = getenv("ZN_RMPP_SIM_TAP");
@@ -290,12 +290,14 @@ static void qsim_taps() {
     char* e;
     long f = strtol(s, &e, 10);
     const bool pen = e[1] == 'p';
-    int x = (int)strtol(e + 1 + pen, &e, 10), y = (int)strtol(e + 1, &e, 10);
-    for (int k = 0; k < 2; k++) if ((long)qsim::frames == f + 2 * k) {
+    int x = (int)strtol(e + 1 + pen, &e, 10), y = (int)strtol(e + 1, &e, 10), y2 = y;
+    if (*e == '>') y2 = (int)strtol(e + 1, &e, 10);   // frame:x,y>y2: a swipe, moved to y2 at the next frame
+    for (int k = 0; k < 3; k++) if ((long)qsim::frames == f + (k == 2 ? 1 : 2 * k) && (k < 2 || y2 != y)) {
       qsim::ServerMsg m = {};
-      m.type = qsim::MSG_INPUT; m.input.type = (pen ? 0x20 : 0x10) + k; m.input.id = 3; m.input.x = x; m.input.y = y;
+      const int t = k == 2 ? 2 : k, ky = k ? y2 : y;
+      m.type = qsim::MSG_INPUT; m.input.type = (pen ? 0x20 : 0x10) + t; m.input.id = 3; m.input.x = x; m.input.y = ky;
       send(qsim::qtfb, &m, sizeof m, 0);
-      qsim::line("%8.1f ms %s %s %d,%d", qsim::virtualNow() / 1000.0, pen ? "pen" : "touch", k ? "release" : "press", x, y);
+      qsim::line("%8.1f ms %s %s %d,%d", qsim::virtualNow() / 1000.0, pen ? "pen" : "touch", t == 2 ? "move" : t ? "release" : "press", x, ky);
     }
     s = *e ? e + 1 : e;
   }

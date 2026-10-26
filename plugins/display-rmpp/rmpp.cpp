@@ -351,6 +351,7 @@ bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT
 // (showWidget): "1" when AppLoad did it, the app keeps running; "window.state": "full", "widget" or "hidden"
 const char* rm_device(const char* query, const char* arg) {
   const bool qtfb = window_ok && sock >= 0 && (layer == L0 || layer == L1);
+  if (strcmp(query, "window.edge") == 0) { static char n[16]; snprintf(n, sizeof n, "%d", rin::edge_swipes); return n; }   // swipes so far
   if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : "full";
   if (strcmp(query, "window.minimize") == 0) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;

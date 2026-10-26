@@ -25,6 +25,8 @@ under it are `setWidget(x, y, w, h)`, `showWidget()` and `windowState()` of `zin
 
 **Accueil** goes back to the tablet's screen and leaves the app running: it calls `onHome` (save the state there), then `zinc:gfx.minimizeWindow()`, which minimizes the AppLoad window; tap the window's bar to come back. An AppLoad without the window-state patch (`integrations/remarkable-engine/appload`) cannot minimize from the app: Accueil then quits like **Quitter**, and an app that restores its saved state at start comes back as it was. AppLoad's own `_` button (swipe down from the top of a full-screen app) minimizes too.
 
+**The system panel**: in an app wrapped in `RemarkableApp`, a finger swiped down from the top edge (pressed in the top 100 px, past y 400) opens Accueil / Quitter / Annuler over the app; they run the `onHome` and `onQuit` of its `RemarkableBar`, and a tap under the panel closes it. display-rmpp recognises the swipe (`window.edge`) and holds the finger from the app until it is a swipe or a tap; a shorter swipe is AppLoad's and shows its window bar.
+
 On Linux (the reMarkable runs the package's linux build) the native module reads the battery from `/sys/class/power_supply` and the local time. macOS previews show an unknown battery. Values are checked every ten seconds; unchanged signals do not require repainting. The clock has minute precision.
 
 Finger events control the UI. `InkCanvas` consumes the separate pen sample queue, so fingers do not draw. This component does not itself alter display ownership or the e-ink waveform.

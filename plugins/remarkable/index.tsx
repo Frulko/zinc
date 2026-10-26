@@ -29,17 +29,27 @@ export interface WidgetSpec {
 }
 const [mode, setMode] = createSignal<string>(windowState());
 let widgetSize: i32[] = [];   // [w, h] once a RemarkableApp declares a widget
-setInterval(() => { const m = windowState(); if (m !== mode()) setMode(m); }, 250);
+// The system panel: a finger swiped down from the top edge of the screen (display-rmpp counts them, "window.edge") opens Accueil / Quitter /
+// Annuler over any app in a RemarkableApp, full screen or not, with the actions of its RemarkableBar
+const [panel, setPanel] = createSignal<boolean>(false);
+let swipes = device('window.edge');
+setInterval(() => {
+  const m = windowState(); if (m !== mode()) setMode(m);
+  const n = device('window.edge');
+  if (n !== swipes) { swipes = n; if (m === 'full') setPanel(true); }
+}, 250);
 /** 'full', 'widget' or 'hidden': how the app is shown now. */
 export function windowMode(): string { return mode(); }
 
 /** The root of a reMarkable app with a widget: the app, or its widget while it is shown as one. */
 export function RemarkableApp(props: RemarkableAppProps): i32 {
-  if (!props.widget) { const Only = props.app; return <Only />; }
+  const Full = props.app;   // mounted as components: a call in braces would be read as a number
+  const full = <View className="flex-col grow relative"><Full />{panel() ? <SystemPanel /> : null}</View>;
+  if (!props.widget) return full;
   const spec = props.widget as WidgetSpec;   // narrowed for the closures below
   widgetSize = [spec.width, spec.height];
-  const Full = props.app, Widget = spec.view;   // mounted as components: a call in braces would be read as a number
-  return <Show when={mode() === 'widget'} fallback={<Full />}>
+  const Widget = spec.view;
+  return <Show when={mode() === 'widget'} fallback={full}>
     <View className="flex-col bg-white" style={{ width: spec.width, height: spec.height }}><Widget /></View>
   </Show>;
 }
@@ -61,14 +71,30 @@ export interface RemarkableBarProps {
 }
 const BUTTON = 'px-8 py-3 border-2 border-black rounded-lg bg-white focus:bg-white';
 function leave(props: RemarkableBarProps): void { if (props.onQuit) props.onQuit(); else quit(); }
+function home(props: RemarkableBarProps): void { if (props.onHome) props.onHome(); if (!goHome()) leave(props); }
+let shell: RemarkableBarProps = { title: '' };   // the last RemarkableBar's: the panel's actions are the bar's
+
+const PANEL_BUTTON = 'grow h-[120px] items-center justify-center border-2 border-black rounded-lg bg-white focus:bg-white';
+/** Over the app's top: three large buttons, no animation (e-paper). A tap under it is Annuler. */
+function SystemPanel(): i32 {
+  const act = (f: () => void): void => { setPanel(false); f(); };
+  return <View className="absolute top-0 left-0 right-0 bottom-0 flex-col" onClick={() => setPanel(false)}>
+    <View className="flex-row gap-6 px-8 py-8 bg-white border-b-4 border-black" onClick={() => {}}>
+      <Button className={PANEL_BUTTON} onClick={() => act(() => home(shell))}><Text className="text-[40px] text-black">Accueil</Text></Button>
+      <Button className={PANEL_BUTTON} onClick={() => act(() => leave(shell))}><Text className="text-[40px] text-black">Quitter</Text></Button>
+      <Button className={PANEL_BUTTON} onClick={() => setPanel(false)}><Text className="text-[40px] text-black">Annuler</Text></Button>
+    </View>
+  </View>;
+}
 /** Platform-specific shell component, explicitly imported by reMarkable apps. Hosts preview an unknown battery. */
 export function RemarkableBar(props: RemarkableBarProps): i32 {
+  shell = props;
   return <View className="flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black">
     <Text className="text-[30px] text-black">{props.title}</Text>
     <Text className="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>
     <Text className="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>
     <View className="flex-row gap-4">
-      <Button className={BUTTON} onClick={() => { if (props.onHome) props.onHome(); if (!goHome()) leave(props); }}>
+      <Button className={BUTTON} onClick={() => home(props)}>
         <Text className="text-[30px] text-black">Accueil</Text>
       </Button>
       <Button className={BUTTON} onClick={() => leave(props)}>

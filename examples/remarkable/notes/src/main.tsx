@@ -5,7 +5,7 @@
 import { render } from 'zinc:ui/solid';
 import { ZoomView } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
-import { RemarkableBar } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { ink, loadPages, savePage } from './notebook';
 import { stepDemo } from './demo';
 import { DrawingBar, PageBar, DisplayBar } from './components/toolbar';
@@ -39,4 +39,4 @@ function App(): i32 {
 }
 
 loadPages();
-render(App, 0xffffff, stepDemo);
+render(() => <RemarkableApp app={App} />, 0xffffff, stepDemo);

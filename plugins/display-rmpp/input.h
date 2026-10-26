@@ -123,17 +123,46 @@ static bool start(int32_t w, int32_t h) {
 
 /** AppLoad forwards touch coordinates in framebuffer pixels (including its rotation/scaling); its pen (INPUT_PEN_PRESS/RELEASE/UPDATE,
  *  0x20..0x22) counts as one more finger while pen_from_appload, and is dropped otherwise (evdev has it, with pressure and tilt). */
+// The top-edge swipe, as Android's and iOS's shade: in a full window a finger that lands in the top EDGE_PX is held from the app until it
+// passes EDGE_SWIPE_Y (one more edge swipe, "window.edge": zinc:remarkable opens its Accueil / Quitter / Annuler panel), slides sideways
+// (the app gets it from there, a drag) or lifts first (the app gets the tap it held: pressed at this poll, released at the next).
+// AppLoad's FBController shows its own window bar for a finger pressed above y 100 and released between 100 and 400: the swipe that
+// opens the panel goes further, so one gesture never does both (a short one still brings AppLoad's bar, as before).
+enum { EDGE_PX = 100, EDGE_SWIPE_Y = 400, EDGE_SIDE_PX = 80, NO_ID = -1000 };
+static int edge_id = NO_ID, edge_x = 0, edge_y = 0, edge_late = NO_ID;
+static bool edge_done = false;
+static int edge_swipes = 0;
+static void touch_set(int id, int x, int y);
+/** true when the edge swipe took the message. */
+static bool edge_event(int type, int id, int x, int y) {
+  if (type == 0x10 && edge_id == NO_ID && !pen_from_appload && id != PEN_TOUCH_ID && y >= 0 && y < EDGE_PX) {
+    edge_id = id; edge_x = x; edge_y = y; edge_done = false; return true;
+  }
+  if (id != edge_id) return false;
+  if (type == 0x11) {
+    if (!edge_done) { touch_set(id, edge_x, edge_y); edge_late = id; }
+    edge_id = NO_ID; return true;
+  }
+  if (edge_done) return true;
+  if (y > EDGE_SWIPE_Y) { edge_done = true; edge_swipes++; return true; }
+  if (x - edge_x >= EDGE_SIDE_PX || edge_x - x >= EDGE_SIDE_PX) { touch_set(id, edge_x, edge_y); edge_id = NO_ID; return false; }
+  return true;
+}
+static void touch_set(int id, int x, int y) {
+  int i = 0;
+  while (i < ntouch && touches[i].id != id) i++;
+  if (i == ntouch) { if (ntouch == HAL_MAX_TOUCH) return; ntouch++; }
+  touches[i] = {id, (float)x, (float)y};
+}
 static bool touch_event(int type, int id, int x, int y) {
   if (type >= 0x20 && type <= 0x22) { if (!pen_from_appload) return true; type -= 0x10; id = PEN_TOUCH_ID; }
   if (type < 0x10 || type > 0x12) return false;
+  if (edge_event(type, id, x, y)) return true;
   int i = 0;
   while (i < ntouch && touches[i].id != id) i++;
   if (type == 0x11) {
     if (i < ntouch) { for (int j = i + 1; j < ntouch; j++) touches[j - 1] = touches[j]; ntouch--; }
-  } else if (x >= 0 && y >= 0 && x < W && y < H) {
-    if (i == ntouch) { if (ntouch == HAL_MAX_TOUCH) return true; ntouch++; }
-    touches[i] = {id, (float)x, (float)y};
-  }
+  } else if (x >= 0 && y >= 0 && x < W && y < H) touch_set(id, x, y);
   return true;
 }
 
@@ -194,6 +223,10 @@ static void poll_input(HalInput* in) {
   else if (pen_near) { px = last_pen.x; py = last_pen.y; in->pdown = (last_pen.flags & HAL_PEN_DOWN) != 0; }
   else in->pdown = 0;
   in->px = px; in->py = py;
+  if (edge_late != NO_ID) {   // the held tap was pressed in this frame: released in the next
+    for (int i = 0; i < ntouch; i++) if (touches[i].id == edge_late) { for (int j = i + 1; j < ntouch; j++) touches[j - 1] = touches[j]; ntouch--; break; }
+    edge_late = NO_ID;
+  }
   pthread_mutex_unlock(&mu);
   // keys after the base HAL's own (its queue was reset by its poll); what does not fit waits for the next frame
   int k = 0;

@@ -76,6 +76,15 @@ if run widget dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=wi
     { echo "widget: the widget was not repainted when it opened again"; fail=1; }
   grep -q "^dashboard.tasks	01100$" "$tmp/widget/storage.kv" || { echo "widget: the task ticked in the widget was not saved: $(grep tasks "$tmp/widget/storage.kv")"; fail=1; }
 fi
+# quits <label> <ms>: the app ended before that time (a run that is not quit ends at its last frame)
+quits() { awk -v ms=$2 '/ terminate$/ { exit !($1 < ms) }' "$tmp/$1/out/trace.txt" || { echo "$1: the app did not quit before $2 ms: $(grep terminate "$tmp/$1/out/trace.txt")"; fail=1; }; }
+# the top-edge swipe: a finger swiped down from the top of the screen opens the system panel (zinc:remarkable), whose Quitter ends the app
+# (the same tap without the swipe lands on the dashboard); a tap in the top edge still reaches the app
+if run edge dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=${EDGE_TAPS:-40:800,10>450;100:810,92}"; then
+  [ -n "$EDGE_TRACE" ] && cp "$tmp/edge/out/trace.txt" "$EDGE_TRACE"
+  has edge trace 1 "update PARTIAL 0,32 1620x152"; quits edge 2000   # Quitter pressed in the panel, then the app ended
+fi
+if run edgetap dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=40:1474,86"; then quits edgetap 1500; fi   # the bar's own Quitter
 # the same task ticked with the Marker: inside a widget card AppLoad forwards the pen (evdev's is in screen pixels, not the app's)
 if run widgetpen dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=40:1294,85;80:p400,180"; then
   grep -q "^dashboard.tasks	01100$" "$tmp/widgetpen/storage.kv" || { echo "widgetpen: the Marker's tap in the widget did nothing: $(grep tasks "$tmp/widgetpen/storage.kv")"; fail=1; }

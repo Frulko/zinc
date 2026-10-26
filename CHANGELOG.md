@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- reMarkable: swipe down from the top edge of any Zinc app, past the upper fifth of the screen, to open a panel with **Accueil**, **Quitter** and **Annuler** (a shorter swipe still brings AppLoad's window bar). Apps get it through `RemarkableApp` of `zinc:remarkable`.
 - reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Zinc Web relay: `--browser extension` renders pages in your own Chrome through a small Chrome extension (`app/web-relay/extension`), so sites that refuse headless Chrome (Cloudflare, Reddit, Leboncoin) open with your sessions; its popup turns it off and sends the current tab to the reMarkable.
 - reMarkable: AppLoad (the Zinc build) can pin apps to the tablet's sidebar: each app listed in `pinned.json` gets its own entry under AppLoad's and opens with one tap. Installing that AppLoad build restarts the tablet's interface once.
