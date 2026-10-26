@@ -8,6 +8,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: a `kZbcVersion` bump still breaks every packed app: the `.zapp` could carry its sources (as JavaScript projects do) so a newer engine recompiles instead of refusing.
 - ZN-844: `needs` could also name the `resources.bin` / `.zpk` format versions and the native plugin ABI, which a change would break with its own load error today.
 - ZN-844: `hub-server` reads every stored `.zapp` when it rebuilds the catalog; store the needs at publish time if catalogs get large.
+- ZN-844: stream the hub's engine download to a file instead of holding it in memory (39 MB against the 64 MB fetch limit).
+- ZN-844: the hub keeps only the current engine bundle; keeping the previous one would allow a rollback from the admin page.
+- ZN-844: offer an engine with a new zbc together with repacked apps (today it stays with deploy.sh).
 - ZN-844: `charCodeAt(i)` (and the other UTF-16 index reads) on a non-ASCII string converts the whole string with `toU16` at each call (src/rt/rtcalls.cpp), so a charCodeAt loop over accented text is quadratic: 90 KB took 19 s in JSON.stringify before it got a native quote. Keep a UTF-16 view or a byte cursor per string.
 - ZN-792: list n3ds/psp/vita in the "targets" of the plugins the console cores link (3d, audio, physics2d), so zinc lint --target n3ds stops warning about them; dev and deploy already filter them out using the player's list.
 - ZN-792: give the bytecode's native imports the plugin they come from, so the console's runtime error names the plugin (canvas2d), not only the module (Canvas2D).
