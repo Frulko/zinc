@@ -1,6 +1,6 @@
 # AppLoad window-state and widget patches
 
-Four patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
+Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
 
 - `0001-window-state.patch`: a qtfb client can minimize and restore its own window and knows when it is hidden. A Zinc
   app on the reMarkable Paper Pro uses it for its "Home" button: the app minimizes itself, xochitl is usable again, and
@@ -11,6 +11,8 @@ Four patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
   client is hidden) and expands it again; the window bar, the card and the pill get a finer, shared look.
 - `0004-pinned-apps.patch` (on top of 0003): apps listed in `pinned.json` get their own entry in xochitl's sidebar, under
   AppLoad's, that opens them as their tile does.
+- `0005-docked-window.patch` (on top of 0004, experimental): a client can dock its window under xochitl's own top header, which
+  stays xochitl's, live.
 
 ## Protocol (0001)
 
@@ -105,6 +107,31 @@ AppLoad application ids, in the order of the sidebar: `["external::zinc-web", "e
 - Not verified on the tablet before the first install: the sidebar's item type showing a PNG icon (AppLoad's own entry uses an SVG
   from its resources), and the hashed names copied from AppLoad's own entry (text, icon, onClicked, the menu's close).
 
+## Protocol (0005): docked window
+
+| Name | Value | Direction | Payload |
+|---|---|---|---|
+| `CAPABILITY_DOCKED` | 4 (bit 2) | server to client | in `capabilities.flags`: window state 3, visibility 3 and reason 3 |
+| `WINDOW_STATE_DOCKED` | 3 | client to server | new value of `MESSAGE_SET_WINDOW_STATE` |
+| `VISIBILITY_DOCKED` | 3 | server to client | new value of `visibility.visible` |
+| `STATE_CHANGED_REASON_INSETS` | 3 | server to client | `DeviceStateChangedContents.insets.top`: the height of xochitl's header, screen pixels (= framebuffer pixels) |
+
+- Docked, the window shows the framebuffer rectangle `(0, H, fbW, fbH - H)` 1:1 at screen `(0, H)`: no window bar, no card, no
+  outline, no rotation or scaling (as a widget). `H` is the insets' `top`. Input in the window reaches the client at `y + H`, and a
+  `MESSAGE_UPDATE` repaints only its part below `H`. The client pads its layout by `H` (Zinc: the top safe area).
+- `H` is sent in the initial state packets (after the capabilities) and each time it changes; it is read when the window docks and every
+  2 s while it is docked. Where it comes from, in order: `{"top": N}` in `dock.json` in AppLoad's directory
+  (`/home/root/xovi/exthome/appload/dock.json`); else xochitl's live item tree: the tallest visible item, outside AppLoad's windows and
+  the popup overlay, that spans the screen's width at y 0 and is 48 to 240 px high; else **120 px, a guess** (not measured on the tablet).
+  xochitl's QML names are hashed per OS release, so the header is found by its geometry, not by a qmldiff hook. Each new value is
+  logged with the item it came from: `journalctl -u xochitl | grep "docked windows start"`. Launched from AppLoad's own launcher, the
+  header found is the launcher's bar while the launcher is open.
+- The header belongs to xochitl: a press on it is let through to xochitl and minimizes the docked window (visibility 0, the pill). If a
+  popup of xochitl opens within 1.5 s (its sidebar, a menu: Qt Quick Controls' overlay has a visible child), the window docks again
+  (visibility 3) once it closes; otherwise it stays minimized. A view xochitl opens without a popup is not seen.
+- Open on the pill, or on the widget card of a window that went from docked to widget, docks it again. Restore (1) from docked goes back
+  to the full window (full screen when it was full screen before docking). Minimize (0) keeps it docked for open.
+
 ## Build
 
 ```sh
@@ -117,6 +144,7 @@ minutes on an M1. First build (2026-10-25, 0001 alone): sha256 `46ec75d1b65a6fd5
 With 0002 (2026-10-25): sha256 `e1139bf4eeb0852a14fb71958e96c430e1ab8b26a6461c5d0c3906165856951b`.
 With 0003 (2026-10-25): sha256 `6cb5a3de9e583240ae1f74bcd1d8647b64dc565595fb5b6ae655d5ee3dfda41d` (same imports as with 0002).
 With 0004 (2026-10-26): sha256 `cd263b0663ea10aa4037818faa7df11890de932b62e3594039944685eff28918` (qmldiff of the sidebar not checked off the tablet).
+With 0005 (2026-10-26): sha256 `b73ed2fd448785c966808643e1826640d230b35c08c07b970625d010fa114641` (the dock not checked on the tablet; the QML passes qmllint on the Mac).
 The result is an aarch64 ELF with the same xovi entry points (`_xovi_construct`, `_xovi_depconstruct`,
 `LINKTABLENAMES`, `LINKTABLEVALUES`) and the same `NEEDED` libraries as the 0.6.0 release asset; its imports are the
 release's plus three from Qt6Core (`QIODevice::write(QByteArray)`, `QRect::operator&`, the `QRect` metatype).

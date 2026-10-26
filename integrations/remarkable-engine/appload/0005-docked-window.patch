@@ -1,0 +1,459 @@
+From: Zinc
+Subject: [PATCH] qtfb: let a client dock its window under xochitl's header
+
+MESSAGE_SET_WINDOW_STATE gains WINDOW_STATE_DOCKED (3): the window
+fills the screen below xochitl's top header, without a window bar,
+showing the framebuffer below that height 1:1; the header stays
+xochitl's own, live. Visibility reports 3 while docked, capability bit
+2 (CAPABILITY_DOCKED) announces it, and the new
+STATE_CHANGED_REASON_INSETS (3) gives the client the header's height,
+in the initial state packets and whenever it changes.
+
+The header's height is read from xochitl's live item tree (the tallest
+item spanning the screen's width at its top, 48 to 240 px), or from
+dock.json in AppLoad's directory, else 120 px.
+
+The header belongs to xochitl: a press on it reaches xochitl and
+minimizes the docked window; when that press opened a popup (the
+sidebar, a menu) the window docks again once it is closed.
+---
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -55,6 +55,13 @@
+     property int widgetY: 0
+     // Collapsed widget card: the header alone, the client hidden (visibility 0). Saved per app.
+     property bool collapsed: false
++    // Docked (WINDOW_STATE_DOCKED): the window fills the screen below xochitl's header, which stays xochitl's, live.
++    property bool docked: false
++    property int dockTop: 0
++    // Minimized by a press on xochitl's header; it docks again when the popup that press opened closes.
++    property bool dockSuspended: false
++    // Shown as its widget from the dock: open docks it again.
++    property bool restoreToDock: false
+     readonly property int pillWidth: barHeight + Math.min(_appName.implicitWidth, 560) + 16 + 2 * barHeight + 4 // +4: slack for font metrics
+ 
+     // Keyboard handling:
+@@ -116,6 +123,10 @@
+     // Window state requested by the qtfb client itself.
+     function clientMinimize() {
+         if(minimized) return;
++        if(docked) {
++            minimized = true; // stays docked: open brings it back under the header
++            return;
++        }
+         if(widget) {
+             // restoreToFullscreen is kept: open goes back to where the widget came from.
+             minimized = true;
+@@ -127,7 +138,17 @@
+         minimized = true;
+     }
+     function clientRestore() {
+-        if(!minimized && !widget) return;
++        if(docked && minimized) {
++            dockSuspended = false;
++            minimized = false; // back under the header; the client sends 1 again for the full window
++            return;
++        }
++        if(restoreToDock && (widget || minimized)) {
++            clientDock(); // the widget (or its pill) of a docked window opens docked again
++            return;
++        }
++        if(!minimized && !widget && !docked) return;
++        docked = false;
+         widget = false;
+         minimized = false;
+         if(restoreToFullscreen) {
+@@ -141,15 +162,67 @@
+             return;
+         }
+         if(widget) return;
+-        if(!minimized) {
++        if(docked) restoreToDock = true; // restoreToFullscreen is kept for when the client leaves the dock
++        else if(!minimized) {
+             restoreToFullscreen = fullscreen;
+             if(fullscreen) maximize(); // A widget is never full screen.
+         }
+         placeWidget();
+-        widget = true; // Before minimized, so that the client sees a single visibility change.
++        widget = true; // Before docked and minimized, so that the client sees a single visibility change.
++        docked = false;
+         minimized = false;
+     }
+ 
++    function clientDock() {
++        if(docked && !minimized) return;
++        if(!docked && !minimized && !widget) {
++            restoreToFullscreen = fullscreen;
++            if(fullscreen) maximize(); // Docked is never full screen.
++        }
++        readDockTop();
++        docked = true; // Before widget and minimized, so that the client sees a single visibility change.
++        widget = false;
++        minimized = false;
++        dockSuspended = false;
++        restoreToDock = false;
++    }
++    function readDockTop() {
++        dockTop = library.xochitlHeaderHeight(root.parent);
++    }
++    // The header belongs to xochitl: a press on it reaches xochitl and minimizes the docked window. When that press opened a
++    // popup (the sidebar of the burger, a menu), the window docks again once it is closed; else it stays a pill.
++    function headerPressed() {
++        dockSuspended = true;
++        minimized = true;
++        dockWatch.sawPopup = false;
++        dockWatch.ticks = 0;
++        dockWatch.restart();
++    }
++    Timer {
++        id: dockWatch
++        interval: 250
++        repeat: true
++        property bool sawPopup: false
++        property int ticks: 0
++        onTriggered: () => {
++            if(!root.dockSuspended || !root.docked) return stop();
++            const open = library.xochitlPopupOpen(root);
++            if(open) sawPopup = true;
++            else if(sawPopup) {
++                stop();
++                root.dockSuspended = false;
++                root.minimized = false;
++            } else if(++ticks >= 6) stop(); // nothing opened in 1.5 s: stay minimized
++        }
++    }
++    // The header may change (the launcher's bar closed, a rotation): read it again while docked.
++    Timer {
++        interval: 2000
++        repeat: true
++        running: root.docked && !root.minimized
++        onTriggered: readDockTop()
++    }
++
+     // Widget positions, per app id, kept in AppLoad's directory.
+     function widgetPositions() {
+         try {
+@@ -239,6 +312,18 @@
+             }
+         },
+         State {
++            // Below xochitl's header, the framebuffer under dockTop pixel for pixel, no window bar.
++            name: "docked"
++            when: docked && !minimized
++            PropertyChanges {
++                target: root
++                x: 0
++                y: root.dockTop
++                width: root.globalWidth
++                height: root.globalHeight - root.dockTop
++            }
++        },
++        State {
+             name: "maximized"
+             when: fullscreen
+ 
+@@ -272,7 +357,7 @@
+         width: 100
+         height: 100
+         cursorShape: Qt.SizeFDiagCursor
+-        enabled: !fullscreen && !minimized && !widget
++        enabled: !fullscreen && !minimized && !widget && !docked
+         z: 10001
+ 
+         property real startX: 0
+@@ -322,12 +407,12 @@
+         border.width: outline
+         border.color: "black"
+         z: 2002
+-        visible: compact || !topbarDragHandle.drag.active
++        visible: !(docked && !minimized) && (compact || !topbarDragHandle.drag.active)
+     }
+ 
+     Rectangle {
+         id: topbar
+-        visible: !fullscreen || forceTopBarVisible
++        visible: (!fullscreen || forceTopBarVisible) && !(docked && !minimized)
+         width: parent.width
+         height: visible ? barHeight : 0
+         color: "white"
+@@ -605,10 +690,13 @@
+             // A collapsed widget is hidden for the client (visibility 0); expanding shows it again (2).
+             clientVisible: !root.minimized && !(root.widget && root.collapsed)
+             showWidget: root.widget
++            showDock: root.docked && !root.minimized
++            dockTop: root.dockTop
+ 
+             onWindowStateRequested: (state) => {
+                 if(state == 0) root.clientMinimize();
+                 else if(state == 2) root.clientWidget();
++                else if(state == 3) root.clientDock();
+                 else root.clientRestore();
+             }
+ 
+@@ -682,6 +770,20 @@
+                     coord.close();
+                 }
+             }
++        }
++    }
++
++    // Over xochitl's header, above a docked window: sees the press and lets it through to xochitl.
++    MouseArea {
++        x: 0
++        y: -root.dockTop
++        width: root.width
++        height: root.dockTop
++        enabled: root.docked && !root.minimized
++        visible: enabled
++        onPressed: (mouse) => {
++            mouse.accepted = false;
++            root.headerPressed();
+         }
+     }
+ 
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -13,6 +13,9 @@
+ #include <QJsonArray>
+ #include <QFileSystemWatcher>
+ #include <QQuickPaintedItem>
++#include <QQuickItem>
++#include <QQuickWindow>
++#include <functional>
+ 
+ #include "library.h"
+ #include "config.h"
+@@ -172,6 +175,52 @@
+     Q_INVOKABLE void writeWidgetPositions(const QString &json) {
+         QFile file(QString(APPLICATION_DIRECTORY_ROOT) + "/widget-positions.json");
+         if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(json.toUtf8());
++    }
++
++    // Docked windows (WINDOW_STATE_DOCKED): the height of xochitl's top header (burger, logo, battery), read from its live item
++    // tree, since xochitl's QML names are hashed and differ per OS release. Override: {"top": N} in dock.json in AppLoad's directory.
++    // Else the tallest visible item, outside AppLoad's own windows (under `skip`) and the popup overlay, that spans the screen's
++    // width at its top and is 48 to 240 px high. Else 120 px, the fallback. Each new answer is logged with the item it came from.
++    Q_INVOKABLE int xochitlHeaderHeight(QQuickItem *skip) {
++        static int last = -1;
++        auto answer = [](int top, const QString &why) {
++            if(top != last) qDebug() << "[AppLoad]: docked windows start at y" << top << "(" << why << ")";
++            last = top;
++            return top;
++        };
++        QFile file(QString(APPLICATION_DIRECTORY_ROOT) + "/dock.json");
++        if(file.open(QIODevice::ReadOnly)) {
++            int top = QJsonDocument::fromJson(file.readAll()).object().value("top").toInt(-1);
++            if(top >= 0 && top < 1000) return answer(top, "dock.json");
++        }
++        QQuickWindow *window = skip ? skip->window() : nullptr;
++        if(!window) return answer(120, "no window: fallback");
++        const qreal width = window->contentItem()->width();
++        qreal best = 0;
++        QString from;
++        std::function<void(QQuickItem *)> walk = [&](QQuickItem *item) {
++            if(item == skip || !item->isVisible() || item->opacity() <= 0 || item->inherits("QQuickOverlay")) return;
++            QRectF r = item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
++            if(qAbs(r.y()) < 1 && qAbs(r.x()) < 1 && qAbs(r.width() - width) < 2 && r.height() >= 48 && r.height() <= 240 && r.height() > best) {
++                best = r.height();
++                from = QString(item->metaObject()->className()) + " " + item->objectName();
++            }
++            for(QQuickItem *child : item->childItems()) walk(child);
++        };
++        walk(window->contentItem());
++        if(best > 0) return answer(qRound(best), "xochitl's " + from);
++        return answer(120, "no header item found: fallback");
++    }
++
++    // A popup of xochitl is open over the screen (its sidebar, a menu, a dialog: Qt Quick Controls put them in the window's overlay).
++    Q_INVOKABLE bool xochitlPopupOpen(QQuickItem *any) {
++        QQuickWindow *window = any ? any->window() : nullptr;
++        if(!window) return false;
++        for(QQuickItem *item : window->contentItem()->childItems()) {
++            if(!item->inherits("QQuickOverlay")) continue;
++            for(QQuickItem *popup : item->childItems()) if(popup->isVisible() && popup->opacity() > 0) return true;
++        }
++        return false;
+     }
+ 
+     QStringList pinned() {
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -31,8 +31,8 @@
+     QDEBUG << "FB Repaint triggered for " << framebufferID << ". Status: " << _active;
+     // Do we have an SHM associated?
+     if(this->image && this->_active && widgetShown()) {
+-        // Widget: the client's rectangle, pixel for pixel, without rotation or scaling.
+-        painter->drawImage(QPoint(0, 0), *image, _widgetRect);
++        // Widget (or docked): the client's rectangle, pixel for pixel, without rotation or scaling.
++        painter->drawImage(QPoint(0, 0), *image, shownRect());
+     } else if(this->image && this->_active) {
+         // Cool. Paint it.
+         switch(fbRotation) {
+@@ -97,8 +97,8 @@
+ 
+     if(widgetShown()) {
+         // Repaint only what the widget shows of the updated region, if anything.
+-        QRect visible = rect.intersected(_widgetRect);
+-        if(!visible.isEmpty()) update(visible.translated(-_widgetRect.topLeft()));
++        QRect visible = rect.intersected(shownRect());
++        if(!visible.isEmpty()) update(visible.translated(-shownRect().topLeft()));
+     } else if(image) {
+         auto updateRect = convertQTFBRectToScreen(rect).adjusted(0, 0, 1, 1);
+         QTransform rotate;
+@@ -124,8 +124,8 @@
+     if(widgetShown()) {
+         // Widget: item pixels are framebuffer pixels of the rectangle.
+         QPoint point = input.toPoint();
+-        if(!QRect(QPoint(0, 0), _widgetRect.size()).contains(point)) return {};
+-        return point + _widgetRect.topLeft();
++        if(!QRect(QPoint(0, 0), shownRect().size()).contains(point)) return {};
++        return point + shownRect().topLeft();
+     }
+     QRect imgRect = image->rect();
+     QRect fbRect = convertQTFBRectToScreen(imgRect);
+@@ -365,15 +365,38 @@
+ 
+ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialStatePackets() {
+     sentVisibility = currentVisibility();
+-    return { formRotationChangePacket(), formVisibilityChangePacket(), formCapabilitiesPacket() };
++    return { formRotationChangePacket(), formVisibilityChangePacket(), formCapabilitiesPacket(), formInsetsPacket() };
+ }
+ 
+ qtfb::DeviceStateChangedContents FBController::formCapabilitiesPacket() {
+     qtfb::DeviceStateChangedContents dscc = {
+         .reason = STATE_CHANGED_REASON_CAPABILITIES,
+-        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS },
++        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS | CAPABILITY_DOCKED },
+     };
+     return dscc;
++}
++
++qtfb::DeviceStateChangedContents FBController::formInsetsPacket() {
++    qtfb::DeviceStateChangedContents dscc = {
++        .reason = STATE_CHANGED_REASON_INSETS,
++        .insets = { dockTop },
++    };
++    return dscc;
++}
++
++void FBController::setShowDock(bool show) {
++    if(show == showDock) return;
++    showDock = show;
++    sendVisibility();
++    markedUpdate();
++}
++
++// The header's height can change (rotation, another xochitl view): the client hears it, and a docked window moves with it.
++void FBController::setDockTop(int top) {
++    if(top < 0 || top == dockTop) return;
++    dockTop = top;
++    qtfb::management::sendDeviceStateChange(framebufferID, formInsetsPacket());
++    if(showDock) markedUpdate();
+ }
+ 
+ // Sends the visibility only when it changed: a move between two states that sets
+--- a/src/qtfb/FBController.h
++++ b/src/qtfb/FBController.h
+@@ -32,6 +32,9 @@
+     Q_PROPERTY(QRect widgetRect READ widgetRect NOTIFY widgetRectChanged)
+     // When set (and widgetRect is not empty) only widgetRect is shown, 1:1, at the item's origin.
+     Q_PROPERTY(bool showWidget MEMBER showWidget WRITE setShowWidget)
++    // Docked: the framebuffer below dockTop (xochitl's header height) is shown 1:1 at the item's origin.
++    Q_PROPERTY(bool showDock MEMBER showDock WRITE setShowDock)
++    Q_PROPERTY(int dockTop MEMBER dockTop WRITE setDockTop)
+     Q_OBJECT
+ public:
+     explicit FBController(QQuickItem *parent = nullptr) : QQuickPaintedItem(parent) { setAcceptTouchEvents(true); setAcceptedMouseButtons((Qt::MouseButtons) 0xFFFFFFFF); setFocusPolicy(Qt::StrongFocus); }
+@@ -72,6 +75,8 @@
+     void setFbRotation(Rotation rotation);
+     void setClientVisible(bool visible);
+     void setShowWidget(bool show);
++    void setShowDock(bool show);
++    void setDockTop(int top);
+     QRect widgetRect() const { return _widgetRect; }
+     void setWidgetRect(const QRect &rect);
+ 
+@@ -109,6 +114,8 @@
+     bool sendFlippedRotationToClient = false;
+     bool clientVisible = true;
+     bool showWidget = false;
++    bool showDock = false;
++    int dockTop = 0;
+     int sentVisibility = VISIBILITY_SHOWN;
+     QRect _widgetRect;
+     FillMode fillMode = Stretch;
+@@ -122,7 +129,11 @@
+     qtfb::DeviceStateChangedContents formRotationChangePacket();
+     qtfb::DeviceStateChangedContents formVisibilityChangePacket();
+     qtfb::DeviceStateChangedContents formCapabilitiesPacket();
+-    bool widgetShown() const { return showWidget && !_widgetRect.isEmpty() && image; }
+-    int currentVisibility() const { return !clientVisible ? VISIBILITY_MINIMIZED : widgetShown() ? VISIBILITY_WIDGET : VISIBILITY_SHOWN; }
++    qtfb::DeviceStateChangedContents formInsetsPacket();
++    bool docked() const { return showDock && image && dockTop < image->height(); }
++    // Widget or docked: one rectangle of the framebuffer, shown 1:1 (no rotation, no scaling).
++    bool widgetShown() const { return docked() || (showWidget && !_widgetRect.isEmpty() && image); }
++    QRect shownRect() const { return docked() ? QRect(0, dockTop, image->width(), image->height() - dockTop) : _widgetRect; }
++    int currentVisibility() const { return !clientVisible ? VISIBILITY_MINIMIZED : docked() ? VISIBILITY_DOCKED : widgetShown() ? VISIBILITY_WIDGET : VISIBILITY_SHOWN; }
+     void sendVisibility();
+ };
+--- a/src/qtfb/common.h
++++ b/src/qtfb/common.h
+@@ -66,18 +66,22 @@
+ #define STATE_CHANGED_REASON_ROTATION 0
+ #define STATE_CHANGED_REASON_VISIBILITY 1
+ #define STATE_CHANGED_REASON_CAPABILITIES 2
++#define STATE_CHANGED_REASON_INSETS 3
+ 
+ // STATE_CHANGED_REASON_CAPABILITIES flags: what this server understands.
+ #define CAPABILITY_WINDOW_STATE 1 // MESSAGE_SET_WINDOW_STATE, STATE_CHANGED_REASON_VISIBILITY
+ #define CAPABILITY_WIDGETS 2      // MESSAGE_SET_WIDGET, WINDOW_STATE_WIDGET, VISIBILITY_WIDGET
++#define CAPABILITY_DOCKED 4       // WINDOW_STATE_DOCKED, VISIBILITY_DOCKED, STATE_CHANGED_REASON_INSETS
+ 
+ #define VISIBILITY_MINIMIZED 0
+ #define VISIBILITY_SHOWN 1
+ #define VISIBILITY_WIDGET 2
++#define VISIBILITY_DOCKED 3
+ 
+ #define WINDOW_STATE_MINIMIZE 0
+ #define WINDOW_STATE_RESTORE 1
+ #define WINDOW_STATE_WIDGET 2
++#define WINDOW_STATE_DOCKED 3
+ 
+ #define ROTATION_0 0
+ #define ROTATION_L90 1
+@@ -122,11 +126,14 @@
+                 int rotation;
+             } rotation;
+             struct {
+-                int visible; // VISIBILITY_SHOWN 1, VISIBILITY_MINIMIZED 0, VISIBILITY_WIDGET 2
++                int visible; // VISIBILITY_SHOWN 1, VISIBILITY_MINIMIZED 0, VISIBILITY_WIDGET 2, VISIBILITY_DOCKED 3
+             } visibility;
+             struct {
+                 int flags; // CAPABILITY_*
+             } capabilities;
++            struct {
++                int top; // the height of xochitl's header, screen pixels: a docked window starts there
++            } insets;
+         };
+     };
+ 
+@@ -138,7 +145,7 @@
+             struct CustomInitMessageContents customInit;
+             // struct TerminateMessageContents terminate; - Terminate does not send any data.
+             int refreshMode;
+-            int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / _RESTORE / _WIDGET
++            int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / _RESTORE / _WIDGET / _DOCKED
+             // no full refresh - Force full refresh does not send any data.
+         };
+     };
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -347,7 +347,7 @@
+             case MESSAGE_SET_WINDOW_STATE:
+                 status = invokeOnConnectedFramebuffer(&connection, [=](auto controller) {
+                     int state = inboundMessage.windowState;
+-                    if(state != WINDOW_STATE_MINIMIZE && state != WINDOW_STATE_RESTORE && state != WINDOW_STATE_WIDGET) {
++                    if(state != WINDOW_STATE_MINIMIZE && state != WINDOW_STATE_RESTORE && state != WINDOW_STATE_WIDGET && state != WINDOW_STATE_DOCKED) {
+                         CERR << "The client tried to set the window state to an undefined value!" << std::endl;
+                         return RESP_ERR;
+                     }
