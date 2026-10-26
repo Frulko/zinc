@@ -599,6 +599,18 @@ struct Lowering {
     return parseElem(a)->end == b;
   }
   bool isNull(std::size_t a, std::size_t b) const { strip(a, b); return b == a + 1 && isK(a, "null"); }
+  // [a, b) is an element, or a conditional of elements (`c ? <A/> : <B/>`): what a .map callback returns as rows
+  bool jsxValue(std::size_t a, std::size_t b) {
+    strip(a, b);
+    if (jsxOnly(a, b)) return true;
+    std::size_t q = 0, colon = 0;
+    int depth = 0;
+    scan(a, b, [&](std::size_t i, const std::string& x) {
+      if (x == "?") { if (!q) q = i; ++depth; }
+      else if (x == ":" && depth > 0 && --depth == 0 && !colon) colon = i;
+    });
+    return colon && jsxValue(q + 1, colon) && jsxValue(colon + 1, b);
+  }
 
   // top-level scan of [a, b): calls f(i, text) for every token outside brackets and JSX elements
   template <class F> void scan(std::size_t a, std::size_t b, F f) {
@@ -762,13 +774,13 @@ struct Lowering {
     if (isP(x0, "{")) {
       for (std::size_t k = x0; k < x1; ++k) {
         if (!isK(k, "return")) continue;
-        std::size_t r0 = k + 1;
-        while (isP(r0, "(")) ++r0;
-        if (jsxStart(r0)) return true;
+        std::size_t r1 = 0;
+        scan(k + 1, x1, [&](std::size_t i, const std::string& x) { if (!r1 && (x == ";" || x == "}")) r1 = i; });
+        if (r1 && jsxValue(k + 1, r1)) return true;
       }
       return false;
     }
-    return jsxOnly(x0, x1);
+    return jsxValue(x0, x1);
   }
 
   // ---- style={...}: an object, an array of layers, a conditional of those, or any expression of type Style

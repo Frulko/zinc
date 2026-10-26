@@ -1,0 +1,19 @@
+node 0
+  class flex-col
+  node 6
+    node 1
+      dynTextOf A alpha
+  node 6
+    node 1
+      dynTextOf A beta
+  node 6
+    node 1
+      dynTextOf A gamma
+node 0
+  class flex-col
+  node 6
+    node 1
+      dynTextOf B gamma
+  node 6
+    node 1
+      dynTextOf B gamma

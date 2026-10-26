@@ -174,7 +174,7 @@
     {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/frontend/capabilities.cpp", "targets/capabilities.json"], "tests": ["ui_layout_option", "requires"]},
     {"paths": ["src/host/layout.h", "src/host/layout_yoga.cpp", "src/host/text_wrap.h", "src/host/text_wrap.cpp", "third_party/yoga/", "tests/native/layout_yoga_test.cpp"], "tests": ["layout_iface", "layout_conformance", "layout_yoga", "layout_bridge", "layout_rn"]},
     {"paths": ["src/host/layout_host.cpp", "tests/golden/layout-bridge/", "tests/golden/layout-rn/", "src/qjs/qjs.cpp", "src/aot/aot.cpp", "tests/golden/layout-conformance/", "tools/layout-fixtures"], "tests": ["layout_bridge", "layout_rn", "layout_conformance", "rtl"]},
-    {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
+    {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx", "tests/golden/jsx/"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["tests/golden/jsx/errors/", "tests/t0/jsx_banned.sh", "include/zn/diagnostics.h"], "tests": ["jsx_banned", "migrate"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/solid.ts", "lib/std/kit/host.ts", "lib/std/nuxt/host.ts", "lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh"], "tests": ["solid_props", "solid_cleanup"]},
     {"paths": ["src/lint/", "tests/t0/lint.sh", "tests/t0/migrate.sh", "tests/golden/lint/", "tests/golden/migrate/", "targets/capabilities.json", "src/frontend/capabilities.cpp"], "tests": ["lint", "migrate"]},
