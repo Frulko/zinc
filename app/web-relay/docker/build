@@ -1,0 +1,22 @@
+#!/bin/sh
+# Builds the relay's image: ./build [--arch amd64|arm64] [--package zinc-<version>-linux-<arch>.tar.gz] [-t tag]
+# The Linux zinc comes from --package, else the newest of dist/linux-<arch>/, else tools/build-linux.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd -P); root=$(cd "$here/../../.." && pwd -P)
+arch=$(uname -m); package= tag=zinc-web-relay
+while [ $# -gt 0 ]; do
+  case $1 in
+    --arch) arch=$2; shift 2 ;; --package) package=$2; shift 2 ;; -t) tag=$2; shift 2 ;;
+    *) sed -n '2,3p' "$0" >&2; exit 2 ;;
+  esac
+done
+case $arch in amd64|x86_64) z=x86_64 d=amd64 ;; arm64|aarch64) z=aarch64 d=arm64 ;; *) echo "build: --arch amd64 or arm64" >&2; exit 2 ;; esac
+if [ -z "$package" ]; then
+  package=$(ls -t "$root"/dist/linux-$z/zinc-*-linux-$z.tar.gz 2>/dev/null | head -n 1 || true)
+  [ -n "$package" ] || { "$root/tools/build-linux" --arch $z; package=$(ls -t "$root"/dist/linux-$z/zinc-*-linux-$z.tar.gz | head -n 1); }
+fi
+stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
+cp "$package" "$stage/zinc.tar.gz"
+mkdir "$stage/web-relay" && cp -R "$root/app/web-relay/zinc.json" "$root/app/web-relay/src" "$root/app/web-relay/assets" "$stage/web-relay/"
+docker build --platform linux/$d -t "$tag" -f "$here/Dockerfile" "$stage"
+echo "build: $tag (linux/$d, $(basename "$package"))"

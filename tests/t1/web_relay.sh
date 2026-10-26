@@ -133,5 +133,18 @@ for i in $(seq 1 100); do grep -q 'relay: no token' "$tmp/open.log" && break; sl
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/nope")" = 404 ] || { echo "--no-token still asks for a token: $(tail -3 "$tmp/open.log")"; fail=1; }
 [ -e "$tmp/open/relay.token" ] && { echo "--no-token wrote a token"; fail=1; }
 kill $rel; wait $rel 2>/dev/null; rel=
+# a relay on a server: --block-private refuses the local network (and its disguises), serves the rest; https with --tls-cert/--tls-key
+openssl req -x509 -newkey rsa:2048 -nodes -subj /CN=localhost -days 1 -keyout "$tmp/key.pem" -out "$tmp/cert.pem" >/dev/null 2>&1
+"$Z" run app/web-relay -- --port "$rp" --data "$tmp/srv" --no-token --no-open --block-private --tls-cert "$tmp/cert.pem" --tls-key "$tmp/key.pem" >"$tmp/srv.log" 2>&1 & rel=$!
+for i in $(seq 1 100); do grep -q 'relay: no token' "$tmp/srv.log" && break; sleep 0.2; done
+S=https://127.0.0.1:$rp
+code() { curl -sk -o /dev/null -w '%{http_code}' "$S/send?url=$1"; }
+for u in http://192.168.1.1/ http://10.0.0.2/x http://172.20.0.1/ http://localhost:8080/ http://nas.local/ http://0x7f.1/ http://2130706433/ \
+         http://0177.0.0.1/ 'http://[::1]/' http://user@127.0.0.1/ http://100.100.1.1/ http://router/; do
+  [ "$(code "$u")" = 403 ] || { echo "--block-private let $u through: $(code "$u")"; fail=1; }
+done
+for u in https://example.com/ http://172.32.0.1/ http://8.8.8.8/; do [ "$(code "$u")" = 200 ] || { echo "--block-private refused $u"; fail=1; }; done
+[ "$(curl -sk -o /dev/null -w '%{http_code}' "$S/render?url=$page")" = 502 ] || { echo "--block-private rendered a page of 127.0.0.1"; fail=1; }
+kill $rel; wait $rel 2>/dev/null; rel=
 [ $fail -eq 0 ] && echo "web relay: ok"
 exit $fail

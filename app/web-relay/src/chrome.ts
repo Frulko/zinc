@@ -40,10 +40,10 @@ export class Chrome {
   alive: boolean = false;
 
   /** Starts Chrome headless with its own profile in `profile` and opens one tab. */
-  async start(chrome: string, profile: string): Promise<void> {
+  async start(chrome: string, profile: string, extra: string[] = []): Promise<void> {
     fs.mkdir(profile, true);
-    const p = proc.spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-first-run', '--no-default-browser-check',
-      '--hide-scrollbars', '--mute-audio', '--disable-extensions', '--disable-background-networking', 'about:blank'], {});
+    const p = proc.spawn(chrome, extra.concat(['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-first-run', '--no-default-browser-check',
+      '--hide-scrollbars', '--mute-audio', '--disable-extensions', '--disable-background-networking', 'about:blank']), {});
     this.child = p;
     const url = await new Promise<string>((resolve, reject) => {
       let done = false;

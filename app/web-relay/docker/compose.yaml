@@ -1,0 +1,10 @@
+# docker compose up -d: the relay on port 8790; `docker compose logs web-relay` prints its token (README.md: put it behind HTTPS).
+services:
+  web-relay:
+    image: zinc-web-relay
+    restart: unless-stopped
+    ports: ["8790:8790"]
+    volumes: ["relay-data:/data"]   # the token and Chrome's profile, kept across updates
+    shm_size: 1gb                   # Chromium's shared memory: the default 64 MB crashes tabs on long pages
+volumes:
+  relay-data:

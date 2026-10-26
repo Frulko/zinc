@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Web: **Full screen** keeps only the top bar and a **Normal view** button over the page, and **A−**/**A+** draw the page smaller or larger so more of it fits on a screen.
 - Zinc Web has tabs: a page sent from the Mac opens in a new tab, and the page you were reading stays in its tab at the same page; tabs are kept when Web quits.
 - The web relay's page opens in the Mac's browser when the relay starts (`--no-open` does not), shows whether the tablet is connected and which page it reads, and lists what you sent with **Again**; several pages sent in a row all open.
+- The web relay runs on a server (a NAS, a Pi, a VPS) as a Docker image with Chromium (`app/web-relay/docker`), so the tablet reads the web without the Mac; `--block-private` refuses pages of the local network, `--tls-cert`/`--tls-key` serve HTTPS, `--no-sandbox` runs Chromium in a container.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
 
 ### Changed

@@ -1,5 +1,6 @@
 // Zinc web relay (ZN-844): renders web pages for a reMarkable (app/web), a headless Zinc program on the Mac.
 //   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>] [--no-token] [--no-open]
+//        [--block-private] [--tls-cert cert.pem --tls-key key.pem] [--no-sandbox]     (a relay on a server: docker/README.md)
 // The tablet cannot run a browser; the relay loads the page in headless Chrome at the tablet's width and sends pictures of it: whole
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
@@ -86,10 +87,44 @@ async function exclusive(): Promise<void> { while (busy) await sleep(20); busy =
 async function ensureChrome(): Promise<void> {
   if (chrome.alive) return;
   console.log('relay: starting Chrome');
-  await chrome.start(chromePath, data + '/chrome-profile');
+  await chrome.start(chromePath, data + '/chrome-profile', sys.args().indexOf('--no-sandbox') >= 0 ? ['--no-sandbox'] : []);
+  if (blockPrivate) { await chrome.call('Network.enable', '{}'); await chrome.call('Network.setBlockedURLs', '{"urls":' + JSON.stringify(PRIVATE_PATTERNS) + '}'); }
   // Readability is given to Chrome once, for every page it loads: sent with each render, its 90 KB took seconds through the socket
   await chrome.call('Page.addScriptToEvaluateOnNewDocument', '{"source":' + JSON.stringify('window.__zincReadability = (() => {' +
     assets.readText('readability/Readability.js') + '\nreturn Readability; })();') + '}');
+}
+
+// --block-private (a relay on a server): no page of the local network, so the relay cannot be used to look into the network it runs on.
+// The page's own URL is checked here, and Chrome blocks the same hosts in its sub-requests and redirects.
+// ponytail: host names and IP literals only; a public name that resolves to a private address (DNS rebinding) is not caught: run the
+// container on a network without a route to the LAN if that matters.
+const blockPrivate = sys.args().indexOf('--block-private') >= 0;
+const PRIVATE_PATTERNS: string[] = (() => {
+  const p = ['*://localhost*', '*://*.localhost*', '*://*.local/*', '*://*.local:*', '*://*.internal/*', '*://*.lan/*', '*://*.home.arpa/*', '*://[*',
+    '*://0.*', '*://10.*', '*://127.*', '*://169.254.*', '*://192.168.*'];
+  for (let i: i32 = 16; i <= 31; i++) p.push('*://172.' + i.toString() + '.*');
+  for (let i: i32 = 64; i <= 127; i++) p.push('*://100.' + i.toString() + '.*');   // carrier-grade NAT, Tailscale
+  return p;
+})();
+/** The host of an http(s) URL is on the local network (or written in a way that hides it, as 0x7f.1 or 2130706433). */
+function isPrivate(url: string): boolean {
+  let h = url.slice(url.indexOf('://') + 3).split('/')[0].split('?')[0].split('#')[0].toLowerCase();
+  if (h.indexOf('@') >= 0) h = h.slice(h.lastIndexOf('@') + 1);
+  if (h.startsWith('[')) return true;   // ponytail: every IPv6 literal; public ones are rare in links
+  h = h.split(':')[0];
+  if (h.endsWith('.')) h = h.slice(0, h.length - 1);
+  if (h.indexOf('.') < 0) return true;   // localhost, intranet names, a number
+  for (const end of ['.localhost', '.local', '.internal', '.lan', '.home.arpa']) if (h.endsWith(end)) return true;
+  const parts = h.split('.');
+  for (const x of parts) {   // a number, decimal, octal (leading 0) or hex (0x...): Chrome reads such a host as an IPv4 address
+    const hex = x.startsWith('0x');
+    for (let i: i32 = hex ? 2 : 0; i < x.length; i++) { const c = x.charAt(i); if (!(c >= '0' && c <= '9') && !(hex && c >= 'a' && c <= 'f')) return false; }
+  }
+  if (parts.length !== 4) return true;
+  const n: number[] = [];
+  for (const x of parts) { if (x === '' || (x.length > 1 && x.charAt(0) === '0') || x.indexOf('x') >= 0) return true; n.push(parseInt(x)); }
+  return n[0] === 0 || n[0] === 10 || n[0] === 127 || (n[0] === 169 && n[1] === 254) || (n[0] === 172 && n[1] >= 16 && n[1] <= 31) ||
+    (n[0] === 192 && n[1] === 168) || (n[0] === 100 && n[1] >= 64 && n[1] <= 127) || n[0] >= 224;
 }
 
 const INFO_JS = `(() => { const d = DPR, L = [];
@@ -135,6 +170,7 @@ const CONTRAST_JS = `(() => { const s = document.createElement('style'); s.textC
 /** Loads the page of `v` in the tab unless it is already there; returns its JSON (size and links). */
 async function show(v: View, fresh: boolean = false): Promise<string> {
   if (!v.url.startsWith('http://') && !v.url.startsWith('https://')) throw new Error('only http:// and https:// pages: ' + v.url);
+  if (blockPrivate && isPrivate(v.url)) throw new Error('refused: ' + v.url + ' is on the local network (--block-private)');
   if (v.key() === shown && chrome.alive && !fresh) return info;
   const again = v.key() === shown && chrome.alive;
   await ensureChrome();
@@ -283,6 +319,7 @@ async function handle(req: Request): Promise<Reply> {
   if (isGet && path === '/send') {
     const u = query(req.path, 'url').trim();
     if (!u.startsWith('http://') && !u.startsWith('https://')) return reply(400, 'only http:// and https:// pages\n');
+    if (blockPrivate && isPrivate(u)) return reply(403, 'refused: a page of the local network (--block-private)\n');
     const x = new Sent(); x.url = u; x.at = Date.now();
     sent = [x].concat(sent.slice(0, 19));
     console.log('relay: sent ' + u + ' to the tablet');
@@ -323,9 +360,12 @@ function main(): void {
   const quit = (): void => { chrome.stop(); sys.exit(0); };
   sys.onSignal('SIGINT', quit);
   sys.onSignal('SIGTERM', quit);
-  serveAsync(port, handle);
+  const cert = opt('tls-cert', ''), key = opt('tls-key', '');
+  if ((cert === '') !== (key === '')) { console.log('relay: --tls-cert and --tls-key go together'); sys.exit(2); }
+  if (cert !== '') serveAsync(port, handle, { cert: fs.readText(cert), key: fs.readText(key) });
+  else serveAsync(port, handle);
   warmUp();
-  const home = 'http://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token);
+  const home = (cert !== '' ? 'https' : 'http') + '://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token);
   console.log('relay: send a page to the tablet from ' + home);
   // the page opens in the Mac's browser, behind the window in use (open -g); --no-open for a script
   if (sys.args().indexOf('--no-open') < 0 && fs.exists('/usr/bin/open')) proc.spawn('/usr/bin/open', ['-g', home], {});

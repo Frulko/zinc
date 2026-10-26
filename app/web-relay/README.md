@@ -22,6 +22,11 @@ new tab, and the page you were reading stays in its own tab at the same page. Th
 shows, and what you sent (waiting or opened), with **Again** to send one again. Several pages sent before the tablet asks open in order.
 The **Send to reMarkable** button, dragged to Chrome's bookmarks bar, sends the page you are on.
 
+## On a server
+
+`docker/README.md`: the relay in a Docker image (Chromium included) on a NAS, a Pi or a VPS, so the tablet does not need the Mac, with
+`--block-private`, a token and HTTPS.
+
 ## The e-ink style
 
 On by default (Zinc Web, **Settings**, **E-ink style**). The page is asked for a light scheme, no motion and more contrast (the
