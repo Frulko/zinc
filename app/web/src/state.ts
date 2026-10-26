@@ -19,6 +19,7 @@ export const relay = new Relay();
 relay.url = conf.get('relay') !== '' ? conf.get('relay') : DEFAULT_RELAY;
 relay.token = conf.get('token');
 relay.mode = conf.get('mode') === 'color' ? 'color' : 'grey';
+relay.style = conf.get('style') === 'page' ? 'page' : 'eink';
 relay.contrast = conf.get('contrast') === 'high' || conf.get('contrast') === 'max' ? conf.get('contrast') : 'normal';
 
 export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
@@ -47,7 +48,7 @@ let inkFile = '';
 
 export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
 export function saveConf(): void {
-  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast);
+  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast); conf.set('style', relay.style);
   conf.save();
 }
 
@@ -266,6 +267,20 @@ export function saveRelay(url: string, token: string): void {
   relay.url = u; relay.token = token.trim();
   saveConf();
   say('Relay set to ' + u + '.');
+}
+/** The relay's e-ink stylesheet on or off: the page is rendered again. */
+export function setEinkStyle(on: boolean): void {
+  relay.style = on ? 'eink' : 'page';
+  saveConf();
+  const d = view.doc;
+  if (d !== null) openUrl((d as Doc).url, false);
+}
+/** A page sent from the Mac opens here (polled every few seconds while the reader shows, not while it works). */
+export async function checkInbox(): Promise<void> {
+  if (busy() || screen() !== SCREEN_PAGE || conf.get('relay') === '') return;
+  let u = '';
+  try { u = await relay.inbox(); } catch (e) { return; }
+  if (u !== '') await openUrl(u);
 }
 /** normal, high, max, normal...: the page is rendered again. */
 export function nextContrast(): void {

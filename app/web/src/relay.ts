@@ -20,12 +20,13 @@ export class Relay {
   token: string = '';
   mode: string = 'grey';
   contrast: string = 'normal';   // normal, high, max
+  style: string = 'eink';        // eink (the relay's e-ink stylesheet) or page (the page's own)
   w: i32 = 0;   // the viewport: the page view's size on the tablet
   h: i32 = 0;
 
   private address(path: string, page: string): string {
     const base = this.url.endsWith('/') ? this.url.slice(0, this.url.length - 1) : this.url;
-    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + DPR.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast;
+    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + DPR.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast + '&style=' + this.style;
   }
   private async send(address: string, init: net.RequestInit): Promise<net.Response> {
     const h = new net.Headers();
@@ -39,6 +40,11 @@ export class Relay {
     if (r.status === 401) throw new Error('The relay refused the token: copy relay.token from the Mac into Settings.');
     if (!r.ok) throw new Error('The relay answered ' + r.status.toString() + ': ' + (await r.text()).trim());
     return r;
+  }
+
+  /** The last page sent from the Mac (the relay's page at /), or '' when none was. */
+  async inbox(): Promise<string> {
+    return (await (await this.send(this.url.endsWith('/') ? this.url + 'inbox' : this.url + '/inbox', {})).text()).trim();
   }
 
   /** Loads `page` on the relay: its final URL, title, size and links. */

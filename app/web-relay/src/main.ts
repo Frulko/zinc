@@ -4,12 +4,15 @@
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
 // HTTP, every request with `Authorization: Bearer <token>` (the token is in <data>/relay.token, made on first start, mode 600):
-//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
+//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max&style=eink|page   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
 //        {"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}, all in device pixels of the whole page (height capped)
 //   GET  /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1   PNG of the page rectangle (x, y, cw, ch) at `zoom`: cw*zoom x ch*zoom pixels.
 //        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
 //        &fresh=1 (the dashboard's timer): the same tab reloads it, bypassing the cache; Chrome keeps running between requests.
 //   POST /export?url=&w=&h=&dpr=&mode=                body: an SVG of the ink in page pixels -> PNG of the whole page with the ink over it
+//   GET  /inbox                                       the last page sent from the Mac (then empty): the tablet asks every few seconds
+//   GET  /                                            (no token) a page to send a page to the tablet, and a bookmarklet that does it
+//   GET  /send?url=[&token=]                          sends `url` to the tablet (the token may be in the query: a bookmarklet has no header)
 //   GET  /health                                     "ok" (no token)
 // Only http:// and https:// pages are rendered: a file:// URL would read this Mac's files.
 import { serveAsync, Request, Reply } from 'zinc:net';
@@ -52,8 +55,8 @@ const chrome = new Chrome();
 
 /** What the tab shows now: a request with other values loads the page again. */
 class View {
-  url: string = ''; w: i32 = 0; h: i32 = 0; dpr: number = 2; mode: string = 'grey'; contrast: string = 'normal';
-  key(): string { return this.url + '\n' + this.w.toString() + 'x' + this.h.toString() + '@' + this.dpr.toString() + ' ' + this.mode + ' ' + this.contrast; }
+  url: string = ''; w: i32 = 0; h: i32 = 0; dpr: number = 2; mode: string = 'grey'; contrast: string = 'normal'; style: string = 'eink';
+  key(): string { return this.url + '\n' + this.w.toString() + 'x' + this.h.toString() + '@' + this.dpr.toString() + ' ' + this.mode + ' ' + this.contrast + ' ' + this.style; }
 }
 let shown = '';
 let info = '';   // the JSON of /render for what is shown
@@ -67,6 +70,7 @@ function viewOf(path: string): View {
   v.mode = query(path, 'mode') === 'color' ? 'color' : 'grey';
   const c = query(path, 'contrast');
   v.contrast = c === 'high' || c === 'max' ? c : 'normal';
+  v.style = query(path, 'style') === 'page' ? 'page' : 'eink';
   return v;
 }
 
@@ -88,6 +92,19 @@ const INFO_JS = `(() => { const d = DPR, L = [];
   const height = Math.min(MAXH, Math.round(Math.max(e.scrollHeight, b ? b.scrollHeight : 0, innerHeight) * d));
   return JSON.stringify({ url: location.href, title: document.title, width: Math.round(innerWidth * d), height: height, page: PAGEH, links: L.filter(l => l[1] < height) }); })()`;
 
+// The e-ink style (after the rules of e-ink UIs: pure black on white, no motion, no faint greys, links visible): text black,
+// backgrounds white, no shadows or animation, underlined links, black form borders. Pictures are left as they are. Fixed and
+// sticky bars are put back in the page's flow: in a picture of the whole page they would cover the text at one place.
+const EINK_CSS = '*,*::before,*::after{animation:none!important;transition:none!important;text-shadow:none!important;box-shadow:none!important}' +
+  'html,body{background:#fff!important}' +
+  'body *:not(img):not(svg):not(svg *):not(video):not(canvas):not(picture){color:#000!important;background-color:transparent!important;border-color:#000!important}' +
+  'a,a *{text-decoration:underline!important}' +
+  'input,textarea,select,button{background:#fff!important;border:2px solid #000!important}' +
+  'hr{border:0!important;border-top:2px solid #000!important}';
+const EINK_JS = `(() => { const s = document.createElement('style'); s.textContent = 'CSS'; document.documentElement.appendChild(s);
+  for (const e of document.querySelectorAll('body *')) { const p = getComputedStyle(e).position; if (p === 'fixed' || p === 'sticky') e.style.setProperty('position', 'static', 'important'); }
+  return ''; })()`;
+
 // e-ink contrast: the page's greys pushed apart, thin text thickened (high, max); layout is unchanged, so the link map holds.
 const CONTRAST_HIGH = 'html{filter:contrast(1.6)!important}*{-webkit-text-stroke:0.25px currentColor}';
 const CONTRAST_MAX = 'html{filter:contrast(3)!important}*{-webkit-text-stroke:0.5px currentColor}';
@@ -104,11 +121,15 @@ async function show(v: View, fresh: boolean = false): Promise<string> {
     ',"deviceScaleFactor":' + v.dpr.toString() + ',"mobile":false}');
   // grey: what the page looks like to someone who sees no colour, which keeps the contrast of the colours (Chrome's achromatopsia)
   await chrome.call('Emulation.setEmulatedVisionDeficiency', '{"type":' + (v.mode === 'grey' ? '"achromatopsia"' : '"none"') + '}');
+  // the e-ink style asks the page itself first: light scheme, no motion, more contrast (sites that honour these do it best)
+  await chrome.call('Emulation.setEmulatedMedia', v.style === 'eink' ? '{"features":[{"name":"prefers-color-scheme","value":"light"},' +
+    '{"name":"prefers-reduced-motion","value":"reduce"},{"name":"prefers-contrast","value":"more"}]}' : '{"features":[]}');
   const loaded = chrome.event('Page.loadEventFired', LOAD_TIMEOUT_MS);
   const nav = await chrome.call(again ? 'Page.reload' : 'Page.navigate', again ? '{"ignoreCache":true}' : '{"url":' + JSON.stringify(v.url) + '}');
   if (nav.errorText !== undefined && ('' + nav.errorText) !== '') throw new Error('cannot load ' + v.url + ': ' + ('' + nav.errorText));
   if (!(await loaded)) console.log('relay: ' + v.url + ' still loading after ' + (LOAD_TIMEOUT_MS / 1000).toString() + ' s, shown as it is');
   await sleep(SETTLE_MS);
+  if (v.style === 'eink') await chrome.evaluate(EINK_JS.split('CSS').join(EINK_CSS));
   if (v.contrast !== 'normal') await chrome.evaluate(CONTRAST_JS.split('CSS').join(v.contrast === 'max' ? CONTRAST_MAX : CONTRAST_HIGH));
   info = await chrome.evaluate(INFO_JS.split('DPR').join(v.dpr.toString()).split('MAXH').join((v.h * MAX_PAGES).toString()).split('PAGEH').join(v.h.toString()));
   shown = v.key();
@@ -153,13 +174,50 @@ async function exportOf(req: Request): Promise<Reply> {
   return png(bytes);
 }
 
+// Sending a page from the Mac: the page at / (a field and a bookmarklet), /send keeps the URL, the tablet takes it from /inbox.
+let inbox = '';   // ponytail: the last page sent, one slot; a queue if several sends between two polls matter
+function esc(s: string): string { return s.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;'); }
+const HOME = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Send to the reMarkable</title>
+<style>body{font:17px/1.5 system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#111}
+input{width:100%;font:inherit;padding:10px;border:2px solid #111;border-radius:8px;box-sizing:border-box}
+button,a.b{font:inherit;padding:10px 18px;margin-top:12px;border:2px solid #111;border-radius:8px;background:#111;color:#fff;text-decoration:none;display:inline-block;cursor:pointer}
+a.b{background:#fff;color:#111}#m{margin-top:12px}</style>
+<h1>Send to the reMarkable</h1>
+<p>The page opens in Zinc Web on the tablet within a few seconds.</p>
+<form id="f"><input id="u" type="url" placeholder="https://..." required autofocus><button>Send</button></form>
+<p id="m"></p>
+<h2>From any page</h2>
+<p>Drag this button to Chrome's bookmarks bar, then click it on a page to send that page:</p>
+<a class="b" id="bm" href="#">Send to reMarkable</a>
+<script>
+const t = new URLSearchParams(location.search).get('token') || '';
+const send = location.origin + '/send?' + (t ? 'token=' + encodeURIComponent(t) + '&' : '') + 'url=';
+document.getElementById('bm').href = "javascript:void(open('" + send + "'+encodeURIComponent(location.href),'zinc','width=420,height=160'))";
+document.getElementById('f').onsubmit = async (e) => { e.preventDefault();
+  const r = await fetch(send + encodeURIComponent(document.getElementById('u').value));
+  document.getElementById('m').textContent = r.ok ? 'Sent.' : 'Not sent: ' + await r.text(); };
+</script>`;
+const SENT = `<!doctype html><meta charset="utf-8"><title>Sent</title><body style="font:16px system-ui;padding:16px">
+Sent to the reMarkable:<br><b style="word-break:break-all">URL</b><script>setTimeout(() => close(), 1500)</script>`;
+
 async function handle(req: Request): Promise<Reply> {
   const q = req.path.indexOf('?');
   const path = q < 0 ? req.path : req.path.slice(0, q);
   if (path === '/health') return reply(200, 'ok\n');
+  if (path === '/') return reply(200, HOME, 'text/html; charset=utf-8');
   const a = req.headers.get('authorization');
-  if (token !== '' && !same(a.startsWith('Bearer ') ? a.slice(7).trim() : '', token)) return reply(401, 'wrong or missing token (Authorization: Bearer <relay.token>)\n');
+  const given = a.startsWith('Bearer ') ? a.slice(7).trim() : path === '/send' ? query(req.path, 'token') : '';
+  if (token !== '' && !same(given, token)) return reply(401, 'wrong or missing token (Authorization: Bearer <relay.token>)\n');
   const isGet = req.method === 'GET';
+  if (isGet && path === '/inbox') { const u = inbox; inbox = ''; return reply(200, u); }
+  if (isGet && path === '/send') {
+    const u = query(req.path, 'url').trim();
+    if (!u.startsWith('http://') && !u.startsWith('https://')) return reply(400, 'only http:// and https:// pages\n');
+    inbox = u;
+    console.log('relay: sent ' + u + ' to the tablet');
+    return reply(200, SENT.split('URL').join(esc(u)), 'text/html; charset=utf-8');
+  }
   if (!(isGet && (path === '/render' || path === '/shot')) && !(req.method === 'POST' && path === '/export')) return reply(404, 'not found\n');
   await exclusive();
   let r: Reply;
@@ -197,6 +255,7 @@ function main(): void {
   sys.onSignal('SIGTERM', quit);
   serveAsync(port, handle);
   warmUp();
+  console.log('relay: send a page to the tablet from http://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token));
   console.log('relay: listening on port ' + port.toString() + ', Chrome ' + chromePath);
   console.log(token === '' ? 'relay: no token (--no-token): whoever reaches port ' + port.toString() + ' can use it' : 'relay: token ' + token);
 }

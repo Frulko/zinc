@@ -8,7 +8,7 @@ import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, KEY } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, refresh,
+  openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, refresh,
   SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
@@ -38,6 +38,7 @@ function Settings(): i32 {
   const [url, setUrl] = createSignal<string>(relay.url);
   const [token, setToken] = createSignal<string>(relay.token);
   const [contrast, setContrast] = createSignal<string>(relay.contrast);
+  const [eink, setEink] = createSignal<boolean>(relay.style === 'eink');
   return <View className="flex-col gap-6 p-8 grow">
     <Text className={TITLE}>Relay</Text>
     <Text className={LABEL}>The Mac that renders the pages: zinc run app/web-relay (over USB the Mac is http://10.11.99.2:8790).</Text>
@@ -48,6 +49,7 @@ function Settings(): i32 {
       <Btn label="Save" on={true} onClick={() => { saveRelay(url(), token()); setScreen(SCREEN_PAGE); }} />
       <Btn label={relay.mode === 'color' ? 'Colour: on' : 'Colour: off'} onClick={() => setColour(relay.mode !== 'color')} />
       <Btn label={'Contrast: ' + contrast()} onClick={() => { nextContrast(); setContrast(relay.contrast); }} />
+      <Btn label={eink() ? 'E-ink style: on' : 'E-ink style: off'} onClick={() => { setEinkStyle(!eink()); setEink(relay.style === 'eink'); }} />
     </View>
   </View>;
 }
@@ -123,6 +125,7 @@ function Root(): i32 {
 render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   if (scripted()) { await runScript(); return; }
+  setInterval(() => { if (dashUrl() === '') checkInbox(); }, 3000);
   if (conf.get('relay') !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
 }
 start();

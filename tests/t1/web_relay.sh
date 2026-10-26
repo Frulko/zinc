@@ -43,6 +43,12 @@ get -o "$tmp/z.png" "$R/shot?url=$page&w=1620&h=1800&x=200&y=100&cw=540&ch=600&z
 [ "$(size "$tmp/z.png")" = 1620x1800 ] || { echo "zoom 3: $(size "$tmp/z.png")"; fail=1; }
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/render?url=$page")" = 401 ] || { echo "a request without the token was not refused"; fail=1; }
 [ "$(get -o /dev/null -w '%{http_code}' "$R/render?url=file:///etc/hosts")" = 502 ] || { echo "a file:// page was not refused"; fail=1; }
+# sending a page from the Mac: the page at /, /send (token in the query, as the bookmarklet does), /inbox once
+curl -s "$R/" | grep -q 'Send to the reMarkable' || { echo "no page at /"; fail=1; }
+curl -s -o /dev/null "$R/send?token=$token&url=$page"
+[ "$(get "$R/inbox")" = "$page" ] || { echo "the sent page is not in the inbox"; fail=1; }
+[ "$(get "$R/inbox")" = "" ] || { echo "the inbox was not emptied"; fail=1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$R/send?url=$page")" = 401 ] || { echo "a send without the token was not refused"; fail=1; }
 
 # the reader, headless (its page view is the relay's viewport)
 export ZINC_WEB_DIR="$tmp/web"

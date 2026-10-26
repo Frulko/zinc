@@ -10,9 +10,23 @@ tap on the tablet can follow one. It also renders the page with the tablet's ink
 zinc run app/web-relay -- --port 8790 --data web-relay-data      # prints the token the tablet needs
 ```
 
-It needs Google Chrome (or Chromium; `--chrome <path>` or `CHROME=<path>` for another place). Chrome starts at the first request with its
-own profile in `<data>/chrome-profile` and stops with the relay. On the tablet, in Zinc Web's **Settings**, set the relay
+It needs Google Chrome (or Chromium; `--chrome <path>` or `CHROME=<path>` for another place). Chrome starts with the relay, with its
+own profile in `<data>/chrome-profile`, and stops with it. On the tablet, in Zinc Web's **Settings**, set the relay
 (`http://10.11.99.2:8790` when the tablet is on USB, the Mac's address on the Wi-Fi otherwise) and paste the token.
+
+## Send a page from the Mac
+
+Open `http://127.0.0.1:8790/` in a browser on the Mac (the relay prints the address, with `?token=` when it has one): type an address and
+**Send**, and Zinc Web opens it on the tablet within three seconds (it asks the relay while its page view shows). The same page has a
+**Send to reMarkable** button to drag to Chrome's bookmarks bar: clicked on any page, it sends that page.
+
+## The e-ink style
+
+On by default (Zinc Web, **Settings**, **E-ink style**). The page is asked for a light scheme, no motion and more contrast (the
+`prefers-color-scheme`, `prefers-reduced-motion` and `prefers-contrast` media features, which well-made sites follow), then a stylesheet
+makes text black on white, removes shadows and animations, underlines links and draws form borders in black; fixed and sticky bars
+(headers, cookie banners) go back into the flow of the page so that they do not cover its text. Pictures are left alone, so a white logo
+drawn for a dark header disappears on the white background. **Contrast** (normal, high, max) then pushes the greys apart and thickens thin text.
 
 ## HTTP
 
