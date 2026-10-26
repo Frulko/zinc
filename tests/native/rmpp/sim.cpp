@@ -12,6 +12,10 @@
 //   MSG_SET_WIDGET, window state 2  only with ZN_RMPP_SIM_APPLOAD=widget (also 0002: capabilities 3): the widget shows its rectangle of the
 //                  buffer, an update outside it is an error, and it opens back like a minimized window; ZN_RMPP_SIM_COLLAPSE=a-b taps its
 //                  header at frame a (collapsed: visibility 0, an update is an error) and again at frame b (visibility 2);
+//   window state 3 only with ZN_RMPP_SIM_APPLOAD=dock (also 0005: capabilities 7, the header's height ZN_RMPP_SIM_INSET, default 120, as
+//                  the insets of the device state): the window shows the buffer below the header, an update above it is an error, and the
+//                  taps of ZN_RMPP_SIM_TAP are in the docked window's pixels (AppLoad adds the header's height); ZN_RMPP_SIM_HEADER=a-b
+//                  presses xochitl's header at frame a (the window minimizes: visibility 0) and closes the popup it opened at frame b (3);
 //   the ink lane   (ZN_RMPP_SIM_LANE=ok | badhash | canvas | eof:N; unset: nobody listens) answers Hello with a vendor hash (canvas: as zinc-canvas), copies each Ink rectangle from the
 //                  shared framebuffer to the glass, repaints the stroke's box at StrokeEnd, and with eof:N closes its end after N Ink messages.
 //                  A qtfb update while the lane blocks xochitl's rendering, or an Ink outside a stroke, is an error.
@@ -51,7 +55,9 @@ namespace qsim {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7,
                  MSG_STATE_INIT = 8, MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };
 static const char* appload = getenv("ZN_RMPP_SIM_APPLOAD") ? getenv("ZN_RMPP_SIM_APPLOAD") : "0.5";
-static const bool widgets = !strcmp(appload, "widget");
+static const bool docks = !strcmp(appload, "dock");
+static const bool widgets = docks || !strcmp(appload, "widget");
+static const int inset = getenv("ZN_RMPP_SIM_INSET") ? atoi(getenv("ZN_RMPP_SIM_INSET")) : 120;
 static const bool windowState = widgets || !strcmp(appload, "window");
 static const bool appload06 = windowState || !strcmp(appload, "0.6");   // else 0.5: no device state, no full refresh
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
@@ -72,6 +78,7 @@ static bool blocked = false;                       // the lane holds xochitl's r
 static uint64_t hiddenAt = 0;                      // frame of the minimize (or of the widget), 0: the window shows
 static bool asWidget = false;
 static bool collapsed = false;                    // the widget shows only its header
+static bool docked = false;                       // under xochitl's header (hiddenAt set too while a header press minimized it)
 static int wx = 0, wy = 0, ww = 0, wh = 0;         // the widget's rectangle
 static std::string trace;
 static uint64_t pixelsSent = 0;
@@ -122,7 +129,8 @@ static void handle(const ClientMsg& m) {
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
     if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }   // the rotation
     if (windowState) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 1; st.state.value = 1; send(qtfb, &st, sizeof st, 0); }
-    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = 3; send(qtfb, &st, sizeof st, 0); }
+    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = docks ? 7 : 3; send(qtfb, &st, sizeof st, 0); }
+    if (docks) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 3; st.state.value = inset; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
     line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?");
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
@@ -134,6 +142,7 @@ static void handle(const ClientMsg& m) {
     if (blocked) { line("%8.1f ms error: update %d,%d %dx%d while the lane blocks rendering", now / 1000.0, x, y, w, h); errors++; return; }
     if (collapsed) { line("%8.1f ms error: update %d,%d %dx%d while the widget is collapsed", now / 1000.0, x, y, w, h); errors++; return; }
     if (hiddenAt && !asWidget) { line("%8.1f ms error: update %d,%d %dx%d while the window is minimized", now / 1000.0, x, y, w, h); errors++; return; }
+    if (docked && y < inset) { line("%8.1f ms error: update %d,%d %dx%d above the dock", now / 1000.0, x, y, w, h); errors++; return; }
     if (asWidget && (x < wx || y < wy || x + w > wx + ww || y + h > wy + wh)) { line("%8.1f ms error: update %d,%d %dx%d outside the widget", now / 1000.0, x, y, w, h); errors++; return; }
     if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > W || y + h > H) { line("%8.1f ms error: update %d,%d %dx%d outside the panel", now / 1000.0, x, y, w, h); errors++; return; }
     show(x, y, w, h);
@@ -146,9 +155,15 @@ static void handle(const ClientMsg& m) {
     line("%8.1f ms full refresh (qtfb sleeps 1000 ms)", now / 1000.0);
   } else if (m.type == MSG_WINDOW_STATE) {
     if (!windowState) { line("%8.1f ms error: window state: this AppLoad closes the connection", now / 1000.0); errors++; return; }
-    const bool toWidget = m.window == 2 && widgets && ww > 0;
-    if (m.window != 0 && !toWidget) { line("%8.1f ms error: window state %d", now / 1000.0, m.window); errors++; return; }
-    hiddenAt = frames; asWidget = toWidget;
+    const bool toWidget = m.window == 2 && widgets && ww > 0, toDock = m.window == 3 && docks;
+    if (m.window != 0 && !toWidget && !toDock) { line("%8.1f ms error: window state %d", now / 1000.0, m.window); errors++; return; }
+    if (toDock) {
+      docked = true; hiddenAt = 0; asWidget = false;
+      line("%8.1f ms docked under a %d px header", now / 1000.0, inset);
+      ServerMsg st = {}; st.type = MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 3; send(qtfb, &st, sizeof st, 0);
+      return;
+    }
+    hiddenAt = frames; asWidget = toWidget; docked = docked && !toWidget;
     line("%8.1f ms %s", now / 1000.0, toWidget ? "widget" : "minimize");
     ServerMsg st = {}; st.type = MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = toWidget ? 2 : 0; send(qtfb, &st, sizeof st, 0);
   } else if (m.type == MSG_SET_WIDGET) {
@@ -292,11 +307,12 @@ static void qsim_taps() {
     const bool pen = e[1] == 'p';
     int x = (int)strtol(e + 1 + pen, &e, 10), y = (int)strtol(e + 1, &e, 10), y2 = y;
     if (*e == '>') y2 = (int)strtol(e + 1, &e, 10);   // frame:x,y>y2: a swipe, moved to y2 at the next frame
+    const int top = qsim::docked ? qsim::inset : 0;   // docked: the window's pixels, AppLoad adds the header's height
     const bool lost = *e == '!';   // ...! : no release (xochitl took the finger), as on the tablet
     if (lost) e++;
     for (int k = 0; k < 3; k++) if ((long)qsim::frames == f + (k == 2 ? 1 : 2 * k) && (k < 2 || y2 != y) && !(k == 1 && lost)) {
       qsim::ServerMsg m = {};
-      const int t = k == 2 ? 2 : k, ky = k ? y2 : y;
+      const int t = k == 2 ? 2 : k, ky = (k ? y2 : y) + top;
       m.type = qsim::MSG_INPUT; m.input.type = (pen ? 0x20 : 0x10) + t; m.input.id = 3; m.input.x = x; m.input.y = ky;
       send(qsim::qtfb, &m, sizeof m, 0);
       qsim::line("%8.1f ms %s %s %d,%d", qsim::virtualNow() / 1000.0, pen ? "pen" : "touch", t == 2 ? "move" : t ? "release" : "press", x, ky);
@@ -347,9 +363,20 @@ static void qsim_restore() {
   const char* e = getenv("ZN_RMPP_SIM_RESTORE");
   const long after = e ? atol(e) : 60;
   if (!qsim::hiddenAt || after <= 0 || (long)qsim::frames < (long)qsim::hiddenAt + after) return;
-  qsim::hiddenAt = 0; qsim::asWidget = false; qsim::collapsed = false;
+  qsim::hiddenAt = 0; qsim::asWidget = false; qsim::collapsed = false; qsim::docked = false;
   qsim::line("%8.1f ms restore", qsim::virtualNow() / 1000.0);
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 1; send(qsim::qtfb, &st, sizeof st, 0);
+}
+// a press on xochitl's header minimizes the docked window, and the popup it opened closes: docked again
+static void qsim_header() {
+  const char* e = getenv("ZN_RMPP_SIM_HEADER");
+  if (!e || !qsim::docked) return;
+  char* end; const long a = strtol(e, &end, 10), b = *end == '-' ? atol(end + 1) : 0;
+  const long f = (long)qsim::frames;
+  if (f != a && f != b) return;
+  qsim::hiddenAt = f == a ? qsim::frames : 0;
+  qsim::line("%8.1f ms %s", qsim::virtualNow() / 1000.0, f == a ? "header pressed: minimized" : "popup closed: docked");
+  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = f == a ? 0 : 3; send(qsim::qtfb, &st, sizeof st, 0);
 }
 // a tap on the widget's header collapses it, another opens it
 static void qsim_collapse() {
@@ -366,6 +393,7 @@ static void qsim_polled(HalInput* in) {
   qsim_taps(); qsim_hold();
   qsim_keys();
   qsim_collapse();
+  qsim_header();
   qsim_restore();
   qsim_poll(in);
   if (const char* p = getenv("ZN_RMPP_SIM_PEN")) {

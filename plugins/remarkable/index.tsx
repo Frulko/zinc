@@ -36,15 +36,18 @@ let swipes = device('window.edge');
 setInterval(() => {
   const m = windowState(); if (m !== mode()) setMode(m);
   const n = device('window.edge');
-  if (n !== swipes) { swipes = n; if (m === 'full') setPanel(true); }
+  if (n !== swipes) { swipes = n; if (m === 'full' || m === 'docked') setPanel(true); }
 }, 250);
-/** 'full', 'widget' or 'hidden': how the app is shown now. */
+/** 'full', 'docked' (under xochitl's header: zinc.json "display": {"header": "remarkable"}), 'widget' or 'hidden': how the app is shown now. */
 export function windowMode(): string { return mode(); }
 
 /** The root of a reMarkable app with a widget: the app, or its widget while it is shown as one. */
 export function RemarkableApp(props: RemarkableAppProps): i32 {
   const Full = props.app;   // mounted as components: a call in braces would be read as a number
-  const full = <View className="flex-col grow relative"><Full />{panel() ? <SystemPanel /> : null}</View>;
+  // Docked under xochitl's header (experimental), the top of the screen is the header's: the driver gives its height as the safe area
+  const full = <View className="flex-col grow pt-[env(safe-area-inset-top)]">
+    <View className="flex-col grow relative"><Full />{panel() ? <SystemPanel /> : null}</View>
+  </View>;
   if (!props.widget) return full;
   const spec = props.widget as WidgetSpec;   // narrowed for the closures below
   widgetSize = [spec.width, spec.height];
@@ -70,6 +73,8 @@ export interface RemarkableBarProps {
   onHome?: () => void;
 }
 const BUTTON = 'px-8 py-3 border-2 border-black rounded-lg bg-white focus:bg-white';
+const BAR = 'flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black';
+const BAR_SLIM = 'flex-row items-center justify-between gap-6 px-6 py-1 bg-white border-b-2 border-black';
 function leave(props: RemarkableBarProps): void { if (props.onQuit) props.onQuit(); else quit(); }
 function home(props: RemarkableBarProps): void { if (props.onHome) props.onHome(); if (!goHome()) leave(props); }
 let shell: RemarkableBarProps = { title: '' };   // the last RemarkableBar's: the panel's actions are the bar's
@@ -89,10 +94,12 @@ function SystemPanel(): i32 {
 /** Platform-specific shell component, explicitly imported by reMarkable apps. Hosts preview an unknown battery. */
 export function RemarkableBar(props: RemarkableBarProps): i32 {
   shell = props;
-  return <View className="flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black">
+  // Docked under xochitl's header, which shows the time and the battery: a slim action bar, the title and the two buttons
+  const docked = (): boolean => mode() === 'docked';
+  return <View className={docked() ? BAR_SLIM : BAR}>
     <Text className="text-[30px] text-black">{props.title}</Text>
-    <Text className="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>
-    <Text className="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>
+    {docked() ? null : <Text className="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>}
+    {docked() ? null : <Text className="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>}
     <View className="flex-row gap-4">
       <Button className={BUTTON} onClick={() => home(props)}>
         <Text className="text-[30px] text-black">Accueil</Text>

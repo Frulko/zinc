@@ -87,6 +87,25 @@ fi
 # on the tablet xochitl's own top gesture can take the finger: AppLoad forwards no release, and the next touch reuses its id
 if run edgelost dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=40:800,10>450!;100:810,92"; then quits edgelost 2000; fi
 if run edgetap dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=40:1474,86"; then quits edgetap 1500; fi   # the bar's own Quitter
+# Under xochitl's header (AppLoad 0005, "header": "remarkable"): the app docks at start, zinc:ui pads by the 120 px header (the safe area), only
+# the part below it is sent (an update above it is an error of the model), a press on the header minimizes it (nothing sent) and the
+# closed popup docks it again (its area repainted); the top-edge swipe starts under the header, and the slim bar's Quitter, tapped in the
+# window's pixels (AppLoad adds the header's height), ends the app
+if run dock dashboard 260 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable ZN_RMPP_SIM_RESTORE=0 ZN_RMPP_SIM_HEADER=40-60 \
+     "ZN_RMPP_SIM_TAP=${DOCK_TAPS:-80:800,10>450;120:800,1200;160:1474,77}" ${DOCK_FULL:+ZN_RMPP_SIM_FULL=1}; then
+  [ -n "$DOCK_TRACE" ] && cp "$tmp/dock/out/trace.txt" "$DOCK_TRACE"
+  [ -n "$DOCK_FULL" ] && cp "$tmp/dock/out/glass.ppm" "$DOCK_FULL"
+  has dock trace 1 "docked under a 120 px header"; has dock trace 0 "update PARTIAL 0,0 "; has dock trace + "update PARTIAL 0,120 1620x2040"
+  has dock trace 1 "header pressed: minimized"; has dock trace 1 "popup closed: docked"
+  awk '/popup closed/ { e = 1; next } e && / update / { print; exit }' "$tmp/dock/out/trace.txt" | grep -q "update PARTIAL 0,120 1620x2040" ||
+    { echo "dock: the docked area was not repainted when it docked again"; fail=1; }
+  has dock trace 2 "update PARTIAL 0,152 1620x152"   # the panel under the header, opened by the swipe and closed by the tap under it
+  quits dock 3500   # the swipe's panel was opened (and closed by the tap under it): the bar's Quitter still ends the app
+fi
+# the option on an AppLoad without 0005: never asked (it would drop the client), the app stays full screen
+if run nodock dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget ZINC_RMPP_HEADER=remarkable; then
+  has nodock trace 0 "docked"; has nodock trace 1 "update PARTIAL 0,0 1620x2160"
+fi
 # the same task ticked with the Marker: inside a widget card AppLoad forwards the pen (evdev's is in screen pixels, not the app's)
 if run widgetpen dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=40:1294,85;80:p400,180"; then
   grep -q "^dashboard.tasks	01100$" "$tmp/widgetpen/storage.kv" || { echo "widgetpen: the Marker's tap in the widget did nothing: $(grep tasks "$tmp/widgetpen/storage.kv")"; fail=1; }

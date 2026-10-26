@@ -130,8 +130,11 @@ export function minimizeWindow(): boolean { return __host_sysDevice('window.mini
 export function setWidget(x: i32, y: i32, w: i32, h: i32): boolean { return __host_sysDevice('window.widget', `${x},${y},${w},${h}`) === '1'; }
 /** Shows the app as its widget (setWidget first): a small card over the system's screen, its taps go to the app. false when the host cannot. */
 export function showWidget(): boolean { return __host_sysDevice('window.show-widget', '') === '1'; }
-/** 'full', 'widget' or 'hidden' (minimized); 'full' on a host without window states. */
-export function windowState(): string { const s = __host_sysDevice('window.state', ''); return s === 'widget' || s === 'hidden' ? s : 'full'; }
+/** Experimental: shows the app below the system's own top bar (xochitl's header on a reMarkable, AppLoad patch 0005), which stays the
+ *  system's; zinc:ui gets the bar's height as its top safe area. false when the host cannot: the app stays full screen. */
+export function dockWindow(): boolean { return __host_sysDevice('window.dock', '') === '1'; }
+/** 'full', 'docked', 'widget' or 'hidden' (minimized); 'full' on a host without window states. */
+export function windowState(): string { const s = __host_sysDevice('window.state', ''); return s === 'widget' || s === 'hidden' || s === 'docked' ? s : 'full'; }
 export function clear(color: u32): void { __host_gfxClear(color); }
 export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
 export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }

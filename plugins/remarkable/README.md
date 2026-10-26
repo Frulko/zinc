@@ -27,6 +27,16 @@ under it are `setWidget(x, y, w, h)`, `showWidget()` and `windowState()` of `zin
 
 **The system panel**: in an app wrapped in `RemarkableApp`, a finger swiped down from the top edge (pressed in the top 100 px, past y 400) opens Accueil / Quitter / Annuler over the app; they run the `onHome` and `onQuit` of its `RemarkableBar`, and a tap under the panel closes it. display-rmpp recognises the swipe (`window.edge`) and holds the finger from the app until it is a swipe or a tap; a shorter swipe is AppLoad's and shows its window bar.
 
+**Under xochitl's header (experimental)**: with `"display": { "driver": "rmpp", "header": "remarkable" }` in zinc.json (on the tablet the
+engine passes it as `ZINC_RMPP_HEADER=remarkable`, which a launcher can also set per app), an app wrapped in `RemarkableApp` docks below
+xochitl's own top bar (burger, logo, battery, wifi, time), which stays xochitl's, live. display-rmpp docks it as soon as AppLoad says it can
+(capability bit 2 of patch `0005`), gives zinc:ui the header's height as the top safe area (`RemarkableApp` pads by
+`env(safe-area-inset-top)`), sends only the docked part of the screen, and moves the top-edge swipe under the header. `RemarkableBar` then
+drops its clock and battery (the header has them): the title, **Accueil** and **Quitter**. The header belongs to xochitl: a tap on it reaches
+xochitl and hides the app (a pill); when that tap opened xochitl's menu, the app docks again once the menu closes. `windowMode()` is
+`'docked'` meanwhile; `dockWindow()` of `zinc:gfx` docks from code. Without the patch nothing changes: the app is full screen. Inside a docked
+window the Marker reaches the app through AppLoad (no pressure lane), so ink apps stay full screen.
+
 On Linux (the reMarkable runs the package's linux build) the native module reads the battery from `/sys/class/power_supply` and the local time. macOS previews show an unknown battery. Values are checked every ten seconds; unchanged signals do not require repainting. The clock has minute precision.
 
 Finger events control the UI. `InkCanvas` consumes the separate pen sample queue, so fingers do not draw. This component does not itself alter display ownership or the e-ink waveform.

@@ -34,12 +34,16 @@
 #ifndef ZP_DISPLAY_RMPP_COLOR_HZ
 #define ZP_DISPLAY_RMPP_COLOR_HZ 8
 #endif
+#ifndef ZP_DISPLAY_RMPP_HEADER
+#define ZP_DISPLAY_RMPP_HEADER "none"
+#endif
 
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
                    MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };   // 9, 10: AppLoad with integrations/remarkable-engine/appload
-enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, CAN_WINDOW = 1, CAN_WIDGET = 2 };
-enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2 };   // also the visibility values: 0 minimized, 1 shown, 2 as its widget
+enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4 };
+// also the visibility values: 0 minimized, 1 shown, 2 as its widget, 3 docked under xochitl's header (0005)
+enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2, WINDOW_DOCKED = 3 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
@@ -67,6 +71,41 @@ bool hidden = false;        // the window is minimized: frames stay in the buffe
 bool widget_ok = false;     // AppLoad shows a rectangle of the buffer as the app's widget (capability bit 1, 0002 of the patch)
 bool as_widget = false;     // shown as the widget: only what changes inside the rectangle is sent
 eink::Rect widget = {};     // the rectangle, framebuffer pixels
+bool dock_ok = false;       // AppLoad docks the window under xochitl's header (capability bit 2, 0005 of the patch)
+bool docked = false;        // docked: only what changes below dock_top is sent, zinc:ui gets dock_top as its top safe area
+int dock_top = 0;           // the header's height (STATE_CHANGED_REASON_INSETS), framebuffer pixels
+eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), panel.w, panel.h}; }
+
+extern "C" void zn_hal_signal(const char* line);   // the host's system signals (src/host/hal_dispatch.cpp): zinc:ui's safe area
+// After a change of the window's state: where the pen and the top-edge swipe come from, and the safe area zinc:ui pads by
+void window_changed() {
+  rin::pen_from_appload = hidden || as_widget || docked;   // docked too: evdev's Marker would also write on xochitl's header
+  if (rin::pen_from_appload) rin::touch_event(0x11, rin::PEN_TOUCH_ID, 0, 0);   // no stale press across the change
+  rin::edge_top = hidden || as_widget ? -1 : docked ? dock_top : 0;
+  static int inset = 0;
+  const int now = docked ? dock_top : 0;
+  if (now == inset) return;
+  inset = now;
+  char b[48]; snprintf(b, sizeof b, "safearea %d 0 0 0", now);
+  zn_hal_signal(b);
+}
+
+/** The window under xochitl's header (AppLoad 0005): true when AppLoad took the message. */
+bool dock() {
+  if (!window_ok || !dock_ok || sock < 0 || (layer != L0 && layer != L1)) return false;
+  ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_DOCKED;
+  if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) != sizeof m) return false;
+  if (!docked || hidden || as_widget) pending = dock_rect();   // what AppLoad shows from now on, as it is now
+  docked = true; hidden = false; as_widget = false;   // as for minimize: frames from now on are the docked window's
+  window_changed();
+  return true;
+}
+// zinc.json "display": {"header": "remarkable"} (ZINC_RMPP_HEADER on the tablet, which a launcher can also set per app): experimental, the app docks
+// under xochitl's header as soon as AppLoad says it can (its capabilities come with the first device state); else it stays full screen.
+bool header_wanted() {
+  static const char* h = getenv("ZINC_RMPP_HEADER") ? getenv("ZINC_RMPP_HEADER") : ZP_DISPLAY_RMPP_HEADER;
+  return strcmp(h, "remarkable") == 0;
+}
 
 bool set_mode(int mode) {
   if (mode != MODE_FAST && mode != MODE_UI) return false;
@@ -159,18 +198,26 @@ void rm_poll(HalInput* in) {
     if (n != sizeof m || m.type == MSG_TERMINATE) { rin::quit_flag = 1; break; }
     if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) {
       full_refresh_ok = true;
-      if (m.state.reason == REASON_CAPABILITIES) { window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; }
+      if (m.state.reason == REASON_CAPABILITIES) {
+        window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; dock_ok = (m.state.value & CAN_DOCK) != 0;
+      }
+      if (m.state.reason == REASON_INSETS && m.state.value >= 0 && m.state.value < panel.h && m.state.value != dock_top) {
+        dock_top = m.state.value;
+        if (docked) { pending = dock_rect(); window_changed(); }   // the header moved: the app lays out again, its whole docked area goes out
+      }
       if (m.state.reason == REASON_VISIBILITY) {
         window_ok = true;
         // back to the full window: the whole page, then a full refresh
-        if ((hidden || as_widget) && m.state.value == WINDOW_RESTORE) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }
+        if ((hidden || as_widget || docked) && m.state.value == WINDOW_RESTORE) { pending = {0, 0, panel.w, panel.h}; full_asked = true; }
         // a collapsed widget (a tap on its header) is hidden and stays the widget: the app keeps its widget view, and the
         // rectangle is sent again when it opens
         if (hidden && as_widget && m.state.value == WINDOW_WIDGET) eink::unite(pending, widget);
+        // docked again after a press on xochitl's header minimized it: the docked area, as it is now
+        if ((hidden || !docked) && m.state.value == WINDOW_DOCKED) eink::unite(pending, dock_rect());
         hidden = m.state.value == WINDOW_MINIMIZE;
         as_widget = m.state.value == WINDOW_WIDGET || (as_widget && hidden);
-        rin::pen_from_appload = hidden || as_widget;
-        if (rin::pen_from_appload) rin::touch_event(0x11, rin::PEN_TOUCH_ID, 0, 0);   // no stale press across the change
+        docked = m.state.value == WINDOW_DOCKED || (docked && hidden);
+        window_changed();
       }
     }
     if (m.type == MSG_INPUT && rin::key_event(m.input.type, m.input.x)) continue;   // keys queue in order: no frame each
@@ -179,6 +226,8 @@ void rm_poll(HalInput* in) {
       break;
     }
   }
+  static bool dock_tried = false;
+  if (!dock_tried && dock_ok && header_wanted()) { dock_tried = true; if (!hidden && !as_widget) dock(); }
   rin::poll_input(in);
   escape(in);
 }
@@ -296,8 +345,9 @@ void rm_present(const HalFrame* f) {
   }
   eink::unite(pending, r);
   if (hidden) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
-  if (as_widget) {   // the rest of the page is not on the screen: what lies outside the widget waits for the full window
-    eink::Rect in = {std::max(pending.x0, widget.x0), std::max(pending.y0, widget.y0), std::min(pending.x1, widget.x1), std::min(pending.y1, widget.y1)};
+  if (as_widget || docked) {   // the rest of the page is not on the screen: what lies outside the widget (above the dock) waits for the full window
+    const eink::Rect c = as_widget ? widget : dock_rect();
+    eink::Rect in = {std::max(pending.x0, c.x0), std::max(pending.y0, c.y0), std::min(pending.x1, c.x1), std::min(pending.y1, c.y1)};
     if (eink::empty(in)) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
     pending = in;
   }
@@ -348,16 +398,16 @@ namespace {
 bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m; }
 
 // zinc:gfx's window calls: "window.minimize" (minimizeWindow), "window.widget" with "x,y,w,h" (setWidget), "window.show-widget"
-// (showWidget): "1" when AppLoad did it, the app keeps running; "window.state": "full", "widget" or "hidden"
+// (showWidget), "window.dock" (dockWindow): "1" when AppLoad did it, the app keeps running; "window.state": "full", "docked", "widget" or "hidden"
 const char* rm_device(const char* query, const char* arg) {
   const bool qtfb = window_ok && sock >= 0 && (layer == L0 || layer == L1);
   if (strcmp(query, "window.edge") == 0) { static char n[16]; snprintf(n, sizeof n, "%d", rin::edge_swipes); return n; }   // swipes so far
-  if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : "full";
+  if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : docked ? "docked" : "full";
   if (strcmp(query, "window.minimize") == 0) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;
     if (!qtfb || !send_msg(m)) return "0";
     hidden = true;   // at once: AppLoad's answer comes at the next poll, and a frame sent before it would land in a hidden window
-    rin::pen_from_appload = true;
+    window_changed();
     return "1";
   }
   if (strcmp(query, "window.widget") == 0) {
@@ -373,9 +423,11 @@ const char* rm_device(const char* query, const char* arg) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_WIDGET;
     if (!qtfb || !widget_ok || eink::empty(widget) || !send_msg(m)) return "0";
     as_widget = true;   // as for minimize: frames from now on are the widget's
-    rin::pen_from_appload = true;
+    window_changed();
     return "1";
   }
+  // "window.dock" (zinc:gfx dockWindow): the window under xochitl's header, the app's top safe area its height; "1" when AppLoad did it
+  if (strcmp(query, "window.dock") == 0) return dock() ? "1" : "0";
   // "display.mode" "fast" | "ui" (zinc:remarkable setPenMode): Pen waveform while the app writes, UI for the rest. qtfb sleeps 1 s on a
   // switch, so the app asks when the user starts or stops writing, not per stroke; a switch refused in that second is made by rm_present.
   // ponytail: kept while qtfb has one global mode. With AppLoad patch 0004's capability bit the pen's own updates go out in Pen mode, and

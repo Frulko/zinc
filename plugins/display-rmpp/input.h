@@ -128,7 +128,10 @@ static bool start(int32_t w, int32_t h) {
 // (the app gets it from there, a drag) or lifts first (the app gets the tap it held: pressed at this poll, released at the next).
 // AppLoad's FBController shows its own window bar for a finger pressed above y 100 and released between 100 and 400: the swipe that
 // opens the panel goes further, so one gesture never does both (a short one still brings AppLoad's bar, as before).
+// edge_top: where the app's top edge is in framebuffer pixels, 0 in a full window, the header's height when AppLoad docks the window under
+// xochitl's header (0005), -1 when no swipe is taken (hidden, a widget).
 enum { EDGE_PX = 100, EDGE_SWIPE_Y = 400, EDGE_SIDE_PX = 80, NO_ID = -1000 };
+static int edge_top = 0;
 static int edge_id = NO_ID, edge_x = 0, edge_y = 0, edge_late = NO_ID;
 static bool edge_done = false;
 static int edge_swipes = 0;
@@ -138,7 +141,7 @@ static bool edge_event(int type, int id, int x, int y) {
   // a press with the held finger's id: its release never came (xochitl's own top gesture takes the finger and AppLoad forwards no release)
   // and Qt reuses the id, so the hold ends here; else every later touch with that id would be swallowed
   if (type == 0x10 && id == edge_id) edge_id = NO_ID;
-  if (type == 0x10 && edge_id == NO_ID && !pen_from_appload && id != PEN_TOUCH_ID && y >= 0 && y < EDGE_PX) {
+  if (type == 0x10 && edge_id == NO_ID && edge_top >= 0 && id != PEN_TOUCH_ID && y >= edge_top && y < edge_top + EDGE_PX) {
     edge_id = id; edge_x = x; edge_y = y; edge_done = false; return true;
   }
   if (id != edge_id) return false;
@@ -147,7 +150,7 @@ static bool edge_event(int type, int id, int x, int y) {
     edge_id = NO_ID; return true;
   }
   if (edge_done) return true;
-  if (y > EDGE_SWIPE_Y) { edge_done = true; edge_swipes++; return true; }
+  if (y > edge_top + EDGE_SWIPE_Y) { edge_done = true; edge_swipes++; return true; }
   if (x - edge_x >= EDGE_SIDE_PX || edge_x - x >= EDGE_SIDE_PX) { touch_set(id, edge_x, edge_y); edge_id = NO_ID; return false; }
   return true;
 }

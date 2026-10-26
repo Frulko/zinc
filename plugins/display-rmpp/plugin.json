@@ -13,7 +13,8 @@
     "refresh_mode": "ui",
     "fast_hz": 60,
     "color_hz": 8,
-    "keyboard": false
+    "keyboard": false,
+    "header": "none"
   },
   "targets": {
     "rmpp": {
