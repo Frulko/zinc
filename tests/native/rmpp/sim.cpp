@@ -323,16 +323,25 @@ static void qsim_taps() {
     s = *e ? e + 1 : e;
   }
 }
-// ZN_RMPP_SIM_HOLD=frame:fingers:frames: that many fingers pressed at that frame (ids 20...) and released that many frames later
+// ZN_RMPP_SIM_HOLD=frame:fingers:frames[:spread]: that many fingers pressed at that frame (ids 20...) and released that many frames later;
+// with a spread they move apart by that many pixels a frame (a pinch that zooms in)
 static void qsim_hold() {
   const char* p = getenv("ZN_RMPP_SIM_HOLD");
   if (!p || qsim::qtfb < 0) return;
   char* e;
   const long f = strtol(p, &e, 10); const int n = (int)strtol(e + 1, &e, 10); const long len = strtol(e + 1, &e, 10);
+  const int spread = *e == ':' ? (int)strtol(e + 1, &e, 10) : 0;
+  const long at = (long)qsim::frames - f;
+  if (spread && at > 0 && at < len) for (int i = 0; i < n; i++) {
+    qsim::ServerMsg m = {};
+    m.type = qsim::MSG_INPUT; m.input.type = 0x12; m.input.id = 20 + i; m.input.x = 400 + 200 * i + (i ? 1 : -1) * spread * (int)at; m.input.y = 1000;
+    send(qsim::qtfb, &m, sizeof m, 0);
+  }
   for (int k = 0; k < 2; k++) if ((long)qsim::frames == f + k * len) {
     for (int i = 0; i < n; i++) {
       qsim::ServerMsg m = {};
-      m.type = qsim::MSG_INPUT; m.input.type = 0x10 + k; m.input.id = 20 + i; m.input.x = 400 + 200 * i; m.input.y = 1000;
+      m.type = qsim::MSG_INPUT; m.input.type = 0x10 + k; m.input.id = 20 + i; m.input.y = 1000;
+      m.input.x = 400 + 200 * i + (k && spread ? (i ? 1 : -1) * spread * (int)len : 0);
       send(qsim::qtfb, &m, sizeof m, 0);
     }
     qsim::line("%8.1f ms %d fingers %s", qsim::virtualNow() / 1000.0, n, k ? "up" : "down");

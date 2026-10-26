@@ -11,6 +11,7 @@ import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { renderSlot } from './host';
 import { createImage, destroyImage, beginImage, endImage, drawImageRect, rect, refreshIntent } from 'zinc:gfx';
+import { device } from 'zinc:sys';
 
 export interface ZoomViewProps {
   className?: string;
@@ -53,12 +54,24 @@ export function ZoomView(props: ZoomViewProps): i32 {
   const [s, setS] = createSignal<number>(1);
   const [tx, setTx] = createSignal<number>(0);
   const [ty, setTy] = createSignal<number>(0);
-  let mx: number = 0, my: number = 0, dragging = false, ignored = false;
+  let mx: number = 0, my: number = 0, lk: number = 1, ldx: number = 0, ldy: number = 0, dragging = false, ignored = false;
   let snap: i32 = -1, sw: i32 = 0, sh: i32 = 0, snapDue = false;
+  // the ghost: a display that can scale what is on its glass by itself (display-rmpp, "display.ghost") moves that copy while the fingers
+  // move, and the app draws nothing until they lift (on the reMarkable a page drawn again per frame is a quarter of a second)
+  let px: i32 = 0, py: i32 = 0, pw: i32 = 0, ph: i32 = 0, ghost = false;
+  const ghostMove = (k: number, dx: number, dy: number): void => {
+    device('display.ghost', `move ${px + mx * (1 - k) + dx},${py + my * (1 - k) + dy},${k}`);
+  };
 
-  const begin = (x: number, y: number): void => { mx = x; my = y; setS(1); setTx(0); setTy(0); snapDue = true; setLive(true); };
+  const begin = (x: number, y: number): void => {
+    mx = x; my = y;
+    ghost = pw > 0 && device('display.ghost', `begin ${px},${py},${pw},${ph}`) === '1';
+    if (ghost) return;
+    setS(1); setTx(0); setTy(0); snapDue = true; setLive(true);
+  };
   const finish = (f: number, dx: number, dy: number): void => {
     const cx = mx, cy = my;
+    if (ghost) { ghost = false; device('display.ghost', f === 1 && dx === 0 && dy === 0 ? 'cancel' : 'end'); }
     setLive(false);
     if (props.zoom === undefined) setOwn(Math.max(minZ, Math.min(maxZ, own() * f)));
     if (props.onView === undefined) { refreshIntent('settle'); return; }
@@ -74,12 +87,16 @@ export function ZoomView(props: ZoomViewProps): i32 {
   };
 
   const pinch = (e: ui.PointerEvent): void => {
-    if (e.phase === 0) { begin(e.x, e.y); return; }
+    if (e.phase === 0) { lk = 1; ldx = 0; ldy = 0; begin(e.x, e.y); return; }
     const z = zoom();
-    const k = Math.max(minZ / z, Math.min(maxZ / z, e.scale));
-    if (e.phase === 1) { setS(k); setTx(e.x - mx); setTy(e.y - my); return; }
+    if (e.phase === 1) {
+      if (e.scale <= 0) return;   // fingers lifting in one frame leave no distance to measure: the view stays as the last move showed it
+      lk = Math.max(minZ / z, Math.min(maxZ / z, e.scale)); ldx = e.x - mx; ldy = e.y - my;
+      if (ghost) ghostMove(lk, ldx, ldy); else { setS(lk); setTx(ldx); setTy(ldy); }
+      return;
+    }
     ui.holdSettle();   // the sharp picture comes with onView
-    if (e.phase === 2) finish(k, e.x - mx, e.y - my); else finish(1, 0, 0);
+    if (e.phase === 2) finish(lk, ldx, ldy); else finish(1, 0, 0);
   };
   const drag = (e: ui.PointerEvent): void => {
     if (e.phase === 0) {
@@ -90,7 +107,7 @@ export function ZoomView(props: ZoomViewProps): i32 {
     }
     if (ignored) return;
     if (dragging) {
-      if (e.phase === 1) { setTx(e.dx); setTy(e.dy); return; }
+      if (e.phase === 1) { if (ghost) ghostMove(1, e.dx, e.dy); else { setTx(e.dx); setTy(e.dy); } return; }
       dragging = false;
       if (e.phase === 2) finish(1, e.dx, e.dy); else finish(1, 0, 0);
       return;
@@ -119,7 +136,7 @@ export function ZoomView(props: ZoomViewProps): i32 {
   }
   const paint = (x: i32, y: i32, w: i32, h: i32): void => {
     const d = props.draw as (x: i32, y: i32, w: i32, h: i32) => void;
-    if (!live()) { draws++; d(x, y, w, h); return; }
+    if (!live()) { px = x; py = y; pw = w; ph = h; draws++; d(x, y, w, h); return; }
     let img = props.picture !== undefined ? (props.picture as () => i32)() : -1;
     if (img >= 0) snapDue = false;
     else {

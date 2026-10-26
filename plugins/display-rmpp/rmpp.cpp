@@ -230,8 +230,9 @@ void rm_poll(HalInput* in) {
     }
     if (m.type == MSG_INPUT && rin::key_event(m.input.type, m.input.x)) continue;   // keys queue in order: no frame each
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
-      // Deliver each touch transition to the UI; draining a quick press+release would swallow the tap.
-      break;
+      // Deliver each press and release to the UI (draining a quick press+release would swallow the tap); moves go on: the frame sees the
+      // newest positions. One message a frame let two moving fingers (about 200 moves a second) fall seconds behind a pinch.
+      if (m.input.type != 0x12 && m.input.type != 0x22) break;
     }
   }
   static bool dock_tried = false;
@@ -316,6 +317,40 @@ void downgrade() {
   set_mode(wanted_mode);
 }
 
+// The ghost, as xochitl zooms (display.ghost, from ZoomView of zinc:ui/kit): when a pinch starts the driver keeps the view's pixels as they
+// are on the glass, and while the fingers move it draws that copy scaled and moved straight into AppLoad's buffer (nearest pixel, a few ms
+// for the whole page) instead of the app drawing the page again each frame, which takes a quarter of a second on the tablet's CPU. The app
+// draws its sharp picture once, when the fingers lift: "end" keeps the ghost on the glass until that frame comes, "cancel" (a pinch back to
+// where it started) puts the app's frame back at once.
+struct GhostView { bool on = false, dirty = false, restore = false, hold = false; eink::Rect view = {}; uint8_t* px = nullptr; float k = 1, ox = 0, oy = 0; } ghostv;
+void ghost_render() {
+  const eink::Rect& v = ghostv.view;
+  const int32_t w = v.x1 - v.x0, h = v.y1 - v.y0;
+  static int32_t* xs = nullptr; static int32_t xn = 0;
+  if (xn < w) { free(xs); xs = (int32_t*)malloc(sizeof(int32_t) * w); xn = w; }
+  for (int32_t x = 0; x < w; x++) { const float u = (v.x0 + x - ghostv.ox) / ghostv.k; xs[x] = u >= 0 && u < w ? (int32_t)u : -1; }
+  for (int32_t y = v.y0; y < v.y1; y++) {
+    const float fv = (y - ghostv.oy) / ghostv.k;
+    const int32_t sv = fv >= 0 && fv < h ? (int32_t)fv : -1;
+    uint8_t* d = shm + ((size_t)y * panel.w + v.x0) * 3;
+    if (sv < 0) { memset(d, 0xFF, (size_t)w * 3); continue; }
+    const uint8_t* row = ghostv.px + (size_t)sv * w * 3;
+    for (int32_t x = 0; x < w; x++, d += 3) {
+      if (xs[x] < 0) { d[0] = d[1] = d[2] = 0xFF; continue; }
+      const uint8_t* q = row + (size_t)xs[x] * 3; d[0] = q[0]; d[1] = q[1]; d[2] = q[2];
+    }
+  }
+}
+// the app's last frame back under the view (the sharp picture may be the same pixels: a pinch that came back to 1)
+void ghost_restore() {
+  const eink::Rect& v = ghostv.view;
+  for (int32_t y = v.y0; y < v.y1; y++) {
+    const uint32_t* s = panel.cur + (size_t)y * panel.w;
+    uint8_t* d = shm + ((size_t)y * panel.w + v.x0) * 3;
+    for (int32_t x = v.x0; x < v.x1; x++, d += 3) { d[0] = (uint8_t)(s[x] >> 16); d[1] = (uint8_t)(s[x] >> 8); d[2] = (uint8_t)s[x]; }
+  }
+}
+
 void rm_present(const HalFrame* f) {
   // Diff the rendered RGB frame directly: no monochrome conversion or delayed colour upgrade.
   eink::Rect r = {0, 0, 0, 0};
@@ -344,6 +379,13 @@ void rm_present(const HalFrame* f) {
     const uint32_t* s = panel.cur + (size_t)y * panel.w;
     uint8_t* d = shm + ((size_t)y * panel.w + r.x0) * 3;
     for (int32_t x = r.x0; x < r.x1; x++, d += 3) { d[0] = (uint8_t)(s[x] >> 16); d[1] = (uint8_t)(s[x] >> 8); d[2] = (uint8_t)s[x]; }
+  }
+  if (ghostv.on) {   // the app's own frames do not reach the view while the ghost moves: it is drawn over them
+    const eink::Rect& v = ghostv.view;
+    const bool under = !eink::empty(r) && r.x0 < v.x1 && v.x0 < r.x1 && r.y0 < v.y1 && v.y0 < r.y1;
+    if (ghostv.dirty || under) { ghost_render(); ghostv.dirty = false; eink::unite(r, v); }
+  } else if (ghostv.restore || (ghostv.hold && !eink::empty(r) && r.x0 < ghostv.view.x1 && ghostv.view.x0 < r.x1 && r.y0 < ghostv.view.y1 && ghostv.view.y0 < r.y1)) {
+    ghost_restore(); ghostv.restore = ghostv.hold = false; eink::unite(r, ghostv.view);   // the whole view from the app's frame: no ghost pixel left
   }
   if (layer == L1 && !first) {
     bool was = lane::stroke;
@@ -447,6 +489,30 @@ const char* rm_device(const char* query, const char* arg) {
   if (strcmp(query, "display.mode") == 0) {
     if (!arg || (strcmp(arg, "fast") && strcmp(arg, "ui"))) return "0";
     return zinc_rmpp_set_fast(strcmp(arg, "fast") == 0) || layer == L0 ? "1" : "0";
+  }
+  // "display.ghost" "begin x,y,w,h" (the view, framebuffer pixels: "1" when this driver draws the ghost), "move ox,oy,k" (the view's top left
+  // shows at (ox, oy), scaled by k), "end" (kept until the app draws the view again), "cancel"
+  if (strcmp(query, "display.ghost") == 0) {
+    if (!arg || !shm || (layer != L0 && layer != L1)) return "0";
+    int x = 0, y = 0, w = 0, h = 0; float ox = 0, oy = 0, k = 1;
+    if (sscanf(arg, "begin %d,%d,%d,%d", &x, &y, &w, &h) == 4) {
+      eink::Rect v = {std::max(x, 0), std::max(y, 0), std::min(x + w, panel.w), std::min(y + h, panel.h)};
+      if (eink::empty(v)) return "0";
+      const int32_t vw = v.x1 - v.x0, vh = v.y1 - v.y0;
+      free(ghostv.px); ghostv.px = (uint8_t*)malloc((size_t)vw * vh * 3);
+      if (!ghostv.px) return "0";
+      for (int32_t r = 0; r < vh; r++) memcpy(ghostv.px + (size_t)r * vw * 3, shm + ((size_t)(v.y0 + r) * panel.w + v.x0) * 3, (size_t)vw * 3);
+      ghostv = {true, false, false, false, v, ghostv.px, 1, (float)v.x0, (float)v.y0};
+      return "1";
+    }
+    if (sscanf(arg, "move %f,%f,%f", &ox, &oy, &k) == 3) {
+      if (!ghostv.on || !(k > 0.05f)) return "0";
+      if (ox != ghostv.ox || oy != ghostv.oy || k != ghostv.k) { ghostv.ox = ox; ghostv.oy = oy; ghostv.k = k; ghostv.dirty = true; }
+      return "1";
+    }
+    if (strcmp(arg, "end") == 0) { if (ghostv.on) { ghostv.on = false; ghostv.hold = true; } return "1"; }
+    if (strcmp(arg, "cancel") == 0) { if (ghostv.on || ghostv.hold) { ghostv.on = ghostv.hold = false; ghostv.restore = true; } return "1"; }
+    return "0";
   }
   if (strcmp(query, "display.intent") == 0) {
     if (!arg || (strcmp(arg, "interactive") && strcmp(arg, "settle") && strcmp(arg, "normal"))) return "0";

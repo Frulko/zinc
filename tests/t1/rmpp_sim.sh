@@ -156,6 +156,14 @@ if run uipinch6 tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=widge
   awk '/fingers down/ { d = $1 } d && / update / && !f { f = $1 - d } /fingers up/ { u = 1 } d && !u && / update / { if (p && $1 - p < 150) close_ = 1; p = $1 } END { if (f == "" || f > 300 || close_) exit 1 }' "$tmp/uipinch6/out/trace.txt" ||
     { echo "uipinch6: the gesture's updates:"; grep -E "fingers|mode|update" "$tmp/uipinch6/out/trace.txt" | head -20; fail=1; }
 fi
+# The ghost zoom (display.ghost): while a pinch moves, the driver scales the copy of the view it took when the fingers landed and sends it
+# to the panel (each update a new picture), and the view the app commits when they lift is the zoom the last one showed
+if run ghost tests/data/rmpp-zoom 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=widget ZN_RMPP_SIM_INSTANT=1 ZN_RMPP_SIM_HOLD=150:2:60:4; then
+  [ -n "$GHOST_TRACE" ] && cp "$tmp/ghost/out/trace.txt" "$GHOST_TRACE"
+  has ghost log 1 "^view [23][0-9][0-9]$"
+  [ "$(awk '/fingers down/ { d = 1 } /fingers up/ { d = 0 } d && / update / { n++; h[$NF] = 1 } END { print length(h) + 0 }' "$tmp/ghost/out/trace.txt")" -ge 3 ] ||
+    { echo "ghost: the panel did not follow the fingers:"; grep -E "fingers|update" "$tmp/ghost/out/trace.txt" | head; fail=1; }
+fi
 # The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
 if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then
   has escape log 1 "three fingers held 2 s: quitting the app"; [ "$(grep -c 'update PARTIAL' "$tmp/escape/out/trace.txt")" -lt 60 ] || { echo "escape: the app went on after the gesture"; fail=1; }
