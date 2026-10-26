@@ -30,6 +30,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The web relay's page opens in the Mac's browser when the relay starts (`--no-open` does not), shows whether the tablet is connected and which page it reads, and lists what you sent with **Again**; several pages sent in a row all open.
 - The web relay runs on a server (a NAS, a Pi, a VPS) as a Docker image with Chromium (`app/web-relay/docker`), so the tablet reads the web without the Mac; `--block-private` refuses pages of the local network, `--tls-cert`/`--tls-key` serve HTTPS, `--no-sandbox` runs Chromium in a container.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
+- `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
 - reMarkable Hub: checking for updates (at start and with **Check for updates**) no longer blocks the Hub; its result, or "Server unreachable", shows in the status line.

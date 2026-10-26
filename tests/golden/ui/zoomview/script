@@ -1,0 +1,13 @@
+# two fingers land 120 px apart around (160, 160) and spread to 200 px: a pinch to 5/3, then they lift
+10 touch 1 100 160
+11 touch 2 220 160
+12 touch 1 90 160
+12 touch 2 230 160
+14 touch 1 80 160
+14 touch 2 240 160
+16 touch 1 70 160
+16 touch 2 250 160
+18 touch 1 60 160
+18 touch 2 260 160
+22 touchup 2
+22 touchup 1
