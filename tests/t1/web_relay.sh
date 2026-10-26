@@ -17,7 +17,7 @@ free() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)
 wp=$(free); rp=$(free)
 cp -R app/web-relay/fixture "$tmp/site"; echo '<h1>Count 1</h1>' > "$tmp/site/dash.html"
 python3 -m http.server "$wp" --bind 127.0.0.1 --directory "$tmp/site" >"$tmp/http.log" 2>&1 & web=$!
-"$Z" run app/web-relay -- --port "$rp" --data "$tmp/relay" >"$tmp/relay.log" 2>&1 & rel=$!
+"$Z" run app/web-relay -- --port "$rp" --data "$tmp/relay" --no-open >"$tmp/relay.log" 2>&1 & rel=$!
 for i in $(seq 1 100); do grep -q 'relay: token' "$tmp/relay.log" && curl -s "http://127.0.0.1:$wp/" >/dev/null && break; sleep 0.2; done
 grep -q 'relay: token' "$tmp/relay.log" || { echo "the relay did not start:"; head -20 "$tmp/relay.log"; exit 1; }
 token=$(cat "$tmp/relay/relay.token")
@@ -51,8 +51,15 @@ case " $(links eink) " in *" nav "*) ;; *) echo "e-ink style lost the menu: $(li
 # sending a page from the Mac: the page at /, /send (token in the query, as the bookmarklet does), /inbox once
 curl -s "$R/" | grep -q 'Send to the reMarkable' || { echo "no page at /"; fail=1; }
 curl -s -o /dev/null "$R/send?token=$token&url=$page"
-[ "$(get "$R/inbox")" = "$page" ] || { echo "the sent page is not in the inbox"; fail=1; }
+curl -s -o /dev/null "$R/send?token=$token&url=$page%23two"
+[ "$(get "$R/inbox?at=http://reading/")" = "$page" ] || { echo "the sent page is not in the inbox"; fail=1; }
+[ "$(get "$R/inbox")" = "$page#two" ] || { echo "the second sent page is not next in the inbox"; fail=1; }
 [ "$(get "$R/inbox")" = "" ] || { echo "the inbox was not emptied"; fail=1; }
+get "$R/status" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert 0 <= s["tablet"] < 5 and s["reading"] == "" and [x["taken"] for x in s["sent"]] == [True, True] and s["sent"][0]["url"].endswith("#two"), s
+' || { echo "status: $(get "$R/status")"; fail=1; }
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/send?url=$page")" = 401 ] || { echo "a send without the token was not refused"; fail=1; }
 
 # the reader, headless (its page view is the relay's viewport)
@@ -84,6 +91,16 @@ assert min(xs) == 500 and max(xs) == 1100 and min(ys) > 1200 and max(ys) - min(y
 # the ink comes back with the page; a zoomed view shows it at the right place (the shot of the reader)
 ZINC_SHOT="$tmp/shot.png" app "open $page; next; zoom 2"
 expect 'web: Relay fixture · 2 links'
+oy=$(head -n 1 "$tmp/web/tabs.txt" | cut -f1)
+# tabs: a page sent from the Mac opens in a new tab, the page being read keeps its tab and its place; closing the shown tab shows the other
+curl -s -o /dev/null "$R/send?token=$token&url=http://127.0.0.1:$wp/next.html"
+app "inbox"
+expect 'web: Second page · 1 links'
+[ "$(cut -f2 "$tmp/web/tabs.txt" | tr '\n' ' ')" = "$page http://127.0.0.1:$wp/next.html " ] || { echo "tabs.txt: $(cat "$tmp/web/tabs.txt")"; fail=1; }
+[ "$(head -n 1 "$tmp/web/tabs.txt" | cut -f1)" = "$oy" ] && [ "$oy" != 0 ] || { echo "the first tab lost its place ($oy): $(cat "$tmp/web/tabs.txt")"; fail=1; }
+app "close 1"
+expect 'web: Relay fixture · 2 links'
+[ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] || { echo "close 1: $(cat "$tmp/web/tabs.txt")"; fail=1; }
 [ "$(size "$tmp/shot.png")" != not-png ] || { echo "no shot of the reader"; fail=1; }
 
 # the dashboard: render 1 is new, the page changes, render 2 (one period later) is new, render 3 is unchanged; then the widget
@@ -106,7 +123,7 @@ kill $rel; wait $rel 2>/dev/null; rel=
 for i in $(seq 1 25); do pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null || break; sleep 0.2; done   # the relay stops its Chrome
 pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null && { echo "Chrome was left running"; pkill -f "user-data-dir=$tmp/relay/chrome-profile"; fail=1; }
 # --no-token (a test on a trusted network): a request without the token is served
-"$Z" run app/web-relay -- --port "$rp" --data "$tmp/open" --no-token >"$tmp/open.log" 2>&1 & rel=$!
+"$Z" run app/web-relay -- --port "$rp" --data "$tmp/open" --no-token --no-open >"$tmp/open.log" 2>&1 & rel=$!
 for i in $(seq 1 100); do grep -q 'relay: no token' "$tmp/open.log" && break; sleep 0.2; done
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/nope")" = 404 ] || { echo "--no-token still asks for a token: $(tail -3 "$tmp/open.log")"; fail=1; }
 [ -e "$tmp/open/relay.token" ] && { echo "--no-token wrote a token"; fail=1; }

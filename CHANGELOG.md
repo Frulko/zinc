@@ -13,6 +13,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Web: send a page to the tablet from the Mac, with the relay's page at `http://127.0.0.1:8790/` or its **Send to reMarkable** bookmarklet; an e-ink style (on by default) makes pages black on white, underlines links and puts fixed bars and cookie banners back in the page.
 - `zinc:remarkable` has `RemarkableKeyboard`, an on-screen keyboard drawn for e-paper in the tablet's language (Hub, Web and Read use it); the kit's `Keyboard` takes `labelClass`, `specialLabelClass`, `enterKeyClass`, `shiftOnClass`, `handleClass` and `shadow={false}`.
 - Zinc Web: a **Reader** button shows the article alone, as Firefox's Reader View does (Mozilla's Readability), in a book-like layout for e-ink; its links still work.
+- Zinc Web has tabs: a page sent from the Mac opens in a new tab, and the page you were reading stays in its tab at the same page; tabs are kept when Web quits.
+- The web relay's page opens in the Mac's browser when the relay starts (`--no-open` does not), shows whether the tablet is connected and which page it reads, and lists what you sent with **Again**; several pages sent in a row all open.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
 
 ### Changed

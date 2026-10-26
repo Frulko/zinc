@@ -16,9 +16,11 @@ own profile in `<data>/chrome-profile`, and stops with it. On the tablet, in Zin
 
 ## Send a page from the Mac
 
-Open `http://127.0.0.1:8790/` in a browser on the Mac (the relay prints the address, with `?token=` when it has one): type an address and
-**Send**, and Zinc Web opens it on the tablet within three seconds (it asks the relay while its page view shows). The same page has a
-**Send to reMarkable** button to drag to Chrome's bookmarks bar: clicked on any page, it sends that page.
+The relay opens its page in the Mac's browser when it starts, behind the window you use (`--no-open` does not; the address it prints,
+with `?token=` when it has one, opens it again). Type an address and **Send**: Zinc Web opens it on the tablet within three seconds, in a
+new tab, and the page you were reading stays in its own tab at the same page. The page shows whether the tablet is connected and which page it
+shows, and what you sent (waiting or opened), with **Again** to send one again. Several pages sent before the tablet asks open in order.
+The **Send to reMarkable** button, dragged to Chrome's bookmarks bar, sends the page you are on.
 
 ## The e-ink style
 

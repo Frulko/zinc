@@ -8,7 +8,7 @@ import { RemarkableBar, RemarkableApp, RemarkableKeyboard } from 'zinc:remarkabl
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
-  SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, conf } from './state';
+  tabList, tabIndex, switchTab, closeTab, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
@@ -29,6 +29,21 @@ function Bookmarks(): i32 {
         <Btn label="Dashboard" onClick={() => startDash(u)} />
         <Btn label="Remove" onClick={() => removeBookmark(u)} />
       </View>)}
+    </View>
+  </ScrollView>;
+}
+
+function Tabs(): i32 {
+  return <ScrollView className="grow">
+    <View className="flex-col gap-4 p-8">
+      <Text className={TITLE}>Tabs</Text>
+      <Text className={LABEL}>A page sent from the Mac opens in a new tab; the one you were reading stays here, at the same page.</Text>
+      {tabList().map((t: Tab, i: i32) => <View className="flex-row gap-4 items-center py-3 border-b-2 border-black">
+        <Text className={`grow ${LABEL}`}>{(i === tabIndex() ? '▶ ' : '') + (t.title !== '' ? t.title + ' · ' : '') + t.url}</Text>
+        <Btn label="Open" on={true} onClick={() => switchTab(i)} />
+        <Btn label="Close" onClick={() => closeTab(i)} />
+      </View>)}
+      <View className="flex-row"><Btn label="New tab" onClick={() => newTab(address())} /></View>
     </View>
   </ScrollView>;
 }
@@ -89,6 +104,7 @@ function Reader(): i32 {
     <View className="flex-row gap-4 px-6 py-4 items-center border-b-2 border-black">
       <Btn label="Reader" on={reader()} onClick={() => toggleReader()} />
       <Btn label="★" onClick={() => addBookmark()} />
+      <Btn label={'Tabs ' + tabList().length.toString()} on={screen() === SCREEN_TABS} onClick={() => setScreen(screen() === SCREEN_TABS ? SCREEN_PAGE : SCREEN_TABS)} />
       <Btn label="Bookmarks" on={screen() === SCREEN_BOOKMARKS} onClick={() => setScreen(screen() === SCREEN_BOOKMARKS ? SCREEN_PAGE : SCREEN_BOOKMARKS)} />
       <Btn label="Settings" on={screen() === SCREEN_SETTINGS} onClick={() => setScreen(screen() === SCREEN_SETTINGS ? SCREEN_PAGE : SCREEN_SETTINGS)} />
       <View className="grow" />
@@ -98,7 +114,7 @@ function Reader(): i32 {
       <Btn label="Export" onClick={() => exportPng()} />
     </View>
     {screen() === SCREEN_PAGE ? <Canvas className="grow" onDraw={pageView} />
-      : screen() === SCREEN_BOOKMARKS ? <Bookmarks /> : <Settings />}
+      : screen() === SCREEN_BOOKMARKS ? <Bookmarks /> : screen() === SCREEN_TABS ? <Tabs /> : <Settings />}
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">
       <Btn label="Previous" onClick={() => turn(-1)} />
       <Text className={`w-[260px] text-center ${LABEL}`}>{pageLabel()}</Text>
@@ -126,6 +142,6 @@ render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   if (scripted()) { await runScript(); return; }
   setInterval(() => { if (dashUrl() === '') checkInbox(); }, 3000);
-  if (conf.get('relay') !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
+  if (conf.get('relay') !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(currentTab().url, false, currentTab().oy); }
 }
 start();

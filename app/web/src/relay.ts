@@ -44,8 +44,9 @@ export class Relay {
   }
 
   /** The last page sent from the Mac (the relay's page at /), or '' when none was. */
-  async inbox(): Promise<string> {
-    return (await (await this.send(this.url.endsWith('/') ? this.url + 'inbox' : this.url + '/inbox', {})).text()).trim();
+  /** The next page sent from the Mac, or ''; `at` (the page shown) is what the relay's page says the tablet reads. */
+  async inbox(at: string = ''): Promise<string> {
+    return (await (await this.send((this.url.endsWith('/') ? this.url + 'inbox' : this.url + '/inbox') + '?at=' + encodeURIComponent(at), {})).text()).trim();
   }
 
   /** Loads `page` on the relay: its final URL, title, size and links. */

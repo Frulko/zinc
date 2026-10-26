@@ -1,5 +1,5 @@
 // Zinc web relay (ZN-844): renders web pages for a reMarkable (app/web), a headless Zinc program on the Mac.
-//   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>] [--no-token]
+//   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>] [--no-token] [--no-open]
 // The tablet cannot run a browser; the relay loads the page in headless Chrome at the tablet's width and sends pictures of it: whole
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
@@ -10,7 +10,9 @@
 //        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
 //        &fresh=1 (the dashboard's timer): the same tab reloads it, bypassing the cache; Chrome keeps running between requests.
 //   POST /export?url=&w=&h=&dpr=&mode=                body: an SVG of the ink in page pixels -> PNG of the whole page with the ink over it
-//   GET  /inbox                                       the last page sent from the Mac (then empty): the tablet asks every few seconds
+//   GET  /inbox?at=                                   the oldest page sent from the Mac not yet taken (or empty): the tablet asks every few
+//                                                     seconds and says which page it shows (at=), which / shows
+//   GET  /status                                      {"tablet": seconds since it asked /inbox or -1, "reading", "sent": [{url, ago, taken}]}
 //   GET  /                                            (no token) a page to send a page to the tablet, and a bookmarklet that does it
 //   GET  /send?url=[&token=]                          sends `url` to the tablet (the token may be in the query: a bookmarklet has no header)
 //   GET  /health                                     "ok" (no token)
@@ -18,6 +20,7 @@
 import { serveAsync, Request, Reply } from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
+import * as proc from 'zinc:process';
 import { base64Decode } from 'zinc:web';
 import * as assets from 'zinc:assets';
 import { Chrome, findChrome, sleep } from './chrome';
@@ -198,29 +201,66 @@ async function exportOf(req: Request): Promise<Reply> {
   return png(bytes);
 }
 
-// Sending a page from the Mac: the page at / (a field and a bookmarklet), /send keeps the URL, the tablet takes it from /inbox.
-let inbox = '';   // ponytail: the last page sent, one slot; a queue if several sends between two polls matter
+// Sending a page from the Mac: the page at / (a field, the tablet's state, what was sent, a bookmarklet), /send queues the URL, the
+// tablet takes the oldest from /inbox and says there which page it reads (?at=), which / shows.
+class Sent { url: string = ''; at: number = 0; taken: boolean = false; }
+let sent: Sent[] = [];   // newest first, the last 20
+let seen = 0;            // when the tablet last asked /inbox (ms)
+let reading = '';        // the page it showed then
 function esc(s: string): string { return s.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;'); }
+function status(): string {
+  const now = Date.now();
+  return '{"tablet":' + (seen === 0 ? '-1' : Math.round((now - seen) / 1000).toString()) + ',"reading":' + JSON.stringify(reading) + ',"sent":[' +
+    sent.map((x: Sent) => '{"url":' + JSON.stringify(x.url) + ',"ago":' + Math.round((now - x.at) / 1000).toString() + ',"taken":' + (x.taken ? 'true' : 'false') + '}').join(',') + ']}';
+}
 const HOME = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Send to the reMarkable</title>
-<style>body{font:17px/1.5 system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#111}
+<style>body{font:17px/1.5 system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#111}
 input{width:100%;font:inherit;padding:10px;border:2px solid #111;border-radius:8px;box-sizing:border-box}
-button,a.b{font:inherit;padding:10px 18px;margin-top:12px;border:2px solid #111;border-radius:8px;background:#111;color:#fff;text-decoration:none;display:inline-block;cursor:pointer}
-a.b{background:#fff;color:#111}#m{margin-top:12px}</style>
+button,a.b{font:inherit;padding:8px 16px;margin-top:12px;border:2px solid #111;border-radius:8px;background:#111;color:#fff;text-decoration:none;display:inline-block;cursor:pointer}
+a.b,li button{background:#fff;color:#111}li button{margin:0 0 0 8px;padding:2px 10px;font-size:14px}
+#tab{padding:12px 16px;border:2px solid #111;border-radius:8px;margin:16px 0}#tab.off{border-style:dashed;color:#555}
+ul{list-style:none;padding:0}li{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ccc}
+li span{flex:1;word-break:break-all}small{color:#555;white-space:nowrap}</style>
 <h1>Send to the reMarkable</h1>
-<p>The page opens in Zinc Web on the tablet within a few seconds.</p>
+<div id="tab" class="off">Looking for the tablet…</div>
 <form id="f"><input id="u" type="url" placeholder="https://..." required autofocus><button>Send</button></form>
 <p id="m"></p>
+<h2>Sent</h2><ul id="h"><li><span>Nothing yet.</span></li></ul>
 <h2>From any page</h2>
 <p>Drag this button to Chrome's bookmarks bar, then click it on a page to send that page:</p>
 <a class="b" id="bm" href="#">Send to reMarkable</a>
 <script>
 const t = new URLSearchParams(location.search).get('token') || '';
+const auth = t ? { headers: { Authorization: 'Bearer ' + t } } : {};
 const send = location.origin + '/send?' + (t ? 'token=' + encodeURIComponent(t) + '&' : '') + 'url=';
-document.getElementById('bm').href = "javascript:void(open('" + send + "'+encodeURIComponent(location.href),'zinc','width=420,height=160'))";
-document.getElementById('f').onsubmit = async (e) => { e.preventDefault();
-  const r = await fetch(send + encodeURIComponent(document.getElementById('u').value));
-  document.getElementById('m').textContent = r.ok ? 'Sent.' : 'Not sent: ' + await r.text(); };
+const $ = (id) => document.getElementById(id);
+const ago = (s) => s < 60 ? s + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+$('bm').href = "javascript:void(open('" + send + "'+encodeURIComponent(location.href),'zinc','width=420,height=160'))";
+async function go(u) {
+  const r = await fetch(send + encodeURIComponent(u));
+  $('m').textContent = r.ok ? 'Sent: it opens in a new tab of Zinc Web.' : 'Not sent: ' + await r.text();
+  poll();
+}
+$('f').onsubmit = (e) => { e.preventDefault(); go($('u').value); $('u').value = ''; };
+async function poll() {
+  let s;
+  try { const r = await fetch('/status', auth); if (!r.ok) throw new Error(await r.text()); s = await r.json(); }
+  catch (e) { $('tab').className = 'off'; $('tab').textContent = 'The relay does not answer: ' + e.message; return; }
+  const on = s.tablet >= 0 && s.tablet < 10;
+  $('tab').className = on ? '' : 'off';
+  $('tab').textContent = on ? 'Tablet connected' + (s.reading ? ' · reading ' + s.reading : '')
+    : s.tablet < 0 ? 'The tablet has not asked yet: open Zinc Web on it (Settings: this relay’s address).'
+    : 'Tablet last seen ' + ago(s.tablet) + ': open Zinc Web on it.';
+  if (s.sent.length === 0) return;
+  $('h').replaceChildren(...s.sent.map((x) => {
+    const li = document.createElement('li'), sp = document.createElement('span'), sm = document.createElement('small'), b = document.createElement('button');
+    sp.textContent = x.url; sm.textContent = (x.taken ? 'opened · ' : 'waiting · ') + ago(x.ago);
+    b.textContent = 'Again'; b.onclick = () => go(x.url);
+    li.append(sp, sm, b); return li;
+  }));
+}
+poll(); setInterval(poll, 2000);
 </script>`;
 const SENT = `<!doctype html><meta charset="utf-8"><title>Sent</title><body style="font:16px system-ui;padding:16px">
 Sent to the reMarkable:<br><b style="word-break:break-all">URL</b><script>setTimeout(() => close(), 1500)</script>`;
@@ -234,11 +274,17 @@ async function handle(req: Request): Promise<Reply> {
   const given = a.startsWith('Bearer ') ? a.slice(7).trim() : path === '/send' ? query(req.path, 'token') : '';
   if (token !== '' && !same(given, token)) return reply(401, 'wrong or missing token (Authorization: Bearer <relay.token>)\n');
   const isGet = req.method === 'GET';
-  if (isGet && path === '/inbox') { const u = inbox; inbox = ''; return reply(200, u); }
+  if (isGet && path === '/status') return reply(200, status(), 'application/json');
+  if (isGet && path === '/inbox') {
+    seen = Date.now(); reading = query(req.path, 'at');
+    for (let i = sent.length - 1; i >= 0; i--) if (!sent[i].taken) { sent[i].taken = true; return reply(200, sent[i].url); }
+    return reply(200, '');
+  }
   if (isGet && path === '/send') {
     const u = query(req.path, 'url').trim();
     if (!u.startsWith('http://') && !u.startsWith('https://')) return reply(400, 'only http:// and https:// pages\n');
-    inbox = u;
+    const x = new Sent(); x.url = u; x.at = Date.now();
+    sent = [x].concat(sent.slice(0, 19));
     console.log('relay: sent ' + u + ' to the tablet');
     return reply(200, SENT.split('URL').join(esc(u)), 'text/html; charset=utf-8');
   }
@@ -279,7 +325,10 @@ function main(): void {
   sys.onSignal('SIGTERM', quit);
   serveAsync(port, handle);
   warmUp();
-  console.log('relay: send a page to the tablet from http://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token));
+  const home = 'http://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token);
+  console.log('relay: send a page to the tablet from ' + home);
+  // the page opens in the Mac's browser, behind the window in use (open -g); --no-open for a script
+  if (sys.args().indexOf('--no-open') < 0 && fs.exists('/usr/bin/open')) proc.spawn('/usr/bin/open', ['-g', home], {});
   console.log('relay: listening on port ' + port.toString() + ', Chrome ' + chromePath);
   console.log(token === '' ? 'relay: no token (--no-token): whoever reaches port ' + port.toString() + ' can use it' : 'relay: token ' + token);
 }

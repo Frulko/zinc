@@ -13,6 +13,7 @@ import { WEB_DIR, DEFAULT_RELAY, HOME_PAGE, MAX_ZOOM } from './constants';
 export const SCREEN_PAGE: i32 = 0;
 export const SCREEN_BOOKMARKS: i32 = 1;
 export const SCREEN_SETTINGS: i32 = 2;
+export const SCREEN_TABS: i32 = 3;
 
 export const conf = new Conf(WEB_DIR + '/web.conf');
 export const relay = new Relay();
@@ -45,8 +46,34 @@ export class View {
 export const view = new View();
 export const ink = new Ink();
 ink.width = 4;
-let history: string[] = [];
 let inkFile = '';
+
+// ---------------------------------------------------------------- tabs: each keeps its page, where it was read and its way back
+export class Tab { url: string = ''; title: string = ''; oy: number = 0; history: string[] = []; }
+const TABS_FILE = WEB_DIR + '/tabs.txt';   // one tab per line: oy \t url \t title
+function readTabs(): Tab[] {
+  const list: Tab[] = [];
+  if (fs.exists(TABS_FILE)) for (const line of fs.readText(TABS_FILE).split('\n')) {
+    const f = line.split('\t');
+    if (f.length < 2 || f[1] === '') continue;
+    const t = new Tab(); t.oy = parseFloat(f[0]); t.url = f[1]; t.title = f.length > 2 ? f[2] : '';
+    list.push(t);
+  }
+  if (list.length === 0) { const t = new Tab(); t.url = conf.get('last') !== '' ? conf.get('last') : HOME_PAGE; list.push(t); }
+  return list;
+}
+let tabs: Tab[] = readTabs();
+let current: i32 = Math.max(0, Math.min(tabs.length - 1, parseInt(conf.get('tab') !== '' ? conf.get('tab') : '0'))) as i32;
+export const [tabList, setTabList] = createSignal<Tab[]>(tabs);
+export const [tabIndex, setTabIndex] = createSignal<i32>(current);
+function saveTabs(): void {
+  try {
+    fs.mkdir(WEB_DIR, true);
+    fs.writeText(TABS_FILE, tabs.map((t: Tab) => t.oy.toString() + '\t' + t.url + '\t' + t.title.split('\t').join(' ').split('\n').join(' ')).join('\n') + '\n');
+  } catch (e) { console.log('web: cannot save the tabs: ' + e.message); }
+  conf.set('tab', current.toString());
+  setTabList(tabs.slice(0)); setTabIndex(current);
+}
 
 export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
 export function saveConf(): void {
@@ -117,8 +144,13 @@ export function resize(w: i32, h: i32): void {
   if (w === view.w && h === view.h) return;
   view.w = w; view.h = h;
   relay.w = w; relay.h = h;
+  rerender();
+}
+
+/** The page again, at the same place (a new size or setting). */
+function rerender(): void {
   const d = view.doc;
-  if (d !== null) openUrl((d as Doc).url, false);
+  if (d !== null) openUrl((d as Doc).url, false, view.oy);
 }
 
 function normalize(u: string): string {
@@ -129,7 +161,7 @@ function normalize(u: string): string {
 }
 
 /** Opens a page: the relay loads it at the view's size, then the first page's picture; its ink is loaded. */
-export async function openUrl(u: string, remember: boolean = true): Promise<void> {
+export async function openUrl(u: string, remember: boolean = true, top: number = 0): Promise<void> {
   if (view.w === 0) { say('The page view has no size yet.'); return; }
   const target = normalize(u);
   await run(async (): Promise<string> => {
@@ -138,21 +170,23 @@ export async function openUrl(u: string, remember: boolean = true): Promise<void
     const d = await relay.render(target);
     console.log('web: relay loaded the page in ' + (Date.now() - t0).toString() + ' ms');
     const prev = view.doc;
-    if (remember && prev !== null && (prev as Doc).url !== d.url) history.push((prev as Doc).url);
-    view.doc = d; view.ox = 0; view.oy = 0; view.zoom = 1;
+    if (remember && prev !== null && (prev as Doc).url !== d.url) tabs[current].history.push((prev as Doc).url);
+    view.doc = d; view.ox = 0; view.oy = top; view.zoom = 1;
     clampView();
+    tabs[current].url = d.url; tabs[current].title = d.title; tabs[current].oy = view.oy;
     await fetchShot();
     loadInk(d.url);
     setAddress(d.url);
-    conf.set('last', d.url); saveConf();
+    conf.set('last', d.url); saveTabs(); saveConf();
     setScreen(SCREEN_PAGE);
     return (d.title !== '' ? d.title : d.url) + ' · ' + d.links.length.toString() + ' links';
   });
 }
 
 export async function back(): Promise<void> {
-  if (history.length === 0) { say('No page to go back to.'); return; }
-  const u = history.pop();
+  const h = tabs[current].history;
+  if (h.length === 0) { say('No page to go back to.'); return; }
+  const u = h.pop();
   await openUrl(u, false);
 }
 
@@ -163,7 +197,7 @@ export async function turn(dir: i32): Promise<void> {
   view.oy += dir * step();
   clampView();
   if (view.oy === before) { say(dir > 0 ? 'Last page.' : 'First page.'); return; }
-  await run(async (): Promise<string> => { await fetchShot(); return ''; });
+  await run(async (): Promise<string> => { await fetchShot(); tabs[current].oy = view.oy; saveTabs(); conf.save(); return ''; });
 }
 
 /** Zoom to `z` keeping the page point under (cx, cy) of the view in place; 1 goes back to whole pages. */
@@ -274,34 +308,60 @@ export function saveRelay(url: string, token: string): void {
 export function toggleReader(): void {
   relay.reader = !relay.reader; setReader(relay.reader);
   saveConf();
-  const d = view.doc;
-  if (d !== null) openUrl((d as Doc).url, false);
+  rerender();
 }
 /** The relay's e-ink stylesheet on or off: the page is rendered again. */
 export function setEinkStyle(on: boolean): void {
   relay.style = on ? 'eink' : 'page';
   saveConf();
-  const d = view.doc;
-  if (d !== null) openUrl((d as Doc).url, false);
+  rerender();
 }
-/** A page sent from the Mac opens here (polled every few seconds while the reader shows, not while it works). */
+/** A page sent from the Mac opens in a new tab, the page being read stays in its own (polled every few seconds, not while it works). */
 export async function checkInbox(): Promise<void> {
-  if (busy() || screen() !== SCREEN_PAGE || conf.get('relay') === '') return;
+  if (busy() || conf.get('relay') === '') return;
   let u = '';
-  try { u = await relay.inbox(); } catch (e) { return; }
-  if (u !== '') await openUrl(u);
+  const d = view.doc;
+  try { u = await relay.inbox(d === null ? '' : (d as Doc).url); } catch (e) { return; }
+  if (u !== '') { say('Received ' + u + ' from the relay.'); await newTab(u); }
 }
+
+/** The page in a new tab, or the tab that already shows it. */
+export async function newTab(u: string): Promise<void> {
+  const target = normalize(u);
+  for (let i: i32 = 0; i < tabs.length; i++) if (tabs[i].url === target) { await switchTab(i); return; }
+  if (view.doc !== null) { tabs[current].oy = view.oy; saveInk(); }
+  const t = new Tab(); t.url = target;
+  tabs.push(t); current = tabs.length - 1;
+  saveTabs();
+  await openUrl(target, false);
+}
+export async function switchTab(i: i32): Promise<void> {
+  if (i < 0 || i >= tabs.length) return;
+  if (view.doc !== null) tabs[current].oy = view.oy;
+  current = i;
+  saveTabs();
+  await openUrl(tabs[i].url, false, tabs[i].oy);
+}
+export async function closeTab(i: i32): Promise<void> {
+  if (i < 0 || i >= tabs.length) return;
+  const shown = i === current;
+  tabs.splice(i, 1);
+  if (tabs.length === 0) { const t = new Tab(); t.url = HOME_PAGE; tabs.push(t); }
+  if (i < current || current >= tabs.length) current = Math.max(0, current - 1) as i32;
+  saveTabs();
+  if (shown) await openUrl(tabs[current].url, false, tabs[current].oy);
+}
+/** The tab to open at start. */
+export function currentTab(): Tab { return tabs[current]; }
 /** normal, high, max, normal...: the page is rendered again. */
 export function nextContrast(): void {
   relay.contrast = relay.contrast === 'normal' ? 'high' : relay.contrast === 'high' ? 'max' : 'normal';
   saveConf();
-  const d = view.doc;
-  if (d !== null) openUrl((d as Doc).url, false);
+  rerender();
 }
 export function setColour(on: boolean): void {
   relay.mode = on ? 'color' : 'grey';
   saveConf();
-  const d = view.doc;
-  if (d !== null) openUrl((d as Doc).url, false);
+  rerender();
 }
 export function refresh(): void { if (!refreshDisplay()) say('This display has no full refresh.'); }

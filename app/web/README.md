@@ -11,6 +11,8 @@ this app shows it a page at a time. Black on white, large targets, page turns in
   every page change and Quitter). **Undo** removes the last stroke; the Marker's eraser end erases. On a desktop, **Pen** makes the mouse
   write.
 - **Export**: the whole page with its ink as a PNG in `exports/` (the relay draws it). **★** bookmarks the page; **Bookmarks** lists them.
+- **Tabs**: each tab keeps its page, the page you were on and its way back; **Tabs** lists them (**Open**, **Close**, **New tab**). A
+  page sent from the Mac (the relay's page) opens in a new tab, or in the tab that already shows it; the tabs are kept when Web quits.
 - **Refresh**: a full refresh of the display, to clear the ghosting. **Settings**: the relay, its token, colour or grey.
 - **Dashboard** (TRMNL-style; **Bookmarks**, then **Dashboard** on a page): the first page of that page, full screen under a thin bar,
   rendered again by the relay every **5**, **15**, **30** or **60 min** (the relay reloads the tab in its running Chrome). The picture is
