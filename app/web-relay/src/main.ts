@@ -4,7 +4,7 @@
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
 // HTTP, every request with `Authorization: Bearer <token>` (the token is in <data>/relay.token, made on first start, mode 600):
-//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max&style=eink|page   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
+//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max&style=eink|read|page   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
 //        {"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}, all in device pixels of the whole page (height capped)
 //   GET  /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1   PNG of the page rectangle (x, y, cw, ch) at `zoom`: cw*zoom x ch*zoom pixels.
 //        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
@@ -19,6 +19,7 @@ import { serveAsync, Request, Reply } from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { base64Decode } from 'zinc:web';
+import * as assets from 'zinc:assets';
 import { Chrome, findChrome, sleep } from './chrome';
 
 function opt(name: string, def: string): string {
@@ -70,7 +71,8 @@ function viewOf(path: string): View {
   v.mode = query(path, 'mode') === 'color' ? 'color' : 'grey';
   const c = query(path, 'contrast');
   v.contrast = c === 'high' || c === 'max' ? c : 'normal';
-  v.style = query(path, 'style') === 'page' ? 'page' : 'eink';
+  const st = query(path, 'style');
+  v.style = st === 'page' || st === 'read' ? st : 'eink';
   return v;
 }
 
@@ -82,6 +84,9 @@ async function ensureChrome(): Promise<void> {
   if (chrome.alive) return;
   console.log('relay: starting Chrome');
   await chrome.start(chromePath, data + '/chrome-profile');
+  // Readability is given to Chrome once, for every page it loads: sent with each render, its 90 KB took seconds through the socket
+  await chrome.call('Page.addScriptToEvaluateOnNewDocument', '{"source":' + JSON.stringify('window.__zincReadability = (() => {' +
+    assets.readText('readability/Readability.js') + '\nreturn Readability; })();') + '}');
 }
 
 const INFO_JS = `(() => { const d = DPR, L = [];
@@ -105,6 +110,20 @@ const EINK_JS = `(() => { const s = document.createElement('style'); s.textConte
   for (const e of document.querySelectorAll('body *')) { const p = getComputedStyle(e).position; if (p === 'fixed' || p === 'sticky') e.style.setProperty('position', 'static', 'important'); }
   return ''; })()`;
 
+// Reading mode: Mozilla's Readability.js (assets/readability, the library of Firefox's Reader View) keeps the article, its title and
+// byline; the page is replaced by them in a book-like layout (serif text, wide margins, pictures to the width). Links stay links.
+const READ_CSS = 'body{margin:0;padding:40px 44px;font:21px/1.6 Georgia,serif;color:#000;background:#fff}' +
+  'h1{font-size:34px;line-height:1.2;margin:0 0 8px}.byline{font:italic 18px Georgia,serif;margin:0 0 28px}' +
+  'img,video,figure,picture,svg{max-width:100%!important;height:auto!important}figcaption{font-size:16px}' +
+  'pre,code{font:16px/1.4 Menlo,monospace;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #000;padding:4px}';
+const READ_JS = `const a = window.__zincReadability ? new window.__zincReadability(document.cloneNode(true)).parse() : null;
+  if (!a || !a.content) return 'none';
+  const esc = (t) => (t || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  document.documentElement.innerHTML = '<head><meta charset="utf-8"><title>' + esc(a.title) + '</title><style>CSS</style></head><body><article><h1>' +
+    esc(a.title) + '</h1>' + (a.byline ? '<p class="byline">' + esc(a.byline) + '</p>' : '') + a.content + '</article></body>';
+  scrollTo(0, 0);
+  return 'ok';`;
+
 // e-ink contrast: the page's greys pushed apart, thin text thickened (high, max); layout is unchanged, so the link map holds.
 const CONTRAST_HIGH = 'html{filter:contrast(1.6)!important}*{-webkit-text-stroke:0.25px currentColor}';
 const CONTRAST_MAX = 'html{filter:contrast(3)!important}*{-webkit-text-stroke:0.5px currentColor}';
@@ -122,14 +141,19 @@ async function show(v: View, fresh: boolean = false): Promise<string> {
   // grey: what the page looks like to someone who sees no colour, which keeps the contrast of the colours (Chrome's achromatopsia)
   await chrome.call('Emulation.setEmulatedVisionDeficiency', '{"type":' + (v.mode === 'grey' ? '"achromatopsia"' : '"none"') + '}');
   // the e-ink style asks the page itself first: light scheme, no motion, more contrast (sites that honour these do it best)
-  await chrome.call('Emulation.setEmulatedMedia', v.style === 'eink' ? '{"features":[{"name":"prefers-color-scheme","value":"light"},' +
+  await chrome.call('Emulation.setEmulatedMedia', v.style !== 'page' ? '{"features":[{"name":"prefers-color-scheme","value":"light"},' +
     '{"name":"prefers-reduced-motion","value":"reduce"},{"name":"prefers-contrast","value":"more"}]}' : '{"features":[]}');
   const loaded = chrome.event('Page.loadEventFired', LOAD_TIMEOUT_MS);
   const nav = await chrome.call(again ? 'Page.reload' : 'Page.navigate', again ? '{"ignoreCache":true}' : '{"url":' + JSON.stringify(v.url) + '}');
   if (nav.errorText !== undefined && ('' + nav.errorText) !== '') throw new Error('cannot load ' + v.url + ': ' + ('' + nav.errorText));
   if (!(await loaded)) console.log('relay: ' + v.url + ' still loading after ' + (LOAD_TIMEOUT_MS / 1000).toString() + ' s, shown as it is');
   await sleep(SETTLE_MS);
-  if (v.style === 'eink') await chrome.evaluate(EINK_JS.split('CSS').join(EINK_CSS));
+  if (v.style === 'read') {   // the article alone, as Firefox's Reader View shows it; a page Readability finds no article in stays whole
+    let r = '';
+    try { r = await chrome.evaluate('(() => {' + READ_JS.split('CSS').join(READ_CSS) + '})()'); } catch (e) { r = e.message; }
+    if (r !== 'ok') console.log('relay: no article in ' + v.url + ', shown whole');
+  }
+  if (v.style !== 'page') await chrome.evaluate(EINK_JS.split('CSS').join(EINK_CSS));
   if (v.contrast !== 'normal') await chrome.evaluate(CONTRAST_JS.split('CSS').join(v.contrast === 'max' ? CONTRAST_MAX : CONTRAST_HIGH));
   info = await chrome.evaluate(INFO_JS.split('DPR').join(v.dpr.toString()).split('MAXH').join((v.h * MAX_PAGES).toString()).split('PAGEH').join(v.h.toString()));
   shown = v.key();
@@ -237,7 +261,7 @@ async function handle(req: Request): Promise<Reply> {
 /** Chrome started at once, so the first page does not wait for it (a request meanwhile waits its turn). */
 async function warmUp(): Promise<void> {
   await exclusive();
-  try { await ensureChrome(); } catch (e) { console.log('relay: ' + e.message); }
+  try { await ensureChrome(); console.log('relay: Chrome ready'); } catch (e) { console.log('relay: ' + e.message); }
   busy = false;
 }
 

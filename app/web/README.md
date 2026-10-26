@@ -54,6 +54,6 @@ Pinch reads `touchCount()`: the reMarkable driver (`plugins/display-rmpp`) passe
 
 ## Credits
 
-Pages are rendered by headless Google Chrome through the Chrome DevTools Protocol. The dashboard is inspired by
+Pages are rendered by headless Google Chrome through the Chrome DevTools Protocol; the reading mode is Mozilla's [Readability.js](https://github.com/mozilla/readability) (Apache 2.0). The dashboard is inspired by
 [TRMNL](https://usetrmnl.com). The other projects Zinc uses on the reMarkable are listed in
 [Credits and inspiration](../../docs/targets/remarkable-paper-pro.md#credits-and-inspiration).

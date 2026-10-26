@@ -43,6 +43,11 @@ get -o "$tmp/z.png" "$R/shot?url=$page&w=1620&h=1800&x=200&y=100&cw=540&ch=600&z
 [ "$(size "$tmp/z.png")" = 1620x1800 ] || { echo "zoom 3: $(size "$tmp/z.png")"; fail=1; }
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/render?url=$page")" = 401 ] || { echo "a request without the token was not refused"; fail=1; }
 [ "$(get -o /dev/null -w '%{http_code}' "$R/render?url=file:///etc/hosts")" = 502 ] || { echo "a file:// page was not refused"; fail=1; }
+# reading mode (Readability): the article's link is kept, the menu, the advert and the footer are gone
+art=http://127.0.0.1:$wp/article.html
+links() { get "$R/render?url=$art&w=1620&h=1800&style=$1" | python3 -c 'import json, sys; print(" ".join(l[4].split("#")[1] for l in json.load(sys.stdin)["links"]))'; }
+[ "$(links read)" = "article" ] || { echo "reading mode: links $(links read)"; fail=1; }
+case " $(links eink) " in *" nav "*) ;; *) echo "e-ink style lost the menu: $(links eink)"; fail=1;; esac
 # sending a page from the Mac: the page at /, /send (token in the query, as the bookmarklet does), /inbox once
 curl -s "$R/" | grep -q 'Send to the reMarkable' || { echo "no page at /"; fail=1; }
 curl -s -o /dev/null "$R/send?token=$token&url=$page"

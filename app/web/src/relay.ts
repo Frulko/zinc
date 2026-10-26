@@ -21,12 +21,13 @@ export class Relay {
   mode: string = 'grey';
   contrast: string = 'normal';   // normal, high, max
   style: string = 'eink';        // eink (the relay's e-ink stylesheet) or page (the page's own)
+  reader: boolean = false;       // the article alone (Readability), over the style
   w: i32 = 0;   // the viewport: the page view's size on the tablet
   h: i32 = 0;
 
   private address(path: string, page: string): string {
     const base = this.url.endsWith('/') ? this.url.slice(0, this.url.length - 1) : this.url;
-    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + DPR.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast + '&style=' + this.style;
+    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + DPR.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast + '&style=' + (this.reader ? 'read' : this.style);
   }
   private async send(address: string, init: net.RequestInit): Promise<net.Response> {
     const h = new net.Headers();

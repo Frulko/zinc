@@ -20,6 +20,8 @@ relay.url = conf.get('relay') !== '' ? conf.get('relay') : DEFAULT_RELAY;
 relay.token = conf.get('token');
 relay.mode = conf.get('mode') === 'color' ? 'color' : 'grey';
 relay.style = conf.get('style') === 'page' ? 'page' : 'eink';
+relay.reader = conf.get('reader') === 'on';
+export const [reader, setReader] = createSignal<boolean>(relay.reader);
 relay.contrast = conf.get('contrast') === 'high' || conf.get('contrast') === 'max' ? conf.get('contrast') : 'normal';
 
 export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
@@ -48,7 +50,7 @@ let inkFile = '';
 
 export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
 export function saveConf(): void {
-  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast); conf.set('style', relay.style);
+  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast); conf.set('style', relay.style); conf.set('reader', relay.reader ? 'on' : 'off');
   conf.save();
 }
 
@@ -267,6 +269,13 @@ export function saveRelay(url: string, token: string): void {
   relay.url = u; relay.token = token.trim();
   saveConf();
   say('Relay set to ' + u + '.');
+}
+/** Reading mode on or off (the article alone, as Firefox's Reader View): the page is rendered again. */
+export function toggleReader(): void {
+  relay.reader = !relay.reader; setReader(relay.reader);
+  saveConf();
+  const d = view.doc;
+  if (d !== null) openUrl((d as Doc).url, false);
 }
 /** The relay's e-ink stylesheet on or off: the page is rendered again. */
 export function setEinkStyle(on: boolean): void {

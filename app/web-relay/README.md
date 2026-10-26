@@ -28,6 +28,13 @@ makes text black on white, removes shadows and animations, underlines links and 
 (headers, cookie banners) go back into the flow of the page so that they do not cover its text. Pictures are left alone, so a white logo
 drawn for a dark header disappears on the white background. **Contrast** (normal, high, max) then pushes the greys apart and thickens thin text.
 
+## Reading mode
+
+Zinc Web's **Reader** button: the relay keeps the page's article with Mozilla's [Readability.js](https://github.com/mozilla/readability)
+(0.6.0, `assets/readability`, Apache 2.0; the library of Firefox's Reader View), given to Chrome once when it starts, and shows it alone: its
+title, byline and text in a serif, book-like layout with the e-ink style over it. Links stay links. A page without an article (a home page,
+a search) is shown whole.
+
 ## HTTP
 
 Every request but `/health` carries `Authorization: Bearer <token>` (`<data>/relay.token`, mode 600). `--no-token` serves every request without one: for a test on a network you trust, since whoever reaches the port then drives the relay's Chrome. Sizes are tablet pixels; a page is

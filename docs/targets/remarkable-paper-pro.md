@@ -471,6 +471,8 @@ Zinc on the reMarkable stands on the work of others:
 - [md4c](https://github.com/mity/md4c) by Martin Mitáš (MIT): Zinc Read's Markdown parser. The
   [Notion API](https://developers.notion.com/) brings Notion pages in.
 - Headless [Google Chrome](https://www.google.com/chrome/) through the Chrome DevTools Protocol: the pages of Zinc Web.
+- [Readability.js](https://github.com/mozilla/readability) by Mozilla (Apache 2.0), the library of Firefox's Reader View: Zinc
+  Web's reading mode.
 - [nanosvg](https://github.com/memononen/nanosvg) by Mikko Mononen (zlib): app icons drawn from SVG.
 - [Lucide](https://lucide.dev) (ISC): the icons of the apps and of the AppLoad patches.
 
