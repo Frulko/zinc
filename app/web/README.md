@@ -8,7 +8,8 @@ this app shows it a page at a time. Black on white, large targets, page turns in
   fingers to zoom (the picture scales while the fingers move, then the relay sends it sharp); a swipe moves a zoomed page.
   **Previous**, **Next**, **−** and **+** do the same. On a desktop the wheel turns pages and Ctrl+wheel zooms.
 - **Pen**: writes over the page. The ink is kept in page pixels, so it stays in place when you zoom, and saved per URL (**Save**, and on
-  every page change and Quitter). **Undo** removes the last stroke; the Marker's eraser end erases. On a desktop, **Pen** makes the mouse
+  every page change and Quitter). **Tools** (the palette over the page, folded to one row) picks the pen as on the tablet: ballpoint, fineliner, marker, pencil,
+  calligraphy, highlighter, eraser or area eraser, the colour, Thin/Medium/Thick, Undo, Redo, Erase all; the Marker's eraser end erases. On a desktop, **Pen** makes the mouse
   write.
 - **Export**: the whole page with its ink as a PNG in `exports/` (the relay draws it). **★** bookmarks the page; **Bookmarks** lists them.
 - **Tabs**: each tab keeps its page, the page you were on and its way back; **Tabs** lists them (**Open**, **Close**, **New tab**). A

@@ -4,10 +4,10 @@
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { quit } from 'zinc:gfx';
-import { RemarkableBar, RemarkableApp, RemarkableKeyboard } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableApp, RemarkableKeyboard, InkPalette } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
-import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
+import { ink, screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
+  openUrl, back, turn, zoomTo, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
   tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
@@ -104,6 +104,7 @@ function FullReader(): i32 {
       <Btn label="A−" onClick={() => pageSize(-1)} />
       <Btn label="A+" onClick={() => pageSize(1)} />
     </View>
+    <InkPalette ink={ink} open={false} />
     <Canvas className="grow" onDraw={pageView} />
   </View>;
 }
@@ -124,10 +125,10 @@ function Reader(): i32 {
       <Btn label="Settings" on={screen() === SCREEN_SETTINGS} onClick={() => setScreen(screen() === SCREEN_SETTINGS ? SCREEN_PAGE : SCREEN_SETTINGS)} />
       <View className="grow" />
       {onTablet ? null : <Btn label="Pen" on={penMode()} onClick={() => setPenMode(!penMode())} />}
-      <Btn label="Undo" onClick={() => undoInk()} />
       <Btn label="Save" onClick={() => saveInk()} />
       <Btn label="Export" onClick={() => exportPng()} />
     </View>
+    {screen() === SCREEN_PAGE ? <InkPalette ink={ink} open={false} /> : null}
     {screen() === SCREEN_PAGE ? <Canvas className="grow" onDraw={pageView} />
       : screen() === SCREEN_BOOKMARKS ? <Bookmarks /> : screen() === SCREEN_TABS ? <Tabs /> : <Settings />}
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">

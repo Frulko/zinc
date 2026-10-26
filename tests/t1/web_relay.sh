@@ -68,17 +68,18 @@ app() {
   ZINC_HEADLESS=1 ZINC_FRAMES=2000000000 ZINC_WEB_SCRIPT="$1" timeout 90 "$Z" run app/web >"$tmp/app.log" 2>&1 || { echo "the reader failed ($1):"; tail -15 "$tmp/app.log"; fail=1; }
 }
 expect() { grep -qF "$1" "$tmp/app.log" || { echo "expected '$1' in:"; grep '^web:' "$tmp/app.log"; fail=1; }; }
-app "relay $R $token; open $page; next; next; prev; draw 500 700 1100 900; save; link next.html; back; export; bookmark"
+app "relay $R $token; open $page; next; next; prev; draw 500 700 1100 900; tool highlighter; draw 500 1000 1100 1000; save; link next.html; back; export; bookmark"
 expect 'web: Relay fixture · 2 links'
 expect 'web: tap on http://127.0.0.1:'"$wp"'/next.html'
 expect 'web: Second page · 1 links'
-expect 'web: Ink saved (1 strokes).'
+expect 'web: Ink saved (2 strokes).'
 expect 'web: Exported '
 expect 'web: Bookmarked http://127.0.0.1:'"$wp"'/index.html.'
 grep -qx "http://127.0.0.1:$wp/index.html" "$tmp/web/bookmarks.txt" 2>/dev/null || { echo "bookmarks.txt: $(cat "$tmp/web/bookmarks.txt" 2>/dev/null)"; fail=1; }
 ex=$(ls "$tmp/web/exports/"*.png 2>/dev/null | head -1)
 s=$(size "$ex" 2>/dev/null); case "$s" in 1620x*) h=${s#1620x}; [ "$h" -gt 5400 ] || { echo "the export is not the whole page: $s"; fail=1; } ;; *) echo "no export PNG: $s"; fail=1 ;; esac
 inkf=$(ls "$tmp/web/ink/"*.json 2>/dev/null | head -1)
+grep -q '"tool":"highlighter"' "$inkf" 2>/dev/null || { echo "the highlighter stroke has no tool: $(head -n 3 "$inkf")"; fail=1; }
 grep -q '"strokes":\[{"color":"#000000"' "$inkf" 2>/dev/null || { echo "the ink file: $(cat "$inkf" 2>/dev/null | head -c 300)"; fail=1; }
 grep -qx "$page" "${inkf%.json}.txt" 2>/dev/null || { echo "the ink's URL: $(cat "${inkf%.json}.txt" 2>/dev/null)"; fail=1; }
 # the ink drawn on page 2 is in page pixels: one view height down, + 700..900

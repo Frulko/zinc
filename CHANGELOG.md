@@ -15,6 +15,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Web: send a page to the tablet from the Mac, with the relay's page at `http://127.0.0.1:8790/` or its **Send to reMarkable** bookmarklet; an e-ink style (on by default) makes pages black on white, underlines links and puts fixed bars and cookie banners back in the page.
 - `zinc:remarkable` has `RemarkableKeyboard`, an on-screen keyboard drawn for e-paper in the tablet's language (Hub, Web and Read use it); the kit's `Keyboard` takes `labelClass`, `specialLabelClass`, `enterKeyClass`, `shiftOnClass`, `handleClass` and `shadow={false}`.
 - Zinc Web: a **Reader** button shows the article alone, as Firefox's Reader View does (Mozilla's Readability), in a book-like layout for e-ink; its links still work.
+- Zinc Web writes with the same tools as PDF (the **Tools** palette over the page): pens, highlighter, colours, widths, redo and the area eraser.
 - Zinc Web: **Full screen** keeps only the top bar and a **Normal view** button over the page, and **A−**/**A+** draw the page smaller or larger so more of it fits on a screen.
 - Zinc Web has tabs: a page sent from the Mac opens in a new tab, and the page you were reading stays in its tab at the same page; tabs are kept when Web quits.
 - The web relay's page opens in the Mac's browser when the relay starts (`--no-open` does not), shows whether the tablet is connected and which page it reads, and lists what you sent with **Again**; several pages sent in a row all open.

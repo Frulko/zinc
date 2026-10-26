@@ -263,7 +263,6 @@ export function saveInk(): boolean {
     return true;
   } catch (e) { say('Cannot save the ink: ' + e.message); return false; }
 }
-export function undoInk(): void { ink.undo(); }
 
 /** The whole page with the ink over it, as a PNG in exports/ (rendered by the relay). */
 export async function exportPng(): Promise<void> {
