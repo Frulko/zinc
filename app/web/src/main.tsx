@@ -8,7 +8,7 @@ import { RemarkableBar, RemarkableApp, RemarkableKeyboard } from 'zinc:remarkabl
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
-  tabList, tabIndex, switchTab, closeTab, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
+  tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
@@ -93,6 +93,21 @@ function Widget(): i32 {
   </View>;
 }
 
+/** Full screen: the top bar, one thin row (back to the normal view, the page, its size), the page. Swipes still turn pages. */
+function FullReader(): i32 {
+  return <View className={PAGE}>
+    <RemarkableBar title="Web" onQuit={() => { if (saveInk()) quit(); }} />
+    <View className="flex-row gap-4 px-6 py-2 items-center border-b-2 border-black">
+      <Btn label="Normal view" onClick={() => setFullScreen(false)} />
+      <View className="grow" />
+      <Text className={LABEL}>{pageLabel()}</Text>
+      <Btn label="A−" onClick={() => pageSize(-1)} />
+      <Btn label="A+" onClick={() => pageSize(1)} />
+    </View>
+    <Canvas className="grow" onDraw={pageView} />
+  </View>;
+}
+
 function Reader(): i32 {
   return <View className={PAGE}>
     <RemarkableBar title="Web" onQuit={() => { if (saveInk()) quit(); }} />
@@ -121,7 +136,11 @@ function Reader(): i32 {
       <Btn label="Next" on={true} onClick={() => turn(1)} />
       <Btn label="−" onClick={() => zoomTo(view.zoom / 1.5, view.w / 2, view.h / 2)} />
       <Btn label="+" onClick={() => zoomTo(view.zoom * 1.5, view.w / 2, view.h / 2)} />
+      <Btn label="A−" onClick={() => pageSize(-1)} />
+      <Text className={LABEL}>{Math.round(scale() * 50).toString() + ' %'}</Text>
+      <Btn label="A+" onClick={() => pageSize(1)} />
       <View className="grow" />
+      <Btn label="Full screen" onClick={() => { setScreen(SCREEN_PAGE); setFullScreen(true); }} />
       <Btn label="Refresh" onClick={() => refresh()} />
     </View>
     <View className="px-6 py-3 border-t-2 border-black">
@@ -134,7 +153,7 @@ function Reader(): i32 {
 // a pressed button fading in and out would ghost on e-paper (as the hub)
 setPressFeedback(false);
 // signals read in braces: the switch follows them (a component's body runs once)
-function App(): i32 { return <View className="flex-col h-full">{dashUrl() !== '' ? <Dashboard /> : <Reader />}</View>; }
+function App(): i32 { return <View className="flex-col h-full">{dashUrl() !== '' ? <Dashboard /> : full() ? <FullReader /> : <Reader />}</View>; }
 function Root(): i32 {
   return <View className="flex-col h-full">{widgetPreview() ? <Widget /> : <RemarkableApp app={App} widget={{ view: Widget, width: WIDGET_W, height: WIDGET_H }} />}</View>;
 }

@@ -1,11 +1,12 @@
 // ZINC_WEB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
 //   relay <url> <token> | open <url> | next | prev | zoom <z> | link <href suffix> (a tap on its middle) | back
 //   draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | save | export | bookmark | refresh
+//   smaller | larger (page size) | full | normal (full screen on, off)
 //   tab <url> (a new tab) | switch <i> | close <i> | inbox (what the relay received)
 //   dash <url> (dashboard mode) | ticks <n> (waits until the dashboard's timer made n renders) | widget (draws the widget) | undash
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { view, setScreen, SCREEN_PAGE, openUrl, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, checkInbox, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
+import { view, busy, setScreen, SCREEN_PAGE, openUrl, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
 import { feedPen } from './pageview';
 import { Doc } from './relay';
 import { dash, startDash, stopDash, setWidgetPreview } from './dashboard';
@@ -32,6 +33,8 @@ export async function runScript(): Promise<void> {
     else if (verb === 'switch') await switchTab(parseInt(arg));
     else if (verb === 'close') await closeTab(parseInt(arg));
     else if (verb === 'inbox') await checkInbox();
+    else if (verb === 'smaller' || verb === 'larger') { pageSize(verb === 'smaller' ? -1 : 1); while (busy()) await sleep(20); }
+    else if (verb === 'full' || verb === 'normal') { setFullScreen(verb === 'full'); await sleep(200); }
     else if (verb === 'link') {
       const d = view.doc;
       let done = false;

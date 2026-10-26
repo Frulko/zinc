@@ -101,6 +101,11 @@ expect 'web: Second page · 1 links'
 app "close 1"
 expect 'web: Relay fixture · 2 links'
 [ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] || { echo "close 1: $(cat "$tmp/web/tabs.txt")"; fail=1; }
+# a smaller page (more of it per screen) is rendered again, both settings are kept; the full-screen view has no tool rows
+ZINC_SHOT="$tmp/full.png" app "open $page; smaller; full"
+expect 'web: Page size 80 %.'
+[ "$(grep -c 'web: Relay fixture · 2 links' "$tmp/app.log")" = 2 ] || { echo "the smaller page was not rendered again"; fail=1; }
+grep -qx 'scale=1.6' "$tmp/web/web.conf" && grep -qx 'full=on' "$tmp/web/web.conf" || { echo "web.conf: $(cat "$tmp/web/web.conf")"; fail=1; }
 [ "$(size "$tmp/shot.png")" != not-png ] || { echo "no shot of the reader"; fail=1; }
 
 # the dashboard: render 1 is new, the page changes, render 2 (one period later) is new, render 3 is unchanged; then the widget

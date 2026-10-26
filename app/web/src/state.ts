@@ -23,6 +23,11 @@ relay.mode = conf.get('mode') === 'color' ? 'color' : 'grey';
 relay.style = conf.get('style') === 'page' ? 'page' : 'eink';
 relay.reader = conf.get('reader') === 'on';
 export const [reader, setReader] = createSignal<boolean>(relay.reader);
+// page sizes, as device pixels per CSS pixel: 2 is 100 %, the tablet's own; 1.1 fits a desktop layout on the screen
+const SCALES: number[] = [1.1, 1.33, 1.6, 2, 2.5, 3];
+relay.dpr = SCALES.indexOf(parseFloat(conf.get('scale'))) >= 0 ? parseFloat(conf.get('scale')) : 2;
+export const [scale, setScale] = createSignal<number>(relay.dpr);
+export const [full, setFull] = createSignal<boolean>(conf.get('full') === 'on');   // full screen: the page under the top bar alone
 relay.contrast = conf.get('contrast') === 'high' || conf.get('contrast') === 'max' ? conf.get('contrast') : 'normal';
 
 export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
@@ -77,7 +82,7 @@ function saveTabs(): void {
 
 export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
 export function saveConf(): void {
-  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast); conf.set('style', relay.style); conf.set('reader', relay.reader ? 'on' : 'off');
+  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast); conf.set('style', relay.style); conf.set('reader', relay.reader ? 'on' : 'off'); conf.set('scale', relay.dpr.toString()); conf.set('full', full() ? 'on' : 'off');
   conf.save();
 }
 
@@ -353,6 +358,17 @@ export async function closeTab(i: i32): Promise<void> {
 }
 /** The tab to open at start. */
 export function currentTab(): Tab { return tabs[current]; }
+/** The page drawn smaller (dir -1: more of it per screen) or larger; rendered again. */
+// ponytail: ink is kept in page pixels of the size it was drawn at; it moves if the page size changes
+export function pageSize(dir: i32): void {
+  const i = SCALES.indexOf(relay.dpr) + dir;
+  if (i < 0 || i >= SCALES.length) { say(dir < 0 ? 'Smallest page size.' : 'Largest page size.'); return; }
+  relay.dpr = SCALES[i]; setScale(relay.dpr);
+  saveConf();
+  say('Page size ' + Math.round(relay.dpr * 50).toString() + ' %.');
+  rerender();
+}
+export function setFullScreen(on: boolean): void { setFull(on); saveConf(); }
 /** normal, high, max, normal...: the page is rendered again. */
 export function nextContrast(): void {
   relay.contrast = relay.contrast === 'normal' ? 'high' : relay.contrast === 'high' ? 'max' : 'normal';

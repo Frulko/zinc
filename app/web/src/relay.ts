@@ -16,6 +16,7 @@ export class Doc {
 }
 
 export class Relay {
+  dpr: number = DPR;   // device pixels per CSS pixel: lower draws the page smaller, more of it per screen
   url: string = '';
   token: string = '';
   mode: string = 'grey';
@@ -27,7 +28,7 @@ export class Relay {
 
   private address(path: string, page: string): string {
     const base = this.url.endsWith('/') ? this.url.slice(0, this.url.length - 1) : this.url;
-    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + DPR.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast + '&style=' + (this.reader ? 'read' : this.style);
+    return base + path + '?url=' + encodeURIComponent(page) + '&w=' + this.w.toString() + '&h=' + this.h.toString() + '&dpr=' + this.dpr.toString() + '&mode=' + this.mode + '&contrast=' + this.contrast + '&style=' + (this.reader ? 'read' : this.style);
   }
   private async send(address: string, init: net.RequestInit): Promise<net.Response> {
     const h = new net.Headers();
