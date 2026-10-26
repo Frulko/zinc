@@ -377,6 +377,8 @@ const char* rm_device(const char* query, const char* arg) {
   }
   // "display.mode" "fast" | "ui" (zinc:remarkable setPenMode): Pen waveform while the app writes, UI for the rest. qtfb sleeps 1 s on a
   // switch, so the app asks when the user starts or stops writing, not per stroke; a switch refused in that second is made by rm_present.
+  // ponytail: kept while qtfb has one global mode. With AppLoad patch 0004's capability bit the pen's own updates go out in Pen mode, and
+  // this query, setPenMode and InkPalette's call to it are removed (docs/reports/engine-gestures-zoom-refresh.md, step 6).
   if (strcmp(query, "display.mode") == 0) {
     if (!arg || (strcmp(arg, "fast") && strcmp(arg, "ui"))) return "0";
     return zinc_rmpp_set_fast(strcmp(arg, "fast") == 0) || layer == L0 ? "1" : "0";
