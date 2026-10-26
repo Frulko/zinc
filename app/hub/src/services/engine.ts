@@ -17,13 +17,22 @@ export function engineVersion(): string {
   return fs.exists(stamp) ? fs.readText(stamp).trim() : '';
 }
 
-/** The catalog's engine is offered when it runs more than this one (more runtime calls, or a newer version for the same ones). Another ZBC
- *  version is not offered: every installed app would have to be packed again (deploy.sh does that change). */
+/** The catalog's engine is offered when it runs more than the engine installed now (more runtime calls, or a newer version for the same
+ *  ones). The installed one is read from its engine.json, not from the engine the hub runs on: after an update the hub runs the old one
+ *  until it is opened again, and a newer engine published meanwhile is offered at once. Another ZBC version is not offered: every installed
+ *  app would have to be packed again (deploy.sh does that change). */
 export function engineOffered(e: CatalogEngine | null): boolean {
   if (ENGINE_DIR === '' || e === null) return false;
   const c = e as CatalogEngine;
-  if (ENGINE_ZBC !== 0 && c.zbc !== ENGINE_ZBC) return false;
-  if (c.rt !== ENGINE_RT) return c.rt > ENGINE_RT;
+  let zbc = ENGINE_ZBC, rt = ENGINE_RT;
+  const json = ENGINE_DIR + '/share/zinc/rmpp/engine.json';
+  if (fs.exists(json)) {   // a bundle of tools/rmpp-engine says both; an older one only its version
+    const j = JSON.parse(fs.readText(json));
+    if (typeof j.zbc === 'number') zbc = j.zbc as i32;
+    if (typeof j.rt === 'number') rt = j.rt as i32;
+  }
+  if (zbc !== 0 && c.zbc !== zbc) return false;
+  if (c.rt !== rt) return c.rt > rt;
   const now = engineVersion();
   return now === '' || newerEngine(c.version, now);
 }

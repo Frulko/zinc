@@ -161,6 +161,12 @@ bundle 1.0.2 broken
 app "engine"
 expect 'Refused: the new engine does not run on this tablet as offered'
 engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "a bundle that does not run"
+# the hub reads the engine installed, not the one it runs on: after an update in the same run, the same engine is no longer offered
+bundle 1.0.3
+app "engine; refresh"
+expect 'Engine updated to 1.0.3.'
+engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.3" "a second update"
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'Update the engine' && { echo "the engine just installed is offered again"; fail=1; }
 unset ZINC_RMPP_ENGINE ZINC_HUB_ENGINE_RT
 
 # a catalog signed by another key than the one pinned at pairing

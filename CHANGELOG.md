@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- reMarkable Hub: an engine published after an update made in the same session is offered at once, without reopening the Hub.
 - A string read from bytes that are not UTF-8 (a binary upload read as text) no longer crashes `slice`, `charAt` and `substring`: each invalid byte reads as U+FFFD. The app hub crashed on a 39 MB engine upload.
 - `JSON.stringify` of a long string with accents or other non-ASCII characters is linear: it took 19 s for 90 KB, it now takes a millisecond.
 - reMarkable: tapping the tile of an app that is already running (hidden or minimised) now replaces it instead of starting a second copy, so a page sent to Zinc Web opens in the one you see.

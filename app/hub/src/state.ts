@@ -34,7 +34,6 @@ export const PAGE_RUNNING: i32 = 2;
 let config: HubConfig = loadConfig();
 let apps: CatalogApp[] = [];
 let engine: CatalogEngine | null = null;
-let engineReplaced = false;   // the swap is done: the hub still runs the old engine until it is opened again
 export const [page, setPage] = createSignal<i32>(config.paired ? PAGE_APPS : PAGE_SETTINGS);
 export const [server, setServer] = createSignal<string>(config.server);
 export const [paired, setPaired] = createSignal<boolean>(config.paired);
@@ -50,7 +49,7 @@ async function fetchCatalog(): Promise<void> {
   const c = await catalog(config);
   apps = c.apps;
   engine = c.engine;
-  setEngineOffer(!engineReplaced && engineOffered(engine) ? (engine as CatalogEngine).version : '');
+  setEngineOffer(engineOffered(engine) ? (engine as CatalogEngine).version : '');
 }
 
 /** The first 16 hex digits of the pinned server key, to compare with what the server prints. */
@@ -176,7 +175,6 @@ export async function updateEngine(): Promise<void> {
   await run(async (): Promise<string> => {
     if (engineOffer() === '') throw new Error('The server offers no newer engine for this tablet.');
     const message = await installEngine(config, engine as CatalogEngine);
-    engineReplaced = true;
     setEngineOffer('');
     return message;
   });
