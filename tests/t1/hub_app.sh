@@ -32,7 +32,9 @@ publish() {   # version [channel]
   python3 - "$tmp/notes/zinc.json" "$1" "$k_public" <<'PY'
 import json, sys
 p, v, key = sys.argv[1:]
-d = json.load(open(p)); d['app'] = {'id': 'com.example.notes', 'version': v}
+d = json.load(open(p)); d['app'] = {'id': 'com.example.notes', 'version': v, 'author': 'Zinc tests'}
+d['description'] = 'Notes for the hub test.'
+d['permissions'] = ['fs:read:data'] if v == '1.0.0' else ['fs:read:data', 'net:api.example.com']   # 1.1.0 on asks for the network
 if v != '1.0.0': d['app']['icon'] = 'icon.svg'
 d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
 json.dump(d, open(p, 'w'))
@@ -53,10 +55,21 @@ live=$tmp/apps/notes.zapp
 
 # pairing with the code, then install 1.0.0: its tile, the key and token kept by the app only
 publish 1.0.0
+# Install first shows what the app says it uses (its zinc.json "permissions"), and the list its description, author and size
 app "server $hub; pair 123456; pair $pc; install com.example.notes"
 expect 'Wrong pairing code'
 expect "Paired with $hub (key $(echo "$serverkey" | cut -c1-16)). 1 apps."
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Install notes 1.0.0?' '• Read the files in data' 'Allow' 'Cancel' 'Notes for the hub test.' 'by Zinc tests' 'Uses: Read the files in data'; do
+  echo "$texts" | grep -qxF "$t" || { echo "the consent screen or the row does not show '$t'"; fail=1; }; done
+echo "$texts" | grep -q '^Not installed · stable 1.0.0 · [0-9]* KB$' || { echo "the row does not show the size: $(echo "$texts" | grep 'Not installed')"; fail=1; }
+[ -e "$live" ] && { echo "the app was installed before Allow"; fail=1; }
+app "install com.example.notes; cancel"
+expect 'Nothing was installed: notes was not allowed.'
+[ -e "$live" ] && { echo "Cancel installed the app"; fail=1; }
+app "install com.example.notes; allow"
 expect 'Installed notes 1.0.0.'
+[ "$(cat "$tmp/hub/apps/com.example.notes/granted" 2>/dev/null)" = 'fs:read:data' ] || { echo "the consent is not recorded: $(cat "$tmp/hub/apps/com.example.notes/granted" 2>/dev/null)"; fail=1; }
 cmp -s "$live" "$tmp/out-1.0.0/notes-1.0.0.zapp" || { echo "the installed .zapp is not the published 1.0.0"; fail=1; }
 grep -qx "$live" "$tmp/tile.log" 2>/dev/null || { echo "zinc-tile was not called on $live: $(cat "$tmp/tile.log" 2>/dev/null)"; fail=1; }
 out=$("$Z" run "$live" 2>&1); echo "$out" | grep -q 'hello from' || { echo "the installed app does not run: $out" | tail -5; fail=1; }   # what its tile runs
@@ -76,6 +89,10 @@ python3 tools/scene-texts "$tmp/scene.bin" | grep -qx N || { echo "no placeholde
 publish 1.1.0
 app "update com.example.notes"
 expect 'Updates: notes 1.1.0.'
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")   # it asks for the network now: the update asks for that alone
+echo "$texts" | grep -qxF 'notes 1.1.0 asks for more' && echo "$texts" | grep -qxF '• Connect to api.example.com' || { echo "the update does not ask for the new permission"; fail=1; }
+echo "$texts" | grep -qxF '• Read the files in data' && { echo "the update asks again for what was allowed"; fail=1; }
+app "update com.example.notes; allow"
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" && cmp -s "$tmp/hub/apps/com.example.notes/previous.zapp" "$tmp/out-1.0.0/notes-1.0.0.zapp" \
   || { echo "after the update: the live or the kept package is wrong"; fail=1; }
@@ -94,8 +111,8 @@ app "rollback com.example.notes"
 expect 'Rolled notes back to 1.0.0 (from 1.1.0).'
 cmp -s "$live" "$tmp/out-1.0.0/notes-1.0.0.zapp" || { echo "the rollback did not put 1.0.0 back"; fail=1; }
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in 'Zinc Hub' 'notes' 'Installed 1.0.0 · 1.1.0 available' 'Update to 1.1.0'; do
-  echo "$texts" | grep -qxF "$t" || { echo "the apps page does not show '$t':"; echo "$texts" | head -30; fail=1; }
+for t in 'Zinc Hub' 'notes' 'Installed 1.0.0 · 1.1.0 available · ' 'Update to 1.1.0'; do
+  echo "$texts" | grep -q "^$t" || { echo "the apps page does not show '$t':"; echo "$texts" | head -30; fail=1; }
 done
 echo "$texts" | grep -q 'Rollback' && { echo "the apps page offers a rollback to a newer version"; fail=1; }
 app "update com.example.notes"
@@ -209,6 +226,24 @@ for t in 'Hub' '0.2.0' 'reMarkable Paper Pro' '3.29.0.153' '18 h 47 min' '87% ·
 echo 1 > "$b/elants-marker-battery/present"; echo 0 > "$b/nfc-marker-battery/present"; echo Discharging > "$b/nfc-marker-battery/status"
 PATH=$tmp/bin:$PATH ZINC_HUB_SYS_ROOT=$r app "page info"
 python3 tools/scene-texts "$tmp/scene.bin" | grep -qx '79%' || { echo "the detached Marker is not read from the screen's supply"; fail=1; }
+# an app that declares no "permissions": the consent screen says it can do what any program can; allowed once ('*'), not asked again
+"$Z" new cli "$tmp/plain" >/dev/null || exit 2
+python3 - "$tmp/plain/zinc.json" "$k_public" <<'PY'
+import json, sys
+p, key = sys.argv[1:]
+d = json.load(open(p)); d['app'] = {'id': 'com.example.plain', 'version': '1.0.0'}
+d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
+d.pop('permissions', None)
+json.dump(d, open(p, 'w'))
+PY
+out=$("$Z" publish "$tmp/plain" --key "$k_seed" -o "$tmp/out-plain" --hub "$hub" --token "$token" 2>&1); echo "$out" | grep -q 'stored com.example.plain 1.0.0' || { echo "publish plain: $out"; fail=1; }
+app "refresh; install com.example.plain"
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+echo "$texts" | grep -qF '• It does not say what it uses' && echo "$texts" | grep -qxF 'Uses: does not say' || { echo "an app without permissions is not shown as such"; fail=1; }
+app "install com.example.plain; allow"
+expect 'Installed plain 1.0.0.'
+[ "$(cat "$tmp/hub/apps/com.example.plain/granted" 2>/dev/null)" = '*' ] || { echo "the consent to an undeclared app is not recorded as *"; fail=1; }
+
 # Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
 : > "$tmp/tile.log"
 app "uninstall com.example.notes"

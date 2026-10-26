@@ -29,8 +29,11 @@ function Icon(props: { row: AppRow }): i32 {
 function versionLine(r: AppRow): string {
   const have = r.installed !== '' ? `Installed ${r.installed}` : 'Not installed';
   const offer = r.available === '' ? `nothing on ${r.channel}` : r.updatable ? `${r.available} available` : `${r.channel} ${r.available}`;
-  return `${have} · ${offer}`;
+  const size = r.size >= 1048576 ? ` · ${(r.size / 1048576).toFixed(1)} MB` : r.size > 0 ? ` · ${Math.max(1, Math.round(r.size / 1024))} KB` : '';
+  return `${have} · ${offer}${size}`;
 }
+/** What it says it uses, as the consent screen words it. */
+function usesLine(r: AppRow): string { return !r.declared ? 'Uses: does not say' : r.uses === '' ? 'Uses: nothing sensitive' : `Uses: ${r.uses}`; }
 
 function Row(props: { row: AppRow }): i32 {
   const r = props.row;
@@ -41,9 +44,12 @@ function Row(props: { row: AppRow }): i32 {
       <View className="flex-col gap-2 grow">
         <Text className={TITLE}>{r.name}</Text>
         <Text className={SMALL}>{r.id === HUB_ID ? `${r.id} · this app` : r.id}</Text>
+        {r.author !== '' ? <Text className={SMALL}>{`by ${r.author}`}</Text> : null}
       </View>
     </View>
+    {r.description !== '' ? <Text className={LABEL}>{r.description}</Text> : null}
     <Text className={LABEL}>{versionLine(r)}</Text>
+    <Text className={SMALL}>{usesLine(r)}</Text>
     <View className="flex-row gap-6">
       {r.installed !== '' && r.id !== HUB_ID ? <SolidButton label="Open" onClick={() => openApp(r.id)} /> : null}
       {r.installed === '' && r.available !== '' ? <SolidButton label="Install" onClick={() => installApp(r.id)} /> : null}

@@ -20,6 +20,12 @@ export class CatalogChannel {
   iconSha256: string = '';
   zbc: i32 = 0;            // the engine the package needs (its manifest.json needs, docs/zapp.md): ZBC version and runtime calls, 0 when unknown
   rt: i32 = 0;
+  description: string = '';   // from the package's zinc.json (description, app.author, app.homepage); '' when it names none
+  author: string = '';
+  homepage: string = '';
+  declared: boolean = false;  // zinc.json has "permissions" (an older server sends none: not declared)
+  permissions: string[] = [];
+  size: i32 = 0;           // the .zapp in bytes, 0 when the server does not say
 }
 export class CatalogApp {
   id: string = '';
@@ -97,6 +103,9 @@ export async function catalog(cfg: HubConfig): Promise<Catalog> {
       ch.channel = '' + c.channel; ch.version = '' + c.version; ch.manifest = '' + c.manifest; ch.url = '' + c.url; ch.sha256 = '' + c.sha256;
       ch.icon = c.icon === undefined ? '' : '' + c.icon; ch.iconSha256 = c.iconSha256 === undefined ? '' : '' + c.iconSha256;
       ch.zbc = c.zbc === undefined ? 0 : parseInt('' + c.zbc); ch.rt = c.rt === undefined ? 0 : parseInt('' + c.rt);
+      ch.description = c.description === undefined ? '' : '' + c.description; ch.author = c.author === undefined ? '' : '' + c.author;
+      ch.homepage = c.homepage === undefined ? '' : '' + c.homepage; ch.size = c.size === undefined ? 0 : parseInt('' + c.size);
+      if (c.permissions !== undefined && c.permissions !== null) { ch.declared = true; for (let n: i32 = 0; n < c.permissions.length; n++) ch.permissions.push('' + c.permissions[n]); }
       if (safe(ch.channel)) app.channels.push(ch);
     }
     apps.push(app);

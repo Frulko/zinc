@@ -22,6 +22,12 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   manifest's SHA-256; the manifest is the version the catalog offers. Any mismatch is refused with a message, and nothing is replaced.
 - An update never goes to an older or equal version (a server cannot downgrade an app). **Rollback** puts back the package the last update
   replaced (its SHA-256 checked again); **Update** brings the newer one back.
+- **What an app is and what it uses.** Each row shows the app's description, author and size, and the permissions its zinc.json declares
+  (`"permissions"`, [the security guide](../../docs/guide/08-security.md)) in plain words. Before an install, and before an update that
+  asks for permissions not allowed before, a consent screen lists them with **Allow** / **Cancel**; nothing is downloaded before Allow. An
+  app that declares no `"permissions"` is shown as one that can do what any program can, and asked for once. The answer is kept in
+  `apps/<id>/granted`. The tablet does not enforce the list yet (`zinc run` warns only; `ZINC_PERMISSIONS=enforce` would make it refuse),
+  so the screen says to allow only apps you trust.
 - **Uninstall** (two taps: the first turns it into **Confirm uninstall**) removes the app's tiles, its package and the hub's record of it;
   what the app saved stays. A running app is refused until it is stopped (Running). Settings › **Clean up AppLoad** removes the `zinc-*`
   tiles whose `.zapp` is gone and leaves every other tile alone.
@@ -65,12 +71,12 @@ while minimized), **Using a lot of memory** (over 768 MB). An app that is not re
 | Path | What |
 | --- | --- |
 | `~/.zinc/hub/hub.conf` (`ZINC_HUB_DIR`) | server, server key, device token (mode 600), the channel of each app |
-| `~/.zinc/hub/apps/<id>/` | `installed`, `previous` and `previous.zapp` (what Rollback brings back), `icon.png` (the list's icon) |
+| `~/.zinc/hub/apps/<id>/` | `installed`, `previous` and `previous.zapp` (what Rollback brings back), `icon.png` (the list's icon), `granted` (the permissions allowed, one per line, `*` for an app that declares none) |
 | `~/zinc-apps/<name>.zapp` (`ZINC_HUB_APPS`) | the installed package, the one its tile `zinc-<name>` runs |
 | `~/zinc/bin/zinc-tile` (`ZINC_HUB_TILE`) | makes the tile; absent on a desktop, where installing makes no tile |
 | `~/zinc` (`ZINC_RMPP_ENGINE`) | the engine an update replaces (`zinc.download.tar.gz`, `zinc.new`, `zinc.old` only during one); unset on a desktop: no engine updates |
 
 `src/`: `main.tsx` (the shell), `state.ts` (the actions), `services/server.ts` (pairing, catalog, download and their checks),
-`services/installs.ts` (install, rollback, tiles), `services/running.ts` (the Running page's apps and Stop), `services/config.ts`, `pages/`,
+`services/installs.ts` (install, rollback, tiles), `services/permissions.ts` (the consent words and record), `services/running.ts` (the Running page's apps and Stop), `services/config.ts`, `pages/`,
 `components/`, `script.ts` (`ZINC_HUB_SCRIPT`, the test mode of `tests/t1/hub_app.sh` and `tests/t1/hub_running.sh`). The signature, SHA-256 and version code is `app/hub-server/src/protocol.ts`, shared with the server.
 `icon.svg` (zinc.json `app.icon`) is Lucide's `layout-grid` (lucide-static 0.462.0, ISC licence, https://lucide.dev/license), drawn black at stroke width 2.5.

@@ -12,6 +12,7 @@ import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './c
 import { RunningApp, running, stopApp } from './services/running';
 import { InfoSection, loadInfo, hubVersion } from './services/system';
 import { setTask, setStep, failure, setFailure, progress } from './services/progress';
+import { describe, consentLines, grant, toAsk } from './services/permissions';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -24,6 +25,11 @@ export class AppRow {
   previous: string = '';            // what Rollback brings back, '' when nothing
   icon: string = '';                // the cached icon (a PNG checked against the catalog), '' for the placeholder
   iconSha256: string = '';
+  description: string = '';         // from the package's zinc.json (the channel shown)
+  author: string = '';
+  size: i32 = 0;
+  uses: string = '';                // its permissions in a few words, '' when it declares none of them
+  declared: boolean = false;
   /** Rollback goes back to an older version only: after a rollback the newer one comes back with Update. */
   get canRollback(): boolean { return this.previous !== '' && newer(this.installed, this.previous); }
   get updatable(): boolean { return this.installed !== '' && this.available !== '' && newer(this.available, this.installed); }
@@ -117,6 +123,11 @@ function rebuildRows(): void {
     if (p !== null) r.previous = p.version;
     const shown = shownChannel(a);
     if (shown !== null && (shown as CatalogChannel).iconSha256 !== '' && fs.exists(iconPath(a.id))) { r.icon = iconPath(a.id); r.iconSha256 = (shown as CatalogChannel).iconSha256; }
+    if (shown !== null) {
+      const c = shown as CatalogChannel;
+      r.description = c.description; r.author = c.author; r.size = c.size; r.declared = c.declared;
+      r.uses = c.permissions.map((p: string) => describe(p)).join(' · ');
+    }
     if (r.name === '') r.name = a.id;
     list.push(r);
   }
@@ -192,8 +203,43 @@ function refuseUnrunnable(ch: CatalogChannel): void {
 }
 
 /** Install or update: downloads, verifies and installs the version of the channel this tablet follows. */
-export async function installApp(id: string): Promise<void> {
+/** The consent screen (main.tsx): what an app about to be installed or updated says it uses; Allow installs it, Cancel installs nothing. */
+export class Consent {
+  id: string = '';
+  title: string = '';
+  lines: string[] = [];
+}
+export const [consent, setConsent] = createSignal<Consent | null>(null);
+export async function allowConsent(): Promise<void> {
+  const c = consent();
+  if (c === null) return;
+  setConsent(null);
+  await installApp((c as Consent).id, true);
+}
+export function cancelConsent(): void {
+  const c = consent();
+  setConsent(null);
+  if (c !== null) say('Nothing was installed: ' + nameFor((c as Consent).id) + ' was not allowed.');
+}
+
+export async function installApp(id: string, allowed: boolean = false): Promise<void> {
   const i = installed(id);
+  if (!allowed && !busy()) {   // first what it uses: the owner says yes before anything is downloaded
+    let ch: CatalogChannel | null = null;
+    for (const a of apps) if (a.id === id) ch = a.channel(config.channelOf(id));
+    if (ch !== null) {
+      const c = ch as CatalogChannel;
+      const ask = toAsk(id, c.declared, c.permissions, i !== null || id === HUB_ID);
+      if (ask.length > 0) {
+        const k = new Consent();
+        k.id = id;
+        k.title = (i !== null ? nameFor(id) + ' ' + c.version + ' asks for more' : 'Install ' + nameFor(id) + ' ' + c.version + '?');
+        k.lines = c.declared ? consentLines(true, ask) : consentLines(false, []);
+        setConsent(k);
+        return;
+      }
+    }
+  }
   await run((i !== null || id === HUB_ID ? 'Updating ' : 'Installing ') + nameFor(id), async (): Promise<string> => {
     let app: CatalogApp | null = null;
     for (const a of apps) if (a.id === id) app = a;
@@ -202,6 +248,7 @@ export async function installApp(id: string): Promise<void> {
     if (ch === null) throw new Error(id + ' has no version on the ' + config.channelOf(id) + ' channel.');
     refuseUnrunnable(ch as CatalogChannel);
     const message = await install(id, await download(config, app as CatalogApp, ch));
+    grant(id, (ch as CatalogChannel).declared, (ch as CatalogChannel).permissions);
     rebuildRows();
     if (id === HUB_ID && restartSelf()) return message + ' Restarting the Hub.';
     return message;

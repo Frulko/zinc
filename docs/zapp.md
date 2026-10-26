@@ -16,7 +16,7 @@ byte-identical, and `tar tf game.zapp` lists it.
 | `manifest.json` | `format` (1), `engine` (the zinc that made it, for information), `needs` (`{"zbc": 8, "rt": 412}`: what the program needs of the engine, below), `name`, `files` (each file's SHA-256), `signature` (empty: the slot for signed apps) |
 | `program.zbc` | the compiled program (ZBC) |
 | `resources.bin` | the fonts and images baked for the program |
-| `zinc.json` | the project's manifest: window size, targets, permissions |
+| `zinc.json` | the project's manifest: window size, targets, permissions; a hub server reads `description`, `app.author`, `app.homepage` and `permissions` from it for its catalog (covered by the manifest's SHA-256, so by the publisher's signature) |
 | `icon.png` | zinc.json `app.icon` (a PNG, an SVG or any image zinc decodes) as a 150 x 150 PNG on white: the launcher tile (`zinc-tile` on a reMarkable, the hub's list); absent when the app has no icon. The file itself is also packed at its own path |
 | `assets/...` | the project's assets, read at run time (`zinc:assets`); hidden files stay out |
 | `native/<target>-<arch>/<plugin>/` | the library of each native plugin the program calls, built for the machine that packed it, and its `exports` |

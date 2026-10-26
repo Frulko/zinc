@@ -1,10 +1,12 @@
 {
   "name": "dashboard",
   "entry": "src/main.tsx",
-  "app": { "id": "dev.zinc.dashboard", "version": "0.1.0", "icon": "icon.svg" },
+  "description": "The time, the battery and your notes at a glance, also as a widget.",
+  "app": { "id": "dev.zinc.dashboard", "version": "0.1.0", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp", "refresh_mode": "fast" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
     "linux": { "width": 1620, "height": 2160 }
-  }
+  },
+  "permissions": ["fs:read"]
 }

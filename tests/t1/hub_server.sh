@@ -88,7 +88,10 @@ curl -sf -H "$auth" "$hub/catalog.json" | grep -q "\"icon\":\"apps/com.example.h
 curl -sf -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.png" >"$tmp/got-icon.png" && cmp -s "$tmp/got-icon.png" "$tmp/zapp-icon.png" || { echo "the served icon is not the package's"; fail=1; }
 needs=$(tar xOf "$tmp/got.zapp" manifest.json | python3 -c 'import json, sys; n = json.load(sys.stdin)["needs"]; print("\"zbc\":%d,\"rt\":%d" % (n["zbc"], n["rt"]))')
 case "$needs" in *'"rt":0') echo "the package needs no runtime call: $needs"; fail=1;; esac
-grep -qF "\"iconSha256\":\"$isum\",$needs}" "$tmp/catalog.json" || { echo "the catalog does not list the needs $needs: $(cat "$tmp/catalog.json")"; fail=1; }
+grep -qF "\"iconSha256\":\"$isum\",$needs," "$tmp/catalog.json" || { echo "the catalog does not list the needs $needs: $(cat "$tmp/catalog.json")"; fail=1; }
+# what the Hub shows of it, from the zinc.json in the .zapp: description, author, homepage, permissions (null: it declares none), size
+meta=$(tar xOf "$tmp/got.zapp" zinc.json | python3 -c 'import json, sys; z = json.load(sys.stdin); a = z.get("app", {}); p = z.get("permissions"); print(json.dumps({"description": a.get("description", z.get("description", "")), "author": a.get("author", ""), "homepage": a.get("homepage", ""), "permissions": p}, separators=(",", ":"))[1:-1])')
+grep -qF "$needs,$meta,\"size\":$(wc -c <"$tmp/got.zapp" | tr -d ' ')}" "$tmp/catalog.json" || { echo "the catalog does not list $meta and the size: $(cat "$tmp/catalog.json")"; fail=1; }
 code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/apps/com.example.hub/v1-1.1.0.png"); [ "$code" = 401 ] || { echo "the icon without a token: $code"; fail=1; }
 
 # admin: apps and devices listed, 1.1.0 retracted -> 1.0.0 is current again; a wrong token sees nothing

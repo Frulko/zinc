@@ -17,8 +17,9 @@
 // HTTP (a device token or the publisher token as `Authorization: Bearer <token>`):
 //   POST /pair                 form `code=<the code the hub prints>&name=<device>` -> {"serverKey": hex, "token": hex}; the code changes after each use
 //   GET  /catalog.json         device: {"server", "issued", "apps": [{"id", "key", "channels": [{"channel", "version", "manifest", "url", "sha256",
-//                              "icon", "iconSha256", "zbc", "rt"}]}]} (icon and iconSha256 '' for a package without an icon; zbc and rt: the
-//                              engine the package needs, its manifest.json `needs` (docs/zapp.md), 0 when it names none)],
+//                              "icon", "iconSha256", "zbc", "rt", ...}]}]} (icon and iconSha256 '' for a package without an icon; zbc and rt: the
+//                              engine the package needs, its manifest.json `needs` (docs/zapp.md), 0 when it names none), "description",
+//                              "author", "homepage", "permissions" (zinc.json's list, null when it declares none) and "size" (bytes)],
 //                              "engine": {"version", "zbc", "rt", "url", "sha256", "size"} or null: the engine bundle the Hub app installs
 //                              on the tablet. There is no publisher key for the engine: the hub key that signs this catalog is what a
 //                              device trusts for it, with the SHA-256 and size listed here and the new engine's own `zinc --engine-info`.
@@ -153,6 +154,29 @@ function needsOf(zapp: u8[]): string {
   if (n === undefined) return ',"zbc":0,"rt":0';
   return ',"zbc":' + parseInt('' + n.zbc).toString() + ',"rt":' + parseInt('' + n.rt).toString();
 }
+/** What the Hub shows of a stored .zapp, from the zinc.json it carries (covered by the manifest's SHA-256, so by the publisher's signature):
+ *  `,"description":…,"author":…,"homepage":…,"permissions":[…] or null,"size":N`. null: the app declares no "permissions" (the engine checks
+ *  nothing for it); [] declares that it uses none of them. */
+function metaOf(zapp: u8[]): string {
+  const raw = member(zapp, 'zinc.json');
+  let description = '', author = '', homepage = '', perms = 'null';
+  if (raw.length > 0) {
+    try {
+      const z = JSON.parse(sys.utf8Decode(raw));
+      const app = z.app;
+      if (z.description !== undefined) description = '' + z.description;
+      if (app !== undefined && app.description !== undefined) description = '' + app.description;
+      if (app !== undefined && app.author !== undefined) author = '' + app.author;
+      if (app !== undefined && app.homepage !== undefined) homepage = '' + app.homepage;
+      if (z.permissions !== undefined && z.permissions !== null) {
+        const p: string[] = [];
+        for (let i: i32 = 0; i < z.permissions.length; i++) p.push(json('' + z.permissions[i]));
+        perms = '[' + p.join(',') + ']';
+      }
+    } catch (e) { }   // ponytail: a zinc.json the engine could not read either: no metadata
+  }
+  return ',"description":' + json(description) + ',"author":' + json(author) + ',"homepage":' + json(homepage) + ',"permissions":' + perms + ',"size":' + zapp.length.toString();
+}
 /** The icon of the package `file` (<name>.zapp), relative to the data directory and to the server: apps/<id>/<name>.png. */
 function iconPath(id: string, file: string): string { return 'apps/' + id + '/' + file.slice(0, file.length - 5) + '.png'; }
 
@@ -176,11 +200,12 @@ async function catalog(): Promise<string> {
       const v = current(id, c);
       if (v.length === 0) continue;
       const m = parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest'));
+      const zapp = fs.readBytes(apps + '/' + id + '/' + m.get('url'));
       let icon = iconPath(id, m.get('url')), iconSum = '';
       if (fs.exists(data + '/' + icon)) iconSum = await sha256(fs.readBytes(data + '/' + icon));
       else icon = '';
       chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + '.manifest') +
-        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + needsOf(fs.readBytes(apps + '/' + id + '/' + m.get('url'))) + '}';
+        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + needsOf(zapp) + metaOf(zapp) + '}';
     }
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;

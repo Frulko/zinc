@@ -1,7 +1,8 @@
 {
   "name": "notes",
   "entry": "src/main.tsx",
-  "app": { "id": "dev.zinc.notes", "version": "0.1.0", "icon": "icon.svg" },
+  "description": "Handwritten notes with the Marker, saved on the tablet.",
+  "app": { "id": "dev.zinc.notes", "version": "0.1.0", "author": "Zinc", "icon": "icon.svg" },
   "display": {
     "driver": "rmpp",
     "refresh_mode": "fast"
@@ -15,5 +16,6 @@
       "width": 1620,
       "height": 2160
     }
-  }
+  },
+  "permissions": ["fs"]
 }

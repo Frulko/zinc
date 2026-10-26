@@ -8,7 +8,7 @@ import { PAGE, LABEL, TITLE, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL
 import { page, openPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
 import { InfoPage } from './pages/info';
 import { task, step, failure } from './services/progress';
-import { dismiss } from './state';
+import { dismiss, consent, allowConsent, cancelConsent, Consent } from './state';
 import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
 import { RunningPage, StuckBanner } from './pages/running';
@@ -34,6 +34,23 @@ function Activity(): i32 {
   </View>;
 }
 
+/** Before an install (or an update that asks for more): what the app says it uses, Allow or Cancel. Nothing is downloaded before Allow. */
+function ConsentBox(): i32 {
+  const c = consent() as Consent;
+  return <View className="absolute top-0 left-0 right-0 bottom-0 items-center justify-center bg-white" onClick={() => {}}>
+    <View className="flex-col gap-6 w-[1300px] p-12 border-4 border-black rounded-lg bg-white">
+      <Text className={TITLE}>{c.title}</Text>
+      <Text className={LABEL}>It says it will:</Text>
+      {c.lines.map((l: string) => <Text className={`font-bold ${LABEL}`}>{`• ${l}`}</Text>)}
+      <Text className={LABEL}>Zinc on the reMarkable does not stop an app from doing more than it says yet: allow only apps you trust.</Text>
+      <View className="flex-row gap-6">
+        <Button className={BUTTON} onClick={() => { allowConsent(); }}><Text className={BUTTON_LABEL}>Allow</Text></Button>
+        <Button className={OUTLINE_BUTTON} onClick={() => cancelConsent()}><Text className={OUTLINE_LABEL}>Cancel</Text></Button>
+      </View>
+    </View>
+  </View>;
+}
+
 function App(): i32 {
   return <View className={PAGE}>
     <RemarkableBar title="Zinc Hub" />
@@ -49,7 +66,7 @@ function App(): i32 {
     <View className="px-10 py-6 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
     </View>
-    {task() !== '' ? <Activity /> : null}
+    {task() !== '' ? <Activity /> : consent() !== null ? <ConsentBox /> : null}
     </View>
     <RemarkableKeyboard />
   </View>;
