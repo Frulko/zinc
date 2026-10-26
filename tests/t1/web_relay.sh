@@ -1,7 +1,7 @@
 #!/bin/sh
 # Zinc Web (ZN-844): the relay (app/web-relay) renders a local page in headless Chrome at the tablet's size, and the reader (app/web) drives
 # it headless. Relay: a page picture is exactly the viewport, a zoomed one too, the link map has the fixture's two http links (not the mailto),
-# a request without the token is refused, a file:// page is refused. Reader (ZINC_WEB_SCRIPT, the buttons' actions): open, page down,
+# a request without the token is refused (served with --no-token), a file:// page is refused. Reader (ZINC_WEB_SCRIPT, the buttons' actions): open, page down,
 # follow a link by a tap on it, back, write with the pen, save the ink per URL (it comes back on the next run), export page + ink as PNG.
 # Dashboard (TRMNL-style): on a short period (ZINC_WEB_DASH_MS) a page that changed is swapped, an unchanged one is not, the widget draws it.
 # No network: the fixture is served by python3 on 127.0.0.1.
@@ -94,5 +94,11 @@ grep -qx "dash=http://127.0.0.1:$wp/dash.html" "$tmp/web/web.conf" || { echo "th
 kill $rel; wait $rel 2>/dev/null; rel=
 for i in $(seq 1 25); do pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null || break; sleep 0.2; done   # the relay stops its Chrome
 pgrep -f "user-data-dir=$tmp/relay/chrome-profile" >/dev/null && { echo "Chrome was left running"; pkill -f "user-data-dir=$tmp/relay/chrome-profile"; fail=1; }
+# --no-token (a test on a trusted network): a request without the token is served
+"$Z" run app/web-relay -- --port "$rp" --data "$tmp/open" --no-token >"$tmp/open.log" 2>&1 & rel=$!
+for i in $(seq 1 100); do grep -q 'relay: no token' "$tmp/open.log" && break; sleep 0.2; done
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$R/nope")" = 404 ] || { echo "--no-token still asks for a token: $(tail -3 "$tmp/open.log")"; fail=1; }
+[ -e "$tmp/open/relay.token" ] && { echo "--no-token wrote a token"; fail=1; }
+kill $rel; wait $rel 2>/dev/null; rel=
 [ $fail -eq 0 ] && echo "web relay: ok"
 exit $fail

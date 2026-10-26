@@ -16,7 +16,7 @@ own profile in `<data>/chrome-profile` and stops with the relay. On the tablet, 
 
 ## HTTP
 
-Every request but `/health` carries `Authorization: Bearer <token>` (`<data>/relay.token`, mode 600). Sizes are tablet pixels; a page is
+Every request but `/health` carries `Authorization: Bearer <token>` (`<data>/relay.token`, mode 600). `--no-token` serves every request without one: for a test on a network you trust, since whoever reaches the port then drives the relay's Chrome. Sizes are tablet pixels; a page is
 laid out at `w / dpr` CSS pixels (`dpr` 2: 1620 tablet pixels are 810 CSS pixels, a tablet layout).
 
 | Request | Answer |

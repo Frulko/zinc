@@ -9,7 +9,7 @@ import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, KEY } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, refresh,
-  SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS } from './state';
+  SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
@@ -41,7 +41,7 @@ function Settings(): i32 {
     <Text className={TITLE}>Relay</Text>
     <Text className={LABEL}>The Mac that renders the pages: zinc run app/web-relay (over USB the Mac is http://10.11.99.2:8790).</Text>
     <Input className={FIELD} inputMode="url" value={url()} onInput={(v: string) => setUrl(v)} />
-    <Text className={LABEL}>Its token (the relay prints it, and keeps it in web-relay-data/relay.token):</Text>
+    <Text className={LABEL}>Its token (the relay prints it; empty when it runs with --no-token):</Text>
     <Input className={FIELD} value={token()} onInput={(v: string) => setToken(v)} />
     <View className="flex-row gap-6">
       <Btn label="Save" on={true} onClick={() => { saveRelay(url(), token()); setScreen(SCREEN_PAGE); }} />
@@ -121,6 +121,6 @@ function Root(): i32 {
 render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   if (scripted()) { await runScript(); return; }
-  if (relay.token !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
+  if (conf.get('relay') !== '' && dashUrl() === '') { while (view.w === 0) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); }); await openUrl(address()); }
 }
 start();

@@ -1,5 +1,5 @@
 // Zinc web relay (ZN-844): renders web pages for a reMarkable (app/web), a headless Zinc program on the Mac.
-//   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>]
+//   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>] [--no-token]
 // The tablet cannot run a browser; the relay loads the page in headless Chrome at the tablet's width and sends pictures of it: whole
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
@@ -46,7 +46,7 @@ const data = opt('data', 'web-relay-data');
 const MAX_PAGES: i32 = 40;          // a page longer than 40 screens is cut there
 const LOAD_TIMEOUT_MS: i32 = 7000;   // under the 10 s the HTTP server gives a reply: a slower page is shown as it is then
 const SETTLE_MS: i32 = 400;         // after the load event: late fonts and images
-let token = '';
+let token = '';     // '' with --no-token: every request is served (a test on a trusted network)
 let chromePath = '';
 const chrome = new Chrome();
 
@@ -150,7 +150,7 @@ async function handle(req: Request): Promise<Reply> {
   const path = q < 0 ? req.path : req.path.slice(0, q);
   if (path === '/health') return reply(200, 'ok\n');
   const a = req.headers.get('authorization');
-  if (!same(a.startsWith('Bearer ') ? a.slice(7).trim() : '', token)) return reply(401, 'wrong or missing token (Authorization: Bearer <relay.token>)\n');
+  if (token !== '' && !same(a.startsWith('Bearer ') ? a.slice(7).trim() : '', token)) return reply(401, 'wrong or missing token (Authorization: Bearer <relay.token>)\n');
   const isGet = req.method === 'GET';
   if (!(isGet && (path === '/render' || path === '/shot')) && !(req.method === 'POST' && path === '/export')) return reply(404, 'not found\n');
   await exclusive();
@@ -173,13 +173,15 @@ function main(): void {
   if (chromePath === '') { console.log('relay: no Chrome found: install Google Chrome or pass --chrome <path to its executable>'); sys.exit(1); }
   fs.mkdir(data, true);
   const file = data + '/relay.token';
-  if (!fs.exists(file)) { fs.writeText(file, hex(sys.randomBytes(16)) + '\n'); fs.chmod(file, 0o600); }
-  token = fs.readText(file).trim();
+  if (sys.args().indexOf('--no-token') < 0) {
+    if (!fs.exists(file)) { fs.writeText(file, hex(sys.randomBytes(16)) + '\n'); fs.chmod(file, 0o600); }
+    token = fs.readText(file).trim();
+  }
   const quit = (): void => { chrome.stop(); sys.exit(0); };
   sys.onSignal('SIGINT', quit);
   sys.onSignal('SIGTERM', quit);
   serveAsync(port, handle);
   console.log('relay: listening on port ' + port.toString() + ', Chrome ' + chromePath);
-  console.log('relay: token ' + token);
+  console.log(token === '' ? 'relay: no token (--no-token): whoever reaches port ' + port.toString() + ' can use it' : 'relay: token ' + token);
 }
 main();

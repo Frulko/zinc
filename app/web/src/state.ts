@@ -20,9 +20,9 @@ relay.url = conf.get('relay') !== '' ? conf.get('relay') : DEFAULT_RELAY;
 relay.token = conf.get('token');
 relay.mode = conf.get('mode') === 'color' ? 'color' : 'grey';
 
-export const [screen, setScreen] = createSignal<i32>(relay.token === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
+export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
 export const [address, setAddress] = createSignal<string>(conf.get('last') !== '' ? conf.get('last') : HOME_PAGE);
-export const [status, setStatus] = createSignal<string>(relay.token === '' ? 'Set the relay address and its token (relay.token on the Mac).' : '');
+export const [status, setStatus] = createSignal<string>(conf.get('relay') === '' ? 'Set the relay address, and its token unless it runs with --no-token.' : '');
 export const [busy, setBusy] = createSignal<boolean>(false);
 export const [pageLabel, setPageLabel] = createSignal<string>('');
 export const [penMode, setPenMode] = createSignal<boolean>(false);   // desktop: the mouse writes instead of turning pages

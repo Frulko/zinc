@@ -35,7 +35,7 @@ zinc publish app/web --key "$(sed -n 's/^seed=//p' web.key)" --hub http://127.0.
 
 or by hand: `zinc pack app/web -o web.zapp`, `scp web.zapp root@10.11.99.1:/home/root/zinc-apps/`, then on the tablet
 `/home/root/zinc/bin/zinc-tile /home/root/zinc-apps/web.zapp` and reload AppLoad. In **Settings** set the relay to
-`http://10.11.99.2:8790` (USB) and paste the token.
+`http://10.11.99.2:8790` (USB) and paste the token, or leave it empty when the relay runs with `--no-token`.
 
 ## Files
 

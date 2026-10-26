@@ -28,7 +28,7 @@ export class Relay {
   }
   private async send(address: string, init: net.RequestInit): Promise<net.Response> {
     const h = new net.Headers();
-    h.set('Authorization', 'Bearer ' + this.token);
+    if (this.token !== '') h.set('Authorization', 'Bearer ' + this.token);
     init.headers = h;
     init.timeoutMs = REQUEST_TIMEOUT_MS;
     init.maxBytes = MAX_IMAGE_BYTES;
