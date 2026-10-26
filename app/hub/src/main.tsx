@@ -5,7 +5,8 @@ import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
 import { PAGE, LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
-import { page, setPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
+import { page, openPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
+import { InfoPage } from './pages/info';
 import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
 import { RunningPage, StuckBanner } from './pages/running';
@@ -13,7 +14,7 @@ import { scripted, runScript } from './script';
 
 function Tab(props: { label: string; index: i32 }): i32 {
   const on = (): boolean => page() === props.index;
-  return <Button className={on() ? BUTTON : OUTLINE_BUTTON} onClick={() => setPage(props.index)}>
+  return <Button className={on() ? BUTTON : OUTLINE_BUTTON} onClick={() => openPage(props.index)}>
     <Text className={on() ? BUTTON_LABEL : OUTLINE_LABEL}>{props.label}</Text>
   </Button>;
 }
@@ -24,10 +25,11 @@ function App(): i32 {
     <View className="flex-row gap-6 px-10 pt-8">
       <Tab label="Apps" index={PAGE_APPS} />
       <Tab label="Running" index={PAGE_RUNNING} />
+      <Tab label="Info" index={PAGE_INFO} />
       <Tab label="Settings" index={PAGE_SETTINGS} />
     </View>
     {stuck().length > 0 ? <StuckBanner /> : null}
-    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_RUNNING ? <RunningPage /> : <SettingsPage />}</View>
+    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_RUNNING ? <RunningPage /> : page() === PAGE_INFO ? <InfoPage /> : <SettingsPage />}</View>
     <View className="px-10 py-6 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
     </View>

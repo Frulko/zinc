@@ -40,12 +40,12 @@ function Row(props: { row: AppRow }): i32 {
       <Icon row={r} />
       <View className="flex-col gap-2 grow">
         <Text className={TITLE}>{r.name}</Text>
-        <Text className={SMALL}>{r.id}</Text>
+        <Text className={SMALL}>{r.id === HUB_ID ? `${r.id} · this app` : r.id}</Text>
       </View>
     </View>
     <Text className={LABEL}>{versionLine(r)}</Text>
     <View className="flex-row gap-6">
-      {r.installed !== '' ? <SolidButton label="Open" onClick={() => openApp(r.id)} /> : null}
+      {r.installed !== '' && r.id !== HUB_ID ? <SolidButton label="Open" onClick={() => openApp(r.id)} /> : null}
       {r.installed === '' && r.available !== '' ? <SolidButton label="Install" onClick={() => installApp(r.id)} /> : null}
       {r.updatable ? <SolidButton label={`Update to ${r.available}`} onClick={() => installApp(r.id)} /> : null}
       {r.canRollback ? <OutlineButton label={`Rollback to ${r.previous}`} onClick={() => rollbackApp(r.id)} /> : null}

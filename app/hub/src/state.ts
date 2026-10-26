@@ -10,6 +10,7 @@ import { quit } from 'zinc:gfx';
 import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath } from './services/installs';
 import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 import { RunningApp, running, stopApp } from './services/running';
+import { InfoSection, loadInfo, hubVersion } from './services/system';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -30,6 +31,7 @@ export class AppRow {
 export const PAGE_APPS: i32 = 0;
 export const PAGE_SETTINGS: i32 = 1;
 export const PAGE_RUNNING: i32 = 2;
+export const PAGE_INFO: i32 = 3;
 
 let config: HubConfig = loadConfig();
 let apps: CatalogApp[] = [];
@@ -45,7 +47,28 @@ export const [engineOffer, setEngineOffer] = createSignal<string>('');
 /** The running engine's version, for the engine row. */
 export function engineNow(): string { return engineVersion(); }
 
+// the hub's own version: its record once it updated itself, else the zinc.json of the package deploy.sh copied ('' in a development run)
+let selfVersion = '';
+async function readSelfVersion(): Promise<string> {
+  const i = installed(HUB_ID);
+  if (selfVersion === '') selfVersion = await hubVersion(i !== null ? (i as Installed).version : '', livePath('hub'));
+  return selfVersion;
+}
+
+/** The Info page: read again each time it opens. */
+export const [info, setInfo] = createSignal<InfoSection[]>([]);
+export async function refreshInfo(): Promise<void> {
+  const i = installed(HUB_ID);
+  if (i !== null) selfVersion = (i as Installed).version;
+  setInfo(await loadInfo(await readSelfVersion(), engineVersion(), ENGINE_ZBC, ENGINE_RT, paired() ? config.server + ' (key ' + serverFingerprint() + '…)' : 'not paired'));
+}
+export function openPage(p: i32): void {
+  setPage(p);
+  if (p === PAGE_INFO) refreshInfo();
+}
+
 async function fetchCatalog(): Promise<void> {
+  await readSelfVersion();
   const c = await catalog(config);
   apps = c.apps;
   engine = c.engine;
@@ -89,6 +112,7 @@ function rebuildRows(): void {
     else if (a.channels.length > 0) r.name = nameOf(fileOf(a.channels[0]), a.channels[0].version);
     const i = installed(a.id), p = previous(a.id);
     if (i !== null) { r.installed = i.version; r.name = i.name; }
+    else if (a.id === HUB_ID) r.installed = selfVersion;   // the hub runs, so it is installed, even when deploy.sh put it there
     if (p !== null) r.previous = p.version;
     const shown = shownChannel(a);
     if (shown !== null && (shown as CatalogChannel).iconSha256 !== '' && fs.exists(iconPath(a.id))) { r.icon = iconPath(a.id); r.iconSha256 = (shown as CatalogChannel).iconSha256; }

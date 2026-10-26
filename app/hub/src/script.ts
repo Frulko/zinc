@@ -1,9 +1,9 @@
 // ZINC_HUB_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons, after the check at start, then quit.
-//   server <url> | pair <code> | refresh | install <id> | update <id> | rollback <id> | channel <id> <stable|beta> | page apps|running|settings | engine | stop <app name>
+//   server <url> | pair <code> | refresh | install <id> | update <id> | rollback <id> | channel <id> <stable|beta> | page apps|running|info|settings | engine | stop <app name>
 //   uninstall <id> (twice: the first arms it) | clean
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { saveServer, pairWith, refresh, installApp, uninstallApp, cleanAppLoad, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
+import { saveServer, pairWith, refresh, installApp, uninstallApp, cleanAppLoad, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, refreshInfo, PAGE_INFO, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
 
 export function scripted(): boolean { return sys.env('ZINC_HUB_SCRIPT') !== ''; }
 
@@ -21,6 +21,7 @@ export async function runScript(): Promise<void> {
     else if (verb === 'clean') await cleanAppLoad();
     else if (verb === 'open') openApp(arg);
     else if (verb === 'channel') setChannel(arg, w.length > 2 ? w[2] : 'stable');
+    else if (verb === 'page' && arg === 'info') { setPage(PAGE_INFO); await refreshInfo(); }
     else if (verb === 'page') { refreshRunning(); setPage(arg === 'settings' ? PAGE_SETTINGS : arg === 'running' ? PAGE_RUNNING : PAGE_APPS); }
     else if (verb === 'stop') { for (const a of runningApps()) if (a.name === arg) await stopRunning(a.pid); }
     else if (verb !== '') console.log('hub: unknown script step ' + verb);

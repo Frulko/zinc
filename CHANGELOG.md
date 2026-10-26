@@ -9,7 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
-- reMarkable Hub: **Uninstall** an app (tap twice), **Clean up AppLoad** in Settings removes the Zinc tiles whose app is gone, and the Hub updates itself like any app and opens again on the new version. While an action runs, its buttons grey out.
+- reMarkable Hub: **Uninstall** an app (tap twice), **Clean up AppLoad** in Settings removes the Zinc tiles whose app is gone, and the Hub updates itself like any app and opens again on the new version. While an action runs, its buttons grey out. A new **Info** page shows the Hub and engine versions, the tablet's system, battery (and the Marker's), memory and storage.
 - reMarkable: three fingers held on the screen for 2 s quit a Zinc app, even one that no longer answers its buttons; or press the power button twice (sleep, wake): an app that was not responding is stopped on waking.
 - Stuck apps on the reMarkable: every Zinc app now runs with a tiny watcher that notices when it stops responding, uses the CPU while hidden or takes too much memory. The Hub's new **Running** page lists the apps with their state, CPU, memory and uptime and stops any of them; an app that stops responding shows at the top of the Hub with **Stop** / **Wait**. A hung app whose window you close, or that stays hung while hidden for 10 minutes, is stopped by itself.
 - The Hub updates the reMarkable's engine itself: `tools/rmpp-engine --publish <hub> --token <t>` sends the engine bundle to a hub server, and the Hub app shows **Update the engine** (also when an app needs a newer engine), checks it and swaps it in, keeping the old engine if anything fails. `zinc --engine-info` prints what an engine runs.

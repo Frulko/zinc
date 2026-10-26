@@ -182,6 +182,20 @@ out=$("$Z" publish "$tmp/selfhub" --key "$k_seed" -o "$tmp/out-hub" --hub "$hub"
 rm -f "$tmp/next"; export ZINC_NEXT=$tmp/next; app "refresh; install dev.zinc.hub"; unset ZINC_NEXT
 expect 'Installed hub 0.2.0. Tile zinc-hub ready: reload AppLoad. Restarting the Hub.'
 [ "$(cat "$tmp/next" 2>/dev/null)" = "$tmp/apps/hub.zapp" ] || { echo "the hub did not hand itself to the launcher: $(cat "$tmp/next" 2>/dev/null)"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'dev.zinc.hub · this app' || { echo "the hub's own row does not say this app"; fail=1; }
+# Info: the versions, and the tablet from a stand-in /proc, /sys and /etc (the Paper Pro's files)
+r=$tmp/sysroot; mkdir -p "$r/proc/device-tree" "$r/proc/sys/kernel" "$r/etc" "$r/sys/class/power_supply/max1726x_battery" \
+  "$r/sys/class/power_supply/max77963-charger" "$r/sys/class/power_supply/elants-marker-battery" "$r/sys/class/power_supply/nfc-marker-battery"
+printf 'reMarkable Ferrari \0' > "$r/proc/device-tree/model"; echo 6.12.49 > "$r/proc/sys/kernel/osrelease"; echo '67627.34 104531.37' > "$r/proc/uptime"
+printf 'MemTotal:        2009204 kB\nMemFree:          525720 kB\nMemAvailable:    1061680 kB\n' > "$r/proc/meminfo"
+printf 'ID=codex\nIMG_VERSION="3.29.0.153"\n' > "$r/etc/os-release"
+b=$r/sys/class/power_supply; echo Battery > "$b/max1726x_battery/type"; echo 87 > "$b/max1726x_battery/capacity"; echo Discharging > "$b/max1726x_battery/status"
+echo USB > "$b/max77963-charger/type"; echo Charging > "$b/max77963-charger/status"
+echo Wireless > "$b/elants-marker-battery/type"; echo 82 > "$b/elants-marker-battery/capacity"; echo 0 > "$b/nfc-marker-battery/capacity"
+ZINC_HUB_SYS_ROOT=$r app "page info"
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Hub' '0.2.0' 'reMarkable Paper Pro' '3.29.0.153' '18 h 47 min' '87% · discharging · plugged in' 'Marker' '82%' '1.0 GB free of 1.9 GB' 'Storage'; do
+  echo "$texts" | grep -qxF "$t" || { echo "the Info page does not show '$t'"; fail=1; }; done
 # Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
 : > "$tmp/tile.log"
 app "uninstall com.example.notes"
