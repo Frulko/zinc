@@ -4,7 +4,9 @@
 import * as md from 'zinc:markdown';
 import { loadFont, font, fontAscent, lineHeight, textWidth, imageFromBytes, imageWidth, imageHeight } from 'zinc:gfx';
 import * as fs from 'zinc:fs';
-import { MARGIN } from './constants';
+import * as sys from 'zinc:sys';
+import { sha256, toHex, base64Decode } from 'zinc:web';
+import { MARGIN, DATA_DIR } from './constants';
 
 export const I_TEXT: i32 = 0, I_FILL: i32 = 1, I_BOX: i32 = 2, I_IMAGE: i32 = 3, I_CHECK: i32 = 4;
 const BLACK: u32 = 0x000000, GREY: u32 = 0xe8e8e8, DARK: u32 = 0x555555;
@@ -73,14 +75,42 @@ class Token {
 }
 class Line { tokens: Token[] = []; xs: number[] = []; h: number = 0; asc: number = 0; }
 
+// A picture is a file next to the document (a relative path, its %-escapes decoded), an absolute path, a data: URI, or an http(s) URL
+// read from the cache the reader fills (fetchPictures in state.ts): the layout never waits on the network.
 const images = new Map<string, i32>();
-function picture(path: string): i32 {
-  const c = images.get(path);
+const isRemote = (href: string): boolean => href.startsWith('http://') || href.startsWith('https://');
+/** Where an http(s) picture is cached. */
+export function cachedPicture(url: string): string { return DATA_DIR + '/pictures/' + toHex(sha256(sys.utf8Encode(url))).slice(0, 32); }
+function picture(href: string, dir: string): i32 {
+  const remote = isRemote(href);
+  let path = '';
+  if (remote) path = cachedPicture(href);
+  else if (!href.startsWith('data:')) {
+    let rel = href.split('#')[0].split('?')[0];
+    try { rel = decodeURIComponent(rel); } catch (e) { }
+    path = rel.startsWith('/') ? rel : dir + '/' + rel;
+  }
+  const key = path !== '' ? path : href;
+  const c = images.get(key);
   if (c !== undefined) return c;
   let id = -1;
-  try { if (fs.exists(path)) id = imageFromBytes(fs.readBytes(path)); } catch (e) { id = -1; }
-  images.set(path, id);
+  try {
+    if (path === '') { const at = href.indexOf(';base64,'); if (at > 0) id = imageFromBytes(base64Decode(href.slice(at + 8))); }
+    else if (fs.exists(path)) id = imageFromBytes(fs.readBytes(path));
+  } catch (e) { id = -1; }
+  if (id >= 0 || !remote) images.set(key, id);   // a remote picture not cached yet is looked up again after the fetch
   return id;
+}
+
+/** The http(s) pictures of a document, in order, each once. */
+export function remotePictures(doc: md.Node): string[] {
+  const out: string[] = [];
+  const walk = (n: md.Node): void => {
+    if (n.kind === md.IMG && isRemote(n.href) && out.indexOf(n.href) < 0) out.push(n.href);
+    for (const c of n.children) walk(c);
+  };
+  walk(doc);
+  return out;
 }
 
 export function layout(doc: md.Node, w: number, h: number, px: number, dir: string): Layout {
@@ -120,7 +150,7 @@ class Pager {
       else if (n.kind === md.LINK) this.tokens(n.children, f, out, n.href, strike);
       else if (n.kind === md.WIKILINK) this.tokens(n.children, f, out, n.href + '.md', strike);
       else if (n.kind === md.IMG) {
-        const id = n.href.indexOf('://') < 0 ? picture(n.href.startsWith('/') ? n.href : this.dir + '/' + n.href) : -1;
+        const id = picture(n.href, this.dir);
         if (id >= 0) { const t = new Token(); t.img = id; t.w = imageWidth(id); t.h = imageHeight(id); out.push(t); }
         else this.tokens([textNode('[picture: ' + (md.textOf(n) !== '' ? md.textOf(n) : n.href) + '] ')], f, out, href, strike);
       } else this.tokens(n.children, f, out, href, strike);   // emphasis (no italic face: the body face), underline, mark...

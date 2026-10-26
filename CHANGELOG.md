@@ -34,6 +34,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
+- reMarkable Read: pictures from the web (http/https, downloaded once and kept for offline reading, also for Notion pages at sync), inline `data:` pictures and file names with spaces or `%20` now show instead of a "[picture: …]" placeholder.
 - reMarkable Hub: an engine published after an update made in the same session is offered at once, without reopening the Hub.
 - A string read from bytes that are not UTF-8 (a binary upload read as text) no longer crashes `slice`, `charAt` and `substring`: each invalid byte reads as U+FFFD. The app hub crashed on a 39 MB engine upload.
 - `JSON.stringify` of a long string with accents or other non-ASCII characters is linear: it took 19 s for 90 KB, it now takes a millisecond.

@@ -59,6 +59,23 @@ app "open guide.md; pages" "$tmp/page1.png"
 expect 'read: page 1 of '
 app "open guide.md; toc 4" "$tmp/tasks.png"
 
+# pictures: next to the document, a %-escaped path in a folder, a data: URI, an http one (fetched once into the cache, then read offline)
+# and an http one that fails (its placeholder stays)
+mkdir -p "$tmp/docs/sub" "$tmp/www" && cp app/markdown/fixture/figure.png "$tmp/docs/sub/my figure.png" && cp app/markdown/fixture/figure.png "$tmp/www/remote.png"
+python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])' >"$tmp/port"
+wport=$(cat "$tmp/port")
+(cd "$tmp/www" && exec python3 -m http.server "$wport" --bind 127.0.0.1) >/dev/null 2>&1 & srv=$!
+for i in $(seq 1 50); do python3 -c 'import socket, sys; socket.create_connection(("127.0.0.1", int(sys.argv[1])), 0.2)' "$wport" 2>/dev/null && break; sleep 0.1; done
+printf '# Pictures\n\n![next to it](figure.png)\n\n![escaped](sub/my%%20figure.png)\n\n![inline](data:image/png;base64,%s)\n\n![remote](http://127.0.0.1:%s/remote.png)\n\n![gone](http://127.0.0.1:%s/none.png)\n' \
+  "$(base64 < app/markdown/fixture/figure.png | tr -d '\n')" "$wport" "$wport" > "$tmp/docs/pictures.md"
+app "open pictures.md; pictures"
+expect 'read: pictures 4'
+expect 'read: 1 of 2 pictures loaded'
+kill $srv; wait $srv 2>/dev/null; srv=
+app "open pictures.md; pictures"
+expect 'read: pictures 4'
+rm "$tmp/docs/pictures.md"
+
 # Notion: a wrong token, then the page imported, then read offline
 python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])' >"$tmp/port"
 port=$(cat "$tmp/port")

@@ -2,10 +2,12 @@
 //   open <path> | next | prev | toc <n> (the n-th heading of the table of contents) | link <href> (a tap on that link's box)
 //   task <n> (a tap on the n-th task box of the page) | font <+1|-1> | back | draw <x0> <y0> <x1> <y1> (a pen stroke) | save
 //   notion <token> <page> (Settings: Save) | sync | library | pages (prints the page count and the headings with their pages)
+//   pictures (waits for the http(s) pictures, then prints how many the layout shows)
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { doc, openDoc, turn, jump, tapAt, setFont, back, saveInk, saveNotion, syncNotion, scanLibrary, library, say, setScreen, SCREEN_READ } from './state';
+import { doc, picturesLoading, openDoc, turn, jump, tapAt, setFont, back, saveInk, saveNotion, syncNotion, scanLibrary, library, say, setScreen, SCREEN_READ } from './state';
 import { feedPen } from './pageview';
+import { I_IMAGE } from './layout';
 
 export function scripted(): boolean { return sys.env('ZINC_READ_SCRIPT') !== ''; }
 function sleep(ms: i32): Promise<void> { return new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, ms); }); }
@@ -45,6 +47,11 @@ export async function runScript(): Promise<void> {
     else if (verb === 'pages') {
       console.log('read: page ' + (doc.page + 1).toString() + ' of ' + doc.lay.pages.length.toString());
       for (const h of doc.lay.headings) console.log('read: heading ' + h.level.toString() + ' ' + h.text + ' p' + (h.page + 1).toString());
+    } else if (verb === 'pictures') {
+      await picturesLoading;
+      let n: i32 = 0;
+      for (const p of doc.lay.pages) for (const it of p) if (it.kind === I_IMAGE) n++;
+      console.log('read: pictures ' + n.toString());
     } else if (verb !== '') console.log('read: unknown script step ' + verb);
     await sleep(30);   // a frame between steps
   }

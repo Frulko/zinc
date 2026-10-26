@@ -8,10 +8,11 @@ import * as md from 'zinc:markdown';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as storage from 'zinc:storage';
+import * as net from 'zinc:net';
 import { Conf } from './conf';
-import { Layout, Hit, layout, slug } from './layout';
+import { Layout, Hit, layout, slug, remotePictures, cachedPicture } from './layout';
 import { Notion, pageId } from './notion';
-import { DOCS_DIR, DATA_DIR, FONT_SIZES, DEFAULT_FONT } from './constants';
+import { DOCS_DIR, DATA_DIR, FONT_SIZES, DEFAULT_FONT, REQUEST_TIMEOUT_MS } from './constants';
 
 export const SCREEN_LIBRARY: i32 = 0;
 export const SCREEN_READ: i32 = 1;
@@ -101,6 +102,36 @@ export function resize(w: i32, h: i32): void {
   relayout();
 }
 
+// http(s) pictures: fetched once into DATA_DIR/pictures (read offline afterwards), then the document is laid out again. A URL that failed
+// is not asked again until the reader restarts. ponytail: the cache is never pruned; a few pictures per document.
+const MAX_PICTURE_BYTES: i32 = 16 * 1024 * 1024;
+const triedPictures: string[] = [];
+export let picturesLoading: Promise<void> = Promise.resolve();
+async function fetchPictures(tree: md.Node, path: string): Promise<void> {
+  const want = remotePictures(tree).filter((u: string) => !fs.exists(cachedPicture(u)) && triedPictures.indexOf(u) < 0);
+  if (want.length === 0) return;
+  if (path !== '') say('Loading ' + want.length.toString() + ' picture' + (want.length === 1 ? '' : 's') + '…');
+  fs.mkdir(DATA_DIR + '/pictures', true);
+  let got: i32 = 0;
+  for (const u of want) {
+    triedPictures.push(u);
+    try {
+      const r = await net.fetch(u, { timeoutMs: REQUEST_TIMEOUT_MS });
+      if (!r.ok) { console.log('read: picture ' + u + ': ' + r.status.toString()); continue; }
+      const b = await r.bytes();
+      if (b.length === 0 || b.length > MAX_PICTURE_BYTES) continue;
+      const p = cachedPicture(u);
+      fs.writeBytes(p + '.part', b);
+      fs.rename(p + '.part', p);
+      got++;
+    } catch (e) { console.log('read: picture ' + u + ': ' + e.message); }
+  }
+  if (path !== '' && doc.path === path) {
+    if (got > 0) relayout();
+    say(got === want.length ? 'Pictures loaded.' : got.toString() + ' of ' + want.length.toString() + ' pictures loaded (no network?).');
+  }
+}
+
 /** Opens a document of the library (a path relative to it, or absolute) at `page`. */
 export function openDoc(path: string, page: i32 = 0, remember: boolean = false): boolean {
   const full = path.startsWith('/') ? path : DOCS_DIR + '/' + path;
@@ -117,6 +148,7 @@ export function openDoc(path: string, page: i32 = 0, remember: boolean = false):
   setScreen(SCREEN_READ);
   relayout();
   say(name + ' · ' + doc.lay.pages.length.toString() + ' pages · ' + doc.lay.headings.length.toString() + ' headings');
+  picturesLoading = fetchPictures(doc.tree, doc.path);
   return true;
 }
 
@@ -256,6 +288,7 @@ export async function syncNotion(): Promise<void> {
       const name = (slug(r[0]) !== '' ? slug(r[0]) : 'page') + '-' + short + '.md';
       fs.writeText(dir + '/' + name + '.tmp', r[1]);
       fs.rename(dir + '/' + name + '.tmp', dir + '/' + name);
+      await fetchPictures(md.parse(r[1]), '');   // now: Notion's file URLs expire after an hour
       last = 'notion/' + name;
       done++;
     }
