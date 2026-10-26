@@ -3,7 +3,7 @@ import { quit, minimizeWindow, setWidget, showWidget, windowState } from 'zinc:g
 import { Keyboard } from 'zinc:ui/kit';
 import * as fs from 'zinc:fs';
 import { Ink, TOOLS, ERASERS } from 'zinc:ink';
-import { env } from 'zinc:sys';
+import { env, device } from 'zinc:sys';
 import status from './native/status.spec';
 
 const [minutes, setMinutes] = createSignal<i32>(status.localMinutes());
@@ -120,11 +120,15 @@ const TOOL_LABELS: string[] = ['Ballpoint', 'Fineliner', 'Marker', 'Pencil', 'Ca
 const TOOL_NAMES: string[] = TOOLS.concat(ERASERS);
 const PAL_OFF = 'px-5 h-[80px] items-center justify-center rounded-lg border-2 border-black bg-white focus:bg-white';
 const PAL_ON = 'px-5 h-[80px] items-center justify-center rounded-lg border-2 border-black bg-black focus:bg-black';
+/** The panel's Pen waveform (fast, black and white, for writing) or its UI one (greys and colours, clean pages). The switch takes about
+ *  a second on the tablet, so call it when the user starts or stops writing, not per stroke. false where there is no such mode. */
+export function setPenMode(on: boolean): boolean { return device('display.mode', on ? 'fast' : 'ui') === '1'; }
+
 export interface InkPaletteProps {
   ink: Ink;
   /** Thin, medium and thick in the ink's units; default: half, once and twice the ink's width when the palette is made. */
   widths?: number[];
-  /** Starts unfolded (default true). */
+  /** Starts unfolded (default true). Unfolded is writing: the panel is in its Pen waveform (setPenMode) until the palette is hidden. */
   open?: boolean;
   /** After every choice (a tool, a colour, a width, undo...): an app that saves on change hooks it here. */
   onChange?: () => void;
@@ -133,7 +137,9 @@ export interface InkPaletteProps {
 export function InkPalette(props: InkPaletteProps): i32 {
   const ink = props.ink;
   const widths = props.widths ?? [ink.width / 2, ink.width, ink.width * 2];
-  const [open, setOpen] = createSignal<boolean>(props.open !== false);
+  const [open, setOpenSignal] = createSignal<boolean>(props.open !== false);
+  const setOpen = (on: boolean): void => { setOpenSignal(on); setPenMode(on); };
+  setPenMode(open());
   const [tool, setTool] = createSignal<string>(ink.eraser ? 'eraser' : ink.tool);
   const [color, setColor] = createSignal<i32>(ink.color);
   const [width, setWidth] = createSignal<number>(ink.width);

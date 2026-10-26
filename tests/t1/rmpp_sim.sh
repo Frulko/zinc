@@ -91,6 +91,12 @@ fi
 # an AppLoad without it would drop the client: the driver never sends the message there
 if run home06 notes 300 - NOTES_DEMO=1 NOTES_DEMO_HOME=1 ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6; then has home06 trace 0 "minimize"; fi
 
+# An app that asks for the Pen waveform while it writes (zinc:remarkable setPenMode; InkPalette unfolded) and UI again after: both
+# switches reach qtfb in order, the second one once qtfb's second after the first is over
+if run penmode tests/data/rmpp-penmode 400 - "$ferrari"; then
+  [ "$(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')" = "mode UI mode FAST mode UI " ] || { echo "penmode: $(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')"; fail=1; }
+fi
+
 # L1: "ink": "native" with a lane that answers a verified hash. qtfb stays in UI; strokes go through the lane, never through qtfb.
 pen=ZN_RMPP_SIM_PEN=70-95,110-130
 if run lane notes 140 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=ok $pen; then

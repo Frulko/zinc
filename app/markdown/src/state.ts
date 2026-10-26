@@ -220,7 +220,6 @@ export function saveInk(): boolean {
     return true;
   } catch (e) { say('Cannot save the ink: ' + e.message); return false; }
 }
-export function undoInk(): void { ink.undo(); }
 
 // ---------------------------------------------------------------- Notion
 export const notionToken = (): string => conf.get('token');

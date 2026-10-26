@@ -43,3 +43,7 @@ import { InkPalette } from 'zinc:remarkable';
 **Keyboard**: `<RemarkableKeyboard />` is the kit's `Keyboard` drawn for e-paper as the tablet's own (white keys with a thin outline, large
 captions, no shadow or preview bubble, Enter and the capitals in black). It shows itself while a text field has the focus; its languages are
 the tablet's handwriting language, then `LANG`, then English (`tabletLayouts()`), or `layouts={['fr', 'en']}`.
+
+`setPenMode(on)` puts the panel in its Pen waveform (fast, black and white: for writing) or back in its UI one (greys, colour,
+clean pages). `InkPalette` calls it: unfolded is writing, folded is reading. The switch takes about a second on the tablet (qtfb
+pauses), so an app asks when the user starts or stops writing, never per stroke. Apps keep `"refresh_mode": "ui"` in zinc.json.

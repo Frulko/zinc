@@ -264,6 +264,7 @@ void rm_present(const HalFrame* f) {
     pending = in;
   }
   uint64_t now = hal_time_us();
+  if (layer == L0 && refresh_mode != wanted_mode && now >= mode_ready_us) set_mode(wanted_mode);   // a switch asked during qtfb's second
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
     if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + 1100000; }  // qtfb sleeps 1 s on this connection
@@ -300,6 +301,9 @@ void rm_shutdown() {
   free(panel.cur); free(panel.scratch); free(panel.out); panel = {};
 }
 
+}  // namespace
+extern "C" bool zinc_rmpp_set_fast(bool fast);
+namespace {
 // zinc:gfx refreshDisplay() asks for "display.refresh": "1" when this layer can do a full refresh (qtfb of AppLoad 0.6.0+, the ink session)
 bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m; }
 
@@ -328,6 +332,12 @@ const char* rm_device(const char* query, const char* arg) {
     if (!qtfb || !widget_ok || eink::empty(widget) || !send_msg(m)) return "0";
     as_widget = true;   // as for minimize: frames from now on are the widget's
     return "1";
+  }
+  // "display.mode" "fast" | "ui" (zinc:remarkable setPenMode): Pen waveform while the app writes, UI for the rest. qtfb sleeps 1 s on a
+  // switch, so the app asks when the user starts or stops writing, not per stroke; a switch refused in that second is made by rm_present.
+  if (strcmp(query, "display.mode") == 0) {
+    if (!arg || (strcmp(arg, "fast") && strcmp(arg, "ui"))) return "0";
+    return zinc_rmpp_set_fast(strcmp(arg, "fast") == 0) || layer == L0 ? "1" : "0";
   }
   if (strcmp(query, "display.refresh") != 0) return nullptr;
   if (layer == L2) { native::full_now = true; return "1"; }

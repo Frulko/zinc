@@ -93,6 +93,14 @@ function Widget(): i32 {
   </View>;
 }
 
+/** The page with the writing tools floating over its top: unfolding them does not change the page view's size (which would render the page again). */
+function Page(): i32 {
+  return <View className="grow relative">
+    <Canvas className="grow" onDraw={pageView} />
+    <View className="absolute top-0 left-0 right-0"><InkPalette ink={ink} open={false} /></View>
+  </View>;
+}
+
 /** Full screen: the top bar, one thin row (back to the normal view, the page, its size), the page. Swipes still turn pages. */
 function FullReader(): i32 {
   return <View className={PAGE}>
@@ -104,8 +112,7 @@ function FullReader(): i32 {
       <Btn label="A−" onClick={() => pageSize(-1)} />
       <Btn label="A+" onClick={() => pageSize(1)} />
     </View>
-    <InkPalette ink={ink} open={false} />
-    <Canvas className="grow" onDraw={pageView} />
+    <Page />
   </View>;
 }
 
@@ -128,8 +135,7 @@ function Reader(): i32 {
       <Btn label="Save" onClick={() => saveInk()} />
       <Btn label="Export" onClick={() => exportPng()} />
     </View>
-    {screen() === SCREEN_PAGE ? <InkPalette ink={ink} open={false} /> : null}
-    {screen() === SCREEN_PAGE ? <Canvas className="grow" onDraw={pageView} />
+    {screen() === SCREEN_PAGE ? <Page />
       : screen() === SCREEN_BOOKMARKS ? <Bookmarks /> : screen() === SCREEN_TABS ? <Tabs /> : <Settings />}
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">
       <Btn label="Previous" onClick={() => turn(-1)} />

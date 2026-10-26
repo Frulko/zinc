@@ -5,11 +5,11 @@
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { quit } from 'zinc:gfx';
-import { RemarkableApp, RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
+import { InkPalette, RemarkableApp, RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
 import { PAGE, LABEL, SMALL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR, FONT_SIZES } from './constants';
 import { screen, setScreen, status, busy, pageLabel, library, docTitle, fontIndex, penMode, setPenMode, onTablet, doc, version,
-  openDoc, turn, jump, setFont, back, saveInk, undoInk, scanLibrary, notionToken, notionPage, saveNotion, syncNotion, refresh, restore,
-  SCREEN_LIBRARY, SCREEN_READ, SCREEN_TOC, SCREEN_SETTINGS } from './state';
+  openDoc, turn, jump, setFont, back, saveInk, scanLibrary, notionToken, notionPage, saveNotion, syncNotion, refresh, restore,
+  ink, SCREEN_LIBRARY, SCREEN_READ, SCREEN_TOC, SCREEN_SETTINGS } from './state';
 import { Heading } from './layout';
 import { pageView } from './pageview';
 import { scripted, runScript } from './script';
@@ -85,11 +85,11 @@ function App(): i32 {
       <Btn label="‹ Back" onClick={() => back()} />
       <View className="grow" />
       {onTablet ? null : <Btn label="Pen" on={penMode()} onClick={() => setPenMode(!penMode())} />}
-      <Btn label="Undo" onClick={() => undoInk()} />
       <Btn label="Sync" onClick={() => syncNotion()} />
       <Btn label="Settings" on={screen() === SCREEN_SETTINGS} onClick={() => toggle(SCREEN_SETTINGS)} />
     </View>
     {screen() === SCREEN_READ ? <View className="px-6 pt-3"><Text className={SMALL}>{docTitle()}</Text></View> : null}
+    {screen() === SCREEN_READ ? <InkPalette ink={ink} open={false} /> : null}
     {screen() === SCREEN_READ ? <Reader /> : screen() === SCREEN_TOC ? <Contents /> : screen() === SCREEN_SETTINGS ? <Settings /> : <Library />}
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">
       <Btn label="Previous" onClick={() => turn(-1)} />
