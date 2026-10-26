@@ -6,7 +6,7 @@
 //   dash <url> (dashboard mode) | ticks <n> (waits until the dashboard's timer made n renders) | widget (draws the widget) | undash
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { ink, view, busy, setScreen, SCREEN_PAGE, openUrl, goHome, showBlank, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, closeAllTabs, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
+import { ink, view, busy, setScreen, SCREEN_PAGE, openUrl, goHome, showBlank, setContrast, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, closeAllTabs, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
 import { feedPen } from './pageview';
 import { Doc } from './relay';
 import { dash, startDash, stopDash, setWidgetPreview } from './dashboard';
@@ -27,6 +27,7 @@ export async function runScript(): Promise<void> {
     if (verb === 'open') await openUrl(arg);
     else if (verb === 'home') await goHome();
     else if (verb === 'blank') showBlank();
+    else if (verb === 'contrast') { setContrast(parseFloat(arg)); await sleep(700); while (busy()) await sleep(20); }
     else if (verb === 'next') await turn(1);
     else if (verb === 'prev') await turn(-1);
     else if (verb === 'zoom') await zoomTo(parseFloat(arg), view.w / 2, view.h / 2);

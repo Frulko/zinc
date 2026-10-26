@@ -42,6 +42,12 @@ get -o "$tmp/p1.png" "$R/shot?url=$page&w=1620&h=1800&x=0&y=1800"
 [ "$(size "$tmp/p1.png")" = 1620x1800 ] || { echo "page 2: $(size "$tmp/p1.png")"; fail=1; }
 get -o "$tmp/z.png" "$R/shot?url=$page&w=1620&h=1800&x=200&y=100&cw=540&ch=600&zoom=3"
 [ "$(size "$tmp/z.png")" = 1620x1800 ] || { echo "zoom 3: $(size "$tmp/z.png")"; fail=1; }
+# the contrast slider's factor: 1 is the page as it is (the name "normal" too), 2.4 a page of other pixels
+get -o "$tmp/c1.png" "$R/shot?url=$page&w=1620&h=1800&x=0&y=0&contrast=1"
+get -o "$tmp/cn.png" "$R/shot?url=$page&w=1620&h=1800&x=0&y=0&contrast=normal"
+get -o "$tmp/c24.png" "$R/shot?url=$page&w=1620&h=1800&x=0&y=0&contrast=2.4"
+cmp -s "$tmp/c1.png" "$tmp/cn.png" || { echo "contrast 1 is not the page as it is"; fail=1; }
+[ "$(size "$tmp/c24.png")" = 1620x1800 ] && ! cmp -s "$tmp/c1.png" "$tmp/c24.png" || { echo "contrast 2.4 changed nothing: $(size "$tmp/c24.png")"; fail=1; }
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$R/render?url=$page")" = 401 ] || { echo "a request without the token was not refused"; fail=1; }
 [ "$(get -o /dev/null -w '%{http_code}' "$R/render?url=file:///etc/hosts")" = 502 ] || { echo "a file:// page was not refused"; fail=1; }
 # reading mode (Readability): the article's link is kept, the menu, the advert and the footer are gone
@@ -109,6 +115,8 @@ long="$page?q=$(printf 'x%.0s' $(seq 1 400))"
 app "open $long"
 [ "$(grep -c 'web: relay loaded the page' "$tmp/app.log")" = 1 ] || { echo "a long address loaded $(grep -c 'web: relay loaded the page' "$tmp/app.log") times"; fail=1; }
 # Close all: one tab left, on the home page, the others and their histories gone
+app "open $page; contrast 2.4"   # the slider: saved, and the page rendered again at that factor
+grep -q '^contrast=2.4$' "$tmp/web/web.conf" || { echo "contrast: $(grep contrast "$tmp/web/web.conf")"; fail=1; }
 app "open $page; tab http://127.0.0.1:$wp/next.html; closeall"
 [ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] && grep -q 'wikipedia.org/wiki/E_Ink' "$tmp/web/tabs.txt" || { echo "closeall: $(cat "$tmp/web/tabs.txt")"; fail=1; }
 # Blank: no request to the relay, the tab is about:blank (kept in tabs.txt, not fetched on the next start); Home opens the home page

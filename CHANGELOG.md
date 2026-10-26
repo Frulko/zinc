@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Zinc Web: a **contrast slider** in Settings, from the page as it is to 4×, replaces the three steps; the web relay takes `contrast=1..4` (the names normal, high and max still work).
 - Each app now keeps its `zinc:storage` keys and its files in a folder of its own, `~/.zinc/apps/<name>/` (`dataDir()` of `zinc:sys` gives it); the keys an app had in the shared `~/.zinc/storage.kv` move there the first time it runs. Erasing that folder resets the app and nothing else.
 - Zinc Web: a **Home** button goes back to the first page, and **×** next to the address field empties it and shows a blank page without loading anything.
 - reMarkable Hub: **Reset data** on an app that is running stops it first, then erases what it saved (it used to refuse and ask you to stop it).

@@ -28,7 +28,7 @@ const SCALES: number[] = [1.1, 1.33, 1.6, 2, 2.5, 3];
 relay.dpr = SCALES.indexOf(parseFloat(conf.get('scale'))) >= 0 ? parseFloat(conf.get('scale')) : 2;
 export const [scale, setScale] = createSignal<number>(relay.dpr);
 export const [full, setFull] = createSignal<boolean>(conf.get('full') === 'on');   // full screen: the page under the top bar alone
-relay.contrast = conf.get('contrast') === 'high' || conf.get('contrast') === 'max' ? conf.get('contrast') : 'normal';
+relay.contrast = contrastValue(conf.get('contrast')).toString();
 
 export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
 export const [address, setAddress] = createSignal<string>(conf.get('last') !== '' ? conf.get('last') : HOME_PAGE);
@@ -390,11 +390,18 @@ export function pageSize(dir: i32): void {
   rerender();
 }
 export function setFullScreen(on: boolean): void { setFull(on); saveConf(); }
-/** normal, high, max, normal...: the page is rendered again. */
-export function nextContrast(): void {
-  relay.contrast = relay.contrast === 'normal' ? 'high' : relay.contrast === 'high' ? 'max' : 'normal';
+/** The contrast factor of a saved setting: 1 the page as it is, up to 4; the names of older versions (normal, high, max) read as 1, 1.6, 3. */
+export function contrastValue(c: string): number {
+  const f = c === 'high' ? 1.6 : c === 'max' ? 3 : parseFloat(c);
+  return f > 1 ? Math.min(4, Math.round(f * 10) / 10) : 1;
+}
+let contrastTimer = 0;
+/** The slider: saved at once, the page rendered again once the thumb has rested 600 ms (one render, not one per step: e-paper). */
+export function setContrast(f: number): void {
+  relay.contrast = contrastValue(f.toString()).toString();
   saveConf();
-  rerender();
+  if (contrastTimer !== 0) clearTimeout(contrastTimer);
+  contrastTimer = setTimeout(() => { contrastTimer = 0; rerender(); }, 600);
 }
 export function setColour(on: boolean): void {
   relay.mode = on ? 'color' : 'grey';

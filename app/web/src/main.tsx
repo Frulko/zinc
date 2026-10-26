@@ -3,12 +3,12 @@
 // E-paper: black on white, page turns instead of scrolling, one refresh per gesture; Refresh clears the ghosting.
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
-import { ZoomView } from 'zinc:ui/kit';
+import { ZoomView, Slider } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp, RemarkableKeyboard, InkPalette } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { ink, screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, goHome, showBlank, back, turn, zoomTo, setView, tapAt, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
+  openUrl, goHome, showBlank, back, turn, zoomTo, setView, tapAt, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, setContrast, contrastValue, setEinkStyle, checkInbox, reader, toggleReader, refresh,
   tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, closeAllTabs, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView, writing, swipe } from './pageview';
 import { MAX_ZOOM } from './constants';
@@ -53,7 +53,7 @@ function Tabs(): i32 {
 function Settings(): i32 {
   const [url, setUrl] = createSignal<string>(relay.url);
   const [token, setToken] = createSignal<string>(relay.token);
-  const [contrast, setContrast] = createSignal<string>(relay.contrast);
+  const [contrast, setShown] = createSignal<number>(contrastValue(relay.contrast));
   const [eink, setEink] = createSignal<boolean>(relay.style === 'eink');
   return <View className="flex-col gap-6 p-8 grow">
     <Text className={TITLE}>Relay</Text>
@@ -64,8 +64,11 @@ function Settings(): i32 {
     <View className="flex-row gap-6">
       <Btn label="Save" on={true} onClick={() => { saveRelay(url(), token()); setScreen(SCREEN_PAGE); }} />
       <Btn label={relay.mode === 'color' ? 'Colour: on' : 'Colour: off'} onClick={() => setColour(relay.mode !== 'color')} />
-      <Btn label={'Contrast: ' + contrast()} onClick={() => { nextContrast(); setContrast(relay.contrast); }} />
       <Btn label={eink() ? 'E-ink style: on' : 'E-ink style: off'} onClick={() => { setEinkStyle(!eink()); setEink(relay.style === 'eink'); }} />
+    </View>
+    <View className="flex-row gap-6 items-center">
+      <Text className={`w-[300px] ${LABEL}`}>{contrast() <= 1 ? 'Contrast: as is' : `Contrast: ${contrast().toFixed(1)}×`}</Text>
+      <Slider className="grow h-[90px]" min={1} max={4} step={0.2} value={contrast} onChange={(v: number) => { setShown(v); setContrast(v); }} />
     </View>
   </View>;
 }

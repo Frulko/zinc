@@ -10,7 +10,7 @@
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
 // HTTP, every request with `Authorization: Bearer <token>` (the token is in <data>/relay.token, made on first start, mode 600):
-//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max&style=eink|read|page   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
+//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max|1..4&style=eink|read|page   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
 //        {"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}, all in device pixels of the whole page (height capped)
 //   GET  /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1   PNG of the page rectangle (x, y, cw, ch) at `zoom`: cw*zoom x ch*zoom pixels.
 //        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
@@ -78,8 +78,7 @@ function viewOf(path: string): View {
   v.h = num(query(path, 'h'), 2160, 200, 4000) as i32;
   v.dpr = num(query(path, 'dpr'), 2, 1, 4);
   v.mode = query(path, 'mode') === 'color' ? 'color' : 'grey';
-  const c = query(path, 'contrast');
-  v.contrast = c === 'high' || c === 'max' ? c : 'normal';
+  v.contrast = contrastOf(query(path, 'contrast'));
   const st = query(path, 'style');
   v.style = st === 'page' || st === 'read' ? st : 'eink';
   return v;
@@ -198,9 +197,16 @@ const READ_JS = `const a = window.__zincReadability ? new window.__zincReadabili
   scrollTo(0, 0);
   return 'ok';`;
 
-// e-ink contrast: the page's greys pushed apart, thin text thickened (high, max); layout is unchanged, so the link map holds.
-const CONTRAST_HIGH = 'html{filter:contrast(1.6)!important}*{-webkit-text-stroke:0.25px currentColor}';
-const CONTRAST_MAX = 'html{filter:contrast(3)!important}*{-webkit-text-stroke:0.5px currentColor}';
+// e-ink contrast: the page's greys pushed apart, thin text thickened; layout is unchanged, so the link map holds. A factor from 1 (the page as
+// it is) to 4, one decimal (Zinc Web's slider), or the names older clients send: normal 1, high 1.6, max 3.
+function contrastOf(c: string): string {
+  const f = c === 'high' ? 1.6 : c === 'max' ? 3 : parseFloat(c);
+  return f > 1 ? Math.min(4, Math.round(f * 10) / 10).toString() : 'normal';
+}
+function contrastCss(c: string): string {
+  const f = parseFloat(c), stroke = Math.min(0.6, Math.round((f - 1) * 25) / 100);   // 1.6: 0.15 px, 3: 0.5 px
+  return 'html{filter:contrast(' + f.toString() + ')!important}' + (stroke > 0 ? '*{-webkit-text-stroke:' + stroke.toString() + 'px currentColor}' : '');
+}
 const CONTRAST_JS = `(() => { const s = document.createElement('style'); s.textContent = 'CSS'; document.documentElement.appendChild(s); })()`;
 
 /** Loads the page of `v` in the tab unless it is already there; returns its JSON (size and links). */
@@ -229,7 +235,7 @@ async function show(v: View, fresh: boolean = false): Promise<string> {
     if (r !== 'ok') console.log('relay: no article in ' + v.url + ', shown whole');
   }
   if (v.style !== 'page') await chrome.evaluate(EINK_JS.split('CSS').join(EINK_CSS));
-  if (v.contrast !== 'normal') await chrome.evaluate(CONTRAST_JS.split('CSS').join(v.contrast === 'max' ? CONTRAST_MAX : CONTRAST_HIGH));
+  if (v.contrast !== 'normal') await chrome.evaluate(CONTRAST_JS.split('CSS').join(contrastCss(v.contrast)));
   info = await chrome.evaluate(INFO_JS.split('DPR').join(v.dpr.toString()).split('MAXH').join((v.h * MAX_PAGES).toString()).split('PAGEH').join(v.h.toString()));
   shown = v.key();
   console.log('relay: rendered ' + v.url + ' at ' + v.w.toString() + 'x' + v.h.toString());
