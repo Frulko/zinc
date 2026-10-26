@@ -1,5 +1,6 @@
-// A small Chrome DevTools Protocol client: headless Chrome started with zinc:process, driven over its WebSocket (zinc:socket), one tab.
-// The same protocol as tools/cdp.py (which uses a pipe); here a port, since a Zinc child has no extra file descriptors.
+// A small Chrome DevTools Protocol client, one tab, over one of two WebSockets (zinc:socket): headless Chrome started with zinc:process
+// (its DevTools port; tools/cdp.py speaks the same protocol over a pipe, which a Zinc child cannot have), or the user's own Chrome through
+// the Zinc extension (extension/: it relays the commands to a tab of its own with chrome.debugger, so there is no target or session).
 import * as proc from 'zinc:process';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
@@ -55,18 +56,34 @@ export class Chrome {
       setTimeout(() => { if (!done) { done = true; reject(new Error('Chrome did not start in 20 s')); } }, 20000);
     });
     const ws = new WebSocket(url);
-    this.ws = ws;
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => { resolve(); };
       ws.onerror = (e) => { reject(new Error('cannot reach Chrome: ' + e.message)); };
     });
-    ws.onmessage = (e: MessageEvent) => { this.receive(e.data); };
-    ws.onclose = () => { this.alive = false; for (const c of this.calls) c.reject(new Error('Chrome closed the connection')); this.calls = []; };
-    this.alive = true;
+    this.wire(ws);
     const target = await this.call('Target.createTarget', '{"url":"about:blank"}', false);
     const attached = await this.call('Target.attachToTarget', '{"targetId":' + JSON.stringify('' + target.targetId) + ',"flatten":true}', false);
     this.session = '' + attached.sessionId;
     await this.call('Page.enable', '{}', true);
+  }
+
+  /** The user's Chrome through the Zinc extension, connected as `ws`: Zinc.open makes it open its window and attach to its tab. */
+  async attach(ws: WebSocket): Promise<void> {
+    this.child = null;
+    this.session = '';
+    this.wire(ws);
+    await this.call('Zinc.open', '{}', false);
+    await this.call('Page.enable', '{}', false);
+  }
+
+  /** True while the pages are rendered in the user's Chrome (the extension), false in headless Chrome. */
+  get external(): boolean { return this.alive && this.child === null; }
+
+  wire(ws: WebSocket): void {
+    this.ws = ws;
+    ws.onmessage = (e: MessageEvent) => { this.receive(e.data); };
+    ws.onclose = () => { if (this.ws !== ws) return; this.alive = false; for (const c of this.calls) c.reject(new Error('Chrome closed the connection')); this.calls = []; };
+    this.alive = true;
   }
 
   receive(text: string): void {
@@ -121,8 +138,11 @@ export class Chrome {
   }
 
   stop(): void {
-    const p = this.child;
-    if (p !== null) p.kill(15);
+    const p = this.child, ws = this.ws;
     this.alive = false;
+    this.ws = null;
+    this.child = null;
+    if (p !== null) p.kill(15);
+    else if (ws !== null) (ws as WebSocket).close();   // the extension closes its window
   }
 }

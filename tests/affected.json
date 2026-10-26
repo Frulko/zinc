@@ -212,6 +212,7 @@
     {"paths": ["app/hub/", "app/hub-server/", "plugins/remarkable/", "lib/std/kit/keyboard.tsx", "tests/t1/hub_app.sh"], "tests": ["hub_app"]},
     {"paths": ["app/hub/", "src/host/hal_dispatch.cpp", "tests/t1/hub_running.sh"], "tests": ["hub_running"]},
     {"paths": ["app/web/", "app/web-relay/", "plugins/socket/", "plugins/process/", "plugins/ink/", "tests/t1/web_relay.sh"], "tests": ["web_relay"]},
+    {"paths": ["app/web-relay/", "plugins/socket/", "tests/t1/web_relay_extension.sh"], "tests": ["web_relay_extension"]},
     {"paths": ["plugins/pdf/", "tests/t0/pdf.sh"], "tests": ["pdf", "pdf_reader"]},
     {"paths": ["app/pdf/", "plugins/ink/", "plugins/remarkable/", "tests/t1/pdf_reader.sh"], "tests": ["pdf_reader"]},
     {"paths": ["plugins/ink/", "plugins/remarkable/", "tests/data/ink-tools/", "tests/golden/ink-tools/", "tests/t1/ink_tools.sh"], "tests": ["ink_tools"]},

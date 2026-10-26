@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>Zinc Web relay</title>
+<style>body{font:15px system-ui,sans-serif;max-width:520px;margin:32px auto;padding:0 16px}input{font:inherit;width:100%;padding:8px;box-sizing:border-box}
+button{font:inherit;padding:8px 16px;margin-top:12px}</style>
+<h1>Zinc Web relay</h1>
+<p>The relay's port (<code>--port</code>, 8790 by default) and its token (<code>relay.token</code> in its data directory; empty with
+<code>--no-token</code>). The extension connects to the next port, on this Mac only.</p>
+<label>Port <input id="port" type="number" min="1" max="65534"></label>
+<label>Token <input id="token" type="password" autocomplete="off"></label>
+<button id="save">Save</button> <span id="m"></span>
+<script src="options.js"></script>

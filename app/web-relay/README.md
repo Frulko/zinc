@@ -22,6 +22,30 @@ new tab, and the page you were reading stays in its own tab at the same page. Th
 shows, and what you sent (waiting or opened), with **Again** to send one again. Several pages sent before the tablet asks open in order.
 The **Send to reMarkable** button, dragged to Chrome's bookmarks bar, sends the page you are on.
 
+## The Chrome extension: render in your own Chrome
+
+Headless Chrome is what many sites (Cloudflare, Reddit, Leboncoin...) take for a robot. With `--browser extension` the relay renders
+in **your** Chrome instead, through the extension in `extension/`: a real browser, with your sessions and cookies.
+
+1. Chrome › `chrome://extensions` › **Developer mode** › **Load unpacked** › choose `app/web-relay/extension`.
+2. Its options page (the extension's menu › Options): the relay's port (8790) and its token (`web-relay-data/relay.token`; empty with
+   `--no-token`).
+3. `zinc run app/web-relay -- --browser extension`. The extension connects to `ws://127.0.0.1:<port + 1>/extension`, and the first page
+   the tablet asks for opens a small window of its own, not focused, where the relay loads the pages.
+
+What to know:
+
+- Chrome shows a yellow bar "Zinc Web relay started debugging this browser" while the relay drives the tab: it cannot be hidden. Its
+  **Cancel**, or closing the window, disconnects the extension.
+- The tab has your sessions: whoever holds the relay's token can load and read any site you are signed in to, in that tab. So the
+  extension's port listens on this Mac only (127.0.0.1), takes only an extension (its `Origin`) with the token, and the extension drives
+  only its own tab, with the few commands the relay uses (no cookies, no storage, no other tab). Keep this mode on your own Mac, never on a
+  server.
+- The popup's switch turns it off (the window closes, the relay goes back to headless Chrome after 3 s), and **Send this page to the
+  reMarkable** sends the tab you are on to Zinc Web.
+- The Mac must be on with Chrome running; without the extension the relay renders in headless Chrome, and moves to the extension when it
+  connects.
+
 ## On a server
 
 `docker/README.md`: the relay in a Docker image (Chromium included) on a NAS, a Pi or a VPS, so the tablet does not need the Mac, with

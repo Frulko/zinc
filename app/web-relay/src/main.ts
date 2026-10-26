@@ -1,6 +1,11 @@
 // Zinc web relay (ZN-844): renders web pages for a reMarkable (app/web), a headless Zinc program on the Mac.
 //   zinc run app/web-relay -- [--port 8790] [--data web-relay-data] [--chrome <path>] [--no-token] [--no-open]
 //        [--block-private] [--tls-cert cert.pem --tls-key key.pem] [--no-sandbox]     (a relay on a server: docker/README.md)
+//        [--browser headless|extension]
+// --browser extension: the pages are rendered in the user's own Chrome (its sessions, a browser sites do not take for a robot) through
+// the Zinc extension (extension/, README "The Chrome extension"), which connects to ws://127.0.0.1:<port + 1>/extension?token=<token>:
+// that port listens on the loopback only and takes a connection from an extension (Origin chrome-extension://) with the token. While
+// no extension is connected the relay renders in headless Chrome, and moves to the extension when it connects.
 // The tablet cannot run a browser; the relay loads the page in headless Chrome at the tablet's width and sends pictures of it: whole
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
@@ -25,6 +30,7 @@ import * as proc from 'zinc:process';
 import { base64Decode } from 'zinc:web';
 import * as assets from 'zinc:assets';
 import { Chrome, findChrome, sleep } from './chrome';
+import { WebSocket, UpgradeRequest, serveWebSocket } from 'zinc:socket';
 
 function opt(name: string, def: string): string {
   const a = sys.args();
@@ -84,10 +90,41 @@ function viewOf(path: string): View {
 let busy = false;
 async function exclusive(): Promise<void> { while (busy) await sleep(20); busy = true; }
 
+// --browser extension: the extension's connection, null while none
+const useExtension = opt('browser', 'headless') === 'extension';
+let extension: WebSocket | null = null;
+const EXTENSION_WAIT_MS: i32 = 3000;   // a reconnecting extension; short, the HTTP server answers 408 after 10 s
+
+/** The extension's port: loopback only, an extension's Origin, the relay's token. A new connection replaces the one before. */
+function acceptExtension(ws: WebSocket, req: UpgradeRequest): void {
+  const q = req.path.indexOf('?');
+  const path = q < 0 ? req.path : req.path.slice(0, q);
+  if (path !== '/extension' || !req.header('origin').startsWith('chrome-extension://') || (token !== '' && !same(query(req.path, 'token'), token))) {
+    console.log('relay: refused a connection to the extension port (' + (path !== '/extension' ? 'path ' + path : req.header('origin').startsWith('chrome-extension://') ? 'wrong token' : 'not an extension') + ')');
+    ws.close(1008, 'refused');
+    return;
+  }
+  extension = ws;
+  ws.addEventListener('close', () => { if (extension === ws) { extension = null; console.log('relay: the Chrome extension left'); } });
+  console.log('relay: the Chrome extension connected');
+}
+
 async function ensureChrome(): Promise<void> {
+  // the extension came (or came back) while headless Chrome renders: the next page goes to the user's Chrome
+  if (useExtension && extension !== null && chrome.alive && !chrome.external) chrome.stop();
   if (chrome.alive) return;
-  console.log('relay: starting Chrome');
-  await chrome.start(chromePath, data + '/chrome-profile', sys.args().indexOf('--no-sandbox') >= 0 ? ['--no-sandbox'] : []);
+  shown = '';
+  if (useExtension) {
+    for (let t: i32 = 0; extension === null && t < EXTENSION_WAIT_MS; t += 200) await sleep(200);
+    if (extension !== null) {
+      await chrome.attach(extension as WebSocket);
+      console.log('relay: rendering in the user\'s Chrome (extension)');
+    } else console.log('relay: no Chrome extension connected in ' + (EXTENSION_WAIT_MS / 1000).toString() + ' s: headless Chrome until it does');
+  }
+  if (!chrome.alive) {
+    console.log('relay: starting Chrome');
+    await chrome.start(chromePath, data + '/chrome-profile', sys.args().indexOf('--no-sandbox') >= 0 ? ['--no-sandbox'] : []);
+  }
   if (blockPrivate) { await chrome.call('Network.enable', '{}'); await chrome.call('Network.setBlockedURLs', '{"urls":' + JSON.stringify(PRIVATE_PATTERNS) + '}'); }
   // Readability is given to Chrome once, for every page it loads: sent with each render, its 90 KB took seconds through the socket
   await chrome.call('Page.addScriptToEvaluateOnNewDocument', '{"source":' + JSON.stringify('window.__zincReadability = (() => {' +
@@ -171,9 +208,9 @@ const CONTRAST_JS = `(() => { const s = document.createElement('style'); s.textC
 async function show(v: View, fresh: boolean = false): Promise<string> {
   if (!v.url.startsWith('http://') && !v.url.startsWith('https://')) throw new Error('only http:// and https:// pages: ' + v.url);
   if (blockPrivate && isPrivate(v.url)) throw new Error('refused: ' + v.url + ' is on the local network (--block-private)');
-  if (v.key() === shown && chrome.alive && !fresh) return info;
-  const again = v.key() === shown && chrome.alive;
-  await ensureChrome();
+  await ensureChrome();   // first: a Chrome started (or the extension taken) now shows nothing yet
+  if (v.key() === shown && !fresh) return info;
+  const again = v.key() === shown;
   shown = '';
   await chrome.call('Emulation.setDeviceMetricsOverride', '{"width":' + Math.round(v.w / v.dpr).toString() + ',"height":' + Math.round(v.h / v.dpr).toString() +
     ',"deviceScaleFactor":' + v.dpr.toString() + ',"mobile":false}');
@@ -364,7 +401,10 @@ function main(): void {
   if ((cert === '') !== (key === '')) { console.log('relay: --tls-cert and --tls-key go together'); sys.exit(2); }
   if (cert !== '') serveAsync(port, handle, { cert: fs.readText(cert), key: fs.readText(key) });
   else serveAsync(port, handle);
-  warmUp();
+  if (useExtension) serveWebSocket(port + 1, acceptExtension, '127.0.0.1').then(() => {
+    console.log('relay: waiting for the Chrome extension on ws://127.0.0.1:' + (port + 1).toString() + '/extension');
+  }).catch((e: Error) => { console.log('relay: cannot listen for the extension on port ' + (port + 1).toString() + ': ' + e.message); });
+  else warmUp();   // with the extension, Chrome is the user's: nothing to start
   const home = (cert !== '' ? 'https' : 'http') + '://127.0.0.1:' + port.toString() + '/' + (token === '' ? '' : '?token=' + token);
   console.log('relay: send a page to the tablet from ' + home);
   // the page opens in the Mac's browser, behind the window in use (open -g); --no-open for a script
