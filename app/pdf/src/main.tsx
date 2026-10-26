@@ -1,13 +1,14 @@
 // Zinc PDF (ZN-844): PDFs on the reMarkable. A library of the PDFs in ~/zinc-docs; a page fitted to the screen, turned by a swipe or
-// the buttons, a strip to jump through the document, pinch and +/- zoom; pen notes per page in page points, saved beside the document;
+// the buttons, a strip to jump through the document, pinch and +/- zoom; pen notes per page in page points with xochitl's writing tools
+// (zinc:remarkable's InkPalette: ballpoint to highlighter, colours, widths, erasers, undo/redo), saved beside the document;
 // Export writes a copy of the PDF with the notes as ink annotations. E-paper: black on white, one refresh per gesture.
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { quit } from 'zinc:gfx';
-import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
+import { RemarkableBar, RemarkableApp, InkPalette } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR } from './constants';
-import { screen, status, pageLabel, penMode, setPenMode, eraser, setEraser, files, onTablet, view, scanLibrary, showLibrary, openDoc,
-  reopenLast, turn, goTo, zoomTo, saveInk, undoInk, exportPdf, refresh, remember, docName, SCREEN_LIBRARY } from './state';
+import { screen, status, pageLabel, penMode, setPenMode, files, onTablet, view, ink, scanLibrary, showLibrary, openDoc,
+  reopenLast, turn, goTo, zoomTo, saveInk, exportPdf, refresh, remember, docName, SCREEN_LIBRARY } from './state';
 import { pageView, pageStrip } from './pageview';
 import { scripted, runScript } from './script';
 
@@ -37,11 +38,10 @@ function Reader(): i32 {
       <Btn label="Documents" onClick={() => showLibrary()} />
       <View className="grow" />
       {onTablet ? null : <Btn label="Pen" on={penMode()} onClick={() => setPenMode(!penMode())} />}
-      <Btn label="Eraser" on={eraser()} onClick={() => setEraser(!eraser())} />
-      <Btn label="Undo" onClick={() => undoInk()} />
       <Btn label="Export" onClick={() => exportPdf()} />
       <Btn label="Refresh" onClick={() => refresh()} />
     </View>
+    <InkPalette ink={ink} open={false} />
     <Canvas className="grow" onDraw={pageView} />
     <View className="flex-row gap-4 px-6 py-4 items-center border-t-2 border-black">
       <Btn label="Previous" onClick={() => turn(-1)} />

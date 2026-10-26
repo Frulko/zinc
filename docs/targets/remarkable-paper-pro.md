@@ -421,6 +421,10 @@ own code is in the package's `prebuilt/linux/` like the others (it loads PDFium 
   rectangle at the larger scale, never a bigger image (memory stays at one screen, about 14 MB).
 - The ink is in page points, saved per page beside the document (`<name>.pdf.ink/p<n>.json`); Export writes `<name>.annotated.pdf`
   with real `/Ink` annotations. `display.refresh_mode` is `fast` for the pen.
+- Writing tools as xochitl's (`InkPalette` of `zinc:remarkable` over `zinc:ink`): ballpoint, fineliner, marker, pencil, calligraphy,
+  highlighter, stroke and area erasers, the Paper Pro colours, three widths, undo/redo. The strokes keep their tool in the JSON, the SVG
+  and the PDF export (the highlighter's `/CA`); to the computer over USB with `scp` (`docs/reports/ink-tools-and-annotation-formats.md`).
+  Proven headless on the Mac (`tests/t1/ink_tools.sh`, `tests/t1/pdf_reader.sh`); not yet with the Marker on the tablet.
 - Proven on the Mac: `tests/t0/pdf.sh` (the plugin) and `tests/t1/pdf_reader.sh` (the app headless). Not yet on the tablet: the
   pen and pinch there, and how long PDFium takes per page on the Cortex-A53.
 

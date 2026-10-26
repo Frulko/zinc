@@ -29,6 +29,17 @@ On Linux (the reMarkable runs the package's linux build) the native module reads
 
 Finger events control the UI. `InkCanvas` consumes the separate pen sample queue, so fingers do not draw. This component does not itself alter display ownership or the e-ink waveform.
 
+**Writing tools**: `<InkPalette ink={ink} />` is xochitl's palette for a `zinc:ink` surface: ballpoint, fineliner, marker, pencil,
+calligraphy, highlighter, the stroke and area erasers, the Paper Pro's nine pen colours (`PEN_COLORS`) or the highlighter's
+(`HIGHLIGHTER_COLORS`), thin / medium / thick, undo, redo, erase all; **Hide** folds it to a small handle that names the tool. Props:
+`widths` (default half, once and twice `ink.width`), `open` (default true), `onChange` (after every choice). It only sets `ink.tool`,
+`ink.color` and `ink.width` and calls `ink.undo()`/`redo()`/`clear()`, so an app keeps its own pen input and saving.
+
+```tsx
+import { InkPalette } from 'zinc:remarkable';
+<View className="flex-col h-full"><InkPalette ink={ink} open={false} /><InkCanvas ink={ink} className="grow" /></View>
+```
+
 **Keyboard**: `<RemarkableKeyboard />` is the kit's `Keyboard` drawn for e-paper as the tablet's own (white keys with a thin outline, large
 captions, no shadow or preview bubble, Enter and the capitals in black). It shows itself while a text field has the focus; its languages are
 the tablet's handwriting language, then `LANG`, then English (`tabletLayouts()`), or `layouts={['fr', 'en']}`.

@@ -167,7 +167,7 @@ struct HostPdf : NativePdf {
     return img;
   }
 
-  bool addInk(int32_t d, int32_t i, zrt::Array<double> pts, int32_t color, double width) override {
+  bool addInk(int32_t d, int32_t i, zrt::Array<double> pts, int32_t color, double width, int32_t alpha) override {
     Page pg(d, i);
     if (!pg.p) return false;
     const int n = pts.a ? (int)pts.a->len / 2 : 0;
@@ -189,7 +189,7 @@ struct HostPdf : NativePdf {
       const float m = (float)width;
       FS_RECTF r;
       r.left = x0 - m; r.top = y1 + m; r.right = x1 + m; r.bottom = y0 - m;
-      ok = P.FPDFAnnot_SetRect(a, &r) && P.FPDFAnnot_SetColor(a, FPDFANNOT_COLORTYPE_Color, (unsigned)(color >> 16) & 255, (unsigned)(color >> 8) & 255, (unsigned)color & 255, 255) &&
+      ok = P.FPDFAnnot_SetRect(a, &r) && P.FPDFAnnot_SetColor(a, FPDFANNOT_COLORTYPE_Color, (unsigned)(color >> 16) & 255, (unsigned)(color >> 8) & 255, (unsigned)color & 255, (unsigned)(alpha < 0 ? 0 : alpha > 255 ? 255 : alpha)) &&
            P.FPDFAnnot_SetBorder(a, 0, 0, (float)width) && P.FPDFAnnot_AddInkStroke(a, v, (size_t)n) >= 0;
       P.FPDFPage_CloseAnnot(a);
     }

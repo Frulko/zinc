@@ -1,0 +1,1 @@
+{ "name": "ink-tools", "entry": "src/main.tsx", "targets": { "macos": { "width": 1000, "height": 1100 } } }

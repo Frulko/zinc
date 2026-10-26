@@ -28,9 +28,9 @@ export class PdfDocument {
     return id;
   }
 
-  /** Adds an ink annotation through [x, y, ...] (points, top left origin): colour 0xRRGGBB, width in points. */
-  addInk(page: i32, points: number[], color: i32, width: number): void {
-    if (!Pdf.addInk(this.id, page, points, color, width)) throw new Error(Pdf.error());
+  /** Adds an ink annotation through [x, y, ...] (points, top left origin): colour 0xRRGGBB, width in points, alpha 0..255 (/CA). */
+  addInk(page: i32, points: number[], color: i32, width: number, alpha: i32 = 255): void {
+    if (!Pdf.addInk(this.id, page, points, color, width, alpha)) throw new Error(Pdf.error());
   }
 
   /** Writes the document with the annotations added as a new PDF (through a temporary file). */

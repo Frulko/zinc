@@ -213,6 +213,7 @@
     {"paths": ["app/web/", "app/web-relay/", "plugins/socket/", "plugins/process/", "plugins/ink/", "tests/t1/web_relay.sh"], "tests": ["web_relay"]},
     {"paths": ["plugins/pdf/", "tests/t0/pdf.sh"], "tests": ["pdf", "pdf_reader"]},
     {"paths": ["app/pdf/", "plugins/ink/", "plugins/remarkable/", "tests/t1/pdf_reader.sh"], "tests": ["pdf_reader"]},
+    {"paths": ["plugins/ink/", "plugins/remarkable/", "tests/data/ink-tools/", "tests/golden/ink-tools/", "tests/t1/ink_tools.sh"], "tests": ["ink_tools"]},
     {"paths": ["app/markdown/", "plugins/markdown/", "tests/t1/markdown_reader.sh", "tests/t1/markdown_reader_notion.py"], "tests": ["markdown_reader"]},
     {"paths": ["src/host/ed25519.cpp", "src/host/crypto.cpp", "lib/std/subtle.ts"], "tests": ["crypto"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow", "release_gate_diagnostics"]},

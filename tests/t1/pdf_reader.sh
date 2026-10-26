@@ -49,6 +49,13 @@ expect 'pdf: Ink saved, page 2 (0 strokes).'
 expect 'pdf: Ink saved, page 2 (1 strokes).'
 [ -s "$tmp/shot.png" ] || { echo "no shot of the reader"; fail=1; }
 
+# the writing tools (zinc:ink, InkPalette): a highlighter stroke on page 3 is saved with its tool and exported translucent (/CA), a pencil one opaque
+app "open sample.pdf; page 3; tool highlighter; color fbf719; draw 100 100 900 100; tool pencil; color 000000; draw 100 300 900 300; save; undo; redo; save; export"
+expect 'pdf: Ink saved, page 3 (2 strokes).'
+expect 'pdf: Exported sample.annotated.pdf (3 strokes), beside the document.'
+grep -q '"tool":"highlighter"' "$tmp/docs/sample.pdf.ink/p3.json" && grep -q '"tool":"pencil"' "$tmp/docs/sample.pdf.ink/p3.json" || { echo "p3.json lost the tools: $(head -c 300 "$tmp/docs/sample.pdf.ink/p3.json")"; fail=1; }
+grep -aq '/CA *0*\.35' "$tmp/docs/sample.annotated.pdf" || { echo "the highlighter is not translucent in the export (/CA 0.35)"; fail=1; }
+
 # writing: clip, image, unclip and the live stroke's 21 segments; drawing every stroke again was 88
 app "open sample.pdf; page 3; draw 100 100 900 300; draw 100 300 900 500; draw 100 500 900 700; write 100 800 900 900"
 n=$(sed -n 's/^pdf: \([0-9]*\) draw commands at most a frame while writing$/\1/p' "$tmp/app.log")

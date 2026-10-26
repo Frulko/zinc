@@ -15,8 +15,9 @@ export interface Spec extends NativeModule {
   /** Draws the rectangle (x, y, w, h) of the page scaled by `scale` (pixels per point; x, y in those pixels) into the runtime image
    *  `img`, made or resized to w x h (-1: a new one). White under the page, its annotations drawn. The image id, -1 on error. */
   render(doc: i32, page: i32, scale: f64, x: f64, y: f64, w: i32, h: i32, img: i32): i32;
-  /** Adds one ink annotation to the page: a stroke through points [x, y, ...] in page units, colour 0xRRGGBB, width in points. */
-  addInk(doc: i32, page: i32, points: f64[], color: i32, width: f64): boolean;
+  /** Adds one ink annotation to the page: a stroke through points [x, y, ...] in page units, colour 0xRRGGBB, width in points,
+   *  alpha 0..255 (the annotation's /CA: a highlighter is translucent). */
+  addInk(doc: i32, page: i32, points: f64[], color: i32, width: f64, alpha: i32): boolean;
   /** Writes the document (with the annotations added) as a new PDF file. */
   save(doc: i32, path: string): boolean;
   close(doc: i32): void;

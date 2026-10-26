@@ -2,6 +2,7 @@ import { createSignal, Show } from 'zinc:ui/solid';
 import { quit, minimizeWindow, setWidget, showWidget, windowState } from 'zinc:gfx';
 import { Keyboard } from 'zinc:ui/kit';
 import * as fs from 'zinc:fs';
+import { Ink, TOOLS, ERASERS } from 'zinc:ink';
 import { env } from 'zinc:sys';
 import status from './native/status.spec';
 
@@ -107,4 +108,74 @@ export function RemarkableKeyboard(props: RemarkableKeyboardProps = {}): i32 {
     keyClass={KB_KEY} specialKeyClass={KB_SPECIAL} enterKeyClass={KB_DARK} shiftOnClass={KB_DARK}
     labelClass="text-[40px]" specialLabelClass="text-[28px]" accentClass="bg-white border-[1.5px] border-black"
     className="bg-white border-t-[1.5px] border-black px-3 pt-3 pb-4" />;
+}
+
+// The writing tools of the reMarkable apps (zinc:ink), as xochitl's palette: a tool, a colour and a width for the next strokes, the stroke
+// and area erasers, undo / redo and erase all. E-paper: black and white, finger-sized targets, the chosen ones inverted or ringed, no
+// animation. Folded, it is one small handle that names the tool. Colours: the Paper Pro's nine pen colours and its highlighter colours,
+// with the RGB values reMarkable's own SVG export uses (rmc), so a page reads the same here, in xochitl and on a computer.
+export const PEN_COLORS: i32[] = [0x000000, 0x909090, 0xffffff, 0x4e69c9, 0xb33e39, 0xa1d87d, 0xf7e851, 0x8bd0e5, 0xb782cd];
+export const HIGHLIGHTER_COLORS: i32[] = [0xfbf719, 0xa1d87d, 0xffc0cb, 0x8bd0e5, 0x909090];
+const TOOL_LABELS: string[] = ['Ballpoint', 'Fineliner', 'Marker', 'Pencil', 'Calligraphy', 'Highlighter', 'Eraser', 'Area'];
+const TOOL_NAMES: string[] = TOOLS.concat(ERASERS);
+const PAL_OFF = 'px-5 h-[80px] items-center justify-center rounded-lg border-2 border-black bg-white focus:bg-white';
+const PAL_ON = 'px-5 h-[80px] items-center justify-center rounded-lg border-2 border-black bg-black focus:bg-black';
+export interface InkPaletteProps {
+  ink: Ink;
+  /** Thin, medium and thick in the ink's units; default: half, once and twice the ink's width when the palette is made. */
+  widths?: number[];
+  /** Starts unfolded (default true). */
+  open?: boolean;
+  /** After every choice (a tool, a colour, a width, undo...): an app that saves on change hooks it here. */
+  onChange?: () => void;
+}
+/** <InkPalette ink={ink} />: the writing tools for `ink`, as a bar above (or below) the page. */
+export function InkPalette(props: InkPaletteProps): i32 {
+  const ink = props.ink;
+  const widths = props.widths ?? [ink.width / 2, ink.width, ink.width * 2];
+  const [open, setOpen] = createSignal<boolean>(props.open !== false);
+  const [tool, setTool] = createSignal<string>(ink.eraser ? 'eraser' : ink.tool);
+  const [color, setColor] = createSignal<i32>(ink.color);
+  const [width, setWidth] = createSignal<number>(ink.width);
+  let penColor = ink.color, hlColor = HIGHLIGHTER_COLORS[0];
+  const changed = (): void => { if (props.onChange) (props.onChange as () => void)(); };
+  const pickTool = (t: string): void => {
+    ink.tool = t; ink.eraser = false; setTool(t);
+    if (t === 'highlighter') { ink.color = hlColor; setColor(hlColor); }
+    else if (TOOLS.indexOf(t) >= 0) { ink.color = penColor; setColor(penColor); }
+    changed();
+  };
+  const pickColor = (c: i32): void => {
+    if (tool() === 'highlighter') hlColor = c; else { penColor = c; if (TOOLS.indexOf(tool()) < 0) pickTool('ballpoint'); }
+    ink.color = c; setColor(c); changed();
+  };
+  const pickWidth = (w: number): void => { ink.width = w; setWidth(w); changed(); };
+  const Btn = (p: { label: string; on: () => boolean; press: () => void }): i32 =>
+    <Button className={p.on() ? PAL_ON : PAL_OFF} onClick={p.press}>
+      <Text className={p.on() ? 'text-[28px] text-white' : 'text-[28px] text-black'}>{p.label}</Text>
+    </Button>;
+  const off = (): boolean => false;
+  const swatches = (): i32[] => tool() === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS;
+  return <Show when={open()} fallback={
+    <View className="flex-row px-4 py-2 bg-white"><Btn label={`Tools · ${TOOL_LABELS[TOOL_NAMES.indexOf(tool())]}`} on={off} press={() => setOpen(true)} /></View>}>
+    <View className="flex-col gap-3 px-4 py-3 bg-white border-b-2 border-black">
+      <View className="flex-row flex-wrap gap-3">
+        {TOOL_NAMES.map((t: string, i: i32) => <Btn label={TOOL_LABELS[i]} on={() => tool() === t} press={() => pickTool(t)} />)}
+      </View>
+      <View className="flex-row flex-wrap items-center gap-3">
+        {swatches().map((c: i32) => <Button
+          className={color() === c ? 'w-[72px] h-[72px] rounded-full border-[8px] border-black' : 'w-[72px] h-[72px] rounded-full border-2 border-black'}
+          style={{ backgroundColor: c }} onClick={() => pickColor(c)} />)}
+        <View className="w-[24px]" />
+        {widths.map((w: number, i: i32) => <Btn label={['Thin', 'Medium', 'Thick'][i]} on={() => width() === w} press={() => pickWidth(w)} />)}
+      </View>
+      <View className="flex-row flex-wrap gap-3">
+        <Btn label="Undo" on={off} press={() => { ink.undo(); changed(); }} />
+        <Btn label="Redo" on={off} press={() => { ink.redo(); changed(); }} />
+        <Btn label="Erase all" on={off} press={() => { ink.clear(); changed(); }} />
+        <View className="grow" />
+        <Btn label="Hide" on={off} press={() => setOpen(false)} />
+      </View>
+    </View>
+  </Show>;
 }

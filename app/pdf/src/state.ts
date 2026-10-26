@@ -17,7 +17,6 @@ export const [screen, setScreen] = createSignal<i32>(SCREEN_LIBRARY);
 export const [status, setStatus] = createSignal<string>('');
 export const [pageLabel, setPageLabel] = createSignal<string>('');
 export const [penMode, setPenMode] = createSignal<boolean>(false);   // desktop: the mouse writes instead of turning pages
-export const [eraser, setEraserSignal] = createSignal<boolean>(false);
 export const [files, setFiles] = createSignal<string[]>([]);
 export const [docName, setDocName] = createSignal<string>('');
 export const onTablet: boolean = sys.platform() === 'rmpp';
@@ -223,7 +222,6 @@ export function saveInk(): boolean {
   } catch (e) { say('Cannot save the ink: ' + e.message); return false; }
 }
 export function undoInk(): void { ink.undo(); }
-export function setEraser(on: boolean): void { ink.eraser = on; setEraserSignal(on); }
 
 /** A copy of the PDF with every page's ink as ink annotations: <name>.annotated.pdf beside it, readable by any PDF viewer. */
 export function exportPdf(): void {
@@ -239,10 +237,11 @@ export function exportPdf(): void {
       if (!fs.exists(f)) continue;
       for (const s of parseStrokes(fs.readText(f))) {
         const xy: number[] = [];
-        let pressure: number = 0;
-        for (let i: i32 = 0; i < s.pts.length; i += 3) { xy.push(s.pts[i]); xy.push(s.pts[i + 1]); pressure += s.pts[i + 2]; }
+        let width: number = 0;
+        for (let i: i32 = 0; i < s.count(); i++) { xy.push(s.pts[i * 3]); xy.push(s.pts[i * 3 + 1]); width += s.segWidth(i); }
         if (xy.length === 0) continue;
-        copy.addInk(p, xy, s.color, s.width * (0.3 + 0.7 * pressure / (xy.length / 2)));
+        // ponytail: one /Ink annotation has one width, so a stroke gets its mean width (and the pencil its colour); the JSON and SVG keep it all
+        copy.addInk(p, xy, s.segColor(Math.floor(s.count() / 2) as i32), width / s.count(), s.alpha());
         n++;
       }
     }

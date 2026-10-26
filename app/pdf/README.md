@@ -11,10 +11,15 @@ per gesture. The pages are drawn by PDFium (`zinc:pdf`, `plugins/pdf`).
   moves a zoomed page, **Next** goes one screen down it, then to the next page. Ctrl+wheel on a desktop.
 - **Pen**: writes over the page. The ink is kept in page points, so it stays in place at any zoom, and saved per page beside the
   document, in `<name>.pdf.ink/p<page>.json` (zinc:ink strokes), on every page change, Documents, Accueil and Quitter. The Marker's
-  eraser end erases, and so does the pen with **Eraser** on; **Undo** takes back the last stroke or erasure. On a desktop, **Pen** makes
-  the mouse write.
-- **Export**: writes `<name>.annotated.pdf` beside the document: a copy of the PDF with every page's notes as ink annotations, which
-  any PDF viewer shows (and this app too: it appears in Documents).
+  eraser end erases. On a desktop, **Pen** makes the mouse write.
+- **Tools** (the handle under the top bar, `InkPalette` of `zinc:remarkable`): the tablet's writing tools, ballpoint, fineliner, marker,
+  pencil, calligraphy, highlighter (translucent, under the other ink), **Eraser** (the strokes it touches), **Area** (the strokes in the
+  rectangle you drag); the Paper Pro's colours (the highlighter's own when it is chosen), thin / medium / thick, **Undo**, **Redo**,
+  **Erase all**; **Hide** folds it back to the handle.
+- **Export**: writes `<name>.annotated.pdf` beside the document: a copy of the PDF with every page's notes as `/Ink` annotations in their
+  tool's colour, width and opacity, which any PDF viewer shows (and this app too: it appears in Documents). To get the notes on a computer,
+  copy that file (`scp root@10.11.99.1:/home/root/zinc-docs/<name>.annotated.pdf .` over USB), or the lossless `<name>.pdf.ink/` folder;
+  formats and choices: `docs/reports/ink-tools-and-annotation-formats.md`.
 - **Refresh**: a full refresh of the display, to clear the ghosting.
 
 ## Run it

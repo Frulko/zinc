@@ -1,9 +1,11 @@
 // ZINC_PDF_SCRIPT (tests): steps separated by ';' that call the same actions as the buttons and gestures, then quit.
 //   open <file> | next | prev | page <n> | zoom <z> | draw <x0> <y0> <x1> <y1> (a pen stroke in view pixels) | erase <x> <y> (the Marker's
-//   eraser end) | write <x0> <y0> <x1> <y1> (the same, one sample a frame: logs the most draw commands of a frame) | undo | save | export | library
+//   eraser end) | write <x0> <y0> <x1> <y1> (the same, one sample a frame: logs the most draw commands of a frame) | undo | redo | save | export | library
+//   | tool <name> (a zinc:ink TOOLS or ERASERS name) | color <rrggbb>
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { view, scale, openDoc, turn, goTo, zoomTo, saveInk, undoInk, exportPdf, showLibrary } from './state';
+import { parseHex } from 'zinc:ui';
+import { view, ink, scale, openDoc, turn, goTo, zoomTo, saveInk, undoInk, exportPdf, showLibrary } from './state';
 import { feedPen, penCommands } from './pageview';
 
 export function scripted(): boolean { return sys.env('ZINC_PDF_SCRIPT') !== ''; }
@@ -37,6 +39,9 @@ export async function runScript(): Promise<void> {
       feedPen(parseFloat(w[1]), parseFloat(w[2]), 0, 0);
     }
     else if (verb === 'undo') undoInk();
+    else if (verb === 'redo') ink.redo();
+    else if (verb === 'tool') ink.tool = arg;
+    else if (verb === 'color') ink.color = parseHex(arg);
     else if (verb === 'save') saveInk();
     else if (verb === 'export') exportPdf();
     else if (verb === 'library') showLibrary();
