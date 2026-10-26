@@ -170,6 +170,9 @@ expect ', the engine 1.0.0.'
 expect 'Needs a newer engine: tap Update the engine (1.0.0), then install it again.'
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
 for t in 'Zinc engine 0.0.1 · 1.0.0 available' 'Update the engine'; do echo "$texts" | grep -qxF "$t" || { echo "the apps page does not show '$t'"; fail=1; }; done
+app "store installed"   # the engine is always listed first in Store › Installed, with its update
+texts=$(python3 tools/scene-texts "$tmp/scene.bin")
+for t in 'Zinc engine' '0.0.1 · 1.0.0 available' 'Update the engine'; do echo "$texts" | grep -qxF "$t" || { echo "Store › Installed does not show '$t'"; fail=1; }; done
 app "engine"
 expect 'Engine updated to 1.0.0. Close the Hub and open it again to use it.'
 engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.0" "after the update"

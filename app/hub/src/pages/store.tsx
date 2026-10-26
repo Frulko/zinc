@@ -2,7 +2,7 @@
 // "Installed" keeps the installed ones up: Update, Rollback, the channel, Pin to sidebar, Reset data and Uninstall (the last two ask twice).
 import { TITLE, LABEL, SMALL, STABLE, HUB_ID, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from '../constants';
 import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, uninstallApp, resetApp, togglePin, armed, storeTab, setStoreTab,
-  STORE_ALL, STORE_INSTALLED } from '../state';
+  engineOffer, engineNow, updateEngine, STORE_ALL, STORE_INSTALLED } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 import { Icon } from './apps';
 
@@ -62,6 +62,18 @@ function InstalledRow(props: { row: AppRow }): i32 {
   </View>;
 }
 
+/** The engine, always first in Installed: its version and its update when the server offers a newer one. */
+function EngineRow(): i32 {
+  const now = engineNow();
+  return <View className="flex-row gap-6 items-center py-6 border-b-2 border-black">
+    <View className="flex-col gap-2 grow w-0">
+      <Text className={`truncate font-bold ${LABEL}`}>Zinc engine</Text>
+      <Text className={`truncate ${SMALL}`}>{`${now !== '' ? now : 'Version unknown'} · ${engineOffer() !== '' ? engineOffer() + ' available' : 'up to date'}`}</Text>
+    </View>
+    {engineOffer() !== '' ? <SolidButton label="Update the engine" onClick={() => updateEngine()} /> : null}
+  </View>;
+}
+
 function StoreTab(props: { label: string; tab: string }): i32 {
   const on = (): boolean => storeTab() === props.tab;
   return <Button className={on() ? BUTTON : OUTLINE_BUTTON} onClick={() => setStoreTab(props.tab)}>
@@ -85,6 +97,7 @@ export function StorePage(): i32 {
     <ScrollView className="grow">
       <View className="flex-col">
         {(storeTab() === STORE_ALL ? all() : []).map((r: AppRow) => <CatalogRow row={r} />)}
+        {storeTab() === STORE_INSTALLED && paired() ? <EngineRow /> : null}
         {(storeTab() === STORE_INSTALLED ? mine() : []).map((r: AppRow) => <InstalledRow row={r} />)}
       </View>
     </ScrollView>
