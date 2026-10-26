@@ -1017,7 +1017,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (zn::host::HostFast f = zn::host::hostFast[static_cast<unsigned>(id)]) { f(a); return nullptr; }   // a hot scalar host row (ZN-397)
   if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
 #define NN(x) do { if (!(x)) return kNull; } while (0)
-  if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a, scratch);
+  if (isHostRow(id)) return hostRt(m, id, a, scratch);
   switch (id) {
     // ---- internal string operations
     case Rt::StrConcat: case Rt::StrConcatM: {
@@ -1328,6 +1328,15 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       std::string out;
       bool ok = m.resolveDyn() && m.dynUndef && m.dynNull && jsonOut(m, root, out, 0);
       a[0] = P(m.newStr(ok ? out.data() : "", ok ? out.size() : 0));
+      return nullptr;
+    }
+    case Rt::StrJsonQuote: {
+      StrObj* s = S(a[0]);
+      NN(s);
+      std::string out;
+      out.reserve(s->len + 2);
+      jsonQuote(out, s);
+      a[0] = P(m.newStr(out.data(), out.size()));
       return nullptr;
     }
     case Rt::JsonParse: {

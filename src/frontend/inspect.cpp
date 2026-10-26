@@ -202,31 +202,7 @@ const char* jsonPrelude() {
   return R"ZN(
 function __jsonNum(v: f64): string { return v - v === 0 ? `${v}` : 'null'; }
 function __jsonQuote(s: string): string {
-  let plain = true;
-  for (let i: i32 = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c < 32 || c === 34 || c === 92) { plain = false; break; }
-  }
-  if (plain) return '"' + s + '"';
-  const out: string[] = ['"'];
-  let start: i32 = 0;
-  for (let i: i32 = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c >= 32 && c !== 34 && c !== 92) continue;
-    out.push(s.slice(start, i));
-    start = i + 1;
-    if (c === 34) out.push('\\"');
-    else if (c === 92) out.push('\\\\');
-    else if (c === 10) out.push('\\n');
-    else if (c === 13) out.push('\\r');
-    else if (c === 9) out.push('\\t');
-    else if (c === 8) out.push('\\b');
-    else if (c === 12) out.push('\\f');
-    else out.push('\\u00' + '0123456789abcdef'.charAt(c >> 4) + '0123456789abcdef'.charAt(c & 15));
-  }
-  out.push(s.slice(start));
-  out.push('"');
-  return out.join('');
+  return __jsonQuoteNative(s);   // the runtime escapes the UTF-8 bytes in one pass
 }
 )ZN";
 }

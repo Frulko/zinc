@@ -359,7 +359,9 @@
   /* zinc:gfx profSection (benchmarks): ends a ZINC_PROFILE section (prints its numbers) and starts the next; graphics row, appended */ \
   X(HostGfxProfSection, "host.gfxProfSection", "s>s", 2) \
   /* zinc:socket connectTls (wss): a TLS client stream on the sockets of ZN-088; system row, appended */ \
-  X(HostSockConnectTls, "host.sockConnectTls", "si>i", 2)
+  X(HostSockConnectTls, "host.sockConnectTls", "si>i", 2) \
+  /* JSON.stringify of a string, over its UTF-8 bytes: the prelude's loop of charCodeAt was quadratic on non-ASCII text; appended */ \
+  X(StrJsonQuote, "string.#jsonQuote", "s>s", 2)
 
 namespace zn {
 
@@ -397,7 +399,10 @@ inline constexpr bool isSysTailRow(Rt r) {
   return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext;
 }
-inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
+// Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
+inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote; }
+inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r) && !isCoreTailRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 // The host calls decode a row's arguments into arrays of this size (src/rt/rtcalls.cpp hostRt, src/qjs/qjs.cpp hostFn): no row has more parameters.
 inline constexpr unsigned kMaxHostParams = 16;

@@ -9,10 +9,17 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Zinc Web: a Contrast setting (normal, high, max) darkens the page and thickens thin text for e-ink; the next screen is fetched while you read, so a page turn waits for nothing; the relay starts Chrome at once, and `--no-token` runs it without a token for a test on a trusted network.
+- Zinc Web: send a page to the tablet from the Mac, with the relay's page at `http://127.0.0.1:8790/` or its **Send to reMarkable** bookmarklet; an e-ink style (on by default) makes pages black on white, underlines links and puts fixed bars and cookie banners back in the page.
+- `zinc:remarkable` has `RemarkableKeyboard`, an on-screen keyboard drawn for e-paper in the tablet's language (Hub, Web and Read use it); the kit's `Keyboard` takes `labelClass`, `specialLabelClass`, `enterKeyClass`, `shiftOnClass`, `handleClass` and `shadow={false}`.
+- Zinc Web: a **Reader** button shows the article alone, as Firefox's Reader View does (Mozilla's Readability), in a book-like layout for e-ink; its links still work.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
 
 ### Changed
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
+
+### Fixed
+- `JSON.stringify` of a long string with accents or other non-ASCII characters is linear: it took 19 s for 90 KB, it now takes a millisecond.
 
 ## [0.9.1] - 2026-10-26
 
@@ -25,9 +32,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc hub: `zinc run app/hub-server -- --port 8787 --data <dir>` serves your apps to paired devices: `zinc publish --hub <url> --token <t>` uploads a version (the hub checks its signature, its SHA-256 and that it is newer), a device pairs with the code the hub prints and gets a catalog signed with the hub's key, and an admin page lists apps and devices and retracts a version.
 - Zinc Hub (`app/hub`), the app store of the reMarkable: set the hub server's address, pair with the code it prints, then install, update (checked at start), roll back and switch an app between stable and beta; each installed app gets its own AppLoad tile. A catalog, manifest or `.zapp` that does not match its signature or SHA-256, and a version older than the installed one, are refused with a message.
 - Zinc Web reads web pages on the reMarkable: `zinc run app/web-relay` on the Mac renders them in headless Chrome at the tablet's size (grey, or colour), and `app/web` shows them a page at a time, follows a link when you tap it, zooms with two fingers or + and −, keeps your pen notes per page, exports the page with its notes as a PNG and keeps bookmarks.
-- Zinc Web: a Contrast setting (normal, high, max) darkens the page and thickens thin text for e-ink; the next screen is fetched while you read, so a page turn waits for nothing; the relay starts Chrome at once, and `--no-token` runs it without a token for a test on a trusted network.
-- Zinc Web: send a page to the tablet from the Mac, with the relay's page at `http://127.0.0.1:8790/` or its **Send to reMarkable** bookmarklet; an e-ink style (on by default) makes pages black on white, underlines links and puts fixed bars and cookie banners back in the page.
-- `zinc:remarkable` has `RemarkableKeyboard`, an on-screen keyboard drawn for e-paper in the tablet's language (Hub, Web and Read use it); the kit's `Keyboard` takes `labelClass`, `specialLabelClass`, `enterKeyClass`, `shiftOnClass`, `handleClass` and `shadow={false}`.
 - Zinc Web dashboards: **Bookmarks, Dashboard** shows a page full screen on the reMarkable and has the relay render it again every 5, 15, 30 or 60 minutes (a tap: now); the picture changes only when the page did, with a full refresh against ghosting, and **Accueil** shows its top as a widget.
 - Zinc PDF (`app/pdf`) reads PDFs on the reMarkable: the PDFs of `~/zinc-docs`, a page fitted to the screen, swipe or Previous/Next and a page strip to turn pages, pinch or + and − to zoom, pen notes and an eraser per page (kept beside the document), and Export writes `<name>.annotated.pdf` with your notes as ink annotations any PDF viewer shows. It comes back at the page and zoom you left.
 - `zinc:pdf` opens PDF files with PDFium: page count and sizes, a page or part of one drawn into an image at any scale, ink annotations, and saving a copy. `plugins/pdf/vendor/fetch` downloads PDFium's pinned library for macOS and Linux arm64.
