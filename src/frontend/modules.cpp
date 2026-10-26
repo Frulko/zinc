@@ -114,6 +114,15 @@ export function height(): i32 { return __host_gfxHeight(); }
 export function pixelScale(): i32 { return __host_gfxPixelScale(); }
 /** A full refresh of an e-ink panel at the next idle frame (it flashes and clears the ghosts that partial updates leave). true when the display does it; false elsewhere (a window, an LCD). */
 export function refreshDisplay(): boolean { return __host_sysDevice('display.refresh', 'full') === '1'; }
+/** What the next frames are, for an e-ink panel's waveform (docs/reports/engine-gestures-zoom-refresh.md): 'interactive' while the picture
+ *  follows a finger (the fast, rough waveform), 'settle' once its final picture is drawn (that picture, then one clean refresh), 'normal'
+ *  for the rest. zinc:ui sets it around a pinch and a ZoomView's gestures; a video or a game may too. Hosts without e-ink ignore it. */
+let intentNow = 'normal';
+export function refreshIntent(intent: string): void {
+  if (intent === intentNow) return;
+  intentNow = intent === 'interactive' ? intent : 'normal';
+  __host_sysDevice('display.intent', intent);
+}
 /** Minimizes the app's window and shows the system's screen while the app keeps running (AppLoad on a reMarkable, with the window-state patch). false when the host cannot: quit instead, with the state saved. */
 export function minimizeWindow(): boolean { return __host_sysDevice('window.minimize', '') === '1'; }
 /** Declares the app's widget: the rectangle of its screen (pixels) the system shows, 1:1, when the app is shown as a widget (w or h 0

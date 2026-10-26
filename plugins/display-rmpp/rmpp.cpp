@@ -116,11 +116,17 @@ int connect_qtfb(int key, int fmt) {
 
 // The way out of an app that does not answer its buttons: three fingers held 2 s quit it (the frame loop still turns when the app's
 // own code is stuck waiting). One journal line says why it quit.
-// Two fingers or more held 150 ms (a pinch, a two-finger pan): the Pen waveform while they move, then the app's own mode and one full
-// refresh when the last finger lifts, so a zoom follows the fingers and lands clean. qtfb pauses about a second on each switch.
-bool gesture = false;
-uint64_t full_due = 0;   // the full refresh after a gesture, once the app had time to draw its sharp picture
+// The frames' intent (zinc:gfx refreshIntent, "display.intent", set by zinc:ui around a pinch and a ZoomView): 'interactive' takes the
+// Pen waveform while the picture follows the fingers, 'settle' the app's own mode again and one full refresh once that final frame is
+// sent. qtfb pauses about a second on each switch of the connection's mode.
+// Without intents (an app that reads raw touches), the guess of before: two fingers or more held 150 ms are a gesture, and the full
+// refresh comes 1.5 s after the last finger lifts. An app that declared an intent once is never guessed for again.
+// AppLoad patch 0004 (backlog/later.md): with its capability bit each MSG_UPDATE carries its own mode, no switch and no second of sleep;
+// then `gesture` picks the update's mode in rm_present instead of set_mode.
+bool gesture = false, intent_seen = false;
+uint64_t full_due = 0;   // the full refresh after a guessed gesture, once the app had time to draw its sharp picture
 void gestures(const HalInput* in) {
+  if (intent_seen) return;
   static uint64_t since = 0;
   if (in->ntouch >= 2) {
     uint64_t now = hal_time_us();
@@ -374,6 +380,17 @@ const char* rm_device(const char* query, const char* arg) {
   if (strcmp(query, "display.mode") == 0) {
     if (!arg || (strcmp(arg, "fast") && strcmp(arg, "ui"))) return "0";
     return zinc_rmpp_set_fast(strcmp(arg, "fast") == 0) || layer == L0 ? "1" : "0";
+  }
+  if (strcmp(query, "display.intent") == 0) {
+    if (!arg || (strcmp(arg, "interactive") && strcmp(arg, "settle") && strcmp(arg, "normal"))) return "0";
+    intent_seen = true;
+    const bool fast = strcmp(arg, "interactive") == 0, settle = strcmp(arg, "settle") == 0;
+    if (layer == L2) { native::fast = fast || wanted_mode == MODE_FAST; if (settle) native::full_now = true; return "1"; }
+    if (layer == RM2) { rm2fb::fast = fast || wanted_mode == MODE_FAST; return "1"; }
+    gesture = fast;
+    full_due = 0;
+    if (settle && full_refresh_ok) full_asked = true;   // after the frame being drawn now: rm_present sends it before a full refresh
+    return "1";
   }
   if (strcmp(query, "display.refresh") != 0) return nullptr;
   if (layer == L2) { native::full_now = true; return "1"; }

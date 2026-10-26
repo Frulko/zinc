@@ -13,6 +13,7 @@ import {
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first frames (ZN-447): a kept frame would hold it
+import { refreshIntent } from 'zinc:gfx';   // an e-ink panel's waveform: interactive while a pinch moves, settle when it ends
 import { platform, env, device } from 'zinc:sys';
 import { signalCount, signalNext } from 'zinc:gfx';   // the system's signals (safe area, theme, back...)
 import { PALETTE, SHADES } from './palette';
@@ -6362,7 +6363,8 @@ function secondFinger(): void {
   if (pn < 0) { spreadD = fingerGap(); return; }
   if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, ptrX, ptrY, 3);
   takeGrab(pn, 3, ptrX, ptrY);
-  pinching = true; pinchScale = 1; pinchRot = 0;
+  pinching = true; pinchScale = 1; pinchRot = 0; settleHeld = false;
+  refreshIntent('interactive');
   const dx = fXs[0] - ptrX, dy = fYs[0] - ptrY;
   pinchD0 = Math.max(1, Math.sqrt(dx * dx + dy * dy)); pinchA0 = Math.atan2(dy, dx);
   fireGesture(pn, PPINCH, (ptrX + fXs[0]) / 2, (ptrY + fYs[0]) / 2, 0);
@@ -6390,7 +6392,13 @@ function pinchEnd(ax: number, ay: number): void {
   pinching = false;
   const bx = fXs.length > 0 ? fXs[0] : ax, by = fYs.length > 0 ? fYs[0] : ay;
   if (nodes[grabber].alive) fireGesture(grabber, PPINCH, (ax + bx) / 2, (ay + by) / 2, 2);
+  if (!settleHeld) refreshIntent('settle');   // the frame drawn now is the final one; a handler that draws it later holds it (ZoomView)
+  settleHeld = false;
 }
+let settleHeld = false;
+/** In a pinch's end handler: the final picture comes later (an image rendered or fetched); the handler calls refreshIntent('settle') of
+ *  zinc:gfx itself once it is drawn. */
+export function holdSettle(): void { settleHeld = true; }
 /** A finger other than the pointer one: phase 0 down, 1 move, 2 up. */
 function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
   const i = fIds.indexOf(id);

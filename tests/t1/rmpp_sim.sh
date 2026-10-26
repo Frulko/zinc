@@ -106,6 +106,16 @@ if run pinch tests/data/rmpp-penmode 400 - "$ferrari" PENMODE_STILL=1 ZN_RMPP_SI
   t=$(grep -o 'mode [A-Z][A-Z]*\|fingers [a-z]*\|full refresh' "$tmp/pinch/out/trace.txt" | tr '\n' ' ')
   case "$t" in *"fingers down mode FAST fingers up mode UI full refresh"*) ;; *) echo "pinch: $t"; fail=1 ;; esac
 fi
+# The same pinch on a view that takes it through zinc:ui (onPinch, as ZoomView): zinc:ui declares the intent, so FAST comes when the
+# second finger lands (no 150 ms guess) and the full refresh as soon as the mode is back after the release (no 1.5 s timer)
+if run uipinch tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=0.6 ZN_RMPP_SIM_HOLD=150:2:60 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
+  t=$(grep -o 'mode [A-Z][A-Z]*\|fingers [a-z]*\|full refresh' "$tmp/uipinch/out/trace.txt" | tr '\n' ' ')
+  case "$t" in *"fingers down mode FAST fingers up mode UI full refresh"*) ;; *) echo "uipinch: $t"; fail=1 ;; esac
+  has uipinch log 1 "pinch phase 0"; has uipinch log 1 "pinch phase 2"
+  # the full refresh as soon as qtfb's second after the switch back is over (1.1 s), not 1.5 s after the release then that second
+  late=$(awk '/fingers up/ { up = $1 } / full refresh/ { print $1 - up; exit }' "$tmp/uipinch/out/trace.txt")
+  [ -n "$late" ] && [ "${late%.*}" -lt 1400 ] || { echo "uipinch: the full refresh came ${late} ms after the release"; fail=1; }
+fi
 # The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
 if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then
   has escape log 1 "three fingers held 2 s: quitting the app"; [ "$(grep -c 'update PARTIAL' "$tmp/escape/out/trace.txt")" -lt 60 ] || { echo "escape: the app went on after the gesture"; fail=1; }
