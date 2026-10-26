@@ -1,0 +1,59 @@
+Subject: [PATCH] qtfb: apply a refresh mode without the 1 s pause
+
+MESSAGE_SET_REFRESH_MODE and MESSAGE_REQUEST_FULL_REFRESH waited a fixed second for the GUI
+thread; they now wait until it has applied them (Qt::BlockingQueuedConnection). Capability
+bit 3 (CAPABILITY_INSTANT_MODE) tells the client.
+
+diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
+index 991480f..54a20e9 100644
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -371,7 +371,7 @@ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialS
+ qtfb::DeviceStateChangedContents FBController::formCapabilitiesPacket() {
+     qtfb::DeviceStateChangedContents dscc = {
+         .reason = STATE_CHANGED_REASON_CAPABILITIES,
+-        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS | CAPABILITY_DOCKED },
++        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS | CAPABILITY_DOCKED | CAPABILITY_INSTANT_MODE },
+     };
+     return dscc;
+ }
+diff --git a/src/qtfb/common.h b/src/qtfb/common.h
+index 82e9244..5bb637c 100644
+--- a/src/qtfb/common.h
++++ b/src/qtfb/common.h
+@@ -72,6 +72,7 @@
+ #define CAPABILITY_WINDOW_STATE 1 // MESSAGE_SET_WINDOW_STATE, STATE_CHANGED_REASON_VISIBILITY
+ #define CAPABILITY_WIDGETS 2      // MESSAGE_SET_WIDGET, WINDOW_STATE_WIDGET, VISIBILITY_WIDGET
+ #define CAPABILITY_DOCKED 4       // WINDOW_STATE_DOCKED, VISIBILITY_DOCKED, STATE_CHANGED_REASON_INSETS
++#define CAPABILITY_INSTANT_MODE 8 // MESSAGE_SET_REFRESH_MODE and MESSAGE_REQUEST_FULL_REFRESH return once applied, without the 1 s pause
+ 
+ #define VISIBILITY_MINIMIZED 0
+ #define VISIBILITY_SHOWN 1
+diff --git a/src/qtfb/fbmanagement.cpp b/src/qtfb/fbmanagement.cpp
+index 9e45bab..cfaee0e 100644
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -328,10 +328,11 @@ static void managementClientThread(int incomingFD) {
+                         CERR << "The client tried to set refresh mode to an undefined value!" << std::endl;
+                         return RESP_ERR;
+                     }
++                    // Zinc: wait until the GUI thread has applied it (a few ms) instead of a fixed second, so a client can switch to a
++                    // fast waveform for a gesture without the screen freezing
+                     QMetaObject::invokeMethod(controller, [controller, refresh]() {
+                         controller->setRefreshMode(refresh);
+-                    });
+-                    safetyWaitForEventLoopToCatchUp();
++                    }, Qt::BlockingQueuedConnection);
+                     return RESP_OK;
+                 });
+                 break;
+@@ -339,8 +340,7 @@ static void managementClientThread(int incomingFD) {
+                 status = invokeOnConnectedFramebuffer(&connection, [=](auto controller) {
+                     QMetaObject::invokeMethod(controller, [controller]() {
+                         emit controller->requestFullRefresh();
+-                    });
+-                    safetyWaitForEventLoopToCatchUp();
++                    }, Qt::BlockingQueuedConnection);
+                     return RESP_OK;
+                 });
+                 break;

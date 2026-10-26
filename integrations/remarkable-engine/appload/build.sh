@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds AppLoad v0.6.0 + the patches 0001 to 0005 (applied in order) for the reMarkable Paper Pro
+# Builds AppLoad v0.6.0 + the patches 0001 to 0006 (applied in order) for the reMarkable Paper Pro
 # the way AppLoad's own CI does (.github/workflows/build-release.yml), in Docker.
 # Output: <repo>/dist/rmpp/appload-window.so
 set -eu

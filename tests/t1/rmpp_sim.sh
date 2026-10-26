@@ -146,6 +146,13 @@ if run uipinch tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=0.6 ZN
   late=$(awk '/fingers up/ { up = $1 } / full refresh/ { print $1 - up; exit }' "$tmp/uipinch/out/trace.txt")
   [ -n "$late" ] && [ "${late%.*}" -lt 1400 ] || { echo "uipinch: the full refresh came ${late} ms after the release"; fail=1; }
 fi
+# with AppLoad 0006 (no second's pause on a mode switch) the pinch's first fast picture follows the fingers at once, and while they move the
+# updates go one at a time, 160 ms apart at least (the panel's pace), so they never queue up behind the fingers
+if run uipinch6 tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=widget ZN_RMPP_SIM_INSTANT=1 ZN_RMPP_SIM_HOLD=150:2:60 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
+  [ -n "$PINCH_TRACE" ] && cp "$tmp/uipinch6/out/trace.txt" "$PINCH_TRACE"
+  awk '/fingers down/ { d = $1 } d && / update / && !f { f = $1 - d } /fingers up/ { u = 1 } d && !u && / update / { if (p && $1 - p < 150) close_ = 1; p = $1 } END { if (f == "" || f > 300 || close_) exit 1 }' "$tmp/uipinch6/out/trace.txt" ||
+    { echo "uipinch6: the gesture's updates:"; grep -E "fingers|mode|update" "$tmp/uipinch6/out/trace.txt" | head -20; fail=1; }
+fi
 # The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
 if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then
   has escape log 1 "three fingers held 2 s: quitting the app"; [ "$(grep -c 'update PARTIAL' "$tmp/escape/out/trace.txt")" -lt 60 ] || { echo "escape: the app went on after the gesture"; fail=1; }

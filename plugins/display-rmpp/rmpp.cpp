@@ -41,7 +41,7 @@
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
                    MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };   // 9, 10: AppLoad with integrations/remarkable-engine/appload
-enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4 };
+enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4, CAN_INSTANT_MODE = 8 };
 // also the visibility values: 0 minimized, 1 shown, 2 as its widget, 3 docked under xochitl's header (0005)
 enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2, WINDOW_DOCKED = 3 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
@@ -74,6 +74,9 @@ eink::Rect widget = {};     // the rectangle, framebuffer pixels
 bool dock_ok = false;       // AppLoad docks the window under xochitl's header (capability bit 2, 0005 of the patch)
 bool docked = false;        // docked: only what changes below dock_top is sent, zinc:ui gets dock_top as its top safe area
 int dock_top = 0;           // the header's height (STATE_CHANGED_REASON_INSETS), framebuffer pixels
+bool instant_mode = false;  // AppLoad applies a mode or a full refresh without its 1 s pause (capability bit 3, 0006 of the patch)
+// how long this connection is busy after a mode switch or a full refresh: qtfb's second, or a few ms with 0006
+uint64_t switch_pause() { return instant_mode ? 30000 : 1100000; }
 eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), panel.w, panel.h}; }
 
 extern "C" void zn_hal_signal(const char* line);   // the host's system signals (src/host/hal_dispatch.cpp): zinc:ui's safe area
@@ -115,8 +118,8 @@ bool set_mode(int mode) {
   ClientMsg m = {}; m.type = MSG_SET_MODE; m.mode = mode;
   if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) != sizeof m) return false;
   refresh_mode = mode;
-  // qtfb sleeps 1 s on THIS connection. Keep input/rendering alive and send one latest frame afterwards.
-  mode_ready_us = now + 1100000;
+  // qtfb sleeps 1 s on THIS connection (a few ms with AppLoad 0006). Keep input/rendering alive and send one latest frame afterwards.
+  mode_ready_us = now + switch_pause();
   pending = {0, 0, panel.w, panel.h}; // repaint unchanged RGB too, to reveal colours after FAST
   return true;
 }
@@ -199,7 +202,7 @@ void rm_poll(HalInput* in) {
     if (m.type == MSG_STATE_INIT || m.type == MSG_STATE_CHANGED) {
       full_refresh_ok = true;
       if (m.state.reason == REASON_CAPABILITIES) {
-        window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; dock_ok = (m.state.value & CAN_DOCK) != 0;
+        window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; dock_ok = (m.state.value & CAN_DOCK) != 0; instant_mode = (m.state.value & CAN_INSTANT_MODE) != 0;
       }
       if (m.state.reason == REASON_INSETS && m.state.value >= 0 && m.state.value < panel.h && m.state.value != dock_top) {
         dock_top = m.state.value;
@@ -357,9 +360,13 @@ void rm_present(const HalFrame* f) {
   if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want);   // a gesture, or a switch asked during qtfb's second
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
-    if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + 1100000; }  // qtfb sleeps 1 s on this connection
+    if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + switch_pause(); }  // qtfb sleeps 1 s on this connection (without 0006)
   }
-  if (eink::empty(pending) || now < mode_ready_us || (last_sent_us && now - last_sent_us < update_interval())) {
+  // during a gesture the panel takes about 120 ms per fast update: one at a time, the newest picture, so they never queue up and lag
+  // behind the fingers (ZINC_RMPP_GESTURE_MS)
+  static const uint64_t gesture_us = (getenv("ZINC_RMPP_GESTURE_MS") ? atoi(getenv("ZINC_RMPP_GESTURE_MS")) : 160) * 1000ull;
+  const uint64_t interval = gesture ? std::max(update_interval(), gesture_us) : update_interval();
+  if (eink::empty(pending) || now < mode_ready_us || (last_sent_us && now - last_sent_us < interval)) {
     if (eink::empty(r)) rin::wait_input(8, sock);
     return;
   }

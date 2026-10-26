@@ -55,6 +55,9 @@ namespace qsim {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7,
                  MSG_STATE_INIT = 8, MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };
 static const char* appload = getenv("ZN_RMPP_SIM_APPLOAD") ? getenv("ZN_RMPP_SIM_APPLOAD") : "0.5";
+// ZN_RMPP_SIM_INSTANT=1 (with widget or dock): AppLoad 0006, capability 8, a mode or a full refresh applied in 20 ms instead of qtfb's second
+static const bool instant = getenv("ZN_RMPP_SIM_INSTANT") != nullptr;
+static const uint64_t pauseUs = instant ? 20000 : 1000000;
 static const bool docks = !strcmp(appload, "dock");
 static const bool widgets = docks || !strcmp(appload, "widget");
 static const int inset = getenv("ZN_RMPP_SIM_INSET") ? atoi(getenv("ZN_RMPP_SIM_INSET")) : 120;
@@ -129,12 +132,12 @@ static void handle(const ClientMsg& m) {
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
     if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }   // the rotation
     if (windowState) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 1; st.state.value = 1; send(qtfb, &st, sizeof st, 0); }
-    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = docks ? 7 : 3; send(qtfb, &st, sizeof st, 0); }
+    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = (docks ? 7 : 3) | (instant ? 8 : 0); send(qtfb, &st, sizeof st, 0); }
     if (docks) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 3; st.state.value = inset; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
-    line("%8.1f ms mode %s (qtfb sleeps 1000 ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?");
+    line("%8.1f ms mode %s (qtfb sleeps %d ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?", (int)(pauseUs / 1000));
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
-    sleepUntil = now + 1000000;
+    sleepUntil = now + pauseUs;
     modes++;
   } else if (m.type == MSG_UPDATE) {
     int x = m.update.x, y = m.update.y, w = m.update.w, h = m.update.h;
@@ -151,8 +154,8 @@ static void handle(const ClientMsg& m) {
   } else if (m.type == MSG_FULL_REFRESH) {
     if (!appload06) { line("%8.1f ms error: full refresh: AppLoad 0.5 closes the connection", now / 1000.0); errors++; return; }
     if (now < sleepUntil) { line("%8.1f ms error: full refresh inside qtfb's sleep", now / 1000.0); errors++; }
-    sleepUntil = now + 1000000;
-    line("%8.1f ms full refresh (qtfb sleeps 1000 ms)", now / 1000.0);
+    sleepUntil = now + pauseUs;
+    line("%8.1f ms full refresh (qtfb sleeps %d ms)", now / 1000.0, (int)(pauseUs / 1000));
   } else if (m.type == MSG_WINDOW_STATE) {
     if (!windowState) { line("%8.1f ms error: window state: this AppLoad closes the connection", now / 1000.0); errors++; return; }
     const bool toWidget = m.window == 2 && widgets && ww > 0, toDock = m.window == 3 && docks;

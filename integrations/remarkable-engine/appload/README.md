@@ -13,6 +13,9 @@ Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
   AppLoad's, that opens them as their tile does.
 - `0005-docked-window.patch` (on top of 0004, experimental): a client can dock its window under xochitl's own top header, which
   stays xochitl's, live.
+- `0006-instant-refresh-mode.patch` (on top of 0005): `MESSAGE_SET_REFRESH_MODE` and `MESSAGE_REQUEST_FULL_REFRESH` no longer pause the
+  connection a fixed second: they return once the GUI thread applied them (`Qt::BlockingQueuedConnection`), a few ms. Capability bit 3
+  (`CAPABILITY_INSTANT_MODE` = 8) tells the client, which then switches to the fast waveform for a pinch at once.
 
 ## Protocol (0001)
 
