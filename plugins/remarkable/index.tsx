@@ -18,6 +18,7 @@ setInterval(() => {
 /** The app's own folder (zinc:sys dataDir(): what the Hub's Reset data erases). The files an older version kept in `legacy` move there once. */
 export function appFolder(legacy: string): string {
   const dir = dataDir();
+  if (dir === '') return legacy;   // an engine before dataDir(): the old folder stays the app's
   if (legacy !== '' && legacy !== dir && fs.exists(legacy)) {
     for (const f of fs.list(legacy)) if (!fs.exists(dir + '/' + f)) fs.rename(legacy + '/' + f, dir + '/' + f);
     if (fs.list(legacy).length === 0) fs.remove(legacy);
