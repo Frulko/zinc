@@ -114,8 +114,20 @@ int connect_qtfb(int key, int fmt) {
   return s;
 }
 
+// The way out of an app that does not answer its buttons: three fingers held 2 s quit it (the frame loop still turns when the app's
+// own code is stuck waiting). One journal line says why it quit.
+void escape(HalInput* in) {
+  static uint64_t since = 0;
+  if (in->ntouch < 3) { since = 0; return; }
+  uint64_t now = hal_time_us();
+  if (!since) { since = now; return; }
+  if (now - since < 2000000 || rin::quit_flag) return;
+  fprintf(stderr, "display-rmpp: three fingers held 2 s: quitting the app\n");
+  rin::quit_flag = 1; in->quit = 1;
+}
+
 void rm_poll(HalInput* in) {
-  if (layer == L2 || layer == RM2) { rin::poll_touch(); rin::poll_input(in); return; }
+  if (layer == L2 || layer == RM2) { rin::poll_touch(); rin::poll_input(in); escape(in); return; }
   ServerMsg m = {};
   for (;;) {
     ssize_t n = recv(sock, &m, sizeof m, MSG_DONTWAIT);
@@ -143,6 +155,7 @@ void rm_poll(HalInput* in) {
     }
   }
   rin::poll_input(in);
+  escape(in);
 }
 
 void wake_lock(bool on) {  // autosleep would suspend the SoC (and the digitizer) under a running app

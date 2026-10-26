@@ -402,6 +402,8 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
   previous package for Rollback and calls `zinc-tile` for the app's tile. Its list shows each app's icon, which the server takes from the
   published `.zapp` and lists with its SHA-256 in the signed catalog.
+- **The way out**: three fingers held on the screen for 2 s quit any Zinc app, even one whose buttons no longer answer (the driver
+  sees it in its input poll, which turns while the app's code waits); the journal says `three fingers held 2 s: quitting the app`.
 - **Stuck apps** (ZN-844): `zinc-app` starts `bin/zinc-watch` (`integrations/remarkable-engine/zinc-watch.c`, static, about 60 KB) with
   every app, as a child of the app's pid, so it ends with it. The engine's frame loop rewrites `ZINC_HEARTBEAT` (`/tmp/zinc-app-<path>.beat`,
   set by `zinc-app`) every 2 s with the window's state; the loop keeps turning while the window is minimized, so a hidden app beats too. The

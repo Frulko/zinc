@@ -298,6 +298,21 @@ static void qsim_taps() {
     s = *e ? e + 1 : e;
   }
 }
+// ZN_RMPP_SIM_HOLD=frame:fingers:frames: that many fingers pressed at that frame (ids 20...) and released that many frames later
+static void qsim_hold() {
+  const char* p = getenv("ZN_RMPP_SIM_HOLD");
+  if (!p || qsim::qtfb < 0) return;
+  char* e;
+  const long f = strtol(p, &e, 10); const int n = (int)strtol(e + 1, &e, 10); const long len = strtol(e + 1, &e, 10);
+  for (int k = 0; k < 2; k++) if ((long)qsim::frames == f + k * len) {
+    for (int i = 0; i < n; i++) {
+      qsim::ServerMsg m = {};
+      m.type = qsim::MSG_INPUT; m.input.type = 0x10 + k; m.input.id = 20 + i; m.input.x = 400 + 200 * i; m.input.y = 1000;
+      send(qsim::qtfb, &m, sizeof m, 0);
+    }
+    qsim::line("%8.1f ms %d fingers %s", qsim::virtualNow() / 1000.0, n, k ? "up" : "down");
+  }
+}
 // ZN_RMPP_SIM_KEYS=frame:code[,code...][;...]: the Type Folio through AppLoad's MESSAGE_USERINPUT at that frame, Qt::Key codes
 // (0x48, 0x01000020...) in x as FBController::keyPressEvent sends them: INPUT_BTN_PRESS then INPUT_BTN_RELEASE for each code; +code only
 // presses (a held Shift), -code only releases
@@ -342,7 +357,7 @@ static void qsim_collapse() {
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = qsim::collapsed ? 0 : 2; send(qsim::qtfb, &st, sizeof st, 0);
 }
 static void qsim_polled(HalInput* in) {
-  qsim_taps();
+  qsim_taps(); qsim_hold();
   qsim_keys();
   qsim_collapse();
   qsim_restore();

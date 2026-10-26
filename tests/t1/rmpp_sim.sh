@@ -97,6 +97,12 @@ if run penmode tests/data/rmpp-penmode 400 - "$ferrari"; then
   [ "$(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')" = "mode UI mode FAST mode UI " ] || { echo "penmode: $(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')"; fail=1; }
 fi
 
+# The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
+if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then
+  has escape log 1 "three fingers held 2 s: quitting the app"; [ "$(grep -c 'update PARTIAL' "$tmp/escape/out/trace.txt")" -lt 60 ] || { echo "escape: the app went on after the gesture"; fail=1; }
+fi
+if run noescape tests/data/rmpp-penmode 300 - "$ferrari" ZN_RMPP_SIM_HOLD=60:2:200; then has noescape log 0 "quitting the app"; fi
+
 # L1: "ink": "native" with a lane that answers a verified hash. qtfb stays in UI; strokes go through the lane, never through qtfb.
 pen=ZN_RMPP_SIM_PEN=70-95,110-130
 if run lane notes 140 native NOTES_DEMO=1 "$ferrari" ZN_RMPP_SIM_LANE=ok $pen; then
