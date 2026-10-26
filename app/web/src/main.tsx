@@ -8,7 +8,7 @@ import { RemarkableBar, RemarkableApp, RemarkableKeyboard, InkPalette } from 'zi
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { ink, screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
-  tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
+  tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, closeAllTabs, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
 import { scripted, runScript } from './script';
@@ -39,11 +39,11 @@ function Tabs(): i32 {
       <Text className={TITLE}>Tabs</Text>
       <Text className={LABEL}>A page sent from the Mac opens in a new tab; the one you were reading stays here, at the same page.</Text>
       {tabList().map((t: Tab, i: i32) => <View className="flex-row gap-4 items-center py-3 border-b-2 border-black">
-        <Text className={`grow ${LABEL}`}>{(i === tabIndex() ? '▶ ' : '') + (t.title !== '' ? t.title + ' · ' : '') + t.url}</Text>
+        <Text className={`grow w-0 break-all ${LABEL}`} numberOfLines={3}>{(i === tabIndex() ? '▶ ' : '') + (t.title !== '' ? t.title + ' · ' : '') + t.url}</Text>
         <Btn label="Open" on={true} onClick={() => switchTab(i)} />
         <Btn label="Close" onClick={() => closeTab(i)} />
       </View>)}
-      <View className="flex-row"><Btn label="New tab" onClick={() => newTab(address())} /></View>
+      <View className="flex-row gap-4"><Btn label="New tab" onClick={() => newTab(address())} /><Btn label="Close all" onClick={() => closeAllTabs()} /></View>
     </View>
   </ScrollView>;
 }
@@ -75,7 +75,7 @@ function Dashboard(): i32 {
     <RemarkableBar title="Dashboard" onQuit={() => quit()} />
     <Canvas className="grow" onDraw={dashView} />
     <View className="flex-row gap-3 px-4 py-2 items-center border-t-2 border-black">
-      <Text className={SMALL}>{updated() === '' ? (busy() ? 'Loading…' : status()) : 'Updated ' + updated() + ' · every'}</Text>
+      <Text className={`truncate ${SMALL}`}>{updated() === '' ? (busy() ? 'Loading…' : status()) : 'Updated ' + updated() + ' · every'}</Text>
       {PERIODS.map((m: i32) => <Button className={`px-4 h-[56px] items-center justify-center rounded-lg border-2 border-black ${m === every() ? 'bg-black focus:bg-black' : 'bg-white focus:bg-white'}`}
         onClick={() => setPeriod(m)}><Text className={m === every() ? 'text-[24px] text-white' : SMALL}>{m.toString() + ' min'}</Text></Button>)}
       <View className="grow" />
@@ -151,7 +151,9 @@ function Reader(): i32 {
       <Btn label="Refresh" onClick={() => refresh()} />
     </View>
     <View className="px-6 py-3 border-t-2 border-black">
-      <Text className={LABEL}>{busy() ? 'Loading…' : status()}</Text>
+      {/* one line, cut with …: a status that wrapped (a long URL) made the page view shorter, which rendered the page again, whose
+          new status was shorter: the page loaded forever */}
+      <Text className={`truncate ${LABEL}`}>{busy() ? 'Loading…' : status()}</Text>
     </View>
     <RemarkableKeyboard />
   </View>;

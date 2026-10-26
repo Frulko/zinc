@@ -355,6 +355,14 @@ export async function closeTab(i: i32): Promise<void> {
   saveTabs();
   if (shown) await openUrl(tabs[current].url, false, tabs[current].oy);
 }
+/** Every tab closed, their histories with them: one tab on the home page. */
+export async function closeAllTabs(): Promise<void> {
+  if (view.doc !== null) saveInk();
+  const t = new Tab(); t.url = HOME_PAGE;
+  tabs.splice(0, tabs.length); tabs.push(t); current = 0;
+  saveTabs();
+  await openUrl(HOME_PAGE, false);
+}
 /** The tab to open at start. */
 export function currentTab(): Tab { return tabs[current]; }
 /** The page drawn smaller (dir -1: more of it per screen) or larger; rendered again. */

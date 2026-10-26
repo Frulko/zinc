@@ -21,6 +21,7 @@ python3 -m http.server "$wp" --bind 127.0.0.1 --directory "$tmp/site" >"$tmp/htt
 for i in $(seq 1 100); do grep -q 'relay: token' "$tmp/relay.log" && curl -s "http://127.0.0.1:$wp/" >/dev/null && break; sleep 0.2; done
 grep -q 'relay: token' "$tmp/relay.log" || { echo "the relay did not start:"; head -20 "$tmp/relay.log"; exit 1; }
 token=$(cat "$tmp/relay/relay.token")
+[ "$(echo "$token" | grep -cE "^[a-z]{2}[0-9]{8}$")" = 1 ] || { echo "the token is not 2 letters and 8 digits: $token"; fail=1; }
 R=http://127.0.0.1:$rp
 page=http://127.0.0.1:$wp/index.html
 size() { python3 -c 'import struct, sys; d = open(sys.argv[1], "rb").read(24); print("%dx%d" % struct.unpack(">II", d[16:24]) if d[:8] == b"\x89PNG\r\n\x1a\n" else "not-png")' "$1"; }
@@ -102,6 +103,14 @@ expect 'web: Second page · 1 links'
 app "close 1"
 expect 'web: Relay fixture · 2 links'
 [ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] || { echo "close 1: $(cat "$tmp/web/tabs.txt")"; fail=1; }
+# a page whose address is too long for the status line is loaded once: the status keeps one line, so the page view keeps its size (a
+# wrapped status shrank it, the page was rendered again, its status changed again: reddit loaded forever)
+long="$page?q=$(printf 'x%.0s' $(seq 1 400))"
+app "open $long"
+[ "$(grep -c 'web: relay loaded the page' "$tmp/app.log")" = 1 ] || { echo "a long address loaded $(grep -c 'web: relay loaded the page' "$tmp/app.log") times"; fail=1; }
+# Close all: one tab left, on the home page, the others and their histories gone
+app "open $page; tab http://127.0.0.1:$wp/next.html; closeall"
+[ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] && grep -q 'wikipedia.org/wiki/E_Ink' "$tmp/web/tabs.txt" || { echo "closeall: $(cat "$tmp/web/tabs.txt")"; fail=1; }
 # a smaller page (more of it per screen) is rendered again, both settings are kept; the full-screen view has no tool rows
 ZINC_SHOT="$tmp/full.png" app "open $page; smaller; full"
 expect 'web: Page size 80 %.'

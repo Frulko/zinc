@@ -52,7 +52,6 @@ function same(a: string, b: string): boolean {   // in time independent of where
   for (let i: i32 = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
 }
-function hex(bytes: u8[]): string { const d = '0123456789abcdef'; let s = ''; for (const b of bytes) s += d.charAt((b >> 4) & 15) + d.charAt(b & 15); return s; }
 function num(s: string, def: number, lo: number, hi: number): number { const n = parseFloat(s); return !(n >= lo && n <= hi) ? def : n; }
 
 const port: i32 = parseInt(opt('port', '8790'));
@@ -385,13 +384,22 @@ async function warmUp(): Promise<void> {
   busy = false;
 }
 
+/** A token typed by hand on the tablet and in the extension: 2 letters and 8 digits (ab12345678), about 36 bits.
+ *  ponytail: enough on a USB link or a home network; the modulo bias of a byte is negligible here. A long token written in relay.token is kept. */
+function shortToken(): string {
+  const b = sys.randomBytes(10);
+  let t = '';
+  for (let i: i32 = 0; i < 10; i++) t += i < 2 ? String.fromCharCode(97 + b[i] % 26) : (b[i] % 10).toString();
+  return t;
+}
+
 function main(): void {
   chromePath = findChrome(opt('chrome', ''));
   if (chromePath === '') { console.log('relay: no Chrome found: install Google Chrome or pass --chrome <path to its executable>'); sys.exit(1); }
   fs.mkdir(data, true);
   const file = data + '/relay.token';
   if (sys.args().indexOf('--no-token') < 0) {
-    if (!fs.exists(file)) { fs.writeText(file, hex(sys.randomBytes(16)) + '\n'); fs.chmod(file, 0o600); }
+    if (!fs.exists(file)) { fs.writeText(file, shortToken() + '\n'); fs.chmod(file, 0o600); }
     token = fs.readText(file).trim();
   }
   const quit = (): void => { chrome.stop(); sys.exit(0); };

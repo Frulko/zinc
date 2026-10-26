@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Zinc Web relay: `--browser extension` renders pages in your own Chrome through a small Chrome extension (`app/web-relay/extension`), so sites that refuse headless Chrome (Cloudflare, Reddit, Leboncoin) open with your sessions; its popup turns it off and sends the current tab to the reMarkable.
 - reMarkable Hub: **Uninstall** an app (tap twice), **Clean up AppLoad** in Settings removes the Zinc tiles whose app is gone, and the Hub updates itself like any app and opens again on the new version. While an action runs, its buttons grey out. A new **Info** page shows the Hub and engine versions, the tablet's system, battery (and the Marker's, charging when attached), memory and storage. Every Hub action shows what it is doing in a modal that blocks other taps until it ends, and keeps an error on screen until OK.
 - reMarkable: three fingers held on the screen for 2 s quit a Zinc app, even one that no longer answers its buttons; or press the power button twice (sleep, wake): an app that was not responding is stopped on waking.
@@ -33,6 +34,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - reMarkable Read: pictures from the web (http/https, downloaded once and kept for offline reading, also for Notion pages at sync), inline `data:` pictures and file names with spaces or `%20` now show instead of a "[picture: …]" placeholder.
 - reMarkable Hub: an engine published after an update made in the same session is offered at once, without reopening the Hub.
@@ -43,6 +45,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.9.1] - 2026-10-26
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - App icons on the reMarkable: `zinc pack` puts zinc.json's `app.icon` (a PNG or an SVG) in the `.zapp` as a 150 px `icon.png` on white, `zinc-tile` shows it on the app's AppLoad tile, and the hub lists each app with its icon (checked against the signed catalog; a framed initial when an app has none). The hub, Zinc Web and the dashboard and notes examples have one.
 - The reMarkable dashboard example saves its tasks, habits, scratchpad and focus timer as they change: it comes back as it was, and the timer keeps running while the app is closed. Its scratchpad has Clear and Refresh buttons and writes in the fast pen mode.
 - reMarkable app widgets: wrap an app in `RemarkableApp` of `zinc:remarkable` with a small view (`widget={{ view, width, height }}`) and **Accueil** shows it as a card over the tablet's screen, its taps going to the running app; the dashboard example's widget has the focus timer and three tasks. Needs the patched AppLoad of `integrations/remarkable-engine/appload`.
@@ -86,6 +89,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The reMarkable top bar shows the battery level on the tablet (it showed "Battery —").
 - PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
@@ -123,6 +127,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.2] - 2026-10-25
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Native integration demos include bounded background-window proofs and reviewed captures for SwiftUI, Godot-hosted Zinc UI and the LibGodot host.
 - Pocket Rally dispatches native desktop events and accepts background Zinc button clicks; its finite native proof checks game keyboard input, GPU rendering and clean window shutdown.
 - Texture rules can make `"format": "clut8"` pictures, the PSP's 8-bit pictures (a quarter of RGBA8's memory): `"night": "{stem}.night.png"` quantises a night picture with it into a second palette, and `"colors"` caps the palette.
@@ -189,6 +194,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Calls from a program into a native plugin are cheaper on the consoles, and zinc:3d places its nodes in single precision on the PSP, which has no double-precision hardware: Orbit's 3D work takes a quarter less time a frame on a PSP.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Nintendo 3DS games use elapsed time in stereo, fixing doubled gameplay speed and excess physics work. New Nintendo 3DS also enables its supported faster CPU/cache mode. Nova Patrol DS 0.2.1 includes these fixes.
 - Nova Patrol DS 0.2: use the compiled `--aot` console build, skip unchanged Box2D bridge writes and stationary flipper geometry, and apply a smaller 3DS effect budget. The dual-screen view now displays the textured bumper caps, mechanical recoil, Kenney spark sprites and refreshed score panels.
@@ -205,6 +211,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.8.0] - 2026-10-25
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc device <device> screen --live` shows the device's screen in a window on your computer, live, and your mouse and keyboard drive it: the player of a Zinc Pi image, an app, a `zinc dev --device` program. Close the window to stop.
 - PS Vita: `tools/build-console-core vita --vitagl` builds a core that draws everything on the GPU through vitaGL (rounded corners, gradients, shadows and paths included); the default GXM core stays faster for games. It needs `libshacccg.suprx` extracted on the console (ShaRKBR33D); without it the core draws in software.
 - PSP: the console core draws zinc:gfx frames on the GE: rectangles (rounded ones too), borders, shadows, filled paths, images, sprites and text. A frame with a gradient, a rounded clip or a rotation is still drawn in software and shown by the GE. `ZINC_PSP_GPU=0` keeps the software path.
@@ -219,6 +226,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc device <pi> update` on a Zinc Pi image installs the newest release the way the player's update page does (engine, player and system together) instead of asking for a manifest address.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Nintendo 3DS and other consoles: a program leaving the console core stops the GPU and the screens first; on a real 3DS XL, going back to the Homebrew Launcher after a heavy run crashed the console.
 - Updating a Zinc Pi image from its player no longer stops at "The rebuilt player did not draw its test frame": the screen driver now writes `ZINC_SHOT` pictures. The update to 0.7.6 works from a Pi on 0.7.4 or 0.7.5.
@@ -226,12 +234,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.7.5] - 2026-10-24
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc device <device> screen [file.png]` captures what the device's screen shows now, whoever draws it: the player of a Zinc Pi image, an installed app or a `zinc dev --device` program.
 - `zinc dev --device` shows what it does: packing the project, the transfer's progress, and on the device the plugins being compiled (a Pi takes seconds per plugin).
 - The Pi image builder shows how far the long steps are (download, unpacking, checksum, compression): percent, MiB done and the time left, under the step and in the progress bar.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc pack`, `zinc dev --device` and `zinc device deploy` carry what a project needs beyond its own code: its own plugins (`plugins/`), and for a JavaScript project (a `.js` entry) its sources, its `node_modules` (linked packages included) and the libraries its `importmap.json` names outside the project (three.js, PixiJS).
 - A project on QuickJS (`"engine": "quickjs"` in zinc.json) runs from `zinc pack`, `zinc dev --device` and `zinc device deploy` as it does with `zinc run`: the package carries its sources instead of compiling them for the typed engine, which refused what QuickJS accepts (examples/fatty's circular imports).
@@ -247,12 +257,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.7.4] - 2026-10-24
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The Linux downloads carry their version again: those of 0.7.3 were named and reported `0.0.0-dev`, so `zinc update` and the Pi player's Updates menu could not compare them.
 
 ## [0.7.3] - 2026-10-24
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Fresh Pi images generate a unique `xxxx-xxxxxx-xxxxx` network name at first boot when Hostname is empty. It survives reboots; reflashing generates another name. Explicit profile/Imager names remain supported.
 - `zinc:ui/kit` exports a reusable `Spinner` activity ring driven by the engine, with reduced-motion support.
 - `examples/glass-icon-reveal` adapts Zanwei Guo's glass reveal to a native Zinc scene with GPU refraction, light/dark looks and touch, mouse and keyboard playback controls, using the shared Mac, Android and Pi shader API.
@@ -311,6 +323,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Using the result of a function that returns nothing no longer crashes the compiler: `console.log(f())` and `` `${f()}` `` print `undefined` as in JavaScript, and other uses (`[f()]`) give a Z0005 error on that line.
 - Windows: plugins whose native code calls a recent engine function (`svg`, for its transforms) link again; `zinc.exe` now exports the whole engine surface plugins use.
@@ -347,24 +360,28 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.6.2] - 2026-10-22
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc:icons` draws its icons on an installed Zinc: the packages lacked the Lucide icon data, so every `icon()` was `null` and every `<Icon>` empty. When that data is missing, the compiler now says so.
 
 ## [0.6.1] - 2026-10-22
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc:lvgl`: `animate()` hands a property of an object (position, size, opacity, radius, rotation, scale) to LVGL, which moves it in C at every turn, with an easing, a delay, repeats and a way back: the program no longer moves objects every frame. `stopAnimation()` stops one, and `posX()`, `posY()` say where an object is. The Bench page of `examples/esp32-widgets` can hand its objects to LVGL.
 
 ### Changed
 - A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - The macOS packages ship the native libraries of `zinc:link`, `zinc:webrtc` and `zinc:webview`: a program that imports them (`examples/music-tree`) no longer stops with Z5011 "no native source" on an installed Zinc.
 
 ## [0.6.0] - 2026-10-22
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc run|export|flash --target esp32 --engine mquickjs`: a `zinc:gfx` program in TypeScript runs on an ESP32 on MicroQuickJS, compiled to bytecode on the computer and written to the board in a second (`zinc flash` writes the firmware once). `examples/breakout` runs unchanged on the ESP32-2432S022. A feature the board lacks fails before anything is sent, at your own file and line. AOT stays the default on the ESP32. The program runs from the board's flash, so it costs no RAM.
 - `zinc run ... --engine mquickjs --emulator` runs the same program in the esp32sim emulator (built from its sources with Rust's cargo the first time), with no board: the last frame is saved as a PNG.
 - `zinc run <app> --target esp32 --emulator --live` shows the emulated board's screen in a window, in real time, with the mouse as its touch screen; the UART still prints in the terminal, and closing the window (or Ctrl-C) stops it.
@@ -394,6 +411,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
 - Every engine now takes the same file for an import as the interpreter: under QuickJS, mquickjs, JSC, V8, Hermes, `zinc bundle` and the web target, an import picks the platform's file (`x.macos.ts`, `x.esp32.ts`), also for index files, `./x.js` naming `x.ts` and `tsconfig.json` `paths`; `x.ts` comes before `x.native.tsx`, and `zinc:hardware` loads. `zinc:platform`'s `TARGET` is `esp32` on the board.
@@ -404,6 +422,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.5.2] - 2026-10-22
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 
 - The JavaScript engines (`--engine quickjs`, `v8`, `hermes`, `jsc`) load the display driver a project names in `zinc.json` (`"display": "gl"`): `examples/video/mapper` stopped with "symbol not found '_zgl_layers'" on all of them.
@@ -424,6 +443,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.5.0] - 2026-10-21
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc run --engine jsc` (or `"engine": "jsc"` in zinc.json) runs a JavaScript program on macOS's own JavaScriptCore, compiled to machine code: about 10 times faster JavaScript than QuickJS, calls into zinc about 50 ns slower. `zinc test --runner jsc` and `zinc bundle --engine jsc` go with it. WebGL and the web environment's games (three.js, PixiJS, Phaser, p5.js) run on it.
 - `zinc run --engine v8` (or `"engine": "v8"` in zinc.json) runs a JavaScript program on V8, on Apple silicon Macs for now: compiled to machine code like JavaScriptCore, with calls into zinc faster than on QuickJS. Its engine (a 14 MB download) is fetched the first time a program asks for it. `zinc test --runner v8` and `zinc bundle --engine v8` go with it, and WebGL as on the other engines.
 - Experimental: `zinc run --engine hermes` runs a JavaScript program on Hermes, React Native's engine; its engine (a 2 MB download) is fetched the first time a program asks for it. Hermes has no WebAssembly or module scripts.
@@ -453,6 +473,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On macOS, trackpad and Magic Mouse scrolling follows the fingers pixel for pixel, then macOS's own momentum, so a fling glides and stops as in any Mac app; fingers on the pad stop it, and a mouse wheel notch still eases (and jumps with Reduce motion).
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `--engine quickjs` loads a package that a pnpm workspace links in two places (`node_modules` symbolic links) once, by its real path; it was loaded twice, with two copies of its state.
 - WebGL 2 on macOS: a shader with `continue` inside a `switch` now links (it failed with an empty log), and a vertex shader that returns before it writes `gl_Position` gets (0, 0, 0, 0) as in a browser instead of drawing streaks across the frame (Spline's metaball scenes showed both).
@@ -472,6 +493,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On a Homebrew install, the update notice, `zinc update` and the formula's caveats say `brew update && brew upgrade zinc`: Homebrew reads its taps at most once a day on its own, so `brew upgrade zinc` alone could say there is nothing new.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `brew install` and `brew upgrade` of zinc no longer end with "Failed to fix install linkage": the plugins' libraries now leave room in their header for the path Homebrew writes into them.
 - The update notice no longer announces a version found on another channel than this install's (a `zinc update <url>`, another install sharing `~/.zinc`): a Homebrew zinc could say "zinc 99.0.0 is available".
@@ -479,6 +501,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.4.2] - 2026-10-20
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc:ui`: `setTextRuns(node, runs)` styles parts of one text (bold, italic, monospace, underlined, a colour of its own or a scheme variable through `schemeColor`): the text wraps with each part in its font and still selects and copies as one.
 
 ### Changed
@@ -491,6 +514,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example shows OpenCode Go's 5-hour, week and month usage with their resets, a rate-limited window in red, in the Agents panel and the status bar: it reads them from opencode.ai with the Go key `opencode auth export` gives, for that one request, never writing or passing the key on. Settings turns it off; then, or when the key is missing, expired or revoked, they show as unknown with the reason and a link to the console.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc:net`: `fetch` no longer sends the `Authorization`, `Proxy-Authorization` and `Cookie` headers on to another site when it follows a redirect; they go to the address they were given for only, as in browsers and curl.
 - `zinc:ui` (classic layout): a box that flex-shrink makes narrower than it measured, or a child wider than its column, is laid out again at the width it gets, so the texts in it wrap inside it instead of keeping the lines of the wider width and running past its edge; an item that reaches its min-width stops there and the others share the rest, as in CSS. `break-words` now also cuts a long word in a text with style runs.
@@ -506,6 +530,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.4.0] - 2026-10-20
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Install with Homebrew on macOS or Linux: `brew install frulko/zinc/zinc`; `brew upgrade zinc` installs each new release, and `zinc update` on that install says so.
 - An `agents` example: a small desktop tool that finds the Claude Code, Codex and opencode CLIs and their configuration, and chats with them in a folder, their answers streaming in; each turn picks its mode, model, effort and fast mode as the CLIs do (`zinc run examples/agents`).
 - `zinc:system/dock`: `setVisible(true|false)` and `isVisible()` put a tray-only macOS app (`"dock": false`) in the Dock and Cmd+Tab while its window is open, and take it out again; elsewhere they do nothing.
@@ -522,6 +547,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc ui` (the Figma design tools), ZincStudio and the Figma plugin: they ran on the Node prototype, which is removed with them (its code is under the git tag `prototype-final`).
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Two programs started at the same time (two `zinc run`, a test beside an app) no longer fail to build or load the same plugin: the builds of a `ZINC_HOME` take turns.
 - `zinc export --target web --render dom --prerender` no longer comes out without its first screen on a busy machine ("the app drew nothing in six seconds").
@@ -533,16 +559,19 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.3.1] - 2026-10-19
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - tc: zinc.exe finds its package and unpacks zig on Windows
 
 ## [0.3.0] - 2026-10-19
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Zinc Atelier for Windows: `Zinc-Atelier-<version>-windows-x86_64.zip` on each release; unzip it and open "Zinc Atelier.exe".
 - The zinc CLI for Linux (x86_64, aarch64, armhf, i686) on each release, updated by `zinc update`; `install.sh --atelier` adds Zinc Atelier to the applications menu.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Windows: zinc.exe finds the standard library and the prebuilt plugins beside it; the download looked for them at the path of the machine that built it.
 - Windows: the first native build no longer fails to unpack the compiler it downloads ("Cannot connect to D: resolve failed").
@@ -554,21 +583,25 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.2.2] - 2026-10-19
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - music: scroll and swipe with the mouse wheel and the trackpad
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - frontend: include algorithm for the JSX source map lookup
 
 ## [0.2.1] - 2026-10-19
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Windows: the `zinc` download is back; 0.2.0 shipped without it because its build failed.
 
 ## [0.2.0] - 2026-10-19
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - `zinc:3d`'s software renderer picks its own resolution (`scale: 0`, the new default): a big screen is drawn at under 400,000 pixels and scaled up, so a 3D scene at 1080p on a Raspberry Pi 3B+ goes from 12 to about 40 frames a second. Set `scale` to keep a fixed divisor.
 - `display-gl` draws the interface on the GPU by default on the Pi and other Linux boards (`renderer: "auto"`; the CPU when the GPU cannot): 1080p presents in 3 ms instead of 33.
 - On a Raspberry Pi with a mouse, `display-gl` now shows a mouse pointer (the display's cursor plane, no GPU cost).
@@ -583,11 +616,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - Windows: `zinc.exe` builds natively on a Windows machine (zig's mingw target, no Visual Studio) with the window, the event loop and the console: console programs run and the graphics host renders offscreen. `next/tools/windows-setup.ps1` installs a machine (git, CMake, Ninja, Python, zig 0.15.2), `docs/targets/windows.md` says how; `zinc doctor` names the Windows profile now, and libuv's and SDL3's Windows sources are vendored.
 - Windows: a release now carries `zinc-<version>-windows-x86_64.zip` and `install.ps1` (`irm https://github.com/zinc-engine/zinc/releases/latest/download/install.ps1 | iex`), built and tested on a Windows runner; not signed yet, so SmartScreen may ask you to confirm.
 - Windows: `ZINC_GPU=integrated|discrete` picks the graphics card of a laptop with two (the discrete one is the default, `ZINC_GL_STATS=1` prints the card in use).
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - `zinc device run` and `deploy` no longer fail with "the session with <device> ended early" while an update is on trial: the client waits for the whole trial, and `ZINC_AGENT_TRIAL_MS` is now real time on a busy device.
 - Web export (`--render dom`): a long virtual list no longer jumps by a few rows after a big scroll on a slow machine (the browser's scroll anchoring is off on its scroller).
@@ -608,6 +643,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Web target: the page no longer asks for `/favicon.ico` (a 404 in every console) when the app has no icon, and an error thrown on every frame is reported once, not sixty times a second.
 
 ### Added
+- reMarkable Web: **Close all** in Tabs closes every tab. The web relay's token is now 2 letters and 8 digits, easy to type on the tablet and in the extension (delete `relay.token` to get a new one).
 - iOS: `zinc:audio`, `zinc:link`, `zinc:3d` and three.js can be exported to iPhone and iPad (`zinc export --target ios`); 3D draws in software there for now.
 - `zinc:device-info` tells what the app runs on, as Expo's expo-device: phone, tablet, desktop or TV, brand, maker, model name (`iPad Pro (12.9-inch) (1st generation)`) and identifier,
   system name, version and build, memory, CPU architectures, and whether it is a simulator. `Platform.isPad` and `Platform.isTV` now answer for real, and `Platform.constants` is there.
@@ -763,6 +799,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - Text no longer shows `?` for invisible characters (bidi marks, zero-width spaces, variation selectors) a font has no glyph for: they draw as nothing.
 - A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its

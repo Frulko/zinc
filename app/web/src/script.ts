@@ -6,7 +6,7 @@
 //   dash <url> (dashboard mode) | ticks <n> (waits until the dashboard's timer made n renders) | widget (draws the widget) | undash
 import * as sys from 'zinc:sys';
 import { quit, PenFlag } from 'zinc:gfx';
-import { ink, view, busy, setScreen, SCREEN_PAGE, openUrl, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
+import { ink, view, busy, setScreen, SCREEN_PAGE, openUrl, back, turn, zoomTo, tapAt, newTab, switchTab, closeTab, closeAllTabs, checkInbox, pageSize, setFullScreen, saveInk, exportPng, addBookmark, saveRelay, refresh } from './state';
 import { feedPen } from './pageview';
 import { Doc } from './relay';
 import { dash, startDash, stopDash, setWidgetPreview } from './dashboard';
@@ -32,6 +32,7 @@ export async function runScript(): Promise<void> {
     else if (verb === 'tab') await newTab(arg);
     else if (verb === 'switch') await switchTab(parseInt(arg));
     else if (verb === 'close') await closeTab(parseInt(arg));
+    else if (verb === 'closeall') await closeAllTabs();
     else if (verb === 'tool') ink.tool = arg;
     else if (verb === 'inbox') await checkInbox();
     else if (verb === 'smaller' || verb === 'larger') { pageSize(verb === 'smaller' ? -1 : 1); while (busy()) await sleep(20); }
