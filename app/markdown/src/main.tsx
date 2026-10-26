@@ -4,14 +4,15 @@
 // and read offline. E-paper: black on white, big targets, one refresh per gesture.
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
+import { ZoomView } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
 import { InkPalette, RemarkableApp, RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
 import { PAGE, LABEL, SMALL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR, FONT_SIZES } from './constants';
 import { screen, setScreen, status, busy, pageLabel, library, docTitle, fontIndex, penMode, setPenMode, onTablet, doc, version,
-  openDoc, turn, jump, setFont, back, saveInk, scanLibrary, notionToken, notionPage, saveNotion, syncNotion, refresh, restore,
+  openDoc, turn, jump, setFont, tapAt, back, saveInk, scanLibrary, notionToken, notionPage, saveNotion, syncNotion, refresh, restore,
   ink, SCREEN_LIBRARY, SCREEN_READ, SCREEN_TOC, SCREEN_SETTINGS } from './state';
 import { Heading } from './layout';
-import { pageView } from './pageview';
+import { pageView, writing, swipe, pinchFont } from './pageview';
 import { scripted, runScript } from './script';
 
 function Btn(props: { label: string; onClick: () => void; on?: boolean }): i32 {
@@ -73,7 +74,10 @@ function Settings(): i32 {
 }
 
 function Reader(): i32 {
-  return <Canvas className="grow" onDraw={pageView} />;
+  // the text is laid out again at the pinched size: the committed zoom stays 1, and a double tap would also tick a task box
+  return <ZoomView className="grow" zoom={() => 1} minZoom={0.5} maxZoom={2} doubleTap={false} draw={pageView} picture={() => ink.img} writing={writing}
+    onView={(f: number, cx: number, cy: number, dx: number, dy: number) => pinchFont(f)} onSwipe={swipe}
+    onTap={(x: number, y: number) => { tapAt(x, y); }} onWheel={(s: number) => { turn(s > 0 ? -1 : 1); }} />;
 }
 
 function App(): i32 {

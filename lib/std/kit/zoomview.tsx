@@ -32,6 +32,8 @@ export interface ZoomViewProps {
   /** A one-finger drag when the content is not zoomed in (no live move): a swipe, (dx, dy) view pixels. */
   onSwipe?: (dx: number, dy: number) => void;
   onTap?: (x: number, y: number) => void;
+  /** false: a double tap is two taps (the default zooms to twice, or back to 1). */
+  doubleTap?: boolean;
   /** The wheel without Ctrl or Cmd: steps, + up. */
   onWheel?: (steps: number) => void;
   /** true while the pointer is the pen writing: no gesture starts. */
@@ -97,7 +99,7 @@ export function ZoomView(props: ZoomViewProps): i32 {
   };
   const tap = (e: ui.PointerEvent): void => {
     if (props.writing !== undefined && (props.writing as () => boolean)()) return;
-    if (e.clicks === 2) { zoomBy(zoom() > 1 ? 1 / zoom() : 2 / zoom(), e.x, e.y); return; }   // double tap: fit, or twice
+    if (e.clicks === 2 && props.doubleTap !== false) { zoomBy(zoom() > 1 ? 1 / zoom() : 2 / zoom(), e.x, e.y); return; }   // double tap: fit, or twice
     if (props.onTap !== undefined) (props.onTap as (x: number, y: number) => void)(e.x, e.y);
   };
   const wheel = (e: ui.PointerEvent): void => {

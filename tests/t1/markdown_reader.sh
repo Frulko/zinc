@@ -104,6 +104,10 @@ grep -q 'start_cursor\|^/v1/blocks/01234567-89ab-cdef-0123-456789abcdef/children
 [ "$(grep -c '^/v1/blocks/b3/children' "$tmp/notion.log")" = 2 ] || { echo "the 429 was not retried"; cat "$tmp/notion.log"; fail=1; }
 [ "$(stat -f %Lp "$tmp/data/read.conf" 2>/dev/null || stat -c %a "$tmp/data/read.conf")" = 600 ] || { echo "read.conf is not mode 600"; fail=1; }
 
+# a pinch through the reading view's ZoomView lays the page out again at the text size nearest to the pinched one: 26 px * 1.6 -> 40 px
+app "open guide.md; font -9; pinch 1.6"
+expect 'read: Text 40 px · '
+
 [ -n "$READ_SHOTS" ] && cp "$tmp/page1.png" "$tmp/tasks.png" "$READ_SHOTS/" 2>/dev/null
 [ $fail -eq 0 ] && echo "markdown reader: ok"
 exit $fail

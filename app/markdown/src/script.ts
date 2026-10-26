@@ -2,9 +2,11 @@
 //   open <path> | next | prev | toc <n> (the n-th heading of the table of contents) | link <href> (a tap on that link's box)
 //   task <n> (a tap on the n-th task box of the page) | font <+1|-1> | back | draw <x0> <y0> <x1> <y1> (a pen stroke) | save
 //   notion <token> <page> (Settings: Save) | sync | library | pages (prints the page count and the headings with their pages)
-//   pictures (waits for the http(s) pictures, then prints how many the layout shows)
+//   pictures (waits for the http(s) pictures, then prints how many the layout shows) | pinch <factor> (two fingers spread around the
+//   middle of the screen, through the reading view's ZoomView: the text size nearest to the pinched one)
 import * as sys from 'zinc:sys';
-import { quit, PenFlag } from 'zinc:gfx';
+import { quit, PenFlag, width, height } from 'zinc:gfx';
+import { touchAt } from 'zinc:ui';
 import { doc, picturesLoading, openDoc, turn, jump, tapAt, setFont, back, saveInk, saveNotion, syncNotion, scanLibrary, library, say, setScreen, SCREEN_READ } from './state';
 import { feedPen } from './pageview';
 import { I_IMAGE } from './layout';
@@ -52,6 +54,11 @@ export async function runScript(): Promise<void> {
       let n: i32 = 0;
       for (const p of doc.lay.pages) for (const it of p) if (it.kind === I_IMAGE) n++;
       console.log('read: pictures ' + n.toString());
+    } else if (verb === 'pinch') {
+      const cx = width() / 2, cy = height() / 2, f = parseFloat(arg), r0 = 100;
+      touchAt(1, cx - r0, cy, 0); await sleep(20); touchAt(2, cx + r0, cy, 0);
+      for (let i: i32 = 1; i <= 10; i++) { await sleep(20); const r = r0 * (1 + (f - 1) * i / 10); touchAt(1, cx - r, cy, 1); touchAt(2, cx + r, cy, 1); }
+      touchAt(2, cx + r0 * f, cy, 2); touchAt(1, cx - r0 * f, cy, 2);
     } else if (verb !== '') console.log('read: unknown script step ' + verb);
     await sleep(30);   // a frame between steps
   }

@@ -2,7 +2,7 @@
   "name": "markdown",
   "entry": "src/main.tsx",
   "description": "Read Markdown documents and Notion pages, and annotate them with the Marker.",
-  "app": { "id": "dev.zinc.markdown", "version": "0.1.4", "author": "Zinc", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.markdown", "version": "0.1.5", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp", "refresh_mode": "ui" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },

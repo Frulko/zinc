@@ -1,16 +1,13 @@
-// The page view: one laid-out page, the ink over it, and the gestures. Pen: writes (on a desktop the mouse writes in Pen mode). Finger:
-// a tap follows a link or ticks a task box, a swipe turns the page. Nothing moves while a finger does: one e-ink refresh per gesture.
-// The wheel turns pages.
-import { rect, line, drawText, drawImage, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag, pointerX, pointerY,
-  pointerDown, wheel } from 'zinc:gfx';
-import { doc, ink, penMode, onTablet, version, resize, turn, tapAt } from './state';
+// The page view: one laid-out page, the ink over it, and the pen. Pen: writes (on a desktop the mouse writes in Pen mode). The finger
+// gestures are the kit's ZoomView (main.tsx): a tap follows a link or ticks a task box, a swipe turns the page, a pinch scales the page
+// while the fingers move and lays it out again at the nearest text size when they lift: one e-ink refresh per gesture. The wheel turns pages.
+import { rect, line, drawText, drawImage, stroke, penCount, penX, penY, penPressure, penFlags, PenFlag } from 'zinc:gfx';
+import { doc, ink, penMode, onTablet, version, resize, turn, fontIndex, setFont } from './state';
 import { I_TEXT, I_FILL, I_BOX, I_IMAGE, I_CHECK } from './layout';
+import { FONT_SIZES } from './constants';
 
-const TAP_SLOP: number = 24;
 const SWIPE: number = 120;
 
-let down: boolean = false;
-let sx: number = 0, sy: number = 0, lx: number = 0, ly: number = 0;
 let penFrames: i32 = 99;   // frames since the last pen sample: the Marker also moves the pointer
 
 /** The page and the ink: one image while the page stays put, plus the live stroke's new segments (zinc:ink drawOver). */
@@ -54,30 +51,23 @@ function pen(x: number, y: number, w: number, h: number): void {
   }
 }
 
-function finger(x: number, y: number, w: number, h: number): void {
-  const writing = penFrames < 3 || ink.live !== null || (!onTablet && penMode());
-  const d = pointerDown() && !writing;
-  const px = pointerX() - x, py = pointerY() - y;
-  if (d && !down) {
-    if (px < 0 || py < 0 || px >= w || py >= h) return;
-    down = true; sx = px; sy = py; lx = px; ly = py;
-    return;
-  }
-  if (d && down) { lx = px; ly = py; return; }
-  if (!d && down) {
-    down = false;
-    const dx = lx - sx, dy = ly - sy;
-    if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) { tapAt(sx, sy); return; }
-    if (Math.abs(dy) >= Math.abs(dx) ? Math.abs(dy) > SWIPE : Math.abs(dx) > SWIPE) turn((Math.abs(dy) >= Math.abs(dx) ? dy : dx) < 0 ? 1 : -1);
-  }
+/** The pointer is the pen (or the mouse in Pen mode): ZoomView starts no gesture. */
+export function writing(): boolean { return penFrames < 3 || ink.live !== null || (!onTablet && penMode()); }
+/** A drag of the page: a long enough one turns it. */
+export function swipe(dx: number, dy: number): void {
+  if (Math.abs(dy) >= Math.abs(dx) ? Math.abs(dy) > SWIPE : Math.abs(dx) > SWIPE) turn((Math.abs(dy) >= Math.abs(dx) ? dy : dx) < 0 ? 1 : -1);
+}
+/** A pinch by `f` ended: the text size of FONT_SIZES nearest to the pinched one. */
+export async function pinchFont(f: number): Promise<void> {
+  const want = FONT_SIZES[fontIndex()] * f;
+  let j: i32 = 0;
+  for (let i: i32 = 1; i < FONT_SIZES.length; i++) if (Math.abs(FONT_SIZES[i] - want) < Math.abs(FONT_SIZES[j] - want)) j = i;
+  setFont(j - fontIndex());
 }
 
-/** The Canvas onDraw of the reading view. */
+/** ZoomView's draw: the reading view. */
 export function pageView(x: i32, y: i32, w: i32, h: i32): void {
   resize(w, h);
   pen(x, y, w, h);
-  finger(x, y, w, h);
-  const s = wheel();
-  if (s !== 0) turn(s > 0 ? -1 : 1);
   draw(x, y, w, h);
 }

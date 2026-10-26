@@ -184,15 +184,16 @@ export class Ink {
   /** Replaces the page content (page switch, load); forgets the undo history. */
   setStrokes(list: Stroke[]): void { this.strokes = list; this.history = []; this.future = []; this.changed(); }
 
-  /** Canvas onDraw: consumes this frame's pen samples inside (x, y, w, h), then draws image + live segments. */
-  draw(x: i32, y: i32, w: i32, h: i32): void {
+  /** Canvas onDraw: consumes this frame's pen samples inside (x, y, w, h), then draws image + live segments; zoomed, ink point p shows
+   *  at (x, y) + (p - (ox, oy)) * z (a ZoomView's committed view). */
+  draw(x: i32, y: i32, w: i32, h: i32, ox: number = 0, oy: number = 0, z: number = 1): void {
     for (let i = 0; i < penCount(); i++) {
       const sx = penX(i) - x, sy = penY(i) - y, f = penFlags(i);
       const outside = sx < 0 || sy < 0 || sx >= w || sy >= h;
       if (outside && this.live === null && !this.erasing && this.area.length === 0 && (f & PenFlag.Down) !== 0) continue;  // strokes start inside
-      this.feed(sx, sy, penPressure(i), f);
+      this.feed(ox + sx / z, oy + sy / z, penPressure(i), f);
     }
-    this.paint(x, y, w, h, 0, 0, 1, 0, null);
+    this.paint(x, y, w, h, ox, oy, z, 0, null);
   }
 
   /** The ink over a reader's page in the view (x, y, w, h): ink point p shows at (x, y) + (p - (ox, oy)) * z, and bg(w, h) draws the
