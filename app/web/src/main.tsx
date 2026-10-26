@@ -8,7 +8,7 @@ import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, KEY } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, refresh,
+  openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, refresh,
   SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, conf } from './state';
 import { pageView } from './pageview';
 import { dashUrl, every, updated, widgetPreview, startDash, stopDash, setPeriod, dashView, widgetView, PERIODS, WIDGET_W, WIDGET_H } from './dashboard';
@@ -37,6 +37,7 @@ function Bookmarks(): i32 {
 function Settings(): i32 {
   const [url, setUrl] = createSignal<string>(relay.url);
   const [token, setToken] = createSignal<string>(relay.token);
+  const [contrast, setContrast] = createSignal<string>(relay.contrast);
   return <View className="flex-col gap-6 p-8 grow">
     <Text className={TITLE}>Relay</Text>
     <Text className={LABEL}>The Mac that renders the pages: zinc run app/web-relay (over USB the Mac is http://10.11.99.2:8790).</Text>
@@ -46,6 +47,7 @@ function Settings(): i32 {
     <View className="flex-row gap-6">
       <Btn label="Save" on={true} onClick={() => { saveRelay(url(), token()); setScreen(SCREEN_PAGE); }} />
       <Btn label={relay.mode === 'color' ? 'Colour: on' : 'Colour: off'} onClick={() => setColour(relay.mode !== 'color')} />
+      <Btn label={'Contrast: ' + contrast()} onClick={() => { nextContrast(); setContrast(relay.contrast); }} />
     </View>
   </View>;
 }

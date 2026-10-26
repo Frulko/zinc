@@ -19,6 +19,7 @@ export const relay = new Relay();
 relay.url = conf.get('relay') !== '' ? conf.get('relay') : DEFAULT_RELAY;
 relay.token = conf.get('token');
 relay.mode = conf.get('mode') === 'color' ? 'color' : 'grey';
+relay.contrast = conf.get('contrast') === 'high' || conf.get('contrast') === 'max' ? conf.get('contrast') : 'normal';
 
 export const [screen, setScreen] = createSignal<i32>(conf.get('relay') === '' ? SCREEN_SETTINGS : SCREEN_PAGE);
 export const [address, setAddress] = createSignal<string>(conf.get('last') !== '' ? conf.get('last') : HOME_PAGE);
@@ -45,7 +46,7 @@ let inkFile = '';
 
 export function say(message: string): void { setStatus(message); console.log('web: ' + message); }
 export function saveConf(): void {
-  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode);
+  conf.set('relay', relay.url); conf.set('token', relay.token); conf.set('mode', relay.mode); conf.set('contrast', relay.contrast);
   conf.save();
 }
 
@@ -78,13 +79,30 @@ function clampView(): void {
   setPageLabel((view.zoom > 1 ? Math.round(view.zoom * 100).toString() + '% · ' : '') + k.toString() + ' / ' + n.toString());
 }
 
-/** Fetches the picture of what the view shows now. */
+// The next screen's picture, asked while the current one is read: a page turn then waits for nothing.
+// ponytail: one slot (the screen below), not the one above; add it if going back is common.
+let aheadKey = '';
+let ahead: Promise<u8[]> | null = null;
+function shotKey(u: string, x: number, y: number, w: number, h: number, z: number): string {
+  return u + ' ' + x.toString() + ' ' + y.toString() + ' ' + w.toString() + ' ' + h.toString() + ' ' + z.toString();
+}
+
+/** Fetches the picture of what the view shows now, then asks for the next screen's. */
 async function fetchShot(): Promise<void> {
   const d = view.doc;
   if (d === null) return;
-  const x = view.ox, y = view.oy, w = view.w / view.zoom, h = view.h / view.zoom;
-  const bytes = await relay.shot((d as Doc).url, x, y, w, h, view.zoom);
+  const u = (d as Doc).url, x = view.ox, y = view.oy, w = view.w / view.zoom, h = view.h / view.zoom, z = view.zoom;
+  const t0 = Date.now();
+  const p = ahead;
+  const hit = p !== null && aheadKey === shotKey(u, x, y, w, h, z);
+  aheadKey = ''; ahead = null;
+  let bytes: u8[] = [];
+  if (hit) { try { bytes = await (p as Promise<u8[]>); } catch (e) { bytes = []; } }
+  if (bytes.length === 0) bytes = await relay.shot(u, x, y, w, h, z);
+  if (y + h <= lastTop()) { aheadKey = shotKey(u, x, y + h, w, h, z); ahead = relay.shot(u, x, y + h, w, h, z); }
+  const t1 = Date.now();
   const img = imageFromBytes(bytes);
+  console.log('web: picture ' + (t1 - t0).toString() + (hit ? ' ms (asked ahead), decode ' : ' ms, decode ') + (Date.now() - t1).toString() + ' ms, ' + bytes.length.toString() + ' bytes');
   if (img < 0) throw new Error('The relay sent a picture that is not a PNG.');
   if (view.img >= 0) destroyImage(view.img);
   view.img = img; view.ix = x; view.iy = y; view.iw = w; view.ih = h;
@@ -112,7 +130,9 @@ export async function openUrl(u: string, remember: boolean = true): Promise<void
   const target = normalize(u);
   await run(async (): Promise<string> => {
     saveInk();
+    const t0 = Date.now();
     const d = await relay.render(target);
+    console.log('web: relay loaded the page in ' + (Date.now() - t0).toString() + ' ms');
     const prev = view.doc;
     if (remember && prev !== null && (prev as Doc).url !== d.url) history.push((prev as Doc).url);
     view.doc = d; view.ox = 0; view.oy = 0; view.zoom = 1;
@@ -245,6 +265,13 @@ export function saveRelay(url: string, token: string): void {
   relay.url = u; relay.token = token.trim();
   saveConf();
   say('Relay set to ' + u + '.');
+}
+/** normal, high, max, normal...: the page is rendered again. */
+export function nextContrast(): void {
+  relay.contrast = relay.contrast === 'normal' ? 'high' : relay.contrast === 'high' ? 'max' : 'normal';
+  saveConf();
+  const d = view.doc;
+  if (d !== null) openUrl((d as Doc).url, false);
 }
 export function setColour(on: boolean): void {
   relay.mode = on ? 'color' : 'grey';

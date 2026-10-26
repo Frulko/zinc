@@ -4,7 +4,7 @@
 // e-ink pages (or any zoomed part) as PNG, grey by default, and the map of its links so that a tap can follow one.
 //
 // HTTP, every request with `Authorization: Bearer <token>` (the token is in <data>/relay.token, made on first start, mode 600):
-//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
+//   GET  /render?url=&w=&h=&dpr=2&mode=grey|color&contrast=normal|high|max   loads the page with a viewport of w x h device pixels (w/dpr CSS pixels) ->
 //        {"url", "title", "width", "height", "page", "links": [[x, y, w, h, href], ...]}, all in device pixels of the whole page (height capped)
 //   GET  /shot?url=&w=&h=&dpr=&mode=&x=&y=&cw=&ch=&zoom=1   PNG of the page rectangle (x, y, cw, ch) at `zoom`: cw*zoom x ch*zoom pixels.
 //        Page k at zoom 1 is x=0, y=k*h, cw=w, ch=h. The page is loaded again only when url, w, h, dpr or mode change, or with
@@ -52,8 +52,8 @@ const chrome = new Chrome();
 
 /** What the tab shows now: a request with other values loads the page again. */
 class View {
-  url: string = ''; w: i32 = 0; h: i32 = 0; dpr: number = 2; mode: string = 'grey';
-  key(): string { return this.url + '\n' + this.w.toString() + 'x' + this.h.toString() + '@' + this.dpr.toString() + ' ' + this.mode; }
+  url: string = ''; w: i32 = 0; h: i32 = 0; dpr: number = 2; mode: string = 'grey'; contrast: string = 'normal';
+  key(): string { return this.url + '\n' + this.w.toString() + 'x' + this.h.toString() + '@' + this.dpr.toString() + ' ' + this.mode + ' ' + this.contrast; }
 }
 let shown = '';
 let info = '';   // the JSON of /render for what is shown
@@ -65,6 +65,8 @@ function viewOf(path: string): View {
   v.h = num(query(path, 'h'), 2160, 200, 4000) as i32;
   v.dpr = num(query(path, 'dpr'), 2, 1, 4);
   v.mode = query(path, 'mode') === 'color' ? 'color' : 'grey';
+  const c = query(path, 'contrast');
+  v.contrast = c === 'high' || c === 'max' ? c : 'normal';
   return v;
 }
 
@@ -86,6 +88,11 @@ const INFO_JS = `(() => { const d = DPR, L = [];
   const height = Math.min(MAXH, Math.round(Math.max(e.scrollHeight, b ? b.scrollHeight : 0, innerHeight) * d));
   return JSON.stringify({ url: location.href, title: document.title, width: Math.round(innerWidth * d), height: height, page: PAGEH, links: L.filter(l => l[1] < height) }); })()`;
 
+// e-ink contrast: the page's greys pushed apart, thin text thickened (high, max); layout is unchanged, so the link map holds.
+const CONTRAST_HIGH = 'html{filter:contrast(1.6)!important}*{-webkit-text-stroke:0.25px currentColor}';
+const CONTRAST_MAX = 'html{filter:contrast(3)!important}*{-webkit-text-stroke:0.5px currentColor}';
+const CONTRAST_JS = `(() => { const s = document.createElement('style'); s.textContent = 'CSS'; document.documentElement.appendChild(s); })()`;
+
 /** Loads the page of `v` in the tab unless it is already there; returns its JSON (size and links). */
 async function show(v: View, fresh: boolean = false): Promise<string> {
   if (!v.url.startsWith('http://') && !v.url.startsWith('https://')) throw new Error('only http:// and https:// pages: ' + v.url);
@@ -102,6 +109,7 @@ async function show(v: View, fresh: boolean = false): Promise<string> {
   if (nav.errorText !== undefined && ('' + nav.errorText) !== '') throw new Error('cannot load ' + v.url + ': ' + ('' + nav.errorText));
   if (!(await loaded)) console.log('relay: ' + v.url + ' still loading after ' + (LOAD_TIMEOUT_MS / 1000).toString() + ' s, shown as it is');
   await sleep(SETTLE_MS);
+  if (v.contrast !== 'normal') await chrome.evaluate(CONTRAST_JS.split('CSS').join(v.contrast === 'max' ? CONTRAST_MAX : CONTRAST_HIGH));
   info = await chrome.evaluate(INFO_JS.split('DPR').join(v.dpr.toString()).split('MAXH').join((v.h * MAX_PAGES).toString()).split('PAGEH').join(v.h.toString()));
   shown = v.key();
   console.log('relay: rendered ' + v.url + ' at ' + v.w.toString() + 'x' + v.h.toString());
@@ -168,6 +176,13 @@ async function handle(req: Request): Promise<Reply> {
   return r;
 }
 
+/** Chrome started at once, so the first page does not wait for it (a request meanwhile waits its turn). */
+async function warmUp(): Promise<void> {
+  await exclusive();
+  try { await ensureChrome(); } catch (e) { console.log('relay: ' + e.message); }
+  busy = false;
+}
+
 function main(): void {
   chromePath = findChrome(opt('chrome', ''));
   if (chromePath === '') { console.log('relay: no Chrome found: install Google Chrome or pass --chrome <path to its executable>'); sys.exit(1); }
@@ -181,6 +196,7 @@ function main(): void {
   sys.onSignal('SIGINT', quit);
   sys.onSignal('SIGTERM', quit);
   serveAsync(port, handle);
+  warmUp();
   console.log('relay: listening on port ' + port.toString() + ', Chrome ' + chromePath);
   console.log(token === '' ? 'relay: no token (--no-token): whoever reaches port ' + port.toString() + ' can use it' : 'relay: token ' + token);
 }
