@@ -11,6 +11,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-844: stream the hub's engine download to a file instead of holding it in memory (39 MB against the 64 MB fetch limit).
 - ZN-844: the hub keeps only the current engine bundle; keeping the previous one would allow a rollback from the admin page.
 - ZN-844: offer an engine with a new zbc together with repacked apps (today it stays with deploy.sh).
+- ZN-844: mechanical pencil, paintbrush and shader ink tools (one segWidth/segColor rule each, after rmc's writing_tools.py), as xochitl has.
+- ZN-844: lasso selection of strokes (move, resize, copy) in InkPalette, as xochitl has.
+- ZN-844: highlighter over highlighter should multiply (a raster blend mode); alpha blending also darkens the PDF text under it.
+- ZN-844: pen tilt in the gfx pen queue (rmpp Marker) so marker, pencil and calligraphy follow it.
+- ZN-844: InkML or Xournal++ .xopp export of zinc:ink when a user asks (lossless pressure for desktop apps).
+- ZN-844: check the highlighter of <name>.annotated.pdf (/CA, no /AP) in Preview, Acrobat and Firefox; add appearance streams if one hides it.
+- ZN-844: InkPalette in examples/remarkable/notes (replaces its DrawingBar; regenerate the rmpp_sim goldens).
 - ZN-844: `charCodeAt(i)` (and the other UTF-16 index reads) on a non-ASCII string converts the whole string with `toU16` at each call (src/rt/rtcalls.cpp), so a charCodeAt loop over accented text is quadratic: 90 KB took 19 s in JSON.stringify before it got a native quote. Keep a UTF-16 view or a byte cursor per string.
 - ZN-792: list n3ds/psp/vita in the "targets" of the plugins the console cores link (3d, audio, physics2d), so zinc lint --target n3ds stops warning about them; dev and deploy already filter them out using the player's list.
 - ZN-792: give the bytecode's native imports the plugin they come from, so the console's runtime error names the plugin (canvas2d), not only the module (Canvas2D).
