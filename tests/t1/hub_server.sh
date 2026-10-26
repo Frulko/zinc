@@ -122,6 +122,11 @@ grep -qF "\"engine\":{\"version\":\"1.0.0\",\"zbc\":8,\"rt\":600,\"url\":\"engin
 curl -sf -H "$auth" "$hub/engine/zinc-rmpp-1.0.0.tar.gz" >"$tmp/got-engine.tar.gz" && cmp -s "$tmp/got-engine.tar.gz" "$eng/zinc-rmpp.tar.gz" || { echo "the served engine is not the published one"; fail=1; }
 code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/engine/zinc-rmpp-1.0.0.tar.gz"); [ "$code" = 401 ] || { echo "the engine without a token: $code"; fail=1; }
 curl -sf "$hub/admin?token=$token" | grep -q 'reMarkable engine 1.0.0 (zbc 8, rt 600' || { echo "the admin page does not show the engine"; fail=1; }
+# development builds of one release: the commit count orders them (semver alone sees 1.0.0+21 and 1.0.0+28 as equal)
+echo '{"version":"1.0.0+28.gb75e2b04","zbc":8,"rt":600}' >"$eng/engine.json"
+out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1); echo "$out" | grep -q 'stored the engine 1.0.0+28.gb75e2b04' || { echo "a later dev build: $out"; fail=1; }
+echo '{"version":"1.0.0+21.gc6c2ce83","zbc":8,"rt":600}' >"$eng/engine.json"
+out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1) && { echo "an older dev build is accepted: $out"; fail=1; }
 
 kill $srv; wait $srv 2>/dev/null; srv=
 [ $fail -eq 0 ] && echo "hub server: ok"

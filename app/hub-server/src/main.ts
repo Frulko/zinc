@@ -34,7 +34,7 @@ import { serveAsync, Request, Reply, Headers } from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { subtle, CryptoKey } from 'zinc:subtle';
-import { hex, unhex, sha256, safe, newer, Manifest, parseManifest, verifyManifest } from './protocol';
+import { hex, unhex, sha256, safe, newer, newerEngine, Manifest, parseManifest, verifyManifest } from './protocol';
 
 function opt(name: string, def: string): string {
   const a = sys.args();
@@ -251,7 +251,7 @@ async function publishEngine(req: Request): Promise<Reply> {
   if (!safe(version) || !posInt(zbc) || !posInt(rt)) return reply(400, 'X-Engine-Version, X-Engine-Zbc and X-Engine-Rt are the version, zbc and rt of the bundle\'s engine.json\n');
   if (body.length < 2 || body[0] !== 0x1f || body[1] !== 0x8b) return reply(400, 'refused: the body is not a gzip (zinc-rmpp.tar.gz of tools/rmpp-engine)\n');
   const now = engine();
-  if (now !== null && !newer(version, (now as Manifest).get('version'))) return reply(409, 'refused: ' + version + ' is not newer than the engine ' + (now as Manifest).get('version') + '\n');
+  if (now !== null && !newerEngine(version, (now as Manifest).get('version'))) return reply(409, 'refused: ' + version + ' is not newer than the engine ' + (now as Manifest).get('version') + '\n');
   const file = 'zinc-rmpp-' + version + '.tar.gz';
   fs.mkdir(engineDir, true);
   fs.writeBytes(engineDir + '/' + file, body);

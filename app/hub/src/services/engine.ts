@@ -5,7 +5,7 @@
 // running on the engine it was started with; the new one runs from the next start of an app. xochitl is never touched.
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
-import { newer } from '../../../hub-server/src/protocol';
+import { newerEngine } from '../../../hub-server/src/protocol';
 import { HubConfig } from './config';
 import { CatalogEngine, downloadEngine } from './server';
 import { ENGINE_DIR, ENGINE_ZBC, ENGINE_RT } from '../constants';
@@ -25,7 +25,7 @@ export function engineOffered(e: CatalogEngine | null): boolean {
   if (ENGINE_ZBC !== 0 && c.zbc !== ENGINE_ZBC) return false;
   if (c.rt !== ENGINE_RT) return c.rt > ENGINE_RT;
   const now = engineVersion();
-  return now === '' || newer(c.version, now);
+  return now === '' || newerEngine(c.version, now);
 }
 
 /** The new engine's own answer, which must be the catalog's: it runs on this tablet and is what was offered. */

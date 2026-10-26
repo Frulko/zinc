@@ -47,6 +47,13 @@ export function newer(a: string, b: string): boolean {
   return ya.length > yb.length;
 }
 
+/** Engine versions: semver, then a development build's commit count (0.9.1+28.gb75e2b04 after 0.9.1+21.gc6c2ce83, which `newer` sees equal). */
+export function newerEngine(a: string, b: string): boolean {
+  if (newer(a, b) || newer(b, a)) return newer(a, b);
+  const n = (v: string): number => { const k = v.indexOf('+'); if (k < 0) return 0; const c = parseInt(v.slice(k + 1).split('.')[0]); return c >= 0 ? c : 0; };
+  return n(a) > n(b);
+}
+
 // A manifest: `key=value` lines, the last `sig=<128 hex>` an Ed25519 signature of the other lines (zn::tc::signManifest).
 export class Manifest {
   fields: string[] = [];
