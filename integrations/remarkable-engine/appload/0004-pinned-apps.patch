@@ -1,0 +1,112 @@
+From: Zinc
+Subject: [PATCH] pin apps to the sidebar of xochitl
+
+An app id listed in pinned.json (a JSON array in AppLoad's directory)
+gets its own entry in the sidebar, under AppLoad's, that launches it as
+its tile does. The file is watched: pins change without a restart.
+---
+diff --git a/src/AppLibrary.h b/src/AppLibrary.h
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -10,6 +10,8 @@
+ #include <QPainter>
+ #include <QJsonObject>
+ #include <QJsonValue>
++#include <QJsonArray>
++#include <QFileSystemWatcher>
+ #include <QQuickPaintedItem>
+ 
+ #include "library.h"
+@@ -112,6 +114,8 @@
+     Q_OBJECT
+     Q_PROPERTY(QQmlListProperty<AppLoadApplication> applications READ applications NOTIFY applicationsChanged)
+     Q_PROPERTY(const appload::vk::Layout *defaultLayout READ defaultLayout CONSTANT)
++    // The apps pinned to xochitl's sidebar: AppLoad ids, in the order of pinned.json (a JSON array) in AppLoad's directory.
++    Q_PROPERTY(QStringList pinned READ pinned NOTIFY pinnedChanged)
+ 
+ public:
+     explicit AppLoadLibrary(QObject *parent = nullptr) : QObject(parent) { appload::library::addGlobalLibraryHandle(this); }
+@@ -170,6 +174,17 @@
+         if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(json.toUtf8());
+     }
+ 
++    QStringList pinned() {
++        if(!pinWatcher) {
++            // The directory, for a pinned.json written to a temporary file and renamed (a new entry); the file, for one rewritten in place.
++            pinWatcher = new QFileSystemWatcher({QString(APPLICATION_DIRECTORY_ROOT)}, this);
++            connect(pinWatcher, &QFileSystemWatcher::directoryChanged, this, [this]() { readPins(true); });
++            connect(pinWatcher, &QFileSystemWatcher::fileChanged, this, [this]() { readPins(true); });
++            readPins(false);
++        }
++        return _pinned;
++    }
++
+     const appload::vk::Layout *defaultLayout() const { return appload::library::defaultLayout; }
+ 
+     void loadList() {
+@@ -207,8 +222,26 @@
+ signals:
+     void applicationsChanged();
+     void pidDied(qint64 pid);
++    void pinnedChanged();
+ 
+ private:
++    QFileSystemWatcher *pinWatcher = nullptr;
++    QStringList _pinned;
++
++    void readPins(bool notify) {
++        const QString path = QString(APPLICATION_DIRECTORY_ROOT) + "/pinned.json";
++        QStringList ids;
++        QFile file(path);
++        if(file.open(QIODevice::ReadOnly))
++            for(const auto &v : QJsonDocument::fromJson(file.readAll()).array()) if(v.isString()) ids.append(v.toString());
++        if(file.exists() && !pinWatcher->files().contains(path)) pinWatcher->addPath(path);
++        if(ids == _pinned) return;
++        _pinned = ids;
++        if(!notify) return;
++        reloadList();   // a tile made just before it was pinned (the Hub installs, then pins) is known at once
++        emit pinnedChanged();
++    }
++
+     static void appendApplication(QQmlListProperty<AppLoadApplication> *list, AppLoadApplication *app) {
+         auto *lib = qobject_cast<AppLoadLibrary *>(list->object);
+         if (lib) {
+diff --git a/xovi/template/appload.qmd b/xovi/template/appload.qmd
+--- a/xovi/template/appload.qmd
++++ b/xovi/template/appload.qmd
+@@ -88,6 +88,7 @@
+ END AFFECT
+ 
+ AFFECT [[4911547370760691430]]
++    IMPORT net.asivery.AppLoad 1.0
+     TRAVERSE [[8397993708429497603]] > [[14125623155555875541]]#[[15885405667098360701]]
+         LOCATE AFTER [[425121728314878811.1431044926412809632]]#[[4073320024908197661]]
+         INSERT {
+@@ -103,6 +104,27 @@
+                 }
+                 ~&7081629735527&~.~&17520348323745447649&~: ~&7081293686258&~.~&7082020628281&~.~&15061686673205541622&~
+                 ~&7081629735527&~.~&7797818826744279624&~: ~&7083038346995&~.~&214646099849&~
++            }
++
++            AppLoadLibrary {
++                id: _apploadPins
++            }
++            Repeater {
++                model: _apploadPins.pinned.filter((id) => Array.from(_apploadPins.applications).some((a) => a.id === id))
++                delegate: ~&425121728314878811&~.~&452264033555071090&~ {
++                    required property string modelData
++                    readonly property var apploadApp: Array.from(_apploadPins.applications).find((a) => a.id === modelData)
++                    ~&8399878573055752961&~: "openAppLoadPin:" + modelData
++                    ~&6504315758&~: apploadApp ? apploadApp.name : ""
++                    ~&8399601734642709923&~: apploadApp ? apploadApp.icon : "qrc:/appload/icons/appload"
++                    ~&233726547792244&~: ~&6504329801&~
++                    ~&254542236275632405&~: {
++                        ~&6504254477&~.~&7083211098251&~();
++                        AppLoadLauncher.launchApplication(modelData, [], {}, false);
++                    }
++                    ~&7081629735527&~.~&17520348323745447649&~: ~&7081293686258&~.~&7082020628281&~.~&15061686673205541622&~
++                    ~&7081629735527&~.~&7797818826744279624&~: ~&7083038346995&~.~&214646099849&~
++                }
+             }
+         }
+     END TRAVERSE

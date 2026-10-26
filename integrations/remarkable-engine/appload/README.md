@@ -1,6 +1,6 @@
 # AppLoad window-state and widget patches
 
-Three patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
+Four patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
 
 - `0001-window-state.patch`: a qtfb client can minimize and restore its own window and knows when it is hidden. A Zinc
   app on the reMarkable Paper Pro uses it for its "Home" button: the app minimizes itself, xochitl is usable again, and
@@ -9,6 +9,8 @@ Three patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applie
   card over xochitl; the minimized window becomes a compact pill; the window bar gets vector icons.
 - `0003-compact-widgets.patch` (on top of 0002): a tap on a widget card's header collapses it to the header alone (the
   client is hidden) and expands it again; the window bar, the card and the pill get a finer, shared look.
+- `0004-pinned-apps.patch` (on top of 0003): apps listed in `pinned.json` get their own entry in xochitl's sidebar, under
+  AppLoad's, that opens them as their tile does.
 
 ## Protocol (0001)
 
@@ -86,6 +88,23 @@ No new message or value; the collapsed widget reuses the visibility values of 00
   under the bar and the card header, and a 12 px radius for the card and the pill. The window bar's buttons lose their
   boxes. The card's content sits 6 px inside the outline, clear of the rounded corners.
 
+## Protocol (0004): pinned apps
+
+No qtfb message: a file. `pinned.json` in AppLoad's directory (`/home/root/xovi/exthome/appload/pinned.json`) is a JSON array of
+AppLoad application ids, in the order of the sidebar: `["external::zinc-web", "external::zinc-pdf"]` (an AppLoad tile directory
+`zinc-web` is the id `external::zinc-web`, the key `widget-positions.json` uses too).
+
+- Each id that AppLoad knows gets a sidebar entry under AppLoad's: the app's `icon.png` and name from its tile, and a tap launches
+  it as a tap on its tile does (`AppLoadLauncher.launchApplication(id)`: full screen, or its window for a windowed app). An id it
+  does not know (a removed tile) shows nothing; no file is no pins.
+- AppLoad watches the file and its directory: a new list shows at once, without restarting xochitl. Write it to a temporary
+  file in the same directory and rename it over `pinned.json` (a reader never sees half a file). A change also reloads AppLoad's
+  list of apps, so a tile made just before it is pinned is found.
+- Writer (the Zinc Hub, not done yet): a "Pin to sidebar" toggle per installed app adds or removes `external::zinc-<name>`, keeps
+  the other ids (pins of other tools) and their order, and appends new pins at the end.
+- Not verified on the tablet before the first install: the sidebar's item type showing a PNG icon (AppLoad's own entry uses an SVG
+  from its resources), and the hashed names copied from AppLoad's own entry (text, icon, onClicked, the menu's close).
+
 ## Build
 
 ```sh
@@ -97,6 +116,7 @@ commit, `xovi/make.sh` inside `eeems/remarkable-toolchain:latest-rmpp` pinned by
 minutes on an M1. First build (2026-10-25, 0001 alone): sha256 `46ec75d1b65a6fd54ec2ec98d2918db524976140ac87fd6bde3995f5cb8580e1`.
 With 0002 (2026-10-25): sha256 `e1139bf4eeb0852a14fb71958e96c430e1ab8b26a6461c5d0c3906165856951b`.
 With 0003 (2026-10-25): sha256 `6cb5a3de9e583240ae1f74bcd1d8647b64dc565595fb5b6ae655d5ee3dfda41d` (same imports as with 0002).
+With 0004 (2026-10-26): sha256 `cd263b0663ea10aa4037818faa7df11890de932b62e3594039944685eff28918` (qmldiff of the sidebar not checked off the tablet).
 The result is an aarch64 ELF with the same xovi entry points (`_xovi_construct`, `_xovi_depconstruct`,
 `LINKTABLENAMES`, `LINKTABLEVALUES`) and the same `NEEDED` libraries as the 0.6.0 release asset; its imports are the
 release's plus three from Qt6Core (`QIODevice::write(QByteArray)`, `QRect::operator&`, the `QRect` metatype).
