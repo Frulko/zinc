@@ -167,6 +167,7 @@ function normalize(u: string): string {
 
 /** Opens a page: the relay loads it at the view's size, then the first page's picture; its ink is loaded. */
 export async function openUrl(u: string, remember: boolean = true, top: number = 0): Promise<void> {
+  if (u === BLANK) { showBlank(remember); return; }
   if (view.w === 0) { say('The page view has no size yet.'); return; }
   const target = normalize(u);
   await run(async (): Promise<string> => {
@@ -187,6 +188,24 @@ export async function openUrl(u: string, remember: boolean = true, top: number =
     return (d.title !== '' ? d.title : d.url) + ' · ' + d.links.length.toString() + ' links';
   });
 }
+
+/** about:blank: a white page in the current tab, no relay request; its tab line is `about:blank` and is not fetched on restore either. */
+export const BLANK = 'about:blank';
+export function showBlank(remember: boolean = true): void {
+  const prev = view.doc;
+  saveInk();
+  if (remember && prev !== null) tabs[current].history.push((prev as Doc).url);
+  if (view.img >= 0) { destroyImage(view.img); view.img = -1; }
+  view.doc = null; view.ox = 0; view.oy = 0; view.zoom = 1; view.shot++;
+  aheadKey = ''; ahead = null;
+  inkFile = ''; ink.setStrokes(parseStrokes('')); savedVersion = ink.version;
+  clampView();
+  tabs[current].url = BLANK; tabs[current].title = ''; tabs[current].oy = 0;
+  setAddress(''); saveTabs(); setScreen(SCREEN_PAGE);
+  say('Blank page');
+}
+/** The first page: the home page in the current tab. */
+export async function goHome(): Promise<void> { await openUrl(HOME_PAGE); }
 
 export async function back(): Promise<void> {
   const h = tabs[current].history;

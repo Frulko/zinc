@@ -8,7 +8,7 @@ import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp, RemarkableKeyboard, InkPalette } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { ink, screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
-  openUrl, back, turn, zoomTo, setView, tapAt, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
+  openUrl, goHome, showBlank, back, turn, zoomTo, setView, tapAt, saveInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, reader, toggleReader, refresh,
   tabList, tabIndex, scale, pageSize, full, setFullScreen, switchTab, closeTab, closeAllTabs, newTab, currentTab, Tab, SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, SCREEN_TABS, conf } from './state';
 import { pageView, writing, swipe } from './pageview';
 import { MAX_ZOOM } from './constants';
@@ -125,9 +125,11 @@ function Reader(): i32 {
     <View className="flex-row gap-4 px-6 pt-4 items-center" onSubmit={() => openUrl(address())}>
       <Btn label="‹" onClick={() => back()} />
       <Input className={`grow ${FIELD}`} inputMode="url" value={address()} onInput={(v: string) => setAddress(v)} />
+      <Btn label="×" onClick={() => showBlank()} />
       <Btn label="Go" on={true} onClick={() => openUrl(address())} />
     </View>
     <View className="flex-row gap-4 px-6 py-4 items-center border-b-2 border-black">
+      <Btn label="Home" onClick={() => goHome()} />
       <Btn label="Reader" on={reader()} onClick={() => toggleReader()} />
       <Btn label="★" onClick={() => addBookmark()} />
       <Btn label={'Tabs ' + tabList().length.toString()} on={screen() === SCREEN_TABS} onClick={() => setScreen(screen() === SCREEN_TABS ? SCREEN_PAGE : SCREEN_TABS)} />

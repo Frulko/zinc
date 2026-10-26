@@ -7,7 +7,8 @@ function envOr(name: string, fallback: string): string { const v = sys.env(name)
 export const WEB_DIR = envOr('ZINC_WEB_DIR', envOr('HOME', '.') + '/.zinc/web');
 /** The Mac seen from the tablet over USB; the relay's default port. */
 export const DEFAULT_RELAY = 'http://10.11.99.2:8790';
-export const HOME_PAGE = 'https://en.wikipedia.org/wiki/E_Ink';
+/** The first page (ZINC_WEB_HOME for tests). */
+export const HOME_PAGE = envOr('ZINC_WEB_HOME', 'https://en.wikipedia.org/wiki/E_Ink');
 /** CSS pixels are this many tablet pixels: 1620 px wide is a page laid out at 810 CSS px, as on a tablet. */
 export const DPR: number = 2;
 export const MAX_ZOOM: number = 4;

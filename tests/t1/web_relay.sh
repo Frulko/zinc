@@ -111,6 +111,17 @@ app "open $long"
 # Close all: one tab left, on the home page, the others and their histories gone
 app "open $page; tab http://127.0.0.1:$wp/next.html; closeall"
 [ "$(wc -l < "$tmp/web/tabs.txt" | tr -d ' ')" = 1 ] && grep -q 'wikipedia.org/wiki/E_Ink' "$tmp/web/tabs.txt" || { echo "closeall: $(cat "$tmp/web/tabs.txt")"; fail=1; }
+# Blank: no request to the relay, the tab is about:blank (kept in tabs.txt, not fetched on the next start); Home opens the home page
+app "open $page; blank"
+expect 'web: Blank page'
+[ "$(grep -c 'web: relay loaded the page' "$tmp/app.log")" = 1 ] || { echo "blank sent a request"; fail=1; }
+[ "$(head -n 1 "$tmp/web/tabs.txt" | cut -f2)" = about:blank ] || { echo "blank tab: $(cat "$tmp/web/tabs.txt")"; fail=1; }
+app "blank"
+expect 'web: Blank page'
+grep -q 'relay loaded' "$tmp/app.log" && { echo "a blank tab was fetched on restore"; fail=1; }
+ZINC_WEB_HOME="$page" app "home"
+expect 'web: Relay fixture · 2 links'
+[ "$(head -n 1 "$tmp/web/tabs.txt" | cut -f2)" = "$page" ] || { echo "home: $(cat "$tmp/web/tabs.txt")"; fail=1; }
 # a smaller page (more of it per screen) is rendered again, both settings are kept; the full-screen view has no tool rows
 ZINC_SHOT="$tmp/full.png" app "open $page; smaller; full"
 expect 'web: Page size 80 %.'
