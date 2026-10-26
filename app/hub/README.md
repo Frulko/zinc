@@ -39,6 +39,17 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   SHA-256 in the signed catalog, the hub caches it and checks it against that hash; an app without one, or whose icon does not match, shows
   a framed initial.
 
+## Running apps
+
+The **Running** tab lists the Zinc apps running on the tablet: one line each with its state, CPU (% of one core over the last 5 s), memory
+(RSS), uptime and whether it is hidden or a widget, and **Stop** (SIGTERM, so the app saves as when it quits; SIGKILL after 3 s). It reads
+what `zinc-app` and its watcher leave in `$TMPDIR` (`/tmp`): `zinc-app-<path>.pid` (the pid, whose `/proc/<pid>/cmdline` must still be a
+zinc, else the stale file is removed) and `zinc-app-<path>.watch`, the line `zinc-watch` writes every 5 s
+(`integrations/remarkable-engine/zinc-watch.c`, `docs/targets/remarkable-paper-pro.md` "Stuck apps"). States: **OK**, **Busy** (half a core
+or more for 30 s), **Not responding** (no heartbeat from its frame loop for 10 s), **Hidden but using the CPU** (5% or more for 5 minutes
+while minimized), **Using a lot of memory** (over 768 MB). An app that is not responding shows at the top of every page with **Stop** and
+**Wait** (Wait leaves it alone for this session). The list is read again every 3 s while the hub shows, and redrawn only when it changed.
+
 ## Files
 
 | Path | What |
@@ -50,6 +61,6 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 | `~/zinc` (`ZINC_RMPP_ENGINE`) | the engine an update replaces (`zinc.download.tar.gz`, `zinc.new`, `zinc.old` only during one); unset on a desktop: no engine updates |
 
 `src/`: `main.tsx` (the shell), `state.ts` (the actions), `services/server.ts` (pairing, catalog, download and their checks),
-`services/installs.ts` (install, rollback, tiles), `services/config.ts`, `pages/`, `components/`, `script.ts` (`ZINC_HUB_SCRIPT`, the test
-mode of `tests/t1/hub_app.sh`). The signature, SHA-256 and version code is `app/hub-server/src/protocol.ts`, shared with the server.
+`services/installs.ts` (install, rollback, tiles), `services/running.ts` (the Running page's apps and Stop), `services/config.ts`, `pages/`,
+`components/`, `script.ts` (`ZINC_HUB_SCRIPT`, the test mode of `tests/t1/hub_app.sh` and `tests/t1/hub_running.sh`). The signature, SHA-256 and version code is `app/hub-server/src/protocol.ts`, shared with the server.
 `icon.svg` (zinc.json `app.icon`) is Lucide's `layout-grid` (lucide-static 0.462.0, ISC licence, https://lucide.dev/license), drawn black at stroke width 2.5.

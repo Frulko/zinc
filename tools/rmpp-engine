@@ -46,6 +46,7 @@ zbc=$(echo "$info" | sed 's/.*zbc=\([0-9]*\).*/\1/') rt=$(echo "$info" | sed 's/
 ink=$root/integrations/remarkable-ink
 "$zig" cc -target aarch64-linux-musl -static -O2 "$ink/lease.c" -o "$z/bin/lease"
 "$zig" cc -target aarch64-linux-musl -static -O2 "$root/integrations/remarkable-engine/qtfb-hold.c" -o "$z/bin/qtfb-hold"
+"$zig" cc -target aarch64-linux-musl -static -O2 -s "$root/integrations/remarkable-engine/zinc-watch.c" -o "$z/bin/zinc-watch"   # about 60 KB
 cp "$ink/quill/libquill.so" "$z/lib/libquill.so"
 cp "$ink/quill/LICENSE" "$z/QUILL-LICENSE"
 # zinc:pdf loads PDFium from lib/ (zinc-app puts it on LD_LIBRARY_PATH): the pinned prebuilt, GLIBC_2.17 at most (plugins/pdf/vendor/PIN)

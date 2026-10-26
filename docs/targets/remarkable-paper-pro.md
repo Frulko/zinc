@@ -402,6 +402,16 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   catalog's, the manifest's and the `.zapp`'s signatures and SHA-256, installs each app as `/home/root/zinc-apps/<name>.zapp`, keeps the
   previous package for Rollback and calls `zinc-tile` for the app's tile. Its list shows each app's icon, which the server takes from the
   published `.zapp` and lists with its SHA-256 in the signed catalog.
+- **Stuck apps** (ZN-844): `zinc-app` starts `bin/zinc-watch` (`integrations/remarkable-engine/zinc-watch.c`, static, about 60 KB) with
+  every app, as a child of the app's pid, so it ends with it. The engine's frame loop rewrites `ZINC_HEARTBEAT` (`/tmp/zinc-app-<path>.beat`,
+  set by `zinc-app`) every 2 s with the window's state; the loop keeps turning while the window is minimized, so a hidden app beats too. The
+  watcher wakes every 5 s (no fork, a few reads of `/proc` and one line to `/tmp/zinc-app-<path>.watch`) and says *hung* (no heartbeat for
+  10 s), *busy*, *waste* (minimized and using 5% of the CPU or more for 5 minutes, one journal line) or *memory* (over 768 MB). A hung app
+  cannot draw, so the choice is shown elsewhere: the Hub (`app/hub`, Running) puts it at the top of every page with **Stop** / **Wait**,
+  and closing the frozen window with AppLoad's X stops it (its `launch.sh` ends, the watcher sees the app's parent change and sends SIGTERM,
+  then SIGKILL after 3 s). A hung app hidden for 10 minutes is stopped the same way; each stop is one journal line (`zinc-watch: stopping
+  pid N: ...`). The ink session keeps the lease's own watchdog. Proven on the Mac by `tests/run --only rmpp_engine` (the watcher against a
+  fake `/proc`) and `--only hub_running`; not yet on the tablet.
 - **Lecteur web and dashboard** (`app/web`, ZN-844; `app/web/README.md`): the Mac's relay (`zinc run app/web-relay`) renders pages in
   headless Chrome at the tablet's size, grey. **Bookmarks, Dashboard** turns a page into a TRMNL-style dashboard: page 1 full screen,
   rendered again every 5, 15, 30 or 60 minutes (`&fresh=1`: the relay's running Chrome reloads the tab), the picture swapped only when its

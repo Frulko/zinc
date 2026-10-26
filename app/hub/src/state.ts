@@ -9,6 +9,7 @@ import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 import { installed, previous, install, rollback, nameOf, livePath } from './services/installs';
 import { STABLE, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
+import { RunningApp, running, stopApp } from './services/running';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -28,6 +29,7 @@ export class AppRow {
 
 export const PAGE_APPS: i32 = 0;
 export const PAGE_SETTINGS: i32 = 1;
+export const PAGE_RUNNING: i32 = 2;
 
 let config: HubConfig = loadConfig();
 let apps: CatalogApp[] = [];
@@ -201,4 +203,54 @@ export function setChannel(id: string, channel: string): void {
   saveConfig(config);
   rebuildRows();
   say(id + ' follows the ' + channel + ' channel.');
+}
+
+// The Running page (ZN-844): the Zinc apps running now, from zinc-app's pidfiles and their watchers' lines, read again every 3 s while the
+// hub shows. The signals change only when what is drawn changes, so an unchanged list costs no e-paper refresh.
+export const [runningApps, setRunningApps] = createSignal<RunningApp[]>([]);
+/** The apps not responding the user has not answered (Wait): the banner at the top of every page. */
+export const [stuck, setStuck] = createSignal<RunningApp[]>([]);
+const waited: i32[] = [];
+let shownKey = '', stuckKey = '';
+
+/** One line per app, what the Running page shows for it. */
+export function runningLine(a: RunningApp): string {
+  const state = a.state === 'hung' ? 'Not responding' : a.state === 'busy' ? 'Busy' : a.state === 'waste' ? 'Hidden but using the CPU'
+    : a.state === 'memory' ? 'Using a lot of memory' : a.state === 'ok' ? 'OK' : 'Starting';
+  const parts = [state];
+  if (a.cpu >= 0) parts.push('CPU ' + a.cpu.toString() + '%');
+  if (a.rssKb >= 0) parts.push(Math.round(a.rssKb / 1024).toString() + ' MB');
+  const min = Math.floor((Date.now() - a.startedMs) / 60000);
+  parts.push(min < 60 ? 'up ' + min.toString() + ' min' : 'up ' + Math.floor(min / 60).toString() + ' h ' + (min % 60).toString() + ' min');
+  if (a.window === 'hidden' || a.window === 'widget') parts.push(a.window);
+  return parts.join(' · ');
+}
+
+export function refreshRunning(): void {
+  const list = running();
+  const key = list.map((a: RunningApp) => a.pid.toString() + ' ' + a.name + ' ' + runningLine(a)).join('\n');
+  if (key !== shownKey) { shownKey = key; setRunningApps(list); }
+  const hung = list.filter((a: RunningApp) => a.hung && waited.indexOf(a.pid) < 0);
+  const k = hung.map((a: RunningApp) => a.pid.toString()).join(' ');
+  if (k !== stuckKey) { stuckKey = k; setStuck(hung); for (const a of hung) console.log('hub: ' + a.name + ' is not responding'); }
+}
+
+export async function stopRunning(pid: i32): Promise<void> {
+  await run(async (): Promise<string> => {
+    let app: RunningApp | null = null;
+    for (const a of running()) if (a.pid === pid) app = a;
+    if (app === null) return 'It has already stopped.';
+    const message = await stopApp(app as RunningApp);
+    refreshRunning();
+    return message;
+  });
+}
+
+/** Wait: the app may come back; the banner leaves it alone, the Running page still shows it. */
+export function waitFor(pid: i32): void { waited.push(pid); refreshRunning(); }
+
+/** Every 3 s while the window shows (not minimized, not a folded widget): a few small files read, nothing drawn when nothing changed. */
+export function watchRunning(): void {
+  refreshRunning();
+  setInterval(() => { if (sys.device('window.state', '') !== 'hidden') refreshRunning(); }, 3000);
 }

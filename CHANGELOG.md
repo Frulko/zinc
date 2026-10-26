@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Stuck apps on the reMarkable: every Zinc app now runs with a tiny watcher that notices when it stops responding, uses the CPU while hidden or takes too much memory. The Hub's new **Running** page lists the apps with their state, CPU, memory and uptime and stops any of them; an app that stops responding shows at the top of the Hub with **Stop** / **Wait**. A hung app whose window you close, or that stays hung while hidden for 10 minutes, is stopped by itself.
 - The Hub updates the reMarkable's engine itself: `tools/rmpp-engine --publish <hub> --token <t>` sends the engine bundle to a hub server, and the Hub app shows **Update the engine** (also when an app needs a newer engine), checks it and swaps it in, keeping the old engine if anything fails. `zinc --engine-info` prints what an engine runs.
 - Writing tools for ink on the reMarkable, as the tablet's own: ballpoint, fineliner, marker, pencil, calligraphy and highlighter, the Paper Pro's colours, three widths, stroke and area erasers, undo and redo (`InkPalette` of `zinc:remarkable`, in Zinc PDF). Each stroke keeps its tool in the saved notes, the SVG export and the annotated PDF (the highlighter stays translucent in any PDF reader).
 - Zinc Web: a Contrast setting (normal, high, max) darkens the page and thickens thin text for e-ink; the next screen is fetched while you read, so a page turn waits for nothing; the relay starts Chrome at once, and `--no-token` runs it without a token for a test on a trusted network.

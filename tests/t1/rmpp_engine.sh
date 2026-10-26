@@ -19,7 +19,7 @@ ZINC_ZIG=$tmp/zig tools/rmpp-engine --package "$tmp/pkg.tar.gz" -o "$tmp/out" > 
 sh -n "$tmp/out/deploy.sh" || fail "deploy.sh does not parse"
 mkdir "$tmp/tablet" && tar xzf "$tmp/out/zinc-rmpp.tar.gz" -C "$tmp/tablet" || fail "zinc-rmpp.tar.gz does not unpack"
 z=$tmp/tablet/zinc
-for f in bin/zinc bin/zinc-app bin/zinc-tile bin/lease bin/qtfb-hold lib/libquill.so QUILL-LICENSE share/zinc/rmpp/icon.png share/zinc/rmpp/verified \
+for f in bin/zinc bin/zinc-app bin/zinc-tile bin/lease bin/qtfb-hold bin/zinc-watch lib/libquill.so QUILL-LICENSE share/zinc/rmpp/icon.png share/zinc/rmpp/verified \
          share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so lib/libpdfium.so PDFIUM-LICENSES/pdfium.txt; do [ -e "$z/$f" ] || fail "the bundle has no $f"; done
 cmp -s "$z/lib/libquill.so" integrations/remarkable-ink/quill/libquill.so || fail "lib/libquill.so is not Quill's"
 grep -qx 07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec "$z/share/zinc/rmpp/verified" || fail "verified lacks OS 3.29's display engine"
@@ -72,8 +72,10 @@ out=$(env -u HOME ZINC_LEASE=1 "$z/bin/zinc-app" "$tmp/notes.zapp")   # what the
 sed 's/^/x/' "$z/share/zinc/rmpp/verified" > "$tmp/v" && mv "$tmp/v" "$z/share/zinc/rmpp/verified"   # an OS update: the hash is no longer verified
 "$ZINC_APPLOAD/zinc-notes-session/launch.sh" > /dev/null 2>&1 && fail "the session launcher ran the lease on an unverified display engine"
 "$z/bin/zinc-tile" --remove zinc-notes-session > /dev/null && [ ! -e "$ZINC_APPLOAD/zinc-notes-session" ] || fail "zinc-tile --remove"
-# one instance per app: a second launch of the same .zapp stops the first, another app is left running
+# one instance per app: a second launch of the same .zapp stops the first, another app is left running; each starts its watcher as a
+# child of the app's pid (zinc-app execs zinc) with the base of its files
 export TMPDIR=$tmp
+printf '#!/bin/sh\necho "$PPID $1" >> "%s/watchers"\n' "$tmp" > "$z/bin/zinc-watch"
 ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/notes.zapp" > /dev/null & first=$!
 ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/drawn.zapp" > /dev/null & other=$!
 sleep 1
@@ -81,5 +83,54 @@ ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/notes.zapp" > /dev/null & second=$!
 sleep 1
 kill -0 $first 2>/dev/null && { kill $first $second $other; fail "a second launch of the same app left the first running"; }
 kill -0 $second 2>/dev/null && kill -0 $other 2>/dev/null || { kill $second $other 2>/dev/null; fail "the second instance or another app was stopped"; }
+base=$tmp/zinc-app-$(echo "$tmp/notes.zapp" | tr '/ ' '__')
+grep -qx "$second $base" "$tmp/watchers" || fail "zinc-app did not start the watcher of pid $second on $base: $(cat "$tmp/watchers")"
 kill $second $other; wait 2>/dev/null
 echo "launchers: ok"
+
+# zinc-watch itself, built for this machine with short thresholds, against a fake /proc: ok, busy (CPU high), waste (hidden and busy),
+# memory, hung on screen (left alone), hung while hidden (stopped), hung with its window closed (its parent changed: stopped at once)
+W=$tmp/zinc-watch; wp=$tmp/wproc
+cc -O2 -DPERIOD_S=1 -DHUNG_S=2 -DBUSY_CHECKS=2 -DWASTE_CHECKS=2 -DMEM_KB=100000 -DSTOP_HIDDEN_S=3 integrations/remarkable-engine/zinc-watch.c -o "$W" || fail "cc zinc-watch.c"
+mkdir "$wp"
+export ZINC_PROC_ROOT=$wp
+watched() {   # name: a stand-in app whose child is the watcher (as zinc-app makes it), its fake /proc entry and files
+  b=$tmp/zinc-app-$1
+  sh -c '"$0" "$1" 2>> "$2" & exec sleep 60' "$W" "$b" "$tmp/watch.err" & a=$!
+  echo $a > "$b.pid"; mkdir -p "$wp/$a"; echo full > "$b.beat"; echo 1 > "$tmp/ppid"; echo 50000 > "$tmp/rss"; echo 0 > "$tmp/step"; echo full > "$tmp/mode"
+}
+ticker() {   # the kernel's and the engine's part: CPU ticks at $(cat step) per 0.25 s, the heartbeat while $tmp/beating exists
+  t=0
+  while kill -0 $a 2>/dev/null; do
+    t=$((t + $(cat "$tmp/step")))
+    printf '%s (zinc) S %s 0 0 0 0 0 0 0 0 0 %s 0\n' $a "$(cat "$tmp/ppid")" $t > "$wp/$a/stat.t" && mv "$wp/$a/stat.t" "$wp/$a/stat"
+    printf 'Name:\tzinc\nVmRSS:\t%s kB\n' "$(cat "$tmp/rss")" > "$wp/$a/status"
+    [ -e "$tmp/beating" ] && cat "$tmp/mode" > "$b.beat"
+    sleep 0.25
+  done
+}
+state() { cut -d' ' -f1 "$b.watch" 2>/dev/null; }
+until_state() { i=0; while [ "$(state)" != "$1" ] && [ $i -lt 40 ]; do sleep 0.1; i=$((i + 1)); done; [ "$(state)" = "$1" ] || fail "$2: the watcher says '$(cat "$b.watch" 2>/dev/null)', not $1"; }
+touch "$tmp/beating"
+watched one; ticker & tk=$!
+sleep 1.5; until_state ok "a quiet app"
+echo 25 > "$tmp/step"; until_state busy "an app using a whole core"
+echo hidden > "$tmp/mode"; until_state waste "a hidden app using the CPU"
+grep -q "is hidden and uses" "$tmp/watch.err" || fail "no journal line for the battery waste: $(cat "$tmp/watch.err")"
+echo 0 > "$tmp/step"; echo full > "$tmp/mode"; echo 200000 > "$tmp/rss"; until_state memory "an app above the memory limit"
+echo 50000 > "$tmp/rss"; rm "$tmp/beating"; until_state hung "an app whose heartbeat stopped"
+sleep 4; kill -0 $a 2>/dev/null || fail "the watcher stopped a hung app on screen (the user decides)"
+echo hidden > "$b.beat"; touch -t 202001010000 "$b.beat"
+i=0; while kill -0 $a 2>/dev/null && [ $i -lt 60 ]; do sleep 0.1; i=$((i + 1)); done
+kill -0 $a 2>/dev/null && fail "a hung hidden app was not stopped"
+grep -q "not responding while hidden" "$tmp/watch.err" || fail "no journal line for the stop: $(cat "$tmp/watch.err")"
+wait $tk 2>/dev/null; sleep 1.2
+for x in pid beat watch; do [ -e "$b.$x" ] && fail "the watcher left $b.$x after the app ended"; done
+watched two; touch -t 202001010000 "$b.beat"; ticker & tk=$!
+sleep 1.5; until_state hung "a second hung app"
+echo 4242 > "$tmp/ppid"
+i=0; while kill -0 $a 2>/dev/null && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done
+kill -0 $a 2>/dev/null && { kill $a; fail "a hung app whose window was closed was not stopped"; }
+grep -q "its window was closed" "$tmp/watch.err" || fail "no journal line for the closed window: $(cat "$tmp/watch.err")"
+wait 2>/dev/null
+echo "watcher: ok"

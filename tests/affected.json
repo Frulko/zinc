@@ -210,6 +210,7 @@
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
     {"paths": ["app/hub-server/", "tests/t1/hub_server.sh", "src/host/ed25519.cpp", "src/host/http.cpp"], "tests": ["hub_server"]},
     {"paths": ["app/hub/", "app/hub-server/", "plugins/remarkable/", "lib/std/kit/keyboard.tsx", "tests/t1/hub_app.sh"], "tests": ["hub_app"]},
+    {"paths": ["app/hub/", "src/host/hal_dispatch.cpp", "tests/t1/hub_running.sh"], "tests": ["hub_running"]},
     {"paths": ["app/web/", "app/web-relay/", "plugins/socket/", "plugins/process/", "plugins/ink/", "tests/t1/web_relay.sh"], "tests": ["web_relay"]},
     {"paths": ["plugins/pdf/", "tests/t0/pdf.sh"], "tests": ["pdf", "pdf_reader"]},
     {"paths": ["app/pdf/", "plugins/ink/", "plugins/remarkable/", "tests/t1/pdf_reader.sh"], "tests": ["pdf_reader"]},

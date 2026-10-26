@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <stdio.h>
+#include <chrono>
 #include <deque>
 #include <mutex>
 #include <string>
@@ -267,6 +268,19 @@ void nullWinInput(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
 }
 }  // namespace
 
+// ZINC_HEARTBEAT=<file> (zinc-app on a reMarkable, ZN-844): the frame loop rewrites the file every 2 s with the window's state ("full",
+// "hidden", "widget"; "full" when no driver knows), and integrations/remarkable-engine/zinc-watch.c sees a hung app by the file's age.
+// One clock read per frame. The loop keeps turning while the window is minimized (rm_present returns at once), so a hidden app beats too.
+static void heartbeat() {
+  static const char* path = getenv("ZINC_HEARTBEAT");
+  if (!path || !*path) return;
+  static std::chrono::steady_clock::time_point next;
+  const auto now = std::chrono::steady_clock::now();
+  if (now < next) return;
+  next = now + std::chrono::seconds(2);
+  const char* st = zrt::display_driver && hal_display->device ? hal_display->device("window.state", nullptr) : nullptr;
+  if (FILE* f = fopen(path, "w")) { fputs(st ? st : "full", f); fclose(f); }
+}
 #ifdef ZN_HOST_SDL
 #define PICK(live_expr, null_expr) (live ? (live_expr) : (null_expr))
 #ifdef ZN_WINDOW_SEPARATE
@@ -303,7 +317,7 @@ int zn_hal_wants_window(void) { return !headlessRequested() && zn_window_load();
 void hal_init(const HalConfig* c) { live = c->gfx && zn_hal_wants_window(); if (live) sdl_hal_init(c); else null_hal_init(c); }
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }
-void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
+void hal_frame_end(void) { heartbeat(); if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
 // a window takes a ZINC_INPUT script too (ZN-744): a scripted fling measured on a real display (a phone, the desktop window); the script's pointer and
 // fingers then replace the live ones
 static bool windowScript() { static const bool on = [] { const char* p = getenv("ZINC_INPUT"); return p && *p; }(); return on; }
@@ -331,7 +345,7 @@ int zn_hal_wants_window(void) { return 0; }
 void hal_init(const HalConfig* c) { null_hal_init(c); }
 void hal_shutdown(void) { null_hal_shutdown(); }
 void hal_frame_begin(void) { null_hal_frame_begin(); }
-void hal_frame_end(void) { null_hal_frame_end(); }
+void hal_frame_end(void) { heartbeat(); null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { null_hal_poll_input(in); applyScript(in); }
 void hal_present(const HalFrame* f) { null_hal_present(f); }
 void hal_surface_size(int* w, int* h) { nullSize(w, h); }

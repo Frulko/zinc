@@ -10,7 +10,8 @@ export LD_LIBRARY_PATH="$Z/lib:/usr/lib/plugins/scenegraph${LD_LIBRARY_PATH:+:$L
 if [ -n "$ZINC_LEASE" ]; then export ZINC_RMPP_INK="${ZINC_RMPP_INK:-session}"; fi
 # One instance per app: a tap on the tile of an app already running (minimized, or a widget) or an update stops the old one first
 # (SIGTERM: it saves as on quit), else two copies would share the app's files and only the hidden one might get what is sent to it.
-pidf="${TMPDIR:-/tmp}/zinc-app-$(echo "$1" | tr '/ ' '__').pid"
+base="${TMPDIR:-/tmp}/zinc-app-$(echo "$1" | tr '/ ' '__')"
+pidf=$base.pid
 ours() {   # the pid is still a zinc (a pid reused by another program is left alone)
   if [ -r "/proc/$1/cmdline" ]; then grep -q zinc "/proc/$1/cmdline"; else ps -p "$1" -o command= 2>/dev/null | grep -q zinc; fi
 }
@@ -23,4 +24,9 @@ if [ -f "$pidf" ]; then
   fi
 fi
 echo $$ > "$pidf"   # exec keeps this pid
+# zinc-watch (ZN-844): the app's watcher, a child of this pid, so of the app after exec; it ends with it. The frame loop writes the heartbeat
+# it reads (ZINC_HEARTBEAT), and it writes $base.watch for the Hub's Running page (zinc-watch.c).
+export ZINC_HEARTBEAT=$base.beat
+rm -f "$ZINC_HEARTBEAT" "$base.watch"
+if [ -x "$Z/bin/zinc-watch" ]; then "$Z/bin/zinc-watch" "$base" > /dev/null & fi
 exec "$Z/bin/zinc" run "$@"

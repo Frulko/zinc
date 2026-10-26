@@ -5,9 +5,10 @@ import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
 import { PAGE, LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
-import { page, setPage, status, busy, paired, refresh, PAGE_APPS, PAGE_SETTINGS } from './state';
+import { page, setPage, status, busy, paired, refresh, stuck, watchRunning, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
 import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
+import { RunningPage, StuckBanner } from './pages/running';
 import { scripted, runScript } from './script';
 
 function Tab(props: { label: string; index: i32 }): i32 {
@@ -22,9 +23,11 @@ function App(): i32 {
     <RemarkableBar title="Zinc Hub" />
     <View className="flex-row gap-6 px-10 pt-8">
       <Tab label="Apps" index={PAGE_APPS} />
+      <Tab label="Running" index={PAGE_RUNNING} />
       <Tab label="Settings" index={PAGE_SETTINGS} />
     </View>
-    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : <SettingsPage />}</View>
+    {stuck().length > 0 ? <StuckBanner /> : null}
+    <View className="flex-col grow">{page() === PAGE_APPS ? <AppsPage /> : page() === PAGE_RUNNING ? <RunningPage /> : <SettingsPage />}</View>
     <View className="px-10 py-6 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
     </View>
@@ -36,6 +39,7 @@ function App(): i32 {
 setPressFeedback(false);
 render(App, 0xffffff, null);
 async function start(): Promise<void> {
+  watchRunning();
   if (paired()) await refresh();   // check for updates at start
   if (scripted()) await runScript();
 }
