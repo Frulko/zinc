@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Each app now keeps its `zinc:storage` keys and its files in a folder of its own, `~/.zinc/apps/<name>/` (`dataDir()` of `zinc:sys` gives it); the keys an app had in the shared `~/.zinc/storage.kv` move there the first time it runs. Erasing that folder resets the app and nothing else.
 - reMarkable Hub: **Reset data** on an app that is running stops it first, then erases what it saved (it used to refuse and ask you to stop it).
 - reMarkable Hub: Store › Installed always lists the Zinc engine first, with its version and **Update the engine** when the server has a newer one.
 - reMarkable (experimental): `"display": { "header": "remarkable" }` in zinc.json shows the app below the tablet's own top bar (menu, logo, battery, time), which stays live; `RemarkableBar` becomes a slim bar with the title, **Accueil** and **Quitter**. A tap on the tablet's bar hides the app until its menu closes. Needs the Zinc build of AppLoad (patch 0005); without it the app stays full screen.

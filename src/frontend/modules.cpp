@@ -294,6 +294,8 @@ export function launchDir(): string { return __host_sysLaunchDir(); }
 export function locale(): string { return __host_sysLocale(); }
 /** A device feature (the backend of the web APIs of zinc:web): a JSON or plain answer, '' when this machine has none. */
 export function device(query: string, arg: string = ''): string { return __host_sysDevice(query, arg); }
+/** The app's own folder for its files (<zinc home>/apps/<zinc.json name>/, made on first call): its zinc:storage lives there too, and the reMarkable Hub's Reset data and Uninstall erase it whole. */
+export function dataDir(): string { return __host_sysDevice('data.dir', ''); }
 export function chdir(dir: string): boolean { return __host_sysChdir(dir); }
 export function setEnv(name: string, value: string): void { __host_sysSetEnv(name, value); }
 export function unsetEnv(name: string): void { __host_sysUnsetEnv(name); }

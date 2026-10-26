@@ -737,27 +737,63 @@ std::string tmpdirPath() {
 }
 
 // storage: a file of `key TAB value` lines (backslash, tab and newline escaped), read and rewritten whole: the stores are small
-std::string storagePath() {
-  if (const char* p = getenv("ZINC_STORAGE")) return p;
+std::string zincHomeDir() {
   const char* h = getenv("ZINC_HOME");
 #ifdef _WIN32
   const char* userHome = h ? h : getenv("USERPROFILE");
-  return (userHome ? std::string(userHome) : std::string(".")) + "/.zinc" + "/storage.kv";
+  return (userHome ? std::string(userHome) : std::string(".")) + (h ? "" : "/.zinc");
 #else
-  return (h ? std::string(h) : std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.zinc") + "/storage.kv";
+  return h ? std::string(h) : std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.zinc";
 #endif
+}
+// The app's own folder, as an Android app's data and its AsyncStorage: <zinc home>/apps/<name>/ (ZINC_APP_NAME, the zinc.json name zinc run
+// sets), which holds its zinc:storage (storage.kv) and its files (zinc:sys dataDir()). Erasing it resets the app, nothing else.
+// ZINC_APP_DATA replaces it; '' for a program without a name of its own, which keeps the shared <zinc home>/storage.kv.
+std::string appDataDir() {
+  if (const char* d = getenv("ZINC_APP_DATA"); d && *d) return d;
+  const char* n = getenv("ZINC_APP_NAME");
+  if (!n || !*n || n[0] == '.' || strchr(n, '/') || strchr(n, '\\')) return "";
+  return zincHomeDir() + "/apps/" + n;
+}
+std::string legacyStoragePath() { return zincHomeDir() + "/storage.kv"; }
+std::string storagePath() {
+  if (const char* p = getenv("ZINC_STORAGE")) return p;
+  const std::string d = appDataDir();
+  return d.empty() ? legacyStoragePath() : d + "/storage.kv";
 }
 std::string esc(const std::string& s) { std::string r; for (char c : s) { if (c == '\\') r += "\\\\"; else if (c == '\t') r += "\\t"; else if (c == '\n') r += "\\n"; else r += c; } return r; }
 std::string unesc(const std::string& s) { std::string r; for (size_t i = 0; i < s.size(); ++i) { if (s[i] == '\\' && i + 1 < s.size()) { char c = s[++i]; r += c == 't' ? '\t' : c == 'n' ? '\n' : c; } else r += s[i]; } return r; }
-std::map<std::string, std::string> storageLoad() {
+std::map<std::string, std::string> storageRead(const std::string& path) {
   std::map<std::string, std::string> m;
-  std::ifstream in(storagePath());
+  std::ifstream in(path);
   std::string line;
   while (std::getline(in, line)) { size_t t = line.find('\t'); if (t != std::string::npos) m[unesc(line.substr(0, t))] = unesc(line.substr(t + 1)); }
   return m;
 }
-void storageSave(const std::map<std::string, std::string>& m) {
-  std::string p = storagePath();
+void storageSave(const std::map<std::string, std::string>& m);
+void storageWrite(const std::string& p, const std::map<std::string, std::string>& m);
+std::map<std::string, std::string> storageLoad() {
+  const std::string p = storagePath();
+  std::map<std::string, std::string> m = storageRead(p);
+  // once, when the app's own store does not exist yet: its keys ("<name>.…", as apps named them) move out of the shared store of older engines
+  static bool migrated = false;
+  if (!migrated && !getenv("ZINC_STORAGE") && !getenv("ZINC_APP_DATA") && p != legacyStoragePath()) {
+    migrated = true;
+    struct stat st;
+    if (stat(p.c_str(), &st) != 0) {
+      std::map<std::string, std::string> shared = storageRead(legacyStoragePath());
+      const std::string prefix = std::string(getenv("ZINC_APP_NAME")) + ".";
+      bool moved = false;
+      for (auto it = shared.begin(); it != shared.end();) {
+        if (it->first.compare(0, prefix.size(), prefix) == 0) { m[it->first] = it->second; it = shared.erase(it); moved = true; } else ++it;
+      }
+      if (moved) { storageWrite(p, m); storageWrite(legacyStoragePath(), shared); }
+    }
+  }
+  return m;
+}
+void storageSave(const std::map<std::string, std::string>& m) { storageWrite(storagePath(), m); }
+void storageWrite(const std::string& p, const std::map<std::string, std::string>& m) {
   size_t slash = p.find_last_of('/');
   if (slash != std::string::npos) mkdirs(p.substr(0, slash));
   std::ofstream out(p, std::ios::trunc);
@@ -1047,7 +1083,14 @@ void call(int id, const HostArg* a, HostArg* r) {
       std::string sim;
       if (simAnswer(q, a, sim)) { ret(r, sim); break; }   // zinc run --simulate: the simulated device first
       const char* d = hal_display && hal_display->device ? hal_display->device(q.c_str(), a.c_str()) : nullptr;
-      ret(r, d ? std::string(d) : q == "storage" ? storagePath() : desktopDevice(q, a));   // storage: where zinc:storage keeps its keys
+      if (d) ret(r, std::string(d));
+      else if (q == "storage") ret(r, storagePath());   // where zinc:storage keeps its keys
+      else if (q == "data.dir") {   // zinc:sys dataDir(): the app's own folder, made on first ask
+        std::string dir = appDataDir();
+        if (dir.empty()) dir = zincHomeDir();
+        mkdirs(dir);
+        ret(r, dir);
+      } else ret(r, desktopDevice(q, a));
       break;
     }
     case Rt::HostAssetsStat: r->d = zn::host::assets::stat(n(0)); break;
