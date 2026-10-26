@@ -26,5 +26,6 @@ std::vector<std::string> emitCppParts(const zbc::Module& m, const std::vector<st
 bool usesHost(const zbc::Module& m);
 bool usesLayout(const zbc::Module& m);   // the program calls the host layout engine: link zn_layout and zn_yoga
 bool usesGl(const zbc::Module& m);       // the program calls zinc:gl (ZN-562): link zn_gl, glad and glslang
+unsigned rtNeeded(const zbc::Module& m); // the highest runtime call id the module uses + 1: the Rt::Count an engine needs to run it (.zapp needs.rt)
 
 }  // namespace zn::aot

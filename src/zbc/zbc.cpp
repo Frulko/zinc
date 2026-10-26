@@ -559,7 +559,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 8;  // 8: sparse vtables, one entry per selector of the class (7 had one per selector of the program); 7: the profile name and heap budget after the natives; 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
+constexpr std::uint32_t kVersion = kZbcVersion;  // include/zn/bytecode.h. 8: sparse vtables, one entry per selector of the class (7 had one per selector of the program); 7: the profile name and heap budget after the natives; 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
 
 struct Writer {
   std::vector<std::uint8_t> b;

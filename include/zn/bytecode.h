@@ -7,6 +7,9 @@
 
 namespace zn {
 
+/** The ZBC file version (src/zbc/zbc.cpp checks it exactly at load; a .zapp's manifest names it in needs.zbc). */
+inline constexpr std::uint32_t kZbcVersion = 8;
+
 constexpr std::uint32_t encABC(Op o, unsigned a, unsigned b = 0, unsigned c = 0) {
   return static_cast<std::uint32_t>(o) | (a & 0xFFu) << 8 | (b & 0xFFu) << 16 | (c & 0xFFu) << 24;
 }

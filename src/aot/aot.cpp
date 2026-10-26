@@ -372,6 +372,14 @@ bool usesHost(const zbc::Module& mod) {
   return false;
 }
 
+unsigned rtNeeded(const zbc::Module& mod) {
+  unsigned n = 0;
+  for (const zbc::Function& fn : mod.functions)
+    for (std::size_t pc = 0; pc < fn.code.size(); pc += (kOps[opOf(fn.code[pc])].fmt == Fmt::AB2 || kOps[opOf(fn.code[pc])].fmt == Fmt::AK2) ? 2 : 1)
+      if (std::string(kOps[opOf(fn.code[pc])].name) == "Rt") n = std::max(n, dOf(fn.code[pc]) + 1);
+  return n;
+}
+
 // Whether the module calls the host layout engine (the Rt::HostLayout* rows, ZN-284.01): the program then installs it and links zn_layout and Yoga.
 bool usesLayout(const zbc::Module& mod) {
   for (const zbc::Function& fn : mod.functions)

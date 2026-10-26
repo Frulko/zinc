@@ -1640,6 +1640,9 @@ static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
 
 int main(int argc, char** argv) {
   for (int k = 0; k < argc; ++k) gLaunchArgs.push_back(argv[k]);
+  // what a .zapp's needs are compared with (src/zapp.cpp): a program that installs apps (app/hub) reads them with zinc:sys env()
+  setenv("ZINC_ENGINE_ZBC", std::to_string(zn::kZbcVersion).c_str(), 1);
+  setenv("ZINC_ENGINE_RT", std::to_string(static_cast<unsigned>(zn::Rt::Count)).c_str(), 1);
   {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
     std::string zbc, err;
     std::uint64_t at = 0, size = 0;
@@ -2235,7 +2238,7 @@ int main(int argc, char** argv) {
       for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / assetTarget, ec))
         if (e.path().extension() == ".zpk") { std::ifstream zf(e.path(), std::ios::binary); std::stringstream zs; zs << zf.rdbuf(); files["packs/" + e.path().filename().string()] = zs.str(); }
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
-    const std::string archive = zn::zapp::pack(files, name, kVersionText);
+    const std::string archive = zn::zapp::pack(files, name, kVersionText, zn::kZbcVersion, zn::aot::rtNeeded(zm));   // needs: any engine with this ZBC and these runtime calls runs it
     std::ofstream out(outPath, std::ios::binary);
     out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
     if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }

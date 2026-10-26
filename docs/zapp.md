@@ -13,7 +13,7 @@ byte-identical, and `tar tf game.zapp` lists it.
 
 | File | What it is |
 |---|---|
-| `manifest.json` | `format` (1), `engine` (the zinc that made it), `name`, `files` (each file's SHA-256), `signature` (empty: the slot for signed apps) |
+| `manifest.json` | `format` (1), `engine` (the zinc that made it, for information), `needs` (`{"zbc": 8, "rt": 412}`: what the program needs of the engine, below), `name`, `files` (each file's SHA-256), `signature` (empty: the slot for signed apps) |
 | `program.zbc` | the compiled program (ZBC) |
 | `resources.bin` | the fonts and images baked for the program |
 | `zinc.json` | the project's manifest: window size, targets, permissions |
@@ -26,8 +26,16 @@ A fused executable loads it as its own code: it starts with no toolchain and no 
 engine's `plugins/` instead, like a compile would (cached in `~/.zinc`): a `.zapp` is not native code, and running one does not trust native
 code it carries.
 
-`zinc run` refuses an archive whose header checksums or file SHA-256 do not match (corrupted or edited), one made by a newer zinc or in a
-newer format ("update zinc"), and one naming a file outside it. Nothing of the archive runs before those checks. A launch reads only the
+`zinc run` refuses an archive whose header checksums or file SHA-256 do not match (corrupted or edited), one in a newer format, one the
+engine cannot run ("update zinc"), and one naming a file outside it.
+
+An app is not tied to the zinc that packed it. `needs` names what its compiled program uses: `zbc`, the bytecode version, and `rt`, the
+highest runtime call it makes plus one. The runtime call table only grows (`include/zn/runtime.h`), so any engine that reads that bytecode
+version and has at least `rt` runtime calls runs the app, older or newer than the packer: "this app needs a newer zinc engine (runtime call
+N, this engine has M): update zinc". A bytecode version change still needs the app packed again. An archive without `needs` (packed by an older
+zinc, or a project on a JavaScript engine, which carries its sources) keeps the old rule: refused by an engine older than `engine`. The
+engine gives its own numbers to the programs it runs as `ZINC_ENGINE_ZBC` and `ZINC_ENGINE_RT` (zinc:sys `env()`), which is how the Hub
+(`app/hub`) refuses an update the tablet's engine cannot run before downloading it. Nothing of the archive runs before those checks. A launch reads only the
 archive's headers and manifest while the file keeps its size and time; a changed file is checked again member by member (ZN-430).
 
 ## Fused executables

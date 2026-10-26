@@ -1,6 +1,7 @@
 #!/bin/sh
 # .zapp archives (ZN-318): `zinc pack` of a project twice gives byte-identical files (a ustar that `tar` lists), `zinc run app.zapp` prints and
-# draws what `zinc run dir` does, and a corrupted archive, one made for a newer engine, or one naming a file outside it is refused with a message;
+# draws what `zinc run dir` does, and a corrupted archive, one that needs runtime calls this engine lacks (needs.rt), one without needs made for a
+# newer engine, or one naming a file outside it is refused with a message; one with needs packed by a newer engine runs (owner, 2026-10-26);
 # an archive changed in place after a launch is checked again (ZN-430: launches read only the headers of an unchanged file).
 # game-2d's packs ride along (packs/default.zpk: its sprite atlas, ZN-438), the same bytes in both archives.
 cd "$(dirname "$0")/../.." || exit 2
@@ -28,7 +29,7 @@ printf "import { a } from './main';\nexport function b() { return a + 'b'; }\n" 
   { echo "a linked asset is not packed as assets/city.bin: $(tar tf "$tmp/linked.zapp" | tr '\n' ' ')"; fail=1; }
 [ "$(cd "$tmp/cli" && "$Z" run . 2>&1)" = "$("$Z" run "$tmp/cli.zapp" 2>&1)" ] || { echo "the packed cli prints otherwise: $("$Z" run "$tmp/cli.zapp" 2>&1 | head -2)"; fail=1; }
 python3 - "$tmp" <<'PY' || exit 2
-import io, sys, tarfile
+import io, re, sys, tarfile
 tmp = sys.argv[1]
 data = bytearray(open(f'{tmp}/cli.zapp', 'rb').read())
 data[2000] ^= 0x55                                    # a byte of program.zbc
@@ -40,12 +41,18 @@ def rewrite(out, edit):
         b = src.extractfile(m).read(); b, name = edit(m.name, b)
         info = tarfile.TarInfo(name); info.size = len(b); dst.addfile(info, io.BytesIO(b))
     dst.close(); open(out, 'wb').write(buf.getvalue())
-rewrite(f'{tmp}/newer.zapp', lambda n, b: (b.replace(b'"engine": "', b'"engine": "99.') if n == 'manifest.json' else b, n))
+newer = lambda b: b.replace(b'"engine": "', b'"engine": "99.')
+rewrite(f'{tmp}/newer.zapp', lambda n, b: (newer(b) if n == 'manifest.json' else b, n))                                       # packed by a newer zinc
+rewrite(f'{tmp}/legacy.zapp', lambda n, b: (re.sub(rb'\n  "needs": [^\n]*', b'', newer(b)) if n == 'manifest.json' else b, n))  # and no needs
+rewrite(f'{tmp}/needs.zapp', lambda n, b: (re.sub(rb'"rt": \d+', b'"rt": 65000', b) if n == 'manifest.json' else b, n))   # a call it lacks
 rewrite(f'{tmp}/escape.zapp', lambda n, b: (b, '../evil' if n == 'zinc.json' else n))
 PY
 check() { out=$("$Z" run "$tmp/$1" 2>&1); rc=$?; [ $rc -ne 0 ] && echo "$out" | grep -q "$2" || { echo "$1: rc $rc, '$out' (want: $2)"; fail=1; }; }
 check corrupt.zapp 'corrupted'
-check newer.zapp 'update zinc'
+tar xOf "$tmp/cli.zapp" manifest.json | grep -q '"needs": {"zbc": [0-9]*, "rt": [0-9]*}' || { echo "the manifest has no needs"; fail=1; }
+[ "$(cd "$tmp/cli" && "$Z" run . 2>&1)" = "$("$Z" run "$tmp/newer.zapp" 2>&1)" ] || { echo "an app packed by a newer zinc that needs nothing new is refused: $("$Z" run "$tmp/newer.zapp" 2>&1 | head -2)"; fail=1; }
+check legacy.zapp 'this archive was made for zinc 99'
+check needs.zapp 'needs a newer zinc engine (runtime call 64999, this engine has'
 check escape.zapp 'outside'
 # ZN-430: a launch reads only the headers and the manifest while the file is unchanged; a byte changed in place is checked again and refused
 cp "$tmp/cli.zapp" "$tmp/inplace.zapp"

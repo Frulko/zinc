@@ -17,6 +17,8 @@ extern "C" {
 }
 #include "tc/tc.h"
 #include "yyjson.h"
+#include "zn/bytecode.h"
+#include "zn/runtime.h"
 
 namespace zn::zapp {
 namespace {
@@ -92,8 +94,10 @@ std::string ar(const std::vector<std::pair<std::string, std::string>>& members) 
   return out;
 }
 
-std::string pack(const std::map<std::string, std::string>& files, const std::string& name, const std::string& engine) {
-  std::string manifest = "{\n  \"format\": " + std::to_string(kFormat) + ",\n  \"engine\": " + jsonString(engine) + ",\n  \"name\": " + jsonString(name) + ",\n  \"files\": {";
+std::string pack(const std::map<std::string, std::string>& files, const std::string& name, const std::string& engine, unsigned zbc, unsigned rt) {
+  std::string manifest = "{\n  \"format\": " + std::to_string(kFormat) + ",\n  \"engine\": " + jsonString(engine);
+  if (zbc) manifest += ",\n  \"needs\": {\"zbc\": " + std::to_string(zbc) + ", \"rt\": " + std::to_string(rt) + "}";
+  manifest += ",\n  \"name\": " + jsonString(name) + ",\n  \"files\": {";
   bool first = true;
   for (const auto& [n, bytes] : files) { manifest += std::string(first ? "\n" : ",\n") + "    " + jsonString(n) + ": " + jsonString(zn::tc::sha256Hex(bytes)); first = false; }
   manifest += "\n  },\n  \"signature\": \"\"\n}\n";
@@ -135,6 +139,12 @@ bool readManifest(const std::string& text, const std::string& engine, std::map<s
   const char* eng = yyjson_get_str(yyjson_obj_get(r, "engine"));
   bool ok = true;
   if (fmt > kFormat) { err = "this archive is format " + std::to_string(fmt) + ", this zinc reads format " + std::to_string(kFormat) + ": update zinc (zinc update)"; ok = false; }
+  else if (yyjson_val* needs = yyjson_obj_get(r, "needs"); yyjson_is_obj(needs)) {   // a compiled program: what it uses, not who packed it
+    const long long zbc = yyjson_get_sint(yyjson_obj_get(needs, "zbc")), rt = yyjson_get_sint(yyjson_obj_get(needs, "rt"));
+    const long long have = static_cast<long long>(zn::Rt::Count), reads = zn::kZbcVersion;
+    if (zbc != reads) { err = "this app is bytecode version " + std::to_string(zbc) + ", this zinc engine reads version " + std::to_string(reads) + (zbc > reads ? ": update zinc (zinc update)" : ": pack the app again with this zinc"); ok = false; }
+    else if (rt > have) { err = "this app needs a newer zinc engine (runtime call " + std::to_string(rt - 1) + ", this engine has " + std::to_string(have) + "): update zinc (zinc update)"; ok = false; }
+  }
   else if (eng && versionKey(eng) > versionKey(engine)) { err = std::string("this archive was made for zinc ") + eng + ", this is zinc " + engine + ": update zinc (zinc update)"; ok = false; }
   yyjson_val* fs = yyjson_obj_get(r, "files");
   std::size_t i, n; yyjson_val *k, *v;
