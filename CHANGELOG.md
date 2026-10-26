@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Experimental Intel Mac runtime targeting macOS 10.12: run packed `zinc:gfx` programs with a software-rendered Cocoa window, game keys and mouse input. Build separately from `targets/macos-legacy`; real Sierra compatibility remains unverified.
 - reMarkable Hub: Settings › Experimental › **reMarkable header** turns the docked mode on for every app (the file `~/.zinc/rmpp-header`), with the Zinc AppLoad that has patch 0005.
 - reMarkable: pinch-zoom no longer stutters: while the fingers move the screen gets one fast picture at a time, at the pace the panel can show, and with the Zinc build of AppLoad (patch 0006) the fast mode starts at once instead of after a second. Every Zinc app gets it.
 - Zinc Web: a **contrast slider** in Settings, from the page as it is to 4×, replaces the three steps; the web relay takes `contrast=1..4` (the names normal, high and max still work).

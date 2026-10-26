@@ -1,5 +1,10 @@
 # Resume — 2026-10-25 (pinball)
 
+## macOS Sierra experiment — 2026-10-26
+
+- ZN-845: separate Intel 10.12 runtime (`targets/macos-legacy`, `build/macos-legacy/zinc-legacy`) reuses the portable interpreter/raster with a Cocoa window, game keys and mouse. No SDL/Metal/JSC dependency; normal build unchanged. Build: `cmake -S targets/macos-legacy -B build/macos-legacy && BUILD_DIR=build/macos-legacy tools/build zinc-core`.
+- Hello output and bouncing-ball frame 60 match the normal interpreter (`216f7766b51df966`); background Cocoa view pixels, local key/mouse events, close and focus checks pass on modern macOS through Rosetta. Real Sierra/dyld remains unverified; no QuickJS/full desktop host/plugin compatibility claim. Report `docs/reports/zinc-next-macos-legacy.md`; preview `build/macos-legacy-preview.tar.gz`.
+
 ## reMarkable Paper Pro — 2026-10-25 (owner: "c'est parfait")
 
 - Installed on the tablet (10.11.99.1): engine 0.8.2+154 (`dist/rmpp/deploy.sh`), AppLoad with patches 0001-0003 (sha 6cb5a3de…, backups `/home/root/xovi/appload.so.0.6.0`, `.window-0001`, `.widgets-0002`), tiles with icons for hub and notes (`zinc-tile`, now BusyBox-safe). Last xochitl start 23:24, guard OK.

@@ -82,7 +82,7 @@ void keep(const std::string& s) {
 // (or the console's own quit: HOME on the PSP, a frame budget in the emulator tests) instead of a black screen or an app that closes at once.
 // The player's waiting screen is the same screen with its lines on top, and returns (true) when the workstation sent a program; SELECT gives a
 // new pairing code.
-bool textScreen(int status, bool player = false) {
+[[maybe_unused]] bool textScreen(int status, bool player = false) {
   using zn::host::HostArg;
   auto call = [](zn::Rt id, const HostArg* a = nullptr) { HostArg r; zn::host::hostGfx(static_cast<int>(id), a, &r); return r; };
   const std::string footer = player ? "START quits the player" : status ? "zinc: the program stopped (status " + std::to_string(status) + ") - START quits" : "zinc: the program ended - START quits";
@@ -153,7 +153,7 @@ bool textScreen(int status, bool player = false) {
 #endif
 int finish(int status) {
 #ifdef ZN_CONSOLE_WITH_GFX
-#ifndef ZN_CONSOLE_PLAYER   // the player's waiting screen was that screen
+#if !defined(ZN_CONSOLE_PLAYER) && !defined(ZN_CORE_EXIT_ON_FINISH)   // desktop runtimes return to their terminal
   if (zn::host::hostGfx && zn_hal_is_live() && (status != 0 || !zn::host::gfxStarted)) textScreen(status);
 #endif
 #endif

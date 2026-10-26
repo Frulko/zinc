@@ -490,6 +490,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-845: launch the legacy Intel runtime on real macOS 10.12, check dyld imports, hello and bouncing-ball pixels, game keys/mouse/close; modern macOS under Rosetta and the 10.12 deployment target do not prove Sierra compatibility.
+
 - ZN-844: run app/web on the reMarkable Paper Pro and the Move (954x1696): pinch from AppLoad's touches, pen ink, link taps and Refresh.
 - ZN-844: try the web dashboard on the tablet: a 5-minute period while minimized and as a widget, and whether the full refresh after a swap leaves no ghost.
 - ZN-844: check that `tools/package --linux-arch aarch64` builds `plugins/pdf/prebuilt/linux`, that the tablet loads `lib/libpdfium.so` and draws a page; time one page render at 1620x2160 on the A53.
