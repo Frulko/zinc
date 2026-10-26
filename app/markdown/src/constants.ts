@@ -26,4 +26,3 @@ export const BUTTON_LABEL = 'text-[30px] font-bold text-white';
 export const OUTLINE_BUTTON = 'px-6 h-[88px] items-center justify-center rounded-lg border-4 border-black bg-white focus:bg-white';
 export const OUTLINE_LABEL = 'text-[30px] font-bold text-black';
 export const ROW = 'flex-row gap-4 items-center py-4 border-b-2 border-black';
-export const KEY = 'bg-white text-black border-2 border-black active:bg-white';

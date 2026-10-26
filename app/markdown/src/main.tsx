@@ -4,10 +4,9 @@
 // and read offline. E-paper: black on white, big targets, one refresh per gesture.
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
-import { Keyboard } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
-import { RemarkableApp, RemarkableBar } from 'zinc:remarkable';
-import { PAGE, LABEL, SMALL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, KEY, DOCS_DIR, FONT_SIZES } from './constants';
+import { RemarkableApp, RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
+import { PAGE, LABEL, SMALL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, ROW, DOCS_DIR, FONT_SIZES } from './constants';
 import { screen, setScreen, status, busy, pageLabel, library, docTitle, fontIndex, penMode, setPenMode, onTablet, doc, version,
   openDoc, turn, jump, setFont, back, saveInk, undoInk, scanLibrary, notionToken, notionPage, saveNotion, syncNotion, refresh, restore,
   SCREEN_LIBRARY, SCREEN_READ, SCREEN_TOC, SCREEN_SETTINGS } from './state';
@@ -106,7 +105,7 @@ function App(): i32 {
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
     </View>
     {screen() === SCREEN_SETTINGS
-      ? <Keyboard keyHeight={88} gap={10} keyClass={KEY} specialKeyClass={KEY} className="bg-white border-t-2 border-black" preview={false} />
+      ? <RemarkableKeyboard />
       : null}
   </View>;
 }

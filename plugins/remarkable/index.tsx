@@ -1,5 +1,8 @@
 import { createSignal, Show } from 'zinc:ui/solid';
 import { quit, minimizeWindow, setWidget, showWidget, windowState } from 'zinc:gfx';
+import { Keyboard } from 'zinc:ui/kit';
+import * as fs from 'zinc:fs';
+import { env } from 'zinc:sys';
 import status from './native/status.spec';
 
 const [minutes, setMinutes] = createSignal<i32>(status.localMinutes());
@@ -72,4 +75,36 @@ export function RemarkableBar(props: RemarkableBarProps): i32 {
       </Button>
     </View>
   </View>;
+}
+
+// The on-screen keyboard of the reMarkable apps, drawn for e-paper as the tablet's own: white keys with a thin black outline and
+// large captions, no shadow and no preview bubble (each would be one more refresh), Enter and the capitals in black.
+const KB_KEY = 'bg-white text-black border-[1.5px] border-black rounded-[12px] active:bg-white';
+const KB_SPECIAL = 'bg-[#ebebeb] text-black border-[1.5px] border-black rounded-[12px] active:bg-[#ebebeb]';
+const KB_DARK = 'bg-black text-white border-[1.5px] border-black rounded-[12px] active:bg-black';
+export interface RemarkableKeyboardProps {
+  /** Layout ids the language key cycles through; default: the language the tablet's handwriting search uses, then English. */
+  layouts?: string[];
+  /** As the kit's Keyboard: 'auto' (while a field has the focus, the default), 'always', 'never'. */
+  mode?: string;
+  onKey?: (key: string) => void;
+}
+/** The languages of this tablet: xochitl's handwriting language (fr_FR -> fr), then LANG, then English. */
+export function tabletLayouts(): string[] {
+  const out: string[] = [];
+  const add = (l: string): void => { const id = l.slice(0, 2).toLowerCase(); if (id.length === 2 && out.indexOf(id) < 0) out.push(id); };
+  const conf = '/home/root/.config/remarkable/xochitl.conf';
+  if (fs.exists(conf)) for (const line of fs.readText(conf).split('\n')) if (line.startsWith('HandwritingSearchLanguage=')) add(line.slice(26));
+  const lang = env('LANG');
+  if (lang !== '' && lang !== 'C' && !lang.startsWith('C.')) add(lang);
+  add('en');
+  return out;
+}
+/** <RemarkableKeyboard />: shows itself while a text field has the focus, as the kit's Keyboard does. */
+export function RemarkableKeyboard(props: RemarkableKeyboardProps = {}): i32 {
+  return <Keyboard layouts={props.layouts ?? tabletLayouts()} mode={props.mode} onKey={props.onKey}
+    keyHeight={104} gap={12} shadow={false} preview={false} retractable={false}
+    keyClass={KB_KEY} specialKeyClass={KB_SPECIAL} enterKeyClass={KB_DARK} shiftOnClass={KB_DARK}
+    labelClass="text-[40px]" specialLabelClass="text-[28px]" accentClass="bg-white border-[1.5px] border-black"
+    className="bg-white border-t-[1.5px] border-black px-3 pt-3 pb-4" />;
 }

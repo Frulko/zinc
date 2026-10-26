@@ -3,10 +3,9 @@
 // E-paper: black on white, page turns instead of scrolling, one refresh per gesture; Refresh clears the ghosting.
 import { render, createSignal } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
-import { Keyboard } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
-import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
-import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, KEY } from './constants';
+import { RemarkableBar, RemarkableApp, RemarkableKeyboard } from 'zinc:remarkable';
+import { PAGE, LABEL, TITLE, FIELD, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from './constants';
 import { screen, setScreen, address, setAddress, status, busy, pageLabel, penMode, setPenMode, bookmarks, onTablet, relay, view,
   openUrl, back, turn, zoomTo, saveInk, undoInk, exportPng, addBookmark, removeBookmark, saveRelay, setColour, nextContrast, setEinkStyle, checkInbox, refresh,
   SCREEN_PAGE, SCREEN_BOOKMARKS, SCREEN_SETTINGS, conf } from './state';
@@ -111,7 +110,7 @@ function Reader(): i32 {
     <View className="px-6 py-3 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Loading…' : status()}</Text>
     </View>
-    <Keyboard keyHeight={88} gap={10} keyClass={KEY} specialKeyClass={KEY} className="bg-white border-t-2 border-black" preview={false} />
+    <RemarkableKeyboard />
   </View>;
 }
 

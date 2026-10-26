@@ -3,9 +3,8 @@
 // E-paper: black on white, large targets, no animation; only the status line and a changed row redraw.
 import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
-import { Keyboard } from 'zinc:ui/kit';
-import { RemarkableBar } from 'zinc:remarkable';
-import { PAGE, LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL, KEY } from './constants';
+import { RemarkableBar, RemarkableKeyboard } from 'zinc:remarkable';
+import { PAGE, LABEL, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
 import { page, setPage, status, busy, paired, refresh, PAGE_APPS, PAGE_SETTINGS } from './state';
 import { AppsPage } from './pages/apps';
 import { SettingsPage } from './pages/settings';
@@ -29,7 +28,7 @@ function App(): i32 {
     <View className="px-10 py-6 border-t-2 border-black">
       <Text className={LABEL}>{busy() ? 'Working…' : status()}</Text>
     </View>
-    <Keyboard keyHeight={88} gap={10} keyClass={KEY} specialKeyClass={KEY} className="bg-white border-t-2 border-black" preview={false} />
+    <RemarkableKeyboard />
   </View>;
 }
 

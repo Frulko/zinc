@@ -31,6 +31,17 @@ export interface KeyboardProps {
   className?: string;
   keyClass?: string;
   specialKeyClass?: string;
+  /** Enter's classes (default: specialKeyClass, else the accent colour). */
+  enterKeyClass?: string;
+  /** Shift's classes while capitals are on. */
+  shiftOnClass?: string;
+  /** Classes of a letter's caption and of a special key's (sizes, weight): default text-xl, and text-base or text-sm. */
+  labelClass?: string;
+  specialLabelClass?: string;
+  /** Classes of the retract handle above the keys. */
+  handleClass?: string;
+  /** A small shadow under each key (default true; false on e-paper, where a shadow is a grey smear). */
+  shadow?: boolean;
   /** Classes of the long-press accent popup. */
   accentClass?: string;
   /** Preview bubble above the pressed key (default true). */
@@ -225,16 +236,16 @@ export function Keyboard(props: KeyboardProps): i32 {
   }
 
   // ---- views
-  const baseKey = (): string => `items-center justify-center rounded-lg shadow-sm`;
+  const baseKey = (): string => `items-center justify-center rounded-lg${(props.shadow ?? true) ? ' shadow-sm' : ''}`;
   const letterClass = (): string => props.keyClass ?? `bg-${theme().card} text-${theme().foreground} active:bg-${theme().secondaryPressed}`;
   const specialClass = (k: Key): string => {
-    if (k.token === 'enter') return props.specialKeyClass ?? `bg-${theme().accent} text-${theme().accentForeground} active:bg-${theme().primaryPressed}`;
-    if (k.token === 'shift' && shift() > 0) return `bg-${theme().card} text-${theme().accent}`;
+    if (k.token === 'enter') return props.enterKeyClass ?? props.specialKeyClass ?? `bg-${theme().accent} text-${theme().accentForeground} active:bg-${theme().primaryPressed}`;
+    if (k.token === 'shift' && shift() > 0) return props.shiftOnClass ?? `bg-${theme().card} text-${theme().accent}`;
     return props.specialKeyClass ?? `bg-${theme().secondaryPressed} text-${theme().foreground} active:bg-${theme().border}`;
   };
   function KeyView(p: { k: Key }): i32 {
     const k = p.k, ref = createNodeRef();
-    const size = k.special ? (k.token === 'space' || k.token === 'enter' ? 'text-sm' : 'text-base') : 'text-xl';
+    const size = k.special ? (props.specialLabelClass ?? (k.token === 'space' || k.token === 'enter' ? 'text-sm' : 'text-base')) : (props.labelClass ?? 'text-xl');
     return <View ref={ref} className={`${baseKey()} ${k.special ? specialClass(k) : letterClass()}`}
       style={{ height: keyH, width: 1, grow: Math.round(k.width * 10) }}
       onPointerDown={(e: ui.PointerEvent) => down(k, ref)}
@@ -253,17 +264,17 @@ export function Keyboard(props: KeyboardProps): i32 {
   return <View ref={root} keepFocus className={`flex-col p-2 bg-${theme().muted} border-t border-${theme().border} ${props.className ?? ''}`}
     style={{ gap: gap, hidden: always ? 0 : 1 }}>
     <View className="flex-row justify-center" style={{ hidden: (props.retractable ?? true) ? 0 : 1, height: (props.retractable ?? true) ? 20 : 0 }}>
-      <View className={`flex-row items-center justify-center rounded-full px-6 bg-${theme().secondaryPressed} text-${theme().mutedForeground}`} style={{ height: 18 }}
+      <View className={props.handleClass ?? `flex-row items-center justify-center rounded-full px-6 bg-${theme().secondaryPressed} text-${theme().mutedForeground}`} style={{ height: 18 }}
         onPointerUp={(e: ui.PointerEvent) => { ui.focusNode(-1); emit('Hide'); }}><Text className="text-xs">⌄</Text></View>
     </View>
     {rows().map((r: Row) => <View className="flex-row justify-center" style={{ gap: gap }}>
       {r.keys.map((k: Key) => <KeyView k={k} />)}
     </View>)}
-    <View className={`absolute items-center justify-center rounded-xl shadow-lg bg-${theme().card} text-${theme().foreground}`}
+    <View className={`absolute items-center justify-center rounded-xl${(props.shadow ?? true) ? ' shadow-lg' : ''} bg-${theme().card} text-${theme().foreground}`}
       style={{ hidden: bubble() === '' ? 1 : 0, left: bubbleX() - bubbleW() / 2, top: bubbleY() - keyH - 12, width: bubbleW(), height: keyH + 8 }}>
       <Text className="text-3xl">{bubble()}</Text>
     </View>
-    <View className={`absolute flex-row p-1 gap-1 rounded-xl shadow-lg border ${props.accentClass ?? `bg-${theme().card} border-${theme().border}`}`}
+    <View className={`absolute flex-row p-1 gap-1 rounded-xl${(props.shadow ?? true) ? ' shadow-lg' : ''} border ${props.accentClass ?? `bg-${theme().card} border-${theme().border}`}`}
       style={{ hidden: accents().length === 0 ? 1 : 0, left: accX(), top: accY() }}>
       {accents().map((ch: string, i: i32) => <AccentView ch={ch} index={i} />)}
     </View>

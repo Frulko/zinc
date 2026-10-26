@@ -28,3 +28,7 @@ under it are `setWidget(x, y, w, h)`, `showWidget()` and `windowState()` of `zin
 On Linux (the reMarkable runs the package's linux build) the native module reads the battery from `/sys/class/power_supply` and the local time. macOS previews show an unknown battery. Values are checked every ten seconds; unchanged signals do not require repainting. The clock has minute precision.
 
 Finger events control the UI. `InkCanvas` consumes the separate pen sample queue, so fingers do not draw. This component does not itself alter display ownership or the e-ink waveform.
+
+**Keyboard**: `<RemarkableKeyboard />` is the kit's `Keyboard` drawn for e-paper as the tablet's own (white keys with a thin outline, large
+captions, no shadow or preview bubble, Enter and the capitals in black). It shows itself while a text field has the focus; its languages are
+the tablet's handwriting language, then `LANG`, then English (`tabletLayouts()`), or `layouts={['fr', 'en']}`.

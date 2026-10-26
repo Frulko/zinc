@@ -28,4 +28,3 @@ export const BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg bg-
 export const BUTTON_LABEL = 'text-[34px] font-bold text-white';
 export const OUTLINE_BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg border-4 border-black bg-white focus:bg-white';
 export const OUTLINE_LABEL = 'text-[34px] font-bold text-black';
-export const KEY = 'bg-white text-black border-2 border-black active:bg-white';
