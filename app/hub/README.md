@@ -22,6 +22,9 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   manifest's SHA-256; the manifest is the version the catalog offers. Any mismatch is refused with a message, and nothing is replaced.
 - An update never goes to an older or equal version (a server cannot downgrade an app). **Rollback** puts back the package the last update
   replaced (its SHA-256 checked again); **Update** brings the newer one back.
+- A package the tablet's engine cannot run is not downloaded: the signed catalog lists what each one needs (`zbc`, `rt`: the `needs` of
+  its manifest, `docs/zapp.md`), the hub compares them with its engine (`ZINC_ENGINE_ZBC`, `ZINC_ENGINE_RT`) and says "Needs a newer engine:
+  update the engine on the tablet". `ZINC_HUB_ENGINE_RT` plays an older engine in the tests.
 - Each app follows **stable** or **beta** (the Channel button when the server has both). Updates are checked at start.
 - Each row shows the app's icon (the `icon.png` that `zinc pack` puts in the package from zinc.json `app.icon`): the server lists it with its
   SHA-256 in the signed catalog, the hub caches it and checks it against that hash; an app without one, or whose icon does not match, shows

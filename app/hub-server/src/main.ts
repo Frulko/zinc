@@ -15,7 +15,8 @@
 // HTTP (a device token or the publisher token as `Authorization: Bearer <token>`):
 //   POST /pair                 form `code=<the code the hub prints>&name=<device>` -> {"serverKey": hex, "token": hex}; the code changes after each use
 //   GET  /catalog.json         device: {"server", "issued", "apps": [{"id", "key", "channels": [{"channel", "version", "manifest", "url", "sha256",
-//                              "icon", "iconSha256"}]}]} (icon and iconSha256 '' for a package without an icon)
+//                              "icon", "iconSha256", "zbc", "rt"}]}]} (icon and iconSha256 '' for a package without an icon; zbc and rt: the
+//                              engine the package needs, its manifest.json `needs` (docs/zapp.md), 0 when it names none)
 //   GET  /catalog.json.sig     device: the Ed25519 signature of catalog.json by the hub key, hex (`zinc verify catalog.json --key <server key>`)
 //   GET  /apps/<id>/<channel>.manifest, /apps/<id>/<file>.zapp, /apps/<id>/<file>.png   device: the channel's current manifest (its url is
 //                              relative), the package and its icon
@@ -137,6 +138,12 @@ async function iconOf(zapp: u8[]): Promise<u8[]> {
     throw new Error('refused: the icon.png of the .zapp is not a PNG of at most 512 KB that matches its manifest.json\n');
   return icon;
 }
+/** The `needs` of a stored .zapp's manifest.json as `,"zbc":N,"rt":M` for the catalog (0 and 0 when it names none). */
+function needsOf(zapp: u8[]): string {
+  const n = JSON.parse(sys.utf8Decode(member(zapp, 'manifest.json'))).needs;
+  if (n === undefined) return ',"zbc":0,"rt":0';
+  return ',"zbc":' + parseInt('' + n.zbc).toString() + ',"rt":' + parseInt('' + n.rt).toString();
+}
 /** The icon of the package `file` (<name>.zapp), relative to the data directory and to the server: apps/<id>/<name>.png. */
 function iconPath(id: string, file: string): string { return 'apps/' + id + '/' + file.slice(0, file.length - 5) + '.png'; }
 
@@ -154,7 +161,7 @@ async function catalog(): Promise<string> {
       if (fs.exists(data + '/' + icon)) iconSum = await sha256(fs.readBytes(data + '/' + icon));
       else icon = '';
       chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + '.manifest') +
-        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + '}';
+        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + needsOf(fs.readBytes(apps + '/' + id + '/' + m.get('url'))) + '}';
     }
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;

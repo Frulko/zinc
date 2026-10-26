@@ -12,6 +12,9 @@ export const APPS_DIR = envOr('ZINC_HUB_APPS', HOME + '/zinc-apps');
 export const TILE_COMMAND = envOr('ZINC_HUB_TILE', HOME + '/zinc/bin/zinc-tile');
 /** The name the server records for this device at pairing. */
 export const DEVICE_NAME = envOr('ZINC_HUB_DEVICE', 'reMarkable');
+/** What this engine runs (src/main.cpp sets them): a package that needs a newer ZBC or more runtime calls is not installed. */
+export const ENGINE_ZBC: i32 = parseInt(envOr('ZINC_HUB_ENGINE_ZBC', envOr('ZINC_ENGINE_ZBC', '0')));
+export const ENGINE_RT: i32 = parseInt(envOr('ZINC_HUB_ENGINE_RT', envOr('ZINC_ENGINE_RT', '0')));
 export const DEFAULT_SERVER = 'http://10.11.99.2:8787';
 export const STABLE = 'stable';
 export const REQUEST_TIMEOUT_MS: i32 = 20000;

@@ -4,7 +4,8 @@
 # app's manifest and .zapp (the app's signature and the SHA-256 checked here); it refuses a tampered .zapp, an older version, a wrong
 # publisher token, a wrong pairing code and a request without a device token; the admin page lists apps and devices and retracts a version.
 # Icons: 1.1.0 has zinc.json app.icon (an SVG): its package carries icon.png (150 px, on white), the signed catalog lists it with its SHA-256
-# and the hub serves it to a paired device while 1.1.0 is current; 1.0.0 has none.
+# and the hub serves it to a paired device while 1.1.0 is current; 1.0.0 has none. The catalog lists the engine each package needs (zbc, rt:
+# the needs of its manifest.json), what the tablet compares with its engine before installing.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v curl >/dev/null && command -v python3 >/dev/null || { echo "SKIP: needs curl and python3"; exit 77; }
@@ -82,6 +83,9 @@ PY
 isum=$(shasum -a 256 "$tmp/zapp-icon.png" | cut -d' ' -f1)
 curl -sf -H "$auth" "$hub/catalog.json" | grep -q "\"icon\":\"apps/com.example.hub/v1-1.1.0.png\",\"iconSha256\":\"$isum\"" || { echo "the catalog does not list the icon: $(curl -s -H "$auth" "$hub/catalog.json")"; fail=1; }
 curl -sf -H "$auth" "$hub/apps/com.example.hub/v1-1.1.0.png" >"$tmp/got-icon.png" && cmp -s "$tmp/got-icon.png" "$tmp/zapp-icon.png" || { echo "the served icon is not the package's"; fail=1; }
+needs=$(tar xOf "$tmp/got.zapp" manifest.json | python3 -c 'import json, sys; n = json.load(sys.stdin)["needs"]; print("\"zbc\":%d,\"rt\":%d" % (n["zbc"], n["rt"]))')
+case "$needs" in *'"rt":0') echo "the package needs no runtime call: $needs"; fail=1;; esac
+grep -qF "\"iconSha256\":\"$isum\",$needs}" "$tmp/catalog.json" || { echo "the catalog does not list the needs $needs: $(cat "$tmp/catalog.json")"; fail=1; }
 code=$(curl -s -o /dev/null -w '%{http_code}' "$hub/apps/com.example.hub/v1-1.1.0.png"); [ "$code" = 401 ] || { echo "the icon without a token: $code"; fail=1; }
 
 # admin: apps and devices listed, 1.1.0 retracted -> 1.0.0 is current again; a wrong token sees nothing

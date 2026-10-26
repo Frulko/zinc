@@ -3,7 +3,8 @@
 # installs an app published with `zinc publish --hub`, updates it (the check at start announces the update), rolls it back and forward,
 # follows the beta channel, and refuses a tampered .zapp, a tampered manifest, a catalog signed by another key and an older version.
 # Icons: 1.0.0 has none (a framed initial in the list); from 1.1.0 on, zinc.json app.icon: the hub caches the package's icon.png
-# checked against the catalog's SHA-256, and an icon altered on the server leaves the placeholder.
+# checked against the catalog's SHA-256, and an icon altered on the server leaves the placeholder. A package that needs more runtime calls
+# than the engine has (the catalog's rt; ZINC_HUB_ENGINE_RT plays an older engine) is refused before the download.
 # zinc-tile is a stand-in that records its calls (on the tablet it is the engine's, ZN-841). ZINC_HUB_SCRIPT runs the buttons' actions.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -115,8 +116,11 @@ app "update com.example.notes"
 expect 'Refused: notes 1.0.0 is older than the installed 1.1.0. The hub never downgrades an app; use Rollback to go back.'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" || { echo "an older version replaced the app"; fail=1; }
 
-# the beta channel
+# the beta channel; first on an engine older than the package needs: refused, nothing replaced
 publish 1.3.0-beta.1 beta
+export ZINC_HUB_ENGINE_RT=1; app "channel com.example.notes beta; update com.example.notes"; unset ZINC_HUB_ENGINE_RT
+expect 'Needs a newer engine: update the engine on the tablet.'
+cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" || { echo "a package for a newer engine replaced the app"; fail=1; }
 app "channel com.example.notes beta; update com.example.notes"
 expect 'Updated notes 1.3.0-beta.1 (was 1.1.0).'
 

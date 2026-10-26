@@ -17,6 +17,8 @@ export class CatalogChannel {
   sha256: string = '';
   icon: string = '';       // path on the server: apps/<id>/<file>.png, '' when the package has no icon
   iconSha256: string = '';
+  zbc: i32 = 0;            // the engine the package needs (its manifest.json needs, docs/zapp.md): ZBC version and runtime calls, 0 when unknown
+  rt: i32 = 0;
 }
 export class CatalogApp {
   id: string = '';
@@ -72,6 +74,7 @@ export async function catalog(cfg: HubConfig): Promise<CatalogApp[]> {
       const ch = new CatalogChannel();
       ch.channel = '' + c.channel; ch.version = '' + c.version; ch.manifest = '' + c.manifest; ch.url = '' + c.url; ch.sha256 = '' + c.sha256;
       ch.icon = c.icon === undefined ? '' : '' + c.icon; ch.iconSha256 = c.iconSha256 === undefined ? '' : '' + c.iconSha256;
+      ch.zbc = c.zbc === undefined ? 0 : parseInt('' + c.zbc); ch.rt = c.rt === undefined ? 0 : parseInt('' + c.rt);
       if (safe(ch.channel)) app.channels.push(ch);
     }
     apps.push(app);

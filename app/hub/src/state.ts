@@ -7,7 +7,7 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 import { installed, previous, install, rollback, nameOf, livePath } from './services/installs';
-import { STABLE, DEVICE_NAME, HUB_DIR } from './constants';
+import { STABLE, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
 export class AppRow {
@@ -128,6 +128,13 @@ export async function refresh(): Promise<void> {
   });
 }
 
+/** A package this engine cannot run (its needs, from the signed catalog) is refused before anything is downloaded. 0: not known, no check. */
+function refuseUnrunnable(ch: CatalogChannel): void {
+  if (ch.zbc === 0 || ENGINE_ZBC === 0) return;
+  if (ch.zbc > ENGINE_ZBC || (ch.zbc === ENGINE_ZBC && ch.rt > ENGINE_RT)) throw new Error('Needs a newer engine: update the engine on the tablet.');
+  if (ch.zbc < ENGINE_ZBC) throw new Error('Made for an older engine: its publisher must pack it again with this one.');
+}
+
 /** Install or update: downloads, verifies and installs the version of the channel this tablet follows. */
 export async function installApp(id: string): Promise<void> {
   await run(async (): Promise<string> => {
@@ -136,6 +143,7 @@ export async function installApp(id: string): Promise<void> {
     if (app === null) throw new Error('The server does not offer ' + id + '.');
     const ch = (app as CatalogApp).channel(config.channelOf(id));
     if (ch === null) throw new Error(id + ' has no version on the ' + config.channelOf(id) + ' channel.');
+    refuseUnrunnable(ch as CatalogChannel);
     const message = await install(id, await download(config, app as CatalogApp, ch));
     rebuildRows();
     return message;
