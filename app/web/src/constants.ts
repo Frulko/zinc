@@ -1,10 +1,11 @@
 // Paths, limits and the e-ink class vocabulary of the web reader (the hub's: black on white, large targets, no animation).
 import * as sys from 'zinc:sys';
+import { appFolder } from 'zinc:remarkable';
 
 function envOr(name: string, fallback: string): string { const v = sys.env(name); return v !== '' ? v : fallback; }
 
 /** web.conf (relay, token), bookmarks.txt, ink/<sha256 of the URL>.json (and .txt: the URL), exports/*.png. */
-export const WEB_DIR = envOr('ZINC_WEB_DIR', envOr('HOME', '.') + '/.zinc/web');
+export const WEB_DIR = sys.env('ZINC_WEB_DIR') !== '' ? sys.env('ZINC_WEB_DIR') : appFolder(envOr('HOME', '.') + '/.zinc/web');
 /** The Mac seen from the tablet over USB; the relay's default port. */
 export const DEFAULT_RELAY = 'http://10.11.99.2:8790';
 /** The first page (ZINC_WEB_HOME for tests). */

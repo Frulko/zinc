@@ -1,12 +1,13 @@
 // Paths, limits and the e-ink class vocabulary of the reader (the hub's and the web reader's: black on white, large targets, no animation).
 import * as sys from 'zinc:sys';
+import { appFolder } from 'zinc:remarkable';
 
 function envOr(name: string, fallback: string): string { const v = sys.env(name); return v !== '' ? v : fallback; }
 
 /** The library: every .md under it (one level of folders); Notion pages are saved in its notion/ folder. */
 export const DOCS_DIR = envOr('ZINC_DOCS_DIR', envOr('HOME', '.') + '/zinc-docs');
 /** read.conf (the Notion token and page, mode 600) and ink/<hash>.json, the pen notes per document and font size. */
-export const DATA_DIR = envOr('ZINC_READ_DIR', envOr('HOME', '.') + '/.zinc/markdown');
+export const DATA_DIR = sys.env('ZINC_READ_DIR') !== '' ? sys.env('ZINC_READ_DIR') : appFolder(envOr('HOME', '.') + '/.zinc/markdown');
 /** The Notion API (the test points it at its fake server). */
 export const NOTION_API = envOr('ZINC_NOTION_API', 'https://api.notion.com/v1');
 export const NOTION_VERSION = '2026-03-11';

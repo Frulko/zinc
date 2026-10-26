@@ -3,7 +3,7 @@ import { quit, minimizeWindow, setWidget, showWidget, windowState } from 'zinc:g
 import { Keyboard } from 'zinc:ui/kit';
 import * as fs from 'zinc:fs';
 import { Ink, TOOLS, ERASERS } from 'zinc:ink';
-import { env, device } from 'zinc:sys';
+import { env, device, dataDir } from 'zinc:sys';
 import status from './native/status.spec';
 
 const [minutes, setMinutes] = createSignal<i32>(status.localMinutes());
@@ -15,6 +15,16 @@ setInterval(() => {
 
 // App widgets, after iOS WidgetKit and Android's Glance: the app declares a small view of itself, and Accueil shows it over the tablet's
 // screen while the app keeps running. It is the same program: what is tapped in the widget is the app's state when it opens again.
+/** The app's own folder (zinc:sys dataDir(): what the Hub's Reset data erases). The files an older version kept in `legacy` move there once. */
+export function appFolder(legacy: string): string {
+  const dir = dataDir();
+  if (legacy !== '' && legacy !== dir && fs.exists(legacy)) {
+    for (const f of fs.list(legacy)) if (!fs.exists(dir + '/' + f)) fs.rename(legacy + '/' + f, dir + '/' + f);
+    if (fs.list(legacy).length === 0) fs.remove(legacy);
+  }
+  return dir;
+}
+
 export interface RemarkableAppProps {
   /** The full app. */
   app: () => i32;

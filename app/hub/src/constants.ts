@@ -14,6 +14,8 @@ export const TILE_COMMAND = envOr('ZINC_HUB_TILE', HOME + '/zinc/bin/zinc-tile')
 export const APPLOAD_DIR = envOr('ZINC_APPLOAD', '/home/root/xovi/exthome/appload');
 /** Where the apps keep their own files: <dir>/<name>/ (Zinc Web's ~/.zinc/web, Read's ~/.zinc/markdown). Reset data empties it. */
 export const APP_DATA_DIR = envOr('ZINC_HUB_APP_DATA', HOME + '/.zinc');
+/** The zinc:storage all apps shared before each got its own (an app's keys move out of it when it first runs on a newer engine). */
+export const SHARED_STORAGE = envOr('ZINC_HOME', HOME + '/.zinc') + '/storage.kv';
 /** The name the server records for this device at pairing. */
 export const DEVICE_NAME = envOr('ZINC_HUB_DEVICE', 'reMarkable');
 /** What this engine runs (src/main.cpp sets them): a package that needs a newer ZBC or more runtime calls is not installed. */

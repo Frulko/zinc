@@ -7,8 +7,7 @@ import { sha256, newer, safe } from '../../../hub-server/src/protocol';
 import { KeyValues, readKeyValues, writeKeyValues } from './config';
 import { Download } from './server';
 import { progress } from './progress';
-import * as storage from 'zinc:storage';
-import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR, APP_DATA_DIR } from '../constants';
+import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR, APP_DATA_DIR, SHARED_STORAGE } from '../constants';
 
 export class Installed {
   version: string = '';
@@ -160,16 +159,24 @@ export function setPinned(name: string, on: boolean): string {
   return on ? 'Pinned ' + name + ' to the sidebar.' : 'Unpinned ' + name + ' from the sidebar.';
 }
 
-// Reset data removes only what is surely the app's own: its folder APP_DATA_DIR/<name>/ and its keys "<name>.…" in zinc:storage (the shared
-// storage.kv). Documents put in shared folders (~/zinc-docs, ~/zinc-notes) belong to the user and stay.
+// Reset data removes only what is surely the app's own: its folder APP_DATA_DIR/apps/<name>/ (its zinc:storage and files), and what older
+// engines and versions kept elsewhere: APP_DATA_DIR/<name>/ and its keys "<name>.…" in the shared ~/.zinc/storage.kv. Documents put in shared folders (~/zinc-docs, ~/zinc-notes) belong to the user and stay.
 // ponytail: the engine's own folders under ~/.zinc are listed by hand; an app named like one of them keeps that folder.
-const RESERVED = ['hub', 'cache', 'toolchains', 'plugins', 'bin', 'tmp', 'storage.kv'];
+const RESERVED = ['hub', 'apps', 'cache', 'toolchains', 'plugins', 'bin', 'tmp', 'storage.kv'];
 export function resetData(name: string): string {
   const removed: string[] = [];
-  const dir = APP_DATA_DIR + '/' + name;
+  const own = APP_DATA_DIR + '/apps/' + name;   // the app's folder (zinc:sys dataDir()): its zinc:storage and its files
+  if (safe(name) && fs.exists(own)) { fs.remove(own, true); removed.push(own); }
+  const dir = APP_DATA_DIR + '/' + name;   // where older versions kept their files
   if (RESERVED.indexOf(name) < 0 && safe(name) && fs.exists(dir)) { fs.remove(dir, true); removed.push(dir); }
   let keys = 0;
-  for (const k of storage.keys()) if (k.startsWith(name + '.')) { storage.remove(k); keys++; }
+  const shared = SHARED_STORAGE;   // the Hub's own zinc:storage is its folder now: the shared file is edited as text (key TAB value lines)
+  if (fs.exists(shared)) {
+    const lines = fs.readText(shared).split('\n');
+    const kept = lines.filter((l: string) => !l.startsWith(name + '.'));
+    keys = lines.length - kept.length;
+    if (keys > 0) fs.writeText(shared, kept.join('\n'));
+  }
   if (keys > 0) removed.push(keys.toString() + (keys === 1 ? ' saved setting' : ' saved settings'));
   return removed.length === 0 ? name + ' had no data of its own to remove.' : 'Reset ' + name + ': removed ' + removed.join(' and ') + '. It starts fresh next time.';
 }

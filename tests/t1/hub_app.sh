@@ -256,15 +256,15 @@ for t in plain 'notes · by Zinc tests' 'hub' Installed; do echo "$texts" | grep
 [ "$(cat "$tmp/hub/apps/com.example.plain/granted" 2>/dev/null)" = '*' ] || { echo "the consent to an undeclared app is not recorded as *"; fail=1; }
 
 # Reset data: twice, as Uninstall; it removes ZINC_HUB_APP_DATA/<name> and the "<name>." keys of zinc:storage, nothing else
-mkdir -p "$tmp/appdata/notes/sub" "$tmp/appdata/plain" "$ZINC_HOME" && echo x > "$tmp/appdata/notes/sub/f"
+mkdir -p "$tmp/appdata/notes/sub" "$tmp/appdata/apps/notes" "$tmp/appdata/plain" "$ZINC_HOME" && echo x > "$tmp/appdata/notes/sub/f" && echo x > "$tmp/appdata/apps/notes/storage.kv"
 printf 'notes.tasks\t[1]\nnotes.theme\tdark\nnotesy.keep\t1\nplain.keep\t1\n' > "$ZINC_HOME/storage.kv"
 app "store installed; reset com.example.notes"
 expect 'Tap Confirm reset to erase what notes saved'
 [ -d "$tmp/appdata/notes" ] || { echo "one tap on Reset data removed the data"; fail=1; }
 python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Confirm reset' || { echo "the armed button does not say Confirm reset"; fail=1; }
 app "reset com.example.notes; reset com.example.notes"
-expect "Reset notes: removed $tmp/appdata/notes and 2 saved settings. It starts fresh next time."
-[ -e "$tmp/appdata/notes" ] && { echo "Reset data left the app's folder"; fail=1; }
+expect "Reset notes: removed $tmp/appdata/apps/notes and $tmp/appdata/notes and 2 saved settings. It starts fresh next time."
+[ -e "$tmp/appdata/notes" ] || [ -e "$tmp/appdata/apps/notes" ] && { echo "Reset data left the app's folder"; fail=1; }
 [ -d "$tmp/appdata/plain" ] && ! grep -q '^notes\.' "$ZINC_HOME/storage.kv" && grep -q '^notesy\.keep' "$ZINC_HOME/storage.kv" && grep -q '^plain\.keep' "$ZINC_HOME/storage.kv" \
   || { echo "Reset data removed the wrong things: $(ls "$tmp/appdata"; cat "$ZINC_HOME/storage.kv")"; fail=1; }
 app "reset com.example.notes; reset com.example.notes"
