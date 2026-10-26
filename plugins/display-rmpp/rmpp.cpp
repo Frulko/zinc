@@ -368,7 +368,7 @@ void rm_present(const HalFrame* f) {
   }
   // during a gesture the panel takes about 120 ms per fast update: one at a time, the newest picture, so they never queue up and lag
   // behind the fingers (ZINC_RMPP_GESTURE_MS)
-  static const uint64_t gesture_us = (getenv("ZINC_RMPP_GESTURE_MS") ? atoi(getenv("ZINC_RMPP_GESTURE_MS")) : 160) * 1000ull;
+  static const uint64_t gesture_us = (uint64_t)(getenv("ZINC_RMPP_GESTURE_MS") ? atoi(getenv("ZINC_RMPP_GESTURE_MS")) : 160) * 1000;
   const uint64_t interval = gesture ? std::max(update_interval(), gesture_us) : update_interval();
   if (eink::empty(pending) || now < mode_ready_us || (last_sent_us && now - last_sent_us < interval)) {
     if (eink::empty(r)) rin::wait_input(8, sock);
