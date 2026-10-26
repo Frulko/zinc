@@ -20,6 +20,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `JSON.stringify` of a long string with accents or other non-ASCII characters is linear: it took 19 s for 90 KB, it now takes a millisecond.
+- reMarkable: tapping the tile of an app that is already running (hidden or minimised) now replaces it instead of starting a second copy, so a page sent to Zinc Web opens in the one you see.
 
 ## [0.9.1] - 2026-10-26
 

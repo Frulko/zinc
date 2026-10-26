@@ -9,7 +9,7 @@ fail() { echo "FAIL $*"; exit 1; }
 # the package tools/build-linux makes, reduced to what the bundle needs: a stand-in zinc that prints what it is asked
 p=$tmp/pkg/zinc-0.0.0-linux-aarch64
 mkdir -p "$p/bin" "$p/lib" "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp"
-printf '#!/bin/sh\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
+printf '#!/bin/sh\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n[ -n "$ZA_SLEEP" ] && sleep "$ZA_SLEEP"\nexit 0\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
 : > "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so"
 tar czf "$tmp/pkg.tar.gz" -C "$tmp/pkg" zinc-0.0.0-linux-aarch64
 # a zig that "builds" the lease as a stand-in printing its arguments (the real one is an aarch64 binary)
@@ -69,4 +69,14 @@ out=$(env -u HOME ZINC_LEASE=1 "$z/bin/zinc-app" "$tmp/notes.zapp")   # what the
 sed 's/^/x/' "$z/share/zinc/rmpp/verified" > "$tmp/v" && mv "$tmp/v" "$z/share/zinc/rmpp/verified"   # an OS update: the hash is no longer verified
 "$ZINC_APPLOAD/zinc-notes-session/launch.sh" > /dev/null 2>&1 && fail "the session launcher ran the lease on an unverified display engine"
 "$z/bin/zinc-tile" --remove zinc-notes-session > /dev/null && [ ! -e "$ZINC_APPLOAD/zinc-notes-session" ] || fail "zinc-tile --remove"
+# one instance per app: a second launch of the same .zapp stops the first, another app is left running
+export TMPDIR=$tmp
+ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/notes.zapp" > /dev/null & first=$!
+ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/drawn.zapp" > /dev/null & other=$!
+sleep 1
+ZA_SLEEP=30 "$z/bin/zinc-app" "$tmp/notes.zapp" > /dev/null & second=$!
+sleep 1
+kill -0 $first 2>/dev/null && { kill $first $second $other; fail "a second launch of the same app left the first running"; }
+kill -0 $second 2>/dev/null && kill -0 $other 2>/dev/null || { kill $second $other 2>/dev/null; fail "the second instance or another app was stopped"; }
+kill $second $other; wait 2>/dev/null
 echo "launchers: ok"

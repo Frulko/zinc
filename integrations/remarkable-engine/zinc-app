@@ -7,4 +7,19 @@ Z=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 export HOME="${HOME:-/home/root}"   # a systemd unit (the lease's) has none: ~/.zinc holds the unpacked apps
 export LD_LIBRARY_PATH="$Z/lib:/usr/lib/plugins/scenegraph${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if [ -n "$ZINC_LEASE" ]; then export ZINC_RMPP_INK="${ZINC_RMPP_INK:-session}"; fi
+# One instance per app: a tap on the tile of an app already running (minimized, or a widget) or an update stops the old one first
+# (SIGTERM: it saves as on quit), else two copies would share the app's files and only the hidden one might get what is sent to it.
+pidf="${TMPDIR:-/tmp}/zinc-app-$(echo "$1" | tr '/ ' '__').pid"
+ours() {   # the pid is still a zinc (a pid reused by another program is left alone)
+  if [ -r "/proc/$1/cmdline" ]; then grep -q zinc "/proc/$1/cmdline"; else ps -p "$1" -o command= 2>/dev/null | grep -q zinc; fi
+}
+if [ -f "$pidf" ]; then
+  old=$(cat "$pidf")
+  if [ -n "$old" ] && [ "$old" != $$ ] && ours "$old"; then
+    kill "$old" 2>/dev/null
+    i=0; while [ $i -lt 30 ] && kill -0 "$old" 2>/dev/null; do sleep 0.1; i=$((i + 1)); done
+    kill -9 "$old" 2>/dev/null
+  fi
+fi
+echo $$ > "$pidf"   # exec keeps this pid
 exec "$Z/bin/zinc" run "$@"
