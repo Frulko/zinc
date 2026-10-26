@@ -1,5 +1,10 @@
 # Resume — 2026-10-25 (pinball)
 
+## Catalina desktop delivery — 2026-10-26
+
+- ZN-846: Intel CLI and self-contained Atelier built for 10.15 in `build/macos-catalina`, staged in `build/catalina-delivery`; five native plugins rebuilt with Apple clang for x86_64/10.15 (system, process, audio, 3d, canvas2d). Interpreter + QuickJS; no JSC/V8/Hermes/WASM. Atelier starts with --interp so opening it needs no compiler.
+- Fixed strong UniformTypeIdentifiers link (macOS 11-only) in window/AOT flags; prebuilt plugins no longer write `exports` inside signed app bundles. Regression `macos_frameworks`, `plugin_prebuilt`, Atelier model and staged app/CLI smokes pass locally through Rosetta. Delivered to `/Volumes/myrole/Desktop/Zinc-macOS-10.15` (2,236 file hashes read back and matched). Actual Catalina launch remains for the owner. Report `docs/reports/zinc-next-macos-catalina.md`.
+
 ## macOS Sierra experiment — 2026-10-26
 
 - ZN-845: separate Intel 10.12 runtime (`targets/macos-legacy`, `build/macos-legacy/zinc-legacy`) reuses the portable interpreter/raster with a Cocoa window, game keys and mouse. No SDL/Metal/JSC dependency; normal build unchanged. Build: `cmake -S targets/macos-legacy -B build/macos-legacy && BUILD_DIR=build/macos-legacy tools/build zinc-core`.

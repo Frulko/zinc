@@ -938,7 +938,7 @@ bool loadPlugin(const PluginLib& lib, std::string& err) {
   const ZnModule* mod = open();
   if (zn_register_module(mod, e, sizeof e) != 0) { err = "plugin '" + lib.plugin + "': " + e; return false; }
   std::string list = (std::filesystem::path(lib.shared).parent_path() / "exports").string();
-  if (!std::filesystem::exists(list)) {   // what pluginExports reads on the next compile or start (ZN-615); written whole, then renamed
+  if (!lib.prebuilt && !std::filesystem::exists(list)) {   // prebuilt libraries may live in a sealed app; cache exports only beside local builds
     std::ofstream out(list + ".tmp");
     out << "module " << lib.module << "\n";
     for (uint32_t i = 0; i < mod->nexports; ++i) out << mod->exports[i].name << " " << mod->exports[i].sig << "\n";

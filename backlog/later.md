@@ -5,6 +5,8 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+
+- ZN-846: make WAMR select the requested macOS architecture slice instead of the ARM build host when CMAKE_OSX_ARCHITECTURES=x86_64; disabled in the Catalina preview after its ARM assembly failed in the Intel build.
 - ZN-844: a `kZbcVersion` bump still breaks every packed app: the `.zapp` could carry its sources (as JavaScript projects do) so a newer engine recompiles instead of refusing.
 - ZN-844: `needs` could also name the `resources.bin` / `.zpk` format versions and the native plugin ABI, which a change would break with its own load error today.
 - ZN-844: `hub-server` reads every stored `.zapp` when it rebuilds the catalog; store the needs at publish time if catalogs get large.
@@ -489,6 +491,8 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+
+- ZN-846: launch the delivered CLI and signed Atelier on the networked Intel Mac running Catalina 10.15; only modern macOS/Rosetta execution is proven locally.
 
 - ZN-845: launch the legacy Intel runtime on real macOS 10.12, check dyld imports, hello and bouncing-ball pixels, game keys/mouse/close; modern macOS under Rosetta and the 10.12 deployment target do not prove Sierra compatibility.
 
