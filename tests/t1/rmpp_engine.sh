@@ -10,7 +10,7 @@ fail() { echo "FAIL $*"; exit 1; }
 # the package tools/build-linux makes, reduced to what the bundle needs: a stand-in zinc that prints what it is asked
 p=$tmp/pkg/zinc-0.0.0-linux-aarch64
 mkdir -p "$p/bin" "$p/lib" "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp"
-printf '#!/bin/sh\n# zinc-engine zbc=8 rt=612\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n[ -n "$ZA_SLEEP" ] && sleep "$ZA_SLEEP"\nexit 0\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
+printf '#!/bin/sh\n# zinc-engine zbc=8 rt=612\necho "zinc $* LD_LIBRARY_PATH=$LD_LIBRARY_PATH ZINC_RMPP_INK=${ZINC_RMPP_INK:-} HOME=$HOME"\n[ -n "$ZA_SLEEP" ] && sleep "$ZA_SLEEP"\nif [ -s "${ZA_QUEUE:-/none}" ]; then l=$(head -n 1 "$ZA_QUEUE"); sed -i.b 1d "$ZA_QUEUE"; [ "$l" = - ] || echo "$l" > "$ZINC_NEXT"; fi\nexit 0\n' > "$p/bin/zinc"; chmod 755 "$p/bin/zinc"
 : > "$p/share/zinc/plugins/display-rmpp/prebuilt/rmpp/plugin.so"
 tar czf "$tmp/pkg.tar.gz" -C "$tmp/pkg" zinc-0.0.0-linux-aarch64
 # a zig that "builds" the lease as a stand-in printing its arguments (the real one is an aarch64 binary)
@@ -64,6 +64,11 @@ grep -q supportsVirtualKeyboard "$ZINC_APPLOAD/zinc-drawn/external.manifest.json
 echo "keyboard: ok"
 out=$(HOME=/home/root "$ZINC_APPLOAD/zinc-notes/launch.sh")
 [ "$out" = "zinc run $tmp/notes.zapp LD_LIBRARY_PATH=$z/lib:/usr/lib/plugins/scenegraph ZINC_RMPP_INK= HOME=/home/root" ] || fail "qtfb launch: $out"
+# ZINC_NEXT: each run of the stand-in names the next app from ZA_QUEUE (- for none). notes names itself (the hub after its own update):
+# it starts once again, and what that one opens (typer) runs, then notes comes back once
+printf '%s\n' "$tmp/notes.zapp" "$tmp/typer.zapp" - - > "$tmp/queue"
+out=$(ZA_QUEUE=$tmp/queue HOME=/home/root "$ZINC_APPLOAD/zinc-notes/launch.sh" | sed 's/ LD_LIBRARY_PATH.*//' | tr '\n' ' ')
+[ "$out" = "zinc run $tmp/notes.zapp zinc run $tmp/notes.zapp zinc run $tmp/typer.zapp zinc run $tmp/notes.zapp " ] || fail "ZINC_NEXT runs: $out"
 V=$(sha256sum "$ZINC_QSGEPAPER" | cut -c1-64)
 out=$("$ZINC_APPLOAD/zinc-notes-session/launch.sh")
 [ "$out" = "lease launch --watchdog 10 --vendor-sha256 $V $z/bin/zinc-app $tmp/notes.zapp" ] || fail "session launch: $out"

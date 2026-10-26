@@ -6,7 +6,7 @@ import * as proc from 'zinc:process';
 import { sha256, newer, safe } from '../../../hub-server/src/protocol';
 import { KeyValues, readKeyValues, writeKeyValues } from './config';
 import { Download } from './server';
-import { HUB_DIR, APPS_DIR, TILE_COMMAND } from '../constants';
+import { HUB_DIR, APPS_DIR, TILE_COMMAND, APPLOAD_DIR } from '../constants';
 
 export class Installed {
   version: string = '';
@@ -92,4 +92,38 @@ export async function rollback(id: string): Promise<string> {
   let tile = '';
   if (prev.name !== now.name) tile = ' ' + (await makeTile(prev.name));
   return 'Rolled ' + prev.name + ' back to ' + prev.version + ' (from ' + now.version + ').' + tile;
+}
+
+async function removeTile(tile: string): Promise<void> {
+  if (!fs.exists(TILE_COMMAND)) return;
+  const r = await proc.run(TILE_COMMAND, ['--remove', tile], {});
+  if (r.code !== 0) throw new Error('zinc-tile could not remove ' + tile + ': ' + r.stderr.trim());
+}
+
+/** Removes an app: its tiles (and its ink session's), its package and the hub's record with the kept previous version. The cached icon stays
+ *  for the catalog's row; what the app saved (its notes, its tabs) stays too. */
+export async function uninstall(id: string): Promise<string> {
+  const i = installed(id);
+  if (i === null) throw new Error(id + ' is not installed.');
+  const name = (i as Installed).name, dir = dirOf(id);
+  await removeTile('zinc-' + name);
+  await removeTile('zinc-' + name + '-session');
+  if (fs.exists(livePath(name))) fs.remove(livePath(name));
+  for (const f of ['installed', 'previous', 'previous.zapp']) if (fs.exists(dir + '/' + f)) fs.remove(dir + '/' + f);
+  return 'Uninstalled ' + name + '. Reload AppLoad.';
+}
+
+/** AppLoad's zinc-* tiles whose .zapp is gone (deleted by hand, a renamed app): removed. Tiles not made by zinc-tile are left alone. */
+export async function cleanTiles(): Promise<string> {
+  if (!fs.exists(APPLOAD_DIR)) return 'No AppLoad directory on this machine: nothing to clean.';
+  const gone: string[] = [];
+  for (const t of fs.list(APPLOAD_DIR)) {
+    const launch = APPLOAD_DIR + '/' + t + '/launch.sh';
+    if (!t.startsWith('zinc-') || !fs.exists(launch)) continue;
+    const s = fs.readText(launch), end = s.lastIndexOf('.zapp"');   // zinc-tile writes the package as "<path>.zapp"
+    if (end < 0) continue;
+    const zapp = s.slice(s.lastIndexOf('"', end) + 1, end + 5);
+    if (!fs.exists(zapp)) { await removeTile(t); gone.push(t); }
+  }
+  return gone.length === 0 ? 'AppLoad is clean: every Zinc tile has its app.' : 'Removed ' + gone.join(', ') + '. Reload AppLoad.';
 }

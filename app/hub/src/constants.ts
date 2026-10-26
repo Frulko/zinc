@@ -10,6 +10,8 @@ export const HUB_DIR = envOr('ZINC_HUB_DIR', HOME + '/.zinc/hub');
 export const APPS_DIR = envOr('ZINC_HUB_APPS', HOME + '/zinc-apps');
 /** zinc-tile of the engine on the tablet; absent on a desktop, where installing makes no tile (a dry run). */
 export const TILE_COMMAND = envOr('ZINC_HUB_TILE', HOME + '/zinc/bin/zinc-tile');
+/** AppLoad's tiles (zinc-tile's ZINC_APPLOAD): Clean up AppLoad looks there for tiles whose package is gone. */
+export const APPLOAD_DIR = envOr('ZINC_APPLOAD', '/home/root/xovi/exthome/appload');
 /** The name the server records for this device at pairing. */
 export const DEVICE_NAME = envOr('ZINC_HUB_DEVICE', 'reMarkable');
 /** What this engine runs (src/main.cpp sets them): a package that needs a newer ZBC or more runtime calls is not installed. */
@@ -19,6 +21,7 @@ export const ENGINE_RT: i32 = parseInt(envOr('ZINC_HUB_ENGINE_RT', envOr('ZINC_E
 export const ENGINE_DIR = sys.env('ZINC_RMPP_ENGINE');
 export const DEFAULT_SERVER = 'http://10.11.99.2:8787';
 export const STABLE = 'stable';
+export const HUB_ID = 'dev.zinc.hub';   // the hub's own app id: updating it restarts it
 export const REQUEST_TIMEOUT_MS: i32 = 20000;
 export const MAX_ZAPP_BYTES: i32 = 64 * 1024 * 1024;   // ponytail: also the engine bundle's ceiling (39 MB in 0.9), the most zinc:net fetches
 export const ENGINE_TIMEOUT_MS: i32 = 600000;
@@ -30,7 +33,7 @@ export const TITLE = 'text-[48px] font-bold text-black';
 export const LABEL = 'text-[34px] text-black';
 export const SMALL = 'text-[28px] text-black';
 export const FIELD = 'h-[96px] px-6 text-[38px] text-black bg-white border-4 border-black rounded-lg focus:border-black';
-export const BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg bg-black focus:bg-black';
+export const BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg bg-black focus:bg-black disabled:opacity-40';
 export const BUTTON_LABEL = 'text-[34px] font-bold text-white';
-export const OUTLINE_BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg border-4 border-black bg-white focus:bg-white';
+export const OUTLINE_BUTTON = 'px-10 h-[96px] items-center justify-center rounded-lg border-4 border-black bg-white focus:bg-white disabled:opacity-40';
 export const OUTLINE_LABEL = 'text-[34px] font-bold text-black';

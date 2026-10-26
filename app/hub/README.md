@@ -22,6 +22,11 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   manifest's SHA-256; the manifest is the version the catalog offers. Any mismatch is refused with a message, and nothing is replaced.
 - An update never goes to an older or equal version (a server cannot downgrade an app). **Rollback** puts back the package the last update
   replaced (its SHA-256 checked again); **Update** brings the newer one back.
+- **Uninstall** (two taps: the first turns it into **Confirm uninstall**) removes the app's tiles, its package and the hub's record of it;
+  what the app saved stays. A running app is refused until it is stopped (Running). Settings › **Clean up AppLoad** removes the `zinc-*`
+  tiles whose `.zapp` is gone and leaves every other tile alone.
+- **The Hub itself** (`dev.zinc.hub`) updates like any app, then hands its new package to its tile's launcher and quits: it opens again on
+  the new version.
 - A package the tablet's engine cannot run is not downloaded: the signed catalog lists what each one needs (`zbc`, `rt`: the `needs` of
   its manifest, `docs/zapp.md`), the hub compares them with its engine (`ZINC_ENGINE_ZBC`, `ZINC_ENGINE_RT`) and says "Needs a newer engine:
   update the engine on the tablet". `ZINC_HUB_ENGINE_RT` plays an older engine in the tests.

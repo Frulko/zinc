@@ -39,7 +39,7 @@ fi
 printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "workingDirectory": "%s",\n  "disablesWindowedMode": %s'"$vkb"'\n}\n' \
   "$name" "$([ -n "$session" ] && echo false || echo true)" "$dir" "$([ -n "$session" ] && echo true || echo false)" > "$dir/external.manifest.json"
 if [ -n "$session" ]; then
-  cat > "$dir/launch.sh" <<EOF
+  cat > "$dir/launch.sh.new" <<EOF
 #!/bin/sh
 # zinc-tile --session: the display lease runs $name with xochitl stopped and brings xochitl back on every way out
 # (the app quits, crashes or hangs 10 s, a 2 s press on the power button, systemctl stop zinc-lease, 30 minutes at most).
@@ -49,16 +49,18 @@ exec "$Z/bin/lease" launch --watchdog 10 --vendor-sha256 "\$V" "$Z/bin/zinc-app"
 EOF
 else
   # ZINC_NEXT: an app (the hub's Open) writes a .zapp path there and quits; it runs in this window, then this tile's app comes back.
-  # qtfb-hold stays attached meanwhile: AppLoad closes the window when the last client of its framebuffer leaves.
-  cat > "$dir/launch.sh" <<EOF
+  # The tile's own app written there (the hub after its own update) just starts again. qtfb-hold stays attached meanwhile: AppLoad
+  # closes the window when the last client of its framebuffer leaves.
+  cat > "$dir/launch.sh.new" <<EOF
 #!/bin/sh
 export ZINC_NEXT=/tmp/zinc-next.\$\$
 "$Z/bin/qtfb-hold" > /dev/null & hold=\$!
 trap 'kill \$hold 2>/dev/null; rm -f "\$ZINC_NEXT"' EXIT
 run() { rm -f "\$ZINC_NEXT"; "$Z/bin/zinc-app" "\$1"; }
 run "$zapp"
-while [ -s "\$ZINC_NEXT" ]; do next=\$(cat "\$ZINC_NEXT"); run "\$next"; run "$zapp"; done
+while [ -s "\$ZINC_NEXT" ]; do next=\$(cat "\$ZINC_NEXT"); run "\$next"; [ "\$next" = "$zapp" ] || run "$zapp"; done
 EOF
 fi
-chmod 755 "$dir/launch.sh"
+# a new file put in place: the launch.sh running now (the hub updating itself) keeps reading its own
+chmod 755 "$dir/launch.sh.new" && mv -f "$dir/launch.sh.new" "$dir/launch.sh"
 echo "tile zinc-$name in $dir: open AppLoad, reload, then tap '$name'"

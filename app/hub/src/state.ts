@@ -7,8 +7,8 @@ import { engineOffered, engineVersion, installEngine } from './services/engine';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { installed, previous, install, rollback, nameOf, livePath } from './services/installs';
-import { STABLE, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
+import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath } from './services/installs';
+import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 import { RunningApp, running, stopApp } from './services/running';
 
 /** One line of the list: an app of the catalog or one installed earlier. */
@@ -104,7 +104,7 @@ async function run(action: () => Promise<string>): Promise<void> {
   setBusy(true);
   try { say(await action()); }
   catch (e) { say(e.message); }
-  setBusy(false);
+  if (!restarting) setBusy(false);
 }
 
 export function saveServer(url: string): void {
@@ -166,6 +166,7 @@ export async function installApp(id: string): Promise<void> {
     refuseUnrunnable(ch as CatalogChannel);
     const message = await install(id, await download(config, app as CatalogApp, ch));
     rebuildRows();
+    if (id === HUB_ID && restartSelf()) return message + ' Restarting the Hub.';
     return message;
   });
 }
@@ -184,6 +185,23 @@ export async function rollbackApp(id: string): Promise<void> {
   await run(async (): Promise<string> => { const message = await rollback(id); rebuildRows(); return message; });
 }
 
+/** Uninstall asks twice: the first tap arms it (the button and the status line say so), the second removes the app. */
+export const [armed, setArmed] = createSignal<string>('');
+export async function uninstallApp(id: string): Promise<void> {
+  if (armed() !== id) { setArmed(id); say('Tap Confirm uninstall to remove ' + id + ' from this tablet.'); return; }
+  setArmed('');
+  await run(async (): Promise<string> => {
+    if (id === HUB_ID) throw new Error('The Hub does not uninstall itself.');
+    const i = installed(id);
+    if (i !== null) for (const a of running()) if (a.name === (i as Installed).name) throw new Error(a.name + ' is running: stop it first (Running).');
+    const message = await uninstall(id);
+    rebuildRows();
+    return message;
+  });
+}
+
+export async function cleanAppLoad(): Promise<void> { await run(cleanTiles); }
+
 /** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. */
 export function openApp(id: string): void {
   const i = installed(id);
@@ -192,7 +210,19 @@ export function openApp(id: string): void {
   if (next === '') { say('Open ' + i.name + ' from AppLoad: reload it, then tap ' + i.name + '.'); return; }
   fs.writeText(next, livePath(i.name));
   say('Opening ' + i.name + '.');
+  setBusy(true);
   quit();
+}
+
+let restarting = false;
+/** After its own update the hub opens itself again through its tile's launcher (ZINC_NEXT), as Open does for an app; false off the tablet. */
+function restartSelf(): boolean {
+  const i = installed(HUB_ID), next = sys.env('ZINC_NEXT');
+  if (i === null || next === '') return false;
+  fs.writeText(next, livePath(i.name));
+  setTimeout(() => { quit(); }, 1500);   // the status line shows first; busy stays on, so nothing else starts
+  restarting = true;
+  return true;
 }
 
 /** Follows the stable or the beta channel for an app; Update then offers that channel's version. */

@@ -1,6 +1,6 @@
-// Apps: the catalog of the server with what is installed, one row per app: Open, Install, Update, Rollback and the channel.
-import { SECTION, TITLE, LABEL, SMALL, STABLE } from '../constants';
-import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp, engineOffer, engineNow, updateEngine } from '../state';
+// Apps: the catalog of the server with what is installed, one row per app: Open, Install, Update, Rollback, the channel and Uninstall.
+import { SECTION, TITLE, LABEL, SMALL, STABLE, HUB_ID } from '../constants';
+import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, openApp, uninstallApp, armed, engineOffer, engineNow, updateEngine } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 import * as fs from 'zinc:fs';
 import { imageFromBytes, drawImage } from 'zinc:gfx';
@@ -50,6 +50,7 @@ function Row(props: { row: AppRow }): i32 {
       {r.updatable ? <SolidButton label={`Update to ${r.available}`} onClick={() => installApp(r.id)} /> : null}
       {r.canRollback ? <OutlineButton label={`Rollback to ${r.previous}`} onClick={() => rollbackApp(r.id)} /> : null}
       {r.channels.indexOf(other) >= 0 || r.channel !== STABLE ? <OutlineButton label={`Channel: ${r.channel}`} onClick={() => setChannel(r.id, other)} /> : null}
+      {r.installed !== '' && r.id !== HUB_ID ? <OutlineButton label={armed() === r.id ? 'Confirm uninstall' : 'Uninstall'} onClick={() => uninstallApp(r.id)} /> : null}
     </View>
   </View>;
 }

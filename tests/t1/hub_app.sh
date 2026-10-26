@@ -169,6 +169,40 @@ engine_is "zinc-engine zbc=$zbc rt=9999 version=1.0.3" "a second update"
 python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'Update the engine' && { echo "the engine just installed is offered again"; fail=1; }
 unset ZINC_RMPP_ENGINE ZINC_HUB_ENGINE_RT
 
+# the hub updating itself (dev.zinc.hub): installed like any app, then it hands its own package to the tile's launcher and quits
+"$Z" new cli "$tmp/selfhub" >/dev/null || exit 2
+python3 - "$tmp/selfhub/zinc.json" "$k_public" <<'PY'
+import json, sys
+p, key = sys.argv[1:]
+d = json.load(open(p)); d['name'] = 'hub'; d['app'] = {'id': 'dev.zinc.hub', 'version': '0.2.0'}
+d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
+json.dump(d, open(p, 'w'))
+PY
+out=$("$Z" publish "$tmp/selfhub" --key "$k_seed" -o "$tmp/out-hub" --hub "$hub" --token "$token" 2>&1); echo "$out" | grep -q 'stored dev.zinc.hub 0.2.0' || { echo "publish the hub: $out"; fail=1; }
+rm -f "$tmp/next"; export ZINC_NEXT=$tmp/next; app "refresh; install dev.zinc.hub"; unset ZINC_NEXT
+expect 'Installed hub 0.2.0. Tile zinc-hub ready: reload AppLoad. Restarting the Hub.'
+[ "$(cat "$tmp/next" 2>/dev/null)" = "$tmp/apps/hub.zapp" ] || { echo "the hub did not hand itself to the launcher: $(cat "$tmp/next" 2>/dev/null)"; fail=1; }
+# Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
+: > "$tmp/tile.log"
+app "uninstall com.example.notes"
+expect 'Tap Confirm uninstall to remove com.example.notes'
+[ -e "$live" ] || { echo "one tap on Uninstall removed the app"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Confirm uninstall' || { echo "the armed button does not say Confirm uninstall"; fail=1; }
+app "uninstall com.example.notes; uninstall com.example.notes"
+expect 'Uninstalled notes. Reload AppLoad.'
+[ -e "$live" ] || [ -e "$tmp/hub/apps/com.example.notes/installed" ] || [ -e "$tmp/hub/apps/com.example.notes/previous.zapp" ] && { echo "Uninstall left the package or its record"; fail=1; }
+grep -qx -- '--remove zinc-notes' "$tmp/tile.log" && grep -qx -- '--remove zinc-notes-session' "$tmp/tile.log" || { echo "Uninstall did not remove the tiles: $(cat "$tmp/tile.log")"; fail=1; }
+app "uninstall dev.zinc.hub; uninstall dev.zinc.hub"
+expect 'The Hub does not uninstall itself.'
+# Clean up AppLoad: a zinc tile whose package is gone goes, one whose package is there and a tile of another tool stay
+export ZINC_APPLOAD=$tmp/appload; mkdir -p "$ZINC_APPLOAD/zinc-gone" "$ZINC_APPLOAD/zinc-hub" "$ZINC_APPLOAD/koreader"
+printf 'run "%s"\n' "$tmp/apps/gone.zapp" > "$ZINC_APPLOAD/zinc-gone/launch.sh"
+printf 'run "%s"\n' "$tmp/apps/hub.zapp" > "$ZINC_APPLOAD/zinc-hub/launch.sh"
+printf 'run "%s"\n' "$tmp/apps/none.zapp" > "$ZINC_APPLOAD/koreader/launch.sh"
+: > "$tmp/tile.log"; app "clean"; unset ZINC_APPLOAD
+expect 'Removed zinc-gone. Reload AppLoad.'
+[ "$(cat "$tmp/tile.log")" = '--remove zinc-gone' ] || { echo "Clean up AppLoad removed: $(cat "$tmp/tile.log")"; fail=1; }
+
 # a catalog signed by another key than the one pinned at pairing
 sed -i.bak 's/^serverKey=.*/serverKey=0000000000000000000000000000000000000000000000000000000000000000/' "$tmp/hub/hub.conf"
 app "refresh; page settings"

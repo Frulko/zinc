@@ -1,7 +1,7 @@
 // Settings: the server address and pairing by the code the server prints (its admin page shows it too).
 import { createSignal } from 'zinc:ui/solid';
 import { SECTION, TITLE, LABEL, SMALL, FIELD } from '../constants';
-import { server, paired, serverFingerprint, saveServer, pairWith } from '../state';
+import { server, paired, serverFingerprint, saveServer, pairWith, cleanAppLoad } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 
 export function SettingsPage(): i32 {
@@ -22,5 +22,9 @@ export function SettingsPage(): i32 {
       <Input className={`w-[420px] ${FIELD}`} inputMode="numeric" placeholder="000000" value={code()} onInput={(v: string) => setCode(v)} />
       <SolidButton label={paired() ? 'Pair again' : 'Pair'} onClick={() => { pairWith(code()); setCode(''); }} />
     </View>
+    <View className="h-[2px] bg-black" />
+    <Text className={TITLE}>AppLoad</Text>
+    <Text className={SMALL}>Removes the Zinc tiles whose app is no longer on the tablet. Other tiles are left alone.</Text>
+    <View className="flex-row"><OutlineButton label="Clean up AppLoad" onClick={() => cleanAppLoad()} /></View>
   </View>;
 }
