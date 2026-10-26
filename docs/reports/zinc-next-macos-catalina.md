@@ -37,3 +37,9 @@ This compiles actual Catalina-targeted code; it does not lower modern binaries' 
 - The binary audit covers 18 Mach-O executables/libraries, all x86_64, minimum <=10.15, with no workstation/Homebrew dylib dependency; the optional new framework is weak-linked.
 
 Delivery directory: `/Volumes/myrole/Desktop/Zinc-macOS-10.15`, with the ready-to-open app, `cli/bin/zinc`, French instructions, binary audit and SHA-256 file manifest. All 2,236 files were copied into the new directory and read back with matching SHA-256 hashes. The owner still needs to launch Atelier and the CLI on Catalina; no remote execution or system installation is performed. The build emitted two existing parentheses warnings in `src/frontend/resolve.cpp`; no unrelated source was changed for them.
+
+## First Catalina crash and correction
+
+The owner supplied `crash-18-00.txt`: native Intel execution on macOS 10.15.7 reached the system plugin's `ensureApp`, then AppKit aborted with “application requires at least OS X version 11.0.0”. The process actually runs from Zinc's generated `dev.zinc.atelier.app`, whose shared `infoPlist` generator still hardcoded 11.0; auditing only the outer delivery plist and Mach-O minima missed that extra bundle.
+
+`infoPlist` now derives the minimum from `__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__` (10.15.0 for this build). The same generator covers dev bundles and exports. The existing cache compares the generated plist and refreshes the cached bundle automatically; no owner cache deletion is needed. `macos_deployment` compiles the actual generator targeting 10.15 and verifies its XML. A real local background launch with the old cached dev bundle verifies it refreshes to 10.15.0 and the outer app signature stays valid. Corrected CLI/app binaries are redeposited with updated resource signatures and hashes; corrected execution on Catalina still needs the owner's retry.

@@ -55,6 +55,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- macOS development and exported app bundles now declare the engine’s compiled deployment target instead of requiring macOS 11, preventing an AppKit startup abort on Catalina builds.
 - macOS window loading keeps the macOS 11-only UniformTypeIdentifiers framework optional, allowing Catalina-targeted builds to use SDL’s older-system fallback.
 - Loading a prebuilt plugin no longer writes an export cache into its directory, preserving signed application bundles after launch.
 - JSX: `{(c ? xs : ys).map((r) => c ? <A /> : <B />)}` draws one row per item; it drew the list of node numbers as text.

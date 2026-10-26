@@ -47,7 +47,12 @@ std::string infoPlist(const BundleSpec& s, bool hasIcon) {
   kv("CFBundlePackageType", "APPL");
   kv("CFBundleVersion", s.version.empty() ? "1" : s.version);
   kv("CFBundleShortVersionString", s.version.empty() ? "1.0" : s.version);
+#ifdef __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__
+  constexpr int minimum = __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__;
+  kv("LSMinimumSystemVersion", std::to_string(minimum / 10000) + "." + std::to_string(minimum / 100 % 100) + "." + std::to_string(minimum % 100));
+#else
   kv("LSMinimumSystemVersion", "11.0");
+#endif
   if (!s.category.empty()) kv("LSApplicationCategoryType", s.category);
   if (!s.copyright.empty()) kv("NSHumanReadableCopyright", s.copyright);
   if (hasIcon) kv("CFBundleIconFile", "icon");
