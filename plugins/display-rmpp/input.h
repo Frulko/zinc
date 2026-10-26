@@ -33,6 +33,10 @@ static HalTouch touches[HAL_MAX_TOUCH];
 static int ntouch = 0;
 static volatile sig_atomic_t quit_flag = 0;
 static bool pen_down = false;       // the Marker touches the glass: a stroke for the ink lane (L1) and the engine (L2)
+// Shown as a widget or hidden (AppLoad): evdev's Marker is in screen pixels and lands anywhere on xochitl, not on the app. Then the
+// app takes the pen only as AppLoad forwards it inside the widget card (already in framebuffer pixels), as a pointer: no ink samples.
+static bool pen_from_appload = false;
+enum { PEN_TOUCH_ID = -2 };         // AppLoad's pen, kept among the touches so it presses and releases like a finger
 // The power key is never opened here: under a lease (L2) the supervisor owns it for its escape, and in AppLoad xochitl does.
 
 static bool has(int fd, int type, int code) {
@@ -117,8 +121,10 @@ static bool start(int32_t w, int32_t h) {
   return true;
 }
 
-/** AppLoad forwards touch coordinates in framebuffer pixels (including its rotation/scaling). */
+/** AppLoad forwards touch coordinates in framebuffer pixels (including its rotation/scaling); its pen (INPUT_PEN_PRESS/RELEASE/UPDATE,
+ *  0x20..0x22) counts as one more finger while pen_from_appload, and is dropped otherwise (evdev has it, with pressure and tilt). */
 static bool touch_event(int type, int id, int x, int y) {
+  if (type >= 0x20 && type <= 0x22) { if (!pen_from_appload) return true; type -= 0x10; id = PEN_TOUCH_ID; }
   if (type < 0x10 || type > 0x12) return false;
   int i = 0;
   while (i < ntouch && touches[i].id != id) i++;
@@ -175,10 +181,10 @@ static bool key_event(int type, int qt) {
 /** HalDisplay.poll: pen samples to the runtime queue; the first finger (or else the pen) drives the UI pointer. */
 static void poll_input(HalInput* in) {
   pthread_mutex_lock(&mu);
-  for (int i = 0; i < qn; i++) hal_pen_push(&q[i]);
+  if (!pen_from_appload) for (int i = 0; i < qn; i++) hal_pen_push(&q[i]);   // else the strokes are xochitl's
   qn = 0;
-  const bool pen_near = last_pen.flags != 0;
-  pen_down = (last_pen.flags & HAL_PEN_DOWN) != 0;
+  const bool pen_near = !pen_from_appload && last_pen.flags != 0;
+  pen_down = pen_near && (last_pen.flags & HAL_PEN_DOWN) != 0;
   in->ntouch = ntouch;
   for (int i = 0; i < in->ntouch; i++) in->touch[i] = touches[i];
   // The pointer stays where the finger or the Marker last was: the base HAL polled before this one writes its own (0, 0), and a

@@ -163,6 +163,8 @@ void rm_poll(HalInput* in) {
         if (hidden && as_widget && m.state.value == WINDOW_WIDGET) eink::unite(pending, widget);
         hidden = m.state.value == WINDOW_MINIMIZE;
         as_widget = m.state.value == WINDOW_WIDGET || (as_widget && hidden);
+        rin::pen_from_appload = hidden || as_widget;
+        if (rin::pen_from_appload) rin::touch_event(0x11, rin::PEN_TOUCH_ID, 0, 0);   // no stale press across the change
       }
     }
     if (m.type == MSG_INPUT && rin::key_event(m.input.type, m.input.x)) continue;   // keys queue in order: no frame each
@@ -348,6 +350,7 @@ const char* rm_device(const char* query, const char* arg) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;
     if (!qtfb || !send_msg(m)) return "0";
     hidden = true;   // at once: AppLoad's answer comes at the next poll, and a frame sent before it would land in a hidden window
+    rin::pen_from_appload = true;
     return "1";
   }
   if (strcmp(query, "window.widget") == 0) {
@@ -363,6 +366,7 @@ const char* rm_device(const char* query, const char* arg) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_WIDGET;
     if (!qtfb || !widget_ok || eink::empty(widget) || !send_msg(m)) return "0";
     as_widget = true;   // as for minimize: frames from now on are the widget's
+    rin::pen_from_appload = true;
     return "1";
   }
   // "display.mode" "fast" | "ui" (zinc:remarkable setPenMode): Pen waveform while the app writes, UI for the rest. qtfb sleeps 1 s on a

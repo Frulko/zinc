@@ -76,6 +76,10 @@ if run widget dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=wi
     { echo "widget: the widget was not repainted when it opened again"; fail=1; }
   grep -q "^dashboard.tasks	01100$" "$tmp/widget/storage.kv" || { echo "widget: the task ticked in the widget was not saved: $(grep tasks "$tmp/widget/storage.kv")"; fail=1; }
 fi
+# the same task ticked with the Marker: inside a widget card AppLoad forwards the pen (evdev's is in screen pixels, not the app's)
+if run widgetpen dashboard 100 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=widget "ZN_RMPP_SIM_TAP=40:1294,85;80:p400,180"; then
+  grep -q "^dashboard.tasks	01100$" "$tmp/widgetpen/storage.kv" || { echo "widgetpen: the Marker's tap in the widget did nothing: $(grep tasks "$tmp/widgetpen/storage.kv")"; fail=1; }
+fi
 taps=
 
 # the automatic full refresh: after the notes demo's strokes and an idle pen, AppLoad 0.6 gets one; 0.5 (no device state) never
