@@ -24,6 +24,10 @@ zinc dev                               # the same, and every save is swapped int
 [Chapter 1](01-getting-started.md) has the install (no compiler needed), the templates, a first change and a first
 mistake. Not sure which kind of program to write? [Choose your kind of program](../start/choose.md).
 
+## Workflow demos
+
+[Test the Swift, Godot and Blender workflows on macOS](workflow-demos-macos.md): launch the native hosts, play the published scenes, edit/reload Blender assets and reproduce measurements.
+
 ## Contents
 
 1. [Getting started](01-getting-started.md) — install, `zinc new`, project layout, the `zinc.json` reference, targets & profiles, `zinc run` / `dev` / `help`.
