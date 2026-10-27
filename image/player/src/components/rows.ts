@@ -15,7 +15,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { isZoneFocused, isZonePressed, registerTapZone } from '../core/input';
-import { drawFocusRing, drawGlyph, drawLabel } from './primitives';
+import { drawFocusRing, drawGlyph, drawLabel, drawWrappedText } from './primitives';
 
 export const SECTION_HEADING_HEIGHT = 40;
 
@@ -64,8 +64,8 @@ export function drawMessage(x: number, y: number, width: number, text: string, i
   if (text === '') return 0;
   const color = isError ? COLOR_DANGER : COLOR_SUCCESS;
   drawGlyph(isError ? 'triangle-alert' : 'circle-check', x, y + 1, 16, color);
-  drawLabel(Fonts.small, x + 22, y, text, color, width - 22);
-  return 26;
+  // ponytail: three lines hold an updater error; longer ones end with '…'.
+  return Math.max(26, drawWrappedText(Fonts.small, x + 22, y, text, color, width - 22, 3, 20) + 6);
 }
 
 /** The width of a text in the label font, to place what follows it. */

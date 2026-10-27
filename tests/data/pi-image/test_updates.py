@@ -333,6 +333,16 @@ class UpdatesTest(unittest.TestCase):
         self.assertEqual((directory / 'zinc-session').read_text(), 'saved older session')
         self.assertEqual((directory / 'zinc-admin').read_text(), 'installed zinc-admin')
 
+    def test_failure_shows_the_error_not_the_compile_progress(self):
+        stderr = ('  compile    read, check and lower sources...\n  compile    52 files, 323 functions    5.3 s\n'
+                  '  plugin     Process: using Next implementation\nzinc: plugins: network, process, svg\n'
+                  'zinc: cannot write player.zapp: No space left on device\n')
+        error = subprocess.CalledProcessError(1, ['/usr/lib/zinc/versions/x/engine/bin/zinc', 'pack'], '', stderr)
+        self.assertEqual(update.failure(error), 'zinc: cannot write player.zapp: No space left on device (zinc: exit code 1)')
+        killed = subprocess.CalledProcessError(-9, ['zinc', 'pack'], '', stderr.splitlines(True)[0])
+        self.assertEqual(update.failure(killed), '(zinc: killed by signal 9 (out of memory?))')
+        self.assertEqual(update.failure(ValueError('No previous engine.')), 'No previous engine.')
+
     def test_lock_rejects_a_second_worker(self):
         path = self.root / 'lock'
         with path.open('a') as first, path.open('a') as second:

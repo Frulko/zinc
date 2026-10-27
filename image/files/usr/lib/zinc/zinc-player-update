@@ -83,6 +83,17 @@ def release_versions(releases, arch):
     return sorted(found, key=version, reverse=True)
 
 
+def failure(error):
+    """The lines that say what failed: zinc's progress lines ('  compile ...', 'zinc: plugins: ...') are dropped."""
+    if not isinstance(error, subprocess.CalledProcessError):
+        return str(error)
+    lines = [line.strip() for line in ((error.stderr or '') + '\n' + (error.stdout or '')).splitlines()
+             if line.strip() and not line.startswith('  ') and not line.startswith('zinc: plugins:')]
+    code = error.returncode
+    end = 'killed by signal ' + str(-code) + (' (out of memory?)' if code == -9 else '') if code < 0 else 'exit code ' + str(code)
+    return (' '.join(' '.join(lines).split())[-280:] + ' (' + PurePosixPath(str(error.cmd[0])).name + ': ' + end + ')').strip()
+
+
 class Updater:
     def __init__(self, root=Path('/usr/lib/zinc'), state=Path('/var/lib/zinc-update'),
                  key=Path('/etc/zinc/update.pub'), verifier='/usr/bin/zinc', system_root=Path('/')):
@@ -452,8 +463,7 @@ def main():
                 else:
                     updater.rollback()
             except Exception as error:
-                detail = error.stderr if isinstance(error, subprocess.CalledProcessError) else str(error)
-                updater.report('error', ' '.join((detail or str(error)).split())[-300:])
+                updater.report('error', failure(error))
                 raise
     else:
         raise ValueError('Use status, catalog, install <version>, rollback or recover.')
