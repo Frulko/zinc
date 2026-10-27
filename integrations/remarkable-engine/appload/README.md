@@ -16,6 +16,7 @@ Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
 - `0006-instant-refresh-mode.patch` (on top of 0005): `MESSAGE_SET_REFRESH_MODE` and `MESSAGE_REQUEST_FULL_REFRESH` no longer pause the
   connection a fixed second: they return once the GUI thread applied them (`Qt::BlockingQueuedConnection`), a few ms. Capability bit 3
   (`CAPABILITY_INSTANT_MODE` = 8) tells the client, which then switches to the fast waveform for a pinch at once.
+- `0007-header-keeps-dock.patch` (on top of 0006): a press on xochitl's header leaves a docked window docked; xochitl's menu opens over it.
 
 ## Protocol (0001)
 
@@ -129,9 +130,8 @@ AppLoad application ids, in the order of the sidebar: `["external::zinc-web", "e
   xochitl's QML names are hashed per OS release, so the header is found by its geometry, not by a qmldiff hook. Each new value is
   logged with the item it came from: `journalctl -u xochitl | grep "docked windows start"`. Launched from AppLoad's own launcher, the
   header found is the launcher's bar while the launcher is open.
-- The header belongs to xochitl: a press on it is let through to xochitl and minimizes the docked window (visibility 0, the pill). If a
-  popup of xochitl opens within 1.5 s (its sidebar, a menu: Qt Quick Controls' overlay has a visible child), the window docks again
-  (visibility 3) once it closes; otherwise it stays minimized. A view xochitl opens without a popup is not seen.
+- The header belongs to xochitl: a press on it goes to xochitl alone and the window stays docked (0007; 0005 minimized it until the popup
+  closed). The burger's sidebar and the menus show over the window, in Qt Quick Controls' overlay, above every item of the scene.
 - Open on the pill, or on the widget card of a window that went from docked to widget, docks it again. Restore (1) from docked goes back
   to the full window (full screen when it was full screen before docking). Minimize (0) keeps it docked for open.
 

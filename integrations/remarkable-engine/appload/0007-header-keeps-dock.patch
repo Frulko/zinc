@@ -1,0 +1,66 @@
+Subject: [PATCH] window: keep a docked window docked when xochitl's header is pressed
+
+A press on xochitl's header (the burger, the logo, the status) minimized the docked
+window until the popup it opened closed: the app shrank to its pill each time the menu
+opened. The press now goes to xochitl alone and the window stays docked; the sidebar and
+the menus show over it, in Qt Quick Controls' overlay, above every item of the scene.
+
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index 6e8deef..4c75ab2 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -189,32 +189,8 @@ FocusScope {
+     function readDockTop() {
+         dockTop = library.xochitlHeaderHeight(root.parent);
+     }
+-    // The header belongs to xochitl: a press on it reaches xochitl and minimizes the docked window. When that press opened a
+-    // popup (the sidebar of the burger, a menu), the window docks again once it is closed; else it stays a pill.
+-    function headerPressed() {
+-        dockSuspended = true;
+-        minimized = true;
+-        dockWatch.sawPopup = false;
+-        dockWatch.ticks = 0;
+-        dockWatch.restart();
+-    }
+-    Timer {
+-        id: dockWatch
+-        interval: 250
+-        repeat: true
+-        property bool sawPopup: false
+-        property int ticks: 0
+-        onTriggered: () => {
+-            if(!root.dockSuspended || !root.docked) return stop();
+-            const open = library.xochitlPopupOpen(root);
+-            if(open) sawPopup = true;
+-            else if(sawPopup) {
+-                stop();
+-                root.dockSuspended = false;
+-                root.minimized = false;
+-            } else if(++ticks >= 6) stop(); // nothing opened in 1.5 s: stay minimized
+-        }
+-    }
++    // The header belongs to xochitl and a press on it goes to xochitl alone: the docked window stays where it is, and what the press opens
++    // (the burger's sidebar, a menu) shows over it, in Qt Quick Controls' overlay, above every item of the scene.
+     // The header may change (the launcher's bar closed, a rotation): read it again while docked.
+     Timer {
+         interval: 2000
+@@ -773,19 +749,6 @@ FocusScope {
+         }
+     }
+ 
+-    // Over xochitl's header, above a docked window: sees the press and lets it through to xochitl.
+-    MouseArea {
+-        x: 0
+-        y: -root.dockTop
+-        width: root.width
+-        height: root.dockTop
+-        enabled: root.docked && !root.minimized
+-        visible: enabled
+-        onPressed: (mouse) => {
+-            mouse.accepted = false;
+-            root.headerPressed();
+-        }
+-    }
+ 
+     Button {
+         id: qmldiffReplaceMeButton
