@@ -2,7 +2,7 @@
   "name": "pdf",
   "entry": "src/main.tsx",
   "description": "Read the PDFs of ~/zinc-docs with page turns by swipe, and write on them.",
-  "app": { "id": "dev.zinc.pdf", "version": "0.1.6", "author": "Zinc", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.pdf", "version": "0.1.7", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp", "refresh_mode": "ui" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
