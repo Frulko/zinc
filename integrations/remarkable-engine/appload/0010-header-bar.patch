@@ -7,16 +7,56 @@ icons; else 30% and 42% of the header's height). A press on a button reaches the
 STATE_CHANGED_REASON_ACTION (4: ACTION_HOME 1, ACTION_QUIT 2); capability bit 4
 (CAPABILITY_HEADER_BAR = 16) tells it, and the client then draws no bar of its own.
 
+diff --git a/resources/icons/lucide-house.svg b/resources/icons/lucide-house.svg
+new file mode 100644
+index 0000000..58b15c2
+--- /dev/null
++++ b/resources/icons/lucide-house.svg
+@@ -0,0 +1,15 @@
++<!-- @license lucide-static v0.462.0 - ISC -->
++<svg
++  xmlns="http://www.w3.org/2000/svg"
++  width="24"
++  height="24"
++  viewBox="0 0 24 24"
++  fill="none"
++  stroke="#000000"
++  stroke-width="2"
++  stroke-linecap="round"
++  stroke-linejoin="round"
++>
++  <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
++  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
++</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..3e86311 100644
+index e371128..5623dea 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
-@@ -188,6 +188,21 @@ FocusScope {
+@@ -188,6 +188,40 @@ FocusScope {
      }
      function readDockTop() {
          dockTop = library.xochitlHeaderHeight(root.parent);
-+        headerLayout = library.xochitlHeaderLayout(root, dockTop);
++        headerLayout = library.xochitlHeaderLayout(root.parent, dockTop);   // outside every AppLoad window
++        headerOnTop = topDocked(null);
 +    }
++    // Only the top docked window shows its bar: the others are under it. Each change of a window's state tells the others.
++    property bool headerOnTop: true
++    function topDocked(gone) {
++        const k = root.parent ? root.parent.children : [];
++        for(let i = k.length - 1; i >= 0; i--) {
++            const w = k[i];
++            if(w === root) return true;
++            if(w !== gone && w.docked && !w.minimized && w.visible) return false;
++        }
++        return true;
++    }
++    function tellWindows(gone) {
++        for(const w of (root.parent ? root.parent.children : [])) if(w !== gone && w.topDocked) w.headerOnTop = w.topDocked(gone);
++    }
++    onDockedChanged: tellWindows(null)
++    onMinimizedChanged: tellWindows(null)
++    onVisibleChanged: tellWindows(null)
++    Component.onDestruction: tellWindows(root)
 +    // The header bar (0010): the app's title and its Home and Quit buttons in xochitl's header, at its sizes, in the room it leaves
 +    property var headerLayout: ({})
 +    readonly property int headerFont: headerLayout.font > 0 ? headerLayout.font : Math.round(dockTop * 0.3)
@@ -33,7 +73,7 @@ index e371128..3e86311 100644
      }
      // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
      // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
-@@ -761,6 +776,59 @@ FocusScope {
+@@ -761,6 +795,49 @@ FocusScope {
      }
  
  
@@ -44,7 +84,7 @@ index e371128..3e86311 100644
 +        width: root.width
 +        height: root.dockTop
 +        z: 2
-+        visible: root.docked && !root.minimized && windowCanvas.visible
++        visible: root.docked && !root.minimized && windowCanvas.visible && root.headerOnTop
 +        readonly property var gapL: root.headerGap(false)
 +        readonly property var gapR: root.headerGap(true)
 +        readonly property int pad: Math.round(root.headerIcon * 0.6)
@@ -64,27 +104,17 @@ index e371128..3e86311 100644
 +            delegate: MouseArea {
 +                required property var modelData
 +                required property int index
-+                width: root.dockTop
++                width: root.headerIcon * 2
 +                height: root.dockTop
-+                x: headerBar.gapR[1] - headerBar.pad - (index + 1) * root.dockTop + (root.dockTop - root.headerIcon) / 2
++                x: headerBar.gapR[1] - (index + 1) * width
 +                onClicked: windowCanvas.sendHeaderAction(modelData.action)
-+                Canvas {   // Lucide's house and x (ISC), at the header's icon size and stroke
++                Image {   // Lucide's x and house (ISC), at the header's icon size
 +                    anchors.centerIn: parent
 +                    width: root.headerIcon
 +                    height: root.headerIcon
-+                    onPaint: {
-+                        const c = getContext("2d");
-+                        c.reset();
-+                        c.scale(width / 24, height / 24);
-+                        c.strokeStyle = "black"; c.lineWidth = 2; c.lineCap = "round"; c.lineJoin = "round";
-+                        c.beginPath();
-+                        if(modelData.glyph === "x") { c.moveTo(18, 6); c.lineTo(6, 18); c.moveTo(6, 6); c.lineTo(18, 18); }
-+                        else {
-+                            c.moveTo(3, 10); c.lineTo(12, 2.5); c.lineTo(21, 10); c.lineTo(21, 21); c.lineTo(3, 21); c.closePath();
-+                            c.moveTo(9, 21); c.lineTo(9, 13); c.lineTo(15, 13); c.lineTo(15, 21);
-+                        }
-+                        c.stroke();
-+                    }
++                    sourceSize.width: root.headerIcon
++                    sourceSize.height: root.headerIcon
++                    source: modelData.glyph === "x" ? "qrc:/appload/icons/close" : "qrc:/appload/icons/house"
 +                }
 +            }
 +        }
@@ -93,8 +123,20 @@ index e371128..3e86311 100644
      // Over xochitl's header, above a docked window: sees the press and lets it through to xochitl.
      MouseArea {
          x: 0
+diff --git a/resources/resources.qrc b/resources/resources.qrc
+index c8216ef..583dbcc 100644
+--- a/resources/resources.qrc
++++ b/resources/resources.qrc
+@@ -11,6 +11,7 @@
+ 		<file alias="icons/restore">icons/lucide-minimize.svg</file>
+ 		<file alias="icons/open">icons/lucide-maximize-2.svg</file>
+ 		<file alias="icons/close">icons/lucide-x.svg</file>
++		<file alias="icons/house">icons/lucide-house.svg</file>
+ 
+ 		<file>qml/appload.qml</file>
+ 		<file>qml/window.qml</file>
 diff --git a/src/AppLibrary.h b/src/AppLibrary.h
-index 4aac869..68ff44e 100644
+index 4aac869..3bba09d 100644
 --- a/src/AppLibrary.h
 +++ b/src/AppLibrary.h
 @@ -18,6 +18,9 @@
@@ -107,13 +149,13 @@ index 4aac869..68ff44e 100644
  #include <functional>
  
  #include "library.h"
-@@ -215,6 +218,50 @@ public:
+@@ -215,6 +218,57 @@ public:
          return answer(120, "no header item found: fallback");
      }
  
 +    // The header bar of a docked window (0010): where xochitl's header leaves room, and the size of its text and icons, so the app's title
 +    // and its Home and Quit buttons sit in it as xochitl's own. The leaves of the scene in the header's band (items without visible
-+    // children that draw, narrower than 90% of the screen) are what it shows: the gaps between them are free. The text size is the pixel size of
++    // children that draw, or narrower than a quarter of the screen) are what it shows: the gaps between them are free. The text size is the pixel size of
 +    // its first text; the icon size the most common height of its square leaves. 0 when not found.
 +    Q_INVOKABLE QVariantMap xochitlHeaderLayout(QQuickItem *skip, int top) {
 +        QVariantMap out;
@@ -124,12 +166,16 @@ index 4aac869..68ff44e 100644
 +        int fontPx = 0;
 +        QString family;
 +        QMap<int, int> squares;
++        QString seen;
 +        walkScene(window->contentItem(), skip, [&](QQuickItem *item) {
 +            const QRectF r = sceneRect(item);
 +            if(r.bottom() <= 0 || r.top() >= top || r.width() >= width * 0.9 || r.width() < 2) return;
 +            if(!(item->flags() & QQuickItem::ItemHasContents)) return;   // draws nothing (a mouse area, a layout)
-+            for(QQuickItem *c : item->childItems()) if(shown(c) && (c->flags() & QQuickItem::ItemHasContents)) return;   // a leaf
++            bool leaf = true;
++            for(QQuickItem *c : item->childItems()) if(shown(c) && (c->flags() & QQuickItem::ItemHasContents)) leaf = false;
++            if(!leaf && r.width() >= width * 0.25) return;   // a wide container: its children say where it draws
 +            used.append({r.left(), r.right()});
++            seen += QString(" %1-%2 %3").arg(qRound(r.left())).arg(qRound(r.right())).arg(item->metaObject()->className());
 +            const QVariant font = item->property("font");
 +            if(!fontPx && font.canConvert<QFont>()) {
 +                const QFont f = font.value<QFont>();
@@ -146,8 +192,11 @@ index 4aac869..68ff44e 100644
 +            x = qMax(x, u.second);
 +        }
 +        if(x < width) gaps.append(QVariantList{x, width});
-+        int icon = 0, seen = 0;
-+        for(auto it = squares.cbegin(); it != squares.cend(); ++it) if(it.value() > seen) { seen = it.value(); icon = it.key(); }
++        int icon = 0, most = 0;
++        for(auto it = squares.cbegin(); it != squares.cend(); ++it) if(it.value() > most) { most = it.value(); icon = it.key(); }
++        static QString last;
++        if(seen != last) qDebug() << "[AppLoad]: header items:" << seen << "font" << fontPx << family << "icon" << icon;
++        last = seen;
 +        out["gaps"] = gaps;
 +        out["font"] = fontPx;
 +        out["icon"] = icon;
