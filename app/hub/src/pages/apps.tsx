@@ -1,7 +1,7 @@
 // Apps, the home page: the installed apps as a grid of large tiles, a tap opens one. A badge says an update waits or the app is not
 // responding; the engine's update shows above. Everything else (install, update, rollback, pin, reset, uninstall) is in the Store.
 import { SECTION, TITLE, LABEL, SMALL, HUB_ID } from '../constants';
-import { AppRow, rows, paired, openApp, openPage, setStoreTab, stuck, engineOffer, engineNow, updateEngine, PAGE_STORE, STORE_INSTALLED } from '../state';
+import { AppRow, rows, paired, openApp, stuck, engineOffer, engineNow, updateEngine, updateAll, updatesWaiting } from '../state';
 import { RunningApp } from '../services/running';
 import { SolidButton } from '../components/buttons';
 import * as fs from 'zinc:fs';
@@ -55,11 +55,10 @@ function EngineBanner(): i32 {
 export function AppsPage(): i32 {
   // the Hub itself is not a tile: it is open already (its updates are in Store › Installed)
   const mine = (): AppRow[] => rows().filter((r: AppRow) => r.installed !== '' && r.id !== HUB_ID);
-  const waiting = (): i32 => rows().filter((r: AppRow) => r.updatable).length;
   return <View className={`${SECTION} grow`}>
     <View className="flex-row justify-between items-center">
       <Text className={TITLE}>Apps</Text>
-      {waiting() > 0 ? <SolidButton label={waiting() === 1 ? '1 update' : `${waiting()} updates`} onClick={() => { setStoreTab(STORE_INSTALLED); openPage(PAGE_STORE); }} /> : null}
+      {updatesWaiting() > 0 ? <SolidButton label={`Update all (${updatesWaiting()})`} onClick={() => updateAll()} /> : null}
     </View>
     {engineOffer() !== '' ? <EngineBanner /> : null}
     {mine().length === 0 ? <Text className={LABEL}>{paired() ? 'No app installed yet: find one in the Store.' : 'Pair this tablet with a server in Settings, then find apps in the Store.'}</Text> : null}

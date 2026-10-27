@@ -2,7 +2,7 @@
 import { createSignal } from 'zinc:ui/solid';
 import { newer } from '../../hub-server/src/protocol';
 import { HubConfig, loadConfig, saveConfig } from './services/config';
-import { CatalogApp, CatalogChannel, CatalogEngine, catalog, download, pair, fileOf, fetchIcon } from './services/server';
+import { Catalog, CatalogApp, CatalogChannel, CatalogEngine, catalog, cachedCatalog, download, pair, fileOf, fetchIcon } from './services/server';
 import { engineOffered, engineVersion, installEngine } from './services/engine';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
@@ -83,12 +83,26 @@ export function openPage(p: i32): void {
   if (p === PAGE_INFO) refreshInfo();
 }
 
+const CATALOG_CACHE = HUB_DIR + '/catalog.json';
 async function fetchCatalog(): Promise<void> {
   await readSelfVersion();
-  const c = await catalog(config);
+  fs.mkdir(HUB_DIR, true);
+  use(await catalog(config, CATALOG_CACHE));
+}
+function use(c: Catalog): void {
   apps = c.apps;
   engine = c.engine;
   setEngineOffer(engineOffered(engine) ? (engine as CatalogEngine).version : '');
+}
+
+/** At start, before the server answers (or when it cannot be reached): the last catalog that checked, with the icons cached beside it. */
+export async function loadCachedCatalog(): Promise<void> {
+  if (!paired()) return;
+  const c = await cachedCatalog(config, CATALOG_CACHE);
+  if (c === null) return;
+  await readSelfVersion();
+  use(c as Catalog);
+  rebuildRows();
 }
 
 /** The first 16 hex digits of the pinned server key, to compare with what the server prints. */
@@ -147,6 +161,7 @@ export function rebuildRows(): void {
     if (i === null || list.some((r: AppRow) => r.id === id)) continue;
     const r = new AppRow();
     r.id = id; r.name = (i as Installed).name; r.installed = (i as Installed).version; r.inCatalog = false;
+    if (fs.exists(iconPath(id))) { r.icon = iconPath(id); r.iconSha256 = id; }   // the icon cached when the catalog still offered it
     const p = previous(id);
     if (p !== null) r.previous = p.version;
     list.push(r);
@@ -283,6 +298,20 @@ export async function installApp(id: string, allowed: boolean = false): Promise<
     return message;
   });
 }
+
+/** Update all: the engine first (an update may need it), then every app with an update, the Hub last (it restarts on its own update).
+ *  Stops at the first failure (its modal shows it) or at an app that asks for more than it was allowed (its consent screen). */
+export async function updateAll(): Promise<void> {
+  if (busy()) return;
+  if (engineOffer() !== '') { await updateEngine(); if (failure() !== '') return; }
+  const ids = rows().filter((r: AppRow) => r.updatable && r.id !== HUB_ID).map((r: AppRow) => r.id);
+  for (const r of rows()) if (r.updatable && r.id === HUB_ID) ids.push(r.id);
+  for (const id of ids) {
+    await installApp(id);
+    if (failure() !== '' || consent() !== null) return;
+  }
+}
+export function updatesWaiting(): i32 { return rows().filter((r: AppRow) => r.updatable).length + (engineOffer() !== '' ? 1 : 0); }
 
 /** Replaces the engine on the tablet with the one the signed catalog offers (services/engine.ts); the old one stays on any failure. */
 export async function updateEngine(): Promise<void> {

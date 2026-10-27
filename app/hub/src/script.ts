@@ -4,7 +4,7 @@
 //   uninstall <id> (twice: the first arms it) | clean | allow | cancel (the consent screen) | widget (draws the widget alone)
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { saveServer, pairWith, refresh, installApp, allowConsent, cancelConsent, setWidgetPreview, uninstallApp, cleanAppLoad, toggleHeader, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, refreshInfo, togglePin, resetApp, setStoreTab, STORE_ALL, STORE_INSTALLED, PAGE_STORE, PAGE_INFO, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
+import { saveServer, pairWith, refresh, installApp, updateAll, allowConsent, cancelConsent, setWidgetPreview, uninstallApp, cleanAppLoad, toggleHeader, rollbackApp, openApp, setChannel, setPage, updateEngine, runningApps, stopRunning, refreshRunning, refreshInfo, togglePin, resetApp, setStoreTab, STORE_ALL, STORE_INSTALLED, PAGE_STORE, PAGE_INFO, PAGE_APPS, PAGE_SETTINGS, PAGE_RUNNING } from './state';
 
 export function scripted(): boolean { return sys.env('ZINC_HUB_SCRIPT') !== ''; }
 
@@ -18,6 +18,7 @@ export async function runScript(): Promise<void> {
     else if (verb === 'install' || verb === 'update') await installApp(arg);
     else if (verb === 'rollback') await rollbackApp(arg);
     else if (verb === 'engine') await updateEngine();
+    else if (verb === 'updateall') await updateAll();
     else if (verb === 'uninstall') await uninstallApp(arg);
     else if (verb === 'clean') await cleanAppLoad();
     else if (verb === 'header') toggleHeader();

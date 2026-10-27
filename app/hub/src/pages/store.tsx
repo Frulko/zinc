@@ -2,7 +2,7 @@
 // "Installed" keeps the installed ones up: Update, Rollback, the channel, Pin to sidebar, Reset data and Uninstall (the last two ask twice).
 import { TITLE, LABEL, SMALL, STABLE, HUB_ID, BUTTON, BUTTON_LABEL, OUTLINE_BUTTON, OUTLINE_LABEL } from '../constants';
 import { AppRow, rows, paired, refresh, installApp, rollbackApp, setChannel, uninstallApp, resetApp, togglePin, armed, storeTab, setStoreTab,
-  engineOffer, engineNow, updateEngine, STORE_ALL, STORE_INSTALLED } from '../state';
+  engineOffer, engineNow, updateEngine, updateAll, updatesWaiting, STORE_ALL, STORE_INSTALLED } from '../state';
 import { SolidButton, OutlineButton } from '../components/buttons';
 import { Icon } from './apps';
 
@@ -89,6 +89,7 @@ export function StorePage(): i32 {
       <Text className={`grow ${TITLE}`}>Store</Text>
       <StoreTab label="All" tab={STORE_ALL} />
       <StoreTab label={`Installed ${mine().length}`} tab={STORE_INSTALLED} />
+      {updatesWaiting() > 0 ? <SolidButton label={`Update all (${updatesWaiting()})`} onClick={() => updateAll()} /> : null}
       <OutlineButton label="Check" onClick={() => refresh()} />
     </View>
     {!paired() ? <Text className={LABEL}>Pair this tablet with a server in Settings.</Text>

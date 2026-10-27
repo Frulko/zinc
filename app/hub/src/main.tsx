@@ -5,7 +5,7 @@ import { render } from 'zinc:ui/solid';
 import { setPressFeedback } from 'zinc:ui';
 import { RemarkableBar, RemarkableKeyboard, RemarkableApp, windowMode } from 'zinc:remarkable';
 import { PAGE, LABEL, TITLE, OUTLINE_BUTTON, OUTLINE_LABEL, BUTTON, BUTTON_LABEL } from './constants';
-import { page, openPage, status, busy, paired, refresh, rebuildRows, stuck, watchRunning, PAGE_APPS, PAGE_STORE, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
+import { page, openPage, status, busy, paired, refresh, rebuildRows, loadCachedCatalog, stuck, watchRunning, PAGE_APPS, PAGE_STORE, PAGE_SETTINGS, PAGE_RUNNING, PAGE_INFO } from './state';
 import { StorePage } from './pages/store';
 import { InfoPage } from './pages/info';
 import { task, step, failure } from './services/progress';
@@ -85,7 +85,8 @@ function Root(): i32 {
 render(Root, 0xffffff, null);
 async function start(): Promise<void> {
   watchRunning();
-  rebuildRows();   // the installed apps at once, the catalog when the server answers
+  rebuildRows();   // the installed apps at once,
+  await loadCachedCatalog();   // the last catalog and its icons next (offline too), the server's when it answers
   if (paired()) await refresh();   // check for updates at start
   // shown as a widget, the Hub checks again every 30 minutes, so the card's count stays true; the window checks when it is opened
   setInterval(() => { if (windowMode() === 'widget' && paired() && !busy()) refresh(); }, 1800000);

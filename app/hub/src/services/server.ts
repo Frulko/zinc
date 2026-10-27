@@ -76,10 +76,21 @@ export async function pair(cfg: HubConfig, code: string, device: string): Promis
   cfg.token = token;
 }
 
-/** The catalog, its signature checked against the pinned server key. */
-export async function catalog(cfg: HubConfig): Promise<Catalog> {
+/** The catalog, its signature checked against the pinned server key; kept in `cache` (and `cache`.sig) once it checks. */
+export async function catalog(cfg: HubConfig, cache: string): Promise<Catalog> {
   const text = await (await get(cfg, 'catalog.json')).text();
   const sig = (await (await get(cfg, 'catalog.json.sig')).text()).trim();
+  const r = await verified(cfg, text, sig);
+  fs.writeText(cache, text);
+  fs.writeText(cache + '.sig', sig);
+  return r;
+}
+/** The last catalog that checked, so the Hub shows its apps, names and icons at once and offline; null when none (or it no longer checks). */
+export async function cachedCatalog(cfg: HubConfig, cache: string): Promise<Catalog | null> {
+  if (!fs.exists(cache) || !fs.exists(cache + '.sig')) return null;
+  try { return await verified(cfg, fs.readText(cache), fs.readText(cache + '.sig')); } catch (e) { return null; }
+}
+async function verified(cfg: HubConfig, text: string, sig: string): Promise<Catalog> {
   const key = await subtle.importKey('raw', unhex(cfg.serverKey), { name: 'Ed25519' }, false, ['verify']);
   if (sig.length !== 128 || !(await subtle.verify({ name: 'Ed25519' }, key, unhex(sig), sys.utf8Encode(text))))
     throw new Error('Refused: the catalog is not signed by the server this tablet paired with. Someone may be in between; pair again only if you trust this server.');

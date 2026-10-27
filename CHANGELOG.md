@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Hub (reMarkable): the apps, their names, descriptions and icons show at once from the last catalog that checked, also without the server; an Update all button installs every update (the engine first, the Hub last).
 - Android: on a rooted device, `setBacklight(false)` now turns the backlight fully off instead of leaving the screen at its dimmest glow, and a touch still wakes it. The app asks for root the first time; without root it dims as before.
 - Experimental Intel Mac runtime targeting macOS 10.12: run packed `zinc:gfx` programs with a software-rendered Cocoa window, game keys and mouse input. Build separately from `targets/macos-legacy`; real Sierra compatibility remains unverified.
 - reMarkable Hub: Settings › Experimental › **reMarkable header** turns the docked mode on for every app (the file `~/.zinc/rmpp-header`), with the Zinc AppLoad that has patch 0005.
@@ -62,6 +63,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- Hub server: a package altered on the server's disk no longer breaks the whole catalog (every tablet got an error); its line stays and the tablets refuse that package alone.
 - reMarkable: an app with a widget (RemarkableApp) no longer comes back as a blank page when its widget or minimized pill is opened again; the pill names the app running in the window, not the one launched, and a collapsed widget is only as wide as that pill (Zinc AppLoad patch 0010).
 - Pi player: a failed engine update now shows the error itself (with the exit code, or "out of memory?" when the build was killed) on up to three lines, instead of one cut-off line of compiler progress.
 - macOS development and exported app bundles now declare the engine’s compiled deployment target instead of requiring macOS 11, preventing an AppKit startup abort on Catalina builds.

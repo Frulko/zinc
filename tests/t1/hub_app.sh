@@ -117,15 +117,17 @@ for t in 'Zinc Hub' 'notes' 'Installed 1.0.0 · 1.1.0 available · ' 'Update to 
   echo "$texts" | grep -q "^$t" || { echo "the apps page does not show '$t':"; echo "$texts" | head -30; fail=1; }
 done
 echo "$texts" | grep -q 'Rollback' && { echo "the apps page offers a rollback to a newer version"; fail=1; }
-app "page apps"   # the home grid: the tile's badge and the count that opens Store › Installed
+app "page apps"   # the home grid: the tile's badge and Update all, with the count
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in notes Update '1 update'; do echo "$texts" | grep -qxF "$t" || { echo "the grid does not show '$t'"; fail=1; }; done
-app "update com.example.notes"
+for t in notes Update 'Update all (1)'; do echo "$texts" | grep -qxF "$t" || { echo "the grid does not show '$t'"; fail=1; }; done
+app "updateall"
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 
 # a tampered .zapp on the server: refused by its signed SHA-256, nothing replaced
 publish 1.2.0
-printf 'X' | dd of="$tmp/data/apps/com.example.notes/notes-1.2.0.zapp" bs=1 seek=600 conv=notrunc 2>/dev/null
+z=$tmp/data/apps/com.example.notes/notes-1.2.0.zapp   # a byte of its program changed (its manifest and zinc.json still read)
+at=$(python3 -c 'import sys, tarfile; print(tarfile.open(sys.argv[1]).getmember("program.zbc").offset_data + 16)' "$z")
+printf 'X' | dd of="$z" bs=1 seek="$at" conv=notrunc 2>/dev/null
 app "update com.example.notes"
 expect 'Refused: notes-1.2.0.zapp does not match the SHA-256 its publisher signed. It was altered; nothing was installed.'
 cmp -s "$live" "$tmp/out-1.1.0/notes-1.1.0.zapp" || { echo "a tampered update replaced the app"; fail=1; }
@@ -322,6 +324,10 @@ expect 'Server unreachable: Cannot reach the server'
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
 echo "$texts" | grep -q '^Server unreachable: ' || { echo "the status band does not say the server is unreachable"; fail=1; }
 echo "$texts" | grep -qE 'Checking for updates…$|: failed$|^OK$' && { echo "a refresh showed the modal"; fail=1; }
+# offline, the Hub shows the last catalog that checked (names, descriptions, icons) without the server
+mv "$tmp/hub/hub.conf.bak" "$tmp/hub/hub.conf"
+app "store all"
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qxF 'Notes for the hub test.' || { echo "offline, the Store does not show the cached catalog"; fail=1; }
 app "refresh; uninstall com.example.plain; uninstall com.example.plain"
 expect 'Uninstalled plain. Reload AppLoad.'
 [ $fail -eq 0 ] && echo "hub app: ok"

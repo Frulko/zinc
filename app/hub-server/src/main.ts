@@ -204,8 +204,11 @@ async function catalog(): Promise<string> {
       let icon = iconPath(id, m.get('url')), iconSum = '';
       if (fs.exists(data + '/' + icon)) iconSum = await sha256(fs.readBytes(data + '/' + icon));
       else icon = '';
+      // a package that does not read (altered on the disk) still has its line: the devices refuse it by its signed SHA-256, the others install
+      let about = '';
+      try { about = needsOf(zapp) + metaOf(zapp); } catch (e) { console.log('hub: ' + id + ' ' + v + ' does not read: ' + e.message); }
       chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + '.manifest') +
-        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + needsOf(zapp) + metaOf(zapp) + '}';
+        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + about + '}';
     }
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;
