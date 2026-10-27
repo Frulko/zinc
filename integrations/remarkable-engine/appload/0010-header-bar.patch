@@ -1,0 +1,230 @@
+Subject: [PATCH] window: the app's title and Home / Quit in xochitl's header
+
+A docked window shows the app's name and two buttons, Home and Quit, in xochitl's header,
+in the room its items leave (the widest free span left and right of the middle) and at its
+sizes (the pixel size and family of its first text, the most common height of its square
+icons; else 30% and 42% of the header's height). A press on a button reaches the client as
+STATE_CHANGED_REASON_ACTION (4: ACTION_HOME 1, ACTION_QUIT 2); capability bit 4
+(CAPABILITY_HEADER_BAR = 16) tells it, and the client then draws no bar of its own.
+
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index e371128..3e86311 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -188,6 +188,21 @@ FocusScope {
+     }
+     function readDockTop() {
+         dockTop = library.xochitlHeaderHeight(root.parent);
++        headerLayout = library.xochitlHeaderLayout(root, dockTop);
++    }
++    // The header bar (0010): the app's title and its Home and Quit buttons in xochitl's header, at its sizes, in the room it leaves
++    property var headerLayout: ({})
++    readonly property int headerFont: headerLayout.font > 0 ? headerLayout.font : Math.round(dockTop * 0.3)
++    readonly property int headerIcon: headerLayout.icon > 0 ? headerLayout.icon : Math.round(dockTop * 0.42)
++    function headerGap(right) {   // the widest free span left (title) or right (buttons) of the screen's middle
++        const gaps = headerLayout.gaps || [];
++        let best = null;
++        for(const g of gaps) {
++            const mid = (g[0] + g[1]) / 2;
++            if((mid > globalWidth / 2) !== right) continue;
++            if(!best || g[1] - g[0] > best[1] - best[0]) best = g;
++        }
++        return best || (right ? [globalWidth / 2, globalWidth] : [0, globalWidth / 2]);
+     }
+     // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
+     // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
+@@ -761,6 +776,59 @@ FocusScope {
+     }
+ 
+ 
++    Item {
++        id: headerBar
++        x: 0
++        y: -root.dockTop
++        width: root.width
++        height: root.dockTop
++        z: 2
++        visible: root.docked && !root.minimized && windowCanvas.visible
++        readonly property var left: root.headerGap(false)
++        readonly property var right: root.headerGap(true)
++        readonly property int pad: Math.round(root.headerIcon * 0.6)
++        Text {
++            x: headerBar.left[0] + headerBar.pad
++            width: Math.max(0, headerBar.left[1] - headerBar.left[0] - 2 * headerBar.pad)
++            height: parent.height
++            verticalAlignment: Text.AlignVCenter
++            elide: Text.ElideRight
++            text: root.appName
++            color: "black"
++            font.pixelSize: root.headerFont
++            font.family: root.headerLayout.family || Qt.application.font.family
++        }
++        Repeater {
++            model: [ { action: 2, glyph: "x" }, { action: 1, glyph: "house" } ]   // from the right: Quit, then Home
++            delegate: MouseArea {
++                required property var modelData
++                required property int index
++                width: root.dockTop
++                height: root.dockTop
++                x: headerBar.right[1] - headerBar.pad - (index + 1) * root.dockTop + (root.dockTop - root.headerIcon) / 2
++                onClicked: windowCanvas.sendHeaderAction(modelData.action)
++                Canvas {   // Lucide's house and x (ISC), at the header's icon size and stroke
++                    anchors.centerIn: parent
++                    width: root.headerIcon
++                    height: root.headerIcon
++                    onPaint: {
++                        const c = getContext("2d");
++                        c.reset();
++                        c.scale(width / 24, height / 24);
++                        c.strokeStyle = "black"; c.lineWidth = 2; c.lineCap = "round"; c.lineJoin = "round";
++                        c.beginPath();
++                        if(modelData.glyph === "x") { c.moveTo(18, 6); c.lineTo(6, 18); c.moveTo(6, 6); c.lineTo(18, 18); }
++                        else {
++                            c.moveTo(3, 10); c.lineTo(12, 2.5); c.lineTo(21, 10); c.lineTo(21, 21); c.lineTo(3, 21); c.closePath();
++                            c.moveTo(9, 21); c.lineTo(9, 13); c.lineTo(15, 13); c.lineTo(15, 21);
++                        }
++                        c.stroke();
++                    }
++                }
++            }
++        }
++    }
++
+     // Over xochitl's header, above a docked window: sees the press and lets it through to xochitl.
+     MouseArea {
+         x: 0
+diff --git a/src/AppLibrary.h b/src/AppLibrary.h
+index 4aac869..68ff44e 100644
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -18,6 +18,9 @@
+ #include <QPointer>
+ #include <QHash>
+ #include <QSet>
++#include <QVariantMap>
++#include <QFont>
++#include <QScreen>
+ #include <functional>
+ 
+ #include "library.h"
+@@ -215,6 +218,50 @@ public:
+         return answer(120, "no header item found: fallback");
+     }
+ 
++    // The header bar of a docked window (0010): where xochitl's header leaves room, and the size of its text and icons, so the app's title
++    // and its Home and Quit buttons sit in it as xochitl's own. The leaves of the scene in the header's band (items without visible
++    // children that draw, narrower than 90% of the screen) are what it shows: the gaps between them are free. The text size is the pixel size of
++    // its first text; the icon size the most common height of its square leaves. 0 when not found.
++    Q_INVOKABLE QVariantMap xochitlHeaderLayout(QQuickItem *skip, int top) {
++        QVariantMap out;
++        QQuickWindow *window = skip ? skip->window() : nullptr;
++        if(!window || top <= 0) return out;
++        const qreal width = window->contentItem()->width();
++        QList<QPair<qreal, qreal>> used;
++        int fontPx = 0;
++        QString family;
++        QMap<int, int> squares;
++        walkScene(window->contentItem(), skip, [&](QQuickItem *item) {
++            const QRectF r = sceneRect(item);
++            if(r.bottom() <= 0 || r.top() >= top || r.width() >= width * 0.9 || r.width() < 2) return;
++            if(!(item->flags() & QQuickItem::ItemHasContents)) return;   // draws nothing (a mouse area, a layout)
++            for(QQuickItem *c : item->childItems()) if(shown(c) && (c->flags() & QQuickItem::ItemHasContents)) return;   // a leaf
++            used.append({r.left(), r.right()});
++            const QVariant font = item->property("font");
++            if(!fontPx && font.canConvert<QFont>()) {
++                const QFont f = font.value<QFont>();
++                fontPx = f.pixelSize() > 0 ? f.pixelSize() : qRound(f.pointSizeF() * window->screen()->logicalDotsPerInch() / 72);
++                family = f.family();
++            }
++            if(qAbs(r.width() - r.height()) < 4 && r.height() >= top * 0.2 && r.height() <= top * 0.8) squares[qRound(r.height())]++;
++        });
++        std::sort(used.begin(), used.end());
++        QVariantList gaps;
++        qreal x = 0;
++        for(const auto &u : used) {
++            if(u.first > x) gaps.append(QVariantList{x, u.first});
++            x = qMax(x, u.second);
++        }
++        if(x < width) gaps.append(QVariantList{x, width});
++        int icon = 0, seen = 0;
++        for(auto it = squares.cbegin(); it != squares.cend(); ++it) if(it.value() > seen) { seen = it.value(); icon = it.key(); }
++        out["gaps"] = gaps;
++        out["font"] = fontPx;
++        out["icon"] = icon;
++        out["family"] = family;
++        return out;
++    }
++
+     // A docked window and xochitl's own layers (0008, 0009). xochitl's sidebar and menus are items of its scene, not all in Qt Quick
+     // Controls' overlay, and AppLoad's windows come after them: what a press on the header opens would show under the docked window. The
+     // press keeps a picture of the scene (each visible item's rectangle); then what appeared or slid over the window is found and lifted
+diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
+index 54a20e9..132380a 100644
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -371,7 +371,7 @@ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialS
+ qtfb::DeviceStateChangedContents FBController::formCapabilitiesPacket() {
+     qtfb::DeviceStateChangedContents dscc = {
+         .reason = STATE_CHANGED_REASON_CAPABILITIES,
+-        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS | CAPABILITY_DOCKED | CAPABILITY_INSTANT_MODE },
++        .capabilities = { CAPABILITY_WINDOW_STATE | CAPABILITY_WIDGETS | CAPABILITY_DOCKED | CAPABILITY_INSTANT_MODE | CAPABILITY_HEADER_BAR },
+     };
+     return dscc;
+ }
+@@ -399,6 +399,13 @@ void FBController::setDockTop(int top) {
+     if(showDock) markedUpdate();
+ }
+ 
++// Home or Quit pressed in the header bar of a docked window: the client acts as its own bar's button would.
++void FBController::sendHeaderAction(int action) {
++    qtfb::DeviceStateChangedContents dscc = { .reason = STATE_CHANGED_REASON_ACTION };
++    dscc.action.action = action;
++    qtfb::management::sendDeviceStateChange(framebufferID, dscc);
++}
++
+ // Sends the visibility only when it changed: a move between two states that sets
+ // clientVisible and showWidget one after the other sends no intermediate value.
+ void FBController::sendVisibility() {
+diff --git a/src/qtfb/FBController.h b/src/qtfb/FBController.h
+index 4418eb0..eb700a9 100644
+--- a/src/qtfb/FBController.h
++++ b/src/qtfb/FBController.h
+@@ -93,6 +93,7 @@ public:
+     virtual void keyReleaseEvent(QKeyEvent *ke) override;
+ 
+     Q_INVOKABLE void virtualKeyboardKeyDown(int key);
++    Q_INVOKABLE void sendHeaderAction(int action);
+     Q_INVOKABLE void virtualKeyboardKeyUp(int key);
+ 
+ signals:
+diff --git a/src/qtfb/common.h b/src/qtfb/common.h
+index 5bb637c..2199be8 100644
+--- a/src/qtfb/common.h
++++ b/src/qtfb/common.h
+@@ -67,12 +67,16 @@
+ #define STATE_CHANGED_REASON_VISIBILITY 1
+ #define STATE_CHANGED_REASON_CAPABILITIES 2
+ #define STATE_CHANGED_REASON_INSETS 3
++#define STATE_CHANGED_REASON_ACTION 4 // a button of the header bar: ACTION_HOME, ACTION_QUIT
++#define ACTION_HOME 1
++#define ACTION_QUIT 2
+ 
+ // STATE_CHANGED_REASON_CAPABILITIES flags: what this server understands.
+ #define CAPABILITY_WINDOW_STATE 1 // MESSAGE_SET_WINDOW_STATE, STATE_CHANGED_REASON_VISIBILITY
+ #define CAPABILITY_WIDGETS 2      // MESSAGE_SET_WIDGET, WINDOW_STATE_WIDGET, VISIBILITY_WIDGET
+ #define CAPABILITY_DOCKED 4       // WINDOW_STATE_DOCKED, VISIBILITY_DOCKED, STATE_CHANGED_REASON_INSETS
+ #define CAPABILITY_INSTANT_MODE 8 // MESSAGE_SET_REFRESH_MODE and MESSAGE_REQUEST_FULL_REFRESH return once applied, without the 1 s pause
++#define CAPABILITY_HEADER_BAR 16  // docked: the app's title and Home / Quit are in xochitl's header (STATE_CHANGED_REASON_ACTION); no bar of its own
+ 
+ #define VISIBILITY_MINIMIZED 0
+ #define VISIBILITY_SHOWN 1
+@@ -135,6 +139,9 @@ namespace qtfb {
+             struct {
+                 int top; // the height of xochitl's header, screen pixels: a docked window starts there
+             } insets;
++            struct {
++                int action; // ACTION_*
++            } action;
+         };
+     };
+ 

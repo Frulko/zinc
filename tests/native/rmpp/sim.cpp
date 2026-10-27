@@ -58,6 +58,8 @@ static const char* appload = getenv("ZN_RMPP_SIM_APPLOAD") ? getenv("ZN_RMPP_SIM
 // ZN_RMPP_SIM_INSTANT=1 (with widget or dock): AppLoad 0006, capability 8, a mode or a full refresh applied in 20 ms instead of qtfb's second
 static const bool instant = getenv("ZN_RMPP_SIM_INSTANT") != nullptr;
 static const uint64_t pauseUs = instant ? 20000 : 1000000;
+// ZN_RMPP_SIM_HEADERBAR=frame:action (with dock): AppLoad 0010, capability 16, the header bar's Home (1) or Quit (2) pressed at that frame
+static const char* headerBar = getenv("ZN_RMPP_SIM_HEADERBAR");
 static const bool docks = !strcmp(appload, "dock");
 static const bool widgets = docks || !strcmp(appload, "widget");
 static const int inset = getenv("ZN_RMPP_SIM_INSET") ? atoi(getenv("ZN_RMPP_SIM_INSET")) : 120;
@@ -132,7 +134,7 @@ static void handle(const ClientMsg& m) {
     line("%8.1f ms init key %d fmt %d (RGB888 %dx%d)", now / 1000.0, m.init.key, m.init.fmt, W, H);
     if (appload06) { ServerMsg st = {}; st.type = MSG_STATE_INIT; send(qtfb, &st, sizeof st, 0); }   // the rotation
     if (windowState) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 1; st.state.value = 1; send(qtfb, &st, sizeof st, 0); }
-    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = (docks ? 7 : 3) | (instant ? 8 : 0); send(qtfb, &st, sizeof st, 0); }
+    if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = (docks ? 7 : 3) | (instant ? 8 : 0) | (docks && headerBar ? 16 : 0); send(qtfb, &st, sizeof st, 0); }
     if (docks) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 3; st.state.value = inset; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
     line("%8.1f ms mode %s (qtfb sleeps %d ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?", (int)(pauseUs / 1000));
@@ -390,6 +392,13 @@ static void qsim_header() {
   qsim::line("%8.1f ms %s", qsim::virtualNow() / 1000.0, f == a ? "header pressed: minimized" : "popup closed: docked");
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = f == a ? 0 : 3; send(qsim::qtfb, &st, sizeof st, 0);
 }
+static void qsim_headerbar() {
+  if (!qsim::headerBar || !qsim::docked) return;
+  char* end; const long f = strtol(qsim::headerBar, &end, 10); const int action = *end == ':' ? atoi(end + 1) : 1;
+  if ((long)qsim::frames != f) return;
+  qsim::line("%8.1f ms header bar: %s", qsim::virtualNow() / 1000.0, action == 2 ? "quit" : "home");
+  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 4; st.state.value = action; send(qsim::qtfb, &st, sizeof st, 0);
+}
 // a tap on the widget's header collapses it, another opens it
 static void qsim_collapse() {
   const char* e = getenv("ZN_RMPP_SIM_COLLAPSE");
@@ -406,6 +415,7 @@ static void qsim_polled(HalInput* in) {
   qsim_keys();
   qsim_collapse();
   qsim_header();
+  qsim_headerbar();
   qsim_restore();
   qsim_poll(in);
   if (const char* p = getenv("ZN_RMPP_SIM_PEN")) {

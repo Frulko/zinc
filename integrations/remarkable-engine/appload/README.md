@@ -23,6 +23,9 @@ Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
 - `0009-lift-sidebar-alone.patch` (on top of 0008): the sidebar is lifted alone (moved for that time under the parent of the window's
   branch, above it) instead of its whole branch, so xochitl's page behind it stays under the window; the branch is raised only when the
   two parents do not cover the same rectangle.
+- `0010-header-bar.patch` (on top of 0009): a docked window shows the app's name and Home / Quit in xochitl's header, in the room its items
+  leave and at their sizes (the first text's font, the square icons' height). A press reaches the client as `STATE_CHANGED_REASON_ACTION`
+  (4: `ACTION_HOME` 1, `ACTION_QUIT` 2); `CAPABILITY_HEADER_BAR` (16) tells it, and zinc:remarkable then draws no `RemarkableBar`.
 
 ## Protocol (0001)
 

@@ -41,7 +41,8 @@
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
                    MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };   // 9, 10: AppLoad with integrations/remarkable-engine/appload
-enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4, CAN_INSTANT_MODE = 8 };
+enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, REASON_ACTION = 4, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4,
+             CAN_INSTANT_MODE = 8, CAN_HEADER_BAR = 16 };
 // also the visibility values: 0 minimized, 1 shown, 2 as its widget, 3 docked under xochitl's header (0005)
 enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2, WINDOW_DOCKED = 3 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
@@ -75,6 +76,8 @@ bool dock_ok = false;       // AppLoad docks the window under xochitl's header (
 bool docked = false;        // docked: only what changes below dock_top is sent, zinc:ui gets dock_top as its top safe area
 int dock_top = 0;           // the header's height (STATE_CHANGED_REASON_INSETS), framebuffer pixels
 bool instant_mode = false;  // AppLoad applies a mode or a full refresh without its 1 s pause (capability bit 3, 0006 of the patch)
+bool header_bar = false;    // docked, AppLoad shows the app's title and Home / Quit in xochitl's header (capability bit 4, 0010 of the patch)
+int header_actions = 0, header_action = 0;   // presses on those buttons so far, the last one (1 Home, 2 Quit): "window.action"
 // how long this connection is busy after a mode switch or a full refresh: qtfb's second, or a few ms with 0006
 uint64_t switch_pause() { return instant_mode ? 30000 : 1100000; }
 eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), panel.w, panel.h}; }
@@ -211,7 +214,9 @@ void rm_poll(HalInput* in) {
       full_refresh_ok = true;
       if (m.state.reason == REASON_CAPABILITIES) {
         window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; dock_ok = (m.state.value & CAN_DOCK) != 0; instant_mode = (m.state.value & CAN_INSTANT_MODE) != 0;
+        header_bar = (m.state.value & CAN_HEADER_BAR) != 0;
       }
+      if (m.state.reason == REASON_ACTION) { header_actions++; header_action = m.state.value; }
       if (m.state.reason == REASON_INSETS && m.state.value >= 0 && m.state.value < panel.h && m.state.value != dock_top) {
         dock_top = m.state.value;
         if (docked) { pending = dock_rect(); window_changed(); }   // the header moved: the app lays out again, its whole docked area goes out
@@ -466,6 +471,12 @@ bool send_msg(const ClientMsg& m) { return send(sock, &m, sizeof m, MSG_DONTWAIT
 const char* rm_device(const char* query, const char* arg) {
   const bool qtfb = window_ok && sock >= 0 && (layer == L0 || layer == L1);
   if (strcmp(query, "window.edge") == 0) { static char n[16]; snprintf(n, sizeof n, "%d", rin::edge_swipes); return n; }   // swipes so far
+  // the header bar (AppLoad 0010): "window.headerbar" "1" while docked with it (the app shows no bar of its own), "window.action" the
+  // presses on its buttons so far and the last one, "n:home" or "n:quit"
+  if (strcmp(query, "window.headerbar") == 0) return header_bar && docked && !hidden && !as_widget ? "1" : "0";
+  if (strcmp(query, "window.action") == 0) {
+    static char n[24]; snprintf(n, sizeof n, "%d:%s", header_actions, header_action == 2 ? "quit" : "home"); return n;
+  }
   if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : docked ? "docked" : "full";
   if (strcmp(query, "window.minimize") == 0) {
     ClientMsg m = {}; m.type = MSG_WINDOW_STATE; m.window = WINDOW_MINIMIZE;

@@ -44,11 +44,17 @@ let widgetSize: i32[] = [];   // [w, h] once a RemarkableApp declares a widget
 // The system panel: a finger swiped down from the top edge of the screen (display-rmpp counts them, "window.edge") opens Accueil / Quitter /
 // Annuler over any app in a RemarkableApp, full screen or not, with the actions of its RemarkableBar
 const [panel, setPanel] = createSignal<boolean>(false);
-let swipes = device('window.edge');
+// Docked with the Zinc AppLoad (0010), the app's title and Home / Quit are in xochitl's header: RemarkableBar draws nothing, and a press
+// there acts as its button would ("window.action")
+const [headerBar, setHeaderBar] = createSignal<boolean>(device('window.headerbar') === '1');
+let swipes = device('window.edge'), actions = device('window.action');
 setInterval(() => {
   const m = windowState(); if (m !== mode()) setMode(m);
   const n = device('window.edge');
   if (n !== swipes) { swipes = n; if (m === 'full' || m === 'docked') setPanel(true); }
+  const h = device('window.headerbar') === '1'; if (h !== headerBar()) setHeaderBar(h);
+  const a = device('window.action');
+  if (a !== actions) { actions = a; if (a.endsWith(':quit')) leave(shell); else home(shell); }
 }, 250);
 /** 'full', 'docked' (under xochitl's header: zinc.json "display": {"header": "remarkable"}), 'widget' or 'hidden': how the app is shown now. */
 export function windowMode(): string { return mode(); }
@@ -135,17 +141,18 @@ export function RemarkableBar(props: RemarkableBarProps): i32 {
   // Docked under xochitl's header, which shows the time and the battery: a slim action bar, the title and the two buttons
   const docked = (): boolean => mode() === 'docked';
   // the title on the left, the time in the middle, the battery and the two round icon buttons on the right
-  return <View className={docked() ? BAR_SLIM : BAR}>
-    <Text className="grow basis-0 truncate text-[34px] font-bold text-black">{props.title}</Text>
-    {docked() ? null : <Text className="text-[32px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>}
-    <View className="grow basis-0 flex-row items-center justify-end gap-5">
-      {docked() || battery() < 0 ? null : <View className="flex-row items-center gap-2">
-        <Glyph name={batteryGlyph} size={44} /><Text className="text-[28px] text-black">{`${battery()}%`}</Text>
-      </View>}
-      <Button className={ICON_BUTTON} onClick={() => home(props)}><Glyph name={() => 'house'} size={44} /></Button>
-      <Button className={ICON_BUTTON} onClick={() => leave(props)}><Glyph name={() => 'x'} size={44} /></Button>
-    </View>
-  </View>;
+  // none when the title and the buttons are in xochitl's header (headerBar)
+  return <View className="flex-col">{headerBar() ? null : <View className={docked() ? BAR_SLIM : BAR}>
+      <Text className="grow basis-0 truncate text-[34px] font-bold text-black">{props.title}</Text>
+      {docked() ? null : <Text className="text-[32px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>}
+      <View className="grow basis-0 flex-row items-center justify-end gap-5">
+        {docked() || battery() < 0 ? null : <View className="flex-row items-center gap-2">
+          <Glyph name={batteryGlyph} size={44} /><Text className="text-[28px] text-black">{`${battery()}%`}</Text>
+        </View>}
+        <Button className={ICON_BUTTON} onClick={() => home(props)}><Glyph name={() => 'house'} size={44} /></Button>
+        <Button className={ICON_BUTTON} onClick={() => leave(props)}><Glyph name={() => 'x'} size={44} /></Button>
+      </View>
+    </View>}</View>;
 }
 
 // The on-screen keyboard of the reMarkable apps, drawn for e-paper as the tablet's own: white keys with a thin black outline and
