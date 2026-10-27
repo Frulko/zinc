@@ -20,6 +20,9 @@ Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
 - `0008-raise-xochitl-layers.patch` (on top of 0007): what that press opens (the burger's sidebar, a menu: items of xochitl's scene, not all in
   Qt Quick Controls' overlay) is found by comparing the scene with a picture taken at the press, and its branch is raised over the window
   until it closes; `journalctl -u xochitl | grep "over the docked window"` names it.
+- `0009-lift-sidebar-alone.patch` (on top of 0008): the sidebar is lifted alone (moved for that time under the parent of the window's
+  branch, above it) instead of its whole branch, so xochitl's page behind it stays under the window; the branch is raised only when the
+  two parents do not cover the same rectangle.
 
 ## Protocol (0001)
 

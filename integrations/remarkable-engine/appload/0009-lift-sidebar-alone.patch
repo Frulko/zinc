@@ -1,0 +1,130 @@
+Subject: [PATCH] window: lift xochitl's sidebar alone over a docked window
+
+0008 raised the whole branch that holds what the header opened: xochitl's sidebar lives in
+its main view, so the page behind it covered the docked window too. What opened is now moved
+for that time under the parent that holds the window's branch, above that branch, when both
+parents cover the same rectangle of the screen (nothing to move); its page stays under the
+window. Else the branch is raised as before. Both are undone once it closes.
+
+diff --git a/src/AppLibrary.h b/src/AppLibrary.h
+index 09893da..4aac869 100644
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -215,13 +215,15 @@ public:
+         return answer(120, "no header item found: fallback");
+     }
+ 
+-    // A docked window and xochitl's own layers (0008). xochitl's sidebar and menus are items of its scene, not all in Qt Quick Controls'
+-    // overlay, and AppLoad's windows come after them: what a press on the header opens would show under the docked window. The press
+-    // keeps a picture of the scene (each visible item's rectangle); then what appeared or moved over the window is found, and the branch
+-    // that holds it, a sibling of the window's own branch, is raised above it until it is gone again. Each raise is logged.
+-    struct Raised { QPointer<QQuickItem> item; qreal z; };
++    // A docked window and xochitl's own layers (0008, 0009). xochitl's sidebar and menus are items of its scene, not all in Qt Quick
++    // Controls' overlay, and AppLoad's windows come after them: what a press on the header opens would show under the docked window. The
++    // press keeps a picture of the scene (each visible item's rectangle); then what appeared or slid over the window is found and lifted
++    // over it alone: moved for that time under the parent that holds the window's branch, above that branch (its page, the rest of
++    // xochitl, stays under the window), when both parents cover the same rectangle of the screen (no move to make); else its whole branch
++    // is raised. Both are undone once it is closed. Each one is logged.
++    struct Lifted { QPointer<QQuickItem> item; QPointer<QQuickItem> parent; QPointer<QQuickItem> next; qreal z; };
+     QHash<QQuickItem *, QRectF> sceneBefore;
+-    QList<Raised> raised;
++    QList<Lifted> lifted;
+     QList<QPointer<QQuickItem>> opened;
+     static QRectF sceneRect(QQuickItem *item) { return item->mapRectToScene(QRectF(0, 0, item->width(), item->height())); }
+     static bool shown(QQuickItem *item) { return item && item->isVisible() && item->opacity() > 0; }
+@@ -230,46 +232,70 @@ public:
+         f(item);
+         for(QQuickItem *child : item->childItems()) walkScene(child, skip, f);
+     }
++    void putBack() {
++        for(int i = lifted.size() - 1; i >= 0; i--) {
++            const Lifted &l = lifted[i];
++            if(!l.item) continue;
++            if(l.parent && l.item->parentItem() != l.parent) {
++                l.item->setParentItem(l.parent);
++                if(l.next && l.next->parentItem() == l.parent) l.item->stackBefore(l.next);
++            }
++            l.item->setZ(l.z);
++        }
++        lifted.clear(); opened.clear(); sceneBefore.clear();
++    }
+     Q_INVOKABLE void dockHeaderPressed(QQuickItem *win) {
+         QQuickWindow *window = win ? win->window() : nullptr;
+         if(!window) return;
+-        for(const Raised &r0 : raised) if(r0.item) r0.item->setZ(r0.z);   // a second press starts again from xochitl's own order
+-        raised.clear(); opened.clear(); sceneBefore.clear();
++        putBack();   // a second press starts again from xochitl's own order
+         walkScene(window->contentItem(), win, [&](QQuickItem *item) { sceneBefore.insert(item, sceneRect(item)); });
+     }
+-    // Raises what appeared over `win` since the press; true when something is raised.
++    // Lifts what appeared over `win` since the press; true when something is lifted.
+     Q_INVOKABLE bool dockRaiseOpened(QQuickItem *win) {
+         QQuickWindow *window = win ? win->window() : nullptr;
+-        if(!window || sceneBefore.isEmpty()) return !raised.isEmpty();
++        if(!window || sceneBefore.isEmpty()) return !lifted.isEmpty();
+         const QRectF area = sceneRect(win);
+         QSet<QQuickItem *> mine;
+         for(QQuickItem *p = win; p; p = p->parentItem()) mine.insert(p);
++        QList<QQuickItem *> found;   // the outermost ones, in the scene's order; the scene is changed after the walk
+         walkScene(window->contentItem(), win, [&](QQuickItem *item) {
+             const QRectF r = sceneRect(item);
+             if(r.width() * r.height() < 10000 || !r.intersects(area)) return;
+             // new since the press, or slid sideways (a drawer); an item that only grew or moved down is xochitl's page laying out again
+             auto was = sceneBefore.constFind(item);
+             if(was != sceneBefore.constEnd() && qAbs(was->x() - r.x()) < 1) return;
++            for(QQuickItem *p = item->parentItem(); p; p = p->parentItem()) if(found.contains(p)) return;
++            for(const Lifted &l : lifted) if(l.item == item) return;
++            found.append(item);
++        });
++        for(QQuickItem *item : found) {
+             QQuickItem *a = item;   // its branch: the ancestor whose parent also holds the window
+             while(a->parentItem() && !mine.contains(a->parentItem())) a = a->parentItem();
+             QQuickItem *common = a->parentItem();
+-            if(!common || mine.contains(a)) return;
++            if(!common || mine.contains(a)) continue;
+             QQuickItem *b = win;
+             while(b->parentItem() != common) b = b->parentItem();
+             const QList<QQuickItem *> kids = common->childItems();
+-            if(a->z() > b->z() || (a->z() == b->z() && kids.indexOf(a) > kids.indexOf(b))) return;   // already over the window
+-            for(const Raised &r0 : raised) if(r0.item == a) return;
+-            raised.append({a, a->z()});
+-            a->setZ(b->z() + 1);
++            if(a->z() > b->z() || (a->z() == b->z() && kids.indexOf(a) > kids.indexOf(b))) continue;   // already over the window
++            QQuickItem *from = item->parentItem();
++            const bool alone = item != a && from && sceneRect(from) == sceneRect(common) && from->scale() == 1 && from->rotation() == 0;
++            QQuickItem *moved = alone ? item : a;
++            for(const Lifted &l : lifted) if(l.item == moved) moved = nullptr;
++            if(!moved) continue;
++            const QList<QQuickItem *> siblings = moved->parentItem()->childItems();
++            const int at = siblings.indexOf(moved);
++            lifted.append({moved, moved->parentItem(), at + 1 < siblings.size() ? siblings[at + 1] : nullptr, moved->z()});
++            if(alone) moved->setParentItem(common);
++            moved->setZ(b->z() + 1);
+             opened.append(item);
+-            qDebug() << "[AppLoad]: over the docked window:" << item->metaObject()->className() << item->objectName() << r
+-                     << "raised" << a->metaObject()->className() << a->objectName();
+-        });
+-        return !raised.isEmpty();
++            qDebug() << "[AppLoad]: over the docked window:" << item->metaObject()->className() << item->objectName() << sceneRect(item)
++                     << (alone ? "lifted alone" : "raised its branch") << moved->metaObject()->className() << moved->objectName();
++        }
++        return !lifted.isEmpty();
+     }
+-    // Puts the raised branches back once what opened is closed (hidden, gone or back where it was); true when nothing is raised any more.
++    // Puts xochitl's order back once what opened is closed (hidden, gone or back where it was); true when nothing is lifted any more.
+     Q_INVOKABLE bool dockRestoreClosed(QQuickItem *win) {
+-        if(raised.isEmpty()) return true;
++        if(lifted.isEmpty()) return true;
+         const QRectF area = win ? sceneRect(win) : QRectF();
+         for(const QPointer<QQuickItem> &item : opened) {
+             if(!shown(item)) continue;
+@@ -277,8 +303,7 @@ public:
+             auto was = sceneBefore.constFind(item.data());
+             if(r.intersects(area) && (was == sceneBefore.constEnd() || *was != r)) return false;   // still open
+         }
+-        for(const Raised &r0 : raised) if(r0.item) r0.item->setZ(r0.z);
+-        raised.clear(); opened.clear(); sceneBefore.clear();
++        putBack();
+         qDebug() << "[AppLoad]: xochitl's layer closed: the docked window is on top again";
+         return true;
+     }
