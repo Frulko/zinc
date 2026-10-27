@@ -1,7 +1,7 @@
 // Apps, the home page: the installed apps as a grid of large tiles, a tap opens one. A badge says an update waits or the app is not
 // responding; the engine's update shows above. Everything else (install, update, rollback, pin, reset, uninstall) is in the Store.
 import { SECTION, TITLE, LABEL, SMALL, HUB_ID } from '../constants';
-import { AppRow, rows, paired, openApp, stuck, engineOffer, engineNow, updateEngine, updateAll, updatesWaiting } from '../state';
+import { AppRow, rows, paired, openApp, stuck, runningApps, engineOffer, engineNow, updateEngine, updateAll, updatesWaiting } from '../state';
 import { RunningApp } from '../services/running';
 import { SolidButton } from '../components/buttons';
 import * as fs from 'zinc:fs';
@@ -30,16 +30,19 @@ export function Icon(props: { row: AppRow; size: i32 }): i32 {
 
 function hung(r: AppRow): boolean { return stuck().some((a: RunningApp) => a.name === r.name); }
 
-/** One tile: the icon, the name, and its badge. */
+/** One tile, as a launcher shows it: the icon in a framed square (its badge on the corner), the name under it, then its version or that it
+ *  runs. Four to a row on the portrait page (4 x 350 + 3 x 40 = 1520, in the 1540 px inside its padding: no rounding pushes one down). */
 function Tile(props: { row: AppRow }): i32 {
   const r = props.row;
   const badge = hung(r) ? 'Not responding' : r.updatable ? 'Update' : '';
-  return <Button className="w-[460px] h-[400px] flex-col items-center justify-center gap-6 border-2 border-black rounded-lg bg-white focus:bg-white"
-    onClick={() => openApp(r.id)}>
-    <Icon row={r} size={200} />
+  const runs = runningApps().some((a: RunningApp) => a.name === r.name);
+  return <Button className="w-[350px] flex-col items-center gap-3 bg-white focus:bg-white" onClick={() => openApp(r.id)}>
+    <View className="w-[350px] h-[300px] items-center justify-center border-2 border-black rounded-2xl">
+      <Icon row={r} size={170} />
+      {badge !== '' ? <View className="absolute top-4 right-4 px-5 py-1 rounded-full bg-black"><Text className="text-[24px] font-bold text-white">{badge}</Text></View> : null}
+    </View>
     <Text className={`truncate font-bold ${LABEL}`}>{r.name}</Text>
-    {badge !== '' ? <View className="px-6 py-2 rounded-full bg-black"><Text className="text-[26px] font-bold text-white">{badge}</Text></View>
-      : <View className="h-[46px]" />}
+    <Text className={`truncate ${SMALL}`}>{runs ? '● Running' : r.installed}</Text>
   </Button>;
 }
 
@@ -63,7 +66,7 @@ export function AppsPage(): i32 {
     {engineOffer() !== '' ? <EngineBanner /> : null}
     {mine().length === 0 ? <Text className={LABEL}>{paired() ? 'No app installed yet: find one in the Store.' : 'Pair this tablet with a server in Settings, then find apps in the Store.'}</Text> : null}
     <ScrollView className="grow">
-      <View className="flex-row flex-wrap gap-10">{mine().map((r: AppRow) => <Tile row={r} />)}</View>
+      <View className="flex-row flex-wrap gap-x-10 gap-y-12 pb-10">{mine().map((r: AppRow) => <Tile row={r} />)}</View>
     </ScrollView>
     <Text className={SMALL}>Tap an app to open it. The Store installs, updates, pins and removes apps.</Text>
   </View>;

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Hub (reMarkable): the home grid is a launcher: four apps to a row, each icon in a framed square with its badge on the corner, the name under it, then its version or that it is running.
 - Hub (reMarkable): the apps, their names, descriptions and icons show at once from the last catalog that checked, also without the server; an Update all button installs every update (the engine first, the Hub last).
 - Android: on a rooted device, `setBacklight(false)` now turns the backlight fully off instead of leaving the screen at its dimmest glow, and a touch still wakes it. The app asks for root the first time; without root it dims as before.
 - Experimental Intel Mac runtime targeting macOS 10.12: run packed `zinc:gfx` programs with a software-rendered Cocoa window, game keys and mouse input. Build separately from `targets/macos-legacy`; real Sierra compatibility remains unverified.
