@@ -7,6 +7,16 @@ icons; else 30% and 42% of the header's height). A press on a button reaches the
 STATE_CHANGED_REASON_ACTION (4: ACTION_HOME 1, ACTION_QUIT 2); capability bit 4
 (CAPABILITY_HEADER_BAR = 16) tells it, and the client then draws no bar of its own.
 
+diff --git a/resources/icons/home.svg b/resources/icons/home.svg
+new file mode 100644
+index 0000000..38cd43f
+--- /dev/null
++++ b/resources/icons/home.svg
+@@ -0,0 +1,4 @@
++<!-- A house at xochitl's icon weight (48 grid, 3 px lines, as its burger and x): the Home button of the header bar (0010) -->
++<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
++<path d="M24 5.5L40.5 21.5V40.5H28.5V28.5H19.5V40.5H7.5V21.5Z" fill="none" stroke="black" stroke-width="3" stroke-linejoin="miter"/>
++</svg>
 diff --git a/resources/icons/lucide-house.svg b/resources/icons/lucide-house.svg
 new file mode 100644
 index 0000000..58b15c2
@@ -29,7 +39,7 @@ index 0000000..58b15c2
 +  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 +</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..e7a91cc 100644
+index e371128..3ca42b1 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
 @@ -188,6 +188,46 @@ FocusScope {
@@ -120,7 +130,7 @@ index e371128..e7a91cc 100644
 +                    height: root.headerIcon
 +                    sourceSize.width: root.headerIcon
 +                    sourceSize.height: root.headerIcon
-+                    source: modelData.glyph === "x" ? "qrc:/appload/icons/close" : "qrc:/appload/icons/house"
++                    source: modelData.glyph === "x" ? "qrc:/appload/icons/close" : "qrc:/appload/icons/home"
 +                }
 +            }
 +        }
@@ -130,14 +140,15 @@ index e371128..e7a91cc 100644
      MouseArea {
          x: 0
 diff --git a/resources/resources.qrc b/resources/resources.qrc
-index c8216ef..583dbcc 100644
+index c8216ef..db55e4e 100644
 --- a/resources/resources.qrc
 +++ b/resources/resources.qrc
-@@ -11,6 +11,7 @@
+@@ -11,6 +11,8 @@
  		<file alias="icons/restore">icons/lucide-minimize.svg</file>
  		<file alias="icons/open">icons/lucide-maximize-2.svg</file>
  		<file alias="icons/close">icons/lucide-x.svg</file>
 +		<file alias="icons/house">icons/lucide-house.svg</file>
++		<file alias="icons/home">icons/home.svg</file>
  
  		<file>qml/appload.qml</file>
  		<file>qml/window.qml</file>
@@ -342,7 +353,7 @@ index 8af162b..47729f6 100644
 +resource     headerDiff:header.qmd
 diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
 new file mode 100644
-index 0000000..37dc692
+index 0000000..2d144bd
 --- /dev/null
 +++ b/xovi/template/header.qmd
 @@ -0,0 +1,40 @@
@@ -374,7 +385,7 @@ index 0000000..37dc692
 +                    anchors.verticalCenter: parent.verticalCenter
 +
 +                    IconButton {
-+                        iconSource: "qrc:/ark/icons/my_files"   // the house of xochitl's sidebar ("house" is a pattern swatch)
++                        iconSource: "qrc:/appload/icons/home"   // xochitl has no house under ark/icons ("house" is a pattern, "my_files" a box)
 +                        onClicked: AppLoadHeader.press(1)
 +                    }
 +                    IconButton {
