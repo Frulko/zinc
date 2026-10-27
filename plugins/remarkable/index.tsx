@@ -4,6 +4,7 @@ import { Keyboard } from 'zinc:ui/kit';
 import * as fs from 'zinc:fs';
 import { Ink, TOOLS, ERASERS } from 'zinc:ink';
 import { env, device, dataDir } from 'zinc:sys';
+import { Svg } from 'zinc:svg';
 import status from './native/status.spec';
 
 const [minutes, setMinutes] = createSignal<i32>(status.localMinutes());
@@ -83,22 +84,48 @@ export interface RemarkableBarProps {
    *  running. Where the host can do neither, Accueil quits like Quitter: an app that saved its state comes back as it was. */
   onHome?: () => void;
 }
-const BUTTON = 'px-8 py-3 border-2 border-black rounded-lg bg-white focus:bg-white';
-const BAR = 'flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black';
-const BAR_SLIM = 'flex-row items-center justify-between gap-6 px-6 py-1 bg-white border-b-2 border-black';
+// Lucide's glyphs (third_party/lucide, ISC) the shell draws, inline: zinc:icons compiles in only the icons a project's own sources name
+function glyphPaths(name: string): string {
+  if (name === 'house') return '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
+  if (name === 'x') return '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
+  if (name === 'back') return '<path d="m18 15-6-6-6 6"/>';
+  if (name === 'battery-low') return '<path d="M22 14v-4"/><path d="M6 14v-4"/><rect x="2" y="6" width="16" height="12" rx="2"/>';
+  if (name === 'battery-medium') return '<path d="M10 14v-4"/><path d="M22 14v-4"/><path d="M6 14v-4"/><rect x="2" y="6" width="16" height="12" rx="2"/>';
+  if (name === 'battery-full') return '<path d="M10 10v4"/><path d="M14 10v4"/><path d="M22 14v-4"/><path d="M6 10v4"/><rect x="2" y="6" width="16" height="12" rx="2"/>';
+  if (name === 'battery-charging') return '<path d="m11 7-3 5h4l-3 5"/><path d="M14.856 6H16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.935"/><path d="M22 14v-4"/><path d="M5.14 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2.936"/>';
+  return '';
+}
+const glyphCache = new Map<string, Svg>();
+/** A black line glyph, size x size, drawn when the frame is painted for another reason (lazy: no repaint of its own). */
+function Glyph(p: { name: () => string; size: i32 }): i32 {
+  return <Canvas style={{ width: p.size, height: p.size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+    const name = p.name();
+    let g = glyphCache.get(name);
+    if (g === undefined) {
+      g = new Svg('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round">' + glyphPaths(name) + '</svg>');
+      glyphCache.set(name, g as Svg);
+    }
+    (g as Svg).draw(x, y, w, h, 255);
+  }} />;
+}
+const batteryGlyph = (): string => charging() ? 'battery-charging' : battery() >= 70 ? 'battery-full' : battery() >= 30 ? 'battery-medium' : 'battery-low';
+const ICON_BUTTON = 'w-[76px] h-[76px] items-center justify-center border-2 border-black rounded-full bg-white focus:bg-white';
+const BAR = 'flex-row items-center gap-6 px-8 h-[104px] bg-white border-b-2 border-black';
+const BAR_SLIM = 'flex-row items-center gap-6 px-8 h-[92px] bg-white border-b-2 border-black';
 function leave(props: RemarkableBarProps): void { if (props.onQuit) props.onQuit(); else quit(); }
 function home(props: RemarkableBarProps): void { if (props.onHome) props.onHome(); if (!goHome()) leave(props); }
 let shell: RemarkableBarProps = { title: '' };   // the last RemarkableBar's: the panel's actions are the bar's
 
-const PANEL_BUTTON = 'grow h-[120px] items-center justify-center border-2 border-black rounded-lg bg-white focus:bg-white';
+const PANEL_BUTTON = 'grow flex-col gap-3 h-[168px] items-center justify-center border-2 border-black rounded-2xl bg-white focus:bg-white';
 /** Over the app's top: three large buttons, no animation (e-paper). A tap under it is Annuler. */
 function SystemPanel(): i32 {
   const act = (f: () => void): void => { setPanel(false); f(); };
   return <View className="absolute top-0 left-0 right-0 bottom-0 flex-col" onClick={() => setPanel(false)}>
     <View className="flex-row gap-6 px-8 py-8 bg-white border-b-4 border-black" onClick={() => {}}>
-      <Button className={PANEL_BUTTON} onClick={() => act(() => home(shell))}><Text className="text-[40px] text-black">Accueil</Text></Button>
-      <Button className={PANEL_BUTTON} onClick={() => act(() => leave(shell))}><Text className="text-[40px] text-black">Quitter</Text></Button>
-      <Button className={PANEL_BUTTON} onClick={() => setPanel(false)}><Text className="text-[40px] text-black">Annuler</Text></Button>
+      <Button className={PANEL_BUTTON} onClick={() => act(() => home(shell))}><Glyph name={() => 'house'} size={64} /><Text className="text-[34px] text-black">Accueil</Text></Button>
+      <Button className={PANEL_BUTTON} onClick={() => act(() => leave(shell))}><Glyph name={() => 'x'} size={64} /><Text className="text-[34px] text-black">Quitter</Text></Button>
+      <Button className={PANEL_BUTTON} onClick={() => setPanel(false)}><Glyph name={() => 'back'} size={64} /><Text className="text-[34px] text-black">Annuler</Text></Button>
     </View>
   </View>;
 }
@@ -107,17 +134,16 @@ export function RemarkableBar(props: RemarkableBarProps): i32 {
   shell = props;
   // Docked under xochitl's header, which shows the time and the battery: a slim action bar, the title and the two buttons
   const docked = (): boolean => mode() === 'docked';
+  // the title on the left, the time in the middle, the battery and the two round icon buttons on the right
   return <View className={docked() ? BAR_SLIM : BAR}>
-    <Text className="text-[30px] text-black">{props.title}</Text>
-    {docked() ? null : <Text className="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>}
-    {docked() ? null : <Text className="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>}
-    <View className="flex-row gap-4">
-      <Button className={BUTTON} onClick={() => home(props)}>
-        <Text className="text-[30px] text-black">Accueil</Text>
-      </Button>
-      <Button className={BUTTON} onClick={() => leave(props)}>
-        <Text className="text-[30px] text-black">Quitter</Text>
-      </Button>
+    <Text className="grow basis-0 truncate text-[34px] font-bold text-black">{props.title}</Text>
+    {docked() ? null : <Text className="text-[32px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>}
+    <View className="grow basis-0 flex-row items-center justify-end gap-5">
+      {docked() || battery() < 0 ? null : <View className="flex-row items-center gap-2">
+        <Glyph name={batteryGlyph} size={44} /><Text className="text-[28px] text-black">{`${battery()}%`}</Text>
+      </View>}
+      <Button className={ICON_BUTTON} onClick={() => home(props)}><Glyph name={() => 'house'} size={44} /></Button>
+      <Button className={ICON_BUTTON} onClick={() => leave(props)}><Glyph name={() => 'x'} size={44} /></Button>
     </View>
   </View>;
 }

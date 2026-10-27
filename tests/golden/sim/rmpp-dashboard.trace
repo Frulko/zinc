@@ -1,11 +1,11 @@
      0.0 ms init key 7 fmt 1 (RGB888 1620x2160)
      0.0 ms mode FAST (qtfb sleeps 1000 ms)
-  1100.0 ms update PARTIAL 0,0 1620x2160 glass c16a7da3a4588b7b
-  1383.4 ms update PARTIAL 1354,437 105x28 glass f5b8bae2d8bd7798
-  3016.7 ms update PARTIAL 1234,162 310x362 glass 2d79b3020d05ffa2
-  3383.4 ms update PARTIAL 84,778 385x48 glass 16b7aff5cefe621e
-  4016.7 ms update PARTIAL 1489,291 54x72 glass 61628523acb74c55
-  5000.1 ms update PARTIAL 1236,162 309x362 glass d5629b16c48fd0a2
-  6000.1 ms update PARTIAL 1236,162 309x362 glass 9c0dbe114dc37c2a
+  1100.0 ms update PARTIAL 0,0 1620x2160 glass c41181df2b1dc4e6
+  1383.4 ms update PARTIAL 1354,451 105x28 glass 62f2458fafb822dd
+  3016.7 ms update PARTIAL 1234,176 310x362 glass 9e1f119dd9629ceb
+  3383.4 ms update PARTIAL 84,792 385x48 glass fbff4d3e4824fe7b
+  4016.7 ms update PARTIAL 1489,305 54x72 glass 38ea78dea5ff35ac
+  5000.1 ms update PARTIAL 1236,176 309x362 glass 30ea073c991024af
+  6000.1 ms update PARTIAL 1236,176 309x362 glass 2490a13ccddb5ab7
   6000.1 ms terminate
 # 7 updates, 1 mode changes, 0 errors, 3860444 pixels announced
