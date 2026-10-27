@@ -29,10 +29,10 @@ index 0000000..58b15c2
 +  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 +</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..5623dea 100644
+index e371128..e7a91cc 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
-@@ -188,6 +188,40 @@ FocusScope {
+@@ -188,6 +188,46 @@ FocusScope {
      }
      function readDockTop() {
          dockTop = library.xochitlHeaderHeight(root.parent);
@@ -56,7 +56,13 @@ index e371128..5623dea 100644
 +    onDockedChanged: tellWindows(null)
 +    onMinimizedChanged: tellWindows(null)
 +    onVisibleChanged: tellWindows(null)
-+    Component.onDestruction: tellWindows(root)
++    Component.onDestruction: { AppLoadHeader.release(root); tellWindows(root); }
++    // xochitl's header shows the top docked window's bar (header.qmd); without it, headerBar below draws it over the header
++    readonly property bool headerShown: docked && !minimized && windowCanvas.visible && headerOnTop
++    function claimHeader() { if(headerShown) AppLoadHeader.claim(root, appName); else AppLoadHeader.release(root); }
++    onHeaderShownChanged: claimHeader()
++    onAppNameChanged: claimHeader()
++    function headerAction(action) { windowCanvas.sendHeaderAction(action); }
 +    // The header bar (0010): the app's title and its Home and Quit buttons in xochitl's header, at its sizes, in the room it leaves
 +    property var headerLayout: ({})
 +    readonly property int headerFont: headerLayout.font > 0 ? headerLayout.font : Math.round(dockTop * 0.3)
@@ -73,7 +79,7 @@ index e371128..5623dea 100644
      }
      // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
      // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
-@@ -761,6 +795,49 @@ FocusScope {
+@@ -761,6 +801,49 @@ FocusScope {
      }
  
  
@@ -84,7 +90,7 @@ index e371128..5623dea 100644
 +        width: root.width
 +        height: root.dockTop
 +        z: 2
-+        visible: root.docked && !root.minimized && windowCanvas.visible && root.headerOnTop
++        visible: root.headerShown && !AppLoadHeader.hosted
 +        readonly property var gapL: root.headerGap(false)
 +        readonly property var gapR: root.headerGap(true)
 +        readonly property int pad: Math.round(root.headerIcon * 0.6)
@@ -107,7 +113,7 @@ index e371128..5623dea 100644
 +                width: root.headerIcon * 2
 +                height: root.dockTop
 +                x: headerBar.gapR[1] - (index + 1) * width
-+                onClicked: windowCanvas.sendHeaderAction(modelData.action)
++                onClicked: root.headerAction(modelData.action)
 +                Image {   // Lucide's x and house (ISC), at the header's icon size
 +                    anchors.centerIn: parent
 +                    width: root.headerIcon
@@ -136,7 +142,7 @@ index c8216ef..583dbcc 100644
  		<file>qml/appload.qml</file>
  		<file>qml/window.qml</file>
 diff --git a/src/AppLibrary.h b/src/AppLibrary.h
-index 4aac869..3bba09d 100644
+index 4aac869..6ac9e2b 100644
 --- a/src/AppLibrary.h
 +++ b/src/AppLibrary.h
 @@ -18,6 +18,9 @@
@@ -207,6 +213,54 @@ index 4aac869..3bba09d 100644
      // A docked window and xochitl's own layers (0008, 0009). xochitl's sidebar and menus are items of its scene, not all in Qt Quick
      // Controls' overlay, and AppLoad's windows come after them: what a press on the header opens would show under the docked window. The
      // press keeps a picture of the scene (each visible item's rectangle); then what appeared or slid over the window is found and lifted
+@@ -408,3 +462,35 @@ private:
+ 
+     QList<AppLoadApplication *> _applications;
+ };
++
++// The header bar (0010): the top docked window's title and Home / Quit, shown by xochitl's own header (header.qmd adds them to its
++// ContentHeader). The top docked window claims it and releases it; a press calls the owner's headerAction. `hosted` is set by the header
++// once the diff applied; until then (another OS release, the diff refused) each window draws the bar over the header itself.
++class AppLoadHeader : public QObject {
++    Q_OBJECT
++    Q_PROPERTY(QString title READ title NOTIFY changed)
++    Q_PROPERTY(bool active READ active NOTIFY changed)
++    Q_PROPERTY(bool hosted READ hosted WRITE setHosted NOTIFY hostedChanged)
++public:
++    static AppLoadHeader *instance() { static AppLoadHeader header; return &header; }
++    QString title() const { return owner ? _title : QString(); }
++    bool active() const { return !owner.isNull(); }
++    bool hosted() const { return _hosted; }
++    void setHosted(bool hosted) { if(hosted != _hosted) { _hosted = hosted; emit hostedChanged(); } }
++    Q_INVOKABLE void claim(QObject *by, const QString &title) {
++        if(owner == by && _title == title) return;
++        if(owner != by) connect(by, &QObject::destroyed, this, &AppLoadHeader::changed);
++        owner = by;
++        _title = title;
++        emit changed();
++    }
++    Q_INVOKABLE void release(QObject *by) { if(owner == by) { owner = nullptr; emit changed(); } }
++    Q_INVOKABLE void press(int action) { if(owner) QMetaObject::invokeMethod(owner, "headerAction", Q_ARG(QVariant, QVariant(action))); }
++signals:
++    void changed();
++    void hostedChanged();
++private:
++    QPointer<QObject> owner;
++    QString _title;
++    bool _hosted = false;
++};
+diff --git a/src/main.cpp b/src/main.cpp
+index 2bcd363..e27d679 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
+     qmlRegisterType<AppLoadApplication>("net.asivery.AppLoad", 1, 0, "AppLoadApplication");
+     qmlRegisterType<FBController>("net.asivery.Framebuffer", 1, 0, "FBController");
+     qmlRegisterSingletonType<AppLoadLauncher>("net.asivery.AppLoad", 1, 0, "AppLoadLauncher", &AppLoadLauncher::qmlSingleton);
++    qmlRegisterSingletonInstance("net.asivery.AppLoad", 1, 0, "AppLoadHeader", AppLoadHeader::instance());
+     qmlRegisterSingletonType<AppLoadEmuOnly>("net.asivery.AppLoad", 1, 0, "AppLoadEmuOnly", &AppLoadEmuOnly::qmlSingleton);
+     engine.load(QUrl(QStringLiteral("./_start.qml")));
+ 
 diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
 index 54a20e9..132380a 100644
 --- a/src/qtfb/FBController.cpp
@@ -277,3 +331,72 @@ index 5bb637c..2199be8 100644
          };
      };
  
+diff --git a/xovi/template/appload.xovi b/xovi/template/appload.xovi
+index 8af162b..47729f6 100644
+--- a/xovi/template/appload.xovi
++++ b/xovi/template/appload.xovi
+@@ -7,3 +7,4 @@ import?      qt-resource-rebuilder$qmldiff_add_external_diff
+ import?      qt-resource-rebuilder$qmldiff_disable_slots_while_processing
+ import?      qt-resource-rebuilder$qmldiff_enable_slots_while_processing
+ resource     apploadDiff:appload.qmd
++resource     headerDiff:header.qmd
+diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
+new file mode 100644
+index 0000000..53e308b
+--- /dev/null
++++ b/xovi/template/header.qmd
+@@ -0,0 +1,40 @@
++; The header bar of a docked window (0010): the top docked window's title after the burger, its Home and Quit buttons before the
++; status icons, as xochitl's own header items (its label and icon buttons). AppLoadHeader holds them; hosted tells the windows that
++; they need not draw the bar over the header themselves. Written against xochitl 3.29's ContentHeader.qml.
++AFFECT /qml/device/view/navigator/ContentHeader.qml
++    IMPORT net.asivery.AppLoad 1.0
++    TRAVERSE FocusScope
++        LOCATE AFTER ALL
++        INSERT {
++            Item {
++                anchors.fill: parent
++                visible: AppLoadHeader.active
++                Component.onCompleted: { AppLoadHeader.hosted = true; }
++
++                ArkControls.Label {
++                    x: menuButton.x + menuButton.width + ArkTokens.Style.spacing.xsmall   // this item fills the header: same coordinates
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: Math.max(0, parent.width / 2 - 160 - x)
++                    clip: true
++                    type: ArkControls.Label.LargeStrong
++                    text: AppLoadHeader.title
++                }
++
++                Row {
++                    anchors.right: parent.right
++                    anchors.rightMargin: header.topStatusIndicationRightMargin + topStatusIndication.width + ArkTokens.Style.spacing.xsmall
++                    anchors.verticalCenter: parent.verticalCenter
++
++                    IconButton {
++                        iconSource: "qrc:/ark/icons/house"
++                        onClicked: AppLoadHeader.press(1)
++                    }
++                    IconButton {
++                        iconSource: "qrc:/ark/icons/x_medium"
++                        onClicked: AppLoadHeader.press(2)
++                    }
++                }
++            }
++        }
++    END TRAVERSE
++END AFFECT
+diff --git a/xovi/template/src/main.cpp b/xovi/template/src/main.cpp
+index a744b8c..a4e650d 100644
+--- a/xovi/template/src/main.cpp
++++ b/xovi/template/src/main.cpp
+@@ -27,7 +27,9 @@ extern "C" {
+         qmlRegisterType<AppLoadApplication>("net.asivery.AppLoad", 1, 0, "AppLoadApplication");
+         qmlRegisterType<FBController>("net.asivery.Framebuffer", 1, 0, "FBController");
+         qmlRegisterSingletonType<AppLoadLauncher>("net.asivery.AppLoad", 1, 0, "AppLoadLauncher", &AppLoadLauncher::qmlSingleton);
++        qmlRegisterSingletonInstance("net.asivery.AppLoad", 1, 0, "AppLoadHeader", AppLoadHeader::instance());
+         qt_resource_rebuilder$qmldiff_add_external_diff(r$apploadDiff, "AppLoad hooks in main UI");
++        qt_resource_rebuilder$qmldiff_add_external_diff(r$headerDiff, "AppLoad header bar");
+ 
+         // AppLoad requires qt-resource-rebuilder to edit its own source code once it's being loaded
+         // But we're not done initializing the modules! There can be other modules which require qmldiff
