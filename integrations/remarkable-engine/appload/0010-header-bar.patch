@@ -353,10 +353,10 @@ index 8af162b..47729f6 100644
 +resource     headerDiff:header.qmd
 diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
 new file mode 100644
-index 0000000..2d144bd
+index 0000000..caf424e
 --- /dev/null
 +++ b/xovi/template/header.qmd
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,46 @@
 +; The header bar of a docked window (0010): the top docked window's title after the burger, its Home and Quit buttons before the
 +; status icons, as xochitl's own header items (its label and icon buttons). AppLoadHeader holds them; hosted tells the windows that
 +; they need not draw the bar over the header themselves. Written against xochitl 3.29's ContentHeader.qml.
@@ -379,18 +379,24 @@ index 0000000..2d144bd
 +                    text: AppLoadHeader.title
 +                }
 +
-+                Row {
++                Row {   // as the status icons: ArkControls.Icon at the small size, 64 px tall, a 64 px square to tap each
 +                    anchors.right: parent.right
-+                    anchors.rightMargin: header.topStatusIndicationRightMargin + topStatusIndication.width + header.topStatusIndicationRightMargin
++                    anchors.rightMargin: header.topStatusIndicationRightMargin * 2 + topStatusIndication.width
 +                    anchors.verticalCenter: parent.verticalCenter
 +
-+                    IconButton {
-+                        iconSource: "qrc:/appload/icons/home"   // xochitl has no house under ark/icons ("house" is a pattern, "my_files" a box)
-+                        onClicked: AppLoadHeader.press(1)
-+                    }
-+                    IconButton {
-+                        iconSource: "qrc:/ark/icons/x_medium"
-+                        onClicked: AppLoadHeader.press(2)
++                    Repeater {
++                        model: [ { action: 1, icon: "qrc:/appload/icons/home" }, { action: 2, icon: "qrc:/ark/icons/x_medium" } ]
++                        delegate: MouseArea {
++                            required property var modelData
++                            width: 64
++                            height: 64
++                            onClicked: AppLoadHeader.press(modelData.action)
++                            ArkControls.Icon {
++                                anchors.centerIn: parent
++                                size: ArkControls.Values.iconSize.small
++                                source: modelData.icon   // home: xochitl has no house under ark/icons ("house" is a pattern, "my_files" a box)
++                            }
++                        }
 +                    }
 +                }
 +            }
