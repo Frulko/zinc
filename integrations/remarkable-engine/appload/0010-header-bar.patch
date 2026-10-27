@@ -342,7 +342,7 @@ index 8af162b..47729f6 100644
 +resource     headerDiff:header.qmd
 diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
 new file mode 100644
-index 0000000..9a3d4c3
+index 0000000..37dc692
 --- /dev/null
 +++ b/xovi/template/header.qmd
 @@ -0,0 +1,40 @@
@@ -374,7 +374,7 @@ index 0000000..9a3d4c3
 +                    anchors.verticalCenter: parent.verticalCenter
 +
 +                    IconButton {
-+                        iconSource: "qrc:/appload/icons/house"   // xochitl's own "house" is a pattern swatch
++                        iconSource: "qrc:/ark/icons/my_files"   // the house of xochitl's sidebar ("house" is a pattern swatch)
 +                        onClicked: AppLoadHeader.press(1)
 +                    }
 +                    IconButton {
