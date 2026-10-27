@@ -45,12 +45,12 @@ kill -0 "$other" 2>/dev/null || { echo "the program that reused a pid was signal
 app "widget"
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
 for t in 'Zinc Hub' 'stuck is not responding' Stop; do echo "$texts" | grep -qxF "$t" || { echo "the widget does not show '$t':"; echo "$texts"; fail=1; }; done
-# stuck installed (no server): its tile on the Apps grid says Not responding
+# stuck installed (no server): its tile on the Apps grid has the "!" badge
 mkdir -p "$tmp/hub/apps/com.example.stuck" && printf 'version=1.0.0\nchannel=stable\nname=stuck\nsha256=x\n' > "$tmp/hub/apps/com.example.stuck/installed"
 mkdir -p "$tmp/appdata/stuck"; export ZINC_HUB_APP_DATA=$tmp/appdata
 app "page apps"
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-echo "$texts" | grep -qxF stuck && echo "$texts" | grep -qxF 'Not responding' || { echo "the grid has no Not responding badge on stuck:"; echo "$texts" | head -30; fail=1; }
+echo "$texts" | grep -qxF stuck && echo "$texts" | grep -qxF '!' || { echo "the grid has no Not responding badge on stuck:"; echo "$texts" | head -30; fail=1; }
 # Reset data on a running app stops it first (it would write its state back), then removes its data
 standin mail 'ok 1 1000 full'
 mkdir -p "$tmp/hub/apps/com.example.mail" "$tmp/appdata/mail" && printf 'version=1.0.0\nchannel=stable\nname=mail\nsha256=x\n' > "$tmp/hub/apps/com.example.mail/installed"

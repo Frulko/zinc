@@ -117,9 +117,9 @@ for t in 'Zinc Hub' 'notes' 'Installed 1.0.0 · 1.1.0 available · ' 'Update to 
   echo "$texts" | grep -q "^$t" || { echo "the apps page does not show '$t':"; echo "$texts" | head -30; fail=1; }
 done
 echo "$texts" | grep -q 'Rollback' && { echo "the apps page offers a rollback to a newer version"; fail=1; }
-app "page apps"   # the home grid: the tile's badge and Update all, with the count
+app "page apps"   # the home grid: the tile (its badge is a dot) and Update all, with the count
 texts=$(python3 tools/scene-texts "$tmp/scene.bin")
-for t in notes Update 'Update all (1)'; do echo "$texts" | grep -qxF "$t" || { echo "the grid does not show '$t'"; fail=1; }; done
+for t in notes 'Update all (1)'; do echo "$texts" | grep -qxF "$t" || { echo "the grid does not show '$t'"; fail=1; }; done
 app "updateall"
 expect 'Updated notes 1.1.0 (was 1.0.0).'
 
