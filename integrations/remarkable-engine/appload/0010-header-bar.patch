@@ -45,12 +45,12 @@ index e371128..3e86311 100644
 +        height: root.dockTop
 +        z: 2
 +        visible: root.docked && !root.minimized && windowCanvas.visible
-+        readonly property var left: root.headerGap(false)
-+        readonly property var right: root.headerGap(true)
++        readonly property var gapL: root.headerGap(false)
++        readonly property var gapR: root.headerGap(true)
 +        readonly property int pad: Math.round(root.headerIcon * 0.6)
 +        Text {
-+            x: headerBar.left[0] + headerBar.pad
-+            width: Math.max(0, headerBar.left[1] - headerBar.left[0] - 2 * headerBar.pad)
++            x: headerBar.gapL[0] + headerBar.pad
++            width: Math.max(0, headerBar.gapL[1] - headerBar.gapL[0] - 2 * headerBar.pad)
 +            height: parent.height
 +            verticalAlignment: Text.AlignVCenter
 +            elide: Text.ElideRight
@@ -66,7 +66,7 @@ index e371128..3e86311 100644
 +                required property int index
 +                width: root.dockTop
 +                height: root.dockTop
-+                x: headerBar.right[1] - headerBar.pad - (index + 1) * root.dockTop + (root.dockTop - root.headerIcon) / 2
++                x: headerBar.gapR[1] - headerBar.pad - (index + 1) * root.dockTop + (root.dockTop - root.headerIcon) / 2
 +                onClicked: windowCanvas.sendHeaderAction(modelData.action)
 +                Canvas {   // Lucide's house and x (ISC), at the header's icon size and stroke
 +                    anchors.centerIn: parent
