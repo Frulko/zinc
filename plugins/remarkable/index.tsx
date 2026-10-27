@@ -63,14 +63,15 @@ export function windowMode(): string { return mode(); }
 export function RemarkableApp(props: RemarkableAppProps): i32 {
   const Full = props.app;   // mounted as components: a call in braces would be read as a number
   // Docked under xochitl's header (experimental), the top of the screen is the header's: the driver gives its height as the safe area
-  const full = <View className="flex-col grow pt-[env(safe-area-inset-top)]">
+  // built each time it shows: <Show> releases the view it hides, so a node kept from before would come back blank
+  const full = (): i32 => <View className="flex-col grow pt-[env(safe-area-inset-top)]">
     <View className="flex-col grow relative"><Full />{panel() ? <SystemPanel /> : null}</View>
   </View>;
-  if (!props.widget) return full;
+  if (!props.widget) return full();
   const spec = props.widget as WidgetSpec;   // narrowed for the closures below
   widgetSize = [spec.width, spec.height];
   const Widget = spec.view;
-  return <Show when={mode() === 'widget'} fallback={full}>
+  return <Show when={mode() === 'widget'} fallback={full()}>
     <View className="flex-col bg-white" style={{ width: spec.width, height: spec.height }}><Widget /></View>
   </Show>;
 }

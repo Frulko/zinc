@@ -39,9 +39,18 @@ index 0000000..58b15c2
 +  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 +</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..2f71a96 100644
+index e371128..178d58b 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
+@@ -22,7 +22,7 @@ FocusScope {
+     implicitHeight: 0
+ 
+ 
+-    property alias appName: _appName.text
++    property string appName: "<AppLoad Window>"
+     property bool supportsScaling: false
+     property var qtfbKey: -1
+     property int appPid: -1
 @@ -188,6 +188,47 @@ FocusScope {
      }
      function readDockTop() {
@@ -90,6 +99,15 @@ index e371128..2f71a96 100644
      }
      // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
      // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
+@@ -438,7 +479,7 @@ FocusScope {
+             verticalAlignment: Text.AlignVCenter
+             elide: Text.ElideRight
+             font.pointSize: 15
+-            text: "<AppLoad Window>"
++            text: root.headerTitle   // the bar and the minimized pill name the app running now (MESSAGE_SET_TITLE), not the one launched
+         }
+ 
+         MouseArea {
 @@ -761,6 +802,49 @@ FocusScope {
      }
  

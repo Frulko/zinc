@@ -386,9 +386,10 @@ static void qsim_restore() {
   const char* e = getenv("ZN_RMPP_SIM_RESTORE");
   const long after = e ? atol(e) : 60;
   if (!qsim::hiddenAt || after <= 0 || (long)qsim::frames < (long)qsim::hiddenAt + after) return;
-  qsim::hiddenAt = 0; qsim::asWidget = false; qsim::collapsed = false; qsim::docked = false;
-  qsim::line("%8.1f ms restore", qsim::virtualNow() / 1000.0);
-  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = 1; send(qsim::qtfb, &st, sizeof st, 0);
+  const bool dock = e && strstr(e, ":dock");   // <frames>:dock: a docked window's widget opens docked again (AppLoad 0005)
+  qsim::hiddenAt = 0; qsim::asWidget = false; qsim::collapsed = false; qsim::docked = dock;
+  qsim::line("%8.1f ms restore%s", qsim::virtualNow() / 1000.0, dock ? " docked" : "");
+  qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = dock ? 3 : 1; send(qsim::qtfb, &st, sizeof st, 0);
 }
 // a press on xochitl's header minimizes the docked window, and the popup it opened closes: docked again
 static void qsim_header() {

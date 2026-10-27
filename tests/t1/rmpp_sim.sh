@@ -114,6 +114,16 @@ fi
 if run headerquit tests/data/rmpp-zoom 200 - ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_HEADERBAR=120:2; then
   has headerquit log 1 "Quit in xochitl's header: quitting the app"; quits headerquit 2400
 fi
+# Home in the header floats a docked app with a widget; its card opened again docks it: the whole docked page is sent again, not left blank
+if run headerwidget dashboard 260 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable ZN_RMPP_SIM_HEADERBAR=120:1 \
+     ZN_RMPP_SIM_RESTORE=60:dock ${HW_FULL:+ZN_RMPP_SIM_FULL=1}; then
+  [ -n "$HW_TRACE" ] && cp "$tmp/headerwidget/out/trace.txt" "$HW_TRACE"
+  [ -n "$HW_FULL" ] && cp "$tmp/headerwidget/out/glass.ppm" "$HW_FULL"
+  has headerwidget trace 1 " widget$"; has headerwidget trace 1 "restore docked"
+  has headerwidget trace 1 "update PARTIAL 20,120 1560x2000"   # the page laid out again (a view RemarkableApp kept from before came back blank)
+  awk '/restore docked/ { e = 1; next } e && / update / { print; exit }' "$tmp/headerwidget/out/trace.txt" | grep -q "update PARTIAL 0,120 1620x2040" ||
+    { echo "headerwidget: the docked page was not repainted when the widget opened it again"; fail=1; }
+fi
 # the Hub's Settings switch instead of the option: the file <zinc home>/rmpp-header docks every app
 mkdir -p "$tmp/flaghome" && : > "$tmp/flaghome/rmpp-header"
 if run dockflag dashboard 60 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock "ZINC_HOME=$tmp/flaghome"; then has dockflag trace 1 "docked under a 120 px header"; fi
