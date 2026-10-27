@@ -205,6 +205,7 @@ void escape(HalInput* in) {
   rin::quit_flag = 1; in->quit = 1;
 }
 
+const char* rm_device(const char* query, const char* arg);
 void rm_poll(HalInput* in) {
   if (layer == L2 || layer == RM2) { rin::poll_touch(); rin::poll_input(in); escape(in); return; }
   ServerMsg m = {};
@@ -230,8 +231,13 @@ void rm_poll(HalInput* in) {
       }
       if (m.state.reason == REASON_ACTION) {
         header_actions++; header_action = m.state.value;
-        // an app without zinc:remarkable has no Home of its own: either button leaves it (in the Hub's window, back to the Hub)
-        if (!action_read) { fprintf(stderr, "display-rmpp: %s in xochitl's header: quitting the app\n", header_action == 2 ? "Quit" : "Home"); rin::quit_flag = 1; }
+        // an app without zinc:remarkable answers neither: Home floats it as AppLoad does any app (its widget if it set one, else the
+        // minimized pill, still running), Quit ends it (in the Hub's window, back to the Hub)
+        if (!action_read) {
+          const bool away = header_action != 2 && (strcmp(rm_device("window.show-widget", nullptr), "1") == 0 || strcmp(rm_device("window.minimize", nullptr), "1") == 0);
+          fprintf(stderr, "display-rmpp: %s in xochitl's header: %s\n", header_action == 2 ? "Quit" : "Home", away ? (as_widget ? "its widget" : "minimized") : "quitting the app");
+          if (!away) rin::quit_flag = 1;
+        }
       }
       if (m.state.reason == REASON_INSETS && m.state.value >= 0 && m.state.value < panel.h && m.state.value != dock_top) {
         dock_top = m.state.value;

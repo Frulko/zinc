@@ -107,9 +107,12 @@ fi
 if run headerbar dashboard 200 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable ZN_RMPP_SIM_HEADERBAR=120:2; then
   has headerbar trace 1 "header bar: quit"; has headerbar trace 1 "title dashboard"; quits headerbar 2400
 fi
-# an app without zinc:remarkable (one the Hub opens in its window): either button of the header bar quits it
-if run headerplain tests/data/rmpp-zoom 200 - ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_HEADERBAR=120:1; then
-  has headerplain trace 1 "title zoom"; has headerplain log 1 "Home in xochitl's header: quitting the app"; quits headerplain 2400
+# an app without zinc:remarkable (one the Hub opens in its window): Home floats it (no widget: the minimized pill), Quit ends it
+if run headerhome tests/data/rmpp-zoom 200 - ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_HEADERBAR=120:1; then
+  has headerhome trace 1 "title zoom"; has headerhome log 1 "Home in xochitl's header: minimized"; has headerhome trace 1 " minimize$"
+fi
+if run headerquit tests/data/rmpp-zoom 200 - ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_HEADERBAR=120:2; then
+  has headerquit log 1 "Quit in xochitl's header: quitting the app"; quits headerquit 2400
 fi
 # the Hub's Settings switch instead of the option: the file <zinc home>/rmpp-header docks every app
 mkdir -p "$tmp/flaghome" && : > "$tmp/flaghome/rmpp-header"
