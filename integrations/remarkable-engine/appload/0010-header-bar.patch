@@ -39,7 +39,7 @@ index 0000000..58b15c2
 +  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 +</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..178d58b 100644
+index e371128..31f9c68 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
 @@ -22,7 +22,7 @@ FocusScope {
@@ -99,7 +99,17 @@ index e371128..178d58b 100644
      }
      // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
      // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
-@@ -438,7 +479,7 @@ FocusScope {
+@@ -286,7 +327,8 @@ FocusScope {
+                 target: root
+                 x: root.widgetX
+                 y: root.widgetY
+-                width: windowCanvas.widgetRect.width + 2 * cardPadding
++                // collapsed, only its header: as wide as the minimized pill (icon, name, buttons), never wider than the card
++                width: collapsed ? Math.min(root.pillWidth, windowCanvas.widgetRect.width + 2 * cardPadding) : windowCanvas.widgetRect.width + 2 * cardPadding
+                 height: barHeight + (collapsed ? 0 : windowCanvas.widgetRect.height + 2 * cardPadding)
+             }
+             PropertyChanges {
+@@ -438,7 +480,7 @@ FocusScope {
              verticalAlignment: Text.AlignVCenter
              elide: Text.ElideRight
              font.pointSize: 15
@@ -108,7 +118,7 @@ index e371128..178d58b 100644
          }
  
          MouseArea {
-@@ -761,6 +802,49 @@ FocusScope {
+@@ -761,6 +803,49 @@ FocusScope {
      }
  
  

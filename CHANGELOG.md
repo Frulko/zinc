@@ -62,7 +62,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
-- reMarkable: an app with a widget (RemarkableApp) no longer comes back as a blank page when its widget or minimized pill is opened again; the pill names the app running in the window, not the one launched (Zinc AppLoad patch 0010).
+- reMarkable: an app with a widget (RemarkableApp) no longer comes back as a blank page when its widget or minimized pill is opened again; the pill names the app running in the window, not the one launched, and a collapsed widget is only as wide as that pill (Zinc AppLoad patch 0010).
 - Pi player: a failed engine update now shows the error itself (with the exit code, or "out of memory?" when the build was killed) on up to three lines, instead of one cut-off line of compiler progress.
 - macOS development and exported app bundles now declare the engine’s compiled deployment target instead of requiring macOS 11, preventing an AppKit startup abort on Catalina builds.
 - macOS window loading keeps the macOS 11-only UniformTypeIdentifiers framework optional, allowing Catalina-targeted builds to use SDL’s older-system fallback.
