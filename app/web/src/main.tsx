@@ -107,12 +107,15 @@ function Widget(): i32 {
   </View>;
 }
 
+/** The writing tools, unfolded by the pen button of the bar: folded they take no room over the page. */
+const [tools, setTools] = createSignal<boolean>(false);
+function PenBtn(): i32 { return <Btn icon="pen-line" on={tools()} onClick={() => setTools(!tools())} />; }
 /** The page with the writing tools floating over its top: unfolding them does not change the page view's size (which would render the page again). */
 function Page(): i32 {
   return <View className="grow relative">
     <ZoomView className="grow" zoom={() => view.zoom} maxZoom={MAX_ZOOM} draw={pageView} picture={() => ink.img} writing={writing}
       onView={setView} onSwipe={swipe} onTap={(x: number, y: number) => { tapAt(x, y); }} onWheel={(s: number) => { turn(s > 0 ? -1 : 1); }} />
-    <View className="absolute top-0 left-0 right-0"><InkPalette ink={ink} open={false} /></View>
+    <View className="absolute top-0 left-0 right-0"><InkPalette ink={ink} shown={tools} onHide={() => setTools(false)} /></View>
   </View>;
 }
 
@@ -123,6 +126,7 @@ function FullReader(): i32 {
     <View className={`${BAR} border-b-2 border-black`}>
       <Btn icon="minimize" onClick={() => setFullScreen(false)} />
       <View className="grow" />
+      <PenBtn />
       <Text className={LABEL}>{pageLabel()}</Text>
       <Btn icon="a-arrow-down" onClick={() => pageSize(-1)} />
       <Btn icon="a-arrow-up" onClick={() => pageSize(1)} />
@@ -147,7 +151,7 @@ function Reader(): i32 {
       <Btn icon="bookmark-plus" onClick={() => addBookmark()} />
       <Btn icon="book-open-text" on={reader()} onClick={() => toggleReader()} />
       <View className="grow" />
-      {onTablet ? null : <Btn icon="pen-line" on={penMode()} onClick={() => setPenMode(!penMode())} />}
+      {onTablet ? <PenBtn /> : <Btn icon="pen-line" on={penMode()} onClick={() => setPenMode(!penMode())} />}
       <Btn icon="save" onClick={() => saveInk()} />
       <Btn icon="image-down" onClick={() => exportPng()} />
       <Btn icon="settings" on={screen() === SCREEN_SETTINGS} onClick={() => setScreen(screen() === SCREEN_SETTINGS ? SCREEN_PAGE : SCREEN_SETTINGS)} />

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- reMarkable: Web no longer covers the top of the page with a Tools button; a pen button in its bar (also in full screen) opens the writing tools. InkPalette takes `shown` and `onHide` for an app that opens it from its own button.
 - Hub (reMarkable): the home grid is a launcher in the style of iOS: six apps to a row, each icon in a rounded square with the name under it, and a round badge on its corner (a dot for an update, "!" when the app does not respond).
 - Hub (reMarkable): the apps, their names, descriptions and icons show at once from the last catalog that checked, also without the server; an Update all button installs every update (the engine first, the Hub last).
 - Android: on a rooted device, `setBacklight(false)` now turns the backlight fully off instead of leaving the screen at its dimmest glow, and a touch still wakes it. The app asks for root the first time; without root it dims as before.

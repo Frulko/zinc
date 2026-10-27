@@ -1,4 +1,4 @@
-import { createSignal, Show } from 'zinc:ui/solid';
+import { createSignal, createEffect, Show } from 'zinc:ui/solid';
 import { quit, minimizeWindow, setWidget, showWidget, windowState } from 'zinc:gfx';
 import { Keyboard } from 'zinc:ui/kit';
 import * as fs from 'zinc:fs';
@@ -210,14 +210,20 @@ export interface InkPaletteProps {
   open?: boolean;
   /** After every choice (a tool, a colour, a width, undo...): an app that saves on change hooks it here. */
   onChange?: () => void;
+  /** The app opens the palette from a button of its own: unfolded while shown() is true, and folded it takes no room at all (no
+   *  Tools button over the page); Hide calls onHide, which sets shown() false. */
+  shown?: () => boolean;
+  onHide?: () => void;
 }
 /** <InkPalette ink={ink} />: the writing tools for `ink`, as a bar above (or below) the page. */
 export function InkPalette(props: InkPaletteProps): i32 {
   const ink = props.ink;
   const widths = props.widths ?? [ink.width / 2, ink.width, ink.width * 2];
-  const [open, setOpenSignal] = createSignal<boolean>(props.open !== false);
-  const setOpen = (on: boolean): void => { setOpenSignal(on); setPenMode(on); };
-  setPenMode(open());
+  const shown = props.shown;
+  const [own, setOwn] = createSignal<boolean>(props.open !== false);
+  const open = (): boolean => shown !== undefined ? (shown as () => boolean)() : own();
+  const setOpen = (on: boolean): void => { if (shown === undefined) setOwn(on); else if (!on && props.onHide) (props.onHide as () => void)(); };
+  createEffect(() => { setPenMode(open()); });   // unfolded is writing (the Pen waveform), whoever unfolds it
   const [tool, setTool] = createSignal<string>(ink.eraser ? 'eraser' : ink.tool);
   const [color, setColor] = createSignal<i32>(ink.color);
   const [width, setWidth] = createSignal<number>(ink.width);
@@ -240,7 +246,7 @@ export function InkPalette(props: InkPaletteProps): i32 {
     </Button>;
   const off = (): boolean => false;
   const swatches = (): i32[] => tool() === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS;
-  return <Show when={open()} fallback={
+  return <Show when={open()} fallback={shown !== undefined ? <View /> :
     <View className="flex-row px-4 py-2 bg-white"><Btn label={`Tools · ${TOOL_LABELS[TOOL_NAMES.indexOf(tool())]}`} on={off} press={() => setOpen(true)} /></View>}>
     <View className="flex-col gap-3 px-4 py-3 bg-white border-b-2 border-black">
       <View className="flex-row flex-wrap gap-3">
