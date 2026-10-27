@@ -358,6 +358,8 @@ session (`"ink": "session"`) has no keyboard yet.
    them to `/home/root/xovi/exthome/appload/<name>/`. In AppLoad, reload and launch it.
 4. Without AppLoad (`QTFB_KEY` unset) the app runs headless and says so on stderr. Stopping xochitl
    (`systemctl stop xochitl`) does not give Zinc the screen: the panel needs xochitl's software TCON.
+5. A screenshot of the tablet, xochitl and the apps as shown: `tools/rmpp-shot out.png` (`--top 130`: the header only), over ssh
+   with nothing installed; it reads xochitl's screen image through `/proc/<pid>/mem`.
 
 ## The engine on the tablet (ZN-841)
 

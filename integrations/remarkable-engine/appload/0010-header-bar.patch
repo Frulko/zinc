@@ -342,7 +342,7 @@ index 8af162b..47729f6 100644
 +resource     headerDiff:header.qmd
 diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
 new file mode 100644
-index 0000000..53e308b
+index 0000000..9a3d4c3
 --- /dev/null
 +++ b/xovi/template/header.qmd
 @@ -0,0 +1,40 @@
@@ -370,11 +370,11 @@ index 0000000..53e308b
 +
 +                Row {
 +                    anchors.right: parent.right
-+                    anchors.rightMargin: header.topStatusIndicationRightMargin + topStatusIndication.width + ArkTokens.Style.spacing.xsmall
++                    anchors.rightMargin: header.topStatusIndicationRightMargin + topStatusIndication.width + header.topStatusIndicationRightMargin
 +                    anchors.verticalCenter: parent.verticalCenter
 +
 +                    IconButton {
-+                        iconSource: "qrc:/ark/icons/house"
++                        iconSource: "qrc:/appload/icons/house"   // xochitl's own "house" is a pattern swatch
 +                        onClicked: AppLoadHeader.press(1)
 +                    }
 +                    IconButton {
