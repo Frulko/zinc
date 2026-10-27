@@ -134,20 +134,18 @@ if run penmode tests/data/rmpp-penmode 400 - "$ferrari"; then
   [ "$(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')" = "mode UI mode FAST mode UI " ] || { echo "penmode: $(grep -o 'mode [A-Z][A-Z]*' "$tmp/penmode/out/trace.txt" | tr '\n' ' ')"; fail=1; }
 fi
 
-# A pinch (two fingers held and moving): the Pen waveform while they are down, the app's UI mode after, then one full refresh
+# A pinch (two fingers held and moving): the Pen waveform while they are down, the app's UI mode after, and no full refresh (what went out
+# fast goes out again in the UI mode, a partial update without the flash)
 if run pinch tests/data/rmpp-penmode 400 - "$ferrari" PENMODE_STILL=1 ZN_RMPP_SIM_APPLOAD=0.6 ZN_RMPP_SIM_HOLD=150:2:60 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
   t=$(grep -o 'mode [A-Z][A-Z]*\|fingers [a-z]*\|full refresh' "$tmp/pinch/out/trace.txt" | tr '\n' ' ')
-  case "$t" in *"fingers down mode FAST fingers up mode UI full refresh"*) ;; *) echo "pinch: $t"; fail=1 ;; esac
+  case "$t" in *"fingers down mode FAST fingers up mode UI ") ;; *) echo "pinch: $t"; fail=1 ;; esac
 fi
 # The same pinch on a view that takes it through zinc:ui (onPinch, as ZoomView): zinc:ui declares the intent, so FAST comes when the
-# second finger lands (no 150 ms guess) and the full refresh as soon as the mode is back after the release (no 1.5 s timer)
+# second finger lands (no 150 ms guess), UI again after the release, and no full refresh
 if run uipinch tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=0.6 ZN_RMPP_SIM_HOLD=150:2:60 ZINC_RMPP_FULL_AFTER_PCT=0 ZINC_RMPP_FULL_AFTER_UPDATES=0; then
   t=$(grep -o 'mode [A-Z][A-Z]*\|fingers [a-z]*\|full refresh' "$tmp/uipinch/out/trace.txt" | tr '\n' ' ')
-  case "$t" in *"fingers down mode FAST fingers up mode UI full refresh"*) ;; *) echo "uipinch: $t"; fail=1 ;; esac
+  case "$t" in *"fingers down mode FAST fingers up mode UI ") ;; *) echo "uipinch: $t"; fail=1 ;; esac
   has uipinch log 1 "pinch phase 0"; has uipinch log 1 "pinch phase 2"
-  # the full refresh as soon as qtfb's second after the switch back is over (1.1 s), not 1.5 s after the release then that second
-  late=$(awk '/fingers up/ { up = $1 } / full refresh/ { print $1 - up; exit }' "$tmp/uipinch/out/trace.txt")
-  [ -n "$late" ] && [ "${late%.*}" -lt 1400 ] || { echo "uipinch: the full refresh came ${late} ms after the release"; fail=1; }
 fi
 # with AppLoad 0006 (no second's pause on a mode switch) the pinch's first fast picture follows the fingers at once, and while they move the
 # updates go one at a time, 160 ms apart at least (the panel's pace), so they never queue up behind the fingers
@@ -157,12 +155,16 @@ if run uipinch6 tests/data/rmpp-pinch 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=widge
     { echo "uipinch6: the gesture's updates:"; grep -E "fingers|mode|update" "$tmp/uipinch6/out/trace.txt" | head -20; fail=1; }
 fi
 # The ghost zoom (display.ghost): while a pinch moves, the driver scales the copy of the view it took when the fingers landed and sends it
-# to the panel (each update a new picture), and the view the app commits when they lift is the zoom the last one showed
+# to the panel in black and white (each update a new picture), the view the app commits when they lift is the zoom the last one showed,
+# and the sharp page goes out over the whole view in the UI mode: no full refresh
 if run ghost tests/data/rmpp-zoom 400 - "$ferrari" ZN_RMPP_SIM_APPLOAD=widget ZN_RMPP_SIM_INSTANT=1 ZN_RMPP_SIM_HOLD=150:2:60:4; then
   [ -n "$GHOST_TRACE" ] && cp "$tmp/ghost/out/trace.txt" "$GHOST_TRACE"
   has ghost log 1 "^view [23][0-9][0-9]$"
   [ "$(awk '/fingers down/ { d = 1 } /fingers up/ { d = 0 } d && / update / { n++; h[$NF] = 1 } END { print length(h) + 0 }' "$tmp/ghost/out/trace.txt")" -ge 3 ] ||
     { echo "ghost: the panel did not follow the fingers:"; grep -E "fingers|update" "$tmp/ghost/out/trace.txt" | head; fail=1; }
+  t=$(awk '/fingers up/ { u = 1 } u && /mode|update|full refresh/ { print $3, $4, $5 }' "$tmp/ghost/out/trace.txt" | tr '\n' ' ')
+  case "$t" in "mode UI "*"update PARTIAL 0,0"*) case "$t" in *full*) echo "ghost: a full refresh after the zoom: $t"; fail=1 ;; esac ;;
+    *) echo "ghost: after the release: $t"; fail=1 ;; esac
 fi
 # The way out of a stuck app: three fingers held 2 s quit it (one journal line); two fingers held as long do not
 if run escape tests/data/rmpp-penmode 600 - "$ferrari" ZN_RMPP_SIM_HOLD=60:3:200; then

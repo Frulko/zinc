@@ -171,7 +171,10 @@ int connect_qtfb(int key, int fmt) {
 // AppLoad patch 0004 (backlog/later.md): with its capability bit each MSG_UPDATE carries its own mode, no switch and no second of sleep;
 // then `gesture` picks the update's mode in rm_present instead of set_mode.
 bool gesture = false, intent_seen = false;
-uint64_t full_due = 0;   // the full refresh after a guessed gesture, once the app had time to draw its sharp picture
+uint64_t full_due = 0;   // the clean pass after a guessed gesture, once the app had time to draw its sharp picture
+// What went out in the fast waveform since the last clean pass: when the gesture settles it goes out again in the app's mode, a partial
+// update without the flash of a full refresh (KOReader's way); the full refreshes are left to the ghost count (full_after_pct).
+eink::Rect fast_area = {0, 0, 0, 0};
 void gestures(const HalInput* in) {
   if (intent_seen) return;
   static uint64_t since = 0;
@@ -323,6 +326,9 @@ void downgrade() {
 // draws its sharp picture once, when the fingers lift: "end" keeps the ghost on the glass until that frame comes, "cancel" (a pinch back to
 // where it started) puts the app's frame back at once.
 struct GhostView { bool on = false, dirty = false, restore = false, hold = false; eink::Rect view = {}; uint8_t* px = nullptr; float k = 1, ox = 0, oy = 0; } ghostv;
+// The ghost goes out in black and white, ordered-dithered on the screen's own grid (KOReader does so before its A2/DU updates): the fast
+// waveform draws two levels cleanly and quickly, greys and colours would smear, and a grid fixed to the screen does not shimmer as it moves.
+static const uint8_t BAYER4[4][4] = {{8, 136, 40, 168}, {200, 72, 232, 104}, {56, 184, 24, 152}, {248, 120, 216, 88}};
 void ghost_render() {
   const eink::Rect& v = ghostv.view;
   const int32_t w = v.x1 - v.x0, h = v.y1 - v.y0;
@@ -335,9 +341,11 @@ void ghost_render() {
     uint8_t* d = shm + ((size_t)y * panel.w + v.x0) * 3;
     if (sv < 0) { memset(d, 0xFF, (size_t)w * 3); continue; }
     const uint8_t* row = ghostv.px + (size_t)sv * w * 3;
+    const uint8_t* bayer = BAYER4[y & 3];
     for (int32_t x = 0; x < w; x++, d += 3) {
       if (xs[x] < 0) { d[0] = d[1] = d[2] = 0xFF; continue; }
-      const uint8_t* q = row + (size_t)xs[x] * 3; d[0] = q[0]; d[1] = q[1]; d[2] = q[2];
+      const uint8_t* q = row + (size_t)xs[x] * 3;
+      d[0] = d[1] = d[2] = (q[0] * 77 + q[1] * 150 + q[2] * 29) >> 8 > bayer[(v.x0 + x) & 3] ? 0xFF : 0x00;
     }
   }
 }
@@ -402,7 +410,7 @@ void rm_present(const HalFrame* f) {
     pending = in;
   }
   uint64_t now = hal_time_us();
-  if (full_due && now >= full_due) { full_due = 0; full_asked = true; }
+  if (full_due && now >= full_due) { full_due = 0; eink::unite(pending, fast_area); fast_area = {}; }
   const int want = gesture ? MODE_FAST : wanted_mode;
   if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want);   // a gesture, or a switch asked during qtfb's second
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
@@ -422,7 +430,9 @@ void rm_present(const HalFrame* f) {
   m.update.w = pending.x1 - pending.x0; m.update.h = pending.y1 - pending.y0;
   ssize_t sent = send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL);
   if (sent == sizeof m) {
-    if (ghost_skip) ghost_skip = false; else eink::ghost_add(ghost, eink::area(pending), now);
+    if (ghost_skip) ghost_skip = false; else if (!ghostv.on) eink::ghost_add(ghost, eink::area(pending), now);   // the ghost is cleaned after
+    if (refresh_mode == MODE_FAST && wanted_mode != MODE_FAST) eink::unite(fast_area, pending);
+    else if (pending.x0 <= fast_area.x0 && pending.y0 <= fast_area.y0 && pending.x1 >= fast_area.x1 && pending.y1 >= fast_area.y1) fast_area = {};
     pending = {}; last_sent_us = now;
   }
   else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) rin::quit_flag = 1;
@@ -510,7 +520,7 @@ const char* rm_device(const char* query, const char* arg) {
       if (ox != ghostv.ox || oy != ghostv.oy || k != ghostv.k) { ghostv.ox = ox; ghostv.oy = oy; ghostv.k = k; ghostv.dirty = true; }
       return "1";
     }
-    if (strcmp(arg, "end") == 0) { if (ghostv.on) { ghostv.on = false; ghostv.hold = true; } return "1"; }
+    if (strcmp(arg, "end") == 0) { if (ghostv.on) { ghostv.on = false; ghostv.hold = true; gesture = false; } return "1"; }   // the sharp page: app's mode
     if (strcmp(arg, "cancel") == 0) { if (ghostv.on || ghostv.hold) { ghostv.on = ghostv.hold = false; ghostv.restore = true; } return "1"; }
     return "0";
   }
@@ -522,7 +532,7 @@ const char* rm_device(const char* query, const char* arg) {
     if (layer == RM2) { rm2fb::fast = fast || wanted_mode == MODE_FAST; return "1"; }
     gesture = fast;
     full_due = 0;
-    if (settle && full_refresh_ok) full_asked = true;   // after the frame being drawn now: rm_present sends it before a full refresh
+    if (settle) { eink::unite(pending, fast_area); fast_area = {}; }   // after the frame being drawn now, in the app's mode: no flash
     return "1";
   }
   if (strcmp(query, "display.refresh") != 0) return nullptr;
