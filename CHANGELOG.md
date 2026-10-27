@@ -65,6 +65,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Hub server: a package altered on the server's disk no longer breaks the whole catalog (every tablet got an error); its line stays and the tablets refuse that package alone.
 - reMarkable: an app with a widget (RemarkableApp) no longer comes back as a blank page when its widget or minimized pill is opened again; the pill names the app running in the window, not the one launched, and a collapsed widget is only as wide as that pill (Zinc AppLoad patch 0010).
 - Pi player: a failed engine update now shows the error itself (with the exit code, or "out of memory?" when the build was killed) on up to three lines, instead of one cut-off line of compiler progress.
@@ -128,6 +129,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - zinc:3d `World.select()` chooses the same as before for less: 2.7 ms a frame instead of 3.5 for Pocket Tokyo on the PSP (PPSSPP).
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - The reMarkable top bar shows the battery level on the tablet (it showed "Battery —").
 - PSP and PS Vita: the device player's waiting screen shows its text (address, pairing code) instead of a blank screen.
 - Console players (3DS, PSP, Vita): a program reads the files of its project's `assets/` folder (`zinc:assets`, `loadObj`) under `zinc dev --device` and `zinc device deploy`, instead of failing with ENOENT.
@@ -230,6 +232,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Calls from a program into a native plugin are cheaper on the consoles, and zinc:3d places its nodes in single precision on the PSP, which has no double-precision hardware: Orbit's 3D work takes a quarter less time a frame on a PSP.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Nintendo 3DS games use elapsed time in stereo, fixing doubled gameplay speed and excess physics work. New Nintendo 3DS also enables its supported faster CPU/cache mode. Nova Patrol DS 0.2.1 includes these fixes.
 - Nova Patrol DS 0.2: use the compiled `--aot` console build, skip unchanged Box2D bridge writes and stationary flipper geometry, and apply a smaller 3DS effect budget. The dual-screen view now displays the textured bumper caps, mechanical recoil, Kenney spark sprites and refreshed score panels.
 - Pinball flippers stop transferring energy when held at rest, fast multiball contacts use travel-limited steps, and separating 3D contacts no longer trigger active kicks. Nova Patrol's target bank and ramp lip no longer trap slow balls.
@@ -259,6 +262,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc device <pi> update` on a Zinc Pi image installs the newest release the way the player's update page does (engine, player and system together) instead of asking for a manifest address.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Nintendo 3DS and other consoles: a program leaving the console core stops the GPU and the screens first; on a real 3DS XL, going back to the Homebrew Launcher after a heavy run crashed the console.
 - Updating a Zinc Pi image from its player no longer stops at "The rebuilt player did not draw its test frame": the screen driver now writes `ZINC_SHOT` pictures. The update to 0.7.6 works from a Pi on 0.7.4 or 0.7.5.
 
@@ -271,6 +275,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder shows which Zinc version (engine and player) the image will carry, and the build log names it.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `zinc pack`, `zinc dev --device` and `zinc device deploy` carry what a project needs beyond its own code: its own plugins (`plugins/`), and for a JavaScript project (a `.js` entry) its sources, its `node_modules` (linked packages included) and the libraries its `importmap.json` names outside the project (three.js, PixiJS).
 - A project on QuickJS (`"engine": "quickjs"` in zinc.json) runs from `zinc pack`, `zinc dev --device` and `zinc device deploy` as it does with `zinc run`: the package carries its sources instead of compiling them for the typed engine, which refused what QuickJS accepts (examples/fatty's circular imports).
 - `zinc pack` of a project whose assets include a link to a file elsewhere (the hero demo) makes an archive that runs: it named the file outside the archive, which `zinc run`, `zinc dev --device` and devices refused.
@@ -285,6 +290,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.7.4] - 2026-10-24
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - The Linux downloads carry their version again: those of 0.7.3 were named and reported `0.0.0-dev`, so `zinc update` and the Pi player's Updates menu could not compare them.
 
 ## [0.7.3] - 2026-10-24
@@ -348,6 +354,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Using the result of a function that returns nothing no longer crashes the compiler: `console.log(f())` and `` `${f()}` `` print `undefined` as in JavaScript, and other uses (`[f()]`) give a Z0005 error on that line.
 - Windows: plugins whose native code calls a recent engine function (`svg`, for its transforms) link again; `zinc.exe` now exports the whole engine surface plugins use.
 - Windows archives include the engine import library, so plugins can compile on first use after installation.
@@ -383,6 +390,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.6.2] - 2026-10-22
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `zinc:icons` draws its icons on an installed Zinc: the packages lacked the Lucide icon data, so every `icon()` was `null` and every `<Icon>` empty. When that data is missing, the compiler now says so.
 
 ## [0.6.1] - 2026-10-22
@@ -394,6 +402,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A plugin's native function takes up to twelve arguments on the ESP32 under `--engine mquickjs` (eight before).
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - The macOS packages ship the native libraries of `zinc:link`, `zinc:webrtc` and `zinc:webview`: a program that imports them (`examples/music-tree`) no longer stops with Z5011 "no native source" on an installed Zinc.
 
 ## [0.6.0] - 2026-10-22
@@ -428,6 +437,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Programs are written in version 8 of the bytecode format: a board flashed by an older zinc refuses them and says so. Run `zinc flash --target esp32` once to write the new core firmware.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `zinc run --target esp32 --qemu` no longer leaves the emulator running after the program ends.
 - Every engine now takes the same file for an import as the interpreter: under QuickJS, mquickjs, JSC, V8, Hermes, `zinc bundle` and the web target, an import picks the platform's file (`x.macos.ts`, `x.esp32.ts`), also for index files, `./x.js` naming `x.ts` and `tsconfig.json` `paths`; `x.ts` comes before `x.native.tsx`, and `zinc:hardware` loads. `zinc:platform`'s `TARGET` is `esp32` on the board.
 - A plugin whose vendored C includes a configuration header beside `plugin.json` (such as `lv_conf.h`) is rebuilt when that header changes, on the computer and in the ESP32 firmware.
@@ -437,6 +447,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.5.2] - 2026-10-22
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 
 - The JavaScript engines (`--engine quickjs`, `v8`, `hermes`, `jsc`) load the display driver a project names in `zinc.json` (`"display": "gl"`): `examples/video/mapper` stopped with "symbol not found '_zgl_layers'" on all of them.
 - `zinc:osc` works on the JavaScript engines: `listen` failed with "__host_oscListen is not defined", and the messages now reach its callback.
@@ -485,6 +496,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On macOS, trackpad and Magic Mouse scrolling follows the fingers pixel for pixel, then macOS's own momentum, so a fling glides and stops as in any Mac app; fingers on the pad stop it, and a mouse wheel notch still eases (and jumps with Reduce motion).
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `--engine quickjs` loads a package that a pnpm workspace links in two places (`node_modules` symbolic links) once, by its real path; it was loaded twice, with two copies of its state.
 - WebGL 2 on macOS: a shader with `continue` inside a `switch` now links (it failed with an empty log), and a vertex shader that returns before it writes `gl_Position` gets (0, 0, 0, 0) as in a browser instead of drawing streaks across the frame (Spline's metaball scenes showed both).
 - The web environment has `IntersectionObserver`, and a library may define its own `target` on an event it dispatches: Spline's runtime did and failed with "'target' is read-only".
@@ -503,6 +515,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - On a Homebrew install, the update notice, `zinc update` and the formula's caveats say `brew update && brew upgrade zinc`: Homebrew reads its taps at most once a day on its own, so `brew upgrade zinc` alone could say there is nothing new.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `brew install` and `brew upgrade` of zinc no longer end with "Failed to fix install linkage": the plugins' libraries now leave room in their header for the path Homebrew writes into them.
 - The update notice no longer announces a version found on another channel than this install's (a `zinc update <url>`, another install sharing `~/.zinc`): a Homebrew zinc could say "zinc 99.0.0 is available".
 
@@ -521,6 +534,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The `agents` example shows OpenCode Go's 5-hour, week and month usage with their resets, a rate-limited window in red, in the Agents panel and the status bar: it reads them from opencode.ai with the Go key `opencode auth export` gives, for that one request, never writing or passing the key on. Settings turns it off; then, or when the key is missing, expired or revoked, they show as unknown with the reason and a link to the console.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `zinc:net`: `fetch` no longer sends the `Authorization`, `Proxy-Authorization` and `Cookie` headers on to another site when it follows a redirect; they go to the address they were given for only, as in browsers and curl.
 - `zinc:ui` (classic layout): a box that flex-shrink makes narrower than it measured, or a child wider than its column, is laid out again at the width it gets, so the texts in it wrap inside it instead of keeping the lines of the wider width and running past its edge; an item that reaches its min-width stops there and the others share the rest, as in CSS. `break-words` now also cuts a long word in a text with style runs.
 - `zinc:ui`: `rotate`, `skewX`/`skewY` and uneven `scaleX`/`scaleY` (style, transform array, `animate`) now paint, children, texts and icons included; they only moved hit-testing before, so a spinner turned with `animate(ref, 'rotate', 360)` stood still.
@@ -551,6 +565,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc ui` (the Figma design tools), ZincStudio and the Figma plugin: they ran on the Node prototype, which is removed with them (its code is under the git tag `prototype-final`).
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Two programs started at the same time (two `zinc run`, a test beside an app) no longer fail to build or load the same plugin: the builds of a `ZINC_HOME` take turns.
 - `zinc export --target web --render dom --prerender` no longer comes out without its first screen on a busy machine ("the app drew nothing in six seconds").
 - The one-line installers (`curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh`, `install.ps1`) and `zinc update` now download from the releases that exist; they pointed to a repository that does not exist yet.
@@ -561,6 +576,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [0.3.1] - 2026-10-19
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - tc: zinc.exe finds its package and unpacks zig on Windows
 
 ## [0.3.0] - 2026-10-19
@@ -570,6 +586,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The zinc CLI for Linux (x86_64, aarch64, armhf, i686) on each release, updated by `zinc update`; `install.sh --atelier` adds Zinc Atelier to the applications menu.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Windows: zinc.exe finds the standard library and the prebuilt plugins beside it; the download looked for them at the path of the machine that built it.
 - Windows: the first native build no longer fails to unpack the compiler it downloads ("Cannot connect to D: resolve failed").
 
@@ -583,11 +600,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - music: scroll and swipe with the mouse wheel and the trackpad
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - frontend: include algorithm for the JSX source map lookup
 
 ## [0.2.1] - 2026-10-19
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Windows: the `zinc` download is back; 0.2.0 shipped without it because its build failed.
 
 ## [0.2.0] - 2026-10-19
@@ -612,6 +631,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Windows: `ZINC_GPU=integrated|discrete` picks the graphics card of a laptop with two (the discrete one is the default, `ZINC_GL_STATS=1` prints the card in use).
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - `zinc device run` and `deploy` no longer fail with "the session with <device> ended early" while an update is on trial: the client waits for the whole trial, and `ZINC_AGENT_TRIAL_MS` is now real time on a busy device.
 - Web export (`--render dom`): a long virtual list no longer jumps by a few rows after a big scroll on a slow machine (the browser's scroll anchoring is off on its scroller).
 - `--engine quickjs`: a `queueMicrotask` callback is called with no arguments (it received `undefined`), and `queueMicrotask` with something other than a function throws a TypeError, as in Node and browsers.
@@ -786,6 +806,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Text no longer shows `?` for invisible characters (bidi marks, zero-width spaces, variation selectors) a font has no glyph for: they draw as nothing.
 - A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its
   window) now draws: before, nothing ran but its timers.

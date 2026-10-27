@@ -114,6 +114,10 @@ fi
 if run headerquit tests/data/rmpp-zoom 200 - ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_HEADERBAR=120:2; then
   has headerquit log 1 "Quit in xochitl's header: quitting the app"; quits headerquit 2400
 fi
+# docked, the app's Refresh (refreshDisplay) and the ghost's full refresh still go out: nothing to send left the driver before it
+if run dockrefresh dashboard 260 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable ZN_RMPP_SIM_HEADERBAR=99999:1 "ZN_RMPP_SIM_TAP=150:1483,1640"; then
+  awk '/touch release/ { e = 1; next } e && /full refresh/ { f = 1 } END { exit !f }' "$tmp/dockrefresh/out/trace.txt" || { echo "dockrefresh: Refresh sent no full refresh when docked"; fail=1; }
+fi
 # Home in the header floats a docked app with a widget; its card opened again docks it: the whole docked page is sent again, not left blank
 if run headerwidget dashboard 260 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable ZN_RMPP_SIM_HEADERBAR=120:1 \
      ZN_RMPP_SIM_RESTORE=60:dock ${HW_FULL:+ZN_RMPP_SIM_FULL=1}; then

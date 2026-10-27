@@ -434,8 +434,9 @@ void rm_present(const HalFrame* f) {
   if (as_widget || docked) {   // the rest of the page is not on the screen: what lies outside the widget (above the dock) waits for the full window
     const eink::Rect c = as_widget ? widget : dock_rect();
     eink::Rect in = {std::max(pending.x0, c.x0), std::max(pending.y0, c.y0), std::min(pending.x1, c.x1), std::min(pending.y1, c.y1)};
-    if (eink::empty(in)) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
-    pending = in;
+    if (!eink::empty(in)) pending = in;
+    else if (as_widget) { if (eink::empty(r)) rin::wait_input(8, sock); return; }
+    else pending = {};   // docked: above the dock is xochitl's header, never ours; nothing to send is when a full refresh (asked or due) goes out
   }
   uint64_t now = hal_time_us();
   if (full_due && now >= full_due) { full_due = 0; eink::unite(pending, fast_area); fast_area = {}; }
