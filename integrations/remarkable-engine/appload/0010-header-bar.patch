@@ -39,10 +39,10 @@ index 0000000..58b15c2
 +  <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 +</svg>
 diff --git a/resources/qml/window.qml b/resources/qml/window.qml
-index e371128..3ca42b1 100644
+index e371128..2f71a96 100644
 --- a/resources/qml/window.qml
 +++ b/resources/qml/window.qml
-@@ -188,6 +188,46 @@ FocusScope {
+@@ -188,6 +188,47 @@ FocusScope {
      }
      function readDockTop() {
          dockTop = library.xochitlHeaderHeight(root.parent);
@@ -69,9 +69,10 @@ index e371128..3ca42b1 100644
 +    Component.onDestruction: { AppLoadHeader.release(root); tellWindows(root); }
 +    // xochitl's header shows the top docked window's bar (header.qmd); without it, headerBar below draws it over the header
 +    readonly property bool headerShown: docked && !minimized && windowCanvas.visible && headerOnTop
-+    function claimHeader() { if(headerShown) AppLoadHeader.claim(root, appName); else AppLoadHeader.release(root); }
++    readonly property string headerTitle: windowCanvas.clientTitle || appName   // the app running in the window names itself (MESSAGE_SET_TITLE)
++    function claimHeader() { if(headerShown) AppLoadHeader.claim(root, headerTitle); else AppLoadHeader.release(root); }
 +    onHeaderShownChanged: claimHeader()
-+    onAppNameChanged: claimHeader()
++    onHeaderTitleChanged: claimHeader()
 +    function headerAction(action) { windowCanvas.sendHeaderAction(action); }
 +    // The header bar (0010): the app's title and its Home and Quit buttons in xochitl's header, at its sizes, in the room it leaves
 +    property var headerLayout: ({})
@@ -89,7 +90,7 @@ index e371128..3ca42b1 100644
      }
      // The header belongs to xochitl and a press on it goes to xochitl: the docked window stays where it is, and what the press opens (the
      // burger's sidebar, a menu) is raised over it until it closes (AppLibrary's dockRaiseOpened).
-@@ -761,6 +801,49 @@ FocusScope {
+@@ -761,6 +802,49 @@ FocusScope {
      }
  
  
@@ -110,7 +111,7 @@ index e371128..3ca42b1 100644
 +            height: parent.height
 +            verticalAlignment: Text.AlignVCenter
 +            elide: Text.ElideRight
-+            text: root.appName
++            text: root.headerTitle
 +            color: "black"
 +            font.pixelSize: root.headerFont
 +            font.family: root.headerLayout.family || Qt.application.font.family
@@ -273,7 +274,7 @@ index 2bcd363..e27d679 100644
      engine.load(QUrl(QStringLiteral("./_start.qml")));
  
 diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
-index 54a20e9..132380a 100644
+index 54a20e9..8f66a23 100644
 --- a/src/qtfb/FBController.cpp
 +++ b/src/qtfb/FBController.cpp
 @@ -371,7 +371,7 @@ std::vector<struct qtfb::DeviceStateChangedContents> FBController::buildInitialS
@@ -299,11 +300,42 @@ index 54a20e9..132380a 100644
  // Sends the visibility only when it changed: a move between two states that sets
  // clientVisible and showWidget one after the other sends no intermediate value.
  void FBController::sendVisibility() {
+@@ -444,3 +451,13 @@ void FBController::setFbRotation(Rotation rotation) {
+     qtfb::management::sendDeviceStateChange(framebufferID, formRotationChangePacket());
+     markedUpdate();
+ }
++
++// MESSAGE_SET_TITLE: the parts of the client's title, in order; a part shorter than 16 bytes ends it. At most 256 bytes.
++void FBController::setTitlePart(int offset, const QByteArray &part) {
++    if(offset == 0) titleParts.clear();
++    if(offset != titleParts.size() || titleParts.size() + part.size() > 256) return;
++    titleParts += part;
++    if(part.size() == 16) return;
++    const QString title = QString::fromUtf8(titleParts);
++    if(title != _clientTitle) { _clientTitle = title; emit clientTitleChanged(); }
++}
 diff --git a/src/qtfb/FBController.h b/src/qtfb/FBController.h
-index 4418eb0..eb700a9 100644
+index 4418eb0..2932d56 100644
 --- a/src/qtfb/FBController.h
 +++ b/src/qtfb/FBController.h
-@@ -93,6 +93,7 @@ public:
+@@ -30,6 +30,7 @@ class FBController : public QQuickPaintedItem
+     Q_PROPERTY(bool clientVisible MEMBER clientVisible WRITE setClientVisible)
+     // The rectangle of the framebuffer the client asked to show as a widget (empty: none).
+     Q_PROPERTY(QRect widgetRect READ widgetRect NOTIFY widgetRectChanged)
++    Q_PROPERTY(QString clientTitle READ clientTitle NOTIFY clientTitleChanged)   // MESSAGE_SET_TITLE, "" until the client names itself
+     // When set (and widgetRect is not empty) only widgetRect is shown, 1:1, at the item's origin.
+     Q_PROPERTY(bool showWidget MEMBER showWidget WRITE setShowWidget)
+     // Docked: the framebuffer below dockTop (xochitl's header height) is shown 1:1 at the item's origin.
+@@ -78,6 +79,8 @@ public:
+     void setShowDock(bool show);
+     void setDockTop(int top);
+     QRect widgetRect() const { return _widgetRect; }
++    QString clientTitle() const { return _clientTitle; }
++    void setTitlePart(int offset, const QByteArray &part);
+     void setWidgetRect(const QRect &rect);
+ 
+     std::optional<QPoint> convertPointToQTFBPixels(const QPointF &input);
+@@ -93,6 +96,7 @@ public:
      virtual void keyReleaseEvent(QKeyEvent *ke) override;
  
      Q_INVOKABLE void virtualKeyboardKeyDown(int key);
@@ -311,11 +343,36 @@ index 4418eb0..eb700a9 100644
      Q_INVOKABLE void virtualKeyboardKeyUp(int key);
  
  signals:
+@@ -104,6 +108,7 @@ signals:
+     void fbRotationChanged();
+     void windowStateRequested(int windowState);
+     void widgetRectChanged();
++    void clientTitleChanged();
+ 
+ private:
+     int framebufferID = -1;
+@@ -118,6 +123,8 @@ private:
+     int dockTop = 0;
+     int sentVisibility = VISIBILITY_SHOWN;
+     QRect _widgetRect;
++    QString _clientTitle;
++    QByteArray titleParts;
+     FillMode fillMode = Stretch;
+ 
+     bool checkingGestureDragDown = false;
 diff --git a/src/qtfb/common.h b/src/qtfb/common.h
-index 5bb637c..2199be8 100644
+index 5bb637c..165a586 100644
 --- a/src/qtfb/common.h
 +++ b/src/qtfb/common.h
-@@ -67,12 +67,16 @@
+@@ -25,6 +25,7 @@
+ #define MESSAGE_DEVICE_STATE_INIT 8
+ #define MESSAGE_SET_WINDOW_STATE 9
+ #define MESSAGE_SET_WIDGET 10
++#define MESSAGE_SET_TITLE 11 // CAPABILITY_HEADER_BAR: the app's title, 16 bytes a message (TitleMessageContents)
+ 
+ #define FBFMT_RM2FB 0
+ #define FBFMT_RMPP_RGB888 1
+@@ -67,12 +68,16 @@
  #define STATE_CHANGED_REASON_VISIBILITY 1
  #define STATE_CHANGED_REASON_CAPABILITIES 2
  #define STATE_CHANGED_REASON_INSETS 3
@@ -332,7 +389,21 @@ index 5bb637c..2199be8 100644
  
  #define VISIBILITY_MINIMIZED 0
  #define VISIBILITY_SHOWN 1
-@@ -135,6 +139,9 @@ namespace qtfb {
+@@ -109,6 +114,13 @@ namespace qtfb {
+         size_t shmSize;
+     };
+ 
++    // MESSAGE_SET_TITLE: UTF-8, in parts of up to 16 bytes at `offset` (0 starts a new title); a part shorter than 16 bytes ends it,
++    // an empty one when the title fills its last part. The message keeps its size: old clients and servers are unchanged.
++    struct TitleMessageContents {
++        int offset;
++        char text[16];
++    };
++
+     struct UpdateRegionMessageContents {
+         int type;
+         int x, y, w, h;
+@@ -135,6 +147,9 @@ namespace qtfb {
              struct {
                  int top; // the height of xochitl's header, screen pixels: a docked window starts there
              } insets;
@@ -342,6 +413,41 @@ index 5bb637c..2199be8 100644
          };
      };
  
+@@ -147,6 +162,7 @@ namespace qtfb {
+             // struct TerminateMessageContents terminate; - Terminate does not send any data.
+             int refreshMode;
+             int windowState; // MESSAGE_SET_WINDOW_STATE: WINDOW_STATE_MINIMIZE / _RESTORE / _WIDGET / _DOCKED
++            struct TitleMessageContents title;
+             // no full refresh - Force full refresh does not send any data.
+         };
+     };
+diff --git a/src/qtfb/fbmanagement.cpp b/src/qtfb/fbmanagement.cpp
+index cfaee0e..844534a 100644
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -382,6 +382,14 @@ static void managementClientThread(int incomingFD) {
+                     return RESP_OK;
+                 });
+                 break;
++            case MESSAGE_SET_TITLE:
++                status = invokeOnConnectedFramebuffer(&connection, [&](auto controller) {
++                    const int offset = inboundMessage.title.offset;
++                    const QByteArray part(inboundMessage.title.text, qstrnlen(inboundMessage.title.text, sizeof inboundMessage.title.text));
++                    QMetaObject::invokeMethod(controller, [controller, offset, part]() { controller->setTitlePart(offset, part); });
++                    return RESP_OK;
++                });
++                break;
+             default:
+                 CERR << "Client has tried to send a message with an invalid type: " << inboundMessage.type << std::endl;
+                 goto close;
+@@ -426,6 +434,7 @@ static void managementClientThread(int incomingFD) {
+                 }
+ 
+                 controller->associateSHM(NULL);
++                QMetaObject::invokeMethod(controller, [controller]() { controller->setTitlePart(0, QByteArray()); });   // the next client names itself
+                 CERR << "Disassociating framebuffer " << connection.fbKey << std::endl;
+             }
+         }
 diff --git a/xovi/template/appload.xovi b/xovi/template/appload.xovi
 index 8af162b..47729f6 100644
 --- a/xovi/template/appload.xovi
@@ -353,12 +459,12 @@ index 8af162b..47729f6 100644
 +resource     headerDiff:header.qmd
 diff --git a/xovi/template/header.qmd b/xovi/template/header.qmd
 new file mode 100644
-index 0000000..caf424e
+index 0000000..4e7791d
 --- /dev/null
 +++ b/xovi/template/header.qmd
-@@ -0,0 +1,46 @@
-+; The header bar of a docked window (0010): the top docked window's title after the burger, its Home and Quit buttons before the
-+; status icons, as xochitl's own header items (its label and icon buttons). AppLoadHeader holds them; hosted tells the windows that
+@@ -0,0 +1,56 @@
++; The header bar of a docked window (0010): a badge before xochitl's status icons with the top docked window's title and its Home and
++; Quit buttons, made of xochitl's own items (its label and icons, at the status icons' size). AppLoadHeader holds them; hosted tells the windows that
 +; they need not draw the bar over the header themselves. Written against xochitl 3.29's ContentHeader.qml.
 +AFFECT /qml/device/view/navigator/ContentHeader.qml
 +    IMPORT net.asivery.AppLoad 1.0
@@ -370,31 +476,41 @@ index 0000000..caf424e
 +                visible: AppLoadHeader.active
 +                Component.onCompleted: { AppLoadHeader.hosted = true; }
 +
-+                ArkControls.Label {
-+                    x: menuButton.x + menuButton.width + ArkTokens.Style.spacing.xsmall   // this item fills the header: same coordinates
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    width: Math.max(0, parent.width / 2 - 160 - x)
-+                    clip: true
-+                    type: ArkControls.Label.LargeStrong
-+                    text: AppLoadHeader.title
-+                }
-+
-+                Row {   // as the status icons: ArkControls.Icon at the small size, 64 px tall, a 64 px square to tap each
++                Rectangle {   // a badge: the app's title and buttons apart from xochitl's status icons, at their size (ArkControls.Icon, small)
 +                    anchors.right: parent.right
 +                    anchors.rightMargin: header.topStatusIndicationRightMargin * 2 + topStatusIndication.width
 +                    anchors.verticalCenter: parent.verticalCenter
++                    height: 56
++                    width: buttons.width + 8
++                    radius: height / 2
++                    color: "transparent"
++                    border.width: 2
++                    border.color: "black"
 +
-+                    Repeater {
-+                        model: [ { action: 1, icon: "qrc:/appload/icons/home" }, { action: 2, icon: "qrc:/ark/icons/x_medium" } ]
-+                        delegate: MouseArea {
-+                            required property var modelData
-+                            width: 64
-+                            height: 64
-+                            onClicked: AppLoadHeader.press(modelData.action)
-+                            ArkControls.Icon {
-+                                anchors.centerIn: parent
-+                                size: ArkControls.Values.iconSize.small
-+                                source: modelData.icon   // home: xochitl has no house under ark/icons ("house" is a pattern, "my_files" a box)
++                    Row {
++                        id: buttons
++                        anchors.centerIn: parent
++                        Item { width: 20; height: 1 }   // spacers: only Item properties, whatever ArkControls.Label derives from
++                        ArkControls.Label {
++                            anchors.verticalCenter: parent.verticalCenter
++                            width: Math.min(implicitWidth, 260)
++                            clip: true
++                            type: ArkControls.Label.Medium
++                            text: AppLoadHeader.title
++                        }
++                        Item { width: 4; height: 1 }
++                        Repeater {
++                            model: [ { action: 1, icon: "qrc:/appload/icons/home" }, { action: 2, icon: "qrc:/ark/icons/x_medium" } ]
++                            delegate: MouseArea {
++                                required property var modelData
++                                width: 56
++                                height: 56
++                                onClicked: AppLoadHeader.press(modelData.action)
++                                ArkControls.Icon {
++                                    anchors.centerIn: parent
++                                    size: ArkControls.Values.iconSize.small
++                                    source: modelData.icon   // home: xochitl has no house under ark/icons ("house" is a pattern, "my_files" a box)
++                                }
 +                            }
 +                        }
 +                    }

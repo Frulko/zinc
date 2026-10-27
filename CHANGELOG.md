@@ -17,7 +17,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: after a zoom or a gesture the page is cleaned with a quiet partial refresh instead of a flash; the full refresh comes only after about six screens of changes. The zoom's ghost is drawn in crisp black and white.
 - reMarkable: the apps' top bar shows Home and Quit as round icons, with a battery icon; the swipe-down panel has icons too.
 - reMarkable (header mode): opening xochitl's menu no longer shrinks the app to its pill; xochitl's sidebar and menus open over it (needs the Zinc AppLoad build with patches 0007 to 0009).
-- reMarkable (header mode): the app's name and its Home and Quit buttons sit in xochitl's own header, at its text and icon sizes, and the app no longer draws a bar of its own (needs the Zinc AppLoad build with patch 0010).
+- reMarkable (header mode): a badge in xochitl's own header, before its status icons, shows the running app's name with Home and Quit, drawn with xochitl's own label and icons; the app no longer draws a bar of its own (needs the Zinc AppLoad build with patch 0010).
+- reMarkable (header mode): an app the Hub opens shows its own name in the header, and Home or Quit leaves it even when it does not use zinc:remarkable (back to the Hub).
 - Zinc Web: a **contrast slider** in Settings, from the page as it is to 4×, replaces the three steps; the web relay takes `contrast=1..4` (the names normal, high and max still work).
 - Each app now keeps its `zinc:storage` keys and its files in a folder of its own, `~/.zinc/apps/<name>/` (`dataDir()` of `zinc:sys` gives it); the keys an app had in the shared `~/.zinc/storage.kv` move there the first time it runs. Erasing that folder resets the app and nothing else.
 - Zinc Web: a **Home** button goes back to the first page, and **×** next to the address field empties it and shows a blank page without loading anything.

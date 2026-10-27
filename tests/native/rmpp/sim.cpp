@@ -53,7 +53,7 @@
 
 namespace qsim {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7,
-                 MSG_STATE_INIT = 8, MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };
+                 MSG_STATE_INIT = 8, MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10, MSG_SET_TITLE = 11 };
 static const char* appload = getenv("ZN_RMPP_SIM_APPLOAD") ? getenv("ZN_RMPP_SIM_APPLOAD") : "0.5";
 // ZN_RMPP_SIM_INSTANT=1 (with widget or dock): AppLoad 0006, capability 8, a mode or a full refresh applied in 20 ms instead of qtfb's second
 static const bool instant = getenv("ZN_RMPP_SIM_INSTANT") != nullptr;
@@ -65,7 +65,9 @@ static const bool widgets = docks || !strcmp(appload, "widget");
 static const int inset = getenv("ZN_RMPP_SIM_INSET") ? atoi(getenv("ZN_RMPP_SIM_INSET")) : 120;
 static const bool windowState = widgets || !strcmp(appload, "window");
 static const bool appload06 = windowState || !strcmp(appload, "0.6");   // else 0.5: no device state, no full refresh
-struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
+struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window;
+                                         struct { int offset; char text[16]; } title; }; };
+static std::string title;   // MSG_SET_TITLE's parts
 struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input;
                                    struct { int reason, value; } state; }; };
 
@@ -177,6 +179,13 @@ static void handle(const ClientMsg& m) {
     if (w > 0 && h > 0 && (x < 0 || y < 0 || x + w > W || y + h > H)) { line("%8.1f ms error: widget %d,%d %dx%d outside the panel", now / 1000.0, x, y, w, h); errors++; return; }
     wx = x; wy = y; ww = w > 0 && h > 0 ? w : 0; wh = ww ? h : 0;
     line("%8.1f ms widget rect %d,%d %dx%d", now / 1000.0, x, y, w, h);
+  } else if (m.type == MSG_SET_TITLE) {
+    if (!(docks && headerBar)) { line("%8.1f ms error: title: an AppLoad without 0010 closes the connection", now / 1000.0); errors++; return; }
+    if (m.title.offset == 0) title.clear();
+    if (m.title.offset != (int)title.size()) { line("%8.1f ms error: title part at %d after %d bytes", now / 1000.0, m.title.offset, (int)title.size()); errors++; return; }
+    const size_t n = strnlen(m.title.text, sizeof m.title.text);
+    title.append(m.title.text, n);
+    if (n < sizeof m.title.text) line("%8.1f ms title %s", now / 1000.0, title.c_str());
   } else if (m.type == MSG_TERMINATE) {
     line("%8.1f ms terminate", now / 1000.0);
   }
@@ -393,7 +402,7 @@ static void qsim_header() {
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = f == a ? 0 : 3; send(qsim::qtfb, &st, sizeof st, 0);
 }
 static void qsim_headerbar() {
-  if (!qsim::headerBar || !qsim::docked) return;
+  if (!qsim::headerBar) return;   // the window's state, not the app's: an app the Hub opens runs in its docked window
   char* end; const long f = strtol(qsim::headerBar, &end, 10); const int action = *end == ':' ? atoi(end + 1) : 1;
   if ((long)qsim::frames != f) return;
   qsim::line("%8.1f ms header bar: %s", qsim::virtualNow() / 1000.0, action == 2 ? "quit" : "home");

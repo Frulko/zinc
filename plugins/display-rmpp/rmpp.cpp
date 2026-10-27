@@ -40,14 +40,15 @@
 
 namespace {
 enum : uint8_t { MSG_INIT = 0, MSG_UPDATE = 1, MSG_TERMINATE = 3, MSG_INPUT = 4, MSG_SET_MODE = 5, MSG_FULL_REFRESH = 6, MSG_STATE_CHANGED = 7, MSG_STATE_INIT = 8,
-                   MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10 };   // 9, 10: AppLoad with integrations/remarkable-engine/appload
+                   MSG_WINDOW_STATE = 9, MSG_SET_WIDGET = 10, MSG_SET_TITLE = 11 };   // 9 to 11: AppLoad with integrations/remarkable-engine/appload
 enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, REASON_ACTION = 4, CAN_WINDOW = 1, CAN_WIDGET = 2, CAN_DOCK = 4,
              CAN_INSTANT_MODE = 8, CAN_HEADER_BAR = 16 };
 // also the visibility values: 0 minimized, 1 shown, 2 as its widget, 3 docked under xochitl's header (0005)
 enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2, WINDOW_DOCKED = 3 };
 enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
-struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window; }; };
+struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window;
+                                         struct { int offset; char text[16]; } title; }; };
 struct ServerMsg { uint8_t type; union { struct { int shm_key; size_t shm_size; } init; struct { int type, id, x, y, pressure; } input;
                                    struct { int reason, value; } state; }; };
 static_assert(sizeof(ClientMsg) == 24 && sizeof(ServerMsg) == 32, "qtfb wire layout");
@@ -78,6 +79,8 @@ int dock_top = 0;           // the header's height (STATE_CHANGED_REASON_INSETS)
 bool instant_mode = false;  // AppLoad applies a mode or a full refresh without its 1 s pause (capability bit 3, 0006 of the patch)
 bool header_bar = false;    // docked, AppLoad shows the app's title and Home / Quit in xochitl's header (capability bit 4, 0010 of the patch)
 int header_actions = 0, header_action = 0;   // presses on those buttons so far, the last one (1 Home, 2 Quit): "window.action"
+bool action_read = false;   // the app asked "window.action" (zinc:remarkable): else a press on Home or Quit quits it
+char app_title[96] = "";   // HalConfig's title (zinc.json "name"): the header bar's title (MSG_SET_TITLE)
 // how long this connection is busy after a mode switch or a full refresh: qtfb's second, or a few ms with 0006
 uint64_t switch_pause() { return instant_mode ? 30000 : 1100000; }
 eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), panel.w, panel.h}; }
@@ -215,8 +218,21 @@ void rm_poll(HalInput* in) {
       if (m.state.reason == REASON_CAPABILITIES) {
         window_ok = (m.state.value & CAN_WINDOW) != 0; widget_ok = (m.state.value & CAN_WIDGET) != 0; dock_ok = (m.state.value & CAN_DOCK) != 0; instant_mode = (m.state.value & CAN_INSTANT_MODE) != 0;
         header_bar = (m.state.value & CAN_HEADER_BAR) != 0;
+        // the header bar shows the app's name, not the AppLoad entry's: an app the Hub opens runs in the Hub's window. 16 bytes a
+        // message, a shorter part ends it (an empty one when the name fills its last part); only to an AppLoad that has the message
+        const int len = (int) strlen(app_title);
+        for (int off = 0; header_bar && off <= len; off += 16) {
+          ClientMsg t = {}; t.type = MSG_SET_TITLE; t.title.offset = off;
+          memcpy(t.title.text, app_title + off, len - off < 16 ? len - off : 16);
+          send(sock, &t, sizeof t, MSG_DONTWAIT | MSG_NOSIGNAL);
+          if (len - off < 16) break;
+        }
       }
-      if (m.state.reason == REASON_ACTION) { header_actions++; header_action = m.state.value; }
+      if (m.state.reason == REASON_ACTION) {
+        header_actions++; header_action = m.state.value;
+        // an app without zinc:remarkable has no Home of its own: either button leaves it (in the Hub's window, back to the Hub)
+        if (!action_read) { fprintf(stderr, "display-rmpp: %s in xochitl's header: quitting the app\n", header_action == 2 ? "Quit" : "Home"); rin::quit_flag = 1; }
+      }
       if (m.state.reason == REASON_INSETS && m.state.value >= 0 && m.state.value < panel.h && m.state.value != dock_top) {
         dock_top = m.state.value;
         if (docked) { pending = dock_rect(); window_changed(); }   // the header moved: the app lays out again, its whole docked area goes out
@@ -254,6 +270,7 @@ void wake_lock(bool on) {  // autosleep would suspend the SoC (and the digitizer
 }
 
 int rm_init(const HalConfig* cfg) {
+  if (cfg->title) snprintf(app_title, sizeof app_title, "%s", cfg->title);
   const char* codename = rmm::machine();
   row = rmm::model(codename);
   const bool known = row != nullptr;
@@ -475,6 +492,7 @@ const char* rm_device(const char* query, const char* arg) {
   // presses on its buttons so far and the last one, "n:home" or "n:quit"
   if (strcmp(query, "window.headerbar") == 0) return header_bar && docked && !hidden && !as_widget ? "1" : "0";
   if (strcmp(query, "window.action") == 0) {
+    action_read = true;
     static char n[24]; snprintf(n, sizeof n, "%d:%s", header_actions, header_action == 2 ? "quit" : "home"); return n;
   }
   if (strcmp(query, "window.state") == 0) return as_widget ? "widget" : hidden ? "hidden" : docked ? "docked" : "full";
