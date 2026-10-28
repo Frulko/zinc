@@ -319,3 +319,23 @@ These locate missing capture, bridge or routing without recording voice.
 The fake-capture regression now also exercises the phone's LPCM 24 kHz format.
 Real Siri recognition and appearance remain unresolved; these changes add
 evidence, not a claimed repair.
+
+
+## Confirmed microphone wire-format defect — 23:46
+
+Physical logs now show WebBridge requesting 24 kHz mono capture and MicUplink
+sending its first UDP packet (996 bytes, 480 samples). This proves viewer data
+reaches the sender, not receipt/decryption/recognition by the iPhone. Inspection
+against pinned DiPlay's MicrophoneUplink and the existing MicrophonePacketizer
+helper found the separate server failed to call toWirePcm: viewer PCM16 is
+little-endian, but wired microphone PCM is big-endian. Fix conversion in
+MicUplink before sealing; keep Opus bytes unchanged. The UDP regression receives
+and decrypts a known sample packet with the input key and RTP AAD, asserting
+exact big-endian PCM, unchanged Opus and unmodified caller input. Full backend
+build/tests and fresh/repeated overlay checks pass. No physical voice repair
+is claimed until another owner test.
+
+Night commands now receive RTSP 200 with empty bodies and no CSeq echoed by the
+phone. Their visible effect remains unconfirmed; no evidence justifies changing
+the reference command format. Check the projected CarPlay Settings appearance
+selection (Automatic vs Always Dark) before adding further protocol variants.

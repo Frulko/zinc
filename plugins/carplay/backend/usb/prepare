@@ -68,6 +68,7 @@ t=t.replace('        val uplink = MicUplink(config)', '        org.slf4j.LoggerF
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/MicUplink.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/MicUplink.kt']).decode()
+t=t.replace('                body = payload,', '                body = if (config.codec == com.shilapi.xcertplay.airplay.AudioCodecKind.LPCM) MicrophonePacketizer.toWirePcm(payload) else payload,')
 t=t.replace('            socket.send(DatagramPacket(packet, packet.size, config.host, config.port))', '            socket.send(DatagramPacket(packet, packet.size, config.host, config.port))\n            if (counters.nonce == 1L) log.info("Microphone first UDP packet sent bytes={} samples={}", packet.size, samples)')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt'
