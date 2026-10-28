@@ -377,7 +377,9 @@ func startCapture(_ tries: Int) {
         c.width = W; c.height = H
         c.pixelFormat = kCVPixelFormatType_32BGRA
         c.minimumFrameInterval = CMTime(value: 1, timescale: 60)
-        c.queueDepth = 4
+        // the surfaces macOS lends: the newest capture, the one waiting, up to three in the video encoder (it reads them without a copy).
+        // With fewer, a film at 30 came at 25 (macOS drops a frame when none is free)
+        c.queueDepth = 8
         c.showsCursor = true
         let s = SCStream(filter: SCContentFilter(display: display, excludingWindows: []), configuration: c, delegate: out)
         do { try s.addStreamOutput(out, type: .screen, sampleHandlerQueue: DispatchQueue(label: "capture")) } catch { die("\(error)") }
