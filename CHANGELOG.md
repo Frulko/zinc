@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay diagnostics identify the selected microphone, first captured packet and first UDP uplink packet; event responses expose phone status codes for day/night troubleshooting without logging audio.
 - The CarPlay demo accepts `ZINC_BACKGROUND=0` for a manual foreground run, allowing the first macOS microphone permission prompt when Siri requests capture.
 - The separate CarPlay receiver adds an experimental native macOS USB path with explicit phone selection, Lockdown pairing and NCM networking. Use `backend/run --usb-list` for safe discovery; live USB requires elevated access and has been verified with software authentication and native H.264 projection on an iPhone running iOS 27.0.1.
 - `examples/carplay/run` opens a native offline H.264/PCM demo without an iPhone; `--live` selects a real receiver. The viewer reconnects after transport loss, supports rotary keyboard controls and stops capture when the receiver ends the session.

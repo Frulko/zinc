@@ -8,10 +8,12 @@ export class MicrophoneUplink {
   private capture: i32 = -1;
   private timer: i32 = -1;
   private pending: number[] = [];
+  private sentPackets: i32 = 0;
   constructor(private send: (bytes: u8[]) => void, private onError: (text: string) => void) {}
 
   start(codec: string, rate: i32, channels: i32, samplesPerPacket: i32, bitrate: i32): void {
     this.stop();
+    console.log(`CarPlay microphone requested codec=${codec} rate=${rate} channels=${channels}`);
     if (codec !== 'lpcm' && codec !== 'opus') { this.onError('Unsupported microphone codec'); return; }
     this.encoder = C.micOpen(codec === 'opus' ? 1 : 0, rate, channels, samplesPerPacket, bitrate);
     if (this.encoder < 0) { this.onError(C.error()); return; }
@@ -36,6 +38,7 @@ export class MicrophoneUplink {
     }
     this.capture = M.open(id, rate, channels);
     if (this.capture < 0) { this.fail(M.error()); return; }
+    console.log(`CarPlay microphone capture started device=${devices.split('\u001e')[0].split('\u001f')[1]} rate=${rate}`);
     const count = samplesPerPacket * channels;
     this.timer = setInterval(() => {
       this.pending = this.pending.concat(M.read(this.capture));
@@ -43,14 +46,20 @@ export class MicrophoneUplink {
         const bytes = C.micEncode(this.encoder, this.pending.slice(0, count));
         this.pending = this.pending.slice(count);
         if (bytes.length === 0) { this.fail(C.error()); return; }
-        try { this.send(bytes); }
+        try {
+          this.send(bytes);
+          this.sentPackets++;
+          if (this.sentPackets === 1) console.log(`CarPlay microphone first packet sent bytes=${bytes.length} level=${M.level(this.capture)}`);
+        }
         catch (e) { this.fail('Microphone transport send failed'); return; }
         if (this.capture < 0) return;
       }
     }, 20);
   }
-  private fail(message: string): void { this.stop(); this.onError(message); }
+  private fail(message: string): void { console.log(`CarPlay microphone failed: ${message}`); this.stop(); this.onError(message); }
   stop(): void {
+    if (this.sentPackets > 0) console.log(`CarPlay microphone stopped packets=${this.sentPackets}`);
+    this.sentPackets = 0;
     if (this.timer >= 0) clearInterval(this.timer);
     if (this.capture >= 0) M.close(this.capture);
     if (this.encoder >= 0) C.micClose(this.encoder);

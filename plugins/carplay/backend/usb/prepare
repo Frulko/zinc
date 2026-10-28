@@ -51,6 +51,25 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                 }
             }''')
 p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()
+needle='if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) continue'
+assert t.count(needle) == 1, 'Unexpected upstream event response handler'
+t=t.replace('        eventCseq++', '        eventCseq++\n        if (command["type"] == "setNightMode") debugLog("airplay event night command cseq=$eventCseq")')
+t=t.replace(needle, '''if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) {
+                        val result = if (message.body.isNotEmpty()) runCatching { BplistCodec.decode(message.body) as? Map<*, *> }.getOrNull() else null
+                        debugLog("airplay event response cseq=${message.headers["cseq"]} status=${message.path} resultStatus=${result?.get("status")} bodyBytes=${message.body.size}")
+                        continue
+                    }''')
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/WebBridge.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebBridge.kt']).decode()
+t=t.replace('        val uplink = MicUplink(config)', '        org.slf4j.LoggerFactory.getLogger("mic").info("Microphone uplink requested rate={} channels={} port={}", config.sampleRate, config.channels, config.port)\n        val uplink = MicUplink(config)')
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/MicUplink.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/MicUplink.kt']).decode()
+t=t.replace('            socket.send(DatagramPacket(packet, packet.size, config.host, config.port))', '            socket.send(DatagramPacket(packet, packet.size, config.host, config.port))\n            if (counters.nonce == 1L) log.info("Microphone first UDP packet sent bytes={} samples={}", packet.size, samples)')
+p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt']).decode()
 needle='            "primaryInputDevice" to display.primaryInputDevice,'

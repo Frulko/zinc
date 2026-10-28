@@ -15,9 +15,13 @@ with tempfile.TemporaryDirectory(prefix='carplay-usb-prepare-') as temporary:
     tls = root / 'server/src/main/kotlin/com/playport/server/TlsCertificate.kt'
     server = root / 'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
     info = root / "protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt"
-    first = main.read_bytes(), gradle.read_bytes(), tls.read_bytes(), server.read_bytes(), info.read_bytes()
+    session = root / "protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt"
+    bridge = root / "server/src/main/kotlin/com/playport/server/WebBridge.kt"
+    uplink = root / "server/src/main/kotlin/com/playport/server/MicUplink.kt"
+    sources = [main, gradle, tls, server, info, session, bridge, uplink]
+    first = [source.read_bytes() for source in sources]
     initializer = main.read_text().split('    val wired = try {', 1)[1].split('    val server =', 1)[0]
     assert 'wired?.close()' not in initializer, 'initializer cannot close an uninitialized value'
     subprocess.run([str(script), str(root)], check=True)
-    assert first == (main.read_bytes(), gradle.read_bytes(), tls.read_bytes(), server.read_bytes(), info.read_bytes()), 'warm overlay differs from fresh checkout'
+    assert first == [source.read_bytes() for source in sources], 'warm overlay differs from fresh checkout'
 print('PASS fresh/repeated backend overlay')

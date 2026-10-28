@@ -58,15 +58,16 @@ async function capture(): Promise<void> {
     for (let cycle = 0; cycle < 6; cycle++) {
       received.length = 0;
       const opus = cycle % 2 === 1;
-      const packetSamples = opus ? 960 : cycle === 2 ? 640 : 160;
-      mic.start(opus ? 'opus' : 'lpcm', opus ? 48000 : 16000, 1, packetSamples, 32000);
+      const rate = opus ? 48000 : cycle === 4 ? 24000 : 16000;
+      const packetSamples = opus ? 960 : cycle === 2 ? 640 : rate / 100;
+      mic.start(opus ? 'opus' : 'lpcm', rate, 1, packetSamples, 32000);
       for (let i = 0; i < 100 && received.length < 2 && errors.length === 0; i++) await delay();
       check(errors.length === 0, 'fake capture opens and encodes');
       check(received.length >= 2 && received[0][0] === (opus ? 0x11 : 0x10), 'fake capture reaches backend WebSocket');
       if (!opus) {
         check(received[0].length === 1 + packetSamples * 2, 'PCM capture split/assembled exactly');
-        const fake = M.open('zinc:fake-microphone', 16000, 1);
-        const reference = C.micOpen(0, 16000, 1, packetSamples, 0);
+        const fake = M.open('zinc:fake-microphone', rate, 1);
+        const reference = C.micOpen(0, rate, 1, packetSamples, 0);
         let samples = M.read(fake);
         if (samples.length < packetSamples) samples = samples.concat(M.read(fake));
         const expected = C.micEncode(reference, samples.slice(0, packetSamples));

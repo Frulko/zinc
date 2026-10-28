@@ -299,3 +299,23 @@ sets all four to automatic (0) and tests each declared display. Runtime command
 format is unchanged; nightMode intent and send result are logged. Full backend
 build/tests and fresh/repeated overlay proof pass. Live appearance and Siri
 recognition using the Mac microphone remain to verify after restart.
+
+
+## Appearance and microphone still fail live — 23:41
+
+Owner reports no audible Siri recognition and no visible day/night change after
+1b21cbb7. The phone /info contains all four appearance fields, and nightMode
+commands return sent=true, but this only proves local encrypted socket writes.
+The receiver previously discarded RTSP event responses. Overlay now logs their
+CSeq, RTSP status, optional plist status and body length, with night command CSeq
+for correlation. No response body, keys, certificates or audio are logged.
+
+Read-only microphone permission check returns granted (1), explaining absence
+of a new OS prompt; this check did not request permission or start capture.
+Viewer diagnostics now log requested configuration, selected device on capture
+start, first WebSocket packet and its capture level, failure reason and stop
+packet count. Receiver logs uplink creation and first successful UDP send.
+These locate missing capture, bridge or routing without recording voice.
+The fake-capture regression now also exercises the phone's LPCM 24 kHz format.
+Real Siri recognition and appearance remain unresolved; these changes add
+evidence, not a claimed repair.
