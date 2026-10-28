@@ -18,6 +18,9 @@ done
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.js"
 "$ZINC" run "$tmp/boom.js" --engine quickjs >/dev/null 2>&1; [ $? -eq 101 ] || { echo "an uncaught exception does not end with 101 on quickjs"; fail=1; }
 "$ZINC" run "$tmp/boom.js" --engine nope >/dev/null 2>&1; [ $? -eq 2 ] || { echo "an unknown engine is not refused"; fail=1; }
+# zinc:sys signals: onSignal hears a kill sent to itself
+printf "import * as sys from 'zinc:sys';\nsys.onSignal('SIGUSR1', () => { console.log('got SIGUSR1'); sys.exit(0); });\nsetTimeout(() => { sys.kill(sys.pid(), 'SIGUSR1'); }, 10);\n" > "$tmp/sig.ts"
+"$ZINC" run "$tmp/sig.ts" --engine quickjs 2>&1 | grep -q '^got SIGUSR1$' || { echo "sys.onSignal does not work on quickjs"; fail=1; }
 printf "const x: number = 1;\ninterface;\n" > "$tmp/bad.ts"
 "$ZINC" run "$tmp/bad.ts" --engine quickjs 2>&1 | grep -q "bad.ts:2" || { echo "a type error position is not reported on quickjs"; fail=1; }
 # a project's zinc.json window size reaches the QuickJS run as it reaches the typed engines (game-2d opened at 320x240)

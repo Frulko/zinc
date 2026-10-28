@@ -95,6 +95,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- `sys.onSignal` and `sys.kill` work under `--engine quickjs` (they stopped with "__host_sigWatch is not defined").
 - A named function passed to a built-in array method with no other use as a value (`songs.sort(byTitle)`) compiles instead of Z0005 "this function used as a value".
 - Native plugins: a record field named like a C++ keyword (`auto`, `new`, `delete`, `default`...) no longer breaks the generated header; it is `auto_` in C++.
 - A `Promise<T>` made by generic code with `T = void` (`fail<void>()`, `Promise.reject<void>(e)`) is a `Promise<void>`: it can be returned from a function that returns `Promise<void>`, awaited, and given `then` and `catch`.

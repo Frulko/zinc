@@ -400,7 +400,8 @@ inline constexpr bool isGfxTailRow(Rt r) {
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
   return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
-         (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext;
+         (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext ||
+         r == Rt::HostSigWatch || r == Rt::HostSigSend;   // sys.onSignal, sys.kill
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
