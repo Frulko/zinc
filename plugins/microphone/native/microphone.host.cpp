@@ -129,7 +129,10 @@ struct HostMicrophone : NativeMicrophone {
       ma_device_info* infos = nullptr;
       ma_uint32 count = 0;
       if (ma_context_get_devices(&ctx, nullptr, nullptr, &infos, &count) == MA_SUCCESS)
-        for (ma_uint32 i = 0; i < count; i++) out += id_of(infos[i], (int)i) + FS + infos[i].name + RS;
+        // Enumeration order is not capture preference (Continuity may precede the Mac microphone).
+        for (int defaultFirst = 1; defaultFirst >= 0; --defaultFirst)
+          for (ma_uint32 i = 0; i < count; i++)
+            if (!!infos[i].isDefault == !!defaultFirst) out += id_of(infos[i], (int)i) + FS + infos[i].name + RS;
     }
     if (out.empty() && !no_fake()) out = std::string(FAKE_ID) + FS + FAKE_NAME + RS;
     return str(out);

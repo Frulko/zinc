@@ -19,7 +19,7 @@ mic.close();
 |---|---|
 | `requestPermission(): Promise<'granted' \| 'denied' \| 'undetermined'>` | macOS asks the person once per app and resolves with the answer (`undetermined` after a minute without one); a background run (`ZINC_BACKGROUND=1`, every test) never asks and answers at once; elsewhere `granted`. `denied` too when zinc.json refuses `microphone` |
 | `permissionStatus()` | the same status, without asking |
-| `devices(): Promise<MicrophoneDevice[]>` | `{ id, name }`; the fake microphone when the machine has none; `[]` with `ZINC_FAKE_MICROPHONE=0` and no microphone. Rejects when zinc.json refuses `microphone` |
+| `devices(): Promise<MicrophoneDevice[]>` | `{ id, name }`, system default first; the fake microphone when the machine has none; `[]` with `ZINC_FAKE_MICROPHONE=0` and no microphone. Rejects when zinc.json refuses `microphone` |
 | `Microphone.open(id?, { sampleRate, channels }?)` | `''` or nothing opens the first microphone; defaults 48000 Hz, 1 channel (8000 to 192000 Hz, 1 or 2 channels: miniaudio converts what the device has). Rejects with the reason: no such microphone, access not asked (`call requestPermission() first`) or denied, in use |
 | `sampleRate`, `channels`, `id` | the format of the samples |
 | `onData(cb)` | each block as it arrives (about every 20 ms): `samples` (`number[]`, channels interleaved, -1..1) and the index of its first frame since open (`frameIndex / sampleRate` is its time) |

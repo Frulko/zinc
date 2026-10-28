@@ -34,7 +34,7 @@ export function requestPermission(): Promise<PermissionStatus> {
   });
 }
 
-/** The microphones of the machine ([] when there is none and ZINC_FAKE_MICROPHONE=0; else the fake microphone stands in). Rejects when
+/** The microphones of the machine, system default first ([] when there is none and ZINC_FAKE_MICROPHONE=0; else the fake microphone stands in). Rejects when
  *  zinc.json "permissions" refuse "microphone". */
 export function devices(): Promise<MicrophoneDevice[]> {
   const s = S.devices(), e = S.error();

@@ -37,6 +37,10 @@ p=root/'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/CarPlayServer.kt']).decode()
 assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer microphone setting'
 t=t.replace('microphone = false', 'microphone = true')
+t=t.replace('"night" -> message.night?.let(session::setNightMode)', '''"night" -> message.night?.let {
+                    val sent = session.setNightMode(it)
+                    log.info("CarPlay nightMode={} sent={}", it, sent)
+                }''')
 t=t.replace('    private val listener = object : AirPlaySessionListener {', '    private var lastResourceSummary: String? = null\n\n    private val listener = object : AirPlaySessionListener {')
 t=t.replace('        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {', '''        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
             if (type == "modesChanged") {
@@ -46,6 +50,12 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                     lastResourceSummary = summary
                 }
             }''')
+p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt']).decode()
+needle='            "primaryInputDevice" to display.primaryInputDevice,'
+assert t.count(needle) == 1, 'Unexpected upstream display descriptor'
+t=t.replace(needle, needle + '\n            "uiAppearanceMode" to 0,\n            "uiAppearanceSetting" to 0,\n            "mapAppearanceMode" to 0,\n            "mapAppearanceSetting" to 0,')
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/TlsCertificate.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/TlsCertificate.kt']).decode()

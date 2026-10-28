@@ -12,7 +12,15 @@ class CarPlayAudioCapabilitiesTest {
             CarPlayServer(ServerConfig(stateDir = directory, identityDir = directory, bindAddress = "127.0.0.1")).use { server ->
                 assertFalse(server.airPlayConfig.disableAudioOutput)
                 assertTrue(server.airPlayConfig.microphone)
-                val formats = AirPlayInfoPlist.build(server.airPlayConfig)["audioFormats"] as List<*>
+                val info = AirPlayInfoPlist.build(server.airPlayConfig)
+                val displays = info["displays"] as List<*>
+                assertTrue(displays.isNotEmpty())
+                for (display in displays) {
+                    val descriptor = display as Map<*, *>
+                    for (key in listOf("uiAppearanceMode", "uiAppearanceSetting", "mapAppearanceMode", "mapAppearanceSetting"))
+                        assertEquals(key, 0, descriptor[key])
+                }
+                val formats = info["audioFormats"] as List<*>
                 val main = formats.filterIsInstance<Map<*, *>>().single { it["type"] == 100 && it["audioType"] == "default" }
                 assertTrue((main["audioOutputFormats"] as Number).toLong() != 0L)
                 assertTrue((main["audioInputFormats"] as Number).toLong() != 0L)

@@ -276,3 +276,26 @@ default, including agent-started windows. Microphone request/encoding/lifecycle
 have automated proof; real Siri recognition, calls, physical two-contact touch
 and day/night appearance remain unverified. A prior restart NAKed all NCM TX
 until the cable was reconnected; reconnect reliability remains open.
+
+
+## Physical Siri attempt and appearance corrections — 23:36
+
+The phone requests speechRecognition input streams (LPCM 24 kHz and 48 kHz
+mono). Owner observes Continuity selecting the iPhone microphone and reports
+no day/night appearance change. This is not acceptance of Mac microphone Siri.
+
+Zinc microphone enumeration previously used backend enumeration order, ignoring
+miniaudio's isDefault flag. It now places the system default first while keeping
+all device IDs and non-default ordering. Read-only enumeration on the Mac now
+returns MacBook Pro Microphone before the iPhone Continuity microphone; System
+Profiler independently identifies the Mac microphone as default. No microphone
+was opened by that check. Explicit device IDs retain their meaning; if the
+system default is changed, the next capture follows it. Capture already open
+does not migrate automatically.
+
+Compared with pinned DiPlay, receiver /info omitted uiAppearanceMode,
+uiAppearanceSetting, mapAppearanceMode and mapAppearanceSetting. Overlay now
+sets all four to automatic (0) and tests each declared display. Runtime command
+format is unchanged; nightMode intent and send result are logged. Full backend
+build/tests and fresh/repeated overlay proof pass. Live appearance and Siri
+recognition using the Mac microphone remain to verify after restart.

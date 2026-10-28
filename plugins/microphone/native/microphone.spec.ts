@@ -8,7 +8,7 @@ export interface Spec extends NativeModule {
   /** 0 undetermined, 1 granted, 2 denied (macOS privacy settings, or zinc.json "permissions"). `ask`: show the system's question when
    *  undetermined; it is answered later, so call again with false. 3: undetermined and not asked, in a background run (ZINC_BACKGROUND). */
   permission(ask: boolean): i32;
-  /** The microphones: id, name records; the fake microphone when there is none or ZINC_FAKE_MICROPHONE=1. */
+  /** The microphones, system default first: id, name records; the fake microphone when there is none or ZINC_FAKE_MICROPHONE=1. */
   devices(): string;
   /** Why the last devices() or open() failed, '' when it did not. */
   error(): string;

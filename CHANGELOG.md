@@ -88,6 +88,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- Microphone enumeration now puts the system default input first, so CarPlay uses the Mac microphone when it is the selected input instead of an earlier Continuity device.
+- The CarPlay receiver declares automatic UI/map appearance before sending day/night changes and logs whether each command was sent.
 - The CarPlay receiver now advertises its implemented microphone input formats to the iPhone; previously its capabilities still disabled microphone input.
 - CarPlay USB selects the first NCM function on iPhones exposing multiple network functions, advertises its control interface and uses the wired link’s MAC for session startup.
 - CarPlay USB uses the reference receiver’s IPv6 address and reports initial network packet headers to diagnose sessions that authenticate but never start projection.
