@@ -37,7 +37,10 @@ check "lz4 block" "swap 200,300 16x8 mode 0 full 0 content 0 thread [0-9a-f]* pi
 check "one picture, one update" "swap 400,400 16x4 mode 0" "$s"
 check "the pointer, drawn here" "swap 599,599 3x3 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
 check "a scroll's copy" "swap 200,340 16x8 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
-check "what the tablet reads" "+ptr +lz4 +copy" "$tmp/mac.log"
+check "what the tablet reads" "+ptr +lz4 +copy +sched" "$tmp/mac.log"
+# a rectangle over pixels still moving waits (450 ms for a Pen update by default), then goes with the newest pixels
+awk '/swap 704,704 8x8 mode 0 .*pixel ff000000/ { b = $NF } /swap 704,704 8x8 mode 0 .*pixel ffffffff/ && b { w = $NF } END { exit !(b && w && w - b >= 400) }' "$s" ||
+  { echo "sidecar_session: the second update on moving pixels was not held: $(grep '704,704' "$s")"; fail=1; }
 # the session ends with the app's page, then a full refresh: nothing of the stream is left on the glass
 awk '/1620x2160 mode 0 full 0/ { back = 1 } back && /full 1/ { ok = 1 } END { exit !ok }' "$s" || { echo "sidecar_session: no full refresh after the app's page came back"; fail=1; }
 [ "$(sed 's/.*thread \([0-9a-f]*\).*/\1/' "$s" | sort -u | wc -l | tr -d ' ')" = 1 ] || { echo "sidecar_session: swaps from more than one thread"; fail=1; }

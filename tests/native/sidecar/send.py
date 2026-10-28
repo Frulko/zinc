@@ -32,7 +32,11 @@ ack(); ack()
 msg(4, 1, 1, 3, 3, pl=b'\x02' * 9, more=1)        # a black 3x3 pointer, its hot spot in the middle
 msg(5, 600, 600, 1)                              # at 600,600: drawn at 599,599
 msg(6, 200, 300, 16, 8, pl=struct.pack('<hh', 0, 40))   # the lz4 block, scrolled 40 down
-time.sleep(0.3)
+msg(1, 704, 704, 8, 8, 1, b'\xff' * 8)          # black, then white at once: the white is held until the black has moved the panel
+ack()
+msg(1, 704, 704, 8, 8, 1, b'\x00' * 8)
+ack()
+time.sleep(0.8)
 msg(3)                                           # a full refresh
 s.settimeout(20)
 if sys.argv[2:] != ['notap']:

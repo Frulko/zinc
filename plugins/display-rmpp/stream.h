@@ -11,6 +11,9 @@
 //   4 CURSOR  the pointer's shape: w x h bytes, 0 none, 1 white, 2 black; (x, y) its hot spot. Drawn here, over the picture.
 //   5 POINTER where the pointer is: (x, y), w 0 hidden. A move is one small update; the Mac sends no picture for it.
 //   6 COPY    the rectangle (x, y, w, h) moves by the payload's [i16 dx][i16 dy] (a scroll): the Mac sends only what is new after it.
+//   7 SET     x: a setting, y: its value: 1, 2, 3 how long (ms) the panel drives a Pen, colour, full update (nothing new goes to those
+//             pixels before: a pixel still moving ignores a new target and stays half-way, the ghosts and coloured residue), 4 the
+//             profile on (1) or off, 5 holding on (1) or off.
 // more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
 // rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
@@ -27,6 +30,9 @@
 // INPUT for the Marker (0x20..0x22, and 0x23: hovering, from evdev in an ink session) has its tilt in id: x degrees in the low byte, y in
 // the high one (signed).
 //   kind 6 SCROLL a, b: one finger's step while two are down, in the stream's pixels (the Mac halves it and turns it with the picture).
+//   kind 8 PROFILE every 2 s while the profile is on: type 0 a updates sent to the panel, b rectangles held (their place still driven),
+//                 c the panel's busy time in permille; type 1 a, b, c how long the panel moved after a lone Pen, colour, full update
+//                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.
 // A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture). Two fingers scroll the Mac;
 // two fingers that barely moved (a tap) ask for a full refresh. Neither finger goes to the Mac as the mouse.
 #pragma once
@@ -66,6 +72,12 @@ inline int finger_x[16], finger_y[16], travel = 0;   // each finger's last place
 inline int last_id = 0, last_x = 0, last_y = 0;   // the finger the Mac has, where it was last
 inline std::atomic<bool> moved{false};      // the room changed under this session: its rectangles are dropped until the Mac leaves
 inline std::atomic<unsigned> session{0};
+// the panel's schedule (L2) and its profile, set by the Mac (SET)
+inline std::atomic<int> hold_pen{450}, hold_colour{1200}, hold_full{2500};
+inline std::atomic<bool> holding{true}, profiling{false};
+inline std::atomic<unsigned> n_swaps{0}, n_held{0}, n_rects{0};
+inline std::atomic<uint32_t> swap_at{0};
+inline std::atomic<int> swap_kind{0}, swaps_open{0};
 inline uint32_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000ull + t.tv_nsec / 1000); }   // which Mac is connected: the way-up watcher stops when it changes
 
 inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
@@ -137,7 +149,14 @@ inline void room(int top, int w, int h) {
 // The probe (on while /tmp/zinc-sidecar-probe exists when a Mac connects): how long the panel takes to start moving after an update.
 // xochitl drives the panel through the LCDIF, whose interrupt counts only while the panel is driven (none at rest): read every ms,
 // the first count after an update is when the panel starts. Logged every 5 s, apart for a panel at rest and one already driven.
-inline std::atomic<uint32_t> probe_at{0};   // when the last update went out (us), 0 once the panel answered it
+inline std::atomic<uint32_t> probe_at{0};   // when the last update went out, 0 once the panel answered it
+inline std::atomic<unsigned> probing{0};    // the session the profile thread watches
+/** An update went to the panel: 0 Pen, 1 colour, 2 full. */
+inline void note_swap(int kind) {
+  const uint32_t t = now_us() | 1;
+  swap_at = t; swap_kind = kind; ++swaps_open; ++n_swaps;
+  if (!probe_at) probe_at = t;
+}
 inline long lcdif_count() {
   FILE* f = fopen("/proc/interrupts", "r");
   if (!f) return -1;
@@ -146,29 +165,42 @@ inline long lcdif_count() {
   fclose(f);
   return n;
 }
+/** The profile: the LCDIF's interrupt counts only while the panel is driven, so read every 2 ms it tells when the panel starts after an
+ *  update, how long it moves after a lone one, and how busy it is. Sent to the Mac every 2 s (PROFILE), one line to the journal every 10. */
 inline void probe_loop(unsigned mine) {
-  std::vector<uint32_t> rest, busy;
+  std::vector<uint32_t> start, dur[3];
   long last = lcdif_count();
-  uint32_t changed = 0, logged = 0;
-  for (; session == mine; usleep(1000)) {
+  bool active = false;
+  uint32_t changed = 0, span0 = 0, sent = now_us(), logged = sent, busy = 0;
+  auto median = [](std::vector<uint32_t>& v) { if (v.empty()) return 0; std::sort(v.begin(), v.end()); return (int)(v[v.size() / 2] / 1000); };
+  for (; session == mine && (profiling || access("/tmp/zinc-sidecar-probe", F_OK) == 0); usleep(2000)) {
     const uint32_t t = now_us(); const long n = lcdif_count();
-    const uint32_t at = probe_at;
     if (n != last) {
-      if (at && (int32_t)(t - at) >= 0) { ((int32_t)(at - changed) > 40000 ? rest : busy).push_back(t - at); probe_at = 0; }
+      const uint32_t at = probe_at;
+      if (at && (int32_t)(t - at) >= 0) { start.push_back(t - at); probe_at = 0; }
+      if (!active) { active = true; span0 = t; }
       last = n; changed = t;
+    } else if (active && t - changed > 30000) {   // 30 ms without a frame: the panel rests
+      active = false; busy += changed - span0;
+      if (swaps_open == 1) { const uint32_t at = swap_at; if ((int32_t)(changed - at) > 0) dur[swap_kind].push_back(changed - at); }
+      swaps_open = 0;
     }
-    if (t - logged > 5000000 && (rest.size() || busy.size())) {
-      auto show = [](std::vector<uint32_t>& v, const char* what) {
-        if (v.empty()) return;
-        std::sort(v.begin(), v.end());
-        fprintf(stderr, "display-rmpp: probe %s: %zu updates, panel starts after %u ms (median), %u ms (90%%), %u ms (max)\n", what, v.size(),
-                v[v.size() / 2] / 1000, v[v.size() * 9 / 10] / 1000, v.back() / 1000);
-        v.clear();
-      };
-      show(rest, "from rest"); show(busy, "while driven");
-      logged = t;
+    if (t - sent >= 2000000) {
+      const int ms[3] = {median(dur[0]), median(dur[1]), median(dur[2])}, st = median(start);
+      const unsigned sw = n_swaps.exchange(0), held = n_held.exchange(0), rects = n_rects.exchange(0);
+      send16(8, 0, 0, (int32_t)sw, (int32_t)held, (int32_t)((uint64_t)busy * 1000 / (t - sent)));
+      send16(8, 1, 0, ms[0], ms[1], ms[2]);
+      send16(8, 2, 0, st, (int32_t)rects, 0);
+      if (t - logged >= 10000000) {
+        fprintf(stderr, "display-rmpp: profile: %u updates, %u held, panel busy %u%%, moves Pen %d ms colour %d ms full %d ms, starts after %d ms\n",
+                sw, held, (unsigned)((uint64_t)busy * 100 / (t - sent)), ms[0], ms[1], ms[2], st);
+        logged = t;
+      }
+      for (auto& v : dur) v.clear();
+      start.clear(); busy = 0; sent = t;
     }
   }
+  probing = 0;
 }
 
 struct Target {
@@ -176,7 +208,7 @@ struct Target {
   int w, h;
   int stride, bpp;                          // bytes per row and per pixel (3 or 4)
   std::function<int()> top;                 // the first row the stream may use (the dock's)
-  std::function<void(int, int, int, int)> update;   // one partial update
+  std::function<void(int, int, int, int, bool)> update;   // one partial update; true: the pointer's, at once (never held)
   std::function<bool()> busy;               // qtfb switching its waveform or sleeping after a full refresh: an update now is lost
   std::function<bool(int, int, int, int, int)> pen;   // the ink lane (L1, zinc-canvas): 0 begin, 1 ink x y w h, 2 end; empty without it,
                                                       // false once it is gone
@@ -231,14 +263,15 @@ inline void serve(Target t, int ls) {
     setsockopt(c, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof cnt);
     const int top = t.top(), H = t.h - top;
     char hello[128];
-    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy\n", t.w, H, t.model);
+    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched\n", t.w, H, t.model);
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     fingers = 0; two = false; moved = false;
     active = true;
     std::thread(watch_way_up, ++session).detach();
+    profiling = false;
     const bool probe = access("/tmp/zinc-sidecar-probe", F_OK) == 0;
-    if (probe) std::thread(probe_loop, (unsigned)session).detach();
+    if (probe) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
     uint32_t seq = 0;
     uint8_t h[16];
@@ -276,20 +309,21 @@ inline void serve(Target t, int ls) {
       return at;
     };
     // the panel's updates of one picture, sent at its last message
-    std::vector<Box> due;
+    std::vector<Box> due, quick;   // the picture's, the pointer's
     auto add = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) due.push_back(b); };
+    auto point = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) quick.push_back(b); };
     auto flush = [&] {
-      if (due.empty()) return;
-      merge(due);
+      if (due.empty() && quick.empty()) return;
+      merge(due); merge(quick);
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
+      for (const Box& r : quick) t.update(r.x0, top + r.y0, r.x1 - r.x0, r.y1 - r.y0, true);
       for (const Box& r : due) {
         const int x = r.x0, y = top + r.y0, w = r.x1 - r.x0, hh = r.y1 - r.y0;
         if (pen && !stroke) stroke = pen = t.pen(0, 0, 0, 0, 0);
         if (pen && !(pen = t.pen(1, x, y, w, hh))) stroke = false;
-        if (!pen) t.update(x, y, w, hh);
+        if (!pen) t.update(x, y, w, hh, false);
       }
-      if (probe && !probe_at) probe_at = now_us() | 1;
-      due.clear();
+      due.clear(); quick.clear();
     };
     for (;;) {
       pollfd pf = {c, POLLIN, 0};
@@ -300,23 +334,31 @@ inline void serve(Target t, int ls) {
       const bool lz = h[10] & 1, more = h[11] & 1;
       if (h[0] == 2) { if (x <= 4) mode = x; continue; }   // qtfb's modes, set by rm_present
       if (h[0] == 3) { full = true; continue; }
+      if (h[0] == 7) {   // a setting
+        if (x == 1) hold_pen = y; else if (x == 2) hold_colour = y; else if (x == 3) hold_full = y; else if (x == 5) holding = y != 0;
+        else if (x == 4) {
+          profiling = y != 0;
+          if (profiling && probing != session) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
+        }
+        continue;
+      }
       if (h[0] == 4) {   // the pointer's shape
         if (w > 256 || hh > 256 || len != (size_t)w * hh) break;
         std::vector<uint8_t> s(len);
         if (!read_full(c, s.data(), len)) break;
         if (moved) continue;
-        add(hide());
+        point(hide());
         shape.swap(s); sw = w; sh = hh; hx = x; hy = y;
-        add(show());
+        point(show());
         if (!more) flush();
         continue;
       }
       if (h[0] == 5) {   // where it is
         if (len) break;
         if (moved) continue;
-        add(hide());
+        point(hide());
         visible = w != 0; px = x; py = y;
-        add(show());
+        point(show());
         if (!more) flush();
         continue;
       }
@@ -340,6 +382,7 @@ inline void serve(Target t, int ls) {
       buf.resize(len);
       if (!read_full(c, buf.data(), len)) break;
       if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
+      ++n_rects;
       const uint8_t* src = buf.data();
       if (lz) {
         plain.resize(raw);

@@ -210,8 +210,21 @@ void escape(HalInput* in) {
 // The sidecar in an ink session (L2): its thread writes into the engine's buffer and queues the rectangles; the main thread swaps them
 // (the vendor engine is driven from one thread), keeps the engine's events and the lease's watchdog going, and forwards evdev's
 // fingers and Marker to the Mac as AppLoad would.
+// The stream writes into a shadow of the panel, never the engine's buffer: a rectangle reaches the engine and the glass only where no
+// update is still driving the pixels. A pixel still moving ignores a new target and stays half-way (ghosts, doubled text, colour residue
+// on the Gallery 3); so a rectangle over pixels in flight is held, merged with what comes after it, and goes out with the newest pixels
+// once its place rests (stream::hold_pen/colour/full, set by the Mac). The pointer's small boxes go at once.
 std::mutex l2_mu;
-std::vector<eink::Rect> l2_rects;
+std::vector<eink::Rect> l2_rects, l2_quick;
+std::vector<uint8_t> l2_shadow;
+struct Flight { eink::Rect r; uint64_t until; };
+std::vector<Flight> l2_flying;
+std::vector<eink::Rect> l2_held;
+unsigned l2_session = 0;
+void l2_take(const eink::Rect& r) {   // the shadow's newest pixels into the engine's buffer
+  for (int32_t y = r.y0; y < r.y1; y++)
+    memcpy(native::fb + (size_t)y * native::stride + (size_t)r.x0 * 4, l2_shadow.data() + (size_t)y * native::stride + (size_t)r.x0 * 4, (size_t)(r.x1 - r.x0) * 4);
+}
 void l2_stream_input() {
   static HalTouch was[HAL_MAX_TOUCH];
   static int nwas = 0;
@@ -242,15 +255,38 @@ void l2_stream_input() {
   down = now; px = p.x; py = p.y;
 }
 void l2_stream_present() {
-  std::vector<eink::Rect> q;
-  { std::lock_guard<std::mutex> g(l2_mu); q.swap(l2_rects); }
-  stream::merge(q);   // pictures queued while the engine swapped: fewer, larger swaps
+  std::vector<eink::Rect> q, quick;
+  { std::lock_guard<std::mutex> g(l2_mu); q.swap(l2_rects); quick.swap(l2_quick); }
+  if (l2_session != stream::session) { l2_session = stream::session; l2_flying.clear(); l2_held.clear(); }   // a new Mac
+  timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);   // the glass's time, not the app's (a simulated app runs its own clock)
+  const uint64_t now = (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
+  l2_flying.erase(std::remove_if(l2_flying.begin(), l2_flying.end(), [&](const Flight& f) { return f.until <= now; }), l2_flying.end());
+  auto flying = [&](const eink::Rect& r) {
+    if (!stream::holding) return false;
+    for (const Flight& f : l2_flying) if (f.r.x0 < r.x1 && r.x0 < f.r.x1 && f.r.y0 < r.y1 && r.y0 < f.r.y1) return true;
+    return false;
+  };
+  for (const eink::Rect& r : q) { if (flying(r)) ++stream::n_held; l2_held.push_back(r); }
+  stream::merge(l2_held);   // pictures queued while the engine swapped or held: fewer, larger swaps
   const int m = stream::mode;
   const bool colour = m >= MODE_CONTENT;   // the Mac's grey waveforms; else the Pen/Mono partial, the fastest the engine has
-  for (const eink::Rect& r : q)
-    native::api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, colour ? native::row->colour_mode : native::row->pen_mode, 0, colour ? native::row->colour_content : 0);
-  if (stream::full.exchange(false)) {
+  const int mode = colour ? native::row->colour_mode : native::row->pen_mode, content = colour ? native::row->colour_content : 0;
+  for (const eink::Rect& r : quick) { l2_take(r); native::api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, native::row->pen_mode, 0, 0); stream::note_swap(0); }
+  std::vector<eink::Rect> wait;
+  for (const eink::Rect& r : l2_held) {
+    if (flying(r)) { wait.push_back(r); continue; }
+    l2_take(r);
+    native::api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, mode, 0, content);
+    stream::note_swap(colour ? 1 : 0);
+    l2_flying.push_back({r, now + (uint64_t)(colour ? stream::hold_colour : stream::hold_pen) * 1000});
+  }
+  l2_held.swap(wait);
+  if (stream::full.exchange(false)) {   // over everything, held or flying: it drives every pixel anyway
+    l2_take({0, 0, panel.w, panel.h});
     native::api.swap(0, 0, panel.w, panel.h, native::row->colour_mode, 1, native::row->colour_content);
+    stream::note_swap(2);
+    l2_held.clear();
+    l2_flying.assign(1, {{0, 0, panel.w, panel.h}, now + (uint64_t)stream::hold_full * 1000});
     stream::send16(5, 0, 0, 0, 0, 0);
   }
   native::api.events();
@@ -467,7 +503,7 @@ void rm_present(const HalFrame* f) {
     if (m >= 0 && refresh_mode != m && now >= mode_ready_us) set_mode(m);
     if (stream::full && full_refresh_ok && now >= mode_ready_us) {
       ClientMsg q = {}; q.type = MSG_FULL_REFRESH;
-      if (send(sock, &q, sizeof q, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof q) { stream::full = false; ghost = {}; mode_ready_us = now + switch_pause(); stream::send16(5, 0, 0, 0, 0, 0); }
+      if (send(sock, &q, sizeof q, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof q) { stream::full = false; ghost = {}; mode_ready_us = now + switch_pause(); stream::note_swap(2); stream::send16(5, 0, 0, 0, 0, 0); }
     }
     pending = {};
     rin::wait_input(8, sock);
@@ -650,17 +686,19 @@ const char* rm_device(const char* query, const char* arg) {
   // "waiting" or "connected"
   if (strcmp(query, "stream.listen") == 0) {
     if (arg && layer == L2) {   // the whole panel, no header: the engine's buffer, swapped by the main thread
-      stream::Target t = {native::fb, panel.w, panel.h, native::stride, 4, [] { return 0; }, [](int x, int y, int w, int h) {
-        { std::lock_guard<std::mutex> g(l2_mu); l2_rects.push_back({x, y, x + w, y + h}); }
+      l2_shadow.assign(native::fb, native::fb + (size_t)native::stride * panel.h);   // the app's page, under the first picture
+      stream::Target t = {l2_shadow.data(), panel.w, panel.h, native::stride, 4, [] { return 0; }, [](int x, int y, int w, int h, bool now) {
+        { std::lock_guard<std::mutex> g(l2_mu); (now ? l2_quick : l2_rects).push_back({x, y, x + w, y + h}); }
         char c = 1; (void)!write(rin::wake[1], &c, 1);
       }, [] { return false; }, nullptr, row ? row->name : "reMarkable"};
       return stream::start(atoi(arg), t) ? "1" : "0";
     }
     if (!arg || !shm || sock < 0 || (layer != L0 && layer != L1)) return "0";
-    stream::Target t = {shm, panel.w, panel.h, panel.w * 3, 3, [] { return docked ? dock_top : 0; }, [](int x, int y, int w, int h) {
+    stream::Target t = {shm, panel.w, panel.h, panel.w * 3, 3, [] { return docked ? dock_top : 0; }, [](int x, int y, int w, int h, bool) {
       ClientMsg m = {}; m.type = MSG_UPDATE;
       m.update.type = UPDATE_PARTIAL; m.update.x = x; m.update.y = y; m.update.w = w; m.update.h = h;
-      send(sock, &m, sizeof m, MSG_NOSIGNAL);   // from the stream's thread; qtfb's socket keeps each message whole
+      send(sock, &m, sizeof m, MSG_NOSIGNAL);   // from the stream's thread; qtfb's socket keeps each message whole (xochitl schedules)
+      stream::note_swap(stream::mode >= MODE_CONTENT ? 1 : 0);
     }, [] {   // read from the stream's thread: aligned words, written by the main thread only
       const int m = stream::mode;
       return hal_time_us() < mode_ready_us || (m >= 0 && m != refresh_mode);
