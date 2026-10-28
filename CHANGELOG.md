@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `examples/carplay/run` opens a native offline H.264/PCM demo without an iPhone; `--live` selects a real receiver. The viewer reconnects after transport loss, supports rotary keyboard controls and stops capture when the receiver ends the session.
 - `zinc:carplay` can capture microphone audio and encode PlayPort PCM or Opus uplink packets, with permission errors and cleanup on stop. Live Siri/call acceptance still needs an iPhone test.
 - `zinc:carplay` forwards two simultaneous touch contacts with stable finger slots and supports day/night appearance through `setNightMode`; the demo includes a Day/Night button.
 - Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB receiver integration remains experimental and unverified on an iPhone.

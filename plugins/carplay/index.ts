@@ -1,7 +1,9 @@
 import { WebSocket, MessageEvent, OPEN_STATE } from 'zinc:socket';
 import * as gfx from 'zinc:gfx';
+import { URL } from 'zinc:web';
 import C from './native/carplay.spec';
 import { AudioStream, stream } from 'zinc:audio';
+import { MicrophoneUplink } from './microphone';
 
 class AudioTrack {
   decoder: i32 = -1;
@@ -20,12 +22,18 @@ class Finger {
   down: boolean = false;
 }
 
-interface ControlMessage { type: string; sessionActive?: boolean; micActive?: boolean }
+interface ControlMessage {
+  type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
+  micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
+}
 
 /** One projected video surface. The backend supplies encoded media, Zinc owns decoding and input. */
 export class Session {
   private socket: WebSocket | null = null;
   private decoder: i32 = -1;
+  private url: string = '';
+  private retry: i32 = -1;
+  private retryMs: i32 = 500;
   width: i32 = 0;
   height: i32 = 0;
   frames: i32 = 0;
@@ -35,28 +43,56 @@ export class Session {
   private fingers: Finger[] = [new Finger(), new Finger()];
   private night: boolean = false;
   private audio: Map<i32, AudioTrack> = new Map<i32, AudioTrack>();
+  private microphone: MicrophoneUplink = new MicrophoneUplink((bytes: u8[]) => {
+    const s = this.socket;
+    if (s === null || !s.sendBytes(bytes)) throw new Error('Microphone transport closed');
+  }, (text: string) => { this.error = text; });
 
   connect(url: string): void {
     this.close();
+    try {
+      const target = new URL(url);
+      if ((target.protocol !== 'ws:' && target.protocol !== 'wss:') || target.hostname === '') throw new Error('invalid receiver');
+    } catch (e) { this.error = 'Use a valid ws:// or wss:// receiver URL'; return; }
+    this.url = url; this.error = ''; this.frames = 0; this.retryMs = 500;
+    this.dial();
+  }
+  private dial(): void {
+    this.retry = -1;
     this.status = 'connecting';
-    const s = new WebSocket(url);
+    const s = new WebSocket(this.url);
     this.socket = s;
-    s.onopen = () => { this.status = 'waiting for iPhone'; this.setNightMode(this.night); };
+    s.onopen = () => { if (this.socket !== s) return; this.error = ''; this.retryMs = 500; this.status = 'waiting for iPhone'; this.setNightMode(this.night); };
     s.onmessage = (e: MessageEvent) => {
+      if (this.socket !== s) return;
       if (e.binary) { this.receive(e.bytes); return; }
       try {
         const message = JSON.parse(e.data) as ControlMessage;
         if ((message.type === 'session' || message.type === 'hello') && message.sessionActive === true) this.setNightMode(this.night);
-        if (message.type === 'session' && message.sessionActive === false) {
+        if (message.type === 'session' && message.sessionActive !== true) {
+          this.microphone.stop();
           this.release();
           for (const id of this.audio.keys()) this.stopAudio(id);
           this.status = 'waiting for iPhone';
         }
-        if (message.type === 'mic' && message.micActive === true) this.error = 'Microphone uplink is not implemented yet';
+        if (message.type === 'mic') {
+          if (message.micActive === true) this.microphone.start(message.micCodec ?? 'lpcm', message.micRate ?? 16000, message.micChannels ?? 1, message.micSamplesPerPacket ?? 320, message.micBitrate ?? 0);
+          else this.microphone.stop();
+        }
       } catch (e) { this.error = 'Malformed receiver control message'; }
     };
-    s.onerror = e => { this.error = e.message; };
-    s.onclose = () => { this.status = 'disconnected'; for (const id of this.audio.keys()) this.stopAudio(id); this.release(); };
+    s.onerror = e => { if (this.socket === s) this.error = 'Receiver unavailable: check backend, URL and access token'; };
+    s.onclose = e => {
+      if (this.socket !== s) return;
+      this.socket = null;
+      this.microphone.stop();
+      for (const id of this.audio.keys()) this.stopAudio(id);
+      this.release();
+      if (e.code === 1008) { this.status = 'receiver refused connection'; this.error = 'Receiver refused access: check the local token'; return; }
+      this.status = 'reconnecting';
+      this.retry = setTimeout(() => this.dial(), this.retryMs);
+      this.retryMs = Math.min(8000, this.retryMs * 2);
+    };
   }
   /** PlayPort binary media envelope, bounded before passing it to FFmpeg. */
   receive(b: u8[]): boolean {
@@ -138,6 +174,12 @@ export class Session {
     return this.send(JSON.stringify({ type: 'night', night: night }));
   }
   get nightMode(): boolean { return this.night; }
+  /** Arrow keys flick the knob; Enter selects, Escape goes back. */
+  key(key: string): boolean {
+    if (key === 's' || key === 'S') return this.siri();
+    if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Enter' && key !== 'Escape' && key !== 'Backspace' && key !== 'Home') return false;
+    return this.send(JSON.stringify({ type: 'knob', knob: { select: key === 'Enter', home: key === 'Home', back: key === 'Escape' || key === 'Backspace', x: key === 'ArrowLeft' ? -127 : key === 'ArrowRight' ? 127 : 0, y: key === 'ArrowUp' ? -127 : key === 'ArrowDown' ? 127 : 0, wheel: 0 } }));
+  }
   home(): boolean { return this.send('{"type":"knob","knob":{"select":false,"home":true,"back":false,"x":0,"y":0,"wheel":0}}'); }
   siri(): boolean { return this.send('{"type":"siri"}'); }
   view(x: number, y: number, w: number, h: number): void {
@@ -187,8 +229,11 @@ export class Session {
     for (const f of this.fingers) { f.source = -1; f.down = false; }
   }
   close(): void {
+    this.microphone.stop();
+    this.url = '';
+    if (this.retry >= 0) { clearTimeout(this.retry); this.retry = -1; }
     const s = this.socket; this.socket = null;
-    if (s !== null) { s.onclose = null; s.close(); }
+    if (s !== null) { s.onopen = null; s.onmessage = null; s.onerror = null; s.onclose = null; s.close(); }
     for (const id of this.audio.keys()) this.stopAudio(id);
     this.release(); this.status = 'disconnected';
   }

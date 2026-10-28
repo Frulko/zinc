@@ -1,0 +1,10 @@
+import { Session } from 'zinc:carplay';
+import { OfflineMedia } from '../../../examples/carplay/src/services/offline';
+import { env } from 'zinc:sys';
+const s = new Session();
+const media = new OfflineMedia(s, env('ZINC_CARPLAY_MEDIA'));
+for (let i = 0; i < 8; i++) media.step(0.5);
+if (s.frames !== 9 || s.image < 0 || s.width !== 960 || s.height !== 540 || s.error !== '') throw new Error('offline media did not decode all eight frames');
+s.close();
+if (s.image !== -1) throw new Error('offline decoder cleanup');
+console.log('carplay offline: nine decoded frames, PCM playback and cleanup');

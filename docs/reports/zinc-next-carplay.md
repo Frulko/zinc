@@ -1,54 +1,75 @@
-# CarPlay plugin checkpoint — 2026-10-28
+# CarPlay integration — 2026-10-28
 
-Owner scope: separate Zinc plugin, USB and wireless, software authentication
-(no physical MFi chip), native Mac demo first; Pi and Android Auto later.
-**The full scope remains unfinished.**
+Separate `plugins/carplay`, imported as `zinc:carplay`; no CarPlay code in the
+engine. Native macOS demo runs. **No real iPhone session has been verified.**
 
-Implemented plugins/carplay (zinc:carplay): FFmpeg H.264/HEVC video as runtime
-images, AAC/Opus/LPCM audio via zinc:audio, WebSocket media reception, normalized
-touch return, Home/Siri commands, connection state and cleanup. Native demo in
-examples/carplay. No engine files changed by this work.
+## Implemented and proven locally
 
-Separate GPL backend: PlayPort revision
-9a0882dd0ffe48e467b59d58b12d81391df55ade, fetched/built in build/carplay/playport
-by plugins/carplay/backend/build. Protocol and server tests: 96, zero failures.
-Swift RFCOMM helper compiled; server help/bridge usage executed. Backend run
-requires external offline-mfi/certificate.p7b and identity.pk8. No credentials
-are supplied or tracked. Backend provenance is in backend/UPSTREAM.md.
+- FFmpeg H.264/HEVC images and AAC/Opus/LPCM playback, actual loopback WebSocket
+  media/control, two stable touch slots and remembered Day/Night appearance.
+- Receiver-requested microphone capture reuses Zinc's miniaudio/macOS permission
+  implementation. FFmpeg/libopus or PCM16 uplink matches pinned PlayPort wire
+  bytes. Capture, encoders and timers stop on mic stop, session end, disconnect,
+  failed send and close. Fake capture requires explicit test opt-in.
+- Reconnect starts at 0.5 seconds, doubles to eight seconds, and is cancelled by
+  Disconnect or replacement. A receiver policy/token rejection stops retries
+  with an access error. Old callbacks cannot change a replacement session.
+  Keyboard arrows/Enter/Escape/Backspace/Home/S map to upstream rotary/Siri HID.
+- Pinned Kotlin JSON omits default `false` values: absent `sessionActive` on a
+  session event and absent `micActive` on a mic event correctly trigger cleanup.
+- `examples/carplay/run` generates and plays an eight-frame four-second H.264
+  pattern and PCM tone. It says **OFFLINE MEDIA / no iPhone authentication**.
+  `--live` requires a receiver URL and never substitutes simulated phone media.
 
-Mac verification:
-- tests/run --only carplay: real FFmpeg H.264/HEVC, AAC/Opus fixtures; PCM and
-  malformed envelopes; resource cleanup; actual loopback WebSocket video and
-  touch return. Default engine and interpreter.
-- tests/run --only carplay_demo: checker and disconnected headless demo.
-- /tmp/zinc-carplay-demo.png inspected, 1100x700.
-- backend/build completed, including upstream tests and Bluetooth helper.
-- No pairing, scan or receiver service started. Gradle daemon stopped.
+Validation (main engine `/Users/mowmow/Lab/zinc/build/zinc` used read-only;
+`ZINC_ROOT` selects this checkout's native modules):
 
-Still required:
-- USB: port DiPlay's Android USB host/NCM/USBMUX adapter to native Mac APIs.
-  PlayPort explicitly supports wireless only. No pretend --usb option added.
-- Microphone capture/encoding uplink for calls/Siri. Current command triggers
-  Siri, but the plugin reports missing uplink when the backend requests capture.
-- Reconnect, keyboard/rotary, GPS, cluster display.
-- Real iPhone identity acceptance, wireless pairing and live media/input checks.
-- Linux/Pi transport and hardware verification in the cross-platform pass.
+- `tests/run --only carplay`: real FFmpeg decoder fixtures, malformed input,
+  cleanup, two-contact reports, day/night, keyboard payloads, reconnect and its
+  cancellation, invalid URLs, session stop, receiver-requested PCM/Opus capture
+  and omitted-false microphone stop. Default engine and explicit interpreter.
+- `tests/run --only carplay_microphone`: exact PCM; mono/stereo Opus round trips
+  at 8/12/16/24/48 kHz; packet assembly; fake capture over WebSocket; repeated
+  start/stop, permission/fake fallback refusal and transport-error cleanup.
+- `tests/run --only carplay_demo`: checker, headless UI capture, nine decoded
+  frames across the complete local loop, PCM envelopes, cleanup, missing live
+  URL diagnostic. Background native window also ran and exited successfully.
+- Screenshot inspected: `build/carplay/verified-native.png` (Retina native window)
+  and `/tmp/zinc-carplay-offline.png` (headless logical-size capture).
 
-Current video decoder uses software decoding and pixel conversion, with no
-hardware-acceleration, zero-copy or latency/FPS claim. Accepted packet count is
-not measured screen refresh rate. The plugin is an integration prototype.
+## Backend and identity
 
-Next live command: supply an external identity to backend/run, pair the iPhone
-using the fetched RFCOMM helper, start --wireless, then set ZINC_CARPLAY_URL to
-the authenticated loopback WebSocket URL and run the demo (plugin README).
-Keep the work open until USB/microphone and live acceptance are complete.
+Separate GPL-3.0 PlayPort revision
+`9a0882dd0ffe48e467b59d58b12d81391df55ade`, from DiPlay/xcertplay. The preserved
+prototype had 96 passing protocol/server tests and a compiled Bluetooth helper.
+See `plugins/carplay/backend/UPSTREAM.md` for provenance and build details.
 
-## Two-finger input and day/night
+The documented DiPlay v0.2.7 preview APK supplies an experimental runtime
+identity recovered from Carlinkit firmware. Its provenance and extraction path
+are linked in the plugin README. For this session the APK and extracted files
+are outside Git in `~/.local/share/zinc/carplay-experiment`, with owner-only
+permissions. No key contents were printed or committed. OpenSSL challenge
+sign/verify passed. The actual pinned receiver loaded the identity and accepted
+a token-protected loopback WebSocket upgrade/hello plus a public read-only
+status API request;
+`sessionActive` was false. Own receiver process group and temporary state were
+cleaned up. Loopback JmDNS had no multicast route, so that smoke does not prove
+advertisement, discovery or pairing.
 
-Added touches(contacts) with two stable slots and release reports, integrated
-Zinc touchCount/touchId/touchX/touchY into view(), retained mouse fallback.
-setNightMode stores and sends the mode and reapplies it on connection/session
-start. Demo has a Day/Night button. Loopback tests verify exact two-contact
-coordinates, ordering, finger release, malformed/duplicate contact rejection,
-remembered mode before connection and day/night commands at the backend.
-Physical touchscreen gestures and iPhone appearance still need device tests.
+A certificate/key consistency check is not iPhone acceptance. Shared experimental
+credentials may cease to be accepted. A self-signed certificate is not a usable
+replacement. No Bluetooth scan/pairing or wireless bootstrap was started.
+
+## Remaining acceptance
+
+ZN-849's local demo/lifecycle criteria pass. ZN-848 remains Review for real
+microphone/OS prompt and Siri/call acceptance. ZN-847 owns wired integration and
+its independent tests; physical USB acceptance remains unverified.
+
+The plugin README contains the exact live checklist: transport setup and
+external identity, phone pairing, native live viewer, video/audio/touch/night,
+Siri/calls, disconnect/reconnect and resource cleanup. Record actual model/iOS
+and results before claiming a complete receiver. No latency, refresh-rate,
+hardware decode, zero-copy, echo cancellation or live voice-quality claim.
+Pi/Linux, Android Auto, GPS injection and cluster display remain later work;
+no cross build was run.

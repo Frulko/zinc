@@ -6,6 +6,14 @@ The current adapter uses PlayPort's wireless macOS backend (DiPlay/xcertplay
 lineage), including software accessory authentication with a local identity.
 No physical MFi coprocessor is required by this backend.
 
+## Offline native demo
+
+`examples/carplay/run` generates local H.264 video and a short PCM tone, then
+opens a native Zinc window. It needs FFmpeg and `build/zinc`, but no receiver,
+identity or phone. Use `ZINC=/path/to/zinc examples/carplay/run` to reuse an
+engine. Offline mode is labelled explicitly and never claims authentication.
+See [the demo README](../../examples/carplay/README.md).
+
 ## Run on macOS
 
 Prerequisites: FFmpeg development packages on pkg-config's path, JDK 21 or newer,
@@ -32,7 +40,7 @@ In another terminal:
 
 ```
 ZINC_CARPLAY_URL='ws://127.0.0.1:8080/ws?token=YOUR_LOCAL_TOKEN' \
-  ZINC_BACKGROUND=1 build/zinc run examples/carplay
+  examples/carplay/run --live
 ```
 
 The demo uses a native Zinc Canvas, not a browser or a webview. The WebSocket
@@ -43,7 +51,7 @@ to the Internet. End the receiver with Ctrl-C when finished.
 ## API
 
 `new Session()`, `connect(url)`, `view(x,y,w,h)`, `touch(x,y,down)`, `home()`,
-`siri()`, `setNightMode(night)`, `close()`. `image` is a runtime image; `status`, `error`, `width`,
+`siri()`, `key(name)`, `setNightMode(night)`, `close()`. `image` is a runtime image; `status`, `error`, `width`,
 `height` and `frames` expose the connection/media state. `frames` counts accepted
 encoded packets, not physical screen refreshes. Close sessions before exit.
 
@@ -60,6 +68,23 @@ The choice is remembered before connection and reapplied when a phone session
 starts. The demo has a Day/Night button. Automatic selection from a light sensor
 or vehicle headlights is left to the application calling this API.
 
+`key(name)` maps Arrow keys to rotary focus, Enter to select,
+Escape/Backspace to back, Home to Home and S to Siri. A dropped WebSocket retries
+at 0.5 seconds with exponential backoff capped at eight seconds. `close()` cancels
+retry and releases video, playback and capture; `connect()` replaces any prior
+connection. A policy rejection (such as an invalid access token) stops retries
+and reports an access error. Old socket callbacks cannot mutate the replacement session.
+
+Receiver microphone requests use the existing Zinc microphone capture and
+permission implementation. PCM and FFmpeg/libopus packets match the pinned
+PlayPort WebSocket sender; PlayPort owns RTP encryption and delivery to the
+phone. Capture stops on a mic stop request, session end, disconnect or close.
+The demo declares the microphone permission. Background mode never opens an OS
+permission dialog: grant microphone access to the Zinc host in macOS Privacy &
+Security when needed; a refused/undetermined permission produces a visible error.
+A synthetic microphone is accepted only with explicit `ZINC_FAKE_MICROPHONE=1`.
+No echo cancellation or live voice-quality claim is made.
+
 H.264/HEVC video and AAC/Opus/LPCM audio are decoded locally. Audio streams are
 mixed by zinc:audio. Current video decode uses software FFmpeg and a pixel
 conversion; no hardware acceleration or zero-copy performance claim is made.
@@ -72,9 +97,59 @@ checks H.264/HEVC and AAC/Opus decoding, PCM envelopes and image cleanup, reject
 and touch events through an actual loopback WebSocket. No phone, pairing or
 network credential is used. The upstream backend has 96 passing tests on Mac.
 
-Not yet implemented: macOS/Linux USB host transport; microphone uplink for
-Siri/calls; keyboard/rotary input; automatic reconnection; GPS injection and
-cluster display. No real iPhone session or Raspberry Pi execution has been verified. The plugin
-is a tested integration prototype, not a complete CarPlay receiver release.
+Remaining receiver work and verification: macOS USB integration (see backend/UPSTREAM.md), Linux transport, GPS injection and cluster display. No real iPhone session or Raspberry Pi execution has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
 
 See backend/UPSTREAM.md for provenance, license and the pinned source revision.
+
+## Experimental software identity
+
+The pinned [PlayPort identity instructions](https://github.com/youcci/playport#accessory-identity-required)
+identify a public experimental pair in the DiPlay v0.2.7 preview APK.
+[DiPlay's notices](https://github.com/shihabal3amri/DiPlay/blob/main/docs/THIRD_PARTY_NOTICES.md)
+say it came from Carlinkit firmware; it is runtime data, not GPL source, and its
+continued acceptance is unresolved. Your own accessory identity or an upstream
+remote MFi service is preferable when available. A self-signed certificate
+cannot replace an accessory identity.
+
+For a personal local experiment, keep the APK and extracted pair outside the
+repository (do not commit, log or redistribute the key):
+
+```sh
+umask 077
+identity_cache="${XDG_DATA_HOME:-$HOME/.local/share}/zinc/carplay-experiment"
+mkdir -p "$identity_cache/identity/offline-mfi"
+curl -fL -o "$identity_cache/DiPlay-0.2.7.apk" https://github.com/shihabal3amri/DiPlay/releases/download/v0.2.7/DiPlay-0.2.7.apk
+unzip -jo "$identity_cache/DiPlay-0.2.7.apk" 'assets/offline-mfi/*' -d "$identity_cache/identity/offline-mfi"
+chmod 600 "$identity_cache/identity/offline-mfi/"*
+export ZINC_CARPLAY_IDENTITY="$identity_cache/identity"
+```
+
+The APK downloaded for this session had SHA-256
+`27b434462da7e78b1ff0987d129ed0a4b0a0e56beceaf8ec221d47150d4675bd`.
+Its extracted key/certificate passed an OpenSSL sign/verify challenge locally;
+the real pinned receiver loaded it and served a token-protected loopback
+WebSocket hello plus public read-only `/api/status` reporting
+`sessionActive: false`.
+These checks do not establish Apple certification or iPhone acceptance.
+
+## Live acceptance checklist
+
+1. Build the separate backend, set the external identity path and choose a local
+   token. Check the receiver's help and transport prerequisites below before
+   starting it. Keep logs local and redact tokens or personal device names.
+2. Wireless: open the phone's Bluetooth settings, scan/pair with the backend's
+   bt-bridge, then start `backend/run --wireless --wifi-ssid ... --token ...`.
+   Confirm the receiver and phone share Wi-Fi, macOS allows Bluetooth/incoming
+   connections, and AirPlay Receiver is disabled if port 7000 is busy.
+3. Launch `examples/carplay/run --live` with `ZINC_CARPLAY_URL`. Verify the real
+   phone reports CarPlay, video and audio arrive, and Home, Siri, two-contact
+   press/move/release, keyboard and Day/Night reach the phone.
+4. With microphone permission granted, speak to Siri and place a call; check
+   both directions of audio, interruptions and capture stopping at session end.
+5. Unplug/interrupt the selected transport, reconnect, and verify media resumes,
+   night mode survives and Disconnect prevents further retries. Close both
+   viewer and receiver when done. Record iPhone model/iOS and actual results.
+
+No attached iPhone was supplied for this session. No pairing, real Siri/call or
+physical USB media session has been verified. Raspberry Pi and Android Auto are
+later work; no cross build belongs to this Mac validation.

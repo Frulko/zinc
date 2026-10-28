@@ -20,7 +20,7 @@ Owner request: complete the native CarPlay demo on Mac. Existing media decoder a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The separate plugin captures and encodes microphone audio requested by the receiver, with permission handling and cleanup
+- [x] #1 The separate plugin captures and encodes microphone audio requested by the receiver, with permission handling and cleanup
 - [x] #2 PCM and Opus uplink and lifecycle are proven by targeted automated tests
 <!-- AC:END -->
 
@@ -33,3 +33,5 @@ Owner request: complete the native CarPlay demo on Mac. Existing media decoder a
 - Regression: `ZINC_ROOT="$PWD" ZINC=/Users/mowmow/Lab/zinc/build/zinc tests/run --only carplay` passes. The new native encoder header compiles under C++17 with `-Wall -Wextra -Werror`. No engine build or engine source change was needed; the main binary was read-only and built only this checkout's plugin in its native cache.
 - AC1 remains open for coordinator Session integration/verification and physical Siri/call acceptance. No real identity or iPhone was supplied, no microphone was physically opened, and no pending macOS permission prompt was exercised (there is no existing test hook). Stop-before-capture-tick and denied permission cleanup are tested. The existing capture path has no added echo cancellation; live call quality and calibration remain unmeasured.
 - Cross-platform pass for coordinator: verify native microphone permission/capture and PCM/Opus uplink on Linux/Pi after Mac acceptance; no cross build or cross-target test was run here.
+
+Coordinator integration: Session now handles the receiver mic request fields, forwards full PCM/Opus envelopes, and stops capture on explicit/omitted-false mic stop, session end, disconnect and close. Integrated `carplay` test passes this flow on default and interpreter with an explicitly fake microphone. AC1 implementation and automated lifecycle proof complete; status remains Review pending real Siri/call voice and OS permission prompt verification.

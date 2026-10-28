@@ -1,0 +1,31 @@
+#!/bin/sh
+# Native offline media by default; live mode requires an already running receiver.
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$root"
+Z=${ZINC:-$root/build/zinc}
+if [ ! -x "$Z" ]; then
+  echo 'Zinc binary missing: run tools/build zinc, or set ZINC=/absolute/path/to/zinc' >&2
+  exit 1
+fi
+case "${1:---offline}" in
+  --offline)
+    media="$root/build/carplay/demo-media"
+    if [ ! -s "$media/frame7.h264" ] || [ ! -s "$media/tone.pcm" ]; then
+      command -v ffmpeg >/dev/null || { echo 'Offline media needs ffmpeg on PATH' >&2; exit 1; }
+      mkdir -p "$media"
+      ffmpeg -y -loglevel error -f lavfi -i testsrc2=size=960x540:rate=2 -t 4 -c:v libx264 -preset ultrafast -tune zerolatency -g 1 -bsf:v dump_extra -f segment -segment_time 0.5 -segment_format h264 "$media/frame%d.h264"
+      ffmpeg -y -loglevel error -f lavfi -i sine=frequency=440:sample_rate=48000 -t 0.25 -ac 1 -f s16le "$media/tone.pcm"
+    fi
+    export ZINC_CARPLAY_MEDIA="$media"
+    export ZINC_CARPLAY_URL=''
+    ;;
+  --live)
+    : "${ZINC_CARPLAY_URL:?Set ZINC_CARPLAY_URL to ws://127.0.0.1:8080/ws?token=YOUR_TOKEN after starting the receiver}"
+    export ZINC_CARPLAY_MEDIA=''
+    ;;
+  *) echo 'Usage: examples/carplay/run [--offline|--live]' >&2; exit 2 ;;
+esac
+export ZINC_ROOT="$root"
+export ZINC_BACKGROUND=1
+exec "$Z" run examples/carplay
