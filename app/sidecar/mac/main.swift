@@ -1,14 +1,14 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--cursor px] [--clean-mode 3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--levels black,white] [--cursor px] [--clean-mode 3|4] [--seconds N]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 400, cursorPx = 56, cleanMode = 3
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 32, cleanMode = 3, levels = (60, 200)
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -19,9 +19,10 @@ while let a = argv.popFirst() {
     case "--threshold": threshold = true
     case "--cursor": cursorPx = max(19, Int(argv.popFirst()!)!)   // the pointer's height in the tablet's pixels
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
+    case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--cursor px] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--levels black,white] [--cursor px] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -114,38 +115,20 @@ if mirror >= 0 {
     }
 }
 
-// --- the clean pass: the fast waveform draws two levels and leaves trails (the pointer's). Once nothing has changed for --idle ms, what
-// changed since the last clean goes out again in true greys in the UI waveform, which clears them and shows the anti-aliased text; after
-// about four screens of those, a full refresh clears the deeper ghost. AppLoad 0006 switches waveforms in a few ms.
-struct Area {
-    var x0 = Int.max, y0 = Int.max, x1 = 0, y1 = 0
-    var isEmpty: Bool { x1 <= x0 }
-    mutating func add(_ x: Int, _ y: Int, _ w: Int, _ h: Int) {
-        let a = max(0, x), b = max(0, y), c = min(W, x + w), d = min(H, y + h)
-        if c > a && d > b { x0 = min(x0, a); y0 = min(y0, b); x1 = max(x1, c); y1 = max(y1, d) }
-    }
-    mutating func add(_ o: Area) { if !o.isEmpty { add(o.x0, o.y0, o.x1 - o.x0, o.y1 - o.y0) } }
-}
-// The pointer's trail is cleaned on its own, like the eraser's or the pen's: where it was goes out again 150 ms after it stops, and every
-// 300 ms while it moves, instead of waiting for the whole screen to rest.
-var dirty = Area(), trail = Area(), fastMode = true, cleaned = 0, lastChange = 0.0, lastMove = 0.0, lastTrailClean = 0.0
-var grey = [UInt8](repeating: 255, count: 0)
-func clean(_ a: Area, _ shown: [UInt8]) {
-    let x = a.x0, y = a.y0, w = a.x1 - a.x0, h = a.y1 - a.y0
-    writeFull(header(2, cleanMode, 0, 0, 0, 0), 16); fastMode = false   // xochitl's page waveform (3) or UI (4)
-    cleaned += w * h
-    if cleaned > W * H * 4 { writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0; return }   // the full refresh repaints everything
-    var payload = [UInt8](repeating: 0, count: w * h)
-    for j in 0..<h { let o = (y + j) * W + x; payload.replaceSubrange(j * w..<(j + 1) * w, with: shown[o..<(o + w)]) }
-    var hd = header(1, x, y, w, h, payload.count); hd[1] = 8
-    writeFull(hd, 16); writeFull(payload, payload.count)
-    acks.wait()
+// --- the e-ink tone curve: the panel shows two levels while things move, so what is nearly white (a window's background, a light grey bar)
+// goes to white and what is nearly black (text) to black, before the dither; only true middle tones (pictures) keep a pattern.
+// --levels black,white (default 60,200): the luma at and under black is black, at and over white is white, a straight line between.
+let tone: [UInt8] = (0..<256).map { v in
+    let t = (Double(v) - Double(levels.0)) / Double(max(1, levels.1 - levels.0))
+    return UInt8(max(0, min(255, (t * 255).rounded())))
 }
 
 // --- the sender: the newest frame only, one frame in flight
 let stride = (W + 7) / 8
-grey = [UInt8](repeating: 255, count: W * H)
-var prev = [UInt8](repeating: 0, count: stride * H)   // what the tablet shows: white (bit 0) after the probe's clear
+let TW = 32, TH = 16, tilesX = (W + TW - 1) / TW, tilesY = (H + TH - 1) / TH   // the tiles a change is counted in
+var grey = [UInt8](repeating: 255, count: W * H)    // the capture through the tone curve, at its place on the panel
+var shown = grey                                     // grey with the pointer: what the tablet should show
+var prev = [UInt8](repeating: 0, count: stride * H)  // what the tablet shows, 1 bit: white after its clear
 var cur = prev
 let lock = NSLock(), ready = DispatchSemaphore(value: 0)
 var latest: CVPixelBuffer?
@@ -154,8 +137,77 @@ let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 2
 let thr: [UInt8] = threshold ? [UInt8](repeating: 128, count: 64) : bayer.map { UInt8(Int($0) * 4 + 2) }
 var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, t: now())
 
-// --- the pointer: drawn here, not captured: bigger than macOS's, black with a white edge, and it moves without a new frame of the screen
-// (a pointer that only moves sends just the tiles it leaves and enters)
+/** shown -> cur, 1 bit, over rows y0..<y1 and the bytes holding x0..<x1. */
+func dither(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) {
+    let b0 = x0 / 8, b1 = (x1 + 7) / 8
+    cur.withUnsafeMutableBufferPointer { c in thr.withUnsafeBufferPointer { t in shown.withUnsafeBufferPointer { g in
+        for y in y0..<y1 {
+            let row = g.baseAddress! + y * W, out = c.baseAddress! + y * stride, tr = t.baseAddress! + (y & 7) * 8
+            for bx in b0..<b1 {
+                let x = bx * 8
+                var b: UInt8 = 0
+                for i in 0..<min(8, W - x) where row[x + i] < tr[i] { b |= 0x80 >> UInt8(i) }
+                out[bx] = b
+            }
+        }
+    } } }
+}
+
+/** The tiles of tiles x tx0..<tx1, ty0..<ty1 marked in `mask` as rectangles: per band of tiles the span of marked columns, bands merged
+ *  while that wastes little. */
+func rectsOf(_ mask: [Bool], _ tx0: Int = 0, _ ty0: Int = 0, _ tx1: Int = tilesX, _ ty1: Int = tilesY) -> [(Int, Int, Int, Int)] {
+    var rects: [(Int, Int, Int, Int)] = []
+    for ty in ty0..<ty1 {
+        var lo = Int.max, hi = -1
+        for tx in tx0..<tx1 where mask[ty * tilesX + tx] { lo = min(lo, tx); hi = tx }
+        guard hi >= 0 else { continue }
+        let by = ty * TH, bh = min(TH, H - by), x0 = lo * TW, x1 = min((hi + 1) * TW, W)
+        if var r = rects.last, r.1 + r.3 == by {
+            let ux0 = min(r.0, x0), ux1 = max(r.0 + r.2, x1)
+            if (ux1 - ux0) * (r.3 + bh) <= (r.2 * r.3 + (x1 - x0) * bh) * 13 / 10 { r = (ux0, r.1, ux1 - ux0, r.3 + bh); rects[rects.count - 1] = r; continue }
+        }
+        rects.append((x0, by, x1 - x0, bh))
+    }
+    return rects
+}
+
+/** The tiles where cur differs from prev, within a pixel box. */
+func changed(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> [Bool] {
+    var m = [Bool](repeating: false, count: tilesX * tilesY)
+    for ty in (y0 / TH)..<min(tilesY, (y1 + TH - 1) / TH) {
+        for tx in (x0 / TW)..<min(tilesX, (x1 + TW - 1) / TW) {
+            let b0 = tx * TW / 8, b1 = min(stride, (tx + 1) * TW / 8)
+            var diff = false
+            for y in (ty * TH)..<min(H, (ty + 1) * TH) where !diff { let o = y * stride; for i in b0..<b1 where cur[o + i] != prev[o + i] { diff = true; break } }
+            m[ty * tilesX + tx] = diff
+        }
+    }
+    return m
+}
+
+// --- the clean pass: the fast waveform leaves trails. A tile drawn fast is drawn again in true greys in --clean-mode's waveform once
+// nothing has changed for --idle ms (a blinking caret never rests that long, so it is never cleaned), and the pointer's trail 300 ms after
+// it stops; after four screens of cleaning, one full refresh.
+var fastTiles = [Bool](repeating: false, count: tilesX * tilesY), trailTiles = fastTiles
+var fastMode = true, cleaned = 0, lastChange = 0.0, lastMove = 0.0
+func clean(_ mask: inout [Bool]) {
+    let rects = rectsOf(mask)
+    mask = [Bool](repeating: false, count: tilesX * tilesY)
+    if rects.isEmpty { return }
+    writeFull(header(2, cleanMode, 0, 0, 0, 0), 16); fastMode = false
+    for (x, y, w, h) in rects {
+        cleaned += w * h
+        var payload = [UInt8](repeating: 0, count: w * h)
+        for j in 0..<h { let o = (y + j) * W + x; payload.replaceSubrange(j * w..<(j + 1) * w, with: shown[o..<(o + w)]) }
+        var hd = header(1, x, y, w, h, payload.count); hd[1] = 8
+        writeFull(hd, 16); writeFull(payload, payload.count)
+        acks.wait()
+    }
+    if cleaned > W * H * 4 { writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0 }
+}
+
+// --- the pointer: drawn here, not captured, black with a white edge; it moves without a new frame of the screen, and only its old and
+// new boxes are dithered and compared again
 let arrow: [(Double, Double)] = [(0, 0), (0, 16), (4, 12.3), (7, 19), (9.2, 18), (6.3, 11.3), (11.5, 11.3)]   // 19 units tall, tip at (0, 0)
 var pointer: (x: Int, y: Int)? = nil   // in the tablet's pixels, nil off the display
 var region = (ox: 0, oy: 0, fw: W, fh: H)   // where the captured frame lands on the tablet
@@ -167,9 +219,10 @@ func inside(_ px: Double, _ py: Double) -> Bool {
     }
     return c
 }
-// the arrow's mask at --cursor pixels tall: 2 black, 1 its white edge, 0 outside
+let edge = 2
+// the arrow's mask at --cursor pixels tall: 2 black, 1 its white edge, 0 outside; drawn with its tip at (edge, edge)
 let pointerMask: (w: Int, h: Int, m: [UInt8]) = {
-    let k = Double(cursorPx) / 19, e = max(2, cursorPx / 16), w = Int(12 * k) + 2 * e, h = cursorPx + 2 * e
+    let k = Double(cursorPx) / 19, e = edge, w = Int(12 * k) + 2 * e, h = cursorPx + 2 * e
     var m = [UInt8](repeating: 0, count: w * h)
     for y in 0..<h { for x in 0..<w where inside((Double(x - e) + 0.5) / k, (Double(y - e) + 0.5) / k) { m[y * w + x] = 2 } }
     var out = m
@@ -181,6 +234,14 @@ let pointerMask: (w: Int, h: Int, m: [UInt8]) = {
     } }
     return (w, h, out)
 }()
+func pointerBox(_ p: (x: Int, y: Int)) -> (Int, Int, Int, Int) {
+    (max(0, p.x - edge), max(0, p.y - edge), min(W, p.x - edge + pointerMask.w), min(H, p.y - edge + pointerMask.h))
+}
+func drawPointer(_ p: (x: Int, y: Int)) {
+    let pm = pointerMask
+    for y in 0..<pm.h { let yy = p.y - edge + y; if yy < 0 || yy >= H { continue }
+        for x in 0..<pm.w where pm.m[y * pm.w + x] != 0 { let xx = p.x - edge + x; if xx >= 0 && xx < W { shown[yy * W + xx] = pm.m[y * pm.w + x] == 2 ? 0 : 255 } } }
+}
 func pointerNow() -> (x: Int, y: Int)? {
     guard let loc = CGEvent(source: nil)?.location else { return nil }
     let b = CGDisplayBounds(target)
@@ -189,84 +250,59 @@ func pointerNow() -> (x: Int, y: Int)? {
 }
 var pointerMoved = false
 let pointerTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-pointerTimer.schedule(deadline: .now(), repeating: .milliseconds(16))
+pointerTimer.schedule(deadline: .now(), repeating: .milliseconds(8))
 pointerTimer.setEventHandler {
     let p = pointerNow()
-    if p?.x != pointer?.x || p?.y != pointer?.y { lock.lock(); pointer = p; pointerMoved = true; lock.unlock(); ready.signal() }
+    lock.lock()
+    if p?.x != pointer?.x || p?.y != pointer?.y { pointer = p; pointerMoved = true; lock.unlock(); ready.signal() } else { lock.unlock() }
 }
 pointerTimer.resume()
 
 Thread {
-    var shown = [UInt8](repeating: 255, count: W * H)   // the screen as the tablet should show it: the capture with the pointer
-    var drawn: (x: Int, y: Int)? = nil                   // where the pointer was drawn last
+    var drawn: (x: Int, y: Int)? = nil   // where the pointer is drawn in shown
+    func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
-        if (idleMs > 0 && !dirty.isEmpty) || !trail.isEmpty { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
-        let tw0 = now()
-        if idleMs > 0 && !dirty.isEmpty && tw0 - lastChange >= Double(idleMs) {
-            dirty.add(trail); clean(dirty, shown); dirty = Area(); trail = Area()
-        } else if !trail.isEmpty && (tw0 - lastMove >= 150 || tw0 - lastTrailClean >= 300) {
-            clean(trail, shown); trail = Area(); lastTrailClean = tw0
-        }
+        if (idleMs > 0 && any(fastTiles)) || any(trailTiles) { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
+        let tn = now()
+        if idleMs > 0 && any(fastTiles) && tn - lastChange >= Double(idleMs) && tn - lastMove >= 300 {
+            for i in 0..<fastTiles.count where trailTiles[i] { fastTiles[i] = true }
+            clean(&fastTiles); trailTiles = fastTiles
+        } else if any(trailTiles) && tn - lastMove >= 300 { clean(&trailTiles) }
         lock.lock(); let pb = latest; latest = nil; let moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
         if pb == nil && !moved { continue }
         let t0 = now()
-        if let pb {   // the new frame's luma into grey, at its place on the panel
+        var box = (x0: W, y0: H, x1: 0, y1: 0)   // what to dither and compare
+        func grow(_ b: (Int, Int, Int, Int)) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)) }
+        if let pb {   // a new frame: its luma through the tone curve into grey, then all of it
             CVPixelBufferLockBaseAddress(pb, .readOnly)
             let fw = min(CVPixelBufferGetWidthOfPlane(pb, 0), W), fh = min(CVPixelBufferGetHeightOfPlane(pb, 0), H), bpr = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
             region = ((W - fw) / 2 / 8 * 8, (H - fh) / 2, fw, fh)
             let src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
-            grey.withUnsafeMutableBufferPointer { g in for y in 0..<fh { _ = memcpy(g.baseAddress! + (y + region.oy) * W + region.ox, src + y * bpr, fw) } }
+            grey.withUnsafeMutableBufferPointer { g in tone.withUnsafeBufferPointer { t in
+                for y in 0..<fh { let s = src + y * bpr, d = g.baseAddress! + (y + region.oy) * W + region.ox; for x in 0..<fw { d[x] = t[Int(s[x])] } }
+            } }
             CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+            shown = grey
+            box = (0, 0, W, H)
+        } else if let d = drawn {   // the pointer alone moved: its old box back to the screen
+            let b = pointerBox(d)
+            for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
+            grow(b)
         }
-        shown = grey
-        let pm = pointerMask, e = max(2, cursorPx / 16)
-        if let d = drawn, d.x != p?.x || d.y != p?.y { trail.add(d.x - e, d.y - e, pm.w, pm.h); lastMove = now() }   // where it was
+        if let d = drawn, d.x != p?.x || d.y != p?.y {   // where it was: its trail
+            let b = pointerBox(d)
+            for ty in (b.1 / TH)..<min(tilesY, (b.3 + TH - 1) / TH) { for tx in (b.0 / TW)..<min(tilesX, (b.2 + TW - 1) / TW) { trailTiles[ty * tilesX + tx] = true } }
+            lastMove = now()
+        }
+        if let p { drawPointer(p); grow(pointerBox(p)) }
         drawn = p
-        if let p {
-            for y in 0..<pm.h { let yy = p.y - e + y; if yy < 0 || yy >= H { continue }
-                for x in 0..<pm.w where pm.m[y * pm.w + x] != 0 { let xx = p.x - e + x; if xx >= 0 && xx < W { shown[yy * W + xx] = pm.m[y * pm.w + x] == 2 ? 0 : 255 } } }
-        }
-        cur.withUnsafeMutableBufferPointer { c in
-            thr.withUnsafeBufferPointer { t in
-                shown.withUnsafeBufferPointer { g in
-                    for y in 0..<H {
-                        let row = g.baseAddress! + y * W, out = c.baseAddress! + y * stride, tr = t.baseAddress! + (y & 7) * 8
-                        var x = 0
-                        while x < W {
-                            var b: UInt8 = 0
-                            for i in 0..<min(8, W - x) where row[x + i] < tr[i] { b |= 0x80 >> UInt8(i) }
-                            out[x >> 3] = b; x += 8
-                        }
-                    }
-                }
-            }
-        }
+        if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) }
         let t1 = now()
-        // changed tiles, 32x16: per band of 16 rows the span of changed columns; bands merged while that wastes little
-        var rects: [(Int, Int, Int, Int)] = []
-        let tw = 4, th = 16
-        for by in Swift.stride(from: 0, to: H, by: th) {
-            let bh = min(th, H - by)
-            var lo = Int.max, hi = -1
-            for tx in Swift.stride(from: 0, to: stride, by: tw) {
-                let te = min(tx + tw, stride)
-                var diff = false
-                for y in by..<(by + bh) where !diff { let o = y * stride; for i in tx..<te where cur[o + i] != prev[o + i] { diff = true; break } }
-                if diff { lo = min(lo, tx); hi = max(hi, te) }
-            }
-            guard hi >= 0 else { continue }
-            if var r = rects.last, r.1 + r.3 == by {
-                let ux0 = min(r.0, lo * 8), ux1 = max(r.0 + r.2, min(hi * 8, W))
-                if (ux1 - ux0) * (r.3 + bh) <= (r.2 * r.3 + (min(hi * 8, W) - lo * 8) * bh) * 13 / 10 {
-                    r = (ux0, r.1, ux1 - ux0, r.3 + bh); rects[rects.count - 1] = r; continue
-                }
-            }
-            rects.append((lo * 8, by, min(hi * 8, W) - lo * 8, bh))
-        }
-        if !rects.isEmpty { lastChange = now() }
+        let mask = box.x1 > box.x0 ? changed(box.x0, box.y0, box.x1, box.y1) : [Bool](repeating: false, count: tilesX * tilesY)
+        let rects = rectsOf(mask)
+        if !rects.isEmpty { if pb != nil { lastChange = now() }; for i in 0..<mask.count where mask[i] { fastTiles[i] = true } }
         if !rects.isEmpty && fastMode == false { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
         for (x, y, w, h) in rects {
-            dirty.add(x, y, w, h)
             let rs = (w + 7) / 8
             var payload = [UInt8](repeating: 0, count: rs * h)
             for j in 0..<h { let o = (y + j) * stride + x / 8; payload.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
@@ -275,8 +311,7 @@ Thread {
         }
         let t2 = now()
         for _ in rects { acks.wait() }
-        swap(&prev, &cur)
-        cur = prev
+        for i in 0..<prev.count where prev[i] != cur[i] { prev[i] = cur[i] }
         stats.frames += 1; stats.rects += rects.count; stats.dither += t1 - t0; stats.wait += now() - t2
         if now() - stats.t >= 2000 {
             let f = max(stats.frames, 1)
