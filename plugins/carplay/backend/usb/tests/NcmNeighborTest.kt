@@ -6,16 +6,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NcmNeighborTest {
-    private val local = InetAddress.getByName("fe80::1").address
-    private val peer = InetAddress.getByName("fe80::2").address
+    private val local = InetAddress.getByName(WIRED_HOST_IPV6).address
+    private val peer = InetAddress.getByName("fe80::1").address
     private val mac = byteArrayOf(2, 3, 4, 5, 6, 7)
     private fun solicitation(dad: Boolean = false) = ByteArray(64).also {
         it[0] = 0x60; it[5] = 24; it[6] = 58; it[7] = 255.toByte()
         if (!dad) peer.copyInto(it, 8)
-        InetAddress.getByName("ff02::1:ff00:1").address.copyInto(it, 24)
+        InetAddress.getByName("ff02::1:ff00:2").address.copyInto(it, 24)
         it[40] = 135.toByte()
         local.copyInto(it, 48)
         EthernetIpv6Codec.writeIcmpv6Checksum(it)
+    }
+    @Test fun doesNotClaimPhoneAddress() {
+        assertFalse(local.contentEquals(peer))
+        val packet = solicitation(true)
+        peer.copyInto(packet, 48)
+        InetAddress.getByName("ff02::1:ff00:1").address.copyInto(packet, 24)
+        EthernetIpv6Codec.writeIcmpv6Checksum(packet)
+        assertNull(NcmNeighbor.reply(packet, local, mac))
     }
     @Test fun repliesWithMacAndValidChecksum() {
         val reply = NcmNeighbor.reply(solicitation(), local, mac)!!

@@ -3,6 +3,7 @@
 #include "descriptors.h"
 #include <jni.h>
 #include <algorithm>
+#include <cstdio>
 #include <cctype>
 #include <memory>
 #include <stdexcept>
@@ -32,6 +33,8 @@ struct Device {
     carplay::Configuration config;
     std::vector<int> claimed;
     bool detached = false;
+    bool ncmWaitLogged = false;
+    bool ncmReadyLogged = false;
     ~Device() {
         if (!handle) return;
         for (auto i = claimed.rbegin(); i != claimed.rend(); ++i)
@@ -189,9 +192,13 @@ JNIEXPORT void JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_write(JNIE
         env->GetByteArrayRegion(array, 0, length, reinterpret_cast<jbyte*>(bytes.data()));
         int transferred = 0;
         int status = libusb_bulk_transfer(d.handle, ncm ? d.config.ncm.out : d.config.mux.out, bytes.data(), length, &transferred, timeout);
-        if (ncm && status == LIBUSB_ERROR_TIMEOUT && transferred == 0) return; // Phone NAKs NCM before StartSession.
+        if (ncm && status == LIBUSB_ERROR_TIMEOUT && transferred == 0) {
+            if (!d.ncmWaitLogged) { fprintf(stderr, "NCM bulk-out not ready; retaining link for retry\n"); d.ncmWaitLogged = true; }
+            return;
+        } // Phone NAKs NCM before StartSession.
         checked(status, "USB bulk write");
         if (transferred != length) throw std::runtime_error("Short USB bulk write; stream must be closed");
+        if (ncm && !d.ncmReadyLogged) { fprintf(stderr, "NCM bulk-out accepted its first Ethernet frame\n"); d.ncmReadyLogged = true; }
     } catch (const std::exception& e) { fail(env, e); }
 }
 JNIEXPORT jint JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_interfaceNumber(JNIEnv* env, jobject, jlong handle) {

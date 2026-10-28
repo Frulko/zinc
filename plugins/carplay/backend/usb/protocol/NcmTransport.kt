@@ -3,6 +3,9 @@ package com.shilapi.xcertplay.transport
 
 import java.io.Closeable
 import java.util.ArrayDeque
+import org.slf4j.LoggerFactory
+
+const val WIRED_HOST_IPV6 = "fe80::2"
 
 /** Incremental NTB16 framing, retaining partial blocks and the optional short-packet pad. */
 class NcmFrames(private val packetSize: Int = 512) {
@@ -38,7 +41,7 @@ class NcmFrames(private val packetSize: Int = 512) {
 }
 
 /** Owns the utun fd; the device remains owned by the encompassing wired session. */
-class NcmNetwork(private val io: UsbIo, val address: String = "fe80::1", descriptorMac: ByteArray? = null, private val inPacketSize: Int = 512, private val outPacketSize: Int = 512, private val failed: (Throwable) -> Unit) : Closeable {
+class NcmNetwork(private val io: UsbIo, val address: String = WIRED_HOST_IPV6, descriptorMac: ByteArray? = null, private val inPacketSize: Int = 512, private val outPacketSize: Int = 512, private val failed: (Throwable) -> Unit) : Closeable {
     private val fd = NativeTun.open()
     val name: String = try { NativeTun.name(fd) } catch (error: Throwable) {
         NativeTun.close(fd)
@@ -50,6 +53,9 @@ class NcmNetwork(private val io: UsbIo, val address: String = "fe80::1", descrip
     private val threads = java.util.concurrent.CopyOnWriteArrayList<Thread>()
     private var sequence = 0
     private val writeLock = Any()
+    private val log = LoggerFactory.getLogger("carplay-ncm")
+    private var inboundLogs = 0
+    private var outboundLogs = 0
     private val localAddress = java.net.InetAddress.getByName(address).address
     init {
         try {
@@ -59,6 +65,7 @@ class NcmNetwork(private val io: UsbIo, val address: String = "fe80::1", descrip
     }
     fun start() {
         check(running && threads.isEmpty()) { "NCM network is closed or started" }
+        log.info("NCM bridge started: interface={} host={} inPacketSize={} outPacketSize={}", name, address, inPacketSize, outPacketSize)
             launch("ncm-in") {
                 val frames = NcmFrames(inPacketSize)
                 while (running) {
@@ -67,6 +74,7 @@ class NcmNetwork(private val io: UsbIo, val address: String = "fe80::1", descrip
                         val frame = frames.take() ?: break
                         val ipv6 = EthernetIpv6Codec.parseIpv6(frame) ?: continue
                         peerMac = ipv6.sourceMac
+                        if (inboundLogs++ < 12) log.info("NCM RX {}", packetSummary(ipv6.ipv6))
                         val reply = NcmNeighbor.reply(ipv6.ipv6, localAddress, hostMac)
                         if (reply != null) {
                             val destination = EthernetIpv6Codec.multicastDestinationMac(reply) ?: ipv6.sourceMac
@@ -79,11 +87,20 @@ class NcmNetwork(private val io: UsbIo, val address: String = "fe80::1", descrip
                 while (running) {
                     val packet = NativeTun.read(fd) ?: continue
                     val ipv6 = EthernetIpv6Codec.addNeighborAdvertisementTargetMac(packet, hostMac)
+                    if (outboundLogs++ < 12) log.info("NCM TX {}", packetSummary(ipv6))
                     val destination = EthernetIpv6Codec.multicastDestinationMac(ipv6) ?: peerMac ?: continue
                     val frame = EthernetIpv6Codec.build(hostMac, destination, ipv6)
                     send(frame)
                 }
             }
+    }
+    private fun packetSummary(packet: ByteArray): String {
+        if (packet.size < 40) return "short IPv6 header bytes=${packet.size}"
+        val source = java.net.InetAddress.getByAddress(packet.copyOfRange(8, 24)).hostAddress
+        val destination = java.net.InetAddress.getByAddress(packet.copyOfRange(24, 40)).hostAddress
+        val protocol = packet[6].toInt() and 255
+        val port = if (protocol == 6 && packet.size >= 44) " tcpPort=${((packet[42].toInt() and 255) shl 8) or (packet[43].toInt() and 255)}" else ""
+        return "$source -> $destination protocol=$protocol bytes=${packet.size}$port"
     }
     private fun send(frame: ByteArray) = synchronized(writeLock) {
         io.write(true, Ntb16Codec.build(frame, sequence, outPacketSize), 20)

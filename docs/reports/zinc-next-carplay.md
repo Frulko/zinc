@@ -177,3 +177,21 @@ empty-DN pairing profile and sends encrypted application data. It also verifies
 that installed/default providers are unchanged. Full backend build/tests,
 fresh/repeated overlay check and packaged bctls jar verification pass. The
 physical carkit/TLS continuation remains to be verified with a root restart.
+
+## Physical USB attempt: authentication succeeds, projection pending
+
+The physical phone now reports MFi authentication-succeeded (0xaa05), accepts
+iAP2 identification/authentication, advertises wiredAvailable=true, receives
+CarPlayStartSession and displays the CarPlay permission prompt. The user reports
+that tapping Allow reacts but leaves the prompt visible. No RTSP connection or
+media has been observed. This confirms software authentication without an MFi
+chip on this phone, not a completed projection session.
+
+Runtime NCM used fe80::1, unlike pinned DiPlay's receiver default fe80::2. It
+now uses fe80::2. Tests use the host default and a distinct peer and verify that
+NDP does not claim the peer address. A collision with the real phone's address
+is still a hypothesis until headers are captured. Initial NCM logs show only
+IPv6 headers/destination ports (12 packets per direction), and native logs mark
+the first NCM write timeout and first accepted Ethernet transfer. No packet
+payload is logged. Full backend build/tests pass; root restart is needed to
+observe the phone's actual NCM/RTSP path.

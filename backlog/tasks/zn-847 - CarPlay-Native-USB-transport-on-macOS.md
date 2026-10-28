@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 22:05'
+updated_date: '2026-10-28 22:12'
 labels:
   - carplay
   - size-L
@@ -94,4 +94,8 @@ Physical iPhone now completes USBMUX v2 and exchanges Lockdown plist requests. F
 InvalidPairRecord persists on the physical iPhone with the restored certificate profile, so the prior change did not establish its cause. A caller comparison found WiredBootstrap generated lowercase host/system UUIDs while pinned DiPlay CarPlayController explicitly uses uppercase(Locale.US). Aligned UUID formatting with upstream using Locale.ROOT; full backend rebuild/tests pass. Read-only independent audit is in progress. Actual acceptance remains unknown; do not mark this resolved based on local tests.
 
 Physical unlocked iPhone now accepts Pair and StartSession, reaching TLS 1.2 certificate reception; InvalidPairRecord no longer occurs in the reported run. SunJSSE then rejects the iPhone peer certificate with Empty issuer DN not allowed. Local CertificateFactory choice alone did not affect SunJSSE internal certificate parsing. USB-only TLS context and key manager now explicitly use BCJSSE with the BC crypto provider; bctls-jdk18on is pinned to 1.79 alongside bcprov. No global provider ordering or TLS policy changes. New regression performs a real mutual TLS 1.2 handshake with empty-DN certificates and transfers application data, asserting default/global providers unchanged. Full backend build/tests and repeat-overlay checks pass; packaged bctls jar verified. Next physical root run must confirm peer interoperability and carkit start.
+
+Physical iPhone now completes Lockdown TLS, carkit TLS, iAP2 identification and offline MFi authentication (0xaa05 authentication-succeeded). It advertises wiredAvailable=true and receives CarPlayStartSession; iOS shows Allow CarPlay prompt but tapping leaves it visible. No RTSP connection/media is logged. Found runtime NCM address default fe80::1 versus pinned DiPlay fe80::2. Aligned receiver default to fe80::2, updated NDP tests to keep host/peer distinct and reject claiming the peer address. Added bounded header-only NCM RX/TX logs and first native bulk-out wait/accept logs to distinguish no traffic, NDP and TCP connection attempts. Full backend build/tests pass; focused amended NDP test is running. Peer address conflict is a hypothesis until actual NCM headers are observed.
+
+Focused amended NcmNeighborTest completed successfully after the full backend build.
 <!-- SECTION:NOTES:END -->
