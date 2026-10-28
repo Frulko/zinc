@@ -82,10 +82,19 @@ static void stream_session(HalFrame& frame) {
   plain(100, true);
   assert(!stream::picture_mu.try_lock());
   plain(101, false);
-  assert(stream::picture_mu.try_lock());
+  bool free_ = false;   // the ACK comes from a decoder: the stream's thread lets the picture go right after
+  for (int i = 0; i < 200 && !(free_ = stream::picture_mu.try_lock()); i++) usleep(1000);
+  assert(free_);
   stream::picture_mu.unlock();
   fb_present(&frame);
   assert(pixel(100, 1) == 0x070809 && pixel(101, 1) == 0x070809);
+  // the Mac goes in the middle of a picture whose RECTs are still being decoded: their ACKs fail without SIGPIPE (it ended the receiver)
+  {
+    std::vector<uint8_t> big(1 + 64 * 1024 * 3);
+    uint8_t m[16] = {1, 24}; const uint16_t zero = 0, wide = 1024, tall = 64; const uint32_t n = 64 * 1024 * 3;
+    memcpy(m + 2, &zero, 2); memcpy(m + 4, &zero, 2); memcpy(m + 6, &wide, 2); memcpy(m + 8, &tall, 2); m[11] = 1; memcpy(m + 12, &n, 4);
+    for (int k = 0; k < 4; k++) { assert(write(c, m, 16) == 16); assert(write(c, big.data(), n) == (ssize_t)n); }
+  }
   close(c);
   for (int i = 0; i < 200 && stream::active; i++) usleep(5000);
   assert(!stream::active);

@@ -726,7 +726,34 @@ static void planes_present(const HalFrame* f, bool has) {
 // present shows what came since the last one. When it leaves, the app's whole frame again.
 static std::mutex stream_mu;
 static stream::Box streamed;
+#ifdef ZP_FBDEV_KMS
+// With the flip (two buffers on a plane), a streamed picture is shown by the stream's thread as soon as it is whole: the buffer that is not
+// on the screen gets it once the last flip is done, and one commit shows it at the next refresh. From the app's next frame it waited
+// 8 ms more on average (docs/reports/sidecar-pi-display-latency.md); the app's frames only keep their pace meanwhile.
+static std::mutex kms_mu;
+static bool stream_flips() { return stream::active && kms::flip && kms::fd >= 0 && !kms::failed; }
+static void stream_present() {
+  const uint64_t whole = now_us();
+  std::lock_guard<std::mutex> k(kms_mu);
+  if (!stream_flips()) return;
+  kms::wait_refresh();
+  HalFrame u = {};
+  { std::lock_guard<std::mutex> g(stream_mu); u.x0 = streamed.x0; u.y0 = streamed.y0; u.x1 = streamed.x1; u.y1 = streamed.y1; streamed = {}; }
+  planes_present(&u, u.x1 > u.x0 && u.y1 > u.y0);
+  stream::send16(12, 0, 0, (int32_t)(now_us() - whole), (int32_t)stream::picture_us.load(), 0);   // SHOWN: the Mac's details
+}
+#endif
 static void fb_present(const HalFrame* f) {
+#ifdef ZP_FBDEV_KMS
+  std::unique_lock<std::mutex> k(kms_mu);
+  if (stream_flips()) {   // the stream's thread shows its pictures (stream_present): the app's loop keeps its rate
+    k.unlock();
+    const uint64_t period = 1000000u / ZP_DISPLAY_FBDEV_FPS, t = now_us();
+    if (last_us && t - last_us < period) usleep((useconds_t)(period - (t - last_us)));
+    last_us = now_us();
+    return;
+  }
+#endif
   HalFrame own;
   bool from_stream = false;
   if (stream::ended.exchange(false)) { own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; f = &own; }
@@ -888,6 +915,9 @@ static const char* fb_device(const char* query, const char* value) {
       else streamed = {std::min(streamed.x0, x), std::min(streamed.y0, y), std::max(streamed.x1, x + w), std::max(streamed.y1, y + h)};
     }, [] { return false; }, nullptr, "Screen"};
     t.colour = true; t.whole = true;
+#ifdef ZP_FBDEV_KMS
+    t.shown = stream_present;
+#endif
     return stream::start(atoi(value), t) ? "1" : "0";
   }
   if (!strcmp(query, "stream.state")) return !stream::port ? "off" : stream::active ? "connected" : "waiting";

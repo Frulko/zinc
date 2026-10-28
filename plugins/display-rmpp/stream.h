@@ -40,6 +40,8 @@
 //                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.
 //   kind 9 LIGHT  a: the frontlight in permille, at the start and after each SET 6 (none without a frontlight).
 //   kind 11 ECHO  a: the SINK's length, b: x | y << 16 of that SINK (the Mac's tag), as soon as its last byte came.
+//   kind 12 SHOWN a: microseconds from a picture's last byte to the commit that shows it at the next refresh (a screen that flips),
+//                 b: from its first RECT read to all of them decoded (the decoders work on every core; ACK b is then each one's CPU time).
 //   kind 10 HOST  at the start and at most every 2 s while pictures come, for the Mac's details panel (-1: unknown on this board):
 //                 type 0 a the CPU's temperature in milli-degrees, b how busy all its cores were since the last one (permille), c the
 //                 memory still available (MB); type 1 a the CPU's clock now, b its top (MHz), c the Pi firmware's throttled bits
@@ -52,6 +54,8 @@
 #include <functional>
 #include <mutex>
 #include <thread>
+#include <condition_variable>
+#include <deque>
 #include <vector>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -109,7 +113,11 @@ inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b
   uint8_t m[16] = {kind, type};
   memcpy(m + 2, &id, 2); memcpy(m + 4, &a, 4); memcpy(m + 8, &b, 4); memcpy(m + 12, &c, 4);
   std::lock_guard<std::mutex> g(out);
+#ifdef MSG_NOSIGNAL
+  return client >= 0 && send(client, m, sizeof m, MSG_NOSIGNAL) == (ssize_t)sizeof m;   // a Mac gone is a failed send, not SIGPIPE
+#else
   return client >= 0 && write(client, m, sizeof m) == (ssize_t)sizeof m;
+#endif
 }
 /** HOST: the receiver's temperature, CPU and memory (Linux's /sys and /proc; what a board lacks is -1). */
 inline void send_host() {
@@ -268,12 +276,15 @@ struct Target {
                                                       // false once it is gone
   const char* model;
   bool colour = false;                      // a colour screen: RECT at depth 24 (+rgb), written B, G, R(, 0xFF)
+  std::function<void()> shown;              // a picture is whole (after its updates): the screen may show it now rather than at its next
+                                            // frame (display-fbdev's flip from the stream's thread); empty: nothing
   bool whole = false;                       // the screen's present reads fb while pictures come (display-fbdev): picture_mu keeps it out
                                             // from a picture's first write to its last, so it never shows half of one (no tiles torn)
 };
 /** Held by the stream from a picture's first write into fb to its update, and by a present that reads fb (Target.whole). A present
  *  that waits says so (presenting) and goes before the next picture: one picture's transfer at most. */
 inline std::mutex picture_mu;
+inline std::atomic<uint32_t> picture_us{0};   // the last colour picture: µs from its first RECT read to all of them on the buffer (SHOWN b)
 inline std::atomic<bool> presenting{false};
 
 struct Box { int x0, y0, x1, y1; };
@@ -290,6 +301,53 @@ template <class R> inline void merge(std::vector<R>& v) {
     }
   }
 }
+
+/** A colour picture's RECTs decoded on every core (a Pi 3 took 93 ms for a whole 1080p picture on one): the stream's thread reads them
+ *  and goes on reading while these decompress each into the screen's buffer, the Sub filter undone in the same pass as the B, G, R to
+ *  B, G, R, A copy, and answer its ACK. The picture is updated once all of its RECTs are in (wait). */
+struct Decoders {
+  struct Job { std::vector<uint8_t> data; uint8_t* fb; int stride, x, y, w, h, codec; bool sub; uint32_t t0; };
+  std::mutex mu; std::condition_variable cv, done;
+  std::deque<Job> jobs;
+  int busy = 0;
+  bool bad = false;
+  std::function<void(uint32_t)> ack;   // a RECT is on the screen's buffer: its decode time in µs
+  Decoders() {
+    const unsigned n = std::max(1u, std::thread::hardware_concurrency());
+    for (unsigned i = 0; i < n; i++) std::thread([this] { work(); }).detach();
+  }
+  void push(Job j) { { std::lock_guard<std::mutex> g(mu); jobs.push_back(std::move(j)); ++busy; } cv.notify_one(); }
+  /** Every RECT pushed is on the buffer; false when one was not readable (the connection ends). */
+  bool wait() { std::unique_lock<std::mutex> g(mu); done.wait(g, [&] { return busy == 0; }); const bool ok = !bad; bad = false; return ok; }
+  void work() {
+    ZSTD_DCtx* dctx = ZSTD_createDCtx();
+    std::vector<uint8_t> plain;
+    for (;;) {
+      Job j;
+      { std::unique_lock<std::mutex> g(mu); cv.wait(g, [&] { return !jobs.empty(); }); j = std::move(jobs.front()); jobs.pop_front(); }
+      const size_t stride = (size_t)j.w * 3, raw = stride * j.h;
+      const uint32_t t1 = now_us();
+      const uint8_t* src = j.data.data();
+      bool ok = true;
+      if (j.codec) {
+        plain.resize(raw);
+        ok = j.codec == 1 ? LZ4_decompress_safe((const char*)j.data.data(), (char*)plain.data(), (int)j.data.size(), (int)raw) == (int)raw
+                          : ZSTD_decompressDCtx(dctx, plain.data(), raw, j.data.data(), j.data.size()) == raw;
+        src = plain.data();
+      }
+      if (ok) for (int r = 0; r < j.h; r++) {
+        const uint8_t* s = src + r * stride;
+        uint8_t* d = j.fb + (size_t)(j.y + r) * j.stride + (size_t)j.x * 4;
+        if (j.sub) { uint8_t b = 0, g = 0, rr = 0; for (int i = 0; i < j.w; i++, s += 3, d += 4) { d[0] = b += s[0]; d[1] = g += s[1]; d[2] = rr += s[2]; d[3] = 0xFF; } }
+        else for (int i = 0; i < j.w; i++, s += 3, d += 4) { d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 0xFF; }
+      }
+      if (ok) ack(now_us() - t1);
+      { std::lock_guard<std::mutex> g(mu); if (!ok) bad = true; if (--busy == 0) done.notify_all(); }
+    }
+  }
+};
+
+inline Decoders* dec = nullptr;   // created at the first colour RECT
 
 inline bool read_full(int fd, void* p, size_t n) {
   for (uint8_t* b = (uint8_t*)p; n;) { ssize_t r = read(fd, b, n); if (r <= 0) return false; b += r; n -= (size_t)r; }
@@ -323,6 +381,9 @@ inline void serve(Target t, int ls) {
 #endif
     setsockopt(c, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof intvl);
     setsockopt(c, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof cnt);
+#ifdef SO_NOSIGPIPE
+    setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);   // macOS: a Mac gone is a failed send, not SIGPIPE (send16)
+#endif
     const int top = t.top(), H = t.h - top;
     char hello[128];
     const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s\n", t.w, H, t.model, t.colour ? " +rgb" : "");
@@ -377,7 +438,8 @@ inline void serve(Target t, int ls) {
     std::vector<Box> due, quick;   // the picture's, the pointer's
     auto add = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) due.push_back(b); };
     auto point = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) quick.push_back(b); };
-    bool holding = false;
+    uint32_t picture_t0 = 0;
+    bool holding = false, show_due = false;   // show_due: a whole picture to show once its ACK is out (the Mac sends on meanwhile)
     auto hold = [&] { if (t.whole && !holding) { while (presenting) usleep(100); picture_mu.lock(); holding = true; } };
     auto release = [&] { if (holding) { picture_mu.unlock(); holding = false; } };
     auto flush = [&] {
@@ -393,8 +455,10 @@ inline void serve(Target t, int ls) {
       }
       due.clear(); quick.clear();
       release();
+      show_due = bool(t.shown);
     };
     for (;;) {
+      if (show_due) { show_due = false; t.shown(); }
       pollfd pf = {c, POLLIN, 0};
       if (stroke && poll(&pf, 1, 300) == 0) settle();
       if (!read_full(c, h, sizeof h)) break;
@@ -463,6 +527,19 @@ inline void serve(Target t, int ls) {
       if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
       ++n_rects;
       const uint32_t t0 = now_us();
+      if (h[1] == 24 && B == 4 && !drawn) {   // a colour screen's RECT: to the decoders, and on to the next while they work
+        static std::atomic<uint32_t> acked{0};
+        if (!dec) { dec = new Decoders(); dec->ack = [](uint32_t us) { send16(1, 0, 0, (int32_t)++acked, (int32_t)us, 0); }; }
+        if (!holding) picture_t0 = t0;
+        hold();
+        dec->push({std::move(buf), t.fb + (size_t)top * t.stride, t.stride, x, y, w, hh, codec, sub, t0});
+        buf = {};
+        add({x, y, x + w, y + hh});
+        ++seq;
+        if (!more) { if (!dec->wait()) break; picture_us = now_us() - picture_t0; flush(); }
+        if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
+        continue;
+      }
       const uint8_t* src = buf.data();
       if (codec || sub) {
         plain.resize(raw);
@@ -493,6 +570,7 @@ inline void serve(Target t, int ls) {
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
       if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
     }
+    if (dec) dec->wait();   // no ACK of this session's RECTs goes to the next Mac
     settle();
     release();
     { std::lock_guard<std::mutex> g(out); client = -1; }

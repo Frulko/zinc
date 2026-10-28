@@ -6,7 +6,7 @@
 // A picture where much of the screen changes (a video, a page switch), or that comes while the link is still busy, goes rough: its colours
 // cut to 5-6-5 bits (half the bytes after zstd on a desktop, codecbench), nothing new for the receiver to decode; each rough tile is sent
 // again exact once it has rested 300 ms.
-//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--seconds n]
+//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--seconds n] [--synthetic <percent>]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
@@ -14,7 +14,7 @@ import SystemConfiguration
 
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
-var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false
+var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
     let a = argv.removeFirst()
@@ -26,6 +26,8 @@ while !argv.isEmpty {
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
+    case "--synthetic": synthetic = Int(argv.removeFirst())!   // no capture: a still page with a moving "video" over this percent of it, 60 a second (a
+                                                                 // load that is the same from run to run, to compare the links and the receivers)
     default: die("unknown option \(a)")
     }
 }
@@ -98,8 +100,9 @@ func header(_ type: UInt8, _ depth: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: In
 
 // --- the display
 var virtualDisplay: CGVirtualDisplay?
-var target: CGDirectDisplayID
-if mirror >= 0 {
+var target: CGDirectDisplayID = 0
+if synthetic > 0 {   // nothing captured, nothing to show on the Mac
+} else if mirror >= 0 {
     var ids = [CGDirectDisplayID](repeating: 0, count: 16); var n: UInt32 = 0
     CGGetActiveDisplayList(16, &ids, &n)
     if mirror >= Int(n) { die("no display \(mirror) (\(n) displays)") }
@@ -155,6 +158,7 @@ var waiting: CVPixelBuffer?
 var stats = (frames: 0, bytes: 0, raw: 0, encode: 0.0, rtt: [Double](), tiles: 0, rough: 0)
 // the details panel's counters: captures that came and were replaced before going, the receiver's decode time, the slowest encode
 var more = (captured: 0, dropped: 0, decodeUs: 0, encodeMax: 0.0)
+var shownUs = [Int](), pictureUs = [Int]()   // SHOWN: µs from a picture's last byte to its commit on the screen (a screen that flips)
 var rx = [[Int]](repeating: [-1, -1, -1], count: 3)   // the screen's HOST messages, by type
 var total = (bytes: 0, frames: 0)
 let began = CFAbsoluteTimeGetCurrent()
@@ -168,6 +172,7 @@ Thread {
                                         c = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: Int32.self) })), k = Int(m[1])
                                     q.async { rx[k] = [a, b, c] } }
         if m[0] == 11 { echoes.signal() }
+        if m[0] == 12 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })); q.async { shownUs.append(a); if b > 0 { pictureUs.append(b) } } }
         if m[0] == 1 { q.async { rectsAcked += 1; more.decodeUs += b
             while let f = frameEnds.first, f.0 <= rectsAcked { stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst() }
             pump() } }
@@ -267,7 +272,37 @@ func startCapture(_ tries: Int) {
         stream = s
     }
 }
-startCapture(0)
+/** The synthetic load: a light page with lines of "text", and a block of the given share of the screen whose colours flow every frame
+ *  like a film (smooth gradients that move, so they compress as a video's pictures do, not as noise). */
+func startSynthetic() {
+    var pool: CVPixelBufferPool?
+    CVPixelBufferPoolCreate(nil, nil, [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey: W, kCVPixelBufferHeightKey: H] as CFDictionary, &pool)
+    let side = Double(synthetic) / 100, bw = Int(Double(W) * side.squareRoot()), bh = Int(Double(H) * side.squareRoot())
+    let bx = (W - bw) / 2, by = (H - bh) / 2
+    var n = 0
+    print("capturing \(W)x\(H) (synthetic, \(synthetic)% moving)")
+    Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in
+        var pb: CVPixelBuffer?
+        guard let pool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let pb else { return }
+        CVPixelBufferLockBaseAddress(pb, [])
+        let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self), bpr = CVPixelBufferGetBytesPerRow(pb)
+        for y in 0..<H {
+            let row = base + y * bpr
+            let text = y % 24 < 12 && (y / 24) % 3 != 2
+            for x in 0..<W { let v: UInt8 = text && x % 18 < 9 && x > 40 && x < W - 40 ? 60 : 240; row[x * 4] = v; row[x * 4 + 1] = v; row[x * 4 + 2] = v; row[x * 4 + 3] = 255 }
+            if y >= by && y < by + bh {
+                for x in bx..<(bx + bw) {
+                    let p = row + x * 4, t = n * 3
+                    p[0] = UInt8(truncatingIfNeeded: (x + t) / 3); p[1] = UInt8(truncatingIfNeeded: (y * 2 + t) / 4); p[2] = UInt8(truncatingIfNeeded: (x + y - t) / 5)
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pb, [])
+        n += 1
+        q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
+    }
+}
+if synthetic > 0 { startSynthetic() } else { startCapture(0) }
 
 // --- the speed test ("speedtest" on stdin, the Details window's button): on the stream's own connection, while no picture goes. Twenty
 // pings (an empty SINK each, answered by ECHO), then SINKs of 256 KB for 3 s; the rate counts until the screen has the last byte
@@ -374,7 +409,9 @@ func info(_ seconds: Double) {
         ["Rate", "Compression", String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
         ["Rate", "Rough frames", "\(stats.rough * 100 / f)%"],
         ["Latency", "Encode (Mac)", "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
-        ["Latency", "Decode (screen)", ms(Double(more.decodeUs) / Double(f) / 1000) + " a frame"],
+        ["Latency", "Shown (screen)", shownUs.isEmpty ? "–" : { let v = shownUs.sorted(); return String(format: "commit %.1f ms after the last byte (median, %.1f p95), on screen at the next refresh (≤ 16.7 ms)", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }()],
+        ["Latency", "Decode (screen)", (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())
+            + ms(Double(more.decodeUs) / Double(f) / 1000) + " of CPU a frame"],
         ["Latency", "Frame round trip", r.isEmpty ? "–" : "\(ms(r[r.count / 2])) median, \(ms(r[min(r.count - 1, r.count * 95 / 100)])) p95, \(ms(r.last!)) max"],
         ["Latency", "Network (TCP)", tcp ? String(format: "%.1f ms, ± %.1f, %d KB queued, %d resent", Double(t.tcpi_srtt), Double(t.tcpi_rttvar), Int(t.tcpi_snd_sbbytes) / 1024, Int(t.tcpi_txretransmitpackets)) : "–"],
         ["Latency", "In flight", "\(frameEnds.count) of \(inFlight) frames (1 when the round trip passes a refresh)"],
@@ -389,7 +426,7 @@ func info(_ seconds: Double) {
     if stats.frames == 0 { rows[9][2] = "0 frames/s: nothing moved" }
     rows += diag.isEmpty ? [["Diagnostics", "Addresses tried", tried.joined(separator: ", ")], ["Diagnostics", "Speed test", "not run yet"]] : diag
     if let d = try? JSONSerialization.data(withJSONObject: rows), let j = String(data: d, encoding: .utf8) { print("info " + j) }
-    more = (0, 0, 0, 0)
+    more = (0, 0, 0, 0); shownUs = []; pictureUs = []
 }
 
 // every 2 s: pictures, wire rate, the ratio against raw BGR, the encoder's time, the round trip of a picture
