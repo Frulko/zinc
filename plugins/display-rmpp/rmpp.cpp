@@ -296,6 +296,7 @@ void l2_stream_present() {
 
 const char* rm_device(const char* query, const char* arg);
 void rm_poll(HalInput* in) {
+  if (stream::quit_asked.exchange(false)) { fprintf(stderr, "display-rmpp: the Mac asked the app to end\n"); rin::quit_flag = 1; in->quit = 1; }
   if (layer == L2 || layer == RM2) {
     rin::poll_touch();
     if (layer == L2 && stream::active) l2_stream_input();

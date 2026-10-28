@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A Mac's side of the sidecar stream, scripted (plugins/display-rmpp/stream.h): send.py <port> waits for the tablet, prints its hello, sends the
 pen's waveform, a 1-bit rectangle, a grey one, an lz4 one, two of one picture (one update), the pointer, a scroll's copy and a full refresh, prints each answer and the first touch the tablet forwards, then leaves.
-send.py <port> notap: no touch to wait for (the ink session has no scripted tap)."""
+send.py <port> notap: no touch to wait for (the ink session has no scripted tap). A last word "quit": then connects again and asks the
+tablet's app to end (QUIT)."""
 import socket, struct, sys, time
 
 port = int(sys.argv[1])
@@ -39,9 +40,17 @@ ack()
 time.sleep(0.8)
 msg(3)                                           # a full refresh
 s.settimeout(20)
-if sys.argv[2:] != ['notap']:
+if 'notap' not in sys.argv[2:]:
     while (r := answer())[0] != 'input': pass    # a tap on the tablet (the test's ZN_RMPP_SIM_TAP)
     print('input %#x %d,%d' % (r[1], r[3], r[4]))
 time.sleep(1.5)                                  # the full refresh goes out from the app's frame loop
-s.close()
+f.close(); s.close()                             # the file holds the socket open too
 print('left')
+if sys.argv[-1] == 'quit':
+    time.sleep(1)
+    s = socket.create_connection(('127.0.0.1', port), timeout=20)
+    s.recv(128)                                  # the hello
+    s.sendall(struct.pack('<BBHHHHBBI', 8, 0, 0, 0, 0, 0, 0, 0, 0))
+    time.sleep(1)
+    s.close()
+    print('asked to quit')

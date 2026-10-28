@@ -13,7 +13,8 @@
 //   6 COPY    the rectangle (x, y, w, h) moves by the payload's [i16 dx][i16 dy] (a scroll): the Mac sends only what is new after it.
 //   7 SET     x: a setting, y: its value: 1, 2, 3 how long (ms) the panel drives a Pen, colour, full update (nothing new goes to those
 //             pixels before: a pixel still moving ignores a new target and stays half-way, the ghosts and coloured residue), 4 the
-//             profile on (1) or off, 5 holding on (1) or off.
+//             profile on (1) or off, 5 holding on (1) or off, 6 the frontlight in permille.
+//   8 QUIT    the tablet's app ends (in an ink session xochitl comes back).
 // more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
 // rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
@@ -33,6 +34,7 @@
 //   kind 8 PROFILE every 2 s while the profile is on: type 0 a updates sent to the panel, b rectangles held (their place still driven),
 //                 c the panel's busy time in permille; type 1 a, b, c how long the panel moved after a lone Pen, colour, full update
 //                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.
+//   kind 9 LIGHT  a: the frontlight in permille, at the start and after each SET 6 (none without a frontlight).
 // A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture). Two fingers scroll the Mac;
 // two fingers that barely moved (a tap) ask for a full refresh. Neither finger goes to the Mac as the mouse.
 #pragma once
@@ -78,6 +80,19 @@ inline std::atomic<bool> holding{true}, profiling{false};
 inline std::atomic<unsigned> n_swaps{0}, n_held{0}, n_rects{0};
 inline std::atomic<uint32_t> swap_at{0};
 inline std::atomic<int> swap_kind{0}, swaps_open{0};
+inline std::atomic<bool> quit_asked{false};   // QUIT: rm_poll ends the app
+/** The frontlight (the Paper Pro's rm_frontlight, 0..2047) in permille; -1 without one. */
+inline int light(int set = -1) {
+  const char* dir = "/sys/class/backlight/rm_frontlight";
+  char p[96]; int max = 0, v = -1;
+  snprintf(p, sizeof p, "%s/max_brightness", dir);
+  if (FILE* f = fopen(p, "r")) { if (fscanf(f, "%d", &max) != 1) max = 0; fclose(f); }
+  if (max <= 0) return -1;
+  snprintf(p, sizeof p, "%s/brightness", dir);
+  if (set >= 0) if (FILE* f = fopen(p, "w")) { fprintf(f, "%d", std::min(1000, set) * max / 1000); fclose(f); }
+  if (FILE* f = fopen(p, "r")) { if (fscanf(f, "%d", &v) != 1) v = -1; fclose(f); }
+  return v < 0 ? -1 : v * 1000 / max;
+}
 inline uint32_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000ull + t.tv_nsec / 1000); }   // which Mac is connected: the way-up watcher stops when it changes
 
 inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
@@ -270,6 +285,7 @@ inline void serve(Target t, int ls) {
     active = true;
     std::thread(watch_way_up, ++session).detach();
     profiling = false;
+    if (const int l = light(); l >= 0) send16(9, 0, 0, l, 0, 0);
     const bool probe = access("/tmp/zinc-sidecar-probe", F_OK) == 0;
     if (probe) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
@@ -336,12 +352,14 @@ inline void serve(Target t, int ls) {
       if (h[0] == 3) { full = true; continue; }
       if (h[0] == 7) {   // a setting
         if (x == 1) hold_pen = y; else if (x == 2) hold_colour = y; else if (x == 3) hold_full = y; else if (x == 5) holding = y != 0;
+        else if (x == 6) { if (const int l = light(y); l >= 0) send16(9, 0, 0, l, 0, 0); }
         else if (x == 4) {
           profiling = y != 0;
           if (profiling && probing != session) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
         }
         continue;
       }
+      if (h[0] == 8) { quit_asked = true; continue; }
       if (h[0] == 4) {   // the pointer's shape
         if (w > 256 || hh > 256 || len != (size_t)w * hh) break;
         std::vector<uint8_t> s(len);

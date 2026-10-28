@@ -2,7 +2,8 @@
 # Sidecar in an ink session (L2, xochitl stopped by the lease): display-rmpp's stream thread writes into the vendor engine's RGB32 buffer and
 # the app's main thread swaps each rectangle in the Pen mode, against a stand-in engine shim (tests/native/sidecar/fakequill.c). The scripted
 # Mac (send.py) gets the whole panel (no header), its 1-bit block lands black at its place, its grey rectangle and full refresh go out, and
-# every swap comes from one thread (the vendor engine is driven from the main thread only).
+# every swap comes from one thread (the vendor engine is driven from the main thread only). The app runs until the Mac connects again
+# and asks it to end (QUIT): its frame count only bounds a failure.
 cd "$(dirname "$0")/../.." || exit 2
 root=$(pwd)
 tmp=$(mktemp -d); trap 'kill $app 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -19,15 +20,16 @@ cc -shared -O1 tests/native/sidecar/fakequill.c -o "$tmp/fakequill.dylib" || exi
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 ( cd "$proj" && ZN_RMPP_SIM_OUT="$proj/out" ZINC_RMPP_MACHINE="reMarkable Ferrari" ZINC_LEASE=1 ZINC_RMPP_INK=session \
     ZINC_VENDOR_SHA256=07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec ZINC_RMPP_SHIM="$tmp/fakequill.dylib" ZINC_RMPP_ENGINE="$tmp" \
-    FAKEQUILL_LOG="$tmp/swaps.txt" ZINC_SIDECAR_PORT=$port ZINC_STORAGE="$proj/kv" ZINC_DISPLAY=rmpp-sim ZINC_HEADLESS=1 ZINC_FRAMES=900 \
+    FAKEQUILL_LOG="$tmp/swaps.txt" ZINC_SIDECAR_PORT=$port ZINC_STORAGE="$proj/kv" ZINC_DISPLAY=rmpp-sim ZINC_HEADLESS=1 ZINC_FRAMES=1000000 \
     "$ZINC" run "$proj" >"$tmp/app.log" 2>&1 ) & app=$!
-timeout 60 python3 tests/native/sidecar/send.py $port notap > "$tmp/mac.log" 2>&1 || { echo "sidecar_session: the Mac's side failed: $(cat "$tmp/mac.log") $(tail -c 300 "$tmp/app.log")"; exit 1; }
+timeout 60 python3 tests/native/sidecar/send.py $port notap quit > "$tmp/mac.log" 2>&1 || { kill $app 2>/dev/null; [ -n "$SIDECAR_KEEP" ] && cp "$tmp/mac.log" "$tmp/app.log" "$SIDECAR_KEEP"/; echo "sidecar_session: the Mac's side failed: $(cat "$tmp/mac.log") $(tail -c 300 "$tmp/app.log")"; exit 1; }
 wait $app || { echo "sidecar_session: the app failed: $(tail -c 400 "$tmp/app.log")"; exit 1; }
 s=$tmp/swaps.txt
 fail=0
 [ -n "$SIDECAR_KEEP" ] && cp "$s" "$tmp/mac.log" "$tmp/app.log" "$SIDECAR_KEEP"/
 check() { grep -q -- "$2" "$3" || { echo "sidecar_session: no '$2' ($1)"; fail=1; }; }
 check "ink session" "ink session on" "$tmp/app.log"
+check "the Mac ends the app" "the Mac asked the app to end" "$tmp/app.log"
 check "the whole panel" "hello RMPP 1620 2160 Paper Pro" "$tmp/mac.log"
 check acks "ack 2" "$tmp/mac.log"
 check "1-bit block, black, Pen mode" "swap 96,200 64x16 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
