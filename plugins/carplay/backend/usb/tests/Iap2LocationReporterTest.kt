@@ -105,8 +105,19 @@ class Iap2LocationReporterTest {
         assertTrue(sent.isEmpty())
     }
 
+    @Test fun sendsOneNmeaSentencePerMessageAndCountsSuccessfulWrites() {
+        provider.nmea = "\$GPGGA,test\r\n\$GPRMC,test\r\n"
+        link().handle(start) { sent += it }
+        assertEquals(2, sent.size)
+        val bodies = sent.map { com.shilapi.xcertplay.iap2.body.Iap2BodyReader.of(it).string(0) }
+        assertEquals(listOf("\$GPGGA,test", "\$GPRMC,test"), bodies)
+        assertEquals(2, provider.sentCount)
+    }
+
     private class FakeProvider : Iap2LocationProvider {
         var started = false
+        var sentCount = 0
+        override fun onSent() { sentCount++ }
         var requested: Set<Int>? = null
         var nmea: String? = "\$GPGGA,123519.00,4807.0380,N,01131.0000,E,1,08,1.0,545.4,M,0.0,M,,*00\r\n"
         override fun onRequested(components: Set<Int>) { requested = components }

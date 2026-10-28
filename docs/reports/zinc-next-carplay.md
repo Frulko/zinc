@@ -456,3 +456,40 @@ clears slot ownership; mouse input stays available. F7 works even while a debug
 field owns the keyboard. Keyboard ownership and the native-input release packet
 have regression checks. This disables the plugin's native contacts, not the
 macOS system trackpad device.
+
+
+## HUD, cluster aspect and iAP2 capability follow-up
+
+The owner's latest real-phone screenshot confirms stream111 at 960×360 with the
+correct aspect. Backend announcement/replay now uses cluster dimensions; the
+viewer also trusts decoded image dimensions. Optional backend env WIDTH/HEIGHT
+(`ZINC_CARPLAY_CLUSTER_` prefix) sets even dimensions 64..4096, default 960×360;
+physical display aspect follows the chosen pixel aspect. Reconnect after change.
+
+HUD beneath main video displays decoded route/maneuver, known distance, remaining
+distance/time and source, plus title/artist/album/app/playback-state/elapsed/duration.
+Omitted TLVs retain previous values; explicit empty strings clear metadata. Unknown
+distance is not shown as zero. No fabricated elapsed clock or artwork is shown.
+The debug sidebar logs one event per line and coalesces repeats. Bundled Paris
+GPX can be loaded directly. Location sender now sends each GGA/RMC sentence in
+its own 0xfffb message, matching LIVI bringup.rs. TX counts completed writes,
+not the phone's use of injected GPS; real map acceptance is still pending.
+
+Primary public source review (2026-10-29):
+
+| Capability | iAP2 messages | Current Zinc scope |
+|---|---|---|
+| Music | 5000 subscribe, 5001 partial update, 5002 stop | Already subscribes title/artist/album/duration, status/elapsed/app; now decoded in HUD |
+| Seek | 5003, elapsed milliseconds parameter0 u32 | Source-documented possibility; not exposed or declared sent here |
+| Navigation | 5200 subscribe, 5201 route, 5202 maneuver, 5203 stop | Route/maneuver metadata decoded; app determines population |
+| Lanes | 5204 indexed lane groups | Requires additional received-message and component lane-capacity declarations; not implemented |
+| Cover artwork | NowPlaying field26 transfer ID, separate file-transfer session12/version2/type2 | Existing declaration is insufficient: link/session receiver plumbing still needed; no artwork claim |
+| Phone power / cellular / calls | AE01 / 4158 / 4155 | IDs observed in owner's logs; payload values not yet decoded |
+| External location | FFFA subscription, FFFB NMEA, FFFC stop | Implemented simulated GPS/GPX sender, physical acceptance pending |
+
+Exact schemas: [LIVI now_playing.rs](https://github.com/f-io/LIVI/blob/9d7862b06f4d842838417cf0f05842fb95839395/native/crates/iap2-csm/src/messages/now_playing.rs),
+[LIVI route_guidance.rs](https://github.com/f-io/LIVI/blob/9d7862b06f4d842838417cf0f05842fb95839395/native/crates/iap2-csm/src/messages/route_guidance.rs).
+Artwork implementation reference: [DiPlay file transfer receiver](https://github.com/shihabal3amri/DiPlay/blob/615b32ce0b40cd0b99ce94ba23a512001553684f/shared/src/main/java/com/shilapi/xcertplay/transport/Iap2FileTransferReceiver.kt).
+These public implementation capabilities do not prove acceptance on this phone.
+
+Validation: backend build/protocol/server tests, carplay, carplay_demo and carplay_usb pass. Final HUD fixture capture inspected; custom dimension validation and partial media updates have regression tests. Real custom resolution and populated music metadata still need phone acceptance.

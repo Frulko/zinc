@@ -39,10 +39,10 @@ check(s.receive([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]), 'video configuration'
 const frame: u8[] = [2, 110, 1, 0, 0, 0, 0, 0, 0, 0, 0];
 check(s.receive(frame.concat(readBytes(sys.env('CARPLAY_TEST_FRAME')))), 'media envelope');
 check(s.image >= 0 && s.frames === 1, 'session image');
-check(s.receive([1, 111, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]), 'independent cluster config');
+check(s.receive([1, 111, 1, 0, 5, 0, 0, 208, 2, 0, 0, 0]), 'cluster with incorrect main-screen metadata');
 const clusterFrame: u8[] = [2, 111, 1, 0, 0, 0, 0, 0, 0, 0, 0];
 check(s.receive(clusterFrame.concat(readBytes(sys.env('CARPLAY_TEST_FRAME')))), 'cluster frame decoded');
-check(s.secondary.width === 64 && s.secondary.frames === 1 && s.frames === 1, 'independent screen lifecycles');
+check(s.secondary.width === 64 && s.secondary.height === 32 && s.secondary.frames === 1 && s.frames === 1, 'independent screen lifecycles');
 check(s.receive([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]) && s.secondary.frames === 1, 'main reconfig preserves cluster');
 check(!s.receive([5, 111, 9]), 'invalid cluster state rejected');
 s.close(); s.close();

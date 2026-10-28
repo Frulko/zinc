@@ -32,3 +32,7 @@ Final worktree validation: tools/build zinc completed; this worktree's build/zin
 Follow-up: explicit keyboard capture defaults to CarPlay and blocks Zinc focus acquisition. F6/header button releases to UI editing and F6/video click captures. Root-before-edit handler plus focus guard covered by real Zinc field editing test. Numbered contacts and mini pad visually verified from a script including negative native IDs; separate assigned flags fix negative-ID slot tracking. carplay/carplay_demo pass. Only viewer restart is needed for this change.
 
 Owner follow-up: F7 / Trackpad ON-OFF independently toggles native contacts and markers. Immediate all-up report and slot reset on disable prevent stuck touches. F7 is tested in both keyboard ownership modes; receiver loopback verifies the release report.
+
+Owner screenshot confirms actual stream111 960×360 and corrected ratio. HUD now renders navigation and incremental music metadata prominently; cluster backend dimensions configurable, validated even64..4096; bundled GPX load button, actual GPS write counters and per-sentence NMEA messages. Public iAP2 capability findings and unimplemented artwork/lanes/seek are recorded in the CarPlay report; no claim of physical GPS, trust/locked-phone, voice or wireless acceptance.
+
+Validation: backend build/protocol/server tests, carplay, carplay_demo and carplay_usb pass. Final HUD fixture capture inspected; custom dimension validation and partial media updates have regression tests. Real custom resolution and populated music metadata still need phone acceptance.

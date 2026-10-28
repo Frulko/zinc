@@ -20,6 +20,8 @@ export class SecondaryScreen {
       this.width = w; this.height = h; return true;
     }
     if (b[0] === 2 && b.length > 11 && this.decoder >= 0 && C.decode(this.decoder, b.slice(11))) {
+      const image = C.image(this.decoder);
+      if (image >= 0) { this.width = gfx.imageWidth(image); this.height = gfx.imageHeight(image); }
       this.frames++; return true;
     }
     return false;

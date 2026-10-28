@@ -26,14 +26,17 @@ class Finger {
 
 export interface HudSnapshot {
   active: boolean; road: string; instruction: string; distance: number; remaining: number;
-  maneuver: i32; title: string; artist: string; stale: boolean;
+  distanceKnown: boolean; remainingKnown: boolean; remainingSeconds?: number;
+  destination: string; source: string; routePackets: number; mediaPackets: number;
+  maneuver: i32; title: string; artist: string; album?: string; mediaApp?: string;
+  durationMs?: number; elapsedMs?: number; playbackStatus?: i32; stale: boolean;
 }
 export interface DebugGpsSnapshot {
   enabled: boolean; subscribed: boolean; lat?: number; lon?: number; points: i32;
-  seconds: number; duration: number; playing: boolean;
+  seconds: number; duration: number; playing: boolean; sent?: number; lastSentMillis?: number;
 }
 interface ControlMessage {
-  message?: string; hud?: HudSnapshot; gps?: DebugGpsSnapshot;
+  message?: string; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -46,8 +49,11 @@ export class Session {
   nativeContactPeak: i32 = 0;
   readonly secondary: SecondaryScreen = new SecondaryScreen();
   readonly debugLog: string[] = [];
+  private lastDebugMessage: string = '';
+  private debugRepeats: i32 = 0;
   hud: HudSnapshot | null = null;
   gps: DebugGpsSnapshot | null = null;
+  clusterEnabled: boolean = false;
   private socket: WebSocket | null = null;
   private decoder: i32 = -1;
   private url: string = '';
@@ -97,11 +103,18 @@ export class Session {
           this.status = 'waiting for iPhone';
         }
         if (message.type === 'debug') {
+          if (message.clusterEnabled !== undefined) this.clusterEnabled = message.clusterEnabled;
           if (message.gps !== undefined) this.gps = message.gps;
           if (message.hud !== undefined) this.hud = message.hud;
           if (message.message !== undefined) {
-            this.debugLog.push(message.message.slice(0, 240));
-            if (this.debugLog.length > 64) this.debugLog.shift();
+            const line = message.message.slice(0, 240);
+            if (line === this.lastDebugMessage && this.debugLog.length > 0) {
+              this.debugRepeats++;
+              this.debugLog[this.debugLog.length - 1] = `${line} ×${this.debugRepeats}`;
+            } else {
+              this.lastDebugMessage = line; this.debugRepeats = 1; this.debugLog.push(line);
+              if (this.debugLog.length > 64) this.debugLog.shift();
+            }
           }
         }
         if (message.type === 'mic') {

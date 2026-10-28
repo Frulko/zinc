@@ -9,7 +9,12 @@ import kotlinx.serialization.Serializable
 data class HudSnapshot(
     val active: Boolean = false, val road: String = "", val instruction: String = "",
     val distance: Long = 0, val remaining: Long = 0, val maneuver: Int = -1,
-    val title: String = "", val artist: String = "", val stale: Boolean = true,
+    val distanceKnown: Boolean = false, val remainingKnown: Boolean = false,
+    val destination: String = "", val source: String = "", val remainingSeconds: Long? = null,
+    val routePackets: Long = 0, val mediaPackets: Long = 0,
+    val title: String = "", val artist: String = "", val album: String = "", val mediaApp: String = "",
+    val durationMs: Long? = null, val elapsedMs: Long? = null, val playbackStatus: Int? = null,
+    val stale: Boolean = true,
 )
 
 /** Partial iAP2 updates retain absent fields; the viewer receives only bounded decoded metadata. */
@@ -21,23 +26,40 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
         try {
             val body = Iap2BodyReader.of(frame)
             when (frame.messageId) {
-                0x5001 -> body.optionalGroup(0)?.let { item ->
-                    hud = hud.copy(title = item.optionalString(1)?.take(160) ?: hud.title,
-                        artist = item.optionalString(12)?.take(160) ?: hud.artist, stale = false)
+                0x5001 -> {
+                    hud = hud.copy(mediaPackets = hud.mediaPackets + 1)
+                    body.optionalGroup(0)?.let { item ->
+                        hud = hud.copy(title = item.optionalString(1)?.take(160) ?: hud.title,
+                            artist = item.optionalString(12)?.take(160) ?: hud.artist,
+                            album = item.optionalString(6)?.take(160) ?: hud.album,
+                            durationMs = item.optionalU32(4) ?: hud.durationMs, stale = false)
+                    }
+                    body.optionalGroup(1)?.let { playback ->
+                        hud = hud.copy(mediaApp = playback.optionalString(7)?.take(80) ?: hud.mediaApp,
+                            elapsedMs = playback.optionalU32(1) ?: hud.elapsedMs,
+                            playbackStatus = playback.optionalU8(0) ?: hud.playbackStatus, stale = false)
+                    }
                 }
                 0x5201 -> {
+                    hud = hud.copy(routePackets = hud.routePackets + 1)
                     val state = body.optionalU8(1)
                     if (state == 0 || state == 2) {
-                        hud = hud.copy(active = false, road = "", instruction = "", distance = 0, remaining = 0, maneuver = -1, stale = false)
+                        hud = hud.copy(active = false, road = "", instruction = "", distance = 0, remaining = 0, distanceKnown = false, remainingKnown = false, remainingSeconds = null, destination = "", maneuver = -1, stale = false)
                         currentIndex = -1; maneuvers.clear()
                     } else {
                         body.optionalU16List(13)?.let { currentIndex = it.firstOrNull() ?: -1 }
                         hud = hud.copy(active = true, road = body.optionalString(3)?.take(160) ?: hud.road,
                             distance = body.optionalU32(10) ?: hud.distance,
+                            distanceKnown = body.has(10) || hud.distanceKnown,
+                            remainingKnown = body.has(7) || hud.remainingKnown,
+                            destination = body.optionalString(4)?.take(160) ?: hud.destination,
+                            source = body.optionalString(19)?.take(80) ?: hud.source,
+                            remainingSeconds = body.optionalU64(6) ?: hud.remainingSeconds,
                             remaining = body.optionalU32(7) ?: hud.remaining, stale = false)
                     }
                 }
                 0x5202 -> {
+                    hud = hud.copy(routePackets = hud.routePackets + 1, stale = false)
                     val index = body.optionalU16(1) ?: -1
                     if (index >= 0) {
                         val old = maneuvers[index] ?: Triple("", -1, "")

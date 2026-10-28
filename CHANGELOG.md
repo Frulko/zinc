@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay’s HUD displays incremental navigation and music metadata; the cluster resolution is configurable with `ZINC_CARPLAY_CLUSTER_WIDTH` / `HEIGHT`, and its preview preserves the received ratio. Debug GPS adds a bundled GPX button and actual iAP2 write counts.
 - CarPlay’s native debug player adds external GPS presets, a bounded GPX timeline, an independent cluster preview and decoded iAP2 HUD logs, plus a clearly labelled two-contact mouse simulator.
 - `ZINC_TRACKPAD_TOUCHES=1` exposes indirect absolute trackpad contacts through the normal touch API; the CarPlay launcher enables it for built-in and wireless Mac trackpads. Other apps retain the default pointer/scroll behavior.
 - The separate wireless receiver can use a BlueZ/PyBluez RFCOMM bridge on Linux and Raspberry Pi OS; physical wireless acceptance remains pending.

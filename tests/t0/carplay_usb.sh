@@ -19,5 +19,5 @@ python3 "$root/plugins/carplay/backend/usb/tests/prepare.py" "$backend"
 (cd "$backend" && ./gradlew --no-daemon --max-workers=2 :protocol:test \
   --tests '*Usb*' --tests '*Ncm*' --tests '*Ntb16*' --tests '*EthernetIpv6*' \
   --tests '*Iap2Wired*' --tests '*Iap2ControlDeadline*' --tests '*AirPlayAppearanceTest*' --tests '*Iap2Location*' \
-  :server:test --tests '*TlsCertificateUsbTest*' --tests '*CarPlayAudioCapabilitiesTest*' --tests '*MicUplinkWireTest*' --tests '*DebugGpsProviderTest*' --tests '*DebugTelemetryTest*' --tests '*DebugGpsRoutingTest*')
+  :server:test --tests '*TlsCertificateUsbTest*' --tests '*CarPlayAudioCapabilitiesTest*' --tests '*MicUplinkWireTest*' --tests '*DebugGpsProviderTest*' --tests '*DebugTelemetryTest*' --tests '*DebugGpsRoutingTest*' --tests '*ClusterWireDimensionsTest*')
 "$root/plugins/carplay/backend/run" --usb-list

@@ -57,7 +57,7 @@ t=t.replace('        val session = activeSession ?: return', '''        if (mess
         val session = activeSession ?: return''')
 
 t=t.replace('            rightHandDrive = config.rightHandDrive,', '''            cluster = if (System.getenv("ZINC_CARPLAY_CLUSTER") == "1") AirPlayDisplayConfig(
-                widthPixels = 960, heightPixels = 360, widthPhysicalMm = 200, heightPhysicalMm = 75,
+                widthPixels = ClusterDimensions.width, heightPixels = ClusterDimensions.height, widthPhysicalMm = 200, heightPhysicalMm = (200.0 * ClusterDimensions.height / ClusterDimensions.width).toInt().coerceAtLeast(1),
                 initialUrl = "maps:/car/instrumentcluster/map",
             ) else null,
             rightHandDrive = config.rightHandDrive,''')
@@ -79,6 +79,18 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                 }
             }''')
 p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2WirelessControlClient.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2WirelessControlClient.kt']).decode()
+old = '''        session.send(
+            Iap2LocationMessages.locationInformation(sentence),
+            requireRemaining(deadlineNanos),
+        )'''
+assert t.count(old) == 1, 'Unexpected wireless GPS sender'
+t=t.replace(old, '''        for (line in sentence.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }) {
+            session.send(Iap2LocationMessages.locationInformation(line), requireRemaining(deadlineNanos))
+            provider.onSent()
+        }''')
+p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt']).decode()
 t=t.replace('                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),', '                carPlayUsbInterfaceNumber = 0,\n                locationInformationEnabled = true,\n                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),')
@@ -93,7 +105,7 @@ t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''   
     val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
     val playbackRate: Double? = null,
     val contacts: List<TouchContactMessage> = emptyList(),''')
-t=t.replace('    val micActive: Boolean? = null,', '    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('    val micActive: Boolean? = null,', '    val clusterEnabled: Boolean? = null,\n    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
 t=t.replace('        application.install(WebSockets)', '        application.install(WebSockets) { maxFrameSize = 2L * 1024 * 1024 }')
 t=t.replace('                        val message = try {', '''                        if (text.length > 1100000) {
                             client.channel.trySend(Frame.Text("""{"type":"debug","message":"Debug command too large"}"""))
@@ -101,7 +113,7 @@ t=t.replace('                        val message = try {', '''                  
                         }
                         val message = try {''')
 t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
-        broadcastJson(ServerMessage(type = "debug", message = error, gps = gps))
+        broadcastJson(ServerMessage(type = "debug", message = error, gps = gps, clusterEnabled = System.getenv("ZINC_CARPLAY_CLUSTER") == "1"))
     }
 
     private fun broadcastJson(message: ServerMessage) {''')
@@ -111,6 +123,8 @@ t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fu
     }
 
     private fun broadcastJson(message: ServerMessage) {''')
+t=t.replace('Wire.videoConfig(type, codec, display.width, display.height, codecData)', 'Wire.videoConfig(type, codec, if (type == 111) ClusterDimensions.width else display.width, if (type == 111) ClusterDimensions.height else display.height, codecData)')
+t=t.replace('Wire.videoConfig(type, value.first, display.width, display.height, value.second)', 'Wire.videoConfig(type, value.first, if (type == 111) ClusterDimensions.width else display.width, if (type == 111) ClusterDimensions.height else display.height, value.second)')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()

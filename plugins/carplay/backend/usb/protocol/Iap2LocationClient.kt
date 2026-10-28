@@ -45,6 +45,8 @@ interface Iap2LocationProvider : AutoCloseable {
 
     fun latestNmea(): String?
 
+    fun onSent() = Unit
+
     override fun close() {
         stop()
     }
@@ -208,7 +210,10 @@ class Iap2LocationReporter(
     private fun sendLatest(send: (Iap2Frame) -> Unit) {
         lastAttemptNanos = nanoTime()
         val sentence = provider?.latestNmea() ?: return
-        send(Iap2LocationMessages.locationInformation(sentence))
+        for (line in sentence.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }) {
+            send(Iap2LocationMessages.locationInformation(line))
+            provider?.onSent()
+        }
         if (!sentLogged) {
             sentLogged = true
             onProgress("iap2 tx=0xfffb location-information")

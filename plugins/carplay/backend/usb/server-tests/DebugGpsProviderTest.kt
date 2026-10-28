@@ -16,6 +16,7 @@ class DebugGpsProviderTest {
         assertNull(gps.latestNmea())
         assertTrue(gps.start())
         assertTrue(gps.latestNmea()!!.contains("4800.0000,N"))
+        gps.onSent(); assertEquals(1L, gps.snapshot().sent); assertNotNull(gps.snapshot().lastSentMillis)
         gps.disable(); assertNull(gps.latestNmea())
         gps.setFix(49.0, 3.0); assertNotNull(gps.latestNmea())
         gps.stop(); assertNull(gps.latestNmea())

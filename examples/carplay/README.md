@@ -72,7 +72,11 @@ is one second apart. Interpolation supports seeking and Play/Pause; injected
 observations use current UTC. A short sample is `routes/paris.gpx`.
 
 For an actual secondary screen, add `ZINC_CARPLAY_CLUSTER=1` to the backend
-environment **before starting it**. This opts into a 960×360 cluster display.
+environment **before starting it**. This opts into a 960×360 cluster display. Set `ZINC_CARPLAY_CLUSTER_WIDTH=1280`
+and `ZINC_CARPLAY_CLUSTER_HEIGHT=480` on the **backend** to change its resolution.
+Dimensions must be even pixel counts between 64 and 4096. Restart the backend
+and reconnect CarPlay after changing them; the player preserves the actual
+received aspect ratio. Availability and rendering depend on the navigation app.
 Start navigation and click **Request cluster map**. Its stream111 decoder is
 independent of the main stream110 decoder. A blank preview means no cluster
 video has arrived; it is not filled with a mock map.
@@ -91,3 +95,11 @@ retained on locked, transient, TLS and transport failures.
 
 For wireless launch options on Mac and Pi, see
 [the wireless backend guide](../../plugins/carplay/backend/linux/README.md).
+
+The HUD button shows/hides navigation and media beneath the main video. It retains
+incremental iAP2 metadata: title, artist, album, playback app, state and reported
+elapsed/total time, plus instruction, road, destination, remaining distance/time.
+Unknown values stay blank or “—”; the timer is the last phone report, not an
+invented clock. The sidebar coalesces repeated ID/length log lines.
+**Charger le trajet test** loads the bundled one-minute Paris GPX without a file
+picker. The GPS TX counter counts completed iAP2 writes, not phone acceptance.

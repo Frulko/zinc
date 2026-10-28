@@ -8,9 +8,13 @@ ZN-854 implementation: native Debug sidebar GPS presets/manual fix/GPX timeline,
 
 Validation: full backend protocol/server build and tests pass, including cluster-enabled GPS routing, GPX bounds/XXE/interpolation, NMEA subscriptions, HUD partial updates, UDP PCM endian correction and private pair-store policy. CarPlay media/control, debug demo, raw-touch policy and BlueZ byte pump have targeted tests. See docs/reports/zinc-next-carplay.md and task ZN-854 for latest proof.
 
-Manual acceptance remains: persisted trust on second USB startup/locked phone, fixed PCM microphone Siri recognition, display-addressed day/night, physical two-finger trackpad, injected GPS/cluster, real macOS wireless and Raspberry Pi. No Pi/Linux build/run or hardware decode/FPS claim. USB NCM sometimes needed a cable reconnect. Do not reset phone trust or delete keys blindly.
+Manual acceptance remains: persisted trust on second USB startup/locked phone, fixed PCM microphone Siri recognition, display-addressed day/night, physical two-finger trackpad, injected GPS, real macOS wireless and Raspberry Pi. No Pi/Linux build/run or hardware decode/FPS claim. USB NCM sometimes needed a cable reconnect. Do not reset phone trust or delete keys blindly.
 
 Run backend as before with explicit USB serial and external identity, optionally ZINC_CARPLAY_CLUSTER=1 before startup. Viewer: ZINC=$PWD/build/zinc ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 ZINC_CARPLAY_URL='ws://127.0.0.1:18080/ws?token=zinc-usb-test' examples/carplay/run --live. No agent-started app/server should be left running.
 
 Latest viewer follow-up: numbered finger rings + mini trackpad map; keyboard captured by default, F6/header button releases for GPS/UI editing, F6/video click recaptures. Zinc focus integration regression and negative-ID scripted screenshot pass. No backend restart needed for this viewer-only follow-up.
 F7 / Trackpad ON-OFF toggles native touch forwarding/markers independently; disabling releases contacts immediately and keeps mouse input.
+
+Latest HUD follow-up: real stream111 960×360 aspect confirmed by owner. Configurable backend ZINC_CARPLAY_CLUSTER_WIDTH/HEIGHT, prominent nav/music HUD, GPX sample button, coalesced iAP2 logs, per-sentence NMEA send and successful-write counts. Public iAP2 capability review recorded in report; artwork transfer, lane guidance and seek remain unimplemented. Current targeted checks recorded in task/report.
+
+Validation: backend build/protocol/server tests, carplay, carplay_demo and carplay_usb pass. Final HUD fixture capture inspected; custom dimension validation and partial media updates have regression tests. Real custom resolution and populated music metadata still need phone acceptance.

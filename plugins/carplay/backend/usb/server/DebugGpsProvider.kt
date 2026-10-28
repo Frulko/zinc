@@ -24,6 +24,8 @@ data class DebugGpsSnapshot(
     val seconds: Double,
     val duration: Double,
     val playing: Boolean,
+    val sent: Long,
+    val lastSentMillis: Long?,
 )
 
 /** A debug source shared by WebSocket controls and the wired iAP2 subscription loop. */
@@ -39,6 +41,8 @@ class DebugGpsProvider(
     private var anchor = 0L
     private var playing = false
     private var rate = 1.0
+    private var sent = 0L
+    private var lastSentMillis: Long? = null
 
     @Synchronized fun setFix(lat: Double, lon: Double, speed: Double? = null, course: Double? = null, altitude: Double? = null) {
         require(speed == null || speed.isFinite() && speed in 0.0..200.0) { "GPS speed must be 0..200 m/s" }
@@ -65,6 +69,7 @@ class DebugGpsProvider(
         require(track.isNotEmpty()) { "Load a GPX route before playing" }
         position = elapsed(); anchor = nanoTime(); rate = playbackRate; playing = active
     }
+    @Synchronized override fun onSent() { sent++; lastSentMillis = currentTimeMillis() }
     @Synchronized override fun start(): Boolean { subscribed = true; return true }
     @Synchronized override fun stop() { subscribed = false }
     @Synchronized override fun latestNmea(): String? {
@@ -77,7 +82,7 @@ class DebugGpsProvider(
         val latest = currentFix()
         return DebugGpsSnapshot(enabled, subscribed, latest?.latitudeDegrees, latest?.longitudeDegrees,
             latest?.speedMetersPerSecond, latest?.bearingDegrees, track.size, elapsed(),
-            track.lastOrNull()?.seconds ?: 0.0, playing && elapsed() < (track.lastOrNull()?.seconds ?: 0.0))
+            track.lastOrNull()?.seconds ?: 0.0, playing && elapsed() < (track.lastOrNull()?.seconds ?: 0.0), sent, lastSentMillis)
     }
     private fun elapsed(): Double {
         if (track.isEmpty()) return 0.0

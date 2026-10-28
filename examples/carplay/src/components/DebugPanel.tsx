@@ -3,16 +3,17 @@ import { Slider } from 'zinc:ui/kit';
 import { Session } from 'zinc:carplay';
 import * as dialog from 'zinc:system/dialog';
 import * as fs from 'zinc:fs';
+import { env } from 'zinc:sys';
 
 const [latitude, setLatitude] = createSignal<string>('48.8566');
 const [longitude, setLongitude] = createSignal<string>('2.3522');
 const [speed, setSpeed] = createSignal<string>('0');
 const [seconds, setSeconds] = createSignal<number>(0);
 const [message, setMessage] = createSignal<string>('GPS disabled — injected fixes are simulated');
-const [hud, setHud] = createSignal<string>('No iAP2 guidance received');
+const [cluster, setCluster] = createSignal<string>('Waiting for receiver status');
 const [contacts, setContacts] = createSignal<string>('Native contacts: 0 · peak 0');
 const [twoContacts, setTwoContacts] = createSignal<boolean>(false);
-const [logs, setLogs] = createSignal<string>('No iAP2 events received');
+const [logs, setLogs] = createSignal<string[]>([]);
 let live: Session | null = null;
 let pollElapsed = 0;
 const [duration, setDuration] = createSignal<number>(1);
@@ -24,11 +25,11 @@ export function tickDebug(session: Session, dt: number): void {
   const gps = session.gps;
   if (gps !== null) {
     setSeconds(gps.seconds); setDuration(Math.max(1, gps.duration));
-    setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} route points · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
+    setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} points · ${gps.sent === undefined ? 'TX non renseigné' : gps.sent + ' envois iAP2'} · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
   }
-  const data = session.hud;
-  if (data !== null) setHud(`${data.stale ? 'STALE · ' : ''}${data.active ? data.road + ' · ' + data.distance + ' m' : 'No active route'}\n${data.instruction}\n${data.title} · ${data.artist}`);
-  setLogs(session.debugLog.slice(-8).join('\n'));
+  setCluster(session.secondary.frames > 0 ? `Cluster reçu · ${session.secondary.width} × ${session.secondary.height}` : session.clusterEnabled ? 'Cluster annoncé · en attente de vidéo' : 'Cluster désactivé côté serveur');
+  setLogs(session.debugLog.slice(-6));
+
 }
 function apply(): void {
   const s = live;
@@ -52,6 +53,14 @@ async function load(): Promise<void> {
     setMessage('GPX sent · simulated route · timeline in seconds');
   } catch (e) { setMessage('Could not load the GPX file'); }
 }
+function loadExample(): void {
+  try {
+    const text = fs.readText(env('ZINC_ROOT') + '/examples/carplay/routes/paris.gpx');
+    const s = live;
+    if (s === null || !s.loadGpx(text)) { setMessage('Récepteur déconnecté'); return; }
+    setMessage('Trajet de test chargé · Paris · appuyer sur Play');
+  } catch (e) { setMessage('Trajet test indisponible dans ce déploiement'); }
+}
 function Cluster(x: i32, y: i32, w: i32, h: i32): void {
   const s = live; if (s !== null) s.secondary.view(x, y, w, h);
 }
@@ -74,6 +83,7 @@ export function DebugPanel(): i32 {
         <Button className="bg-slate-800 rounded p-2" onClick={() => preset('45.7640', '4.8357')}><Text className="text-white">Lyon</Text></Button>
         <Button className="bg-slate-800 rounded p-2" onClick={() => preset('43.2965', '5.3698')}><Text className="text-white">Marseille</Text></Button>
       </View>
+      <Button className="bg-cyan-900 rounded p-2" onClick={loadExample}><Text className="text-cyan-100">Charger le trajet test · Paris / 1 min</Text></Button>
       <Button className="bg-slate-700 rounded p-2" onClick={() => { load(); }}><Text className="text-white">Load GPX</Text></Button>
       <Text className="text-slate-200 text-xs">{`Route timeline · ${Math.floor(seconds())} s`}</Text>
       <Slider value={seconds} min={0} max={duration()} step={1} onChange={(value: number) => { setSeconds(value); const s = live; if (s !== null) s.seekGps(value); }} />
@@ -87,9 +97,9 @@ export function DebugPanel(): i32 {
       <Button className="bg-slate-700 rounded p-2" onClick={() => { const s = live; if (s !== null) s.showCluster(); }}><Text className="text-white">Request cluster map</Text></Button>
       <Text className="text-slate-400 text-xs">Enable ZINC_CARPLAY_CLUSTER=1 before receiver startup; navigation must be active.</Text>
       <Text className="text-slate-200 text-xs">{contacts()}</Text>
-      <Text className="text-amber-200">HUD · received iAP2</Text>
-      <Text className="text-white text-xs">{hud()}</Text>
-      <Text className="text-slate-400 text-xs">{logs()}</Text>
+      <Text className="text-slate-200 text-xs">{cluster()}</Text>
+      <Text className="text-amber-200">Journal iAP2 · événements reçus</Text>
+      <For each={logs()}>{(line: string) => <Text className="text-slate-400 text-xs">{line}</Text>}</For>
       <Button className="bg-slate-700 rounded p-2" onClick={() => {
         const on = !twoContacts(); setTwoContacts(on); const s = live;
         if (s !== null) { s.touches([]); s.simulateTwoContacts = on; }
