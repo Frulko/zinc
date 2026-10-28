@@ -221,7 +221,7 @@ var rectsSent = 0, rectsAcked = 0, frameEnds = [(Int, Double)]()   // the rect c
 var waiting: CVPixelBuffer?
 var stats = (frames: 0, bytes: 0, raw: 0, encode: 0.0, rtt: [Double](), tiles: 0, rough: 0)
 // the details panel's counters: captures that came and were replaced before going, the receiver's decode time, the slowest encode
-var more = (captured: 0, dropped: 0, decodeUs: 0, encodeMax: 0.0)
+var more = (captured: 0, dropped: 0, decodeUs: 0, encodeMax: 0.0, idle: 0)
 var shownUs = [Int](), pictureUs = [Int]()   // SHOWN: µs from a picture's last byte to its commit on the screen (a screen that flips)
 var rx = [[Int]](repeating: [-1, -1, -1], count: 3)   // the screen's HOST messages, by type
 var total = (bytes: 0, frames: 0)
@@ -358,9 +358,10 @@ func send(_ pb: CVPixelBuffer) {
 
 final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ s: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, let pb = sb.imageBuffer,
-              let info = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-              let raw = info.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete else { return }
+        guard type == .screen, let info = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
+              let raw = info.first?[.status] as? Int else { return }
+        if SCFrameStatus(rawValue: raw) == .idle { q.async { more.idle += 1 } }   // macOS composed nothing new on the display
+        guard SCFrameStatus(rawValue: raw) == .complete, let pb = sb.imageBuffer else { return }
         q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
     func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
@@ -502,7 +503,7 @@ func info(_ seconds: Double) {
         ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(W / 2) × \(H / 2) points at 2x (Retina)" : "virtual, \(W) × \(H) at 1x"],
         ["Picture", "Codec", "\(zstd ? "zstd 1" : "lz4")\(sub ? " + Sub filter" : ""), 64 px tiles\(exact ? ", always exact" : ", 5-6-5 colour while much moves")"],
         ["Picture", "Receiver reads", caps.sorted().joined(separator: " ")],
-        ["Rate", "Captured", String(format: "%.0f frames/s (macOS, at most 60)", Double(more.captured) / seconds)],
+        ["Rate", "Captured", String(format: "%.0f frames/s, %.0f unchanged (macOS, at most 60 in all: a film at 25 shows here as 25 and 35)", Double(more.captured) / seconds, Double(more.idle) / seconds)],
         ["Rate", "Sent", String(format: "%.0f frames/s, %d skipped (a newer one replaced them)", Double(stats.frames) / seconds, more.dropped)],
         ["Rate", "Throughput", String(format: "%.1f Mbit/s, %.0f KB a frame", Double(stats.bytes) * 8 / seconds / 1e6, Double(stats.bytes) / Double(f) / 1024)],
         ["Rate", "Compression", stats.raw == 0 ? "– (no tile sent)" : String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
@@ -531,7 +532,7 @@ func info(_ seconds: Double) {
     if stats.frames == 0 { rows[9][2] = "0 frames/s: nothing moved" }
     rows += diag.isEmpty ? [["Diagnostics", "Addresses tried", tried.joined(separator: ", ")], ["Diagnostics", "Speed test", "not run yet"]] : diag
     if let d = try? JSONSerialization.data(withJSONObject: rows), let j = String(data: d, encoding: .utf8) { print("info " + j) }
-    more = (0, 0, 0, 0); shownUs = []; pictureUs = []; videoStats = (0, 0, 0); videoDecodeUs = []
+    more = (0, 0, 0, 0, 0); shownUs = []; pictureUs = []; videoStats = (0, 0, 0); videoDecodeUs = []
 }
 
 // every 2 s: pictures, wire rate, the ratio against raw BGR, the encoder's time, the round trip of a picture
