@@ -23,6 +23,11 @@
 #include <linux/fb.h>
 #include <linux/kd.h>
 #include <linux/input.h>
+#include <mutex>
+// the sidecar's stream (app/sidecar-screen): a Mac's screen in colour over the network, the reMarkable's protocol (display-rmpp/stream.h)
+#include "../display-rmpp/stream.h"
+#include "../../third_party/lz4/lz4.c"
+#include "../display-rmpp/zstd_decode.inc"
 
 #ifndef ZP_DISPLAY_FBDEV_DEVICE
 #define ZP_DISPLAY_FBDEV_DEVICE "/dev/fb0"
@@ -717,8 +722,20 @@ static void planes_present(const HalFrame* f, bool has) {
 }
 #endif
 
+// While a Mac is connected the stream's thread writes its rectangles into the surface (stream.h) and the app's frames are not drawn: each
+// present shows what came since the last one. When it leaves, the app's whole frame again.
+static std::mutex stream_mu;
+static stream::Box streamed;
 static void fb_present(const HalFrame* f) {
-  bool has = f->y1 > f->y0 && f->x1 > f->x0;
+  HalFrame own;
+  bool from_stream = false;
+  if (stream::ended.exchange(false)) { own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; f = &own; }
+  else if (stream::active) {
+    std::lock_guard<std::mutex> g(stream_mu);
+    own = *f; own.x0 = streamed.x0; own.y0 = streamed.y0; own.x1 = streamed.x1; own.y1 = streamed.y1; f = &own; streamed = {};
+    from_stream = true;
+  }
+  bool has = !from_stream && f->y1 > f->y0 && f->x1 > f->x0;
   const bool overlay = cursor_visible || previous_cursor.x1 > previous_cursor.x0;
   HalFrame output = cursor_damage(f);
   const bool convert = output.y1 > output.y0 && output.x1 > output.x0;
@@ -853,6 +870,19 @@ static void fb_shutdown() {
 }
 
 static const char* fb_device(const char* query, const char* value) {
+  // "stream.listen" "<port>": a Mac's screen streamed to this one (the sidecar, stream.h), "1" when it listens; "stream.state": "off",
+  // "waiting" or "connected"
+  if (!strcmp(query, "stream.listen")) {
+    if (!value || !surf) return "0";
+    stream::Target t = {(uint8_t*)surf, W, H, W * 4, 4, [] { return 0; }, [](int x, int y, int w, int h, bool) {
+      std::lock_guard<std::mutex> g(stream_mu);
+      if (streamed.x1 <= streamed.x0) streamed = {x, y, x + w, y + h};
+      else streamed = {std::min(streamed.x0, x), std::min(streamed.y0, y), std::max(streamed.x1, x + w), std::max(streamed.y1, y + h)};
+    }, [] { return false; }, nullptr, "Screen"};
+    t.colour = true;
+    return stream::start(atoi(value), t) ? "1" : "0";
+  }
+  if (!strcmp(query, "stream.state")) return !stream::port ? "off" : stream::active ? "connected" : "waiting";
   if (!strcmp(query, "display.escapeByApp")) app_escape = value && *value == '1';
   else if (!strcmp(query, "display.escape")) quit_key = true;
   else return nullptr;

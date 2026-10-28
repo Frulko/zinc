@@ -2,6 +2,7 @@
 #include "fbdev.cpp"
 #include <assert.h>
 #include <fstream>
+#include <arpa/inet.h>
 HalDisplay* hal_display;
 static int default_escapes, app_escapes;
 extern "C" void hal_escape() { default_escapes++; }
@@ -45,6 +46,36 @@ static uint32_t pixel(int x, int y) {
   const uint8_t* p = fbmem + (size_t)y * pitch + x * bpp / 8;
   return bpp == 32 ? (*(uint32_t*)p & 0xffffff) : bpp == 24 ? p[2] << 16 | p[1] << 8 | p[0] : *(uint16_t*)p;
 }
+// The sidecar's stream (display-rmpp/stream.h) on this screen: a Mac's colour rectangle, zstd and Sub, lands on the framebuffer at the next
+// present without the app's frame; once the Mac leaves, the app's whole frame comes back.
+static void stream_session(HalFrame& frame) {
+  const std::string port = std::to_string(40000 + getpid() % 20000);
+  assert(!strcmp(fb_device("stream.listen", port.c_str()), "1"));
+  const int c = socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in a = {}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)atoi(port.c_str())); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  assert(connect(c, (sockaddr*)&a, sizeof a) == 0);
+  char hello[128] = ""; size_t n = 0;
+  while (n < sizeof hello - 1 && read(c, hello + n, 1) == 1 && hello[n] != '\n') n++;
+  assert(strstr(hello, "RMPP 1920 1080 Screen") && strstr(hello, "+rgb") && strstr(hello, "+zstd") && strstr(hello, "+sub"));
+  // 4x2 B, G, R pixels (r * 100 + i * 10 + channel + 1), each byte minus its left neighbour's, in one zstd frame
+  const uint8_t z[] = {40, 181, 47, 253, 32, 24, 193, 0, 0, 1, 2, 3, 10, 10, 10, 10, 10, 10, 10, 10, 10, 101, 102, 103, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+  uint8_t h[16] = {1, 24}; const uint16_t x = 10, y = 20, w = 4, hh = 2; const uint32_t len = sizeof z;
+  memcpy(h + 2, &x, 2); memcpy(h + 4, &y, 2); memcpy(h + 6, &w, 2); memcpy(h + 8, &hh, 2); h[10] = 2 | 0x80; memcpy(h + 12, &len, 4);
+  assert(write(c, h, 16) == 16 && write(c, z, sizeof z) == (ssize_t)sizeof z);
+  uint8_t ack[16];
+  for (size_t got = 0; got < 16;) { const ssize_t r = read(c, ack + got, 16 - got); assert(r > 0); got += (size_t)r; }
+  assert(ack[0] == 1);
+  const int before = renders;
+  frame.x1 = frame.y1 = 0; fb_present(&frame);
+  assert(pixel(10, 20) == 0x030201 && pixel(13, 21) == 0x858483 && renders == before);
+  close(c);
+  for (int i = 0; i < 200 && stream::active; i++) usleep(5000);
+  assert(!stream::active);
+  fb_present(&frame);
+  assert(renders > before && pixel(10, 20) == 0x345678);
+  puts("fbdev stream: a colour zstd rectangle from the Mac, then the app's frame again");
+}
+
 int main(int argc, char** argv) {
   assert(argc == 2);
   setenv("ZINC_RENDER_THREADS", "1", 1);
@@ -76,6 +107,7 @@ int main(int argc, char** argv) {
     assert(pixel(100, 100) == background && pixel(200, 200) == 0 && renders == count);
     cursor_visible = false; fb_present(&frame);
     assert(pixel(200, 200) == background && renders == count);
+    if (depth == 32) stream_session(frame);
     fb_shutdown();
   }
   // No event device at startup; it appears after the window is running.

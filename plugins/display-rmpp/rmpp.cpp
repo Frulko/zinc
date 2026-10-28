@@ -19,6 +19,7 @@
 #include "rm2fb.h"
 #include "stream.h"
 #include "../../third_party/lz4/lz4.c"   // the sidecar stream's codec (lz4 1.10.0, BSD-2): one copy inside this driver
+#include "zstd_decode.inc"                   // and its zstd decoder (+zstd)
 #include <errno.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
