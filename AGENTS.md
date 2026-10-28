@@ -123,6 +123,14 @@ A new demo, or a change to one, follows `examples/GUIDELINES.md` (layout of `src
 On old devices (HP TouchPad, Nexus 7) the UI is the AS3-style display tree on `zinc:gfx` of `examples/music-tree`, not `zinc:ui`: it is
 faster there and keeps the code organised.
 
+## Fill the engine's gaps; never work around them (owner, 2026-10-28)
+
+When a program, a plugin, a stand-in, a demo or a test hits something the engine lacks or gets wrong (TypeScript it refuses, a wrong result, a crash, a missing API), the engine is fixed: never rewrite the user's code to get past it, never keep a workaround.
+
+- Reproduce it in the smallest program, fix it in the engine with a test, on every engine (interpreter, AOT, QuickJS), then write the original code as a person would.
+- A fix too big for the current task is a task of its own right after it (`New-task: blocks <what it stops>`), worked next; the code that hit it waits for it rather than carrying a workaround.
+- A limit that is a decision (a strict profile, a recorded `D` number) is not a gap: its diagnostic says what to write instead.
+
 ## Never take the focus: run windows in the background (owner, 2026-10-16)
 
 A program the engine starts while someone is working (a test, a demo, a capture, an app run by an agent or a loop, `zinc dev`) must not come to the front of the computer. Set `ZINC_BACKGROUND=1` or pass `--background` (`zinc --background run <dir>`): the window opens without being activated (SDL's `WINDOW_ACTIVATE_WHEN_SHOWN`/`WHEN_RAISED` off, no Dock icon, no raise), and the frontmost application stays the one the person uses. `tests/run` sets it for every test (`ZINC_BACKGROUND=0` to watch one). Every command an agent starts by hand that can open a window (`zinc run`, `zinc dev`, a built app, `zinc device`, the window tests of `tools/`) carries it too. A headless run (`ZINC_HEADLESS=1`) opens no window and needs nothing. Leave no process behind: kill what a command started (apps, servers, QEMU) before it ends.
