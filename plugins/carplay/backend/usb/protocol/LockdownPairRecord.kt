@@ -184,10 +184,10 @@ private object CertificateMaterialGenerator {
         val hostPublicKey = hostKeyPair.public as? RSAPublicKey
             ?: throw GeneralSecurityException("Generated host key is not RSA")
         val now = System.currentTimeMillis()
-        val rootName = distinguishedName("Zinc USB Pairing Root")
+        val emptyName = distinguishedName(null)
         val rootDer = certificate(
-            issuer = rootName,
-            subject = rootName,
+            issuer = emptyName,
+            subject = emptyName,
             certificatePublicKey = rootPublicKey,
             signingKey = rootKeyPair.private,
             signingPublicKey = rootPublicKey,
@@ -195,8 +195,8 @@ private object CertificateMaterialGenerator {
             extensions = rootExtensions(),
         )
         val hostDer = certificate(
-            issuer = rootName,
-            subject = distinguishedName("Zinc USB Pairing Host"),
+            issuer = emptyName,
+            subject = emptyName,
             certificatePublicKey = hostPublicKey,
             signingKey = rootKeyPair.private,
             signingPublicKey = rootPublicKey,
@@ -204,8 +204,8 @@ private object CertificateMaterialGenerator {
             extensions = leafExtensions(hostPublicKey, includeSubjectKeyIdentifier = false),
         )
         val deviceDer = certificate(
-            issuer = rootName,
-            subject = distinguishedName("Zinc USB Paired Device"),
+            issuer = emptyName,
+            subject = emptyName,
             certificatePublicKey = devicePublicKey,
             signingKey = rootKeyPair.private,
             signingPublicKey = rootPublicKey,

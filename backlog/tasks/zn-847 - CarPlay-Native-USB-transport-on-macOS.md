@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 21:54'
+updated_date: '2026-10-28 21:57'
 labels:
   - carplay
   - size-L
@@ -88,4 +88,6 @@ Physical iPhone discovery/open regression found on 2026-10-28: libusb returned a
 Second physical run advanced past USB capture, then failed in web TLS certificate generation: scoped IPv6 hostAddress includes %utun zone, rejected by BouncyCastle GeneralName. Backend overlay now encodes IP SANs as raw address octets via DEROctetString. New server regression generates, verifies and reloads a certificate with scoped IPv6 and IPv4. Fresh/repeated overlay test and complete backend build/tests pass; live root restart remains to verify next handshake stage.
 
 Third physical attempt reached the running server but USB bootstrap exited with Failed requirement before Trust. Root cause: Iap2UsbMuxHost.begin passed its 60000 ms response deadline as one USB write timeout, rejected by MacUsbSession bounds (1..5000). Initial version write now uses WRITE_TIMEOUT_MILLIS=2000; 60 s response deadline remains. Existing handshake lifecycle regression now composes Iap2UsbMuxHost with MacUsbSession/UsbIo, exposing the mismatch. Added explicit timeout diagnostics and full exception stack in wired bootstrap. Live retry after rebuild is next.
+
+Physical iPhone now completes USBMUX v2 and exchanges Lockdown plist requests. First Pair returned PasswordProtected; unlocked retry returned InvalidPairRecord. Audit found the desktop port had added nonempty issuer/subject DNs to the upstream empty-name certificate profile just to satisfy the JDK parser. Restored the exact DiPlay empty-name profile and selected the already-installed Bouncy Castle CertificateFactory locally in USB TLS loading. Certificate regression now verifies all three empty issuer/subject names, device-key binding, signatures and TLS-engine initialization; full backend build/tests pass. This removes a confirmed port divergence; actual iPhone acceptance must be checked by the next root run.
 <!-- SECTION:NOTES:END -->

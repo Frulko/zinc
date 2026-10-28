@@ -63,12 +63,22 @@ class UsbLockdownTest {
         val pem = ("-----BEGIN RSA PUBLIC KEY-----\n" + Base64.getEncoder().encodeToString(der) +
             "\n-----END RSA PUBLIC KEY-----\n").toByteArray()
         val record = LockdownPairRecordGenerator.generate(pem, "02:00:00:00:00:02", "host-id", "system-buid")
-        val root = java.security.cert.CertificateFactory.getInstance("X.509")
+        val root = java.security.cert.CertificateFactory.getInstance("X.509", org.bouncycastle.jce.provider.BouncyCastleProvider())
             .generateCertificate(record.rootCertificatePem.inputStream()) as java.security.cert.X509Certificate
         root.verify(root.publicKey)
-        val host = java.security.cert.CertificateFactory.getInstance("X.509")
+        assertEquals("", root.issuerX500Principal.name)
+        assertEquals("", root.subjectX500Principal.name)
+        val host = java.security.cert.CertificateFactory.getInstance("X.509", org.bouncycastle.jce.provider.BouncyCastleProvider())
             .generateCertificate(record.hostCertificatePem.inputStream()) as java.security.cert.X509Certificate
         host.verify(root.publicKey)
+        assertEquals("", host.issuerX500Principal.name)
+        assertEquals("", host.subjectX500Principal.name)
+        val device = java.security.cert.CertificateFactory.getInstance("X.509", org.bouncycastle.jce.provider.BouncyCastleProvider())
+            .generateCertificate(record.deviceCertificatePem.inputStream()) as java.security.cert.X509Certificate
+        device.verify(root.publicKey)
+        assertEquals("", device.issuerX500Principal.name)
+        assertEquals("", device.subjectX500Principal.name)
+        assertEquals(key.modulus, (device.publicKey as RSAPublicKey).modulus)
         val engine = LockdownTlsEngineFactory.create(record)
         assertTrue(engine.useClientMode)
         assertEquals("PairedRecord(redacted)", PairedRecord(record, null).toString())

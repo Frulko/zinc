@@ -3,6 +3,7 @@
 package com.shilapi.xcertplay.transport
 
 import java.util.Base64
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.security.GeneralSecurityException
@@ -35,7 +36,7 @@ object LockdownTlsEngineFactory {
             privateKeyDer = decodePkcs8Pem(privateKeyPem)
             val privateKey = KeyFactory.getInstance("RSA")
                 .generatePrivate(PKCS8EncodedKeySpec(privateKeyDer))
-            val certificate = CertificateFactory.getInstance("X.509")
+            val certificate = CertificateFactory.getInstance("X.509", BouncyCastleProvider())
                 .generateCertificate(ByteArrayInputStream(certificatePem)) as X509Certificate
             val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
                 load(null, password)

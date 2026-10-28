@@ -140,3 +140,16 @@ MacUsbSession boundary with fake UsbIo, rather than bypassing that validation.
 Timeout validation has explicit messages and bootstrap logs full exceptions.
 The iPhone screenshot of the CarPlay settings list did not show an established
 Zinc session; network advertisements alone are not successful USB negotiation.
+
+## Physical USB attempt: InvalidPairRecord
+
+USBMUX v2 is accepted by the physical phone and Lockdown values are received.
+The first Pair returned PasswordProtected; the unlocked retry returned
+InvalidPairRecord. Comparing the port with pinned DiPlay found an intentional
+port divergence: nonempty certificate issuer/subject names added for JDK parsing.
+Restored DiPlay's empty-name profile. USB TLS certificate loading uses the
+already-installed Bouncy Castle CertificateFactory by explicit local provider,
+without changing global JDK TLS policy. Regression verifies root, host and device
+empty names, certificate signatures, device public-key binding and TLS engine
+creation. Complete backend build/tests pass. This fixes the port divergence;
+the cause of the phone's rejection is not fully confirmed until a live retry.
