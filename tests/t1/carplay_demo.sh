@@ -12,3 +12,17 @@ if ZINC="$Z" ZINC_CARPLAY_URL='' examples/carplay/run --live >.logs/carplay-live
   echo 'live launch accepted an empty receiver URL' >&2; exit 1
 fi
 rg -q 'Set ZINC_CARPLAY_URL' .logs/carplay-live-missing.log
+
+# Launcher defaults to background, but a user may opt into OS microphone prompts.
+python3 - <<'PYTEST'
+import os, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix="carplay-launcher-") as directory:
+    engine = pathlib.Path(directory) / "zinc"
+    engine.write_text('#!/bin/sh\nprintf "%s" "$ZINC_BACKGROUND"\n')
+    engine.chmod(0o700)
+    env = dict(os.environ, ZINC=str(engine), ZINC_CARPLAY_URL="ws://127.0.0.1:9")
+    env.pop("ZINC_BACKGROUND", None)
+    assert subprocess.check_output(["examples/carplay/run", "--live"], env=env) == b"1"
+    env["ZINC_BACKGROUND"] = "0"
+    assert subprocess.check_output(["examples/carplay/run", "--live"], env=env) == b"0"
+PYTEST

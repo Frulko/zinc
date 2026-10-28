@@ -258,3 +258,21 @@ fresh/repeated overlay checks pass. This is a confirmed capability integration
 defect, not confirmed resolution of playback staying on the phone. Next live
 check: keep USB session active, inspect/select PlayPort in the phone output
 picker and collect resource ownership plus any audio SETUP lines.
+
+
+## Physical USB audio confirmed — 23:31
+
+After a physical cable reconnect, NCM bulk-out accepts frames again. Lockdown
+trust polling completes on attempt five, followed by TLS, iAP2 authentication
+and real projection. The owner confirms sound automatically plays on the Mac.
+The phone SETUPs stream 100, media LPCM at 48000 Hz/stereo; the supplied interval
+reaches 4000 decrypted packets with authFailures=0. Video stream 110 continues.
+This proves the physical receive/playback path; it does not isolate whether the
+capability fix or the new phone session caused the routing change.
+
+The launcher now honours explicit ZINC_BACKGROUND=0 so a manual foreground
+Siri test can request macOS microphone permission. Background remains the
+default, including agent-started windows. Microphone request/encoding/lifecycle
+have automated proof; real Siri recognition, calls, physical two-contact touch
+and day/night appearance remain unverified. A prior restart NAKed all NCM TX
+until the cable was reconnected; reconnect reliability remains open.

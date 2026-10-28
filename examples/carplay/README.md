@@ -13,7 +13,9 @@ authentication**. No receiver, identity, Bluetooth, iPhone or browser is needed.
 Generated media stays in `build/carplay/demo-media`. Requires FFmpeg and a built
 `build/zinc`; use `ZINC=/absolute/path/to/zinc examples/carplay/run` to reuse an
 existing engine without rebuilding it. The launcher selects this checkout's
-plugins and opens the window in the background.
+plugins and opens the window in the background by default. Set
+`ZINC_BACKGROUND=0` for a manual foreground run that can request microphone
+permission when Siri first opens capture.
 
 For an actual receiver, follow [the plugin setup](../../plugins/carplay/README.md),
 then run:
@@ -28,7 +30,9 @@ focus; Enter selects, Escape/Backspace go back, Home opens Home, and S requests
 Siri. A dropped receiver retries after 0.5 seconds, doubling to eight seconds;
 Disconnect cancels retries. Audio and video resources are released on disconnect.
 A backend WebSocket connection is **waiting for iPhone**, not authenticated
-CarPlay. Real pairing and iPhone media acceptance still require a live test.
+CarPlay. USB pairing, H.264 projection and automatic stereo 48 kHz audio
+playback on the Mac are verified on one iPhone running iOS 27.0.1. Live Siri,
+calls, physical multitouch and day/night appearance still need acceptance.
 
 `src/main.tsx` mounts the UI; `src/services/offline.ts` feeds generated local
 media. `tests/run --only carplay_demo` checks and captures the native demo and

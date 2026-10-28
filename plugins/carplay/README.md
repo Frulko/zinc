@@ -92,8 +92,9 @@ permission implementation. PCM and FFmpeg/libopus packets match the pinned
 PlayPort WebSocket sender; PlayPort owns RTP encryption and delivery to the
 phone. Capture stops on a mic stop request, session end, disconnect or close.
 The demo declares the microphone permission. Background mode never opens an OS
-permission dialog: grant microphone access to the Zinc host in macOS Privacy &
-Security when needed; a refused/undetermined permission produces a visible error.
+permission dialog: use `ZINC_BACKGROUND=0 examples/carplay/run --live` for a
+manual foreground run that can ask when Siri starts capture. If access was
+denied, enable it in macOS Privacy & Security; denial produces a visible error.
 A synthetic microphone is accepted only with explicit `ZINC_FAKE_MICROPHONE=1`.
 No echo cancellation or live voice-quality claim is made.
 
@@ -109,7 +110,7 @@ checks H.264/HEVC and AAC/Opus decoding, PCM envelopes and image cleanup, reject
 and touch events through an actual loopback WebSocket. No phone, pairing or
 network credential is used. The upstream backend has 96 passing tests on Mac.
 
-Real macOS USB projection is verified on an iPhone18,1 running iOS 27.0.1, without a physical MFi chip: authentication, AirPlay and H.264 video in Zinc. See backend/usb/README.md. Linux transport, GPS injection and cluster display remain. No Raspberry Pi or real wireless session has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
+Real macOS USB projection is verified on an iPhone18,1 running iOS 27.0.1, without a physical MFi chip: authentication, AirPlay, H.264 video and automatic stereo 48 kHz audio playback in Zinc. See backend/usb/README.md. Linux transport, GPS injection and cluster display remain. No Raspberry Pi or real wireless session has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
 
 See backend/UPSTREAM.md for provenance, license and the pinned source revision.
 
