@@ -9,9 +9,10 @@ in protocol/ are upstream ports. Android USB calls are replaced by native
 libusb; Android Log by SLF4J; Base64 by JDK Base64; Xml by KXML2 2.3.0 (BSD,
 https://kxml.sourceforge.net/). Optional GPS reporting is outside this port.
 Tests with upstream class names come from the same pinned DiPlay revision.
-Pair certificates use nonempty issuer/subject names because JDK X.509 rejects
-the Android implementation's empty distinguished names; signatures and the
-root/host/device key roles are unchanged. KXML2 is instantiated explicitly; it
+Pair certificates preserve the upstream empty issuer/subject names. The dedicated
+USB TLS certificate reader selects the already-installed Bouncy Castle provider
+explicitly, because the JDK default reader rejects that profile. The bootstrap
+generates uppercase host and system UUIDs as DiPlay CarPlayController does. KXML2 is instantiated explicitly; it
 does not implement Android's PROCESS_DOCDECL feature or resolve external entities.
 
 native/ uses libusb >= 1.0.25 (LGPL-2.1+, https://libusb.info/) through its

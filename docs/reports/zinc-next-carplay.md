@@ -153,3 +153,13 @@ without changing global JDK TLS policy. Regression verifies root, host and devic
 empty names, certificate signatures, device public-key binding and TLS engine
 creation. Complete backend build/tests pass. This fixes the port divergence;
 the cause of the phone's rejection is not fully confirmed until a live retry.
+
+## Pair rejection persists: caller parity
+
+The physical phone still returns InvalidPairRecord after the certificate profile
+change. This disproves that change alone as a sufficient fix. Pinned DiPlay's
+CarPlayController generates uppercase host and system UUIDs (lines 223-224);
+the new Mac bootstrap had used lowercase UUID.toString(). Bootstrap now matches
+upstream casing with Locale.ROOT. Complete backend build/tests pass; this is
+a reference-parity correction, not proven resolution of the device rejection.
+A separate read-only audit is checking remaining wire/profile differences.

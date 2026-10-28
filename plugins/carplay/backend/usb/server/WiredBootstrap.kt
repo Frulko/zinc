@@ -6,6 +6,7 @@ import com.shilapi.xcertplay.iap2.session.Iap2Session
 import com.shilapi.xcertplay.mfi.Iap2MfiAuthenticationClient
 import java.io.Closeable
 import java.util.UUID
+import java.util.Locale
 import org.slf4j.LoggerFactory
 
 /** Owns USB, IPv6 routing, Lockdown and iAP2 in the separately distributed GPL process. */
@@ -41,7 +42,7 @@ class WiredBootstrap(serial: String) : Closeable {
                 log.info("Unlock iPhone and accept the Trust prompt for wired pairing")
                 // Pair material is session-local; never write keys to logs or the source tree.
                 val record = LockdownPairingClient(host).pair(
-                    "ZincCarPlay", UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                    "ZincCarPlay", UUID.randomUUID().toString().uppercase(Locale.ROOT), UUID.randomUUID().toString().uppercase(Locale.ROOT),
                     120000, isCancelled = { closed },
                 )
                 val stream = LockdownCarKitClient(host).open(record, "ZincCarPlay")
