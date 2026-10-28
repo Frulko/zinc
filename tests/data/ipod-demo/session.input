@@ -1,0 +1,31 @@
+31 move 60 231
+32 down
+33 up
+61 move 548 168
+62 down
+63 up
+91 move 60 261
+92 down
+93 up
+95 move 1000 56
+96 down
+97 up
+99 text "night"
+121 key Backspace
+122 key Backspace
+123 key Backspace
+124 key Backspace
+125 key Backspace
+127 move 700 110
+128 down
+129 up
+151 move 60 291
+152 down
+153 up
+181 move 60 164
+182 down
+183 up
+211 theme dark
+213 move 60 231
+214 down
+215 up

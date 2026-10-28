@@ -1,0 +1,46 @@
+// The iPod, through zinc:ipod, read only: find the iPods, open one and read its library, close it. Nothing here writes to the
+// iPod (no add, update, save, repair or eject).
+import * as ipod from 'zinc:ipod';
+import * as sys from 'zinc:sys';
+
+/** IPOD_DEMO_MOUNT=<folder> shows only the iPod mounted there (the tests use it to keep to their fake iPod). */
+const onlyMount = sys.env('IPOD_DEMO_MOUNT');
+
+/** Everything the pages show of an open iPod. */
+export class PodLibrary {
+  device: ipod.Device;
+  tracks: ipod.Track[];
+  playlists: ipod.Playlist[];
+  specs: ipod.SpecItem[];
+  constructor(device: ipod.Device, tracks: ipod.Track[], playlists: ipod.Playlist[], specs: ipod.SpecItem[]) {
+    this.device = device; this.tracks = tracks; this.playlists = playlists; this.specs = specs;
+  }
+}
+
+/** The iPods plugged in: mounted ones first, then those seen on USB only. */
+export async function findPods(): Promise<ipod.Device[]> {
+  const found = await ipod.detect();
+  const out: ipod.Device[] = [];
+  for (const d of found) if (d.connection === 'disk' && (onlyMount === '' || d.mountpoint === onlyMount)) out.push(d);
+  for (const d of found) if (d.connection !== 'disk' && onlyMount === '') out.push(d);
+  return out;
+}
+
+let openMount = '';
+
+/** Opens the iPod at `mountpoint` (closing the one open before) and reads its tracks, playlists and specs. */
+export async function openPod(mountpoint: string): Promise<PodLibrary> {
+  if (openMount !== '') await closePod();
+  const device = await ipod.open(mountpoint);
+  openMount = mountpoint;
+  const tracks = await ipod.tracks();
+  const playlists = await ipod.playlists();
+  const specs = await ipod.specs();
+  return new PodLibrary(device, tracks, playlists, specs);
+}
+
+export async function closePod(): Promise<void> {
+  if (openMount === '') return;
+  openMount = '';
+  await ipod.close();
+}
