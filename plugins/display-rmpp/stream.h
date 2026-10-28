@@ -21,7 +21,7 @@
 // more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
 // rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
-//   kind 1 ACK    a: the RECT's number, b: microseconds to apply it
+//   kind 1 ACK    a: the RECT's number, b: microseconds to decode and apply it
 //   kind 2 INPUT  type: AppLoad's (0x10 finger press, 0x11 release, 0x12 move; 0x20..0x22 the Marker), id: the finger,
 //                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
 //   kind 3 TURN   a: the tablet's way up from its accelerometer, 0 upright, 90 its top on the left, 180 upside down, 270 its top on the
@@ -38,6 +38,10 @@
 //                 c the panel's busy time in permille; type 1 a, b, c how long the panel moved after a lone Pen, colour, full update
 //                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.
 //   kind 9 LIGHT  a: the frontlight in permille, at the start and after each SET 6 (none without a frontlight).
+//   kind 10 HOST  at the start and at most every 2 s while pictures come, for the Mac's details panel (-1: unknown on this board):
+//                 type 0 a the CPU's temperature in milli-degrees, b how busy all its cores were since the last one (permille), c the
+//                 memory still available (MB); type 1 a the CPU's clock now, b its top (MHz), c the Pi firmware's throttled bits
+//                 (0x1 under-voltage, 0x2 capped, 0x4 throttled, 0x8 too hot; << 16: since boot); type 2 a the memory (MB), b uptime (s).
 // A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture). Two fingers scroll the Mac;
 // two fingers that barely moved (a tap) ask for a full refresh. Neither finger goes to the Mac as the mouse.
 #pragma once
@@ -104,6 +108,35 @@ inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b
   memcpy(m + 2, &id, 2); memcpy(m + 4, &a, 4); memcpy(m + 8, &b, 4); memcpy(m + 12, &c, 4);
   std::lock_guard<std::mutex> g(out);
   return client >= 0 && write(client, m, sizeof m) == (ssize_t)sizeof m;
+}
+/** HOST: the receiver's temperature, CPU and memory (Linux's /sys and /proc; what a board lacks is -1). */
+inline void send_host() {
+  static unsigned long long busy0 = 0, all0 = 0;
+  int temp = -1, mem = -1;
+  if (FILE* f = fopen("/sys/class/thermal/thermal_zone0/temp", "r")) { if (fscanf(f, "%d", &temp) != 1) temp = -1; fclose(f); }
+  unsigned long long v[8] = {}, all = 0;
+  if (FILE* f = fopen("/proc/stat", "r")) { if (fscanf(f, "cpu %llu %llu %llu %llu %llu %llu %llu %llu", v, v + 1, v + 2, v + 3, v + 4, v + 5, v + 6, v + 7) != 8) v[3] = 1; fclose(f); }
+  for (auto x : v) all += x;
+  const unsigned long long busy = all - v[3] - v[4];
+  const int load = all > all0 ? (int)((busy - busy0) * 1000 / (all - all0)) : -1;
+  busy0 = busy; all0 = all;
+  if (FILE* f = fopen("/proc/meminfo", "r")) {
+    char l[128]; long kb;
+    while (fgets(l, sizeof l, f)) if (sscanf(l, "MemAvailable: %ld", &kb) == 1) { mem = (int)(kb / 1024); break; }
+    fclose(f);
+  }
+  send16(10, 0, 0, temp, load, mem);
+  auto num = [](const char* path, long d) { long v = -1; if (FILE* f = fopen(path, "r")) { if (fscanf(f, "%ld", &v) != 1) v = -1; fclose(f); } return v < 0 ? -1 : (int)(v / d); };
+  int throttled = -1;
+  if (access("/usr/bin/vcgencmd", X_OK) == 0) if (FILE* f = popen("/usr/bin/vcgencmd get_throttled 2>/dev/null", "r")) {
+    if (fscanf(f, "throttled=%x", (unsigned*)&throttled) != 1) throttled = -1;
+    pclose(f);
+  }
+  if (throttled < 0 && num("/sys/class/hwmon/hwmon1/in0_lcrit_alarm", 1) == 1) throttled = 1;   // rpi_volt: under-voltage only
+  send16(10, 1, 0, num("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", 1000), num("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", 1000), throttled);
+  long total = -1;
+  if (FILE* f = fopen("/proc/meminfo", "r")) { if (fscanf(f, "MemTotal: %ld", &total) != 1) total = -1; fclose(f); }
+  send16(10, 2, 0, total < 0 ? -1 : (int)(total / 1024), num("/proc/uptime", 1), 0);
 }
 /** A touch or the Marker from AppLoad (panel pixels): to the Mac while one is connected; true when it took it. */
 inline bool menu = false;       // a third finger came down: the touch asks for the Mac's quick panel
@@ -292,6 +325,8 @@ inline void serve(Target t, int ls) {
     std::thread(watch_way_up, ++session).detach();
     profiling = false;
     if (const int l = light(); l >= 0) send16(9, 0, 0, l, 0, 0);
+    send_host();
+    uint32_t host_at = now_us();
     const bool probe = access("/tmp/zinc-sidecar-probe", F_OK) == 0;
     if (probe) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
     fprintf(stderr, "sidecar: connected, %dx%d from row %d\n", t.w, H, top);
@@ -408,6 +443,7 @@ inline void serve(Target t, int ls) {
       if (!read_full(c, buf.data(), len)) break;
       if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
       ++n_rects;
+      const uint32_t t0 = now_us();
       const uint8_t* src = buf.data();
       if (codec || sub) {
         plain.resize(raw);
@@ -417,7 +453,6 @@ inline void serve(Target t, int ls) {
         if (sub) for (int j = 0; j < hh; j++) { uint8_t* q = plain.data() + j * stride; for (size_t i = px3; i < stride; i++) q[i] += q[i - px3]; }
         src = plain.data();
       }
-      const uint32_t t0 = now_us();
       const Box r = {x, y, x + w, y + hh};
       const bool under_it = drawn && overlaps(at, r);
       if (under_it) hide();
@@ -436,6 +471,7 @@ inline void serve(Target t, int ls) {
       if (!more) flush();
       ++seq;
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
+      if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
     }
     settle();
     { std::lock_guard<std::mutex> g(out); client = -1; }

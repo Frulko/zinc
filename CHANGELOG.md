@@ -21,6 +21,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Sidecar works with any screen on the network, in colour: run the `app/sidecar-screen` app on a Raspberry Pi (HDMI, `display-fbdev`), then `sidecar-screen --host <its address>` on the Mac (built by `app/sidecar/mac/build.sh`). Changed tiles are filtered and compressed with zstd on every core. Large changes go first in reduced colours, then exact once they rest (`--exact` turns that off).
 - reMarkable: Sidecar compresses its pictures with zstd when the tablet's engine reads it, so less goes through the cable. Update both the tablet engine and the Mac app.
 - reMarkable: Sidecar's menu bar app shows when a reMarkable is plugged in by USB and can start on it, waits for the tablet's app without giving up, sets the tablet's frontlight and ends the tablet's app from the Mac.
+- Sidecar's menu bar app has a Details window for a screen: the link (Wi-Fi, Ethernet or USB cable, addresses), the picture (size, codec), frames captured and sent, throughput, encode and decode times, round trips, and the screen's CPU, clock, temperature, throttling (a Pi's under-voltage shows in red) and memory.
+- Sidecar opens Sidecar Screen on the Pi through its Zinc agent when the Mac waits for it (the player was in front), and has an "Open it there" button. A name like `zinc-player.local` now tries each of its addresses, a cable first.
+- Pi image: a Mac's USB-C cable is a network link to the Pi (an Apple silicon Mac shows itself as a USB network device that Linux refused): the image builds the driver when it has the compilers, else `sudo zinc-admin mac-usb` once; Sidecar then reaches the Pi by its `.local` name over the cable.
 - reMarkable: Sidecar's menu bar app has a Profile tab: live numbers from the Mac and the tablet's panel (how long it moves, how busy it is, what was held), recorded to a file on demand.
 - reMarkable: Web no longer covers the top of the page with a Tools button; a pen button in its bar (also in full screen) opens the writing tools. InkPalette takes `shown` and `onHide` for an app that opens it from its own button.
 - Hub (reMarkable): the home grid is a launcher in the style of iOS: six apps to a row, each icon in a rounded square with the name under it, and a round badge on its corner (a dot for an update, "!" when the app does not respond).
@@ -78,6 +81,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- A plugin rebuilds when a header it includes from another directory changes (display-fbdev's `../display-rmpp/stream.h`): before, the old library stayed in the cache.
 - `zinc pack` no longer stops on "cannot read the library of plugin" when a plugin comes prebuilt with the engine (the Raspberry Pi image could not update to 0.9.1 because of it).
 - reMarkable (header mode): Refresh works again under xochitl's header, and the page's ghosting is cleaned by its automatic full refresh, as in full screen.
 - Hub server: a package altered on the server's disk no longer breaks the whole catalog (every tablet got an error); its line stays and the tablets refuse that package alone.

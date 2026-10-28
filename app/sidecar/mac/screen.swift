@@ -10,6 +10,7 @@
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
+import SystemConfiguration
 
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
@@ -32,16 +33,40 @@ if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-scre
 
 // --- the connection: the receiver says "RMPP <w> <h> <model> +caps..."
 var sock: Int32 = -1
-for tries in 0... {
-    sock = socket(AF_INET, SOCK_STREAM, 0)
-    var a = sockaddr_in(); a.sin_family = sa_family_t(AF_INET); a.sin_port = port.bigEndian
-    if inet_pton(AF_INET, host, &a.sin_addr) != 1 {   // a name (pi.local): its first IPv4 address
-        var res: UnsafeMutablePointer<addrinfo>?; var hints = addrinfo(); hints.ai_family = AF_INET
-        guard getaddrinfo(host, nil, &hints, &res) == 0, let r = res else { die("cannot resolve \(host)") }
-        a.sin_addr = r.pointee.ai_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }; freeaddrinfo(res)
+/** A connected socket to one of the name's IPv4 addresses, each tried for 0.8 s: a Pi on a USB cable announces both of its links
+ *  (usb0, usb1) and only the one the Mac's active NCM function reaches answers, so the first address may never connect. */
+func dial() -> Int32 {
+    var addrs = [in_addr]()
+    var one = in_addr()
+    if inet_pton(AF_INET, host, &one) == 1 { addrs = [one] } else {
+        var res: UnsafeMutablePointer<addrinfo>?; var hints = addrinfo(); hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM
+        if getaddrinfo(host, nil, &hints, &res) == 0 {
+            var r = res
+            while let i = r?.pointee { addrs.append(i.ai_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }); r = i.ai_next }
+            freeaddrinfo(res)
+        }
     }
-    if withUnsafePointer(to: &a, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) == 0 { break }
-    close(sock)
+    // a cable first (Ethernet or USB, 169.254/16), then the rest in the resolver's order
+    addrs = addrs.filter { UInt32(bigEndian: $0.s_addr) >> 16 == 0xA9FE } + addrs.filter { UInt32(bigEndian: $0.s_addr) >> 16 != 0xA9FE }
+    for ip in addrs {
+        let s = socket(AF_INET, SOCK_STREAM, 0)
+        var a = sockaddr_in(); a.sin_family = sa_family_t(AF_INET); a.sin_port = port.bigEndian; a.sin_addr = ip
+        let flags = fcntl(s, F_GETFL); _ = fcntl(s, F_SETFL, flags | O_NONBLOCK)
+        let r = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        var ok = r == 0
+        if !ok && errno == EINPROGRESS {
+            var p = pollfd(fd: s, events: Int16(POLLOUT), revents: 0)
+            var err: Int32 = 0, n = socklen_t(MemoryLayout<Int32>.size)
+            ok = poll(&p, 1, 800) == 1 && getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &n) == 0 && err == 0
+        }
+        if ok { _ = fcntl(s, F_SETFL, flags); return s }
+        close(s)
+    }
+    return -1
+}
+for tries in 0... {
+    sock = dial()
+    if sock >= 0 { break }
     if tries == 0 { print("waiting for the screen at \(host):\(port) (open Sidecar Screen on it)") }
     usleep(500_000)
 }
@@ -124,12 +149,21 @@ let q = DispatchQueue(label: "send")
 var rectsSent = 0, rectsAcked = 0, frameEnds = [(Int, Double)]()   // the rect count at each picture's end, and when it went
 var waiting: CVPixelBuffer?
 var stats = (frames: 0, bytes: 0, raw: 0, encode: 0.0, rtt: [Double](), tiles: 0, rough: 0)
+// the details panel's counters: captures that came and were replaced before going, the receiver's decode time, the slowest encode
+var more = (captured: 0, dropped: 0, decodeUs: 0, encodeMax: 0.0)
+var rx = [[Int]](repeating: [-1, -1, -1], count: 3)   // the screen's HOST messages, by type
+var total = (bytes: 0, frames: 0)
+let began = CFAbsoluteTimeGetCurrent()
 func now() -> Double { CFAbsoluteTimeGetCurrent() }
 Thread {
     var m = [UInt8](repeating: 0, count: 16)
     while true {
         readFull(&m, 16)
-        if m[0] == 1 { q.async { rectsAcked += 1
+        let b = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: Int32.self) }))
+        if m[0] == 10 && m[1] < 3 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })),
+                                        c = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: Int32.self) })), k = Int(m[1])
+                                    q.async { rx[k] = [a, b, c] } }
+        if m[0] == 1 { q.async { rectsAcked += 1; more.decodeUs += b
             while let f = frameEnds.first, f.0 <= rectsAcked { stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst() }
             pump() } }
     }
@@ -186,14 +220,14 @@ func send(_ pb: CVPixelBuffer) {
         let n = b.count, k = min(n, zctx.count)   // worker j encodes runs j, j + k, j + 2k... with its own context
         DispatchQueue.concurrentPerform(iterations: k) { j in for i in stride(from: j, to: n, by: k) { encode(&b[i], lockedBase, bpr, zctx[j]) } }
     }
-    stats.encode += (now() - t0) * 1000
+    stats.encode += (now() - t0) * 1000; more.encodeMax = max(more.encodeMax, (now() - t0) * 1000)
     for (i, r) in cut.enumerated() {
         writeFull(header(1, 24, r.x, r.y, r.w, r.h, r.codec, i < cut.count - 1, r.payload.count), 16)
         writeFull(r.payload, r.payload.count)
-        stats.bytes += 16 + r.payload.count; stats.raw += r.w * r.h * 3
+        stats.bytes += 16 + r.payload.count; stats.raw += r.w * r.h * 3; total.bytes += 16 + r.payload.count
     }
     stats.tiles += cut.count
-    rectsSent += cut.count; frameEnds.append((rectsSent, t0)); stats.frames += 1
+    rectsSent += cut.count; frameEnds.append((rectsSent, t0)); stats.frames += 1; total.frames += 1
 }
 
 final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -201,7 +235,7 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
         guard type == .screen, let pb = sb.imageBuffer,
               let info = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let raw = info.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete else { return }
-        q.async { waiting = pb; last = pb; pump() }
+        q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
     func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
 }
@@ -227,6 +261,94 @@ func startCapture(_ tries: Int) {
 }
 startCapture(0)
 
+// --- the details panel (the tray's "Details"): one line "info" of [section, name, value] every 2 s
+/** The Mac's interface the connection leaves by: its BSD name, what it is (Wi-Fi, Ethernet, USB...) and its rate in bit/s. */
+func link() -> (name: String, kind: String, local: String, bps: Int) {
+    var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
+    _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(sock, $0, &n) } }
+    var ip = [CChar](repeating: 0, count: 64); inet_ntop(AF_INET, &sa.sin_addr, &ip, 64)
+    let local = String(cString: ip)
+    var name = "", bps = 0
+    var list: UnsafeMutablePointer<ifaddrs>?
+    if getifaddrs(&list) == 0 {
+        var p = list
+        while let i = p?.pointee {
+            if let a = i.ifa_addr, a.pointee.sa_family == sa_family_t(AF_INET),
+               a.withMemoryRebound(to: sockaddr_in.self, capacity: 1, { $0.pointee.sin_addr.s_addr }) == sa.sin_addr.s_addr { name = String(cString: i.ifa_name) }
+            p = i.ifa_next
+        }
+        p = list
+        while let i = p?.pointee {
+            if String(cString: i.ifa_name) == name, let a = i.ifa_addr, a.pointee.sa_family == sa_family_t(AF_LINK), let d = i.ifa_data {
+                bps = Int(d.assumingMemoryBound(to: if_data.self).pointee.ifi_baudrate)
+            }
+            p = i.ifa_next
+        }
+        freeifaddrs(list)
+    }
+    var kind = name
+    for i in (SCNetworkInterfaceCopyAll() as? [SCNetworkInterface]) ?? [] where SCNetworkInterfaceGetBSDName(i) as String? == name {
+        let shown = SCNetworkInterfaceGetLocalizedDisplayName(i) as String? ?? name
+        let type = SCNetworkInterfaceGetInterfaceType(i) as String? ?? ""
+        kind = type == (kSCNetworkInterfaceTypeIEEE80211 as String) ? "Wi-Fi" : name.hasPrefix("bridge") ? "Thunderbolt bridge" : shown
+    }
+    if name.hasPrefix("en"), kind == name || kind.contains("Ethernet Adapter") { kind = "USB cable (the Mac as a USB device)" }
+    return (name, kind, local, bps)
+}
+let peer: String = {
+    var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
+    _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getpeername(sock, $0, &n) } }
+    var ip = [CChar](repeating: 0, count: 64); inet_ntop(AF_INET, &sa.sin_addr, &ip, 64)
+    return "\(String(cString: ip)):\(port)"
+}()
+let linkNow = link()
+/** The Pi firmware's get_throttled bits, in words: now, then since boot. */
+func throttling(_ v: Int) -> String {
+    if v < 0 { return "–" }
+    let names = [(1, "under-voltage"), (2, "clock capped"), (4, "throttled"), (8, "too hot")]
+    let now = names.filter { v & $0.0 != 0 }.map(\.1), past = names.filter { v >> 16 & $0.0 != 0 }.map(\.1)
+    if now.isEmpty && past.isEmpty { return "none" }
+    return (now.isEmpty ? "none now" : "NOW: " + now.joined(separator: ", ")) + (past.isEmpty ? "" : "; since boot: " + past.joined(separator: ", "))
+}
+func info(_ seconds: Double) {
+    let f = max(stats.frames, 1), r = stats.rtt.sorted()
+    var t = tcp_connection_info(), n = socklen_t(MemoryLayout<tcp_connection_info>.size)
+    let tcp = getsockopt(sock, IPPROTO_TCP, TCP_CONNECTION_INFO, &t, &n) == 0
+    func rate(_ b: Int) -> String { b >= 1_000_000_000 ? String(format: "%.1f Gbit/s", Double(b) / 1e9) : b > 0 ? "\(b / 1_000_000) Mbit/s" : "unknown" }
+    func ms(_ v: Double) -> String { String(format: "%.1f ms", v) }
+    let up = Int(now() - began)
+    var rows: [[String]] = [
+        ["Link", "Transport", linkNow.kind],
+        ["Link", "Interface", "\(linkNow.name), \(rate(linkNow.bps)) as macOS reports it"],
+        ["Link", "Mac", linkNow.local],
+        ["Link", "Screen", "\(host) (\(peer))"],
+        ["Picture", "Receiver", "\(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")), \(W) × \(H)"],
+        ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(W / 2) × \(H / 2) points at 2x (Retina)" : "virtual, \(W) × \(H) at 1x"],
+        ["Picture", "Codec", "\(zstd ? "zstd 1" : "lz4")\(sub ? " + Sub filter" : ""), 64 px tiles\(exact ? ", always exact" : ", 5-6-5 colour while much moves")"],
+        ["Picture", "Receiver reads", caps.sorted().joined(separator: " ")],
+        ["Rate", "Captured", String(format: "%.0f frames/s (macOS, at most 60)", Double(more.captured) / seconds)],
+        ["Rate", "Sent", String(format: "%.0f frames/s, %d skipped (a newer one replaced them)", Double(stats.frames) / seconds, more.dropped)],
+        ["Rate", "Throughput", String(format: "%.1f Mbit/s, %.0f KB a frame", Double(stats.bytes) * 8 / seconds / 1e6, Double(stats.bytes) / Double(f) / 1024)],
+        ["Rate", "Compression", String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
+        ["Rate", "Rough frames", "\(stats.rough * 100 / f)%"],
+        ["Latency", "Encode (Mac)", "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
+        ["Latency", "Decode (screen)", ms(Double(more.decodeUs) / Double(f) / 1000) + " a frame"],
+        ["Latency", "Frame round trip", r.isEmpty ? "–" : "\(ms(r[r.count / 2])) median, \(ms(r[min(r.count - 1, r.count * 95 / 100)])) p95, \(ms(r.last!)) max"],
+        ["Latency", "Network (TCP)", tcp ? String(format: "%.1f ms, ± %.1f, %d KB queued, %d resent", Double(t.tcpi_srtt), Double(t.tcpi_rttvar), Int(t.tcpi_snd_sbbytes) / 1024, Int(t.tcpi_txretransmitpackets)) : "–"],
+        ["Latency", "In flight", "\(frameEnds.count) of 2 frames"],
+        ["Screen", "CPU", rx[0][1] < 0 ? "–" : "\(rx[0][1] / 10)% of all cores" + (rx[1][0] < 0 ? "" : ", \(rx[1][0]) of \(rx[1][1]) MHz")],
+        ["Screen", "Temperature", rx[0][0] < 0 ? "–" : String(format: "%.1f °C", Double(rx[0][0]) / 1000)],
+        ["Screen", "Throttling", throttling(rx[1][2])],
+        ["Screen", "Memory", rx[0][2] < 0 ? "–" : "\(rx[0][2]) MB free" + (rx[2][0] < 0 ? "" : " of \(rx[2][0]) MB")],
+        ["Screen", "Up for", rx[2][1] < 0 ? "–" : String(format: "%d h %02d min", rx[2][1] / 3600, rx[2][1] / 60 % 60)],
+        ["Session", "Running", String(format: "%d:%02d:%02d", up / 3600, up / 60 % 60, up % 60)],
+        ["Session", "Sent", String(format: "%.1f MB in %d frames", Double(total.bytes) / 1e6, total.frames)],
+    ]
+    if stats.frames == 0 { rows[9][2] = "0 frames/s: nothing moved" }
+    if let d = try? JSONSerialization.data(withJSONObject: rows), let j = String(data: d, encoding: .utf8) { print("info " + j) }
+    more = (0, 0, 0, 0)
+}
+
 // every 2 s: pictures, wire rate, the ratio against raw BGR, the encoder's time, the round trip of a picture
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
@@ -236,6 +358,7 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),
                          stats.rough * 100 / f, stats.encode / Double(f), r.isEmpty ? 0 : r[r.count / 2], r.last ?? 0))
         }
+        info(2)
         stats = (0, 0, 0, 0, [], 0, 0)
     }
 }

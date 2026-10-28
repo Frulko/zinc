@@ -62,9 +62,12 @@ static void stream_session(HalFrame& frame) {
   uint8_t h[16] = {1, 24}; const uint16_t x = 10, y = 20, w = 4, hh = 2; const uint32_t len = sizeof z;
   memcpy(h + 2, &x, 2); memcpy(h + 4, &y, 2); memcpy(h + 6, &w, 2); memcpy(h + 8, &hh, 2); h[10] = 2 | 0x80; memcpy(h + 12, &len, 4);
   assert(write(c, h, 16) == 16 && write(c, z, sizeof z) == (ssize_t)sizeof z);
-  uint8_t ack[16];
-  for (size_t got = 0; got < 16;) { const ssize_t r = read(c, ack + got, 16 - got); assert(r > 0); got += (size_t)r; }
-  assert(ack[0] == 1);
+  uint8_t ack[16] = {}; bool host = false;   // the screen's HOST messages (temperature, CPU...) come first, then the ACK
+  while (ack[0] != 1) {
+    for (size_t got = 0; got < 16;) { const ssize_t r = read(c, ack + got, 16 - got); assert(r > 0); got += (size_t)r; }
+    host |= ack[0] == 10;
+  }
+  assert(host);
   const int before = renders;
   frame.x1 = frame.y1 = 0; fb_present(&frame);
   assert(pixel(10, 20) == 0x030201 && pixel(13, 21) == 0x858483 && renders == before);
