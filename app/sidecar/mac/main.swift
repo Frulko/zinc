@@ -261,8 +261,9 @@ let blueNoise: [UInt8] = {
     while ones < N / 10 { let i = rnd(); if !on[i] { on[i] = true; splat(i, 1); ones += 1 } }
     while true {   // the tightest cluster to the largest void, until they are the same point
         var c = -1, v = -1
-        for i in 0..<N { if on[i] && (c < 0 || energy[i] > energy[c]) { c = i }; if !on[i] && (v < 0 || energy[i] < energy[v]) { v = i } }
-        on[c] = false; splat(c, -1)
+        for i in 0..<N where on[i] && (c < 0 || energy[i] > energy[c]) { c = i }
+        on[c] = false; splat(c, -1)   // the void is looked for once the dot is out: it may be its own place, and then it is done
+        for i in 0..<N where !on[i] && (v < 0 || energy[i] < energy[v]) { v = i }
         if v == c { on[c] = true; splat(c, 1); break }
         on[v] = true; splat(v, 1)
     }
