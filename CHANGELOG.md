@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: Sidecar's menu bar app can stop the Mac's text caret from blinking while it runs (each blink leaves a ghost on e-ink), and restores it after.
 - reMarkable: Sidecar waits until the mouse rests (moves, clicks, drags, a finger or the Marker) before it cleans ghosts: "Mouse pause" in the settings.
 - reMarkable: Sidecar no longer leaves ghosts, doubled text or pink and yellow residue from updates sent onto pixels the panel is still driving: the tablet holds them until their place rests ("Panel timing" in the settings).
+- reMarkable: Sidecar's menu bar app shows when a reMarkable is plugged in by USB and can start on it, waits for the tablet's app without giving up, sets the tablet's frontlight and ends the tablet's app from the Mac.
 - reMarkable: Sidecar's menu bar app has a Profile tab: live numbers from the Mac and the tablet's panel (how long it moves, how busy it is, what was held), recorded to a file on demand.
 - reMarkable: Web no longer covers the top of the page with a Tools button; a pen button in its bar (also in full screen) opens the writing tools. InkPalette takes `shown` and `onHide` for an app that opens it from its own button.
 - Hub (reMarkable): the home grid is a launcher in the style of iOS: six apps to a row, each icon in a rounded square with the name under it, and a round badge on its corner (a dot for an update, "!" when the app does not respond).

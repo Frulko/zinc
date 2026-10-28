@@ -13,7 +13,7 @@ import ApplicationServices
 import AppKit
 import SwiftUI
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 2, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 2, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false, waitAlways = false
 var gentle = true, tabletPen = false, rotationLock = false, selftest = false
 setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
 var argv = CommandLine.arguments.dropFirst()
@@ -32,6 +32,7 @@ while let a = argv.popFirst() {
     case "--fast-mode": fastMode0 = Int(argv.popFirst()!)!   // the waveform of everything that moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
     case "--pointer-moving": moving = ["arrow": 0, "dot": 1, "none": 2][argv.popFirst()!] ?? 1   // what a moving pointer looks like: the arrow, a dot (little ink: little trail), nothing
     case "--no-ui": ui = false   // no settings window
+    case "--wait": waitAlways = true   // wait for the tablet as long as it takes (the menu bar app), not 30 s
     case "--pointer-hz": pointerHz = max(1, Int(argv.popFirst()!)!)   // pointer moves sent per second at most, the newest only: a fast update lasts ~100+ ms on the panel
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // 0: the clean pass stays in the fast waveform (no switch); 3 or 4: true greys in xochitl's page or UI one
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
@@ -55,7 +56,7 @@ var tries = 0
 while !selftest, withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) != 0 {
     tries += 1
     if tries == 1 { print("waiting for the tablet at \(host) (open Sidecar on the reMarkable)") }
-    if tries > 60 { die("no tablet at \(host) (open Sidecar on the reMarkable)") }
+    if tries > 60 && !waitAlways { die("no tablet at \(host) (open Sidecar on the reMarkable)") }
     close(sock); usleep(500_000); sock = socket(AF_INET, SOCK_STREAM, 0)
 }
 var one: Int32 = 1
@@ -140,11 +141,12 @@ func play(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
 /** A pen comes near (or leaves): drawing apps switch to their tablet input on it. */
 var penNear = false, penLeaveAt = 0.0
 // the tablet's schedule and profile (+sched): SET messages when a value changes; its PROFILE answers, every 2 s while it is on
-var holdOn = true, holdPen = 450, holdColour = 1200, holdFull = 2500, profileOn = false, sentSched = [Int: Int]()
+var holdOn = true, holdPen = 450, holdColour = 1200, holdFull = 2500, profileOn = false, sentSched = [Int: Int](), lightTo = -1
 var panelStats = [(Int, Int, Int)](repeating: (0, 0, 0), count: 3)
 func sched() {
     guard caps.contains("sched") else { return }
-    lock.lock(); let p = profileOn; lock.unlock()
+    lock.lock(); let p = profileOn, l = lightTo; lightTo = -1; lock.unlock()
+    if l >= 0 { writeFull(header(7, 6, l, 0, 0, 0), 16) }   // the frontlight, permille
     for (k, v) in [(1, holdPen), (2, holdColour), (3, holdFull), (5, holdOn ? 1 : 0), (4, p ? 1 : 0)] where sentSched[k] != v {
         writeFull(header(7, k, min(v, 65535), 0, 0, 0), 16); sentSched[k] = v
     }
@@ -190,6 +192,7 @@ if !selftest { Thread {
         else if m[0] == 6 { let dx = i(4), dy = i(8); DispatchQueue.main.async { scroll(dx, dy) } }
         else if m[0] == 7 { lock.lock(); quickOn.toggle(); quickDirty = true; lock.unlock(); ready.signal() }   // three fingers: the quick panel
         else if m[0] == 8 && m[1] < 3 { lock.lock(); panelStats[Int(m[1])] = (i(4), i(8), i(12)); lock.unlock() }   // the tablet's profile
+        else if m[0] == 9 && control { print("light \(i(4))") }   // the tablet's frontlight, permille
     }
 }.start() }
 if !selftest && !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
@@ -656,7 +659,7 @@ func currentTune() -> Tune {
          typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, hold: holdOn, holdPen: Double(holdPen), holdColour: Double(holdColour),
          holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
 }
-var pendingTune: Tune?, pendingAction = ""   // "full" or "clean"
+var pendingTune: Tune?, pendingAction = ""   // "full", "clean" or "quit-tablet"
 var reshade = false   // the tone changed: the whole frame goes through it again
 func apply(_ t: Tune) {
     let shader = Int(t.black) != levels.0 || Int(t.white) != levels.1 || t.gamma != gamma || Int(t.edges) != edges || Int(t.edgeFloor) != edgeFloor || t.dither != ditherKind
@@ -977,6 +980,7 @@ Thread {
             if let d = drawn, !tabletPointer { stale = pointerBox(d, dot: drawnDot) }
             pointerKind = kind; uprightMask = makeArrow(); pointerMask = turnedMask(); drawn = nil
         }
+        if action == "quit-tablet" { writeFull(header(8, 0, 0, 0, 0, 0), 16); print("the tablet's app ends"); exit(0) }
         if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
         if action == "clean" { var all = fastTiles; for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }; clean(&all) }
         let under = drawn.map { pointerBox($0, dot: drawnDot) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
@@ -1272,11 +1276,13 @@ NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { e in loc
 NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseDragged]) { _ in
     lock.lock(); lastMouse = now(); lock.unlock()
 }
-if control {   // the menu bar app: a tune (JSON), full, clean or quit per line
+if control {   // the menu bar app: a tune (JSON), full, clean, quit, quit-tablet or light <permille> per line
     Thread {
         while let l = readLine() {
             if l.hasPrefix("tune "), let t = Tune.from(Data(l.dropFirst(5).utf8)) { lock.lock(); pendingTune = t; lock.unlock(); ready.signal() }
             else if l == "full" || l == "clean" { lock.lock(); pendingAction = l; lock.unlock(); ready.signal() }
+            else if l == "quit-tablet" { lock.lock(); pendingAction = l; lock.unlock(); ready.signal() }
+            else if l.hasPrefix("light "), let v = Int(l.dropFirst(6)) { lock.lock(); lightTo = max(0, min(1000, v)); lock.unlock(); ready.signal() }
             else if l == "profile on" || l == "profile off" { lock.lock(); profileOn = l == "profile on"; lock.unlock(); ready.signal() }
             else if l == "quit" { break }
         }

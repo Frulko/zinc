@@ -77,6 +77,12 @@ final class Engine: ObservableObject {
     @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if running { steadyCaret ? Caret.steady() : Caret.restore() } } }
     @Published var display: Int { didSet { if display != oldValue { UserDefaults.standard.set(display, forKey: "display"); if mode != .extend { restartIfRunning() } } } }
     private var process: Process?, input: FileHandle?, buffer = Data(), echo = false, restarting = false
+    // the tablet's frontlight, permille (-1: not told yet); it says it when Sidecar connects
+    @Published var light = -1 { didSet { if light != oldValue && !echo && light >= 0 { send("light \(light)") } } }
+    // a reMarkable on the USB cable (its address answers): shown, and Sidecar starts on it when asked to
+    @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !running { start() } } }
+    @Published var autoStart: Bool { didSet { UserDefaults.standard.set(autoStart, forKey: "autoStart") } }
+    private var probe: Timer?
 
     init() {
         let d = UserDefaults.standard
@@ -84,6 +90,13 @@ final class Engine: ObservableObject {
         mode = Mode(rawValue: d.string(forKey: "mode") ?? "") ?? .extend
         display = d.integer(forKey: "display")
         steadyCaret = d.object(forKey: "steadyCaret") as? Bool ?? true
+        autoStart = d.bool(forKey: "autoStart")
+        // ssh's port: open on a reMarkable in developer mode as soon as its USB network is up. Not Sidecar's own (a probe there
+        // would open a session); the engine waits for that one itself
+        probe = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            DispatchQueue.global().async { let up = reachable("10.11.99.1", 22); DispatchQueue.main.async { self?.plugged = up } }
+        }
+        probe?.fire()
         Caret.restore()   // left set by a run that did not end cleanly
     }
     var running: Bool { process != nil }
@@ -100,7 +113,7 @@ final class Engine: ObservableObject {
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent("sidecar-engine")
         let p = Process()
         p.executableURL = exe
-        var args = ["--no-ui", "--control"]
+        var args = ["--no-ui", "--control", "--wait"]
         if mode != .extend { args += ["--mirror", String(display)] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
@@ -121,7 +134,7 @@ final class Engine: ObservableObject {
     func stop() { send("quit"); input = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.process?.terminate() } }
     private func restartIfRunning() { if running { restarting = true; stop() } }
     private func ended() {
-        process = nil; input = nil; state = .stopped; stats = ""
+        process = nil; input = nil; state = .stopped; stats = ""; echo = true; light = -1; echo = false
         if restarting { restarting = false; start() } else { Caret.restore() }
     }
     private func keep(_ k: String, _ l: String) {
@@ -138,20 +151,36 @@ final class Engine: ObservableObject {
             else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces); keep("frames", line) }
             else if line.hasPrefix("capture age") { keep("capture", line) }
             else if line.hasPrefix("panel: ") { keep("panel", String(line.dropFirst(7))) }
+            else if line.hasPrefix("light "), let l = Int(line.dropFirst(6)) { echo = true; light = l; echo = false }
             else if line.hasPrefix("sidecar: ") { problem = String(line.dropFirst(9)) }
         }
     }
 }
 
+/** host:port accepts a TCP connection within 0.8 s. */
+func reachable(_ host: String, _ port: UInt16) -> Bool {
+    let s = socket(AF_INET, SOCK_STREAM, 0); defer { close(s) }
+    var a = sockaddr_in(); a.sin_family = sa_family_t(AF_INET); a.sin_port = port.bigEndian; inet_pton(AF_INET, host, &a.sin_addr)
+    _ = fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK)
+    let r = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+    if r == 0 { return true }
+    guard errno == EINPROGRESS else { return false }
+    var p = pollfd(fd: s, events: Int16(POLLOUT), revents: 0)
+    guard poll(&p, 1, 800) == 1 else { return false }
+    var err: Int32 = 0, n = socklen_t(MemoryLayout<Int32>.size)
+    getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &n)
+    return err == 0
+}
+
 // --- the popover
 struct StatusDot: View {
-    let state: Engine.State
+    let state: Engine.State; var plugged = true
     var body: some View {
         let (color, text): (Color, String) = {
             switch state {
-            case .stopped: return (.secondary, "Stopped")
+            case .stopped: return plugged ? (.secondary, "Stopped · reMarkable plugged in") : (.secondary, "Stopped · no reMarkable on USB")
             case .starting: return (.orange, "Starting…")
-            case .waiting: return (.orange, "Open Sidecar on the reMarkable")
+            case .waiting: return plugged ? (.orange, "Open Sidecar on the reMarkable") : (.orange, "Waiting for a reMarkable on USB…")
             case .connected(let what): return (.green, "On the tablet · " + what)
             }
         }()
@@ -184,12 +213,13 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 Image(systemName: "rectangle.portrait.on.rectangle.portrait.angled").font(.title2).foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 2) { Text("Zinc Sidecar").font(.title3.bold()); StatusDot(state: e.state) }
+                VStack(alignment: .leading, spacing: 2) { Text("Zinc Sidecar").font(.title3.bold()); StatusDot(state: e.state, plugged: e.plugged) }
                 Spacer()
                 Button(e.running ? "Stop" : "Start") { e.running ? e.stop() : e.start() }
                     .buttonStyle(.borderedProminent).tint(e.running ? .red : .accentColor).controlSize(.large)
             }
             if !e.problem.isEmpty { Text(e.problem).font(.caption).foregroundStyle(.red) }
+            Toggle("Start when a reMarkable is plugged in", isOn: $e.autoStart).font(.caption)
 
             Picker("", selection: $e.mode) { ForEach(Mode.allCases) { m in Label(m.title, systemImage: m.icon).tag(m) } }
                 .pickerStyle(.segmented).labelsHidden()
@@ -210,6 +240,18 @@ struct PopoverView: View {
                 Spacer()
             }
             .disabled(!e.running)
+            if e.light >= 0 {
+                HStack {
+                    Image(systemName: "sun.min")
+                    Slider(value: Binding(get: { Double(e.light) }, set: { e.light = Int($0) }), in: 0...1000)
+                    Image(systemName: "sun.max")
+                }
+                .help("The tablet's frontlight")
+            }
+            if case .connected = e.state {
+                Button(role: .destructive) { e.send("quit-tablet") } label: { Label("Quit Sidecar on the tablet", systemImage: "power") }
+                    .help("Ends the app on the reMarkable: its own screen comes back")
+            }
             if !e.stats.isEmpty { Text(e.stats).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1) }
             Divider()
             HStack {

@@ -36,8 +36,10 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
 **The menu bar app**: `mac/build.sh` also makes `mac/build/Sidecar.app` (open it; it lives in the menu bar). Start and stop, the way the
 tablet is used (a second screen, a mirror of a display, or a pen tablet: a mirror where the Marker is a graphics tablet's pen with
 pressure, tilt and hover, for drawing apps), four presets (Text, Speed, Video, Reading), a full refresh and a clean, and a settings window
-where every knob says what it does on paper, plus the tablet's gestures. Settings are kept between runs. It drives the engine inside it
-(`sidecar-engine --no-ui --control`: a JSON tune, `full`, `clean` or `quit` per line on stdin). Greys are dithered with blue noise by default
+where every knob says what it does on paper, plus the tablet's gestures. Settings are kept between runs. It shows whether a reMarkable
+is on the USB cable (and can start Sidecar as soon as one is plugged in), waits for the tablet's app as long as it takes, sets the tablet's
+frontlight and ends the tablet's app. It drives the engine inside it (`sidecar-engine --no-ui --control --wait`: a JSON tune, `full`,
+`clean`, `quit`, `quit-tablet` or `light <permille>` per line on stdin). Greys are dithered with blue noise by default
 (or an 8x8 grid, or none); the clean goes through two grey checker passes instead of a black flash (Gentle clean).
 On the tablet, a three-finger tap opens the quick panel over the picture: clean, full refresh, next preset, contrast, lock the turn.
 
