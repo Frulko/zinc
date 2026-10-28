@@ -86,9 +86,10 @@ func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -
 }
 /** One rectangle (rows of 1-bit pixels, or greys at depth 8) in an lz4 block when the tablet reads them and it is smaller; more: another
  *  message of this picture follows, and the tablet updates the panel once, at the last. */
-var zbuf = [UInt8]()
+var zbuf = [UInt8](), rawBytes = 0, gpuFrames = 0   // the profile: payload before lz4, frames the GPU shaded
 func sendRect(_ x: Int, _ y: Int, _ w: Int, _ h: Int, _ payload: [UInt8], depth: UInt8 = 1, more: Bool = false) {
     var hd = header(1, x, y, w, h, payload.count); hd[1] = depth; hd[11] = more ? 1 : 0
+    rawBytes += payload.count + 16
     if caps.contains("lz4") && payload.count >= 1024 {
         if zbuf.count < payload.count { zbuf = [UInt8](repeating: 0, count: payload.count) }
         let n = compression_encode_buffer(&zbuf, payload.count * 9 / 10, payload, payload.count, nil, COMPRESSION_LZ4_RAW)
@@ -138,6 +139,16 @@ func play(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
 }
 /** A pen comes near (or leaves): drawing apps switch to their tablet input on it. */
 var penNear = false, penLeaveAt = 0.0
+// the tablet's schedule and profile (+sched): SET messages when a value changes; its PROFILE answers, every 2 s while it is on
+var holdOn = true, holdPen = 450, holdColour = 1200, holdFull = 2500, profileOn = false, sentSched = [Int: Int]()
+var panelStats = [(Int, Int, Int)](repeating: (0, 0, 0), count: 3)
+func sched() {
+    guard caps.contains("sched") else { return }
+    lock.lock(); let p = profileOn; lock.unlock()
+    for (k, v) in [(1, holdPen), (2, holdColour), (3, holdFull), (5, holdOn ? 1 : 0), (4, p ? 1 : 0)] where sentSched[k] != v {
+        writeFull(header(7, k, min(v, 65535), 0, 0, 0), 16); sentSched[k] = v
+    }
+}
 func proximity(_ near: Bool) {
     if near == penNear { return }
     penNear = near
@@ -178,6 +189,7 @@ if !selftest { Thread {
         else if m[0] == 2 { let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = i(4), y = i(8), p = i(12); DispatchQueue.main.async { play(t, id, x, y, p) } }
         else if m[0] == 6 { let dx = i(4), dy = i(8); DispatchQueue.main.async { scroll(dx, dy) } }
         else if m[0] == 7 { lock.lock(); quickOn.toggle(); quickDirty = true; lock.unlock(); ready.signal() }   // three fingers: the quick panel
+        else if m[0] == 8 && m[1] < 3 { lock.lock(); panelStats[Int(m[1])] = (i(4), i(8), i(12)); lock.unlock() }   // the tablet's profile
     }
 }.start() }
 if !selftest && !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
@@ -641,7 +653,8 @@ func currentTune() -> Tune {
     Tune(black: Double(levels.0), white: Double(levels.1), gamma: gamma, edges: Double(edges), edgeFloor: Double(edgeFloor), dither: ditherKind,
          cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
          fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0,
-         typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
+         typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, hold: holdOn, holdPen: Double(holdPen), holdColour: Double(holdColour),
+         holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
 }
 var pendingTune: Tune?, pendingAction = ""   // "full" or "clean"
 var reshade = false   // the tone changed: the whole frame goes through it again
@@ -653,6 +666,7 @@ func apply(_ t: Tune) {
     moving = t.moving; dotPx = Int(t.dot); pointerHz = max(1, Int(t.pointerHz)); trailMs = Int(t.trail)
     idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
     typingMs = Int(t.typing); framesHz = max(1, Int(t.framesHz)); blinkFilter = t.blink; mouseMs = Int(t.mouse)
+    holdOn = t.hold; holdPen = Int(t.holdPen); holdColour = Int(t.holdColour); holdFull = Int(t.holdFull)
     gentle = t.gentle; tabletPen = t.tabletPen; rotationLock = t.rotationLock
     if t.fastMode != fastMode0 { fastMode0 = t.fastMode; writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     if shader { tone = makeTone(); thr = makeThr() }
@@ -954,6 +968,7 @@ Thread {
             for _ in rects { acks.wait() }
         }
         if let tune { apply(tune) }
+        sched()
         lock.lock(); let kind = pendingKind; pendingKind = -1; lock.unlock()
         var stale: (Int, Int, Int, Int)? = nil   // the old pointer's box: back to the screen with the next picture
         lock.lock(); let qOn = quickOn, qDirty = quickDirty, tell = announce; quickDirty = false; announce = false; lock.unlock()
@@ -1034,7 +1049,7 @@ Thread {
             let src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
             if d.2 > d.0 && d.3 > d.1 {
                 let b = mapBox(d, toPanel)
-                if (d.2 - d.0) * (d.3 - d.1) >= gpuFrom, let g = gpu, g.run(pb, fw, fh, b) { g.take(b); onGPU = b; grow(b, cpu: false) }
+                if (d.2 - d.0) * (d.3 - d.1) >= gpuFrom, let g = gpu, g.run(pb, fw, fh, b) { g.take(b); onGPU = b; grow(b, cpu: false); gpuFrames += 1 }
                 else {
                     shade(src, bpr, fw, fh, d)
                     for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
@@ -1127,10 +1142,17 @@ Thread {
             let f = max(stats.frames, 1)
             let line = String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
                          Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f))
-            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))  scroll copies \(stats.copies)   (median/max)"
-            prof = ([], [], [])
+            let lz = rawBytes > 0 ? 100 - stats.bytes * 100 / rawBytes : 0
+            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))  scroll copies \(stats.copies)  gpu \(gpuFrames)  lz4 -\(lz)%   (median/max)"
+            prof = ([], [], []); rawBytes = 0; gpuFrames = 0
             print(line); print(profile)
-            let both = line + "\n" + profile
+            var both = line + "\n" + profile
+            lock.lock(); let p = profileOn, ps = panelStats; lock.unlock()
+            if p && caps.contains("sched") {   // the tablet's side: what the panel did
+                let pl = String(format: "panel: %.1f updates/s  held %d  busy %d%%  moves Pen %d ms colour %d ms full %d ms  starts after %d ms  %d rects",
+                                Double(ps[0].0) / 2, ps[0].1, ps[0].2 / 10, ps[1].0, ps[1].1, ps[1].2, ps[2].0, ps[2].1)
+                print(pl); both += "\n" + pl
+            }
             DispatchQueue.main.async { panel.stats = both }
             stats = (0, 0, 0, 0, 0, 0, now())
         }
@@ -1255,6 +1277,7 @@ if control {   // the menu bar app: a tune (JSON), full, clean or quit per line
         while let l = readLine() {
             if l.hasPrefix("tune "), let t = Tune.from(Data(l.dropFirst(5).utf8)) { lock.lock(); pendingTune = t; lock.unlock(); ready.signal() }
             else if l == "full" || l == "clean" { lock.lock(); pendingAction = l; lock.unlock(); ready.signal() }
+            else if l == "profile on" || l == "profile off" { lock.lock(); profileOn = l == "profile on"; lock.unlock(); ready.signal() }
             else if l == "quit" { break }
         }
         writeFull(header(3, 0, 0, 0, 0, 0), 16); exit(0)   // stdin closed: the app is gone, so is this

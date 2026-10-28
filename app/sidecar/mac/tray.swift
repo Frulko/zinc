@@ -57,6 +57,21 @@ final class Engine: ObservableObject {
     @Published var state = State.stopped
     @Published var stats = ""
     @Published var problem = ""
+    // the profile: the engine's lines (the Mac's work, the capture, the tablet's panel), and a file they go to while recording
+    @Published var lines = ["frames": "", "capture": "", "panel": ""]
+    @Published var profile = false { didSet { send(profile ? "profile on" : "profile off") } }
+    @Published var recording: URL? = nil
+    private var record: FileHandle?
+    func toggleRecord() {
+        if let r = record { try? r.close(); record = nil; recording = nil; return }
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Zinc Sidecar")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
+        let url = dir.appendingPathComponent("profile-\(f.string(from: Date())).log")
+        FileManager.default.createFile(atPath: url.path, contents: Data("Zinc Sidecar profile \(Date())\ntune \(json(tune))\n".utf8))
+        record = try? FileHandle(forWritingTo: url); record?.seekToEndOfFile(); recording = url
+        if !profile { profile = true }
+    }
     @Published var tune: Tune { didSet { if tune != oldValue { save(); if !echo { send("tune " + json(tune)) } } } }
     @Published var mode: Mode { didSet { if mode != oldValue { UserDefaults.standard.set(mode.rawValue, forKey: "mode"); restartIfRunning() } } }
     @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if running { steadyCaret ? Caret.steady() : Caret.restore() } } }
@@ -99,6 +114,7 @@ final class Engine: ObservableObject {
         process = p; input = i.fileHandleForWriting
         problem = ""; state = .starting
         if steadyCaret { Caret.steady() }
+        if profile { send("profile on") }
         var t = tune; if mode == .pen { t.tabletPen = true }
         send("tune " + json(t))
     }
@@ -108,6 +124,10 @@ final class Engine: ObservableObject {
         process = nil; input = nil; state = .stopped; stats = ""
         if restarting { restarting = false; start() } else { Caret.restore() }
     }
+    private func keep(_ k: String, _ l: String) {
+        lines[k] = l.trimmingCharacters(in: .whitespaces)
+        if let r = record { let t = String(format: "%.3f ", Date().timeIntervalSince1970); try? r.write(contentsOf: Data((t + k + " " + lines[k]! + "\n").utf8)) }
+    }
     private func take(_ d: Data) {
         buffer.append(d)
         while let n = buffer.firstIndex(of: 10) {
@@ -115,7 +135,9 @@ final class Engine: ObservableObject {
             if line.hasPrefix("waiting for the tablet") { state = .waiting }
             else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
             else if line.hasPrefix("tune "), let t = Tune.from(Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
-            else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces) }
+            else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces); keep("frames", line) }
+            else if line.hasPrefix("capture age") { keep("capture", line) }
+            else if line.hasPrefix("panel: ") { keep("panel", String(line.dropFirst(7))) }
             else if line.hasPrefix("sidecar: ") { problem = String(line.dropFirst(9)) }
         }
     }
@@ -299,12 +321,45 @@ struct SettingsView: View {
                     }
                 }
                 .formStyle(.grouped).tabItem { Label("Pen & gestures", systemImage: "pencil.tip") }
+
+                Form {
+                    Section("Measure") {
+                        Switch(name: "Profile", help: "The tablet watches its panel (when it starts moving, how long it moves, how busy it is) and both sides report every 2 s.", on: $e.profile)
+                        HStack {
+                            Button(e.recording == nil ? "Record to a file" : "Stop recording") { e.toggleRecord() }
+                            if let u = e.recording { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([u]) }; Text(u.lastPathComponent).font(.caption).foregroundStyle(.secondary) }
+                        }
+                    }
+                    Section("Live") {
+                        Line(title: "Mac", text: e.lines["frames"] ?? "")
+                        Line(title: "Capture", text: e.lines["capture"] ?? "")
+                        Line(title: "Panel", text: e.lines["panel"] ?? (e.profile ? "waiting for the tablet…" : "Profile off"))
+                    }
+                    Section("Panel timing") {
+                        Switch(name: "Hold updates on moving pixels", help: "A pixel the panel is still driving ignores a new target and stays half-way: ghosts, doubled text, pink and yellow residue. Held, the update waits (merged with what follows) and goes out once the place rests.", on: $e.tune.hold)
+                        Knob(name: "Pen update lasts", help: "How long the panel drives a fast update. Shorter: snappier, more ghosts. The profile's \"moves Pen\" says what your panel does.", value: $e.tune.holdPen, range: 0...2000, step: 25, unit: " ms")
+                        Knob(name: "Grey update lasts", help: "The same for the true-grey and colour cleaning.", value: $e.tune.holdColour, range: 0...3000, step: 50, unit: " ms")
+                        Knob(name: "Full refresh lasts", help: "Nothing is drawn until a full refresh is over.", value: $e.tune.holdFull, range: 0...5000, step: 100, unit: " ms")
+                    }
+                    Section("What the numbers mean") {
+                        Text("""
+                        Mac: pictures and rectangles sent per second, bytes after lz4, time to shade and compare a picture, time the tablet took to take it in.
+                        Capture: how old a picture is when macOS hands it over, a pointer move to the tablet, cleans, scroll copies, pictures shaded on the GPU, what lz4 saved.
+                        Panel: updates the tablet sent to the glass, updates held on moving pixels, how busy the panel was, how long it moved after a lone update of each kind, how soon it starts after one.
+                        """).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .formStyle(.grouped).tabItem { Label("Profile", systemImage: "gauge.with.dots.needle.33percent") }
             }
             .padding([.horizontal, .bottom], 12)
             if !e.stats.isEmpty { Text(e.stats).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).padding(.bottom, 8) }
         }
         .frame(width: 600, height: 640)
     }
+}
+struct Line: View {
+    let title: String, text: String
+    var body: some View { VStack(alignment: .leading, spacing: 2) { Text(title).font(.caption.bold()); Text(text.isEmpty ? "–" : text).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) } }
 }
 struct Gesture: View {
     let icon: String, text: String

@@ -7,6 +7,8 @@ struct Tune: Equatable, Codable {
     var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
     var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
     var typing = 800.0, framesHz = 60.0, blink = true
+    var hold = true                // the tablet holds what would land on pixels still moving (ghosts, colour residue otherwise)
+    var holdPen = 450.0, holdColour = 1200.0, holdFull = 2500.0   // how long the panel drives each kind of update, ms
     var mouse = 500.0              // ms the mouse (or a finger, the Marker) must rest before anything is cleaned; 0: only around the pointer
     var gentle = true              // clean through a grey checker instead of a black flash
     var tabletPen = false          // the Marker as a graphics tablet's pen (pressure, tilt, hover), not a mouse

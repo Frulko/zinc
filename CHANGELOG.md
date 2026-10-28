@@ -16,6 +16,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: Sidecar is faster: the tablet draws the pointer itself, large updates are compressed, a scroll moves what the tablet already shows instead of sending it again, and big changes are processed on the Mac's GPU. Update both the tablet engine and the Mac app.
 - reMarkable: Sidecar's menu bar app can stop the Mac's text caret from blinking while it runs (each blink leaves a ghost on e-ink), and restores it after.
 - reMarkable: Sidecar waits until the mouse rests (moves, clicks, drags, a finger or the Marker) before it cleans ghosts: "Mouse pause" in the settings.
+- reMarkable: Sidecar no longer leaves ghosts, doubled text or pink and yellow residue from updates sent onto pixels the panel is still driving: the tablet holds them until their place rests ("Panel timing" in the settings).
+- reMarkable: Sidecar's menu bar app has a Profile tab: live numbers from the Mac and the tablet's panel (how long it moves, how busy it is, what was held), recorded to a file on demand.
 - reMarkable: Web no longer covers the top of the page with a Tools button; a pen button in its bar (also in full screen) opens the writing tools. InkPalette takes `shown` and `onHide` for an app that opens it from its own button.
 - Hub (reMarkable): the home grid is a launcher in the style of iOS: six apps to a row, each icon in a rounded square with the name under it, and a round badge on its corner (a dot for an update, "!" when the app does not respond).
 - Hub (reMarkable): the apps, their names, descriptions and icons show at once from the last catalog that checked, also without the server; an Update all button installs every update (the engine first, the Hub last).
