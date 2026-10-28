@@ -1,8 +1,20 @@
-// Zinc Sidecar's menu bar app: start and stop the stream, pick how the tablet is used (a second screen, a mirror, a pen tablet), pick a
-// preset, and tune every knob in a settings window that says what each one does. It drives the engine (main.swift, sidecar-engine beside
-// this binary) as a child: settings as JSON lines on its stdin, its state read from its stdout.
+// Zinc Sidecar's menu bar app: pick the output (the reMarkable on USB, or a colour screen on the network), start and stop the stream, pick
+// how the output is used (a second screen, a mirror, a pen tablet on the reMarkable), and the output's own settings: the e-ink presets and
+// knobs for the tablet, the sharpness and the codec for a screen. Each output keeps its mode and settings. It drives the engine of the
+// output as a child (main.swift's sidecar-engine: JSON lines on its stdin; screen.swift's sidecar-screen: arguments), its state read from
+// its stdout.
 import AppKit
 import SwiftUI
+
+/** Where the picture goes: the reMarkable (e-ink, USB, sidecar-engine) or a colour screen on the network (sidecar-screen). */
+struct Output: Codable, Identifiable, Hashable {
+    enum Kind: String, Codable { case remarkable, screen }
+    var id: String, kind: Kind, name: String, host: String
+    var hidpi = false, lz4 = false   // a screen's: drawn at twice its points (Retina), lz4 for a screen whose CPU is short
+    var icon: String { kind == .remarkable ? "ipad.landscape" : "display" }
+    var modes: [Mode] { kind == .remarkable ? Mode.allCases : [.extend, .mirror] }
+    static let remarkable = Output(id: "rmpp", kind: .remarkable, name: "reMarkable Paper Pro", host: "10.11.99.1")
+}
 
 enum Mode: String, CaseIterable, Identifiable {
     case extend, mirror, pen
@@ -10,8 +22,8 @@ enum Mode: String, CaseIterable, Identifiable {
     var title: String { ["extend": "Second screen", "mirror": "Mirror", "pen": "Pen tablet"][rawValue]! }
     var icon: String { ["extend": "rectangle.on.rectangle", "mirror": "rectangle.2.swap", "pen": "pencil.and.scribble"][rawValue]! }
     var line: String {
-        ["extend": "A new display at the tablet's shape: drag windows onto it.",
-         "mirror": "One of your screens, copied onto the tablet.",
+        ["extend": "A new display at its shape: drag windows onto it.",
+         "mirror": "One of your screens, copied onto it.",
          "pen": "A screen copied, and the Marker draws on it like a graphics tablet: pressure, tilt, hover."][rawValue]!
     }
 }
@@ -23,7 +35,7 @@ func displays() -> [Display] {
     CGGetActiveDisplayList(16, &ids, &n)
     return (0..<Int(n)).compactMap { i in
         let name = NSScreen.screens.first { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == ids[i] }?.localizedName
-        if name == "reMarkable Paper Pro" { return nil }   // the engine's own virtual display
+        if name == "reMarkable Paper Pro" || name == "Sidecar Screen" { return nil }   // the engines' own virtual displays
         return Display(id: i, name: name ?? "Display \(i + 1)")
     }
 }
@@ -73,21 +85,51 @@ final class Engine: ObservableObject {
         if !profile { profile = true }
     }
     @Published var tune: Tune { didSet { if tune != oldValue { save(); if !echo { send("tune " + json(tune)) } } } }
-    @Published var mode: Mode { didSet { if mode != oldValue { UserDefaults.standard.set(mode.rawValue, forKey: "mode"); restartIfRunning() } } }
+    // the outputs: the reMarkable, then the screens added by hand; each one keeps its mode
+    @Published var screens: [Output] { didSet { UserDefaults.standard.set(try? JSONEncoder().encode(screens), forKey: "screens") } }
+    @Published var outputId: String {
+        didSet {
+            guard outputId != oldValue else { return }
+            UserDefaults.standard.set(outputId, forKey: "output")
+            echoMode = true; mode = Engine.savedMode(current); echoMode = false
+            restartIfRunning()
+        }
+    }
+    var outputs: [Output] { [Output.remarkable] + screens }
+    var current: Output { outputs.first { $0.id == outputId } ?? .remarkable }
+    func update(_ o: Output) {
+        guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o else { return }
+        screens[i] = o; restartIfRunning()
+    }
+    func add(name: String, host: String) {
+        let o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
+        screens.append(o); outputId = o.id
+    }
+    func remove(_ o: Output) { if outputId == o.id { outputId = Output.remarkable.id }; screens.removeAll { $0.id == o.id } }
+    static func savedMode(_ o: Output) -> Mode {
+        let m = Mode(rawValue: UserDefaults.standard.string(forKey: "mode." + o.id) ?? UserDefaults.standard.string(forKey: "mode") ?? "") ?? .extend
+        return o.modes.contains(m) ? m : .extend
+    }
+    private var echoMode = false
+    @Published var mode: Mode { didSet { if mode != oldValue && !echoMode { UserDefaults.standard.set(mode.rawValue, forKey: "mode." + outputId); restartIfRunning() } } }
     @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if running { steadyCaret ? Caret.steady() : Caret.restore() } } }
     @Published var display: Int { didSet { if display != oldValue { UserDefaults.standard.set(display, forKey: "display"); if mode != .extend { restartIfRunning() } } } }
     private var process: Process?, input: FileHandle?, buffer = Data(), echo = false, restarting = false
     // the tablet's frontlight, permille (-1: not told yet); it says it when Sidecar connects
     @Published var light = -1 { didSet { if light != oldValue && !echo && light >= 0 { send("light \(light)") } } }
     // a reMarkable on the USB cable (its address answers): shown, and Sidecar starts on it when asked to
-    @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !running { start() } } }
+    @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !running && current.kind == .remarkable { start() } } }
     @Published var autoStart: Bool { didSet { UserDefaults.standard.set(autoStart, forKey: "autoStart") } }
     private var probe: Timer?
 
     init() {
         let d = UserDefaults.standard
         tune = (d.data(forKey: "tune")).flatMap { Tune.from($0) } ?? presets[0].tune
-        mode = Mode(rawValue: d.string(forKey: "mode") ?? "") ?? .extend
+        let saved = (d.data(forKey: "screens")).flatMap { try? JSONDecoder().decode([Output].self, from: $0) } ?? []
+        screens = saved
+        let id = d.string(forKey: "output") ?? Output.remarkable.id
+        outputId = saved.contains { $0.id == id } ? id : Output.remarkable.id
+        mode = Engine.savedMode(saved.first { $0.id == id } ?? .remarkable)
         display = d.integer(forKey: "display")
         steadyCaret = d.object(forKey: "steadyCaret") as? Bool ?? true
         autoStart = d.bool(forKey: "autoStart")
@@ -110,10 +152,11 @@ final class Engine: ObservableObject {
 
     func start() {
         guard process == nil else { return }
-        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent("sidecar-engine")
+        let out = current, eink = out.kind == .remarkable
+        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(eink ? "sidecar-engine" : "sidecar-screen")
         let p = Process()
         p.executableURL = exe
-        var args = ["--no-ui", "--control", "--wait"]
+        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : [])
         if mode != .extend { args += ["--mirror", String(display)] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
@@ -126,12 +169,16 @@ final class Engine: ObservableObject {
         do { try p.run() } catch { problem = "Cannot start the engine: \(error.localizedDescription)"; return }
         process = p; input = i.fileHandleForWriting
         problem = ""; state = .starting
+        guard eink else { return }   // a screen's engine takes its settings as arguments, and an LCD has no ghosts to spare
         if steadyCaret { Caret.steady() }
         if profile { send("profile on") }
         var t = tune; if mode == .pen { t.tabletPen = true }
         send("tune " + json(t))
     }
-    func stop() { send("quit"); input = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.process?.terminate() } }
+    func stop() {
+        if current.kind == .screen && input != nil { process?.interrupt(); input = nil; return }
+        send("quit"); input = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.process?.terminate() }
+    }
     private func restartIfRunning() { if running { restarting = true; stop() } }
     private func ended() {
         process = nil; input = nil; state = .stopped; stats = ""; echo = true; light = -1; echo = false
@@ -145,8 +192,10 @@ final class Engine: ObservableObject {
         buffer.append(d)
         while let n = buffer.firstIndex(of: 10) {
             let line = String(decoding: buffer[buffer.startIndex..<n], as: UTF8.self); buffer.removeSubrange(buffer.startIndex...n)
-            if line.hasPrefix("waiting for the tablet") { state = .waiting }
+            if line.hasPrefix("waiting for the tablet") || line.hasPrefix("waiting for the screen") { state = .waiting }
             else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("screen: ") { state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("sidecar-screen: ") { problem = String(line.dropFirst(16)) }
             else if line.hasPrefix("tune "), let t = Tune.from(Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
             else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces); keep("frames", line) }
             else if line.hasPrefix("capture age") { keep("capture", line) }
@@ -174,14 +223,15 @@ func reachable(_ host: String, _ port: UInt16) -> Bool {
 
 // --- the popover
 struct StatusDot: View {
-    let state: Engine.State; var plugged = true
+    let state: Engine.State, output: Output; var plugged = true
     var body: some View {
+        let eink = output.kind == .remarkable
         let (color, text): (Color, String) = {
             switch state {
-            case .stopped: return plugged ? (.secondary, "Stopped · reMarkable plugged in") : (.secondary, "Stopped · no reMarkable on USB")
+            case .stopped: return (.secondary, !eink ? "Stopped" : plugged ? "Stopped · reMarkable plugged in" : "Stopped · no reMarkable on USB")
             case .starting: return (.orange, "Starting…")
-            case .waiting: return plugged ? (.orange, "Open Sidecar on the reMarkable") : (.orange, "Waiting for a reMarkable on USB…")
-            case .connected(let what): return (.green, "On the tablet · " + what)
+            case .waiting: return (.orange, !eink ? "Open Sidecar Screen on \(output.host)" : plugged ? "Open Sidecar on the reMarkable" : "Waiting for a reMarkable on USB…")
+            case .connected(let what): return (.green, "On " + what)
             }
         }()
         return HStack(spacing: 6) { Circle().fill(color).frame(width: 8, height: 8); Text(text).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
@@ -205,62 +255,139 @@ struct PresetCard: View {
     }
 }
 
+/** The outputs as cards: the one chosen is outlined; the last card adds a screen. */
+struct OutputRow: View {
+    @ObservedObject var e: Engine
+    @Binding var adding: Bool
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(e.outputs) { o in
+                    let on = o.id == e.outputId
+                    Button { e.outputId = o.id } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Image(systemName: o.icon).font(.title3)
+                            Text(o.name).font(.subheadline.bold()).lineLimit(1)
+                            Text(o.kind == .remarkable ? (e.plugged ? "USB · plugged in" : "USB · not plugged") : o.host).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        .padding(8).frame(width: 128, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 9).fill(on ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.05)))
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(on ? Color.accentColor : .clear, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button { adding.toggle() } label: {
+                    VStack(spacing: 3) { Image(systemName: "plus").font(.title3); Text("Add a screen").font(.caption) }
+                        .frame(width: 96, height: 62)
+                        .background(RoundedRectangle(cornerRadius: 9).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+struct AddScreen: View {
+    @ObservedObject var e: Engine
+    @Binding var adding: Bool
+    @State private var name = ""
+    @State private var host = ""
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("A screen running Sidecar Screen (app/sidecar-screen) shows its address.").font(.caption).foregroundStyle(.secondary)
+            HStack {
+                TextField("Name (Raspberry Pi)", text: $name).textFieldStyle(.roundedBorder)
+                TextField("Address", text: $host).textFieldStyle(.roundedBorder)
+                Button("Add") { e.add(name: name, host: host.trimmingCharacters(in: .whitespaces)); adding = false }
+                    .disabled(host.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+}
+
 struct PopoverView: View {
     @ObservedObject var e: Engine
     let settings: () -> Void
-    @State private var screens = displays()
+    @State private var monitors = displays()
+    @State private var adding = false
     var body: some View {
+        let o = e.current, eink = o.kind == .remarkable
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 Image(systemName: "rectangle.portrait.on.rectangle.portrait.angled").font(.title2).foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 2) { Text("Zinc Sidecar").font(.title3.bold()); StatusDot(state: e.state, plugged: e.plugged) }
+                VStack(alignment: .leading, spacing: 2) { Text("Zinc Sidecar").font(.title3.bold()); StatusDot(state: e.state, output: o, plugged: e.plugged) }
                 Spacer()
                 Button(e.running ? "Stop" : "Start") { e.running ? e.stop() : e.start() }
                     .buttonStyle(.borderedProminent).tint(e.running ? .red : .accentColor).controlSize(.large)
             }
-            if !e.problem.isEmpty { Text(e.problem).font(.caption).foregroundStyle(.red) }
-            Toggle("Start when a reMarkable is plugged in", isOn: $e.autoStart).font(.caption)
+            if !e.problem.isEmpty {
+                if e.problem.contains("TCC") || e.problem.contains("Screen Recording") {
+                    HStack {
+                        Text("Zinc Sidecar needs the Screen Recording permission.").font(.caption).foregroundStyle(.red)
+                        Spacer()
+                        Button("Open Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!) }.controlSize(.small)
+                    }
+                } else { Text(e.problem).font(.caption).foregroundStyle(.red).lineLimit(3) }
+            }
 
-            Picker("", selection: $e.mode) { ForEach(Mode.allCases) { m in Label(m.title, systemImage: m.icon).tag(m) } }
+            Text("Output").font(.subheadline.bold())
+            OutputRow(e: e, adding: $adding)
+            if adding { AddScreen(e: e, adding: $adding) }
+
+            Picker("", selection: $e.mode) { ForEach(o.modes) { m in Label(m.title, systemImage: m.icon).tag(m) } }
                 .pickerStyle(.segmented).labelsHidden()
             Text(e.mode.line).font(.caption).foregroundStyle(.secondary)
             if e.mode != .extend {
-                Picker("Screen", selection: $e.display) { ForEach(screens) { Text($0.name).tag($0.id) } }
-                    .onAppear { screens = displays() }
+                Picker("Screen", selection: $e.display) { ForEach(monitors) { Text($0.name).tag($0.id) } }
+                    .onAppear { monitors = displays() }
             }
 
-            Text("Preset").font(.subheadline.bold())
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(presets) { p in PresetCard(p: p, on: e.preset == p.id) { e.choose(p) } }
-            }
-
-            HStack {
-                Button { e.send("full") } label: { Label("Full refresh", systemImage: "sparkles") }
-                Button { e.send("clean") } label: { Label("Clean ghosts", systemImage: "wand.and.stars") }
-                Spacer()
-            }
-            .disabled(!e.running)
-            if e.light >= 0 {
-                HStack {
-                    Image(systemName: "sun.min")
-                    Slider(value: Binding(get: { Double(e.light) }, set: { e.light = Int($0) }), in: 0...1000)
-                    Image(systemName: "sun.max")
+            if eink {
+                Toggle("Start when a reMarkable is plugged in", isOn: $e.autoStart).font(.caption)
+                Text("Preset").font(.subheadline.bold())
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(presets) { p in PresetCard(p: p, on: e.preset == p.id) { e.choose(p) } }
                 }
-                .help("The tablet's frontlight")
-            }
-            if case .connected = e.state {
-                Button(role: .destructive) { e.send("quit-tablet") } label: { Label("Quit Sidecar on the tablet", systemImage: "power") }
-                    .help("Ends the app on the reMarkable: its own screen comes back")
+                HStack {
+                    Button { e.send("full") } label: { Label("Full refresh", systemImage: "sparkles") }
+                    Button { e.send("clean") } label: { Label("Clean ghosts", systemImage: "wand.and.stars") }
+                    Spacer()
+                }
+                .disabled(!e.running)
+                if e.light >= 0 {
+                    HStack {
+                        Image(systemName: "sun.min")
+                        Slider(value: Binding(get: { Double(e.light) }, set: { e.light = Int($0) }), in: 0...1000)
+                        Image(systemName: "sun.max")
+                    }
+                    .help("The tablet's frontlight")
+                }
+                if case .connected = e.state {
+                    Button(role: .destructive) { e.send("quit-tablet") } label: { Label("Quit Sidecar on the tablet", systemImage: "power") }
+                        .help("Ends the app on the reMarkable: its own screen comes back")
+                }
+            } else {
+                Toggle("Retina: twice the pixels per point (bigger text)", isOn: Binding(get: { o.hidpi }, set: { v in var c = o; c.hidpi = v; e.update(c) }))
+                Picker("Compression", selection: Binding(get: { o.lz4 }, set: { v in var c = o; c.lz4 = v; e.update(c) })) {
+                    Text("zstd: fewest bytes").tag(false); Text("lz4: lightest for the screen").tag(true)
+                }
+                .pickerStyle(.segmented)
+                Text("Only the tiles that change are sent, filtered and compressed on every core. zstd suits Wi-Fi; lz4 a slow screen on a fast cable.").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text(o.host).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Remove this screen", role: .destructive) { e.remove(o) }.controlSize(.small).disabled(e.running)
+                }
             }
             if !e.stats.isEmpty { Text(e.stats).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1) }
             Divider()
             HStack {
-                Button("Settings…", action: settings)
+                if eink { Button("reMarkable settings…", action: settings) }
                 Spacer()
                 Button("Quit") { if e.running { e.stop() }; DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) } }
             }
         }
-        .padding(16).frame(width: 380)
+        .padding(16).frame(width: 400)
     }
 }
 
