@@ -42,7 +42,23 @@ var ways = [
     Way(name: "sub + zstd 1", encode: { zstd(1)(sub($0)) }),
     Way(name: "xor prev + zstd 1", encode: { _ in 0 }),   // filled in below: it needs the old tiles
     Way(name: "sub + zstd 3", encode: { zstd(3)(sub($0)) }),
+    // lossy, for the pictures where most of the screen moves: colours cut to 5-6-5 bits, or every 2x2 block averaged (refined later)
+    Way(name: "565 + sub + zstd 1", encode: { s in zstd(1)(sub(s.enumerated().map { i, v in i % 3 == 1 ? v & 0xFC : v & 0xF8 })) }),
+    Way(name: "half + sub + zstd 1", encode: { s in zstd(1)(sub(half(s))) }),
 ]
+/** Each tile row pair averaged 2x2 (tiles are T wide, rows of 3 bytes): a quarter of the pixels. */
+func half(_ s: [UInt8]) -> [UInt8] {
+    let row = T * 3
+    var o = [UInt8](); o.reserveCapacity(s.count / 4)
+    var y = 0
+    while (y + 2) * row <= s.count {
+        for x in stride(from: 0, to: T, by: 2) { for c in 0..<3 {
+            let a = Int(s[y * row + x * 3 + c]) + Int(s[y * row + (x + 1) * 3 + c]) + Int(s[(y + 1) * row + x * 3 + c]) + Int(s[(y + 1) * row + (x + 1) * 3 + c])
+            o.append(UInt8(a / 4)) } }
+        y += 2
+    }
+    return o
+}
 
 var prev: UnsafeMutablePointer<UInt8>? = nil, W = 0, H = 0, frames = 0, dirtyPx = 0, full = 0
 let lock = NSLock()

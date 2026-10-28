@@ -3,14 +3,17 @@
 // the 64-pixel tiles that changed since what the receiver shows, joined in runs along a row, each run filtered (PNG's Sub) and compressed
 // (zstd 1, else lz4) on every core at once, sent as RECTs of one picture. At most two pictures wait for the receiver's ACKs: a newer
 // capture replaces the one waiting, so the screen never lags behind the network.
-//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--seconds n]
+// A picture where much of the screen changes (a video, a page switch), or that comes while the link is still busy, goes rough: its colours
+// cut to 5-6-5 bits (half the bytes after zstd on a desktop, codecbench), nothing new for the receiver to decode; each rough tile is sent
+// again exact once it has rested 300 ms.
+//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--seconds n]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
 
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
-var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0
+var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
     let a = argv.removeFirst()
@@ -21,6 +24,7 @@ while !argv.isEmpty {
     case "--hidpi": hidpi = true      // the virtual display at half the receiver's size in points, drawn at twice (Retina): bigger text
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
+    case "--exact": exact = true      // never rough: every picture exact, whatever it costs
     default: die("unknown option \(a)")
     }
 }
@@ -91,7 +95,9 @@ if mirror >= 0 {
 let T = 64, TX = (W + T - 1) / T, TY = (H + T - 1) / T
 var shown = [UInt8](repeating: 0, count: W * H * 4)
 var first = true
-struct Run { let x: Int, y: Int, w: Int, h: Int; var payload = [UInt8](); var codec: UInt8 = 0 }
+struct Run { let x: Int, y: Int, w: Int, h: Int; var rough = false; var payload = [UInt8](); var codec: UInt8 = 0 }
+var roughAt = [Double](repeating: 0, count: TX * TY)   // when a tile went rough (0: exact on the receiver)
+var last: CVPixelBuffer?                              // the newest capture, to send rough tiles again exact once they rest
 let workers = ProcessInfo.processInfo.activeProcessorCount
 let zctx = (0..<max(workers, 1)).map { _ in ZSTD_createCCtx() }   // one per worker
 
@@ -102,7 +108,8 @@ func encode(_ r: inout Run, _ base: UnsafePointer<UInt8>, _ bpr: Int, _ ctx: Opa
     raw.withUnsafeMutableBufferPointer { o in
         for j in 0..<r.h {
             let p = base + (r.y + j) * bpr + r.x * 4, q = o.baseAddress! + j * stride
-            for i in 0..<r.w { q[i * 3] = p[i * 4]; q[i * 3 + 1] = p[i * 4 + 1]; q[i * 3 + 2] = p[i * 4 + 2] }
+            if r.rough { for i in 0..<r.w { q[i * 3] = p[i * 4] & 0xF8; q[i * 3 + 1] = p[i * 4 + 1] & 0xFC; q[i * 3 + 2] = p[i * 4 + 2] & 0xF8 } }
+            else { for i in 0..<r.w { q[i * 3] = p[i * 4]; q[i * 3 + 1] = p[i * 4 + 1]; q[i * 3 + 2] = p[i * 4 + 2] } }
             if sub { var i = stride - 1; while i >= 3 { q[i] = q[i] &- q[i - 3]; i -= 1 } }
         }
     }
@@ -116,7 +123,7 @@ func encode(_ r: inout Run, _ base: UnsafePointer<UInt8>, _ bpr: Int, _ ctx: Opa
 let q = DispatchQueue(label: "send")
 var rectsSent = 0, rectsAcked = 0, frameEnds = [(Int, Double)]()   // the rect count at each picture's end, and when it went
 var waiting: CVPixelBuffer?
-var stats = (frames: 0, bytes: 0, raw: 0, encode: 0.0, rtt: [Double](), tiles: 0)
+var stats = (frames: 0, bytes: 0, raw: 0, encode: 0.0, rtt: [Double](), tiles: 0, rough: 0)
 func now() -> Double { CFAbsoluteTimeGetCurrent() }
 Thread {
     var m = [UInt8](repeating: 0, count: 16)
@@ -139,35 +146,41 @@ func send(_ pb: CVPixelBuffer) {
     let w = min(W, CVPixelBufferGetWidth(pb)), h = min(H, CVPixelBufferGetHeight(pb)), bpr = CVPixelBufferGetBytesPerRow(pb)
     let base = UnsafePointer(CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self))
     let t0 = now()
-    // the changed tiles, joined along each row of tiles
-    var runs = [Run]()
+    // each tile: 0 as the receiver has it, 1 changed, 2 rough there and rested (sent again exact)
+    var state = [UInt8](repeating: 0, count: TX * TY), changedPx = 0
     shown.withUnsafeMutableBufferPointer { s in
-        for ty in 0..<TY {
-            var start = -1
-            for tx in 0...TX {
-                var changed = false
-                if tx < TX {
-                    let x0 = tx * T, y0 = ty * T, tw = min(T, w - x0), th = min(T, h - y0)
-                    if tw > 0 && th > 0 {
-                        changed = first
-                        for y in y0..<(y0 + th) where !changed { changed = memcmp(base + y * bpr + x0 * 4, s.baseAddress! + (y * W + x0) * 4, tw * 4) != 0 }
-                        if changed { for y in y0..<(y0 + th) { memcpy(s.baseAddress! + (y * W + x0) * 4, base + y * bpr + x0 * 4, tw * 4) } }
-                    }
-                }
-                if changed && start < 0 { start = tx }
-                if !changed && start >= 0 {
-                    let x0 = start * T, y0 = ty * T
-                    runs.append(Run(x: x0, y: y0, w: min(tx * T, w) - x0, h: min(T, h - y0))); start = -1
-                }
-            }
-        }
+        for ty in 0..<TY { for tx in 0..<TX {
+            let x0 = tx * T, y0 = ty * T, tw = min(T, w - x0), th = min(T, h - y0)
+            guard tw > 0 && th > 0 else { continue }
+            var changed = first
+            for y in y0..<(y0 + th) where !changed { changed = memcmp(base + y * bpr + x0 * 4, s.baseAddress! + (y * W + x0) * 4, tw * 4) != 0 }
+            if changed { for y in y0..<(y0 + th) { memcpy(s.baseAddress! + (y * W + x0) * 4, base + y * bpr + x0 * 4, tw * 4) }; state[ty * TX + tx] = 1; changedPx += tw * th }
+            else if roughAt[ty * TX + tx] > 0 && t0 - roughAt[ty * TX + tx] > 0.3 { state[ty * TX + tx] = 2 }
+        } }
     }
     first = false
+    // rough: a sixth of the screen or more moved, or the last picture is not in yet
+    let rough = !exact && changedPx > 0 && (changedPx * 6 >= W * H || !frameEnds.isEmpty)
+    var runs = [Run]()
+    for ty in 0..<TY {
+        var start = -1, kind: UInt8 = 0
+        for tx in 0...TX {
+            let k = tx < TX ? state[ty * TX + tx] : 0
+            if k != kind && start >= 0 {
+                let x0 = start * T, y0 = ty * T
+                runs.append(Run(x: x0, y: y0, w: min(tx * T, w) - x0, h: min(T, h - y0), rough: kind == 1 && rough)); start = -1
+            }
+            if k != 0 && start < 0 { start = tx }
+            kind = k
+            if tx < TX && k != 0 { roughAt[ty * TX + tx] = k == 1 && rough ? t0 : 0 }
+        }
+    }
     if runs.isEmpty { return }
+    if rough { stats.rough += 1 }
     // a long run is cut so every core gets work (a whole changed screen is TY runs)
     var cut = [Run]()
     let piece = max(T, (runs.reduce(0) { $0 + $1.w * $1.h } / max(workers * 2, 1) / T + T - 1) / T * T)
-    for r in runs { var x = r.x; while x < r.x + r.w { let pw = min(piece, r.x + r.w - x); cut.append(Run(x: x, y: r.y, w: pw, h: r.h)); x += pw } }
+    for r in runs { var x = r.x; while x < r.x + r.w { let pw = min(piece, r.x + r.w - x); cut.append(Run(x: x, y: r.y, w: pw, h: r.h, rough: r.rough)); x += pw } }
     let lockedBase = base
     cut.withUnsafeMutableBufferPointer { b in
         let n = b.count, k = min(n, zctx.count)   // worker j encodes runs j, j + k, j + 2k... with its own context
@@ -188,7 +201,7 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
         guard type == .screen, let pb = sb.imageBuffer,
               let info = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let raw = info.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete else { return }
-        q.async { waiting = pb; pump() }
+        q.async { waiting = pb; last = pb; pump() }
     }
     func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
 }
@@ -219,12 +232,16 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
         let f = stats.frames, r = stats.rtt.sorted()
         if f > 0 {
-            print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
+            print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),
-                         stats.encode / Double(f), r.isEmpty ? 0 : r[r.count / 2], r.last ?? 0))
+                         stats.rough * 100 / f, stats.encode / Double(f), r.isEmpty ? 0 : r[r.count / 2], r.last ?? 0))
         }
-        stats = (0, 0, 0, 0, [], 0)
+        stats = (0, 0, 0, 0, [], 0, 0)
     }
+}
+// rough tiles that rested go again exact, even when nothing new comes from the capture
+Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+    q.async { if waiting == nil, let pb = last, frameEnds.isEmpty, roughAt.contains(where: { $0 > 0 && now() - $0 > 0.3 }) { send(pb) } }
 }
 if seconds > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { exit(0) } }
 signal(SIGINT) { _ in exit(0) }
