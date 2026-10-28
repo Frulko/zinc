@@ -1,7 +1,7 @@
 #!/bin/sh
 # The Mac half of Sidecar: app/sidecar/mac/build.sh [out] (default app/sidecar/mac/build/sidecar, the engine as a command) and
 # build/Sidecar.app beside it: the menu bar app (tray.swift) with the engine and the cursors inside; build/sidecar-screen, the engine for a
-# colour screen with a network (screen.swift, app/sidecar-screen). Needs the Xcode command-line tools.
+# colour screen with a network (screen.swift, app/sidecar-screen); build/sidecar-receiver, a Mac as that screen (receiver.swift). Needs the Xcode command-line tools.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out=${1:-$here/build/sidecar}
@@ -18,6 +18,7 @@ codecs="-Xcc -I$root/third_party/zstd -Xcc -I$root/third_party/lz4 -Xcc -I$here 
 swiftc -O $codecs "$here/main.swift" "$here/tune.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -o "$out"
 mkdir -p "$obj/screen" && ln -sf "$here/screen.swift" "$obj/screen/main.swift"   # with other files, top-level code needs the name main.swift
 swiftc -O $codecs "$obj/screen/main.swift" "$here/h264.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -framework VideoToolbox -o "$dir/sidecar-screen"
+swiftc -O $codecs "$here/receiver.swift" "$obj"/*.o -framework VideoToolbox -framework CoreMedia -framework IOSurface -o "$dir/sidecar-receiver"
 app=$dir/Sidecar.app/Contents
 rm -rf "$dir/Sidecar.app"
 mkdir -p "$app/MacOS" "$app/Resources"
