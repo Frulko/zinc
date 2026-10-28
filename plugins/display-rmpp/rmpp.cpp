@@ -235,8 +235,9 @@ void l2_stream_input() {
   static float px = -1, py = -1;
   const bool now = (p.flags & HAL_PEN_DOWN) != 0;
   const int pressure = (int)(p.pressure * 4096);
-  if (now != down) stream::input(now ? 0x20 : 0x21, 0, (int)p.x, (int)p.y, pressure);
-  else if (now && (p.x != px || p.y != py)) stream::input(0x22, 0, (int)p.x, (int)p.y, pressure);
+  const int tilt = ((int)p.tilt_x & 0xff) | ((int)p.tilt_y & 0xff) << 8;   // a graphics tablet's tilt (the Mac's pen mode)
+  if (now != down) stream::input(now ? 0x20 : 0x21, tilt, (int)p.x, (int)p.y, pressure);
+  else if (p.x != px || p.y != py) { if (now) stream::input(0x22, tilt, (int)p.x, (int)p.y, pressure); else if (p.flags) stream::input(0x23, tilt, (int)p.x, (int)p.y, 0); }
   down = now; px = p.x; py = p.y;
 }
 void l2_stream_present() {
