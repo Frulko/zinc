@@ -303,9 +303,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-834: on failure the lane repaints the item but requests no full refresh; needs AppLoad's full-refresh function or the vendor full-update flag value.
 - ZN-839: measure zinc-canvas on the Paper Pro, OS 3.29 (camera pen-to-glass vs xochitl, the colour settle, whether our Pen ScreenModeItem wins over AppLoad's UI one) and log the numbers in zinc-next-perf.md.
 - ZN-839: if the canvas item's first transparent full paint refreshes the screen on the tablet, create the item at the first StrokeBegin instead of at Hello.
+- ZN-839: on 2026-10-28 (OS 3.29) zinc-canvas loaded cleanly, no app said Hello, yet ~20 min later AppLoad windows stopped reaching the panel (Hub launched and repainted, LCDIF count frozen); removing it and one xochitl restart fixed it. Unproven cause (one sample; only the socket server and documents() ran): retry with documents() off before anything else, and keep it off the tablet until then.
 - ZN-839: the zinc-ink lane has no 3.29 row (libqsgepaper 07aa9327..., abi 328); retire the lane if the canvas proves enough.
 - ZN-839: reopen uses "last opened" for "open now"; check on 3.29 that a lease started from the home screen does not reopen a document unexpectedly.
-- ZN-839: xochitl's helper processes (same binary, same LD_PRELOAD) log "[zinc-canvas] refused: xochitl died while the canvas was armed" at every start (seen on 3.29): load the canvas only in the main xochitl, or check the armed mark's pid is gone.
 - ZN-839: on the tablet the canvas was worse than plain qtfb ufast (UI mode at 8 Hz, a UI-waveform repaint at every pen-up: flashes everywhere). Keep qtfb in ufast while the canvas inks, and settle with Pen/Mono instead of UI, then measure again; else retire the canvas and make ink: native mean qtfb ufast.
 - ZN-842: a per-server body-size option in zinc:net; 64 MiB times 32 connections is the memory ceiling on a Pi or a reMarkable.
 - ZN-842: run the hub on --engine quickjs (byte-for-byte strings not proven there).
