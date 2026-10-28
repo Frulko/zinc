@@ -351,6 +351,10 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (name(to) == "PromiseV" && name(from) == "Promise<void>") {   // ponytail: Promise<void> is its own class (PromiseV); a generic one made with T = void is not it yet
+      diag(kZNotAssignable, node, "a Promise<T> made by generic code with T = void is not yet a Promise<void>: give that call its own function that returns Promise<void>");
+      return false;
+    }
     diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}});
     return false;
   }

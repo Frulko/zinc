@@ -1246,7 +1246,14 @@ bool isWebFile(const std::string& path) {
 bool nativeProvided(const std::string& name, std::string& err) {
   if (name.empty()) return false;
   if (zn_native_has_module(name.c_str())) return true;
-  return gNativeProvider && gNativeProvider(name, err);
+  // a build that failed fails the same way: asked again at each use, it rebuilt the plugin (and fetched the index) each time.
+  // ponytail: remembered for the process; a long-lived compiler that must retry a fixed plugin would clear it per compile
+  static std::map<std::string, std::string> failed;
+  auto f = failed.find(name);
+  if (f != failed.end()) { err = f->second; return false; }
+  if (gNativeProvider && gNativeProvider(name, err)) return true;
+  failed[name] = err;
+  return false;
 }
 std::string requireNativeName(const std::string& text) {  // the 'Name' of requireNative<Spec>('Name'), or ""
   std::size_t at = text.find("requireNative<");
@@ -1671,6 +1678,10 @@ struct Loader {
         if (!isSim && haveSpec && mode == "auto" && gNativeLive && !requireNativeName(specText0).empty() && gNativeLive(requireNativeName(specText0)) && nativeProvided(requireNativeName(specText0), whyNot)) break;   // a live plugin: real code, not its deterministic stand-in
         if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
         if (done.count(simPath)) return done[simPath];
+        if (prog.files[fromFile].path == simPath) {   // the stand-in imports its own spec, which is itself: it recursed until the stack ran out
+          diag(kZUnsupported, fromFile, node, "a stand-in cannot import its own spec ('" + spec + "'): declare the records it uses in it");
+          return kNone;
+        }
         if (read(simPath, text)) {
           std::string specText;
           if (read(base + ".ts", specText)) specOf[simPath] = std::move(specText);  // the Spec the sim implements: the calls are checked against it

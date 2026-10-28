@@ -601,6 +601,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       std::string cflagsC = (isC ? cc + " -O2 -fPIC -w" : cxx + " " + flags) + " -g0";
       if (isC) for (const std::string& f : ts.flags) if (f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);   // ZN-583.01: Box2D's include/ and -ffp-contract=off
       for (const std::string& f : ts.vendorFlags) if (!isC || f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);
+      if (isC) for (const std::string& c : cflags) cflagsC += " " + c;   // the system libraries' headers (pkg-config): zinc:ipod's libgpod includes glib.h
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);
       if (!run(cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, std::string(isC ? "the C compiler on " : "the C++ compiler on ") + s)) return false;
       objs += " " + q(o);

@@ -78,7 +78,7 @@ bool parseType(const char*& p, bool result, std::string& why) {
     ++p;
     return true;
   }
-  if (c == 'P' && result) { ++p; return parseType(p, false, why) ; }
+  if (c == 'P' && result) { ++p; if (*p == 'n') { ++p; return true; } return parseType(p, false, why); }   // Promise<void> is Pn
   if (c == 'n' && result) { ++p; return true; }
   if (paramLetter(c)) { ++p; return true; }
   why = std::string("unknown letter '") + c + "'";
