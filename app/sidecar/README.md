@@ -14,6 +14,7 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   needs the black; only the strokes flash, not the tile). A third of the screen at once, or four screens of cleaning, is a full refresh.
   macOS draws the pointer into the capture; its trail is cleaned 300 ms after it stops (`--cursor` draws our own instead).
   The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
+  The tablet says which way up it is held (its accelerometer): the virtual display turns to portrait or landscape to match.
   A session starts and ends with a full refresh, and two fingers on the tablet ask for one at any time (they do not reach the Mac).
   macOS asks once for the Screen Recording permission, and Accessibility for the touches.
 
@@ -26,6 +27,7 @@ mac/build/sidecar --threshold      # a plain threshold instead of the ordered di
 mac/build/sidecar --idle 1000      # ms without change before the clean pass (0: never)
 mac/build/sidecar --levels 90,185 --gamma 1.6   # the e-ink tone curve: luma under 90 black, over 185 white, the middle darkened
 mac/build/sidecar --edges 10       # the edge pass's strength (0: off)
+mac/build/sidecar --rotate 90      # start turned (90 the tablet's top on the left, 180, 270), until the tablet says otherwise
 mac/build/sidecar --cursor 32      # draw our own pointer, this many tablet pixels tall, instead of macOS's
 mac/build/sidecar --clean-mode 3   # the clean pass's waveform: 3 xochitl's page one, 4 UI
 ```

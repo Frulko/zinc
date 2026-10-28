@@ -1,7 +1,7 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--clean-mode 3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--clean-mode 3|4] [--seconds N]
 import Foundation
 import Accelerate
 import ScreenCaptureKit
@@ -9,7 +9,7 @@ import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 0, cleanMode = 3, levels = (90, 185), gamma = 1.6, edges = 10
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 0, cleanMode = 3, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -19,13 +19,14 @@ while let a = argv.popFirst() {
     case "--mirror": mirror = Int(argv.popFirst()!)!
     case "--threshold": threshold = true
     case "--cursor": cursorPx = max(19, Int(argv.popFirst()!)!)   // draw the pointer here, this many tablet pixels tall (default: macOS draws it in the capture)
+    case "--rotate": rotate = Int(argv.popFirst()!)!; if ![90, 180, 270].contains(rotate) { rotate = 0 }   // until the tablet says: 90 its top on the left, 270 on the right
     case "--edges": edges = Int(argv.popFirst()!)!   // how hard a pixel darker than its neighbours is pushed to black (0: off)
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--gamma": gamma = Double(argv.popFirst()!)!
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -46,6 +47,7 @@ var line = [UInt8]()
 while true { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.append(c) }
 let hello = String(decoding: line, as: UTF8.self).split(separator: " ")
 let W = Int(hello[1])!, H = Int(hello[2])!
+var (FW, FH) = rotate == 90 || rotate == 270 ? (H, W) : (W, H)   // the panel as the Mac sees it: sideways when the tablet is
 print("tablet: \(hello[3...].joined(separator: " ")) \(W)x\(H)")
 func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -> [UInt8] {
     var b = [UInt8](repeating: 0, count: 16); b[0] = type; b[1] = 1
@@ -54,14 +56,14 @@ func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -
     return b
 }
 writeFull(header(2, 0, 0, 0, 0, 0), 16)   // UFAST (mode 0)
-if points.0 == 0 { points = native ? (W, H) : (W / 2, H / 2) }   // Retina by default: the tablet's pixels at twice the points
+if points.0 == 0 { points = native ? (FW, FH) : (FW / 2, FH / 2) }   // Retina by default: the tablet's pixels at twice the points
 
 // --- the tablet's messages: answers to RECTs, and its touches and Marker, played on the Mac as the mouse
 let acks = DispatchSemaphore(value: 0)
 var touchId = -1
 func play(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
-    let b = CGDisplayBounds(target), r = region
-    let at = CGPoint(x: b.minX + Double(x - r.ox) * b.width / Double(r.fw), y: b.minY + Double(y - r.oy) * b.height / Double(r.fh))
+    let b = CGDisplayBounds(target), r = region, f = toFrame(x, y)
+    let at = CGPoint(x: b.minX + Double(f.0) * b.width / Double(r.fw), y: b.minY + Double(f.1) * b.height / Double(r.fh))
     let pen = type >= 0x20, kind = type & 0x0f, who = pen ? -2 : id
     var t: CGEventType
     switch kind {
@@ -80,6 +82,7 @@ Thread {
         readFull(&m, 16)
         let i = { (o: Int) -> Int in Int(Int32(bitPattern: UInt32(m[o]) | UInt32(m[o + 1]) << 8 | UInt32(m[o + 2]) << 16 | UInt32(m[o + 3]) << 24)) }
         if m[0] == 1 { acks.signal() }
+        else if m[0] == 3 { lock.lock(); pendingTurn = i(4); lock.unlock(); ready.signal() }   // the tablet turned
         else if m[0] == 2 { let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = i(4), y = i(8), p = i(12); DispatchQueue.main.async { play(t, id, x, y, p) } }
     }
 }.start()
@@ -88,6 +91,13 @@ if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedVal
 }
 
 // --- the display
+/** The virtual display's one mode, the asked one: given several, macOS picks its own and refuses CGDisplaySetDisplayMode on the others
+ *  (error 1001). HiDPI: the mode is in points, drawn at twice that (Retina); without it, one point is one pixel. */
+func applyMode() {
+    let s = CGVirtualDisplaySettings(); s.hiDPI = native ? 0 : 1
+    s.modes = [CGVirtualDisplayMode(width: UInt(points.0), height: UInt(points.1), refreshRate: 60)]
+    if virtualDisplay?.apply(s) == false { die("the virtual display refused its mode") }
+}
 var virtualDisplay: CGVirtualDisplay?   // kept alive: the display goes away with the object
 var target: CGDirectDisplayID
 if mirror >= 0 {
@@ -100,19 +110,15 @@ if mirror >= 0 {
     d.queue = DispatchQueue.main
     d.name = "reMarkable Paper Pro"
     let room = native ? 1 : 2   // 1:1 gets no room for a larger mode: macOS would pick a scaled one
-    d.maxPixelsWide = UInt32(points.0 * room); d.maxPixelsHigh = UInt32(points.1 * room)
+    d.maxPixelsWide = UInt32(max(points.0, points.1) * room); d.maxPixelsHigh = d.maxPixelsWide   // either way up: the tablet turns
     // the panel is 229 ppi; macOS picks its default mode from the density, so 1:1 claims a desktop screen's (110 ppi) to keep its pixels
     let ppi = native ? 110.0 : 229.0
-    d.sizeInMillimeters = CGSize(width: Double(W) / ppi * 25.4, height: Double(H) / ppi * 25.4)
+    d.sizeInMillimeters = CGSize(width: Double(FW) / ppi * 25.4, height: Double(FH) / ppi * 25.4)
     d.vendorID = 0x524D; d.productID = 0x5050; d.serialNum = 1   // macOS 14 needs a non-zero vendor and a serial
     d.terminationHandler = { _, _ in }
     guard let vd = CGVirtualDisplay(descriptor: d) else { die("no virtual display (macOS refused it)") }
-    // one mode, the asked one: given several, macOS picks its own and refuses CGDisplaySetDisplayMode on the others (error 1001).
-    // HiDPI: the mode is in points, drawn at twice that (Retina); without it, one point is one pixel.
-    let s = CGVirtualDisplaySettings(); s.hiDPI = native ? 0 : 1
-    s.modes = [CGVirtualDisplayMode(width: UInt(points.0), height: UInt(points.1), refreshRate: 60)]
-    if !vd.apply(s) { die("the virtual display refused its mode") }
     virtualDisplay = vd; target = vd.displayID
+    applyMode()
     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
         if let m = CGDisplayCopyDisplayMode(target) { print("display \(target): \(m.width)x\(m.height) points, \(m.pixelWidth)x\(m.pixelHeight) pixels") }
     }
@@ -139,10 +145,12 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
             var mo = vImage_Buffer(data: m.baseAddress!, height: vImagePixelCount(bh), width: vImagePixelCount(bw), rowBytes: bw)
             vImageMax_Planar8(&si, &mo, nil, vImagePixelCount(b.0), vImagePixelCount(b.1), 5, 5, vImage_Flags(kvImageEdgeExtend))
         }
+        let step = rotate == 90 ? W : rotate == 270 ? -W : rotate == 180 ? -1 : 1   // the next frame pixel of a row, on the panel
         for y in 0..<bh {
-            let s = src + (b.1 + y) * bpr + b.0, d = g.baseAddress! + (b.1 + y + region.oy) * W + region.ox + b.0, mx = m.baseAddress! + y * bw
-            if edges == 0 { for x in 0..<bw { d[x] = t[Int(s[x])] }; continue }
-            for x in 0..<bw { let v = Int(s[x]); d[x] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - 4) * edges)) }
+            let (px, py) = toPanel(b.0, b.1 + y)
+            let s = src + (b.1 + y) * bpr + b.0, d = g.baseAddress! + py * W + px, mx = m.baseAddress! + y * bw
+            if edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
+            for x in 0..<bw { let v = Int(s[x]); d[x * step] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - 4) * edges)) }
         }
     } } }
 }
@@ -157,6 +165,7 @@ var prev = [UInt8](repeating: 0, count: stride * H)  // what the tablet shows, 1
 var firstFrame = true, firstFull = true
 var cur = prev
 let lock = NSLock(), ready = DispatchSemaphore(value: 0)
+var pendingTurn = -1   // the way up the tablet last sent, until the sender takes it
 var latest: CVPixelBuffer?, frameDirty = CGRect.null   // the newest frame, and what changed since the last one taken (frame pixels)
 let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
                       3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
@@ -253,7 +262,26 @@ func clean(_ mask: inout [Bool]) {
 // new boxes are dithered and compared again
 let arrow: [(Double, Double)] = [(0, 0), (0, 16), (4, 12.3), (7, 19), (9.2, 18), (6.3, 11.3), (11.5, 11.3)]   // 19 units tall, tip at (0, 0)
 var pointer: (x: Int, y: Int)? = nil   // in the tablet's pixels, nil off the display
-var region = (ox: 0, oy: 0, fw: W, fh: H)   // where the captured frame lands on the tablet
+var region = (ox: 0, oy: 0, fw: FW, fh: FH)   // where the captured frame lands on the tablet, and its size
+/** A pixel of the captured frame -> the panel's, turned by --rotate. */
+func toPanel(_ fx: Int, _ fy: Int) -> (Int, Int) {
+    let r = region
+    switch rotate {
+    case 90: return (r.ox + r.fh - 1 - fy, r.oy + fx)
+    case 180: return (r.ox + r.fw - 1 - fx, r.oy + r.fh - 1 - fy)
+    case 270: return (r.ox + fy, r.oy + r.fw - 1 - fx)
+    default: return (r.ox + fx, r.oy + fy)
+    }
+}
+func toFrame(_ px: Int, _ py: Int) -> (Int, Int) {
+    let r = region, x = px - r.ox, y = py - r.oy
+    switch rotate { case 90: return (y, r.fh - 1 - x); case 180: return (r.fw - 1 - x, r.fh - 1 - y); case 270: return (r.fw - 1 - y, x); default: return (x, y) }
+}
+/** A box (x0, y0, x1, y1) through one of them. */
+func mapBox(_ b: (Int, Int, Int, Int), _ f: (Int, Int) -> (Int, Int)) -> (Int, Int, Int, Int) {
+    let a = f(b.0, b.1), c = f(b.2 - 1, b.3 - 1)
+    return (min(a.0, c.0), min(a.1, c.1), max(a.0, c.0) + 1, max(a.1, c.1) + 1)
+}
 func inside(_ px: Double, _ py: Double) -> Bool {
     var c = false
     for i in 0..<arrow.count {
@@ -278,7 +306,7 @@ let pointerMask: (w: Int, h: Int, m: [UInt8]) = {
     return (w, h, out)
 }()
 func pointerBox(_ p: (x: Int, y: Int)) -> (Int, Int, Int, Int) {
-    if cursorPx == 0 { return (max(0, p.x - 8), max(0, p.y - 8), min(W, p.x + 56), min(H, p.y + 72)) }   // macOS's arrow and its shadow, Retina
+    if cursorPx == 0 { return (max(0, p.x - 72), max(0, p.y - 72), min(W, p.x + 72), min(H, p.y + 72)) }   // macOS's arrow and its shadow, Retina, any way up
     return (max(0, p.x - edge), max(0, p.y - edge), min(W, p.x - edge + pointerMask.w), min(H, p.y - edge + pointerMask.h))
 }
 func drawPointer(_ p: (x: Int, y: Int)) {
@@ -290,7 +318,7 @@ func pointerNow() -> (x: Int, y: Int)? {
     guard let loc = CGEvent(source: nil)?.location else { return nil }
     let b = CGDisplayBounds(target)
     guard b.contains(loc) else { return nil }
-    return (region.ox + Int((loc.x - b.minX) * Double(region.fw) / b.width), region.oy + Int((loc.y - b.minY) * Double(region.fh) / b.height))
+    return toPanel(Int((loc.x - b.minX) * Double(region.fw) / b.width), Int((loc.y - b.minY) * Double(region.fh) / b.height))
 }
 var pointerMoved = false
 let pointerTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
@@ -302,6 +330,11 @@ pointerTimer.setEventHandler {
 }
 pointerTimer.resume()
 
+var cursorArea = CGRect.null   // frame pixels: where macOS's pointer has been since the last frame taken
+func addCursor(_ p: (x: Int, y: Int)) {
+    let b = mapBox(pointerBox(p), toFrame)
+    cursorArea = cursorArea.union(CGRect(x: b.0, y: b.1, width: b.2 - b.0, height: b.3 - b.1))
+}
 Thread {
     var drawn: (x: Int, y: Int)? = nil   // where the pointer is drawn in shown
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
@@ -314,6 +347,14 @@ Thread {
             for i in 0..<rested.count where rested[i] || trailTiles[i] { rested[i] = true; fastTiles[i] = false; trailTiles[i] = false }
             clean(&rested)
         } else if any(trailTiles) && tn - lastMove >= 300 { clean(&trailTiles) }
+        lock.lock(); let to = pendingTurn; pendingTurn = -1; lock.unlock()
+        if to >= 0 && to != rotate {   // the tablet turned: the display and the capture take its shape, then a whole first frame
+            let side = (to == 90 || to == 270) != (rotate == 90 || rotate == 270)
+            rotate = to; firstFrame = true; firstFull = true; cursorArea = .null
+            if side { (FW, FH) = (FH, FW); if mirror < 0 { points = (points.1, points.0) } }
+            print("the tablet turned: \(to)")
+            if side { DispatchQueue.main.async { applyMode(); reconfigure() } }
+        }
         lock.lock(); let pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; let moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
         if pb == nil && !moved { continue }
         let t0 = now()
@@ -321,17 +362,22 @@ Thread {
         func grow(_ b: (Int, Int, Int, Int)) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)) }
         if let pb {   // a new frame: what changed in it (all of it when its place moved), through the shader into grey and shown
             CVPixelBufferLockBaseAddress(pb, .readOnly)
-            let fw = min(CVPixelBufferGetWidthOfPlane(pb, 0), W), fh = min(CVPixelBufferGetHeightOfPlane(pb, 0), H), bpr = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
-            let reg = ((W - fw) / 2 / 8 * 8, (H - fh) / 2, fw, fh)
+            if CVPixelBufferGetWidthOfPlane(pb, 0) != captureSize().0 || CVPixelBufferGetHeightOfPlane(pb, 0) != captureSize().1 { continue }   // before a turn
+            let fw = min(CVPixelBufferGetWidthOfPlane(pb, 0), FW), fh = min(CVPixelBufferGetHeightOfPlane(pb, 0), FH), bpr = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
+            let (pw, ph) = rotate == 90 || rotate == 270 ? (fh, fw) : (fw, fh)
+            let reg = ((W - pw) / 2 / 8 * 8, (H - ph) / 2, fw, fh)
             var d = (0, 0, fw, fh)
-            if !firstFrame && reg == (region.ox, region.oy, region.fw, region.fh) && !fd.isNull && !fd.isInfinite {   // 2 pixels more: the edges reach that far
-                d = (max(0, Int(fd.minX) - 2), max(0, Int(fd.minY) - 2), min(fw, Int(fd.maxX.rounded(.up)) + 2), min(fh, Int(fd.maxY.rounded(.up)) + 2))
+            if !firstFrame && reg == (region.ox, region.oy, region.fw, region.fh) && !fd.isNull && !fd.isInfinite {
+                // macOS's pointer is in the frame but not in its dirty rects: where it was and is goes again
+                let c = cursorArea.isNull ? fd : fd.union(cursorArea)
+                d = (max(0, Int(c.minX) - 2), max(0, Int(c.minY) - 2), min(fw, Int(c.maxX.rounded(.up)) + 2), min(fh, Int(c.maxY.rounded(.up)) + 2))   // 2 more: the edges reach that far
             }
             region = (reg.0, reg.1, reg.2, reg.3)
+            cursorArea = .null; if cursorPx == 0, let p { addCursor(p) }   // the frame may be older than the pointer: its place goes again next time
             let src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
             if d.2 > d.0 && d.3 > d.1 {
                 shade(src, bpr, fw, fh, d)
-                let b = (d.0 + region.ox, d.1 + region.oy, d.2 + region.ox, d.3 + region.oy)
+                let b = mapBox(d, toPanel)
                 for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
                 grow(b)
             }
@@ -342,6 +388,7 @@ Thread {
             for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
             grow(b)
         }
+        if cursorPx == 0 && moved { if let d = drawn { addCursor(d) }; if let p { addCursor(p) } }
         if let d = drawn, d.x != p?.x || d.y != p?.y {   // where it was: its trail
             let b = pointerBox(d)
             for ty in (b.1 / TH)..<min(tilesY, (b.3 + TH - 1) / TH) { for tx in (b.0 / TW)..<min(tilesX, (b.2 + TW - 1) / TW) { trailTiles[ty * tilesX + tx] = true } }
@@ -396,21 +443,31 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
 }
 let out = Out()
-var stream: SCStream?
+var stream: SCStream?, captured: SCDisplay?
+/** The capture's size: the panel's pixels (as the Mac sees it), the display's aspect kept (a mirrored display gets white bands). */
+func captureSize() -> (Int, Int) {
+    let (w, h) = mirror >= 0 ? (captured?.width ?? FW, captured?.height ?? FH) : points
+    let k = min(Double(FW) / Double(w), Double(FH) / Double(h))
+    return (Int(Double(w) * k), Int(Double(h) * k))
+}
+func config() -> SCStreamConfiguration {
+    let c = SCStreamConfiguration()
+    (c.width, c.height) = captureSize()
+    c.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange   // plane 0 is the luma: grey with no conversion
+    c.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+    c.queueDepth = 3
+    c.showsCursor = cursorPx == 0   // macOS's own pointer, or ours (--cursor)
+    return c
+}
+func reconfigure() { stream?.updateConfiguration(config()) { e in if let e { print("sidecar: capture: \(e.localizedDescription)") } } }
 func startCapture(_ tries: Int) {
     SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, err in
         guard let display = content?.displays.first(where: { $0.displayID == target }) else {
             if tries > 20 { die("display not shareable: \(err?.localizedDescription ?? "not found") (Screen Recording permission?)") }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { startCapture(tries + 1) }; return
         }
-        let c = SCStreamConfiguration()
-        // the panel's pixels, the display's aspect kept (a mirrored display gets white bands)
-        let k = min(Double(W) / Double(display.width), Double(H) / Double(display.height))
-        c.width = Int(Double(display.width) * k); c.height = Int(Double(display.height) * k)
-        c.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange   // plane 0 is the luma: grey with no conversion
-        c.minimumFrameInterval = CMTime(value: 1, timescale: 60)
-        c.queueDepth = 3
-        c.showsCursor = cursorPx == 0   // macOS's own pointer, or ours (--cursor)
+        captured = display
+        let c = config()
         let s = SCStream(filter: SCContentFilter(display: display, excludingWindows: []), configuration: c, delegate: out)
         do { try s.addStreamOutput(out, type: .screen, sampleHandlerQueue: DispatchQueue(label: "capture")) } catch { die("\(error)") }
         s.startCapture { e in if let e { die("capture: \(e.localizedDescription)") }; print("capturing \(c.width)x\(c.height)") }
