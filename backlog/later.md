@@ -351,6 +351,7 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:3d: render3d.sim.ts has no sectors and no slots.
 - zinc:3d: World.select keeps interpreted overhead around it (mat4LookAt) on the consoles.
 - zinc pack: when zinc.json `app.icon` is itself `icon.png`, the 150 px launcher tile overwrites the project's own file in the .zapp (docs/zapp.md says the file is also packed at its own path); name the tile apart or keep the original, since a program that loads its icon at runtime gets the tile.
+- Sidecar: the stream (stream.h: hello with caps, RECT/COPY/POINTER/SET, the tablet's ACK/INPUT/PROFILE) is not tied to the reMarkable; a receiver for any screen on Wi-Fi or Ethernet (Pi + IT8951 7.8", an old Kindle or Kobo, an ESP32 e-paper, a TouchPad) is a new HAL behind the same serve loop, and the Mac picks depth, size and lz4 from the hello. Write the wire as docs/sidecar-protocol.md first; over Wi-Fi it needs a pairing key and the Mac to find receivers (mDNS). docs/reports/pi-sidecar-receiver-research.md.
 
 ## Demos
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
