@@ -4,10 +4,13 @@
 import { render, createSignal } from 'zinc:ui/solid';
 import { device, env } from 'zinc:sys';
 import { readStatus } from 'zinc:network';
+import { hostname } from 'zinc:os';
 
 const PORT = env('ZINC_SIDECAR_PORT') !== '' ? parseInt(env('ZINC_SIDECAR_PORT')) : 7710;
 const [state, setState] = createSignal<string>('starting');
 const [where, setWhere] = createSignal<string>('');
+// <hostname>.local answers on any link, a cable straight to the Mac too (link-local, image/files/etc/NetworkManager)
+const NAME = hostname() + '.local';
 // the driver listens once its screen is up, after the first frame: asked again each second, given up on after five
 let tries = 0;
 setInterval(() => {
@@ -28,9 +31,9 @@ function App(): i32 {
   return <View className="flex-col grow items-center justify-center gap-8 px-16">
     <Text className="text-[56px] font-bold text-white">{state() === 'failed' ? 'Sidecar cannot start' : 'Waiting for the Mac'}</Text>
     <Text className="text-[30px] text-gray-300 text-center">{state() !== 'failed'
-      ? `On the Mac: sidecar-screen --host ${where() !== '' ? where().split(', ')[0] : '<this screen>'} (port ${PORT}).`
+      ? `In Zinc Sidecar on the Mac: Add a screen, address ${NAME} (port ${PORT}).`
       : `Port ${PORT} is taken, or this screen cannot be shared (see the app's log).`}</Text>
-    <Text className="text-[24px] text-gray-500">{where() !== '' ? `This screen: ${where()}` : 'Looking for this screen\'s address…'}</Text>
+    <Text className="text-[24px] text-gray-500">{where() !== '' ? `Or by its address: ${where()}` : 'Looking for this screen\'s address…'}</Text>
   </View>;
 }
 

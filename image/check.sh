@@ -57,6 +57,7 @@ for u in NetworkManager ssh avahi-daemon systemd-timesyncd; do
   check "$u waits for the first frame" grep -q 'After=zinc-shell.service' "$R/etc/systemd/system/$u.service.d/10-zinc-defer.conf"
 done
 check "Wi-Fi's driver off the boot path" grep -qx 'blacklist brcmfmac' "$R/etc/modprobe.d/zinc-defer.conf"
+check "a direct cable gets a link-local address" grep -qx 'ipv4.link-local=4' "$R/etc/NetworkManager/conf.d/zinc-direct-cable.conf"
 check "Mesa's display drivers" test -e "$R/usr/lib/aarch64-linux-gnu/dri/vc4_dri.so" -o -e "$R/usr/lib/aarch64-linux-gnu/dri/libdril_dri.so"
 check "no toolchain left in the image" test ! -e "$R/var/lib/zinc/.zinc/toolchains"
 check "the runnable player bundle" test -s "$R/usr/lib/zinc/current/player.zapp"
