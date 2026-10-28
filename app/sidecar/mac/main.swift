@@ -108,6 +108,7 @@ func scroll(_ dx: Int, _ dy: Int) {
     if x == 0 && y == 0 { return }
     scrollRest.0 -= Double(x); scrollRest.1 -= Double(y)
     CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: y, wheel2: x, wheel3: 0)?.post(tap: .cghidEventTap)
+    lock.lock(); lastKey = now(); lock.unlock()
 }
 Thread {
     var m = [UInt8](repeating: 0, count: 16)
@@ -821,7 +822,7 @@ struct SettingsView: View {
                 Knob(name: "Clean after rest", value: $p.tune.idle, range: 0...5000, step: 100, unit: " ms")
                 Knob(name: "Clean from (% screen)", value: $p.tune.minClean, range: 0.05...10, step: 0.05)
                 Toggle("Clean in true greys (switches waveforms)", isOn: $p.tune.greys)
-                Knob(name: "Typing pause", value: $p.tune.typing, range: 0...3000, step: 50, unit: " ms")
+                Knob(name: "Typing / scroll pause", value: $p.tune.typing, range: 0...3000, step: 50, unit: " ms")
                 Knob(name: "Screen frames per second", value: $p.tune.framesHz, range: 2...60)
                 Toggle("Keep a blinking caret shown (no blink)", isOn: $p.tune.blink)
                 HStack {
@@ -836,7 +837,8 @@ struct SettingsView: View {
     }
 }
 // the keyboard, wherever it types (Accessibility, as the touches): only when, never which key
-NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { _ in lock.lock(); lastKey = now(); lock.unlock() }
+// a scroll too (the Mac's own, or two fingers on the tablet): nothing cleaned while the page moves, then the moved area once it stops
+NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { _ in lock.lock(); lastKey = now(); lock.unlock() }
 if ui {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
