@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A Mac's side of the sidecar stream, scripted (plugins/display-rmpp/stream.h): send.py <port> waits for the tablet, prints its hello, sends the
-pen's waveform, a 1-bit rectangle, a grey one and a full refresh, prints each answer and the first touch the tablet forwards, then leaves.
+pen's waveform, a 1-bit rectangle, a grey one, an lz4 one, two of one picture (one update), the pointer, a scroll's copy and a full refresh, prints each answer and the first touch the tablet forwards, then leaves.
 send.py <port> notap: no touch to wait for (the ink session has no scripted tap)."""
 import socket, struct, sys, time
 
@@ -11,7 +11,7 @@ for _ in range(300):
 else: sys.exit('send.py: no tablet')
 f = s.makefile('rb')
 print('hello', f.readline().decode().strip())
-msg = lambda t, x=0, y=0, w=0, h=0, depth=1, pl=b'': s.sendall(struct.pack('<BBHHHHHI', t, depth, x, y, w, h, 0, len(pl)) + pl)
+msg = lambda t, x=0, y=0, w=0, h=0, depth=1, pl=b'', lz=0, more=0: s.sendall(struct.pack('<BBHHHHBBI', t, depth, x, y, w, h, lz, more, len(pl)) + pl)
 msg(2, 0)                                        # the pen's waveform
 def answer():
     """The tablet's next message: ('ack', n), ('input', type, id, x, y, pressure), or ('other', kind) (way up, full refresh, room)."""
@@ -24,6 +24,15 @@ msg(1, 96, 200, 64, 16, 1, b'\xff' * (8 * 16))   # a black 64x16 block
 ack()
 msg(1, 0, 0, 10, 2, 8, bytes(range(0, 200, 10)))  # grey levels
 ack()
+msg(1, 200, 300, 16, 8, 1, bytes([0xF0, 1]) + b'\xff' * 16, lz=1)   # 16x8 black, one lz4 block of literals
+ack()
+msg(1, 400, 400, 8, 4, 1, b'\xff' * 4, more=1)   # two halves of one picture: one update 16x4
+msg(1, 408, 400, 8, 4, 1, b'\xff' * 4)
+ack(); ack()
+msg(4, 1, 1, 3, 3, pl=b'\x02' * 9, more=1)        # a black 3x3 pointer, its hot spot in the middle
+msg(5, 600, 600, 1)                              # at 600,600: drawn at 599,599
+msg(6, 200, 300, 16, 8, pl=struct.pack('<hh', 0, 40))   # the lz4 block, scrolled 40 down
+time.sleep(0.3)
 msg(3)                                           # a full refresh
 s.settimeout(20)
 if sys.argv[2:] != ['notap']:

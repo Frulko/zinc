@@ -32,6 +32,10 @@ check waveform "mode FAST" "$t"
 check "1-bit block below the header" "update PARTIAL 96,320 64x16" "$t"
 check "grey levels" "update PARTIAL 0,120 10x2" "$t"
 check "full refresh" "full refresh" "$t"
+check "lz4 block" "update PARTIAL 200,420 16x8" "$t"
+check "one picture, one update" "update PARTIAL 400,520 16x4" "$t"
+check "the pointer, drawn here" "update PARTIAL 599,719 3x3" "$t"
+check "a scroll's copy" "update PARTIAL 200,460 16x8" "$t"
 check "the app's page again" "update PARTIAL 0,120 1620x2040" "$t"
 # the session ends with a full refresh once the app's page is back: no trail of the stream is left on the tablet's screen
 awk '/update PARTIAL 0,120 1620x2040/ { back = 1 } back && /full refresh/ { ok = 1 } END { exit !ok }' "$t" || { echo "sidecar: no full refresh after the app's page came back"; fail=1; }

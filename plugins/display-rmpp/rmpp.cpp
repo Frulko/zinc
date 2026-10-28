@@ -18,6 +18,7 @@
 #include "native.h"
 #include "rm2fb.h"
 #include "stream.h"
+#include "../../third_party/lz4/lz4.c"   // the sidecar stream's codec (lz4 1.10.0, BSD-2): one copy inside this driver
 #include <errno.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -243,6 +244,7 @@ void l2_stream_input() {
 void l2_stream_present() {
   std::vector<eink::Rect> q;
   { std::lock_guard<std::mutex> g(l2_mu); q.swap(l2_rects); }
+  stream::merge(q);   // pictures queued while the engine swapped: fewer, larger swaps
   const int m = stream::mode;
   const bool colour = m >= MODE_CONTENT;   // the Mac's grey waveforms; else the Pen/Mono partial, the fastest the engine has
   for (const eink::Rect& r : q)

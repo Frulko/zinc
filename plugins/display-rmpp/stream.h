@@ -1,11 +1,18 @@
 // The sidecar's stream (app/sidecar): a Mac's screen as rectangles of 1-bit or grey pixels over TCP, written into qtfb's buffer and
 // announced as partial updates from their own thread, without waiting for the app's frame loop: the shortest path qtfb has.
 // rm_present leaves the screen to the stream while a Mac is connected, and draws the app's whole frame again when it leaves.
-// Wire (little-endian). On connect the tablet says "RMPP <w> <h> <model>\n" (h: below xochitl's header when docked); then per message
-//   [u8 type][u8 depth][u16 x][u16 y][u16 w][u16 h][u16 0][u32 len][payload]
-//   1 RECT  depth 1: rows of ceil(w/8) bytes, MSB first, 1 = black; depth 8: grey bytes. Answered by an ACK.
-//   2 MODE  x: qtfb's mode: 0 UFAST (the pen's), 1 FAST (DU), 2 ANIMATE (A2), 3 CONTENT (GC16, xochitl's page), 4 UI (GL16).
-//   3 FULL  one full refresh.
+// Wire (little-endian). On connect the tablet says "RMPP <w> <h> <model> +ptr +lz4 +copy\n" (h: below xochitl's header when docked; the
+// words with a + are what it reads beyond RECT, MODE and FULL); then per message
+//   [u8 type][u8 depth][u16 x][u16 y][u16 w][u16 h][u8 lz4][u8 more][u32 len][payload]
+//   1 RECT    depth 1: rows of ceil(w/8) bytes, MSB first, 1 = black; depth 8: grey bytes; lz4 1: the payload is one lz4 block of them.
+//             Answered by an ACK.
+//   2 MODE    x: qtfb's mode: 0 UFAST (the pen's), 1 FAST (DU), 2 ANIMATE (A2), 3 CONTENT (GC16, xochitl's page), 4 UI (GL16).
+//   3 FULL    one full refresh.
+//   4 CURSOR  the pointer's shape: w x h bytes, 0 none, 1 white, 2 black; (x, y) its hot spot. Drawn here, over the picture.
+//   5 POINTER where the pointer is: (x, y), w 0 hidden. A move is one small update; the Mac sends no picture for it.
+//   6 COPY    the rectangle (x, y, w, h) moves by the payload's [i16 dx][i16 dy] (a scroll): the Mac sends only what is new after it.
+// more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
+// rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
 //   kind 1 ACK    a: the RECT's number, b: microseconds to apply it
 //   kind 2 INPUT  type: AppLoad's (0x10 finger press, 0x11 release, 0x12 move; 0x20..0x22 the Marker), id: the finger,
@@ -41,6 +48,9 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sched.h>
+#include "../../third_party/lz4/lz4.h"
 
 namespace stream {
 inline std::atomic<bool> active{false};   // a Mac is connected: the screen is the stream's
@@ -173,6 +183,21 @@ struct Target {
   const char* model;
 };
 
+struct Box { int x0, y0, x1, y1; };
+inline bool overlaps(const Box& a, const Box& b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }
+/** Rectangles merged while a union costs at most 30% more pixels than its parts: fewer updates queue on the panel. */
+template <class R> inline void merge(std::vector<R>& v) {
+  for (bool again = true; again;) {
+    again = false;
+    for (size_t i = 0; i < v.size() && !again; i++) for (size_t j = i + 1; j < v.size(); j++) {
+      const R a = v[i], b = v[j];
+      const R u = {std::min(a.x0, b.x0), std::min(a.y0, b.y0), std::max(a.x1, b.x1), std::max(a.y1, b.y1)};
+      const long s = (long)(a.x1 - a.x0) * (a.y1 - a.y0) + (long)(b.x1 - b.x0) * (b.y1 - b.y0);
+      if ((long)(u.x1 - u.x0) * (u.y1 - u.y0) * 10 <= s * 13) { v[i] = u; v.erase(v.begin() + j); again = true; break; }
+    }
+  }
+}
+
 inline bool read_full(int fd, void* p, size_t n) {
   for (uint8_t* b = (uint8_t*)p; n;) { ssize_t r = read(fd, b, n); if (r <= 0) return false; b += r; n -= (size_t)r; }
   return true;
@@ -185,7 +210,11 @@ inline void serve(Target t, int ls) {
     memset(lut[b] + i * B, (b >> (7 - i) & 1) ? 0 : 0xFF, 3);
     if (B == 4) lut[b][i * 4 + 3] = 0xFF;
   }
-  std::vector<uint8_t> buf;
+  std::vector<uint8_t> buf, plain;
+  // the stream's thread ahead of the app's (the reMarkable's own services keep their place): a rectangle lands as soon as it comes.
+  // Root only; elsewhere (the simulator) it stays as it is
+  sched_param rt = {}; rt.sched_priority = 1;
+  pthread_setschedparam(pthread_self(), SCHED_FIFO, &rt);
   for (;;) {
     int c = accept(ls, nullptr, nullptr);
     if (c < 0) continue;
@@ -202,7 +231,7 @@ inline void serve(Target t, int ls) {
     setsockopt(c, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof cnt);
     const int top = t.top(), H = t.h - top;
     char hello[128];
-    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s\n", t.w, H, t.model);
+    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy\n", t.w, H, t.model);
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     fingers = 0; two = false; moved = false;
@@ -218,36 +247,121 @@ inline void serve(Target t, int ls) {
     // ponytail: fixed 300 ms, a Mac option if the settle shows up too often or too late
     bool pen = (bool)t.pen, stroke = false;
     auto settle = [&] { if (stroke && !t.pen(2, 0, 0, 1, 1)) pen = false; stroke = false; };
+    // the pointer, drawn here over the picture (CURSOR, POINTER): what it covers is kept to put back when it moves
+    std::vector<uint8_t> shape, under;
+    int sw = 0, sh = 0, hx = 0, hy = 0, px = 0, py = 0;
+    bool visible = false, drawn = false;
+    Box at = {0, 0, 0, 0};
+    auto row = [&](int y) { return t.fb + (size_t)(top + y) * t.stride; };
+    auto hide = [&]() -> Box {
+      if (!drawn) return {0, 0, 0, 0};
+      const size_t n = (size_t)(at.x1 - at.x0) * B;
+      for (int y = at.y0; y < at.y1; y++) memcpy(row(y) + (size_t)at.x0 * B, under.data() + (size_t)(y - at.y0) * n, n);
+      drawn = false;
+      return at;
+    };
+    auto show = [&]() -> Box {
+      if (!visible || !sw) return {0, 0, 0, 0};
+      at = {std::max(0, px - hx), std::max(0, py - hy), std::min(t.w, px - hx + sw), std::min(H, py - hy + sh)};
+      if (at.x1 <= at.x0 || at.y1 <= at.y0) return {0, 0, 0, 0};
+      const size_t n = (size_t)(at.x1 - at.x0) * B;
+      under.resize(n * (at.y1 - at.y0));
+      for (int y = at.y0; y < at.y1; y++) {
+        uint8_t* d = row(y) + (size_t)at.x0 * B;
+        memcpy(under.data() + (size_t)(y - at.y0) * n, d, n);
+        const uint8_t* m = shape.data() + (size_t)(y - py + hy) * sw + (at.x0 - px + hx);
+        for (int x = 0; x < at.x1 - at.x0; x++) if (m[x]) memset(d + (size_t)x * B, m[x] == 2 ? 0 : 0xFF, 3);
+      }
+      drawn = true;
+      return at;
+    };
+    // the panel's updates of one picture, sent at its last message
+    std::vector<Box> due;
+    auto add = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) due.push_back(b); };
+    auto flush = [&] {
+      if (due.empty()) return;
+      merge(due);
+      while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
+      for (const Box& r : due) {
+        const int x = r.x0, y = top + r.y0, w = r.x1 - r.x0, hh = r.y1 - r.y0;
+        if (pen && !stroke) stroke = pen = t.pen(0, 0, 0, 0, 0);
+        if (pen && !(pen = t.pen(1, x, y, w, hh))) stroke = false;
+        if (!pen) t.update(x, y, w, hh);
+      }
+      if (probe && !probe_at) probe_at = now_us() | 1;
+      due.clear();
+    };
     for (;;) {
       pollfd pf = {c, POLLIN, 0};
       if (stroke && poll(&pf, 1, 300) == 0) settle();
       if (!read_full(c, h, sizeof h)) break;
       uint16_t x, y, w, hh; uint32_t len;
       memcpy(&x, h + 2, 2); memcpy(&y, h + 4, 2); memcpy(&w, h + 6, 2); memcpy(&hh, h + 8, 2); memcpy(&len, h + 12, 4);
+      const bool lz = h[10] & 1, more = h[11] & 1;
       if (h[0] == 2) { if (x <= 4) mode = x; continue; }   // qtfb's modes, set by rm_present
       if (h[0] == 3) { full = true; continue; }
-      const size_t stride = h[1] == 1 ? (w + 7u) / 8 : w;
-      if (h[0] != 1 || (h[1] != 1 && h[1] != 8) || x + w > t.w || y + hh > H || len < stride * hh || len > (size_t)t.w * t.h) break;
+      if (h[0] == 4) {   // the pointer's shape
+        if (w > 256 || hh > 256 || len != (size_t)w * hh) break;
+        std::vector<uint8_t> s(len);
+        if (!read_full(c, s.data(), len)) break;
+        if (moved) continue;
+        add(hide());
+        shape.swap(s); sw = w; sh = hh; hx = x; hy = y;
+        add(show());
+        if (!more) flush();
+        continue;
+      }
+      if (h[0] == 5) {   // where it is
+        if (len) break;
+        if (moved) continue;
+        add(hide());
+        visible = w != 0; px = x; py = y;
+        add(show());
+        if (!more) flush();
+        continue;
+      }
+      if (h[0] == 6) {   // a scroll: the picture already here moves, under the pointer
+        int16_t d[2];
+        if (len != sizeof d || !read_full(c, d, sizeof d)) break;
+        const int dx = d[0], dy = d[1];
+        if (x + w > t.w || y + hh > H || x + dx < 0 || y + dy < 0 || x + dx + w > t.w || y + dy + hh > H) break;
+        if (moved) continue;
+        const bool was = drawn;
+        hide();
+        for (int j = 0; j < hh; j++) { const int r = dy > 0 ? hh - 1 - j : j; memmove(row(y + dy + r) + (size_t)(x + dx) * B, row(y + r) + (size_t)x * B, (size_t)w * B); }
+        if (was) show();
+        add({x + dx, y + dy, x + dx + w, y + dy + hh});
+        if (!more) flush();
+        continue;
+      }
+      const size_t stride = h[1] == 1 ? (w + 7u) / 8 : w, raw = stride * hh;
+      if (h[0] != 1 || (h[1] != 1 && h[1] != 8) || x + w > t.w || y + hh > H || (lz ? !len || len > raw + raw / 255 + 16 : len < raw) ||
+          len > (size_t)t.w * t.h) break;
       buf.resize(len);
       if (!read_full(c, buf.data(), len)) break;
       if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
+      const uint8_t* src = buf.data();
+      if (lz) {
+        plain.resize(raw);
+        if (LZ4_decompress_safe((const char*)buf.data(), (char*)plain.data(), (int)len, (int)raw) != (int)raw) break;
+        src = plain.data();
+      }
       const uint32_t t0 = now_us();
+      const Box r = {x, y, x + w, y + hh};
+      const bool under_it = drawn && overlaps(at, r);
+      if (under_it) hide();
       for (int j = 0; j < hh; j++) {
-        uint8_t* d = t.fb + (size_t)(top + y + j) * t.stride + (size_t)x * B;
-        const uint8_t* s = buf.data() + j * stride;
+        uint8_t* d = row(y + j) + (size_t)x * B;
+        const uint8_t* s = src + j * stride;
         if (h[1] == 1) {
           int i = 0;
           for (; i + 8 <= w; i += 8, d += 8 * B) memcpy(d, lut[s[i >> 3]], 8 * B);
           if (i < w) memcpy(d, lut[s[i >> 3]], (size_t)(w - i) * B);
         } else for (int i = 0; i < w; i++, d += B) { d[0] = d[1] = d[2] = s[i]; if (B == 4) d[3] = 0xFF; }
       }
-      while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
-      if (w && hh) {
-        if (pen && !stroke) stroke = pen = t.pen(0, 0, 0, 0, 0);
-        if (pen && !(pen = t.pen(1, x, top + y, w, hh))) stroke = false;
-        if (!pen) t.update(x, top + y, w, hh);
-        if (probe && !probe_at) probe_at = now_us() | 1;
-      }
+      if (under_it) show();
+      add(r);
+      if (!more) flush();
       ++seq;
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
     }

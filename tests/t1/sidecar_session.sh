@@ -33,6 +33,11 @@ check acks "ack 2" "$tmp/mac.log"
 check "1-bit block, black, Pen mode" "swap 96,200 64x16 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
 check "grey levels" "swap 0,0 10x2 mode 0 full 0" "$s"
 check "full refresh" "swap 0,0 1620x2160 mode 4 full 1" "$s"
+check "lz4 block" "swap 200,300 16x8 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
+check "one picture, one update" "swap 400,400 16x4 mode 0" "$s"
+check "the pointer, drawn here" "swap 599,599 3x3 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
+check "a scroll's copy" "swap 200,340 16x8 mode 0 full 0 content 0 thread [0-9a-f]* pixel ff000000" "$s"
+check "what the tablet reads" "+ptr +lz4 +copy" "$tmp/mac.log"
 # the session ends with the app's page, then a full refresh: nothing of the stream is left on the glass
 awk '/1620x2160 mode 0 full 0/ { back = 1 } back && /full 1/ { ok = 1 } END { exit !ok }' "$s" || { echo "sidecar_session: no full refresh after the app's page came back"; fail=1; }
 [ "$(sed 's/.*thread \([0-9a-f]*\).*/\1/' "$s" | sort -u | wc -l | tr -d ' ')" = 1 ] || { echo "sidecar_session: swaps from more than one thread"; fail=1; }
