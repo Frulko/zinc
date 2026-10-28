@@ -33,6 +33,7 @@ if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-scre
 
 // --- the connection: the receiver says "RMPP <w> <h> <model> +caps..."
 var sock: Int32 = -1
+var tried = [String]()   // each address of the screen and whether it answered (the details' Diagnostics)
 /** A connected socket to one of the name's IPv4 addresses, each tried for 0.8 s: a Pi on a USB cable announces both of its links
  *  (usb0, usb1) and only the one the Mac's active NCM function reaches answers, so the first address may never connect. */
 func dial() -> Int32 {
@@ -59,12 +60,15 @@ func dial() -> Int32 {
             var err: Int32 = 0, n = socklen_t(MemoryLayout<Int32>.size)
             ok = poll(&p, 1, 800) == 1 && getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &n) == 0 && err == 0
         }
+        var t = [CChar](repeating: 0, count: 64); var ipv = ip; inet_ntop(AF_INET, &ipv, &t, 64)
+        tried.append(String(cString: t) + (ok ? " answers" : " no answer"))
         if ok { _ = fcntl(s, F_SETFL, flags); return s }
         close(s)
     }
     return -1
 }
 for tries in 0... {
+    tried = []
     sock = dial()
     if sock >= 0 { break }
     if tries == 0 { print("waiting for the screen at \(host):\(port) (open Sidecar Screen on it)") }
@@ -163,6 +167,7 @@ Thread {
         if m[0] == 10 && m[1] < 3 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })),
                                         c = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: Int32.self) })), k = Int(m[1])
                                     q.async { rx[k] = [a, b, c] } }
+        if m[0] == 11 { echoes.signal() }
         if m[0] == 1 { q.async { rectsAcked += 1; more.decodeUs += b
             while let f = frameEnds.first, f.0 <= rectsAcked { stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst() }
             pump() } }
@@ -261,6 +266,40 @@ func startCapture(_ tries: Int) {
 }
 startCapture(0)
 
+// --- the speed test ("speedtest" on stdin, the Details window's button): on the stream's own connection, while no picture goes. Twenty
+// pings (an empty SINK each, answered by ECHO), then SINKs of 256 KB for 3 s; the rate counts until the screen has the last byte
+let echoes = DispatchSemaphore(value: 0)
+var diag: [[String]] = []
+func speedTest() {
+    guard caps.contains("sink") else { diag = [["Diagnostics", "Speed test", "this screen's app is too old: update it"]]; return }
+    print("speedtest: running")
+    var pings = [Double]()
+    for i in 0..<20 {
+        let t = now(); writeFull(header(9, 0, i, 0, 0, 0, 0, false, 0), 16)
+        if echoes.wait(timeout: .now() + 2) == .timedOut { break }
+        pings.append((now() - t) * 1000)
+    }
+    let chunk = [UInt8](repeating: 0x5A, count: 256 * 1024)
+    var sent = 0, n = 0
+    let t0 = now()
+    while now() - t0 < 3 { writeFull(header(9, 0, n, 0, 0, 0, 0, false, chunk.count), 16); writeFull(chunk, chunk.count); sent += chunk.count + 16; n += 1 }
+    var got = 0
+    while got < n && echoes.wait(timeout: .now() + 10) == .success { got += 1 }
+    let secs = now() - t0
+    pings.sort()
+    func ms(_ v: Double) -> String { String(format: "%.1f ms", v) }
+    diag = [
+        ["Diagnostics", "Measured throughput", got == n ? String(format: "%.0f Mbit/s (%.1f MB in %.1f s, to the screen's app)", Double(sent) * 8 / secs / 1e6, Double(sent) / 1e6, secs) : "lost: \(got) of \(n) answers"],
+        ["Diagnostics", "Ping (app to app)", pings.isEmpty ? "no answer" : "\(ms(pings[pings.count / 2])) median, \(ms(pings.first!)) best, \(ms(pings.last!)) worst, \(pings.count) of 20"],
+        ["Diagnostics", "Addresses tried", tried.joined(separator: ", ")],
+        ["Diagnostics", "Tested at", DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)],
+    ]
+    print("speedtest: " + diag.map { $0[2] }.prefix(2).joined(separator: "; "))
+}
+Thread {
+    while let l = readLine() { if l == "speedtest" { q.async { speedTest(); info(2) } } }
+}.start()
+
 // --- the details panel (the tray's "Details"): one line "info" of [section, name, value] every 2 s
 /** The Mac's interface the connection leaves by: its BSD name, what it is (Wi-Fi, Ethernet, USB...) and its rate in bit/s. */
 func link() -> (name: String, kind: String, local: String, bps: Int) {
@@ -345,6 +384,7 @@ func info(_ seconds: Double) {
         ["Session", "Sent", String(format: "%.1f MB in %d frames", Double(total.bytes) / 1e6, total.frames)],
     ]
     if stats.frames == 0 { rows[9][2] = "0 frames/s: nothing moved" }
+    rows += diag.isEmpty ? [["Diagnostics", "Addresses tried", tried.joined(separator: ", ")], ["Diagnostics", "Speed test", "not run yet"]] : diag
     if let d = try? JSONSerialization.data(withJSONObject: rows), let j = String(data: d, encoding: .utf8) { print("info " + j) }
     more = (0, 0, 0, 0)
 }

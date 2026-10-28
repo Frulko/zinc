@@ -18,6 +18,7 @@
 //             pixels before: a pixel still moving ignores a new target and stays half-way, the ghosts and coloured residue), 4 the
 //             profile on (1) or off, 5 holding on (1) or off, 6 the frontlight in permille.
 //   8 QUIT    the tablet's app ends (in an ink session xochitl comes back).
+//   9 SINK    a speed test's len bytes (+sink): read and dropped, answered with ECHO once they are all in. With len 0, a ping.
 // more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
 // rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
@@ -38,6 +39,7 @@
 //                 c the panel's busy time in permille; type 1 a, b, c how long the panel moved after a lone Pen, colour, full update
 //                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.
 //   kind 9 LIGHT  a: the frontlight in permille, at the start and after each SET 6 (none without a frontlight).
+//   kind 11 ECHO  a: the SINK's length, b: x | y << 16 of that SINK (the Mac's tag), as soon as its last byte came.
 //   kind 10 HOST  at the start and at most every 2 s while pictures come, for the Mac's details panel (-1: unknown on this board):
 //                 type 0 a the CPU's temperature in milli-degrees, b how busy all its cores were since the last one (permille), c the
 //                 memory still available (MB); type 1 a the CPU's clock now, b its top (MHz), c the Pi firmware's throttled bits
@@ -317,7 +319,7 @@ inline void serve(Target t, int ls) {
     setsockopt(c, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof cnt);
     const int top = t.top(), H = t.h - top;
     char hello[128];
-    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub%s\n", t.w, H, t.model, t.colour ? " +rgb" : "");
+    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s\n", t.w, H, t.model, t.colour ? " +rgb" : "");
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     fingers = 0; two = false; moved = false;
@@ -401,6 +403,12 @@ inline void serve(Target t, int ls) {
         continue;
       }
       if (h[0] == 8) { quit_asked = true; continue; }
+      if (h[0] == 9) {   // a speed test: the bytes are read in 64 KB pieces and dropped
+        bool in = true;
+        for (uint32_t left = len; left && in;) { const uint32_t n = std::min<uint32_t>(left, 1u << 16); buf.resize(n); in = read_full(c, buf.data(), n); left -= n; }
+        if (!in || !send16(11, 0, 0, (int32_t)len, (int32_t)(x | (uint32_t)y << 16), 0)) break;
+        continue;
+      }
       if (h[0] == 4) {   // the pointer's shape
         if (w > 256 || hh > 256 || len != (size_t)w * hh) break;
         std::vector<uint8_t> s(len);

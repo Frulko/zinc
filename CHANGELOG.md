@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB and microphone uplink are not implemented yet.
 - reMarkable: Sidecar shows a Mac's screen on the tablet over USB, as a second display (Retina, 1:1 or a chosen size) or a mirror, in fast black and white: open Sidecar on the tablet, then run `app/sidecar/mac/build.sh` and `build/sidecar` on the Mac.
 - reMarkable: Sidecar scrolls the Mac with two fingers (in the way the tablet is turned); a two-finger tap is the full refresh. It can also run without xochitl, on the whole screen: `zinc-tile sidecar.zapp --session --max 7200` makes its session tile (`zinc-tile --max` sets any session's time).
 - reMarkable: Sidecar has a menu bar app (`app/sidecar/mac/build/Sidecar.app`): start and stop, presets (Text, Speed, Video, Reading), a settings window that explains each knob, and a pen tablet mode where the Marker draws in Mac apps with pressure, tilt and hover.
@@ -22,6 +23,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: Sidecar compresses its pictures with zstd when the tablet's engine reads it, so less goes through the cable. Update both the tablet engine and the Mac app.
 - reMarkable: Sidecar's menu bar app shows when a reMarkable is plugged in by USB and can start on it, waits for the tablet's app without giving up, sets the tablet's frontlight and ends the tablet's app from the Mac.
 - Sidecar's menu bar app has a Details window for a screen: the link (Wi-Fi, Ethernet or USB cable, addresses), the picture (size, codec), frames captured and sent, throughput, encode and decode times, round trips, and the screen's CPU, clock, temperature, throttling (a Pi's under-voltage shows in red) and memory.
+- Sidecar's Details window has a Speed test: the real throughput and app-to-app ping to the screen on the connection in use, and which of its addresses answered. Update the screen's app too.
 - Sidecar opens Sidecar Screen on the Pi through its Zinc agent when the Mac waits for it (the player was in front), and has an "Open it there" button. A name like `zinc-player.local` now tries each of its addresses, a cable first.
 - Pi image: a Mac's USB-C cable is a network link to the Pi (an Apple silicon Mac shows itself as a USB network device that Linux refused): the image builds the driver when it has the compilers, else `sudo zinc-admin mac-usb` once; Sidecar then reaches the Pi by its `.local` name over the cable.
 - reMarkable: Sidecar's menu bar app has a Profile tab: live numbers from the Mac and the tablet's panel (how long it moves, how busy it is, what was held), recorded to a file on demand.

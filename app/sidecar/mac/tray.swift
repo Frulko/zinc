@@ -69,6 +69,7 @@ final class Engine: ObservableObject {
     @Published var state = State.stopped
     @Published var stats = ""
     @Published var details = [[String]]()   // [section, name, value] from a screen's engine, every 2 s
+    @Published var testing = false          // a speed test runs (the pictures wait for it)
     @Published var problem = ""
     // the profile: the engine's lines (the Mac's work, the capture, the tablet's panel), and a file they go to while recording
     @Published var lines = ["frames": "", "capture": "", "panel": ""]
@@ -230,6 +231,7 @@ final class Engine: ObservableObject {
             else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
             else if line.hasPrefix("screen: ") { state = .connected(String(line.dropFirst(8))) }
             else if line.hasPrefix("sidecar-screen: ") { problem = String(line.dropFirst(16)) }
+            else if line.hasPrefix("speedtest: ") { testing = line == "speedtest: running" }
             else if line.hasPrefix("info "), let d = try? JSONDecoder().decode([[String]].self, from: Data(line.dropFirst(5).utf8)) { details = d }
             else if line.hasPrefix("tune "), let t = Tune.from(Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
             else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces); keep("frames", line) }
@@ -604,6 +606,10 @@ struct DetailsView: View {
             HStack {
                 Text("Measured over the last 2 s").font(.caption).foregroundStyle(.secondary)
                 Spacer()
+                if e.testing { ProgressView().controlSize(.small) }
+                Button(e.testing ? "Testing…" : "Speed test") { e.testing = true; e.send("speedtest") }
+                    .disabled(e.testing || e.details.isEmpty)
+                    .help("Measures the real throughput and latency to the screen's app on this connection (about 4 s; the picture pauses)")
                 Button("Copy") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(e.details.map { "\($0[0]) / \($0[1]): \($0[2])" }.joined(separator: "\n"), forType: .string)
