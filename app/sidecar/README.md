@@ -33,6 +33,14 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   only. A blinking caret stays shown instead of flipping (each flip ghosts). The screen's frames per second can be capped.
   macOS asks once for the Screen Recording permission, and Accessibility for the touches. The keyboard is only watched for when a key goes down, never which.
 
+**The menu bar app**: `mac/build.sh` also makes `mac/build/Sidecar.app` (open it; it lives in the menu bar). Start and stop, the way the
+tablet is used (a second screen, a mirror of a display, or a pen tablet: a mirror where the Marker is a graphics tablet's pen with
+pressure, tilt and hover, for drawing apps), four presets (Text, Speed, Video, Reading), a full refresh and a clean, and a settings window
+where every knob says what it does on paper, plus the tablet's gestures. Settings are kept between runs. It drives the engine inside it
+(`sidecar-engine --no-ui --control`: a JSON tune, `full`, `clean` or `quit` per line on stdin). Greys are dithered with blue noise by default
+(or an 8x8 grid, or none); the clean goes through two grey checker passes instead of a black flash (Gentle clean).
+On the tablet, a three-finger tap opens the quick panel over the picture: clean, full refresh, next preset, contrast, lock the turn.
+
 ```sh
 mac/build/sidecar                  # Retina: half the tablet's pixels in points, sharp
 mac/build/sidecar --native         # one point per pixel: twice the room, everything half as big

@@ -11,6 +11,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - reMarkable: Sidecar shows a Mac's screen on the tablet over USB, as a second display (Retina, 1:1 or a chosen size) or a mirror, in fast black and white: open Sidecar on the tablet, then run `app/sidecar/mac/build.sh` and `build/sidecar` on the Mac.
 - reMarkable: Sidecar scrolls the Mac with two fingers (in the way the tablet is turned); a two-finger tap is the full refresh. It can also run without xochitl, on the whole screen: `zinc-tile sidecar.zapp --session --max 7200` makes its session tile (`zinc-tile --max` sets any session's time).
+- reMarkable: Sidecar has a menu bar app (`app/sidecar/mac/build/Sidecar.app`): start and stop, presets (Text, Speed, Video, Reading), a settings window that explains each knob, and a pen tablet mode where the Marker draws in Mac apps with pressure, tilt and hover.
+- reMarkable: Sidecar dithers with blue noise, cleans through grey checkers instead of a black flash, and opens a quick panel on a three-finger tap (clean, full refresh, preset, contrast, lock the turn).
 - reMarkable: Web no longer covers the top of the page with a Tools button; a pen button in its bar (also in full screen) opens the writing tools. InkPalette takes `shown` and `onHide` for an app that opens it from its own button.
 - Hub (reMarkable): the home grid is a launcher in the style of iOS: six apps to a row, each icon in a rounded square with the name under it, and a round badge on its corner (a dot for an update, "!" when the app does not respond).
 - Hub (reMarkable): the apps, their names, descriptions and icons show at once from the last catalog that checked, also without the server; an Update all button installs every update (the engine first, the Hub last).

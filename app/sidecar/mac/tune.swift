@@ -1,0 +1,36 @@
+// Sidecar's settings, shared by the engine (main.swift) and the menu bar app (tray.swift): every knob, and the presets.
+import Foundation
+
+struct Tune: Equatable, Codable {
+    var black = 90.0, white = 185.0, gamma = 1.6, edges = 10.0, edgeFloor = 4.0
+    var dither = 2                 // 0 threshold, 1 Bayer 8x8, 2 blue noise
+    var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
+    var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
+    var typing = 800.0, framesHz = 60.0, blink = true
+    var gentle = true              // clean through a grey checker instead of a black flash
+    var tabletPen = false          // the Marker as a graphics tablet's pen (pressure, tilt, hover), not a mouse
+    var rotationLock = false       // the picture keeps its way up whatever the accelerometer says
+}
+
+struct Preset: Identifiable {
+    let id: String, icon: String, title: String, line: String
+    let tune: Tune
+}
+
+/** Text first: what a monitor is mostly for. Each preset is a whole Tune; the knobs move from there. */
+let presets: [Preset] = {
+    var text = Tune()
+    text.framesHz = 30
+    var speed = Tune()
+    speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.gentle = false; speed.dither = 1
+    var video = Tune()
+    video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false
+    var reading = Tune()
+    reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.greys = true
+    return [
+        Preset(id: "text", icon: "text.cursor", title: "Text", line: "Code, mail, notes: sharp letters, a steady caret, no flash while you type.", tune: text),
+        Preset(id: "speed", icon: "hare", title: "Speed", line: "Everything moves at once: the most frames, cleaning waits until you stop.", tune: speed),
+        Preset(id: "video", icon: "film", title: "Video", line: "Pictures that move: soft greys from blue noise, never a cleaning flash.", tune: video),
+        Preset(id: "reading", icon: "book", title: "Reading", line: "Long pages: calm, few frames, true greys once the page rests.", tune: reading),
+    ]
+}()
