@@ -4,6 +4,8 @@
 //   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
 import Foundation
 import Accelerate
+import Compression
+import Metal
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
@@ -12,7 +14,7 @@ import AppKit
 import SwiftUI
 
 var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 2, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false
-var gentle = true, tabletPen = false, rotationLock = false
+var gentle = true, tabletPen = false, rotationLock = false, selftest = false
 setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
@@ -22,6 +24,7 @@ while let a = argv.popFirst() {
     case "--native": native = true   // 1:1, not Retina: twice the room, everything half as big
     case "--mirror": mirror = Int(argv.popFirst()!)!
     case "--threshold": ditherKind = 0
+    case "--selftest": selftest = true; ui = false   // the GPU's shader against the CPU's, on made-up frames, no tablet
     case "--control": control = true   // settings as JSON lines on stdin, state on stdout: the menu bar app drives this engine
     case "--cursor": cursorPx = Int(argv.popFirst()!)!; if cursorPx > 0 { cursorPx = max(19, cursorPx) }   // the pointer's height in tablet pixels; 0: macOS draws its own into the capture
     case "--rotate": rotate = Int(argv.popFirst()!)!; if ![90, 180, 270].contains(rotate) { rotate = 0 }   // until the tablet says: 90 its top on the left, 270 on the right
@@ -49,7 +52,7 @@ var addr = sockaddr_in(); addr.sin_family = sa_family_t(AF_INET); addr.sin_port 
 inet_pton(AF_INET, host, &addr.sin_addr)
 // the tablet may still be opening Sidecar, or coming back after its USB link dropped: tried for 30 s
 var tries = 0
-while withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) != 0 {
+while !selftest, withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) != 0 {
     tries += 1
     if tries == 1 { print("waiting for the tablet at \(host) (open Sidecar on the reMarkable)") }
     if tries > 60 { die("no tablet at \(host) (open Sidecar on the reMarkable)") }
@@ -66,11 +69,13 @@ func lost() -> Never {
     execv(CommandLine.arguments[0], args); die("cannot start again")
 }
 func readFull(_ p: UnsafeMutableRawPointer, _ n: Int) { var got = 0; while got < n { let r = read(sock, p + got, n - got); if r < 0 && errno == EINTR { continue }; if r <= 0 { lost() }; got += r } }
-func writeFull(_ p: UnsafeRawPointer, _ n: Int) { var put = 0; while put < n { let r = write(sock, p + put, n - put); if r < 0 && errno == EINTR { continue }; if r <= 0 { lost() }; put += r } }
-var line = [UInt8]()
-while true { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.append(c) }
-let hello = String(decoding: line, as: UTF8.self).split(separator: " ")
+func writeFull(_ p: UnsafeRawPointer, _ n: Int) { if selftest { return }; var put = 0; while put < n { let r = write(sock, p + put, n - put); if r < 0 && errno == EINTR { continue }; if r <= 0 { lost() }; put += r } }
+var line = selftest ? Array("RMPP 1620 2160 Paper Pro".utf8) : [UInt8]()
+while !selftest { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.append(c) }
+let hello = String(decoding: line, as: UTF8.self).split(separator: " ").filter { !$0.hasPrefix("+") }
 let W = Int(hello[1])!, H = Int(hello[2])!
+// what the tablet reads beyond rectangles: its own pointer (ptr), lz4 blocks, a scroll's copy
+let caps = Set(String(decoding: line, as: UTF8.self).split(separator: " ").filter { $0.hasPrefix("+") }.map { String($0.dropFirst()) })
 var (FW, FH) = rotate == 90 || rotate == 270 ? (H, W) : (W, H)   // the panel as the Mac sees it: sideways when the tablet is
 print("tablet: \(hello[3...].joined(separator: " ")) \(W)x\(H)")
 func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -> [UInt8] {
@@ -78,6 +83,22 @@ func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -
     for (i, v) in [x, y, w, h].enumerated() { b[2 + i * 2] = UInt8(v & 255); b[3 + i * 2] = UInt8(v >> 8) }
     for i in 0..<4 { b[12 + i] = UInt8((len >> (i * 8)) & 255) }
     return b
+}
+/** One rectangle (rows of 1-bit pixels, or greys at depth 8) in an lz4 block when the tablet reads them and it is smaller; more: another
+ *  message of this picture follows, and the tablet updates the panel once, at the last. */
+var zbuf = [UInt8]()
+func sendRect(_ x: Int, _ y: Int, _ w: Int, _ h: Int, _ payload: [UInt8], depth: UInt8 = 1, more: Bool = false) {
+    var hd = header(1, x, y, w, h, payload.count); hd[1] = depth; hd[11] = more ? 1 : 0
+    if caps.contains("lz4") && payload.count >= 1024 {
+        if zbuf.count < payload.count { zbuf = [UInt8](repeating: 0, count: payload.count) }
+        let n = compression_encode_buffer(&zbuf, payload.count * 9 / 10, payload, payload.count, nil, COMPRESSION_LZ4_RAW)
+        if n > 0 {
+            hd[10] = 1; for i in 0..<4 { hd[12 + i] = UInt8((n >> (i * 8)) & 255) }
+            writeFull(hd, 16); zbuf.withUnsafeBytes { writeFull($0.baseAddress!, n) }; stats.bytes += n + 16
+            return
+        }
+    }
+    writeFull(hd, 16); writeFull(payload, payload.count); stats.bytes += payload.count + 16
 }
 writeFull(header(2, fastMode0, 0, 0, 0, 0), 16)   // UFAST (mode 0)
 if points.0 == 0 { points = native ? (FW, FH) : (FW / 2, FH / 2) }   // Retina by default: the tablet's pixels at twice the points
@@ -137,9 +158,9 @@ func scroll(_ dx: Int, _ dy: Int) {
     if x == 0 && y == 0 { return }
     scrollRest.0 -= Double(x); scrollRest.1 -= Double(y)
     CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: y, wheel2: x, wheel3: 0)?.post(tap: .cghidEventTap)
-    lock.lock(); lastKey = now(); lock.unlock()
+    lock.lock(); lastKey = now(); lastScroll = lastKey; lock.unlock()
 }
-Thread {
+if !selftest { Thread {
     var m = [UInt8](repeating: 0, count: 16)
     while true {
         readFull(&m, 16)
@@ -157,8 +178,8 @@ Thread {
         else if m[0] == 6 { let dx = i(4), dy = i(8); DispatchQueue.main.async { scroll(dx, dy) } }
         else if m[0] == 7 { lock.lock(); quickOn.toggle(); quickDirty = true; lock.unlock(); ready.signal() }   // three fingers: the quick panel
     }
-}.start()
-if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
+}.start() }
+if !selftest && !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
     print("the tablet's touches need the Accessibility permission (System Settings › Privacy & Security › Accessibility) for this terminal")
 }
 
@@ -167,12 +188,15 @@ if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedVal
  *  (error 1001). HiDPI: the mode is in points, drawn at twice that (Retina); without it, one point is one pixel. */
 func applyMode() {
     let s = CGVirtualDisplaySettings(); s.hiDPI = native ? 0 : 1
+    // 120 Hz: macOS composes the display twice as often, so a change waits half as long before the capture sees it
+    s.modes = [CGVirtualDisplayMode(width: UInt(points.0), height: UInt(points.1), refreshRate: 120)]
+    if virtualDisplay?.apply(s) == true { return }
     s.modes = [CGVirtualDisplayMode(width: UInt(points.0), height: UInt(points.1), refreshRate: 60)]
     if virtualDisplay?.apply(s) == false { die("the virtual display refused its mode") }
 }
 var virtualDisplay: CGVirtualDisplay?   // kept alive: the display goes away with the object
 var target: CGDirectDisplayID
-if mirror >= 0 {
+if selftest { target = CGMainDisplayID() } else if mirror >= 0 {
     var ids = [CGDirectDisplayID](repeating: 0, count: 16); var n: UInt32 = 0
     CGGetActiveDisplayList(16, &ids, &n)
     if mirror >= Int(n) { die("no display \(mirror) (\(n) displays)") }
@@ -292,7 +316,7 @@ func makeThr() -> [UInt8] {
     }
 }
 var thr = makeThr()
-var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, t: now())
+var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, copies: 0, t: now())
 // the profile, every 2 s: how old a frame is when ScreenCaptureKit gives it, a pointer move to the tablet's answer, the clean passes
 var prof = (age: [Double](), pointer: [Double](), clean: [Double]())
 func spread(_ v: [Double]) -> String {
@@ -315,6 +339,14 @@ func dither(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) {
             }
         }
     } } }
+}
+
+/** cur's rows over (x, y, w, h), x a multiple of 8. */
+func bitsOf(_ x: Int, _ y: Int, _ w: Int, _ h: Int) -> [UInt8] {
+    let rs = (w + 7) / 8
+    var bits = [UInt8](repeating: 0, count: rs * h)
+    for j in 0..<h { let o = (y + j) * stride + x / 8; bits.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
+    return bits
 }
 
 /** The tiles of tiles x tx0..<tx1, ty0..<ty1 marked in `mask` as rectangles: per band of tiles the span of marked columns, bands merged
@@ -377,7 +409,7 @@ var typedTiles = [Bool](repeating: false, count: tilesX * tilesY)
 // a blinking caret: a tile that only goes back to the picture it had before the last one sent, by a thin column of pixels, keeps the darker
 // of the two on the tablet (the caret shown) instead of flipping, ghosting a little more at each blink
 var sentHash = [UInt64](repeating: 0, count: tilesX * tilesY), beforeHash = sentHash
-func tileHash(_ t: Int) -> UInt64 {
+func tileHash(_ t: Int, _ cur: [UInt8] = cur) -> UInt64 {
     let tx = t % tilesX, ty = t / tilesX
     var h: UInt64 = 0xcbf29ce484222325
     for y in (ty * TH)..<min(H, (ty + 1) * TH) { let o = y * stride; for i in (tx * TW / 8)..<min(stride, (tx + 1) * TW / 8) { h = (h ^ UInt64(cur[o + i])) &* 0x100000001b3 } }
@@ -402,14 +434,13 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
     let rects = rectsOf(mask)
     mask = [Bool](repeating: false, count: tilesX * tilesY)
     if rects.isEmpty { return }
-    func greys(_ x: Int, _ y: Int, _ w: Int, _ h: Int) {
+    func greys(_ x: Int, _ y: Int, _ w: Int, _ h: Int, more: Bool = false) {
         var payload = [UInt8](repeating: 0, count: w * h)
         for j in 0..<h { let o = (y + j) * W + x; payload.replaceSubrange(j * w..<(j + 1) * w, with: shown[o..<(o + w)]) }
-        var hd = header(1, x, y, w, h, payload.count); hd[1] = 8
-        writeFull(hd, 16); writeFull(payload, payload.count)
+        sendRect(x, y, w, h, payload, depth: 8, more: more)
     }
     if !fast && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {   // much of the screen: one full refresh is one flash, and cleaner
-        for (x, y, w, h) in rects { greys(x, y, w, h) }
+        for (k, (x, y, w, h)) in rects.enumerated() { greys(x, y, w, h, more: k < rects.count - 1) }
         for _ in rects { acks.wait() }
         writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0
         for i in 0..<dirty.count { dirty[i] = 0 }
@@ -420,33 +451,28 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
     if !fastMode { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     if gentle {   // every pixel turned over once, half of them at a time (a grey checker, PineNote's complementary pass): no black flash
         for phase in 0..<2 {
-            for (x, y, w, h) in rects {
+            for (n, (x, y, w, h)) in rects.enumerated() {
                 let rs = (w + 7) / 8
                 var bits = [UInt8](repeating: 0, count: rs * h)
                 for j in 0..<h { let o = (y + j) * stride + x / 8, k: UInt8 = (y + j + phase) & 1 == 0 ? 0xAA : 0x55
                     for i in 0..<rs { bits[j * rs + i] = cur[o + i] ^ k; dirty[o + i] = 0 } }
-                writeFull(header(1, x, y, w, h, bits.count), 16); writeFull(bits, bits.count)
+                sendRect(x, y, w, h, bits, more: n < rects.count - 1)
             }
             for _ in rects { acks.wait() }
         }
     } else {
-        for (x, y, w, h) in rects {
+        for (n, (x, y, w, h)) in rects.enumerated() {
             let rs = (w + 7) / 8
             var black = [UInt8](repeating: 0, count: rs * h)
             for j in 0..<h { let o = (y + j) * stride + x / 8; for i in 0..<rs { black[j * rs + i] = cur[o + i] | dirty[o + i]; dirty[o + i] = 0 } }
-            writeFull(header(1, x, y, w, h, black.count), 16); writeFull(black, black.count)
+            sendRect(x, y, w, h, black, more: n < rects.count - 1)
         }
         for _ in rects { acks.wait() }
     }
     // and back in black and white, still fast: twice driven, the trail goes. A waveform switch costs more than it gives: xochitl repaints
     // the whole window in the new waveform (the panel driven ~1.3 s, measured 2026-10-28), and a move then waits behind it
     if fast || cleanMode == 0 {
-        for (x, y, w, h) in rects {
-            let rs = (w + 7) / 8
-            var bits = [UInt8](repeating: 0, count: rs * h)
-            for j in 0..<h { let o = (y + j) * stride + x / 8; bits.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
-            writeFull(header(1, x, y, w, h, bits.count), 16); writeFull(bits, bits.count)
-        }
+        for (n, (x, y, w, h)) in rects.enumerated() { sendRect(x, y, w, h, bitsOf(x, y, w, h), more: n < rects.count - 1) }
         for _ in rects { acks.wait() }
         return
     }
@@ -562,6 +588,9 @@ func turnedMask() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
     return (w, h, m, tip.0, tip.1)
 }
 var pointerMask = turnedMask(), dotMask = makeDot()
+// the tablet draws the pointer itself (+ptr): a move is 16 bytes and one small update there, no picture from here
+let tabletPointer = caps.contains("ptr") && cursorPx > 0
+var sentShape = ""   // the shape the tablet has: sent again when it changes
 func pointerBox(_ p: (x: Int, y: Int), dot: Bool = false) -> (Int, Int, Int, Int) {
     if cursorPx == 0 { return (max(0, p.x - 72), max(0, p.y - 72), min(W, p.x + 72), min(H, p.y + 72)) }   // macOS's arrow and its shadow, Retina, any way up
     let pm = dot ? dotMask : pointerMask
@@ -691,6 +720,205 @@ func addCursor(_ p: (x: Int, y: Int)) {
     let b = mapBox(pointerBox(p), toFrame)
     cursorArea = cursorArea.union(CGRect(x: b.0, y: b.1, width: b.2 - b.0, height: b.3 - b.1))
 }
+// --- the GPU: a large change (a scroll, a new window, a turn) goes through the tone curve, the edges and the dither in one Metal pass,
+// read straight from the capture's surface: the CPU then only copies the result. Small changes stay on the CPU (a dispatch costs more)
+let gpuFrom = 150_000   // frame pixels from which a change goes to the GPU
+let shaderSource = """
+#include <metal_stdlib>
+using namespace metal;
+// p: W H stride ox oy fw fh rotate bx0 by0 bx1 by1 edges edgeFloor; one thread per byte of output (8 panel pixels) of the box
+kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant int* p [[buffer(0)]], constant uchar* tone [[buffer(1)]],
+                  constant uchar* thr [[buffer(2)]], device uchar* grey [[buffer(3)]], device uchar* bits [[buffer(4)]], uint2 g [[thread_position_in_grid]]) {
+  const int W = p[0], stride = p[2], ox = p[3], oy = p[4], fw = p[5], fh = p[6], rot = p[7], edges = p[12], floor_ = p[13];
+  const int bx = p[8] + int(g.x), py = p[9] + int(g.y);
+  if (bx >= p[10] || py >= p[11]) return;
+  uchar out = 0;
+  for (int i = 0; i < 8; i++) {
+    const int px = bx * 8 + i;
+    if (px >= W) break;
+    const int x = px - ox, y = py - oy;
+    int fx = x, fy = y;   // toFrame
+    if (rot == 90) { fx = y; fy = fh - 1 - x; } else if (rot == 180) { fx = fw - 1 - x; fy = fh - 1 - y; } else if (rot == 270) { fx = fw - 1 - y; fy = x; }
+    int v = 255;   // outside the frame: the white band
+    if (fx >= 0 && fy >= 0 && fx < fw && fy < fh) {
+      const int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
+      v = tone[l];
+      if (edges > 0) {
+        int m = 0;
+        for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++)
+          m = max(m, int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)));
+        v = max(0, v - max(0, m - l - floor_) * edges);
+      }
+      grey[py * W + px] = uchar(v);
+    }
+    if (v < int(thr[(py & 63) * 64 + (px & 63)])) out |= uchar(0x80 >> i);
+  }
+  bits[py * stride + bx] = out;
+}
+"""
+final class GPU {
+    let q: MTLCommandQueue, pipe: MTLComputePipelineState, cache: CVMetalTextureCache
+    let greyB: MTLBuffer, bitsB: MTLBuffer, toneB: MTLBuffer, thrB: MTLBuffer
+    init?() {
+        guard let dev = MTLCreateSystemDefaultDevice(), let q = dev.makeCommandQueue(),
+              let lib = try? dev.makeLibrary(source: shaderSource, options: nil), let f = lib.makeFunction(name: "shade"),
+              let pipe = try? dev.makeComputePipelineState(function: f) else { return nil }
+        var c: CVMetalTextureCache?
+        guard CVMetalTextureCacheCreate(nil, nil, dev, nil, &c) == kCVReturnSuccess, let cache = c,
+              let g = dev.makeBuffer(length: W * H, options: .storageModeShared), let b = dev.makeBuffer(length: stride * H, options: .storageModeShared),
+              let t = dev.makeBuffer(length: 256, options: .storageModeShared), let r = dev.makeBuffer(length: 4096, options: .storageModeShared) else { return nil }
+        (self.q, self.pipe, self.cache, greyB, bitsB, toneB, thrB) = (q, pipe, cache, g, b, t, r)
+    }
+    /** The panel box b (pixels) from the frame pb (fw x fh, its luma plane): greys and bits into the buffers; false when it cannot. */
+    func run(_ pb: CVPixelBuffer, _ fw: Int, _ fh: Int, _ b: (Int, Int, Int, Int)) -> Bool {
+        var tex: CVMetalTexture?
+        guard CVMetalTextureCacheCreateTextureFromImage(nil, cache, pb, nil, .r8Unorm, CVPixelBufferGetWidthOfPlane(pb, 0), CVPixelBufferGetHeightOfPlane(pb, 0), 0, &tex) == kCVReturnSuccess,
+              let tx = tex, let t = CVMetalTextureGetTexture(tx), let cb = q.makeCommandBuffer(), let e = cb.makeComputeCommandEncoder() else { return false }
+        tone.withUnsafeBytes { toneB.contents().copyMemory(from: $0.baseAddress!, byteCount: 256) }
+        thr.withUnsafeBytes { thrB.contents().copyMemory(from: $0.baseAddress!, byteCount: 4096) }
+        let r = region
+        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor].map { Int32($0) }
+        e.setComputePipelineState(pipe); e.setTexture(t, index: 0)
+        e.setBytes(&p, length: p.count * 4, index: 0); e.setBuffer(toneB, offset: 0, index: 1); e.setBuffer(thrB, offset: 0, index: 2)
+        e.setBuffer(greyB, offset: 0, index: 3); e.setBuffer(bitsB, offset: 0, index: 4)
+        e.dispatchThreads(MTLSize(width: (b.2 + 7) / 8 - b.0 / 8, height: b.3 - b.1, depth: 1), threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        e.endEncoding(); cb.commit(); cb.waitUntilCompleted()
+        return cb.status == .completed
+    }
+    /** Its result over box b into grey, shown and cur. */
+    func take(_ b: (Int, Int, Int, Int)) {
+        let g = greyB.contents().assumingMemoryBound(to: UInt8.self), bits = bitsB.contents().assumingMemoryBound(to: UInt8.self)
+        let b0 = b.0 / 8, b1 = (b.2 + 7) / 8
+        grey.withUnsafeMutableBufferPointer { gr in shown.withUnsafeMutableBufferPointer { sh in cur.withUnsafeMutableBufferPointer { c in
+            for y in b.1..<b.3 {
+                let o = y * W + b.0
+                (gr.baseAddress! + o).update(from: g + o, count: b.2 - b.0); (sh.baseAddress! + o).update(from: g + o, count: b.2 - b.0)
+                (c.baseAddress! + y * stride + b0).update(from: bits + y * stride + b0, count: b1 - b0)
+            }
+        } } }
+    }
+}
+let gpu = GPU()
+
+// --- a scroll: the tablet moves what it shows (COPY, +copy) and gets only what is new, instead of the whole moved area again
+var lastScroll = -1e9   // main thread writes, the sender reads under lock
+/** The move (dx, dy) on the panel, one of them 0, that turns most lines of prev into cur's over box b: lines (rows, or columns when the
+ *  tablet is sideways to the page) are matched by hash and each match votes for its distance; nil when no distance wins clearly. */
+func findShift(_ b: (Int, Int, Int, Int)) -> (Int, Int)? {
+    let b0 = b.0 / 8, b1 = (b.2 + 7) / 8
+    var rc = [UInt64](), rp = [UInt64](), cc = [UInt64](), cp = [UInt64]()
+    cur.withUnsafeBufferPointer { c in prev.withUnsafeBufferPointer { p in
+        for y in b.1..<b.3 {
+            var h1: UInt64 = 0xcbf29ce484222325, h2 = h1; let o = y * stride
+            for i in b0..<b1 { h1 = (h1 ^ UInt64(c[o + i])) &* 0x100000001b3; h2 = (h2 ^ UInt64(p[o + i])) &* 0x100000001b3 }
+            rc.append(h1); rp.append(h2)
+        }
+        for x in b.0..<b.2 {
+            var h1: UInt64 = 0xcbf29ce484222325, h2 = h1; let i = x >> 3, sh = UInt8(7 - (x & 7))
+            for y in b.1..<b.3 { let o = y * stride + i; h1 = (h1 ^ UInt64((c[o] >> sh) & 1)) &* 0x100000001b3; h2 = (h2 ^ UInt64((p[o] >> sh) & 1)) &* 0x100000001b3 }
+            cc.append(h1); cp.append(h2)
+        }
+    } }
+    func blank(_ n: Int) -> UInt64 { var h: UInt64 = 0xcbf29ce484222325; for _ in 0..<n { h = h &* 0x100000001b3 }; return h }   // all white
+    func vote(_ a: [UInt64], _ p: [UInt64], _ white: UInt64) -> (Int, Int) {
+        var at = [UInt64: [Int]]()
+        for (i, h) in p.enumerated() where h != white { at[h, default: []].append(i) }
+        var votes = [Int: Int](), lines = 0
+        for (i, h) in a.enumerated() where h != white { lines += 1; for j in (at[h] ?? []).prefix(4) where j != i { votes[i - j, default: 0] += 1 } }
+        guard let best = votes.max(by: { $0.value < $1.value }), best.value >= 16, best.value * 10 >= lines * 4 else { return (0, 0) }
+        return (best.key, best.value)
+    }
+    let v = vote(rc, rp, blank(b1 - b0)), h = vote(cc, cp, blank(b.3 - b.1))
+    if v.1 == 0 && h.1 == 0 { return nil }
+    return v.1 >= h.1 ? (0, v.0) : (h.0, 0)
+}
+/** prev once the tablet moved box b's picture by (dx, dy), and the rectangle that moves; nil when it leaves too much to send anyway. */
+func shifted(_ b: (Int, Int, Int, Int), _ dx: Int, _ dy: Int) -> (src: (Int, Int, Int, Int), pic: [UInt8])? {
+    let b0 = b.0 / 8, b1 = (b.2 + 7) / 8
+    var pic = prev, src = (0, 0, 0, 0)
+    if dx == 0 {   // rows: whole bytes
+        let x0 = b0 * 8, x1 = min(W, b1 * 8), y0 = dy > 0 ? b.1 : b.1 - dy, y1 = dy > 0 ? b.3 - dy : b.3
+        if y1 <= y0 { return nil }
+        src = (x0, y0, x1 - x0, y1 - y0)
+        for y in y0..<y1 { let s = y * stride, d = (y + dy) * stride; pic.replaceSubrange((d + b0)..<(d + b1), with: prev[(s + b0)..<(s + b1)]) }
+    } else {   // columns: bit by bit
+        let x0 = dx > 0 ? b.0 : b.0 - dx, x1 = dx > 0 ? b.2 - dx : b.2
+        if x1 <= x0 { return nil }
+        src = (x0, b.1, x1 - x0, b.3 - b.1)
+        prev.withUnsafeBufferPointer { p in pic.withUnsafeMutableBufferPointer { q in
+            for y in b.1..<b.3 { let o = y * stride
+                for x in x0..<x1 { let t = x + dx, m = UInt8(0x80) >> UInt8(t & 7)
+                    if (p[o + (x >> 3)] << UInt8(x & 7)) & 0x80 != 0 { q[o + (t >> 3)] |= m } else { q[o + (t >> 3)] &= ~m } } }
+        } }
+    }
+    var before = 0, after = 0
+    for y in b.1..<b.3 { let o = y * stride; for i in b0..<b1 { if cur[o + i] != prev[o + i] { before += 1 }; if cur[o + i] != pic[o + i] { after += 1 } } }
+    return after * 10 < before * 6 ? (src, pic) : nil
+}
+
+/** --selftest: the GPU's pass against the CPU's on made-up frames, every way up and with and without edges; exits 0 when they agree. */
+func gpuSelftest() -> Never {
+    guard let g = gpu else { print("selftest: no Metal device"); exit(1) }
+    var bad = 0, cases = 0, tc = 0.0, tg = 0.0
+    for (rot, k, e) in [(0, 1.0, 10), (90, 1.0, 10), (180, 1.0, 0), (270, 1.0, 10), (90, 0.75, 10), (0, 0.6, 0)] {
+        rotate = rot; edges = e
+        let (pw, ph) = rot == 90 || rot == 270 ? (H, W) : (W, H)   // the frame as the Mac sees it
+        let fw = Int(Double(pw) * k), fh = Int(Double(ph) * k)
+        let (qw, qh) = rot == 90 || rot == 270 ? (fh, fw) : (fw, fh)
+        region = ((W - qw) / 2 / 8 * 8, (H - qh) / 2, fw, fh)
+        var pbo: CVPixelBuffer?
+        CVPixelBufferCreate(nil, fw, fh, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+                            [kCVPixelBufferIOSurfacePropertiesKey: [:], kCVPixelBufferMetalCompatibilityKey: true] as CFDictionary, &pbo)
+        guard let pb = pbo else { print("selftest: no pixel buffer"); exit(1) }
+        CVPixelBufferLockBaseAddress(pb, [])
+        let bpr = CVPixelBufferGetBytesPerRowOfPlane(pb, 0), src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
+        var seed: UInt32 = 12345
+        for y in 0..<fh { for x in 0..<fw {   // a gradient, noise, and hairlines
+            seed = seed &* 1664525 &+ 1013904223
+            src[y * bpr + x] = x % 97 == 0 || y % 61 == 0 ? 220 : UInt8(truncatingIfNeeded: (x * 255 / fw + Int(seed >> 28) * 9) & 255)
+        } }
+        for d in [(0, 0, fw, fh), (37, 51, fw - 13, fh - 29)] {
+            cases += 1
+            let b = mapBox(d, toPanel)
+            var t0 = now()
+            shade(src, bpr, fw, fh, d)
+            for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
+            dither(b.0, b.1, b.2, b.3)
+            tc += now() - t0; t0 = now()
+            guard g.run(pb, fw, fh, b) else { print("selftest: the GPU pass failed"); exit(1) }
+            tg += now() - t0
+            let gg = g.greyB.contents().assumingMemoryBound(to: UInt8.self), gb = g.bitsB.contents().assumingMemoryBound(to: UInt8.self)
+            for y in b.1..<b.3 { for x in b.0..<b.2 {
+                let o = y * stride + x / 8, m = UInt8(0x80) >> UInt8(x & 7)
+                if gg[y * W + x] != grey[y * W + x] || (gb[o] & m) != (cur[o] & m) { bad += 1 }
+            } }
+        }
+        CVPixelBufferUnlockBaseAddress(pb, [])
+    }
+    print(String(format: "selftest: %d cases, %d pixels differ; CPU %.1f ms, GPU %.1f ms per case", cases, bad, tc / Double(cases), tg / Double(cases)))
+    // a scroll: a page of text-like bits moved down, then sideways (the tablet turned); the shift found, and the copy's result is cur
+    var missed = 0
+    for (dx, dy) in [(0, 37), (0, -12), (-23, 0), (40, 0)] {
+        var seed: UInt32 = 99
+        for i in 0..<prev.count { seed = seed &* 1664525 &+ 1013904223; prev[i] = (i / stride) % 9 < 3 ? UInt8(truncatingIfNeeded: seed >> 24) : 0 }
+        cur = prev
+        let b = (160, 200, 1400, 1800)
+        for y in b.1..<b.3 { for x in b.0..<b.2 {
+            let sx = x - dx, sy = y - dy, m = UInt8(0x80) >> UInt8(x & 7), o = y * stride + x / 8
+            let on = sx >= b.0 && sx < b.2 && sy >= b.1 && sy < b.3 && (prev[sy * stride + sx / 8] << UInt8(sx & 7)) & 0x80 != 0
+            if on { cur[o] |= m } else { cur[o] &= ~m }
+        } }
+        guard let f = findShift(b), f == (dx, dy), let m = shifted(b, f.0, f.1) else { print("selftest: scroll \(dx),\(dy) not found: \(String(describing: findShift(b)))"); missed += 1; continue }
+        let s = m.src
+        for y in (s.1 + dy)..<(s.1 + dy + s.3) { for x in (s.0 + dx)..<(s.0 + dx + s.2) {
+            let o = y * stride + x / 8, k = UInt8(0x80) >> UInt8(x & 7)
+            if (m.pic[o] & k) != (cur[o] & k) { missed += 1 } } }
+    }
+    print("selftest: scrolls, \(missed) wrong")
+    exit(bad == 0 && missed == 0 ? 0 : 1)
+}
+if selftest { gpuSelftest() }
+
 Thread {
     var drawn: (x: Int, y: Int)? = nil, drawnDot = false   // where the pointer is drawn in shown, and as what
     var held: CVPixelBuffer?   // the last frame: a change of the shader goes through it again
@@ -718,12 +946,7 @@ Thread {
         if resyncAt > 0 && now() >= resyncAt {
             resyncAt = -1
             let rects = rectsOf(changedSince([Bool](repeating: true, count: tilesX * tilesY)))
-            for (x, y, w, h) in rects {
-                let rs = (w + 7) / 8
-                var payload = [UInt8](repeating: 0, count: rs * h)
-                for j in 0..<h { let o = (y + j) * stride + x / 8; payload.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
-                writeFull(header(1, x, y, w, h, payload.count), 16); writeFull(payload, payload.count)
-            }
+            for (n, (x, y, w, h)) in rects.enumerated() { sendRect(x, y, w, h, bitsOf(x, y, w, h), more: n < rects.count - 1) }
             for _ in rects { acks.wait() }
         }
         if let tune { apply(tune) }
@@ -732,7 +955,7 @@ Thread {
         lock.lock(); let qOn = quickOn, qDirty = quickDirty, tell = announce; quickDirty = false; announce = false; lock.unlock()
         if tell, control, let j = try? JSONEncoder().encode(liveTune) { print("tune " + String(decoding: j, as: UTF8.self)) }
         if kind >= 0 && kind != pointerKind {
-            if let d = drawn { stale = pointerBox(d, dot: drawnDot) }
+            if let d = drawn, !tabletPointer { stale = pointerBox(d, dot: drawnDot) }
             pointerKind = kind; uprightMask = makeArrow(); pointerMask = turnedMask(); drawn = nil
         }
         if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
@@ -788,7 +1011,8 @@ Thread {
         if pb == nil && !moved && stale == nil && !qDirty && q?.x == drawn?.x && q?.y == drawn?.y && qDot == drawnDot { continue }
         let t0 = now()
         var box = (x0: W, y0: H, x1: 0, y1: 0)   // what to dither and compare
-        func grow(_ b: (Int, Int, Int, Int)) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)) }
+        var onGPU: (Int, Int, Int, Int)? = nil, onCPU: [(Int, Int, Int, Int)] = []   // dithered there already; still to dither here
+        func grow(_ b: (Int, Int, Int, Int), cpu: Bool = true) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)); if cpu { onCPU.append(b) } }
         if let pb {   // a new frame: what changed in it (all of it when its place moved), through the shader into grey and shown
             CVPixelBufferLockBaseAddress(pb, .readOnly)
             if CVPixelBufferGetWidthOfPlane(pb, 0) != captureSize().0 || CVPixelBufferGetHeightOfPlane(pb, 0) != captureSize().1 { CVPixelBufferUnlockBaseAddress(pb, .readOnly); held = nil; continue }   // before a turn
@@ -805,15 +1029,18 @@ Thread {
             cursorArea = .null; if cursorPx == 0, let p { addCursor(p) }   // the frame may be older than the pointer: its place goes again next time
             let src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
             if d.2 > d.0 && d.3 > d.1 {
-                shade(src, bpr, fw, fh, d)
                 let b = mapBox(d, toPanel)
-                for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
-                grow(b)
+                if (d.2 - d.0) * (d.3 - d.1) >= gpuFrom, let g = gpu, g.run(pb, fw, fh, b) { g.take(b); onGPU = b; grow(b, cpu: false) }
+                else {
+                    shade(src, bpr, fw, fh, d)
+                    for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
+                    grow(b)
+                }
             }
             CVPixelBufferUnlockBaseAddress(pb, .readOnly)
         }
         if let b = stale { for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }; grow(b) }
-        if cursorPx > 0, let d = drawn {   // our pointer: its old box back to the screen
+        if cursorPx > 0 && !tabletPointer, let d = drawn {   // our pointer: its old box back to the screen
             let b = pointerBox(d, dot: drawnDot)
             for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
             grow(b)
@@ -822,6 +1049,8 @@ Thread {
         if let d = drawn, d.x != q?.x || d.y != q?.y || drawnDot != qDot {   // where it was: its trail
             let b = pointerBox(d, dot: drawnDot)
             for ty in (b.1 / TH)..<min(tilesY, (b.3 + TH - 1) / TH) { for tx in (b.0 / TW)..<min(tilesX, (b.2 + TW - 1) / TW) { trailTiles[ty * tilesX + tx] = true; trailTime[ty * tilesX + tx] = now() } }
+            // drawn by the tablet, its pixels are not in dirty: they are, for the clean's black pass to drive them again
+            if tabletPointer { for y in b.1..<b.3 { let o = y * stride; for i in (b.0 / 8)..<min(stride, (b.2 + 7) / 8) { dirty[o + i] = 0xFF } } }
             lastMove = now()
         }
         let qBox = { let r = quickRect; return mapBox((r.x, r.y, r.x + r.w, r.y + r.h), toPanel) }
@@ -838,11 +1067,30 @@ Thread {
                 grow(b)
             }
         }
-        if cursorPx > 0, let q { drawPointer(q, dot: qDot); grow(pointerBox(q, dot: qDot)) }
+        if tabletPointer && (q?.x != drawn?.x || q?.y != drawn?.y || qDot != drawnDot) {   // to the tablet, before the picture
+            let pm = qDot ? dotMask : pointerMask, key = "\(qDot) \(pointerKind) \(rotate) \(cursorPx) \(dotPx)"
+            if key != sentShape { sentShape = key; var hd = header(4, pm.tx, pm.ty, pm.w, pm.h, pm.m.count); hd[11] = 1; writeFull(hd, 16); writeFull(pm.m, pm.m.count) }
+            writeFull(header(5, q?.x ?? 0, q?.y ?? 0, q == nil ? 0 : 1, 0, 0), 16)
+        } else if cursorPx > 0 && !tabletPointer, let q { drawPointer(q, dot: qDot); grow(pointerBox(q, dot: qDot)) }
         drawn = q; drawnDot = qDot
         if pb == nil && cursorPx == 0 { continue }   // macOS draws the pointer: its move comes as a frame
-        if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) }
+        if onGPU == nil { if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) } }
+        else { for b in onCPU where b.2 > b.0 && b.3 > b.1 { dither(b.0, b.1, b.2, b.3) } }   // what was drawn over the GPU's part
         let t1 = now()
+        // a scroll: the tablet moves what it shows, and gets only what is new
+        lock.lock(); let scrolled = tn - lastScroll < 500; lock.unlock()
+        var copy: [UInt8]? = nil
+        if caps.contains("copy") && scrolled && pb != nil && !firstFrame && (box.x1 - box.x0) * (box.y1 - box.y0) >= W * H / 16,
+           let sh = findShift((box.x0, box.y0, box.x1, box.y1)), let m = shifted((box.x0, box.y0, box.x1, box.y1), sh.0, sh.1) {
+            let (dx, dy) = sh
+            let b0 = box.x0 / 8, b1 = (box.x1 + 7) / 8
+            for y in box.y0..<box.y1 { let o = y * stride; for i in b0..<b1 { dirty[o + i] |= prev[o + i] ^ m.pic[o + i] } }
+            prev = m.pic
+            let ts = now()
+            for ty in (box.y0 / TH)..<min(tilesY, (box.y1 + TH - 1) / TH) { for tx in (b0 * 8 / TW)..<min(tilesX, (b1 * 8 + TW - 1) / TW) {
+                let i = ty * tilesX + tx; fastTiles[i] = true; tileTime[i] = ts; if typing { typedTiles[i] = true }; sentHash[i] = tileHash(i, prev); beforeHash[i] = 0 } }
+            copy = header(6, m.src.0, m.src.1, m.src.2, m.src.3, 4) + [UInt8(truncatingIfNeeded: dx), UInt8(truncatingIfNeeded: dx >> 8), UInt8(truncatingIfNeeded: dy), UInt8(truncatingIfNeeded: dy >> 8)]
+        }
         // the first frame goes out whole: the tablet still shows Sidecar's own page, not white
         var mask = firstFrame && pb != nil ? [Bool](repeating: true, count: tilesX * tilesY)
                  : box.x1 > box.x0 ? changed(box.x0, box.y0, box.x1, box.y1) : [Bool](repeating: false, count: tilesX * tilesY)
@@ -860,13 +1108,8 @@ Thread {
         let rects = rectsOf(mask)
         if !rects.isEmpty { let t = now(); for i in 0..<mask.count where mask[i] { fastTiles[i] = true; tileTime[i] = t } }
         if !rects.isEmpty && fastMode == false { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
-        for (x, y, w, h) in rects {
-            let rs = (w + 7) / 8
-            var payload = [UInt8](repeating: 0, count: rs * h)
-            for j in 0..<h { let o = (y + j) * stride + x / 8; payload.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
-            writeFull(header(1, x, y, w, h, payload.count), 16); writeFull(payload, payload.count)
-            stats.bytes += payload.count + 16
-        }
+        if var c = copy { c[11] = rects.isEmpty ? 0 : 1; writeFull(c, c.count); stats.copies += 1 }
+        for (n, (x, y, w, h)) in rects.enumerated() { sendRect(x, y, w, h, bitsOf(x, y, w, h), more: n < rects.count - 1) }
         let t2 = now()
         for _ in rects { acks.wait() }
         for i in 0..<prev.count where prev[i] != cur[i] { dirty[i] |= prev[i] ^ cur[i]; prev[i] = cur[i] }
@@ -880,12 +1123,12 @@ Thread {
             let f = max(stats.frames, 1)
             let line = String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
                          Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f))
-            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))   (median/max)"
+            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))  scroll copies \(stats.copies)   (median/max)"
             prof = ([], [], [])
             print(line); print(profile)
             let both = line + "\n" + profile
             DispatchQueue.main.async { panel.stats = both }
-            stats = (0, 0, 0, 0, 0, now())
+            stats = (0, 0, 0, 0, 0, 0, now())
         }
     }
 }.start()
@@ -915,7 +1158,7 @@ func config() -> SCStreamConfiguration {
     let c = SCStreamConfiguration()
     (c.width, c.height) = captureSize()
     c.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange   // plane 0 is the luma: grey with no conversion
-    c.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+    c.minimumFrameInterval = CMTime(value: 1, timescale: 120)
     c.queueDepth = 3
     c.showsCursor = cursorPx == 0   // macOS's own pointer, or ours (--cursor)
     return c
@@ -999,7 +1242,7 @@ struct SettingsView: View {
 }
 // the keyboard, wherever it types (Accessibility, as the touches): only when, never which key
 // a scroll too (the Mac's own, or two fingers on the tablet): nothing cleaned while the page moves, then the moved area once it stops
-NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { _ in lock.lock(); lastKey = now(); lock.unlock() }
+NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { e in lock.lock(); lastKey = now(); if e.type == .scrollWheel { lastScroll = lastKey }; lock.unlock() }
 if control {   // the menu bar app: a tune (JSON), full, clean or quit per line
     Thread {
         while let l = readLine() {

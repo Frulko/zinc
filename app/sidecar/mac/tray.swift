@@ -28,6 +28,30 @@ func displays() -> [Display] {
     }
 }
 
+/** macOS's text caret: every blink of it ghosts on e-ink. Held steady while the stream runs (the global NSTextInsertionPointBlinkPeriod
+ *  settings, read by apps when they start), put back as it was after, and at the next launch when the app did not end cleanly. */
+enum Caret {
+    static let keys = ["NSTextInsertionPointBlinkPeriodOn", "NSTextInsertionPointBlinkPeriodOff"]
+    static func steady() {
+        if UserDefaults.standard.dictionary(forKey: "caretSaved") == nil {
+            var saved: [String: Any] = [:]
+            for k in keys { saved[k] = get(k) ?? "unset" }
+            UserDefaults.standard.set(saved, forKey: "caretSaved")
+        }
+        set(keys[0], 999_999_999.0 as CFNumber); set(keys[1], 0.0 as CFNumber)
+    }
+    static func restore() {
+        guard let saved = UserDefaults.standard.dictionary(forKey: "caretSaved") else { return }
+        for k in keys { set(k, saved[k] as? String == "unset" ? nil : saved[k] as CFPropertyList?) }
+        UserDefaults.standard.removeObject(forKey: "caretSaved")
+    }
+    private static func get(_ k: String) -> CFPropertyList? { CFPreferencesCopyValue(k as CFString, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) }
+    private static func set(_ k: String, _ v: CFPropertyList?) {
+        CFPreferencesSetValue(k as CFString, v, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+    }
+}
+
 final class Engine: ObservableObject {
     enum State: Equatable { case stopped, starting, waiting, connected(String) }
     @Published var state = State.stopped
@@ -35,6 +59,7 @@ final class Engine: ObservableObject {
     @Published var problem = ""
     @Published var tune: Tune { didSet { if tune != oldValue { save(); if !echo { send("tune " + json(tune)) } } } }
     @Published var mode: Mode { didSet { if mode != oldValue { UserDefaults.standard.set(mode.rawValue, forKey: "mode"); restartIfRunning() } } }
+    @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if running { steadyCaret ? Caret.steady() : Caret.restore() } } }
     @Published var display: Int { didSet { if display != oldValue { UserDefaults.standard.set(display, forKey: "display"); if mode != .extend { restartIfRunning() } } } }
     private var process: Process?, input: FileHandle?, buffer = Data(), echo = false, restarting = false
 
@@ -43,6 +68,8 @@ final class Engine: ObservableObject {
         tune = (d.data(forKey: "tune")).flatMap { try? JSONDecoder().decode(Tune.self, from: $0) } ?? presets[0].tune
         mode = Mode(rawValue: d.string(forKey: "mode") ?? "") ?? .extend
         display = d.integer(forKey: "display")
+        steadyCaret = d.object(forKey: "steadyCaret") as? Bool ?? true
+        Caret.restore()   // left set by a run that did not end cleanly
     }
     var running: Bool { process != nil }
     var preset: String? {
@@ -71,6 +98,7 @@ final class Engine: ObservableObject {
         do { try p.run() } catch { problem = "Cannot start the engine: \(error.localizedDescription)"; return }
         process = p; input = i.fileHandleForWriting
         problem = ""; state = .starting
+        if steadyCaret { Caret.steady() }
         var t = tune; if mode == .pen { t.tabletPen = true }
         send("tune " + json(t))
     }
@@ -78,7 +106,7 @@ final class Engine: ObservableObject {
     private func restartIfRunning() { if running { restarting = true; stop() } }
     private func ended() {
         process = nil; input = nil; state = .stopped; stats = ""
-        if restarting { restarting = false; start() }
+        if restarting { restarting = false; start() } else { Caret.restore() }
     }
     private func take(_ d: Data) {
         buffer.append(d)
@@ -247,7 +275,8 @@ struct SettingsView: View {
                         Knob(name: "Typing and scrolling pause", help: "Nothing is wiped while you type or scroll; when you stop, just the lines you touched.", value: $e.tune.typing, range: 0...3000, step: 50, unit: " ms")
                         Switch(name: "Gentle clean", help: "Wipes through a grey checker instead of a black flash: softer on the eyes.", on: $e.tune.gentle)
                         Switch(name: "True greys when clean", help: "Pages that rest get real grey levels. Prettier, but the panel switches modes (a slower moment).", on: $e.tune.greys)
-                        Switch(name: "Steady caret", help: "A blinking text caret stays shown: every blink would leave a little ghost.", on: $e.tune.blink)
+                        Switch(name: "Steady caret on the Mac", help: "macOS stops blinking the text caret while Sidecar runs, and blinks it again after. Apps read it when they open: reopen the one you type in. VS Code, Terminal and Chrome have their own setting.", on: $e.steadyCaret)
+                        Switch(name: "Hold a blinking caret", help: "For the apps that still blink: the caret stays shown on paper instead of flipping (every flip leaves a little ghost).", on: $e.tune.blink)
                     }
                     Section {
                         HStack { Button("Full refresh") { e.send("full") }; Button("Clean ghosts now") { e.send("clean") }; Spacer(); Button("Back to the preset's values") { e.choose(presets.first { $0.id == e.preset } ?? presets[0]) } }
@@ -307,7 +336,7 @@ final class App: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
     }
-    func applicationWillTerminate(_ n: Notification) { if engine.running { engine.send("quit") } }
+    func applicationWillTerminate(_ n: Notification) { if engine.running { engine.send("quit") }; Caret.restore() }
 }
 
 @main enum Main {

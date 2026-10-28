@@ -41,6 +41,15 @@ where every knob says what it does on paper, plus the tablet's gestures. Setting
 (or an 8x8 grid, or none); the clean goes through two grey checker passes instead of a black flash (Gentle clean).
 On the tablet, a three-finger tap opens the quick panel over the picture: clean, full refresh, next preset, contrast, lock the turn.
 
+The tablet draws the pointer itself: the Mac sends its shape once and then only where it is (16 bytes, one small update there), so the
+pointer no longer waits for a capture. Large rectangles go as lz4 blocks (Apple's Compression on the Mac, the vendored lz4 on the tablet),
+and the rectangles of one picture are marked as such, so the tablet updates the panel once per picture with its rectangles merged. After
+a scroll the Mac finds how far the page moved (rows, or columns when the tablet is sideways, matched by hash) and tells the tablet to move
+what it already shows: only the new band is sent. A large change (a scroll, a new window, a turn) is shaded and dithered by the GPU (one
+Metal pass straight from the capture's surface), identical to the CPU's (`build/sidecar --selftest` compares them on made-up frames,
+and checks the scroll detection). The virtual display runs at 120 Hz when macOS accepts it, so the capture sees a change sooner.
+The menu bar app holds macOS's text caret steady while it runs ("Steady caret on the Mac"), and puts the setting back after.
+
 ```sh
 mac/build/sidecar                  # Retina: half the tablet's pixels in points, sharp
 mac/build/sidecar --native         # one point per pixel: twice the room, everything half as big
