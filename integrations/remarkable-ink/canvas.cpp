@@ -338,7 +338,10 @@ void start() {
       return;
     }
     new Server(model);
-    documents();
+    // "no-documents" next to the trust list: no lastOpen record and no reopen (a lease then reopens nothing). Suspect in a panel freeze
+    // on 3.29 (backlog/later.md), off until it is cleared
+    if (access(QByteArray(trust_file).replace("verified", "no-documents").constData(), F_OK) != 0) documents();
+    else say("documents off (no-documents)");
     say(QByteArray("ready on ") + zink::socket_path + " (" + model->name + ", OS " + osVersion() + ")");
     QTimer::singleShot(60000, qApp, [] { armed(false); });   // 60 s healthy: the start-up is not what crashes (a client re-arms)
   });
