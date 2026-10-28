@@ -1,0 +1,33 @@
+#!/bin/sh
+# Idempotent overlay applied only to the backend build checkout, never to Zinc.
+set -eu
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+backend=$1
+cp "$here"/protocol/*.kt "$backend/protocol/src/main/java/com/shilapi/xcertplay/transport/"
+cp "$here"/tests/*.kt "$backend/protocol/src/test/java/com/shilapi/xcertplay/transport/"
+cp "$here"/server/*.kt "$backend/server/src/main/kotlin/com/playport/server/"
+python3 - "$backend" <<'PY'
+from pathlib import Path
+import sys
+import subprocess
+root=Path(sys.argv[1])
+p=root/'protocol/build.gradle.kts';t=p.read_text();needle='dependencies {'
+if 'net.sf.kxml:kxml2' not in t:
+ t=t.replace(needle,needle+'\n    implementation("net.sf.kxml:kxml2:2.3.0")')
+if 'jvmArgs("--enable-native-access=ALL-UNNAMED")' not in t:
+ t += '\ntasks.test { jvmArgs("--enable-native-access=ALL-UNNAMED") }\n'
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/Main.kt'
+# A warm overlay must produce the same source as a fresh pinned checkout.
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/Main.kt']).decode()
+assert t.count('    val server = CarPlayServer(config, store)') == 1, 'Unexpected upstream Main.kt'
+# Add cleanup before inserting the initializer, whose catch cannot reference wired.
+t=t.replace('        exitProcess(1)', '        runCatching { wired?.close() }\n        exitProcess(1)')
+if 'WiredBootstrap' not in t:
+ t=t.replace('    val server = CarPlayServer(config, store)', '    val wired = System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let { WiredBootstrap(it) }\n    val server = CarPlayServer(if (wired != null) config.copy(bindAddress = wired.bindAddress) else config, store)')
+ t=t.replace('    http.start(wait = false)', '    http.start(wait = false)\n    wired?.start(server)')
+ t=t.replace('            runCatching { server.close() }','            runCatching { wired?.close() }\n            runCatching { server.close() }')
+t=t.replace('    val wired = System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let { WiredBootstrap(it) }',
+    '    val wired = try {\n        System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let {\n            MfiIdentity.load(config)\n            WiredBootstrap(it)\n        }\n    } catch (error: Exception) {\n        System.err.println("Wired USB unavailable: ${error.message}")\n        exitProcess(1)\n    }')
+p.write_text(t)
+PY

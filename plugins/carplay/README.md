@@ -2,8 +2,8 @@
 
 A separate Zinc plugin, with a native FFmpeg media decoder and a separately
 installed GPL receiver process. No CarPlay-specific code is added to the engine.
-The current adapter uses PlayPort's wireless macOS backend (DiPlay/xcertplay
-lineage), including software accessory authentication with a local identity.
+The adapter uses pinned PlayPort for wireless and a separate DiPlay-derived
+macOS USB overlay, including software accessory authentication with a local identity.
 No physical MFi coprocessor is required by this backend.
 
 ## Offline native demo
@@ -47,6 +47,18 @@ The demo uses a native Zinc Canvas, not a browser or a webview. The WebSocket
 is only the media/control transport. The backend's `--http` mode is intended
 for this local connection; use a trusted network and do not expose its ports
 to the Internet. End the receiver with Ctrl-C when finished.
+
+## Wired macOS transport
+
+The separate backend also implements native libusb USBMUX/NCM, Lockdown
+pairing/TLS/carkit, wired iAP2 and a macOS utun IPv6 link. It requires libusb
+>= 1.0.25 in addition to the build prerequisites above. Start with
+`plugins/carplay/backend/run --usb-list` for descriptor-only discovery; USB
+capture, mode transition and utun configuration are explicit privileged actions.
+See [the wired backend instructions](backend/usb/README.md) for exact commands,
+phone selection, Trust, cleanup and physical verification limits. The viewer's
+loopback URL and native media/input APIs are the same in either transport.
+No physical USB session has been verified.
 
 ## API
 
@@ -97,7 +109,7 @@ checks H.264/HEVC and AAC/Opus decoding, PCM envelopes and image cleanup, reject
 and touch events through an actual loopback WebSocket. No phone, pairing or
 network credential is used. The upstream backend has 96 passing tests on Mac.
 
-Remaining receiver work and verification: macOS USB integration (see backend/UPSTREAM.md), Linux transport, GPS injection and cluster display. No real iPhone session or Raspberry Pi execution has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
+Remaining receiver work and verification: physical macOS USB acceptance (see backend/usb/README.md), Linux transport, GPS injection and cluster display. No real iPhone session or Raspberry Pi execution has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
 
 See backend/UPSTREAM.md for provenance, license and the pinned source revision.
 
@@ -141,12 +153,15 @@ These checks do not establish Apple certification or iPhone acceptance.
    bt-bridge, then start `backend/run --wireless --wifi-ssid ... --token ...`.
    Confirm the receiver and phone share Wi-Fi, macOS allows Bluetooth/incoming
    connections, and AirPlay Receiver is disabled if port 7000 is busy.
-3. Launch `examples/carplay/run --live` with `ZINC_CARPLAY_URL`. Verify the real
+3. USB: follow `backend/usb/README.md`: list/select the exact phone, explicitly
+   switch/re-enumerate only if needed, start the privileged `--usb` receiver and
+   accept Trust. Do not run wireless and USB modes in the same receiver process.
+4. Launch `examples/carplay/run --live` with `ZINC_CARPLAY_URL`. Verify the real
    phone reports CarPlay, video and audio arrive, and Home, Siri, two-contact
    press/move/release, keyboard and Day/Night reach the phone.
-4. With microphone permission granted, speak to Siri and place a call; check
+5. With microphone permission granted, speak to Siri and place a call; check
    both directions of audio, interruptions and capture stopping at session end.
-5. Unplug/interrupt the selected transport, reconnect, and verify media resumes,
+6. Unplug/interrupt the selected transport, reconnect, and verify media resumes,
    night mode survives and Disconnect prevents further retries. Close both
    viewer and receiver when done. Record iPhone model/iOS and actual results.
 

@@ -37,6 +37,40 @@ Validation (main engine `/Users/mowmow/Lab/zinc/build/zinc` used read-only;
 - Screenshot inspected: `build/carplay/verified-native.png` (Retina native window)
   and `/tmp/zinc-carplay-offline.png` (headless logical-size capture).
 
+## Wired implementation
+
+The separate GPL overlay ports DiPlay revision
+`615b32ce0b40cd0b99ce94ba23a512001553684f`: native macOS libusb USBMUX/NCM,
+Lockdown pairing/TLS/carkit, wired iAP2 software authentication and a utun IPv6
+bridge with NDP. This is an actual transport/bootstrap, not a `--usb` placeholder.
+Explicit serial selection limits device capture; discovery does not claim or
+switch a phone. Pair keys are session-local. Mode transition and privileged
+capture/utun setup are left to the operator, with driver/interface cleanup.
+
+The desktop port required KXML2 without an Android-only feature and named
+certificate DNs accepted by JDK X.509. Generated certificate signatures and
+TLS-engine loading are tested; no global JVM security or wireless TLS setting
+was changed. A source-hash manifest permits repeat builds while refusing
+unmanaged edits. GPL lineage/licences remain in backend/usb/UPSTREAM.md.
+
+Worker proof: native C++20 warning-free build, 168 protocol tests passed and
+six server tests passed (one upstream server test skipped). `carplay_usb` covers
+descriptors, no-device JNI, USBMUX handshake/close and transfer splits/padding,
+NCM queue bounds/NDP checksums, wired messages, Lockdown framing/XXE,
+certificate signatures and TLS loading. Real safe discovery found no phone;
+startup with a nonexistent serial and external identity failed usefully.
+Coordinator integration also built the complete receiver from a fresh pinned
+checkout: 168 protocol tests passed, six server tests passed and one upstream
+server test skipped. The fresh build caught an overlay initializer-scope bug
+masked by the worker's warm checkout; prepare now regenerates Main.kt from
+pinned Git source and a fresh-versus-repeat regression passes. Integrated
+`tests/run --only carplay_usb` passes. Current safe discovery reports no Apple
+USBMUX/NCM device; an explicitly nonexistent serial with the external identity
+exits with an actionable no-device error before starting a listener.
+No sudo, mode switch, real USB capture, Trust or utun interface was attempted.
+The owner is checking real wireless phone setup separately; no competing
+receiver was started on 8080/7000.
+
 ## Backend and identity
 
 Separate GPL-3.0 PlayPort revision
@@ -63,8 +97,8 @@ replacement. No Bluetooth scan/pairing or wireless bootstrap was started.
 ## Remaining acceptance
 
 ZN-849's local demo/lifecycle criteria pass. ZN-848 remains Review for real
-microphone/OS prompt and Siri/call acceptance. ZN-847 owns wired integration and
-its independent tests; physical USB acceptance remains unverified.
+microphone/OS prompt and Siri/call acceptance. ZN-847 remains Review: the wired implementation and independent tests are
+integrated, but its physical receiver criterion stays unchecked.
 
 The plugin README contains the exact live checklist: transport setup and
 external identity, phone pairing, native live viewer, video/audio/touch/night,

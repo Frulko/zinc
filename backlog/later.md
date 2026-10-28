@@ -494,6 +494,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-847: Port and verify the separate CarPlay USB/NCM/Lockdown host on Linux/Pi after macOS physical acceptance; current native USB/utun adapter is macOS-only.
+- ZN-848: Verify CarPlay microphone capture, PCM/Opus uplink, permissions and cleanup on the Linux/Pi receiver in the cross-platform pass.
+
 - ZN-846: launch the delivered CLI and signed Atelier on the networked Intel Mac running Catalina 10.15; only modern macOS/Rosetta execution is proven locally.
 
 - ZN-845: launch the legacy Intel runtime on real macOS 10.12, check dyld imports, hello and bouncing-ball pixels, game keys/mouse/close; modern macOS under Rosetta and the 10.12 deployment target do not prove Sierra compatibility.

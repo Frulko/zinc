@@ -11,6 +11,13 @@ is separate from Zinc; no GPL protocol implementation is linked into the engine.
 The media envelope used by index.ts is documented in upstream Wire.kt.
 No identity, key, certificate or APK is supplied by this plugin.
 
-This revision supports wireless on macOS, not USB or Linux Bluetooth.
-DiPlay's USB transport uses Android UsbDeviceConnection, bulk endpoints, USBMUX
-and NCM; it needs a native host adapter, not a UI-only port.
+The unmodified PlayPort revision supports wireless on macOS, not USB or Linux
+Bluetooth. Its USB overlay is described below.
+
+The separately licensed `usb/` overlay ports DiPlay revision
+`615b32ce0b40cd0b99ce94ba23a512001553684f` into this pinned PlayPort receiver.
+It adds macOS libusb USBMUX/NCM, utun IPv6 routing, Lockdown pairing/TLS/carkit
+and wired iAP2 bootstrap. See usb/UPSTREAM.md and usb/LICENSE for full provenance,
+and usb/README.md for build, privileges, lifecycle and physical verification limits.
+The upstream PlayPort revision itself remains wireless-only; the wired path is
+this plugin's external GPL overlay, not an upstream feature claim.

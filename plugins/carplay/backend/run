@@ -2,6 +2,42 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/../../.." && pwd)
 backend="$root/build/carplay/playport"
+export JAVA_OPTS="${JAVA_OPTS:-} --enable-native-access=ALL-UNNAMED"
+export ZINC_CARPLAY_USB_LIBRARY="$root/build/carplay/usb/libcarplay_usb.dylib"
+usb=0
+case "${1:-}" in
+  --usb-list|--usb-switch)
+    action=$1
+    shift
+    if [ ! -f "$ZINC_CARPLAY_USB_LIBRARY" ]; then
+      echo 'Run plugins/carplay/backend/build first (native USB library missing)' >&2
+      exit 1
+    fi
+    case "$action" in
+      --usb-list) set -- --list "$@" ;;
+      --usb-switch) set -- --switch-mode "$@" ;;
+    esac
+    exec java --enable-native-access=ALL-UNNAMED -cp "$backend/server/build/install/server/lib/*" com.playport.server.WiredBootstrapKt "$@"
+    ;;
+  --usb)
+    usb=1
+    shift
+    : "${ZINC_CARPLAY_USB_SERIAL:?Set ZINC_CARPLAY_USB_SERIAL from backend/run --usb-list}"
+    if [ ! -f "$ZINC_CARPLAY_USB_LIBRARY" ]; then
+      echo 'Run plugins/carplay/backend/build first (native USB library missing)' >&2
+      exit 1
+    fi
+    ;;
+  *) unset ZINC_CARPLAY_USB_SERIAL ;;
+esac
+if [ "$usb" = 1 ]; then
+  for arg in "$@"; do
+    if [ "$arg" = --wireless ]; then
+      echo 'Choose either --usb or --wireless for this receiver process' >&2
+      exit 1
+    fi
+  done
+fi
 : "${ZINC_CARPLAY_IDENTITY:?Set ZINC_CARPLAY_IDENTITY to the directory containing offline-mfi/certificate.p7b and identity.pk8}"
 for file in certificate.p7b identity.pk8; do
   if [ ! -s "$ZINC_CARPLAY_IDENTITY/offline-mfi/$file" ]; then

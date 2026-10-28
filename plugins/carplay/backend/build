@@ -9,10 +9,11 @@ if [ ! -d "$dest/.git" ]; then
   git clone --no-checkout https://github.com/youcci/playport.git "$dest"
   git -C "$dest" checkout --detach "$rev"
 fi
-if [ -n "$(git -C "$dest" status --porcelain)" ]; then
-  echo 'CarPlay backend has local changes; refusing to overwrite them' >&2
-  exit 1
-fi
+"$root/plugins/carplay/backend/usb/checkout-state" "$dest" verify
 git -C "$dest" checkout --detach "$rev"
-(cd "$dest" && ./gradlew :protocol:test :server:test :server:installDist && macos/bt-bridge/build.sh)
+"$root/plugins/carplay/backend/usb/build"
+export ZINC_CARPLAY_USB_LIBRARY="$root/build/carplay/usb/libcarplay_usb.dylib"
+"$root/plugins/carplay/backend/usb/prepare" "$dest"
+"$root/plugins/carplay/backend/usb/checkout-state" "$dest" record
+(cd "$dest" && ./gradlew --no-daemon --max-workers=2 :protocol:test :server:test :server:installDist && macos/bt-bridge/build.sh)
 echo "Built $dest/server/build/install/server/bin/server"
