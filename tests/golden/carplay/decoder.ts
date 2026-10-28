@@ -89,6 +89,12 @@ async function transport(): Promise<void> {
   check(reports[1] === '{"type":"touch","contacts":[{"id":0,"x":0.25,"y":0.25,"down":true},{"id":1,"x":0.5,"y":0.5,"down":true}]}', 'stable contact ordering');
   check(reports[2] === '{"type":"touch","contacts":[{"id":0,"x":0,"y":0,"down":false},{"id":1,"x":0.75,"y":0.75,"down":true}]}', 'second finger keeps its slot');
   check(reports[3].includes('"down":true') === false, 'release both fingers');
+  client.setNativeTouchEnabled(false);
+  check(!client.nativeTouchEnabled, 'native trackpad disabled');
+  for (let i = 0; i < 100 && reports.length < 5; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
+  check(reports.length === 5 && reports[4].includes('"down":true') === false, 'disabling trackpad releases both contacts');
+  client.setNativeTouchEnabled(true);
+  check(client.nativeTouchEnabled, 'native trackpad re-enabled');
   check(modes.length === 3 && modes[0] === '{"type":"night","night":true}' && modes[1] === '{"type":"night","night":true}' && modes[2] === '{"type":"night","night":false}', 'night/day received');
   check(client.key('ArrowLeft') && client.key('Enter') && client.key('Escape') && client.key('Home') && client.key('s'), 'keyboard dispatch');
   check(!client.key('q'), 'unmapped key');

@@ -28,3 +28,7 @@ AC3 remains pending physical repeat-start/locked-phone acceptance: files/IDs/key
 Use this worktree's freshly built engine for ZINC_TRACKPAD_TOUCHES=1; the main tree binary was not modified. Next commands are documented in examples/carplay/README.md and plugins/carplay/backend/linux/README.md.
 
 Final worktree validation: tools/build zinc completed; this worktree's build/zinc passes input_touch, carplay and carplay_demo. Generic trackpad_touch and carplay_wireless pass. carplay_usb passes against the built external receiver. Full final backend build/tests pass with bounded WebSocket input and complete debug snapshots; cluster-enabled server routing tests also pass. Manual wireless --help runs through the wrapper without touching Bluetooth. Main worktree binary remains untouched.
+
+Follow-up: explicit keyboard capture defaults to CarPlay and blocks Zinc focus acquisition. F6/header button releases to UI editing and F6/video click captures. Root-before-edit handler plus focus guard covered by real Zinc field editing test. Numbered contacts and mini pad visually verified from a script including negative native IDs; separate assigned flags fix negative-ID slot tracking. carplay/carplay_demo pass. Only viewer restart is needed for this change.
+
+Owner follow-up: F7 / Trackpad ON-OFF independently toggles native contacts and markers. Immediate all-up report and slot reset on disable prevent stuck touches. F7 is tested in both keyboard ownership modes; receiver loopback verifies the release report.

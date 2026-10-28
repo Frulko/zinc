@@ -92,6 +92,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- The CarPlay debug player shows numbered finger markers and a trackpad map, and explicitly captures navigation keys for CarPlay. F6 or the header button releases capture to edit Zinc controls, and F7 toggles native trackpad contacts with immediate release; native contacts with negative IDs retain their slots.
 - The USB CarPlay receiver saves per-phone host identities and pairing keys privately, tries existing trust first and waits for unlock without discarding saved trust. Its first run with persistent storage can still require Trust approval.
 - CarPlay day/night changes now send UI and map appearance updates addressed to the main display, in addition to the legacy night-mode command.
 - CarPlay microphone LPCM samples are now converted to the phone’s big-endian wire format before encryption; previously uplink sent the viewer’s little-endian samples unchanged. Opus packets are unchanged.

@@ -47,8 +47,19 @@ map to the window; contacts within the projected video are sent in two stable
 slots. The Mac built-in trackpad and Bluetooth Magic Trackpad use the same SDL
 indirect-touch path. Physical gestures still need acceptance on each device.
 The separately labelled two-contact mouse simulator mirrors the pointer around
-the video centre; it does not claim two real fingers. Click the projected video to route keyboard navigation to CarPlay; Tab keeps
-the debug controls keyboard-accessible, and focused controls retain their keys.
+the video centre; it does not claim two real fingers. Keyboard capture starts enabled. The header button or **F6** toggles between
+CarPlay and Zinc UI. While captured, arrows, Tab/Shift-Tab, Enter/Space, Escape,
+Home and S go to CarPlay and Zinc controls cannot acquire focus. F6 releases the
+keyboard so GPS fields and debug buttons work normally; F6 or a video click
+captures it again. OS modifier shortcuts are left available.
+
+The video shows blue/pink numbered contact rings and a small trackpad map, even
+while waiting for the phone. Marker numbers persist until lift; the miniature
+also shows contacts outside the video. **F7** or the **Trackpad ON/OFF** button
+toggles native-contact forwarding and the markers independently of keyboard
+capture. Turning it off releases both contacts immediately; mouse clicks remain
+available. Only the first two contacts are forwarded
+to CarPlay. Native contact IDs are opaque and may be negative.
 
 External GPS debug is **simulated**. Edit latitude/longitude/speed (km/h), apply a
 preset, or pick a GPX file with **Load GPX**. The panel shows whether the iPhone

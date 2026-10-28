@@ -425,3 +425,34 @@ trackpad_touch/carplay_wireless and external receiver carplay_usb also pass.
 Existing third-party/compiler warnings occurred in the fresh engine build; no
 warning was introduced in the touch-device changes. The final backend tests pass
 with bounded WebSocket inputs and complete debug snapshots.
+
+
+## Visible contacts and explicit keyboard ownership
+
+The native debug viewer now draws persistent blue/pink numbered contact rings
+and a miniature pad with all detected contact positions, including those outside
+the video. It works while no phone/video is connected. Keyboard ownership is
+explicit and defaults to CarPlay: F6/header button releases capture to Zinc UI;
+F6 or a video click captures again. Captured Tab/Shift-Tab map to next/previous
+CarPlay rotary direction, Space maps to select, and all unmodified keys are
+consumed even if the receiver is disconnected, preventing Zinc focus traversal.
+The root key handler runs before text editing; a focus guard stops Zinc controls
+from retaining focus while captured. OS modifier shortcuts remain available.
+
+Touch IDs now use a separate assigned flag in the plugin and visualizer instead
+of assuming nonnegative IDs. SDL Cocoa derives IDs from native touch identities;
+the existing 32-bit API can expose a negative value. Marker slots stay assigned
+until lift rather than being confused with empty slots.
+
+Regression uses actual Zinc focus/edit handlers: capture refuses field focus,
+Tab/arrows reach CarPlay, F6 releases, Backspace edits a field, and F6 recaptures
+from that field. A scripted two-contact screenshot (including ID -7) was inspected
+for both rings, labels and the mini map. carplay and carplay_demo pass. Physical
+trackpad interaction with a running iPhone remains the owner's acceptance step.
+
+F7 and the Trackpad ON/OFF button independently enable/disable native-contact
+forwarding and its markers. Disabling sends an all-up report immediately and
+clears slot ownership; mouse input stays available. F7 works even while a debug
+field owns the keyboard. Keyboard ownership and the native-input release packet
+have regression checks. This disables the plugin's native contacts, not the
+macOS system trackpad device.

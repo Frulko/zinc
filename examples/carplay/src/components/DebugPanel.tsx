@@ -94,7 +94,7 @@ export function DebugPanel(): i32 {
         const on = !twoContacts(); setTwoContacts(on); const s = live;
         if (s !== null) { s.touches([]); s.simulateTwoContacts = on; }
       }}><Text className="text-white">{twoContacts() ? 'Simulated two-contact drag: ON' : 'Simulate two-contact drag'}</Text></Button>
-      <Text className="text-slate-400 text-xs">Click the video for Arrows · Enter · Esc · Home · S. Tab navigates debug controls; fields keep their keys. Native touch forwards two contacts.</Text>
+      <Text className="text-slate-400 text-xs">F6 releases keyboard capture to edit GPS and navigate Zinc controls. F6 or a video click captures it for CarPlay again. Native touch forwards two contacts.</Text>
     </View>
   </ScrollView>;
 }

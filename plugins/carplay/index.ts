@@ -17,7 +17,8 @@ class AudioTrack {
 /** Coordinates in the projected screen's pixels; id is a stable slot (0 or 1). */
 export interface TouchContact { id: i32; x: number; y: number; down: boolean }
 class Finger {
-  source: i32 = -1;
+  source: i32 = 0;
+  assigned: boolean = false;
   x: number = 0;
   y: number = 0;
   down: boolean = false;
@@ -40,6 +41,7 @@ interface ControlMessage {
 /** One projected video surface. The backend supplies encoded media, Zinc owns decoding and input. */
 export class Session {
   simulateTwoContacts: boolean = false;
+  nativeTouchEnabled: boolean = true;
   nativeContactCount: i32 = 0;
   nativeContactPeak: i32 = 0;
   readonly secondary: SecondaryScreen = new SecondaryScreen();
@@ -222,6 +224,13 @@ export class Session {
   playGps(playing: boolean): boolean { return this.send(JSON.stringify({ type: 'debugGpsPlay', playing: playing })); }
   seekGps(seconds: number): boolean { return Number.isFinite(seconds) && seconds >= 0 && this.send(JSON.stringify({ type: 'debugGpsSeek', seekSeconds: seconds })); }
   siri(): boolean { return this.send('{"type":"siri"}'); }
+  setNativeTouchEnabled(enabled: boolean): void {
+    if (this.nativeTouchEnabled === enabled) return;
+    this.touches([]);
+    for (const finger of this.fingers) { finger.assigned = false; finger.down = false; }
+    this.pressed = false;
+    this.nativeTouchEnabled = enabled;
+  }
   view(x: number, y: number, w: number, h: number): void {
     this.nativeContactCount = gfx.touchCount();
     this.nativeContactPeak = Math.max(this.nativeContactPeak, this.nativeContactCount);
@@ -230,21 +239,21 @@ export class Session {
     const dw = this.width * scale, dh = this.height * scale;
     const ox = x + (w - dw) / 2, oy = y + (h - dh) / 2;
     gfx.drawImage(this.image, ox, oy, dw, dh, 255, 0);
-    const count = gfx.touchCount();
-    if (count > 0 || this.fingers[0].source >= 0 || this.fingers[1].source >= 0) {
+    const count = this.nativeTouchEnabled ? gfx.touchCount() : 0;
+    if (count > 0 || this.fingers[0].assigned || this.fingers[1].assigned) {
       const contacts: TouchContact[] = [];
       for (let slot = 0; slot < 2; slot++) {
         const f = this.fingers[slot];
         f.down = false;
-        if (f.source >= 0) for (let i = 0; i < count; i++) if (gfx.touchId(i) === f.source) {
+        if (f.assigned) for (let i = 0; i < count; i++) if (gfx.touchId(i) === f.source) {
           f.x = (gfx.touchX(i) - ox) / scale; f.y = (gfx.touchY(i) - oy) / scale; f.down = true;
         }
       }
       for (let i = 0; i < count; i++) {
         const id = gfx.touchId(i), tx = gfx.touchX(i), ty = gfx.touchY(i);
-        if (this.fingers[0].source === id || this.fingers[1].source === id || tx < ox || ty < oy || tx >= ox + dw || ty >= oy + dh) continue;
-        for (const f of this.fingers) if (f.source < 0) {
-          f.source = id; f.x = (tx - ox) / scale; f.y = (ty - oy) / scale; f.down = true; break;
+        if ((this.fingers[0].assigned && this.fingers[0].source === id) || (this.fingers[1].assigned && this.fingers[1].source === id) || tx < ox || ty < oy || tx >= ox + dw || ty >= oy + dh) continue;
+        for (const f of this.fingers) if (!f.assigned) {
+          f.source = id; f.assigned = true; f.x = (tx - ox) / scale; f.y = (ty - oy) / scale; f.down = true; break;
         }
       }
       for (let slot = 0; slot < 2; slot++) {
@@ -252,7 +261,7 @@ export class Session {
         contacts.push({ id: slot, x: f.x, y: f.y, down: f.down });
       }
       this.touches(contacts);
-      for (const f of this.fingers) if (!f.down) f.source = -1;
+      for (const f of this.fingers) if (!f.down) f.assigned = false;
       this.pressed = false;
       return;
     }
@@ -273,7 +282,7 @@ export class Session {
   private release(): void {
     if (this.decoder >= 0) C.close(this.decoder);
     this.decoder = -1; this.width = 0; this.height = 0; this.pressed = false;
-    for (const f of this.fingers) { f.source = -1; f.down = false; }
+    for (const f of this.fingers) { f.assigned = false; f.down = false; }
   }
   close(): void {
     if (this.hud !== null) this.hud.stale = true;

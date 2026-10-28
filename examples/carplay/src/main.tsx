@@ -4,6 +4,8 @@ import * as ui from 'zinc:ui';
 import { OfflineMedia } from './services/offline';
 import { env } from 'zinc:sys';
 import { DebugPanel, tickDebug } from './components/DebugPanel';
+import { KeyboardCapture, installKeyboardCapture } from './services/keyboard';
+import { TouchOverlay } from './components/TouchOverlay';
 const session = new Session();
 const url = env('ZINC_CARPLAY_URL');
 const media = env('ZINC_CARPLAY_MEDIA');
@@ -12,29 +14,41 @@ const [status, setStatus] = createSignal<string>(offline !== null ? 'OFFLINE MED
 const [debug, setDebug] = createSignal<boolean>(env('ZINC_CARPLAY_DEBUG') === '1');
 const [night, setNight] = createSignal<boolean>(false);
 const [detail, setDetail] = createSignal<string>('');
-function connect(): void { if (url !== '' && offline === null) session.connect(url); }
-ui.onKey((e: ui.KeyEvent) => {
-  if (ui.focused() >= 0) return;
-  if (!e.primary && !e.alt && session.key(e.key)) e.preventDefault();
+const [trackpad, setTrackpad] = createSignal<boolean>(true);
+const [captured, setCaptured] = createSignal<boolean>(true);
+const touchOverlay = new TouchOverlay();
+const keyboard = new KeyboardCapture((key: string) => { session.key(key); }, (active: boolean) => {
+  setCaptured(active);
 });
-function Screen(x: i32, y: i32, w: i32, h: i32): void { session.view(x, y, w, h); }
+
+function connect(): void { if (url !== '' && offline === null) session.connect(url); }
+function toggleTrackpad(): void {
+  const on = !trackpad(); setTrackpad(on); session.setNativeTouchEnabled(on);
+}
+const handleKey: (e: ui.KeyEvent) => void = offline === null ? installKeyboardCapture(keyboard, toggleTrackpad) : (_e: ui.KeyEvent) => {};
+function Screen(x: i32, y: i32, w: i32, h: i32): void {
+  session.view(x, y, w, h);
+  if (offline === null) touchOverlay.draw(x, y, w, h, trackpad());
+}
 function App(): i32 {
-  return <View className="flex-col h-full bg-slate-950">
+  return <View className="flex-col h-full bg-slate-950" onKeyDown={handleKey}>
     <View className="flex-row items-center px-6 h-16 gap-4 bg-slate-900">
       <Text className="text-xl text-amber-200">{offline !== null ? 'ZINC / OFFLINE MEDIA' : 'ZINC / CARPLAY LIVE'}</Text>
       <View className="grow"></View>
+      {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={() => keyboard.set(!keyboard.active)}><Text className="text-amber-200">{captured() ? 'Clavier → CarPlay · F6' : 'Clavier → Zinc UI · F6'}</Text></Button> : null}
       {offline === null ? <Button className="px-4 py-3 rounded bg-slate-800" onClick={() => setDebug(!debug())}><Text className="text-white">Debug</Text></Button> : null}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={connect}><Text className="text-white">Connect</Text></Button> : <Text className="text-slate-400">Local H.264 + PCM test media</Text>}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.close(); }}><Text className="text-white">Disconnect</Text></Button> : null}
     </View>
     <View className="flex-row grow h-0">
-      <Canvas className="grow" onDraw={Screen} onPointerDown={() => { ui.focusNode(-1); }}></Canvas>
+      <Canvas className="grow" onDraw={Screen} onPointerDown={() => { keyboard.set(true); }}></Canvas>
       {debug() ? <DebugPanel /> : null}
     </View>
     <View className="flex-row items-center h-20 px-6 gap-4 bg-slate-900">
       {offline === null ? <View className="flex-row gap-4"><Button className="px-6 py-3 rounded bg-amber-200 active:bg-amber-400" onClick={() => { session.home(); }}><Text className="text-slate-950">Home</Text></Button>
       <Button className="px-6 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.siri(); }}><Text className="text-white">Siri</Text></Button>
       <Button className="px-6 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { const n = !night(); setNight(n); session.setNightMode(n); }}><Text className="text-white">{night() ? 'Night' : 'Day'}</Text></Button></View> : null}
+      {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={toggleTrackpad}><Text className="text-amber-200">{trackpad() ? 'Trackpad ON · F7' : 'Trackpad OFF · F7'}</Text></Button> : null}
       <View className="flex-col grow gap-1">
         <Text className="text-sm text-white">{status()}</Text>
         <Text className="text-xs text-slate-400">{detail()}</Text>
@@ -52,5 +66,5 @@ render(App, 0x0c0a09, (dt: number) => {
   elapsed = 0;
   if (offline === null) tickDebug(session, debugDt);
   if (offline === null && url !== '') setStatus(session.status);
-  setDetail(session.error !== '' ? session.error : offline !== null ? `${session.width} × ${session.height} / ${session.frames} packets / Local four-second loop · 440 Hz tone` : `${session.width} × ${session.height} / ${session.frames} packets / Arrows · Enter · Esc · Home · S`);
+  setDetail(session.error !== '' ? session.error : offline !== null ? `${session.width} × ${session.height} / ${session.frames} packets / Local four-second loop · 440 Hz tone` : `${session.width} × ${session.height} / ${session.frames} packets / Arrows · Tab · Enter · Esc · Home · S / F6: keyboard capture`);
 });

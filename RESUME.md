@@ -11,3 +11,6 @@ Validation: full backend protocol/server build and tests pass, including cluster
 Manual acceptance remains: persisted trust on second USB startup/locked phone, fixed PCM microphone Siri recognition, display-addressed day/night, physical two-finger trackpad, injected GPS/cluster, real macOS wireless and Raspberry Pi. No Pi/Linux build/run or hardware decode/FPS claim. USB NCM sometimes needed a cable reconnect. Do not reset phone trust or delete keys blindly.
 
 Run backend as before with explicit USB serial and external identity, optionally ZINC_CARPLAY_CLUSTER=1 before startup. Viewer: ZINC=$PWD/build/zinc ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 ZINC_CARPLAY_URL='ws://127.0.0.1:18080/ws?token=zinc-usb-test' examples/carplay/run --live. No agent-started app/server should be left running.
+
+Latest viewer follow-up: numbered finger rings + mini trackpad map; keyboard captured by default, F6/header button releases for GPS/UI editing, F6/video click recaptures. Zinc focus integration regression and negative-ID scripted screenshot pass. No backend restart needed for this viewer-only follow-up.
+F7 / Trackpad ON-OFF toggles native touch forwarding/markers independently; disabling releases contacts immediately and keeps mouse input.
