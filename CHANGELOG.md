@@ -95,6 +95,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- A named function passed to a built-in array method with no other use as a value (`songs.sort(byTitle)`) compiles instead of Z0005 "this function used as a value".
 - Native plugins: a record field named like a C++ keyword (`auto`, `new`, `delete`, `default`...) no longer breaks the generated header; it is `auto_` in C++.
 - A `Promise<T>` made by generic code with `T = void` (`fail<void>()`, `Promise.reject<void>(e)`) is a `Promise<void>`: it can be returned from a function that returns `Promise<void>`, awaited, and given `then` and `catch`.
 - An object literal passed to a generic call takes its type from the type wanted there, as in TypeScript: `return Promise.resolve({ xs: [], size: 0 })` in a function returning `Promise<Picture>` no longer stops on Z0109 (empty array) or Z0103, and its number literals take the record's types.

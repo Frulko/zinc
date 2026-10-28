@@ -587,12 +587,22 @@ struct Lowering {
     return {cls, fi};
   }
   void buildThunks() {
-    for (std::uint32_t node : c.funcValueUses) {
+    std::vector<std::uint32_t> uses = c.funcValueUses;
+    // functions passed to a built-in method (xs.sort(byName)) are checked against its signature, not listed by the checker
+    for (std::uint32_t j = 0; j < a.nodes.size(); ++j) {
+      if (a.nodes[j].kind != N::Call) continue;
+      for (std::size_t k = 1; k < a.nodes[j].kids.size(); ++k) {
+        std::uint32_t arg = a.nodes[j].kids[k];
+        if (a.nodes[arg].kind == N::Ident && c.nodeSym[arg] != kNil && c.syms[c.nodeSym[arg]].kind == SymKind::Func) uses.push_back(arg);
+      }
+    }
+    for (std::uint32_t node : uses) {
       std::uint32_t sym = c.nodeSym[node];
       if (sym == kNil || thunkOfSym.count(sym) || closureFns.count(c.syms[sym].decl)) continue;
       auto target = funcOfNode.find(c.syms[sym].decl);
       if (target == funcOfNode.end()) continue;
       frontend::TypeId ftype = c.nodeType[node];
+      if (ftype == frontend::kNoType || typeHasParam(ftype)) ftype = c.syms[sym].type;   // checked against a generic parameter: its own type
       if (typeHasParam(ftype)) continue;
       thunkOfSym[sym] = makeThunk(std::string(c.syms[sym].name), ftype, target->second);
     }
