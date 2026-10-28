@@ -9,8 +9,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:carplay` can capture microphone audio and encode PlayPort PCM or Opus uplink packets, with permission errors and cleanup on stop. Live Siri/call acceptance still needs an iPhone test.
 - `zinc:carplay` forwards two simultaneous touch contacts with stable finger slots and supports day/night appearance through `setNightMode`; the demo includes a Day/Night button.
-- Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB and microphone uplink are not implemented yet.
+- Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB receiver integration remains experimental and unverified on an iPhone.
 - reMarkable: Sidecar shows a Mac's screen on the tablet over USB, as a second display (Retina, 1:1 or a chosen size) or a mirror, in fast black and white: open Sidecar on the tablet, then run `app/sidecar/mac/build.sh` and `build/sidecar` on the Mac.
 - reMarkable: Sidecar scrolls the Mac with two fingers (in the way the tablet is turned); a two-finger tap is the full refresh. It can also run without xochitl, on the whole screen: `zinc-tile sidecar.zapp --session --max 7200` makes its session tile (`zinc-tile --max` sets any session's time).
 - reMarkable: Sidecar has a menu bar app (`app/sidecar/mac/build/Sidecar.app`): start and stop, presets (Text, Speed, Video, Reading), a settings window that explains each knob, and a pen tablet mode where the Marker draws in Mac apps with pressure, tilt and hover.

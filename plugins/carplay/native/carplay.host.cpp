@@ -6,6 +6,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 #include <string.h>
+#include "microphone.h"
 
 // Decoders belong to the plugin, never to the engine. All calls run on the app thread.
 struct Decoder {
@@ -15,6 +16,23 @@ struct Decoder {
   int image = -1;
 };
 struct HostCarplay : NativeCarplay {
+  carplay::MicrophoneEncoder microphones[4];
+  int32_t micOpen(int32_t codec, int32_t rate, int32_t channels, int32_t samples, int32_t bitrate) override {
+    for (int i = 0; i < 4; ++i) if (!microphones[i].active()) {
+      if (microphones[i].open(codec, rate, channels, samples, bitrate)) { message[0] = 0; return i; }
+      fail(microphones[i].error.c_str()); return -1;
+    }
+    fail("too many microphone encoders"); return -1;
+  }
+  zrt::Array<uint8_t> micEncode(int32_t h, zrt::Array<double> samples) override {
+    zrt::Array<uint8_t> out = zrt::Array<uint8_t>::with_cap(0);
+    if (h < 0 || h >= 4) { fail("invalid microphone encoder"); return out; }
+    auto bytes = microphones[h].encode(samples.length() ? samples.a->data : nullptr, samples.length());
+    if (!microphones[h].error.empty()) fail(microphones[h].error.c_str());
+    for (uint8_t b : bytes) out.push(b);
+    return out;
+  }
+  void micClose(int32_t h) override { if (h >= 0 && h < 4) microphones[h].close(); }
   Decoder slots[4];
   Decoder audio[8];
   char message[128] = "";
