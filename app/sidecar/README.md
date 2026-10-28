@@ -6,13 +6,14 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
 - **The tablet** (`src/`): a Zinc app. Its driver (`plugins/display-rmpp/stream.h`) listens on TCP 7710 and writes what the Mac sends
   straight into AppLoad's framebuffer from its own thread, without the app's frame loop; the app only shows how to connect.
 - **The Mac** (`mac/`): `mac/build.sh`, then `mac/build/sidecar`. It makes a virtual display (CoreGraphics' `CGVirtualDisplay`, as DeskPad),
-  captures it with ScreenCaptureKit, dithers its luma to 1 bit and sends only the 32x16 tiles that changed, one frame in flight. The luma goes through an e-ink tone curve first (near white to white, near
-  black to black). Once nothing has changed for a second, the tiles drawn fast go black then out again in true greys in xochitl's page
-  waveform (a partial update drives only the pixels that change, so a trail on white needs the black): the
-  fast waveform's trails go away and text gets its anti-aliasing back (a blinking caret never rests that long); every four screens of that,
-  a full refresh.
-  The pointer is drawn by the Mac, not captured: bigger, and its trail is cleaned on its own 300 ms after it stops; a move dithers and compares
-  only its two boxes. The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
+  captures it with ScreenCaptureKit (only the areas macOS says changed), dithers its luma to 1 bit and sends only the 32x16 tiles that
+  changed, one frame in flight. The luma goes through an e-ink shader first: a tone curve (near white to white, near black to black) and an
+  edge pass that pushes a pixel darker than its neighbours towards black, so hairlines of light grey (window borders, separators) stay.
+  Each tile drawn fast is cleaned once it has rested a second (a blinking caret never rests that long): the pixels drawn fast go black,
+  then the tile goes out in true greys in xochitl's page waveform (a partial update drives only the pixels that change, so a trail on white
+  needs the black; only the strokes flash, not the tile). A third of the screen at once, or four screens of cleaning, is a full refresh.
+  macOS draws the pointer into the capture; its trail is cleaned 300 ms after it stops (`--cursor` draws our own instead).
+  The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
   A session starts and ends with a full refresh, and two fingers on the tablet ask for one at any time (they do not reach the Mac).
   macOS asks once for the Screen Recording permission, and Accessibility for the touches.
 
@@ -24,7 +25,8 @@ mac/build/sidecar --mirror 0       # mirror the Mac's first display (white bands
 mac/build/sidecar --threshold      # a plain threshold instead of the ordered dither: sharper text, no greys
 mac/build/sidecar --idle 1000      # ms without change before the clean pass (0: never)
 mac/build/sidecar --levels 90,185 --gamma 1.6   # the e-ink tone curve: luma under 90 black, over 185 white, the middle darkened
-mac/build/sidecar --cursor 32      # the pointer's height on the tablet, in its pixels
+mac/build/sidecar --edges 10       # the edge pass's strength (0: off)
+mac/build/sidecar --cursor 32      # draw our own pointer, this many tablet pixels tall, instead of macOS's
 mac/build/sidecar --clean-mode 3   # the clean pass's waveform: 3 xochitl's page one, 4 UI
 ```
 
