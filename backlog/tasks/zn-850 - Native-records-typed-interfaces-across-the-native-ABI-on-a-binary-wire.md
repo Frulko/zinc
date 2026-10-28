@@ -2,7 +2,8 @@
 id: ZN-850
 title: 'Native records: typed interfaces across the native ABI on a binary wire'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-28 21:20'
 labels:
   - size-L
