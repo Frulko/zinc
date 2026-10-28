@@ -11,7 +11,7 @@ import ApplicationServices
 import AppKit
 import SwiftUI
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 30, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -96,6 +96,7 @@ Thread {
             let args = CommandLine.arguments.map { strdup($0) } + [nil]
             execv(CommandLine.arguments[0], args); die("cannot start again")
         }
+        else if m[0] == 5 { lock.lock(); fullAt = now(); lock.unlock(); ready.signal() }   // a full refresh started on the tablet
         else if m[0] == 3 { lock.lock(); pendingTurn = i(4); lock.unlock(); ready.signal() }   // the tablet turned
         else if m[0] == 2 { let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = i(4), y = i(8), p = i(12); DispatchQueue.main.async { play(t, id, x, y, p) } }
     }
@@ -182,6 +183,7 @@ var prev = [UInt8](repeating: 0, count: stride * H)  // what the tablet shows, 1
 var firstFrame = true, firstFull = true
 var cur = prev
 let lock = NSLock(), ready = DispatchSemaphore(value: 0)
+var fullAt = -1e9   // when the tablet's last full refresh started: what was sent during it goes again after
 var pendingTurn = -1   // the way up the tablet last sent, until the sender takes it
 var latest: CVPixelBuffer?, frameDirty = CGRect.null   // the newest frame, and what changed since the last one taken (frame pixels)
 let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
@@ -224,6 +226,18 @@ func rectsOf(_ mask: [Bool], _ tx0: Int = 0, _ ty0: Int = 0, _ tx1: Int = tilesX
     return rects
 }
 
+/** Of the tiles in mask, those whose picture changed since the full refresh began (fullSnapshot: the picture then). */
+var fullSnapshot: [UInt8] = []
+func changedSince(_ mask: [Bool]) -> [Bool] {
+    guard fullSnapshot.count == cur.count else { return mask }
+    var m = mask
+    for ty in 0..<tilesY { for tx in 0..<tilesX where m[ty * tilesX + tx] {
+        var diff = false
+        for y in (ty * TH)..<min(H, (ty + 1) * TH) where !diff { let o = y * stride; for i in (tx * TW / 8)..<min(stride, (tx + 1) * TW / 8) where cur[o + i] != fullSnapshot[o + i] { diff = true; break } }
+        m[ty * tilesX + tx] = diff
+    } }
+    return m
+}
 /** The tiles where cur differs from prev, within a pixel box. */
 func changed(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> [Bool] {
     var m = [Bool](repeating: false, count: tilesX * tilesY)
@@ -395,7 +409,7 @@ pointerTimer.resume()
 // --- live settings: the window (below) sets them, the sender takes them between two frames
 struct Tune: Equatable {
     var black = 90.0, white = 185.0, gamma = 1.6, edges = 10.0, edgeFloor = 4.0, dither = true
-    var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 30.0, trail = 1500.0
+    var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
     var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
 }
 /** The settings as the command line left them. */
@@ -427,15 +441,30 @@ func addCursor(_ p: (x: Int, y: Int)) {
 Thread {
     var drawn: (x: Int, y: Int)? = nil, drawnDot = false   // where the pointer is drawn in shown, and as what
     var held: CVPixelBuffer?   // the last frame: a change of the shader goes through it again
+    var lastFull = -1e9, resyncAt = -1.0   // the last full refresh seen, and when what changed during it goes again
     var lastPointer = 0.0, deferred = false   // when the pointer last went out; a move waits for its turn
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
         if deferred { _ = ready.wait(timeout: .now() + .milliseconds(5)) }
+        else if resyncAt > 0 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }
         else if now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw the arrow once it stops
         else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
         if !fastMode && tn >= backToFast { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
-        lock.lock(); let tune = pendingTune, action = pendingAction; pendingTune = nil; pendingAction = ""; lock.unlock()
+        lock.lock(); let tune = pendingTune, action = pendingAction, fa = fullAt; pendingTune = nil; pendingAction = ""; lock.unlock()
+        // a full refresh repaints the panel for ~1.4 s: what changed meanwhile may not stay, so all of it goes again once it is over
+        if fa != lastFull { lastFull = fa; fullSnapshot = cur; resyncAt = fa + 1600 }
+        if resyncAt > 0 && now() >= resyncAt {
+            resyncAt = -1
+            let rects = rectsOf(changedSince([Bool](repeating: true, count: tilesX * tilesY)))
+            for (x, y, w, h) in rects {
+                let rs = (w + 7) / 8
+                var payload = [UInt8](repeating: 0, count: rs * h)
+                for j in 0..<h { let o = (y + j) * stride + x / 8; payload.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
+                writeFull(header(1, x, y, w, h, payload.count), 16); writeFull(payload, payload.count)
+            }
+            for _ in rects { acks.wait() }
+        }
         if let tune { apply(tune) }
         if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
         if action == "clean" { var all = fastTiles; for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }; clean(&all) }

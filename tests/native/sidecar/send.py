@@ -13,9 +13,9 @@ print('hello', f.readline().decode().strip())
 msg = lambda t, x=0, y=0, w=0, h=0, depth=1, pl=b'': s.sendall(struct.pack('<BBHHHHHI', t, depth, x, y, w, h, 0, len(pl)) + pl)
 msg(2, 0)                                        # the pen's waveform
 def answer():
-    """The tablet's next message: ('ack', n) or ('input', type, id, x, y, pressure)."""
+    """The tablet's next message: ('ack', n), ('input', type, id, x, y, pressure), or ('other', kind) (way up, full refresh, room)."""
     kind, typ, id_, a, b, c = struct.unpack('<BBHiii', f.read(16))
-    return ('ack', a) if kind == 1 else ('input', typ, id_, a, b, c)
+    return ('ack', a) if kind == 1 else ('input', typ, id_, a, b, c) if kind == 2 else ('other', kind)
 def ack():
     while (r := answer())[0] != 'ack': pass
     print('ack', r[1])

@@ -12,11 +12,14 @@
 //                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
 //   kind 3 TURN   a: the tablet's way up from its accelerometer, 0 upright, 90 its top on the left, 180 upside down, 270 its top on the
 //                 right; at the start and on each change (lying flat changes nothing). The Mac turns its picture to match.
+//   kind 5 FULL   a full refresh has just started (the Mac's, or two fingers): what the Mac sends during it may not stay, so it
+//                 sends again what changed once it is over.
 //   kind 4 ROOM   a, b: the room the stream has now, when xochitl's header came or went: the Mac starts again at that size (and the
 //                 rectangles it sends until then are dropped).
 // A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture), and a second finger
 // down asks for one: neither finger goes to the Mac.
 #pragma once
+#include <algorithm>
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -46,7 +49,8 @@ inline int fingers = 0;         // fingers down (main thread)
 inline bool two = false;        // a second finger came down: the rest of this touch is the tablet's
 inline int last_id = 0, last_x = 0, last_y = 0;   // the finger the Mac has, where it was last
 inline std::atomic<bool> moved{false};      // the room changed under this session: its rectangles are dropped until the Mac leaves
-inline std::atomic<unsigned> session{0};   // which Mac is connected: the way-up watcher stops when it changes
+inline std::atomic<unsigned> session{0};
+inline uint32_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000ull + t.tv_nsec / 1000); }   // which Mac is connected: the way-up watcher stops when it changes
 
 inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
   uint8_t m[16] = {kind, type};
@@ -97,6 +101,43 @@ inline void room(int top, int w, int h) {
   fprintf(stderr, "display-rmpp: sidecar room now %dx%d\n", w, h - top);
 }
 
+// The probe (on while /tmp/zinc-sidecar-probe exists when a Mac connects): how long the panel takes to start moving after an update.
+// xochitl drives the panel through the LCDIF, whose interrupt counts only while the panel is driven (none at rest): read every ms,
+// the first count after an update is when the panel starts. Logged every 5 s, apart for a panel at rest and one already driven.
+inline std::atomic<uint32_t> probe_at{0};   // when the last update went out (us), 0 once the panel answered it
+inline long lcdif_count() {
+  FILE* f = fopen("/proc/interrupts", "r");
+  if (!f) return -1;
+  char line[256]; long n = -1;
+  while (fgets(line, sizeof line, f)) if (strstr(line, "lcdif")) { sscanf(line, "%*d: %ld", &n); break; }
+  fclose(f);
+  return n;
+}
+inline void probe_loop(unsigned mine) {
+  std::vector<uint32_t> rest, busy;
+  long last = lcdif_count();
+  uint32_t changed = 0, logged = 0;
+  for (; session == mine; usleep(1000)) {
+    const uint32_t t = now_us(); const long n = lcdif_count();
+    const uint32_t at = probe_at;
+    if (n != last) {
+      if (at && (int32_t)(t - at) >= 0) { ((int32_t)(at - changed) > 40000 ? rest : busy).push_back(t - at); probe_at = 0; }
+      last = n; changed = t;
+    }
+    if (t - logged > 5000000 && (rest.size() || busy.size())) {
+      auto show = [](std::vector<uint32_t>& v, const char* what) {
+        if (v.empty()) return;
+        std::sort(v.begin(), v.end());
+        fprintf(stderr, "display-rmpp: probe %s: %zu updates, panel starts after %u ms (median), %u ms (90%%), %u ms (max)\n", what, v.size(),
+                v[v.size() / 2] / 1000, v[v.size() * 9 / 10] / 1000, v.back() / 1000);
+        v.clear();
+      };
+      show(rest, "from rest"); show(busy, "while driven");
+      logged = t;
+    }
+  }
+}
+
 struct Target {
   uint8_t* fb;                              // qtfb's RGB888 buffer
   int w, h;
@@ -110,7 +151,6 @@ inline bool read_full(int fd, void* p, size_t n) {
   for (uint8_t* b = (uint8_t*)p; n;) { ssize_t r = read(fd, b, n); if (r <= 0) return false; b += r; n -= (size_t)r; }
   return true;
 }
-inline uint32_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000ull + t.tv_nsec / 1000); }
 
 inline void serve(Target t, int ls) {
   static uint8_t lut[256][24];   // a byte of bits -> its 8 RGB888 pixels
@@ -129,6 +169,8 @@ inline void serve(Target t, int ls) {
     fingers = 0; two = false; moved = false;
     active = true;
     std::thread(watch_way_up, ++session).detach();
+    const bool probe = access("/tmp/zinc-sidecar-probe", F_OK) == 0;
+    if (probe) std::thread(probe_loop, (unsigned)session).detach();
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
     uint32_t seq = 0;
     uint8_t h[16];
@@ -153,7 +195,7 @@ inline void serve(Target t, int ls) {
         } else for (int i = 0; i < w; i++, d += 3) d[0] = d[1] = d[2] = s[i];
       }
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
-      if (w && hh) t.update(x, top + y, w, hh);
+      if (w && hh) { t.update(x, top + y, w, hh); if (probe && !probe_at) probe_at = now_us() | 1; }
       ++seq;
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
     }

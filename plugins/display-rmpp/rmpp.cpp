@@ -408,7 +408,7 @@ void rm_present(const HalFrame* f) {
     if (m >= 0 && refresh_mode != m && now >= mode_ready_us) set_mode(m);
     if (stream::full && full_refresh_ok && now >= mode_ready_us) {
       ClientMsg q = {}; q.type = MSG_FULL_REFRESH;
-      if (send(sock, &q, sizeof q, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof q) { stream::full = false; ghost = {}; mode_ready_us = now + switch_pause(); }
+      if (send(sock, &q, sizeof q, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof q) { stream::full = false; ghost = {}; mode_ready_us = now + switch_pause(); stream::send16(5, 0, 0, 0, 0, 0); }
     }
     pending = {};
     rin::wait_input(8, sock);
