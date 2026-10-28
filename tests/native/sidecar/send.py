@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A Mac's side of the sidecar stream, scripted (plugins/display-rmpp/stream.h): send.py <port> waits for the tablet, prints its hello, sends the
-pen's waveform, a 1-bit rectangle, a grey one and a full refresh, prints each answer and the first touch the tablet forwards, then leaves."""
+pen's waveform, a 1-bit rectangle, a grey one and a full refresh, prints each answer and the first touch the tablet forwards, then leaves.
+send.py <port> notap: no touch to wait for (the ink session has no scripted tap)."""
 import socket, struct, sys, time
 
 port = int(sys.argv[1])
@@ -25,8 +26,9 @@ msg(1, 0, 0, 10, 2, 8, bytes(range(0, 200, 10)))  # grey levels
 ack()
 msg(3)                                           # a full refresh
 s.settimeout(20)
-while (r := answer())[0] != 'input': pass        # a tap on the tablet (the test's ZN_RMPP_SIM_TAP)
-print('input %#x %d,%d' % (r[1], r[3], r[4]))
+if sys.argv[2:] != ['notap']:
+    while (r := answer())[0] != 'input': pass    # a tap on the tablet (the test's ZN_RMPP_SIM_TAP)
+    print('input %#x %d,%d' % (r[1], r[3], r[4]))
 time.sleep(1.5)                                  # the full refresh goes out from the app's frame loop
 s.close()
 print('left')

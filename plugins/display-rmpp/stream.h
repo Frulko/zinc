@@ -154,8 +154,9 @@ inline void probe_loop(unsigned mine) {
 }
 
 struct Target {
-  uint8_t* fb;                              // qtfb's RGB888 buffer
+  uint8_t* fb;                              // qtfb's RGB888 buffer, or the vendor engine's RGB32 one in an ink session (L2)
   int w, h;
+  int stride, bpp;                          // bytes per row and per pixel (3 or 4)
   std::function<int()> top;                 // the first row the stream may use (the dock's)
   std::function<void(int, int, int, int)> update;   // one partial update
   std::function<bool()> busy;               // qtfb switching its waveform or sleeping after a full refresh: an update now is lost
@@ -170,8 +171,12 @@ inline bool read_full(int fd, void* p, size_t n) {
 }
 
 inline void serve(Target t, int ls) {
-  static uint8_t lut[256][24];   // a byte of bits -> its 8 RGB888 pixels
-  for (int b = 0; b < 256; b++) for (int i = 0; i < 8; i++) memset(lut[b] + i * 3, (b >> (7 - i) & 1) ? 0 : 0xFF, 3);
+  static uint8_t lut[256][32];   // a byte of bits -> its 8 pixels (RGB888, or RGB32 with an opaque alpha)
+  const int B = t.bpp;
+  for (int b = 0; b < 256; b++) for (int i = 0; i < 8; i++) {
+    memset(lut[b] + i * B, (b >> (7 - i) & 1) ? 0 : 0xFF, 3);
+    if (B == 4) lut[b][i * 4 + 3] = 0xFF;
+  }
   std::vector<uint8_t> buf;
   for (;;) {
     int c = accept(ls, nullptr, nullptr);
@@ -220,13 +225,13 @@ inline void serve(Target t, int ls) {
       if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
       const uint32_t t0 = now_us();
       for (int j = 0; j < hh; j++) {
-        uint8_t* d = t.fb + ((size_t)(top + y + j) * t.w + x) * 3;
+        uint8_t* d = t.fb + (size_t)(top + y + j) * t.stride + (size_t)x * B;
         const uint8_t* s = buf.data() + j * stride;
         if (h[1] == 1) {
           int i = 0;
-          for (; i + 8 <= w; i += 8, d += 24) memcpy(d, lut[s[i >> 3]], 24);
-          if (i < w) memcpy(d, lut[s[i >> 3]], (size_t)(w - i) * 3);
-        } else for (int i = 0; i < w; i++, d += 3) d[0] = d[1] = d[2] = s[i];
+          for (; i + 8 <= w; i += 8, d += 8 * B) memcpy(d, lut[s[i >> 3]], 8 * B);
+          if (i < w) memcpy(d, lut[s[i >> 3]], (size_t)(w - i) * B);
+        } else for (int i = 0; i < w; i++, d += B) { d[0] = d[1] = d[2] = s[i]; if (B == 4) d[3] = 0xFF; }
       }
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
       if (w && hh) {

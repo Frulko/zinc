@@ -206,9 +206,64 @@ void escape(HalInput* in) {
   rin::quit_flag = 1; in->quit = 1;
 }
 
+// The sidecar in an ink session (L2): its thread writes into the engine's buffer and queues the rectangles; the main thread swaps them
+// (the vendor engine is driven from one thread), keeps the engine's events and the lease's watchdog going, and forwards evdev's
+// fingers and Marker to the Mac as AppLoad would.
+std::mutex l2_mu;
+std::vector<eink::Rect> l2_rects;
+void l2_stream_input() {
+  static HalTouch was[HAL_MAX_TOUCH];
+  static int nwas = 0;
+  for (int i = 0; i < nwas; i++) {
+    bool still = false;
+    for (int j = 0; j < rin::ntouch; j++) still = still || rin::touches[j].id == was[i].id;
+    if (!still) stream::input(0x11, was[i].id, (int)was[i].x, (int)was[i].y, 0);
+  }
+  for (int j = 0; j < rin::ntouch; j++) {
+    const HalTouch& t = rin::touches[j];
+    int i = 0;
+    while (i < nwas && was[i].id != t.id) i++;
+    if (i == nwas) stream::input(0x10, t.id, (int)t.x, (int)t.y, 0);
+    else if (was[i].x != t.x || was[i].y != t.y) stream::input(0x12, t.id, (int)t.x, (int)t.y, 0);
+  }
+  nwas = rin::ntouch;
+  memcpy(was, rin::touches, sizeof(HalTouch) * nwas);
+  pthread_mutex_lock(&rin::mu);
+  const HalPen p = rin::last_pen;
+  pthread_mutex_unlock(&rin::mu);
+  static bool down = false;
+  static float px = -1, py = -1;
+  const bool now = (p.flags & HAL_PEN_DOWN) != 0;
+  const int pressure = (int)(p.pressure * 4096);
+  if (now != down) stream::input(now ? 0x20 : 0x21, 0, (int)p.x, (int)p.y, pressure);
+  else if (now && (p.x != px || p.y != py)) stream::input(0x22, 0, (int)p.x, (int)p.y, pressure);
+  down = now; px = p.x; py = p.y;
+}
+void l2_stream_present() {
+  std::vector<eink::Rect> q;
+  { std::lock_guard<std::mutex> g(l2_mu); q.swap(l2_rects); }
+  const int m = stream::mode;
+  const bool colour = m >= MODE_CONTENT;   // the Mac's grey waveforms; else the Pen/Mono partial, the fastest the engine has
+  for (const eink::Rect& r : q)
+    native::api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, colour ? native::row->colour_mode : native::row->pen_mode, 0, colour ? native::row->colour_content : 0);
+  if (stream::full.exchange(false)) {
+    native::api.swap(0, 0, panel.w, panel.h, native::row->colour_mode, 1, native::row->colour_content);
+    stream::send16(5, 0, 0, 0, 0, 0);
+  }
+  native::api.events();
+  native::watchdog();
+  if (q.empty()) rin::wait_input(4, -1);
+}
+
 const char* rm_device(const char* query, const char* arg);
 void rm_poll(HalInput* in) {
-  if (layer == L2 || layer == RM2) { rin::poll_touch(); rin::poll_input(in); escape(in); return; }
+  if (layer == L2 || layer == RM2) {
+    rin::poll_touch();
+    if (layer == L2 && stream::active) l2_stream_input();
+    rin::poll_input(in); escape(in);   // three fingers held still quit, as the lease's way out besides the power key
+    if (layer == L2 && stream::active) { in->ntouch = 0; in->pdown = 0; }   // the Mac's, not the app's
+    return;
+  }
   ServerMsg m = {};
   for (;;) {
     ssize_t n = recv(sock, &m, sizeof m, MSG_DONTWAIT);
@@ -400,7 +455,8 @@ void rm_present(const HalFrame* f) {
   }
   const bool first = panel.first;
   if (panel.first) { r = {0, 0, panel.w, panel.h}; panel.first = false; }
-  if (stream::ended.exchange(false)) { r = {0, 0, panel.w, panel.h}; full_asked = true; }   // the sidecar left: the app's whole frame, then a full refresh
+  if (stream::ended.exchange(false)) { r = {0, 0, panel.w, panel.h}; full_asked = true; native::full_now = layer == L2; }   // the sidecar left: the app's whole frame, then a full refresh
+  else if (stream::active && layer == L2) { l2_stream_present(); return; }
   else if (stream::active) {   // the sidecar's stream owns the screen (stream.h): its waveform and full refreshes go out from here
     stream::room(docked ? dock_top : 0, panel.w, panel.h);
     const uint64_t now = hal_time_us();
@@ -590,8 +646,15 @@ const char* rm_device(const char* query, const char* arg) {
   // "stream.listen" "<port>" (app/sidecar): a Mac's screen streamed to this window (stream.h); "1" when it listens. "stream.state": "off",
   // "waiting" or "connected"
   if (strcmp(query, "stream.listen") == 0) {
+    if (arg && layer == L2) {   // the whole panel, no header: the engine's buffer, swapped by the main thread
+      stream::Target t = {native::fb, panel.w, panel.h, native::stride, 4, [] { return 0; }, [](int x, int y, int w, int h) {
+        { std::lock_guard<std::mutex> g(l2_mu); l2_rects.push_back({x, y, x + w, y + h}); }
+        char c = 1; (void)!write(rin::wake[1], &c, 1);
+      }, [] { return false; }, nullptr, row ? row->name : "reMarkable"};
+      return stream::start(atoi(arg), t) ? "1" : "0";
+    }
     if (!arg || !shm || sock < 0 || (layer != L0 && layer != L1)) return "0";
-    stream::Target t = {shm, panel.w, panel.h, [] { return docked ? dock_top : 0; }, [](int x, int y, int w, int h) {
+    stream::Target t = {shm, panel.w, panel.h, panel.w * 3, 3, [] { return docked ? dock_top : 0; }, [](int x, int y, int w, int h) {
       ClientMsg m = {}; m.type = MSG_UPDATE;
       m.update.type = UPDATE_PARTIAL; m.update.x = x; m.update.y = y; m.update.w = w; m.update.h = h;
       send(sock, &m, sizeof m, MSG_NOSIGNAL);   // from the stream's thread; qtfb's socket keeps each message whole
