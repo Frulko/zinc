@@ -21,7 +21,8 @@ with tempfile.TemporaryDirectory(prefix='carplay-usb-prepare-') as temporary:
     wireless = root / "server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt"
     wireless_control = root / "protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2WirelessControlClient.kt"
     hub = root / "server/src/main/kotlin/com/playport/server/WebHub.kt"
-    sources = [main, gradle, tls, server, info, session, bridge, uplink, wireless, wireless_control, hub]
+    iap2_session = root / "protocol/src/main/java/com/shilapi/xcertplay/iap2/session/Iap2Session.kt"
+    sources = [iap2_session, main, gradle, tls, server, info, session, bridge, uplink, wireless, wireless_control, hub]
     first = [source.read_bytes() for source in sources]
     initializer = main.read_text().split('    val wired = try {', 1)[1].split('    val server =', 1)[0]
     assert 'wired?.close()' not in initializer, 'initializer cannot close an uninitialized value'

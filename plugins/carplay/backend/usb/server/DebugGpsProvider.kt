@@ -16,6 +16,7 @@ import org.xml.sax.InputSource
 data class DebugGpsSnapshot(
     val enabled: Boolean,
     val subscribed: Boolean,
+    val requested: List<Int>,
     val lat: Double?,
     val lon: Double?,
     val speed: Double?,
@@ -35,6 +36,7 @@ class DebugGpsProvider(
 ) : Iap2LocationProvider {
     private var enabled = false
     private var subscribed = false
+    private var requested = emptySet<Int>()
     private var fix: CarPlayLocationFix? = null
     private var track = emptyList<TrackPoint>()
     private var position = 0.0
@@ -70,17 +72,21 @@ class DebugGpsProvider(
         position = elapsed(); anchor = nanoTime(); rate = playbackRate; playing = active
     }
     @Synchronized override fun onSent() { sent++; lastSentMillis = currentTimeMillis() }
+    @Synchronized override fun onRequested(components: Set<Int>) { requested = components.toSet() }
     @Synchronized override fun start(): Boolean { subscribed = true; return true }
     @Synchronized override fun stop() { subscribed = false }
     @Synchronized override fun latestNmea(): String? {
         if (!enabled || !subscribed) return null
         val latest = currentFix() ?: return null
         // GPX timestamps drive the timeline; iPhone location observations use current UTC time.
-        return NmeaLocationEncoder.encode(latest.copy(timestampMillis = currentTimeMillis()))
+        val sentences = NmeaLocationEncoder.encode(latest.copy(timestampMillis = currentTimeMillis()))
+        return sentences.lineSequence().filter { line ->
+            (1 in requested && line.startsWith("\$GPGGA,")) || (2 in requested && line.startsWith("\$GPRMC,"))
+        }.joinToString("\r\n")
     }
     @Synchronized fun snapshot(): DebugGpsSnapshot {
         val latest = currentFix()
-        return DebugGpsSnapshot(enabled, subscribed, latest?.latitudeDegrees, latest?.longitudeDegrees,
+        return DebugGpsSnapshot(enabled, subscribed, requested.sorted(), latest?.latitudeDegrees, latest?.longitudeDegrees,
             latest?.speedMetersPerSecond, latest?.bearingDegrees, track.size, elapsed(),
             track.lastOrNull()?.seconds ?: 0.0, playing && elapsed() < (track.lastOrNull()?.seconds ?: 0.0), sent, lastSentMillis)
     }

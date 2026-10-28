@@ -33,6 +33,10 @@ class ClusterWireDimensionsTest {
                 val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
                 assertEquals(width, buffer.getInt(3)); assertEquals(height, buffer.getInt(7))
             }
+            val text = "Rejoignez l’itinéraire · École"
+            hub.debugTelemetry("unicode", HudSnapshot(instruction = text))
+            val json = (channel.tryReceive().getOrThrow() as Frame.Text).data.toString(Charsets.UTF_8)
+            org.junit.Assert.assertTrue(json.contains(text))
         } finally { set.clear(); channel.close() }
     }
 }

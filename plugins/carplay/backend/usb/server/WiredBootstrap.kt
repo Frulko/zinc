@@ -41,7 +41,7 @@ class WiredBootstrap(private val serial: String) : Closeable {
                     host, LockdownPairStore(server.config.stateDir, serial), "ZincCarPlay",
                     timeoutMillis = 120000, isCancelled = { closed }, onProgress = { log.info(it) },
                 )
-                val control = Iap2Session.open(stream, onTrace = { log.debug(it) })
+                val control = Iap2Session.open(stream, onArtwork = { server.hub.artwork(it) }, onTrace = { log.debug(it) })
                 session = control
                 if (closed) { control.close(); return@Thread }
                 val identification = Iap2IdentificationConfig(

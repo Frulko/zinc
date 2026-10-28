@@ -103,3 +103,20 @@ Unknown values stay blank or “—”; the timer is the last phone report, not 
 invented clock. The sidebar coalesces repeated ID/length log lines.
 **Charger le trajet test** loads the bundled one-minute Paris GPX without a file
 picker. The GPS TX counter counts completed iAP2 writes, not phone acceptance.
+
+Now Playing covers use actual iAP2 artwork transfers, not a web lookup. The HUD
+matches the transfer ID in metadata and releases the native image on replacement,
+clear or disconnect. Supported: PNG/JPEG up to 2 MiB and 2048×2048; the journal
+reports transfer ID, size and validation result. Restart both backend and player
+for artwork support, then change song so the phone can publish a fresh transfer.
+
+GPS status includes the requested iAP2 selectors (1=GGA, 2=RMC); only requested
+sentences are emitted. A live inspection confirmed subscription and a counter
+advancing by two sends per second, but Plans following the simulated route is
+still unproven. This is external accessory GPS delivery, not a demonstrated
+system-wide override. No phone settings, trust or location history are reset.
+
+Unicode apostrophes and accented characters pass the WebHub JSON / WebSocket /
+HUD regression. If the live instruction contains a literal question-mark byte
+or invalid UTF-8, the journal reports `iAP2 instruction source: UTF8=...` to
+identify source corruption; the viewer never guesses replacement punctuation.

@@ -14,7 +14,7 @@ data class HudSnapshot(
     val routePackets: Long = 0, val mediaPackets: Long = 0,
     val title: String = "", val artist: String = "", val album: String = "", val mediaApp: String = "",
     val durationMs: Long? = null, val elapsedMs: Long? = null, val playbackStatus: Int? = null,
-    val stale: Boolean = true,
+    val artworkId: Int? = null, val stale: Boolean = true,
 )
 
 /** Partial iAP2 updates retain absent fields; the viewer receives only bounded decoded metadata. */
@@ -32,6 +32,7 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
                         hud = hud.copy(title = item.optionalString(1)?.take(160) ?: hud.title,
                             artist = item.optionalString(12)?.take(160) ?: hud.artist,
                             album = item.optionalString(6)?.take(160) ?: hud.album,
+                            artworkId = item.optionalU8(26) ?: hud.artworkId,
                             durationMs = item.optionalU32(4) ?: hud.durationMs, stale = false)
                     }
                     body.optionalGroup(1)?.let { playback ->
@@ -60,6 +61,13 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
                 }
                 0x5202 -> {
                     hud = hud.copy(routePackets = hud.routePackets + 1, stale = false)
+                    val rawInstruction = body.optionalRaw(2)
+                    if (rawInstruction != null) {
+                        val validUtf8 = runCatching { rawInstruction.decodeToString(throwOnInvalidSequence = true) }.isSuccess
+                        if (!validUtf8 || rawInstruction.any { it == 63.toByte() }) {
+                            publish("iAP2 instruction source: UTF8=$validUtf8 questionByte=${rawInstruction.any { it == 63.toByte() }}", hud)
+                        }
+                    }
                     val index = body.optionalU16(1) ?: -1
                     if (index >= 0) {
                         val old = maneuvers[index] ?: Triple("", -1, "")

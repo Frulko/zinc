@@ -10,11 +10,19 @@ class DebugGpsProviderTest {
         <trkpt lat="10" lon="2"><time>2020-01-01T00:00:10Z</time></trkpt>
         </trkseg></trk></gpx>"""
 
+    @Test fun onlyRequestedSentenceTypesAreEmitted() {
+        val gps = DebugGpsProvider()
+        gps.setFix(48.0, 2.0)
+        gps.onRequested(setOf(0, 2, 0x8001)); gps.start()
+        assertTrue(gps.latestNmea()!!.startsWith("\$GPRMC,"))
+        assertFalse(gps.latestNmea()!!.contains("GGA"))
+        assertEquals(listOf(0, 2, 0x8001), gps.snapshot().requested)
+    }
     @Test fun onlySubscribedEnabledFixesAreSent() {
         val gps = DebugGpsProvider(currentTimeMillis = { 1_700_000_000_000L })
         gps.setFix(48.0, 2.0, 4.0, 90.0)
         assertNull(gps.latestNmea())
-        assertTrue(gps.start())
+        gps.onRequested(setOf(1, 2)); assertTrue(gps.start())
         assertTrue(gps.latestNmea()!!.contains("4800.0000,N"))
         gps.onSent(); assertEquals(1L, gps.snapshot().sent); assertNotNull(gps.snapshot().lastSentMillis)
         gps.disable(); assertNull(gps.latestNmea())
@@ -24,7 +32,7 @@ class DebugGpsProviderTest {
     @Test fun gpxCanSeekAndPlayWithoutUsingHistoricalObservationTime() {
         var now = 0L
         val gps = DebugGpsProvider(nanoTime = { now }, currentTimeMillis = { 1_700_000_000_000L })
-        gps.loadGpx(gpx); gps.start(); gps.seek(5.0)
+        gps.loadGpx(gpx); gps.onRequested(setOf(1, 2)); gps.start(); gps.seek(5.0)
         assertEquals(5.0, gps.snapshot().lat!!, 0.0001)
         assertEquals(10.0, gps.snapshot().duration, 0.0)
         assertFalse(gps.latestNmea()!!.contains("010120"))

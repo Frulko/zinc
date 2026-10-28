@@ -1,8 +1,18 @@
+import * as gfx from 'zinc:gfx';
 import { createSignal } from 'zinc:ui/solid';
 import { HudSnapshot, Session } from 'zinc:carplay';
 import { hudDistance, maneuverGlyph } from '../services/hud';
 const [data, setData] = createSignal<HudSnapshot | null>(null);
-export function tickHud(session: Session): void { setData(session.hud); }
+let live: Session | null = null;
+export function tickHud(session: Session): void { live = session; setData(session.hud); }
+function cover(x: i32, y: i32, w: i32, h: i32): void {
+  const s = live; const image = s === null ? -1 : s.artworkImage();
+  if (image >= 0) {
+    const iw = gfx.imageWidth(image), ih = gfx.imageHeight(image);
+    const scale = Math.min(w / iw, h / ih);
+    gfx.drawImage(image, x + (w - iw * scale) / 2, y + (h - ih * scale) / 2, iw * scale, ih * scale, 255, 4);
+  }
+}
 function state(): string {
   const h = data(); return h === null ? 'EN ATTENTE IAP2' : h.stale ? 'DONNÉES ANCIENNES' : h.source !== '' ? 'IAP2 REÇU · ' + h.source : 'IAP2 REÇU';
 }
@@ -47,6 +57,7 @@ export function HudPanel(): i32 {
         <Text className="text-sm text-cyan-200">{road()}</Text>
         <Text className="text-xs text-slate-400">{trip()}</Text>
       </View>
+      <Canvas className="w-24 h-24 self-center" onDraw={cover} />
       <View className="w-56 border-l border-slate-700 pl-4 flex-col justify-center gap-2">
         <Text className="text-xs text-amber-200">MÉDIA / {mediaSource()}</Text>
         <Text className="text-sm text-white">{song()}</Text>

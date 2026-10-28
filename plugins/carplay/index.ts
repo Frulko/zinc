@@ -29,10 +29,10 @@ export interface HudSnapshot {
   distanceKnown: boolean; remainingKnown: boolean; remainingSeconds?: number;
   destination: string; source: string; routePackets: number; mediaPackets: number;
   maneuver: i32; title: string; artist: string; album?: string; mediaApp?: string;
-  durationMs?: number; elapsedMs?: number; playbackStatus?: i32; stale: boolean;
+  artworkId?: i32; durationMs?: number; elapsedMs?: number; playbackStatus?: i32; stale: boolean;
 }
 export interface DebugGpsSnapshot {
-  enabled: boolean; subscribed: boolean; lat?: number; lon?: number; points: i32;
+  enabled: boolean; subscribed: boolean; requested?: i32[]; lat?: number; lon?: number; points: i32;
   seconds: number; duration: number; playing: boolean; sent?: number; lastSentMillis?: number;
 }
 interface ControlMessage {
@@ -54,6 +54,10 @@ export class Session {
   hud: HudSnapshot | null = null;
   gps: DebugGpsSnapshot | null = null;
   clusterEnabled: boolean = false;
+  private cover: i32 = -1;
+  private coverId: i32 = -1;
+  artworkImage(): i32 { return this.hud !== null && !this.hud.stale && this.hud.artworkId === this.coverId ? this.cover : -1; }
+  private clearArtwork(): void { if (this.cover >= 0) gfx.destroyImage(this.cover); this.cover = -1; this.coverId = -1; }
   private socket: WebSocket | null = null;
   private decoder: i32 = -1;
   private url: string = '';
@@ -97,6 +101,7 @@ export class Session {
         if (message.type === 'session' && message.sessionActive !== true) {
           this.microphone.stop();
           if (this.hud !== null) this.hud.stale = true;
+          this.clearArtwork();
           this.secondary.close();
           this.release();
           for (const id of this.audio.keys()) this.stopAudio(id);
@@ -128,6 +133,7 @@ export class Session {
       if (this.socket !== s) return;
       this.socket = null;
       if (this.hud !== null) this.hud.stale = true;
+      this.clearArtwork();
       this.secondary.close();
       this.microphone.stop();
       for (const id of this.audio.keys()) this.stopAudio(id);
@@ -141,6 +147,13 @@ export class Session {
   /** PlayPort binary media envelope, bounded before passing it to FFmpeg. */
   receive(b: u8[]): boolean {
     if (b.length < 2 || b.length > 8 * 1024 * 1024) return false;
+    if (b[0] === 7) {
+      if (b.length > 2 * 1024 * 1024 + 2) return false;
+      this.clearArtwork();
+      this.coverId = b[1];
+      if (b.length > 2) this.cover = gfx.imageFromBytes(b.slice(2));
+      return b.length === 2 || this.cover >= 0;
+    }
     if (b[0] === 3) {
       if (b.length < 9 || b.length < 9 + b[8] || b[2] < 1 || b[2] > 3) return false;
       const rate = b[3] + b[4] * 256 + b[5] * 65536 + b[6] * 16777216;
@@ -299,6 +312,7 @@ export class Session {
   }
   close(): void {
     if (this.hud !== null) this.hud.stale = true;
+    this.clearArtwork();
     this.secondary.close();
     this.microphone.stop();
     this.url = '';

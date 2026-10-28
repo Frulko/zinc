@@ -3,6 +3,7 @@
 set -eu
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 backend=$1
+cp "$here"/session/*.kt "$backend/protocol/src/main/java/com/shilapi/xcertplay/iap2/session/"
 cp "$here"/protocol/*.kt "$backend/protocol/src/main/java/com/shilapi/xcertplay/transport/"
 cp "$here"/tests/*.kt "$backend/protocol/src/test/java/com/shilapi/xcertplay/transport/"
 cp "$here"/server/*.kt "$backend/server/src/main/kotlin/com/playport/server/"
@@ -37,6 +38,7 @@ p=root/'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/CarPlayServer.kt']).decode()
 assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer microphone setting'
 t=t.replace('microphone = false', 'microphone = true')
+t=t.replace('Iap2Session.openTunnel(stream,', 'Iap2Session.openTunnel(stream, onArtwork = { hub.artwork(it) },')
 t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
 t=t.replace('        val session = activeSession ?: return', '''        if (message.type.startsWith("debugGps") || message.type == "debugGpx") {
             try {
@@ -62,7 +64,7 @@ t=t.replace('            rightHandDrive = config.rightHandDrive,', '''          
             ) else null,
             rightHandDrive = config.rightHandDrive,''')
 t=t.replace('                "siri" -> session.invokeSiri()', '                "cluster" -> session.setClusterUiShown(true)\n                "siri" -> session.invokeSiri()')
-t=t.replace('            bridge.endMicrophone()', '            debugTelemetry.ended()\n            bridge.endMicrophone()')
+t=t.replace('            bridge.endMicrophone()', '            debugTelemetry.ended()\n            hub.clearArtwork()\n            bridge.endMicrophone()')
 
 t=t.replace('"night" -> message.night?.let(session::setNightMode)', '''"night" -> message.night?.let {
                     val sent = session.setNightMode(it)
@@ -93,6 +95,7 @@ t=t.replace(old, '''        for (line in sentence.lineSequence().map { it.trim()
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt']).decode()
+t=t.replace('Iap2Session.openWireless(stream,', 'Iap2Session.openWireless(stream, onArtwork = { server.hub.artwork(it) },')
 t=t.replace('                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),', '                carPlayUsbInterfaceNumber = 0,\n                locationInformationEnabled = true,\n                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),')
 t=t.replace('                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },', '                locationProvider = server.debugGps,\n                onIncoming = { server.debugTelemetry.accept(it) },\n                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },')
 p.write_text(t)
@@ -112,6 +115,20 @@ t=t.replace('                        val message = try {', '''                  
                             continue
                         }
                         val message = try {''')
+t=t.replace('    private fun broadcastBinary(bytes: ByteArray) {', '''    @Volatile private var latestArtwork: ByteArray? = null
+    fun clearArtwork() {
+        latestArtwork = null
+        broadcastBinary(byteArrayOf(7, 0))
+    }
+    fun artwork(transfer: com.shilapi.xcertplay.transport.Iap2ArtworkTransfer) {
+        val frame = ArtworkFrame.encode(transfer)
+        latestArtwork = frame
+        broadcastBinary(frame)
+        broadcastJson(ServerMessage(type = "debug", message = "iAP2 artwork id=${transfer.id} bytes=${transfer.bytes.size} accepted=${frame.size > 2}"))
+    }
+
+    private fun broadcastBinary(bytes: ByteArray) {''')
+t=t.replace('                    // Replay codec/audio setup', '                    latestArtwork?.let { client.channel.trySend(Frame.Binary(true, it)) }\n                    // Replay codec/audio setup')
 t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
         broadcastJson(ServerMessage(type = "debug", message = error, gps = gps, clusterEnabled = System.getenv("ZINC_CARPLAY_CLUSTER") == "1"))
     }

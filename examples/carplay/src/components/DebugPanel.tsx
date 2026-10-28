@@ -25,7 +25,7 @@ export function tickDebug(session: Session, dt: number): void {
   const gps = session.gps;
   if (gps !== null) {
     setSeconds(gps.seconds); setDuration(Math.max(1, gps.duration));
-    setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} points · ${gps.sent === undefined ? 'TX non renseigné' : gps.sent + ' envois iAP2'} · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
+    setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} points · requête ${gps.requested === undefined ? 'inconnue' : gps.requested.join(',')} · ${gps.sent === undefined ? 'TX non renseigné' : gps.sent + ' envois iAP2'} · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
   }
   setCluster(session.secondary.frames > 0 ? `Cluster reçu · ${session.secondary.width} × ${session.secondary.height}` : session.clusterEnabled ? 'Cluster annoncé · en attente de vidéo' : 'Cluster désactivé côté serveur');
   setLogs(session.debugLog.slice(-6));

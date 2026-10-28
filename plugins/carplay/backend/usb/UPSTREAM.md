@@ -39,3 +39,9 @@ client/reporter tests from the same pinned DiPlay revision. The synchronized GPX
 provider and HUD debug adapter are local additions, reusing the existing JVM XML
 parser and typed iAP2 codecs. The USB pair store and saved-session policy are local
 additions. No pairing keys or hardware captures are included.
+
+Artwork support ports Iap2LinkEngine, Iap2LinkChannel, Iap2CsmChannel,
+Iap2FileTransferReceiver and iap2/session/Iap2Session from the same DiPlay pin,
+with its file-transfer and link-engine tests. This routes negotiated session12
+file datagrams separately from session10 CSM controls. Local ArtworkFrame checks
+PNG/JPEG dimensions with JDK ImageIO in memory; no new image library is added.

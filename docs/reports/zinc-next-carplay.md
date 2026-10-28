@@ -483,7 +483,7 @@ Primary public source review (2026-10-29):
 | Seek | 5003, elapsed milliseconds parameter0 u32 | Source-documented possibility; not exposed or declared sent here |
 | Navigation | 5200 subscribe, 5201 route, 5202 maneuver, 5203 stop | Route/maneuver metadata decoded; app determines population |
 | Lanes | 5204 indexed lane groups | Requires additional received-message and component lane-capacity declarations; not implemented |
-| Cover artwork | NowPlaying field26 transfer ID, separate file-transfer session12/version2/type2 | Existing declaration is insufficient: link/session receiver plumbing still needed; no artwork claim |
+| Cover artwork | NowPlaying field26 transfer ID, separate file-transfer session12/version2/type2 | Session12 receiver, bounded PNG/JPEG validation and native HUD image now implemented; phone acceptance pending |
 | Phone power / cellular / calls | AE01 / 4158 / 4155 | IDs observed in owner's logs; payload values not yet decoded |
 | External location | FFFA subscription, FFFB NMEA, FFFC stop | Implemented simulated GPS/GPX sender, physical acceptance pending |
 
@@ -493,3 +493,41 @@ Artwork implementation reference: [DiPlay file transfer receiver](https://github
 These public implementation capabilities do not prove acceptance on this phone.
 
 Validation: backend build/protocol/server tests, carplay, carplay_demo and carplay_usb pass. Final HUD fixture capture inspected; custom dimension validation and partial media updates have regression tests. Real custom resolution and populated music metadata still need phone acceptance.
+
+
+## Artwork reception and unresolved GPS / instruction report
+
+Owner real screenshot confirms populated Apple Maps guidance and Spotify title,
+artist, album, playing state and elapsed/duration metadata (2026-10-29).
+Artwork had not yet been implemented; it now traverses file-transfer session12
+through DiPlay's bounded receiver and callbacks into WebHub wire type7:
+`[7][transferId u8][PNG/JPEG bytes]`, empty bytes clears. The server validates
+2MiB / 2048×2048 bounds using in-memory ImageIO; viewer uses existing gfx decoding,
+ID matching and image destruction on replacement/end/disconnect. No music-service
+queries or downloaded replacement cover. New viewer needs new backend.
+
+Protocol tests cover Setup/Start/Data/Success, truncation/cancel/limits and link
+session routing; server test checks image dimensions/rejection; actual Zinc
+WebSocket test decodes the image and matches metadata, clears and rejects bad
+bytes. The HUD capture includes a clearly labelled synthetic four-color cover.
+
+Live read-only inspection of owner's localhost receiver: GPS enabled=true,
+subscribed=true, Paris48.8566/2.3522, successful-write counter656→662 over3seconds.
+Thus the old backend was already producing two iAP2 sends per second. This does
+not show phone-side acceptance. New status reports requested selector IDs and
+provider now emits only requested GGA/RMC sentences. No physical GPS fix is
+claimed; user's report that the map stays at the real position remains open.
+Primary comparison: LIVI's [bringup.rs](https://github.com/f-io/LIVI/blob/9d7862b06f4d842838417cf0f05842fb95839395/native/crates/livi-runtime/src/bringup.rs)
+sends one requested NMEA sentence per message, as this receiver does.
+[LIVI issue354](https://github.com/f-io/LIVI/issues/354) describes an older dropped
+helper-command path; this overlay has a different, direct iAP2 sender and live
+counters, so that diagnosis must not be assumed here.
+
+Encoding: the actual apostrophe instruction renders correctly in a fixture, and
+UTF-8 survives iAP2/WebHub Frame.Text plus a real Zinc WebSocket→JSON→typed HUD
+regression. No character substitution fix was justified. A source diagnostic
+now flags invalid UTF-8 or an actual0x3f byte in incoming maneuver descriptions;
+wait for real-phone evidence to identify the remaining reported corruption.
+
+Validation: full external protocol/server build/tests, carplay, carplay_demo and
+carplay_usb pass. Main engine/worktree untouched; no agent app/server remains.
