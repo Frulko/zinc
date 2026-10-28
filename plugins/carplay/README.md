@@ -109,7 +109,7 @@ checks H.264/HEVC and AAC/Opus decoding, PCM envelopes and image cleanup, reject
 and touch events through an actual loopback WebSocket. No phone, pairing or
 network credential is used. The upstream backend has 96 passing tests on Mac.
 
-Remaining receiver work and verification: physical macOS USB acceptance (see backend/usb/README.md), Linux transport, GPS injection and cluster display. No real iPhone session or Raspberry Pi execution has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
+Real macOS USB projection is verified on an iPhone18,1 running iOS 27.0.1, without a physical MFi chip: authentication, AirPlay and H.264 video in Zinc. See backend/usb/README.md. Linux transport, GPS injection and cluster display remain. No Raspberry Pi or real wireless session has been verified. Microphone encoding/capture, keyboard input and reconnect have automated loopback proof; live Siri/calls remain unverified. The plugin is experimental.
 
 See backend/UPSTREAM.md for provenance, license and the pinned source revision.
 

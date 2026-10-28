@@ -49,9 +49,11 @@ wired-message, neighbour/checksum and native no-device tests against the built
 backend. It skips if that optional backend has not been built. No test captures
 a phone, switches USB mode, pairs, creates utun or runs sudo.
 
-This is an implemented and compiled transport, **not a verified iPhone session**.
-No real iPhone, accepted accessory identity, USB capture, mode transition, Trust
-pairing, utun routing, audio/video, input return or sustained reconnect has been
-verified on hardware here. A live phone check remains necessary; failures and
-permission errors are reported rather than replaced with a simulated receiver.
-Linux/Pi and cross-target verification are deferred. Provenance is in UPSTREAM.md.
+Real USB projection was verified on 2026-10-28 with an iPhone18,1 on iOS 27.0.1:
+offline software authentication, pairing/TLS, NCM, AirPlay and H.264 video in the
+native Zinc viewer at 1280x720. Pointer HID return and shutdown were observed.
+This is one device/session, not a compatibility guarantee. Audio, microphone,
+physical two-finger gestures, day/night and sustained reconnect remain separate
+acceptance checks. Linux/Pi verification is deferred. See
+[the implementation report](../../../../docs/reports/zinc-next-carplay.md) for
+proof and limitations, and UPSTREAM.md for provenance.

@@ -1,11 +1,11 @@
 ---
 id: ZN-847
 title: 'CarPlay: Native USB transport on macOS'
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 22:18'
+updated_date: '2026-10-28 22:24'
 labels:
   - carplay
   - size-L
@@ -21,7 +21,7 @@ Owner request: finish the separate Zinc CarPlay plugin, wired and wireless, with
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A separate plugin backend provides a real USB CarPlay transport on macOS without an MFi chip
+- [x] #1 A separate plugin backend provides a real USB CarPlay transport on macOS without an MFi chip
 - [x] #2 USB transport framing and lifecycle have targeted automated tests and physical verification limits are explicit
 <!-- AC:END -->
 
@@ -100,4 +100,6 @@ Physical iPhone now completes Lockdown TLS, carkit TLS, iAP2 identification and 
 Focused amended NcmNeighborTest completed successfully after the full backend build.
 
 Physical NCM RX/TX and accepted native bulk-out are now observed, including IPv6 multicast. No RTSP acceptance is logged. Read-only IORegistry inspection shows two iPhone CDC-NCM functions: control/data 3/4 and 5/6. Native descriptor scanning overwrote first matches with later interfaces and announced the data interface number (6); pinned DiPlay selects first NCM function and declares control interface 3. Selection now retains the first preferred-alt NCM data/control pair; JNI interfaceNumber returns control. Native multi-function fixture verifies later pairs do not overwrite first. Also aligned CarPlayStartSession deviceIdentifier with the NCM host MAC as upstream does, with formatting regression. Reused pinned NcmTrafficCounter and tests; bounded 60 s summaries count all incoming TCP SYNs to AirPlay, not only first packet-log budget. TX count explicitly means submitted, since early NAKs may drop transfers. Complete backend build/tests and native descriptor tests pass. Next live run should select control=3 data=4 and show traffic summary/SYN evidence.
+
+Physical acceptance confirmed by owner on 2026-10-28 around 23:20-23:21: iPhone18,1 running iOS 27.0.1; native macOS window shows real Spotify CarPlay at 1280x720 with 1520 accepted video packets. Selected NCM control=3/data=4/alt=1. Logs prove offline software MFi authentication-succeeded, Lockdown and carkit TLS, RTSP pair/setup/verify/auth, RECORD and CarPlay session active; first decrypted H264 frame and sustained reception follow. Touch HID is sent and UI navigation is visible; real two-finger gestures are not established by the two-slot report. Owner ends session with Ctrl-C; session-ended/shutdown observed. This completes the USB transport criteria without an MFi chip. Audio playback, mic/Siri/calls, night/day, physical multitouch, reconnect and wireless remain separate unverified acceptance items; supplied log only SETUPs stream 110. swscale deprecated pixel-format warnings occur without stopping the shown projection.
 <!-- SECTION:NOTES:END -->

@@ -1,7 +1,10 @@
 # CarPlay integration — 2026-10-28
 
 Separate `plugins/carplay`, imported as `zinc:carplay`; no CarPlay code in the
-engine. Native macOS demo runs. **No real iPhone session has been verified.**
+engine. **Real USB CarPlay projection is verified on macOS with an iPhone18,1
+running iOS 27.0.1, using software authentication without a physical MFi chip.**
+Audio, microphone, physical multitouch/day-night and wireless acceptance remain
+separate checks; earlier sections below retain the debugging history.
 
 ## Implemented and proven locally
 
@@ -215,3 +218,27 @@ all incoming SYN counts every five seconds for the first minute, beyond the
 initial header log budget. TX is labelled submitted, not successfully sent.
 Complete backend build/tests and native descriptor tests pass. Real projection
 is still pending; next attempt must verify control=3/data=4 and TCP to AirPlay.
+
+## Physical USB projection confirmed — 23:20–23:21
+
+Owner-provided logs and native-window screenshot confirm the first real iPhone
+projection on Mac, after commit aa2a9ae8. Phone model iPhone18,1, iOS 27.0.1.
+Selected NCM control=3/data=4/alternate=1; offline MFi authentication succeeds;
+Lockdown/carkit TLS completes. AirPlay accepts the phone connection, completes
+pair-setup/pair-verify/auth-setup, encrypts control, and accepts SETUP/RECORD.
+The backend logs CarPlay session active, stream 110 H.264 codec configuration
+and decrypted video. The Zinc window visibly shows Spotify CarPlay at 1280x720
+and 1520 accepted packets. Continued receive reports show no sequence gaps or
+late/duplicate packets in the supplied interval; these are transport counters,
+not measured display FPS or latency.
+
+A touch HID report is sent and the shown UI is navigated. The report has two
+slots but only one active contact; physical two-finger gestures are not proven.
+Ctrl-C produces session-ended/control-closed shutdown logs. No extra hardware
+MFi coprocessor was used. This closes ZN-847's USB transport acceptance.
+
+Only stream 110 is configured in the supplied logs: actual music playback,
+microphone/Siri/calls, day/night appearance, physical multitouch, reconnect and
+wireless remain to verify. FFmpeg emits deprecated pixel-format/range warnings
+in the viewer; projection continues, but exact colour-range correctness is not
+claimed. No Raspberry Pi, hardware decode, zero-copy or performance claim.

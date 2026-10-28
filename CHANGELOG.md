@@ -9,11 +9,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
-- The separate CarPlay receiver adds an experimental native macOS USB path with explicit phone selection, Lockdown pairing and NCM networking. Use `backend/run --usb-list` for safe discovery; live USB requires elevated access and remains unverified with an iPhone.
+- The separate CarPlay receiver adds an experimental native macOS USB path with explicit phone selection, Lockdown pairing and NCM networking. Use `backend/run --usb-list` for safe discovery; live USB requires elevated access and has been verified with software authentication and native H.264 projection on an iPhone running iOS 27.0.1.
 - `examples/carplay/run` opens a native offline H.264/PCM demo without an iPhone; `--live` selects a real receiver. The viewer reconnects after transport loss, supports rotary keyboard controls and stops capture when the receiver ends the session.
 - `zinc:carplay` can capture microphone audio and encode PlayPort PCM or Opus uplink packets, with permission errors and cleanup on stop. Live Siri/call acceptance still needs an iPhone test.
 - `zinc:carplay` forwards two simultaneous touch contacts with stable finger slots and supports day/night appearance through `setNightMode`; the demo includes a Day/Night button.
-- Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB receiver integration remains experimental and unverified on an iPhone.
+- Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB projection is verified on Mac with an iPhone; broader compatibility and live voice remain experimental.
 - reMarkable: Sidecar shows a Mac's screen on the tablet over USB, as a second display (Retina, 1:1 or a chosen size) or a mirror, in fast black and white: open Sidecar on the tablet, then run `app/sidecar/mac/build.sh` and `build/sidecar` on the Mac.
 - reMarkable: Sidecar scrolls the Mac with two fingers (in the way the tablet is turned); a two-finger tap is the full refresh. It can also run without xochitl, on the whole screen: `zinc-tile sidecar.zapp --session --max 7200` makes its session tile (`zinc-tile --max` sets any session's time).
 - reMarkable: Sidecar has a menu bar app (`app/sidecar/mac/build/Sidecar.app`): start and stop, presets (Text, Speed, Video, Reading), a settings window that explains each knob, and a pen tablet mode where the Marker draws in Mac apps with pressure, tilt and hover.
