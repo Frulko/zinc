@@ -12,6 +12,8 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   Each tile drawn fast is cleaned once it has rested a second (a blinking caret never rests that long): the pixels drawn fast go black,
   then the tile goes out in true greys in xochitl's page waveform (a partial update drives only the pixels that change, so a trail on white
   needs the black; only the strokes flash, not the tile). A third of the screen at once, or four screens of cleaning, is a full refresh.
+  On e-ink a moving pointer leaves a trail whatever is done after, so by default it is not drawn while it moves and comes back sharp
+  120 ms after it stops (`--pointer-moving show` draws it all along).
   The pointer is drawn here, not captured: a white arrow with a black outline (little black, little ghosting). It turns with the picture. Its trail is
   cleaned in the fast waveform 1.5 s after it passes (once its pixels rest), a tail that follows it, and the tiles around it are never cleaned in the slow one,
   so a move never waits.
