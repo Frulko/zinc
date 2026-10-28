@@ -1,0 +1,20 @@
+# A Mac on the USB cable (zinc-mac-usb): it offers two NCM functions and uses one, so both links (usb0, usb1) join this bridge and the Pi
+# has one address there, 169.254 at once as on the Mac's side (nobody serves DHCP). Its routes go first: a reply to the Mac leaves by the
+# cable it came in on even when the Ethernet link is in 169.254/16 too (zinc-mac-usb.conf drops the routes of a link that is down)
+[connection]
+id=zinc-mac-usb
+type=bridge
+interface-name=zmac0
+autoconnect=true
+
+[bridge]
+stp=false
+forward-delay=0
+
+[ipv4]
+method=link-local
+route-metric=50
+
+[ipv6]
+method=link-local
+route-metric=50

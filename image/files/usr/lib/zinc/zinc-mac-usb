@@ -1,0 +1,31 @@
+#!/bin/sh
+# zinc-mac-usb: a Mac's USB-C cable as a network link. An Apple silicon Mac plugged into the Pi shows itself as a USB device with two CDC
+# NCM functions whose control interfaces have no status endpoint, which Linux's cdc_ncm refuses ("bind() failure") except for the iPhone
+# and iPad. This builds cdc_ncm from the Raspberry Pi kernel's source with one more entry (any Apple NCM function, as the iPhone's private
+# one) and installs it under updates/, which modprobe prefers. NetworkManager gives the links (usb0, usb1) a 169.254 address
+# (zinc-mac-usb.nmconnection) and Sidecar on the Mac reaches the Pi by its .local name. Needs the kernel headers, gcc and the network.
+#   zinc-mac-usb [kernel version...]    default: the running kernel; reloads the driver when it is the running one
+set -eu
+for k in ${*:-$(uname -r)}; do
+  [ -d "/lib/modules/$k/build" ] || { echo "zinc-mac-usb: no headers for $k (apt install linux-headers-rpi-v8)" >&2; exit 1; }
+  d=$(mktemp -d)
+  # ponytail: the branch's head, not the exact release; the module is built against this kernel's headers and symbol versions
+  curl -fsSL "https://raw.githubusercontent.com/raspberrypi/linux/rpi-$(echo "$k" | cut -d. -f1,2).y/drivers/net/usb/cdc_ncm.c" -o "$d/cdc_ncm.c"
+  grep -q apple_private_interface_info "$d/cdc_ncm.c" || { echo "zinc-mac-usb: this kernel's cdc_ncm has no Apple private entry" >&2; exit 1; }
+  sed -i '/\/\* Ericsson MBM devices like F5521gw \*\//i\
+\t/* A Mac (Apple silicon) seen as a USB device: its NCM functions have no status endpoint (zinc-mac-usb) */\
+\t{ USB_VENDOR_AND_INTERFACE_INFO(0x05ac, USB_CLASS_COMM, USB_CDC_SUBCLASS_NCM, USB_CDC_PROTO_NONE),\
+\t\t.driver_info = (unsigned long)\&apple_private_interface_info,\
+\t},\
+' "$d/cdc_ncm.c"
+  echo 'obj-m += cdc_ncm.o' > "$d/Makefile"
+  make -s -C "/lib/modules/$k/build" M="$d" modules
+  install -D -m 644 "$d/cdc_ncm.ko" "/lib/modules/$k/updates/cdc_ncm.ko"
+  depmod -a "$k"
+  rm -rf "$d"
+  if [ "$k" = "$(uname -r)" ] && [ -d /sys/module/cdc_ncm ]; then
+    modprobe -r cdc_mbim cdc_ncm 2>/dev/null || true   # cdc_mbim holds cdc_ncm
+    modprobe cdc_ncm; modprobe cdc_mbim 2>/dev/null || true
+  fi
+  echo "zinc-mac-usb: cdc_ncm for $k accepts a Mac"
+done

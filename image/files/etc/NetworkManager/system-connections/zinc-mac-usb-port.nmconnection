@@ -1,0 +1,11 @@
+# A link of the Mac's USB cable (usb0, usb1: zinc-mac-usb), a port of the zmac0 bridge
+[connection]
+id=zinc-mac-usb-port
+type=ethernet
+autoconnect=true
+multi-connect=3
+controller=zmac0
+port-type=bridge
+
+[match]
+interface-name=usb*

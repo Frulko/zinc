@@ -11,6 +11,7 @@
 #   agent on|off           the Zinc agent now and at boot
 #   hostname <name>        the name on the network (<name>.local)
 #   pair                   a new pairing code of the Zinc agent (the player reads it from the agent's pairing.json)
+#   mac-usb                lets a Mac's USB-C cable be a network link (builds cdc_ncm for this kernel: zinc-mac-usb)
 #   reboot | poweroff
 set -u
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
@@ -124,6 +125,9 @@ PY_IDENTITY
     ;;
   pair)
     zinc agent pair
+    ;;
+  mac-usb)
+    exec /usr/lib/zinc/zinc-mac-usb
     ;;
   update-status | update-check)
     action=status

@@ -10,6 +10,11 @@ chown -R zinc:zinc /var/lib/zinc
 install -d -o root -g root -m 755 /var/lib/zinc-update
 # the player changes the system through zinc-admin alone (sudo), and the network through NetworkManager (polkit)
 chmod 0440 /etc/sudoers.d/zinc
+chmod 0600 /etc/NetworkManager/system-connections/zinc-mac-usb*.nmconnection   # NetworkManager ignores a profile others can read
+# a Mac's USB-C cable as a network link, when the image has the compilers and the headers (the "build" library); zinc-admin mac-usb later
+if command -v make >/dev/null && ls -d /lib/modules/*/build >/dev/null 2>&1; then
+  for k in $(ls /lib/modules); do [ -d "/lib/modules/$k/build" ] && { /usr/lib/zinc/zinc-mac-usb "$k" || echo "zinc-mac-usb failed for $k: Sidecar over USB-C needs zinc-admin mac-usb"; }; done
+fi
 visudo -cq -f /etc/sudoers.d/zinc
 
 # userconfig asks for a user on tty8 and switches the screen to it: the screen is the player's, a user comes from the
