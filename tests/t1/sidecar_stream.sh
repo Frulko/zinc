@@ -2,7 +2,7 @@
 # Sidecar (app/sidecar): a Mac's screen streamed into the reMarkable app's window by display-rmpp's own thread (stream.h), against the fake AppLoad of
 # tests/native/rmpp/sim.cpp. The scripted Mac (tests/native/sidecar/send.py) connects, gets the docked size, and its rectangles land as partial updates
 # below the header in the pen's waveform; its full refresh goes out; a tap reaches the Mac in its pixels, not the app; when it leaves, the app's
-# whole page is drawn again.
+# whole page is drawn again, then a full refresh.
 cd "$(dirname "$0")/../.." || exit 2
 root=$(pwd)
 tmp=$(mktemp -d); trap 'kill $app 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -33,6 +33,8 @@ check "1-bit block below the header" "update PARTIAL 96,320 64x16" "$t"
 check "grey levels" "update PARTIAL 0,120 10x2" "$t"
 check "full refresh" "full refresh" "$t"
 check "the app's page again" "update PARTIAL 0,120 1620x2040" "$t"
+# the session ends with a full refresh once the app's page is back: no trail of the stream is left on the tablet's screen
+awk '/update PARTIAL 0,120 1620x2040/ { back = 1 } back && /full refresh/ { ok = 1 } END { exit !ok }' "$t" || { echo "sidecar: no full refresh after the app's page came back"; fail=1; }
 grep -q " 0 errors" "$t" || { echo "sidecar: the model reports errors:"; grep error "$t" | head -5; fail=1; }
 [ $fail = 0 ] && echo "sidecar_stream: ok"
 exit $fail

@@ -10,6 +10,8 @@
 //   kind 1 ACK    a: the RECT's number, b: microseconds to apply it
 //   kind 2 INPUT  type: AppLoad's (0x10 finger press, 0x11 release, 0x12 move; 0x20..0x22 the Marker), id: the finger,
 //                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
+// A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture), and a second finger
+// down asks for one: neither finger goes to the Mac.
 #pragma once
 #include <atomic>
 #include <functional>
@@ -36,6 +38,9 @@ inline std::atomic<bool> full{false};     // a full refresh the Mac asked for
 inline int port = 0;
 inline std::mutex out;          // the stream's thread answers, the main thread forwards touches
 inline int client = -1, client_top = 0;
+inline int fingers = 0;         // fingers down (main thread)
+inline bool two = false;        // a second finger came down: the rest of this touch is the tablet's
+inline int last_id = 0, last_x = 0, last_y = 0;   // the finger the Mac has, where it was last
 
 inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
   uint8_t m[16] = {kind, type};
@@ -46,6 +51,10 @@ inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b
 /** A touch or the Marker from AppLoad (panel pixels): to the Mac while one is connected; true when it took it. */
 inline bool input(int type, int id, int x, int y, int pressure) {
   if (!active || !((type >= 0x10 && type <= 0x12) || (type >= 0x20 && type <= 0x22))) return false;
+  if (type == 0x10 && ++fingers == 2) { two = true; full = true; send16(2, 0x11, (uint16_t)last_id, last_x, last_y, 0); }   // the Mac lets go of the first
+  if (type == 0x11) { fingers = fingers > 0 ? fingers - 1 : 0; if (two) { if (!fingers) two = false; return true; } }
+  if (two && type >= 0x10 && type <= 0x12) return true;
+  if (type < 0x20) { last_id = id; last_x = x; last_y = y - client_top; }
   send16(2, (uint8_t)type, (uint16_t)id, x, y - client_top, pressure);
   return true;
 }
@@ -79,6 +88,7 @@ inline void serve(Target t, int ls) {
     const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s\n", t.w, H, t.model);
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
+    fingers = 0; two = false;
     active = true;
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
     uint32_t seq = 0;

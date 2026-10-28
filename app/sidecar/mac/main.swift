@@ -1,14 +1,14 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--levels black,white] [--cursor px] [--clean-mode 3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--cursor px] [--clean-mode 3|4] [--seconds N]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 32, cleanMode = 3, levels = (60, 200)
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 32, cleanMode = 3, levels = (90, 185), gamma = 1.6
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -20,9 +20,10 @@ while let a = argv.popFirst() {
     case "--cursor": cursorPx = max(19, Int(argv.popFirst()!)!)   // the pointer's height in the tablet's pixels
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
+    case "--gamma": gamma = Double(argv.popFirst()!)!
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--levels black,white] [--cursor px] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--levels black,white] [--gamma g] [--cursor px] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -117,10 +118,10 @@ if mirror >= 0 {
 
 // --- the e-ink tone curve: the panel shows two levels while things move, so what is nearly white (a window's background, a light grey bar)
 // goes to white and what is nearly black (text) to black, before the dither; only true middle tones (pictures) keep a pattern.
-// --levels black,white (default 60,200): the luma at and under black is black, at and over white is white, a straight line between.
+// --levels black,white (default 90,185): the luma at and under black is black, at and over white is white; --gamma (1.6) bends the line between.
 let tone: [UInt8] = (0..<256).map { v in
-    let t = (Double(v) - Double(levels.0)) / Double(max(1, levels.1 - levels.0))
-    return UInt8(max(0, min(255, (t * 255).rounded())))
+    let t = max(0, min(1, (Double(v) - Double(levels.0)) / Double(max(1, levels.1 - levels.0))))
+    return UInt8((pow(t, gamma) * 255).rounded())   // gamma over 1 darkens the middle: thin text gets thicker
 }
 
 // --- the sender: the newest frame only, one frame in flight
@@ -128,7 +129,8 @@ let stride = (W + 7) / 8
 let TW = 32, TH = 16, tilesX = (W + TW - 1) / TW, tilesY = (H + TH - 1) / TH   // the tiles a change is counted in
 var grey = [UInt8](repeating: 255, count: W * H)    // the capture through the tone curve, at its place on the panel
 var shown = grey                                     // grey with the pointer: what the tablet should show
-var prev = [UInt8](repeating: 0, count: stride * H)  // what the tablet shows, 1 bit: white after its clear
+var prev = [UInt8](repeating: 0, count: stride * H)  // what the tablet shows, 1 bit (unknown before the first frame: the app's page)
+var firstFrame = true, firstFull = true
 var cur = prev
 let lock = NSLock(), ready = DispatchSemaphore(value: 0)
 var latest: CVPixelBuffer?
@@ -194,6 +196,14 @@ func clean(_ mask: inout [Bool]) {
     let rects = rectsOf(mask)
     mask = [Bool](repeating: false, count: tilesX * tilesY)
     if rects.isEmpty { return }
+    // a partial update drives only the pixels whose value changes, and the trail's are white already: black first, in the fast waveform,
+    // so that every pixel of the area moves (the local flash of xochitl's eraser), then the real content
+    if !fastMode { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }
+    for (x, y, w, h) in rects {
+        let rs = (w + 7) / 8, black = [UInt8](repeating: 0xFF, count: rs * h)
+        writeFull(header(1, x, y, w, h, black.count), 16); writeFull(black, black.count)
+    }
+    for _ in rects { acks.wait() }
     writeFull(header(2, cleanMode, 0, 0, 0, 0), 16); fastMode = false
     for (x, y, w, h) in rects {
         cleaned += w * h
@@ -298,7 +308,10 @@ Thread {
         drawn = p
         if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) }
         let t1 = now()
-        let mask = box.x1 > box.x0 ? changed(box.x0, box.y0, box.x1, box.y1) : [Bool](repeating: false, count: tilesX * tilesY)
+        // the first frame goes out whole: the tablet still shows Sidecar's own page, not white
+        let mask = firstFrame && pb != nil ? [Bool](repeating: true, count: tilesX * tilesY)
+                 : box.x1 > box.x0 ? changed(box.x0, box.y0, box.x1, box.y1) : [Bool](repeating: false, count: tilesX * tilesY)
+        if pb != nil { firstFrame = false }
         let rects = rectsOf(mask)
         if !rects.isEmpty { if pb != nil { lastChange = now() }; for i in 0..<mask.count where mask[i] { fastTiles[i] = true } }
         if !rects.isEmpty && fastMode == false { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
@@ -311,6 +324,7 @@ Thread {
         }
         let t2 = now()
         for _ in rects { acks.wait() }
+        if firstFull && pb != nil { writeFull(header(3, 0, 0, 0, 0, 0), 16); firstFull = false }   // the session's first picture: a full refresh
         for i in 0..<prev.count where prev[i] != cur[i] { prev[i] = cur[i] }
         stats.frames += 1; stats.rects += rects.count; stats.dither += t1 - t0; stats.wait += now() - t2
         if now() - stats.t >= 2000 {

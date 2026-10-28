@@ -7,11 +7,13 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   straight into AppLoad's framebuffer from its own thread, without the app's frame loop; the app only shows how to connect.
 - **The Mac** (`mac/`): `mac/build.sh`, then `mac/build/sidecar`. It makes a virtual display (CoreGraphics' `CGVirtualDisplay`, as DeskPad),
   captures it with ScreenCaptureKit, dithers its luma to 1 bit and sends only the 32x16 tiles that changed, one frame in flight. The luma goes through an e-ink tone curve first (near white to white, near
-  black to black). Once nothing has changed for a second, the tiles drawn fast go out again in true greys in xochitl's page waveform: the
+  black to black). Once nothing has changed for a second, the tiles drawn fast go black then out again in true greys in xochitl's page
+  waveform (a partial update drives only the pixels that change, so a trail on white needs the black): the
   fast waveform's trails go away and text gets its anti-aliasing back (a blinking caret never rests that long); every four screens of that,
   a full refresh.
   The pointer is drawn by the Mac, not captured: bigger, and its trail is cleaned on its own 300 ms after it stops; a move dithers and compares
   only its two boxes. The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
+  A session starts and ends with a full refresh, and two fingers on the tablet ask for one at any time (they do not reach the Mac).
   macOS asks once for the Screen Recording permission, and Accessibility for the touches.
 
 ```sh
@@ -21,7 +23,7 @@ mac/build/sidecar --points 1080x1360   # any size, drawn at twice that and scale
 mac/build/sidecar --mirror 0       # mirror the Mac's first display (white bands keep its shape)
 mac/build/sidecar --threshold      # a plain threshold instead of the ordered dither: sharper text, no greys
 mac/build/sidecar --idle 1000      # ms without change before the clean pass (0: never)
-mac/build/sidecar --levels 60,200  # the e-ink tone curve: luma under 60 is black, over 200 white, before the dither
+mac/build/sidecar --levels 90,185 --gamma 1.6   # the e-ink tone curve: luma under 90 black, over 185 white, the middle darkened
 mac/build/sidecar --cursor 32      # the pointer's height on the tablet, in its pixels
 mac/build/sidecar --clean-mode 3   # the clean pass's waveform: 3 xochitl's page one, 4 UI
 ```
