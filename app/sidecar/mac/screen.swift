@@ -6,7 +6,9 @@
 // A picture where much of the screen changes (a video, a page switch), or that comes while the link is still busy, goes rough: its colours
 // cut to 5-6-5 bits (half the bytes after zstd on a desktop, codecbench), nothing new for the receiver to decode; each rough tile is sent
 // again exact once it has rested 300 ms.
-//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--seconds n] [--synthetic <percent>]
+// A part of the screen that changes at nearly every picture (a film, a game) goes as H.264 when the receiver has a hardware decoder
+// (+h264): VideoToolbox here, the decoder and a display plane there; the rest stays exact tiles.
+//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--seconds n] [--synthetic <percent>]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
@@ -15,7 +17,7 @@ import SystemConfiguration
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
 var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
-var h264Dump = ""
+var h264Dump = "", noVideo = false
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
     let a = argv.removeFirst()
@@ -27,6 +29,7 @@ while !argv.isEmpty {
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
+    case "--no-video": noVideo = true // no H.264 region, even when the receiver decodes it: every pixel exact or rough tiles
     case "--h264-dump": h264Dump = argv.removeFirst()   // no screen: the synthetic load as H.264 into this file for --seconds (Annex B; the
                                                            // receiver's decoder is proved on it, tools/v4l2dec-probe.cpp)
     case "--synthetic": synthetic = Int(argv.removeFirst())!   // no capture: a still page with a moving "video" over this percent of it, 60 a second (a
@@ -194,6 +197,23 @@ func encode(_ r: inout Run, _ base: UnsafePointer<UInt8>, _ bpr: Int, _ ctx: Opa
     else { r.payload = raw; r.codec = sub ? 0x80 : 0 }
 }
 
+// --- the video: tiles that changed in most of the last pictures, as one rectangle that holds them densely, steady for 10 pictures, become
+// an H.264 region; a second without a change there (a pause) or a new rectangle (the window moved) ends it, and its tiles go again exact
+let h264 = caps.contains("h264") && !noVideo
+struct Area: Equatable { var x0 = 0, y0 = 0, x1 = 0, y1 = 0 }   // in tiles
+var busy = [Float](repeating: 0, count: TX * TY)   // how often each tile changed lately (0..1)
+var video: Area?, encoder: VideoEncoder?
+var candidate: Area?, steady = 0, still = 0
+var videoStats = (frames: 0, bytes: 0, encode: 0.0)
+var videoDecodeUs = [Int]()   // the screen's decoder: µs from a unit's last byte to its picture
+/** The rectangle of the busy tiles when they fill most of it and it is large enough to be a film (12 tiles: 256 x 192 pixels). */
+func busyArea() -> Area? {
+    var a = Area(x0: TX, y0: TY, x1: 0, y1: 0), n = 0
+    for ty in 0..<TY { for tx in 0..<TX where busy[ty * TX + tx] > 0.3 { a.x0 = min(a.x0, tx); a.y0 = min(a.y0, ty); a.x1 = max(a.x1, tx + 1); a.y1 = max(a.y1, ty + 1); n += 1 } }
+    return n >= 12 && n * 10 >= (a.x1 - a.x0) * (a.y1 - a.y0) * 6 ? a : nil
+}
+func pixels(_ a: Area, _ w: Int, _ h: Int) -> (x: Int, y: Int, w: Int, h: Int) { (a.x0 * T, a.y0 * T, min(a.x1 * T, w) - a.x0 * T, min(a.y1 * T, h) - a.y0 * T) }
+
 // --- pacing: the ACKs of each picture's last RECT; at most two pictures out, the newest capture waits for a free place
 let q = DispatchQueue(label: "send")
 var rectsSent = 0, rectsAcked = 0, frameEnds = [(Int, Double)]()   // the rect count at each picture's end, and when it went
@@ -216,7 +236,7 @@ Thread {
                                     q.async { rx[k] = [a, b, c] } }
         if m[0] == 11 { echoes.signal() }
         if m[0] == 12 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })); q.async { shownUs.append(a); if b > 0 { pictureUs.append(b) } } }
-        if m[0] == 1 { q.async { rectsAcked += 1; more.decodeUs += b
+        if m[0] == 1 { let video = m[1] == 10; q.async { rectsAcked += 1; if video { if b > 0 { videoDecodeUs.append(b) } } else { more.decodeUs += b }
             while let f = frameEnds.first, f.0 <= rectsAcked { stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst() }
             pump() } }
     }
@@ -236,6 +256,22 @@ func send(_ pb: CVPixelBuffer) {
     let w = min(W, CVPixelBufferGetWidth(pb)), h = min(H, CVPixelBufferGetHeight(pb)), bpr = CVPixelBufferGetBytesPerRow(pb)
     let base = UnsafePointer(CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self))
     let t0 = now()
+    // the video's start or end, from the pictures before this one
+    if h264 {
+        let c = busyArea()
+        if c == candidate { steady += 1 } else { candidate = c; steady = 0 }
+        if let v = video, still > 60 || (steady >= 10 && c != v) {   // over: its place is sent again exact, below
+            let r = pixels(v, w, h)
+            writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); rectsSent += 1
+            shown.withUnsafeMutableBufferPointer { s in for y in r.y..<(r.y + r.h) { for x in r.x..<(r.x + r.w) { s[(y * W + x) * 4 + 3] = 0 } } }   // differs from any capture
+            video = nil; encoder = nil
+        }
+        if video == nil, steady >= 10, let c {
+            let r = pixels(c, w, h)
+            if let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6) { video = c; encoder = e; still = 0 }   // ~0.1 bit a pixel at 60
+            else { candidate = nil }
+        }
+    }
     // each tile: 0 as the receiver has it, 1 changed, 2 rough there and rested (sent again exact)
     var state = [UInt8](repeating: 0, count: TX * TY), changedPx = 0
     shown.withUnsafeMutableBufferPointer { s in
@@ -249,6 +285,15 @@ func send(_ pb: CVPixelBuffer) {
         } }
     }
     first = false
+    var videoMoved = false
+    for ty in 0..<TY { for tx in 0..<TX { busy[ty * TX + tx] = busy[ty * TX + tx] * 0.9 + (state[ty * TX + tx] == 1 ? 0.1 : 0) } }
+    if let v = video {
+        for ty in v.y0..<v.y1 { for tx in v.x0..<v.x1 {
+            if state[ty * TX + tx] == 1 { videoMoved = true; changedPx -= min(T, w - tx * T) * min(T, h - ty * T) }
+            state[ty * TX + tx] = 0; roughAt[ty * TX + tx] = 0
+        } }
+        still = videoMoved ? 0 : still + 1
+    }
     // rough: a sixth of the screen or more moved, or the last picture is not in yet
     let rough = !exact && changedPx > 0 && (changedPx * 6 >= W * H || !frameEnds.isEmpty)
     var runs = [Run]()
@@ -265,7 +310,18 @@ func send(_ pb: CVPixelBuffer) {
             if tx < TX && k != 0 { roughAt[ty * TX + tx] = k == 1 && rough ? t0 : 0 }
         }
     }
-    if runs.isEmpty { return }
+    if videoMoved, let v = video, let e = encoder {   // the film's picture first: its decoder starts while the RECTs come
+        let r = pixels(v, w, h), te = now()
+        if let (au, _) = e.encode(pb, x: r.x, y: r.y) {
+            writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, au.count), 16); writeFull(au, au.count)
+            rectsSent += 1; videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += (now() - te) * 1000
+            stats.bytes += 16 + au.count; total.bytes += 16 + au.count
+        }
+    }
+    if runs.isEmpty {
+        if videoMoved { frameEnds.append((rectsSent, t0)); stats.frames += 1; total.frames += 1 }
+        return
+    }
     if rough { stats.rough += 1 }
     // a long run is cut so every core gets work (a whole changed screen is TY runs)
     var cut = [Run]()
@@ -435,6 +491,12 @@ func info(_ seconds: Double) {
         ["Rate", "Throughput", String(format: "%.1f Mbit/s, %.0f KB a frame", Double(stats.bytes) * 8 / seconds / 1e6, Double(stats.bytes) / Double(f) / 1024)],
         ["Rate", "Compression", String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
         ["Rate", "Rough frames", "\(stats.rough * 100 / f)%"],
+        ["Picture", "Video", !h264 ? (caps.contains("h264") ? "off (--no-video)" : "tiles only: the screen has no H.264 decoder") : video.map { v in
+            let r = pixels(v, W, H), n = max(videoStats.frames, 1)
+            let d = videoDecodeUs.sorted()
+            return String(format: "H.264 %d × %d at %d, %d: %.0f pictures/s, %.1f Mbit/s, encode %.1f ms, the screen's hardware decoder %.1f ms (median)",
+                          r.w, r.h, r.x, r.y, Double(videoStats.frames) / seconds, Double(videoStats.bytes) * 8 / seconds / 1e6, videoStats.encode / Double(n),
+                          d.isEmpty ? 0 : Double(d[d.count / 2]) / 1000) } ?? "none now (H.264 when a part of the screen moves like a film)"],
         ["Latency", "Encode (Mac)", "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
         ["Latency", "Shown (screen)", shownUs.isEmpty ? "–" : { let v = shownUs.sorted(); return String(format: "commit %.1f ms after the last byte (median, %.1f p95), on screen at the next refresh (≤ 16.7 ms)", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }()],
         ["Latency", "Decode (screen)", (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())
@@ -453,14 +515,14 @@ func info(_ seconds: Double) {
     if stats.frames == 0 { rows[9][2] = "0 frames/s: nothing moved" }
     rows += diag.isEmpty ? [["Diagnostics", "Addresses tried", tried.joined(separator: ", ")], ["Diagnostics", "Speed test", "not run yet"]] : diag
     if let d = try? JSONSerialization.data(withJSONObject: rows), let j = String(data: d, encoding: .utf8) { print("info " + j) }
-    more = (0, 0, 0, 0); shownUs = []; pictureUs = []
+    more = (0, 0, 0, 0); shownUs = []; pictureUs = []; videoStats = (0, 0, 0); videoDecodeUs = []
 }
 
 // every 2 s: pictures, wire rate, the ratio against raw BGR, the encoder's time, the round trip of a picture
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
         let f = stats.frames, r = stats.rtt.sorted()
-        if !r.isEmpty { inFlight = r[r.count / 2] > 17 ? 1 : 2 }
+        if !r.isEmpty { inFlight = r[r.count / 2] > 17 && video == nil ? 1 : 2 }   // a film: its decoder works on the next while one waits for the refresh
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),

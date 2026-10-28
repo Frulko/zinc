@@ -34,6 +34,10 @@ final class VideoEncoder {
         set(kVTCompressionPropertyKey_ExpectedFrameRate, 60 as CFNumber)
         set(kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, 10 as CFNumber)
         set(kVTCompressionPropertyKey_MaxFrameDelayCount, 0 as CFNumber)   // the encoder keeps no picture back either
+        // BT.709, limited range, said in the stream: the receiver's plane converts with the same matrix
+        set(kVTCompressionPropertyKey_ColorPrimaries, kCVImageBufferColorPrimaries_ITU_R_709_2)
+        set(kVTCompressionPropertyKey_TransferFunction, kCVImageBufferTransferFunction_ITU_R_709_2)
+        set(kVTCompressionPropertyKey_YCbCrMatrix, kCVImageBufferYCbCrMatrix_ITU_R_709_2)
         // one reference picture: the SPS says one picture buffered, none reordered (the timing the Pi also needs: timedSPS)
         set(kVTCompressionPropertyKey_ReferenceBufferCount, 1 as CFNumber)
         VTCompressionSessionPrepareToEncodeFrames(s)

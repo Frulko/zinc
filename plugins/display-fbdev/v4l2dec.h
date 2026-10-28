@@ -21,13 +21,14 @@ struct V4l2Dec {
   std::vector<int> dmabuf;                    // the capture buffers, by index
   bool capturing = false;
 
-  bool open(const char* dev = "/dev/video10") {
+  /** The decoder for pictures of about w x h (a hint: the stream's SPS decides; the right one saves a reallocation at the first picture). */
+  bool open(const char* dev = "/dev/video10", uint32_t w0 = 1920, uint32_t h0 = 1080) {
     fd = ::open(dev, O_RDWR | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) return false;
     v4l2_format f = {};
     f.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
     f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_H264;
-    f.fmt.pix_mp.width = 1920; f.fmt.pix_mp.height = 1080;   // a hint; the stream's SPS decides
+    f.fmt.pix_mp.width = w0; f.fmt.pix_mp.height = h0;
     f.fmt.pix_mp.num_planes = 1;
     f.fmt.pix_mp.plane_fmt[0].sizeimage = 2 << 20;
     if (io(VIDIOC_S_FMT, &f)) return fail();

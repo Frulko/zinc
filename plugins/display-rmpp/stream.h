@@ -19,6 +19,10 @@
 //             profile on (1) or off, 5 holding on (1) or off, 6 the frontlight in permille.
 //   8 QUIT    the tablet's app ends (in an ink session xochitl comes back).
 //   9 SINK    a speed test's len bytes (+sink): read and dropped, answered with ECHO once they are all in. With len 0, a ping.
+//  10 VIDEO   (+h264) the screen's (x, y, w, h) shows a video: the payload is one H.264 access unit (Annex B; SPS and PPS before a
+//             key picture), decoded in hardware and shown on a plane under the rest, which keeps holes there. Answered by an ACK of type 10 once
+//             its picture is decoded (b: µs from its last byte to the decoder's picture), shown at the next refresh. len 0: the video ends; the RECTs that follow paint the place.
+//             Sent between pictures (never with more), a new place or size starts with a key picture.
 // more 1 (RECT, CURSOR, POINTER, COPY): another message of the same picture follows; the panel is updated once, at the last, with the
 // rectangles merged where a union wastes little.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
@@ -278,6 +282,8 @@ struct Target {
   bool colour = false;                      // a colour screen: RECT at depth 24 (+rgb), written B, G, R(, 0xFF)
   std::function<void()> shown;              // a picture is whole (after its updates): the screen may show it now rather than at its next
                                             // frame (display-fbdev's flip from the stream's thread); empty: nothing
+  std::function<void(int, int, int, int, std::vector<uint8_t>&)> video;   // VIDEO (+h264): the place and the access unit (len 0: it
+                                            // ends; also at the end of a session); it ACKs. Empty: no hardware decoder
   bool whole = false;                       // the screen's present reads fb while pictures come (display-fbdev): picture_mu keeps it out
                                             // from a picture's first write to its last, so it never shows half of one (no tiles torn)
 };
@@ -386,7 +392,7 @@ inline void serve(Target t, int ls) {
 #endif
     const int top = t.top(), H = t.h - top;
     char hello[128];
-    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s\n", t.w, H, t.model, t.colour ? " +rgb" : "");
+    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s%s\n", t.w, H, t.model, t.colour ? " +rgb" : "", t.video ? " +h264" : "");
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     fingers = 0; two = false; moved = false;
@@ -483,6 +489,14 @@ inline void serve(Target t, int ls) {
         if (!in || !send16(11, 0, 0, (int32_t)len, (int32_t)(x | (uint32_t)y << 16), 0)) break;
         continue;
       }
+      if (h[0] == 10) {   // the video's picture
+        if (!t.video || x + w > t.w || y + hh > H || len > (8u << 20)) break;
+        buf.resize(len);
+        if (!read_full(c, buf.data(), len)) break;
+        t.video(x, top + y, w, hh, buf);
+        if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
+        continue;
+      }
       if (h[0] == 4) {   // the pointer's shape
         if (w > 256 || hh > 256 || len != (size_t)w * hh) break;
         std::vector<uint8_t> s(len);
@@ -570,6 +584,7 @@ inline void serve(Target t, int ls) {
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
       if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
     }
+    if (t.video) { buf.clear(); t.video(0, 0, 0, 0, buf); }   // a video still shown goes with the Mac
     if (dec) dec->wait();   // no ACK of this session's RECTs goes to the next Mac
     settle();
     release();

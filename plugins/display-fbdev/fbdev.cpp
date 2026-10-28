@@ -742,6 +742,97 @@ static void stream_present() {
   planes_present(&u, u.x1 > u.x0 && u.y1 > u.y0);
   stream::send16(12, 0, 0, (int32_t)(now_us() - whole), (int32_t)stream::picture_us.load(), 0);   // SHOWN: the Mac's details
 }
+#if __has_include(<linux/videodev2.h>)
+#include "v4l2dec.h"
+#include <deque>
+// A video on the Mac's screen (VIDEO, +h264): its pictures decoded by the board's hardware decoder (a Pi's bcm2835-codec) and shown by
+// a plane under the frame's, which keeps a hole in their place: no pixel of them goes through the CPU. The stream's thread feeds the
+// decoder; a thread of their own takes the pictures out as soon as they are there (Vanilla's way, docs/reports/sidecar-pi-display-latency.md)
+// and commits each one at the next refresh.
+namespace vid {
+static V4l2Dec dec;
+static int x, y, w, h;                 // the place on the screen; w 0: no video
+static std::atomic<bool> run{false};
+static std::thread out;
+static uint32_t fbs[32];               // a framebuffer per capture buffer, made at its first picture
+static int showing = -1, before = -1;  // the capture buffer on the screen, the one it replaced (back to the decoder once that refresh came)
+static std::mutex fed_mu;
+static std::deque<std::pair<uint64_t, uint64_t>> fed;   // the units in the decoder (their number, when they came), ACKed when decoded
+static uint64_t n;
+static bool can() { V4l2Dec d; return d.open(); }
+/** The ACKs of the units up to `tag` (its picture is shown; the ones before it were dropped by the decoder). */
+static void ack(uint64_t tag) {
+  std::lock_guard<std::mutex> g(fed_mu);
+  while (!fed.empty() && fed.front().first <= tag) { stream::send16(1, 10, 0, 0, (int32_t)(now_us() - fed.front().second), 0); fed.pop_front(); }
+}
+static void pictures() {
+  V4l2Dec::Picture p;
+  while (run) {
+    const int r = dec.next(p, 20);
+    if (r < 0) { fprintf(stderr, "sidecar: the video decoder failed\n"); break; }
+    if (r == 0) {   // a unit the decoder kept 300 ms gave no picture (a broken one): its ACK all the same, or the Mac waits for ever
+      uint64_t late = 0;
+      { std::lock_guard<std::mutex> g(fed_mu); if (!fed.empty() && now_us() - fed.front().second > 300000) late = fed.front().first; }
+      if (late) ack(late);
+      continue;
+    }
+    ack(p.tag);   // decoded: the Mac may send the next one (the decoder works on it while this one waits for the refresh)
+    {
+      std::lock_guard<std::mutex> k(kms_mu);
+      if (!stream_flips() || !w || p.index >= 32) { dec.requeue(p.index); continue; }
+      uint32_t& fb = fbs[p.index];
+      if (!fb) {
+        HalPicture hp = {};
+        hp.format = DRM_FORMAT_NV12; hp.w = (int32_t)p.w; hp.h = (int32_t)p.h; hp.nplanes = 2;
+        hp.fd[0] = hp.fd[1] = p.fd; hp.pitch[0] = hp.pitch[1] = p.pitch; hp.offset[1] = p.uv; hp.bt709 = 1;   // the Mac's encoder says BT.709, limited
+        fb = kms::adopt(hp);
+      }
+      if (!fb) { dec.requeue(p.index); fprintf(stderr, "sidecar: the display does not take the video's pictures\n"); }
+      else {
+        kms::wait_refresh();   // the commit before is on the screen: the picture it replaced is free
+        if (before >= 0 && before != p.index) dec.requeue(before);
+        before = showing; showing = p.index;
+        if (!kms::nlay) kms::full = 2;   // the first picture: both buffers of the frame get the hole
+        kms::lay[0] = kms::Shown{(uint32_t)p.tag, fb, HalLayer{nullptr, x, y, w, h}, (int32_t)p.w, (int32_t)p.h, 0, 1};
+        kms::nlay = 1;
+        HalFrame u = {};
+        planes_present(&u, false);
+      }
+    }
+  }
+}
+/** Target.video: a unit for the place (x, y, w, h), or len 0: the video ends (its plane goes with the next commit, which carries the
+ *  RECTs that paint the place). */
+static void unit(int ux, int uy, int uw, int uh, std::vector<uint8_t>& au) {
+  const bool moved = ux != x || uy != y || uw != w || uh != h;
+  if (au.empty() || moved) {
+    if (w) {   // the video that was: its pictures leave the screen with the next commit, the decoder goes
+      run = false;
+      if (out.joinable()) out.join();
+      std::lock_guard<std::mutex> k(kms_mu);
+      kms::nlay = 0; kms::full = 2;
+      for (uint32_t& f : fbs) if (f) { kms::replaced.push_back(f); f = 0; }
+      showing = before = -1;
+      dec.close();
+      w = 0;
+    }
+    { std::lock_guard<std::mutex> g(fed_mu); while (!fed.empty()) { stream::send16(1, 10, 0, 0, 0, 0); fed.pop_front(); } }
+    if (au.empty()) { if (uw) stream::send16(1, 10, 0, 0, 0, 0); return; }
+    if (!stream_flips() || !dec.open("/dev/video10", (uint32_t)uw, (uint32_t)uh)) { stream::send16(1, 10, 0, 0, 0, 0); return; }
+    // the hole the plane shows through, in the surface the frame's buffers are made from
+    {
+      std::lock_guard<std::mutex> g(stream::picture_mu);
+      for (int r = uy; r < uy + uh && r < H; r++) std::fill(surf + (size_t)r * W + ux, surf + (size_t)r * W + std::min(W, ux + uw), HAL_LAYER_HOLE);
+    }
+    x = ux; y = uy; w = uw; h = uh;
+    run = true;
+    out = std::thread(pictures);
+  }
+  { std::lock_guard<std::mutex> g(fed_mu); fed.push_back({++n, now_us()}); }
+  if (!dec.feed(au.data(), au.size(), n)) ack(n);
+}
+}  // namespace vid
+#endif
 #endif
 static void fb_present(const HalFrame* f) {
 #ifdef ZP_FBDEV_KMS
@@ -917,6 +1008,9 @@ static const char* fb_device(const char* query, const char* value) {
     t.colour = true; t.whole = true;
 #ifdef ZP_FBDEV_KMS
     t.shown = stream_present;
+#if __has_include(<linux/videodev2.h>)
+    if (kms::flip && !getenv("ZINC_SIDECAR_NO_H264") && vid::can()) t.video = vid::unit;
+#endif
 #endif
     return stream::start(atoi(value), t) ? "1" : "0";
   }
