@@ -10,11 +10,12 @@
 
 namespace ipod {
 
-using ::AddResult; using ::Check; using ::Device; using ::Playlist; using ::Snapshot; using ::Track; using ::TrackInput;
+using ::AddResult; using ::Backup; using ::Check; using ::Device; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
 
 /** phase, done, total, detail */
 using Progress = std::function<void(const std::string&, int32_t, int32_t, const std::string&)>;
 
+/** Mounted iPods, then those plugged in by USB but not mounted (connection "usb", described from their USB SysInfoExtended). */
 std::vector<Device> detect();
 /** What the volume at `mountpoint` is, without opening its database. */
 bool describe(const std::string& mountpoint, Device& out, std::string& err);
@@ -46,21 +47,33 @@ class Library {
   bool renamePlaylist(const std::string& id, const std::string& name, std::string& err);
   bool deletePlaylist(const std::string& id, std::string& err);
   bool setPlaylistTracks(const std::string& id, const std::vector<std::string>& trackIds, std::string& err);
-  /** Snapshot of the current files, then itdb_write. */
   bool save(const Progress& progress, std::string& err);
+  /** The restore points of this iPod: its backups on the computer (the automatic ones taken before a session's first change too). */
   std::vector<Snapshot> snapshots();
-  bool restoreSnapshot(const std::string& id, std::string& err);
+  /** Puts back the database of one of snapshots() and reopens. */
+  bool restoreSnapshot(const std::string& id, const Progress& progress, std::string& err);
+  /** A backup in `dir`/<serial>/<date> ('' = backupRoot()); `music` syncs the music into `dir`/<serial>/Music. */
   bool backup(const std::string& dir, bool music, std::string& folder, const Progress& progress, std::string& err);
+  std::vector<SpecItem> specs();
+  /** The cover at about size x size; out.width 0 when the track has none. */
+  bool artwork(const std::string& id, int32_t size, Picture& out, std::string& err);
   Check check();
   bool repair(Check& after, const Progress& progress, std::string& err);
 
  private:
   void* db_ = nullptr;   // Itdb_iTunesDB*
   std::string mp_;
-  bool writable(std::string& err);
+  bool backedUp_ = false;   // the database was copied to the computer since open(): the session's restore point
+  /** Refuses a change on a read-only iPod, and takes the automatic backup before the first change of the session. */
+  bool writable(std::string& err, const Progress& progress = nullptr);
 };
 
-/** Copies a backup folder onto the iPod at `mountpoint` (database files, and the music when the backup has it). */
+/** Where backups go by default: $ZINC_IPOD_BACKUPS, else $ZINC_HOME/ipod, else ~/.zinc/ipod. */
+std::string backupRoot();
+/** The backups in `dir` ('' = backupRoot()) and its iPod folders, newest first. */
+std::vector<Backup> backups(const std::string& dir);
+/** Copies a backup folder onto the iPod at `mountpoint`: its database, and the music files it refers to that the iPod lacks (from the
+ *  backup's shared Music folder). The iPod's own description (iPod_Control/Device) is never replaced. */
 bool restoreBackup(const std::string& folder, const std::string& mountpoint, const Progress& progress, std::string& err);
 /** sync, unmount and power off the volume. */
 bool eject(const std::string& mountpoint, std::string& err);

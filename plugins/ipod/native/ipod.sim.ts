@@ -25,6 +25,12 @@ export interface Device {
   /** Can show artwork; checksum: none | hash58 | hash72 | hashAB. */
   artwork: boolean;
   checksum: string;
+  /** disk: mounted, its files readable; usb: plugged in but not mounted (no mountpoint: only what USB tells). */
+  connection: string;
+  /** The version the iPod shows in Settings > About, e.g. "2.0.2"; '' when unknown. */
+  firmware: string;
+  /** The USB product id (0x1261 for a Classic 7G...), 0 when not seen on USB. */
+  usbProduct: i32;
 }
 
 export interface Track {
@@ -79,17 +85,39 @@ export interface Check {
   orphanBytes: number;
 }
 
+/** One line of specs(): a group ("iPod", "Storage", "Library", "Artwork", "SysInfoExtended"), a name and its value as shown. */
+export interface SpecItem { group: string; name: string; value: string; }
+
+/** A cover in RGBA pixels (imageFromPixels takes them as they are); width 0 when the track has none. */
+export interface Picture { width: i32; height: i32; rgba: u8[]; }
+
+/** A backup on the computer, from the manifest written with it. */
+export interface Backup {
+  folder: string;
+  /** The iPod's name and serial when it was taken. */
+  name: string; serial: string;
+  created: number;
+  /** Size of the database part (the music is shared between the backups of an iPod). */
+  bytes: number;
+  /** It has the music (in the shared Music folder beside it). */
+  music: boolean;
+  tracks: i32;
+  /** Taken by the plugin before the first change of a session. */
+  auto: boolean;
+}
+
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
 let open = false, used = 0, seq = 0, saves = 0;
 const tracks: Track[] = [];
+const taken: Backup[] = [];
 const playlists: Playlist[] = [];
 let cb: ((phase: string, done: i32, total: i32, detail: string) => void) | null = null;
 
 function device(): Device {
   return { mountpoint: MP, name: 'Zinc Pod', model: 'Classic (Silver)', modelNumber: 'B029', generation: 'Classic', capacityGb: 80,
     totalBytes: 80 * GB, freeBytes: 80 * GB - used, serial: '8K1234ABCDE', firewireGuid: '000A27001234ABCD',
-    sysInfoExtended: open, hasDatabase: open, readOnly: false, artwork: true, checksum: 'hash58' };
+    sysInfoExtended: open, hasDatabase: open, readOnly: false, artwork: true, checksum: 'hash58', connection: 'disk', firmware: '1.1.2', usbProduct: 0x1261 };
 }
 function hex(n: number): string { const d = '0123456789abcdef'; let s = ''; for (let k = 0; k < 16; k++) { s = d[n % 16] + s; n = Math.floor(n / 16); } return s; }
 function fail<T>(m: string): Promise<T> { return Promise.reject<T>(new Error(m)); }
@@ -164,8 +192,36 @@ export default {
   save: (): Promise<void> => { saves++; return Promise.resolve(); },
   snapshots: (): Promise<Snapshot[]> => { const s: Snapshot[] = []; for (let k = Math.min(saves, 5); k > 0; k--) s.push({ id: '20261028-12000' + k, created: 0, bytes: 1024 }); return Promise.resolve(s); },
   restoreSnapshot: (_id: string): Promise<void> => Promise.resolve(),
-  backup: (dir: string, _music: boolean): Promise<string> => Promise.resolve(dir + '/ZINCPOD 20261028-120000'),
+  backup: (dir: string, music: boolean): Promise<string> => {
+    const folder = (dir === '' ? '~/.zinc/ipod/8K1234ABCDE' : dir) + '/20261028-12000' + taken.length;
+    taken.unshift({ folder: folder, name: 'Zinc Pod', serial: '8K1234ABCDE', created: 0, bytes: 1024, music: music, tracks: tracks.length, auto: false });
+    return Promise.resolve(folder);
+  },
   restoreBackup: (_f: string, mp: string): Promise<Device> => mp === MP ? Promise.resolve(device()) : fail(mp + ' is not an iPod'),
+  specs: (): Promise<SpecItem[]> => {
+    if (need() !== '') return fail<SpecItem[]>(need());
+    const d = device();
+    const out: SpecItem[] = [
+      { group: 'iPod', name: 'Model', value: d.model }, { group: 'iPod', name: 'Generation', value: d.generation },
+      { group: 'iPod', name: 'Model number', value: d.modelNumber }, { group: 'iPod', name: 'Capacity', value: '80 GB' },
+      { group: 'iPod', name: 'Serial number', value: d.serial }, { group: 'iPod', name: 'FireWire GUID', value: d.firewireGuid },
+      { group: 'iPod', name: 'Firmware', value: d.firmware },
+      { group: 'Storage', name: 'Free', value: Math.round(d.freeBytes / GB) + ' GB' },
+      { group: 'Library', name: 'Tracks', value: '' + tracks.length }, { group: 'Library', name: 'Playlists', value: '' + (playlists.length - 1) },
+      { group: 'Artwork', name: 'Formats', value: '1055 (128x128), 1060 (320x320), 1061 (56x56)' },
+      { group: 'SysInfoExtended', name: 'FamilyID', value: '11' }];
+    return Promise.resolve(out);
+  },
+  artwork: (id: string, size: i32): Promise<Picture> => {
+    const t = find(id);
+    if (!t) return fail<Picture>('no track ' + id);
+    if (!t.artwork) return Promise.resolve({ width: 0, height: 0, rgba: [] as u8[] });
+    const px: u8[] = [];   // a gradient that depends on the track, so covers differ
+    const h = parseInt(id.slice(-2), 16);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { px.push((x * 255 / size) as u8); px.push(h as u8); px.push((y * 255 / size) as u8); px.push(255); }
+    return Promise.resolve({ width: size, height: size, rgba: px });
+  },
+  backups: (_dir: string): Promise<Backup[]> => Promise.resolve(taken.slice()),
   check: (): Promise<Check> => Promise.resolve(none()),
   repair: (): Promise<Check> => Promise.resolve(none()),
   eject: (_mp: string): Promise<void> => { open = false; return Promise.resolve(); },

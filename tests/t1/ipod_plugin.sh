@@ -15,10 +15,10 @@ open(sys.argv[1], 'wb').write(b'RIFF' + struct.pack('<I', 36 + n) + b'WAVEfmt ' 
 PY
 cp "$tmp/song.wav" "$tmp/song.wav.flac"
 fresh() {   # a new fake iPod for each engine
-  rm -rf "$tmp/Volumes"; mkdir -p "$tmp/Volumes/ZINCPOD/iPod_Control/Device"
+  rm -rf "$tmp/Volumes" "$tmp/backups"; mkdir -p "$tmp/Volumes/ZINCPOD/iPod_Control/Device"
   printf 'ModelNumStr: xB029\npszSerialNumber: 8K1234ABCDE\nFirewireGuid: 0x000A27001234ABCD\n' > "$tmp/Volumes/ZINCPOD/iPod_Control/Device/SysInfo"
 }
-export ZINC_NATIVE=real ZINC_IPOD_ROOTS="$tmp/Volumes" ZINC_IPOD_NO_USB=1 IPOD_SONG="$tmp/song.wav" ZINC_HEADLESS=1
+export ZINC_IPOD_BACKUPS="$tmp/backups" ZINC_NATIVE=real ZINC_IPOD_ROOTS="$tmp/Volumes" ZINC_IPOD_NO_USB=1 IPOD_SONG="$tmp/song.wav" ZINC_HEADLESS=1
 cat > "$tmp/want" <<'OUT'
 detected Classic (Silver) hash58 database false
 opened Zinc Pod sysinfo true free > 0 true
@@ -32,6 +32,9 @@ playlist Podcasts false true 1
 updated Test song
 snapshots true
 check 0 0
+specs tracks 2 firmware  disk
+artwork 0 -1
+backups 2 true false true
 bad cover: true
 closed: no iPod is open
 OUT

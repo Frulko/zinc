@@ -89,7 +89,11 @@ struct HostIpod : NativeIpod {
   }
   zrt::Promise<zrt::Unit> save() override { ipod::Progress p = progress(); return unit([p](std::string& err) { return lib.save(p, err); }); }
   zrt::Promise<Bytes> snapshots() override { return rec<std::vector<Snapshot>>([](std::string& err) { need(err); return lib.snapshots(); }); }
-  zrt::Promise<zrt::Unit> restoreSnapshot(zrt::String id) override { std::string i = str(id); return unit([i](std::string& err) { return lib.restoreSnapshot(i, err); }); }
+  zrt::Promise<zrt::Unit> restoreSnapshot(zrt::String id) override {
+    std::string i = str(id);
+    ipod::Progress p = progress();
+    return unit([i, p](std::string& err) { return lib.restoreSnapshot(i, p, err); });
+  }
   zrt::Promise<zrt::String> backup(zrt::String dir, bool music) override {
     std::string d = str(dir);
     ipod::Progress p = progress();
@@ -100,11 +104,19 @@ struct HostIpod : NativeIpod {
     ipod::Progress p = progress();
     return rec<Device>([f, mp, p](std::string& err) {
       Device d;
+      std::string kept;
+      if (lib.isOpen() && lib.mountpoint() == mp && !lib.backup("", false, kept, p, err)) return d;   // what is replaced is backed up first
       lib.close();
       if (ipod::restoreBackup(f, mp, p, err) && lib.open(mp, false, "", "", err)) lib.device(d, err);
       return d;
     });
   }
+  zrt::Promise<Bytes> specs() override { return rec<std::vector<SpecItem>>([](std::string& err) { need(err); return lib.specs(); }); }
+  zrt::Promise<Bytes> artwork(zrt::String id, int32_t size) override {
+    std::string i = str(id);
+    return rec<Picture>([i, size](std::string& err) { Picture pic; lib.artwork(i, size, pic, err); return pic; });
+  }
+  zrt::Promise<Bytes> backups(zrt::String dir) override { std::string d = str(dir); return rec<std::vector<Backup>>([d](std::string&) { return ipod::backups(d); }); }
   zrt::Promise<Bytes> check() override { return rec<Check>([](std::string& err) { need(err); return lib.check(); }); }
   zrt::Promise<Bytes> repair() override { ipod::Progress p = progress(); return rec<Check>([p](std::string& err) { Check c; lib.repair(c, p, err); return c; }); }
   zrt::Promise<zrt::Unit> eject(zrt::String mountpoint) override {

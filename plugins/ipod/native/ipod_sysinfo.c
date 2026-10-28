@@ -66,3 +66,34 @@ char *zn_ipod_artwork_plist (const char *mountpoint) {
   itdb_device_free (dev);
   return g_string_free (x, FALSE);
 }
+
+static const char *format_name (ItdbThumbFormat f) {
+  switch (f) {
+    case THUMB_FORMAT_UYVY_BE: case THUMB_FORMAT_UYVY_LE: return "UYVY";
+    case THUMB_FORMAT_RGB565_BE: case THUMB_FORMAT_RGB565_BE_90: return "RGB565 big-endian";
+    case THUMB_FORMAT_RGB565_LE: case THUMB_FORMAT_RGB565_LE_90: return "RGB565 little-endian";
+    case THUMB_FORMAT_I420_LE: case THUMB_FORMAT_I420_BE: return "I420";
+    case THUMB_FORMAT_RGB555_LE: case THUMB_FORMAT_RGB555_LE_90: case THUMB_FORMAT_RGB555_BE: case THUMB_FORMAT_RGB555_BE_90: return "RGB555";
+    case THUMB_FORMAT_REC_RGB555_LE: case THUMB_FORMAT_REC_RGB555_LE_90: case THUMB_FORMAT_REC_RGB555_BE: case THUMB_FORMAT_REC_RGB555_BE_90: return "RGB555 rectangular";
+    default: return "other";
+  }
+}
+
+/* The cover, photo and chapter formats libgpod uses for the iPod at `mountpoint`, one per line: kind, id, width, height, pixel format
+   (tab-separated); g_free the result. */
+char *zn_ipod_art_formats (const char *mountpoint) {
+  Itdb_Device *dev = itdb_device_new ();
+  itdb_device_set_mountpoint (dev, mountpoint);
+  GString *x = g_string_new ("");
+  const char *kinds[] = {"cover", "photo", "chapter"};
+  for (int k = 0; k < 3; k++) {
+    GList *list = k == 0 ? itdb_device_get_cover_art_formats (dev) : k == 1 ? itdb_device_get_photo_formats (dev) : itdb_device_get_chapter_image_formats (dev);
+    for (GList *l = list; l; l = l->next) {
+      const Itdb_ArtworkFormat *f = l->data;
+      g_string_append_printf (x, "%s\t%d\t%d\t%d\t%s\n", kinds[k], f->format_id, f->width, f->height, format_name (f->format));
+    }
+    g_list_free (list);
+  }
+  itdb_device_free (dev);
+  return g_string_free (x, FALSE);
+}

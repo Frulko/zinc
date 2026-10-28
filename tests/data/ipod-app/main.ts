@@ -26,6 +26,14 @@ async function main(): Promise<void> {
   console.log('snapshots', (await ipod.snapshots()).length > 0);
   const c = await ipod.check();
   console.log('check', c.missing.length, c.orphans.length);
+  let tracksLine = '';
+  for (const it of await ipod.specs()) if (it.group === 'Library' && it.name === 'Tracks') tracksLine = it.value;
+  console.log('specs tracks', tracksLine, 'firmware', d.firmware, d.connection);
+  const pic = await ipod.artwork(ts[0].id, 64);
+  console.log('artwork', pic.width, await ipod.cover(ts[0].id, 64));
+  const folder = await ipod.backup('', false);
+  const list = await ipod.backups();
+  console.log('backups', list.length, list[0].folder === folder, list[0].auto, list[list.length - 1].auto);
   try { await ipod.setArtwork(ts[0].id, song); } catch (e) { console.log('bad cover:', (e as Error).message.indexOf('not an image') >= 0); }
   await ipod.close();
   try { await ipod.tracks(); } catch (e) { console.log('closed:', (e as Error).message); }

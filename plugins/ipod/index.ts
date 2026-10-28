@@ -9,10 +9,11 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check } from './native/ipod.spec';
-export type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup } from './native/ipod.spec';
+export type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup };
+import { imageFromPixels } from 'zinc:gfx';
 
-/** iPods mounted on this machine. */
+/** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
 export function detect(): Promise<Device[]> { return N.detect(); }
 /** Opens an iPod. `init`: write a fresh database when it has none (model e.g. "MB147", '' to guess; name shown on the
  *  iPod). SysInfoExtended is written when missing. */
@@ -51,8 +52,21 @@ export function setPlaylistTracks(id: string, trackIds: string[]): Promise<void>
 export function save(): Promise<void> { return N.save(); }
 export function snapshots(): Promise<Snapshot[]> { return N.snapshots(); }
 export function restoreSnapshot(id: string): Promise<void> { return N.restoreSnapshot(id); }
-/** Copies the database, and the music when `music`, into a new folder of `dir`; resolves with that folder. */
-export function backup(dir: string, music: boolean = true): Promise<string> { return N.backup(dir, music); }
+/** Everything known about the open iPod, as groups of name and value (model, firmware, storage, library, artwork, SysInfoExtended). */
+export function specs(): Promise<SpecItem[]> { return N.specs(); }
+/** A track's cover in RGBA pixels at about `size` pixels; width 0 when it has none. */
+export function artwork(id: string, size: i32 = 300): Promise<Picture> { return N.artwork(id, size); }
+/** A track's cover as a runtime image for `<Image image={...} />` or drawImage; -1 when it has none. destroyImage frees it. */
+export async function cover(id: string, size: i32 = 300): Promise<i32> {
+  const p = await N.artwork(id, size);
+  return p.width > 0 ? imageFromPixels(p.rgba, p.width, p.height) : -1;
+}
+/** Copies the database into a new folder of `dir` ('' = ZINC_HOME/ipod/<serial>), and with `music` the music into the Music folder
+ *  beside it (only the files it does not have yet); resolves with the folder. A first change of a session backs up the database by
+ *  itself. */
+export function backup(dir: string = '', music: boolean = true): Promise<string> { return N.backup(dir, music); }
+/** The backups of `dir` ('' = the default place, every iPod), newest first. */
+export function backups(dir: string = ''): Promise<Backup[]> { return N.backups(dir); }
 export function restoreBackup(folder: string, mountpoint: string): Promise<Device> { return N.restoreBackup(folder, mountpoint); }
 /** Tracks whose file is gone and files no track uses. */
 export function check(): Promise<Check> { return N.check(); }

@@ -27,6 +27,12 @@ export interface Device {
   /** Can show artwork; checksum: none | hash58 | hash72 | hashAB. */
   artwork: boolean;
   checksum: string;
+  /** disk: mounted, its files readable; usb: plugged in but not mounted (no mountpoint: only what USB tells). */
+  connection: string;
+  /** The version the iPod shows in Settings > About, e.g. "2.0.2"; '' when unknown. */
+  firmware: string;
+  /** The USB product id (0x1261 for a Classic 7G...), 0 when not seen on USB. */
+  usbProduct: i32;
 }
 
 export interface Track {
@@ -81,6 +87,27 @@ export interface Check {
   orphanBytes: number;
 }
 
+/** One line of specs(): a group ("iPod", "Storage", "Library", "Artwork", "SysInfoExtended"), a name and its value as shown. */
+export interface SpecItem { group: string; name: string; value: string; }
+
+/** A cover in RGBA pixels (imageFromPixels takes them as they are); width 0 when the track has none. */
+export interface Picture { width: i32; height: i32; rgba: u8[]; }
+
+/** A backup on the computer, from the manifest written with it. */
+export interface Backup {
+  folder: string;
+  /** The iPod's name and serial when it was taken. */
+  name: string; serial: string;
+  created: number;
+  /** Size of the database part (the music is shared between the backups of an iPod). */
+  bytes: number;
+  /** It has the music (in the shared Music folder beside it). */
+  music: boolean;
+  tracks: i32;
+  /** Taken by the plugin before the first change of a session. */
+  auto: boolean;
+}
+
 export interface Spec extends NativeModule {
   /** iPods mounted on this machine (the volumes holding iPod_Control). */
   detect(): Promise<Device[]>;
@@ -112,8 +139,16 @@ export interface Spec extends NativeModule {
   snapshots(): Promise<Snapshot[]>;
   /** Puts back the database files of a snapshot and reopens. */
   restoreSnapshot(id: string): Promise<void>;
-  /** Copies the database (and the music when `music`) into a new folder of `dir`; resolves with that folder. */
+  /** Everything known about the open iPod: model, firmware, serial, storage by kind, library counts, artwork formats, every key
+   *  of SysInfoExtended. */
+  specs(): Promise<SpecItem[]>;
+  /** The track's cover at about `size` pixels (the iPod's nearest stored size, scaled); width 0 when it has none. */
+  artwork(id: string, size: i32): Promise<Picture>;
+  /** Copies the database into a new folder of `dir` ('' = the iPod's folder of the default place, ZINC_HOME/ipod/<serial>), and
+   *  with `music` the music into the Music folder beside it, copying only the files it does not have yet; resolves with the folder. */
   backup(dir: string, music: boolean): Promise<string>;
+  /** The backups in `dir` and its iPod folders ('' = the default place), newest first. */
+  backups(dir: string): Promise<Backup[]>;
   /** Copies a backup folder back onto the iPod at `mountpoint` (closed first) and reopens it. */
   restoreBackup(folder: string, mountpoint: string): Promise<Device>;
   check(): Promise<Check>;

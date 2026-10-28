@@ -4,6 +4,7 @@
 
 #include <itdb.h>
 #include <libusb.h>
+#include <plist/plist.h>
 #include <taglib/taglib.h>
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -22,6 +24,10 @@
 #include <spawn.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/time.h>
+#ifdef __APPLE__
+#include <sys/mount.h>
+#endif
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -35,13 +41,14 @@ extern char** environ;
 extern "C" const char* itdb_device_get_firewire_id(const Itdb_Device* device);
 extern "C" int itdb_device_get_checksum_type(const Itdb_Device* device);
 extern "C" char* zn_ipod_artwork_plist(const char* mountpoint);   // ipod_sysinfo.c
+extern "C" char* zn_ipod_art_formats(const char* mountpoint);
+extern "C" const Itdb_IpodInfo* itdb_ipod_info_from_serial(const char* serial);   // the model from the last digits of a serial
 namespace fs = std::filesystem;
 
 namespace ipod {
 namespace {
 
-constexpr const char* kSnapDir = "iPod_Control/iTunes/Zinc Snapshots";
-constexpr int kKeepSnapshots = 5;
+constexpr int kKeepAuto = 10;   // automatic backups kept per iPod (the ones made by hand are never removed)
 constexpr double kReserve = 64.0 * 1024 * 1024;   // left free on the iPod: the database, artwork and the iPod's own files
 
 #define DB static_cast<Itdb_iTunesDB*>(db_)
@@ -132,6 +139,146 @@ double treeBytes(const fs::path& p) {
   for (auto it = fs::recursive_directory_iterator(p, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
     if (it->is_regular_file(ec)) n += (double)it->file_size(ec);
   return n;
+}
+
+/** Copies a tree into a new backup folder. A file whose size and time are those of the same file in `prev` (the previous backup)
+ *  becomes a hard link to it: an unchanged 600 MB of covers costs nothing. The copies keep the source's time for the next one. */
+bool mirrorTree(const fs::path& from, const fs::path& to, const fs::path& prev, const Progress& progress, std::string& err) {
+  std::error_code ec;
+  if (!fs::exists(from, ec)) return true;
+  std::vector<fs::path> files;
+  for (auto it = fs::recursive_directory_iterator(from, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+    if (it->is_regular_file(ec) && it->path().filename().string().rfind("._", 0) != 0) files.push_back(it->path());   // not macOS's ._ files
+  if (ec) { err = from.string() + ": " + ec.message(); return false; }
+  int32_t i = 0;
+  for (const fs::path& f : files) {
+    fs::path rel = fs::relative(f, from), dst = to / rel, old = prev.empty() ? fs::path() : prev / rel;
+    fs::create_directories(dst.parent_path(), ec);
+    struct stat a, b;
+    if (stat(f.c_str(), &a) != 0) { err = f.string() + ": " + strerror(errno); return false; }
+    bool same = !old.empty() && stat(old.c_str(), &b) == 0 && a.st_size == b.st_size && a.st_mtime == b.st_mtime;
+    if (!same || link(old.c_str(), dst.c_str()) != 0) {
+      if (!copyFile(f.string(), dst.string(), nullptr, "", err)) return false;
+      struct timeval tv[2] = {{a.st_mtime, 0}, {a.st_mtime, 0}};
+      utimes(dst.c_str(), tv);
+    }
+    if (progress) progress("backup", ++i, (int32_t)files.size(), rel.string());
+  }
+  return true;
+}
+
+/** Copies into `to` the files of `from` it lacks or has at another size (a music folder, both ways). */
+bool syncTree(const fs::path& from, const fs::path& to, const Progress& progress, const std::string& phase, std::string& err) {
+  std::error_code ec;
+  if (!fs::exists(from, ec)) return true;
+  std::vector<fs::path> todo;
+  for (auto it = fs::recursive_directory_iterator(from, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file(ec) || it->path().filename().string()[0] == '.') continue;
+    fs::path dst = to / fs::relative(it->path(), from);
+    std::error_code e2;
+    if (!fs::exists(dst, e2) || fs::file_size(dst, e2) != it->file_size(ec)) todo.push_back(it->path());
+  }
+  int32_t i = 0;
+  for (const fs::path& f : todo) {
+    fs::path dst = to / fs::relative(f, from);
+    fs::create_directories(dst.parent_path(), ec);
+    if (!copyFile(f.string(), dst.string(), nullptr, "", err)) return false;
+    if (progress) progress(phase, ++i, (int32_t)todo.size(), fs::relative(f, from).string());
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- plists (SysInfoExtended, backup manifests)
+plist_t plistFromXml(const std::string& xml) {
+  plist_t p = nullptr;
+  if (!xml.empty()) plist_from_xml(xml.data(), (uint32_t)xml.size(), &p);
+  return p;
+}
+plist_t plistFile(const fs::path& file) {
+  gchar* data = nullptr;
+  gsize n = 0;
+  if (!g_file_get_contents(file.c_str(), &data, &n, nullptr)) return nullptr;
+  plist_t p = plistFromXml(std::string(data, n));
+  g_free(data);
+  return p;
+}
+/** A value of a dict as text: strings, integers, reals and booleans; arrays and dicts as their size. */
+std::string plistText(plist_t v) {
+  if (!v) return "";
+  switch (plist_get_node_type(v)) {
+    case PLIST_STRING: { char* c = nullptr; plist_get_string_val(v, &c); std::string r = c ? c : ""; free(c); return r; }
+    case PLIST_BOOLEAN: { uint8_t b = 0; plist_get_bool_val(v, &b); return b ? "yes" : "no"; }
+    case PLIST_INT: { uint64_t u = 0; plist_get_uint_val(v, &u); return std::to_string(u); }
+    case PLIST_REAL: { double d = 0; plist_get_real_val(v, &d); char t[32]; snprintf(t, sizeof t, "%g", d); return t; }
+    case PLIST_ARRAY: { uint32_t n = plist_array_get_size(v); return std::to_string(n) + (n == 1 ? " item" : " items"); }
+    case PLIST_DICT: { uint32_t n = plist_dict_get_size(v); return std::to_string(n) + (n == 1 ? " key" : " keys"); }
+    case PLIST_DATA: { char* d = nullptr; uint64_t n = 0; plist_get_data_val(v, &d, &n); free(d); return std::to_string(n) + " bytes"; }
+    default: return "";
+  }
+}
+std::string plistKey(plist_t dict, const char* key) { return dict ? plistText(plist_dict_get_item(dict, key)) : ""; }
+
+/** 160 GB, 3.4 GB, 512 MB, 12 KB: what Finder would say (powers of 1000, as an iPod's box). */
+std::string human(double b) {
+  char t[32];
+  if (b >= 1e9) snprintf(t, sizeof t, b >= 1e11 ? "%.0f GB" : "%.1f GB", b / 1e9);
+  else if (b >= 1e6) snprintf(t, sizeof t, "%.0f MB", b / 1e6);
+  else snprintf(t, sizeof t, "%.0f KB", b / 1e3);
+  return t;
+}
+
+std::string fsType(const std::string& mp) {
+#ifdef __APPLE__
+  struct statfs f;
+  return statfs(mp.c_str(), &f) == 0 ? f.f_fstypename : "";
+#else
+  std::string type;
+  if (FILE* f = fopen("/proc/mounts", "r")) {
+    char a[512], b[512], c[64];
+    while (fscanf(f, "%511s %511s %63s %*[^\n]", a, b, c) == 3) if (mp == b) type = c;
+    fclose(f);
+  }
+  return type;
+#endif
+}
+
+/** The firmware version shown in Settings > About: SysInfoExtended's VisibleBuildID, else SysInfo's "visibleBuildID: 0x... (2.0.2)". */
+std::string firmwareOf(const std::string& mp, plist_t ext) {
+  std::string v = plistKey(ext, "VisibleBuildID");
+  if (!v.empty()) return v;
+  gchar* data = nullptr;
+  if (g_file_get_contents((fs::path(mp) / "iPod_Control" / "Device" / "SysInfo").c_str(), &data, nullptr, nullptr)) {
+    std::string t = data;
+    g_free(data);
+    size_t at = t.find("visibleBuildID:");
+    if (at != std::string::npos) {
+      size_t o = t.find('(', at), c = t.find(')', at), nl = t.find('\n', at);
+      if (o != std::string::npos && c != std::string::npos && c < nl) return t.substr(o + 1, c - o - 1);
+    }
+  }
+  return "";
+}
+
+/** A name for an iPod's folder of backups: its serial, else its FireWire GUID, else its volume's name. */
+std::string folderKey(const Device& d) {
+  std::string k = !d.serial.empty() ? d.serial : !d.firewireGuid.empty() ? d.firewireGuid : fs::path(d.mountpoint).filename().string();
+  for (char& c : k) if (c == '/' || c == '\\' || c == ':') c = '_';
+  return k.empty() ? "iPod" : k;
+}
+
+bool readManifest(const fs::path& folder, Backup& b) {
+  plist_t m = plistFile(folder / "Info.plist");
+  if (!m) return false;
+  b.folder = folder.string();
+  b.name = plistKey(m, "Name");
+  b.serial = plistKey(m, "Serial");
+  b.created = atof(plistKey(m, "Created").c_str());
+  b.bytes = atof(plistKey(m, "Bytes").c_str());
+  b.music = plistKey(m, "Music") == "yes";
+  b.tracks = atoi(plistKey(m, "Tracks").c_str());
+  b.auto_ = plistKey(m, "Auto") == "yes";
+  plist_free(m);
+  return true;
 }
 
 const char* mediaName(guint32 t) {
@@ -295,10 +442,14 @@ bool hasDatabase(const std::string& mp) {
 }
 
 // ---------------------------------------------------------------- USB: the iPod's serial (its FireWire GUID) and SysInfoExtended
-struct UsbIpod { std::string serial; std::string xml; };
+struct UsbIpod { std::string serial; std::string xml; uint16_t product = 0; };
 
-/** Every Apple iPod on the USB bus (product 0x12xx), its serial and, when `withXml`, the SysInfoExtended it serves
- *  (vendor request 0x40, as libgpod's ipod-read-sysinfo-extended; a device request, so the mounted disk is untouched). */
+/** The iPods that have a disk mode: 0x1201-0x128f (1G to Classic and Nano 7G) and the Shuffles (0x1300-0x130f). An iPhone, an iPad
+ *  or an iPod touch (0x1290 and up) is not one: it has no iPod_Control to manage. */
+bool diskModeIpod(uint16_t product) { return (product >= 0x1201 && product < 0x1290) || (product >= 0x1300 && product <= 0x130f); }
+
+/** Every iPod on the USB bus, its serial and, when `withXml`, the SysInfoExtended it serves (vendor request 0x40, as libgpod's
+ *  ipod-read-sysinfo-extended; a device request, so the mounted disk is untouched). */
 std::vector<UsbIpod> usbIpods(bool withXml) {
   std::vector<UsbIpod> out;
   libusb_context* ctx = nullptr;
@@ -307,10 +458,11 @@ std::vector<UsbIpod> usbIpods(bool withXml) {
   ssize_t n = libusb_get_device_list(ctx, &list);
   for (ssize_t i = 0; i < n; i++) {
     libusb_device_descriptor d;
-    if (libusb_get_device_descriptor(list[i], &d) != 0 || d.idVendor != 0x05ac || (d.idProduct & 0xff00) != 0x1200) continue;
+    if (libusb_get_device_descriptor(list[i], &d) != 0 || d.idVendor != 0x05ac || !diskModeIpod(d.idProduct)) continue;
     libusb_device_handle* h = nullptr;
     if (libusb_open(list[i], &h) != 0) continue;
     UsbIpod u;
+    u.product = d.idProduct;
     unsigned char buf[0x1000];
     if (d.iSerialNumber && libusb_get_string_descriptor_ascii(h, d.iSerialNumber, buf, sizeof buf) > 0) u.serial = (const char*)buf;
     if (withXml) {
@@ -387,6 +539,10 @@ bool describe(const std::string& mp, Device& d, std::string& err) {
   }
   itdb_device_free(dev);
   d.sysInfoExtended = present(fs::path(mp) / "iPod_Control" / "Device" / "SysInfoExtended");
+  plist_t ext = d.sysInfoExtended ? plistFile(fs::path(mp) / "iPod_Control" / "Device" / "SysInfoExtended") : nullptr;
+  d.firmware = firmwareOf(mp, ext);
+  if (ext) plist_free(ext);
+  d.connection = "disk";
   d.hasDatabase = hasDatabase(mp);
   Space sp = space(mp);
   d.totalBytes = sp.total; d.freeBytes = sp.free; d.readOnly = sp.readOnly;
@@ -411,6 +567,36 @@ std::vector<Device> detect() {
       std::string err;
       if (describe(mp, d, err)) out.push_back(d);
     }
+  }
+  if (getenv("ZINC_IPOD_NO_USB")) return out;
+  // USB: the product of the mounted ones, and the iPods plugged in but not mounted (ejected, or a disk the system could not read)
+  std::vector<UsbIpod> usb = usbIpods(false);
+  std::vector<bool> matched(usb.size(), false);
+  for (Device& d : out)
+    for (size_t k = 0; k < usb.size(); k++)
+      if (!matched[k] && ((!d.firewireGuid.empty() && g_ascii_strcasecmp(usb[k].serial.c_str(), d.firewireGuid.c_str()) == 0) ||
+                          (d.firewireGuid.empty() && usb.size() == 1 && out.size() == 1))) { d.usbProduct = usb[k].product; matched[k] = true; }
+  if (std::find(matched.begin(), matched.end(), false) == matched.end()) return out;
+  for (const UsbIpod& u : usbIpods(true)) {
+    bool mounted = false;
+    for (const Device& d : out) mounted |= d.usbProduct != 0 && g_ascii_strcasecmp(u.serial.c_str(), d.firewireGuid.c_str()) == 0;
+    if (mounted) continue;
+    Device d;
+    d.connection = "usb";
+    d.usbProduct = u.product;
+    d.firewireGuid = u.serial;   // an iPod's USB serial is its FireWire GUID
+    plist_t x = plistFromXml(u.xml);
+    d.serial = plistKey(x, "SerialNumber");
+    d.firmware = plistKey(x, "VisibleBuildID");
+    if (x) plist_free(x);
+    if (const Itdb_IpodInfo* info = d.serial.size() >= 3 ? itdb_ipod_info_from_serial(d.serial.c_str()) : nullptr) {
+      d.model = s(itdb_info_get_ipod_model_name_string(info->ipod_model));
+      d.generation = s(itdb_info_get_ipod_generation_string(info->ipod_generation));
+      d.modelNumber = s(info->model_number);
+      d.capacityGb = info->capacity;
+    }
+    if (d.model.empty()) d.model = "iPod";
+    out.push_back(d);
   }
   return out;
 }
@@ -461,11 +647,34 @@ void Library::close() {
   if (db_) itdb_free(DB);
   db_ = nullptr;
   mp_.clear();
+  backedUp_ = false;
 }
 
-bool Library::writable(std::string& err) {
+bool Library::writable(std::string& err, const Progress& progress) {
   if (!db_) { err = "no iPod is open"; return false; }
   if (space(mp_).readOnly) { err = mp_ + " is mounted read-only (an HFS+ iPod on Linux mounts read-only: format it as FAT32 with iTunes or Finder to write to it)"; return false; }
+  if (backedUp_ || !hasDatabase(mp_)) return true;
+  // the session's restore point: the database as it is before the first change, on the computer (snapshots() lists it)
+  std::string folder, why;
+  if (!backup("", false, folder, progress, why)) { err = "the database could not be backed up before changing it, so nothing was changed: " + why; return false; }
+  Device d;
+  std::string e2;
+  describe(mp_, d, e2);
+  fs::path dir = fs::path(backupRoot()) / folderKey(d);
+  if (plist_t m = plistFile(fs::path(folder) / "Info.plist")) {   // mark it automatic, and keep the last kKeepAuto of them
+    plist_dict_set_item(m, "Auto", plist_new_bool(1));
+    char* xml = nullptr;
+    uint32_t n = 0;
+    plist_to_xml(m, &xml, &n);
+    g_file_set_contents((fs::path(folder) / "Info.plist").c_str(), xml, n, nullptr);
+    free(xml);
+    plist_free(m);
+  }
+  std::vector<Backup> autos;
+  for (const Backup& b : backups(dir.string())) if (b.auto_) autos.push_back(b);
+  std::error_code ec;
+  for (size_t k = kKeepAuto; k < autos.size(); k++) fs::remove_all(autos[k].folder, ec);
+  backedUp_ = true;
   return true;
 }
 
@@ -521,7 +730,7 @@ std::vector<Playlist> Library::playlists() {
 
 std::vector<AddResult> Library::add(const std::vector<TrackInput>& items, const std::string& playlist, const Progress& progress, std::string& err) {
   std::vector<AddResult> out;
-  if (!writable(err)) return out;
+  if (!writable(err, progress)) return out;
   // the whole batch must fit before anything is copied
   double need = kReserve;
   for (const TrackInput& in : items) { std::error_code ec; auto n = fs::file_size(in.file, ec); if (!ec) need += (double)n; }
@@ -682,71 +891,235 @@ bool Library::setPlaylistTracks(const std::string& id, const std::vector<std::st
 }
 
 bool Library::save(const Progress& progress, std::string& err) {
-  if (!writable(err)) return false;
-  // snapshot of what is on the iPod now, the last kKeepSnapshots kept
-  fs::path ipc = fs::path(mp_) / "iPod_Control", snaps = fs::path(mp_) / kSnapDir, snap = snaps / stamp();
-  if (hasDatabase(mp_)) {
-    if (progress) progress("save", 0, 2, "snapshot");
-    std::error_code ec;
-    fs::create_directories(snap, ec);
-    if (!copyTree(ipc / "iTunes", snap / "iTunes", "Zinc Snapshots", nullptr, "", err)) return false;
-    if (!copyTree(ipc / "Artwork", snap / "Artwork", "", nullptr, "", err)) return false;
-    std::vector<fs::path> all;
-    for (auto& e : fs::directory_iterator(snaps, ec)) all.push_back(e.path());
-    std::sort(all.begin(), all.end());
-    for (size_t k = 0; k + kKeepSnapshots < all.size(); k++) fs::remove_all(all[k], ec);
-  }
-  if (progress) progress("save", 1, 2, "database");
+  if (!writable(err, progress)) return false;   // the first change of a session backs the database up first
+  if (progress) progress("save", 0, 1, "database");
   GError* e = nullptr;
   if (!itdb_write(DB, &e)) { err = takeErr(e, "writing the database"); return false; }
   sync();
-  if (progress) progress("save", 2, 2, "");
+  if (progress) progress("save", 1, 1, "");
   return true;
 }
 
 std::vector<Snapshot> Library::snapshots() {
   std::vector<Snapshot> v;
-  std::error_code ec;
-  for (auto& e : fs::directory_iterator(fs::path(mp_) / kSnapDir, ec)) {
-    if (!e.is_directory()) continue;
+  Device d;
+  std::string err;
+  if (!db_ || !describe(mp_, d, err)) return v;
+  for (const Backup& b : backups((fs::path(backupRoot()) / folderKey(d)).string())) {
     Snapshot sn;
-    sn.id = e.path().filename().string();
-    struct tm tm{};
-    if (strptime(sn.id.c_str(), "%Y%m%d-%H%M%S", &tm)) { tm.tm_isdst = -1; sn.created = (double)mktime(&tm); }
-    sn.bytes = treeBytes(e.path());
+    sn.id = fs::path(b.folder).filename().string();
+    sn.created = b.created;
+    sn.bytes = b.bytes;
     v.push_back(sn);
   }
-  std::sort(v.begin(), v.end(), [](const Snapshot& a, const Snapshot& b) { return a.id > b.id; });
   return v;
 }
 
-bool Library::restoreSnapshot(const std::string& id, std::string& err) {
-  if (!writable(err)) return false;
-  fs::path snap = fs::path(mp_) / kSnapDir / id;
-  if (id.empty() || id.find('/') != std::string::npos || !present(snap / "iTunes")) { err = "no snapshot " + id; return false; }
+bool Library::restoreSnapshot(const std::string& id, const Progress& progress, std::string& err) {
+  backedUp_ = false;   // what is replaced is backed up first, even after this session's first backup
+  if (!writable(err, progress)) return false;
+  Device d;
+  if (!describe(mp_, d, err)) return false;
+  fs::path folder = fs::path(backupRoot()) / folderKey(d) / id;
+  if (id.empty() || id.find('/') != std::string::npos || !present(folder / "iPod_Control" / "iTunes")) { err = "no snapshot " + id; return false; }
   std::string mp = mp_;
   close();
-  fs::path ipc = fs::path(mp) / "iPod_Control";
-  if (!copyTree(snap / "iTunes", ipc / "iTunes", "", nullptr, "", err) || !copyTree(snap / "Artwork", ipc / "Artwork", "", nullptr, "", err)) return false;
-  sync();
+  if (!restoreBackup(folder.string(), mp, progress, err)) return false;
   return open(mp, false, "", "", err);
 }
 
 bool Library::backup(const std::string& dir, bool music, std::string& folder, const Progress& progress, std::string& err) {
   if (!db_) { err = "no iPod is open"; return false; }
-  fs::path ipc = fs::path(mp_) / "iPod_Control";
-  fs::path to = fs::path(dir) / (fs::path(mp_).filename().string() + " " + stamp());
-  if (music) {
-    double need = treeBytes(ipc) * 1.01;
-    std::error_code ec;
-    fs::create_directories(dir, ec);
-    fs::space_info si = fs::space(dir, ec);
-    if (!ec && (double)si.available < need) { err = "not enough space in " + dir + ": " + mb(need) + " needed, " + mb((double)si.available) + " free"; return false; }
-  }
+  Device d;
+  if (!describe(mp_, d, err)) return false;
+  if (Itdb_Playlist* m = itdb_playlist_mpl(DB)) d.name = s(m->name);
+  fs::path ipc = fs::path(mp_) / "iPod_Control", home = fs::path(dir.empty() ? backupRoot() : dir) / folderKey(d);
+  std::error_code ec;
+  fs::create_directories(home, ec);
+  if (ec) { err = home.string() + ": " + ec.message(); return false; }
+  std::vector<Backup> before = backups(home.string());
+  double need = treeBytes(ipc / "iTunes") + treeBytes(ipc / "Artwork");
+  if (music) need += treeBytes(ipc / "Music") - treeBytes(home / "Music");
+  fs::space_info si = fs::space(home, ec);
+  if (!ec && (double)si.available < need * 1.01) { err = "not enough space in " + home.string() + ": " + mb(need) + " needed, " + mb((double)si.available) + " free"; return false; }
+  std::string name = stamp();
+  for (int k = 2; present(home / name); k++) name = stamp() + "-" + std::to_string(k);
+  fs::path to = home / name, prev = before.empty() ? fs::path() : fs::path(before[0].folder);
   for (const char* sub : {"iTunes", "Artwork", "Device"})
-    if (!copyTree(ipc / sub, to / "iPod_Control" / sub, "Zinc Snapshots", progress, "backup", err)) return false;
-  if (music && !copyTree(ipc / "Music", to / "iPod_Control" / "Music", "", progress, "backup", err)) return false;
+    if (!mirrorTree(ipc / sub, to / "iPod_Control" / sub, prev.empty() ? prev : prev / "iPod_Control" / sub, progress, err)) { fs::remove_all(to, ec); return false; }
+  if (music && !syncTree(ipc / "Music", home / "Music", progress, "backup", err)) return false;   // shared by the backups: only new files are copied
+  plist_t m = plist_new_dict();
+  plist_dict_set_item(m, "Name", plist_new_string(d.name.c_str()));
+  plist_dict_set_item(m, "Serial", plist_new_string(d.serial.c_str()));
+  plist_dict_set_item(m, "FireWireGUID", plist_new_string(d.firewireGuid.c_str()));
+  plist_dict_set_item(m, "Model", plist_new_string(d.model.c_str()));
+  plist_dict_set_item(m, "Created", plist_new_uint((uint64_t)time(nullptr)));
+  plist_dict_set_item(m, "Bytes", plist_new_uint((uint64_t)treeBytes(to)));
+  plist_dict_set_item(m, "Tracks", plist_new_uint(g_list_length(DB->tracks)));
+  plist_dict_set_item(m, "Music", plist_new_bool(music || present(home / "Music")));
+  plist_dict_set_item(m, "Auto", plist_new_bool(0));
+  char* xml = nullptr;
+  uint32_t n = 0;
+  plist_to_xml(m, &xml, &n);
+  GError* e = nullptr;
+  bool ok = g_file_set_contents((to / "Info.plist").c_str(), xml, n, &e);
+  free(xml);
+  plist_free(m);
+  if (!ok) { err = takeErr(e, "the backup's Info.plist"); return false; }
   folder = to.string();
+  return true;
+}
+
+std::vector<SpecItem> Library::specs() {
+  std::vector<SpecItem> v;
+  if (!db_) return v;
+  auto add = [&](const char* g, const std::string& n, const std::string& val) { if (!val.empty()) v.push_back(SpecItem{g, n, val}); };
+  Device d;
+  std::string err;
+  describe(mp_, d, err);
+  if (Itdb_Playlist* m = itdb_playlist_mpl(DB)) d.name = s(m->name);
+  fs::path ipc = fs::path(mp_) / "iPod_Control";
+  plist_t ext = plistFile(ipc / "Device" / "SysInfoExtended");
+  add("iPod", "Name", d.name);
+  add("iPod", "Model", d.model);
+  add("iPod", "Generation", d.generation);
+  add("iPod", "Model number", d.modelNumber);
+  if (d.capacityGb > 0) { char t[32]; snprintf(t, sizeof t, "%g GB", d.capacityGb); add("iPod", "Capacity", t); }
+  add("iPod", "Serial number", d.serial);
+  add("iPod", "FireWire GUID", d.firewireGuid);
+  add("iPod", "Firmware", d.firmware);
+  add("iPod", "Build", plistKey(ext, "BuildID"));
+  add("iPod", "Family", plistKey(ext, "FamilyID"));
+  add("iPod", "Updater family", plistKey(ext, "UpdaterFamilyID"));
+  add("iPod", "Database checksum", d.checksum);
+  if (d.usbProduct) { char t[16]; snprintf(t, sizeof t, "0x%04x", d.usbProduct); add("iPod", "USB product", t); }
+
+  // storage, and what each kind of media takes on it
+  std::map<std::string, double> bytesOf;
+  std::map<std::string, int> countOf;
+  std::set<std::string> albums, artists, genres;
+  double seconds = 0, music = 0;
+  int withArt = 0, unplayed = 0;
+  for (GList* l = DB->tracks; l; l = l->next) {
+    Itdb_Track* t = (Itdb_Track*)l->data;
+    std::string kind = mediaName(t->mediatype);
+    bytesOf[kind] += t->size;
+    countOf[kind]++;
+    music += t->size;
+    seconds += t->tracklen / 1000.0;
+    std::string artist = s(t->albumartist && *t->albumartist ? t->albumartist : t->artist);
+    if (t->album && *t->album) albums.insert(artist + "\x1f" + s(t->album));
+    if (t->artist && *t->artist) artists.insert(s(t->artist));
+    if (t->genre && *t->genre) genres.insert(s(t->genre));
+    withArt += itdb_track_has_thumbnails(t) ? 1 : 0;
+    unplayed += t->playcount == 0 ? 1 : 0;
+  }
+  add("Storage", "Capacity", human(d.totalBytes));
+  add("Storage", "Used", human(d.totalBytes - d.freeBytes));
+  add("Storage", "Free", human(d.freeBytes));
+  for (const auto& [kind, b] : bytesOf) {
+    std::string n = kind;
+    n[0] = (char)toupper(n[0]);
+    add("Storage", n, human(b) + " (" + std::to_string(countOf[kind]) + ")");
+  }
+  double other = d.totalBytes - d.freeBytes - music;
+  if (other > 0) add("Storage", "Other", human(other));
+  add("Storage", "File system", fsType(mp_));
+  add("Storage", "Mounted at", mp_);
+  add("Storage", "Read-only", d.readOnly ? "yes" : "no");
+
+  int user = 0, smart = 0;
+  for (GList* l = DB->playlists; l; l = l->next) {
+    Itdb_Playlist* p = (Itdb_Playlist*)l->data;
+    if (itdb_playlist_is_mpl(p)) continue;
+    (p->is_spl ? smart : user)++;
+  }
+  char t[64];
+  add("Library", "Tracks", std::to_string(g_list_length(DB->tracks)));
+  add("Library", "Albums", std::to_string(albums.size()));
+  add("Library", "Artists", std::to_string(artists.size()));
+  add("Library", "Genres", std::to_string(genres.size()));
+  add("Library", "Playlists", std::to_string(user));
+  if (smart) add("Library", "Smart playlists", std::to_string(smart));
+  snprintf(t, sizeof t, "%d days %d h %02d min", (int)(seconds / 86400), (int)fmod(seconds / 3600, 24), (int)fmod(seconds / 60, 60));
+  add("Library", "Playing time", seconds >= 86400 ? t : (snprintf(t, sizeof t, "%d h %02d min", (int)(seconds / 3600), (int)fmod(seconds / 60, 60)), t));
+  add("Library", "Music size", human(music));
+  add("Library", "With artwork", std::to_string(withArt));
+  add("Library", "Never played", std::to_string(unplayed));
+  add("Library", "Database version", std::to_string(DB->version));
+  struct stat st;
+  if (stat((ipc / "iTunes" / "iTunesDB").c_str(), &st) == 0) {
+    add("Library", "Database size", human((double)st.st_size));
+    struct tm tm;
+    localtime_r(&st.st_mtime, &tm);
+    strftime(t, sizeof t, "%Y-%m-%d %H:%M", &tm);
+    add("Library", "Last written", t);
+  }
+  add("Library", "Restore points", std::to_string(snapshots().size()));
+
+  // artwork: the sizes the iPod stores
+  if (char* f = zn_ipod_art_formats(mp_.c_str())) {
+    std::string text = f;
+    g_free(f);
+    size_t at = 0;
+    while (at < text.size()) {
+      size_t nl = text.find('\n', at);
+      std::string line = text.substr(at, nl - at);
+      at = nl == std::string::npos ? text.size() : nl + 1;
+      char kind[16], fmt[64];
+      int id, w, h;
+      if (sscanf(line.c_str(), "%15[^\t]\t%d\t%d\t%d\t%63[^\n]", kind, &id, &w, &h, fmt) != 5) continue;
+      std::string k = kind;
+      k[0] = (char)toupper(k[0]);
+      snprintf(t, sizeof t, "%d x %d, %s", w, h, fmt);
+      add("Artwork", k + " " + std::to_string(id), t);
+    }
+  }
+  if (stat((ipc / "Artwork" / "ArtworkDB").c_str(), &st) == 0) add("Artwork", "Stored covers", human(treeBytes(ipc / "Artwork")));
+
+  // every key of SysInfoExtended, as the iPod gives it
+  if (ext) {
+    add("SysInfoExtended", "Source", plistKey(ext, "ZincGenerated") == "yes" ? "written by Zinc (no USB answer)" : "read from the iPod");
+    std::vector<std::pair<std::string, std::string>> keys;
+    plist_dict_iter it = nullptr;
+    plist_dict_new_iter(ext, &it);
+    for (;;) {
+      char* k = nullptr;
+      plist_t val = nullptr;
+      plist_dict_next_item(ext, it, &k, &val);
+      if (!k) break;
+      keys.push_back({k, plistText(val)});
+      free(k);
+    }
+    free(it);
+    std::sort(keys.begin(), keys.end());
+    for (auto& [k, val] : keys) if (k != "ZincGenerated") add("SysInfoExtended", k, val);
+    plist_free(ext);
+  }
+  return v;
+}
+
+bool Library::artwork(const std::string& id, int32_t size, Picture& out, std::string& err) {
+  out = Picture{};
+  if (!db_) { err = "no iPod is open"; return false; }
+  Itdb_Track* t = findTrack(DB, id);
+  if (!t) { err = "no track " + id; return false; }
+  if (!itdb_track_has_thumbnails(t)) return true;
+  int32_t want = size > 0 ? std::min<int32_t>(size, 1024) : -1;
+  GdkPixbuf* p = (GdkPixbuf*)itdb_track_get_thumbnail(t, want, want);
+  if (!p) return true;
+  int w = gdk_pixbuf_get_width(p), h = gdk_pixbuf_get_height(p), ch = gdk_pixbuf_get_n_channels(p), stride = gdk_pixbuf_get_rowstride(p);
+  const guchar* px = gdk_pixbuf_get_pixels(p);
+  out.width = w;
+  out.height = h;
+  out.rgba.resize((size_t)w * h * 4);
+  for (int y = 0; y < h; y++)
+    for (int x = 0; x < w; x++) {
+      const guchar* sp = px + (size_t)y * stride + (size_t)x * ch;
+      uint8_t* dp = &out.rgba[((size_t)y * w + x) * 4];
+      dp[0] = sp[0]; dp[1] = sp[1]; dp[2] = sp[2]; dp[3] = ch == 4 ? sp[3] : 255;
+    }
+  g_object_unref(p);
   return true;
 }
 
@@ -772,7 +1145,7 @@ Check Library::check() {
 }
 
 bool Library::repair(Check& after, const Progress& progress, std::string& err) {
-  if (!writable(err)) return false;
+  if (!writable(err, progress)) return false;
   Check c = check();
   for (const std::string& id : c.missing) {
     Itdb_Track* t = findTrack(DB, id);
@@ -786,18 +1159,52 @@ bool Library::repair(Check& after, const Progress& progress, std::string& err) {
   return true;
 }
 
+std::string backupRoot() {
+  if (const char* r = getenv("ZINC_IPOD_BACKUPS")) if (*r) return r;
+  if (const char* z = getenv("ZINC_HOME")) if (*z) return (fs::path(z) / "ipod").string();
+  const char* h = getenv("HOME");
+  return (fs::path(h ? h : ".") / ".zinc" / "ipod").string();
+}
+
+std::vector<Backup> backups(const std::string& dir) {
+  std::vector<Backup> v;
+  fs::path root = dir.empty() ? fs::path(backupRoot()) : fs::path(dir);
+  std::error_code ec;
+  auto look = [&](const fs::path& d) {
+    std::error_code e2;
+    for (auto& e : fs::directory_iterator(d, e2)) {
+      Backup b;
+      if (e.is_directory(e2) && readManifest(e.path(), b)) v.push_back(b);
+    }
+  };
+  look(root);   // a folder of one iPod's backups
+  for (auto& e : fs::directory_iterator(root, ec)) if (e.is_directory(ec) && e.path().filename() != "Music") look(e.path());   // the iPods' folders
+  std::sort(v.begin(), v.end(), [](const Backup& a, const Backup& b) { return a.created != b.created ? a.created > b.created : a.folder > b.folder; });
+  return v;
+}
+
 bool restoreBackup(const std::string& folder, const std::string& mp, const Progress& progress, std::string& err) {
-  fs::path from = fs::path(folder) / "iPod_Control";
+  fs::path from = fs::path(folder) / "iPod_Control", to = fs::path(mp) / "iPod_Control";
   if (!present(from / "iTunes")) { err = folder + " is not an iPod backup (no iPod_Control/iTunes)"; return false; }
   if (space(mp).readOnly) { err = mp + " is mounted read-only"; return false; }
-  if (!present(fs::path(mp) / "iPod_Control")) { err = mp + " is not an iPod"; return false; }
-  if (present(from / "Music")) {
-    double need = treeBytes(from / "Music") - treeBytes(fs::path(mp) / "iPod_Control" / "Music");
+  if (!present(to)) { err = mp + " is not an iPod"; return false; }
+  // the music: in the backup (an older layout) or in the Music folder its iPod's backups share; only what the iPod lacks is copied
+  fs::path music = present(from / "Music") ? from / "Music" : fs::path(folder).parent_path() / "Music";
+  if (present(music)) {
+    double need = 0;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(music, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      if (!it->is_regular_file(ec)) continue;
+      std::error_code e2;
+      fs::path dst = to / "Music" / fs::relative(it->path(), music);
+      if (!fs::exists(dst, e2) || fs::file_size(dst, e2) != it->file_size(ec)) need += (double)it->file_size(ec);
+    }
     Space sp = space(mp);
     if (sp.ok && need + kReserve > sp.free) { err = "not enough space on the iPod to restore the music: " + mb(need + kReserve) + " needed, " + mb(sp.free) + " free"; return false; }
   }
-  for (const char* sub : {"iTunes", "Artwork", "Device", "Music"})
-    if (!copyTree(from / sub, fs::path(mp) / "iPod_Control" / sub, "", progress, "restore", err)) return false;
+  for (const char* sub : {"iTunes", "Artwork"})   // never Device: it describes this iPod, which may not be the one backed up
+    if (!copyTree(from / sub, to / sub, "", progress, "restore", err)) return false;
+  if (present(music) && !syncTree(music, to / "Music", progress, "restore", err)) return false;
   sync();
   return true;
 }
