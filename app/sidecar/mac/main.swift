@@ -1,13 +1,13 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--seconds N]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 400
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -16,8 +16,9 @@ while let a = argv.popFirst() {
     case "--native": native = true   // 1:1, not Retina: twice the room, everything half as big
     case "--mirror": mirror = Int(argv.popFirst()!)!
     case "--threshold": threshold = true
+    case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -79,8 +80,32 @@ if mirror >= 0 {
     }
 }
 
+// --- the clean pass: the fast waveform draws two levels and leaves trails (the pointer's). Once nothing has changed for --idle ms, what
+// changed since the last clean goes out again in true greys in the UI waveform, which clears them and shows the anti-aliased text; after
+// about four screens of those, a full refresh clears the deeper ghost. AppLoad 0006 switches waveforms in a few ms.
+struct Area {
+    var x0 = Int.max, y0 = Int.max, x1 = 0, y1 = 0
+    var isEmpty: Bool { x1 <= x0 }
+    mutating func add(_ x: Int, _ y: Int, _ w: Int, _ h: Int) { x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x + w); y1 = max(y1, y + h) }
+}
+var dirty = Area(), fastMode = true, cleaned = 0
+var grey = [UInt8](repeating: 255, count: 0)
+func clean() {
+    let x = dirty.x0, y = dirty.y0, w = dirty.x1 - dirty.x0, h = dirty.y1 - dirty.y0
+    dirty = Area()
+    writeFull(header(2, 4, 0, 0, 0, 0), 16); fastMode = false   // the UI waveform
+    cleaned += w * h
+    if cleaned > W * H * 4 { writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0; return }   // the full refresh repaints everything
+    var payload = [UInt8](repeating: 0, count: w * h)
+    for j in 0..<h { let o = (y + j) * W + x; payload.replaceSubrange(j * w..<(j + 1) * w, with: grey[o..<(o + w)]) }
+    var hd = header(1, x, y, w, h, payload.count); hd[1] = 8
+    writeFull(hd, 16); writeFull(payload, payload.count)
+    var ack = [UInt8](repeating: 0, count: 8); readFull(&ack, 8)
+}
+
 // --- the sender: the newest frame only, one frame in flight
 let stride = (W + 7) / 8
+grey = [UInt8](repeating: 255, count: W * H)
 var prev = [UInt8](repeating: 0, count: stride * H)   // what the tablet shows: white (bit 0) after the probe's clear
 var cur = prev
 let lock = NSLock(), ready = DispatchSemaphore(value: 0)
@@ -92,7 +117,9 @@ var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, t: now())
 
 Thread {
     while true {
-        ready.wait()
+        if idleMs > 0 && !dirty.isEmpty {
+            if ready.wait(timeout: .now() + .milliseconds(idleMs)) == .timedOut { clean(); continue }
+        } else { ready.wait() }
         lock.lock(); let pb = latest; latest = nil; lock.unlock()
         guard let pb else { continue }
         let t0 = now()
@@ -106,6 +133,7 @@ Thread {
                     let row = src + y * bpr, out = c.baseAddress! + (y + oy) * stride + ox / 8, tr = t.baseAddress! + ((y + oy) & 7) * 8
                     var x = 0
                     let n = min(fw, W - ox)
+                    grey.withUnsafeMutableBufferPointer { g in _ = memcpy(g.baseAddress! + (y + oy) * W + ox, row, n) }   // for the clean pass
                     while x < n {
                         var b: UInt8 = 0
                         for i in 0..<min(8, n - x) where row[x + i] < tr[i] { b |= 0x80 >> UInt8(i) }
@@ -137,7 +165,9 @@ Thread {
             }
             rects.append((lo * 8, by, min(hi * 8, W) - lo * 8, bh))
         }
+        if !rects.isEmpty && fastMode == false { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
         for (x, y, w, h) in rects {
+            dirty.add(x, y, w, h)
             let rs = (w + 7) / 8
             var payload = [UInt8](repeating: 0, count: rs * h)
             for j in 0..<h { let o = (y + j) * stride + x / 8; payload.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }

@@ -6,7 +6,8 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
 - **The tablet** (`src/`): a Zinc app. Its driver (`plugins/display-rmpp/stream.h`) listens on TCP 7710 and writes what the Mac sends
   straight into AppLoad's framebuffer from its own thread, without the app's frame loop; the app only shows how to connect.
 - **The Mac** (`mac/`): `mac/build.sh`, then `mac/build/sidecar`. It makes a virtual display (CoreGraphics' `CGVirtualDisplay`, as DeskPad),
-  captures it with ScreenCaptureKit, dithers its luma to 1 bit and sends only the 32x16 tiles that changed, one frame in flight.
+  captures it with ScreenCaptureKit, dithers its luma to 1 bit and sends only the 32x16 tiles that changed, one frame in flight. Once nothing has changed for 400 ms, what changed goes out again in true greys in the
+  UI waveform: the fast waveform's trails (the pointer's) go away and text gets its anti-aliasing back; every four screens of that, a full refresh.
   macOS asks once for the Screen Recording permission.
 
 ```sh
@@ -15,6 +16,7 @@ mac/build/sidecar --native         # one point per pixel: twice the room, everyt
 mac/build/sidecar --points 1080x1360   # any size, drawn at twice that and scaled to the panel
 mac/build/sidecar --mirror 0       # mirror the Mac's first display (white bands keep its shape)
 mac/build/sidecar --threshold      # a plain threshold instead of the ordered dither: sharper text, no greys
+mac/build/sidecar --idle 400       # ms without change before the clean pass (0: never)
 ```
 
 Measured on a Paper Pro over USB (2026-10-28): the round trip of a small update is under 3 ms; xochitl repaints a small rectangle up to
