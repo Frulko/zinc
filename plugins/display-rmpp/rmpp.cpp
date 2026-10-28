@@ -46,7 +46,7 @@ enum : int { REASON_VISIBILITY = 1, REASON_CAPABILITIES = 2, REASON_INSETS = 3, 
              CAN_INSTANT_MODE = 8, CAN_HEADER_BAR = 16 };
 // also the visibility values: 0 minimized, 1 shown, 2 as its widget, 3 docked under xochitl's header (0005)
 enum : int { WINDOW_MINIMIZE = 0, WINDOW_RESTORE = 1, WINDOW_WIDGET = 2, WINDOW_DOCKED = 3 };
-enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform
+enum : int { UPDATE_PARTIAL = 1, MODE_FAST = 0, MODE_CONTENT = 3, MODE_UI = 4 };   // qtfb REFRESH_MODE_UFAST (0) for the pen, not FAST (1): the fastest waveform; CONTENT (3) xochitl's page waveform
 // wire structs, same layout as qtfb::ClientMessage / ServerMessage (LP64: 24 and 32 bytes)
 struct ClientMsg { uint8_t type; union { struct { int key; uint8_t fmt; } init; struct { int type, x, y, w, h; } update; int mode; int window;
                                          struct { int offset; char text[16]; } title; }; };
@@ -123,7 +123,7 @@ bool header_wanted() {
 }
 
 bool set_mode(int mode) {
-  if (mode != MODE_FAST && mode != MODE_UI) return false;
+  if (mode != MODE_FAST && mode != MODE_UI && mode != MODE_CONTENT) return false;
   if (mode == refresh_mode) return true;
   uint64_t now = hal_time_us();
   if (sock < 0 || now < mode_ready_us) return false;
@@ -259,6 +259,7 @@ void rm_poll(HalInput* in) {
         window_changed();
       }
     }
+    if (m.type == MSG_INPUT && stream::input(m.input.type, m.input.id, m.input.x, m.input.y, m.input.pressure)) continue;   // the sidecar's Mac
     if (m.type == MSG_INPUT && rin::key_event(m.input.type, m.input.x)) continue;   // keys queue in order: no frame each
     if (m.type == MSG_INPUT && rin::touch_event(m.input.type, m.input.id, m.input.x, m.input.y)) {
       // Deliver each press and release to the UI (draining a quick press+release would swallow the tap); moves go on: the frame sees the

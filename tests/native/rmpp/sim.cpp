@@ -140,7 +140,7 @@ static void handle(const ClientMsg& m) {
     if (widgets) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 2; st.state.value = (docks ? 7 : 3) | (instant ? 8 : 0) | (docks && headerBar ? 16 : 0); send(qtfb, &st, sizeof st, 0); }
     if (docks) { ServerMsg st = {}; st.type = MSG_STATE_INIT; st.state.reason = 3; st.state.value = inset; send(qtfb, &st, sizeof st, 0); }
   } else if (m.type == MSG_SET_MODE) {
-    line("%8.1f ms mode %s (qtfb sleeps %d ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 4 ? "UI" : "?", (int)(pauseUs / 1000));
+    line("%8.1f ms mode %s (qtfb sleeps %d ms)", now / 1000.0, m.mode == 0 ? "FAST" : m.mode == 3 ? "CONTENT" : m.mode == 4 ? "UI" : "?", (int)(pauseUs / 1000));
     if (now < sleepUntil) { line("error: mode change while qtfb still sleeps"); errors++; }
     sleepUntil = now + pauseUs;
     modes++;

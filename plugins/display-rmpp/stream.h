@@ -3,12 +3,17 @@
 // rm_present leaves the screen to the stream while a Mac is connected, and draws the app's whole frame again when it leaves.
 // Wire (little-endian). On connect the tablet says "RMPP <w> <h> <model>\n" (h: below xochitl's header when docked); then per message
 //   [u8 type][u8 depth][u16 x][u16 y][u16 w][u16 h][u16 0][u32 len][payload]
-//   1 RECT  depth 1: rows of ceil(w/8) bytes, MSB first, 1 = black; depth 8: grey bytes. Answer [u32 seq][u32 apply_us].
-//   2 MODE  x: 0 the pen's waveform (black and white, fastest), 4 UI.
+//   1 RECT  depth 1: rows of ceil(w/8) bytes, MSB first, 1 = black; depth 8: grey bytes. Answered by an ACK.
+//   2 MODE  x: 0 the pen's waveform (black and white, fastest), 3 xochitl's page waveform (clears the fast one's trails), 4 UI.
 //   3 FULL  one full refresh.
+// The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
+//   kind 1 ACK    a: the RECT's number, b: microseconds to apply it
+//   kind 2 INPUT  type: AppLoad's (0x10 finger press, 0x11 release, 0x12 move; 0x20..0x22 the Marker), id: the finger,
+//                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
 #pragma once
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <thread>
 #include <vector>
 #include <arpa/inet.h>
@@ -29,6 +34,21 @@ inline std::atomic<bool> ended{false};    // it left: rm_present draws the app's
 inline std::atomic<int> mode{-1};         // the waveform the Mac asked for; rm_present switches on the main thread
 inline std::atomic<bool> full{false};     // a full refresh the Mac asked for
 inline int port = 0;
+inline std::mutex out;          // the stream's thread answers, the main thread forwards touches
+inline int client = -1, client_top = 0;
+
+inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
+  uint8_t m[16] = {kind, type};
+  memcpy(m + 2, &id, 2); memcpy(m + 4, &a, 4); memcpy(m + 8, &b, 4); memcpy(m + 12, &c, 4);
+  std::lock_guard<std::mutex> g(out);
+  return client >= 0 && write(client, m, sizeof m) == (ssize_t)sizeof m;
+}
+/** A touch or the Marker from AppLoad (panel pixels): to the Mac while one is connected; true when it took it. */
+inline bool input(int type, int id, int x, int y, int pressure) {
+  if (!active || !((type >= 0x10 && type <= 0x12) || (type >= 0x20 && type <= 0x22))) return false;
+  send16(2, (uint8_t)type, (uint16_t)id, x, y - client_top, pressure);
+  return true;
+}
 
 struct Target {
   uint8_t* fb;                              // qtfb's RGB888 buffer
@@ -58,6 +78,7 @@ inline void serve(Target t, int ls) {
     char hello[128];
     const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s\n", t.w, H, t.model);
     if (write(c, hello, n) != n) { close(c); continue; }
+    { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     active = true;
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
     uint32_t seq = 0;
@@ -65,7 +86,7 @@ inline void serve(Target t, int ls) {
     while (read_full(c, h, sizeof h)) {
       uint16_t x, y, w, hh; uint32_t len;
       memcpy(&x, h + 2, 2); memcpy(&y, h + 4, 2); memcpy(&w, h + 6, 2); memcpy(&hh, h + 8, 2); memcpy(&len, h + 12, 4);
-      if (h[0] == 2) { if (x == 0 || x == 4) mode = x; continue; }   // the waveforms rm_present can set
+      if (h[0] == 2) { if (x == 0 || x == 3 || x == 4) mode = x; continue; }   // the waveforms rm_present can set
       if (h[0] == 3) { full = true; continue; }
       const size_t stride = h[1] == 1 ? (w + 7u) / 8 : w;
       if (h[0] != 1 || (h[1] != 1 && h[1] != 8) || x + w > t.w || y + hh > H || len < stride * hh || len > (size_t)t.w * t.h) break;
@@ -83,9 +104,10 @@ inline void serve(Target t, int ls) {
       }
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
       if (w && hh) t.update(x, top + y, w, hh);
-      const uint32_t ack[2] = {++seq, now_us() - t0};
-      if (write(c, ack, sizeof ack) != sizeof ack) break;
+      ++seq;
+      if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
     }
+    { std::lock_guard<std::mutex> g(out); client = -1; }
     close(c);
     fprintf(stderr, "display-rmpp: sidecar left after %u rectangles\n", seq);
     mode = -1; active = false; ended = true;
