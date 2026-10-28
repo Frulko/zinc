@@ -400,8 +400,41 @@ func inside(_ px: Double, _ py: Double) -> Bool {
     return c
 }
 let edge = 2
-// the arrow's mask at --cursor pixels tall: 2 black (its outline), 1 white (inside, and its edge outside), 0 outside; tip at (edge, edge)
-func makeArrow() -> (w: Int, h: Int, m: [UInt8]) {
+// The pointer as macOS shows it (arrow, I-beam, hand), from Kenney's Cursor Pack (CC0, cursors/LICENSE-kenney.txt): its black outline and
+// white inside, at --cursor pixels tall. Mask: 2 black, 1 white, 0 outside; (tx, ty) the hot spot
+var pointerKind = 0, pendingKind = -1   // 0 arrow, 1 I-beam, 2 hand: macOS's current cursor (the main thread looks, the sender switches)
+let cursorDir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cursors")
+func loadCursor(_ name: String) -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int)? {
+    guard let img = NSImage(contentsOf: cursorDir.appendingPathComponent(name + ".png")), let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+    let sw = cg.width, sh = cg.height
+    var px = [UInt8](repeating: 0, count: sw * sh * 4)
+    guard let ctx = CGContext(data: &px, width: sw, height: sh, bitsPerComponent: 8, bytesPerRow: sw * 4, space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: sw, height: sh))
+    var x0 = sw, y0 = sh, x1 = -1, y1 = -1
+    for y in 0..<sh { for x in 0..<sw where px[(y * sw + x) * 4 + 3] >= 128 { x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x); y1 = max(y1, y) } }
+    if x1 < 0 { return nil }
+    let k = Double(y1 - y0 + 1) / Double(max(cursorPx, 19)), w = Int((Double(x1 - x0 + 1) / k).rounded(.up)), h = max(cursorPx, 19)
+    var m = [UInt8](repeating: 0, count: w * h)
+    for y in 0..<h { for x in 0..<w {   // the source block under each pixel, averaged: covered at least half, dark at least half
+        var a = 0, dark = 0, n = 0
+        for sy in (y0 + Int(Double(y) * k))..<min(y1 + 1, y0 + max(Int(Double(y) * k) + 1, Int(Double(y + 1) * k))) {
+            for sx in (x0 + Int(Double(x) * k))..<min(x1 + 1, x0 + max(Int(Double(x) * k) + 1, Int(Double(x + 1) * k))) {
+                let o = (sy * sw + sx) * 4; n += 1
+                if px[o + 3] >= 128 { a += 1; if Int(px[o]) + Int(px[o + 1]) + Int(px[o + 2]) < 384 { dark += 1 } }
+            }
+        }
+        if n > 0 && a * 2 >= n { m[y * w + x] = dark * 2 >= a ? 2 : 1 }
+    } }
+    switch name {   // the hot spot: the arrow's tip, the I-beam's middle, the finger's tip
+    case "ibeam": return (w, h, m, w / 2, h / 2)
+    case "hand": var tx = w / 2; for x in 0..<w where m[x] != 0 { tx = x; break }; var e = tx; while e + 1 < w && m[e + 1] != 0 { e += 1 }; return (w, h, m, (tx + e) / 2, 0)
+    default: return (w, h, m, 0, 0)
+    }
+}
+// the vector arrow when the pack is missing: 2 black (its outline), 1 white (inside, and its edge outside), 0 outside; tip at (edge, edge)
+func makeArrow() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
+    if let c = loadCursor(["arrow", "ibeam", "hand"][pointerKind]) { return c }
     let k = Double(max(cursorPx, 19)) / 19, e = edge, w = Int(12 * k) + 2 * e, h = max(cursorPx, 19) + 2 * e
     let t = max(2, cursorPx / 12)   // the outline's width
     var m = [UInt8](repeating: 0, count: w * h)
@@ -416,7 +449,7 @@ func makeArrow() -> (w: Int, h: Int, m: [UInt8]) {
     for y in 0..<h { for x in 0..<w {
         if m[y * w + x] == 1 { if near(x, y, t, 0) { out[y * w + x] = 2 } } else if near(x, y, e - 1, 1) { out[y * w + x] = 1 }
     } }
-    return (w, h, out)
+    return (w, h, out, e, e)
 }
 /** A round dot dotPx wide, black with a white edge, its middle at (r, r). */
 func makeDot() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
@@ -436,7 +469,7 @@ func turnedMask() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
     }
     var m = [UInt8](repeating: 0, count: w * h)
     for y in 0..<u.h { for x in 0..<u.w { let (px, py) = at(x, y); m[py * w + px] = u.m[y * u.w + x] } }
-    let tip = at(edge, edge)
+    let tip = at(u.tx, u.ty)
     return (w, h, m, tip.0, tip.1)
 }
 var pointerMask = turnedMask(), dotMask = makeDot()
@@ -466,6 +499,19 @@ pointerTimer.setEventHandler {
     if p?.x != pointer?.x || p?.y != pointer?.y { pointer = p; pointerMoved = true; if pointerAt == 0 { pointerAt = now() }; lock.unlock(); ready.signal() } else { lock.unlock() }
 }
 pointerTimer.resume()
+/** macOS's cursor now, as one of the pack's three (by its image size and hot spot). */
+func cursorKind() -> Int {
+    guard let c = NSCursor.currentSystem else { return 0 }
+    func same(_ o: NSCursor) -> Bool { o.image.size == c.image.size && o.hotSpot == c.hotSpot }
+    return same(.iBeam) || same(.iBeamCursorForVerticalLayout) ? 1 : same(.pointingHand) ? 2 : 0
+}
+let kindTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
+kindTimer.schedule(deadline: .now(), repeating: .milliseconds(100))
+kindTimer.setEventHandler {
+    let k = cursorPx > 0 ? cursorKind() : 0
+    lock.lock(); if k != pointerKind && k != pendingKind { pendingKind = k; lock.unlock(); ready.signal() } else { lock.unlock() }
+}
+kindTimer.resume()
 
 // --- live settings: the window (below) sets them, the sender takes them between two frames
 struct Tune: Equatable {
@@ -538,6 +584,12 @@ Thread {
             for _ in rects { acks.wait() }
         }
         if let tune { apply(tune) }
+        lock.lock(); let kind = pendingKind; pendingKind = -1; lock.unlock()
+        var stale: (Int, Int, Int, Int)? = nil   // the old pointer's box: back to the screen with the next picture
+        if kind >= 0 && kind != pointerKind {
+            if let d = drawn { stale = pointerBox(d, dot: drawnDot) }
+            pointerKind = kind; uprightMask = makeArrow(); pointerMask = turnedMask(); drawn = nil
+        }
         if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
         if action == "clean" { var all = fastTiles; for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }; clean(&all) }
         let under = drawn.map { pointerBox($0, dot: drawnDot) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
@@ -588,7 +640,7 @@ Thread {
         // ink), and the arrow comes back sharp 120 ms after it stops
         let isMoving = cursorPx > 0 && now() - lastPointer < 120
         let q = isMoving && moving == 2 ? nil : p, qDot = isMoving && moving == 1
-        if pb == nil && !moved && q?.x == drawn?.x && q?.y == drawn?.y && qDot == drawnDot { continue }
+        if pb == nil && !moved && stale == nil && q?.x == drawn?.x && q?.y == drawn?.y && qDot == drawnDot { continue }
         let t0 = now()
         var box = (x0: W, y0: H, x1: 0, y1: 0)   // what to dither and compare
         func grow(_ b: (Int, Int, Int, Int)) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)) }
@@ -615,6 +667,7 @@ Thread {
             }
             CVPixelBufferUnlockBaseAddress(pb, .readOnly)
         }
+        if let b = stale { for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }; grow(b) }
         if cursorPx > 0, let d = drawn {   // our pointer: its old box back to the screen
             let b = pointerBox(d, dot: drawnDot)
             for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
