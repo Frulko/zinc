@@ -2,7 +2,7 @@
   "name": "sidecar",
   "entry": "src/main.tsx",
   "description": "Your Mac's screen on the reMarkable, as a second display or a mirror, in fast black and white.",
-  "app": { "id": "dev.zinc.sidecar", "version": "0.1.2", "author": "Zinc", "icon": "icon.svg" },
+  "app": { "id": "dev.zinc.sidecar", "version": "0.1.3", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp", "ink": "native" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
