@@ -539,8 +539,9 @@ func info(_ seconds: Double) {
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
         let f = stats.frames, r = stats.rtt.sorted()
-        // a film: three, the screen's decoder works on the next ones while one waits for the refresh (1080p: 30 ms each, 60 a second)
-        if !r.isEmpty { inFlight = video != nil ? 3 : r[r.count / 2] > 17 ? 1 : 2 }
+        // a film: four, the encoder and the screen's decoder each work on the next ones while one waits for the refresh (a 1080p film at
+        // 60 here: 18 ms to encode, 33 to decode, a round trip of 59 ms; three in flight gave 50 a second)
+        if !r.isEmpty { inFlight = video != nil ? 4 : r[r.count / 2] > 17 ? 1 : 2 }
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),
