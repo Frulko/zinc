@@ -496,7 +496,7 @@ func info(_ seconds: Double) {
         ["Rate", "Captured", String(format: "%.0f frames/s (macOS, at most 60)", Double(more.captured) / seconds)],
         ["Rate", "Sent", String(format: "%.0f frames/s, %d skipped (a newer one replaced them)", Double(stats.frames) / seconds, more.dropped)],
         ["Rate", "Throughput", String(format: "%.1f Mbit/s, %.0f KB a frame", Double(stats.bytes) * 8 / seconds / 1e6, Double(stats.bytes) / Double(f) / 1024)],
-        ["Rate", "Compression", String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
+        ["Rate", "Compression", stats.raw == 0 ? "– (no tile sent)" : String(format: "%.0fx against raw colour, %.1f rectangles a frame", Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f))],
         ["Rate", "Rough frames", "\(stats.rough * 100 / f)%"],
         ["Picture", "Video", !h264 ? (caps.contains("h264") ? "off (--no-video)" : "tiles only: the screen has no H.264 decoder") : video.map { v in
             let r = pixels(v, W, H), n = max(videoStats.frames, 1)
@@ -504,9 +504,9 @@ func info(_ seconds: Double) {
             return String(format: "H.264 %d × %d at %d, %d: %.0f pictures/s, %.1f Mbit/s, encode %.1f ms, the screen's hardware decoder %.1f ms (median)",
                           r.w, r.h, r.x, r.y, Double(videoStats.frames) / seconds, Double(videoStats.bytes) * 8 / seconds / 1e6, videoStats.encode / Double(n),
                           d.isEmpty ? 0 : Double(d[d.count / 2]) / 1000) } ?? "none now (H.264 when a part of the screen moves like a film)"],
-        ["Latency", "Encode (Mac)", "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
+        ["Latency", "Encode (Mac)", stats.raw == 0 ? "– (no tile sent)" : "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
         ["Latency", "Shown (screen)", shownUs.isEmpty ? "–" : { let v = shownUs.sorted(); return String(format: "commit %.1f ms after the last byte (median, %.1f p95), on screen at the next refresh (≤ 16.7 ms)", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }()],
-        ["Latency", "Decode (screen)", (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())
+        ["Latency", "Decode (screen)", more.decodeUs == 0 && pictureUs.isEmpty ? "– (no tile sent)" : (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())
             + ms(Double(more.decodeUs) / Double(f) / 1000) + " of CPU a frame"],
         ["Latency", "Frame round trip", r.isEmpty ? "–" : "\(ms(r[r.count / 2])) median, \(ms(r[min(r.count - 1, r.count * 95 / 100)])) p95, \(ms(r.last!)) max"],
         ["Latency", "Network (TCP)", tcp ? String(format: "%.1f ms, ± %.1f, %d KB queued, %d resent", Double(t.tcpi_srtt), Double(t.tcpi_rttvar), Int(t.tcpi_snd_sbbytes) / 1024, Int(t.tcpi_txretransmitpackets)) : "–"],
