@@ -30,4 +30,11 @@ src=$(ls "$tmp/a/plugins/device/native/"*.cpp 2>/dev/null | head -1)
 echo '// an included source' > "$(dirname "$src")/zz_included.cpp"
 k3=$(ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/a" 2>&1 | key)
 [ -n "$k3" ] && [ "$k3" != "$k1" ] || { echo "plugin_key: a source beside the listed ones does not change the key: '$k3'"; fail=1; }
+# a header a source #includes from another directory ("../display-rmpp/stream.h" in display-fbdev) is part of the key too
+echo '// shared' > "$tmp/a/plugins/outside.h"
+h="$tmp/a/plugins/device/native/device.host.cpp"; { echo '#include "../../outside.h"'; cat "$h"; } > "$tmp/s" && mv "$tmp/s" "$h"
+k4=$(ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/a" 2>&1 | key)
+echo '// shared, changed' > "$tmp/a/plugins/outside.h"
+k5=$(ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/a" 2>&1 | key)
+[ -n "$k5" ] && [ "$k5" != "$k4" ] || { echo "plugin_key: a header included from outside does not change the key: '$k4' '$k5'"; fail=1; }
 exit $fail

@@ -352,6 +352,24 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
   out.fetched = true;
 }
 
+// The files a source #includes from outside its own directory ("../display-rmpp/stream.h" in display-fbdev), and theirs: a change there
+// rebuilds the plugin. ponytail: quoted "../" includes only; vendored trees (third_party/) are pinned and not followed further.
+static void outsideIncludes(const std::string& file, std::vector<std::string>& out) {
+  std::ifstream in(file);
+  std::string line;
+  while (std::getline(in, line)) {
+    const size_t i = line.find("#include \"../");
+    if (i == std::string::npos || line.find_first_not_of(" \t") != i) continue;
+    const size_t e = line.find('"', i + 10);
+    if (e == std::string::npos) continue;
+    std::error_code ec;
+    const std::string f = fs::weakly_canonical(fs::path(file).parent_path() / line.substr(i + 10, e - i - 10), ec).string();
+    if (ec || std::find(out.begin(), out.end(), f) != out.end() || !fs::is_regular_file(f, ec)) continue;
+    out.push_back(f);
+    if (f.find("/third_party/") == std::string::npos) outsideIncludes(f, out);
+  }
+}
+
 // The defines a plugin is compiled with: the runtime's own, the manifest's, the options as ZP_ defines.
 std::vector<std::string> buildDefines(const frontend::FoundPlugin& p, const frontend::PluginTarget& ts, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", buildOs() == "macos" ? "ZRT_PLATFORM=\"macos\"" : buildOs() == "windows" ? "ZRT_PLATFORM=\"windows\"" : "ZRT_PLATFORM=\"linux\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
@@ -534,6 +552,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::sort(hs.begin(), hs.end());
     for (const std::string& f : hs) h.add(sha256File(f));
   }
+  { std::vector<std::string> inc; for (const std::string& s : own) outsideIncludes(s, inc); for (const std::string& f : inc) h.add(sha256File(f)); }
   if (!ts.cargo.empty()) {   // the crate's static library, linked like a system library; its bytes in the key, so a changed crate relinks the plugin
     std::string rust;
     if (!buildCargo(p, ts.cargo, target, rust, err)) return false;
@@ -717,6 +736,8 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
     const std::string d = sp.parent_path().string();
     if (std::find(dirs.begin(), dirs.end(), d) == dirs.end()) { dirs.push_back(d); in.push_back(d); for (const auto& e : fs::directory_iterator(d, ec)) in.push_back(e.path().string()); }
   }
+  { std::vector<std::string> inc; for (const std::string& f : in) if (endsWith(f, ".cpp") || endsWith(f, ".cc") || endsWith(f, ".mm") || endsWith(f, ".h") || endsWith(f, ".inc")) outsideIncludes(f, inc);
+    in.insert(in.end(), inc.begin(), inc.end()); }
   if (!ts.cargo.empty()) for (const std::string& f : crateFiles(fs::path(p.dir) / ts.cargo)) in.push_back(f);   // a Rust crate: its sources, Cargo.toml and Cargo.lock
   if (!ts.pkg.empty() && haveCommand("pkg-config")) {   // the .pc files of the packages and of everything they require
     std::string all, o;
