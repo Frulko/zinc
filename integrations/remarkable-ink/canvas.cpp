@@ -348,6 +348,10 @@ void start() {
 
 // The crash guard, before anything else: a mark left by a xochitl that died while the canvas was armed refuses it for this boot.
 extern "C" char _xovi_shouldLoad() {
+  // xochitl's own children inherit XOVI's preload: they are not xochitl and would read its live mark as a crash
+  char exe[256] = {};
+  const ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+  if (n < 7 || strcmp(exe + n - 7, "xochitl") != 0) return 0;   // the name ends so (the test harness runs a fake-xochitl)
   if (access((QByteArray(state_dir) + "/armed").constData(), F_OK) == 0) {
     fprintf(stderr, "[zinc-canvas] refused: xochitl died while the canvas was armed; reboot to try again\n");
     note("last", "refused: xochitl died while the canvas was armed; reboot to try again");
