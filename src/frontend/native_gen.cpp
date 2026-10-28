@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstring>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "frontend/parser.h"
@@ -94,6 +95,18 @@ struct Records {
     if (aliases.count(nm)) return cpp(aliases.at(nm));
     return nm;
   }
+  // A field's name in C++: one that is a keyword of C++ but a fine property name in TypeScript (auto, new, delete, default...) gets a
+  // trailing underscore, as the C++ Core Guidelines spell it. The wire has no names, so both sides still agree.
+  static std::string cppName(std::string_view n) {
+    static const std::set<std::string_view> kCpp = {"alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break", "case",
+      "catch", "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const", "consteval", "constexpr", "constinit", "const_cast",
+      "continue", "co_await", "co_return", "co_yield", "decltype", "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit",
+      "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept", "not",
+      "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "register", "reinterpret_cast", "requires", "return", "short",
+      "signed", "sizeof", "static", "static_assert", "static_cast", "struct", "switch", "template", "this", "thread_local", "throw", "true", "try",
+      "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"};
+    return kCpp.count(n) ? std::string(n) + "_" : std::string(n);
+  }
   // The structs of the records reached by type(), nested ones first: plain data with encode and decode, for any thread (no zrt type).
   std::string structs() const {
     std::string h;
@@ -102,7 +115,7 @@ struct Records {
       std::string fs, puts, gets;
       for (std::size_t k = 1; k < in.kids.size(); ++k) {
         const Node& f = a.nodes[in.kids[k]];
-        std::string ct = cpp(f.kids[0]), fn(f.text);
+        std::string ct = cpp(f.kids[0]), fn = cppName(f.text);
         if ((f.flags & kFlagOptional) && ct.rfind("std::optional<", 0) != 0) ct = "std::optional<" + ct + ">";
         const bool scalar = ct == "double" || ct == "int32_t" || ct == "uint32_t" || ct == "bool";
         fs += "  " + ct + " " + fn + (scalar ? ct == "bool" ? " = false" : " = 0" : "") + ";\n";

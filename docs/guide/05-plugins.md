@@ -129,6 +129,9 @@ a u32 count and the items, an optional as one byte and the value, a record as a 
 record, only append fields: an older reader skips the fields it does not know, a newer reader gives the missing ones their default (0, false,
 "", [], null). The program sees typed objects on every engine; records need a gradual profile (the strict ones refuse them with Z5010).
 
+A field whose name is a keyword of C++ (`auto`, `new`, `delete`, `default`...) is the same name with a trailing underscore in the
+generated struct (`b.auto_`); the wire carries no names, so nothing else changes.
+
 ## Kind 3 — UI component plugin
 
 A module plugin can export UI components — they are just functions returning a node handle (`i32`), so they compose in
