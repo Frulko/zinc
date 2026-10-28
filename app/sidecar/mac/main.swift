@@ -1,7 +1,7 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--clean-mode 3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 3|4] [--seconds N]
 import Foundation
 import Accelerate
 import ScreenCaptureKit
@@ -9,7 +9,7 @@ import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, minClean = -1, cursorPx = 28, cleanMode = 3, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, minClean = -1, cursorPx = 28, cleanMode = 3, fastMode0 = 0, pointerHz = 30, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -21,13 +21,15 @@ while let a = argv.popFirst() {
     case "--cursor": cursorPx = Int(argv.popFirst()!)!; if cursorPx > 0 { cursorPx = max(19, cursorPx) }   // the pointer's height in tablet pixels; 0: macOS draws its own into the capture
     case "--rotate": rotate = Int(argv.popFirst()!)!; if ![90, 180, 270].contains(rotate) { rotate = 0 }   // until the tablet says: 90 its top on the left, 270 on the right
     case "--edges": edges = Int(argv.popFirst()!)!   // how hard a pixel darker than its neighbours is pushed to black (0: off)
+    case "--fast-mode": fastMode0 = Int(argv.popFirst()!)!   // the waveform of everything that moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
+    case "--pointer-hz": pointerHz = max(1, Int(argv.popFirst()!)!)   // pointer moves sent per second at most, the newest only: a fast update lasts ~100+ ms on the panel
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--gamma": gamma = Double(argv.popFirst()!)!
     case "--min-clean": minClean = Int(argv.popFirst()!)!   // pixels drawn fast, at rest, before the clean pass in true greys (default 1% of the panel)
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -56,7 +58,7 @@ func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -
     for i in 0..<4 { b[12 + i] = UInt8((len >> (i * 8)) & 255) }
     return b
 }
-writeFull(header(2, 0, 0, 0, 0, 0), 16)   // UFAST (mode 0)
+writeFull(header(2, fastMode0, 0, 0, 0, 0), 16)   // UFAST (mode 0)
 if points.0 == 0 { points = native ? (FW, FH) : (FW / 2, FH / 2) }   // Retina by default: the tablet's pixels at twice the points
 
 // --- the tablet's messages: answers to RECTs, and its touches and Marker, played on the Mac as the mouse
@@ -256,7 +258,7 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
     }
     // a partial update drives only the pixels whose value changes, and a trail's are white already: the pixels drawn fast go black first,
     // in the fast waveform, so that they move again (the local flash of xochitl's eraser, on the strokes only), then the real content
-    if !fastMode { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }
+    if !fastMode { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     for (x, y, w, h) in rects {
         let rs = (w + 7) / 8
         var black = [UInt8](repeating: 0, count: rs * h)
@@ -377,11 +379,13 @@ func addCursor(_ p: (x: Int, y: Int)) {
 }
 Thread {
     var drawn: (x: Int, y: Int)? = nil   // where the pointer is drawn in shown
+    var lastPointer = 0.0, deferred = false   // when the pointer last went out; a move waits for its turn
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
-        if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
+        if deferred { _ = ready.wait(timeout: .now() + .milliseconds(5)) }
+        else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
-        if !fastMode && tn >= backToFast { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
+        if !fastMode && tn >= backToFast { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
         let under = drawn.map { pointerBox($0) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
         func isUnder(_ tx: Int, _ ty: Int) -> Bool { tx >= under.0 && tx <= under.2 && ty >= under.1 && ty <= under.3 }
         if any(trailTiles) {   // the pointer's tail: the tiles it left 150 ms ago, in the fast waveform, while it moves on
@@ -415,7 +419,11 @@ Thread {
             print("the tablet turned: \(to)")
             if side { DispatchQueue.main.async { applyMode(); reconfigure() } }
         }
-        lock.lock(); let pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; let moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
+        lock.lock(); let pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
+        // the pointer alone: at most --pointer-hz moves, the newest; updates that overlap on the panel wait for each other there
+        if moved && pb == nil && now() - lastPointer < 1000 / Double(pointerHz) { lock.lock(); pointerMoved = true; lock.unlock(); moved = false; deferred = true; continue }
+        deferred = false
+        if moved { lastPointer = now() }
         if pb == nil && !moved { continue }
         let t0 = now()
         var box = (x0: W, y0: H, x1: 0, y1: 0)   // what to dither and compare
@@ -465,7 +473,7 @@ Thread {
         if pb != nil { firstFrame = false }
         let rects = rectsOf(mask)
         if !rects.isEmpty { let t = now(); for i in 0..<mask.count where mask[i] { fastTiles[i] = true; tileTime[i] = t } }
-        if !rects.isEmpty && fastMode == false { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
+        if !rects.isEmpty && fastMode == false { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
         for (x, y, w, h) in rects {
             let rs = (w + 7) / 8
             var payload = [UInt8](repeating: 0, count: rs * h)

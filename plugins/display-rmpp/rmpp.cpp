@@ -123,7 +123,7 @@ bool header_wanted() {
 }
 
 bool set_mode(int mode) {
-  if (mode != MODE_FAST && mode != MODE_UI && mode != MODE_CONTENT) return false;
+  if (mode < 0 || mode > MODE_UI) return false;   // qtfb's UFAST 0, FAST 1 (DU), ANIMATE 2 (A2), CONTENT 3 (GC16), UI 4 (GL16)
   if (mode == refresh_mode) return true;
   uint64_t now = hal_time_us();
   if (sock < 0 || now < mode_ready_us) return false;

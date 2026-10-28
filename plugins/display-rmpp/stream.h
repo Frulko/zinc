@@ -4,7 +4,7 @@
 // Wire (little-endian). On connect the tablet says "RMPP <w> <h> <model>\n" (h: below xochitl's header when docked); then per message
 //   [u8 type][u8 depth][u16 x][u16 y][u16 w][u16 h][u16 0][u32 len][payload]
 //   1 RECT  depth 1: rows of ceil(w/8) bytes, MSB first, 1 = black; depth 8: grey bytes. Answered by an ACK.
-//   2 MODE  x: 0 the pen's waveform (black and white, fastest), 3 xochitl's page waveform (clears the fast one's trails), 4 UI.
+//   2 MODE  x: qtfb's mode: 0 UFAST (the pen's), 1 FAST (DU), 2 ANIMATE (A2), 3 CONTENT (GC16, xochitl's page), 4 UI (GL16).
 //   3 FULL  one full refresh.
 // The tablet's messages are 16 bytes: [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
 //   kind 1 ACK    a: the RECT's number, b: microseconds to apply it
@@ -135,7 +135,7 @@ inline void serve(Target t, int ls) {
     while (read_full(c, h, sizeof h)) {
       uint16_t x, y, w, hh; uint32_t len;
       memcpy(&x, h + 2, 2); memcpy(&y, h + 4, 2); memcpy(&w, h + 6, 2); memcpy(&hh, h + 8, 2); memcpy(&len, h + 12, 4);
-      if (h[0] == 2) { if (x == 0 || x == 3 || x == 4) mode = x; continue; }   // the waveforms rm_present can set
+      if (h[0] == 2) { if (x <= 4) mode = x; continue; }   // qtfb's modes, set by rm_present
       if (h[0] == 3) { full = true; continue; }
       const size_t stride = h[1] == 1 ? (w + 7u) / 8 : w;
       if (h[0] != 1 || (h[1] != 1 && h[1] != 8) || x + w > t.w || y + hh > H || len < stride * hh || len > (size_t)t.w * t.h) break;

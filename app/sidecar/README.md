@@ -33,6 +33,8 @@ mac/build/sidecar --levels 90,185 --gamma 1.6   # the e-ink tone curve: luma und
 mac/build/sidecar --edges 10       # the edge pass's strength (0: off)
 mac/build/sidecar --rotate 90      # start turned (90 the tablet's top on the left, 180, 270), until the tablet says otherwise
 mac/build/sidecar --cursor 28      # the pointer's height in tablet pixels; 0: macOS's own, captured
+mac/build/sidecar --fast-mode 0    # the waveform of what moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
+mac/build/sidecar --pointer-hz 30  # pointer moves sent per second at most (the newest): overlapping updates queue on the panel
 mac/build/sidecar --clean-mode 3   # the clean pass's waveform: 3 xochitl's page one, 4 UI
 ```
 
