@@ -7,9 +7,14 @@ import { quit } from 'zinc:gfx';
 import { device, env } from 'zinc:sys';
 
 const PORT = env('ZINC_SIDECAR_PORT') !== '' ? parseInt(env('ZINC_SIDECAR_PORT')) : 7710;
-const listening = device('stream.listen', `${PORT}`) === '1';
-const [state, setState] = createSignal<string>(device('stream.state'));
-setInterval(() => { const s = device('stream.state'); if (s !== state()) setState(s); }, 1000);
+// the driver listens once its screen is up, after the first frame: asked again each second, given up on after five
+const [state, setState] = createSignal<string>('starting');
+let tries = 0;
+setInterval(() => {
+  let s = device('stream.state');
+  if (s === 'off' || s === '') s = device('stream.listen', `${PORT}`) === '1' ? 'waiting' : ++tries >= 5 ? 'failed' : 'starting';
+  if (s !== state()) setState(s);
+}, 1000);
 
 const TEXT = 'text-[34px] text-black';
 
@@ -17,10 +22,10 @@ function App(): i32 {
   return <View className="flex-col grow bg-white">
     <RemarkableBar title="Sidecar" onHome={() => {}} onQuit={() => quit()} />
     <View className="flex-col grow items-center justify-center gap-8 px-16">
-      <Text className="text-[56px] font-bold text-black">{listening ? (state() === 'connected' ? 'Connected' : 'Waiting for the Mac') : 'Sidecar cannot start'}</Text>
-      <Text className={TEXT + ' text-center'}>{listening
+      <Text className="text-[56px] font-bold text-black">{state() === 'connected' ? 'Connected' : state() === 'failed' ? 'Sidecar cannot start' : 'Waiting for the Mac'}</Text>
+      <Text className={TEXT + ' text-center'}>{state() !== 'failed'
         ? `Connect the tablet with its USB cable, then start Sidecar on the Mac. It finds the tablet at 10.11.99.1, port ${PORT}.`
-        : `Port ${PORT} is taken, or this screen cannot be shared. Quit Sidecar and open it again.`}</Text>
+        : `Port ${PORT} is taken, or this screen cannot be shared (see the app's log). Quit Sidecar and open it again.`}</Text>
     </View>
   </View>;
 }
