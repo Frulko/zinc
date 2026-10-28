@@ -83,6 +83,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
+- Deterministic runs (`ZINC_DETERMINISTIC`, `zinc test`, `zinc capture`) wait for a plugin's background jobs (zinc:ipod's reads) at each turn of the loop, so their results show in the same frame on every run.
 - Zinc Web on the reMarkable: thinner bars with icon buttons (finger-sized, black on white, inverted when active), and a First button that goes back to page 1 of the page.
 - reMarkable Hub: checking for updates (at start and with **Check for updates**) no longer blocks the Hub; its result, or "Server unreachable", shows in the status line.
 - reMarkable: a pinch or a two-finger pan uses the fast refresh while the fingers move, then one full refresh cleans the page when they lift.

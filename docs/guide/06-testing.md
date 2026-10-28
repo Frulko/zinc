@@ -88,6 +88,8 @@ implied by `ZINC_RECORD` / `ZINC_REPLAY`, `zinc test` and `zinc capture`. It gua
 - **No live input.** The mouse, keyboard, touch and pen of the machine are ignored; the program sees only a replayed
   tape or the `ui` test hooks (`ui.pointerAt`, `keyDown`, `typeText`...).
 - **Fixed surface.** The SDL window keeps its logical size (`fill` resize is off) and the clipboard is process-local.
+- **Plugin jobs in order.** Blocking work a plugin runs on its worker (`runtime/zrt_jobs.h`: zinc:ipod's reads) is waited for at
+  the next turn of the loop, so its promise settles in the same frame on every run, however busy the machine is.
 - **Same float results.** Every native build uses `-ffp-contract=off`: no fused multiply-add, so arithmetic rounds
   the same way (IEEE, one operation at a time) on every processor.
 
