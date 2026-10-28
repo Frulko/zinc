@@ -85,20 +85,30 @@ func header(_ type: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ len: Int) -
     for i in 0..<4 { b[12 + i] = UInt8((len >> (i * 8)) & 255) }
     return b
 }
-/** One rectangle (rows of 1-bit pixels, or greys at depth 8) in an lz4 block when the tablet reads them and it is smaller; more: another
- *  message of this picture follows, and the tablet updates the panel once, at the last. */
-var zbuf = [UInt8](), rawBytes = 0, gpuFrames = 0   // the profile: payload before lz4, frames the GPU shaded
+/** A rectangle's payload as the tablet reads it best: one zstd frame (+zstd), else one lz4 block (+lz4), greys Sub-filtered first (+sub);
+ *  nil when it would not shrink by a tenth. zstd's entropy stage takes more out of dithered bits than lz4 (app/sidecar/mac/codecbench.swift). */
+var zbuf = [UInt8](), rawBytes = 0, gpuFrames = 0   // the profile: payload before the codec, frames the GPU shaded
+let zctx = ZSTD_createCCtx()
+func squeeze(_ payload: [UInt8], _ w: Int, _ h: Int, depth: UInt8, caps: Set<String>) -> (UInt8, Int)? {
+    guard (caps.contains("zstd") || caps.contains("lz4")) && payload.count >= 1024 else { return nil }
+    let sub = depth == 8 && caps.contains("sub")
+    var src = payload
+    if sub { for j in 0..<h { var i = w - 1; while i >= 1 { src[j * w + i] = src[j * w + i] &- src[j * w + i - 1]; i -= 1 } } }
+    let zstd = caps.contains("zstd"), bound = zstd ? ZSTD_compressBound(src.count) : src.count
+    if zbuf.count < bound { zbuf = [UInt8](repeating: 0, count: bound) }
+    let n = zstd ? ZSTD_compressCCtx(zctx, &zbuf, bound, src, src.count, 1) : compression_encode_buffer(&zbuf, src.count * 9 / 10, src, src.count, nil, COMPRESSION_LZ4_RAW)
+    if n == 0 || (zstd && (ZSTD_isError(n) != 0 || n >= src.count * 9 / 10)) { return nil }
+    return ((zstd ? 2 : 1) | (sub ? 0x80 : 0), n)
+}
+/** One rectangle (rows of 1-bit pixels, or greys at depth 8), compressed when the tablet reads it; more: another message of this picture
+ *  follows, and the tablet updates the panel once, at the last. */
 func sendRect(_ x: Int, _ y: Int, _ w: Int, _ h: Int, _ payload: [UInt8], depth: UInt8 = 1, more: Bool = false) {
     var hd = header(1, x, y, w, h, payload.count); hd[1] = depth; hd[11] = more ? 1 : 0
     rawBytes += payload.count + 16
-    if caps.contains("lz4") && payload.count >= 1024 {
-        if zbuf.count < payload.count { zbuf = [UInt8](repeating: 0, count: payload.count) }
-        let n = compression_encode_buffer(&zbuf, payload.count * 9 / 10, payload, payload.count, nil, COMPRESSION_LZ4_RAW)
-        if n > 0 {
-            hd[10] = 1; for i in 0..<4 { hd[12 + i] = UInt8((n >> (i * 8)) & 255) }
-            writeFull(hd, 16); zbuf.withUnsafeBytes { writeFull($0.baseAddress!, n) }; stats.bytes += n + 16
-            return
-        }
+    if let (codec, n) = squeeze(payload, w, h, depth: depth, caps: caps) {
+        hd[10] = codec; for i in 0..<4 { hd[12 + i] = UInt8((n >> (i * 8)) & 255) }
+        writeFull(hd, 16); zbuf.withUnsafeBytes { writeFull($0.baseAddress!, n) }; stats.bytes += n + 16
+        return
     }
     writeFull(hd, 16); writeFull(payload, payload.count); stats.bytes += payload.count + 16
 }
@@ -935,7 +945,22 @@ func gpuSelftest() -> Never {
             if (m.pic[o] & k) != (cur[o] & k) { missed += 1 } } }
     }
     print("selftest: scrolls, \(missed) wrong")
-    exit(bad == 0 && missed == 0 ? 0 : 1)
+    // the codecs as the tablet decodes them (stream.h): zstd with Sub on greys, zstd on bits, lz4 on bits
+    var wrong = 0
+    let codecCases: [(UInt8, [String])] = [(8, ["zstd", "sub"]), (1, ["zstd"]), (1, ["lz4"])]
+    for (depth, c) in codecCases {
+        let w = 256, h = 64, count = depth == 8 ? w * h : w / 8 * h   // at least 1 KB: smaller goes plain
+        var p = [UInt8](repeating: 0, count: count)
+        for i in 0..<count { p[i] = i / 7 % 3 == 0 ? UInt8.random(in: 0...255) : UInt8(truncatingIfNeeded: i / 13) }
+        guard let (codec, n) = squeeze(p, w, h, depth: depth, caps: Set(c)) else { wrong += 1; continue }
+        var back = [UInt8](repeating: 0, count: p.count)
+        let got: Int
+        if codec & 0x7f == 2 { got = ZSTD_decompress(&back, back.count, zbuf, n) } else { got = compression_decode_buffer(&back, back.count, zbuf, n, nil, COMPRESSION_LZ4_RAW) }
+        if codec & 0x80 != 0 { for j in 0..<h { for i in 1..<w { let k = j * w + i; back[k] = back[k] &+ back[k - 1] } } }
+        if got != p.count || back != p { print("selftest: codec \(c) depth \(depth) does not come back"); wrong += 1 }
+    }
+    print("selftest: codecs, \(wrong) wrong")
+    exit(bad == 0 && missed == 0 && wrong == 0 ? 0 : 1)
 }
 if selftest { gpuSelftest() }
 
@@ -1147,7 +1172,7 @@ Thread {
             let line = String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
                          Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f))
             let lz = rawBytes > 0 ? 100 - stats.bytes * 100 / rawBytes : 0
-            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))  scroll copies \(stats.copies)  gpu \(gpuFrames)  lz4 -\(lz)%   (median/max)"
+            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))  scroll copies \(stats.copies)  gpu \(gpuFrames)  codec -\(lz)%   (median/max)"
             prof = ([], [], []); rawBytes = 0; gpuFrames = 0
             print(line); print(profile)
             var both = line + "\n" + profile

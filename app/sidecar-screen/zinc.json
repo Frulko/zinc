@@ -1,0 +1,7 @@
+{
+  "name": "sidecar-screen",
+  "entry": "src/main.tsx",
+  "description": "Any screen as a Mac's display over the network: a Raspberry Pi on HDMI, in colour.",
+  "app": { "id": "dev.zinc.sidecar-screen", "version": "0.1.0", "author": "Zinc" },
+  "permissions": ["net"]
+}

@@ -73,3 +73,10 @@ mac/build/sidecar --clean-mode 0   # 0: cleaning stays in the fast waveform (no 
 Measured on a Paper Pro over USB (2026-10-28): the round trip of a small update is under 3 ms; xochitl repaints a small rectangle up to
 120 times a second, 20 times for 1620x800 and 8 for the whole panel. The research is in `docs/reports/rmpp-sidecar-research.md`.
 Test: `tests/run --only sidecar_stream` (the tablet's half against the AppLoad simulator).
+
+**Any screen with a network** (`app/sidecar-screen`): the same stream in colour. Run the app on the screen's machine (a Raspberry Pi on
+HDMI: `zinc device <pi> deploy app/sidecar-screen --target rpi`); its page shows its address. On the Mac, `mac/build/sidecar-screen --host
+<address>` makes a virtual display of the screen's size (`--mirror <n>` mirrors display n, `--hidpi` draws it at twice its points). The
+tiles that changed are joined in runs, filtered (PNG's Sub) and compressed with zstd on every core; at most two pictures wait for the
+screen's answers, so a slow link drops pictures instead of lagging. Every 2 s it prints the frames, the wire rate, the ratio and the round
+trip. `mac/codecbench.swift` measures the codecs on the Mac's own screen.
