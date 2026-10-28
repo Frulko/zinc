@@ -24,10 +24,12 @@ export function _styles(n: i32, styles: ui.Style[]): void { ui.setStyles(n, styl
 export function _dynStyles(n: i32, get: () => ui.Style[]): void { if (fineGrained()) solid._dynStyles(n, get); else ui.setStyles(n, get()); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
+export function _imgH(n: i32, img: i32): void { ui.setImageHandle(n, img); }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: solid.NodeRef): void { r.node = n; }
 
 // ---- dynamic helpers: effects under Solid, one read under React
+export function _dynImgH(n: i32, get: () => i32): void { if (fineGrained()) solid._dynImgH(n, get); else ui.setImageHandle(n, get()); }
 export function _dynTextOf(n: i32, get: () => string): void {
   if (fineGrained()) solid._dynTextOf(n, get); else ui.setText(n, get());
 }

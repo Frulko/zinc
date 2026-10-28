@@ -153,6 +153,7 @@ export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void
 export function _styles(n: i32, styles: ui.Style[]): void { ui.setStyles(n, styles); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
+export function _imgH(n: i32, img: i32): void { ui.setImageHandle(n, img); }
 // text fields and pointer / key events (onChange of a field fires on every edit, like React)
 export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
 export function _spread(n: i32, p: ui.PanHandlers): void { p.attach(n); }   // {...pan.panHandlers}

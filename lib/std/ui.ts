@@ -742,6 +742,8 @@ export function createSurface(w: i32, h: i32): i32 {
 export function surfaceImage(h: i32): i32 { return node(h).img; }
 export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on; }
 export function setImage(h: i32, name: string): void { node(h).img = image(name); node(h).src = name; layoutDirty = true; }
+/** Shows a runtime image (imageFromBytes, a plugin's picture; -1 shows none). The program owns it: destroyImage once no node shows it. */
+export function setImageHandle(h: i32, img: i32): void { const n = node(h); if (n.img === img && n.src === '') return; n.img = img; n.src = ''; layoutDirty = true; }
 
 // ---------------------------------------------------------------- event handlers and text fields (host ABI)
 function handlers(h: i32): Handlers {

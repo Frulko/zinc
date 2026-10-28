@@ -1043,6 +1043,7 @@ struct Lowering {
         push(react ? "_styles(" + v + ", " + layers + ");" : "_dynStyles(" + v + ", () => " + layers + ");");
       }
       else if (name == "src") push(lit ? "_img(" + v + ", " + quote(a.lit) + ");" : react ? "_img(" + v + ", " + expr + ");" : "_dynImg(" + v + ", () => (" + expr + "));");
+      else if (name == "image") push(react ? "_imgH(" + v + ", " + expr + ");" : "_dynImgH(" + v + ", () => (" + expr + "));");   // a runtime image (imageFromBytes, a plugin): what src is for the assets
       else if (name == "ref") push("_ref(" + v + ", " + expr + ");");
       else if (name == "focusable") push("_focusable(" + v + ");");
       else if (name == "debugName") {}
@@ -1530,6 +1531,8 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
     if (out.find("_spread(") != std::string::npos) helpers += ", _spread";   // only when used: not every JSX library has them
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
+    if (out.find("_imgH(") != std::string::npos) helpers += ", _imgH";
+    if (out.find("_dynImgH(") != std::string::npos) helpers += ", _dynImgH";
     if (out.find("_submit(") != std::string::npos) helpers += ", _submit";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";

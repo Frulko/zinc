@@ -159,6 +159,8 @@ export function onMount(fn: () => void): void { queueMicrotask(fn); }
 export function _el(tag: i32): i32 { return ui.createNode(tag); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
 export function _dynImg(n: i32, get: () => string): void { createEffect(() => { ui.setImage(n, get()); }); }
+export function _imgH(n: i32, img: i32): void { ui.setImageHandle(n, img); }
+export function _dynImgH(n: i32, get: () => i32): void { createEffect(() => { ui.setImageHandle(n, get()); }); }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: NodeRef): void { r.node = n; }
 

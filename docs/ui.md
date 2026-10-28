@@ -344,6 +344,10 @@ from its first to its last colour along the nearest axis, a conic as the average
 
 ## Images in a box
 
+`<Image src="logo.png" />` shows an image of the assets; `<Image image={img} />` shows a runtime image: one decoded with `imageFromBytes`, built
+with `imageFromPixels`, or handed by a plugin (a cover, a camera frame). It follows a signal like any prop; the program keeps the
+image and calls `destroyImage` once no node shows it.
+
 How an `<Image>` fills its box, and background images on any node (ZN-262), with Tailwind v4's names and CSS's geometry:
 
 | Class | Style key | Effect |
