@@ -170,3 +170,11 @@ Wi-Fi with it on and off).
 
 The order: 3.1 with 3.2 in the same change (the measurement proves it), then 3.3 and the governor of 3.4 (a few lines each), then the
 parallel decode, then 3.5 on Wi-Fi. 3.6 belongs to the H.264 step, and 3.7 only if the figures ask for it.
+
+## 5. Measured: bcm2835-codec with the VideoToolbox stream (2026-10-28)
+
+`tools/v4l2dec-probe.cpp` on the Pi 3B+ (1.4 GHz, `gpu_freq=300`), streams from `sidecar-screen --h264-dump`:
+
+- **The held picture.** VideoToolbox's SPS has no VUI timing. Without it the decoder gives picture N out only when unit N+1 comes in, which costs one picture of delay at whatever rate the video runs (33 ms at 30), and the last picture of a burst stays held. The cause was isolated by changing one thing at a time on the same stream: the POC type (0 to 2, as Vanilla's SPS has), `nal_ref_idc`, an AUD before or after each unit, EOS and filler NAL units all leave the hold; adding `timing_info` (any rate: 60, 120, 500, 30000 fps were tried) removes it. ffmpeg decodes the rewritten stream to the same pictures (framemd5). The Mac now rewrites the SPS's VUI (`VideoEncoder.timedSPS`).
+- **Decode latency grows with the area**, one picture in flight, 60 a second sustained: 1920x1080 25 ms, 1280x720 13.4 ms, 854x480 7.0 ms. Vanilla's figure is the Wii U's 854x480. A video region on the Mac is rarely the whole screen, so the region path pays in proportion to its size.
+- Next lever, not tried (the Pi still reports under-voltage): `gpu_freq`/`h264_freq` above 300 MHz should shorten the 25 ms in proportion.

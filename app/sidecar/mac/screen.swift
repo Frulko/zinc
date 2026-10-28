@@ -15,6 +15,7 @@ import SystemConfiguration
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
 var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
+var h264Dump = ""
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
     let a = argv.removeFirst()
@@ -26,10 +27,52 @@ while !argv.isEmpty {
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
+    case "--h264-dump": h264Dump = argv.removeFirst()   // no screen: the synthetic load as H.264 into this file for --seconds (Annex B; the
+                                                           // receiver's decoder is proved on it, tools/v4l2dec-probe.cpp)
     case "--synthetic": synthetic = Int(argv.removeFirst())!   // no capture: a still page with a moving "video" over this percent of it, 60 a second (a
                                                                  // load that is the same from run to run, to compare the links and the receivers)
     default: die("unknown option \(a)")
     }
+}
+/** The synthetic load's picture n into a BGRA buffer of w x h: a light page with lines of "text", and a block of `percent` of it whose
+ *  colours flow every frame like a film (smooth gradients that move, so they compress as a video's pictures do, not as noise). */
+func drawSynthetic(_ pb: CVPixelBuffer, _ n: Int, _ w: Int, _ h: Int, _ percent: Int) {
+    let side = (Double(percent) / 100).squareRoot(), bw = Int(Double(w) * side), bh = Int(Double(h) * side), bx = (w - bw) / 2, by = (h - bh) / 2
+    CVPixelBufferLockBaseAddress(pb, [])
+    let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self), bpr = CVPixelBufferGetBytesPerRow(pb)
+    for y in 0..<h {
+        let row = base + y * bpr
+        let text = y % 24 < 12 && (y / 24) % 3 != 2
+        for x in 0..<w { let v: UInt8 = text && x % 18 < 9 && x > 40 && x < w - 40 ? 60 : 240; row[x * 4] = v; row[x * 4 + 1] = v; row[x * 4 + 2] = v; row[x * 4 + 3] = 255 }
+        if y >= by && y < by + bh {
+            for x in bx..<(bx + bw) {
+                let p = row + x * 4, t = n * 3
+                p[0] = UInt8(truncatingIfNeeded: (x + t) / 3); p[1] = UInt8(truncatingIfNeeded: (y * 2 + t) / 4); p[2] = UInt8(truncatingIfNeeded: (x + y - t) / 5)
+            }
+        }
+    }
+    CVPixelBufferUnlockBaseAddress(pb, [])
+}
+if !h264Dump.isEmpty {
+    let w = 1920, h = 1080, frames = Int((seconds > 0 ? seconds : 5) * 60)
+    guard let enc = VideoEncoder(w: w, h: h, bitrate: 10_000_000) else { die("VideoToolbox refused the H.264 session") }
+    FileManager.default.createFile(atPath: h264Dump, contents: nil)
+    let f = FileHandle(forWritingAtPath: h264Dump)!
+    var pb: CVPixelBuffer?
+    CVPixelBufferCreate(nil, w, h, kCVPixelFormatType_32BGRA, nil, &pb)
+    var total = 0, keys = 0, ms = [Double](), sizes = ""   // <file>.sizes: each access unit's bytes, one a line
+    for i in 0..<frames {
+        drawSynthetic(pb!, i, w, h, max(synthetic, 25))
+        let t = CFAbsoluteTimeGetCurrent()
+        guard let (d, key) = enc.encode(pb!, x: 0, y: 0) else { die("no H.264 picture \(i)") }
+        ms.append((CFAbsoluteTimeGetCurrent() - t) * 1000)
+        f.write(Data(d)); total += d.count; keys += key ? 1 : 0; sizes += "\(d.count)\n"
+    }
+    try? sizes.write(toFile: h264Dump + ".sizes", atomically: true, encoding: .utf8)
+    ms.sort()
+    print(String(format: "h264: %d pictures %dx%d, %.1f Mbit/s at 60, %d key, encode %.1f ms median %.1f max, low-latency rate control %@",
+                 frames, w, h, Double(total) * 8 / Double(frames) * 60 / 1e6, keys, ms[ms.count / 2], ms.last!, enc.lowLatency ? "on" : "off"))
+    exit(0)
 }
 if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-screen shows it)") }
 
@@ -272,32 +315,16 @@ func startCapture(_ tries: Int) {
         stream = s
     }
 }
-/** The synthetic load: a light page with lines of "text", and a block of the given share of the screen whose colours flow every frame
- *  like a film (smooth gradients that move, so they compress as a video's pictures do, not as noise). */
+/** The synthetic load (drawSynthetic), 60 pictures a second. */
 func startSynthetic() {
     var pool: CVPixelBufferPool?
     CVPixelBufferPoolCreate(nil, nil, [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey: W, kCVPixelBufferHeightKey: H] as CFDictionary, &pool)
-    let side = Double(synthetic) / 100, bw = Int(Double(W) * side.squareRoot()), bh = Int(Double(H) * side.squareRoot())
-    let bx = (W - bw) / 2, by = (H - bh) / 2
     var n = 0
     print("capturing \(W)x\(H) (synthetic, \(synthetic)% moving)")
     Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in
         var pb: CVPixelBuffer?
         guard let pool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let pb else { return }
-        CVPixelBufferLockBaseAddress(pb, [])
-        let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self), bpr = CVPixelBufferGetBytesPerRow(pb)
-        for y in 0..<H {
-            let row = base + y * bpr
-            let text = y % 24 < 12 && (y / 24) % 3 != 2
-            for x in 0..<W { let v: UInt8 = text && x % 18 < 9 && x > 40 && x < W - 40 ? 60 : 240; row[x * 4] = v; row[x * 4 + 1] = v; row[x * 4 + 2] = v; row[x * 4 + 3] = 255 }
-            if y >= by && y < by + bh {
-                for x in bx..<(bx + bw) {
-                    let p = row + x * 4, t = n * 3
-                    p[0] = UInt8(truncatingIfNeeded: (x + t) / 3); p[1] = UInt8(truncatingIfNeeded: (y * 2 + t) / 4); p[2] = UInt8(truncatingIfNeeded: (x + y - t) / 5)
-                }
-            }
-        }
-        CVPixelBufferUnlockBaseAddress(pb, [])
+        drawSynthetic(pb, n, W, H, synthetic)
         n += 1
         q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }

@@ -16,7 +16,8 @@ if [ ! -f "$obj/.built" ]; then
 fi
 codecs="-Xcc -I$root/third_party/zstd -Xcc -I$root/third_party/lz4 -Xcc -I$here -import-objc-header $here/bridge.h"
 swiftc -O $codecs "$here/main.swift" "$here/tune.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -o "$out"
-swiftc -O $codecs "$here/screen.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -o "$dir/sidecar-screen"
+mkdir -p "$obj/screen" && ln -sf "$here/screen.swift" "$obj/screen/main.swift"   # with other files, top-level code needs the name main.swift
+swiftc -O $codecs "$obj/screen/main.swift" "$here/h264.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -framework VideoToolbox -o "$dir/sidecar-screen"
 app=$dir/Sidecar.app/Contents
 rm -rf "$dir/Sidecar.app"
 mkdir -p "$app/MacOS" "$app/Resources"
