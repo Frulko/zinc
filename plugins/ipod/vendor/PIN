@@ -1,0 +1,5 @@
+libgpod  https://github.com/gerion0/libgpod  commit cdf101737cdde83a5c4b8ead324c14365995386f (2022-08-13; libgpod 0.8.3 + Python 3, model and UTF-8 fixes)
+         src/*.c src/*.h and COPYING copied unchanged, except: itdb_iphone.c dropped (no libimobiledevice); itdb_hashAB.c
+         links the vendored hashab instead of dlopening libhashab.so; config.h written by hand (no autoconf/meson).
+hashab   https://github.com/DigiDNA/hashab  commit a7d1509d25a47a99b8a42947c25b364aad4cbf7f (2026-01-29); src/*.c src/*.h src/data/ and LICENSE unchanged.
+shim     gdk-pixbuf/ and gdk_pixbuf_shim.c are ours (zinc:ipod): the gdk-pixbuf calls of libgpod over stb.

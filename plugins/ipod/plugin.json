@@ -1,0 +1,201 @@
+{
+  "name": "ipod",
+  "kind": "module",
+  "module": "zinc:ipod",
+  "entry": "index.ts",
+  "description": "Classic iPods (Classic, Nano, Mini, Video, Shuffle) over libgpod: detect, open or initialise, SysInfoExtended, tracks with tags and covers, playlists, space checks, snapshots, backups, eject",
+  "requires": [
+    "fs"
+  ],
+  "targets": {
+    "macos": {
+      "sources": [
+        "native/ipod_core.cpp",
+        "native/ipod_sysinfo.c",
+        "vendor/shim/gdk_pixbuf_shim.c",
+        "vendor/libgpod/db-artwork-debug.c",
+        "vendor/libgpod/db-artwork-parser.c",
+        "vendor/libgpod/db-artwork-writer.c",
+        "vendor/libgpod/db-image-parser.c",
+        "vendor/libgpod/db-parse-context.c",
+        "vendor/libgpod/itdb_artwork.c",
+        "vendor/libgpod/itdb_chapterdata.c",
+        "vendor/libgpod/itdb_device.c",
+        "vendor/libgpod/itdb_hash58.c",
+        "vendor/libgpod/itdb_hash72.c",
+        "vendor/libgpod/itdb_hashAB.c",
+        "vendor/libgpod/itdb_itunesdb.c",
+        "vendor/libgpod/itdb_photoalbum.c",
+        "vendor/libgpod/itdb_playlist.c",
+        "vendor/libgpod/itdb_plist.c",
+        "vendor/libgpod/itdb_sqlite.c",
+        "vendor/libgpod/itdb_sysinfo_extended_parser.c",
+        "vendor/libgpod/itdb_thumb.c",
+        "vendor/libgpod/itdb_track.c",
+        "vendor/libgpod/itdb_tzinfo.c",
+        "vendor/libgpod/itdb_zlib.c",
+        "vendor/libgpod/ithumb-writer.c",
+        "vendor/libgpod/pixmaps.c",
+        "vendor/libgpod/rijndael.c",
+        "vendor/hashab/calcHashAB.c",
+        "vendor/hashab/generate_buffer_from_state_mixing.c",
+        "vendor/hashab/generate_initial_buffer.c",
+        "vendor/hashab/generate_key_material.c",
+        "vendor/hashab/data/data.c"
+      ],
+      "flags": [
+        "-I./vendor/libgpod",
+        "-I./vendor/shim",
+        "-I./vendor/hashab",
+        "-I../../third_party/stb",
+        "-DHAVE_CONFIG_H",
+        "-iwithsysroot",
+        "/usr/include/libxml2"
+      ],
+      "pkg": [
+        "glib-2.0",
+        "gobject-2.0",
+        "libplist-2.0",
+        "taglib",
+        "libusb-1.0"
+      ],
+      "libs": [
+        "xml2",
+        "sqlite3",
+        "z"
+      ],
+      "packages": [
+        "glib",
+        "libplist",
+        "taglib",
+        "libusb"
+      ]
+    },
+    "linux": {
+      "sources": [
+        "native/ipod_core.cpp",
+        "native/ipod_sysinfo.c",
+        "vendor/shim/gdk_pixbuf_shim.c",
+        "vendor/libgpod/db-artwork-debug.c",
+        "vendor/libgpod/db-artwork-parser.c",
+        "vendor/libgpod/db-artwork-writer.c",
+        "vendor/libgpod/db-image-parser.c",
+        "vendor/libgpod/db-parse-context.c",
+        "vendor/libgpod/itdb_artwork.c",
+        "vendor/libgpod/itdb_chapterdata.c",
+        "vendor/libgpod/itdb_device.c",
+        "vendor/libgpod/itdb_hash58.c",
+        "vendor/libgpod/itdb_hash72.c",
+        "vendor/libgpod/itdb_hashAB.c",
+        "vendor/libgpod/itdb_itunesdb.c",
+        "vendor/libgpod/itdb_photoalbum.c",
+        "vendor/libgpod/itdb_playlist.c",
+        "vendor/libgpod/itdb_plist.c",
+        "vendor/libgpod/itdb_sqlite.c",
+        "vendor/libgpod/itdb_sysinfo_extended_parser.c",
+        "vendor/libgpod/itdb_thumb.c",
+        "vendor/libgpod/itdb_track.c",
+        "vendor/libgpod/itdb_tzinfo.c",
+        "vendor/libgpod/itdb_zlib.c",
+        "vendor/libgpod/ithumb-writer.c",
+        "vendor/libgpod/pixmaps.c",
+        "vendor/libgpod/rijndael.c",
+        "vendor/hashab/calcHashAB.c",
+        "vendor/hashab/generate_buffer_from_state_mixing.c",
+        "vendor/hashab/generate_initial_buffer.c",
+        "vendor/hashab/generate_key_material.c",
+        "vendor/hashab/data/data.c"
+      ],
+      "flags": [
+        "-I./vendor/libgpod",
+        "-I./vendor/shim",
+        "-I./vendor/hashab",
+        "-I../../third_party/stb",
+        "-DHAVE_CONFIG_H"
+      ],
+      "pkg": [
+        "glib-2.0",
+        "gobject-2.0",
+        "libplist-2.0",
+        "taglib",
+        "libusb-1.0",
+        "libxml-2.0",
+        "sqlite3",
+        "zlib"
+      ],
+      "packages": [
+        "pkg-config",
+        "libglib2.0-dev",
+        "libplist-dev",
+        "libtag1-dev",
+        "libusb-1.0-0-dev",
+        "libxml2-dev",
+        "libsqlite3-dev",
+        "zlib1g-dev"
+      ]
+    },
+    "rpi1": {
+      "sources": [
+        "native/ipod_core.cpp",
+        "native/ipod_sysinfo.c",
+        "vendor/shim/gdk_pixbuf_shim.c",
+        "vendor/libgpod/db-artwork-debug.c",
+        "vendor/libgpod/db-artwork-parser.c",
+        "vendor/libgpod/db-artwork-writer.c",
+        "vendor/libgpod/db-image-parser.c",
+        "vendor/libgpod/db-parse-context.c",
+        "vendor/libgpod/itdb_artwork.c",
+        "vendor/libgpod/itdb_chapterdata.c",
+        "vendor/libgpod/itdb_device.c",
+        "vendor/libgpod/itdb_hash58.c",
+        "vendor/libgpod/itdb_hash72.c",
+        "vendor/libgpod/itdb_hashAB.c",
+        "vendor/libgpod/itdb_itunesdb.c",
+        "vendor/libgpod/itdb_photoalbum.c",
+        "vendor/libgpod/itdb_playlist.c",
+        "vendor/libgpod/itdb_plist.c",
+        "vendor/libgpod/itdb_sqlite.c",
+        "vendor/libgpod/itdb_sysinfo_extended_parser.c",
+        "vendor/libgpod/itdb_thumb.c",
+        "vendor/libgpod/itdb_track.c",
+        "vendor/libgpod/itdb_tzinfo.c",
+        "vendor/libgpod/itdb_zlib.c",
+        "vendor/libgpod/ithumb-writer.c",
+        "vendor/libgpod/pixmaps.c",
+        "vendor/libgpod/rijndael.c",
+        "vendor/hashab/calcHashAB.c",
+        "vendor/hashab/generate_buffer_from_state_mixing.c",
+        "vendor/hashab/generate_initial_buffer.c",
+        "vendor/hashab/generate_key_material.c",
+        "vendor/hashab/data/data.c"
+      ],
+      "flags": [
+        "-I./vendor/libgpod",
+        "-I./vendor/shim",
+        "-I./vendor/hashab",
+        "-I../../third_party/stb",
+        "-DHAVE_CONFIG_H"
+      ],
+      "pkg": [
+        "glib-2.0",
+        "gobject-2.0",
+        "libplist-2.0",
+        "taglib",
+        "libusb-1.0",
+        "libxml-2.0",
+        "sqlite3",
+        "zlib"
+      ],
+      "packages": [
+        "pkg-config",
+        "libglib2.0-dev",
+        "libplist-dev",
+        "libtag1-dev",
+        "libusb-1.0-0-dev",
+        "libxml2-dev",
+        "libsqlite3-dev",
+        "zlib1g-dev"
+      ]
+    }
+  }
+}

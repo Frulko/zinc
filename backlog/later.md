@@ -5,6 +5,10 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-851: a generic `Promise<T>` made with T = void is not a `Promise<void>` (the class PromiseV): `fail<void>()` must be written as its own function. Unify the two (one Promise class whose void settles no value) so generic async helpers work for void; the checker now says so instead of naming PromiseV.
+- ZN-851: the loader's memo of a failed plugin build lives for the process; a long-lived compiler (zinc dev, the LSP) that must retry a fixed plugin clears it per compile.
+- ZN-850: records decoded straight into the class (no Dyn tree) and a typed encoder instead of the generic one; and the plugins' hand-made worker threads moved to runtime/zrt_jobs.h (gphoto2, video, sqlite...).
+- ZN-851: plugin_manifest fails since 3d3b59dc: zinc:carplay is not in tests/data/plugins-added-table.txt.
 
 - ZN-846: make WAMR select the requested macOS architecture slice instead of the ARM build host when CMAKE_OSX_ARCHITECTURES=x86_64; disabled in the Catalina preview after its ARM assembly failed in the Intel build.
 - ZN-844: a `kZbcVersion` bump still breaks every packed app: the `.zapp` could carry its sources (as JavaScript projects do) so a newer engine recompiles instead of refusing.
@@ -493,6 +497,8 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+- ZN-851: zinc:ipod on Linux and the Pi (apt packages of docs/plugins/ipod.md; TagLib 1 reads no embedded cover, udisksctl eject, an HFS+ iPod read-only), then Windows (glib, libplist, TagLib from MSYS2; the eject through DeviceIoControl).
+- ZN-850: records over the phone glue (Android JNI, iOS) and rec.h checked on a 32-bit ARM (unaligned little-endian reads).
 
 - ZN-846: launch the delivered CLI and signed Atelier on the networked Intel Mac running Catalina 10.15; only modern macOS/Rosetta execution is proven locally.
 

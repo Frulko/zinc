@@ -5,3 +5,4 @@
   zinc:location            macos,linux,windows,ios            Where the device is (Core Location on iOS and macOS): permission (when in use), the current position, a watch with a callback, errors as values; a fake position or path for tests (ZINC_FAKE_LOCATION)
   zinc:markdown            macos,linux,windows,rmpp           Markdown (CommonMark + GitHub tables, task lists, strikethrough, autolinks) parsed by md4c 0.6.0 (MIT) into a block tree
   zinc:pdf                 macos,linux                        PDF documents on PDFium chromium/8100 (BSD-3-Clause / Apache-2.0, prebuilt, loaded at run time): pages as runtime images, ink annotations, save a copy
+  zinc:ipod                macos,linux,rpi1                   Classic iPods (Classic, Nano, Mini, Video, Shuffle) over libgpod: detect, open or initialise, SysInfoExtended, tracks with tags and covers, playlists, space checks, snapshots, backups, eject
