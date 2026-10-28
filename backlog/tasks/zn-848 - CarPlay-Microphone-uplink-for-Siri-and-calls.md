@@ -47,4 +47,6 @@ Physical follow-up at 23:31: owner confirms automatic sound on Mac. Phone opens 
 23:41: owner still reports Siri microphone and day/night ineffective. Permission-only query returns granted=1 (no capture). Add viewer capture/device/first-frame/stop diagnostics and receiver uplink first-UDP diagnostics, without voice content; add 24 kHz PCM fake-capture regression. Event RTSP responses were discarded; now log status/CSeq and night command CSeq to distinguish written vs accepted. Real acceptance remains unresolved.
 
 23:46: physical backend confirms first 24 kHz mono uplink UDP packet (996 bytes/480 samples). Found real endian defect in MicUplink: viewer sends PCM16LE, wired protocol needs BE; reuse existing MicrophonePacketizer.toWirePcm before seal, preserve Opus. New loopback UDP test decrypts known samples, verifies exact PCM/Opus payloads and caller buffer unchanged. Full backend tests pass. Real recognition remains pending.
+
+Appearance follow-up: owner confirms Automatic. LIVI 9d7862b06f4d842838417cf0f05842fb95839395 sends display-addressed uiAppearanceUpdate/mapAppearanceUpdate after legacy setNightMode; implement both for MAIN_UUID with 0/1 mode and automatic setting=0. Binary-plist regression checks both day/night payloads. Live appearance acceptance pending.
 <!-- SECTION:NOTES:END -->

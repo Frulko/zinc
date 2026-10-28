@@ -55,12 +55,24 @@ p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()
 needle='if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) continue'
 assert t.count(needle) == 1, 'Unexpected upstream event response handler'
-t=t.replace('        eventCseq++', '        eventCseq++\n        if (command["type"] == "setNightMode") debugLog("airplay event night command cseq=$eventCseq")')
+t=t.replace('        eventCseq++', '        eventCseq++\n        if (command["type"] in listOf("setNightMode", "uiAppearanceUpdate", "mapAppearanceUpdate")) debugLog("airplay event appearance command type=${command[\"type\"]} cseq=$eventCseq")')
 t=t.replace(needle, '''if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) {
                         val result = if (message.body.isNotEmpty()) runCatching { BplistCodec.decode(message.body) as? Map<*, *> }.getOrNull() else null
                         debugLog("airplay event response cseq=${message.headers["cseq"]} status=${message.path} resultStatus=${result?.get("status")} bodyBytes=${message.body.size}")
                         continue
                     }''')
+old = '''        val sent = sendCommandLocked(
+            linkedMapOf("type" to "setNightMode", "params" to linkedMapOf("nightMode" to night)),
+        )
+        if (sent) pendingNightMode = null
+        return sent'''
+new = '''        for (command in com.shilapi.xcertplay.transport.AirPlayAppearance.commands(night)) {
+            if (!sendCommandLocked(command)) return false
+        }
+        pendingNightMode = null
+        return true'''
+assert t.count(old) == 1, 'Unexpected upstream night command sender'
+t=t.replace(old, new)
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WebBridge.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebBridge.kt']).decode()

@@ -339,3 +339,21 @@ Night commands now receive RTSP 200 with empty bodies and no CSeq echoed by the
 phone. Their visible effect remains unconfirmed; no evidence justifies changing
 the reference command format. Check the projected CarPlay Settings appearance
 selection (Automatic vs Always Dark) before adding further protocol variants.
+
+
+## Display-addressed appearance path
+
+Owner confirms projected CarPlay Settings already uses Automatic and legacy
+setNightMode still has no visible effect. Compared source of LIVI at
+9d7862b06f4d842838417cf0f05842fb95839395,
+`native/crates/livi-cp/src/stack/events.rs`: it sends setNightMode followed by
+uiAppearanceUpdate and mapAppearanceUpdate. Both updates carry params uuid,
+appearanceMode (day=0/night=1) and appearanceSetting=0 (automatic). Reference:
+https://github.com/f-io/LIVI/blob/9d7862b06f4d842838417cf0f05842fb95839395/native/crates/livi-cp/src/stack/events.rs
+
+Added those two updates for the same MAIN_UUID declared in /info. Keep the
+legacy command and existing deferred send until the encrypted event channel is
+ready. Clear pending state only once all commands are written. The binary-plist
+regression checks ordered command types, Boolean legacy state, exact display
+UUID and integer appearance values for day and night. This targets the observed
+missing runtime path; visible switching on the physical phone remains pending.
