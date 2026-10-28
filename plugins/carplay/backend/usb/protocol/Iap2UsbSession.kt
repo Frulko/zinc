@@ -19,12 +19,12 @@ class MacUsbSession(private val io: UsbIo, private val ncm: Boolean = false, pri
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
     override fun read(timeoutMillis: Long): ByteArray? {
         checkOpen()
-        require(timeoutMillis > 0)
+        require(timeoutMillis > 0) { "USB read timeout must be positive (got $timeoutMillis)" }
         return io.read(ncm, timeoutMillis.coerceAtMost(1000).toInt())
     }
     override fun write(data: ByteArray, timeoutMillis: Int) {
         checkOpen()
-        require(timeoutMillis in 1..5000)
+        require(timeoutMillis in 1..5000) { "USB write timeout must be 1..5000 ms (got $timeoutMillis)" }
         if (data.isNotEmpty()) io.write(ncm, data, timeoutMillis)
     }
     override fun close() {

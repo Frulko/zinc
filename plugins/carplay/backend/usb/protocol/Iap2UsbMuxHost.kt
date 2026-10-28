@@ -117,7 +117,7 @@ class Iap2UsbMuxHost private constructor(
         putU32(version, 0, PROTOCOL_VERSION)
         putU32(version, 4, VERSION_MESSAGE_BYTES)
         putU32(version, 8, USBMUX_VERSION)
-        pipe.write(version, HANDSHAKE_TIMEOUT_MILLIS.toInt())
+        pipe.write(version, WRITE_TIMEOUT_MILLIS)
         // The phone replies with the same proto=0, length=20, version=2 packet. Protocol 1 is not
         // a distinct "version reply" here; waiting for it discards the valid reply and times out.
         val deadline = System.nanoTime() + HANDSHAKE_TIMEOUT_MILLIS * NANOS_PER_MILLISECOND

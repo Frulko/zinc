@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 21:51'
+updated_date: '2026-10-28 21:54'
 labels:
   - carplay
   - size-L
@@ -86,4 +86,6 @@ Coordinator integration: fresh pinned-checkout build exposed Main.kt overlay cle
 Physical iPhone discovery/open regression found on 2026-10-28: libusb returned a 40-byte serial descriptor for a 24-character identifier with embedded NUL padding. list() hid it through NewStringUTF while open() compared the padded bytes. Shared serialText normalization now terminates at the first NUL; native regression covers padded/plain/empty inputs. Rebuilt native USB library and descriptor tests pass. Actual connected iPhone now matches and advances to privileged driver capture (non-root LIBUSB_ERROR_ACCESS), so root live run is next. Physical CarPlay acceptance remains unverified.
 
 Second physical run advanced past USB capture, then failed in web TLS certificate generation: scoped IPv6 hostAddress includes %utun zone, rejected by BouncyCastle GeneralName. Backend overlay now encodes IP SANs as raw address octets via DEROctetString. New server regression generates, verifies and reloads a certificate with scoped IPv6 and IPv4. Fresh/repeated overlay test and complete backend build/tests pass; live root restart remains to verify next handshake stage.
+
+Third physical attempt reached the running server but USB bootstrap exited with Failed requirement before Trust. Root cause: Iap2UsbMuxHost.begin passed its 60000 ms response deadline as one USB write timeout, rejected by MacUsbSession bounds (1..5000). Initial version write now uses WRITE_TIMEOUT_MILLIS=2000; 60 s response deadline remains. Existing handshake lifecycle regression now composes Iap2UsbMuxHost with MacUsbSession/UsbIo, exposing the mismatch. Added explicit timeout diagnostics and full exception stack in wired bootstrap. Live retry after rebuild is next.
 <!-- SECTION:NOTES:END -->

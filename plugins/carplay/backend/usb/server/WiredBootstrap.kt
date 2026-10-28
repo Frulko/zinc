@@ -34,6 +34,7 @@ class WiredBootstrap(serial: String) : Closeable {
                 if (closed) return@Thread
                 // The device belongs to this bootstrap; mux.close only closes this view.
                 val pipe = MacUsbSession(device, ownsDevice = false)
+                log.info("Opening wired USBMUX v2 channel")
                 val host = Iap2UsbMuxHost.open(pipe, onDiagnostic = { log.debug(it) })
                 mux = host
                 if (closed) { host.close(); return@Thread }
@@ -64,7 +65,7 @@ class WiredBootstrap(serial: String) : Closeable {
                     onProgress = { log.info(it) },
                 )
             } catch (error: Exception) {
-                if (!closed) log.error("Wired CarPlay ended: {}", error.message)
+                if (!closed) log.error("Wired CarPlay ended", error)
             } finally { close() }
         }, "wired-bootstrap").apply { isDaemon = true; start() }
     }

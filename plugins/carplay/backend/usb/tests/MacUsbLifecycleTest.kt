@@ -45,16 +45,19 @@ class MacUsbLifecycleTest {
         var closes = 0
         var first = true
         val writes = ArrayList<ByteArray>()
-        val pipe = object : Iap2UsbSession {
-            override fun write(data: ByteArray, timeoutMillis: Int) { writes += data }
-            override fun read(timeoutMillis: Long): ByteArray? {
+        val io = object : UsbIo {
+            override fun write(ncm: Boolean, data: ByteArray, timeoutMillis: Int) {
+                assertTrue("handshake uses a bounded native transfer timeout", timeoutMillis in 1..5000)
+                writes += data
+            }
+            override fun read(ncm: Boolean, timeoutMillis: Int): ByteArray? {
                 if (first) { first = false; return ByteArray(20).also { it[7] = 20; it[11] = 2 } }
                 Thread.sleep(5)
                 return null
             }
             override fun close() { closes++ }
         }
-        val host = Iap2UsbMuxHost.open(pipe, readTimeoutMillis = 20)
+        val host = Iap2UsbMuxHost.open(MacUsbSession(io), readTimeoutMillis = 20)
         host.close(); host.close()
         assertEquals(1, closes)
         assertEquals(2, writes.size)

@@ -128,3 +128,15 @@ The reproducible overlay encodes IP SANs from InetAddress.address bytes instead
 of hostAddress text. TlsCertificateUsbTest generates, verifies and reloads an
 IPv6-scoped/IPv4 certificate. Full backend build and tests and fresh/repeated
 overlay regression pass. The receiver was rebuilt for the next live attempt.
+
+## Physical USB attempt: handshake transfer timeout
+
+The receiver started its RTSP and WebSocket listeners, but wired bootstrap
+failed before Trust with an unlabelled IllegalArgumentException. The first
+USBMUX write used HANDSHAKE_TIMEOUT_MILLIS (60000), exceeding the native adapter's
+5000 ms transfer bound. It now uses WRITE_TIMEOUT_MILLIS (2000), preserving the
+60-second response deadline. The handshake lifecycle test now composes the real
+MacUsbSession boundary with fake UsbIo, rather than bypassing that validation.
+Timeout validation has explicit messages and bootstrap logs full exceptions.
+The iPhone screenshot of the CarPlay settings list did not show an established
+Zinc session; network advertisements alone are not successful USB negotiation.
