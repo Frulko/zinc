@@ -174,8 +174,11 @@ Thread {
     }
 }.start()
 
+// two pictures out while one comes back within a refresh (decode overlaps transfer); one when the round trip is longer, so a picture
+// waits here, where a newer capture replaces it, rather than in the socket
+var inFlight = 2
 func pump() {
-    guard frameEnds.count < 2, let pb = waiting else { return }
+    guard frameEnds.count < inFlight, let pb = waiting else { return }
     waiting = nil
     send(pb)
 }
@@ -374,7 +377,7 @@ func info(_ seconds: Double) {
         ["Latency", "Decode (screen)", ms(Double(more.decodeUs) / Double(f) / 1000) + " a frame"],
         ["Latency", "Frame round trip", r.isEmpty ? "–" : "\(ms(r[r.count / 2])) median, \(ms(r[min(r.count - 1, r.count * 95 / 100)])) p95, \(ms(r.last!)) max"],
         ["Latency", "Network (TCP)", tcp ? String(format: "%.1f ms, ± %.1f, %d KB queued, %d resent", Double(t.tcpi_srtt), Double(t.tcpi_rttvar), Int(t.tcpi_snd_sbbytes) / 1024, Int(t.tcpi_txretransmitpackets)) : "–"],
-        ["Latency", "In flight", "\(frameEnds.count) of 2 frames"],
+        ["Latency", "In flight", "\(frameEnds.count) of \(inFlight) frames (1 when the round trip passes a refresh)"],
         ["Screen", "CPU", rx[0][1] < 0 ? "–" : "\(rx[0][1] / 10)% of all cores" + (rx[1][0] < 0 ? "" : ", \(rx[1][0]) of \(rx[1][1]) MHz")],
         ["Screen", "Temperature", rx[0][0] < 0 ? "–" : String(format: "%.1f °C", Double(rx[0][0]) / 1000)],
         ["Screen", "Throttling", throttling(rx[1][2])],
@@ -393,6 +396,7 @@ func info(_ seconds: Double) {
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
         let f = stats.frames, r = stats.rtt.sorted()
+        if !r.isEmpty { inFlight = r[r.count / 2] > 17 ? 1 : 2 }
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),

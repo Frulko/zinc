@@ -268,7 +268,13 @@ struct Target {
                                                       // false once it is gone
   const char* model;
   bool colour = false;                      // a colour screen: RECT at depth 24 (+rgb), written B, G, R(, 0xFF)
+  bool whole = false;                       // the screen's present reads fb while pictures come (display-fbdev): picture_mu keeps it out
+                                            // from a picture's first write to its last, so it never shows half of one (no tiles torn)
 };
+/** Held by the stream from a picture's first write into fb to its update, and by a present that reads fb (Target.whole). A present
+ *  that waits says so (presenting) and goes before the next picture: one picture's transfer at most. */
+inline std::mutex picture_mu;
+inline std::atomic<bool> presenting{false};
 
 struct Box { int x0, y0, x1, y1; };
 inline bool overlaps(const Box& a, const Box& b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }
@@ -371,8 +377,11 @@ inline void serve(Target t, int ls) {
     std::vector<Box> due, quick;   // the picture's, the pointer's
     auto add = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) due.push_back(b); };
     auto point = [&](const Box& b) { if (b.x1 > b.x0 && b.y1 > b.y0) quick.push_back(b); };
+    bool holding = false;
+    auto hold = [&] { if (t.whole && !holding) { while (presenting) usleep(100); picture_mu.lock(); holding = true; } };
+    auto release = [&] { if (holding) { picture_mu.unlock(); holding = false; } };
     auto flush = [&] {
-      if (due.empty() && quick.empty()) return;
+      if (due.empty() && quick.empty()) { release(); return; }
       merge(due); merge(quick);
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
       for (const Box& r : quick) t.update(r.x0, top + r.y0, r.x1 - r.x0, r.y1 - r.y0, true);
@@ -383,6 +392,7 @@ inline void serve(Target t, int ls) {
         if (!pen) t.update(x, y, w, hh, false);
       }
       due.clear(); quick.clear();
+      release();
     };
     for (;;) {
       pollfd pf = {c, POLLIN, 0};
@@ -435,6 +445,7 @@ inline void serve(Target t, int ls) {
         const int dx = d[0], dy = d[1];
         if (x + w > t.w || y + hh > H || x + dx < 0 || y + dy < 0 || x + dx + w > t.w || y + dy + hh > H) break;
         if (moved) continue;
+        hold();
         const bool was = drawn;
         hide();
         for (int j = 0; j < hh; j++) { const int r = dy > 0 ? hh - 1 - j : j; memmove(row(y + dy + r) + (size_t)(x + dx) * B, row(y + r) + (size_t)x * B, (size_t)w * B); }
@@ -462,6 +473,7 @@ inline void serve(Target t, int ls) {
         src = plain.data();
       }
       const Box r = {x, y, x + w, y + hh};
+      hold();
       const bool under_it = drawn && overlaps(at, r);
       if (under_it) hide();
       for (int j = 0; j < hh; j++) {
@@ -482,6 +494,7 @@ inline void serve(Target t, int ls) {
       if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
     }
     settle();
+    release();
     { std::lock_guard<std::mutex> g(out); client = -1; }
     ++session;
     close(c);

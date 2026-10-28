@@ -730,15 +730,11 @@ static void fb_present(const HalFrame* f) {
   HalFrame own;
   bool from_stream = false;
   if (stream::ended.exchange(false)) { own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; f = &own; }
-  else if (stream::active) {
-    std::lock_guard<std::mutex> g(stream_mu);
-    own = *f; own.x0 = streamed.x0; own.y0 = streamed.y0; own.x1 = streamed.x1; own.y1 = streamed.y1; f = &own; streamed = {};
-    from_stream = true;
-  }
+  else if (stream::active) { own = *f; own.x0 = own.y0 = own.x1 = own.y1 = 0; f = &own; from_stream = true; }   // its damage once the refresh came
   bool has = !from_stream && f->y1 > f->y0 && f->x1 > f->x0;
   const bool overlay = cursor_visible || previous_cursor.x1 > previous_cursor.x0;
-  HalFrame output = cursor_damage(f);
-  const bool convert = output.y1 > output.y0 && output.x1 > output.x0;
+  HalFrame output = from_stream ? HalFrame{} : cursor_damage(f);
+  bool convert = output.y1 > output.y0 && output.x1 > output.x0;
   const bool fused = fuse && !overlay;
   uint64_t t0 = now_us();
   static uint64_t started;
@@ -770,11 +766,23 @@ static void fb_present(const HalFrame* f) {
     if (last_us && t - last_us < period - 1000 && (!vsync || t - t1 < 1000)) usleep((useconds_t)(period - (t - last_us)));
     last_us = now_us();
   }
+  // a streamed picture: after the wait for the refresh, what came whole since the last present (stream.h holds a picture being written
+  // until its last rectangle is in, then this goes before the next one), held while it is converted
+  std::unique_lock<std::mutex> whole;
+  if (from_stream) {
+#ifdef ZP_FBDEV_KMS
+    if (planes) kms::wait_refresh();
+#endif
+    stream::presenting = true; whole = std::unique_lock<std::mutex>(stream::picture_mu); stream::presenting = false;
+    { std::lock_guard<std::mutex> g(stream_mu); own.x0 = streamed.x0; own.y0 = streamed.y0; own.x1 = streamed.x1; own.y1 = streamed.y1; streamed = {}; }
+    output = cursor_damage(&own);
+    convert = output.y1 > output.y0 && output.x1 > output.x0;
+  }
   uint64_t t2 = now_us();
 #ifdef ZP_FBDEV_KMS
   if (planes) planes_present(&output, convert);
 #endif
-  if (convert && !fused && !planes) { job.f = &output; job.phase = 2; pool.run(output.y0, output.y1, BAND_ROWS, band, &job); }
+  if (convert && (!fused || from_stream) && !planes) { job.f = &output; job.phase = 2; pool.run(output.y0, output.y1, BAND_ROWS, band, &job); }
   uint64_t t3 = now_us();
   last_us_end = t3;
   if (count && samples.size() < 100000) samples.push_back({(t1 - t0) / 1e3f, (t2 - t1) / 1e3f, (t3 - t2) / 1e3f, (t3 - t0) / 1e3f, cpu_render / 1e3f, cpu_convert / 1e3f, has ? f->y1 - f->y0 : 0});
@@ -879,7 +887,7 @@ static const char* fb_device(const char* query, const char* value) {
       if (streamed.x1 <= streamed.x0) streamed = {x, y, x + w, y + h};
       else streamed = {std::min(streamed.x0, x), std::min(streamed.y0, y), std::max(streamed.x1, x + w), std::max(streamed.y1, y + h)};
     }, [] { return false; }, nullptr, "Screen"};
-    t.colour = true;
+    t.colour = true; t.whole = true;
     return stream::start(atoi(value), t) ? "1" : "0";
   }
   if (!strcmp(query, "stream.state")) return !stream::port ? "off" : stream::active ? "connected" : "waiting";

@@ -71,6 +71,21 @@ static void stream_session(HalFrame& frame) {
   const int before = renders;
   frame.x1 = frame.y1 = 0; fb_present(&frame);
   assert(pixel(10, 20) == 0x030201 && pixel(13, 21) == 0x858483 && renders == before);
+  // a picture of two rectangles: after the first a present would show half of it, so the stream holds the picture until the last
+  auto plain = [&](uint16_t px_, bool more_) {
+    uint8_t m[16] = {1, 24}; const uint16_t one = 1; const uint32_t three = 3; const uint8_t bgr[3] = {9, 8, 7};
+    memcpy(m + 2, &px_, 2); memcpy(m + 4, &one, 2); memcpy(m + 6, &one, 2); memcpy(m + 8, &one, 2); m[11] = more_; memcpy(m + 12, &three, 4);
+    assert(write(c, m, 16) == 16 && write(c, bgr, 3) == 3);
+    uint8_t r[16] = {};
+    while (r[0] != 1) for (size_t got = 0; got < 16;) { const ssize_t k = read(c, r + got, 16 - got); assert(k > 0); got += (size_t)k; }
+  };
+  plain(100, true);
+  assert(!stream::picture_mu.try_lock());
+  plain(101, false);
+  assert(stream::picture_mu.try_lock());
+  stream::picture_mu.unlock();
+  fb_present(&frame);
+  assert(pixel(100, 1) == 0x070809 && pixel(101, 1) == 0x070809);
   close(c);
   for (int i = 0; i < 200 && stream::active; i++) usleep(5000);
   assert(!stream::active);
