@@ -26,6 +26,12 @@ function App(): i32 {
       <Text className={TEXT + ' text-center'}>{state() !== 'failed'
         ? `Connect the tablet with its USB cable, then start Sidecar on the Mac. It finds the tablet at 10.11.99.1, port ${PORT}.`
         : `Port ${PORT} is taken, or this screen cannot be shared (see the app's log). Quit Sidecar and open it again.`}</Text>
+      <View className="flex-col gap-4 mt-8 self-stretch">
+        <Text className={TEXT}>• A finger or the Marker is the Mac's mouse: tap to click, drag to drag.</Text>
+        <Text className={TEXT}>• Two fingers clean the screen with a full refresh.</Text>
+        <Text className={TEXT}>• Hold the tablet sideways and the Mac's display turns with it.</Text>
+        <Text className={TEXT}>• The Mac's Sidecar window sets the contrast, the pointer and the refresh live.</Text>
+      </View>
     </View>
   </View>;
 }

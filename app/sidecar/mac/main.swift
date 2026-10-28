@@ -1,15 +1,17 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving hide|show] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
 import Foundation
 import Accelerate
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
 import ApplicationServices
+import AppKit
+import SwiftUI
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 30, hideMoving = true, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 30, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -22,7 +24,8 @@ while let a = argv.popFirst() {
     case "--rotate": rotate = Int(argv.popFirst()!)!; if ![90, 180, 270].contains(rotate) { rotate = 0 }   // until the tablet says: 90 its top on the left, 270 on the right
     case "--edges": edges = Int(argv.popFirst()!)!   // how hard a pixel darker than its neighbours is pushed to black (0: off)
     case "--fast-mode": fastMode0 = Int(argv.popFirst()!)!   // the waveform of everything that moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
-    case "--pointer-moving": hideMoving = argv.popFirst()! != "show"   // hide (default): no pointer while it moves, so no trail; show: drawn all along
+    case "--pointer-moving": moving = ["arrow": 0, "dot": 1, "none": 2][argv.popFirst()!] ?? 1   // what a moving pointer looks like: the arrow, a dot (little ink: little trail), nothing
+    case "--no-ui": ui = false   // no settings window
     case "--pointer-hz": pointerHz = max(1, Int(argv.popFirst()!)!)   // pointer moves sent per second at most, the newest only: a fast update lasts ~100+ ms on the panel
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // 0: the clean pass stays in the fast waveform (no switch); 3 or 4: true greys in xochitl's page or UI one
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
@@ -31,7 +34,7 @@ while let a = argv.popFirst() {
     case "--trail-ms": trailMs = Int(argv.popFirst()!)!   // ms after the pointer left a tile before its trail is cleaned: a fast update drives its pixels ~1.4 s, cleaning earlier disturbs them
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving hide|show] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -138,10 +141,13 @@ if mirror >= 0 {
 // --- the e-ink tone curve: the panel shows two levels while things move, so what is nearly white (a window's background, a light grey bar)
 // goes to white and what is nearly black (text) to black, before the dither; only true middle tones (pictures) keep a pattern.
 // --levels black,white (default 90,185): the luma at and under black is black, at and over white is white; --gamma (1.6) bends the line between.
-let tone: [UInt8] = (0..<256).map { v in
-    let t = max(0, min(1, (Double(v) - Double(levels.0)) / Double(max(1, levels.1 - levels.0))))
-    return UInt8((pow(t, gamma) * 255).rounded())   // gamma over 1 darkens the middle: thin text gets thicker
+func makeTone() -> [UInt8] {
+    (0..<256).map { v in
+        let t = max(0, min(1, (Double(v) - Double(levels.0)) / Double(max(1, levels.1 - levels.0))))
+        return UInt8((pow(t, gamma) * 255).rounded())   // gamma over 1 darkens the middle: thin text gets thicker
+    }
 }
+var tone = makeTone()
 // and the edges: a pixel darker than the lightest of its 5x5 neighbours by more than 4 loses --edges (10) levels per level of difference, so
 // a hairline of light grey on white (a window's border, a separator, 220 or 240 on 255) comes out black or dotted instead of white, and
 // text gets a little bolder; the light side of an edge, and smooth gradients, keep the curve's value
@@ -161,7 +167,7 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
             let (px, py) = toPanel(b.0, b.1 + y)
             let s = src + (b.1 + y) * bpr + b.0, d = g.baseAddress! + py * W + px, mx = m.baseAddress! + y * bw
             if edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
-            for x in 0..<bw { let v = Int(s[x]); d[x * step] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - 4) * edges)) }
+            for x in 0..<bw { let v = Int(s[x]); d[x * step] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - edgeFloor) * edges)) }
         }
     } } }
 }
@@ -180,7 +186,8 @@ var pendingTurn = -1   // the way up the tablet last sent, until the sender take
 var latest: CVPixelBuffer?, frameDirty = CGRect.null   // the newest frame, and what changed since the last one taken (frame pixels)
 let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
                       3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
-let thr: [UInt8] = threshold ? [UInt8](repeating: 128, count: 64) : bayer.map { UInt8(Int($0) * 4 + 2) }
+func makeThr() -> [UInt8] { threshold ? [UInt8](repeating: 128, count: 64) : bayer.map { UInt8(Int($0) * 4 + 2) } }
+var thr = makeThr()
 var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, t: now())
 
 /** shown -> cur, 1 bit, over rows y0..<y1 and the bytes holding x0..<x1. */
@@ -320,7 +327,7 @@ func inside(_ px: Double, _ py: Double) -> Bool {
 }
 let edge = 2
 // the arrow's mask at --cursor pixels tall: 2 black (its outline), 1 white (inside, and its edge outside), 0 outside; tip at (edge, edge)
-let uprightMask: (w: Int, h: Int, m: [UInt8]) = {
+func makeArrow() -> (w: Int, h: Int, m: [UInt8]) {
     let k = Double(max(cursorPx, 19)) / 19, e = edge, w = Int(12 * k) + 2 * e, h = max(cursorPx, 19) + 2 * e
     let t = max(2, cursorPx / 12)   // the outline's width
     var m = [UInt8](repeating: 0, count: w * h)
@@ -336,7 +343,16 @@ let uprightMask: (w: Int, h: Int, m: [UInt8]) = {
         if m[y * w + x] == 1 { if near(x, y, t, 0) { out[y * w + x] = 2 } } else if near(x, y, e - 1, 1) { out[y * w + x] = 1 }
     } }
     return (w, h, out)
-}()
+}
+/** A round dot dotPx wide, black with a white edge, its middle at (r, r). */
+func makeDot() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
+    let r = dotPx / 2 + 1, w = 2 * r + 1
+    var m = [UInt8](repeating: 0, count: w * w)
+    for y in 0..<w { for x in 0..<w { let d2 = (x - r) * (x - r) + (y - r) * (y - r)
+        m[y * w + x] = d2 <= (dotPx / 2) * (dotPx / 2) ? 2 : d2 <= r * r ? 1 : 0 } }
+    return (w, w, m, r, r)
+}
+var uprightMask = makeArrow()
 /** The arrow as the panel shows it, turned with the picture, and where its tip is in it. */
 func turnedMask() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
     let u = uprightMask, sideways = rotate == 90 || rotate == 270
@@ -349,14 +365,14 @@ func turnedMask() -> (w: Int, h: Int, m: [UInt8], tx: Int, ty: Int) {
     let tip = at(edge, edge)
     return (w, h, m, tip.0, tip.1)
 }
-var pointerMask = turnedMask()
-func pointerBox(_ p: (x: Int, y: Int)) -> (Int, Int, Int, Int) {
+var pointerMask = turnedMask(), dotMask = makeDot()
+func pointerBox(_ p: (x: Int, y: Int), dot: Bool = false) -> (Int, Int, Int, Int) {
     if cursorPx == 0 { return (max(0, p.x - 72), max(0, p.y - 72), min(W, p.x + 72), min(H, p.y + 72)) }   // macOS's arrow and its shadow, Retina, any way up
-    let pm = pointerMask
+    let pm = dot ? dotMask : pointerMask
     return (max(0, p.x - pm.tx), max(0, p.y - pm.ty), min(W, p.x - pm.tx + pm.w), min(H, p.y - pm.ty + pm.h))
 }
-func drawPointer(_ p: (x: Int, y: Int)) {
-    let pm = pointerMask
+func drawPointer(_ p: (x: Int, y: Int), dot: Bool = false) {
+    let pm = dot ? dotMask : pointerMask
     for y in 0..<pm.h { let yy = p.y - pm.ty + y; if yy < 0 || yy >= H { continue }
         for x in 0..<pm.w where pm.m[y * pm.w + x] != 0 { let xx = p.x - pm.tx + x; if xx >= 0 && xx < W { shown[yy * W + xx] = pm.m[y * pm.w + x] == 2 ? 0 : 255 } } }
 }
@@ -376,22 +392,54 @@ pointerTimer.setEventHandler {
 }
 pointerTimer.resume()
 
+// --- live settings: the window (below) sets them, the sender takes them between two frames
+struct Tune: Equatable {
+    var black = 90.0, white = 185.0, gamma = 1.6, edges = 10.0, edgeFloor = 4.0, dither = true
+    var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 30.0, trail = 1500.0
+    var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
+}
+/** The settings as the command line left them. */
+func currentTune() -> Tune {
+    Tune(black: Double(levels.0), white: Double(levels.1), gamma: gamma, edges: Double(edges), edgeFloor: Double(edgeFloor), dither: !threshold,
+         cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
+         fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0)
+}
+var pendingTune: Tune?, pendingAction = ""   // "full" or "clean"
+var reshade = false   // the tone changed: the whole frame goes through it again
+func apply(_ t: Tune) {
+    let shader = Int(t.black) != levels.0 || Int(t.white) != levels.1 || t.gamma != gamma || Int(t.edges) != edges || Int(t.edgeFloor) != edgeFloor || t.dither == threshold
+    let look = Int(t.cursor) != cursorPx || Int(t.dot) != dotPx
+    levels = (Int(t.black), max(Int(t.black) + 1, Int(t.white))); gamma = t.gamma; edges = Int(t.edges); edgeFloor = Int(t.edgeFloor); threshold = !t.dither
+    if cursorPx > 0 { cursorPx = Int(t.cursor) }
+    moving = t.moving; dotPx = Int(t.dot); pointerHz = max(1, Int(t.pointerHz)); trailMs = Int(t.trail)
+    idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
+    if t.fastMode != fastMode0 { fastMode0 = t.fastMode; writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
+    if shader { tone = makeTone(); thr = makeThr() }
+    if look { uprightMask = makeArrow(); pointerMask = turnedMask(); dotMask = makeDot() }
+    if shader || look { reshade = true }
+}
+
 var cursorArea = CGRect.null   // frame pixels: where macOS's pointer has been since the last frame taken
 func addCursor(_ p: (x: Int, y: Int)) {
     let b = mapBox(pointerBox(p), toFrame)
     cursorArea = cursorArea.union(CGRect(x: b.0, y: b.1, width: b.2 - b.0, height: b.3 - b.1))
 }
 Thread {
-    var drawn: (x: Int, y: Int)? = nil   // where the pointer is drawn in shown
+    var drawn: (x: Int, y: Int)? = nil, drawnDot = false   // where the pointer is drawn in shown, and as what
+    var held: CVPixelBuffer?   // the last frame: a change of the shader goes through it again
     var lastPointer = 0.0, deferred = false   // when the pointer last went out; a move waits for its turn
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
         if deferred { _ = ready.wait(timeout: .now() + .milliseconds(5)) }
-        else if hideMoving && drawn == nil && now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw it once it stops
+        else if now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw the arrow once it stops
         else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
         if !fastMode && tn >= backToFast { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
-        let under = drawn.map { pointerBox($0) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
+        lock.lock(); let tune = pendingTune, action = pendingAction; pendingTune = nil; pendingAction = ""; lock.unlock()
+        if let tune { apply(tune) }
+        if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
+        if action == "clean" { var all = fastTiles; for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }; clean(&all) }
+        let under = drawn.map { pointerBox($0, dot: drawnDot) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
         func isUnder(_ tx: Int, _ ty: Int) -> Bool { tx >= under.0 && tx <= under.2 && ty >= under.1 && ty <= under.3 }
         if any(trailTiles) {   // the pointer's tail: the tiles it left --trail-ms ago, once their pixels rest, in the fast waveform, while it moves on
             var tail = [Bool](repeating: false, count: trailTiles.count)
@@ -424,21 +472,24 @@ Thread {
             print("the tablet turned: \(to)")
             if side { DispatchQueue.main.async { applyMode(); reconfigure() } }
         }
-        lock.lock(); let pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
+        lock.lock(); var pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
+        if pb != nil { held = pb } else if reshade, let h = held { pb = h; fd = .infinite }
+        reshade = false
         // the pointer alone: at most --pointer-hz moves, the newest; updates that overlap on the panel wait for each other there
         if moved && pb == nil && now() - lastPointer < 1000 / Double(pointerHz) { lock.lock(); pointerMoved = true; lock.unlock(); moved = false; deferred = true; continue }
         deferred = false
         if moved { lastPointer = now() }
-        // a moving pointer leaves a trail on e-ink whatever is done after: by default it is not drawn while it moves, and comes back
-        // sharp 120 ms after it stops
-        let q = hideMoving && cursorPx > 0 && now() - lastPointer < 120 ? nil : p
-        if pb == nil && !moved && q?.x == drawn?.x && q?.y == drawn?.y { continue }
+        // a moving pointer leaves a trail on e-ink whatever is done after: while it moves it is --pointer-moving (by default a dot, little
+        // ink), and the arrow comes back sharp 120 ms after it stops
+        let isMoving = cursorPx > 0 && now() - lastPointer < 120
+        let q = isMoving && moving == 2 ? nil : p, qDot = isMoving && moving == 1
+        if pb == nil && !moved && q?.x == drawn?.x && q?.y == drawn?.y && qDot == drawnDot { continue }
         let t0 = now()
         var box = (x0: W, y0: H, x1: 0, y1: 0)   // what to dither and compare
         func grow(_ b: (Int, Int, Int, Int)) { box = (min(box.x0, b.0), min(box.y0, b.1), max(box.x1, b.2), max(box.y1, b.3)) }
         if let pb {   // a new frame: what changed in it (all of it when its place moved), through the shader into grey and shown
             CVPixelBufferLockBaseAddress(pb, .readOnly)
-            if CVPixelBufferGetWidthOfPlane(pb, 0) != captureSize().0 || CVPixelBufferGetHeightOfPlane(pb, 0) != captureSize().1 { continue }   // before a turn
+            if CVPixelBufferGetWidthOfPlane(pb, 0) != captureSize().0 || CVPixelBufferGetHeightOfPlane(pb, 0) != captureSize().1 { CVPixelBufferUnlockBaseAddress(pb, .readOnly); held = nil; continue }   // before a turn
             let fw = min(CVPixelBufferGetWidthOfPlane(pb, 0), FW), fh = min(CVPixelBufferGetHeightOfPlane(pb, 0), FH), bpr = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
             let (pw, ph) = rotate == 90 || rotate == 270 ? (fh, fw) : (fw, fh)
             let reg = ((W - pw) / 2 / 8 * 8, (H - ph) / 2, fw, fh)
@@ -460,18 +511,18 @@ Thread {
             CVPixelBufferUnlockBaseAddress(pb, .readOnly)
         }
         if cursorPx > 0, let d = drawn {   // our pointer: its old box back to the screen
-            let b = pointerBox(d)
+            let b = pointerBox(d, dot: drawnDot)
             for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
             grow(b)
         }
         if cursorPx == 0 && moved { if let d = drawn { addCursor(d) }; if let p { addCursor(p) } }
-        if let d = drawn, d.x != q?.x || d.y != q?.y {   // where it was: its trail
-            let b = pointerBox(d)
+        if let d = drawn, d.x != q?.x || d.y != q?.y || drawnDot != qDot {   // where it was: its trail
+            let b = pointerBox(d, dot: drawnDot)
             for ty in (b.1 / TH)..<min(tilesY, (b.3 + TH - 1) / TH) { for tx in (b.0 / TW)..<min(tilesX, (b.2 + TW - 1) / TW) { trailTiles[ty * tilesX + tx] = true; trailTime[ty * tilesX + tx] = now() } }
             lastMove = now()
         }
-        if cursorPx > 0, let q { drawPointer(q); grow(pointerBox(q)) }
-        drawn = q
+        if cursorPx > 0, let q { drawPointer(q, dot: qDot); grow(pointerBox(q, dot: qDot)) }
+        drawn = q; drawnDot = qDot
         if pb == nil && cursorPx == 0 { continue }   // macOS draws the pointer: its move comes as a frame
         if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) }
         let t1 = now()
@@ -499,8 +550,10 @@ Thread {
         stats.frames += 1; stats.rects += rects.count; stats.dither += t1 - t0; stats.wait += now() - t2
         if now() - stats.t >= 2000 {
             let f = max(stats.frames, 1)
-            print(String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
-                         Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f)))
+            let line = String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
+                         Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f))
+            print(line)
+            DispatchQueue.main.async { panel.stats = line }
             stats = (0, 0, 0, 0, 0, now())
         }
     }
@@ -553,4 +606,68 @@ func startCapture(_ tries: Int) {
 startCapture(0)
 if seconds > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { writeFull(header(3, 0, 0, 0, 0, 0), 16); exit(0) } }
 signal(SIGINT) { _ in exit(0) }
-dispatchMain()
+
+// --- the settings window: every knob live, while the tablet shows the result
+final class Panel: ObservableObject {
+    @Published var tune = currentTune() { didSet { if tune != oldValue { lock.lock(); pendingTune = tune; lock.unlock(); ready.signal() } } }
+    @Published var stats = ""
+    func act(_ a: String) { lock.lock(); pendingAction = a; lock.unlock(); ready.signal() }
+}
+let panel = Panel()
+struct Knob: View {
+    let name: String; @Binding var value: Double; let range: ClosedRange<Double>; var step = 1.0; var unit = ""
+    var body: some View {
+        HStack {
+            Text(name).frame(width: 130, alignment: .leading)
+            Slider(value: $value, in: range, step: step)
+            Text(step < 1 ? String(format: "%.2f", value) : "\(Int(value))\(unit)").monospacedDigit().frame(width: 64, alignment: .trailing)
+        }
+    }
+}
+struct SettingsView: View {
+    @ObservedObject var p: Panel
+    var body: some View {
+        Form {
+            Section("Shader") {
+                Knob(name: "Black point", value: $p.tune.black, range: 0...200)
+                Knob(name: "White point", value: $p.tune.white, range: 100...255)
+                Knob(name: "Gamma", value: $p.tune.gamma, range: 0.5...3, step: 0.05)
+                Knob(name: "Edges", value: $p.tune.edges, range: 0...30)
+                Knob(name: "Edge threshold", value: $p.tune.edgeFloor, range: 0...30)
+                Picker("Greys", selection: $p.tune.dither) { Text("Dither").tag(true); Text("Threshold").tag(false) }.pickerStyle(.segmented)
+            }
+            Section("Pointer") {
+                Knob(name: "Arrow", value: $p.tune.cursor, range: 19...56, unit: " px")
+                Picker("While moving", selection: $p.tune.moving) { Text("Arrow").tag(0); Text("Dot").tag(1); Text("Nothing").tag(2) }.pickerStyle(.segmented)
+                Knob(name: "Dot", value: $p.tune.dot, range: 3...20, unit: " px")
+                Knob(name: "Moves per second", value: $p.tune.pointerHz, range: 5...120)
+                Knob(name: "Trail cleaned after", value: $p.tune.trail, range: 0...3000, step: 50, unit: " ms")
+            }
+            Section("Refresh") {
+                Picker("Fast waveform", selection: $p.tune.fastMode) { Text("UFAST").tag(0); Text("DU").tag(1); Text("A2").tag(2) }.pickerStyle(.segmented)
+                Knob(name: "Clean after rest", value: $p.tune.idle, range: 0...5000, step: 100, unit: " ms")
+                Knob(name: "Clean from (% screen)", value: $p.tune.minClean, range: 0.05...10, step: 0.05)
+                Toggle("Clean in true greys (switches waveforms)", isOn: $p.tune.greys)
+                HStack {
+                    Button("Full refresh") { p.act("full") }
+                    Button("Clean now") { p.act("clean") }
+                    Button("Defaults") { p.tune = Tune() }
+                }
+            }
+            Section("Live") { Text(p.stats).font(.system(.caption, design: .monospaced)) }
+        }
+        .formStyle(.grouped).frame(width: 520)
+    }
+}
+if ui {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.regular)
+    let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 760), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+    w.title = "Sidecar"; w.contentView = NSHostingView(rootView: SettingsView(p: panel)); w.center()
+    w.orderFrontRegardless()   // shown, but the app the owner works in keeps the keyboard
+    final class Quit: NSObject, NSWindowDelegate { func windowWillClose(_ n: Notification) { writeFull(header(3, 0, 0, 0, 0, 0), 16); exit(0) } }
+    let quit = Quit(); w.delegate = quit
+    app.run()
+} else {
+    dispatchMain()
+}
