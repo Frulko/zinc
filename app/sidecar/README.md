@@ -29,7 +29,9 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   The tablet says which way up it is held (its accelerometer): the virtual display turns to portrait or landscape to match.
   A session starts and ends with a full refresh, and a two-finger tap on the tablet asks for one at any time. Two fingers that move
   scroll the Mac, following the fingers in the way the screen is turned (neither reaches the Mac as the mouse).
-  macOS asks once for the Screen Recording permission, and Accessibility for the touches.
+  While you type (a key less than the typing pause ago, 800 ms) nothing is cleaned; when you stop, the lines you typed are cleaned there
+  only. A blinking caret stays shown instead of flipping (each flip ghosts). The screen's frames per second can be capped.
+  macOS asks once for the Screen Recording permission, and Accessibility for the touches. The keyboard is only watched for when a key goes down, never which.
 
 ```sh
 mac/build/sidecar                  # Retina: half the tablet's pixels in points, sharp

@@ -293,6 +293,32 @@ var tileTime = [Double](repeating: 0, count: tilesX * tilesY)   // when each til
 var trailTime = tileTime   // when the pointer last left each tile: its trail goes 150 ms after, while the pointer moves on (a tail, not a smear)
 var lastCheck = 0.0
 var fastMode = true, cleaned = 0, lastMove = 0.0
+// typing: while keys come (the last one less than typingMs ago) nothing is cleaned and nothing flashes; once it stops, what the typing drew
+// is cleaned at once, there only (a partial flash of the lines typed). framesHz: screen frames sent per second at most (the newest)
+var typingMs = 800, framesHz = 60, blinkFilter = true
+var lastKey = -1e9   // main thread writes, the sender reads under lock
+var typedTiles = [Bool](repeating: false, count: tilesX * tilesY)
+// a blinking caret: a tile that only goes back to the picture it had before the last one sent, by a thin column of pixels, keeps the darker
+// of the two on the tablet (the caret shown) instead of flipping, ghosting a little more at each blink
+var sentHash = [UInt64](repeating: 0, count: tilesX * tilesY), beforeHash = sentHash
+func tileHash(_ t: Int) -> UInt64 {
+    let tx = t % tilesX, ty = t / tilesX
+    var h: UInt64 = 0xcbf29ce484222325
+    for y in (ty * TH)..<min(H, (ty + 1) * TH) { let o = y * stride; for i in (tx * TW / 8)..<min(stride, (tx + 1) * TW / 8) { h = (h ^ UInt64(cur[o + i])) &* 0x100000001b3 } }
+    return h
+}
+/** The caret's blink back in tile t: the change from what the tablet shows is a column at most 6 px wide that loses ink. */
+func blinkBack(_ t: Int) -> Bool {
+    let tx = t % tilesX, ty = t / tilesX
+    var lo = Int.max, hi = -1, gained = 0, lost = 0
+    for y in (ty * TH)..<min(H, (ty + 1) * TH) { let o = y * stride; for i in (tx * TW / 8)..<min(stride, (tx + 1) * TW / 8) {
+        let d = cur[o + i] ^ prev[o + i]
+        if d == 0 { continue }
+        for b in 0..<8 where d & (0x80 >> UInt8(b)) != 0 { lo = min(lo, i * 8 + b); hi = max(hi, i * 8 + b) }
+        gained += (d & cur[o + i]).nonzeroBitCount; lost += (d & prev[o + i]).nonzeroBitCount
+    } }
+    return hi >= 0 && hi - lo < 6 && gained == 0 && lost > 0
+}
 var backToFast = 0.0   // when the clean pass's waveform gives way to the fast one again
 /** Cleans the tiles of mask. fast: the pointer's trail, all in the fast waveform (no waveform switch: the next move starts at once). */
 func clean(_ mask: inout [Bool], fast: Bool = false) {
@@ -446,12 +472,14 @@ struct Tune: Equatable {
     var black = 90.0, white = 185.0, gamma = 1.6, edges = 10.0, edgeFloor = 4.0, dither = true
     var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
     var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
+    var typing = 800.0, framesHz = 60.0, blink = true
 }
 /** The settings as the command line left them. */
 func currentTune() -> Tune {
     Tune(black: Double(levels.0), white: Double(levels.1), gamma: gamma, edges: Double(edges), edgeFloor: Double(edgeFloor), dither: !threshold,
          cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
-         fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0)
+         fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0,
+         typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter)
 }
 var pendingTune: Tune?, pendingAction = ""   // "full" or "clean"
 var reshade = false   // the tone changed: the whole frame goes through it again
@@ -462,6 +490,7 @@ func apply(_ t: Tune) {
     if cursorPx > 0 { cursorPx = Int(t.cursor) }
     moving = t.moving; dotPx = Int(t.dot); pointerHz = max(1, Int(t.pointerHz)); trailMs = Int(t.trail)
     idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
+    typingMs = Int(t.typing); framesHz = max(1, Int(t.framesHz)); blinkFilter = t.blink
     if t.fastMode != fastMode0 { fastMode0 = t.fastMode; writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     if shader { tone = makeTone(); thr = makeThr() }
     if look { uprightMask = makeArrow(); pointerMask = turnedMask(); dotMask = makeDot() }
@@ -478,13 +507,21 @@ Thread {
     var held: CVPixelBuffer?   // the last frame: a change of the shader goes through it again
     var lastFull = -1e9, resyncAt = -1.0   // the last full refresh seen, and when what changed during it goes again
     var lastPointer = 0.0, deferred = false   // when the pointer last went out; a move waits for its turn
+    var lastFrame = 0.0   // when the last screen frame went out (framesHz)
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
         if deferred { _ = ready.wait(timeout: .now() + .milliseconds(5)) }
         else if resyncAt > 0 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }
         else if now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw the arrow once it stops
-        else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
+        else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || any(typedTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
+        lock.lock(); let keyAt = lastKey; lock.unlock()
+        let typing = typingMs > 0 && tn - keyAt < Double(typingMs)
+        if !typing && any(typedTiles) {   // the typing stopped: the lines it drew, cleaned now, there only
+            var t = typedTiles
+            for i in 0..<t.count { typedTiles[i] = false; if t[i] { fastTiles[i] = false } }
+            clean(&t)
+        }
         if !fastMode && tn >= backToFast { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
         lock.lock(); let tune = pendingTune, action = pendingAction, fa = fullAt; pendingTune = nil; pendingAction = ""; lock.unlock()
         // a full refresh repaints the panel for ~1.4 s: what changed meanwhile may not stay, so all of it goes again once it is over
@@ -514,7 +551,7 @@ Thread {
         }
         // the tiles at rest, in true greys, once enough was drawn fast to be worth a flash (a clock, a caret, a menu bar icon never are);
         // not those around the pointer: a move there would wait for the slow waveform to end
-        if idleMs > 0 && tn - lastMove >= 300 && tn - lastCheck >= 250 {
+        if idleMs > 0 && !typing && tn - lastMove >= 300 && tn - lastCheck >= 250 {
             lastCheck = tn
             let near = drawn.map { d in (max(0, d.x - 96) / TW, max(0, d.y - 96) / TH, (d.x + 96) / TW, (d.y + 96) / TH) } ?? (-1, -1, -2, -2)
             var rested = [Bool](repeating: false, count: fastTiles.count), count = 0
@@ -536,7 +573,10 @@ Thread {
             print("the tablet turned: \(to)")
             if side { DispatchQueue.main.async { applyMode(); reconfigure() } }
         }
-        lock.lock(); var pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer, movedAt = pointerAt, age = latestAge; lock.unlock()
+        lock.lock()
+        if latest != nil && tn - lastFrame < 1000 / Double(framesHz) { lock.unlock(); deferred = true; continue }   // framesHz: the newest frame waits its turn
+        var pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer, movedAt = pointerAt, age = latestAge; lock.unlock()
+        if pb != nil { lastFrame = tn }
         if pb != nil { prof.age.append(age) }
         if pb != nil { held = pb } else if reshade, let h = held { pb = h; fd = .infinite }
         reshade = false
@@ -592,9 +632,19 @@ Thread {
         if box.x1 > box.x0 && box.y1 > box.y0 { dither(box.x0, box.y0, box.x1, box.y1) }
         let t1 = now()
         // the first frame goes out whole: the tablet still shows Sidecar's own page, not white
-        let mask = firstFrame && pb != nil ? [Bool](repeating: true, count: tilesX * tilesY)
+        var mask = firstFrame && pb != nil ? [Bool](repeating: true, count: tilesX * tilesY)
                  : box.x1 > box.x0 ? changed(box.x0, box.y0, box.x1, box.y1) : [Bool](repeating: false, count: tilesX * tilesY)
         if pb != nil { firstFrame = false }
+        for i in 0..<mask.count where mask[i] {
+            let h = tileHash(i)
+            if blinkFilter && !typing && h == beforeHash[i] && blinkBack(i) {   // the caret's blink back: the tablet keeps it shown
+                let tx = i % tilesX, ty = i / tilesX
+                for y in (ty * TH)..<min(H, (ty + 1) * TH) { let o = y * stride; for b in (tx * TW / 8)..<min(stride, (tx + 1) * TW / 8) { cur[o + b] = prev[o + b] } }
+                mask[i] = false; continue
+            }
+            if h != sentHash[i] { beforeHash[i] = sentHash[i]; sentHash[i] = h }
+            if typing { typedTiles[i] = true }
+        }
         let rects = rectsOf(mask)
         if !rects.isEmpty { let t = now(); for i in 0..<mask.count where mask[i] { fastTiles[i] = true; tileTime[i] = t } }
         if !rects.isEmpty && fastMode == false { writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }   // moving again: the pen's waveform
@@ -718,6 +768,9 @@ struct SettingsView: View {
                 Knob(name: "Clean after rest", value: $p.tune.idle, range: 0...5000, step: 100, unit: " ms")
                 Knob(name: "Clean from (% screen)", value: $p.tune.minClean, range: 0.05...10, step: 0.05)
                 Toggle("Clean in true greys (switches waveforms)", isOn: $p.tune.greys)
+                Knob(name: "Typing pause", value: $p.tune.typing, range: 0...3000, step: 50, unit: " ms")
+                Knob(name: "Screen frames per second", value: $p.tune.framesHz, range: 2...60)
+                Toggle("Keep a blinking caret shown (no blink)", isOn: $p.tune.blink)
                 HStack {
                     Button("Full refresh") { p.act("full") }
                     Button("Clean now") { p.act("clean") }
@@ -729,6 +782,8 @@ struct SettingsView: View {
         .formStyle(.grouped).frame(width: 520)
     }
 }
+// the keyboard, wherever it types (Accessibility, as the touches): only when, never which key
+NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { _ in lock.lock(); lastKey = now(); lock.unlock() }
 if ui {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
