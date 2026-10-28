@@ -756,7 +756,8 @@ static std::atomic<bool> run{false};
 static std::thread out;
 static uint32_t fbs[32];               // a framebuffer per capture buffer, made at its first picture
 static int showing = -1, before = -1;  // the capture buffer on the screen, the one it replaced (back to the decoder once that refresh came)
-static bool holes;                     // the place still to make a hole in the surface: at the first picture, not before (black until then)
+static bool holes;
+static uint64_t started;               // when the decoder opened: the first picture's delay is logged                     // the place still to make a hole in the surface: at the first picture, not before (black until then)
 static std::mutex fed_mu;
 static std::deque<std::pair<uint64_t, uint64_t>> fed;   // the units in the decoder (their number, when they came), ACKed when decoded
 static uint64_t n;
@@ -794,6 +795,7 @@ static void pictures() {
         if (before >= 0) dec.requeue(before);
         before = -1;
         if (holes) {   // the first picture: the hole the plane shows through, in the surface and both buffers of the frame
+          fprintf(stderr, "sidecar: the video's first picture %.1f ms after its decoder opened\n", (now_us() - started) / 1e3);
           std::lock_guard<std::mutex> g(stream::picture_mu);
           for (int r = y; r < y + h && r < H; r++) std::fill(surf + (size_t)r * W + x, surf + (size_t)r * W + std::min(W, x + w), HAL_LAYER_HOLE);
           holes = false; kms::full = 2;
@@ -827,7 +829,10 @@ static void unit(int ux, int uy, int uw, int uh, std::vector<uint8_t>& au) {
     }
     { std::lock_guard<std::mutex> g(fed_mu); while (!fed.empty()) { stream::send16(1, 10, 0, 0, 0, 0); fed.pop_front(); } }
     if (au.empty()) { if (uw) stream::send16(1, 10, 0, 0, 0, 0); return; }
+    const uint64_t t0 = now_us();
     if (!stream_flips() || !dec.open("/dev/video10", (uint32_t)uw, (uint32_t)uh)) { stream::send16(1, 10, 0, 0, 0, 0); return; }
+    fprintf(stderr, "sidecar: video %dx%d at %d,%d, its decoder open in %.1f ms\n", uw, uh, ux, uy, (now_us() - t0) / 1e3);
+    started = now_us();
     x = ux; y = uy; w = uw; h = uh; holes = true;
     run = true;
     out = std::thread(pictures);

@@ -203,8 +203,15 @@ func encode(_ r: inout Run, _ base: UnsafePointer<UInt8>, _ bpr: Int, _ ctx: Opa
 let h264 = caps.contains("h264") && !noVideo
 struct Area: Equatable { var x0 = 0, y0 = 0, x1 = 0, y1 = 0 }   // in tiles
 var busy = [Float](repeating: 0, count: TX * TY)   // how often each tile changed lately (0..1)
+// VideoToolbox's first session in a process takes 0.4 s to make (1.4 s while the tiles keep the cores busy) and its first pictures 100 ms:
+// paid here, on another thread, at the start, so a film's encoder is ready in 2 ms instead of freezing the stream when it comes
+if h264 { DispatchQueue.global(qos: .userInitiated).async {
+    var pb: CVPixelBuffer?
+    CVPixelBufferCreate(nil, 256, 144, kCVPixelFormatType_32BGRA, [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pb)
+    if let pb, let e = VideoEncoder(w: 256, h: 144, bitrate: 1_000_000) { for _ in 0..<3 { _ = e.encode(pb, x: 0, y: 0) } }
+} }
 var video: Area?, encoder: VideoEncoder?
-var candidate: Area?, steady = 0, still = 0, starting = false
+var candidate: Area?, steady = 0, still = 0, starting = false, making = false
 var videoStats = (frames: 0, bytes: 0, encode: 0.0)
 var videoDecodeUs = [Int]()   // the screen's decoder: µs from a unit's last byte to its picture
 /** The rectangle of the busy tiles when they fill most of it and it is large enough to be a film (12 tiles: 256 x 192 pixels). */
@@ -238,14 +245,24 @@ Thread {
         if m[0] == 11 { echoes.signal() }
         if m[0] == 12 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })); q.async { shownUs.append(a); if b > 0 { pictureUs.append(b) } } }
         if m[0] == 1 { let video = m[1] == 10; q.async { rectsAcked += 1; if video { if b > 0 { videoDecodeUs.append(b) } } else { more.decodeUs += b }
-            while let f = frameEnds.first, f.0 <= rectsAcked { stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst() }
+            while let f = frameEnds.first, f.0 <= rectsAcked {
+                stats.rtt.append((now() - f.1) * 1000); frameEnds.removeFirst()
+                if trace && traced < 40 { traced += 1; print(String(format: "trace: picture at %.3f s back after %.1f ms, %d in flight of %d, video %@", f.1 - began, (now() - f.1) * 1000, frameEnds.count, inFlight, video == nil ? "no" : "yes")) }
+            }
             pump() } }
     }
 }.start()
 
 // two pictures out while one comes back within a refresh (decode overlaps transfer); one when the round trip is longer, so a picture
 // waits here, where a newer capture replaces it, rather than in the socket
-var inFlight = 2
+var inFlight = 2, lastRtt = 0.0
+let trace = ProcessInfo.processInfo.environment["SIDECAR_TRACE"] != nil   // the first pictures' round trips, one a line
+var traced = 0
+/** The pictures out at once, from the last round trip and the film (set at once when one starts or ends, not at the next 2 s). */
+func pace() {
+    let big = video.map { v in (v.x1 - v.x0) * (v.y1 - v.y0) * 2 >= TX * TY } ?? false
+    inFlight = video != nil ? (big ? 4 : 3) : lastRtt > 17 ? 1 : 2
+}
 func pump() {
     guard frameEnds.count < inFlight, let pb = waiting else { return }
     waiting = nil
@@ -270,13 +287,22 @@ func send(_ pb: CVPixelBuffer) {
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); wire.unlock(); rectsSent += 1
             shown.withUnsafeMutableBufferPointer { s in for y in r.y..<(r.y + r.h) { for x in r.x..<(r.x + r.w) { s[(y * W + x) * 4 + 3] = 0 } } }   // differs from any capture
             video = nil; encoder = nil
-            print("video: off (\(still > 60 ? "still" : "moved"))")
+            print("video: off (\(still > 60 ? "still" : "moved"))"); pace()
         }
-        if video == nil, steady >= 10, let c {
-            let r = pixels(c, w, h)
-            // ~0.1 bit a pixel at 60. This picture's tiles go too: the screen shows them until the decoder's first picture is out
-            if let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6) { video = c; encoder = e; still = 0; starting = true; print("video: on \(r.w)x\(r.h) at \(r.x),\(r.y)") }
-            else { candidate = nil }
+        if video == nil, !making, steady >= 10, let c {
+            // made on another thread (the first one of a process can take 0.4 s or more): the film goes on as tiles until it is ready
+            let r = pixels(c, w, h), tc = now()
+            making = true
+            DispatchQueue.global(qos: .userInitiated).async {
+                let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6)   // ~0.1 bit a pixel at 60
+                q.async {
+                    making = false
+                    if trace { print(String(format: "trace: encoder made in %.1f ms", (now() - tc) * 1000)) }
+                    guard let e, candidate == c, video == nil else { if e == nil { candidate = nil }; return }
+                    // this picture's tiles go too: the screen shows them until the decoder's first picture is out
+                    video = c; encoder = e; still = 0; starting = true; pace(); print("video: on \(r.w)x\(r.h) at \(r.x),\(r.y)")
+                }
+            }
         }
     }
     // each tile: 0 as the receiver has it, 1 changed, 2 rough there and rested (sent again exact)
@@ -327,6 +353,7 @@ func send(_ pb: CVPixelBuffer) {
         e.encode(pb, x: r.x, y: r.y) { out in
             guard let (au, _) = out else { q.async { rectsAcked += 1; while let f = frameEnds.first, f.0 <= rectsAcked { frameEnds.removeFirst() }; pump() }; return }
             let ms = (now() - te) * 1000
+            if trace && videoStats.frames < 3 { print(String(format: "trace: unit out after %.1f ms, %d bytes", ms, au.count)) }
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, au.count), 16); writeFull(au, au.count); wire.unlock()
             q.async { videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += ms; stats.bytes += 16 + au.count; total.bytes += 16 + au.count }
         }
@@ -542,8 +569,8 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
         // a film: the encoder and the screen's decoder each work on the next ones while one waits for the refresh. Four for one that fills
         // half the screen or more (1080p at 60: 18 ms to encode, 30 to decode; three gave 50 a second), three for a smaller one (four
         // only queued its pictures at the decoder: 36 ms of round trip instead of 20)
-        let big = video.map { v in (v.x1 - v.x0) * (v.y1 - v.y0) * 2 >= TX * TY } ?? false
-        if !r.isEmpty { inFlight = video != nil ? (big ? 4 : 3) : r[r.count / 2] > 17 ? 1 : 2 }
+        if !r.isEmpty { lastRtt = r[r.count / 2] }
+        pace()
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),
