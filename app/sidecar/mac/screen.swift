@@ -204,7 +204,7 @@ let h264 = caps.contains("h264") && !noVideo
 struct Area: Equatable { var x0 = 0, y0 = 0, x1 = 0, y1 = 0 }   // in tiles
 var busy = [Float](repeating: 0, count: TX * TY)   // how often each tile changed lately (0..1)
 var video: Area?, encoder: VideoEncoder?
-var candidate: Area?, steady = 0, still = 0
+var candidate: Area?, steady = 0, still = 0, starting = false
 var videoStats = (frames: 0, bytes: 0, encode: 0.0)
 var videoDecodeUs = [Int]()   // the screen's decoder: µs from a unit's last byte to its picture
 /** The rectangle of the busy tiles when they fill most of it and it is large enough to be a film (12 tiles: 256 x 192 pixels). */
@@ -261,16 +261,21 @@ func send(_ pb: CVPixelBuffer) {
     if h264 {
         let c = busyArea()
         if c == candidate { steady += 1 } else { candidate = c; steady = 0 }
-        if let v = video, still > 60 || (steady >= 10 && c != v) {   // over: its place is sent again exact, below
+        // a film's dark or still parts change fewer tiles: a rectangle inside the video's is the same film. Only one that goes out of it
+        // (the window moved or grew) for half a second, or a second without a change (a pause), ends it
+        let outside = c.map { c in c.x0 < video?.x0 ?? 0 || c.y0 < video?.y0 ?? 0 || c.x1 > video?.x1 ?? 0 || c.y1 > video?.y1 ?? 0 } ?? false
+        if let v = video, still > 60 || (steady >= 30 && outside) {   // over: its place is sent again exact, below
             let r = pixels(v, w, h)
             encoder?.flush()   // its units are on the wire before the stop
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); wire.unlock(); rectsSent += 1
             shown.withUnsafeMutableBufferPointer { s in for y in r.y..<(r.y + r.h) { for x in r.x..<(r.x + r.w) { s[(y * W + x) * 4 + 3] = 0 } } }   // differs from any capture
             video = nil; encoder = nil
+            print("video: off (\(still > 60 ? "still" : "moved"))")
         }
         if video == nil, steady >= 10, let c {
             let r = pixels(c, w, h)
-            if let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6) { video = c; encoder = e; still = 0 }   // ~0.1 bit a pixel at 60
+            // ~0.1 bit a pixel at 60. This picture's tiles go too: the screen shows them until the decoder's first picture is out
+            if let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6) { video = c; encoder = e; still = 0; starting = true; print("video: on \(r.w)x\(r.h) at \(r.x),\(r.y)") }
             else { candidate = nil }
         }
     }
@@ -291,10 +296,12 @@ func send(_ pb: CVPixelBuffer) {
     for ty in 0..<TY { for tx in 0..<TX { busy[ty * TX + tx] = busy[ty * TX + tx] * 0.9 + (state[ty * TX + tx] == 1 ? 0.1 : 0) } }
     if let v = video {
         for ty in v.y0..<v.y1 { for tx in v.x0..<v.x1 {
-            if state[ty * TX + tx] == 1 { videoMoved = true; changedPx -= min(T, w - tx * T) * min(T, h - ty * T) }
-            state[ty * TX + tx] = 0; roughAt[ty * TX + tx] = 0
+            if state[ty * TX + tx] == 1 { videoMoved = true; if !starting { changedPx -= min(T, w - tx * T) * min(T, h - ty * T) } }
+            if !starting { state[ty * TX + tx] = 0 }
+            roughAt[ty * TX + tx] = 0
         } }
         still = videoMoved ? 0 : still + 1
+        if starting { videoMoved = true; starting = false }   // the first unit goes even if nothing moved in this picture
     }
     // rough: a sixth of the screen or more moved, or the last picture is not in yet
     let rough = !exact && changedPx > 0 && (changedPx * 6 >= W * H || !frameEnds.isEmpty)

@@ -756,6 +756,7 @@ static std::atomic<bool> run{false};
 static std::thread out;
 static uint32_t fbs[32];               // a framebuffer per capture buffer, made at its first picture
 static int showing = -1, before = -1;  // the capture buffer on the screen, the one it replaced (back to the decoder once that refresh came)
+static bool holes;                     // the place still to make a hole in the surface: at the first picture, not before (black until then)
 static std::mutex fed_mu;
 static std::deque<std::pair<uint64_t, uint64_t>> fed;   // the units in the decoder (their number, when they came), ACKed when decoded
 static uint64_t n;
@@ -790,13 +791,21 @@ static void pictures() {
       if (!fb) { dec.requeue(p.index); fprintf(stderr, "sidecar: the display does not take the video's pictures\n"); }
       else {
         kms::wait_refresh();   // the commit before is on the screen: the picture it replaced is free
-        if (before >= 0 && before != p.index) dec.requeue(before);
-        before = showing; showing = p.index;
-        if (!kms::nlay) kms::full = 2;   // the first picture: both buffers of the frame get the hole
+        if (before >= 0) dec.requeue(before);
+        before = -1;
+        if (holes) {   // the first picture: the hole the plane shows through, in the surface and both buffers of the frame
+          std::lock_guard<std::mutex> g(stream::picture_mu);
+          for (int r = y; r < y + h && r < H; r++) std::fill(surf + (size_t)r * W + x, surf + (size_t)r * W + std::min(W, x + w), HAL_LAYER_HOLE);
+          holes = false; kms::full = 2;
+        }
+        const kms::Shown was = kms::lay[0];
+        const int had = kms::nlay;
         kms::lay[0] = kms::Shown{(uint32_t)p.tag, fb, HalLayer{nullptr, x, y, w, h}, (int32_t)p.w, (int32_t)p.h, 0, 1};
         kms::nlay = 1;
         HalFrame u = {};
         planes_present(&u, false);
+        if (kms::pending) { before = showing; showing = p.index; }
+        else { kms::lay[0] = was; kms::nlay = had; dec.requeue(p.index); }   // not committed: the picture on the screen stays, this one goes back
       }
     }
   }
@@ -819,12 +828,7 @@ static void unit(int ux, int uy, int uw, int uh, std::vector<uint8_t>& au) {
     { std::lock_guard<std::mutex> g(fed_mu); while (!fed.empty()) { stream::send16(1, 10, 0, 0, 0, 0); fed.pop_front(); } }
     if (au.empty()) { if (uw) stream::send16(1, 10, 0, 0, 0, 0); return; }
     if (!stream_flips() || !dec.open("/dev/video10", (uint32_t)uw, (uint32_t)uh)) { stream::send16(1, 10, 0, 0, 0, 0); return; }
-    // the hole the plane shows through, in the surface the frame's buffers are made from
-    {
-      std::lock_guard<std::mutex> g(stream::picture_mu);
-      for (int r = uy; r < uy + uh && r < H; r++) std::fill(surf + (size_t)r * W + ux, surf + (size_t)r * W + std::min(W, ux + uw), HAL_LAYER_HOLE);
-    }
-    x = ux; y = uy; w = uw; h = uh;
+    x = ux; y = uy; w = uw; h = uh; holes = true;
     run = true;
     out = std::thread(pictures);
   }
