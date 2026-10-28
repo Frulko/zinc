@@ -18,7 +18,7 @@ J
 cc -shared -O1 tests/native/sidecar/fakequill.c -o "$tmp/fakequill.dylib" || exit 1
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 ( cd "$proj" && ZN_RMPP_SIM_OUT="$proj/out" ZINC_RMPP_MACHINE="reMarkable Ferrari" ZINC_LEASE=1 ZINC_RMPP_INK=session \
-    ZINC_VENDOR_SHA256=07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec ZINC_RMPP_ENGINE="$tmp/fakequill.dylib" \
+    ZINC_VENDOR_SHA256=07aa9327f725288a5df5aebc33ea4b151c27d97d3b850279947ddddf3dd8ddec ZINC_RMPP_SHIM="$tmp/fakequill.dylib" ZINC_RMPP_ENGINE="$tmp" \
     FAKEQUILL_LOG="$tmp/swaps.txt" ZINC_SIDECAR_PORT=$port ZINC_STORAGE="$proj/kv" ZINC_DISPLAY=rmpp-sim ZINC_HEADLESS=1 ZINC_FRAMES=900 \
     "$ZINC" run "$proj" >"$tmp/app.log" 2>&1 ) & app=$!
 timeout 60 python3 tests/native/sidecar/send.py $port notap > "$tmp/mac.log" 2>&1 || { echo "sidecar_session: the Mac's side failed: $(cat "$tmp/mac.log") $(tail -c 300 "$tmp/app.log")"; exit 1; }
