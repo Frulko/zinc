@@ -502,6 +502,7 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+- zinc:video on a Pi 4 and a Pi 5: HEVC goes through the stateless V4L2 interface (rpi-hevc-dec). Measure with tools/h264dec-bench.cpp (extended to HEVC) FFmpeg of Pi OS (the Raspberry Pi fork has v4l2-request) against GStreamer's upstream v4l2slh265dec, and that the Pi 5 (no H.264 chip) takes libavcodec's software H.264; GStreamer becomes a way of the plugin only where it is the one door to the chip (docs/reports/video-zero-copy.md section 10).
 - ZN-851: zinc:ipod on Linux and the Pi (apt packages of docs/plugins/ipod.md; TagLib 1 reads no embedded cover, udisksctl eject, an HFS+ iPod read-only), then Windows (glib, libplist, TagLib from MSYS2; the eject through DeviceIoControl).
 - ZN-850: records over the phone glue (Android JNI, iOS) and rec.h checked on a 32-bit ARM (unaligned little-endian reads).
 

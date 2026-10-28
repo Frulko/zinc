@@ -381,3 +381,26 @@ The items above that were inference or not verified, as read on the Pi 3B+:
 
 `tools/kmsvid.cpp` is the spike: it plays a file on a plane with FFmpeg and libdrm alone, measures it, and
 `--planes` lists the planes of the screen (the board has no `modetest`).
+
+## 10. FFmpeg's decoder or Sidecar's, on the Pi 3B+ (2026-10-29)
+
+The question (owner): plugins/video decodes with FFmpeg's `h264_v4l2m2m`, Sidecar with its own `plugins/display-fbdev/v4l2dec.h`;
+should one replace the other, or GStreamer both? Both drive the same chip through the same kernel driver (`bcm2835-codec`,
+`/dev/video10`), so only what is around it can differ. `tools/h264dec-bench.cpp` decodes one file each way, as fast as the decoder goes,
+each picture given back at once and never read by the CPU (as a plane shows it); a process each; two runs each, the same in both.
+Board at 49 to 58 C, `get_throttled` 0xd0000 (the old supply), gpu_freq 300; x264 High with B-frames, 20 s 1080p30 and 10 s 1080p60.
+
+| way | pictures a second | CPU a picture | max RSS |
+| --- | --- | --- | --- |
+| FFmpeg, `h264_v4l2m2m` to DRM PRIME (plugins/video) | 56 (30p), 55 (60p) | 1.21 to 1.35 ms | 20 to 22 MB |
+| FFmpeg's demuxer + `v4l2dec.h` (Sidecar's) | 54 to 55 | 1.24 to 1.38 ms | 20 to 22 MB |
+| libavcodec's `h264` in software, 4 cores | 41.5 (30p, an easy test pattern) | 81.5 ms | 70 MB |
+
+**Decision: nothing is merged.** The hardware decode costs the same either way, about 4% of one core at 30 pictures a second, and FFmpeg
+is a little faster at full speed (it drains the decoder at the end; `v4l2dec.h` sends no end of stream and refused one unit of the 60p
+film after its 100 ms wait, which a live stream paced at the screen's rate never meets). So each keeps its job: FFmpeg for files (every
+container, audio, the software way for VP9 and AV1 that the Pi 3 has no chip for), `v4l2dec.h` for Sidecar's live stream (no libavcodec
+in the display driver, the decoder's buffers and delay in its hands). `hwdecode` stays the one option: a `decoder` choice between two
+ways that cost the same would be a knob for nothing. Software 1080p is 20 times the CPU and 3.5 times the memory: never the default
+where a chip is. GStreamer (`v4l2h264dec`) drives the same driver with GLib on top; its case is HEVC on a Pi 4 or 5 (the stateless
+`v4l2slh265dec` is upstream, FFmpeg needs the Raspberry Pi fork for it), to measure there.
