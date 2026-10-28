@@ -65,7 +65,7 @@ final class Engine: ObservableObject {
 
     init() {
         let d = UserDefaults.standard
-        tune = (d.data(forKey: "tune")).flatMap { try? JSONDecoder().decode(Tune.self, from: $0) } ?? presets[0].tune
+        tune = (d.data(forKey: "tune")).flatMap { Tune.from($0) } ?? presets[0].tune
         mode = Mode(rawValue: d.string(forKey: "mode") ?? "") ?? .extend
         display = d.integer(forKey: "display")
         steadyCaret = d.object(forKey: "steadyCaret") as? Bool ?? true
@@ -114,7 +114,7 @@ final class Engine: ObservableObject {
             let line = String(decoding: buffer[buffer.startIndex..<n], as: UTF8.self); buffer.removeSubrange(buffer.startIndex...n)
             if line.hasPrefix("waiting for the tablet") { state = .waiting }
             else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
-            else if line.hasPrefix("tune "), let t = try? JSONDecoder().decode(Tune.self, from: Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
+            else if line.hasPrefix("tune "), let t = Tune.from(Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
             else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces) }
             else if line.hasPrefix("sidecar: ") { problem = String(line.dropFirst(9)) }
         }
@@ -273,6 +273,7 @@ struct SettingsView: View {
                         Knob(name: "Clean after rest", help: "Once a place has been still this long its ghosts are wiped. 0: never.", value: $e.tune.idle, range: 0...5000, step: 100, unit: " ms")
                         Knob(name: "Clean from (% of screen)", help: "Tiny changes (a clock, a caret) never deserve a flash.", value: $e.tune.minClean, range: 0.05...10, step: 0.05)
                         Knob(name: "Typing and scrolling pause", help: "Nothing is wiped while you type or scroll; when you stop, just the lines you touched.", value: $e.tune.typing, range: 0...3000, step: 50, unit: " ms")
+                        Knob(name: "Mouse pause", help: "Nothing is wiped while the mouse moves, clicks or drags (a finger and the Marker count too): the cleaning waits until it has rested this long. 0: only around the pointer.", value: $e.tune.mouse, range: 0...3000, step: 50, unit: " ms")
                         Switch(name: "Gentle clean", help: "Wipes through a grey checker instead of a black flash: softer on the eyes.", on: $e.tune.gentle)
                         Switch(name: "True greys when clean", help: "Pages that rest get real grey levels. Prettier, but the panel switches modes (a slower moment).", on: $e.tune.greys)
                         Switch(name: "Steady caret on the Mac", help: "macOS stops blinking the text caret while Sidecar runs, and blinks it again after. Apps read it when they open: reopen the one you type in. VS Code, Terminal and Chrome have their own setting.", on: $e.steadyCaret)

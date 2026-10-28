@@ -7,9 +7,20 @@ struct Tune: Equatable, Codable {
     var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
     var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
     var typing = 800.0, framesHz = 60.0, blink = true
+    var mouse = 500.0              // ms the mouse (or a finger, the Marker) must rest before anything is cleaned; 0: only around the pointer
     var gentle = true              // clean through a grey checker instead of a black flash
     var tabletPen = false          // the Marker as a graphics tablet's pen (pressure, tilt, hover), not a mouse
     var rotationLock = false       // the picture keeps its way up whatever the accelerometer says
+}
+
+extension Tune {
+    /** A tune from JSON, the knobs it does not name (saved by an older Sidecar) at their defaults. */
+    static func from(_ data: Data) -> Tune? {
+        guard var d = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(Tune())) as? [String: Any],
+              let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        d.merge(saved) { _, new in new }
+        return (try? JSONSerialization.data(withJSONObject: d)).flatMap { try? JSONDecoder().decode(Tune.self, from: $0) }
+    }
 }
 
 struct Preset: Identifiable {
@@ -22,11 +33,11 @@ let presets: [Preset] = {
     var text = Tune()
     text.framesHz = 30
     var speed = Tune()
-    speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.gentle = false; speed.dither = 1
+    speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.mouse = 1000; speed.gentle = false; speed.dither = 1
     var video = Tune()
     video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false
     var reading = Tune()
-    reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.greys = true
+    reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.mouse = 300; reading.greys = true
     return [
         Preset(id: "text", icon: "text.cursor", title: "Text", line: "Code, mail, notes: sharp letters, a steady caret, no flash while you type.", tune: text),
         Preset(id: "speed", icon: "hare", title: "Speed", line: "Everything moves at once: the most frames, cleaning waits until you stop.", tune: speed),

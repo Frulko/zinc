@@ -110,6 +110,7 @@ func play(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
     let b = CGDisplayBounds(target), r = region, f = toFrame(x, y)
     let at = CGPoint(x: b.minX + Double(f.0) * b.width / Double(r.fw), y: b.minY + Double(f.1) * b.height / Double(r.fh))
     let pen = type >= 0x20, kind = type & 0x0f, who = pen ? -2 : id
+    lock.lock(); lastMouse = now(); lock.unlock()   // a finger or the Marker is the mouse too
     if !pen && kind == 0 && quickTap(f) { return }   // the quick panel takes its own taps
     if !pen && touchId == -3 { if kind == 1 { touchId = -1 }; return }
     var t: CGEventType
@@ -405,6 +406,8 @@ var fastMode = true, cleaned = 0, lastMove = 0.0
 // is cleaned at once, there only (a partial flash of the lines typed). framesHz: screen frames sent per second at most (the newest)
 var typingMs = 800, framesHz = 60, blinkFilter = true
 var lastKey = -1e9   // main thread writes, the sender reads under lock
+// the mouse: moves, clicks and drags (the Mac's, or a finger and the Marker on the tablet) hold the cleaning until they rest mouseMs
+var mouseMs = 500, lastMouse = -1e9
 var typedTiles = [Bool](repeating: false, count: tilesX * tilesY)
 // a blinking caret: a tile that only goes back to the picture it had before the last one sent, by a thin column of pixels, keeps the darker
 // of the two on the tablet (the caret shown) instead of flipping, ghosting a little more at each blink
@@ -638,7 +641,7 @@ func currentTune() -> Tune {
     Tune(black: Double(levels.0), white: Double(levels.1), gamma: gamma, edges: Double(edges), edgeFloor: Double(edgeFloor), dither: ditherKind,
          cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
          fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0,
-         typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
+         typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
 }
 var pendingTune: Tune?, pendingAction = ""   // "full" or "clean"
 var reshade = false   // the tone changed: the whole frame goes through it again
@@ -649,7 +652,7 @@ func apply(_ t: Tune) {
     if cursorPx > 0 { cursorPx = Int(t.cursor) }
     moving = t.moving; dotPx = Int(t.dot); pointerHz = max(1, Int(t.pointerHz)); trailMs = Int(t.trail)
     idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
-    typingMs = Int(t.typing); framesHz = max(1, Int(t.framesHz)); blinkFilter = t.blink
+    typingMs = Int(t.typing); framesHz = max(1, Int(t.framesHz)); blinkFilter = t.blink; mouseMs = Int(t.mouse)
     gentle = t.gentle; tabletPen = t.tabletPen; rotationLock = t.rotationLock
     if t.fastMode != fastMode0 { fastMode0 = t.fastMode; writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     if shader { tone = makeTone(); thr = makeThr() }
@@ -932,9 +935,10 @@ Thread {
         else if now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw the arrow once it stops
         else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || any(typedTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
-        lock.lock(); let keyAt = lastKey; lock.unlock()
+        lock.lock(); let keyAt = lastKey, mouseAt = lastMouse; lock.unlock()
         let typing = typingMs > 0 && tn - keyAt < Double(typingMs)
-        if !typing && any(typedTiles) {   // the typing stopped: the lines it drew, cleaned now, there only
+        let handling = mouseMs > 0 && tn - mouseAt < Double(mouseMs)   // the mouse in use: nothing cleaned until it rests
+        if !typing && !handling && any(typedTiles) {   // the typing stopped: the lines it drew, cleaned now, there only
             var t = typedTiles
             for i in 0..<t.count { typedTiles[i] = false; if t[i] { fastTiles[i] = false } }
             clean(&t)
@@ -971,7 +975,7 @@ Thread {
         }
         // the tiles at rest, in true greys, once enough was drawn fast to be worth a flash (a clock, a caret, a menu bar icon never are);
         // not those around the pointer: a move there would wait for the slow waveform to end
-        if idleMs > 0 && !typing && tn - lastMove >= 300 && tn - lastCheck >= 250 {
+        if idleMs > 0 && !typing && !handling && tn - lastMove >= 300 && tn - lastCheck >= 250 {
             lastCheck = tn
             let near = drawn.map { d in (max(0, d.x - 96) / TW, max(0, d.y - 96) / TH, (d.x + 96) / TW, (d.y + 96) / TH) } ?? (-1, -1, -2, -2)
             var rested = [Bool](repeating: false, count: fastTiles.count), count = 0
@@ -1243,10 +1247,13 @@ struct SettingsView: View {
 // the keyboard, wherever it types (Accessibility, as the touches): only when, never which key
 // a scroll too (the Mac's own, or two fingers on the tablet): nothing cleaned while the page moves, then the moved area once it stops
 NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { e in lock.lock(); lastKey = now(); if e.type == .scrollWheel { lastScroll = lastKey }; lock.unlock() }
+NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseDragged]) { _ in
+    lock.lock(); lastMouse = now(); lock.unlock()
+}
 if control {   // the menu bar app: a tune (JSON), full, clean or quit per line
     Thread {
         while let l = readLine() {
-            if l.hasPrefix("tune "), let t = try? JSONDecoder().decode(Tune.self, from: Data(l.dropFirst(5).utf8)) { lock.lock(); pendingTune = t; lock.unlock(); ready.signal() }
+            if l.hasPrefix("tune "), let t = Tune.from(Data(l.dropFirst(5).utf8)) { lock.lock(); pendingTune = t; lock.unlock(); ready.signal() }
             else if l == "full" || l == "clean" { lock.lock(); pendingAction = l; lock.unlock(); ready.signal() }
             else if l == "quit" { break }
         }
