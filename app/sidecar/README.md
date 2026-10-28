@@ -25,7 +25,8 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   The tablet tells the room it has (below xochitl's header or not), and again when that changes: the virtual display is made again to it.
   The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
   The tablet says which way up it is held (its accelerometer): the virtual display turns to portrait or landscape to match.
-  A session starts and ends with a full refresh, and two fingers on the tablet ask for one at any time (they do not reach the Mac).
+  A session starts and ends with a full refresh, and a two-finger tap on the tablet asks for one at any time. Two fingers that move
+  scroll the Mac, following the fingers in the way the screen is turned (neither reaches the Mac as the mouse).
   macOS asks once for the Screen Recording permission, and Accessibility for the touches.
 
 ```sh

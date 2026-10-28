@@ -16,8 +16,9 @@
 //                 sends again what changed once it is over.
 //   kind 4 ROOM   a, b: the room the stream has now, when xochitl's header came or went: the Mac starts again at that size (and the
 //                 rectangles it sends until then are dropped).
-// A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture), and a second finger
-// down asks for one: neither finger goes to the Mac.
+//   kind 6 SCROLL a, b: one finger's step while two are down, in the stream's pixels (the Mac halves it and turns it with the picture).
+// A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture). Two fingers scroll the Mac;
+// two fingers that barely moved (a tap) ask for a full refresh. Neither finger goes to the Mac as the mouse.
 #pragma once
 #include <algorithm>
 #include <atomic>
@@ -47,7 +48,8 @@ inline int port = 0;
 inline std::mutex out;          // the stream's thread answers, the main thread forwards touches
 inline int client = -1, client_top = 0;
 inline int fingers = 0;         // fingers down (main thread)
-inline bool two = false;        // a second finger came down: the rest of this touch is the tablet's
+inline bool two = false;        // a second finger came down: the rest of this touch scrolls the Mac, or is a full refresh when it barely moved
+inline int finger_x[16], finger_y[16], travel = 0;   // each finger's last place (AppLoad's id & 15), how far two fingers went
 inline int last_id = 0, last_x = 0, last_y = 0;   // the finger the Mac has, where it was last
 inline std::atomic<bool> moved{false};      // the room changed under this session: its rectangles are dropped until the Mac leaves
 inline std::atomic<unsigned> session{0};
@@ -62,8 +64,20 @@ inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b
 /** A touch or the Marker from AppLoad (panel pixels): to the Mac while one is connected; true when it took it. */
 inline bool input(int type, int id, int x, int y, int pressure) {
   if (!active || !((type >= 0x10 && type <= 0x12) || (type >= 0x20 && type <= 0x22))) return false;
-  if (type == 0x10 && ++fingers == 2) { two = true; full = true; send16(2, 0x11, (uint16_t)last_id, last_x, last_y, 0); }   // the Mac lets go of the first
-  if (type == 0x11) { fingers = fingers > 0 ? fingers - 1 : 0; if (two) { if (!fingers) two = false; return true; } }
+  if (type == 0x10 && ++fingers == 2) { two = true; travel = 0; send16(2, 0x11, (uint16_t)last_id, last_x, last_y, 0); }   // the Mac lets go of the first
+  if (type >= 0x10 && type <= 0x12) {
+    const int k = id & 15;
+    if (two && type == 0x12) {   // each finger's step; the Mac halves them, two fingers moving together
+      const int dx = x - finger_x[k], dy = y - finger_y[k];
+      travel += (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+      send16(6, 0, 0, dx, dy, 0);
+    }
+    finger_x[k] = x; finger_y[k] = y;
+  }
+  if (type == 0x11) {
+    fingers = fingers > 0 ? fingers - 1 : 0;
+    if (two) { if (!fingers) { two = false; if (travel < 60) full = true; } return true; }   // a two-finger tap: a full refresh
+  }
   if (two && type >= 0x10 && type <= 0x12) return true;
   if (type < 0x20) { last_id = id; last_x = x; last_y = y - client_top; }
   send16(2, (uint8_t)type, (uint16_t)id, x, y - client_top, pressure);

@@ -98,6 +98,17 @@ func play(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
     if pen { ev.setDoubleValueField(.mouseEventPressure, value: min(1, Double(pressure) / 4096)) }
     ev.post(tap: .cghidEventTap)
 }
+/** Two fingers on the tablet: the page follows them (as a trackpad's natural scrolling), turned with the picture, in points. */
+var scrollRest = (0.0, 0.0)
+func scroll(_ dx: Int, _ dy: Int) {
+    let b = CGDisplayBounds(target), r = region, o = toFrame(0, 0), f = toFrame(dx, dy)
+    scrollRest.0 += Double(f.0 - o.0) * b.width / Double(r.fw) / 2
+    scrollRest.1 += Double(f.1 - o.1) * b.height / Double(r.fh) / 2
+    let x = Int32(scrollRest.0.rounded(.towardZero)), y = Int32(scrollRest.1.rounded(.towardZero))
+    if x == 0 && y == 0 { return }
+    scrollRest.0 -= Double(x); scrollRest.1 -= Double(y)
+    CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: y, wheel2: x, wheel3: 0)?.post(tap: .cghidEventTap)
+}
 Thread {
     var m = [UInt8](repeating: 0, count: 16)
     while true {
@@ -113,6 +124,7 @@ Thread {
         else if m[0] == 5 { lock.lock(); fullAt = now(); lock.unlock(); ready.signal() }   // a full refresh started on the tablet
         else if m[0] == 3 { lock.lock(); pendingTurn = i(4); lock.unlock(); ready.signal() }   // the tablet turned
         else if m[0] == 2 { let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = i(4), y = i(8), p = i(12); DispatchQueue.main.async { play(t, id, x, y, p) } }
+        else if m[0] == 6 { let dx = i(4), dy = i(8); DispatchQueue.main.async { scroll(dx, dy) } }
     }
 }.start()
 if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
