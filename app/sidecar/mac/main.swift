@@ -1,7 +1,7 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
 import Foundation
 import Accelerate
 import ScreenCaptureKit
@@ -9,7 +9,7 @@ import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, minClean = -1, cursorPx = 28, cleanMode = 3, fastMode0 = 0, pointerHz = 30, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 30, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -23,13 +23,13 @@ while let a = argv.popFirst() {
     case "--edges": edges = Int(argv.popFirst()!)!   // how hard a pixel darker than its neighbours is pushed to black (0: off)
     case "--fast-mode": fastMode0 = Int(argv.popFirst()!)!   // the waveform of everything that moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
     case "--pointer-hz": pointerHz = max(1, Int(argv.popFirst()!)!)   // pointer moves sent per second at most, the newest only: a fast update lasts ~100+ ms on the panel
-    case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
+    case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // 0: the clean pass stays in the fast waveform (no switch); 3 or 4: true greys in xochitl's page or UI one
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--gamma": gamma = Double(argv.popFirst()!)!
     case "--min-clean": minClean = Int(argv.popFirst()!)!   // pixels drawn fast, at rest, before the clean pass in true greys (default 1% of the panel)
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -266,7 +266,9 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
         writeFull(header(1, x, y, w, h, black.count), 16); writeFull(black, black.count)
     }
     for _ in rects { acks.wait() }
-    if fast {   // and back in black and white, still fast: twice driven, the trail goes
+    // and back in black and white, still fast: twice driven, the trail goes. A waveform switch costs more than it gives: xochitl repaints
+    // the whole window in the new waveform (the panel driven ~1.3 s, measured 2026-10-28), and a move then waits behind it
+    if fast || cleanMode == 0 {
         for (x, y, w, h) in rects {
             let rs = (w + 7) / 8
             var bits = [UInt8](repeating: 0, count: rs * h)

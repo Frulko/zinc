@@ -45,3 +45,20 @@ Order to do first: 3 and 10 (measure), then 2, 1, 5, 6, 4; 7-9 as refinement.
 
 ## Open questions
 Gallery 3 per-mode waveform length and panel frame rate; xochitl's behaviour when a rect overlaps an in-flight update; whether the Marker uses a mode reachable from qtfb; whether a smaller or larger rect changes the apply time (we measured 1-3 ms on our side only).
+
+## Measured on the Paper Pro (2026-10-28, xochitl 3.2x, AppLoad 0010, USB)
+
+xochitl's software TCON drives the panel through the i.MX8MM LCDIF, and the LCDIF interrupt counts only while the panel is driven
+(`/proc/interrupts`, `imx-lcdif-crtc.0`: no interrupt at rest). Sampled every 16 ms on the tablet while the Mac sent single 256x256 updates
+4 s apart (`measure2.py` of the session's scratchpad):
+
+| What | Panel driven |
+|---|---|
+| one update, UFAST / FAST / ANIMATE / CONTENT / UI | 1.46 / 1.46 / 1.31 / 1.37 / 1.36 s (110-124 frames at 85 Hz) |
+| two updates on the same pixels 100 ms apart (UFAST) | 1.44 s: the second does not queue behind the first |
+| two updates 1000 px apart, 100 ms apart | 1.43 s |
+| a waveform switch (MSG_SET_MODE), no update | ~1.3 s: xochitl repaints the whole window in the new waveform |
+
+So every update keeps the TCON busy ~1.4 s whatever the mode (the visible change is much shorter), overlapping updates do not wait for
+each other, and a waveform switch is a whole-window repaint. Sidecar now never switches waveforms during a session (`--clean-mode 0`).
+The start latency (send to first driven frame) was not measured: the Mac to tablet clock offset was only known to ~0.2 s.

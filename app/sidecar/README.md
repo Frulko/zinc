@@ -35,7 +35,7 @@ mac/build/sidecar --rotate 90      # start turned (90 the tablet's top on the le
 mac/build/sidecar --cursor 28      # the pointer's height in tablet pixels; 0: macOS's own, captured
 mac/build/sidecar --fast-mode 0    # the waveform of what moves: 0 UFAST, 1 FAST (DU), 2 ANIMATE (A2)
 mac/build/sidecar --pointer-hz 30  # pointer moves sent per second at most (the newest): overlapping updates queue on the panel
-mac/build/sidecar --clean-mode 3   # the clean pass's waveform: 3 xochitl's page one, 4 UI
+mac/build/sidecar --clean-mode 0   # 0: cleaning stays in the fast waveform (no switch); 3 or 4: true greys, at the cost of two waveform switches
 ```
 
 Measured on a Paper Pro over USB (2026-10-28): the round trip of a small update is under 3 ms; xochitl repaints a small rectangle up to
