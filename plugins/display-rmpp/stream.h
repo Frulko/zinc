@@ -161,6 +161,15 @@ inline void serve(Target t, int ls) {
     if (c < 0) continue;
     int one = 1;
     setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+    // a USB link that drops for a moment can lose the Mac's goodbye: without keepalive the session waits for it forever and no Mac
+    // can connect again. Probed after 2 s of silence, every second, given up after 3 unanswered (~5 s)
+    int idle = 2, intvl = 1, cnt = 3;
+    setsockopt(c, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof one);
+#ifdef TCP_KEEPIDLE
+    setsockopt(c, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof idle);
+#endif
+    setsockopt(c, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof intvl);
+    setsockopt(c, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof cnt);
     const int top = t.top(), H = t.h - top;
     char hello[128];
     const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s\n", t.w, H, t.model);

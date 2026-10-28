@@ -12,6 +12,7 @@ import AppKit
 import SwiftUI
 
 var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true
+setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -41,16 +42,29 @@ func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
 func now() -> Double { Double(DispatchTime.now().uptimeNanoseconds) / 1e6 }
 
 // --- the tablet
-let sock = socket(AF_INET, SOCK_STREAM, 0)
+var sock = socket(AF_INET, SOCK_STREAM, 0)
 var addr = sockaddr_in(); addr.sin_family = sa_family_t(AF_INET); addr.sin_port = in_port_t(UInt16(ProcessInfo.processInfo.environment["SIDECAR_PORT"] ?? "7710")!).bigEndian
 inet_pton(AF_INET, host, &addr.sin_addr)
-if withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) != 0 {
-    die("no tablet at \(host):7710 (open Sidecar on the reMarkable)")
+// the tablet may still be opening Sidecar, or coming back after its USB link dropped: tried for 30 s
+var tries = 0
+while withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) != 0 {
+    tries += 1
+    if tries == 1 { print("waiting for the tablet at \(host) (open Sidecar on the reMarkable)") }
+    if tries > 60 { die("no tablet at \(host) (open Sidecar on the reMarkable)") }
+    close(sock); usleep(500_000); sock = socket(AF_INET, SOCK_STREAM, 0)
 }
 var one: Int32 = 1
 setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
-func readFull(_ p: UnsafeMutableRawPointer, _ n: Int) { var got = 0; while got < n { let r = read(sock, p + got, n - got); if r <= 0 { die("tablet closed") }; got += r } }
-func writeFull(_ p: UnsafeRawPointer, _ n: Int) { var put = 0; while put < n { let r = write(sock, p + put, n - put); if r <= 0 { die("tablet closed") }; put += r } }
+setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &one, socklen_t(MemoryLayout<Int32>.size))
+/** The tablet went away (its USB link dropped, Sidecar closed): start again from the top, which waits for it to come back. */
+func lost() -> Never {
+    print("lost the tablet: connecting again")
+    close(sock); usleep(1_000_000)
+    let args = CommandLine.arguments.map { strdup($0) } + [nil]
+    execv(CommandLine.arguments[0], args); die("cannot start again")
+}
+func readFull(_ p: UnsafeMutableRawPointer, _ n: Int) { var got = 0; while got < n { let r = read(sock, p + got, n - got); if r < 0 && errno == EINTR { continue }; if r <= 0 { lost() }; got += r } }
+func writeFull(_ p: UnsafeRawPointer, _ n: Int) { var put = 0; while put < n { let r = write(sock, p + put, n - put); if r < 0 && errno == EINTR { continue }; if r <= 0 { lost() }; put += r } }
 var line = [UInt8]()
 while true { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.append(c) }
 let hello = String(decoding: line, as: UTF8.self).split(separator: " ")
@@ -191,6 +205,13 @@ let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 2
 func makeThr() -> [UInt8] { threshold ? [UInt8](repeating: 128, count: 64) : bayer.map { UInt8(Int($0) * 4 + 2) } }
 var thr = makeThr()
 var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, t: now())
+// the profile, every 2 s: how old a frame is when ScreenCaptureKit gives it, a pointer move to the tablet's answer, the clean passes
+var prof = (age: [Double](), pointer: [Double](), clean: [Double]())
+func spread(_ v: [Double]) -> String {
+    guard !v.isEmpty else { return "-" }
+    let s = v.sorted()
+    return String(format: "%.0f/%.0f ms", s[s.count / 2], s.last!)
+}
 
 /** shown -> cur, 1 bit, over rows y0..<y1 and the bytes holding x0..<x1. */
 func dither(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) {
@@ -263,6 +284,7 @@ var fastMode = true, cleaned = 0, lastMove = 0.0
 var backToFast = 0.0   // when the clean pass's waveform gives way to the fast one again
 /** Cleans the tiles of mask. fast: the pointer's trail, all in the fast waveform (no waveform switch: the next move starts at once). */
 func clean(_ mask: inout [Bool], fast: Bool = false) {
+    let c0 = now(); defer { prof.clean.append(now() - c0) }
     let rects = rectsOf(mask)
     mask = [Bool](repeating: false, count: tilesX * tilesY)
     if rects.isEmpty { return }
@@ -396,13 +418,14 @@ func pointerNow() -> (x: Int, y: Int)? {
     guard b.contains(loc) else { return nil }
     return toPanel(Int((loc.x - b.minX) * Double(region.fw) / b.width), Int((loc.y - b.minY) * Double(region.fh) / b.height))
 }
-var pointerMoved = false
+var pointerMoved = false, pointerAt = 0.0   // when the oldest move not yet on the tablet happened
+var latestAge = 0.0
 let pointerTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
 pointerTimer.schedule(deadline: .now(), repeating: .milliseconds(8))
 pointerTimer.setEventHandler {
     let p = pointerNow()
     lock.lock()
-    if p?.x != pointer?.x || p?.y != pointer?.y { pointer = p; pointerMoved = true; lock.unlock(); ready.signal() } else { lock.unlock() }
+    if p?.x != pointer?.x || p?.y != pointer?.y { pointer = p; pointerMoved = true; if pointerAt == 0 { pointerAt = now() }; lock.unlock(); ready.signal() } else { lock.unlock() }
 }
 pointerTimer.resume()
 
@@ -501,7 +524,8 @@ Thread {
             print("the tablet turned: \(to)")
             if side { DispatchQueue.main.async { applyMode(); reconfigure() } }
         }
-        lock.lock(); var pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer; lock.unlock()
+        lock.lock(); var pb = latest, fd = frameDirty; latest = nil; frameDirty = .null; var moved = pointerMoved; pointerMoved = false; let p = pointer, movedAt = pointerAt, age = latestAge; lock.unlock()
+        if pb != nil { prof.age.append(age) }
         if pb != nil { held = pb } else if reshade, let h = held { pb = h; fd = .infinite }
         reshade = false
         // the pointer alone: at most --pointer-hz moves, the newest; updates that overlap on the panel wait for each other there
@@ -576,13 +600,17 @@ Thread {
             writeFull(header(3, 0, 0, 0, 0, 0), 16); firstFull = false
             for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false }
         }
+        if moved && movedAt > 0 { prof.pointer.append(now() - movedAt); lock.lock(); if pointerAt == movedAt { pointerAt = 0 }; lock.unlock() }
         stats.frames += 1; stats.rects += rects.count; stats.dither += t1 - t0; stats.wait += now() - t2
         if now() - stats.t >= 2000 {
             let f = max(stats.frames, 1)
             let line = String(format: "%5.1f frames/s  %4.1f rects/frame  %6.0f KB/s  dither+diff %4.1f ms  tablet %4.1f ms", Double(stats.frames) / (now() - stats.t) * 1000,
                          Double(stats.rects) / Double(f), Double(stats.bytes) / (now() - stats.t), stats.dither / Double(f), stats.wait / Double(f))
-            print(line)
-            DispatchQueue.main.async { panel.stats = line }
+            let profile = "capture age \(spread(prof.age))  pointer to tablet \(spread(prof.pointer))  cleans \(prof.clean.count) \(spread(prof.clean))   (median/max)"
+            prof = ([], [], [])
+            print(line); print(profile)
+            let both = line + "\n" + profile
+            DispatchQueue.main.async { panel.stats = both }
             stats = (0, 0, 0, 0, 0, now())
         }
     }
@@ -596,7 +624,8 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
               let raw = info.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete else { return }
         let rects = (info.first?[.dirtyRects] as? [NSDictionary] ?? []).compactMap { CGRect(dictionaryRepresentation: $0) }
         let changed = rects.isEmpty ? CGRect.infinite : rects.reduce(CGRect.null) { $0.union($1) }
-        lock.lock(); latest = pb; frameDirty = frameDirty.union(changed); lock.unlock(); ready.signal()
+        let age = (CMClockGetTime(CMClockGetHostTimeClock()).seconds - sb.presentationTimeStamp.seconds) * 1000
+        lock.lock(); latest = pb; latestAge = age; frameDirty = frameDirty.union(changed); lock.unlock(); ready.signal()
     }
     func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
 }
