@@ -12,8 +12,9 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
   Each tile drawn fast is cleaned once it has rested a second (a blinking caret never rests that long): the pixels drawn fast go black,
   then the tile goes out in true greys in xochitl's page waveform (a partial update drives only the pixels that change, so a trail on white
   needs the black; only the strokes flash, not the tile). A third of the screen at once, or four screens of cleaning, is a full refresh.
-  The pointer is drawn here, not captured: a white arrow with a black outline (little black, little ghosting). Its trail is cleaned in the
-  fast waveform 200 ms after it stops, and the tiles around it are never cleaned in the slow one, so a move never waits.
+  The pointer is drawn here, not captured: a white arrow with a black outline (little black, little ghosting). It turns with the picture. Its trail is
+  cleaned in the fast waveform 150 ms after it passes, a tail that follows it, and the tiles around it are never cleaned in the slow one,
+  so a move never waits.
   The tablet tells the room it has (below xochitl's header or not), and again when that changes: the virtual display is made again to it.
   The tablet's finger and Marker come back as the mouse (the Marker with its pressure).
   The tablet says which way up it is held (its accelerometer): the virtual display turns to portrait or landscape to match.
@@ -27,6 +28,7 @@ mac/build/sidecar --points 1080x1360   # any size, drawn at twice that and scale
 mac/build/sidecar --mirror 0       # mirror the Mac's first display (white bands keep its shape)
 mac/build/sidecar --threshold      # a plain threshold instead of the ordered dither: sharper text, no greys
 mac/build/sidecar --idle 1000      # ms without change before the clean pass (0: never)
+mac/build/sidecar --min-clean 33000   # pixels drawn fast and at rest before that pass (default 1% of the panel: a clock or a caret never flashes)
 mac/build/sidecar --levels 90,185 --gamma 1.6   # the e-ink tone curve: luma under 90 black, over 185 white, the middle darkened
 mac/build/sidecar --edges 10       # the edge pass's strength (0: off)
 mac/build/sidecar --rotate 90      # start turned (90 the tablet's top on the left, 180, 270), until the tablet says otherwise
