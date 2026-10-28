@@ -25,6 +25,9 @@ echo "$out" | grep -q "^device prebuilt " || { echo "plugin_prebuilt: the prebui
 rm -f "$tmp/proj/plugins/device/prebuilt/$t/exports" "$tmp/proj/plugins/device/prebuilt/$t/exports.tmp"
 (cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1) | grep -qx "touch true\|touch false" || { echo "plugin_prebuilt: the program does not run on the prebuilt library: $(cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1 | head -3)"; fail=1; }
 [ ! -e "$tmp/proj/plugins/device/prebuilt/$t/exports" ] && [ ! -e "$tmp/proj/plugins/device/prebuilt/$t/exports.tmp" ] || { echo "plugin_prebuilt: running changed the prebuilt directory (breaks signed app bundles)"; fail=1; }
+# a release's prebuilt directory has no exports file and an install's is read-only: zinc pack reads them from the library (the Pi image's
+# player update to 0.9.1 stopped on "cannot read the library of plugin svg")
+(cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" pack . -o "$tmp/app.zapp" > "$tmp/pack" 2>&1) || { echo "plugin_prebuilt: zinc pack on the prebuilt library: $(tail -3 "$tmp/pack")"; fail=1; }
 # ZN-718: an install holds the prebuilt libraries and none of the plugin's sources: still used; with a foreign key the message says both
 mkdir "$tmp/src" && mv "$tmp"/proj/plugins/device/native/*.cpp "$tmp"/proj/plugins/device/native/*.c "$tmp/src/"   # its C++ and its C (mquickjs's device.abi.c)
 out=$(ZINC_HOME="$tmp/h5" CXX=false CC=false "$Z" plugin-build device "$tmp/proj" 2>&1)

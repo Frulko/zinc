@@ -916,6 +916,13 @@ static std::string missingLibrary(const PluginLib& lib, const std::string& why) 
          (f.empty() ? " (install it again, then run the command again)" : " (reinstall it: brew reinstall " + f + ")");
 }
 
+/** A plugin's exports as the `exports` file holds them: "module <name>", then "<function> <signature>" per line. */
+static std::string exportsText(const PluginLib& lib, const ZnModule* mod) {
+  std::string t = "module " + lib.module + "\n";
+  for (uint32_t i = 0; i < mod->nexports; ++i) t += std::string(mod->exports[i].name) + " " + mod->exports[i].sig + "\n";
+  return t;
+}
+
 bool loadPlugin(const PluginLib& lib, std::string& err) {
   const bool global = lib.display;   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
   if (lib.display && zn_window_load) zn_window_load();
@@ -940,13 +947,22 @@ bool loadPlugin(const PluginLib& lib, std::string& err) {
   std::string list = (std::filesystem::path(lib.shared).parent_path() / "exports").string();
   if (!lib.prebuilt && !std::filesystem::exists(list)) {   // prebuilt libraries may live in a sealed app; cache exports only beside local builds
     std::ofstream out(list + ".tmp");
-    out << "module " << lib.module << "\n";
-    for (uint32_t i = 0; i < mod->nexports; ++i) out << mod->exports[i].name << " " << mod->exports[i].sig << "\n";
+    out << exportsText(lib, mod);
     out.close();
     std::error_code ec;
     if (out) std::filesystem::rename(list + ".tmp", list, ec);
   }
   return true;
+}
+
+std::string pluginExportsFile(const PluginLib& lib) {
+  if (std::ifstream in((std::filesystem::path(lib.shared).parent_path() / "exports").string()); in) { std::stringstream s; s << in.rdbuf(); return s.str(); }
+  // a prebuilt library has no file beside it (its directory may be the install's, read-only): the library says it
+  void* h = zn::plat::libOpen(lib.shared, false);
+  using Open = const ZnModule* (*)();
+  auto open = h ? reinterpret_cast<Open>(zn::plat::libSymbol(h, ("zn_module_" + lib.module).c_str())) : nullptr;
+  const ZnModule* mod = open ? open() : nullptr;
+  return mod ? exportsText(lib, mod) : "";
 }
 
 bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std::string>>& out) {

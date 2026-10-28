@@ -2212,13 +2212,14 @@ int main(int argc, char** argv) {
     std::error_code ec;
     for (const zn::tc::PluginLib& lib : gPlugins) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
       if (lib.display || lib.module.empty()) continue;
-      const fs::path so(lib.shared), ex = so.parent_path() / "exports";
-      std::ifstream lf(so, std::ios::binary), ef(ex);
-      std::stringstream ls, es; ls << lf.rdbuf(); es << ef.rdbuf();
-      if (!lf || !ef) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.string().c_str()); return 1; }
+      const fs::path so(lib.shared);
+      std::ifstream lf(so, std::ios::binary);
+      std::stringstream ls; ls << lf.rdbuf();
+      const std::string ex = zn::tc::pluginExportsFile(lib);   // a prebuilt library (an install's, read-only) has no cached file: read from it
+      if (!lf || ex.empty()) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.string().c_str()); return 1; }
       const std::string base = "native/" + packedTarget() + "/" + lib.plugin + "/";
       files[base + so.filename().string()] = ls.str();
-      files[base + "exports"] = es.str();
+      files[base + "exports"] = ex;
     }
     // the project's own plugins (plugins/), as sources: a .zapp builds its plugins where it runs, and the engine there has only its own
     if (fs::is_directory(fs::path(projDir) / "plugins", ec))

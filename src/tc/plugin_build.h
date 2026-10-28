@@ -41,6 +41,9 @@ bool loadPlugin(const PluginLib& lib, std::string& err);
 
 // The exports (name, signature) an earlier loadPlugin wrote for this build of the plugin: false when it has not been loaded yet (ZN-615).
 bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std::string>>& out);
+// The `exports` file's text of a native plugin: the one cached beside its library, else read from the library (a prebuilt one, ZN-652's pack);
+// "" when neither can be read.
+std::string pluginExportsFile(const PluginLib& lib);
 
 // Cross builds (zinc build --target aarch64-linux): while set, buildPlugin compiles with `zig c++ -target <zigTarget>` and produces only the static archive (no shared
 // library to dlopen); the cache entry is keyed by the target. System libraries (`pkg`) are not available that way: such a plugin is refused with a message.
