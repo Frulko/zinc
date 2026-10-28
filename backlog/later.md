@@ -5,7 +5,10 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
-- ZN-851: a generic `Promise<T>` made with T = void is not a `Promise<void>` (the class PromiseV): `fail<void>()` must be written as its own function. Unify the two (one Promise class whose void settles no value) so generic async helpers work for void; the checker now says so instead of naming PromiseV.
+- ZN-852: `n.toString(r)` with r outside 2..36 throws no RangeError as in JavaScript (it returns digits).
+- ZN-852: `p.then(onFulfilled, onRejected)` with two arguments is refused (Z0104); JavaScript allows it.
+- ZN-852: a generic Promise<void> converted to PromiseV settles one microtask later than Node; and `await fail<void>()` used as a value has the type `__Void`, which can show in messages. Merging Promise and PromiseV would remove both.
+- ZN-853: libgpod prints GLib warnings (an unknown smart-playlist action) on stderr; route them to the plugin's log, and keep unknown smart rules intact (checked on a real iPod written by iOpenPod/Finder).
 - ZN-851: the loader's memo of a failed plugin build lives for the process; a long-lived compiler (zinc dev, the LSP) that must retry a fixed plugin clears it per compile.
 - ZN-850: records decoded straight into the class (no Dyn tree) and a typed encoder instead of the generic one; and the plugins' hand-made worker threads moved to runtime/zrt_jobs.h (gphoto2, video, sqlite...).
 - ZN-851: plugin_manifest fails since 3d3b59dc: zinc:carplay is not in tests/data/plugins-added-table.txt.
