@@ -4,6 +4,7 @@ package com.shilapi.xcertplay.transport
 
 import java.util.Base64
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.security.GeneralSecurityException
@@ -36,16 +37,19 @@ object LockdownTlsEngineFactory {
             privateKeyDer = decodePkcs8Pem(privateKeyPem)
             val privateKey = KeyFactory.getInstance("RSA")
                 .generatePrivate(PKCS8EncodedKeySpec(privateKeyDer))
-            val certificate = CertificateFactory.getInstance("X.509", BouncyCastleProvider())
+            // Both our identity and the phone's peer certificate use the Lockdown empty-DN profile.
+            val cryptoProvider = BouncyCastleProvider()
+            val tlsProvider = BouncyCastleJsseProvider(cryptoProvider)
+            val certificate = CertificateFactory.getInstance("X.509", cryptoProvider)
                 .generateCertificate(ByteArrayInputStream(certificatePem)) as X509Certificate
-            val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+            val keyStore = KeyStore.getInstance("PKCS12", cryptoProvider).apply {
                 load(null, password)
                 setKeyEntry(KEY_ALIAS, privateKey, password, arrayOf(certificate))
             }
-            val keyManagers = KeyManagerFactory.getInstance("PKIX").apply {
+            val keyManagers = KeyManagerFactory.getInstance("PKIX", tlsProvider).apply {
                 init(keyStore, password)
             }.keyManagers
-            val context = SSLContext.getInstance("TLS").apply {
+            val context = SSLContext.getInstance("TLS", tlsProvider).apply {
                 init(keyManagers, arrayOf(UsbLockdownTrustManager), null)
             }
             return context.createSSLEngine(PEER_HOST, PEER_PORT).apply {

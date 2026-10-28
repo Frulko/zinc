@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 22:01'
+updated_date: '2026-10-28 22:05'
 labels:
   - carplay
   - size-L
@@ -92,4 +92,6 @@ Third physical attempt reached the running server but USB bootstrap exited with 
 Physical iPhone now completes USBMUX v2 and exchanges Lockdown plist requests. First Pair returned PasswordProtected; unlocked retry returned InvalidPairRecord. Audit found the desktop port had added nonempty issuer/subject DNs to the upstream empty-name certificate profile just to satisfy the JDK parser. Restored the exact DiPlay empty-name profile and selected the already-installed Bouncy Castle CertificateFactory locally in USB TLS loading. Certificate regression now verifies all three empty issuer/subject names, device-key binding, signatures and TLS-engine initialization; full backend build/tests pass. This removes a confirmed port divergence; actual iPhone acceptance must be checked by the next root run.
 
 InvalidPairRecord persists on the physical iPhone with the restored certificate profile, so the prior change did not establish its cause. A caller comparison found WiredBootstrap generated lowercase host/system UUIDs while pinned DiPlay CarPlayController explicitly uses uppercase(Locale.US). Aligned UUID formatting with upstream using Locale.ROOT; full backend rebuild/tests pass. Read-only independent audit is in progress. Actual acceptance remains unknown; do not mark this resolved based on local tests.
+
+Physical unlocked iPhone now accepts Pair and StartSession, reaching TLS 1.2 certificate reception; InvalidPairRecord no longer occurs in the reported run. SunJSSE then rejects the iPhone peer certificate with Empty issuer DN not allowed. Local CertificateFactory choice alone did not affect SunJSSE internal certificate parsing. USB-only TLS context and key manager now explicitly use BCJSSE with the BC crypto provider; bctls-jdk18on is pinned to 1.79 alongside bcprov. No global provider ordering or TLS policy changes. New regression performs a real mutual TLS 1.2 handshake with empty-DN certificates and transfers application data, asserting default/global providers unchanged. Full backend build/tests and repeat-overlay checks pass; packaged bctls jar verified. Next physical root run must confirm peer interoperability and carkit start.
 <!-- SECTION:NOTES:END -->

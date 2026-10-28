@@ -24,3 +24,12 @@ The native utun bridge replaces Android VpnService for the NCM IPv6 link.
 This entire directory is part of the separately distributed GPL receiver.
 Nothing is linked into Zinc. Distribute the original sources, overlay, dependency
 licences and PlayPort notices with binaries; no identity credentials are included.
+
+The dedicated Lockdown TLS context and key manager use BCJSSE from
+org.bouncycastle:bctls-jdk18on:1.79, with the existing bcprov 1.79 crypto provider
+(Bouncy Castle licence, https://www.bouncycastle.org/licence.html). Explicit
+provider instances keep the process-wide JSSE provider and policy unchanged.
+The JDK default SunJSSE parser rejects the iPhone's empty-issuer certificates
+even when a compatible CertificateFactory was used to load our local identity.
+The regression completes mutual TLS 1.2 and exchanges encrypted application
+data with this certificate profile, without changing global providers.

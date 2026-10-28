@@ -163,3 +163,17 @@ the new Mac bootstrap had used lowercase UUID.toString(). Bootstrap now matches
 upstream casing with Locale.ROOT. Complete backend build/tests pass; this is
 a reference-parity correction, not proven resolution of the device rejection.
 A separate read-only audit is checking remaining wire/profile differences.
+
+## Physical USB attempt: Pair accepted, peer TLS parsing
+
+The next physical run progressed through Pair and StartSession into TLS 1.2.
+SunJSSE rejected the peer certificate with Empty issuer DN not allowed. Choosing
+a local CertificateFactory for our own identity did not change SunJSSE's
+internal peer-certificate reader. The USB TLS context and key manager now use
+explicit BCJSSE/BC provider instances, with bctls-jdk18on pinned at 1.79. No
+global provider registration or security-property relaxation was added.
+UsbLockdownTlsHandshakeTest completes a real mutual TLS 1.2 handshake with the
+empty-DN pairing profile and sends encrypted application data. It also verifies
+that installed/default providers are unchanged. Full backend build/tests,
+fresh/repeated overlay check and packaged bctls jar verification pass. The
+physical carkit/TLS continuation remains to be verified with a root restart.

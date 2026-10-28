@@ -15,6 +15,8 @@ root=Path(sys.argv[1])
 p=root/'protocol/build.gradle.kts';t=p.read_text();needle='dependencies {'
 if 'net.sf.kxml:kxml2' not in t:
  t=t.replace(needle,needle+'\n    implementation("net.sf.kxml:kxml2:2.3.0")')
+if 'org.bouncycastle:bctls-jdk18on' not in t:
+ t=t.replace(needle,needle+'\n    implementation("org.bouncycastle:bctls-jdk18on:1.79")')
 if 'jvmArgs("--enable-native-access=ALL-UNNAMED")' not in t:
  t += '\ntasks.test { jvmArgs("--enable-native-access=ALL-UNNAMED") }\n'
 p.write_text(t)
