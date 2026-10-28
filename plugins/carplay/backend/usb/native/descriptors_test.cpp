@@ -16,7 +16,7 @@ int main() {
     ncmEnds[1].bEndpointAddress = 0x83; ncmEnds[1].bmAttributes = 2;
     ncmEnds[0].wMaxPacketSize = 64; ncmEnds[1].wMaxPacketSize = 512;
     unsigned char extra[] = {4, 0x24, 0x0f, 7};
-    libusb_interface_descriptor desc[4]{};
+    libusb_interface_descriptor desc[6]{};
     desc[0].bInterfaceNumber = 1; desc[0].bInterfaceClass = 0xff;
     desc[0].bInterfaceSubClass = 0xfe; desc[0].bInterfaceProtocol = 2;
     desc[0].endpoint = muxEnds; desc[0].bNumEndpoints = 2;
@@ -26,14 +26,20 @@ int main() {
     desc[2].endpoint = ncmEnds; desc[2].bNumEndpoints = 2;
     desc[3].bInterfaceNumber = 4; desc[3].bInterfaceClass = 0xff;
     desc[3].bInterfaceSubClass = 0xfd; desc[3].bInterfaceProtocol = 1;
-    libusb_interface interfaces[4]{};
-    for (int i = 0; i < 4; ++i) { interfaces[i].altsetting = &desc[i]; interfaces[i].num_altsetting = 1; }
+    // A second NCM function must not replace the first control/data pair.
+    unsigned char secondExtra[] = {4, 0x24, 0x0f, 9};
+    desc[4] = desc[1]; desc[4].bInterfaceNumber = 5; desc[4].extra = secondExtra;
+    desc[5] = desc[2]; desc[5].bInterfaceNumber = 6;
+    libusb_interface interfaces[6]{};
+    for (int i = 0; i < 6; ++i) { interfaces[i].altsetting = &desc[i]; interfaces[i].num_altsetting = 1; }
     libusb_config_descriptor config{};
-    config.bConfigurationValue = 9; config.bNumInterfaces = 4; config.interface = interfaces;
+    config.bConfigurationValue = 9; config.bNumInterfaces = 6; config.interface = interfaces;
     auto found = carplay::discover(config);
     assert(found && found.appleEthernet && found.value == 9);
+    assert(found.control == 2 && found.ncm.interface == 3);
     assert(found.macString == 7 && found.ncm.inPacketSize == 512 && found.ncm.outPacketSize == 64);
     assert(found.mux.in == 0x85 && found.mux.out == 4 && found.ncm.alternate == 1);
+    config.bNumInterfaces = 4;
     desc[2].bNumEndpoints = 1;
     assert(!carplay::discover(config));
     desc[2].bNumEndpoints = 2; desc[0].bInterfaceProtocol = 1;

@@ -52,7 +52,7 @@ inline Configuration discover(const libusb_config_descriptor& d) {
             const auto& a = d.interface[i].altsetting[j];
             if (a.bInterfaceClass == 0xff && a.bInterfaceSubClass == 0xfe && a.bInterfaceProtocol == 2)
                 result.mux = bulkPipe(a);
-            if (a.bInterfaceClass == 2 && a.bInterfaceSubClass == 0x0d) {
+            if (a.bInterfaceClass == 2 && a.bInterfaceSubClass == 0x0d && result.control < 0) {
                 result.control = a.bInterfaceNumber;
                 for (int offset = 0; offset + 2 <= a.extra_length;) {
                     const auto* extra = a.extra + offset;
@@ -63,7 +63,7 @@ inline Configuration discover(const libusb_config_descriptor& d) {
                     offset += length;
                 }
             }
-            if (a.bInterfaceClass == 0x0a && bulkPipe(a) && (!result.ncm || a.bAlternateSetting == 1))
+            if (a.bInterfaceClass == 0x0a && bulkPipe(a) && (!result.ncm || (result.ncm.alternate != 1 && a.bAlternateSetting == 1)))
                 result.ncm = bulkPipe(a);
             if (a.bInterfaceClass == 0xff && a.bInterfaceSubClass == 0xfd && a.bInterfaceProtocol == 1)
                 result.appleEthernet = true;

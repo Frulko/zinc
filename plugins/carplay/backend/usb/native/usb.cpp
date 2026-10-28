@@ -164,6 +164,7 @@ JNIEXPORT jlong JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_open(JNIE
         owned->claim(owned->config.control);
         owned->claim(owned->config.ncm.interface);
         checked(libusb_set_interface_alt_setting(owned->handle, owned->config.ncm.interface, owned->config.ncm.alternate), "select NCM alternate");
+        fprintf(stderr, "NCM USB function selected: control=%d data=%d alternate=%d\n", owned->config.control, owned->config.ncm.interface, owned->config.ncm.alternate);
         return reinterpret_cast<jlong>(owned.release());
     } catch (const std::exception& e) { fail(env, e); return 0; }
 }
@@ -202,7 +203,7 @@ JNIEXPORT void JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_write(JNIE
     } catch (const std::exception& e) { fail(env, e); }
 }
 JNIEXPORT jint JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_interfaceNumber(JNIEnv* env, jobject, jlong handle) {
-    try { return device(handle).config.ncm.interface; }
+    try { return device(handle).config.control; }
     catch (const std::exception& e) { fail(env, e); return -1; }
 }
 JNIEXPORT jint JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_packetSize(JNIEnv* env, jobject, jlong handle, jboolean input) {

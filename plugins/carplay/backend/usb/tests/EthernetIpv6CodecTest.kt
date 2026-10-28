@@ -8,6 +8,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class EthernetIpv6CodecTest {
+    @Test fun formatsWiredDeviceIdentifierFromEthernetBytes() {
+        assertEquals("02:ab:00:ff:01:80", EthernetIpv6Codec.macString(byteArrayOf(2, 0xab.toByte(), 0, 0xff.toByte(), 1, 0x80.toByte())))
+        try { EthernetIpv6Codec.macString(byteArrayOf(1, 2)); org.junit.Assert.fail("short MAC accepted") }
+        catch (_: IllegalArgumentException) { }
+    }
+
     @Test
     fun `maps IPv6 multicast destination to Ethernet multicast`() {
         val packet = ByteArray(40)

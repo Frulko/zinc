@@ -9,6 +9,11 @@ package com.shilapi.xcertplay.transport
  * uses to exchange IPv6 packets with the phone; it does not create or own a network interface.
  */
 object EthernetIpv6Codec {
+    fun macString(mac: ByteArray): String {
+        require(mac.size == MAC_BYTES) { "Ethernet address must contain six bytes" }
+        return mac.joinToString(":") { "%02x".format(it.toInt() and 255) }
+    }
+
     const val ETHERTYPE_IPV6 = 0x86dd
     const val MAC_BYTES = 6
 

@@ -195,3 +195,23 @@ IPv6 headers/destination ports (12 packets per direction), and native logs mark
 the first NCM write timeout and first accepted Ethernet transfer. No packet
 payload is logged. Full backend build/tests pass; root restart is needed to
 observe the phone's actual NCM/RTSP path.
+
+## Physical NCM traffic: two USB network functions
+
+Phone logs now show real NCM IPv6 RX/TX and successful native bulk-out. The
+first packet budget contains multicast; it cannot prove absence of later TCP.
+The Mac's IORegistry shows iPhone NCM control/data pairs 3/4 and 5/6. Descriptor
+scanning was overwriting the first pair with later matches. It now follows
+pinned DiPlay NcmFunctionDiscovery: first control, first bulk data with preferred
+alternate 1. Native interfaceNumber now returns the control interface, matching
+DiPlay's declaration of interface 3, rather than the selected data interface.
+A synthetic two-function descriptor test preserves the first control/data/MAC
+selection against the second pair. Native startup logs the selected interfaces.
+
+CarPlayStartSession also used the persistent server ID instead of NCM host MAC;
+it now matches the reference controller's wired endpoint. MAC formatting has a
+regression test. Pinned NcmTrafficCounter and its tests were reused to report
+all incoming SYN counts every five seconds for the first minute, beyond the
+initial header log budget. TX is labelled submitted, not successfully sent.
+Complete backend build/tests and native descriptor tests pass. Real projection
+is still pending; next attempt must verify control=3/data=4 and TCP to AirPlay.

@@ -29,7 +29,7 @@ class WiredBootstrap(serial: String) : Closeable {
         } catch (error: Throwable) { device.close(); throw error }
     }
     fun start(server: CarPlayServer) {
-        network!!.start()
+        network!!.start(server.config.airPlayPort)
         worker = Thread({
             try {
                 if (closed) return@Thread
@@ -55,11 +55,12 @@ class WiredBootstrap(serial: String) : Closeable {
                     serialNumber = "ZINC-" + server.deviceId.replace(":", ""),
                     firmwareVersion = "1.0", hardwareVersion = "1.0", carPlayUsbInterfaceNumber = device.carPlayInterface,
                 )
+                log.info("Wired endpoint host={} port={} deviceIdentifier={}", network!!.address, server.config.airPlayPort, network!!.deviceIdentifier)
                 Iap2WiredControlClient(control, Iap2MfiAuthenticationClient(server.mfi)).run(
                     identification,
                     Iap2WiredCarPlayEndpoint(
                         listOf(network!!.address), server.config.airPlayPort,
-                        server.identity.publicKeyHex, server.config.sourceVersion, server.deviceId,
+                        server.identity.publicKeyHex, server.config.sourceVersion, network!!.deviceIdentifier,
                     ),
                     availableCurrentMilliAmps = 0,
                     timeoutMillis = Iap2WiredControlClient.NO_TIMEOUT_MILLIS,

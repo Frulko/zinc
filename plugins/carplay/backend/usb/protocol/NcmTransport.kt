@@ -48,6 +48,8 @@ class NcmNetwork(private val io: UsbIo, val address: String = WIRED_HOST_IPV6, d
         throw error
     }
     private val hostMac = descriptorMac ?: byteArrayOf(0x02, 0x5a, 0x49, 0x4e, 0x43, 0x01)
+    val deviceIdentifier: String = EthernetIpv6Codec.macString(hostMac)
+    private val traffic = NcmTrafficCounter()
     @Volatile private var peerMac: ByteArray? = null
     @Volatile private var running = true
     private val threads = java.util.concurrent.CopyOnWriteArrayList<Thread>()
@@ -63,15 +65,23 @@ class NcmNetwork(private val io: UsbIo, val address: String = WIRED_HOST_IPV6, d
             check(process.waitFor() == 0) { "Cannot configure $name; wired USB requires root" }
         } catch (error: Throwable) { close(); throw error }
     }
-    fun start() {
+    fun start(airPlayPort: Int) {
         check(running && threads.isEmpty()) { "NCM network is closed or started" }
-        log.info("NCM bridge started: interface={} host={} inPacketSize={} outPacketSize={}", name, address, inPacketSize, outPacketSize)
+        log.info("NCM bridge started: interface={} host={} mac={} inPacketSize={} outPacketSize={}", name, address, deviceIdentifier, inPacketSize, outPacketSize)
             launch("ncm-in") {
                 val frames = NcmFrames(inPacketSize)
+                val diagnosticEnd = System.nanoTime() + 60_000_000_000L
+                var nextDiagnostic = 0L
                 while (running) {
                     io.read(true, 500)?.let(frames::append)
+                    val now = System.nanoTime()
+                    if (now < diagnosticEnd && now >= nextDiagnostic) {
+                        log.info("NCM traffic {}", traffic.summary(airPlayPort).replace("toIphone=", "toIphoneSubmitted="))
+                        nextDiagnostic = now + 5_000_000_000L
+                    }
                     while (true) {
                         val frame = frames.take() ?: break
+                        traffic.received(frame)
                         val ipv6 = EthernetIpv6Codec.parseIpv6(frame) ?: continue
                         peerMac = ipv6.sourceMac
                         if (inboundLogs++ < 12) log.info("NCM RX {}", packetSummary(ipv6.ipv6))
@@ -104,6 +114,7 @@ class NcmNetwork(private val io: UsbIo, val address: String = WIRED_HOST_IPV6, d
     }
     private fun send(frame: ByteArray) = synchronized(writeLock) {
         io.write(true, Ntb16Codec.build(frame, sequence, outPacketSize), 20)
+        traffic.sent() // submitted transfers may still be NAKed; the native log marks first actual acceptance
         sequence = (sequence + 1) and 65535
     }
     private fun launch(name: String, action: () -> Unit) {

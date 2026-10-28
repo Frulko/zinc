@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 22:12'
+updated_date: '2026-10-28 22:18'
 labels:
   - carplay
   - size-L
@@ -98,4 +98,6 @@ Physical unlocked iPhone now accepts Pair and StartSession, reaching TLS 1.2 cer
 Physical iPhone now completes Lockdown TLS, carkit TLS, iAP2 identification and offline MFi authentication (0xaa05 authentication-succeeded). It advertises wiredAvailable=true and receives CarPlayStartSession; iOS shows Allow CarPlay prompt but tapping leaves it visible. No RTSP connection/media is logged. Found runtime NCM address default fe80::1 versus pinned DiPlay fe80::2. Aligned receiver default to fe80::2, updated NDP tests to keep host/peer distinct and reject claiming the peer address. Added bounded header-only NCM RX/TX logs and first native bulk-out wait/accept logs to distinguish no traffic, NDP and TCP connection attempts. Full backend build/tests pass; focused amended NDP test is running. Peer address conflict is a hypothesis until actual NCM headers are observed.
 
 Focused amended NcmNeighborTest completed successfully after the full backend build.
+
+Physical NCM RX/TX and accepted native bulk-out are now observed, including IPv6 multicast. No RTSP acceptance is logged. Read-only IORegistry inspection shows two iPhone CDC-NCM functions: control/data 3/4 and 5/6. Native descriptor scanning overwrote first matches with later interfaces and announced the data interface number (6); pinned DiPlay selects first NCM function and declares control interface 3. Selection now retains the first preferred-alt NCM data/control pair; JNI interfaceNumber returns control. Native multi-function fixture verifies later pairs do not overwrite first. Also aligned CarPlayStartSession deviceIdentifier with the NCM host MAC as upstream does, with formatting regression. Reused pinned NcmTrafficCounter and tests; bounded 60 s summaries count all incoming TCP SYNs to AirPlay, not only first packet-log budget. TX count explicitly means submitted, since early NAKs may drop transfers. Complete backend build/tests and native descriptor tests pass. Next live run should select control=3 data=4 and show traffic summary/SYN evidence.
 <!-- SECTION:NOTES:END -->
