@@ -432,6 +432,8 @@ struct Checker {
     declare(SymKind::Builtin, "__jsonOut", func({tDyn}, tStr, 1), kNone, true, 0);   // JSON.stringify of a Dyn tree in the runtime
     declare(SymKind::Builtin, "__jsonQuoteNative", func({tStr}, tStr, 1), kNone, true, 0);   // JSON.stringify of a string in the runtime
     declare(SymKind::Builtin, "__jsonNative", func({tStr, tDyn}, tDyn, 2), kNone, true, 0);  // JSON.parse in the runtime, for the Dyn prelude
+    declare(SymKind::Builtin, "__recDecode", func({arrayOf(num(Num::u8)), tStr, tDyn}, tDyn, 3), kNone, true, 0);  // a native record's bytes as a Dyn tree (ZN-850, include/zn/rec.h)
+    declare(SymKind::Builtin, "__recEncode", func({tDyn, tStr}, arrayOf(num(Num::u8)), 2), kNone, true, 0);       // a Dyn value as a native record's bytes
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(gNumber), 1), kNone, true, 0);  // Number(string), for generated code
     for (const char* nm : {"Boolean", "JSON", "Array"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;

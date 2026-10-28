@@ -358,6 +358,7 @@
     {"paths": ["templates/plugin/", "tools/plugin-pack", ".github/workflows/plugin.yml"], "tests": ["plugin_starter", "templates", "templates_kickstart"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["plugins/physics3d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics3d/"], "tests": ["physics3d", "qjs_native", "pinball3d"]},
+    {"paths": ["include/zn/rec.h", "src/frontend/native_gen.cpp", "src/qjs/native_js.cpp", "src/qjs/strip.cpp", "tests/data/records-plugin/", "tests/t0/native_records.sh"], "tests": ["native_records"]},
     {"paths": ["plugins/physics2d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics2d/"], "tests": ["physics2d"]},
     {"paths": ["plugins/physics2d/web/", "plugins/physics2d/plugin.json", "tests/fixtures/web-physics2d/"], "tests": ["web_physics2d"]},
     {"paths": ["examples/pinball-kit/", "examples/pinball/", "tests/data/pinball_physics/", "tests/t0/pinball_core.sh", "tests/t1/pinball.sh", "tests/demo/pinball_physics.sh"], "tests": ["pinball_core", "pinball", "pinball_physics", "pinball3d", "pinball3d_editor", "n3ds_demos"]},

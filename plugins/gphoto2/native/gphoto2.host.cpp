@@ -49,7 +49,7 @@ struct Img {  // 0x00RRGGBB pixels
 
 enum Op { DETECT, OPEN, CLOSE, SUMMARY, CONFIG, GET, SET, CAPTURE, TRIGGER, DOWNLOAD, THUMB };
 struct Job { int id; Op op; char* a; char* b; int w, h; Job* next; };
-struct Done { int id; bool ok; char* text; char* kind; Img img; Done* next; };  // id 0: event
+struct Done { int id; bool ok; char* text; size_t n; char* kind; Img img; Done* next; };  // id 0: event; n: the bytes of text (a record holds NULs)
 
 // ---- shared state (mu) ----
 pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
@@ -322,17 +322,22 @@ int find_widget(const char* name, CameraWidget** root, CameraWidget** w) {
 }
 
 bool run(Job* j, Buf& out, Img& img) {
-  if (j->op == DETECT) {
-    if (fake) { out.add("Zinc Fake Camera"); out.ch(FS); out.add("usb:fake"); return true; }
-    CameraList* l; gp_list_new(&l);
-    int r = gp_camera_autodetect(l, ctx);
-    for (int i = 0; r >= GP_OK && i < gp_list_count(l); i++) {
-      const char *m, *p; gp_list_get_name(l, i, &m); gp_list_get_value(l, i, &p);
-      if (i) out.ch(RS);
-      out.add(m); out.ch(FS); out.add(p);
+  if (j->op == DETECT) {   // the spec's CameraInfo[] (ZN-850), encoded here on the worker with the generated struct
+    std::vector<CameraInfo> cams;
+    if (fake) cams.push_back({"Zinc Fake Camera", "usb:fake"});
+    else {
+      CameraList* l; gp_list_new(&l);
+      int r = gp_camera_autodetect(l, ctx);
+      for (int i = 0; r >= GP_OK && i < gp_list_count(l); i++) {
+        const char *m, *p; gp_list_get_name(l, i, &m); gp_list_get_value(l, i, &p);
+        cams.push_back({m, p});
+      }
+      gp_list_free(l);
+      if (gp_fail(r, out)) return false;
     }
-    gp_list_free(l);
-    return !gp_fail(r, out);
+    std::vector<uint8_t> b = zn::rec::encode(cams);
+    out.add(reinterpret_cast<const char*>(b.data()), b.size());
+    return true;
   }
   if (j->op == THUMB) {
     FILE* f = fopen(j->a, "rb");
@@ -520,6 +525,7 @@ void* worker(void*) {
       Buf out; Done* d = (Done*)calloc(1, sizeof(Done));
       d->id = j->id;
       d->ok = run(j, out, d->img);
+      d->n = out.n;
       d->text = out.take();
       free(j->a); free(j->b); free(j);
       push_done(d);
@@ -556,6 +562,7 @@ __attribute__((weak)) void dyn_destroy(int32_t id) { static auto f = host_fn("_Z
 struct HostGphoto2 : NativeGphoto2, zrt::Poller {
   static const int MAXP = 64;
   zrt::Ref<zrt::PromiseObj<zrt::String>> pend[MAXP];
+  zrt::Ref<zrt::PromiseObj<zrt::Array<uint8_t>>> pend_rec[MAXP];   // a job whose result is a record's bytes (detect)
   int pend_id[MAXP] = {};
   Op pend_op[MAXP] = {};
   int seq = 0, inflight = 0;
@@ -565,14 +572,15 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
   int shown = 0;
   double shown_t0 = 0, shown_fps = 0;
 
-  zrt::Promise<zrt::String> submit(Op op, const zrt::String& a, const zrt::String& b, int w = 0, int h = 0) {
-    auto pr = zrt::Promise<zrt::String>::make_pending();
+  template <class T> zrt::Promise<T> submit(Op op, const zrt::String& a, const zrt::String& b, int w = 0, int h = 0) {
+    auto pr = zrt::Promise<T>::make_pending();
     int slot = -1;
-    for (int i = 0; i < MAXP && slot < 0; i++) if (!pend[i].p) slot = i;
+    for (int i = 0; i < MAXP && slot < 0; i++) if (!pend[i].p && !pend_rec[i].p) slot = i;
     if (slot < 0) { pr.p->reject(zrt::make<zrt::Error>(zstr("gphoto2: too many pending requests"))); return pr; }
     Job* j = (Job*)calloc(1, sizeof(Job));
     j->id = ++seq; j->op = op; j->a = cstr(a); j->b = cstr(b); j->w = w; j->h = h;
-    pend[slot] = pr.p; pend_id[slot] = j->id; pend_op[slot] = op; inflight++;
+    if constexpr (zrt::is_same<T, zrt::String>::value) pend[slot] = pr.p; else pend_rec[slot] = pr.p;
+    pend_id[slot] = j->id; pend_op[slot] = op; inflight++;
     pthread_mutex_lock(&mu);
     if (!started) { started = true; pthread_create(&thread, nullptr, worker, nullptr); }
     if (jobs_tail) jobs_tail->next = j; else jobs = j;
@@ -582,24 +590,24 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
     return pr;
   }
   /** zinc.json "permissions" (ZN-322): a camera needs "camera"; the engine answers through zn_host_permission (absent in older engines: allowed). */
-  bool refuse(zrt::Promise<zrt::String>& pr) {
+  template <class T> bool refuse(zrt::Promise<T>& pr) {
     char why[512];
     if (!zn_host_permission || !zn_host_permission("camera", "gphoto2", why, sizeof why)) return false;
-    pr = zrt::Promise<zrt::String>::make_pending();
+    pr = zrt::Promise<T>::make_pending();
     pr.p->reject(zrt::make<zrt::Error>(zstr(why)));
     return true;
   }
-  zrt::Promise<zrt::String> detect() override { zrt::Promise<zrt::String> pr; if (refuse(pr)) return pr; return submit(DETECT, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> open(zrt::String model, zrt::String port) override { zrt::Promise<zrt::String> pr; if (refuse(pr)) return pr; return submit(OPEN, model, port); }
-  zrt::Promise<zrt::String> close() override { return submit(CLOSE, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> summary() override { return submit(SUMMARY, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> config() override { return submit(CONFIG, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> get(zrt::String name) override { return submit(GET, name, zrt::String()); }
-  zrt::Promise<zrt::String> set(zrt::String name, zrt::String value) override { return submit(SET, name, value); }
-  zrt::Promise<zrt::String> capture(zrt::String dir) override { return submit(CAPTURE, dir, zrt::String()); }
-  zrt::Promise<zrt::String> trigger() override { return submit(TRIGGER, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> download(zrt::String path, zrt::String dir) override { return submit(DOWNLOAD, path, dir); }
-  zrt::Promise<zrt::String> thumbnail(zrt::String path, int32_t w, int32_t h) override { return submit(THUMB, path, zrt::String(), w, h); }
+  zrt::Promise<zrt::Array<uint8_t>> detect() override { zrt::Promise<zrt::Array<uint8_t>> pr; if (refuse(pr)) return pr; return submit<zrt::Array<uint8_t>>(DETECT, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> open(zrt::String model, zrt::String port) override { zrt::Promise<zrt::String> pr; if (refuse(pr)) return pr; return submit<zrt::String>(OPEN, model, port); }
+  zrt::Promise<zrt::String> close() override { return submit<zrt::String>(CLOSE, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> summary() override { return submit<zrt::String>(SUMMARY, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> config() override { return submit<zrt::String>(CONFIG, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> get(zrt::String name) override { return submit<zrt::String>(GET, name, zrt::String()); }
+  zrt::Promise<zrt::String> set(zrt::String name, zrt::String value) override { return submit<zrt::String>(SET, name, value); }
+  zrt::Promise<zrt::String> capture(zrt::String dir) override { return submit<zrt::String>(CAPTURE, dir, zrt::String()); }
+  zrt::Promise<zrt::String> trigger() override { return submit<zrt::String>(TRIGGER, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> download(zrt::String path, zrt::String dir) override { return submit<zrt::String>(DOWNLOAD, path, dir); }
+  zrt::Promise<zrt::String> thumbnail(zrt::String path, int32_t w, int32_t h) override { return submit<zrt::String>(THUMB, path, zrt::String(), w, h); }
   void onEvent(zrt::Fn<void(zrt::String, zrt::String)> f) override { cb = f; }
   void liveView(bool on) override { pthread_mutex_lock(&mu); live = want_live = on; pthread_cond_signal(&cv); pthread_mutex_unlock(&mu); }
   void setViewSize(int32_t w, int32_t h) override { pthread_mutex_lock(&mu); view_w = w; view_h = h; pthread_mutex_unlock(&mu); }
@@ -632,7 +640,13 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
       if (!d->id) {
         if (cb) { zrt::Fn<void(zrt::String, zrt::String)> f = cb; f(zstr(d->kind), zstr(d->text)); zrt::check_uncaught(); }
       } else {
-        for (int i = 0; i < MAXP; i++) if (pend[i].p && pend_id[i] == d->id) {
+        for (int i = 0; i < MAXP; i++) if (pend_rec[i].p && pend_id[i] == d->id) {   // a record: its bytes, or the error text
+          zrt::Ref<zrt::PromiseObj<zrt::Array<uint8_t>>> p = pend_rec[i];
+          pend_rec[i] = nullptr; inflight--;
+          if (!d->ok) p->reject(zrt::make<zrt::Error>(zstr(d->text)));
+          else p->resolve(zn::rec::array(std::vector<uint8_t>(d->text, d->text + d->n)));
+          break;
+        } else if (pend[i].p && pend_id[i] == d->id) {
           zrt::Ref<zrt::PromiseObj<zrt::String>> p = pend[i];
           pend[i] = nullptr; inflight--;
           if (!d->ok) p->reject(zrt::make<zrt::Error>(zstr(d->text)));
@@ -657,6 +671,7 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
   void shutdown() override {
     cb = nullptr;
     for (auto& p : pend) p = nullptr;
+    for (auto& p : pend_rec) p = nullptr;
     if (!started) return;
     pthread_mutex_lock(&mu); quit = true; pthread_cond_signal(&cv); pthread_mutex_unlock(&mu);
     pthread_join(thread, nullptr);

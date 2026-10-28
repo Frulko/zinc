@@ -1,0 +1,8 @@
+{
+  "name": "tracks",
+  "kind": "module",
+  "module": "zinc:tracks",
+  "entry": "index.ts",
+  "description": "The fixture of native records (ZN-850)",
+  "targets": { "macos": {}, "linux": {} }
+}

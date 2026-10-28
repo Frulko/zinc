@@ -249,6 +249,11 @@ function __nativeValue(s: string): unknown {
   const d: any = JSON.parse(s);
   return d;
 }
+// A record of a native spec (ZN-850): its bytes (include/zn/rec.h) from a Dyn view of the value, and back into a Dyn tree, by the schema text.
+// ponytail: a typed value is seen through DynRefs (the record, the items of a list), which the runtime cannot walk: it goes through its JSON text
+// first (NaN and Infinity become null, which a number field refuses); a typed encoder generated per record is the upgrade if parameters get large
+function __recEnc(v: unknown, s: string): u8[] { return __recEncode(JSON.parse(JSON.stringify(v)), s); }
+function __recDec(b: u8[], s: string): any { return __recDecode(b, s, __null); }
 function __nativeArgs(s: string): unknown[] {
   const r: unknown[] = [];
   const d: any = JSON.parse(s);

@@ -1330,8 +1330,25 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         std::string sig, params, args, wrapArgs, pre, post;   // pre/post: under a profile whose `number` is not f64, number[] arguments the module may fill travel in f64 copies that are copied back (ZN-229)
         const Profile* cp = currentProfile();
         const bool narrow = cp && cp->number != Num::f64;
+        // a record (ZN-850): bytes on the B letter, encoded from a Dyn view of the value and decoded into a Dyn tree that the declared type converts
+        // ponytail: two passes per record (the Dyn tree, then the checked conversion); decoding straight into the record's class is the upgrade
+        auto record = [&](std::uint32_t ty, const std::string& what) {
+          std::string rerr, rs = ty == kNone ? "" : recordSchema(pr.ast, text, ty, rerr);
+          if (!rerr.empty()) { bad(kZNativeTypeNotExpressible, what + " of '" + mname + "': " + rerr); ok = false; }
+          else if (!rs.empty() && cp && cp->strict) { bad(kZNativeTypeNotExpressible, what + " of '" + mname + "' is a record: records cross as Dyn values, which the strict profile '" + std::string(cp->name) + "' has not (use a gradual profile, or scalars and arrays)"); ok = false; }
+          return rs;
+        };
         for (std::size_t j = 2; j < mem.kids.size(); ++j) {
           std::uint32_t ty = pr.ast.nodes[mem.kids[j]].kids.empty() ? kNone : pr.ast.nodes[mem.kids[j]].kids[0];
+          std::string rs = record(ty, "parameter " + std::to_string(j - 1));
+          if (!ok) break;
+          if (!rs.empty()) {
+            std::string pn = "__p" + std::to_string(j - 2);
+            sig += "B";
+            params += (j > 2 ? ", " : "") + pn + ": " + text.substr(pr.ast.nodes[ty].start, pr.ast.nodes[ty].end - pr.ast.nodes[ty].start);
+            args += (j > 2 ? ", " : "") + std::string("__recEnc(") + pn + ", '" + rs + "')";
+            continue;
+          }
           std::string l = ty == kNone ? "" : nativeLetter(pr.ast, text, ty, false, true);
           if (l.empty() || l == "n") { bad(kZNativeTypeNotExpressible, "parameter " + std::to_string(j - 1) + " of '" + mname + "'"); ok = false; break; }
           sig += l;
@@ -1348,7 +1365,10 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         }
         if (!ok) break;
         std::uint32_t rty = mem.kids.empty() ? kNone : mem.kids[0];
-        std::string rl = nativeLetter(pr.ast, text, rty, true, true);
+        const bool promised = rty != kNone && pr.ast.nodes[rty].kind == N::TypeRef && pr.ast.nodes[rty].text == "Promise" && pr.ast.nodes[rty].kids.size() == 1;
+        std::string rs = record(promised ? pr.ast.nodes[rty].kids[0] : rty, "the result");
+        if (!ok) break;
+        std::string rl = !rs.empty() ? (promised ? "PB" : "B") : nativeLetter(pr.ast, text, rty, true, true);
         if (rl.empty()) { bad(kZNativeTypeNotExpressible, "the result of '" + mname + "'"); ok = false; break; }
         sig += ">" + rl;
         std::string rtext = rty == kNone ? "void" : text.substr(pr.ast.nodes[rty].start, pr.ast.nodes[rty].end - pr.ast.nodes[rty].start);
@@ -1357,11 +1377,13 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         if (rl[0] == 'P') {   // a promise: the native call gets the two closures that settle it, and the method wraps it in a Promise
           std::string inner = text.substr(pr.ast.nodes[pr.ast.nodes[rty].kids[0]].start, pr.ast.nodes[pr.ast.nodes[rty].kids[0]].end - pr.ast.nodes[pr.ast.nodes[rty].kids[0]].start);
           bool none = rl == "Pn";
-          call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + (args.empty() ? "" : ", ") + (none ? "() => { __res(); }" : "(__v: " + inner + ") => { __res(__v); }") + ", (__m: string) => { __rej(new Error(__m)); })";
+          std::string resolve = none ? "() => { __res(); }" : !rs.empty() ? "(__v: u8[]) => { __res(__recDec(__v, '" + rs + "') as " + inner + "); }" : "(__v: " + inner + ") => { __res(__v); }";
+          call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + (args.empty() ? "" : ", ") + resolve + ", (__m: string) => { __rej(new Error(__m)); })";
           body += "  " + mname + "(" + params + "): " + rtext + " { return new " + rtext + "((__res, __rej) => { " + call + "; }); }\n";
         } else {
           bool dynResult = rl == "s" && rtext.find("unknown") != std::string::npos;
           if (dynResult) call = "__nativeValue(" + call + ")";
+          if (!rs.empty()) call = "__recDec(" + call + ", '" + rs + "') as " + rtext;
           if (post.empty()) body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
           else body += "  " + mname + "(" + params + "): " + rtext + " { " + pre + (rl == "n" ? call + "; " + post + "}\n" : "const __r = " + call + "; " + post + "return __r; }\n");
         }
@@ -3153,7 +3175,7 @@ bool needsArena(const Ast& A) {
 // Dyn: `any`, `unknown`, `undefined` and JSON.parse bring the classes and helpers of dyn.cpp (with the console.log and JSON helpers they use).
 bool needsJson(const Ast& A) {
   for (const Node& x : A.nodes) {
-    if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && x.text == "undefined")) return true;
+    if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && (x.text == "undefined" || x.text == "__recDec" || x.text == "__recEnc"))) return true;   // __rec*: native records (ZN-850)
     if (x.kind == N::Member && x.text == "parse" && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "JSON") return true;
   }
   return false;

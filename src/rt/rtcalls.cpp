@@ -18,6 +18,7 @@
 #include "zn/host.h"
 #include "zn/native.h"
 #include "zn/native_sig.h"
+#include "zn/rec.h"
 
 namespace zn::host { HostCall hostGfx = nullptr; HostCall hostGl = nullptr; HostCall hostLayout = nullptr; HostCall hostSys = nullptr; void (*redraw)() = nullptr; HostFast hostFast[kHostFastRows] = {}; }
 static_assert(static_cast<int>(zn::Rt::Count) <= zn::host::kHostFastRows);
@@ -1020,6 +1021,131 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
   return nullptr;
 }
 
+// ---- native records (ZN-850, include/zn/rec.h): the bytes of a record (or a list or optional of records) as a Dyn tree, in one pass, and a Dyn value
+// as bytes. The spec's wrapper converts the tree to the declared type (the checked Dyn conversion), and gives a typed value as a Dyn view to encode.
+namespace {
+const rec::Schema* recSchema(const StrObj* text) {   // parsed once per schema text of the program
+  static std::unordered_map<std::string, rec::Schema> cache;
+  std::string k(text->data(), text->len);
+  auto it = cache.find(k);
+  if (it != cache.end()) return &it->second;
+  rec::Schema s;
+  if (!rec::parse(k, s)) return nullptr;
+  return &cache.emplace(std::move(k), std::move(s)).first->second;
+}
+
+struct RecDyn {
+  Machine& m;
+  Slot nullv;
+  std::unordered_map<const rec::Schema*, std::vector<StrObj*>> keys;   // the field names as strings, made once per call
+  ~RecDyn() { for (auto& [s, v] : keys) for (StrObj* k : v) m.release(k); }
+  StrObj* key(const rec::Schema& s, std::size_t i) {
+    std::vector<StrObj*>& v = keys[&s];
+    if (v.empty()) for (const std::string& n : s.names) v.push_back(m.newStr(n.data(), n.size()));
+    return v[i];
+  }
+  Slot node(const ClassRT* cls, Slot field) { Slot o = 0; if (op::newObject(m, cls->id, o)) return 0; reinterpret_cast<Obj*>(o)->fields()[0] = field; return o; }
+  Slot number(double d) { return node(m.dynNum, std::bit_cast<Slot>(d)); }
+  Slot string(const char* p, std::size_t n) { StrObj* s = m.newStr(p, n); Slot o = node(m.dynStr, P(s)); if (!o) m.release(s); return o; }
+  Slot list(rec::Reader* r, const rec::Schema& e, std::uint32_t n, const std::uint8_t* bytes) {   // B (bytes) or *T (r reads the items)
+    ArrObj* arr = m.newArr(m.dynItems);
+    arr->v.reserve(n);
+    for (std::uint32_t i = 0; i < n; ++i) {
+      Slot v = bytes ? number(bytes[i]) : value(*r, e);
+      if (!v) { m.release(arr); return 0; }
+      arr->v.push_back(v);
+    }
+    Slot o = node(m.dynArr, P(arr));
+    if (!o) m.release(arr);
+    return o;
+  }
+  // A record from its body; a field that starts past the end takes its default (a newer reader of an older writer).
+  Slot record(rec::Reader* body, const rec::Schema& s) {
+    Slot mapv = 0;
+    if (op::newObject(m, m.dynMap->id, mapv)) return 0;
+    auto* mo = M(mapv);
+    mo->t.kk = m.dynMap->keyKind;
+    mo->t.hasVals = true;
+    mo->t.keys.reserve(s.kids.size()); mo->t.vals.reserve(s.kids.size()); mo->t.dead.reserve(s.kids.size());
+    for (std::size_t i = 0; i < s.kids.size(); ++i) {
+      Slot v = body && body->more() ? value(*body, s.kids[i]) : fallback(s.kids[i]);
+      if (!v) { m.release(mo); return 0; }
+      StrObj* k = key(s, i);
+      m.retain(k);
+      mo->t.putNew(P(k), v);
+    }
+    Slot o = node(m.dynObj, mapv);
+    if (!o) m.release(mo);
+    return o;
+  }
+  Slot fallback(const rec::Schema& s) {
+    switch (s.k) {
+      case 'd': case 'i': case 'u': return number(0);
+      case 'b': return node(m.dynBool, 0);
+      case 's': return string("", 0);
+      case 'B': case '*': return list(nullptr, s, 0, nullptr);
+      case '?': m.retain(reinterpret_cast<Obj*>(nullv)); return nullv;
+      default: return record(nullptr, s);
+    }
+  }
+  Slot value(rec::Reader& r, const rec::Schema& s) {
+    switch (s.k) {
+      case 'd': { double d; return r.f64(d) ? number(d) : 0; }
+      case 'i': { std::int32_t i; return r.i32(i) ? number(i) : 0; }
+      case 'u': { std::uint32_t u; return r.u32(u) ? number(u) : 0; }
+      case 'b': { std::uint8_t b; return r.u8(b) ? node(m.dynBool, b != 0) : 0; }
+      case 's': { const std::uint8_t* p; std::uint32_t n; return r.bytes(p, n) ? string(reinterpret_cast<const char*>(p), n) : 0; }
+      case 'B': { const std::uint8_t* p; std::uint32_t n; return r.bytes(p, n) ? list(nullptr, s, n, p) : 0; }
+      case '*': { std::uint32_t n; return r.u32(n) && n <= static_cast<std::uint64_t>(r.end - r.p) ? list(&r, s.kids[0], n, nullptr) : 0; }
+      case '?': { std::uint8_t b; if (!r.u8(b)) return 0; if (b) return value(r, s.kids[0]); m.retain(reinterpret_cast<Obj*>(nullv)); return nullv; }
+      default: { rec::Reader body; return r.record(body) ? record(&body, s) : 0; }
+    }
+  }
+
+  // A Dyn value as the bytes of schema `s`; false with `err` naming what does not fit.
+  bool none(Slot v) const { auto* o = reinterpret_cast<Obj*>(v); return !o || v == nullv || o->cls == m.dynNull || o->cls == m.dynUndef; }
+  bool encode(Slot v, const rec::Schema& s, rec::Writer& w, std::string& err, const std::string& at) {
+    auto* o = reinterpret_cast<Obj*>(v);
+    auto wrong = [&](const char* what) { err = (at.empty() ? std::string("the value") : "'" + at + "'") + " is not " + what; return false; };
+    if (s.k == '?') { if (none(v)) { w.u8(0); return true; } w.u8(1); return encode(v, s.kids[0], w, err, at); }
+    if (none(v)) return wrong(s.k == '{' ? "a record (it is null or missing)" : "set (null or missing)");
+    switch (s.k) {
+      case 'd': case 'i': case 'u': {
+        if (o->cls != m.dynNum) return wrong("a number");
+        double d = std::bit_cast<double>(o->fields()[0]);
+        if (s.k == 'd') w.f64(d); else if (s.k == 'i') w.i32(static_cast<std::int32_t>(static_cast<std::int64_t>(d))); else w.u32(static_cast<std::uint32_t>(static_cast<std::int64_t>(d)));
+        return true;
+      }
+      case 'b': if (o->cls != m.dynBool) return wrong("a boolean"); w.u8(o->fields()[0] != 0); return true;
+      case 's': { if (o->cls != m.dynStr) return wrong("a string"); StrObj* t = S(o->fields()[0]); w.bytes(t ? t->data() : "", t ? t->len : 0); return true; }
+      case 'B': case '*': {
+        if (o->cls != m.dynArr) return wrong("an array");
+        ArrObj* items = A(o->fields()[0]);
+        w.u32(static_cast<std::uint32_t>(items->v.size()));
+        for (std::size_t i = 0; i < items->v.size(); ++i) {
+          if (s.k == '*') { if (!encode(items->v[i], s.kids[0], w, err, at + "[" + std::to_string(i) + "]")) return false; continue; }
+          auto* e = reinterpret_cast<Obj*>(items->v[i]);
+          if (!e || e->cls != m.dynNum) return wrong("an array of bytes");
+          w.u8(static_cast<std::uint8_t>(static_cast<std::int64_t>(std::bit_cast<double>(e->fields()[0]))));
+        }
+        return true;
+      }
+      default: {
+        if (o->cls != m.dynObj) return wrong("a record");
+        MapObj* mo = M(o->fields()[0]);
+        std::size_t start = w.begin();
+        for (std::size_t i = 0; i < s.kids.size(); ++i) {
+          std::int32_t e = mo->t.find(P(key(s, i)));
+          if (!encode(e >= 0 ? mo->t.vals[static_cast<std::size_t>(e)] : 0, s.kids[i], w, err, at.empty() ? s.names[i] : at + "." + s.names[i])) return false;
+        }
+        w.end(start);
+        return true;
+      }
+    }
+  }
+};
+}  // namespace
+
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (zn::host::HostFast f = zn::host::hostFast[static_cast<unsigned>(id)]) { f(a); return nullptr; }   // a hot scalar host row (ZN-397)
   if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
@@ -1355,6 +1481,35 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       if (v) { jb.ws(); if (jb.p != jb.end) { m.releaseSlot(v); v = 0; } }  // text after the value
       jb.dropCaches();
       a[0] = v;
+      return nullptr;
+    }
+    case Rt::RecDecode: case Rt::RecEncode: {
+      StrObj* text = S(a[1]);
+      NN(text);
+      const rec::Schema* s = recSchema(text);
+      if (!s) return "native record: a schema this engine cannot read";
+      if (!m.resolveDyn()) return "native records need the Dyn classes of the prelude";
+      if (id == Rt::RecDecode) {
+        ArrObj* b = A(a[0]);
+        NN(b);
+        std::vector<std::uint8_t> bytes(b->v.size());
+        for (std::size_t i = 0; i < bytes.size(); ++i) bytes[i] = static_cast<std::uint8_t>(b->v[i]);
+        rec::Reader r{bytes.data(), bytes.data() + bytes.size()};
+        RecDyn d{m, a[2], {}};
+        Slot v = d.value(r, *s);
+        if (!v) return "native record: the bytes do not match the record's schema";
+        a[0] = v;
+        return nullptr;
+      }
+      RecDyn d{m, 0, {}};
+      rec::Writer w;
+      static std::string err;
+      if (!d.encode(a[0], *s, w, err, "")) { err = "native record: " + err; return err.c_str(); }
+      const ClassRT* cls = arrayClassFor(m, 'B');
+      if (!cls) return "native record: the program has no u8[] class";
+      ArrObj* out = m.newArr(cls);
+      out->v.assign(w.out.begin(), w.out.end());
+      a[0] = P(out);
       return nullptr;
     }
     case Rt::DynGetFast: {  // d.name on a plain Dyn object, or the length of a Dyn array: no allocation but the result; 0 for everything else

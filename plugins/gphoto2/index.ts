@@ -2,13 +2,10 @@
 // capture, events and a JPEG live view decoded off the main thread into a runtime image (gfx.drawImage).
 // ZINC_FAKE_CAMERA=1 (or zinc.json plugins.gphoto2.fake) replaces the camera by a generated one; sim always does.
 import G from './native/gphoto2.spec';
+import type { CameraInfo } from './native/gphoto2.spec';
+export type { CameraInfo };
 
 const RS = '\u001e', FS = '\u001f';
-
-export class CameraInfo {
-  model: string; port: string;
-  constructor(model: string, port: string) { this.model = model; this.port = port; }
-}
 
 /** One leaf of the camera config tree. type: text | range | toggle | radio | menu | date | button */
 export class Widget {
@@ -24,11 +21,7 @@ function records(s: string): string[][] {
   return out;
 }
 
-export async function detect(): Promise<CameraInfo[]> {
-  const out: CameraInfo[] = [];
-  for (const f of records(await G.detect())) out.push(new CameraInfo(f[0], f[1]));
-  return out;
-}
+export function detect(): Promise<CameraInfo[]> { return G.detect(); }
 /** Opens a camera (model and port from detect(), or '' for the first one); resolves with the model name. */
 export function open(model: string, port: string): Promise<string> { return G.open(model, port); }
 export async function close(): Promise<void> { await G.close(); }

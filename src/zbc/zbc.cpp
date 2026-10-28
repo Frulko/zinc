@@ -462,7 +462,8 @@ struct Verifier {
           }
           if (!ok) return false;
         }
-        St argState = np > 1 ? s[base + 1] : 0;  // the state of the second argument, for a result that has its class
+        St argState = 0;  // the state of the last `x` argument (the second one of #jsonParse and the Dyn rows), for a result that has its class
+        for (unsigned k = 0; k < np; ++k) if (rtParam(ri, k) == 'x') argState = s[base + k];
         for (std::size_t r = base; r < s.size(); ++r) s[r] = 0;  // the callee's frame overlays everything from the window up
         char rl = rtRet(ri);
         std::uint32_t rcls = kNoCls;
@@ -478,6 +479,7 @@ struct Verifier {
           case 'A': case 'V': if (!rc) return fail(pc, "bad runtime signature"); rcls = findColl(CKind::Array, rc->elem); break;
           case 'K': if (!rc) return fail(pc, "bad runtime signature"); rcls = findColl(CKind::Array, rc->key); break;
           case 'S': rcls = findColl(CKind::Array, strT); break;
+          case 'B': rcls = findColl(CKind::Array, VType{Cls::I, 0}); break;   // bytes (#recEncode), as a native B result
           default: return fail(pc, "bad runtime signature");
         }
         if (rcls == kNoCls) return fail(pc, std::string("no array class for the result of ") + ri.name);

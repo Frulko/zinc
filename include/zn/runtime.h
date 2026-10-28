@@ -361,7 +361,10 @@
   /* zinc:socket connectTls (wss): a TLS client stream on the sockets of ZN-088; system row, appended */ \
   X(HostSockConnectTls, "host.sockConnectTls", "si>i", 2) \
   /* JSON.stringify of a string, over its UTF-8 bytes: the prelude's loop of charCodeAt was quadratic on non-ASCII text; appended */ \
-  X(StrJsonQuote, "string.#jsonQuote", "s>s", 2)
+  X(StrJsonQuote, "string.#jsonQuote", "s>s", 2) \
+  /* native records (ZN-850, include/zn/rec.h): a record's bytes as a Dyn tree by its schema text (the third argument is the Dyn null, as for */ \
+  /* #jsonParse), and a Dyn value as bytes; appended */ \
+  X(RecDecode, "string.#recDecode", "Bsx>r", 2) X(RecEncode, "string.#recEncode", "xs>B", 2)
 
 namespace zn {
 
@@ -400,7 +403,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
-inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote; }
+inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
 inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r) && !isCoreTailRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }

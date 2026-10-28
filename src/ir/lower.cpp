@@ -1916,6 +1916,13 @@ struct Lowering::FnLower {
         TypeId t = tv(vs[1]);   // before the move: GCC on x86-64 builds the by-value argument first, and vs is empty by then
         return emit(IrOp::Rt, t, std::move(vs), 0, 0, static_cast<std::uint32_t>(id));
       }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__recDecode" || callee.text == "__recEncode")) {   // native records (ZN-850)
+        const bool dec = callee.text == "__recDecode";
+        std::vector<ValueId> vs;
+        for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(k == 2 ? exprTo(x.kids[k], m.strT()) : expr(x.kids[k]));   // the schema text is the second argument of both
+        TypeId t = dec ? tv(vs[2]) : m.arrayT(m.numT(NumK::u8));   // a decoded tree has the class of the Dyn null it was given
+        return emit(IrOp::Rt, t, std::move(vs), 0, 0, static_cast<std::uint32_t>(dec ? zn::Rt::RecDecode : zn::Rt::RecEncode));
+      }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__host_", 0) == 0) {  // a function of the host (runtime.h, owner "host")
         for (const RtInfo& r : kRtInfo) {
           if (!rtOwnedBy(r, "host") || callee.text.substr(7) != rtMember(r)) continue;

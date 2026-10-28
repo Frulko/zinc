@@ -101,6 +101,34 @@ if a target has no implementation.
 The plugin's native build settings go in `plugin.json` `targets.<id>` (see the reference below): `sources`, `pkg`,
 `frameworks`, `libs`, `defines`, `idf`/`idfComponents` (ESP-IDF).
 
+### Records
+
+A spec may declare interfaces and use them as parameters and results, in lists, as `T | null` or `x?:` fields, nested, and in a
+`Promise`. Fields are `number`/`f64`, `i32`, `u32`, `boolean`, `string`, `u8[]`, arrays, optionals and other interfaces of the spec file.
+
+```ts
+// native/music.spec.ts
+export interface Art { w: i32; h: i32; }
+export interface Track { title: string; ms: number; art: Art | null; tags: string[]; note?: string; }
+interface Spec extends NativeModule { tracks(): Promise<Track[]>; play(t: Track): void; }
+export default requireNative<Spec>('Music');
+```
+
+The generated header has one plain struct per record (`std::string`, `std::vector`, `std::optional`, `double`, `int32_t`, `uint32_t`, `bool`),
+and the method takes and returns the record's bytes. Encode on the worker, hand the bytes to the loop:
+
+```cpp
+std::vector<Track> list = scan();                                    // worker thread: std types only, no Zinc heap
+std::vector<uint8_t> bytes = zn::rec::encode(list);
+// ... on the program's thread (a zrt::Poller): pending.p->resolve(zn::rec::array(bytes));
+void play(zrt::Array<uint8_t> b) override { Track t; if (zn::rec::read(b, t)) start(t.title); }
+```
+
+The wire (`include/zn/rec.h`) is little-endian with no keys: numbers at their width, strings and `u8[]` as a u32 length and the bytes, a list as
+a u32 count and the items, an optional as one byte and the value, a record as a u32 length and its fields in declaration order. To evolve a
+record, only append fields: an older reader skips the fields it does not know, a newer reader gives the missing ones their default (0, false,
+"", [], null). The program sees typed objects on every engine; records need a gradual profile (the strict ones refuse them with Z5010).
+
 ## Kind 3 — UI component plugin
 
 A module plugin can export UI components — they are just functions returning a node handle (`i32`), so they compose in

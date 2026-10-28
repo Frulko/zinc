@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Native plugins: a spec can declare interfaces and pass them, in lists, optional or nested, as parameters, results and promise results; the generated C++ header has a plain struct per record with `zn::rec::encode`/`decode`, safe on a worker thread, and fields appended later stay readable both ways (docs/guide/05-plugins.md, "Records"). `zinc:gphoto2`'s `detect()` uses it.
 - `zinc:carplay` forwards two simultaneous touch contacts with stable finger slots and supports day/night appearance through `setNightMode`; the demo includes a Day/Night button.
 - Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB and microphone uplink are not implemented yet.
 - reMarkable: Sidecar shows a Mac's screen on the tablet over USB, as a second display (Retina, 1:1 or a chosen size) or a mirror, in fast black and white: open Sidecar on the tablet, then run `app/sidecar/mac/build.sh` and `build/sidecar` on the Mac.

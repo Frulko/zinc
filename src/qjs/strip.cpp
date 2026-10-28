@@ -12,6 +12,7 @@
 #include "frontend/diagnostics.h"
 #include "frontend/jsx.h"
 #include "frontend/modules.h"
+#include "frontend/native_gen.h"
 #include "frontend/parser.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
@@ -278,6 +279,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   std::vector<Diag> diags;
   std::vector<SrcPiece> map;
   if (uiPreset() == "react-native") text = rewriteReactNativeImports(text, tsx);   // as the typed loader does (ZN-367.05)
+  if (text.find("requireNative<") != std::string::npos) text = recordSchemasForJs(text);   // the record schemas of a native spec (ZN-850), before the types are erased
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;

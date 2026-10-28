@@ -1,10 +1,14 @@
 // zinc:gphoto2 native side. Every blocking libgphoto2 call runs on one worker thread (the only owner of the
-// Camera); results come back through the event loop. Records use \u001e between items and \u001f between fields.
+// Camera); results come back through the event loop. detect() returns typed records (ZN-850); the config text still uses \u001e between
+// items and \u001f between fields.
 import { NativeModule, requireNative } from 'zinc:native';
 
+/** An auto-detected camera: its model name and its port (usb:001,004). */
+export interface CameraInfo { model: string; port: string; }
+
 export interface Spec extends NativeModule {
-  /** Auto-detected cameras: model \u001f port records. */
-  detect(): Promise<string>;
+  /** Auto-detected cameras. */
+  detect(): Promise<CameraInfo[]>;
   /** Opens a camera ('' = first detected); resolves with its model name. */
   open(model: string, port: string): Promise<string>;
   close(): Promise<string>;

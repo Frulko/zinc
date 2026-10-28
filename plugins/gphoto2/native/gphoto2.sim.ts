@@ -4,6 +4,8 @@ import { createImage, destroyImage } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 
 const FS = '\u001f', RS = '\u001e';
+/** The record of gphoto2.spec.ts (this file stands in for it). */
+export interface CameraInfo { model: string; port: string; }
 const W = [
   ['/main/imgsettings/iso', 'ISO Speed', 'radio', 'Auto|100|200|400|800|1600|3200|6400', 0],
   ['/main/capturesettings/aperture', 'Aperture', 'radio', '2.8|3.5|4|4.5|5.6|6.3|8|11|16', 4],
@@ -27,7 +29,7 @@ const local = (dir: string, p: string) => dir + '/' + p.slice(p.lastIndexOf('/')
 
 export default {
   // ZINC_FAKE_CAMERA=0 asks for the real detection of libgphoto2 (none on a machine without a camera): the sim answers as it does, so the golden of examples/camera/remote is one picture everywhere
-  detect: () => Promise.resolve(sys.env('ZINC_FAKE_CAMERA') === '0' ? '' : 'Zinc Fake Camera' + FS + 'usb:fake'),
+  detect: (): Promise<CameraInfo[]> => { const l: CameraInfo[] = []; if (sys.env('ZINC_FAKE_CAMERA') !== '0') l.push({ model: 'Zinc Fake Camera', port: 'usb:fake' }); return Promise.resolve(l); },
   open: (_m: string, _p: string) => { open = true; return Promise.resolve('Zinc Fake Camera'); },
   close: () => { open = false; live = false; return Promise.resolve(''); },
   summary: () => open ? Promise.resolve('Manufacturer: Zinc\nModel: Zinc Fake Camera\nVersion: 1.0\nSerial Number: 0000000001\nVendor Extension: generated frames (ZINC_FAKE_CAMERA)\n') : fail('no camera open'),

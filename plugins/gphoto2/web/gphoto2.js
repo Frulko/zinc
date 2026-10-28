@@ -152,7 +152,7 @@ const widgets = async () => {
   return out.join(RS);
 };
 Z.registerNative('Gphoto2', {
-  async detect() { need(); return (await cameras()).map((d) => nameOf(d) + FS + portOf(d)).join(RS); },
+  async detect() { need(); return (await cameras()).map((d) => ({ model: nameOf(d), port: portOf(d) })); },
   async open(m, port) {
     need();
     const list = await cameras();

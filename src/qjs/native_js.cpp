@@ -20,14 +20,29 @@
 #include "frontend/modules.h"
 #include "zn/native.h"
 #include "zn/native_sig.h"
+#include "zn/rec.h"
 
 namespace zn::qjs {
 
 // 'zinc:native' for this engine. NativeModule is a type in the spec files; a module cannot import a name that is not exported.
 const char* kNativeModule =
     "export const NativeModule = undefined;\n"
-    "export function requireNative(name) {\n"
-    "  return new Proxy({}, { get(t, k) { return typeof k !== 'string' ? undefined : k in t ? t[k] : (t[k] = __nativeFn(name, k)); } });\n"
+    "export function requireNative(name, rec) {\n"   // rec: the record schemas of the spec's members (recordSchemasForJs, ZN-850)
+    "  return new Proxy({}, { get(t, k) {\n"
+    "    if (typeof k !== 'string') return undefined;\n"
+    "    if (k in t) return t[k];\n"
+    "    let f = __nativeFn(name, k);\n"
+    "    const s = rec && rec[k];\n"
+    "    if (f && s) {\n"
+    "      const g = f, n = s.length - 1, r = s[n];\n"
+    "      f = (...a) => {\n"
+    "        for (let i = 0; i < n; i++) if (s[i]) a[i] = __recEncode(a[i], s[i]);\n"
+    "        const v = g(...a);\n"
+    "        return !r ? v : v instanceof Promise ? v.then((x) => __recDecode(x, r)) : __recDecode(v, r);\n"
+    "      };\n"
+    "    }\n"
+    "    return (t[k] = f);\n"
+    "  } });\n"
     "}\n";
 
 namespace {
@@ -343,6 +358,129 @@ napi_value nativeFn(napi_env env, napi_callback_info info) {
   return fn;
 }
 
+// ---- native records (ZN-850, include/zn/rec.h): __recDecode(bytes, schema) builds the object graph in one native call (the fields of every record
+// set in the same order, so the objects of a list share one shape); __recEncode(value, schema) is the reverse. As the typed engines do (src/rt/rtcalls.cpp).
+const rec::Schema* recSchema(const std::string& text) {
+  static std::unordered_map<std::string, rec::Schema> cache;
+  auto it = cache.find(text);
+  if (it != cache.end()) return &it->second;
+  rec::Schema s;
+  if (!rec::parse(text, s)) return nullptr;
+  return &cache.emplace(text, std::move(s)).first->second;
+}
+
+struct RecJs {
+  napi_env env;
+  std::unordered_map<const rec::Schema*, std::vector<napi_value>> keys;   // the field names of the call, made once
+  napi_value key(const rec::Schema& s, std::size_t i) {
+    std::vector<napi_value>& v = keys[&s];
+    if (v.empty()) for (const std::string& n : s.names) { napi_value k; napi_create_string_utf8(env, n.data(), n.size(), &k); v.push_back(k); }
+    return v[i];
+  }
+  napi_value num(double d) { napi_value r; napi_create_double(env, d, &r); return r; }
+  napi_value str(const void* p, std::size_t n) { napi_value r; napi_create_string_utf8(env, static_cast<const char*>(p), n, &r); return r; }
+  napi_value list(rec::Reader* r, const rec::Schema& e, std::uint32_t n, const std::uint8_t* bytes) {
+    if (bytes) return typed(env, 'B', ZnView{bytes, n});   // u8[]: a Uint8Array, as a B result is
+    napi_value arr;
+    napi_create_array_with_length(env, n, &arr);
+    for (std::uint32_t i = 0; i < n; ++i) { napi_value v = r ? value(*r, e) : nullptr; if (!v) return nullptr; napi_set_element(env, arr, i, v); }
+    return arr;
+  }
+  napi_value record(rec::Reader* body, const rec::Schema& s) {
+    napi_value o;
+    napi_create_object(env, &o);
+    for (std::size_t i = 0; i < s.kids.size(); ++i) {
+      napi_value v = body && body->more() ? value(*body, s.kids[i]) : fallback(s.kids[i]);
+      if (!v) return nullptr;
+      napi_set_property(env, o, key(s, i), v);
+    }
+    return o;
+  }
+  napi_value fallback(const rec::Schema& s) {   // a field past the end of an older writer's record
+    napi_value r;
+    switch (s.k) {
+      case 'd': case 'i': case 'u': return num(0);
+      case 'b': napi_get_boolean(env, false, &r); return r;
+      case 's': return str("", 0);
+      case 'B': return list(nullptr, s, 0, reinterpret_cast<const std::uint8_t*>(""));
+      case '*': return list(nullptr, s, 0, nullptr);
+      case '?': napi_get_null(env, &r); return r;
+      default: return record(nullptr, s);
+    }
+  }
+  napi_value value(rec::Reader& r, const rec::Schema& s) {
+    switch (s.k) {
+      case 'd': { double d; return r.f64(d) ? num(d) : nullptr; }
+      case 'i': { std::int32_t i; return r.i32(i) ? num(i) : nullptr; }
+      case 'u': { std::uint32_t u; return r.u32(u) ? num(u) : nullptr; }
+      case 'b': { std::uint8_t b; napi_value v; if (!r.u8(b)) return nullptr; napi_get_boolean(env, b != 0, &v); return v; }
+      case 's': { const std::uint8_t* p; std::uint32_t n; return r.bytes(p, n) ? str(p, n) : nullptr; }
+      case 'B': { const std::uint8_t* p; std::uint32_t n; return r.bytes(p, n) ? list(nullptr, s, n, p) : nullptr; }
+      case '*': { std::uint32_t n; return r.u32(n) && n <= static_cast<std::uint64_t>(r.end - r.p) ? list(&r, s.kids[0], n, nullptr) : nullptr; }
+      case '?': { std::uint8_t b; napi_value v; if (!r.u8(b)) return nullptr; if (b) return value(r, s.kids[0]); napi_get_null(env, &v); return v; }
+      default: { rec::Reader body; return r.record(body) ? record(&body, s) : nullptr; }
+    }
+  }
+  bool encode(napi_value v, const rec::Schema& s, rec::Writer& w, std::string& err, const std::string& at) {
+    napi_valuetype t = napi_undefined;
+    napi_typeof(env, v, &t);
+    auto wrong = [&](const char* what) { err = (at.empty() ? std::string("the value") : "'" + at + "'") + " is not " + what; return false; };
+    if (s.k == '?') { if (t == napi_null || t == napi_undefined) { w.u8(0); return true; } w.u8(1); return encode(v, s.kids[0], w, err, at); }
+    switch (s.k) {
+      case 'd': case 'i': case 'u': {
+        double d;
+        if (t != napi_number || napi_get_value_double(env, v, &d) != napi_ok) return wrong("a number");
+        if (s.k == 'd') w.f64(d); else if (s.k == 'i') w.i32(static_cast<std::int32_t>(static_cast<std::int64_t>(d))); else w.u32(static_cast<std::uint32_t>(static_cast<std::int64_t>(d)));
+        return true;
+      }
+      case 'b': { bool b; if (t != napi_boolean || napi_get_value_bool(env, v, &b) != napi_ok) return wrong("a boolean"); w.u8(b); return true; }
+      case 's': { std::string x; if (t != napi_string || !text(env, v, x)) return wrong("a string"); w.bytes(x.data(), x.size()); return true; }
+      case 'B': { std::vector<std::uint8_t> b; if (t != napi_object || !pack(env, v, 'B', b)) return wrong("an array of bytes"); w.bytes(b.data(), b.size()); return true; }
+      case '*': {
+        bool isArr = false;
+        std::uint32_t n = 0;
+        if (napi_is_array(env, v, &isArr) != napi_ok || !isArr || napi_get_array_length(env, v, &n) != napi_ok) return wrong("an array");
+        w.u32(n);
+        for (std::uint32_t i = 0; i < n; ++i) { napi_value e; napi_get_element(env, v, i, &e); if (!encode(e, s.kids[0], w, err, at + "[" + std::to_string(i) + "]")) return false; }
+        return true;
+      }
+      default: {
+        if (t != napi_object) return wrong("a record");
+        std::size_t start = w.begin();
+        for (std::size_t i = 0; i < s.kids.size(); ++i) {
+          napi_value f;
+          napi_get_property(env, v, key(s, i), &f);
+          if (!encode(f, s.kids[i], w, err, at.empty() ? s.names[i] : at + "." + s.names[i])) return false;
+        }
+        w.end(start);
+        return true;
+      }
+    }
+  }
+};
+
+napi_value recCall(napi_env env, napi_callback_info info) {
+  std::size_t argc = 2;
+  napi_value argv[2];
+  void* data = nullptr;
+  napi_get_cb_info(env, info, &argc, argv, nullptr, &data);
+  std::string schema;
+  const rec::Schema* s = argc == 2 && text(env, argv[1], schema) ? recSchema(schema) : nullptr;
+  if (!s) return throwAs(env, "TypeError", "native record: a schema this engine cannot read");
+  RecJs rj{env, {}};
+  if (data) {   // __recEncode
+    rec::Writer w;
+    std::string err;
+    if (!rj.encode(argv[0], *s, w, err, "")) return throwAs(env, "TypeError", "native record: " + err);
+    return typed(env, 'B', ZnView{w.out.data(), static_cast<std::uint32_t>(w.out.size())});
+  }
+  std::vector<std::uint8_t> bytes;
+  if (!pack(env, argv[0], 'B', bytes)) return nullptr;
+  rec::Reader r{bytes.data(), bytes.data() + bytes.size()};
+  napi_value v = rj.value(r, *s);
+  return v ? v : throwAs(env, "TypeError", "native record: the bytes do not match the record's schema");
+}
+
 }  // namespace
 
 void installNative(napi_env env) {
@@ -350,6 +488,10 @@ void installNative(napi_env env) {
   napi_get_global(env, &g);
   napi_create_function(env, "__nativeFn", NAPI_AUTO_LENGTH, nativeFn, nullptr, &fn);
   napi_set_named_property(env, g, "__nativeFn", fn);
+  napi_create_function(env, "__recDecode", NAPI_AUTO_LENGTH, recCall, nullptr, &fn);
+  napi_set_named_property(env, g, "__recDecode", fn);
+  napi_create_function(env, "__recEncode", NAPI_AUTO_LENGTH, recCall, reinterpret_cast<void*>(1), &fn);
+  napi_set_named_property(env, g, "__recEncode", fn);
   ZnSink sink{nullptr, sinkResolve, sinkReject, sinkCall, sinkRelease, sinkError, sinkHold};
   zn_native_set_sink(&sink);
 }

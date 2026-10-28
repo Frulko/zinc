@@ -13,6 +13,13 @@ std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty
 // With `dyn` (the spec lowering of the program, not the thunk generator) `unknown` and `unknown[]` are carried as JSON text (letter "s") and DynFunction as c(s>s): the generated
 // wrapper converts with __nativeJson, __nativeValue and __nativeArgs of the Dyn prelude.
 
+// Records (ZN-850, include/zn/rec.h): the schema text of a spec type that holds an interface of the file (`Track`, `Track[]`, `Track | null`), which then
+// crosses as bytes on the "B" letter; "" when the type holds no record. "" with `err` when a record holds a type the wire has no form for.
+std::string recordSchema(const Ast& a, const std::string& text, std::uint32_t ty, std::string& err);
+// The JavaScript engines (src/qjs): `requireNative<Spec>('X')` of a spec file with records becomes `requireNative<Spec>('X', { member: ['<schema of each
+// parameter>', ..., '<schema of the result>'] })` ('' for a value that is not a record), so 'zinc:native' encodes and decodes those members.
+std::string recordSchemasForJs(const std::string& text);
+
 struct NativeGen {
   std::string name;        // 'Sensor' in requireNative<Spec>('Sensor')
   std::string cppHeader;   // zinc_native_<name lower>.h
