@@ -2796,6 +2796,7 @@ class PromiseBase {
     this.settle();
   }
 }
+class __Void { }   // what a generic class made with T = void holds in its place (Promise<T> of fail<void>()): nothing ever has this type
 class Promise<T> extends PromiseBase {
   value: T[] = [];
   constructor(executor: (resolve: (value: T) => void, reject: (e: Error) => void) => void) {

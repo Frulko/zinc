@@ -941,6 +941,19 @@ struct Parser {
     std::vector<std::uint32_t> ds{declarator()};
     while (eatP(",")) ds.push_back(declarator());
     if (needSemi) semi();
+    if (kind == "const" && ds.size() == 1) {   // `const id = <T>(v: T): T => v`: a generic function under that name (it can only be called, as a generic function)
+      Node& d = r.ast.nodes[ds[0]];
+      std::uint32_t init = d.kids.size() == 2 && d.kids[0] == kNone ? d.kids[1] : kNone;
+      auto tp = init != kNone && r.ast.nodes[init].kind == N::FuncExpr ? r.ast.tparams.find(init) : r.ast.tparams.end();
+      if (tp != r.ast.tparams.end()) {
+        Node& fn = r.ast.nodes[init];
+        fn.kind = N::Function;
+        fn.text = d.text;
+        fn.start = st;
+        fn.flags &= ~kFlagArrow;
+        return init;
+      }
+    }
     return mk(N::VarDecl, st, prevEnd(), kind, std::move(ds));
   }
 

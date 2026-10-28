@@ -12,7 +12,7 @@ cp tests/golden/qjs/shapes.ts "$tmp/"
 sed -e '/await/d' -e '/cjs/d' -e 's/, value + 1//' tests/golden/qjs/ts_syntax.ts > "$tmp/typed.ts"
 "$ZINC" check "$tmp/typed.ts" > "$tmp/typed.out" 2>&1
 ! grep -q "Z000[12]" "$tmp/typed.out" || { echo "TypeScript type syntax is a syntax error on the typed engines"; fail=1; }
-for w in "intersection types" "indexed access types" "generic arrow functions" "object rest patterns" "index signature types"; do
+for w in "intersection types" "indexed access types" "object rest patterns" "index signature types"; do
   grep -q "Z0005: Syntax not supported yet: $w" "$tmp/typed.out" || { echo "the typed engines do not report '$w'"; fail=1; }
 done
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.js"

@@ -323,6 +323,7 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && !bad(from) && name(from) == "Promise<__Void>" && promiseKind(to) == 2) { asPromiseV(node, from); return true; }   // fail<void>(): generic code made it with T = void
     if (node != kNone && thunkable(from, to)) {
       const Type f = ty(from), t = ty(to);
       std::string ps, call;
@@ -350,10 +351,6 @@ struct Checker {
       std::uint32_t sym = helper("widen," + std::to_string(from) + "," + std::to_string(to), "function $F(r: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return { " + body + " };\n}\n", {from, to}, node);
       wrapNode(node, sym);
       return true;
-    }
-    if (name(to) == "PromiseV" && name(from) == "Promise<void>") {   // ponytail: Promise<void> is its own class (PromiseV); a generic one made with T = void is not it yet
-      diag(kZNotAssignable, node, "a Promise<T> made by generic code with T = void is not yet a Promise<void>: give that call its own function that returns Promise<void>");
-      return false;
     }
     diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}});
     return false;
@@ -652,6 +649,14 @@ struct Checker {
     out.nodeType[i] = t;
     return t;
   }
+  // A Promise<T> that generic code made with T = void (fail<void>(), Promise.reject<void>(e); a Promise<__Void>, see instantiateClass) where the program's
+  // Promise<void> is wanted (the class PromiseV of async functions): a promise of that class that settles when it does (one microtask later).
+  TypeId asPromiseV(std::uint32_t i, TypeId t) {
+    std::uint32_t sym = helper("promiseV," + std::to_string(t), "function $F(p: " + inspectAliasName(t) + "): PromiseV {\n  const r = __newPromiseV();\n  p.subscribe(new FnJob((): void => {\n    const e = p.error;\n    if (e !== null) r.rejectWith(e); else r.resolveWith();\n  }));\n  return r;\n}\n", {t}, i);
+    out.nodeType[i] = t;
+    wrapNode(i, sym);
+    return out.nodeType[i];
+  }
 
   // Arithmetic result kind, ported from compiler/src/sema.ts `arith` (LNG-05), number type = f64.
   Num arith(const std::string& op, std::uint32_t le, Num lm, std::uint32_t re, Num rm) {
@@ -699,6 +704,8 @@ struct Checker {
     const std::string op(x.text);
     std::uint32_t le = x.kids[0], re = x.kids[1];
     if (op == ",") { expr(le); return expr(re, expected0); }   // the right operand is the value: it takes the wanted type, as in TypeScript
+    const bool cond = (op == "&&" || op == "||") && condNodes.count(i);   // `if (s && n > 0)`: each operand is a condition
+    if (cond) { condNodes.insert(le); condNodes.insert(re); }
     if (op == "in") {
       TypeId rt0 = expr(re);
       if (!rawDyn() && isDyn(rt0) && replaceWith(i, "__dynIn(__H0, __H1)", {{le}, {re}})) return expr0(i, expected0);
@@ -756,13 +763,13 @@ struct Checker {
     }
     TypeId l = expr(le), r;
     if (op == "&&" || op == "||") {  // the right operand is evaluated under what the left one established
-      if (!bad(l)) l = truthiness(le, l);  // `a && b` on a nullable reference tests it
+      if (!bad(l)) l = truthiness(le, l, cond);  // `a && b` on a nullable reference tests it
       std::vector<Fact> fs;
       factsOf(le, op == "&&", fs);
       std::size_t mark = narrowing.size();
       pushFacts(fs);
       r = expr(re);
-      if (!bad(r)) r = truthiness(re, r);
+      if (!bad(r)) r = truthiness(re, r, cond);
       narrowing.resize(mark);
     } else r = expr(re);
     if ((op == "<" || op == ">" || op == "<=" || op == ">=" || op == "-" || op == "*" || op == "/" || op == "%") && !bad(l) && !bad(r)) {   // an object with valueOf(): number (a Date) counts as that number, as in JavaScript
@@ -1479,6 +1486,69 @@ struct Checker {
         }
       }
     }
+    if (cn.kind == N::Member && cn.text == "toString" && args.size() == 1 && n(cn.kids[0]).kind != N::Super) {   // n.toString(radix): V8's DoubleToRadixCString, so the digits are the ones JavaScript prints
+      std::uint32_t recv = cn.kids[0];
+      TypeId rt = expr(recv);
+      if (!bad(rt) && ty(rt).k == TK::Num) {
+        // ponytail: a radix outside 2..36 is not a RangeError here (the error classes are only in programs that mention them)
+        std::uint32_t sym = helper("numToStringRadix", R"ZN(function $F(x: f64, radix: f64): string {
+  if (radix === 10 || x !== x || x - x !== 0 || x === 0) return x === 0 ? '0' : x.toString();
+  const ds = '0123456789abcdefghijklmnopqrstuvwxyz';
+  const neg = x < 0;
+  const v = neg ? -x : x;
+  let ip = Math.floor(v);
+  let fr = v - ip;
+  let p = Math.pow(2, Math.floor(Math.log2(v)));
+  while (p > v) p = p / 2;
+  while (p * 2 <= v) p = p * 2;
+  let delta = Math.max(p * 1.1102230246251565e-16, 5e-324);
+  const fd: i32[] = [];
+  if (fr >= delta) {
+    while (true) {
+      fr = fr * radix;
+      delta = delta * radix;
+      const d = Math.floor(fr) as i32;
+      fd.push(d);
+      fr = fr - d;
+      if ((fr > 0.5 || (fr === 0.5 && (d & 1) === 1)) && fr + delta > 1) {
+        while (true) {
+          if (fd.length === 0) { ip = ip + 1; break; }
+          const last = fd.pop();
+          if (last + 1 < radix) { fd.push(last + 1); break; }
+        }
+        break;
+      }
+      if (fr < delta) break;
+    }
+  }
+  let s = '';
+  while (ip / radix >= 9007199254740992) { ip = ip / radix; s = s + '0'; }
+  let digits = '';
+  while (true) {
+    const r = ip % radix;
+    digits = ds.charAt(r as i32) + digits;
+    ip = (ip - r) / radix;
+    if (ip <= 0) break;
+  }
+  s = digits + s;
+  if (fd.length > 0) {
+    s = s + '.';
+    for (const d of fd) s = s + ds.charAt(d);
+  }
+  return neg ? '-' + s : s;
+}
+)ZN", {}, i);
+        std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        TypeId at = expr(args[0]);
+        if (!bad(at) && ty(at).k != TK::Num) require(at, num(Num::f64), args[0]);
+        a.nodes[i].kids = {id, recv, args[0]};
+        rewritten.insert(i);
+        out.nodeType[i] = tStr;
+        return tStr;
+      }
+    }
     if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
       if (args.size() > 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "0-1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       std::string nm(cn.text);
@@ -1679,7 +1749,9 @@ struct Checker {
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
-      int pk = promiseKind(expr(obj));
+      TypeId ot = expr(obj);
+      if (n(x.kids[0]).text != "then" && !bad(ot) && name(ot) == "Promise<__Void>" && lookup("PromiseV") != kNone) ot = asPromiseV(obj, ot);   // fail<void>().catch(e => {...}): a callback that returns nothing, as for a Promise<void>
+      int pk = promiseKind(ot);
       if (pk != 0) {
         bool then = n(x.kids[0]).text == "then";
         bool fin = n(x.kids[0]).text == "finally";
@@ -1767,7 +1839,7 @@ struct Checker {
           argNodes.assign(n(i).kids.begin() + 1, n(i).kids.end());
           packed = true;
         }
-        if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i)) {  // Promise.resolve(p) is p itself
+        if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i) && !recordLiteral(argNodes[0]) && n(argNodes[0]).kind != N::Array && n(argNodes[0]).kind != N::FuncExpr) {  // Promise.resolve(p) is p itself (a literal waits for the type the call is expected to give)
           TypeId at0 = expr(argNodes[0]);
           if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
         }
@@ -2044,12 +2116,13 @@ struct Checker {
           const std::uint32_t s = lookup(n(x.kids[0]).text);
           if (s != kNone && (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) && replaceWith(i, "'function'", {})) return expr0(i, expected);
         }
+        if (op == "!") condNodes.insert(x.kids[0]);
         TypeId t = expr(x.kids[0]);
         if (!rawDyn() && isDyn(t) && (op == "!" || op == "-" || op == "+")) {
           const char* call = op == "!" ? "!__dynTruthy(__H0)" : op == "-" ? "__dynNeg(__H0)" : "__dynPos(__H0)";
           if (replaceWith(i, call, {{x.kids[0]}})) return expr0(i, expected);
         }
-        if (op == "!" && !bad(t)) t = truthiness(x.kids[0], t);  // `!p` on a nullable: not present (or falsy)
+        if (op == "!" && !bad(t)) t = truthiness(x.kids[0], t, true);  // `!p` on a nullable: not present (or falsy)
         if (op != "typeof" && op != "void" && op != "delete") t = appOrDiag(t, x.kids[0]);
         if (bad(t)) return op == "!" ? tBool : tError;
         if (op == "!") { if (t != tBool) diag(kZNotAssignable, x.kids[0], "diag.detail.assign", {{"from", name(t)}, {"to", "boolean"}}); return tBool; }
@@ -2202,7 +2275,8 @@ struct Checker {
         return tt;
       }
       case N::Cond: {
-        TypeId c = truthiness(x.kids[0], expr(x.kids[0]));
+        condNodes.insert(x.kids[0]);
+        TypeId c = truthiness(x.kids[0], expr(x.kids[0]), true);
         if (!bad(c) && c != tBool) diag(kZNotAssignable, x.kids[0], "diag.detail.assign", {{"from", name(c)}, {"to", "boolean"}});
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft); factsOf(x.kids[0], false, ff);
@@ -2466,15 +2540,20 @@ struct Checker {
 
   // `if (x)` on a value that may be null (an object, array, function or string): true when it is there (and not the empty string); written as
   // the comparison it stands for, which the narrowing already understands. Only for names and property paths (they are read twice).
-  TypeId truthiness(std::uint32_t e, TypeId t) {
-    if (bad(t) || t == tBool || !hasNull(t)) return t;
-    TypeId inner = withoutNull(t);
+  // `plain`: a condition (if, ?:, !), where a string or a number that cannot be null tests as JavaScript does too ('' and 0 and NaN are false).
+  TypeId truthiness(std::uint32_t e, TypeId t, bool plain = false) {
+    if (bad(t) || t == tBool) return t;
+    if (!hasNull(t)) {
+      if (!plain || (t != tStr && ty(t).k != TK::Num)) return t;
+      if (t == tStr) return replaceWith(e, "(__H0.length > 0)", {{cloneNode(e, false)}}) ? expr(e) : t;
+    }
+    TypeId inner = hasNull(t) ? withoutNull(t) : t;
     if (inner == kNoType || bad(inner)) return t;
     TK k = ty(inner).k;
     bool str = inner == tStr;
     if (!pureCallee(e) && !(inner == tBool || k == TK::Num)) return t;
     if (inner == tBool || k == TK::Num) {  // a nullable boolean or number: present and true, or present and not 0 or NaN (a generated test: the operand may be a call)
-      std::uint32_t sym = helper("truthy," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): boolean {\n  return " + (inner == tBool ? "v === true" : "v !== null && v !== 0 && v === v") + ";\n}\n", {t}, e);
+      std::uint32_t sym = helper("truthy," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): boolean {\n  return " + (inner == tBool ? "v === true" : t == inner ? "v !== 0 && v === v" : "v !== null && v !== 0 && v === v") + ";\n}\n", {t}, e);
       std::uint32_t orig = static_cast<std::uint32_t>(a.nodes.size());  // the operand moves to a node of its own, the call takes its place
       a.nodes.push_back(a.nodes[e]);
       out.nodeType.push_back(out.nodeType[e]);
@@ -2493,8 +2572,10 @@ struct Checker {
     if (!replaceWith(e, str ? "(__H0 !== null && __H1 !== '')" : "(__H0 !== null)", holes)) return t;
     return expr(e);
   }
+  std::set<std::uint32_t> condNodes;   // the expressions tested as conditions, and the operands of && and || among them
   TypeId condition(std::uint32_t e) {
-    TypeId t = truthiness(e, expr(e));
+    condNodes.insert(e);
+    TypeId t = truthiness(e, expr(e), true);
     if (!bad(t) && t != tBool) diag(kZNotAssignable, e, "diag.detail.assign", {{"from", name(t)}, {"to", "boolean"}});
     return t;
   }
@@ -4046,6 +4127,14 @@ struct Checker {
   }
   // The class symbol of generic class or interface `gsym` for these type arguments (kNone on failure).
   std::uint32_t instantiateClass(std::uint32_t gsym, const std::vector<TypeId>& args, std::uint32_t at) {
+    if (std::find(args.begin(), args.end(), tVoid) != args.end()) {   // a class made with T = void (Promise<T> from fail<void>()) holds the class __Void in its place: no field or array is a void
+      std::uint32_t vs = lookup("__Void");
+      if (vs != kNone && out.syms[vs].kind == SymKind::Class) {
+        std::vector<TypeId> a2 = args;
+        for (TypeId& t : a2) if (t == tVoid) t = out.syms[vs].type;
+        return instantiateClass(gsym, a2, at);
+      }
+    }
     GenericDecl& g = generics[gsym];
     auto hit = g.inst.find(args);
     if (hit != g.inst.end()) return hit->second;
@@ -4218,8 +4307,17 @@ struct Checker {
     }
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)
       if (out.nodeType[argNodes[k]] != kNoType && !unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
+    auto fromExpected = [&] {   // `return Promise.reject(e)` in a function returning Promise<number>: the wanted type gives T
+      if (genericExpected == kNoType || bad(genericExpected) || std::find(bound.begin(), bound.end(), kNoType) == bound.end()) return;
+      std::vector<TypeId> b2 = bound;
+      std::size_t before = out.diags.size();
+      if (unify(g, f.elem, genericExpected, b2, callNode)) for (std::size_t k = 0; k < bound.size(); ++k) if (bound[k] == kNoType) bound[k] = b2[k];
+      if (out.diags.size() > before) out.diags.resize(before);
+    };
+    for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)   // an object literal takes its type from the wanted one, as in TypeScript: Promise.resolve({ ... }) where a Promise<Picture> is returned
+      if (out.nodeType[argNodes[k]] == kNoType && recordLiteral(argNodes[k])) { fromExpected(); break; }
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)  // object literals: their leaves bind what they can; the call types them once, against the instantiated parameter
-      if (out.nodeType[argNodes[k]] == kNoType && recordLiteral(argNodes[k])) {
+      if (out.nodeType[argNodes[k]] == kNoType && recordLiteral(argNodes[k]) && std::find(bound.begin(), bound.end(), kNoType) != bound.end()) {   // (all bound already, by the wanted type: the call checks it against the instantiated parameter)
         literalShape = false;
         inferFromLiteral(g, f.params[k], argNodes[k], bound);
         if (literalShape && std::find(bound.begin(), bound.end(), kNoType) == bound.end()) literalShape = false;   // the lambdas only receive what the other leaves bound
@@ -4236,12 +4334,7 @@ struct Checker {
       TypeId lt = expr(argNodes[k], want);
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
     }
-    if (genericExpected != kNoType && !bad(genericExpected) && std::find(bound.begin(), bound.end(), kNoType) != bound.end()) {  // `return Promise.reject(e)` in a function returning Promise<number>: the wanted type gives T
-      std::vector<TypeId> b2 = bound;
-      std::size_t before = out.diags.size();
-      if (unify(g, f.elem, genericExpected, b2, callNode)) for (std::size_t k = 0; k < bound.size(); ++k) if (bound[k] == kNoType) bound[k] = b2[k];
-      if (out.diags.size() > before) out.diags.resize(before);
-    }
+    fromExpected();
     for (std::size_t i = 0; i < bound.size(); ++i)
       if (bound[i] == kNoType && n(g.tp[i]).kids.size() > 1 && n(g.tp[i]).kids[1] != kNone) bound[i] = annotation(n(g.tp[i]).kids[1]);  // not inferred: the default
       else if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }
