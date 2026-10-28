@@ -9,7 +9,7 @@ import CoreMedia
 import CoreVideo
 import ApplicationServices
 
-var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 0, cleanMode = 3, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
+var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, threshold = false, seconds = 0.0, idleMs = 1000, cursorPx = 28, cleanMode = 3, levels = (90, 185), gamma = 1.6, edges = 10, rotate = 0
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
     switch a {
@@ -18,7 +18,7 @@ while let a = argv.popFirst() {
     case "--native": native = true   // 1:1, not Retina: twice the room, everything half as big
     case "--mirror": mirror = Int(argv.popFirst()!)!
     case "--threshold": threshold = true
-    case "--cursor": cursorPx = max(19, Int(argv.popFirst()!)!)   // draw the pointer here, this many tablet pixels tall (default: macOS draws it in the capture)
+    case "--cursor": cursorPx = Int(argv.popFirst()!)!; if cursorPx > 0 { cursorPx = max(19, cursorPx) }   // the pointer's height in tablet pixels; 0: macOS draws its own into the capture
     case "--rotate": rotate = Int(argv.popFirst()!)!; if ![90, 180, 270].contains(rotate) { rotate = 0 }   // until the tablet says: 90 its top on the left, 270 on the right
     case "--edges": edges = Int(argv.popFirst()!)!   // how hard a pixel darker than its neighbours is pushed to black (0: off)
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // the clean pass's waveform: 3 xochitl's page one, 4 UI
@@ -82,6 +82,12 @@ Thread {
         readFull(&m, 16)
         let i = { (o: Int) -> Int in Int(Int32(bitPattern: UInt32(m[o]) | UInt32(m[o + 1]) << 8 | UInt32(m[o + 2]) << 16 | UInt32(m[o + 3]) << 24)) }
         if m[0] == 1 { acks.signal() }
+        else if m[0] == 4 {   // the room on the tablet changed (xochitl's header came or went): start again at its new size
+            print("the tablet's room is now \(i(4))x\(i(8)): starting again")
+            close(sock); usleep(300_000)
+            let args = CommandLine.arguments.map { strdup($0) } + [nil]
+            execv(CommandLine.arguments[0], args); die("cannot start again")
+        }
         else if m[0] == 3 { lock.lock(); pendingTurn = i(4); lock.unlock(); ready.signal() }   // the tablet turned
         else if m[0] == 2 { let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = i(4), y = i(8), p = i(12); DispatchQueue.main.async { play(t, id, x, y, p) } }
     }
@@ -226,7 +232,9 @@ func changed(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> [Bool] {
 var fastTiles = [Bool](repeating: false, count: tilesX * tilesY), trailTiles = fastTiles
 var tileTime = [Double](repeating: 0, count: tilesX * tilesY)   // when each tile last changed: a tile is cleaned once it rests, whatever the others do
 var fastMode = true, cleaned = 0, lastMove = 0.0
-func clean(_ mask: inout [Bool]) {
+var backToFast = 0.0   // when the clean pass's waveform gives way to the fast one again
+/** Cleans the tiles of mask. fast: the pointer's trail, all in the fast waveform (no waveform switch: the next move starts at once). */
+func clean(_ mask: inout [Bool], fast: Bool = false) {
     let rects = rectsOf(mask)
     mask = [Bool](repeating: false, count: tilesX * tilesY)
     if rects.isEmpty { return }
@@ -236,7 +244,7 @@ func clean(_ mask: inout [Bool]) {
         var hd = header(1, x, y, w, h, payload.count); hd[1] = 8
         writeFull(hd, 16); writeFull(payload, payload.count)
     }
-    if rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {   // much of the screen: one full refresh is one flash, and cleaner
+    if !fast && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {   // much of the screen: one full refresh is one flash, and cleaner
         for (x, y, w, h) in rects { greys(x, y, w, h) }
         for _ in rects { acks.wait() }
         writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0
@@ -253,13 +261,24 @@ func clean(_ mask: inout [Bool]) {
         writeFull(header(1, x, y, w, h, black.count), 16); writeFull(black, black.count)
     }
     for _ in rects { acks.wait() }
+    if fast {   // and back in black and white, still fast: twice driven, the trail goes
+        for (x, y, w, h) in rects {
+            let rs = (w + 7) / 8
+            var bits = [UInt8](repeating: 0, count: rs * h)
+            for j in 0..<h { let o = (y + j) * stride + x / 8; bits.replaceSubrange(j * rs..<(j + 1) * rs, with: cur[o..<(o + rs)]) }
+            writeFull(header(1, x, y, w, h, bits.count), 16); writeFull(bits, bits.count)
+        }
+        for _ in rects { acks.wait() }
+        return
+    }
     writeFull(header(2, cleanMode, 0, 0, 0, 0), 16); fastMode = false
     for (x, y, w, h) in rects { cleaned += w * h; greys(x, y, w, h); acks.wait() }
+    backToFast = now() + 150   // not at once: the greys must go out in their own waveform first
     if cleaned > W * H * 4 { writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0 }
 }
 
-// --- the pointer: drawn here, not captured, black with a white edge; it moves without a new frame of the screen, and only its old and
-// new boxes are dithered and compared again
+// --- the pointer: drawn here, not captured: a white arrow with a black outline (little black, so little ghosting) and a white edge; it
+// moves without a new frame of the screen, and only its old and new boxes are dithered and compared again
 let arrow: [(Double, Double)] = [(0, 0), (0, 16), (4, 12.3), (7, 19), (9.2, 18), (6.3, 11.3), (11.5, 11.3)]   // 19 units tall, tip at (0, 0)
 var pointer: (x: Int, y: Int)? = nil   // in the tablet's pixels, nil off the display
 var region = (ox: 0, oy: 0, fw: FW, fh: FH)   // where the captured frame lands on the tablet, and its size
@@ -291,17 +310,21 @@ func inside(_ px: Double, _ py: Double) -> Bool {
     return c
 }
 let edge = 2
-// the arrow's mask at --cursor pixels tall: 2 black, 1 its white edge, 0 outside; drawn with its tip at (edge, edge)
+// the arrow's mask at --cursor pixels tall: 2 black (its outline), 1 white (inside, and its edge outside), 0 outside; tip at (edge, edge)
 let pointerMask: (w: Int, h: Int, m: [UInt8]) = {
-    let k = Double(cursorPx) / 19, e = edge, w = Int(12 * k) + 2 * e, h = cursorPx + 2 * e
+    let k = Double(max(cursorPx, 19)) / 19, e = edge, w = Int(12 * k) + 2 * e, h = max(cursorPx, 19) + 2 * e
+    let t = max(2, cursorPx / 12)   // the outline's width
     var m = [UInt8](repeating: 0, count: w * h)
-    for y in 0..<h { for x in 0..<w where inside((Double(x - e) + 0.5) / k, (Double(y - e) + 0.5) / k) { m[y * w + x] = 2 } }
+    for y in 0..<h { for x in 0..<w where inside((Double(x - e) + 0.5) / k, (Double(y - e) + 0.5) / k) { m[y * w + x] = 1 } }
+    func near(_ x: Int, _ y: Int, _ r: Int, _ v: UInt8) -> Bool {   // a pixel within r whose mask is v (outside the box counts as 0)
+        for dy in -r...r { for dx in -r...r where dx * dx + dy * dy <= r * r {
+            let xx = x + dx, yy = y + dy, mv: UInt8 = xx >= 0 && yy >= 0 && xx < w && yy < h ? m[yy * w + xx] : 0
+            if mv == v { return true } } }
+        return false
+    }
     var out = m
-    for y in 0..<h { for x in 0..<w where m[y * w + x] == 0 {
-        var near = false
-        for dy in -e...e where !near { for dx in -e...e where dx * dx + dy * dy <= e * e { let xx = x + dx, yy = y + dy
-            if xx >= 0 && yy >= 0 && xx < w && yy < h && m[yy * w + xx] == 2 { near = true; break } } }
-        if near { out[y * w + x] = 1 }
+    for y in 0..<h { for x in 0..<w {
+        if m[y * w + x] == 1 { if near(x, y, t, 0) { out[y * w + x] = 2 } } else if near(x, y, e - 1, 1) { out[y * w + x] = 1 }
     } }
     return (w, h, out)
 }()
@@ -339,14 +362,20 @@ Thread {
     var drawn: (x: Int, y: Int)? = nil   // where the pointer is drawn in shown
     func any(_ m: [Bool]) -> Bool { m.contains(true) }
     while true {
-        if (idleMs > 0 && any(fastTiles)) || any(trailTiles) { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
+        if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
+        if !fastMode && tn >= backToFast { writeFull(header(2, 0, 0, 0, 0, 0), 16); fastMode = true }   // ready before the next move
+        if any(trailTiles) && tn - lastMove >= 200 { clean(&trailTiles, fast: true) }
+        // the tiles at rest, in true greys; not those around the pointer: a move there would wait for the slow waveform to end
         var rested = [Bool](repeating: false, count: fastTiles.count)
-        if idleMs > 0 && tn - lastMove >= 300 { for i in 0..<fastTiles.count where fastTiles[i] && tn - tileTime[i] >= Double(idleMs) { rested[i] = true } }
-        if any(rested) {
-            for i in 0..<rested.count where rested[i] || trailTiles[i] { rested[i] = true; fastTiles[i] = false; trailTiles[i] = false }
-            clean(&rested)
-        } else if any(trailTiles) && tn - lastMove >= 300 { clean(&trailTiles) }
+        let near = drawn.map { d in (max(0, d.x - 96) / TW, max(0, d.y - 96) / TH, (d.x + 96) / TW, (d.y + 96) / TH) } ?? (-1, -1, -2, -2)
+        if idleMs > 0 && tn - lastMove >= 300 {
+            for ty in 0..<tilesY { for tx in 0..<tilesX where fastTiles[ty * tilesX + tx] && tn - tileTime[ty * tilesX + tx] >= Double(idleMs) {
+                if tx >= near.0 && tx <= near.2 && ty >= near.1 && ty <= near.3 { continue }
+                rested[ty * tilesX + tx] = true; fastTiles[ty * tilesX + tx] = false
+            } }
+        }
+        if any(rested) { clean(&rested) }
         lock.lock(); let to = pendingTurn; pendingTurn = -1; lock.unlock()
         if to >= 0 && to != rotate {   // the tablet turned: the display and the capture take its shape, then a whole first frame
             let side = (to == 90 || to == 270) != (rotate == 90 || rotate == 270)

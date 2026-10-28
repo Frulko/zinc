@@ -402,6 +402,7 @@ void rm_present(const HalFrame* f) {
   if (panel.first) { r = {0, 0, panel.w, panel.h}; panel.first = false; }
   if (stream::ended.exchange(false)) { r = {0, 0, panel.w, panel.h}; full_asked = true; }   // the sidecar left: the app's whole frame, then a full refresh
   else if (stream::active) {   // the sidecar's stream owns the screen (stream.h): its waveform and full refreshes go out from here
+    stream::room(docked ? dock_top : 0, panel.w, panel.h);
     const uint64_t now = hal_time_us();
     const int m = stream::mode;
     if (m >= 0 && refresh_mode != m && now >= mode_ready_us) set_mode(m);

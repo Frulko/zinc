@@ -12,6 +12,8 @@
 //                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
 //   kind 3 TURN   a: the tablet's way up from its accelerometer, 0 upright, 90 its top on the left, 180 upside down, 270 its top on the
 //                 right; at the start and on each change (lying flat changes nothing). The Mac turns its picture to match.
+//   kind 4 ROOM   a, b: the room the stream has now, when xochitl's header came or went: the Mac starts again at that size (and the
+//                 rectangles it sends until then are dropped).
 // A session ends with a full refresh once the app's page is back (the Mac sends FULL after its first picture), and a second finger
 // down asks for one: neither finger goes to the Mac.
 #pragma once
@@ -43,6 +45,7 @@ inline int client = -1, client_top = 0;
 inline int fingers = 0;         // fingers down (main thread)
 inline bool two = false;        // a second finger came down: the rest of this touch is the tablet's
 inline int last_id = 0, last_x = 0, last_y = 0;   // the finger the Mac has, where it was last
+inline std::atomic<bool> moved{false};      // the room changed under this session: its rectangles are dropped until the Mac leaves
 inline std::atomic<unsigned> session{0};   // which Mac is connected: the way-up watcher stops when it changes
 
 inline bool send16(uint8_t kind, uint8_t type, uint16_t id, int32_t a, int32_t b, int32_t c) {
@@ -86,6 +89,14 @@ inline void watch_way_up(unsigned mine) {
   }
 }
 
+/** Called by the app's frame loop with the first row the stream may use now: a Mac given another room is told once. */
+inline void room(int top, int w, int h) {
+  if (!active || moved || top == client_top) return;
+  moved = true;
+  send16(4, 0, 0, w, h - top, 0);
+  fprintf(stderr, "display-rmpp: sidecar room now %dx%d\n", w, h - top);
+}
+
 struct Target {
   uint8_t* fb;                              // qtfb's RGB888 buffer
   int w, h;
@@ -115,7 +126,7 @@ inline void serve(Target t, int ls) {
     const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s\n", t.w, H, t.model);
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
-    fingers = 0; two = false;
+    fingers = 0; two = false; moved = false;
     active = true;
     std::thread(watch_way_up, ++session).detach();
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
@@ -130,6 +141,7 @@ inline void serve(Target t, int ls) {
       if (h[0] != 1 || (h[1] != 1 && h[1] != 8) || x + w > t.w || y + hh > H || len < stride * hh || len > (size_t)t.w * t.h) break;
       buf.resize(len);
       if (!read_full(c, buf.data(), len)) break;
+      if (moved) { if (!send16(1, 0, 0, (int32_t)++seq, 0, 0)) break; continue; }   // the old room: answered, not drawn
       const uint32_t t0 = now_us();
       for (int j = 0; j < hh; j++) {
         uint8_t* d = t.fb + ((size_t)(top + y + j) * t.w + x) * 3;
