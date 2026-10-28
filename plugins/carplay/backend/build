@@ -1,0 +1,18 @@
+#!/bin/sh
+# Build the separately distributed GPL receiver; no protocol code is linked into Zinc.
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/../../.." && pwd)
+dest="$root/build/carplay/playport"
+rev=9a0882dd0ffe48e467b59d58b12d81391df55ade
+if [ ! -d "$dest/.git" ]; then
+  mkdir -p "$(dirname "$dest")"
+  git clone --no-checkout https://github.com/youcci/playport.git "$dest"
+  git -C "$dest" checkout --detach "$rev"
+fi
+if [ -n "$(git -C "$dest" status --porcelain)" ]; then
+  echo 'CarPlay backend has local changes; refusing to overwrite them' >&2
+  exit 1
+fi
+git -C "$dest" checkout --detach "$rev"
+(cd "$dest" && ./gradlew :protocol:test :server:test :server:installDist && macos/bt-bridge/build.sh)
+echo "Built $dest/server/build/install/server/bin/server"

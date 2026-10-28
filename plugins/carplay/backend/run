@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/../../.." && pwd)
+backend="$root/build/carplay/playport"
+: "${ZINC_CARPLAY_IDENTITY:?Set ZINC_CARPLAY_IDENTITY to the directory containing offline-mfi/certificate.p7b and identity.pk8}"
+for file in certificate.p7b identity.pk8; do
+  if [ ! -s "$ZINC_CARPLAY_IDENTITY/offline-mfi/$file" ]; then
+    echo "Missing identity file: $file" >&2
+    exit 1
+  fi
+done
+if [ ! -x "$backend/server/build/install/server/bin/server" ]; then
+  echo 'Run plugins/carplay/backend/build first' >&2
+  exit 1
+fi
+cd "$backend"
+exec server/build/install/server/bin/server --identity-dir "$ZINC_CARPLAY_IDENTITY" --state-dir "$root/build/carplay/state" --bt-bridge "$backend/macos/bt-bridge/bt-bridge" --http "$@"

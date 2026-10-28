@@ -1,0 +1,11 @@
+{
+  "name": "carplay",
+  "kind": "module",
+  "module": "zinc:carplay",
+  "entry": "index.ts",
+  "description": "Native CarPlay media and controls through a separately installed receiver backend",
+  "targets": {
+    "macos": { "pkg": ["libavcodec", "libavutil", "libswscale"] },
+    "linux": { "pkg": ["libavcodec", "libavutil", "libswscale"] }
+  }
+}
