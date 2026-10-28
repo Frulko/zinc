@@ -4,6 +4,11 @@ root=$(CDPATH= cd -- "$(dirname "$0")/../../.." && pwd)
 backend="$root/build/carplay/playport"
 export JAVA_OPTS="${JAVA_OPTS:-} --enable-native-access=ALL-UNNAMED"
 export ZINC_CARPLAY_USB_LIBRARY="$root/build/carplay/usb/libcarplay_usb.dylib"
+case "$(uname -s)" in
+  Darwin) bt_bridge="$backend/macos/bt-bridge/bt-bridge" ;;
+  Linux) bt_bridge="$root/plugins/carplay/backend/linux/bt-bridge" ;;
+  *) echo 'CarPlay backend supports macOS and Linux' >&2; exit 1 ;;
+esac
 usb=0
 case "${1:-}" in
   --usb-list|--usb-switch)
@@ -20,6 +25,7 @@ case "${1:-}" in
     exec java --enable-native-access=ALL-UNNAMED -cp "$backend/server/build/install/server/lib/*" com.playport.server.WiredBootstrapKt "$@"
     ;;
   --usb)
+    if [ "$(uname -s)" != Darwin ]; then echo 'Native wired USB currently requires macOS; use --wireless on Linux' >&2; exit 1; fi
     usb=1
     shift
     : "${ZINC_CARPLAY_USB_SERIAL:?Set ZINC_CARPLAY_USB_SERIAL from backend/run --usb-list}"
@@ -50,4 +56,4 @@ if [ ! -x "$backend/server/build/install/server/bin/server" ]; then
   exit 1
 fi
 cd "$backend"
-exec server/build/install/server/bin/server --identity-dir "$ZINC_CARPLAY_IDENTITY" --state-dir "$root/build/carplay/state" --bt-bridge "$backend/macos/bt-bridge/bt-bridge" --http "$@"
+exec server/build/install/server/bin/server --identity-dir "$ZINC_CARPLAY_IDENTITY" --state-dir "$root/build/carplay/state" --bt-bridge "$bt_bridge" --http "$@"

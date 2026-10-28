@@ -9,6 +9,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay’s native debug player adds external GPS presets, a bounded GPX timeline, an independent cluster preview and decoded iAP2 HUD logs, plus a clearly labelled two-contact mouse simulator.
+- `ZINC_TRACKPAD_TOUCHES=1` exposes indirect absolute trackpad contacts through the normal touch API; the CarPlay launcher enables it for built-in and wireless Mac trackpads. Other apps retain the default pointer/scroll behavior.
+- The separate wireless receiver can use a BlueZ/PyBluez RFCOMM bridge on Linux and Raspberry Pi OS; physical wireless acceptance remains pending.
 - CarPlay diagnostics identify the selected microphone, first captured packet and first UDP uplink packet; event responses expose phone status codes for day/night troubleshooting without logging audio.
 - The CarPlay demo accepts `ZINC_BACKGROUND=0` for a manual foreground run, allowing the first macOS microphone permission prompt when Siri requests capture.
 - The separate CarPlay receiver adds an experimental native macOS USB path with explicit phone selection, Lockdown pairing and NCM networking. Use `backend/run --usb-list` for safe discovery; live USB requires elevated access and has been verified with software authentication and native H.264 projection on an iPhone running iOS 27.0.1.
@@ -89,6 +92,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- The USB CarPlay receiver saves per-phone host identities and pairing keys privately, tries existing trust first and waits for unlock without discarding saved trust. Its first run with persistent storage can still require Trust approval.
 - CarPlay day/night changes now send UI and map appearance updates addressed to the main display, in addition to the legacy night-mode command.
 - CarPlay microphone LPCM samples are now converted to the phone’s big-endian wire format before encryption; previously uplink sent the viewer’s little-endian samples unchanged. Opus packets are unchanged.
 - Microphone enumeration now puts the system default input first, so CarPlay uses the Mac microphone when it is the selected input instead of an earlier Continuity device.

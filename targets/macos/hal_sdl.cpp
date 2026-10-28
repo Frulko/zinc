@@ -1,4 +1,5 @@
 ﻿// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
+#include "../common/touch_device.h"
 #include <string>
 #include "hal.h"
 extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp: what ZINC_PROFILE=json prints about the machine
@@ -1073,8 +1074,9 @@ void hal_poll_input(HalInput* in) {
       set_fullscreen(!(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
     if (gfx_on && (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED)) apply_size();
     if (e.type == SDL_EVENT_PINCH_UPDATE) in->pinch *= e.pinch.scale;
-    // touch screens only: trackpad fingers (indirect devices) are the pointer, not screen touches
-    if ((e.type == SDL_EVENT_FINGER_DOWN || e.type == SDL_EVENT_FINGER_MOTION) && SDL_GetTouchDeviceType(e.tfinger.touchID) == SDL_TOUCH_DEVICE_DIRECT) {
+    // Opt-in indirect absolute contacts use the same stable IDs and normalized positions as screens.
+    if ((e.type == SDL_EVENT_FINGER_DOWN || e.type == SDL_EVENT_FINGER_MOTION) && hal_touch_device_enabled(SDL_GetTouchDeviceType(e.tfinger.touchID) == SDL_TOUCH_DEVICE_DIRECT,
+            SDL_GetTouchDeviceType(e.tfinger.touchID) == SDL_TOUCH_DEVICE_INDIRECT_ABSOLUTE, getenv("ZINC_TRACKPAD_TOUCHES"))) {
       int32_t id = (int32_t)e.tfinger.fingerID, k = 0;
       while (k < in->ntouch && in->touch[k].id != id) k++;
       if (k == in->ntouch && k < HAL_MAX_TOUCH) in->ntouch++;

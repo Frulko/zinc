@@ -57,3 +57,17 @@ physical two-finger gestures, day/night and sustained reconnect remain separate
 acceptance checks. Linux/Pi verification is deferred. See
 [the implementation report](../../../../docs/reports/zinc-next-carplay.md) for
 proof and limitations, and UPSTREAM.md for provenance.
+
+
+Pairing identities and keys persist per explicit phone serial under the receiver
+state directory's `usb-pairing/` folder. The first persistent run still needs the
+phone's Trust approval. Following starts try the saved record directly; only
+StartSession InvalidHostID/InvalidPairRecord permit one new Pair. Locked, TLS,
+transport and other transient failures preserve the stored record. Files are
+owner-only and replaced atomically; do not change launcher user/state directory
+between runs if you want to retain the same trust. Corrupt or insecure storage
+fails clearly instead of silently deleting pairing material.
+
+PasswordProtected now waits for unlock with cancellation and a finite budget.
+The accessory cannot bypass iOS USB Restricted Mode or lock policy. Physical
+repeated-start/locked-phone acceptance remains to verify.

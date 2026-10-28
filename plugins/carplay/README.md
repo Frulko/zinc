@@ -169,3 +169,25 @@ These checks do not establish Apple certification or iPhone acceptance.
 No attached iPhone was supplied for this session. No pairing, real Siri/call or
 physical USB media session has been verified. Raspberry Pi and Android Auto are
 later work; no cross build belongs to this Mac validation.
+
+
+## Native debug tools
+
+The example's Debug panel controls simulated external GPS fixes and GPX playback
+over the existing authenticated receiver connection. It shows real decoded iAP2
+HUD metadata and a separate stream111 image when the phone supplies a cluster
+map. Opt in before receiver startup with `ZINC_CARPLAY_CLUSTER=1`; see the
+[debug player guide](../../examples/carplay/README.md#debug-laboratory).
+
+Raw Mac trackpad contacts need this branch's newly built engine. The viewer
+launcher sets `ZINC_TRACKPAD_TOUCHES=1`; use `0` to keep normal desktop input.
+Screen touches and two stable slots use the same existing plugin input path.
+The mouse-based two-contact mode is explicitly simulated.
+
+USB pairing is now persistent under backend state-dir/usb-pairing with private
+0700/0600 modes, stable IDs, atomic replacement and narrow re-pair policy. A
+locked phone does not erase trust. Actual USB lock restrictions remain enforced
+by iOS. Wireless uses classic Bluetooth RFCOMM and Wi-Fi, not BLE. The Mac helper
+and new Linux BlueZ helper share the receiver interface; see the
+[wireless guide](backend/linux/README.md). Neither Pi hardware nor real wireless
+projection was tested during this Mac session.

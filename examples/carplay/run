@@ -27,5 +27,6 @@ case "${1:---offline}" in
   *) echo 'Usage: examples/carplay/run [--offline|--live]' >&2; exit 2 ;;
 esac
 export ZINC_ROOT="$root"
+export ZINC_TRACKPAD_TOUCHES=${ZINC_TRACKPAD_TOUCHES:-1}
 export ZINC_BACKGROUND=${ZINC_BACKGROUND:-1}
 exec "$Z" run examples/carplay

@@ -357,3 +357,71 @@ ready. Clear pending state only once all commands are written. The binary-plist
 regression checks ordered command types, Boolean legacy state, exact display
 UUID and integer appearance values for day and night. This targets the observed
 missing runtime path; visible switching on the physical phone remains pending.
+
+## ZN-854: native debug laboratory and persistent USB trust
+
+The viewer now has an optional native sidebar (`Debug`, or
+`ZINC_CARPLAY_DEBUG=1`): manual latitude/longitude/speed, three presets, GPX file
+selection, route seek/play/pause, cluster preview and received iAP2 HUD metadata.
+GPX is parsed by the JVM XML parser with DTD/external access disabled, bounded to
+1 MiB and 10,000 points. Timestamp offsets drive interpolation; observations
+sent to the phone carry current UTC. With no timestamps, points are one second
+apart. The example includes a clearly simulated one-minute Paris route.
+
+The GPS provider is synchronized between UI commands and the sole iAP2 reader.
+Wired identification declares LocationInformation and reuses pinned DiPlay's
+NMEA encoder/reporter. Updates follow the phone's start/stop subscription; the UI
+shows enabled vs subscribed separately. Wireless bootstrap/tunnel passes the
+same provider and telemetry sink. This is implemented transport, not physical
+proof that a navigation app accepts injected fixes.
+
+Cluster negotiation is opt-in before startup (`ZINC_CARPLAY_CLUSTER=1`), with a
+960x360 display and the instrument-cluster map URL. The viewer independently
+decodes stream111 within its existing WebSocket session, without another audio
+or microphone owner. No cluster video is fabricated. Route guidance (0x5201,
+0x5202) and NowPlaying (0x5001) use the existing typed iAP2 body reader. Partial
+updates retain fields, maneuvers resolve by index, arrival clears guidance and
+session end marks stale data. Bounded logs contain IDs/lengths, not raw payload.
+
+The two-contact mouse test is explicitly labelled simulated. Native contacts
+retain stable slots and the sidebar shows current/peak contact count. Keyboard
+CarPlay navigation does not steal keys while a Zinc text field is focused.
+
+The Mac HAL already requested SDL indirect touch events but filtered them out of
+the public touch list. `ZINC_TRACKPAD_TOUCHES=1` now opts indirect absolute
+contacts into the existing generic input path, using SDL finger IDs and normalized
+positions. The CarPlay launcher enables it; default engine behavior is unchanged.
+Both built-in and Bluetooth Magic Trackpad follow that SDL path. The generic
+policy has a native regression test; physical multi-finger acceptance remains.
+
+USB repeated Trust prompts were caused by new host/system UUIDs and generated
+pair keys on every run. LockdownPairStore saves stable IDs and complete successful
+pair records atomically under state-dir/usb-pairing, with private modes, owner and
+symlink checks. LockdownSavedSession first opens carkit using saved trust. Only
+typed StartSession InvalidHostID/InvalidPairRecord allow one fresh pairing; lock,
+TLS, transient and transport failures preserve keys. PasswordProtected waits
+with cancellation and a finite overall budget (individual existing carkit steps
+can extend the last attempt). The first run with the persistent store may need
+one final Trust approval. iOS lock/USB Restricted Mode is not bypassed. Physical
+locked/repeated-start acceptance is pending.
+
+The separate backend build/launcher now selects the macOS IOBluetooth helper or
+Linux BlueZ/PyBluez helper. The latter discovers iAP2 by SDP and pumps RFCOMM bytes
+through the existing process transport. Wireless needs classic Bluetooth plus
+Wi-Fi, not BLE, and an already paired/trusted phone with an OS-configured network.
+The helper's binary stdio/address tests run on Mac without Bluetooth hardware.
+No Linux/ARM build, Pi run or physical wireless connection was performed.
+
+Targeted proof: backend protocol/server tests, including NMEA/subscriptions,
+GPX bounds/XXE/interpolation, pre-session GPS routing, partial HUD state, private
+pair-store lifecycle and policy; real H.264/HEVC main/secondary decoder isolation,
+existing two-slot touch/keyboard transport; demo headless capture inspected for
+layout; generic touch-device opt-in and BlueZ stdio tests. Physical acceptance
+of new GPS/cluster/trust/trackpad/wireless paths remains explicitly separate.
+
+Final engine proof: this worktree's `tools/build zinc` completed, and its own
+`build/zinc` passes input_touch, carplay and carplay_demo. The helper policy tests
+trackpad_touch/carplay_wireless and external receiver carplay_usb also pass.
+Existing third-party/compiler warnings occurred in the fresh engine build; no
+warning was introduced in the touch-device changes. The final backend tests pass
+with bounded WebSocket inputs and complete debug snapshots.

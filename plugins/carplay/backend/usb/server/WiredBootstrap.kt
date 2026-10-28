@@ -5,12 +5,10 @@ import com.shilapi.xcertplay.transport.*
 import com.shilapi.xcertplay.iap2.session.Iap2Session
 import com.shilapi.xcertplay.mfi.Iap2MfiAuthenticationClient
 import java.io.Closeable
-import java.util.UUID
-import java.util.Locale
 import org.slf4j.LoggerFactory
 
 /** Owns USB, IPv6 routing, Lockdown and iAP2 in the separately distributed GPL process. */
-class WiredBootstrap(serial: String) : Closeable {
+class WiredBootstrap(private val serial: String) : Closeable {
     private val log = LoggerFactory.getLogger("wired")
     private val device = MacUsbDevice(serial, false)
     private var network: NcmNetwork? = null
@@ -39,13 +37,10 @@ class WiredBootstrap(serial: String) : Closeable {
                 val host = Iap2UsbMuxHost.open(pipe, onDiagnostic = { log.debug(it) })
                 mux = host
                 if (closed) { host.close(); return@Thread }
-                log.info("Unlock iPhone and accept the Trust prompt for wired pairing")
-                // Pair material is session-local; never write keys to logs or the source tree.
-                val record = LockdownPairingClient(host).pair(
-                    "ZincCarPlay", UUID.randomUUID().toString().uppercase(Locale.ROOT), UUID.randomUUID().toString().uppercase(Locale.ROOT),
-                    120000, isCancelled = { closed },
+                val stream = LockdownSavedSession.open(
+                    host, LockdownPairStore(server.config.stateDir, serial), "ZincCarPlay",
+                    timeoutMillis = 120000, isCancelled = { closed }, onProgress = { log.info(it) },
                 )
-                val stream = LockdownCarKitClient(host).open(record, "ZincCarPlay")
                 val control = Iap2Session.open(stream, onTrace = { log.debug(it) })
                 session = control
                 if (closed) { control.close(); return@Thread }
@@ -54,6 +49,7 @@ class WiredBootstrap(serial: String) : Closeable {
                     manufacturer = server.config.manufacturer,
                     serialNumber = "ZINC-" + server.deviceId.replace(":", ""),
                     firmwareVersion = "1.0", hardwareVersion = "1.0", carPlayUsbInterfaceNumber = device.carPlayInterface,
+                    locationInformationEnabled = true,
                 )
                 log.info("Wired endpoint host={} port={} deviceIdentifier={}", network!!.address, server.config.airPlayPort, network!!.deviceIdentifier)
                 Iap2WiredControlClient(control, Iap2MfiAuthenticationClient(server.mfi)).run(
@@ -64,7 +60,9 @@ class WiredBootstrap(serial: String) : Closeable {
                     ),
                     availableCurrentMilliAmps = 0,
                     timeoutMillis = Iap2WiredControlClient.NO_TIMEOUT_MILLIS,
-                    onProgress = { log.info(it) },
+                    locationProvider = server.debugGps,
+                    onIncoming = { server.debugTelemetry.accept(it) },
+                onProgress = { log.info(it) },
                 )
             } catch (error: Exception) {
                 if (!closed) log.error("Wired CarPlay ended", error)

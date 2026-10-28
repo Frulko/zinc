@@ -33,3 +33,9 @@ The JDK default SunJSSE parser rejects the iPhone's empty-issuer certificates
 even when a compatible CertificateFactory was used to load our local identity.
 The regression completes mutual TLS 1.2 and exchanges encrypted application
 data with this certificate profile, without changing global providers.
+
+The debug GPS path additionally ports `Iap2LocationClient.kt` and its location
+client/reporter tests from the same pinned DiPlay revision. The synchronized GPX
+provider and HUD debug adapter are local additions, reusing the existing JVM XML
+parser and typed iAP2 codecs. The USB pair store and saved-session policy are local
+additions. No pairing keys or hardware captures are included.

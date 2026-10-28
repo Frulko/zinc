@@ -39,8 +39,14 @@ check(s.receive([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]), 'video configuration'
 const frame: u8[] = [2, 110, 1, 0, 0, 0, 0, 0, 0, 0, 0];
 check(s.receive(frame.concat(readBytes(sys.env('CARPLAY_TEST_FRAME')))), 'media envelope');
 check(s.image >= 0 && s.frames === 1, 'session image');
+check(s.receive([1, 111, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]), 'independent cluster config');
+const clusterFrame: u8[] = [2, 111, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+check(s.receive(clusterFrame.concat(readBytes(sys.env('CARPLAY_TEST_FRAME')))), 'cluster frame decoded');
+check(s.secondary.width === 64 && s.secondary.frames === 1 && s.frames === 1, 'independent screen lifecycles');
+check(s.receive([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]) && s.secondary.frames === 1, 'main reconfig preserves cluster');
+check(!s.receive([5, 111, 9]), 'invalid cluster state rejected');
 s.close(); s.close();
-check(s.image === -1 && s.width === 0, 'idempotent cleanup');
+check(s.image === -1 && s.width === 0 && s.secondary.width === 0, 'both screens cleaned up');
 console.log('carplay decoder: ok');
 
 async function transport(): Promise<void> {
@@ -52,17 +58,20 @@ async function transport(): Promise<void> {
   const microphone: i32[] = [];
   const reports: string[] = [];
   const modes: string[] = [];
+  const debugCommands: string[] = [];
   const server = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
     if (req.path === '/denied') { ws.close(1008, 'invalid token'); return; }
     peer = ws; connections++;
     check(req.path === '/ws?token=test', 'backend authentication URL');
-    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); };
+    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); if (e.data.includes('"type":"debugGps"')) debugCommands.push(e.data); };
     ws.sendBytes([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]);
     ws.sendBytes(frame.concat(readBytes(sys.env('CARPLAY_TEST_FRAME'))));
   }, '127.0.0.1');
   client.connect(`ws://127.0.0.1:${server.port}/ws?token=test`);
   for (let i = 0; i < 100 && client.frames === 0; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
   check(client.image >= 0, 'WebSocket to native image');
+  check(!client.debugGps(NaN, 0) && !client.debugGps(91, 0), 'bad GPS rejected');
+  check(client.debugGps(48.8, 2.3, 10), 'GPS command dispatched');
   check(client.touch(12, 14, true), 'touch dispatch');
   for (let i = 0; i < 100 && reports.length === 0; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
   check(reports.length === 1 && reports[0].includes('"x":0.1875') && reports[0].includes('"y":0.4375'), 'normalized touch received');
@@ -76,6 +85,7 @@ async function transport(): Promise<void> {
   check(client.setNightMode(false) && !client.nightMode, 'day command');
   for (let i = 0; i < 100 && (reports.length < 4 || modes.length < 3); i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
   check(reports.length === 4, 'only valid reports sent');
+  check(debugCommands.length === 1 && debugCommands[0].includes('"lat":48.8'), 'valid GPS reaches receiver');
   check(reports[1] === '{"type":"touch","contacts":[{"id":0,"x":0.25,"y":0.25,"down":true},{"id":1,"x":0.5,"y":0.5,"down":true}]}', 'stable contact ordering');
   check(reports[2] === '{"type":"touch","contacts":[{"id":0,"x":0,"y":0,"down":false},{"id":1,"x":0.75,"y":0.75,"down":true}]}', 'second finger keeps its slot');
   check(reports[3].includes('"down":true') === false, 'release both fingers');

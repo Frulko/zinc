@@ -11,9 +11,14 @@ if [ ! -d "$dest/.git" ]; then
 fi
 "$root/plugins/carplay/backend/usb/checkout-state" "$dest" verify
 git -C "$dest" checkout --detach "$rev"
-"$root/plugins/carplay/backend/usb/build"
+case "$(uname -s)" in
+  Darwin) "$root/plugins/carplay/backend/usb/build" ;;
+  Linux) : ;; # Wireless uses BlueZ; native wired USB currently targets macOS.
+  *) echo 'CarPlay backend supports macOS and Linux' >&2; exit 1 ;;
+esac
 export ZINC_CARPLAY_USB_LIBRARY="$root/build/carplay/usb/libcarplay_usb.dylib"
 "$root/plugins/carplay/backend/usb/prepare" "$dest"
 "$root/plugins/carplay/backend/usb/checkout-state" "$dest" record
-(cd "$dest" && ./gradlew --no-daemon --max-workers=2 :protocol:test :server:test :server:installDist && macos/bt-bridge/build.sh)
+(cd "$dest" && ./gradlew --no-daemon --max-workers=2 :protocol:test :server:test :server:installDist)
+if [ "$(uname -s)" = Darwin ]; then (cd "$dest" && macos/bt-bridge/build.sh); fi
 echo "Built $dest/server/build/install/server/bin/server"

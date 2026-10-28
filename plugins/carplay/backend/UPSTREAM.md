@@ -12,7 +12,8 @@ The media envelope used by index.ts is documented in upstream Wire.kt.
 No identity, key, certificate or APK is supplied by this plugin.
 
 The unmodified PlayPort revision supports wireless on macOS, not USB or Linux
-Bluetooth. Its USB overlay is described below.
+Bluetooth. This overlay now adds a separate Linux BlueZ/PyBluez stdio helper;
+see linux/README.md for its dependencies and validation limits. Its USB overlay is described below.
 
 The separately licensed `usb/` overlay ports DiPlay revision
 `615b32ce0b40cd0b99ce94ba23a512001553684f` into this pinned PlayPort receiver.

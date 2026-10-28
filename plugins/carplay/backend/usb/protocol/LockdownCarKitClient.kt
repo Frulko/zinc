@@ -95,14 +95,10 @@ class LockdownCarKitClient(
             val ownedStream = CarkitServiceStream(readyStream, secureLockdown)
             serviceStream = null
             return ownedStream
-        } finally {
-            if (serviceStream != null) {
-                try {
-                    serviceStream.close()
-                } finally {
-                    secureLockdown.close()
-                }
-            }
+        } catch (error: Throwable) {
+            runCatching { serviceStream?.close() }
+            runCatching { secureLockdown.close() }
+            throw error
         }
     }
 
@@ -135,7 +131,7 @@ class LockdownCarKitClient(
                 ?: error.value.toString()
             else -> throw IphoneUsbException.Protocol("$request response Error was not text or integer")
         }
-        throw IphoneUsbException.Protocol("Lockdown $request failed: $code")
+        throw LockdownServiceException(request, code)
     }
 
     private companion object {

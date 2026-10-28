@@ -37,10 +37,38 @@ p=root/'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/CarPlayServer.kt']).decode()
 assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer microphone setting'
 t=t.replace('microphone = false', 'microphone = true')
+t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
+t=t.replace('        val session = activeSession ?: return', '''        if (message.type.startsWith("debugGps") || message.type == "debugGpx") {
+            try {
+                when (message.type) {
+                    "debugGps" -> if (message.gpsEnabled == false) debugGps.disable() else debugGps.setFix(
+                        requireNotNull(message.lat) { "Latitude required" }, requireNotNull(message.lon) { "Longitude required" },
+                        message.speed, message.course, message.altitude)
+                    "debugGpx" -> debugGps.loadGpx(requireNotNull(message.gpx) { "GPX required" })
+                    "debugGpsSeek" -> debugGps.seek(requireNotNull(message.seekSeconds) { "Seek required" })
+                    "debugGpsPlay" -> debugGps.play(message.playing ?: false, message.playbackRate ?: 1.0)
+                    "debugGpsStatus" -> Unit
+                    else -> error("Unknown GPS command")
+                }
+                hub.debugGps(debugGps.snapshot(), null)
+            } catch (error: Exception) { hub.debugGps(debugGps.snapshot(), "GPS rejected: ${error.message?.take(160)}") }
+            return
+        }
+        val session = activeSession ?: return''')
+
+t=t.replace('            rightHandDrive = config.rightHandDrive,', '''            cluster = if (System.getenv("ZINC_CARPLAY_CLUSTER") == "1") AirPlayDisplayConfig(
+                widthPixels = 960, heightPixels = 360, widthPhysicalMm = 200, heightPhysicalMm = 75,
+                initialUrl = "maps:/car/instrumentcluster/map",
+            ) else null,
+            rightHandDrive = config.rightHandDrive,''')
+t=t.replace('                "siri" -> session.invokeSiri()', '                "cluster" -> session.setClusterUiShown(true)\n                "siri" -> session.invokeSiri()')
+t=t.replace('            bridge.endMicrophone()', '            debugTelemetry.ended()\n            bridge.endMicrophone()')
+
 t=t.replace('"night" -> message.night?.let(session::setNightMode)', '''"night" -> message.night?.let {
                     val sent = session.setNightMode(it)
                     log.info("CarPlay nightMode={} sent={}", it, sent)
                 }''')
+t=t.replace('                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },', '                        locationProvider = debugGps,\n                        onIncoming = { debugTelemetry.accept(it) },\n                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },')
 t=t.replace('    private val listener = object : AirPlaySessionListener {', '    private var lastResourceSummary: String? = null\n\n    private val listener = object : AirPlaySessionListener {')
 t=t.replace('        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {', '''        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
             if (type == "modesChanged") {
@@ -50,6 +78,39 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                     lastResourceSummary = summary
                 }
             }''')
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt']).decode()
+t=t.replace('                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),', '                carPlayUsbInterfaceNumber = 0,\n                locationInformationEnabled = true,\n                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),')
+t=t.replace('                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },', '                locationProvider = server.debugGps,\n                onIncoming = { server.debugTelemetry.accept(it) },\n                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },')
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/WebHub.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebHub.kt']).decode()
+t=t.replace('    private val json = Json { ignoreUnknownKeys = true }', '    private val json = Json { ignoreUnknownKeys = true }\n    private val debugJson = Json { encodeDefaults = true; explicitNulls = false }')
+t=t.replace('        val text = json.encodeToString(ServerMessage.serializer(), message)', '        val text = (if (message.type == "debug") debugJson else json).encodeToString(ServerMessage.serializer(), message)')
+t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''    val lat: Double? = null, val lon: Double? = null, val speed: Double? = null,
+    val course: Double? = null, val altitude: Double? = null, val gpsEnabled: Boolean? = null,
+    val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
+    val playbackRate: Double? = null,
+    val contacts: List<TouchContactMessage> = emptyList(),''')
+t=t.replace('    val micActive: Boolean? = null,', '    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('        application.install(WebSockets)', '        application.install(WebSockets) { maxFrameSize = 2L * 1024 * 1024 }')
+t=t.replace('                        val message = try {', '''                        if (text.length > 1100000) {
+                            client.channel.trySend(Frame.Text("""{"type":"debug","message":"Debug command too large"}"""))
+                            continue
+                        }
+                        val message = try {''')
+t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
+        broadcastJson(ServerMessage(type = "debug", message = error, gps = gps))
+    }
+
+    private fun broadcastJson(message: ServerMessage) {''')
+t=t.replace('    val micActive: Boolean? = null,', '    val hud: HudSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugTelemetry(line: String, hud: HudSnapshot) {
+        broadcastJson(ServerMessage(type = "debug", message = line, hud = hud))
+    }
+
+    private fun broadcastJson(message: ServerMessage) {''')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()

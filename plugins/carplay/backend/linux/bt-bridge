@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""BlueZ/PyBluez adapter for the receiver's existing raw RFCOMM stdio interface."""
+import argparse
+import os
+import re
+import select
+import subprocess
+import sys
+
+IAP2_UUID = '00000000-deca-fade-deca-deafdecacafe'
+
+
+def address(text):
+    if not re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', text):
+        raise argparse.ArgumentTypeError('expected a Bluetooth address AA:BB:CC:DD:EE:FF')
+    return text.upper()
+
+
+def pump(sock, stdin=0, stdout=1):
+    while True:
+        ready, _, _ = select.select([sock, stdin], [], [])
+        if sock in ready:
+            data = sock.recv(65536)
+            if not data:
+                return
+            while data:
+                data = data[os.write(stdout, data):]
+        if stdin in ready:
+            data = os.read(stdin, 4096)
+            if not data:
+                return
+            sock.sendall(data)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--print-address', action='store_true')
+    mode.add_argument('--list', action='store_true')
+    mode.add_argument('--address', type=address)
+    args = parser.parse_args()
+    if args.list:
+        result = subprocess.run(['bluetoothctl', 'devices', 'Paired'], check=True,
+                                capture_output=True, text=True, timeout=10)
+        for line in result.stdout.splitlines():
+            if line.startswith('Device '):
+                print(line[7:])
+        return
+    try:
+        import bluetooth
+    except ImportError:
+        parser.exit(1, 'Install BlueZ and python3-bluez (Raspberry Pi OS: sudo apt install bluez python3-bluez)\n')
+    if args.print_address:
+        addresses = bluetooth.read_local_bdaddr()
+        if not addresses:
+            parser.exit(1, 'No powered Bluetooth adapter\n')
+        print(address(addresses[0]))
+        return
+    services = bluetooth.find_service(uuid=IAP2_UUID, address=args.address)
+    service = next((s for s in services if s.get('protocol') == 'RFCOMM' and isinstance(s.get('port'), int) and 1 <= s['port'] <= 30), None)
+    if service is None:
+        parser.exit(1, 'No iAP2 RFCOMM service found; pair/trust the iPhone with bluetoothctl first\n')
+    sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    try:
+        sock.settimeout(15)
+        sock.connect((args.address, service['port']))
+        sock.settimeout(None)
+        print('bt-bridge: BlueZ iAP2 RFCOMM connected', file=sys.stderr)
+        pump(sock)
+    finally:
+        sock.close()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f'bt-bridge: {error}', file=sys.stderr)
+        sys.exit(1)

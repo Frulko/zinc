@@ -4,6 +4,7 @@ import { URL } from 'zinc:web';
 import C from './native/carplay.spec';
 import { AudioStream, stream } from 'zinc:audio';
 import { MicrophoneUplink } from './microphone';
+import { SecondaryScreen } from './secondary';
 
 class AudioTrack {
   decoder: i32 = -1;
@@ -22,13 +23,29 @@ class Finger {
   down: boolean = false;
 }
 
+export interface HudSnapshot {
+  active: boolean; road: string; instruction: string; distance: number; remaining: number;
+  maneuver: i32; title: string; artist: string; stale: boolean;
+}
+export interface DebugGpsSnapshot {
+  enabled: boolean; subscribed: boolean; lat?: number; lon?: number; points: i32;
+  seconds: number; duration: number; playing: boolean;
+}
 interface ControlMessage {
+  message?: string; hud?: HudSnapshot; gps?: DebugGpsSnapshot;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
 
 /** One projected video surface. The backend supplies encoded media, Zinc owns decoding and input. */
 export class Session {
+  simulateTwoContacts: boolean = false;
+  nativeContactCount: i32 = 0;
+  nativeContactPeak: i32 = 0;
+  readonly secondary: SecondaryScreen = new SecondaryScreen();
+  readonly debugLog: string[] = [];
+  hud: HudSnapshot | null = null;
+  gps: DebugGpsSnapshot | null = null;
   private socket: WebSocket | null = null;
   private decoder: i32 = -1;
   private url: string = '';
@@ -71,9 +88,19 @@ export class Session {
         if ((message.type === 'session' || message.type === 'hello') && message.sessionActive === true) this.setNightMode(this.night);
         if (message.type === 'session' && message.sessionActive !== true) {
           this.microphone.stop();
+          if (this.hud !== null) this.hud.stale = true;
+          this.secondary.close();
           this.release();
           for (const id of this.audio.keys()) this.stopAudio(id);
           this.status = 'waiting for iPhone';
+        }
+        if (message.type === 'debug') {
+          if (message.gps !== undefined) this.gps = message.gps;
+          if (message.hud !== undefined) this.hud = message.hud;
+          if (message.message !== undefined) {
+            this.debugLog.push(message.message.slice(0, 240));
+            if (this.debugLog.length > 64) this.debugLog.shift();
+          }
         }
         if (message.type === 'mic') {
           if (message.micActive === true) this.microphone.start(message.micCodec ?? 'lpcm', message.micRate ?? 16000, message.micChannels ?? 1, message.micSamplesPerPacket ?? 320, message.micBitrate ?? 0);
@@ -85,6 +112,8 @@ export class Session {
     s.onclose = e => {
       if (this.socket !== s) return;
       this.socket = null;
+      if (this.hud !== null) this.hud.stale = true;
+      this.secondary.close();
       this.microphone.stop();
       for (const id of this.audio.keys()) this.stopAudio(id);
       this.release();
@@ -125,6 +154,7 @@ export class Session {
       return true;
     }
     if (b[0] === 6) { if (b.length !== 2) return false; this.stopAudio(b[1]); return true; }
+    if (b[1] === 111) return this.secondary.receive(b);
     if (b[1] !== 110) return false;
     if (b[0] === 5) {
       if (b.length !== 3 || b[2] > 1) return false;
@@ -181,8 +211,20 @@ export class Session {
     return this.send(JSON.stringify({ type: 'knob', knob: { select: key === 'Enter', home: key === 'Home', back: key === 'Escape' || key === 'Backspace', x: key === 'ArrowLeft' ? -127 : key === 'ArrowRight' ? 127 : 0, y: key === 'ArrowUp' ? -127 : key === 'ArrowDown' ? 127 : 0, wheel: 0 } }));
   }
   home(): boolean { return this.send('{"type":"knob","knob":{"select":false,"home":true,"back":false,"x":0,"y":0,"wheel":0}}'); }
+  showCluster(): boolean { return this.send('{"type":"cluster"}'); }
+  debugGps(latitude: number, longitude: number, speed: number = 0, course: number = 0): boolean {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(speed) || speed < 0 || !Number.isFinite(course) || course < 0 || course >= 360) return false;
+    return this.send(JSON.stringify({ type: 'debugGps', lat: latitude, lon: longitude, speed: speed, course: course, gpsEnabled: true }));
+  }
+  stopDebugGps(): boolean { return this.send('{"type":"debugGps","gpsEnabled":false}'); }
+  loadGpx(text: string): boolean { return text.length <= 1048576 && this.send(JSON.stringify({ type: 'debugGpx', gpx: text })); }
+  pollDebug(): boolean { return this.send('{"type":"debugGpsStatus"}'); }
+  playGps(playing: boolean): boolean { return this.send(JSON.stringify({ type: 'debugGpsPlay', playing: playing })); }
+  seekGps(seconds: number): boolean { return Number.isFinite(seconds) && seconds >= 0 && this.send(JSON.stringify({ type: 'debugGpsSeek', seekSeconds: seconds })); }
   siri(): boolean { return this.send('{"type":"siri"}'); }
   view(x: number, y: number, w: number, h: number): void {
+    this.nativeContactCount = gfx.touchCount();
+    this.nativeContactPeak = Math.max(this.nativeContactPeak, this.nativeContactCount);
     if (this.image < 0 || this.width <= 0 || this.height <= 0 || w <= 0 || h <= 0) return;
     const scale = Math.min(w / this.width, h / this.height);
     const dw = this.width * scale, dh = this.height * scale;
@@ -216,6 +258,11 @@ export class Session {
     }
     const px = gfx.pointerX(), py = gfx.pointerY(), down = gfx.pointerDown();
     const inside = px >= ox && py >= oy && px < ox + dw && py < oy + dh;
+    if (this.simulateTwoContacts && ((down && inside) || (!down && this.pressed))) {
+      const tx = (px - ox) / scale, ty = (py - oy) / scale;
+      this.touches([{ id: 0, x: tx, y: ty, down: down }, { id: 1, x: this.width - tx, y: this.height - ty, down: down }]);
+      this.pressed = down; return;
+    }
     if (down && inside) { this.touch((px - ox) / scale, (py - oy) / scale, true); this.pressed = true; }
     if (!down && this.pressed) { this.touch((px - ox) / scale, (py - oy) / scale, false); this.pressed = false; }
   }
@@ -229,6 +276,8 @@ export class Session {
     for (const f of this.fingers) { f.source = -1; f.down = false; }
   }
   close(): void {
+    if (this.hud !== null) this.hud.stale = true;
+    this.secondary.close();
     this.microphone.stop();
     this.url = '';
     if (this.retry >= 0) { clearTimeout(this.retry); this.retry = -1; }

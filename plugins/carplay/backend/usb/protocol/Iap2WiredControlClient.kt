@@ -28,6 +28,7 @@ class Iap2WiredControlClient(
         availableCurrentMilliAmps: Int,
         timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
         vehicleStatusProvider: VehicleStatusProvider? = null,
+        locationProvider: Iap2LocationProvider? = null,
         onIncoming: (Iap2Frame) -> Unit = {},
         onProgress: (String) -> Unit = {},
         startSessionAgain: () -> StartAgain = { StartAgain.DONE },
@@ -62,6 +63,7 @@ class Iap2WiredControlClient(
         var carPlayStartSessions = 0
         var startAgainDecided = false
         val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider, onProgress)
+        val location = Iap2LocationReporter(locationProvider, onProgress)
         try {
             while (true) {
                 val remaining = remainingMillis(deadlineNanos)
@@ -69,6 +71,7 @@ class Iap2WiredControlClient(
                     return Iap2WiredControlResult(Iap2WiredControlTerminal.TIMED_OUT, stage, forwardedFrames, carPlayStartSessions)
                 }
                 vehicleStatus.tick { send(it, deadlineNanos) }
+                location.tick { send(it, deadlineNanos) }
                 var startAgainPending = false
                 if (!startAgainDecided && stage == Iap2WiredControlStage.CARPLAY_START_SENT) {
                     when (startSessionAgain()) {
@@ -82,7 +85,7 @@ class Iap2WiredControlClient(
                         }
                     }
                 }
-                val pollTimeout = vehicleStatus.pollTimeout(remaining).let {
+                val pollTimeout = vehicleStatus.pollTimeout(location.pollTimeout(remaining)).let {
                     if (startAgainPending) minOf(it, START_AGAIN_POLL_MILLIS) else it
                 }
                 val incoming = session.recv(pollTimeout)
@@ -118,6 +121,10 @@ class Iap2WiredControlClient(
                         onProgress("iap2 tx=0x4301 carplay-start-session")
                     }
 
+                    Iap2LocationMessages.START_LOCATION_INFORMATION, Iap2LocationMessages.STOP_LOCATION_INFORMATION -> {
+                        location.handle(incoming) { send(it, deadlineNanos) }
+                    }
+
                     Iap2VehicleStatus.START_VEHICLE_STATUS_UPDATES, Iap2VehicleStatus.STOP_VEHICLE_STATUS_UPDATES -> {
                         vehicleStatus.handle(incoming) { send(it, deadlineNanos) }
                     }
@@ -130,6 +137,7 @@ class Iap2WiredControlClient(
                 }
             }
         } finally {
+            locationProvider?.stop()
             // The caller owns the session and the USB device.
         }
     }

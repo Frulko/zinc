@@ -2,6 +2,6 @@
   "name": "carplay",
   "app": { "id": "dev.zinc.examples.carplay", "name": "Zinc CarPlay", "version": "0.1.0", "orientation": "landscape" },
   "entry": "src/main.tsx",
-  "permissions": ["net", "microphone", "fs:read"],
+  "permissions": ["net", "microphone", "fs:read", "dialog"],
   "targets": { "macos": { "width": 1100, "height": 700 }, "linux": { "width": 1024, "height": 600 } }
 }
