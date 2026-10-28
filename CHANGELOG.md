@@ -87,6 +87,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- CarPlay USB can generate its local TLS certificate with a scoped IPv6 link address instead of failing with “IP Address is invalid”.
 - CarPlay USB now opens iPhones whose USB serial descriptor contains invisible padding; discovery and connection use the same identifier.
 - Sidecar on a screen (a Pi) no longer shows half of a picture, torn in tiles: a picture is shown whole at the refresh after its last piece, and the Mac keeps one picture in flight when the link is slow.
 - A plugin rebuilds when a header it includes from another directory changes (display-fbdev's `../display-rmpp/stream.h`): before, the old library stayed in the cache.

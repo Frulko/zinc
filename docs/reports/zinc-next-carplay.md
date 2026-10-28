@@ -118,3 +118,13 @@ tests (padded, plain and empty) pass and the library was rebuilt. A live non-roo
 retry now matches the phone and reaches driver capture, which returns
 LIBUSB_ERROR_ACCESS as expected without privilege. The next step is the same
 root backend launch; no CarPlay session has yet been established.
+
+## Physical USB attempt: scoped IPv6 certificate
+
+After the serial fix, the privileged run reached certificate generation and
+failed with BouncyCastle GeneralName “IP Address is invalid”. The USB link uses
+an IPv6 zone suffix (%utun), which is routing context, not an X.509 IP SAN.
+The reproducible overlay encodes IP SANs from InetAddress.address bytes instead
+of hostAddress text. TlsCertificateUsbTest generates, verifies and reloads an
+IPv6-scoped/IPv4 certificate. Full backend build and tests and fresh/repeated
+overlay regression pass. The receiver was rebuilt for the next live attempt.

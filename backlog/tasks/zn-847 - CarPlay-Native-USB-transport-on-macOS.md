@@ -5,7 +5,7 @@ status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-28 21:07'
-updated_date: '2026-10-28 21:49'
+updated_date: '2026-10-28 21:51'
 labels:
   - carplay
   - size-L
@@ -84,4 +84,6 @@ index.ts/demo/engine/report/session files were edited by this worker.
 Coordinator integration: fresh pinned-checkout build exposed Main.kt overlay cleanup referencing wired inside its own initializer. Fixed prepare to regenerate Main.kt deterministically from pinned Git source and add cleanup before insertion; new fresh/repeat generation regression passes. Fresh full receiver build: 168 protocol tests pass, 6 server tests pass, 1 upstream server skip. Integrated carplay_usb passes, safe discovery currently reports no Apple USBMUX/NCM device, and explicitly nonexistent serial fails with actionable error before listener startup. Shared test mapping, changelog, provenance/report, Mac sudo instructions and live checklist updated. No receiver started on 8080/7000; owner is checking live wireless setup. Physical USB criterion remains open/Review.
 
 Physical iPhone discovery/open regression found on 2026-10-28: libusb returned a 40-byte serial descriptor for a 24-character identifier with embedded NUL padding. list() hid it through NewStringUTF while open() compared the padded bytes. Shared serialText normalization now terminates at the first NUL; native regression covers padded/plain/empty inputs. Rebuilt native USB library and descriptor tests pass. Actual connected iPhone now matches and advances to privileged driver capture (non-root LIBUSB_ERROR_ACCESS), so root live run is next. Physical CarPlay acceptance remains unverified.
+
+Second physical run advanced past USB capture, then failed in web TLS certificate generation: scoped IPv6 hostAddress includes %utun zone, rejected by BouncyCastle GeneralName. Backend overlay now encodes IP SANs as raw address octets via DEROctetString. New server regression generates, verifies and reloads a certificate with scoped IPv6 and IPv4. Fresh/repeated overlay test and complete backend build/tests pass; live root restart remains to verify next handshake stage.
 <!-- SECTION:NOTES:END -->

@@ -6,6 +6,7 @@ backend=$1
 cp "$here"/protocol/*.kt "$backend/protocol/src/main/java/com/shilapi/xcertplay/transport/"
 cp "$here"/tests/*.kt "$backend/protocol/src/test/java/com/shilapi/xcertplay/transport/"
 cp "$here"/server/*.kt "$backend/server/src/main/kotlin/com/playport/server/"
+cp "$here"/server-tests/*.kt "$backend/server/src/test/kotlin/com/playport/server/"
 python3 - "$backend" <<'PY'
 from pathlib import Path
 import sys
@@ -29,5 +30,12 @@ if 'WiredBootstrap' not in t:
  t=t.replace('            runCatching { server.close() }','            runCatching { wired?.close() }\n            runCatching { server.close() }')
 t=t.replace('    val wired = System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let { WiredBootstrap(it) }',
     '    val wired = try {\n        System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let {\n            MfiIdentity.load(config)\n            WiredBootstrap(it)\n        }\n    } catch (error: Exception) {\n        System.err.println("Wired USB unavailable: ${error.message}")\n        exitProcess(1)\n    }')
+p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/TlsCertificate.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/TlsCertificate.kt']).decode()
+t=t.replace('import org.bouncycastle.asn1.x500.X500Name', 'import org.bouncycastle.asn1.DEROctetString\nimport org.bouncycastle.asn1.x500.X500Name')
+needle='GeneralName(GeneralName.iPAddress, it.hostAddress)'
+assert t.count(needle) == 1, 'Unexpected upstream TlsCertificate.kt'
+t=t.replace(needle, 'GeneralName(GeneralName.iPAddress, DEROctetString(it.address))')
 p.write_text(t)
 PY

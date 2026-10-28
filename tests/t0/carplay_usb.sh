@@ -18,5 +18,6 @@ python3 "$root/plugins/carplay/backend/usb/tests/prepare.py" "$backend"
 "$root/plugins/carplay/backend/usb/checkout-state" "$backend" verify
 (cd "$backend" && ./gradlew --no-daemon --max-workers=2 :protocol:test \
   --tests '*Usb*' --tests '*Ncm*' --tests '*Ntb16*' --tests '*EthernetIpv6*' \
-  --tests '*Iap2Wired*' --tests '*Iap2ControlDeadline*')
+  --tests '*Iap2Wired*' --tests '*Iap2ControlDeadline*' \
+  :server:test --tests '*TlsCertificateUsbTest*')
 "$root/plugins/carplay/backend/run" --usb-list
