@@ -17,6 +17,7 @@
 #include "lane.h"
 #include "native.h"
 #include "rm2fb.h"
+#include "stream.h"
 #include <errno.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -398,6 +399,19 @@ void rm_present(const HalFrame* f) {
   }
   const bool first = panel.first;
   if (panel.first) { r = {0, 0, panel.w, panel.h}; panel.first = false; }
+  if (stream::ended.exchange(false)) r = {0, 0, panel.w, panel.h};   // the sidecar left: the app's whole frame again
+  else if (stream::active) {   // the sidecar's stream owns the screen (stream.h): its waveform and full refreshes go out from here
+    const uint64_t now = hal_time_us();
+    const int m = stream::mode;
+    if (m >= 0 && refresh_mode != m && now >= mode_ready_us) set_mode(m);
+    if (stream::full && full_refresh_ok && now >= mode_ready_us) {
+      ClientMsg q = {}; q.type = MSG_FULL_REFRESH;
+      if (send(sock, &q, sizeof q, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof q) { stream::full = false; ghost = {}; mode_ready_us = now + switch_pause(); }
+    }
+    pending = {};
+    rin::wait_input(8, sock);
+    return;
+  }
   if (layer == RM2) {
     const bool fast = rm2fb::fast;
     if (first) rm2fb::fast = false;  // the first page in grey levels, then the mode the app asked for
@@ -571,6 +585,21 @@ const char* rm_device(const char* query, const char* arg) {
     if (settle) { eink::unite(pending, fast_area); fast_area = {}; }   // after the frame being drawn now, in the app's mode: no flash
     return "1";
   }
+  // "stream.listen" "<port>" (app/sidecar): a Mac's screen streamed to this window (stream.h); "1" when it listens. "stream.state": "off",
+  // "waiting" or "connected"
+  if (strcmp(query, "stream.listen") == 0) {
+    if (!arg || !shm || sock < 0 || (layer != L0 && layer != L1)) return "0";
+    stream::Target t = {shm, panel.w, panel.h, [] { return docked ? dock_top : 0; }, [](int x, int y, int w, int h) {
+      ClientMsg m = {}; m.type = MSG_UPDATE;
+      m.update.type = UPDATE_PARTIAL; m.update.x = x; m.update.y = y; m.update.w = w; m.update.h = h;
+      send(sock, &m, sizeof m, MSG_NOSIGNAL);   // from the stream's thread; qtfb's socket keeps each message whole
+    }, [] {   // read from the stream's thread: aligned words, written by the main thread only
+      const int m = stream::mode;
+      return hal_time_us() < mode_ready_us || (m >= 0 && m != refresh_mode);
+    }, row ? row->name : "reMarkable"};
+    return stream::start(atoi(arg), t) ? "1" : "0";
+  }
+  if (strcmp(query, "stream.state") == 0) return !stream::port ? "off" : stream::active ? "connected" : "waiting";
   if (strcmp(query, "display.refresh") != 0) return nullptr;
   if (layer == L2) { native::full_now = true; return "1"; }
   if ((layer == L0 || layer == L1) && full_refresh_ok) { full_asked = true; return "1"; }

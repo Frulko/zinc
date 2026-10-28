@@ -36,6 +36,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -275,7 +276,10 @@ static void pump() {
 }
 struct Flush { ~Flush() { flush(); } } flusher;
 
-static int zn_socket(int, int, int) { return socket(AF_UNIX, SOCK_DGRAM, 0); }
+// the driver's other sockets (the sidecar's TCP listener, stream.h) are real ones
+static int zn_socket(int domain, int type, int proto) { return domain == AF_INET ? socket(domain, type, proto) : socket(AF_UNIX, SOCK_DGRAM, 0); }
+// the sidecar's thread sends updates too: one sender at a time drives the models, and the frame hooks take the same lock
+static std::recursive_mutex model;
 static int zn_connect(int s, const struct sockaddr* a, socklen_t) {
   const char* path = ((const sockaddr_un*)a)->sun_path;
   int* server = !strcmp(path, "/tmp/qtfb.sock") ? &qtfb : !strcmp(path, zink::socket_path) && getenv("ZN_RMPP_SIM_LANE") ? &lane
@@ -287,7 +291,7 @@ static int zn_connect(int s, const struct sockaddr* a, socklen_t) {
   *server = pair[1];
   return 0;
 }
-static ssize_t zn_send(int s, const void* b, size_t n, int flags) { ssize_t r = send(s, b, n, flags & ~MSG_NOSIGNAL); pump(); return r; }
+static ssize_t zn_send(int s, const void* b, size_t n, int flags) { std::lock_guard<std::recursive_mutex> g(model); ssize_t r = send(s, b, n, flags & ~MSG_NOSIGNAL); pump(); return r; }
 static ssize_t zn_recv(int s, void* b, size_t n, int flags) { return recv(s, b, n, flags); }
 }  // namespace qsim
 
@@ -309,7 +313,7 @@ static ssize_t zn_recv(int s, void* b, size_t n, int flags) { return recv(s, b, 
 // the model counts the frames the driver is handed, and holds the Marker down over ZN_RMPP_SIM_PEN's frame ranges
 static void (*qsim_present)(const HalFrame*) = nullptr;
 static void (*qsim_poll)(HalInput*) = nullptr;
-static void qsim_counted(const HalFrame* f) { qsim::frames++; qsim_present(f); }
+static void qsim_counted(const HalFrame* f) { std::lock_guard<std::recursive_mutex> g(qsim::model); qsim::frames++; qsim_present(f); }
 // ZN_RMPP_SIM_TAP=frame:x,y[;...]: AppLoad's MESSAGE_USERINPUT for a finger, INPUT_TOUCH_PRESS at that frame and INPUT_TOUCH_RELEASE two
 // frames later (frame:x,y>y2 also moves to y2 at the next frame: a swipe), in framebuffer pixels (src/qtfb/FBController.cpp touchEvent); frame:px,y is the Marker (INPUT_PEN_PRESS/RELEASE), as
 // AppLoad forwards it inside a widget card
@@ -421,6 +425,7 @@ static void qsim_collapse() {
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = qsim::collapsed ? 0 : 2; send(qsim::qtfb, &st, sizeof st, 0);
 }
 static void qsim_polled(HalInput* in) {
+  std::lock_guard<std::recursive_mutex> g(qsim::model);
   qsim_taps(); qsim_hold();
   qsim_keys();
   qsim_collapse();
