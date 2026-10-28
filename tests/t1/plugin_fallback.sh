@@ -40,3 +40,18 @@ import json, sys
 lines = [json.loads(line) for line in open(sys.argv[1])]
 assert any(line['level'] == 'warning' and 'Probe' in line['msg'] for line in lines), lines
 PY
+# ZN-852: a stand-in imports its records from its own spec (not the sim itself), and the plugin still finds them in the spec
+mkdir -p "$t/rec/plugins/pair/native"
+sed -e 's/"probe"/"pair"/' -e 's/zinc:probe/zinc:pair/' "$t/project/plugins/probe/plugin.json" > "$t/rec/plugins/pair/plugin.json"
+cat > "$t/rec/plugins/pair/native/pair.spec.ts" <<'TS'
+import { NativeModule, requireNative } from 'zinc:native';
+export interface Pair { a: i32; b: string; }
+export interface Spec extends NativeModule { pair(): Pair; }
+export default requireNative<Spec>('Pair');
+TS
+printf "import type { Pair } from './pair.spec';\nexport default { pair: (): Pair => ({ a: 7, b: 'seven' }) };\n" > "$t/rec/plugins/pair/native/pair.sim.ts"
+printf "import P from './native/pair.spec';\nimport type { Pair } from './native/pair.spec';\nexport function pair(): Pair { return P.pair(); }\n" > "$t/rec/plugins/pair/index.ts"
+printf '{"name":"rec","entry":"main.ts"}\n' > "$t/rec/zinc.json"
+printf "import { pair } from 'zinc:pair';\nconst p = pair();\nconsole.log(p.a, p.b);\n" > "$t/rec/main.ts"
+ZINC_NATIVE=sim "$ZINC" run --interp "$t/rec" > "$t/out" 2> "$t/log" || { cat "$t/log"; exit 1; }
+[ "$(cat "$t/out")" = "7 seven" ] || { echo "plugin_fallback: a stand-in's records from its spec"; cat "$t/out" "$t/log"; exit 1; }

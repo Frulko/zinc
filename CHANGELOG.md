@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - `n.toString(radix)` prints a number in any base from 2 to 36, with the same digits as JavaScript (`(255).toString(16)` is `ff`).
 - Generic arrow functions: `const id = <T>(v: T): T => v`.
+- A stand-in `x.sim.ts` can `import type { ... } from './x.spec'` to use its spec's records instead of copying them, and the plugin still imports them from the spec.
 - A string or a number can be a condition (`if (name)`, `s ? a : b`, `!count`, `a && b`): `''`, `0` and `NaN` are false, as in JavaScript, instead of error Z0103.
 - Native plugins: a spec can declare interfaces and pass them, in lists, optional or nested, as parameters, results and promise results; the generated C++ header has a plain struct per record with `zn::rec::encode`/`decode`, safe on a worker thread, and fields appended later stay readable both ways (docs/guide/05-plugins.md, "Records"). `zinc:gphoto2`'s `detect()` uses it.
 - `zinc:ipod` manages classic iPods (Classic, Nano, Mini, Video, Shuffle) over libgpod: detect, open or initialise, tracks with their tags and covers, playlists, a free-space check before any copy, snapshots at each save, backups, check and repair, eject. It writes the missing SysInfoExtended file itself (docs/plugins/ipod.md).
@@ -97,7 +98,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Native plugins: a record field named like a C++ keyword (`auto`, `new`, `delete`, `default`...) no longer breaks the generated header; it is `auto_` in C++.
 - A `Promise<T>` made by generic code with `T = void` (`fail<void>()`, `Promise.reject<void>(e)`) is a `Promise<void>`: it can be returned from a function that returns `Promise<void>`, awaited, and given `then` and `catch`.
 - An object literal passed to a generic call takes its type from the type wanted there, as in TypeScript: `return Promise.resolve({ xs: [], size: 0 })` in a function returning `Promise<Picture>` no longer stops on Z0109 (empty array) or Z0103, and its number literals take the record's types.
-- Native plugins: a method that returns `Promise<void>` is accepted (it was refused with Z5011 "bad signature 'Pn'"); a plugin whose build fails is reported once instead of being rebuilt, and the index fetched, at every use; vendored C files find the headers of the plugin's `pkg` libraries; a stand-in (`x.sim.ts`) that imports its own spec gets an error instead of crashing the compiler.
+- Native plugins: a method that returns `Promise<void>` is accepted (it was refused with Z5011 "bad signature 'Pn'"); a plugin whose build fails is reported once instead of being rebuilt, and the index fetched, at every use; vendored C files find the headers of the plugin's `pkg` libraries.
 - Sidecar on a screen (a Pi) no longer shows half of a picture, torn in tiles: a picture is shown whole at the refresh after its last piece, and the Mac keeps one picture in flight when the link is slow.
 - A plugin rebuilds when a header it includes from another directory changes (display-fbdev's `../display-rmpp/stream.h`): before, the old library stayed in the cache.
 - `zinc pack` no longer stops on "cannot read the library of plugin" when a plugin comes prebuilt with the engine (the Raspberry Pi image could not update to 0.9.1 because of it).

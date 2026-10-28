@@ -1677,15 +1677,40 @@ struct Loader {
         }
         if (!isSim && haveSpec && mode == "auto" && gNativeLive && !requireNativeName(specText0).empty() && gNativeLive(requireNativeName(specText0)) && nativeProvided(requireNativeName(specText0), whyNot)) break;   // a live plugin: real code, not its deterministic stand-in
         if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
-        if (done.count(simPath)) return done[simPath];
-        if (prog.files[fromFile].path == simPath) {   // the stand-in imports its own spec, which is itself: it recursed until the stack ran out
-          diag(kZUnsupported, fromFile, node, "a stand-in cannot import its own spec ('" + spec + "'): declare the records it uses in it");
-          return kNone;
+        if (prog.files[fromFile].path == simPath) {   // the stand-in imports its own spec (its records): the spec's declarations, without the native module it binds
+          const std::string specPath = base + ".ts";
+          if (done.count(specPath)) return done[specPath];
+          if (!haveSpec) break;
+          std::string decls = specText0;
+          if (std::size_t at = decls.find("export default requireNative<"); at != std::string::npos) {
+            std::size_t end = decls.find(';', at);
+            decls.erase(at, end == std::string::npos ? std::string::npos : end + 1 - at);
+          }
+          return load(specPath, std::move(decls));
         }
+        if (done.count(simPath)) return done[simPath];
         if (read(simPath, text)) {
           std::string specText;
           if (read(base + ".ts", specText)) specOf[simPath] = std::move(specText);  // the Spec the sim implements: the calls are checked against it
           prog.nativeFallbacks.push_back({requireNativeName(specText0), isSim ? "simulation" : "Next implementation", whyNot});
+          if (haveSpec) {   // the records the plugin imports from the spec, which is now the sim: the sim passes on those of the spec it does not declare itself
+            auto types = [](const std::string& src, bool exportedOnly) {   // the top-level interfaces and type aliases of a file
+              std::set<std::string> names;
+              ParseResult pr = parse(src);
+              if (pr.ast.root == kNone || !pr.diags.empty()) return names;
+              for (std::uint32_t st : pr.ast.nodes[pr.ast.root].kids) {
+                const bool ex = pr.ast.nodes[st].kind == N::Export && !pr.ast.nodes[st].kids.empty();
+                const Node& dn = pr.ast.nodes[ex ? pr.ast.nodes[st].kids[0] : st];
+                if ((dn.kind == N::Interface || dn.kind == N::TypeAlias) && (ex || !exportedOnly)) names.insert(std::string(dn.text));
+              }
+              return names;
+            };
+            const std::set<std::string> own = types(text, false);
+            std::string list;
+            for (const std::string& nm : types(specText0, true)) if (nm != "Spec" && !own.count(nm)) list += (list.empty() ? "" : ", ") + nm;
+            const std::size_t sl = base.rfind('/');
+            if (!list.empty()) text += "\nexport type { " + list + " } from './" + base.substr(sl == std::string::npos ? 0 : sl + 1) + "';\n";
+          }
           return load(simPath, std::move(text));
         }
       }

@@ -2,10 +2,9 @@
 // The sim is headless, so the live view is a blank runtime image of the fitted 1024x683 frame size.
 import { createImage, destroyImage } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
+import type { CameraInfo } from './gphoto2.spec';
 
 const FS = '\u001f', RS = '\u001e';
-/** The record of gphoto2.spec.ts (this file stands in for it). */
-export interface CameraInfo { model: string; port: string; }
 const W = [
   ['/main/imgsettings/iso', 'ISO Speed', 'radio', 'Auto|100|200|400|800|1600|3200|6400', 0],
   ['/main/capturesettings/aperture', 'Aperture', 'radio', '2.8|3.5|4|4.5|5.6|6.3|8|11|16', 4],
