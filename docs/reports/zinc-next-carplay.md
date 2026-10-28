@@ -242,3 +242,19 @@ microphone/Siri/calls, day/night appearance, physical multitouch, reconnect and
 wireless remain to verify. FFmpeg emits deprecated pixel-format/range warnings
 in the viewer; projection continues, but exact colour-range correctness is not
 claimed. No Raspberry Pi, hardware decode, zero-copy or performance claim.
+
+## Audio acceptance: sound remains on the phone
+
+Owner confirms Spotify sound remains on the iPhone during the successful USB
+projection. The supplied log SETUPs only stream 110, so no received audio can
+be blamed on the Zinc decoder yet. Pinned CarPlayServer still set microphone
+false in AirPlayConfig despite integrated microphone capture/uplink. Overlay now
+advertises microphone=true, with receiver-instance regression asserting default
+input/output and AAC media output formats without starting capture.
+
+Changed modes/resource ownership metadata is logged (no audio payload or app
+state), to distinguish routing from stream setup. Full backend build/tests and
+fresh/repeated overlay checks pass. This is a confirmed capability integration
+defect, not confirmed resolution of playback staying on the phone. Next live
+check: keep USB session active, inspect/select PlayPort in the phone output
+picker and collect resource ownership plus any audio SETUP lines.

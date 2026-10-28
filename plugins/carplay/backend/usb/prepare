@@ -33,6 +33,20 @@ if 'WiredBootstrap' not in t:
 t=t.replace('    val wired = System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let { WiredBootstrap(it) }',
     '    val wired = try {\n        System.getenv("ZINC_CARPLAY_USB_SERIAL")?.let {\n            MfiIdentity.load(config)\n            WiredBootstrap(it)\n        }\n    } catch (error: Exception) {\n        System.err.println("Wired USB unavailable: ${error.message}")\n        exitProcess(1)\n    }')
 p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/CarPlayServer.kt']).decode()
+assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer microphone setting'
+t=t.replace('microphone = false', 'microphone = true')
+t=t.replace('    private val listener = object : AirPlaySessionListener {', '    private var lastResourceSummary: String? = null\n\n    private val listener = object : AirPlaySessionListener {')
+t=t.replace('        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {', '''        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
+            if (type == "modesChanged") {
+                val summary = params["resources"]?.toString()
+                if (summary != null && summary != lastResourceSummary) {
+                    log.info("CarPlay resource ownership {}", summary)
+                    lastResourceSummary = summary
+                }
+            }''')
+p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/TlsCertificate.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/TlsCertificate.kt']).decode()
 t=t.replace('import org.bouncycastle.asn1.x500.X500Name', 'import org.bouncycastle.asn1.DEROctetString\nimport org.bouncycastle.asn1.x500.X500Name')
