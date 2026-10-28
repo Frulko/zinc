@@ -7,7 +7,7 @@
 // Only exported Qt API and xochitl's QML types and names (the ones rm-hacks-qmd and AppLoad's QMD use): no native engine address, no
 // override, no QMD. Every gate fails closed with one journal line ("[zinc-canvas] off: ..."): the model row, the SHA-256 of the
 // running xochitl against exthome/zinc-canvas/verified (install.sh records it; a new OS is one line, not a build), the QML type and its
-// Pen mode, AppLoad's item fullscreen 1:1. A xochitl that dies while the canvas is armed refuses it for the rest of the boot.
+// Pen mode, AppLoad's item fullscreen 1:1 or docked under the header. A xochitl that dies while the canvas is armed refuses it for the rest of the boot.
 // Wire protocol: protocol.h (version 2; Welcome.key = zink::Canvas, Welcome.hash = the verified xochitl hash).
 #include <QByteArray>
 #include <QCoreApplication>
@@ -86,7 +86,8 @@ QByteArray gate(const rmm::Model*& model) {
 class Canvas : public QQuickPaintedItem {
  public:
   QImage image;
-  QRegion live;
+  QRegion live;   // in the item's coordinates
+  int top = 0;    // the buffer's row at the item's origin: 0 fullscreen, xochitl's header height docked (AppLoad 0005)
   Canvas(QQuickItem* parent, const uchar* pixels, int w, int h)
       : QQuickPaintedItem(parent), image(pixels, w, h, qsizetype(w) * 3, QImage::Format_RGB888) {
     setRenderTarget(QQuickPaintedItem::Image);   // the epaper painter node, as AppLoad's item and PR #61's InkCanvas
@@ -98,7 +99,7 @@ class Canvas : public QQuickPaintedItem {
   void paint(QPainter* p) override {
     const QRect clip = p->clipBoundingRect().toAlignedRect();
     if (trace) fprintf(stderr, "[zinc-canvas] paint %d,%d %dx%d\n", clip.x(), clip.y(), clip.width(), clip.height());
-    for (const QRect& r : live & clip) p->drawImage(r.topLeft(), image, r);
+    for (const QRect& r : live & clip) p->drawImage(r.topLeft(), image, r.translated(0, top));
   }
 };
 
@@ -137,10 +138,14 @@ class Server : public QObject {
     }
     return nullptr;
   }
-  bool oneToOne() {
-    if (!window || !fb || !fb->isVisible()) return false;
-    return fb->width() == model->w && fb->height() == model->h && fb->mapToScene(QPointF(0, 0)) == QPointF(0, 0) && fb->rotation() == 0 &&
-           window->contentItem()->rotation() == 0 && window->width() == model->w && window->height() == model->h;
+  /** The buffer's row shown at AppLoad's item origin when the window is fullscreen 1:1 (0) or docked under xochitl's header (its height,
+   *  the buffer below it pixel for pixel); else -1. */
+  int shown() {
+    if (!window || !fb || !fb->isVisible()) return -1;
+    const QPointF o = fb->mapToScene(QPointF(0, 0));
+    const int top = int(o.y());
+    if (o.x() != 0 || o.y() != top || top < 0 || top >= model->h || fb->width() != model->w || fb->height() != model->h - top) return -1;
+    return fb->rotation() == 0 && window->contentItem()->rotation() == 0 && window->width() == model->w && window->height() == model->h ? top : -1;
   }
   void drop() {
     if (inking && fb) fb->update(box);
@@ -163,7 +168,7 @@ class Server : public QObject {
     peer = cred.pid;
     for (QWindow* w : QGuiApplication::topLevelWindows())
       if (auto* q = qobject_cast<QQuickWindow*>(w)) if ((fb = findItem(q->contentItem()))) { window = q; break; }
-    if (!oneToOne()) return fail("the app's window is not fullscreen 1:1");
+    if (shown() < 0) return fail("the app's window is neither fullscreen 1:1 nor docked");
     QQmlEngine* engine = qmlEngine(fb);
     if (!engine) return fail("AppLoad's item has no QML engine");
     char name[32]; snprintf(name, sizeof name, "/qtfb_%d", m.key);
@@ -205,13 +210,14 @@ class Server : public QObject {
       if (!canvas) { if (m.type == zink::Hello) hello(m); else fail("not granted"); continue; }
       switch (m.type) {
         case zink::StrokeBegin:
-          if (inking || !oneToOne()) return fail("stroke begin");
+          if (inking || (canvas->top = shown()) < 0) return fail("stroke begin");
+          canvas->setSize(fb->size());   // the window may have docked since the hello
           inking = true; box = QRect();
           mode->setProperty("inking", true);
           break;
         case zink::Ink: {
           if (!inking || !zink::inside(m, model->w, model->h)) return fail("ink");
-          const QRect r(m.x, m.y, m.w, m.h);
+          const QRect r = QRect(m.x, m.y - canvas->top, m.w, m.h) & QRect(QPoint(), fb->size().toSize());
           canvas->live += r; box |= r;
           canvas->update(r);   // only this rectangle, in Pen mode
           break;
@@ -220,7 +226,7 @@ class Server : public QObject {
           if (!inking) return fail("stroke end");
           inking = false;
           mode->setProperty("inking", false);
-          const QRect settle = zink::inside(m, model->w, model->h) ? box | QRect(m.x, m.y, m.w, m.h) : box;
+          const QRect settle = zink::inside(m, model->w, model->h) ? box | (QRect(m.x, m.y - canvas->top, m.w, m.h) & QRect(QPoint(), fb->size().toSize())) : box;
           canvas->live = QRegion();
           canvas->update(settle);   // transparent again
           fb->update(settle);       // AppLoad's item repaints the box in its UI mode: the colour settle

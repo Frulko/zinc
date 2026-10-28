@@ -598,7 +598,11 @@ const char* rm_device(const char* query, const char* arg) {
     }, [] {   // read from the stream's thread: aligned words, written by the main thread only
       const int m = stream::mode;
       return hal_time_us() < mode_ready_us || (m >= 0 && m != refresh_mode);
-    }, row ? row->name : "reMarkable"};
+    }, nullptr, row ? row->name : "reMarkable"};
+    if (layer == L1)   // only the stream's thread speaks on the lane while it is connected: rm_present returns before lane::frame
+      t.pen = [](int kind, int x, int y, int w, int h) {
+        return lane::alive() && lane::put(kind == 0 ? zink::StrokeBegin : kind == 1 ? zink::Ink : zink::StrokeEnd, {x, y, x + w, y + h});
+      };
     return stream::start(atoi(arg), t) ? "1" : "0";
   }
   if (strcmp(query, "stream.state") == 0) return !stream::port ? "off" : stream::active ? "connected" : "waiting";

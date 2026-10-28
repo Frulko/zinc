@@ -156,7 +156,7 @@ into `/usr/bin/xochitl`; design §11). The canvas needs none: it is route 2 of
 [the fast-ink landscape](../reports/remarkable-fast-ink-landscape.md) (AppLoad PR #61's InkCanvas), written as its own
 extension, `integrations/remarkable-ink/canvas.cpp`.
 
-- When the app says `Hello`, it lays a `QQuickPaintedItem` over AppLoad's window (the `FBController` item, fullscreen 1:1),
+- When the app says `Hello`, it lays a `QQuickPaintedItem` over AppLoad's window (the `FBController` item, fullscreen 1:1 or docked under the header),
   reading the app's qtfb shared memory directly (no copy), with a child `ScreenModeItem` of xochitl's own `xofm.libs.epaper`
   module (the type and the `Pen`/`UI` modes AppLoad's QMD uses). `StrokeBegin` sets that item to `Pen`; each `Ink(rect)`
   repaints only that rectangle; `StrokeEnd` goes back to `UI`, makes the item transparent again and repaints the box

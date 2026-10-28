@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -144,6 +145,8 @@ struct Target {
   std::function<int()> top;                 // the first row the stream may use (the dock's)
   std::function<void(int, int, int, int)> update;   // one partial update
   std::function<bool()> busy;               // qtfb switching its waveform or sleeping after a full refresh: an update now is lost
+  std::function<bool(int, int, int, int, int)> pen;   // the ink lane (L1, zinc-canvas): 0 begin, 1 ink x y w h, 2 end; empty without it,
+                                                      // false once it is gone
   const char* model;
 };
 
@@ -183,7 +186,15 @@ inline void serve(Target t, int ls) {
     fprintf(stderr, "display-rmpp: sidecar connected, %dx%d from row %d\n", t.w, H, top);
     uint32_t seq = 0;
     uint8_t h[16];
-    while (read_full(c, h, sizeof h)) {
+    // With the ink lane, rectangles go out in xochitl's Pen mode (the Marker's own path) as one "stroke" while they keep coming; 300 ms
+    // without one ends it and AppLoad's item settles its box in the stream's mode.
+    // ponytail: fixed 300 ms, a Mac option if the settle shows up too often or too late
+    bool pen = (bool)t.pen, stroke = false;
+    auto settle = [&] { if (stroke && !t.pen(2, 0, 0, 1, 1)) pen = false; stroke = false; };
+    for (;;) {
+      pollfd pf = {c, POLLIN, 0};
+      if (stroke && poll(&pf, 1, 300) == 0) settle();
+      if (!read_full(c, h, sizeof h)) break;
       uint16_t x, y, w, hh; uint32_t len;
       memcpy(&x, h + 2, 2); memcpy(&y, h + 4, 2); memcpy(&w, h + 6, 2); memcpy(&hh, h + 8, 2); memcpy(&len, h + 12, 4);
       if (h[0] == 2) { if (x <= 4) mode = x; continue; }   // qtfb's modes, set by rm_present
@@ -204,10 +215,16 @@ inline void serve(Target t, int ls) {
         } else for (int i = 0; i < w; i++, d += 3) d[0] = d[1] = d[2] = s[i];
       }
       while (t.busy()) usleep(2000);   // a few ms with AppLoad 0006, a second without
-      if (w && hh) { t.update(x, top + y, w, hh); if (probe && !probe_at) probe_at = now_us() | 1; }
+      if (w && hh) {
+        if (pen && !stroke) stroke = pen = t.pen(0, 0, 0, 0, 0);
+        if (pen && !(pen = t.pen(1, x, top + y, w, hh))) stroke = false;
+        if (!pen) t.update(x, top + y, w, hh);
+        if (probe && !probe_at) probe_at = now_us() | 1;
+      }
       ++seq;
       if (!send16(1, 0, 0, (int32_t)seq, (int32_t)(now_us() - t0), 0)) break;
     }
+    settle();
     { std::lock_guard<std::mutex> g(out); client = -1; }
     ++session;
     close(c);

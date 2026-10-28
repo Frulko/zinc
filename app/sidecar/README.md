@@ -5,6 +5,8 @@ displays, drawn in the pen's black-and-white waveform, the fastest the panel has
 
 - **The tablet** (`src/`): a Zinc app. Its driver (`plugins/display-rmpp/stream.h`) listens on TCP 7710 and writes what the Mac sends
   straight into AppLoad's framebuffer from its own thread, without the app's frame loop; the app only shows how to connect.
+  With zinc-canvas loaded in xochitl (`integrations/remarkable-ink`, `install.sh canvas`), the rectangles go out in xochitl's Pen
+  mode instead, the Marker's own path, as one stroke while they keep coming (300 ms without one settles it); without it, qtfb.
 - **The Mac** (`mac/`): `mac/build.sh`, then `mac/build/sidecar`. It makes a virtual display (CoreGraphics' `CGVirtualDisplay`, as DeskPad),
   captures it with ScreenCaptureKit (only the areas macOS says changed), dithers its luma to 1 bit and sends only the 32x16 tiles that
   changed, one frame in flight. The luma goes through an e-ink shader first: a tone curve (near white to white, near black to black) and an

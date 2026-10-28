@@ -43,7 +43,7 @@ bool open(const rmm::Model& row, int key) {
   zink::Message w;
   if (send(sock, &hello, sizeof hello, MSG_NOSIGNAL) != (ssize_t)sizeof hello || recv(sock, &w, sizeof w, 0) != (ssize_t)sizeof w ||
       w.magic != zink::magic || w.version != zink::version || w.type != zink::Welcome) {
-    fprintf(stderr, "display-rmpp: the ink lane refused this app (protocol %u, window not fullscreen 1:1, or lane off for this boot); fast ink off, qtfb\n", zink::version);
+    fprintf(stderr, "display-rmpp: the ink lane refused this app (protocol %u, window neither fullscreen 1:1 nor docked, or lane off for this boot); fast ink off, qtfb\n", zink::version);
     close_lane(); return false;
   }
   if (w.w != row.w || w.h != row.h) {
