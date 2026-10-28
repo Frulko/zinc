@@ -64,7 +64,7 @@ std::string serial(libusb_device_handle* handle, const libusb_device_descriptor&
     if (!desc.iSerialNumber) return {};
     int count = libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, text, sizeof(text));
     checked(count, "read USB serial");
-    return std::string(reinterpret_cast<char*>(text), count);
+    return carplay::serialText(text, static_cast<size_t>(count));
 }
 void fail(JNIEnv* env, const std::exception& error) {
     env->ThrowNew(env->FindClass("java/io/IOException"), error.what());
@@ -113,6 +113,7 @@ JNIEXPORT jlong JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_open(JNIE
         if (wanted.empty()) throw std::runtime_error("An explicit iPhone USB serial is required");
         auto owned = std::make_unique<Device>();
         Devices devices(owned->context.value);
+        std::string available;
         for (ssize_t i = 0; i < devices.count; ++i) {
             auto* current = devices.value[i];
             libusb_device_descriptor desc{};
@@ -123,14 +124,19 @@ JNIEXPORT jlong JNICALL Java_com_shilapi_xcertplay_transport_NativeUsb_open(JNIE
             libusb_device_handle* h = nullptr;
             checked(libusb_open(current, &h), "open iPhone");
             bool matches;
-            try { matches = serial(h, desc) == wanted; }
+            try {
+                const std::string actual = serial(h, desc);
+                if (!available.empty()) available += ", ";
+                available += actual;
+                matches = actual == wanted;
+            }
             catch (...) { libusb_close(h); throw; }
             if (!matches) { libusb_close(h); continue; }
             owned->handle = h;
             owned->config = config;
             break;
         }
-        if (!owned->handle) throw std::runtime_error("No matching Apple USBMUX/NCM device; unlock/connect iPhone");
+        if (!owned->handle) throw std::runtime_error("No matching Apple USBMUX/NCM device for [" + wanted + "]; available: [" + available + "]");
         if (switchMode) {
             unsigned char response = 0;
             int count = libusb_control_transfer(owned->handle, 0xc0, 0x52, 0, 4, &response, 1, 2000);

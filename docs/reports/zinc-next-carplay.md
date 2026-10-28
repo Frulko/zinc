@@ -107,3 +107,14 @@ and results before claiming a complete receiver. No latency, refresh-rate,
 hardware decode, zero-copy, echo cancellation or live voice-quality claim.
 Pi/Linux, Android Auto, GPS injection and cluster display remain later work;
 no cross build was run.
+
+## First physical USB attempt: serial padding
+
+The attached iPhone listed a 24-character serial, but libusb returned 40 bytes
+including NUL padding. JNI NewStringUTF hid the padding during listing; open
+compared the full string and reported no matching device. serialText now bounds
+the identifier at the first NUL in both paths. Native descriptor regression
+tests (padded, plain and empty) pass and the library was rebuilt. A live non-root
+retry now matches the phone and reaches driver capture, which returns
+LIBUSB_ERROR_ACCESS as expected without privilege. The next step is the same
+root backend launch; no CarPlay session has yet been established.

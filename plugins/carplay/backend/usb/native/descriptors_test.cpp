@@ -2,6 +2,12 @@
 #include "descriptors.h"
 #include <cassert>
 int main() {
+    const unsigned char padded[40] = "000081500018643921E2401C";
+    assert(carplay::serialText(padded, sizeof(padded)) == "000081500018643921E2401C");
+    assert(carplay::serialText(padded, 24) == "000081500018643921E2401C");
+    assert(carplay::serialText(padded, 0).empty());
+    const unsigned char plain[] = {'A', 'B', 'C'};
+    assert(carplay::serialText(plain, sizeof(plain)) == "ABC");
     libusb_endpoint_descriptor muxEnds[2]{};
     muxEnds[0].bEndpointAddress = 0x04; muxEnds[0].bmAttributes = 2;
     muxEnds[1].bEndpointAddress = 0x85; muxEnds[1].bmAttributes = 2;

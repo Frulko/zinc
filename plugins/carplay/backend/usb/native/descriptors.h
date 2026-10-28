@@ -2,8 +2,17 @@
 // Descriptor rules ported from DiPlay IphoneCarPlayConfiguration/NcmFunctionDiscovery.
 #pragma once
 #include <libusb.h>
+#include <string>
 
 namespace carplay {
+// Apple serial descriptors can contain NUL padding after the visible identifier.
+inline std::string serialText(const unsigned char* text, size_t length) {
+    std::string value(reinterpret_cast<const char*>(text), length);
+    const auto end = value.find('\0');
+    if (end != std::string::npos) value.resize(end);
+    return value;
+}
+
 struct Pipe {
     int interface = -1;
     int alternate = 0;
