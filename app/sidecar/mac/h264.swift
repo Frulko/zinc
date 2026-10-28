@@ -1,5 +1,5 @@
 // The part of the screen where a video plays, as H.264 (sidecar-screen): VideoToolbox on the Mac's media engine, set for the lowest
-// delay (real time, no frame reordering, low-latency rate control when this Mac has it), each picture out before the next one comes in.
+// delay (real time, no frame reordering, low-latency rate control when this Mac has it), each picture handed on as soon as it is out.
 // The receiver decodes it in hardware (a Raspberry Pi's bcm2835-codec, V4L2) and shows it on a plane under the rest of the screen,
 // which stays lossless tiles. docs/reports/sidecar-video-audio-research.md
 import Foundation
@@ -44,30 +44,42 @@ final class VideoEncoder {
     }
     deinit { if let s = session { VTCompressionSessionInvalidate(s) } }
 
-    /** The picture's (x, y, w, h) part of a BGRA capture, as one H.264 access unit in Annex B (start codes; SPS and PPS before a key picture). */
-    func encode(_ pb: CVPixelBuffer, x: Int, y: Int) -> (data: [UInt8], key: Bool)? {
-        guard let s = session else { return nil }
-        CVPixelBufferLockBaseAddress(pb, .readOnly)
-        let bpr = CVPixelBufferGetBytesPerRow(pb)
-        let base = CVPixelBufferGetBaseAddress(pb)! + y * bpr + x * 4
-        // the region of the capture without a copy: the crop keeps the capture alive until VideoToolbox is done with it
-        var crop: CVPixelBuffer?
-        let keep = Unmanaged.passRetained(pb)
-        let ok = CVPixelBufferCreateWithBytes(nil, w, h, kCVPixelFormatType_32BGRA, base, bpr, { ctx, _ in
-            guard let ctx else { return }
-            let p = Unmanaged<CVPixelBuffer>.fromOpaque(ctx).takeRetainedValue()
-            CVPixelBufferUnlockBaseAddress(p, .readOnly)
-        }, keep.toOpaque(), nil, &crop)
-        guard ok == kCVReturnSuccess, let crop else { keep.release(); CVPixelBufferUnlockBaseAddress(pb, .readOnly); return nil }
+    /** The picture's (x, y, w, h) part of a BGRA capture, as one H.264 access unit in Annex B (start codes; SPS and PPS before a key
+     *  picture), handed to `done` on VideoToolbox's thread as soon as it is out (nil: it failed); the capture is kept until then. The
+     *  units come out in order. The whole capture goes as it is (its IOSurface, 2 ms less than a part, which is made without a copy). */
+    func encode(_ pb: CVPixelBuffer, x: Int, y: Int, done: @escaping ((data: [UInt8], key: Bool)?) -> Void) {
+        guard let s = session else { done(nil); return }
+        var src = pb
+        if x != 0 || y != 0 || CVPixelBufferGetWidth(pb) != w || CVPixelBufferGetHeight(pb) != h {
+            // the region of the capture without a copy: the crop keeps the capture alive until VideoToolbox is done with it
+            CVPixelBufferLockBaseAddress(pb, .readOnly)
+            let bpr = CVPixelBufferGetBytesPerRow(pb)
+            let base = CVPixelBufferGetBaseAddress(pb)! + y * bpr + x * 4
+            var crop: CVPixelBuffer?
+            let keep = Unmanaged.passRetained(pb)
+            let ok = CVPixelBufferCreateWithBytes(nil, w, h, kCVPixelFormatType_32BGRA, base, bpr, { ctx, _ in
+                guard let ctx else { return }
+                let p = Unmanaged<CVPixelBuffer>.fromOpaque(ctx).takeRetainedValue()
+                CVPixelBufferUnlockBaseAddress(p, .readOnly)
+            }, keep.toOpaque(), nil, &crop)
+            guard ok == kCVReturnSuccess, let crop else { keep.release(); CVPixelBufferUnlockBaseAddress(pb, .readOnly); done(nil); return }
+            src = crop
+        }
         let pts = CMTime(value: n, timescale: 60); n += 1
-        var out: (data: [UInt8], key: Bool)?
         let props = keyNext ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil
         keyNext = false
-        VTCompressionSessionEncodeFrame(s, imageBuffer: crop, presentationTimeStamp: pts, duration: .invalid, frameProperties: props, infoFlagsOut: nil) { status, _, sb in
-            guard status == noErr, let sb else { return }
-            out = VideoEncoder.annexB(sb)
+        let st = VTCompressionSessionEncodeFrame(s, imageBuffer: src, presentationTimeStamp: pts, duration: .invalid, frameProperties: props, infoFlagsOut: nil) { status, _, sb in
+            done(status == noErr && sb != nil ? VideoEncoder.annexB(sb!) : nil)
         }
-        VTCompressionSessionCompleteFrames(s, untilPresentationTimeStamp: pts)   // the picture is out before the next one goes in
+        if st != noErr { done(nil) }
+    }
+    /** Every picture given is out (its `done` called). */
+    func flush() { if let s = session { VTCompressionSessionCompleteFrames(s, untilPresentationTimeStamp: .invalid) } }
+    /** encode, waiting for the unit (the --h264-dump measure). */
+    func encode(_ pb: CVPixelBuffer, x: Int, y: Int) -> (data: [UInt8], key: Bool)? {
+        var out: (data: [UInt8], key: Bool)?
+        encode(pb, x: x, y: y) { out = $0 }
+        flush()
         return out
     }
 

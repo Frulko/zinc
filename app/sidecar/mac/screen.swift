@@ -125,6 +125,7 @@ for tries in 0... {
 var one: Int32 = 1
 setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
 func readFull(_ p: UnsafeMutableRawPointer, _ n: Int) { var got = 0; while got < n { let r = read(sock, p + got, n - got); if r < 0 && errno == EINTR { continue }; if r <= 0 { die("the screen went away") }; got += r } }
+let wire = NSLock()   // one message at a time on the socket: a picture's RECTs, a video's unit (from VideoToolbox's thread), a stop
 func writeFull(_ p: UnsafeRawPointer, _ n: Int) { var put = 0; while put < n { let r = write(sock, p + put, n - put); if r < 0 && errno == EINTR { continue }; if r <= 0 { die("the screen went away") }; put += r } }
 var line = [UInt8]()
 while true { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.append(c) }
@@ -262,7 +263,8 @@ func send(_ pb: CVPixelBuffer) {
         if c == candidate { steady += 1 } else { candidate = c; steady = 0 }
         if let v = video, still > 60 || (steady >= 10 && c != v) {   // over: its place is sent again exact, below
             let r = pixels(v, w, h)
-            writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); rectsSent += 1
+            encoder?.flush()   // its units are on the wire before the stop
+            wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); wire.unlock(); rectsSent += 1
             shown.withUnsafeMutableBufferPointer { s in for y in r.y..<(r.y + r.h) { for x in r.x..<(r.x + r.w) { s[(y * W + x) * 4 + 3] = 0 } } }   // differs from any capture
             video = nil; encoder = nil
         }
@@ -311,11 +313,15 @@ func send(_ pb: CVPixelBuffer) {
         }
     }
     if videoMoved, let v = video, let e = encoder {   // the film's picture first: its decoder starts while the RECTs come
+        // VideoToolbox's ~7 ms run beside the tiles' encode; the unit goes on the wire from its thread as soon as it is out, between two
+        // pictures' RECTs. Counted now: its ACK closes this picture (a unit that failed is ACKed here)
         let r = pixels(v, w, h), te = now()
-        if let (au, _) = e.encode(pb, x: r.x, y: r.y) {
-            writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, au.count), 16); writeFull(au, au.count)
-            rectsSent += 1; videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += (now() - te) * 1000
-            stats.bytes += 16 + au.count; total.bytes += 16 + au.count
+        rectsSent += 1
+        e.encode(pb, x: r.x, y: r.y) { out in
+            guard let (au, _) = out else { q.async { rectsAcked += 1; while let f = frameEnds.first, f.0 <= rectsAcked { frameEnds.removeFirst() }; pump() }; return }
+            let ms = (now() - te) * 1000
+            wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, au.count), 16); writeFull(au, au.count); wire.unlock()
+            q.async { videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += ms; stats.bytes += 16 + au.count; total.bytes += 16 + au.count }
         }
     }
     if runs.isEmpty {
@@ -333,6 +339,7 @@ func send(_ pb: CVPixelBuffer) {
         DispatchQueue.concurrentPerform(iterations: k) { j in for i in stride(from: j, to: n, by: k) { encode(&b[i], lockedBase, bpr, zctx[j]) } }
     }
     stats.encode += (now() - t0) * 1000; more.encodeMax = max(more.encodeMax, (now() - t0) * 1000)
+    wire.lock(); defer { wire.unlock() }
     for (i, r) in cut.enumerated() {
         writeFull(header(1, 24, r.x, r.y, r.w, r.h, r.codec, i < cut.count - 1, r.payload.count), 16)
         writeFull(r.payload, r.payload.count)
@@ -396,14 +403,14 @@ func speedTest() {
     print("speedtest: running")
     var pings = [Double]()
     for i in 0..<20 {
-        let t = now(); writeFull(header(9, 0, i, 0, 0, 0, 0, false, 0), 16)
+        let t = now(); wire.lock(); writeFull(header(9, 0, i, 0, 0, 0, 0, false, 0), 16); wire.unlock()
         if echoes.wait(timeout: .now() + 2) == .timedOut { break }
         pings.append((now() - t) * 1000)
     }
     let chunk = [UInt8](repeating: 0x5A, count: 256 * 1024)
     var sent = 0, n = 0
     let t0 = now()
-    while now() - t0 < 3 { writeFull(header(9, 0, n, 0, 0, 0, 0, false, chunk.count), 16); writeFull(chunk, chunk.count); sent += chunk.count + 16; n += 1 }
+    while now() - t0 < 3 { wire.lock(); writeFull(header(9, 0, n, 0, 0, 0, 0, false, chunk.count), 16); writeFull(chunk, chunk.count); wire.unlock(); sent += chunk.count + 16; n += 1 }
     var got = 0
     while got < n && echoes.wait(timeout: .now() + 10) == .success { got += 1 }
     let secs = now() - t0
@@ -522,7 +529,8 @@ func info(_ seconds: Double) {
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     q.async {
         let f = stats.frames, r = stats.rtt.sorted()
-        if !r.isEmpty { inFlight = r[r.count / 2] > 17 && video == nil ? 1 : 2 }   // a film: its decoder works on the next while one waits for the refresh
+        // a film: three, the screen's decoder works on the next ones while one waits for the refresh (1080p: 30 ms each, 60 a second)
+        if !r.isEmpty { inFlight = video != nil ? 3 : r[r.count / 2] > 17 ? 1 : 2 }
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
                          Double(stats.bytes) * 8 / 2e6, Double(stats.raw) / Double(max(stats.bytes, 1)), Double(stats.tiles) / Double(f),
