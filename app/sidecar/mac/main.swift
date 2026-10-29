@@ -568,7 +568,9 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
         if greyLevels > 1 { for j in 0..<h { for i in 0..<w { payload[j * w + i] = level(payload[j * w + i], x + i, y + j) } } }
         sendRect(x, y, w, h, payload, depth: 8, more: more)
     }
-    if !fast && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {   // much of the screen: one full refresh is one flash, and cleaner
+    // much of the screen: one full refresh is one flash, and cleaner. Not with true greys: they are drawn in place already, without a flash
+    // (a full refresh is still done after four screens of them, below)
+    if !fast && cleanMode == 0 && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {
         for (k, (x, y, w, h)) in rects.enumerated() { greys(x, y, w, h, more: k < rects.count - 1) }
         for _ in rects { acks.wait() }
         writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0
@@ -1097,9 +1099,13 @@ Thread {
         else if now() - lastPointer < 400 { _ = ready.wait(timeout: .now() + .milliseconds(20)) }   // to draw the arrow once it stops
         else if (idleMs > 0 && any(fastTiles)) || any(trailTiles) || any(typedTiles) || !fastMode { _ = ready.wait(timeout: .now() + .milliseconds(30)) } else { ready.wait() }
         let tn = now()
-        lock.lock(); let keyAt = lastKey, mouseAt = lastMouse; lock.unlock()
+        lock.lock(); let keyAt = lastKey, mouseAt = lastMouse, scrollAt = lastScroll; lock.unlock()
         let typing = typingMs > 0 && tn - keyAt < Double(typingMs)
         let handling = mouseMs > 0 && tn - mouseAt < Double(mouseMs)   // the mouse in use: nothing cleaned until it rests
+        // a scroll that stops, with true greys at rest: nothing now. Cleaning what it moved (most of the screen) switched waveforms or
+        // flashed the whole panel at every pause, and the next scroll waited ~1.4 s behind it; the tiles stay drawn fast and go grey once
+        // they rest (--idle), like any other
+        if !typing && !handling && any(typedTiles) && cleanMode != 0 && scrollAt == keyAt { typedTiles = [Bool](repeating: false, count: typedTiles.count) }
         if !typing && !handling && any(typedTiles) {   // the typing stopped: the lines it drew, cleaned now, there only
             var t = typedTiles
             for i in 0..<t.count { typedTiles[i] = false; if t[i] { fastTiles[i] = false } }
