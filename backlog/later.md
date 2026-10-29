@@ -5,6 +5,14 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+
+- trieur (typed engine): trieur's TypeScript does not pass the interpreter/AOT checker yet: `import type` cycles (Z0005 on core/src/plugin.ts), index signatures and `Record<string, V>` as objects, object literals given to a method interface, generic arrows, `for await`; filling them lets examples/trieur leave QuickJS.
+- jsx: a style object built in another file (`style={tokens.card(on)}` imported) is not lowered (only the file's own functions and constants are); on QuickJS it fails as "cannot read property 'length' of undefined" in setStyles: say "a style must be a style object or StyleSheet entry" there.
+- QuickJS: a string colour in a runtime style (`ui.setNumber(n, 'backgroundColor', '#fff')`, `color: someString`) is ignored without a word.
+- icons: `<Icon name="trash-2">` with a name Lucide renamed (now `trash`) draws nothing and says nothing; warn with the closest name.
+- text: CJK text (木, き) draws as '?' in zinc:ui while Arial Unicode is among the system fallbacks (examples/trieur flashcards, Japanese deck).
+- cli: `zinc run --engine quickjs file.tsx` prints the usage; only `zinc run file.tsx --engine quickjs` works.
+- trieur: the palette follows zinc.json "scheme" at start; with "auto" a change of the system's appearance while the app runs restyles `dark:` classes but not THEME (no scheme-change hook in zinc:ui).
 - D178: QuickJS turns binary bodies of zinc:net (`Response.bytes()`, `Request.rawBody`, and `fs.writeText` of them) into U+FFFD past 0x7f, because strings cross into QuickJS as UTF-8: binary downloads and uploads served under `--engine quickjs` break (the iPod app's remote covers and songs); a host row that returns bytes on QuickJS fixes it.
 - D178: a typed `JSON.parse` with a missing field gives `undefined` on QuickJS where the interpreter and compiled program throw "cannot convert Dyn (undefined)"; the three engines should agree.
 - D178: `?:` with `await` in one branch and `null` in the other, or an await inside a larger expression of a branch, is still Z0005; it needs the branch types in the desugar, and the plain branch's extra microtask should go too.
