@@ -36,6 +36,22 @@
 #include "stb_image_write.h"
 #include "gdk-pixbuf/gdk-pixbuf.h"
 
+// libgpod reports through GLib on stderr, with blank lines, at every read and save: a smart-playlist rule on a field newer than it knows
+// ("Unknown action type 1", then a failed itdb_splr_validate assertion) is one, and it is kept byte for byte anyway. One short line per
+// distinct message instead.
+static void glibLine(const gchar*, GLogLevelFlags, const gchar* msg, gpointer) {
+  static std::set<std::string> seen;
+  std::string m = msg ? msg : "";
+  while (!m.empty() && (m.back() == '\n' || m.back() == ' ')) m.pop_back();
+  if (seen.size() < 64 && seen.insert(m).second) std::fprintf(stderr, "zinc:ipod: libgpod: %s\n", m.c_str());
+}
+static void quietGlib() {
+  static bool done = false;
+  if (done) return;
+  done = true;
+  g_log_set_default_handler(glibLine, nullptr);
+}
+
 extern char** environ;
 // libgpod internals (itdb_device.h is C only): the FireWire GUID and the checksum the model needs (1 hash58, 2 hash72, 3 hashAB)
 extern "C" const char* itdb_device_get_firewire_id(const Itdb_Device* device);
@@ -698,6 +714,7 @@ bool Library::open(const std::string& mp, bool init, const std::string& model, c
     std::string why;
     ensureSysInfoExtended(mp, why);
   }
+  quietGlib();
   Itdb_iTunesDB* db = itdb_parse(mp.c_str(), &e);
   if (!db) { err = takeErr(e, "reading the database"); return false; }
   db_ = db;
