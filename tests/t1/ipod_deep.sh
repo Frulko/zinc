@@ -5,7 +5,8 @@
 #   1. the client (interpreter, then QuickJS): reach, a bad token (401), an analysis polled to its end ("Albums 3/3"), one cancelled
 #      through /api/cancel, the sync paged into deep.v1.json (ids tr-<id>, one matched by its names, one not on the iPod), Genius
 #      merged differs from tier 1 as planted (A sounds like B: more B), a song not analysed still picked, near lists asked once, a
-#      path, the Sounds like and Mood mixes shelves, the lines of Settings › Recommendations; the stub down: offline, the cache read
+#      path, "From A to B" (pathBetween: AudioMuse's path when it has one, else the model's, with and without the sound),
+#      the Sounds like and Mood mixes shelves, the lines of Settings › Recommendations; the stub down: offline, the cache read
 #      back, Genius as merged;
 #   2. the app (stub up): For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
 #      analysis offline";
@@ -35,6 +36,8 @@ not analysed still picked 2
 seeds BC near asked 2 again 0 path AAAAABBBBBBC
 a seed it never analysed 1 0
 genius with near AAAAAAAABBBB
+path between true true true BBBBBAA
+path between tier 1 true true CCCCCBB true true BBBBBAA
 extra shelves 3
 shelf Sounds like Charlie One Song 1 | draft Sounds like Charlie One Song 1 CCCCCC / draft Sounds like Charlie Two Song 1 CCCCCC / draft Sounds like Charlie Three Song 1 CCCCCC / draft From Charlie One Song 1 to Bravo One Song 1 AAAAABBBBBBC
 shelf Sounds like Bravo One Song 1 | draft Sounds like Bravo One Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Two Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Three Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Four Song 2 AAAAAAAABBBBBBBB

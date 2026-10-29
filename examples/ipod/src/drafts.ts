@@ -5,6 +5,7 @@
 // history folder), then the model is built again. When AudioMuse-AI analysed the iPod (deep.ts), its results are attached to the
 // model (again when they change, without building it again) and Genius first asks it the songs closest to the seed. Every Genius list
 // asked is kept per iPod (<cache>/<GUID>/genius.json, newest first): For you shows them on a shelf, the Playlists page lists them.
+// "Path from here…" makes a draft "From A to B" (services/genius.ts pathBetween), listed there too for the rest of the run.
 import { createSignal } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
@@ -13,7 +14,7 @@ import { library, openPlaylist } from './state';
 import { PodLibrary, createPlaylistOf } from './services/ipod';
 import { History } from './services/history';
 import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
-import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists } from './services/genius';
+import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, pathBetween } from './services/genius';
 import { currentDeep, deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
 import { enqueue, runBeside, busy, Job } from './services/transfers';
@@ -183,6 +184,33 @@ export function mixDrafts(): Draft[] {
   return out;
 }
 
+const PATH_PREFIX = 'draft:path:';
+const PATH_MAX: i32 = 6;
+const [pathVersion, setPathVersion] = createSignal<i32>(0);
+let pathList: Draft[] = [];
+
+/** The "From A to B" lists made in this run, newest first. */
+export function pathDrafts(): Draft[] { pathVersion(); return pathList; }
+
+/** "Path from here…": a draft from `a` to `b` (AudioMuse's smooth path when it analysed both, else the model's), shown on the
+ *  Playlists page. Kept for this run only. */
+export function pathFrom(a: ipod.Track, b: ipod.Track): void {
+  prepareNear([a.id, b.id], true).then(() => {   // returns at once without AudioMuse
+    const m = currentModel();
+    if (m === null) return;
+    const d = new Draft();
+    d.id = `${PATH_PREFIX}${a.id}:${b.id}`;
+    d.name = `From ${a.title !== '' ? a.title : 'Untitled'} to ${b.title !== '' ? b.title : 'Untitled'}`;
+    d.tracks = pathBetween(m as Model, a.id, b.id);
+    if (d.tracks.length < 2) { setNotice(`No path from “${a.title}” to “${b.title}”: both must be music on this iPod`); return; }
+    const list: Draft[] = [d];
+    for (const x of pathList) if (x.id !== d.id && list.length < PATH_MAX) list.push(x);
+    pathList = list;
+    setPathVersion(pathVersion() + 1);
+    openPlaylist(d.id);
+  });
+}
+
 /** Drafts made elsewhere (the For you page's cards, forYou.ts), by id. */
 const others = new Map<string, Draft>();
 
@@ -207,6 +235,7 @@ export function draftOf(id: string): Draft | null {
     return null;
   }
   if (id.startsWith(MIX_PREFIX)) for (const d of mixDrafts()) if (d.id === id) return d;
+  if (id.startsWith(PATH_PREFIX)) for (const d of pathDrafts()) if (d.id === id) return d;
   const kept = others.get(id);
   return kept !== undefined ? kept as Draft : null;
 }

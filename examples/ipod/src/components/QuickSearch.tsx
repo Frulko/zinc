@@ -1,6 +1,6 @@
 // The global search (Cmd+F or Cmd+K from any page, or the magnifier of the top bar): one field over the whole library, its results grouped as
 // songs, albums, artists and playlists (the first few of each). Up and Down move through them, Enter (or a click) plays a song or opens the
-// rest (an entry of the history), Escape or a click outside closes it. Every track's text is folded once per library (state.trackHay), so a
+// rest (an entry of the history), Escape or a click outside closes it. pickSong opens it to ask for a song (the end of "Path from here…"). Every track's text is folded once per library (state.trackHay), so a
 // key typed costs a scan of strings already folded.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
@@ -15,6 +15,9 @@ import { bg, bd, fg, color, CARD, BORDER, SELECTED, TEXT, MUTED, FAINT, ACCENT, 
 export const [quickOpen, setQuickOpen] = createSignal<boolean>(false);
 const [query, setQuery] = createSignal<string>('');
 const [at, setAt] = createSignal<i32>(0);
+/** While a song is asked for (pickSong): what the field says; '' for the search. */
+const [asking, setAsking] = createSignal<string>('');
+let picked: ((t: ipod.Track) => void) | null = null;
 
 const SONG = 0, ALBUM = 1, ARTIST = 2, PLAYLIST = 3;
 const GROUPS: string[] = ['Songs', 'Albums', 'Artists', 'Playlists'];
@@ -40,6 +43,7 @@ export function findAll(q: string): Hit[] {
     h.track = t; out.push(h);
     if (++n >= FINDER_PER_GROUP) break;
   }
+  if (asking() !== '') return out;   // a song is asked for: songs only
   n = 0;
   for (const a of albums()) {
     if (!matches(a.hay, ws)) continue;
@@ -64,11 +68,15 @@ export function findAll(q: string): Hit[] {
 
 const hits = createMemo<Hit[]>(() => findAll(query()), []);
 
-export function openQuickSearch(): void { setQuery(''); setAt(0); setQuickOpen(true); }
+export function openQuickSearch(): void { picked = null; setAsking(''); setQuery(''); setAt(0); setQuickOpen(true); }
+/** The same field, asking for a song (`prompt` as its placeholder): `then` gets the song chosen; nothing when it is closed. */
+export function pickSong(prompt: string, then: (t: ipod.Track) => void): void { picked = then; setAsking(prompt); setQuery(''); setAt(0); setQuickOpen(true); }
 function close(): void { setQuickOpen(false); }
 
 function choose(h: Hit): void {
   close();
+  const then = picked;
+  if (then !== null) { picked = null; setAsking(''); if (h.track !== null) then(h.track as ipod.Track); return; }
   const lib = library();
   if (h.kind === SONG && lib !== null && h.track !== null) playList(lib as PodLibrary, [h.track as ipod.Track], 0);
   else if (h.kind === ALBUM && h.album !== null) openAlbum(h.album as Album);
@@ -108,9 +116,9 @@ export function QuickSearch(): i32 {
       <View className={`flex-col rounded-[12] border overflow-hidden ${bg(CARD)} ${bd(BORDER)}`} style={{ width: FINDER_WIDTH, shadowLevel: 4 }} onKeyDown={key}>
         <View className={`flex-row items-center gap-2.5 h-[48] px-4 border-b ${bd(BORDER)}`}>
           <Icon name="search" size={18} color={() => color(MUTED)} strokeWidth={2} />
-          <Input ref={field} className={`grow text-[15px] ${fg(TEXT)}`} value={query()} onInput={(v: string) => { setQuery(v); setAt(0); }} placeholder="Search songs, albums, artists, playlists" />
+          <Input ref={field} className={`grow text-[15px] ${fg(TEXT)}`} value={query()} onInput={(v: string) => { setQuery(v); setAt(0); }} placeholder={asking() !== '' ? asking() : 'Search songs, albums, artists, playlists'} />
         </View>
-        {query().trim() === '' ? <Text className={`text-[12px] px-4 py-3 ${fg(MUTED)}`}>Type to search the whole iPod; Enter plays a song or opens the rest</Text>
+        {query().trim() === '' ? <Text className={`text-[12px] px-4 py-3 ${fg(MUTED)}`}>{asking() !== '' ? 'Type a song’s title, artist or album; Enter chooses it' : 'Type to search the whole iPod; Enter plays a song or opens the rest'}</Text>
           : hits().length === 0 ? <Text className={`text-[12px] px-4 py-3 ${fg(MUTED)}`}>{`Nothing matches “${query().trim()}”`}</Text>
           : <View className="flex-col pb-1">{hits().map((h: Hit, i: i32) => <Row h={h} i={i} />)}</View>}
       </View>

@@ -19,7 +19,7 @@ import { SMART_EDITOR, SmartEdit, smartEdit, newSmart, editSmart, whyNotEditable
 import { SmartEditor } from './SmartEditor';
 import { busy } from '../../services/transfers';
 import { syncHistory, historyStarted } from '../../services/historyJobs';
-import { Draft, geniusDrafts, mixDrafts, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
+import { Draft, geniusDrafts, pathDrafts, mixDrafts, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
 import { startRadio } from '../../radio';
 import { count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT, ERROR } from '../../constants';
@@ -95,7 +95,7 @@ function DraftView(props: { d: Draft }): i32 {
 
 export function PlaylistsPage(): i32 {
   if (historyStarted()) syncHistory();   // the iPods' new listens matched: the mixes read them (no history made from here)
-  const drafts = (): Draft[] => geniusDrafts().concat(mixDrafts());
+  const drafts = (): Draft[] => geniusDrafts().concat(pathDrafts()).concat(mixDrafts());
   const shownDraft = (): Draft | null => isDraft(playlistShown()) ? draftOf(playlistShown()) : null;
   const shown = (): ipod.Playlist | null => { for (const p of playlists()) if (p.id === playlistShown()) return p; return playlists().length > 0 ? playlists()[0] : null; };
   const listed = (): ipod.Playlist[] => { const ws = words(search()); return ws.length === 0 ? playlists() : playlists().filter((p: ipod.Playlist) => matches(hay([p.name]), ws)); };

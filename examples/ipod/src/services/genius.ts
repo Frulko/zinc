@@ -19,7 +19,7 @@ import * as fs from 'zinc:fs';
 import { History, SESSION_GAP_S, normArtist } from './history';
 import { lastfm } from './historyImport';
 import { fold } from '../search';
-import { Deep, soundVectors } from './audiomuse';
+import { Deep, DeepPath, soundVectors, pathOf } from './audiomuse';
 
 export class Weights {
   colisten: number = 0.45;
@@ -403,6 +403,39 @@ export function path(m: Model, first: i32, pool: i32[], score: number[], n: i32,
     out.push(best); used.add(best);
   }
   return before.length > 0 ? out.slice(before.length) : out;
+}
+
+/** "From A to B": up to `n` songs from `fromId` to `toId`, both ends included. AudioMuse's smooth path when the deep results attached
+ *  hold one (prepareNear asks it); else tier 1, a song at a time: song k of n is the one closest to A and B mixed in the share k / n
+ *  (pair), minus the step from the song before, so the list leaves A's songs for B's by the songs between; past halfway a song is
+ *  never further from B than the one before (the list ends sooner when none is left). [] when either is not a music track. */
+export function pathBetween(m: Model, fromId: string, toId: string, n: i32 = 20): ipod.Track[] {
+  const a = m.index.get(fromId), b = m.index.get(toId);
+  if (a === undefined || b === undefined || fromId === toId) return [];
+  const out: ipod.Track[] = [];
+  const p = m.deep !== null ? pathOf(m.deep as Deep, fromId, toId) : null;
+  if (p !== null && (p as DeepPath).ids.length >= 3) {
+    for (const id of (p as DeepPath).ids) { const at = m.index.get(id); if (at !== undefined && out.length < n) out.push(m.tracks[at as i32]); }
+    return out;
+  }
+  const start = a as i32, end = b as i32;
+  let cur = start;
+  const used = new Set<i32>(); used.add(start); used.add(end);
+  out.push(m.tracks[start]);
+  for (let k = 1; k < n - 1; k++) {
+    const t = k / (n - 1);
+    let best: i32 = -1, bestV = -1e18;
+    for (let c: i32 = 0; c < m.tracks.length; c++) {
+      if (used.has(c) || !m.pickable(c)) continue;
+      if (t > 0.5 && m.pair(end, c) < m.pair(end, cur)) continue;   // past halfway, never away from B: a short list rather than a detour
+      const v = (1 - t) * m.pair(start, c) + t * m.pair(end, c) - m.step(cur, c);
+      if (v > bestV || (v === bestV && m.tracks[c].id < m.tracks[best].id)) { best = c; bestV = v; }
+    }
+    if (best < 0) break;
+    out.push(m.tracks[best]); used.add(best); cur = best;
+  }
+  out.push(m.tracks[end]);
+  return out;
 }
 
 /** "Genius from this song": `n` songs, the seed first, then its closest songs as a smooth path with the artists spread; `round` > 0

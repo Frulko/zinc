@@ -8,7 +8,7 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
-import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, reasons, mixes, savePlaylist, Model, Mix } from '../../../examples/ipod/src/services/genius';
+import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, reasons, mixes, savePlaylist, pathBetween, Model, Mix } from '../../../examples/ipod/src/services/genius';
 import { Radio, startRadio, extend, like, dislike, unqueue } from '../../../examples/ipod/src/services/radio';
 
 const GUID = '000A27001234ABCD';
@@ -123,6 +123,11 @@ async function main(): Promise<void> {
   console.log('old file moved', both.has('old band'), both.size === graph.size + 1, 'newer kept', (both.get('alpha one') as Map<string, number>).size === alphaOne,
     'gone', !fs.exists(`${dir}/similar-artists.json`), 'once', once === 1, again.size === both.size);
   radio(m1, tracks, seedId, w.artistSpread);
+  // From A to B without AudioMuse: greedy steps toward B
+  let charlie = '';
+  for (const t of tracks) if (t.title === 'Charlie One Song 1') charlie = t.id;
+  const way = pathBetween(m1, seedId, charlie, 12);
+  console.log('path', letters(way), way[0].id === seedId, way[way.length - 1].id === charlie, 'not music', pathBetween(m1, seedId, 'none').length);
   const short = genius(plain, seedId, 10);
   console.log('ten', short.length, letters(short));
 

@@ -12,7 +12,7 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
-import { loadWeights, readArtistGraph, buildModel, attachDeep, genius, Model } from '../../../examples/ipod/src/services/genius';
+import { loadWeights, readArtistGraph, buildModel, attachDeep, genius, pathBetween, Model } from '../../../examples/ipod/src/services/genius';
 import * as fy from '../../../examples/ipod/src/services/forYou';
 import * as muse from '../../../examples/ipod/src/services/audiomuse';
 import * as prep from '../../../examples/ipod/src/services/prepare';
@@ -163,6 +163,13 @@ async function main(): Promise<void> {
   console.log('a seed it never analysed', await muse.fetchNear(c, cacheDir, d, tracks, [four], 50), (muse.nearOf(d, four) as muse.Near).ids.length);
   attachDeep(m, d);
   console.log('genius with near', letters(genius(m, alpha, 12)));
+  // From A to B: AudioMuse's path when it has one, else tier 1 (a pair it has no path for, then the model without deep results)
+  const between = (from: string, to: string): string => { const l = pathBetween(m, from, to, 10); return l.length === 0 ? '-' : `${l[0].id === from} ${l[l.length - 1].id === to} ${letters(l)}`; };
+  const deepIds = pathBetween(m, seeds[0], seeds[1], 25).map((t: ipod.Track) => t.id);
+  console.log('path between', deepIds.join(',') === p.join(','), between(seeds[1], alpha));
+  attachDeep(m, null);
+  console.log('path between tier 1', between(seeds[0], seeds[1]), between(seeds[1], alpha));
+  attachDeep(m, d);
   const shelves = fy.extraShelves(fy.signals(h, GUID, m, NOW));
   console.log('extra shelves', shelves.length);
   for (const sh of shelves) {
