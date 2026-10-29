@@ -1,7 +1,7 @@
 // The app's settings, in <backups>/config.json (beside the logs: ~/.zinc/ipod/config.json by default): the remote iPod, an iPod
 // daemon (examples/ipod-web) the app connects to, the Sonos speaker found last, the size of the remote iPod's audio cache, the
 // scrobbling accounts (Last.fm, ListenBrainz), whose listening history is imported, Share with AudioMuse (services/share.ts) and
-// where AudioMuse itself is (services/audiomuse.ts). Saving keeps the keys this version does not know.
+// where AudioMuse itself is (services/audiomuse.ts), the sleep timer's fade and the wake-up alarm. Saving keeps the keys this version does not know.
 import * as fs from 'zinc:fs';
 import { backupPlace } from './log';
 
@@ -39,6 +39,22 @@ export class AppConfig {
   /** The For you shelves: the cards snap to the shelf's start when a scroll ends, and the shelf shows its scroll bar. */
   shelfSnap: boolean = true;
   shelfScrollbar: boolean = false;
+  /** The sleep timer (services/sleep.ts): how many seconds the volume fades down before the pause. */
+  sleepFadeS: number = 60;
+  /** The wake-up alarm (services/alarm.ts): on, at HH:MM local time, on the days listed (JavaScript's 0 = Sunday .. 6), what plays
+   *  ('mix' a daily mix, 'playlist', 'genius', 'radio' from a song: alarmItem is its id), where ('' this computer, else a Sonos group's
+   *  id), and the fade-in over alarmFadeMin minutes from the volume alarmFrom to alarmTo (0..100). */
+  alarmOn: boolean = false;
+  alarmTime: string = '07:00';
+  alarmDays: string = '12345';
+  alarmPlay: string = 'mix';
+  alarmItem: string = '';
+  alarmItemName: string = '';
+  alarmOutput: string = '';
+  alarmOutputName: string = '';
+  alarmFadeMin: number = 5;
+  alarmFrom: number = 5;
+  alarmTo: number = 30;
 }
 
 function configFile(): string { return `${backupPlace()}/config.json`; }
@@ -70,6 +86,18 @@ export function loadConfig(): AppConfig {
     if (stored.jukeboxToken !== undefined) config.jukeboxToken = '' + stored.jukeboxToken;
     if (stored.shelfSnap !== undefined) config.shelfSnap = stored.shelfSnap === true;
     if (stored.shelfScrollbar !== undefined) config.shelfScrollbar = stored.shelfScrollbar === true;
+    if (stored.sleepFadeS !== undefined) config.sleepFadeS = Number(stored.sleepFadeS);
+    if (stored.alarmOn !== undefined) config.alarmOn = stored.alarmOn === true;
+    if (stored.alarmTime !== undefined) config.alarmTime = '' + stored.alarmTime;
+    if (stored.alarmDays !== undefined) config.alarmDays = '' + stored.alarmDays;
+    if (stored.alarmPlay !== undefined) config.alarmPlay = '' + stored.alarmPlay;
+    if (stored.alarmItem !== undefined) config.alarmItem = '' + stored.alarmItem;
+    if (stored.alarmItemName !== undefined) config.alarmItemName = '' + stored.alarmItemName;
+    if (stored.alarmOutput !== undefined) config.alarmOutput = '' + stored.alarmOutput;
+    if (stored.alarmOutputName !== undefined) config.alarmOutputName = '' + stored.alarmOutputName;
+    if (stored.alarmFadeMin !== undefined) config.alarmFadeMin = Number(stored.alarmFadeMin);
+    if (stored.alarmFrom !== undefined) config.alarmFrom = Number(stored.alarmFrom);
+    if (stored.alarmTo !== undefined) config.alarmTo = Number(stored.alarmTo);
   } catch (e) { /* unreadable: the defaults */ }
   return config;
 }
@@ -100,6 +128,18 @@ export function saveConfig(config: AppConfig): void {
     stored.jukeboxToken = config.jukeboxToken;
     stored.shelfSnap = config.shelfSnap;
     stored.shelfScrollbar = config.shelfScrollbar;
+    stored.sleepFadeS = config.sleepFadeS;
+    stored.alarmOn = config.alarmOn;
+    stored.alarmTime = config.alarmTime;
+    stored.alarmDays = config.alarmDays;
+    stored.alarmPlay = config.alarmPlay;
+    stored.alarmItem = config.alarmItem;
+    stored.alarmItemName = config.alarmItemName;
+    stored.alarmOutput = config.alarmOutput;
+    stored.alarmOutputName = config.alarmOutputName;
+    stored.alarmFadeMin = config.alarmFadeMin;
+    stored.alarmFrom = config.alarmFrom;
+    stored.alarmTo = config.alarmTo;
     fs.mkdir(backupPlace(), true);
     fs.writeText(configFile(), JSON.stringify(stored) + '\n');
   } catch (e) { console.error(`ipod: ${configFile()}: ${(e as Error).message}`); }

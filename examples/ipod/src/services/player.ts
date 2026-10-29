@@ -32,6 +32,7 @@ let music: Music | null = null;
 let pod: PodLibrary | null = null;
 let loads: i32 = 0;   // counts the tracks asked for: a fetch that ends after another was asked is dropped
 let timer: i32 = -1;
+let localVol = 1;     // this computer's volume, 0..1: kept from one track to the next (the sleep timer's fade, the alarm's: services/sleep.ts)
 
 // ---- a listen: what services/scrobble.ts reads (the track, when it started, the ms heard). listenEvent is the one place a play
 // starts, pauses, resumes, seeks and ends.
@@ -105,6 +106,7 @@ async function load(from: number = 0): Promise<void> {
   if (asked !== loads) return;   // another track was asked for meanwhile
   const m = openMusic(file);
   music = m;
+  m.volume = localVol;
   m.play();   // starts once the file is open
   if (from > 0) m.seek(from);
   batch(() => { showNow(t, true); setPlayError(''); });
@@ -385,6 +387,10 @@ export function setVolume(v: i32): void {
   setVolumeShown(v);
   onGroup((g: sonos.Group) => system().setGroupVolume(g, v));
 }
+
+/** This computer's volume, 0..1 (the Sonos group's is setVolume). */
+export function localVolume(): number { return localVol; }
+export function setLocalVolume(v: number): void { localVol = v; if (music !== null) { const m = music as Music; m.volume = v; } }
 
 /** Stops and forgets the queue (the iPod was closed or another one opened). */
 export function stop(): void {

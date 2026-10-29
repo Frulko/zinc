@@ -1,7 +1,7 @@
 // Settings: the scrobbling accounts (Last.fm signed in through the browser, ListenBrainz by its token), what waits to be sent or
 // written, the listening history (imported from Last.fm and ListenBrainz, matched to this iPod, what it misses) and the size of the
 // remote iPod's song cache, what the recommendations are made from (Prepare recommendations), sharing the iPod with AudioMuse-AI and
-// AudioMuse's deep analysis. Saved in config.json at once.
+// AudioMuse's deep analysis, the wake-up alarm and the sleep timer's fade. Saved in config.json at once.
 import { createSignal } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { loadConfig } from '../../services/config';
@@ -18,6 +18,7 @@ import { ShareFields, SHARE_NOTE } from './ShareFields';
 import { DeepFields, DEEP_NOTE } from './DeepFields';
 import { PrepareFields, PREPARE_NOTE } from './PrepareFields';
 import { JukeboxFields, JUKEBOX_NOTE } from './JukeboxFields';
+import { AlarmFields, ALARM_NOTE } from './AlarmFields';
 import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
 function Card(props: { icon: string; title: string; note: string; children: () => i32 }): i32 {
@@ -126,6 +127,7 @@ export function SettingsPage(): i32 {
           <Text className={`text-[11px] ${fg(MUTED)}`}>{missing()}</Text>
         </View> : <View />}
       </Card>
+      <Card icon="alarm-clock" title="Wake-up alarm and sleep timer" note={ALARM_NOTE}><AlarmFields /></Card>
       <Card icon="sparkles" title="Recommendations" note={PREPARE_NOTE}><PrepareFields /></Card>
       <Card icon="heart" title="For you" note="How the shelves of For you scroll sideways.">
         <Switch checked={shelfSnap} onChange={setShelfSnap} label="Cards snap into place when a scroll ends" />

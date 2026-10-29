@@ -12,6 +12,7 @@ import { shuffle, repeat } from '../services/queue';
 import { queueOpen, setQueueOpen } from './QueuePanel';
 import { useCover, releaseCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
+import { SleepButton } from './SleepButton';
 import { geniusFrom } from '../drafts';
 import { radioOn, likeNow, dislikeNow } from '../radio';
 import { duration } from '../format';
@@ -64,6 +65,7 @@ export function NowPlaying(): i32 {
       <Transport icon={isPlaying() ? 'pause' : 'play'} size={22} onPress={toggle} />
       <Transport icon="skip-forward" size={18} onPress={next} />
       <Transport icon={repeat() === 'one' ? 'repeat-1' : 'repeat'} size={15} on={repeat() !== 'off'} onPress={cycleRepeat} />
+      <SleepButton />
     </View>
     <View className="grow items-center">
       {current() !== null ? <Lcd t={current() as ipod.Track} />

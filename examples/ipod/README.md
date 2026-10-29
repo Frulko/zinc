@@ -126,6 +126,12 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   paused at that moment; Play resumes there, on the same output. A Sonos group that still plays it is followed as it is (the app
   serves the songs again on the same port and token); one whose queue was replaced is left alone. Another iPod, or none: the file
   waits for that iPod.
+- **Sleep timer and wake-up alarm.** The moon in the bar stops the music in 15 to 90 minutes, at the end of the song or of the
+  queue, and shows the time left; over the last 60 s (Settings) the volume fades to nothing, here or on the Sonos group, then the
+  music pauses and the volume comes back for the next Play (`services/sleep.ts`). The alarm (Settings, kept in `config.json`) plays
+  a daily mix, a playlist, a Genius list or a radio from a song at a time and on the days chosen, here or on a Sonos group, the
+  volume rising from a low level over a few minutes (`services/alarm.ts`). It sounds only while the app runs; a time missed while
+  the Mac slept sounds on wake within 10 minutes, else it is skipped with a line in Logs.
 - **In the background.** Closing the window while a Sonos group plays from the iPod plugged into this computer keeps the app in
   the menu bar (the track, Play or Pause, Next, Show iPod, Quit iPod): it goes on serving the songs. Cmd+Q then asks first
   ("Sonos is playing from this iPod: quitting stops the music": Keep playing in background, Quit, Quit and clear the Sonos queue,

@@ -26,6 +26,9 @@ import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PO
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
+import { SleepMenu } from './components/SleepButton';
+import { sleepOpen } from './services/sleep';
+import { watchAlarm } from './services/alarm';
 import { QueuePanel, queueOpen } from './components/QueuePanel';
 import { prepare as prepareSession, startSaving, save as saveSession } from './services/session';
 import { install as installBackground, releaseMode } from './services/background';
@@ -92,6 +95,7 @@ function App(): i32 {
       {page() !== PAGE_TRANSFERS || library() === null ? <Toasts /> : <View />}
       {library() !== null && queueOpen() ? <QueuePanel /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
+      {library() !== null && sleepOpen() ? <SleepMenu /> : <View />}
       {library() !== null && quickOpen() ? <QuickSearch /> : <View />}
       {library() !== null && infoOpen() ? <InfoSheet /> : <View />}
     </View>
@@ -138,4 +142,5 @@ rescan();
 startListening();   // what plays counts: on the iPod, Last.fm and ListenBrainz (services/listening.ts)
 resumeSharing();   // Share with AudioMuse, when it was on (services/share.ts)
 watchMuse();   // an AudioMuse analysis that ends is synced by itself (deep.ts)
+watchAlarm();   // the wake-up alarm, while the app runs (services/alarm.ts)
 render(App, CLEAR_COLOR, null);
