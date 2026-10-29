@@ -349,15 +349,15 @@ Thread {
     }
 }.start()
 
-// two pictures out while one comes back within a refresh (decode overlaps transfer); one when the round trip is longer, so a picture
-// waits here, where a newer capture replaces it, rather than in the socket
+// two pictures out while one comes back within two refreshes (decode overlaps transfer: 50 -> 60 frames/s on a Nexus 7); one when the
+// round trip is longer, so a picture waits here, where a newer capture replaces it, rather than in the socket
 var inFlight = 2, lastRtt = 0.0
 let trace = ProcessInfo.processInfo.environment["SIDECAR_TRACE"] != nil   // the first pictures' round trips, one a line
 var traced = 0
 /** The pictures out at once, from the last round trip and the film (set at once when one starts or ends, not at the next 2 s). */
 func pace() {
     let big = video.map { v in (v.x1 - v.x0) * (v.y1 - v.y0) * 2 >= TX * TY } ?? false
-    inFlight = video != nil ? (big ? 4 : 3) : lastRtt > 17 ? 1 : 2
+    inFlight = video != nil ? (big ? 4 : 3) : lastRtt > 33 ? 1 : 2
 }
 func pump() {
     guard frameEnds.count < inFlight, let pb = waiting else { return }
@@ -653,7 +653,7 @@ func info(_ seconds: Double) {
             + ms(Double(more.decodeUs) / Double(f) / 1000) + " of CPU a frame"],
         ["Latency", "Frame round trip", r.isEmpty ? "–" : "\(ms(r[r.count / 2])) median, \(ms(r[min(r.count - 1, r.count * 95 / 100)])) p95, \(ms(r.last!)) max"],
         ["Latency", "Network (TCP)", tcp ? String(format: "%.1f ms, ± %.1f, %d KB queued, %d resent", Double(t.tcpi_srtt), Double(t.tcpi_rttvar), Int(t.tcpi_snd_sbbytes) / 1024, Int(t.tcpi_txretransmitpackets)) : "–"],
-        ["Latency", "In flight", "\(frameEnds.count) of \(inFlight) frames (1 when the round trip passes a refresh)"],
+        ["Latency", "In flight", "\(frameEnds.count) of \(inFlight) frames (1 when the round trip passes two refreshes)"],
         ["Screen", "CPU", rx[0][1] < 0 ? "–" : "\(rx[0][1] / 10)% of all cores" + (rx[1][0] < 0 ? "" : ", \(rx[1][0]) of \(rx[1][1]) MHz")],
         ["Screen", "Temperature", rx[0][0] < 0 ? "–" : String(format: "%.1f °C", Double(rx[0][0]) / 1000)],
         ["Screen", "Throttling", throttling(rx[1][2])],
