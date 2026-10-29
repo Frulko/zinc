@@ -661,7 +661,7 @@ std::vector<Device> detect() {
   if (const char* u = getenv("USER")) { roots.push_back(std::string("/media/") + u); roots.push_back(std::string("/run/media/") + u); }
   roots.push_back("/media");
   roots.push_back("/mnt");
-  if (const char* extra = getenv("ZINC_IPOD_ROOTS")) roots.insert(roots.begin(), extra);   // tests: a folder of fake iPods
+  if (const char* only = getenv("ZINC_IPOD_ROOTS")) roots = {only};   // tests: a folder of fake iPods, and nothing else (a real iPod plugged in is never read)
   std::vector<Device> out;
   std::set<std::string> seen;
   for (const std::string& r : roots) {

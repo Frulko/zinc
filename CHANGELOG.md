@@ -105,6 +105,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
+- `zinc:ipod`: `ZINC_IPOD_ROOTS` (for tests) now replaces the folders `detect()` looks in instead of adding one, so a test never reads a real iPod that is plugged in.
 - Deterministic runs (`ZINC_DETERMINISTIC`, `zinc test`, `zinc capture`) wait for a plugin's background jobs (zinc:ipod's reads) at each turn of the loop, so their results show in the same frame on every run.
 - Promises are lighter: an async function, `then` or `catch` no longer allocates an array for the value nor three closures for the promise it returns. A loop of `await`s of an async function runs about 20% faster interpreted and 30% faster compiled.
 - Zinc Web on the reMarkable: thinner bars with icon buttons (finger-sized, black on white, inverted when active), and a First button that goes back to page 1 of the page.

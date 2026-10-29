@@ -57,7 +57,7 @@ With TagLib 1 (Debian 12, Raspberry Pi OS) the cover embedded in a file is not r
 ## Testing without an iPod
 
 - `tests/t0/ipod.sh` runs every operation on a fake iPod folder (a `SysInfo` file is enough for libgpod to know the model).
-- `ZINC_IPOD_ROOTS=/some/folder` adds a folder whose subfolders `detect()` treats as mounted volumes; `ZINC_IPOD_NO_USB=1` skips USB;
+- `ZINC_IPOD_ROOTS=/some/folder` makes `detect()` look only in that folder, its subfolders taken as mounted volumes (a real iPod plugged in is not read); `ZINC_IPOD_NO_USB=1` skips USB;
   `ZINC_IPOD_BACKUPS=/tmp/b` keeps the backups of a test out of your home.
 - `ZINC_NATIVE=sim` (and the sim target) uses `native/ipod.sim.ts`: an iPod Classic in memory.
 
