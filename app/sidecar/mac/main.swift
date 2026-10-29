@@ -16,6 +16,7 @@ import SwiftUI
 var invertMode = 1   // dark areas, see darkAround
 var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 3, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false, waitAlways = false
 var gentle = true, tabletPen = false, rotationLock = false, selftest = false
+var renderIO = ("", "")
 var greyLevels = 0   // the clean pass's greys: 0 all 256, 16 or 4 (level below)
 setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
 var argv = CommandLine.arguments.dropFirst()
@@ -27,6 +28,7 @@ while let a = argv.popFirst() {
     case "--mirror": mirror = Int(argv.popFirst()!)!
     case "--threshold": ditherKind = 0
     case "--dither": ditherKind = Int(argv.popFirst()!)!   // 0 none, 1 Bayer, 2 blue noise everywhere, 3 blue noise on pictures only (default)
+    case "--render": renderIO = (argv.popFirst()!, argv.popFirst()!); selftest = true; ui = false   // a PNG through the shader and the dither, to a PNG: how the panel would show it
     case "--selftest": selftest = true; ui = false   // the GPU's shader against the CPU's, on made-up frames, no tablet
     case "--control": control = true   // settings as JSON lines on stdin, state on stdout: the menu bar app drives this engine
     case "--cursor": cursorPx = Int(argv.popFirst()!)!; if cursorPx > 0 { cursorPx = max(19, cursorPx) }   // the pointer's height in tablet pixels; 0: macOS draws its own into the capture
@@ -284,19 +286,20 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
     var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n)
     tone.withUnsafeBufferPointer { t in
         for by in 0..<h { for bx in 0..<w {
-            var c = 0, d = 0, a = 0, busy = 0, y = by * 8
+            var c = 0, d = 0, grain = 0, y = by * 8
             while y < min(fh, by * 8 + 8) {   // every other pixel both ways: 16 of the 64
-                let row = src + y * bpr; var x = bx * 8, last = Int(row[x])
+                let row = src + y * bpr; var x = bx * 8
                 while x < min(fw, bx * 8 + 8) {
-                    let l = Int(row[x])
-                    c += 1; if l < 128 { d += 1 }; if l > 24 && l < 232 { a += 1 }; busy += abs(l - last); last = l
+                    let l = Int(row[x]), e = abs(l - Int(row[min(x + 1, fw - 1)])), f = abs(l - Int(src[min(y + 1, fh - 1) * bpr + x]))
+                    c += 1; if l < 128 { d += 1 }; if (e >= 1 && e <= 24) || (f >= 1 && f <= 24) { grain += 1 }
                     x += 2
                 }
                 y += 2
             }
             let i = by * w + bx
-            // a picture: mostly middle greys, and grain (a flat grey button or field has none; a photo, even a smooth one, has some)
-            dark[i] = d * 2 >= c; pic[i] = a * 2 >= c && busy * 2 >= c * 3 ? 1 : 0
+            // a picture has grain: a pixel and the next differ a little (1 to 24). The interface is flat fields (the same value) and the
+            // steep edges of letters and lines; its greys, a dark mode's included, say nothing (a mid-grey test made a dark chat a photo)
+            dark[i] = d * 2 >= c; pic[i] = grain * 2 >= c ? 1 : 0
         } }
     }
     // a block is a picture when most of the 3 x 3 around it are: no lone block in a page of text, no hole in a face's dark hair
@@ -393,7 +396,8 @@ var maxBuf = [UInt8](repeating: 255, count: 0)
 // a tint: a flat light colour of the interface (a selection, a highlighted row, a pale button) is near white in luma (a browser's
 // selection blue is 210) and the curve made it paper: it went unseen. A flat area (no edge within 2 pixels) of 150 to 235 that is not a
 // picture becomes a light grey, from 175 (the darkest tints) to 235: a few dots in every pattern. Paler fields (a window's 236 to 255 grey)
-// stay paper, so the interface does not fill with dots. The shader's twin
+// stay paper, so the interface does not fill with dots; in a turned area up to 195 only (a dark mode's field, 30 to 59, turns to paper;
+// its lighter panels and hovered rows, 60 and up, to a tint). The shader's twin
 @inline(__always) func tint(_ v: Int) -> Int { 175 + (v - 150) * 60 / 85 }
 /** The frame's luma over box b (frame pixels) -> grey, at its place on the panel. */
 func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (Int, Int, Int, Int)) {
@@ -426,7 +430,7 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
                 var o = Int(t[v])
                 var flat = false
                 if edges > 0 { let rise = (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v; flat = rise <= edgeFloor; o = Int(line(o, rise)) }
-                if flat && !picture && v >= 150 && v <= 235 { o = tint(v) }
+                if flat && !picture && v >= 150 && v <= (turn ? 195 : 235) { o = tint(v) }
                 else if ditherKind == 3 && !picture { o = o < 128 ? 0 : 255 }
                 d[x * step] = UInt8(o)
             }
@@ -916,7 +920,7 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
         if (e > 0) v = v - e * edges < 228 ? 0 : 255;   // line() on the CPU: a line is ink or paper, never dotted
         flat = e <= 0;
       }
-      if (flat && !picture && l >= 150 && l <= 235) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
+      if (flat && !picture && l >= 150 && l <= (turn ? 195 : 235)) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
       else if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
       grey[py * W + px] = uchar(v);
     }
@@ -1104,6 +1108,26 @@ func gpuSelftest() -> Never {
     print("selftest: codecs, \(wrong) wrong")
     exit(bad == 0 && missed == 0 && wrong == 0 ? 0 : 1)
 }
+/** --render in.png out.png: the picture (fitted to the panel, upright) as the panel shows it while things move, through the CPU's path. */
+func renderPNG() -> Never {
+    guard let s = CGImageSourceCreateWithURL(URL(fileURLWithPath: renderIO.0) as CFURL, nil), let im = CGImageSourceCreateImageAtIndex(s, 0, nil) else { print("render: cannot read \(renderIO.0)"); exit(1) }
+    let k = min(1, min(Double(W) / Double(im.width), Double(H) / Double(im.height)))
+    let fw = Int(Double(im.width) * k), fh = Int(Double(im.height) * k)
+    rotate = 0; region = ((W - fw) / 2 / 8 * 8, (H - fh) / 2, fw, fh)
+    let c = CGContext(data: nil, width: fw, height: fh, bitsPerComponent: 8, bytesPerRow: fw, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+    c.interpolationQuality = .high; c.draw(im, in: CGRect(x: 0, y: 0, width: fw, height: fh))
+    let src = c.data!.assumingMemoryBound(to: UInt8.self)
+    zw = 0; _ = mapZones(src, fw, fw, fh)
+    shade(src, fw, fw, fh, (0, 0, fw, fh))
+    shown = grey; dither(0, 0, W, H)
+    let o = CGContext(data: nil, width: W, height: H, bitsPerComponent: 8, bytesPerRow: W, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+    let op = o.data!.assumingMemoryBound(to: UInt8.self)
+    for y in 0..<H { for x in 0..<W { op[y * W + x] = cur[y * stride + x / 8] & (0x80 >> UInt8(x & 7)) != 0 ? 0 : 255 } }
+    guard let d = CGImageDestinationCreateWithURL(URL(fileURLWithPath: renderIO.1) as CFURL, "public.png" as CFString, 1, nil) else { exit(1) }
+    CGImageDestinationAddImage(d, o.makeImage()!, nil); CGImageDestinationFinalize(d)
+    print("render: \(renderIO.1)"); exit(0)
+}
+if !renderIO.0.isEmpty { renderPNG() }
 if selftest { gpuSelftest() }
 
 Thread {
