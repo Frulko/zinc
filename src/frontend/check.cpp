@@ -1212,6 +1212,12 @@ struct Checker {
       std::vector<TypeId> aliases{at, E};
       TypeId i32 = num(Num::i32), result;
       std::size_t lo = m == "shift" ? 0 : 1, hi = m == "shift" ? 0 : m == "unshift" ? 1 : 2;
+      if (m == "splice" && args.size() > 2) {  // splice(start, count, ...items): the items (spreads allowed) become one array argument
+        std::uint32_t ins = newNode(N::Array, "", std::vector<std::uint32_t>(args.begin() + 2, args.end()), i);
+        args.resize(2);
+        args.push_back(ins);
+        hi = 3;
+      }
       if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "")}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       if (m == "shift") {
         TK ek = isDyn(E) ? TK::Any : ty(E).k;
@@ -1229,11 +1235,18 @@ struct Checker {
         sig = "(a: " + A + ", x: " + Es + "): i32";
         body = "  a.push(x);\n  for (let k: i32 = a.length - 1; k > 0; k--) a[k] = a[k - 1];\n  a[0] = x;\n  return a.length;\n";
       } else {
-        for (std::size_t k = 0; k < args.size(); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}}); }
+        const bool inserts = args.size() == 3;
+        for (std::size_t k = 0; k < (inserts ? 2 : args.size()); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}}); }
+        if (inserts) { TypeId it = expr(args[2], at); if (bad(it) || !require(it, at, args[2])) return tError; }
         if (args.size() < 2) { std::uint32_t id = newNode(N::Number, "2147483647", {}, i); out.nodeType[id] = i32; args.push_back(id); }
         result = at;
-        sig = "(a: " + A + ", start: i32, count: i32): " + A;
-        body = "  const n: i32 = a.length;\n  let s: i32 = start < 0 ? n + start : start;\n  if (s < 0) s = 0;\n  if (s > n) s = n;\n  let c: i32 = count;\n  if (c > n - s) c = n - s;\n  if (c < 0) c = 0;\n  const r: " + A + " = [];\n  for (let k: i32 = 0; k < c; k++) r.push(a[s + k]);\n  for (let k: i32 = s; k + c < n; k++) a[k] = a[k + c];\n  for (let k: i32 = 0; k < c; k++) a.pop();\n  return r;\n";
+        sig = "(a: " + A + ", start: i32, count: i32" + (inserts ? ", ins: " + A : std::string()) + "): " + A;
+        body = "  const n: i32 = a.length;\n  let s: i32 = start < 0 ? n + start : start;\n  if (s < 0) s = 0;\n  if (s > n) s = n;\n  let c: i32 = count;\n  if (c > n - s) c = n - s;\n  if (c < 0) c = 0;\n  const r: " + A + " = [];\n  for (let k: i32 = 0; k < c; k++) r.push(a[s + k]);\n";
+        if (inserts)  // the elements after the removed ones are kept aside, then the items and they go back after `s`
+          body += "  const tail: " + A + " = [];\n  for (let k: i32 = s + c; k < n; k++) tail.push(a[k]);\n  while (a.length > s) a.pop();\n  for (let k: i32 = 0; k < ins.length; k++) a.push(ins[k]);\n  for (let k: i32 = 0; k < tail.length; k++) a.push(tail[k]);\n  return r;\n";
+        else
+          body += "  for (let k: i32 = s; k + c < n; k++) a[k] = a[k + c];\n  for (let k: i32 = 0; k < c; k++) a.pop();\n  return r;\n";
+        if (inserts) m = "splice+";
       }
       std::string key = m + "," + std::to_string(at);
       std::uint32_t sym = helper(key, "function $F" + sig + " {\n" + body + "}\n", aliases, i);
