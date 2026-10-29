@@ -54,9 +54,23 @@ export const COVER_SIZE: i32 = 168;         // an album's cover in the grid
 export const GRID_ROW_HEIGHT: i32 = 236;    // cover, two lines of text and the gap
 export const HEADER_COVER_SIZE: i32 = 200;  // the cover at the top of an album
 export const POD_WIDTH: i32 = 220;          // the drawing of the iPod
+export const PHOTO_SIZE: i32 = 150;         // a photo in the grid
+export const PHOTO_ROW_HEIGHT: i32 = 166;   // a photo and the gap
+export const PHOTO_VIEW_SIZE: i32 = 640;    // a photo opened
+export const LCD_WIDTH: i32 = 460;          // the now-playing panel at the top
+export const PROGRESS_WIDTH: i32 = 300;     // its progress bar
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again while no iPod is shown
 
 // ---- pages
-export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PLAYLISTS = 'playlists', PAGE_SPECS = 'specs';
+export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PODCASTS = 'podcasts', PAGE_AUDIOBOOKS = 'audiobooks',
+  PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs';
+
+/** The kinds of media (Track.mediaType) each page of tracks lists. */
+export function kindsOf(page: string): string[] {
+  if (page === PAGE_PODCASTS) return ['podcast'];
+  if (page === PAGE_AUDIOBOOKS) return ['audiobook'];
+  if (page === PAGE_VIDEOS) return ['video', 'musicvideo', 'tvshow'];
+  return ['audio'];
+}

@@ -1,4 +1,5 @@
-// The iPod, through zinc:ipod, read only: find the iPods, open one and read its library, close it. Nothing here writes to the
+// The iPod, through zinc:ipod, read only: find the iPods, open one and read its library (tracks, playlists, specs, photos, notes
+// and other files), close it. Nothing here writes to the
 // iPod (no add, update, save, repair or eject).
 import * as ipod from 'zinc:ipod';
 import * as sys from 'zinc:sys';
@@ -12,8 +13,10 @@ export class PodLibrary {
   tracks: ipod.Track[];
   playlists: ipod.Playlist[];
   specs: ipod.SpecItem[];
-  constructor(device: ipod.Device, tracks: ipod.Track[], playlists: ipod.Playlist[], specs: ipod.SpecItem[]) {
-    this.device = device; this.tracks = tracks; this.playlists = playlists; this.specs = specs;
+  photoAlbums: ipod.PhotoAlbum[];
+  extras: ipod.Extra[];
+  constructor(device: ipod.Device, tracks: ipod.Track[], playlists: ipod.Playlist[], specs: ipod.SpecItem[], photoAlbums: ipod.PhotoAlbum[], extras: ipod.Extra[]) {
+    this.device = device; this.tracks = tracks; this.playlists = playlists; this.specs = specs; this.photoAlbums = photoAlbums; this.extras = extras;
   }
 }
 
@@ -36,7 +39,10 @@ export async function openPod(mountpoint: string): Promise<PodLibrary> {
   const tracks = await ipod.tracks();
   const playlists = await ipod.playlists();
   const specs = await ipod.specs();
-  return new PodLibrary(device, tracks, playlists, specs);
+  let photoAlbums: ipod.PhotoAlbum[] = [];
+  try { photoAlbums = await ipod.photoAlbums(); } catch (e) { /* a damaged Photo Database: the music is still shown */ }
+  const extras = await ipod.extras();
+  return new PodLibrary(device, tracks, playlists, specs, photoAlbums, extras);
 }
 
 export async function closePod(): Promise<void> {

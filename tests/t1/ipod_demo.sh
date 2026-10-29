@@ -1,10 +1,11 @@
 #!/bin/sh
 # examples/ipod, headless, on a fake iPod: a 128 MB HFS+ disk image (a fixed size, so the storage shown is the same on every run)
 # with iPod_Control/Device/SysInfo, filled by tests/data/ipod-demo (nine tracks in three albums, two with covers, a podcast and a
-# playlist), mounted at /tmp/zinc-ipod-demo/Volumes/ZINCPOD (a fixed path: the pages show it). The demo sees only that iPod
+# playlist; a note and a voice recording beside them), mounted at /tmp/zinc-ipod-demo/Volumes/ZINCPOD (a fixed path: the pages show it). The demo sees only that iPod
 # (ZINC_IPOD_ROOTS, ZINC_IPOD_NO_USB, IPOD_DEMO_MOUNT), opens it by itself and the session (tests/data/ipod-demo/session.input)
 # goes through its pages. Checked: one frame hash per page (tests/golden/ipod-demo/hashes.txt: the overview, the album grid with
-# its covers, an album, the songs searched, the songs sorted by artist, the playlists, the specs, the albums in the dark scheme) on the interpreter, the
+# its covers, an album, the songs searched, the songs sorted by artist, the playlists, the specs, the albums in the dark scheme, the
+# podcasts, a note read on the Notes & files page, the photos (none)) on the interpreter, the
 # overview's hash on QuickJS, and a run left alone on the overview paints nothing after it is shown.
 # macOS only (hdiutil); skipped (77) without the plugin's libraries. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
 cd "$(dirname "$0")/../.." || exit 2
@@ -31,9 +32,10 @@ IPOD_MOUNT=$pod IPOD_SONG="$tmp/song.wav" IPOD_COVER_A="$tmp/cover-a.png" IPOD_C
   timeout 120 "$Z" run --interp "$root/tests/data/ipod-demo" > fill.out 2>&1
 grep -q '^filled 9$' fill.out || { echo "ipod_demo: the fake iPod was not filled: $(tail -3 fill.out)"; exit 1; }
 touch -t 202601021200 "$pod/iPod_Control/iTunes/iTunesDB"   # the specs show when the database was written
+mkdir -p "$pod/Notes" "$pod/Recordings" && printf 'Shopping\n- milk\n- bread\n' > "$pod/Notes/Shopping.txt" && cp "$tmp/song.wav" "$pod/Recordings/Memo 1.wav"
 fail=0
-frames="30 60 90 120 150 180 210 240"
-ZINC_FRAMES=240 ZINC_INPUT="$root/tests/data/ipod-demo/session.input" ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" \
+frames="30 60 90 120 150 180 210 240 270 300 330"
+ZINC_FRAMES=330 ZINC_INPUT="$root/tests/data/ipod-demo/session.input" ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" \
   ZINC_SHOT_FRAMES=$(echo $frames | tr ' ' ',') timeout 120 "$Z" run --interp "$root/examples/ipod" > session.out 2>&1 \
   || { echo "ipod_demo: the session failed: $(tail -5 session.out)"; exit 1; }
 hash_at() { awk -v f="$1" '$2 == "framehash" && $3 + 0 <= f + 0 { h = $5 } END { print f, h }' "$2"; }   # idle frames are not presented: the last one shown

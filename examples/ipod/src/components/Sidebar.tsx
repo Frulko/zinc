@@ -3,18 +3,19 @@
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { library, page, showPage, pods, openDevice, opening, rescan, scanning } from '../state';
+import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, countOf, photoCount, playlists } from '../state';
 import { PodLibrary } from '../services/ipod';
 import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, TRACK, SIDEBAR_WIDTH,
-  PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_SONGS, PAGE_PLAYLISTS, PAGE_SPECS } from '../constants';
+  PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS } from '../constants';
 import { PodDrawing } from './PodDrawing';
 
-function NavRow(props: { icon: string; label: string; to: string }): i32 {
+function NavRow(props: { icon: string; label: string; to: string; count: i32 }): i32 {
   const on = (): boolean => page() === props.to;
   return <View className={`flex-row items-center h-[30] px-2.5 mx-2 gap-2.5 rounded-[6] cursor-pointer ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
     onPointerDown={(e: ui.PointerEvent) => showPage(props.to)}>
     <Icon name={props.icon} size={16} color={() => color(ACCENT)} strokeWidth={2} />
-    <Text className={`text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`}>{props.label}</Text>
+    <Text className={`grow text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`}>{props.label}</Text>
+    {props.count >= 0 ? <Text className={`text-[11px] ${fg(FAINT)}`}>{`${props.count}`}</Text> : <View />}
   </View>;
 }
 
@@ -54,12 +55,17 @@ export function Sidebar(): i32 {
     {library() !== null ? <OpenPod lib={library() as PodLibrary} /> : <View className="h-[12]" />}
     {library() !== null ? <View className="flex-col">
       <Section label="iPod" />
-      <NavRow icon="hard-drive" label="Overview" to={PAGE_OVERVIEW} />
-      <NavRow icon="info" label="Specs" to={PAGE_SPECS} />
+      <NavRow icon="hard-drive" label="Overview" to={PAGE_OVERVIEW} count={-1} />
+      <NavRow icon="info" label="Specs" to={PAGE_SPECS} count={-1} />
       <Section label="Library" />
-      <NavRow icon="disc-3" label="Albums" to={PAGE_ALBUMS} />
-      <NavRow icon="music" label="Songs" to={PAGE_SONGS} />
-      <NavRow icon="list-music" label="Playlists" to={PAGE_PLAYLISTS} />
+      <NavRow icon="disc-3" label="Albums" to={PAGE_ALBUMS} count={albums().length} />
+      <NavRow icon="music" label="Songs" to={PAGE_SONGS} count={countOf(PAGE_SONGS)} />
+      <NavRow icon="radio" label="Podcasts" to={PAGE_PODCASTS} count={countOf(PAGE_PODCASTS)} />
+      <NavRow icon="book-audio" label="Audiobooks" to={PAGE_AUDIOBOOKS} count={countOf(PAGE_AUDIOBOOKS)} />
+      <NavRow icon="clapperboard" label="Videos" to={PAGE_VIDEOS} count={countOf(PAGE_VIDEOS)} />
+      <NavRow icon="images" label="Photos" to={PAGE_PHOTOS} count={photoCount()} />
+      <NavRow icon="list-music" label="Playlists" to={PAGE_PLAYLISTS} count={playlists().length} />
+      <NavRow icon="notebook-pen" label="Notes & files" to={PAGE_FILES} count={(library() as PodLibrary).extras.length} />
     </View> : <View />}
     <Section label="Devices" />
     <View className="flex-col grow">

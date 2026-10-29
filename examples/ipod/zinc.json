@@ -15,6 +15,6 @@
     "linux": { "width": 1180, "height": 760, "resize": "fill" }
   },
   "permissions": ["fs"],
-  "requires": ["keyboard", "pointer", "fs"],
-  "icons": ["loader-circle", "arrow-up", "arrow-down", "list-music", "sparkles", "hard-drive", "info", "disc-3", "music", "usb"]
+  "requires": ["keyboard", "pointer", "fs", "audio"],
+  "icons": ["loader-circle", "arrow-up", "arrow-down", "list-music", "sparkles", "hard-drive", "info", "disc-3", "music", "usb", "radio", "book-audio", "clapperboard", "images", "image", "notebook-pen", "contact", "calendar", "mic", "play", "pause", "skip-back", "skip-forward", "volume", "volume-2"]
 }

@@ -1,13 +1,13 @@
 31 move 60 231
 32 down
 33 up
-61 move 548 168
+61 move 548 232
 62 down
 63 up
 91 move 60 261
 92 down
 93 up
-95 move 1000 56
+95 move 1000 120
 96 down
 97 up
 99 text "night"
@@ -16,12 +16,17 @@
 123 key Backspace
 124 key Backspace
 125 key Backspace
-127 move 700 110
+127 move 700 174
 128 down
 129 up
-151 move 60 291
+151 move 60 411
 152 down
 153 up
+155 move 500 205
+156 down
+157 up
+158 down
+159 up
 181 move 60 164
 182 down
 183 up
@@ -29,3 +34,16 @@
 213 move 60 231
 214 down
 215 up
+241 theme light
+243 move 60 291
+244 down
+245 up
+271 move 60 441
+272 down
+273 up
+275 move 380 224
+276 down
+277 up
+301 move 60 381
+302 down
+303 up

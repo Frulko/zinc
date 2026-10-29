@@ -1,6 +1,6 @@
-// Album covers read from the iPod (ipod.cover: a runtime image), cached by album and size while something shows them. A cover
-// is read when its first viewer asks for it and freed (destroyImage) when its last viewer is dropped, so a grid of 2,000 albums
-// holds only the covers of the rows on screen.
+// Images read from the iPod (album covers through ipod.cover, photos through ipod.photoImage: runtime images), cached by key
+// and size while something shows them. An image is read when its first viewer asks for it and freed (destroyImage) when its
+// last viewer is dropped, so a grid of 2,000 albums or photos holds only the images of the rows on screen.
 import * as ipod from 'zinc:ipod';
 import { destroyImage } from 'zinc:gfx';
 
@@ -14,9 +14,9 @@ class Cover {
 }
 const covers = new Map<string, Cover>();
 
-async function read(c: Cover, trackId: string): Promise<void> {
+async function read(c: Cover, load: (size: i32) => Promise<i32>): Promise<void> {
   let img: i32 = -1;
-  try { img = await ipod.cover(trackId, c.size); } catch (e) { img = -1; }   // an unreadable cover shows as none
+  try { img = await load(c.size); } catch (e) { img = -1; }   // an unreadable image shows as none
   c.loaded = true;
   if (c.users === 0) { if (img >= 0) destroyImage(img); return; }   // dropped while it was read
   c.image = img;
@@ -27,6 +27,15 @@ async function read(c: Cover, trackId: string): Promise<void> {
 /** Calls `show` with the cover of the album `key` (read from the track `trackId` at about `size` px), now when it is cached,
  *  else once read; -1 when it has none. Pair each call with `releaseCover(key, size)`. */
 export function useCover(key: string, trackId: string, size: i32, show: (img: i32) => void): void {
+  useImage(key, size, (s: i32) => ipod.cover(trackId, s), show);
+}
+
+/** The photo `id` at about `size` px, as useCover does; pair with `releaseCover('photo:' + id, size)`. */
+export function usePhoto(id: string, size: i32, show: (img: i32) => void): void {
+  useImage(`photo:${id}`, size, (s: i32) => ipod.photoImage(id, s), show);
+}
+
+function useImage(key: string, size: i32, load: (size: i32) => Promise<i32>, show: (img: i32) => void): void {
   const k = `${size}:${key}`;
   let c = covers.get(k);
   if (c === undefined) {
@@ -34,7 +43,7 @@ export function useCover(key: string, trackId: string, size: i32, show: (img: i3
     covers.set(k, made);
     made.waiting.push(show);
     made.users = 1;
-    read(made, trackId);
+    read(made, load);
     return;
   }
   const have = c as Cover;

@@ -1,6 +1,6 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup } from './ipod.spec';
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra } from './ipod.spec';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -114,6 +114,21 @@ export default {
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { px.push((x * 255 / size) as u8); px.push(h as u8); px.push((y * 255 / size) as u8); px.push(255); }
     return Promise.resolve({ width: size, height: size, rgba: px });
   },
+  photoAlbums: (): Promise<PhotoAlbum[]> => need() ? fail<PhotoAlbum[]>(need()) : Promise.resolve([
+    { id: '0', name: 'Photo Library', master: true, photoIds: ['0000000000000064', '0000000000000065', '0000000000000066'] },
+    { id: '1', name: 'Holidays', master: false, photoIds: ['0000000000000065', '0000000000000066'] }]),
+  photo: (id: string, size: i32): Promise<Picture> => {
+    const k = parseInt(id, 16) - 100;
+    if (k < 0 || k > 2) return fail<Picture>('no photo ' + id);
+    const w = size, h = Math.floor(size * 3 / 4);
+    const px: u8[] = [];   // a landscape gradient per photo
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { px.push((k * 90) as u8); px.push((x * 255 / w) as u8); px.push((y * 255 / h) as u8); px.push(255); }
+    return Promise.resolve({ width: w, height: h, rgba: px });
+  },
+  extras: (): Promise<Extra[]> => need() ? fail<Extra[]>(need()) : Promise.resolve([
+    { kind: 'note', name: 'Shopping.txt', path: MP + '/Notes/Shopping.txt', bytes: 120, modified: 0 },
+    { kind: 'contact', name: 'Ada Lovelace.vcf', path: MP + '/Contacts/Ada Lovelace.vcf', bytes: 210, modified: 0 },
+    { kind: 'recording', name: 'Memo 1.wav', path: MP + '/Recordings/Memo 1.wav', bytes: 480000, modified: 0 }]),
   backups: (_dir: string): Promise<Backup[]> => Promise.resolve(taken.slice()),
   check: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
   repair: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),

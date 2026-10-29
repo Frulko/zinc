@@ -93,6 +93,13 @@ export interface SpecItem { group: string; name: string; value: string; }
 /** A cover in RGBA pixels (imageFromPixels takes them as they are); width 0 when the track has none. */
 export interface Picture { width: i32; height: i32; rgba: u8[]; }
 
+/** A photo album of the iPod; the master one ("Photo Library") holds every photo. Photo ids are strings like the tracks'. */
+export interface PhotoAlbum { id: string; name: string; master: boolean; photoIds: string[]; }
+
+/** A file the iPod keeps beside its music: a note (Notes), a contact card (Contacts), a calendar (Calendars), a voice
+ *  recording (Recordings). `kind` is note | contact | calendar | recording, `path` is absolute. */
+export interface Extra { kind: string; name: string; path: string; bytes: number; modified: number; }
+
 /** A backup on the computer, from the manifest written with it. */
 export interface Backup {
   folder: string;
@@ -144,6 +151,12 @@ export interface Spec extends NativeModule {
   specs(): Promise<SpecItem[]>;
   /** The track's cover at about `size` pixels (the iPod's nearest stored size, scaled); width 0 when it has none. */
   artwork(id: string, size: i32): Promise<Picture>;
+  /** The photo albums of the open iPod (its Photo Database); none when it holds no photos. */
+  photoAlbums(): Promise<PhotoAlbum[]>;
+  /** A photo at about `size` pixels on its long side (the iPod's nearest stored size, scaled). */
+  photo(id: string, size: i32): Promise<Picture>;
+  /** The notes, contacts, calendars and voice recordings of the open iPod, by kind then name. */
+  extras(): Promise<Extra[]>;
   /** Copies the database into a new folder of `dir` ('' = the iPod's folder of the default place, ZINC_HOME/ipod/<serial>), and
    *  with `music` the music into the Music folder beside it, copying only the files it does not have yet; resolves with the folder. */
   backup(dir: string, music: boolean): Promise<string>;

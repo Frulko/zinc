@@ -42,6 +42,7 @@ extern "C" const char* itdb_device_get_firewire_id(const Itdb_Device* device);
 extern "C" int itdb_device_get_checksum_type(const Itdb_Device* device);
 extern "C" char* zn_ipod_artwork_plist(const char* mountpoint);   // ipod_sysinfo.c
 extern "C" char* zn_ipod_art_formats(const char* mountpoint);
+extern "C" void* zn_ipod_photo_pixbuf(Itdb_Device* device, Itdb_Thumb* thumb);   // the largest RGB size of a photo
 extern "C" const Itdb_IpodInfo* itdb_ipod_info_from_serial(const char* serial);   // the model from the last digits of a serial
 namespace fs = std::filesystem;
 
@@ -644,6 +645,9 @@ bool ensureSysInfoExtended(const std::string& mp, std::string& err) {
 Library::~Library() { close(); }
 
 void Library::close() {
+  if (photos_) itdb_photodb_free(static_cast<Itdb_PhotoDB*>(photos_));
+  photos_ = nullptr;
+  photosRead_ = false;
   if (db_) itdb_free(DB);
   db_ = nullptr;
   mp_.clear();
@@ -1099,15 +1103,9 @@ std::vector<SpecItem> Library::specs() {
   return v;
 }
 
-bool Library::artwork(const std::string& id, int32_t size, Picture& out, std::string& err) {
-  out = Picture{};
-  if (!db_) { err = "no iPod is open"; return false; }
-  Itdb_Track* t = findTrack(DB, id);
-  if (!t) { err = "no track " + id; return false; }
-  if (!itdb_track_has_thumbnails(t)) return true;
-  int32_t want = size > 0 ? std::min<int32_t>(size, 1024) : -1;
-  GdkPixbuf* p = (GdkPixbuf*)itdb_track_get_thumbnail(t, want, want);
-  if (!p) return true;
+namespace {
+/** A pixbuf as RGBA pixels; frees it. */
+void toPicture(GdkPixbuf* p, Picture& out) {
   int w = gdk_pixbuf_get_width(p), h = gdk_pixbuf_get_height(p), ch = gdk_pixbuf_get_n_channels(p), stride = gdk_pixbuf_get_rowstride(p);
   const guchar* px = gdk_pixbuf_get_pixels(p);
   out.width = w;
@@ -1120,7 +1118,87 @@ bool Library::artwork(const std::string& id, int32_t size, Picture& out, std::st
       dp[0] = sp[0]; dp[1] = sp[1]; dp[2] = sp[2]; dp[3] = ch == 4 ? sp[3] : 255;
     }
   g_object_unref(p);
+}
+}  // namespace
+
+bool Library::artwork(const std::string& id, int32_t size, Picture& out, std::string& err) {
+  out = Picture{};
+  if (!db_) { err = "no iPod is open"; return false; }
+  Itdb_Track* t = findTrack(DB, id);
+  if (!t) { err = "no track " + id; return false; }
+  if (!itdb_track_has_thumbnails(t)) return true;
+  int32_t want = size > 0 ? std::min<int32_t>(size, 1024) : -1;
+  GdkPixbuf* p = (GdkPixbuf*)itdb_track_get_thumbnail(t, want, want);
+  if (p) toPicture(p, out);
   return true;
+}
+
+#define PHOTOS static_cast<Itdb_PhotoDB*>(photos_)
+
+std::vector<PhotoAlbum> Library::photoAlbums(std::string& err) {
+  std::vector<PhotoAlbum> v;
+  if (!photosRead_) {
+    photosRead_ = true;
+    GError* e = nullptr;
+    photos_ = itdb_photodb_parse(mp_.c_str(), &e);   // NULL with no error: the iPod holds no photos
+    if (e) { err = e->message; g_error_free(e); return v; }
+  }
+  if (!photos_) return v;
+  int n = 0;
+  for (GList* l = PHOTOS->photoalbums; l; l = l->next, n++) {
+    Itdb_PhotoAlbum* a = (Itdb_PhotoAlbum*)l->data;
+    PhotoAlbum o;
+    o.id = std::to_string(n);
+    o.name = a->name ? a->name : "";
+    o.master = a->album_type == 1;
+    for (GList* m = a->members; m; m = m->next) o.photoIds.push_back(hexId(((Itdb_Artwork*)m->data)->id));
+    v.push_back(std::move(o));
+  }
+  return v;
+}
+
+bool Library::photo(const std::string& id, int32_t size, Picture& out, std::string& err) {
+  out = Picture{};
+  if (!db_) { err = "no iPod is open"; return false; }
+  if (!photosRead_ && (photoAlbums(err), !err.empty())) return false;
+  Itdb_Artwork* a = nullptr;
+  for (GList* l = photos_ ? PHOTOS->photos : nullptr; l && !a; l = l->next)
+    if (hexId(((Itdb_Artwork*)l->data)->id) == id) a = (Itdb_Artwork*)l->data;
+  if (!a) { err = "no photo " + id; return false; }
+  GdkPixbuf* p = (GdkPixbuf*)zn_ipod_photo_pixbuf(PHOTOS->device, a->thumbnail);   // scaled below keeping its shape
+  if (!p) return true;
+  int w = gdk_pixbuf_get_width(p), h = gdk_pixbuf_get_height(p), big = std::max(w, h);
+  if (size > 0 && big > size) {
+    GdkPixbuf* s = gdk_pixbuf_scale_simple(p, std::max(1, w * size / big), std::max(1, h * size / big), GDK_INTERP_BILINEAR);
+    g_object_unref(p);
+    p = s;
+  }
+  toPicture(p, out);
+  return true;
+}
+
+std::vector<Extra> Library::extras() {
+  std::vector<Extra> v;
+  static const std::pair<const char*, const char*> kinds[] = {{"Notes", "note"}, {"Contacts", "contact"}, {"Calendars", "calendar"}, {"Recordings", "recording"}};
+  for (auto& [dir, kind] : kinds) {
+    std::error_code ec;
+    size_t first = v.size();
+    for (fs::recursive_directory_iterator it(fs::path(mp_) / dir, ec), end; !ec && it != end; it.increment(ec)) {
+      const std::string name = it->path().filename().string();
+      if (!it->is_regular_file(ec) || name.empty() || name[0] == '.') continue;
+      struct stat st{};
+      if (stat(it->path().c_str(), &st) != 0) continue;
+      Extra x;
+      x.kind = kind;
+      x.name = fs::relative(it->path(), fs::path(mp_) / dir, ec).string();
+      x.path = it->path().string();
+      x.bytes = (double)st.st_size;
+      x.modified = (double)st.st_mtime;
+      v.push_back(std::move(x));
+    }
+    std::sort(v.begin() + first, v.end(), [](const Extra& a, const Extra& b) { return a.name < b.name; });
+  }
+  return v;
 }
 
 Check Library::check() {

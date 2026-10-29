@@ -116,6 +116,12 @@ struct HostIpod : NativeIpod {
     std::string i = str(id);
     return rec<Picture>([i, size](std::string& err) { Picture pic; lib.artwork(i, size, pic, err); return pic; });
   }
+  zrt::Promise<Bytes> photoAlbums() override { return rec<std::vector<PhotoAlbum>>([](std::string& err) { if (!need(err)) return std::vector<PhotoAlbum>{}; return lib.photoAlbums(err); }); }
+  zrt::Promise<Bytes> photo(zrt::String id, int32_t size) override {
+    std::string i = str(id);
+    return rec<Picture>([i, size](std::string& err) { Picture pic; lib.photo(i, size, pic, err); return pic; });
+  }
+  zrt::Promise<Bytes> extras() override { return rec<std::vector<Extra>>([](std::string& err) { need(err); return lib.extras(); }); }
   zrt::Promise<Bytes> backups(zrt::String dir) override { std::string d = str(dir); return rec<std::vector<Backup>>([d](std::string&) { return ipod::backups(d); }); }
   zrt::Promise<Bytes> check() override { return rec<Check>([](std::string& err) { need(err); return lib.check(); }); }
   zrt::Promise<Bytes> repair() override { ipod::Progress p = progress(); return rec<Check>([p](std::string& err) { Check c; lib.repair(c, p, err); return c; }); }

@@ -9,8 +9,8 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup } from './native/ipod.spec';
-export type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra } from './native/ipod.spec';
+export type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
@@ -61,6 +61,17 @@ export async function cover(id: string, size: i32 = 300): Promise<i32> {
   const p = await N.artwork(id, size);
   return p.width > 0 ? imageFromPixels(p.rgba, p.width, p.height) : -1;
 }
+/** The photo albums of the open iPod; the master one holds every photo. */
+export function photoAlbums(): Promise<PhotoAlbum[]> { return N.photoAlbums(); }
+/** A photo in RGBA pixels at about `size` pixels on its long side. */
+export function photo(id: string, size: i32 = 300): Promise<Picture> { return N.photo(id, size); }
+/** A photo as a runtime image for `<Image image={...} />`; -1 when it cannot be read. destroyImage frees it. */
+export async function photoImage(id: string, size: i32 = 300): Promise<i32> {
+  const p = await N.photo(id, size);
+  return p.width > 0 ? imageFromPixels(p.rgba, p.width, p.height) : -1;
+}
+/** The notes, contacts, calendars and voice recordings of the open iPod. */
+export function extras(): Promise<Extra[]> { return N.extras(); }
 /** Copies the database into a new folder of `dir` ('' = ZINC_HOME/ipod/<serial>), and with `music` the music into the Music folder
  *  beside it (only the files it does not have yet); resolves with the folder. A first change of a session backs up the database by
  *  itself. */

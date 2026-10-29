@@ -8,16 +8,17 @@ export function duration(ms: number): string {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(sec)}` : `${m}:${pad2(sec)}`;
 }
 
-/** A total playing time: "42 min", "5 h 12 min", "3 days 4 h". */
+/** A total playing time: "42 min", "5 h 12 min", "3 d 4 h" (short: it fits a tile). */
 export function longDuration(ms: number): string {
   const min = Math.floor(ms / 60000), h = Math.floor(min / 60), d = Math.floor(h / 24);
-  if (d > 0) return `${d} ${d === 1 ? 'day' : 'days'} ${h % 24} h`;
+  if (d > 0) return `${d} d ${h % 24} h`;
   if (h > 0) return `${h} h ${min % 60} min`;
   return min > 0 ? `${min} min` : `${Math.floor(ms / 1000)} s`;
 }
 
-/** Bytes as the Finder shows them (powers of 1000): "1.2 GB", "340 MB", "12 KB". */
+/** Bytes as the Finder shows them (powers of 1000): "1.2 GB", "340 MB", "12 KB", "21 bytes". */
 export function bytes(b: number): string {
+  if (b < 1e3) return `${b} bytes`;
   if (b >= 1e9) return `${Math.round(b / 1e8) / 10} GB`;
   if (b >= 1e6) return `${Math.round(b / 1e6)} MB`;
   return `${Math.round(b / 1e3)} KB`;

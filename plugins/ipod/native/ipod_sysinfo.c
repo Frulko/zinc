@@ -97,3 +97,20 @@ char *zn_ipod_art_formats (const char *mountpoint) {
   itdb_device_free (dev);
   return g_string_free (x, FALSE);
 }
+
+/* The largest RGB size of a photo as a GdkPixbuf. libgpod's "largest" (-1) is, on an iPod Classic, the TV-out size, stored as YUV that
+ * iTunes interlaces and libgpod reads back as stripes; the screen sizes hold the same picture in RGB565. NULL when it has none. */
+void *zn_ipod_photo_pixbuf (Itdb_Device *device, Itdb_Thumb *thumb) {
+    const Itdb_Thumb_Ipod_Item *best = NULL;
+    const GList *l;
+    if (!thumb || thumb->data_type != ITDB_THUMB_TYPE_IPOD) return NULL;
+    for (l = itdb_thumb_ipod_get_thumbs ((Itdb_Thumb_Ipod *) thumb); l; l = l->next) {
+        const Itdb_Thumb_Ipod_Item *it = l->data;
+        ItdbThumbFormat f;
+        if (!it->format) continue;
+        f = it->format->format;
+        if (f == THUMB_FORMAT_UYVY_LE || f == THUMB_FORMAT_UYVY_BE || f == THUMB_FORMAT_I420_LE || f == THUMB_FORMAT_I420_BE) continue;
+        if (!best || it->format->width * it->format->height > best->format->width * best->format->height) best = it;
+    }
+    return best ? itdb_thumb_ipod_item_to_pixbuf (device, (Itdb_Thumb_Ipod_Item *) best) : NULL;
+}

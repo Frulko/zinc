@@ -4,7 +4,8 @@ import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import { findPods, openPod, closePod, PodLibrary } from './services/ipod';
 import { dropCovers } from './services/covers';
-import { PAGE_OVERVIEW, SCAN_EVERY_MS } from './constants';
+import { stop as stopPlaying } from './services/player';
+import { PAGE_OVERVIEW, SCAN_EVERY_MS, kindsOf } from './constants';
 
 /** An album: the tracks that share an album name and album artist, in disc and track order. */
 export class Album {
@@ -25,6 +26,11 @@ export const [error, setError] = createSignal<string>('');
 export const [page, setPage] = createSignal<string>(PAGE_OVERVIEW);
 export const [albumShown, setAlbumShown] = createSignal<Album | null>(null);
 export const [playlistShown, setPlaylistShown] = createSignal<string>('');
+export const [photoAlbumShown, setPhotoAlbumShown] = createSignal<string>('');
+/** The photo opened in full ('' while the grid is shown). */
+export const [photoShown, setPhotoShown] = createSignal<string>('');
+/** The path of the note, contact or calendar shown on the Files page. */
+export const [extraShown, setExtraShown] = createSignal<string>('');
 export const [search, setSearch] = createSignal<string>('');
 /** The songs' sort: title | artist | album | time, and its direction. */
 export const [sortKey, setSortKey] = createSignal<string>('title');
@@ -57,13 +63,25 @@ export const albums = createMemo<Album[]>(() => {
   return out;
 }, []);
 
-/** Every track, filtered by the search (title, artist, album) and sorted by the chosen column. */
+/** How many tracks of the open iPod are of the kinds a page lists. */
+export function countOf(page: string): i32 {
+  const lib = library();
+  if (lib === null) return 0;
+  const kinds = kindsOf(page);
+  let n = 0;
+  for (const t of lib.tracks) if (kinds.indexOf(t.mediaType) >= 0) n++;
+  return n;
+}
+
+/** The tracks of the page shown (songs, podcasts, audiobooks or videos), filtered by the search (title, artist, album) and
+ *  sorted by the chosen column. */
 export const songs = createMemo<ipod.Track[]>(() => {
   const lib = library();
   if (lib === null) return [];
-  const q = lower(search().trim()), key = sortKey(), up = sortUp();
+  const q = lower(search().trim()), key = sortKey(), up = sortUp(), kinds = kindsOf(page());
   const out: ipod.Track[] = [];
   for (const t of lib.tracks) {
+    if (kinds.indexOf(t.mediaType) < 0) continue;
     if (q === '' || lower(t.title).indexOf(q) >= 0 || lower(t.artist).indexOf(q) >= 0 || lower(t.album).indexOf(q) >= 0) out.push(t);
   }
   out.sort((a: ipod.Track, b: ipod.Track) => {
@@ -86,6 +104,19 @@ export const playlists = createMemo<ipod.Playlist[]>(() => {
   return out;
 }, []);
 
+/** The photo albums, the master one ("Photo Library") first. */
+export const photoAlbums = createMemo<ipod.PhotoAlbum[]>(() => {
+  const lib = library();
+  const out: ipod.PhotoAlbum[] = [];
+  if (lib === null) return out;
+  for (const a of lib.photoAlbums) if (a.master) out.push(a);
+  for (const a of lib.photoAlbums) if (!a.master) out.push(a);
+  return out;
+}, []);
+
+/** How many photos the iPod holds (the master album's). */
+export function photoCount(): i32 { const a = photoAlbums(); return a.length > 0 ? a[0].photoIds.length : 0; }
+
 /** The tracks of a playlist, in its order. */
 export function playlistTracks(id: string): ipod.Track[] {
   const lib = library();
@@ -105,7 +136,7 @@ export function sortBy(key: string): void {
   else batch(() => { setSortKey(key); setSortUp(true); });
 }
 
-export function showPage(p: string): void { batch(() => { setPage(p); setAlbumShown(null); }); }
+export function showPage(p: string): void { batch(() => { setPage(p); setAlbumShown(null); setPhotoShown(''); setSearch(''); }); }
 
 // ---- finding and opening iPods
 let scanTimer: i32 = -1;
@@ -140,10 +171,11 @@ export async function openDevice(mountpoint: string): Promise<void> {
   if (lib !== null && (lib as PodLibrary).device.mountpoint === mountpoint) { showPage(PAGE_OVERVIEW); return; }
   batch(() => { setOpening(mountpoint); setError(''); });
   try {
+    stopPlaying();
     dropCovers();
     setLibrary(null);
     const opened = await openPod(mountpoint);
-    batch(() => { setLibrary(opened); setPlaylistShown(''); setSearch(''); showPage(PAGE_OVERVIEW); });
+    batch(() => { setLibrary(opened); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
   } catch (e) {
     setError(`Could not read the iPod at ${mountpoint}: ${(e as Error).message}`);
   }
@@ -153,6 +185,7 @@ export async function openDevice(mountpoint: string): Promise<void> {
 
 /** Closes the open iPod (before the app quits). */
 export async function closeDevice(): Promise<void> {
+  stopPlaying();
   dropCovers();
   setLibrary(null);
   await closePod();

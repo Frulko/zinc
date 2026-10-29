@@ -10,7 +10,7 @@
 
 namespace ipod {
 
-using ::AddResult; using ::Backup; using ::Check; using ::Device; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
+using ::AddResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
 
 /** phase, done, total, detail */
 using Progress = std::function<void(const std::string&, int32_t, int32_t, const std::string&)>;
@@ -57,12 +57,18 @@ class Library {
   std::vector<SpecItem> specs();
   /** The cover at about size x size; out.width 0 when the track has none. */
   bool artwork(const std::string& id, int32_t size, Picture& out, std::string& err);
+  /** The Photo Database, read at the first call after open(). */
+  std::vector<PhotoAlbum> photoAlbums(std::string& err);
+  bool photo(const std::string& id, int32_t size, Picture& out, std::string& err);
+  std::vector<Extra> extras();
   Check check();
   bool repair(Check& after, const Progress& progress, std::string& err);
 
  private:
   void* db_ = nullptr;   // Itdb_iTunesDB*
   std::string mp_;
+  void* photos_ = nullptr;   // Itdb_PhotoDB*, read on demand
+  bool photosRead_ = false;
   bool backedUp_ = false;   // the database was copied to the computer since open(): the session's restore point
   /** Refuses a change on a read-only iPod, and takes the automatic backup before the first change of the session. */
   bool writable(std::string& err, const Progress& progress = nullptr);

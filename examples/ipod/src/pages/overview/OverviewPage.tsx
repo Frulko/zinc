@@ -2,11 +2,12 @@
 // (firmware, serial, model number...).
 import * as ipod from 'zinc:ipod';
 import { PodLibrary } from '../../services/ipod';
-import { albums, playlists } from '../../state';
+import { albums, playlists, countOf, photoCount } from '../../state';
 import { PodDrawing } from '../../components/PodDrawing';
 import { StorageBar } from '../../components/StorageBar';
 import { bytes, longDuration } from '../../format';
-import { bg, bd, fg, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, POD_WIDTH } from '../../constants';
+import { bg, bd, fg, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, POD_WIDTH, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS,
+  PAGE_VIDEOS } from '../../constants';
 
 function Fact(props: { label: string; value: string }): i32 {
   return <View className="flex-col gap-0.5 w-[200]">
@@ -16,8 +17,8 @@ function Fact(props: { label: string; value: string }): i32 {
 }
 
 function Count(props: { value: string; label: string }): i32 {
-  return <View className={`flex-col grow basis-0 gap-0.5 px-4 py-3 rounded-[10] border ${bg(CARD)} ${bd(BORDER)}`}>
-    <Text className={`text-[22px] font-bold ${fg(TEXT)}`}>{props.value}</Text>
+  return <View className={`flex-col grow basis-[160] gap-0.5 px-4 py-3 rounded-[10] border ${bg(CARD)} ${bd(BORDER)}`}>
+    <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{props.value}</Text>
     <Text className={`text-[12px] ${fg(MUTED)}`}>{props.label}</Text>
   </View>;
 }
@@ -50,10 +51,15 @@ export function OverviewPage(props: { lib: PodLibrary }): i32 {
           </View>
           <StorageBar device={d} tracks={tracks} />
         </View>
-        <View className="flex-row gap-3">
-          <Count value={`${tracks.length}`} label="Songs" />
+        <View className="flex-row flex-wrap gap-3">
+          <Count value={`${countOf(PAGE_SONGS)}`} label="Songs" />
           <Count value={`${albums().length}`} label="Albums" />
+          <Count value={`${countOf(PAGE_PODCASTS)}`} label="Podcasts" />
+          <Count value={`${countOf(PAGE_AUDIOBOOKS)}`} label="Audiobooks" />
+          <Count value={`${countOf(PAGE_VIDEOS)}`} label="Videos" />
+          <Count value={`${photoCount()}`} label="Photos" />
           <Count value={`${playlists().length}`} label="Playlists" />
+          <Count value={`${props.lib.extras.length}`} label="Notes & files" />
           <Count value={longDuration(ms)} label="Playing time" />
         </View>
         <View className="flex-row flex-wrap gap-x-6 gap-y-4">

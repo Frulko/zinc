@@ -3,6 +3,7 @@
 // and repair, specs and covers in pixels, backups on the computer (automatic before a session's first change, hard links for what did
 // not change, the music shared and incremental). Build and run: tests/t0/ipod.sh.
 #include "ipod_core.h"
+#include <itdb.h>
 #include <taglib/fileref.h>
 #include <taglib/tpropertymap.h>
 #include <taglib/tvariant.h>
@@ -142,6 +143,26 @@ int main(int argc, char** argv) {
   ipod::Picture none;
   CHECK(!lib.artwork("ffffffffffffffff", 100, none, err) && none.width == 0);
   err.clear();
+
+  // photos (a Photo Database written with libgpod) and the files beside the music
+  if (argc > 2) {
+    Itdb_PhotoDB* pdb = itdb_photodb_create(mp.c_str());
+    CHECK(pdb && itdb_photodb_add_photo(pdb, argv[2], -1, 0, nullptr) && itdb_photodb_write(pdb, nullptr));
+    itdb_photodb_free(pdb);
+    auto albums = lib.photoAlbums(err);
+    CHECK(err.empty() && albums.size() == 1 && albums[0].master && albums[0].photoIds.size() == 1);
+    ipod::Picture ph;
+    CHECK(lib.photo(albums[0].photoIds[0], 32, ph, err) && ph.width > 0 && ph.width <= 32 && ph.rgba.size() == (size_t)ph.width * ph.height * 4);
+    CHECK(!lib.photo("ffffffffffffffff", 32, none, err));
+    err.clear();
+    printf("photos: %zu album, photo %dx%d\n", albums.size(), ph.width, ph.height);
+  }
+  fs::create_directories(mp / "Notes");
+  fs::create_directories(mp / "Recordings");
+  std::ofstream(mp / "Notes" / "todo.txt") << "milk";
+  std::ofstream(mp / "Recordings" / "Memo 1.wav") << "RIFF";
+  auto ex = lib.extras();
+  CHECK(ex.size() == 2 && ex[0].kind == "note" && ex[0].name == "todo.txt" && ex[0].bytes == 4 && ex[1].kind == "recording");
 
   // restore points: the first change of the first session backed the empty database up; this session's first change backs up the
   // two tracks; a restore puts them back
