@@ -1,4 +1,5 @@
 // Variable-height virtual list (ZN-193): 100k rows of 5 different heights; only the rows in view exist, the content height follows the measured rows, scrolling to an offset keeps what is shown.
+// Then a list of fixed rows whose fourth row changes class (a selection, a hover): it keeps its place and height.
 import * as ui from 'zinc:ui';
 import { quit } from 'zinc:gfx';
 const N = 100000;
@@ -13,6 +14,16 @@ ui.virtualize(list, N, -30, (i: i32): i32 => {
   ui.setClass(row, 'h-[' + heightOf(i) + 'px] w-full');
   return row;
 }, null);
+const fixed = ui.createNode(ui.SCROLL);
+ui.setClass(fixed, 'w-full h-[100px]');
+ui.insert(root, fixed, -1);
+ui.virtualize(fixed, 50, 20, (i: i32): i32 => { const row = ui.createNode(ui.VIEW); ui.setClass(row, 'w-full'); return row; }, null);
+function fourth(): i32 { const n = ui.inspectNode(fixed); return n === null || n.children.length < 4 ? -1 : n.children[3]; }
+function showFourth(tag: string): void {
+  const r = ui.inspectNode(fourth());
+  if (r === null) return;
+  console.log(tag, 'top', Math.round(r.top), 'h', Math.round(r.h));
+}
 function rows(): i32 { const n = ui.inspectNode(list); return n === null ? -1 : n.children.length; }
 function show(tag: string): void {
   const n = ui.inspectNode(list);
@@ -25,5 +36,6 @@ ui.mount(root, 0xffffff, (dt: number) => {
   f++;
   if (f === 3) { show('start'); ui.scrollTo(list, 0, 600000); }
   if (f === 6) { show('at 600000'); ui.scrollTo(list, 0, 0); }
-  if (f === 9) { show('back at 0'); quit(); }
+  if (f === 9) { show('back at 0'); showFourth('fixed row'); ui.setClass(fourth(), 'w-full bg-[#ff0000]'); }
+  if (f === 11) { showFourth('restyled row'); quit(); }
 });

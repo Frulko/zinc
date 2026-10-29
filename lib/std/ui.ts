@@ -708,6 +708,19 @@ function settleVirtuals(): void {
     layoutDirty = true;
   }
 }
+/** Places row i of the virtual list n: absolute, at its offset, across the list's width, its height on a list of fixed rows. */
+function placeVirtRow(n: UiNode, v: Virtual, r: UiNode, i: i32): void {
+  r.abs = true; r.top = Math.round(n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH)); r.left = n.pl; r.right = n.pr;
+  if (!v.variable) r.h = Math.round(v.itemH);
+}
+/** After a restyle (a class or a hover state changed): a row of a virtual list takes its place again, which the style reset cleared. */
+function replaceVirtRow(r: UiNode): void {
+  if (r.parent < 0) return;
+  const p = node(r.parent);
+  if (p.virt === null) return;
+  const v = p.virt as Virtual;
+  v.rows.forEach((row: i32, i: i32) => { if (row === r.id) placeVirtRow(p, v, r, i); });
+}
 function syncVirtual(h: i32, n: UiNode): void {
   const v = n.virt as Virtual;
   const over: i32 = DOM ? 12 : 3;   // in the page the rows come a frame after the browser scrolled: a few more stay ready
@@ -723,9 +736,7 @@ function syncVirtual(h: i32, n: UiNode): void {
   for (let i = first; i <= last; i++) {
     if (v.rows.has(i)) continue;
     const row = v.render(i);
-    const r = node(row);
-    r.abs = true; r.top = Math.round(n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH)); r.left = n.pl; r.right = n.pr;
-    if (!v.variable) r.h = Math.round(v.itemH);
+    placeVirtRow(n, v, node(row), i);
     insert(h, row, -1);
     v.rows.set(i, row);
   }
@@ -2730,6 +2741,7 @@ function rebuildStyle(n: UiNode): void {
   for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
   for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
   if (devStyles.size > 0) { const d = devStyles.get(n.id); if (d !== undefined) for (let i = 0; i < d.keys.length; i++) applyProp(n, d.ids[i], d.keys[i], d.values[i]); }
+  replaceVirtRow(n);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
   layoutDirty = true;
   transSpec(n);
