@@ -560,6 +560,12 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: a running transfer cannot be cancelled midway (a half-written file the database does not know); design a safe cancel.
 - zinc:system: ZINC_SYSTEM_SCRIPT ticks run faster than frames in a UI app, though docs/plugins/system.md says a tick is a frame.
 
+- zinc:ipod: ensureSysInfoExtended built from SysInfo never writes the SQLiteDB key; a Nano 5G-7G set up that way would get a plain iTunesDB and lose its SQLite database. Write the key for those generations.
+- zinc:ipod: libgpod logs g_utf8_casefold assertions when a text smart rule meets a track without that tag; patch the vendored itdb_splr_eval.
+- iPod demo: the remote mode's JSON parse throws on a missing Track/Playlist field, so an older daemon without bpm/rules breaks the Mac app; default missing fields.
+- iPod Genius batch B: setSmartRules cannot write back a rule it has no name for (album rating, loved); the editor keeps those playlists read-only or keeps the raw rule.
+- zinc:ipod: expose Track.checked, grouping and compilation so smart previews cover those fields.
+
 ## Cross-platform pass
 - zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
 - zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
