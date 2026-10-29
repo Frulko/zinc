@@ -484,6 +484,8 @@ struct SettingsView: View {
                         Knob(name: "Black point", help: "Everything darker than this becomes ink. Raise it when letters look thin.", value: $e.tune.black, range: 0...200)
                         Knob(name: "White point", help: "Everything lighter than this becomes paper. Lower it to wipe grey backgrounds clean.", value: $e.tune.white, range: 100...255)
                         Knob(name: "Gamma", help: "Bends the middle greys. Above 1, letters get bolder; below, photos get lighter.", value: $e.tune.gamma, range: 0.5...3, step: 0.05)
+                        Picker("Dark areas", selection: $e.tune.invert) { Text("Turned").tag(1); Text("Kept").tag(0); Text("Whole screen").tag(2) }.pickerStyle(.segmented)
+                        Text("A dark mode's windows (Discord, a code editor) are pale letters on near-black: on paper a field of ink. Turned, they read as ink on paper, and the light windows around them stay as they are.").font(.caption).foregroundStyle(.secondary)
                     }
                     Section("Thin lines") {
                         Knob(name: "Edges", help: "Hairlines (window borders, separators) are pale grey: this draws them in ink so they do not vanish.", value: $e.tune.edges, range: 0...30)

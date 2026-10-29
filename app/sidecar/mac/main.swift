@@ -1,7 +1,7 @@
 // sidecar: the Mac half of Sidecar (app/sidecar is the tablet's). A virtual display at the tablet's ratio (or a mirrored display) captured by
 // ScreenCaptureKit, its luma dithered to 1 bit, and only the 32x16 tiles that changed sent to the tablet's driver (display-rmpp stream.h, TCP 7710),
 // one frame in flight: a frame that comes while the tablet works is replaced by the next, never queued.
-//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
+//   sidecar [--host 10.11.99.1] [--native | --points WxH (Retina; default half the tablet's pixels) | --mirror <display index>] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--invert 0|1|2] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]
 import Foundation
 import Accelerate
 import Compression
@@ -13,6 +13,7 @@ import ApplicationServices
 import AppKit
 import SwiftUI
 
+var invertMode = 1   // dark areas, see darkAround
 var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 2, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false, waitAlways = false
 var gentle = true, tabletPen = false, rotationLock = false, selftest = false
 setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
@@ -37,11 +38,12 @@ while let a = argv.popFirst() {
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // 0: the clean pass stays in the fast waveform (no switch); 3 or 4: true greys in xochitl's page or UI one
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--gamma": gamma = Double(argv.popFirst()!)!
+    case "--invert": invertMode = Int(argv.popFirst()!)!   // dark areas: 0 kept, 1 turned (default), 2 the whole screen
     case "--min-clean": minClean = Int(argv.popFirst()!)!   // pixels drawn fast, at rest, before the clean pass in true greys (default 1% of the panel)
     case "--trail-ms": trailMs = Int(argv.popFirst()!)!   // ms after the pointer left a tile before its trail is cleaned: a fast update drives its pixels ~1.4 s, cleaning earlier disturbs them
     case "--idle": idleMs = Int(argv.popFirst()!)!   // ms without change before the clean pass; 0: never
     case "--seconds": seconds = Double(argv.popFirst()!)!
-    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]\n", stderr); exit(2)
+    default: fputs("sidecar [--host h] [--native | --points WxH | --mirror n] [--threshold] [--idle ms] [--trail-ms ms] [--min-clean px] [--levels black,white] [--gamma g] [--invert 0|1|2] [--edges gain] [--cursor px] [--rotate 90|180|270] [--fast-mode 0|1|2] [--pointer-moving arrow|dot|none] [--no-ui] [--pointer-hz n] [--clean-mode 0|3|4] [--seconds N]\n", stderr); exit(2)
     }
 }
 func die(_ s: String) -> Never { fputs("sidecar: \(s)\n", stderr); exit(1) }
@@ -256,6 +258,21 @@ func makeTone() -> [UInt8] {
     }
 }
 var tone = makeTone()
+// dark areas (a dark mode's window: light letters on 30 to 50 grey): on the panel a field of ink with thin pale letters that the edges eat.
+// Turned, they read as ink on paper. Per pixel, from the mean luma around it (81 samples, every 4 pixels over 33 x 33): under 128 the
+// pixel's luma is turned (255 - l) before the curve, so a dark panel turns at its own border and the light windows around it stay. The same
+// samples on the GPU (shade below): both paths agree to the pixel. --invert 0 keeps them, 2 turns the whole screen
+@inline(__always) func darkAround(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> Bool {
+    var s = 0, dy = -16
+    while dy <= 16 {
+        let row = src + min(max(y + dy, 0), fh - 1) * bpr
+        var dx = -16
+        while dx <= 16 { s += Int(row[min(max(x + dx, 0), fw - 1)]); dx += 4 }
+        dy += 4
+    }
+    return s < 128 * 81
+}
+var minBuf = [UInt8](repeating: 0, count: 0)
 // and the edges: a pixel darker than the lightest of its 5x5 neighbours by more than 4 loses --edges (10) levels per level of difference, so
 // a hairline of light grey on white (a window's border, a separator, 220 or 240 on 255) comes out black or dotted instead of white, and
 // text gets a little bolder; the light side of an edge, and smooth gradients, keep the curve's value
@@ -265,17 +282,37 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
     let bw = b.2 - b.0, bh = b.3 - b.1
     if maxBuf.count < bw * bh { maxBuf = [UInt8](repeating: 255, count: W * H) }
     grey.withUnsafeMutableBufferPointer { g in maxBuf.withUnsafeMutableBufferPointer { m in tone.withUnsafeBufferPointer { t in
+        if minBuf.count < bw * bh && invertMode != 0 && edges > 0 { minBuf = [UInt8](repeating: 0, count: W * H) }
         if edges > 0 {
             var si = vImage_Buffer(data: UnsafeMutableRawPointer(mutating: src), height: vImagePixelCount(fh), width: vImagePixelCount(fw), rowBytes: bpr)
             var mo = vImage_Buffer(data: m.baseAddress!, height: vImagePixelCount(bh), width: vImagePixelCount(bw), rowBytes: bw)
             vImageMax_Planar8(&si, &mo, nil, vImagePixelCount(b.0), vImagePixelCount(b.1), 5, 5, vImage_Flags(kvImageEdgeExtend))
+            if invertMode != 0 {   // a turned pixel's lightest neighbour is the darkest one before it turned
+                minBuf.withUnsafeMutableBufferPointer { n in
+                    var no = vImage_Buffer(data: n.baseAddress!, height: vImagePixelCount(bh), width: vImagePixelCount(bw), rowBytes: bw)
+                    vImageMin_Planar8(&si, &no, nil, vImagePixelCount(b.0), vImagePixelCount(b.1), 5, 5, vImage_Flags(kvImageEdgeExtend))
+                }
+            }
         }
         let step = rotate == 90 ? W : rotate == 270 ? -W : rotate == 180 ? -1 : 1   // the next frame pixel of a row, on the panel
+        minBuf.withUnsafeBufferPointer { n in
         for y in 0..<bh {
             let (px, py) = toPanel(b.0, b.1 + y)
             let s = src + (b.1 + y) * bpr + b.0, d = g.baseAddress! + py * W + px, mx = m.baseAddress! + y * bw
-            if edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
-            for x in 0..<bw { let v = Int(s[x]); d[x * step] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - edgeFloor) * edges)) }
+            if invertMode == 0 {
+                if edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
+                for x in 0..<bw { let v = Int(s[x]); d[x * step] = UInt8(max(0, Int(t[v]) - max(0, Int(mx[x]) - v - edgeFloor) * edges)) }
+                continue
+            }
+            let mn = edges > 0 ? n.baseAddress! + y * bw : nil
+            for x in 0..<bw {
+                let turn = invertMode == 2 || darkAround(src, bpr, fw, fh, b.0 + x, b.1 + y)
+                let v = turn ? 255 - Int(s[x]) : Int(s[x])
+                if edges == 0 { d[x * step] = t[v]; continue }
+                let top = turn ? 255 - Int(mn![x]) : Int(mx[x])
+                d[x * step] = UInt8(max(0, Int(t[v]) - max(0, top - v - edgeFloor) * edges))
+            }
+        }
         }
     } } }
 }
@@ -667,14 +704,14 @@ func currentTune() -> Tune {
          cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
          fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0,
          typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, hold: holdOn, holdPen: Double(holdPen), holdColour: Double(holdColour),
-         holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock)
+         holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock, invert: invertMode)
 }
 var pendingTune: Tune?, pendingAction = ""   // "full", "clean" or "quit-tablet"
 var reshade = false   // the tone changed: the whole frame goes through it again
 func apply(_ t: Tune) {
-    let shader = Int(t.black) != levels.0 || Int(t.white) != levels.1 || t.gamma != gamma || Int(t.edges) != edges || Int(t.edgeFloor) != edgeFloor || t.dither != ditherKind
+    let shader = Int(t.black) != levels.0 || Int(t.white) != levels.1 || t.gamma != gamma || Int(t.edges) != edges || Int(t.edgeFloor) != edgeFloor || t.dither != ditherKind || t.invert != invertMode
     let look = Int(t.cursor) != cursorPx || Int(t.dot) != dotPx
-    levels = (Int(t.black), max(Int(t.black) + 1, Int(t.white))); gamma = t.gamma; edges = Int(t.edges); edgeFloor = Int(t.edgeFloor); ditherKind = t.dither
+    levels = (Int(t.black), max(Int(t.black) + 1, Int(t.white))); gamma = t.gamma; edges = Int(t.edges); edgeFloor = Int(t.edgeFloor); ditherKind = t.dither; invertMode = t.invert
     if cursorPx > 0 { cursorPx = Int(t.cursor) }
     moving = t.moving; dotPx = Int(t.dot); pointerHz = max(1, Int(t.pointerHz)); trailMs = Int(t.trail)
     idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
@@ -756,7 +793,7 @@ let gpuFrom = 150_000   // frame pixels from which a change goes to the GPU
 let shaderSource = """
 #include <metal_stdlib>
 using namespace metal;
-// p: W H stride ox oy fw fh rotate bx0 by0 bx1 by1 edges edgeFloor; one thread per byte of output (8 panel pixels) of the box
+// p: W H stride ox oy fw fh rotate bx0 by0 bx1 by1 edges edgeFloor invert; one thread per byte of output (8 panel pixels) of the box
 kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant int* p [[buffer(0)]], constant uchar* tone [[buffer(1)]],
                   constant uchar* thr [[buffer(2)]], device uchar* grey [[buffer(3)]], device uchar* bits [[buffer(4)]], uint2 g [[thread_position_in_grid]]) {
   const int W = p[0], stride = p[2], ox = p[3], oy = p[4], fw = p[5], fh = p[6], rot = p[7], edges = p[12], floor_ = p[13];
@@ -771,13 +808,23 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
     if (rot == 90) { fx = y; fy = fh - 1 - x; } else if (rot == 180) { fx = fw - 1 - x; fy = fh - 1 - y; } else if (rot == 270) { fx = fw - 1 - y; fy = x; }
     int v = 255;   // outside the frame: the white band
     if (fx >= 0 && fy >= 0 && fx < fw && fy < fh) {
-      const int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
+      int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
+      bool turn = p[14] == 2;   // darkAround on the CPU: the same 81 samples
+      if (p[14] == 1) {
+        int s = 0;
+        for (int dy = -16; dy <= 16; dy += 4) for (int dx = -16; dx <= 16; dx += 4)
+          s += int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0));
+        turn = s < 128 * 81;
+      }
+      if (turn) l = 255 - l;
       v = tone[l];
       if (edges > 0) {
-        int m = 0;
-        for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++)
-          m = max(m, int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)));
-        v = max(0, v - max(0, m - l - floor_) * edges);
+        int m = 0, n = 255;
+        for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++) {
+          const int k = int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0));
+          m = max(m, k); n = min(n, k);
+        }
+        v = max(0, v - max(0, (turn ? 255 - n : m) - l - floor_) * edges);
       }
       grey[py * W + px] = uchar(v);
     }
@@ -807,7 +854,7 @@ final class GPU {
         tone.withUnsafeBytes { toneB.contents().copyMemory(from: $0.baseAddress!, byteCount: 256) }
         thr.withUnsafeBytes { thrB.contents().copyMemory(from: $0.baseAddress!, byteCount: 4096) }
         let r = region
-        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor].map { Int32($0) }
+        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode].map { Int32($0) }
         e.setComputePipelineState(pipe); e.setTexture(t, index: 0)
         e.setBytes(&p, length: p.count * 4, index: 0); e.setBuffer(toneB, offset: 0, index: 1); e.setBuffer(thrB, offset: 0, index: 2)
         e.setBuffer(greyB, offset: 0, index: 3); e.setBuffer(bitsB, offset: 0, index: 4)
@@ -1047,6 +1094,7 @@ Thread {
         if pb != nil { lastFrame = tn }
         if pb != nil { prof.age.append(age) }
         if pb != nil { held = pb } else if reshade, let h = held { pb = h; fd = .infinite }
+        if invertMode == 1 && !fd.isNull && !fd.isInfinite { fd = fd.insetBy(dx: -16, dy: -16) }   // a change turns or unturns the pixels around it too (darkAround)
         reshade = false
         // the pointer alone: at most --pointer-hz moves, the newest; updates that overlap on the panel wait for each other there
         if moved && pb == nil && now() - lastPointer < 1000 / Double(pointerHz) { lock.lock(); pointerMoved = true; lock.unlock(); moved = false; deferred = true; continue }
@@ -1265,6 +1313,7 @@ struct SettingsView: View {
                 Knob(name: "Edges", value: $p.tune.edges, range: 0...30)
                 Knob(name: "Edge threshold", value: $p.tune.edgeFloor, range: 0...30)
                 Picker("Greys", selection: $p.tune.dither) { Text("Blue noise").tag(2); Text("Bayer").tag(1); Text("Threshold").tag(0) }.pickerStyle(.segmented)
+                Picker("Dark areas", selection: $p.tune.invert) { Text("Turned").tag(1); Text("Kept").tag(0); Text("Whole screen").tag(2) }.pickerStyle(.segmented)
             }
             Section("Pointer") {
                 Knob(name: "Arrow", value: $p.tune.cursor, range: 19...56, unit: " px")

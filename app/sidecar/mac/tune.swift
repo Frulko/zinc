@@ -13,6 +13,7 @@ struct Tune: Equatable, Codable {
     var gentle = true              // clean through a grey checker instead of a black flash
     var tabletPen = false          // the Marker as a graphics tablet's pen (pressure, tilt, hover), not a mouse
     var rotationLock = false       // the picture keeps its way up whatever the accelerometer says
+    var invert = 1                 // dark areas (a dark mode's windows): 0 kept, 1 turned to ink on paper, 2 the whole screen turned
 }
 
 extension Tune {
@@ -37,7 +38,7 @@ let presets: [Preset] = {
     var speed = Tune()
     speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.mouse = 1000; speed.gentle = false; speed.dither = 1
     var video = Tune()
-    video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false
+    video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false; video.invert = 0
     var reading = Tune()
     reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.mouse = 300; reading.greys = true
     return [
