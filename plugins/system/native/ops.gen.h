@@ -80,5 +80,11 @@ static const ZnSystemOp kSystemOps[] = {
   {"update.download", "update", "{\"version\":\"\",\"path\":\"\"}"},
   {"update.restart", "update", "{}"},
   {"update.healthy", "update", "{}"},
+  {"media.setMetadata", "media", "{}"},
+  {"media.clear", "media", "{}"},
+  {"media.setPlaybackState", "media", "{}"},
+  {"media.setPositionState", "media", "{}"},
+  {"media.setActions", "media", "{}"},
+  {"media.dump", "media", "{\"title\":\"\",\"artist\":\"\",\"album\":\"\",\"artwork\":false,\"duration\":0,\"position\":0,\"playbackRate\":0,\"state\":\"none\",\"actions\":[]}"},
 };
-static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file", "dialog-result"};
+static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file", "dialog-result", "media"};

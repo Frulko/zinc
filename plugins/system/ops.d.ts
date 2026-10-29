@@ -80,6 +80,12 @@ export interface OpArgs {
   'update.download': {  };
   'update.restart': {  };
   'update.healthy': {  };
+  'media.setMetadata': { title?: string; artist?: string; album?: string; artwork?: string };
+  'media.clear': {  };
+  'media.setPlaybackState': { state: 'none' | 'paused' | 'playing' };
+  'media.setPositionState': { duration: number; position: number; playbackRate: number };
+  'media.setActions': { actions: string[] };
+  'media.dump': {  };
 }
 
 export interface OpResult {
@@ -161,10 +167,16 @@ export interface OpResult {
   'update.download': {version: string; path: string};
   'update.restart': {};
   'update.healthy': {};
+  'media.setMetadata': {};
+  'media.clear': {};
+  'media.setPlaybackState': {};
+  'media.setPositionState': {};
+  'media.setActions': {};
+  'media.dump': {title: string; artist: string; album: string; artwork: boolean; duration: number; position: number; playbackRate: number; state: string; actions: string[]};
 }
 
 export type OpName = keyof OpArgs;
-export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double' | 'open-file' | 'dialog-result';
+export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double' | 'open-file' | 'dialog-result' | 'media';
 
 /** The permission id an op needs. */
 export const PERMISSION_OF: { [op in OpName]: string };

@@ -105,6 +105,15 @@ void runtimePath(char* out, size_t cap, const char* id, const char* ext) {
 }
 
 struct SimNote { char id[64], title[128], body[256]; };
+/** The number of the top-level key `key` in a flat JSON object; `dflt` when absent. */
+double jsonNumber(const char* json, const char* key, double dflt) {
+  char pat[64];
+  snprintf(pat, sizeof pat, "\"%s\":", key);
+  const char* p = strstr(json, pat);
+  return p ? atof(p + strlen(pat)) : dflt;
+}
+/** What zinc:system/media set: media.dump answers it in the simulator, as the macOS backend reads MPNowPlayingInfoCenter back. */
+struct SimMedia { char title[160] = "", artist[160] = "", album[160] = "", state[16] = "none", actions[256] = "[]"; bool artwork = false; double duration = 0, position = 0, rate = 0; };
 
 struct Sim : NativeSystem, zrt::Poller {
   char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
@@ -120,6 +129,7 @@ struct Sim : NativeSystem, zrt::Poller {
   bool dockVisible = true;
   char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
   int nhotkeys = 0;
+  SimMedia media;
   SimNote notes[32];
   int nnotes = 0;
   int nextNote = 1;
@@ -262,6 +272,7 @@ struct Sim : NativeSystem, zrt::Poller {
       if (!strcmp(name, "dock.isVisible")) return reply(dockVisible ? "{\"visible\":true}" : "{\"visible\":false}");
       if (!strcmp(name, "dock.getBadge")) { char b[160] = "{\"text\":"; appendJson(b, sizeof b, badge); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
+      if (!strncmp(name, "media.", 6)) return mediaOp(name, args);
       if (!strcmp(name, "menu.popup") || !strncmp(name, "dialog.", 7)) return answer(name);
       if (!strcmp(name, "window.confirmClose") && hal_set_close_handler) zrt::quit_requested = true;   // a real window: the veto of the close button ends here
       return zrt::String::from(o.sim, (uint32_t)strlen(o.sim));
@@ -269,6 +280,28 @@ struct Sim : NativeSystem, zrt::Poller {
     log("[system] error unknown op ", name);
     int n = snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"unsupported\",\"message\":\"unknown op %s\"}}", name);
     return zrt::String::from(buf, (uint32_t)n);
+  }
+  zrt::String mediaOp(const char* name, const char* args) {
+    SimMedia& m = media;
+    if (!strcmp(name, "media.setMetadata")) {
+      char art[8] = "";
+      m.title[0] = m.artist[0] = m.album[0] = 0;
+      jsonString(args, "title", m.title, sizeof m.title); jsonString(args, "artist", m.artist, sizeof m.artist); jsonString(args, "album", m.album, sizeof m.album);
+      jsonString(args, "artwork", art, sizeof art);
+      m.artwork = art[0] != 0;
+    } else if (!strcmp(name, "media.clear")) { SimMedia none; memcpy(none.actions, m.actions, sizeof none.actions); m = none; }   // the handlers stay, as on macOS
+    else if (!strcmp(name, "media.setPlaybackState")) jsonString(args, "state", m.state, sizeof m.state);
+    else if (!strcmp(name, "media.setPositionState")) { m.duration = jsonNumber(args, "duration", 0); m.position = jsonNumber(args, "position", 0); m.rate = jsonNumber(args, "playbackRate", 1); }
+    else if (!strcmp(name, "media.setActions")) { const char* a = strstr(args, "\"actions\":"); snprintf(m.actions, sizeof m.actions, "%s", a ? a + 10 : "[]"); size_t n = strlen(m.actions); if (n && m.actions[n - 1] == '}') m.actions[n - 1] = 0; }
+    else if (!strcmp(name, "media.dump")) {
+      char b[1200] = "{\"title\":";
+      appendJson(b, sizeof b, m.title); strcat(b, ",\"artist\":"); appendJson(b, sizeof b, m.artist); strcat(b, ",\"album\":"); appendJson(b, sizeof b, m.album);
+      size_t n = strlen(b);
+      snprintf(b + n, sizeof b - n, ",\"artwork\":%s,\"duration\":%g,\"position\":%g,\"playbackRate\":%g,\"state\":\"%s\",\"actions\":%s}", m.artwork ? "true" : "false",
+               m.duration, m.position, strcmp(m.state, "playing") ? 0.0 : m.rate, m.state, m.actions);
+      return reply(b);
+    }
+    return reply("{}");
   }
   zrt::String answer(const char* name) {
     const char* a = nextAnswer < nanswers ? answers[nextAnswer++] : "cancel";

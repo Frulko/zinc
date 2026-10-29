@@ -1,0 +1,4 @@
+2 media play
+3 media seekto 42.5
+4 media nexttrack
+5 media stop

@@ -696,6 +696,61 @@
    "params": {},
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "media.setMetadata",
+   "permission": "media",
+   "params": {
+    "title?": "string",
+    "artist?": "string",
+    "album?": "string",
+    "artwork?": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "media.clear",
+   "permission": "media",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "media.setPlaybackState",
+   "permission": "media",
+   "params": {
+    "state": "'none' | 'paused' | 'playing'"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "media.setPositionState",
+   "permission": "media",
+   "params": {
+    "duration": "number",
+    "position": "number",
+    "playbackRate": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "media.setActions",
+   "permission": "media",
+   "params": {
+    "actions": "string[]"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "media.dump",
+   "permission": "media",
+   "params": {},
+   "returns": "{title: string; artist: string; album: string; artwork: boolean; duration: number; position: number; playbackRate: number; state: string; actions: string[]}",
+   "sim": "{\"title\":\"\",\"artist\":\"\",\"album\":\"\",\"artwork\":false,\"duration\":0,\"position\":0,\"playbackRate\":0,\"state\":\"none\",\"actions\":[]}"
   }
  ],
  "events": [
@@ -716,6 +771,7 @@
   "tray-menu-click",
   "tray-double",
   "open-file",
-  "dialog-result"
+  "dialog-result",
+  "media"
  ]
 }

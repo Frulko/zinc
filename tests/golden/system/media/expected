@@ -1,0 +1,24 @@
+[system] media.setMetadata {"title":"So What","artist":"Miles Davis","album":"Kind of Blue","artwork":"/tmp/cover.png"}
+[system] media.setPositionState {"duration":562,"position":12,"playbackRate":1}
+[system] media.setPlaybackState {"state":"paused"}
+[system] media.setActions {"actions":["play"]}
+[system] media.setActions {"actions":["play","pause"]}
+[system] media.setActions {"actions":["play","pause","nexttrack"]}
+[system] media.setActions {"actions":["play","pause","nexttrack","seekto"]}
+[system] media.setActions {"actions":["play","pause","nexttrack","seekto","stop"]}
+[system] media.setActions {"actions":["play","pause","nexttrack","seekto"]}
+[system] media.dump {}
+supported true
+{"title":"So What","artist":"Miles Davis","album":"Kind of Blue","artwork":true,"duration":562,"position":12,"playbackRate":0,"state":"paused","actions":["play","pause","nexttrack","seekto"]}
+unknown media session action 'rewind' (play, pause, stop, seekbackward, seekforward, seekto, previoustrack, nexttrack)
+playbackState must be 'none', 'paused' or 'playing', not 'loud'
+[system] event {"type":"media","args":["play"]}
+action play -1
+[system] event {"type":"media","args":["seekto","42.5"]}
+action seekto 42.5
+[system] event {"type":"media","args":["nexttrack"]}
+action nexttrack -1
+[system] event {"type":"media","args":["stop"]}
+[system] media.clear {}
+[system] media.dump {}
+{"title":"","artist":"","album":"","artwork":false,"duration":0,"position":0,"playbackRate":0,"state":"none","actions":["play","pause","nexttrack","seekto"]}

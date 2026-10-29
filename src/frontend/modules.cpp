@@ -1587,7 +1587,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
     {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},
     {"zinc:system/dock", "system/dock.ts", {}}, {"zinc:system/power", "system/power.ts", {}}, {"zinc:system/clipboard", "system/clipboard.ts", {}},
-    {"zinc:system/opener", "system/opener.ts", {}}, {"zinc:system/share", "system/share.ts", {}}, {"zinc:system/update", "system/update.ts", {}}};
+    {"zinc:system/opener", "system/opener.ts", {}}, {"zinc:system/share", "system/share.ts", {}}, {"zinc:system/update", "system/update.ts", {}}, {"zinc:system/media", "system/media.ts", {}}};
 
 struct Loader {
   Program& prog;

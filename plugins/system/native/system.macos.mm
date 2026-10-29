@@ -10,6 +10,7 @@
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
+#import <MediaPlayer/MediaPlayer.h>
 #include <string.h>
 
 static NSString* const kNone = nil;
@@ -738,6 +739,97 @@ static int clipboardCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---- media controls (zinc:system/media): Now Playing through MPNowPlayingInfoCenter, the media keys and Control Center's buttons through
+// MPRemoteCommandCenter. The position follows the web's Media Session: the app sets it when it jumps, the system counts on from the rate while
+// the state is playing; on a state change the elapsed time is brought up to date here, so a pause shows where it stopped.
+static NSMutableDictionary* gNowInfo;
+static NSString* gMediaState = @"none";
+static double gMediaPos = 0, gMediaRate = 1, gMediaAt = 0;   // position (s) at gMediaAt (CFAbsoluteTime), rate while playing
+static NSMutableDictionary<NSString*, id>* gMediaTargets;   // action -> the handler token of its MPRemoteCommand
+static MPRemoteCommand* commandOf(NSString* action) {
+  MPRemoteCommandCenter* c = [MPRemoteCommandCenter sharedCommandCenter];
+  NSDictionary* map = @{@"play": c.playCommand, @"pause": c.pauseCommand, @"stop": c.stopCommand, @"nexttrack": c.nextTrackCommand,
+                        @"previoustrack": c.previousTrackCommand, @"seekto": c.changePlaybackPositionCommand,
+                        @"seekforward": c.skipForwardCommand, @"seekbackward": c.skipBackwardCommand};
+  return map[action];
+}
+static double mediaNow() {   // the position the system shows at this moment
+  return [gMediaState isEqualToString:@"playing"] ? gMediaPos + (CFAbsoluteTimeGetCurrent() - gMediaAt) * gMediaRate : gMediaPos;
+}
+static void publishNowPlaying() {
+  MPNowPlayingInfoCenter* center = [MPNowPlayingInfoCenter defaultCenter];
+  BOOL playing = [gMediaState isEqualToString:@"playing"];
+  gNowInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(gMediaPos);
+  gNowInfo[MPNowPlayingInfoPropertyPlaybackRate] = @(playing ? gMediaRate : 0.0);
+  gNowInfo[MPNowPlayingInfoPropertyMediaType] = @(MPNowPlayingInfoMediaTypeAudio);
+  center.nowPlayingInfo = [gMediaState isEqualToString:@"none"] && gNowInfo[MPMediaItemPropertyTitle] == nil ? nil : [gNowInfo copy];
+  center.playbackState = playing ? MPNowPlayingPlaybackStatePlaying : [gMediaState isEqualToString:@"paused"] ? MPNowPlayingPlaybackStatePaused : MPNowPlayingPlaybackStateStopped;
+}
+static int mediaCall(const char* op, NSDictionary* a, char* out, int cap) {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ gNowInfo = [NSMutableDictionary new]; gMediaTargets = [NSMutableDictionary new]; });
+  NSString* result = @"{}";
+  if (!strcmp(op, "media.setMetadata")) {
+    for (NSString* k in @[MPMediaItemPropertyTitle, MPMediaItemPropertyArtist, MPMediaItemPropertyAlbumTitle, MPMediaItemPropertyArtwork]) [gNowInfo removeObjectForKey:k];
+    if ([a[@"title"] length]) gNowInfo[MPMediaItemPropertyTitle] = a[@"title"];
+    if ([a[@"artist"] length]) gNowInfo[MPMediaItemPropertyArtist] = a[@"artist"];
+    if ([a[@"album"] length]) gNowInfo[MPMediaItemPropertyAlbumTitle] = a[@"album"];
+    NSImage* img = [a[@"artwork"] length] ? [[NSImage alloc] initWithContentsOfFile:a[@"artwork"]] : nil;
+    if (img) gNowInfo[MPMediaItemPropertyArtwork] = [[MPMediaItemArtwork alloc] initWithBoundsSize:img.size requestHandler:^NSImage*(CGSize size) { return img; }];
+    publishNowPlaying();
+  } else if (!strcmp(op, "media.clear")) {
+    [gNowInfo removeAllObjects];
+    gMediaState = @"none"; gMediaPos = 0;
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
+    [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStateStopped;
+  } else if (!strcmp(op, "media.setPlaybackState")) {
+    gMediaPos = mediaNow(); gMediaAt = CFAbsoluteTimeGetCurrent();
+    gMediaState = [a[@"state"] isKindOfClass:[NSString class]] ? a[@"state"] : @"none";
+    publishNowPlaying();
+  } else if (!strcmp(op, "media.setPositionState")) {
+    double duration = [a[@"duration"] doubleValue];
+    gMediaPos = [a[@"position"] doubleValue]; gMediaRate = a[@"playbackRate"] ? [a[@"playbackRate"] doubleValue] : 1.0; gMediaAt = CFAbsoluteTimeGetCurrent();
+    if (duration > 0) gNowInfo[MPMediaItemPropertyPlaybackDuration] = @(duration); else [gNowInfo removeObjectForKey:MPMediaItemPropertyPlaybackDuration];
+    publishNowPlaying();
+  } else if (!strcmp(op, "media.setActions")) {
+    NSArray* wanted = [a[@"actions"] isKindOfClass:[NSArray class]] ? a[@"actions"] : @[];
+    for (NSString* action in @[@"play", @"pause", @"stop", @"nexttrack", @"previoustrack", @"seekto", @"seekforward", @"seekbackward"]) {
+      MPRemoteCommand* cmd = commandOf(action);
+      BOOL on = [wanted containsObject:action];
+      if (on && !gMediaTargets[action]) {
+        gMediaTargets[action] = [cmd addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent* e) {
+          if ([e isKindOfClass:[MPChangePlaybackPositionCommandEvent class]]) pushEvent(@"media", @[action, [NSString stringWithFormat:@"%g", ((MPChangePlaybackPositionCommandEvent*)e).positionTime]]);
+          else if ([e isKindOfClass:[MPSkipIntervalCommandEvent class]]) pushEvent(@"media", @[action, [NSString stringWithFormat:@"%g", ((MPSkipIntervalCommandEvent*)e).interval]]);
+          else pushEvent(@"media", @[action]);
+          return MPRemoteCommandHandlerStatusSuccess;
+        }];
+      } else if (!on && gMediaTargets[action]) { [cmd removeTarget:gMediaTargets[action]]; [gMediaTargets removeObjectForKey:action]; }
+      cmd.enabled = on;
+    }
+    // the play/pause key and AirPods' tap: play or pause from the state the app set (Media Session has no toggle action)
+    MPRemoteCommand* toggle = [MPRemoteCommandCenter sharedCommandCenter].togglePlayPauseCommand;
+    BOOL both = [wanted containsObject:@"play"] || [wanted containsObject:@"pause"];
+    if (both && !gMediaTargets[@"toggle"])
+      gMediaTargets[@"toggle"] = [toggle addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent* e) {
+        pushEvent(@"media", @[[gMediaState isEqualToString:@"playing"] ? @"pause" : @"play"]);
+        return MPRemoteCommandHandlerStatusSuccess;
+      }];
+    else if (!both && gMediaTargets[@"toggle"]) { [toggle removeTarget:gMediaTargets[@"toggle"]]; [gMediaTargets removeObjectForKey:@"toggle"]; }
+    toggle.enabled = both;
+  } else if (!strcmp(op, "media.dump")) {   // what the system holds, read back from MPNowPlayingInfoCenter
+    NSDictionary* info = [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo ?: @{};
+    MPNowPlayingPlaybackState st = [MPNowPlayingInfoCenter defaultCenter].playbackState;
+    NSMutableArray* actions = [NSMutableArray new];
+    for (NSString* k in @[@"play", @"pause", @"stop", @"seekbackward", @"seekforward", @"seekto", @"previoustrack", @"nexttrack"]) if (gMediaTargets[k] && commandOf(k).enabled) [actions addObject:k];
+    result = json(@{@"title": info[MPMediaItemPropertyTitle] ?: @"", @"artist": info[MPMediaItemPropertyArtist] ?: @"", @"album": info[MPMediaItemPropertyAlbumTitle] ?: @"",
+                    @"artwork": @(info[MPMediaItemPropertyArtwork] != nil), @"duration": info[MPMediaItemPropertyPlaybackDuration] ?: @0,
+                    @"position": info[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?: @0, @"playbackRate": info[MPNowPlayingInfoPropertyPlaybackRate] ?: @0,
+                    @"state": st == MPNowPlayingPlaybackStatePlaying ? @"playing" : st == MPNowPlayingPlaybackStatePaused ? @"paused" : @"none", @"actions": actions});
+  } else return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -751,6 +843,7 @@ int zn_sys_live_call(const char* op, const char* args, char* out, int cap) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
     }
+    if (!strncmp(op, "media.", 6)) { @try { return mediaCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "power.", 6)) { @try { return powerCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "clipboard.", 10)) { @try { return clipboardCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "shortcut.", 9)) return shortcutCall(op, a, out, cap);
