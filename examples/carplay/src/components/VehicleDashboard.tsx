@@ -45,10 +45,13 @@ export function tickVehicle(session: Session): void {
 }
 function Cluster(x: i32, y: i32, w: i32, h: i32): void {
   const s = live;
-  if (s === null) return;
+  if (s === null || s.secondary.frames === 0 || s.hud === null || !s.hud.active) return;
   if (s.ultra !== null && s.ultra.uiSyncEnabled && s.secondary.width === 1920 && s.secondary.height === 720)
     s.secondary.viewRegion(x, y, w, h, 660, 120, 600, 480);
   else s.secondary.view(x, y, w, h);
+}
+function hasProjectedMap(): boolean {
+  return live !== null && live.secondary.frames > 0 && live.hud !== null && live.hud.active;
 }
 function layoutStatus(): string {
   const s = live;
@@ -117,8 +120,8 @@ export function VehicleDashboard(props: { nightMode: boolean }): i32 {
         <Text className="text-slate-400 text-xs">VITESSE · SIMULÉE</Text>
       </View>
       <View className="w-[320] h-full flex-col justify-center gap-2 py-5">
-        <Canvas className="grow h-0 bg-black" onDraw={Cluster}></Canvas>
-        <Text className="text-slate-300 text-xs">{`CARTE PROJETÉE · ${name()}`}</Text>
+        {hasProjectedMap() ? <Canvas className="grow h-0" onDraw={Cluster}></Canvas> : <View className="grow h-0 flex-col items-center justify-center"><Text className={accent()}>CARTE EN ATTENTE</Text><Text className="text-slate-400 text-xs">Démarrer un itinéraire dans Plans</Text></View>}
+        <Text className="text-slate-300 text-xs">{`TABLEAU DE BORD · ${name()}`}</Text>
       </View>
       <View className="grow w-0 flex-col items-center justify-center gap-2">
         <View className={ring()}><Text className="text-white text-4xl font-bold">{`${vehicle().rpm}`}</Text><Text className={accent()}>tr/min</Text></View>

@@ -15,9 +15,10 @@ python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard.scn" | rg -q '
 python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard.scn" | rg -q '^1800$'
 ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_SIZE=1280x800 ZINC_FRAMES=24 ZINC_INPUT="$PWD/tests/golden/carplay/dashboard-radio.input" ZINC_SCENE_DUMP="${TMPDIR:-/tmp}/zinc-carplay-dashboard-radio.scn" examples/carplay/run --live
 python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-radio.scn" | rg -q '^Radio simulée$'
-python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-radio.scn" | rg -q '^CARTE PROJETÉE · Topographie$'
+python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-radio.scn" | rg -q '^TABLEAU DE BORD · Topographie$'
+python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-radio.scn" | rg -q '^CARTE EN ATTENTE$'
 ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_SIZE=1280x800 ZINC_FRAMES=30 ZINC_INPUT="$PWD/tests/golden/carplay/dashboard-climate.input" ZINC_SCENE_DUMP="${TMPDIR:-/tmp}/zinc-carplay-dashboard-climate.scn" examples/carplay/run --live
-python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-climate.scn" | rg -q '^CARTE PROJETÉE · Halo cyan$'
+python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-climate.scn" | rg -q '^TABLEAU DE BORD · Halo cyan$'
 python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard-climate.scn" | rg -q '^Climat simulé$'
 ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_SIZE=1280x800 ZINC_FRAMES=24 ZINC_INPUT="$PWD/tests/golden/carplay/devices.input" ZINC_SCENE_DUMP="${TMPDIR:-/tmp}/zinc-carplay-devices.scn" examples/carplay/run --live
 python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-devices.scn" | rg -q '^Récepteur et appareils$'
