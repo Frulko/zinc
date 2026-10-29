@@ -1,6 +1,8 @@
-// /rest: the Subsonic API 1.16.1 over the open iPod, for any Subsonic client (docs/reports/ipod-daemon.md). Each method builds one
-// element tree; f=json serialises it as {"subsonic-response": {...}}, anything else as XML. Auth: u with p (plain or enc:<hex>),
-// or t = md5(password + s). Ids: tr-<track id>, al-<n>, ar-<n>, pl-<playlist id>.
+// /rest: the Subsonic API 1.16.1 over the open iPod, for any Subsonic client and for AudioMuse-AI (docs/reports/ipod-daemon.md). Each
+// method builds one element tree; f=json serialises it as {"subsonic-response": {...}}, anything else as XML. Auth: u with p (plain or
+// enc:<hex>), or t = md5(password + s), or apiKey (OpenSubsonic). Ids: tr-<track id>, al-<n>, ar-<n>, pl-<playlist id>. Playlists change
+// only when `access.allowChanges`. Shared: the daemon serves it, and the Mac app too ("Share with AudioMuse", examples/ipod), each filling
+// `access` and `lib`.
 import * as ipod from 'zinc:ipod';
 import * as net from 'zinc:net';
 import { subtle } from 'zinc:subtle';
@@ -8,15 +10,27 @@ import { toHex } from 'zinc:web';
 import { utf8Encode } from 'zinc:sys';
 import { El, toXml, toJson } from 'zinc:xml';
 import { Query, queryOf } from '../query';
-import { options } from './options';
-import { lib, Album, Artist } from './library';
+import { lib, load, Album, Artist } from './library';
 import { trackFile, coverFile, pngReply, suffixOf, contentTypeOf } from './files';
 import { SUBSONIC_VERSION } from '../constants';
-import { count, scrobbler } from './plays';
-import { Scrobble, counts, appendHistory, isoLocal } from '../../../ipod/src/services/scrobble';
-import { podDir } from './files';
+
+/** Who may call and what they may do: the daemon fills it from its command line, the Mac app from its Settings. */
+export class SubsonicAccess {
+  user: string = '';
+  password: string = '';
+  /** The OpenSubsonic API key ('' = none accepted). */
+  apiKey: string = '';
+  /** Playlists may be created, changed and deleted. */
+  allowChanges: boolean = false;
+  /** The scrobbles of the clients (the daemon counts them); null: accepted and dropped. */
+  scrobble: ((q: Query) => Promise<void>) | null = null;
+  /** After a playlist change was saved and `lib` read again (the app shows it). */
+  changed: (() => void) | null = null;
+}
+export const access = new SubsonicAccess();
 
 class Failure { code: i32; message: string; constructor(code: i32, message: string) { this.code = code; this.message = message; } }
+const READ_ONLY = 'Changes are off: start the iPod daemon with --allow-changes, or turn on Allow changes in the iPod app.';
 
 function respond(q: Query, body: El | null, failure: Failure | null): net.Reply {
   const root = new El('subsonic-response').s('status', failure === null ? 'ok' : 'failed').s('version', SUBSONIC_VERSION)
@@ -36,11 +50,22 @@ function fromHex(h: string): string {
 }
 
 async function authorized(q: Query): Promise<boolean> {
-  if (options.user === '' || q.get('u') !== options.user) return false;
+  if (access.user === '' || q.get('u') !== access.user) return false;
   const t = q.get('t');
-  if (t !== '') return toHex(await subtle.digest('MD5', utf8Encode(options.password + q.get('s')))) === t.toLowerCase();
+  if (t !== '') return toHex(await subtle.digest('MD5', utf8Encode(access.password + q.get('s')))) === t.toLowerCase();
   const p = q.get('p');
-  return (p.startsWith('enc:') ? fromHex(p.slice(4)) : p) === options.password;
+  return (p.startsWith('enc:') ? fromHex(p.slice(4)) : p) === access.password;
+}
+
+/** Why the request may not go on (OpenSubsonic codes), null when it may. */
+async function refused(q: Query): Promise<Failure | null> {
+  const key = q.get('apiKey');
+  if (key !== '') {
+    if (q.get('u') !== '') return new Failure(43, 'Give either apiKey or u, not both.');
+    return access.apiKey !== '' && key === access.apiKey ? null : new Failure(44, 'Invalid API key.');
+  }
+  if (q.get('u') === '') return new Failure(10, 'Required parameter is missing: u (or apiKey).');
+  return (await authorized(q)) ? null : new Failure(40, 'Wrong username or password.');
 }
 
 function iso(unixSeconds: number): string { return new Date(unixSeconds > 0 ? unixSeconds * 1000 : 0).toISOString(); }
@@ -48,15 +73,17 @@ function iso(unixSeconds: number): string { return new Date(unixSeconds > 0 ? un
 function songEl(t: ipod.Track, name: string = 'song'): El {
   const al = lib.albumOfTrack.get(t.id) as Album;
   const e = new El(name).s('id', 'tr-' + t.id).s('parent', al.id).b('isDir', false).s('title', t.title).s('album', al.name)
-    .s('artist', t.artist !== '' ? t.artist : al.artist);
+    .s('artist', t.artist !== '' ? t.artist : al.artist).s('albumArtist', al.artist).s('displayAlbumArtist', al.artist);
   if (t.trackNr > 0) e.n('track', t.trackNr);
   if (t.year > 0) e.n('year', t.year);
   if (t.genre !== '') e.s('genre', t.genre);
   if (t.artwork) e.s('coverArt', 'tr-' + t.id);
   e.n('size', t.size).s('contentType', contentTypeOf(t.path)).s('suffix', suffixOf(t.path)).n('duration', Math.round(t.durationMs / 1000))
-    .n('bitRate', t.bitrate).s('path', t.path).n('playCount', t.playCount);
+    .n('bitRate', t.bitrate).s('path', `/iPod/${lib.guid}/${t.path}`).n('playCount', t.playCount);   // absolute, the same for this iPod anywhere
   if (t.cdNr > 0) e.n('discNumber', t.cdNr);
-  e.s('created', iso(t.added)).s('albumId', al.id).s('artistId', al.artistId).s('type', t.mediaType === 'audio' ? 'music' : t.mediaType);
+  if (t.lastPlayed > 0) e.s('played', iso(t.lastPlayed));
+  if (t.rating > 0) e.n('userRating', t.rating);
+  e.s('created', iso(t.added)).s('albumId', al.id).s('artistId', al.artistId).s('albumArtistId', al.artistId).s('type', t.mediaType === 'audio' ? 'music' : t.mediaType);
   return e;
 }
 
@@ -164,7 +191,7 @@ function playlistEl(p: ipod.Playlist, withEntries: boolean): El {
   let seconds = 0;
   for (const id of p.trackIds) { const t = lib.trackById.get(id); if (t !== undefined) seconds += (t as ipod.Track).durationMs / 1000; }
   const e = new El('playlist').s('id', 'pl-' + p.id).s('name', p.name).n('songCount', p.trackIds.length).n('duration', Math.round(seconds))
-    .b('public', true).s('owner', options.user).s('created', iso(0)).s('changed', iso(0));
+    .b('public', true).s('owner', access.user).s('created', iso(0)).s('changed', iso(0));
   if (withEntries) {
     e.list('entry');
     for (const id of p.trackIds) { const t = lib.trackById.get(id); if (t !== undefined) e.add(songEl(t as ipod.Track, 'entry')); }
@@ -172,7 +199,7 @@ function playlistEl(p: ipod.Playlist, withEntries: boolean): El {
   return e;
 }
 
-function trackOf(id: string): ipod.Track | null {
+export function trackOf(id: string): ipod.Track | null {
   const t = id.startsWith('tr-') ? lib.trackById.get(id.slice(3)) : undefined;
   return t === undefined ? null : t as ipod.Track;
 }
@@ -219,44 +246,82 @@ function answer(method: string, q: Query): El | Failure | null {
     for (const p of lib.playlists) if ('pl-' + p.id === id) return playlistEl(p, true);
     return new Failure(70, 'Playlist not found.');
   }
+  if (method === 'getLyricsBySongId') {   // OpenSubsonic: the iPod keeps no lyrics the library reads, so none
+    return trackOf(id) === null ? new Failure(70, 'Song not found.') : new El('lyricsList').list('structuredLyrics');
+  }
   if (method === 'getStarred') return new El('starred');
   if (method === 'getStarred2') return new El('starred2');
   if (method === 'getUser') {
-    return new El('user').s('username', options.user).b('scrobblingEnabled', false).b('adminRole', false).b('settingsRole', false)
-      .b('downloadRole', true).b('uploadRole', false).b('playlistRole', false).b('coverArtRole', false).b('commentRole', false)
+    return new El('user').s('username', access.user).b('scrobblingEnabled', false).b('adminRole', false).b('settingsRole', false)
+      .b('downloadRole', true).b('uploadRole', false).b('playlistRole', access.allowChanges).b('coverArtRole', false).b('commentRole', false)
       .b('podcastRole', false).b('streamRole', true).b('jukeboxRole', false).b('shareRole', false);
   }
   return new Failure(0, `${method} is not implemented by this server.`);
 }
 
-/** scrobble: with submission (the default) the client heard the song: counted on the iPod and sent to Last.fm and ListenBrainz (a song
- *  of 30 s or less never counts, as on Last.fm); without, it is what plays now. `time`: when it was played, in ms (else now). */
-async function scrobble(q: Query): Promise<void> {
-  const submission = q.get('submission') !== 'false';
-  const at = q.get('time') !== '' ? Math.floor(parseFloat(q.get('time')) / 1000) : Math.floor(Date.now() / 1000);
-  const plays: ipod.Play[] = [];
-  for (const id of q.params.getAll('id')) {
-    const t = trackOf(id);
-    if (t === null) continue;
-    const track = t as ipod.Track;
-    const s: Scrobble = { artist: track.artist !== '' ? track.artist : track.albumArtist, track: track.title, album: track.album, albumArtist: track.albumArtist, durationS: Math.round(track.durationMs / 1000), at: at };
-    if (!submission) { scrobbler.nowPlaying(s); continue; }
-    const counted = counts(track.durationMs, track.durationMs);   // the client says it was heard: only a short song does not count
-    appendHistory(`${podDir('')}/history.jsonl`, { listen: `${track.id}|${at * 1000}`, trackId: track.id, artist: s.artist, title: s.track, album: s.album,
-      durationMs: track.durationMs, heardMs: track.durationMs, startedAt: isoLocal(at * 1000), source: 'subsonic', counted: counted, skipped: !counted });
-    if (!counted) continue;
-    plays.push({ id: track.id, count: 1, at: at });
-    if (s.track !== '' && s.artist !== '') scrobbler.submit(s);
+/** A playlist the clients may change: one of getPlaylists (not the master one), not a smart one. */
+function changeable(id: string): ipod.Playlist | Failure {
+  for (const p of lib.playlists) {
+    if ('pl-' + p.id !== id || p.master) continue;
+    return p.smart ? new Failure(50, `"${p.name}" is a smart playlist: its rules fill it, change them in the iPod app.`) : p;
   }
-  if (plays.length > 0) await count(plays);
+  return new Failure(70, 'Playlist not found.');
+}
+
+/** The Failure of the first id of `ids` that is no song, null when all are. */
+function unknownSong(ids: string[]): Failure | null {
+  for (const id of ids) if (trackOf(id) === null) return new Failure(70, `Song not found: ${id}.`);
+  return null;
+}
+
+/** createPlaylist (name and songId..., or playlistId to replace its songs), updatePlaylist (playlistId, name, songIndexToRemove...
+ *  of the list before the call, songIdToAdd...), deletePlaylist (id): saved at once, the library read again. */
+async function change(method: string, q: Query): Promise<El | Failure | null> {
+  if (!access.allowChanges) return new Failure(50, READ_ONLY);
+  if (lib.mountpoint === '') return new Failure(70, 'No iPod is open.');
+  let id = '';
+  if (method === 'deletePlaylist') {
+    const p = changeable(q.get('id'));
+    if (p instanceof Failure) return p;
+    await ipod.deletePlaylist((p as ipod.Playlist).id);
+  } else {
+    const songs = q.params.getAll(method === 'createPlaylist' ? 'songId' : 'songIdToAdd');
+    const unknown = unknownSong(songs);
+    if (unknown !== null) return unknown;
+    const adding = songs.map((id: string): string => id.slice(3));   // tr-<track id>
+    const name = q.get('name');
+    if (method === 'createPlaylist' && q.get('playlistId') === '') {
+      if (name === '') return new Failure(10, 'Required parameter is missing: name.');
+      id = await ipod.createPlaylist(name);
+      await ipod.setPlaylistTracks(id, adding);
+    } else {
+      const p = changeable(q.get('playlistId'));
+      if (p instanceof Failure) return p;
+      const pl = p as ipod.Playlist;
+      id = pl.id;
+      let kept = adding;
+      if (method === 'updatePlaylist') {
+        const gone = q.params.getAll('songIndexToRemove');
+        kept = pl.trackIds.filter((t: string, i: i32) => gone.indexOf(`${i}`) < 0);
+        for (const t of adding) kept.push(t);
+      }
+      if (name !== '' && name !== pl.name) await ipod.renamePlaylist(id, name);
+      await ipod.setPlaylistTracks(id, kept);
+    }
+  }
+  await ipod.save();
+  await load();
+  if (access.changed !== null) (access.changed as () => void)();
+  if (method === 'createPlaylist') for (const p of lib.playlists) if (p.id === id) return playlistEl(p, true);
+  return null;
 }
 
 export async function rest(req: net.Request): Promise<net.Reply> {
   const q = queryOf(req);
   let method = q.path.slice('/rest/'.length);
   if (method.endsWith('.view')) method = method.slice(0, method.length - 5);
-  if (q.get('u') === '') return failed(q, 10, 'Required parameter is missing: u.');
-  if (!(await authorized(q))) return failed(q, 40, 'Wrong username or password.');
+  const no = await refused(q);
+  if (no !== null) return failed(q, (no as Failure).code, (no as Failure).message);
   try {
     if (method === 'stream' || method === 'download') {
       const t = trackOf(q.get('id'));
@@ -269,8 +334,9 @@ export async function rest(req: net.Request): Promise<net.Reply> {
       const png = trackId === '' ? '' : await coverFile(trackId);
       return png === '' ? { status: 404, body: 'no cover\n', contentType: 'text/plain' } : pngReply(png);
     }
-    if (method === 'scrobble') { await scrobble(q); return respond(q, null, null); }
-    const r = answer(method, q);
+    if (method === 'scrobble') { if (access.scrobble !== null) await (access.scrobble as (q: Query) => Promise<void>)(q); return respond(q, null, null); }
+    const write = method === 'createPlaylist' || method === 'updatePlaylist' || method === 'deletePlaylist';
+    const r = write ? await change(method, q) : answer(method, q);
     if (r instanceof Failure) return failed(q, r.code, r.message);
     return respond(q, r as El | null, null);
   } catch (e) {

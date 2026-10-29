@@ -4,6 +4,18 @@ import { last } from '../state';
 import { page, json } from '../web/page';
 import { api } from './api';
 import { rest } from './subsonic';
+import { options } from './options';
+
+/** The path with the secrets of its query masked, as --log-requests prints it. */
+export function masked(path: string): string { return path.replace(/([?&](?:p|t|s|apiKey|token|password)=)[^&]*/gi, '$1***'); }
+
+/** handle(), and one line on the console: who, the method, the path masked, the status and a Subsonic error's code. */
+async function logged(req: net.Request): Promise<net.Reply> {
+  const r = await handle(req);
+  const code = r.status === 200 && r.body.indexOf('"failed"') >= 0 ? /code[=":]+(\d+)/.exec(r.body) : null;
+  console.log(`ipod-web: ${req.remoteAddress} ${req.method} ${masked(req.path)} ${r.status}${code !== null ? ' subsonic error ' + code[1] : ''}`);
+  return r;
+}
 
 async function handle(req: net.Request): Promise<net.Reply> {
   const path = req.path.split('?')[0];
@@ -16,5 +28,5 @@ async function handle(req: net.Request): Promise<net.Reply> {
 }
 
 export function start(port: i32): void {
-  net.serveAsync(port, handle);
+  net.serveAsync(port, options.logRequests ? logged : handle);
 }

@@ -2,7 +2,11 @@
 # examples/ipod-web, the iPod daemon, on a fake iPod (a folder with iPod_Control/Device/SysInfo, no USB) that a small program first
 # gives a database with two tagged WAV songs (one with a cover). Read only: the page and /pod.json, /api with and without the token,
 # tracks, a file with a byte range, Subsonic ping (password and token auth, a bad password), getArtists and getAlbum in JSON and XML,
-# search3, stream with a range, getCoverArt, a write refused (403). Then with --allow-changes: an add by POST and a remove, and the
+# search3, stream with a range, getCoverArt, a write refused (403). AudioMuse-AI's Subsonic calls as its navidrome.py (3.6.4) makes them
+# (apiKey or u + p=enc:, f=json, POST with the parameters in the query): search3 with an empty query paged by songOffset, the song
+# fields it reads, getLyricsBySongId, the apiKey errors, playlists refused read only (50). Then with --allow-changes and
+# --log-requests: an add by POST and a remove, AudioMuse's playlist calls (createPlaylist, updatePlaylist public / songIndexToRemove /
+# songIdToAdd, createPlaylist on a playlistId, deletePlaylist), a smart playlist refused, the request log masked, and the
 # management page in headless Chrome (tools/cdp.py; skipped without Chrome): the token form, the songs from /api, the search, a
 # click that plays the file, an upload through the page's own code, a delete confirmed in the page.
 # Port 8687 (a fixed port: run alone). Skipped (77) without the plugin's libraries.
@@ -32,6 +36,8 @@ async function main(): Promise<void> {
   const r = await ipod.addWith([
     { file: dir + '/song.wav', title: 'Alpha', artist: 'Band', album: 'First', trackNr: 1, genre: 'Rock', year: 2001, artworkFile: dir + '/cover.png' },
     { file: dir + '/song.wav', title: 'Beta', artist: 'Band', album: 'First', trackNr: 2, genre: 'Rock', year: 2001 }]);
+  await ipod.createSmartPlaylist('Everything', ipod.emptyRules());
+  await ipod.save();
   console.log(r[0].error + r[1].error === '' ? 'ok' : r[0].error + r[1].error);
   await ipod.close();
 }
@@ -43,7 +49,7 @@ out=$("$ZINC" run "$tmp/setup.ts" 2>&1)
 
 B=http://localhost:8687
 start() {   # the daemon on the fake iPod only (--mount), up when it serves the library
-  "$ZINC" run examples/ipod-web -- --port 8687 --token secret --user ann --password sesame --mount "$pod" "$@" >"$tmp/log" 2>&1 &
+  "$ZINC" run examples/ipod-web -- --port 8687 --token secret --user ann --password sesame --api-key k3y --mount "$pod" "$@" >"$tmp/log" 2>&1 &
   pid=$!
   for i in $(seq 1 120); do curl -s "$B/" | grep -q 'Serving' && return 0; sleep 0.5; done
   echo "the daemon did not open the iPod: $(tail -5 "$tmp/log")"; exit 1
@@ -58,7 +64,7 @@ A='Authorization: Bearer secret'
 
 start
 want 'the page' '*id="pod-name"*Serving Zinc Pod*: 2 songs, 1 albums, 1 artists*id="token-form"*id="search"*id="songs"*id="albums"*id="playlists"*id="manage"*id="specs"*<h2>ZINCPOD</h2>*Classic (Silver)*<audio id="audio"*' "$(curl -s $B/)"
-want '/api/status' '{"open":"*ZINCPOD","name":"Zinc Pod","firewireGuid":"000A27001234ABCD","marker":"*:*","error":"","allowChanges":false,"songs":2,"albums":1,"artists":1,"playlists":1,"model":"Classic (Silver)"*' "$(curl -s -H "$A" $B/api/status)"
+want '/api/status' '{"open":"*ZINCPOD","name":"Zinc Pod","firewireGuid":"000A27001234ABCD","marker":"*:*","error":"","allowChanges":false,"songs":2,"albums":1,"artists":1,"playlists":2,"model":"Classic (Silver)"*' "$(curl -s -H "$A" $B/api/status)"
 want 'the JSON' '*"Model": "Classic (Silver)"*"Serial number": "8K1234ABCDE"*' "$(curl -s $B/pod.json)"
 want 'another path' 404 "$(code $B/nope)"
 want '/api without token' 401 "$(code $B/api/tracks)"
@@ -88,18 +94,42 @@ cover=$(curl -s -o "$tmp/cover" -w '%{http_code} %{content_type}' "$R/getCoverAr
 want 'getCoverArt' '200 image/png PNG' "$cover $(head -c 4 "$tmp/cover" | tail -c 3)"
 want 'getCoverArt, none' 404 "$(code "$R/getCoverArt?$U&id=al-9")"
 want '/api/specs, playlists, cover' '*"specs":\[{"group":*{"playlists":\[{"id":*"master":true*200 image/png' "$(curl -s -H "$A" $B/api/specs)$(curl -s -H "$A" $B/api/playlists)$(curl -s -H "$A" -o /dev/null -w '%{http_code} %{content_type}' $B/api/cover/$id)"
-want 'the other lists' '*<indexes *<artist id="ar-1"*<albumList2><album id="al-1"*<genres><genre songCount="2" albumCount="1">Rock</genre></genres>*<randomSongs><song *<song *</randomSongs>*<playlists/>*' "$(curl -s "$R/getIndexes?$U")$(curl -s "$R/getAlbumList2?$U&type=newest")$(curl -s "$R/getGenres?$U")$(curl -s "$R/getRandomSongs?$U&size=5")$(curl -s "$R/getPlaylists?$U")"
+want 'the other lists' '*<indexes *<artist id="ar-1"*<albumList2><album id="al-1"*<genres><genre songCount="2" albumCount="1">Rock</genre></genres>*<randomSongs><song *<song *</randomSongs>*<playlists><playlist id="pl-*" name="Everything" songCount="2"*' "$(curl -s "$R/getIndexes?$U")$(curl -s "$R/getAlbumList2?$U&type=newest")$(curl -s "$R/getGenres?$U")$(curl -s "$R/getRandomSongs?$U&size=5")$(curl -s "$R/getPlaylists?$U")"
 want 'not implemented' '*<error code="0" message="getPodcasts is not implemented by this server."/>*' "$(curl -s "$R/getPodcasts?$U")"
+AM='v=1.16.1&c=AudioMuse-AI&f=json'; K="apiKey=k3y&$AM"
+ids=$(echo "$tracks" | grep -o '"id":"[^"]*"' | cut -d'"' -f4); a=$(echo "$ids" | sed -n 1p); b=$(echo "$ids" | sed -n 2p)
+want 'AudioMuse test connection' '{"subsonic-response":{"status":"ok"*"searchResult3":{"artist":\[\],"album":\[\],"song":\[{*"title":"Alpha"*{*"title":"Beta"*}\]}}}' "$(curl -s "$R/search3.view?$K&query=&songCount=100&songOffset=0&artistCount=0&albumCount=0")"
+want 'search3 paged' "*\"song\":\\[{\"id\":\"tr-$a\"*\"song\":\\[{\"id\":\"tr-$b\"*\"song\":\\[\\]*" "$(curl -s "$R/search3.view?$K&query=&songCount=1&songOffset=0") $(curl -s "$R/search3.view?$K&query=&songCount=1&songOffset=1") $(curl -s "$R/search3.view?$K&query=&songCount=1&songOffset=2")"
+want 'the song fields' '*"title":"Alpha","album":"First","artist":"Band","albumArtist":"Band","displayAlbumArtist":"Band"*"suffix":"wav","duration":2*"path":"/iPod/000A27001234ABCD/iPod_Control/Music/*.wav"*"albumId":"al-1","artistId":"ar-1","albumArtistId":"ar-1"*' "$(curl -s "$R/getSong.view?u=ann&p=enc:736573616d65&$AM&id=tr-$a")"
+want 'AudioMuse albums' '*"albumList2":{"album":\[{"id":"al-1"*"song":\[{"id":"tr-*' "$(curl -s "$R/getAlbumList2.view?$K&type=newest&size=500&offset=0")$(curl -s "$R/getAlbum.view?$K&id=al-1")"
+want 'getMusicFolders' '*"musicFolders":{"musicFolder":\[{"id":1,"name":"Zinc Pod"}\]}*' "$(curl -s "$R/getMusicFolders.view?$K")"
+want 'getLyricsBySongId' '*"status":"ok"*"lyricsList":{"structuredLyrics":\[\]}*"code":70*' "$(curl -s "$R/getLyricsBySongId.view?$K&id=tr-$a")$(curl -s "$R/getLyricsBySongId.view?$K&id=tr-nope")"
+want 'apiKey errors' '*"code":44,"message":"Invalid API key."*"code":43*"code":10*' "$(curl -s "$R/ping.view?apiKey=nope&$AM")$(curl -s "$R/ping.view?$K&u=ann")$(curl -s "$R/ping.view?$AM")"
+want 'createPlaylist, read only' '*"status":"failed"*"code":50,"message":"Changes are off: start the iPod daemon with --allow-changes*' "$(curl -s -X POST "$R/createPlaylist.view?$K&name=Mix_instant&songId=tr-$a")"
 want 'remove, read only' '403 {"error": "This daemon is read only*' "$(curl -s -H "$A" -d '{"ids": ["x"]}' -w '%{http_code} ' -o "$tmp/body" $B/api/remove)$(cat "$tmp/body")"
 stop
 
-start --allow-changes
+start --allow-changes --log-requests
 added=$(curl -s -H "$A" --data-binary @"$tmp/song.wav" "$B/api/add?name=new.wav&playlist=Mix")
 want 'add' '{"results":\[{"file":"new.wav","id":"*","error":""}\]}' "$added"
 want 'added' '*3 songs*' "$(curl -s $B/)"
 new=$(echo "$added" | sed 's/.*"id":"\([^"]*\)".*/\1/')
 want 'remove' '{"removed": 1}' "$(curl -s -H "$A" -d "{\"ids\": [\"$new\"]}" $B/api/remove)"
 want 'removed' '*2 songs*' "$(curl -s $B/)"
+made=$(curl -s -X POST "$R/createPlaylist.view?$K&name=Mix_instant&songId=tr-$a&songId=tr-$b")
+want 'createPlaylist' "*\"playlist\":{\"id\":\"pl-*\",\"name\":\"Mix_instant\",\"songCount\":2*\"entry\":\\[{\"id\":\"tr-$a\"*{\"id\":\"tr-$b\"*" "$made"
+pl=$(echo "$made" | sed 's/.*"playlist":{"id":"\([^"]*\)".*/\1/')
+P="$R/updatePlaylist.view?$K&playlistId=$pl"
+want 'updatePlaylist' '*"status":"ok"* *"status":"ok"* *"songCount":0*' "$(curl -s -X POST "$P&public=true") $(curl -s -X POST "$P&songIndexToRemove=1&songIndexToRemove=0") $(curl -s "$R/getPlaylist.view?$K&id=$pl")"
+curl -s -X POST "$P&songIdToAdd=tr-$b&songIdToAdd=tr-$a&name=Renamed&public=true" >/dev/null
+want 'songIdToAdd' "*\"name\":\"Renamed\",\"songCount\":2*\"entry\":\\[{\"id\":\"tr-$b\"*{\"id\":\"tr-$a\"*" "$(curl -s "$R/getPlaylist.view?$K&id=$pl")"
+want 'createPlaylist on a playlistId' '*"name":"Renamed","songCount":1*' "$(curl -s -X POST "$R/createPlaylist.view?$K&playlistId=$pl&songId=tr-$a")"
+smart=$(curl -s "$R/getPlaylists.view?$K" | python3 -c 'import json,sys; print([p["id"] for p in json.load(sys.stdin)["subsonic-response"]["playlists"]["playlist"] if p["name"] == "Everything"][0])')
+want 'smart and unknown' '*"code":50,"message":"\\"Everything\\" is a smart playlist*"code":70,"message":"Song not found: tr-nope."*"code":70*' "$(curl -s -X POST "$R/updatePlaylist.view?$K&playlistId=$smart&songIdToAdd=tr-$a")$(curl -s -X POST "$P&songIdToAdd=tr-nope")$(curl -s -X POST "$R/deletePlaylist.view?$K&id=pl-nope")"
+want 'deletePlaylist' '*"status":"ok"*' "$(curl -s -X POST "$R/deletePlaylist.view?$K&id=$pl")"
+want 'deleted' '*"Everything"*' "$(curl -s "$R/getPlaylists.view?$K" | grep -v Renamed)"
+want 'the request log' "*127.0.0.1 POST /rest/createPlaylist.view?apiKey=\*\*\*&v=1.16.1*songId=tr-$a* 200*POST /rest/updatePlaylist.view?apiKey=\*\*\*&*playlistId=*songIdToAdd=tr-$a 200 subsonic error 50*POST /rest/deletePlaylist.view?apiKey=\*\*\*&* 200*" "$(cat "$tmp/log")"
+want 'no key in the log' 0 "$(grep -c k3y "$tmp/log")"
 if python3 -c 'import sys; sys.path.insert(0, "tools"); import cdp; sys.exit(0 if cdp.find_chrome() else 1)'; then
   web=$(python3 - "$B" <<'PY'
 import sys; sys.path.insert(0, 'tools')

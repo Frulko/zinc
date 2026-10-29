@@ -4,10 +4,12 @@
 // scrobbles go to Last.fm and ListenBrainz too, when their accounts are given (--lastfm-*, --listenbrainz-token).
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
-import { Scrobbler, Accounts } from '../../../ipod/src/services/scrobble';
+import { Scrobbler, Accounts, Scrobble, counts, appendHistory, isoLocal } from '../../../ipod/src/services/scrobble';
 import { options } from './options';
 import { lib, load } from './library';
 import { podDir, backupPlace } from './files';
+import { Query } from '../query';
+import { trackOf } from './subsonic';
 
 interface PlaysFile { plays: ipod.Play[]; }
 let writing = false;
@@ -51,4 +53,26 @@ export async function count(plays: ipod.Play[]): Promise<i32> {
 export async function writeWaiting(): Promise<void> {
   if (!options.allowChanges || lib.mountpoint === '' || !fs.exists(pendingFile())) return;
   try { await count([]); } catch (e) { console.log(`ipod-web: the plays waiting could not be counted: ${(e as Error).message}`); }
+}
+
+/** scrobble: with submission (the default) the client heard the song: counted on the iPod and sent to Last.fm and ListenBrainz (a song
+ *  of 30 s or less never counts, as on Last.fm); without, it is what plays now. `time`: when it was played, in ms (else now). */
+export async function scrobbleFromSubsonic(q: Query): Promise<void> {
+  const submission = q.get('submission') !== 'false';
+  const at = q.get('time') !== '' ? Math.floor(parseFloat(q.get('time')) / 1000) : Math.floor(Date.now() / 1000);
+  const plays: ipod.Play[] = [];
+  for (const id of q.params.getAll('id')) {
+    const t = trackOf(id);
+    if (t === null) continue;
+    const track = t as ipod.Track;
+    const s: Scrobble = { artist: track.artist !== '' ? track.artist : track.albumArtist, track: track.title, album: track.album, albumArtist: track.albumArtist, durationS: Math.round(track.durationMs / 1000), at: at };
+    if (!submission) { scrobbler.nowPlaying(s); continue; }
+    const counted = counts(track.durationMs, track.durationMs);   // the client says it was heard: only a short song does not count
+    appendHistory(`${podDir('')}/history.jsonl`, { listen: `${track.id}|${at * 1000}`, trackId: track.id, artist: s.artist, title: s.track, album: s.album,
+      durationMs: track.durationMs, heardMs: track.durationMs, startedAt: isoLocal(at * 1000), source: 'subsonic', counted: counted, skipped: !counted });
+    if (!counted) continue;
+    plays.push({ id: track.id, count: 1, at: at });
+    if (s.track !== '' && s.artist !== '') scrobbler.submit(s);
+  }
+  if (plays.length > 0) await count(plays);
 }

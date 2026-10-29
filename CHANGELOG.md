@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `examples/ipod-web`: the iPod daemon works as AudioMuse-AI's media server (type Navidrome): `--api-key K` for OpenSubsonic's `apiKey` sign-in, `createPlaylist`, `updatePlaylist` and `deletePlaylist` with `--allow-changes` (else Subsonic error 50; a smart playlist is refused), `getLyricsBySongId` (empty), and songs with `albumArtist`, `displayAlbumArtist`, `played`, `userRating` and an absolute `path` (`/iPod/<GUID>/iPod_Control/...`, it was relative). `--log-requests` prints one line per request with the passwords and keys masked.
 - iPod demo: a smart playlist shows its rules under its name on the Playlists page (read-only for now), and says when iTunes made rules the app cannot re-evaluate.
 - `zinc:ipod`: smart playlists. `playlists()` gives each one's rules (`match` all or any, rules on a field with an action, a limit with its sort, live updating); `createSmartPlaylist(name, rules)`, `setSmartRules(id, rules)` and `refreshSmartPlaylists()` write them, and every save refills the live ones from the play counts and tags as they are. `evaluateSmart(rules, tracks)` previews the songs without writing, as the iPod's database would hold them. A Nano 6G/7G refuses them: "this iPod keeps no smart playlists; save it as a normal playlist".
 - `zinc:ipod`: tracks give `bpm`, `skipCount` and `lastSkipped`, and `update(id, { bpm })` sets the tempo smart playlists can select on.

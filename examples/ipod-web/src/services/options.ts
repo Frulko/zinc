@@ -1,4 +1,5 @@
-// The command line: zinc run examples/ipod-web -- [--port N] [--token T] [--user U --password P] [--allow-changes] [--mount PATH]
+// The command line: zinc run examples/ipod-web -- [--port N] [--token T] [--user U --password P] [--api-key K] [--allow-changes]
+//   [--mount PATH] [--log-requests]
 //   [--lastfm-key K --lastfm-secret S --lastfm-session SK] [--listenbrainz-token T]   (the Subsonic clients' plays scrobbled)
 import { args, randomBytes } from 'zinc:sys';
 import { toHex } from 'zinc:web';
@@ -11,6 +12,10 @@ export class Options {
   tokenGiven: boolean = false;
   user: string = '';
   password: string = '';
+  /** The Subsonic API key (OpenSubsonic apiKey, what AudioMuse-AI can send instead of a password); '' = none. */
+  apiKey: string = '';
+  /** One line per request on the console, the secrets masked. */
+  logRequests: boolean = false;
   allowChanges: boolean = false;
   /** '' = the first mounted iPod with a database. */
   mount: string = '';
@@ -29,10 +34,12 @@ export function parseOptions(): Options {
     const a = argv[i];
     const next = i + 1 < argv.length ? argv[i + 1] : '';
     if (a === '--allow-changes') { o.allowChanges = true; continue; }
+    if (a === '--log-requests') { o.logRequests = true; continue; }
     if (a === '--port') { const p = parseInt(next); if (p > 0 && p < 65536) o.port = p; }
     else if (a === '--token') { o.token = next; o.tokenGiven = next !== ''; }
     else if (a === '--user') o.user = next;
     else if (a === '--password') o.password = next;
+    else if (a === '--api-key') o.apiKey = next;
     else if (a === '--lastfm-key') o.lastfmKey = next;
     else if (a === '--lastfm-secret') o.lastfmSecret = next;
     else if (a === '--lastfm-session') o.lastfmSession = next;
