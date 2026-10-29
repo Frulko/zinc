@@ -5,7 +5,7 @@
 //                 more often than chance. Normalised PMI over the sessions, each session weighted by its age (half-life), shrunk
 //                 for songs heard together only once or twice.
 //   artists       the same artist, or Last.fm's artist.getSimilar score when a Last.fm API key is set (fetched once per artist and
-//                 kept in <history>/similar-artists.json; nothing is sent without a key).
+//                 kept in <history>/similar-artists.jsonl; nothing is sent without a key).
 //   genre, decade the iPod's tags.
 //   the song's own plays, rating and skips (the iPod's counters and the history), a bonus or a malus; 1-2 stars are never picked.
 //   transitions   from one song to the next: tempo (the iPod's BPM field, octave folded) and year.
@@ -79,7 +79,10 @@ export function loadWeights(dir: string): Weights {
 /** normalised artist -> normalised similar artist -> 0..1 */
 export type ArtistGraph = Map<string, Map<string, number>>;
 
-const SIMILAR_FILE = 'similar-artists.json';
+// One JSON line per artist asked, appended as it comes (rewriting the whole file every few artists stalled the frames: 80 ms at 1000
+// artists); a later line of an artist replaces an earlier one. The first versions kept one JSON array, similar-artists.json: still read.
+const SIMILAR_FILE = 'similar-artists.jsonl';
+const SIMILAR_OLD = 'similar-artists.json';
 const SIMILAR_TTL_S: number = 90 * 86400;
 
 interface Similar { artist: string; match: number; }
@@ -87,14 +90,24 @@ interface Similar { artist: string; match: number; }
 interface SimilarEntry { artist: string; at: number; similar: Similar[]; }
 
 function readSimilar(dir: string): SimilarEntry[] {
+  const by = new Map<string, SimilarEntry>();
+  try {
+    const old = `${dir}/${SIMILAR_OLD}`;
+    if (fs.exists(old)) { const list: SimilarEntry[] = JSON.parse(fs.readText(old)); for (const e of list) by.set(e.artist, e); }
+  } catch (e) { /* damaged: fetched again */ }
   try {
     const file = `${dir}/${SIMILAR_FILE}`;
-    if (fs.exists(file)) { const list: SimilarEntry[] = JSON.parse(fs.readText(file)); return list; }
-  } catch (e) { /* damaged: fetched again */ }
-  return [];
+    if (fs.exists(file)) for (const line of fs.readText(file).split('\n')) {
+      if (line === '') continue;
+      try { const e: SimilarEntry = JSON.parse(line); by.set(e.artist, e); } catch (e) { /* a line cut short by a crash: asked again */ }
+    }
+  } catch (e) { /* unreadable: fetched again */ }
+  const out: SimilarEntry[] = [];
+  by.forEach((e: SimilarEntry) => { out.push(e); });
+  return out;
 }
 
-/** The similar artists kept in `<dir>/similar-artists.json` (empty when none were fetched). */
+/** The similar artists kept in `<dir>/similar-artists.jsonl` (empty when none were fetched). */
 export function readArtistGraph(dir: string): ArtistGraph {
   const g: ArtistGraph = new Map<string, Map<string, number>>();
   for (const e of readSimilar(dir)) {
@@ -106,7 +119,7 @@ export function readArtistGraph(dir: string): ArtistGraph {
 }
 
 /** Fetches Last.fm's similar artists of each of `artists` not fetched in the last 90 days (at most `max`, in the order given) into
- *  `<dir>/similar-artists.json`; the number fetched. Nothing without a `key`. An artist Last.fm does not know is kept with no
+ *  `<dir>/similar-artists.jsonl`; the number fetched. Nothing without a `key`. An artist Last.fm does not know is kept with no
  *  neighbours (not asked again); any other error stops the run (what was fetched is kept) and is thrown. `step` is told each artist
  *  before it is asked (done of total); false stops the run there. */
 export async function fetchSimilarArtists(dir: string, key: string, artists: string[], max: i32 = 200,
@@ -118,7 +131,6 @@ export async function fetchSimilarArtists(dir: string, key: string, artists: str
   for (const e of list) known.set(e.artist, e);
   const now = Math.floor(Date.now() / 1000);
   let n: i32 = 0;
-  const save = (): void => { fs.mkdir(dir, true); fs.writeText(`${file}.part`, JSON.stringify(list)); fs.rename(`${file}.part`, file); };
   const seen = new Set<string>();
   const due = new Set<string>();   // the artists this run asks, for the progress
   for (const name of artists) {
@@ -147,12 +159,12 @@ export async function fetchSimilarArtists(dir: string, key: string, artists: str
       } catch (e) {
         if ((e as Error).message.indexOf('could not be found') < 0) throw e;   // error 6: an artist Last.fm does not know
       }
-      if (old !== undefined) list.splice(list.indexOf(old as SimilarEntry), 1);
-      list.push(entry); known.set(k, entry);
+      if (n === 0) fs.mkdir(dir, true);
+      fs.appendText(file, JSON.stringify(entry) + '\n');
+      known.set(k, entry);
       n++;
-      if (n % 20 === 0) save();
     }
-  } finally { if (n > 0) save(); }
+  } finally { /* every artist asked is already on disk */ }
   return n;
 }
 

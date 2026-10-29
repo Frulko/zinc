@@ -182,6 +182,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- iPod: scrolling no longer stutters while the similar artists are fetched from Last.fm: each artist is added to the file instead of rewriting it all.
 - iPod: the Similar artists from Last.fm job shows how many artists it asked of how many, and Cancel stops it (what was fetched is kept); it now fetches every artist in one run instead of 200 per launch.
 - iPod: Genius and the near-song suggestions no longer stop at the first song AudioMuse has not analysed ("needs version 3.6 or later"): such a song is skipped until the next sync.
 - A `VirtualList` whose rows are components scrolls again: the rows in view were stacked at the top, out of sight, once the list scrolled (an empty list that seemed stuck); rows also keep their side margins (`mx-3`).

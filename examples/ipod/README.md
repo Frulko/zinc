@@ -56,7 +56,7 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   page, with Refresh (another pick) and Save to iPod (a normal playlist; Allow changes). Closeness comes from what is on this computer
   (`services/genius.ts`, also usable by the daemon): songs heard in the same sessions of the listening history (normalised PMI, recent
   sessions count more), the same or a similar artist (Last.fm's artist.getSimilar, only with a Last.fm API key, fetched once per
-  artist into `history/similar-artists.json`), genre and decade, and each song's plays, rating and skips. The weights are
+  artist into `history/similar-artists.jsonl`), genre and decade, and each song's plays, rating and skips. The weights are
   `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
   named by their artists and genre, played and saved the same way.
 - **Smart playlists, as iTunes made them.** The + of the Playlists page makes a playlist (empty, filled from a song's right-click

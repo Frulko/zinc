@@ -103,6 +103,10 @@ async function main(): Promise<void> {
   const graph = readArtistGraph(dir);
   const g1 = genius(buildModel(h, GUID, tracks, graph, w), seedId, 25);
   console.log('genius with similar artists', letters(g1), 'spread', spreadOk(g1, w.artistSpread));
+  // the first versions' file, one JSON array, is still read beside the lines appended since
+  fs.writeText(`${dir}/similar-artists.json`, JSON.stringify([{ artist: 'old band', at: 1, similar: [{ artist: 'alpha one', match: 0.5 }] }]));
+  const both = readArtistGraph(dir);
+  console.log('old file read', both.has('old band'), 'lines kept', both.size === graph.size + 1, fs.exists(`${dir}/similar-artists.jsonl`));
   const short = genius(plain, seedId, 10);
   console.log('ten', short.length, letters(short));
 
