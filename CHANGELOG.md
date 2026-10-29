@@ -172,6 +172,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- iPod demo: the Last.fm card keeps a Sign in again button after a failed Finish, so a sign-in that was not approved can start over without restarting the app.
 - `return []` in an async function (`Promise<string[]>`) type-checks after an `await` or in a `catch`; it was refused with Z0109.
 - `c ? x : []` type-checks when `x` is `any` (the `[]` is `any` too) and when the other branch awaits an array (`c ? await names() : []`); both were refused with Z0109.
 - `for (let i = 0; i < ns.list.length; i++)` with `ns` an `import * as` namespace no longer fails with "'list.length' is not exported"; and a function that returns something (an `async` handler) is accepted where a callback returning `void` is expected, as in TypeScript.

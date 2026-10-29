@@ -66,9 +66,10 @@ export function SettingsPage(): i32 {
         <View className="flex-row items-center gap-2">
           {user() !== ''
             ? <Button icon="x" label="Sign out" onPress={() => { signOutLastfm(); setUser(''); }} />
-            : waiting()
-              ? <Button icon="check" label="Finish" accent={true} onPress={() => { finishLastfm().then((n: string) => { setUser(n); setWaiting(false); setSaid(''); }).catch((e: Error) => setSaid(e.message)); }} />
-              : <Button icon="lock-open" label="Sign in" accent={true} onPress={() => { startLastfm(key(), secret()).then(() => { setWaiting(true); setSaid(''); }).catch((e: Error) => setSaid(e.message)); }} />}
+            : <View className="flex-row items-center gap-2">
+                {waiting() ? <Button icon="check" label="Finish" accent={true} onPress={() => { finishLastfm().then((n: string) => { setUser(n); setWaiting(false); setSaid(''); }).catch((e: Error) => setSaid(e.message)); }} /> : <View />}
+                <Button icon="lock-open" label={waiting() ? 'Sign in again' : 'Sign in'} accent={!waiting()} onPress={() => { startLastfm(key(), secret()).then(() => { setWaiting(true); setSaid(''); }).catch((e: Error) => setSaid(e.message)); }} />
+              </View>}
           <Text className={`grow basis-0 text-[11px] ${fg(FAINT)}`}>{user() !== '' ? `Signed in as ${user()} · ${status(scrobbler.lastfmError, scrobbler.waitingLastfm())}` : 'Off'}</Text>
         </View>
       </Card>
