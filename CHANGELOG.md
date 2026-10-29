@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- The CarPlay player's **Appareils** panel shows live receiver, iPhone model and available battery status plus paired Bluetooth/AirPlay identifiers; it can forget one exact record after confirmation and resume wireless invitations.
+- A CarPlay theme guide explains display settings, local theme creation, four proposed visual styles and the limits of the experimental Ultra catalog profile.
 - Le panneau Debug CarPlay affiche les capacités Ultra proposées par l’iPhone et celles effectivement activées par le récepteur.
 - `ZINC_CARPLAY_ULTRA_VEHICLE=1` enables an experimental Vehicle State channel when the phone offers it. The CarPlay simulator can send RPM/fuel presets and show vehicle or climate changes received from the phone; speed and gear remain local.
 - The CarPlay dashboard can simulate climate power and target temperature and transmit those values through an active Ultra Vehicle State channel.

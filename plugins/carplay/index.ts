@@ -51,8 +51,17 @@ export interface UltraStatus {
 }
 export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; }
 export interface UltraUiChoice { command: number; layoutId?: string; paletteId?: string; preference?: i32; }
+export interface PairedDevice { id: string; bluetooth: boolean; airPlay: boolean; }
+export interface PairingsSnapshot { devices: PairedDevice[]; bluetoothAvailable: boolean; }
+export interface ServerLiveSnapshot {
+  deviceName: string; wireless: boolean; sessionActive: boolean; phoneName?: string | null;
+  phoneModel?: string | null; batteryPercent?: i32 | null;
+  iap2Connected: boolean; gpsSubscribed: boolean; ultraTheme: boolean;
+  clusterEnabled: boolean; autoInvite: boolean; uptimeSeconds: number;
+}
 interface ControlMessage {
   message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus; ultraVehicle?: UltraVehicleSnapshot; uiChoice?: UltraUiChoice;
+  pairings?: PairingsSnapshot; server?: ServerLiveSnapshot;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -74,6 +83,13 @@ export class Session {
   ultra: UltraStatus | null = null;
   ultraVehicle: UltraVehicleSnapshot | null = null;
   uiChoice: UltraUiChoice | null = null;
+  pairings: PairingsSnapshot | null = null;
+  serverInfo: ServerLiveSnapshot | null = null;
+  pairingError: string = '';
+  pollServer(): boolean { return this.send('{"type":"serverStatus"}'); }
+  pollPairings(): boolean { return this.send('{"type":"pairings"}'); }
+  forgetPairing(id: string): boolean { this.pairingError = ''; return this.send(JSON.stringify({ type: 'forgetPairing', deviceId: id })); }
+  resumePairing(): boolean { return this.send('{"type":"resumePairing"}'); }
   readonly iap2Log: string[] = [];
   onIap2Trace: ((text: string) => void) | null = null;
   iap2Error: string = '';
@@ -139,6 +155,11 @@ export class Session {
           if (message.iap2 !== undefined) this.iap2 = message.iap2;
           if (message.message !== undefined) this.iap2Error = message.message;
         }
+        if (message.type === 'serverStatus' && message.server !== undefined) this.serverInfo = message.server;
+        if (message.type === 'pairings') {
+          if (message.pairings !== undefined) this.pairings = message.pairings;
+          this.pairingError = message.message ?? '';
+        }
         if (message.type === 'ultraStatus' && message.ultra !== undefined) this.ultra = message.ultra;
         if (message.type === 'ultraVehicle' && message.ultraVehicle !== undefined) this.ultraVehicle = message.ultraVehicle;
         if (message.type === 'ultraUiChoice' && message.uiChoice !== undefined) this.uiChoice = message.uiChoice;
@@ -173,6 +194,7 @@ export class Session {
     s.onclose = e => {
       if (this.socket !== s) return;
       this.socket = null;
+      this.serverInfo = null; this.pairings = null;
       if (this.iap2 !== null) this.iap2.connected = false;
       this.ultra = null; this.ultraVehicle = null; this.uiChoice = null;
       if (this.hud !== null) this.hud.stale = true;
@@ -364,6 +386,7 @@ export class Session {
     for (const f of this.fingers) { f.assigned = false; f.down = false; }
   }
   close(): void {
+    this.serverInfo = null; this.pairings = null;
     if (this.iap2 !== null) this.iap2.connected = false;
     this.ultra = null; this.ultraVehicle = null; this.uiChoice = null;
     if (this.hud !== null) this.hud.stale = true;

@@ -21,12 +21,15 @@ data class HudSnapshot(
 /** Partial iAP2 updates retain absent fields; the viewer receives only bounded decoded metadata. */
 class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
     private var hud = HudSnapshot()
+    private var batteryLevel: Int? = null
+    @Synchronized fun batteryPercent(): Int? = batteryLevel
     private val maneuvers = linkedMapOf<Int, Triple<String, Int, String>>()
     private var currentIndex = -1
     @Synchronized fun accept(frame: Iap2Frame) {
         try {
             val body = Iap2BodyReader.of(frame)
             when (frame.messageId) {
+                0xae01 -> body.optionalU16(6)?.let { if (it in 0..100) batteryLevel = it }
                 0x5001 -> {
                     hud = hud.copy(mediaPackets = hud.mediaPackets + 1)
                     body.optionalGroup(0)?.let { item ->
@@ -95,5 +98,5 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
             publish("iAP2 malformed 0x${frame.messageId.toString(16)} bytes=${frame.payload.size}", hud)
         }
     }
-    @Synchronized fun ended() { hud = hud.copy(stale = true); publish("iAP2 session ended", hud) }
+    @Synchronized fun ended() { batteryLevel = null; hud = hud.copy(stale = true); publish("iAP2 session ended", hud) }
 }

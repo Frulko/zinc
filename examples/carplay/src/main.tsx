@@ -9,6 +9,7 @@ import { TouchOverlay } from './components/TouchOverlay';
 import { Iap2Panel, tickIap2 } from './components/Iap2Panel';
 import { HudPanel, tickHud } from './components/HudPanel';
 import { VehicleDashboard, tickVehicle } from './components/VehicleDashboard';
+import { DevicesPanel, tickDevices } from './components/DevicesPanel';
 const session = new Session();
 const url = env('ZINC_CARPLAY_URL');
 const media = env('ZINC_CARPLAY_MEDIA');
@@ -18,6 +19,7 @@ const [debug, setDebug] = createSignal<boolean>(env('ZINC_CARPLAY_DEBUG') === '1
 const [inspector, setInspector] = createSignal<boolean>(false);
 const [hudShown, setHudShown] = createSignal<boolean>(true);
 const [dashboard, setDashboard] = createSignal<boolean>(false);
+const [devices, setDevices] = createSignal<boolean>(false);
 const [night, setNight] = createSignal<boolean>(false);
 const [detail, setDetail] = createSignal<string>('');
 const [trackpad, setTrackpad] = createSignal<boolean>(true);
@@ -46,10 +48,11 @@ function App(): i32 {
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-800" onClick={() => setHudShown(!hudShown())}><Text className="text-white">HUD</Text></Button> : null}
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-800" onClick={() => setDashboard(!dashboard())}><Text className="text-white">{dashboard() ? 'Vidéo' : 'Tableau de bord'}</Text></Button> : null}
       {offline === null ? <Button className="px-4 py-3 rounded bg-slate-800" onClick={() => setDebug(!debug())}><Text className="text-white">Debug</Text></Button> : null}
+      {offline === null ? <Button className="px-4 py-3 rounded bg-slate-800" onClick={() => { const on = !devices(); setDevices(on); if (on) keyboard.set(false); }}><Text className="text-white">{devices() ? 'Vidéo' : 'Appareils'}</Text></Button> : null}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={connect}><Text className="text-white">Connect</Text></Button> : <Text className="text-slate-400">Local H.264 + PCM test media</Text>}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.close(); }}><Text className="text-white">Disconnect</Text></Button> : null}
     </View>
-    {inspector() ? <Iap2Panel /> : dashboard() ? <VehicleDashboard nightMode={night()} /> : <View className="flex-row grow h-0">
+    {devices() ? <DevicesPanel /> : inspector() ? <Iap2Panel /> : dashboard() ? <VehicleDashboard nightMode={night()} /> : <View className="flex-row grow h-0">
       <View className="grow flex-col w-0">
         <Canvas className="grow h-0" onDraw={Screen} onPointerDown={() => { keyboard.set(true); }}></Canvas>
         {offline === null && hudShown() ? <HudPanel /> : null}
@@ -76,7 +79,7 @@ render(App, 0x0c0a09, (dt: number) => {
   if (elapsed < 0.25) return;
   const debugDt = elapsed;
   elapsed = 0;
-  if (offline === null) { tickDebug(session, debugDt); tickHud(session); tickIap2(session, debugDt, inspector()); tickVehicle(session); }
+  if (offline === null) { tickDebug(session, debugDt); tickHud(session); tickIap2(session, debugDt, inspector()); tickVehicle(session); tickDevices(session, debugDt, devices()); }
   if (offline === null && url !== '') setStatus(session.status);
   setDetail(session.error !== '' ? session.error : offline !== null ? `${session.width} × ${session.height} / ${session.frames} packets / Local four-second loop · 440 Hz tone` : `${session.width} × ${session.height} / ${session.frames} packets / Arrows · Tab · Enter · Esc · Home · S / F6: keyboard capture`);
 });

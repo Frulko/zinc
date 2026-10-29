@@ -77,6 +77,11 @@ rejected. Track timestamps define the timeline; without timestamps each point
 is one second apart. Interpolation supports seeking and Play/Pause; injected
 observations use current UTC. A short sample is `routes/paris.gpx`.
 
+For display settings, local theme design ideas and the limits of the experimental
+Ultra package, see the [CarPlay themes guide](../../docs/plugins/carplay-themes.md).
+The player’s **Appareils** panel shows live receiver status and exact paired
+identifiers; it can forget one record after confirmation.
+
 For an actual secondary screen, add `ZINC_CARPLAY_CLUSTER=1` to the backend
 environment **before starting it**. This opts into a 960×360 cluster display. Set `ZINC_CARPLAY_CLUSTER_WIDTH=1280`
 and `ZINC_CARPLAY_CLUSTER_HEIGHT=480` on the **backend** to change its resolution.

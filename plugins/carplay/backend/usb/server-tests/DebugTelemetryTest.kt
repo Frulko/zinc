@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DebugTelemetryTest {
+    @Test fun batteryIsOnlyShownWhenIphoneSendsAValidLevel() {
+        val state = DebugTelemetry { _, _ -> }
+        assertNull(state.batteryPercent())
+        state.accept(Iap2BodyBuilder.opaque(0xae01).u16(6, 90).build())
+        assertEquals(90, state.batteryPercent())
+        state.accept(Iap2BodyBuilder.opaque(0xae01).u16(6, 65535).build())
+        assertEquals(90, state.batteryPercent())
+        state.ended()
+        assertNull(state.batteryPercent())
+    }
     @Test fun partialMediaUpdatesKeepMetadataAndAllowExplicitClear() {
         var latest = HudSnapshot()
         val state = DebugTelemetry { _, hud -> latest = hud }

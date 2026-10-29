@@ -21,6 +21,20 @@ if 'org.bouncycastle:bctls-jdk18on' not in t:
 if 'jvmArgs("--enable-native-access=ALL-UNNAMED")' not in t:
  t += '\ntasks.test { jvmArgs("--enable-native-access=ALL-UNNAMED") }\n'
 p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/PairingStore.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/PairingStore.kt']).decode()
+t=t.replace('private val onSave: ((String, ByteArray) -> Unit)? = null)', 'private val onSave: ((String, ByteArray) -> Unit)? = null, private val onDelete: ((String) -> Unit)? = null)')
+t=t.replace('    fun save(identifier: String, longTermPublicKey: ByteArray) {', '    @Synchronized fun save(identifier: String, longTermPublicKey: ByteArray) {')
+t=t.replace('    fun get(identifier: String): ByteArray?', '    @Synchronized fun get(identifier: String): ByteArray?')
+t=t.replace('    fun clear() = entries.clear()', '''    @Synchronized fun identifiers(): Set<String> = entries.keys.toSet()
+    @Synchronized fun remove(identifier: String): Boolean {
+        if (identifier !in entries) return false
+        onDelete?.invoke(identifier)
+        entries.remove(identifier)
+        return true
+    }
+    @Synchronized fun clear() = entries.clear()''')
+p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayConfig.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayConfig.kt']).decode()
 assert t.count('    val microphone: Boolean = false,') == 1, 'Unexpected upstream AirPlayConfig'
@@ -53,7 +67,25 @@ t=t.replace('microphone = false', 'microphone = true')
 t=t.replace('onTrace = { log.debug(it) }', 'onTrace = { iap2Trace.accept(it) }')
 t=t.replace('Iap2Session.openTunnel(stream,', 'Iap2Session.openTunnel(stream, onArtwork = { hub.artwork(it) },')
 t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val iap2Trace = Iap2LiveTrace { line -> org.slf4j.LoggerFactory.getLogger("iap2-live").info("{}", line); hub.iap2Trace(line) }\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
-t=t.replace('        val session = activeSession ?: return', '''        if (message.type.startsWith("iap2")) {
+t=t.replace('        val session = activeSession ?: return', '''        if (message.type in setOf("serverStatus", "pairings", "forgetPairing", "resumePairing")) {
+            try {
+                when (message.type) {
+                    "forgetPairing" -> {
+                        val id = requireNotNull(message.deviceId) { "Choose a paired identifier" }
+                        require(pairingManager.snapshot().devices.any { it.id == id.uppercase() }) { "Identifier is not paired" }
+                        autoInvite = false
+                        wireless?.close()
+                        activeSession?.close()
+                        pairingManager.forget(id)
+                    }
+                    "resumePairing" -> { autoInvite = true; restartWireless() }
+                }
+                hub.pairings(pairingManager.snapshot(), null)
+            } catch (error: Exception) { hub.pairings(pairingManager.snapshot(), error.message?.take(180)) }
+            hub.serverStatus(serverStatus())
+            return
+        }
+        if (message.type.startsWith("iap2")) {
             try {
                 when (message.type) {
                     "iap2Trace" -> iap2Trace.tracing(message.traceEnabled ?: false)
@@ -134,6 +166,42 @@ t=t.replace('        override fun onDebugLog(message: String) {', '''        ove
         }
 
         override fun onDebugLog(message: String) {''')
+t=t.replace('    private val pairings = loadPairings()', '''    private val pairings = loadPairings()
+    private val pairingManager = PairingManager(pairings)
+    @Volatile private var autoInvite = true
+    private val startedAt = System.currentTimeMillis()
+    @Volatile private var phoneModel: String? = null
+
+    private fun serverStatus() = ServerLiveSnapshot(
+        config.deviceName, config.wireless, activeSession != null, hub.phoneName(), phoneModel, debugTelemetry.batteryPercent(),
+        iap2Trace.snapshot().connected, debugGps.snapshot().subscribed,
+        UltraTheme.enabled(), System.getenv("ZINC_CARPLAY_CLUSTER") == "1", autoInvite,
+        (System.currentTimeMillis() - startedAt) / 1000,
+    )''')
+t=t.replace('            if (activeSession === session) activeSession = null', '            if (activeSession === session) activeSession = null\n            phoneModel = null')
+t=t.replace('            hub.setSessionState(true, info.name)', '            phoneModel = info.model\n            hub.setSessionState(true, info.name)')
+t=t.replace('                        if (closed.get() || !config.wireless) return@Thread', '                        if (closed.get() || !config.wireless) return@Thread\n                        if (!autoInvite) continue')
+t=t.replace('                if (closed.get()) return@Thread\n                wireless = WirelessBootstrap(this)', '                if (closed.get() || !autoInvite) return@Thread\n                wireless = WirelessBootstrap(this)')
+t=t.replace('        val store = PairingStore { identifier, key ->', '        val store = PairingStore(onSave = { identifier, key ->')
+t=t.replace('        properties.forEach { (identifier, value) ->', '''        }, onDelete = { identifier ->
+            properties.remove(identifier)
+            Files.createDirectories(config.stateDir)
+            val temporary = Files.createTempFile(config.stateDir, "pairings-", ".tmp")
+            try {
+                Files.newOutputStream(temporary).use { properties.store(it, "playport paired controllers") }
+                try { Files.move(temporary, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+                catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                }
+            } finally { Files.deleteIfExists(temporary) }
+        })
+        properties.forEach { (identifier, value) ->''')
+t=t.replace('''                Files.newOutputStream(file).use { properties.store(it, "playport paired controllers") }
+            }
+        }
+        }, onDelete''', '''                Files.newOutputStream(file).use { properties.store(it, "playport paired controllers") }
+            }
+        }, onDelete''')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt']).decode()
@@ -354,6 +422,18 @@ t=t.replace('    fun broadcastVideoConfig(type: Int, codecData: ByteArray) {', '
     fun broadcastVideoConfig(type: Int, codecData: ByteArray) {''')
 t=t.replace('Wire.videoConfig(type, codec, display.width, display.height, codecData)', 'Wire.videoConfig(type, codec, videoWidth(type), videoHeight(type), codecData)')
 t=t.replace('Wire.videoConfig(type, value.first, display.width, display.height, value.second)', 'Wire.videoConfig(type, value.first, videoWidth(type), videoHeight(type), value.second)')
+t=t.replace('        phoneName = name', '        phoneName = if (active && name == null) phoneName else name')
+t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '    val deviceId: String? = null,\n    val contacts: List<TouchContactMessage> = emptyList(),')
+t=t.replace('    val micActive: Boolean? = null,', '    val pairings: PairingsSnapshot? = null,\n    val server: ServerLiveSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun phoneName(): String? = phoneName
+    fun pairings(snapshot: PairingsSnapshot, error: String?) {
+        broadcastJson(ServerMessage(type = "pairings", pairings = snapshot, message = error))
+    }
+    fun serverStatus(snapshot: ServerLiveSnapshot) {
+        broadcastJson(ServerMessage(type = "serverStatus", server = snapshot))
+    }
+
+    private fun broadcastJson(message: ServerMessage) {''')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/IapTunnel.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/IapTunnel.kt']).decode()
