@@ -733,6 +733,15 @@ uses 500 ms priming and a 900 ms limit; ordinary calls and other streams retain
 the 60/180 ms policy. An additional native golden writes three 400 ms bursts:
 after priming, two 400 ms playback intervals remain audible with zero drops
 and underruns. `audio`, `carplay`, `carplay_wireless`, `carplay_demo` and `web_plugins` tests
-pass. The Pi receiver need not restart for this viewer-side change; physical
-listening after restarting the Zinc viewer remains to be checked. The larger
-buffer can add roughly half a second of playback delay.
+pass. The owner restarted the Zinc viewer on a fresh wireless session and
+reported that audio now sounds good. The Pi receiver need not restart for this
+viewer-side change. The larger buffer can add roughly half a second of playback
+delay; sync has not been measured separately.
+
+The first wireless session later ended with an AirPlay control timeout; the
+phone then refused new RFCOMM attempts. After the owner forgot the car on the
+iPhone, the Pi still held its old bond. Stopping the receiver, removing only
+that Pi bond and restarting the receiver allowed a fresh pairing. The Pi then
+reported paired/trusted, RFCOMM iAP2 and MFi authentication, Wi-Fi handoff,
+AirPlay video and the wireless iAP2 tunnel again. The timeout's underlying
+cause remains unproven.

@@ -122,6 +122,17 @@ ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 \
 
 After changing the Zinc viewer's audio buffer, restart only this Terminal 2
 command. Leave the Pi receiver running; its wireless session can reconnect.
+To stop the viewer, use `Ctrl+C` in Terminal 2. To stop the Pi receiver without
+shutting down the board, run the following; its launcher removes the AP and
+Bluetooth advertisement:
+
+```sh
+ssh -b 169.254.133.75 spark@169.254.23.158 \
+  'kill "$(cat ~/zinc-carplay/logs/wireless.pid)"'
+```
+
+To power off the Pi, use `sudo shutdown -h now` over the same SSH link and wait
+for shutdown before removing power.
 
 Select **PlayPort Pi** under iPhone Settings > General > CarPlay. The current
 Ethernet address/route is session-local and may change after a reboot. Do not
