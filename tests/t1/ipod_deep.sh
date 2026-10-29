@@ -5,10 +5,11 @@
 #   1. the client (interpreter, then QuickJS): reach, a bad token (401), an analysis polled to its end ("Albums 3/3"), one cancelled
 #      through /api/cancel, the sync paged into deep.v1.json (ids tr-<id>, one matched by its names, one not on the iPod), Genius
 #      merged differs from tier 1 as planted (A sounds like B: more B), a song not analysed still picked, near lists asked once, a
-#      path, "From A to B" (pathBetween: AudioMuse's path when it has one, else the model's, with and without the sound),
-#      the Sounds like and Mood mixes shelves, the lines of Settings › Recommendations; the stub down: offline, the cache read
+#      path, "From A to B" (pathBetween: AudioMuse's path when it has one, else the model's, with and without the sound), the mood
+#      mixer (services/moods.ts: by the genres and BPM without AudioMuse, by its moods with it: Chill starts on the relaxed song), the Sounds like and Mood mixes shelves, the lines of Settings › Recommendations; the stub down: offline, the cache read
 #      back, Genius as merged;
-#   2. the app (stub up): For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
+#   2. the app (stub up): For you shows the deep shelves and "Deep analysis of", its mood mixer makes the Party mix from AudioMuse's
+#      moods when Party is clicked; the stub down and the near lists dropped: "Deep
 #      analysis offline";
 #   3. the app, AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS): an analysis running, then finished,
 #      is synced by itself once (deep.v1.json says its task). A free port; the stub is stopped at the end.
@@ -38,6 +39,8 @@ a seed it never analysed 1 0
 genius with near AAAAAAAABBBB
 path between true true true BBBBBAA
 path between tier 1 true true CCCCCBB true true BBBBBAA
+mood mixer without AudioMuse workout false 8 first A most A / party false 8 first C most C / chill false 8 first B most B
+mood mixer workout true 8 first C most A / party true 8 first C most C / chill true 8 first L most C
 extra shelves 3
 shelf Sounds like Charlie One Song 1 | draft Sounds like Charlie One Song 1 CCCCCC / draft Sounds like Charlie Two Song 1 CCCCCC / draft Sounds like Charlie Three Song 1 CCCCCC / draft From Charlie One Song 1 to Bravo One Song 1 AAAAABBBBBBC
 shelf Sounds like Bravo One Song 1 | draft Sounds like Bravo One Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Two Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Three Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Four Song 2 AAAAAAAABBBBBBBB
@@ -92,6 +95,14 @@ python3 -c "import json, sys; f = sys.argv[1]; d = json.load(open(f)); d['task']
 rm -f backups/cache/000A27001234ABCD/foryou.json
 app online
 for t in 'Deep analysis of' 'Sounds like' 'Mood mixes' 'Aggressive'; do says online "$t"; done
+# the mood mixer at the end of For you (scrolled to, frame 61): Party chosen (101), the list made again by AudioMuse's moods (frame 140)
+printf '31 move 60 176\n32 down\n33 up\n61 move 600 400\n62 wheel 0 -3000\n101 move 446 630\n102 down\n103 up\n' > mixer.input
+IPOD_DEMO_NOW=1781524800 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=142 ZINC_INPUT="$tmp/mixer.input" \
+  ZINC_SHOT="$tmp/mixer.png" ZINC_SHOT_FRAMES=100,140 ZINC_SCENE_DUMP="$tmp/mixer-scene" timeout 120 "$Z" run "$root/examples/ipod" --interp > mixer.out 2>&1 \
+  || { echo "ipod_deep: the mixer session failed: $(tail -5 mixer.out)"; fail=1; }
+for f in '100 Chill mix · ' '140 Party mix · ' '140 By the moods, energy and tempo'; do
+  python3 "$root/tools/scene-texts" "$tmp/mixer-scene-${f%% *}" | grep -q "${f#* }" || { echo "ipod_deep: frame ${f%% *} of the mixer does not show \"${f#* }\": $(python3 "$root/tools/scene-texts" "$tmp/mixer-scene-${f%% *}" | tail -30 | tr '\n' '|')"; fail=1; }
+done
 stop
 python3 -c "import json, sys; f = sys.argv[1]; d = json.load(open(f)); d['near'] = []; json.dump(d, open(f, 'w'))" $deep
 rm -f backups/cache/000A27001234ABCD/foryou.json

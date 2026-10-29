@@ -16,6 +16,7 @@ import { loadWeights, readArtistGraph, buildModel, attachDeep, genius, pathBetwe
 import * as fy from '../../../examples/ipod/src/services/forYou';
 import * as muse from '../../../examples/ipod/src/services/audiomuse';
 import * as prep from '../../../examples/ipod/src/services/prepare';
+import * as moods from '../../../examples/ipod/src/services/moods';
 
 const GUID = '000A27001234ABCD';
 const NOW: number = 1781524800;
@@ -169,7 +170,22 @@ async function main(): Promise<void> {
   console.log('path between', deepIds.join(',') === p.join(','), between(seeds[1], alpha));
   attachDeep(m, null);
   console.log('path between tier 1', between(seeds[0], seeds[1]), between(seeds[1], alpha));
+  // the mood mixer: by AudioMuse's moods (A and B aggressive, C danceable), then by the genres alone (A Rock, B Jazz, C Electronic)
+  const mixer = (): string => {
+    const parts: string[] = [];
+    for (const id of ['workout', 'party', 'chill']) {
+      const mood = moods.moodOf(id), mx = moods.moodMix(m, mood, mood.energy, mood.tempo, 8);
+      // the first song and the group most picked (songs as close as each other follow the iPod's ids)
+      const n = new Map<string, i32>();
+      let most = '';
+      for (const t of mx.tracks) { const k = t.artist[0]; n.set(k, (n.has(k) ? n.get(k) as i32 : 0) + 1); if (most === '' || (n.get(k) as i32) > (n.get(most) as i32)) most = k; }
+      parts.push(`${id} ${mx.deep} ${mx.tracks.length} first ${mx.tracks[0].artist[0]} most ${most}`);
+    }
+    return parts.join(' / ');
+  };
+  console.log('mood mixer without AudioMuse', mixer());
   attachDeep(m, d);
+  console.log('mood mixer', mixer());
   const shelves = fy.extraShelves(fy.signals(h, GUID, m, NOW));
   console.log('extra shelves', shelves.length);
   for (const sh of shelves) {

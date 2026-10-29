@@ -5,7 +5,7 @@
 #      back in, Because you listened to, the month's top songs and artists, the year in review, the daily mixes (one per taste, the same
 #      all day, others the next day), no tier-2 shelf yet;
 #   2. the app with no history: the page invites to import one;
-#   3. the app with the history (session tests/data/ipod-foryou/session.input): For you from the sidebar (frame 40, golden), Your 2026
+#   3. the app with the history (session tests/data/ipod-foryou/session.input): For you from the sidebar (frame 40, golden; its mood mixer by genre and BPM only, no AudioMuse), Your 2026
 #      (60, golden) and back (150: the page of frame 40), a shelf's › (170: moved), the page scrolled (260), Daily Mix 1 opened (290: its
 #      draft on the Playlists page) and back (380: the page where it was scrolled); QuickJS draws the same frame 40;
 #   4. the refresh rule: listens added, the same day (the clock IPOD_DEMO_NOW two hours later): the shelves follow (On Repeat has the new
@@ -99,7 +99,7 @@ fresh
 fixture fill > /dev/null
 app page 40,60,150,170,260,290,380 "$(cat "$root/tests/data/ipod-foryou/session.input")"
 for f in 40 60; do echo "$f $(hash_at page $f)"; done > foryou.txt
-for t in 'For you' 'From 2253 listens, 2248 of them songs of this iPod' 'Jump back in' 'Road Trip' 'Your daily mixes' 'Daily Mix 1' 'Made for you'; do says page 40 "$t"; done
+for t in 'For you' 'From 2253 listens, 2248 of them songs of this iPod' 'Jump back in' 'Road Trip' 'Your daily mixes' 'Daily Mix 1' 'Made for you' 'Mood mixer' 'by genre and BPM only'; do says page 40 "$t"; done
 for t in 'Your 2026' 'Listens per month' 'Top artists' 'Top genres'; do says page 60 "$t"; done
 crop() {   # the page but the top bar and the scroll indicator, which fades after a scroll
   python3 "$root/tools/pngdiff" "page-$1.png" "page-$2.png" --crop 232,64,940,696 > crop.out || { echo "ipod_foryou: $3: $(cat crop.out)"; fail=1; }; }

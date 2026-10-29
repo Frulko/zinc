@@ -2,7 +2,8 @@
 // scrolls sideways (the trackpad, or its ‹ › buttons) and keeps its offset per entry of the history, as the page keeps its own. A draft
 // card opens its list on the Playlists page (Play, Save to iPod) and its play button plays it at once; an album, a playlist or an
 // artist opens its page; Your year opens the year in review. Until the shelves are read or worked out, grey cards hold their place;
-// without a history the page invites to import one, and with few listens found on this iPod it says how many.
+// without a history the page invites to import one, and with few listens found on this iPod it says how many. The mood mixer
+// (MoodMixer) closes the page.
 import * as ui from 'zinc:ui';
 import { createEffect, createMemo, createNodeRef } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -14,6 +15,7 @@ import { deepNote } from '../../deep';
 import { geniusCards } from '../../drafts';
 import { AlbumCover } from '../../components/AlbumCover';
 import { Button } from '../../components/Button';
+import { MoodMixer } from './MoodMixer';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, ACCENT, TRACK, SHELF_CARD_SIZE, PAGE_SETTINGS, PAGE_YEAR } from '../../constants';
 
 /** The album of each song of the open iPod. */
@@ -164,6 +166,7 @@ export function ForYouPage(): i32 {
           ? <Button icon="calendar-heart" label={`Your ${(forYou() as ForYouData).year.year}`} onPress={() => showPage(PAGE_YEAR)} /> : <View />}
       </View>
       {forYou() !== null ? <Shelves d={forYou() as ForYouData} /> : <Skeleton />}
+      {forYou() !== null ? <MoodMixer /> : null}
     </ScrollView>
   </View>;
 }
