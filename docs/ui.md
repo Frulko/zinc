@@ -453,8 +453,8 @@ view unmounts, its offset is kept; a view that mounts with the same key gets it 
 content shrank. A virtual list restores before its rows are built, so only the rows in view at the restored offset are built, and a list of
 rows of their own heights (`estimatedItemHeight`) keeps the row at its top and the distance into it, so the same row shows though the rows
 come back as estimates. A view whose key changes while it is mounted keeps the old key's offset and takes the new one's (the top when the
-new key has none). Use a key per place a person can come back to (a key per history entry: back returns to where the list was, a new
-entry starts at the top). The last 1,000 keys are kept. `tests/t1/ui_scroll_key.sh`
+new key has none). Use a key per place a person can come back to: `zinc:ui/history`'s `scrollKey(name)` gives one per entry, so back
+returns to where the list was and a new entry starts at the top. The last 1,000 keys are kept. `tests/t1/ui_scroll_key.sh`
 (`tests/golden/ui-scroll-key`) checks it on the interpreter and QuickJS.
 
 Input: the SDL HAL resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms:
@@ -625,6 +625,27 @@ On the web target a `path` prop (`path={(r) => '/' + r.name}`) keeps the address
 With reduce motion (`ui.prefersReducedMotion()`) both become a 200 ms cross-fade. The motion runs in a stepper on the screens' own nodes:
 a transition re-renders nothing. `tests/t1/navigation.sh` drives a push and a pop, the swipe completed and cancelled, the back key, predictive
 back and both modal styles under `ZINC_PLATFORM=ios|android`, and keeps the hashes of the frames at the start, middle and end of each.
+
+## Navigation history (`zinc:ui/history`)
+
+The desktop's back and forward, as a browser's or the Finder's, for apps that render from their state (Solid). Each entry is a value the
+app gives (its view state: the page, what is open on it, the search text, the selection):
+
+```tsx
+import { createHistory } from 'zinc:ui/history';
+const history = createHistory<Shown>(initial, () => shownNow() /* capture */, (s: Shown) => show(s) /* apply */);
+history.push(next);                       // a new entry after the current one (the entries ahead are dropped) and shown
+history.back(); history.forward();        // false when there is nothing that way
+history.canBack(); history.canForward();  // reactive: the ‹ › buttons
+<VirtualList scrollKey={history.scrollKey('albums')} ... />   // this entry's offset, given back by back and forward
+```
+
+Leaving an entry captures the app's state into it first, so a filter typed or rows selected since it was opened come back with it. From
+`createHistory` on, Cmd+[ and Cmd+] (Ctrl elsewhere), Alt+Left and Alt+Right, the mouse's side buttons (button 3 back, 4 forward:
+`ui.goBack()` and `ui.goForward()`), a two-finger swipe sideways over anything that does not scroll sideways (fingers to the right: back,
+past 80 px, as Safari) and Android's back key move through it; `ui.addForwardHandler` is the forward twin of `ui.addBackHandler`, and a
+ZINC_INPUT script sends `back` and `forward`. The stack navigator above is the mobile model (screens pushed and kept mounted); this is the
+desktop one (`examples/ipod`). `tests/golden/ui-history`, run by `tests/t1/ui_scroll_key.sh`.
 
 ## Platform look
 

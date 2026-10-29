@@ -57,7 +57,7 @@ static void hold() {
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
 //   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
 //   the system's signals, as a phone's OS sends them (zn_hal_signal below): safearea T R B L | theme dark|light | fontscale K | reducemotion 0|1 |
-//   keyboard HEIGHT (0 hidden) | back | backstart EDGE | backprogress P | backcancel | orientation portrait|landscape | compose "TEXT" | commit "TEXT" |
+//   keyboard HEIGHT (0 hidden) | back | forward | backstart EDGE | backprogress P | backcancel | orientation portrait|landscape | compose "TEXT" | commit "TEXT" |
 //   imedelete BEFORE AFTER | imeselect START END | imeaction NAME (an input connection's calls on the focused field) |
 //   a11y 0|1 (a screen reader listens) | a11yactivate ID | a11yfocus ID | a11yscroll ID 1|-1 (it pressed, moved to or scrolled a node of
 //   zinc:ui's tree, ZN-630) | background | foreground (home and return: zinc:ui stops drawing between them) | safe-area T R B L (safearea's other
@@ -88,7 +88,7 @@ extern "C" const char* zn_hal_text_traits(void) { return textTraits.c_str(); }
 // the phone's glue sets it when the app starts (src/app/android_glue.cpp, src/app/ios_glue.mm); null on a desktop
 extern "C" { const char* (*zn_mobile_command)(const char* q, const char* a) = nullptr; }
 static bool isSignal(const std::string& k) {
-  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "backstart", "backprogress", "backcancel", "orientation", "background", "foreground", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
+  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "forward", "backstart", "backprogress", "backcancel", "orientation", "background", "foreground", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
   for (const char* x : kinds) if (k == x) return true;
   return false;
 }

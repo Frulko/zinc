@@ -497,7 +497,7 @@ class Server {
       const std::size_t q = q1 == std::string::npos ? q2 : q2 == std::string::npos ? q1 : std::max(q1, q2);
       if (q != std::string::npos && (head.find("import") != std::string::npos || head.find("from") != std::string::npos) && std::count(head.begin(), head.end(), head[q]) % 2 == 1) {
         const std::string prefix = head.substr(q + 1);
-        std::set<std::string> specs = {"zinc:gfx", "zinc:sys", "zinc:fs", "zinc:storage", "zinc:assets", "zinc:os", "zinc:events", "zinc:gpio", "zinc:wifi", "zinc:espnow", "zinc:osc", "zinc:net", "zinc:telemetry", "zinc:platform", "zinc:process", "zinc:script", "zinc:web", "zinc:ui", "zinc:ui/solid", "zinc:ui/react", "zinc:ui/kit", "zinc:system", "zinc:devtools", "zinc:assert"};
+        std::set<std::string> specs = {"zinc:gfx", "zinc:sys", "zinc:fs", "zinc:storage", "zinc:assets", "zinc:os", "zinc:events", "zinc:gpio", "zinc:wifi", "zinc:espnow", "zinc:osc", "zinc:net", "zinc:telemetry", "zinc:platform", "zinc:process", "zinc:script", "zinc:web", "zinc:ui", "zinc:ui/solid", "zinc:ui/react", "zinc:ui/kit", "zinc:ui/history", "zinc:system", "zinc:devtools", "zinc:assert"};
         std::error_code ec;
         for (const auto& e : fs::directory_iterator(stdRoot_, ec)) if (e.path().extension() == ".ts") specs.insert("zinc:" + e.path().stem().string());
         for (const std::string& s : specs) if (s.rfind(prefix, 0) == 0) add(s, 9, "module");

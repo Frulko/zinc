@@ -1532,7 +1532,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
     {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
-    {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}},
+    {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
     {"zinc:path", "path.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},

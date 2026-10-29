@@ -1,0 +1,9 @@
+start page a filter 'ab' key 0 sy 1200 back false forward false
+pushed b page b filter '' key 1 sy -1 back true forward false
+cmd+[ page a filter 'ab' key 0 sy 1200 back false forward true
+cmd+] page b filter 'x' key 1 sy -1 back true forward false
+back button page a filter 'ab' key 0 sy 1200 back false forward true
+new a page a filter '' key 2 sy 0 back true forward false
+back again page a filter 'ab' key 0 sy 1200 back false forward true
+forward button page a filter '' key 2 sy 0 back true forward false
+nothing ahead page a filter '' key 2 sy 0 back true forward false

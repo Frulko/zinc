@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui/history`: back and forward for desktop apps, as a browser's: each entry holds the app's view state (page, what is open, search, selection), `push`, `back`, `forward`, reactive `canBack` and `canForward`, and a `scrollKey` per entry. Cmd+[ and Cmd+] (Ctrl elsewhere), Alt+Left and Alt+Right, the mouse's back and forward buttons and a two-finger swipe sideways move through it.
+- `zinc:ui`: the mouse's side buttons go back and forward (`ui.goBack`, `ui.goForward`, `ui.addForwardHandler`) instead of acting as a left click, and a two-finger swipe sideways over a page that does not scroll sideways does the same when the app listens; a `ZINC_INPUT` script can send `forward`.
 - `zinc:ui`: `scrollKey` on `ScrollView` and `VirtualList` brings a list back where it was: the offset is kept under the key when the view goes and given back when a view with the same key comes (clamped when the content shrank; a virtual list builds only the rows in view there). `ui.setScrollKey(h, key)` does it from code.
 - iPod demo: every download, add, backup, restore, delete, check, repair, analysis and merge answers on the page it was started from: a toast at the bottom right with its progress, Show and Cancel, then its result (Reveal in Finder) or its error; the sidebar's Transfers row shows a ring, a count and a red dot for a failure not seen; the button that started a job shows a loader until it ends, and a song's arrow a ring then a check. Eject and mount answer with a toast too.
 - `zinc:ui/kit` has `ProgressRing`: a job's progress as a small ring filling clockwise, for a sidebar row or a table cell.

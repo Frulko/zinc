@@ -792,6 +792,10 @@ static void close_window(int32_t id) {
   }
   if (main_hidden && !secs_open()) quit = true;
 }
+// zinc:ui's button numbers: 0 left, 1 middle, 2 right, 3 back and 4 forward (the side buttons, X1 and X2)
+static int32_t sdl_button(Uint8 b) {
+  return b == SDL_BUTTON_RIGHT ? 2 : b == SDL_BUTTON_MIDDLE ? 1 : b == SDL_BUTTON_X1 ? 3 : b == SDL_BUTTON_X2 ? 4 : 0;
+}
 static void sec_event(Sec& s, const SDL_Event& e) {
   HalInput* in = &s.in;
   switch (e.type) {
@@ -801,7 +805,7 @@ static void sec_event(Sec& s, const SDL_Event& e) {
     case SDL_EVENT_TEXT_INPUT: key_push(in, 0, HAL_KEY_TEXT, SDL_GetModState(), e.text.text); break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:   // the surface is the window, in points: no letterbox
       if (in->nbtn < HAL_MAX_BUTTON_EVENTS)
-        in->btn[in->nbtn++] = HalButtonEvent{e.button.x, e.button.y, e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0, e.button.down};
+        in->btn[in->nbtn++] = HalButtonEvent{e.button.x, e.button.y, sdl_button(e.button.button), e.button.down};
       break;
     case SDL_EVENT_MOUSE_WHEEL: in->wheel_x += e.wheel.x; in->wheel += e.wheel.y; break;   // ponytail: trackpad deltas as wheel steps, no precise-scroll resampling here
     case SDL_EVENT_PINCH_UPDATE: in->pinch *= e.pinch.scale; break;
@@ -1023,7 +1027,7 @@ void hal_poll_input(HalInput* in) {
       float bx = e.button.x, by = e.button.y;
       from_window(bx, by, &bx, &by);
       b.x = bx / K; b.y = by / K;
-      b.button = e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0;
+      b.button = sdl_button(e.button.button);
       b.down = e.button.down;
     }
     if (e.type == SDL_EVENT_MOUSE_WHEEL) {

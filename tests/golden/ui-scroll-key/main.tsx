@@ -1,6 +1,7 @@
 // Scroll restoration (scrollKey): a VirtualList and a ScrollView unmounted and mounted again come back at their offset, the list building only
 // the rows in view there; a key that changes on a live list takes the new key's offset (the top when it has none); a list that came back
 // shorter is clamped; a list of rows of their own heights shows the same row at its top again, though its rows come back as estimates.
+// Then the side buttons of a mouse (3 back, 4 forward) and a two-finger swipe sideways reach the back and forward handlers.
 import * as ui from 'zinc:ui';
 import { render, createSignal, createNodeRef } from 'zinc:ui/solid';
 import { quit } from 'zinc:gfx';
@@ -50,6 +51,10 @@ function show(tag: string): void {
   console.log(tag, 'list sy', Math.round(l.sy), 'rows built', built, 'box sy', Math.round(b.sy), 'var top', topRow());
 }
 
+let backs = 0, forwards = 0;
+ui.addBackHandler(() => { backs++; return true; });
+ui.addForwardHandler(() => { forwards++; return true; });
+
 let f = 0;
 render(App, 0xffffff, (dt: number) => {
   f++;
@@ -61,5 +66,19 @@ render(App, 0xffffff, (dt: number) => {
   if (f === 13) { show('key list'); setShown(false); }
   if (f === 15) { setRows(100); setShown(true); }
   if (f === 17) { show('100 rows'); }
-  if (f === 18) quit();
+  if (f === 18) {
+    ui.pointerAt(10, 250, true, 3); ui.pointerAt(10, 250, false, 3);   // the back button
+    ui.pointerAt(10, 250, true, 4); ui.pointerAt(10, 250, false, 4);   // forward
+    ui.trackpadAt(10, 250, 0, 0, 3);
+    for (let i = 0; i < 6; i++) ui.trackpadAt(10, 250, 20, 1, 1);   // over the vertical list, fingers to the right: back
+    ui.trackpadAt(10, 250, 0, 0, 2);
+    ui.trackpadAt(10, 250, 0, 0, 3);
+    for (let i = 0; i < 6; i++) ui.trackpadAt(10, 250, -20, 0, 1);  // to the left: forward
+    ui.trackpadAt(10, 250, 0, 0, 2);
+    ui.trackpadAt(10, 250, 0, 0, 3);
+    for (let i = 0; i < 2; i++) ui.trackpadAt(10, 250, 20, 0, 1);    // too short: nothing
+    ui.trackpadAt(10, 250, 0, 0, 2);
+    console.log('back', backs, 'forward', forwards);
+    quit();
+  }
 });

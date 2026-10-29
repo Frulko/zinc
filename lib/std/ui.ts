@@ -2107,7 +2107,7 @@ let fontScale: number = 1, reduceMotion = false, appActive = true;
 /** 'active', or 'background' between the OS's `background` and `foreground` signals (home, another app, the screen locked): nothing is drawn then. */
 export function appState(): string { return appActive ? 'active' : 'background'; }
 const signalFns: ((kind: string, arg: string) => void)[] = [];
-const backFns: (() => boolean)[] = [];
+const backFns: (() => boolean)[] = [], forwardFns: (() => boolean)[] = [];
 /** The OS's text size setting (Dynamic Type, Android's font size): 1 by default. rem lengths, text classes and fontSize scale with it. */
 export function systemFontScale(): number { return fontScale; }
 /** The OS asks for less motion (iOS Reduce Motion, Android's animations off): transitions become fades or cuts. */
@@ -2132,6 +2132,11 @@ export function goBack(): void {
   for (let i = backFns.length - 1; i >= 0; i--) if (backFns[i]()) return;
   if (platform() === 'android') device('exitapp');
 }
+/** Forward, the way back came (a mouse's forward button, a two-finger swipe to the left on a trackpad): handlers run newest first until one
+ *  returns true. */
+export function addForwardHandler(f: () => boolean): void { forwardFns.push(f); }
+export function removeForwardHandler(f: () => boolean): void { const i = forwardFns.lastIndexOf(f); if (i >= 0) forwardFns.splice(i, 1); }
+export function goForward(): void { for (let i = forwardFns.length - 1; i >= 0; i--) if (forwardFns[i]()) return; }
 /** One system signal, as the host sends it (`kind args`); also the way to inject one in a test. */
 export function systemSignal(line: string): void {
   const sp = line.indexOf(' '), kind = sp < 0 ? line : line.substring(0, sp), arg = sp < 0 ? '' : line.substring(sp + 1);
@@ -2151,6 +2156,7 @@ export function systemSignal(line: string): void {
   else if (kind === 'a11yscroll') a11yScroll(arg);
   for (const f of signalFns.slice()) f(kind, arg);
   if (kind === 'back') goBack();
+  else if (kind === 'forward') goForward();
   paintDirty = true;
 }
 function systemSignals(): void { while (signalCount() > 0) systemSignal(signalNext()); }
@@ -5662,6 +5668,7 @@ function releaseAt(px: number, py: number, button: i32): void {
 }
 /** One pointer sample: position, and whether `button` is held (HAL button events, the held state, or test hooks). */
 function pointerSample(px: number, py: number, button: i32, down: boolean): void {
+  if (button >= 3) { pointerMove(px, py); lastX = px; lastY = py; if (down) { if (button === 3) goBack(); else goForward(); } return; }   // the side buttons: back and forward, as browsers take them
   const was = (held & bitOf(button)) !== 0;
   pointerMove(px, py);
   if (down && !was) pressAt(px, py, button);
@@ -5708,6 +5715,8 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
 // a vertical swipe no longer drifts sideways in content that is also wider; a diagonal start moves freely.
 // Phase 4 lifts the fingers with the OS momentum to follow (macOS), phase 5 brings its deltas to what the fingers moved, on the same axis.
 let padScroller: i32 = -1, padEdit: i32 = -1, padAxis: i32 = 0;   // padAxis: 0 not decided yet, 1 vertical, 2 horizontal, 3 both
+let swiping = false, swipeX: number = 0;   // a two-finger swipe sideways that goes back or forward (+ fingers to the right: back)
+const SWIPE_NAV_PX: number = 80;
 let momScroller: i32 = -1, momEdit: i32 = -1, momAxis: i32 = 0;   // what the OS momentum moves
 function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
   if (phase === 3) {
@@ -5722,11 +5731,19 @@ function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i3
   if (phase === 5) { momentumInput(px, py, dx, dy); return; }
   if (phase === 0) return;
   const lift = phase === 2 || phase === 4;
+  if (swiping) {   // a sideways swipe over nothing that scrolls that way: back or forward when the fingers lift past SWIPE_NAV_PX, as Safari does
+    swipeX += dx;
+    if (lift) { swiping = false; if (swipeX >= SWIPE_NAV_PX) goBack(); else if (swipeX <= -SWIPE_NAV_PX) goForward(); }
+    return;
+  }
   if (padEdit < 0 && (padScroller < 0 || !nodes[padScroller].alive)) {
     if (dx === 0 && dy === 0 && !lift) return;
     momScroller = -1; momEdit = -1;
     const w = hit(px, py, HIT_WHEEL);
     const sc = scrollerTop(px, py, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
+    // sideways over nothing that scrolls sideways (a vertical list included), with someone to take it: back or forward, as Safari does
+    if (dx !== 0 && Math.abs(dx) >= 2 * Math.abs(dy) && !lift && (backFns.length > 0 || forwardFns.length > 0) && (sc < 0 || maxScrollX(nodes[sc]) <= 0.5)
+      && !(w >= 0 && (sc < 0 || isAncestor(sc, w)))) { swiping = true; swipeX = dx; return; }
     if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
       const ed = nodes[w].ed;
       if (ed !== null && (ed as Edit).multi && handlerOf(nodes[w], PWHEEL) === null) padEdit = w;   // a text area follows the fingers
