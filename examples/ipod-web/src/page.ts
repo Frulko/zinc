@@ -2,6 +2,7 @@
 import * as ipod from 'zinc:ipod';
 import { Scan } from './state';
 import { PAGE_REFRESH_S } from './constants';
+import { lib } from './services/library';
 
 function esc(s: string): string {
   return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -51,6 +52,8 @@ function card(d: ipod.Device): string {
 export function page(s: Scan): string {
   let body = '';
   if (s.error !== '') body += `<p class="err">${esc(s.error)}</p>`;
+  if (lib.mountpoint !== '') body += `<p class="lib">Serving ${esc(lib.name)} (${esc(lib.mountpoint)}): ${lib.tracks.length} songs, ${lib.albums.length} albums, ${lib.artists.length} artists</p>`;
+  else if (lib.error !== '') body += `<p class="err">${esc(lib.error)}</p>`;
   if (s.pods.length === 0) body += '<p class="none">No iPod found. Plug one in: it shows here within a few seconds.</p>';
   for (const d of s.pods) body += card(d);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
