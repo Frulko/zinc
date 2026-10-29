@@ -342,6 +342,68 @@ func busyArea() -> Area? {
 }
 func pixels(_ a: Area, _ w: Int, _ h: Int) -> (x: Int, y: Int, w: Int, h: Int) { (a.x0 * T, a.y0 * T, min(a.x1 * T, w) - a.x0 * T, min(a.y1 * T, h) - a.y0 * T) }
 
+// --- the screen's input (INPUT, SCROLL: plugins/display-rmpp/stream.h), played on the Mac: one finger or the pen is the left button (a
+// tap a click, two quick taps a double click), the pen with its pressure and tilt as a graphics tablet's, two fingers scroll the page as a
+// trackpad does. In the stream's pixels, on the display streamed. Needs the Accessibility permission (the tray asks for it).
+var touchId = -1, clicks = (n: 0, at: 0.0, x: 0.0, y: 0.0), scrollRest = (0.0, 0.0)
+func point(_ x: Int, _ y: Int) -> CGPoint {
+    let b = CGDisplayBounds(target)
+    return CGPoint(x: b.minX + Double(x) * b.width / Double(W), y: b.minY + Double(y) * b.height / Double(H))
+}
+func touch(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
+    let pen = type >= 0x20, kind = type & 0x0f, who = pen ? -2 : id, at = point(x, y)
+    let t: CGEventType
+    switch kind {
+    case 0: if touchId != -1 { return }; touchId = who; t = .leftMouseDown
+    case 2: if touchId != who { return }; t = .leftMouseDragged
+    case 1: if touchId != who { return }; touchId = -1; t = .leftMouseUp
+    case 3: if touchId != -1 { return }; t = .mouseMoved   // a pen hovering: the pointer follows it
+    default: return
+    }
+    if t == .leftMouseDown {   // macOS counts the clicks itself only for a real mouse
+        let near = abs(at.x - clicks.x) < 12 && abs(at.y - clicks.y) < 12 && now() - clicks.at < 0.45
+        clicks = (near ? clicks.n + 1 : 1, now(), at.x, at.y)
+    }
+    if synthetic > 0 { print("input: \(t.rawValue) at \(x),\(y) click \(clicks.n)"); return }   // no display of ours: said, not played
+    if pen && t == .leftMouseDown { proximity(true) }
+    guard let ev = CGEvent(mouseEventSource: nil, mouseType: t, mouseCursorPosition: at, mouseButton: .left) else { return }
+    ev.setIntegerValueField(.mouseEventClickState, value: Int64(max(1, clicks.n)))
+    if pen {   // drawing apps read a tablet's point: pressure 0..4096, tilt in degrees (x low byte, y high byte of id)
+        let force = min(1, Double(pressure) / 4096)
+        ev.setDoubleValueField(.mouseEventPressure, value: force)
+        ev.setIntegerValueField(.mouseEventSubtype, value: Int64(CGEventMouseSubtype.tabletPoint.rawValue))
+        ev.setDoubleValueField(.tabletEventPointPressure, value: force)
+        ev.setDoubleValueField(.tabletEventTiltX, value: Double(Int8(truncatingIfNeeded: id & 0xff)) / 90)
+        ev.setDoubleValueField(.tabletEventTiltY, value: Double(Int8(truncatingIfNeeded: id >> 8)) / 90)
+        ev.setIntegerValueField(.tabletEventDeviceID, value: 1)
+    }
+    ev.post(tap: .cghidEventTap)
+    if pen && t == .leftMouseUp { proximity(false) }
+}
+/** The pen comes near or leaves: drawing apps switch to their tablet input on it. */
+var penNear = false
+func proximity(_ near: Bool) {
+    if near == penNear { return }
+    penNear = near
+    guard let e = CGEvent(source: nil) else { return }
+    e.type = .tabletProximity
+    e.setIntegerValueField(.tabletProximityEventEnterProximity, value: near ? 1 : 0)
+    e.setIntegerValueField(.tabletProximityEventPointerType, value: 1)   // a pen
+    e.setIntegerValueField(.tabletProximityEventDeviceID, value: 1)
+    e.setIntegerValueField(.tabletProximityEventCapabilityMask, value: 0x0400 | 0x0200 | 0x0100 | 0x0003)   // pressure, tilt, x/y
+    e.post(tap: .cghidEventTap)
+}
+/** Two fingers' step in the stream's pixels: the page follows them (natural scrolling), in the display's points. */
+func scroll(_ dx: Int, _ dy: Int) {
+    if synthetic > 0 { print("scroll: \(dx),\(dy)"); return }
+    let b = CGDisplayBounds(target)
+    scrollRest.0 += Double(dx) * b.width / Double(W); scrollRest.1 += Double(dy) * b.height / Double(H)
+    let x = Int32(scrollRest.0.rounded(.towardZero)), y = Int32(scrollRest.1.rounded(.towardZero))
+    if x == 0 && y == 0 { return }
+    scrollRest.0 -= Double(x); scrollRest.1 -= Double(y)
+    CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: y, wheel2: x, wheel3: 0)?.post(tap: .cghidEventTap)
+}
+
 // --- pacing: the ACKs of each picture's last RECT; at most two pictures out, the newest capture waits for a free place
 let q = DispatchQueue(label: "send")
 var rectsSent = 0, rectsAcked = 0, frameEnds = [(Int, Double)]()   // the rect count at each picture's end, and when it went
@@ -363,6 +425,11 @@ Thread {
                                         c = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 12, as: Int32.self) })), k = Int(m[1])
                                     q.async { rx[k] = [a, b, c] } }
         if m[0] == 11 { echoes.signal() }
+        if m[0] == 2 || m[0] == 6 {   // the screen's touches, pen and two-finger scroll: the Mac's mouse
+            let v = { (o: Int) in Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: Int32.self) })) }
+            let t = Int(m[1]), id = Int(m[2]) | Int(m[3]) << 8, x = v(4), y = v(8), p = v(12)
+            DispatchQueue.main.async { if m[0] == 2 { touch(t, id, x, y, p) } else { scroll(x, y) } }
+        }
         if m[0] == 12 { let a = Int(Int32(littleEndian: m.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) })); q.async { shownUs.append(a); if b > 0 { pictureUs.append(b) } } }
         if m[0] == 1 { let video = m[1] == 10; q.async { rectsAcked += 1; if video { if b > 0 { videoDecodeUs.append(b) } } else { more.decodeUs += b }
             while let f = frameEnds.first, f.0 <= rectsAcked {

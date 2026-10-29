@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -29,6 +30,7 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
     static native void stop();
     static native boolean connected();
     static native void videoSurface(android.view.Surface s, int w, int h);
+    static native void input(int kind, int type, int id, int a, int b, int c);
 
     private static Screen self;
     private SurfaceView video;   // the Mac's video (H.264, decoded by MediaCodec into it) over its place, GONE without one
@@ -43,6 +45,7 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         SurfaceView view = new SurfaceView(this);
         view.getHolder().addCallback(this);
         root.addView(view);
+        view.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { touch(e); return true; } });
         video = new SurfaceView(this);
         video.setZOrderMediaOverlay(true);   // over the picture's Surface
         video.setVisibility(View.GONE);
@@ -68,6 +71,48 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         super.onWindowFocusChanged(focus);
         if (focus) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+    }
+    // the touches, the Mac's mouse (the picture's Surface fills the screen: a view pixel is a stream pixel). One finger is the left
+    // button (its press waits 60 ms: a second finger then makes it a scroll, not a click), two fingers scroll
+    private int finger = -1; private boolean fingers, pending; private float fx, fy, cx, cy;
+    private final Runnable pressNow = new Runnable() { public void run() { press(); } };
+    private void press() { handler.removeCallbacks(pressNow); if (pending) { pending = false; input(2, 0x10, 0, (int) fx, (int) fy, 0); } }
+    private void centre(MotionEvent e, int leaving) {
+        float x = 0, y = 0; int n = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) if (i != leaving) { x += e.getX(i); y += e.getY(i); n++; }
+        if (n > 0) { cx = x / n; cy = y / n; }
+    }
+    private void touch(MotionEvent e) {
+        switch (e.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+            finger = e.getPointerId(0); fx = e.getX(); fy = e.getY(); pending = true; handler.postDelayed(pressNow, 60);
+            break;
+        case MotionEvent.ACTION_POINTER_DOWN:
+            if (!fingers) {   // a second finger: a scroll; a press already sent is let go where it was
+                if (finger >= 0 && !pending) input(2, 0x11, 0, (int) fx, (int) fy, 0);
+                handler.removeCallbacks(pressNow); pending = false; finger = -1; fingers = true;
+            }
+            centre(e, -1);
+            break;
+        case MotionEvent.ACTION_MOVE:
+            if (finger >= 0) {
+                int i = e.findPointerIndex(finger); if (i < 0) break;
+                press();
+                for (int h = 0; h < e.getHistorySize(); h++) input(2, 0x12, 0, (int) e.getHistoricalX(i, h), (int) e.getHistoricalY(i, h), 0);
+                fx = e.getX(i); fy = e.getY(i); input(2, 0x12, 0, (int) fx, (int) fy, 0);
+            } else if (fingers) {
+                float ox = cx, oy = cy; centre(e, -1);
+                input(6, 0, 0, Math.round(cx - ox), Math.round(cy - oy), 0);
+            }
+            break;
+        case MotionEvent.ACTION_POINTER_UP:
+            centre(e, e.getActionIndex());
+            break;
+        case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL:
+            if (finger >= 0) { press(); input(2, 0x11, 0, (int) e.getX(), (int) e.getY(), 0); }
+            finger = -1; fingers = false;
+            break;
+        }
     }
     /** The video Surface over the picture's (x, y, w, h), in pixels of the stream (the picture's Surface fills the screen); w 0: none. From the native side. */
     static void place(final int x, final int y, final int w, final int h) {

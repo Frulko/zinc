@@ -42,16 +42,17 @@ static uint32_t now_us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,
 static void callPlace(int x, int y, int w, int h); static volatile int hideVideo;   // the video, below
 
 // the screen's answers: 16 bytes [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c], little-endian as this CPU
-static void send16(uint8_t kind, uint8_t type, int32_t a, int32_t b, int32_t c, int ack) {
+static void send16id(uint8_t kind, uint8_t type, int id, int32_t a, int32_t b, int32_t c, int ack) {
     pthread_mutex_lock(&wire);
     if (client >= 0) {
-        uint8_t m[16] = {kind, type};
+        uint8_t m[16] = {kind, type, (uint8_t)(id & 255), (uint8_t)(id >> 8 & 255)};
         if (ack) a = ++acked;
         memcpy(m + 4, &a, 4); memcpy(m + 8, &b, 4); memcpy(m + 12, &c, 4);
         send(client, m, 16, MSG_NOSIGNAL);
     }
     pthread_mutex_unlock(&wire);
 }
+static void send16(uint8_t kind, uint8_t type, int32_t a, int32_t b, int32_t c, int ack) { send16id(kind, type, 0, a, b, c, ack); }
 static int readFull(int c, void *p, size_t n) {
     size_t got = 0;
     while (got < n) { ssize_t r = read(c, (uint8_t *)p + got, n - got); if (r <= 0) return 0; got += (size_t)r; }
@@ -418,4 +419,9 @@ JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_videoSurface(JNIEnv *env, jc
     if (vwin) { ANativeWindow_release(vwin); vwin = NULL; }
     if (surface) { vwin = ANativeWindow_fromSurface(env, surface); vw = w; vh = h; pthread_cond_broadcast(&vSurfaceCame); }
     pthread_mutex_unlock(&vLock);
+}
+/** The touches (INPUT, SCROLL of stream.h): the Mac plays them as its mouse. */
+JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_input(JNIEnv *env, jclass cls, jint kind, jint type, jint id, jint a, jint b, jint c) {
+    (void)env; (void)cls;
+    send16id((uint8_t)kind, (uint8_t)type, id, a, b, c, 0);
 }

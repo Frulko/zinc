@@ -100,10 +100,10 @@ let full = Box(x0: 0, y0: 0, x1: W, y1: H)
 // --- the connection's answers: 16 bytes [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c]
 let wire = NSLock()
 var client: Int32 = -1, acked: Int32 = 0
-func send16(_ kind: UInt8, _ type: UInt8, _ a: Int32, _ b: Int32, _ c: Int32, ack: Bool = false) {
+func send16(_ kind: UInt8, _ type: UInt8, _ a: Int32, _ b: Int32, _ c: Int32, ack: Bool = false, id: Int = 0) {
     wire.lock(); defer { wire.unlock() }
     guard client >= 0 else { return }
-    var m = [UInt8](repeating: 0, count: 16); m[0] = kind; m[1] = type
+    var m = [UInt8](repeating: 0, count: 16); m[0] = kind; m[1] = type; m[2] = UInt8(id & 255); m[3] = UInt8(id >> 8 & 255)
     if ack { acked &+= 1 }
     for (i, v) in [ack ? acked : a, b, c].enumerated() { withUnsafeBytes(of: v.littleEndian) { for k in 0..<4 { m[4 + i * 4 + k] = $0[k] } } }
     _ = send(client, m, 16, 0)
@@ -282,11 +282,33 @@ final class VideoDecoder {
 let video = VideoDecoder()
 
 // --- the window
+// --- input: this screen's mouse (a Mac) or fingers and pen (an iPad), to the Mac streaming as INPUT and SCROLL (stream.h): it plays them as
+// its mouse. Where, in the picture's pixels (the picture is centred, scaled by s points a pixel)
+func streamPoint(_ p: CGPoint, _ b: CGRect, flipped: Bool) -> (Int32, Int32) {
+    let s = min(b.width / CGFloat(W), b.height / CGFloat(H))
+    let x = (p.x - b.midX) / s + CGFloat(W) / 2, y = (flipped ? p.y - b.midY : b.midY - p.y) / s + CGFloat(H) / 2
+    return (Int32(max(0, min(CGFloat(W - 1), x))), Int32(max(0, min(CGFloat(H - 1), y))))
+}
+func input(_ type: UInt8, _ at: (Int32, Int32), id: Int = 0, pressure: Int32 = 0) { send16(2, type, at.0, at.1, pressure, id: id) }
 #if os(macOS)
 final class Window: NSWindow { override var canBecomeKey: Bool { true }; override var canBecomeMain: Bool { true } }
 final class View: NSView {
     let blank = NSCursor(image: NSImage(size: NSSize(width: 1, height: 1)), hotSpot: .zero)
     override func resetCursorRects() { addCursorRect(bounds, cursor: blank) }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas(); trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self))
+    }
+    // the mouse: its button as a finger (0x10 press, 0x12 move, 0x11 release), moved without it as 0x13; the wheel as two fingers
+    func at(_ e: NSEvent) -> (Int32, Int32) { streamPoint(convert(e.locationInWindow, from: nil), bounds, flipped: false) }
+    override func mouseDown(with e: NSEvent) { input(0x10, at(e)) }
+    override func mouseDragged(with e: NSEvent) { input(0x12, at(e)) }
+    override func mouseUp(with e: NSEvent) { input(0x11, at(e)) }
+    override func mouseMoved(with e: NSEvent) { input(0x13, at(e)) }
+    override func scrollWheel(with e: NSEvent) {
+        let s = min(bounds.width / CGFloat(W), bounds.height / CGFloat(H))
+        send16(6, 0, Int32((e.scrollingDeltaX / s).rounded()), Int32((e.scrollingDeltaY / s).rounded()), 0)
+    }
     override func layout() {
         super.layout()
         CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -387,13 +409,60 @@ final class Root: UIViewController {
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .black
+        view.backgroundColor = .black; view.isMultipleTouchEnabled = true
         view.layer.addSublayer(picture)
         waiting.text = "Sidecar\n\nPlug this iPad into the Mac with its cable,\nthen choose it in Sidecar on the Mac (iPad on USB)."
         waiting.numberOfLines = 0; waiting.textAlignment = .center; waiting.textColor = .lightGray; waiting.font = .systemFont(ofSize: 22)
         waiting.frame = view.bounds; waiting.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(waiting)
     }
+    // one finger is the Mac's mouse (its press waits 60 ms: a second finger then makes it a scroll, not a click), two fingers scroll,
+    // the Pencil draws with its pressure and tilt
+    var finger: UITouch?, pressAt: CGPoint?, fingers = false, centre = CGPoint.zero, pressTimer: Timer?
+    func at(_ t: UITouch) -> (Int32, Int32) { streamPoint(t.location(in: view), view.bounds, flipped: true) }
+    func pen(_ type: UInt8, _ t: UITouch) {
+        let lean = (CGFloat.pi / 2 - t.altitudeAngle) * 180 / .pi, az = t.azimuthAngle(in: view)
+        let tx = Int(max(-90, min(90, cos(az) * lean))), ty = Int(max(-90, min(90, sin(az) * lean)))
+        let force = t.maximumPossibleForce > 0 ? t.force / t.maximumPossibleForce : 0.5
+        input(type, at(t), id: (tx & 255) | (ty & 255) << 8, pressure: Int32(force * 4096))
+    }
+    func press() { pressTimer?.invalidate(); pressTimer = nil; if let p = pressAt { pressAt = nil; input(0x10, streamPoint(p, view.bounds, flipped: true)) } }
+    func middle(_ e: UIEvent?) -> CGPoint {
+        let ts = (e?.allTouches ?? []).filter { $0.type != .pencil && $0.phase != .ended && $0.phase != .cancelled }
+        guard !ts.isEmpty else { return centre }
+        let ps = ts.map { $0.location(in: view) }
+        return CGPoint(x: ps.map(\.x).reduce(0, +) / CGFloat(ps.count), y: ps.map(\.y).reduce(0, +) / CGFloat(ps.count))
+    }
+    override func touchesBegan(_ touches: Set<UITouch>, with e: UIEvent?) {
+        for t in touches {
+            if t.type == .pencil { pen(0x20, t); continue }
+            if finger == nil && !fingers {
+                finger = t; pressAt = t.location(in: view)
+                pressTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: false) { [weak self] _ in self?.press() }
+            } else if !fingers {   // a second finger: a scroll; a press already sent is let go where it was
+                if pressAt == nil, let f = finger { input(0x11, at(f)) }
+                pressTimer?.invalidate(); pressTimer = nil; pressAt = nil; finger = nil
+                fingers = true; centre = middle(e)
+            }
+        }
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with e: UIEvent?) {
+        for t in touches where t.type == .pencil { for c in e?.coalescedTouches(for: t) ?? [t] { pen(0x22, c) } }
+        if let f = finger, touches.contains(f) { press(); for c in e?.coalescedTouches(for: f) ?? [f] { input(0x12, at(c)) } }
+        if fingers {
+            let c = middle(e), s = min(view.bounds.width / CGFloat(W), view.bounds.height / CGFloat(H))
+            send16(6, 0, Int32(((c.x - centre.x) / s).rounded()), Int32(((c.y - centre.y) / s).rounded()), 0)
+            centre = c
+        }
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with e: UIEvent?) {
+        for t in touches {
+            if t.type == .pencil { pen(0x21, t); continue }
+            if t == finger { press(); input(0x11, at(t)); finger = nil }
+        }
+        if fingers { centre = middle(e); if (e?.allTouches ?? []).allSatisfy({ $0.phase == .ended || $0.phase == .cancelled }) { fingers = false } }
+    }
+    override func touchesCancelled(_ touches: Set<UITouch>, with e: UIEvent?) { touchesEnded(touches, with: e) }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         CATransaction.begin(); CATransaction.setDisableActions(true)

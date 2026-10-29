@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Sidecar: an iPad, an Android device or another Mac used as a screen now drives the Mac: a finger (or the mouse) is the pointer, a tap a click, two quick taps a double click, two fingers scroll, and the Apple Pencil draws with its pressure and tilt. macOS asks once for the Accessibility permission.
 - iPod: every Genius list asked is kept for each iPod: For you shows them on a shelf, Your Genius lists, and the Playlists page lists them all, not only the last one.
 - Sidecar: an Android device on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for Android (`app/sidecar/android`, Android 5 and later), `sidecar-screen --host adb`, and "Android on the USB cable" in the menu, which opens the app on the device. What moves plays as video, decoded by the device's hardware (60 frames/s on a Nexus 7). Each screen now shows in the Mac's Displays and on its card in the menu under the device's own name, and several screens run at once.
 - Sidecar: a colour screen's size is chosen in the menu ("Looks like") among the sizes of its shape, an iPad's too: Retina and HiDPI sizes (drawn at twice and scaled down, sharp text), low resolution below 800 × 560 points where macOS draws nothing at twice (larger, softer text), and native pixels. The size chosen is the one macOS uses, and Details says which it is.
