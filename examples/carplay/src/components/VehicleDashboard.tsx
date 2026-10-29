@@ -45,13 +45,15 @@ export function tickVehicle(session: Session): void {
 }
 function Cluster(x: i32, y: i32, w: i32, h: i32): void {
   const s = live;
-  if (s === null || s.secondary.frames === 0 || s.hud === null || !s.hud.active) return;
+  if (s === null || !hasProjectedMap()) return;
   if (s.ultra !== null && s.ultra.uiSyncEnabled && s.secondary.width === 1920 && s.secondary.height === 720)
     s.secondary.viewRegion(x, y, w, h, 660, 120, 600, 480);
   else s.secondary.view(x, y, w, h);
 }
 function hasProjectedMap(): boolean {
-  return live !== null && live.secondary.frames > 0 && live.hud !== null && live.hud.active;
+  if (live === null || live.secondary.frames === 0 || live.hud === null || !live.hud.active || live.hud.stale) return false;
+  // Ultra can decode a black placeholder stream before the phone chooses a layout.
+  return live.ultra === null || !live.ultra.uiSyncEnabled || live.uiChoice !== null;
 }
 function layoutStatus(): string {
   const s = live;

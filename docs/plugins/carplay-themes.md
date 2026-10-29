@@ -2,6 +2,12 @@
 
 This guide covers the receiver's display geometry, the Mac player's dashboard, and the experimental CarPlay Ultra theme probe. It also proposes a format for locally composed themes. The current receiver does **not** install arbitrary themes on an iPhone.
 
+## Who draws the Ultra dashboard
+
+Apple's [WWDC24 architecture session](https://developer.apple.com/videos/play/wwdc2024/10111/) separates **Remote UI** (video from iPhone, such as maps), **Local UI** (gauges drawn by the vehicle from an authenticated asset and behavior-script package transferred during pairing), vehicle-rendered overlay/punch-through layers, and **UI Sync** (the commands and timing that align the layers). The iPhone's theme selector is a preview of the combined result; the selected palette identifier alone is not a finished cluster image. Our receiver decodes streams 110 and 111 and acknowledges UI Sync, but does not yet fetch, verify, execute or composite the Apple Local UI package. Zinc therefore draws its own clearly labelled dashboard approximation.
+
+A live stream 111 can contain a decoded black placeholder even while frames arrive. The local dashboard now keeps its contour background visible until guidance and a phone layout choice are present. This avoids treating packet count as proof of a visible map. The independent cluster preview remains useful for inspecting the raw stream.
+
 ## What can be customized today
 
 | Surface | Current control | Scope |
