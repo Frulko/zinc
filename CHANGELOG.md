@@ -156,6 +156,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `--engine quickjs`: `zinc:subtle` works (`digest`, HMAC, AES, ECDSA...) instead of failing with `__host_crypto is not defined`, and its results keep every byte.
 - `array.sort()` without a comparator (strings, numbers, booleans) orders by the elements' text as JavaScript does, instead of asking for one (Z0104).
 - `Number(x)` of an `any` or `unknown` value (a field read from `JSON.parse`) converts it as JavaScript does instead of being refused (Z0005).
+- A headless run's scripted `close` (`ZINC_INPUT`) asks the window's close handler first, as the close button does: `window.keepOpen()` keeps the program running.
 - `array.splice(start, count, ...items)` inserts the items it is given (spreads too), as in TypeScript: it no longer fails to compile with Z0104.
 - `--engine quickjs`: `zinc:os` `networkInterfaces`, `userInfo`, `cpus` and `zinc:fs` `symlink`, `readlink`, `chmod` no longer fail with `__host_os... is not defined`.
 - An `await` inside the value assigned to a field or an element (`g.muted = (await read()) === '1'`) no longer fails to compile with Z0108.

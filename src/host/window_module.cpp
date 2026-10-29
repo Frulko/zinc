@@ -89,6 +89,7 @@ void sdl_hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph)
 void sdl_hal_win_current(int32_t id) { w.winCurrent(id); }
 void hal_set_window_config(const HalWindowConfig* c) { config = *c; configSet = true; if (state > 0) w.setWindowConfig(c); }
 void hal_set_resize(int32_t on) { resizeOn = on; if (state > 0) w.setResize(on); }
-void hal_set_close_handler(int (*h)(void)) { closeHandler = h; if (state > 0) w.setClose(h); }
+extern int (*zn_null_close_handler)(void);   // src/host/hal_dispatch.cpp: the headless window's `close` (ZINC_INPUT) asks the handler too
+void hal_set_close_handler(int (*h)(void)) { closeHandler = h; zn_null_close_handler = h; if (state > 0) w.setClose(h); }
 void hal_set_drop_handler(void (*h)(const char*, int)) { dropHandler = h; if (state > 0) w.setDrop(h); }
 }

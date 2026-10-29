@@ -156,7 +156,9 @@ std::vector<NullWin> nullWins;
 bool nullMainHidden = false, nullQuit = false;
 NullWin* nullWin(int32_t id) { for (NullWin& w : nullWins) if (w.open && w.id == id) return &w; return nullptr; }
 bool nullAnyOpen() { for (NullWin& w : nullWins) if (w.open) return true; return false; }
+extern "C" { int (*zn_null_close_handler)(void) = nullptr; }   // the window's close handler (hal_set_close_handler of src/host/window_module.cpp)
 void nullClose(int32_t id) {   // the rule of the last window, as the window HAL keeps it
+  if (id == 0 && zn_null_close_handler && !zn_null_close_handler()) return;   // as a real window's close button: a handler may veto (close to tray, a quit that saves first)
   if (id == 0) { if (nullAnyOpen()) nullMainHidden = true; else nullQuit = true; return; }
   if (NullWin* w = nullWin(id)) w->open = false;
   if (nullMainHidden && !nullAnyOpen()) nullQuit = true;
