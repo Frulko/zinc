@@ -53,12 +53,13 @@ Home and S go to CarPlay and Zinc controls cannot acquire focus. F6 releases the
 keyboard so GPS fields and debug buttons work normally; F6 or a video click
 captures it again. OS modifier shortcuts are left available.
 
-The video shows blue/pink numbered contact rings and a small trackpad map, even
-while waiting for the phone. Marker numbers persist until lift; the miniature
-also shows contacts outside the video. **F7** or the **Trackpad ON/OFF** button
-toggles native-contact forwarding and the markers independently of keyboard
-capture. Turning it off releases both contacts immediately; mouse clicks remain
-available. Only the first two contacts are forwarded
+Trackpad forwarding starts **off**. The preview is hidden until **F7** or the
+**Trackpad ON/OFF** button enables it. When enabled, the video shows blue/pink
+numbered contact rings and a small trackpad map, even while waiting for the
+phone. Marker numbers persist until lift; the miniature also shows contacts
+outside the video. F7 toggles forwarding and the preview independently of
+keyboard capture. Turning it off releases both contacts immediately; mouse
+clicks remain available. Only the first two contacts are forwarded
 to CarPlay. Native contact IDs are opaque and may be negative.
 
 External GPS debug is **simulated**. Edit latitude/longitude/speed (km/h), apply a

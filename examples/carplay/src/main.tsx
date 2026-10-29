@@ -11,6 +11,7 @@ import { HudPanel, tickHud } from './components/HudPanel';
 import { VehicleDashboard, tickVehicle } from './components/VehicleDashboard';
 import { DevicesPanel, tickDevices } from './components/DevicesPanel';
 const session = new Session();
+session.setNativeTouchEnabled(false);
 const url = env('ZINC_CARPLAY_URL');
 const media = env('ZINC_CARPLAY_MEDIA');
 const offline = media !== '' ? new OfflineMedia(session, media) : null;
@@ -22,7 +23,7 @@ const [dashboard, setDashboard] = createSignal<boolean>(false);
 const [devices, setDevices] = createSignal<boolean>(false);
 const [night, setNight] = createSignal<boolean>(false);
 const [detail, setDetail] = createSignal<string>('');
-const [trackpad, setTrackpad] = createSignal<boolean>(true);
+const [trackpad, setTrackpad] = createSignal<boolean>(false);
 const [captured, setCaptured] = createSignal<boolean>(true);
 const touchOverlay = new TouchOverlay();
 const keyboard = new KeyboardCapture((key: string) => { session.key(key); }, (active: boolean) => {
@@ -36,7 +37,7 @@ function toggleTrackpad(): void {
 const handleKey: (e: ui.KeyEvent) => void = offline === null ? installKeyboardCapture(keyboard, toggleTrackpad) : (_e: ui.KeyEvent) => {};
 function Screen(x: i32, y: i32, w: i32, h: i32): void {
   session.view(x, y, w, h);
-  if (offline === null) touchOverlay.draw(x, y, w, h, trackpad());
+  if (offline === null && trackpad()) touchOverlay.draw(x, y, w, h);
 }
 function App(): i32 {
   return <View className="flex-col h-full bg-slate-950" onKeyDown={handleKey}>

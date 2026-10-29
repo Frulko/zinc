@@ -5,9 +5,9 @@ const COLORS: u32[] = [0x38bdf8, 0xfb7185];
 export class TouchOverlay {
   private ids: i32[] = [0, 0];
   private assigned: boolean[] = [false, false];
-  draw(x: number, y: number, w: number, h: number, enabled: boolean): void {
+  draw(x: number, y: number, w: number, h: number): void {
     if (w <= 0 || h <= 0) return;
-    const count = enabled ? gfx.touchCount() : 0;
+    const count = gfx.touchCount();
     for (let slot = 0; slot < 2; slot++) {
       let found = false;
       for (let i = 0; i < count; i++) if (this.assigned[slot] && gfx.touchId(i) === this.ids[slot]) found = true;
@@ -21,7 +21,7 @@ export class TouchOverlay {
     const px = x + 14, py = y + Math.max(8, h - 126);
     gfx.rrect(px, py, 190, 112, 10, 0x0f172a, 220);
     gfx.border(px, py, 190, 112, 10, 1, 0x64748b, 220);
-    gfx.text(px + 8, py + 8, enabled ? `TRACKPAD  ${count} contacts` : 'TRACKPAD OFF - F7', 0xe2e8f0, 1);
+    gfx.text(px + 8, py + 8, `TRACKPAD  ${count} contacts`, 0xe2e8f0, 1);
     for (let slot = 0; slot < 2; slot++) for (let i = 0; i < count; i++) {
       if (!this.assigned[slot] || this.ids[slot] !== gfx.touchId(i)) continue;
       const tx = gfx.touchX(i), ty = gfx.touchY(i), color = COLORS[slot];
