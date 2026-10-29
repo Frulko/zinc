@@ -620,7 +620,7 @@ var backToFast = 0.0   // when the clean pass's waveform gives way to the fast o
     return UInt8((base + (frac * 256 / 255 > Int(blueNoise[(y & 63) * 64 + (x & 63)]) ? 1 : 0)) * 255 / q)
 }
 /** Cleans the tiles of mask. fast: the pointer's trail, all in the fast waveform (no waveform switch: the next move starts at once). */
-func clean(_ mask: inout [Bool], fast: Bool = false) {
+func clean(_ mask: inout [Bool], fast: Bool = false, full: Bool = false) {
     let c0 = now(); defer { prof.clean.append(now() - c0) }
     let rects = rectsOf(mask)
     mask = [Bool](repeating: false, count: tilesX * tilesY)
@@ -633,7 +633,7 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
     }
     // much of the screen: one full refresh is one flash, and cleaner. Not with true greys: they are drawn in place already, without a flash
     // (a full refresh is still done after four screens of them, below)
-    if !fast && cleanMode == 0 && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {
+    if full || !fast && cleanMode == 0 && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {
         for (k, (x, y, w, h)) in rects.enumerated() { greys(x, y, w, h, more: k < rects.count - 1) }
         for _ in rects { acks.wait() }
         writeFull(header(3, 0, 0, 0, 0, 0), 16); cleaned = 0
@@ -1216,6 +1216,10 @@ Thread {
             let rects = rectsOf(changedSince([Bool](repeating: true, count: tilesX * tilesY)))
             for (n, (x, y, w, h)) in rects.enumerated() { sendRect(x, y, w, h, bitsOf(x, y, w, h), more: n < rects.count - 1) }
             for _ in rects { acks.wait() }
+            // the tablet's own full refresh (two fingers) flashed the fast dots it held: their true greys now, without another flash
+            var all = fastTiles
+            for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }
+            if cleanMode != 0 && any(all) { clean(&all) }   // without true greys the flash showed the very picture a clean pass sends
         }
         if let tune { apply(tune) }
         sched()
@@ -1228,7 +1232,9 @@ Thread {
             pointerKind = kind; uprightMask = makeArrow(); pointerMask = turnedMask(); drawn = nil
         }
         if action == "quit-tablet" { writeFull(header(8, 0, 0, 0, 0, 0), 16); print("the tablet's app ends"); exit(0) }
-        if action == "full" { writeFull(header(3, 0, 0, 0, 0, 0), 16); for i in 0..<dirty.count { dirty[i] = 0 }; for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
+        // a full refresh redraws what the tablet holds: the whole screen in its true greys first, or the flash brought back the fast
+        // dots, the pointer's leftovers and all, and the tiles waiting for their clean pass were forgotten
+        if action == "full" { var all = [Bool](repeating: true, count: tilesX * tilesY); clean(&all, full: true); for i in 0..<fastTiles.count { fastTiles[i] = false; trailTiles[i] = false } }
         if action == "clean" { var all = fastTiles; for i in 0..<all.count { all[i] = all[i] || trailTiles[i]; fastTiles[i] = false; trailTiles[i] = false }; clean(&all) }
         let under = drawn.map { pointerBox($0, dot: drawnDot) }.map { b in (b.0 / TW, b.1 / TH, (b.2 - 1) / TW, (b.3 - 1) / TH) } ?? (-1, -1, -2, -2)
         func isUnder(_ tx: Int, _ ty: Int) -> Bool { tx >= under.0 && tx <= under.2 && ty >= under.1 && ty <= under.3 }
